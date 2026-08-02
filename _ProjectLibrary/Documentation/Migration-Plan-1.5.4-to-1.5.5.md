@@ -21,7 +21,16 @@ The earlier ChatGPT development task `Diablo DevilutionX Oracool Edition` and it
 - Step 4: Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All, stable sell sorting, and cursor restoration are user-accepted.
 - Step 5: Unique shop is user-accepted. Premium limit controls are build-verified, with high-level boundary testing deferred.
 - Step 6: Auto Save is implemented, build-verified, and user-accepted.
-- Step 7: generated INI documentation is complete; full regression testing remains.
+- Step 7: complete. Generated INI documentation and the final migration audit are complete; all 213 automated tests pass.
+
+## Final migration verification
+
+- Every feature recorded in the 1.5.4 feature catalogue has a corresponding 1.5.5 implementation.
+- The complete Debug build succeeds.
+- The complete automated test suite passes: 213 of 213 tests on 2026-08-02.
+- User acceptance is complete for all migrated features except the Premium limit controls' high-level boundary cases, which remain deliberately deferred until a sufficiently high-level character is available.
+- The migration introduces no save-format changes.
+- The 1.5.4-to-1.5.5 migration is complete. Further work belongs to the separately recorded post-migration roadmap.
 
 ## Commit policy
 

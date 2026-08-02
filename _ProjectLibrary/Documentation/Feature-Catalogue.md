@@ -12,7 +12,7 @@ This catalogue reconstructs the stable DevilutionX 1.5.4 prototype from its deve
 
 ## World, items, and character
 
-| Prototype | Feature | Default | Required behavior |
+| Prototype | Feature | Prototype default | Required behavior |
 |---|---|---:|---|
 | v0.5 | `Unique Item Drop Multiplier` | `1` | Single-player multiplier clamped to 1–100; final probability cannot exceed 100%. |
 | v0.6 | `Unlock All Town Entrances` | `0` | Unlock Catacombs, Caves, and Hell; also Hive and Crypt in Hellfire. Cathedral unchanged. |
@@ -27,7 +27,7 @@ Implementation status (DevilutionX 1.5.5): all features in this table are build-
 
 ## Griswold
 
-| Prototype | Feature | Default | Required behavior |
+| Prototype | Feature | Prototype default | Required behavior |
 |---|---|---:|---|
 | v0.4 | `Griswold Premium Refresh` | `0` | Add free Refresh to the six-item Premium shop in single-player. |
 | v0.12 | `Griswold Refresh Until Button` | `0` | Search internally using `Griswold Refresh Until Item Names` for exact, case-insensitive full names; semicolon-separated targets; trimmed whitespace; configurable `Griswold Refresh Until Timeout Seconds`; 100,000-generation hard cap; retain the successful or last inventory; clear result/error feedback. |
@@ -45,6 +45,8 @@ Implementation status (DevilutionX 1.5.5): Premium Refresh, Refresh Until, resto
 
 Prototype v0.21 provides single-player automatic saving with these settings:
 
+The values below record the historical 1.5.4 prototype configuration. In the migrated 1.5.5 edition, all Boolean Oracool modifications, including `Auto Save`, default to enabled.
+
 - `Auto Save=0`
 - `Auto Save Interval Minutes=5` with choices 1, 2, 3, 5, 10, 15, 30, and 60.
 - `Auto Save on Level Change=1`.
@@ -61,6 +63,6 @@ Implementation status (DevilutionX 1.5.5): user-accepted after periodic, level-c
 
 - Gameplay changes are single-player only unless explicitly stated otherwise.
 - Every gameplay feature is independently configurable.
-- Vanilla behavior is the default.
+- Vanilla behavior remains available by disabling individual toggles; the current Oracool configuration defaults every Boolean modification to enabled.
 - Existing engine routines are reused where practical.
 - No save-format change is introduced by the migration unless separately approved.

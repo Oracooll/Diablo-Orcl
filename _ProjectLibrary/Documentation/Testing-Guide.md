@@ -4,6 +4,13 @@
 
 For every toggleable feature, test both enabled and disabled states after restarting the game. Unless noted otherwise, also confirm multiplayer retains vanilla behavior.
 
+## Final regression record
+
+- 2026-08-02: the complete Debug build succeeded.
+- 2026-08-02: all 213 automated tests passed.
+- Every catalogued 1.5.4 feature was matched to its 1.5.5 implementation during the final source audit.
+- The only deferred manual validation is high-level boundary testing of the Premium limit controls; this requires a character above the user's currently available level 30 character.
+
 ## Migration batches
 
 ### Batch A: Foundation
