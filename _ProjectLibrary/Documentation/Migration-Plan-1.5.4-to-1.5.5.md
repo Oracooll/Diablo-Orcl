@@ -33,3 +33,7 @@ Each independently testable feature or tightly coupled feature group receives it
 - Reset Stats must use the deterministic level-based budget; inferring refundable history from current stats caused point duplication and loss.
 - Over-cap base stats must not be destructively clamped when the option is disabled.
 - Auto-save public hooks must not be duplicated across anonymous and normal namespaces.
+
+## Acceptance corrections
+
+- 2026-08-02: The initial Buy All Items migration exposed `Sell all` but retained Griswold's vanilla equipment-only filter. It was corrected to expand Griswold's individual and bulk sell eligibility to all positive-value non-gold, non-quest items, including Adria categories.

@@ -59,7 +59,7 @@ For every toggleable feature, test both enabled and disabled states after restar
 #### Bulk sale and sorting acceptance checklist
 
 - Set `Griswold Buy All Items=1` and verify `Sell all` appears above `Back` in Griswold's Sell Items screen.
-- Prepare eligible equipment in both inventory and belt, together with gold, consumables, a staff, and any quest item. Activate `Sell all` and verify only Griswold-eligible items are removed and paid for.
+- Prepare equipment, Adria-sellable consumables, and staves in both inventory and belt, together with gold and any quest item. Verify the expanded individual sell list contains every positive-value non-quest item, then activate `Sell all` and verify those items are removed and paid for while gold and quest items remain.
 - Verify the resulting gold total equals the sum of the individual displayed sale prices.
 - Test with nearly full inventory/gold capacity and verify the operation stops safely if proceeds cannot fit.
 - Set `Griswold Sort Sell Items by Price=1` and verify displayed prices descend from highest to lowest across inventory and belt.

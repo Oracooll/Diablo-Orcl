@@ -530,6 +530,20 @@ bool SmithSellOk(int i)
 	if (pI->isEmpty())
 		return false;
 
+	if (*sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer) {
+		if (pI->_itype == ItemType::Gold)
+			return false;
+		if (pI->_iClass == ICLASS_QUEST)
+			return false;
+		if (pI->IDidx >= IDI_FIRSTQUEST && pI->IDidx <= IDI_LASTQUEST)
+			return false;
+		if (pI->IDidx == IDI_LAZSTAFF)
+			return false;
+
+		const int saleBaseValue = pI->_iMagical != ITEM_QUALITY_NORMAL && pI->_iIdentified ? pI->_iIvalue : pI->_ivalue;
+		return saleBaseValue > 0;
+	}
+
 	if (pI->_iMiscId > IMISC_OILFIRST && pI->_iMiscId < IMISC_OILLAST)
 		return true;
 

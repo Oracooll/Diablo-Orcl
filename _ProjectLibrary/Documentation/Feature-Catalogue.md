@@ -31,7 +31,7 @@ Implementation status (DevilutionX 1.5.5): all features in this table are build-
 |---|---|---:|---|
 | v0.4 | `Griswold Premium Refresh` | `0` | Add free Refresh to the six-item Premium shop in single-player. |
 | v0.12 | `Refresh Until Button` | `0` | Search internally for exact, case-insensitive full names; semicolon-separated targets; trimmed whitespace; configurable timeout; 100,000-generation hard cap; retain the successful or last inventory; clear result/error feedback. |
-| v0.13 | `Griswold Buy All Items` | `0` | Add a player-facing `Sell all` action through which Griswold buys every ordinary eligible item with a valid sell value while rejecting gold, quest items, Lazarus's staff, and unsellable/zero-value items. |
+| v0.13 | `Griswold Buy All Items` | `0` | Expand Griswold's individual Sell Items catalogue to all positive-value items, including Adria-sellable consumables and staves, and add a player-facing `Sell all` action. Reject gold, quest items, Lazarus's staff, and zero-value items. |
 | v0.14 | `Griswold Sell Consumables` | `0` | Add Buy Consumables using Adria's generated inventory, purchase rules, and stock. Back returns to Griswold. |
 | v0.15 | `Griswold Recharge Staves` | `0` | Reuse Adria's eligibility, pricing, confirmation, payment, and recharge behavior. Back returns to Griswold. |
 | v0.16 | `Griswold Restore Health` / `Griswold Restore Mana` | `0` | Independently and silently refill enabled resources whenever Griswold's main menu opens. No new menu entries or sounds. |
@@ -39,7 +39,7 @@ Implementation status (DevilutionX 1.5.5): all features in this table are build-
 | v0.19 | `Griswold Sort Sell Items by Price` | `0` | Stable descending-price sort across eligible inventory and belt items; selling must remove the correct original item. |
 | v0.20 | Premium limit controls | `0` | Independently ignore affix quality-level limits and premium price rejection while retaining item-type compatibility, good-affix rules, mode restrictions, and base-item progression. |
 
-Implementation status (DevilutionX 1.5.5): Premium Refresh, restoration, Buy Consumables, and Recharge Staves passed user acceptance testing on 2026-08-02. Buy All Items and stable descending sell sorting are build-verified and await user acceptance. The remaining Griswold features are pending.
+Implementation status (DevilutionX 1.5.5): Premium Refresh, restoration, Buy Consumables, Recharge Staves, and stable descending sell sorting passed user acceptance testing on 2026-08-02. The first Buy All Items port failed acceptance because it retained Griswold's vanilla eligibility filter; the corrected expanded eligibility is build-verified and awaits retest. The remaining Griswold features are pending.
 
 ## Auto-save
 
