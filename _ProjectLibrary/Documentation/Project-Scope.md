@@ -23,3 +23,7 @@ Diablo Oracool Edition is a controlled modification of DevilutionX 1.5.5.
 
 - Milestone 0: Clean DevilutionX 1.5.5 build and launch verification. Completed.
 - Milestone 1: Oracool Edition identity and core gameplay changes.
+
+## Post-migration roadmap
+
+- Increase the inventory gold-stack limit beyond 5,000 to the highest value that DevilutionX's runtime arithmetic and existing save format can safely represent. The implementation must prevent overflow, preserve saved characters, and update every gold placement, splitting, cursor, display, and validation path consistently.

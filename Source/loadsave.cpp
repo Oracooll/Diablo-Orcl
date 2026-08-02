@@ -30,6 +30,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "mpq/mpq_common.hpp"
+#include "oracool/auto_save.h"
 #include "pfile.h"
 #include "playerdat.hpp"
 #include "plrmsg.h"
@@ -2770,6 +2771,7 @@ void SaveGame()
 	gbValidSaveFile = true;
 	pfile_write_hero(/*writeGameData=*/true);
 	sfile_write_stash();
+	oracool::NotifyGameSaved();
 }
 
 void SaveLevel(SaveWriter &saveWriter)

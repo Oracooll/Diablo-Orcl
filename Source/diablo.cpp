@@ -60,6 +60,7 @@
 #include "multi.h"
 #include "nthread.h"
 #include "objects.h"
+#include "oracool/auto_save.h"
 #include "options.h"
 #include "panels/info_box.hpp"
 #include "panels/spell_book.hpp"
@@ -156,6 +157,8 @@ bool was_ui_init = false;
 
 void StartGame(interface_mode uMsg)
 {
+	if (uMsg == WM_DIABNEWGAME || uMsg == WM_DIABLOADGAME)
+		oracool::ResetAutoSave();
 	CalcViewportGeometry();
 	cineflag = false;
 	InitCursor();
@@ -891,6 +894,7 @@ void RunGameLoop(interface_mode uMsg)
 		multi_process_network_packets();
 		if (game_loop(gbGameLoopStartup))
 			diablo_color_cyc_logic();
+		oracool::ProcessAutoSave();
 		gbGameLoopStartup = false;
 		if (drawGame)
 			DrawAndBlit();

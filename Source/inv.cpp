@@ -22,6 +22,7 @@
 #include "levels/town.h"
 #include "minitext.h"
 #include "options.h"
+#include "oracool/auto_save.h"
 #include "panels/ui_panels.hpp"
 #include "plrmsg.h"
 #include "qol/stash.h"
@@ -1537,6 +1538,7 @@ void CheckInvScrn(bool isShiftHeld, bool isCtrlHeld)
 void InvGetItem(Player &player, int ii)
 {
 	auto &item = Items[ii];
+	const bool scheduleAutoSave = &player == MyPlayer && item._itype != ItemType::Gold;
 	if (DropGoldFlag) {
 		CloseGoldDrop();
 	}
@@ -1569,6 +1571,8 @@ void InvGetItem(Player &player, int ii)
 	// This potentially moves items in memory so must be done after we've made a copy
 	CleanupItems(ii);
 	pcursitem = -1;
+	if (scheduleAutoSave)
+		oracool::ScheduleAutoSaveForItemPickup();
 }
 
 std::optional<Point> FindAdjacentPositionForItem(Point origin, Direction facing)
@@ -1648,7 +1652,10 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 			PlaySFX(IS_IGRAB);
 		}
 
+		const bool scheduleAutoSave = &player == MyPlayer && item._itype != ItemType::Gold;
 		CleanupItems(ii);
+		if (scheduleAutoSave)
+			oracool::ScheduleAutoSaveForItemPickup();
 		return;
 	}
 

@@ -27,6 +27,7 @@
 #include "init.h"
 #include "minitext.h"
 #include "options.h"
+#include "oracool/auto_save.h"
 #include "panels/info_box.hpp"
 #include "qol/stash.h"
 #include "towners.h"
@@ -397,16 +398,12 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 bool StoreAutoPlace(Item &item, bool persistItem)
 {
 	Player &player = *MyPlayer;
-
-	if (AutoEquipEnabled(player, item) && AutoEquip(player, item, persistItem)) {
-		return true;
-	}
-
-	if (AutoPlaceItemInBelt(player, item, persistItem)) {
-		return true;
-	}
-
-	return AutoPlaceItemInInventory(player, item, persistItem);
+	const bool placed = (AutoEquipEnabled(player, item) && AutoEquip(player, item, persistItem))
+	    || AutoPlaceItemInBelt(player, item, persistItem)
+	    || AutoPlaceItemInInventory(player, item, persistItem);
+	if (placed && persistItem)
+		oracool::ScheduleAutoSaveForStorePurchase();
+	return placed;
 }
 
 void StartSmith()

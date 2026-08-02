@@ -39,7 +39,7 @@ Implementation status (DevilutionX 1.5.5): all features in this table are build-
 | v0.19 | `Griswold Sort Sell Items by Price` | `0` | Stable descending-price sort across eligible inventory and belt items; selling must remove the correct original item. |
 | v0.20 | Premium limit controls | `0` | Independently ignore affix quality-level limits and premium price rejection while retaining item-type compatibility, good-affix rules, mode restrictions, and base-item progression. |
 
-Implementation status (DevilutionX 1.5.5): Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All Items, stable descending sell sorting, and corrected menu selection restoration passed user acceptance testing on 2026-08-02. Refresh Until was accepted after successfully locating an Obsidian Ring. Premium limit controls are implemented and build-verified; boundary testing is deferred until a sufficiently high-level character is available. The unique shop's inventory, purchase, and no-replacement behavior are user-accepted; its purchased-item resale correction awaits verification.
+Implementation status (DevilutionX 1.5.5): Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All Items, stable descending sell sorting, corrected menu selection restoration, and the complete Unique Shop behavior passed user acceptance testing on 2026-08-02. Premium limit controls are implemented and build-verified; boundary testing is deferred until a sufficiently high-level character is available.
 
 ## Auto-save
 
@@ -54,6 +54,8 @@ Prototype v0.21 provides single-player automatic saving with these settings:
 - `Auto Save Notification=1`.
 
 Rapid pickups and purchases are debounced into one save. Pending work waits until saving is safe, and manual or completed saves reset pending timers to avoid duplicate writes.
+
+Implementation status (DevilutionX 1.5.5): implemented and build-verified; user acceptance pending.
 
 ## Global constraints
 

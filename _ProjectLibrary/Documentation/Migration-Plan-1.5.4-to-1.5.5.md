@@ -19,8 +19,9 @@ The earlier ChatGPT development task `Diablo DevilutionX Oracool Edition` and it
 - Steps 1 and 2: implemented, build-verified, and accepted by the user.
 - Step 3: implemented, build-verified, and accepted by the user on 2026-08-02.
 - Step 4: Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All, stable sell sorting, and cursor restoration are user-accepted.
-- Step 5: Unique shop and Premium limit controls are implemented and build-verified. Unique-shop purchasing and no-replacement behavior are accepted, with its resale correction awaiting verification; high-level Premium boundary testing is deferred.
-- Steps 6 and 7: pending.
+- Step 5: Unique shop is user-accepted. Premium limit controls are build-verified, with high-level boundary testing deferred.
+- Step 6: Auto Save is implemented and build-verified; user acceptance pending.
+- Step 7: generated INI documentation is complete; full regression testing remains.
 
 ## Commit policy
 
@@ -45,3 +46,4 @@ Each independently testable feature or tightly coupled feature group receives it
 - 2026-08-02: Refresh Until was user-accepted after successfully locating an Obsidian Ring.
 - 2026-08-02: User testing of the Premium limit controls was deferred because the available character is level 30; the controls remain build-verified rather than user-accepted.
 - 2026-08-02: The Unique Shop purchase and no-replacement behavior passed user testing. Purchased uniques were initially hidden from Griswold's Sell Items list when their base ID fell in the quest range; shop merchandise is now explicitly marked and permitted for resale while actual quest items remain protected.
+- 2026-08-02: The Unique Shop resale correction passed user testing, completing acceptance of the feature.

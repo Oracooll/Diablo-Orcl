@@ -22,6 +22,7 @@
 #include "hwcursor.hpp"
 #include "init.h"
 #include "loadsave.h"
+#include "oracool/auto_save.h"
 #include "pfile.h"
 #include "plrmsg.h"
 #include "utils/sdl_geometry.h"
@@ -478,6 +479,9 @@ void ShowProgress(interface_mode uMsg)
 		IncProgress();
 		break;
 	}
+
+	if (uMsg != WM_DIABNEWGAME && uMsg != WM_DIABLOADGAME)
+		oracool::ScheduleAutoSaveForLevelChange();
 
 	if (!HeadlessMode) {
 		assert(ghMainWnd);

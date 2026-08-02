@@ -38,6 +38,7 @@ set(libdevilutionx_SRCS
   nthread.cpp
   objdat.cpp
   objects.cpp
+  oracool/auto_save.cpp
   options.cpp
   pack.cpp
   pfile.cpp
