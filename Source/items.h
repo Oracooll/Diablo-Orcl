@@ -488,6 +488,7 @@ extern bool UniqueItemFlags[128];
 uint8_t GetOutlineColor(const Item &item, bool checkReq);
 bool IsItemAvailable(int i);
 bool IsUniqueAvailable(int i);
+bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid);
 void ClearUniqueItemFlags();
 void InitItemGFX();
 void InitItems();

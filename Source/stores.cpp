@@ -9,6 +9,8 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <limits>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -30,8 +32,8 @@
 #include "towners.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
-#include "utils/str_case.hpp"
 #include "utils/stdcompat/string_view.hpp"
+#include "utils/str_case.hpp"
 #include "utils/str_cat.hpp"
 #include "utils/utf8.hpp"
 
@@ -47,6 +49,10 @@ Item smithitem[SMITH_ITEMS];
 int numpremium;
 int premiumlevel;
 Item premiumitems[SMITH_PREMIUM_ITEMS];
+
+constexpr int SmithUniqueItemsMaximum = 8;
+Item smithUniqueItems[SmithUniqueItemsMaximum];
+bool smithUniqueItemsInitialized;
 
 Item healitem[20];
 
@@ -184,23 +190,39 @@ int SmithSellAllLine()
 	return BackButtonLine() - 2;
 }
 
-bool HasExtendedSmithServices()
+bool HasSmithUniqueShop()
 {
-	return !gbIsMultiplayer && (*sgOptions.Oracool.griswoldSellConsumables || *sgOptions.Oracool.griswoldRechargeStaves);
+	return !gbIsMultiplayer && *sgOptions.Oracool.griswoldSellUniqueItems;
+}
+
+std::vector<TalkID> SmithMenuEntries()
+{
+	std::vector<TalkID> entries { TalkID::Gossip, TalkID::SmithBuy, TalkID::SmithPremiumBuy };
+	if (HasSmithUniqueShop())
+		entries.push_back(TalkID::SmithUniqueBuy);
+	entries.push_back(TalkID::SmithSell);
+	entries.push_back(TalkID::SmithRepair);
+	if (!gbIsMultiplayer && *sgOptions.Oracool.griswoldSellConsumables)
+		entries.push_back(TalkID::SmithConsumables);
+	if (!gbIsMultiplayer && *sgOptions.Oracool.griswoldRechargeStaves)
+		entries.push_back(TalkID::SmithRecharge);
+	entries.push_back(TalkID::None);
+	return entries;
+}
+
+int SmithMenuFirstLine(size_t entryCount)
+{
+	return entryCount >= 9 ? 6 : entryCount >= 7 ? 8
+	                                             : 10;
 }
 
 int SmithMenuLine(TalkID service)
 {
-	const bool extended = HasExtendedSmithServices();
-	switch (service) {
-	case TalkID::SmithBuy: return extended ? 10 : 12;
-	case TalkID::SmithPremiumBuy: return extended ? 12 : 14;
-	case TalkID::SmithSell: return extended ? 14 : 16;
-	case TalkID::SmithRepair: return extended ? 16 : 18;
-	case TalkID::SmithConsumables: return 18;
-	case TalkID::SmithRecharge: return 20;
-	default: return extended ? 8 : 10;
-	}
+	const std::vector<TalkID> entries = SmithMenuEntries();
+	const auto position = std::find(entries.begin(), entries.end(), service);
+	if (position == entries.end())
+		return SmithMenuFirstLine(entries.size());
+	return SmithMenuFirstLine(entries.size()) + static_cast<int>(std::distance(entries.begin(), position)) * 2;
 }
 
 int LineHeight()
@@ -407,24 +429,45 @@ void StartSmith()
 	stextscrl = false;
 	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 3, _("Blacksmith's shop"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	const bool extendedServices = HasExtendedSmithServices();
-	AddSText(0, extendedServices ? 6 : 7, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, extendedServices ? 8 : 10, _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, extendedServices ? 10 : 12, _("Buy basic items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, extendedServices ? 12 : 14, _("Buy premium items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, extendedServices ? 14 : 16, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, extendedServices ? 16 : 18, _("Repair items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	if (extendedServices) {
-		if (*sgOptions.Oracool.griswoldSellConsumables)
-			AddSText(0, 18, _("Buy consumables"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		if (*sgOptions.Oracool.griswoldRechargeStaves)
-			AddSText(0, 20, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 22, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	} else {
-		AddSText(0, 20, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	const std::vector<TalkID> entries = SmithMenuEntries();
+	const int firstLine = SmithMenuFirstLine(entries.size());
+	AddSText(0, firstLine - 2, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	for (size_t i = 0; i < entries.size(); ++i) {
+		const int line = firstLine + static_cast<int>(i) * 2;
+		switch (entries[i]) {
+		case TalkID::Gossip:
+			AddSText(0, line, _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+			break;
+		case TalkID::SmithBuy:
+			AddSText(0, line, _("Buy basic items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			break;
+		case TalkID::SmithPremiumBuy:
+			AddSText(0, line, _("Buy premium items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			break;
+		case TalkID::SmithUniqueBuy:
+			AddSText(0, line, _("Buy unique items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			break;
+		case TalkID::SmithSell:
+			AddSText(0, line, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			break;
+		case TalkID::SmithRepair:
+			AddSText(0, line, _("Repair items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			break;
+		case TalkID::SmithConsumables:
+			AddSText(0, line, _("Buy consumables"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			break;
+		case TalkID::SmithRecharge:
+			AddSText(0, line, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			break;
+		case TalkID::None:
+			AddSText(0, line, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			break;
+		default:
+			break;
+		}
 	}
 	AddSLine(5);
-	storenumh = extendedServices ? 22 : 20;
+	storenumh = firstLine + static_cast<int>(entries.size() - 1) * 2;
 }
 
 void ScrollSmithBuy(int idx)
@@ -544,6 +587,52 @@ bool StartSmithPremiumBuy()
 
 	ScrollSmithPremiumBuy(stextsval);
 
+	return true;
+}
+
+void ScrollSmithUniqueBuy(int idx)
+{
+	ClearSText(5, 21);
+	stextup = 5;
+	for (int l = 5; l < 20 && idx < SmithUniqueItemsMaximum; l += 4, ++idx) {
+		if (smithUniqueItems[idx].isEmpty()) {
+			l -= 4;
+			continue;
+		}
+		const UiFlags itemColor = smithUniqueItems[idx].getTextColorWithStatCheck();
+		AddSText(20, l, smithUniqueItems[idx].getName(), itemColor, true, smithUniqueItems[idx]._iCurs, true);
+		AddSTextVal(l, smithUniqueItems[idx]._iIvalue);
+		PrintStoreItem(smithUniqueItems[idx], l + 1, itemColor, true);
+		stextdown = l;
+	}
+	if (stextsel != -1 && !stext[stextsel].isSelectable() && stextsel != BackButtonLine())
+		stextsel = stextdown;
+}
+
+bool StartSmithUniqueBuy()
+{
+	storenumh = 0;
+	for (Item &item : smithUniqueItems) {
+		if (item.isEmpty())
+			continue;
+		item._iStatFlag = MyPlayer->CanUseItem(item);
+		++storenumh;
+	}
+	if (storenumh == 0) {
+		StartStore(TalkID::Smith);
+		stextsel = SmithMenuLine(TalkID::SmithUniqueBuy);
+		return false;
+	}
+
+	stextsize = true;
+	stextscrl = true;
+	stextsval = 0;
+	RenderGold = true;
+	AddSText(20, 1, _("I have these unique items for sale:"), UiFlags::ColorWhitegold, false);
+	AddSLine(3);
+	AddItemListBackButton();
+	stextsmax = std::max(storenumh - 4, 0);
+	ScrollSmithUniqueBuy(0);
 	return true;
 }
 
@@ -1077,6 +1166,7 @@ void StoreConfirm(Item &item)
 		break;
 	case TalkID::HealerBuy:
 	case TalkID::SmithPremiumBuy:
+	case TalkID::SmithUniqueBuy:
 	case TalkID::WitchBuy:
 	case TalkID::SmithConsumables:
 	case TalkID::SmithBuy:
@@ -1434,53 +1524,43 @@ void StartDrunk()
 
 void SmithEnter()
 {
-	const bool extendedServices = HasExtendedSmithServices();
-	if (extendedServices) {
-		switch (stextsel) {
-		case 8:
-			talker = TOWN_SMITH;
-			stextlhold = 8;
-			stextshold = TalkID::Smith;
-			StartStore(TalkID::Gossip);
-			break;
-		case 10: StartStore(TalkID::SmithBuy); break;
-		case 12: StartStore(TalkID::SmithPremiumBuy); break;
-		case 14: StartStore(TalkID::SmithSell); break;
-		case 16: StartStore(TalkID::SmithRepair); break;
-		case 18:
-			if (*sgOptions.Oracool.griswoldSellConsumables)
-				StartStore(TalkID::SmithConsumables);
-			break;
-		case 20:
-			if (*sgOptions.Oracool.griswoldRechargeStaves)
-				StartStore(TalkID::SmithRecharge);
-			break;
-		case 22: stextflag = TalkID::None; break;
-		}
+	const std::vector<TalkID> entries = SmithMenuEntries();
+	const int offset = stextsel - SmithMenuFirstLine(entries.size());
+	if (offset < 0 || offset % 2 != 0 || static_cast<size_t>(offset / 2) >= entries.size())
 		return;
-	}
-
-	switch (stextsel) {
-	case 10:
+	const TalkID selected = entries[offset / 2];
+	switch (selected) {
+	case TalkID::Gossip:
 		talker = TOWN_SMITH;
-		stextlhold = 10;
+		stextlhold = stextsel;
 		stextshold = TalkID::Smith;
 		StartStore(TalkID::Gossip);
 		break;
-	case 12:
+	case TalkID::SmithBuy:
 		StartStore(TalkID::SmithBuy);
 		break;
-	case 14:
+	case TalkID::SmithPremiumBuy:
 		StartStore(TalkID::SmithPremiumBuy);
 		break;
-	case 16:
+	case TalkID::SmithUniqueBuy:
+		StartStore(TalkID::SmithUniqueBuy);
+		break;
+	case TalkID::SmithSell:
 		StartStore(TalkID::SmithSell);
 		break;
-	case 18:
+	case TalkID::SmithRepair:
 		StartStore(TalkID::SmithRepair);
 		break;
-	case 20:
+	case TalkID::SmithConsumables:
+		StartStore(TalkID::SmithConsumables);
+		break;
+	case TalkID::SmithRecharge:
+		StartStore(TalkID::SmithRecharge);
+		break;
+	case TalkID::None:
 		stextflag = TalkID::None;
+		break;
+	default:
 		break;
 	}
 }
@@ -1555,6 +1635,41 @@ void SmithBuyPItem(Item &item)
 	premiumitems[xx].clear();
 	numpremium--;
 	SpawnPremium(*MyPlayer);
+}
+
+void SmithBuyUniqueItem(Item &item)
+{
+	TakePlrsMoney(item._iIvalue);
+	StoreAutoPlace(item, true);
+	int idx = stextvhold + ((stextlhold - stextup) / 4);
+	for (; idx < SmithUniqueItemsMaximum - 1; ++idx)
+		smithUniqueItems[idx] = std::move(smithUniqueItems[idx + 1]);
+	smithUniqueItems[SmithUniqueItemsMaximum - 1].clear();
+	CalcPlrInv(*MyPlayer, true);
+}
+
+void SmithUniqueBuyEnter()
+{
+	if (stextsel == BackButtonLine()) {
+		StartStore(TalkID::Smith);
+		stextsel = SmithMenuLine(TalkID::SmithUniqueBuy);
+		return;
+	}
+
+	stextshold = TalkID::SmithUniqueBuy;
+	stextlhold = stextsel;
+	stextvhold = stextsval;
+	const int idx = stextsval + ((stextsel - stextup) / 4);
+	if (!PlayerCanAfford(smithUniqueItems[idx]._iIvalue)) {
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	if (!StoreAutoPlace(smithUniqueItems[idx], false)) {
+		StartStore(TalkID::NoRoom);
+		return;
+	}
+	StoreItem = smithUniqueItems[idx];
+	StartStore(TalkID::Confirm);
 }
 
 std::vector<std::string> GetPremiumRefreshTargets()
@@ -2124,6 +2239,9 @@ void ConfirmEnter(Item &item)
 		case TalkID::SmithPremiumBuy:
 			SmithBuyPItem(item);
 			break;
+		case TalkID::SmithUniqueBuy:
+			SmithBuyUniqueItem(item);
+			break;
 		default:
 			break;
 		}
@@ -2397,9 +2515,40 @@ void InitStores()
 
 	for (auto &premiumitem : premiumitems)
 		premiumitem.clear();
+	for (Item &item : smithUniqueItems)
+		item.clear();
+	smithUniqueItemsInitialized = false;
 
 	boyitem.clear();
 	boylevel = 0;
+}
+
+void SpawnSmithUniqueItems(const Player &player)
+{
+	if (smithUniqueItemsInitialized || !HasSmithUniqueShop())
+		return;
+	smithUniqueItemsInitialized = true;
+
+	std::vector<_unique_items> candidates;
+	for (int i = 0; UniqueItems[i].UIItemId != UITYPE_INVALID; ++i) {
+		if (IsUniqueAvailable(i) && UniqueItems[i].UIMinLvl <= player._pLevel)
+			candidates.push_back(static_cast<_unique_items>(i));
+	}
+
+	const int requestedCount = std::clamp(*sgOptions.Oracool.griswoldUniqueShopItems, 1, SmithUniqueItemsMaximum);
+	const int priceMultiplier = std::max(*sgOptions.Oracool.griswoldUniqueItemPriceMultiplier, 1);
+	int generatedCount = 0;
+	while (generatedCount < requestedCount && !candidates.empty()) {
+		const size_t candidateIndex = static_cast<size_t>(GenerateRnd(candidates.size()));
+		const _unique_items uid = candidates[candidateIndex];
+		candidates.erase(candidates.begin() + candidateIndex);
+		Item item;
+		if (!CreateUniqueVendorItem(player, item, uid))
+			continue;
+		const int64_t price = static_cast<int64_t>(item._iIvalue) * priceMultiplier;
+		item._iIvalue = static_cast<int>(std::min<int64_t>(price, std::numeric_limits<int>::max()));
+		smithUniqueItems[generatedCount++] = std::move(item);
+	}
 }
 
 void SetupTownStores()
@@ -2423,6 +2572,7 @@ void SetupTownStores()
 	SpawnHealer(l);
 	SpawnBoy(myPlayer._pLevel);
 	SpawnPremium(myPlayer);
+	SpawnSmithUniqueItems(myPlayer);
 }
 
 void FreeStoreMem()
@@ -2574,6 +2724,10 @@ void StartStore(TalkID s)
 	case TalkID::SmithRecharge:
 		StartWitchRecharge();
 		break;
+	case TalkID::SmithUniqueBuy:
+		if (!StartSmithUniqueBuy())
+			return;
+		break;
 	case TalkID::Witch:
 		StartWitch();
 		break;
@@ -2679,6 +2833,9 @@ void DrawSText(const Surface &out)
 		case TalkID::SmithPremiumBuy:
 			ScrollSmithPremiumBuy(stextsval);
 			break;
+		case TalkID::SmithUniqueBuy:
+			ScrollSmithUniqueBuy(stextsval);
+			break;
 		default:
 			break;
 		}
@@ -2733,6 +2890,10 @@ void StoreESC()
 	case TalkID::SmithPremiumBuy:
 		StartStore(TalkID::Smith);
 		stextsel = SmithMenuLine(TalkID::SmithPremiumBuy);
+		break;
+	case TalkID::SmithUniqueBuy:
+		StartStore(TalkID::Smith);
+		stextsel = SmithMenuLine(TalkID::SmithUniqueBuy);
 		break;
 	case TalkID::SmithSell:
 		StartStore(TalkID::Smith);
@@ -2918,6 +3079,9 @@ void StoreEnter()
 		break;
 	case TalkID::SmithPremiumBuy:
 		SmithPremiumBuyEnter();
+		break;
+	case TalkID::SmithUniqueBuy:
+		SmithUniqueBuyEnter();
 		break;
 	case TalkID::SmithBuy:
 		SmithBuyEnter();

@@ -27,6 +27,7 @@ enum class TalkID : uint8_t {
 	SmithBuy,
 	SmithSell,
 	SmithRepair,
+	SmithUniqueBuy,
 	SmithConsumables,
 	SmithRecharge,
 	Witch,

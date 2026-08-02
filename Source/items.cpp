@@ -2498,6 +2498,34 @@ bool IsUniqueAvailable(int i)
 	return gbIsHellfire || i <= 89;
 }
 
+bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
+{
+	if (uid == UITEM_INVALID || !IsUniqueAvailable(uid))
+		return false;
+
+	_item_indexes baseItemIndex = IDI_GOLD;
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
+		if (IsItemAvailable(i) && AllItemsList[i].iItemId == UniqueItems[uid].UIItemId) {
+			baseItemIndex = static_cast<_item_indexes>(i);
+			break;
+		}
+	}
+	if (baseItemIndex == IDI_GOLD)
+		return false;
+
+	item = {};
+	item._iSeed = AdvanceRndSeed();
+	SetRndSeed(item._iSeed);
+	GetItemAttrs(item, baseItemIndex, UniqueItems[uid].UIMinLvl);
+	item._iCreateInfo = std::max<int>(UniqueItems[uid].UIMinLvl, 1) | CF_UNIQUE;
+	const bool wasGenerated = UniqueItemFlags[uid];
+	GetUniqueItem(player, item, uid);
+	UniqueItemFlags[uid] = wasGenerated;
+	item._iIdentified = true;
+	item._iStatFlag = player.CanUseItem(item);
+	return true;
+}
+
 void ClearUniqueItemFlags()
 {
 	memset(UniqueItemFlags, 0, sizeof(UniqueItemFlags));

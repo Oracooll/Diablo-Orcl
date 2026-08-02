@@ -19,7 +19,7 @@ The earlier ChatGPT development task `Diablo DevilutionX Oracool Edition` and it
 - Steps 1 and 2: implemented, build-verified, and accepted by the user.
 - Step 3: implemented, build-verified, and accepted by the user on 2026-08-02.
 - Step 4: Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All, stable sell sorting, and cursor restoration are user-accepted.
-- Step 5: Premium limit controls are implemented and build-verified, with high-level boundary testing deferred; the unique shop remains pending.
+- Step 5: Unique shop and Premium limit controls are implemented and build-verified. Unique-shop user acceptance is pending; high-level Premium boundary testing is deferred.
 - Steps 6 and 7: pending.
 
 ## Commit policy

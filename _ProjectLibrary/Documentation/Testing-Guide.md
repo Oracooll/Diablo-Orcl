@@ -78,6 +78,16 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Disable each option and verify vanilla behavior returns. Confirm neither feature is active in multiplayer.
 - With the expanded Griswold menu active, open and close each service using both `Back` and Escape; verify the selector returns to the exact service that was closed.
 
+#### Unique shop acceptance checklist
+
+- With `Griswold Sell Unique Items=1`, start a new single-player game and verify Griswold shows `Buy unique items`; confirm the entry is absent when disabled and in multiplayer.
+- Verify the shop contains the number configured by `Griswold Unique Shop Items`, contains no duplicate unique names, and every item is identified.
+- Compare an item's displayed purchase price using at least two `Griswold Unique Item Price Multiplier` values in separate new games.
+- Buy an item and verify the correct item enters inventory, the correct gold is deducted, and the purchased entry disappears without replacement.
+- Test confirmation cancellation, insufficient gold, full inventory, `Back`, and Escape. Every return route must restore the selector to `Buy unique items`.
+- Use Premium Refresh and Refresh Until, then reopen the unique shop and verify its stock is unchanged.
+- Leave and return to town during the same game and verify the remaining unique stock is unchanged.
+
 ### Batch D: Auto-save
 
 - Periodic save at one minute.
