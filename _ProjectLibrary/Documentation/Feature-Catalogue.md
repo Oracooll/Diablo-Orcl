@@ -41,6 +41,8 @@ Implementation status (DevilutionX 1.5.5): all features in this table are build-
 
 Implementation status (DevilutionX 1.5.5): Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All Items, stable descending sell sorting, corrected menu selection restoration, and the complete Unique Shop behavior passed user acceptance testing on 2026-08-02. Premium limit controls are implemented and build-verified; boundary testing is deferred until a sufficiently high-level character is available.
 
+Post-migration extension OE-007 (build-verified; awaiting user acceptance): Griswold's Buy Consumables begins with exactly four always-available Pepin potions in this order: Healing, Full Healing, Rejuvenation, and Full Rejuvenation. Adria's normal stock follows, and no other Pepin stock is included.
+
 ## Auto-save
 
 Prototype v0.21 provides single-player automatic saving with these settings:

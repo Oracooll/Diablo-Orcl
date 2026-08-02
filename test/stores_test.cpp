@@ -1,24 +1,45 @@
+#include <array>
+
 #include <gtest/gtest.h>
 
+#include "items.h"
 #include "stores.h"
 
 using namespace devilution;
 
 namespace {
 
-TEST(Stores, SmithConsumablesCombinesWitchThenHealerStock)
+TEST(Stores, SmithConsumablesListsFourInfinitePepinPotionsBeforeWitchStock)
 {
+	InitStores();
 	for (devilution::Item &item : witchitem)
 		item.clear();
 	for (devilution::Item &item : healitem)
 		item.clear();
 
-	witchitem[3]._itype = ItemType::Misc;
-	healitem[7]._itype = ItemType::Misc;
+	InitializeItem(witchitem[3], IDI_MANA);
+	InitializeItem(healitem[7], IDI_RESURRECT);
 
-	ASSERT_EQ(GetSmithConsumablesStockCountForTest(), 2);
-	EXPECT_FALSE(IsSmithConsumablesStockFromHealerForTest(0));
-	EXPECT_TRUE(IsSmithConsumablesStockFromHealerForTest(1));
+	ASSERT_EQ(GetSmithConsumablesStockCountForTest(), 5);
+	constexpr std::array<item_misc_id, 4> ExpectedPepinPotions = {
+		IMISC_HEAL,
+		IMISC_FULLHEAL,
+		IMISC_REJUV,
+		IMISC_FULLREJUV,
+	};
+	for (size_t i = 0; i < ExpectedPepinPotions.size(); ++i) {
+		EXPECT_EQ(GetSmithConsumablesStockMiscIdForTest(i), ExpectedPepinPotions[i]);
+		EXPECT_TRUE(IsSmithConsumablesStockFromPepinForTest(i));
+		UpdateSmithConsumablesStockAfterPurchaseForTest(i);
+		ASSERT_EQ(GetSmithConsumablesStockCountForTest(), 5);
+		for (size_t j = 0; j < ExpectedPepinPotions.size(); ++j)
+			EXPECT_EQ(GetSmithConsumablesStockMiscIdForTest(j), ExpectedPepinPotions[j]);
+	}
+
+	EXPECT_EQ(GetSmithConsumablesStockMiscIdForTest(4), IMISC_MANA);
+	EXPECT_FALSE(IsSmithConsumablesStockFromPepinForTest(4));
+	UpdateSmithConsumablesStockAfterPurchaseForTest(4);
+	EXPECT_EQ(GetSmithConsumablesStockCountForTest(), 4);
 }
 
 TEST(Stores, AddStoreHoldRepair_magic)

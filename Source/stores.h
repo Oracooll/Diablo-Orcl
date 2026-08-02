@@ -78,7 +78,9 @@ extern DVL_API_FOR_TEST Item healitem[20];
 extern DVL_API_FOR_TEST Item witchitem[WITCH_ITEMS];
 
 size_t GetSmithConsumablesStockCountForTest();
-bool IsSmithConsumablesStockFromHealerForTest(size_t index);
+item_misc_id GetSmithConsumablesStockMiscIdForTest(size_t index);
+bool IsSmithConsumablesStockFromPepinForTest(size_t index);
+void UpdateSmithConsumablesStockAfterPurchaseForTest(size_t index);
 
 /** Current level of the item sold by Wirt */
 extern int boylevel;

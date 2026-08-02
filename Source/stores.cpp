@@ -6,6 +6,7 @@
 #include "stores.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <cstdint>
@@ -26,6 +27,7 @@
 #include "error.h"
 #include "init.h"
 #include "minitext.h"
+#include "objects.h"
 #include "options.h"
 #include "oracool/auto_save.h"
 #include "panels/info_box.hpp"
@@ -226,35 +228,55 @@ int SmithMenuLine(TalkID service)
 	return SmithMenuFirstLine(entries.size()) + static_cast<int>(std::distance(entries.begin(), position)) * 2;
 }
 
+constexpr size_t SmithPepinPotionCount = 4;
+std::array<Item, SmithPepinPotionCount> smithPepinPotions;
+
+std::array<_item_indexes, SmithPepinPotionCount> SmithPepinPotionTypes()
+{
+	return { IDI_HEAL, IDI_FULLHEAL, ItemMiscIdIdx(IMISC_REJUV), ItemMiscIdIdx(IMISC_FULLREJUV) };
+}
+
+void InitializeSmithPepinPotions()
+{
+	const std::array<_item_indexes, SmithPepinPotionCount> potionTypes = SmithPepinPotionTypes();
+	for (size_t i = 0; i < SmithPepinPotionCount; ++i) {
+		InitializeItem(smithPepinPotions[i], potionTypes[i]);
+		smithPepinPotions[i]._iStatFlag = true;
+	}
+}
+
 enum class ConsumablesVendor : uint8_t {
+	Pepin,
 	Witch,
-	Healer,
 };
 
 struct ConsumablesStockEntry {
 	Item *item;
 	ConsumablesVendor vendor;
 	int vendorIndex;
+
+	[[nodiscard]] bool isReplenishing() const
+	{
+		return vendor == ConsumablesVendor::Pepin || vendorIndex < 3;
+	}
 };
 
 std::vector<ConsumablesStockEntry> SmithConsumablesStock()
 {
 	std::vector<ConsumablesStockEntry> stock;
-	stock.reserve(WITCH_ITEMS + std::size(healitem));
+	stock.reserve(SmithPepinPotionCount + WITCH_ITEMS);
+	for (size_t i = 0; i < SmithPepinPotionCount; ++i)
+		stock.push_back({ &smithPepinPotions[i], ConsumablesVendor::Pepin, static_cast<int>(i) });
 	for (int i = 0; i < WITCH_ITEMS; ++i) {
 		if (!witchitem[i].isEmpty())
 			stock.push_back({ &witchitem[i], ConsumablesVendor::Witch, i });
 	}
-	for (int i = 0; i < static_cast<int>(std::size(healitem)); ++i) {
-		if (!healitem[i].isEmpty())
-			stock.push_back({ &healitem[i], ConsumablesVendor::Healer, i });
-	}
 	return stock;
 }
 
-Item &WitchStockItem(int index, bool includeHealerStock)
+Item &WitchStockItem(int index, bool includePepinPotions)
 {
-	if (!includeHealerStock)
+	if (!includePepinPotions)
 		return witchitem[index];
 	return *SmithConsumablesStock()[index].item;
 }
@@ -939,13 +961,13 @@ void StartWitch()
 	storenumh = 20;
 }
 
-void ScrollWitchBuy(int idx, bool includeHealerStock)
+void ScrollWitchBuy(int idx, bool includePepinPotions)
 {
 	ClearSText(5, 21);
 	stextup = 5;
 
 	for (int l = 5; l < 20; l += 4) {
-		Item &item = WitchStockItem(idx, includeHealerStock);
+		Item &item = WitchStockItem(idx, includePepinPotions);
 		if (!item.isEmpty()) {
 			UiFlags itemColor = item.getTextColorWithStatCheck();
 			AddSText(20, l, item.getName(), itemColor, true, item._iCurs, true);
@@ -976,7 +998,7 @@ void WitchBookLevel(Item &bookItem)
 	}
 }
 
-void StartWitchBuy(bool includeHealerStock)
+void StartWitchBuy(bool includePepinPotions)
 {
 	stextsize = true;
 	stextscrl = true;
@@ -986,11 +1008,11 @@ void StartWitchBuy(bool includeHealerStock)
 	RenderGold = true;
 	AddSText(20, 1, _("I have these items for sale:"), UiFlags::ColorWhitegold, false);
 	AddSLine(3);
-	ScrollWitchBuy(stextsval, includeHealerStock);
+	ScrollWitchBuy(stextsval, includePepinPotions);
 	AddItemListBackButton();
 
 	storenumh = 0;
-	const std::vector<ConsumablesStockEntry> smithStock = includeHealerStock ? SmithConsumablesStock() : std::vector<ConsumablesStockEntry> {};
+	const std::vector<ConsumablesStockEntry> smithStock = includePepinPotions ? SmithConsumablesStock() : std::vector<ConsumablesStockEntry> {};
 	auto updateItem = [&](Item &item) {
 		if (item.isEmpty())
 			return;
@@ -999,7 +1021,7 @@ void StartWitchBuy(bool includeHealerStock)
 		item._iStatFlag = MyPlayer->CanUseItem(item);
 		storenumh++;
 	};
-	if (includeHealerStock) {
+	if (includePepinPotions) {
 		for (const ConsumablesStockEntry &entry : smithStock)
 			updateItem(*entry.item);
 	} else {
@@ -1996,6 +2018,23 @@ void WitchEnter()
 }
 
 /**
+ * @brief Removes a purchased non-replenishing item from the witch's stock.
+ */
+void RemoveWitchStockItem(int idx)
+{
+	if (idx < 3)
+		return;
+	if (idx == WITCH_ITEMS - 1) {
+		witchitem[WITCH_ITEMS - 1].clear();
+	} else {
+		for (; !witchitem[idx + 1].isEmpty(); idx++) {
+			witchitem[idx] = std::move(witchitem[idx + 1]);
+		}
+		witchitem[idx].clear();
+	}
+}
+
+/**
  * @brief Purchases an item from the witch.
  */
 void WitchBuyItemAt(Item &item, int idx)
@@ -2005,18 +2044,7 @@ void WitchBuyItemAt(Item &item, int idx)
 
 	TakePlrsMoney(item._iIvalue);
 	StoreAutoPlace(item, true);
-
-	if (idx >= 3) {
-		if (idx == WITCH_ITEMS - 1) {
-			witchitem[WITCH_ITEMS - 1].clear();
-		} else {
-			for (; !witchitem[idx + 1].isEmpty(); idx++) {
-				witchitem[idx] = std::move(witchitem[idx + 1]);
-			}
-			witchitem[idx].clear();
-		}
-	}
-
+	RemoveWitchStockItem(idx);
 	CalcPlrInv(*MyPlayer, true);
 }
 
@@ -2202,14 +2230,26 @@ void HealerBuyItem(Item &item)
 	HealerBuyItemAt(item, stextvhold + ((stextlhold - stextup) / 4));
 }
 
+void UpdateSmithConsumablesStockAfterPurchase(const ConsumablesStockEntry &entry)
+{
+	if (!entry.isReplenishing())
+		RemoveWitchStockItem(entry.vendorIndex);
+}
+
 void SmithConsumablesBuyItem(Item &item)
 {
 	const int combinedIndex = stextvhold + ((stextlhold - stextup) / 4);
 	const ConsumablesStockEntry entry = SmithConsumablesStock()[combinedIndex];
-	if (entry.vendor == ConsumablesVendor::Witch)
-		WitchBuyItemAt(item, entry.vendorIndex);
-	else
-		HealerBuyItemAt(item, entry.vendorIndex);
+	if (entry.isReplenishing())
+		item._iSeed = AdvanceRndSeed();
+	if (entry.vendor == ConsumablesVendor::Pepin)
+		item._iCreateInfo = 0;
+	TakePlrsMoney(item._iIvalue);
+	if (entry.vendor == ConsumablesVendor::Pepin && item._iMagical == ITEM_QUALITY_NORMAL)
+		item._iIdentified = false;
+	StoreAutoPlace(item, true);
+	UpdateSmithConsumablesStockAfterPurchase(entry);
+	CalcPlrInv(*MyPlayer, true);
 }
 
 void BoyBuyEnter()
@@ -2555,9 +2595,20 @@ size_t GetSmithConsumablesStockCountForTest()
 	return SmithConsumablesStock().size();
 }
 
-bool IsSmithConsumablesStockFromHealerForTest(size_t index)
+item_misc_id GetSmithConsumablesStockMiscIdForTest(size_t index)
 {
-	return SmithConsumablesStock()[index].vendor == ConsumablesVendor::Healer;
+	return SmithConsumablesStock()[index].item->_iMiscId;
+}
+
+bool IsSmithConsumablesStockFromPepinForTest(size_t index)
+{
+	return SmithConsumablesStock()[index].vendor == ConsumablesVendor::Pepin;
+}
+
+void UpdateSmithConsumablesStockAfterPurchaseForTest(size_t index)
+{
+	const ConsumablesStockEntry entry = SmithConsumablesStock()[index];
+	UpdateSmithConsumablesStockAfterPurchase(entry);
 }
 
 void AddStoreHoldRepair(Item *itm, int8_t i)
@@ -2597,6 +2648,7 @@ void InitStores()
 	for (Item &item : smithUniqueItems)
 		item.clear();
 	smithUniqueItemsInitialized = false;
+	InitializeSmithPepinPotions();
 
 	boyitem.clear();
 	boylevel = 0;

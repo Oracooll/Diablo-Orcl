@@ -22,6 +22,7 @@ The earlier ChatGPT development task `Diablo DevilutionX Oracool Edition` and it
 - Step 5: Unique shop is user-accepted. Premium limit controls are build-verified, with high-level boundary testing deferred.
 - Step 6: Auto Save is implemented, build-verified, and user-accepted.
 - Step 7: complete. Generated INI documentation and the final migration audit are complete; all 213 automated tests pass.
+- Post-migration OE-007 redesign is build-verified and awaiting user acceptance: four infinite Pepin potions appear before Adria's stock, with no other Pepin merchandise included.
 
 ## Final migration verification
 

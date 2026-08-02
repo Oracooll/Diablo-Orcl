@@ -66,19 +66,19 @@
 - Correction verification: focused partial-withdrawal coverage passes and the complete suite passes all 215 tests.
 - User acceptance: On 2026-08-02, the corrected build passed the user's full practical testing with no further problems found.
 
-## OE-007: Pepin items in Griswold's Buy Consumables
+## OE-007: Fixed Pepin potions in Griswold's Buy Consumables
 
 - Status: Build verified; awaiting user acceptance
 - Scope: Single-player Griswold consumables store
-- Change: Griswold's existing `Buy consumables` list now combines Adria's generated stock followed by Pepin's generated stock.
-- Purchasing: Every entry retains its original price, requirements, inventory-placement checks, identification behavior, and vendor-specific purchase handling.
-- Replenishment: Adria's first three pinned items and Pepin's first two single-player pinned items remain replenishing. Purchased generated entries are removed from their original vendor stock.
+- Change: Griswold's `Buy consumables` list begins with exactly four Pepin potions, in this order: Potion of Healing, Potion of Full Healing, Potion of Rejuvenation, and Potion of Full Rejuvenation. Adria's normal stock follows. No other Pepin merchandise appears in Griswold's list.
+- Purchasing: The four fixed potions use their normal prices, payment checks, and inventory-placement behavior.
+- Replenishment: All four fixed potions are infinite: buying one leaves it available. Adria's entries retain their normal replenishment or removal behavior.
 - Navigation: Confirmation, cancellation, insufficient-gold, insufficient-room, Back, and Escape paths remain inside Griswold's interface.
-- Compatibility: Adria's and Pepin's own stores remain unchanged. The combined list is absent in multiplayer and introduces no save-format changes.
+- Compatibility: Pepin's and Adria's own stores remain unchanged. The Griswold service remains single-player-only and introduces no save-format changes. Fixed potions use exact base-item recreation so rejuvenation potions retain their type after save and reload.
 - Configuration: Uses the existing `Griswold Sell Consumables=1` setting and remains enabled by default.
-- Verification: The complete Debug build succeeds, combined stock ordering has focused automated coverage, and all 216 automated tests pass.
+- Verification: The complete Debug build succeeds, exact stock order and post-purchase replenishment behavior have focused automated coverage, and all 216 automated tests pass.
 
-### Acceptance correction
+### Implementation history
 
-- Initial user testing showed only Adria's stock. Store construction calculated its scroll range before `StartStore` assigned `SmithConsumables` as the active store, so a timing-dependent condition excluded Pepin from the initial item count.
-- Store construction and rendering now receive the combined-stock mode explicitly. The scroll range is calculated from the complete Adria-and-Pepin list from the moment the screen opens.
+- The first 1.5.5 implementation appended Pepin's full generated inventory after Adria's. A scroll-range initialization bug initially hid that section; explicit combined-store mode fixed it.
+- The design was then revised at user request: Griswold now shows only four dedicated, replenishing Pepin potions before Adria's stock and no longer mirrors Pepin's generated inventory.

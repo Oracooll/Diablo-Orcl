@@ -463,7 +463,7 @@ void SaveOptions()
 	setBoolean("Griswold Restore Mana", *sgOptions.Oracool.griswoldRestoreMana,
 	    "; Silently restores current mana to maximum whenever Griswold's main menu opens.\n; No additional menu entry, dialog, or sound appears.");
 	setBoolean("Griswold Sell Consumables", *sgOptions.Oracool.griswoldSellConsumables,
-	    "; Adds Buy Consumables using the combined generated inventories and normal\n; purchase rules of Adria and Pepin, including their replenishing stock.");
+	    "; Adds Buy Consumables. Pepin contributes only Healing, Full Healing, Rejuvenation,\n; and Full Rejuvenation potions, always available in that order before Adria's stock.");
 	setBoolean("Griswold Sort Sell Items by Price", *sgOptions.Oracool.griswoldSortSellItemsByPrice,
 	    "; Sorts Griswold's Sell Items list by descending price. Equal-price items retain\n; their original relative order and their correct inventory or belt source.");
 
@@ -1243,7 +1243,7 @@ OracoolOptions::OracoolOptions()
     , refreshUntilButton("Griswold Refresh Until Button", OptionEntryFlags::None, N_("Griswold Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), true)
     , refreshUntilTimeoutSeconds("Griswold Refresh Until Timeout Seconds", OptionEntryFlags::None, N_("Griswold Refresh Until Timeout Seconds"), N_("Maximum search duration; zero relies on the hard iteration limit."), 5, { 0, 1, 2, 3, 5, 10, 15, 30, 60 })
     , griswoldBuyAllItems("Griswold Buy All Items", OptionEntryFlags::None, N_("Griswold Buy All Items"), N_("Allows Griswold to buy every ordinary item with a valid sell value."), true)
-    , griswoldSellConsumables("Griswold Sell Consumables", OptionEntryFlags::None, N_("Griswold Sell Consumables"), N_("Adds Adria's and Pepin's consumables inventories to Griswold."), true)
+    , griswoldSellConsumables("Griswold Sell Consumables", OptionEntryFlags::None, N_("Griswold Sell Consumables"), N_("Adds four always-available Pepin potions before Adria's stock at Griswold."), true)
     , griswoldRechargeStaves("Griswold Recharge Staves", OptionEntryFlags::None, N_("Griswold Recharge Staves"), N_("Adds Adria-style staff recharging to Griswold."), true)
     , griswoldRestoreHealth("Griswold Restore Health", OptionEntryFlags::None, N_("Griswold Restore Health"), N_("Silently restores health when Griswold's menu opens."), true)
     , griswoldRestoreMana("Griswold Restore Mana", OptionEntryFlags::None, N_("Griswold Restore Mana"), N_("Silently restores mana when Griswold's menu opens."), true)
