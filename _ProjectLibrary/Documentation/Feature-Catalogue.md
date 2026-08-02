@@ -39,7 +39,7 @@ Implementation status (DevilutionX 1.5.5): all features in this table are build-
 | v0.19 | `Griswold Sort Sell Items by Price` | `0` | Stable descending-price sort across eligible inventory and belt items; selling must remove the correct original item. |
 | v0.20 | Premium limit controls | `0` | Independently ignore affix quality-level limits and premium price rejection while retaining item-type compatibility, good-affix rules, mode restrictions, and base-item progression. |
 
-Implementation status (DevilutionX 1.5.5): Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All Items, stable descending sell sorting, and corrected menu selection restoration passed user acceptance testing on 2026-08-02. Refresh Until was accepted after successfully locating an Obsidian Ring. Premium limit controls are implemented and await testing; the unique shop remains pending.
+Implementation status (DevilutionX 1.5.5): Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All Items, stable descending sell sorting, and corrected menu selection restoration passed user acceptance testing on 2026-08-02. Refresh Until was accepted after successfully locating an Obsidian Ring. Premium limit controls are implemented and build-verified; boundary testing is deferred until a sufficiently high-level character is available. The unique shop remains pending.
 
 ## Auto-save
 

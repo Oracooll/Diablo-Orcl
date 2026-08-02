@@ -19,7 +19,7 @@ The earlier ChatGPT development task `Diablo DevilutionX Oracool Edition` and it
 - Steps 1 and 2: implemented, build-verified, and accepted by the user.
 - Step 3: implemented, build-verified, and accepted by the user on 2026-08-02.
 - Step 4: Premium Refresh, Refresh Until, restoration, Buy Consumables, Recharge Staves, Buy All, stable sell sorting, and cursor restoration are user-accepted.
-- Step 5: Premium limit controls are implemented; the unique shop remains pending.
+- Step 5: Premium limit controls are implemented and build-verified, with high-level boundary testing deferred; the unique shop remains pending.
 - Steps 6 and 7: pending.
 
 ## Commit policy
@@ -43,3 +43,4 @@ Each independently testable feature or tightly coupled feature group receives it
 - 2026-08-02: The complete Oracool INI catalogue was organized into named groups, alphabetized within each group, and restored with the detailed setting explanations developed for the 1.5.4 project. A dedicated serializer now preserves this canonical documented layout on every options save.
 - 2026-08-02: All Boolean Oracool modifications were standardized as enabled by default for new configurations. Numeric tuning settings retain their established baseline values.
 - 2026-08-02: Refresh Until was user-accepted after successfully locating an Obsidian Ring.
+- 2026-08-02: User testing of the Premium limit controls was deferred because the available character is level 30; the controls remain build-verified rather than user-accepted.
