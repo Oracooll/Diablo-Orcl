@@ -226,6 +226,39 @@ int SmithMenuLine(TalkID service)
 	return SmithMenuFirstLine(entries.size()) + static_cast<int>(std::distance(entries.begin(), position)) * 2;
 }
 
+enum class ConsumablesVendor : uint8_t {
+	Witch,
+	Healer,
+};
+
+struct ConsumablesStockEntry {
+	Item *item;
+	ConsumablesVendor vendor;
+	int vendorIndex;
+};
+
+std::vector<ConsumablesStockEntry> SmithConsumablesStock()
+{
+	std::vector<ConsumablesStockEntry> stock;
+	stock.reserve(WITCH_ITEMS + std::size(healitem));
+	for (int i = 0; i < WITCH_ITEMS; ++i) {
+		if (!witchitem[i].isEmpty())
+			stock.push_back({ &witchitem[i], ConsumablesVendor::Witch, i });
+	}
+	for (int i = 0; i < static_cast<int>(std::size(healitem)); ++i) {
+		if (!healitem[i].isEmpty())
+			stock.push_back({ &healitem[i], ConsumablesVendor::Healer, i });
+	}
+	return stock;
+}
+
+Item &WitchStockItem(int index)
+{
+	if (stextflag != TalkID::SmithConsumables)
+		return witchitem[index];
+	return *SmithConsumablesStock()[index].item;
+}
+
 int LineHeight()
 {
 	return IsSmallFontTall() ? LargeLineHeight : SmallLineHeight;
@@ -912,11 +945,12 @@ void ScrollWitchBuy(int idx)
 	stextup = 5;
 
 	for (int l = 5; l < 20; l += 4) {
-		if (!witchitem[idx].isEmpty()) {
-			UiFlags itemColor = witchitem[idx].getTextColorWithStatCheck();
-			AddSText(20, l, witchitem[idx].getName(), itemColor, true, witchitem[idx]._iCurs, true);
-			AddSTextVal(l, witchitem[idx]._iIvalue);
-			PrintStoreItem(witchitem[idx], l + 1, itemColor, true);
+		Item &item = WitchStockItem(idx);
+		if (!item.isEmpty()) {
+			UiFlags itemColor = item.getTextColorWithStatCheck();
+			AddSText(20, l, item.getName(), itemColor, true, item._iCurs, true);
+			AddSTextVal(l, item._iIvalue);
+			PrintStoreItem(item, l + 1, itemColor, true);
 			stextdown = l;
 			idx++;
 		}
@@ -956,13 +990,21 @@ void StartWitchBuy()
 	AddItemListBackButton();
 
 	storenumh = 0;
-	for (Item &item : witchitem) {
+	const std::vector<ConsumablesStockEntry> smithStock = stextflag == TalkID::SmithConsumables ? SmithConsumablesStock() : std::vector<ConsumablesStockEntry> {};
+	auto updateItem = [&](Item &item) {
 		if (item.isEmpty())
-			continue;
+			return;
 
 		WitchBookLevel(item);
 		item._iStatFlag = MyPlayer->CanUseItem(item);
 		storenumh++;
+	};
+	if (stextflag == TalkID::SmithConsumables) {
+		for (const ConsumablesStockEntry &entry : smithStock)
+			updateItem(*entry.item);
+	} else {
+		for (Item &item : witchitem)
+			updateItem(item);
 	}
 	stextsmax = std::max(storenumh - 4, 0);
 }
@@ -1956,10 +1998,8 @@ void WitchEnter()
 /**
  * @brief Purchases an item from the witch.
  */
-void WitchBuyItem(Item &item)
+void WitchBuyItemAt(Item &item, int idx)
 {
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
-
 	if (idx < 3)
 		item._iSeed = AdvanceRndSeed();
 
@@ -1980,6 +2020,11 @@ void WitchBuyItem(Item &item)
 	CalcPlrInv(*MyPlayer, true);
 }
 
+void WitchBuyItem(Item &item)
+{
+	WitchBuyItemAt(item, stextvhold + ((stextlhold - stextup) / 4));
+}
+
 void WitchBuyEnter()
 {
 	if (stextsel == BackButtonLine()) {
@@ -1994,18 +2039,19 @@ void WitchBuyEnter()
 	stextshold = stextflag;
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
+	Item &selectedItem = WitchStockItem(idx);
 
-	if (!PlayerCanAfford(witchitem[idx]._iIvalue)) {
+	if (!PlayerCanAfford(selectedItem._iIvalue)) {
 		StartStore(TalkID::NoMoney);
 		return;
 	}
 
-	if (!StoreAutoPlace(witchitem[idx], false)) {
+	if (!StoreAutoPlace(selectedItem, false)) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
 
-	StoreItem = witchitem[idx];
+	StoreItem = selectedItem;
 	StartStore(TalkID::Confirm);
 }
 
@@ -2118,9 +2164,8 @@ void BoyBuyItem(Item &item, int itemPrice)
 /**
  * @brief Purchases an item from the healer.
  */
-void HealerBuyItem(Item &item)
+void HealerBuyItemAt(Item &item, int idx)
 {
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
 	if (!gbIsMultiplayer) {
 		if (idx < 2)
 			item._iSeed = AdvanceRndSeed();
@@ -2141,7 +2186,6 @@ void HealerBuyItem(Item &item)
 		if (idx < 3)
 			return;
 	}
-	idx = stextvhold + ((stextlhold - stextup) / 4);
 	if (idx == 19) {
 		healitem[19].clear();
 	} else {
@@ -2151,6 +2195,21 @@ void HealerBuyItem(Item &item)
 		healitem[idx].clear();
 	}
 	CalcPlrInv(*MyPlayer, true);
+}
+
+void HealerBuyItem(Item &item)
+{
+	HealerBuyItemAt(item, stextvhold + ((stextlhold - stextup) / 4));
+}
+
+void SmithConsumablesBuyItem(Item &item)
+{
+	const int combinedIndex = stextvhold + ((stextlhold - stextup) / 4);
+	const ConsumablesStockEntry entry = SmithConsumablesStock()[combinedIndex];
+	if (entry.vendor == ConsumablesVendor::Witch)
+		WitchBuyItemAt(item, entry.vendorIndex);
+	else
+		HealerBuyItemAt(item, entry.vendorIndex);
 }
 
 void BoyBuyEnter()
@@ -2227,8 +2286,10 @@ void ConfirmEnter(Item &item)
 			SmithRepairItem(item._iIvalue);
 			break;
 		case TalkID::WitchBuy:
-		case TalkID::SmithConsumables:
 			WitchBuyItem(item);
+			break;
+		case TalkID::SmithConsumables:
+			SmithConsumablesBuyItem(item);
 			break;
 		case TalkID::WitchRecharge:
 		case TalkID::SmithRecharge:
@@ -2488,6 +2549,16 @@ void DrawSelector(const Surface &out, const Rectangle &rect, string_view text, U
 }
 
 } // namespace
+
+size_t GetSmithConsumablesStockCountForTest()
+{
+	return SmithConsumablesStock().size();
+}
+
+bool IsSmithConsumablesStockFromHealerForTest(size_t index)
+{
+	return SmithConsumablesStock()[index].vendor == ConsumablesVendor::Healer;
+}
 
 void AddStoreHoldRepair(Item *itm, int8_t i)
 {

@@ -6,6 +6,21 @@ using namespace devilution;
 
 namespace {
 
+TEST(Stores, SmithConsumablesCombinesWitchThenHealerStock)
+{
+	for (devilution::Item &item : witchitem)
+		item.clear();
+	for (devilution::Item &item : healitem)
+		item.clear();
+
+	witchitem[3]._itype = ItemType::Misc;
+	healitem[7]._itype = ItemType::Misc;
+
+	ASSERT_EQ(GetSmithConsumablesStockCountForTest(), 2);
+	EXPECT_FALSE(IsSmithConsumablesStockFromHealerForTest(0));
+	EXPECT_TRUE(IsSmithConsumablesStockFromHealerForTest(1));
+}
+
 TEST(Stores, AddStoreHoldRepair_magic)
 {
 	devilution::Item *item;

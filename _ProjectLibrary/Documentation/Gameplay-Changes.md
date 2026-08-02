@@ -65,3 +65,15 @@
 - Player validation now uses the active shared stack limit. Stash withdrawal also deducts only the amount actually placed and immediately recalculates the carried-gold total, so insufficient inventory capacity cannot destroy gold.
 - Correction verification: focused partial-withdrawal coverage passes and the complete suite passes all 215 tests.
 - User acceptance: On 2026-08-02, the corrected build passed the user's full practical testing with no further problems found.
+
+## OE-007: Pepin items in Griswold's Buy Consumables
+
+- Status: Build verified; awaiting user acceptance
+- Scope: Single-player Griswold consumables store
+- Change: Griswold's existing `Buy consumables` list now combines Adria's generated stock followed by Pepin's generated stock.
+- Purchasing: Every entry retains its original price, requirements, inventory-placement checks, identification behavior, and vendor-specific purchase handling.
+- Replenishment: Adria's first three pinned items and Pepin's first two single-player pinned items remain replenishing. Purchased generated entries are removed from their original vendor stock.
+- Navigation: Confirmation, cancellation, insufficient-gold, insufficient-room, Back, and Escape paths remain inside Griswold's interface.
+- Compatibility: Adria's and Pepin's own stores remain unchanged. The combined list is absent in multiplayer and introduces no save-format changes.
+- Configuration: Uses the existing `Griswold Sell Consumables=1` setting and remains enabled by default.
+- Verification: The complete Debug build succeeds, combined stock ordering has focused automated coverage, and all 216 automated tests pass.

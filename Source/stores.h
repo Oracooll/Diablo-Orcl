@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -71,10 +72,13 @@ extern int premiumlevel;
 extern Item premiumitems[SMITH_PREMIUM_ITEMS];
 
 /** Items sold by Pepin */
-extern Item healitem[20];
+extern DVL_API_FOR_TEST Item healitem[20];
 
 /** Items sold by Adria */
-extern Item witchitem[WITCH_ITEMS];
+extern DVL_API_FOR_TEST Item witchitem[WITCH_ITEMS];
+
+size_t GetSmithConsumablesStockCountForTest();
+bool IsSmithConsumablesStockFromHealerForTest(size_t index);
 
 /** Current level of the item sold by Wirt */
 extern int boylevel;

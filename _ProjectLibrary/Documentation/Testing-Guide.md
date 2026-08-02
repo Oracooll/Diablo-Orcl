@@ -11,6 +11,7 @@ For every toggleable feature, test both enabled and disabled states after restar
 - 2026-08-02: after adding Gold Stacks Buff and its save-boundary test, all 214 automated tests passed.
 - 2026-08-02: after correcting the validation clamp and adding lossless-withdrawal coverage, all 215 automated tests passed.
 - 2026-08-02: the user completed broad practical testing of the corrected Gold Stacks Buff and reported no remaining problems.
+- 2026-08-02: after combining Pepin's and Adria's stock at Griswold, all 216 automated tests passed.
 - Every catalogued 1.5.4 feature was matched to its 1.5.5 implementation during the final source audit.
 - The only deferred manual validation is high-level boundary testing of the Premium limit controls; this requires a character above the user's currently available level 30 character.
 
@@ -70,7 +71,9 @@ For every toggleable feature, test both enabled and disabled states after restar
 
 - Set `Griswold Sell Consumables=1` and `Griswold Recharge Staves=1`, then verify Griswold's expanded menu shows `Buy consumables` and `Recharge staves`.
 - Open Buy Consumables and compare its current stock and prices with Adria's Buy Items screen.
+- Confirm the list contains Adria's stock first and Pepin's purchasable stock afterward; compare Pepin entries and prices with his Buy Items screen.
 - Buy both a replenishing pinned consumable and, if available, a non-pinned item; verify gold, inventory placement, and stock removal behave exactly as at Adria.
+- Buy a replenishing Pepin potion and a generated Pepin item; verify the potion remains available and the generated item disappears from both Griswold's combined list and Pepin's original stock.
 - Test insufficient gold and full inventory, then verify confirmation cancellation, `Back`, and Escape return to Griswold—not Adria.
 - Test an equipped staff and an inventory staff with missing charges. Verify eligibility, price, confirmation, gold deduction, and restored charges match Adria.
 - Confirm a fully charged or otherwise ineligible staff is absent, and all recharge dialog paths return to Griswold.
