@@ -39,7 +39,7 @@ Implementation status (DevilutionX 1.5.5): all features in this table are build-
 | v0.19 | `Griswold Sort Sell Items by Price` | `0` | Stable descending-price sort across eligible inventory and belt items; selling must remove the correct original item. |
 | v0.20 | Premium limit controls | `0` | Independently ignore affix quality-level limits and premium price rejection while retaining item-type compatibility, good-affix rules, mode restrictions, and base-item progression. |
 
-Implementation status (DevilutionX 1.5.5): Premium Refresh and the independent silent health/mana restoration toggles are build-verified; user acceptance is pending. The remaining Griswold features are pending.
+Implementation status (DevilutionX 1.5.5): Premium Refresh and the independent silent health/mana restoration toggles passed user acceptance testing on 2026-08-02. Buy Consumables and Recharge Staves are build-verified and await user acceptance. The remaining Griswold features are pending.
 
 ## Auto-save
 

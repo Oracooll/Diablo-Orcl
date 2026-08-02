@@ -374,15 +374,24 @@ void StartSmith()
 	stextscrl = false;
 	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 3, _("Blacksmith's shop"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 7, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 10, _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, 12, _("Buy basic items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 14, _("Buy premium items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 16, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Repair items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 20, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	const bool extendedServices = !gbIsMultiplayer && (*sgOptions.Oracool.griswoldSellConsumables || *sgOptions.Oracool.griswoldRechargeStaves);
+	AddSText(0, extendedServices ? 6 : 7, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, extendedServices ? 8 : 10, _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, extendedServices ? 10 : 12, _("Buy basic items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, extendedServices ? 12 : 14, _("Buy premium items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, extendedServices ? 14 : 16, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, extendedServices ? 16 : 18, _("Repair items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	if (extendedServices) {
+		if (*sgOptions.Oracool.griswoldSellConsumables)
+			AddSText(0, 18, _("Buy consumables"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		if (*sgOptions.Oracool.griswoldRechargeStaves)
+			AddSText(0, 20, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, 22, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	} else {
+		AddSText(0, 20, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	}
 	AddSLine(5);
-	storenumh = 20;
+	storenumh = extendedServices ? 22 : 20;
 }
 
 void ScrollSmithBuy(int idx)
@@ -1003,10 +1012,12 @@ void StoreConfirm(Item &item)
 	case TalkID::HealerBuy:
 	case TalkID::SmithPremiumBuy:
 	case TalkID::WitchBuy:
+	case TalkID::SmithConsumables:
 	case TalkID::SmithBuy:
 		prompt = _("Are you sure you want to buy this item?");
 		break;
 	case TalkID::WitchRecharge:
+	case TalkID::SmithRecharge:
 		prompt = _("Are you sure you want to recharge this item?");
 		break;
 	case TalkID::SmithSell:
@@ -1357,6 +1368,32 @@ void StartDrunk()
 
 void SmithEnter()
 {
+	const bool extendedServices = !gbIsMultiplayer && (*sgOptions.Oracool.griswoldSellConsumables || *sgOptions.Oracool.griswoldRechargeStaves);
+	if (extendedServices) {
+		switch (stextsel) {
+		case 8:
+			talker = TOWN_SMITH;
+			stextlhold = 8;
+			stextshold = TalkID::Smith;
+			StartStore(TalkID::Gossip);
+			break;
+		case 10: StartStore(TalkID::SmithBuy); break;
+		case 12: StartStore(TalkID::SmithPremiumBuy); break;
+		case 14: StartStore(TalkID::SmithSell); break;
+		case 16: StartStore(TalkID::SmithRepair); break;
+		case 18:
+			if (*sgOptions.Oracool.griswoldSellConsumables)
+				StartStore(TalkID::SmithConsumables);
+			break;
+		case 20:
+			if (*sgOptions.Oracool.griswoldRechargeStaves)
+				StartStore(TalkID::SmithRecharge);
+			break;
+		case 22: stextflag = TalkID::None; break;
+		}
+		return;
+	}
+
 	switch (stextsel) {
 	case 10:
 		talker = TOWN_SMITH;
@@ -1669,14 +1706,15 @@ void WitchBuyItem(Item &item)
 void WitchBuyEnter()
 {
 	if (stextsel == BackButtonLine()) {
-		StartStore(TalkID::Witch);
-		stextsel = 14;
+		const bool fromSmith = stextflag == TalkID::SmithConsumables;
+		StartStore(fromSmith ? TalkID::Smith : TalkID::Witch);
+		stextsel = fromSmith ? 18 : 14;
 		return;
 	}
 
 	stextlhold = stextsel;
 	stextvhold = stextsval;
-	stextshold = TalkID::WitchBuy;
+	stextshold = stextflag;
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
 
@@ -1743,12 +1781,13 @@ void WitchRechargeItem(int price)
 void WitchRechargeEnter()
 {
 	if (stextsel == BackButtonLine()) {
-		StartStore(TalkID::Witch);
-		stextsel = 18;
+		const bool fromSmith = stextflag == TalkID::SmithRecharge;
+		StartStore(fromSmith ? TalkID::Smith : TalkID::Witch);
+		stextsel = fromSmith ? 20 : 18;
 		return;
 	}
 
-	stextshold = TalkID::WitchRecharge;
+	stextshold = stextflag;
 	stextlhold = stextsel;
 	stextvhold = stextsval;
 
@@ -1911,9 +1950,11 @@ void ConfirmEnter(Item &item)
 			SmithRepairItem(item._iIvalue);
 			break;
 		case TalkID::WitchBuy:
+		case TalkID::SmithConsumables:
 			WitchBuyItem(item);
 			break;
 		case TalkID::WitchRecharge:
+		case TalkID::SmithRecharge:
 			WitchRechargeItem(item._iIvalue);
 			break;
 		case TalkID::BoyBuy:
@@ -2373,6 +2414,12 @@ void StartStore(TalkID s)
 	case TalkID::SmithRepair:
 		StartSmithRepair();
 		break;
+	case TalkID::SmithConsumables:
+		StartWitchBuy();
+		break;
+	case TalkID::SmithRecharge:
+		StartWitchRecharge();
+		break;
 	case TalkID::Witch:
 		StartWitch();
 		break;
@@ -2464,10 +2511,12 @@ void DrawSText(const Surface &out)
 		case TalkID::SmithRepair:
 		case TalkID::WitchSell:
 		case TalkID::WitchRecharge:
+		case TalkID::SmithRecharge:
 		case TalkID::StorytellerIdentify:
 			ScrollSmithSell(stextsval);
 			break;
 		case TalkID::WitchBuy:
+		case TalkID::SmithConsumables:
 			ScrollWitchBuy(stextsval);
 			break;
 		case TalkID::HealerBuy:
@@ -2538,6 +2587,14 @@ void StoreESC()
 	case TalkID::SmithRepair:
 		StartStore(TalkID::Smith);
 		stextsel = 18;
+		break;
+	case TalkID::SmithConsumables:
+		StartStore(TalkID::Smith);
+		stextsel = 18;
+		break;
+	case TalkID::SmithRecharge:
+		StartStore(TalkID::Smith);
+		stextsel = 20;
 		break;
 	case TalkID::WitchBuy:
 		StartStore(TalkID::Witch);
@@ -2716,6 +2773,12 @@ void StoreEnter()
 		break;
 	case TalkID::SmithRepair:
 		SmithRepairEnter();
+		break;
+	case TalkID::SmithConsumables:
+		WitchBuyEnter();
+		break;
+	case TalkID::SmithRecharge:
+		WitchRechargeEnter();
 		break;
 	case TalkID::Witch:
 		WitchEnter();

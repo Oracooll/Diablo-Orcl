@@ -46,6 +46,16 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Test `Griswold Restore Health` and `Griswold Restore Mana` separately, then together. Enter Griswold's main menu with depleted resources and verify only enabled resources silently refill.
 - Confirm restoration produces no spell sound or extra menu entry, and remains inactive in multiplayer.
 
+#### Consumables and recharge acceptance checklist
+
+- Set `Griswold Sell Consumables=1` and `Griswold Recharge Staves=1`, then verify Griswold's expanded menu shows `Buy consumables` and `Recharge staves`.
+- Open Buy Consumables and compare its current stock and prices with Adria's Buy Items screen.
+- Buy both a replenishing pinned consumable and, if available, a non-pinned item; verify gold, inventory placement, and stock removal behave exactly as at Adria.
+- Test insufficient gold and full inventory, then verify confirmation cancellation, `Back`, and Escape return to Griswold—not Adria.
+- Test an equipped staff and an inventory staff with missing charges. Verify eligibility, price, confirmation, gold deduction, and restored charges match Adria.
+- Confirm a fully charged or otherwise ineligible staff is absent, and all recharge dialog paths return to Griswold.
+- Disable each option separately and verify only its corresponding menu entry disappears. Confirm both services remain absent in multiplayer.
+
 ### Batch D: Auto-save
 
 - Periodic save at one minute.
