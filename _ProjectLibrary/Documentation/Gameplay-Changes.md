@@ -77,3 +77,8 @@
 - Compatibility: Adria's and Pepin's own stores remain unchanged. The combined list is absent in multiplayer and introduces no save-format changes.
 - Configuration: Uses the existing `Griswold Sell Consumables=1` setting and remains enabled by default.
 - Verification: The complete Debug build succeeds, combined stock ordering has focused automated coverage, and all 216 automated tests pass.
+
+### Acceptance correction
+
+- Initial user testing showed only Adria's stock. Store construction calculated its scroll range before `StartStore` assigned `SmithConsumables` as the active store, so a timing-dependent condition excluded Pepin from the initial item count.
+- Store construction and rendering now receive the combined-stock mode explicitly. The scroll range is calculated from the complete Adria-and-Pepin list from the moment the screen opens.

@@ -72,6 +72,7 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Set `Griswold Sell Consumables=1` and `Griswold Recharge Staves=1`, then verify Griswold's expanded menu shows `Buy consumables` and `Recharge staves`.
 - Open Buy Consumables and compare its current stock and prices with Adria's Buy Items screen.
 - Confirm the list contains Adria's stock first and Pepin's purchasable stock afterward; compare Pepin entries and prices with his Buy Items screen.
+- Scroll through the entire list immediately after opening it and verify Pepin's section is reachable without first reopening or refreshing the store.
 - Buy both a replenishing pinned consumable and, if available, a non-pinned item; verify gold, inventory placement, and stock removal behave exactly as at Adria.
 - Buy a replenishing Pepin potion and a generated Pepin item; verify the potion remains available and the generated item disappears from both Griswold's combined list and Pepin's original stock.
 - Test insufficient gold and full inventory, then verify confirmation cancellation, `Back`, and Escape return to Griswold—not Adria.

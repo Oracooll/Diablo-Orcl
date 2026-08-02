@@ -252,9 +252,9 @@ std::vector<ConsumablesStockEntry> SmithConsumablesStock()
 	return stock;
 }
 
-Item &WitchStockItem(int index)
+Item &WitchStockItem(int index, bool includeHealerStock)
 {
-	if (stextflag != TalkID::SmithConsumables)
+	if (!includeHealerStock)
 		return witchitem[index];
 	return *SmithConsumablesStock()[index].item;
 }
@@ -939,13 +939,13 @@ void StartWitch()
 	storenumh = 20;
 }
 
-void ScrollWitchBuy(int idx)
+void ScrollWitchBuy(int idx, bool includeHealerStock)
 {
 	ClearSText(5, 21);
 	stextup = 5;
 
 	for (int l = 5; l < 20; l += 4) {
-		Item &item = WitchStockItem(idx);
+		Item &item = WitchStockItem(idx, includeHealerStock);
 		if (!item.isEmpty()) {
 			UiFlags itemColor = item.getTextColorWithStatCheck();
 			AddSText(20, l, item.getName(), itemColor, true, item._iCurs, true);
@@ -976,7 +976,7 @@ void WitchBookLevel(Item &bookItem)
 	}
 }
 
-void StartWitchBuy()
+void StartWitchBuy(bool includeHealerStock)
 {
 	stextsize = true;
 	stextscrl = true;
@@ -986,11 +986,11 @@ void StartWitchBuy()
 	RenderGold = true;
 	AddSText(20, 1, _("I have these items for sale:"), UiFlags::ColorWhitegold, false);
 	AddSLine(3);
-	ScrollWitchBuy(stextsval);
+	ScrollWitchBuy(stextsval, includeHealerStock);
 	AddItemListBackButton();
 
 	storenumh = 0;
-	const std::vector<ConsumablesStockEntry> smithStock = stextflag == TalkID::SmithConsumables ? SmithConsumablesStock() : std::vector<ConsumablesStockEntry> {};
+	const std::vector<ConsumablesStockEntry> smithStock = includeHealerStock ? SmithConsumablesStock() : std::vector<ConsumablesStockEntry> {};
 	auto updateItem = [&](Item &item) {
 		if (item.isEmpty())
 			return;
@@ -999,7 +999,7 @@ void StartWitchBuy()
 		item._iStatFlag = MyPlayer->CanUseItem(item);
 		storenumh++;
 	};
-	if (stextflag == TalkID::SmithConsumables) {
+	if (includeHealerStock) {
 		for (const ConsumablesStockEntry &entry : smithStock)
 			updateItem(*entry.item);
 	} else {
@@ -2039,7 +2039,7 @@ void WitchBuyEnter()
 	stextshold = stextflag;
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
-	Item &selectedItem = WitchStockItem(idx);
+	Item &selectedItem = WitchStockItem(idx, stextflag == TalkID::SmithConsumables);
 
 	if (!PlayerCanAfford(selectedItem._iIvalue)) {
 		StartStore(TalkID::NoMoney);
@@ -2798,7 +2798,7 @@ void StartStore(TalkID s)
 		StartSmithRepair();
 		break;
 	case TalkID::SmithConsumables:
-		StartWitchBuy();
+		StartWitchBuy(true);
 		break;
 	case TalkID::SmithRecharge:
 		StartWitchRecharge();
@@ -2812,7 +2812,7 @@ void StartStore(TalkID s)
 		break;
 	case TalkID::WitchBuy:
 		if (storenumh > 0)
-			StartWitchBuy();
+			StartWitchBuy(false);
 		break;
 	case TalkID::WitchSell:
 		StartWitchSell();
@@ -2903,8 +2903,10 @@ void DrawSText(const Surface &out)
 			ScrollSmithSell(stextsval);
 			break;
 		case TalkID::WitchBuy:
+			ScrollWitchBuy(stextsval, false);
+			break;
 		case TalkID::SmithConsumables:
-			ScrollWitchBuy(stextsval);
+			ScrollWitchBuy(stextsval, true);
 			break;
 		case TalkID::HealerBuy:
 			ScrollHealerBuy(stextsval);
