@@ -82,3 +82,17 @@
 
 - The first 1.5.5 implementation appended Pepin's full generated inventory after Adria's. A scroll-range initialization bug initially hid that section; explicit combined-store mode fixed it.
 - The design was then revised at user request: Griswold now shows only four dedicated, replenishing Pepin potions before Adria's stock and no longer mirrors Pepin's generated inventory.
+
+## OE-008: Rare Items
+
+- Status: Roadmap concept; not yet designed or implemented
+- Scope: Major new item-quality category and item-description interface
+- Base items: Rare items are derived from normal white base items.
+- Name color: Yellow, visually distinct from white normal items, blue magical items, and gold Unique items.
+- Affixes: A Rare item may have up to two prefixes and up to two suffixes.
+- Naming: `RARE (BASIC BASE ITEM NAME)`, using the unmodified base item's name inside the parentheses.
+- Statistics display: Rare items use the expanded description-window method associated with Unique items so all of their properties can be read clearly.
+- Interface priority: The description window must render above every other open screen or panel and remain readable regardless of the underlying interface state.
+- Hover lifetime: The description remains visible only while the mouse cursor is hovering over the item that owns it and disappears when the cursor moves away.
+- Unique-item integration: The same always-on-top hover behavior must be applied retroactively to existing Unique-item description windows.
+- Design work required: Define generation probability and sources, affix selection and compatibility rules, minimum and maximum affix counts, identification behavior, pricing, inventory/store interaction, save representation, backward compatibility, and multiplayer policy before implementation begins.
