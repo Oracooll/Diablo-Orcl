@@ -17,7 +17,7 @@
 
 ## OE-003: World and item quality-of-life batch
 
-- Status: Build verified; user acceptance pending
+- Status: User verified
 - Features: Unique Item Drop Multiplier, Unlock All Town Entrances, Permanent Infravision, Auto Identify Drops, and Auto Pickup Range.
 - Compatibility: All gameplay behavior is guarded to single-player. Defaults preserve vanilla behavior.
 - Build verification: The `x64-Debug` executable compiled and linked successfully on DevilutionX 1.5.5.
@@ -38,7 +38,7 @@
 
 ## OE-005: Automatic saving
 
-- Status: Build verified; user acceptance pending
+- Status: User verified
 - Scope: Single-player save scheduling
 - Change: Adds periodic saving plus successful level-change, non-gold item-pickup, and store-purchase triggers.
 - Debouncing: Rapid pickups and purchases restart one configurable delay and produce a single save.

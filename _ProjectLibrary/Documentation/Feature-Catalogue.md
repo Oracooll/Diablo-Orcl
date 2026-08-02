@@ -55,7 +55,7 @@ Prototype v0.21 provides single-player automatic saving with these settings:
 
 Rapid pickups and purchases are debounced into one save. Pending work waits until saving is safe, and manual or completed saves reset pending timers to avoid duplicate writes.
 
-Implementation status (DevilutionX 1.5.5): implemented and build-verified; user acceptance pending.
+Implementation status (DevilutionX 1.5.5): user-accepted after periodic, level-change, non-gold pickup, store-purchase, and gold-exclusion rules were tested successfully.
 
 ## Global constraints
 
