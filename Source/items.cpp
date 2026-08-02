@@ -1181,7 +1181,7 @@ std::string GenerateMagicItemName(const string_view &baseNamel, const PLStruct *
 	return std::string(baseNamel);
 }
 
-void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool hellfireItem, tl::function_ref<void(const PLStruct &prefix)> prefixFound, tl::function_ref<void(const PLStruct &suffix)> suffixFound)
+void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool hellfireItem, tl::function_ref<void(const PLStruct &prefix)> prefixFound, tl::function_ref<void(const PLStruct &suffix)> suffixFound, bool ignoreLevelLimits = false)
 {
 	int preidx = -1;
 	int sufidx = -1;
@@ -1206,7 +1206,7 @@ void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, boo
 		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
 			if (!IsPrefixValidForItemType(j, flgs, hellfireItem))
 				continue;
-			if (ItemPrefixes[j].PLMinLvl < minlvl || ItemPrefixes[j].PLMinLvl > maxlvl)
+			if (!ignoreLevelLimits && (ItemPrefixes[j].PLMinLvl < minlvl || ItemPrefixes[j].PLMinLvl > maxlvl))
 				continue;
 			if (onlygood && !ItemPrefixes[j].PLOk)
 				continue;
@@ -1229,7 +1229,7 @@ void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, boo
 		int nl = 0;
 		for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
 			if (IsSuffixValidForItemType(j, flgs, hellfireItem)
-			    && ItemSuffixes[j].PLMinLvl >= minlvl && ItemSuffixes[j].PLMinLvl <= maxlvl
+			    && (ignoreLevelLimits || (ItemSuffixes[j].PLMinLvl >= minlvl && ItemSuffixes[j].PLMinLvl <= maxlvl))
 			    && !((goe == GOE_GOOD && ItemSuffixes[j].PLGOE == GOE_EVIL) || (goe == GOE_EVIL && ItemSuffixes[j].PLGOE == GOE_GOOD))
 			    && (!onlygood || ItemSuffixes[j].PLOk)) {
 				l[nl] = j;
@@ -1243,7 +1243,7 @@ void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, boo
 	}
 }
 
-void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood)
+void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false)
 {
 	const PLStruct *pPrefix = nullptr;
 	const PLStruct *pSufix = nullptr;
@@ -1260,7 +1260,8 @@ void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, Affi
 		    SaveItemAffix(player, item, suffix);
 		    item._iSufPower = suffix.power.type;
 		    pSufix = &suffix;
-	    });
+	    },
+	    ignoreLevelLimits);
 
 	CopyUtf8(item._iIName, GenerateMagicItemName(item._iName, pPrefix, pSufix, false), sizeof(item._iIName));
 	if (!StringInPanel(item._iIName)) {
@@ -1343,7 +1344,7 @@ void GetOilType(Item &item, int maxLvl)
 	item._iIvalue = OilValues[t];
 }
 
-void GetItemBonus(const Player &player, Item &item, int minlvl, int maxlvl, bool onlygood, bool allowspells)
+void GetItemBonus(const Player &player, Item &item, int minlvl, int maxlvl, bool onlygood, bool allowspells, bool ignoreLevelLimits = false)
 {
 	if (minlvl > 25)
 		minlvl = 25;
@@ -1352,29 +1353,29 @@ void GetItemBonus(const Player &player, Item &item, int minlvl, int maxlvl, bool
 	case ItemType::Sword:
 	case ItemType::Axe:
 	case ItemType::Mace:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Weapon, onlygood);
+		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Weapon, onlygood, ignoreLevelLimits);
 		break;
 	case ItemType::Bow:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Bow, onlygood);
+		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Bow, onlygood, ignoreLevelLimits);
 		break;
 	case ItemType::Shield:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Shield, onlygood);
+		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Shield, onlygood, ignoreLevelLimits);
 		break;
 	case ItemType::LightArmor:
 	case ItemType::Helm:
 	case ItemType::MediumArmor:
 	case ItemType::HeavyArmor:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Armor, onlygood);
+		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Armor, onlygood, ignoreLevelLimits);
 		break;
 	case ItemType::Staff:
 		if (allowspells)
 			GetStaffSpell(player, item, maxlvl, onlygood);
 		else
-			GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Staff, onlygood);
+			GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Staff, onlygood, ignoreLevelLimits);
 		break;
 	case ItemType::Ring:
 	case ItemType::Amulet:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Misc, onlygood);
+		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Misc, onlygood, ignoreLevelLimits);
 		break;
 	case ItemType::None:
 	case ItemType::Misc:
@@ -2001,6 +2002,8 @@ _item_indexes RndPremiumItem(const Player &player, int minlvl, int maxlvl)
 
 void SpawnOnePremium(Item &premiumItem, int plvl, const Player &player)
 {
+	const bool ignoreAffixLevelLimits = !gbIsMultiplayer && *sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits;
+	const bool ignorePriceLimits = !gbIsMultiplayer && *sgOptions.Oracool.griswoldPremiumIgnorePriceLimits;
 	int strength = std::max(player.GetMaximumAttributeValue(CharacterAttribute::Strength), player._pStrength);
 	int dexterity = std::max(player.GetMaximumAttributeValue(CharacterAttribute::Dexterity), player._pDexterity);
 	int magic = std::max(player.GetMaximumAttributeValue(CharacterAttribute::Magic), player._pMagic);
@@ -2018,10 +2021,10 @@ void SpawnOnePremium(Item &premiumItem, int plvl, const Player &player)
 		SetRndSeed(premiumItem._iSeed);
 		_item_indexes itemType = RndPremiumItem(player, plvl / 4, plvl);
 		GetItemAttrs(premiumItem, itemType, plvl);
-		GetItemBonus(player, premiumItem, plvl / 2, plvl, true, !gbIsHellfire);
+		GetItemBonus(player, premiumItem, plvl / 2, plvl, true, !gbIsHellfire, ignoreAffixLevelLimits);
 
 		if (!gbIsHellfire) {
-			if (premiumItem._iIvalue <= MaxVendorValue) {
+			if (ignorePriceLimits || premiumItem._iIvalue <= MaxVendorValue) {
 				break;
 			}
 		} else {
@@ -2058,7 +2061,7 @@ void SpawnOnePremium(Item &premiumItem, int plvl, const Player &player)
 				break;
 			}
 			itemValue = itemValue * 4 / 5; // avoids forced int > float > int conversion
-			if (premiumItem._iIvalue <= MaxVendorValueHf
+			if ((ignorePriceLimits || premiumItem._iIvalue <= MaxVendorValueHf)
 			    && premiumItem._iMinStr <= strength
 			    && premiumItem._iMinMag <= magic
 			    && premiumItem._iMinDex <= dexterity
