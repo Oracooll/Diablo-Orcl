@@ -2517,7 +2517,7 @@ bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
 	item._iSeed = AdvanceRndSeed();
 	SetRndSeed(item._iSeed);
 	GetItemAttrs(item, baseItemIndex, UniqueItems[uid].UIMinLvl);
-	item._iCreateInfo = std::max<int>(UniqueItems[uid].UIMinLvl, 1) | CF_UNIQUE;
+	item._iCreateInfo = std::max<int>(UniqueItems[uid].UIMinLvl, 1) | CF_UNIQUE | CF_SMITH;
 	const bool wasGenerated = UniqueItemFlags[uid];
 	GetUniqueItem(player, item, uid);
 	UniqueItemFlags[uid] = wasGenerated;

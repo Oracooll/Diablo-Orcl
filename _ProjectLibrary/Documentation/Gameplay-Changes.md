@@ -24,10 +24,14 @@
 
 ## OE-004: Griswold Unique Items shop
 
-- Status: Build verified; user acceptance pending
+- Status: Core purchase and removal behavior user-verified; resale correction pending
 - Scope: Single-player Griswold inventory and purchasing
 - Change: Adds `Buy unique items` with an independent, identified, non-duplicate stock generated once per game. The configured stock count is clamped to 1-8 and candidates above the character's level are excluded.
 - Pricing: Purchase price is the unique item's normal value multiplied by `Griswold Unique Item Price Multiplier`.
 - Persistence: Purchased items disappear without replacement. Premium Refresh and Refresh Until do not touch unique stock.
 - Compatibility: The shop is absent in multiplayer and introduces no save-format change.
 - Build verification: The `x64-Debug` executable compiled and linked successfully on DevilutionX 1.5.5.
+
+### Acceptance correction
+
+- The initial port allowed purchases to disappear correctly but inherited Griswold's quest-base exclusion when listing the purchased unique for resale. Unique Shop merchandise is now explicitly marked as smith merchandise and is eligible for resale even when its underlying base item ID belongs to the protected quest range. Actual quest items remain excluded.

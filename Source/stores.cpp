@@ -650,6 +650,17 @@ bool SmithSellOk(int i)
 		return false;
 
 	if (*sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer) {
+		// Unique Shop items are ordinary merchandise even when their underlying base
+		// item uses an ID in the quest-item range. The value comparison recognizes
+		// already-purchased merchandise from builds predating the CF_SMITH marker.
+		const bool isLegacyUniqueShopItem = pI->_iMagical == ITEM_QUALITY_UNIQUE
+		    && pI->_iUid != UITEM_INVALID && IsUniqueAvailable(pI->_iUid)
+		    && pI->_iIvalue != UniqueItems[pI->_iUid].UIValue;
+		const bool isUniqueShopItem = pI->_iMagical == ITEM_QUALITY_UNIQUE
+		    && ((pI->_iCreateInfo & CF_SMITH) != 0 || isLegacyUniqueShopItem);
+		if (isUniqueShopItem)
+			return pI->_iIdentified && pI->_iIvalue > 0;
+
 		if (pI->_itype == ItemType::Gold)
 			return false;
 		if (pI->_iClass == ICLASS_QUEST)
