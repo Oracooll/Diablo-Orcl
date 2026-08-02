@@ -405,11 +405,88 @@ void SaveOptions()
 	SetIniValue("Controller", "Enable Rear Touchpad", sgOptions.Controller.bRearTouch);
 #endif
 
-	// Keep all edition-specific settings together at the bottom of the generated INI.
-	GetIni().Delete("Oracool Edition", nullptr);
-	for (OptionEntryBase *pEntry : sgOptions.Oracool.GetEntries())
-		pEntry->SaveToIni(sgOptions.Oracool.GetKey());
-	SetIniValue("Oracool Edition", "Griswold Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames);
+	// Keep a canonical, grouped, fully documented Oracool section at the bottom.
+	// Entries are alphabetized inside each feature group.
+	constexpr const char *Section = "Oracool Edition";
+	auto &ini = GetIni();
+	ini.Delete(Section, nullptr);
+	IniChanged = true;
+	auto setBoolean = [&](const char *key, bool value, const char *comment) {
+		ini.SetLongValue(Section, key, value ? 1 : 0, comment, false, true);
+	};
+	auto setInteger = [&](const char *key, int value, const char *comment) {
+		ini.SetLongValue(Section, key, value, comment, false, true);
+	};
+	auto setString = [&](const char *key, const char *value, const char *comment) {
+		ini.SetValue(Section, key, value, comment, true);
+	};
+
+	setBoolean("Auto Save", *sgOptions.Oracool.autoSave,
+	    "; =============================================================================\n; DEVILUTIONX ORACOOL EDITION OPTIONS\n; =============================================================================\n; Boolean options use 0 = Disabled and 1 = Enabled. Unless stated otherwise,\n; these gameplay options affect single-player games only. Restart the game after\n; changing settings. Options are grouped and alphabetized within each group.\n; =============================================================================\n\n; ----- AUTOMATIC SAVING -------------------------------------------------------\n; Enables all Oracool automatic-save triggers in single-player.\n; Set to 0 to disable every automatic save described below.");
+	setInteger("Auto Save Interval Minutes", *sgOptions.Oracool.autoSaveIntervalMinutes,
+	    "; Time between periodic saves, in minutes.\n; Available values: 1, 2, 3, 5, 10, 15, 30, and 60.");
+	setInteger("Auto Save Item Delay Seconds", *sgOptions.Oracool.autoSaveItemDelaySeconds,
+	    "; Delay before saving after pickups or purchases. Rapid acquisitions restart\n; this timer and are combined into one save. Values: 0, 1, 2, 3, 5, 10, 15, 30.");
+	setBoolean("Auto Save Notification", *sgOptions.Oracool.autoSaveNotification,
+	    "; Displays the normal brief \"Game Saved\" notification after an automatic save.\n; Saving still occurs silently when this setting is disabled.");
+	setBoolean("Auto Save on Item Pickup", *sgOptions.Oracool.autoSaveOnItemPickup,
+	    "; Schedules a save after successfully picking up a non-gold item.\n; Gold pickup and failed pickup attempts do not trigger a save.");
+	setBoolean("Auto Save on Level Change", *sgOptions.Oracool.autoSaveOnLevelChange,
+	    "; Saves after entering another dungeon level or returning to town.");
+	setBoolean("Auto Save on Store Purchase", *sgOptions.Oracool.autoSaveOnStorePurchase,
+	    "; Schedules a save after a successful store purchase. Cancelled and failed\n; purchases do not trigger a save.");
+
+	setBoolean("Remove Stat Limits", *sgOptions.Oracool.removeStatLimits,
+	    "; ----- CHARACTER --------------------------------------------------------------\n; Allows base Strength, Magic, Dexterity, and Vitality beyond normal class caps,\n; up to 255. Disabled preserves over-cap values in red but blocks further gains.");
+	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
+	    "; Shows a silver \"R\" on the character panel. It restores class starting stats\n; and sets distributable points to exactly 5 x (level - 1). Repeated use is safe.");
+
+	setBoolean("Griswold Premium Ignore Affix Level Limits", *sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits,
+	    "; ----- GRISWOLD: PREMIUM SHOP -------------------------------------------------\n; Allows compatible Premium prefixes and suffixes regardless of their normal\n; quality-level requirement. Item compatibility and good-affix rules remain.");
+	setBoolean("Griswold Premium Ignore Price Limits", *sgOptions.Oracool.griswoldPremiumIgnorePriceLimits,
+	    "; Prevents otherwise valid Premium Items from being rejected for exceeding the\n; normal price ceiling. The resulting item's calculated price remains unchanged.");
+	setBoolean("Griswold Premium Refresh", *sgOptions.Oracool.griswoldPremiumRefresh,
+	    "; Adds a free Refresh action to Premium Items, regenerating the complete stock\n; without requiring a new game.");
+	setBoolean("Griswold Refresh Until Button", *sgOptions.Oracool.refreshUntilButton,
+	    "; Adds Refresh Until to Premium Items. It regenerates stock internally until an\n; exact target is found, the timeout expires, or the safety limit is reached.");
+	setString("Griswold Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames,
+	    "; Semicolon-separated exact displayed item names. Matching is case-insensitive\n; and ignores spaces around entries. Do not use quotation marks or commas.");
+	setInteger("Griswold Refresh Until Timeout Seconds", *sgOptions.Oracool.refreshUntilTimeoutSeconds,
+	    "; Maximum search duration in seconds. Zero disables the time stop, but the hard\n; safety limit of 100,000 premium generations remains active.");
+
+	setBoolean("Griswold Buy All Items", *sgOptions.Oracool.griswoldBuyAllItems,
+	    "; ----- GRISWOLD: SERVICES -----------------------------------------------------\n; Lets Griswold buy all positive-value ordinary items, including Adria categories,\n; and adds Sell all. Gold, quest items, Lazarus's staff, and zero-value items stay.");
+	setBoolean("Griswold Recharge Staves", *sgOptions.Oracool.griswoldRechargeStaves,
+	    "; Adds staff recharging using Adria's eligibility, prices, confirmation, payment,\n; and recharge behavior. All Back and Escape routes return to Griswold.");
+	setBoolean("Griswold Restore Health", *sgOptions.Oracool.griswoldRestoreHealth,
+	    "; Silently restores current health to maximum whenever Griswold's main menu opens.\n; No additional menu entry, dialog, or sound appears.");
+	setBoolean("Griswold Restore Mana", *sgOptions.Oracool.griswoldRestoreMana,
+	    "; Silently restores current mana to maximum whenever Griswold's main menu opens.\n; No additional menu entry, dialog, or sound appears.");
+	setBoolean("Griswold Sell Consumables", *sgOptions.Oracool.griswoldSellConsumables,
+	    "; Adds Buy Consumables using Adria's generated inventory and purchase rules,\n; including potions, scrolls, books, staves, oils, and other eligible stock.");
+	setBoolean("Griswold Sort Sell Items by Price", *sgOptions.Oracool.griswoldSortSellItemsByPrice,
+	    "; Sorts Griswold's Sell Items list by descending price. Equal-price items retain\n; their original relative order and their correct inventory or belt source.");
+
+	setBoolean("Griswold Sell Unique Items", *sgOptions.Oracool.griswoldSellUniqueItems,
+	    "; ----- GRISWOLD: UNIQUE SHOP --------------------------------------------------\n; Adds a separate identified unique-item shop. Stock avoids duplicates, remains\n; independent of Premium refreshes, and does not immediately replace purchases.");
+	setInteger("Griswold Unique Item Price Multiplier", *sgOptions.Oracool.griswoldUniqueItemPriceMultiplier,
+	    "; Purchase-price multiplier applied to each unique item's normal sell value.\n; Example: 5 means five times its normal sell price.");
+	setInteger("Griswold Unique Shop Items", *sgOptions.Oracool.griswoldUniqueShopItems,
+	    "; Number of unique items offered by Griswold. Valid configured values: 1-8.");
+
+	setBoolean("Auto Identify Drops", *sgOptions.Oracool.autoIdentifyDrops,
+	    "; ----- ITEMS AND PICKUP -------------------------------------------------------\n; Identifies newly generated world drops immediately. Items deliberately dropped\n; by the player retain their existing identification state.");
+	setInteger("Auto Pickup Range", *sgOptions.Oracool.autoPickupRange,
+	    "; Search radius in tiles for DevilutionX's enabled automatic-pickup categories.\n; Values: 1-10. This does not enable categories disabled in normal game options.");
+	setInteger("Unique Item Drop Multiplier", *sgOptions.Oracool.uniqueItemDropMultiplier,
+	    "; Multiplies the chance that an eligible drop becomes unique. One is the normal\n; rate; higher values make uniques more common, with final probability capped.");
+
+	setBoolean("Permanent Free Town Portal", *sgOptions.Oracool.permanentFreeTownPortal,
+	    "; ----- WORLD AND EXPLORATION --------------------------------------------------\n; Gives new and existing characters memorized Town Portal at least level 1 and\n; makes memorized casting free. Disabling restores mana cost but keeps the spell.");
+	setBoolean("Permanent Infravision", *sgOptions.Oracool.permanentInfravision,
+	    "; Permanently reveals nearby monsters through walls as if infravision were active.");
+	setBoolean("Unlock All Town Entrances", *sgOptions.Oracool.unlockAllTownEntrances,
+	    "; Unlocks Catacombs, Caves, and Hell town entrances without normal level thresholds;\n; also Hive and Crypt in Hellfire. It does not complete quests or alter progress.");
 
 	SaveIni();
 }
