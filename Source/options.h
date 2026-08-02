@@ -610,6 +610,41 @@ struct GameplayOptions : OptionCategoryBase {
 	OptionEntryEnum<FloatingNumbers> enableFloatingNumbers;
 };
 
+struct OracoolOptions : OptionCategoryBase {
+	OracoolOptions();
+	std::vector<OptionEntryBase *> GetEntries() override;
+
+	OptionEntryInt<int> uniqueItemDropMultiplier;
+	OptionEntryBoolean unlockAllTownEntrances;
+	OptionEntryBoolean permanentInfravision;
+	OptionEntryBoolean autoIdentifyDrops;
+	OptionEntryBoolean removeStatLimits;
+	OptionEntryBoolean resetStatsButton;
+	OptionEntryInt<int> autoPickupRange;
+	OptionEntryBoolean permanentFreeTownPortal;
+	OptionEntryBoolean griswoldPremiumRefresh;
+	OptionEntryBoolean refreshUntilButton;
+	OptionEntryInt<int> refreshUntilTimeoutSeconds;
+	OptionEntryBoolean griswoldBuyAllItems;
+	OptionEntryBoolean griswoldSellConsumables;
+	OptionEntryBoolean griswoldRechargeStaves;
+	OptionEntryBoolean griswoldRestoreHealth;
+	OptionEntryBoolean griswoldRestoreMana;
+	OptionEntryBoolean griswoldSellUniqueItems;
+	OptionEntryInt<int> griswoldUniqueShopItems;
+	OptionEntryInt<int> griswoldUniqueItemPriceMultiplier;
+	OptionEntryBoolean griswoldSortSellItemsByPrice;
+	OptionEntryBoolean griswoldPremiumIgnoreAffixLevelLimits;
+	OptionEntryBoolean griswoldPremiumIgnorePriceLimits;
+	OptionEntryBoolean autoSave;
+	OptionEntryInt<int> autoSaveIntervalMinutes;
+	OptionEntryBoolean autoSaveOnLevelChange;
+	OptionEntryBoolean autoSaveOnItemPickup;
+	OptionEntryBoolean autoSaveOnStorePurchase;
+	OptionEntryInt<int> autoSaveItemDelaySeconds;
+	OptionEntryBoolean autoSaveNotification;
+};
+
 struct ControllerOptions : OptionCategoryBase {
 	ControllerOptions();
 	std::vector<OptionEntryBase *> GetEntries() override;
@@ -806,6 +841,7 @@ struct Options {
 	HellfireOptions Hellfire;
 	AudioOptions Audio;
 	GameplayOptions Gameplay;
+	OracoolOptions Oracool;
 	GraphicsOptions Graphics;
 	ControllerOptions Controller;
 	NetworkOptions Network;
@@ -825,6 +861,7 @@ struct Options {
 			&Diablo,
 			&Hellfire,
 			&Gameplay,
+			&Oracool,
 			&Controller,
 			&Network,
 			&Chat,

@@ -79,7 +79,10 @@ const std::string &BasePath()
 const std::string &PrefPath()
 {
 	if (!prefPath) {
-#if defined(__IPHONEOS__)
+#if defined(_WIN32) && !defined(NXDK)
+		prefPath = BasePath() + "Saved_Games" DIRECTORY_SEPARATOR_STR;
+		RecursivelyCreateDir(prefPath->c_str());
+#elif defined(__IPHONEOS__)
 		prefPath = FromSDL(IOSGetPrefPath());
 #elif defined(NXDK)
 		prefPath = NxdkGetPrefPath();
@@ -98,7 +101,9 @@ const std::string &PrefPath()
 const std::string &ConfigPath()
 {
 	if (!configPath) {
-#if defined(__IPHONEOS__)
+#if defined(_WIN32) && !defined(NXDK)
+		configPath = BasePath();
+#elif defined(__IPHONEOS__)
 		configPath = FromSDL(IOSGetPrefPath());
 #elif defined(NXDK)
 		configPath = NxdkGetPrefPath();

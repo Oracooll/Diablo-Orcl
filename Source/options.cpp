@@ -1141,6 +1141,75 @@ std::vector<OptionEntryBase *> GameplayOptions::GetEntries()
 	};
 }
 
+OracoolOptions::OracoolOptions()
+    : OptionCategoryBase("Oracool Edition", N_("Oracool Edition"), N_("Optional single-player features for Diablo Oracool Edition."))
+    , uniqueItemDropMultiplier("Unique Item Drop Multiplier", OptionEntryFlags::None, N_("Unique Item Drop Multiplier"), N_("Multiplies the chance that an eligible item drop becomes unique."), 1, { 1, 2, 5, 10, 25, 50, 100 })
+    , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), false)
+    , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), false)
+    , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), false)
+    , removeStatLimits("Remove Stat Limits", OptionEntryFlags::None, N_("Remove Stat Limits"), N_("Allows base attributes to be raised to 255."), false)
+    , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the character panel."), false)
+    , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 1, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
+    , permanentFreeTownPortal("Permanent Free Town Portal", OptionEntryFlags::None, N_("Permanent Free Town Portal"), N_("Grants memorized Town Portal and removes its mana cost."), false)
+    , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), false)
+    , refreshUntilButton("Refresh Until Button", OptionEntryFlags::None, N_("Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), false)
+    , refreshUntilTimeoutSeconds("Refresh Until Timeout Seconds", OptionEntryFlags::None, N_("Refresh Until Timeout Seconds"), N_("Maximum search duration; zero relies on the hard iteration limit."), 5, { 0, 1, 2, 3, 5, 10, 15, 30, 60 })
+    , griswoldBuyAllItems("Griswold Buy All Items", OptionEntryFlags::None, N_("Griswold Buy All Items"), N_("Allows Griswold to buy every ordinary item with a valid sell value."), false)
+    , griswoldSellConsumables("Griswold Sell Consumables", OptionEntryFlags::None, N_("Griswold Sell Consumables"), N_("Adds Adria's consumables inventory to Griswold."), false)
+    , griswoldRechargeStaves("Griswold Recharge Staves", OptionEntryFlags::None, N_("Griswold Recharge Staves"), N_("Adds Adria-style staff recharging to Griswold."), false)
+    , griswoldRestoreHealth("Griswold Restore Health", OptionEntryFlags::None, N_("Griswold Restore Health"), N_("Silently restores health when Griswold's menu opens."), false)
+    , griswoldRestoreMana("Griswold Restore Mana", OptionEntryFlags::None, N_("Griswold Restore Mana"), N_("Silently restores mana when Griswold's menu opens."), false)
+    , griswoldSellUniqueItems("Griswold Sell Unique Items", OptionEntryFlags::None, N_("Griswold Sell Unique Items"), N_("Adds a separate unique-item shop to Griswold."), false)
+    , griswoldUniqueShopItems("Griswold Unique Shop Items", OptionEntryFlags::None, N_("Griswold Unique Shop Items"), N_("Number of unique items offered by Griswold."), 4, { 1, 2, 3, 4, 5, 6, 7, 8 })
+    , griswoldUniqueItemPriceMultiplier("Griswold Unique Item Price Multiplier", OptionEntryFlags::None, N_("Griswold Unique Item Price Multiplier"), N_("Multiplier applied to a unique item's normal sell value."), 5, { 1, 2, 3, 4, 5, 10, 15, 20 })
+    , griswoldSortSellItemsByPrice("Griswold Sort Sell Items by Price", OptionEntryFlags::None, N_("Griswold Sort Sell Items by Price"), N_("Sorts Griswold's sell list from highest to lowest price."), false)
+    , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes regardless of their normal quality-level requirement."), false)
+    , griswoldPremiumIgnorePriceLimits("Griswold Premium Ignore Price Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Price Limits"), N_("Prevents valid Premium items from being rejected by the normal price ceiling."), false)
+    , autoSave("Auto Save", OptionEntryFlags::None, N_("Auto Save"), N_("Enables Oracool automatic saving in single-player."), false)
+    , autoSaveIntervalMinutes("Auto Save Interval Minutes", OptionEntryFlags::None, N_("Auto Save Interval Minutes"), N_("Minutes between periodic automatic saves."), 5, { 1, 2, 3, 5, 10, 15, 30, 60 })
+    , autoSaveOnLevelChange("Auto Save on Level Change", OptionEntryFlags::None, N_("Auto Save on Level Change"), N_("Saves after entering another dungeon level or returning to town."), true)
+    , autoSaveOnItemPickup("Auto Save on Item Pickup", OptionEntryFlags::None, N_("Auto Save on Item Pickup"), N_("Schedules a save after a non-gold item enters inventory."), true)
+    , autoSaveOnStorePurchase("Auto Save on Store Purchase", OptionEntryFlags::None, N_("Auto Save on Store Purchase"), N_("Schedules a save after a successful store purchase."), true)
+    , autoSaveItemDelaySeconds("Auto Save Item Delay Seconds", OptionEntryFlags::None, N_("Auto Save Item Delay Seconds"), N_("Delay used to combine rapid acquisitions into one save."), 3, { 0, 1, 2, 3, 5, 10, 15, 30 })
+    , autoSaveNotification("Auto Save Notification", OptionEntryFlags::None, N_("Auto Save Notification"), N_("Displays the normal save confirmation after an automatic save."), true)
+{
+}
+
+std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
+{
+	return {
+		&uniqueItemDropMultiplier,
+		&unlockAllTownEntrances,
+		&permanentInfravision,
+		&autoIdentifyDrops,
+		&removeStatLimits,
+		&resetStatsButton,
+		&autoPickupRange,
+		&permanentFreeTownPortal,
+		&griswoldPremiumRefresh,
+		&refreshUntilButton,
+		&refreshUntilTimeoutSeconds,
+		&griswoldBuyAllItems,
+		&griswoldSellConsumables,
+		&griswoldRechargeStaves,
+		&griswoldRestoreHealth,
+		&griswoldRestoreMana,
+		&griswoldSellUniqueItems,
+		&griswoldUniqueShopItems,
+		&griswoldUniqueItemPriceMultiplier,
+		&griswoldSortSellItemsByPrice,
+		&griswoldPremiumIgnoreAffixLevelLimits,
+		&griswoldPremiumIgnorePriceLimits,
+		&autoSave,
+		&autoSaveIntervalMinutes,
+		&autoSaveOnLevelChange,
+		&autoSaveOnItemPickup,
+		&autoSaveOnStorePurchase,
+		&autoSaveItemDelaySeconds,
+		&autoSaveNotification,
+	};
+}
+
 ControllerOptions::ControllerOptions()
     : OptionCategoryBase("Controller", N_("Controller"), N_("Controller Settings"))
 {
