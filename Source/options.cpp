@@ -359,6 +359,7 @@ void LoadOptions()
 	}
 
 	GetIniValue("Hellfire", "SItem", sgOptions.Hellfire.szItem, sizeof(sgOptions.Hellfire.szItem), "");
+	GetIniValue("Oracool Edition", "Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames, sizeof(sgOptions.Oracool.refreshUntilItemNames), "");
 
 	GetIniValue("Network", "Bind Address", sgOptions.Network.szBindAddress, sizeof(sgOptions.Network.szBindAddress), "0.0.0.0");
 	GetIniValue("Network", "Previous Game ID", sgOptions.Network.szPreviousZTGame, sizeof(sgOptions.Network.szPreviousZTGame), "");
@@ -389,6 +390,7 @@ void SaveOptions()
 	}
 
 	SetIniValue("Hellfire", "SItem", sgOptions.Hellfire.szItem);
+	SetIniValue("Oracool Edition", "Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames);
 
 	SetIniValue("Network", "Bind Address", sgOptions.Network.szBindAddress);
 	SetIniValue("Network", "Previous Game ID", sgOptions.Network.szPreviousZTGame);

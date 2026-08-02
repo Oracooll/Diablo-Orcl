@@ -18,7 +18,7 @@ The earlier ChatGPT development task `Diablo DevilutionX Oracool Edition` and it
 
 - Steps 1 and 2: implemented, build-verified, and accepted by the user.
 - Step 3: implemented, build-verified, and accepted by the user on 2026-08-02.
-- Step 4: Premium Refresh, restoration, Buy Consumables, and Recharge Staves are user-accepted. Buy All and stable sell sorting are implemented and build-verified; Refresh Until remains pending.
+- Step 4: Premium Refresh, restoration, Buy Consumables, Recharge Staves, Buy All, stable sell sorting, and cursor restoration are user-accepted. Refresh Until is implemented and build-verified.
 - Steps 5 through 7: pending.
 
 ## Commit policy

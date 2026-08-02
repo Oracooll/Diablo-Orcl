@@ -6,6 +6,8 @@
 #include "stores.h"
 
 #include <algorithm>
+#include <cctype>
+#include <chrono>
 #include <cstdint>
 
 #include <fmt/format.h>
@@ -19,6 +21,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/trn.hpp"
+#include "error.h"
 #include "init.h"
 #include "minitext.h"
 #include "options.h"
@@ -27,6 +30,7 @@
 #include "towners.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
+#include "utils/str_case.hpp"
 #include "utils/stdcompat/string_view.hpp"
 #include "utils/str_cat.hpp"
 #include "utils/utf8.hpp"
@@ -168,6 +172,11 @@ int BackButtonLine()
 int PremiumRefreshLine()
 {
 	return BackButtonLine() - 2;
+}
+
+int PremiumRefreshUntilLine()
+{
+	return BackButtonLine() - 1;
 }
 
 int SmithSellAllLine()
@@ -502,6 +511,8 @@ void ScrollSmithPremiumBuy(int boughtitems)
 		stextsel = stextdown;
 	if (*sgOptions.Oracool.griswoldPremiumRefresh && !gbIsMultiplayer)
 		AddSText(0, PremiumRefreshLine(), _("Refresh"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	if (*sgOptions.Oracool.refreshUntilButton && !gbIsMultiplayer)
+		AddSText(0, PremiumRefreshUntilLine(), _("Refresh until"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 bool StartSmithPremiumBuy()
@@ -1546,6 +1557,59 @@ void SmithBuyPItem(Item &item)
 	SpawnPremium(*MyPlayer);
 }
 
+std::vector<std::string> GetPremiumRefreshTargets()
+{
+	std::vector<std::string> targets;
+	const std::string configured = sgOptions.Oracool.refreshUntilItemNames;
+	size_t begin = 0;
+	while (begin <= configured.size()) {
+		const size_t separator = configured.find(';', begin);
+		const size_t end = separator == std::string::npos ? configured.size() : separator;
+		size_t first = begin;
+		while (first < end && std::isspace(static_cast<unsigned char>(configured[first])) != 0)
+			++first;
+		size_t last = end;
+		while (last > first && std::isspace(static_cast<unsigned char>(configured[last - 1])) != 0)
+			--last;
+		if (first != last)
+			targets.push_back(AsciiStrToLower(string_view { configured.data() + first, last - first }));
+		if (separator == std::string::npos)
+			break;
+		begin = separator + 1;
+	}
+	return targets;
+}
+
+std::string RefreshPremiumUntilTarget()
+{
+	const std::vector<std::string> targets = GetPremiumRefreshTargets();
+	if (targets.empty())
+		return std::string(_("Refresh Until has no item names configured."));
+
+	constexpr int MaximumAttempts = 100000;
+	const int timeoutSeconds = *sgOptions.Oracool.refreshUntilTimeoutSeconds;
+	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeoutSeconds);
+	for (int attempt = 1; attempt <= MaximumAttempts; ++attempt) {
+		for (Item &item : premiumitems)
+			item.clear();
+		numpremium = 0;
+		SpawnPremium(*MyPlayer);
+
+		for (const Item &item : premiumitems) {
+			if (item.isEmpty())
+				continue;
+			const std::string itemName = AsciiStrToLower(item.getName());
+			if (std::find(targets.begin(), targets.end(), itemName) != targets.end())
+				return fmt::format(fmt::runtime(_("Found {:s} after {:d} refreshes.")), std::string(item.getName()), attempt);
+		}
+
+		if (timeoutSeconds > 0 && std::chrono::steady_clock::now() >= deadline)
+			return fmt::format(fmt::runtime(_("Refresh Until timed out after {:d} refreshes.")), attempt);
+	}
+
+	return std::string(_("Refresh Until stopped at the 100,000-refresh safety limit."));
+}
+
 void SmithPremiumBuyEnter()
 {
 	if (stextsel == BackButtonLine()) {
@@ -1560,6 +1624,13 @@ void SmithPremiumBuyEnter()
 		SpawnPremium(*MyPlayer);
 		StartStore(TalkID::SmithPremiumBuy);
 		stextsel = PremiumRefreshLine();
+		return;
+	}
+	if (*sgOptions.Oracool.refreshUntilButton && !gbIsMultiplayer && stextsel == PremiumRefreshUntilLine()) {
+		const std::string result = RefreshPremiumUntilTarget();
+		StartStore(TalkID::SmithPremiumBuy);
+		stextsel = PremiumRefreshUntilLine();
+		InitDiabloMsg(result);
 		return;
 	}
 

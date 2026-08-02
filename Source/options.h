@@ -625,6 +625,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean griswoldPremiumRefresh;
 	OptionEntryBoolean refreshUntilButton;
 	OptionEntryInt<int> refreshUntilTimeoutSeconds;
+	char refreshUntilItemNames[512];
 	OptionEntryBoolean griswoldBuyAllItems;
 	OptionEntryBoolean griswoldSellConsumables;
 	OptionEntryBoolean griswoldRechargeStaves;

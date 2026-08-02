@@ -46,6 +46,16 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Test `Griswold Restore Health` and `Griswold Restore Mana` separately, then together. Enter Griswold's main menu with depleted resources and verify only enabled resources silently refill.
 - Confirm restoration produces no spell sound or extra menu entry, and remains inactive in multiplayer.
 
+#### Refresh Until acceptance checklist
+
+- Under `[Oracool Edition]`, set `Refresh Until Button=1`, choose `Refresh Until Timeout Seconds`, and set `Refresh Until Item Names` to one or more exact displayed names separated by semicolons—for example `King's Sword of Haste; Awesome Plate`.
+- Verify leading/trailing spaces around each semicolon-separated target are ignored and matching is case-insensitive but requires the complete item name.
+- Activate `Refresh until` and verify success feedback reports the matching item and attempt count; confirm the matching premium inventory remains available for purchase.
+- Use an empty target setting and verify clear feedback appears without changing stock.
+- Search for an impossible name with a short nonzero timeout and verify timeout feedback appears while the last generated stock remains.
+- Set timeout to `0`, search for an impossible name, and verify the operation stops at the 100,000-generation hard limit.
+- Enter multiple targets and verify finding any one succeeds. Confirm the action is absent in multiplayer and when its toggle is disabled.
+
 #### Consumables and recharge acceptance checklist
 
 - Set `Griswold Sell Consumables=1` and `Griswold Recharge Staves=1`, then verify Griswold's expanded menu shows `Buy consumables` and `Recharge staves`.
