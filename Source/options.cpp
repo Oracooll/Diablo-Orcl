@@ -478,6 +478,8 @@ void SaveOptions()
 	    "; ----- ITEMS AND PICKUP -------------------------------------------------------\n; Identifies newly generated world drops immediately. Items deliberately dropped\n; by the player retain their existing identification state.");
 	setInteger("Auto Pickup Range", *sgOptions.Oracool.autoPickupRange,
 	    "; Search radius in tiles for DevilutionX's enabled automatic-pickup categories.\n; Values: 1-10. This does not enable categories disabled in normal game options.");
+	setBoolean("Gold Stacks Buff", *sgOptions.Oracool.goldStacksBuff,
+	    "; Raises the single-player inventory gold-stack cap from 5,000 to 65,535,\n; the highest value supported by the unchanged character save format.");
 	setInteger("Unique Item Drop Multiplier", *sgOptions.Oracool.uniqueItemDropMultiplier,
 	    "; Multiplies the chance that an eligible drop becomes unique. One is the normal\n; rate; higher values make uniques more common, with final probability capped.");
 
@@ -1235,6 +1237,7 @@ OracoolOptions::OracoolOptions()
     , removeStatLimits("Remove Stat Limits", OptionEntryFlags::None, N_("Remove Stat Limits"), N_("Allows base attributes to be raised to 255."), true)
     , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the character panel."), true)
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 1, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
+    , goldStacksBuff("Gold Stacks Buff", OptionEntryFlags::CantChangeInGame, N_("Gold Stacks Buff"), N_("Raises inventory gold stacks to the highest save-compatible value."), true)
     , permanentFreeTownPortal("Permanent Free Town Portal", OptionEntryFlags::None, N_("Permanent Free Town Portal"), N_("Grants memorized Town Portal and removes its mana cost."), true)
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), true)
     , refreshUntilButton("Griswold Refresh Until Button", OptionEntryFlags::None, N_("Griswold Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), true)
@@ -1270,6 +1273,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&removeStatLimits,
 		&resetStatsButton,
 		&autoPickupRange,
+		&goldStacksBuff,
 		&permanentFreeTownPortal,
 		&griswoldPremiumRefresh,
 		&refreshUntilButton,

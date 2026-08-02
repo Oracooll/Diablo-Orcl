@@ -523,6 +523,30 @@ void OverrideOptions()
 	sgOptions.Gameplay.numFullManaPotionPickup.SetValue(DemoSettings.numFullManaPotionPickup);
 	sgOptions.Gameplay.numRejuPotionPickup.SetValue(DemoSettings.numRejuPotionPickup);
 	sgOptions.Gameplay.numFullRejuPotionPickup.SetValue(DemoSettings.numFullRejuPotionPickup);
+
+	// Oracool settings are not part of the existing demo format. Keep legacy
+	// playback deterministic by retaining the vanilla behavior it recorded.
+	sgOptions.Oracool.uniqueItemDropMultiplier.SetValue(1);
+	sgOptions.Oracool.unlockAllTownEntrances.SetValue(false);
+	sgOptions.Oracool.permanentInfravision.SetValue(false);
+	sgOptions.Oracool.autoIdentifyDrops.SetValue(false);
+	sgOptions.Oracool.removeStatLimits.SetValue(false);
+	sgOptions.Oracool.resetStatsButton.SetValue(false);
+	sgOptions.Oracool.autoPickupRange.SetValue(1);
+	sgOptions.Oracool.goldStacksBuff.SetValue(false);
+	sgOptions.Oracool.permanentFreeTownPortal.SetValue(false);
+	sgOptions.Oracool.griswoldPremiumRefresh.SetValue(false);
+	sgOptions.Oracool.refreshUntilButton.SetValue(false);
+	sgOptions.Oracool.griswoldBuyAllItems.SetValue(false);
+	sgOptions.Oracool.griswoldSellConsumables.SetValue(false);
+	sgOptions.Oracool.griswoldRechargeStaves.SetValue(false);
+	sgOptions.Oracool.griswoldRestoreHealth.SetValue(false);
+	sgOptions.Oracool.griswoldRestoreMana.SetValue(false);
+	sgOptions.Oracool.griswoldSellUniqueItems.SetValue(false);
+	sgOptions.Oracool.griswoldSortSellItemsByPrice.SetValue(false);
+	sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits.SetValue(false);
+	sgOptions.Oracool.griswoldPremiumIgnorePriceLimits.SetValue(false);
+	sgOptions.Oracool.autoSave.SetValue(false);
 }
 
 bool IsRunning()

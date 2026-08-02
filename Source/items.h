@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "engine.h"
@@ -24,6 +25,9 @@ namespace devilution {
 #define GOLD_SMALL_LIMIT 1000
 #define GOLD_MEDIUM_LIMIT 2500
 #define GOLD_MAX_LIMIT 5000
+
+/** Highest gold-stack value representable by the unchanged ItemPack save format. */
+constexpr int GoldStackSaveLimit = (std::numeric_limits<uint16_t>::max)();
 
 // Item indestructible durability
 #define DUR_INDESTRUCTIBLE 255

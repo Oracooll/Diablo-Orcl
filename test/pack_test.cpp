@@ -849,6 +849,12 @@ TEST_F(PackTest, UnPackItem_gold_large)
 	compareGold(is, ICURS_GOLD_LARGE);
 }
 
+TEST_F(PackTest, UnPackItem_gold_save_limit)
+{
+	const auto is = SwappedLE(ItemPack { 0, 0, IDI_GOLD, 0, 0, 0, 0, 0, GoldStackSaveLimit, 0 });
+	compareGold(is, ICURS_GOLD_LARGE);
+}
+
 TEST_F(PackTest, UnPackItem_ear)
 {
 	const auto is = SwappedLE(ItemPack { 1633955154, 17509, 23, 111, 103, 117, 101, 68, 19843, 0 });

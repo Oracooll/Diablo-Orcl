@@ -2919,15 +2919,16 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	}
 
 	if (&player == MyPlayer) {
-		if (player.InvBody[INVLOC_AMULET].isEmpty() || player.InvBody[INVLOC_AMULET].IDidx != IDI_AURIC) {
-			int half = MaxGold;
+		const int previousMaxGold = MaxGold;
+		if (oracool::IsSinglePlayer() && *sgOptions.Oracool.goldStacksBuff)
+			MaxGold = GoldStackSaveLimit;
+		else if (!player.InvBody[INVLOC_AMULET].isEmpty() && player.InvBody[INVLOC_AMULET].IDidx == IDI_AURIC)
+			MaxGold = GOLD_MAX_LIMIT * 2;
+		else
 			MaxGold = GOLD_MAX_LIMIT;
 
-			if (half != MaxGold)
-				StripTopGold(player);
-		} else {
-			MaxGold = GOLD_MAX_LIMIT * 2;
-		}
+		if (MaxGold < previousMaxGold)
+			StripTopGold(player);
 	}
 
 	RedrawComponent(PanelDrawComponent::Mana);

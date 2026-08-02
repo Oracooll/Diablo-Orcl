@@ -621,6 +621,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean removeStatLimits;
 	OptionEntryBoolean resetStatsButton;
 	OptionEntryInt<int> autoPickupRange;
+	OptionEntryBoolean goldStacksBuff;
 	OptionEntryBoolean permanentFreeTownPortal;
 	OptionEntryBoolean griswoldPremiumRefresh;
 	OptionEntryBoolean refreshUntilButton;

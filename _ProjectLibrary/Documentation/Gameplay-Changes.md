@@ -19,7 +19,7 @@
 
 - Status: User verified
 - Features: Unique Item Drop Multiplier, Unlock All Town Entrances, Permanent Infravision, Auto Identify Drops, and Auto Pickup Range.
-- Compatibility: All gameplay behavior is guarded to single-player. Defaults preserve vanilla behavior.
+- Compatibility: All gameplay behavior is guarded to single-player. Vanilla behavior remains available through individual settings.
 - Build verification: The `x64-Debug` executable compiled and linked successfully on DevilutionX 1.5.5.
 
 ## OE-004: Griswold Unique Items shop
@@ -46,3 +46,15 @@
 - Reset behavior: Every completed save, including a manual save, resets the interval and clears pending work to prevent duplicate saves.
 - Notification: Automatic saves optionally show the standard brief `Game Saved` message.
 - Compatibility: Multiplayer behavior and the save format are unchanged.
+
+## OE-006: Gold Stacks Buff
+
+- Status: Build verified; awaiting user acceptance
+- Scope: Single-player inventory gold stacks
+- Change: Raises the maximum value of one inventory gold stack from 5,000 to 65,535.
+- Limit rationale: 65,535 is the maximum unsigned 16-bit value stored in the existing `ItemPack.wValue` field. A higher stack would be truncated during character saving, so it is not safe without a save-format change.
+- Integration: Existing pickup, merging, automatic placement, splitting, shop-payment, stash-withdrawal, cursor, and total-gold paths already use the shared runtime stack limit and therefore inherit the new cap.
+- Auric Amulet: The buff supersedes the amulet's normal 10,000 stack benefit while enabled because 65,535 is already the format maximum.
+- Compatibility: Disabled and multiplayer games retain the vanilla 5,000 limit, including the Auric Amulet's existing 10,000 behavior. No save-format change is introduced.
+- Configuration: `Gold Stacks Buff=1` in `[Oracool Edition]`; enabled by default and applied when starting or loading a game.
+- Verification: The complete Debug build succeeds, the 65,535 packed-item round trip has focused automated coverage, and all 214 automated tests pass.
