@@ -48,7 +48,7 @@ For every toggleable feature, test both enabled and disabled states after restar
 
 #### Refresh Until acceptance checklist
 
-- Under `[Oracool Edition]`, set `Refresh Until Button=1`, choose `Refresh Until Timeout Seconds`, and set `Refresh Until Item Names` to one or more exact displayed names separated by semicolons—for example `King's Sword of Haste; Awesome Plate`.
+- Under the final `[Oracool Edition]` section, set `Griswold Refresh Until Button=1`, choose `Griswold Refresh Until Timeout Seconds`, and set `Griswold Refresh Until Item Names` to one or more exact displayed names separated by semicolons—for example `King's Sword of Haste; Awesome Plate`.
 - Verify leading/trailing spaces around each semicolon-separated target are ignored and matching is case-insensitive but requires the complete item name.
 - Activate `Refresh until` and verify success feedback reports the matching item and attempt count; confirm the matching premium inventory remains available for purchase.
 - Use an empty target setting and verify clear feedback appears without changing stock.

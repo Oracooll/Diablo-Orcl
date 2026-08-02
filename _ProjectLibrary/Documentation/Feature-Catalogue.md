@@ -30,7 +30,7 @@ Implementation status (DevilutionX 1.5.5): all features in this table are build-
 | Prototype | Feature | Default | Required behavior |
 |---|---|---:|---|
 | v0.4 | `Griswold Premium Refresh` | `0` | Add free Refresh to the six-item Premium shop in single-player. |
-| v0.12 | `Refresh Until Button` | `0` | Search internally for exact, case-insensitive full names; semicolon-separated targets; trimmed whitespace; configurable timeout; 100,000-generation hard cap; retain the successful or last inventory; clear result/error feedback. |
+| v0.12 | `Griswold Refresh Until Button` | `0` | Search internally using `Griswold Refresh Until Item Names` for exact, case-insensitive full names; semicolon-separated targets; trimmed whitespace; configurable `Griswold Refresh Until Timeout Seconds`; 100,000-generation hard cap; retain the successful or last inventory; clear result/error feedback. |
 | v0.13 | `Griswold Buy All Items` | `0` | Expand Griswold's individual Sell Items catalogue to all positive-value items, including Adria-sellable consumables and staves, and add a player-facing `Sell all` action. Reject gold, quest items, Lazarus's staff, and zero-value items. |
 | v0.14 | `Griswold Sell Consumables` | `0` | Add Buy Consumables using Adria's generated inventory, purchase rules, and stock. Back returns to Griswold. |
 | v0.15 | `Griswold Recharge Staves` | `0` | Reuse Adria's eligibility, pricing, confirmation, payment, and recharge behavior. Back returns to Griswold. |

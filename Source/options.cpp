@@ -359,7 +359,7 @@ void LoadOptions()
 	}
 
 	GetIniValue("Hellfire", "SItem", sgOptions.Hellfire.szItem, sizeof(sgOptions.Hellfire.szItem), "");
-	GetIniValue("Oracool Edition", "Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames, sizeof(sgOptions.Oracool.refreshUntilItemNames), "");
+	GetIniValue("Oracool Edition", "Griswold Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames, sizeof(sgOptions.Oracool.refreshUntilItemNames), "");
 
 	GetIniValue("Network", "Bind Address", sgOptions.Network.szBindAddress, sizeof(sgOptions.Network.szBindAddress), "0.0.0.0");
 	GetIniValue("Network", "Previous Game ID", sgOptions.Network.szPreviousZTGame, sizeof(sgOptions.Network.szPreviousZTGame), "");
@@ -384,14 +384,14 @@ void SaveOptions()
 		return;
 
 	for (OptionCategoryBase *pCategory : sgOptions.GetCategories()) {
+		if (pCategory == &sgOptions.Oracool)
+			continue;
 		for (OptionEntryBase *pEntry : pCategory->GetEntries()) {
 			pEntry->SaveToIni(pCategory->GetKey());
 		}
 	}
 
 	SetIniValue("Hellfire", "SItem", sgOptions.Hellfire.szItem);
-	SetIniValue("Oracool Edition", "Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames);
-
 	SetIniValue("Network", "Bind Address", sgOptions.Network.szBindAddress);
 	SetIniValue("Network", "Previous Game ID", sgOptions.Network.szPreviousZTGame);
 	SetIniValue("Network", "Previous Host", sgOptions.Network.szPreviousHost);
@@ -404,6 +404,12 @@ void SaveOptions()
 #ifdef __vita__
 	SetIniValue("Controller", "Enable Rear Touchpad", sgOptions.Controller.bRearTouch);
 #endif
+
+	// Keep all edition-specific settings together at the bottom of the generated INI.
+	GetIni().Delete("Oracool Edition", nullptr);
+	for (OptionEntryBase *pEntry : sgOptions.Oracool.GetEntries())
+		pEntry->SaveToIni(sgOptions.Oracool.GetKey());
+	SetIniValue("Oracool Edition", "Griswold Refresh Until Item Names", sgOptions.Oracool.refreshUntilItemNames);
 
 	SaveIni();
 }
@@ -1154,8 +1160,8 @@ OracoolOptions::OracoolOptions()
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 1, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
     , permanentFreeTownPortal("Permanent Free Town Portal", OptionEntryFlags::None, N_("Permanent Free Town Portal"), N_("Grants memorized Town Portal and removes its mana cost."), false)
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), false)
-    , refreshUntilButton("Refresh Until Button", OptionEntryFlags::None, N_("Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), false)
-    , refreshUntilTimeoutSeconds("Refresh Until Timeout Seconds", OptionEntryFlags::None, N_("Refresh Until Timeout Seconds"), N_("Maximum search duration; zero relies on the hard iteration limit."), 5, { 0, 1, 2, 3, 5, 10, 15, 30, 60 })
+    , refreshUntilButton("Griswold Refresh Until Button", OptionEntryFlags::None, N_("Griswold Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), false)
+    , refreshUntilTimeoutSeconds("Griswold Refresh Until Timeout Seconds", OptionEntryFlags::None, N_("Griswold Refresh Until Timeout Seconds"), N_("Maximum search duration; zero relies on the hard iteration limit."), 5, { 0, 1, 2, 3, 5, 10, 15, 30, 60 })
     , griswoldBuyAllItems("Griswold Buy All Items", OptionEntryFlags::None, N_("Griswold Buy All Items"), N_("Allows Griswold to buy every ordinary item with a valid sell value."), false)
     , griswoldSellConsumables("Griswold Sell Consumables", OptionEntryFlags::None, N_("Griswold Sell Consumables"), N_("Adds Adria's consumables inventory to Griswold."), false)
     , griswoldRechargeStaves("Griswold Recharge Staves", OptionEntryFlags::None, N_("Griswold Recharge Staves"), N_("Adds Adria-style staff recharging to Griswold."), false)

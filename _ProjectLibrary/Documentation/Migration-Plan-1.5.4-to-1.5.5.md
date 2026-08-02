@@ -38,3 +38,4 @@ Each independently testable feature or tightly coupled feature group receives it
 
 - 2026-08-02: The initial Buy All Items migration exposed `Sell all` but retained Griswold's vanilla equipment-only filter. It was corrected to expand Griswold's individual and bulk sell eligibility to all positive-value non-gold, non-quest items, including Adria categories.
 - 2026-08-02: Expanding Griswold's menu moved the vanilla entries upward, while legacy Back/Escape handlers retained their original line numbers and returned the selector one entry too low. All Griswold menu positions are now resolved through one shared layout function.
+- 2026-08-02: The three Refresh Until INI keys were standardized with a `Griswold` prefix, and save ordering was changed so `[Oracool Edition]` is always the final INI section.
