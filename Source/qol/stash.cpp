@@ -254,14 +254,20 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 	}
 }
 
-void WithdrawGold(Player &player, int amount)
-{
-	AddGoldToInventory(player, amount);
-	Stash.gold -= amount;
-	Stash.dirty = true;
-}
-
 } // namespace
+
+int WithdrawGold(Player &player, int amount)
+{
+	const int unplacedGold = AddGoldToInventory(player, amount);
+	const int transferredGold = amount - unplacedGold;
+	if (transferredGold == 0)
+		return 0;
+
+	Stash.gold -= transferredGold;
+	player._pGold = CalculateGold(player);
+	Stash.dirty = true;
+	return transferredGold;
+}
 
 Point GetStashSlotCoord(Point slot)
 {

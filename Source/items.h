@@ -14,6 +14,7 @@
 #include "engine/point.hpp"
 #include "itemdat.h"
 #include "monster.h"
+#include "utils/attributes.h"
 #include "utils/stdcompat/optional.hpp"
 #include "utils/string_or_view.hpp"
 
@@ -585,7 +586,7 @@ std::string DebugSpawnUniqueItem(std::string itemName);
 #endif
 /* data */
 
-extern int MaxGold;
+extern DVL_API_FOR_TEST int MaxGold;
 
 extern int8_t ItemCAnimTbl[];
 extern _sfx_id ItemInvSnds[];

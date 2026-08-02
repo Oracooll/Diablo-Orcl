@@ -67,7 +67,7 @@ private:
 constexpr Point InvalidStashPoint { -1, -1 };
 
 extern bool IsStashOpen;
-extern StashStruct Stash;
+extern DVL_API_FOR_TEST StashStruct Stash;
 
 extern bool IsWithdrawGoldOpen;
 
@@ -86,6 +86,8 @@ void CheckStashButtonRelease(Point mousePosition);
 void CheckStashButtonPress(Point mousePosition);
 
 void StartGoldWithdraw();
+/** Transfers as much of amount as fits and returns the amount actually withdrawn. */
+int WithdrawGold(Player &player, int amount);
 void WithdrawGoldKeyPress(SDL_Keycode vkey);
 void DrawGoldWithdraw(const Surface &out);
 void CloseGoldWithdraw();

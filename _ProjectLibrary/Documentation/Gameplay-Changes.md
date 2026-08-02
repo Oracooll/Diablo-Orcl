@@ -58,3 +58,9 @@
 - Compatibility: Disabled and multiplayer games retain the vanilla 5,000 limit, including the Auric Amulet's existing 10,000 behavior. No save-format change is introduced.
 - Configuration: `Gold Stacks Buff=1` in `[Oracool Edition]`; enabled by default and applied when starting or loading a game.
 - Verification: The complete Debug build succeeds, the 65,535 packed-item round trip has focused automated coverage, and all 214 automated tests pass.
+
+### Acceptance correction
+
+- Initial user testing exposed a second, hard-coded 5,000 clamp in recurring player validation. A large stash withdrawal was first placed into one enlarged stack, then immediately truncated to 5,000 while the stash had already deducted the full request.
+- Player validation now uses the active shared stack limit. Stash withdrawal also deducts only the amount actually placed and immediately recalculates the carried-gold total, so insufficient inventory capacity cannot destroy gold.
+- Correction verification: focused partial-withdrawal coverage passes and the complete suite passes all 215 tests.

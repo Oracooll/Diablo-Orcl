@@ -3,6 +3,7 @@
 #include "cursor.h"
 #include "inv.h"
 #include "player.h"
+#include "qol/stash.h"
 #include "storm/storm_net.hpp"
 
 namespace devilution {
@@ -144,6 +145,30 @@ TEST_F(InvTest, GoldAutoPlace)
 	// | 5000 | 900 | ...
 	EXPECT_EQ(MyPlayer->InvList[0]._ivalue, GOLD_MAX_LIMIT);
 	EXPECT_EQ(MyPlayer->InvList[1]._ivalue, 900);
+}
+
+TEST_F(InvTest, WithdrawGoldOnlyDeductsPlacedAmount)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	clear_inventory();
+	MaxGold = GoldStackSaveLimit;
+	for (int8_t &cell : MyPlayer->InvGrid)
+		cell = 1;
+
+	MyPlayer->InvList[0]._itype = ItemType::Gold;
+	MyPlayer->InvList[0]._ivalue = GoldStackSaveLimit - 100;
+	MyPlayer->_pNumInv = 1;
+	MyPlayer->_pGold = GoldStackSaveLimit - 100;
+	Stash.gold = 30000;
+	Stash.dirty = false;
+
+	EXPECT_EQ(WithdrawGold(*MyPlayer, 30000), 100);
+	EXPECT_EQ(MyPlayer->InvList[0]._ivalue, GoldStackSaveLimit);
+	EXPECT_EQ(MyPlayer->_pGold, GoldStackSaveLimit);
+	EXPECT_EQ(Stash.gold, 29900);
+	EXPECT_TRUE(Stash.dirty);
+
+	MaxGold = GOLD_MAX_LIMIT;
 }
 
 // Test removing an item from inventory with no other items.

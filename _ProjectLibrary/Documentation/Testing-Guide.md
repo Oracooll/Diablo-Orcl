@@ -9,6 +9,7 @@ For every toggleable feature, test both enabled and disabled states after restar
 - 2026-08-02: the complete Debug build succeeded.
 - 2026-08-02: all 213 automated tests passed.
 - 2026-08-02: after adding Gold Stacks Buff and its save-boundary test, all 214 automated tests passed.
+- 2026-08-02: after correcting the validation clamp and adding lossless-withdrawal coverage, all 215 automated tests passed.
 - Every catalogued 1.5.4 feature was matched to its 1.5.5 implementation during the final source audit.
 - The only deferred manual validation is high-level boundary testing of the Premium limit controls; this requires a character above the user's currently available level 30 character.
 
@@ -114,5 +115,6 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Save, exit completely, reload the character, and verify a 65,535 stack is preserved exactly.
 - Buy an item costing more than 5,000 and verify payment is deducted correctly from the enlarged stack.
 - Move gold to and from the stash and verify enlarged inventory stacks merge correctly.
+- Repeat a withdrawal with inventory space for only part of the requested gold and verify the unplaced remainder stays in the stash.
 - Set `Gold Stacks Buff=0`, restart the game, and verify the normal 5,000 limit returns. If testing the Auric Amulet, verify its vanilla 10,000 limit remains.
 - Confirm multiplayer retains vanilla gold-stack behavior.
