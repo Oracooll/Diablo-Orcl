@@ -56,6 +56,17 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Confirm a fully charged or otherwise ineligible staff is absent, and all recharge dialog paths return to Griswold.
 - Disable each option separately and verify only its corresponding menu entry disappears. Confirm both services remain absent in multiplayer.
 
+#### Bulk sale and sorting acceptance checklist
+
+- Set `Griswold Buy All Items=1` and verify `Sell all` appears above `Back` in Griswold's Sell Items screen.
+- Prepare eligible equipment in both inventory and belt, together with gold, consumables, a staff, and any quest item. Activate `Sell all` and verify only Griswold-eligible items are removed and paid for.
+- Verify the resulting gold total equals the sum of the individual displayed sale prices.
+- Test with nearly full inventory/gold capacity and verify the operation stops safely if proceeds cannot fit.
+- Set `Griswold Sort Sell Items by Price=1` and verify displayed prices descend from highest to lowest across inventory and belt.
+- Include two equal-price items and verify their original relative order remains stable.
+- Sell items from the beginning, middle, and end of the sorted list and verify the selected original item—not a neighboring inventory item—is removed.
+- Disable each option and verify vanilla behavior returns. Confirm neither feature is active in multiplayer.
+
 ### Batch D: Auto-save
 
 - Periodic save at one minute.

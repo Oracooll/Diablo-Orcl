@@ -170,6 +170,11 @@ int PremiumRefreshLine()
 	return BackButtonLine() - 2;
 }
 
+int SmithSellAllLine()
+{
+	return BackButtonLine() - 2;
+}
+
 int LineHeight()
 {
 	return IsSmallFontTall() ? LargeLineHeight : SmallLineHeight;
@@ -447,6 +452,8 @@ void StartSmithBuy()
 	}
 
 	stextsmax = std::max(storenumh - 4, 0);
+	if (stextflag == TalkID::SmithSell && *sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer)
+		AddSText(0, SmithSellAllLine(), _("Sell all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 void ScrollSmithPremiumBuy(int boughtitems)
@@ -614,6 +621,19 @@ void StartSmithSell()
 		}
 	}
 
+	if (*sgOptions.Oracool.griswoldSortSellItemsByPrice && !gbIsMultiplayer) {
+		// Stable insertion sort keeps equal-price items in their original inventory/belt order,
+		// while moving the source index together with the displayed item.
+		for (int i = 1; i < storenumh; ++i) {
+			int j = i;
+			while (j > 0 && storehold[j - 1]._iIvalue < storehold[j]._iIvalue) {
+				std::swap(storehold[j - 1], storehold[j]);
+				std::swap(storehidx[j - 1], storehidx[j]);
+				--j;
+			}
+		}
+	}
+
 	if (!sellOk) {
 		stextscrl = false;
 
@@ -633,6 +653,8 @@ void StartSmithSell()
 	AddSLine(3);
 	ScrollSmithSell(stextsval);
 	AddItemListBackButton();
+	if (*sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer)
+		AddSText(0, SmithSellAllLine(), _("Sell all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 bool SmithRepairOk(int i)
@@ -1577,8 +1599,36 @@ void StoreSellItem()
 	myPlayer._pGold += cost;
 }
 
+void SmithSellAllItems()
+{
+	while (true) {
+		StartSmithSell();
+		if (storenumh == 0)
+			break;
+		if (!StoreGoldFit(storehold[0])) {
+			stextshold = TalkID::SmithSell;
+			stextlhold = SmithSellAllLine();
+			stextvhold = 0;
+			StartStore(TalkID::NoRoom);
+			return;
+		}
+
+		// Rebuilding the list after every removal is intentional: inventory removal compacts
+		// InvList, so every later source index must be recalculated before it is used.
+		stextvhold = 0;
+		stextlhold = stextup;
+		StoreSellItem();
+	}
+
+	StartStore(TalkID::SmithSell);
+}
+
 void SmithSellEnter()
 {
+	if (*sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer && stextsel == SmithSellAllLine()) {
+		SmithSellAllItems();
+		return;
+	}
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Smith);
 		stextsel = 16;
