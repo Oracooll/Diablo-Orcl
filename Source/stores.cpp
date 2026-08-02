@@ -165,6 +165,11 @@ int BackButtonLine()
 	return 22;
 }
 
+int PremiumRefreshLine()
+{
+	return BackButtonLine() - 2;
+}
+
 int LineHeight()
 {
 	return IsSmallFontTall() ? LargeLineHeight : SmallLineHeight;
@@ -351,6 +356,20 @@ bool StoreAutoPlace(Item &item, bool persistItem)
 
 void StartSmith()
 {
+	if (!gbIsMultiplayer) {
+		Player &myPlayer = *MyPlayer;
+		if (*sgOptions.Oracool.griswoldRestoreHealth) {
+			myPlayer._pHitPoints = myPlayer._pMaxHP;
+			myPlayer._pHPBase = myPlayer._pMaxHPBase;
+			RedrawComponent(PanelDrawComponent::Health);
+		}
+		if (*sgOptions.Oracool.griswoldRestoreMana) {
+			myPlayer._pMana = myPlayer._pMaxMana;
+			myPlayer._pManaBase = myPlayer._pMaxManaBase;
+			RedrawComponent(PanelDrawComponent::Mana);
+		}
+	}
+
 	stextsize = false;
 	stextscrl = false;
 	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
@@ -446,6 +465,8 @@ void ScrollSmithPremiumBuy(int boughtitems)
 	}
 	if (stextsel != -1 && !stext[stextsel].isSelectable() && stextsel != BackButtonLine())
 		stextsel = stextdown;
+	if (*sgOptions.Oracool.griswoldPremiumRefresh && !gbIsMultiplayer)
+		AddSText(0, PremiumRefreshLine(), _("Refresh"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 bool StartSmithPremiumBuy()
@@ -1438,6 +1459,15 @@ void SmithPremiumBuyEnter()
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Smith);
 		stextsel = 14;
+		return;
+	}
+	if (*sgOptions.Oracool.griswoldPremiumRefresh && !gbIsMultiplayer && stextsel == PremiumRefreshLine()) {
+		for (Item &item : premiumitems)
+			item.clear();
+		numpremium = 0;
+		SpawnPremium(*MyPlayer);
+		StartStore(TalkID::SmithPremiumBuy);
+		stextsel = PremiumRefreshLine();
 		return;
 	}
 

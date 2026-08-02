@@ -37,6 +37,15 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Test unique-shop counts 1 and 8 and multiple price multipliers.
 - Test stable descending sell sorting, including equal prices and belt items.
 
+#### Basic services acceptance checklist
+
+- Enable `Griswold Premium Refresh`, open Premium Items, and verify a `Refresh` footer action appears above `Back`.
+- Activate Refresh several times and verify the complete premium inventory changes without charging gold.
+- Buy an item after refreshing and verify the correct selected item is purchased and removed.
+- Disable the option and verify the Refresh action disappears; confirm it is also absent in multiplayer.
+- Test `Griswold Restore Health` and `Griswold Restore Mana` separately, then together. Enter Griswold's main menu with depleted resources and verify only enabled resources silently refill.
+- Confirm restoration produces no spell sound or extra menu entry, and remains inactive in multiplayer.
+
 ### Batch D: Auto-save
 
 - Periodic save at one minute.
