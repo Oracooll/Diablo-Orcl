@@ -23,7 +23,7 @@ This catalogue reconstructs the stable DevilutionX 1.5.4 prototype from its deve
 | v0.11 | `Auto Pickup Range` | `1` | Clamp to 1–10 and extend only existing enabled auto-pickup categories, searching nearer tiles first without duplicate requests. |
 | v0.18 | `Permanent Free Town Portal` | `0` | Give new and existing single-player characters memorized Town Portal level 1 without lowering a higher level; memorized casting costs zero mana. Disabling restores normal mana cost without removing the spell. |
 
-Implementation status (DevilutionX 1.5.5): all features in this table are build-verified. The stat-limit, reset, and Town Portal features await user acceptance testing; earlier world/item features also remain recorded as user-acceptance pending.
+Implementation status (DevilutionX 1.5.5): all features in this table are build-verified. The stat-limit, reset, and Town Portal features passed user acceptance testing on 2026-08-02; earlier world/item features also passed the user's initial functional test.
 
 ## Griswold
 

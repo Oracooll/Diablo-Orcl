@@ -16,8 +16,8 @@ The earlier ChatGPT development task `Diablo DevilutionX Oracool Edition` and it
 
 ## Progress
 
-- Steps 1 and 2: implemented, build-verified, user acceptance pending.
-- Step 3: implemented and build-verified on 2026-08-02; user acceptance pending.
+- Steps 1 and 2: implemented, build-verified, and accepted by the user.
+- Step 3: implemented, build-verified, and accepted by the user on 2026-08-02.
 - Steps 4 through 7: pending.
 
 ## Commit policy
