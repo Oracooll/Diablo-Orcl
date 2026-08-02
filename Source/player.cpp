@@ -1494,17 +1494,19 @@ void ValidatePlayer()
 	if (gt != myPlayer._pGold)
 		myPlayer._pGold = gt;
 
-	if (myPlayer._pBaseStr > myPlayer.GetMaximumAttributeValue(CharacterAttribute::Strength)) {
-		myPlayer._pBaseStr = myPlayer.GetMaximumAttributeValue(CharacterAttribute::Strength);
+	// Oracool Edition never destroys legitimate over-cap base attributes when loading a character.
+	// When uncapped allocation is enabled, 255 remains the hard save-format-safe ceiling.
+	if (*sgOptions.Oracool.removeStatLimits) {
+		myPlayer._pBaseStr = std::min(myPlayer._pBaseStr, 255);
+		myPlayer._pBaseMag = std::min(myPlayer._pBaseMag, 255);
+		myPlayer._pBaseDex = std::min(myPlayer._pBaseDex, 255);
+		myPlayer._pBaseVit = std::min(myPlayer._pBaseVit, 255);
 	}
-	if (myPlayer._pBaseMag > myPlayer.GetMaximumAttributeValue(CharacterAttribute::Magic)) {
-		myPlayer._pBaseMag = myPlayer.GetMaximumAttributeValue(CharacterAttribute::Magic);
-	}
-	if (myPlayer._pBaseDex > myPlayer.GetMaximumAttributeValue(CharacterAttribute::Dexterity)) {
-		myPlayer._pBaseDex = myPlayer.GetMaximumAttributeValue(CharacterAttribute::Dexterity);
-	}
-	if (myPlayer._pBaseVit > myPlayer.GetMaximumAttributeValue(CharacterAttribute::Vitality)) {
-		myPlayer._pBaseVit = myPlayer.GetMaximumAttributeValue(CharacterAttribute::Vitality);
+
+	if (*sgOptions.Oracool.permanentFreeTownPortal && !gbIsMultiplayer) {
+		const auto portal = static_cast<size_t>(SpellID::TownPortal);
+		myPlayer._pMemSpells |= GetSpellBitmask(SpellID::TownPortal);
+		myPlayer._pSplLvl[portal] = std::max<uint8_t>(myPlayer._pSplLvl[portal], 1);
 	}
 
 	uint64_t msk = 0;
@@ -2386,7 +2388,7 @@ int CalcStatDiff(Player &player)
 {
 	int diff = 0;
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		diff += player.GetMaximumAttributeValue(attribute);
+		diff += *sgOptions.Oracool.removeStatLimits ? 255 : player.GetMaximumAttributeValue(attribute);
 		diff -= player.GetBaseAttributeValue(attribute);
 	}
 	return diff;
@@ -3304,7 +3306,9 @@ void SyncInitPlr(Player &player)
 void CheckStats(Player &player)
 {
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		int maxStatPoint = player.GetMaximumAttributeValue(attribute);
+		// Preserve over-cap values while the option is disabled; they may belong to a character
+		// previously played with Oracool's raised limit. The enabled ceiling is always 255.
+		int maxStatPoint = *sgOptions.Oracool.removeStatLimits ? 255 : std::numeric_limits<uint8_t>::max();
 		switch (attribute) {
 		case CharacterAttribute::Strength:
 			player._pBaseStr = clamp(player._pBaseStr, 0, maxStatPoint);
@@ -3322,9 +3326,25 @@ void CheckStats(Player &player)
 	}
 }
 
+void ResetPlayerStats(Player &player)
+{
+	if (gbIsMultiplayer || &player != MyPlayer || !*sgOptions.Oracool.resetStatsButton)
+		return;
+
+	const PlayerData &starting = PlayersData[static_cast<size_t>(player._pClass)];
+	ModifyPlrStr(player, starting.baseStr - player._pBaseStr);
+	ModifyPlrMag(player, starting.baseMag - player._pBaseMag);
+	ModifyPlrDex(player, starting.baseDex - player._pBaseDex);
+	ModifyPlrVit(player, starting.baseVit - player._pBaseVit);
+	player._pStatPts = 5 * std::max(player._pLevel - 1, 0);
+	CalcPlrInv(player, true);
+	RedrawEverything();
+}
+
 void ModifyPlrStr(Player &player, int l)
 {
-	l = clamp(l, 0 - player._pBaseStr, player.GetMaximumAttributeValue(CharacterAttribute::Strength) - player._pBaseStr);
+	const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : player.GetMaximumAttributeValue(CharacterAttribute::Strength);
+	l = clamp(l, 0 - player._pBaseStr, maximum - player._pBaseStr);
 
 	player._pStrength += l;
 	player._pBaseStr += l;
@@ -3338,7 +3358,8 @@ void ModifyPlrStr(Player &player, int l)
 
 void ModifyPlrMag(Player &player, int l)
 {
-	l = clamp(l, 0 - player._pBaseMag, player.GetMaximumAttributeValue(CharacterAttribute::Magic) - player._pBaseMag);
+	const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : player.GetMaximumAttributeValue(CharacterAttribute::Magic);
+	l = clamp(l, 0 - player._pBaseMag, maximum - player._pBaseMag);
 
 	player._pMagic += l;
 	player._pBaseMag += l;
@@ -3362,7 +3383,8 @@ void ModifyPlrMag(Player &player, int l)
 
 void ModifyPlrDex(Player &player, int l)
 {
-	l = clamp(l, 0 - player._pBaseDex, player.GetMaximumAttributeValue(CharacterAttribute::Dexterity) - player._pBaseDex);
+	const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : player.GetMaximumAttributeValue(CharacterAttribute::Dexterity);
+	l = clamp(l, 0 - player._pBaseDex, maximum - player._pBaseDex);
 
 	player._pDexterity += l;
 	player._pBaseDex += l;
@@ -3375,7 +3397,8 @@ void ModifyPlrDex(Player &player, int l)
 
 void ModifyPlrVit(Player &player, int l)
 {
-	l = clamp(l, 0 - player._pBaseVit, player.GetMaximumAttributeValue(CharacterAttribute::Vitality) - player._pBaseVit);
+	const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : player.GetMaximumAttributeValue(CharacterAttribute::Vitality);
+	l = clamp(l, 0 - player._pBaseVit, maximum - player._pBaseVit);
 
 	player._pVitality += l;
 	player._pBaseVit += l;

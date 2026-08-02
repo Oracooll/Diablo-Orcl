@@ -845,6 +845,7 @@ void SyncPlrAnim(Player &player);
 void SyncInitPlrPos(Player &player);
 void SyncInitPlr(Player &player);
 void CheckStats(Player &player);
+void ResetPlayerStats(Player &player);
 void ModifyPlrStr(Player &player, int l);
 void ModifyPlrMag(Player &player, int l);
 void ModifyPlrDex(Player &player, int l);

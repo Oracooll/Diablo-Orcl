@@ -42,6 +42,7 @@ extern bool DropGoldFlag;
 extern bool chrbtn[4];
 extern bool lvlbtndown;
 extern bool chrbtnactive;
+extern bool resetStatsButtonDown;
 extern UiFlags InfoColor;
 extern int sbooktab;
 extern bool talkflag;

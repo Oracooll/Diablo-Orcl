@@ -72,6 +72,7 @@ std::optional<NumberInputState> GoldDropInputState;
 bool chrbtn[4];
 bool lvlbtndown;
 bool chrbtnactive;
+bool resetStatsButtonDown;
 UiFlags InfoColor;
 int sbooktab;
 bool talkflag;
@@ -280,7 +281,8 @@ void PrintInfo(const Surface &out)
 
 int CapStatPointsToAdd(int remainingStatPoints, const Player &player, CharacterAttribute attribute)
 {
-	int pointsToReachCap = player.GetMaximumAttributeValue(attribute) - player.GetBaseAttributeValue(attribute);
+	const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : player.GetMaximumAttributeValue(attribute);
+	int pointsToReachCap = maximum - player.GetBaseAttributeValue(attribute);
 
 	return std::min(remainingStatPoints, pointsToReachCap);
 }
@@ -710,7 +712,8 @@ void FocusOnCharInfo()
 	// Find the first incrementable stat.
 	int stat = -1;
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		if (myPlayer.GetBaseAttributeValue(attribute) >= myPlayer.GetMaximumAttributeValue(attribute))
+		const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : myPlayer.GetMaximumAttributeValue(attribute);
+		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum)
 			continue;
 		stat = static_cast<int>(attribute);
 	}
@@ -1247,11 +1250,24 @@ void CheckChrBtns()
 {
 	Player &myPlayer = *MyPlayer;
 
-	if (chrbtnactive || myPlayer._pStatPts == 0)
+	if (chrbtnactive)
+		return;
+
+	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer) {
+		Rectangle resetButton { GetPanelPosition(UiPanels::Character, { 183, 246 }), { 24, 24 } };
+		if (resetButton.contains(MousePosition)) {
+			resetStatsButtonDown = true;
+			chrbtnactive = true;
+			return;
+		}
+	}
+
+	if (myPlayer._pStatPts == 0)
 		return;
 
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		if (myPlayer.GetBaseAttributeValue(attribute) >= myPlayer.GetMaximumAttributeValue(attribute))
+		const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : myPlayer.GetMaximumAttributeValue(attribute);
+		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum)
 			continue;
 		auto buttonId = static_cast<size_t>(attribute);
 		Rectangle button = ChrBtnsRect[buttonId];
@@ -1266,6 +1282,13 @@ void CheckChrBtns()
 void ReleaseChrBtns(bool addAllStatPoints)
 {
 	chrbtnactive = false;
+	if (resetStatsButtonDown) {
+		resetStatsButtonDown = false;
+		Rectangle resetButton { GetPanelPosition(UiPanels::Character, { 183, 246 }), { 24, 24 } };
+		if (resetButton.contains(MousePosition))
+			ResetPlayerStats(*MyPlayer);
+		return;
+	}
 	for (auto attribute : enum_values<CharacterAttribute>()) {
 		auto buttonId = static_cast<size_t>(attribute);
 		if (!chrbtn[buttonId])

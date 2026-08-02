@@ -16,6 +16,7 @@
 #include "gamemenu.h"
 #include "inv.h"
 #include "missiles.h"
+#include "options.h"
 
 namespace devilution {
 
@@ -102,6 +103,9 @@ bool TargetsMonster(SpellID id)
 
 int GetManaAmount(const Player &player, SpellID sn)
 {
+	if (sn == SpellID::TownPortal && *sgOptions.Oracool.permanentFreeTownPortal && !gbIsMultiplayer)
+		return 0;
+
 	int ma; // mana amount
 
 	// mana adjust

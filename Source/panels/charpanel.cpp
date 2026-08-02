@@ -15,6 +15,7 @@
 #include "panels/ui_panels.hpp"
 #include "player.h"
 #include "playerdat.hpp"
+#include "options.h"
 #include "utils/display.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -43,10 +44,11 @@ struct PanelEntry {
 
 UiFlags GetBaseStatColor(CharacterAttribute attr)
 {
-	UiFlags style = UiFlags::ColorWhite;
-	if (InspectPlayer->GetBaseAttributeValue(attr) == InspectPlayer->GetMaximumAttributeValue(attr))
-		style = UiFlags::ColorWhitegold;
-	return style;
+	const int base = InspectPlayer->GetBaseAttributeValue(attr);
+	const int classMaximum = InspectPlayer->GetMaximumAttributeValue(attr);
+	if (*sgOptions.Oracool.removeStatLimits)
+		return base >= 255 ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
+	return base > classMaximum ? UiFlags::ColorRed : (base == classMaximum ? UiFlags::ColorWhitegold : UiFlags::ColorWhite);
 }
 
 UiFlags GetCurrentStatColor(CharacterAttribute attr)
@@ -158,7 +160,8 @@ PanelEntry panelEntries[] = {
 	    []() { return StyledText { GetCurrentStatColor(CharacterAttribute::Vitality), StrCat(InspectPlayer->_pVitality) }; } },
 	{ N_("Points to distribute"), { LeftColumnLabelX, 248 }, 45, LeftColumnLabelWidth,
 	    []() {
-	        InspectPlayer->_pStatPts = std::min(CalcStatDiff(*InspectPlayer), InspectPlayer->_pStatPts);
+	        if (*sgOptions.Oracool.removeStatLimits)
+		        InspectPlayer->_pStatPts = std::min(CalcStatDiff(*InspectPlayer), InspectPlayer->_pStatPts);
 	        return StyledText { UiFlags::ColorRed, (InspectPlayer->_pStatPts > 0 ? StrCat(InspectPlayer->_pStatPts) : "") };
 	    } },
 
@@ -250,14 +253,20 @@ void DrawShadowString(const Surface &out, const PanelEntry &entry)
 void DrawStatButtons(const Surface &out)
 {
 	if (InspectPlayer->_pStatPts > 0 && !IsInspectingPlayer()) {
-		if (InspectPlayer->_pBaseStr < InspectPlayer->GetMaximumAttributeValue(CharacterAttribute::Strength))
+		const auto maximum = [&](CharacterAttribute attribute) { return *sgOptions.Oracool.removeStatLimits ? 255 : InspectPlayer->GetMaximumAttributeValue(attribute); };
+		if (InspectPlayer->_pBaseStr < maximum(CharacterAttribute::Strength))
 			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 157 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Strength)] ? 2 : 1]);
-		if (InspectPlayer->_pBaseMag < InspectPlayer->GetMaximumAttributeValue(CharacterAttribute::Magic))
+		if (InspectPlayer->_pBaseMag < maximum(CharacterAttribute::Magic))
 			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 185 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Magic)] ? 4 : 3]);
-		if (InspectPlayer->_pBaseDex < InspectPlayer->GetMaximumAttributeValue(CharacterAttribute::Dexterity))
+		if (InspectPlayer->_pBaseDex < maximum(CharacterAttribute::Dexterity))
 			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 214 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Dexterity)] ? 6 : 5]);
-		if (InspectPlayer->_pBaseVit < InspectPlayer->GetMaximumAttributeValue(CharacterAttribute::Vitality))
+		if (InspectPlayer->_pBaseVit < maximum(CharacterAttribute::Vitality))
 			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 242 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Vitality)] ? 8 : 7]);
+	}
+
+	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer && !IsInspectingPlayer()) {
+		const Point position = GetPanelPosition(UiPanels::Character, { 183, 246 });
+		DrawString(out, "R", { position, { 24, 24 } }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorRed : UiFlags::ColorUiSilver) });
 	}
 }
 
