@@ -1,0 +1,32 @@
+DIABLO ORACOOL EDITION v0.1.0
+Based on DevilutionX 1.5.5
+
+INSTALLATION
+
+1. Use a working vanilla DevilutionX 1.5.5 folder containing your legally
+   obtained Diablo game data.
+2. Back up that folder, especially devilutionx.exe, diablo.ini, and
+   Saved_Games if they exist.
+3. Extract every file from this ZIP directly into the vanilla DevilutionX
+   1.5.5 folder.
+4. Allow Windows to replace files with the same names.
+5. Start devilutionx.exe.
+
+The title screen should display "Diablo Oracool Edition v1.5.5". The v1.5.5
+text identifies the DevilutionX engine base; v0.1.0 is the Oracool Edition
+release number.
+
+IMPORTANT
+
+- This package does not include Diablo or Hellfire game-data MPQ files.
+- This package does not include or overwrite diablo.ini.
+- This package does not include or overwrite saved characters.
+- Oracool Edition stores diablo.ini and Saved_Games beside devilutionx.exe.
+- All Oracool Edition options are enabled by default when a new diablo.ini is
+  created. Existing settings are preserved when upgrading.
+
+This is a development preview. Keep a backup of important characters and
+report any unexpected behavior before relying on the release for long-term
+play.
+
+Release date: 2 August 2026
