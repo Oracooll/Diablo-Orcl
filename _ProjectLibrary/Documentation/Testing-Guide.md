@@ -66,6 +66,7 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Include two equal-price items and verify their original relative order remains stable.
 - Sell items from the beginning, middle, and end of the sorted list and verify the selected original item—not a neighboring inventory item—is removed.
 - Disable each option and verify vanilla behavior returns. Confirm neither feature is active in multiplayer.
+- With the expanded Griswold menu active, open and close each service using both `Back` and Escape; verify the selector returns to the exact service that was closed.
 
 ### Batch D: Auto-save
 

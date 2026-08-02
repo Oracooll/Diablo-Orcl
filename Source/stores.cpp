@@ -175,6 +175,25 @@ int SmithSellAllLine()
 	return BackButtonLine() - 2;
 }
 
+bool HasExtendedSmithServices()
+{
+	return !gbIsMultiplayer && (*sgOptions.Oracool.griswoldSellConsumables || *sgOptions.Oracool.griswoldRechargeStaves);
+}
+
+int SmithMenuLine(TalkID service)
+{
+	const bool extended = HasExtendedSmithServices();
+	switch (service) {
+	case TalkID::SmithBuy: return extended ? 10 : 12;
+	case TalkID::SmithPremiumBuy: return extended ? 12 : 14;
+	case TalkID::SmithSell: return extended ? 14 : 16;
+	case TalkID::SmithRepair: return extended ? 16 : 18;
+	case TalkID::SmithConsumables: return 18;
+	case TalkID::SmithRecharge: return 20;
+	default: return extended ? 8 : 10;
+	}
+}
+
 int LineHeight()
 {
 	return IsSmallFontTall() ? LargeLineHeight : SmallLineHeight;
@@ -379,7 +398,7 @@ void StartSmith()
 	stextscrl = false;
 	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 3, _("Blacksmith's shop"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	const bool extendedServices = !gbIsMultiplayer && (*sgOptions.Oracool.griswoldSellConsumables || *sgOptions.Oracool.griswoldRechargeStaves);
+	const bool extendedServices = HasExtendedSmithServices();
 	AddSText(0, extendedServices ? 6 : 7, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, extendedServices ? 8 : 10, _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddSText(0, extendedServices ? 10 : 12, _("Buy basic items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
@@ -497,7 +516,7 @@ bool StartSmithPremiumBuy()
 	}
 	if (storenumh == 0) {
 		StartStore(TalkID::Smith);
-		stextsel = 14;
+		stextsel = SmithMenuLine(TalkID::SmithPremiumBuy);
 		return false;
 	}
 
@@ -1404,7 +1423,7 @@ void StartDrunk()
 
 void SmithEnter()
 {
-	const bool extendedServices = !gbIsMultiplayer && (*sgOptions.Oracool.griswoldSellConsumables || *sgOptions.Oracool.griswoldRechargeStaves);
+	const bool extendedServices = HasExtendedSmithServices();
 	if (extendedServices) {
 		switch (stextsel) {
 		case 8:
@@ -1480,7 +1499,7 @@ void SmithBuyEnter()
 {
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		stextsel = 12;
+		stextsel = SmithMenuLine(TalkID::SmithBuy);
 		return;
 	}
 
@@ -1531,7 +1550,7 @@ void SmithPremiumBuyEnter()
 {
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		stextsel = 14;
+		stextsel = SmithMenuLine(TalkID::SmithPremiumBuy);
 		return;
 	}
 	if (*sgOptions.Oracool.griswoldPremiumRefresh && !gbIsMultiplayer && stextsel == PremiumRefreshLine()) {
@@ -1645,7 +1664,7 @@ void SmithSellEnter()
 	}
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		stextsel = 16;
+		stextsel = SmithMenuLine(TalkID::SmithSell);
 		return;
 	}
 
@@ -1697,7 +1716,7 @@ void SmithRepairEnter()
 {
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		stextsel = 18;
+		stextsel = SmithMenuLine(TalkID::SmithRepair);
 		return;
 	}
 
@@ -1772,7 +1791,7 @@ void WitchBuyEnter()
 	if (stextsel == BackButtonLine()) {
 		const bool fromSmith = stextflag == TalkID::SmithConsumables;
 		StartStore(fromSmith ? TalkID::Smith : TalkID::Witch);
-		stextsel = fromSmith ? 18 : 14;
+		stextsel = fromSmith ? SmithMenuLine(TalkID::SmithConsumables) : 14;
 		return;
 	}
 
@@ -1847,7 +1866,7 @@ void WitchRechargeEnter()
 	if (stextsel == BackButtonLine()) {
 		const bool fromSmith = stextflag == TalkID::SmithRecharge;
 		StartStore(fromSmith ? TalkID::Smith : TalkID::Witch);
-		stextsel = fromSmith ? 20 : 18;
+		stextsel = fromSmith ? SmithMenuLine(TalkID::SmithRecharge) : 18;
 		return;
 	}
 
@@ -2466,7 +2485,7 @@ void StartStore(TalkID s)
 			StartSmithBuy();
 		else {
 			stextflag = TalkID::SmithBuy;
-			stextlhold = 12;
+			stextlhold = SmithMenuLine(TalkID::SmithBuy);
 			StoreESC();
 			return;
 		}
@@ -2638,27 +2657,27 @@ void StoreESC()
 		break;
 	case TalkID::SmithBuy:
 		StartStore(TalkID::Smith);
-		stextsel = 12;
+		stextsel = SmithMenuLine(TalkID::SmithBuy);
 		break;
 	case TalkID::SmithPremiumBuy:
 		StartStore(TalkID::Smith);
-		stextsel = 14;
+		stextsel = SmithMenuLine(TalkID::SmithPremiumBuy);
 		break;
 	case TalkID::SmithSell:
 		StartStore(TalkID::Smith);
-		stextsel = 16;
+		stextsel = SmithMenuLine(TalkID::SmithSell);
 		break;
 	case TalkID::SmithRepair:
 		StartStore(TalkID::Smith);
-		stextsel = 18;
+		stextsel = SmithMenuLine(TalkID::SmithRepair);
 		break;
 	case TalkID::SmithConsumables:
 		StartStore(TalkID::Smith);
-		stextsel = 18;
+		stextsel = SmithMenuLine(TalkID::SmithConsumables);
 		break;
 	case TalkID::SmithRecharge:
 		StartStore(TalkID::Smith);
-		stextsel = 20;
+		stextsel = SmithMenuLine(TalkID::SmithRecharge);
 		break;
 	case TalkID::WitchBuy:
 		StartStore(TalkID::Witch);
