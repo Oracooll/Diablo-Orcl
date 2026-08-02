@@ -49,7 +49,7 @@
 
 ## OE-006: Gold Stacks Buff
 
-- Status: Build verified; awaiting user acceptance
+- Status: User verified
 - Scope: Single-player inventory gold stacks
 - Change: Raises the maximum value of one inventory gold stack from 5,000 to 65,535.
 - Limit rationale: 65,535 is the maximum unsigned 16-bit value stored in the existing `ItemPack.wValue` field. A higher stack would be truncated during character saving, so it is not safe without a save-format change.
@@ -64,3 +64,4 @@
 - Initial user testing exposed a second, hard-coded 5,000 clamp in recurring player validation. A large stash withdrawal was first placed into one enlarged stack, then immediately truncated to 5,000 while the stash had already deducted the full request.
 - Player validation now uses the active shared stack limit. Stash withdrawal also deducts only the amount actually placed and immediately recalculates the carried-gold total, so insufficient inventory capacity cannot destroy gold.
 - Correction verification: focused partial-withdrawal coverage passes and the complete suite passes all 215 tests.
+- User acceptance: On 2026-08-02, the corrected build passed the user's full practical testing with no further problems found.

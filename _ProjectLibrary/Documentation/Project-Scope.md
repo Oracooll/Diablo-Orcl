@@ -26,6 +26,6 @@ Diablo Oracool Edition is a controlled modification of DevilutionX 1.5.5.
 
 ## Post-migration roadmap
 
-1. Gold Stacks Buff: implemented at the existing save format's exact maximum of 65,535 per inventory stack; build verification complete and user acceptance pending.
+1. Gold Stacks Buff: completed and user-accepted at the existing save format's exact maximum of 65,535 per inventory stack.
 2. Add Pepin's purchasable items to Griswold's `Buy consumables` store. Reuse Pepin's normal stock eligibility, pricing, replenishment, and purchase behavior while keeping all navigation and confirmation routes within Griswold's store interface.
 3. Add `RESPAWN IN TOWN` to the post-death menu. Selecting it must revive the character in town with all equipped gear and carried items retained; death must not drop any of the character's items. The implementation must preserve the existing death-menu choices and avoid changing save compatibility.

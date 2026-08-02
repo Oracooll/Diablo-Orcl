@@ -10,6 +10,7 @@ For every toggleable feature, test both enabled and disabled states after restar
 - 2026-08-02: all 213 automated tests passed.
 - 2026-08-02: after adding Gold Stacks Buff and its save-boundary test, all 214 automated tests passed.
 - 2026-08-02: after correcting the validation clamp and adding lossless-withdrawal coverage, all 215 automated tests passed.
+- 2026-08-02: the user completed broad practical testing of the corrected Gold Stacks Buff and reported no remaining problems.
 - Every catalogued 1.5.4 feature was matched to its 1.5.5 implementation during the final source audit.
 - The only deferred manual validation is high-level boundary testing of the Premium limit controls; this requires a character above the user's currently available level 30 character.
 
