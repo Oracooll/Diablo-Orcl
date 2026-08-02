@@ -14,6 +14,8 @@
 #include "cursor.h"
 #include "error.h"
 #include "init.h"
+#include "options.h"
+#include "oracool/oracool.h"
 #include "utils/language.h"
 #include "utils/utf8.hpp"
 
@@ -73,6 +75,8 @@ bool IsWarpOpen(dungeon_type type)
 {
 	if (gbIsSpawn)
 		return false;
+	if (oracool::IsSinglePlayer() && *sgOptions.Oracool.unlockAllTownEntrances)
+		return true;
 
 	if (gbIsMultiplayer && type != DTYPE_NEST) // Opening the nest is part of in town quest
 		return true;

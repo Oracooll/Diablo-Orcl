@@ -35,6 +35,7 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/oracool.h"
 #include "panels/info_box.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -1455,7 +1456,12 @@ _unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate)
 {
 	std::bitset<128> uok = {};
 
-	if (GenerateRnd(100) > uper)
+	int uniqueRollUpperBound = uper;
+	if (oracool::IsSinglePlayer()) {
+		const int multiplier = std::clamp(*sgOptions.Oracool.uniqueItemDropMultiplier, 1, 100);
+		uniqueRollUpperBound = std::min(99, (uper + 1) * multiplier - 1);
+	}
+	if (GenerateRnd(100) > uniqueRollUpperBound)
 		return UITEM_INVALID;
 
 	int numu = 0;
@@ -1566,6 +1572,8 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 		}
 	}
 	SetupItem(item);
+	if (oracool::IsSinglePlayer() && *sgOptions.Oracool.autoIdentifyDrops)
+		item._iIdentified = true;
 }
 
 void SetupBaseItem(Point position, _item_indexes idx, bool onlygood, bool sendmsg, bool delta, bool spawn = false)
@@ -2779,7 +2787,7 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pILMinDam = lmin;
 	player._pILMaxDam = lmax;
 
-	player._pInfraFlag = false;
+	player._pInfraFlag = oracool::IsSinglePlayer() && *sgOptions.Oracool.permanentInfravision;
 
 	player._pBlockFlag = false;
 	if (player._pClass == HeroClass::Monk) {

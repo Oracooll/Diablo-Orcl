@@ -6,6 +6,7 @@
 
 #include "inv_iterators.hpp"
 #include "options.h"
+#include "oracool/oracool.h"
 #include "player.h"
 #include <algorithm>
 
@@ -94,12 +95,21 @@ void AutoPickup(const Player &player)
 	if (leveltype == DTYPE_TOWN && !*sgOptions.Gameplay.autoPickupInTown)
 		return;
 
-	for (auto pathDir : PathDirs) {
-		Point tile = player.position.tile + pathDir;
-		if (dItem[tile.x][tile.y] != 0) {
-			int itemIndex = dItem[tile.x][tile.y] - 1;
-			auto &item = Items[itemIndex];
-			if (DoPickup(item)) {
+	const int pickupRange = oracool::IsSinglePlayer()
+	    ? std::clamp(*sgOptions.Oracool.autoPickupRange, 1, 10)
+	    : 1;
+	for (int distance = 1; distance <= pickupRange; ++distance) {
+		for (int deltaY = -distance; deltaY <= distance; ++deltaY) {
+			for (int deltaX = -distance; deltaX <= distance; ++deltaX) {
+				if (std::max(std::abs(deltaX), std::abs(deltaY)) != distance)
+					continue;
+				const Point tile = player.position.tile + Displacement { deltaX, deltaY };
+				if (!InDungeonBounds(tile) || dItem[tile.x][tile.y] == 0)
+					continue;
+				const int itemIndex = dItem[tile.x][tile.y] - 1;
+				auto &item = Items[itemIndex];
+				if (item._iRequest || !DoPickup(item))
+					continue;
 				NetSendCmdGItem(true, CMD_REQUESTAGITEM, player.getId(), itemIndex);
 				item._iRequest = true;
 			}
