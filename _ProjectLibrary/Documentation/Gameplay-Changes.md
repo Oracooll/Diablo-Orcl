@@ -96,3 +96,38 @@
 - Hover lifetime: The description remains visible only while the mouse cursor is hovering over the item that owns it and disappears when the cursor moves away.
 - Unique-item integration: The same always-on-top hover behavior must be applied retroactively to existing Unique-item description windows.
 - Design work required: Define generation probability and sources, affix selection and compatibility rules, minimum and maximum affix counts, identification behavior, pricing, inventory/store interaction, save representation, backward compatibility, and multiplayer policy before implementation begins.
+
+## OE-009: Buffed Uniques
+
+- Status: Roadmap concept; not yet designed or implemented
+- Item hierarchy: Enhanced form of an existing Unique item.
+- Provisional affix range: At least two prefixes and two suffixes; at most three prefixes and three suffixes.
+- Design work required: Preserve or replace the original Unique powers, establish affix compatibility and roll ranges, define naming and visual presentation, and design a safe save representation.
+
+## OE-010: Primal Items
+
+- Status: Roadmap concept; not yet designed or implemented
+- Item hierarchy: Highest tier, derived from Buffed Uniques.
+- Affixes: Exactly three prefixes and three suffixes.
+- Perfect-roll rule: Every applicable generated property uses its maximum permitted value.
+- Design work required: Eligibility, rarity, drop sources, visual identity, pricing, description layout, and save compatibility.
+
+## OE-011: Torment Difficulty
+
+- Status: Roadmap concept; not yet designed or implemented
+- Scope: New difficulty above the existing game difficulties.
+- Design work required: Unlock conditions, monster health and damage, armor and resistance scaling, player penalties, experience rewards, treasure quality, quest behavior, and multiplayer compatibility.
+
+## OE-012: Stackable Potions and Scrolls
+
+- Status: Roadmap concept; not yet designed or implemented
+- Stack limit: 99 identical potions or scrolls per inventory item stack.
+- Quantity display: Very small numerals rendered legibly over the item icon.
+- Design work required: Exact stack compatibility, merging and splitting, ground pickup, stores, cursor-held items, inventory capacity, save representation, and backward compatibility.
+
+## OE-013: Belt Mod
+
+- Status: Roadmap concept; not yet designed or implemented
+- Belt occupancy: A potion or scroll type uses one belt slot.
+- Automatic refill: After use, the belt slot refills from an inventory stack of the exact same item type.
+- Design work required: Belt quantity presentation, refill timing, inventory-stack priority, controller and hotkey behavior, depleted stacks, simultaneous inventory changes, and automatic-save integration.
