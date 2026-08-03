@@ -89,6 +89,7 @@
 - Scope: Major new item-quality category and item-description interface
 - Base items: Rare items are derived from normal white base items.
 - Name color: Yellow, visually distinct from white normal items, blue magical items, and gold Unique items.
+- Drop frequency: Fairly common. Rare items occur less often than magical items but more often than Unique items, with their frequency deliberately much closer to magical items. The exact probability will be derived from the vanilla drop pipeline and tuned through play testing.
 - Affixes: A Rare item may have up to two prefixes and up to two suffixes.
 - Naming: `RARE (BASIC BASE ITEM NAME)`, using the unmodified base item's name inside the parentheses.
 - Statistics display: Hovering over a Rare item invokes the engine's existing vanilla Unique-item statistics popup method so all properties can be read clearly.
@@ -127,7 +128,7 @@
 - Scope: New difficulty above the existing game difficulties.
 - Scaling method: First measure how every relevant parameter changes from Normal to Nightmare and from Nightmare to Hell. Use those actual progressions to propose a consistent but playable extension from Hell to Torment rather than choosing isolated multipliers.
 - Balance process: The user will test Torment in play and scaling will be revised when practical results require it.
-- Open configuration proposal: Consider a multiplier setting ranging from 1.1 to 5.0 in steps of 0.1. Confirm whether this is intended to modify Hell itself or to scale Torment from the Hell baseline before implementation.
+- Configuration: Add `Torment Difficulty Multiplier`, ranging from 1.1 to 5.0 in steps of 0.1. It scales Torment from the Hell baseline and does not alter Hell itself. Select the initial default from the measured Normal-to-Nightmare-to-Hell progression, then revise it through play testing if necessary.
 - Design work required: Unlock conditions, monster health and damage, armor and resistance scaling, player penalties, experience rewards, treasure quality, quest behavior, and multiplayer compatibility.
 
 ## OE-012: Stackable Consumables
@@ -152,4 +153,5 @@
 
 - Multiplayer: All new gameplay systems are strictly single-player-only.
 - Save format: An Oracool-specific, versioned save extension is allowed when needed to preserve additional affixes, perfect-roll identity, and consumable quantities. Migration and validation must prevent silent truncation or item loss.
-- Drop multiplier: New high-tier item chances are derived from vanilla Unique-item probability so `Unique Item Drop Multiplier` affects them. Buffed Uniques use a 1:1 ratio and Primals a 1:5 ratio relative to vanilla Uniques. The Rare ratio remains undecided.
+- Drop multiplier: New high-tier item chances are derived from vanilla Unique-item probability so `Unique Item Drop Multiplier` affects them. Buffed Uniques use a 1:1 ratio and Primals a 1:5 ratio relative to vanilla Uniques. Rare items are fairly common between Magic and Unique frequency and closer to Magic; their exact ratio will be selected after inspecting the vanilla drop pipeline.
+- Quality selection: The precise internal roll ordering is delegated as an implementation decision. It must yield one intended item per generated drop, preserve the specified relative frequencies, avoid extra-drop side effects, and leave vanilla Unique behavior stable.

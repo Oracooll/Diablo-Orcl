@@ -56,4 +56,5 @@ Branding correction and Respawn in Town remain independent roadmap work and may 
 - New item-tier drop chances derive from the vanilla Unique-item drop chance and therefore respond to `Unique Item Drop Multiplier`.
 - Buffed Uniques use the same base drop chance as vanilla Unique items.
 - Primals use one fifth of the vanilla Unique-item drop chance.
-- The Rare-item drop ratio remains to be specified.
+- Rare items must be fairly common: less common than magical items, more common than Unique items, and substantially closer to magical-item frequency. Determine the exact ratio from the existing drop algorithm and play testing.
+- The internal quality-selection method is an implementation decision. It must produce only the intended item, preserve understandable user-facing probabilities, avoid accidental extra drops, and keep vanilla Unique behavior stable.
