@@ -118,6 +118,7 @@
 - Affixes: Exactly three prefixes and three suffixes.
 - Perfect-roll rule: The base item and every applicable generated property use their maximum permitted values; a Primal is a fully maxed Buffed Unique.
 - Name color: Cyan.
+- Naming: Uppercase `PRIMAL ` followed by the uppercase, unmodified base item name, for example `PRIMAL FULL PLATE MAIL`. Generated affixes do not alter the displayed name.
 - Drop chance: One fifth of the vanilla Unique-item drop chance and affected by `Unique Item Drop Multiplier`.
 - Statistics display: Hovering uses the same engine-native Unique-item popup shared by Rare, existing Unique, and Buffed Unique items; it must render above other open interface panels.
 - Design work required: Eligibility, rarity, drop sources, visual identity, pricing, description layout, and save compatibility.
