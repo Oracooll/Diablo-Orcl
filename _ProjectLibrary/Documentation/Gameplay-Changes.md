@@ -100,17 +100,24 @@
 ## OE-009: Buffed Uniques
 
 - Status: Roadmap concept; not yet designed or implemented
-- Item hierarchy: Enhanced form of an existing Unique item.
-- Provisional affix range: At least two prefixes and two suffixes; at most three prefixes and three suffixes.
+- Vanilla separation: Existing predefined vanilla Unique items and their behavior remain unchanged.
+- Item foundation: Procedurally generated from normal white base items; the population is effectively unbounded rather than a finite predefined catalogue.
+- Item model: Enhanced magical items presented as a new Unique class.
+- Affix range: At least two prefixes and two suffixes; at most three prefixes and three suffixes.
+- Naming: `Unique ` followed by the unmodified base item name, for example `Unique Full Plate Mail`. Affixes do not alter this displayed name, so separately generated items may share a name while having different properties.
+- Name color: The same gold used by vanilla Unique items.
+- Drop chance: Equal to the vanilla Unique-item drop chance and affected by `Unique Item Drop Multiplier`.
 - Statistics display: Hovering uses the same engine-native Unique-item popup shared by Rare, existing Unique, and Primal items; it must render above other open interface panels.
-- Design work required: Preserve or replace the original Unique powers, establish affix compatibility and roll ranges, define naming and visual presentation, and design a safe save representation.
+- Design work required: Establish affix compatibility and roll ranges, pricing, identification behavior, drop eligibility, and the extended save representation.
 
 ## OE-010: Primal Items
 
 - Status: Roadmap concept; not yet designed or implemented
 - Item hierarchy: Highest tier, derived from Buffed Uniques.
 - Affixes: Exactly three prefixes and three suffixes.
-- Perfect-roll rule: Every applicable generated property uses its maximum permitted value.
+- Perfect-roll rule: The base item and every applicable generated property use their maximum permitted values; a Primal is a fully maxed Buffed Unique.
+- Name color: Cyan.
+- Drop chance: One fifth of the vanilla Unique-item drop chance and affected by `Unique Item Drop Multiplier`.
 - Statistics display: Hovering uses the same engine-native Unique-item popup shared by Rare, existing Unique, and Buffed Unique items; it must render above other open interface panels.
 - Design work required: Eligibility, rarity, drop sources, visual identity, pricing, description layout, and save compatibility.
 
@@ -119,18 +126,30 @@
 - Status: Roadmap concept; not yet designed or implemented
 - Scope: New difficulty above the existing game difficulties.
 - Scaling method: First measure how every relevant parameter changes from Normal to Nightmare and from Nightmare to Hell. Use those actual progressions to propose a consistent but playable extension from Hell to Torment rather than choosing isolated multipliers.
+- Balance process: The user will test Torment in play and scaling will be revised when practical results require it.
+- Open configuration proposal: Consider a multiplier setting ranging from 1.1 to 5.0 in steps of 0.1. Confirm whether this is intended to modify Hell itself or to scale Torment from the Hell baseline before implementation.
 - Design work required: Unlock conditions, monster health and damage, armor and resistance scaling, player penalties, experience rewards, treasure quality, quest behavior, and multiplayer compatibility.
 
-## OE-012: Stackable Potions and Scrolls
+## OE-012: Stackable Consumables
 
 - Status: Roadmap concept; not yet designed or implemented
-- Stack limit: 99 identical potions or scrolls per inventory item stack.
+- Eligibility: Every non-quest consumable is stackable; quest consumables are excluded.
+- Stack limit: 99 identical consumables per inventory item stack.
+- Automatic merging: Pickups and store purchases merge into compatible partial stacks before consuming a new inventory slot.
+- Consumption: Using a stacked consumable removes one unit and leaves the remainder in place.
 - Quantity display: Very small numerals rendered legibly over the item icon.
-- Design work required: Exact stack compatibility, merging and splitting, ground pickup, stores, cursor-held items, inventory capacity, save representation, and backward compatibility.
+- Design work required: Exact identity rules, splitting controls, cursor-held items, inventory capacity, extended save representation, and backward compatibility.
 
 ## OE-013: Belt Mod
 
 - Status: Roadmap concept; not yet designed or implemented
 - Belt occupancy: A potion or scroll type uses one belt slot.
 - Automatic refill: After use, the belt slot refills from an inventory stack of the exact same item type.
+- Quantity display: Show the total available quantity for that consumable type on the belt icon.
 - Design work required: Belt quantity presentation, refill timing, inventory-stack priority, controller and hotkey behavior, depleted stacks, simultaneous inventory changes, and automatic-save integration.
+
+## Shared compatibility policy for OE-008 through OE-013
+
+- Multiplayer: All new gameplay systems are strictly single-player-only.
+- Save format: An Oracool-specific, versioned save extension is allowed when needed to preserve additional affixes, perfect-roll identity, and consumable quantities. Migration and validation must prevent silent truncation or item loss.
+- Drop multiplier: New high-tier item chances are derived from vanilla Unique-item probability so `Unique Item Drop Multiplier` affects them. Buffed Uniques use a 1:1 ratio and Primals a 1:5 ratio relative to vanilla Uniques. The Rare ratio remains undecided.
