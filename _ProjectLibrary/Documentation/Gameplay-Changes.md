@@ -91,10 +91,10 @@
 - Name color: Yellow, visually distinct from white normal items, blue magical items, and gold Unique items.
 - Affixes: A Rare item may have up to two prefixes and up to two suffixes.
 - Naming: `RARE (BASIC BASE ITEM NAME)`, using the unmodified base item's name inside the parentheses.
-- Statistics display: Rare items use the expanded description-window method associated with Unique items so all of their properties can be read clearly.
+- Statistics display: Hovering over a Rare item invokes the engine's existing vanilla Unique-item statistics popup method so all properties can be read clearly.
 - Interface priority: The description window must render above every other open screen or panel and remain readable regardless of the underlying interface state.
 - Hover lifetime: The description remains visible only while the mouse cursor is hovering over the item that owns it and disappears when the cursor moves away.
-- Unique-item integration: The same always-on-top hover behavior must be applied retroactively to existing Unique-item description windows.
+- Tier integration: The same hover-triggered, always-on-top statistics popup must be used for Rare, existing Unique, Buffed Unique, and Primal items.
 - Design work required: Define generation probability and sources, affix selection and compatibility rules, minimum and maximum affix counts, identification behavior, pricing, inventory/store interaction, save representation, backward compatibility, and multiplayer policy before implementation begins.
 
 ## OE-009: Buffed Uniques
@@ -102,6 +102,7 @@
 - Status: Roadmap concept; not yet designed or implemented
 - Item hierarchy: Enhanced form of an existing Unique item.
 - Provisional affix range: At least two prefixes and two suffixes; at most three prefixes and three suffixes.
+- Statistics display: Hovering uses the same engine-native Unique-item popup shared by Rare, existing Unique, and Primal items; it must render above other open interface panels.
 - Design work required: Preserve or replace the original Unique powers, establish affix compatibility and roll ranges, define naming and visual presentation, and design a safe save representation.
 
 ## OE-010: Primal Items
@@ -110,12 +111,14 @@
 - Item hierarchy: Highest tier, derived from Buffed Uniques.
 - Affixes: Exactly three prefixes and three suffixes.
 - Perfect-roll rule: Every applicable generated property uses its maximum permitted value.
+- Statistics display: Hovering uses the same engine-native Unique-item popup shared by Rare, existing Unique, and Buffed Unique items; it must render above other open interface panels.
 - Design work required: Eligibility, rarity, drop sources, visual identity, pricing, description layout, and save compatibility.
 
 ## OE-011: Torment Difficulty
 
 - Status: Roadmap concept; not yet designed or implemented
 - Scope: New difficulty above the existing game difficulties.
+- Scaling method: First measure how every relevant parameter changes from Normal to Nightmare and from Nightmare to Hell. Use those actual progressions to propose a consistent but playable extension from Hell to Torment rather than choosing isolated multipliers.
 - Design work required: Unlock conditions, monster health and damage, armor and resistance scaling, player penalties, experience rewards, treasure quality, quest behavior, and multiplayer compatibility.
 
 ## OE-012: Stackable Potions and Scrolls

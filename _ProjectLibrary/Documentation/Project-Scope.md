@@ -36,3 +36,15 @@ Diablo Oracool Edition is a controlled modification of DevilutionX 1.5.5.
 8. Add a new **TORMENT** difficulty above the existing difficulties. Its unlock requirements, monster scaling, resistance rules, experience, treasure quality, multiplayer behavior, and relationship to the new item tiers require a separate balance specification.
 9. Add stackable potions and scrolls with a maximum stack size of 99. Display the current quantity in very small, readable numerals over the item icon. Define stacking compatibility, splitting, pickup, stores, cursor behavior, save representation, and full-inventory edge cases before implementation.
 10. Add a **BELT MOD**. Each potion or scroll type occupies only one belt slot, and using it automatically refills that belt slot from an inventory stack of the exact same item type. Define belt quantity display, refill timing, selection priority, hotkey behavior, depleted-stack behavior, and interactions with automatic saving before implementation.
+
+### Approved development order
+
+1. Stackable potions and scrolls.
+2. Belt automatic refill.
+3. Shared extended item-data and save foundation.
+4. Rare Items.
+5. Buffed Uniques.
+6. Primal Items.
+7. Torment difficulty and final balance integration.
+
+Branding correction and Respawn in Town remain independent roadmap work and may be scheduled separately.
