@@ -68,7 +68,7 @@
 
 ## OE-007: Fixed Pepin potions in Griswold's Buy Consumables
 
-- Status: Build verified; awaiting user acceptance
+- Status: User verified
 - Scope: Single-player Griswold consumables store
 - Change: Griswold's `Buy consumables` list begins with exactly four Pepin potions, in this order: Potion of Healing, Potion of Full Healing, Potion of Rejuvenation, and Potion of Full Rejuvenation. Adria's normal stock follows. No other Pepin merchandise appears in Griswold's list.
 - Purchasing: The four fixed potions use their normal prices, payment checks, and inventory-placement behavior.
