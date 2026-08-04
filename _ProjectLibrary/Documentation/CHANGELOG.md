@@ -185,6 +185,14 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.3 — Fixed: Some Potions Silently Refused to Stack
+
+### Vendor-bought and starting potions now stack correctly with ones found on the ground
+
+Diablo's item data has always secretly carried two separate entries for several potions — one used specifically by vendors and starting gear, another used by everything monsters and the dungeon floor actually drop — even though both look completely identical to the player. Because Stackable Consumables checked an internal item index rather than what the potion actually *is*, a Potion of Healing bought from Pepin, a Potion of Mana bought from Adria, or either of the two potions every new character starts with could never stack with an otherwise-identical potion found while exploring. Rejuvenation and Full Rejuvenation potions happened to be unaffected by coincidence; every other potion type could hit this. Fixed — potions (and scrolls, checked separately by which spell they cast) now stack based on what they actually are, not which of the two interchangeable internal entries produced them.
+
+---
+
 ## v0.2.2 — Curated Default Settings
 
 ### New installs now start with a curated, ready-to-play settings profile

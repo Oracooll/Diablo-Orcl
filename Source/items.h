@@ -516,8 +516,16 @@ struct Item {
 
 	[[nodiscard]] bool canStackWith(const Item &other) const
 	{
+		// Deliberately compares _iMiscId (+ _iSpell for scrolls, where _iMiscId is the
+		// generic IMISC_SCROLL for every spell) rather than IDidx. Diablo's own item table
+		// carries two separate _item_indexes for several potions - one reserved for vendor
+		// stock and starting gear (Pepin's Heal/Full Heal, Adria's Mana/Full Mana, a new
+		// character's two starting belt potions), another that monster/floor drops actually
+		// use - both displaying as the exact same potion with no visible difference. IDidx
+		// would treat those as different items and refuse to stack them; _iMiscId is shared
+		// by both underlying indices, since it's what actually determines the potion's kind.
 		return isStackableConsumable() && other.isStackableConsumable()
-		    && IDidx == other.IDidx && _iIdentified == other._iIdentified;
+		    && _iMiscId == other._iMiscId && _iSpell == other._iSpell && _iIdentified == other._iIdentified;
 	}
 
 	/** @brief Maximum number of prefix (or suffix) affixes an Oracool-tiered item may carry. */

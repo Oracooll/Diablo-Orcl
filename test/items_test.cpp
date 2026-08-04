@@ -141,6 +141,35 @@ TEST(Item, CanStackWith_DifferentBaseItemDoesNotStack)
 	EXPECT_FALSE(a.canStackWith(b));
 }
 
+// Regression test for a real bug: AllItemsList carries two separate _item_indexes for
+// several potions - one reserved for vendor stock and starting gear (e.g. Pepin's Healing
+// potions, Adria's Mana potions, a new character's starting belt), another that monster/
+// floor drops actually use - both displaying as the identical potion with no visible
+// difference to the player. canStackWith() used to key on IDidx and would refuse to merge
+// them; it must key on _iMiscId (the field that actually determines the potion's kind)
+// instead, so a vendor-bought or starting potion stacks with an otherwise-identical one
+// found on the ground.
+TEST(Item, CanStackWith_SameKindDifferentUnderlyingIDidxStillStacks)
+{
+	Item vendorStock = MakeItem(ICLASS_MISC, IMISC_HEAL, IDI_HEAL, true);
+	Item dungeonDrop = MakeItem(ICLASS_MISC, IMISC_HEAL, IDI_MANA /* stand-in for the other Diablo item table's duplicate index */, true);
+	EXPECT_TRUE(vendorStock.canStackWith(dungeonDrop));
+	EXPECT_TRUE(dungeonDrop.canStackWith(vendorStock));
+}
+
+// _iMiscId alone is IMISC_SCROLL for every spell scroll, so _iSpell must still be checked -
+// otherwise the IDidx fix above would incorrectly let a Scroll of Firebolt stack with a
+// Scroll of Identify just because both are "IMISC_SCROLL."
+TEST(Item, CanStackWith_DifferentScrollSpellsDoNotStack)
+{
+	Item identifyScroll = MakeItem(ICLASS_MISC, IMISC_SCROLL, IDI_PORTAL, true);
+	identifyScroll._iSpell = SpellID::Identify;
+	Item fireboltScroll = MakeItem(ICLASS_MISC, IMISC_SCROLL, IDI_PORTAL, true);
+	fireboltScroll._iSpell = SpellID::Firebolt;
+
+	EXPECT_FALSE(identifyScroll.canStackWith(fireboltScroll));
+}
+
 TEST(Item, CanStackWith_NonStackableTypeNeverStacks)
 {
 	Item a = MakeItem(ICLASS_QUEST, IMISC_NONE, IDI_ROCK);
