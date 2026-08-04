@@ -237,6 +237,18 @@ struct Player {
 	Item SpdList[MaxBeltItems];
 	Item HoldItem;
 
+	/**
+	 * @brief Oracool Tabbed Inventory: 9 additional backpack pages beyond the original InvList
+	 * (tab 1), each the same size and shape as InvList/InvGrid. Deliberately not part of the
+	 * on-disk PlayerPack/ItemNetPack save structs (those are validated with a strict sizeof()
+	 * check, so any resize breaks every existing save) - persisted instead through a separate,
+	 * skip-if-empty save sub-file, the same pattern already used for tiered-item extension data.
+	 */
+	static constexpr int NumExtraInventoryTabs = 9;
+	std::array<std::array<Item, InventoryGridCells>, NumExtraInventoryTabs> InvTabList {};
+	std::array<std::array<int8_t, InventoryGridCells>, NumExtraInventoryTabs> InvTabGrid {};
+	std::array<int, NumExtraInventoryTabs> _pNumInvTab {};
+
 	int lightId;
 
 	int _pNumInv;
@@ -780,7 +792,7 @@ extern DVL_API_FOR_TEST size_t MyPlayerId;
 extern DVL_API_FOR_TEST Player *MyPlayer;
 extern DVL_API_FOR_TEST std::vector<Player> Players;
 /** @brief What Player items and stats should be displayed? Normally this is identical to MyPlayer but can differ when /inspect was used. */
-extern Player *InspectPlayer;
+extern DVL_API_FOR_TEST Player *InspectPlayer;
 /** @brief Do we currently inspect a remote player (/inspect was used)? In this case the (remote) players items and stats can't be modified. */
 inline bool IsInspectingPlayer()
 {

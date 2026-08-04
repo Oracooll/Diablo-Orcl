@@ -30,6 +30,7 @@
 #include "engine/render/text_render.hpp"
 #include "init.h"
 #include "inv_iterators.hpp"
+#include "items/validation.h"
 #include "levels/town.h"
 #include "lighting.h"
 #include "minitext.h"
@@ -150,6 +151,14 @@ enum class PlayerArmorGraphic : uint8_t {
 };
 
 Item curruitem;
+
+/**
+ * @brief When set, RndPL returns the maximum end of its range instead of rolling, so every
+ * affix magnitude applied while this is active comes out as a "perfect roll." Only ever set
+ * for the duration of generating a single Primal item's affixes (GetTieredItemAffixes) - never
+ * left set across a frame boundary, since RndPL is also used outside item generation.
+ */
+bool ForcePerfectAffixRoll = false;
 
 /** Holds item get records, tracking items being recently looted. This is in an effort to prevent items being picked up more than once. */
 ItemGetRecordStruct itemrecord[MAXITEMS];
@@ -684,6 +693,8 @@ void GetBookSpell(Item &item, int lvl)
 
 int RndPL(int param1, int param2)
 {
+	if (ForcePerfectAffixRoll)
+		return param2;
 	return param1 + GenerateRnd(param2 - param1 + 1);
 }
 
@@ -1271,6 +1282,88 @@ void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, Affi
 		CalcItemValue(item);
 }
 
+namespace {
+
+/**
+ * @brief Picks one eligible prefix for an Oracool-tiered item (Rare, Buffed Unique, ...),
+ * excluding any affix type already rolled on this item and applying the running Good/Evil
+ * exclusion cumulatively (unlike vanilla's single-prefix-then-single-suffix
+ * GetItemPowerPrefixAndSuffix, a tiered item may already have picked up to
+ * 2*Item::MaxOracoolAffixesPerSlot - 1 other affixes by the time this runs).
+ *
+ * @return Index into ItemPrefixes[], or -1 if nothing eligible remains.
+ */
+int SelectRarePrefixCandidate(int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool hellfireItem,
+    bool ignoreLevelLimits, const std::array<item_effect_type, Item::MaxOracoolAffixesPerSlot * 2> &pickedTypes, int pickedCount, goodorevil goe)
+{
+	int l[256];
+	int nt = 0;
+	for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
+		if (!IsPrefixValidForItemType(j, flgs, hellfireItem))
+			continue;
+		if (!ignoreLevelLimits && (ItemPrefixes[j].PLMinLvl < minlvl || ItemPrefixes[j].PLMinLvl > maxlvl))
+			continue;
+		if (onlygood && !ItemPrefixes[j].PLOk)
+			continue;
+		if (HasAnyOf(flgs, AffixItemType::Staff) && ItemPrefixes[j].power.type == IPL_CHARGES)
+			continue;
+		if ((goe == GOE_GOOD && ItemPrefixes[j].PLGOE == GOE_EVIL) || (goe == GOE_EVIL && ItemPrefixes[j].PLGOE == GOE_GOOD))
+			continue;
+		bool alreadyPicked = false;
+		for (int k = 0; k < pickedCount; k++) {
+			if (pickedTypes[k] == ItemPrefixes[j].power.type) {
+				alreadyPicked = true;
+				break;
+			}
+		}
+		if (alreadyPicked)
+			continue;
+		l[nt] = j;
+		nt++;
+		if (ItemPrefixes[j].PLDouble) {
+			l[nt] = j;
+			nt++;
+		}
+	}
+	if (nt == 0)
+		return -1;
+	return l[GenerateRnd(nt)];
+}
+
+/** @brief Suffix equivalent of SelectRarePrefixCandidate; see that function for the shared rules. */
+int SelectRareSuffixCandidate(int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool hellfireItem,
+    bool ignoreLevelLimits, const std::array<item_effect_type, Item::MaxOracoolAffixesPerSlot * 2> &pickedTypes, int pickedCount, goodorevil goe)
+{
+	int l[256];
+	int nt = 0;
+	for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
+		if (!IsSuffixValidForItemType(j, flgs, hellfireItem))
+			continue;
+		if (!ignoreLevelLimits && (ItemSuffixes[j].PLMinLvl < minlvl || ItemSuffixes[j].PLMinLvl > maxlvl))
+			continue;
+		if (onlygood && !ItemSuffixes[j].PLOk)
+			continue;
+		if ((goe == GOE_GOOD && ItemSuffixes[j].PLGOE == GOE_EVIL) || (goe == GOE_EVIL && ItemSuffixes[j].PLGOE == GOE_GOOD))
+			continue;
+		bool alreadyPicked = false;
+		for (int k = 0; k < pickedCount; k++) {
+			if (pickedTypes[k] == ItemSuffixes[j].power.type) {
+				alreadyPicked = true;
+				break;
+			}
+		}
+		if (alreadyPicked)
+			continue;
+		l[nt] = j;
+		nt++;
+	}
+	if (nt == 0)
+		return -1;
+	return l[GenerateRnd(nt)];
+}
+
+} // namespace
+
 void GetStaffSpell(const Player &player, Item &item, int lvl, bool onlygood)
 {
 	if (!gbIsHellfire && FlipCoin(4)) {
@@ -1344,44 +1437,53 @@ void GetOilType(Item &item, int maxLvl)
 	item._iIvalue = OilValues[t];
 }
 
+/**
+ * @brief Maps an item's equipment type to the AffixItemType bit vanilla's affix tables
+ * (ItemPrefixes[]/ItemSuffixes[]) filter eligibility by, mirroring GetItemBonus's dispatch
+ * below. Returns AffixItemType::None for types that never carry prefix/suffix affixes.
+ */
+AffixItemType GetAffixItemTypeForItem(const Item &item)
+{
+	switch (item._itype) {
+	case ItemType::Sword:
+	case ItemType::Axe:
+	case ItemType::Mace:
+		return AffixItemType::Weapon;
+	case ItemType::Bow:
+		return AffixItemType::Bow;
+	case ItemType::Shield:
+		return AffixItemType::Shield;
+	case ItemType::LightArmor:
+	case ItemType::Helm:
+	case ItemType::MediumArmor:
+	case ItemType::HeavyArmor:
+		return AffixItemType::Armor;
+	case ItemType::Staff:
+		return AffixItemType::Staff;
+	case ItemType::Ring:
+	case ItemType::Amulet:
+		return AffixItemType::Misc;
+	case ItemType::None:
+	case ItemType::Misc:
+	case ItemType::Gold:
+		return AffixItemType::None;
+	}
+	return AffixItemType::None;
+}
+
 void GetItemBonus(const Player &player, Item &item, int minlvl, int maxlvl, bool onlygood, bool allowspells, bool ignoreLevelLimits = false)
 {
 	if (minlvl > 25)
 		minlvl = 25;
 
-	switch (item._itype) {
-	case ItemType::Sword:
-	case ItemType::Axe:
-	case ItemType::Mace:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Weapon, onlygood, ignoreLevelLimits);
-		break;
-	case ItemType::Bow:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Bow, onlygood, ignoreLevelLimits);
-		break;
-	case ItemType::Shield:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Shield, onlygood, ignoreLevelLimits);
-		break;
-	case ItemType::LightArmor:
-	case ItemType::Helm:
-	case ItemType::MediumArmor:
-	case ItemType::HeavyArmor:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Armor, onlygood, ignoreLevelLimits);
-		break;
-	case ItemType::Staff:
-		if (allowspells)
-			GetStaffSpell(player, item, maxlvl, onlygood);
-		else
-			GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Staff, onlygood, ignoreLevelLimits);
-		break;
-	case ItemType::Ring:
-	case ItemType::Amulet:
-		GetItemPower(player, item, minlvl, maxlvl, AffixItemType::Misc, onlygood, ignoreLevelLimits);
-		break;
-	case ItemType::None:
-	case ItemType::Misc:
-	case ItemType::Gold:
-		break;
+	if (item._itype == ItemType::Staff && allowspells) {
+		GetStaffSpell(player, item, maxlvl, onlygood);
+		return;
 	}
+
+	AffixItemType flgs = GetAffixItemTypeForItem(item);
+	if (flgs != AffixItemType::None)
+		GetItemPower(player, item, minlvl, maxlvl, flgs, onlygood, ignoreLevelLimits);
 }
 
 _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_ref<bool(const ItemData &item)> isItemOkay)
@@ -1533,7 +1635,17 @@ int GetItemBLevel(int lvl, item_misc_id miscId, bool onlygood, bool uper15)
 	return iblvl;
 }
 
-void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t iseed, int lvl, int uper, bool onlygood, bool recreate, bool pregen)
+/**
+ * @param allowTieredRoll Must be false when reconstructing a previously-generated item from
+ * its stored seed (RecreateItem/UnPackItem) - SetRndSeed(iseed) below makes every roll in this
+ * function deterministic from that one seed, so an extra roll here would shift every
+ * subsequent roll (e.g. GetItemBonus's affix selection) and silently change a previously
+ * saved item's reconstructed stats on every load. Fresh generation (SpawnItem, chest/quest
+ * drops, etc., all of which pass a brand new AdvanceRndSeed() seed) leaves this at its
+ * default true - consuming extra randomness there is exactly what a "did this drop become
+ * Rare/Buffed Unique" roll is supposed to do.
+ */
+void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t iseed, int lvl, int uper, bool onlygood, bool recreate, bool pregen, bool allowTieredRoll = true)
 {
 	item._iSeed = iseed;
 	SetRndSeed(iseed);
@@ -1554,14 +1666,48 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 		int iblvl = GetItemBLevel(lvl, item._iMiscId, onlygood, uper == 15);
 		if (iblvl != -1) {
 			_unique_items uid = CheckUnique(item, iblvl, uper, recreate);
-			if (uid == UITEM_INVALID) {
-				GetItemBonus(player, item, iblvl / 2, iblvl, onlygood, true);
-			} else {
+			const bool tieredRollEligible = allowTieredRoll && oracool::IsSinglePlayer();
+			// A pure function of item._itype, unchanged by anything below - computed once
+			// and reused instead of every tier's roll recomputing the same answer. Safe to
+			// hoist unconditionally: it never touches shared RNG state, so this can't shift
+			// where GenerateRnd() below lands in the random sequence for any item.
+			const AffixItemType tieredFlgs = GetAffixItemTypeForItem(item);
+			if (uid != UITEM_INVALID) {
 				GetUniqueItem(player, item, uid);
+			} else if (tieredRollEligible && *sgOptions.Oracool.primalItemDropChance > 0
+			    && GenerateRnd(100) < *sgOptions.Oracool.primalItemDropChance
+			    && tieredFlgs != AffixItemType::None) {
+				// Primal is checked before Buffed Unique and Rare: it's the rarest and most
+				// powerful tier, so it gets first crack at the item. Identification is
+				// deliberately NOT forced here - every item, tiered or not, follows the
+				// single shared Auto Identify Drops toggle checked below.
+				GetPrimalItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
+				CalcOracoolTieredItemValue(item);
+			} else if (tieredRollEligible && *sgOptions.Oracool.buffedUniqueItemDropChance > 0
+			    && GenerateRnd(100) < *sgOptions.Oracool.buffedUniqueItemDropChance
+			    && tieredFlgs != AffixItemType::None) {
+				// Buffed Unique is checked before Rare: it's meant to be the rarer of the
+				// two tiers, so the rarer roll gets first crack at the item before a more
+				// common tier claims it.
+				GetBuffedUniqueItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
+				CalcOracoolTieredItemValue(item);
+			} else if (tieredRollEligible && *sgOptions.Oracool.rareItemDropChance > 0
+			    && GenerateRnd(100) < *sgOptions.Oracool.rareItemDropChance
+			    && tieredFlgs != AffixItemType::None) {
+				// Rare items sit between Magic and Unique in the quality-roll fork: only
+				// tried once an item has already failed its Unique, Primal, and Buffed
+				// Unique rolls, so none of those is ever reduced or replaced, matching the
+				// roadmap's drop policy.
+				GetRareItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
+				CalcOracoolTieredItemValue(item);
+			} else {
+				GetItemBonus(player, item, iblvl / 2, iblvl, onlygood, true);
 			}
 		}
 		if (item._iMagical != ITEM_QUALITY_UNIQUE)
 			ItemRndDur(item);
+		if (item._iOracoolTier == OracoolItemTier::Primal)
+			item._iDurability = item._iMaxDur; // perfect roll: full durability, overriding ItemRndDur's random roll above
 	} else {
 		if (item._iLoc != ILOC_UNEQUIPABLE) {
 			if (iseed > 109 || AllItemsList[static_cast<size_t>(idx)].iItemId != UniqueItems[iseed].UIItemId) {
@@ -2449,6 +2595,191 @@ std::string GetTranslatedItemNameMagical(const Item &item, bool hellfireItem, bo
 
 } // namespace
 
+/** @brief The word placed before the base item name for a tiered item's display name, e.g. "Rare {base}". */
+string_view GetOracoolTierLabel(OracoolItemTier tier)
+{
+	switch (tier) {
+	case OracoolItemTier::Rare:
+		return _("Rare");
+	case OracoolItemTier::BuffedUnique:
+		return _("Unique");
+	case OracoolItemTier::Primal:
+		return _("Primal");
+	case OracoolItemTier::None:
+		break;
+	}
+	return {};
+}
+
+/**
+ * @brief The description-panel line shown under the belt row for a tiered item, matching
+ * vanilla's own lowercase "unique item" convention for real Unique items. Buffed Unique uses
+ * the same "unique item" wording as a real Unique (it's meant to visually blend in), while
+ * Rare and Primal get their own distinct wording.
+ */
+string_view GetOracoolTierPanelLabel(OracoolItemTier tier)
+{
+	switch (tier) {
+	case OracoolItemTier::Rare:
+		return _("rare item");
+	case OracoolItemTier::BuffedUnique:
+		return _("unique item");
+	case OracoolItemTier::Primal:
+		return _("primal item");
+	case OracoolItemTier::None:
+		break;
+	}
+	return {};
+}
+
+/**
+ * @brief Generates an Oracool-tiered item's affixes: forces exactly minAffixesPerSlot prefixes
+ * and minAffixesPerSlot suffixes (the tier's minimum identity requirement - "Always at least..."
+ * per the roadmap, an unconditional guarantee, not a common case), then independently a further
+ * bonusAffixChancePercent chance each for one more prefix and one more suffix, capped at
+ * Item::MaxOracoolAffixesPerSlot - weighted toward fewer total affixes by design.
+ * Shared engine behind GetRareItemAffixes (minAffixesPerSlot=1), GetBuffedUniqueItemAffixes
+ * (minAffixesPerSlot=2), and GetPrimalItemAffixes (minAffixesPerSlot=3, perfectRoll=true).
+ * Reuses vanilla's exact roll-and-apply primitives (SaveItemPower/PLVal) so the real _iPL*
+ * stat bonuses are identical in kind to an ordinary magic item's; only the identity bookkeeping
+ * (which affixes, at what rolled value) goes into Item::_iOracoolPrefixes/_iOracoolSuffixes
+ * instead of the vanilla _iVAdd/_iVMult fields, which only have room for one of each.
+ *
+ * The minAffixesPerSlot loop always ignores the caller's level window (minlvl/maxlvl), regardless
+ * of the ignoreLevelLimits argument or tier: the level window is by far the dominant cause of a
+ * candidate pool running dry (a low-level drop, or a narrow-pool item class like jewelry, can
+ * exhaust every eligible entry once a few affixes are already excluded as duplicates), and the
+ * minimum count is a stated guarantee, not a best-effort. The duplicate-type and Good/Evil
+ * exclusions above are never relaxed - only the level restriction is. The optional bonus-affix
+ * rolls below still respect the ignoreLevelLimits argument as passed, since going over the
+ * guaranteed minimum is explicitly probabilistic "extra," not a promise.
+ *
+ * @param perfectRoll When true, every affix's magnitude is forced to the maximum end of its
+ * declared range (via RndPL, see ForcePerfectAffixRoll) instead of being randomly rolled, and
+ * only beneficial (PLOk) affixes are ever considered regardless of the onlygood argument - a
+ * maxed-out curse/drawback affix would contradict "perfect roll" being an unambiguous upgrade.
+ * It also forces ignoreLevelLimits for the bonus-affix rolls (moot for Primal today, since its
+ * minAffixesPerSlot already equals the hard cap and the bonus rolls never fire).
+ */
+void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, OracoolItemTier tier, int minAffixesPerSlot, int bonusAffixChancePercent, bool ignoreLevelLimits, bool perfectRoll = false)
+{
+	if (perfectRoll) {
+		onlygood = true;
+		ignoreLevelLimits = true;
+	}
+
+	std::array<item_effect_type, Item::MaxOracoolAffixesPerSlot * 2> pickedTypes {};
+	int pickedCount = 0;
+	goodorevil goe = GOE_ANY;
+
+	auto applyPrefix = [&](int idx) {
+		const PLStruct &affix = ItemPrefixes[idx];
+		ItemPower power = affix.power;
+		int raw = SaveItemPower(player, item, power);
+		int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
+		item._iOracoolPrefixes[item._iOracoolPrefixCount] = OracoolAffix { affix.power.type, value, affix.multVal };
+		item._iOracoolPrefixCount++;
+		pickedTypes[pickedCount++] = affix.power.type;
+		if (affix.PLGOE != GOE_ANY)
+			goe = affix.PLGOE;
+	};
+	auto applySuffix = [&](int idx) {
+		const PLStruct &affix = ItemSuffixes[idx];
+		ItemPower power = affix.power;
+		int raw = SaveItemPower(player, item, power);
+		int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
+		item._iOracoolSuffixes[item._iOracoolSuffixCount] = OracoolAffix { affix.power.type, value, affix.multVal };
+		item._iOracoolSuffixCount++;
+		pickedTypes[pickedCount++] = affix.power.type;
+		if (affix.PLGOE != GOE_ANY)
+			goe = affix.PLGOE;
+	};
+
+	const bool previousForcePerfectAffixRoll = ForcePerfectAffixRoll;
+	ForcePerfectAffixRoll = perfectRoll;
+
+	for (int i = 0; i < minAffixesPerSlot; i++) {
+		int idx = SelectRarePrefixCandidate(minlvl, maxlvl, flgs, onlygood, gbIsHellfire, /*ignoreLevelLimits=*/true, pickedTypes, pickedCount, goe);
+		if (idx != -1)
+			applyPrefix(idx);
+	}
+	for (int i = 0; i < minAffixesPerSlot; i++) {
+		int idx = SelectRareSuffixCandidate(minlvl, maxlvl, flgs, onlygood, gbIsHellfire, /*ignoreLevelLimits=*/true, pickedTypes, pickedCount, goe);
+		if (idx != -1)
+			applySuffix(idx);
+	}
+
+	if (item._iOracoolPrefixCount > 0 && item._iOracoolPrefixCount < Item::MaxOracoolAffixesPerSlot && GenerateRnd(100) < bonusAffixChancePercent) {
+		int idx = SelectRarePrefixCandidate(minlvl, maxlvl, flgs, onlygood, gbIsHellfire, ignoreLevelLimits, pickedTypes, pickedCount, goe);
+		if (idx != -1)
+			applyPrefix(idx);
+	}
+	if (item._iOracoolSuffixCount > 0 && item._iOracoolSuffixCount < Item::MaxOracoolAffixesPerSlot && GenerateRnd(100) < bonusAffixChancePercent) {
+		int idx = SelectRareSuffixCandidate(minlvl, maxlvl, flgs, onlygood, gbIsHellfire, ignoreLevelLimits, pickedTypes, pickedCount, goe);
+		if (idx != -1)
+			applySuffix(idx);
+	}
+
+	ForcePerfectAffixRoll = previousForcePerfectAffixRoll;
+
+	item._iMagical = ITEM_QUALITY_MAGIC;
+	item._iOracoolTier = tier;
+	item._iOracoolPerfectRoll = perfectRoll;
+
+	const string_view tierLabel = GetOracoolTierLabel(tier);
+	std::string tieredName = fmt::format(fmt::runtime(_("{0} {1}")), tierLabel, item._iName);
+	if (!StringInPanel(tieredName.c_str()))
+		tieredName = fmt::format(fmt::runtime(_("{0} {1}")), tierLabel, AllItemsList[item.IDidx].iSName);
+	CopyUtf8(item._iIName, tieredName, sizeof(item._iIName));
+}
+
+void GetRareItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits)
+{
+	constexpr int BonusAffixChancePercent = 30;
+	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::Rare, 1, BonusAffixChancePercent, ignoreLevelLimits);
+}
+
+void GetBuffedUniqueItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits)
+{
+	constexpr int BonusAffixChancePercent = 30;
+	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::BuffedUnique, 2, BonusAffixChancePercent, ignoreLevelLimits);
+}
+
+void GetPrimalItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits)
+{
+	// minAffixesPerSlot=3 already equals Item::MaxOracoolAffixesPerSlot, so the bonus-affix
+	// roll inside GetTieredItemAffixes can never fire (the count-below-cap guard blocks it) -
+	// bonusAffixChancePercent is passed as 0 here purely for clarity, not because it matters.
+	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::Primal, Item::MaxOracoolAffixesPerSlot, 0, ignoreLevelLimits, /*perfectRoll=*/true);
+}
+
+/**
+ * @brief Oracool-tiered-item equivalent of CalcItemValue: sums every stored OracoolAffix's
+ * contribution (using the same add/mult-scaling shape) instead of the vanilla 2-slot
+ * _iVAdd/_iVMult fields, which cannot represent more than one prefix and one suffix.
+ */
+void CalcOracoolTieredItemValue(Item &item)
+{
+	int addTotal = 0;
+	int multTotal = 0;
+	for (int i = 0; i < item._iOracoolPrefixCount; i++) {
+		addTotal += item._iOracoolPrefixes[i].param1;
+		multTotal += item._iOracoolPrefixes[i].param2;
+	}
+	for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+		addTotal += item._iOracoolSuffixes[i].param1;
+		multTotal += item._iOracoolSuffixes[i].param2;
+	}
+
+	int v = multTotal;
+	if (v > 0)
+		v *= item._ivalue;
+	if (v < 0)
+		v = item._ivalue / v;
+	v = addTotal + v;
+	item._iIvalue = std::max(v, 1);
+}
+
 bool IsItemAvailable(int i)
 {
 	if (i < 0 || i > IDI_LAST)
@@ -2920,7 +3251,7 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 
 	if (&player == MyPlayer) {
 		const int previousMaxGold = MaxGold;
-		if (oracool::IsSinglePlayer() && *sgOptions.Oracool.goldStacksBuff)
+		if (oracool::IsSinglePlayer())
 			MaxGold = GoldStackSaveLimit;
 		else if (!player.InvBody[INVLOC_AMULET].isEmpty() && player.InvBody[INVLOC_AMULET].IDidx == IDI_AURIC)
 			MaxGold = GOLD_MAX_LIMIT * 2;
@@ -3447,7 +3778,9 @@ void RecreateItem(const Player &player, Item &item, _item_indexes idx, uint16_t 
 	bool recreate = (icreateinfo & CF_UNIQUE) != 0;
 	bool pregen = (icreateinfo & CF_PREGEN) != 0;
 
-	SetupAllItems(player, item, idx, iseed, level, uper, onlygood, recreate, pregen);
+	// RecreateItem always reconstructs a previously-generated item from its stored seed; see
+	// SetupAllItems's allowTieredRoll doc comment for why that must never roll for Rare/Buffed Unique.
+	SetupAllItems(player, item, idx, iseed, level, uper, onlygood, recreate, pregen, false);
 	gbIsHellfire = tmpIsHellfire;
 }
 
@@ -3972,11 +4305,31 @@ void DrawUniqueInfo(const Surface &out)
 	DrawUniqueInfoWindow(out);
 
 	Rectangle rect { position + Displacement { 32, 56 }, { 257, 0 } };
-	const UniqueItem &uitem = UniqueItems[curruitem._iUid];
-	DrawString(out, _(uitem.UIName), rect, { UiFlags::AlignCenter });
 
 	const Rectangle dividerLineRect { position + Displacement { 26, 25 }, { 267, 3 } };
 	out.BlitFrom(out, MakeSdlRect(dividerLineRect), dividerLineRect.position + Displacement { 0, 5 * 12 + 13 });
+
+	if (curruitem.hasOracoolTier()) {
+		// Rare/Buffed Unique/Primal items: unlike a static UniqueItem, the affix list to
+		// show comes from the item instance itself (up to 3 prefixes + 3 suffixes), so
+		// the vanilla UniqueItems[uid].powers[] table isn't involved at all here.
+		DrawString(out, curruitem._iIName, rect, { curruitem.getTextColor() | UiFlags::AlignCenter });
+
+		const int totalLines = curruitem._iOracoolPrefixCount + curruitem._iOracoolSuffixCount;
+		rect.position.y += (10 - totalLines) * 12;
+		for (int i = 0; i < curruitem._iOracoolPrefixCount; i++) {
+			rect.position.y += 2 * 12;
+			DrawString(out, PrintItemPower(curruitem._iOracoolPrefixes[i].type, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
+		}
+		for (int i = 0; i < curruitem._iOracoolSuffixCount; i++) {
+			rect.position.y += 2 * 12;
+			DrawString(out, PrintItemPower(curruitem._iOracoolSuffixes[i].type, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
+		}
+		return;
+	}
+
+	const UniqueItem &uitem = UniqueItems[curruitem._iUid];
+	DrawString(out, _(uitem.UIName), rect, { UiFlags::AlignCenter });
 
 	rect.position.y += (10 - uitem.UINumPL) * 12;
 	assert(uitem.UINumPL <= sizeof(uitem.powers) / sizeof(*uitem.powers));
@@ -4021,8 +4374,8 @@ void PrintItemDetails(const Item &item)
 	if (item._iSufPower != -1) {
 		AddPanelString(PrintItemPower(item._iSufPower, item));
 	}
-	if (item._iMagical == ITEM_QUALITY_UNIQUE) {
-		AddPanelString(_("unique item"));
+	if (item._iMagical == ITEM_QUALITY_UNIQUE || item.hasOracoolTier()) {
+		AddPanelString(item.hasOracoolTier() ? GetOracoolTierPanelLabel(item._iOracoolTier) : _("unique item"));
 		ShowUniqueItemInfoBox = true;
 		curruitem = item;
 	}
@@ -4663,6 +5016,31 @@ void PutItemRecord(uint32_t nSeed, uint16_t wCI, int nIndex)
 
 #ifdef _DEBUG
 std::mt19937 BetterRng;
+
+// The "drop" debug command picks a uniformly random 1-63 "monster level" purely to select
+// which item to generate (RndItemForMonsterLevel) and never checks whether that value could
+// plausibly have come from a real monster or dungeon level. That raw value is stamped into
+// _iCreateInfo and shipped to the network layer unchanged, but OnPutItem/OnDropItem's loopback
+// validation (IsPItemValid/IsDungeonItemValid in msg.cpp) rejects any dungeon item whose level
+// doesn't exactly match a real monster's level and also exceeds the ~30/34 dungeon-depth
+// fallback ceiling - true for roughly half of the 1-63 range. A rejected item is placed in the
+// world locally (so it's visible, can be picked up, equipped, etc.) but vanishes with "sent an
+// invalid packet" the moment it's actually dropped back onto the ground, since the loopback
+// rejection silently discards it instead of ever calling PlaceItemInWorld. This mirrors just
+// enough of IsPItemValid to predict that outcome ahead of time.
+bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx)
+{
+	if (idx != IDI_GOLD && !IsCreationFlagComboValid(item._iCreateInfo))
+		return false;
+	if ((item._iCreateInfo & CF_TOWN) != 0)
+		return IsTownItemValid(item._iCreateInfo);
+	if ((item._iCreateInfo & CF_USEFUL) == CF_UPER15)
+		return IsUniqueMonsterItemValid(item._iCreateInfo, item.dwBuff);
+	if ((item.dwBuff & CF_HELLFIRE) != 0 && AllItemsList[idx].iMiscId == IMISC_BOOK)
+		return true; // reconstructed unconditionally by RecreateHellfireSpellBook, see msg.cpp
+	return IsDungeonItemValid(item._iCreateInfo, item.dwBuff);
+}
+
 std::string DebugSpawnItem(std::string itemName)
 {
 	if (ActiveItemCount >= MAXITEMS)
@@ -4696,8 +5074,11 @@ std::string DebugSpawnItem(std::string itemName)
 		SetupAllItems(*MyPlayer, testItem, idx, AdvanceRndSeed(), monsterLevel, 1, false, false, false);
 
 		std::string tmp = AsciiStrToLower(testItem._iIName);
-		if (tmp.find(itemName) != std::string::npos)
-			break;
+		if (tmp.find(itemName) == std::string::npos)
+			continue;
+		if (!WouldSurviveNetworkValidation(testItem, idx))
+			continue;
+		break;
 	}
 
 	int ii = AllocateItem();

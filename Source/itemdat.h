@@ -9,6 +9,7 @@
 
 #include "objdat.h"
 #include "spelldat.h"
+#include "utils/attributes.h"
 #include "utils/stdcompat/string_view.hpp"
 
 namespace devilution {
@@ -594,8 +595,8 @@ struct UniqueItem {
 };
 
 extern const ItemData AllItemsList[];
-extern const PLStruct ItemPrefixes[];
-extern const PLStruct ItemSuffixes[];
+extern DVL_API_FOR_TEST const PLStruct ItemPrefixes[];
+extern DVL_API_FOR_TEST const PLStruct ItemSuffixes[];
 extern const UniqueItem UniqueItems[];
 
 } // namespace devilution

@@ -152,7 +152,7 @@ void mainmenu_loop()
 		_mainmenu_selections menu = MAINMENU_NONE;
 		if (demo::IsRunning())
 			menu = MAINMENU_SINGLE_PLAYER;
-		else if (!UiMainMenuDialog(gszProductName, &menu, 30))
+		else if (!UiMainMenuDialog(gszMainMenuVersionText, &menu, 30))
 			app_fatal(_("Unable to display mainmenu"));
 
 		switch (menu) {

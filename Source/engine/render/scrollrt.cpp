@@ -1253,9 +1253,6 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawStash(out);
 	}
 	DrawLevelUpIcon(out);
-	if (ShowUniqueItemInfoBox) {
-		DrawUniqueInfo(out);
-	}
 	if (qtextflag) {
 		DrawQText(out);
 	}
@@ -1274,6 +1271,12 @@ void DrawView(const Surface &out, Point startPosition)
 	}
 	if (IsDiabloMsgAvailable()) {
 		DrawDiabloMsg(out);
+	}
+	// Drawn after every other interface panel/dialog above so a hovered item's floating
+	// stat popup (vanilla Unique, or Oracool-tiered) is always genuinely on top, not just
+	// above the panels it happened to predate in this list.
+	if (ShowUniqueItemInfoBox) {
+		DrawUniqueInfo(out);
 	}
 	if (MyPlayerIsDead) {
 		RedBack(out);

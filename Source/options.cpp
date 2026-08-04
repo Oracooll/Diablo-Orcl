@@ -436,10 +436,8 @@ void SaveOptions()
 	setBoolean("Auto Save on Store Purchase", *sgOptions.Oracool.autoSaveOnStorePurchase,
 	    "; Schedules a save after a successful store purchase. Cancelled and failed\n; purchases do not trigger a save.");
 
-	setBoolean("Remove Stat Limits", *sgOptions.Oracool.removeStatLimits,
-	    "; ----- CHARACTER --------------------------------------------------------------\n; Allows base Strength, Magic, Dexterity, and Vitality beyond normal class caps,\n; up to 255. Disabled preserves over-cap values in red but blocks further gains.");
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
-	    "; Shows a silver \"R\" on the character panel. It restores class starting stats\n; and sets distributable points to exactly 5 x (level - 1). Repeated use is safe.");
+	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a silver \"R\" on the character panel. It restores class starting stats\n; and sets distributable points to exactly 5 x (level - 1). Repeated use is safe.");
 
 	setBoolean("Griswold Premium Ignore Affix Level Limits", *sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits,
 	    "; ----- GRISWOLD: PREMIUM SHOP -------------------------------------------------\n; Allows compatible Premium prefixes and suffixes regardless of their normal\n; quality-level requirement. Item compatibility and good-affix rules remain.");
@@ -454,18 +452,10 @@ void SaveOptions()
 	setInteger("Griswold Refresh Until Timeout Seconds", *sgOptions.Oracool.refreshUntilTimeoutSeconds,
 	    "; Maximum search duration in seconds. Zero disables the time stop, but the hard\n; safety limit of 100,000 premium generations remains active.");
 
-	setBoolean("Griswold Buy All Items", *sgOptions.Oracool.griswoldBuyAllItems,
-	    "; ----- GRISWOLD: SERVICES -----------------------------------------------------\n; Lets Griswold buy all positive-value ordinary items, including Adria categories,\n; and adds Sell all. Gold, quest items, Lazarus's staff, and zero-value items stay.");
-	setBoolean("Griswold Recharge Staves", *sgOptions.Oracool.griswoldRechargeStaves,
-	    "; Adds staff recharging using Adria's eligibility, prices, confirmation, payment,\n; and recharge behavior. All Back and Escape routes return to Griswold.");
 	setBoolean("Griswold Restore Health", *sgOptions.Oracool.griswoldRestoreHealth,
-	    "; Silently restores current health to maximum whenever Griswold's main menu opens.\n; No additional menu entry, dialog, or sound appears.");
+	    "; ----- GRISWOLD: SERVICES -----------------------------------------------------\n; Silently restores current health to maximum whenever Griswold's main menu opens.\n; No additional menu entry, dialog, or sound appears.");
 	setBoolean("Griswold Restore Mana", *sgOptions.Oracool.griswoldRestoreMana,
 	    "; Silently restores current mana to maximum whenever Griswold's main menu opens.\n; No additional menu entry, dialog, or sound appears.");
-	setBoolean("Griswold Sell Consumables", *sgOptions.Oracool.griswoldSellConsumables,
-	    "; Adds Buy Consumables. Pepin contributes only Healing, Full Healing, Rejuvenation,\n; and Full Rejuvenation potions, always available in that order before Adria's stock.");
-	setBoolean("Griswold Sort Sell Items by Price", *sgOptions.Oracool.griswoldSortSellItemsByPrice,
-	    "; Sorts Griswold's Sell Items list by descending price. Equal-price items retain\n; their original relative order and their correct inventory or belt source.");
 
 	setBoolean("Griswold Sell Unique Items", *sgOptions.Oracool.griswoldSellUniqueItems,
 	    "; ----- GRISWOLD: UNIQUE SHOP --------------------------------------------------\n; Adds a separate identified unique-item shop. Stock avoids duplicates, remains\n; independent of Premium refreshes, and does not immediately replace purchases.");
@@ -478,15 +468,17 @@ void SaveOptions()
 	    "; ----- ITEMS AND PICKUP -------------------------------------------------------\n; Identifies newly generated world drops immediately. Items deliberately dropped\n; by the player retain their existing identification state.");
 	setInteger("Auto Pickup Range", *sgOptions.Oracool.autoPickupRange,
 	    "; Search radius in tiles for DevilutionX's enabled automatic-pickup categories.\n; Values: 1-10. This does not enable categories disabled in normal game options.");
-	setBoolean("Gold Stacks Buff", *sgOptions.Oracool.goldStacksBuff,
-	    "; Raises the single-player inventory gold-stack cap from 5,000 to 65,535,\n; the highest value supported by the unchanged character save format.");
+	setInteger("Rare Item Drop Chance", *sgOptions.Oracool.rareItemDropChance,
+	    "; Percent chance that an item eligible for Magic quality becomes a Rare item\n; instead, checked after it has already failed its Unique roll. Zero disables Rares.");
+	setInteger("Buffed Unique Item Drop Chance", *sgOptions.Oracool.buffedUniqueItemDropChance,
+	    "; Percent chance that an item eligible for Magic quality becomes a Buffed Unique\n; instead, checked before Rare (right after failing its Unique roll). Zero disables\n; Buffed Uniques. Existing vanilla Unique items are never affected either way.");
+	setInteger("Primal Item Drop Chance", *sgOptions.Oracool.primalItemDropChance,
+	    "; Percent chance that an item eligible for Magic quality becomes a Primal item\n; instead, checked before Buffed Unique and Rare (right after failing its Unique\n; roll). Every affix on a Primal item is forced to its maximum roll. Zero disables Primals.");
 	setInteger("Unique Item Drop Multiplier", *sgOptions.Oracool.uniqueItemDropMultiplier,
 	    "; Multiplies the chance that an eligible drop becomes unique. One is the normal\n; rate; higher values make uniques more common, with final probability capped.");
 
-	setBoolean("Permanent Free Town Portal", *sgOptions.Oracool.permanentFreeTownPortal,
-	    "; ----- WORLD AND EXPLORATION --------------------------------------------------\n; Gives new and existing characters memorized Town Portal at least level 1 and\n; makes memorized casting free. Disabling restores mana cost but keeps the spell.");
 	setBoolean("Permanent Infravision", *sgOptions.Oracool.permanentInfravision,
-	    "; Permanently reveals nearby monsters through walls as if infravision were active.");
+	    "; ----- WORLD AND EXPLORATION --------------------------------------------------\n; Permanently reveals nearby monsters through walls as if infravision were active.");
 	setBoolean("Unlock All Town Entrances", *sgOptions.Oracool.unlockAllTownEntrances,
 	    "; Unlocks Catacombs, Caves, and Hell town entrances without normal level thresholds;\n; also Hive and Crypt in Hellfire. It does not complete quests or alter progress.");
 
@@ -1234,23 +1226,19 @@ OracoolOptions::OracoolOptions()
     , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), true)
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), true)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)
-    , removeStatLimits("Remove Stat Limits", OptionEntryFlags::None, N_("Remove Stat Limits"), N_("Allows base attributes to be raised to 255."), true)
     , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the character panel."), true)
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 1, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
-    , goldStacksBuff("Gold Stacks Buff", OptionEntryFlags::CantChangeInGame, N_("Gold Stacks Buff"), N_("Raises inventory gold stacks to the highest save-compatible value."), true)
-    , permanentFreeTownPortal("Permanent Free Town Portal", OptionEntryFlags::None, N_("Permanent Free Town Portal"), N_("Grants memorized Town Portal and removes its mana cost."), true)
+    , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 8, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
+    , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 3, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
+    , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Percent chance an eligible drop becomes a Primal item, checked before Buffed Unique."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), true)
     , refreshUntilButton("Griswold Refresh Until Button", OptionEntryFlags::None, N_("Griswold Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), true)
     , refreshUntilTimeoutSeconds("Griswold Refresh Until Timeout Seconds", OptionEntryFlags::None, N_("Griswold Refresh Until Timeout Seconds"), N_("Maximum search duration; zero relies on the hard iteration limit."), 5, { 0, 1, 2, 3, 5, 10, 15, 30, 60 })
-    , griswoldBuyAllItems("Griswold Buy All Items", OptionEntryFlags::None, N_("Griswold Buy All Items"), N_("Allows Griswold to buy every ordinary item with a valid sell value."), true)
-    , griswoldSellConsumables("Griswold Sell Consumables", OptionEntryFlags::None, N_("Griswold Sell Consumables"), N_("Adds four always-available Pepin potions before Adria's stock at Griswold."), true)
-    , griswoldRechargeStaves("Griswold Recharge Staves", OptionEntryFlags::None, N_("Griswold Recharge Staves"), N_("Adds Adria-style staff recharging to Griswold."), true)
     , griswoldRestoreHealth("Griswold Restore Health", OptionEntryFlags::None, N_("Griswold Restore Health"), N_("Silently restores health when Griswold's menu opens."), true)
     , griswoldRestoreMana("Griswold Restore Mana", OptionEntryFlags::None, N_("Griswold Restore Mana"), N_("Silently restores mana when Griswold's menu opens."), true)
     , griswoldSellUniqueItems("Griswold Sell Unique Items", OptionEntryFlags::None, N_("Griswold Sell Unique Items"), N_("Adds a separate unique-item shop to Griswold."), true)
     , griswoldUniqueShopItems("Griswold Unique Shop Items", OptionEntryFlags::None, N_("Griswold Unique Shop Items"), N_("Number of unique items offered by Griswold."), 4, { 1, 2, 3, 4, 5, 6, 7, 8 })
     , griswoldUniqueItemPriceMultiplier("Griswold Unique Item Price Multiplier", OptionEntryFlags::None, N_("Griswold Unique Item Price Multiplier"), N_("Multiplier applied to a unique item's normal sell value."), 5, { 1, 2, 3, 4, 5, 10, 15, 20 })
-    , griswoldSortSellItemsByPrice("Griswold Sort Sell Items by Price", OptionEntryFlags::None, N_("Griswold Sort Sell Items by Price"), N_("Sorts Griswold's sell list from highest to lowest price."), true)
     , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes regardless of their normal quality-level requirement."), true)
     , griswoldPremiumIgnorePriceLimits("Griswold Premium Ignore Price Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Price Limits"), N_("Prevents valid Premium items from being rejected by the normal price ceiling."), true)
     , autoSave("Auto Save", OptionEntryFlags::None, N_("Auto Save"), N_("Enables Oracool automatic saving in single-player."), true)
@@ -1270,23 +1258,19 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&unlockAllTownEntrances,
 		&permanentInfravision,
 		&autoIdentifyDrops,
-		&removeStatLimits,
 		&resetStatsButton,
 		&autoPickupRange,
-		&goldStacksBuff,
-		&permanentFreeTownPortal,
+		&rareItemDropChance,
+		&buffedUniqueItemDropChance,
+		&primalItemDropChance,
 		&griswoldPremiumRefresh,
 		&refreshUntilButton,
 		&refreshUntilTimeoutSeconds,
-		&griswoldBuyAllItems,
-		&griswoldSellConsumables,
-		&griswoldRechargeStaves,
 		&griswoldRestoreHealth,
 		&griswoldRestoreMana,
 		&griswoldSellUniqueItems,
 		&griswoldUniqueShopItems,
 		&griswoldUniqueItemPriceMultiplier,
-		&griswoldSortSellItemsByPrice,
 		&griswoldPremiumIgnoreAffixLevelLimits,
 		&griswoldPremiumIgnorePriceLimits,
 		&autoSave,

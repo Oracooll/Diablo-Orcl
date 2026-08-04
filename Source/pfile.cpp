@@ -487,6 +487,8 @@ void pfile_write_hero(SaveWriter &saveWriter, bool writeGameData)
 	if (!gbVanilla) {
 		SaveHotkeys(saveWriter, myPlayer);
 		SaveHeroItems(saveWriter, myPlayer);
+		if (!gbIsMultiplayer)
+			SaveInventoryTabs(saveWriter, myPlayer);
 	}
 }
 
@@ -656,6 +658,8 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 
 				UnPackPlayer(pkplr, player);
 				LoadHeroItems(player);
+				if (!gbIsMultiplayer)
+					LoadInventoryTabs(player);
 				RemoveAllInvalidItems(player);
 				CalcPlrInv(player, false);
 
@@ -710,6 +714,8 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo)
 	if (!gbVanilla) {
 		SaveHotkeys(saveWriter, player);
 		SaveHeroItems(saveWriter, player);
+		if (!gbIsMultiplayer)
+			SaveInventoryTabs(saveWriter, player);
 	}
 
 	return true;
@@ -742,6 +748,8 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 
 	UnPackPlayer(pkplr, player);
 	LoadHeroItems(player);
+	if (!gbIsMultiplayer)
+		LoadInventoryTabs(player);
 	RemoveAllInvalidItems(player);
 	CalcPlrInv(player, false);
 }

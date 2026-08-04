@@ -1336,7 +1336,11 @@ void AddStealPotions(Missile &missile, AddMissileParameter & /*parameter*/)
 					break;
 				case IMISC_HEAL:
 				case IMISC_MANA:
-					player.RemoveSpdBarItem(si);
+					// A stolen stack only loses one unit, not the whole stack.
+					if (beltItem.isStackableConsumable() && beltItem.stackCount() > 1)
+						beltItem.setStackCount(beltItem.stackCount() - 1);
+					else
+						player.RemoveSpdBarItem(si);
 					break;
 				case IMISC_FULLMANA:
 					ii = ItemMiscIdIdx(IMISC_MANA);
@@ -1362,10 +1366,25 @@ void AddStealPotions(Missile &missile, AddMissileParameter & /*parameter*/)
 				}
 			}
 			if (ii != IDI_NONE) {
-				auto seed = beltItem._iSeed;
-				InitializeItem(beltItem, ii);
-				beltItem._iSeed = seed;
-				beltItem._iStatFlag = true;
+				if (beltItem.isStackableConsumable() && beltItem.stackCount() > 1) {
+					// Only downgrade a single split-off unit; the remaining stack in
+					// this belt slot must not be collapsed by InitializeItem's reset.
+					beltItem.setStackCount(beltItem.stackCount() - 1);
+					Item downgraded;
+					auto seed = beltItem._iSeed;
+					InitializeItem(downgraded, ii);
+					downgraded._iSeed = seed;
+					downgraded._iStatFlag = true;
+					// Best-effort: merges into a matching belt stack or an empty slot;
+					// if there's no room the downgraded unit is simply lost, matching
+					// existing steal semantics elsewhere in this function.
+					AutoPlaceItemInBelt(player, downgraded, true);
+				} else {
+					auto seed = beltItem._iSeed;
+					InitializeItem(beltItem, ii);
+					beltItem._iSeed = seed;
+					beltItem._iStatFlag = true;
+				}
 			}
 			if (!hasPlayedSFX) {
 				PlaySfxLoc(IS_POPPOP2, target);

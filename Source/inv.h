@@ -82,7 +82,42 @@ enum item_color : uint8_t {
 };
 
 extern bool invflag;
-extern const Rectangle InvRect[NUM_XY_SLOTS];
+extern DVL_API_FOR_TEST const Rectangle InvRect[NUM_XY_SLOTS];
+/** @brief Oracool Tabbed Inventory: currently displayed backpack page (0 = original backpack). */
+extern DVL_API_FOR_TEST int ActiveInventoryTab;
+/**
+ * @brief Oracool Tabbed Inventory: set by CheckInvHLight whenever the mouse is over an item in
+ * an extra tab. pcursinvitem itself stays -1 for extra-tab items (legacy identify/drag/repair
+ * code assumes tab-1 indices), but DrawInfoBox's "clear the info panel" condition also keys off
+ * pcursinvitem == -1 - without this flag it would immediately wipe the info text CheckInvHLight
+ * had just populated for an extra-tab item, exactly like it does for hovering nothing at all.
+ */
+extern DVL_API_FOR_TEST bool ActiveTabItemHovered;
+/** @brief Whether Tabbed Inventory's UI/interaction should be active right now. */
+bool TabbedInventoryEnabled();
+/**
+ * @brief Oracool Tabbed Inventory accessors: read/write the InvGrid cell, InvList item, or
+ * item count for whichever backpack page ActiveInventoryTab currently selects (tab 0 = the
+ * original, untouched InvGrid/InvList/_pNumInv; 1-9 = InvTabGrid/InvTabList/_pNumInvTab).
+ * Exposed here (rather than kept file-local to inv.cpp) so tests can exercise tab isolation
+ * directly.
+ */
+int8_t &GetActiveInvGridCell(Player &player, int cellIndex);
+Item &GetActiveInvListItem(Player &player, int listIndex);
+int &GetActiveNumInv(Player &player);
+/** @brief Tab-aware equivalent of Player::RemoveInvItem; see that function for the compaction rules. */
+void RemoveActiveInvItem(Player &player, int iv);
+/** @brief Tab-index-parameterized equivalent of RemoveActiveInvItem; see that function for the rationale. */
+void RemoveExtraTabItem(Player &player, int tabIndex, int iv);
+/**
+ * @brief Removes the first item matching the given identity from InvList or any extra tab.
+ * @return true if a match was found and removed.
+ */
+bool RemoveMatchingInventoryOrExtraTabItem(Player &player, const Item &item);
+/** @brief Tab-aware equivalent of AddItemToInvGrid; never network-syncs for an extra tab. */
+void AddItemToActiveInvGrid(Player &player, int invGridIndex, int invListIndex, Size itemSize);
+/** @brief Hit-tests the Tabbed Inventory tab buttons; switches ActiveInventoryTab and returns true if cursorPosition landed on one. */
+bool CheckInventoryTabClick(Point cursorPosition);
 
 void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, item_quality itemQuality);
 /**
@@ -159,6 +194,13 @@ bool AutoPlaceItemInInventory(Player &player, const Item &item, bool persistItem
 bool AutoPlaceItemInInventorySlot(Player &player, int slotIndex, const Item &item, bool persistItem);
 
 /**
+ * @brief Oracool Tabbed Inventory fallback: tries every extra tab (2-10) for an area big enough
+ * for item, once AutoPlaceItemInInventory (tab 1 only) has already failed. Never touches
+ * ActiveInventoryTab - the displayed page stays whatever it already was.
+ */
+bool AutoPlaceItemInExtraTabs(Player &player, const Item &item, bool persistItem = false);
+
+/**
  * @brief Checks whether the given item can be placed on the specified player's belt. Returns 'True' when the item can be placed
  * on belt slots and the player has at least one empty slot in his belt.
  * If 'persistItem' is 'True', the item is also placed in the belt.
@@ -233,6 +275,14 @@ void ConsumeStaffCharge(Player &player);
 bool CanUseStaff(Player &player, SpellID spellId);
 Item &GetInventoryItem(Player &player, int location);
 bool UseInvItem(int cii);
+
+/**
+ * @brief Opens the stack-split dialog for the stackable consumable at inventory-or-belt
+ * index cii, if it has more than one unit. Otherwise does nothing.
+ *
+ * @return Whether the dialog was opened.
+ */
+bool TryStartStackSplit(int cii);
 void DoTelekinesis();
 int CalculateGold(Player &player);
 
@@ -375,6 +425,76 @@ inline bool RemoveBeltItemById(Player &player, _item_indexes id)
 inline bool RemoveInventoryOrBeltItemById(Player &player, _item_indexes id)
 {
 	return RemoveInventoryItemById(player, id) || RemoveBeltItemById(player, id);
+}
+
+/**
+ * @brief Decrements a stackable consumable's count by one, removing the inventory
+ * slot only when the count reaches zero (or the item isn't a stackable consumable).
+ */
+void DecrementOrRemoveInvItem(Player &player, int invIndex);
+
+/**
+ * @brief Decrements a stackable consumable's count by one, removing the belt slot
+ * only when the count reaches zero (or the item isn't a stackable consumable).
+ */
+void DecrementOrRemoveSpdBarItem(Player &player, int spdIndex);
+
+/**
+ * @brief Belt Mod: refills an already-empty belt slot by pulling one or more matching
+ * stackable-consumable stacks out of inventory (scan order, capped at Item::MaxStackCount),
+ * removing any inventory stack it fully drains. No-op if nothing in inventory matches.
+ *
+ * @param spdIndex Index of the belt slot to refill; must already be empty.
+ * @param idx Base item of the consumable that previously occupied the slot.
+ * @param identified Identified state of the consumable that previously occupied the slot.
+ */
+void RefillBeltSlotFromInventory(Player &player, int spdIndex, _item_indexes idx, bool identified);
+
+/**
+ * @brief Finds the first inventory item matching the predicate and decrements its
+ * stack count by one, removing the slot only when the count reaches zero.
+ *
+ * @return Whether a matching item was found.
+ */
+template <typename Predicate>
+bool DecrementOrRemoveInventoryItem(Player &player, Predicate &&predicate)
+{
+	const InventoryPlayerItemsRange items { player };
+	const auto it = std::find_if(items.begin(), items.end(), std::forward<Predicate>(predicate));
+	if (it == items.end())
+		return false;
+	DecrementOrRemoveInvItem(player, static_cast<int>(it.index()));
+	return true;
+}
+
+/**
+ * @brief Finds the first belt item matching the predicate and decrements its stack
+ * count by one, removing the slot only when the count reaches zero.
+ *
+ * @return Whether a matching item was found.
+ */
+template <typename Predicate>
+bool DecrementOrRemoveBeltItem(Player &player, Predicate &&predicate)
+{
+	const BeltPlayerItemsRange items { player };
+	const auto it = std::find_if(items.begin(), items.end(), std::forward<Predicate>(predicate));
+	if (it == items.end())
+		return false;
+	DecrementOrRemoveSpdBarItem(player, static_cast<int>(it.index()));
+	return true;
+}
+
+/**
+ * @brief Finds the first inventory or belt item matching the predicate and
+ * decrements its stack count by one, removing the slot only when the count
+ * reaches zero.
+ *
+ * @return Whether a matching item was found.
+ */
+template <typename Predicate>
+bool DecrementOrRemoveInventoryOrBeltItem(Player &player, Predicate &&predicate)
+{
+	return DecrementOrRemoveInventoryItem(player, predicate) || DecrementOrRemoveBeltItem(player, predicate);
 }
 
 /**

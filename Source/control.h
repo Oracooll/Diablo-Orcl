@@ -48,7 +48,7 @@ extern int sbooktab;
 extern bool talkflag;
 extern bool sbookflag;
 extern bool chrflag;
-extern StringOrView InfoString;
+extern DVL_API_FOR_TEST StringOrView InfoString;
 extern bool panelflag;
 extern bool panbtndown;
 extern bool spselflag;

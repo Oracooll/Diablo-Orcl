@@ -530,23 +530,29 @@ void OverrideOptions()
 	sgOptions.Oracool.unlockAllTownEntrances.SetValue(false);
 	sgOptions.Oracool.permanentInfravision.SetValue(false);
 	sgOptions.Oracool.autoIdentifyDrops.SetValue(false);
-	sgOptions.Oracool.removeStatLimits.SetValue(false);
 	sgOptions.Oracool.resetStatsButton.SetValue(false);
 	sgOptions.Oracool.autoPickupRange.SetValue(1);
-	sgOptions.Oracool.goldStacksBuff.SetValue(false);
-	sgOptions.Oracool.permanentFreeTownPortal.SetValue(false);
+	sgOptions.Oracool.rareItemDropChance.SetValue(0);
+	sgOptions.Oracool.buffedUniqueItemDropChance.SetValue(0);
+	sgOptions.Oracool.primalItemDropChance.SetValue(0);
 	sgOptions.Oracool.griswoldPremiumRefresh.SetValue(false);
 	sgOptions.Oracool.refreshUntilButton.SetValue(false);
-	sgOptions.Oracool.griswoldBuyAllItems.SetValue(false);
-	sgOptions.Oracool.griswoldSellConsumables.SetValue(false);
-	sgOptions.Oracool.griswoldRechargeStaves.SetValue(false);
+	sgOptions.Oracool.refreshUntilItemNames[0] = '\0';
+	sgOptions.Oracool.refreshUntilTimeoutSeconds.SetValue(0);
 	sgOptions.Oracool.griswoldRestoreHealth.SetValue(false);
 	sgOptions.Oracool.griswoldRestoreMana.SetValue(false);
 	sgOptions.Oracool.griswoldSellUniqueItems.SetValue(false);
-	sgOptions.Oracool.griswoldSortSellItemsByPrice.SetValue(false);
+	sgOptions.Oracool.griswoldUniqueShopItems.SetValue(0);
+	sgOptions.Oracool.griswoldUniqueItemPriceMultiplier.SetValue(1);
 	sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits.SetValue(false);
 	sgOptions.Oracool.griswoldPremiumIgnorePriceLimits.SetValue(false);
 	sgOptions.Oracool.autoSave.SetValue(false);
+	sgOptions.Oracool.autoSaveIntervalMinutes.SetValue(0);
+	sgOptions.Oracool.autoSaveOnLevelChange.SetValue(false);
+	sgOptions.Oracool.autoSaveOnItemPickup.SetValue(false);
+	sgOptions.Oracool.autoSaveOnStorePurchase.SetValue(false);
+	sgOptions.Oracool.autoSaveItemDelaySeconds.SetValue(0);
+	sgOptions.Oracool.autoSaveNotification.SetValue(false);
 }
 
 bool IsRunning()

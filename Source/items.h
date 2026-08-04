@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <limits>
 
@@ -27,8 +28,22 @@ namespace devilution {
 #define GOLD_MEDIUM_LIMIT 2500
 #define GOLD_MAX_LIMIT 5000
 
-/** Highest gold-stack value representable by the unchanged ItemPack save format. */
-constexpr int GoldStackSaveLimit = (std::numeric_limits<uint16_t>::max)();
+/**
+ * @brief Gold Stacks Buff's raised per-stack gold cap.
+ *
+ * Previously tied to std::numeric_limits<uint16_t>::max() (65,535) under the assumption that
+ * the compact ItemPack.wValue save field (used only for the character-select preview and
+ * multiplayer, both of which are irrelevant here since this buff is single-player-only) was
+ * the real ceiling. Tracing the actual save path showed that's not true: single-player's
+ * authoritative item data (SaveItem/LoadItemData, _ivalue as int32_t) already supports far
+ * more, and LoadMatchingItems fully overwrites the compact/truncated copy with it on every
+ * load - so 65,535 was never actually protecting anything. This value is chosen well below
+ * INT_MAX instead: StoreGoldFit (stores.cpp) multiplies MaxGold by an item's inventory-grid
+ * cell count (up to ~10 for the largest 2-handed items), so a value must stay comfortably
+ * clear of signed 32-bit overflow at that multiplier - 100,000,000 leaves a wide margin while
+ * still being far beyond anything a real single-player game would accumulate.
+ */
+constexpr int GoldStackSaveLimit = 100'000'000;
 
 // Item indestructible durability
 #define DUR_INDESTRUCTIBLE 255
@@ -42,6 +57,31 @@ enum item_quality : uint8_t {
 	ITEM_QUALITY_NORMAL,
 	ITEM_QUALITY_MAGIC,
 	ITEM_QUALITY_UNIQUE,
+};
+
+/**
+ * @brief Oracool item tier, layered on top of the vanilla item_quality system.
+ *
+ * A tiered item is still generated from (and mechanically behaves as) a heavily-rolled
+ * magic item - its resolved stat bonuses live in the existing _iPL* fields exactly like
+ * any other magic item, and those already round-trip through the unmodified save format.
+ * This tier identity, together with the individual affix list below, is purely additional
+ * identity/display data layered on top; losing it (e.g. an old save, or a corrupted
+ * extension record) degrades an item back to looking/behaving like a plain magic item,
+ * never destroys it or its stats.
+ */
+enum class OracoolItemTier : uint8_t {
+	None = 0,
+	Rare = 1,
+	BuffedUnique = 2,
+	Primal = 3,
+};
+
+/** @brief One named affix (prefix or suffix) contributing to an Oracool-tiered item. */
+struct OracoolAffix {
+	item_effect_type type = IPL_INVALID;
+	int32_t param1 = 0;
+	int32_t param2 = 0;
 };
 
 enum _unique_items : int8_t {
@@ -424,6 +464,85 @@ struct Item {
 		}
 	}
 
+	/** @brief Maximum number of units a stackable consumable may hold in one Item. */
+	static constexpr int MaxStackCount = 99;
+
+	/**
+	 * @brief Number of units represented by this Item, for stackable consumables.
+	 * Stored in dwBuff bits 1-7 (bit 0 is CF_HELLFIRE). A decoded value of 0 (every
+	 * legacy item, and every item that has never called setStackCount) reads as 1.
+	 */
+	[[nodiscard]] int stackCount() const
+	{
+		int count = static_cast<int>((dwBuff & 0xFEu) >> 1);
+		return count == 0 ? 1 : count;
+	}
+
+	void setStackCount(int count)
+	{
+		if (count < 1)
+			count = 1;
+		if (count > MaxStackCount)
+			count = MaxStackCount;
+		dwBuff = (dwBuff & ~static_cast<uint32_t>(0xFE)) | (static_cast<uint32_t>(count) << 1);
+	}
+
+	[[nodiscard]] bool isStackableConsumable() const
+	{
+		// Item::clear() only resets _itype (isEmpty()'s check) and deliberately leaves
+		// every other field as stale leftover data from whatever previously occupied
+		// this slot, since vanilla code always fully overwrites a cleared slot via
+		// assignment rather than reading its other fields. isStackableConsumable() must
+		// not treat that leftover _iMiscId/_iClass/IDidx as real, or a cleared slot can
+		// look like a valid merge target for an unrelated incoming item.
+		if (isEmpty())
+			return false;
+		if (_iClass == ICLASS_QUEST)
+			return false;
+		if (_iMiscId == IMISC_ARENAPOT)
+			return false;
+		if (_iMiscId > IMISC_USEFIRST && _iMiscId < IMISC_USELAST)
+			return true; // potions and elixirs, including the Special Elixir's siblings
+		if (isScroll())
+			return true;
+		if (_iMiscId == IMISC_BOOK)
+			return true;
+		if (_iMiscId == IMISC_SPECELIX)
+			return true;
+		if (_iMiscId > IMISC_OILFIRST && _iMiscId < IMISC_OILLAST)
+			return true; // Hellfire oils
+		return false;
+	}
+
+	[[nodiscard]] bool canStackWith(const Item &other) const
+	{
+		return isStackableConsumable() && other.isStackableConsumable()
+		    && IDidx == other.IDidx && _iIdentified == other._iIdentified;
+	}
+
+	/** @brief Maximum number of prefix (or suffix) affixes an Oracool-tiered item may carry. */
+	static constexpr int MaxOracoolAffixesPerSlot = 3;
+
+	OracoolItemTier _iOracoolTier = OracoolItemTier::None;
+	bool _iOracoolPerfectRoll = false;
+	uint8_t _iOracoolPrefixCount = 0;
+	uint8_t _iOracoolSuffixCount = 0;
+	std::array<OracoolAffix, MaxOracoolAffixesPerSlot> _iOracoolPrefixes;
+	std::array<OracoolAffix, MaxOracoolAffixesPerSlot> _iOracoolSuffixes;
+
+	/**
+	 * @brief Whether this item genuinely carries an Oracool tier (Rare/Buffed Unique/Primal).
+	 *
+	 * Item::clear() only resets _itype (isEmpty()'s check) and deliberately leaves every
+	 * other field - including _iOracoolTier - as stale leftover data from whatever
+	 * previously occupied this slot. Callers must never trust _iOracoolTier on a cleared
+	 * item; this accessor guards against that the same way isStackableConsumable() does.
+	 */
+	[[nodiscard]] bool hasOracoolTier() const
+	{
+		return !isEmpty() && _iOracoolTier != OracoolItemTier::None;
+	}
+
 	[[nodiscard]] bool isUsable() const;
 
 	[[nodiscard]] bool keyAttributesMatch(uint32_t seed, _item_indexes itemIndex, uint16_t createInfo) const
@@ -433,6 +552,22 @@ struct Item {
 
 	UiFlags getTextColor() const
 	{
+		if (hasOracoolTier()) {
+			switch (_iOracoolTier) {
+			case OracoolItemTier::Rare:
+				return UiFlags::ColorYellow;
+			case OracoolItemTier::BuffedUnique:
+				return UiFlags::ColorWhitegold;
+			case OracoolItemTier::Primal:
+				// True cyan isn't available: UiFlags is a fully-packed 32-bit flag enum with
+				// no free bit, and no cyan font asset (.trn) exists in the game's data files.
+				// Orange was chosen instead - it's distinct from every other item quality and
+				// happens to match Diablo 3's own convention for Primal Ancient items.
+				return UiFlags::ColorOrange;
+			case OracoolItemTier::None:
+				break;
+			}
+		}
 		switch (_iMagical) {
 		case ITEM_QUALITY_MAGIC:
 			return UiFlags::ColorBlue;
@@ -481,9 +616,9 @@ struct CornerStoneStruct {
 };
 
 /** Contains the items on ground in the current game. */
-extern Item Items[MAXITEMS + 1];
-extern uint8_t ActiveItems[MAXITEMS];
-extern uint8_t ActiveItemCount;
+extern DVL_API_FOR_TEST Item Items[MAXITEMS + 1];
+extern DVL_API_FOR_TEST uint8_t ActiveItems[MAXITEMS];
+extern DVL_API_FOR_TEST uint8_t ActiveItemCount;
 /** Contains the location of dropped items. */
 extern int8_t dItem[MAXDUNX][MAXDUNY];
 extern bool ShowUniqueItemInfoBox;
@@ -521,6 +656,35 @@ uint8_t PlaceItemInWorld(Item &&item, WorldTilePosition position);
 Point GetSuperItemLoc(Point position);
 void GetItemAttrs(Item &item, _item_indexes itemData, int lvl);
 void SetupItem(Item &item);
+/**
+ * @brief Rolls a Rare item's affixes (1-2 prefixes + 1-2 suffixes, at least one of each in
+ * the common case) onto an already-base-initialized item, tagging it OracoolItemTier::Rare.
+ * Exposed here (rather than kept file-local to items.cpp) so tests can exercise the affix
+ * selection rules directly.
+ */
+void GetRareItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
+/**
+ * @brief Rolls a Buffed Unique item's affixes (2-3 prefixes + 2-3 suffixes, at least two of
+ * each in the common case) onto an already-base-initialized item, tagging it
+ * OracoolItemTier::BuffedUnique. Same rules and identity bookkeeping as GetRareItemAffixes,
+ * just with a higher minimum per slot.
+ */
+void GetBuffedUniqueItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
+/**
+ * @brief Rolls a Primal item's affixes: always exactly 3 prefixes + 3 suffixes, every one a
+ * "perfect roll" (forced to the maximum end of its declared range) and always beneficial-only,
+ * tagging it OracoolItemTier::Primal and setting _iOracoolPerfectRoll.
+ */
+void GetPrimalItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
+/** @brief Oracool-tiered-item equivalent of CalcItemValue, summing all stored OracoolAffix contributions. */
+void CalcOracoolTieredItemValue(Item &item);
+/** @brief The word placed before the base item name for a tiered item's display name, e.g. "Rare {base}". */
+string_view GetOracoolTierLabel(OracoolItemTier tier);
+/**
+ * @brief The description-panel line shown under the belt row for a tiered item ("rare item" /
+ * "unique item" / "primal item"). Exposed here so tests can verify the wording per tier directly.
+ */
+string_view GetOracoolTierPanelLabel(OracoolItemTier tier);
 Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level = std::nullopt, bool sendmsg = true, bool exactPosition = false);
 void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn = false);
 void CreateRndItem(Point position, bool onlygood, bool sendmsg, bool delta);
@@ -581,6 +745,7 @@ bool ApplyOilToItem(Item &item, Player &player);
 void UpdateHellfireFlag(Item &item, const char *identifiedItemName);
 
 #ifdef _DEBUG
+bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx);
 std::string DebugSpawnItem(std::string itemName);
 std::string DebugSpawnUniqueItem(std::string itemName);
 #endif

@@ -337,6 +337,19 @@ void UnPackItem(const ItemPack &packedItem, const Player &player, Item &item, bo
 		item._iDurability = ClampDurability(item, packedItem.bDur);
 		item._iMaxCharges = clamp<int>(packedItem.bMCh, 0, item._iMaxCharges);
 		item._iCharges = clamp<int>(packedItem.bCh, 0, item._iMaxCharges);
+		// RecreateItem (via InitializeItem) resets dwBuff to 0, then re-derives bit 0
+		// (CF_HELLFIRE) fresh from the current gbIsHellfire session flag. That freshly
+		// computed bit is correct and must be kept as-is (vanilla hellfire saves don't
+		// reliably carry this bit, so the engine intentionally re-derives it rather than
+		// trusting the saved byte). Bits 1-31 (e.g. a stackable consumable's stack count)
+		// get no such re-derivation and were previously lost entirely on every save/load
+		// round trip; restore them from the packed data, mirroring what the network
+		// RecreateItem(TItem) overload already does correctly (see msg.cpp). PackItem
+		// writes dwBuff for non-ear items as a raw, unswapped copy (see PackItem below),
+		// so it's read back the same way.
+		item.dwBuff = (item.dwBuff & CF_HELLFIRE) | (packedItem.dwBuff & ~static_cast<uint32_t>(CF_HELLFIRE));
+		if (item.isStackableConsumable() && item.stackCount() > Item::MaxStackCount)
+			item.setStackCount(Item::MaxStackCount); // defensively clamp corrupt/out-of-range data
 	}
 }
 

@@ -1,8 +1,12 @@
+#include <algorithm>
 #include <array>
 
 #include <gtest/gtest.h>
 
 #include "items.h"
+#include "options.h"
+#include "player.h"
+#include "storm/storm_net.hpp"
 #include "stores.h"
 
 using namespace devilution;
@@ -40,6 +44,143 @@ TEST(Stores, SmithConsumablesListsFourInfinitePepinPotionsBeforeWitchStock)
 	EXPECT_FALSE(IsSmithConsumablesStockFromPepinForTest(4));
 	UpdateSmithConsumablesStockAfterPurchaseForTest(4);
 	EXPECT_EQ(GetSmithConsumablesStockCountForTest(), 4);
+}
+
+// Regression test for a real bug: Item::clear() only resets _itype (which isEmpty()
+// checks) and deliberately leaves every other field — including _iMiscId/_iClass/IDidx
+// — as stale leftover data, since vanilla code always fully overwrites a cleared slot
+// via assignment rather than reading its other fields. Before the fix, a cleared
+// inventory/belt slot whose stale _iMiscId happened to match the item being purchased
+// looked like a valid merge target to isStackableConsumable()/canStackWith(), so the
+// merge pass silently "absorbed" the purchase into a slot the engine considers empty
+// instead of ever copying the real item in: gold was spent and the item vanished. This
+// reproduced the user's report exactly ("if I don't own a single consumable, some
+// purchases don't appear") because a belt/inventory slot only carries this kind of
+// stale-but-matching leftover data right after the player's last item of that type was
+// used up — CreatePlayer's starting belt item plus the explicit .clear() calls below
+// recreate exactly that condition.
+TEST(Stores, SmithConsumablesBuy_AfterClearingSlotWithStaleMatchingData_ItemIsActuallyPlaced)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	MyPlayer->_pGold = 100000;
+	for (int i = 0; i < InventoryGridCells; i++) {
+		MyPlayer->InvList[i].clear();
+		MyPlayer->InvGrid[i] = 0;
+	}
+	MyPlayer->_pNumInv = 0;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	InitStores();
+	for (devilution::Item &item : witchitem)
+		item.clear();
+	for (devilution::Item &item : healitem)
+		item.clear();
+
+	StartStore(TalkID::SmithConsumables);
+
+	int goldBefore = MyPlayer->_pGold;
+
+	ASSERT_TRUE(SimulateSmithConsumablesPurchaseForTest(0)) << "Purchase did not reach the confirm screen (probe reported no room?)";
+
+	EXPECT_LT(MyPlayer->_pGold, goldBefore) << "Gold was not spent";
+
+	bool foundInInv = false;
+	for (int i = 0; i < MyPlayer->_pNumInv; i++) {
+		if (MyPlayer->InvList[i]._iMiscId == IMISC_HEAL)
+			foundInInv = true;
+	}
+	bool foundOnBelt = false;
+	for (auto &beltItem : MyPlayer->SpdList) {
+		if (!beltItem.isEmpty() && beltItem._iMiscId == IMISC_HEAL)
+			foundOnBelt = true;
+	}
+	EXPECT_TRUE(foundInInv || foundOnBelt) << "Purchased Potion of Healing is missing from both inventory and belt";
+}
+
+// Oracool Tabbed Inventory: Griswold's Sell Items list previously only ever scanned InvList and
+// the belt, so an item moved into one of the 9 extra tabs was invisible to him - it never
+// appeared in the sell list at all, even though it was a perfectly ordinary sellable item.
+TEST(Stores, SmithSell_ListsItemStoredInExtraTab)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+
+	for (int i = 0; i < InventoryGridCells; i++)
+		MyPlayer->InvList[i].clear();
+	MyPlayer->_pNumInv = 0;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	MyPlayer->InvTabList[2][0].clear();
+	InitializeItem(MyPlayer->InvTabList[2][0], IDI_HEAL);
+	MyPlayer->InvTabList[2][0]._iIdentified = true;
+	MyPlayer->InvTabGrid[2][0] = 1;
+	MyPlayer->_pNumInvTab[2] = 1;
+
+	StartStore(TalkID::SmithSell);
+
+	bool foundTabItem = false;
+	for (int i = 0; i < storenumh; i++) {
+		if (storehold[i]._iMiscId == IMISC_HEAL)
+			foundTabItem = true;
+	}
+	EXPECT_TRUE(foundTabItem) << "the extra-tab item should be listed for sale, just like an item in the original backpack or belt";
+}
+
+TEST(Stores, SmithSell_StackedConsumable_PricedByQuantity)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+
+	MyPlayer->InvList[0].clear();
+	InitializeItem(MyPlayer->InvList[0], IDI_HEAL);
+	MyPlayer->InvList[0]._iIdentified = true;
+	MyPlayer->InvList[0].setStackCount(40);
+	MyPlayer->_pNumInv = 1;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	const int unitValue = MyPlayer->InvList[0]._ivalue;
+	const int expectedUnitPrice = std::max(unitValue / 4, 1);
+
+	StartStore(TalkID::SmithSell);
+
+	ASSERT_GE(storenumh, 1);
+	EXPECT_EQ(storehold[0]._ivalue, expectedUnitPrice * 40);
+	EXPECT_EQ(storehold[0]._iIvalue, expectedUnitPrice * 40);
+}
+
+// The Witch's sell list previously never sorted by price at all, unlike Griswold's - PopulateSellList
+// is now shared by both, so highest-price-first sorting always applies uniformly to each.
+TEST(Stores, WitchSell_SortsByPriceHighestFirst)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+
+	for (int i = 0; i < InventoryGridCells; i++)
+		MyPlayer->InvList[i].clear();
+	InitializeItem(MyPlayer->InvList[0], IDI_HEAL);
+	MyPlayer->InvList[0]._iIdentified = true;
+	MyPlayer->InvList[0].setStackCount(1);
+	InitializeItem(MyPlayer->InvList[1], IDI_HEAL);
+	MyPlayer->InvList[1]._iIdentified = true;
+	MyPlayer->InvList[1].setStackCount(40);
+	MyPlayer->_pNumInv = 2;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	StartStore(TalkID::WitchSell);
+
+	ASSERT_GE(storenumh, 2);
+	EXPECT_GE(storehold[0]._iIvalue, storehold[1]._iIvalue) << "items should be listed highest price first";
 }
 
 TEST(Stores, AddStoreHoldRepair_magic)
@@ -106,5 +247,22 @@ TEST(Stores, AddStoreHoldRepair_normal)
 	EXPECT_EQ(1, storenumh);
 	EXPECT_EQ(1, item->_ivalue);
 	EXPECT_EQ(1, item->_iIvalue);
+}
+
+// User-reported bug: re-entering Griswold's "Buy Basic Items" screen after buying out his
+// entire stock bounced the player back out to the store menu instead of just showing an empty
+// list. StartStore's TalkID::SmithBuy case used to special-case an empty smithitem[] by calling
+// StoreESC(), which - since stextflag was set to TalkID::SmithBuy right before that call -
+// resolves to StartStore(TalkID::Smith), leaving stextflag as TalkID::Smith rather than
+// TalkID::SmithBuy. StartSmithBuy() itself already renders correctly with zero items (just a
+// header line and a Back button), so the special case was unnecessary.
+TEST(Stores, SmithBuy_EmptyStock_StaysOnBuyScreenInsteadOfBouncingOut)
+{
+	for (devilution::Item &item : smithitem)
+		item.clear();
+
+	StartStore(TalkID::SmithBuy);
+
+	EXPECT_EQ(stextflag, TalkID::SmithBuy) << "an empty Buy Basic Items list should render normally, not back out to the store menu";
 }
 } // namespace

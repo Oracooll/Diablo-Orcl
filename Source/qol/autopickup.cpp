@@ -9,6 +9,7 @@
 #include "oracool/oracool.h"
 #include "player.h"
 #include <algorithm>
+#include <numeric>
 
 namespace devilution {
 namespace {
@@ -35,8 +36,14 @@ bool HasRoomForGold()
 
 int NumMiscItemsInInv(int iMiscId)
 {
+	// Sums stack quantities rather than counting Item instances, so the pickup caps
+	// below stay correct once matching potions/elixirs/oils can stack (Stackable
+	// Consumables). stackCount() is 1 for any item that was never stacked, so this
+	// is a strict generalization of the previous instance-counting behavior.
 	InventoryAndBeltPlayerItemsRange items { *MyPlayer };
-	return std::count_if(items.begin(), items.end(), [iMiscId](const Item &item) { return item._iMiscId == iMiscId; });
+	return std::accumulate(items.begin(), items.end(), 0, [iMiscId](int total, const Item &item) {
+		return item._iMiscId == iMiscId ? total + item.stackCount() : total;
+	});
 }
 
 bool DoPickup(Item item)

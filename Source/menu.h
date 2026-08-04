@@ -8,10 +8,11 @@
 #include <cstdint>
 
 #include "multi.h"
+#include "utils/attributes.h"
 
 namespace devilution {
 
-extern uint32_t gSaveNumber;
+extern DVL_API_FOR_TEST uint32_t gSaveNumber;
 
 bool mainmenu_select_hero_dialog(GameData *gameData);
 void mainmenu_loop();

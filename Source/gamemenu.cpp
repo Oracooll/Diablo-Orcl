@@ -15,7 +15,9 @@
 #include "init.h"
 #include "loadsave.h"
 #include "options.h"
+#include "oracool/oracool.h"
 #include "pfile.h"
+#include "player.h"
 #include "qol/floatingnumbers.h"
 #include "utils/language.h"
 
@@ -26,6 +28,7 @@ namespace {
 void GamemenuPrevious(bool bActivate);
 void GamemenuNewGame(bool bActivate);
 void GamemenuRestartTown(bool bActivate);
+void GamemenuRespawnInTown(bool bActivate);
 void GamemenuOptions(bool bActivate);
 void GamemenuMusicVolume(bool bActivate);
 void GamemenuSoundVolume(bool bActivate);
@@ -35,13 +38,14 @@ void GamemenuSpeed(bool bActivate);
 /** Contains the game menu items of the single player menu. */
 TMenuItem sgSingleMenu[] = {
 	// clang-format off
-	// dwFlags,      pszStr,          fnMenu
-	{ GMENU_ENABLED, N_("Save Game"), &gamemenu_save_game },
-	{ GMENU_ENABLED, N_("Options"),   &GamemenuOptions    },
-	{ GMENU_ENABLED, N_("New Game"),  &GamemenuNewGame    },
-	{ GMENU_ENABLED, N_("Load Game"), &gamemenu_load_game },
-	{ GMENU_ENABLED, N_("Quit Game"), &gamemenu_quit_game },
-	{ GMENU_ENABLED, nullptr,         nullptr             }
+	// dwFlags,      pszStr,                 fnMenu
+	{ GMENU_ENABLED, N_("Save Game"),       &gamemenu_save_game    },
+	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions       },
+	{ GMENU_ENABLED, N_("New Game"),        &GamemenuNewGame       },
+	{ GMENU_ENABLED, N_("Respawn In Town"), &GamemenuRespawnInTown },
+	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game    },
+	{ GMENU_ENABLED, N_("Quit Game"),       &gamemenu_quit_game    },
+	{ GMENU_ENABLED, nullptr,               nullptr                }
 	// clang-format on
 };
 /** Contains the game menu items of the multi player menu. */
@@ -79,11 +83,12 @@ const char *const SoundToggleNames[] = {
 
 void GamemenuUpdateSingle()
 {
-	sgSingleMenu[3].setEnabled(gbValidSaveFile);
+	sgSingleMenu[4].setEnabled(gbValidSaveFile);
 
 	bool enable = MyPlayer->_pmode != PM_DEATH && !MyPlayerIsDead;
 
 	sgSingleMenu[0].setEnabled(enable);
+	sgSingleMenu[3].setEnabled(MyPlayerIsDead);
 }
 
 void GamemenuUpdateMulti()
@@ -116,6 +121,16 @@ void GamemenuNewGame(bool /*bActivate*/)
 void GamemenuRestartTown(bool /*bActivate*/)
 {
 	NetSendCmd(true, CMD_RETOWN);
+}
+
+void GamemenuRespawnInTown(bool /*bActivate*/)
+{
+	if (!MyPlayerIsDead)
+		return;
+
+	MyPlayerIsDead = false;
+	gamemenu_off();
+	RestartTownLvl(*MyPlayer);
 }
 
 void GamemenuSoundMusicToggle(const char *const *names, TMenuItem *menuItem, int volume)

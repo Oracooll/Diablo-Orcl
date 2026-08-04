@@ -2,7 +2,10 @@
 #include <gtest/gtest.h>
 
 #include "engine/random.hpp"
+#include "levels/gendung.h"
 #include "missiles.h"
+#include "options.h"
+#include "storm/storm_net.hpp"
 
 using namespace devilution;
 using ::testing::AllOf;
@@ -60,6 +63,99 @@ TEST(Missiles, RotateBlockedMissileArrow)
 	TestAnimatedMissileRotatesUniformly(missile, 0, 15, 1);
 	TestAnimatedMissileRotatesUniformly(missile, 15, 14, 0);
 }
+
+namespace {
+
+devilution::Item MakeStackedBeltPotion(item_misc_id miscId, _item_indexes idx, int count)
+{
+	devilution::Item item;
+	item._itype = ItemType::Misc;
+	item._iClass = ICLASS_MISC;
+	item._iMiscId = miscId;
+	item.IDidx = idx;
+	item._iIdentified = true;
+	item._iStatFlag = true;
+	item.setStackCount(count);
+	return item;
+}
+
+class StealPotionsTest : public ::testing::Test {
+public:
+	void SetUp() override
+	{
+		SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+		Players.resize(1);
+		MyPlayerId = 0;
+		MyPlayer = &Players[0];
+		*MyPlayer = {};
+		gbIsMultiplayer = false;
+
+		MyPlayer->position.tile = { 5, 5 };
+		dPlayer[5][5] = 1;
+
+		missile.position.start = { 5, 5 };
+	}
+
+	void TearDown() override
+	{
+		dPlayer[5][5] = 0;
+	}
+
+	Missile missile;
+	AddMissileParameter param {};
+};
+
+// A stolen stack must only lose one unit, never the whole stack (base-tier
+// IMISC_HEAL/IMISC_MANA potions are removed outright rather than downgraded).
+TEST_F(StealPotionsTest, StealFromStackedBaseTierPotionOnlyRemovesOneUnit)
+{
+	constexpr int StartingCount = 40;
+	bool observedADecrement = false;
+	for (int attempt = 0; attempt < 30 && !observedADecrement; attempt++) {
+		for (auto &beltItem : MyPlayer->SpdList)
+			beltItem = MakeStackedBeltPotion(IMISC_HEAL, IDI_HEAL, StartingCount);
+
+		AddStealPotions(missile, param);
+
+		for (const devilution::Item &beltItem : MyPlayer->SpdList) {
+			if (beltItem.isEmpty()) {
+				// The old bug removed the whole slot outright; that must never happen.
+				FAIL() << "A stacked potion slot was fully removed instead of decremented";
+			}
+			ASSERT_GE(beltItem.stackCount(), StartingCount - 1);
+			ASSERT_LE(beltItem.stackCount(), StartingCount);
+			if (beltItem.stackCount() == StartingCount - 1)
+				observedADecrement = true;
+		}
+	}
+	EXPECT_TRUE(observedADecrement) << "Expected at least one belt slot to be stolen from across 30 attempts";
+}
+
+// Stealing from a stacked upgraded-tier potion (which downgrades on steal) must only
+// split off one unit; the remaining stack must keep its original identity and count.
+TEST_F(StealPotionsTest, StealFromStackedUpgradedTierPotionOnlyDecrementsSourceStack)
+{
+	constexpr int StartingCount = 40;
+	bool observedADecrement = false;
+	for (int attempt = 0; attempt < 30 && !observedADecrement; attempt++) {
+		for (auto &beltItem : MyPlayer->SpdList)
+			beltItem.clear();
+		MyPlayer->SpdList[0] = MakeStackedBeltPotion(IMISC_FULLHEAL, IDI_FULLHEAL, StartingCount);
+
+		AddStealPotions(missile, param);
+
+		devilution::Item &source = MyPlayer->SpdList[0];
+		ASSERT_FALSE(source.isEmpty()) << "The source stack must never be fully removed by a steal";
+		ASSERT_EQ(source._iMiscId, IMISC_FULLHEAL) << "The source stack's identity must not change";
+		ASSERT_GE(source.stackCount(), StartingCount - 1);
+		ASSERT_LE(source.stackCount(), StartingCount);
+		if (source.stackCount() == StartingCount - 1)
+			observedADecrement = true;
+	}
+	EXPECT_TRUE(observedADecrement) << "Expected the source stack to be stolen from across 30 attempts";
+}
+
+} // namespace
 
 TEST(Missiles, GetDirection8)
 {

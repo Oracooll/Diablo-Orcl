@@ -849,10 +849,47 @@ TEST_F(PackTest, UnPackItem_gold_large)
 	compareGold(is, ICURS_GOLD_LARGE);
 }
 
-TEST_F(PackTest, UnPackItem_gold_save_limit)
+// The highest value ItemPack.wValue (uint16_t) can actually represent - independent of
+// GoldStackSaveLimit, which governs the Oracool Gold Stacks Buff's gameplay cap and no
+// longer has any relationship to this compact save field's own width (see items.h).
+TEST_F(PackTest, UnPackItem_gold_itemPackFieldLimit)
 {
-	const auto is = SwappedLE(ItemPack { 0, 0, IDI_GOLD, 0, 0, 0, 0, 0, GoldStackSaveLimit, 0 });
+	const auto is = SwappedLE(ItemPack { 0, 0, IDI_GOLD, 0, 0, 0, 0, 0, std::numeric_limits<uint16_t>::max(), 0 });
 	compareGold(is, ICURS_GOLD_LARGE);
+}
+
+TEST_F(PackTest, UnPackItem_stack_count_roundtrip)
+{
+	gbIsHellfire = false;
+	gbIsMultiplayer = false;
+	gbIsSpawn = false;
+
+	constexpr int StackCount = 37;
+	const auto is = SwappedLE(ItemPack { 0, 0, IDI_HEAL, 1, 0, 0, 0, 0, 0, static_cast<uint32_t>(StackCount) << 1 });
+	Item id;
+	UnPackItem(is, *MyPlayer, id, false);
+	ASSERT_EQ(id.IDidx, IDI_HEAL);
+	ASSERT_TRUE(id._iIdentified);
+	ASSERT_EQ(id.stackCount(), StackCount);
+	TestItemNameGeneration(id);
+
+	ItemPack is2;
+	PackItem(is2, id, false);
+	ComparePackedItems(is, is2);
+}
+
+TEST_F(PackTest, UnPackItem_stack_count_clamps_corrupt_data)
+{
+	gbIsHellfire = false;
+	gbIsMultiplayer = false;
+	gbIsSpawn = false;
+
+	// Bits 1-7 can encode up to 127; anything above Item::MaxStackCount (99) must
+	// clamp defensively rather than silently accepting out-of-range/corrupt data.
+	const auto is = SwappedLE(ItemPack { 0, 0, IDI_HEAL, 1, 0, 0, 0, 0, 0, 127u << 1 });
+	Item id;
+	UnPackItem(is, *MyPlayer, id, false);
+	ASSERT_EQ(id.stackCount(), Item::MaxStackCount);
 }
 
 TEST_F(PackTest, UnPackItem_ear)

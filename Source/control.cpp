@@ -281,7 +281,7 @@ void PrintInfo(const Surface &out)
 
 int CapStatPointsToAdd(int remainingStatPoints, const Player &player, CharacterAttribute attribute)
 {
-	const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : player.GetMaximumAttributeValue(attribute);
+	const int maximum = 255;
 	int pointsToReachCap = maximum - player.GetBaseAttributeValue(attribute);
 
 	return std::min(remainingStatPoints, pointsToReachCap);
@@ -633,6 +633,39 @@ void RemoveGold(Player &player, int goldIndex, int amount)
 	player._pGold = CalculateGold(player);
 }
 
+/**
+ * @brief Splits `amount` units off a stackable consumable at inventory-or-belt index
+ * `cii` (same indexing scheme as UseInvItem) onto the player's cursor.
+ */
+void RemoveStackSplit(Player &player, int cii, int amount)
+{
+	const bool isBeltIndex = cii > INVITEM_INV_LAST;
+	const int index = isBeltIndex ? (cii - INVITEM_BELT_FIRST) : (cii - INVITEM_INV_FIRST);
+	Item &source = isBeltIndex ? player.SpdList[index] : player.InvList[index];
+
+	player.HoldItem = source;
+	player.HoldItem.setStackCount(amount);
+
+	if (source.stackCount() - amount <= 0) {
+		if (isBeltIndex)
+			player.RemoveSpdBarItem(index);
+		else
+			player.RemoveInvItem(index);
+	} else {
+		source.setStackCount(source.stackCount() - amount);
+		if (isBeltIndex) {
+			player.CalcScrolls();
+			RedrawComponent(PanelDrawComponent::Belt);
+			if (&player == MyPlayer)
+				NetSendCmdChBeltItem(false, index);
+		} else if (&player == MyPlayer) {
+			NetSyncInvItem(player, index);
+		}
+	}
+
+	NewCursor(player.HoldItem);
+}
+
 bool IsLevelUpButtonVisible()
 {
 	if (spselflag || chrflag || MyPlayer->_pStatPts == 0) {
@@ -712,7 +745,7 @@ void FocusOnCharInfo()
 	// Find the first incrementable stat.
 	int stat = -1;
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : myPlayer.GetMaximumAttributeValue(attribute);
+		const int maximum = 255;
 		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum)
 			continue;
 		stat = static_cast<int>(attribute);
@@ -1168,7 +1201,7 @@ void FreeControlPan()
 void DrawInfoBox(const Surface &out)
 {
 	DrawPanelBox(out, { 177, 62, InfoBoxSize.width, InfoBoxSize.height }, GetMainPanel().position + InfoBoxTopLeft);
-	if (!panelflag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && !spselflag) {
+	if (!panelflag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && !ActiveTabItemHovered && !spselflag) {
 		InfoString = {};
 		InfoColor = UiFlags::ColorWhite;
 	}
@@ -1266,7 +1299,7 @@ void CheckChrBtns()
 		return;
 
 	for (auto attribute : enum_values<CharacterAttribute>()) {
-		const int maximum = *sgOptions.Oracool.removeStatLimits ? 255 : myPlayer.GetMaximumAttributeValue(attribute);
+		const int maximum = 255;
 		if (myPlayer.GetBaseAttributeValue(attribute) >= maximum)
 			continue;
 		auto buttonId = static_cast<size_t>(attribute);
@@ -1370,13 +1403,26 @@ void DrawGoldSplit(const Surface &out)
 	const TextInputCursorState &cursor = GoldDropCursor;
 	const int max = GoldDropInputState->max();
 
-	const std::string description = fmt::format(
-	    fmt::runtime(ngettext(
-	        /* TRANSLATORS: {:s} is a number with separators. Dialog is shown when splitting a stash of Gold.*/
-	        "You have {:s} gold piece. How many do you want to remove?",
-	        "You have {:s} gold pieces. How many do you want to remove?",
-	        max)),
-	    FormatInteger(max));
+	const bool splittingBeltItem = GoldDropInvIndex > INVITEM_INV_LAST;
+	const Item &sourceItem = splittingBeltItem
+	    ? MyPlayer->SpdList[GoldDropInvIndex - INVITEM_BELT_FIRST]
+	    : MyPlayer->InvList[GoldDropInvIndex - INVITEM_INV_FIRST];
+
+	std::string description;
+	if (sourceItem._itype == ItemType::Gold) {
+		description = fmt::format(
+		    fmt::runtime(ngettext(
+		        /* TRANSLATORS: {:s} is a number with separators. Dialog is shown when splitting a stash of Gold.*/
+		        "You have {:s} gold piece. How many do you want to remove?",
+		        "You have {:s} gold pieces. How many do you want to remove?",
+		        max)),
+		    FormatInteger(max));
+	} else {
+		description = fmt::format(
+		    /* TRANSLATORS: {:s} is a number, {:s} is an item name. Dialog is shown when splitting a stack of consumables. */
+		    fmt::runtime(_("You have {:s} {:s}. How many do you want to split off?")),
+		    FormatInteger(max), sourceItem.getName().str());
+	}
 
 	// Pre-wrap the string at spaces, otherwise DrawString would hard wrap in the middle of words
 	const std::string wrapped = WordWrapString(description, 200);
@@ -1413,7 +1459,15 @@ void control_drop_gold(SDL_Keycode vkey)
 	case SDLK_KP_ENTER: {
 		const int value = GoldDropInputState->value();
 		if (value != 0) {
-			RemoveGold(myPlayer, GoldDropInvIndex, value);
+			const bool splittingBeltItem = GoldDropInvIndex > INVITEM_INV_LAST;
+			const Item &sourceItem = splittingBeltItem
+			    ? myPlayer.SpdList[GoldDropInvIndex - INVITEM_BELT_FIRST]
+			    : myPlayer.InvList[GoldDropInvIndex - INVITEM_INV_FIRST];
+			if (sourceItem._itype == ItemType::Gold) {
+				RemoveGold(myPlayer, GoldDropInvIndex, value);
+			} else {
+				RemoveStackSplit(myPlayer, GoldDropInvIndex, value);
+			}
 		}
 		CloseGoldDrop();
 	} break;

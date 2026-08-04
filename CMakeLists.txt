@@ -55,6 +55,13 @@ if(NOT VERSION_NUM)
   endif()
 endif()
 
+# Oracool Edition release version, shown on the main menu. This is
+# independent from VERSION above, which is the DevilutionX engine base and
+# also drives the multiplayer version-compatibility check.
+if(NOT ORACOOL_VERSION_STR)
+  file(STRINGS "ORACOOL_VERSION" ORACOOL_VERSION_STR)
+endif()
+
 if(NOT VERSION_SUFFIX)
   # For versions with a suffix, e.g. "1.5.0-dev", include
   # the build type and the git hash.
@@ -537,6 +544,10 @@ if(CPACK AND (APPLE OR BUILD_ASSETS_MPQ OR SRC_DIST))
     install(TARGETS ${BIN_TARGET} DESTINATION .)
     install(FILES "${PROJECT_SOURCE_DIR}/Packaging/windows/README.txt"
       DESTINATION "."
+    )
+    install(FILES "${PROJECT_SOURCE_DIR}/_ProjectLibrary/Documentation/CHANGELOG.md"
+      DESTINATION "."
+      RENAME "CHANGELOG.txt"
     )
     install(FILES "${DEVILUTIONX_MPQ}"
       DESTINATION "."

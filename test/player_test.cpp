@@ -2,10 +2,13 @@
 
 #include <gtest/gtest.h>
 
+#include "options.h"
+
 using namespace devilution;
 
 namespace devilution {
 extern bool TestPlayerDoGotHit(Player &player);
+extern bool TestShouldDropGoldOnDeath(Player &player);
 }
 
 int RunBlockTest(int frames, ItemSpecialEffect flags)
@@ -177,4 +180,24 @@ TEST(Player, CreatePlayer)
 	Players.resize(1);
 	CreatePlayer(Players[0], HeroClass::Rogue);
 	AssertPlayer(Players[0]);
+}
+
+TEST(Player, ShouldDropGoldOnDeath_SinglePlayerNeverDrops)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+
+	EXPECT_FALSE(TestShouldDropGoldOnDeath(Players[0]));
+}
+
+TEST(Player, ShouldDropGoldOnDeath_MultiplayerAlwaysDrops)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = true;
+
+	EXPECT_TRUE(TestShouldDropGoldOnDeath(Players[0]));
+
+	gbIsMultiplayer = false;
 }

@@ -6,7 +6,8 @@ Discord: https://discord.gg/devilutionx
 GitHub: https://github.com/diasurgical/devilutionX
 
 Check out the manual for what features are available and how best to take advantage of them: https://github.com/diasurgical/devilutionX/wiki
-For a full list of changes see our changelog: https://github.com/diasurgical/devilutionX/blob/master/docs/CHANGELOG.md
+For a full list of DevilutionX engine changes see: https://github.com/diasurgical/devilutionX/blob/master/docs/CHANGELOG.md
+For Diablo Oracool Edition's own feature changelog, see CHANGELOG.txt included in this folder.
 
 # How To Install:
  - Extract the files in the zip

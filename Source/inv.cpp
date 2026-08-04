@@ -23,6 +23,7 @@
 #include "minitext.h"
 #include "options.h"
 #include "oracool/auto_save.h"
+#include "oracool/oracool.h"
 #include "panels/ui_panels.hpp"
 #include "plrmsg.h"
 #include "qol/stash.h"
@@ -39,6 +40,15 @@
 namespace devilution {
 
 bool invflag;
+
+/**
+ * @brief Oracool Tabbed Inventory: which backpack page is currently displayed in the 10x4 grid
+ * area. 0 is the original backpack (Player::InvList/InvGrid, untouched by this feature); 1-9
+ * index into Player::InvTabList/InvTabGrid. Transient UI state, not saved - reopening the
+ * inventory always starts back on tab 0, matching invflag's own not-saved convention.
+ */
+int ActiveInventoryTab;
+bool ActiveTabItemHovered;
 
 /**
  * Maps from inventory slot to screen position. The inventory slots are
@@ -122,6 +132,165 @@ const Rectangle InvRect[] = {
 	{ { 408,   5 }, { 29, 29 } }  // belt
 	// clang-format on
 };
+
+bool TabbedInventoryEnabled()
+{
+	return oracool::IsSinglePlayer();
+}
+
+/**
+ * @brief Oracool Tabbed Inventory: extra tabs are inert storage only - gold stays tracked
+ * through the normal InvList/_pGold path, and quest items must stay somewhere the existing
+ * quest-scanning code (which only ever looks at InvList) can still find them.
+ */
+bool CanItemEnterExtraTab(const Item &item)
+{
+	return item._itype != ItemType::Gold && item._iClass != ICLASS_QUEST;
+}
+
+/**
+ * @brief Oracool Tabbed Inventory: the InvGrid cell for the currently displayed backpack page
+ * (tab 0 = Player::InvGrid itself, untouched; 1-9 = Player::InvTabGrid[tab-1]). Every existing
+ * InvGrid consumer keeps reading/writing the real InvGrid directly and is unaffected - only the
+ * new tab-aware call sites (DrawInv's grid loops, CheckInvPaste/CheckInvCut's early redirect,
+ * and the new CheckExtraTab* functions) go through this indirection.
+ */
+int8_t &GetActiveInvGridCell(Player &player, int cellIndex)
+{
+	if (ActiveInventoryTab == 0)
+		return player.InvGrid[cellIndex];
+	return player.InvTabGrid[ActiveInventoryTab - 1][cellIndex];
+}
+
+/** @brief InvList equivalent of GetActiveInvGridCell; see that function for the shared rationale. */
+Item &GetActiveInvListItem(Player &player, int listIndex)
+{
+	if (ActiveInventoryTab == 0)
+		return player.InvList[listIndex];
+	return player.InvTabList[ActiveInventoryTab - 1][listIndex];
+}
+
+/** @brief InvGrid array equivalent, for a whole-array scan (e.g. "does anything reference this list index"). */
+int &GetActiveNumInv(Player &player)
+{
+	if (ActiveInventoryTab == 0)
+		return player._pNumInv;
+	return player._pNumInvTab[ActiveInventoryTab - 1];
+}
+
+/**
+ * @brief Tab-aware equivalent of Player::RemoveInvItem: removes the item at list index iv from
+ * the currently displayed backpack page, compacting the list exactly the same way (swap the last
+ * item into the vacated slot, fix up grid references). Never network-syncs for an extra tab -
+ * single-player only, no packet format exists for it.
+ */
+void RemoveActiveInvItem(Player &player, int iv)
+{
+	if (ActiveInventoryTab == 0) {
+		player.RemoveInvItem(iv, false);
+		return;
+	}
+
+	for (int k = 0; k < InventoryGridCells; k++) {
+		int8_t &itemIndex = GetActiveInvGridCell(player, k);
+		if (abs(itemIndex) - 1 == iv)
+			itemIndex = 0;
+	}
+
+	GetActiveInvListItem(player, iv).clear();
+
+	int &numInv = GetActiveNumInv(player);
+	numInv--;
+
+	if (numInv > 0 && numInv != iv) {
+		GetActiveInvListItem(player, iv) = GetActiveInvListItem(player, numInv).pop();
+
+		for (int k = 0; k < InventoryGridCells; k++) {
+			int8_t &itemIndex = GetActiveInvGridCell(player, k);
+			if (itemIndex == numInv + 1)
+				itemIndex = iv + 1;
+			if (itemIndex == -(numInv + 1))
+				itemIndex = -(iv + 1);
+		}
+	}
+}
+
+/**
+ * @brief Tab-index-parameterized equivalent of RemoveActiveInvItem, for background operations
+ * (e.g. completing a store sale) that need to remove an item from a specific extra tab without
+ * depending on - or disturbing - whichever tab ActiveInventoryTab currently has displayed.
+ */
+void RemoveExtraTabItem(Player &player, int tabIndex, int iv)
+{
+	auto &grid = player.InvTabGrid[tabIndex];
+	auto &list = player.InvTabList[tabIndex];
+	int &numInv = player._pNumInvTab[tabIndex];
+
+	for (int8_t &itemIndex : grid) {
+		if (abs(itemIndex) - 1 == iv)
+			itemIndex = 0;
+	}
+
+	list[iv].clear();
+	numInv--;
+
+	if (numInv > 0 && numInv != iv) {
+		list[iv] = list[numInv].pop();
+
+		for (int8_t &itemIndex : grid) {
+			if (itemIndex == numInv + 1)
+				itemIndex = iv + 1;
+			if (itemIndex == -(numInv + 1))
+				itemIndex = -(iv + 1);
+		}
+	}
+}
+
+/**
+ * @brief Removes the first item matching the given identity from InvList or, if Tabbed
+ * Inventory is enabled, any extra tab - used to undo an AutoPlaceItemInInventory placement
+ * whose actual destination isn't known to the caller (that function can silently fall back to
+ * an extra tab when tab 1 has no room, so a caller that assumed tab 1 - e.g. reading back
+ * InvList[_pNumInv - 1] - could otherwise grab and remove a completely unrelated item).
+ * @return true if a match was found and removed.
+ */
+bool RemoveMatchingInventoryOrExtraTabItem(Player &player, const Item &item)
+{
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (player.InvList[i].keyAttributesMatch(item._iSeed, item.IDidx, item._iCreateInfo)) {
+			player.RemoveInvItem(i, false);
+			return true;
+		}
+	}
+	if (TabbedInventoryEnabled()) {
+		for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+			for (int i = 0; i < player._pNumInvTab[t]; i++) {
+				if (player.InvTabList[t][i].keyAttributesMatch(item._iSeed, item.IDidx, item._iCreateInfo)) {
+					RemoveExtraTabItem(player, t, i);
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+/** @brief Tab-aware equivalent of AddItemToInvGrid; never network-syncs for an extra tab (single-player only, no packet format for it). */
+void AddItemToActiveInvGrid(Player &player, int invGridIndex, int invListIndex, Size itemSize)
+{
+	const int pitch = InventorySizeInSlots.width;
+	for (int y = 0; y < itemSize.height; y++) {
+		int rowGridIndex = invGridIndex + pitch * y;
+		for (int x = 0; x < itemSize.width; x++) {
+			int8_t &cell = GetActiveInvGridCell(player, rowGridIndex + x);
+			cell = static_cast<int8_t>((x == 0 && y == itemSize.height - 1) ? invListIndex : -invListIndex);
+		}
+	}
+
+	if (ActiveInventoryTab == 0 && &player == MyPlayer) {
+		NetSendCmdChInvItem(false, invGridIndex);
+	}
+}
 
 namespace {
 
@@ -333,6 +502,11 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 	if (slot == NUM_XY_SLOTS)
 		return;
 
+	if (slot >= SLOTXY_INV_FIRST && slot <= SLOTXY_INV_LAST && ActiveInventoryTab != 0
+	    && !CanItemEnterExtraTab(player.HoldItem)) {
+		return;
+	}
+
 	item_equip_type il = ILOC_UNEQUIPABLE;
 	if (slot == SLOTXY_HEAD)
 		il = ILOC_HELM;
@@ -355,10 +529,10 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 	if (il == ILOC_UNEQUIPABLE) {
 		int ii = slot - SLOTXY_INV_FIRST;
 		if (player.HoldItem._itype == ItemType::Gold) {
-			if (player.InvGrid[ii] != 0) {
-				int8_t iv = player.InvGrid[ii];
+			if (GetActiveInvGridCell(player, ii) != 0) {
+				int8_t iv = GetActiveInvGridCell(player, ii);
 				if (iv > 0) {
-					if (player.InvList[iv - 1]._itype != ItemType::Gold) {
+					if (GetActiveInvListItem(player, iv - 1)._itype != ItemType::Gold) {
 						it = iv;
 					}
 				} else {
@@ -372,9 +546,9 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				for (unsigned columnOffset = 0; columnOffset < static_cast<unsigned>(itemSize.width); columnOffset++) {
 					unsigned testCell = originCell + rowOffset + columnOffset;
 					// FindTargetSlotUnderItemCursor returns the top left slot of the inventory region that fits the item, we can be confident this calculation is not going to read out of range.
-					assert(testCell < sizeof(player.InvGrid));
-					if (player.InvGrid[testCell] != 0) {
-						int8_t iv = abs(player.InvGrid[testCell]);
+					assert(testCell < InventoryGridCells);
+					if (GetActiveInvGridCell(player, testCell) != 0) {
+						int8_t iv = abs(GetActiveInvGridCell(player, testCell));
 						if (it != 0) {
 							if (it != iv) {
 								// Found two different items that would be displaced by the held item, can't paste the item here.
@@ -513,19 +687,35 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 			if (&player == MyPlayer) {
 				NetSendCmdChInvItem(false, ii);
 			}
+		} else if (it != 0 && oracool::IsSinglePlayer()
+		    && player.HoldItem.canStackWith(GetActiveInvListItem(player, it - 1))) {
+			Item &target = GetActiveInvListItem(player, it - 1);
+			int room = Item::MaxStackCount - target.stackCount();
+			int moved = std::min(room, player.HoldItem.stackCount());
+			target.setStackCount(target.stackCount() + moved);
+			int remainder = player.HoldItem.stackCount() - moved;
+			if (remainder <= 0)
+				player.HoldItem.clear();
+			else
+				player.HoldItem.setStackCount(remainder);
+			if (&player == MyPlayer && ActiveInventoryTab == 0) {
+				NetSyncInvItem(player, it - 1);
+			}
 		} else {
 			if (it == 0) {
-				player.InvList[player._pNumInv] = player.HoldItem.pop();
-				player._pNumInv++;
-				it = player._pNumInv;
+				int &numInv = GetActiveNumInv(player);
+				GetActiveInvListItem(player, numInv) = player.HoldItem.pop();
+				numInv++;
+				it = numInv;
 			} else {
 				int invIndex = it - 1;
 				if (player.HoldItem._itype == ItemType::Gold)
 					player._pGold += player.HoldItem._ivalue;
-				std::swap(player.InvList[invIndex], player.HoldItem);
+				std::swap(GetActiveInvListItem(player, invIndex), player.HoldItem);
 				if (player.HoldItem._itype == ItemType::Gold)
 					player._pGold = CalculateGold(player);
-				for (auto &itemIndex : player.InvGrid) {
+				for (int k = 0; k < InventoryGridCells; k++) {
+					int8_t &itemIndex = GetActiveInvGridCell(player, k);
 					if (itemIndex == it)
 						itemIndex = 0;
 					if (itemIndex == -it)
@@ -533,13 +723,25 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				}
 			}
 
-			AddItemToInvGrid(player, slot - SLOTXY_INV_FIRST, it, itemSize);
+			AddItemToActiveInvGrid(player, slot - SLOTXY_INV_FIRST, it, itemSize);
 		}
 		break;
 	case ILOC_BELT: {
 		int ii = slot - SLOTXY_BELT_FIRST;
 		if (player.SpdList[ii].isEmpty()) {
 			player.SpdList[ii] = player.HoldItem.pop();
+		} else if (oracool::IsSinglePlayer()
+		    && player.HoldItem.canStackWith(player.SpdList[ii])) {
+			Item &target = player.SpdList[ii];
+			int room = Item::MaxStackCount - target.stackCount();
+			int moved = std::min(room, player.HoldItem.stackCount());
+			target.setStackCount(target.stackCount() + moved);
+			int remainder = player.HoldItem.stackCount() - moved;
+			if (remainder <= 0)
+				player.HoldItem.clear();
+			else
+				player.HoldItem.setStackCount(remainder);
+			player.CalcScrolls();
 		} else {
 			std::swap(player.SpdList[ii], player.HoldItem);
 			if (player.HoldItem._itype == ItemType::Gold)
@@ -690,11 +892,11 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 
 	if (r >= SLOTXY_INV_FIRST && r <= SLOTXY_INV_LAST) {
 		int ig = r - SLOTXY_INV_FIRST;
-		int8_t ii = player.InvGrid[ig];
+		int8_t ii = GetActiveInvGridCell(player, ig);
 		if (ii != 0) {
 			int iv = (ii < 0) ? -ii : ii;
 
-			holdItem = player.InvList[iv - 1];
+			holdItem = GetActiveInvListItem(player, iv - 1);
 			if (automaticMove) {
 				if (CanBePlacedOnBelt(holdItem)) {
 					automaticallyMoved = AutoPlaceItemInBelt(player, holdItem, true);
@@ -718,13 +920,13 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 						break;
 					case ILOC_ONEHAND:
 						// User is attempting to move a weapon (left hand)
-						if (player.InvList[iv - 1]._iClass == player.InvBody[INVLOC_HAND_LEFT]._iClass
-						    && player.GetItemLocation(player.InvList[iv - 1]) == player.GetItemLocation(player.InvBody[INVLOC_HAND_LEFT])) {
+						if (GetActiveInvListItem(player, iv - 1)._iClass == player.InvBody[INVLOC_HAND_LEFT]._iClass
+						    && player.GetItemLocation(GetActiveInvListItem(player, iv - 1)) == player.GetItemLocation(player.InvBody[INVLOC_HAND_LEFT])) {
 							invloc = INVLOC_HAND_LEFT;
 						}
 						// User is attempting to move a shield (right hand)
-						if (player.InvList[iv - 1]._iClass == player.InvBody[INVLOC_HAND_RIGHT]._iClass
-						    && player.GetItemLocation(player.InvList[iv - 1]) == player.GetItemLocation(player.InvBody[INVLOC_HAND_RIGHT])) {
+						if (GetActiveInvListItem(player, iv - 1)._iClass == player.InvBody[INVLOC_HAND_RIGHT]._iClass
+						    && player.GetItemLocation(GetActiveInvListItem(player, iv - 1)) == player.GetItemLocation(player.InvBody[INVLOC_HAND_RIGHT])) {
 							invloc = INVLOC_HAND_RIGHT;
 						}
 						// A two-hand item can always be replaced with a one-hand item
@@ -740,12 +942,19 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 								// No space to  move right hand item to inventory, abort.
 								break;
 							}
-							holdItem = player.InvBody[INVLOC_HAND_LEFT];
-							if (!AutoPlaceItemInInventory(player, holdItem, false)) {
-								// No space for left item. Move back right item to right hand and abort.
-								player.InvBody[INVLOC_HAND_RIGHT] = player.InvList[player._pNumInv - 1];
-								player.RemoveInvItem(player._pNumInv - 1, false);
-								break;
+							{
+								Item placedRightHandItem = holdItem; // AutoPlaceItemInInventory already placed this copy; remember its identity in case the next check fails and it needs undoing.
+								holdItem = player.InvBody[INVLOC_HAND_LEFT];
+								if (!AutoPlaceItemInInventory(player, holdItem, false)) {
+									// No space for left item. Move back right item to right hand and abort.
+									// The earlier placement may have landed in an extra tab rather than
+									// InvList (AutoPlaceItemInInventory falls back there when tab 1 is
+									// full), so it must be located by identity rather than assumed to be
+									// the last InvList slot.
+									player.InvBody[INVLOC_HAND_RIGHT] = placedRightHandItem;
+									RemoveMatchingInventoryOrExtraTabItem(player, placedRightHandItem);
+									break;
+								}
 							}
 							RemoveEquipment(player, INVLOC_HAND_RIGHT, false);
 							invloc = INVLOC_HAND_LEFT;
@@ -766,13 +975,13 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 							}
 						}
 					}
-					holdItem = player.InvList[iv - 1];
+					holdItem = GetActiveInvListItem(player, iv - 1);
 					automaticallyMoved = automaticallyEquipped = AutoEquip(player, holdItem);
 				}
 			}
 
 			if (!automaticMove || automaticallyMoved) {
-				player.RemoveInvItem(iv - 1, false);
+				RemoveActiveInvItem(player, iv - 1);
 			}
 		}
 	}
@@ -1058,6 +1267,39 @@ void InitInv()
 	}
 }
 
+/**
+ * @brief Oracool Tabbed Inventory: draws the 10 small tab buttons in the gap between the ring
+ * row and the backpack grid. Purely code-drawn text (no new art, matching the Reset Stats "R"
+ * button precedent) since the gap is only ~16px tall and the ring/grid artwork - baked into the
+ * game's original, non-editable inv.cel/inv_rog.cel/inv_sor.cel background images - can't move to
+ * make room. Selected tab is gold and drawn a few pixels larger; inactive tabs are a muted gray.
+ */
+void DrawInventoryTabs(const Surface &out)
+{
+	constexpr int TabY = 208;
+	constexpr int TabHeight = 12;
+	constexpr int EnlargeSelected = 2;
+
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs + 1; tab++) {
+		const Rectangle &column = InvRect[SLOTXY_INV_FIRST + tab];
+		const bool selected = tab == ActiveInventoryTab;
+
+		int x = column.position.x;
+		int y = TabY;
+		int width = column.size.width;
+		int height = TabHeight;
+		if (selected) {
+			x -= EnlargeSelected;
+			y -= EnlargeSelected;
+			width += EnlargeSelected * 2;
+			height += EnlargeSelected;
+		}
+
+		const UiFlags color = selected ? UiFlags::ColorGold : UiFlags::ColorUiSilver;
+		DrawString(out, StrCat(tab + 1), Rectangle { GetPanelPosition(UiPanels::Inventory, { x, y }), { width, height } }, { color | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
+}
+
 void DrawInv(const Surface &out)
 {
 	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, 351 }), (*pInvCels)[0]);
@@ -1121,29 +1363,35 @@ void DrawInv(const Surface &out)
 	}
 
 	for (int i = 0; i < InventoryGridCells; i++) {
-		if (myPlayer.InvGrid[i] != 0) {
+		int8_t cell = GetActiveInvGridCell(myPlayer, i);
+		if (cell != 0) {
 			InvDrawSlotBack(
 			    out,
 			    GetPanelPosition(UiPanels::Inventory, InvRect[i + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height },
 			    InventorySlotSizeInPixels,
-			    myPlayer.InvList[abs(myPlayer.InvGrid[i]) - 1]._iMagical);
+			    GetActiveInvListItem(myPlayer, abs(cell) - 1)._iMagical);
 		}
 	}
 
 	for (int j = 0; j < InventoryGridCells; j++) {
-		if (myPlayer.InvGrid[j] > 0) { // first slot of an item
-			int ii = myPlayer.InvGrid[j] - 1;
-			int cursId = myPlayer.InvList[ii]._iCurs + CURSOR_FIRSTITEM;
+		int8_t cell = GetActiveInvGridCell(myPlayer, j);
+		if (cell > 0) { // first slot of an item
+			int ii = cell - 1;
+			Item &invItem = GetActiveInvListItem(myPlayer, ii);
+			int cursId = invItem._iCurs + CURSOR_FIRSTITEM;
 
 			const ClxSprite sprite = GetInvItemSprite(cursId);
 			const Point position = GetPanelPosition(UiPanels::Inventory, InvRect[j + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height };
-			if (pcursinvitem == ii + INVITEM_INV_FIRST) {
-				ClxDrawOutline(out, GetOutlineColor(myPlayer.InvList[ii], true), position, sprite);
+			if (ActiveInventoryTab == 0 && pcursinvitem == ii + INVITEM_INV_FIRST) {
+				ClxDrawOutline(out, GetOutlineColor(invItem, true), position, sprite);
 			}
 
-			DrawItem(myPlayer.InvList[ii], out, position, sprite);
+			DrawItem(invItem, out, position, sprite);
 		}
 	}
+
+	if (TabbedInventoryEnabled())
+		DrawInventoryTabs(out);
 }
 
 void DrawInvBelt(const Surface &out)
@@ -1157,6 +1405,7 @@ void DrawInvBelt(const Surface &out)
 	DrawPanelBox(out, { 205, 21, 232, 28 }, mainPanelPosition + Displacement { 205, 5 });
 
 	Player &myPlayer = *InspectPlayer;
+	const bool beltModActive = oracool::IsSinglePlayer();
 
 	for (int i = 0; i < MaxBeltItems; i++) {
 		if (myPlayer.SpdList[i].isEmpty()) {
@@ -1177,7 +1426,9 @@ void DrawInvBelt(const Surface &out)
 
 		DrawItem(myPlayer.SpdList[i], out, position, sprite);
 
-		if (myPlayer.SpdList[i].isUsable()
+		// Belt Mod slots always show an occupant's stack-count overlay instead (see
+		// DrawItem); the hotkey number would be redundant clutter on top of it.
+		if (!beltModActive && myPlayer.SpdList[i].isUsable()
 		    && myPlayer.SpdList[i]._itype != ItemType::Gold) {
 			DrawString(out, StrCat(i + 1), { position - Displacement { 0, 12 }, InventorySlotSizeInPixels }, { UiFlags::ColorWhite | UiFlags::AlignRight });
 		}
@@ -1193,10 +1444,37 @@ void RemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPri)
 	player.InvBody[bodyLocation].clear();
 }
 
+bool MergeStackableItemIntoBelt(Player &player, const Item &item, bool persistItem)
+{
+	for (auto &beltItem : player.SpdList) {
+		if (!beltItem.canStackWith(item) || beltItem.stackCount() >= Item::MaxStackCount)
+			continue;
+
+		if (persistItem) {
+			beltItem.setStackCount(beltItem.stackCount() + 1);
+			player.CalcScrolls();
+			RedrawComponent(PanelDrawComponent::Belt);
+			if (&player == MyPlayer) {
+				size_t beltIndex = std::distance<const Item *>(&player.SpdList[0], &beltItem);
+				NetSendCmdChBeltItem(false, beltIndex);
+			}
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
 bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem)
 {
 	if (!CanBePlacedOnBelt(item)) {
 		return false;
+	}
+
+	if (oracool::IsSinglePlayer() && item.isStackableConsumable()
+	    && MergeStackableItemIntoBelt(player, item, persistItem)) {
+		return true;
 	}
 
 	for (auto &beltItem : player.SpdList) {
@@ -1260,64 +1538,93 @@ bool AutoEquipEnabled(const Player &player, const Item &item)
 	return true;
 }
 
+bool MergeStackableItemIntoInventory(Player &player, const Item &item, bool persistItem)
+{
+	for (int i = 0; i < player._pNumInv; i++) {
+		Item &existing = player.InvList[i];
+		if (!existing.canStackWith(item) || existing.stackCount() >= Item::MaxStackCount)
+			continue;
+
+		if (persistItem) {
+			existing.setStackCount(existing.stackCount() + 1);
+			NetSyncInvItem(player, i);
+		}
+
+		return true;
+	}
+
+	// A matching stack sitting in one of the 9 Tabbed Inventory extra tabs is just as valid a
+	// merge target as one in the real backpack - RefillBeltSlotFromInventory already treats
+	// extra tabs this way for belt refills, so a fresh pickup/purchase should too rather than
+	// creating a redundant new stack while an existing one in an extra tab goes untouched.
+	if (TabbedInventoryEnabled()) {
+		for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+			for (int i = 0; i < player._pNumInvTab[t]; i++) {
+				Item &existing = player.InvTabList[t][i];
+				if (!existing.canStackWith(item) || existing.stackCount() >= Item::MaxStackCount)
+					continue;
+
+				if (persistItem)
+					existing.setStackCount(existing.stackCount() + 1);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 bool AutoPlaceItemInInventory(Player &player, const Item &item, bool persistItem)
 {
+	if (oracool::IsSinglePlayer() && item.isStackableConsumable()
+	    && MergeStackableItemIntoInventory(player, item, persistItem)) {
+		return true;
+	}
+
 	Size itemSize = GetInventorySize(item);
+	bool placed = false;
 
 	if (itemSize.height == 1) {
-		for (int i = 30; i <= 39; i++) {
-			if (AutoPlaceItemInInventorySlot(player, i, item, persistItem))
-				return true;
+		for (int i = 30; i <= 39 && !placed; i++)
+			placed = AutoPlaceItemInInventorySlot(player, i, item, persistItem);
+		for (int x = 9; x >= 0 && !placed; x--) {
+			for (int y = 2; y >= 0 && !placed; y--)
+				placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem);
 		}
-		for (int x = 9; x >= 0; x--) {
-			for (int y = 2; y >= 0; y--) {
-				if (AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem))
-					return true;
+	} else if (itemSize.height == 2) {
+		for (int x = 10 - itemSize.width; x >= 0 && !placed; x -= itemSize.width) {
+			for (int y = 0; y < 3 && !placed; y++)
+				placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem);
+		}
+		if (!placed && itemSize.width == 2) {
+			for (int x = 7; x >= 0 && !placed; x -= 2) {
+				for (int y = 0; y < 3 && !placed; y++)
+					placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem);
 			}
 		}
-		return false;
+	} else if (itemSize == Size { 1, 3 }) {
+		for (int i = 0; i < 20 && !placed; i++)
+			placed = AutoPlaceItemInInventorySlot(player, i, item, persistItem);
+	} else if (itemSize == Size { 2, 3 }) {
+		for (int i = 0; i < 9 && !placed; i++)
+			placed = AutoPlaceItemInInventorySlot(player, i, item, persistItem);
+		if (!placed) {
+			for (int i = 10; i < 19 && !placed; i++)
+				placed = AutoPlaceItemInInventorySlot(player, i, item, persistItem);
+		}
+	} else {
+		app_fatal(StrCat("Unknown item size: ", itemSize.width, "x", itemSize.height));
 	}
 
-	if (itemSize.height == 2) {
-		for (int x = 10 - itemSize.width; x >= 0; x -= itemSize.width) {
-			for (int y = 0; y < 3; y++) {
-				if (AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem))
-					return true;
-			}
-		}
-		if (itemSize.width == 2) {
-			for (int x = 7; x >= 0; x -= 2) {
-				for (int y = 0; y < 3; y++) {
-					if (AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem))
-						return true;
-				}
-			}
-		}
-		return false;
-	}
+	// Oracool Tabbed Inventory: every caller of this function - store purchases, manual and
+	// auto ground pickup, Stash withdrawal, auto-equip's displacement shuffling - should see the
+	// extra tabs as real usable space once tab 1 has no room, not just the store purchase path
+	// this was first added for.
+	if (!placed && TabbedInventoryEnabled())
+		placed = AutoPlaceItemInExtraTabs(player, item, persistItem);
 
-	if (itemSize == Size { 1, 3 }) {
-		for (int i = 0; i < 20; i++) {
-			if (AutoPlaceItemInInventorySlot(player, i, item, persistItem))
-				return true;
-		}
-		return false;
-	}
-
-	if (itemSize == Size { 2, 3 }) {
-		for (int i = 0; i < 9; i++) {
-			if (AutoPlaceItemInInventorySlot(player, i, item, persistItem))
-				return true;
-		}
-
-		for (int i = 10; i < 19; i++) {
-			if (AutoPlaceItemInInventorySlot(player, i, item, persistItem))
-				return true;
-		}
-		return false;
-	}
-
-	app_fatal(StrCat("Unknown item size: ", itemSize.width, "x", itemSize.height));
+	return placed;
 }
 
 bool AutoPlaceItemInInventorySlot(Player &player, int slotIndex, const Item &item, bool persistItem)
@@ -1348,6 +1655,79 @@ bool AutoPlaceItemInInventorySlot(Player &player, int slotIndex, const Item &ite
 	}
 
 	return true;
+}
+
+/**
+ * @brief Oracool Tabbed Inventory: tab-index-parameterized equivalent of
+ * AutoPlaceItemInInventorySlot, operating directly on InvTabGrid[tabIndex]/InvTabList[tabIndex]/
+ * _pNumInvTab[tabIndex] rather than the ActiveInventoryTab-driven accessors - this runs during
+ * a store purchase, a background operation unrelated to whichever page is currently displayed,
+ * so it must never depend on (or disturb) ActiveInventoryTab.
+ */
+bool AutoPlaceItemInExtraTabSlot(Player &player, int tabIndex, int slotIndex, const Item &item, bool persistItem)
+{
+	auto &grid = player.InvTabGrid[tabIndex];
+
+	int yy = (slotIndex > 0) ? (10 * (slotIndex / 10)) : 0;
+
+	Size itemSize = GetInventorySize(item);
+	for (int j = 0; j < itemSize.height; j++) {
+		if (yy >= InventoryGridCells) {
+			return false;
+		}
+		int xx = (slotIndex > 0) ? (slotIndex % 10) : 0;
+		for (int i = 0; i < itemSize.width; i++) {
+			if (xx >= 10 || grid[xx + yy] != 0) {
+				return false;
+			}
+			xx++;
+		}
+		yy += 10;
+	}
+
+	if (persistItem) {
+		int &numInv = player._pNumInvTab[tabIndex];
+		player.InvTabList[tabIndex][numInv] = item;
+		numInv++;
+
+		const int pitch = InventorySizeInSlots.width;
+		for (int y = 0; y < itemSize.height; y++) {
+			int rowGridIndex = slotIndex + pitch * y;
+			for (int x = 0; x < itemSize.width; x++) {
+				grid[rowGridIndex + x] = static_cast<int8_t>((x == 0 && y == itemSize.height - 1) ? numInv : -numInv);
+			}
+		}
+	}
+
+	return true;
+}
+
+/**
+ * @brief Oracool Tabbed Inventory: tries every extra tab (2-10) in order for an empty area big
+ * enough for item, used as a fallback once AutoPlaceItemInInventory (tab 1 only) has already
+ * failed - covers store purchases, ground/auto pickup, and Stash withdrawal alike, since they
+ * all ultimately funnel through AutoPlaceItemInInventory. Deliberately does not touch
+ * ActiveInventoryTab; whichever page the player is looking at stays displayed regardless of
+ * which tab the item actually lands in. Gold and quest items are never auto-placed into an
+ * extra tab (same restriction as manually pasting one there) - a quest item landing here
+ * automatically, just because tab 1 happened to be full at the time, would put it somewhere
+ * the existing quest-scanning code (which only ever looks at InvList) could never find it.
+ */
+bool AutoPlaceItemInExtraTabs(Player &player, const Item &item, bool persistItem)
+{
+	if (!CanItemEnterExtraTab(item))
+		return false;
+
+	Size itemSize = GetInventorySize(item);
+	for (int tabIndex = 0; tabIndex < Player::NumExtraInventoryTabs; tabIndex++) {
+		for (int y = 0; y <= InventorySizeInSlots.height - itemSize.height; y++) {
+			for (int x = 0; x <= InventorySizeInSlots.width - itemSize.width; x++) {
+				if (AutoPlaceItemInExtraTabSlot(player, tabIndex, y * InventorySizeInSlots.width + x, item, persistItem))
+					return true;
+			}
+		}
+	}
+	return false;
 }
 
 int RoomForGold()
@@ -1513,9 +1893,38 @@ void TransferItemToStash(Player &player, int location)
 		player.RemoveSpdBarItem(location - INVITEM_BELT_FIRST);
 }
 
+/**
+ * @brief Oracool Tabbed Inventory: hit-tests the 10 tab buttons drawn by DrawInventoryTabs.
+ * Uses each button's base (non-enlarged) rectangle regardless of selection state, so the
+ * clickable region stays fixed and predictable even though the selected tab draws a few
+ * pixels larger. Switching tabs works the same whether or not an item is currently held on
+ * the cursor - that's how you carry an item from one tab's view into another's.
+ */
+bool CheckInventoryTabClick(Point cursorPosition)
+{
+	if (!TabbedInventoryEnabled())
+		return false;
+
+	constexpr int TabY = 208;
+	constexpr int TabHeight = 12;
+	const Displacement panelOffset = Point { 0, 0 } - GetRightPanel().position;
+
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs + 1; tab++) {
+		const Rectangle &column = InvRect[SLOTXY_INV_FIRST + tab];
+		const Rectangle tabRect { { column.position.x, TabY }, { column.size.width, TabHeight } };
+		if (tabRect.contains(cursorPosition + panelOffset)) {
+			ActiveInventoryTab = tab;
+			return true;
+		}
+	}
+	return false;
+}
+
 void CheckInvItem(bool isShiftHeld, bool isCtrlHeld)
 {
 	if (IsInspectingPlayer())
+		return;
+	if (CheckInventoryTabClick(MousePosition))
 		return;
 	if (!MyPlayer->HoldItem.isEmpty()) {
 		CheckInvPaste(*MyPlayer, MousePosition);
@@ -1799,6 +2208,8 @@ int SyncDropEar(Point position, uint16_t icreateinfo, uint32_t iseed, uint8_t cu
 
 int8_t CheckInvHLight()
 {
+	ActiveTabItemHovered = false;
+
 	int8_t r = 0;
 	for (; r < NUM_XY_SLOTS; r++) {
 		int xo = GetRightPanel().position.x;
@@ -1848,12 +2259,23 @@ int8_t CheckInvHLight()
 		rv = INVLOC_CHEST;
 		pi = &myPlayer.InvBody[rv];
 	} else if (r >= SLOTXY_INV_FIRST && r <= SLOTXY_INV_LAST) {
-		int8_t itemId = abs(myPlayer.InvGrid[r - SLOTXY_INV_FIRST]);
+		int8_t itemId = abs(GetActiveInvGridCell(myPlayer, r - SLOTXY_INV_FIRST));
 		if (itemId == 0)
 			return -1;
 		int ii = itemId - 1;
-		rv = ii + INVITEM_INV_FIRST;
-		pi = &myPlayer.InvList[ii];
+		pi = &GetActiveInvListItem(myPlayer, ii);
+		// Oracool Tabbed Inventory: only tab 1 (the real InvList) has a pcursinvitem encoding
+		// that legacy identify/drag/repair code understands (they all assume tab-1 indices).
+		// An extra tab's item still gets its full hover tooltip (InfoString/PrintItemDetails
+		// below, via pi) - it just isn't treated as an interactive identify/drag target yet.
+		// ActiveTabItemHovered tells DrawInfoBox not to wipe that tooltip the way it normally
+		// would for pcursinvitem == -1 (which otherwise also means "hovering nothing at all").
+		if (ActiveInventoryTab == 0) {
+			rv = ii + INVITEM_INV_FIRST;
+		} else {
+			rv = -1;
+			ActiveTabItemHovered = true;
+		}
 	} else if (r >= SLOTXY_BELT_FIRST) {
 		r -= SLOTXY_BELT_FIRST;
 		RedrawComponent(PanelDrawComponent::Belt);
@@ -1882,6 +2304,114 @@ int8_t CheckInvHLight()
 	return rv;
 }
 
+void DecrementOrRemoveInvItem(Player &player, int invIndex)
+{
+	Item &item = player.InvList[invIndex];
+	if (item.isStackableConsumable() && item.stackCount() > 1) {
+		item.setStackCount(item.stackCount() - 1);
+		NetSyncInvItem(player, invIndex);
+		return;
+	}
+
+	player.RemoveInvItem(invIndex);
+}
+
+void DecrementOrRemoveSpdBarItem(Player &player, int spdIndex)
+{
+	Item &item = player.SpdList[spdIndex];
+	if (item.isStackableConsumable() && item.stackCount() > 1) {
+		item.setStackCount(item.stackCount() - 1);
+		player.CalcScrolls();
+		RedrawComponent(PanelDrawComponent::Belt);
+		if (&player == MyPlayer) {
+			NetSendCmdChBeltItem(false, spdIndex);
+		}
+		return;
+	}
+
+	const bool tryRefill = oracool::IsSinglePlayer() && item.isStackableConsumable();
+	const _item_indexes idx = item.IDidx;
+	const bool identified = item._iIdentified;
+
+	player.RemoveSpdBarItem(spdIndex);
+
+	if (tryRefill)
+		RefillBeltSlotFromInventory(player, spdIndex, idx, identified);
+}
+
+void RefillBeltSlotFromInventory(Player &player, int spdIndex, _item_indexes idx, bool identified)
+{
+	Item &beltItem = player.SpdList[spdIndex];
+	bool filledSlot = false;
+
+	// Shared scan/move logic against one source array (the real backpack, or one Tabbed
+	// Inventory extra tab). removeAt/syncPartial are the only things that differ between
+	// sources: removeAt swap-compacts whichever array actually backs this source, and
+	// syncPartial only means anything for the real backpack (InvGrid-based network sync
+	// has no equivalent for the extra tabs, which are single-player-only).
+	auto scanSource = [&](Item *list, int &numInv, auto removeAt, auto syncPartial) {
+		for (int i = 0; i < numInv;) {
+			Item &sourceItem = list[i];
+			if (!sourceItem.isStackableConsumable() || sourceItem.IDidx != idx || sourceItem._iIdentified != identified) {
+				i++;
+				continue;
+			}
+
+			int capacity = filledSlot ? Item::MaxStackCount - beltItem.stackCount() : Item::MaxStackCount;
+			if (capacity <= 0)
+				return;
+
+			int moved = std::min(capacity, sourceItem.stackCount());
+			if (!filledSlot) {
+				beltItem = sourceItem;
+				beltItem.setStackCount(moved);
+				filledSlot = true;
+			} else {
+				beltItem.setStackCount(beltItem.stackCount() + moved);
+			}
+
+			int remaining = sourceItem.stackCount() - moved;
+			if (remaining > 0) {
+				sourceItem.setStackCount(remaining);
+				syncPartial(i);
+				i++;
+			} else {
+				// removeAt swap-compacts the array, so slot i now holds a
+				// different item (or none, if this was the last one) - recheck it.
+				removeAt(i);
+			}
+
+			if (beltItem.stackCount() >= Item::MaxStackCount)
+				return;
+		}
+	};
+
+	scanSource(
+	    player.InvList, player._pNumInv,
+	    [&](int i) { player.RemoveInvItem(i); },
+	    [&](int i) { NetSyncInvItem(player, i); });
+
+	if ((!filledSlot || beltItem.stackCount() < Item::MaxStackCount) && TabbedInventoryEnabled()) {
+		for (int tabIndex = 0; tabIndex < Player::NumExtraInventoryTabs; tabIndex++) {
+			scanSource(
+			    player.InvTabList[tabIndex].data(), player._pNumInvTab[tabIndex],
+			    [&](int i) { RemoveExtraTabItem(player, tabIndex, i); },
+			    [](int) {});
+			if (filledSlot && beltItem.stackCount() >= Item::MaxStackCount)
+				break;
+		}
+	}
+
+	if (!filledSlot)
+		return;
+
+	player.CalcScrolls();
+	RedrawComponent(PanelDrawComponent::Belt);
+	if (&player == MyPlayer) {
+		NetSendCmdChBeltItem(false, spdIndex);
+	}
+}
+
 void ConsumeScroll(Player &player)
 {
 	const SpellID spellId = player.executedSpell.spellId;
@@ -1896,14 +2426,14 @@ void ConsumeScroll(Player &player)
 		const int itemIndex = itemSlot - INVITEM_INV_FIRST;
 		const Item *item = &player.InvList[itemIndex];
 		if (!item->isEmpty() && isCurrentSpell(*item)) {
-			player.RemoveInvItem(itemIndex);
+			DecrementOrRemoveInvItem(player, itemIndex);
 			return;
 		}
 	} else if (itemSlot >= INVITEM_BELT_FIRST && itemSlot <= INVITEM_BELT_LAST) {
 		const int itemIndex = itemSlot - INVITEM_BELT_FIRST;
 		const Item *item = &player.SpdList[itemIndex];
 		if (!item->isEmpty() && isCurrentSpell(*item)) {
-			player.RemoveSpdBarItem(itemIndex);
+			DecrementOrRemoveSpdBarItem(player, itemIndex);
 			return;
 		}
 	} else if (itemSlot != 0) {
@@ -1912,7 +2442,7 @@ void ConsumeScroll(Player &player)
 
 	// Didn't find it at the selected slot, take the first one we find
 	// This path is always used when the scroll is consumed via spell selection
-	RemoveInventoryOrBeltItem(player, isCurrentSpell);
+	DecrementOrRemoveInventoryOrBeltItem(player, isCurrentSpell);
 }
 
 bool CanUseScroll(Player &player, SpellID spell)
@@ -1952,6 +2482,34 @@ Item &GetInventoryItem(Player &player, int location)
 	return player.SpdList[location - INVITEM_BELT_FIRST];
 }
 
+bool TryStartStackSplit(int cii)
+{
+	if (cii < INVITEM_INV_FIRST)
+		return false;
+	if (!oracool::IsSinglePlayer())
+		return false;
+
+	Player &player = *MyPlayer;
+	const Item &item = (cii <= INVITEM_INV_LAST)
+	    ? player.InvList[cii - INVITEM_INV_FIRST]
+	    : player.SpdList[cii - INVITEM_BELT_FIRST];
+
+	if (!item.isStackableConsumable() || item.stackCount() <= 1)
+		return false;
+
+	CloseGoldWithdraw();
+
+	if (talkflag)
+		control_reset_talk();
+
+	const Point start = GetPanelPosition(UiPanels::Inventory, { 67, 128 });
+	SDL_Rect rect = MakeSdlRect(start.x, start.y, 180, 20);
+	SDL_SetTextInputRect(&rect);
+
+	OpenGoldDrop(static_cast<int8_t>(cii), item.stackCount());
+	return true;
+}
+
 bool UseInvItem(int cii)
 {
 	if (IsInspectingPlayer())
@@ -1982,8 +2540,15 @@ bool UseInvItem(int cii)
 		item = &player.SpdList[c];
 		speedlist = true;
 
+		// Belt Mod gives each belt slot its own physical stock that refills itself from
+		// inventory once emptied (see DecrementOrRemoveSpdBarItem/RefillBeltSlotFromInventory),
+		// which makes vanilla's autoRefillBelt redirect below counterproductive: it would
+		// silently consume straight from inventory instead of the belt's own stock, so a
+		// Belt Mod slot would never actually deplete (or refill) the way the player sees it.
+		const bool beltModActive = oracool::IsSinglePlayer();
+
 		// If selected speedlist item exists in InvList, use the InvList item.
-		for (int i = 0; i < player._pNumInv && *sgOptions.Gameplay.autoRefillBelt; i++) {
+		for (int i = 0; i < player._pNumInv && *sgOptions.Gameplay.autoRefillBelt && !beltModActive; i++) {
 			if (player.InvList[i]._iMiscId == item->_iMiscId && player.InvList[i]._iSpell == item->_iSpell) {
 				c = i;
 				item = &player.InvList[c];
@@ -1994,7 +2559,7 @@ bool UseInvItem(int cii)
 		}
 
 		// If speedlist item is not inventory, use same item at the end of the speedlist if exists.
-		if (speedlist && *sgOptions.Gameplay.autoRefillBelt) {
+		if (speedlist && *sgOptions.Gameplay.autoRefillBelt && !beltModActive) {
 			for (int i = INVITEM_BELT_LAST - INVITEM_BELT_FIRST; i > c; i--) {
 				Item &candidate = player.SpdList[i];
 
@@ -2078,7 +2643,7 @@ bool UseInvItem(int cii)
 			return true;
 		}
 		if (!item->isScroll() && !item->isRune())
-			player.RemoveSpdBarItem(c);
+			DecrementOrRemoveSpdBarItem(player, c);
 		return true;
 	}
 	if (player.InvList[c]._iMiscId == IMISC_MAPOFDOOM)
@@ -2089,7 +2654,7 @@ bool UseInvItem(int cii)
 		return true;
 	}
 	if (!item->isScroll() && !item->isRune())
-		player.RemoveInvItem(c);
+		DecrementOrRemoveInvItem(player, c);
 
 	return true;
 }
@@ -2099,6 +2664,7 @@ void CloseInventory()
 	CloseGoldWithdraw();
 	CloseStash();
 	invflag = false;
+	ActiveInventoryTab = 0;
 }
 
 void CloseStash()

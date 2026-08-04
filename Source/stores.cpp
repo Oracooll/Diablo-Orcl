@@ -46,6 +46,12 @@ TalkID stextflag;
 
 int storenumh;
 int8_t storehidx[48];
+/**
+ * @brief Oracool Tabbed Inventory: -1 means storehidx[i] keeps its existing InvList/belt meaning;
+ * 0-8 means the item at storehold[i] came from extra tab storehTabIdx[i] (displayed as tab
+ * storehTabIdx[i]+2), at InvTabList position storehidx[i] within that tab.
+ */
+int8_t storehTabIdx[48];
 Item storehold[48];
 
 Item smithitem[SMITH_ITEMS];
@@ -205,9 +211,9 @@ std::vector<TalkID> SmithMenuEntries()
 		entries.push_back(TalkID::SmithUniqueBuy);
 	entries.push_back(TalkID::SmithSell);
 	entries.push_back(TalkID::SmithRepair);
-	if (!gbIsMultiplayer && *sgOptions.Oracool.griswoldSellConsumables)
+	if (!gbIsMultiplayer)
 		entries.push_back(TalkID::SmithConsumables);
-	if (!gbIsMultiplayer && *sgOptions.Oracool.griswoldRechargeStaves)
+	if (!gbIsMultiplayer)
 		entries.push_back(TalkID::SmithRecharge);
 	entries.push_back(TalkID::None);
 	return entries;
@@ -399,15 +405,31 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 	std::string productLine;
 
 	if (item._iIdentified) {
-		if (item._iMagical != ITEM_QUALITY_UNIQUE) {
-			if (item._iPrePower != -1) {
-				AppendStrView(productLine, PrintItemPower(item._iPrePower, item));
+		if (item.hasOracoolTier()) {
+			// Oracool-tiered items (up to 3 prefixes + 3 suffixes) don't populate the
+			// vanilla single-prefix/single-suffix _iPrePower/_iSufPower fields, so they
+			// need their own comma-joined line built from the stored affix list instead.
+			for (int i = 0; i < item._iOracoolPrefixCount; i++) {
+				if (!productLine.empty())
+					AppendStrView(productLine, _(",  "));
+				AppendStrView(productLine, PrintItemPower(item._iOracoolPrefixes[i].type, item));
 			}
-		}
-		if (item._iSufPower != -1) {
-			if (!productLine.empty())
-				AppendStrView(productLine, _(",  "));
-			AppendStrView(productLine, PrintItemPower(item._iSufPower, item));
+			for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+				if (!productLine.empty())
+					AppendStrView(productLine, _(",  "));
+				AppendStrView(productLine, PrintItemPower(item._iOracoolSuffixes[i].type, item));
+			}
+		} else {
+			if (item._iMagical != ITEM_QUALITY_UNIQUE) {
+				if (item._iPrePower != -1) {
+					AppendStrView(productLine, PrintItemPower(item._iPrePower, item));
+				}
+			}
+			if (item._iSufPower != -1) {
+				if (!productLine.empty())
+					AppendStrView(productLine, _(",  "));
+				AppendStrView(productLine, PrintItemPower(item._iSufPower, item));
+			}
 		}
 	}
 	if (item._iMiscId == IMISC_STAFF && item._iMaxCharges != 0) {
@@ -453,6 +475,8 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 bool StoreAutoPlace(Item &item, bool persistItem)
 {
 	Player &player = *MyPlayer;
+	// AutoPlaceItemInInventory already falls back to the extra Tabbed Inventory tabs once tab 1
+	// has no room, so no separate call is needed here.
 	const bool placed = (AutoEquipEnabled(player, item) && AutoEquip(player, item, persistItem))
 	    || AutoPlaceItemInBelt(player, item, persistItem)
 	    || AutoPlaceItemInInventory(player, item, persistItem);
@@ -575,7 +599,7 @@ void StartSmithBuy()
 	}
 
 	stextsmax = std::max(storenumh - 4, 0);
-	if (stextflag == TalkID::SmithSell && *sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer)
+	if (stextflag == TalkID::SmithSell && !gbIsMultiplayer)
 		AddSText(0, SmithSellAllLine(), _("Sell all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
@@ -688,59 +712,114 @@ bool StartSmithUniqueBuy()
 	return true;
 }
 
-bool SmithSellOk(int i)
+bool SmithSellOk(const Item &item)
 {
-	Item *pI;
-
-	if (i >= 0) {
-		pI = &MyPlayer->InvList[i];
-	} else {
-		pI = &MyPlayer->SpdList[-(i + 1)];
-	}
-
-	if (pI->isEmpty())
+	if (item.isEmpty())
 		return false;
 
-	if (*sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer) {
-		// Unique Shop items are ordinary merchandise even when their underlying base
-		// item uses an ID in the quest-item range. The value comparison recognizes
-		// already-purchased merchandise from builds predating the CF_SMITH marker.
-		const bool isLegacyUniqueShopItem = pI->_iMagical == ITEM_QUALITY_UNIQUE
-		    && pI->_iUid != UITEM_INVALID && IsUniqueAvailable(pI->_iUid)
-		    && pI->_iIvalue != UniqueItems[pI->_iUid].UIValue;
-		const bool isUniqueShopItem = pI->_iMagical == ITEM_QUALITY_UNIQUE
-		    && ((pI->_iCreateInfo & CF_SMITH) != 0 || isLegacyUniqueShopItem);
+	if (!gbIsMultiplayer) {
+		// Unique Shop items (CreateUniqueVendorItem, items.cpp) are ordinary merchandise even
+		// when their underlying base item uses an ID in the quest-item range - identified by
+		// the CF_SMITH marker every such item carries.
+		const bool isUniqueShopItem = item._iMagical == ITEM_QUALITY_UNIQUE && (item._iCreateInfo & CF_SMITH) != 0;
 		if (isUniqueShopItem)
-			return pI->_iIdentified && pI->_iIvalue > 0;
+			return item._iIdentified && item._iIvalue > 0;
 
-		if (pI->_itype == ItemType::Gold)
+		if (item._itype == ItemType::Gold)
 			return false;
-		if (pI->_iClass == ICLASS_QUEST)
+		if (item._iClass == ICLASS_QUEST)
 			return false;
-		if (pI->IDidx >= IDI_FIRSTQUEST && pI->IDidx <= IDI_LASTQUEST)
+		if (item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
 			return false;
-		if (pI->IDidx == IDI_LAZSTAFF)
+		if (item.IDidx == IDI_LAZSTAFF)
 			return false;
 
-		const int saleBaseValue = pI->_iMagical != ITEM_QUALITY_NORMAL && pI->_iIdentified ? pI->_iIvalue : pI->_ivalue;
+		const int saleBaseValue = item._iMagical != ITEM_QUALITY_NORMAL && item._iIdentified ? item._iIvalue : item._ivalue;
 		return saleBaseValue > 0;
 	}
 
-	if (pI->_iMiscId > IMISC_OILFIRST && pI->_iMiscId < IMISC_OILLAST)
+	if (item._iMiscId > IMISC_OILFIRST && item._iMiscId < IMISC_OILLAST)
 		return true;
 
-	if (pI->_itype == ItemType::Misc)
+	if (item._itype == ItemType::Misc)
 		return false;
-	if (pI->_itype == ItemType::Gold)
+	if (item._itype == ItemType::Gold)
 		return false;
-	if (pI->_itype == ItemType::Staff && (!gbIsHellfire || IsValidSpell(pI->_iSpell)))
+	if (item._itype == ItemType::Staff && (!gbIsHellfire || IsValidSpell(item._iSpell)))
 		return false;
-	if (pI->_iClass == ICLASS_QUEST)
+	if (item._iClass == ICLASS_QUEST)
 		return false;
-	if (pI->IDidx == IDI_LAZSTAFF)
+	if (item.IDidx == IDI_LAZSTAFF)
 		return false;
 
 	return true;
+}
+
+/**
+ * @brief Scans InvList, the belt, and (if enabled) every Tabbed Inventory extra tab for items
+ * the given predicate approves of, prices each one, and sorts the result by price if that
+ * option is on - the shared logic behind StartSmithSell and StartWitchSell, which previously
+ * duplicated this same ~75-line scan/price/sort sequence with only the predicate differing.
+ * @return true if anything sellable was found (storenumh/storehold/storehidx/storehTabIdx are
+ * populated either way, just empty when this returns false).
+ */
+bool PopulateSellList(bool (*sellOk)(const Item &))
+{
+	storenumh = 0;
+	for (auto &item : storehold)
+		item.clear();
+
+	bool foundAny = false;
+	const Player &myPlayer = *MyPlayer;
+
+	auto addIfSellable = [&](const Item &item, int8_t idx, int8_t tabIdx) {
+		if (storenumh >= 48 || !sellOk(item))
+			return;
+		foundAny = true;
+		storehold[storenumh] = item;
+
+		if (storehold[storenumh]._iMagical != ITEM_QUALITY_NORMAL && storehold[storenumh]._iIdentified)
+			storehold[storenumh]._ivalue = storehold[storenumh]._iIvalue;
+
+		storehold[storenumh]._ivalue = std::max(storehold[storenumh]._ivalue / 4, 1);
+		if (storehold[storenumh].isStackableConsumable())
+			storehold[storenumh]._ivalue *= storehold[storenumh].stackCount();
+		storehold[storenumh]._iIvalue = storehold[storenumh]._ivalue;
+		storehidx[storenumh] = idx;
+		storehTabIdx[storenumh] = tabIdx;
+		storenumh++;
+	};
+
+	for (int8_t i = 0; i < myPlayer._pNumInv; i++)
+		addIfSellable(myPlayer.InvList[i], i, -1);
+
+	for (int i = 0; i < MaxBeltItems; i++)
+		addIfSellable(myPlayer.SpdList[i], static_cast<int8_t>(-(i + 1)), -1);
+
+	// Oracool Tabbed Inventory: items stored in an extra tab are just as sellable as anything
+	// in the original backpack or belt.
+	if (TabbedInventoryEnabled()) {
+		for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+			for (int i = 0; i < myPlayer._pNumInvTab[t]; i++)
+				addIfSellable(myPlayer.InvTabList[t][i], static_cast<int8_t>(i), static_cast<int8_t>(t));
+		}
+	}
+
+	if (!gbIsMultiplayer) {
+		// Stable insertion sort keeps equal-price items in their original inventory/belt order,
+		// while moving the source index together with the displayed item.
+		for (int i = 1; i < storenumh; ++i) {
+			int j = i;
+			while (j > 0 && storehold[j - 1]._iIvalue < storehold[j]._iIvalue) {
+				std::swap(storehold[j - 1], storehold[j]);
+				std::swap(storehidx[j - 1], storehidx[j]);
+				std::swap(storehTabIdx[j - 1], storehTabIdx[j]);
+				--j;
+			}
+		}
+	}
+
+	return foundAny;
 }
 
 void ScrollSmithSell(int idx)
@@ -774,63 +853,8 @@ void ScrollSmithSell(int idx)
 void StartSmithSell()
 {
 	stextsize = true;
-	bool sellOk = false;
-	storenumh = 0;
 
-	for (auto &item : storehold) {
-		item.clear();
-	}
-
-	const Player &myPlayer = *MyPlayer;
-
-	for (int8_t i = 0; i < myPlayer._pNumInv; i++) {
-		if (storenumh >= 48)
-			break;
-		if (SmithSellOk(i)) {
-			sellOk = true;
-			storehold[storenumh] = myPlayer.InvList[i];
-
-			if (storehold[storenumh]._iMagical != ITEM_QUALITY_NORMAL && storehold[storenumh]._iIdentified)
-				storehold[storenumh]._ivalue = storehold[storenumh]._iIvalue;
-
-			storehold[storenumh]._ivalue = std::max(storehold[storenumh]._ivalue / 4, 1);
-			storehold[storenumh]._iIvalue = storehold[storenumh]._ivalue;
-			storehidx[storenumh] = i;
-			storenumh++;
-		}
-	}
-
-	for (int i = 0; i < MaxBeltItems; i++) {
-		if (storenumh >= 48)
-			break;
-		if (SmithSellOk(-(i + 1))) {
-			sellOk = true;
-			storehold[storenumh] = myPlayer.SpdList[i];
-
-			if (storehold[storenumh]._iMagical != ITEM_QUALITY_NORMAL && storehold[storenumh]._iIdentified)
-				storehold[storenumh]._ivalue = storehold[storenumh]._iIvalue;
-
-			storehold[storenumh]._ivalue = std::max(storehold[storenumh]._ivalue / 4, 1);
-			storehold[storenumh]._iIvalue = storehold[storenumh]._ivalue;
-			storehidx[storenumh] = -(i + 1);
-			storenumh++;
-		}
-	}
-
-	if (*sgOptions.Oracool.griswoldSortSellItemsByPrice && !gbIsMultiplayer) {
-		// Stable insertion sort keeps equal-price items in their original inventory/belt order,
-		// while moving the source index together with the displayed item.
-		for (int i = 1; i < storenumh; ++i) {
-			int j = i;
-			while (j > 0 && storehold[j - 1]._iIvalue < storehold[j]._iIvalue) {
-				std::swap(storehold[j - 1], storehold[j]);
-				std::swap(storehidx[j - 1], storehidx[j]);
-				--j;
-			}
-		}
-	}
-
-	if (!sellOk) {
+	if (!PopulateSellList(SmithSellOk)) {
 		stextscrl = false;
 
 		RenderGold = true;
@@ -840,6 +864,7 @@ void StartSmithSell()
 		return;
 	}
 
+	const Player &myPlayer = *MyPlayer;
 	stextscrl = true;
 	stextsval = 0;
 	stextsmax = myPlayer._pNumInv;
@@ -849,7 +874,7 @@ void StartSmithSell()
 	AddSLine(3);
 	ScrollSmithSell(stextsval);
 	AddItemListBackButton();
-	if (*sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer)
+	if (!gbIsMultiplayer)
 		AddSText(0, SmithSellAllLine(), _("Sell all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
@@ -1031,28 +1056,24 @@ void StartWitchBuy(bool includePepinPotions)
 	stextsmax = std::max(storenumh - 4, 0);
 }
 
-bool WitchSellOk(int i)
+bool WitchSellOk(const Item &item)
 {
-	Item *pI;
+	if (item.isEmpty())
+		return false;
 
 	bool rv = false;
 
-	if (i >= 0)
-		pI = &MyPlayer->InvList[i];
-	else
-		pI = &MyPlayer->SpdList[-(i + 1)];
-
-	if (pI->_itype == ItemType::Misc)
+	if (item._itype == ItemType::Misc)
 		rv = true;
-	if (pI->_iMiscId > 29 && pI->_iMiscId < 41)
+	if (item._iMiscId > 29 && item._iMiscId < 41)
 		rv = false;
-	if (pI->_iClass == ICLASS_QUEST)
+	if (item._iClass == ICLASS_QUEST)
 		rv = false;
-	if (pI->_itype == ItemType::Staff && (!gbIsHellfire || IsValidSpell(pI->_iSpell)))
+	if (item._itype == ItemType::Staff && (!gbIsHellfire || IsValidSpell(item._iSpell)))
 		rv = true;
-	if (pI->IDidx >= IDI_FIRSTQUEST && pI->IDidx <= IDI_LASTQUEST)
+	if (item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
 		rv = false;
-	if (pI->IDidx == IDI_LAZSTAFF)
+	if (item.IDidx == IDI_LAZSTAFF)
 		rv = false;
 	return rv;
 }
@@ -1060,60 +1081,18 @@ bool WitchSellOk(int i)
 void StartWitchSell()
 {
 	stextsize = true;
-	bool sellok = false;
-	storenumh = 0;
 
-	for (auto &item : storehold) {
-		item.clear();
-	}
-
-	const Player &myPlayer = *MyPlayer;
-
-	for (int i = 0; i < myPlayer._pNumInv; i++) {
-		if (storenumh >= 48)
-			break;
-		if (WitchSellOk(i)) {
-			sellok = true;
-			storehold[storenumh] = myPlayer.InvList[i];
-
-			if (storehold[storenumh]._iMagical != ITEM_QUALITY_NORMAL && storehold[storenumh]._iIdentified)
-				storehold[storenumh]._ivalue = storehold[storenumh]._iIvalue;
-
-			storehold[storenumh]._ivalue = std::max(storehold[storenumh]._ivalue / 4, 1);
-			storehold[storenumh]._iIvalue = storehold[storenumh]._ivalue;
-			storehidx[storenumh] = i;
-			storenumh++;
-		}
-	}
-
-	for (int i = 0; i < MaxBeltItems; i++) {
-		if (storenumh >= 48)
-			break;
-		if (!myPlayer.SpdList[i].isEmpty() && WitchSellOk(-(i + 1))) {
-			sellok = true;
-			storehold[storenumh] = myPlayer.SpdList[i];
-
-			if (storehold[storenumh]._iMagical != ITEM_QUALITY_NORMAL && storehold[storenumh]._iIdentified)
-				storehold[storenumh]._ivalue = storehold[storenumh]._iIvalue;
-
-			storehold[storenumh]._ivalue = std::max(storehold[storenumh]._ivalue / 4, 1);
-			storehold[storenumh]._iIvalue = storehold[storenumh]._ivalue;
-			storehidx[storenumh] = -(i + 1);
-			storenumh++;
-		}
-	}
-
-	if (!sellok) {
+	if (!PopulateSellList(WitchSellOk)) {
 		stextscrl = false;
 
 		RenderGold = true;
 		AddSText(20, 1, _("You have nothing I want."), UiFlags::ColorWhitegold, false);
-
 		AddSLine(3);
 		AddItemListBackButton(/*selectable=*/true);
 		return;
 	}
 
+	const Player &myPlayer = *MyPlayer;
 	stextscrl = true;
 	stextsval = 0;
 	stextsmax = myPlayer._pNumInv;
@@ -1147,6 +1126,7 @@ void AddStoreHoldRecharge(Item itm, int8_t i)
 	storehold[storenumh]._ivalue = storehold[storenumh]._ivalue * (storehold[storenumh]._iMaxCharges - storehold[storenumh]._iCharges) / (storehold[storenumh]._iMaxCharges * 2);
 	storehold[storenumh]._iIvalue = storehold[storenumh]._ivalue;
 	storehidx[storenumh] = i;
+	storehTabIdx[storenumh] = -1; // recharge never sources from an extra tab; keep the array in sync regardless
 	storenumh++;
 }
 
@@ -1870,7 +1850,9 @@ void StoreSellItem()
 	Player &myPlayer = *MyPlayer;
 
 	int idx = stextvhold + ((stextlhold - stextup) / 4);
-	if (storehidx[idx] >= 0)
+	if (storehTabIdx[idx] >= 0)
+		RemoveExtraTabItem(myPlayer, storehTabIdx[idx], storehidx[idx]);
+	else if (storehidx[idx] >= 0)
 		myPlayer.RemoveInvItem(storehidx[idx]);
 	else
 		myPlayer.RemoveSpdBarItem(-(storehidx[idx] + 1));
@@ -1881,6 +1863,7 @@ void StoreSellItem()
 		while (idx < storenumh) {
 			storehold[idx] = storehold[idx + 1];
 			storehidx[idx] = storehidx[idx + 1];
+			storehTabIdx[idx] = storehTabIdx[idx + 1];
 			idx++;
 		}
 	}
@@ -1916,7 +1899,7 @@ void SmithSellAllItems()
 
 void SmithSellEnter()
 {
-	if (*sgOptions.Oracool.griswoldBuyAllItems && !gbIsMultiplayer && stextsel == SmithSellAllLine()) {
+	if (!gbIsMultiplayer && stextsel == SmithSellAllLine()) {
 		SmithSellAllItems();
 		return;
 	}
@@ -2611,6 +2594,30 @@ void UpdateSmithConsumablesStockAfterPurchaseForTest(size_t index)
 	UpdateSmithConsumablesStockAfterPurchase(entry);
 }
 
+bool SimulateSmithConsumablesPurchaseForTest(size_t combinedIndex)
+{
+	// Mirrors WitchBuyEnter() + ConfirmEnter()'s SmithConsumables case exactly (probe,
+	// then real placement via the same StoreAutoPlace/SmithConsumablesBuyItem calls a
+	// real purchase uses), without going through StartStore()'s screen/sprite setup,
+	// which needs rendering resources unavailable in a headless test.
+	const ConsumablesStockEntry entry = SmithConsumablesStock()[combinedIndex];
+	Item &selectedItem = *entry.item;
+
+	if (!PlayerCanAfford(selectedItem._iIvalue))
+		return false;
+	if (!StoreAutoPlace(selectedItem, false))
+		return false;
+
+	// SmithConsumablesBuyItem() re-derives the stock index from these rather than
+	// taking it as a parameter, so they must be set to match combinedIndex.
+	stextvhold = 0;
+	stextlhold = stextup + static_cast<int>(combinedIndex) * 4;
+	StoreItem = selectedItem;
+
+	SmithConsumablesBuyItem(StoreItem);
+	return true;
+}
+
 void AddStoreHoldRepair(Item *itm, int8_t i)
 {
 	Item *item;
@@ -2631,6 +2638,7 @@ void AddStoreHoldRepair(Item *itm, int8_t i)
 	item->_iIvalue = v;
 	item->_ivalue = v;
 	storehidx[storenumh] = i;
+	storehTabIdx[storenumh] = -1; // repair never sources from an extra tab; keep the array in sync regardless
 	storenumh++;
 }
 
@@ -2827,22 +2835,13 @@ void StartStore(TalkID s)
 	case TalkID::Smith:
 		StartSmith();
 		break;
-	case TalkID::SmithBuy: {
-		bool hasAnyItems = false;
-		for (int i = 0; !smithitem[i].isEmpty(); i++) {
-			hasAnyItems = true;
-			break;
-		}
-		if (hasAnyItems)
-			StartSmithBuy();
-		else {
-			stextflag = TalkID::SmithBuy;
-			stextlhold = SmithMenuLine(TalkID::SmithBuy);
-			StoreESC();
-			return;
-		}
+	case TalkID::SmithBuy:
+		// Griswold's basic-items stock can run out entirely (e.g. after buying everything he
+		// has). StartSmithBuy already renders correctly with zero items - "I have these items
+		// for sale:" and just a Back button - so there's no need to bounce the player back out
+		// to the store menu the way vanilla did here.
+		StartSmithBuy();
 		break;
-	}
 	case TalkID::SmithSell:
 		StartSmithSell();
 		break;

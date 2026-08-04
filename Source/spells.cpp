@@ -103,7 +103,7 @@ bool TargetsMonster(SpellID id)
 
 int GetManaAmount(const Player &player, SpellID sn)
 {
-	if (sn == SpellID::TownPortal && *sgOptions.Oracool.permanentFreeTownPortal && !gbIsMultiplayer)
+	if (sn == SpellID::TownPortal && !gbIsMultiplayer)
 		return 0;
 
 	int ma; // mana amount

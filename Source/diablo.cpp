@@ -117,7 +117,8 @@ bool gbBarbarian;
 bool HeadlessMode = false;
 clicktype sgbMouseDown;
 uint16_t gnTickDelay = 50;
-char gszProductName[64] = "DevilutionX vUnknown";
+char gszProductName[128] = "DevilutionX vUnknown";
+char gszMainMenuVersionText[192] = "";
 
 #ifdef _DEBUG
 bool DebugDisableNetworkTimeout = false;
@@ -437,6 +438,8 @@ void RightMouseDown(bool isShiftHeld)
 	if (sbookflag && GetRightPanel().contains(MousePosition))
 		return;
 	if (TryIconCurs())
+		return;
+	if (isShiftHeld && pcursinvitem != -1 && TryStartStackSplit(pcursinvitem))
 		return;
 	if (pcursinvitem != -1 && UseInvItem(pcursinvitem))
 		return;
@@ -1119,8 +1122,12 @@ void DiabloInitScreen()
 
 void SetApplicationVersions()
 {
-	*BufCopy(gszProductName, PROJECT_NAME, " v", PROJECT_VERSION) = '\0';
+	// The visible Oracool release version is intentionally independent from
+	// PROJECT_VERSION, which tracks the DevilutionX engine base and is also
+	// used for the multiplayer version-compatibility check.
+	*BufCopy(gszProductName, PROJECT_NAME, " v", ORACOOL_VERSION, " - Based on DevilutionX ", PROJECT_VERSION) = '\0';
 	*BufCopy(gszVersionNumber, "version ", PROJECT_VERSION) = '\0';
+	*BufCopy(gszMainMenuVersionText, "DevilutionX ", PROJECT_VERSION, "\nOracool Edition v", ORACOOL_VERSION) = '\0';
 }
 
 void CheckArchivesUpToDate()

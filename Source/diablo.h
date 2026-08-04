@@ -59,7 +59,7 @@ enum class MouseActionType : uint8_t {
 };
 
 extern uint32_t glSeedTbl[NUMLEVELS];
-extern Point MousePosition;
+extern DVL_API_FOR_TEST Point MousePosition;
 extern DVL_API_FOR_TEST bool gbRunGame;
 extern bool gbRunGameResult;
 extern bool ReturnToMainMenu;
@@ -77,7 +77,8 @@ extern bool gbBarbarian;
 extern DVL_API_FOR_TEST bool HeadlessMode;
 extern clicktype sgbMouseDown;
 extern uint16_t gnTickDelay;
-extern char gszProductName[64];
+extern char gszProductName[128];
+extern char gszMainMenuVersionText[192];
 
 extern MouseActionType LastMouseButtonAction;
 

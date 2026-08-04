@@ -37,9 +37,18 @@ bool IsCreationFlagComboValid(uint16_t iCreateInfo)
 	}
 	if (isUsefulItem && (iCreateInfo & ~CF_USEFUL) != 0)
 		return false;
-	if (isTownItem && hasMultipleFlags(iCreateInfo)) {
-		// Items from town can only have 1 towner flag
-		return false;
+	if (isTownItem) {
+		// Oracool's Griswold Unique Items shop (CreateUniqueVendorItem, items.cpp) stamps its
+		// stock with CF_UNIQUE alongside the usual single town flag, so stores.cpp can tell a
+		// Unique-Shop purchase apart from a real dropped Unique for resale/pricing purposes.
+		// Vanilla never combines CF_UNIQUE with a town flag, so CF_UNIQUE must be excluded
+		// before applying vanilla's "only one towner flag" rule below - otherwise every single
+		// item bought from that shop fails this check and vanishes with "sent an invalid
+		// packet" the moment it's dropped on the ground.
+		if (hasMultipleFlags(iCreateInfo & ~CF_UNIQUE)) {
+			// Items from town can only have 1 towner flag
+			return false;
+		}
 	}
 	return true;
 }

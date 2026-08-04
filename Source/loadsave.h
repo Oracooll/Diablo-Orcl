@@ -45,4 +45,14 @@ void ConvertLevels(SaveWriter &saveWriter);
 void LoadStash();
 void SaveStash(SaveWriter &stashWriter);
 
+/**
+ * @brief Loads the Oracool Tabbed Inventory's 9 extra backpack pages for the current hero save,
+ * if any exist; call alongside LoadHeroItems. A missing, future-versioned, or corrupt file is
+ * handled gracefully: every extra tab simply stays empty, exactly like an old pre-feature save
+ * or a character that never stored anything in a tab.
+ */
+void LoadInventoryTabs(Player &player);
+/** @brief Saves the Oracool Tabbed Inventory's 9 extra backpack pages; call alongside SaveHeroItems. */
+void SaveInventoryTabs(SaveWriter &saveWriter, const Player &player);
+
 } // namespace devilution

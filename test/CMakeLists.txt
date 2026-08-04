@@ -26,7 +26,9 @@ set(tests
   file_util_test
   format_int_test
   inv_test
+  items_test
   lighting_test
+  loadsave_test
   math_test
   missiles_test
   pack_test

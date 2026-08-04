@@ -45,10 +45,7 @@ struct PanelEntry {
 UiFlags GetBaseStatColor(CharacterAttribute attr)
 {
 	const int base = InspectPlayer->GetBaseAttributeValue(attr);
-	const int classMaximum = InspectPlayer->GetMaximumAttributeValue(attr);
-	if (*sgOptions.Oracool.removeStatLimits)
-		return base >= 255 ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
-	return base > classMaximum ? UiFlags::ColorRed : (base == classMaximum ? UiFlags::ColorWhitegold : UiFlags::ColorWhite);
+	return base >= 255 ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
 }
 
 UiFlags GetCurrentStatColor(CharacterAttribute attr)
@@ -160,8 +157,7 @@ PanelEntry panelEntries[] = {
 	    []() { return StyledText { GetCurrentStatColor(CharacterAttribute::Vitality), StrCat(InspectPlayer->_pVitality) }; } },
 	{ N_("Points to distribute"), { LeftColumnLabelX, 248 }, 45, LeftColumnLabelWidth,
 	    []() {
-	        if (*sgOptions.Oracool.removeStatLimits)
-		        InspectPlayer->_pStatPts = std::min(CalcStatDiff(*InspectPlayer), InspectPlayer->_pStatPts);
+	        InspectPlayer->_pStatPts = std::min(CalcStatDiff(*InspectPlayer), InspectPlayer->_pStatPts);
 	        return StyledText { UiFlags::ColorRed, (InspectPlayer->_pStatPts > 0 ? StrCat(InspectPlayer->_pStatPts) : "") };
 	    } },
 
@@ -253,14 +249,13 @@ void DrawShadowString(const Surface &out, const PanelEntry &entry)
 void DrawStatButtons(const Surface &out)
 {
 	if (InspectPlayer->_pStatPts > 0 && !IsInspectingPlayer()) {
-		const auto maximum = [&](CharacterAttribute attribute) { return *sgOptions.Oracool.removeStatLimits ? 255 : InspectPlayer->GetMaximumAttributeValue(attribute); };
-		if (InspectPlayer->_pBaseStr < maximum(CharacterAttribute::Strength))
+		if (InspectPlayer->_pBaseStr < 255)
 			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 157 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Strength)] ? 2 : 1]);
-		if (InspectPlayer->_pBaseMag < maximum(CharacterAttribute::Magic))
+		if (InspectPlayer->_pBaseMag < 255)
 			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 185 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Magic)] ? 4 : 3]);
-		if (InspectPlayer->_pBaseDex < maximum(CharacterAttribute::Dexterity))
+		if (InspectPlayer->_pBaseDex < 255)
 			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 214 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Dexterity)] ? 6 : 5]);
-		if (InspectPlayer->_pBaseVit < maximum(CharacterAttribute::Vitality))
+		if (InspectPlayer->_pBaseVit < 255)
 			ClxDraw(out, GetPanelPosition(UiPanels::Character, { 137, 242 }), (*pChrButtons)[chrbtn[static_cast<size_t>(CharacterAttribute::Vitality)] ? 8 : 7]);
 	}
 

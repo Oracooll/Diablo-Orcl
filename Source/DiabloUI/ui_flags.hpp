@@ -6,7 +6,12 @@
 
 namespace devilution {
 
-enum class UiFlags : uint32_t {
+// Widened from uint32_t (v0.2.0+): the 32-bit version had all 32 bits already assigned - one
+// bit per color, no room for a new hue without dropping something else. Never serialized to
+// any save/network struct, so this is a purely additive change. Bits 32+ must use the ULL
+// suffix (1ULL << N), not the plain 1 used below 32 - a bare `1 << 32` is undefined behavior
+// on a 32-bit int regardless of what it gets assigned into.
+enum class UiFlags : uint64_t {
 	// clang-format off
 	None               = 0,
 
@@ -49,6 +54,16 @@ enum class UiFlags : uint32_t {
 
 	/** @brief Ensures that the if current element is active that the next element is also visible. */
 	NeedsNextElement   = 1U << 31U,
+
+	// Bits 32+ are free for a future color or flag - see the widening note above. None are
+	// assigned yet: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)
+	// works by remapping a 16-shade ramp inside vanilla Diablo's own palette, and that
+	// palette's only named bright-color blocks (Source/engine/palette.h) are blue, red,
+	// yellow, orange, beige, and gray - there is no green/cyan/purple block to remap into.
+	// A genuinely new hue needs a palette edit (out of scope here, and riskier than this
+	// pass warrants since the palette is shared by every other rendering path), not just an
+	// available bit; this widening only removes the bit-count ceiling for whenever that
+	// happens.
 	// clang-format on
 };
 use_enum_as_flags(UiFlags);

@@ -53,7 +53,7 @@ enum class TalkID : uint8_t {
 };
 
 /** Currently active store */
-extern TalkID stextflag;
+extern DVL_API_FOR_TEST TalkID stextflag;
 
 /** Current index into storehidx/storehold */
 extern DVL_API_FOR_TEST int storenumh;
@@ -63,7 +63,7 @@ extern int8_t storehidx[48];
 extern DVL_API_FOR_TEST Item storehold[48];
 
 /** Items sold by Griswold */
-extern Item smithitem[SMITH_ITEMS];
+extern DVL_API_FOR_TEST Item smithitem[SMITH_ITEMS];
 /** Number of premium items for sale by Griswold */
 extern int numpremium;
 /** Base level of current premium items sold by Griswold */
@@ -81,6 +81,8 @@ size_t GetSmithConsumablesStockCountForTest();
 item_misc_id GetSmithConsumablesStockMiscIdForTest(size_t index);
 bool IsSmithConsumablesStockFromPepinForTest(size_t index);
 void UpdateSmithConsumablesStockAfterPurchaseForTest(size_t index);
+/** Simulates clicking a SmithConsumables item and confirming the purchase, exactly as the real UI would. Returns whether the confirm screen was reached (false = probe reported no room). */
+bool SimulateSmithConsumablesPurchaseForTest(size_t combinedIndex);
 
 /** Current level of the item sold by Wirt */
 extern int boylevel;

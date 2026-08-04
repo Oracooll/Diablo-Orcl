@@ -18,6 +18,7 @@
 #include "engine/load_cel.hpp"
 #include "engine/point.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/text_render.hpp"
 #include "engine/trn.hpp"
 #include "hwcursor.hpp"
 #include "inv.h"
@@ -30,6 +31,7 @@
 #include "track.h"
 #include "utils/attributes.h"
 #include "utils/language.h"
+#include "utils/str_cat.hpp"
 #include "utils/sdl_bilinear_scale.hpp"
 #include "utils/surface_to_clx.hpp"
 #include "utils/utf8.hpp"
@@ -251,6 +253,14 @@ void DrawItem(const Item &item, const Surface &out, Point position, ClxSprite cl
 	} else {
 		ClxDrawTRN(out, position, clx, GetInfravisionTRN());
 	}
+
+	// Stack quantity, bottom-right of the icon. Deliberately not the top of the icon,
+	// which DrawInvBelt already uses for the belt hotkey number (1-8).
+	if (item.isStackableConsumable() && item.stackCount() > 1) {
+		DrawString(out, StrCat(item.stackCount()),
+		    { position - Displacement { 0, 11 }, { static_cast<int>(clx.width()), 12 } },
+		    { UiFlags::ColorWhite | UiFlags::AlignRight });
+	}
 }
 
 void ResetCursor()
@@ -470,6 +480,7 @@ void CheckCursMove()
 	pcursstashitem = StashStruct::EmptyCell;
 	pcursplr = -1;
 	ShowUniqueItemInfoBox = false;
+	ActiveTabItemHovered = false;
 	panelflag = false;
 	trigflag = false;
 

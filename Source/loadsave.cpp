@@ -249,6 +249,27 @@ struct LevelConversionData {
 	MonsterConversionData monsterConversionData[MaxMonsters];
 };
 
+/**
+ * @brief Oracool item tier/affix data format version (v0.2.0+).
+ *
+ * Rare/Buffed Unique/Primal item tier identity, up to three prefixes and three suffixes each,
+ * and a perfect-roll flag are folded directly into SaveItem/LoadItemData's fixed-size item
+ * record, so every container that already calls those two functions - the backpack, belt,
+ * equipped slots, the Stash, dropped ground items on every level, and Tabbed Inventory's extra
+ * tabs - carries tier data with no per-container wiring to remember. This single version byte,
+ * checked wherever a container's own leading header is read (SaveHeroItems/LoadHeroItems,
+ * SaveStash/LoadStash, SaveInventoryTabs/LoadInventoryTabs), exists purely to reject a
+ * pre-v0.2.0 save cleanly: LoadItemData's record grew when this data was added, so blindly
+ * reading an old, shorter record here would silently misalign every subsequent field instead
+ * of failing loudly.
+ */
+constexpr uint8_t OracoolItemFormatVersion = 1;
+
+bool IsOracoolAffixTypeValid(item_effect_type type)
+{
+	return type == IPL_INVALID || (type >= 0 && type <= IPL_LIFETOMANA);
+}
+
 void LoadItemData(LoadHelper &file, Item &item)
 {
 	item._iSeed = file.NextLE<uint32_t>();
@@ -336,6 +357,29 @@ void LoadItemData(LoadHelper &file, Item &item)
 	else
 		item._iDamAcFlags = ItemSpecialEffectHf::None;
 	UpdateHellfireFlag(item, item._iIName);
+
+	// Oracool item tier/affix data (v0.2.0+); see the matching write in SaveItem. Callers
+	// that need to reject a pre-v0.2.0 save outright (where this data simply isn't present
+	// at this offset) do so before ever reaching here - see OracoolItemFormatVersion.
+	const uint8_t rawTier = file.NextLE<uint8_t>();
+	item._iOracoolTier = rawTier <= static_cast<uint8_t>(OracoolItemTier::Primal) ? static_cast<OracoolItemTier>(rawTier) : OracoolItemTier::None;
+	item._iOracoolPerfectRoll = file.NextLE<uint8_t>() != 0;
+	const uint8_t prefixCount = file.NextLE<uint8_t>();
+	const uint8_t suffixCount = file.NextLE<uint8_t>();
+	item._iOracoolPrefixCount = std::min<uint8_t>(prefixCount, Item::MaxOracoolAffixesPerSlot);
+	item._iOracoolSuffixCount = std::min<uint8_t>(suffixCount, Item::MaxOracoolAffixesPerSlot);
+	for (OracoolAffix &affix : item._iOracoolPrefixes) {
+		const auto type = static_cast<item_effect_type>(file.NextLE<int8_t>());
+		affix.type = IsOracoolAffixTypeValid(type) ? type : IPL_INVALID;
+		affix.param1 = file.NextLE<int32_t>();
+		affix.param2 = file.NextLE<int32_t>();
+	}
+	for (OracoolAffix &affix : item._iOracoolSuffixes) {
+		const auto type = static_cast<item_effect_type>(file.NextLE<int8_t>());
+		affix.type = IsOracoolAffixTypeValid(type) ? type : IPL_INVALID;
+		affix.param1 = file.NextLE<int32_t>();
+		affix.param2 = file.NextLE<int32_t>();
+	}
 }
 
 void LoadAndValidateItemData(LoadHelper &file, Item &item)
@@ -1000,6 +1044,7 @@ void LoadMatchingItems(LoadHelper &file, const Player &player, const int n, Item
 	}
 }
 
+
 /**
  * @brief Loads items on the current dungeon floor
  * @param file interface to the save file
@@ -1131,6 +1176,28 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint32_t>(item.dwBuff);
 	if (gbIsHellfire)
 		file.WriteLE<uint32_t>(static_cast<uint32_t>(item._iDamAcFlags));
+
+	// Oracool item tier/affix data (v0.2.0+): folded directly into the primary item record
+	// instead of a separate "heroitemsext"-style sidecar file, so every container that
+	// already calls SaveItem - backpack, belt, equipped slots, stash, dropped ground items
+	// on every level, and Tabbed Inventory's extra tabs - carries tier data automatically
+	// with no per-container wiring to remember. Every slot is written unconditionally
+	// (regardless of the item's actual prefix/suffix count) since this is a fixed-size
+	// positional record; a variable-length record here would misalign every subsequent item.
+	file.WriteLE<uint8_t>(static_cast<uint8_t>(item._iOracoolTier));
+	file.WriteLE<uint8_t>(item._iOracoolPerfectRoll ? 1 : 0);
+	file.WriteLE<uint8_t>(item._iOracoolPrefixCount);
+	file.WriteLE<uint8_t>(item._iOracoolSuffixCount);
+	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
+		file.WriteLE<int8_t>(static_cast<int8_t>(affix.type));
+		file.WriteLE<int32_t>(affix.param1);
+		file.WriteLE<int32_t>(affix.param2);
+	}
+	for (const OracoolAffix &affix : item._iOracoolSuffixes) {
+		file.WriteLE<int8_t>(static_cast<int8_t>(affix.type));
+		file.WriteLE<int32_t>(affix.param1);
+		file.WriteLE<int32_t>(affix.param2);
+	}
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -1961,8 +2028,13 @@ void LoadLevel(LevelConversionData *levelConversionData)
 	}
 }
 
-const int DiabloItemSaveSize = 368;
-const int HellfireItemSaveSize = 372;
+// +58 bytes vs the vanilla-compatible base size, for the Oracool tier/affix data folded
+// directly into SaveItem/LoadItemData's fixed-size item record (v0.2.0+): 4 header bytes
+// (tier, perfect-roll flag, prefix count, suffix count) plus 3 prefixes + 3 suffixes at
+// 9 bytes each (1-byte affix type + two int32_t params).
+constexpr int OracoolItemExtensionSaveSize = 4 + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4);
+const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
+const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 
 bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
 {
@@ -2254,6 +2326,13 @@ void LoadHeroItems(Player &player)
 
 	gbIsHellfireSaveGame = file.NextBool8();
 
+	if (file.NextLE<uint8_t>() != OracoolItemFormatVersion) {
+		// The fixed-size item record grew when Oracool tier/affix data was folded directly
+		// into it; reading an older, shorter record with today's field layout would silently
+		// misalign every item after this point rather than failing cleanly.
+		app_fatal(_("This save is from an incompatible version of Diablo Oracool Edition and cannot be loaded. Please start a new character."));
+	}
+
 	LoadMatchingItems(file, player, NUM_INVLOC, player.InvBody);
 	LoadMatchingItems(file, player, InventoryGridCells, player.InvList);
 	LoadMatchingItems(file, player, MaxBeltItems, player.SpdList);
@@ -2307,6 +2386,59 @@ void LoadStash()
 	}
 
 	Stash.SetPage(file.NextLE<uint32_t>());
+}
+
+/**
+ * @brief Oracool Tabbed Inventory (2026-08-04): 9 extra backpack pages beyond the original
+ * InvList/InvGrid/_pNumInv (tab 1, left completely untouched here so every existing save/equip/
+ * quest/network code path is unaffected). PlayerPack/ItemNetPack are validated with a strict
+ * sizeof() equality check, so these 9 extra grids live in their own new, separately-versioned
+ * archive sub-file rather than growing InventoryGridCells (which would also overflow InvGrid's
+ * int8_t index encoding well before a meaningfully larger inventory could ever be reached).
+ * Old saves simply lack this sub-file; every extra tab defaults to empty, matching Player's own
+ * in-memory default. Each tab item's Oracool tier/affix data is carried for free via the same
+ * SaveItem/LoadItemData calls this file already makes per item - see OracoolItemFormatVersion.
+ */
+// Bumped to 1 for v0.2.0: LoadItem's underlying per-item record grew when Oracool tier/affix
+// data was folded directly into SaveItem/LoadItemData, so a pre-v0.2.0 "heroinvtabs" file's
+// items are no longer at the byte offsets this build expects. Checked for exact equality
+// (not just "is this newer than what I understand") so an old-format file is rejected the
+// same safe way an unrecognized future one already was - every extra tab just stays empty,
+// matching the existing "absent = default" pattern; nothing is destroyed or misaligned.
+constexpr uint8_t OracoolInvTabsVersion = 1;
+
+void LoadInventoryTabs(Player &player)
+{
+	player.InvTabList = {};
+	player.InvTabGrid = {};
+	player._pNumInvTab = {};
+
+	LoadHelper file(OpenSaveArchive(gSaveNumber), "heroinvtabs");
+	if (!file.IsValid())
+		return; // no extra-tab data: an old save, or one where nothing was ever stored there
+
+	const uint8_t version = file.NextLE<uint8_t>();
+	if (version != OracoolInvTabsVersion)
+		return; // unrecognized (older or newer) format; every extra tab stays empty
+
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		if (!file.IsValid())
+			return; // corrupt/truncated stream; tabs already loaded stay loaded
+
+		for (int8_t &cell : player.InvTabGrid[t])
+			cell = file.NextLE<int8_t>();
+
+		const uint8_t itemCount = file.NextLE<uint8_t>();
+		if (itemCount > InventoryGridCells)
+			return; // implausible count; stop here, tabs already loaded stay loaded
+
+		player._pNumInvTab[t] = itemCount;
+		for (uint8_t i = 0; i < itemCount; i++) {
+			if (!file.IsValid())
+				return;
+			LoadAndValidateItemData(file, player.InvTabList[t][i]);
+		}
+	}
 }
 
 void RemoveEmptyInventory(Player &player)
@@ -2533,9 +2665,10 @@ void LoadGame(bool firstflag)
 void SaveHeroItems(SaveWriter &saveWriter, Player &player)
 {
 	size_t itemCount = static_cast<size_t>(NUM_INVLOC) + InventoryGridCells + MaxBeltItems;
-	SaveHelper file(saveWriter, "heroitems", itemCount * (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize) + sizeof(uint8_t));
+	SaveHelper file(saveWriter, "heroitems", itemCount * (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize) + sizeof(uint8_t) * 2);
 
 	file.WriteLE<uint8_t>(gbIsHellfire ? 1 : 0);
+	file.WriteLE<uint8_t>(OracoolItemFormatVersion);
 
 	for (const Item &item : player.InvBody)
 		SaveItem(file, item);
@@ -2600,6 +2733,45 @@ void SaveStash(SaveWriter &stashWriter)
 	}
 
 	file.WriteLE<uint32_t>(static_cast<uint32_t>(Stash.GetPage()));
+}
+
+/** @brief Saves the Oracool Tabbed Inventory's 9 extra backpack pages; see LoadInventoryTabs. */
+void SaveInventoryTabs(SaveWriter &saveWriter, const Player &player)
+{
+	bool anyItems = false;
+	for (int numInTab : player._pNumInvTab) {
+		if (numInTab > 0) {
+			anyItems = true;
+			break;
+		}
+	}
+	if (!anyItems) {
+		// Nothing stored in any extra tab right now. This sub-file is positional/count-based
+		// and trusted wholesale on load - a stale "heroinvtabs" entry left over from an
+		// earlier save (when a tab still had something in it) would resurrect that old
+		// content on the next load, even though the tabs are genuinely empty now. MPQ
+		// archives are updated in place, not rewritten from scratch each save, so skipping
+		// the write here would leave that stale entry behind; it must be explicitly removed
+		// instead.
+		saveWriter.RemoveHashEntry("heroinvtabs");
+		return;
+	}
+
+	const size_t itemSize = (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize);
+
+	size_t bufferSize = sizeof(uint8_t);
+	for (int numInTab : player._pNumInvTab)
+		bufferSize += InventoryGridCells * sizeof(int8_t) + sizeof(uint8_t) + itemSize * static_cast<size_t>(numInTab);
+
+	SaveHelper file(saveWriter, "heroinvtabs", bufferSize);
+	file.WriteLE<uint8_t>(OracoolInvTabsVersion);
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		for (int8_t cell : player.InvTabGrid[t])
+			file.WriteLE<int8_t>(cell);
+		file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pNumInvTab[t]));
+		for (int i = 0; i < player._pNumInvTab[t]; i++)
+			SaveItem(file, player.InvTabList[t][i]);
+	}
 }
 
 void SaveGameData(SaveWriter &saveWriter)
