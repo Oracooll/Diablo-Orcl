@@ -602,6 +602,104 @@ TEST_F(InvTest, TabbedInventory_HoverInExtraTabShowsItemInfo)
 	EXPECT_TRUE(ActiveTabItemHovered) << "DrawInfoBox needs this flag, since pcursinvitem == -1 here doesn't mean \"hovering nothing\"";
 }
 
+// Oracool inventory sort button: repacks tab 1 (and, on overflow, the extra tabs) by sell value,
+// most valuable item first. With everything fitting comfortably in tab 1, this just verifies the
+// resulting InvList order is value-descending.
+TEST_F(InvTest, SortInventoryBySellValue_OrdersRelocatableItemsDescending)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+
+	auto setupItem = [](Item &item, int ivalue) {
+		InitializeItem(item, IDI_WARRIOR);
+		item._iMagical = ITEM_QUALITY_NORMAL;
+		item._ivalue = ivalue;
+		item._iIvalue = ivalue;
+	};
+
+	setupItem(MyPlayer->InvList[0], 40);
+	MyPlayer->InvGrid[0] = 1;
+	setupItem(MyPlayer->InvList[1], 400);
+	MyPlayer->InvGrid[1] = 2;
+	setupItem(MyPlayer->InvList[2], 200);
+	MyPlayer->InvGrid[2] = 3;
+	MyPlayer->_pNumInv = 3;
+
+	SortInventoryBySellValue(*MyPlayer);
+
+	ASSERT_EQ(MyPlayer->_pNumInv, 3);
+	EXPECT_EQ(MyPlayer->InvList[0]._ivalue, 400);
+	EXPECT_EQ(MyPlayer->InvList[1]._ivalue, 200);
+	EXPECT_EQ(MyPlayer->InvList[2]._ivalue, 40);
+}
+
+// Gold and quest items must never move - checked by grid cell (spatial position), not InvList
+// array index, since removing an unrelated relocatable item can still shuffle a pinned item's
+// underlying array slot via RemoveInvItem's own swap-compaction (that bookkeeping keeps the grid
+// cell correctly pointing at wherever the pinned item's data ends up, so its on-screen position
+// never changes even though its array index might).
+TEST_F(InvTest, SortInventoryBySellValue_LeavesGoldAtItsGridPosition)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+
+	MyPlayer->InvList[0]._itype = ItemType::Gold;
+	MyPlayer->InvList[0]._ivalue = 500;
+	MyPlayer->InvGrid[0] = 1;
+
+	InitializeItem(MyPlayer->InvList[1], IDI_WARRIOR);
+	MyPlayer->InvList[1]._iMagical = ITEM_QUALITY_NORMAL;
+	MyPlayer->InvList[1]._ivalue = 400;
+	MyPlayer->InvList[1]._iIvalue = 400;
+	MyPlayer->InvGrid[1] = 2;
+
+	MyPlayer->_pNumInv = 2;
+
+	SortInventoryBySellValue(*MyPlayer);
+
+	const int goldListIndex = abs(MyPlayer->InvGrid[0]) - 1;
+	ASSERT_GE(goldListIndex, 0);
+	EXPECT_EQ(MyPlayer->InvList[goldListIndex]._itype, ItemType::Gold);
+	EXPECT_EQ(MyPlayer->InvList[goldListIndex]._ivalue, 500);
+}
+
+TEST_F(InvTest, CheckInventorySortButtonClick_HitsButtonAndSorts)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+	sgOptions.Oracool.inventorySortButton.SetValue(true);
+
+	InitializeItem(MyPlayer->InvList[0], IDI_WARRIOR);
+	MyPlayer->InvList[0]._iMagical = ITEM_QUALITY_NORMAL;
+	MyPlayer->InvList[0]._ivalue = 40;
+	MyPlayer->InvGrid[0] = 1;
+	InitializeItem(MyPlayer->InvList[1], IDI_WARRIOR);
+	MyPlayer->InvList[1]._iMagical = ITEM_QUALITY_NORMAL;
+	MyPlayer->InvList[1]._ivalue = 400;
+	MyPlayer->InvGrid[1] = 2;
+	MyPlayer->_pNumInv = 2;
+
+	MousePosition = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition) + Displacement { InventorySortButtonSize.width / 2, InventorySortButtonSize.height / 2 };
+
+	EXPECT_TRUE(CheckInventorySortButtonClick(MousePosition));
+	EXPECT_EQ(MyPlayer->InvList[0]._ivalue, 400);
+}
+
+TEST_F(InvTest, CheckInventorySortButtonClick_MissesWhenOptionDisabled)
+{
+	clear_inventory();
+	sgOptions.Oracool.inventorySortButton.SetValue(false);
+
+	MousePosition = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition) + Displacement { InventorySortButtonSize.width / 2, InventorySortButtonSize.height / 2 };
+
+	EXPECT_FALSE(CheckInventorySortButtonClick(MousePosition));
+
+	sgOptions.Oracool.inventorySortButton.SetValue(true);
+}
+
 // User-reported gap: Ctrl+Click-to-stash only ever worked for tab 1, since TransferItemToStash
 // is driven by pcursinvitem, which stays -1 for an extra tab's items (see CheckInvHLight). Fixed
 // via a dedicated hit-test that bypasses pcursinvitem entirely for extra tabs.

@@ -241,6 +241,25 @@ void TransferItemToStash(Player &player, int location);
  * true if an extra-tab item was under the cursor (whether or not the transfer itself succeeded).
  */
 bool TryTransferHoveredActiveTabItemToStash(Player &player);
+/**
+ * @brief Oracool: panel-relative position and size of the inventory sort button - centered in the
+ * gap between the inventory panel's left edge and the left ring slot (InvRect[SLOTXY_RING_LEFT]),
+ * no larger than that slot's own icon.
+ */
+constexpr Point InventorySortButtonPosition { 12, 180 };
+constexpr Size InventorySortButtonSize { 24, 24 };
+/**
+ * @brief Oracool: repacks the backpack (tab 1) and every extra inventory tab, most valuable item
+ * first, filling tab 1 before spilling into tab 2 and so on. Gold and quest items (see
+ * CanItemEnterExtraTab) are left exactly where they are - only genuinely relocatable items are
+ * cleared and re-placed. Equipped items and the belt are untouched. Single-player only.
+ */
+void SortInventoryBySellValue(Player &player);
+/**
+ * @brief Hit-tests the inventory sort button and runs SortInventoryBySellValue if clicked.
+ * @return true if the button was clicked (whether or not anything actually moved).
+ */
+bool CheckInventorySortButtonClick(Point cursorPosition);
 void CheckInvItem(bool isShiftHeld = false, bool isCtrlHeld = false);
 
 /**

@@ -781,12 +781,7 @@ bool PopulateSellList(bool (*sellOk)(const Item &))
 		foundAny = true;
 		storehold[storenumh] = item;
 
-		if (storehold[storenumh]._iMagical != ITEM_QUALITY_NORMAL && storehold[storenumh]._iIdentified)
-			storehold[storenumh]._ivalue = storehold[storenumh]._iIvalue;
-
-		storehold[storenumh]._ivalue = std::max(storehold[storenumh]._ivalue / 4, 1);
-		if (storehold[storenumh].isStackableConsumable())
-			storehold[storenumh]._ivalue *= storehold[storenumh].stackCount();
+		storehold[storenumh]._ivalue = GetItemSellValue(item);
 		storehold[storenumh]._iIvalue = storehold[storenumh]._ivalue;
 		storehidx[storenumh] = idx;
 		storehTabIdx[storenumh] = tabIdx;

@@ -185,6 +185,14 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.7 — Inventory Sort Button
+
+### A new sort button repacks your backpack and extra tabs by value
+
+A new button next to the left ring slot on the inventory panel repacks your backpack and every one of the 9 extra tabs by sell value, most valuable item first, filling tab 1 before spilling into tab 2 and beyond. It runs immediately on click, no confirmation needed. Gold and quest items are never touched by it - they stay exactly where they are. Equipped items and the belt are also untouched; this only reorganizes what's sitting in your inventory tabs. A new "Inventory Sort Button" setting (on by default) controls whether it appears.
+
+---
+
 ## v0.2.6 — Broken Items, Smarter Reset Stats, and Three Bug Fixes
 
 ### Items at 0 durability go inactive instead of being destroyed

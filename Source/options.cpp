@@ -437,7 +437,9 @@ void SaveOptions()
 	    "; Schedules a save after a successful store purchase. Cancelled and failed\n; purchases do not trigger a save.");
 
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
-	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a silver \"R\" on the character panel. It restores class starting stats\n; and sets distributable points to exactly 5 x (level - 1). Repeated use is safe.");
+	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
+	setBoolean("Inventory Sort Button", *sgOptions.Oracool.inventorySortButton,
+	    "; Shows a sort control next to the left ring slot on the inventory panel.\n; Repacks the backpack and every extra inventory tab by sell value, highest\n; first, starting from tab 1. Equipped items and the belt are untouched.");
 
 	setBoolean("Griswold Premium Ignore Affix Level Limits", *sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits,
 	    "; ----- GRISWOLD: PREMIUM SHOP -------------------------------------------------\n; Allows compatible Premium prefixes and suffixes regardless of their normal\n; quality-level requirement. Item compatibility and good-affix rules remain.");
@@ -1229,6 +1231,7 @@ OracoolOptions::OracoolOptions()
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), true)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)
     , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the character panel."), true)
+    , inventorySortButton("Inventory Sort Button", OptionEntryFlags::None, N_("Inventory Sort Button"), N_("Adds a sort control to the inventory panel."), true)
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 5, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
     , autoScrollPickup("Auto Pickup Scrolls", OptionEntryFlags::None, N_("Auto Pickup Scrolls"), N_("Scrolls of every kind are automatically collected when in close proximity to the player."), true)
     , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 20, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
@@ -1262,6 +1265,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&permanentInfravision,
 		&autoIdentifyDrops,
 		&resetStatsButton,
+		&inventorySortButton,
 		&autoPickupRange,
 		&autoScrollPickup,
 		&rareItemDropChance,

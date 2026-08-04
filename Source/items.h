@@ -643,6 +643,15 @@ extern CornerStoneStruct CornerStone;
 extern bool UniqueItemFlags[128];
 
 uint8_t GetOutlineColor(const Item &item, bool checkReq);
+/**
+ * @brief Oracool: the price an item actually sells for at a vendor - identified magical/unique
+ * items use their real value (_iIvalue), everything else uses the base value (_ivalue), both cut
+ * to a quarter and floored at 1, multiplied by stack count for a stackable consumable. Matches the
+ * formula `PopulateSellList` (stores.cpp) already computes per item when populating a sell list,
+ * factored out here so Oracool's inventory sort button can rank items the same way Griswold prices
+ * them without duplicating the formula.
+ */
+int GetItemSellValue(const Item &item);
 bool IsItemAvailable(int i);
 bool IsUniqueAvailable(int i);
 bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid);

@@ -334,3 +334,14 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Note: if you're continuing on a character that already existed before this update and already had manually-spent points, Reset Stats won't have anything tracked for those older points on its first use - confirm it behaves correctly for points spent from now on regardless.
 - Open the Stash, switch to any of the extra inventory tabs (2 through 10), and Ctrl+Click an item there. Confirm it moves to the Stash (this used to silently do nothing outside tab 1).
 - Find or use debug/cheat tools to obtain The Butcher's Cleaver, then try selling it to Griswold. Confirm it now appears in his sell list and can be sold (it used to be invisible to the sell list entirely).
+
+### Post-migration: v0.2.7 Inventory sort button (OE-025)
+
+**Built and automated-test-verified overnight; not yet manually tested in-game - this whole section is new ground, check it carefully.**
+
+- Open your inventory and look just left of the left ring slot for a small "$" button. Confirm it's there and roughly ring-slot-sized or smaller.
+- Scatter a handful of items of clearly different values across your backpack and at least one extra tab, out of order. Click the sort button. Confirm the most valuable item ends up in the first backpack slot, with the rest following in descending value order, backpack first, then extra tabs.
+- Pick up or drop a Gold pile and a genuine quest item (e.g. whatever your current quest has given you) into your backpack, then click sort. Confirm both stay in the exact same slot they started in - the sort should visibly skip over them entirely.
+- With an item currently held on your cursor (mid-drag), click the sort button's location. Confirm nothing happens - the button should only respond when your hand is empty.
+- Fill your backpack close to full with items of varying value (leaving only a couple of free slots), then click sort. Confirm the sort still completes correctly and the lowest-value items that don't fit in the backpack end up in tab 2 instead of vanishing or duplicating - this specific overflow path wasn't covered by an automated test.
+- Turn off "Inventory Sort Button" in the options menu and confirm the button disappears and clicking its old location does nothing.

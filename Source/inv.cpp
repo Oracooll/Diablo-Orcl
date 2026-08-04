@@ -5,6 +5,7 @@
  */
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -1315,6 +1316,17 @@ void DrawInventoryTabs(const Surface &out)
 	}
 }
 
+/**
+ * @brief Oracool: draws the inventory sort button. Uses a plain ASCII "$" rather than a Unicode
+ * glyph (unlike the Reset Stats button's circular-arrow icon) so it's guaranteed to render on
+ * every font instead of risking a "?" fallback.
+ */
+void DrawInventorySortButton(const Surface &out)
+{
+	const Point position = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition);
+	DrawString(out, "$", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorUiSilver });
+}
+
 void DrawInv(const Surface &out)
 {
 	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, 351 }), (*pInvCels)[0]);
@@ -1407,6 +1419,9 @@ void DrawInv(const Surface &out)
 
 	if (TabbedInventoryEnabled())
 		DrawInventoryTabs(out);
+
+	if (*sgOptions.Oracool.inventorySortButton && oracool::IsSinglePlayer())
+		DrawInventorySortButton(out);
 }
 
 void DrawInvBelt(const Surface &out)
@@ -1953,6 +1968,84 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 	return true;
 }
 
+void SortInventoryBySellValue(Player &player)
+{
+	if (!oracool::IsSinglePlayer())
+		return;
+
+	struct SortEntry {
+		Item item;
+		int value;
+	};
+	std::vector<SortEntry> entries;
+
+	// Gold and quest items are pinned in place (see CanItemEnterExtraTab) - repeatedly remove the
+	// first *relocatable* item found rather than walking indices in order, since removal
+	// compacts the list by swapping the last item into the vacated slot, which would otherwise
+	// let a pinned item silently jump to an index this loop has already passed.
+	for (;;) {
+		int foundIndex = -1;
+		for (int i = 0; i < player._pNumInv; i++) {
+			if (CanItemEnterExtraTab(player.InvList[i])) {
+				foundIndex = i;
+				break;
+			}
+		}
+		if (foundIndex < 0)
+			break;
+		entries.push_back({ player.InvList[foundIndex], GetItemSellValue(player.InvList[foundIndex]) });
+		player.RemoveInvItem(foundIndex);
+	}
+
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+		for (;;) {
+			int foundIndex = -1;
+			for (int i = 0; i < player._pNumInvTab[tab]; i++) {
+				if (CanItemEnterExtraTab(player.InvTabList[tab][i])) {
+					foundIndex = i;
+					break;
+				}
+			}
+			if (foundIndex < 0)
+				break;
+			entries.push_back({ player.InvTabList[tab][foundIndex], GetItemSellValue(player.InvTabList[tab][foundIndex]) });
+			RemoveExtraTabItem(player, tab, foundIndex);
+		}
+	}
+
+	std::stable_sort(entries.begin(), entries.end(), [](const SortEntry &a, const SortEntry &b) {
+		return a.value > b.value;
+	});
+
+	for (const SortEntry &entry : entries) {
+		bool placed = false;
+		for (int slot = 0; slot < InventoryGridCells && !placed; slot++)
+			placed = AutoPlaceItemInInventorySlot(player, slot, entry.item, true);
+		for (int tab = 0; tab < Player::NumExtraInventoryTabs && !placed; tab++) {
+			for (int slot = 0; slot < InventoryGridCells && !placed; slot++)
+				placed = AutoPlaceItemInExtraTabSlot(player, tab, slot, entry.item, true);
+		}
+		// Every entry came from this same 10-tab space and nothing pinned was removed, so it must
+		// fit somewhere - this should never actually trigger.
+	}
+
+	player.CalcScrolls();
+	CalcPlrInv(player, true);
+}
+
+bool CheckInventorySortButtonClick(Point cursorPosition)
+{
+	if (!*sgOptions.Oracool.inventorySortButton || !oracool::IsSinglePlayer())
+		return false;
+
+	const Rectangle button { GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition), InventorySortButtonSize };
+	if (!button.contains(cursorPosition))
+		return false;
+
+	SortInventoryBySellValue(*MyPlayer);
+	return true;
+}
+
 /**
  * @brief Oracool Tabbed Inventory: hit-tests the 10 tab buttons drawn by DrawInventoryTabs.
  * Uses each button's base (non-enlarged) rectangle regardless of selection state, so the
@@ -1985,6 +2078,8 @@ void CheckInvItem(bool isShiftHeld, bool isCtrlHeld)
 	if (IsInspectingPlayer())
 		return;
 	if (CheckInventoryTabClick(MousePosition))
+		return;
+	if (MyPlayer->HoldItem.isEmpty() && CheckInventorySortButtonClick(MousePosition))
 		return;
 	if (!MyPlayer->HoldItem.isEmpty()) {
 		CheckInvPaste(*MyPlayer, MousePosition);

@@ -531,6 +531,7 @@ void OverrideOptions()
 	sgOptions.Oracool.permanentInfravision.SetValue(false);
 	sgOptions.Oracool.autoIdentifyDrops.SetValue(false);
 	sgOptions.Oracool.resetStatsButton.SetValue(false);
+	sgOptions.Oracool.inventorySortButton.SetValue(false);
 	sgOptions.Oracool.autoPickupRange.SetValue(1);
 	sgOptions.Oracool.autoScrollPickup.SetValue(false);
 	sgOptions.Oracool.rareItemDropChance.SetValue(0);

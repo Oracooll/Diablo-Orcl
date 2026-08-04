@@ -2824,6 +2824,15 @@ bool IsItemAvailable(int i)
 	        *sgOptions.Gameplay.testBard && IsAnyOf(i, IDI_BARDSWORD, IDI_BARDDAGGER));
 }
 
+int GetItemSellValue(const Item &item)
+{
+	int value = item._iMagical != ITEM_QUALITY_NORMAL && item._iIdentified ? item._iIvalue : item._ivalue;
+	value = std::max(value / 4, 1);
+	if (item.isStackableConsumable())
+		value *= item.stackCount();
+	return value;
+}
+
 uint8_t GetOutlineColor(const Item &item, bool checkReq)
 {
 	if (checkReq && !item._iStatFlag)
