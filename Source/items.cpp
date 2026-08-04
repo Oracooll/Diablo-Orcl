@@ -1555,13 +1555,22 @@ _item_indexes RndTypeItems(ItemType itemType, int imid, int lvl)
 	});
 }
 
-_unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate)
+_unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate, bool allowTieredRoll)
 {
 	std::bitset<128> uok = {};
 
 	int uniqueRollUpperBound = uper;
+	// Reconstructing a previously-generated item (RecreateItem/UnPackItem, allowTieredRoll
+	// false) must reproduce the pass/fail decision this roll made at generation time, not
+	// whatever Unique Item Drop Multiplier happens to be live right now - the multiplier can
+	// change between when an item was saved and when it's reconstructed (e.g. hero-select
+	// preview, or simply because the player changed the setting), and a wider window than
+	// what was in effect originally can flip an item that generated as Magic into Unique.
+	// Pin the multiplier to its vanilla-neutral value of 1 for reconstruction; this still
+	// consumes the same single GenerateRnd(100) draw either way, so later rolls in this
+	// function's caller stay at the same RNG-stream position regardless of which path ran.
 	if (oracool::IsSinglePlayer()) {
-		const int multiplier = std::clamp(*sgOptions.Oracool.uniqueItemDropMultiplier, 1, 100);
+		const int multiplier = allowTieredRoll ? std::clamp(*sgOptions.Oracool.uniqueItemDropMultiplier, 1, 100) : 1;
 		uniqueRollUpperBound = std::min(99, (uper + 1) * multiplier - 1);
 	}
 	if (GenerateRnd(100) > uniqueRollUpperBound)
@@ -1665,7 +1674,7 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 	if (item._iMiscId != IMISC_UNIQUE) {
 		int iblvl = GetItemBLevel(lvl, item._iMiscId, onlygood, uper == 15);
 		if (iblvl != -1) {
-			_unique_items uid = CheckUnique(item, iblvl, uper, recreate);
+			_unique_items uid = CheckUnique(item, iblvl, uper, recreate, allowTieredRoll);
 			const bool tieredRollEligible = allowTieredRoll && oracool::IsSinglePlayer();
 			// A pure function of item._itype, unchanged by anything below - computed once
 			// and reused instead of every tier's roll recomputing the same answer. Safe to

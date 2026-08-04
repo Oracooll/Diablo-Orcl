@@ -185,6 +185,22 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.2 — Curated Default Settings
+
+### New installs now start with a curated, ready-to-play settings profile
+
+Fresh installs and new characters used to start with a fairly bare-bones vanilla settings profile even though most of Oracool Edition's own features already defaulted on. Based on a full review of what actually makes for a good default experience, a `diablo.ini` created from scratch now starts with: Run in Town on, all the info-display options on (Experience Bar, Enemy Health Bar, Show Monster Type, Show Item Labels, health/mana values on the globes, item graphics in store menus), floating combat numbers on (vertical style), Auto Refill Belt, Disable Crippling Shrines, and every auto-pickup category (Gold, Elixirs, all six potion types, pickup in town) turned on. Randomize Quests now defaults off, and Auto Equip Weapons now defaults off (previously the only auto-equip category that defaulted on). The default window size is now 900x600, and Hardware Cursor For Items now defaults on.
+
+On the Oracool Edition side: Auto Pickup Range now defaults to 5 (was 1), Unique/Rare/Buffed Unique/Primal drop rates all default noticeably higher (Unique Item Drop Multiplier 25x, Rare 20%, Buffed Unique 10%, Primal 5%), and Griswold's Unique Shop now defaults off (with its item count and price multiplier still saved at 8 and 20x for whenever it's turned on) along with Griswold's Refresh Until button and the Auto Save notification.
+
+If you already have a `diablo.ini`, none of this changes anything for you — every one of these is a normal, still-configurable option, and existing settings are always preserved. This only affects what a brand-new install starts with.
+
+### Fixed: reconstructing an item from a save could occasionally flip it from Magic to Unique
+
+A latent bug, unmasked by the higher Unique Item Drop Multiplier default above: reconstructing an item from its stored data (loading the character-select preview list, for example) re-ran the same "is this item Unique" dice roll used for fresh drops, using whatever the Unique Item Drop Multiplier is set to *right now* rather than what it was when the item was originally generated. Raise the multiplier enough after an item was saved, and that reconstruction could occasionally flip a perfectly ordinary Magic item into a Unique one. Reconstruction now always uses the un-buffed roll, matching what the game already does correctly for Oracool's own Rare/Buffed Unique/Primal tiers.
+
+---
+
 ## v0.2.1 — Unlimited Potion Auto-Pickup
 
 ### Potion auto-pickup no longer stops at 16

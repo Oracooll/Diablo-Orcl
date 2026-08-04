@@ -14,6 +14,10 @@ int main(int argc, char **argv)
 	devilution::sgOptions.Graphics.hardwareCursor.SetValue(false);
 #endif
 
+	// Store listings render an item's sprite next to its description when this is on, which
+	// asserts on a null ClxSprite in tests since no real item graphics are ever loaded here.
+	devilution::sgOptions.Gameplay.showItemGraphicsInStores.SetValue(false);
+
 #ifdef __APPLE__
 	devilution::paths::SetAssetsPath(
 	    devilution::paths::BasePath() + "devilutionx.app/Contents/Resources/");
