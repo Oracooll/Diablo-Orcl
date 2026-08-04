@@ -185,6 +185,18 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.4 — Small UI Fixes
+
+### Reset Stats button moved next to what it resets
+
+The Reset Stats "R" button used to sit off on its own with no visual connection to the "Points to distribute" number it actually affects. It's now positioned right next to that value instead. Its icon also changed from a plain "R" to a circular-arrow symbol (↺) that reads more clearly as "reset" at a glance — this specific glyph hasn't been visually verified yet, so if it shows up as a "?" instead, let us know and we'll pick a different one.
+
+### Rare items now get their own background tint
+
+Rare items were showing the same blue inventory/belt/Stash background as ordinary Magic items, since a Rare item is still Magic quality underneath its own Oracool tier. Rare items now get a distinct yellow background, matching their yellow name color, so they're visually distinguishable from a plain blue item at a glance instead of only by reading the name.
+
+---
+
 ## v0.2.3 — Fixed: Some Potions Silently Refused to Stack
 
 ### Vendor-bought and starting potions now stack correctly with ones found on the ground

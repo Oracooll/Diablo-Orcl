@@ -1203,12 +1203,37 @@ int CreateGoldItemInInventorySlot(Player &player, int slotIndex, int value)
 
 } // namespace
 
-void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, item_quality itemQuality)
+void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const Item &item)
 {
 	SDL_Rect srcRect = MakeSdlRect(0, 0, size.width, size.height);
 	out.Clip(&srcRect, &targetPosition);
 	if (size.width <= 0 || size.height <= 0)
 		return;
+
+	// Rare gets its own yellow background instead of inheriting Magic's blue - Rare items
+	// are still ITEM_QUALITY_MAGIC under the hood (the Oracool tier is a layer on top), so
+	// without this check they were visually indistinguishable from an ordinary blue item in
+	// every inventory/belt/stash grid, even though their name and floating info panel already
+	// call out their tier. Buffed Unique/Primal are already ITEM_QUALITY_UNIQUE and get the
+	// same yellow vanilla Unique items do - not changed here since only Rare was reported.
+	uint8_t colorBlock;
+	if (IsInspectingPlayer()) {
+		colorBlock = PAL16_ORANGE;
+	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Rare) {
+		colorBlock = PAL16_YELLOW;
+	} else {
+		switch (item._iMagical) {
+		case ITEM_QUALITY_MAGIC:
+			colorBlock = PAL16_BLUE;
+			break;
+		case ITEM_QUALITY_UNIQUE:
+			colorBlock = PAL16_YELLOW;
+			break;
+		default:
+			colorBlock = PAL16_BEIGE;
+			break;
+		}
+	}
 
 	std::uint8_t *dst = &out[targetPosition];
 	const auto dstPitch = out.pitch();
@@ -1217,17 +1242,7 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, item_q
 		for (int wdt = size.width; wdt != 0; wdt--) {
 			std::uint8_t pix = *dst;
 			if (pix >= PAL16_GRAY) {
-				switch (itemQuality) {
-				case ITEM_QUALITY_MAGIC:
-					pix -= PAL16_GRAY - (!IsInspectingPlayer() ? PAL16_BLUE : PAL16_ORANGE) - 1;
-					break;
-				case ITEM_QUALITY_UNIQUE:
-					pix -= PAL16_GRAY - (!IsInspectingPlayer() ? PAL16_YELLOW : PAL16_ORANGE) - 1;
-					break;
-				default:
-					pix -= PAL16_GRAY - (!IsInspectingPlayer() ? PAL16_BEIGE : PAL16_ORANGE) - 1;
-					break;
-				}
+				pix -= PAL16_GRAY - colorBlock - 1;
 			}
 			*dst++ = pix;
 		}
@@ -1330,7 +1345,7 @@ void DrawInv(const Surface &out)
 		if (!myPlayer.InvBody[slot].isEmpty()) {
 			int screenX = slotPos[slot].x;
 			int screenY = slotPos[slot].y;
-			InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, { screenX, screenY }), { slotSize[slot].width * InventorySlotSizeInPixels.width, slotSize[slot].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]._iMagical);
+			InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, { screenX, screenY }), { slotSize[slot].width * InventorySlotSizeInPixels.width, slotSize[slot].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]);
 
 			const int cursId = myPlayer.InvBody[slot]._iCurs + CURSOR_FIRSTITEM;
 
@@ -1353,7 +1368,7 @@ void DrawInv(const Surface &out)
 
 			if (slot == INVLOC_HAND_LEFT) {
 				if (myPlayer.GetItemLocation(myPlayer.InvBody[slot]) == ILOC_TWOHAND) {
-					InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, slotPos[INVLOC_HAND_RIGHT]), { slotSize[INVLOC_HAND_RIGHT].width * InventorySlotSizeInPixels.width, slotSize[INVLOC_HAND_RIGHT].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]._iMagical);
+					InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, slotPos[INVLOC_HAND_RIGHT]), { slotSize[INVLOC_HAND_RIGHT].width * InventorySlotSizeInPixels.width, slotSize[INVLOC_HAND_RIGHT].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]);
 					const int dstX = GetRightPanel().position.x + slotPos[INVLOC_HAND_RIGHT].x + (frameSize.width == InventorySlotSizeInPixels.width ? INV_SLOT_HALF_SIZE_PX : 0) - 1;
 					const int dstY = GetRightPanel().position.y + slotPos[INVLOC_HAND_RIGHT].y;
 					ClxDrawBlended(out, { dstX, dstY }, sprite);
@@ -1369,7 +1384,7 @@ void DrawInv(const Surface &out)
 			    out,
 			    GetPanelPosition(UiPanels::Inventory, InvRect[i + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height },
 			    InventorySlotSizeInPixels,
-			    GetActiveInvListItem(myPlayer, abs(cell) - 1)._iMagical);
+			    GetActiveInvListItem(myPlayer, abs(cell) - 1));
 		}
 	}
 
@@ -1413,7 +1428,7 @@ void DrawInvBelt(const Surface &out)
 		}
 
 		const Point position { InvRect[i + SLOTXY_BELT_FIRST].position.x + mainPanelPosition.x, InvRect[i + SLOTXY_BELT_FIRST].position.y + mainPanelPosition.y + InventorySlotSizeInPixels.height };
-		InvDrawSlotBack(out, position, InventorySlotSizeInPixels, myPlayer.SpdList[i]._iMagical);
+		InvDrawSlotBack(out, position, InventorySlotSizeInPixels, myPlayer.SpdList[i]);
 		const int cursId = myPlayer.SpdList[i]._iCurs + CURSOR_FIRSTITEM;
 
 		const ClxSprite sprite = GetInvItemSprite(cursId);
