@@ -1,0 +1,50 @@
+DIABLO ORACOOL EDITION v0.2.0
+Based on DevilutionX 1.5.5
+
+INSTALLATION
+
+1. Use a working vanilla DevilutionX 1.5.5 folder containing your legally
+   obtained Diablo game data.
+2. Back up that folder, especially devilutionx.exe, diablo.ini, and
+   Saved_Games if they exist.
+3. Extract every file from this ZIP directly into the vanilla DevilutionX
+   1.5.5 folder.
+4. Allow Windows to replace files with the same names.
+5. Start devilutionx.exe.
+
+The title screen should display "DevilutionX 1.5.5" above "Oracool Edition
+v0.2.0" as two separate lines. The v1.5.5 text identifies the DevilutionX
+engine base; v0.2.0 is the Oracool Edition release number.
+
+IMPORTANT: THIS RELEASE IS NOT SAVE-COMPATIBLE WITH ANY EARLIER VERSION
+
+v0.2.0 changed how item data is stored in save files so that Rare, Buffed
+Unique, and Primal item tiers are tracked more reliably. Because of this, any
+character or Stash saved with v0.1.x (or earlier) CANNOT be loaded by this
+version - attempting to do so shows a clear "incompatible version" message
+and returns you to the main menu rather than risk losing or corrupting your
+items. Back up your old Saved_Games folder if you want to keep those
+characters, then start fresh with this version. There is no way to convert
+an old save forward.
+
+OTHER IMPORTANT NOTES
+
+- This package does not include Diablo or Hellfire game-data MPQ files.
+- This package does not include or overwrite diablo.ini.
+- This package does not include or overwrite saved characters.
+- Oracool Edition stores diablo.ini and Saved_Games beside devilutionx.exe.
+- Several features that used to be optional (uncapped stats, Respawn In
+  Town, Gold Stacks Buff, Stackable Consumables, Belt Mod, Tabbed Inventory,
+  free Town Portal, and four Griswold services) are now a permanent part of
+  Oracool Edition and no longer appear as toggles in the options menu. If an
+  old diablo.ini has any of those settings turned off, that setting is now
+  simply ignored. Everything else in the options menu remains configurable.
+- All other Oracool Edition options are enabled by default when a new
+  diablo.ini is created. Existing settings for options that are still
+  configurable are preserved when upgrading.
+
+This is a development preview. Keep a backup of important characters and
+report any unexpected behavior before relying on the release for long-term
+play.
+
+Release date: 4 August 2026
