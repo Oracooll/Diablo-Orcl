@@ -185,6 +185,14 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.1 — Unlimited Potion Auto-Pickup
+
+### Potion auto-pickup no longer stops at 16
+
+Vanilla DevilutionX's Heal/Full Heal/Mana/Full Mana/Rejuvenation/Full Rejuvenation auto-pickup options each had a hard ceiling of 16 potions — auto-pickup would stop grabbing that potion type once you were carrying 16 or more. With Stackable Consumables now a permanent part of Oracool Edition, a single inventory slot can already hold up to 99 of a potion, so that 16-piece ceiling no longer made sense — it would silently stop topping off a stack that still had 83 slots of room left. Each of these six options is now a simple on/off switch, matching how Elixir and Oil auto-pickup already worked: turn it on, and that potion type is always picked up within your pickup range, regardless of how many you're already carrying. Existing `diablo.ini` settings upgrade cleanly — anyone who had a potion type's old numeric setting above 0 will find it now simply on; anyone with it at 0 will find it still off.
+
+---
+
 ## v0.2.0 — Foundations Pass
 
 This release is a from-the-ground-up cleanup of everything Oracool Edition has added so far, done specifically to make the mod's own code simpler, more consistent, and easier to build on for whatever comes next (bigger systems in the spirit of Diablo 2/3 — think item sets, crafting, deeper skill trees — are the kind of thing this pass was done in service of, though none of that is here yet). It is **not save-compatible with any previous version** — see below.

@@ -4,12 +4,10 @@
  * QoL feature for automatically picking up gold
  */
 
-#include "inv_iterators.hpp"
 #include "options.h"
 #include "oracool/oracool.h"
 #include "player.h"
 #include <algorithm>
-#include <numeric>
 
 namespace devilution {
 namespace {
@@ -34,18 +32,6 @@ bool HasRoomForGold()
 	return false;
 }
 
-int NumMiscItemsInInv(int iMiscId)
-{
-	// Sums stack quantities rather than counting Item instances, so the pickup caps
-	// below stay correct once matching potions/elixirs/oils can stack (Stackable
-	// Consumables). stackCount() is 1 for any item that was never stacked, so this
-	// is a strict generalization of the previous instance-counting behavior.
-	InventoryAndBeltPlayerItemsRange items { *MyPlayer };
-	return std::accumulate(items.begin(), items.end(), 0, [iMiscId](int total, const Item &item) {
-		return item._iMiscId == iMiscId ? total + item.stackCount() : total;
-	});
-}
-
 bool DoPickup(Item item)
 {
 	if (item._itype == ItemType::Gold && *sgOptions.Gameplay.autoGoldPickup && HasRoomForGold())
@@ -55,17 +41,17 @@ bool DoPickup(Item item)
 	    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || AutoPlaceItemInBelt(*MyPlayer, item, false))) {
 		switch (item._iMiscId) {
 		case IMISC_HEAL:
-			return *sgOptions.Gameplay.numHealPotionPickup > NumMiscItemsInInv(item._iMiscId);
+			return *sgOptions.Gameplay.numHealPotionPickup;
 		case IMISC_FULLHEAL:
-			return *sgOptions.Gameplay.numFullHealPotionPickup > NumMiscItemsInInv(item._iMiscId);
+			return *sgOptions.Gameplay.numFullHealPotionPickup;
 		case IMISC_MANA:
-			return *sgOptions.Gameplay.numManaPotionPickup > NumMiscItemsInInv(item._iMiscId);
+			return *sgOptions.Gameplay.numManaPotionPickup;
 		case IMISC_FULLMANA:
-			return *sgOptions.Gameplay.numFullManaPotionPickup > NumMiscItemsInInv(item._iMiscId);
+			return *sgOptions.Gameplay.numFullManaPotionPickup;
 		case IMISC_REJUV:
-			return *sgOptions.Gameplay.numRejuPotionPickup > NumMiscItemsInInv(item._iMiscId);
+			return *sgOptions.Gameplay.numRejuPotionPickup;
 		case IMISC_FULLREJUV:
-			return *sgOptions.Gameplay.numFullRejuPotionPickup > NumMiscItemsInInv(item._iMiscId);
+			return *sgOptions.Gameplay.numFullRejuPotionPickup;
 		case IMISC_ELIXSTR:
 		case IMISC_ELIXMAG:
 		case IMISC_ELIXDEX:

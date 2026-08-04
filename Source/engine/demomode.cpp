@@ -102,12 +102,12 @@ struct {
 	bool showItemLabels = false;
 	bool autoRefillBelt = false;
 	bool disableCripplingShrines = false;
-	uint8_t numHealPotionPickup = 0;
-	uint8_t numFullHealPotionPickup = 0;
-	uint8_t numManaPotionPickup = 0;
-	uint8_t numFullManaPotionPickup = 0;
-	uint8_t numRejuPotionPickup = 0;
-	uint8_t numFullRejuPotionPickup = 0;
+	bool numHealPotionPickup = false;
+	bool numFullHealPotionPickup = false;
+	bool numManaPotionPickup = false;
+	bool numFullManaPotionPickup = false;
+	bool numRejuPotionPickup = false;
+	bool numFullRejuPotionPickup = false;
 } DemoSettings;
 
 FILE *DemoRecording;
@@ -142,12 +142,12 @@ void ReadSettings(FILE *in, uint8_t version)
 		DemoSettings.showItemLabels = ReadByte(in) != 0;
 		DemoSettings.autoRefillBelt = ReadByte(in) != 0;
 		DemoSettings.disableCripplingShrines = ReadByte(in) != 0;
-		DemoSettings.numHealPotionPickup = ReadByte(in);
-		DemoSettings.numFullHealPotionPickup = ReadByte(in);
-		DemoSettings.numManaPotionPickup = ReadByte(in);
-		DemoSettings.numFullManaPotionPickup = ReadByte(in);
-		DemoSettings.numRejuPotionPickup = ReadByte(in);
-		DemoSettings.numFullRejuPotionPickup = ReadByte(in);
+		DemoSettings.numHealPotionPickup = ReadByte(in) != 0;
+		DemoSettings.numFullHealPotionPickup = ReadByte(in) != 0;
+		DemoSettings.numManaPotionPickup = ReadByte(in) != 0;
+		DemoSettings.numFullManaPotionPickup = ReadByte(in) != 0;
+		DemoSettings.numRejuPotionPickup = ReadByte(in) != 0;
+		DemoSettings.numFullRejuPotionPickup = ReadByte(in) != 0;
 	} else {
 		DemoSettings = {};
 	}

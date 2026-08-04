@@ -594,18 +594,18 @@ struct GameplayOptions : OptionCategoryBase {
 	OptionEntryBoolean disableCripplingShrines;
 	/** @brief Spell hotkeys instantly cast the spell. */
 	OptionEntryBoolean quickCast;
-	/** @brief Number of Healing potions to pick up automatically */
-	OptionEntryInt<int> numHealPotionPickup;
-	/** @brief Number of Full Healing potions to pick up automatically */
-	OptionEntryInt<int> numFullHealPotionPickup;
-	/** @brief Number of Mana potions to pick up automatically */
-	OptionEntryInt<int> numManaPotionPickup;
-	/** @brief Number of Full Mana potions to pick up automatically */
-	OptionEntryInt<int> numFullManaPotionPickup;
-	/** @brief Number of Rejuvenating potions to pick up automatically */
-	OptionEntryInt<int> numRejuPotionPickup;
-	/** @brief Number of Full Rejuvenating potions to pick up automatically */
-	OptionEntryInt<int> numFullRejuPotionPickup;
+	/** @brief Healing potions are automatically collected when in close proximity to the player. */
+	OptionEntryBoolean numHealPotionPickup;
+	/** @brief Full Healing potions are automatically collected when in close proximity to the player. */
+	OptionEntryBoolean numFullHealPotionPickup;
+	/** @brief Mana potions are automatically collected when in close proximity to the player. */
+	OptionEntryBoolean numManaPotionPickup;
+	/** @brief Full Mana potions are automatically collected when in close proximity to the player. */
+	OptionEntryBoolean numFullManaPotionPickup;
+	/** @brief Rejuvenation potions are automatically collected when in close proximity to the player. */
+	OptionEntryBoolean numRejuPotionPickup;
+	/** @brief Full Rejuvenation potions are automatically collected when in close proximity to the player. */
+	OptionEntryBoolean numFullRejuPotionPickup;
 	/** @brief Enable floating numbers. */
 	OptionEntryEnum<FloatingNumbers> enableFloatingNumbers;
 };
