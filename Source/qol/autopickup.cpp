@@ -37,6 +37,10 @@ bool DoPickup(Item item)
 	if (item._itype == ItemType::Gold && *sgOptions.Gameplay.autoGoldPickup && HasRoomForGold())
 		return true;
 
+	if (item._itype == ItemType::Misc && item.isScroll())
+		return oracool::IsSinglePlayer() && *sgOptions.Oracool.autoScrollPickup
+		    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || AutoPlaceItemInBelt(*MyPlayer, item, false));
+
 	if (item._itype == ItemType::Misc
 	    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || AutoPlaceItemInBelt(*MyPlayer, item, false))) {
 		switch (item._iMiscId) {

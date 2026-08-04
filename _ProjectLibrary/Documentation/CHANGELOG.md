@@ -185,6 +185,18 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.5 — Scroll Auto-Pickup and Repair List Sorting
+
+### Scrolls can now be auto-picked-up too
+
+A new "Auto Pickup Scrolls" option (on by default) automatically collects every kind of scroll — Identify, spell scrolls, Town Portal, all of them — when you're near one, the same way potions, elixirs, and oils already do. It's a single toggle for every scroll type, not one per spell.
+
+### Griswold's Repair list now sorts by cost, highest first
+
+The list of items you can repair used to show up in a fixed, arbitrary order. It now sorts by how much each repair actually costs, most expensive first — matching how the Sell list already sorts by price.
+
+---
+
 ## v0.2.4 — Small UI Fixes
 
 ### Reset Stats button moved next to what it resets

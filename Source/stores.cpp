@@ -933,6 +933,22 @@ void StartSmithRepair()
 		}
 	}
 
+	if (!gbIsMultiplayer) {
+		// AddStoreHoldRepair already overwrites _iIvalue with the computed repair cost, so
+		// sorting on it here ranks by "what you'd pay to fix this," not the item's own value -
+		// matching the Sell list's stable insertion sort (PopulateSellList) so equal-cost
+		// items keep their original relative order.
+		for (int i = 1; i < storenumh; ++i) {
+			int j = i;
+			while (j > 0 && storehold[j - 1]._iIvalue < storehold[j]._iIvalue) {
+				std::swap(storehold[j - 1], storehold[j]);
+				std::swap(storehidx[j - 1], storehidx[j]);
+				std::swap(storehTabIdx[j - 1], storehTabIdx[j]);
+				--j;
+			}
+		}
+	}
+
 	if (storenumh == 0) {
 		stextscrl = false;
 

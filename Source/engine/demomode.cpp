@@ -532,6 +532,7 @@ void OverrideOptions()
 	sgOptions.Oracool.autoIdentifyDrops.SetValue(false);
 	sgOptions.Oracool.resetStatsButton.SetValue(false);
 	sgOptions.Oracool.autoPickupRange.SetValue(1);
+	sgOptions.Oracool.autoScrollPickup.SetValue(false);
 	sgOptions.Oracool.rareItemDropChance.SetValue(0);
 	sgOptions.Oracool.buffedUniqueItemDropChance.SetValue(0);
 	sgOptions.Oracool.primalItemDropChance.SetValue(0);

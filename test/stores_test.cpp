@@ -249,6 +249,48 @@ TEST(Stores, AddStoreHoldRepair_normal)
 	EXPECT_EQ(1, item->_iIvalue);
 }
 
+// The Repair list used to keep whatever fixed order StartSmithRepair populated it in (equipped
+// slots first, then inventory in slot order), unlike the Sell list which already sorts by price.
+// It should now sort by repair cost, descending - AddStoreHoldRepair already overwrites _iIvalue
+// with the computed cost before storing the entry, so sorting on that field ranks by "what you'd
+// pay to fix this," not the item's own value.
+TEST(Stores, SmithRepair_SortsByRepairCostDescending)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+
+	for (auto &item : MyPlayer->InvBody)
+		item.clear();
+	for (int i = 0; i < InventoryGridCells; i++)
+		MyPlayer->InvList[i].clear();
+	MyPlayer->_pNumInv = 3;
+
+	auto setupDamagedItem = [](devilution::Item &item, int maxDur, int durability, int value) {
+		// Item::clear() only resets _itype; a real base item is initialized via
+		// InitializeItem first so _iName/_iIName and everything else ScrollSmithSell's
+		// display formatting reads are actually valid, then just the durability/value
+		// fields relevant to this test are overridden.
+		InitializeItem(item, IDI_WARRIOR);
+		item._iMagical = ITEM_QUALITY_NORMAL;
+		item._iMaxDur = maxDur;
+		item._iDurability = durability;
+		item._ivalue = value;
+		item._iIvalue = value;
+	};
+
+	// Cheapest repair first, most expensive last, deliberately out of order.
+	setupDamagedItem(MyPlayer->InvList[0], 40, 39, 2000); // small dur deficit -> cheap
+	setupDamagedItem(MyPlayer->InvList[1], 40, 4, 2000);  // large dur deficit -> expensive
+	setupDamagedItem(MyPlayer->InvList[2], 40, 20, 2000); // moderate dur deficit
+
+	StartStore(TalkID::SmithRepair);
+
+	ASSERT_EQ(storenumh, 3);
+	EXPECT_GE(storehold[0]._iIvalue, storehold[1]._iIvalue);
+	EXPECT_GE(storehold[1]._iIvalue, storehold[2]._iIvalue);
+}
+
 // User-reported bug: re-entering Griswold's "Buy Basic Items" screen after buying out his
 // entire stock bounced the player back out to the store menu instead of just showing an empty
 // list. StartStore's TalkID::SmithBuy case used to special-case an empty smithitem[] by calling

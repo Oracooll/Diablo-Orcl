@@ -620,6 +620,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean autoIdentifyDrops;
 	OptionEntryBoolean resetStatsButton;
 	OptionEntryInt<int> autoPickupRange;
+	OptionEntryBoolean autoScrollPickup;
 	OptionEntryInt<int> rareItemDropChance;
 	OptionEntryInt<int> buffedUniqueItemDropChance;
 	OptionEntryInt<int> primalItemDropChance;
