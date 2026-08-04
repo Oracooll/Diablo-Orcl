@@ -320,3 +320,17 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Turn on `Auto Pickup Scrolls` (on by default), drop a few different scrolls on the ground, and walk near them — confirm they get auto-picked-up like potions do. Try at least two different scroll types (e.g. Identify and a spell scroll) to confirm the single toggle covers all of them.
 - Turn `Auto Pickup Scrolls` off and confirm scrolls on the ground are left alone by auto-pickup (manual click-pickup should still work regardless).
 - Damage several different equipped/inventory items to different degrees, then open Griswold's Repair screen. Confirm the list is sorted with the most expensive repair at the top, cheapest at the bottom - not in whatever order the items happen to sit in your inventory.
+
+### Post-migration: v0.2.6 Broken items, Reset Stats rework, and three bug fixes (OE-024)
+
+**This version is not save-compatible with any v0.2.0-v0.2.5 character** (the durability feature grew the item save format by one byte per item) - start a new character before testing.
+
+- Fight in melee (or use a bow/staff) until an equipped weapon reaches 0 durability. Confirm it stays in its slot - grayed-out icon, not deleted - instead of disappearing, and that you can no longer attack with it (falls back to unarmed, same as an empty hand).
+- With that broken weapon still equipped, check your character stats and confirm its stat bonuses (Str/Mag/Dex/AC/damage, whatever it had) are no longer being applied.
+- Take the broken item to Griswold and repair it. Confirm durability is restored, the icon returns to normal color, its stat bonuses come back, and you can attack with it again.
+- Repeat briefly for a broken shield/armor piece to confirm the same behavior (grayed out, no stat bonus, repairable) applies beyond just weapons.
+- Manually spend a few stat points via the character panel's "+" buttons, then click Reset Stats. Confirm exactly those manually-spent points return to "Points to distribute" and your attribute drops by that same amount.
+- If you have a permanent stat bonus from a quest or shrine, confirm Reset Stats does **not** remove it - only the manually-spent portion should come back.
+- Note: if you're continuing on a character that already existed before this update and already had manually-spent points, Reset Stats won't have anything tracked for those older points on its first use - confirm it behaves correctly for points spent from now on regardless.
+- Open the Stash, switch to any of the extra inventory tabs (2 through 10), and Ctrl+Click an item there. Confirm it moves to the Stash (this used to silently do nothing outside tab 1).
+- Find or use debug/cheat tools to obtain The Butcher's Cleaver, then try selling it to Griswold. Confirm it now appears in his sell list and can be sold (it used to be invisible to the sell list entirely).

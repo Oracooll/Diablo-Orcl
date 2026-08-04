@@ -539,6 +539,15 @@ struct Item {
 	std::array<OracoolAffix, MaxOracoolAffixesPerSlot> _iOracoolSuffixes;
 
 	/**
+	 * @brief Single-player only: true once this equipped item's durability reached 0 and was
+	 * left in place, inactive, instead of being destroyed (see CalcSelfItems, which clears
+	 * _iStatFlag for a broken item the same way it already does for invalid/unmet-requirement
+	 * items). Cleared by repairing at Griswold. Local-save-only, matching _iOracoolTier - not
+	 * synced to multiplayer or hero export, since the always-destroy behavior is untouched there.
+	 */
+	bool _iOracoolBroken = false;
+
+	/**
 	 * @brief Whether this item genuinely carries an Oracool tier (Rare/Buffed Unique/Primal).
 	 *
 	 * Item::clear() only resets _itype (isEmpty()'s check) and deliberately leaves every

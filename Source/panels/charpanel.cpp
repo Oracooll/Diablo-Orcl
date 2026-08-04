@@ -264,13 +264,16 @@ void DrawStatButtons(const Surface &out)
 		// panel-relative x in [LeftColumnLabelX, LeftColumnLabelX + 45] = [88, 133] at this
 		// row (see the panelEntries table above) - close enough to read as "reset the points
 		// shown right here" rather than a disconnected button elsewhere on the panel.
-		const Point position = GetPanelPosition(UiPanels::Character, { 145, 246 });
+		// Position/size shared with control.cpp's press/release hit-testing via
+		// ResetStatsButtonPosition/ResetStatsButtonSize (control.h) - keep using those
+		// constants if this ever moves again, not a new hardcoded literal here.
+		const Point position = GetPanelPosition(UiPanels::Character, ResetStatsButtonPosition);
 		// U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW (UTF-8: E2 86 BA), written as raw bytes
 		// rather than a \u escape so it's unambiguous regardless of source/compiler encoding
 		// assumptions. Untested against the game's actual bitmap font coverage - if this
 		// codepoint has no glyph, DrawString's text renderer falls back to "?" rather than
 		// failing, so the worst case is a "?" button, not a crash or blank box.
-		DrawString(out, "\xE2\x86\xBA", { position, { 24, 24 } }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorRed : UiFlags::ColorUiSilver) });
+		DrawString(out, "\xE2\x86\xBA", { position, ResetStatsButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorRed : UiFlags::ColorUiSilver) });
 	}
 }
 

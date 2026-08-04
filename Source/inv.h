@@ -154,6 +154,14 @@ void DrawInvBelt(const Surface &out);
 void RemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPri);
 
 /**
+ * @brief Single-player: leaves a 0-durability item equipped but inactive (CalcSelfItems skips
+ * its stat bonuses) instead of destroying it, so it can be repaired at Griswold. Multiplayer:
+ * unchanged vanilla behavior - calls RemoveEquipment exactly as before. Callers should call this
+ * instead of RemoveEquipment at every durability-reaches-zero site.
+ */
+void BreakOrRemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPri);
+
+/**
  * @brief Checks whether or not auto-equipping behavior is enabled for the given player and item.
  * @param player The player to check.
  * @param item The item to check.
@@ -226,6 +234,13 @@ void inv_update_rem_item(Player &player, inv_body_loc iv);
 void CheckInvSwap(Player &player, const Item &item, int invGridIndex);
 void CheckInvRemove(Player &player, int invGridIndex);
 void TransferItemToStash(Player &player, int location);
+/**
+ * @brief Oracool Tabbed Inventory: Ctrl+Click-to-stash equivalent of TransferItemToStash for an
+ * item hovered in an extra tab (which has no pcursinvitem encoding - see CheckInvHLight). Hit-tests
+ * the mouse against the active tab's grid directly instead of going through pcursinvitem. Returns
+ * true if an extra-tab item was under the cursor (whether or not the transfer itself succeeded).
+ */
+bool TryTransferHoveredActiveTabItemToStash(Player &player);
 void CheckInvItem(bool isShiftHeld = false, bool isCtrlHeld = false);
 
 /**

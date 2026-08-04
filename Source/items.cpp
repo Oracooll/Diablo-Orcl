@@ -509,8 +509,13 @@ void CalcSelfItems(Player &player)
 
 	// first iteration is used for collecting stat bonuses from items
 	for (Item &equipment : EquippedPlayerItemsRange(player)) {
-		equipment._iStatFlag = true;
-		if (equipment._iIdentified) {
+		// A broken (0-durability, left equipped rather than destroyed - see
+		// BreakOrRemoveEquipment) item contributes nothing at all, the same as if it had
+		// been removed. Checked here, before stat bonuses are ever added, rather than only
+		// in the invalidation pass below, since that pass only ever removes an already-added
+		// bonus - a broken item's bonus must never be added in the first place.
+		equipment._iStatFlag = !equipment._iOracoolBroken;
+		if (equipment._iStatFlag && equipment._iIdentified) {
 			sa += equipment._iPLStr;
 			ma += equipment._iPLMag;
 			da += equipment._iPLDex;
@@ -3071,35 +3076,56 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	if (player._pClass == HeroClass::Rogue) {
 		player._pDamageMod = player._pLevel * (player._pStrength + player._pDexterity) / 200;
 	} else if (player._pClass == HeroClass::Monk) {
+		// A broken (0-durability, left equipped rather than destroyed) weapon no longer
+		// counts as "holding" anything for these class-specific checks, matching how
+		// CalcSelfItems already excludes it from stat bonuses via _iStatFlag.
+		const bool leftIsFunctionalNonStaff = !player.InvBody[INVLOC_HAND_LEFT].isEmpty() && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag && player.InvBody[INVLOC_HAND_LEFT]._itype != ItemType::Staff;
+		const bool rightIsFunctionalNonStaff = !player.InvBody[INVLOC_HAND_RIGHT].isEmpty() && player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag && player.InvBody[INVLOC_HAND_RIGHT]._itype != ItemType::Staff;
 		player._pDamageMod = player._pLevel * (player._pStrength + player._pDexterity) / 150;
-		if ((!player.InvBody[INVLOC_HAND_LEFT].isEmpty() && player.InvBody[INVLOC_HAND_LEFT]._itype != ItemType::Staff) || (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty() && player.InvBody[INVLOC_HAND_RIGHT]._itype != ItemType::Staff))
+		if (leftIsFunctionalNonStaff || rightIsFunctionalNonStaff)
 			player._pDamageMod /= 2; // Monks get half the normal damage bonus if they're holding a non-staff weapon
 	} else if (player._pClass == HeroClass::Bard) {
-		if (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Sword || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Sword)
+		const bool leftSword = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Sword && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag;
+		const bool rightSword = player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Sword && player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag;
+		const bool leftBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && player.InvBody[INVLOC_HAND_LEFT]._iStatFlag;
+		const bool rightBow = player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Bow && player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag;
+		if (leftSword || rightSword)
 			player._pDamageMod = player._pLevel * (player._pStrength + player._pDexterity) / 150;
-		else if (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Bow) {
+		else if (leftBow || rightBow) {
 			player._pDamageMod = player._pLevel * (player._pStrength + player._pDexterity) / 250;
 		} else {
 			player._pDamageMod = player._pLevel * player._pStrength / 100;
 		}
 	} else if (player._pClass == HeroClass::Barbarian) {
+		const bool leftFunctional = player.InvBody[INVLOC_HAND_LEFT]._iStatFlag;
+		const bool rightFunctional = player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag;
+		const bool leftAxe = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Axe && leftFunctional;
+		const bool rightAxe = player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Axe && rightFunctional;
+		const bool leftMace = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Mace && leftFunctional;
+		const bool rightMace = player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Mace && rightFunctional;
+		const bool leftBow = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow && leftFunctional;
+		const bool rightBow = player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Bow && rightFunctional;
+		const bool leftShield = player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield && leftFunctional;
+		const bool rightShield = player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield && rightFunctional;
+		const bool leftStaffOrBow = leftFunctional && IsAnyOf(player.InvBody[INVLOC_HAND_LEFT]._itype, ItemType::Staff, ItemType::Bow);
+		const bool rightStaffOrBow = rightFunctional && IsAnyOf(player.InvBody[INVLOC_HAND_RIGHT]._itype, ItemType::Staff, ItemType::Bow);
 
-		if (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Axe || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Axe) {
+		if (leftAxe || rightAxe) {
 			player._pDamageMod = player._pLevel * player._pStrength / 75;
-		} else if (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Mace || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Mace) {
+		} else if (leftMace || rightMace) {
 			player._pDamageMod = player._pLevel * player._pStrength / 75;
-		} else if (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Bow) {
+		} else if (leftBow || rightBow) {
 			player._pDamageMod = player._pLevel * player._pStrength / 300;
 		} else {
 			player._pDamageMod = player._pLevel * player._pStrength / 100;
 		}
 
-		if (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield) {
-			if (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield)
+		if (leftShield || rightShield) {
+			if (leftShield)
 				player._pIAC -= player.InvBody[INVLOC_HAND_LEFT]._iAC / 2;
-			else if (player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield)
+			else if (rightShield)
 				player._pIAC -= player.InvBody[INVLOC_HAND_RIGHT]._iAC / 2;
-		} else if (IsNoneOf(player.InvBody[INVLOC_HAND_LEFT]._itype, ItemType::Staff, ItemType::Bow) && IsNoneOf(player.InvBody[INVLOC_HAND_RIGHT]._itype, ItemType::Staff, ItemType::Bow)) {
+		} else if (!leftStaffOrBow && !rightStaffOrBow) {
 			player._pDamageMod += player._pLevel * player._pVitality / 100;
 		}
 		player._pIAC += player._pLevel / 4;

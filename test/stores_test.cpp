@@ -291,6 +291,37 @@ TEST(Stores, SmithRepair_SortsByRepairCostDescending)
 	EXPECT_GE(storehold[1]._iIvalue, storehold[2]._iIvalue);
 }
 
+// User-reported bug: a found/looted "The Butcher's Cleaver" unique couldn't be sold to Griswold.
+// Root cause: vanilla Diablo happens to define IDI_CLEAVER == IDI_FIRSTQUEST, so SmithSellOk's
+// quest-item-range exclusion (meant for real quest deliverables like the Rock or Anvil) caught
+// the Cleaver too, even though it's an ordinary lootable/sellable unique. Fixed with an explicit
+// carve-out for IDI_CLEAVER.
+TEST(Stores, SmithSell_CleaverUniqueIsSellableDespiteQuestIdRange)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	MyPlayer->InvTabList = {};
+	MyPlayer->InvTabGrid = {};
+	MyPlayer->_pNumInvTab = {};
+
+	for (int i = 0; i < InventoryGridCells; i++)
+		MyPlayer->InvList[i].clear();
+	InitializeItem(MyPlayer->InvList[0], IDI_CLEAVER);
+	MyPlayer->InvList[0]._iMagical = ITEM_QUALITY_UNIQUE;
+	MyPlayer->InvList[0]._iIdentified = true;
+	MyPlayer->InvList[0]._iIvalue = 3650;
+	MyPlayer->InvList[0]._iCreateInfo = 0; // a real dungeon drop, not a Unique Shop item (no CF_SMITH)
+	MyPlayer->_pNumInv = 1;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	StartStore(TalkID::SmithSell);
+
+	ASSERT_EQ(storenumh, 1) << "the Cleaver should appear in Griswold's sell list";
+	EXPECT_EQ(storehold[0].IDidx, IDI_CLEAVER);
+}
+
 // User-reported bug: re-entering Griswold's "Buy Basic Items" screen after buying out his
 // entire stock bounced the player back out to the store menu instead of just showing an empty
 // list. StartStore's TalkID::SmithBuy case used to special-case an empty smithitem[] by calling

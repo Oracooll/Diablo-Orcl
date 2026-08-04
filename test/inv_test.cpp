@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include <gtest/gtest.h>
 
 #include "control.h"
@@ -447,6 +449,37 @@ TEST_F(InvTest, WithdrawGoldOnlyDeductsPlacedAmount)
 	MaxGold = GOLD_MAX_LIMIT;
 }
 
+// Items at 0 durability: in single-player, a broken item stays equipped (0 durability, flagged
+// _iOracoolBroken) instead of being hard-deleted, so it can later be repaired.
+TEST_F(InvTest, BreakOrRemoveEquipment_SinglePlayer_MarksBrokenInsteadOfRemoving)
+{
+	gbIsMultiplayer = false;
+	MyPlayer->InvBody[INVLOC_HAND_LEFT].clear();
+	MyPlayer->InvBody[INVLOC_HAND_LEFT]._itype = ItemType::Sword;
+
+	BreakOrRemoveEquipment(*MyPlayer, INVLOC_HAND_LEFT, false);
+
+	EXPECT_FALSE(MyPlayer->InvBody[INVLOC_HAND_LEFT].isEmpty()) << "item should stay equipped, not be deleted";
+	EXPECT_EQ(MyPlayer->InvBody[INVLOC_HAND_LEFT]._iDurability, 0);
+	EXPECT_TRUE(MyPlayer->InvBody[INVLOC_HAND_LEFT]._iOracoolBroken);
+}
+
+// Multiplayer has no packet format for "broken but still equipped," so it keeps the vanilla
+// hard-delete behavior unchanged.
+TEST_F(InvTest, BreakOrRemoveEquipment_Multiplayer_RemovesItemAsBefore)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = true;
+	MyPlayer->InvBody[INVLOC_HAND_LEFT].clear();
+	MyPlayer->InvBody[INVLOC_HAND_LEFT]._itype = ItemType::Sword;
+
+	BreakOrRemoveEquipment(*MyPlayer, INVLOC_HAND_LEFT, false);
+
+	EXPECT_TRUE(MyPlayer->InvBody[INVLOC_HAND_LEFT].isEmpty());
+
+	gbIsMultiplayer = false;
+}
+
 // Test removing an item from inventory with no other items.
 TEST_F(InvTest, RemoveInvItem)
 {
@@ -567,6 +600,41 @@ TEST_F(InvTest, TabbedInventory_HoverInExtraTabShowsItemInfo)
 	EXPECT_EQ(hovered, -1) << "extra-tab items don't use the tab-1 pcursinvitem index encoding";
 	EXPECT_FALSE(InfoString.empty()) << "hovering an extra-tab item should still populate the info text";
 	EXPECT_TRUE(ActiveTabItemHovered) << "DrawInfoBox needs this flag, since pcursinvitem == -1 here doesn't mean \"hovering nothing\"";
+}
+
+// User-reported gap: Ctrl+Click-to-stash only ever worked for tab 1, since TransferItemToStash
+// is driven by pcursinvitem, which stays -1 for an extra tab's items (see CheckInvHLight). Fixed
+// via a dedicated hit-test that bypasses pcursinvitem entirely for extra tabs.
+TEST_F(InvTest, TabbedInventory_CtrlClickTransfersExtraTabItemToStash)
+{
+	clear_inventory();
+
+	MyPlayer->InvTabList[1][0]._itype = ItemType::Misc;
+	MyPlayer->InvTabList[1][0].IDidx = IDI_ROCK;
+	MyPlayer->InvTabList[1][0]._iIdentified = true;
+	MyPlayer->InvTabGrid[1][0] = 1;
+	MyPlayer->_pNumInvTab[1] = 1;
+
+	ActiveInventoryTab = 2; // extra tab index 1
+	MousePosition = GetPanelPosition(UiPanels::Inventory, InvRect[SLOTXY_INV_FIRST].position) + Displacement { InventorySlotSizeInPixels.width / 2, InventorySlotSizeInPixels.height / 2 };
+
+	EXPECT_TRUE(TryTransferHoveredActiveTabItemToStash(*MyPlayer));
+
+	EXPECT_EQ(MyPlayer->_pNumInvTab[1], 0) << "item should have left the extra tab";
+	EXPECT_EQ(MyPlayer->InvTabGrid[1][0], 0);
+
+	const bool foundInStash = std::any_of(Stash.stashList.begin(), Stash.stashList.end(), [](const Item &item) {
+		return !item.isEmpty() && item.IDidx == IDI_ROCK;
+	});
+	EXPECT_TRUE(foundInStash) << "item should have landed in the stash";
+}
+
+TEST_F(InvTest, TabbedInventory_CtrlClickOnTab1DefersToLegacyPath)
+{
+	clear_inventory();
+	ActiveInventoryTab = 0;
+
+	EXPECT_FALSE(TryTransferHoveredActiveTabItemToStash(*MyPlayer)) << "tab 1 has its own pcursinvitem-driven path and must not be handled here";
 }
 
 // Oracool Tabbed Inventory: a store purchase that can't fit in the original backpack (tab 1)

@@ -263,7 +263,7 @@ struct LevelConversionData {
  * reading an old, shorter record here would silently misalign every subsequent field instead
  * of failing loudly.
  */
-constexpr uint8_t OracoolItemFormatVersion = 1;
+constexpr uint8_t OracoolItemFormatVersion = 2;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
@@ -364,6 +364,7 @@ void LoadItemData(LoadHelper &file, Item &item)
 	const uint8_t rawTier = file.NextLE<uint8_t>();
 	item._iOracoolTier = rawTier <= static_cast<uint8_t>(OracoolItemTier::Primal) ? static_cast<OracoolItemTier>(rawTier) : OracoolItemTier::None;
 	item._iOracoolPerfectRoll = file.NextLE<uint8_t>() != 0;
+	item._iOracoolBroken = file.NextLE<uint8_t>() != 0;
 	const uint8_t prefixCount = file.NextLE<uint8_t>();
 	const uint8_t suffixCount = file.NextLE<uint8_t>();
 	item._iOracoolPrefixCount = std::min<uint8_t>(prefixCount, Item::MaxOracoolAffixesPerSlot);
@@ -616,7 +617,13 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	player.pDiabloKillLevel = file.NextLE<uint32_t>();
 	sgGameInitInfo.nDifficulty = static_cast<_difficulty>(file.NextLE<uint32_t>());
 	player.pDamAcFlags = static_cast<ItemSpecialEffectHf>(file.NextLE<uint32_t>());
-	file.Skip(20); // Available bytes
+	// Oracool Reset Stats: repurposes 16 of these 20 previously-inert bytes (always zero-filled by
+	// SaveHelper::Skip on every prior build) to track manually-spent stat points; see player.h.
+	player._pStatPtsSpentStr = file.NextLE<int32_t>();
+	player._pStatPtsSpentMag = file.NextLE<int32_t>();
+	player._pStatPtsSpentDex = file.NextLE<int32_t>();
+	player._pStatPtsSpentVit = file.NextLE<int32_t>();
+	file.Skip(4); // Available bytes
 	CalcPlrInv(player, false);
 
 	player.executedSpell = player.queuedSpell; // Ensures backwards compatibility
@@ -1186,6 +1193,7 @@ void SaveItem(SaveHelper &file, const Item &item)
 	// positional record; a variable-length record here would misalign every subsequent item.
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(item._iOracoolTier));
 	file.WriteLE<uint8_t>(item._iOracoolPerfectRoll ? 1 : 0);
+	file.WriteLE<uint8_t>(item._iOracoolBroken ? 1 : 0);
 	file.WriteLE<uint8_t>(item._iOracoolPrefixCount);
 	file.WriteLE<uint8_t>(item._iOracoolSuffixCount);
 	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
@@ -1436,7 +1444,12 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	file.WriteLE<uint32_t>(player.pDiabloKillLevel);
 	file.WriteLE<uint32_t>(sgGameInitInfo.nDifficulty);
 	file.WriteLE<uint32_t>(static_cast<uint32_t>(player.pDamAcFlags));
-	file.Skip(20); // Available bytes
+	// Oracool Reset Stats: see the matching LoadPlayer comment above.
+	file.WriteLE<int32_t>(player._pStatPtsSpentStr);
+	file.WriteLE<int32_t>(player._pStatPtsSpentMag);
+	file.WriteLE<int32_t>(player._pStatPtsSpentDex);
+	file.WriteLE<int32_t>(player._pStatPtsSpentVit);
+	file.Skip(4); // Available bytes
 
 	// Omit pointer _pNData
 	// Omit pointer _pWData
@@ -2032,7 +2045,7 @@ void LoadLevel(LevelConversionData *levelConversionData)
 // directly into SaveItem/LoadItemData's fixed-size item record (v0.2.0+): 4 header bytes
 // (tier, perfect-roll flag, prefix count, suffix count) plus 3 prefixes + 3 suffixes at
 // 9 bytes each (1-byte affix type + two int32_t params).
-constexpr int OracoolItemExtensionSaveSize = 4 + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4);
+constexpr int OracoolItemExtensionSaveSize = 5 + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4);
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 
@@ -2405,7 +2418,7 @@ void LoadStash()
 // (not just "is this newer than what I understand") so an old-format file is rejected the
 // same safe way an unrecognized future one already was - every extra tab just stays empty,
 // matching the existing "absent = default" pattern; nothing is destroyed or misaligned.
-constexpr uint8_t OracoolInvTabsVersion = 1;
+constexpr uint8_t OracoolInvTabsVersion = 2;
 
 void LoadInventoryTabs(Player &player)
 {

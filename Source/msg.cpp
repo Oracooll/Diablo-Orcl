@@ -924,8 +924,11 @@ size_t OnAddStrength(const TCmd *pCmd, size_t pnum)
 
 	if (gbBufferMsgs == 1)
 		SendPacket(pnum, &message, sizeof(message));
-	else if (message.wParam1 <= 256)
-		ModifyPlrStr(Players[pnum], SDL_SwapLE16(message.wParam1));
+	else if (message.wParam1 <= 256) {
+		const uint16_t delta = SDL_SwapLE16(message.wParam1);
+		Players[pnum]._pStatPtsSpentStr += delta;
+		ModifyPlrStr(Players[pnum], delta);
+	}
 
 	return sizeof(message);
 }
@@ -936,8 +939,11 @@ size_t OnAddMagic(const TCmd *pCmd, size_t pnum)
 
 	if (gbBufferMsgs == 1)
 		SendPacket(pnum, &message, sizeof(message));
-	else if (message.wParam1 <= 256)
-		ModifyPlrMag(Players[pnum], SDL_SwapLE16(message.wParam1));
+	else if (message.wParam1 <= 256) {
+		const uint16_t delta = SDL_SwapLE16(message.wParam1);
+		Players[pnum]._pStatPtsSpentMag += delta;
+		ModifyPlrMag(Players[pnum], delta);
+	}
 
 	return sizeof(message);
 }
@@ -948,8 +954,11 @@ size_t OnAddDexterity(const TCmd *pCmd, int pnum)
 
 	if (gbBufferMsgs == 1)
 		SendPacket(pnum, &message, sizeof(message));
-	else if (message.wParam1 <= 256)
-		ModifyPlrDex(Players[pnum], SDL_SwapLE16(message.wParam1));
+	else if (message.wParam1 <= 256) {
+		const uint16_t delta = SDL_SwapLE16(message.wParam1);
+		Players[pnum]._pStatPtsSpentDex += delta;
+		ModifyPlrDex(Players[pnum], delta);
+	}
 
 	return sizeof(message);
 }
@@ -960,8 +969,11 @@ size_t OnAddVitality(const TCmd *pCmd, size_t pnum)
 
 	if (gbBufferMsgs == 1)
 		SendPacket(pnum, &message, sizeof(message));
-	else if (message.wParam1 <= 256)
-		ModifyPlrVit(Players[pnum], SDL_SwapLE16(message.wParam1));
+	else if (message.wParam1 <= 256) {
+		const uint16_t delta = SDL_SwapLE16(message.wParam1);
+		Players[pnum]._pStatPtsSpentVit += delta;
+		ModifyPlrVit(Players[pnum], delta);
+	}
 
 	return sizeof(message);
 }

@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "options.h"
+#include "storm/storm_net.hpp"
 
 using namespace devilution;
 
@@ -180,6 +181,35 @@ TEST(Player, CreatePlayer)
 	Players.resize(1);
 	CreatePlayer(Players[0], HeroClass::Rogue);
 	AssertPlayer(Players[0]);
+}
+
+TEST(Player, ResetPlayerStats_OnlyRemovesManuallySpentPoints)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Rogue);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.resetStatsButton.SetValue(true);
+
+	const int baseStrAtCreation = player._pBaseStr;
+
+	// A permanent quest/shrine bonus reaches _pBaseStr through ModifyPlrStr directly and is never
+	// tracked - it must survive a reset.
+	ModifyPlrStr(player, 3);
+
+	// Manually spending points via the "+" button is the only path that increments the tracked
+	// counter (normally done by msg.cpp's OnAddStrength); simulate that here.
+	player._pStatPtsSpentStr = 5;
+	ModifyPlrStr(player, 5);
+	player._pStatPts = 0;
+
+	ResetPlayerStats(player);
+
+	EXPECT_EQ(player._pBaseStr, baseStrAtCreation + 3);
+	EXPECT_EQ(player._pStatPts, 5);
+	EXPECT_EQ(player._pStatPtsSpentStr, 0);
 }
 
 TEST(Player, ShouldDropGoldOnDeath_SinglePlayerNeverDrops)

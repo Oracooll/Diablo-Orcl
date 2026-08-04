@@ -1287,7 +1287,7 @@ void CheckChrBtns()
 		return;
 
 	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer) {
-		Rectangle resetButton { GetPanelPosition(UiPanels::Character, { 183, 246 }), { 24, 24 } };
+		Rectangle resetButton { GetPanelPosition(UiPanels::Character, ResetStatsButtonPosition), ResetStatsButtonSize };
 		if (resetButton.contains(MousePosition)) {
 			resetStatsButtonDown = true;
 			chrbtnactive = true;
@@ -1317,7 +1317,7 @@ void ReleaseChrBtns(bool addAllStatPoints)
 	chrbtnactive = false;
 	if (resetStatsButtonDown) {
 		resetStatsButtonDown = false;
-		Rectangle resetButton { GetPanelPosition(UiPanels::Character, { 183, 246 }), { 24, 24 } };
+		Rectangle resetButton { GetPanelPosition(UiPanels::Character, ResetStatsButtonPosition), ResetStatsButtonSize };
 		if (resetButton.contains(MousePosition))
 			ResetPlayerStats(*MyPlayer);
 		return;

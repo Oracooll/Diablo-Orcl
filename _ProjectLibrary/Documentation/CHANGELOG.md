@@ -185,6 +185,26 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.6 — Broken Items, Smarter Reset Stats, and Three Bug Fixes
+
+### Items at 0 durability go inactive instead of being destroyed
+
+In single-player, when a weapon, shield, staff, helmet, or armor piece runs out of durability, it now stays in its equipped slot at 0 durability instead of being deleted outright. A broken item is drawn grayed-out, contributes none of its stat bonuses, and can't be used to attack (an empty-handed weapon slot behaves the same way it already does when nothing is equipped there) — but it's still yours, and repairing it at Griswold's fully restores it to normal, exactly as if it had never broken. Multiplayer is unaffected; a shattered item there is still destroyed exactly as before, since there's no network format for a "broken but still equipped" item.
+
+### Reset Stats now only removes points you actually spent
+
+Reset Stats used to reset your Strength/Magic/Dexterity/Vitality all the way back down to your class's starting values, which also wiped out any permanent bonus you'd earned from quests or shrines along the way. It now tracks exactly how many points you've manually put into each attribute via the "+" buttons, and Reset Stats only ever removes that amount — any quest reward or shrine blessing baked into your stats stays untouched. If you already have a character from before this change, Reset Stats won't have anything tracked for points you spent previously; it'll behave correctly for every point you spend going forward.
+
+### Fixed: Ctrl+Click on an item stored in one of the 9 extra inventory tabs didn't send it to the Stash
+
+Ctrl+Click-to-Stash only ever worked for your original backpack page (tab 1) — clicking an item in tabs 2 through 10 while the Stash was open silently did nothing. Fixed; Ctrl+Click now works identically no matter which tab is currently open.
+
+### Fixed: The Butcher's Cleaver couldn't be sold to Griswold
+
+A found Cleaver simply never showed up in Griswold's sell list, even though it's an ordinary lootable Unique like any other. The cause is a quirk baked into Diablo's own item data: the Cleaver happens to share its internal ID with the start of the range used for real quest items (the Rock, the Anvil, and so on), so the sell list's "don't let players sell quest items" check caught it by mistake. Fixed with a specific exception for the Cleaver.
+
+---
+
 ## v0.2.5 — Scroll Auto-Pickup and Repair List Sorting
 
 ### Scrolls can now be auto-picked-up too

@@ -177,6 +177,38 @@ TEST(Item, CanStackWith_NonStackableTypeNeverStacks)
 	EXPECT_FALSE(a.canStackWith(b));
 }
 
+// Items at 0 durability: a broken (_iOracoolBroken) equipped item must contribute nothing to the
+// player's stats, checked in CalcSelfItems before bonuses are ever added (not just invalidated
+// afterward, since that pass only removes an already-added bonus).
+TEST(CalcPlrInv, BrokenItemContributesNoStatBonus)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+	for (Item &item : player.InvBody)
+		item.clear();
+	player._pBaseStr = 20;
+	player._pLevel = 1;
+
+	Item &weapon = player.InvBody[INVLOC_HAND_LEFT];
+	InitializeItem(weapon, IDI_WARRIOR);
+	weapon._iMagical = ITEM_QUALITY_NORMAL;
+	weapon._iIdentified = true;
+	weapon._iPLStr = 10;
+	weapon._iMaxDur = 40;
+	weapon._iDurability = 40;
+
+	CalcPlrInv(player, false);
+	EXPECT_EQ(player._pStrength, 30) << "an intact item's Str bonus should apply";
+	EXPECT_TRUE(weapon._iStatFlag);
+
+	weapon._iOracoolBroken = true;
+	CalcPlrInv(player, false);
+	EXPECT_EQ(player._pStrength, 20) << "a broken item's Str bonus must not apply";
+	EXPECT_FALSE(weapon._iStatFlag);
+}
+
 class RareItemTest : public ::testing::Test {
 public:
 	void SetUp() override

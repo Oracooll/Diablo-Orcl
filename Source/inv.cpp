@@ -1459,6 +1459,18 @@ void RemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPri)
 	player.InvBody[bodyLocation].clear();
 }
 
+void BreakOrRemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPri)
+{
+	if (oracool::IsSinglePlayer()) {
+		Item &item = player.InvBody[bodyLocation];
+		item._iDurability = 0;
+		item._iOracoolBroken = true;
+		return;
+	}
+
+	RemoveEquipment(player, bodyLocation, hiPri);
+}
+
 bool MergeStackableItemIntoBelt(Player &player, const Item &item, bool persistItem)
 {
 	for (auto &beltItem : player.SpdList) {
@@ -1908,6 +1920,39 @@ void TransferItemToStash(Player &player, int location)
 		player.RemoveSpdBarItem(location - INVITEM_BELT_FIRST);
 }
 
+bool TryTransferHoveredActiveTabItemToStash(Player &player)
+{
+	if (ActiveInventoryTab == 0)
+		return false;
+
+	const Displacement panelOffset = Point { 0, 0 } - GetRightPanel().position;
+	int8_t r = SLOTXY_INV_FIRST;
+	for (; r <= SLOTXY_INV_LAST; r++) {
+		if (InvRect[r].contains(MousePosition + panelOffset))
+			break;
+	}
+	if (r > SLOTXY_INV_LAST)
+		return false;
+
+	const int itemId = abs(GetActiveInvGridCell(player, r - SLOTXY_INV_FIRST));
+	if (itemId == 0)
+		return false;
+
+	const int iv = itemId - 1;
+	Item &item = GetActiveInvListItem(player, iv);
+	if (item.isEmpty())
+		return false;
+
+	if (!AutoPlaceItemInStash(player, item, true)) {
+		player.SaySpecific(HeroSpeech::WhereWouldIPutThis);
+		return true;
+	}
+
+	PlaySFX(ItemInvSnds[ItemCAnimTbl[item._iCurs]]);
+	RemoveActiveInvItem(player, iv);
+	return true;
+}
+
 /**
  * @brief Oracool Tabbed Inventory: hit-tests the 10 tab buttons drawn by DrawInventoryTabs.
  * Uses each button's base (non-enlarged) rectangle regardless of selection state, so the
@@ -1944,7 +1989,8 @@ void CheckInvItem(bool isShiftHeld, bool isCtrlHeld)
 	if (!MyPlayer->HoldItem.isEmpty()) {
 		CheckInvPaste(*MyPlayer, MousePosition);
 	} else if (IsStashOpen && isCtrlHeld) {
-		TransferItemToStash(*MyPlayer, pcursinvitem);
+		if (!TryTransferHoveredActiveTabItemToStash(*MyPlayer))
+			TransferItemToStash(*MyPlayer, pcursinvitem);
 	} else {
 		CheckInvCut(*MyPlayer, MousePosition, isShiftHeld, isCtrlHeld);
 	}

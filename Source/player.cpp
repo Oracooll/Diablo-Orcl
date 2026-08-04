@@ -522,7 +522,7 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 
 		player.InvBody[INVLOC_HAND_LEFT]._iDurability--;
 		if (player.InvBody[INVLOC_HAND_LEFT]._iDurability <= 0) {
-			RemoveEquipment(player, INVLOC_HAND_LEFT, true);
+			BreakOrRemoveEquipment(player, INVLOC_HAND_LEFT, true);
 			CalcPlrInv(player, true);
 			return true;
 		}
@@ -535,7 +535,7 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 
 		player.InvBody[INVLOC_HAND_RIGHT]._iDurability--;
 		if (player.InvBody[INVLOC_HAND_RIGHT]._iDurability == 0) {
-			RemoveEquipment(player, INVLOC_HAND_RIGHT, true);
+			BreakOrRemoveEquipment(player, INVLOC_HAND_RIGHT, true);
 			CalcPlrInv(player, true);
 			return true;
 		}
@@ -548,7 +548,7 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 
 		player.InvBody[INVLOC_HAND_RIGHT]._iDurability--;
 		if (player.InvBody[INVLOC_HAND_RIGHT]._iDurability == 0) {
-			RemoveEquipment(player, INVLOC_HAND_RIGHT, true);
+			BreakOrRemoveEquipment(player, INVLOC_HAND_RIGHT, true);
 			CalcPlrInv(player, true);
 			return true;
 		}
@@ -561,7 +561,7 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 
 		player.InvBody[INVLOC_HAND_LEFT]._iDurability--;
 		if (player.InvBody[INVLOC_HAND_LEFT]._iDurability == 0) {
-			RemoveEquipment(player, INVLOC_HAND_LEFT, true);
+			BreakOrRemoveEquipment(player, INVLOC_HAND_LEFT, true);
 			CalcPlrInv(player, true);
 			return true;
 		}
@@ -980,7 +980,7 @@ void DamageParryItem(Player &player)
 
 		player.InvBody[INVLOC_HAND_LEFT]._iDurability--;
 		if (player.InvBody[INVLOC_HAND_LEFT]._iDurability == 0) {
-			RemoveEquipment(player, INVLOC_HAND_LEFT, true);
+			BreakOrRemoveEquipment(player, INVLOC_HAND_LEFT, true);
 			CalcPlrInv(player, true);
 		}
 	}
@@ -989,7 +989,7 @@ void DamageParryItem(Player &player)
 		if (player.InvBody[INVLOC_HAND_RIGHT]._iDurability != DUR_INDESTRUCTIBLE) {
 			player.InvBody[INVLOC_HAND_RIGHT]._iDurability--;
 			if (player.InvBody[INVLOC_HAND_RIGHT]._iDurability == 0) {
-				RemoveEquipment(player, INVLOC_HAND_RIGHT, true);
+				BreakOrRemoveEquipment(player, INVLOC_HAND_RIGHT, true);
 				CalcPlrInv(player, true);
 			}
 		}
@@ -1045,9 +1045,9 @@ void DamageArmor(Player &player)
 	}
 
 	if (targetHead) {
-		RemoveEquipment(player, INVLOC_HEAD, true);
+		BreakOrRemoveEquipment(player, INVLOC_HEAD, true);
 	} else {
-		RemoveEquipment(player, INVLOC_CHEST, true);
+		BreakOrRemoveEquipment(player, INVLOC_CHEST, true);
 	}
 	CalcPlrInv(player, true);
 }
@@ -3335,12 +3335,22 @@ void ResetPlayerStats(Player &player)
 	if (gbIsMultiplayer || &player != MyPlayer || !*sgOptions.Oracool.resetStatsButton)
 		return;
 
-	const PlayerData &starting = PlayersData[static_cast<size_t>(player._pClass)];
-	ModifyPlrStr(player, starting.baseStr - player._pBaseStr);
-	ModifyPlrMag(player, starting.baseMag - player._pBaseMag);
-	ModifyPlrDex(player, starting.baseDex - player._pBaseDex);
-	ModifyPlrVit(player, starting.baseVit - player._pBaseVit);
-	player._pStatPts = 5 * std::max(player._pLevel - 1, 0);
+	// Only undo points the player manually spent via the "+" buttons - permanent bonuses from
+	// quests, shrines, and items reached _pBaseStr/Mag/Dex/Vit through a different call path and
+	// are never tracked here, so they survive the reset untouched.
+	const int pointsToReturn = player._pStatPtsSpentStr + player._pStatPtsSpentMag + player._pStatPtsSpentDex + player._pStatPtsSpentVit;
+
+	ModifyPlrStr(player, -player._pStatPtsSpentStr);
+	ModifyPlrMag(player, -player._pStatPtsSpentMag);
+	ModifyPlrDex(player, -player._pStatPtsSpentDex);
+	ModifyPlrVit(player, -player._pStatPtsSpentVit);
+
+	player._pStatPtsSpentStr = 0;
+	player._pStatPtsSpentMag = 0;
+	player._pStatPtsSpentDex = 0;
+	player._pStatPtsSpentVit = 0;
+
+	player._pStatPts += pointsToReturn;
 	CalcPlrInv(player, true);
 	RedrawEverything();
 }

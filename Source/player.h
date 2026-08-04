@@ -261,6 +261,17 @@ struct Player {
 	int _pVitality;
 	int _pBaseVit;
 	int _pStatPts;
+	/**
+	 * @brief Oracool Reset Stats: points manually allocated to each attribute via the character
+	 * panel's "+" buttons (CMD_ADDSTR/MAG/DEX/VIT), tracked separately from _pBaseStr/Mag/Dex/Vit
+	 * so ResetPlayerStats() can undo exactly the player's own spending without touching permanent
+	 * bonuses granted by quests, shrines, or items (which modify the same base stats through a
+	 * different call path and must survive a reset).
+	 */
+	int _pStatPtsSpentStr = 0;
+	int _pStatPtsSpentMag = 0;
+	int _pStatPtsSpentDex = 0;
+	int _pStatPtsSpentVit = 0;
 	int _pDamageMod;
 	int _pBaseToBlk;
 	int _pHPBase;

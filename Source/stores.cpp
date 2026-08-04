@@ -729,7 +729,10 @@ bool SmithSellOk(const Item &item)
 			return false;
 		if (item._iClass == ICLASS_QUEST)
 			return false;
-		if (item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
+		// The Butcher's Cleaver shares an ID with the quest-item range purely because vanilla
+		// Diablo happens to order IDI_CLEAVER == IDI_FIRSTQUEST - it's an actual lootable/sellable
+		// unique, not a real quest deliverable, so it's exempt from the range check below.
+		if (item.IDidx != IDI_CLEAVER && item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
 			return false;
 		if (item.IDidx == IDI_LAZSTAFF)
 			return false;
@@ -1953,15 +1956,27 @@ void SmithRepairItem(int price)
 	Player &myPlayer = *MyPlayer;
 
 	if (i < 0) {
-		if (i == -1)
+		// Reactivates a broken (0-durability, left equipped rather than destroyed) item -
+		// see BreakOrRemoveEquipment/CalcSelfItems. Harmless to clear unconditionally even
+		// if the item was never broken in the first place.
+		if (i == -1) {
 			myPlayer.InvBody[INVLOC_HEAD]._iDurability = myPlayer.InvBody[INVLOC_HEAD]._iMaxDur;
-		if (i == -2)
+			myPlayer.InvBody[INVLOC_HEAD]._iOracoolBroken = false;
+		}
+		if (i == -2) {
 			myPlayer.InvBody[INVLOC_CHEST]._iDurability = myPlayer.InvBody[INVLOC_CHEST]._iMaxDur;
-		if (i == -3)
+			myPlayer.InvBody[INVLOC_CHEST]._iOracoolBroken = false;
+		}
+		if (i == -3) {
 			myPlayer.InvBody[INVLOC_HAND_LEFT]._iDurability = myPlayer.InvBody[INVLOC_HAND_LEFT]._iMaxDur;
-		if (i == -4)
+			myPlayer.InvBody[INVLOC_HAND_LEFT]._iOracoolBroken = false;
+		}
+		if (i == -4) {
 			myPlayer.InvBody[INVLOC_HAND_RIGHT]._iDurability = myPlayer.InvBody[INVLOC_HAND_RIGHT]._iMaxDur;
+			myPlayer.InvBody[INVLOC_HAND_RIGHT]._iOracoolBroken = false;
+		}
 		TakePlrsMoney(price);
+		CalcPlrInv(myPlayer, true);
 		return;
 	}
 

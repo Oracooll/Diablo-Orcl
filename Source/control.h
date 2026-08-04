@@ -43,6 +43,12 @@ extern bool chrbtn[4];
 extern bool lvlbtndown;
 extern bool chrbtnactive;
 extern bool resetStatsButtonDown;
+/** @brief Panel-relative position and size of the Reset Stats button - shared by charpanel.cpp's
+ * drawing code and control.cpp's press/release hit-testing so the visual and clickable area can
+ * never drift apart again (they briefly did, after OE-022 repositioned the button but missed
+ * updating these two hardcoded hit-test rectangles). */
+constexpr Point ResetStatsButtonPosition { 145, 246 };
+constexpr Size ResetStatsButtonSize { 24, 24 };
 extern UiFlags InfoColor;
 extern int sbooktab;
 extern bool talkflag;
