@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.19 — Trimmed Main Menu
+
+The main menu now only shows Single Player, Settings, and Exit Diablo/Hellfire. Multi Player, Support, and Show Credits have been removed - Oracool Edition is a single-player-focused mod and those entries weren't relevant to it.
+
+---
+
 ## v0.3.18 — XP Counter, and a Panel Layering Fix
 
 Fixed: the LOG button, its log window, and the Game Clock were rendering on top of the inventory, character, quest log, spellbook, and Stash screens instead of being covered by them like the mini-map already was. They now behave consistently with the mini-map.
