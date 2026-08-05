@@ -37,7 +37,6 @@ constexpr int ButtonWidth = 32;
 constexpr int ButtonHeight = 20;
 constexpr int LineHeight = 14;
 constexpr int WindowPadding = 8;
-constexpr int ScreenMargin = 4;
 constexpr uint8_t EventLogBorderColor = PAL16_YELLOW + 2;
 
 std::deque<LogEntry> Entries;
@@ -48,60 +47,53 @@ std::string PendingDeathSource;
 // time the window is opened, same as chatlog's own reset-on-open behavior.
 size_t ScrollOffset = 0;
 
-// Oracool: sits just above the durability-warning icons (control.cpp's DrawDurIcon, anchored to
-// the same top-right x and drawn upward from MainPanel.position.y - 17), so the button has a
-// stable home whether or not any equipped item is currently damaged.
+// Oracool: user request - right-aligned to the mini-map's own right border, 1px below its bottom
+// border. Queried live (never cached) since the mini-map's rect is itself resolution- and
+// zoom-dependent, and always on-screen by construction, so no additional bounds-checking is
+// needed here.
 Point ButtonPosition()
 {
-	const Rectangle &mainPanel = GetMainPanel();
-	int x = mainPanel.position.x + mainPanel.size.width - 32 - 16;
-	int y = mainPanel.position.y - 17 - 32 - 8 - ButtonHeight;
+	const Rectangle miniMap = GetMiniMapScreenRect();
+	const int x = miniMap.position.x + miniMap.size.width - ButtonWidth;
+	const int y = miniMap.position.y + miniMap.size.height + 1;
 	return { x, y };
 }
 
 // Oracool: user request - the window's left and right edges should always line up with the
-// mini-map's own, at any screen resolution, not just match its width. Queried live (never cached)
-// since the mini-map's own rect is itself resolution- and zoom-dependent.
+// mini-map's own, at any screen resolution, not just match its width.
 int WindowWidth()
 {
 	return GetMiniMapScreenRect().size.width;
 }
 
-// Oracool: the window opens upward from the button, capped at 5px below the mini-map's own
-// bottom border per user request - it never crowds the mini-map, and never needs to (the mini-map
-// sits well above the button, so there's still plenty of room between the two for most entry
-// counts). This also happens to keep it safely on-screen at any resolution: at low resolutions
-// (640x480 is this engine's default) there isn't enough room below the button to fit a
-// fixed-height window without running off the bottom of the screen -
-// UnsafeDrawBorder2px/DrawHalfTransparentRectTo don't bounds-check, so that used to write past the
-// framebuffer and crash the game. Visible line count is derived from actual available space
-// instead of a fixed constant.
+// Oracool: user request - the window spans from 1px below the button down to 1px above the main
+// GUI panel at the bottom of the screen, whatever that leaves. This is the authoritative height -
+// unlike the previous line-count-driven design, it isn't quantized to a whole number of entry
+// lines, so there may be a little unused padding at the bottom if the exact span doesn't divide
+// evenly by LineHeight. The main panel is always on-screen by construction, so this is always a
+// safe, positive size in practice; the MinVisibleLines-based floor only guards against a
+// pathological custom resolution where the mini-map and main panel would otherwise nearly touch.
+int WindowHeight()
+{
+	const int windowTop = ButtonPosition().y + ButtonHeight + 1;
+	const int windowBottom = GetMainPanel().position.y - 1;
+	const int minHeight = WindowPadding * 2 + LineHeight + static_cast<int>(MinVisibleLines) * LineHeight;
+	return std::max(windowBottom - windowTop, minHeight);
+}
+
 size_t VisibleLineCount()
 {
-	const Rectangle miniMap = GetMiniMapScreenRect();
-	const int windowBottom = ButtonPosition().y - 4;
-	const int windowTopBound = miniMap.position.y + miniMap.size.height + 5;
-	const int availableHeight = windowBottom - windowTopBound;
-	const int contentHeight = availableHeight - WindowPadding * 2 - LineHeight;
+	const int contentHeight = WindowHeight() - WindowPadding * 2 - LineHeight;
 	const int lines = contentHeight / LineHeight;
 	return static_cast<size_t>(std::clamp(lines, static_cast<int>(MinVisibleLines), static_cast<int>(MaxVisibleLines)));
 }
 
-int WindowHeight()
-{
-	return WindowPadding * 2 + LineHeight + static_cast<int>(VisibleLineCount()) * LineHeight;
-}
-
 Point WindowPosition()
 {
-	const int windowHeight = WindowHeight();
 	// Always exactly the mini-map's own left edge - together with WindowWidth() matching its width,
 	// this keeps both windows' left AND right borders aligned in a straight line, at any resolution.
-	// No clamping needed here: the mini-map itself is always fully on-screen by construction.
 	const int x = GetMiniMapScreenRect().position.x;
-	// ScreenMargin here is only a last-resort safety net against ever drawing off the top of the
-	// screen; the mini-map-bottom-plus-5 boundary is enforced by VisibleLineCount() above.
-	const int y = std::max(ButtonPosition().y - 4 - windowHeight, ScreenMargin);
+	const int y = ButtonPosition().y + ButtonHeight + 1;
 	return { x, y };
 }
 
