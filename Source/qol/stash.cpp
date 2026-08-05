@@ -518,7 +518,17 @@ bool UseStashItem(uint16_t c)
 		CloseInventory();
 		return true;
 	}
-	Stash.RemoveStashItem(c);
+
+	// Oracool bug fix: user report - reading a stack of 4 Books of Flash from the Stash taught
+	// only 1 spell level (UseItem above is correct - it only ever grants one level per use) but
+	// consumed the entire stack, not just 1 unit, because this always removed the whole stash
+	// slot unconditionally. Matches DecrementOrRemoveInvItem's inventory/belt behavior.
+	Item &stashItem = Stash.stashList[c];
+	if (stashItem.isStackableConsumable() && stashItem.stackCount() > 1) {
+		stashItem.setStackCount(stashItem.stackCount() - 1);
+	} else {
+		Stash.RemoveStashItem(c);
+	}
 
 	return true;
 }

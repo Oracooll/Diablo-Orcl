@@ -201,6 +201,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.32 — Stash No Longer Consumes an Entire Stack of Books/Potions in One Read
+
+- **Fixed**: Using (right-clicking) a stack of stackable consumables — books, potions, scrolls, oils — from the Stash consumed the *entire* stack in one click while only applying a single use's effect (e.g. reading a stack of 4 spell books taught only one level, but destroyed all 4). Using the same stack from your backpack or belt was already correct; only the Stash's own "use item" path had this bug. It now consumes exactly one unit per click, matching the backpack/belt.
+
+---
+
 ## v0.3.31 — Main Menu Fix, Option List Display Fix, Tab Colors, Alphabetical Options
 
 - **Fixed**: The ESC menu's "Main Menu" entry returned to the character-select screen instead of the actual title screen (Single Player / Multiplayer / Options / Exit Diablo). It now goes to the real title screen.
