@@ -201,6 +201,15 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.31 — Main Menu Fix, Option List Display Fix, Tab Colors, Alphabetical Options
+
+- **Fixed**: The ESC menu's "Main Menu" entry returned to the character-select screen instead of the actual title screen (Single Player / Multiplayer / Options / Exit Diablo). It now goes to the real title screen.
+- **Fixed**: The Monster Range Highlight setting's list (`OFF`, `1`-`5`) displayed the same value ("5") for every entry except the first when opened in the Oracool Edition settings menu, even though selecting any of them actually applied the correct value underneath. Torment Difficulty Multiplier's list had the same display bug. Both now show their real per-entry values.
+- **Changed**: Tabbed Inventory's tab numbers are now gold when inactive and blue when active (previously white/gold).
+- **Changed**: The Oracool Edition settings menu now lists its options alphabetically by name instead of the order they were added in.
+
+---
+
 ## v0.3.30 — Monster Range Highlight, Quest and Level-Up Log Entries, Shrine Descriptions
 
 A batch of small requests and fixes:

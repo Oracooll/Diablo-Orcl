@@ -333,6 +333,17 @@ public:
 	{
 		SetValueInternal(tenths);
 	}
+
+private:
+	/**
+	 * @brief Oracool: caches every entry's formatted text, one std::string per index, so the
+	 * string_views GetListDescription hands back all stay valid simultaneously - settingsmenu.cpp
+	 * calls GetListDescription(i) for every i in a loop before displaying any of them, so a single
+	 * shared/reused buffer (the previous approach) would make every entry after the loop show
+	 * whatever the *last* call formatted (a real bug this fixed - every entry but the first showed
+	 * the same value).
+	 */
+	mutable std::vector<std::string> descriptionCache;
 };
 
 /**
@@ -358,6 +369,10 @@ public:
 	{
 		SetValueInternal(value);
 	}
+
+private:
+	/** @brief Oracool: see OptionEntryTormentMultiplier::descriptionCache for why this exists. */
+	mutable std::vector<std::string> descriptionCache;
 };
 
 class OptionEntryLanguageCode : public OptionEntryListBase {

@@ -1009,3 +1009,27 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 
 - Verification: the complete Debug build succeeds. Full regression suite (192 tests across 8 binaries: items_test, inv_test, loadsave_test, missiles_test, pack_test, player_test, stores_test, cursor_test) passes for the entire batch above.
 - Deferred: in-game manual verification of every item in this batch (monster highlight visuals at each range setting, quest/level-up log wording, shrine descriptions, SRT/tab visuals, the speedbook count, extra-tab right-click use, and the durability-icon X) has not yet been performed.
+
+## OE-046: v0.3.31 Main Menu fix, option-list display fix, tab colors, alphabetical options
+
+### Fixed: ESC menu's "Main Menu" returned to hero selection, not the actual title screen
+
+- User bug report: "MAIN MENU option in the ESC key menu in-game to take me to main game menu, not character selection menu." Both `sgSingleMenu`/`sgSingleMenuOnDeath`'s "Main Menu" entries (`gamemenu.cpp`) reused `GamemenuNewGame` verbatim - vanilla's own "New Game" handler, whose entire purpose is to abandon the current game and let `StartGame`'s own retry loop (`diablo.cpp`) bring up hero/character selection again, exactly as it always has. That's correct for "New Game" but not for a button explicitly labeled "Main Menu."
+- Traced the actual title-screen path: `StartGame` (`diablo.cpp`) already has a dedicated escape hatch for this - the `ReturnToMainMenu` flag (`diablo.h`), checked right after its game loop returns and, if set, short-circuits straight back to `mainmenu_loop` (`menu.cpp`) instead of looping into hero selection again. This flag already existed and was already used for exactly this purpose, just only by the `NOEXIT`-build variant of "Quit Game" (a build configuration where the app can't actually close, so "quit" has to mean "return to the title screen" instead).
+- New `GamemenuReturnToMainMenu` handler (`gamemenu.cpp`): does everything `GamemenuNewGame` does, plus sets `ReturnToMainMenu = true`. Wired into both `sgSingleMenu[2]` and `sgSingleMenuOnDeath[2]` in place of `GamemenuNewGame`. Nothing else that reuses `GamemenuNewGame` (the multiplayer menu's actual "New Game" entry) is affected.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no test coverage exercises the menu-driven game-loop-exit path in this codebase.
+- Deferred: in-game manual verification has not yet been performed.
+
+### Fixed: Monster Range Highlight and Torment Multiplier option lists showed the wrong value for every entry but one
+
+- User bug report: "in Oracool Settings in-game, when i enter Monster Range Highlight i see OFF/5/5/5/5/5, only fives, but in reality if i select the first five, when i exit this selection, the oracooloptions menu shows i have set range 1." Root cause: both `OptionEntryRangeOrOff::GetListDescription` and `OptionEntryTormentMultiplier::GetListDescription` (`options.cpp`) formatted their result into one shared `static thread_local std::string buffer` and returned a `string_view` into it. `settingsmenu.cpp`'s list-building loop calls `GetListDescription(i)` for every `i` up front, storing each returned `string_view` directly in a `UiListItem` (which does not copy the text) before any of them are drawn - so by the time the list actually renders, every one of those views points at the same buffer, left holding whatever the *last* loop iteration wrote. Only the very first entry ("OFF") was safe, because it's a string literal returned directly, never touching the buffer.
+- Fixed both to cache one `std::string` per entry (mirroring the pattern the base `OptionEntryIntBase::GetListDescription` already uses correctly) in a new private `descriptionCache` member added to each subclass, built once on first access and indexed thereafter - every entry's returned `string_view` now stays valid independently of how many other entries get formatted afterward.
+- The underlying stored/applied *value* was never wrong - only the list's displayed text - which is why re-selecting an entry and checking the actual applied setting always showed the correct number; this was a pure display bug.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no test coverage exercises the settings-menu list-description rendering path in this codebase.
+- Deferred: in-game manual verification that every entry in both lists now shows its correct distinct value has not yet been performed.
+
+### Changed: Tabbed Inventory tab colors; Oracool options sorted alphabetically
+
+- User request: "change inactive tabs color from white to gold. make active one blue." `DrawInventoryTabs` (`inv.cpp`) now uses `UiFlags::ColorGold` for inactive tabs and `UiFlags::ColorBlue` for the active one (previously white/gold) - `ColorBlue` is already used extensively for in-game text elsewhere (store NPC labels, floating numbers, character panel), so no new color asset was needed.
+- User request: "idea: sort oracool options alphabetically." `OracoolOptions::GetEntries()` (`options.cpp`) now sorts its returned list by each entry's `GetName()` (the same localized display name the settings menu shows) before returning it, instead of the rough chronological-added order it was in before - makes a specific setting easier to find in a list of 37 options.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - both are display-only changes with no existing test coverage to update.

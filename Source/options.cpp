@@ -1295,7 +1295,7 @@ OracoolOptions::OracoolOptions()
 
 std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 {
-	return {
+	std::vector<OptionEntryBase *> entries = {
 		&uniqueItemDropMultiplier,
 		&unlockAllTownEntrances,
 		&permanentInfravision,
@@ -1335,22 +1335,32 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&xpGainIndicator,
 		&monsterRangeHighlight,
 	};
+
+	// Oracool: user request - show the settings menu's Oracool Edition category alphabetically by
+	// display name rather than the rough chronological-added order above (which reflects nothing
+	// the player cares about and made a specific setting hard to find in a list of 30+ options).
+	std::sort(entries.begin(), entries.end(), [](const OptionEntryBase *a, const OptionEntryBase *b) {
+		return a->GetName() < b->GetName();
+	});
+	return entries;
 }
 
 string_view OptionEntryTormentMultiplier::GetListDescription(size_t index) const
 {
-	static thread_local std::string buffer;
-	buffer = fmt::format("{:.1f}", GetEntryValue(index) / 10.0f);
-	return buffer;
+	if (descriptionCache.empty()) {
+		for (size_t i = 0; i < GetListSize(); i++)
+			descriptionCache.push_back(fmt::format("{:.1f}", GetEntryValue(i) / 10.0f));
+	}
+	return descriptionCache[index];
 }
 
 string_view OptionEntryRangeOrOff::GetListDescription(size_t index) const
 {
-	if (GetEntryValue(index) == 0)
-		return "OFF";
-	static thread_local std::string buffer;
-	buffer = StrCat(GetEntryValue(index));
-	return buffer;
+	if (descriptionCache.empty()) {
+		for (size_t i = 0; i < GetListSize(); i++)
+			descriptionCache.push_back(GetEntryValue(i) == 0 ? "OFF" : StrCat(GetEntryValue(i)));
+	}
+	return descriptionCache[index];
 }
 
 ControllerOptions::ControllerOptions()

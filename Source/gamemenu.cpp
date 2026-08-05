@@ -28,6 +28,7 @@ namespace {
 // Forward-declare menu handlers, used by the global menu structs below.
 void GamemenuPrevious(bool bActivate);
 void GamemenuNewGame(bool bActivate);
+void GamemenuReturnToMainMenu(bool bActivate);
 void GamemenuRestartTown(bool bActivate);
 void GamemenuRespawnInTown(bool bActivate);
 void GamemenuOptions(bool bActivate);
@@ -38,20 +39,22 @@ void GamemenuSpeed(bool bActivate);
 
 /**
  * @brief Oracool: user request - the pause menu is trimmed to exactly these five entries while
- * the player is alive. "Main Menu"/"Exit Game" reuse the same handlers the menu already had
- * under their vanilla names ("New Game"/"Quit Game") - both already do exactly what their new
- * names say (abandon the current game and return to the main menu; abandon the current game and
- * close the application), so only the label changed.
+ * the player is alive. "Exit Game" reuses the vanilla "Quit Game" handler, which already does
+ * exactly what the new name says (abandon the current game and close the application). "Main
+ * Menu" originally reused vanilla's "New Game" handler too, but that only abandons the current
+ * game back to the hero/character-select screen, not the actual title screen - a separate bug
+ * report ("MAIN MENU option ... to take me to main game menu, not character selection menu")
+ * confirmed the mismatch. It now uses GamemenuReturnToMainMenu instead.
  */
 TMenuItem sgSingleMenu[] = {
 	// clang-format off
 	// dwFlags,      pszStr,                 fnMenu
-	{ GMENU_ENABLED, N_("Save Game"),       &gamemenu_save_game    },
-	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game    },
-	{ GMENU_ENABLED, N_("Main Menu"),       &GamemenuNewGame       },
-	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions       },
-	{ GMENU_ENABLED, N_("Exit Game"),       &gamemenu_quit_game    },
-	{ GMENU_ENABLED, nullptr,               nullptr                }
+	{ GMENU_ENABLED, N_("Save Game"),       &gamemenu_save_game       },
+	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game       },
+	{ GMENU_ENABLED, N_("Main Menu"),       &GamemenuReturnToMainMenu },
+	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions          },
+	{ GMENU_ENABLED, N_("Exit Game"),       &gamemenu_quit_game       },
+	{ GMENU_ENABLED, nullptr,               nullptr                   }
 	// clang-format on
 };
 /**
@@ -65,12 +68,12 @@ TMenuItem sgSingleMenu[] = {
 TMenuItem sgSingleMenuOnDeath[] = {
 	// clang-format off
 	// dwFlags,      pszStr,                 fnMenu
-	{ GMENU_ENABLED, N_("Respawn In Town"), &GamemenuRespawnInTown },
-	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game    },
-	{ GMENU_ENABLED, N_("Main Menu"),       &GamemenuNewGame       },
-	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions       },
-	{ GMENU_ENABLED, N_("Exit Game"),       &gamemenu_quit_game    },
-	{ GMENU_ENABLED, nullptr,               nullptr                }
+	{ GMENU_ENABLED, N_("Respawn In Town"), &GamemenuRespawnInTown    },
+	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game       },
+	{ GMENU_ENABLED, N_("Main Menu"),       &GamemenuReturnToMainMenu },
+	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions          },
+	{ GMENU_ENABLED, N_("Exit Game"),       &gamemenu_quit_game       },
+	{ GMENU_ENABLED, nullptr,               nullptr                   }
 	// clang-format on
 };
 /** Contains the game menu items of the multi player menu. */
@@ -139,6 +142,23 @@ void GamemenuNewGame(bool /*bActivate*/)
 	CornerStone.activated = false;
 	gbRunGame = false;
 	gamemenu_off();
+}
+
+/**
+ * @brief Oracool: user bug report - the ESC menu's "Main Menu" entry was landing back on the
+ * hero/character-select screen instead of the actual title screen (Single Player/Multiplayer/
+ * Options/Exit Diablo). That's because it reused GamemenuNewGame verbatim, which only abandons
+ * the current game and lets StartGame's own loop (diablo.cpp) re-run hero selection - vanilla's
+ * "New Game" always worked this way, since it exists to let you pick a different character, not
+ * to leave the game entirely. Reaching the real title screen needs the separate ReturnToMainMenu
+ * flag (diablo.h) - already used by the NOEXIT build's "Quit Game" for the same reason - which
+ * StartGame checks right after its game loop returns, short-circuiting past its own hero-select
+ * retry loop straight back to mainmenu_loop (menu.cpp).
+ */
+void GamemenuReturnToMainMenu(bool bActivate)
+{
+	GamemenuNewGame(bActivate);
+	ReturnToMainMenu = true;
 }
 
 void GamemenuRestartTown(bool /*bActivate*/)

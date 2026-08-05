@@ -1330,8 +1330,8 @@ void DrawInventoryTabs(const Surface &out)
 		// Oracool: was UiFlags::ColorUiSilver - that color remap is tuned for the main-menu art
 		// font and actually renders as dark red against the in-game font (same quirk already
 		// documented in qol/floatingnumbers.cpp), which is why inactive tabs looked red instead
-		// of silver/white.
-		const UiFlags color = selected ? UiFlags::ColorGold : UiFlags::ColorWhite;
+		// of silver/white. User request: inactive tabs gold, the active tab blue.
+		const UiFlags color = selected ? UiFlags::ColorBlue : UiFlags::ColorGold;
 		DrawString(out, RomanNumeralTabLabels[tab], Rectangle { GetPanelPosition(UiPanels::Inventory, { x, y }), { width, height } }, { color | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 }
