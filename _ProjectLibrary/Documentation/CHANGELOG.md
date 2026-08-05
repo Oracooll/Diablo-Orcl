@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.22 — Smaller Pause Menu Font
+
+The in-game ESC/pause menu (both the "Pause" title and the menu items below it) now uses a slightly smaller font size than before.
+
+---
+
 ## v0.3.21 — Main Menu Spacing
 
 The trimmed main menu (Single Player, Settings, Exit) now has a blank row's worth of breathing room between each entry instead of sitting cramped back-to-back.

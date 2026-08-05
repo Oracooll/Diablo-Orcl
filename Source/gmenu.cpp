@@ -110,7 +110,11 @@ int GmenuGetLineWidth(TMenuItem *pItem)
 	if (pItem->isSlider())
 		return SliderItemWidth;
 
-	return GetLineWidth(_(pItem->pszStr), GameFont46, 2);
+	// Oracool: user request - reduced from GameFont46 to GameFont42. Must stay in sync with the
+	// draw flag in GmenuDrawMenuItem below, since this width is what centers the text horizontally
+	// - measuring at the old (larger) size while drawing at the new (smaller) one would shift the
+	// text off-center instead of properly centering the now-narrower string.
+	return GetLineWidth(_(pItem->pszStr), GameFont42, 2);
 }
 
 void GmenuDrawMenuItem(const Surface &out, TMenuItem *pItem, int y)
@@ -129,7 +133,7 @@ void GmenuDrawMenuItem(const Surface &out, TMenuItem *pItem, int y)
 
 	int x = (gnScreenWidth - w) / 2;
 	UiFlags style = pItem->enabled() ? UiFlags::ColorGold : UiFlags::ColorBlack;
-	DrawString(out, _(pItem->pszStr), Point { x, y }, { style | UiFlags::FontSize46, 2 });
+	DrawString(out, _(pItem->pszStr), Point { x, y }, { style | UiFlags::FontSize42, 2 });
 	if (pItem == sgpCurrItem) {
 		const ClxSprite sprite = (*PentSpin_cel)[PentSpn2Spin()];
 		ClxDraw(out, { x - 54, y + 51 }, sprite);
@@ -174,7 +178,10 @@ void gmenu_draw_pause(const Surface &out)
 		RedBack(out);
 	if (sgpCurrentMenu == nullptr) {
 		LightTableIndex = 0;
-		DrawString(out, _("Pause"), { { 0, 0 }, { gnScreenWidth, GetMainPanel().position.y } }, { UiFlags::FontSize46 | UiFlags::ColorGold | UiFlags::AlignCenter | UiFlags::VerticalCenter, 2 });
+		// Oracool: user request - reduced from FontSize46 to FontSize42, matching the menu item
+		// text size change in GmenuDrawMenuItem/GmenuGetLineWidth above, so the "Pause" title and
+		// the menu entries below it stay visually consistent.
+		DrawString(out, _("Pause"), { { 0, 0 }, { gnScreenWidth, GetMainPanel().position.y } }, { UiFlags::FontSize42 | UiFlags::ColorGold | UiFlags::AlignCenter | UiFlags::VerticalCenter, 2 });
 	}
 }
 
