@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.21 — Main Menu Spacing
+
+The trimmed main menu (Single Player, Settings, Exit) now has a blank row's worth of breathing room between each entry instead of sitting cramped back-to-back.
+
+---
+
 ## v0.3.20 — Level-Up Sound, Smarter Inventory Sort
 
 Leveling up now plays a sound - the same one you hear when the Poisoned Water Supply quest is completed. There was no level-up sound before this.

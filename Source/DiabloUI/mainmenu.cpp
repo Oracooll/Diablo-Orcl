@@ -62,7 +62,15 @@ void MainmenuLoad(const char *name)
 		vecMainMenuDialog.push_back(std::make_unique<UiArtText>(_("Shareware").data(), rect1, UiFlags::FontSize30 | UiFlags::ColorUiSilver | UiFlags::AlignCenter, 8));
 	}
 
-	vecMainMenuDialog.push_back(std::make_unique<UiList>(vecMenuItems, vecMenuItems.size(), uiPosition.x + 64, (uiPosition.y + 192), 510, 43, UiFlags::FontSize42 | UiFlags::ColorUiGold | UiFlags::AlignCenter, 5));
+	// Oracool: user request - the menu looked cramped with only 3 entries left (down from the
+	// original 6), so each item's row now reserves a full blank row's worth of extra space below
+	// it (86 = double the original 43px row height) instead of sitting back-to-back with the next.
+	// UiList::itemRect() spaces every row by this same height, and text renders top-aligned within
+	// its row (no VerticalCenter flag below), so the added height shows up as empty space after
+	// each item's text rather than stretching the text itself. Total list height (3 * 86 = 258px)
+	// matches what the original 6-item menu already occupied (6 * 43 = 258px), so this fits the
+	// same vertical space the working, untrimmed menu always used.
+	vecMainMenuDialog.push_back(std::make_unique<UiList>(vecMenuItems, vecMenuItems.size(), uiPosition.x + 64, (uiPosition.y + 192), 510, 86, UiFlags::FontSize42 | UiFlags::ColorUiGold | UiFlags::AlignCenter, 5));
 
 	SDL_Rect rect2 = { 17, (Sint16)(gnScreenHeight - 47), 605, 32 };
 	vecMainMenuDialog.push_back(std::make_unique<UiArtText>(name, rect2, UiFlags::FontSize12 | UiFlags::ColorUiSilverDark, 1, 16));
