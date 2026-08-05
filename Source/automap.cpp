@@ -1029,26 +1029,59 @@ void DrawAutomap(const Surface &out)
 void DrawMiniMap(const Surface &out)
 {
 	// Oracool: user-requested size increases after trying it in-game - 130 -> 169 (30% larger) ->
-	// 203 (another 20%) -> 223 (another 10%).
+	// 203 (another 20%) -> 223 (another 10%). Now purely a zoom-level input (passed as
+	// DrawAutomapCore's cellsBasisWidth below) rather than the on-screen box's actual shape - see
+	// the diamond-bounds calculation right below for why those stopped being the same thing.
 	constexpr Size MiniMapSize { 223, 223 };
-	constexpr int MiniMapMargin = 8;
-	// Oracool: moved from the top-left to the top-right corner per user request, matching Diablo
-	// 3/4's own minimap placement.
-	const Point MiniMapScreenPosition { gnScreenWidth - MiniMapSize.width - MiniMapMargin, MiniMapMargin };
 	// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
 	// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.
 	constexpr int MiniMapScale = 12;
 
-	// Dark backing so the small map reads clearly against whatever's happening in the live game
-	// view behind it, instead of the diamond tile shapes blending into the dungeon art.
-	DrawHalfTransparentRectTo(out, MiniMapScreenPosition.x, MiniMapScreenPosition.y, MiniMapSize.width, MiniMapSize.height);
+	// Oracool: the automap's rendered content is an isometric diamond, not a rectangle - a square
+	// backing this size leaves large, pointless dark bands above/below the diamond (its natural
+	// width:height ratio is roughly 2:1, nothing like a 1:1 square). This mirrors DrawAutomapCore's
+	// own cells-from-width calculation so the backing/outline below can be sized to the diamond's
+	// actual pixel bounding box instead of guessing - if that math ever changes, this needs to
+	// change with it.
+	const int savedScaleForBounds = AutoMapScale;
+	AutoMapScale = MiniMapScale;
+	const int tilePitchX = AmLine(64);
+	const int tilePitchY = AmLine(32);
+	const int tileHalfHeight = AmLine(16);
+	const int d = (AutoMapScale * 64) / 100;
+	int cells = 2 * (MiniMapSize.width / 2 / d) + 1;
+	if (((MiniMapSize.width / 2) % d) != 0)
+		cells++;
+	if (((MiniMapSize.width / 2) % d) >= (AutoMapScale * 32) / 100)
+		cells++;
+	AutoMapScale = savedScaleForBounds;
 
-	const Surface miniMapSurface = out.subregion(MiniMapScreenPosition.x, MiniMapScreenPosition.y, MiniMapSize.width, MiniMapSize.height);
+	const int diamondWidth = (cells + 1) * tilePitchX;
+	const int diamondHeight = (cells + 2) * tilePitchY + tileHalfHeight;
+
+	constexpr int MiniMapMargin = 8;
+	// Oracool: top-right corner per user request, matching Diablo 3/4's own minimap placement.
+	const Point MiniMapScreenPosition { gnScreenWidth - diamondWidth - MiniMapMargin, MiniMapMargin };
+
+	// Dark backing so the small map reads clearly against whatever's happening in the live game
+	// view behind it, instead of the diamond tile shapes blending into the dungeon art. Sized to
+	// the diamond's own bounding box (see above), not a larger square - no more wasted dark space.
+	DrawHalfTransparentRectTo(out, MiniMapScreenPosition.x, MiniMapScreenPosition.y, diamondWidth, diamondHeight);
+
+	const Surface miniMapSurface = out.subregion(MiniMapScreenPosition.x, MiniMapScreenPosition.y, diamondWidth, diamondHeight);
+	const Point diamondCenter { diamondWidth / 2, diamondHeight / 2 };
 
 	const int savedScale = AutoMapScale;
 	AutoMapScale = MiniMapScale;
-	DrawAutomapCore(miniMapSurface, { MiniMapSize.width / 2, MiniMapSize.height / 2 }, MiniMapSize.width, /*applyPanelAvoidance=*/false);
+	DrawAutomapCore(miniMapSurface, diamondCenter, MiniMapSize.width, /*applyPanelAvoidance=*/false);
 	AutoMapScale = savedScale;
+
+	// Oracool: gold 2px border around the cropped box's own edges - user feedback specifically
+	// asked for a rectangle around the tightened render area (not a diamond-shaped outline
+	// following the isometric content's silhouette), matching the crop above exactly since both
+	// use the same diamondWidth/diamondHeight.
+	constexpr uint8_t MiniMapBorderColor = PAL16_YELLOW + 2;
+	UnsafeDrawBorder2px(miniMapSurface, Rectangle { { 0, 0 }, { diamondWidth, diamondHeight } }, MiniMapBorderColor);
 }
 
 void UpdateAutomapExplorer(Point map, MapExplorationType explorer)

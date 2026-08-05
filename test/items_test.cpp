@@ -156,11 +156,19 @@ TEST(Item, CanStackWith_SameItemSameIdentifiedState)
 	EXPECT_TRUE(a.canStackWith(b));
 }
 
-TEST(Item, CanStackWith_DifferentIdentifiedStateDoesNotStack)
+// Regression test for a real bug: canStackWith() used to also require _iIdentified equality,
+// but _iIdentified is set inconsistently across generation paths for stackable consumables
+// (SetupItem, items.cpp, unconditionally sets it false for monster/floor drops, only flipped
+// true afterward if Auto Identify Drops is on; vendor stock and starting gear set it true
+// directly) even though identification is functionally meaningless for these always-
+// ITEM_QUALITY_NORMAL items. A dungeon-dropped potion could silently refuse to stack with an
+// otherwise-identical vendor-bought or starting one. Fixed by dropping _iIdentified from the
+// comparison entirely - same kind, same spell is sufficient regardless of identified state.
+TEST(Item, CanStackWith_DifferentIdentifiedStateStillStacks)
 {
 	Item a = MakeItem(ICLASS_MISC, IMISC_HEAL, IDI_HEAL, true);
 	Item b = MakeItem(ICLASS_MISC, IMISC_HEAL, IDI_HEAL, false);
-	EXPECT_FALSE(a.canStackWith(b));
+	EXPECT_TRUE(a.canStackWith(b));
 }
 
 TEST(Item, CanStackWith_DifferentBaseItemDoesNotStack)

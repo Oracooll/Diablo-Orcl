@@ -290,7 +290,12 @@ TEST_F(InvTest, MergeStackableItemIntoInventory_fallsBackToNewSlotWhenStackFull)
 	EXPECT_EQ(MyPlayer->_pNumInv, 2);                                  // placed in a new slot instead
 }
 
-TEST_F(InvTest, MergeStackableItemIntoInventory_identifiedStateMismatchDoesNotMerge)
+// Regression test: a dungeon/monster-dropped potion (SetupItem sets _iIdentified=false,
+// items.cpp) must still merge with an otherwise-identical vendor-bought or starting one
+// (_iIdentified=true) - identification is functionally meaningless for these always-
+// ITEM_QUALITY_NORMAL items, and canStackWith() no longer compares it. Previously this pair
+// would land in a separate slot instead of merging.
+TEST_F(InvTest, MergeStackableItemIntoInventory_identifiedStateMismatchStillMerges)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
 	clear_inventory();
@@ -302,8 +307,8 @@ TEST_F(InvTest, MergeStackableItemIntoInventory_identifiedStateMismatchDoesNotMe
 
 	Item incoming = MakeStackablePotion(IDI_HEAL, /*identified=*/false, 1);
 	EXPECT_TRUE(AutoPlaceItemInInventory(*MyPlayer, incoming, true));
-	EXPECT_EQ(MyPlayer->InvList[0].stackCount(), 5); // untouched
-	EXPECT_EQ(MyPlayer->_pNumInv, 2);                // separate slot for the unidentified one
+	EXPECT_EQ(MyPlayer->InvList[0].stackCount(), 6); // merged into the existing stack
+	EXPECT_EQ(MyPlayer->_pNumInv, 1);                // no separate slot needed
 }
 
 TEST_F(InvTest, MergeStackableItemIntoBelt_mergesIntoExistingStack)

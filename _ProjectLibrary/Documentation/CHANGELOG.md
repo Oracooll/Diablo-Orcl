@@ -193,6 +193,22 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.7 — Mini-Map Cropped and Bordered, Broken Items Get a Red X, Another Potion-Stacking Fix
+
+### Mini-map no longer wastes screen space on empty dark padding
+
+The mini-map's dark backing was a square, but the actual rendered map content is diamond-shaped and roughly twice as wide as it is tall - leaving big, pointless dark bands above and below the real content. The mini-map now crops tightly to the actual rendered area (mostly shorter, not narrower) and has a thin gold border around it.
+
+### Broken items get a red X
+
+An equipped item at 0 durability already turned grayscale (since v0.2.6). It now also gets a red X stamped over its icon, wherever that icon appears - inventory, belt, equipped slots.
+
+### Mana/health potions: another stacking bug fixed
+
+A potion found in the dungeon could refuse to stack with an otherwise-identical one bought from a vendor or carried since character creation. This was a second bug behind the same symptom fixed back in v0.2.3 - potions track an internal "identified" flag that's set inconsistently depending on where they came from, even though it has no actual effect on a potion (only equipment cares about identification). That flag is no longer part of the stacking check.
+
+---
+
 ## v0.3.6 — Mini-Map Moved to the Top-Right Corner
 
 The mini-map now sits in the top-right corner instead of the top-left, matching where Diablo 3 and 4 put theirs. Nothing else about it changed.

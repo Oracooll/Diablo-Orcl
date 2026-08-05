@@ -524,8 +524,20 @@ struct Item {
 		// use - both displaying as the exact same potion with no visible difference. IDidx
 		// would treat those as different items and refuse to stack them; _iMiscId is shared
 		// by both underlying indices, since it's what actually determines the potion's kind.
+		//
+		// Oracool: _iIdentified is deliberately NOT compared here (it used to be, and that was
+		// itself a bug). Every stackable consumable (potions, scrolls, books, oils) is always
+		// ITEM_QUALITY_NORMAL, and normal-quality items are already treated as identified for
+		// every display/behavior purpose regardless of this flag's actual value (see the
+		// _iMagical == ITEM_QUALITY_NORMAL checks elsewhere in this file). But the flag's raw
+		// value is NOT consistent across sources: SetupItem() (items.cpp) unconditionally sets
+		// it false for every monster/floor drop, only flipped true afterward if Auto Identify
+		// Drops is on, while vendor stock and starting gear set it true directly. A
+		// dungeon-dropped mana potion with the option off could therefore have _iIdentified=false
+		// while an otherwise-identical one bought from Adria has it true - comparing this field
+		// made two visually and functionally identical potions silently refuse to stack.
 		return isStackableConsumable() && other.isStackableConsumable()
-		    && _iMiscId == other._iMiscId && _iSpell == other._iSpell && _iIdentified == other._iIdentified;
+		    && _iMiscId == other._iMiscId && _iSpell == other._iSpell;
 	}
 
 	/** @brief Maximum number of prefix (or suffix) affixes an Oracool-tiered item may carry. */

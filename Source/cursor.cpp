@@ -16,8 +16,10 @@
 #include "engine.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/load_cel.hpp"
+#include "engine/palette.h"
 #include "engine/point.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/trn.hpp"
 #include "hwcursor.hpp"
@@ -252,6 +254,31 @@ void DrawItem(const Item &item, const Surface &out, Point position, ClxSprite cl
 		ClxDraw(out, position, clx);
 	} else {
 		ClxDrawTRN(out, position, clx, GetInfravisionTRN());
+	}
+
+	// Oracool: a broken (0 durability) item already renders grayscale via the branch above -
+	// stamp a red X over its icon too, wherever it's drawn (inventory, belt, equipped slots all
+	// share this one function), as a clearer at-a-glance signal than the grayscale alone.
+	if (item._iOracoolBroken) {
+		const int width = static_cast<int>(clx.width());
+		const int height = static_cast<int>(clx.height());
+		const Point topLeft { position.x, position.y - height };
+		constexpr int Inset = 3;
+		constexpr int Thickness = 2;
+		constexpr uint8_t BrokenItemXColor = PAL8_RED;
+		const Point a1 { topLeft.x + Inset, topLeft.y + Inset };
+		const Point a2 { topLeft.x + width - Inset, topLeft.y + height - Inset };
+		const Point b1 { topLeft.x + width - Inset, topLeft.y + Inset };
+		const Point b2 { topLeft.x + Inset, topLeft.y + height - Inset };
+		const int steps = std::max({ std::abs(a2.x - a1.x), std::abs(a2.y - a1.y), 1 });
+		for (int i = 0; i <= steps; i++) {
+			const int x = a1.x + (a2.x - a1.x) * i / steps;
+			const int y = a1.y + (a2.y - a1.y) * i / steps;
+			FillRect(out, x - Thickness / 2, y - Thickness / 2, Thickness, Thickness, BrokenItemXColor);
+			const int x2 = b1.x + (b2.x - b1.x) * i / steps;
+			const int y2 = b1.y + (b2.y - b1.y) * i / steps;
+			FillRect(out, x2 - Thickness / 2, y2 - Thickness / 2, Thickness, Thickness, BrokenItemXColor);
+		}
 	}
 
 	// Stack quantity, bottom-right of the icon. Deliberately not the top of the icon,
