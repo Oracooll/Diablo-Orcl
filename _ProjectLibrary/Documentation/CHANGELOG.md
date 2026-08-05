@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.1 — Bigger Mini-Map
+
+The mini-map introduced in v0.2.10 is now 30% larger (169x169 instead of 130x130), showing more of the surrounding area at the same zoom level. Its position and everything else about it is unchanged.
+
+---
+
 ## v0.3.0 — Torment Difficulty & Level 99
 
 **This release changes the character save format (the level cap increase needs more room to store experience than the old format had). Existing characters cannot be loaded after updating - start a new character. Existing saves are not deleted, so nothing is lost if you want to keep playing an older build instead.**

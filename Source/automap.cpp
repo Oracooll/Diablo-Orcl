@@ -1012,7 +1012,8 @@ void DrawAutomap(const Surface &out)
 
 void DrawMiniMap(const Surface &out)
 {
-	constexpr Size MiniMapSize { 130, 130 };
+	// Oracool: 30% larger than the original 130x130, per user request after trying it in-game.
+	constexpr Size MiniMapSize { 169, 169 };
 	constexpr Point MiniMapScreenPosition { 8, 8 };
 	// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
 	// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.

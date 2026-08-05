@@ -611,6 +611,11 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - The mini-map's `130x130`/scale-`12`/`{8,8}` constants are a first reasonable guess, not something that could be tuned by eye without rendering tools available in this environment - **not visually verified at all**, unlike most other UI work this session which at least had the existing full map's known-good behavior to reason from analogically. Worth the closest manual look of everything shipped tonight: confirm the player arrow and nearby rooms are actually legible at this size/scale before treating the constants as final.
 - No new Oracool option to disable the mini-map specifically (TAB cycling through it is the only control) - if the constant blink-through during exploration turns out to be annoying, an option to skip straight from no-map to full-map might be worth adding as a follow-up, but wasn't part of the locked-in design.
 
+### v0.3.1 update: mini-map size increased
+
+- User request after trying it in-game: `MiniMapSize` raised from `130x130` to `169x169` (30% larger). `MiniMapScreenPosition` (`{8, 8}`) and `MiniMapScale` (`12`) are unchanged, so this shows more of the surrounding area at the same zoom level rather than the same area rendered bigger.
+- The screen-position/scale/legibility caveats above still apply and haven't been re-verified at the new size.
+
 ## OE-029: v0.3.0 Level cap raised to 99
 
 - Status: Build-verified, full regression suite green (192 automated tests across items_test/inv_test/stores_test/loadsave_test/player_test/pack_test/missiles_test/writehero_test/format_int_test).
