@@ -1312,7 +1312,11 @@ void DrawInventoryTabs(const Surface &out)
 			height += EnlargeSelected;
 		}
 
-		const UiFlags color = selected ? UiFlags::ColorGold : UiFlags::ColorUiSilver;
+		// Oracool: was UiFlags::ColorUiSilver - that color remap is tuned for the main-menu art
+		// font and actually renders as dark red against the in-game font (same quirk already
+		// documented in qol/floatingnumbers.cpp), which is why inactive tabs looked red instead
+		// of silver/white.
+		const UiFlags color = selected ? UiFlags::ColorGold : UiFlags::ColorWhite;
 		DrawString(out, StrCat(tab + 1), Rectangle { GetPanelPosition(UiPanels::Inventory, { x, y }), { width, height } }, { color | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 }

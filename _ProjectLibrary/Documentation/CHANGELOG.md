@@ -193,6 +193,18 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.6 — Mini-Map Moved to the Top-Right Corner
+
+The mini-map now sits in the top-right corner instead of the top-left, matching where Diablo 3 and 4 put theirs. Nothing else about it changed.
+
+---
+
+## v0.3.5 — Inventory Tab Numbers: Red to White
+
+Inactive inventory tab numbers were actually rendering as dark red rather than the intended silver/gray - a font-color quirk on our end, not a display issue on yours. They're now white.
+
+---
+
 ## v0.3.4 — Marker Right-Sized, Click Feedback on RESET and SRT
 
 Now that the mini-map marker is actually visible, 15x15 turned out to be overkill - it's now 4x4. The RESET and SRT buttons also now show a clear color change while you're clicking them: RESET turns white while held (gold normally), SRT turns gold while held (white normally). Both revert to their normal color on release.

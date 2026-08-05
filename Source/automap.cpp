@@ -1031,7 +1031,10 @@ void DrawMiniMap(const Surface &out)
 	// Oracool: user-requested size increases after trying it in-game - 130 -> 169 (30% larger) ->
 	// 203 (another 20%) -> 223 (another 10%).
 	constexpr Size MiniMapSize { 223, 223 };
-	constexpr Point MiniMapScreenPosition { 8, 8 };
+	constexpr int MiniMapMargin = 8;
+	// Oracool: moved from the top-left to the top-right corner per user request, matching Diablo
+	// 3/4's own minimap placement.
+	const Point MiniMapScreenPosition { gnScreenWidth - MiniMapSize.width - MiniMapMargin, MiniMapMargin };
 	// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
 	// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.
 	constexpr int MiniMapScale = 12;
