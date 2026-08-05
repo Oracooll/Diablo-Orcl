@@ -185,6 +185,14 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.9 — Subtle Autosave Indicator
+
+### Autosaves now use a quieter notification
+
+Automatic saves used to show the same "Game Saved" popup as a manual save from the game menu. That popup now only appears for manual saves. Autosaves instead show a brief "Saved" flash in the top-left corner of the screen that blinks a couple of times and disappears within about a second - easy to miss if you're not looking for it, which is the point. This is controlled by the existing "Auto Save Notification" setting; turning it off silences autosave notifications entirely, same as before.
+
+---
+
 ## v0.2.8 — Gold Pickup Goes to the Stash
 
 ### Gold no longer takes up inventory space

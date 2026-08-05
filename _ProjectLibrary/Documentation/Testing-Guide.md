@@ -355,3 +355,12 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Fill your backpack completely with non-gold items, then walk over a gold pile with auto-pickup on. Confirm it still gets picked up (into the Stash) instead of auto-pickup silently refusing because "no room" - this specifically used to be inventory-space-gated and no longer should be.
 - Open the Stash and use its "withdraw gold" button to pull some gold back into your inventory. Confirm this still works exactly as before - a real gold pile should appear in your backpack, capped by however much room your backpack actually has.
 - If you have an existing character with gold already sitting in their inventory from before this update, confirm the character panel's "Gold" total still correctly includes it (added on top of whatever's in the Stash) - old inventory gold isn't migrated anywhere, just displayed alongside the new total.
+
+### Post-migration: v0.2.9 Subtle autosave indicator (OE-027)
+
+**Not yet visually verified - no tooling available to screenshot/render the running game. This is the first real look at it.**
+
+- Trigger an autosave (level change, item pickup, or just wait for the periodic interval) with "Auto Save Notification" on. Confirm a small "Saved" text flashes briefly in the top-left corner of the screen and disappears within about a second - it should blink a couple of times, not sit there like a static banner.
+- Open the game menu and use "Save Game" (a manual save). Confirm this still shows the original, unchanged "Game Saved" popup in its usual location - manual saves should look exactly as they did before this update.
+- Turn "Auto Save Notification" off, trigger another autosave, and confirm no indicator appears at all (the save still happens silently, just without any visual cue).
+- Check whether the "Saved" text is actually legible/visible against a variety of backgrounds (bright dungeon floor tiles, dark areas, etc.) - if it's too subtle to notice at all, or conversely too distracting, that's worth flagging for a follow-up adjustment.

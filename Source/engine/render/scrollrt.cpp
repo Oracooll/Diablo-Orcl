@@ -31,6 +31,7 @@
 #include "missiles.h"
 #include "nthread.h"
 #include "options.h"
+#include "oracool/save_indicator.h"
 #include "panels/charpanel.hpp"
 #include "plrmsg.h"
 #include "qol/chatlog.h"
@@ -1272,6 +1273,7 @@ void DrawView(const Surface &out, Point startPosition)
 	if (IsDiabloMsgAvailable()) {
 		DrawDiabloMsg(out);
 	}
+	oracool::DrawSaveIndicator(out);
 	// Drawn after every other interface panel/dialog above so a hovered item's floating
 	// stat popup (vanilla Unique, or Oracool-tiered) is always genuinely on top, not just
 	// above the panels it happened to predate in this list.

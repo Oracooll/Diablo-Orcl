@@ -6,12 +6,12 @@
 #include "cursor.h"
 #include "diablo.h"
 #include "engine/demomode.h"
-#include "error.h"
 #include "gmenu.h"
 #include "loadsave.h"
 #include "minitext.h"
 #include "multi.h"
 #include "options.h"
+#include "oracool/save_indicator.h"
 #include "player.h"
 #include "stores.h"
 
@@ -100,7 +100,7 @@ void ProcessAutoSave()
 
 	SaveGame();
 	if (*sgOptions.Oracool.autoSaveNotification)
-		InitDiabloMsg(EMSG_GAME_SAVED, 1000);
+		TriggerSaveIndicator();
 }
 
 } // namespace devilution::oracool
