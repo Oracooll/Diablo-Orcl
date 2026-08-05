@@ -1318,12 +1318,12 @@ void DrawInventoryTabs(const Surface &out)
 }
 
 /**
- * @brief Oracool: draws the inventory sort button as a white "SORT" label.
+ * @brief Oracool: draws the inventory sort button as a white "SRT" label.
  */
 void DrawInventorySortButton(const Surface &out)
 {
 	const Point position = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition);
-	DrawString(out, "SORT", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorWhite });
+	DrawString(out, "SRT", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorWhite });
 }
 
 void DrawInv(const Surface &out)

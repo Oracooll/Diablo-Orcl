@@ -640,7 +640,7 @@ void SearchAutomapItem(const Surface &out, const Displacement &myPlayerOffset, i
 /**
  * @brief Renders an arrow on the automap, centered on and facing the direction of the player.
  */
-void DrawAutomapPlr(const Surface &out, const Displacement &myPlayerOffset, int playerId)
+void DrawAutomapPlr(const Surface &out, Point screenCenter, const Displacement &myPlayerOffset, int playerId)
 {
 	int playerColor = MapColorsPlayer + (8 * playerId) % 128;
 
@@ -657,12 +657,18 @@ void DrawAutomapPlr(const Surface &out, const Displacement &myPlayerOffset, int 
 	if (player.isWalking())
 		playerOffset = GetOffsetForWalking(player.AnimInfo, player._pdir);
 
+	// Oracool: uses the caller-supplied screenCenter (matching whatever DrawAutomapCore centered
+	// its tile grid on) instead of always assuming the full screen's own center - previously
+	// hardcoded to gnScreenWidth/gnScreenHeight, this silently drew the marker far outside the
+	// mini-map's tiny subregion (clipped away entirely, regardless of how big the marker itself
+	// was) since the mini-map's tile grid is centered on the subregion's own small midpoint, not
+	// the real screen's.
 	Point base = {
-		((playerOffset.deltaX + myPlayerOffset.deltaX) * AutoMapScale / 100 / 2) + (px - py) * AmLine(16) + gnScreenWidth / 2,
-		((playerOffset.deltaY + myPlayerOffset.deltaY) * AutoMapScale / 100 / 2) + (px + py) * AmLine(8) + (gnScreenHeight - GetMainPanel().size.height) / 2
+		((playerOffset.deltaX + myPlayerOffset.deltaX) * AutoMapScale / 100 / 2) + (px - py) * AmLine(16) + screenCenter.x,
+		((playerOffset.deltaY + myPlayerOffset.deltaY) * AutoMapScale / 100 / 2) + (px + py) * AmLine(8) + screenCenter.y
 	};
 
-	if (CanPanelsCoverView()) {
+	if (!MiniMapActive && CanPanelsCoverView()) {
 		if (IsRightPanelOpen())
 			base.x -= gnScreenWidth / 4;
 		if (IsLeftPanelOpen())
@@ -675,7 +681,7 @@ void DrawAutomapPlr(const Surface &out, const Displacement &myPlayerOffset, int 
 		// which shrink to 1-2px and become nearly invisible at the mini-map's heavily zoomed-out
 		// AutoMapScale - draw a fixed-size solid block instead so the player's position is always
 		// clearly visible regardless of zoom level.
-		constexpr int MiniMapPlayerMarkerSize = 7;
+		constexpr int MiniMapPlayerMarkerSize = 15;
 		FillRect(out, base.x - MiniMapPlayerMarkerSize / 2, base.y - MiniMapPlayerMarkerSize / 2, MiniMapPlayerMarkerSize, MiniMapPlayerMarkerSize, static_cast<uint8_t>(playerColor));
 		return;
 	}
@@ -997,7 +1003,7 @@ void DrawAutomapCore(const Surface &out, Point screenCenter, int cellsBasisWidth
 	for (size_t playerId = 0; playerId < Players.size(); playerId++) {
 		Player &player = Players[playerId];
 		if (player.isOnActiveLevel() && player.plractive && !player._pLvlChanging && (&player == MyPlayer || player.friendlyMode)) {
-			DrawAutomapPlr(out, myPlayerOffset, playerId);
+			DrawAutomapPlr(out, screenCenter, myPlayerOffset, playerId);
 		}
 	}
 
@@ -1022,9 +1028,9 @@ void DrawAutomap(const Surface &out)
 
 void DrawMiniMap(const Surface &out)
 {
-	// Oracool: user-requested size increases after trying it in-game - 130x130 -> 169x169 (30%
-	// larger), then another 20% larger on top of that.
-	constexpr Size MiniMapSize { 203, 203 };
+	// Oracool: user-requested size increases after trying it in-game - 130 -> 169 (30% larger) ->
+	// 203 (another 20%) -> 223 (another 10%).
+	constexpr Size MiniMapSize { 223, 223 };
 	constexpr Point MiniMapScreenPosition { 8, 8 };
 	// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
 	// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.

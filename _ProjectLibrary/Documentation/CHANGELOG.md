@@ -193,6 +193,18 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.3 — Mini-Map Marker Actually Fixed, Sort Button Shortened
+
+### The mini-map marker is now actually visible - it was a positioning bug, not just a size problem
+
+The bigger, bolder marker added in v0.3.2 still wasn't visible in-game. The real cause: it was being drawn using the full screen's center coordinates instead of the mini-map's own small area, so it was rendering completely off-canvas every time, regardless of size. That's now fixed - your position marker actually appears on the mini-map. While fixing it: made it bigger again (15x15, up from 7x7) and enlarged the mini-map itself another 10% (223x223, up from 203x203).
+
+### Sort button shortened
+
+"SORT" is now "SRT" - the button is back to a more compact size.
+
+---
+
 ## v0.3.2 — UI Polish: Buttons, Autosave Sign, Bigger Mini-Map and a Visible You
 
 ### Reset Stats and Sort buttons now use words, not symbols
