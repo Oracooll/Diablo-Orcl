@@ -201,6 +201,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.29 — Game Saved Log Entries Are White
+
+The "Game saved" and "Game saved (auto)" lines in the Event Log now use white text instead of gold.
+
+---
+
 ## v0.3.28 — Quest Items Can Use Extra Tabs, Rare Item Display Fix, and More
 
 A big batch of fixes and small requests:

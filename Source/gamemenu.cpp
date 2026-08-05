@@ -369,7 +369,7 @@ void gamemenu_save_game(bool /*bActivate*/)
 	RedrawEverything();
 	DrawAndBlit();
 	SaveGame();
-	oracool::LogEvent("Game saved");
+	oracool::LogEvent("Game saved", UiFlags::ColorWhite);
 	ClrDiabloMsg();
 	InitDiabloMsg(EMSG_GAME_SAVED, 1000);
 	RedrawEverything();

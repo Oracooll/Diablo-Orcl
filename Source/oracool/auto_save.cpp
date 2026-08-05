@@ -100,7 +100,7 @@ void ProcessAutoSave()
 		return;
 
 	SaveGame();
-	LogEvent("Game saved (auto)");
+	LogEvent("Game saved (auto)", UiFlags::ColorWhite);
 	if (*sgOptions.Oracool.autoSaveNotification)
 		TriggerSaveIndicator();
 }
