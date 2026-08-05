@@ -185,6 +185,14 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.10 — Mini-Map
+
+### TAB now cycles through no map, mini-map, and the full map
+
+TAB used to be a plain on/off toggle for the full-screen automap. It now cycles through three states: no map, a small always-in-the-corner mini-map, and the full map you're already used to - pressing TAB again from the full map goes back to no map. The mini-map sits in the top-left corner over the live game view, showing a heavily zoomed-out look at nearby rooms and your position, on a dark backing so it stays readable over the dungeon art behind it. Everything else about the full map - zoom, panning, exploration tracking - works exactly as before.
+
+---
+
 ## v0.2.9 — Subtle Autosave Indicator
 
 ### Autosaves now use a quieter notification

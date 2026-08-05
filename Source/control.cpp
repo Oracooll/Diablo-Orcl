@@ -1031,10 +1031,16 @@ void control_check_btn_press()
 
 void DoAutoMap()
 {
-	if (!AutomapActive)
+	// Oracool: cycles through no map -> mini-map -> full map -> no map, instead of the vanilla
+	// plain on/off toggle.
+	if (!AutomapActive && !MiniMapActive) {
+		MiniMapActive = true;
+	} else if (MiniMapActive) {
+		MiniMapActive = false;
 		StartAutomap();
-	else
+	} else {
 		AutomapActive = false;
+	}
 }
 
 void CheckPanelInfo()

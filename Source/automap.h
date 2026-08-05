@@ -30,6 +30,12 @@ enum MapExplorationType : uint8_t {
 
 /** Specifies whether the automap is enabled. */
 extern DVL_API_FOR_TEST bool AutomapActive;
+/**
+ * @brief Oracool: specifies whether the small always-corner mini-map overlay is enabled. Mutually
+ * exclusive with AutomapActive - DoAutoMap (control.cpp) cycles TAB through no map -> mini-map ->
+ * full map -> no map, rather than the vanilla plain on/off toggle.
+ */
+extern DVL_API_FOR_TEST bool MiniMapActive;
 /** Tracks the explored areas of the map. */
 extern uint8_t AutomapView[DMAXX][DMAXY];
 /** Specifies the scale of the automap. */
@@ -92,6 +98,13 @@ void AutomapZoomOut();
  * @brief Renders the automap to the given buffer.
  */
 void DrawAutomap(const Surface &out);
+
+/**
+ * @brief Oracool: renders a small, heavily zoomed-out automap into a fixed corner of the screen,
+ * on top of the live game view rather than replacing it. Shares all of DrawAutomap's tile/player
+ * rendering via DrawAutomapCore - see automap.cpp.
+ */
+void DrawMiniMap(const Surface &out);
 
 /**
  * @brief Updates automap explorer at point if value is higher than existing.

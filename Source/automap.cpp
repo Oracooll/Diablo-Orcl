@@ -817,6 +817,7 @@ std::unique_ptr<AutomapTile[]> LoadAutomapData(size_t &tileCount)
 } // namespace
 
 bool AutomapActive;
+bool MiniMapActive;
 uint8_t AutomapView[DMAXX][DMAXY];
 int AutoMapScale;
 Displacement AutomapOffset;
@@ -824,6 +825,7 @@ Displacement AutomapOffset;
 void InitAutomapOnce()
 {
 	AutomapActive = false;
+	MiniMapActive = false;
 	AutoMapScale = 50;
 }
 
@@ -888,7 +890,15 @@ void AutomapZoomOut()
 	AutoMapScale -= 5;
 }
 
-void DrawAutomap(const Surface &out)
+/**
+ * @brief Oracool: the shared tile/player-rendering core behind both DrawAutomap and DrawMiniMap.
+ * Everything about the world-space view (which tile is centered, walk-animation offset) is
+ * computed here exactly as it always was; screenCenter and cellsBasisWidth are the only two
+ * parameters DrawAutomap's own math actually varies by, letting DrawMiniMap reuse this unchanged
+ * except for a smaller AutoMapScale, a smaller screen target, and skipping panel avoidance (a
+ * corner mini-map doesn't need to dodge side panels the way the full-screen map does).
+ */
+void DrawAutomapCore(const Surface &out, Point screenCenter, int cellsBasisWidth, bool applyPanelAvoidance)
 {
 	Automap = { (ViewPosition.x - 8) / 2, (ViewPosition.y - 8) / 2 };
 	if (leveltype != DTYPE_TOWN) {
@@ -913,18 +923,15 @@ void DrawAutomap(const Surface &out)
 	myPlayerOffset += Displacement { -1, (leveltype != DTYPE_CAVES) ? TILE_HEIGHT - 1 : -1 };
 
 	int d = (AutoMapScale * 64) / 100;
-	int cells = 2 * (gnScreenWidth / 2 / d) + 1;
-	if (((gnScreenWidth / 2) % d) != 0)
+	int cells = 2 * (cellsBasisWidth / 2 / d) + 1;
+	if (((cellsBasisWidth / 2) % d) != 0)
 		cells++;
-	if (((gnScreenWidth / 2) % d) >= (AutoMapScale * 32) / 100)
+	if (((cellsBasisWidth / 2) % d) >= (AutoMapScale * 32) / 100)
 		cells++;
 	if ((myPlayerOffset.deltaX + myPlayerOffset.deltaY) != 0)
 		cells++;
 
-	Point screen {
-		gnScreenWidth / 2,
-		(gnScreenHeight - GetMainPanel().size.height) / 2
-	};
+	Point screen = screenCenter;
 	if ((cells & 1) != 0) {
 		screen.x -= AmLine(64) * ((cells - 1) / 2);
 		screen.y -= AmLine(32) * ((cells + 1) / 2);
@@ -944,7 +951,7 @@ void DrawAutomap(const Surface &out)
 	screen.x += AutoMapScale * myPlayerOffset.deltaX / 100 / 2;
 	screen.y += AutoMapScale * myPlayerOffset.deltaY / 100 / 2;
 
-	if (CanPanelsCoverView()) {
+	if (applyPanelAvoidance && CanPanelsCoverView()) {
 		if (IsRightPanelOpen()) {
 			screen.x -= gnScreenWidth / 4;
 		}
@@ -988,8 +995,36 @@ void DrawAutomap(const Surface &out)
 	if (IsDebugAutomapHighlightNeeded())
 		SearchAutomapItem(out, myPlayerOffset, std::max(MAXDUNX, MAXDUNY), ShouldHighlightDebugAutomapTile);
 #endif
+}
 
+void DrawAutomap(const Surface &out)
+{
+	Point screenCenter {
+		gnScreenWidth / 2,
+		(gnScreenHeight - GetMainPanel().size.height) / 2
+	};
+	DrawAutomapCore(out, screenCenter, gnScreenWidth, /*applyPanelAvoidance=*/true);
 	DrawAutomapText(out);
+}
+
+void DrawMiniMap(const Surface &out)
+{
+	constexpr Size MiniMapSize { 130, 130 };
+	constexpr Point MiniMapScreenPosition { 8, 8 };
+	// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
+	// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.
+	constexpr int MiniMapScale = 12;
+
+	// Dark backing so the small map reads clearly against whatever's happening in the live game
+	// view behind it, instead of the diamond tile shapes blending into the dungeon art.
+	DrawHalfTransparentRectTo(out, MiniMapScreenPosition.x, MiniMapScreenPosition.y, MiniMapSize.width, MiniMapSize.height);
+
+	const Surface miniMapSurface = out.subregion(MiniMapScreenPosition.x, MiniMapScreenPosition.y, MiniMapSize.width, MiniMapSize.height);
+
+	const int savedScale = AutoMapScale;
+	AutoMapScale = MiniMapScale;
+	DrawAutomapCore(miniMapSurface, { MiniMapSize.width / 2, MiniMapSize.height / 2 }, MiniMapSize.width, /*applyPanelAvoidance=*/false);
+	AutoMapScale = savedScale;
 }
 
 void UpdateAutomapExplorer(Point map, MapExplorationType explorer)

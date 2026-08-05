@@ -364,3 +364,15 @@ For every toggleable feature, test both enabled and disabled states after restar
 - Open the game menu and use "Save Game" (a manual save). Confirm this still shows the original, unchanged "Game Saved" popup in its usual location - manual saves should look exactly as they did before this update.
 - Turn "Auto Save Notification" off, trigger another autosave, and confirm no indicator appears at all (the save still happens silently, just without any visual cue).
 - Check whether the "Saved" text is actually legible/visible against a variety of backgrounds (bright dungeon floor tiles, dark areas, etc.) - if it's too subtle to notice at all, or conversely too distracting, that's worth flagging for a follow-up adjustment.
+
+### Post-migration: v0.2.10 Mini-map with TAB 3-state cycle (OE-028)
+
+**Not visually verified at all - no rendering tools available in this environment. This is genuinely the first look at it; go in expecting to report back on legibility and sizing, not just correctness.**
+
+- In a dungeon level (not town), press TAB once. Confirm a small map appears in the top-left corner over the live game view, on a dark backing, showing nearby explored rooms and your character's position/direction.
+- Press TAB again. Confirm the mini-map disappears and the normal full-screen automap appears instead, exactly as it always has (zoom with mouse wheel or +/-, pan with arrow keys, etc. should all still work identically).
+- Press TAB a third time. Confirm you're back to no map at all - the full three-state cycle (none -> mini -> full -> none) should repeat cleanly if you keep pressing.
+- While the mini-map is showing, walk around and confirm it updates live - your position/direction arrow should move and newly-explored areas should appear, matching what the full map would show for the same area.
+- With the mini-map showing, open an info screen that force-closes the map (check whatever's bound to "Hide Info Screens") and confirm it actually closes the mini-map too, not just the full map.
+- **Legibility check** (the main open question): is the mini-map actually readable at its current size, or too small/zoomed-out to tell anything useful at a glance? Is the dark backing enough to keep it visible over bright dungeon tiles? This is the first real-world look at the chosen size (130x130 pixels) and zoom level - flag it if it needs to be bigger, smaller, differently scaled, or repositioned.
+- Save and quit while the mini-map is showing, then reload. Confirm the game comes back with no map shown (mini-map state isn't persisted, unlike the full map's on/off state) - this is a known, deliberate limitation, not a bug, but worth confirming it doesn't do anything worse (like coming back in some broken half-state).

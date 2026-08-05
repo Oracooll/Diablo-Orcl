@@ -1794,6 +1794,7 @@ void InitKeymapActions()
 			    stream_stop();
 		    }
 		    AutomapActive = false;
+		    MiniMapActive = false;
 		    CancelCurrentDiabloMsg();
 		    gamemenu_off();
 		    doom_close();
@@ -2268,6 +2269,7 @@ void InitPadmapActions()
 			    stream_stop();
 		    }
 		    AutomapActive = false;
+		    MiniMapActive = false;
 		    CancelCurrentDiabloMsg();
 		    gamemenu_off();
 		    doom_close();

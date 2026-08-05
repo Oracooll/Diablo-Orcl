@@ -529,3 +529,27 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - Drawn at a fixed `{8, 8}` screen-absolute position (not panel-relative), top-left corner, using `UiFlags::FontSize12` (the smallest available font size) - deliberately small and out of the way of any panel UI.
 - New source file registered in `Source/CMakeLists.txt`'s explicit file list (this project doesn't glob sources).
 - Not visually verified - no tooling available in this environment to render/screenshot the running game, matching the same caveat already on record for the Reset Stats icon.
+
+## OE-028: v0.2.10 Mini-map with TAB 3-state cycle
+
+- Status: Build-verified (185 automated tests, unchanged from OE-027 - this is a rendering feature, no new pure-logic unit to isolate cleanly; the full existing suite passing is what confirms the automap refactor below is behavior-preserving).
+- User request, refined the same day: an always-in-a-corner small map, built on top of the existing full-screen Automap rather than new map-rendering logic from scratch. Refined further: TAB should **cycle through three states** - no map, mini-map, full map - instead of the existing plain on/off toggle.
+
+### Automap refactor: extracting a reusable rendering core
+
+- `DrawAutomap(const Surface&)` (`automap.cpp`) computed its screen-space geometry (viewport center point, how many dungeon tiles fit across the screen) directly from the `gnScreenWidth`/`gnScreenHeight` globals and `GetMainPanel()`, with no parameter for a smaller target area - a genuine obstacle, since simply passing a smaller/clipped `Surface` wouldn't shrink or recenter the drawn content, only clip it (confirmed by tracing the geometry math before touching anything).
+- Split into `DrawAutomapCore(const Surface &out, Point screenCenter, int cellsBasisWidth, bool applyPanelAvoidance)` - identical tile/player-rendering logic, but with the two previously-hardcoded globals now parameters, and the side-panel-avoidance adjustment (irrelevant for a small corner map) made conditional. `DrawAutomap` itself becomes a thin wrapper passing the exact original values (`gnScreenWidth`, screen-center from `GetMainPanel()`, `applyPanelAvoidance=true`) plus the trailing `DrawAutomapText` call it always had - **byte-for-byte equivalent to the pre-refactor behavior**, confirmed by direct before/after comparison of the extracted math, not just by the full regression suite passing (which doesn't exercise rendering pixel output at all, only compiles/links against the changed signatures).
+- New `DrawMiniMap(const Surface&)` calls the same `DrawAutomapCore` with a small `130x130` target (`out.subregion(8, 8, 130, 130)`), a heavily reduced `AutoMapScale` (12, temporarily overriding the global and restoring it afterward - safe since rendering is single-threaded and synchronous), `applyPanelAvoidance=false`, and a screen-center of the subregion's own midpoint (`{65, 65}`, since `Surface::subregion` coordinates are relative to the subregion's own origin, not the real screen). Draws a `DrawHalfTransparentRectTo` dark backing first so the tile shapes read clearly over the live game view instead of blending into it.
+
+### TAB 3-state cycle
+
+- New `bool MiniMapActive` (`automap.h`/`.cpp`), mutually exclusive with the existing `AutomapActive` by construction.
+- `DoAutoMap()` (`control.cpp`), the single choke point both the keyboard (`SDLK_TAB`) and gamepad bindings route through (confirmed via `diablo.cpp:1730-1737`/`2103-2108`), rewritten from a two-state toggle to: no map (`!AutomapActive && !MiniMapActive`) -> `MiniMapActive = true` -> (`MiniMapActive` true) `MiniMapActive = false; StartAutomap()` -> (`AutomapActive` true) `AutomapActive = false` -> back to no map.
+- `scrollrt.cpp`'s render call site changed from `if (AutomapActive) DrawAutomap(...)` to an `if/else if` also covering `MiniMapActive`, so the two states are drawn mutually exclusively as intended.
+- The two "Hide Info Screens" action handlers (`diablo.cpp:1796`/`2270`, which already force `AutomapActive = false`) now also force `MiniMapActive = false`, so that action fully closes either map state, not just the full one.
+
+### Known limitations, deliberately not addressed in this pass
+
+- **Not persisted across save/load.** `AutomapActive` is saved (`loadsave.cpp`'s fixed-layout `LoadGame`/`SaveGameData`); `MiniMapActive` is not - it resets to "no map" on load/rejoin, same as loading into a fresh session. Persisting it would mean repurposing more of that same fixed-format save function this project has touched before (see OE-024's Reset Stats fields), which felt like more risk than this cosmetic state's value justified for this pass.
+- The mini-map's `130x130`/scale-`12`/`{8,8}` constants are a first reasonable guess, not something that could be tuned by eye without rendering tools available in this environment - **not visually verified at all**, unlike most other UI work this session which at least had the existing full map's known-good behavior to reason from analogically. Worth the closest manual look of everything shipped tonight: confirm the player arrow and nearby rooms are actually legible at this size/scale before treating the constants as final.
+- No new Oracool option to disable the mini-map specifically (TAB cycling through it is the only control) - if the constant blink-through during exploration turns out to be annoying, an option to skip straight from no-map to full-map might be worth adding as a follow-up, but wasn't part of the locked-in design.
