@@ -2410,6 +2410,8 @@ void OperateShrineHidden(Player &player)
 		if (!item.isEmpty())
 			cnt++;
 	}
+	bool damagedAnItem = false;
+	std::string damagedItemName;
 	if (cnt > 0) {
 		for (auto &item : player.InvBody) {
 			if (!item.isEmpty()
@@ -2440,11 +2442,15 @@ void OperateShrineHidden(Player &player)
 				player.InvBody[r]._iDurability = 1;
 			if (player.InvBody[r]._iMaxDur <= 0)
 				player.InvBody[r]._iMaxDur = 1;
+			damagedAnItem = true;
+			damagedItemName = std::string(player.InvBody[r].getName());
 			break;
 		}
 	}
 
 	InitDiabloMsg(EMSG_SHRINE_HIDDEN);
+	if (damagedAnItem)
+		oracool::LogEvent(fmt::format("Hidden Shrine: +10 max durability to all equipped items, -20 durability to {:s}", damagedItemName), UiFlags::ColorRed);
 }
 
 void OperateShrineGloomy(Player &player)
@@ -2479,6 +2485,7 @@ void OperateShrineGloomy(Player &player)
 	CalcPlrInv(player, true);
 
 	InitDiabloMsg(EMSG_SHRINE_GLOOMY);
+	oracool::LogEvent("Gloomy Shrine: -1 max damage to every weapon you carry, +2 Armor Class to every shield/helm/armor you carry", UiFlags::ColorRed);
 }
 
 void OperateShrineWeird(Player &player)
@@ -2508,6 +2515,7 @@ void OperateShrineWeird(Player &player)
 	CalcPlrInv(player, true);
 
 	InitDiabloMsg(EMSG_SHRINE_WEIRD);
+	oracool::LogEvent("Weird Shrine: +1 max damage to your equipped weapons and every weapon in your inventory", UiFlags::ColorRed);
 }
 
 void OperateShrineMagical(const Player &player)
@@ -2601,6 +2609,8 @@ void OperateShrineEnchanted(Player &player)
 				Stash.RefreshItemStatFlags();
 			}
 		}
+
+		oracool::LogEvent(fmt::format("Enchanted Shrine: +1 level to every other known spell, -1 level to {:s}", pgettext("spell", GetSpellData(static_cast<SpellID>(spellToReduce)).sNameText)), UiFlags::ColorRed);
 	}
 
 	InitDiabloMsg(EMSG_SHRINE_ENCHANTED);
@@ -2623,7 +2633,7 @@ void OperateShrineThaumaturgic(const Player &player)
 	InitDiabloMsg(EMSG_SHRINE_THAUMATURGIC);
 }
 
-void OperateShrineCostOfWisdom(Player &player, SpellID spellId, diablo_message message)
+void OperateShrineCostOfWisdom(Player &player, SpellID spellId, diablo_message message, const char *shrineName)
 {
 	if (&player != MyPlayer)
 		return;
@@ -2631,10 +2641,12 @@ void OperateShrineCostOfWisdom(Player &player, SpellID spellId, diablo_message m
 	player._pMemSpells |= GetSpellBitmask(spellId);
 
 	uint8_t curSpellLevel = player._pSplLvl[static_cast<int8_t>(spellId)];
+	int spellLevelsGained = 0;
 	if (curSpellLevel < MaxSpellLevel) {
 		uint8_t newSpellLevel = std::min(static_cast<uint8_t>(curSpellLevel + 2), MaxSpellLevel);
 		player._pSplLvl[static_cast<int8_t>(spellId)] = newSpellLevel;
 		NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(spellId), newSpellLevel);
+		spellLevelsGained = newSpellLevel - curSpellLevel;
 	}
 
 	if (&player == MyPlayer) {
@@ -2665,6 +2677,12 @@ void OperateShrineCostOfWisdom(Player &player, SpellID spellId, diablo_message m
 	RedrawEverything();
 
 	InitDiabloMsg(message);
+	const std::string_view spellName = pgettext("spell", GetSpellData(spellId).sNameText);
+	if (spellLevelsGained > 0) {
+		oracool::LogEvent(fmt::format("{:s} Shrine: {:s} +{:d} spell level(s), -{:d} max mana (permanent)", shrineName, spellName, spellLevelsGained, t >> 6), UiFlags::ColorRed);
+	} else {
+		oracool::LogEvent(fmt::format("{:s} Shrine: {:s} already at max level, -{:d} max mana (permanent)", shrineName, spellName, t >> 6), UiFlags::ColorRed);
+	}
 }
 
 void OperateShrineCryptic(Player &player)
@@ -2695,6 +2713,7 @@ void OperateShrineEldritch(Player &player)
 	if (&player != MyPlayer)
 		return;
 
+	int potionsUpgraded = 0;
 	for (Item &item : InventoryAndBeltPlayerItemsRange { player }) {
 		if (item._itype != ItemType::Misc) {
 			continue;
@@ -2706,6 +2725,7 @@ void OperateShrineEldritch(Player &player)
 			InitializeItem(item, ItemMiscIdIdx(IMISC_REJUV));
 			item._iSeed = seed;
 			item._iStatFlag = true;
+			potionsUpgraded++;
 			continue;
 		}
 		if (IsAnyOf(item._iMiscId, IMISC_FULLHEAL, IMISC_FULLMANA)) {
@@ -2714,6 +2734,7 @@ void OperateShrineEldritch(Player &player)
 			InitializeItem(item, ItemMiscIdIdx(IMISC_FULLREJUV));
 			item._iSeed = seed;
 			item._iStatFlag = true;
+			potionsUpgraded++;
 			continue;
 		}
 	}
@@ -2721,6 +2742,8 @@ void OperateShrineEldritch(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_ELDRITCH);
+	if (potionsUpgraded > 0)
+		oracool::LogEvent(fmt::format("Eldritch Shrine: upgraded {:d} potion(s) to Rejuvenation/Full Rejuvenation", potionsUpgraded), UiFlags::ColorRed);
 }
 
 void OperateShrineEerie(Player &player)
@@ -2781,6 +2804,7 @@ void OperateShrineSpiritual(Player &player)
 	if (&player != MyPlayer)
 		return;
 
+	int goldFound = 0;
 	for (int8_t &itemIndex : player.InvGrid) {
 		if (itemIndex == 0) {
 			Item &goldItem = player.InvList[player._pNumInv];
@@ -2789,10 +2813,13 @@ void OperateShrineSpiritual(Player &player)
 			itemIndex = player._pNumInv;
 
 			player._pGold += goldItem._ivalue;
+			goldFound += goldItem._ivalue;
 		}
 	}
 
 	InitDiabloMsg(EMSG_SHRINE_SPIRITUAL);
+	if (goldFound > 0)
+		oracool::LogEvent(fmt::format("Spiritual Shrine: found {:d} gold in your empty inventory slots", goldFound), UiFlags::ColorRed);
 }
 
 void OperateShrineSpooky(const Player &player)
@@ -2873,9 +2900,11 @@ void OperateShrineGlimmering(Player &player)
 	if (&player != MyPlayer)
 		return;
 
+	int itemsIdentified = 0;
 	for (Item &item : PlayerItemsRange { player }) {
 		if (item._iMagical != ITEM_QUALITY_NORMAL && !item._iIdentified) {
 			item._iIdentified = true;
+			itemsIdentified++;
 		}
 	}
 
@@ -2883,6 +2912,8 @@ void OperateShrineGlimmering(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_GLIMMERING);
+	if (itemsIdentified > 0)
+		oracool::LogEvent(fmt::format("Glimmering Shrine: identified {:d} item(s)", itemsIdentified), UiFlags::ColorRed);
 }
 
 void OperateShrineTainted(const Player &player)
@@ -3007,6 +3038,8 @@ void OperateShrineMendicant(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_MENDICANT);
+	if (gold > 0)
+		oracool::LogEvent(fmt::format("Mendicant Shrine: converted {:d} gold into experience", gold), UiFlags::ColorRed);
 }
 
 /**
@@ -3034,6 +3067,7 @@ void OperateShrineSparkling(Player &player, Point spawnPosition)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_SPARKLING);
+	oracool::LogEvent(fmt::format("Sparkling Shrine: +{:d} experience", 1000 * currlevel), UiFlags::ColorRed);
 }
 
 /**
@@ -3111,22 +3145,30 @@ void OperateShrineMurphys(Player &player)
 		return;
 
 	bool broke = false;
+	std::string brokenItemName;
 	for (auto &item : player.InvBody) {
 		if (!item.isEmpty() && FlipCoin(3)) {
 			if (item._iDurability != DUR_INDESTRUCTIBLE) {
 				if (item._iDurability > 0) {
 					item._iDurability /= 2;
 					broke = true;
+					brokenItemName = std::string(item.getName());
 					break;
 				}
 			}
 		}
 	}
+	int goldLost = 0;
 	if (!broke) {
-		TakePlrsMoney(player._pGold / 3);
+		goldLost = player._pGold / 3;
+		TakePlrsMoney(goldLost);
 	}
 
 	InitDiabloMsg(EMSG_SHRINE_MURPHYS);
+	if (broke)
+		oracool::LogEvent(fmt::format("Murphy's Shrine: durability of {:s} halved", brokenItemName), UiFlags::ColorRed);
+	else if (goldLost > 0)
+		oracool::LogEvent(fmt::format("Murphy's Shrine: lost {:d} gold", goldLost), UiFlags::ColorRed);
 }
 
 void OperateShrine(Player &player, Object &shrine, _sfx_id sType)
@@ -3175,7 +3217,7 @@ void OperateShrine(Player &player, Object &shrine, _sfx_id sType)
 		OperateShrineThaumaturgic(player);
 		break;
 	case ShrineFascinating:
-		OperateShrineCostOfWisdom(player, SpellID::Firebolt, EMSG_SHRINE_FASCINATING);
+		OperateShrineCostOfWisdom(player, SpellID::Firebolt, EMSG_SHRINE_FASCINATING, "Fascinating");
 		break;
 	case ShrineCryptic:
 		OperateShrineCryptic(player);
@@ -3193,7 +3235,7 @@ void OperateShrine(Player &player, Object &shrine, _sfx_id sType)
 		OperateShrineHoly(player);
 		break;
 	case ShrineSacred:
-		OperateShrineCostOfWisdom(player, SpellID::ChargedBolt, EMSG_SHRINE_SACRED);
+		OperateShrineCostOfWisdom(player, SpellID::ChargedBolt, EMSG_SHRINE_SACRED, "Sacred");
 		break;
 	case ShrineSpiritual:
 		OperateShrineSpiritual(player);
@@ -3214,7 +3256,7 @@ void OperateShrine(Player &player, Object &shrine, _sfx_id sType)
 		OperateShrineSecluded(player);
 		break;
 	case ShrineOrnate:
-		OperateShrineCostOfWisdom(player, SpellID::HolyBolt, EMSG_SHRINE_ORNATE);
+		OperateShrineCostOfWisdom(player, SpellID::HolyBolt, EMSG_SHRINE_ORNATE, "Ornate");
 		break;
 	case ShrineGlimmering:
 		OperateShrineGlimmering(player);

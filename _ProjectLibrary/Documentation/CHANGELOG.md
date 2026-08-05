@@ -201,6 +201,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.25 — Every Permanent Shrine Effect Now Logged
+
+The last update only logged shrines that change one of your four main stats. On reflection, plenty of other shrines have a permanent effect on you or your gear that deserves the same treatment - so now every shrine that permanently changes a stat, your maximum mana, a spell's level, an item's durability or quality, your gold, or your experience logs a clear red line explaining exactly what happened. That's Hidden, Gloomy, Weird, Enchanted, Fascinating, Sacred, Ornate, Eldritch, Spiritual, Glimmering, Mendicant, Sparkling, and Murphy's Shrines, on top of the ones already covered. Shrines that only cast a temporary spell effect, restore your current HP/mana, or otherwise don't leave a lasting mark are intentionally left alone.
+
+---
+
 ## v0.3.24 — Mini-Map Door/Stairs Markers, Space Closes the Log
 
 The mini-map now marks doors with a small light gray square and stairs with a slightly larger red square, both bold and solid so they stay clearly visible even at the mini-map's tiny zoom level (the map's normal thin line-art for these barely shows up that small). They move with the map exactly like everything else. The full-screen map is untouched - it keeps its original line-art doors and stairs, which are already easy to see at that zoom.
