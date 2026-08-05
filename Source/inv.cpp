@@ -1317,13 +1317,16 @@ void DrawInventoryTabs(const Surface &out)
 	}
 }
 
+bool inventorySortButtonDown;
+
 /**
- * @brief Oracool: draws the inventory sort button as a white "SRT" label.
+ * @brief Oracool: draws the inventory sort button as "SRT" - white normally, gold while pressed
+ * (matching the Reset Stats button's own press-feedback pattern) for visible click feedback.
  */
 void DrawInventorySortButton(const Surface &out)
 {
 	const Point position = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition);
-	DrawString(out, "SRT", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorWhite });
+	DrawString(out, "SRT", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (inventorySortButtonDown ? UiFlags::ColorGold : UiFlags::ColorWhite) });
 }
 
 void DrawInv(const Surface &out)
@@ -2090,6 +2093,10 @@ bool CheckInventorySortButtonClick(Point cursorPosition)
 	if (!button.contains(cursorPosition))
 		return false;
 
+	// Oracool: the sort itself still runs immediately on mouse-down (unchanged) - this flag is
+	// purely so the button visibly changes color for the moment the mouse stays pressed, cleared
+	// in diablo.cpp's LeftMouseUp regardless of where the mouse is by then.
+	inventorySortButtonDown = true;
 	SortInventoryBySellValue(*MyPlayer);
 	return true;
 }

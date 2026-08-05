@@ -409,6 +409,7 @@ void LeftMouseUp(uint16_t modState)
 		ReleaseLvlBtn();
 	if (stextflag != TalkID::None)
 		ReleaseStoreBtn();
+	inventorySortButtonDown = false;
 }
 
 void RightMouseDown(bool isShiftHeld)

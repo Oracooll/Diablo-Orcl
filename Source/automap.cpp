@@ -681,7 +681,7 @@ void DrawAutomapPlr(const Surface &out, Point screenCenter, const Displacement &
 		// which shrink to 1-2px and become nearly invisible at the mini-map's heavily zoomed-out
 		// AutoMapScale - draw a fixed-size solid block instead so the player's position is always
 		// clearly visible regardless of zoom level.
-		constexpr int MiniMapPlayerMarkerSize = 15;
+		constexpr int MiniMapPlayerMarkerSize = 4;
 		FillRect(out, base.x - MiniMapPlayerMarkerSize / 2, base.y - MiniMapPlayerMarkerSize / 2, MiniMapPlayerMarkerSize, MiniMapPlayerMarkerSize, static_cast<uint8_t>(playerColor));
 		return;
 	}

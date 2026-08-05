@@ -251,6 +251,13 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player);
 constexpr Point InventorySortButtonPosition { 8, 180 };
 constexpr Size InventorySortButtonSize { 32, 24 };
 /**
+ * @brief Oracool: true for the single frame between a mouse-down hit on the sort button and the
+ * corresponding mouse-up, purely for click-feedback color (the sort itself already runs
+ * immediately on mouse-down, unlike the Reset Stats button's press-then-release model). Cleared in
+ * diablo.cpp's LeftMouseUp, matching resetStatsButtonDown's own clearing pattern.
+ */
+extern bool inventorySortButtonDown;
+/**
  * @brief Oracool: repacks the backpack (tab 1) and every extra inventory tab, most valuable item
  * first, filling tab 1 before spilling into tab 2 and so on. Gold and quest items (see
  * CanItemEnterExtraTab) are left exactly where they are - only genuinely relocatable items are

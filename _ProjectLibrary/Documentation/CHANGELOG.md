@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.4 — Marker Right-Sized, Click Feedback on RESET and SRT
+
+Now that the mini-map marker is actually visible, 15x15 turned out to be overkill - it's now 4x4. The RESET and SRT buttons also now show a clear color change while you're clicking them: RESET turns white while held (gold normally), SRT turns gold while held (white normally). Both revert to their normal color on release.
+
+---
+
 ## v0.3.3 — Mini-Map Marker Actually Fixed, Sort Button Shortened
 
 ### The mini-map marker is now actually visible - it was a positioning bug, not just a size problem

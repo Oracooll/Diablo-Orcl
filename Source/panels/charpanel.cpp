@@ -280,8 +280,9 @@ void DrawStatButtons(const Surface &out)
 		// constants if this ever moves again, not a new hardcoded literal here.
 		const Point position = GetPanelPosition(UiPanels::Character, ResetStatsButtonPosition);
 		// Oracool: a circular-arrow glyph (Unicode U+21BA), then a plain "R", didn't read well
-		// against the game's actual bitmap font - now a gold "RESET" word label instead.
-		DrawString(out, "RESET", { position, ResetStatsButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorRed : UiFlags::ColorGold) });
+		// against the game's actual bitmap font - now a gold "RESET" word label instead, turning
+		// white while pressed for visible click feedback.
+		DrawString(out, "RESET", { position, ResetStatsButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorWhite : UiFlags::ColorGold) });
 	}
 }
 
