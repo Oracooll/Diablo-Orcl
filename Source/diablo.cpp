@@ -762,6 +762,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				HelpScrollUp();
 			} else if (ChatLogFlag) {
 				ChatLogScrollUp();
+			} else if (oracool::IsEventLogOpen()) {
+				oracool::ScrollEventLogUp();
 			} else if (IsStashOpen) {
 				Stash.PreviousPage();
 			} else if (SDL_GetModState() & KMOD_CTRL) {
@@ -780,6 +782,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				HelpScrollDown();
 			} else if (ChatLogFlag) {
 				ChatLogScrollDown();
+			} else if (oracool::IsEventLogOpen()) {
+				oracool::ScrollEventLogDown();
 			} else if (IsStashOpen) {
 				Stash.NextPage();
 			} else if (SDL_GetModState() & KMOD_CTRL) {

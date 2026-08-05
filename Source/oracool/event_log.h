@@ -23,8 +23,17 @@ namespace devilution::oracool {
  */
 void LogEvent(std::string message);
 
-/** @brief Opens or closes the event log window. */
+/** @brief Opens or closes the event log window. Resets scroll position back to the newest entries. */
 void ToggleEventLog();
+
+/** @brief True when the Event Log option is on and the window is currently open. */
+bool IsEventLogOpen();
+
+/** @brief Scrolls toward the newest entries. No-op if already at the top. Mouse-wheel-up. */
+void ScrollEventLogUp();
+
+/** @brief Scrolls toward older entries. No-op if already at the oldest visible page. Mouse-wheel-down. */
+void ScrollEventLogDown();
 
 /** @brief Draws the always-visible toggle button. Call once per frame during gameplay. */
 void DrawEventLogButton(const Surface &out);

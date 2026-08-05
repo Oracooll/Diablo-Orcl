@@ -107,6 +107,20 @@ void DrawAutomap(const Surface &out);
 void DrawMiniMap(const Surface &out);
 
 /**
+ * @brief Oracool: the mini-map's actual on-screen pixel width (its diamond content's bounding
+ * box, not the MiniMapSize zoom-level constant) - exposed so other UI that wants to visually
+ * match the mini-map's width (the event log window) doesn't have to duplicate the formula.
+ */
+int GetMiniMapWidth();
+
+/**
+ * @brief Oracool: the y-coordinate just past the mini-map's bottom edge (its screen-space margin
+ * plus its diamond content's height) - exposed so other UI can anchor itself relative to where
+ * the mini-map actually ends on screen (the event log window's top boundary).
+ */
+int GetMiniMapBottom();
+
+/**
  * @brief Updates automap explorer at point if value is higher than existing.
  */
 void UpdateAutomapExplorer(Point map, MapExplorationType explorer);

@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 
 #include "DiabloUI/ui_flags.hpp"
+#include "automap.h"
 #include "control.h"
 #include "engine/palette.h"
 #include "engine/rectangle.hpp"
@@ -35,7 +36,6 @@ constexpr size_t MinVisibleLines = 3;
 
 constexpr int ButtonWidth = 32;
 constexpr int ButtonHeight = 20;
-constexpr int WindowWidth = 380;
 constexpr int LineHeight = 14;
 constexpr int WindowPadding = 8;
 constexpr int ScreenMargin = 4;
@@ -44,6 +44,17 @@ constexpr uint8_t EventLogBorderColor = PAL16_YELLOW + 2;
 std::deque<LogEntry> Entries;
 bool WindowOpen = false;
 std::string PendingDeathSource;
+// Oracool: how many entries are skipped from the front (most recent) before drawing - 0 means
+// "showing the newest entries", matching qol/chatlog.cpp's SkipLines convention. Reset to 0 every
+// time the window is opened, same as chatlog's own reset-on-open behavior.
+size_t ScrollOffset = 0;
+
+// Oracool: user request - the window should be no wider than the mini-map. Queried live rather
+// than duplicated as a constant, since it's itself derived from AutoMapScale.
+int WindowWidth()
+{
+	return GetMiniMapWidth();
+}
 
 // Oracool: sits just above the durability-warning icons (control.cpp's DrawDurIcon, anchored to
 // the same top-right x and drawn upward from MainPanel.position.y - 17), so the button has a
@@ -56,15 +67,20 @@ Point ButtonPosition()
 	return { x, y };
 }
 
-// Oracool: the window opens upward from the button (toward the top of the screen, where there's
-// always ample room) rather than downward toward the main panel. At low resolutions (640x480 is
-// this engine's default) there isn't enough room below the button to fit a fixed-height window
-// without it running off the bottom of the screen - UnsafeDrawBorder2px/DrawHalfTransparentRectTo
-// don't bounds-check, so that used to write past the framebuffer and crash the game. Visible line
-// count is now derived from actual available space instead of a fixed constant.
+// Oracool: the window opens upward from the button, capped at 5px below the mini-map's own
+// bottom border per user request - it never crowds the mini-map, and never needs to (the mini-map
+// sits well above the button, so there's still plenty of room between the two for most entry
+// counts). This also happens to keep it safely on-screen at any resolution: at low resolutions
+// (640x480 is this engine's default) there isn't enough room below the button to fit a
+// fixed-height window without running off the bottom of the screen -
+// UnsafeDrawBorder2px/DrawHalfTransparentRectTo don't bounds-check, so that used to write past the
+// framebuffer and crash the game. Visible line count is derived from actual available space
+// instead of a fixed constant.
 size_t VisibleLineCount()
 {
-	const int availableHeight = ButtonPosition().y - ScreenMargin;
+	const int windowBottom = ButtonPosition().y - 4;
+	const int windowTopBound = GetMiniMapBottom() + 5;
+	const int availableHeight = windowBottom - windowTopBound;
 	const int contentHeight = availableHeight - WindowPadding * 2 - LineHeight;
 	const int lines = contentHeight / LineHeight;
 	return static_cast<size_t>(std::clamp(lines, static_cast<int>(MinVisibleLines), static_cast<int>(MaxVisibleLines)));
@@ -79,9 +95,12 @@ Point WindowPosition()
 {
 	const Point button = ButtonPosition();
 	const int windowHeight = WindowHeight();
-	int x = button.x + ButtonWidth - WindowWidth;
-	x = std::clamp(x, ScreenMargin, static_cast<int>(gnScreenWidth) - WindowWidth - ScreenMargin);
-	int y = std::max(button.y - windowHeight - 4, ScreenMargin);
+	const int windowWidth = WindowWidth();
+	int x = button.x + ButtonWidth - windowWidth;
+	x = std::clamp(x, ScreenMargin, static_cast<int>(gnScreenWidth) - windowWidth - ScreenMargin);
+	// The mini-map-bottom-plus-5 boundary is enforced by VisibleLineCount() above; ScreenMargin here
+	// is only a last-resort safety net against ever drawing off the top of the screen.
+	int y = std::max(button.y - 4 - windowHeight, ScreenMargin);
 	return { x, y };
 }
 
@@ -106,6 +125,27 @@ void LogEvent(std::string message)
 void ToggleEventLog()
 {
 	WindowOpen = !WindowOpen;
+	if (WindowOpen)
+		ScrollOffset = 0;
+}
+
+bool IsEventLogOpen()
+{
+	return *sgOptions.Oracool.eventLog && WindowOpen;
+}
+
+void ScrollEventLogUp()
+{
+	if (ScrollOffset > 0)
+		ScrollOffset--;
+}
+
+void ScrollEventLogDown()
+{
+	const size_t maxShown = VisibleLineCount() - 1;
+	const size_t maxScroll = Entries.size() > maxShown ? Entries.size() - maxShown : 0;
+	if (ScrollOffset < maxScroll)
+		ScrollOffset++;
 }
 
 void DrawEventLogButton(const Surface &out)
@@ -126,11 +166,12 @@ void DrawEventLogWindow(const Surface &out)
 
 	const Point windowPosition = WindowPosition();
 	const int windowHeight = WindowHeight();
-	DrawHalfTransparentRectTo(out, windowPosition.x, windowPosition.y, WindowWidth, windowHeight);
-	UnsafeDrawBorder2px(out, Rectangle { windowPosition, { WindowWidth, windowHeight } }, EventLogBorderColor);
+	const int windowWidth = WindowWidth();
+	DrawHalfTransparentRectTo(out, windowPosition.x, windowPosition.y, windowWidth, windowHeight);
+	UnsafeDrawBorder2px(out, Rectangle { windowPosition, { windowWidth, windowHeight } }, EventLogBorderColor);
 
 	Point linePosition = windowPosition + Displacement { WindowPadding, WindowPadding };
-	const Size lineSize { WindowWidth - WindowPadding * 2, LineHeight };
+	const Size lineSize { windowWidth - WindowPadding * 2, LineHeight };
 
 	DrawString(out, "Event Log", Rectangle { linePosition, lineSize }, { UiFlags::ColorGold | UiFlags::FontSize12 });
 	linePosition.y += LineHeight;
@@ -141,8 +182,15 @@ void DrawEventLogWindow(const Surface &out)
 	}
 
 	const size_t maxShown = VisibleLineCount() - 1;
+	const size_t maxScroll = Entries.size() > maxShown ? Entries.size() - maxShown : 0;
+	if (ScrollOffset > maxScroll)
+		ScrollOffset = maxScroll;
+
+	size_t index = 0;
 	size_t shown = 0;
 	for (const LogEntry &entry : Entries) {
+		if (index++ < ScrollOffset)
+			continue;
 		if (shown >= maxShown)
 			break;
 		const std::string line = fmt::format("{:s}  {:s}", entry.timestamp, entry.message);

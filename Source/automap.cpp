@@ -1048,30 +1048,29 @@ void DrawDashedBorder1px(const Surface &out, int x, int y, int width, int height
 	}
 }
 
-void DrawMiniMap(const Surface &out)
+namespace {
+
+// Oracool: user-requested size increases after trying it in-game - 130 -> 169 (30% larger) ->
+// 203 (another 20%) -> 223 (another 10%). Now purely a zoom-level input (passed as
+// DrawAutomapCore's cellsBasisWidth below) rather than the on-screen box's actual shape - see
+// the diamond-bounds calculation right below for why those stopped being the same thing.
+constexpr Size MiniMapSize { 223, 223 };
+// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
+// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.
+constexpr int MiniMapScale = 12;
+
+constexpr int MiniMapMargin = 8;
+
+// Oracool: the automap's rendered content is an isometric diamond, not a rectangle - a square
+// backing this size leaves large, pointless dark bands above/below the diamond (its natural
+// width:height ratio is roughly 2:1, nothing like a 1:1 square). This mirrors DrawAutomapCore's
+// own cells-from-width calculation so the backing/outline below can be sized to the diamond's
+// actual pixel bounding box instead of guessing - if that math ever changes, this needs to
+// change with it. Extracted into its own function (rather than left inline in DrawMiniMap) so
+// other UI - the event log window, which is sized to match the mini-map's own width - can query
+// it without duplicating the formula a third time.
+Size CalculateMiniMapDiamondSize()
 {
-	// Oracool: MiniMapActive is no longer a toggle state (see DrawView, scrollrt.cpp, which now
-	// decides whether to call this function at all from the Mini-Map option directly) - it's set
-	// here purely for the duration of this draw call, so DrawAutomapPlr (shared with the full
-	// map's own DrawAutomap) still knows to use the solid-block marker instead of the direction
-	// arrow. Always reset before returning, including on every early branch below.
-	MiniMapActive = true;
-
-	// Oracool: user-requested size increases after trying it in-game - 130 -> 169 (30% larger) ->
-	// 203 (another 20%) -> 223 (another 10%). Now purely a zoom-level input (passed as
-	// DrawAutomapCore's cellsBasisWidth below) rather than the on-screen box's actual shape - see
-	// the diamond-bounds calculation right below for why those stopped being the same thing.
-	constexpr Size MiniMapSize { 223, 223 };
-	// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
-	// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.
-	constexpr int MiniMapScale = 12;
-
-	// Oracool: the automap's rendered content is an isometric diamond, not a rectangle - a square
-	// backing this size leaves large, pointless dark bands above/below the diamond (its natural
-	// width:height ratio is roughly 2:1, nothing like a 1:1 square). This mirrors DrawAutomapCore's
-	// own cells-from-width calculation so the backing/outline below can be sized to the diamond's
-	// actual pixel bounding box instead of guessing - if that math ever changes, this needs to
-	// change with it.
 	const int savedScaleForBounds = AutoMapScale;
 	AutoMapScale = MiniMapScale;
 	const int tilePitchX = AmLine(64);
@@ -1087,8 +1086,32 @@ void DrawMiniMap(const Surface &out)
 
 	const int diamondWidth = (cells + 1) * tilePitchX;
 	const int diamondHeight = (cells + 2) * tilePitchY + tileHalfHeight;
+	return { diamondWidth, diamondHeight };
+}
 
-	constexpr int MiniMapMargin = 8;
+} // namespace
+
+int GetMiniMapWidth()
+{
+	return CalculateMiniMapDiamondSize().width;
+}
+
+int GetMiniMapBottom()
+{
+	return MiniMapMargin + CalculateMiniMapDiamondSize().height;
+}
+
+void DrawMiniMap(const Surface &out)
+{
+	// Oracool: MiniMapActive is no longer a toggle state (see DrawView, scrollrt.cpp, which now
+	// decides whether to call this function at all from the Mini-Map option directly) - it's set
+	// here purely for the duration of this draw call, so DrawAutomapPlr (shared with the full
+	// map's own DrawAutomap) still knows to use the solid-block marker instead of the direction
+	// arrow. Always reset before returning, including on every early branch below.
+	MiniMapActive = true;
+
+	const auto [diamondWidth, diamondHeight] = CalculateMiniMapDiamondSize();
+
 	// Oracool: top-right corner per user request, matching Diablo 3/4's own minimap placement.
 	const Point MiniMapScreenPosition { gnScreenWidth - diamondWidth - MiniMapMargin, MiniMapMargin };
 

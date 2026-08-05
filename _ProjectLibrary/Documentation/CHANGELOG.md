@@ -193,6 +193,18 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.14 — Event Log: Sized to the Mini-Map, Scrollable
+
+The event log window now only expands upward as far as 5px below the mini-map's bottom edge, instead of stretching most of the way up the screen. Since that means fewer entries are visible at once, you can now scroll through the log's history with the mouse wheel while it's open.
+
+---
+
+## v0.3.13 — Event Log Window Narrower
+
+The event log window is now no wider than the mini-map, matching what it visually pairs with instead of the arbitrary fixed width it had before.
+
+---
+
 ## v0.3.12 — Event Log Crash Fix
 
 Fixed: clicking the new LOG button (added in v0.3.11) could crash or freeze the game at the default screen resolution — the log window was drawn tall enough to run off the bottom of the screen, and the game doesn't check that kind of thing before drawing. The window now opens upward from the button and always sizes itself to fit on screen, however small the window.
