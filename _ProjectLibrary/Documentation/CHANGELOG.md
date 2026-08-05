@@ -193,6 +193,14 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.20 — Level-Up Sound, Smarter Inventory Sort
+
+Leveling up now plays a sound - the same one you hear when the Poisoned Water Supply quest is completed. There was no level-up sound before this.
+
+The Inventory Sort button now puts 1x1 items (potions, scrolls, and the like) on the bottom row(s) instead of scattering them wherever they happened to fit, so your bigger equipment stays grouped together higher up.
+
+---
+
 ## v0.3.19 — Trimmed Main Menu
 
 The main menu now only shows Single Player, Settings, and Exit Diablo/Hellfire. Multi Player, Support, and Show Credits have been removed - Oracool Edition is a single-player-focused mod and those entries weren't relevant to it.

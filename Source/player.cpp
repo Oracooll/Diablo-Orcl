@@ -14,6 +14,7 @@
 #include "dead.h"
 #ifdef _DEBUG
 #include "debug.h"
+#include "effects.h"
 #endif
 #include "engine/backbuffer_state.hpp"
 #include "engine/load_cl2.hpp"
@@ -2393,6 +2394,12 @@ void NextPlrLevel(Player &player)
 {
 	player._pLevel++;
 	player._pMaxLvl++;
+
+	// Oracool: user request - the same "quest completed" jingle used when the Poisoned Water
+	// Supply quest finishes (see quests.cpp's StartPWaterPurify), repurposed as a level-up cue.
+	// No sound played on level-up before this.
+	if (&player == MyPlayer)
+		PlaySfxLoc(IS_QUESTDN, player.position.tile);
 
 	CalcPlrInv(player, true);
 

@@ -692,6 +692,36 @@ TEST_F(InvTest, SortInventoryBySellValue_LeavesGoldAtItsGridPosition)
 	EXPECT_EQ(MyPlayer->InvList[goldListIndex]._ivalue, 500);
 }
 
+// Oracool user request: 1x1 items (potions here) sort to the bottom row(s) instead of wherever
+// the plain top-down first-fit scan happens to land them.
+TEST_F(InvTest, SortInventoryBySellValue_OneByOneItemsGoToBottomRow)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+
+	MyPlayer->InvList[0] = MakeStackablePotion(IDI_HEAL, true, 1);
+	MyPlayer->InvList[0]._ivalue = 100;
+	MyPlayer->InvList[0]._iIvalue = 100;
+	MyPlayer->InvGrid[0] = 1;
+
+	MyPlayer->InvList[1] = MakeStackablePotion(IDI_HEAL, true, 1);
+	MyPlayer->InvList[1]._ivalue = 50;
+	MyPlayer->InvList[1]._iIvalue = 50;
+	MyPlayer->InvGrid[1] = 2;
+
+	MyPlayer->_pNumInv = 2;
+
+	SortInventoryBySellValue(*MyPlayer);
+
+	ASSERT_EQ(MyPlayer->_pNumInv, 2);
+	constexpr int BottomRowFirstSlot = InventoryGridCells - 10;
+	for (int slot = 0; slot < InventoryGridCells; slot++) {
+		if (MyPlayer->InvGrid[slot] != 0)
+			EXPECT_GE(slot, BottomRowFirstSlot) << "1x1 item at slot " << slot << " should be in the bottom row";
+	}
+}
+
 TEST_F(InvTest, CheckInventorySortButtonClick_HitsButtonAndSorts)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);

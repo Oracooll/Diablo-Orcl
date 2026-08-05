@@ -812,3 +812,19 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 
 - User request: "only include Single Player, Settings and Exit Diablo? The rest i find unnecessary for Oracool Edition." `DiabloUI/mainmenu.cpp`'s `MainmenuLoad` no longer pushes `Multi Player`, `Support`, or `Show Credits` list items - only `Single Player`, `Settings`, and (unchanged, already conditional on `NOEXIT`) `Exit Diablo`/`Exit Hellfire` remain.
 - Scoped narrowly: only the three `vecMenuItems.push_back` calls for the removed entries were deleted. The underlying screens/handlers for multiplayer, the support page, and the credits screen are untouched and still compile - they're just unreachable from the trimmed main menu now, not deleted. `MainmenuEsc` (which jumps to/selects whichever item is currently last in the list) needed no change - it already operates on `vecMenuItems.size()` rather than a hardcoded index, so it continues to correctly target `Exit Diablo` regardless of how many entries precede it.
+
+## OE-035: v0.3.20 Level-up sound, 1x1 items sort to the bottom row
+
+### Level-up now plays a sound
+
+- User asked whether a sound plays on level-up (it didn't - `player.cpp`'s `NextPlrLevel` updates stats/HP/mana but had no `PlaySfxLoc` call), then requested reusing "the sound used when the poisoned water quest is completed."
+- Traced that to `IS_QUESTDN` (`sfx\misc\questdon.wav`), played via `PlaySfxLoc(IS_QUESTDN, MyPlayer->position.tile)` in `quests.cpp`'s `StartPWaterPurify` - a generic "quest completed" jingle also reused elsewhere (`objects.cpp`'s quest-book read), not something written exclusively for that one quest.
+- `NextPlrLevel` (`player.cpp`) now calls the same `PlaySfxLoc(IS_QUESTDN, player.position.tile)`, guarded by `&player == MyPlayer` (matching the existing `RedrawComponent` calls a few lines below it in the same function, which only fire for the local player too) - so a level-up caused by another player's kill contribution in multiplayer doesn't play the sound at the wrong location, only your own level-up does.
+
+### Inventory sort: 1x1 items now land on the bottom row
+
+- User request: "when sorting inventory put 1x1 items on lowest row." `SortInventoryBySellValue` (`inv.cpp`) previously placed every entry (in descending sell-value order) via one combined top-down first-fit scan, regardless of size.
+- Split into two passes after the existing sell-value sort: `oneByOneEntries` (checked via the existing `FitsInBeltSlot` helper, previously used only for the belt) are placed first, scanning each tab's rows bottom-to-top (row `InventoryRowCount-1` down to `0`, left-to-right within each row) instead of the usual top-to-bottom - this pass runs *before* the main placement loop specifically so 1x1 items claim the bottom rows before a larger item's ordinary top-down scan can reach down into them. `otherEntries` (everything else) then runs through the original unchanged top-down loop, including the existing 2x2-pairing heuristic - it simply skips whatever cells the 1x1 pass already claimed and settles into the remaining (generally upper) rows.
+- Both passes still place highest-sell-value-first within their own group (the partition into `oneByOneEntries`/`otherEntries` preserves the original sorted order via ordinary `push_back`, no re-sort needed) and still try the backpack before extra tabs, same as before - only the row-scan direction differs for 1x1 items.
+- The pre-existing magic number `10` (row width, already used unlabeled in the 2x2-pairing math a few lines below) was pulled into a named `InventoryColumnsPerRow` constant alongside the new `InventoryRowCount`, shared by both the new bottom-row logic and left as-is for the older 2x2 code.
+- New test: `InvTest.SortInventoryBySellValue_OneByOneItemsGoToBottomRow` - two potions (1x1, different sell values) sort into slots 30-39 (the last of the 4 rows in the 10x4/40-cell grid).

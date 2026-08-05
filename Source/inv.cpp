@@ -2037,6 +2037,45 @@ void SortInventoryBySellValue(Player &player)
 		return a.value > b.value;
 	});
 
+	constexpr int InventoryColumnsPerRow = 10;
+	constexpr int InventoryRowCount = InventoryGridCells / InventoryColumnsPerRow;
+
+	// Oracool: user request - 1x1 items sort to the bottom row(s) of whichever tab they land in,
+	// instead of wherever the plain top-down first-fit scan happens to put them. Placed in their
+	// own pass, before the main placement loop below, specifically so they claim the bottom rows
+	// first - if the main loop ran first, a larger item's ordinary top-down scan could reach the
+	// bottom row before a 1x1 item got a chance to claim it. Still highest-sell-value-first within
+	// this group (entries is already sorted), and still tries the backpack before extra tabs, same
+	// as the main loop - only the row scan direction (bottom-up instead of top-down) differs.
+	std::vector<SortEntry> oneByOneEntries;
+	std::vector<SortEntry> otherEntries;
+	for (const SortEntry &entry : entries) {
+		if (FitsInBeltSlot(entry.item))
+			oneByOneEntries.push_back(entry);
+		else
+			otherEntries.push_back(entry);
+	}
+
+	for (const SortEntry &entry : oneByOneEntries) {
+		bool placed = false;
+		for (int row = InventoryRowCount - 1; row >= 0 && !placed; row--) {
+			for (int col = 0; col < InventoryColumnsPerRow && !placed; col++) {
+				if (AutoPlaceItemInInventorySlot(player, row * InventoryColumnsPerRow + col, entry.item, true))
+					placed = true;
+			}
+		}
+		for (int tab = 0; tab < Player::NumExtraInventoryTabs && !placed; tab++) {
+			for (int row = InventoryRowCount - 1; row >= 0 && !placed; row--) {
+				for (int col = 0; col < InventoryColumnsPerRow && !placed; col++) {
+					if (AutoPlaceItemInExtraTabSlot(player, tab, row * InventoryColumnsPerRow + col, entry.item, true))
+						placed = true;
+				}
+			}
+		}
+		// Every entry came from this same 10-tab space and nothing pinned was removed, so it must
+		// fit somewhere - this should never actually trigger.
+	}
+
 	// Oracool: second-priority packing heuristic (after sell-value order) - when placing a 2x2
 	// item, first try stacking it directly below the most recently placed 2x2 item in the same
 	// tab (same column, two rows down), before falling back to the normal first-fit scan. Two 2x2
@@ -2046,7 +2085,7 @@ void SortInventoryBySellValue(Player &player)
 	int pendingTwoByTwoSlot = -1;
 	int pendingTwoByTwoTab = -1; // -1 means the backpack (InvList); >= 0 is an extra tab index.
 
-	for (const SortEntry &entry : entries) {
+	for (const SortEntry &entry : otherEntries) {
 		const bool isTwoByTwo = GetInventorySize(entry.item) == Size { 2, 2 };
 		bool placed = false;
 
