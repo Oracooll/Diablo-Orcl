@@ -756,7 +756,14 @@ void DrawSelector(const SDL_Rect &rect)
 	const ClxSprite sprite = sprites[GetAnimationFrame(sprites.numSprites())];
 
 	// TODO FOCUS_MED appares higher than the box
-	const int y = rect.y + (rect.h - static_cast<int>(sprite.height())) / 2;
+	// Oracool: user request - a list whose row height is padded purely to add blank spacing below
+	// each top-aligned line of text (e.g. the trimmed main menu, OE-036) would otherwise center
+	// the spinner in the FULL padded row instead of next to the text sitting at its top. Clamping
+	// to the vanilla single-line row height (43px - the tallest any other list in the game already
+	// uses) re-aligns those padded rows without moving the spinner for any other, unpadded list.
+	constexpr int MaxSingleLineRowHeight = 43;
+	const int effectiveHeight = std::min(rect.h, MaxSingleLineRowHeight);
+	const int y = rect.y + (effectiveHeight - static_cast<int>(sprite.height())) / 2;
 
 	const Surface &out = Surface(DiabloUiSurface());
 	RenderClxSprite(out, sprite, { rect.x, y });

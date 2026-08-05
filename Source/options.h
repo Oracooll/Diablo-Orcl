@@ -682,6 +682,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryInt<int> griswoldUniqueItemPriceMultiplier;
 	OptionEntryBoolean griswoldPremiumIgnoreAffixLevelLimits;
 	OptionEntryBoolean griswoldPremiumIgnorePriceLimits;
+	OptionEntryBoolean griswoldSellIgnoresBelt;
 	OptionEntryBoolean autoSave;
 	OptionEntryInt<int> autoSaveIntervalMinutes;
 	OptionEntryBoolean autoSaveOnLevelChange;
@@ -696,6 +697,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;
 	OptionEntryBoolean xpCounter;
+	OptionEntryBoolean xpGainIndicator;
 };
 
 struct ControllerOptions : OptionCategoryBase {

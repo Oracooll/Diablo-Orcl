@@ -413,12 +413,12 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 			for (int i = 0; i < item._iOracoolPrefixCount; i++) {
 				if (!productLine.empty())
 					AppendStrView(productLine, _(",  "));
-				AppendStrView(productLine, PrintItemPower(item._iOracoolPrefixes[i].type, item));
+				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolPrefixes[i], item));
 			}
 			for (int i = 0; i < item._iOracoolSuffixCount; i++) {
 				if (!productLine.empty())
 					AppendStrView(productLine, _(",  "));
-				AppendStrView(productLine, PrintItemPower(item._iOracoolSuffixes[i].type, item));
+				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolSuffixes[i], item));
 			}
 		} else {
 			if (item._iMagical != ITEM_QUALITY_UNIQUE) {
@@ -629,10 +629,22 @@ void ScrollSmithPremiumBuy(int boughtitems)
 	}
 	if (stextsel != -1 && !stext[stextsel].isSelectable() && stextsel != BackButtonLine())
 		stextsel = stextdown;
-	if (*sgOptions.Oracool.griswoldPremiumRefresh && !gbIsMultiplayer)
-		AddSText(0, PremiumRefreshLine(), _("Refresh"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	if (*sgOptions.Oracool.refreshUntilButton && !gbIsMultiplayer)
-		AddSText(0, PremiumRefreshUntilLine(), _("Refresh until"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	// Oracool: user request - Refresh and Refresh Until visually share the Back button's row,
+	// flush to the right/left golden border respectively, instead of sitting on their own
+	// centered rows above it. They keep their own line indices (PremiumRefreshLine()/
+	// PremiumRefreshUntilLine()) for StoreEnter()'s dispatch and stextsel bookkeeping - only their
+	// rendered Y position (via _syoff) actually moves. CheckStoreBtn() below has the matching
+	// redirect that routes a click on Back's row to whichever of the three was actually clicked.
+	if (*sgOptions.Oracool.griswoldPremiumRefresh && !gbIsMultiplayer) {
+		const int line = PremiumRefreshLine();
+		AddSText(5, line, _("Refresh"), UiFlags::ColorWhite | UiFlags::AlignRight, true);
+		stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y - stext[line].y);
+	}
+	if (*sgOptions.Oracool.refreshUntilButton && !gbIsMultiplayer) {
+		const int line = PremiumRefreshUntilLine();
+		AddSText(5, line, _("Refresh until"), UiFlags::ColorWhite, true);
+		stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y - stext[line].y);
+	}
 }
 
 bool StartSmithPremiumBuy()
@@ -792,8 +804,12 @@ bool PopulateSellList(bool (*sellOk)(const Item &))
 	for (int8_t i = 0; i < myPlayer._pNumInv; i++)
 		addIfSellable(myPlayer.InvList[i], i, -1);
 
-	for (int i = 0; i < MaxBeltItems; i++)
-		addIfSellable(myPlayer.SpdList[i], static_cast<int8_t>(-(i + 1)), -1);
+	// Oracool: user request - belt items are excluded from the sell list entirely when this
+	// option is on, so Griswold/Adria only ever offer what's in the backpack.
+	if (!*sgOptions.Oracool.griswoldSellIgnoresBelt) {
+		for (int i = 0; i < MaxBeltItems; i++)
+			addIfSellable(myPlayer.SpdList[i], static_cast<int8_t>(-(i + 1)), -1);
+	}
 
 	// Oracool Tabbed Inventory: items stored in an extra tab are just as sellable as anything
 	// in the original backpack or belt.
@@ -3412,6 +3428,20 @@ void CheckStoreBtn()
 		if (y >= 5) {
 			if (y >= BackButtonLine() + 1)
 				y = BackButtonLine();
+			// Oracool: user request - Griswold Premium's Refresh/Refresh Until buttons visually
+			// overlay Back's row (see ScrollSmithPremiumBuy) instead of sitting on their own rows,
+			// so a click that lands on Back's row needs to be routed to whichever of the three is
+			// actually under the cursor. stext[...].hasText() is only ever true here when that
+			// specific button is currently live and overlaid on this exact row, so this can't
+			// misfire on any other store screen.
+			if (y == BackButtonLine()) {
+				const int midX = uiPosition.x + (24 + 616) / 2;
+				if (MousePosition.x < midX && stext[PremiumRefreshUntilLine()].hasText()) {
+					y = PremiumRefreshUntilLine();
+				} else if (MousePosition.x >= midX && stext[PremiumRefreshLine()].hasText()) {
+					y = PremiumRefreshLine();
+				}
+			}
 			if (stextscrl && y <= 20 && !stext[y].isSelectable()) {
 				if (stext[y - 2].isSelectable()) {
 					y -= 2;

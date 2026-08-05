@@ -38,6 +38,7 @@
 #include "options.h"
 #include "oracool/event_log.h"
 #include "oracool/oracool.h"
+#include "oracool/xp_gain_indicator.h"
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/autopickup.h"
@@ -2466,7 +2467,13 @@ void AddPlrExperience(Player &player, int lvl, int exp)
 	const uint64_t MaxExperience = ExpLvlsTbl[MaxCharacterLevel - 1];
 
 	// Overflow is only possible if a kill grants more than (2^64-1 - MaxExperience) XP in one go, which doesn't happen in normal gameplay. Clamp to experience required to reach max level
+	const uint64_t previousExperience = player._pExperience;
 	player._pExperience = std::min(player._pExperience + clampedExp, MaxExperience);
+
+	// Oracool: user request - a brief "+N" flash below the XP Counter showing the actual amount
+	// gained (after every clamp above), not the raw, pre-clamp exp argument.
+	if (*sgOptions.Oracool.xpGainIndicator && player._pExperience > previousExperience)
+		oracool::TriggerXpGainIndicator(player._pExperience - previousExperience);
 
 	if (*sgOptions.Gameplay.experienceBar) {
 		RedrawEverything();

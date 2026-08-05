@@ -142,12 +142,22 @@ bool TabbedInventoryEnabled()
 
 /**
  * @brief Oracool Tabbed Inventory: extra tabs are inert storage only - gold stays tracked
- * through the normal InvList/_pGold path, and quest items must stay somewhere the existing
- * quest-scanning code (which only ever looks at InvList) can still find them.
+ * through the normal InvList/_pGold path (it isn't a grid item players place by hand at all, so
+ * there's nothing to move into a tab in the first place).
+ *
+ * Quest items used to be excluded here too, because the quest-progression code that looks for
+ * them (RemoveInventoryItemById/HasInventoryItemWithId, built on InventoryPlayerItemsRange) only
+ * ever scanned InvList - a quest item filed into an extra tab would have been invisible to every
+ * turn-in check in the game. That scanning gap is fixed now (InventoryPlayerItemsRange flattens
+ * InvList and every extra tab into one iteration), so the restriction was no longer protecting
+ * anything and only produced the exact bug reported: "the tavern sign doesn't go in tabs 2-10."
+ * Verified every one of the game's 8 real quest items (Magic Rock, Tavern Sign, Anvil of Fury,
+ * Black Mushroom, Brain, Fungal Tome, Blood Stone, Cathedral Map) turns in via one of those two
+ * now-tab-aware helpers before lifting this.
  */
 bool CanItemEnterExtraTab(const Item &item)
 {
-	return item._itype != ItemType::Gold && item._iClass != ICLASS_QUEST;
+	return item._itype != ItemType::Gold;
 }
 
 /**
@@ -2563,16 +2573,21 @@ int8_t CheckInvHLight()
 	return rv;
 }
 
-void DecrementOrRemoveInvItem(Player &player, int invIndex)
+void DecrementOrRemoveInvItem(Player &player, int invIndex, int tabIdx)
 {
-	Item &item = player.InvList[invIndex];
+	Item &item = tabIdx >= 0 ? player.InvTabList[tabIdx][invIndex] : player.InvList[invIndex];
 	if (item.isStackableConsumable() && item.stackCount() > 1) {
 		item.setStackCount(item.stackCount() - 1);
-		NetSyncInvItem(player, invIndex);
+		if (tabIdx < 0)
+			NetSyncInvItem(player, invIndex); // never network-synced for an extra tab - single-player only
 		return;
 	}
 
-	player.RemoveInvItem(invIndex);
+	if (tabIdx >= 0) {
+		RemoveExtraTabItem(player, tabIdx, invIndex);
+	} else {
+		player.RemoveInvItem(invIndex);
+	}
 }
 
 void DecrementOrRemoveSpdBarItem(Player &player, int spdIndex)

@@ -35,6 +35,7 @@
 #include "oracool/game_clock.h"
 #include "oracool/save_indicator.h"
 #include "oracool/xp_counter.h"
+#include "oracool/xp_gain_indicator.h"
 #include "panels/charpanel.hpp"
 #include "plrmsg.h"
 #include "qol/chatlog.h"
@@ -1200,6 +1201,7 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawEventLogButton(out);
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
+		oracool::DrawXpGainIndicator(out);
 		oracool::DrawXpCounter(out);
 	}
 #ifdef _DEBUG

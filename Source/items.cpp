@@ -4387,6 +4387,59 @@ bool DoOil(Player &player, int cii, int tabIdx)
 	}
 }
 
+/**
+ * @brief Oracool: regression fix - a Rare/Buffed Unique/Primal item's affix list is displayed by
+ * calling PrintItemPower once per stored affix, but PrintItemPower's simple-stat cases (Strength,
+ * Dexterity, to-hit, damage %, armor %, resistances, ...) read the item's single accumulated
+ * vanilla field (item._iPLStr, item._iPLDam, ...) rather than that specific affix's own value.
+ * Since a tiered item can carry several affixes that all add into the SAME accumulated field
+ * (e.g. two different affix types both bumping _iPLStr), every one of those lines ended up
+ * displaying the same combined total - looking like duplicate/identical affixes even though the
+ * underlying rolls were correctly distinct (and the dedup-by-type check that already blocks a
+ * literal repeat of one affix type was working exactly as designed the whole time). This wrapper
+ * uses each affix's own individually-stored OracoolAffix::param1 for those simple cases instead,
+ * falling back to the shared PrintItemPower for compound/rare types that combine multiple fields
+ * (IPL_ATTRIBS, IPL_ALLRES, IPL_TOHIT_DAMP, ...), which are far less likely to collide with another
+ * simultaneously-rolled affix's own field usage.
+ */
+StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
+{
+	switch (affix.type) {
+	case IPL_TOHIT:
+	case IPL_TOHIT_CURSE:
+		return fmt::format(fmt::runtime(_("chance to hit: {:+d}%")), affix.param1);
+	case IPL_DAMP:
+	case IPL_DAMP_CURSE:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% damage")), affix.param1);
+	case IPL_ACP:
+	case IPL_ACP_CURSE:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% armor")), affix.param1);
+	case IPL_FIRERES:
+		return fmt::format(fmt::runtime(_("Resist Fire: {:+d}%")), affix.param1);
+	case IPL_LIGHTRES:
+		return fmt::format(fmt::runtime(_("Resist Lightning: {:+d}%")), affix.param1);
+	case IPL_MAGICRES:
+		return fmt::format(fmt::runtime(_("Resist Magic: {:+d}%")), affix.param1);
+	case IPL_STR:
+	case IPL_STR_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to strength")), affix.param1);
+	case IPL_MAG:
+	case IPL_MAG_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to magic")), affix.param1);
+	case IPL_DEX:
+	case IPL_DEX_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to dexterity")), affix.param1);
+	case IPL_VIT:
+	case IPL_VIT_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to vitality")), affix.param1);
+	case IPL_GETHIT_CURSE:
+	case IPL_GETHIT:
+		return fmt::format(fmt::runtime(_("{:+d} damage from enemies")), affix.param1);
+	default:
+		return PrintItemPower(affix.type, item);
+	}
+}
+
 void DrawUniqueInfo(const Surface &out)
 {
 	const Point position = GetRightPanel().position - Displacement { SidePanelSize.width, 0 };
@@ -4411,11 +4464,11 @@ void DrawUniqueInfo(const Surface &out)
 		rect.position.y += (10 - totalLines) * 12;
 		for (int i = 0; i < curruitem._iOracoolPrefixCount; i++) {
 			rect.position.y += 2 * 12;
-			DrawString(out, PrintItemPower(curruitem._iOracoolPrefixes[i].type, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
+			DrawString(out, PrintOracoolAffixPower(curruitem._iOracoolPrefixes[i], curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
 		}
 		for (int i = 0; i < curruitem._iOracoolSuffixCount; i++) {
 			rect.position.y += 2 * 12;
-			DrawString(out, PrintItemPower(curruitem._iOracoolSuffixes[i].type, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
+			DrawString(out, PrintOracoolAffixPower(curruitem._iOracoolSuffixes[i], curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
 		}
 		return;
 	}

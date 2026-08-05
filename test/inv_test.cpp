@@ -858,7 +858,14 @@ TEST_F(InvTest, TabbedInventory_AutoPlaceItemInInventory_FallsBackToExtraTabsWhe
 // to stay in tab 1 where _pGold bookkeeping and the existing quest-scanning code (which only
 // ever looks at InvList) can find them. A full tab 1 should make placement fail outright for
 // these, not silently redirect them somewhere unexpected.
-TEST_F(InvTest, TabbedInventory_AutoPlaceItemInInventory_NeverSendsQuestItemsToExtraTabs)
+// Oracool Tabbed Inventory: regression test for a real bug found via user report ("the tavern
+// sign doesn't go in tabs 2-10" / "magic rock item same bug"). Quest items used to be blocked
+// from extra tabs entirely, because the quest-progression code that looks for them only ever
+// scanned InvList - a quest item filed into an extra tab would have been invisible to every turn-in
+// check in the game. That scanning gap is fixed now (InventoryPlayerItemsRange, inv_iterators.hpp,
+// flattens InvList and every extra tab into one iteration), so quest items are placed into an
+// extra tab exactly like any other non-gold item once the backpack is full.
+TEST_F(InvTest, TabbedInventory_AutoPlaceItemInInventory_SendsQuestItemsToExtraTabsWhenBackpackIsFull)
 {
 	clear_inventory();
 
@@ -874,9 +881,8 @@ TEST_F(InvTest, TabbedInventory_AutoPlaceItemInInventory_NeverSendsQuestItemsToE
 
 	bool placed = AutoPlaceItemInInventory(*MyPlayer, questItem, true);
 
-	EXPECT_FALSE(placed);
-	for (int t = 0; t < Player::NumExtraInventoryTabs; t++)
-		EXPECT_EQ(MyPlayer->_pNumInvTab[t], 0) << "tab index " << t << " must stay empty";
+	EXPECT_TRUE(placed);
+	EXPECT_EQ(MyPlayer->_pNumInvTab[0], 1) << "the quest item should land in the first extra tab, same as any other item, since the backpack is full";
 }
 
 // Oracool Tabbed Inventory: writing through the accessors while an extra tab is active must
@@ -1134,6 +1140,29 @@ TEST_F(InvTest, RemoveMatchingInventoryOrExtraTabItem_NoMatch_ReturnsFalseAndTou
 
 	EXPECT_FALSE(RemoveMatchingInventoryOrExtraTabItem(*MyPlayer, lookup));
 	EXPECT_EQ(MyPlayer->_pNumInv, 1);
+}
+
+// Oracool Tabbed Inventory: regression test for a real bug found via user report ("check every
+// item, npc, algorithm... which would at some point interact with vanilla inventory"). Several
+// gameplay algorithms (quest turn-ins, stat-flag refreshes, shrine effects) are built on
+// InventoryPlayerItemsRange, which previously only ever scanned InvList - an item placed in an
+// extra tab was invisible to all of them. HasInventoryItemWithId/RemoveInventoryItemById now find
+// and correctly remove a match stored in any extra tab, not just the original backpack.
+TEST_F(InvTest, RemoveInventoryItemById_FindsAndRemovesItemStoredInExtraTab)
+{
+	clear_inventory();
+	MyPlayer->InvTabList[2][0]._itype = ItemType::Misc;
+	MyPlayer->InvTabList[2][0].IDidx = IDI_HEAL;
+	MyPlayer->InvTabGrid[2][0] = 1;
+	MyPlayer->_pNumInvTab[2] = 1;
+
+	EXPECT_TRUE(HasInventoryItemWithId(*MyPlayer, IDI_HEAL));
+
+	EXPECT_TRUE(RemoveInventoryItemById(*MyPlayer, IDI_HEAL));
+
+	EXPECT_EQ(MyPlayer->_pNumInvTab[2], 0);
+	EXPECT_TRUE(MyPlayer->InvTabList[2][0].isEmpty());
+	EXPECT_FALSE(HasInventoryItemWithId(*MyPlayer, IDI_HEAL));
 }
 
 } // namespace

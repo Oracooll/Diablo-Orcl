@@ -36,16 +36,40 @@ void GamemenuSoundVolume(bool bActivate);
 void GamemenuGamma(bool bActivate);
 void GamemenuSpeed(bool bActivate);
 
-/** Contains the game menu items of the single player menu. */
+/**
+ * @brief Oracool: user request - the pause menu is trimmed to exactly these five entries while
+ * the player is alive. "Main Menu"/"Exit Game" reuse the same handlers the menu already had
+ * under their vanilla names ("New Game"/"Quit Game") - both already do exactly what their new
+ * names say (abandon the current game and return to the main menu; abandon the current game and
+ * close the application), so only the label changed.
+ */
 TMenuItem sgSingleMenu[] = {
 	// clang-format off
 	// dwFlags,      pszStr,                 fnMenu
 	{ GMENU_ENABLED, N_("Save Game"),       &gamemenu_save_game    },
+	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game    },
+	{ GMENU_ENABLED, N_("Main Menu"),       &GamemenuNewGame       },
 	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions       },
-	{ GMENU_ENABLED, N_("New Game"),        &GamemenuNewGame       },
+	{ GMENU_ENABLED, N_("Exit Game"),       &gamemenu_quit_game    },
+	{ GMENU_ENABLED, nullptr,               nullptr                }
+	// clang-format on
+};
+/**
+ * @brief Oracool: user request - "Respawn In Town" should only ever be visible, not merely
+ * enabled, while the character is dead - the underlying menu system draws every item between the
+ * array's start and its nullptr terminator unconditionally (enabling/disabling an item only
+ * changes its color, not whether it's shown), so a separate array is the only way to actually
+ * remove it from the list the rest of the time. Replaces "Save Game" in this slot, which was
+ * already effectively non-functional while dead (gamemenu_save_game no-ops in that state).
+ */
+TMenuItem sgSingleMenuOnDeath[] = {
+	// clang-format off
+	// dwFlags,      pszStr,                 fnMenu
 	{ GMENU_ENABLED, N_("Respawn In Town"), &GamemenuRespawnInTown },
 	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game    },
-	{ GMENU_ENABLED, N_("Quit Game"),       &gamemenu_quit_game    },
+	{ GMENU_ENABLED, N_("Main Menu"),       &GamemenuNewGame       },
+	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions       },
+	{ GMENU_ENABLED, N_("Exit Game"),       &gamemenu_quit_game    },
 	{ GMENU_ENABLED, nullptr,               nullptr                }
 	// clang-format on
 };
@@ -84,12 +108,10 @@ const char *const SoundToggleNames[] = {
 
 void GamemenuUpdateSingle()
 {
-	sgSingleMenu[4].setEnabled(gbValidSaveFile);
-
-	bool enable = MyPlayer->_pmode != PM_DEATH && !MyPlayerIsDead;
-
-	sgSingleMenu[0].setEnabled(enable);
-	sgSingleMenu[3].setEnabled(MyPlayerIsDead);
+	// Oracool: index 1 (Load Game) is the same slot in both sgSingleMenu and
+	// sgSingleMenuOnDeath - whichever array gamemenu_on() picked, this still applies correctly.
+	sgSingleMenu[1].setEnabled(gbValidSaveFile);
+	sgSingleMenuOnDeath[1].setEnabled(gbValidSaveFile);
 }
 
 void GamemenuUpdateMulti()
@@ -363,7 +385,12 @@ void gamemenu_save_game(bool /*bActivate*/)
 void gamemenu_on()
 {
 	if (!gbIsMultiplayer) {
-		gmenu_set_items(sgSingleMenu, GamemenuUpdateSingle);
+		// Oracool: user request - pick the death-only variant (with "Respawn In Town" in place
+		// of "Save Game") once here, when the menu is actually opened, rather than every frame -
+		// the game simulation (and therefore MyPlayerIsDead/_pmode) is frozen for as long as this
+		// menu stays open, so there's no case where the right choice could change mid-display.
+		const bool isDead = MyPlayerIsDead || MyPlayer->_pmode == PM_DEATH;
+		gmenu_set_items(isDead ? sgSingleMenuOnDeath : sgSingleMenu, GamemenuUpdateSingle);
 	} else {
 		gmenu_set_items(sgMultiMenu, GamemenuUpdateMulti);
 	}

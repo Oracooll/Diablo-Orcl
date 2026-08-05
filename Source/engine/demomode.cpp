@@ -539,6 +539,7 @@ void OverrideOptions()
 	sgOptions.Oracool.gameClock.SetValue(false);
 	sgOptions.Oracool.gameClock12HourFormat.SetValue(false);
 	sgOptions.Oracool.xpCounter.SetValue(false);
+	sgOptions.Oracool.xpGainIndicator.SetValue(false);
 	sgOptions.Oracool.autoPickupRange.SetValue(1);
 	sgOptions.Oracool.autoScrollPickup.SetValue(false);
 	sgOptions.Oracool.rareItemDropChance.SetValue(0);
@@ -555,6 +556,7 @@ void OverrideOptions()
 	sgOptions.Oracool.griswoldUniqueItemPriceMultiplier.SetValue(1);
 	sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits.SetValue(false);
 	sgOptions.Oracool.griswoldPremiumIgnorePriceLimits.SetValue(false);
+	sgOptions.Oracool.griswoldSellIgnoresBelt.SetValue(false);
 	sgOptions.Oracool.autoSave.SetValue(false);
 	sgOptions.Oracool.autoSaveIntervalMinutes.SetValue(0);
 	sgOptions.Oracool.autoSaveOnLevelChange.SetValue(false);

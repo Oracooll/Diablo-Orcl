@@ -753,6 +753,8 @@ void DoRepair(Player &player, int cii, int tabIdx = -1);
 void DoRecharge(Player &player, int cii, int tabIdx = -1);
 bool DoOil(Player &player, int cii, int tabIdx = -1);
 [[nodiscard]] StringOrView PrintItemPower(char plidx, const Item &item);
+/** @brief Like PrintItemPower, but reads a Rare/Buffed Unique/Primal item's own per-affix value instead of the item's shared accumulated field - see the definition for why that distinction matters. */
+[[nodiscard]] StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item);
 void DrawUniqueInfo(const Surface &out);
 void PrintItemDetails(const Item &item);
 void PrintItemDur(const Item &item);

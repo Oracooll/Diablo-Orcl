@@ -165,6 +165,18 @@ public:
 			return !(*this == other);
 		}
 
+		/** @brief Which sub-container (in construction order) the current item belongs to. */
+		[[nodiscard]] std::size_t containerIndex() const
+		{
+			return current_;
+		}
+
+		/** @brief The current item's index within its own sub-container (see containerIndex()). */
+		[[nodiscard]] std::size_t index() const
+		{
+			return iterators_[current_].index();
+		}
+
 	private:
 		void advancePastEmpty()
 		{
@@ -208,7 +220,42 @@ private:
 };
 
 /**
- * @brief A range over non-equipped inventory player items.
+ * @brief Oracool Tabbed Inventory: shared by InventoryPlayerItemsRange/InventoryAndBeltPlayerItemsRange/
+ * PlayerItemsRange below - the flat list of begin (or end) iterators covering the original backpack
+ * (InvList) followed by all 9 extra tabs (InvTabList), so every general-purpose "scan the player's
+ * inventory" algorithm built on these ranges picks up extra-tab items for free instead of silently
+ * skipping them (a real bug found via user report - quest turn-ins, stat-flag refreshes, and several
+ * shrine effects all missed items filed into an extra tab before this).
+ */
+inline std::vector<ItemsContainerRange::Iterator> InventoryContainerBeginIterators(Player &player)
+{
+	std::vector<ItemsContainerRange::Iterator> iterators;
+	iterators.reserve(1 + Player::NumExtraInventoryTabs);
+	iterators.push_back(ItemsContainerRange::Iterator { &player.InvList[0], static_cast<std::size_t>(player._pNumInv), 0 });
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		const auto count = static_cast<std::size_t>(player._pNumInvTab[t]);
+		iterators.push_back(ItemsContainerRange::Iterator { &player.InvTabList[t][0], count, 0 });
+	}
+	return iterators;
+}
+
+/** @brief End-iterator equivalent of InventoryContainerBeginIterators; see that function. */
+inline std::vector<ItemsContainerRange::Iterator> InventoryContainerEndIterators(Player &player)
+{
+	std::vector<ItemsContainerRange::Iterator> iterators;
+	iterators.reserve(1 + Player::NumExtraInventoryTabs);
+	const auto invCount = static_cast<std::size_t>(player._pNumInv);
+	iterators.push_back(ItemsContainerRange::Iterator { nullptr, invCount, invCount });
+	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
+		const auto count = static_cast<std::size_t>(player._pNumInvTab[t]);
+		iterators.push_back(ItemsContainerRange::Iterator { nullptr, count, count });
+	}
+	return iterators;
+}
+
+/**
+ * @brief A range over non-equipped inventory player items - the original backpack (InvList) plus
+ * every Oracool Tabbed Inventory extra tab (InvTabList), flattened into one iteration.
  */
 class InventoryPlayerItemsRange {
 public:
@@ -217,22 +264,17 @@ public:
 	{
 	}
 
-	[[nodiscard]] ItemsContainerRange::Iterator begin() const
+	[[nodiscard]] ItemsContainerListRange::Iterator begin() const
 	{
-		return ItemsContainerRange::Iterator { &player_->InvList[0], containerSize(), 0 };
+		return ItemsContainerListRange::Iterator(InventoryContainerBeginIterators(*player_));
 	}
 
-	[[nodiscard]] ItemsContainerRange::Iterator end() const
+	[[nodiscard]] ItemsContainerListRange::Iterator end() const
 	{
-		return ItemsContainerRange::Iterator { nullptr, containerSize(), containerSize() };
+		return ItemsContainerListRange::Iterator(InventoryContainerEndIterators(*player_));
 	}
 
 private:
-	[[nodiscard]] std::size_t containerSize() const
-	{
-		return static_cast<std::size_t>(player_->_pNumInv);
-	}
-
 	Player *player_;
 };
 
@@ -277,18 +319,16 @@ public:
 
 	[[nodiscard]] ItemsContainerListRange::Iterator begin() const
 	{
-		return ItemsContainerListRange::Iterator({
-		    InventoryPlayerItemsRange(*player_).begin(),
-		    BeltPlayerItemsRange(*player_).begin(),
-		});
+		auto iterators = InventoryContainerBeginIterators(*player_);
+		iterators.push_back(BeltPlayerItemsRange(*player_).begin());
+		return ItemsContainerListRange::Iterator(std::move(iterators));
 	}
 
 	[[nodiscard]] ItemsContainerListRange::Iterator end() const
 	{
-		return ItemsContainerListRange::Iterator({
-		    InventoryPlayerItemsRange(*player_).end(),
-		    BeltPlayerItemsRange(*player_).end(),
-		});
+		auto iterators = InventoryContainerEndIterators(*player_);
+		iterators.push_back(BeltPlayerItemsRange(*player_).end());
+		return ItemsContainerListRange::Iterator(std::move(iterators));
 	}
 
 private:
@@ -296,7 +336,8 @@ private:
 };
 
 /**
- * @brief A range over non-empty player items in the following order: Equipped, Inventory, Belt.
+ * @brief A range over non-empty player items in the following order: Equipped, Inventory (plus
+ * every Oracool Tabbed Inventory extra tab), Belt.
  */
 class PlayerItemsRange {
 public:
@@ -307,20 +348,22 @@ public:
 
 	[[nodiscard]] ItemsContainerListRange::Iterator begin() const
 	{
-		return ItemsContainerListRange::Iterator({
-		    EquippedPlayerItemsRange(*player_).begin(),
-		    InventoryPlayerItemsRange(*player_).begin(),
-		    BeltPlayerItemsRange(*player_).begin(),
-		});
+		std::vector<ItemsContainerRange::Iterator> iterators;
+		iterators.push_back(EquippedPlayerItemsRange(*player_).begin());
+		for (auto &it : InventoryContainerBeginIterators(*player_))
+			iterators.push_back(it);
+		iterators.push_back(BeltPlayerItemsRange(*player_).begin());
+		return ItemsContainerListRange::Iterator(std::move(iterators));
 	}
 
 	[[nodiscard]] ItemsContainerListRange::Iterator end() const
 	{
-		return ItemsContainerListRange::Iterator({
-		    EquippedPlayerItemsRange(*player_).end(),
-		    InventoryPlayerItemsRange(*player_).end(),
-		    BeltPlayerItemsRange(*player_).end(),
-		});
+		std::vector<ItemsContainerRange::Iterator> iterators;
+		iterators.push_back(EquippedPlayerItemsRange(*player_).end());
+		for (auto &it : InventoryContainerEndIterators(*player_))
+			iterators.push_back(it);
+		iterators.push_back(BeltPlayerItemsRange(*player_).end());
+		return ItemsContainerListRange::Iterator(std::move(iterators));
 	}
 
 private:

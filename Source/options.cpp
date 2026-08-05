@@ -455,6 +455,8 @@ void SaveOptions()
 
 	setBoolean("XP Counter", *sgOptions.Oracool.xpCounter,
 	    "; ----- XP COUNTER -----------------------------------------------------------------\n; Shows the experience remaining until your next level just below the mini-map,\n; centered between the Game Clock and the LOG button. Hidden at max level.");
+	setBoolean("XP Gain Indicator", *sgOptions.Oracool.xpGainIndicator,
+	    "; Briefly flashes \"+N\" just below the XP Counter for half a second whenever you gain\n; experience.");
 
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
@@ -465,6 +467,8 @@ void SaveOptions()
 	    "; ----- GRISWOLD: PREMIUM SHOP -------------------------------------------------\n; Allows compatible Premium prefixes and suffixes regardless of their normal\n; quality-level requirement. Item compatibility and good-affix rules remain.");
 	setBoolean("Griswold Premium Ignore Price Limits", *sgOptions.Oracool.griswoldPremiumIgnorePriceLimits,
 	    "; Prevents otherwise valid Premium Items from being rejected for exceeding the\n; normal price ceiling. The resulting item's calculated price remains unchanged.");
+	setBoolean("Griswold Sell Ignores Belt", *sgOptions.Oracool.griswoldSellIgnoresBelt,
+	    "; Griswold's and Adria's sell lists skip belt items entirely, listing only the\n; backpack (including any Tabbed Inventory extra tab).");
 	setBoolean("Griswold Premium Refresh", *sgOptions.Oracool.griswoldPremiumRefresh,
 	    "; Adds a free Refresh action to Premium Items, regenerating the complete stock\n; without requiring a new game.");
 	setBoolean("Griswold Refresh Until Button", *sgOptions.Oracool.refreshUntilButton,
@@ -1267,6 +1271,7 @@ OracoolOptions::OracoolOptions()
     , griswoldUniqueItemPriceMultiplier("Griswold Unique Item Price Multiplier", OptionEntryFlags::None, N_("Griswold Unique Item Price Multiplier"), N_("Multiplier applied to a unique item's normal sell value."), 20, { 1, 2, 3, 4, 5, 10, 15, 20 })
     , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes regardless of their normal quality-level requirement."), true)
     , griswoldPremiumIgnorePriceLimits("Griswold Premium Ignore Price Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Price Limits"), N_("Prevents valid Premium items from being rejected by the normal price ceiling."), true)
+    , griswoldSellIgnoresBelt("Griswold Sell Ignores Belt", OptionEntryFlags::None, N_("Griswold Sell Ignores Belt"), N_("Griswold's and Adria's sell lists skip belt items - only the backpack is offered."), true)
     , autoSave("Auto Save", OptionEntryFlags::None, N_("Auto Save"), N_("Enables Oracool automatic saving in single-player."), true)
     , autoSaveIntervalMinutes("Auto Save Interval Minutes", OptionEntryFlags::None, N_("Auto Save Interval Minutes"), N_("Minutes between periodic automatic saves."), 5, { 1, 2, 3, 5, 10, 15, 30, 60 })
     , autoSaveOnLevelChange("Auto Save on Level Change", OptionEntryFlags::None, N_("Auto Save on Level Change"), N_("Saves after entering another dungeon level or returning to town."), true)
@@ -1281,6 +1286,7 @@ OracoolOptions::OracoolOptions()
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
     , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
+    , xpGainIndicator("XP Gain Indicator", OptionEntryFlags::None, N_("XP Gain Indicator"), N_("Briefly flashes the experience gained just below the XP Counter."), true)
 {
 }
 
@@ -1308,6 +1314,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&griswoldUniqueItemPriceMultiplier,
 		&griswoldPremiumIgnoreAffixLevelLimits,
 		&griswoldPremiumIgnorePriceLimits,
+		&griswoldSellIgnoresBelt,
 		&autoSave,
 		&autoSaveIntervalMinutes,
 		&autoSaveOnLevelChange,
@@ -1322,6 +1329,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&gameClock,
 		&gameClock12HourFormat,
 		&xpCounter,
+		&xpGainIndicator,
 	};
 }
 

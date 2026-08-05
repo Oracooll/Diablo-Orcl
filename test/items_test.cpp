@@ -592,6 +592,30 @@ TEST(Item, CalcOracoolTieredItemValue_NeverProducesLessThanOne)
 	EXPECT_GE(item._iIvalue, 1);
 }
 
+// Oracool regression test: reproduces the user's bug report of a Rare item appearing to have
+// "two identical affixes." PrintOracoolAffixPower must use each affix's own stored param1, not
+// the item's single shared accumulated field (item._iPLStr here) - otherwise two distinct affix
+// types that both happen to add into the same field would both render the combined total instead
+// of their own individual contribution, looking like a duplicate line.
+TEST(Item, PrintOracoolAffixPower_UsesEachAffixsOwnValueNotTheItemsSharedField)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Staff);
+	item._iPLStr = 99; // simulates SaveItemPower having accumulated multiple affixes into this field
+
+	const OracoolAffix strAffix { IPL_STR, 3, 0 };
+	const OracoolAffix attribsAffix { IPL_ATTRIBS, 5, 0 };
+
+	const std::string strText(PrintOracoolAffixPower(strAffix, item));
+	EXPECT_NE(strText.find("3"), std::string::npos) << "should show this affix's own +3, not the item's accumulated _iPLStr (99)";
+	EXPECT_EQ(strText.find("99"), std::string::npos);
+
+	// IPL_ATTRIBS is a compound type without a dedicated simple case, so it correctly falls back
+	// to PrintItemPower (which reads the shared field) - confirming the fallback path still works
+	// rather than crashing or returning an empty string.
+	const std::string attribsText(PrintOracoolAffixPower(attribsAffix, item));
+	EXPECT_FALSE(attribsText.empty());
+}
+
 TEST(Item, GetTextColor_RareTierIsYellowRegardlessOfMagicalQuality)
 {
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Sword);

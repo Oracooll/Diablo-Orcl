@@ -405,7 +405,14 @@ bool RemoveInventoryItem(Player &player, Predicate &&predicate)
 	const auto it = std::find_if(items.begin(), items.end(), std::forward<Predicate>(predicate));
 	if (it == items.end())
 		return false;
-	player.RemoveInvItem(static_cast<int>(it.index()));
+	// Oracool Tabbed Inventory: InventoryPlayerItemsRange now flattens InvList and every extra
+	// tab into one iteration (containerIndex() 0 = InvList, 1..9 = InvTabList[0..8]), so removal
+	// has to route to whichever container the match actually came from.
+	if (it.containerIndex() == 0) {
+		player.RemoveInvItem(static_cast<int>(it.index()));
+	} else {
+		RemoveExtraTabItem(player, static_cast<int>(it.containerIndex() - 1), static_cast<int>(it.index()));
+	}
 	return true;
 }
 
@@ -474,7 +481,11 @@ inline bool RemoveInventoryOrBeltItemById(Player &player, _item_indexes id)
  * @brief Decrements a stackable consumable's count by one, removing the inventory
  * slot only when the count reaches zero (or the item isn't a stackable consumable).
  */
-void DecrementOrRemoveInvItem(Player &player, int invIndex);
+/**
+ * @brief tabIdx selects an Oracool Tabbed Inventory extra tab (0-8) instead of InvList - pass -1
+ * (the default) for the original InvList-only behavior.
+ */
+void DecrementOrRemoveInvItem(Player &player, int invIndex, int tabIdx = -1);
 
 /**
  * @brief Decrements a stackable consumable's count by one, removing the belt slot
@@ -506,7 +517,12 @@ bool DecrementOrRemoveInventoryItem(Player &player, Predicate &&predicate)
 	const auto it = std::find_if(items.begin(), items.end(), std::forward<Predicate>(predicate));
 	if (it == items.end())
 		return false;
-	DecrementOrRemoveInvItem(player, static_cast<int>(it.index()));
+	// Oracool Tabbed Inventory: see the equivalent comment in RemoveInventoryItem above.
+	if (it.containerIndex() == 0) {
+		DecrementOrRemoveInvItem(player, static_cast<int>(it.index()));
+	} else {
+		DecrementOrRemoveInvItem(player, static_cast<int>(it.index()), static_cast<int>(it.containerIndex() - 1));
+	}
 	return true;
 }
 

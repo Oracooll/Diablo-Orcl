@@ -201,6 +201,20 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.28 — Quest Items Can Use Extra Tabs, Rare Item Display Fix, and More
+
+A big batch of fixes and small requests:
+
+- **Fixed**: Rare/Buffed Unique/Primal items could visually show what looked like two identical affix lines. The two affixes were actually different, correctly-rolled bonuses - the display was reading the item's combined total instead of each affix's own individual value. Fixed to show each line's real, distinct contribution.
+- **Fixed**: quest items (Tavern Sign, Magic Rock, and the rest) can now be placed in Tabbed Inventory's extra tabs, just like everything else. This was previously blocked on purpose because quest turn-ins only checked the original backpack - that scanning gap is fixed too, so quest progression works correctly no matter which tab the item ends up in.
+- **New**: Griswold's and Adria's sell lists can ignore belt items entirely (`Griswold Sell Ignores Belt`, on by default) - only the backpack is offered for sale.
+- **New**: an XP gain indicator briefly flashes "+N" just below the XP Counter for half a second whenever you gain experience (`XP Gain Indicator`, on by default).
+- The in-game ESC menu is trimmed to exactly five entries: Save Game, Load Game, Main Menu, Options, Exit Game. Respawn In Town now only appears (replacing Save Game) when your character is actually dead.
+- The main menu's rotating pentagram markers now line up with the trimmed menu's spaced-out rows instead of floating below the text.
+- Griswold's Premium screen: the Refresh and Refresh Until buttons now sit on the same row as Back, flush to the right and left golden borders respectively, instead of centered on their own rows above it.
+
+---
+
 ## v0.3.27 — Identify, Repair, Recharge, and Oil Now Reach Extra-Tab Items
 
 Fixes a real bug: using a Scroll of Identify (or Repair, Recharge, or an Oil) directly on an item stored in one of the 9 extra inventory tabs consumed the scroll/item but silently did nothing to the target - the item stayed unidentified/unrepaired. Also fixed: Cain's "identify an item" list at the Storyteller never showed unidentified items sitting in an extra tab at all. Both now work exactly like they already did for the original backpack, belt, and equipped items.
