@@ -247,6 +247,26 @@ void FreeHalfSizeItemSprites()
 	}
 }
 
+void DrawBrokenItemMarker(const Surface &out, Point topLeft, int width, int height)
+{
+	constexpr int Inset = 3;
+	constexpr int Thickness = 2;
+	constexpr uint8_t BrokenItemXColor = PAL8_RED;
+	const Point a1 { topLeft.x + Inset, topLeft.y + Inset };
+	const Point a2 { topLeft.x + width - Inset, topLeft.y + height - Inset };
+	const Point b1 { topLeft.x + width - Inset, topLeft.y + Inset };
+	const Point b2 { topLeft.x + Inset, topLeft.y + height - Inset };
+	const int steps = std::max({ std::abs(a2.x - a1.x), std::abs(a2.y - a1.y), 1 });
+	for (int i = 0; i <= steps; i++) {
+		const int x = a1.x + (a2.x - a1.x) * i / steps;
+		const int y = a1.y + (a2.y - a1.y) * i / steps;
+		FillRect(out, x - Thickness / 2, y - Thickness / 2, Thickness, Thickness, BrokenItemXColor);
+		const int x2 = b1.x + (b2.x - b1.x) * i / steps;
+		const int y2 = b1.y + (b2.y - b1.y) * i / steps;
+		FillRect(out, x2 - Thickness / 2, y2 - Thickness / 2, Thickness, Thickness, BrokenItemXColor);
+	}
+}
+
 void DrawItem(const Item &item, const Surface &out, Point position, ClxSprite clx)
 {
 	const bool usable = !IsInspectingPlayer() ? item._iStatFlag : InspectPlayer->CanUseItem(item);
@@ -262,23 +282,7 @@ void DrawItem(const Item &item, const Surface &out, Point position, ClxSprite cl
 	if (item._iOracoolBroken) {
 		const int width = static_cast<int>(clx.width());
 		const int height = static_cast<int>(clx.height());
-		const Point topLeft { position.x, position.y - height };
-		constexpr int Inset = 3;
-		constexpr int Thickness = 2;
-		constexpr uint8_t BrokenItemXColor = PAL8_RED;
-		const Point a1 { topLeft.x + Inset, topLeft.y + Inset };
-		const Point a2 { topLeft.x + width - Inset, topLeft.y + height - Inset };
-		const Point b1 { topLeft.x + width - Inset, topLeft.y + Inset };
-		const Point b2 { topLeft.x + Inset, topLeft.y + height - Inset };
-		const int steps = std::max({ std::abs(a2.x - a1.x), std::abs(a2.y - a1.y), 1 });
-		for (int i = 0; i <= steps; i++) {
-			const int x = a1.x + (a2.x - a1.x) * i / steps;
-			const int y = a1.y + (a2.y - a1.y) * i / steps;
-			FillRect(out, x - Thickness / 2, y - Thickness / 2, Thickness, Thickness, BrokenItemXColor);
-			const int x2 = b1.x + (b2.x - b1.x) * i / steps;
-			const int y2 = b1.y + (b2.y - b1.y) * i / steps;
-			FillRect(out, x2 - Thickness / 2, y2 - Thickness / 2, Thickness, Thickness, BrokenItemXColor);
-		}
+		DrawBrokenItemMarker(out, { position.x, position.y - height }, width, height);
 	}
 
 	// Stack quantity, bottom-right of the icon. Deliberately not the top of the icon,

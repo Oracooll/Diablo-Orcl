@@ -64,6 +64,16 @@ void DrawSoftwareCursor(const Surface &out, Point position, int cursId);
 
 void DrawItem(const Item &item, const Surface &out, Point position, ClxSprite clx);
 
+/**
+ * @brief Oracool: stamps a red X over a broken (0 durability) item's icon, inset within its own
+ * bounds. Shared between DrawItem here (inventory/belt/equipped/tabs) and the ground-item renderer
+ * (engine/render/scrollrt.cpp) - those two are separate rendering paths (UI panels vs. the live
+ * dungeon view) with no other code in common, so this exists specifically to avoid duplicating the
+ * X-drawing logic between them.
+ * @param topLeft Top-left corner of the icon's own bounding box.
+ */
+void DrawBrokenItemMarker(const Surface &out, Point topLeft, int width, int height);
+
 /** Returns the sprite for the given inventory index. */
 ClxSprite GetInvItemSprite(int cursId);
 

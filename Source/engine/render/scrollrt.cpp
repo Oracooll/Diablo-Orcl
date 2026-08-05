@@ -699,6 +699,15 @@ void DrawItem(const Surface &out, Point tilePosition, Point targetBufferPosition
 		ClxDrawOutlineSkipColorZero(out, GetOutlineColor(item, false), position, sprite);
 	}
 	ClxDrawLight(out, position, sprite, LightTableIndex);
+	// Oracool: a broken (0 durability) item dropped on the ground (e.g. from a player death) also
+	// gets the red X - this is a completely separate rendering path from cursor.cpp's DrawItem
+	// (used only for UI panels: inventory/belt/equipped/tabs), so it needed its own call to the
+	// shared DrawBrokenItemMarker helper.
+	if (item._iOracoolBroken) {
+		const int width = static_cast<int>(sprite.width());
+		const int height = static_cast<int>(sprite.height());
+		DrawBrokenItemMarker(out, { position.x, position.y - height }, width, height);
+	}
 	if (item.AnimInfo.isLastFrame() || item._iCurs == ICURS_MAGIC_ROCK)
 		AddItemToLabelQueue(bItem - 1, position);
 }

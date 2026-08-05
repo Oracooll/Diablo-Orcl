@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.10 — Broken Items Get Their Red X on the Ground Too
+
+The red X on broken (0 durability) items now also appears when the item is lying on the dungeon floor, not just in inventory/belt/equipped slots. Ground items turned out to use a completely separate rendering path that the original fix missed.
+
+---
+
 ## v0.3.9 — Mini-Map Border: Thinner and Dashed
 
 The mini-map's gold border is now 1px and dashed instead of 2px solid.
