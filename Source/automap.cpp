@@ -40,6 +40,10 @@ enum MapColors : uint8_t {
 	MapColorsDim = (PAL16_YELLOW + 8),
 	/** color for items on automap */
 	MapColorsItem = (PAL8_BLUE + 1),
+	/** Oracool: user request - bold mini-map-only marker color for door tiles */
+	MiniMapColorsDoor = (PAL16_GRAY + 3),
+	/** Oracool: user request - bold mini-map-only marker color for stairs tiles */
+	MiniMapColorsStairs = (PAL16_RED + 2),
 };
 
 struct AutomapTile {
@@ -516,6 +520,22 @@ void DrawAutomapTile(const Surface &out, Point center, Point map)
 
 	if (tile.HasFlag(AutomapTile::Flags::Stairs)) {
 		DrawStairs(out, center, colorBright);
+	}
+
+	if (MiniMapActive) {
+		// Oracool: user request - bold, fixed-size, distinctly colored blocks for doors and stairs
+		// on the mini-map, matching the same fixed-size-block pattern already used for the mini-map
+		// player marker (see DrawAutomapPlr) - the line-art glyphs above (DrawStairs, and the
+		// door glyphs drawn from DrawVertical/DrawHorizontal below) shrink to 1-2px and become
+		// nearly invisible at the mini-map's heavily zoomed-out AutoMapScale.
+		if (tile.HasFlag(AutomapTile::Flags::Stairs)) {
+			constexpr int MiniMapStairsMarkerSize = 3;
+			FillRect(out, center.x - MiniMapStairsMarkerSize / 2, center.y - MiniMapStairsMarkerSize / 2, MiniMapStairsMarkerSize, MiniMapStairsMarkerSize, static_cast<uint8_t>(MiniMapColorsStairs));
+		}
+		if (tile.HasFlag(AutomapTile::Flags::VerticalDoor) || tile.HasFlag(AutomapTile::Flags::HorizontalDoor)) {
+			constexpr int MiniMapDoorMarkerSize = 2;
+			FillRect(out, center.x - MiniMapDoorMarkerSize / 2, center.y - MiniMapDoorMarkerSize / 2, MiniMapDoorMarkerSize, MiniMapDoorMarkerSize, static_cast<uint8_t>(MiniMapColorsDoor));
+		}
 	}
 
 	switch (tile.type) {

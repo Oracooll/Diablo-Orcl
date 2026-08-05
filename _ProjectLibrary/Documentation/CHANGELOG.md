@@ -201,7 +201,15 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
-## v0.3.22 — Smaller Pause Menu Font
+## v0.3.24 — Mini-Map Door/Stairs Markers, Space Closes the Log
+
+The mini-map now marks doors with a small light gray square and stairs with a slightly larger red square, both bold and solid so they stay clearly visible even at the mini-map's tiny zoom level (the map's normal thin line-art for these barely shows up that small). They move with the map exactly like everything else. The full-screen map is untouched - it keeps its original line-art doors and stairs, which are already easy to see at that zoom.
+
+Also: pressing the space bar now closes the Event Log window when it's open.
+
+---
+
+## v0.3.23 — Shrine Effects in the Event Log, HUD Hidden Behind the Full Map
 
 The in-game ESC/pause menu (both the "Pause" title and the menu items below it) now uses a slightly smaller font size than before.
 

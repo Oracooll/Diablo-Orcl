@@ -643,6 +643,13 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		if (AutomapActive && !talkflag)
 			AutomapRight();
 		return;
+	case SDLK_SPACE:
+		// Oracool: user request - space bar closes the Event Log window when it's open. No-op
+		// otherwise, so any real keyboard binding on space (via the Keymapper call above) is
+		// unaffected.
+		if (oracool::IsEventLogOpen())
+			oracool::ToggleEventLog();
+		return;
 	default:
 		break;
 	}
