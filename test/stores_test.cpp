@@ -133,6 +133,49 @@ TEST(Stores, SmithSell_ListsItemStoredInExtraTab)
 	EXPECT_TRUE(foundTabItem) << "the extra-tab item should be listed for sale, just like an item in the original backpack or belt";
 }
 
+// Oracool Tabbed Inventory: regression test for a real bug - Cain's "identify an item" list only
+// ever scanned InvBody/InvList, so an unidentified item moved into an extra tab never showed up
+// to be identified at all (matching the user's report that Cain "doesn't see unidentified items
+// in tabs 2-10"). Separately, using a Scroll of Identify directly on such an item silently
+// consumed the scroll without identifying anything, since pcursinvitem is deliberately -1 for
+// extra-tab hovers - that path is covered by CheckIdentify's tabIdx parameter instead (items.cpp),
+// which has no test-friendly seam here but is exercised by the same ResolveInvOrTabItem helper
+// StorytellerIdentifyItem now shares the same storehTabIdx-driven resolution with.
+TEST(Stores, StorytellerIdentify_ListsAndIdentifiesItemStoredInExtraTab)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+
+	for (int i = 0; i < InventoryGridCells; i++)
+		MyPlayer->InvList[i].clear();
+	MyPlayer->_pNumInv = 0;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+	for (auto &item : MyPlayer->InvBody)
+		item.clear();
+
+	MyPlayer->InvTabList[2][0].clear();
+	InitializeItem(MyPlayer->InvTabList[2][0], IDI_HEAL);
+	MyPlayer->InvTabList[2][0]._iMagical = ITEM_QUALITY_MAGIC;
+	MyPlayer->InvTabList[2][0]._iIdentified = false;
+	MyPlayer->InvTabGrid[2][0] = 1;
+	MyPlayer->_pNumInvTab[2] = 1;
+
+	StartStore(TalkID::StorytellerIdentify);
+
+	int foundAt = -1;
+	for (int i = 0; i < storenumh; i++) {
+		if (!storehold[i]._iIdentified)
+			foundAt = i;
+	}
+	ASSERT_NE(foundAt, -1) << "the unidentified extra-tab item should be listed for identification, just like one in the original backpack";
+
+	SimulateStorytellerIdentifyForTest(static_cast<size_t>(foundAt));
+
+	EXPECT_TRUE(MyPlayer->InvTabList[2][0]._iIdentified) << "identifying the listed entry should mark the real extra-tab item identified, not silently do nothing";
+}
+
 TEST(Stores, SmithSell_StackedConsumable_PricedByQuantity)
 {
 	Players.resize(1);

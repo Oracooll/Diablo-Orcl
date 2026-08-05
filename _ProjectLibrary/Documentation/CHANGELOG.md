@@ -201,6 +201,20 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.27 — Identify, Repair, Recharge, and Oil Now Reach Extra-Tab Items
+
+Fixes a real bug: using a Scroll of Identify (or Repair, Recharge, or an Oil) directly on an item stored in one of the 9 extra inventory tabs consumed the scroll/item but silently did nothing to the target - the item stayed unidentified/unrepaired. Also fixed: Cain's "identify an item" list at the Storyteller never showed unidentified items sitting in an extra tab at all. Both now work exactly like they already did for the original backpack, belt, and equipped items.
+
+Also: Reset Stats now plays the armor-drop sound when clicked, so it's clear the reset actually happened.
+
+---
+
+## v0.3.26 — XP Counter Never Clips
+
+The remaining-XP counter below the mini-map now sizes itself to however many digits the number actually needs, instead of a fixed box - so it displays correctly at any digit count instead of only fitting small numbers.
+
+---
+
 ## v0.3.25 — Every Permanent Shrine Effect Now Logged
 
 The last update only logged shrines that change one of your four main stats. On reflection, plenty of other shrines have a permanent effect on you or your gear that deserves the same treatment - so now every shrine that permanently changes a stat, your maximum mana, a spell's level, an item's durability or quality, your gold, or your experience logs a clear red line explaining exactly what happened. That's Hidden, Gloomy, Weird, Enchanted, Fascinating, Sacred, Ornate, Eldritch, Spiritual, Glimmering, Mendicant, Sparkling, and Murphy's Shrines, on top of the ones already covered. Shrines that only cast a temporary spell effect, restore your current HP/mana, or otherwise don't leave a lasting mark are intentionally left alone.

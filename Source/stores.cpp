@@ -1399,12 +1399,13 @@ bool IdItemOk(Item *i)
 	return !i->_iIdentified;
 }
 
-void AddStoreHoldId(Item itm, int8_t i)
+void AddStoreHoldId(Item itm, int8_t i, int8_t tabIdx = -1)
 {
 	storehold[storenumh] = itm;
 	storehold[storenumh]._ivalue = 100;
 	storehold[storenumh]._iIvalue = 100;
 	storehidx[storenumh] = i;
+	storehTabIdx[storenumh] = tabIdx;
 	storenumh++;
 }
 
@@ -1472,6 +1473,20 @@ void StartStorytellerIdentify()
 		}
 	}
 
+	// Oracool Tabbed Inventory: an unidentified item stored in an extra tab is just as
+	// identifiable by Cain as anything in the original backpack.
+	if (TabbedInventoryEnabled()) {
+		for (int t = 0; t < Player::NumExtraInventoryTabs && storenumh < 48; t++) {
+			for (int i = 0; i < myPlayer._pNumInvTab[t] && storenumh < 48; i++) {
+				auto &item = myPlayer.InvTabList[t][i];
+				if (IdItemOk(&item)) {
+					idok = true;
+					AddStoreHoldId(item, static_cast<int8_t>(i), static_cast<int8_t>(t));
+				}
+			}
+		}
+	}
+
 	if (!idok) {
 		stextscrl = false;
 
@@ -1484,7 +1499,10 @@ void StartStorytellerIdentify()
 
 	stextscrl = true;
 	stextsval = 0;
-	stextsmax = myPlayer._pNumInv;
+	// Oracool: matches the scroll-bound formula every other tab-aware sell/repair list already
+	// uses (e.g. PopulateSellList's callers) - myPlayer._pNumInv alone would under-count once
+	// extra-tab items are appended to storehold past the backpack's own count.
+	stextsmax = std::max(storenumh - 4, 0);
 
 	RenderGold = true;
 	AddSText(20, 1, _("Identify which item?"), UiFlags::ColorWhitegold, false);
@@ -2303,8 +2321,13 @@ void StorytellerIdentifyItem(Item &item)
 {
 	Player &myPlayer = *MyPlayer;
 
-	int8_t idx = storehidx[((stextlhold - stextup) / 4) + stextvhold];
-	if (idx < 0) {
+	int listIdx = ((stextlhold - stextup) / 4) + stextvhold;
+	int8_t idx = storehidx[listIdx];
+	int8_t tabIdx = storehTabIdx[listIdx];
+	if (tabIdx >= 0) {
+		// Oracool Tabbed Inventory: this entry came from an extra tab, not InvBody/InvList.
+		myPlayer.InvTabList[tabIdx][idx]._iIdentified = true;
+	} else if (idx < 0) {
 		if (idx == -1)
 			myPlayer.InvBody[INVLOC_HEAD]._iIdentified = true;
 		if (idx == -2)
@@ -2605,6 +2628,21 @@ void DrawSelector(const Surface &out, const Rectangle &rect, string_view text, U
 }
 
 } // namespace
+
+// Oracool: mirrors SimulateSmithConsumablesPurchaseForTest's approach - sets up the same globals
+// StorytellerIdentifyItem reads to resolve its target from storehold[index], then calls it exactly
+// as the real "identify which item?" confirm click would, without needing StartStore()'s
+// screen/sprite setup (unavailable in a headless test). Defined here, outside the anonymous
+// namespace StorytellerIdentifyItem itself lives in, so this test-only entry point actually gets
+// the external linkage its stores.h declaration promises - internal-linkage symbols stay callable
+// from here regardless, since anonymous-namespace visibility spans the whole translation unit.
+void SimulateStorytellerIdentifyForTest(size_t index)
+{
+	stextup = 0;
+	stextvhold = 0;
+	stextlhold = static_cast<int>(index) * 4;
+	StorytellerIdentifyItem(storehold[index]);
+}
 
 size_t GetSmithConsumablesStockCountForTest()
 {

@@ -62,6 +62,9 @@ extern int8_t storehidx[48];
 /** Copies of the players items as presented in the store */
 extern DVL_API_FOR_TEST Item storehold[48];
 
+/** Simulates confirming "identify which item?" on storehold[index], exactly as the real UI would. */
+DVL_API_FOR_TEST void SimulateStorytellerIdentifyForTest(size_t index);
+
 /** Items sold by Griswold */
 extern DVL_API_FOR_TEST Item smithitem[SMITH_ITEMS];
 /** Number of premium items for sale by Griswold */

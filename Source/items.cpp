@@ -4131,57 +4131,47 @@ void GetItemStr(Item &item)
 	}
 }
 
-void CheckIdentify(Player &player, int cii)
+// Oracool: shared by CheckIdentify/DoRepair/DoRecharge/DoOil below - tabIdx >= 0 (an Oracool
+// Tabbed Inventory extra tab) takes priority over the vanilla InvBody/InvList encoding cii would
+// otherwise resolve through, since a tab-sourced target has no meaningful cii of its own.
+static Item *ResolveInvOrTabItem(Player &player, int cii, int tabIdx)
 {
-	Item *pi;
-
+	if (tabIdx >= 0)
+		return &player.InvTabList[tabIdx][cii];
 	if (cii >= NUM_INVLOC)
-		pi = &player.InvList[cii - NUM_INVLOC];
-	else
-		pi = &player.InvBody[cii];
+		return &player.InvList[cii - NUM_INVLOC];
+	return &player.InvBody[cii];
+}
+
+void CheckIdentify(Player &player, int cii, int tabIdx)
+{
+	Item *pi = ResolveInvOrTabItem(player, cii, tabIdx);
 
 	pi->_iIdentified = true;
 	CalcPlrInv(player, true);
 }
 
-void DoRepair(Player &player, int cii)
+void DoRepair(Player &player, int cii, int tabIdx)
 {
-	Item *pi;
-
 	PlaySfxLoc(IS_REPAIR, player.position.tile);
 
-	if (cii >= NUM_INVLOC) {
-		pi = &player.InvList[cii - NUM_INVLOC];
-	} else {
-		pi = &player.InvBody[cii];
-	}
+	Item *pi = ResolveInvOrTabItem(player, cii, tabIdx);
 
 	RepairItem(*pi, player._pLevel);
 	CalcPlrInv(player, true);
 }
 
-void DoRecharge(Player &player, int cii)
+void DoRecharge(Player &player, int cii, int tabIdx)
 {
-	Item *pi;
-
-	if (cii >= NUM_INVLOC) {
-		pi = &player.InvList[cii - NUM_INVLOC];
-	} else {
-		pi = &player.InvBody[cii];
-	}
+	Item *pi = ResolveInvOrTabItem(player, cii, tabIdx);
 
 	RechargeItem(*pi, player);
 	CalcPlrInv(player, true);
 }
 
-bool DoOil(Player &player, int cii)
+bool DoOil(Player &player, int cii, int tabIdx)
 {
-	Item *pi;
-	if (cii >= NUM_INVLOC) {
-		pi = &player.InvList[cii - NUM_INVLOC];
-	} else {
-		pi = &player.InvBody[cii];
-	}
+	Item *pi = ResolveInvOrTabItem(player, cii, tabIdx);
 	if (!ApplyOilToItem(*pi, player))
 		return false;
 	CalcPlrInv(player, true);

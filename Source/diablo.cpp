@@ -2535,6 +2535,8 @@ bool TryIconCurs()
 	if (pcurs == CURSOR_IDENTIFY) {
 		if (pcursinvitem != -1 && !IsInspectingPlayer())
 			CheckIdentify(myPlayer, pcursinvitem);
+		else if (pcursinvtabitem != -1 && !IsInspectingPlayer())
+			CheckIdentify(myPlayer, pcursinvtabitem, pcursinvtabidx);
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
 			item._iIdentified = true;
@@ -2546,6 +2548,8 @@ bool TryIconCurs()
 	if (pcurs == CURSOR_REPAIR) {
 		if (pcursinvitem != -1 && !IsInspectingPlayer())
 			DoRepair(myPlayer, pcursinvitem);
+		else if (pcursinvtabitem != -1 && !IsInspectingPlayer())
+			DoRepair(myPlayer, pcursinvtabitem, pcursinvtabidx);
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
 			RepairItem(item, myPlayer._pLevel);
@@ -2557,6 +2561,8 @@ bool TryIconCurs()
 	if (pcurs == CURSOR_RECHARGE) {
 		if (pcursinvitem != -1 && !IsInspectingPlayer())
 			DoRecharge(myPlayer, pcursinvitem);
+		else if (pcursinvtabitem != -1 && !IsInspectingPlayer())
+			DoRecharge(myPlayer, pcursinvtabitem, pcursinvtabidx);
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
 			RechargeItem(item, myPlayer);
@@ -2569,6 +2575,8 @@ bool TryIconCurs()
 		bool changeCursor = true;
 		if (pcursinvitem != -1 && !IsInspectingPlayer())
 			changeCursor = DoOil(myPlayer, pcursinvitem);
+		else if (pcursinvtabitem != -1 && !IsInspectingPlayer())
+			changeCursor = DoOil(myPlayer, pcursinvtabitem, pcursinvtabidx);
 		else if (pcursstashitem != StashStruct::EmptyCell) {
 			Item &item = Stash.stashList[pcursstashitem];
 			changeCursor = ApplyOilToItem(item, myPlayer);

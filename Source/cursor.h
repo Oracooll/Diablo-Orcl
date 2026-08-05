@@ -33,6 +33,17 @@ enum cursor_id : uint8_t {
 
 extern int pcursmonst;
 extern int8_t pcursinvitem;
+/**
+ * @brief Oracool Tabbed Inventory: set by CheckInvHLight, alongside pcursinvitem, whenever the
+ * mouse is hovering an item stored in one of the Tabbed Inventory extra tabs (2-10). pcursinvitem
+ * itself stays -1 for these (legacy drag/drop code assumes tab-1 indices and must keep doing so),
+ * so the single-shot cursor-target actions that don't involve drag state at all - Identify,
+ * Repair, Recharge, applying an Oil - read these two instead, mirroring how pcursstashitem already
+ * gives those same four actions a second, independent target besides pcursinvitem. -1/-1 when no
+ * extra-tab item is hovered.
+ */
+extern int8_t pcursinvtabidx;
+extern int8_t pcursinvtabitem;
 extern uint16_t pcursstashitem;
 extern int8_t pcursitem;
 

@@ -743,10 +743,15 @@ void ProcessItems();
 void FreeItemGFX();
 void GetItemFrm(Item &item);
 void GetItemStr(Item &item);
-void CheckIdentify(Player &player, int cii);
-void DoRepair(Player &player, int cii);
-void DoRecharge(Player &player, int cii);
-bool DoOil(Player &player, int cii);
+/**
+ * @brief tabIdx selects an Oracool Tabbed Inventory extra tab (0-8) instead of the vanilla
+ * InvBody/InvList encoding cii would otherwise resolve through - pass -1 (the default) for the
+ * original behavior.
+ */
+void CheckIdentify(Player &player, int cii, int tabIdx = -1);
+void DoRepair(Player &player, int cii, int tabIdx = -1);
+void DoRecharge(Player &player, int cii, int tabIdx = -1);
+bool DoOil(Player &player, int cii, int tabIdx = -1);
 [[nodiscard]] StringOrView PrintItemPower(char plidx, const Item &item);
 void DrawUniqueInfo(const Surface &out);
 void PrintItemDetails(const Item &item);

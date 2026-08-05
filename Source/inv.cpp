@@ -2463,6 +2463,8 @@ int SyncDropEar(Point position, uint16_t icreateinfo, uint32_t iseed, uint8_t cu
 int8_t CheckInvHLight()
 {
 	ActiveTabItemHovered = false;
+	pcursinvtabidx = -1;
+	pcursinvtabitem = -1;
 
 	int8_t r = 0;
 	for (; r < NUM_XY_SLOTS; r++) {
@@ -2519,9 +2521,10 @@ int8_t CheckInvHLight()
 		int ii = itemId - 1;
 		pi = &GetActiveInvListItem(myPlayer, ii);
 		// Oracool Tabbed Inventory: only tab 1 (the real InvList) has a pcursinvitem encoding
-		// that legacy identify/drag/repair code understands (they all assume tab-1 indices).
-		// An extra tab's item still gets its full hover tooltip (InfoString/PrintItemDetails
-		// below, via pi) - it just isn't treated as an interactive identify/drag target yet.
+		// that legacy drag/drop code understands (it assumes tab-1 indices). An extra tab's item
+		// still gets its full hover tooltip (InfoString/PrintItemDetails below, via pi), and the
+		// single-shot cursor-target actions (Identify/Repair/Recharge/Oil, see TryIconCurs) can
+		// still reach it via pcursinvtabidx/pcursinvtabitem - it just isn't a drag/drop target.
 		// ActiveTabItemHovered tells DrawInfoBox not to wipe that tooltip the way it normally
 		// would for pcursinvitem == -1 (which otherwise also means "hovering nothing at all").
 		if (ActiveInventoryTab == 0) {
@@ -2529,6 +2532,8 @@ int8_t CheckInvHLight()
 		} else {
 			rv = -1;
 			ActiveTabItemHovered = true;
+			pcursinvtabidx = static_cast<int8_t>(ActiveInventoryTab - 1);
+			pcursinvtabitem = static_cast<int8_t>(ii);
 		}
 	} else if (r >= SLOTXY_BELT_FIRST) {
 		r -= SLOTXY_BELT_FIRST;

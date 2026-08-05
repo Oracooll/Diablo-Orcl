@@ -24,6 +24,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/trn.hpp"
+#include "effects.h"
 #include "error.h"
 #include "gamemenu.h"
 #include "init.h"
@@ -1322,8 +1323,12 @@ void ReleaseChrBtns(bool addAllStatPoints)
 	if (resetStatsButtonDown) {
 		resetStatsButtonDown = false;
 		Rectangle resetButton { GetPanelPosition(UiPanels::Character, ResetStatsButtonPosition), ResetStatsButtonSize };
-		if (resetButton.contains(MousePosition))
+		if (resetButton.contains(MousePosition)) {
 			ResetPlayerStats(*MyPlayer);
+			// Oracool: user request - reuses the armor-drop sound for a satisfying "clunk"
+			// confirming the reset actually happened.
+			PlaySfxLoc(IS_FHARM, MyPlayer->position.tile);
+		}
 		return;
 	}
 	for (auto attribute : enum_values<CharacterAttribute>()) {

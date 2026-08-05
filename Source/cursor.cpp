@@ -126,6 +126,9 @@ int pcursmonst = -1;
 
 /** inv_item value */
 int8_t pcursinvitem;
+/** Oracool Tabbed Inventory: extra-tab equivalent of pcursinvitem - see cursor.h */
+int8_t pcursinvtabidx = -1;
+int8_t pcursinvtabitem = -1;
 /** StashItem value */
 uint16_t pcursstashitem;
 /** Current highlighted item */
