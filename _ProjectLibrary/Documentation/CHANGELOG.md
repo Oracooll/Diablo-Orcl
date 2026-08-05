@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.17 — Game Clock
+
+A real-world clock now sits just below the mini-map's left edge, mirroring the LOG button on the opposite side. Shows 24-hour time by default; a new "Game Clock 12 Hour Format" setting switches it to 12-hour time with an AM/PM suffix instead. Like the mini-map and event log, it has its own on/off setting in `diablo.ini`.
+
+---
+
 ## v0.3.16 — Event Log Repositioned Under the Mini-Map
 
 The LOG button now sits directly below the mini-map, flush with its right edge, and the log window opens directly below the button and stretches all the way down to just above the bottom UI panel — giving it much more room to show your history than before.

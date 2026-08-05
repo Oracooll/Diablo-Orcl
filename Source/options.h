@@ -693,6 +693,8 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryTormentMultiplier tormentDifficultyMultiplier;
 	OptionEntryBoolean miniMapEnabled;
 	OptionEntryBoolean eventLog;
+	OptionEntryBoolean gameClock;
+	OptionEntryBoolean gameClock12HourFormat;
 };
 
 struct ControllerOptions : OptionCategoryBase {

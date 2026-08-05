@@ -447,6 +447,12 @@ void SaveOptions()
 	setBoolean("Event Log", *sgOptions.Oracool.eventLog,
 	    "; ----- EVENT LOG -----------------------------------------------------------------\n; Shows a small \"LOG\" button above the durability-warning icons that expands into a\n; timestamped log of noteworthy session events (game saves, boss kills, special item\n; drops, deaths). Session-only - not saved to disk.");
 
+	setBoolean("Game Clock", *sgOptions.Oracool.gameClock,
+	    "; ----- GAME CLOCK -----------------------------------------------------------------\n; Shows the current real-world time just below the mini-map's left edge, mirroring the\n; LOG button on the opposite side.");
+
+	setBoolean("Game Clock 12 Hour Format", *sgOptions.Oracool.gameClock12HourFormat,
+	    "; If true, the Game Clock shows 12-hour time with an AM/PM suffix (e.g. \"2:45 PM\")\n; instead of the default 24-hour format (e.g. \"14:45\").");
+
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
 	setBoolean("Inventory Sort Button", *sgOptions.Oracool.inventorySortButton,
@@ -1269,6 +1275,8 @@ OracoolOptions::OracoolOptions()
     , tormentDifficultyMultiplier("Torment Difficulty Multiplier", OptionEntryFlags::None, N_("Torment Difficulty Multiplier"), N_("How much harder Torment is than Hell, applied on top of Hell's own monster and treasure scaling."), 20, { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50 })
     , miniMapEnabled("Mini-Map", OptionEntryFlags::None, N_("Mini-Map"), N_("Shows an always-on mini-map in the top-right corner during gameplay. Independent of TAB, which still opens/closes the normal full map."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
+    , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
+    , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
 {
 }
 
@@ -1307,6 +1315,8 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&tormentDifficultyMultiplier,
 		&miniMapEnabled,
 		&eventLog,
+		&gameClock,
+		&gameClock12HourFormat,
 	};
 }
 
