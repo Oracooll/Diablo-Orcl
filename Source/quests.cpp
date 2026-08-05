@@ -5,6 +5,7 @@
  */
 #include "quests.h"
 
+#include <array>
 #include <cstdint>
 
 #include <fmt/format.h>
@@ -25,6 +26,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "options.h"
+#include "oracool/event_log.h"
 #include "panels/ui_panels.hpp"
 #include "stores.h"
 #include "towners.h"
@@ -40,6 +42,19 @@ Quest Quests[MAXQUESTS];
 Point ReturnLvlPosition;
 dungeon_type ReturnLevelType;
 int ReturnLevel;
+
+namespace {
+// Oracool: tracks each quest's _qlog state as of the last SyncQuestLogState()/CheckQuests() call,
+// so a false->true transition can be detected and logged exactly once - see CheckQuests() and
+// SyncQuestLogState() below.
+std::array<bool, MAXQUESTS> PreviouslyLoggedQuestState {};
+} // namespace
+
+void SyncQuestLogState()
+{
+	for (int i = 0; i < MAXQUESTS; i++)
+		PreviouslyLoggedQuestState[i] = Quests[i]._qlog;
+}
 
 /** Contains the data related to each quest_id. */
 QuestData QuestsData[] = {
@@ -290,6 +305,10 @@ void InitQuests()
 	// In multiplayer items spawn during level generation to avoid desyncs
 	if (gbIsMultiplayer && Quests[Q_MUSHROOM]._qactive == QUEST_INIT)
 		Quests[Q_MUSHROOM]._qvar1 = QS_TOMESPAWNED;
+
+	// Oracool: every quest's _qlog is false at this point (set above), so this just seeds a clean
+	// baseline for the new-quest-added log detector in CheckQuests().
+	SyncQuestLogState();
 }
 
 void InitialiseQuestPools(uint32_t seed, Quest quests[])
@@ -322,6 +341,21 @@ void CheckQuests()
 {
 	if (gbIsSpawn)
 		return;
+
+	// Oracool: user request - "when i interact with quest item which introduces a certain quest in
+	// my quest log put a log message." Rather than instrument the ~25 scattered call sites that
+	// set _qlog = true directly (one per quest, spread across quests.cpp/towners.cpp/objects.cpp/
+	// monster.cpp/player.cpp), this generically detects the false->true transition every tick -
+	// CheckQuests() already runs every game tick regardless of what triggered the change, so no
+	// existing quest-activation code needed to change at all. PreviouslyLoggedQuestState is kept
+	// in sync with reality (without logging) by SyncQuestLogState(), called once whenever a game
+	// actually starts or a save actually loads - see that function's own callers for why.
+	for (int i = 0; i < MAXQUESTS; i++) {
+		if (Quests[i]._qlog && !PreviouslyLoggedQuestState[i]) {
+			oracool::LogEvent(fmt::format("Quest \"{:s}\" was added to the quest log", _(QuestsData[Quests[i]._qidx]._qlstr)));
+			PreviouslyLoggedQuestState[i] = true;
+		}
+	}
 
 	auto &quest = Quests[Q_BETRAYER];
 	if (quest.IsAvailable() && UseMultiplayerQuests() && quest._qvar1 == 2) {

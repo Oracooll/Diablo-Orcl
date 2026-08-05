@@ -335,6 +335,31 @@ public:
 	}
 };
 
+/**
+ * @brief Oracool: an int-backed list (like OptionEntryInt) whose value 0 displays as "OFF"
+ * instead of the digit "0" - used for Monster Range Highlight's OFF/1/2/3/4/5 range.
+ */
+class OptionEntryRangeOrOff : public OptionEntryIntBase {
+public:
+	OptionEntryRangeOrOff(string_view key, OptionEntryFlags flags, const char *name, const char *description, int defaultValue, std::initializer_list<int> entries)
+	    : OptionEntryIntBase(key, flags, name, description, defaultValue)
+	{
+		for (auto entry : entries)
+			AddEntry(entry);
+	}
+
+	[[nodiscard]] string_view GetListDescription(size_t index) const override;
+
+	[[nodiscard]] int operator*() const
+	{
+		return GetValueInternal();
+	}
+	void SetValue(int value)
+	{
+		SetValueInternal(value);
+	}
+};
+
 class OptionEntryLanguageCode : public OptionEntryListBase {
 public:
 	OptionEntryLanguageCode();
@@ -698,6 +723,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean gameClock12HourFormat;
 	OptionEntryBoolean xpCounter;
 	OptionEntryBoolean xpGainIndicator;
+	OptionEntryRangeOrOff monsterRangeHighlight;
 };
 
 struct ControllerOptions : OptionCategoryBase {

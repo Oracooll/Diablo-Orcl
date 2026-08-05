@@ -960,3 +960,52 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - User request: "GAME SAVED msg in the log to use white font." Both save-related `oracool::LogEvent` call sites - the manual save's "Game saved" (`gamemenu.cpp`) and the autosave's "Game saved (auto)" (`auto_save.cpp`) - now pass `UiFlags::ColorWhite` explicitly instead of relying on `LogEvent`'s gold default. Scoped only to the Event Log line; the separate top-left `save_indicator.cpp` "Game Saved" banner (a different, non-log UI element) is untouched.
 - Verification: the complete Debug build succeeds. No test coverage needed - a one-argument color-flag change with no branching logic to verify.
 - Critically, `GmenuGetLineWidth` - the function that measures each item's text width to center it horizontally (`x = (gnScreenWidth - w) / 2` in `GmenuDrawMenuItem`) - was still measuring at the old size (`GameFont46`, the corresponding `GameFontTables` enum value used by `GetLineWidth`, not the `UiFlags` bit used for drawing). Left unchanged, this would have measured a width for the old, wider text and then drawn the new, narrower text inside it, shifting every menu item off-center instead of centering it. Changed to `GameFont42` to match the new draw size.
+
+## OE-045: v0.3.30 Monster range highlight, quest/level-up log entries, shrine descriptions, and fixes
+
+### New: Monster Range Highlight
+
+- User request: "monsters within range 5 to be surrounded by the red border they get surrounded by when hovered over" - then refined: "the ENEMIES HAVE RED BORDER WHEN IN RANGE feature to be adjustible in the ini - OFF,1,2,3,4,5." `DrawMonsterHelper` (`engine/render/scrollrt.cpp`) now draws the same `ClxDrawOutlineSkipColorZero` outline already used for the cursor-hovered monster (`mi == pcursmonst`) whenever `monster.position.tile.WalkingDistance(MyPlayer->position.tile) <= monsterRangeHighlight`, using the existing `Point::WalkingDistance` helper already used throughout monster.cpp/multi.cpp.
+- New `Oracool.monsterRangeHighlight` option: a list-backed int option (new `OptionEntryRangeOrOff` class in `options.h`, sibling to the existing `OptionEntryTormentMultiplier` pattern) showing `OFF`, `1`, `2`, `3`, `4`, `5` in the settings menu; `OFF` (0) disables the feature entirely. Off by default. Standard 4-touchpoint pattern (declaration, INI read/write, `GetEntries()` registration, demo-mode reset to 0).
+
+### New: Quest-added Event Log entry
+
+- User request: "when i interact with quest item which introduces a certain quest in my quest log put a log message in my log saying Quest XXXXXXXX was added to the quest log." Rather than patching the ~28 scattered call sites across `quests.cpp`/`towners.cpp`/`objects.cpp` that can set a quest's `_qlog` flag, added a single once-per-tick detector to `CheckQuests()` (`quests.cpp`, already called every game tick from `diablo.cpp`'s main loop): a file-scope `std::array<bool, MAXQUESTS> PreviouslyLoggedQuestState` snapshot is compared against every quest's current `_qlog` each tick, and any false-to-true transition logs `Quest "<name>" was added to the quest log` via `oracool::LogEvent`.
+- The snapshot needs resetting at the right moments to avoid two failure modes: a stale snapshot surviving into a new game/character (which would suppress a genuinely new quest's log line) or a loaded save's already-active quests getting spuriously re-announced as "just added." New `SyncQuestLogState()` (declared in `quests.h`) resyncs the baseline without logging anything, called once from `InitQuests()` (fresh games) and once from `loadsave.cpp` right after the quest-loading loop (loaded saves).
+- Verification: the complete Debug build succeeds (needed `#include "quests.h"` added to `loadsave.cpp`, which didn't previously include it directly). Full regression suite (all 8 test binaries, 192 test cases) passes unchanged - no existing test coverage exercises `CheckQuests()`'s per-tick logic directly.
+- Deferred: in-game manual verification of the log wording and timing has not yet been performed.
+
+### New: Level-up Event Log entry
+
+- User request: "idea: level up event to be logged in the LOG." `NextPlrLevel` (`player.cpp`) already plays a level-up sound (added in an earlier pass); added `oracool::LogEvent(fmt::format("Reached level {:d}", player._pLevel), UiFlags::ColorWhitegold)` right alongside it, gated to `&player == MyPlayer` the same way the sound already is.
+
+### New: Shrine hover descriptions
+
+- User request: "when i hover my cursor over shrined and such - in the window with its name, bellow the name type the description of the shrine as in what it does." Added a new `ShrineDescriptions[]` array (`objects.cpp`), parallel to the existing `ShrineNames[]` and indexed the same way by `shrine_type`, with a short plain-language summary of each shrine's actual effect (matching the Oracool-specific behavior where a shrine's vanilla effect was changed, e.g. the Fascinating/Sacred/Ornate "Cost of Wisdom" shrines' permanent mana cost, or the Solar shrine's time-of-day-dependent stat). `GetObjectStr` now appends the matching description via `AddPanelString` whenever the hovered object is a shrine (`OBJ_SHRINEL`/`OBJ_SHRINER`), reusing the same multi-line info-box mechanism already used for monster/player hover info.
+- Verification: the complete Debug build succeeds (needed `#include "control.h"` added to `objects.cpp` for `AddPanelString`). Full regression suite passes unchanged - no test coverage exercises object hover text in this codebase.
+- Deferred: in-game manual verification that all 34 descriptions read correctly and fit the info box has not yet been performed.
+
+### Changed: SRT button color scheme reversed
+
+- User request: "change gold and white colors of SRT button as in gold is default, white is when clicked on." `DrawInventorySortButton` (`inv.cpp`) previously drew white at rest and gold while pressed; swapped to gold at rest, white while pressed.
+
+### Changed: Tab numbers shown as roman numerals
+
+- User request: "idea: replace tab numbers with roman numbers." `DrawInventoryTabs` (`inv.cpp`) now looks up each of the 10 tab labels from a new `RomanNumeralTabLabels` array (`"I"` through `"X"`) instead of formatting `tab + 1` as a plain digit string.
+
+### Fixed: Speed Book showed a scroll count of 1 regardless of stack size
+
+- User bug report: "speedbook doesn't show correct number of spell's scrolls. apparently it doesn't see the number of scrolls in a stack and considers a stack as 1 piece." `DrawSpellList`'s scroll-count line (`panels/spell_list.cpp`) used `std::count_if` over `InventoryAndBeltPlayerItemsRange`, which counts *matching stack entries* (always 1 per stack, regardless of how many scrolls that stack actually holds) rather than summing each stack's real count. Fixed to sum `item.stackCount()` across every matching stack instead of counting entries; `InventoryAndBeltPlayerItemsRange` already covers the backpack, all 9 extra tabs, and the belt, so no change was needed there.
+
+### Fixed: Right-clicking to use an item in an extra tab (e.g. reading a book) silently failed
+
+- User bug report: "i can't right click a book in tabs 2-10." Traced to `UseInvItem` (`inv.cpp`), which resolved the hovered item via `item = &player.InvList[c]` - a raw, tab-0-only read. `pcursinvitem`, however, is populated from `GetActiveInvListItem`, which is tab-aware and returns an index local to whichever tab is currently active. With an extra tab open, `UseInvItem` was reading (and, on consumption, decrementing/removing) the wrong slot in `InvList` entirely - usually empty, which reads as "nothing happens" - rather than the actually-hovered item. Fixed by resolving through `GetActiveInvListItem` and passing the correct `tabIdx` (derived from the current `ActiveInventoryTab`) through to `DecrementOrRemoveInvItem`. Not book-specific - this was the general right-click "use" path for every inventory item, so the fix applies equally to potions, scrolls, staves, and anything else usable from an extra tab.
+- Verification: the complete Debug build succeeds. Full regression suite (192 tests across 8 binaries) passes unchanged - no existing test seam covers `UseInvItem`'s live-cursor-driven dispatch.
+- Deferred: in-game manual verification has not yet been performed.
+
+### Fixed: broken items didn't mark their durability icon
+
+- User clarification of an earlier request: "put an X on the durability icon as well when an item goes to 0 durability" (in addition to the existing X already stamped on the item's inventory/equipped icon). `DrawDurIcon4Item` (`control.cpp`) now calls the shared `DrawBrokenItemMarker` helper (already used by `DrawItem`/`DrawItem2`/the ground-item render path) over the small gold/red durability icon above the main panel whenever `pItem._iOracoolBroken` is set.
+
+- Verification: the complete Debug build succeeds. Full regression suite (192 tests across 8 binaries: items_test, inv_test, loadsave_test, missiles_test, pack_test, player_test, stores_test, cursor_test) passes for the entire batch above.
+- Deferred: in-game manual verification of every item in this batch (monster highlight visuals at each range setting, quest/level-up log wording, shrine descriptions, SRT/tab visuals, the speedbook count, extra-tab right-click use, and the durability-icon X) has not yet been performed.

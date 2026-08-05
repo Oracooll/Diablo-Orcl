@@ -457,6 +457,8 @@ void SaveOptions()
 	    "; ----- XP COUNTER -----------------------------------------------------------------\n; Shows the experience remaining until your next level just below the mini-map,\n; centered between the Game Clock and the LOG button. Hidden at max level.");
 	setBoolean("XP Gain Indicator", *sgOptions.Oracool.xpGainIndicator,
 	    "; Briefly flashes \"+N\" just below the XP Counter for half a second whenever you gain\n; experience.");
+	setInteger("Monster Range Highlight", *sgOptions.Oracool.monsterRangeHighlight,
+	    "; Monsters within this many tiles of the player get the same red outline normally shown\n; only when hovering them. Values: 0 (OFF), 1-5.");
 
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
@@ -1287,6 +1289,7 @@ OracoolOptions::OracoolOptions()
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
     , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
     , xpGainIndicator("XP Gain Indicator", OptionEntryFlags::None, N_("XP Gain Indicator"), N_("Briefly flashes the experience gained just below the XP Counter."), true)
+    , monsterRangeHighlight("Monster Range Highlight", OptionEntryFlags::None, N_("Monster Range Highlight"), N_("Monsters within this many tiles get the same red outline shown when hovering them."), 0, { 0, 1, 2, 3, 4, 5 })
 {
 }
 
@@ -1330,6 +1333,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&gameClock12HourFormat,
 		&xpCounter,
 		&xpGainIndicator,
+		&monsterRangeHighlight,
 	};
 }
 
@@ -1337,6 +1341,15 @@ string_view OptionEntryTormentMultiplier::GetListDescription(size_t index) const
 {
 	static thread_local std::string buffer;
 	buffer = fmt::format("{:.1f}", GetEntryValue(index) / 10.0f);
+	return buffer;
+}
+
+string_view OptionEntryRangeOrOff::GetListDescription(size_t index) const
+{
+	if (GetEntryValue(index) == 0)
+		return "OFF";
+	static thread_local std::string buffer;
+	buffer = StrCat(GetEntryValue(index));
 	return buffer;
 }
 

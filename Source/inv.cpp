@@ -1301,6 +1301,11 @@ void InitInv()
  * game's original, non-editable inv.cel/inv_rog.cel/inv_sor.cel background images - can't move to
  * make room. Selected tab is gold and drawn a few pixels larger; inactive tabs are a muted gray.
  */
+/** @brief Oracool: user request - tab numbers 1-10 shown as roman numerals instead of digits. */
+constexpr const char *RomanNumeralTabLabels[Player::NumExtraInventoryTabs + 1] = {
+	"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"
+};
+
 void DrawInventoryTabs(const Surface &out)
 {
 	constexpr int TabY = 208;
@@ -1327,20 +1332,20 @@ void DrawInventoryTabs(const Surface &out)
 		// documented in qol/floatingnumbers.cpp), which is why inactive tabs looked red instead
 		// of silver/white.
 		const UiFlags color = selected ? UiFlags::ColorGold : UiFlags::ColorWhite;
-		DrawString(out, StrCat(tab + 1), Rectangle { GetPanelPosition(UiPanels::Inventory, { x, y }), { width, height } }, { color | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		DrawString(out, RomanNumeralTabLabels[tab], Rectangle { GetPanelPosition(UiPanels::Inventory, { x, y }), { width, height } }, { color | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 }
 
 bool inventorySortButtonDown;
 
 /**
- * @brief Oracool: draws the inventory sort button as "SRT" - white normally, gold while pressed
- * (matching the Reset Stats button's own press-feedback pattern) for visible click feedback.
+ * @brief Oracool: draws the inventory sort button as "SRT" - gold normally, white while pressed,
+ * for visible click feedback.
  */
 void DrawInventorySortButton(const Surface &out)
 {
 	const Point position = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition);
-	DrawString(out, "SRT", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (inventorySortButtonDown ? UiFlags::ColorGold : UiFlags::ColorWhite) });
+	DrawString(out, "SRT", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (inventorySortButtonDown ? UiFlags::ColorWhite : UiFlags::ColorGold) });
 }
 
 void DrawInv(const Surface &out)
@@ -2805,7 +2810,11 @@ bool UseInvItem(int cii)
 	Item *item;
 	if (cii <= INVITEM_INV_LAST) {
 		c = cii - INVITEM_INV_FIRST;
-		item = &player.InvList[c];
+		// Oracool: pcursinvitem is set from GetActiveInvListItem (see CheckInvHLight), which is
+		// tab-aware - c is an index into whichever tab is currently active, not always InvList. A
+		// raw player.InvList[c] read here silently used-the-wrong-item (or nothing) for anything
+		// hovered in an extra tab, e.g. right-clicking a book in tabs 2-10 appeared to do nothing.
+		item = &GetActiveInvListItem(player, c);
 	} else {
 		if (talkflag)
 			return true;
@@ -2920,15 +2929,15 @@ bool UseInvItem(int cii)
 			DecrementOrRemoveSpdBarItem(player, c);
 		return true;
 	}
-	if (player.InvList[c]._iMiscId == IMISC_MAPOFDOOM)
+	if (item->_iMiscId == IMISC_MAPOFDOOM)
 		return true;
-	if (player.InvList[c]._iMiscId == IMISC_NOTE) {
+	if (item->_iMiscId == IMISC_NOTE) {
 		InitQTextMsg(TEXT_BOOK9);
 		CloseInventory();
 		return true;
 	}
 	if (!item->isScroll() && !item->isRune())
-		DecrementOrRemoveInvItem(player, c);
+		DecrementOrRemoveInvItem(player, c, ActiveInventoryTab == 0 ? -1 : ActiveInventoryTab - 1);
 
 	return true;
 }

@@ -35,6 +35,7 @@
 #include "playerdat.hpp"
 #include "plrmsg.h"
 #include "qol/stash.h"
+#include "quests.h"
 #include "stores.h"
 #include "utils/endian_read.hpp"
 #include "utils/language.h"
@@ -2521,6 +2522,10 @@ void LoadGame(bool firstflag)
 
 	for (int i = 0; i < giNumberQuests; i++)
 		LoadQuest(&file, i);
+	// Oracool: silently resyncs the new-quest-added log detector to this save's actual quest
+	// state, so already-active quests aren't spuriously re-announced as "just added" the next
+	// time CheckQuests() runs.
+	SyncQuestLogState();
 	for (int i = 0; i < MAXPORTAL; i++)
 		LoadPortal(&file, i);
 

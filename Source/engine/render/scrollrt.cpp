@@ -772,7 +772,13 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	}
 
 	const Point monsterRenderPosition { targetBufferPosition + offset - Displacement { CalculateWidth2(sprite.width()), 0 } };
-	if (mi == pcursmonst) {
+	// Oracool: user request - the same red outline normally shown only for the hovered monster
+	// (pcursmonst) also applies to any monster within the configured range, so nearby threats
+	// stand out even before the cursor finds them. 0 (OFF) never triggers this extra check.
+	const int monsterRangeHighlight = *sgOptions.Oracool.monsterRangeHighlight;
+	const bool inHighlightRange = monsterRangeHighlight > 0
+	    && monster.position.tile.WalkingDistance(MyPlayer->position.tile) <= monsterRangeHighlight;
+	if (mi == pcursmonst || inHighlightRange) {
 		ClxDrawOutlineSkipColorZero(out, 233, monsterRenderPosition, sprite);
 	}
 	DrawMonster(out, tilePosition, monsterRenderPosition, monster);

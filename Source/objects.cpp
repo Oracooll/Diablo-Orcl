@@ -13,6 +13,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "automap.h"
+#include "control.h"
 #include "cursor.h"
 #ifdef _DEBUG
 #include "debug.h"
@@ -173,6 +174,45 @@ const char *const ShrineNames[] = {
 	N_("Solar"),
 	// TRANSLATORS: Shrine Name Block end
 	N_("Murphy's"),
+};
+/** Maps from shrine_id to a short description of what the shrine does, shown below its name on hover. */
+const char *const ShrineDescriptions[] = {
+	// TRANSLATORS: Shrine Description Block
+	N_("-1 to three attributes, +6 to the fourth"),
+	N_("+10 max durability to equipped items, -20 to one of them"),
+	N_("-1 max damage to your weapons, +2 Armor Class to your armor"),
+	N_("+1 max damage to your equipped and carried weapons"),
+	N_("Casts a Mana Shield spell around you"),
+	N_("Fully recharges every staff you carry"),
+	N_("Fully repairs every item you carry"),
+	N_("+1 level to every known spell but one (multiplayer only)"),
+	N_("Reopens every unopened chest on this level"),
+	N_("Raises Firebolt level, permanently lowers max mana"),
+	N_("Casts a Nova and fully restores your mana"),
+	N_("Casts a Mana Shield spell around you"),
+	N_("Upgrades your Healing/Mana potions to Rejuvenation"),
+	N_("+2 Magic"),
+	N_("Fully restores HP and mana, spawns potions nearby"),
+	N_("Casts a Phasing spell around you"),
+	N_("Raises Charged Bolt level, permanently lowers max mana"),
+	N_("Fills your empty inventory slots with gold"),
+	N_("Fully restores HP and mana - for others, not you"),
+	N_("+2 Dexterity"),
+	N_("+2 Strength"),
+	N_("+2 Vitality"),
+	N_("Reveals the entire level on your automap"),
+	N_("Raises Holy Bolt level, permanently lowers max mana"),
+	N_("Identifies all your unidentified items"),
+	N_("+1 to a random attribute, -1 to the rest - for others, not you"),
+	N_("+2 to your class's primary attribute, spawns a firewall"),
+	N_("+Magic based on experience, at the cost of some experience"),
+	N_("Converts half your gold into experience"),
+	N_("Grants experience for your level, but triggers a trap"),
+	N_("Opens a Town Portal"),
+	N_("Fully restores your mana"),
+	N_("+2 to a stat that depends on the time of day"),
+	// TRANSLATORS: Shrine Description Block end
+	N_("Halves a random item's durability, or costs you gold"),
 };
 /** Specifies the minimum dungeon level on which each shrine will appear. */
 char shrinemin[] = {
@@ -5091,6 +5131,9 @@ void GetObjectStr(const Object &object)
 	if (object.IsDisabled()) {
 		InfoString = fmt::format(fmt::runtime(_(/* TRANSLATORS: If user enabled diablo.ini setting "Disable Crippling Shrines" is set to 1; also used for Na-Kruls lever */ "{:s} (disabled)")), InfoString.str());
 		InfoColor = UiFlags::ColorRed;
+	}
+	if (IsAnyOf(object._otype, OBJ_SHRINEL, OBJ_SHRINER)) {
+		AddPanelString(_(ShrineDescriptions[object._oVar1]));
 	}
 }
 

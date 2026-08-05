@@ -2399,8 +2399,10 @@ void NextPlrLevel(Player &player)
 	// Oracool: user request - the same "quest completed" jingle used when the Poisoned Water
 	// Supply quest finishes (see quests.cpp's StartPWaterPurify), repurposed as a level-up cue.
 	// No sound played on level-up before this.
-	if (&player == MyPlayer)
+	if (&player == MyPlayer) {
 		PlaySfxLoc(IS_QUESTDN, player.position.tile);
+		oracool::LogEvent(fmt::format("Reached level {:d}", player._pLevel), UiFlags::ColorWhitegold);
+	}
 
 	CalcPlrInv(player, true);
 

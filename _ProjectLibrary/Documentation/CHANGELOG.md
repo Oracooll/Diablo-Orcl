@@ -201,6 +201,22 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.30 — Monster Range Highlight, Quest and Level-Up Log Entries, Shrine Descriptions
+
+A batch of small requests and fixes:
+
+- **New**: Monsters within a configurable range of your character are now outlined in red, the same outline normally shown only when hovering a monster with the cursor — makes nearby threats easier to spot at a glance, especially off-screen-edge ones about to come into view. Adjustable in `diablo.ini` (`OFF`, or `1` through `5` tiles); off by default.
+- **New**: Picking up or triggering a quest item that adds a new entry to your quest log now announces it in the Event Log ("Quest \"...\" was added to the quest log").
+- **New**: Reaching a new character level now logs a line in the Event Log, alongside the level-up sound added previously.
+- **New**: Hovering over a shrine now shows a short description of what it actually does, right below its name in the info box — no more guessing (or checking a wiki) before triggering one.
+- **Changed**: The inventory sort button's colors are swapped — gold is now the normal resting color, white flashes briefly on click. (Previously white at rest, gold on click.)
+- **Changed**: Tab numbers on the Tabbed Inventory's ten tabs are now shown as roman numerals (I–X) instead of plain digits.
+- **Fixed**: The Speed Book (spell quick-select panel) showed a scroll count of 1 for any stack of matching scrolls, no matter how many were actually in the stack. It now sums the real stack count across your backpack, extra tabs, and belt.
+- **Fixed**: Right-clicking to use an item (for example, reading a book) while one of the Tabbed Inventory's extra tabs (2–10) was open and active silently failed, or acted on the wrong item — the click handler was still assuming every item lived in the main backpack. It now correctly resolves whichever tab is actually open.
+- **Fixed**: An item that reaches 0 durability and goes inactive now also gets a red X stamped over its small durability icon above the main panel, matching the X already shown over its inventory/equipped icon.
+
+---
+
 ## v0.3.29 — Game Saved Log Entries Are White
 
 The "Game saved" and "Game saved (auto)" lines in the Event Log now use white text instead of gold.

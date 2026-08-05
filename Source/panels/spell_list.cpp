@@ -170,10 +170,11 @@ void DrawSpellList(const Surface &out)
 			}
 			PrintSBookSpellType(out, spellListItem.location, _("Scroll"), spellColor);
 			InfoString = fmt::format(fmt::runtime(_("Scroll of {:s}")), pgettext("spell", spellDataItem.sNameText));
-			const InventoryAndBeltPlayerItemsRange items { myPlayer };
-			const int scrollCount = std::count_if(items.begin(), items.end(), [spellId](const Item &item) {
-				return item.isScrollOf(spellId);
-			});
+			int scrollCount = 0;
+			for (const Item &item : InventoryAndBeltPlayerItemsRange { myPlayer }) {
+				if (item.isScrollOf(spellId))
+					scrollCount += item.stackCount();
+			}
 			AddPanelString(fmt::format(fmt::runtime(ngettext("{:d} Scroll", "{:d} Scrolls", scrollCount)), scrollCount));
 		} break;
 		case SpellType::Charges: {

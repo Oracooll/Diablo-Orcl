@@ -340,6 +340,13 @@ int DrawDurIcon4Item(const Surface &out, Item &pItem, int x, int c)
 		ClxDraw(stenciledBuffer, { x, height }, (*pDurIcons)[c]); // Red icon
 	}
 
+	// Oracool: a broken (0 durability) item also gets a red X stamped over its durability icon here,
+	// in addition to the one DrawItem/DrawItem2 already stamp over the item's inventory/equipped icon.
+	if (pItem._iOracoolBroken) {
+		const int width = static_cast<int>((*pDurIcons)[c].width());
+		DrawBrokenItemMarker(out, { x, y - height }, width, height);
+	}
+
 	return x - (*pDurIcons)[c].height() - 8; // Add in spacing for the next durability icon
 }
 

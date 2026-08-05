@@ -116,6 +116,16 @@ extern int ReturnLevel;
 void InitQuests();
 
 /**
+ * @brief Oracool: silently resyncs the new-quest-added log detector's baseline to the current
+ * _qlog state of every quest, without logging anything - call once right after quest state is
+ * (re)established from outside CheckQuests()'s own incremental tracking: a fresh game (InitQuests)
+ * or a loaded save (LoadGame). Without this, a loaded save's already-active quests would either
+ * get spuriously re-announced as "just added," or (worse) a stale baseline left over from a
+ * previous character in the same process run could suppress a genuinely new quest's log entry.
+ */
+void SyncQuestLogState();
+
+/**
  * @brief Deactivates quests from each quest pool at random to provide variety for single player games
  * @param seed The seed used to control which quests are deactivated
  * @param quests The available quest list, this function will make some of them inactive by the time it returns
