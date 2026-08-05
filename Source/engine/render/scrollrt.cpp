@@ -1168,7 +1168,11 @@ void DrawView(const Surface &out, Point startPosition)
 	DrawGame(out, startPosition, offset);
 	if (AutomapActive) {
 		DrawAutomap(out.subregionY(0, gnViewportHeight));
-	} else if (MiniMapActive) {
+	} else if (*sgOptions.Oracool.miniMapEnabled) {
+		// Oracool: independent of AutomapActive/TAB - always on whenever this option is set and
+		// the full map isn't open, not a toggled state. DrawMiniMap sets MiniMapActive itself for
+		// the brief duration of this call, purely so DrawAutomapPlr (shared by both draw paths)
+		// still knows which marker style to use.
 		DrawMiniMap(out.subregionY(0, gnViewportHeight));
 	}
 #ifdef _DEBUG

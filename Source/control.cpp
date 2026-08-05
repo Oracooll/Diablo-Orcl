@@ -1031,12 +1031,10 @@ void control_check_btn_press()
 
 void DoAutoMap()
 {
-	// Oracool: cycles through no map -> mini-map -> full map -> no map, instead of the vanilla
-	// plain on/off toggle.
-	if (!AutomapActive && !MiniMapActive) {
-		MiniMapActive = true;
-	} else if (MiniMapActive) {
-		MiniMapActive = false;
+	// Oracool: back to vanilla's plain on/off toggle - the mini-map is no longer part of this
+	// cycle at all, it's an independent always-on overlay controlled solely by the Mini-Map
+	// option (see DrawView, scrollrt.cpp) and simply hides itself while this full map is active.
+	if (!AutomapActive) {
 		StartAutomap();
 	} else {
 		AutomapActive = false;

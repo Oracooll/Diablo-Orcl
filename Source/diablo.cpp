@@ -1795,7 +1795,9 @@ void InitKeymapActions()
 			    stream_stop();
 		    }
 		    AutomapActive = false;
-		    MiniMapActive = false;
+		    // Oracool: MiniMapActive is no longer a toggle state (see DrawMiniMap, automap.cpp) -
+		    // nothing to force off here, the mini-map option controls it independently of Hide
+		    // Info Screens, matching the "unturn-offable except via the INI option" design.
 		    CancelCurrentDiabloMsg();
 		    gamemenu_off();
 		    doom_close();
@@ -2270,7 +2272,9 @@ void InitPadmapActions()
 			    stream_stop();
 		    }
 		    AutomapActive = false;
-		    MiniMapActive = false;
+		    // Oracool: MiniMapActive is no longer a toggle state (see DrawMiniMap, automap.cpp) -
+		    // nothing to force off here, the mini-map option controls it independently of Hide
+		    // Info Screens, matching the "unturn-offable except via the INI option" design.
 		    CancelCurrentDiabloMsg();
 		    gamemenu_off();
 		    doom_close();

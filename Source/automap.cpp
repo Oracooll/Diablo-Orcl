@@ -1028,6 +1028,13 @@ void DrawAutomap(const Surface &out)
 
 void DrawMiniMap(const Surface &out)
 {
+	// Oracool: MiniMapActive is no longer a toggle state (see DrawView, scrollrt.cpp, which now
+	// decides whether to call this function at all from the Mini-Map option directly) - it's set
+	// here purely for the duration of this draw call, so DrawAutomapPlr (shared with the full
+	// map's own DrawAutomap) still knows to use the solid-block marker instead of the direction
+	// arrow. Always reset before returning, including on every early branch below.
+	MiniMapActive = true;
+
 	// Oracool: user-requested size increases after trying it in-game - 130 -> 169 (30% larger) ->
 	// 203 (another 20%) -> 223 (another 10%). Now purely a zoom-level input (passed as
 	// DrawAutomapCore's cellsBasisWidth below) rather than the on-screen box's actual shape - see
@@ -1082,6 +1089,8 @@ void DrawMiniMap(const Surface &out)
 	// use the same diamondWidth/diamondHeight.
 	constexpr uint8_t MiniMapBorderColor = PAL16_YELLOW + 2;
 	UnsafeDrawBorder2px(miniMapSurface, Rectangle { { 0, 0 }, { diamondWidth, diamondHeight } }, MiniMapBorderColor);
+
+	MiniMapActive = false;
 }
 
 void UpdateAutomapExplorer(Point map, MapExplorationType explorer)
