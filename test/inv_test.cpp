@@ -164,11 +164,31 @@ TEST_F(InvTest, CalculateGold)
 }
 
 // Test automatic gold placing
-TEST_F(InvTest, GoldAutoPlace)
+// Oracool: picked-up gold now goes straight to the shared Stash pool in single-player instead of
+// the inventory - the inventory-placement machinery (AddGoldToInventory et al.) stays in place
+// unchanged for multiplayer and for a possible future withdraw-to-inventory feature.
+TEST_F(InvTest, GoldAutoPlace_SinglePlayerGoesToStash)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = false;
+	clear_inventory();
+	Stash.gold = 0;
 
-	// Empty the inventory
+	MyPlayer->HoldItem._itype = ItemType::Gold;
+	MyPlayer->HoldItem._ivalue = 4900;
+
+	EXPECT_TRUE(GoldAutoPlace(*MyPlayer, MyPlayer->HoldItem));
+	EXPECT_EQ(MyPlayer->HoldItem._ivalue, 0);
+	EXPECT_EQ(Stash.gold, 4900);
+	EXPECT_EQ(MyPlayer->_pNumInv, 0) << "gold should not land in inventory in single-player anymore";
+}
+
+// Multiplayer has no shared Stash concept, so it keeps the original inventory-placement behavior
+// exactly as before this change.
+TEST_F(InvTest, GoldAutoPlace_MultiplayerStillUsesInventory)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = true;
 	clear_inventory();
 
 	// Put gold into the inventory:
@@ -185,6 +205,8 @@ TEST_F(InvTest, GoldAutoPlace)
 	// | 5000 | 900 | ...
 	EXPECT_EQ(MyPlayer->InvList[0]._ivalue, GOLD_MAX_LIMIT);
 	EXPECT_EQ(MyPlayer->InvList[1]._ivalue, 900);
+
+	gbIsMultiplayer = false;
 }
 
 Item MakeStackablePotion(_item_indexes idx = IDI_HEAL, bool identified = true, int count = 1)

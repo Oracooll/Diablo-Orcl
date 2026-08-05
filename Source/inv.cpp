@@ -4,6 +4,7 @@
  * Implementation of player inventory.
  */
 #include <cstdint>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -1833,7 +1834,21 @@ int AddGoldToInventory(Player &player, int value)
 
 bool GoldAutoPlace(Player &player, Item &goldStack)
 {
-	goldStack._ivalue = AddGoldToInventory(player, goldStack._ivalue);
+	// Oracool: picked-up gold goes straight to the shared Stash pool instead of the inventory,
+	// which otherwise remains as it was for anything this doesn't cover (e.g. legacy gold already
+	// sitting in inventory from before this change, or the extremely unlikely case of Stash.gold
+	// itself sitting within goldStack._ivalue of the int32 ceiling).
+	if (oracool::IsSinglePlayer()) {
+		const int depositable = std::min(goldStack._ivalue, std::numeric_limits<int>::max() - Stash.gold);
+		if (depositable > 0) {
+			Stash.gold += depositable;
+			Stash.dirty = true;
+			goldStack._ivalue -= depositable;
+		}
+	}
+
+	if (goldStack._ivalue > 0)
+		goldStack._ivalue = AddGoldToInventory(player, goldStack._ivalue);
 	SetPlrHandGoldCurs(goldStack);
 
 	player._pGold = CalculateGold(player);

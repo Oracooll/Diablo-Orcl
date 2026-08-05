@@ -345,3 +345,13 @@ For every toggleable feature, test both enabled and disabled states after restar
 - With an item currently held on your cursor (mid-drag), click the sort button's location. Confirm nothing happens - the button should only respond when your hand is empty.
 - Fill your backpack close to full with items of varying value (leaving only a couple of free slots), then click sort. Confirm the sort still completes correctly and the lowest-value items that don't fit in the backpack end up in tab 2 instead of vanishing or duplicating - this specific overflow path wasn't covered by an automated test.
 - Turn off "Inventory Sort Button" in the options menu and confirm the button disappears and clicking its old location does nothing.
+
+### Post-migration: v0.2.8 Gold pickup goes to the Stash (OE-026)
+
+- Pick up a gold pile from the ground. Confirm it does **not** create a gold stack in your inventory, and that your character panel's "Gold" number goes up by the right amount.
+- Open the Stash and confirm its gold total also went up by that same amount - inventory pickup and Stash gold should now be the same number in practice.
+- Sell an item to Griswold or the Witch. Confirm the sale price adds to the Stash total (character panel "Gold" goes up), not a new pile in your backpack.
+- Buy something from a store while your inventory has little or no gold in it but the Stash has plenty. Confirm the purchase still goes through normally, spending from the Stash - this path was already working before this change and shouldn't have moved.
+- Fill your backpack completely with non-gold items, then walk over a gold pile with auto-pickup on. Confirm it still gets picked up (into the Stash) instead of auto-pickup silently refusing because "no room" - this specifically used to be inventory-space-gated and no longer should be.
+- Open the Stash and use its "withdraw gold" button to pull some gold back into your inventory. Confirm this still works exactly as before - a real gold pile should appear in your backpack, capped by however much room your backpack actually has.
+- If you have an existing character with gold already sitting in their inventory from before this update, confirm the character panel's "Gold" total still correctly includes it (added on top of whatever's in the Stash) - old inventory gold isn't migrated anywhere, just displayed alongside the new total.

@@ -16,6 +16,8 @@
 #include "player.h"
 #include "playerdat.hpp"
 #include "options.h"
+#include "oracool/oracool.h"
+#include "qol/stash.h"
 #include "utils/display.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -163,7 +165,14 @@ PanelEntry panelEntries[] = {
 
 	{ N_("Gold"), { TopRightLabelX, /* set dynamically */ 0 }, 0, 98, {} },
 	{ "", { TopRightLabelX, 127 }, 99, 0,
-	    []() { return StyledText { UiFlags::ColorWhite, FormatInteger(InspectPlayer->_pGold) }; } },
+	    []() {
+	        // Oracool: picked-up and sold gold goes to the shared Stash pool now, so the total
+	        // shown here needs to include it - matching the store screen's TotalPlayerGold().
+	        int gold = InspectPlayer->_pGold;
+	        if (oracool::IsSinglePlayer())
+	            gold += Stash.gold;
+	        return StyledText { UiFlags::ColorWhite, FormatInteger(gold) };
+	    } },
 
 	{ N_("Armor class"), { RightColumnLabelX, 163 }, 57, RightColumnLabelWidth,
 	    []() { return StyledText { GetValueColor(InspectPlayer->_pIBonusAC), StrCat(InspectPlayer->GetArmor() + InspectPlayer->_pLevel * 2) }; } },

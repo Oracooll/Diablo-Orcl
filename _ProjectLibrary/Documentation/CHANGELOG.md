@@ -185,6 +185,14 @@ Leaving one of the new item tiers on the dungeon floor and then saving and reloa
 
 ---
 
+## v0.2.8 — Gold Pickup Goes to the Stash
+
+### Gold no longer takes up inventory space
+
+Picking up gold - on the ground, from Griswold's change on a purchase, or from selling an item - now goes straight into your Stash's shared gold pool instead of filling up inventory slots. The Stash's gold pool is shared across every character on your install, exactly like it already was. Your character panel now shows your combined total (inventory + Stash) as "Gold," matching what the store screens have always shown. Spending at a store still works exactly as before - it draws from your inventory gold first, then the Stash, with no change needed there. If you'd rather carry some gold by hand (to hand-place it, or just because), the Stash's existing "withdraw gold" button still works exactly as it always has.
+
+---
+
 ## v0.2.7 — Inventory Sort Button
 
 ### A new sort button repacks your backpack and extra tabs by value

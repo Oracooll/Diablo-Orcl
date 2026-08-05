@@ -7,13 +7,21 @@
 #include "options.h"
 #include "oracool/oracool.h"
 #include "player.h"
+#include "qol/stash.h"
 #include <algorithm>
+#include <limits>
 
 namespace devilution {
 namespace {
 
 bool HasRoomForGold()
 {
+	// Oracool: picked-up gold goes to the shared Stash pool, which practically always has room
+	// (it caps at INT_MAX) - checking inventory space here would incorrectly stop gold auto-pickup
+	// once the backpack fills up with unrelated items.
+	if (oracool::IsSinglePlayer())
+		return Stash.gold < std::numeric_limits<int>::max();
+
 	for (int idx : MyPlayer->InvGrid) {
 		// Secondary item cell. No need to check those as we'll go through the main item cells anyway.
 		if (idx < 0)

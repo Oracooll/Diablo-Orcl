@@ -30,6 +30,7 @@
 #include "objects.h"
 #include "options.h"
 #include "oracool/auto_save.h"
+#include "oracool/oracool.h"
 #include "panels/info_box.hpp"
 #include "qol/stash.h"
 #include "towners.h"
@@ -1882,9 +1883,15 @@ void StoreSellItem()
 		}
 	}
 
-	AddGoldToInventory(myPlayer, cost);
-
-	myPlayer._pGold += cost;
+	// Oracool: sale proceeds go to the shared Stash pool, matching where a purchase's change and a
+	// ground pickup's gold already land (see GoldAutoPlace, inv.cpp).
+	if (oracool::IsSinglePlayer() && Stash.gold <= std::numeric_limits<int>::max() - cost) {
+		Stash.gold += cost;
+		Stash.dirty = true;
+	} else {
+		AddGoldToInventory(myPlayer, cost);
+		myPlayer._pGold += cost;
+	}
 }
 
 void SmithSellAllItems()
