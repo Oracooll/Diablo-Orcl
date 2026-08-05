@@ -61,6 +61,7 @@
 #include "nthread.h"
 #include "objects.h"
 #include "oracool/auto_save.h"
+#include "oracool/event_log.h"
 #include "options.h"
 #include "panels/info_box.hpp"
 #include "panels/spell_book.hpp"
@@ -347,6 +348,12 @@ void LeftMouseDown(uint16_t modState)
 		CheckStoreBtn();
 		return;
 	}
+
+	// Oracool: the event log toggle button is always-visible during normal gameplay (like the
+	// mini-map), independent of which panel is open, so it's checked here rather than inside the
+	// panel-state-gated branches below.
+	if (oracool::CheckEventLogButtonClick(MousePosition))
+		return;
 
 	const bool isShiftHeld = (modState & KMOD_SHIFT) != 0;
 	const bool isCtrlHeld = (modState & KMOD_CTRL) != 0;

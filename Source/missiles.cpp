@@ -24,6 +24,7 @@
 #include "levels/trigs.h"
 #include "lighting.h"
 #include "monster.h"
+#include "oracool/event_log.h"
 #include "spells.h"
 #include "utils/str_cat.hpp"
 
@@ -1092,6 +1093,10 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		*blocked = true;
 		StartPlrBlock(player, dir);
 		return true;
+	}
+
+	if (&player == MyPlayer) {
+		oracool::NotePendingDeathSource(monster != nullptr ? std::string(monster->name()) : std::string("a trap"));
 	}
 
 	if (resper > 0) {

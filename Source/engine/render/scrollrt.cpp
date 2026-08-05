@@ -31,6 +31,7 @@
 #include "missiles.h"
 #include "nthread.h"
 #include "options.h"
+#include "oracool/event_log.h"
 #include "oracool/save_indicator.h"
 #include "panels/charpanel.hpp"
 #include "plrmsg.h"
@@ -1289,6 +1290,8 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawDiabloMsg(out);
 	}
 	oracool::DrawSaveIndicator(out);
+	oracool::DrawEventLogButton(out);
+	oracool::DrawEventLogWindow(out);
 	// Drawn after every other interface panel/dialog above so a hovered item's floating
 	// stat popup (vanilla Unique, or Oracool-tiered) is always genuinely on top, not just
 	// above the panels it happened to predate in this list.

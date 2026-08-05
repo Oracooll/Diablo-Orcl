@@ -35,6 +35,7 @@
 #include "nthread.h"
 #include "objects.h"
 #include "options.h"
+#include "oracool/event_log.h"
 #include "oracool/oracool.h"
 #include "player.h"
 #include "playerdat.hpp"
@@ -2887,6 +2888,20 @@ void SyncPlrKill(Player &player, DeathReason deathReason)
 	}
 
 	SetPlayerHitPoints(player, 0);
+	std::string fallbackDeathReason;
+	switch (deathReason) {
+	case DeathReason::Player:
+		fallbackDeathReason = "another player";
+		break;
+	case DeathReason::Unknown:
+		fallbackDeathReason = "unknown causes";
+		break;
+	case DeathReason::MonsterOrTrap:
+	default:
+		fallbackDeathReason = "a monster or trap";
+		break;
+	}
+	oracool::LogPlayerDeath(fallbackDeathReason);
 	StartPlayerKill(player, deathReason);
 }
 

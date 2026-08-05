@@ -15,6 +15,7 @@
 #include "init.h"
 #include "loadsave.h"
 #include "options.h"
+#include "oracool/event_log.h"
 #include "oracool/oracool.h"
 #include "pfile.h"
 #include "player.h"
@@ -346,6 +347,7 @@ void gamemenu_save_game(bool /*bActivate*/)
 	RedrawEverything();
 	DrawAndBlit();
 	SaveGame();
+	oracool::LogEvent("Game saved");
 	ClrDiabloMsg();
 	InitDiabloMsg(EMSG_GAME_SAVED, 1000);
 	RedrawEverything();

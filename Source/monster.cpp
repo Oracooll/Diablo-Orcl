@@ -34,6 +34,7 @@
 #include "missiles.h"
 #include "movie.h"
 #include "options.h"
+#include "oracool/event_log.h"
 #include "qol/floatingnumbers.h"
 #include "spelldat.h"
 #include "storm/storm_net.hpp"
@@ -1222,6 +1223,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			int reflectedDamage = CheckReflect(monster, player, dam);
 			dam = std::max(dam - reflectedDamage, 0);
 		}
+		oracool::NotePendingDeathSource(std::string(monster.name()));
 		ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
 	}
 
@@ -3718,6 +3720,9 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	monster.hitPoints = 0;
 	monster.flags &= ~MFLAG_HIDDEN;
 	SetRndSeed(monster.rndItemSeed);
+
+	if (monster.isUnique())
+		oracool::LogEvent(fmt::format("Defeated {:s}", monster.name()));
 
 	SpawnLoot(monster, sendmsg);
 

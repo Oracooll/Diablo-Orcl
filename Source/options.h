@@ -692,6 +692,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean difficultyLevelGate;
 	OptionEntryTormentMultiplier tormentDifficultyMultiplier;
 	OptionEntryBoolean miniMapEnabled;
+	OptionEntryBoolean eventLog;
 };
 
 struct ControllerOptions : OptionCategoryBase {

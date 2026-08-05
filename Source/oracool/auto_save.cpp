@@ -11,6 +11,7 @@
 #include "minitext.h"
 #include "multi.h"
 #include "options.h"
+#include "oracool/event_log.h"
 #include "oracool/save_indicator.h"
 #include "player.h"
 #include "stores.h"
@@ -99,6 +100,7 @@ void ProcessAutoSave()
 		return;
 
 	SaveGame();
+	LogEvent("Game saved (auto)");
 	if (*sgOptions.Oracool.autoSaveNotification)
 		TriggerSaveIndicator();
 }

@@ -36,6 +36,7 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/event_log.h"
 #include "oracool/oracool.h"
 #include "panels/info_box.hpp"
 #include "panels/ui_panels.hpp"
@@ -3643,6 +3644,55 @@ void SetupItem(Item &item)
 	item._iIdentified = false;
 }
 
+namespace {
+
+// Oracool: shared by every item-creation call site that finalizes a dungeon-dropped item, so the
+// event log can flag Rare/Buffed Unique/Primal/vanilla Unique/Quest drops uniformly regardless of
+// which path produced them (monster drop, boss-guaranteed unique, or scripted quest item).
+void LogNoteworthyItemDrop(const Item &item)
+{
+	std::string descriptor;
+	switch (item._iOracoolTier) {
+	case OracoolItemTier::Primal:
+		descriptor = "Primal";
+		break;
+	case OracoolItemTier::BuffedUnique:
+		descriptor = "Buffed Unique";
+		break;
+	case OracoolItemTier::Rare:
+		descriptor = "Rare";
+		break;
+	case OracoolItemTier::None:
+		if (item._iMagical == ITEM_QUALITY_UNIQUE)
+			descriptor = "Unique";
+		else if (item._iClass == ICLASS_QUEST)
+			descriptor = "Quest";
+		break;
+	}
+	if (descriptor.empty())
+		return;
+
+	std::string location;
+	switch (leveltype) {
+	case DTYPE_TOWN:
+		location = "Town";
+		break;
+	case DTYPE_NEST:
+		location = fmt::format("Nest {:d}", currlevel - 16);
+		break;
+	case DTYPE_CRYPT:
+		location = fmt::format("Crypt {:d}", currlevel - 20);
+		break;
+	default:
+		location = fmt::format("Level {:d}", currlevel);
+		break;
+	}
+
+	oracool::LogEvent(fmt::format("{:s} item dropped: {:s} ({:s})", descriptor, std::string(item.getName()), location));
+}
+
+} // namespace
+
 Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*= std::nullopt*/, bool sendmsg /*= true*/, bool exactPosition /*= false*/)
 {
 	if (ActiveItemCount >= MAXITEMS)
@@ -3675,6 +3725,8 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 		});
 		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), curlv * 2, 15, true, false, false);
 	}
+
+	LogNoteworthyItemDrop(item);
 
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
@@ -3736,6 +3788,7 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		mLevel -= 15;
 
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
+	LogNoteworthyItemDrop(item);
 
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_DROPITEM, item.position, item);
@@ -3938,6 +3991,7 @@ void SpawnQuestItem(_item_indexes itemid, Point position, int randarea, int self
 	GetItemAttrs(item, itemid, curlv);
 
 	SetupItem(item);
+	LogNoteworthyItemDrop(item);
 	item._iSeed = AdvanceRndSeed();
 	SetRndSeed(item._iSeed);
 	item._iPostDraw = true;

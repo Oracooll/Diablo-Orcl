@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.11 — Event Log
+
+A new "LOG" button sits just above the durability-warning icons in the top-right corner. Click it to open a collapsible, timestamped log of noteworthy things that have happened this session: game saves (automatic and manual), boss/unique monster kills, Rare/Buffed Unique/Primal/Unique/Quest item drops (with the dungeon level they dropped on), and character deaths (with what killed you, where possible). The log has a dark backing and a gold border to match the mini-map's look, shows the most recent events first, and holds up to 200 entries before the oldest ones quietly drop off. It's session-only — nothing here is saved to disk, so a fresh game starts with an empty log. Controlled by a new "Event Log" setting in `diablo.ini` (on by default).
+
+---
+
 ## v0.3.10 — Broken Items Get Their Red X on the Ground Too
 
 The red X on broken (0 durability) items now also appears when the item is lying on the dungeon floor, not just in inventory/belt/equipped slots. Ground items turned out to use a completely separate rendering path that the original fix missed.
