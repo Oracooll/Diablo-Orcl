@@ -1318,14 +1318,12 @@ void DrawInventoryTabs(const Surface &out)
 }
 
 /**
- * @brief Oracool: draws the inventory sort button. Uses a plain ASCII "$" rather than a Unicode
- * glyph (unlike the Reset Stats button's circular-arrow icon) so it's guaranteed to render on
- * every font instead of risking a "?" fallback.
+ * @brief Oracool: draws the inventory sort button as a white "SORT" label.
  */
 void DrawInventorySortButton(const Surface &out)
 {
 	const Point position = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition);
-	DrawString(out, "$", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorUiSilver });
+	DrawString(out, "SORT", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorWhite });
 }
 
 void DrawInv(const Surface &out)
@@ -2032,16 +2030,51 @@ void SortInventoryBySellValue(Player &player)
 		return a.value > b.value;
 	});
 
+	// Oracool: second-priority packing heuristic (after sell-value order) - when placing a 2x2
+	// item, first try stacking it directly below the most recently placed 2x2 item in the same
+	// tab (same column, two rows down), before falling back to the normal first-fit scan. Two 2x2
+	// items land in a single dense 2x4 column this way instead of two unrelated scattered gaps.
+	// Only tracks one pending "partner" at a time - once a pairing is attempted (successfully or
+	// not), tracking resets, so this pairs 2x2 items up rather than chaining an unbounded column.
+	int pendingTwoByTwoSlot = -1;
+	int pendingTwoByTwoTab = -1; // -1 means the backpack (InvList); >= 0 is an extra tab index.
+
 	for (const SortEntry &entry : entries) {
+		const bool isTwoByTwo = GetInventorySize(entry.item) == Size { 2, 2 };
 		bool placed = false;
-		for (int slot = 0; slot < InventoryGridCells && !placed; slot++)
-			placed = AutoPlaceItemInInventorySlot(player, slot, entry.item, true);
+
+		if (isTwoByTwo && pendingTwoByTwoSlot >= 0) {
+			const int stackedSlot = pendingTwoByTwoSlot + 2 * 10;
+			placed = (pendingTwoByTwoTab < 0)
+			    ? AutoPlaceItemInInventorySlot(player, stackedSlot, entry.item, true)
+			    : AutoPlaceItemInExtraTabSlot(player, pendingTwoByTwoTab, stackedSlot, entry.item, true);
+			pendingTwoByTwoSlot = -1;
+		}
+
+		int placedSlot = -1;
+		int placedTab = -1;
+		for (int slot = 0; slot < InventoryGridCells && !placed; slot++) {
+			if (AutoPlaceItemInInventorySlot(player, slot, entry.item, true)) {
+				placed = true;
+				placedSlot = slot;
+			}
+		}
 		for (int tab = 0; tab < Player::NumExtraInventoryTabs && !placed; tab++) {
-			for (int slot = 0; slot < InventoryGridCells && !placed; slot++)
-				placed = AutoPlaceItemInExtraTabSlot(player, tab, slot, entry.item, true);
+			for (int slot = 0; slot < InventoryGridCells && !placed; slot++) {
+				if (AutoPlaceItemInExtraTabSlot(player, tab, slot, entry.item, true)) {
+					placed = true;
+					placedSlot = slot;
+					placedTab = tab;
+				}
+			}
 		}
 		// Every entry came from this same 10-tab space and nothing pinned was removed, so it must
 		// fit somewhere - this should never actually trigger.
+
+		if (isTwoByTwo && placedSlot >= 0) {
+			pendingTwoByTwoSlot = placedSlot;
+			pendingTwoByTwoTab = placedTab;
+		}
 	}
 
 	player.CalcScrolls();

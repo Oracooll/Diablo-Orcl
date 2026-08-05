@@ -47,8 +47,8 @@ extern bool resetStatsButtonDown;
  * drawing code and control.cpp's press/release hit-testing so the visual and clickable area can
  * never drift apart again (they briefly did, after OE-022 repositioned the button but missed
  * updating these two hardcoded hit-test rectangles). */
-constexpr Point ResetStatsButtonPosition { 145, 246 };
-constexpr Size ResetStatsButtonSize { 24, 24 };
+constexpr Point ResetStatsButtonPosition { 141, 246 };
+constexpr Size ResetStatsButtonSize { 44, 24 };
 extern UiFlags InfoColor;
 extern int sbooktab;
 extern bool talkflag;

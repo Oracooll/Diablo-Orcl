@@ -1258,7 +1258,7 @@ OracoolOptions::OracoolOptions()
     , autoSaveOnItemPickup("Auto Save on Item Pickup", OptionEntryFlags::None, N_("Auto Save on Item Pickup"), N_("Schedules a save after a non-gold item enters inventory."), true)
     , autoSaveOnStorePurchase("Auto Save on Store Purchase", OptionEntryFlags::None, N_("Auto Save on Store Purchase"), N_("Schedules a save after a successful store purchase."), true)
     , autoSaveItemDelaySeconds("Auto Save Item Delay Seconds", OptionEntryFlags::None, N_("Auto Save Item Delay Seconds"), N_("Delay used to combine rapid acquisitions into one save."), 3, { 0, 1, 2, 3, 5, 10, 15, 30 })
-    , autoSaveNotification("Auto Save Notification", OptionEntryFlags::None, N_("Auto Save Notification"), N_("Displays the normal save confirmation after an automatic save."), false)
+    , autoSaveNotification("Auto Save Notification", OptionEntryFlags::None, N_("Auto Save Notification"), N_("Displays a brief \"Game Saved\" message after an automatic save."), true)
     , difficultyLevelGate("Difficulty Level Gate", OptionEntryFlags::None, N_("Difficulty Level Gate"), N_("Requires a minimum character level to start a game on Nightmare, Hell, or Torment."), true)
     , tormentDifficultyMultiplier("Torment Difficulty Multiplier", OptionEntryFlags::None, N_("Torment Difficulty Multiplier"), N_("How much harder Torment is than Hell, applied on top of Hell's own monster and treasure scaling."), 20, { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50 })
 {

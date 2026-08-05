@@ -193,6 +193,26 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.2 — UI Polish: Buttons, Autosave Sign, Bigger Mini-Map and a Visible You
+
+### Reset Stats and Sort buttons now use words, not symbols
+
+The Reset Stats button (character panel) now reads "RESET" in gold, replacing a circular-arrow icon that didn't render well. The inventory Sort button now reads "SORT" in white, replacing the "$" symbol.
+
+### Autosave notification: a static gold sign instead of a quick blink
+
+Automatic saves now show a gold "Game Saved" message that stays on screen for a full second, instead of the brief flashing "Saved" text from v0.2.9. The "Auto Save Notification" setting is now on by default for new installs (existing settings are preserved).
+
+### Mini-map: 56% larger overall, and you can actually see yourself on it now
+
+The mini-map is now 203x203 - 30% larger than the original 130x130 (v0.3.1), then another 20% on top of that. More importantly: your position marker was rendering as a barely-visible 1-2 pixel sliver at the mini-map's zoomed-out scale - it's now a solid, clearly visible block instead. The full-screen map's own marker is unchanged.
+
+### Inventory Sort: pairs up same-size items to use space more efficiently
+
+When sorting, two 2x2 items (like certain helms and shields) now try to stack directly on top of each other in the same column as a second priority after sell value, instead of landing in unrelated scattered gaps.
+
+---
+
 ## v0.3.1 — Bigger Mini-Map
 
 The mini-map introduced in v0.2.10 is now 30% larger (169x169 instead of 130x130), showing more of the surrounding area at the same zoom level. Its position and everything else about it is unchanged.

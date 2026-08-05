@@ -670,6 +670,16 @@ void DrawAutomapPlr(const Surface &out, const Displacement &myPlayerOffset, int 
 	}
 	base.y -= AmLine(16);
 
+	if (MiniMapActive) {
+		// Oracool: the direction-arrow marker below is built from AmLine()-scaled line segments,
+		// which shrink to 1-2px and become nearly invisible at the mini-map's heavily zoomed-out
+		// AutoMapScale - draw a fixed-size solid block instead so the player's position is always
+		// clearly visible regardless of zoom level.
+		constexpr int MiniMapPlayerMarkerSize = 7;
+		FillRect(out, base.x - MiniMapPlayerMarkerSize / 2, base.y - MiniMapPlayerMarkerSize / 2, MiniMapPlayerMarkerSize, MiniMapPlayerMarkerSize, static_cast<uint8_t>(playerColor));
+		return;
+	}
+
 	switch (player._pdir) {
 	case Direction::North: {
 		const Point point { base.x, base.y - AmLine(16) };
@@ -1012,8 +1022,9 @@ void DrawAutomap(const Surface &out)
 
 void DrawMiniMap(const Surface &out)
 {
-	// Oracool: 30% larger than the original 130x130, per user request after trying it in-game.
-	constexpr Size MiniMapSize { 169, 169 };
+	// Oracool: user-requested size increases after trying it in-game - 130x130 -> 169x169 (30%
+	// larger), then another 20% larger on top of that.
+	constexpr Size MiniMapSize { 203, 203 };
 	constexpr Point MiniMapScreenPosition { 8, 8 };
 	// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
 	// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.

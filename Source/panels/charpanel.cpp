@@ -279,12 +279,9 @@ void DrawStatButtons(const Surface &out)
 		// ResetStatsButtonPosition/ResetStatsButtonSize (control.h) - keep using those
 		// constants if this ever moves again, not a new hardcoded literal here.
 		const Point position = GetPanelPosition(UiPanels::Character, ResetStatsButtonPosition);
-		// U+21BA ANTICLOCKWISE OPEN CIRCLE ARROW (UTF-8: E2 86 BA), written as raw bytes
-		// rather than a \u escape so it's unambiguous regardless of source/compiler encoding
-		// assumptions. Untested against the game's actual bitmap font coverage - if this
-		// codepoint has no glyph, DrawString's text renderer falls back to "?" rather than
-		// failing, so the worst case is a "?" button, not a crash or blank box.
-		DrawString(out, "\xE2\x86\xBA", { position, ResetStatsButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorRed : UiFlags::ColorUiSilver) });
+		// Oracool: a circular-arrow glyph (Unicode U+21BA), then a plain "R", didn't read well
+		// against the game's actual bitmap font - now a gold "RESET" word label instead.
+		DrawString(out, "RESET", { position, ResetStatsButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorRed : UiFlags::ColorGold) });
 	}
 }
 

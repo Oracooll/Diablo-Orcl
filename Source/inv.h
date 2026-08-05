@@ -242,12 +242,14 @@ void TransferItemToStash(Player &player, int location);
  */
 bool TryTransferHoveredActiveTabItemToStash(Player &player);
 /**
- * @brief Oracool: panel-relative position and size of the inventory sort button - centered in the
- * gap between the inventory panel's left edge and the left ring slot (InvRect[SLOTXY_RING_LEFT]),
- * no larger than that slot's own icon.
+ * @brief Oracool: panel-relative position and size of the inventory sort button - sits in the gap
+ * between the inventory panel's left edge and the left ring slot (InvRect[SLOTXY_RING_LEFT]).
+ * Widened from the original 24x24 (sized to match a slot's icon, back when this drew a single "$"
+ * character) to fit the "SORT" text label - this button draws no background/frame, only text, so
+ * the wider hit-test area has no visible side effect of its own.
  */
-constexpr Point InventorySortButtonPosition { 12, 180 };
-constexpr Size InventorySortButtonSize { 24, 24 };
+constexpr Point InventorySortButtonPosition { 4, 180 };
+constexpr Size InventorySortButtonSize { 40, 24 };
 /**
  * @brief Oracool: repacks the backpack (tab 1) and every extra inventory tab, most valuable item
  * first, filling tab 1 before spilling into tab 2 and so on. Gold and quest items (see

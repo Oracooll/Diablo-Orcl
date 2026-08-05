@@ -12,10 +12,9 @@ namespace {
 bool IndicatorActive = false;
 uint32_t IndicatorStartTime = 0;
 
-// Blink twice, then stop drawing entirely - a quick flash rather than a static banner, since the
-// whole point is to be less intrusive than the vanilla "Game Saved" message it replaces here.
-constexpr uint32_t TotalDurationMs = 900;
-constexpr uint32_t BlinkPeriodMs = 150;
+// Oracool: user request - a static gold "Game Saved" sign for a full second, replacing the
+// original quick blink-twice-and-vanish flash.
+constexpr uint32_t TotalDurationMs = 1000;
 
 } // namespace
 
@@ -36,10 +35,7 @@ void DrawSaveIndicator(const Surface &out)
 		return;
 	}
 
-	if ((elapsed / BlinkPeriodMs) % 2 != 0)
-		return;
-
-	DrawString(out, "Saved", Rectangle { { 8, 8 }, { 80, 16 } }, { UiFlags::ColorWhite | UiFlags::FontSize12 });
+	DrawString(out, "Game Saved", Rectangle { { 8, 8 }, { 100, 16 } }, { UiFlags::ColorGold | UiFlags::FontSize12 });
 }
 
 } // namespace devilution::oracool
