@@ -42,6 +42,7 @@ set(libdevilutionx_SRCS
   oracool/event_log.cpp
   oracool/game_clock.cpp
   oracool/save_indicator.cpp
+  oracool/xp_counter.cpp
   options.cpp
   pack.cpp
   pfile.cpp

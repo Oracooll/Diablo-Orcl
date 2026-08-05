@@ -453,6 +453,9 @@ void SaveOptions()
 	setBoolean("Game Clock 12 Hour Format", *sgOptions.Oracool.gameClock12HourFormat,
 	    "; If true, the Game Clock shows 12-hour time with an AM/PM suffix (e.g. \"2:45 PM\")\n; instead of the default 24-hour format (e.g. \"14:45\").");
 
+	setBoolean("XP Counter", *sgOptions.Oracool.xpCounter,
+	    "; ----- XP COUNTER -----------------------------------------------------------------\n; Shows the experience remaining until your next level just below the mini-map,\n; centered between the Game Clock and the LOG button. Hidden at max level.");
+
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
 	setBoolean("Inventory Sort Button", *sgOptions.Oracool.inventorySortButton,
@@ -1277,6 +1280,7 @@ OracoolOptions::OracoolOptions()
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
+    , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
 {
 }
 
@@ -1317,6 +1321,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&eventLog,
 		&gameClock,
 		&gameClock12HourFormat,
+		&xpCounter,
 	};
 }
 

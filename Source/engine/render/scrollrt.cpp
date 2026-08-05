@@ -34,6 +34,7 @@
 #include "oracool/event_log.h"
 #include "oracool/game_clock.h"
 #include "oracool/save_indicator.h"
+#include "oracool/xp_counter.h"
 #include "panels/charpanel.hpp"
 #include "plrmsg.h"
 #include "qol/chatlog.h"
@@ -1186,6 +1187,15 @@ void DrawView(const Surface &out, Point startPosition)
 		// still knows which marker style to use.
 		DrawMiniMap(out.subregionY(0, gnViewportHeight));
 	}
+	// Oracool: drawn here, alongside the mini-map, rather than at the end of this function with
+	// the other Oracool overlays - these two are gameplay-view HUD elements anchored to the
+	// mini-map, not dialogs, so they need the same "any panel drawn afterward covers them" behavior
+	// the mini-map already has. Previously drawn last, they rendered on top of the inventory,
+	// character, quest log, spellbook, and Stash panels instead of being covered by them.
+	oracool::DrawEventLogButton(out);
+	oracool::DrawEventLogWindow(out);
+	oracool::DrawGameClock(out);
+	oracool::DrawXpCounter(out);
 #ifdef _DEBUG
 	bool debugGridTextNeeded = IsDebugGridTextNeeded();
 	if (debugGridTextNeeded || DebugGrid) {
@@ -1291,9 +1301,6 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawDiabloMsg(out);
 	}
 	oracool::DrawSaveIndicator(out);
-	oracool::DrawEventLogButton(out);
-	oracool::DrawEventLogWindow(out);
-	oracool::DrawGameClock(out);
 	// Drawn after every other interface panel/dialog above so a hovered item's floating
 	// stat popup (vanilla Unique, or Oracool-tiered) is always genuinely on top, not just
 	// above the panels it happened to predate in this list.

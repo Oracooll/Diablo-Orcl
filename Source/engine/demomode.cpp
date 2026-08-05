@@ -538,6 +538,7 @@ void OverrideOptions()
 	sgOptions.Oracool.eventLog.SetValue(false);
 	sgOptions.Oracool.gameClock.SetValue(false);
 	sgOptions.Oracool.gameClock12HourFormat.SetValue(false);
+	sgOptions.Oracool.xpCounter.SetValue(false);
 	sgOptions.Oracool.autoPickupRange.SetValue(1);
 	sgOptions.Oracool.autoScrollPickup.SetValue(false);
 	sgOptions.Oracool.rareItemDropChance.SetValue(0);

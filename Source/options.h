@@ -695,6 +695,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean eventLog;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;
+	OptionEntryBoolean xpCounter;
 };
 
 struct ControllerOptions : OptionCategoryBase {

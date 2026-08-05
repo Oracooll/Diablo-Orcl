@@ -193,6 +193,14 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.18 — XP Counter, and a Panel Layering Fix
+
+Fixed: the LOG button, its log window, and the Game Clock were rendering on top of the inventory, character, quest log, spellbook, and Stash screens instead of being covered by them like the mini-map already was. They now behave consistently with the mini-map.
+
+Also new: an XP Counter sits centered below the mini-map, between the Game Clock and the LOG button, showing exactly how much experience you need for your next level in plain gold numbers (e.g. `2000`). Hidden at max level. Has its own on/off setting like the other two.
+
+---
+
 ## v0.3.17 — Game Clock
 
 A real-world clock now sits just below the mini-map's left edge, mirroring the LOG button on the opposite side. Shows 24-hour time by default; a new "Game Clock 12 Hour Format" setting switches it to 12-hour time with an AM/PM suffix instead. Like the mini-map and event log, it has its own on/off setting in `diablo.ini`.
