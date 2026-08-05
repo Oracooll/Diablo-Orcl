@@ -1089,16 +1089,18 @@ Size CalculateMiniMapDiamondSize()
 	return { diamondWidth, diamondHeight };
 }
 
-} // namespace
-
-int GetMiniMapWidth()
+// Oracool: top-right corner per user request, matching Diablo 3/4's own minimap placement.
+Rectangle CalculateMiniMapScreenRect()
 {
-	return CalculateMiniMapDiamondSize().width;
+	const Size diamondSize = CalculateMiniMapDiamondSize();
+	return { { gnScreenWidth - diamondSize.width - MiniMapMargin, MiniMapMargin }, diamondSize };
 }
 
-int GetMiniMapBottom()
+} // namespace
+
+Rectangle GetMiniMapScreenRect()
 {
-	return MiniMapMargin + CalculateMiniMapDiamondSize().height;
+	return CalculateMiniMapScreenRect();
 }
 
 void DrawMiniMap(const Surface &out)
@@ -1110,10 +1112,10 @@ void DrawMiniMap(const Surface &out)
 	// arrow. Always reset before returning, including on every early branch below.
 	MiniMapActive = true;
 
-	const auto [diamondWidth, diamondHeight] = CalculateMiniMapDiamondSize();
-
-	// Oracool: top-right corner per user request, matching Diablo 3/4's own minimap placement.
-	const Point MiniMapScreenPosition { gnScreenWidth - diamondWidth - MiniMapMargin, MiniMapMargin };
+	const Rectangle miniMapScreenRect = CalculateMiniMapScreenRect();
+	const Point MiniMapScreenPosition = miniMapScreenRect.position;
+	const int diamondWidth = miniMapScreenRect.size.width;
+	const int diamondHeight = miniMapScreenRect.size.height;
 
 	// Dark backing so the small map reads clearly against whatever's happening in the live game
 	// view behind it, instead of the diamond tile shapes blending into the dungeon art. Sized to

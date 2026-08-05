@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.15 — Event Log: Matched to the Mini-Map
+
+The event log window's border now matches the mini-map's own dashed gold border, and its left/right edges always line up exactly with the mini-map's, whatever your resolution. Entry text now wraps at the window's edge instead of running past it. The LOG button no longer has a visible box around it — just the text itself, same as before but without the border.
+
+---
+
 ## v0.3.14 — Event Log: Sized to the Mini-Map, Scrollable
 
 The event log window now only expands upward as far as 5px below the mini-map's bottom edge, instead of stretching most of the way up the screen. Since that means fewer entries are visible at once, you can now scroll through the log's history with the mouse wheel while it's open.

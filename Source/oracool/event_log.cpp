@@ -16,7 +16,6 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "options.h"
-#include "utils/ui_fwd.h"
 
 namespace devilution::oracool {
 
@@ -49,13 +48,6 @@ std::string PendingDeathSource;
 // time the window is opened, same as chatlog's own reset-on-open behavior.
 size_t ScrollOffset = 0;
 
-// Oracool: user request - the window should be no wider than the mini-map. Queried live rather
-// than duplicated as a constant, since it's itself derived from AutoMapScale.
-int WindowWidth()
-{
-	return GetMiniMapWidth();
-}
-
 // Oracool: sits just above the durability-warning icons (control.cpp's DrawDurIcon, anchored to
 // the same top-right x and drawn upward from MainPanel.position.y - 17), so the button has a
 // stable home whether or not any equipped item is currently damaged.
@@ -65,6 +57,14 @@ Point ButtonPosition()
 	int x = mainPanel.position.x + mainPanel.size.width - 32 - 16;
 	int y = mainPanel.position.y - 17 - 32 - 8 - ButtonHeight;
 	return { x, y };
+}
+
+// Oracool: user request - the window's left and right edges should always line up with the
+// mini-map's own, at any screen resolution, not just match its width. Queried live (never cached)
+// since the mini-map's own rect is itself resolution- and zoom-dependent.
+int WindowWidth()
+{
+	return GetMiniMapScreenRect().size.width;
 }
 
 // Oracool: the window opens upward from the button, capped at 5px below the mini-map's own
@@ -78,8 +78,9 @@ Point ButtonPosition()
 // instead of a fixed constant.
 size_t VisibleLineCount()
 {
+	const Rectangle miniMap = GetMiniMapScreenRect();
 	const int windowBottom = ButtonPosition().y - 4;
-	const int windowTopBound = GetMiniMapBottom() + 5;
+	const int windowTopBound = miniMap.position.y + miniMap.size.height + 5;
 	const int availableHeight = windowBottom - windowTopBound;
 	const int contentHeight = availableHeight - WindowPadding * 2 - LineHeight;
 	const int lines = contentHeight / LineHeight;
@@ -93,14 +94,14 @@ int WindowHeight()
 
 Point WindowPosition()
 {
-	const Point button = ButtonPosition();
 	const int windowHeight = WindowHeight();
-	const int windowWidth = WindowWidth();
-	int x = button.x + ButtonWidth - windowWidth;
-	x = std::clamp(x, ScreenMargin, static_cast<int>(gnScreenWidth) - windowWidth - ScreenMargin);
-	// The mini-map-bottom-plus-5 boundary is enforced by VisibleLineCount() above; ScreenMargin here
-	// is only a last-resort safety net against ever drawing off the top of the screen.
-	int y = std::max(button.y - 4 - windowHeight, ScreenMargin);
+	// Always exactly the mini-map's own left edge - together with WindowWidth() matching its width,
+	// this keeps both windows' left AND right borders aligned in a straight line, at any resolution.
+	// No clamping needed here: the mini-map itself is always fully on-screen by construction.
+	const int x = GetMiniMapScreenRect().position.x;
+	// ScreenMargin here is only a last-resort safety net against ever drawing off the top of the
+	// screen; the mini-map-bottom-plus-5 boundary is enforced by VisibleLineCount() above.
+	const int y = std::max(ButtonPosition().y - 4 - windowHeight, ScreenMargin);
 	return { x, y };
 }
 
@@ -142,9 +143,7 @@ void ScrollEventLogUp()
 
 void ScrollEventLogDown()
 {
-	const size_t maxShown = VisibleLineCount() - 1;
-	const size_t maxScroll = Entries.size() > maxShown ? Entries.size() - maxShown : 0;
-	if (ScrollOffset < maxScroll)
+	if (!Entries.empty() && ScrollOffset < Entries.size() - 1)
 		ScrollOffset++;
 }
 
@@ -153,9 +152,9 @@ void DrawEventLogButton(const Surface &out)
 	if (!*sgOptions.Oracool.eventLog)
 		return;
 
+	// Oracool: user request - no visible box, just the clickable "LOG" text itself. The hit-test
+	// rect in CheckEventLogButtonClick still uses the same area, it's just no longer drawn.
 	const Rectangle rect { ButtonPosition(), { ButtonWidth, ButtonHeight } };
-	DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
-	UnsafeDrawBorder2px(out, rect, EventLogBorderColor);
 	DrawString(out, "LOG", rect, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 | (WindowOpen ? UiFlags::ColorWhite : UiFlags::ColorGold) });
 }
 
@@ -168,10 +167,12 @@ void DrawEventLogWindow(const Surface &out)
 	const int windowHeight = WindowHeight();
 	const int windowWidth = WindowWidth();
 	DrawHalfTransparentRectTo(out, windowPosition.x, windowPosition.y, windowWidth, windowHeight);
-	UnsafeDrawBorder2px(out, Rectangle { windowPosition, { windowWidth, windowHeight } }, EventLogBorderColor);
+	// Oracool: user request - match the mini-map's own 1px dashed border instead of a solid one.
+	DrawDashedBorder1px(out, windowPosition.x, windowPosition.y, windowWidth, windowHeight, EventLogBorderColor);
 
 	Point linePosition = windowPosition + Displacement { WindowPadding, WindowPadding };
-	const Size lineSize { windowWidth - WindowPadding * 2, LineHeight };
+	const int contentWidth = windowWidth - WindowPadding * 2;
+	const Size lineSize { contentWidth, LineHeight };
 
 	DrawString(out, "Event Log", Rectangle { linePosition, lineSize }, { UiFlags::ColorGold | UiFlags::FontSize12 });
 	linePosition.y += LineHeight;
@@ -181,22 +182,29 @@ void DrawEventLogWindow(const Surface &out)
 		return;
 	}
 
-	const size_t maxShown = VisibleLineCount() - 1;
-	const size_t maxScroll = Entries.size() > maxShown ? Entries.size() - maxShown : 0;
-	if (ScrollOffset > maxScroll)
-		ScrollOffset = maxScroll;
+	if (ScrollOffset > Entries.size() - 1)
+		ScrollOffset = Entries.size() - 1;
 
+	// Oracool: user request - wrap entry text at the window's right edge instead of letting it run
+	// past the border. Word-wrapped up front (rather than relying on DrawString's own per-character
+	// wrap-on-overflow) so long words don't get split mid-word. Line budget is now consumed in
+	// wrapped lines, not one-line-per-entry, since a single long entry can take several.
+	const size_t lineBudget = VisibleLineCount() - 1;
+	size_t linesUsed = 0;
 	size_t index = 0;
-	size_t shown = 0;
 	for (const LogEntry &entry : Entries) {
 		if (index++ < ScrollOffset)
 			continue;
-		if (shown >= maxShown)
+		if (linesUsed >= lineBudget)
 			break;
-		const std::string line = fmt::format("{:s}  {:s}", entry.timestamp, entry.message);
-		DrawString(out, line, Rectangle { linePosition, lineSize }, { UiFlags::ColorGold | UiFlags::FontSize12 });
-		linePosition.y += LineHeight;
-		shown++;
+		const std::string raw = fmt::format("{:s}  {:s}", entry.timestamp, entry.message);
+		const std::string wrapped = WordWrapString(raw, contentWidth);
+		const size_t entryLines = static_cast<size_t>(std::count(wrapped.begin(), wrapped.end(), '\n')) + 1;
+		const size_t linesToDraw = std::min(entryLines, lineBudget - linesUsed);
+		const Rectangle entryRect { linePosition, { contentWidth, static_cast<int>(linesToDraw) * LineHeight } };
+		DrawString(out, wrapped, entryRect, { UiFlags::ColorGold | UiFlags::FontSize12 });
+		linePosition.y += static_cast<int>(linesToDraw) * LineHeight;
+		linesUsed += linesToDraw;
 	}
 }
 

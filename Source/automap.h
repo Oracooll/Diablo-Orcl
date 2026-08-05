@@ -10,6 +10,7 @@
 #include "engine.h"
 #include "engine/displacement.hpp"
 #include "engine/point.hpp"
+#include "engine/rectangle.hpp"
 #include "levels/gendung.h"
 #include "utils/attributes.h"
 
@@ -107,18 +108,20 @@ void DrawAutomap(const Surface &out);
 void DrawMiniMap(const Surface &out);
 
 /**
- * @brief Oracool: the mini-map's actual on-screen pixel width (its diamond content's bounding
- * box, not the MiniMapSize zoom-level constant) - exposed so other UI that wants to visually
- * match the mini-map's width (the event log window) doesn't have to duplicate the formula.
+ * @brief Oracool: the mini-map's actual on-screen rectangle (its diamond content's bounding box,
+ * positioned exactly where DrawMiniMap draws it - not the MiniMapSize zoom-level constant) -
+ * exposed so other UI can align itself against the mini-map's real edges instead of duplicating
+ * its position/size formula. The event log window uses this to match the mini-map's width and
+ * both its left and right edges, and to anchor its own top boundary below the mini-map's bottom.
  */
-int GetMiniMapWidth();
+Rectangle GetMiniMapScreenRect();
 
 /**
- * @brief Oracool: the y-coordinate just past the mini-map's bottom edge (its screen-space margin
- * plus its diamond content's height) - exposed so other UI can anchor itself relative to where
- * the mini-map actually ends on screen (the event log window's top boundary).
+ * @brief Oracool: draws a 1px dashed rectangle outline, matching the mini-map's own border style -
+ * exposed so other UI that wants to visually match the mini-map's border (the event log window)
+ * doesn't have to duplicate this or fall back to the plain solid UnsafeDrawBorder2px.
  */
-int GetMiniMapBottom();
+void DrawDashedBorder1px(const Surface &out, int x, int y, int width, int height, uint8_t color);
 
 /**
  * @brief Updates automap explorer at point if value is higher than existing.
