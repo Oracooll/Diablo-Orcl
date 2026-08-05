@@ -1192,10 +1192,16 @@ void DrawView(const Surface &out, Point startPosition)
 	// mini-map, not dialogs, so they need the same "any panel drawn afterward covers them" behavior
 	// the mini-map already has. Previously drawn last, they rendered on top of the inventory,
 	// character, quest log, spellbook, and Stash panels instead of being covered by them.
-	oracool::DrawEventLogButton(out);
-	oracool::DrawEventLogWindow(out);
-	oracool::DrawGameClock(out);
-	oracool::DrawXpCounter(out);
+	// Oracool: user request - hidden while the full-screen map is open, since they're anchored to
+	// the mini-map (which AutomapActive already suppresses above) and would otherwise float over
+	// the full map. No saved/restored state needed - they simply resume drawing the next frame
+	// AutomapActive goes false again, same as the mini-map itself.
+	if (!AutomapActive) {
+		oracool::DrawEventLogButton(out);
+		oracool::DrawEventLogWindow(out);
+		oracool::DrawGameClock(out);
+		oracool::DrawXpCounter(out);
+	}
 #ifdef _DEBUG
 	bool debugGridTextNeeded = IsDebugGridTextNeeded();
 	if (debugGridTextNeeded || DebugGrid) {

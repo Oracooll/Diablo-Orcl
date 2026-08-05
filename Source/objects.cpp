@@ -35,6 +35,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "options.h"
+#include "oracool/event_log.h"
 #include "qol/stash.h"
 #include "stores.h"
 #include "towners.h"
@@ -53,6 +54,25 @@ int ActiveObjectCount;
 bool LoadingMapObjects;
 
 namespace {
+
+// Oracool: user request - shrine/fountain stat effects logged in red, with a clear description of
+// what changed. Small name lookup shared by every hook below instead of repeating a switch/ternary
+// chain at each call site.
+const char *AttributeName(CharacterAttribute attribute)
+{
+	switch (attribute) {
+	case CharacterAttribute::Strength:
+		return "Strength";
+	case CharacterAttribute::Magic:
+		return "Magic";
+	case CharacterAttribute::Dexterity:
+		return "Dexterity";
+	case CharacterAttribute::Vitality:
+		return "Vitality";
+	default:
+		return "";
+	}
+}
 
 enum shrine_type : uint8_t {
 	ShrineMysterious,
@@ -2356,7 +2376,8 @@ void OperateShrineMysterious(Player &player)
 	ModifyPlrDex(player, -1);
 	ModifyPlrVit(player, -1);
 
-	switch (static_cast<CharacterAttribute>(GenerateRnd(4))) {
+	const auto boostedAttribute = static_cast<CharacterAttribute>(GenerateRnd(4));
+	switch (boostedAttribute) {
 	case CharacterAttribute::Strength:
 		ModifyPlrStr(player, 6);
 		break;
@@ -2376,6 +2397,7 @@ void OperateShrineMysterious(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_MYSTERIOUS);
+	oracool::LogEvent(fmt::format("Mysterious Shrine: -1 Strength, -1 Magic, -1 Dexterity, -1 Vitality, +6 {:s}", AttributeName(boostedAttribute)), UiFlags::ColorRed);
 }
 
 void OperateShrineHidden(Player &player)
@@ -2712,6 +2734,7 @@ void OperateShrineEerie(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_EERIE);
+	oracool::LogEvent("Eerie Shrine: +2 Magic", UiFlags::ColorRed);
 }
 
 /**
@@ -2802,6 +2825,7 @@ void OperateShrineAbandoned(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_ABANDONED);
+	oracool::LogEvent("Abandoned Shrine: +2 Dexterity", UiFlags::ColorRed);
 }
 
 void OperateShrineCreepy(Player &player)
@@ -2815,6 +2839,7 @@ void OperateShrineCreepy(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_CREEPY);
+	oracool::LogEvent("Creepy Shrine: +2 Strength", UiFlags::ColorRed);
 }
 
 void OperateShrineQuiet(Player &player)
@@ -2828,6 +2853,7 @@ void OperateShrineQuiet(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_QUIET);
+	oracool::LogEvent("Quiet Shrine: +2 Vitality", UiFlags::ColorRed);
 }
 
 void OperateShrineSecluded(const Player &player)
@@ -2885,6 +2911,7 @@ void OperateShrineTainted(const Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_TAINTED2);
+	oracool::LogEvent(fmt::format("Tainted Shrine (triggered by another player): +1 {:s}, -1 to the other three stats", AttributeName(static_cast<CharacterAttribute>(r))), UiFlags::ColorRed);
 }
 
 /**
@@ -2898,26 +2925,33 @@ void OperateShrineOily(Player &player, Point spawnPosition)
 	if (&player != MyPlayer)
 		return;
 
+	std::string oracoolLogMessage;
 	switch (player._pClass) {
 	case HeroClass::Warrior:
 		ModifyPlrStr(player, 2);
+		oracoolLogMessage = "+2 Strength";
 		break;
 	case HeroClass::Rogue:
 		ModifyPlrDex(player, 2);
+		oracoolLogMessage = "+2 Dexterity";
 		break;
 	case HeroClass::Sorcerer:
 		ModifyPlrMag(player, 2);
+		oracoolLogMessage = "+2 Magic";
 		break;
 	case HeroClass::Barbarian:
 		ModifyPlrVit(player, 2);
+		oracoolLogMessage = "+2 Vitality";
 		break;
 	case HeroClass::Monk:
 		ModifyPlrStr(player, 1);
 		ModifyPlrDex(player, 1);
+		oracoolLogMessage = "+1 Strength, +1 Dexterity";
 		break;
 	case HeroClass::Bard:
 		ModifyPlrDex(player, 1);
 		ModifyPlrMag(player, 1);
+		oracoolLogMessage = "+1 Dexterity, +1 Magic";
 		break;
 	}
 
@@ -2936,6 +2970,7 @@ void OperateShrineOily(Player &player, Point spawnPosition)
 	    0);
 
 	InitDiabloMsg(EMSG_SHRINE_OILY);
+	oracool::LogEvent(fmt::format("Oily Shrine: {:s} (class-based)", oracoolLogMessage), UiFlags::ColorRed);
 }
 
 void OperateShrineGlowing(Player &player)
@@ -2944,7 +2979,8 @@ void OperateShrineGlowing(Player &player)
 		return;
 
 	// Add 0-5 points to Magic (0.1% of the players XP)
-	ModifyPlrMag(player, static_cast<int>(std::min<uint64_t>(player._pExperience / 1000, 5)));
+	const int magicGained = static_cast<int>(std::min<uint64_t>(player._pExperience / 1000, 5));
+	ModifyPlrMag(player, magicGained);
 
 	// Take 5% of the players experience to offset the bonus, unless they're very low level in which case take all their experience.
 	if (player._pExperience > 5000)
@@ -2956,6 +2992,7 @@ void OperateShrineGlowing(Player &player)
 	RedrawEverything();
 
 	InitDiabloMsg(EMSG_SHRINE_GLOWING);
+	oracool::LogEvent(fmt::format("Glowing Shrine: +{:d} Magic (cost: experience)", magicGained), UiFlags::ColorRed);
 }
 
 void OperateShrineMendicant(Player &player)
@@ -3043,23 +3080,29 @@ void OperateShrineSolar(Player &player)
 	time_t timeResult = time(nullptr);
 	const std::tm *localtimeResult = localtime(&timeResult);
 	int hour = localtimeResult != nullptr ? localtimeResult->tm_hour : 20;
+	std::string oracoolLogMessage;
 	if (hour >= 20 || hour < 4) {
 		InitDiabloMsg(EMSG_SHRINE_SOLAR4);
 		ModifyPlrVit(player, 2);
+		oracoolLogMessage = "+2 Vitality";
 	} else if (hour >= 18) {
 		InitDiabloMsg(EMSG_SHRINE_SOLAR3);
 		ModifyPlrMag(player, 2);
+		oracoolLogMessage = "+2 Magic";
 	} else if (hour >= 12) {
 		InitDiabloMsg(EMSG_SHRINE_SOLAR2);
 		ModifyPlrStr(player, 2);
+		oracoolLogMessage = "+2 Strength";
 	} else /* 4:00 to 11:59 */ {
 		InitDiabloMsg(EMSG_SHRINE_SOLAR1);
 		ModifyPlrDex(player, 2);
+		oracoolLogMessage = "+2 Dexterity";
 	}
 
 	CheckStats(player);
 	CalcPlrInv(player, true);
 	RedrawEverything();
+	oracool::LogEvent(fmt::format("Solar Shrine: {:s} (time-of-day based)", oracoolLogMessage), UiFlags::ColorRed);
 }
 
 void OperateShrineMurphys(Player &player)
@@ -3413,8 +3456,10 @@ bool OperateFountains(Player &player, Object &fountain)
 
 		CheckStats(player);
 		applied = true;
-		if (&player == MyPlayer)
+		if (&player == MyPlayer) {
 			NetSendCmdLoc(MyPlayerId, false, CMD_OPERATEOBJ, fountain.position);
+			oracool::LogEvent(fmt::format("Fountain of Tears: -1 {:s}, +1 {:s}", AttributeName(static_cast<CharacterAttribute>(fromStat)), AttributeName(static_cast<CharacterAttribute>(toStat))), UiFlags::ColorRed);
+		}
 	} break;
 	default:
 		break;

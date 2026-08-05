@@ -193,6 +193,14 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.23 — Shrine Effects in the Event Log, HUD Hidden Behind the Full Map
+
+Triggering a shrine or the Fountain of Tears that changes one of your main stats (Strength, Magic, Dexterity, Vitality) now logs a clear, red-colored line in the Event Log explaining exactly what changed - for example "Creepy Shrine: +2 Strength" or "Mysterious Shrine: -1 Strength, -1 Magic, -1 Dexterity, -1 Vitality, +6 Dexterity". Every stat-altering shrine and the Fountain of Tears are covered; shrines that don't touch your stats are unaffected and log nothing (see the shrine reference sheet below). The Event Log itself now supports per-entry colors under the hood - existing entries (saves, deaths, item drops) stay gold as before, only these new shrine lines appear in red.
+
+Also fixed: opening the full-screen map (TAB, all the way to the third state) already hid the mini-map itself, but not the LOG button, the open Event Log window, the Game Clock, or the XP Counter - those now hide too instead of floating on top of the full map, and reappear automatically the moment it closes.
+
+---
+
 ## v0.3.22 — Smaller Pause Menu Font
 
 The in-game ESC/pause menu (both the "Pause" title and the menu items below it) now uses a slightly smaller font size than before.

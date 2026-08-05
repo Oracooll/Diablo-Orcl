@@ -11,6 +11,7 @@
 
 #include <string>
 
+#include "DiabloUI/ui_flags.hpp"
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
 
@@ -19,9 +20,10 @@ namespace devilution::oracool {
 /**
  * @brief Appends a new entry stamped with the current wall-clock time. Oldest entries are
  * dropped once the log exceeds its capacity. Safe to call even when the log window is closed -
- * entries still accumulate, just aren't drawn until it's opened.
+ * entries still accumulate, just aren't drawn until it's opened. Entries are gold by default;
+ * pass a different color (e.g. UiFlags::ColorRed, used for shrine stat effects) to stand out.
  */
-void LogEvent(std::string message);
+void LogEvent(std::string message, UiFlags color = UiFlags::ColorGold);
 
 /** @brief Opens or closes the event log window. Resets scroll position back to the newest entries. */
 void ToggleEventLog();

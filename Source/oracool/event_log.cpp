@@ -24,6 +24,7 @@ namespace {
 struct LogEntry {
 	std::string timestamp;
 	std::string message;
+	UiFlags color;
 };
 
 // Oracool: bounded ring buffer - oldest entries silently drop off once the cap is hit. Session-only
@@ -108,9 +109,9 @@ std::string CurrentTimestamp()
 
 } // namespace
 
-void LogEvent(std::string message)
+void LogEvent(std::string message, UiFlags color)
 {
-	Entries.push_front({ CurrentTimestamp(), std::move(message) });
+	Entries.push_front({ CurrentTimestamp(), std::move(message), color });
 	while (Entries.size() > MaxEntries)
 		Entries.pop_back();
 }
@@ -194,7 +195,7 @@ void DrawEventLogWindow(const Surface &out)
 		const size_t entryLines = static_cast<size_t>(std::count(wrapped.begin(), wrapped.end(), '\n')) + 1;
 		const size_t linesToDraw = std::min(entryLines, lineBudget - linesUsed);
 		const Rectangle entryRect { linePosition, { contentWidth, static_cast<int>(linesToDraw) * LineHeight } };
-		DrawString(out, wrapped, entryRect, { UiFlags::ColorGold | UiFlags::FontSize12 });
+		DrawString(out, wrapped, entryRect, { entry.color | UiFlags::FontSize12 });
 		linePosition.y += static_cast<int>(linesToDraw) * LineHeight;
 		linesUsed += linesToDraw;
 	}
