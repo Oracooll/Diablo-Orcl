@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.12 — Event Log Crash Fix
+
+Fixed: clicking the new LOG button (added in v0.3.11) could crash or freeze the game at the default screen resolution — the log window was drawn tall enough to run off the bottom of the screen, and the game doesn't check that kind of thing before drawing. The window now opens upward from the button and always sizes itself to fit on screen, however small the window.
+
+---
+
 ## v0.3.11 — Event Log
 
 A new "LOG" button sits just above the durability-warning icons in the top-right corner. Click it to open a collapsible, timestamped log of noteworthy things that have happened this session: game saves (automatic and manual), boss/unique monster kills, Rare/Buffed Unique/Primal/Unique/Quest item drops (with the dungeon level they dropped on), and character deaths (with what killed you, where possible). The log has a dark backing and a gold border to match the mini-map's look, shows the most recent events first, and holds up to 200 entries before the oldest ones quietly drop off. It's session-only — nothing here is saved to disk, so a fresh game starts with an empty log. Controlled by a new "Event Log" setting in `diablo.ini` (on by default).

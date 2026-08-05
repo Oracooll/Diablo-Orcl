@@ -1,5 +1,6 @@
 #include "oracool/event_log.h"
 
+#include <algorithm>
 #include <ctime>
 #include <deque>
 #include <string>
@@ -14,6 +15,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "options.h"
+#include "utils/ui_fwd.h"
 
 namespace devilution::oracool {
 
@@ -29,12 +31,14 @@ struct LogEntry {
 // memory (a few hundred short strings at most) in exchange for never needing a "clear log" UI.
 constexpr size_t MaxEntries = 200;
 constexpr size_t MaxVisibleLines = 18;
+constexpr size_t MinVisibleLines = 3;
 
 constexpr int ButtonWidth = 32;
 constexpr int ButtonHeight = 20;
 constexpr int WindowWidth = 380;
 constexpr int LineHeight = 14;
 constexpr int WindowPadding = 8;
+constexpr int ScreenMargin = 4;
 constexpr uint8_t EventLogBorderColor = PAL16_YELLOW + 2;
 
 std::deque<LogEntry> Entries;
@@ -52,15 +56,33 @@ Point ButtonPosition()
 	return { x, y };
 }
 
+// Oracool: the window opens upward from the button (toward the top of the screen, where there's
+// always ample room) rather than downward toward the main panel. At low resolutions (640x480 is
+// this engine's default) there isn't enough room below the button to fit a fixed-height window
+// without it running off the bottom of the screen - UnsafeDrawBorder2px/DrawHalfTransparentRectTo
+// don't bounds-check, so that used to write past the framebuffer and crash the game. Visible line
+// count is now derived from actual available space instead of a fixed constant.
+size_t VisibleLineCount()
+{
+	const int availableHeight = ButtonPosition().y - ScreenMargin;
+	const int contentHeight = availableHeight - WindowPadding * 2 - LineHeight;
+	const int lines = contentHeight / LineHeight;
+	return static_cast<size_t>(std::clamp(lines, static_cast<int>(MinVisibleLines), static_cast<int>(MaxVisibleLines)));
+}
+
 int WindowHeight()
 {
-	return WindowPadding * 2 + LineHeight + static_cast<int>(MaxVisibleLines) * LineHeight;
+	return WindowPadding * 2 + LineHeight + static_cast<int>(VisibleLineCount()) * LineHeight;
 }
 
 Point WindowPosition()
 {
-	Point button = ButtonPosition();
-	return { button.x + ButtonWidth - WindowWidth, button.y + ButtonHeight + 4 };
+	const Point button = ButtonPosition();
+	const int windowHeight = WindowHeight();
+	int x = button.x + ButtonWidth - WindowWidth;
+	x = std::clamp(x, ScreenMargin, static_cast<int>(gnScreenWidth) - WindowWidth - ScreenMargin);
+	int y = std::max(button.y - windowHeight - 4, ScreenMargin);
+	return { x, y };
 }
 
 std::string CurrentTimestamp()
@@ -118,9 +140,10 @@ void DrawEventLogWindow(const Surface &out)
 		return;
 	}
 
+	const size_t maxShown = VisibleLineCount() - 1;
 	size_t shown = 0;
 	for (const LogEntry &entry : Entries) {
-		if (shown >= MaxVisibleLines - 1)
+		if (shown >= maxShown)
 			break;
 		const std::string line = fmt::format("{:s}  {:s}", entry.timestamp, entry.message);
 		DrawString(out, line, Rectangle { linePosition, lineSize }, { UiFlags::ColorGold | UiFlags::FontSize12 });
