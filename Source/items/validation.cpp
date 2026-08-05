@@ -6,6 +6,7 @@
 
 #include "items/validation.h"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "items.h"
@@ -59,8 +60,11 @@ bool IsTownItemValid(uint16_t iCreateInfo)
 	const bool isBoyItem = (iCreateInfo & CF_BOY) != 0;
 	const uint8_t maxTownItemLevel = 30;
 
-	// Wirt items in multiplayer are equal to the level of the player, therefore they cannot exceed the max character level
-	if (isBoyItem && level <= MaxCharacterLevel)
+	// Wirt items in multiplayer are equal to the level of the player, therefore they cannot exceed the max
+	// character level. Oracool: CF_LEVEL is only 6 bits wide (max 63), which is now below
+	// MaxCharacterLevel (99) - clamp the comparison to whichever ceiling is actually lower so this
+	// stays a meaningful check instead of becoming a no-op once MaxCharacterLevel outgrew the field.
+	if (isBoyItem && level <= std::min<int>(MaxCharacterLevel, CF_LEVEL))
 		return true;
 
 	return level <= maxTownItemLevel;

@@ -33,7 +33,8 @@ namespace devilution {
 constexpr int InventoryGridCells = 40;
 constexpr int MaxBeltItems = 8;
 constexpr int MaxResistance = 75;
-constexpr int MaxCharacterLevel = 50;
+/** @brief Oracool: raised from vanilla's 50 to allow post-Hell/Torment progression. */
+constexpr int MaxCharacterLevel = 99;
 constexpr uint8_t MaxSpellLevel = 15;
 constexpr int PlayerNameLength = 32;
 
@@ -297,8 +298,9 @@ struct Player {
 	int _pIFMaxDam;
 	int _pILMinDam;
 	int _pILMaxDam;
-	uint32_t _pExperience;
-	uint32_t _pNextExper;
+	/** @brief Oracool: widened to uint64_t - the extended level-99 curve exceeds UINT32_MAX. */
+	uint64_t _pExperience;
+	uint64_t _pNextExper;
 	PLR_MODE _pmode;
 	int8_t walkpath[MaxPathLength];
 	bool plractive;

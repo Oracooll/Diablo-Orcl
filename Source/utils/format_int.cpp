@@ -43,4 +43,35 @@ std::string FormatInteger(int n)
 	return out;
 }
 
+std::string FormatInteger(uint64_t n)
+{
+	constexpr size_t GroupSize = 3;
+
+	char buf[24];
+	char *begin = buf;
+	const char *end = BufCopy(buf, n);
+	const size_t len = end - begin;
+
+	std::string out;
+	if (len <= GroupSize) {
+		out.append(begin, len);
+		return out;
+	}
+
+	const string_view separator = _(/* TRANSLATORS: Thousands separator */ ",");
+	out.reserve(len + separator.size() * (len - 1) / GroupSize);
+
+	size_t mlen = len % GroupSize;
+	if (mlen == 0)
+		mlen = GroupSize;
+	out.append(begin, mlen);
+	begin += mlen;
+	for (; begin != end; begin += GroupSize) {
+		AppendStrView(out, separator);
+		out.append(begin, GroupSize);
+	}
+
+	return out;
+}
+
 } // namespace devilution

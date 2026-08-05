@@ -2444,7 +2444,7 @@ void AddPlrExperience(Player &player, int lvl, int exp)
 	}
 
 	// Adjust xp based on difference in level between player and monster
-	uint32_t clampedExp = std::max(static_cast<int>(exp * (1 + (lvl - player._pLevel) / 10.0)), 0);
+	uint64_t clampedExp = std::max(static_cast<int>(exp * (1 + (lvl - player._pLevel) / 10.0)), 0);
 
 	// Prevent power leveling
 	if (gbIsMultiplayer) {
@@ -2452,12 +2452,12 @@ void AddPlrExperience(Player &player, int lvl, int exp)
 
 		// for low level characters experience gain is capped to 1/20 of current levels xp
 		// for high level characters experience gain is capped to 200 * current level - this is a smaller value than 1/20 of the exp needed for the next level after level 5.
-		clampedExp = std::min({ clampedExp, /* level 0-5: */ ExpLvlsTbl[clampedPlayerLevel] / 20U, /* level 6-50: */ 200U * clampedPlayerLevel });
+		clampedExp = std::min({ clampedExp, /* level 0-5: */ ExpLvlsTbl[clampedPlayerLevel] / 20U, /* level 6-99: */ 200ULL * clampedPlayerLevel });
 	}
 
-	const uint32_t MaxExperience = ExpLvlsTbl[MaxCharacterLevel - 1];
+	const uint64_t MaxExperience = ExpLvlsTbl[MaxCharacterLevel - 1];
 
-	// Overflow is only possible if a kill grants more than (2^32-1 - MaxExperience) XP in one go, which doesn't happen in normal gameplay. Clamp to experience required to reach max level
+	// Overflow is only possible if a kill grants more than (2^64-1 - MaxExperience) XP in one go, which doesn't happen in normal gameplay. Clamp to experience required to reach max level
 	player._pExperience = std::min(player._pExperience + clampedExp, MaxExperience);
 
 	if (*sgOptions.Gameplay.experienceBar) {

@@ -199,6 +199,25 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 		monster.maxDamageSpecial = 4 * monster.maxDamageSpecial + 6;
 		monster.armorClass += HellAcBonus;
 		monster.resistance = monster.data().resistanceHell;
+	} else if (sgGameInitInfo.nDifficulty == DIFF_TORMENT) {
+		const float multiplier = GetTormentDifficultyMultiplier();
+		monster.maxHitPoints = 4 * monster.maxHitPoints;
+		if (gbIsHellfire)
+			monster.maxHitPoints += (gbIsMultiplayer ? 200 : 100) << 6;
+		else
+			monster.maxHitPoints += 200 << 6;
+		monster.maxHitPoints = static_cast<int>(monster.maxHitPoints * multiplier);
+		monster.hitPoints = monster.maxHitPoints;
+		// minDamage/maxDamage/armorClass are uint8_t - Hell's formula already fits comfortably,
+		// but scaling further by up to 5.0x can genuinely exceed 255, so every result here is
+		// clamped instead of silently wrapping (which would make a high multiplier setting
+		// unpredictably *weaker* for some monsters instead of stronger).
+		monster.minDamage = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamage + 6) * multiplier), 255));
+		monster.maxDamage = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamage + 6) * multiplier), 255));
+		monster.minDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamageSpecial + 6) * multiplier), 255));
+		monster.maxDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamageSpecial + 6) * multiplier), 255));
+		monster.armorClass = static_cast<uint8_t>(std::min(monster.armorClass + static_cast<int>(HellAcBonus * multiplier), 255));
+		monster.resistance = monster.data().resistanceHell;
 	}
 }
 
@@ -3173,6 +3192,19 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 		monster.maxDamage = 4 * monster.maxDamage + 6;
 		monster.minDamageSpecial = 4 * monster.minDamageSpecial + 6;
 		monster.maxDamageSpecial = 4 * monster.maxDamageSpecial + 6;
+	} else if (sgGameInitInfo.nDifficulty == DIFF_TORMENT) {
+		const float multiplier = GetTormentDifficultyMultiplier();
+		monster.maxHitPoints = 4 * monster.maxHitPoints;
+		if (gbIsHellfire)
+			monster.maxHitPoints += (gbIsMultiplayer ? 200 : 100) << 6;
+		else
+			monster.maxHitPoints += 200 << 6;
+		monster.maxHitPoints = static_cast<int>(monster.maxHitPoints * multiplier);
+		monster.hitPoints = monster.maxHitPoints;
+		monster.minDamage = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamage + 6) * multiplier), 255));
+		monster.maxDamage = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamage + 6) * multiplier), 255));
+		monster.minDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamageSpecial + 6) * multiplier), 255));
+		monster.maxDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamageSpecial + 6) * multiplier), 255));
 	}
 
 	InitTRNForUniqueMonster(monster);
@@ -3185,6 +3217,8 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 			monster.armorClass += NightmareAcBonus;
 		} else if (sgGameInitInfo.nDifficulty == DIFF_HELL) {
 			monster.armorClass += HellAcBonus;
+		} else if (sgGameInitInfo.nDifficulty == DIFF_TORMENT) {
+			monster.armorClass = static_cast<uint8_t>(std::min(monster.armorClass + static_cast<int>(HellAcBonus * GetTormentDifficultyMultiplier()), 255));
 		}
 	}
 
@@ -4260,11 +4294,17 @@ void PrintMonstHistory(int mt)
 		} else if (sgGameInitInfo.nDifficulty == DIFF_HELL) {
 			minHP = 4 * minHP + hpBonusHell;
 			maxHP = 4 * maxHP + hpBonusHell;
+		} else if (sgGameInitInfo.nDifficulty == DIFF_TORMENT) {
+			// Oracool: mirrors InitMonster's own Torment HP formula, so the bestiary panel
+			// shows what the monster's stats actually are, not what they'd be on Hell.
+			const float multiplier = GetTormentDifficultyMultiplier();
+			minHP = static_cast<int>((4 * minHP + hpBonusHell) * multiplier);
+			maxHP = static_cast<int>((4 * maxHP + hpBonusHell) * multiplier);
 		}
 		AddPanelString(fmt::format(fmt::runtime(_("Hit Points: {:d}-{:d}")), minHP, maxHP));
 	}
 	if (MonsterKillCounts[mt] >= 15) {
-		int res = (sgGameInitInfo.nDifficulty != DIFF_HELL) ? MonstersData[mt].resistance : MonstersData[mt].resistanceHell;
+		int res = (sgGameInitInfo.nDifficulty == DIFF_HELL || sgGameInitInfo.nDifficulty == DIFF_TORMENT) ? MonstersData[mt].resistanceHell : MonstersData[mt].resistance;
 		if ((res & (RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING | IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING)) == 0) {
 			AddPanelString(_("No magic resistance"));
 		} else {
@@ -4730,6 +4770,56 @@ MonsterMode Monster::getVisualMonsterMode() const
 	return MonsterMode::Petrified;
 }
 
+unsigned int Monster::exp(_difficulty difficulty) const
+{
+	unsigned int monsterExp = data().exp;
+
+	if (difficulty == DIFF_NIGHTMARE) {
+		monsterExp = 2 * (monsterExp + 1000);
+	} else if (difficulty == DIFF_HELL) {
+		monsterExp = 4 * (monsterExp + 1000);
+	} else if (difficulty == DIFF_TORMENT) {
+		// Oracool: Hell's own formula, scaled further by the adjustable Torment multiplier.
+		monsterExp = static_cast<unsigned int>(4 * (monsterExp + 1000) * GetTormentDifficultyMultiplier());
+	}
+
+	if (isUnique()) {
+		monsterExp *= 2;
+	}
+
+	return monsterExp;
+}
+
+unsigned int Monster::level(_difficulty difficulty) const
+{
+	unsigned int baseLevel = data().level;
+	if (isUnique()) {
+		baseLevel = UniqueMonstersData[static_cast<int8_t>(uniqueType)].mlevel;
+		if (baseLevel != 0) {
+			baseLevel *= 2;
+		} else {
+			baseLevel = data().level + 5;
+		}
+	}
+
+	if (type().type == MT_DIABLO && !gbIsHellfire) {
+		baseLevel -= 15;
+	}
+
+	if (difficulty == DIFF_NIGHTMARE) {
+		baseLevel += 15;
+	} else if (difficulty == DIFF_HELL) {
+		baseLevel += 30;
+	} else if (difficulty == DIFF_TORMENT) {
+		// Oracool: Hell's own +30 level offset, scaled further by the Torment multiplier - this
+		// single offset also drives item level/quality (items.cpp) and combat to-hit math
+		// (missiles.cpp) for free, since both already consume Monster::level().
+		baseLevel += static_cast<unsigned int>(30 * GetTormentDifficultyMultiplier());
+	}
+
+	return baseLevel;
+}
+
 unsigned int Monster::toHit(_difficulty difficulty) const
 {
 	if (isPlayerMinion())
@@ -4744,6 +4834,8 @@ unsigned int Monster::toHit(_difficulty difficulty) const
 		baseToHit += NightmareToHitBonus;
 	} else if (difficulty == DIFF_HELL) {
 		baseToHit += HellToHitBonus;
+	} else if (difficulty == DIFF_TORMENT) {
+		baseToHit += static_cast<unsigned int>(HellToHitBonus * GetTormentDifficultyMultiplier());
 	}
 
 	return baseToHit;
@@ -4760,6 +4852,8 @@ unsigned int Monster::toHitSpecial(_difficulty difficulty) const
 		baseToHitSpecial += NightmareToHitBonus;
 	} else if (difficulty == DIFF_HELL) {
 		baseToHitSpecial += HellToHitBonus;
+	} else if (difficulty == DIFF_TORMENT) {
+		baseToHitSpecial += static_cast<unsigned int>(HellToHitBonus * GetTormentDifficultyMultiplier());
 	}
 
 	return baseToHitSpecial;

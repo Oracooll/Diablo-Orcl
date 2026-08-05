@@ -258,6 +258,16 @@ protected:
 
 	void AddEntry(int value);
 
+	/**
+	 * @brief Oracool: lets a subclass reformat a specific entry's displayed text (see
+	 * OptionEntryTormentMultiplier) without needing to duplicate GetListSize/AddEntry's own
+	 * bookkeeping of which values are actually present, in what order.
+	 */
+	[[nodiscard]] int GetEntryValue(size_t index) const
+	{
+		return entryValues[index];
+	}
+
 private:
 	int defaultValue;
 	int value;
@@ -286,6 +296,42 @@ public:
 	void SetValue(T value)
 	{
 		SetValueInternal(static_cast<int>(value));
+	}
+};
+
+/**
+ * @brief Oracool: an int-backed slider (like OptionEntryInt) whose stored value is tenths of the
+ * actual setting, displayed and read back as a one-decimal float - used for Torment Difficulty
+ * Multiplier's 1.1-5.0-in-0.1-steps range, which OptionEntryInt's plain integer display can't
+ * represent without this reformatting.
+ */
+class OptionEntryTormentMultiplier : public OptionEntryIntBase {
+public:
+	OptionEntryTormentMultiplier(string_view key, OptionEntryFlags flags, const char *name, const char *description, int defaultValueTenths, std::initializer_list<int> entriesTenths)
+	    : OptionEntryIntBase(key, flags, name, description, defaultValueTenths)
+	{
+		for (auto entry : entriesTenths)
+			AddEntry(entry);
+	}
+
+	[[nodiscard]] string_view GetListDescription(size_t index) const override;
+
+	[[nodiscard]] float operator*() const
+	{
+		return GetValueInternal() / 10.0f;
+	}
+
+	/** @brief The raw stored tenths value (e.g. 20 for 2.0x) - for the INI writer, which needs the
+	 * exact integer rather than a float round-trip through *this that could round imprecisely. */
+	[[nodiscard]] int ValueTenths() const
+	{
+		return GetValueInternal();
+	}
+
+	/** @param tenths the raw tenths value to store (e.g. 20 for 2.0x), not the float multiplier. */
+	void SetValue(int tenths)
+	{
+		SetValueInternal(tenths);
 	}
 };
 
@@ -643,6 +689,8 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean autoSaveOnStorePurchase;
 	OptionEntryInt<int> autoSaveItemDelaySeconds;
 	OptionEntryBoolean autoSaveNotification;
+	OptionEntryBoolean difficultyLevelGate;
+	OptionEntryTormentMultiplier tormentDifficultyMultiplier;
 };
 
 struct ControllerOptions : OptionCategoryBase {
@@ -872,6 +920,16 @@ struct Options {
 };
 
 extern DVL_API_FOR_TEST Options sgOptions;
+
+/**
+ * @brief Oracool: how much harder Torment is than Hell, applied on top of Hell's already-computed
+ * monster/treasure formulas rather than as its own independent set of per-stat constants (see
+ * monster.h/.cpp and items.cpp's gold-value switch).
+ */
+inline float GetTormentDifficultyMultiplier()
+{
+	return *sgOptions.Oracool.tormentDifficultyMultiplier;
+}
 
 bool HardwareCursorSupported();
 

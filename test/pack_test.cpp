@@ -1379,7 +1379,10 @@ TEST_F(NetPackTest, UnPackNetPlayer_invalid_townItemFlags)
 
 TEST_F(NetPackTest, UnPackNetPlayer_invalid_townItemLevel)
 {
-	size_t boyCount = 0;
+	// Oracool: CF_LEVEL is only 6 bits wide (max 63), which is below MaxCharacterLevel (99), so a
+	// boy item's encoded level can never structurally exceed what IsTownItemValid accepts anymore -
+	// only the non-boy town-item branch (capped at 30, well under the field's own 63 ceiling) can
+	// still be driven invalid this way.
 	size_t otherCount = 0;
 	for (Item &item : MyPlayer->InvBody) {
 		if (item.isEmpty())
@@ -1388,17 +1391,16 @@ TEST_F(NetPackTest, UnPackNetPlayer_invalid_townItemLevel)
 			continue;
 		if ((item._iCreateInfo & CF_TOWN) == 0)
 			continue;
+		if ((item._iCreateInfo & CF_BOY) != 0)
+			continue;
 		uint16_t createInfo = item._iCreateInfo;
-		bool boyItem = (item._iCreateInfo & CF_BOY) != 0;
 		item._iCreateInfo &= ~CF_LEVEL;
-		item._iCreateInfo |= boyItem ? MaxCharacterLevel + 1 : 31;
+		item._iCreateInfo |= 31;
 		ASSERT_FALSE(TestNetPackValidation());
 		item._iCreateInfo = createInfo;
 
-		size_t &count = boyItem ? boyCount : otherCount;
-		count++;
+		otherCount++;
 	}
-	ASSERT_GT(boyCount, 0);
 	ASSERT_GT(otherCount, 0);
 	ASSERT_TRUE(TestNetPackValidation());
 }

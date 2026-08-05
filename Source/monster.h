@@ -335,22 +335,7 @@ struct Monster { // note: missing field _mAFNum
 	 * @param difficulty - difficulty on which calculation is performed
 	 * @return Monster's experience points, including bonuses from difficulty and monster being unique
 	 */
-	unsigned int exp(_difficulty difficulty) const
-	{
-		unsigned int monsterExp = data().exp;
-
-		if (difficulty == DIFF_NIGHTMARE) {
-			monsterExp = 2 * (monsterExp + 1000);
-		} else if (difficulty == DIFF_HELL) {
-			monsterExp = 4 * (monsterExp + 1000);
-		}
-
-		if (isUnique()) {
-			monsterExp *= 2;
-		}
-
-		return monsterExp;
-	}
+	unsigned int exp(_difficulty difficulty) const;
 
 	/**
 	 * @brief Calculates monster's chance to hit with normal attack.
@@ -374,30 +359,7 @@ struct Monster { // note: missing field _mAFNum
 	 * @param difficulty - difficulty on which calculation is performed
 	 * @return Monster's level, including bonuses from difficulty and monster being unique
 	 */
-	unsigned int level(_difficulty difficulty) const
-	{
-		unsigned int baseLevel = data().level;
-		if (isUnique()) {
-			baseLevel = UniqueMonstersData[static_cast<int8_t>(uniqueType)].mlevel;
-			if (baseLevel != 0) {
-				baseLevel *= 2;
-			} else {
-				baseLevel = data().level + 5;
-			}
-		}
-
-		if (type().type == MT_DIABLO && !gbIsHellfire) {
-			baseLevel -= 15;
-		}
-
-		if (difficulty == DIFF_NIGHTMARE) {
-			baseLevel += 15;
-		} else if (difficulty == DIFF_HELL) {
-			baseLevel += 30;
-		}
-
-		return baseLevel;
-	}
+	unsigned int level(_difficulty difficulty) const;
 
 	/**
 	 * @brief Returns the network identifier for this monster

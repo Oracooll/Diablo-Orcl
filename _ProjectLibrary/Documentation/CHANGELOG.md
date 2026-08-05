@@ -193,6 +193,32 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.0 — Torment Difficulty & Level 99
+
+**This release changes the character save format (the level cap increase needs more room to store experience than the old format had). Existing characters cannot be loaded after updating - start a new character. Existing saves are not deleted, so nothing is lost if you want to keep playing an older build instead.**
+
+### A new difficulty above Hell
+
+Torment sits above Hell as a new, single-player-only difficulty. Its monsters are tougher across the board - more health, harder-hitting, better armored, more accurate - and their loot and gold are worth more too. How much harder is entirely in your hands: a new "Torment Difficulty Multiplier" setting (1.1x to 5.0x, default 2.0x) scales everything Torment does on top of Hell's own numbers, without changing Hell itself at all. Want a gentler step up? Turn it down. Want the hardest thing this game has ever offered? Turn it up to 5x and see what happens.
+
+### Difficulties now require a minimum character level (optional)
+
+Starting a single-player game used to let a level-1 character jump straight into Hell with no prerequisite at all. A new "Difficulty Level Gate" setting (on by default) now requires level 15 for Nightmare, level 30 for Hell, and level 40 for Torment. Turn it off and every difficulty is freely selectable again, exactly as it worked before this update.
+
+### Character level cap raised from 50 to 99
+
+Characters can now keep progressing all the way to level 99, instead of hitting a hard wall at 50. Levels 1-50 need exactly the same experience they always have - nothing about your early or mid-game leveling pace changes. Levels 51-99 are new territory: each level costs more than the last, gently at first and dramatically by the time you're closing in on 99, so the far end is a genuine long-haul goal for a dedicated character rather than something you'll stumble into. Torment's generous experience bonus (on top of Hell's own) is the intended way to make a serious run at it. This is an always-on part of the game now, like Torment itself - there's no setting to turn it off.
+
+### Experience display now shows progress toward your current level
+
+Hovering over the experience bar used to show your total lifetime experience and the total needed for the next level - numbers that get awkwardly large once you're deep into the extended level range. It now shows "gained this level / needed this level" instead (e.g. `0 / 25,000` right after a level-up), which stays readable at any level and matches what the experience bar itself has always shown visually.
+
+### Everything else about Hell, Nightmare, and Normal is completely unchanged
+
+This release only adds a new tier and a longer endgame on top - it doesn't touch how Normal, Nightmare, or Hell already play, and doesn't change how leveling from 1-50 feels.
+
+---
+
 ## v0.2.9 — Subtle Autosave Indicator
 
 ### Autosaves now use a quieter notification

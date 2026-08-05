@@ -117,8 +117,12 @@ enum _difficulty : uint8_t {
 	DIFF_NORMAL,
 	DIFF_NIGHTMARE,
 	DIFF_HELL,
+	/** @brief Oracool: single-player-only difficulty above Hell. Every Hell-tier stat formula
+	 * gets an additional Oracool.tormentDifficultyMultiplier applied on top - see monster.h/.cpp,
+	 * items.cpp's gold-value switch, and the level gate in DiabloUI/multi/selgame.cpp. */
+	DIFF_TORMENT,
 
-	DIFF_LAST = DIFF_HELL,
+	DIFF_LAST = DIFF_TORMENT,
 };
 
 struct THEME_LOC {

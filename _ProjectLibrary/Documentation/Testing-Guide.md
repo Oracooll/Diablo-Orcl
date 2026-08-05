@@ -376,3 +376,29 @@ For every toggleable feature, test both enabled and disabled states after restar
 - With the mini-map showing, open an info screen that force-closes the map (check whatever's bound to "Hide Info Screens") and confirm it actually closes the mini-map too, not just the full map.
 - **Legibility check** (the main open question): is the mini-map actually readable at its current size, or too small/zoomed-out to tell anything useful at a glance? Is the dark backing enough to keep it visible over bright dungeon tiles? This is the first real-world look at the chosen size (130x130 pixels) and zoom level - flag it if it needs to be bigger, smaller, differently scaled, or repositioned.
 - Save and quit while the mini-map is showing, then reload. Confirm the game comes back with no map shown (mini-map state isn't persisted, unlike the full map's on/off state) - this is a known, deliberate limitation, not a bug, but worth confirming it doesn't do anything worse (like coming back in some broken half-state).
+
+### Post-migration: v0.3.0 Torment Difficulty (OE-011)
+
+**This is the biggest single feature built this session and the culmination of the original project roadmap - test it thoroughly, not just spot-check it.**
+
+- Create a new single-player character. Confirm you can select Normal freely, but Nightmare/Hell/Torment are greyed out or blocked below level 15/30/40 respectively - with "Difficulty Level Gate" on (the default).
+- Turn "Difficulty Level Gate" off and confirm all four difficulties become freely selectable regardless of level, exactly like Normal/Nightmare/Hell already worked before this update.
+- Level a character to 40+ (or use debug tools) and start a Torment game. Confirm the game actually starts - the "Torment" option should be visible on the difficulty list only in single-player, never in a multiplayer create-game screen.
+- Fight some early-dungeon monsters on Torment at the default 2.0x multiplier. Confirm they feel noticeably harder than Hell - more health, hit harder, land hits more often - without being so overwhelming that a level-40+ character can't function at all near the start of the dungeon.
+- Open the bestiary (kill enough of one monster type to unlock its lore panel) while on Torment and confirm the displayed HP range and resistance text look consistent with what you're actually experiencing in combat, not like Hell's numbers.
+- Change "Torment Difficulty Multiplier" to something low (e.g. 1.1x) and confirm Torment feels only slightly harder than Hell. Change it to something high (e.g. 5.0x) and confirm monsters get dramatically tougher without anything crashing or behaving strangely (this exercises the uint8_t-overflow clamping added for exactly this case).
+- Pick up gold and loot on Torment and compare against what the same dungeon depth would give on Hell - gold values and item quality should both be noticeably better.
+- Check the automap (full map, not mini-map) while on Torment and confirm the "Difficulty: Torment" label shows correctly in the corner.
+- If you have Discord Rich Presence enabled, confirm it doesn't crash and shows "Torment difficulty" correctly rather than garbage text (this was a real out-of-bounds read risk before the fix).
+- Confirm an existing Hell character's saves and an existing Hell game in progress are completely unaffected - Hell's own numbers should be identical to before this update in every respect.
+
+### Post-migration: v0.3.0 Level cap 99 and experience bar hover (OE-029/OE-030)
+
+**This is a save-format and network-packet-format break (experience widened to 64-bit) - old characters from before this release cannot be loaded, and this build cannot join/host with an unpatched build. Confirm this is intentional and expected, not a regression.**
+
+- Create a new character (or use debug tools) and level up through 50 - confirm the experience required at each level matches what you remember from before this update (levels 1-50 are byte-for-byte unchanged).
+- Push a character past level 50 (debug tools or a long Torment grind) and confirm leveling continues smoothly all the way up - no crash, no getting stuck, no character panel display glitches, right up to level 99, where leveling should stop entirely and the character panel's "Next level" field should read "None" (the pre-existing max-level display).
+- Hover over the experience bar (below the belt) at various points in a level and confirm it now shows `Experience: {gained} / {needed}` relative to the current level, resetting to `0 / {needed}` immediately after a level-up, instead of the old absolute lifetime-total display.
+- At a high level (70+) with a large lifetime experience total, open the character panel and confirm the Experience/Next Level numbers display fully and legibly, without any digits getting clipped or the text overlapping other panel elements.
+- Grind on Torment for a while at a high level and confirm experience gains feel meaningfully fast relative to the new curve - this is a subjective/pacing check, not a pass/fail one; flag it if leveling above 50 feels unreasonably slow or fast at the default 2.0x Torment multiplier.
+- Do not try to load a pre-this-release save. The widened experience field shifts every byte that follows it in the save format, so an old save will not fail cleanly - it will silently misread every subsequent player field (armor class, resistances, etc.) as garbage. This is expected and matches how this project has handled prior save-breaking changes (start a fresh character), but is worth confirming isn't mistaken for a crash bug if it comes up.

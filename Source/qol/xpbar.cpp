@@ -137,9 +137,14 @@ bool CheckXPBarInfo()
 
 	InfoColor = UiFlags::ColorWhite;
 
-	AddPanelString(fmt::format(fmt::runtime(_("Experience: {:s}")), FormatInteger(player._pExperience)));
-	AddPanelString(fmt::format(fmt::runtime(_("Next Level: {:s}")), FormatInteger(ExpLvlsTbl[charLevel])));
-	AddPanelString(fmt::format(fmt::runtime(_("{:s} to Level {:d}")), FormatInteger(ExpLvlsTbl[charLevel] - player._pExperience), charLevel + 1));
+	// Oracool: show progress relative to the current level (resets to 0 on level-up) rather than
+	// the ever-growing cumulative total - the level-99 curve's absolute numbers get too large
+	// (billions) to read at a glance, so "gained since this level / needed for this level" is
+	// clearer than "gained overall" and "needed overall".
+	const uint64_t levelStartXp = ExpLvlsTbl[charLevel - 1];
+	const uint64_t gainedThisLevel = player._pExperience - levelStartXp;
+	const uint64_t neededThisLevel = ExpLvlsTbl[charLevel] - levelStartXp;
+	AddPanelString(fmt::format(fmt::runtime(_("Experience: {:s} / {:s}")), FormatInteger(gainedThisLevel), FormatInteger(neededThisLevel)));
 
 	return true;
 }

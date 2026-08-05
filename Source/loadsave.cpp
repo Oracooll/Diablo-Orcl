@@ -495,9 +495,10 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	player._pLevel = file.NextLE<int8_t>();
 	player._pMaxLvl = file.NextLE<int8_t>();
 	file.Skip(2); // Alignment
-	player._pExperience = file.NextLE<uint32_t>();
+	/** @brief Oracool: widened to uint64_t - the extended level-99 curve exceeds UINT32_MAX. */
+	player._pExperience = file.NextLE<uint64_t>();
 	file.Skip<uint32_t>();                        // Skip _pMaxExp - unused
-	player._pNextExper = file.NextLE<uint32_t>(); // This can be calculated based on pLevel (which in turn could be calculated based on pExperience)
+	player._pNextExper = file.NextLE<uint64_t>(); // This can be calculated based on pLevel (which in turn could be calculated based on pExperience)
 	player._pArmorClass = file.NextLE<int8_t>();
 	player._pMagResist = file.NextLE<int8_t>();
 	player._pFireResist = file.NextLE<int8_t>();
@@ -1329,9 +1330,9 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	file.WriteLE<int8_t>(player._pLevel);
 	file.WriteLE<int8_t>(player._pMaxLvl);
 	file.Skip(2); // Alignment
-	file.WriteLE<uint32_t>(player._pExperience);
+	file.WriteLE<uint64_t>(player._pExperience);
 	file.Skip<uint32_t>(); // Skip _pMaxExp
-	file.WriteLE<uint32_t>(player._pNextExper);
+	file.WriteLE<uint64_t>(player._pNextExper);
 	file.WriteLE<int8_t>(player._pArmorClass);
 	file.WriteLE<int8_t>(player._pMagResist);
 	file.WriteLE<int8_t>(player._pFireResist);
@@ -2515,7 +2516,7 @@ void LoadGame(bool firstflag)
 
 	LoadPlayer(file, myPlayer);
 
-	if (sgGameInitInfo.nDifficulty < DIFF_NORMAL || sgGameInitInfo.nDifficulty > DIFF_HELL)
+	if (sgGameInitInfo.nDifficulty < DIFF_NORMAL || sgGameInitInfo.nDifficulty > DIFF_LAST)
 		sgGameInitInfo.nDifficulty = DIFF_NORMAL;
 
 	for (int i = 0; i < giNumberQuests; i++)

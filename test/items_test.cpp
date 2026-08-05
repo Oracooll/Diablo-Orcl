@@ -7,6 +7,7 @@
 #include "items.h"
 #include "items/validation.h"
 #include "monstdat.h"
+#include "options.h"
 #include "player.h"
 
 namespace devilution {
@@ -24,6 +25,34 @@ Item MakeItem(item_class iclass, item_misc_id miscId, _item_indexes idx, bool id
 }
 
 } // namespace
+
+// Oracool: OptionEntryTormentMultiplier stores the 1.1-5.0 (0.1-step) Torment multiplier as raw
+// tenths internally (an OptionEntryInt-family class can only store plain ints), reformatting it
+// to a one-decimal float on both the read side (*option, GetTormentDifficultyMultiplier()) and
+// the options-menu display side (GetListDescription) - this verifies both directions agree and
+// that GetListDescription's index-to-value mapping lines up with how the entries were added
+// (11, 12, ..., 50 in strict ascending order, so index i -> value 11+i).
+TEST(OptionEntryTormentMultiplier, StoresAndDisplaysAsOneDecimalMultiplier)
+{
+	auto &option = sgOptions.Oracool.tormentDifficultyMultiplier;
+	const int original = option.ValueTenths();
+
+	option.SetValue(20);
+	EXPECT_EQ(option.ValueTenths(), 20);
+	EXPECT_FLOAT_EQ(*option, 2.0f);
+	EXPECT_FLOAT_EQ(GetTormentDifficultyMultiplier(), 2.0f);
+	EXPECT_EQ(option.GetListDescription(9), "2.0"); // index 9 -> value 11+9 = 20 -> "2.0"
+
+	option.SetValue(11);
+	EXPECT_FLOAT_EQ(*option, 1.1f);
+	EXPECT_EQ(option.GetListDescription(0), "1.1");
+
+	option.SetValue(50);
+	EXPECT_FLOAT_EQ(*option, 5.0f);
+	EXPECT_EQ(option.GetListDescription(39), "5.0");
+
+	option.SetValue(original);
+}
 
 TEST(Item, StackCount_DefaultsToOne)
 {

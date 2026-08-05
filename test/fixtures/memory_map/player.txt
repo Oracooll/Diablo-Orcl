@@ -88,9 +88,9 @@ R 32 _pManaPer
 R 8 _pLevel
 R 8 _pMaxLvl
 R 16 alignment
-R 32 _pExperience
+R 64 _pExperience
 R 32 _pMaxExp
-R 32 _pNextExper
+R 64 _pNextExper
 R 8 _pArmorClass
 R 8 _pMagResist
 R 8 _pFireResist

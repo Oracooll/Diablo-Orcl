@@ -3625,6 +3625,10 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	case DIFF_HELL:
 		rndv = 5 * (itemlevel + 32) + GenerateRnd(10 * (itemlevel + 32));
 		break;
+	case DIFF_TORMENT:
+		// Oracool: Hell's own formula, scaled further by the adjustable Torment multiplier.
+		rndv = static_cast<int>((5 * (itemlevel + 32) + GenerateRnd(10 * (itemlevel + 32))) * GetTormentDifficultyMultiplier());
+		break;
 	}
 	if (leveltype == DTYPE_HELL)
 		rndv += rndv / 8;
@@ -4899,7 +4903,9 @@ void SpawnBoy(int lvl)
 	            || boyitem._iMinDex > dexterity
 	            || boyitem._iIvalue < ivalue)
 	        && count < 250));
-	boyitem._iCreateInfo = lvl | CF_BOY;
+	// Oracool: CF_LEVEL is only 6 bits wide (max 63); clamp so a level 64-99 character's raw
+	// level doesn't bleed into the adjacent flag bits of _iCreateInfo.
+	boyitem._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
 	boyitem._iIdentified = true;
 	boylevel = lvl / 2;
 }

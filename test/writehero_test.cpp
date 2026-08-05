@@ -36,7 +36,7 @@ void SwapLE(PlayerPack &player)
 {
 	player.dwLowDateTime = SDL_SwapLE32(player.dwLowDateTime);
 	player.dwHighDateTime = SDL_SwapLE32(player.dwHighDateTime);
-	player.pExperience = SDL_SwapLE32(player.pExperience);
+	player.pExperience = SDL_SwapLE64(player.pExperience);
 	player.pGold = SDL_SwapLE32(player.pGold);
 	player.pHPBase = SDL_SwapLE32(player.pHPBase);
 	player.pMaxHPBase = SDL_SwapLE32(player.pMaxHPBase);
@@ -199,7 +199,7 @@ int PrepareInvSlot(PlayerPack *pPack, int pos, int size, int start = 0)
 
 void PackPlayerTest(PlayerPack *pPack)
 {
-	memset(pPack, 0, 0x4F2);
+	memset(pPack, 0, sizeof(*pPack));
 	pPack->destAction = -1;
 	pPack->destParam1 = 0;
 	pPack->destParam2 = 0;
@@ -323,7 +323,7 @@ void AssertPlayer(Player &player)
 	ASSERT_EQ(player._pMaxHP, 16640);
 	ASSERT_EQ(player._pMana, 14624);
 	ASSERT_EQ(player._pMaxMana, 14624);
-	ASSERT_EQ(player._pNextExper, 1310707109);
+	ASSERT_EQ(player._pNextExper, 1530707109); // Oracool: level-51 threshold now that MaxCharacterLevel is 99, not the old level-50 cap value
 	ASSERT_EQ(player._pMagResist, 75);
 	ASSERT_EQ(player._pFireResist, 16);
 	ASSERT_EQ(player._pLghtResist, 75);
@@ -394,8 +394,10 @@ TEST(Writehero, pfile_write_hero)
 
 	std::vector<unsigned char> s(picosha2::k_digest_size);
 	picosha2::hash256(data.get(), data.get() + size, s.begin(), s.end());
+	// Oracool: hash changed because the "hero" save blob's pExperience field widened from
+	// uint32_t to uint64_t (level-99 curve exceeds UINT32_MAX).
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "a79367caae6192d54703168d82e0316aa289b2a33251255fad8abe34889c1d3a");
+	    "9ae87a3941b15eb2383d293da389893598e05f7d1e10c18cf1269b3793ca0db6");
 }
 
 } // namespace

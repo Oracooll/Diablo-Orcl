@@ -15,8 +15,16 @@
 
 namespace devilution {
 
-/** Specifies the experience point limit of each level. */
-const uint32_t ExpLvlsTbl[MaxCharacterLevel] = {
+/**
+ * Specifies the experience point limit of each level.
+ * Levels 1-50 are vanilla Diablo's original curve, unchanged.
+ * Oracool: levels 51-99 extend the curve past vanilla's cap. Each level's requirement is the
+ * previous level's plus an increment that itself grows geometrically (starting at 220,000,000,
+ * multiplied by 1.04 per level), landing at ~33.4 billion at level 99 (~25x the level-50
+ * requirement). This keeps level 51 a gentle continuation of level 50's own pace while making
+ * levels in the 90s a genuine long-term grind, meant to be fed primarily by Torment difficulty.
+ */
+const uint64_t ExpLvlsTbl[MaxCharacterLevel] = {
 	0,
 	2000,
 	4620,
@@ -66,7 +74,56 @@ const uint32_t ExpLvlsTbl[MaxCharacterLevel] = {
 	733825617,
 	892680222,
 	1082908612,
-	1310707109
+	1310707109,
+	1530707109,
+	1759507109,
+	1997459109,
+	2244929189,
+	2502298072,
+	2769961711,
+	3048331895,
+	3337836886,
+	3638922077,
+	3952050676,
+	4277704419,
+	4616384311,
+	4968611399,
+	5334927571,
+	5715896389,
+	6112103960,
+	6524159835,
+	6952697944,
+	7398377577,
+	7861884396,
+	8343931487,
+	8845260462,
+	9366642596,
+	9908880016,
+	10472806932,
+	11059290925,
+	11669234278,
+	12303575365,
+	12963290095,
+	13649393414,
+	14362940866,
+	15105030217,
+	15876803141,
+	16679446982,
+	17514196577,
+	18382336156,
+	19285201318,
+	20224181086,
+	21200720045,
+	22216320563,
+	23272545101,
+	24371018620,
+	25513431081,
+	26701540040,
+	27937173357,
+	29222232007,
+	30558693003,
+	31948612439,
+	33394128652
 };
 
 const _sfx_id herosounds[enum_size<HeroClass>::value][enum_size<HeroSpeech>::value] = {

@@ -47,7 +47,8 @@ struct PlayerPack {
 	uint8_t pBaseVit;
 	int8_t pLevel;
 	uint8_t pStatPts;
-	uint32_t pExperience;
+	/** @brief Oracool: widened to uint64_t - the extended level-99 curve exceeds UINT32_MAX. */
+	uint64_t pExperience;
 	int32_t pGold;
 	int32_t pHPBase;
 	int32_t pMaxHPBase;
@@ -97,7 +98,8 @@ struct PlayerNetPack {
 	uint8_t pBaseVit;
 	int8_t pLevel;
 	uint8_t pStatPts;
-	uint32_t pExperience;
+	/** @brief Oracool: widened to uint64_t - the extended level-99 curve exceeds UINT32_MAX. */
+	uint64_t pExperience;
 	int32_t pHPBase;
 	int32_t pMaxHPBase;
 	int32_t pManaBase;

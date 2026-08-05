@@ -239,6 +239,9 @@ void selgame_GameSelection_Focus(int value)
 			case DIFF_HELL:
 				difficulty = _("Hell");
 				break;
+			case DIFF_TORMENT:
+				difficulty = _("Torment");
+				break;
 			}
 			infoString.append(fmt::format(fmt::runtime(_(/* TRANSLATORS: {:s} means: Game Difficulty. */ "Difficulty: {:s}")), difficulty));
 			infoString += '\n';
@@ -328,6 +331,10 @@ void selgame_GameSelection_Select(int value)
 		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Normal"), DIFF_NORMAL));
 		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Nightmare"), DIFF_NIGHTMARE));
 		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Hell"), DIFF_HELL));
+		// Oracool: Torment is single-player-only, so it must never appear as a choice when
+		// creating a multiplayer game.
+		if (!selhero_isMultiPlayer)
+			vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Torment"), DIFF_TORMENT));
 
 		vecSelGameDialog.push_back(std::make_unique<UiList>(vecSelGameDlgItems, vecSelGameDlgItems.size(), uiPosition.x + 300, (uiPosition.y + 282), 295, 26, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiGold));
 
@@ -397,6 +404,10 @@ void selgame_Diff_Focus(int value)
 		CopyUtf8(selgame_Label, _("Hell"), sizeof(selgame_Label));
 		CopyUtf8(selgame_Description, _("Hell Difficulty\nThe most powerful of the underworld's creatures lurk at the gateway into Hell. Only the most experienced characters should venture in this realm."), sizeof(selgame_Description));
 		break;
+	case DIFF_TORMENT:
+		CopyUtf8(selgame_Label, _("Torment"), sizeof(selgame_Label));
+		CopyUtf8(selgame_Description, _("Torment Difficulty\nBeyond Hell lies a still crueler realm. Every foe here is stronger still, and only those who have already conquered Hell should attempt it."), sizeof(selgame_Description));
+		break;
 	}
 	CopyUtf8(selgame_Description, WordWrapString(selgame_Description, DESCRIPTION_WIDTH), sizeof(selgame_Description));
 }
@@ -419,9 +430,41 @@ bool IsDifficultyAllowed(int value)
 	return false;
 }
 
+/**
+ * @brief Oracool: single-player equivalent of IsDifficultyAllowed, with its own (higher)
+ * thresholds and its own toggle - single-player difficulty selection had no level gate at all
+ * before this, unlike multiplayer's existing level-20/level-30 gate for Nightmare/Hell.
+ */
+bool IsSinglePlayerDifficultyAllowed(int value)
+{
+	if (!*sgOptions.Oracool.difficultyLevelGate)
+		return true;
+
+	if (value == 0 || (value == 1 && heroLevel >= 15) || (value == 2 && heroLevel >= 30) || (value == 3 && heroLevel >= 40)) {
+		return true;
+	}
+
+	selgame_Free();
+
+	if (value == 1)
+		UiSelOkDialog(title, _("Your character must reach level 15 before starting a game on Nightmare difficulty.").data(), false);
+	else if (value == 2)
+		UiSelOkDialog(title, _("Your character must reach level 30 before starting a game on Hell difficulty.").data(), false);
+	else if (value == 3)
+		UiSelOkDialog(title, _("Your character must reach level 40 before starting a game on Torment difficulty.").data(), false);
+
+	selgame_Init();
+
+	return false;
+}
+
 void selgame_Diff_Select(int value)
 {
 	if (selhero_isMultiPlayer && !IsDifficultyAllowed(vecSelGameDlgItems[value]->m_value)) {
+		selgame_GameSelection_Select(0);
+		return;
+	}
+	if (!selhero_isMultiPlayer && !IsSinglePlayerDifficultyAllowed(vecSelGameDlgItems[value]->m_value)) {
 		selgame_GameSelection_Select(0);
 		return;
 	}

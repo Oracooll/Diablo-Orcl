@@ -165,12 +165,69 @@
 
 ## OE-011: Torment Difficulty
 
-- Status: Roadmap concept; not yet designed or implemented
-- Scope: New difficulty above the existing game difficulties.
-- Scaling method: First measure how every relevant parameter changes from Normal to Nightmare and from Nightmare to Hell. Use those actual progressions to propose a consistent but playable extension from Hell to Torment rather than choosing isolated multipliers.
-- Balance process: The user will test Torment in play and scaling will be revised when practical results require it.
-- Configuration: Add `Torment Difficulty Multiplier`, ranging from 1.1 to 5.0 in steps of 0.1. It scales Torment from the Hell baseline and does not alter Hell itself. Select the initial default from the measured Normal-to-Nightmare-to-Hell progression, then revise it through play testing if necessary.
-- Design work required: Unlock conditions, monster health and damage, armor and resistance scaling, player penalties, experience rewards, treasure quality, quest behavior, and multiplayer compatibility.
+- Status: Build-verified (186 automated tests: items_test 51, inv_test 49, stores_test 10, loadsave_test 8, player_test 5, pack_test 58, missiles_test 5). Not yet manually tested in-game.
+- Scope: New single-player-only difficulty above Hell - the final item in the project's original approved roadmap (see `Project-Scope.md`).
+
+### Research: measuring the actual Normal->Nightmare->Hell progression before extending it
+
+Before designing anything, every difficulty-dependent formula in the codebase was traced to its exact numbers (see the research notes folded into this section below). Key finding: damage and monster experience both scale by a clean **x2 per tier** (1x -> 2x -> 4x), the most consistent pattern in the whole system. Monster HP and armor class don't follow as clean a ratio - the original multipliers (3x/4x for HP, +50/+80 flat for AC) look tuned more by feel than by a single formula. Given that, and the user's own design (one adjustable multiplier applied on top of Hell, not a new per-stat formula), the multiplier's initial default of **2.0** continues the one genuinely consistent pattern actually found in the data.
+
+### Decisions locked in with the user before implementation
+
+- **Unlock gate**: a toggleable character-level requirement, applied to *all four* difficulties in single-player (which previously had no gate of any kind) - Nightmare 15, Hell 30, Torment 40. The existing multiplayer-only gate (level 20/30) is untouched.
+- **Torment Difficulty Multiplier default**: 2.0 (see above).
+- **Player-side penalty**: none. Torment stays a monster/treasure difficulty multiplier; no difficulty-based resistance cap or stat penalty exists anywhere in this codebase today, and none was added.
+
+### Core mechanism: one multiplier applied on top of Hell's own formulas
+
+Two consistent rules apply everywhere a Hell-tier formula exists, rather than inventing a fifth arbitrary set of per-stat constants:
+- **Recompute-and-scale**, for stats where Hell already fully recomputes an absolute value from scratch: monster HP, damage (normal + special, min + max), monster experience, and the gold-value formula. Torment = Hell's full formula output x `GetTormentDifficultyMultiplier()`.
+- **Bonus-and-scale**, for stats that are pure additive deltas layered onto an existing base: monster armor class bonus (+80 for Hell), to-hit/to-hit-special bonus (+120 for Hell), and the monster level offset (+30 for Hell, which also drives item level/quality and combat to-hit math for free since other systems already consume `Monster::level()`). Torment = the monster's normal base + (Hell's own bonus amount x multiplier).
+- Monster resistance: Torment reuses Hell's `resistanceHell` table unchanged - no new table, matching how Nightmare and Hell already share the same base resistance table between them.
+
+### Where the multiplier is stored and read
+
+- New `Oracool.tormentDifficultyMultiplier` option (`options.h`/`options.cpp`), a custom `OptionEntryTormentMultiplier` class (not the generic `OptionEntryInt<T>`) storing the value as raw tenths (11-50) internally - the generic int-slider display would otherwise show "20" instead of "2.0". `GetListDescription` reformats to one decimal place; a new protected `OptionEntryIntBase::GetEntryValue(index)` accessor was added to the shared base class so this (and any future similarly-shaped option) can read a specific entry's raw value without duplicating the base class's own list bookkeeping.
+- New free function `GetTormentDifficultyMultiplier()` (`options.h`, defined after `sgOptions`'s own declaration to avoid a forward-reference) is the single read point every scaling formula calls.
+- New `Oracool.difficultyLevelGate` boolean option, default on.
+
+### Numeric safety: uint8_t overflow
+
+`Monster::minDamage`/`maxDamage`/`minDamageSpecial`/`maxDamageSpecial`/`armorClass` are all `uint8_t` (max 255). Hell's own formulas already fit comfortably within that for vanilla data, but scaling further by up to the slider's 5.0x maximum can genuinely exceed 255 for some monsters - every Torment-branch computation is explicitly clamped with `std::min(..., 255)` before the `uint8_t` assignment, rather than letting it silently wrap (which would make a *higher* multiplier setting unpredictably *weaker* for some monsters - the opposite of what the slider is supposed to do).
+
+### The difficulty enum and every place a 4th value needed wiring
+
+- `_difficulty` (`levels/gendung.h`) gained `DIFF_TORMENT` before `DIFF_LAST`, which now equals it.
+- Every hardcoded "3-only" switch/array/bound found during research was extended or fixed, several of which were genuine latent bugs waiting for a 4th enum value to expose them, not things this feature introduced:
+  - `loadsave.cpp`'s save-load bounds check (`nDifficulty > DIFF_HELL`) widened to `DIFF_LAST` - otherwise a Torment save would silently reset to Normal on load.
+  - `discord/discord.cpp`'s `DifficultyStrs` array was a fixed `std::array<const char*, 3>` indexed directly by the enum with no bounds check at all - a real out-of-bounds read once `DIFF_TORMENT` existed, regardless of whether Discord integration is even enabled. Resized to 4.
+  - `items.cpp`'s gold-value `switch` had no `default` case - selecting Torment before this fix would have read an **uninitialized** `rndv`. Now has an explicit Torment case.
+  - `automap.cpp`'s "Difficulty: X" label switch and `DiabloUI/multi/selgame.cpp`'s two difficulty-label switches (game-browser list, difficulty-focus description) all gained a Torment case.
+  - `DiabloUI/hero/selhero.cpp`'s `RenderDifficultyIndicators` (the star-rank icons on the character-select screen) needed no change at all despite looping over `DIFF_LAST` - it draws the *same* sprite frame repeated per star, not a different frame per tier, so it already extends cleanly to a 4th star.
+  - `monster.cpp`'s bestiary/monster-lore panel (`PrintMonstHistory`) computed its displayed HP range and resistance text with the same Normal/Nightmare/Hell-only branches as the real stat formulas - without a matching Torment branch here, the panel would have shown *Hell's* numbers while actually playing Torment. Fixed to mirror the real formula.
+- `Monster::exp`/`Monster::level` were moved from inline definitions in `monster.h` to out-of-line definitions in `monster.cpp` (matching how `toHit`/`toHitSpecial` already worked) - `monster.h` is included almost everywhere, and adding `#include "options.h"` there (needed for `GetTormentDifficultyMultiplier`) caused a header-ordering cascade of compile errors in an unrelated file (`inv_iterators.hpp`) elsewhere in the include graph. Moving the two functions out-of-line let `options.h` stay an implementation detail of `monster.cpp` alone.
+
+### Single-player difficulty selection now has a level gate for the first time
+
+- New `IsSinglePlayerDifficultyAllowed(int)` (`DiabloUI/multi/selgame.cpp`), mirroring the existing multiplayer-only `IsDifficultyAllowed` but with the new 15/30/40 thresholds and its own `difficultyLevelGate` toggle. Reuses the same `heroLevel` global the multiplayer path already populates (via `UpdateHeroLevel`, called unconditionally regardless of single-player/multiplayer) - no new level-lookup mechanism was needed.
+- The 4th "Torment" list entry is added to the difficulty-selection dialog only when `!selhero_isMultiPlayer` - Torment must never be an available choice when creating a multiplayer game, and `selgame.cpp` shares one function for both flows.
+
+### Treasure quality: what actually inherits the Torment scaling, and what deliberately doesn't
+
+- Automatically inherited: every treasure-quality path that already keys off `monster.level(difficulty)` - `RndUItem`'s `itemMaxLevel` (unique base-item eligibility), `SpawnItem`'s `RndItemForMonsterLevel` argument (which item indices/tiers can drop from a kill) - picks up the Torment-scaled level for free, no separate code needed.
+- Explicitly fixed: the gold-value formula (`items.cpp`), which had its own hand-tuned per-difficulty switch independent of `monster.level`.
+- Deliberately left alone: `SpawnUnique`'s Normal-vs-not-Normal branch (`curlv * 2` for a directly-spawned unique's affix rolls) already treats Nightmare, Hell, *and* Torment identically, since `curlv` here comes from dungeon depth (`ItemsGetCurrlevel()`), not from `monster.level(difficulty)` - this is a **pre-existing Nightmare/Hell parity**, not a Torment-specific gap, so introducing a new asymmetry here (making Torment's directly-spawned uniques roll better than Hell's) would be inventing behavior the rest of the codebase doesn't model anywhere else. Left as-is.
+
+### Quest behavior
+
+- Confirmed via a full-file search: `quests.cpp` contains zero references to the difficulty enum anywhere. Quests already replay identically per difficulty as a side effect of each difficulty being its own dungeon-generation pass, not from any difficulty-conditioned logic. No changes needed.
+
+### Not covered by an automated test
+
+- The core scaling formulas (`Monster::level`/`exp`/`toHit`/`toHitSpecial`, `InitMonster`'s HP/damage/AC block) have no existing test precedent for constructing a valid `Monster` object anywhere in this test suite (it requires wiring up `LevelMonsterTypes[levelType].data` to a real `MonsterData` entry), and building that infrastructure from scratch was judged disproportionate to what a mechanical "existing formula x multiplier" change actually needs verified. The uint8_t clamping specifically, and the formulas' arithmetic, were verified by code review instead.
+- `items.cpp`'s gold-value switch and `IsSinglePlayerDifficultyAllowed` both have internal linkage / are UI-flow functions with no existing test-exposure pattern in this codebase (matching the precedent already set for `StoreSellItem` in OE-026).
+- What *is* covered: `OptionEntryTormentMultiplier`'s storage/display/read-back round-trip (`items_test.cpp`), and the full existing 185-test suite passing unchanged confirms the `monster.h`/`.h` refactor and enum widening didn't regress anything already covered.
+- Worth a manual check above all else: actually starting a Torment game and confirming monsters are noticeably (but not absurdly) harder than Hell at the default 2.0x, that the level gate blocks/allows correctly at each threshold, and that the bestiary panel's displayed numbers match what combat actually does.
 
 ## OE-012: Stackable Consumables
 
@@ -553,3 +610,47 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - **Not persisted across save/load.** `AutomapActive` is saved (`loadsave.cpp`'s fixed-layout `LoadGame`/`SaveGameData`); `MiniMapActive` is not - it resets to "no map" on load/rejoin, same as loading into a fresh session. Persisting it would mean repurposing more of that same fixed-format save function this project has touched before (see OE-024's Reset Stats fields), which felt like more risk than this cosmetic state's value justified for this pass.
 - The mini-map's `130x130`/scale-`12`/`{8,8}` constants are a first reasonable guess, not something that could be tuned by eye without rendering tools available in this environment - **not visually verified at all**, unlike most other UI work this session which at least had the existing full map's known-good behavior to reason from analogically. Worth the closest manual look of everything shipped tonight: confirm the player arrow and nearby rooms are actually legible at this size/scale before treating the constants as final.
 - No new Oracool option to disable the mini-map specifically (TAB cycling through it is the only control) - if the constant blink-through during exploration turns out to be annoying, an option to skip straight from no-map to full-map might be worth adding as a follow-up, but wasn't part of the locked-in design.
+
+## OE-029: v0.3.0 Level cap raised to 99
+
+- Status: Build-verified, full regression suite green (192 automated tests across items_test/inv_test/stores_test/loadsave_test/player_test/pack_test/missiles_test/writehero_test/format_int_test).
+- User request, shipped in the same v0.3.0 release as OE-011 (Torment): "increasing the level cap to 99 as in diablo 2 ... torment should provide a lot of xp." Explicit follow-up decision: both Torment and this are "major always-on features" - no toggle for either, and save compatibility is explicitly secondary to clean, future-proof code for this pair of features.
+- Always-on, and applies to both single-player and multiplayer - unlike every other Oracool feature, this wasn't scoped SP-only. Rationale: `MaxCharacterLevel`/`_pExperience`/`ExpLvlsTbl` are core engine constants with no natural per-mode branch point (unlike Torment, which is a distinct `_difficulty` enum value that simply never exists in MP); threading a new SP/MP conditional through the core leveling and network-sync code for a level-cap number felt like a worse trade than just raising the shared constant.
+
+### The extended experience curve (levels 51-99)
+
+- Levels 1-50 are **byte-for-byte the original vanilla `ExpLvlsTbl` values** - leveling pace up to 50 is completely unchanged.
+- Levels 51-99: each level's total requirement is the previous level's plus a delta that itself grows geometrically - `delta(n) = 220,000,000 * 1.04^(n-1)` for `n` = levels-past-50 (1 at level 51, 49 at level 99), added cumulatively onto the level-50 baseline (1,310,707,109). This was chosen over two simpler alternatives after modeling both numerically:
+  - Continuing vanilla's own ~1.2x-per-level *total* growth ratio (decaying toward ~1.03x by 99) compounds to a level-99 total in the hundreds of billions - mathematically fine (no overflow risk with the widened type below) but an unreasonably long grind relative to realistic Torment kill rates.
+  - A pure polynomial-in-levels-past-50 curve (`base + C*(levels_past_50)^3`) is nearly flat for the first several levels past 50 (level 51 needs barely more than level 50), which reads as broken/anticlimactic even though it isn't.
+  - The chosen geometric-delta model starts at a delta close to vanilla's own level 49->50 delta (continuity of feel right after 50) and decelerates smoothly, landing at ~33.4 billion total at level 99 (~25x the level-50 requirement) - level 51 requires a real, noticeable step up (+220M, ~17% more than level 50), and the last few levels before 99 are each a multi-billion-experience undertaking, matching the "legendary grind" character other ARPGs give their level cap.
+  - Full computed table is in `Source/playerdat.cpp`; the formula and reasoning are documented there in the array's leading comment so a future retune doesn't have to reverse-engineer the numbers.
+- Torment's existing experience bonus (OE-011: Hell's `4 * (exp + 1000)` formula, further scaled by the adjustable Torment Difficulty Multiplier, doubled again for uniques) is the intended engine for reaching the new higher levels in reasonable time - this wasn't changed by this feature, since it was already the single biggest experience multiplier in the game and already scales with the same slider the user controls for difficulty.
+
+### uint64_t widening (the load-bearing change this feature required)
+
+- Level 99's ~33.4 billion experience requirement exceeds `UINT32_MAX` (~4.29 billion), so every experience-carrying field had to widen from `uint32_t`/`uint16_t`-ish widths to `uint64_t`:
+  - `Player::_pExperience`, `Player::_pNextExper` (`player.h`).
+  - `ExpLvlsTbl` (`playerdat.hpp`/`.cpp`).
+  - The save-format fields in `LoadPlayer`/`SavePlayer` (`loadsave.cpp`, `NextLE`/`WriteLE<uint64_t>` instead of `<uint32_t>`).
+  - `PlayerPack::pExperience` and `PlayerNetPack::pExperience` (`pack.h`), and every `SDL_SwapLE32`->`SDL_SwapLE64` call site packing/unpacking them (`pack.cpp`).
+  - This is a genuine save-format and network-packet-format break for existing characters and for interop with unpatched multiplayer peers - consistent with the user's explicit "save compatibility is secondary" call for this pair of features.
+- Added a `FormatInteger(uint64_t)` overload (`utils/format_int.hpp`/`.cpp`) alongside the existing `FormatInteger(int)`, since experience values no longer fit in `int`. Also had to add a disambiguating `FormatInteger(uint32_t)` overload - `TotalPlayerGold()` (returns `uint32_t`) converts equally well to either the `int` or the new `uint64_t` overload, which is an ambiguous-call compile error without a matching exact overload.
+- The character panel's Experience/Next Level fields (`panels/charpanel.cpp`) gained a third letter-spacing tier (`-1`, mirroring the existing pattern already used for large damage numbers) for the now-possible 11-digit values, on top of the existing two-tier spacing that was tuned for the old ~10-digit maximum.
+
+### A latent bug this surfaced: `_iCreateInfo`'s 6-bit level field
+
+- `_iCreateInfo` (`items.h`) packs an item's origin level into its low 6 bits (`CF_LEVEL = 63`), with every other bit already claimed by a distinct flag - there was no spare room to widen it, and every level value stored there was already safely below 63 **except** one: `SpawnBoy` (`items.cpp`) stores the player's raw, unhalved character level (`stores.cpp`'s `SpawnBoy(myPlayer._pLevel)`) - the only one of the five town-vendor spawn functions that doesn't halve or otherwise pre-clamp the level before storing it (Smith/Witch/Healer use `level/2`, Premium clamps to 30). Once characters can reach 64-99, this would have silently corrupted the stored flags (the overflow bits bleed into `CF_ONLYGOOD` and beyond) and, on the rare path that re-derives an item from its `_iCreateInfo`, silently regenerated the boy's item at a much lower effective level than the one it was actually created at.
+  - Fixed by clamping only the *stored* value to `CF_LEVEL`'s max (`std::min(lvl, static_cast<int>(CF_LEVEL))`) while still generating the item's actual stats from the real, unclamped level - the boy's item still scales with your true level, only the level recorded in its metadata saturates at 63.
+  - `items/validation.cpp`'s `IsTownItemValid` had a parallel latent issue: its boy-item check compared the (already 6-bit-masked) decoded level against `MaxCharacterLevel` directly, which is a no-op once `MaxCharacterLevel` exceeds the field's own 63-value ceiling (a masked value can never fail a `<= 99` check). Fixed by clamping the comparison threshold itself to `min(MaxCharacterLevel, CF_LEVEL)`. Net effect: this specific validation can no longer distinguish "plausible" from "implausible" boy-item levels once the character cap exceeds 63, since every representable value is now plausible by construction - a minor, unavoidable reduction in an already-cosmetic anti-tamper check, not a new exploit surface (the boy's item price/stat caps in `IsShopPriceValid` are unaffected and still enforced).
+
+### Not covered by an automated test
+
+- No new automated test exercises leveling all the way from 50 to 99 end-to-end (that would mean simulating tens of billions of experience gain, which isn't a meaningful thing to unit-test). Coverage that does exist: the widened save/pack round-trip (`writehero_test`'s golden-hash regression, `pack_test`'s `MaxCharacterLevel`-parameterized validation tests), and the `ExpLvlsTbl` values themselves are exercised indirectly by every existing level-1 test (`player_test`'s `CreatePlayer` still asserts `_pNextExper == 2000`, confirming level 1 is untouched).
+- Manual verification still needed: reaching level 51+ in a real game and confirming the on-screen experience bar hover text (see below) and character panel both display sane numbers, and that a Torment grind session actually feels like meaningful progress toward the new cap.
+
+## OE-030: v0.3.0 Experience bar hover shows per-level progress
+
+- User request, made while reviewing OE-029: the experience bar's hover tooltip (`qol/xpbar.cpp`'s `CheckXPBarInfo`) previously showed three absolute values - lifetime experience, the next level's absolute threshold, and experience remaining - all of which become unreadably large once the level-99 curve is in play (levels in the 90s deal in multi-billion-experience numbers).
+- Replaced with a single line showing progress **relative to the current level**, resetting to 0 on every level-up: `Experience: {gained this level} / {needed this level}` (e.g. `Experience: 0 / 25,000` immediately after leveling). Computed as `player._pExperience - ExpLvlsTbl[charLevel-1]` over `ExpLvlsTbl[charLevel] - ExpLvlsTbl[charLevel-1]` - the same relative quantity the experience bar's own fill animation already used internally, just not previously surfaced as text.
+- The max-level branch (`charLevel == MaxCharacterLevel`, i.e. level 99) is unchanged - it still shows the lifetime total alongside "Maximum Level", since there's no "next level" span left to show progress against.

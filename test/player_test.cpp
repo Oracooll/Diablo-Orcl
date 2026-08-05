@@ -1,8 +1,12 @@
 #include "player_test.h"
 
+#include <cstdint>
+#include <limits>
+
 #include <gtest/gtest.h>
 
 #include "options.h"
+#include "playerdat.hpp"
 #include "storm/storm_net.hpp"
 
 using namespace devilution;
@@ -230,4 +234,29 @@ TEST(Player, ShouldDropGoldOnDeath_MultiplayerAlwaysDrops)
 	EXPECT_TRUE(TestShouldDropGoldOnDeath(Players[0]));
 
 	gbIsMultiplayer = false;
+}
+
+TEST(Player, ExpLvlsTbl_HasNinetyNineLevelsAndVanillaPrefixUnchanged)
+{
+	ASSERT_EQ(MaxCharacterLevel, 99);
+
+	// Levels 1-50 must be byte-for-byte the original vanilla table.
+	constexpr uint64_t VanillaPrefix[] = {
+		0, 2000, 4620, 8040, 12489, 18258, 25712, 35309, 47622, 63364,
+		83419, 108879, 141086, 181683, 231075, 313656, 424067, 571190, 766569, 1025154,
+		1366227, 1814568, 2401895, 3168651, 4166200, 5459523, 7130496, 9281874, 12042092, 15571031,
+		20066900, 25774405, 32994399, 42095202, 53525811, 67831218, 85670061, 107834823, 135274799, 169122009,
+		210720231, 261657253, 323800420, 399335440, 490808349, 601170414, 733825617, 892680222, 1082908612, 1310707109
+	};
+	for (size_t i = 0; i < std::size(VanillaPrefix); i++)
+		EXPECT_EQ(ExpLvlsTbl[i], VanillaPrefix[i]) << "level " << (i + 1);
+}
+
+TEST(Player, ExpLvlsTbl_ExtendedRangeIsMonotonicAndFitsUint64)
+{
+	for (int i = 1; i < MaxCharacterLevel; i++) {
+		EXPECT_GT(ExpLvlsTbl[i], ExpLvlsTbl[i - 1]) << "level " << (i + 1) << " did not require more experience than the previous level";
+	}
+	// Comfortably below UINT64_MAX - just confirms the curve didn't accidentally wrap/overflow.
+	EXPECT_LT(ExpLvlsTbl[MaxCharacterLevel - 1], std::numeric_limits<uint64_t>::max() / 2);
 }

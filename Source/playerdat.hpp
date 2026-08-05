@@ -9,6 +9,7 @@
 
 #include "player.h"
 #include "textdat.h"
+#include "utils/attributes.h"
 
 namespace devilution {
 
@@ -136,7 +137,11 @@ struct PlayerAnimData {
 };
 
 extern const _sfx_id herosounds[enum_size<HeroClass>::value][enum_size<HeroSpeech>::value];
-extern const uint32_t ExpLvlsTbl[MaxCharacterLevel];
+/**
+ * @brief Oracool: widened to uint64_t - the extended level-99 curve exceeds UINT32_MAX.
+ * DVL_API_FOR_TEST is needed here because test binaries now read this array directly.
+ */
+extern DVL_API_FOR_TEST const uint64_t ExpLvlsTbl[MaxCharacterLevel];
 extern const PlayerData PlayersData[];
 extern const PlayerSpriteData PlayersSpriteData[];
 extern const PlayerAnimData PlayersAnimData[];

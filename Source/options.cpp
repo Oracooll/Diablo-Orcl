@@ -436,6 +436,11 @@ void SaveOptions()
 	setBoolean("Auto Save on Store Purchase", *sgOptions.Oracool.autoSaveOnStorePurchase,
 	    "; Schedules a save after a successful store purchase. Cancelled and failed\n; purchases do not trigger a save.");
 
+	setBoolean("Difficulty Level Gate", *sgOptions.Oracool.difficultyLevelGate,
+	    "; ----- DIFFICULTY -------------------------------------------------------------\n; Requires a minimum character level to start a single-player game on Nightmare\n; (15), Hell (30), or Torment (40). Disabling this lets any level start any\n; difficulty, matching how Nightmare/Hell already work without this setting.");
+	setInteger("Torment Difficulty Multiplier", sgOptions.Oracool.tormentDifficultyMultiplier.ValueTenths(),
+	    "; How much harder Torment is than Hell (applied on top of Hell's own monster\n; and treasure scaling), stored as tenths - 20 means 2.0x. Valid range 11-50\n; (1.1x-5.0x) in steps of 1 (0.1x).");
+
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
 	setBoolean("Inventory Sort Button", *sgOptions.Oracool.inventorySortButton,
@@ -1254,6 +1259,8 @@ OracoolOptions::OracoolOptions()
     , autoSaveOnStorePurchase("Auto Save on Store Purchase", OptionEntryFlags::None, N_("Auto Save on Store Purchase"), N_("Schedules a save after a successful store purchase."), true)
     , autoSaveItemDelaySeconds("Auto Save Item Delay Seconds", OptionEntryFlags::None, N_("Auto Save Item Delay Seconds"), N_("Delay used to combine rapid acquisitions into one save."), 3, { 0, 1, 2, 3, 5, 10, 15, 30 })
     , autoSaveNotification("Auto Save Notification", OptionEntryFlags::None, N_("Auto Save Notification"), N_("Displays the normal save confirmation after an automatic save."), false)
+    , difficultyLevelGate("Difficulty Level Gate", OptionEntryFlags::None, N_("Difficulty Level Gate"), N_("Requires a minimum character level to start a game on Nightmare, Hell, or Torment."), true)
+    , tormentDifficultyMultiplier("Torment Difficulty Multiplier", OptionEntryFlags::None, N_("Torment Difficulty Multiplier"), N_("How much harder Torment is than Hell, applied on top of Hell's own monster and treasure scaling."), 20, { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50 })
 {
 }
 
@@ -1288,7 +1295,16 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&autoSaveOnStorePurchase,
 		&autoSaveItemDelaySeconds,
 		&autoSaveNotification,
+		&difficultyLevelGate,
+		&tormentDifficultyMultiplier,
 	};
+}
+
+string_view OptionEntryTormentMultiplier::GetListDescription(size_t index) const
+{
+	static thread_local std::string buffer;
+	buffer = fmt::format("{:.1f}", GetEntryValue(index) / 10.0f);
+	return buffer;
 }
 
 ControllerOptions::ControllerOptions()
