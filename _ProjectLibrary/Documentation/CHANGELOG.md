@@ -193,6 +193,12 @@ TAB used to be a plain on/off toggle for the full-screen automap. It now cycles 
 
 ---
 
+## v0.3.9 — Mini-Map Border: Thinner and Dashed
+
+The mini-map's gold border is now 1px and dashed instead of 2px solid.
+
+---
+
 ## v0.3.8 — Mini-Map Is Now Always On, Independent of TAB
 
 The mini-map is now a permanent HUD element instead of one state on a TAB cycle. It's always visible during gameplay whenever the new "Mini-Map" setting is on (the default) - no key press needed to bring it up. TAB now works exactly like it always did in vanilla Diablo: it opens and closes the full-screen map only. The mini-map automatically hides while the full map is open and reappears the moment you close it. The only way to turn the mini-map off is the new "Mini-Map" setting in `diablo.ini`.

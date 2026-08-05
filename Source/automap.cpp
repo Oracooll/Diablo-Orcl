@@ -1026,6 +1026,28 @@ void DrawAutomap(const Surface &out)
 	DrawAutomapText(out);
 }
 
+/**
+ * @brief Oracool: draws a 1px dashed rectangle outline - UnsafeDrawBorder2px (used elsewhere) is
+ * solid and 2px only, no dash option, so this is a small dedicated helper for the mini-map's
+ * border specifically.
+ */
+void DrawDashedBorder1px(const Surface &out, int x, int y, int width, int height, uint8_t color)
+{
+	constexpr int DashLength = 4;
+	constexpr int GapLength = 3;
+	constexpr int Period = DashLength + GapLength;
+	for (int i = 0; i < width; i += Period) {
+		const int len = std::min(DashLength, width - i);
+		DrawHorizontalLine(out, { x + i, y }, len, color);
+		DrawHorizontalLine(out, { x + i, y + height - 1 }, len, color);
+	}
+	for (int i = 0; i < height; i += Period) {
+		const int len = std::min(DashLength, height - i);
+		DrawVerticalLine(out, { x, y + i }, len, color);
+		DrawVerticalLine(out, { x + width - 1, y + i }, len, color);
+	}
+}
+
 void DrawMiniMap(const Surface &out)
 {
 	// Oracool: MiniMapActive is no longer a toggle state (see DrawView, scrollrt.cpp, which now
@@ -1083,12 +1105,13 @@ void DrawMiniMap(const Surface &out)
 	DrawAutomapCore(miniMapSurface, diamondCenter, MiniMapSize.width, /*applyPanelAvoidance=*/false);
 	AutoMapScale = savedScale;
 
-	// Oracool: gold 2px border around the cropped box's own edges - user feedback specifically
-	// asked for a rectangle around the tightened render area (not a diamond-shaped outline
-	// following the isometric content's silhouette), matching the crop above exactly since both
-	// use the same diamondWidth/diamondHeight.
+	// Oracool: gold border around the cropped box's own edges - user feedback specifically asked
+	// for a rectangle around the tightened render area (not a diamond-shaped outline following the
+	// isometric content's silhouette), matching the crop above exactly since both use the same
+	// diamondWidth/diamondHeight. Originally a solid 2px border (UnsafeDrawBorder2px); changed to
+	// 1px dashed per follow-up feedback.
 	constexpr uint8_t MiniMapBorderColor = PAL16_YELLOW + 2;
-	UnsafeDrawBorder2px(miniMapSurface, Rectangle { { 0, 0 }, { diamondWidth, diamondHeight } }, MiniMapBorderColor);
+	DrawDashedBorder1px(miniMapSurface, 0, 0, diamondWidth, diamondHeight, MiniMapBorderColor);
 
 	MiniMapActive = false;
 }

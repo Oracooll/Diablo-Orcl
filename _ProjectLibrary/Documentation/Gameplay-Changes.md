@@ -668,6 +668,10 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - `MiniMapActive` (the pre-existing global bool) is repurposed rather than removed: it's no longer a toggle anyone sets from outside, it's set `true` at the top of `DrawMiniMap()` and `false` at the bottom, purely so `DrawAutomapPlr` (shared by both `DrawAutomap` and `DrawMiniMap`) still knows which marker style to draw for the ~1 frame's worth of work between those two lines. The two "Hide Info Screens" handlers (`diablo.cpp`) that used to force `MiniMapActive = false` alongside `AutomapActive = false` no longer touch it at all - forcing it off would have had no lasting effect anyway (the very next frame's `DrawMiniMap` call sets it back to `true`), and leaving it alone matches the "unturn-offable except via the option" design intent explicitly, rather than by accident.
 - Net effect exactly matching the request: TAB behaves like vanilla again (full map only); the mini-map is always visible during gameplay whenever the option is on, everywhere the full map isn't showing, with no key press needed to bring it up and no way to dismiss it except in `diablo.ini`.
 
+### v0.3.9 update: border is now 1px and dashed
+
+- User liked the mini-map overall, asked for the border specifically to go from `2px` solid to `1px` dashed. `UnsafeDrawBorder2px` (the shared engine primitive used since v0.3.7) has no dash option, so a small dedicated `DrawDashedBorder1px` helper was added (`automap.cpp`, mini-map-only) using the existing `DrawHorizontalLine`/`DrawVerticalLine` primitives in a 4px-dash/3px-gap pattern around all 4 edges.
+
 ## OE-029: v0.3.0 Level cap raised to 99
 
 - Status: Build-verified, full regression suite green (192 automated tests across items_test/inv_test/stores_test/loadsave_test/player_test/pack_test/missiles_test/writehero_test/format_int_test).
