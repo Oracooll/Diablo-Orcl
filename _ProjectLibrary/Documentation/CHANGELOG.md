@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.46 — Fixed Magic/Rare/Buffed Unique/Primal Item Names Not Matching Between Ground and Inventory
+
+- **Fixed**: A magic, Rare, Buffed Unique, or Primal item's name shown in the bottom info bar (hovering on the ground, in your inventory, anywhere) could disagree with its real name shown in the item's popup description window - sometimes inventing a prefix or suffix word the item never actually had, sometimes dropping one it did have, and for Rare/Buffed Unique/Primal items, replacing the correct tier name (e.g. "Rare Amulet") with a fabricated, unrelated vanilla-style name entirely. The item's actual stats were never affected - only this one name text was wrong, and only outside the popup window. Every existing affected item is fixed automatically the next time its name is shown; no repair needed.
+
+---
+
 ## v0.3.45 — Monster Red Outlines Now Show Through Darkness Too, Not Just Walls
 
 - **Fixed**: The red outline drawn around a hovered monster, a monster within Monster Range Highlight's range, or a monster hidden behind a wall (Monster Wall Outline) used to disappear entirely if that monster was standing on a tile you couldn't currently see because it was too dark (outside your light radius), even though the whole point of these outlines is to show a threat you otherwise couldn't see. All three now show through darkness exactly the same way Monster Wall Outline already showed through walls - the monster's own body stays hidden by darkness as before, but its outline no longer does.

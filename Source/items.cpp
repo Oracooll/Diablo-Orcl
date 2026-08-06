@@ -5528,7 +5528,24 @@ StringOrView Item::getName() const
 	} else if (_iMagical == ITEM_QUALITY_UNIQUE) {
 		return _(UniqueItems[_iUid].UIName);
 	} else {
-		return GetTranslatedItemNameMagical(*this, dwBuff & CF_HELLFIRE, true, std::nullopt);
+		// Oracool bug fix: user report - the popup description window (DrawUniqueInfo) and this
+		// function used to disagree on a magic item's name (e.g. popup: "Ruby Amulet", HUD:
+		// "Amulet of the Tiger", for the exact same single Resist Fire affix). The popup reads
+		// _iIName directly - the name cached once at generation time from the item's *real*
+		// rolled prefix/suffix (see GetItemPower/GetStaffPower/GetTieredItemAffixes). This
+		// function instead called GetTranslatedItemNameMagical, which recomputes the name by
+		// replaying the RNG from the item's saved seed - a replay that assumes a fixed sequence
+		// of random calls no longer matched once Oracool's own tier-roll checks
+		// (primalItemDropChance/buffedUniqueItemDropChance/rareItemDropChance in SetupAllItems)
+		// started consuming extra randomness before falling through to a plain magic item's
+		// real affix roll. That shifted the replay onto the wrong prefix/suffix row - sometimes
+		// inventing a suffix that was never rolled, sometimes losing one that was - and, since
+		// the replay has no concept of Oracool tiers at all, it also overrode a Rare/Buffed
+		// Unique/Primal item's correct tiered name with a fabricated vanilla-style one. Rather
+		// than keep two independent name-generation paths in sync forever, just return the same
+		// already-correct _iIName the popup uses - matching how the Unique branch above already
+		// works (cached, never replayed).
+		return string_view(_iIName);
 	}
 }
 
