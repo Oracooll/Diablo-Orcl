@@ -684,11 +684,56 @@ TEST(Item, PrintOracoolAffixPower_UsesEachAffixsOwnValueNotTheItemsSharedField)
 	EXPECT_NE(strText.find("3"), std::string::npos) << "should show this affix's own +3, not the item's accumulated _iPLStr (99)";
 	EXPECT_EQ(strText.find("99"), std::string::npos);
 
-	// IPL_ATTRIBS is a compound type without a dedicated simple case, so it correctly falls back
-	// to PrintItemPower (which reads the shared field) - confirming the fallback path still works
-	// rather than crashing or returning an empty string.
+	// IPL_ATTRIBS also shares _iPLStr (and _iPLMag/_iPLDex/_iPLVit) with plain IPL_STR/MAG/DEX/VIT -
+	// same collision class as above (see OE-058's ALLRES/ATTRIBS fix), so it must use its own
+	// param1 too rather than falling back to PrintItemPower's shared-field read.
 	const std::string attribsText(PrintOracoolAffixPower(attribsAffix, item));
-	EXPECT_FALSE(attribsText.empty());
+	EXPECT_NE(attribsText.find("5"), std::string::npos) << "should show this affix's own +5, not the item's accumulated _iPLStr (99)";
+	EXPECT_EQ(attribsText.find("99"), std::string::npos);
+
+	// IPL_TOHIT_DAMP is a genuinely still-uncovered compound type (its to-hit component can't be
+	// reconstructed from param1 alone - see the fix comment above PrintOracoolAffixPower) - confirming
+	// the PrintItemPower fallback path still works for it rather than crashing or returning empty.
+	const OracoolAffix tohitDampAffix { IPL_TOHIT_DAMP, 5, 0 };
+	const std::string tohitDampText(PrintOracoolAffixPower(tohitDampAffix, item));
+	EXPECT_FALSE(tohitDampText.empty());
+}
+
+// Oracool bug fix (OE-058): user report - a Rare Amulet's tooltip showed "Resist All: +63%" (should
+// have been +21%, since the item also had a separate "Resist Fire: +42%" affix - 42+21=63 - the
+// IPL_ALLRES line was falling back to PrintItemPower, which reads the item's shared _iPLFR field
+// covering every fire-resistance-contributing affix combined, not just this one's own roll).
+TEST(Item, PrintOracoolAffixPower_AllResDoesNotCollideWithAnotherResistAffixOnTheSameItem)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Staff);
+	item._iPLFR = 63; // simulates SaveItemPower having accumulated both affixes' rolls (42 + 21) here
+
+	const OracoolAffix allResAffix { IPL_ALLRES, 21, 0 };
+	const std::string allResText(PrintOracoolAffixPower(allResAffix, item));
+	EXPECT_NE(allResText.find("21"), std::string::npos) << "should show this affix's own +21, not the item's combined _iPLFR (63)";
+	EXPECT_EQ(allResText.find("63"), std::string::npos);
+}
+
+// Oracool bug fix (OE-058): user report - a Rare Amulet's "+9 to Strength" line was actually a
+// Strength-draining curse (-9), but displayed with a "+" because the curse-flavored simple cases
+// shared one case block with their positive counterpart and always printed the unsigned roll
+// magnitude. Every "_CURSE" type must apply the opposite sign SaveItemPower actually applies to the
+// item (IPL_GETHIT/IPL_GETHIT_CURSE are the one intentionally inverted pair - see SaveItemPower).
+TEST(Item, PrintOracoolAffixPower_CurseFlavoredAffixesDisplayANegativeValue)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Staff);
+
+	const OracoolAffix strCurseAffix { IPL_STR_CURSE, 9, 0 };
+	const std::string strCurseText(PrintOracoolAffixPower(strCurseAffix, item));
+	EXPECT_NE(strCurseText.find("-9"), std::string::npos) << strCurseText;
+
+	const OracoolAffix getHitAffix { IPL_GETHIT, 5, 0 };
+	const std::string getHitText(PrintOracoolAffixPower(getHitAffix, item));
+	EXPECT_NE(getHitText.find("-5"), std::string::npos) << getHitText << " (IPL_GETHIT itself reduces damage taken, so it's a negative delta)";
+
+	const OracoolAffix getHitCurseAffix { IPL_GETHIT_CURSE, 5, 0 };
+	const std::string getHitCurseText(PrintOracoolAffixPower(getHitCurseAffix, item));
+	EXPECT_NE(getHitCurseText.find("+5"), std::string::npos) << getHitCurseText << " (IPL_GETHIT_CURSE increases damage taken, so it's a positive delta)";
 }
 
 TEST(Item, GetTextColor_RareTierIsYellowRegardlessOfMagicalQuality)

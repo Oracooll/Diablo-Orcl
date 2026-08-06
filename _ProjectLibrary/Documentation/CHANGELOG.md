@@ -207,6 +207,14 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.44 — Fixed Two More Nonsense-Stat Bugs on Rare/Buffed Unique/Primal Items
+
+- **Fixed**: A "Resist All" line could show a much bigger number than it actually gives - the display was adding in another Resist Fire/Lightning/Magic line's bonus from the same item instead of showing just its own. Same underlying issue for "+X to all attributes" mixing in a separate Strength/Magic/Dexterity/Vitality line.
+- **Fixed**: A cursed line - one that actually takes something away, like "-9 to strength" - was displaying with a "+" instead of a "-", making a penalty look like a bonus. This affected Strength/Magic/Dexterity/Vitality, chance-to-hit, damage%, armor%, all three resistances, Hit Points, Mana, and damage-from-enemies curse lines.
+- Display-only, and unlike the earlier fixes in this series, fully retroactive: the item's stored roll values were already correct, only how the tooltip formatted them was wrong, so every existing Rare/Buffed Unique/Primal item's tooltip is corrected immediately - no self-heal or new item needed.
+
+---
+
 ## v0.3.43 — Corrupted Item Stats Now Self-Heal Automatically
 
 - **Fixed**: Any Rare, Buffed Unique, or Primal item generated before the v0.3.42 fix - already sitting in your inventory, belt, stash, extra tabs, or on the ground - is now automatically detected and repaired the moment it's loaded (opening a save) or picked up (grabbing it off the ground). No action needed: the wrong displayed number is silently corrected back to the item's real rolled value, with a note written to the Event Log whenever a repair actually happens so it's never invisible. Items that are already correct are left untouched.

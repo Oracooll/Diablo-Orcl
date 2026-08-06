@@ -4475,43 +4475,87 @@ bool DoOil(Player &player, int cii, int tabIdx)
  * underlying rolls were correctly distinct (and the dedup-by-type check that already blocks a
  * literal repeat of one affix type was working exactly as designed the whole time). This wrapper
  * uses each affix's own individually-stored OracoolAffix::param1 for those simple cases instead,
- * falling back to the shared PrintItemPower for compound/rare types that combine multiple fields
- * (IPL_ATTRIBS, IPL_ALLRES, IPL_TOHIT_DAMP, ...), which are far less likely to collide with another
- * simultaneously-rolled affix's own field usage.
+ * with each case applying the correct sign for that specific affix type (positive/"good" types and
+ * their "_CURSE"/negative counterparts share the same underlying roll magnitude in param1, but apply
+ * it with opposite signs - see SaveItemPower). Falls back to the shared PrintItemPower only for
+ * compound/rarer types not covered here (IPL_TOHIT_DAMP, IPL_SETAC/IPL_AC_CURSE, IPL_LIGHT/IPL_LIGHT_CURSE,
+ * ...), which remain susceptible to the same field-collision display issue this fixes for the common
+ * cases, but are rarer combinations and were out of scope for this pass.
  */
 StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 {
+	// affix.param1 is always the positive roll magnitude (see RepairOracoolAffixValue / SaveItemPower,
+	// which always returns the unsigned RndPL roll regardless of whether the type adds or subtracts
+	// it). Every case below must apply its own sign to match SaveItemPower's real effect on the item -
+	// mixing a "curse" (subtracting) type into the same case as its positive counterpart, both
+	// printing the unsigned affix.param1, previously made every curse-flavored line show a bonus
+	// instead of a penalty (e.g. a -9 Strength affix displaying as "+9 to strength"). IPL_GETHIT is the
+	// one intentionally inverted pair: IPL_GETHIT itself *reduces* damage taken (good, negative delta)
+	// while IPL_GETHIT_CURSE *increases* it (bad, positive delta) - the naming refers to what the
+	// affix does to the "get hit" stat, not to whether it's beneficial.
 	switch (affix.type) {
 	case IPL_TOHIT:
-	case IPL_TOHIT_CURSE:
 		return fmt::format(fmt::runtime(_("chance to hit: {:+d}%")), affix.param1);
+	case IPL_TOHIT_CURSE:
+		return fmt::format(fmt::runtime(_("chance to hit: {:+d}%")), -affix.param1);
 	case IPL_DAMP:
-	case IPL_DAMP_CURSE:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% damage")), affix.param1);
+	case IPL_DAMP_CURSE:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% damage")), -affix.param1);
 	case IPL_ACP:
-	case IPL_ACP_CURSE:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% armor")), affix.param1);
+	case IPL_ACP_CURSE:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% armor")), -affix.param1);
 	case IPL_FIRERES:
 		return fmt::format(fmt::runtime(_("Resist Fire: {:+d}%")), affix.param1);
+	case IPL_FIRERES_CURSE:
+		return fmt::format(fmt::runtime(_("Resist Fire: {:+d}%")), -affix.param1);
 	case IPL_LIGHTRES:
 		return fmt::format(fmt::runtime(_("Resist Lightning: {:+d}%")), affix.param1);
+	case IPL_LIGHTRES_CURSE:
+		return fmt::format(fmt::runtime(_("Resist Lightning: {:+d}%")), -affix.param1);
 	case IPL_MAGICRES:
 		return fmt::format(fmt::runtime(_("Resist Magic: {:+d}%")), affix.param1);
+	case IPL_MAGICRES_CURSE:
+		return fmt::format(fmt::runtime(_("Resist Magic: {:+d}%")), -affix.param1);
+	case IPL_ALLRES:
+		// Not in PrintItemPower's own switch - falling through to it previously read the item's shared
+		// _iPLFR field directly, which also accumulates any separately-rolled Fire/Light/Magic Resist
+		// affix on the same item, showing their combined total on this line instead of just this roll.
+		return fmt::format(fmt::runtime(_("Resist All: {:+d}%")), affix.param1);
 	case IPL_STR:
-	case IPL_STR_CURSE:
 		return fmt::format(fmt::runtime(_("{:+d} to strength")), affix.param1);
+	case IPL_STR_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to strength")), -affix.param1);
 	case IPL_MAG:
-	case IPL_MAG_CURSE:
 		return fmt::format(fmt::runtime(_("{:+d} to magic")), affix.param1);
+	case IPL_MAG_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to magic")), -affix.param1);
 	case IPL_DEX:
-	case IPL_DEX_CURSE:
 		return fmt::format(fmt::runtime(_("{:+d} to dexterity")), affix.param1);
+	case IPL_DEX_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to dexterity")), -affix.param1);
 	case IPL_VIT:
-	case IPL_VIT_CURSE:
 		return fmt::format(fmt::runtime(_("{:+d} to vitality")), affix.param1);
-	case IPL_GETHIT_CURSE:
+	case IPL_VIT_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to vitality")), -affix.param1);
+	case IPL_ATTRIBS:
+		// Same shared-field collision as IPL_ALLRES above, but for Str/Mag/Dex/Vit together.
+		return fmt::format(fmt::runtime(_("{:+d} to all attributes")), affix.param1);
+	case IPL_ATTRIBS_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d} to all attributes")), -affix.param1);
 	case IPL_GETHIT:
+		return fmt::format(fmt::runtime(_("{:+d} damage from enemies")), -affix.param1);
+	case IPL_GETHIT_CURSE:
 		return fmt::format(fmt::runtime(_("{:+d} damage from enemies")), affix.param1);
+	case IPL_LIFE:
+		return fmt::format(fmt::runtime(_("Hit Points: {:+d}")), affix.param1);
+	case IPL_LIFE_CURSE:
+		return fmt::format(fmt::runtime(_("Hit Points: {:+d}")), -affix.param1);
+	case IPL_MANA:
+		return fmt::format(fmt::runtime(_("Mana: {:+d}")), affix.param1);
+	case IPL_MANA_CURSE:
+		return fmt::format(fmt::runtime(_("Mana: {:+d}")), -affix.param1);
 	default:
 		return PrintItemPower(affix.type, item);
 	}
