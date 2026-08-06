@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.35 — Revert: Oracool Settings List Right-Alignment
+
+- **Reverted**: v0.3.34's smaller, right-aligned Oracool settings list. Back to the original font size and center alignment, same as every other settings category.
+
+---
+
 ## v0.3.34 — Griswold Premium Divider Fix, Oracool Settings List Right-Aligned
 
 - **Fixed**: The horizontal golden divider between Griswold Premium's item list and its Back/Refresh/Refresh Until row disappeared whenever "Refresh Until" was enabled.

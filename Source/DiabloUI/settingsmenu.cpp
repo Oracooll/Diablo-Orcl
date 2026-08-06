@@ -542,18 +542,8 @@ void UiSettingsMenu()
 		    *ArtScrollBarArrow, MakeSdlRect(rectList.position.x + rectList.size.width + 5, rectList.position.y, 25, rectList.size.height)));
 		vecDialog.push_back(std::make_unique<UiArtText>(optionDescription, MakeSdlRect(rectDescription),
 		    UiFlags::FontSize12 | UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, 1, descriptionLineHeight));
-		// Oracool: user request - the Oracool Edition category's settings list uses a smaller
-		// font and right-aligns each row, so every option's ON/OFF (or other) value lines up in
-		// one column along the right edge regardless of how long the option's own name is -
-		// AlignRight anchors the combined "Name: Value" string's right edge (where the value
-		// sits) to the same X for every row, unlike AlignCenter's per-row-length wobble. Scoped
-		// to this one category only; every other settings category keeps its original look.
-		const bool isOracoolCategory = selectedCategory == &sgOptions.Oracool;
-		const UiFlags listFlags = isOracoolCategory
-		    ? (UiFlags::FontSize12 | UiFlags::AlignRight)
-		    : (UiFlags::FontSize24 | UiFlags::AlignCenter);
 		vecDialog.push_back(std::make_unique<UiList>(vecDialogItems, rectList.size.height / ListItemHeight,
-		    rectList.position.x, rectList.position.y, rectList.size.width, ListItemHeight, listFlags));
+		    rectList.position.x, rectList.position.y, rectList.size.width, ListItemHeight, UiFlags::FontSize24 | UiFlags::AlignCenter));
 
 		UiInitList(ItemFocused, ItemSelected, EscPressed, vecDialog, true, FullscreenChanged, nullptr, itemToSelect);
 

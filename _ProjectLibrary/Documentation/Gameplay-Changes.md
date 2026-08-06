@@ -1104,3 +1104,9 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - Switched to `FontSize12 | AlignRight` specifically when `selectedCategory == &sgOptions.Oracool` - `AlignRight` anchors the combined string's *right* edge (where the value sits) to the same X for every row regardless of the name's length, which is what actually produces a lined-up column; only the value substrings' own differing widths (e.g. "ON" vs "OFF") introduce any residual few-pixel wobble. Every other settings category keeps its original `FontSize24 | AlignCenter` look - this required no change to the shared per-row string-building logic, only the one `UiList` construction call's flags.
 - Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no test coverage exercises settings-menu list rendering in this codebase.
 - Deferred: in-game manual verification has not yet been performed.
+- **Reverted in OE-050/v0.3.35**: user tried it in-game and didn't like the look. Reverted to the shared `FontSize24 | AlignCenter` for every category, Oracool included - no lasting change from this section.
+
+## OE-050: v0.3.35 Revert Oracool settings list right-alignment
+
+- User feedback: "roll back the change we did on the oracool options list. i dont like it this way." Reverted OE-049's `settingsmenu.cpp` change verbatim - the `UiList` construction for the settings list now always uses `UiFlags::FontSize24 | UiFlags::AlignCenter`, the same as before OE-049 and the same as every other settings category.
+- Verification: the complete Debug build succeeds. Full regression suite (193 tests) passes unchanged.
