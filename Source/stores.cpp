@@ -235,10 +235,10 @@ std::vector<TalkID> SmithMenuEntries()
 	std::vector<TalkID> entries { TalkID::Gossip, TalkID::SmithBuy, TalkID::SmithPremiumBuy };
 	if (HasSmithUniqueShop())
 		entries.push_back(TalkID::SmithUniqueBuy);
-	entries.push_back(TalkID::SmithSell);
-	entries.push_back(TalkID::SmithRepair);
 	if (!gbIsMultiplayer)
 		entries.push_back(TalkID::SmithConsumables);
+	entries.push_back(TalkID::SmithSell);
+	entries.push_back(TalkID::SmithRepair);
 	if (!gbIsMultiplayer)
 		entries.push_back(TalkID::SmithRecharge);
 	entries.push_back(TalkID::None);

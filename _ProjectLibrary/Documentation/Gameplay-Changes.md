@@ -1145,3 +1145,9 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - Row 2 reads live from `sgOptions.Oracool.refreshUntilItemNames` (the same field the text-entry prompt types into): red "Please click and input" when `GetPremiumRefreshTargets()` finds nothing configured, otherwise the raw typed text in white (not the lowercased/trimmed parsed form - what the player typed, as they typed it).
 - Verification: the complete Debug build succeeds. Full regression suite (194 tests) passes unchanged - no existing test coverage exercises live-mouse-position hover rendering in this codebase.
 - Deferred: in-game manual verification (confirming the tooltip appears in the right spot, doesn't clip, and the 4 lines read clearly against the info box's small size) has not yet been performed.
+
+## OE-053: v0.3.38 Griswold menu reorder
+
+- User request: "move BUY CONSUMABLES above SELL ITEMS at Griswold." `SmithMenuEntries()` (`stores.cpp`) is the single source of truth for both the rendered menu order and `SmithEnter`'s click dispatch (index-matched against the same vector), so reordering the two `push_back` calls was sufficient - no separate line-index or dispatch table needed updating.
+- Verification: the complete Debug build succeeds. Full regression suite (195 tests across 8 targets) passes unchanged.
+- Deferred: in-game manual verification has not yet been performed.

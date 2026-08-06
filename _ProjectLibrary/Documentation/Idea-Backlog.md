@@ -17,6 +17,14 @@ New ideas get appended here as they're floated, without waiting for a request to
 
 ---
 
+## Per-affix "perfect roll" indicator (floated 2026-08-06, not started)
+
+- Show players when an individual affix on a Rare/Buffed Unique item rolled at its maximum possible value (not just the whole-item Primal case, which already forces every affix to max). Leading idea: color that specific affix line gold, possibly paired with a text marker like "(perfect)" for accessibility.
+- Requires a new per-affix flag on `OracoolAffix` (items.h) — the struct currently only stores `type`/`param1`/`param2`, not the roll range, so "was this roll the max" can't be reliably reconstructed at display time (multiple `PLStruct` rows can share the same `item_effect_type` with different ranges, and only the final post-scaling value is stored).
+- Adding the flag grows the per-item save record (`SaveItem`/`LoadItemData` in loadsave.cpp), so it needs an `OracoolItemFormatVersion` bump — same pattern as when `_iOracoolBroken` was added, and the same lesson learned from the Stash-corruption bug (version bumps must stay in sync or old saves get silently misread instead of cleanly rejected). Breaks compatibility with existing saves/characters; consistent with the user's standing policy of accepting save breaks for simpler/more robust code, as long as they're warned first.
+
+---
+
 ## How to use this file
 
 - Every idea gets one bullet (or a short subsection if it has more than a sentence of context) with the date it was floated.
