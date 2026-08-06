@@ -22,6 +22,10 @@ A movement speed stat (walk vs. run), plus item affixes that grant increased mov
 
 Breaking down unwanted items into materials. The new persistent state here (a materials count) is player-scoped, not per-item, so it can live in its own new, absent-tolerant save file — same additive pattern already proven safe for `heroinvtabs` (a save from before this feature simply has zero materials, nothing rejected).
 
+### Griswold "Repair All Items" button (floated 2026-08-07, not started)
+
+A "Repair All Items" button in Griswold's Repair shop, in the same position as the existing Refresh button. Pure UI/behavior addition (loop the existing single-item repair logic over every damaged item across InvBody/InvList/belt/extra tabs, charging the sum of individual repair costs) - no new persistent data, so no save-format impact.
+
 ### Skills / skill trees / synergies (floated 2026-08-05, not started)
 
 A Diablo 2-style skill tree with per-skill investment and cross-skill synergy bonuses, as opposed to vanilla Diablo 1's simpler spell-book/spell-level system. Per-skill point allocation is player-scoped data, not per-item — like `heroinvtabs`, it can be its own new, absent-tolerant save file (a save from before this feature simply has no points invested). This avoids the per-item, per-container sync fragility that was the actual reason the old item-tier sidecar got merged into the core record in the v0.2.0 Foundations Pass — that lesson is about item data living in multiple containers (backpack/belt/tabs/stash/ground), which doesn't apply to a single player-level skill sheet.
