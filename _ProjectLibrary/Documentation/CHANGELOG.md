@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.45 — Monster Red Outlines Now Show Through Darkness Too, Not Just Walls
+
+- **Fixed**: The red outline drawn around a hovered monster, a monster within Monster Range Highlight's range, or a monster hidden behind a wall (Monster Wall Outline) used to disappear entirely if that monster was standing on a tile you couldn't currently see because it was too dark (outside your light radius), even though the whole point of these outlines is to show a threat you otherwise couldn't see. All three now show through darkness exactly the same way Monster Wall Outline already showed through walls - the monster's own body stays hidden by darkness as before, but its outline no longer does.
+
+---
+
 ## v0.3.44 — Fixed Two More Nonsense-Stat Bugs on Rare/Buffed Unique/Primal Items
 
 - **Fixed**: A "Resist All" line could show a much bigger number than it actually gives - the display was adding in another Resist Fire/Lightning/Magic line's bonus from the same item instead of showing just its own. Same underlying issue for "+X to all attributes" mixing in a separate Strength/Magic/Dexterity/Vitality line.
