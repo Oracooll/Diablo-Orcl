@@ -225,7 +225,12 @@ int SmithSellAllLine()
 	return BackButtonLine() - 2;
 }
 
-/** @brief Oracool: user request - "Repair all", same row/style as the existing "Sell all" button. */
+/**
+ * @brief Oracool: user request - "Repair all"'s own line index, used for StoreEnter() dispatch
+ * and stextsel bookkeeping. Its *rendered* position is overridden elsewhere (StartSmithRepair) to
+ * share Back's row, flush against the right golden border, like Griswold Premium's own "Refresh"
+ * button - this index just needs to be a line the Repair screen's own item list never uses.
+ */
 int SmithRepairAllLine()
 {
 	return BackButtonLine() - 2;
@@ -1026,8 +1031,17 @@ void StartSmithRepair()
 
 	ScrollSmithSell(stextsval);
 	AddItemListBackButton();
-	if (!gbIsMultiplayer)
-		AddSText(0, SmithRepairAllLine(), _("Repair all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	// Oracool: user request - "Repair all" sits flush against the right golden border, sharing
+	// Back's row, exactly like Griswold Premium's own "Refresh" button (see
+	// ScrollSmithPremiumBuy) instead of getting its own centered row above Back. Only the
+	// rendered Y position (_syoff) moves to line up with Back - SmithRepairAllLine() keeps its
+	// own line index for StoreEnter()'s dispatch and stextsel bookkeeping. CheckStoreBtn() has the
+	// matching redirect that routes a click on Back's row, near the right border, here instead.
+	if (!gbIsMultiplayer) {
+		const int line = SmithRepairAllLine();
+		AddSText(5, line, _("Repair all"), UiFlags::ColorWhite | UiFlags::AlignRight, true);
+		stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y + stext[BackButtonLine()]._syoff - stext[line].y);
+	}
 }
 
 void FillManaPlayer()
@@ -3678,6 +3692,14 @@ void CheckStoreBtn()
 					y = PremiumRefreshUntilLine();
 				} else if (MousePosition.x >= rightBorder - RedirectZoneWidth && stext[PremiumRefreshLine()].hasText()) {
 					y = PremiumRefreshLine();
+				} else if (stextflag == TalkID::SmithRepair && MousePosition.x >= rightBorder - RedirectZoneWidth && stext[SmithRepairAllLine()].hasText()) {
+					// Oracool: "Repair all" shares Back's row the same way Refresh does above -
+					// explicitly gated on stextflag (unlike the Premium checks above, which rely on
+					// only the Premium screen ever populating those exact line indices) because
+					// SmithRepairAllLine() can numerically coincide with PremiumRefreshLine()/
+					// PremiumRefreshUntilLine() depending on font size, and Repair is a different
+					// screen that must never be confused with Premium Buy's redirect.
+					y = SmithRepairAllLine();
 				}
 			}
 			if (stextscrl && y <= 20 && !stext[y].isSelectable()) {
