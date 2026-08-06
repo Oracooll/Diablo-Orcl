@@ -714,8 +714,14 @@ void GetBuffedUniqueItemAffixes(const Player &player, Item &item, int minlvl, in
  * tagging it OracoolItemTier::Primal and setting _iOracoolPerfectRoll.
  */
 void GetPrimalItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
-/** @brief Oracool-tiered-item equivalent of CalcItemValue, summing all stored OracoolAffix contributions. */
-void CalcOracoolTieredItemValue(Item &item);
+/**
+ * @brief Oracool-tiered-item equivalent of CalcItemValue. addTotal/multTotal are the caller's own
+ * running sums of each rolled affix's PLVal price contribution and multVal - these can't be
+ * re-derived later from the stored OracoolAffix entries (which hold the displayed stat magnitude,
+ * not the price scaling - see GetTieredItemAffixes), so the caller must accumulate them while
+ * generating the affixes and pass them in directly.
+ */
+void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal);
 /** @brief The word placed before the base item name for a tiered item's display name, e.g. "Rare {base}". */
 string_view GetOracoolTierLabel(OracoolItemTier tier);
 /**

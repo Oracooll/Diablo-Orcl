@@ -1697,7 +1697,6 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 				// deliberately NOT forced here - every item, tiered or not, follows the
 				// single shared Auto Identify Drops toggle checked below.
 				GetPrimalItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
-				CalcOracoolTieredItemValue(item);
 			} else if (tieredRollEligible && *sgOptions.Oracool.buffedUniqueItemDropChance > 0
 			    && GenerateRnd(100) < *sgOptions.Oracool.buffedUniqueItemDropChance
 			    && tieredFlgs != AffixItemType::None) {
@@ -1705,7 +1704,6 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 				// two tiers, so the rarer roll gets first crack at the item before a more
 				// common tier claims it.
 				GetBuffedUniqueItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
-				CalcOracoolTieredItemValue(item);
 			} else if (tieredRollEligible && *sgOptions.Oracool.rareItemDropChance > 0
 			    && GenerateRnd(100) < *sgOptions.Oracool.rareItemDropChance
 			    && tieredFlgs != AffixItemType::None) {
@@ -1714,7 +1712,6 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 				// Unique rolls, so none of those is ever reduced or replaced, matching the
 				// roadmap's drop policy.
 				GetRareItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
-				CalcOracoolTieredItemValue(item);
 			} else {
 				GetItemBonus(player, item, iblvl / 2, iblvl, onlygood, true);
 			}
@@ -2686,15 +2683,31 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 	std::array<item_effect_type, Item::MaxOracoolAffixesPerSlot * 2> pickedTypes {};
 	int pickedCount = 0;
 	goodorevil goe = GOE_ANY;
+	// Oracool bug fix: user report - a Buffed Unique "Crown of the Eagle" showed nonsense like
+	// "Resist Lightning: +10290%" and "+1000 to Dexterity". PLVal's return value is vanilla's own
+	// PRICE-contribution scaling (the same minVal/maxVal gold-value range SaveItemAffix feeds into
+	// item._iVAdd1/_iVMult1), not the displayed stat magnitude - that's `raw`, straight out of
+	// SaveItemPower before any price scaling. OracoolAffix.param1 was storing the price-scaled
+	// `value` (routinely in the thousands) instead of `raw` (the real roll, e.g. 51-60 for a
+	// Lightning Resist affix) - PrintOracoolAffixPower always displayed param1 directly, so every
+	// tiered item's tooltip showed price noise instead of its real stats. The item's actual
+	// in-memory stat fields (_iPLLR, _iPLDex, ...) were never affected - SaveItemPower applies
+	// those correctly as a side effect before PLVal is even called - so this was a display-only
+	// bug, not a combat-balance one. Price still needs PLVal's scaled output, so it's now
+	// accumulated locally here instead of being smuggled through OracoolAffix.
+	int priceAddTotal = 0;
+	int priceMultTotal = 0;
 
 	auto applyPrefix = [&](int idx) {
 		const PLStruct &affix = ItemPrefixes[idx];
 		ItemPower power = affix.power;
 		int raw = SaveItemPower(player, item, power);
 		int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
-		item._iOracoolPrefixes[item._iOracoolPrefixCount] = OracoolAffix { affix.power.type, value, affix.multVal };
+		item._iOracoolPrefixes[item._iOracoolPrefixCount] = OracoolAffix { affix.power.type, raw, affix.multVal };
 		item._iOracoolPrefixCount++;
 		pickedTypes[pickedCount++] = affix.power.type;
+		priceAddTotal += value;
+		priceMultTotal += affix.multVal;
 		if (affix.PLGOE != GOE_ANY)
 			goe = affix.PLGOE;
 	};
@@ -2703,9 +2716,11 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 		ItemPower power = affix.power;
 		int raw = SaveItemPower(player, item, power);
 		int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
-		item._iOracoolSuffixes[item._iOracoolSuffixCount] = OracoolAffix { affix.power.type, value, affix.multVal };
+		item._iOracoolSuffixes[item._iOracoolSuffixCount] = OracoolAffix { affix.power.type, raw, affix.multVal };
 		item._iOracoolSuffixCount++;
 		pickedTypes[pickedCount++] = affix.power.type;
+		priceAddTotal += value;
+		priceMultTotal += affix.multVal;
 		if (affix.PLGOE != GOE_ANY)
 			goe = affix.PLGOE;
 	};
@@ -2736,6 +2751,8 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 	}
 
 	ForcePerfectAffixRoll = previousForcePerfectAffixRoll;
+
+	CalcOracoolTieredItemValue(item, priceAddTotal, priceMultTotal);
 
 	item._iMagical = ITEM_QUALITY_MAGIC;
 	item._iOracoolTier = tier;
@@ -2769,23 +2786,16 @@ void GetPrimalItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 }
 
 /**
- * @brief Oracool-tiered-item equivalent of CalcItemValue: sums every stored OracoolAffix's
- * contribution (using the same add/mult-scaling shape) instead of the vanilla 2-slot
- * _iVAdd/_iVMult fields, which cannot represent more than one prefix and one suffix.
+ * @brief Oracool-tiered-item equivalent of CalcItemValue: applies the same add/mult-scaling shape
+ * vanilla's own _iVAdd/_iVMult pricing uses, generalized to the caller's own running totals across
+ * however many affixes a tiered item actually has (vanilla's 2-slot fields can't represent more
+ * than one prefix and one suffix). addTotal/multTotal must be the sum of each affix's own PLVal
+ * price contribution and multVal, accumulated by the caller while rolling the affixes - see
+ * GetTieredItemAffixes, and the comment on the declaration in items.h for why this can't be
+ * re-derived later from the stored OracoolAffix entries.
  */
-void CalcOracoolTieredItemValue(Item &item)
+void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal)
 {
-	int addTotal = 0;
-	int multTotal = 0;
-	for (int i = 0; i < item._iOracoolPrefixCount; i++) {
-		addTotal += item._iOracoolPrefixes[i].param1;
-		multTotal += item._iOracoolPrefixes[i].param2;
-	}
-	for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-		addTotal += item._iOracoolSuffixes[i].param1;
-		multTotal += item._iOracoolSuffixes[i].param2;
-	}
-
 	int v = multTotal;
 	if (v > 0)
 		v *= item._ivalue;

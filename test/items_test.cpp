@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -477,9 +478,14 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_NeverDuplicatesAnAffixType)
 }
 
 // Every affix on a Primal item must be a "perfect roll" - its stored value must equal the
-// maximum end of some matching ItemPrefixes[]/ItemSuffixes[] table entry's declared range.
+// maximum end of some matching ItemPrefixes[]/ItemSuffixes[] table entry's own small roll range
+// (power.param2), not that entry's price-scaling maxVal (a much larger number used only to scale
+// the item's gold value - see the OracoolAffix.param1 fix in GetTieredItemAffixes/items.h).
 // Checked against "any matching entry" rather than a specific index, since some power types
 // have multiple table entries (different tiers/level requirements) sharing the same type.
+// IPL_TARGAC (the suffix-only piercing/puncturing/bashing trio) bit-shifts its stored
+// param1/param2 before rolling in non-Hellfire mode (see SaveItemPower) - mirrored here rather
+// than assuming gbIsHellfire's test-time value.
 TEST_F(PrimalItemTest, GetPrimalItemAffixes_EveryAffixIsRolledAtItsMaximum)
 {
 	for (int trial = 0; trial < 50; trial++) {
@@ -489,22 +495,27 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_EveryAffixIsRolledAtItsMaximum)
 		for (int i = 0; i < item._iOracoolPrefixCount; i++) {
 			bool matchedMax = false;
 			for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
-				if (ItemPrefixes[j].power.type == item._iOracoolPrefixes[i].type && ItemPrefixes[j].maxVal == item._iOracoolPrefixes[i].param1) {
+				if (ItemPrefixes[j].power.type == item._iOracoolPrefixes[i].type && ItemPrefixes[j].power.param2 == item._iOracoolPrefixes[i].param1) {
 					matchedMax = true;
 					break;
 				}
 			}
-			EXPECT_TRUE(matchedMax) << "trial " << trial << " prefix " << i << " was not rolled at a table maxVal";
+			EXPECT_TRUE(matchedMax) << "trial " << trial << " prefix " << i << " was not rolled at its own table's maximum";
 		}
 		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
 			bool matchedMax = false;
 			for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
-				if (ItemSuffixes[j].power.type == item._iOracoolSuffixes[i].type && ItemSuffixes[j].maxVal == item._iOracoolSuffixes[i].param1) {
+				if (ItemSuffixes[j].power.type != item._iOracoolSuffixes[i].type)
+					continue;
+				int expectedMax = ItemSuffixes[j].power.param2;
+				if (!gbIsHellfire && ItemSuffixes[j].power.type == IPL_TARGAC)
+					expectedMax = 3 << expectedMax;
+				if (expectedMax == item._iOracoolSuffixes[i].param1) {
 					matchedMax = true;
 					break;
 				}
 			}
-			EXPECT_TRUE(matchedMax) << "trial " << trial << " suffix " << i << " was not rolled at a table maxVal";
+			EXPECT_TRUE(matchedMax) << "trial " << trial << " suffix " << i << " was not rolled at its own table's maximum";
 		}
 	}
 }
@@ -564,19 +575,13 @@ TEST_F(PrimalItemTest, GetRareItemAffixes_AfterPrimalGeneration_DoesNotLeakPerfe
 	EXPECT_TRUE(sawNonMaxRoll) << "Rare rolls should not all be forced to maximum after a Primal (perfect-roll) generation ran - the flag may have leaked";
 }
 
-TEST(Item, CalcOracoolTieredItemValue_SumsAllStoredAffixContributions)
+TEST(Item, CalcOracoolTieredItemValue_SumsAddAndAppliesMultTotal)
 {
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 	item._ivalue = 100;
-	item._iOracoolPrefixCount = 2;
-	item._iOracoolPrefixes[0] = OracoolAffix { IPL_TOHIT, 5, 0 };
-	item._iOracoolPrefixes[1] = OracoolAffix { IPL_STR, 3, 0 };
-	item._iOracoolSuffixCount = 1;
-	item._iOracoolSuffixes[0] = OracoolAffix { IPL_FIRERES, 2, 0 };
 
-	CalcOracoolTieredItemValue(item);
+	CalcOracoolTieredItemValue(item, /*addTotal=*/10, /*multTotal=*/0);
 
-	// addTotal = 5+3+2 = 10, multTotal = 0, so v = 10.
 	EXPECT_EQ(item._iIvalue, 10);
 }
 
@@ -584,12 +589,33 @@ TEST(Item, CalcOracoolTieredItemValue_NeverProducesLessThanOne)
 {
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 	item._ivalue = 100;
-	item._iOracoolPrefixCount = 1;
-	item._iOracoolPrefixes[0] = OracoolAffix { IPL_TOHIT_CURSE, -50, 0 };
 
-	CalcOracoolTieredItemValue(item);
+	CalcOracoolTieredItemValue(item, /*addTotal=*/-50, /*multTotal=*/0);
 
 	EXPECT_GE(item._iIvalue, 1);
+}
+
+// Regression test for the exact user-reported bug: a Buffed Unique "Crown of the Eagle" showed
+// "Resist Lightning: +10290%", "+800% armor", "+1000 to dexterity" - PLVal's price-scaled output
+// (routinely in the thousands, see GetTieredItemAffixes) was being stored in OracoolAffix.param1
+// and displayed directly instead of the actual small rolled stat. Every real affix in the game's
+// prefix/suffix tables rolls well under this ceiling (the largest is DAMP's 175 at the very top
+// end) - anything anywhere near a thousand can only mean the price-scaled value leaked back in.
+TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_StoredAffixValuesStayInRealStatRange)
+{
+	constexpr int PlausibleStatCeiling = 300;
+	for (int trial = 0; trial < 200; trial++) {
+		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+		GetBuffedUniqueItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
+		for (int i = 0; i < item._iOracoolPrefixCount; i++) {
+			EXPECT_LE(std::abs(item._iOracoolPrefixes[i].param1), PlausibleStatCeiling)
+			    << "trial " << trial << " prefix " << i << " looks like a price value, not a stat roll";
+		}
+		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+			EXPECT_LE(std::abs(item._iOracoolSuffixes[i].param1), PlausibleStatCeiling)
+			    << "trial " << trial << " suffix " << i << " looks like a price value, not a stat roll";
+		}
+	}
 }
 
 // Oracool regression test: reproduces the user's bug report of a Rare item appearing to have

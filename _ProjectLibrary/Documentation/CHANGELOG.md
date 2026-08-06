@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.42 — Fixed: Rare/Buffed Unique/Primal Items Showing Nonsense Stat Numbers
+
+- **Fixed**: A Rare, Buffed Unique, or Primal item's tooltip could show wildly inflated numbers on some of its affix lines - things like "Resist Lightning: +10290%", "+800% armor", or "+1000 to Dexterity" instead of a sane roll. The item's actual combat effect was never wrong - only the displayed number on certain lines was, because it was showing an internal pricing calculation instead of the real rolled value. Only items generated from this version onward are corrected; any Rare/Buffed Unique/Primal item you already own from before this update keeps showing its old (wrong) numbers on those lines, since the bad numbers are baked into that specific item.
+
+---
+
 ## v0.3.41 — Furious Charge
 
 - **New**: A new `Furious Charge` option (off by default) replaces the Warrior's free Item Repair skill with a charge attack. Right-click a monster with it readied to rush at double walking speed and swing on arrival, then a 3-second cooldown (shown as the skill icon dimming and refilling from the bottom up) before it's ready again. On cooldown, right-clicking a monster still attacks normally - just without the speed boost. Single-player only; vanilla Item Repair returns whenever this is off.
