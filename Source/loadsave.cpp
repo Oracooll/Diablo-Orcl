@@ -388,6 +388,11 @@ void LoadAndValidateItemData(LoadHelper &file, Item &item)
 {
 	LoadItemData(file, item);
 	RemoveInvalidItem(item);
+	// Oracool: called for every item in every container (inventory, belt, stash, extra tabs,
+	// ground on every level) - the single choke point to self-heal any Rare/Buffed Unique/Primal
+	// item that was generated before the v0.3.42 affix-value fix, without needing a new save
+	// format or a player-facing repair action.
+	RepairOracoolAffixesIfCorrupted(item);
 }
 
 void LoadPlayer(LoadHelper &file, Player &player)

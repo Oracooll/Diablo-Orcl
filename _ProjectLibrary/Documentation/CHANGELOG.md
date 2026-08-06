@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.43 — Corrupted Item Stats Now Self-Heal Automatically
+
+- **Fixed**: Any Rare, Buffed Unique, or Primal item generated before the v0.3.42 fix - already sitting in your inventory, belt, stash, extra tabs, or on the ground - is now automatically detected and repaired the moment it's loaded (opening a save) or picked up (grabbing it off the ground). No action needed: the wrong displayed number is silently corrected back to the item's real rolled value, with a note written to the Event Log whenever a repair actually happens so it's never invisible. Items that are already correct are left untouched.
+
+---
+
 ## v0.3.42 — Fixed: Rare/Buffed Unique/Primal Items Showing Nonsense Stat Numbers
 
 - **Fixed**: A Rare, Buffed Unique, or Primal item's tooltip could show wildly inflated numbers on some of its affix lines - things like "Resist Lightning: +10290%", "+800% armor", or "+1000 to Dexterity" instead of a sane roll. The item's actual combat effect was never wrong - only the displayed number on certain lines was, because it was showing an internal pricing calculation instead of the real rolled value. Only items generated from this version onward are corrected; any Rare/Buffed Unique/Primal item you already own from before this update keeps showing its old (wrong) numbers on those lines, since the bad numbers are baked into that specific item.

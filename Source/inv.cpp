@@ -21,6 +21,7 @@
 #include "engine/size.hpp"
 #include "hwcursor.hpp"
 #include "inv_iterators.hpp"
+#include "items.h"
 #include "levels/town.h"
 #include "minitext.h"
 #include "options.h"
@@ -2227,6 +2228,11 @@ void InvGetItem(Player &player, int ii)
 	item._iCreateInfo &= ~CF_PREGEN;
 	CheckQuestItem(player, item);
 	item.updateRequiredStatsCacheForPlayer(player);
+	// Oracool: self-heal a Rare/Buffed Unique/Primal item generated before the v0.3.42 affix-value
+	// fix the moment it's picked up, matching the on-load repair in loadsave.cpp's
+	// LoadAndValidateItemData - ground items that were never saved (dropped and picked back up in
+	// the same session) never go through that path, so pickup needs its own call too.
+	RepairOracoolAffixesIfCorrupted(item);
 
 	if (item._itype == ItemType::Gold && GoldAutoPlace(player, item)) {
 		if (MyPlayer == &player) {
@@ -2302,6 +2308,9 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 	item._iCreateInfo &= ~CF_PREGEN;
 	CheckQuestItem(player, item);
 	item.updateRequiredStatsCacheForPlayer(player);
+	// Oracool: see the matching comment in InvGetItem - self-heals a pre-v0.3.42 tiered item on
+	// the auto-pickup path too.
+	RepairOracoolAffixesIfCorrupted(item);
 
 	bool done;
 	bool autoEquipped = false;

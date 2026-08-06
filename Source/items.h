@@ -722,6 +722,16 @@ void GetPrimalItemAffixes(const Player &player, Item &item, int minlvl, int maxl
  * generating the affixes and pass them in directly.
  */
 void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal);
+/**
+ * @brief Detects and corrects the v0.3.42 "price value stored instead of the real roll" bug
+ * (see GetTieredItemAffixes) on a single item that may have been generated before that fix. A
+ * no-op for items without an Oracool tier, or that are already correct. Call whenever an item is
+ * loaded or picked up so already-affected items self-heal without needing a new save format or
+ * player-facing repair action. Logs an Event Log entry (see oracool/event_log.h) whenever it
+ * actually corrects something, so the change isn't silent.
+ * @return true if a correction was made.
+ */
+bool RepairOracoolAffixesIfCorrupted(Item &item);
 /** @brief The word placed before the base item name for a tiered item's display name, e.g. "Rare {base}". */
 string_view GetOracoolTierLabel(OracoolItemTier tier);
 /**

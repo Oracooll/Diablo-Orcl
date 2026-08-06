@@ -618,6 +618,55 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_StoredAffixValuesStayInR
 	}
 }
 
+// Regression test for the self-heal repair feature: reproduces the user's follow-up "Crystal
+// Amulet" screenshot exactly - a Magic Resist affix stored as 1500 (the White prefix's price-range
+// maxVal) instead of 20 (White's own small-range maxVal, since it was a Primal perfect roll).
+TEST(Item, RepairOracoolAffixesIfCorrupted_FixesAPriceValueBackToItsRealRoll)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+	item._iOracoolTier = OracoolItemTier::Primal;
+	item._iOracoolPrefixCount = 1;
+	item._iOracoolPrefixes[0] = OracoolAffix { IPL_MAGICRES, 1500, 5 };
+
+	EXPECT_TRUE(RepairOracoolAffixesIfCorrupted(item));
+	EXPECT_EQ(item._iOracoolPrefixes[0].param1, 20);
+}
+
+TEST(Item, RepairOracoolAffixesIfCorrupted_LeavesAnAlreadyCorrectValueAlone)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+	item._iOracoolTier = OracoolItemTier::Rare;
+	item._iOracoolPrefixCount = 1;
+	item._iOracoolPrefixes[0] = OracoolAffix { IPL_MAGICRES, 20, 5 };
+
+	EXPECT_FALSE(RepairOracoolAffixesIfCorrupted(item));
+	EXPECT_EQ(item._iOracoolPrefixes[0].param1, 20);
+}
+
+TEST(Item, RepairOracoolAffixesIfCorrupted_IsANoOpForItemsWithoutAnOracoolTier)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+	item._iOracoolPrefixCount = 1;
+	item._iOracoolPrefixes[0] = OracoolAffix { IPL_MAGICRES, 1500, 5 };
+
+	EXPECT_FALSE(RepairOracoolAffixesIfCorrupted(item));
+	EXPECT_EQ(item._iOracoolPrefixes[0].param1, 1500);
+}
+
+// Same fix, exercised on a suffix this time (the "+1000 to Dexterity" line from the same
+// screenshot - the "dexterity" suffix's price maxVal of 1000 instead of its own small-range
+// maxVal of 5).
+TEST(Item, RepairOracoolAffixesIfCorrupted_AlsoFixesSuffixes)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+	item._iOracoolTier = OracoolItemTier::Primal;
+	item._iOracoolSuffixCount = 1;
+	item._iOracoolSuffixes[0] = OracoolAffix { IPL_DEX, 1000, 2 };
+
+	EXPECT_TRUE(RepairOracoolAffixesIfCorrupted(item));
+	EXPECT_EQ(item._iOracoolSuffixes[0].param1, 5);
+}
+
 // Oracool regression test: reproduces the user's bug report of a Rare item appearing to have
 // "two identical affixes." PrintOracoolAffixPower must use each affix's own stored param1, not
 // the item's single shared accumulated field (item._iPLStr here) - otherwise two distinct affix

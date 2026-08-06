@@ -2805,6 +2805,73 @@ void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal)
 	item._iIvalue = std::max(v, 1);
 }
 
+/**
+ * @brief Oracool bug-repair helper (v0.3.42): given one OracoolAffix and the static table it was
+ * rolled from (ItemPrefixes for a prefix, ItemSuffixes for a suffix), detects and corrects the
+ * "price value stored instead of the real roll" bug - see GetTieredItemAffixes. Items generated
+ * before that fix have the wrong value baked permanently into their save data; this lets them
+ * self-heal the next time they're loaded or picked up, instead of staying wrong forever.
+ * @return true if a correction was made.
+ */
+static bool RepairOracoolAffixValue(OracoolAffix &affix, const PLStruct *table)
+{
+	// If the stored value already looks like a plausible roll for some row of this type, leave it
+	// alone. Deliberately conservative: on the rare boundary where a price range and a small roll
+	// range happen to overlap numerically for the same type, treating it as "already valid" is far
+	// safer than "fixing" a value that didn't need it.
+	for (int j = 0; table[j].power.type != IPL_INVALID; j++) {
+		if (table[j].power.type != affix.type)
+			continue;
+		int lo = std::min<int>(table[j].power.param1, table[j].power.param2);
+		int hi = std::max<int>(table[j].power.param1, table[j].power.param2);
+		if (affix.param1 >= lo && affix.param1 <= hi)
+			return false;
+	}
+
+	// Otherwise, see if it matches some row's price range instead - the bug's exact signature.
+	// Price ranges don't overlap between tiers of the same affix type, so a match (when one
+	// exists) unambiguously identifies which row was actually rolled.
+	for (int j = 0; table[j].power.type != IPL_INVALID; j++) {
+		if (table[j].power.type != affix.type)
+			continue;
+		int priceLo = std::min(table[j].minVal, table[j].maxVal);
+		int priceHi = std::max(table[j].minVal, table[j].maxVal);
+		if (affix.param1 < priceLo || affix.param1 > priceHi)
+			continue;
+
+		int p1 = table[j].power.param1;
+		int p2 = table[j].power.param2;
+		int raw = (priceHi == priceLo || p1 == p2)
+		    ? p2
+		    : p1 + (p2 - p1) * (affix.param1 - priceLo) / (priceHi - priceLo);
+		affix.param1 = raw;
+		return true;
+	}
+
+	return false;
+}
+
+bool RepairOracoolAffixesIfCorrupted(Item &item)
+{
+	if (!item.hasOracoolTier())
+		return false;
+
+	bool repaired = false;
+	for (int i = 0; i < item._iOracoolPrefixCount; i++) {
+		if (RepairOracoolAffixValue(item._iOracoolPrefixes[i], ItemPrefixes))
+			repaired = true;
+	}
+	for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+		if (RepairOracoolAffixValue(item._iOracoolSuffixes[i], ItemSuffixes))
+			repaired = true;
+	}
+
+	if (repaired)
+		oracool::LogEvent(fmt::format(fmt::runtime(_("Corrected stats on {:s}")), item._iIName));
+
+	return repaired;
+}
+
 bool IsItemAvailable(int i)
 {
 	if (i < 0 || i > IDI_LAST)
