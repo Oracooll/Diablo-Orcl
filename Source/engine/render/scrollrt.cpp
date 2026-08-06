@@ -29,6 +29,7 @@
 #include "lighting.h"
 #include "minitext.h"
 #include "missiles.h"
+#include "monster.h"
 #include "nthread.h"
 #include "options.h"
 #include "oracool/event_log.h"
@@ -717,6 +718,32 @@ void DrawItem(const Surface &out, Point tilePosition, Point targetBufferPosition
 }
 
 /**
+ * @brief Oracool: monster outlines queued by DrawMonsterHelper for a monster whose body is
+ * currently hidden behind a wall (or other architecture drawn after it in the normal scene
+ * sweep). Drawn in a second pass, once the whole scene is composited, so the outline lands on
+ * top instead of being covered by whatever occluded the body - the same deferred-queue pattern
+ * qol/itemlabels.cpp already uses for item name labels.
+ */
+struct HiddenMonsterOutline {
+	Point position;
+	ClxSprite sprite;
+};
+std::vector<HiddenMonsterOutline> HiddenMonsterOutlineQueue;
+
+/**
+ * @brief Oracool: draws the red outline for every monster queued this frame as hidden behind
+ * architecture. Always called once per frame from DrawView so the queue never accumulates stale
+ * entries, regardless of whether Monster Wall Outline is enabled.
+ */
+void DrawMonsterWallOutlines(const Surface &out)
+{
+	for (const HiddenMonsterOutline &entry : HiddenMonsterOutlineQueue) {
+		ClxDrawOutlineSkipColorZero(out, 233, entry.position, entry.sprite);
+	}
+	HiddenMonsterOutlineQueue.clear();
+}
+
+/**
  * @brief Check if and how a monster should be rendered
  * @param out Output buffer
  * @param tilePosition dPiece coordinates
@@ -780,6 +807,12 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	    && monster.position.tile.WalkingDistance(MyPlayer->position.tile) <= monsterRangeHighlight;
 	if (mi == pcursmonst || inHighlightRange) {
 		ClxDrawOutlineSkipColorZero(out, 233, monsterRenderPosition, sprite);
+	}
+	// Oracool: user request - flag monsters whose line of sight to the player is blocked by a
+	// wall or other missile-blocking architecture, so their outline can be redrawn on top of it
+	// in a later pass (see DrawMonsterWallOutlines) instead of staying hidden behind it.
+	if (*sgOptions.Oracool.monsterWallOutline && !LineClearMissile(MyPlayer->position.tile, monster.position.tile)) {
+		HiddenMonsterOutlineQueue.push_back({ monsterRenderPosition, sprite });
 	}
 	DrawMonster(out, tilePosition, monsterRenderPosition, monster);
 }
@@ -1276,6 +1309,9 @@ void DrawView(const Surface &out, Point startPosition)
 	DrawItemNameLabels(out);
 	DrawMonsterHealthBar(out);
 	DrawFloatingNumbers(out, startPosition, offset);
+	// Oracool: drawn after the whole scene above so the outline lands on top of any wall that
+	// would otherwise hide the monster's body; always called to drain the queue every frame.
+	DrawMonsterWallOutlines(out);
 
 	if (stextflag != TalkID::None && !qtextflag)
 		DrawSText(out);

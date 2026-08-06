@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.39 — Monster Wall Outline
+
+- **New**: A new `Monster Wall Outline` option (off by default) draws a red outline on any monster hidden behind a wall or other level architecture, on top of everything else, so you can tell something's there even though you can't see its body. Same red used for the existing hover/range highlight.
+
+---
+
 ## v0.3.38 — Griswold Menu Reorder
 
 - **Changed**: "Buy consumables" now appears above "Sell items" in Griswold's shop menu, instead of below it.

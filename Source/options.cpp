@@ -459,6 +459,8 @@ void SaveOptions()
 	    "; Briefly flashes \"+N\" just below the XP Counter for half a second whenever you gain\n; experience.");
 	setInteger("Monster Range Highlight", *sgOptions.Oracool.monsterRangeHighlight,
 	    "; Monsters within this many tiles of the player get the same red outline normally shown\n; only when hovering them. Values: 0 (OFF), 1-5.");
+	setBoolean("Monster Wall Outline", *sgOptions.Oracool.monsterWallOutline,
+	    "; Draws a red outline on top of walls and other architecture for any monster that would\n; otherwise be hidden behind them, so you can tell something is there.");
 
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
@@ -1290,6 +1292,7 @@ OracoolOptions::OracoolOptions()
     , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
     , xpGainIndicator("XP Gain Indicator", OptionEntryFlags::None, N_("XP Gain Indicator"), N_("Briefly flashes the experience gained just below the XP Counter."), true)
     , monsterRangeHighlight("Monster Range Highlight", OptionEntryFlags::None, N_("Monster Range Highlight"), N_("Monsters within this many tiles get the same red outline shown when hovering them."), 0, { 0, 1, 2, 3, 4, 5 })
+    , monsterWallOutline("Monster Wall Outline", OptionEntryFlags::None, N_("Monster Wall Outline"), N_("Draws a red outline on monsters hidden behind walls or other architecture, so you can tell they're there."), false)
 {
 }
 
@@ -1334,6 +1337,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&xpCounter,
 		&xpGainIndicator,
 		&monsterRangeHighlight,
+		&monsterWallOutline,
 	};
 
 	// Oracool: user request - show the settings menu's Oracool Edition category alphabetically by
