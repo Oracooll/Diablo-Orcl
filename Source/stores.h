@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <SDL.h>
+
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
 #include "engine.h"
@@ -117,5 +119,14 @@ void TakePlrsMoney(int cost);
 void StoreEnter();
 void CheckStoreBtn();
 void ReleaseStoreBtn();
+
+/**
+ * @brief Oracool: whether Griswold Premium's "type the item you're looking for" prompt (Refresh
+ * Until, entered in-game instead of hand-edited into diablo.ini) is currently open.
+ */
+extern bool IsRefreshUntilPromptOpen;
+void RefreshUntilPromptKeyPress(SDL_Keycode vkey);
+bool HandleRefreshUntilPromptTextInputEvent(const SDL_Event &event);
+void DrawRefreshUntilPrompt(const Surface &out);
 
 } // namespace devilution

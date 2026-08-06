@@ -13,8 +13,11 @@
 #include <limits>
 #include <vector>
 
+#include <SDL.h>
 #include <fmt/format.h>
 
+#include "DiabloUI/text_input.hpp"
+#include "control.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "engine/backbuffer_state.hpp"
@@ -70,6 +73,18 @@ Item witchitem[WITCH_ITEMS];
 
 int boylevel;
 Item boyitem;
+
+/**
+ * @brief Oracool: user request - typing the Refresh Until target in-game instead of editing
+ * diablo.ini's "Griswold Refresh Until Item Names" by hand. Deliberately reuses that exact INI
+ * field as the live text buffer (see StartRefreshUntilPrompt) rather than a separate scratch
+ * buffer, so what's typed here is both what GetPremiumRefreshTargets()/RefreshPremiumUntilTarget()
+ * already search for and what persists to the INI on the next options save - no new save-format
+ * or option needed.
+ */
+bool IsRefreshUntilPromptOpen;
+TextInputCursorState RefreshUntilPromptCursor;
+std::optional<TextInputState> RefreshUntilPromptInputState;
 
 namespace {
 
@@ -757,10 +772,16 @@ bool SmithSellOk(const Item &item)
 			return false;
 		if (item._iClass == ICLASS_QUEST)
 			return false;
-		// The Butcher's Cleaver shares an ID with the quest-item range purely because vanilla
-		// Diablo happens to order IDI_CLEAVER == IDI_FIRSTQUEST - it's an actual lootable/sellable
-		// unique, not a real quest deliverable, so it's exempt from the range check below.
-		if (item.IDidx != IDI_CLEAVER && item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
+		// Oracool bug fix: user report - "i cant sell unique items i was awarded from NPCs to
+		// griswold. They don't appear in the SELL ITEMS list." The quest-item ID range
+		// (IDI_FIRSTQUEST..IDI_LASTQUEST) isn't exclusively real quest deliverables - several
+		// genuine, lootable/sellable Unique items (Skeleton King's Crown, Ring of Truth, Optic
+		// Amulet, Harlequin Crest, Steel Veil, ...) happen to use base-item slots that fall inside
+		// it too, purely as an artifact of vanilla's item-table ordering, the same way The
+		// Butcher's Cleaver (IDI_CLEAVER == IDI_FIRSTQUEST) already needed its own exemption. A
+		// real quest item is never ITEM_QUALITY_UNIQUE, so checking that instead of special-casing
+		// one IDidx at a time exempts every current and future case at once.
+		if (item._iMagical != ITEM_QUALITY_UNIQUE && item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
 			return false;
 		if (item.IDidx == IDI_LAZSTAFF)
 			return false;
@@ -1117,7 +1138,10 @@ bool WitchSellOk(const Item &item)
 		rv = false;
 	if (item._itype == ItemType::Staff && (!gbIsHellfire || IsValidSpell(item._iSpell)))
 		rv = true;
-	if (item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
+	// Oracool bug fix: same root cause as SmithSellOk's quest-ID-range exemption above - a
+	// genuine Unique item (e.g. a Unique staff) can share a base-item slot with the quest-item
+	// range purely by vanilla's table ordering, and a real quest item is never ITEM_QUALITY_UNIQUE.
+	if (item._iMagical != ITEM_QUALITY_UNIQUE && item.IDidx >= IDI_FIRSTQUEST && item.IDidx <= IDI_LASTQUEST)
 		rv = false;
 	if (item.IDidx == IDI_LAZSTAFF)
 		rv = false;
@@ -1842,6 +1866,31 @@ std::string RefreshPremiumUntilTarget()
 	return std::string(_("Refresh Until stopped at the 100,000-refresh safety limit."));
 }
 
+/**
+ * @brief Oracool: user request - opens a text-entry overlay (reusing the same TextInputState
+ * machinery the gold split/withdraw dialogs already use, just without NumberInputState's
+ * digits-only filter) so the Refresh Until target can be typed in-game instead of hand-edited
+ * into diablo.ini. Types directly into sgOptions.Oracool.refreshUntilItemNames itself (the exact
+ * field GetPremiumRefreshTargets/RefreshPremiumUntilTarget already read), so no new option or
+ * save-format change is needed - what's typed here both drives this search immediately and
+ * persists to the INI on the next options save, same as any other option.
+ */
+void StartRefreshUntilPrompt()
+{
+	const Point uiPosition = GetUIRectangle().position;
+	const Point start { uiPosition.x + 190, uiPosition.y + 210 };
+	SDL_Rect rect = MakeSdlRect(start.x, start.y, 260, 20);
+	SDL_SetTextInputRect(&rect);
+
+	IsRefreshUntilPromptOpen = true;
+	RefreshUntilPromptInputState.emplace(TextInputState::Options {
+	    /*value=*/sgOptions.Oracool.refreshUntilItemNames,
+	    /*cursor=*/&RefreshUntilPromptCursor,
+	    /*maxLength=*/sizeof(sgOptions.Oracool.refreshUntilItemNames) - 1,
+	});
+	SDL_StartTextInput();
+}
+
 void SmithPremiumBuyEnter()
 {
 	if (stextsel == BackButtonLine()) {
@@ -1859,10 +1908,10 @@ void SmithPremiumBuyEnter()
 		return;
 	}
 	if (*sgOptions.Oracool.refreshUntilButton && !gbIsMultiplayer && stextsel == PremiumRefreshUntilLine()) {
-		const std::string result = RefreshPremiumUntilTarget();
-		StartStore(TalkID::SmithPremiumBuy);
-		stextsel = PremiumRefreshUntilLine();
-		InitDiabloMsg(result);
+		// Oracool: user request - prompt for the target name in-game (see StartRefreshUntilPrompt)
+		// instead of immediately running the search against whatever's already saved in
+		// diablo.ini. RefreshUntilPromptKeyPress runs the actual search once the player confirms.
+		StartRefreshUntilPrompt();
 		return;
 	}
 
@@ -2664,6 +2713,73 @@ void DrawSelector(const Surface &out, const Rectangle &rect, string_view text, U
 
 } // namespace
 
+// Oracool: defined outside the anonymous namespace (same rationale as
+// SimulateStorytellerIdentifyForTest below) so diablo.cpp/scrollrt.cpp can call these - internal
+// linkage symbols like StartRefreshUntilPrompt/RefreshPremiumUntilTarget/PremiumRefreshUntilLine
+// stay callable from here regardless, since anonymous-namespace visibility spans the whole
+// translation unit.
+void CloseRefreshUntilPrompt()
+{
+	if (!IsRefreshUntilPromptOpen)
+		return;
+	SDL_StopTextInput();
+	IsRefreshUntilPromptOpen = false;
+	RefreshUntilPromptInputState = std::nullopt;
+}
+
+void RefreshUntilPromptKeyPress(SDL_Keycode vkey)
+{
+	switch (vkey) {
+	case SDLK_RETURN:
+	case SDLK_KP_ENTER: {
+		const std::string result = RefreshPremiumUntilTarget();
+		CloseRefreshUntilPrompt();
+		StartStore(TalkID::SmithPremiumBuy);
+		stextsel = PremiumRefreshUntilLine();
+		InitDiabloMsg(result);
+		break;
+	}
+	case SDLK_ESCAPE:
+		CloseRefreshUntilPrompt();
+		break;
+	default:
+		break;
+	}
+}
+
+bool HandleRefreshUntilPromptTextInputEvent(const SDL_Event &event)
+{
+	return HandleTextInputEvent(event, *RefreshUntilPromptInputState);
+}
+
+void DrawRefreshUntilPrompt(const Surface &out)
+{
+	if (!IsRefreshUntilPromptOpen)
+		return;
+
+	const string_view targetText = sgOptions.Oracool.refreshUntilItemNames;
+	const TextInputCursorState &cursor = RefreshUntilPromptCursor;
+
+	const Point uiPosition = GetUIRectangle().position;
+	const int dialogX = uiPosition.x + 190;
+
+	ClxDraw(out, { dialogX, uiPosition.y + 178 }, (*pGBoxBuff)[0]);
+
+	const std::string wrapped = WordWrapString(_("What item are you looking for? Refreshes until a matching item appears in Griswold's premium stock, or the configured timeout is reached."), 200);
+
+	DrawString(out, wrapped, { { dialogX + 31, uiPosition.y + 75 }, { 200, 50 } },
+	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter, 1, 17 });
+
+	DrawString(out, targetText, { dialogX + 37, uiPosition.y + 128 },
+	    TextRenderOptions {
+	        /*flags=*/UiFlags::ColorWhite | UiFlags::PentaCursor,
+	        /*spacing=*/1,
+	        /*lineHeight=*/-1,
+	        /*cursorPosition=*/static_cast<int>(cursor.position),
+	        /*highlightRange=*/ { static_cast<int>(cursor.selection.begin), static_cast<int>(cursor.selection.end) },
+	    });
+}
+
 // Oracool: mirrors SimulateSmithConsumablesPurchaseForTest's approach - sets up the same globals
 // StorytellerIdentifyItem reads to resolve its target from storehold[index], then calls it exactly
 // as the real "identify which item?" confirm click would, without needing StartStore()'s
@@ -3454,10 +3570,21 @@ void CheckStoreBtn()
 			// specific button is currently live and overlaid on this exact row, so this can't
 			// misfire on any other store screen.
 			if (y == BackButtonLine()) {
-				const int midX = uiPosition.x + (24 + 616) / 2;
-				if (MousePosition.x < midX && stext[PremiumRefreshUntilLine()].hasText()) {
+				// Oracool bug fix: user report - "BACK button in Griswold Premium doesn't go
+				// back, it refreshes the list." The previous split-the-row-in-half-at-midX logic
+				// covered the *entire* row with the two side buttons, leaving no click region for
+				// Back at all - Back's own centered text was simply unreachable. Refresh Until
+				// sits flush against the left golden border and Refresh flush against the right
+				// one (see ScrollSmithPremiumBuy), so only clicks actually within reach of each
+				// button's own text - a generous fixed width from its border, comfortably wider
+				// than either short string ever renders - redirect; everything else (including
+				// dead center, where "Back" itself renders) now correctly falls through to Back.
+				constexpr int RedirectZoneWidth = 100;
+				const int leftBorder = uiPosition.x + 24;
+				const int rightBorder = uiPosition.x + 616;
+				if (MousePosition.x < leftBorder + RedirectZoneWidth && stext[PremiumRefreshUntilLine()].hasText()) {
 					y = PremiumRefreshUntilLine();
-				} else if (MousePosition.x >= midX && stext[PremiumRefreshLine()].hasText()) {
+				} else if (MousePosition.x >= rightBorder - RedirectZoneWidth && stext[PremiumRefreshLine()].hasText()) {
 					y = PremiumRefreshLine();
 				}
 			}

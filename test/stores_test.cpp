@@ -366,6 +366,37 @@ TEST(Stores, SmithSell_CleaverUniqueIsSellableDespiteQuestIdRange)
 	EXPECT_EQ(storehold[0].IDidx, IDI_CLEAVER);
 }
 
+// User bug report: "i cant sell unique items i was awarded from NPCs to griswold. They don't
+// appear in the SELL ITEMS list." Root cause was the same quest-ID-range check that once blocked
+// the Cleaver - several other genuine Unique items (Harlequin Crest among them) also happen to
+// use a base-item slot inside IDI_FIRSTQUEST..IDI_LASTQUEST, purely as an artifact of vanilla's
+// item table ordering, and were still being blocked despite Cleaver's own fix.
+TEST(Stores, SmithSell_OtherQuestRangeUniquesAreSellableToo)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	MyPlayer->InvTabList = {};
+	MyPlayer->InvTabGrid = {};
+	MyPlayer->_pNumInvTab = {};
+
+	for (int i = 0; i < InventoryGridCells; i++)
+		MyPlayer->InvList[i].clear();
+	InitializeItem(MyPlayer->InvList[0], IDI_HARCREST);
+	MyPlayer->InvList[0]._iMagical = ITEM_QUALITY_UNIQUE;
+	MyPlayer->InvList[0]._iIdentified = true;
+	MyPlayer->InvList[0]._iIvalue = 5000;
+	MyPlayer->InvList[0]._iCreateInfo = 0;
+	MyPlayer->_pNumInv = 1;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	StartStore(TalkID::SmithSell);
+
+	ASSERT_EQ(storenumh, 1) << "the Harlequin Crest should appear in Griswold's sell list";
+	EXPECT_EQ(storehold[0].IDidx, IDI_HARCREST);
+}
+
 // User-reported bug: re-entering Griswold's "Buy Basic Items" screen after buying out his
 // entire stock bounced the player back out to the store menu instead of just showing an empty
 // list. StartStore's TalkID::SmithBuy case used to special-case an empty smithitem[] by calling

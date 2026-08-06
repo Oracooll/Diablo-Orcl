@@ -1305,6 +1305,7 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawGoldSplit(out);
 	}
 	DrawGoldWithdraw(out);
+	DrawRefreshUntilPrompt(out);
 	if (HelpFlag) {
 		DrawHelp(out);
 	}

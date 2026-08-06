@@ -207,6 +207,14 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.36 — Refresh Until Text Prompt, Back Button Fix, Sellable Uniques Fix
+
+- **New**: Griswold Premium's "Refresh Until" now opens an in-game text box to type the item name you're looking for, instead of requiring you to hand-edit `diablo.ini`. What you type is saved automatically for next time, same as before.
+- **Fixed**: The Back button in Griswold Premium didn't go back — clicking it triggered Refresh instead. The click-redirect logic used for Refresh/Refresh Until covered the *entire* row, leaving no room for Back itself.
+- **Fixed**: Several genuine Unique items awarded by NPCs (Skeleton King's Crown, Optic Amulet, Harlequin Crest, Ring of Truth, Steel Veil, and others) couldn't be sold to Griswold or Adria — they were wrongly treated as quest items due to a base-item-slot coincidence in vanilla's item table. Only The Butcher's Cleaver had this fixed before; now every genuine Unique item is covered.
+
+---
+
 ## v0.3.35 — Revert: Oracool Settings List Right-Alignment
 
 - **Reverted**: v0.3.34's smaller, right-aligned Oracool settings list. Back to the original font size and center alignment, same as every other settings category.

@@ -530,6 +530,10 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		WithdrawGoldKeyPress(vkey);
 		return;
 	}
+	if (IsRefreshUntilPromptOpen) {
+		RefreshUntilPromptKeyPress(vkey);
+		return;
+	}
 
 	if (sgnTimeoutCurs != CURSOR_NONE) {
 		return;
@@ -733,6 +737,9 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 		return;
 	}
 	if (IsWithdrawGoldOpen && HandleGoldWithdrawTextInputEvent(event)) {
+		return;
+	}
+	if (IsRefreshUntilPromptOpen && HandleRefreshUntilPromptTextInputEvent(event)) {
 		return;
 	}
 
@@ -2676,6 +2683,15 @@ void diablo_focus_unpause()
 bool PressEscKey()
 {
 	bool rv = false;
+
+	// Oracool: checked first, with an immediate return - the Refresh Until prompt stays open
+	// while its underlying store screen is still technically open (stextflag != TalkID::None),
+	// unlike every other dialog checked below, so this needs to close *only* the prompt itself
+	// rather than also falling through into the stextflag check and closing the whole store.
+	if (IsRefreshUntilPromptOpen) {
+		RefreshUntilPromptKeyPress(SDLK_ESCAPE);
+		return true;
+	}
 
 	if (DoomFlag) {
 		doom_close();

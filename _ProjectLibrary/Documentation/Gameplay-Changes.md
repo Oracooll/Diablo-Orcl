@@ -1110,3 +1110,29 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 
 - User feedback: "roll back the change we did on the oracool options list. i dont like it this way." Reverted OE-049's `settingsmenu.cpp` change verbatim - the `UiList` construction for the settings list now always uses `UiFlags::FontSize24 | UiFlags::AlignCenter`, the same as before OE-049 and the same as every other settings category.
 - Verification: the complete Debug build succeeds. Full regression suite (193 tests) passes unchanged.
+
+## OE-051: v0.3.36 Refresh Until text prompt, Back button fix, sellable-Uniques fix
+
+### New: Refresh Until target typed in-game instead of hand-edited into diablo.ini
+
+- User idea: "there is an existing dialog option for me... to input text in-game. this dialog ui pops up when i need to split gold stack or draw gold from the stash. but... this dialog does not support text, only numbers... can you use this dialog window (but you will need to enable it to accept text input) when i click on REFRESH UNTIL so i would be able mid-game to input the name of sought after item?" Investigated the existing gold dialogs and found the numbers-only restriction lives entirely in `NumberInputState` (`DiabloUI/text_input.hpp`), a thin digits-only filter wrapped around a fully generic `TextInputState` the engine already uses elsewhere (chat, in `control.cpp`) - no engine limitation to work around, just a different wrapper to use.
+- New `StartRefreshUntilPrompt`/`RefreshUntilPromptKeyPress`/`HandleRefreshUntilPromptTextInputEvent`/`DrawRefreshUntilPrompt` (`stores.cpp`/`.h`), modeled directly on `qol/stash.cpp`'s `StartGoldWithdraw`/`WithdrawGoldKeyPress`/etc. but using `TextInputState` instead of `NumberInputState`. Reuses the same dialog box art (`pGBoxBuff`) the gold dialogs already use.
+- Types directly into `sgOptions.Oracool.refreshUntilItemNames` itself (the exact `char[512]` field `GetPremiumRefreshTargets`/`RefreshPremiumUntilTarget` already read) rather than a separate scratch buffer - what's typed both drives the search immediately on Enter and persists to `diablo.ini` on the next options save, with no new option or save-format change needed. This is precisely what the user asked for: "relieve the users of having to edit ini file."
+- `SmithPremiumBuyEnter`'s Refresh Until branch now opens this prompt instead of immediately running the search against whatever was last saved.
+- Wired into every input path a modal dialog needs: `PressEscKey` (checked *first*, with an immediate return, since this prompt uniquely stays open while its underlying store screen is technically still open - closing just the prompt without also triggering the store's own `StoreESC()` needed its own priority slot), `diablo.cpp`'s keyboard and text-input dispatch (mirroring `IsWithdrawGoldOpen`'s existing call sites), and `scrollrt.cpp`'s render loop (`DrawRefreshUntilPrompt`, alongside `DrawGoldWithdraw`).
+- Verification: the complete Debug build succeeds. Full regression suite (194 tests) passes unchanged - no existing test seam covers live-cursor-driven modal text entry in this codebase.
+- Deferred: in-game manual verification (typing a name, confirming the search runs and the INI value persists) has not yet been performed.
+
+### Fixed: Back button in Griswold Premium triggered Refresh instead
+
+- User bug report: "BACK button in Griswold Premium doesnt go back. It refreshes the list. There might be some software overlaping of buttons here." Traced to `CheckStoreBtn`'s click-redirect for this screen (`stores.cpp`, added in OE-043 when Refresh/Refresh Until were moved onto Back's own row): it split the *entire* row at the horizontal midpoint, routing every click to either Refresh Until (left half) or Refresh (right half) - with zero region left for Back's own centered text, which sits in neither half.
+- Fixed by redirecting only within a generous fixed-width zone (100px) from each button's own border - comfortably wider than either short string ("Refresh"/"Refresh until") ever renders - leaving the whole middle of the row, where Back actually is, to fall through to normal Back handling.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no existing test coverage exercises store screen pixel-position click routing in this codebase.
+- Deferred: in-game manual verification has not yet been performed.
+
+### Fixed: genuine Unique items sharing a quest-item base-slot couldn't be sold
+
+- User bug report: "i cant sell unique items i was awarded from NPCs to griswold. They don't appear in the SELL ITEMS list." `SmithSellOk` already had a narrow exemption for this exact problem - The Butcher's Cleaver, since `IDI_CLEAVER == IDI_FIRSTQUEST` purely by vanilla's item-table ordering - but nothing else. Checking `itemdat.h`'s `_item_indexes` enum between `IDI_FIRSTQUEST` and `IDI_LASTQUEST` turned up several other real, lootable Unique items sharing the same coincidence: Skeleton King's Crown, Ring of Truth (`IDI_TRING`), Optic Amulet, Harlequin Crest, Steel Veil, and more.
+- Generalized both `SmithSellOk` and `WitchSellOk` (the latter had no exemption at all, just never hit in practice since Adria's sell filter already excludes most equipment types) to skip the quest-ID-range check whenever `item._iMagical == ITEM_QUALITY_UNIQUE` - a real quest item is never Unique-quality, so this single condition covers every current and future case instead of enumerating `IDidx`s one at a time.
+- New test `Stores.SmithSell_OtherQuestRangeUniquesAreSellableToo` (`test/stores_test.cpp`), mirroring the existing Cleaver test but with `IDI_HARCREST` (Harlequin Crest), confirming it's listed for sale.
+- Verification: the complete Debug build succeeds. Full regression suite (194 tests, including the new one) passes.
