@@ -447,6 +447,9 @@ void SaveOptions()
 	setBoolean("Event Log", *sgOptions.Oracool.eventLog,
 	    "; ----- EVENT LOG -----------------------------------------------------------------\n; Shows a small \"LOG\" button above the durability-warning icons that expands into a\n; timestamped log of noteworthy session events (game saves, boss kills, special item\n; drops, deaths). Session-only - not saved to disk.");
 
+	setBoolean("Furious Charge", *sgOptions.Oracool.furiousCharge,
+	    "; ----- FURIOUS CHARGE -----------------------------------------------------------------\n; Replaces the Warrior's free Item Repair skill with a charge attack: right-click a\n; monster with it readied to rush at double speed and swing on arrival, then a 3-second\n; cooldown before it's ready again. Single-player only; vanilla Item Repair returns when\n; this is off.");
+
 	setBoolean("Game Clock", *sgOptions.Oracool.gameClock,
 	    "; ----- GAME CLOCK -----------------------------------------------------------------\n; Shows the current real-world time just below the mini-map's left edge, mirroring the\n; LOG button on the opposite side.");
 
@@ -1287,6 +1290,7 @@ OracoolOptions::OracoolOptions()
     , tormentDifficultyMultiplier("Torment Difficulty Multiplier", OptionEntryFlags::None, N_("Torment Difficulty Multiplier"), N_("How much harder Torment is than Hell, applied on top of Hell's own monster and treasure scaling."), 20, { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50 })
     , miniMapEnabled("Mini-Map", OptionEntryFlags::None, N_("Mini-Map"), N_("Shows an always-on mini-map in the top-right corner during gameplay. Independent of TAB, which still opens/closes the normal full map."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
+    , furiousCharge("Furious Charge", OptionEntryFlags::None, N_("Furious Charge"), N_("Replaces the Warrior's free Item Repair skill with a charge attack: right-click a monster to rush it at double speed, then swing on arrival."), false)
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
     , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
@@ -1332,6 +1336,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&tormentDifficultyMultiplier,
 		&miniMapEnabled,
 		&eventLog,
+		&furiousCharge,
 		&gameClock,
 		&gameClock12HourFormat,
 		&xpCounter,

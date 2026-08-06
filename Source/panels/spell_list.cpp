@@ -12,6 +12,7 @@
 #include "engine/render/text_render.hpp"
 #include "inv_iterators.hpp"
 #include "options.h"
+#include "oracool/furious_charge.h"
 #include "panels/spell_icons.hpp"
 #include "player.h"
 #include "spells.h"
@@ -102,9 +103,29 @@ void DrawSpell(const Surface &out)
 	if (leveltype == DTYPE_TOWN && st != SpellType::Invalid && !GetSpellData(spl).isAllowedInTown())
 		st = SpellType::Invalid;
 
-	SetSpellTrans(st);
 	const Point position = GetMainPanel().position + Displacement { 565, 119 };
-	DrawLargeSpellIcon(out, position, spl);
+
+	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (Rage's -
+	// there's no dedicated art for a mod-only skill) and a gray-to-color bottom-up fill tracking
+	// its cooldown, instead of the normal single-color Item Repair icon.
+	if (oracool::IsFuriousChargeSpell(spl)) {
+		constexpr SpellID FuriousChargeIcon = SpellID::Rage;
+		const float progress = oracool::GetFuriousChargeCooldownProgress();
+		const int partition = static_cast<int>(SPLICONLENGTH * progress);
+		if (partition > 0) {
+			const Surface filledBand = out.subregionY(position.y - partition, partition);
+			SetSpellTrans(st);
+			DrawLargeSpellIcon(filledBand, { position.x, partition }, FuriousChargeIcon);
+		}
+		if (partition < SPLICONLENGTH) {
+			const Surface unfilledBand = out.subregionY(position.y - SPLICONLENGTH, SPLICONLENGTH - partition);
+			SetSpellTrans(SpellType::Invalid);
+			DrawLargeSpellIcon(unfilledBand, { position.x, SPLICONLENGTH }, FuriousChargeIcon);
+		}
+	} else {
+		SetSpellTrans(st);
+		DrawLargeSpellIcon(out, position, spl);
+	}
 
 	std::optional<string_view> hotkeyName = GetHotkeyName(spl, myPlayer._pRSplType, true);
 	if (hotkeyName)

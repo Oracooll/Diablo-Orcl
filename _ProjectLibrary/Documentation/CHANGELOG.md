@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.41 — Furious Charge
+
+- **New**: A new `Furious Charge` option (off by default) replaces the Warrior's free Item Repair skill with a charge attack. Right-click a monster with it readied to rush at double walking speed and swing on arrival, then a 3-second cooldown (shown as the skill icon dimming and refilling from the bottom up) before it's ready again. On cooldown, right-clicking a monster still attacks normally - just without the speed boost. Single-player only; vanilla Item Repair returns whenever this is off.
+
+---
+
 ## v0.3.40 — Reset Stats Fix: New Game No Longer Drops Spent-Point Tracking
 
 - **Fixed**: Starting a *New Game* with an existing hero (as opposed to *Load Game*/continuing) silently reset Reset Stats' tracking of how many points you'd manually put into Strength/Magic/Dexterity/Vitality, while leaving your actual attribute totals untouched. Clicking `RESET` afterward only refunded points spent since that New Game started, not your character's full history - the rest of your points stayed exactly where they were, just no longer refundable. This is now carried over correctly, the same way your attributes themselves already were. Points that were already stranded by this bug before updating can't be recovered retroactively, since the tracking data for them was already gone - but nothing from here on will lose it again.

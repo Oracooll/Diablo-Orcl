@@ -734,6 +734,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryTormentMultiplier tormentDifficultyMultiplier;
 	OptionEntryBoolean miniMapEnabled;
 	OptionEntryBoolean eventLog;
+	OptionEntryBoolean furiousCharge;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;
 	OptionEntryBoolean xpCounter;

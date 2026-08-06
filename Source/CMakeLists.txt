@@ -40,6 +40,7 @@ set(libdevilutionx_SRCS
   objects.cpp
   oracool/auto_save.cpp
   oracool/event_log.cpp
+  oracool/furious_charge.cpp
   oracool/game_clock.cpp
   oracool/save_indicator.cpp
   oracool/xp_counter.cpp

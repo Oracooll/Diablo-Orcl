@@ -536,6 +536,7 @@ void OverrideOptions()
 	sgOptions.Oracool.tormentDifficultyMultiplier.SetValue(20);
 	sgOptions.Oracool.miniMapEnabled.SetValue(false);
 	sgOptions.Oracool.eventLog.SetValue(false);
+	sgOptions.Oracool.furiousCharge.SetValue(false);
 	sgOptions.Oracool.gameClock.SetValue(false);
 	sgOptions.Oracool.gameClock12HourFormat.SetValue(false);
 	sgOptions.Oracool.xpCounter.SetValue(false);

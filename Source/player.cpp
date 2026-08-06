@@ -37,6 +37,7 @@
 #include "objects.h"
 #include "options.h"
 #include "oracool/event_log.h"
+#include "oracool/furious_charge.h"
 #include "oracool/oracool.h"
 #include "oracool/xp_gain_indicator.h"
 #include "player.h"
@@ -167,7 +168,9 @@ void HandleWalkMode(Player &player, Direction dir)
 void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 {
 	int8_t skippedFrames = -2;
-	if (leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0)
+	// Oracool: Furious Charge reuses the same double-speed frame-skip Run In Town already uses,
+	// rather than inventing a separate speed mechanic - see oracool/furious_charge.h.
+	if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || oracool::IsFuriousChargeDashing())
 		skippedFrames = 2;
 	if (pmWillBeCalled)
 		skippedFrames += 1;
@@ -200,6 +203,14 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	if (player._pInvincible && player._pHitPoints == 0 && &player == MyPlayer) {
 		SyncPlrKill(player, DeathReason::Unknown);
 		return;
+	}
+
+	// Oracool: a furious-charge dash resolves into this swing - end the dash and start the
+	// cooldown here so it fires regardless of whether the target was already adjacent (no walk
+	// needed) or reached after several walk steps.
+	if (oracool::IsFuriousChargeDashing()) {
+		oracool::StopFuriousChargeDash();
+		oracool::StartFuriousChargeCooldown();
 	}
 
 	int8_t skippedAnimationFrames = 0;
@@ -1165,6 +1176,9 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 	case ACTION_SPELLMON:
 		monster = &Monsters[targetId];
 		if ((monster->hitPoints >> 6) <= 0) {
+			// Oracool: the target died before a furious charge landed - cancel the dash without
+			// starting a cooldown (StopFuriousChargeDash is a no-op when not dashing).
+			oracool::StopFuriousChargeDash();
 			player.Stop();
 			return;
 		}
@@ -3266,6 +3280,21 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 				break;
 			}
 			LastMouseButtonAction = MouseActionType::None;
+		}
+		return;
+	}
+
+	// Oracool: with Furious Charge active, the Warrior's class-ability slot (SpellID::ItemRepair)
+	// stops casting Item Repair and instead dashes at the targeted monster - this fully replaces
+	// the normal spell dispatch below for that slot, never falling back to Repair's cursor-switch
+	// behavior. Off cooldown, the dash gets the speed boost (see StartWalkAnimation); on cooldown,
+	// it still attacks normally, just without the speed boost - the ability never "does nothing."
+	if (oracool::IsFuriousChargeSpell(spellID)) {
+		if (pcursmonst != -1 && !isShiftHeld) {
+			if (!oracool::IsFuriousChargeOnCooldown())
+				oracool::StartFuriousChargeDash();
+			LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+			NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
 		}
 		return;
 	}

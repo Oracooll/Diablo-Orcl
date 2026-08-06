@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "options.h"
+#include "oracool/furious_charge.h"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "storm/storm_net.hpp"
@@ -253,6 +254,40 @@ TEST(Player, ResetPlayerStats_SurvivesPlayerPackRoundTrip)
 	EXPECT_EQ(player._pStatPtsSpentMag, 0);
 	EXPECT_EQ(player._pStatPtsSpentDex, 0);
 	EXPECT_EQ(player._pStatPtsSpentVit, 0);
+}
+
+TEST(Player, FuriousCharge_IsFuriousChargeSpell_GatedByOptionClassAndMultiplayer)
+{
+	using namespace devilution::oracool;
+
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.furiousCharge.SetValue(false);
+	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "off by default - vanilla Item Repair must be untouched";
+
+	sgOptions.Oracool.furiousCharge.SetValue(true);
+	EXPECT_TRUE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "option on, single-player - this is the only case that substitutes";
+	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::Firebolt)) << "only the Warrior's own ItemRepair slot is ever substituted";
+	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::StaffRecharge)) << "the Sorcerer's innate skill must never be affected";
+
+	gbIsMultiplayer = true;
+	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "multiplayer always keeps vanilla Item Repair regardless of the option";
+
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.furiousCharge.SetValue(false);
+}
+
+TEST(Player, FuriousCharge_DashAndCooldownStateTransitions)
+{
+	using namespace devilution::oracool;
+
+	StartFuriousChargeDash();
+	EXPECT_TRUE(IsFuriousChargeDashing());
+	StopFuriousChargeDash();
+	EXPECT_FALSE(IsFuriousChargeDashing());
+
+	StartFuriousChargeCooldown();
+	EXPECT_TRUE(IsFuriousChargeOnCooldown());
+	EXPECT_LT(GetFuriousChargeCooldownProgress(), 1.0F) << "just-started cooldown must not already read as ready";
 }
 
 TEST(Player, ShouldDropGoldOnDeath_SinglePlayerNeverDrops)
