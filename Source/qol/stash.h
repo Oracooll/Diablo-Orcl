@@ -103,4 +103,12 @@ bool HandleGoldWithdrawTextInputEvent(const SDL_Event &event);
  */
 bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem);
 
+/**
+ * @brief Oracool: user request - re-sorts the entire Stash by item category (Weapons, Armor,
+ * Helms, Shields, Jewelry, then everything else), descending price within each category, packing
+ * each page as tightly as the existing first-fit placement algorithm (AutoPlaceItemInStash)
+ * already does. Triggered from Gillian's dialog ("Sort Stash").
+ */
+void SortStash(Player &player);
+
 } // namespace devilution

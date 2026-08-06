@@ -253,7 +253,11 @@ struct SpellData {
 
 	[[nodiscard]] bool isAllowedInTown() const
 	{
-		return HasAnyOf(flags, SpellDataFlags::AllowedInTown);
+		// Oracool: user request - every spell can now be cast in town (missiles.cpp's
+		// CheckMissileCol suppresses all monster/player damage while leveltype == DTYPE_TOWN, so
+		// this is purely a restriction lift, not a balance change - previously only a handful of
+		// utility spells (Town Portal, Identify, Infravision, ...) had the AllowedInTown flag set.
+		return true;
 	}
 };
 

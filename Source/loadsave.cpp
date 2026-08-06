@@ -2355,7 +2355,19 @@ void LoadHeroItems(Player &player)
 	gbIsHellfireSaveGame = gbIsHellfire;
 }
 
-constexpr uint8_t StashVersion = 0;
+// Oracool bug fix: user report - old Rare/Buffed Unique items pulled from the Stash showed wildly
+// wrong affix magnitudes (e.g. "+11126% fire resist") while their actual applied bonus (verified
+// by unequipping/re-equipping) stayed correct. Root cause: StashVersion tracked only the Stash
+// file's own page/grid layout, but every item embedded in it is also subject to
+// OracoolItemFormatVersion (loadsave.cpp), which has grown more than once (e.g. when
+// _iOracoolBroken was added) without StashVersion ever being bumped alongside it - so a Stash
+// file saved before one of those per-item growths got silently read with today's longer per-item
+// layout, byte-shifting every field after the divergence point (which is exactly why only some
+// affixes - the ones whose fields land after the shift - showed garbage, while the item's name
+// and base stats, read before it, stayed intact). Bumped to 1 and switched to an exact-match
+// check (matching heroitems/heroinvtabs's existing pattern) so a stale-format Stash is rejected
+// cleanly instead of silently misread.
+constexpr uint8_t StashVersion = 1;
 
 void LoadStash()
 {
@@ -2372,8 +2384,8 @@ void LoadStash()
 		return;
 
 	auto version = file.NextLE<uint8_t>();
-	if (version > StashVersion) {
-		EventPlrMsg(_("Stash version invalid. If you attempt to access your stash, data will be overwritten!!"), UiFlags::ColorRed);
+	if (version != StashVersion) {
+		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Oracool Edition and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
 

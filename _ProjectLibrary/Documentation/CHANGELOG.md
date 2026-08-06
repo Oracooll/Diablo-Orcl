@@ -207,6 +207,19 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.33 — Spells Castable In Town, Sort Stash, Item Popup Fixes
+
+**Important**: this update changes the Stash's save format. Any items currently in your Stash could not be carried forward and will be lost when you first load with this version — new items placed in the Stash from now on save correctly.
+
+- **New**: Every spell can now be cast while in town. None of them deal damage there (there's nothing to hit anyway, and other players/Towners are protected too) — this is purely for utility/fun casting, not a combat change.
+- **New**: Gillian's dialog gets a "Sort Stash" option — reorganizes your entire Stash by category (Weapons, Armor, Helms, Shields, Jewelry, then everything else), highest value first within each category, packed as tightly as possible page by page.
+- **New**: Ordinary magic (blue) items now also get the floating description popup that Unique and Rare/Buffed Unique/Primal items already had, with the item's name shown in blue.
+- **Fixed**: A Rare or Buffed Unique item's affix description could show absurdly large numbers (e.g. "+11126% fire resist") on items carried over from an older version, while the item's actual bonus stayed correct. Root cause was in how old Stash saves were read; see the important note above.
+- **Fixed**: The item description popup (for Unique/Rare/Buffed Unique/Primal/magic items) didn't render at all when both the Inventory and Character screens were open — now it shifts toward the middle of the screen instead of disappearing.
+- **Fixed**: The Griswold Premium screen's Refresh/Refresh Until buttons sat a few pixels above the Back button instead of sharing its row exactly.
+
+---
+
 ## v0.3.31 — Main Menu Fix, Option List Display Fix, Tab Colors, Alphabetical Options
 
 - **Fixed**: The ESC menu's "Main Menu" entry returned to the character-select screen instead of the actual title screen (Single Player / Multiplayer / Options / Exit Diablo). It now goes to the real title screen.

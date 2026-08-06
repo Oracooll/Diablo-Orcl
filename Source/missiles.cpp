@@ -411,9 +411,15 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 	int mx = position.x;
 	int my = position.y;
 
+	// Oracool: user request - every spell is now castable in town (see SpellData::isAllowedInTown),
+	// but none of them should deal damage there - town has no monsters to hit anyway, but this
+	// also protects other players/Towners standing nearby. Missiles still travel, animate, and
+	// collide with tiles/objects normally; only the monster/player damage below is skipped.
+	const bool suppressDamage = leveltype == DTYPE_TOWN;
+
 	bool isMonsterHit = false;
 	int mid = dMonster[mx][my];
-	if (mid > 0 || (mid != 0 && Monsters[abs(mid) - 1].mode == MonsterMode::Petrified)) {
+	if (!suppressDamage && (mid > 0 || (mid != 0 && Monsters[abs(mid) - 1].mode == MonsterMode::Petrified))) {
 		mid = abs(mid) - 1;
 		if (missile.IsTrap()
 		    || (missile._micaster == TARGET_PLAYERS && (                                           // or was fired by a monster and
@@ -437,7 +443,7 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 	bool isPlayerHit = false;
 	bool blocked = false;
 	const int8_t pid = dPlayer[mx][my];
-	if (pid > 0) {
+	if (!suppressDamage && pid > 0) {
 		if (missile._micaster != TARGET_BOTH && !missile.IsTrap()) {
 			if (missile._micaster == TARGET_MONSTERS) {
 				if ((pid - 1) != missile._misource)

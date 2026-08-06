@@ -635,15 +635,20 @@ void ScrollSmithPremiumBuy(int boughtitems)
 	// PremiumRefreshUntilLine()) for StoreEnter()'s dispatch and stextsel bookkeeping - only their
 	// rendered Y position (via _syoff) actually moves. CheckStoreBtn() below has the matching
 	// redirect that routes a click on Back's row to whichever of the three was actually clicked.
+	// Oracool bug fix: user report - Refresh/Refresh Until sat a few pixels higher than Back.
+	// The actual rendered Y of any line is stext[line].y + stext[line]._syoff (see the sy
+	// computation in PrintStoreItem/PrintSString) - AddItemListBackButton() (called once, before
+	// this function, in StartSmithPremiumBuy) already gives Back its own _syoff of 6 for exactly
+	// this screen's layout, which this calculation was not accounting for.
 	if (*sgOptions.Oracool.griswoldPremiumRefresh && !gbIsMultiplayer) {
 		const int line = PremiumRefreshLine();
 		AddSText(5, line, _("Refresh"), UiFlags::ColorWhite | UiFlags::AlignRight, true);
-		stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y - stext[line].y);
+		stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y + stext[BackButtonLine()]._syoff - stext[line].y);
 	}
 	if (*sgOptions.Oracool.refreshUntilButton && !gbIsMultiplayer) {
 		const int line = PremiumRefreshUntilLine();
 		AddSText(5, line, _("Refresh until"), UiFlags::ColorWhite, true);
-		stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y - stext[line].y);
+		stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y + stext[BackButtonLine()]._syoff - stext[line].y);
 	}
 }
 
@@ -1606,6 +1611,7 @@ void StartBarmaid()
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Gillian"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddSText(0, 14, _("Access Storage"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 16, _("Sort Stash"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
@@ -2583,6 +2589,9 @@ void BarmaidEnter()
 				NewCursor(CURSOR_HAND);
 			FocusOnInventory();
 		}
+		break;
+	case 16:
+		SortStash(*MyPlayer);
 		break;
 	case 18:
 		stextflag = TalkID::None;

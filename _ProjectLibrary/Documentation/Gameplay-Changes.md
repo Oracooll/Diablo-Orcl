@@ -1042,3 +1042,48 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - Confirmed via code inspection that the two other `Stash.RemoveStashItem` call sites (picking an item up out of the Stash onto the cursor, and transferring an item to inventory) are both "move the whole item elsewhere," not "consume one use of it" - correctly unaffected by this fix.
 - Verification: the complete Debug build succeeds. Full regression suite (192 tests across 8 binaries) passes unchanged - no existing test file covers the Stash's live-cursor-driven "use item" path (`test/` has no `stash_test.cpp`).
 - Deferred: in-game manual verification (reading a stacked book/potion/scroll/oil from the Stash and confirming exactly one unit is consumed) has not yet been performed.
+
+## OE-048: v0.3.33 Spells castable in town, Sort Stash, item popup fixes
+
+### New: Every spell is castable in town
+
+- User request: "idea: make spells castable in town. they will not do any dmg to anything in town." `SpellData::isAllowedInTown()` (`spelldat.h`) now unconditionally returns `true` instead of checking the per-spell `AllowedInTown` flag most spells never had set.
+- Damage suppression: `CheckMissileCol` (`missiles.cpp`) - the single function every damage-dealing missile funnels through (`MonsterMHit`/`PlayerMHit`/`Plr2PlrMHit`/`MonsterTrapHit` are called nowhere else in the codebase) - now skips both the monster-hit and player-hit blocks whenever `leveltype == DTYPE_TOWN`, while still letting the missile travel, animate, and collide with tiles/objects normally. This protects Towners and other players in multiplayer town, not just the (nonexistent) monsters.
+- Updated `InvTest.UseScroll_from_inventory_invalid_conditions`/`UseScroll_from_belt_invalid_conditions` (`test/inv_test.cpp`), whose town sub-case was asserting the now-intentionally-reversed old behavior.
+- Verification: the complete Debug build succeeds. Full regression suite (193 tests across 8 binaries, including the two updated tests) passes.
+- Deferred: in-game manual verification (casting a damage spell in town and confirming nothing takes damage, including another player in multiplayer) has not yet been performed.
+
+### New: Sort Stash (Gillian's dialog)
+
+- User request: "add Sort Stash dialog command in Gillian's dialog window. She should sort my stash following a few rules: 1. Sort by item type... 2. Descending price... 3. Try to efficiently fill up each page." Added a "Sort Stash" line to `StartBarmaid()`/`BarmaidEnter()` (`stores.cpp`), between "Access Storage" and "Say goodbye".
+- New `SortStash(Player&)` (`qol/stash.cpp`/`.h`): collects every item out of `Stash.stashList`, sorts by a new `StashSortCategoryRank()` (Weapons < Armor < Helms < Shields < Jewelry < everything else, by `ItemType`) then descending `GetItemSellValue()` within each category, clears every page, and re-places every item in that order via the existing `AutoPlaceItemInStash` first-fit-per-page scan - the same placement algorithm every normal stash deposit already uses, so "pack each page as tightly as possible" comes for free rather than needing a new packing heuristic.
+- New test `Stores.SortStash_OrdersByCategoryThenDescendingPrice` (`test/stores_test.cpp`): seeds the Stash with a Ring, two Swords (different values), and a piece of armor in scrambled order, calls `SortStash`, and confirms the resulting `Stash.stashList` order matches category-then-price, plus that every item actually landed somewhere on the grid.
+- Verification: the complete Debug build succeeds. Full regression suite (193 tests, including the new one) passes.
+
+### New: Magic (blue) items get the item description popup
+
+- User request: "make magic/blue items use the pop-up description window as well. their name in the description window to use vanilla blue font." `PrintItemDetails` (`items.cpp`) - the gate that decides which items set `ShowUniqueItemInfoBox`/`curruitem` - now also fires for `ITEM_QUALITY_MAGIC` (previously only vanilla Unique and Oracool tiered items), without printing the "unique item"/tier label those two cases show. `DrawUniqueInfo` gained a matching branch: draws the item's own name in `UiFlags::ColorBlue`, then its `_iPrePower`/`_iSufPower` affix lines the same way `PrintItemDetails` already lists them in the panel tooltip - no `UniqueItems[]` table lookup involved, since magic items don't have one.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no test coverage exercises this rendering path in this codebase.
+- Deferred: in-game manual verification has not yet been performed.
+
+### Fixed: old Stash saves silently corrupted Rare/Buffed Unique affix display
+
+- User bug report: a Rare Bastard Sword and a Buffed Unique helm, both created "a while back," showed absurd affix magnitudes ("+11126% fire resist", "+6912% armor", "+2595% chance to hit", "+2800 dex") in their description while their actually-applied bonus (confirmed by unequipping and re-equipping) stayed correct.
+- Root cause: `OracoolItemFormatVersion` (the per-item record layout inside `SaveItem`/`LoadItemData`, `loadsave.cpp`) has grown more than once since it was introduced (e.g. when `_iOracoolBroken` was added) - each growth was correctly guarded for `LoadHeroItems` and `LoadInventoryTabs`, but the Stash's own file-format constant, `StashVersion`, tracks only the Stash's page/grid layout and was never bumped alongside those per-item growths, even though every item embedded in the Stash goes through the exact same `LoadAndValidateItemData`/`LoadItemData` calls. A Stash saved before one of those per-item growths therefore got silently read with today's longer per-item layout, byte-shifting every field after the divergence point for each affected item - which is exactly why only *some* affixes on the user's items were wrong (the ones whose fields happened to land after the shift) while the item's name and base stats, read earlier in the same record, stayed intact.
+- Fixed by bumping `StashVersion` to 1 and switching its check from "reject only if newer than understood" to an exact-match check (matching the pattern `LoadHeroItems`/`LoadInventoryTabs` already use), so a stale-format Stash is rejected cleanly with a clear message instead of silently misread. **This means any existing Stash contents could not be carried forward and are cleared on first load with this version** - `SaveStash` writes the new version number from now on, so this is a one-time reset, not a recurring issue.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no existing test exercises a version-mismatched Stash file.
+- Deferred: in-game manual verification that a fresh Stash saves and loads correctly, and that a stale one is cleanly rejected rather than crashing, has not yet been performed.
+
+### Fixed: item description popup didn't render at all with the Character screen also open
+
+- User bug report: "the pop up description window for all new tiers of items + vanilla uniques does not render on top of screen when inventory and character screen are open... if character screen is open the description pop-up window does not render and i cant read items specs until i close the character screen." `DrawUniqueInfo` (`items.cpp`) had an early `return` whenever the popup's default position (just left of the Inventory panel) would overlap the Character/Quest/Stash panel on the left - meaning it simply never drew instead of finding a non-overlapping spot.
+- Fixed per the user's specified behavior: with only the Inventory open, the popup keeps its existing default position (unchanged, since it already doesn't overlap anything in that case); with the Character screen also open, the popup's X shifts to `(gnScreenWidth - SidePanelSize.width) / 2` (the horizontal middle of the screen) instead of not drawing - it can now overlap the Inventory/Character panels there, but stays visible, matching the user's explicit instruction to prioritize visibility over avoiding overlap. `DrawUniqueInfoWindow` (the popup's background box/dim-rect) now takes this same position as a parameter instead of computing its own fixed one, so the box and its text never drift apart.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no test coverage exercises popup positioning in this codebase.
+- Deferred: in-game manual verification of both layout cases (Inventory-only, Inventory+Character) has not yet been performed.
+
+### Fixed: Griswold Premium's Refresh/Refresh Until buttons a few pixels above Back
+
+- User bug report: "Refresh, Refresh Until and Back buttons in Griswold Premium Store are not aligned... my two extra buttons look a few pixel higher than Back button." `ScrollSmithPremiumBuy`'s `_syoff` calculation (`stores.cpp`, from the earlier alignment fix in OE-043) computed the offset needed to match Back's raw `.y` position, but never accounted for the fact that `AddItemListBackButton()` (called once before this function, for this exact screen) already gives Back its own `_syoff` of 6 - so Refresh/Refresh Until ended up matching Back's *unadjusted* position, landing 6px above its *actual* rendered one.
+- Fixed by adding `stext[BackButtonLine()]._syoff` into both offset calculations, so Refresh/Refresh Until now match Back's true rendered Y (`.y + ._syoff`), not just its raw `.y`.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no existing test coverage exercises store screen pixel-offset rendering in this codebase.
+- Deferred: in-game manual verification has not yet been performed.

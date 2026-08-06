@@ -94,7 +94,8 @@ TEST_F(InvTest, ConsumeScroll_stackedScroll_decrementsUntilEmpty)
 	EXPECT_TRUE(MyPlayer->InvList[2].isEmpty());
 }
 
-// Test that the scroll is not used in the inventory for each invalid condition
+// Test that the scroll is not used in the inventory for each invalid condition (town casting is
+// intentionally excluded from "invalid" - see the Oracool comment below).
 TEST_F(InvTest, UseScroll_from_inventory_invalid_conditions)
 {
 	// Empty the belt to prevent using a scroll from the belt
@@ -105,9 +106,11 @@ TEST_F(InvTest, UseScroll_from_inventory_invalid_conditions)
 	// Adjust inventory size
 	MyPlayer->_pNumInv = 5;
 
+	// Oracool: user request - every spell (and thus every scroll) is now castable in town;
+	// missiles.cpp's CheckMissileCol suppresses the resulting damage instead of blocking the cast.
 	set_up_scroll(MyPlayer->InvList[2], SpellID::Firebolt);
 	leveltype = DTYPE_TOWN;
-	EXPECT_FALSE(CanUseScroll(*MyPlayer, SpellID::Firebolt));
+	EXPECT_TRUE(CanUseScroll(*MyPlayer, SpellID::Firebolt));
 
 	set_up_scroll(MyPlayer->InvList[2], SpellID::Firebolt);
 	MyPlayer->_pRSpell = SpellID::Healing;
@@ -128,9 +131,11 @@ TEST_F(InvTest, UseScroll_from_belt_invalid_conditions)
 	// Disable the inventory to prevent using a scroll from the inventory
 	MyPlayer->_pNumInv = 0;
 
+	// Oracool: user request - every spell (and thus every scroll) is now castable in town;
+	// missiles.cpp's CheckMissileCol suppresses the resulting damage instead of blocking the cast.
 	set_up_scroll(MyPlayer->SpdList[2], SpellID::Firebolt);
 	leveltype = DTYPE_TOWN;
-	EXPECT_FALSE(CanUseScroll(*MyPlayer, SpellID::Firebolt));
+	EXPECT_TRUE(CanUseScroll(*MyPlayer, SpellID::Firebolt));
 
 	set_up_scroll(MyPlayer->SpdList[2], SpellID::Firebolt);
 	MyPlayer->_pRSpell = SpellID::Healing;

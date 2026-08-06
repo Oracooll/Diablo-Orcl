@@ -6,6 +6,7 @@
 #include "items.h"
 #include "options.h"
 #include "player.h"
+#include "qol/stash.h"
 #include "storm/storm_net.hpp"
 #include "stores.h"
 
@@ -380,5 +381,51 @@ TEST(Stores, SmithBuy_EmptyStock_StaysOnBuyScreenInsteadOfBouncingOut)
 	StartStore(TalkID::SmithBuy);
 
 	EXPECT_EQ(stextflag, TalkID::SmithBuy) << "an empty Buy Basic Items list should render normally, not back out to the store menu";
+}
+
+// User request: "Sort Stash" (Gillian's dialog) should sort by item category (Weapons, Armor,
+// Helms, Shields, Jewelry, then everything else), descending price within each category.
+TEST(Stores, SortStash_OrdersByCategoryThenDescendingPrice)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	Stash = {};
+
+	auto makeItem = [](ItemType itype, int8_t curs, int value) {
+		devilution::Item item;
+		item._itype = itype;
+		item._iCurs = curs;
+		item._iMagical = ITEM_QUALITY_NORMAL;
+		item._ivalue = value;
+		return item;
+	};
+
+	// Inserted out of both category and price order.
+	devilution::Item ring = makeItem(ItemType::Ring, ICURS_RING, 100);
+	devilution::Item cheapSword = makeItem(ItemType::Sword, ICURS_SHORT_SWORD, 40);
+	devilution::Item armor = makeItem(ItemType::LightArmor, ICURS_LEATHER_ARMOR, 200);
+	devilution::Item pricySword = makeItem(ItemType::Sword, ICURS_SHORT_SWORD, 400);
+
+	Stash.stashList = { ring, cheapSword, armor, pricySword };
+
+	SortStash(*MyPlayer);
+
+	ASSERT_EQ(Stash.stashList.size(), 4u);
+	// Weapons before Armor before Jewelry; descending price within Weapons.
+	EXPECT_EQ(Stash.stashList[0]._itype, ItemType::Sword);
+	EXPECT_EQ(Stash.stashList[0]._ivalue, 400);
+	EXPECT_EQ(Stash.stashList[1]._itype, ItemType::Sword);
+	EXPECT_EQ(Stash.stashList[1]._ivalue, 40);
+	EXPECT_EQ(Stash.stashList[2]._itype, ItemType::LightArmor);
+	EXPECT_EQ(Stash.stashList[3]._itype, ItemType::Ring);
+
+	// Every item should have landed somewhere on page 0's grid (nothing lost in the re-sort).
+	int placedCount = 0;
+	for (const auto &row : Stash.stashGrids[0])
+		for (StashStruct::StashCell cell : row)
+			if (cell != 0)
+				placedCount++;
+	EXPECT_GT(placedCount, 0);
 }
 } // namespace

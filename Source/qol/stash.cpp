@@ -72,6 +72,35 @@ void AddItemToStashGrid(unsigned page, Point position, uint16_t stashListIndex, 
 	}
 }
 
+/**
+ * @brief Oracool: category ordering for SortStash - Weapons, Armor, Helms, Shields, Jewelry, then
+ * everything else (potions, scrolls, books, oils, misc items, unique-slot items, etc).
+ */
+int StashSortCategoryRank(const Item &item)
+{
+	switch (item._itype) {
+	case ItemType::Sword:
+	case ItemType::Axe:
+	case ItemType::Bow:
+	case ItemType::Mace:
+	case ItemType::Staff:
+		return 0; // Weapons
+	case ItemType::LightArmor:
+	case ItemType::MediumArmor:
+	case ItemType::HeavyArmor:
+		return 1; // Armor
+	case ItemType::Helm:
+		return 2; // Helms
+	case ItemType::Shield:
+		return 3; // Shields
+	case ItemType::Ring:
+	case ItemType::Amulet:
+		return 4; // Jewelry
+	default:
+		return 5; // Others
+	}
+}
+
 std::optional<Point> FindTargetSlotUnderItemCursor(Point cursorPosition, Size itemSize)
 {
 	for (auto point : StashGridRange) {
@@ -748,6 +777,38 @@ bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
 	}
 
 	return false;
+}
+
+void SortStash(Player &player)
+{
+	struct SortEntry {
+		Item item;
+		int categoryRank;
+		int value;
+	};
+	std::vector<SortEntry> entries;
+	entries.reserve(Stash.stashList.size());
+	for (const Item &item : Stash.stashList)
+		entries.push_back({ item, StashSortCategoryRank(item), GetItemSellValue(item) });
+
+	std::stable_sort(entries.begin(), entries.end(), [](const SortEntry &a, const SortEntry &b) {
+		if (a.categoryRank != b.categoryRank)
+			return a.categoryRank < b.categoryRank;
+		return a.value > b.value;
+	});
+
+	// Gold isn't a grid item (it's tracked separately via Stash.gold) and every remaining item
+	// already passed IsItemAllowedInStash once to get here, so re-placing them all via
+	// AutoPlaceItemInStash - the same first-fit-per-page scan used for every normal stash
+	// deposit - is guaranteed to succeed and re-pack every page as tightly as that scan allows.
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	for (const SortEntry &entry : entries)
+		AutoPlaceItemInStash(player, entry.item, true);
+
+	Stash.dirty = true;
 }
 
 } // namespace devilution

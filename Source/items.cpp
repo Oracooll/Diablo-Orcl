@@ -1962,10 +1962,10 @@ void PrintItemOil(char iDidx)
 	}
 }
 
-void DrawUniqueInfoWindow(const Surface &out)
+void DrawUniqueInfoWindow(const Surface &out, Point position)
 {
-	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 24 - SidePanelSize.width, 327 }), (*pSTextBoxCels)[0]);
-	DrawHalfTransparentRectTo(out, GetRightPanel().position.x - SidePanelSize.width + 27, GetRightPanel().position.y + 28, 265, 297);
+	ClxDraw(out, position + Displacement { 24, 327 }, (*pSTextBoxCels)[0]);
+	DrawHalfTransparentRectTo(out, position.x + 27, position.y + 28, 265, 297);
 }
 
 void printItemMiscKBM(const Item &item, const bool isOil, const bool isCastOnTarget)
@@ -4442,12 +4442,17 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 
 void DrawUniqueInfo(const Surface &out)
 {
-	const Point position = GetRightPanel().position - Displacement { SidePanelSize.width, 0 };
+	Point position = GetRightPanel().position - Displacement { SidePanelSize.width, 0 };
+	// Oracool bug fix: user report - the popup used to simply not draw at all whenever the
+	// Character (or Quest/Stash) panel was also open, making item stats unreadable until that
+	// panel was closed. Instead of skipping the draw, slide the popup toward the horizontal
+	// middle of the screen - it's fine for it to overlap the Inventory/Character panels there,
+	// as long as it stays visible.
 	if (IsLeftPanelOpen() && GetLeftPanel().contains(position)) {
-		return;
+		position.x = (gnScreenWidth - SidePanelSize.width) / 2;
 	}
 
-	DrawUniqueInfoWindow(out);
+	DrawUniqueInfoWindow(out, position);
 
 	Rectangle rect { position + Displacement { 32, 56 }, { 257, 0 } };
 
@@ -4469,6 +4474,23 @@ void DrawUniqueInfo(const Surface &out)
 		for (int i = 0; i < curruitem._iOracoolSuffixCount; i++) {
 			rect.position.y += 2 * 12;
 			DrawString(out, PrintOracoolAffixPower(curruitem._iOracoolSuffixes[i], curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
+		}
+		return;
+	}
+
+	if (curruitem._iMagical == ITEM_QUALITY_MAGIC) {
+		// Oracool: user request - ordinary magic items, name in vanilla's blue font.
+		DrawString(out, curruitem._iIName, rect, { UiFlags::ColorBlue | UiFlags::AlignCenter });
+
+		const int numPowers = (curruitem._iPrePower != -1 ? 1 : 0) + (curruitem._iSufPower != -1 ? 1 : 0);
+		rect.position.y += (10 - numPowers) * 12;
+		if (curruitem._iPrePower != -1) {
+			rect.position.y += 2 * 12;
+			DrawString(out, PrintItemPower(curruitem._iPrePower, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
+		}
+		if (curruitem._iSufPower != -1) {
+			rect.position.y += 2 * 12;
+			DrawString(out, PrintItemPower(curruitem._iSufPower, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
 		}
 		return;
 	}
@@ -4519,8 +4541,18 @@ void PrintItemDetails(const Item &item)
 	if (item._iSufPower != -1) {
 		AddPanelString(PrintItemPower(item._iSufPower, item));
 	}
-	if (item._iMagical == ITEM_QUALITY_UNIQUE || item.hasOracoolTier()) {
-		AddPanelString(item.hasOracoolTier() ? GetOracoolTierPanelLabel(item._iOracoolTier) : _("unique item"));
+	// Oracool: user request - the popup description window used to cover only vanilla Unique and
+	// Oracool tiered items; ordinary magic (blue) items now get it too (see the matching branch
+	// in DrawUniqueInfo), without the "unique item"/tier label those two cases print.
+	if (item.hasOracoolTier()) {
+		AddPanelString(GetOracoolTierPanelLabel(item._iOracoolTier));
+		ShowUniqueItemInfoBox = true;
+		curruitem = item;
+	} else if (item._iMagical == ITEM_QUALITY_UNIQUE) {
+		AddPanelString(_("unique item"));
+		ShowUniqueItemInfoBox = true;
+		curruitem = item;
+	} else if (item._iMagical == ITEM_QUALITY_MAGIC) {
 		ShowUniqueItemInfoBox = true;
 		curruitem = item;
 	}
