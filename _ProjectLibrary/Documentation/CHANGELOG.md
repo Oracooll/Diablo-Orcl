@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.47 — Griswold "Repair All" Button
+
+- **New**: Griswold's Repair shop now has a "Repair all" button, right above Back next to the item list, matching the existing "Sell all" button in his Sell shop. Repairs every damaged item it lists (worn equipment plus your backpack) one at a time, most expensive repair first, stopping if you run out of gold partway through rather than skipping ahead to something cheaper.
+
+---
+
 ## v0.3.46 — Fixed Magic/Rare/Buffed Unique/Primal Item Names Not Matching Between Ground and Inventory
 
 - **Fixed**: A magic, Rare, Buffed Unique, or Primal item's name shown in the bottom info bar (hovering on the ground, in your inventory, anywhere) could disagree with its real name shown in the item's popup description window - sometimes inventing a prefix or suffix word the item never actually had, sometimes dropping one it did have, and for Rare/Buffed Unique/Primal items, replacing the correct tier name (e.g. "Rare Amulet") with a fabricated, unrelated vanilla-style name entirely. The item's actual stats were never affected - only this one name text was wrong, and only outside the popup window. Every existing affected item is fixed automatically the next time its name is shown; no repair needed.

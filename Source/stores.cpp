@@ -225,6 +225,12 @@ int SmithSellAllLine()
 	return BackButtonLine() - 2;
 }
 
+/** @brief Oracool: user request - "Repair all", same row/style as the existing "Sell all" button. */
+int SmithRepairAllLine()
+{
+	return BackButtonLine() - 2;
+}
+
 bool HasSmithUniqueShop()
 {
 	return !gbIsMultiplayer && *sgOptions.Oracool.griswoldSellUniqueItems;
@@ -1020,6 +1026,8 @@ void StartSmithRepair()
 
 	ScrollSmithSell(stextsval);
 	AddItemListBackButton();
+	if (!gbIsMultiplayer)
+		AddSText(0, SmithRepairAllLine(), _("Repair all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 void FillManaPlayer()
@@ -2085,8 +2093,42 @@ void SmithRepairItem(int price)
 	TakePlrsMoney(price);
 }
 
+/**
+ * @brief Oracool: user request - "Repair all" button, same list-rebuild-and-repeat pattern as the
+ * existing SmithSellAllItems. Repairs storehold[0] over and over (StartSmithRepair already sorts
+ * the list by descending repair cost, so this repairs the most expensive items first) until
+ * either nothing's left to repair or the player can't afford the next one, at which point it stops
+ * rather than skipping ahead to a cheaper item - matching how Sell All stops instead of skipping
+ * past an item that won't fit.
+ */
+void SmithRepairAllItems()
+{
+	while (true) {
+		StartSmithRepair();
+		if (storenumh == 0)
+			break;
+		if (!PlayerCanAfford(storehold[0]._iIvalue)) {
+			stextshold = TalkID::SmithRepair;
+			stextlhold = SmithRepairAllLine();
+			stextvhold = 0;
+			StartStore(TalkID::NoMoney);
+			return;
+		}
+
+		stextvhold = 0;
+		stextlhold = stextup;
+		SmithRepairItem(storehold[0]._iIvalue);
+	}
+
+	StartStore(TalkID::SmithRepair);
+}
+
 void SmithRepairEnter()
 {
+	if (!gbIsMultiplayer && stextsel == SmithRepairAllLine()) {
+		SmithRepairAllItems();
+		return;
+	}
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Smith);
 		stextsel = SmithMenuLine(TalkID::SmithRepair);
