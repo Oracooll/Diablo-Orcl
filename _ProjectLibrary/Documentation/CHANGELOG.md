@@ -207,6 +207,13 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.34 — Griswold Premium Divider Fix, Oracool Settings List Right-Aligned
+
+- **Fixed**: The horizontal golden divider between Griswold Premium's item list and its Back/Refresh/Refresh Until row disappeared whenever "Refresh Until" was enabled.
+- **Changed**: The Oracool Edition settings list now uses a smaller font and right-aligns each row, so every option's ON/OFF (or other) value lines up in one column along the right edge. Every other settings category is unaffected.
+
+---
+
 ## v0.3.33 — Spells Castable In Town, Sort Stash, Item Popup Fixes
 
 **Important**: this update changes the Stash's save format. Any items currently in your Stash could not be carried forward and will be lost when you first load with this version — new items placed in the Stash from now on save correctly.

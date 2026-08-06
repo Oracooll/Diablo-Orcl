@@ -185,14 +185,24 @@ int BackButtonLine()
 	return 22;
 }
 
+/**
+ * @brief Oracool bug fix: user report - the horizontal golden divider between the premium item
+ * list and the Back/Refresh/Refresh Until row disappeared whenever Refresh Until was enabled.
+ * Root cause: AddItemListBackButton() only draws that divider (via AddSLine) in the non-tall-font
+ * case, at BackButtonLine()-1 - the exact line index PremiumRefreshUntilLine() used to return, so
+ * setting up the Refresh Until button (AddSText) on that same line silently overwrote the
+ * divider's line type with a normal text line. Shifted one line earlier specifically for the
+ * non-tall-font case to stay clear of it; the tall-font case never draws a divider here, so its
+ * offset is unchanged.
+ */
 int PremiumRefreshLine()
 {
-	return BackButtonLine() - 2;
+	return IsSmallFontTall() ? BackButtonLine() - 2 : BackButtonLine() - 3;
 }
 
 int PremiumRefreshUntilLine()
 {
-	return BackButtonLine() - 1;
+	return IsSmallFontTall() ? BackButtonLine() - 1 : BackButtonLine() - 2;
 }
 
 int SmithSellAllLine()

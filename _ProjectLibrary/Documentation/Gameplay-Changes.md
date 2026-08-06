@@ -1087,3 +1087,20 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - Fixed by adding `stext[BackButtonLine()]._syoff` into both offset calculations, so Refresh/Refresh Until now match Back's true rendered Y (`.y + ._syoff`), not just its raw `.y`.
 - Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no existing test coverage exercises store screen pixel-offset rendering in this codebase.
 - Deferred: in-game manual verification has not yet been performed.
+
+## OE-049: v0.3.34 Griswold Premium divider fix, Oracool settings list right-aligned
+
+### Fixed: Griswold Premium's item-list divider vanished when Refresh Until was enabled
+
+- User bug report: "the back button in the all shops of all vendors sits surrounded by golden borders... but now i notice that when refresh until button is ON, the horizontal golden border between the three buttons... and the premium items list has disappeared. only the refresh until button causes this... the refresh button alone... doesnt cause this."
+- Root cause: `AddItemListBackButton()` (`stores.cpp`, shared by every item-list store screen) draws a horizontal divider via `AddSLine(BackButtonLine() - 1)` in the non-tall-font case - and `PremiumRefreshUntilLine()` used to return that exact same line index. `AddSLine`/`AddSText` both write into the same `stext[y]` slot, with `type` set to `STextStruct::Divider` or `Selectable` respectively - so setting up the Refresh Until button on that line (`ScrollSmithPremiumBuy`) silently overwrote the divider's `type`, erasing it. `PremiumRefreshLine()` (used by plain Refresh, one line earlier) never collided with anything, which is why enabling Refresh alone never showed the bug.
+- Fixed by shifting both `PremiumRefreshLine()`/`PremiumRefreshUntilLine()` one line earlier, but only in the non-tall-font case (where the divider actually exists) - the tall-font case never draws a divider on this screen at all, so its offsets are unchanged. Lines 19/20 (used by neither the item list, which stops at line 18, nor the divider/Back) are free in both cases.
+- Verification: the complete Debug build succeeds. Full regression suite (193 tests) passes unchanged - no existing test coverage exercises store screen line-index bookkeeping in this codebase.
+- Deferred: in-game manual verification (confirming the divider stays visible with Refresh Until on, in both font-size configurations) has not yet been performed.
+
+### Changed: Oracool settings list right-aligned with a smaller font
+
+- User request: "can you make the oracool options list font one size smaller and align all options to the rights, so the statuse ON/OFF of all options are neatly aligned in one column?" The settings menu's list widget (`settingsmenu.cpp`) is a single shared `UiList` reconstructed fresh each time a category is entered, using one fixed `UiFlags` combination (`FontSize24 | AlignCenter`) applied to every row's `"{name}: {value}"` string - centering means each row's total pixel width (name length + value length) shifts the whole line left/right independently, so values never line up between rows.
+- Switched to `FontSize12 | AlignRight` specifically when `selectedCategory == &sgOptions.Oracool` - `AlignRight` anchors the combined string's *right* edge (where the value sits) to the same X for every row regardless of the name's length, which is what actually produces a lined-up column; only the value substrings' own differing widths (e.g. "ON" vs "OFF") introduce any residual few-pixel wobble. Every other settings category keeps its original `FontSize24 | AlignCenter` look - this required no change to the shared per-row string-building logic, only the one `UiList` construction call's flags.
+- Verification: the complete Debug build succeeds. Full regression suite passes unchanged - no test coverage exercises settings-menu list rendering in this codebase.
+- Deferred: in-game manual verification has not yet been performed.
