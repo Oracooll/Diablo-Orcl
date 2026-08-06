@@ -26,18 +26,6 @@ Breaking down unwanted items into materials. The new persistent state here (a ma
 
 A Diablo 2-style skill tree with per-skill investment and cross-skill synergy bonuses, as opposed to vanilla Diablo 1's simpler spell-book/spell-level system. Per-skill point allocation is player-scoped data, not per-item — like `heroinvtabs`, it can be its own new, absent-tolerant save file (a save from before this feature simply has no points invested). This avoids the per-item, per-container sync fragility that was the actual reason the old item-tier sidecar got merged into the core record in the v0.2.0 Foundations Pass — that lesson is about item data living in multiple containers (backpack/belt/tabs/stash/ground), which doesn't apply to a single player-level skill sheet.
 
-### Warrior's Furious Charge (floated 2026-08-06, not started)
-
-Replace the Warrior class's free innate ability (`SpellID::ItemRepair`, set via `PlayersData[HeroClass::Warrior].skill` in `playerdat.cpp`) with a new "Furious Charge" skill — a player-controlled dash toward a targeted direction that damages anything hit along the way, aimed at closing distance on archers and other monsters that kite. User's own framing: "that way i can chase down archers who constantly run away from me."
-
-Decisions locked in when floated:
-- **Targeting**: free-aim like a spell (aim with the cursor, same input model as casting Firebolt), not an auto-lock-nearest-enemy version.
-- **Toggle**: a new Oracool option, off by default — vanilla Warriors keep free self-repair unless the option is turned on. When on, it swaps the Warrior's class-ability slot from Item Repair to Furious Charge; Griswold's paid repair still exists either way, so losing free self-repair isn't a hard loss.
-
-Scope, for whoever picks this up: needs a new `SpellID`/`spelldat.cpp` entry, a new `MissileID` implementing the actual dash (movement + hit-detection along the path, most likely a new player mode alongside the existing `PM_*` states for attacking/walking), and UI wiring so the class-ability slot shows the right skill per the toggle. This is a materially bigger build than most single-session Oracool features — closer in scope to Tabbed Inventory or Torment than a quick option add.
-
-Classified **non-save-breaking**: nothing about the charge itself needs to survive a save/load (it's a live, transient action state like walking or attacking, not a stored value), and the toggle is a plain INI option. Revisit this classification if the eventual design ends up wanting something persisted (e.g. a cooldown that must survive a save mid-cooldown) that the current live-only state can't cover.
-
 ---
 
 ## Save-breaking (batch together for one later pass)
