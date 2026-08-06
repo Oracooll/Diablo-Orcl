@@ -52,6 +52,14 @@ void DrawSmallSpellIconBorder(const Surface &out, Point position);
  */
 void SetSpellTrans(SpellType t);
 
+/**
+ * @brief Oracool: red variant of SetSpellTrans(SpellType::Invalid), used by Furious Charge's
+ * cooldown fill (panels/spell_list.cpp) to read as "still on cooldown" rather than "unusable."
+ * No SpellType enum value for this - SpellType classifies *how* a skill is cast (Spell/Scroll/
+ * Charges/Skill), a concept that has nothing to do with a mod-only cooldown timer.
+ */
+void SetSpellTransRed();
+
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();
 

@@ -106,21 +106,28 @@ void DrawSpell(const Surface &out)
 	const Point position = GetMainPanel().position + Displacement { 565, 119 };
 
 	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (Rage's -
-	// there's no dedicated art for a mod-only skill) and a gray-to-color bottom-up fill tracking
-	// its cooldown, instead of the normal single-color Item Repair icon.
+	// there's no dedicated art for a mod-only skill) instead of the normal single-color Item
+	// Repair icon. User request - the cooldown fill grows in red (rather than the ready color)
+	// bottom-up as it cools, then flips to the normal ready tint the instant it's fully cooled,
+	// instead of gradually blending from gray to color.
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		constexpr SpellID FuriousChargeIcon = SpellID::Rage;
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
-		const int partition = static_cast<int>(SPLICONLENGTH * progress);
-		if (partition > 0) {
-			const Surface filledBand = out.subregionY(position.y - partition, partition);
+		if (progress >= 1.0f) {
 			SetSpellTrans(st);
-			DrawLargeSpellIcon(filledBand, { position.x, partition }, FuriousChargeIcon);
-		}
-		if (partition < SPLICONLENGTH) {
-			const Surface unfilledBand = out.subregionY(position.y - SPLICONLENGTH, SPLICONLENGTH - partition);
-			SetSpellTrans(SpellType::Invalid);
-			DrawLargeSpellIcon(unfilledBand, { position.x, SPLICONLENGTH }, FuriousChargeIcon);
+			DrawLargeSpellIcon(out, position, FuriousChargeIcon);
+		} else {
+			const int partition = static_cast<int>(SPLICONLENGTH * progress);
+			if (partition > 0) {
+				const Surface filledBand = out.subregionY(position.y - partition, partition);
+				SetSpellTransRed();
+				DrawLargeSpellIcon(filledBand, { position.x, partition }, FuriousChargeIcon);
+			}
+			if (partition < SPLICONLENGTH) {
+				const Surface unfilledBand = out.subregionY(position.y - SPLICONLENGTH, SPLICONLENGTH - partition);
+				SetSpellTrans(SpellType::Invalid);
+				DrawLargeSpellIcon(unfilledBand, { position.x, SPLICONLENGTH }, FuriousChargeIcon);
+			}
 		}
 	} else {
 		SetSpellTrans(st);

@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.51 — Furious Charge Cooldown Now Fills Red Instead of Gray-to-Color
+
+- **Changed**: Furious Charge's cooldown icon now fills bottom-up in red as it cools down, then switches instantly to its normal ready color the moment it's fully cooled - instead of gradually blending from gray to the ready color.
+
+---
+
 ## v0.3.50 — Repositioned Griswold's "Repair All" Button
 
 - **Fixed**: "Repair all" now sits flush against the right golden border, sharing Back's row - the same position as Griswold Premium's own "Refresh" button - instead of its own centered row above Back.

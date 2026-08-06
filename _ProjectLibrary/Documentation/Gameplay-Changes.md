@@ -1301,7 +1301,7 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 
 ---
 
-## OE-066: v0.3.50 Repositioned "Repair All" to match Refresh's exact placement
+## OE-065: v0.3.50 Repositioned "Repair All" to match Refresh's exact placement
 
 - User correction: the initial "Repair all" button (OE-062) landed in its own centered row above Back, mirroring the existing "Sell all" button's placement. The user clarified they specifically wanted Refresh's placement instead: horizontally aligned with Back's row, flush against the right golden border, 5 pixels in from it.
 - `AddSText`'s first parameter (`x`, stored as `stext[y]._sx`) combined with `AlignRight` is exactly what Refresh already uses for that 5px-from-border anchor (`ScrollSmithPremiumBuy`, `AddSText(5, line, _("Refresh"), UiFlags::ColorWhite | UiFlags::AlignRight, true)`) - confirmed by reading `AddSText`'s implementation before assuming.
@@ -1310,3 +1310,16 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - That new branch is explicitly gated on `stextflag == TalkID::SmithRepair`, unlike the two pre-existing Premium branches (which rely solely on `hasText()`, trusting that only the Premium Buy screen ever populates those specific line indices). Checked whether that trust assumption still holds once `SmithRepairAllLine()` existed: `SmithRepairAllLine()` always returns `BackButtonLine() - 2`, while `PremiumRefreshLine()`/`PremiumRefreshUntilLine()` return `BackButtonLine() - 2`/`-1` (tall font) or `-3`/`-2` (non-tall) - meaning in non-tall-font mode, `SmithRepairAllLine()` and `PremiumRefreshUntilLine()` numerically coincide. Since only one store screen's content ever populates `stext[]` at a time, this wouldn't misfire in practice either way, but the explicit `stextflag` check removes the ambiguity outright rather than relying on the coincidence resolving harmlessly.
 - No new tests: pure UI-dispatch/rendering-position code, same class as `SmithRepairAllItems` itself (OE-062) - verified by build and the full regression suite, matching that same entry's stated testing boundary.
 - Verification: full regression suite (218 tests across 9 targets) passes. Deferred: in-game manual verification (confirm "Repair all" now renders flush-right on Back's row in both font-size settings, and that clicking it, clicking Back, and clicking dead-center all still do the right thing) has not yet been performed.
+
+---
+
+## OE-066: v0.3.51 Furious Charge's cooldown fill is red instead of gray-to-color
+
+- User idea: while Furious Charge is cooling down, fill the skill icon red; once fully cooled, switch to the icon's normal color.
+- Furious Charge's cooldown was already visualized as a bottom-up fill (OE-056) - a growing "colored" band (using whatever tint the general castability check computed, `SetSpellTrans(st)`) and a shrinking "grayed" band (`SetSpellTrans(SpellType::Invalid)`) above it, so the icon read as gradually blending from gray to its ready color as the cooldown progressed.
+- `SpellType` (`Source/spelldat.h`) only has five values - `Skill`/`Spell`/`Scroll`/`Charges`/`Invalid` - none of them red; the enum classifies *how* a skill is cast, a concept with nothing to do with a mod-only cooldown timer, so growing it for this felt like the wrong lever. `SplTransTbl`, the actual palette-remap table `SetSpellTrans` writes into, is a file-local static in `Source/panels/spell_icons.cpp` with no way to reach it from outside.
+- Added one small function instead of touching the enum: `SetSpellTransRed()` (`spell_icons.hpp`/`.cpp`) - a straight copy of `SetSpellTrans(SpellType::Invalid)`'s existing palette-remap logic with `PAL16_GRAY` swapped for `PAL16_RED` (already used elsewhere in the game, e.g. the automap's stairs marker, at the same 16-entry-ramp convention as the other `SpellType` cases).
+- `panels/spell_list.cpp`'s Furious Charge draw branch restructured: while still cooling (`progress < 1.0`), the growing bottom band now calls `SetSpellTransRed()` instead of `SetSpellTrans(st)` (the shrinking top band keeps its existing gray, unchanged); once `progress >= 1.0`, it skips the two-band fill entirely and draws the whole icon once with the normal `SetSpellTrans(st)` tint - an instant switch to ready-color rather than the fill mechanic's last frame happening to already be 100% "ready-color colored" under the old scheme.
+- No new Oracool option - this is a pure visual refinement of the existing Furious Charge cooldown indicator, gated by the same `furiousCharge` option that already controls whether the feature exists at all.
+- No new tests: this is rendering/palette-table code with no game-state logic to unit test, matching the established boundary for anything requiring a live `Surface` (see OE-060's `DrawMonsterHelper` note).
+- Verification: full regression suite (218 tests across 9 targets) passes. Deferred: in-game manual verification (trigger a charge, watch the icon fill red bottom-up, and confirm it snaps to normal color the instant the cooldown ends) has not yet been performed.
