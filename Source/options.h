@@ -739,6 +739,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean gameClock12HourFormat;
 	OptionEntryBoolean xpCounter;
 	OptionEntryBoolean xpGainIndicator;
+	OptionEntryBoolean remainingMonsterXpButton;
 	OptionEntryRangeOrOff monsterRangeHighlight;
 	OptionEntryBoolean monsterWallOutline;
 };

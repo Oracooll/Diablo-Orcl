@@ -541,6 +541,7 @@ void OverrideOptions()
 	sgOptions.Oracool.gameClock12HourFormat.SetValue(false);
 	sgOptions.Oracool.xpCounter.SetValue(false);
 	sgOptions.Oracool.xpGainIndicator.SetValue(false);
+	sgOptions.Oracool.remainingMonsterXpButton.SetValue(false);
 	sgOptions.Oracool.monsterRangeHighlight.SetValue(0);
 	sgOptions.Oracool.monsterWallOutline.SetValue(false);
 	sgOptions.Oracool.autoPickupRange.SetValue(1);

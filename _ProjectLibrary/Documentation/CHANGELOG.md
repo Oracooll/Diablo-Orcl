@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.49 — XP Counter Doubles as a "Remaining Monster XP" Button
+
+- **New**: Press and hold the XP Counter (new `Remaining Monster XP Button` option, on by default) to see, in white, the total experience worth of every monster still alive on this level - adjusted for your current character level, exactly the way a real kill's experience is calculated. Release to go back to the normal gold "experience to next level" readout.
+
+---
+
 ## v0.3.48 — XP Counter Thousands Separator
 
 - **New**: The XP Counter below the mini-map now groups its number with commas (e.g. "1,234,567" instead of "1234567"), matching how gold amounts are already displayed everywhere else.

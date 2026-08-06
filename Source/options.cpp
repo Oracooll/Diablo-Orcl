@@ -460,6 +460,8 @@ void SaveOptions()
 	    "; ----- XP COUNTER -----------------------------------------------------------------\n; Shows the experience remaining until your next level just below the mini-map,\n; centered between the Game Clock and the LOG button. Hidden at max level.");
 	setBoolean("XP Gain Indicator", *sgOptions.Oracool.xpGainIndicator,
 	    "; Briefly flashes \"+N\" just below the XP Counter for half a second whenever you gain\n; experience.");
+	setBoolean("Remaining Monster XP Button", *sgOptions.Oracool.remainingMonsterXpButton,
+	    "; Press and hold the XP Counter to see, in white, the total experience worth of every\n; monster still alive on this level (adjusted for your current character level, exactly like\n; a real kill would be). Releases back to the normal readout.");
 	setInteger("Monster Range Highlight", *sgOptions.Oracool.monsterRangeHighlight,
 	    "; Monsters within this many tiles of the player get the same red outline normally shown\n; only when hovering them. Values: 0 (OFF), 1-5.");
 	setBoolean("Monster Wall Outline", *sgOptions.Oracool.monsterWallOutline,
@@ -1295,6 +1297,7 @@ OracoolOptions::OracoolOptions()
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
     , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
     , xpGainIndicator("XP Gain Indicator", OptionEntryFlags::None, N_("XP Gain Indicator"), N_("Briefly flashes the experience gained just below the XP Counter."), true)
+    , remainingMonsterXpButton("Remaining Monster XP Button", OptionEntryFlags::None, N_("Remaining Monster XP Button"), N_("Press and hold the XP Counter to see the total experience worth of every monster still alive on this level."), true)
     , monsterRangeHighlight("Monster Range Highlight", OptionEntryFlags::None, N_("Monster Range Highlight"), N_("Monsters within this many tiles get the same red outline shown when hovering them."), 0, { 0, 1, 2, 3, 4, 5 })
     , monsterWallOutline("Monster Wall Outline", OptionEntryFlags::None, N_("Monster Wall Outline"), N_("Draws a red outline on monsters hidden behind walls or other architecture, so you can tell they're there."), false)
 {
@@ -1341,6 +1344,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&gameClock12HourFormat,
 		&xpCounter,
 		&xpGainIndicator,
+		&remainingMonsterXpButton,
 		&monsterRangeHighlight,
 		&monsterWallOutline,
 	};

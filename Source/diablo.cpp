@@ -62,6 +62,7 @@
 #include "objects.h"
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
+#include "oracool/xp_counter.h"
 #include "options.h"
 #include "panels/info_box.hpp"
 #include "panels/spell_book.hpp"
@@ -355,6 +356,11 @@ void LeftMouseDown(uint16_t modState)
 	if (oracool::CheckEventLogButtonClick(MousePosition))
 		return;
 
+	// Oracool: same reasoning as the event log button above - the XP Counter sits in the same
+	// always-visible row below the mini-map.
+	if (oracool::CheckXpCounterButtonClick(MousePosition))
+		return;
+
 	const bool isShiftHeld = (modState & KMOD_SHIFT) != 0;
 	const bool isCtrlHeld = (modState & KMOD_CTRL) != 0;
 
@@ -417,6 +423,7 @@ void LeftMouseUp(uint16_t modState)
 	if (stextflag != TalkID::None)
 		ReleaseStoreBtn();
 	inventorySortButtonDown = false;
+	oracool::ReleaseXpCounterButton();
 }
 
 void RightMouseDown(bool isShiftHeld)
