@@ -77,7 +77,18 @@ struct PlayerPack {
 	uint32_t pDiabloKillLevel;
 	uint32_t pDifficulty;
 	uint32_t pDamAcFlags;  // `ItemSpecialEffectHf` is 1 byte but this is 4 bytes.
-	uint8_t reserved3[20]; // For future use
+	/**
+	 * @brief Oracool Reset Stats: repurposes 16 of these 20 previously-inert bytes (same pattern
+	 * as loadsave.cpp's SavePlayer/LoadPlayer) so starting a New Game with an existing hero
+	 * carries over manually-spent stat points too - previously only "Load Game" preserved them,
+	 * since it re-reads the full save via LoadPlayer after this compact struct is unpacked, while
+	 * starting a fresh New Game never does, silently losing the tracking. See player.h.
+	 */
+	int32_t pStatPtsSpentStr;
+	int32_t pStatPtsSpentMag;
+	int32_t pStatPtsSpentDex;
+	int32_t pStatPtsSpentVit;
+	uint8_t reserved3[4]; // For future use
 };
 
 union ItemNetPack {

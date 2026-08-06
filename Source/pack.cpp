@@ -168,6 +168,10 @@ void PackPlayer(PlayerPack &packed, const Player &player)
 	packed.pBaseVit = player._pBaseVit;
 	packed.pLevel = player._pLevel;
 	packed.pStatPts = player._pStatPts;
+	packed.pStatPtsSpentStr = SDL_SwapLE32(player._pStatPtsSpentStr);
+	packed.pStatPtsSpentMag = SDL_SwapLE32(player._pStatPtsSpentMag);
+	packed.pStatPtsSpentDex = SDL_SwapLE32(player._pStatPtsSpentDex);
+	packed.pStatPtsSpentVit = SDL_SwapLE32(player._pStatPtsSpentVit);
 	packed.pExperience = SDL_SwapLE64(player._pExperience);
 	packed.pGold = SDL_SwapLE32(player._pGold);
 	packed.pHPBase = SDL_SwapLE32(player._pHPBase);
@@ -386,6 +390,10 @@ void UnPackPlayer(const PlayerPack &packed, Player &player)
 	player._pBaseVit = std::min<uint8_t>(packed.pBaseVit, player.GetMaximumAttributeValue(CharacterAttribute::Vitality));
 	player._pVitality = player._pBaseVit;
 	player._pStatPts = packed.pStatPts;
+	player._pStatPtsSpentStr = SDL_SwapLE32(packed.pStatPtsSpentStr);
+	player._pStatPtsSpentMag = SDL_SwapLE32(packed.pStatPtsSpentMag);
+	player._pStatPtsSpentDex = SDL_SwapLE32(packed.pStatPtsSpentDex);
+	player._pStatPtsSpentVit = SDL_SwapLE32(packed.pStatPtsSpentVit);
 
 	player._pExperience = SDL_SwapLE64(packed.pExperience);
 	player._pGold = SDL_SwapLE32(packed.pGold);

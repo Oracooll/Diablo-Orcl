@@ -38,6 +38,10 @@ void SwapLE(PlayerPack &pack)
 	pack.pDiabloKillLevel = SDL_SwapLE32(pack.pDiabloKillLevel);
 	pack.pDifficulty = SDL_SwapLE32(pack.pDifficulty);
 	pack.pDamAcFlags = SDL_SwapLE32(pack.pDamAcFlags);
+	pack.pStatPtsSpentStr = SDL_SwapLE32(pack.pStatPtsSpentStr);
+	pack.pStatPtsSpentMag = SDL_SwapLE32(pack.pStatPtsSpentMag);
+	pack.pStatPtsSpentDex = SDL_SwapLE32(pack.pStatPtsSpentDex);
+	pack.pStatPtsSpentVit = SDL_SwapLE32(pack.pStatPtsSpentVit);
 }
 
 ItemPack SwappedLE(const ItemPack &pack)
@@ -980,7 +984,8 @@ public:
 			{ 0, 0 },
 			{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 			0, 0, 0, 0,
-			{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+			0, 0, 0, 0,
+			{ 0, 0, 0, 0 }
 		};
 
 		SwapLE(testPack);

@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.40 — Reset Stats Fix: New Game No Longer Drops Spent-Point Tracking
+
+- **Fixed**: Starting a *New Game* with an existing hero (as opposed to *Load Game*/continuing) silently reset Reset Stats' tracking of how many points you'd manually put into Strength/Magic/Dexterity/Vitality, while leaving your actual attribute totals untouched. Clicking `RESET` afterward only refunded points spent since that New Game started, not your character's full history - the rest of your points stayed exactly where they were, just no longer refundable. This is now carried over correctly, the same way your attributes themselves already were. Points that were already stranded by this bug before updating can't be recovered retroactively, since the tracking data for them was already gone - but nothing from here on will lose it again.
+
+---
+
 ## v0.3.39 — Monster Wall Outline
 
 - **New**: A new `Monster Wall Outline` option (off by default) draws a red outline on any monster hidden behind a wall or other level architecture, on top of everything else, so you can tell something's there even though you can't see its body. Same red used for the existing hover/range highlight.

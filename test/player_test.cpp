@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "options.h"
+#include "pack.h"
 #include "playerdat.hpp"
 #include "storm/storm_net.hpp"
 
@@ -214,6 +215,44 @@ TEST(Player, ResetPlayerStats_OnlyRemovesManuallySpentPoints)
 	EXPECT_EQ(player._pBaseStr, baseStrAtCreation + 3);
 	EXPECT_EQ(player._pStatPts, 5);
 	EXPECT_EQ(player._pStatPtsSpentStr, 0);
+}
+
+TEST(Player, ResetPlayerStats_SurvivesPlayerPackRoundTrip)
+{
+	// Bug report: starting a New Game with an existing hero goes through PackPlayer/UnPackPlayer
+	// (pack.cpp) rather than the full save's LoadPlayer (loadsave.cpp) - only the latter used to
+	// carry the manually-spent-points counters, so every "New Game" with an existing hero reset
+	// them to zero while leaving the actual attribute values (which PlayerPack does carry) intact,
+	// making Reset Stats refund far fewer points than the player had actually spent.
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Rogue);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.resetStatsButton.SetValue(true);
+
+	player._pStatPtsSpentStr = 40;
+	player._pStatPtsSpentMag = 30;
+	player._pStatPtsSpentDex = 20;
+	player._pStatPtsSpentVit = 10;
+	ModifyPlrStr(player, 40);
+	ModifyPlrMag(player, 30);
+	ModifyPlrDex(player, 20);
+	ModifyPlrVit(player, 10);
+	player._pStatPts = 0;
+
+	PlayerPack packed;
+	PackPlayer(packed, player);
+	UnPackPlayer(packed, player);
+
+	ResetPlayerStats(player);
+
+	EXPECT_EQ(player._pStatPts, 100);
+	EXPECT_EQ(player._pStatPtsSpentStr, 0);
+	EXPECT_EQ(player._pStatPtsSpentMag, 0);
+	EXPECT_EQ(player._pStatPtsSpentDex, 0);
+	EXPECT_EQ(player._pStatPtsSpentVit, 0);
 }
 
 TEST(Player, ShouldDropGoldOnDeath_SinglePlayerNeverDrops)
