@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.37 — Refresh Until Hover Tooltip
+
+- **New**: Hovering over Griswold Premium's "Refresh Until" button (without clicking) now shows a short explainer in the main HUD's bottom info box: what it does, whether you've typed a target item yet (and what it is), and a reminder that item availability depends on your character level.
+
+---
+
 ## v0.3.36 — Refresh Until Text Prompt, Back Button Fix, Sellable Uniques Fix
 
 - **New**: Griswold Premium's "Refresh Until" now opens an in-game text box to type the item name you're looking for, instead of requiring you to hand-edit `diablo.ini`. What you type is saved automatically for next time, same as before.

@@ -128,5 +128,8 @@ extern bool IsRefreshUntilPromptOpen;
 void RefreshUntilPromptKeyPress(SDL_Keycode vkey);
 bool HandleRefreshUntilPromptTextInputEvent(const SDL_Event &event);
 void DrawRefreshUntilPrompt(const Surface &out);
+/** @brief Oracool: shows a 4-line explainer in the main HUD's info box while hovering (not
+ * clicking) Griswold Premium's Refresh Until button. */
+void DrawRefreshUntilHoverTooltip(const Surface &out);
 
 } // namespace devilution

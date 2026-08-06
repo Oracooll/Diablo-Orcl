@@ -2780,6 +2780,56 @@ void DrawRefreshUntilPrompt(const Surface &out)
 	    });
 }
 
+/**
+ * @brief Oracool: user request - hovering Refresh Until (without clicking) shows a 4-line
+ * explainer in the main HUD's bottom info box (the same panel DrawInfoBox uses for item/monster
+ * hover text - still empty during a store screen, since pcursitem/pcursmonst are never set then).
+ * Reuses the exact row/column geometry CheckStoreBtn's click-redirect already established for
+ * this button, so "where hovering shows the tooltip" and "where clicking activates the button"
+ * never drift apart.
+ */
+void DrawRefreshUntilHoverTooltip(const Surface &out)
+{
+	if (stextflag != TalkID::SmithPremiumBuy)
+		return;
+	if (!*sgOptions.Oracool.refreshUntilButton || gbIsMultiplayer)
+		return;
+	if (!stext[PremiumRefreshUntilLine()].hasText())
+		return;
+
+	const Point uiPosition = GetUIRectangle().position;
+	if (MousePosition.y < PaddingTop + uiPosition.y || MousePosition.y > 320 + uiPosition.y)
+		return;
+	if (MousePosition.x < 24 + uiPosition.x || MousePosition.x > 616 + uiPosition.x)
+		return;
+
+	const int relativeY = MousePosition.y - (uiPosition.y + PaddingTop);
+	if (relativeY / LineHeight() != BackButtonLine())
+		return;
+
+	constexpr int RedirectZoneWidth = 100;
+	const int leftBorder = uiPosition.x + 24;
+	if (MousePosition.x >= leftBorder + RedirectZoneWidth)
+		return;
+
+	const Rectangle infoArea { GetMainPanel().position + InfoBoxTopLeft, InfoBoxSize };
+	constexpr int TooltipLineHeight = 15;
+	int lineY = infoArea.position.y + 2;
+	const auto drawLine = [&](string_view text, UiFlags color) {
+		DrawString(out, text, Rectangle { { infoArea.position.x, lineY }, { infoArea.size.width, TooltipLineHeight } }, { color | UiFlags::AlignCenter });
+		lineY += TooltipLineHeight;
+	};
+
+	drawLine(_("Item to look for:"), UiFlags::ColorGold);
+	const string_view configured = sgOptions.Oracool.refreshUntilItemNames;
+	if (GetPremiumRefreshTargets().empty())
+		drawLine(_("Please click and input"), UiFlags::ColorRed);
+	else
+		drawLine(configured, UiFlags::ColorWhite);
+	drawLine(_("Click to begin search. Good luck!"), UiFlags::ColorGold);
+	drawLine(_("Availability based on player level!"), UiFlags::ColorRed);
+}
+
 // Oracool: mirrors SimulateSmithConsumablesPurchaseForTest's approach - sets up the same globals
 // StorytellerIdentifyItem reads to resolve its target from storehold[index], then calls it exactly
 // as the real "identify which item?" confirm click would, without needing StartStore()'s
