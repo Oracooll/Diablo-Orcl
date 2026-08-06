@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.48 — XP Counter Thousands Separator
+
+- **New**: The XP Counter below the mini-map now groups its number with commas (e.g. "1,234,567" instead of "1234567"), matching how gold amounts are already displayed everywhere else.
+
+---
+
 ## v0.3.47 — Griswold "Repair All" Button
 
 - **New**: Griswold's Repair shop now has a "Repair all" button, right above Back next to the item list, matching the existing "Sell all" button in his Sell shop. Repairs every damaged item it lists (worn equipment plus your backpack) one at a time, most expensive repair first, stopping if you run out of gold partway through rather than skipping ahead to something cheaper.

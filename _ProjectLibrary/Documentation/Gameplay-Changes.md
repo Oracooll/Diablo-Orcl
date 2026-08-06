@@ -1274,3 +1274,14 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - No new Oracool option/toggle - single-player-only (`!gbIsMultiplayer`, matching Sell All), and this only adds a convenience button to an existing feature.
 - No new tests: `SmithSellAllItems`, the exact function this mirrors, has no test coverage either - this whole class of function drives global store-UI navigation state (`stextsel`/`stextflag`/`StartStore`) that the existing test suite doesn't exercise for any store screen, matching the established testing boundary. Verified by build + full regression suite instead.
 - Verification: full regression suite (218 tests across 9 targets) passes. Deferred: in-game manual verification (open Griswold's Repair shop with several damaged items and confirm "Repair all" fixes them in cost order, stopping cleanly if gold runs out) has not yet been performed.
+
+---
+
+## OE-063: v0.3.48 XP Counter thousands separator
+
+- User idea: comma-separate the XP Counter's number, e.g. "1,234,567" instead of "1234567".
+- `DrawXpCounter` (`Source/oracool/xp_counter.cpp`) was formatting the remaining-XP value with a plain `fmt::format("{:d}", remaining)`. Found `FormatInteger(uint64_t)` (`Source/utils/format_int.hpp`/`.cpp`) already exists and does exactly this - vanilla-style comma grouping (respecting the current translation's own thousands-separator character), already used everywhere gold amounts are displayed. Swapped the one line to call it instead of writing a second grouping implementation.
+- The counter's box was already sized dynamically from the actual rendered text every frame (not a fixed-width guess), specifically so it never clips regardless of digit count - commas just add a few more characters for that same logic to measure, no separate change needed. Updated the stale comment above it, which only mentioned raw digit count, to also mention the added separators.
+- No new Oracool option - this always applies whenever the existing XP Counter option is on, matching how gold's own comma formatting isn't separately toggleable either.
+- No new tests: this is a one-line change from one formatting call to another pre-existing, already-used formatting utility, not new logic - verified by build and the full regression suite.
+- Verification: full regression suite (218 tests across 9 targets) passes. Deferred: in-game manual verification (level up with a large remaining-XP value and confirm the counter shows comma groups) has not yet been performed.
