@@ -23,6 +23,7 @@
 #include "engine/load_file.hpp"
 #include "engine/points_in_rectangle_range.hpp"
 #include "engine/random.hpp"
+#include "engine/render/text_render.hpp"
 #include "error.h"
 #include "init.h"
 #include "inv.h"
@@ -5133,12 +5134,17 @@ void GetObjectStr(const Object &object)
 		InfoColor = UiFlags::ColorRed;
 	}
 	if (IsAnyOf(object._otype, OBJ_SHRINEL, OBJ_SHRINER)) {
-		AddPanelString(_(ShrineDescriptions[object._oVar1]));
+		// Oracool: descriptions are pre-wrapped to the info box's own width before being handed
+		// to AddPanelString (which just appends a newline-joined line) - without this, any
+		// description too wide for the box's 288px overlapped its own following line instead of
+		// wrapping onto a fresh one. The name (set above) still renders as its own top line;
+		// wrapping only affects the description that follows it.
+		AddPanelString(WordWrapString(_(ShrineDescriptions[object._oVar1]), InfoBoxSize.width));
 	} else if (object._otype == OBJ_TEARFTN) {
 		// Oracool: Fountain of Tears is its own object type, not OBJ_SHRINEL/OBJ_SHRINER, so it
 		// never went through the shrine-description branch above - it has no ShrineDescriptions
 		// entry of its own since it doesn't use _oVar1 as a shrine index.
-		AddPanelString(_("Moves 1 point from a random attribute to another"));
+		AddPanelString(WordWrapString(_("Moves 1 point from a random attribute to another"), InfoBoxSize.width));
 	}
 }
 

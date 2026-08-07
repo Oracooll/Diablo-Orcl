@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.4.4 — Shrine and Fountain of Tears Descriptions No Longer Overlap
+
+- **Fixed**: The Fountain of Tears' description (and any shrine description too long to fit on one line) overlapped itself in the main panel's info box instead of wrapping onto a second or third line. The shrine/fountain's name still shows on its own line above the description, exactly as before.
+
+---
+
 ## v0.4.3 — Gradual Healing (Diablo 2-Style Heal-Over-Time)
 
 - **New**: `Gradual Healing` option (on by default). Potion of Healing and Potion of Mana now restore their usual random amount gradually over about 3 seconds instead of all at once, matching how Diablo 2's Healing/Mana Potions work. Full Healing Potions and Full Mana Potions stay instant either way, matching how Diablo 2 keeps its Rejuvenation Potions instant. Drinking a second potion while one is still delivering adds to both the amount and the remaining time rather than resetting it. Single-player only; turn the option off to go back to the original instant restore.
