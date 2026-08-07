@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.57 — Buffed Unique Items Get Vanilla Unique's Inventory Background
+
+- **Fixed**: Buffed Unique items now show the same gold/yellow inventory/belt/Stash slot background vanilla Unique items use, instead of the blue background ordinary magic items use.
+
+---
+
 ## v0.3.56 — Primal Items Get an Orange Inventory Background, Matching Their Name Color
 
 - **Fixed**: Primal items now show an orange inventory/belt/Stash slot background instead of the same blue background ordinary magic items use - matching Primal's own orange name color, the same way Rare items already get a yellow background matching their yellow name.

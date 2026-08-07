@@ -1380,3 +1380,12 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - Deliberately left Buffed Unique unchanged - only Rare and Primal were ever reported as having this problem, even though Buffed Unique has the identical underlying mismatch (also `ITEM_QUALITY_MAGIC`, also gets an incorrect blue background) and likely deserves the same treatment later. Corrected the stale comment's false claim rather than just updating the color list, so the next person to touch this function doesn't inherit the same wrong assumption.
 - No new tests: `InvDrawSlotBack` is pixel-buffer rendering code needing a live `Surface` to exercise, matching the established boundary for this class of function (no test existed for the earlier Rare-background fix either) - verified by build and the full regression suite.
 - Verification: full regression suite (219 tests across 9 targets) passes. Deferred: in-game manual verification (view a Primal item in the inventory/belt/Stash grid and confirm the background is now orange, not blue) has not yet been performed.
+
+---
+
+## OE-072: v0.3.57 Buffed Unique items get vanilla Unique's inventory background
+
+- User follow-up to OE-071: give Buffed Unique the same background fix Rare and Primal just got, matching vanilla Unique's background rather than leaving it on Magic's blue - closing the gap OE-071 deliberately left open and flagged.
+- Added a third `hasOracoolTier()` branch in `InvDrawSlotBack` (`inv.cpp`) for `OracoolItemTier::BuffedUnique`, using `PAL16_YELLOW` - the exact same palette block this function's own `ITEM_QUALITY_UNIQUE` case already uses for real vanilla Uniques, and the same block Rare already uses (Buffed Unique's name color, `UiFlags::ColorWhitegold`, is in that same yellow/gold family). Updated the function's comment block to describe all three tiers together instead of singling out Rare/Primal and flagging Buffed Unique as deferred.
+- No new tests: same rendering-code boundary as OE-071 (and the original Rare fix before it) - verified by build and the full regression suite.
+- Verification: full regression suite (219 tests across 9 targets) passes. Deferred: in-game manual verification (view a Buffed Unique item in the inventory/belt/Stash grid and confirm the background now matches a real vanilla Unique's) has not yet been performed.
