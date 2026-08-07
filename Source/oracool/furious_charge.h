@@ -29,10 +29,13 @@ bool IsFuriousChargeSpell(SpellID spellId);
 /**
  * @brief Oracool: user request - the borrowed icon used for Furious Charge's slot everywhere
  * it's drawn (the main panel indicator, the SpeedBook list, the spell book grid) - there's no
- * dedicated art for a mod-only skill, so this reuses Hellfire's real Berserk skill icon instead.
- * Centralized here so every draw site shares one answer rather than each picking its own.
+ * dedicated art for a mod-only skill, so this reuses an existing spell's icon instead. Uses Heal
+ * Other rather than a Hellfire-exclusive spell (the earlier choice, Berserk) specifically so this
+ * renders correctly with only the base Diablo MPQs - no hellfire.mpq/hfmonk.mpq/hfmusic.mpq/
+ * hfvoice.mpq required just for one icon. Centralized here so every draw site shares one answer
+ * rather than each picking its own.
  */
-inline constexpr SpellID FuriousChargeIcon = SpellID::Berserk;
+inline constexpr SpellID FuriousChargeIcon = SpellID::HealOther;
 
 /**
  * @brief Oracool: user request - "Furious Charge" (translated) wherever a UI would otherwise show

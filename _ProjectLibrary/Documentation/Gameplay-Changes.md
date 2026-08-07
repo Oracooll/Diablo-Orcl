@@ -1360,3 +1360,11 @@ The user asked to go through all 37 `OracoolOptions` entries individually and de
 - Added the matching icon substitution wherever `DrawSpellList`/`panels/spell_book.cpp` draw the icon itself (`DrawLargeSpellIcon`/`DrawSmallSpellIcon`), which previously showed the vanilla Item Repair icon in both places since only `DrawSpell` (OE-056) had ever been patched.
 - New test: `Player.FuriousCharge_GetSpellDisplayName_SubstitutesOnlyTheFuriousChargeSlot` (`test/player_test.cpp`), alongside the existing `FuriousCharge_IsFuriousChargeSpell_...` tests - confirms the substitute name appears only for `SpellID::ItemRepair` with the option on, and that turning the option off restores the real name. The icon change itself is pure rendering (which draw call gets which `SpellID` constant) with no logic to unit test, matching the established rendering-code testing boundary.
 - Verification: full regression suite (219 tests across 9 targets) passes. Deferred: in-game manual verification (open the SpeedBook and spell book as a Warrior with Furious Charge on, confirm the Berserk icon and "Furious Charge" name show in both, and confirm the main panel's hover tooltip also reads "Furious Charge Skill") has not yet been performed.
+
+---
+
+## OE-070: v0.3.55 Furious Charge's icon no longer requires Hellfire MPQs
+
+- User follow-up: OE-069's icon choice (Hellfire's Berserk) meant the icon wouldn't render without `hellfire.mpq` present - and per `init.cpp`'s own startup check, having `hellfire.mpq` present at all *requires* `hfmonk.mpq`/`hfmusic.mpq`/`hfvoice.mpq` too, or the game refuses to start entirely (`"Some Hellfire MPQs are missing"`). The user didn't want to source four Hellfire archives just for one icon.
+- Since `FuriousChargeIcon` (OE-069) is already the single, centralized constant every draw site reads, this was a one-line change: `SpellID::Berserk` → `SpellID::HealOther`, a base-Diablo spell present in the core MPQ every install already has. Updated the doc comments explaining the choice accordingly.
+- Verification: full regression suite (219 tests across 9 targets) passes (no test asserted the specific icon `SpellID`, so nothing needed updating there). Deferred: in-game manual verification (confirm the icon now renders without any Hellfire MPQs present) has not yet been performed.

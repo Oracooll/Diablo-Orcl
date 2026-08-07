@@ -105,10 +105,10 @@ void DrawSpell(const Surface &out)
 
 	const Point position = GetMainPanel().position + Displacement { 565, 119 };
 
-	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (Hellfire's
-	// Berserk - there's no dedicated art for a mod-only skill) instead of the normal single-color
-	// Item Repair icon. User request - the cooldown fill grows in red (rather than the ready
-	// color) bottom-up as it cools, then flips to the normal ready tint the instant it's fully
+	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (see
+	// FuriousChargeIcon - there's no dedicated art for a mod-only skill) instead of the normal
+	// single-color Item Repair icon. User request - the cooldown fill grows in red (rather than
+	// the ready color) bottom-up as it cools, then flips to the normal ready tint the instant it's fully
 	// cooled, instead of gradually blending from gray to color.
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();

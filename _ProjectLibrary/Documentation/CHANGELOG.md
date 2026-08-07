@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.55 — Furious Charge No Longer Needs Hellfire MPQs for Its Icon
+
+- **Changed**: Furious Charge's borrowed icon is now Heal Other's instead of Hellfire's Berserk, so it displays correctly with only the base Diablo files - no hellfire.mpq/hfmonk.mpq/hfmusic.mpq/hfvoice.mpq needed just for one icon.
+
+---
+
 ## v0.3.54 — Furious Charge: Berserk Icon and "Furious Charge" Name Everywhere
 
 - **Changed**: Furious Charge now shows Hellfire's Berserk skill icon (instead of Rage's) everywhere it appears - the main panel indicator, the SpeedBook list (opened with 'S'), and the spell book grid - and its name reads "Furious Charge" everywhere the game would otherwise show "Item Repair" (hover tooltips, the SpeedBook, the spell book). Purely cosmetic - the skill's behavior is unchanged.
