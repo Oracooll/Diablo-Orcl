@@ -5134,6 +5134,11 @@ void GetObjectStr(const Object &object)
 	}
 	if (IsAnyOf(object._otype, OBJ_SHRINEL, OBJ_SHRINER)) {
 		AddPanelString(_(ShrineDescriptions[object._oVar1]));
+	} else if (object._otype == OBJ_TEARFTN) {
+		// Oracool: Fountain of Tears is its own object type, not OBJ_SHRINEL/OBJ_SHRINER, so it
+		// never went through the shrine-description branch above - it has no ShrineDescriptions
+		// entry of its own since it doesn't use _oVar1 as a shrine index.
+		AddPanelString(_("Moves 1 point from a random attribute to another"));
 	}
 }
 

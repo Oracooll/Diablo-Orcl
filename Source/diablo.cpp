@@ -458,6 +458,14 @@ void RightMouseDown(bool isShiftHeld)
 		return;
 	if (pcursinvitem != -1 && UseInvItem(pcursinvitem))
 		return;
+	// Oracool: an item hovered in an active Tabbed Inventory extra tab (2-10) never gets a
+	// pcursinvitem encoding (see CheckInvHLight) - only pcursinvtabitem/pcursinvtabidx, which
+	// TryIconCurs already uses for Identify/Repair/Recharge/Oil above. Without this, right-click
+	// use (reading a book, drinking a potion, etc.) silently did nothing for any item stored in
+	// an extra tab. ActiveInventoryTab is still set to the tab being viewed, so UseInvItem's own
+	// GetActiveInvListItem lookup resolves the right item once given the equivalent cii encoding.
+	if (pcursinvtabitem != -1 && UseInvItem(pcursinvtabitem + INVITEM_INV_FIRST))
+		return;
 	if (pcursstashitem != StashStruct::EmptyCell && UseStashItem(pcursstashitem))
 		return;
 	if (pcurs == CURSOR_HAND) {

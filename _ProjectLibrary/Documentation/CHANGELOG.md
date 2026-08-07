@@ -207,6 +207,13 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.4.1 — Reading Books in Extra Tabs, Fountain of Tears Description
+
+- **Fixed**: Right-clicking to use an item (read a book, drink a potion, etc.) stored in one of Tabbed Inventory's extra tabs (2-10) did nothing - the game was never actually able to reach the tab-aware fix that shipped for this back in v0.3.30, because the click handler it depends on was only ever triggered for items in your main backpack. Now works for every usable item type in every tab.
+- **New**: Hovering the Fountain of Tears now shows a short description of what it does ("Moves 1 point from a random attribute to another"), matching the description every shrine already got in v0.3.30 - fountains are their own object type under the hood and were missed by that earlier feature.
+
+---
+
 ## v0.3.57 — Buffed Unique Items Get Vanilla Unique's Inventory Background
 
 - **Fixed**: Buffed Unique items now show the same gold/yellow inventory/belt/Stash slot background vanilla Unique items use, instead of the blue background ordinary magic items use.
