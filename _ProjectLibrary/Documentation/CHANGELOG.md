@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.56 — Primal Items Get an Orange Inventory Background, Matching Their Name Color
+
+- **Fixed**: Primal items now show an orange inventory/belt/Stash slot background instead of the same blue background ordinary magic items use - matching Primal's own orange name color, the same way Rare items already get a yellow background matching their yellow name.
+
+---
+
 ## v0.3.55 — Furious Charge No Longer Needs Hellfire MPQs for Its Icon
 
 - **Changed**: Furious Charge's borrowed icon is now Heal Other's instead of Hellfire's Berserk, so it displays correctly with only the base Diablo files - no hellfire.mpq/hfmonk.mpq/hfmusic.mpq/hfvoice.mpq needed just for one icon.

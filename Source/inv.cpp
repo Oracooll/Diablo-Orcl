@@ -1223,17 +1223,23 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	if (size.width <= 0 || size.height <= 0)
 		return;
 
-	// Rare gets its own yellow background instead of inheriting Magic's blue - Rare items
-	// are still ITEM_QUALITY_MAGIC under the hood (the Oracool tier is a layer on top), so
-	// without this check they were visually indistinguishable from an ordinary blue item in
-	// every inventory/belt/stash grid, even though their name and floating info panel already
-	// call out their tier. Buffed Unique/Primal are already ITEM_QUALITY_UNIQUE and get the
-	// same yellow vanilla Unique items do - not changed here since only Rare was reported.
+	// Rare and Primal get their own backgrounds instead of inheriting Magic's blue - every
+	// Oracool tier is still ITEM_QUALITY_MAGIC under the hood (the tier is a layer added on
+	// top, not a new _iMagical value - see GetTieredItemAffixes), so without this check they
+	// were visually indistinguishable from an ordinary blue item in every inventory/belt/stash
+	// grid, even though their name and floating info panel already call out their tier. Rare
+	// matches its own yellow name color; Primal matches its own orange name color (user
+	// request) rather than inheriting Magic's blue. Buffed Unique is deliberately left
+	// unchanged here - only Rare and Primal were reported - even though it has the exact same
+	// underlying mismatch (it's ITEM_QUALITY_MAGIC too, not ITEM_QUALITY_UNIQUE as this
+	// function used to assume) and likely deserves its own fix later.
 	uint8_t colorBlock;
 	if (IsInspectingPlayer()) {
 		colorBlock = PAL16_ORANGE;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Rare) {
 		colorBlock = PAL16_YELLOW;
+	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Primal) {
+		colorBlock = PAL16_ORANGE;
 	} else {
 		switch (item._iMagical) {
 		case ITEM_QUALITY_MAGIC:
