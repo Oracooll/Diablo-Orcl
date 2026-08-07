@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.52 — Fixed "Repair All" (and "Sell All") Actually Being Invisible
+
+- **Fixed**: "Repair all" in Griswold's Repair shop, and "Sell all" in his Sell shop, were both being silently erased every frame right after appearing, making them effectively invisible the whole time - not just after last version's repositioning. Both now stay visible and clickable.
+
+---
+
 ## v0.3.51 — Furious Charge Cooldown Now Fills Red Instead of Gray-to-Color
 
 - **Changed**: Furious Charge's cooldown icon now fills bottom-up in red as it cools down, then switches instantly to its normal ready color the moment it's fully cooled - instead of gradually blending from gray to the ready color.

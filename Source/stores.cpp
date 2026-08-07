@@ -227,7 +227,7 @@ int SmithSellAllLine()
 
 /**
  * @brief Oracool: user request - "Repair all"'s own line index, used for StoreEnter() dispatch
- * and stextsel bookkeeping. Its *rendered* position is overridden elsewhere (StartSmithRepair) to
+ * and stextsel bookkeeping. Its *rendered* position is overridden elsewhere (ScrollSmithSell) to
  * share Back's row, flush against the right golden border, like Griswold Premium's own "Refresh"
  * button - this index just needs to be a line the Repair screen's own item list never uses.
  */
@@ -910,6 +910,25 @@ void ScrollSmithSell(int idx)
 	}
 
 	stextsmax = std::max(storenumh - 4, 0);
+
+	// Oracool bug fix: user report - "Repair all" was invisible. Root cause: DrawSText re-runs
+	// this function every single frame the Sell/Repair/Recharge/Identify screen is open (see its
+	// per-frame ScrollSmithSell(stextsval) dispatch), and ClearSText above wipes lines 5-20 on
+	// every call - including whichever line "Sell all"/"Repair all" occupies. Adding them only
+	// once, in StartSmithSell/StartSmithRepair, meant they got wiped again on the very next frame
+	// and never came back, since nothing else ever re-added them. Must live here instead, so they
+	// get put back every time this function clears and repopulates the list - the same reason
+	// Griswold Premium's "Refresh" button lives inside the equally per-frame ScrollSmithPremiumBuy
+	// rather than the one-time StartSmithPremiumBuy.
+	if (!gbIsMultiplayer && storenumh > 0) {
+		if (stextflag == TalkID::SmithSell) {
+			AddSText(0, SmithSellAllLine(), _("Sell all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		} else if (stextflag == TalkID::SmithRepair) {
+			const int line = SmithRepairAllLine();
+			AddSText(5, line, _("Repair all"), UiFlags::ColorWhite | UiFlags::AlignRight, true);
+			stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y + stext[BackButtonLine()]._syoff - stext[line].y);
+		}
+	}
 }
 
 void StartSmithSell()
@@ -936,8 +955,6 @@ void StartSmithSell()
 	AddSLine(3);
 	ScrollSmithSell(stextsval);
 	AddItemListBackButton();
-	if (!gbIsMultiplayer)
-		AddSText(0, SmithSellAllLine(), _("Sell all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
 bool SmithRepairOk(int i)
@@ -1031,17 +1048,6 @@ void StartSmithRepair()
 
 	ScrollSmithSell(stextsval);
 	AddItemListBackButton();
-	// Oracool: user request - "Repair all" sits flush against the right golden border, sharing
-	// Back's row, exactly like Griswold Premium's own "Refresh" button (see
-	// ScrollSmithPremiumBuy) instead of getting its own centered row above Back. Only the
-	// rendered Y position (_syoff) moves to line up with Back - SmithRepairAllLine() keeps its
-	// own line index for StoreEnter()'s dispatch and stextsel bookkeeping. CheckStoreBtn() has the
-	// matching redirect that routes a click on Back's row, near the right border, here instead.
-	if (!gbIsMultiplayer) {
-		const int line = SmithRepairAllLine();
-		AddSText(5, line, _("Repair all"), UiFlags::ColorWhite | UiFlags::AlignRight, true);
-		stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y + stext[BackButtonLine()]._syoff - stext[line].y);
-	}
 }
 
 void FillManaPlayer()
