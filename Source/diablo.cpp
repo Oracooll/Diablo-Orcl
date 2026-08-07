@@ -1904,11 +1904,11 @@ void InitKeymapActions()
 	    N_("Displays game infos."),
 	    'V',
 	    [] {
-		    EventPlrMsg(fmt::format(
-		                    fmt::runtime(_(/* TRANSLATORS: {:s} means: Character Name, Game Version, Game Difficulty. */ "{:s} {:s}")),
-		                    PROJECT_NAME,
-		                    PROJECT_VERSION),
-		        UiFlags::ColorWhite);
+		    // Oracool: this used to print PROJECT_NAME + PROJECT_VERSION, which is only the
+		    // DevilutionX engine version (e.g. "1.5.5") - never the Oracool release number.
+		    // gszProductName is already built by SetApplicationVersions() from ORACOOL_VERSION,
+		    // so reusing it here keeps this message correct across every version bump for free.
+		    EventPlrMsg(gszProductName, UiFlags::ColorWhite);
 	    },
 	    nullptr,
 	    CanPlayerTakeAction);
@@ -2375,11 +2375,11 @@ void InitPadmapActions()
 	    N_("Displays game infos."),
 	    ControllerButton_NONE,
 	    [] {
-		    EventPlrMsg(fmt::format(
-		                    fmt::runtime(_(/* TRANSLATORS: {:s} means: Character Name, Game Version, Game Difficulty. */ "{:s} {:s}")),
-		                    PROJECT_NAME,
-		                    PROJECT_VERSION),
-		        UiFlags::ColorWhite);
+		    // Oracool: this used to print PROJECT_NAME + PROJECT_VERSION, which is only the
+		    // DevilutionX engine version (e.g. "1.5.5") - never the Oracool release number.
+		    // gszProductName is already built by SetApplicationVersions() from ORACOOL_VERSION,
+		    // so reusing it here keeps this message correct across every version bump for free.
+		    EventPlrMsg(gszProductName, UiFlags::ColorWhite);
 	    },
 	    nullptr,
 	    CanPlayerTakeAction);

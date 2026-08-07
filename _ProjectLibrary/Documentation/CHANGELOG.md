@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.4.2 — 'V' Game Info Now Shows the Oracool Version, Not Just the Engine Version
+
+- **Fixed**: Pressing `V` (or the equivalent controller button) to display game info showed "Diablo Oracool Edition 1.5.5" - `1.5.5` is the underlying DevilutionX engine version, not this mod's own version number. It now shows the same full "Diablo Oracool Edition vX.X.X - Based on DevilutionX 1.5.5" text already used in the window title, and will automatically stay correct on every future version bump.
+
+---
+
 ## v0.4.1 — Reading Books in Extra Tabs, Fountain of Tears Description
 
 - **Fixed**: Right-clicking to use an item (read a book, drink a potion, etc.) stored in one of Tabbed Inventory's extra tabs (2-10) did nothing - the game was never actually able to reach the tab-aware fix that shipped for this back in v0.3.30, because the click handler it depends on was only ever triggered for items in your main backpack. Now works for every usable item type in every tab.
