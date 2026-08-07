@@ -37,6 +37,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/event_log.h"
+#include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
 #include "panels/info_box.hpp"
 #include "panels/ui_panels.hpp"
@@ -4726,9 +4727,17 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 
 	switch (mid) {
 	case IMISC_HEAL:
-		player.RestorePartialLife();
-		if (&player == MyPlayer) {
-			RedrawComponent(PanelDrawComponent::Health);
+		// Oracool: Gradual Healing drips this potion's usual random amount over a few seconds
+		// instead of granting it all at once - see oracool/gradual_healing.h. Full Healing
+		// Potions (IMISC_FULLHEAL below) stay instant either way, matching how Diablo 2 keeps
+		// its Rejuvenation potions instant while throttling its regular Healing Potions.
+		if (&player == MyPlayer && oracool::IsGradualHealingEnabled()) {
+			oracool::QueueGradualHeal(player.CalcPartialLifeRestoreAmount());
+		} else {
+			player.RestorePartialLife();
+			if (&player == MyPlayer) {
+				RedrawComponent(PanelDrawComponent::Health);
+			}
 		}
 		break;
 	case IMISC_FULLHEAL:
@@ -4738,9 +4747,13 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 		}
 		break;
 	case IMISC_MANA:
-		player.RestorePartialMana();
-		if (&player == MyPlayer) {
-			RedrawComponent(PanelDrawComponent::Mana);
+		if (&player == MyPlayer && oracool::IsGradualHealingEnabled()) {
+			oracool::QueueGradualMana(player.CalcPartialManaRestoreAmount());
+		} else {
+			player.RestorePartialMana();
+			if (&player == MyPlayer) {
+				RedrawComponent(PanelDrawComponent::Mana);
+			}
 		}
 		break;
 	case IMISC_FULLMANA:

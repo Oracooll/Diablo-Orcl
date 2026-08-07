@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.4.3 — Gradual Healing (Diablo 2-Style Heal-Over-Time)
+
+- **New**: `Gradual Healing` option (on by default). Potion of Healing and Potion of Mana now restore their usual random amount gradually over about 3 seconds instead of all at once, matching how Diablo 2's Healing/Mana Potions work. Full Healing Potions and Full Mana Potions stay instant either way, matching how Diablo 2 keeps its Rejuvenation Potions instant. Drinking a second potion while one is still delivering adds to both the amount and the remaining time rather than resetting it. Single-player only; turn the option off to go back to the original instant restore.
+
+---
+
 ## v0.4.2 — 'V' Game Info Now Shows the Oracool Version, Not Just the Engine Version
 
 - **Fixed**: Pressing `V` (or the equivalent controller button) to display game info showed "Diablo Oracool Edition 1.5.5" - `1.5.5` is the underlying DevilutionX engine version, not this mod's own version number. It now shows the same full "Diablo Oracool Edition vX.X.X - Based on DevilutionX 1.5.5" text already used in the window title, and will automatically stay correct on every future version bump.

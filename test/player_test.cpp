@@ -7,6 +7,7 @@
 
 #include "options.h"
 #include "oracool/furious_charge.h"
+#include "oracool/gradual_healing.h"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "storm/storm_net.hpp"
@@ -301,6 +302,70 @@ TEST(Player, FuriousCharge_DashAndCooldownStateTransitions)
 	StartFuriousChargeCooldown();
 	EXPECT_TRUE(IsFuriousChargeOnCooldown());
 	EXPECT_LT(GetFuriousChargeCooldownProgress(), 1.0F) << "just-started cooldown must not already read as ready";
+}
+
+TEST(Player, GradualHealing_IsEnabled_GatedByOptionAndMultiplayer)
+{
+	using namespace devilution::oracool;
+
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.gradualHealing.SetValue(false);
+	EXPECT_FALSE(IsGradualHealingEnabled()) << "off by default-off setting - potions must stay instant";
+
+	sgOptions.Oracool.gradualHealing.SetValue(true);
+	EXPECT_TRUE(IsGradualHealingEnabled()) << "option on, single-player - this is the only case that drips";
+
+	gbIsMultiplayer = true;
+	EXPECT_FALSE(IsGradualHealingEnabled()) << "multiplayer always keeps vanilla instant potions regardless of the option";
+
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.gradualHealing.SetValue(false);
+}
+
+TEST(Player, GradualHealing_QueueAndDrain_DeliversFullAmountGraduallyNotInstantly)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player._pMaxHP = 100 << 6;
+	player._pMaxHPBase = 100 << 6;
+	player._pHitPoints = 10 << 6;
+	player._pHPBase = 10 << 6;
+
+	constexpr int QueuedAmount = 60 << 6; // 60 HP, comfortably larger than the tick count so it drips visibly
+	QueueGradualHeal(QueuedAmount);
+
+	ProcessGradualHealing(player);
+	EXPECT_LT(player._pHitPoints, (10 << 6) + QueuedAmount) << "a single tick must not deliver the whole amount at once";
+	EXPECT_GT(player._pHitPoints, 10 << 6) << "but it must have delivered something on the very first tick";
+
+	// Drain well past any reasonable duration - the pool must be fully delivered and capped at max.
+	for (int i = 0; i < 200; i++)
+		ProcessGradualHealing(player);
+
+	EXPECT_EQ(player._pHitPoints, std::min((10 << 6) + QueuedAmount, player._pMaxHP)) << "the full queued amount must eventually land, capped at max HP";
+}
+
+TEST(Player, GradualHealing_Mana_RespectsNoManaFlagButStillDrainsTheQueue)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player._pMaxMana = 100 << 6;
+	player._pMaxManaBase = 100 << 6;
+	player._pMana = 0;
+	player._pManaBase = 0;
+	player._pIFlags = ItemSpecialEffect::NoMana;
+
+	QueueGradualMana(60 << 6);
+	for (int i = 0; i < 200; i++)
+		ProcessGradualHealing(player);
+
+	EXPECT_EQ(player._pMana, 0) << "NoMana must waste the queued potion exactly like RestorePartialMana already does, not silently ignore the flag";
+
+	player._pIFlags = ItemSpecialEffect::None;
 }
 
 TEST(Player, ShouldDropGoldOnDeath_SinglePlayerNeverDrops)

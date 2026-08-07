@@ -42,6 +42,7 @@ set(libdevilutionx_SRCS
   oracool/event_log.cpp
   oracool/furious_charge.cpp
   oracool/game_clock.cpp
+  oracool/gradual_healing.cpp
   oracool/save_indicator.cpp
   oracool/xp_counter.cpp
   oracool/xp_gain_indicator.cpp

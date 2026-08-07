@@ -687,6 +687,12 @@ struct Player {
 	void RestorePartialLife();
 
 	/**
+	 * @brief Oracool: the same random amount RestorePartialLife() would apply, without applying
+	 * it - lets Gradual Healing queue the amount for a gradual drip instead of an instant grant.
+	 */
+	int CalcPartialLifeRestoreAmount() const;
+
+	/**
 	 * @brief Resets hp to maxHp
 	 */
 	void RestoreFullLife()
@@ -704,6 +710,12 @@ struct Player {
 	 *  they get nothing.
 	 */
 	void RestorePartialMana();
+
+	/**
+	 * @brief Oracool: the same random amount RestorePartialMana() would apply, without applying
+	 * it - lets Gradual Healing queue the amount for a gradual drip instead of an instant grant.
+	 */
+	int CalcPartialManaRestoreAmount() const;
 
 	/**
 	 * @brief Resets mana to maxMana (if the player can use magic)

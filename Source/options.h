@@ -737,6 +737,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean furiousCharge;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;
+	OptionEntryBoolean gradualHealing;
 	OptionEntryBoolean xpCounter;
 	OptionEntryBoolean xpGainIndicator;
 	OptionEntryBoolean remainingMonsterXpButton;

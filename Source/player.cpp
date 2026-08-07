@@ -38,6 +38,7 @@
 #include "options.h"
 #include "oracool/event_log.h"
 #include "oracool/furious_charge.h"
+#include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
 #include "oracool/xp_gain_indicator.h"
 #include "player.h"
@@ -1824,7 +1825,7 @@ int Player::GetManaShieldDamageReduction()
 	return 24 - std::min(_pSplLvl[static_cast<int8_t>(SpellID::ManaShield)], Max) * 3;
 }
 
-void Player::RestorePartialLife()
+int Player::CalcPartialLifeRestoreAmount() const
 {
 	int wholeHitpoints = _pMaxHP >> 6;
 	int l = ((wholeHitpoints / 8) + GenerateRnd(wholeHitpoints / 4)) << 6;
@@ -1832,11 +1833,17 @@ void Player::RestorePartialLife()
 		l *= 2;
 	if (IsAnyOf(_pClass, HeroClass::Rogue, HeroClass::Monk, HeroClass::Bard))
 		l += l / 2;
+	return l;
+}
+
+void Player::RestorePartialLife()
+{
+	int l = CalcPartialLifeRestoreAmount();
 	_pHitPoints = std::min(_pHitPoints + l, _pMaxHP);
 	_pHPBase = std::min(_pHPBase + l, _pMaxHPBase);
 }
 
-void Player::RestorePartialMana()
+int Player::CalcPartialManaRestoreAmount() const
 {
 	int wholeManaPoints = _pMaxMana >> 6;
 	int l = ((wholeManaPoints / 8) + GenerateRnd(wholeManaPoints / 4)) << 6;
@@ -1844,6 +1851,12 @@ void Player::RestorePartialMana()
 		l *= 2;
 	if (IsAnyOf(_pClass, HeroClass::Rogue, HeroClass::Monk, HeroClass::Bard))
 		l += l / 2;
+	return l;
+}
+
+void Player::RestorePartialMana()
+{
+	int l = CalcPartialManaRestoreAmount();
 	if (HasNoneOf(_pIFlags, ItemSpecialEffect::NoMana)) {
 		_pMana = std::min(_pMana + l, _pMaxMana);
 		_pManaBase = std::min(_pManaBase + l, _pMaxManaBase);
@@ -3098,6 +3111,7 @@ void ProcessPlayers()
 					player._pMana = 0;
 					RedrawComponent(PanelDrawComponent::Mana);
 				}
+				oracool::ProcessGradualHealing(player);
 			}
 
 			bool tplayer = false;

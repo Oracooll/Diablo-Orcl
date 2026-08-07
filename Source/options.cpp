@@ -456,6 +456,9 @@ void SaveOptions()
 	setBoolean("Game Clock 12 Hour Format", *sgOptions.Oracool.gameClock12HourFormat,
 	    "; If true, the Game Clock shows 12-hour time with an AM/PM suffix (e.g. \"2:45 PM\")\n; instead of the default 24-hour format (e.g. \"14:45\").");
 
+	setBoolean("Gradual Healing", *sgOptions.Oracool.gradualHealing,
+	    "; ----- GRADUAL HEALING -----------------------------------------------------------------\n; Potion of Healing and Potion of Mana restore their usual random amount gradually over a few\n; seconds instead of instantly, matching Diablo 2's Healing/Mana Potions. Full Healing/Full Mana\n; Potions stay instant either way, matching Diablo 2's Rejuvenation Potions. Single-player only.");
+
 	setBoolean("XP Counter", *sgOptions.Oracool.xpCounter,
 	    "; ----- XP COUNTER -----------------------------------------------------------------\n; Shows the experience remaining until your next level just below the mini-map,\n; centered between the Game Clock and the LOG button. Hidden at max level.");
 	setBoolean("XP Gain Indicator", *sgOptions.Oracool.xpGainIndicator,
@@ -1295,6 +1298,7 @@ OracoolOptions::OracoolOptions()
     , furiousCharge("Furious Charge", OptionEntryFlags::None, N_("Furious Charge"), N_("Replaces the Warrior's free Item Repair skill with a charge attack: right-click a monster to rush it at double speed, then swing on arrival."), false)
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
+    , gradualHealing("Gradual Healing", OptionEntryFlags::None, N_("Gradual Healing"), N_("Potion of Healing and Potion of Mana restore their amount gradually over a few seconds instead of instantly. Full Healing/Full Mana Potions are unaffected."), true)
     , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
     , xpGainIndicator("XP Gain Indicator", OptionEntryFlags::None, N_("XP Gain Indicator"), N_("Briefly flashes the experience gained just below the XP Counter."), true)
     , remainingMonsterXpButton("Remaining Monster XP Button", OptionEntryFlags::None, N_("Remaining Monster XP Button"), N_("Press and hold the XP Counter to see the total experience worth of every monster still alive on this level."), true)
@@ -1342,6 +1346,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&furiousCharge,
 		&gameClock,
 		&gameClock12HourFormat,
+		&gradualHealing,
 		&xpCounter,
 		&xpGainIndicator,
 		&remainingMonsterXpButton,
