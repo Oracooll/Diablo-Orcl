@@ -2234,7 +2234,23 @@ void InvGetItem(Player &player, int ii)
 	// the same session) never go through that path, so pickup needs its own call too.
 	RepairOracoolAffixesIfCorrupted(item);
 
-	if (item._itype == ItemType::Gold && GoldAutoPlace(player, item)) {
+	// Oracool bug fix: user report - elixirs (and, in principle, any stackable consumable) didn't
+	// stack when picked up. Root cause: the QoL "Auto Pickup Range" loop (qol/autopickup.cpp) only
+	// covers tiles 1+ away, so an item on the exact tile the player is standing on always comes
+	// through this vanilla function instead - which never attempted a merge at all, unlike
+	// AutoGetItem (used for the surrounding radius), which already merges via
+	// AutoPlaceItemInBelt/AutoPlaceItemInInventory. Potions are dropped and picked up often enough
+	// that most of them get grabbed from a step or two away and never hit this gap; a rarer item a
+	// player deliberately walks onto (like an elixir) hits it far more often, making the gap look
+	// elixir-specific even though it equally affects every stackable consumable.
+	const bool merged = item._itype != ItemType::Gold && oracool::IsSinglePlayer() && item.isStackableConsumable()
+	    && (MergeStackableItemIntoBelt(player, item, true) || MergeStackableItemIntoInventory(player, item, true));
+
+	if (merged) {
+		if (MyPlayer == &player && *sgOptions.Audio.itemPickupSound) {
+			PlaySFX(IS_IGRAB);
+		}
+	} else if (item._itype == ItemType::Gold && GoldAutoPlace(player, item)) {
 		if (MyPlayer == &player) {
 			// Non-gold items (or gold when you have a full inventory) go to the hand then provide audible feedback on
 			//  paste. To give the same feedback for auto-placed gold we play the sound effect now.

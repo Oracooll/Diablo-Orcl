@@ -220,6 +220,13 @@ int PremiumRefreshUntilLine()
 	return IsSmallFontTall() ? BackButtonLine() - 1 : BackButtonLine() - 2;
 }
 
+/**
+ * @brief Oracool: user request - "Sell all"'s own line index, used for StoreEnter() dispatch and
+ * stextsel bookkeeping. Its *rendered* position is overridden elsewhere (ScrollSmithSell) to
+ * share Back's row, flush against the right golden border, like Griswold Premium's own "Refresh"
+ * button and "Repair all" - this index just needs to be a line the Sell screen's own item list
+ * never uses.
+ */
 int SmithSellAllLine()
 {
 	return BackButtonLine() - 2;
@@ -920,9 +927,15 @@ void ScrollSmithSell(int idx)
 	// get put back every time this function clears and repopulates the list - the same reason
 	// Griswold Premium's "Refresh" button lives inside the equally per-frame ScrollSmithPremiumBuy
 	// rather than the one-time StartSmithPremiumBuy.
+	//
+	// Oracool: user request - "Sell all" now shares Back's row too, flush against the right
+	// golden border, matching the position "Repair all"/Refresh already settled on as the
+	// standard spot for this class of button, instead of its own centered row above Back.
 	if (!gbIsMultiplayer && storenumh > 0) {
 		if (stextflag == TalkID::SmithSell) {
-			AddSText(0, SmithSellAllLine(), _("Sell all"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			const int line = SmithSellAllLine();
+			AddSText(5, line, _("Sell all"), UiFlags::ColorWhite | UiFlags::AlignRight, true);
+			stext[line]._syoff = static_cast<uint8_t>(stext[BackButtonLine()].y + stext[BackButtonLine()]._syoff - stext[line].y);
 		} else if (stextflag == TalkID::SmithRepair) {
 			const int line = SmithRepairAllLine();
 			AddSText(5, line, _("Repair all"), UiFlags::ColorWhite | UiFlags::AlignRight, true);
@@ -3699,13 +3712,16 @@ void CheckStoreBtn()
 				} else if (MousePosition.x >= rightBorder - RedirectZoneWidth && stext[PremiumRefreshLine()].hasText()) {
 					y = PremiumRefreshLine();
 				} else if (stextflag == TalkID::SmithRepair && MousePosition.x >= rightBorder - RedirectZoneWidth && stext[SmithRepairAllLine()].hasText()) {
-					// Oracool: "Repair all" shares Back's row the same way Refresh does above -
-					// explicitly gated on stextflag (unlike the Premium checks above, which rely on
-					// only the Premium screen ever populating those exact line indices) because
-					// SmithRepairAllLine() can numerically coincide with PremiumRefreshLine()/
-					// PremiumRefreshUntilLine() depending on font size, and Repair is a different
-					// screen that must never be confused with Premium Buy's redirect.
+					// Oracool: "Repair all"/"Sell all" share Back's row the same way Refresh does
+					// above - explicitly gated on stextflag (unlike the Premium checks above, which
+					// rely on only the Premium screen ever populating those exact line indices)
+					// because SmithRepairAllLine()/SmithSellAllLine() can numerically coincide with
+					// PremiumRefreshLine()/PremiumRefreshUntilLine() depending on font size, and
+					// Sell/Repair are different screens that must never be confused with Premium
+					// Buy's redirect.
 					y = SmithRepairAllLine();
+				} else if (stextflag == TalkID::SmithSell && MousePosition.x >= rightBorder - RedirectZoneWidth && stext[SmithSellAllLine()].hasText()) {
+					y = SmithSellAllLine();
 				}
 			}
 			if (stextscrl && y <= 20 && !stext[y].isSelectable()) {

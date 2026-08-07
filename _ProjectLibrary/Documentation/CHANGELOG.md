@@ -207,6 +207,13 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.53 — Elixirs (and Other Consumables) Now Stack When Walked Onto Directly
+
+- **Fixed**: Picking up a stackable consumable (elixirs, potions, scrolls, books, oils) by walking directly onto its tile didn't merge it into a matching stack already in your belt or backpack, even though the automatic "pick up from a few tiles away" QoL feature already did. Elixirs hit this the most since they're rare enough that players often walk right onto them deliberately, but it applied to anything stackable picked up this way.
+- **Changed**: "Sell all" (Griswold's Sell shop) now sits in the same spot as "Repair all" and Premium's "Refresh" - flush against the right golden border, sharing Back's row - instead of its own centered row above Back.
+
+---
+
 ## v0.3.52 — Fixed "Repair All" (and "Sell All") Actually Being Invisible
 
 - **Fixed**: "Repair all" in Griswold's Repair shop, and "Sell all" in his Sell shop, were both being silently erased every frame right after appearing, making them effectively invisible the whole time - not just after last version's repositioning. Both now stay visible and clickable.
