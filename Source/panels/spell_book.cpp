@@ -14,6 +14,7 @@
 #include "engine/render/text_render.hpp"
 #include "init.h"
 #include "missiles.h"
+#include "oracool/furious_charge.h"
 #include "panels/spell_icons.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -144,7 +145,9 @@ void DrawSpellBook(const Surface &out)
 			SpellType st = GetSBookTrans(sn, true);
 			SetSpellTrans(st);
 			const Point spellCellPosition = GetPanelPosition(UiPanels::Spell, { 11, yp + SpellBookDescription.height });
-			DrawSmallSpellIcon(out, spellCellPosition, sn);
+			// Oracool: user request - the spell book grid must show the same borrowed icon
+			// Furious Charge uses everywhere else, not the vanilla Item Repair icon.
+			DrawSmallSpellIcon(out, spellCellPosition, oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
 			if (sn == player._pRSpell && st == player._pRSplType && !IsInspectingPlayer()) {
 				SetSpellTrans(SpellType::Skill);
 				DrawSmallSpellIconBorder(out, spellCellPosition);
@@ -152,7 +155,7 @@ void DrawSpellBook(const Surface &out)
 
 			const Point line0 { 0, yp + textPaddingTop };
 			const Point line1 { 0, yp + textPaddingTop + lineHeight };
-			PrintSBookStr(out, line0, pgettext("spell", GetSpellData(sn).sNameText));
+			PrintSBookStr(out, line0, oracool::GetSpellDisplayName(sn));
 			switch (GetSBookTrans(sn, false)) {
 			case SpellType::Skill:
 				PrintSBookStr(out, line1, _("Skill"));

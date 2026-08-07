@@ -2,8 +2,9 @@
 
 #include <SDL.h>
 
-#include "oracool/oracool.h"
 #include "options.h"
+#include "oracool/oracool.h"
+#include "utils/language.h"
 
 namespace devilution::oracool {
 
@@ -32,6 +33,13 @@ bool IsFuriousChargeEnabled()
 bool IsFuriousChargeSpell(SpellID spellId)
 {
 	return spellId == SpellID::ItemRepair && IsFuriousChargeEnabled();
+}
+
+string_view GetSpellDisplayName(SpellID spellId)
+{
+	if (IsFuriousChargeSpell(spellId))
+		return _("Furious Charge");
+	return pgettext("spell", GetSpellData(spellId).sNameText);
 }
 
 void StartFuriousChargeDash()

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "spelldat.h"
+#include "utils/stdcompat/string_view.hpp"
 
 namespace devilution::oracool {
 
@@ -24,6 +25,23 @@ bool IsFuriousChargeEnabled();
  * true for SpellID::ItemRepair (the Warrior's own class-ability slot) while the option is on.
  */
 bool IsFuriousChargeSpell(SpellID spellId);
+
+/**
+ * @brief Oracool: user request - the borrowed icon used for Furious Charge's slot everywhere
+ * it's drawn (the main panel indicator, the SpeedBook list, the spell book grid) - there's no
+ * dedicated art for a mod-only skill, so this reuses Hellfire's real Berserk skill icon instead.
+ * Centralized here so every draw site shares one answer rather than each picking its own.
+ */
+inline constexpr SpellID FuriousChargeIcon = SpellID::Berserk;
+
+/**
+ * @brief Oracool: user request - "Furious Charge" (translated) wherever a UI would otherwise show
+ * this spell slot's real name ("Item Repair"), otherwise the spell's own translated name
+ * unchanged. Every UI spot that displays a spell/skill's name by name should route through this
+ * instead of reading GetSpellData(spellId).sNameText directly, so the substitute name follows
+ * automatically wherever the real name would otherwise show.
+ */
+string_view GetSpellDisplayName(SpellID spellId);
 
 /**
  * @brief Marks the approach-and-attack currently under way as a furious charge, so

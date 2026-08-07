@@ -276,6 +276,19 @@ TEST(Player, FuriousCharge_IsFuriousChargeSpell_GatedByOptionClassAndMultiplayer
 	sgOptions.Oracool.furiousCharge.SetValue(false);
 }
 
+TEST(Player, FuriousCharge_GetSpellDisplayName_SubstitutesOnlyTheFuriousChargeSlot)
+{
+	using namespace devilution::oracool;
+
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.furiousCharge.SetValue(true);
+	EXPECT_EQ(GetSpellDisplayName(SpellID::ItemRepair), "Furious Charge") << "the substitute slot's own name must read as Furious Charge everywhere";
+	EXPECT_NE(GetSpellDisplayName(SpellID::Firebolt), "Furious Charge") << "an unrelated spell's real name must be untouched";
+
+	sgOptions.Oracool.furiousCharge.SetValue(false);
+	EXPECT_NE(GetSpellDisplayName(SpellID::ItemRepair), "Furious Charge") << "option off - vanilla Item Repair's own name must show instead";
+}
+
 TEST(Player, FuriousCharge_DashAndCooldownStateTransitions)
 {
 	using namespace devilution::oracool;

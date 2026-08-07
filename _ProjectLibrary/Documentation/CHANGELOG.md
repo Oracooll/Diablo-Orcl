@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.3.54 — Furious Charge: Berserk Icon and "Furious Charge" Name Everywhere
+
+- **Changed**: Furious Charge now shows Hellfire's Berserk skill icon (instead of Rage's) everywhere it appears - the main panel indicator, the SpeedBook list (opened with 'S'), and the spell book grid - and its name reads "Furious Charge" everywhere the game would otherwise show "Item Repair" (hover tooltips, the SpeedBook, the spell book). Purely cosmetic - the skill's behavior is unchanged.
+
+---
+
 ## v0.3.53 — Elixirs (and Other Consumables) Now Stack When Walked Onto Directly
 
 - **Fixed**: Picking up a stackable consumable (elixirs, potions, scrolls, books, oils) by walking directly onto its tile didn't merge it into a matching stack already in your belt or backpack, even though the automatic "pick up from a few tiles away" QoL feature already did. Elixirs hit this the most since they're rare enough that players often walk right onto them deliberately, but it applied to anything stackable picked up this way.

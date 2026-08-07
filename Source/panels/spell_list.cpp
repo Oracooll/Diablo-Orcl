@@ -105,28 +105,27 @@ void DrawSpell(const Surface &out)
 
 	const Point position = GetMainPanel().position + Displacement { 565, 119 };
 
-	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (Rage's -
-	// there's no dedicated art for a mod-only skill) instead of the normal single-color Item
-	// Repair icon. User request - the cooldown fill grows in red (rather than the ready color)
-	// bottom-up as it cools, then flips to the normal ready tint the instant it's fully cooled,
-	// instead of gradually blending from gray to color.
+	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (Hellfire's
+	// Berserk - there's no dedicated art for a mod-only skill) instead of the normal single-color
+	// Item Repair icon. User request - the cooldown fill grows in red (rather than the ready
+	// color) bottom-up as it cools, then flips to the normal ready tint the instant it's fully
+	// cooled, instead of gradually blending from gray to color.
 	if (oracool::IsFuriousChargeSpell(spl)) {
-		constexpr SpellID FuriousChargeIcon = SpellID::Rage;
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
 		if (progress >= 1.0f) {
 			SetSpellTrans(st);
-			DrawLargeSpellIcon(out, position, FuriousChargeIcon);
+			DrawLargeSpellIcon(out, position, oracool::FuriousChargeIcon);
 		} else {
 			const int partition = static_cast<int>(SPLICONLENGTH * progress);
 			if (partition > 0) {
 				const Surface filledBand = out.subregionY(position.y - partition, partition);
 				SetSpellTransRed();
-				DrawLargeSpellIcon(filledBand, { position.x, partition }, FuriousChargeIcon);
+				DrawLargeSpellIcon(filledBand, { position.x, partition }, oracool::FuriousChargeIcon);
 			}
 			if (partition < SPLICONLENGTH) {
 				const Surface unfilledBand = out.subregionY(position.y - SPLICONLENGTH, SPLICONLENGTH - partition);
 				SetSpellTrans(SpellType::Invalid);
-				DrawLargeSpellIcon(unfilledBand, { position.x, SPLICONLENGTH }, FuriousChargeIcon);
+				DrawLargeSpellIcon(unfilledBand, { position.x, SPLICONLENGTH }, oracool::FuriousChargeIcon);
 			}
 		}
 	} else {
@@ -160,7 +159,9 @@ void DrawSpellList(const Surface &out)
 		}
 
 		SetSpellTrans(transType);
-		DrawLargeSpellIcon(out, spellListItem.location, spellId);
+		// Oracool: user request - the SpeedBook list must show the same borrowed icon Furious
+		// Charge uses everywhere else, not the vanilla Item Repair icon, for the Warrior's slot.
+		DrawLargeSpellIcon(out, spellListItem.location, oracool::IsFuriousChargeSpell(spellId) ? oracool::FuriousChargeIcon : spellId);
 
 		std::optional<string_view> shortHotkeyName = GetHotkeyName(spellId, spellListItem.type, true);
 
@@ -176,14 +177,14 @@ void DrawSpellList(const Surface &out)
 		case SpellType::Skill:
 			spellColor = PAL16_YELLOW - 46;
 			PrintSBookSpellType(out, spellListItem.location, _("Skill"), spellColor);
-			InfoString = fmt::format(fmt::runtime(_("{:s} Skill")), pgettext("spell", spellDataItem.sNameText));
+			InfoString = fmt::format(fmt::runtime(_("{:s} Skill")), oracool::GetSpellDisplayName(spellId));
 			break;
 		case SpellType::Spell:
 			if (!myPlayer.isOnLevel(0)) {
 				spellColor = PAL16_BLUE + 5;
 			}
 			PrintSBookSpellType(out, spellListItem.location, _("Spell"), spellColor);
-			InfoString = fmt::format(fmt::runtime(_("{:s} Spell")), pgettext("spell", spellDataItem.sNameText));
+			InfoString = fmt::format(fmt::runtime(_("{:s} Spell")), oracool::GetSpellDisplayName(spellId));
 			if (spellId == SpellID::HolyBolt) {
 				AddPanelString(_("Damages undead only"));
 			}
@@ -197,7 +198,7 @@ void DrawSpellList(const Surface &out)
 				spellColor = PAL16_RED - 59;
 			}
 			PrintSBookSpellType(out, spellListItem.location, _("Scroll"), spellColor);
-			InfoString = fmt::format(fmt::runtime(_("Scroll of {:s}")), pgettext("spell", spellDataItem.sNameText));
+			InfoString = fmt::format(fmt::runtime(_("Scroll of {:s}")), oracool::GetSpellDisplayName(spellId));
 			int scrollCount = 0;
 			for (const Item &item : InventoryAndBeltPlayerItemsRange { myPlayer }) {
 				if (item.isScrollOf(spellId))
@@ -210,7 +211,7 @@ void DrawSpellList(const Surface &out)
 				spellColor = PAL16_ORANGE + 5;
 			}
 			PrintSBookSpellType(out, spellListItem.location, _("Staff"), spellColor);
-			InfoString = fmt::format(fmt::runtime(_("Staff of {:s}")), pgettext("spell", spellDataItem.sNameText));
+			InfoString = fmt::format(fmt::runtime(_("Staff of {:s}")), oracool::GetSpellDisplayName(spellId));
 			int charges = myPlayer.InvBody[INVLOC_HAND_LEFT]._iCharges;
 			AddPanelString(fmt::format(fmt::runtime(ngettext("{:d} Charge", "{:d} Charges", charges)), charges));
 		} break;
