@@ -1,86 +1,90 @@
-<p align="center">
-<img width="554" src="https://user-images.githubusercontent.com/204594/113575181-c946a400-961d-11eb-8347-a8829fa3830c.png">
-</p>
+# Diablo Oracool Edition
+
+A single-player-focused overhaul of Diablo built on top of [DevilutionX](https://github.com/diasurgical/devilutionX) 1.5.5. Oracool Edition keeps the original game's feel intact while adding three new item quality tiers, a much larger inventory, a fourth difficulty above Hell, a level cap of 99, and dozens of smaller quality-of-life fixes — all configurable, most on by default, none of it touching multiplayer.
+
+[![Latest release](https://img.shields.io/github/v/release/Oracooll/Diablo-Oracool-Edition?label=latest%20release)](https://github.com/Oracooll/Diablo-Oracool-Edition/releases/latest)
+[![License](https://img.shields.io/badge/license-Sustainable%20Use-blue)](LICENSE.md)
+
+> **Note:** this is a personal single-player mod, not an official DevilutionX release. If you're looking for the base engine project this is built on, see [diasurgical/devilutionX](https://github.com/diasurgical/devilutionX).
 
 ---
 
-[![Discord Channel](https://img.shields.io/discord/518540764754608128?color=%237289DA&logo=discord&logoColor=%23FFFFFF)](https://discord.gg/devilutionx)
-[![Downloads](https://img.shields.io/github/downloads/diasurgical/devilutionX/total.svg)](https://github.com/diasurgical/devilutionX/releases/latest)
-[![Codecov](https://codecov.io/gh/diasurgical/devilutionX/branch/master/graph/badge.svg)](https://codecov.io/gh/diasurgical/devilutionX)
+## What is this
 
-<p align="center">
-<img width="838" src="https://user-images.githubusercontent.com/204594/113578478-26912400-9623-11eb-9ff6-9bd9717462b6.png">
-</p>
+[DevilutionX](https://github.com/diasurgical/devilutionX) is a reverse-engineered, cross-platform port of the original Diablo and Hellfire that fixes bugs and adds engine-level improvements while keeping the original game byte-for-byte faithful. Oracool Edition starts from that foundation and builds a substantial single-player content and quality-of-life layer on top of it: new item tiers, a bigger inventory, extra difficulty, a higher level cap, and a long tail of UI and bugfix polish accumulated over more than seventy dated feature entries.
 
-<sub>*(The health-bar and XP-bar are off by default, but can be enabled in the [game settings](https://github.com/diasurgical/devilutionX/wiki/DevilutionX-diablo.ini-configuration-guide). Widescreen can also be disabled if preferred)*</sub>
+Everything Oracool Edition adds is single-player-only by construction — multiplayer behaves exactly like vanilla DevilutionX, with no risk of desync or unfair advantage. Almost every feature that can reasonably be made optional has its own on/off switch in `diablo.ini`, under an `[Oracool Edition]` section, so you can keep as much or as little of this mod's behavior as you want.
 
-# What is DevilutionX
+## Key features
 
-DevilutionX is a port of Diablo and Hellfire that strives to make it simple to run the game while providing engine improvements, bugfixes, and some optional quality of life features.
+### New item tiers
 
-Check out the [manual](https://github.com/diasurgical/devilutionX/wiki) for what features are available and how best to take advantage of them.
+Three procedurally generated item quality tiers sit between Magic and vanilla Unique in power, built on the game's own affix system:
 
-For a full list of changes see our [changelog](docs/CHANGELOG.md).
+- **Rare** (yellow) — up to two prefixes and two suffixes (always at least one of each).
+- **Buffed Unique** (gold, displays as `Unique {name}` to blend in with real Uniques) — two to three prefixes and suffixes each.
+- **Primal** (orange) — always exactly three prefixes and three suffixes, every one of them rolled at its maximum possible value, and always full durability.
 
-# How to Install
+Each tier has its own configurable drop chance, follows the same "Auto Identify Drops" setting as everything else, and gets its own inventory-slot background color so it's recognizable at a glance.
 
-Note: You'll need access to the data from the original game. If you don't have an original CD then you can [buy Diablo from GoG.com](https://www.gog.com/game/diablo). Alternately you can use `spawn.mpq` from the [shareware](https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq) [[2]](http://ftp.blizzard.com/pub/demos/diablosw.exe) version, in place of `DIABDAT.MPQ`, to play the shareware portion of the game.
+### Tabbed Inventory
 
-Download the latest [DevilutionX release](https://github.com/diasurgical/devilutionX/releases/latest) and extract the contents to a location of your choosing or [build from source](#building-from-source).
+Your backpack grows from 1 page to 10. Tab 1 is your original backpack, unchanged; tabs 2–10 are full-size extra storage pages, numbered with roman numerals. Every interaction — placing, stacking, equipping, selling, identifying, repairing, reading a book — works in an extra tab exactly like it does in your main backpack, and everything you store there saves inside your one existing character save file.
 
-- Copy `DIABDAT.MPQ` from the CD or GOG-installation (or [extract it from the GoG installer](https://github.com/diasurgical/devilutionX/wiki/Extracting-the-.MPQs-from-the-GoG-installer)) to the DevilutionX folder.
-- To run the Diablo: Hellfire expansion you will need to also copy `hellfire.mpq`, `hfmonk.mpq`, `hfmusic.mpq`, `hfvoice.mpq`.
+### Torment difficulty & level cap 99
 
-For more detailed instructions: [Installation Instructions](./docs/installing.md).
+A fourth difficulty above Hell, with an adjustable multiplier (1.1x–5.0x) that scales Hell's own monster and treasure formulas further, plus an optional level-gate (15/30/40) for Nightmare/Hell/Torment. The character level cap is raised from 50 to 99, with a new experience curve for the extra levels.
 
-# Contributing
+### Stackable Consumables & Belt Mod
 
-We are always looking for more people to help with [coding](docs/CONTRIBUTING.md), [documentation](https://github.com/diasurgical/devilutionX/wiki), testing the [latest builds](https://app.circleci.com/pipelines/github/diasurgical/devilutionX?branch=master), spreading the word, or simply just hanging out on [the chat](https://discord.gg/devilutionx).
+Potions, elixirs, scrolls, books, and oils stack up to 99 per slot instead of eating one slot each. Belt slots go further with Belt Mod: each slot holds its own physical stock and automatically refills itself from a matching inventory stack once emptied, instead of going empty after a single use.
 
-# Mods
+### HUD additions
 
-We hope to provide a good starting point for mods, in addition to the full Devilution source code we also provide modding tools. Also, check out the list of known [mods based on DevilutionX](https://github.com/diasurgical/devilutionX/wiki/Mods-and-related-projects).
+- **Event Log** — a collapsible, timestamped log of session events: saves, boss/unique kills, tiered/Unique/Quest item drops, deaths, shrine effects, quest-log additions, and level-ups.
+- **Mini-map** — an always-on corner map (independent of the full map, which still works exactly like vanilla via TAB).
+- **Game Clock** — a real-world clock, 12- or 24-hour.
+- **XP Counter** — experience needed for your next level; press and hold to see the total remaining monster XP on the level instead.
+- **Monster Range Highlight** — nearby monsters get a red outline before they're even on screen, at an adjustable range.
 
-# Test builds
+### Griswold enhancements
 
-If you want to help test the latest development stage of the next version (make sure to backup your files as these may contain bugs), you can fetch the test build artifact from one of the build server:
+A "Buy unique items" shop (an independent, non-restocking stock of identified Uniques), a Premium refresh service, and "Repair all"/"Sell all" buttons that batch-process your whole inventory in one click.
 
-*Note: You must be logged into GitHub to download the attachments!*
+### Quality of life
 
-[![Linux x86_64](https://github.com/diasurgical/devilutionX/actions/workflows/Linux_x86_64.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/Linux_x86_64.yml?query=branch%3Amaster)
-[![Linux aarch64](https://github.com/diasurgical/devilutionX/actions/workflows/Linux_aarch64.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/Linux_aarch64.yml?query=branch%3Amaster)
-[![Linux x86](https://github.com/diasurgical/devilutionX/actions/workflows/Linux_x86.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/Linux_x86.yml?query=branch%3Amaster)
-[![Linux x86_64 SDL1](https://github.com/diasurgical/devilutionX/actions/workflows/Linux_x86_64_SDL1.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/Linux_x86_64_SDL1.yml?query=branch%3Amaster)
-[![macOS x86_64](https://github.com/diasurgical/devilutionX/actions/workflows/macOS_x86_64.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/macOS_x86_64.yml?query=branch%3Amaster)
-[![Windows x64](https://github.com/diasurgical/devilutionX/actions/workflows/Windows_MSVC_x64.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/Windows_MSVC_x64.yml?query=branch%3Amaster)
-[![Windows MinGW x64](https://github.com/diasurgical/devilutionX/actions/workflows/Windows_MinGW_x64.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/Windows_MinGW_x64.yml?query=branch%3Amaster)
-[![Windows MinGW x86](https://github.com/diasurgical/devilutionX/actions/workflows/Windows_MinGW_x86.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/Windows_MinGW_x86.yml?query=branch%3Amaster)
-[![Android](https://github.com/diasurgical/devilutionX/actions/workflows/Android.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/Android.yml?query=branch%3Amaster)
-[![iOS](https://github.com/diasurgical/devilutionX/actions/workflows/iOS.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/iOS.yml?query=branch%3Amaster)
-[![PS4](https://github.com/diasurgical/devilutionX/actions/workflows/PS4.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/PS4.yml?query=branch%3Amaster)
-[![Original Xbox](https://github.com/diasurgical/devilutionX/actions/workflows/xbox_nxdk.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/xbox_nxdk.yml?query=branch%3Amaster)
-[![Xbox One/Series](https://github.com/diasurgical/devilutionX/actions/workflows/xbox_one.yml/badge.svg)](https://github.com/diasurgical/devilutionX/actions/workflows/xbox_one.yml?query=branch%3Amaster)
+Local portable saves (`diablo.ini` and `Saved_Games` live beside the executable, so the whole install is copy-anywhere portable), automatic saving, auto-identify and configurable-radius auto-pickup, a raised gold stack cap, Respawn In Town (keep all your gear when you die), broken items going inactive instead of being destroyed, an inventory sort button, and a large number of smaller fixes and polish passes documented in full below.
 
-Switch, Vita, 3DS, Amiga: [![CircleCI](https://circleci.com/gh/diasurgical/devilutionX.svg?style=shield)](https://app.circleci.com/pipelines/github/diasurgical/devilutionX?branch=master)
+For the complete, dated history of every feature and fix — including exactly which ones are on by default and which need to be enabled — see [`CHANGELOG.md`](_ProjectLibrary/Documentation/CHANGELOG.md) and the more technical [`Gameplay-Changes.md`](_ProjectLibrary/Documentation/Gameplay-Changes.md).
 
-# Building from Source
+## Installation
 
-Want to compile the program by yourself? Great! Simply follow the [build instructions](./docs/building.md).
+1. You'll need the original game data. If you don't own the game, you can [buy Diablo on GoG.com](https://www.gog.com/game/diablo), or use `spawn.mpq` from the shareware version in place of `DIABDAT.MPQ` to play the shareware portion for free.
+2. Download the latest release from the [Releases page](https://github.com/Oracooll/Diablo-Oracool-Edition/releases/latest) and extract it into its own folder.
+3. Copy `DIABDAT.MPQ` from your CD or GoG installation into that same folder.
+4. To play the Hellfire expansion, also copy `hellfire.mpq`, `hfmonk.mpq`, `hfmusic.mpq`, and `hfvoice.mpq` into the folder.
+5. Run `devilutionx.exe`. The title screen should show `DevilutionX 1.5.5` above `Oracool Edition vX.X.X` as two separate lines.
 
-# Credits
+Every release's bundled README documents that specific version's save compatibility with earlier characters — check it before loading an existing save into a new release, since some feature-driven format changes require starting a fresh character.
 
-- The original Devilution project [Devilution](https://github.com/diasurgical/devilution#credits)
-- [Everyone](https://github.com/diasurgical/devilutionX/graphs/contributors) who worked on Devilution/DevilutionX
-- [Nikolay Popov](https://www.instagram.com/nikolaypopovz/) for UI and graphics
-- [WiAParker](https://wiaparker.pl/projekty/diablo-hellfire/) for the Polish voice pack
-- And thanks to all who support the project, report bugs, and help spread the word ❤️
+## Configuration
 
-# Legal
+Settings live in `diablo.ini`, in a dedicated `[Oracool Edition]` section created automatically the first time you run the game. Most features are on by default; a handful of especially foundational ones (uncapped stats, Respawn In Town, Stackable Consumables, Belt Mod, Tabbed Inventory, Torment difficulty, the level 99 cap, and a few others) are permanent parts of the mod and no longer have a toggle at all. Everything else — drop chances, HUD elements, auto-pickup behavior, and more — stays configurable.
 
-DevilutionX is made publicly available and released under the Sustainable Use License (see [LICENSE](LICENSE.md))
+## Building from source
 
-The source code in this repository is for non-commercial use only. If you use the source code you may not charge others for access to it or any derivative work thereof.
+Oracool Edition builds exactly the way DevilutionX itself does — the engine, build system, and platform support are untouched. See DevilutionX's own [build instructions](https://github.com/diasurgical/devilutionX/wiki) for your platform; the only difference is cloning this repository's `oracool-main` branch instead of upstream.
 
-Diablo® - Copyright © 1996 Blizzard Entertainment, Inc. All rights reserved. Diablo and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. in the U.S. and/or other countries.
+```bash
+git clone --branch oracool-main https://github.com/Oracooll/Diablo-Oracool-Edition.git
+```
 
-DevilutionX and any of its maintainers are in no way associated with or endorsed by Blizzard Entertainment®.
+## Credits
+
+Diablo Oracool Edition is a derivative work built on [DevilutionX](https://github.com/diasurgical/devilutionX), originally the [Devilution](https://github.com/diasurgical/devilution#credits) project, by the [Diasurgical](https://github.com/diasurgical) team and its [many contributors](https://github.com/diasurgical/devilutionX/graphs/contributors) — including [Nikolay Popov](https://www.instagram.com/nikolaypopovz/) for UI and graphics work reused here. All the engine work, platform support, and countless bugfixes this mod builds on belong to that project; Oracool Edition adds a single-player content and quality-of-life layer on top of it.
+
+## Legal
+
+Diablo Oracool Edition, like the DevilutionX base it's built on, is released under the Sustainable Use License (see [LICENSE.md](LICENSE.md)). The source code in this repository is for non-commercial use only — you may not charge others for access to it or any derivative work.
+
+Diablo® – Copyright © 1996 Blizzard Entertainment, Inc. All rights reserved. Diablo and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. in the U.S. and/or other countries. This project does not include or distribute any of Blizzard's original game data, and neither DevilutionX nor Diablo Oracool Edition are associated with or endorsed by Blizzard Entertainment®.
