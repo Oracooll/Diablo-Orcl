@@ -469,6 +469,8 @@ void SaveOptions()
 	    "; Monsters within this many tiles of the player get the same red outline normally shown\n; only when hovering them. Values: 0 (OFF), 1-5.");
 	setBoolean("Monster Wall Outline", *sgOptions.Oracool.monsterWallOutline,
 	    "; Draws a red outline on top of walls and other architecture for any monster that would\n; otherwise be hidden behind them, so you can tell something is there.");
+	setInteger("Warrior Splash Damage Range", *sgOptions.Oracool.warriorSplashDamageRange,
+	    "; ----- WARRIOR SPLASH DAMAGE -----------------------------------------------------------------\n; When a Warrior's melee attack lands, monsters near the one actually struck also take damage:\n; full damage at 1 tile away, 50% at 2 tiles, 25% at 3 tiles (each additional range value adds a\n; wider, weaker ring on top of the closer ones). Values: 0 (OFF), 1-3. Single-player only.");
 
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
@@ -1304,6 +1306,7 @@ OracoolOptions::OracoolOptions()
     , remainingMonsterXpButton("Remaining Monster XP Button", OptionEntryFlags::None, N_("Remaining Monster XP Button"), N_("Press and hold the XP Counter to see the total experience worth of every monster still alive on this level."), true)
     , monsterRangeHighlight("Monster Range Highlight", OptionEntryFlags::None, N_("Monster Range Highlight"), N_("Monsters within this many tiles get the same red outline shown when hovering them."), 0, { 0, 1, 2, 3, 4, 5 })
     , monsterWallOutline("Monster Wall Outline", OptionEntryFlags::None, N_("Monster Wall Outline"), N_("Draws a red outline on monsters hidden behind walls or other architecture, so you can tell they're there."), false)
+    , warriorSplashDamageRange("Warrior Splash Damage Range", OptionEntryFlags::None, N_("Warrior Splash Damage Range"), N_("A Warrior's melee hits also damage nearby monsters: full damage at 1 tile, 50% at 2, 25% at 3."), 1, { 0, 1, 2, 3 })
 {
 }
 
@@ -1352,6 +1355,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&remainingMonsterXpButton,
 		&monsterRangeHighlight,
 		&monsterWallOutline,
+		&warriorSplashDamageRange,
 	};
 
 	// Oracool: user request - show the settings menu's Oracool Edition category alphabetically by

@@ -40,6 +40,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
+#include "oracool/warrior_splash.h"
 #include "oracool/xp_gain_indicator.h"
 #include "player.h"
 #include "playerdat.hpp"
@@ -585,7 +586,7 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 	return false;
 }
 
-bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false)
+bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, int *dealtDamage = nullptr)
 {
 	int hper = 0;
 
@@ -697,6 +698,8 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false)
 		}
 #endif
 		ApplyMonsterDamage(DamageType::Physical, monster, dam);
+		if (dealtDamage != nullptr)
+			*dealtDamage = dam;
 	}
 
 	int skdam = 0;
@@ -861,7 +864,11 @@ bool DoAttack(Player &player)
 		}
 
 		if (monster != nullptr) {
-			didhit = PlrHitMonst(player, *monster);
+			int splashDamage = 0;
+			didhit = PlrHitMonst(player, *monster, false, &splashDamage);
+			if (didhit && oracool::IsWarriorSplashDamageEnabled(player)) {
+				oracool::ApplyWarriorSplashDamage(player, *monster, splashDamage);
+			}
 		} else if (PlayerAtPosition(position) != nullptr && !player.friendlyMode) {
 			didhit = PlrHitPlr(player, *PlayerAtPosition(position));
 		} else {

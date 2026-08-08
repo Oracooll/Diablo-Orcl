@@ -45,6 +45,13 @@ Show players when an individual affix on a Rare/Buffed Unique item rolled at its
 - Requires a new per-affix flag on `OracoolAffix` (items.h) — the struct currently only stores `type`/`param1`/`param2`, not the roll range, so "was this roll the max" can't be reliably reconstructed at display time (multiple `PLStruct` rows can share the same `item_effect_type` with different ranges, and only the final post-scaling value is stored).
 - Adding the flag grows the per-item save record (`SaveItem`/`LoadItemData` in loadsave.cpp), so it needs an `OracoolItemFormatVersion` bump — same pattern as when `_iOracoolBroken` was added, and the same lesson learned from the Stash-corruption bug (version bumps must stay in sync or old saves get silently misread instead of cleanly rejected). Breaks compatibility with existing saves/characters; consistent with the user's standing policy of accepting save breaks for simpler/more robust code, as long as they're warned first.
 
+### Unique Legendary Powers, Diablo 3-style (floated 2026-08-07, not started)
+
+Confirmed via a design discussion (comparing D1/Oracool's affix system to D3's legendary powers) that vanilla Diablo 1's ~80 uniques - and by extension Oracool's Rare/Buffed Unique/Primal tiers, which reuse the same engine - have no unique-only mechanic at all. A `UniqueItem`'s `powers[6]` array draws from the exact same shared `item_effect_type` enum (`IPL_TOHIT`, `IPL_FIRERES`, `IPL_INDESTRUCTIBLE`, etc., `itemdat.h`) that ordinary magic prefixes/suffixes use - a unique is just a fixed, hand-picked combination of those same numeric affixes, never a distinct ability. This idea is about adding real D3-style legendary powers: a specific item doing something no ordinary affix can replicate (e.g. "this hammer's melee hits also cast Chain Lightning," or "Whirlwind no longer costs Fury" for a specific weapon) - true per-item behavior hooks, not another numeric stat line.
+
+- Needs a new piece of data intrinsic to the item itself (which legendary power, if any, it carries) plus new gameplay-code hooks wherever that power's trigger condition lives (on-hit, on-cast, resource cost, etc. - scope depends entirely on which powers get designed). Same category of item-intrinsic data as `OracoolItemTier`/`OracoolAffix`, so it needs an `OracoolItemFormatVersion` bump under the project's established save-format-consolidation policy.
+- No design specifics locked in yet - which items get a power, what the powers actually do, and how many to ship in a first pass are all open questions for a real design pass when this gets picked up. Likely benefits from happening alongside or after Set Items, since both want a genuinely distinctive per-item identity beyond the shared affix pool.
+
 ---
 
 ## How the split is decided

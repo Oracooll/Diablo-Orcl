@@ -743,6 +743,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean remainingMonsterXpButton;
 	OptionEntryRangeOrOff monsterRangeHighlight;
 	OptionEntryBoolean monsterWallOutline;
+	OptionEntryRangeOrOff warriorSplashDamageRange;
 };
 
 struct ControllerOptions : OptionCategoryBase {

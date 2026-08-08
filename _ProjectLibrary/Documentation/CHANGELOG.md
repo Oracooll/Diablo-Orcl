@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.4.5 — Warrior Melee Splash Damage
+
+- **New**: `Warrior Splash Damage Range` option (default `1`). A Warrior's melee attacks now also damage monsters near the one actually struck: full damage at 1 tile away, 50% at 2 tiles, 25% at 3 tiles. Set the range to `2` or `3` for a wider splash, or `OFF` to disable it entirely. Single-player only.
+
+---
+
 ## v0.4.4 — Shrine and Fountain of Tears Descriptions No Longer Overlap
 
 - **Fixed**: The Fountain of Tears' description (and any shrine description too long to fit on one line) overlapped itself in the main panel's info box instead of wrapping onto a second or third line. The shrine/fountain's name still shows on its own line above the description, exactly as before.

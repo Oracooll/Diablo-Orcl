@@ -8,6 +8,7 @@
 #include "options.h"
 #include "oracool/furious_charge.h"
 #include "oracool/gradual_healing.h"
+#include "oracool/warrior_splash.h"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "storm/storm_net.hpp"
@@ -320,6 +321,32 @@ TEST(Player, GradualHealing_IsEnabled_GatedByOptionAndMultiplayer)
 
 	gbIsMultiplayer = false;
 	sgOptions.Oracool.gradualHealing.SetValue(false);
+}
+
+TEST(Player, WarriorSplashDamage_IsEnabled_GatedByClassOptionAndMultiplayer)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	devilution::Player &warrior = Players[0];
+	warrior._pClass = HeroClass::Warrior;
+
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.warriorSplashDamageRange.SetValue(0);
+	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "range 0 (OFF) must never splash, even for a Warrior";
+
+	sgOptions.Oracool.warriorSplashDamageRange.SetValue(1);
+	EXPECT_TRUE(IsWarriorSplashDamageEnabled(warrior)) << "Warrior, single-player, range > 0 - this is the only case that splashes";
+
+	warrior._pClass = HeroClass::Sorcerer;
+	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "only the Warrior class ever splashes";
+	warrior._pClass = HeroClass::Warrior;
+
+	gbIsMultiplayer = true;
+	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "multiplayer always keeps vanilla single-target melee regardless of the option";
+
+	gbIsMultiplayer = false;
+	sgOptions.Oracool.warriorSplashDamageRange.SetValue(0);
 }
 
 TEST(Player, GradualHealing_QueueAndDrain_DeliversFullAmountGraduallyNotInstantly)
