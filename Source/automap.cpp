@@ -868,7 +868,9 @@ void InitAutomapOnce()
 	AutomapActive = false;
 	MiniMapActive = false;
 	AutoMapScale = 50;
-	MiniMapScale = 12;
+	// Oracool: user request - default the mini-map to fully zoomed in (was 12, its original
+	// always-zoomed-out-only value) after trying the new ALT+Wheel zoom range in-game.
+	MiniMapScale = MiniMapScaleMax;
 	MiniMapOffset = { 0, 0 };
 }
 

@@ -207,6 +207,12 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.4.9 — Mini-Map Defaults to Fully Zoomed In
+
+- **Changed**: The mini-map now starts each session fully zoomed in (its ALT+Wheel/ALT+Middle-click limit) instead of its old, much more zoomed-out default. You can still zoom it back out with ALT+Wheel at any time.
+
+---
+
 ## v0.4.8 — Modifier-Key Wheel/Middle-Click Set for the Automap and Mini-Map
 
 - **New**: Ctrl+Middle-click now jumps the full-screen automap (opened with TAB) straight between its zoomed-out and zoomed-in limits, matching how plain middle-click already does this for the dungeon view. Ctrl+Wheel's existing map zoom is unchanged.
