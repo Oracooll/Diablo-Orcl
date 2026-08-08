@@ -207,6 +207,29 @@ Also fixed: opening the full-screen map (TAB, all the way to the third state) al
 
 ---
 
+## v0.4.8 — Modifier-Key Wheel/Middle-Click Set for the Automap and Mini-Map
+
+- **New**: Ctrl+Middle-click now jumps the full-screen automap (opened with TAB) straight between its zoomed-out and zoomed-in limits, matching how plain middle-click already does this for the dungeon view. Ctrl+Wheel's existing map zoom is unchanged.
+- **New**: Alt+Wheel zooms the mini-map's own content in and out progressively, and Alt+Middle-click jumps it straight between its zoom limits - independent of the dungeon-view zoom on the plain wheel/middle-click.
+- **New**: Alt+Arrow keys pan the mini-map's view around independently of your character's position, letting you glance at a nearby area without moving the mini-map's fixed top-right box itself. Alt+` (the key next to 1) instantly recenters it back on your character. None of this is saved between sessions - the mini-map always starts centered and at its normal zoom when you launch the game.
+
+---
+
+## v0.4.7 — Continuous Dungeon-View Zoom
+
+- **New**: A smooth, continuous zoom on the dungeon view itself, replacing the old on/off `Zoom` option. Scroll the mouse wheel over the game area to zoom in and out in fine steps, from your normal resolution-sized view all the way in to the same 2x zoom the old option gave you. Middle-click jumps straight between the two extremes. The `Z` key and its gamepad equivalent now do the same middle-click jump instead of the old flat on/off toggle. Ctrl+Wheel still zooms the automap when it's open, unchanged; Shift+Wheel/Shift+Middle-click are reserved for future use. Your zoom level is remembered between sessions.
+
+---
+
+## v0.4.6 — Monster Outline No Longer Hidden by Cave Walls, Sell All Click Fix
+
+- **Fixed**: The red monster outline (from hovering a monster, or from `Monster Range Highlight`) could still get hidden behind walls in cave-tileset levels like Poisoned Water Supply, even though `Monster Wall Outline` is meant to keep it visible through architecture. Cave walls are visually taller/more overhanging than cathedral or catacombs walls, and the game's "is this monster hidden" check didn't account for that extra visual overlap. The outline is now always guaranteed to render on top of walls in every tileset, not just the ones the check happened to catch correctly.
+- **Fixed**: Griswold's "Sell all" button could occasionally do nothing (or something other than selling everything) instead of selling your whole list in one click, needing a couple of extra clicks before it finally worked. A narrow strip of "Sell all"'s own clickable area overlapped the store window's scrollbar hit-zone and was being swallowed by it instead of reaching the button.
+- **Fixed**: Clicking in the blank space just above "Sell all"/"Repair all" (between the item list and the button itself) triggered the individual "Are you sure you want to sell this item?" confirmation for whichever item was last in the visible list, instead of doing nothing. A click-routing helper meant to handle a real item's overflow text mistakenly treated that blank gap as part of the last item's own row.
+- **Changed**: The Resolution list in Graphics options is now a fixed, curated set of 22 resolutions spanning five aspect ratios (4:3, 3:2, 16:10, 16:9, 21:9), each labeled with its ratio (e.g. "1920x1080 (16:9)"), instead of a list built from whatever your monitor happened to report. 960x720 is now the minimum supported resolution - anything smaller is no longer offered, and an old saved resolution below that automatically snaps up to the closest valid one. Resolutions that wouldn't fit your actual display are automatically left off the list.
+
+---
+
 ## v0.4.5 — Warrior Melee Splash Damage
 
 - **New**: `Warrior Splash Damage Range` option (default `1`). A Warrior's melee attacks now also damage monsters near the one actually struck: full damage at 1 tile away, 50% at 2 tiles, 25% at 3 tiles. Set the range to `2` or `3` for a wider splash, or `OFF` to disable it entirely. Single-player only.

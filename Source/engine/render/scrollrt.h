@@ -61,6 +61,19 @@ void TilesInView(int *columns, int *rows);
 void CalcViewportGeometry();
 
 /**
+ * @brief Oracool: adjusts the continuous dungeon-view zoom level by `steps` tenths (e.g. +1 = one
+ * mouse wheel notch zooming in), clamped to the 1.0x-2.0x range, and recalculates viewport geometry.
+ */
+void AdjustDungeonZoom(int steps);
+
+/**
+ * @brief Oracool: jumps the dungeon-view zoom to whichever limit (1.0x zoomed-out or 2.0x
+ * zoomed-in) it isn't currently already at - used by the Zoom hotkey/gamepad action and by
+ * middle-click.
+ */
+void ToggleDungeonZoom();
+
+/**
  * @brief Render the whole screen black
  */
 void ClearScreenBuffer();

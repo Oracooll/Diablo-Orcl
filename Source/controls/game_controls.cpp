@@ -287,8 +287,7 @@ void PressControllerButton(ControllerButton button)
 			return;
 		case devilution::ControllerButton_BUTTON_Y:
 #ifdef __3DS__
-			sgOptions.Graphics.zoom.SetValue(!*sgOptions.Graphics.zoom);
-			CalcViewportGeometry();
+			ToggleDungeonZoom();
 #endif
 			return;
 		default:

@@ -3654,7 +3654,21 @@ void CheckStoreBtn()
 
 		const int relativeY = MousePosition.y - (uiPosition.y + PaddingTop);
 
-		if (stextscrl && MousePosition.x > 600 + uiPosition.x) {
+		// Oracool bug fix: user report - "Sell all" occasionally did nothing (or something else
+		// entirely) instead of selling everything, requiring several extra clicks before it
+		// finally worked. Root cause: "Sell all"/"Repair all"/Griswold Premium's "Refresh"/
+		// "Refresh until" all share Back's row and are clickable across a 100px-wide band from
+		// the right golden border (x >= uiPosition.x + 616 - 100 = uiPosition.x + 516 - see the
+		// matching redirect logic below), but this scrollbar hit-test unconditionally claims and
+		// returns on *any* click with x > uiPosition.x + 600, regardless of row. That's a 16px
+		// sliver (x in (600, 616]) where those buttons' own clickable zone overlaps the
+		// scrollbar's, and a click landing there was swallowed here - doing nothing at all if it
+		// didn't also happen to match one of the scrollbar's own arrow rows - instead of ever
+		// reaching the button it visually landed on.
+		const bool clickIsOnBackRowButtonZone = stext[BackButtonLine()].hasText()
+		    && relativeY / LineHeight() == BackButtonLine()
+		    && MousePosition.x >= uiPosition.x + 616 - 100;
+		if (stextscrl && MousePosition.x > 600 + uiPosition.x && !clickIsOnBackRowButtonZone) {
 			// Scroll bar is always measured in terms of the small line height.
 			int y = relativeY / SmallLineHeight;
 			if (y == 4) {
@@ -3724,7 +3738,19 @@ void CheckStoreBtn()
 					y = SmithSellAllLine();
 				}
 			}
-			if (stextscrl && y <= 20 && !stext[y].isSelectable()) {
+			// Oracool bug fix: user report - clicking in the visually-blank gap between the item
+			// list and "Sell all"/"Repair all"/Back (e.g. row 19, between SmithSellAllLine's row 20
+			// and the last item's rows 17-18) triggered that *last item's* individual sell
+			// confirmation instead of doing nothing. Root cause: this walk-back step assumed any
+			// unselectable row within 2 of a selectable one must be a continuation of that row's
+			// content (e.g. a price column rendered on its own unselectable row) - true when the
+			// row actually has text, but row 19 here is genuinely blank (nothing ever populates
+			// it), not a continuation of anything. Blindly walking back turned "click on dead
+			// space" into "click on the last item's own row", which the generic idx math below then
+			// resolves to a real, sellable item by coincidence. Requiring the row to actually have
+			// text before walking back leaves genuinely blank rows alone - they now fall through to
+			// the final check below and correctly do nothing.
+			if (stextscrl && y <= 20 && stext[y].hasText() && !stext[y].isSelectable()) {
 				if (stext[y - 2].isSelectable()) {
 					y -= 2;
 				} else if (stext[y - 1].isSelectable()) {

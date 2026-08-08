@@ -409,10 +409,11 @@ void CheckCursMove()
 		sy = mainPanel.position.y - 1;
 	}
 
-	if (*sgOptions.Graphics.zoom) {
-		sx /= 2;
-		sy /= 2;
-	}
+	// Oracool: generalized from the old binary /2 to a continuous factor - dividing by 1.0f
+	// reproduces the un-zoomed case exactly, and by 2.0f the old fully-zoomed case exactly.
+	const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
+	sx = static_cast<int>(sx / zoomFactor);
+	sy = static_cast<int>(sy / zoomFactor);
 
 	// Adjust by player offset and tile grid alignment
 	int xo = 0;
@@ -461,9 +462,9 @@ void CheckCursMove()
 		my++;
 	}
 
-	if (*sgOptions.Graphics.zoom) {
-		sy -= TILE_HEIGHT / 4;
-	}
+	// Oracool: generalized from a fixed TILE_HEIGHT/4 fudge (see CalcViewportGeometry) to a linear
+	// interpolation - exactly 0 at zoomFactor==1.0 and exactly TILE_HEIGHT/4 at zoomFactor==2.0.
+	sy -= static_cast<int>((zoomFactor - 1.0f) * (TILE_HEIGHT / 4.0f));
 
 	int tx = sx / TILE_WIDTH;
 	int ty = sy / TILE_HEIGHT;

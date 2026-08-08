@@ -123,9 +123,7 @@ void AddItemToLabelQueue(int id, Point position)
 
 	position.x += *labelCenterOffsets[index];
 	position.y -= TILE_HEIGHT;
-	if (*sgOptions.Graphics.zoom) {
-		position *= 2;
-	}
+	position *= *sgOptions.Oracool.dungeonZoomLevel;
 	position.x -= nameWidth / 2;
 	position.y -= LabelHeight();
 	labelQueue.push_back(ItemLabel { id, nameWidth, position, std::move(textOnGround) });

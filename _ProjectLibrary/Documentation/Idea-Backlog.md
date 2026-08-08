@@ -26,6 +26,14 @@ Breaking down unwanted items into materials. The new persistent state here (a ma
 
 A Diablo 2-style skill tree with per-skill investment and cross-skill synergy bonuses, as opposed to vanilla Diablo 1's simpler spell-book/spell-level system. Per-skill point allocation is player-scoped data, not per-item — like `heroinvtabs`, it can be its own new, absent-tolerant save file (a save from before this feature simply has no points invested). This avoids the per-item, per-container sync fragility that was the actual reason the old item-tier sidecar got merged into the core record in the v0.2.0 Foundations Pass — that lesson is about item data living in multiple containers (backpack/belt/tabs/stash/ground), which doesn't apply to a single player-level skill sheet.
 
+### HUD/UI rearrangement + 1024x768 minimum resolution (floated 2026-08-08, not started)
+
+Full rework of the main gameplay HUD layout: move the Health orb further left, the Mana orb further right, pull the belt down to the very bottom of the screen, remove the black description/info box entirely (replacing it with a different way of surfacing item/shrine/monster info - not yet decided), move all HUD buttons below the belt, and put the XP bar below the buttons. Overall goal: maximize the vertical screen space actually dedicated to gameplay. Would also raise the game's minimum supported resolution to 1024x768 and design the new HUD specifically around that floor rather than scaling the existing 640x480-era layout.
+
+- **Non-save-breaking**: pure rendering/layout change, no new persistent item or player data implied by anything described so far. A "Classic HUD" vs. "new HUD" choice, if offered as an option, would be a normal INI toggle like any other Oracool option - not item-intrinsic data.
+- **Asset impact**: repositioning the orbs/belt/buttons/XP-bar is layout-only and doesn't need new art if the existing sprites are reused as-is. Replacing the black description box with "another way of conveying information," and designing for a taller/wider HUD built around 1024x768 rather than reused 640x480-era chrome, will likely need genuinely new UI art (panel backgrounds, borders, possibly resized orb/button frames) rather than pure code changes - candidate for the `Oracoo.MPQ/assets/ui/hud/` staging subfolder, given how many interrelated pieces a full HUD redesign implies.
+- **Open questions for a real design pass**: what exactly replaces the description box (tooltip-on-hover? a dedicated side panel? something else?); whether the new HUD is a single fixed layout or an optional "Classic"/"Oracool HUD" toggle; how existing buttons (Event Log, mini-map cycle, etc.) get laid out in the new below-belt button row.
+
 ---
 
 ## Save-breaking (batch together for one later pass)
@@ -51,6 +59,20 @@ Confirmed via a design discussion (comparing D1/Oracool's affix system to D3's l
 
 - Needs a new piece of data intrinsic to the item itself (which legendary power, if any, it carries) plus new gameplay-code hooks wherever that power's trigger condition lives (on-hit, on-cast, resource cost, etc. - scope depends entirely on which powers get designed). Same category of item-intrinsic data as `OracoolItemTier`/`OracoolAffix`, so it needs an `OracoolItemFormatVersion` bump under the project's established save-format-consolidation policy.
 - No design specifics locked in yet - which items get a power, what the powers actually do, and how many to ship in a first pass are all open questions for a real design pass when this gets picked up. Likely benefits from happening alongside or after Set Items, since both want a genuinely distinctive per-item identity beyond the shared affix pool.
+
+### Item Tiers, Diablo 2-style (Normal/Exceptional/Elite) (floated 2026-08-08, not started)
+
+Add three tiers to basic weapons and armor, D2-style: Normal (today's baseline), Exceptional, and Elite. Exceptional drops on Nightmare and up; Elite drops on Hell and up. Exceptional doubles the base item's damage/armor spec; Elite triples it. Both new tiers can still roll as magic, rare, buffed unique, or Primal on top of the base tier boost. STR/Magic/Dex requirements scale with tier too: +50% for Exceptional, +100% for Elite. Proposed naming: append `(II)` to the base item name for Exceptional, `(IIII)` for Elite, so the tier is visible on the drop/tooltip without a new color.
+
+Open design notes from the first discussion pass (not yet resolved):
+
+- **Naming inconsistency**: `(II)` → `(IIII)` skips `(III)` and doesn't read as a clean progression at a glance. Worth picking a scheme where the visual jump from tier to tier is more legible (e.g. `(II)`/`(III)`, or a bracketed tier word).
+- **Open question — real Uniques**: do vanilla/Oracool Unique items (the fixed hand-picked ones, not the Buffed Unique tier) also get Exceptional/Elite base-stat versions, or are Uniques exempt and only the generic magic/rare/buffed-unique/Primal rolls scale?
+- **Open question — drop mechanic**: should Exceptional/Elite be a guaranteed replacement once the difficulty threshold is hit (all qualifying drops from Nightmare+ are automatically Exceptional-or-better), or a percentage chance layered on top of the normal drop table on those difficulties?
+- **No new UI color suggested** — the `(II)`/`(IIII)` suffix is meant to carry the distinction textually rather than needing a new `UiFlags` color bit, unlike Rare/Buffed Unique/Primal which do use color.
+- **Testing caution**: appending a tier suffix to already-long item names (especially ones that already carry prefix/suffix affix text) risks overflowing the inventory tooltip/name-display width — needs a check against the longest existing base item name once this is built.
+
+Needs a new piece of data intrinsic to the item itself (which base tier it rolled), so it survives save/load — same category as `OracoolItemTier`, landing in the save-breaking bucket per the project's established classification framework.
 
 ---
 

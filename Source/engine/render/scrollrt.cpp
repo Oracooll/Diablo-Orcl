@@ -5,7 +5,10 @@
  */
 #include "engine/render/scrollrt.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <vector>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "automap.h"
@@ -809,14 +812,22 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	// monster hidden by darkness is exactly the same "can't normally see it, but still want the
 	// outline" situation as one hidden by a wall. The lit check (tileLit, above) is now only used
 	// to gate the monster's own sprite at the very end of this function, never these outlines.
-	if (mi == pcursmonst || inHighlightRange) {
+	const bool shouldOutlineMonster = mi == pcursmonst || inHighlightRange;
+	if (shouldOutlineMonster) {
 		ClxDrawOutlineSkipColorZero(out, 233, monsterRenderPosition, sprite);
 	}
-	// Oracool: user request - flag monsters whose line of sight to the player is blocked by a wall
-	// or other missile-blocking architecture, or who simply aren't on a currently lit tile, so their
-	// outline can be redrawn on top of it in a later pass (see DrawMonsterWallOutlines) instead of
-	// staying hidden.
-	if (*sgOptions.Oracool.monsterWallOutline && (!tileLit || !LineClearMissile(MyPlayer->position.tile, monster.position.tile))) {
+	// Oracool bug fix: user report - in cave tilesets (e.g. Poisoned Water Supply), a monster's
+	// Range Highlight/hover outline could still get painted over by a neighboring tile's wall even
+	// though the monster's own tile was fully lit with clear line of sight. Cave wall graphics are
+	// taller/more overhanging than cathedral or catacombs walls and visually overlap into adjacent
+	// tiles well beyond what the tileLit/LineClearMissile check (designed to approximate "is this
+	// monster hidden") accounts for - that check is a reasonable heuristic for whether to bother
+	// queuing a plain hidden-behind-a-wall outline, but it isn't a reliable predictor of whether
+	// architecture will visually paint over an outline drawn in this same first pass. Any outline
+	// already drawn above is therefore also unconditionally queued for the guaranteed-on-top second
+	// pass (see DrawMonsterWallOutlines) - redrawing pixels that are already visible is a harmless
+	// no-op, so there's no downside to always doing it regardless of tileset.
+	if (shouldOutlineMonster || (*sgOptions.Oracool.monsterWallOutline && (!tileLit || !LineClearMissile(MyPlayer->position.tile, monster.position.tile)))) {
 		HiddenMonsterOutlineQueue.push_back({ monsterRenderPosition, sprite });
 	}
 
@@ -1029,10 +1040,36 @@ void DrawTileContent(const Surface &out, Point tilePosition, Point targetBufferP
 	}
 }
 
+namespace {
+
 /**
- * @brief Scale up the top left part of the buffer 2x.
+ * @brief Oracool: how big a dimension rendered at native resolution needs to be to end up
+ * `fullSize` pixels once scaled up by `zoomFactor` - shared by the render-buffer sizing in
+ * DrawGame and the source-region sizing in ZoomScale, so both agree on exactly the same value.
  */
-void Zoom(const Surface &out)
+int ScaledDimension(int fullSize, float zoomFactor)
+{
+	if (zoomFactor <= 1.0f)
+		return fullSize;
+	return static_cast<int>(std::lround(fullSize / zoomFactor));
+}
+
+/** @brief Oracool: reused scratch row buffer for ZoomScale, grown on demand, never shrunk. */
+std::vector<uint8_t> zoomScaleScratchRow;
+
+} // namespace
+
+/**
+ * @brief Oracool: continuous generalization of the original exact-2x zoom - scales the rendered
+ * top-left [0,0)-[srcWidth,srcHeight) region of `out` up to fill `out`, by an arbitrary factor
+ * from 1.0 (no-op) up to 2.0, via nearest-neighbor sampling. Diablo's palette-indexed 8bpp pixels
+ * can't be filtered/blended like RGB, so nearest-neighbor is the only correct method here - it
+ * also keeps the same pixelated look at every zoom level, not just the old exact 2x.
+ *
+ * Processes destination rows bottom-to-top: since srcY(dstY) <= dstY always (the source region is
+ * never taller than the destination), no row is read after it has already been overwritten.
+ */
+void ZoomScale(const Surface &out, float zoomFactor)
 {
 	int viewportWidth = out.w();
 	int viewportOffsetX = 0;
@@ -1045,42 +1082,32 @@ void Zoom(const Surface &out)
 		}
 	}
 
-	// We round to even for the source width and height.
-	// If the width / height was odd, we copy just one extra pixel / row later on.
-	const int srcWidth = (viewportWidth + 1) / 2;
-	const int doubleableWidth = viewportWidth / 2;
-	const int srcHeight = (out.h() + 1) / 2;
-	const int doubleableHeight = out.h() / 2;
+	const int dstHeight = out.h();
+	const int srcWidth = std::clamp(ScaledDimension(viewportWidth, zoomFactor), 1, viewportWidth);
+	const int srcHeight = std::clamp(ScaledDimension(dstHeight, zoomFactor), 1, dstHeight);
 
-	uint8_t *src = out.at(srcWidth - 1, srcHeight - 1);
-	uint8_t *dst = out.at(viewportOffsetX + viewportWidth - 1, out.h() - 1);
-	const bool oddViewportWidth = (viewportWidth % 2) == 1;
+	const size_t rowBytes = static_cast<size_t>(viewportWidth);
+	if (zoomScaleScratchRow.size() < rowBytes)
+		zoomScaleScratchRow.resize(rowBytes);
+	uint8_t *scaledRow = zoomScaleScratchRow.data();
 
-	for (int hgt = 0; hgt < doubleableHeight; hgt++) {
-		// Double the pixels in the line.
-		for (int i = 0; i < doubleableWidth; i++) {
-			*dst-- = *src;
-			*dst-- = *src;
-			--src;
+	uint8_t *base = out.at(viewportOffsetX, 0);
+	const int pitch = out.pitch();
+
+	for (int dstY = dstHeight - 1; dstY >= 0; dstY--) {
+		int srcY = (dstY * srcHeight) / dstHeight;
+		if (srcY >= srcHeight)
+			srcY = srcHeight - 1;
+		const uint8_t *srcRow = base + static_cast<ptrdiff_t>(srcY) * pitch;
+
+		for (int dstX = 0; dstX < viewportWidth; dstX++) {
+			int srcX = (dstX * srcWidth) / viewportWidth;
+			if (srcX >= srcWidth)
+				srcX = srcWidth - 1;
+			scaledRow[dstX] = srcRow[srcX];
 		}
 
-		// Copy a single extra pixel if the output width is odd.
-		if (oddViewportWidth) {
-			*dst-- = *src;
-			--src;
-		}
-
-		// Skip the rest of the source line.
-		src -= (out.pitch() - srcWidth);
-
-		// Double the line.
-		memcpy(dst - out.pitch() + 1, dst + 1, viewportWidth);
-
-		// Skip the rest of the destination line.
-		dst -= 2 * out.pitch() - viewportWidth;
-	}
-	if ((out.h() % 2) == 1) {
-		memcpy(dst - out.pitch() + 1, dst + 1, viewportWidth);
+		memcpy(base + static_cast<ptrdiff_t>(dstY) * pitch, scaledRow, rowBytes);
 	}
 }
 
@@ -1101,13 +1128,16 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
 
 	// Skip rendering parts covered by the panels
 	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
-		int multiplier = (*sgOptions.Graphics.zoom) ? 1 : 2;
+		// Oracool: generalized from the old binary zoom-on-off multiplier (1 or 2) to a continuous
+		// factor - 2.0f/zoomFactor reproduces 1 at zoomFactor==2.0 and 2 at zoomFactor==1.0 exactly.
+		const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
+		const float multiplier = 2.0f / zoomFactor;
 		position += Displacement(Direction::East) * multiplier;
-		offset.deltaX += -TILE_WIDTH * multiplier / 2 / 2;
+		offset.deltaX += static_cast<int>(-TILE_WIDTH * multiplier / 2 / 2);
 
-		if (IsLeftPanelOpen() && !*sgOptions.Graphics.zoom) {
+		if (IsLeftPanelOpen() && zoomFactor < 1.5f) {
 			offset.deltaX += SidePanelSize.width;
-			// SidePanelSize.width accounted for in Zoom()
+			// SidePanelSize.width accounted for in ZoomScale()
 		}
 	}
 
@@ -1142,17 +1172,21 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
  */
 void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 {
-	// Limit rendering to the view area
-	const Surface &out = !*sgOptions.Graphics.zoom
-	    ? fullOut.subregionY(0, gnViewportHeight)
-	    : fullOut.subregionY(0, (gnViewportHeight + 1) / 2);
+	const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
+
+	// Limit rendering to the view area - Oracool: generalized from the old binary zoom's fixed
+	// half-height render buffer to a continuous factor via the shared ScaledDimension helper,
+	// which ZoomScale() below uses to derive the exact same source height.
+	const Surface &out = fullOut.subregionY(0, ScaledDimension(gnViewportHeight, zoomFactor));
 
 	int columns = tileColums;
 	int rows = tileRows;
 
 	// Skip rendering parts covered by the panels
 	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
-		columns -= (*sgOptions.Graphics.zoom) ? 2 : 4;
+		// Oracool: generalized from the old binary 2-or-4 column trim - 4/zoomFactor reproduces
+		// 4 at zoomFactor==1.0 and 2 at zoomFactor==2.0 exactly.
+		columns -= static_cast<int>(std::lround(4.0f / zoomFactor));
 	}
 
 	UpdateMissilesRendererData();
@@ -1190,8 +1224,8 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DrawFloor(out, position, Point {} + offset, rows, columns);
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
 
-	if (*sgOptions.Graphics.zoom) {
-		Zoom(fullOut.subregionY(0, gnViewportHeight));
+	if (zoomFactor > 1.0f) {
+		ZoomScale(fullOut.subregionY(0, gnViewportHeight), zoomFactor);
 	}
 
 #ifdef DUN_RENDER_STATS
@@ -1259,6 +1293,7 @@ void DrawView(const Surface &out, Point startPosition)
 		RedrawEverything();
 		char debugGridTextBuffer[10];
 		bool megaTiles = IsDebugGridInMegatiles();
+		const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
 
 		for (auto m : DebugCoordsMap) {
 			Point dunCoords = { m.first % MAXDUNX, m.first / MAXDUNX };
@@ -1267,12 +1302,10 @@ void DrawView(const Surface &out, Point startPosition)
 			Point pixelCoords = m.second;
 			if (megaTiles)
 				pixelCoords += Displacement { 0, TILE_HEIGHT / 2 };
-			if (*sgOptions.Graphics.zoom)
-				pixelCoords *= 2;
+			pixelCoords *= zoomFactor;
 			if (debugGridTextNeeded && GetDebugGridText(dunCoords, debugGridTextBuffer)) {
 				Size tileSize = { TILE_WIDTH, TILE_HEIGHT };
-				if (*sgOptions.Graphics.zoom)
-					tileSize *= 2;
+				tileSize *= zoomFactor;
 				DrawString(out, debugGridTextBuffer, { pixelCoords - Displacement { 0, tileSize.height }, tileSize }, { UiFlags::ColorRed | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 			}
 			if (DebugGrid) {
@@ -1297,10 +1330,8 @@ void DrawView(const Surface &out, Point startPosition)
 
 				Displacement hor = { TILE_WIDTH / 2, 0 };
 				Displacement ver = { 0, TILE_HEIGHT / 2 };
-				if (*sgOptions.Graphics.zoom) {
-					hor *= 2;
-					ver *= 2;
-				}
+				hor *= zoomFactor;
+				ver *= zoomFactor;
 				Point center = pixelCoords + hor - ver;
 
 				if (megaTiles) {
@@ -1539,9 +1570,9 @@ int RowsCoveredByPanel()
 	}
 
 	int rows = mainPanelSize.height / TILE_HEIGHT;
-	if (*sgOptions.Graphics.zoom) {
-		rows /= 2;
-	}
+	// Oracool: generalized from the old binary /2 to a continuous factor - exactly reproduces the
+	// original truncating integer division at zoomFactor==1.0 and ==2.0.
+	rows = static_cast<int>(rows / *sgOptions.Oracool.dungeonZoomLevel);
 
 	return rows;
 }
@@ -1550,17 +1581,12 @@ void CalcTileOffset(int *offsetX, int *offsetY)
 {
 	uint16_t screenWidth = GetScreenWidth();
 	uint16_t viewportHeight = GetViewportHeight();
+	const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
 
-	int x;
-	int y;
-
-	if (!*sgOptions.Graphics.zoom) {
-		x = screenWidth % TILE_WIDTH;
-		y = viewportHeight % TILE_HEIGHT;
-	} else {
-		x = (screenWidth / 2) % TILE_WIDTH;
-		y = (viewportHeight / 2) % TILE_HEIGHT;
-	}
+	// Oracool: generalized from the old binary "divide by 2 or don't" to a continuous factor -
+	// dividing by 1.0f reproduces the un-zoomed branch exactly, and by 2.0f the zoomed one.
+	int x = static_cast<int>(screenWidth / zoomFactor) % TILE_WIDTH;
+	int y = static_cast<int>(viewportHeight / zoomFactor) % TILE_HEIGHT;
 
 	if (x != 0)
 		x = (TILE_WIDTH - x) / 2;
@@ -1585,16 +1611,14 @@ void TilesInView(int *rcolumns, int *rrows)
 		rows++;
 	}
 
-	if (*sgOptions.Graphics.zoom) {
-		// Half the number of tiles, rounded up
-		if ((columns & 1) != 0) {
-			columns++;
-		}
-		columns /= 2;
-		if ((rows & 1) != 0) {
-			rows++;
-		}
-		rows /= 2;
+	// Oracool: generalized from "round up to even, then halve" (the old binary zoom) to
+	// ceil(nativeTiles / zoomFactor) - mathematically identical to the original at zoomFactor==2.0
+	// (rounding a count up to even then halving it always equals its ceiling-divide-by-2), and a
+	// safe (never-under-render) generalization for any factor in between.
+	const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
+	if (zoomFactor > 1.0f) {
+		columns = static_cast<int>(std::ceil(columns / zoomFactor));
+		rows = static_cast<int>(std::ceil(rows / zoomFactor));
 	}
 
 	*rcolumns = columns;
@@ -1603,15 +1627,17 @@ void TilesInView(int *rcolumns, int *rrows)
 
 void CalcViewportGeometry()
 {
-	const int zoomFactor = *sgOptions.Graphics.zoom ? 2 : 1;
-	const int screenWidth = GetScreenWidth() / zoomFactor;
-	const int screenHeight = GetScreenHeight() / zoomFactor;
-	const int panelHeight = GetMainPanel().size.height / zoomFactor;
+	const float zoomFactor = *sgOptions.Oracool.dungeonZoomLevel;
+	const int screenWidth = static_cast<int>(GetScreenWidth() / zoomFactor);
+	const int screenHeight = static_cast<int>(GetScreenHeight() / zoomFactor);
+	const int panelHeight = static_cast<int>(GetMainPanel().size.height / zoomFactor);
 	const int pixelsToPanel = screenHeight - panelHeight;
 	Point playerPosition { screenWidth / 2, pixelsToPanel / 2 };
 
-	if (*sgOptions.Graphics.zoom)
-		playerPosition.y += TILE_HEIGHT / 4;
+	// Oracool: generalized from a fixed TILE_HEIGHT/4 fudge (only applied when the old binary zoom
+	// was fully on) to a linear interpolation that is exactly 0 at zoomFactor==1.0 and exactly
+	// TILE_HEIGHT/4 at zoomFactor==2.0, matching the original at both endpoints.
+	playerPosition.y += static_cast<int>((zoomFactor - 1.0f) * (TILE_HEIGHT / 4.0f));
 
 	const int tilesToTop = (playerPosition.y + TILE_HEIGHT - 1) / TILE_HEIGHT;
 	const int tilesToLeft = (playerPosition.x + TILE_WIDTH - 1) / TILE_WIDTH;
@@ -1642,10 +1668,23 @@ void CalcViewportGeometry()
 
 	// Compute the number of rows to be rendered as well as
 	// the number of columns to be rendered in the first row
-	const int viewportHeight = GetViewportHeight() / zoomFactor;
+	const int viewportHeight = static_cast<int>(GetViewportHeight() / zoomFactor);
 	const Point renderStart = startPosition - Displacement { TILE_WIDTH / 2, TILE_HEIGHT / 2 };
 	tileRows = (viewportHeight - renderStart.y + TILE_HEIGHT / 2 - 1) / (TILE_HEIGHT / 2);
 	tileColums = (screenWidth - renderStart.x + TILE_WIDTH - 1) / TILE_WIDTH;
+}
+
+void AdjustDungeonZoom(int steps)
+{
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(sgOptions.Oracool.dungeonZoomLevel.ValueTenths() + steps);
+	CalcViewportGeometry();
+}
+
+void ToggleDungeonZoom()
+{
+	const bool closerToZoomedIn = sgOptions.Oracool.dungeonZoomLevel.ValueTenths() >= 15;
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(closerToZoomedIn ? 10 : 20);
+	CalcViewportGeometry();
 }
 
 extern SDL_Surface *PalSurface;

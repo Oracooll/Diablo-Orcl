@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -375,6 +376,40 @@ private:
 	mutable std::vector<std::string> descriptionCache;
 };
 
+/**
+ * @brief Oracool: an int-backed value (like OptionEntryTormentMultiplier) storing tenths of the
+ * dungeon-view zoom factor - 10 to 20, i.e. 1.0x (zoomed out, today's normal view) to 2.0x
+ * (zoomed in, matching the old binary Graphics.zoom's exact 2x). Adjusted live via mouse wheel /
+ * middle-click, not through the settings dialog - always constructed with Invisible so it never
+ * appears there, but it still persists through the normal GetEntries()-driven ini load/save.
+ */
+class OptionEntryDungeonZoom : public OptionEntryIntBase {
+public:
+	OptionEntryDungeonZoom(string_view key, OptionEntryFlags flags, const char *name, const char *description, int defaultValueTenths)
+	    : OptionEntryIntBase(key, flags, name, description, defaultValueTenths)
+	{
+		for (int tenths = 10; tenths <= 20; tenths++)
+			AddEntry(tenths);
+	}
+
+	[[nodiscard]] float operator*() const
+	{
+		return GetValueInternal() / 10.0f;
+	}
+
+	/** @brief The raw stored tenths value (10-20) - for the INI writer / wheel step logic. */
+	[[nodiscard]] int ValueTenths() const
+	{
+		return GetValueInternal();
+	}
+
+	/** @param tenths the raw tenths value to store (10-20, i.e. 1.0x-2.0x), not the float factor. */
+	void SetValue(int tenths)
+	{
+		SetValueInternal(std::clamp(tenths, 10, 20));
+	}
+};
+
 class OptionEntryLanguageCode : public OptionEntryListBase {
 public:
 	OptionEntryLanguageCode();
@@ -598,8 +633,6 @@ struct GraphicsOptions : OptionCategoryBase {
 	OptionEntryEnum<FrameRateControl> frameRateControl;
 	/** @brief Gamma correction level. */
 	OptionEntryInt<int> gammaCorrection;
-	/** @brief Zoom on start. */
-	OptionEntryBoolean zoom;
 	/** @brief Enable color cycling animations. */
 	OptionEntryBoolean colorCycling;
 	/** @brief Use alternate nest palette. */
@@ -744,6 +777,9 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryRangeOrOff monsterRangeHighlight;
 	OptionEntryBoolean monsterWallOutline;
 	OptionEntryRangeOrOff warriorSplashDamageRange;
+	/** @brief Continuous dungeon-view zoom level, in tenths (10-20 = 1.0x-2.0x). Invisible - set
+	 * live via mouse wheel / middle-click, not through the settings dialog. */
+	OptionEntryDungeonZoom dungeonZoomLevel;
 };
 
 struct ControllerOptions : OptionCategoryBase {

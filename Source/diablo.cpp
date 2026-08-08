@@ -611,7 +611,9 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		}
 		return;
 	case SDLK_UP:
-		if (stextflag != TalkID::None) {
+		if ((modState & KMOD_ALT) != 0) {
+			MiniMapUp();
+		} else if (stextflag != TalkID::None) {
 			StoreUp();
 		} else if (QuestLogIsOpen) {
 			QuestlogUp();
@@ -626,7 +628,9 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		}
 		return;
 	case SDLK_DOWN:
-		if (stextflag != TalkID::None) {
+		if ((modState & KMOD_ALT) != 0) {
+			MiniMapDown();
+		} else if (stextflag != TalkID::None) {
 			StoreDown();
 		} else if (QuestLogIsOpen) {
 			QuestlogDown();
@@ -655,12 +659,24 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		}
 		return;
 	case SDLK_LEFT:
-		if (AutomapActive && !talkflag)
+		if ((modState & KMOD_ALT) != 0) {
+			MiniMapLeft();
+		} else if (AutomapActive && !talkflag) {
 			AutomapLeft();
+		}
 		return;
 	case SDLK_RIGHT:
-		if (AutomapActive && !talkflag)
+		if ((modState & KMOD_ALT) != 0) {
+			MiniMapRight();
+		} else if (AutomapActive && !talkflag) {
 			AutomapRight();
+		}
+		return;
+	case SDLK_BACKQUOTE:
+		// Oracool: ALT+` (the key next to 1) recenters the mini-map's pan on the character.
+		if ((modState & KMOD_ALT) != 0) {
+			RecenterMiniMap();
+		}
 		return;
 	case SDLK_SPACE:
 		// Oracool: user request - space bar closes the Event Log window when it's open. No-op
@@ -694,6 +710,20 @@ void HandleMouseButtonDown(Uint8 button, uint16_t modState)
 		case SDL_BUTTON_RIGHT:
 			sgbMouseDown = CLICK_RIGHT;
 			RightMouseDown((modState & KMOD_SHIFT) != 0);
+			break;
+		case SDL_BUTTON_MIDDLE:
+			// Oracool: modifier-qualified middle-click actions, mirroring the wheel's own
+			// Ctrl/Alt branches - hardcoded here rather than through the (unqualified) Keymapper,
+			// matching how other modifier combos like Ctrl+Wheel and Alt+Enter are handled.
+			if ((modState & KMOD_CTRL) != 0) {
+				if (AutomapActive) {
+					ToggleAutomapZoom();
+				}
+			} else if ((modState & KMOD_ALT) != 0) {
+				ToggleMiniMapZoom();
+			} else {
+				ToggleDungeonZoom();
+			}
 			break;
 		default:
 			sgOptions.Keymapper.KeyPressed(button | KeymapperMouseButtonMask);
@@ -799,8 +829,17 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				if (AutomapActive) {
 					AutomapZoomIn();
 				}
-			} else {
+			} else if (SDL_GetModState() & KMOD_ALT) {
+				// Oracool: Alt+Wheel zooms the mini-map's own content, independent of the
+				// dungeon-view zoom on the plain wheel below.
+				MiniMapZoomIn();
+			} else if (SDL_GetModState() & KMOD_SHIFT) {
+				// Oracool: belt/hotbar cycling, displaced here from the plain wheel below to make
+				// room for dungeon-view zoom.
 				sgOptions.Keymapper.KeyPressed(MouseScrollUpButton);
+			} else {
+				// Oracool: plain wheel now zooms the dungeon view in/out, one 0.1x step per notch.
+				AdjustDungeonZoom(1);
 			}
 		} else if (event.wheel.y < 0) { // down
 			if (stextflag != TalkID::None) {
@@ -819,8 +858,15 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				if (AutomapActive) {
 					AutomapZoomOut();
 				}
-			} else {
+			} else if (SDL_GetModState() & KMOD_ALT) {
+				// Oracool: Alt+Wheel zooms the mini-map's own content - see the wheel-up branch above.
+				MiniMapZoomOut();
+			} else if (SDL_GetModState() & KMOD_SHIFT) {
+				// Oracool: belt/hotbar cycling, displaced here - see the wheel-up branch above.
 				sgOptions.Keymapper.KeyPressed(MouseScrollDownButton);
+			} else {
+				// Oracool: plain wheel now zooms the dungeon view in/out, one 0.1x step per notch.
+				AdjustDungeonZoom(-1);
 			}
 		} else if (event.wheel.x > 0) { // left
 			sgOptions.Keymapper.KeyPressed(MouseScrollLeftButton);
@@ -1849,10 +1895,9 @@ void InitKeymapActions()
 	    N_("Zoom"),
 	    N_("Zoom Game Screen."),
 	    'Z',
-	    [] {
-		    sgOptions.Graphics.zoom.SetValue(!*sgOptions.Graphics.zoom);
-		    CalcViewportGeometry();
-	    },
+	    // Oracool: retired the old on/off Graphics.zoom in favor of a continuous dungeon-view zoom
+	    // (mouse wheel / middle-click) - this hotkey now jumps to whichever limit it isn't at.
+	    ToggleDungeonZoom,
 	    nullptr,
 	    CanPlayerTakeAction);
 	sgOptions.Keymapper.AddAction(
@@ -2326,10 +2371,9 @@ void InitPadmapActions()
 	    N_("Zoom"),
 	    N_("Zoom Game Screen."),
 	    ControllerButton_NONE,
-	    [] {
-		    sgOptions.Graphics.zoom.SetValue(!*sgOptions.Graphics.zoom);
-		    CalcViewportGeometry();
-	    },
+	    // Oracool: retired the old on/off Graphics.zoom in favor of a continuous dungeon-view zoom
+	    // (mouse wheel / middle-click) - this action now jumps to whichever limit it isn't at.
+	    ToggleDungeonZoom,
 	    nullptr,
 	    CanPlayerTakeAction);
 	sgOptions.Padmapper.AddAction(

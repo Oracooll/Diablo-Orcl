@@ -15,7 +15,7 @@ TEST(Scroll_rt, calc_tiles_in_view_original)
 	gnScreenWidth = 640;
 	gnScreenHeight = 480;
 	gnViewportHeight = gnScreenHeight - 128;
-	sgOptions.Graphics.zoom.SetValue(false);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(10);
 	int columns = 0;
 	int rows = 0;
 	TilesInView(&columns, &rows);
@@ -28,7 +28,7 @@ TEST(Scroll_rt, calc_tiles_in_view_original_zoom)
 	gnScreenWidth = 640;
 	gnScreenHeight = 480;
 	gnViewportHeight = gnScreenHeight - 128;
-	sgOptions.Graphics.zoom.SetValue(true);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(20);
 	int columns = 0;
 	int rows = 0;
 	TilesInView(&columns, &rows);
@@ -41,7 +41,7 @@ TEST(Scroll_rt, calc_tiles_in_view_960_540)
 	gnScreenWidth = 960;
 	gnScreenHeight = 540;
 	gnViewportHeight = gnScreenHeight;
-	sgOptions.Graphics.zoom.SetValue(false);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(10);
 	int columns = 0;
 	int rows = 0;
 	TilesInView(&columns, &rows);
@@ -49,12 +49,27 @@ TEST(Scroll_rt, calc_tiles_in_view_960_540)
 	EXPECT_EQ(rows, 17);
 }
 
+// Oracool: continuous zoom - a fractional 1.5x level (halfway between the old binary option's
+// off/on endpoints) to confirm TilesInView generalizes correctly, not just at 1.0x/2.0x.
+TEST(Scroll_rt, calc_tiles_in_view_960_540_zoom_1_5x)
+{
+	gnScreenWidth = 960;
+	gnScreenHeight = 540;
+	gnViewportHeight = gnScreenHeight;
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(15);
+	int columns = 0;
+	int rows = 0;
+	TilesInView(&columns, &rows);
+	EXPECT_EQ(columns, 10);
+	EXPECT_EQ(rows, 12);
+}
+
 TEST(Scroll_rt, calc_tiles_in_view_640_512)
 {
 	gnScreenWidth = 640;
 	gnScreenHeight = 512;
 	gnViewportHeight = gnScreenHeight - 128;
-	sgOptions.Graphics.zoom.SetValue(false);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(10);
 	int columns = 0;
 	int rows = 0;
 	TilesInView(&columns, &rows);
@@ -67,7 +82,7 @@ TEST(Scroll_rt, calc_tiles_in_view_768_480_zoom)
 	gnScreenWidth = 768;
 	gnScreenHeight = 480;
 	gnViewportHeight = gnScreenHeight;
-	sgOptions.Graphics.zoom.SetValue(true);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(20);
 	int columns = 0;
 	int rows = 0;
 	TilesInView(&columns, &rows);
@@ -82,7 +97,7 @@ TEST(Scroll_rt, calc_tile_offset_original)
 	gnScreenWidth = 640;
 	gnScreenHeight = 480;
 	gnViewportHeight = gnScreenHeight - 128;
-	sgOptions.Graphics.zoom.SetValue(false);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(10);
 	int x = 0;
 	int y = 0;
 	CalcTileOffset(&x, &y);
@@ -95,7 +110,7 @@ TEST(Scroll_rt, calc_tile_offset_original_zoom)
 	gnScreenWidth = 640;
 	gnScreenHeight = 480;
 	gnViewportHeight = gnScreenHeight - 128;
-	sgOptions.Graphics.zoom.SetValue(true);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(20);
 	int x = 0;
 	int y = 0;
 	CalcTileOffset(&x, &y);
@@ -108,7 +123,7 @@ TEST(Scroll_rt, calc_tile_offset_960_540)
 	gnScreenWidth = 960;
 	gnScreenHeight = 540;
 	gnViewportHeight = gnScreenHeight;
-	sgOptions.Graphics.zoom.SetValue(false);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(10);
 	int x = 0;
 	int y = 0;
 	CalcTileOffset(&x, &y);
@@ -116,12 +131,26 @@ TEST(Scroll_rt, calc_tile_offset_960_540)
 	EXPECT_EQ(y, 2);
 }
 
+// Oracool: continuous zoom - a fractional 1.5x level, see calc_tiles_in_view_960_540_zoom_1_5x.
+TEST(Scroll_rt, calc_tile_offset_960_540_zoom_1_5x)
+{
+	gnScreenWidth = 960;
+	gnScreenHeight = 540;
+	gnViewportHeight = gnScreenHeight;
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(15);
+	int x = 0;
+	int y = 0;
+	CalcTileOffset(&x, &y);
+	EXPECT_EQ(x, 0);
+	EXPECT_EQ(y, 12);
+}
+
 TEST(Scroll_rt, calc_tile_offset_853_480)
 {
 	gnScreenWidth = 853;
 	gnScreenHeight = 480;
 	gnViewportHeight = gnScreenHeight;
-	sgOptions.Graphics.zoom.SetValue(false);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(10);
 	int x = 0;
 	int y = 0;
 	CalcTileOffset(&x, &y);
@@ -134,7 +163,7 @@ TEST(Scroll_rt, calc_tile_offset_768_480_zoom)
 	gnScreenWidth = 768;
 	gnScreenHeight = 480;
 	gnViewportHeight = gnScreenHeight;
-	sgOptions.Graphics.zoom.SetValue(true);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(20);
 	int x = 0;
 	int y = 0;
 	CalcTileOffset(&x, &y);
@@ -147,7 +176,7 @@ TEST(Scroll_rt, calc_tile_offset_768_480_zoom)
 TEST(Scroll_rt, calc_tiles_covered_by_panel_original)
 {
 	gnScreenWidth = 640;
-	sgOptions.Graphics.zoom.SetValue(false);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(10);
 	CalculatePanelAreas();
 	EXPECT_EQ(RowsCoveredByPanel(), 0);
 }
@@ -155,7 +184,7 @@ TEST(Scroll_rt, calc_tiles_covered_by_panel_original)
 TEST(Scroll_rt, calc_tiles_covered_by_panel_960)
 {
 	gnScreenWidth = 960;
-	sgOptions.Graphics.zoom.SetValue(false);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(10);
 	CalculatePanelAreas();
 	EXPECT_EQ(RowsCoveredByPanel(), 4);
 }
@@ -163,7 +192,16 @@ TEST(Scroll_rt, calc_tiles_covered_by_panel_960)
 TEST(Scroll_rt, calc_tiles_covered_by_panel_960_zoom)
 {
 	gnScreenWidth = 960;
-	sgOptions.Graphics.zoom.SetValue(true);
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(20);
+	CalculatePanelAreas();
+	EXPECT_EQ(RowsCoveredByPanel(), 2);
+}
+
+// Oracool: continuous zoom - a fractional 1.5x level, see calc_tiles_in_view_960_540_zoom_1_5x.
+TEST(Scroll_rt, calc_tiles_covered_by_panel_960_zoom_1_5x)
+{
+	gnScreenWidth = 960;
+	sgOptions.Oracool.dungeonZoomLevel.SetValue(15);
 	CalculatePanelAreas();
 	EXPECT_EQ(RowsCoveredByPanel(), 2);
 }

@@ -42,6 +42,15 @@ extern uint8_t AutomapView[DMAXX][DMAXY];
 /** Specifies the scale of the automap. */
 extern DVL_API_FOR_TEST int AutoMapScale;
 extern DVL_API_FOR_TEST Displacement AutomapOffset;
+/** @brief Oracool: the mini-map's own scale, independent of AutoMapScale - see MiniMapScaleMin/Max. */
+extern DVL_API_FOR_TEST int MiniMapScale;
+/** @brief Oracool: the mini-map's own pan offset, independent of AutomapOffset. */
+extern DVL_API_FOR_TEST Displacement MiniMapOffset;
+
+/** @brief Oracool: the most zoomed-out the mini-map can go (ALT+Wheel down / ALT+middle-click limit). */
+constexpr int MiniMapScaleMin = 6;
+/** @brief Oracool: the most zoomed-in the mini-map can go (ALT+Wheel up / ALT+middle-click limit). */
+constexpr int MiniMapScaleMax = 30;
 
 inline int AmLine(int x)
 {
@@ -94,6 +103,40 @@ void AutomapZoomIn();
  * @brief Decreases the zoom level of the automap.
  */
 void AutomapZoomOut();
+
+/**
+ * @brief Oracool: jumps the automap's zoom straight to whichever limit (50 or 200) it isn't
+ * already at or closer to - used by CTRL+middle-click, only while the automap is open.
+ */
+void ToggleAutomapZoom();
+
+/**
+ * @brief Oracool: scrolls the mini-map's own view leftwards/rightwards/up/downwards -
+ * independent of the full automap's AutomapUp/Down/Left/Right - used by ALT+Arrow keys.
+ */
+void MiniMapUp();
+void MiniMapDown();
+void MiniMapLeft();
+void MiniMapRight();
+
+/**
+ * @brief Oracool: resets the mini-map's pan offset back to centered-on-character - used by
+ * ALT+` (the key next to 1).
+ */
+void RecenterMiniMap();
+
+/**
+ * @brief Oracool: increases/decreases the mini-map's own zoom level, clamped to
+ * MiniMapScaleMin/MiniMapScaleMax - used by ALT+Wheel.
+ */
+void MiniMapZoomIn();
+void MiniMapZoomOut();
+
+/**
+ * @brief Oracool: jumps the mini-map's zoom straight to whichever limit (MiniMapScaleMin or
+ * MiniMapScaleMax) it isn't already at or closer to - used by ALT+middle-click.
+ */
+void ToggleMiniMapZoom();
 
 /**
  * @brief Renders the automap to the given buffer.

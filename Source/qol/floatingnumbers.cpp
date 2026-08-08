@@ -178,9 +178,7 @@ void DrawFloatingNumbers(const Surface &out, Point viewPosition, Displacement of
 		Displacement worldOffset = viewPosition - floatingNum.startPos;
 		worldOffset = worldOffset.worldToScreen() + offset + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 } + floatingNum.startOffset;
 
-		if (*sgOptions.Graphics.zoom) {
-			worldOffset *= 2;
-		}
+		worldOffset *= *sgOptions.Oracool.dungeonZoomLevel;
 
 		Point screenPosition { worldOffset.deltaX, worldOffset.deltaY };
 

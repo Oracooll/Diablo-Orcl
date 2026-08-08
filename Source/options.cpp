@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <limits>
 
 #include <fmt/format.h>
 
@@ -37,10 +39,14 @@
 namespace devilution {
 
 #ifndef DEFAULT_WIDTH
-#define DEFAULT_WIDTH 900
+// Oracool: user request - 960x720 is now the supported minimum resolution (see
+// CuratedResolutions below), so the default must be one of the curated entries rather than
+// the old sub-minimum 900x600. 1280x720 is the most broadly compatible modern default (any
+// display that can do 720p or better handles it) while the old default no longer would.
+#define DEFAULT_WIDTH 1280
 #endif
 #ifndef DEFAULT_HEIGHT
-#define DEFAULT_HEIGHT 600
+#define DEFAULT_HEIGHT 720
 #endif
 #ifndef DEFAULT_AUDIO_SAMPLE_RATE
 #define DEFAULT_AUDIO_SAMPLE_RATE 22050
@@ -801,13 +807,87 @@ std::vector<OptionEntryBase *> AudioOptions::GetEntries()
 	// clang-format on
 }
 
+namespace {
+
+struct CuratedResolution {
+	Size size;
+	const char *ratioLabel;
+};
+
+/**
+ * Oracool: user request - replace the old monitor-detected resolution list (which depended on
+ * what the display driver happened to report, and could include anything down to 640x480) with
+ * a fixed, curated list spanning five aspect ratios, from a 960x720 floor up to a 1440-tall
+ * ceiling. Real/recognizable resolutions are used where they exist (1024x768, 1920x1080,
+ * 2560x1440, WXGA/WSXGA+/WUXGA, common ultrawide panels) rather than purely mathematically
+ * generated ones, per the user's "meaningful" requirement. Grouped by ratio (not sorted by
+ * size) so the options menu naturally clusters same-ratio choices together.
+ */
+constexpr CuratedResolution CuratedResolutions[] = {
+	// 4:3
+	{ { 960, 720 }, "4:3" },
+	{ { 1024, 768 }, "4:3" },
+	{ { 1152, 864 }, "4:3" },
+	{ { 1280, 960 }, "4:3" },
+	{ { 1400, 1050 }, "4:3" },
+	{ { 1600, 1200 }, "4:3" },
+	{ { 1920, 1440 }, "4:3" },
+	// 3:2
+	{ { 1152, 768 }, "3:2" },
+	{ { 1440, 960 }, "3:2" },
+	{ { 1920, 1280 }, "3:2" },
+	{ { 2160, 1440 }, "3:2" },
+	// 16:10
+	{ { 1280, 800 }, "16:10" },
+	{ { 1440, 900 }, "16:10" },
+	{ { 1680, 1050 }, "16:10" },
+	{ { 1920, 1200 }, "16:10" },
+	// 16:9
+	{ { 1280, 720 }, "16:9" },
+	{ { 1600, 900 }, "16:9" },
+	{ { 1920, 1080 }, "16:9" },
+	{ { 2560, 1440 }, "16:9" },
+	// 21:9
+	{ { 1680, 720 }, "21:9" },
+	{ { 2560, 1080 }, "21:9" },
+	{ { 3440, 1440 }, "21:9" },
+};
+
+/**
+ * Oracool: snaps a loaded (possibly pre-curated-list, possibly hand-edited) ini resolution to
+ * the closest entry in CuratedResolutions, so the resolution option always resolves to one of
+ * the fixed list's entries - nothing below the 960x720 floor, and nothing off-list, can persist
+ * across a load.
+ */
+Size SnapToNearestCuratedResolution(Size size)
+{
+	Size best = CuratedResolutions[0].size;
+	int bestDistance = std::numeric_limits<int>::max();
+	for (const CuratedResolution &entry : CuratedResolutions) {
+		if (entry.size == size)
+			return size;
+		const int distance = std::abs(entry.size.width - size.width) + std::abs(entry.size.height - size.height);
+		if (distance < bestDistance) {
+			bestDistance = distance;
+			best = entry.size;
+		}
+	}
+	return best;
+}
+
+} // namespace
+
 OptionEntryResolution::OptionEntryResolution()
     : OptionEntryListBase("", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::RecreateUI, N_("Resolution"), N_("Affect the game's internal resolution and determine your view area. Note: This can differ from screen resolution, when Upscaling, Integer Scaling or Fit to Screen is used."))
 {
 }
 void OptionEntryResolution::LoadFromIni(string_view category)
 {
-	size = { GetIniInt(category.data(), "Width", DEFAULT_WIDTH), GetIniInt(category.data(), "Height", DEFAULT_HEIGHT) };
+	const Size loaded { GetIniInt(category.data(), "Width", DEFAULT_WIDTH), GetIniInt(category.data(), "Height", DEFAULT_HEIGHT) };
+	// Oracool: user request - 960x720 is the supported floor; snap anything saved below it (or
+	// anything not matching one of the curated entries, e.g. from before this list existed) up
+	// to the closest valid resolution instead of allowing an unsupported value to load.
+	size = SnapToNearestCuratedResolution(loaded);
 }
 void OptionEntryResolution::SaveToIni(string_view category) const
 {
@@ -825,98 +905,62 @@ void OptionEntryResolution::CheckResolutionsAreInitialized() const
 	if (!resolutions.empty())
 		return;
 
-	std::vector<Size> sizes;
-	float scaleFactor = GetDpiScalingFactor();
-
-	// Add resolutions
-	bool supportsAnyResolution = false;
+	// Oracool: user request - determine the device's actual desktop resolution so curated
+	// entries too large to ever display (bigger than the desktop, in either dimension) can be
+	// dropped from the list. Falls back to offering the full curated list if the desktop size
+	// can't be determined, or if filtering would remove every entry (e.g. an unusually small
+	// display below even the 960x720 floor) - better to offer resolutions that may need
+	// scaling than to leave nothing selectable.
+	Size desktopSize { 0, 0 };
 #ifdef USE_SDL1
-	auto *modes = SDL_ListModes(nullptr, SDL_FULLSCREEN | SDL_HWPALETTE);
-	// SDL_ListModes returns -1 if any resolution is allowed (for example returned on 3DS)
-	if (modes == (SDL_Rect **)-1) {
-		supportsAnyResolution = true;
-	} else if (modes != nullptr) {
-		for (size_t i = 0; modes[i] != nullptr; i++) {
-			if (modes[i]->w < modes[i]->h) {
-				std::swap(modes[i]->w, modes[i]->h);
-			}
-			sizes.emplace_back(Size {
-			    static_cast<int>(modes[i]->w * scaleFactor),
-			    static_cast<int>(modes[i]->h * scaleFactor) });
-		}
-	}
+	const SDL_VideoInfo *videoInfo = SDL_GetVideoInfo();
+	if (videoInfo != nullptr)
+		desktopSize = { videoInfo->current_w, videoInfo->current_h };
 #else
-	int displayModeCount = SDL_GetNumDisplayModes(0);
-	for (int i = 0; i < displayModeCount; i++) {
-		SDL_DisplayMode mode;
-		if (SDL_GetDisplayMode(0, i, &mode) != 0) {
-			ErrSdl();
-		}
-		if (mode.w < mode.h) {
-			std::swap(mode.w, mode.h);
-		}
-		sizes.emplace_back(Size {
-		    static_cast<int>(mode.w * scaleFactor),
-		    static_cast<int>(mode.h * scaleFactor) });
-	}
-	supportsAnyResolution = *sgOptions.Graphics.upscale;
+	SDL_DisplayMode desktopMode;
+	if (SDL_GetDesktopDisplayMode(0, &desktopMode) == 0)
+		desktopSize = { desktopMode.w, desktopMode.h };
 #endif
 
-	if (supportsAnyResolution && sizes.size() == 1) {
-		// Attempt to provide sensible options for 4:3 and the native aspect ratio
-		const int width = sizes[0].width;
-		const int height = sizes[0].height;
-		const int commonHeights[] = { 480, 540, 720, 960, 1080, 1440, 2160 };
-		for (int commonHeight : commonHeights) {
-			if (commonHeight > height)
-				break;
-			sizes.emplace_back(Size { commonHeight * 4 / 3, commonHeight });
-			if (commonHeight * width % height == 0)
-				sizes.emplace_back(Size { commonHeight * width / height, commonHeight });
+	std::vector<Size> sizes;
+	std::vector<const char *> ratioLabels;
+	for (const CuratedResolution &entry : CuratedResolutions) {
+		if (desktopSize.width > 0 && desktopSize.height > 0
+		    && (entry.size.width > desktopSize.width || entry.size.height > desktopSize.height)) {
+			continue;
+		}
+		sizes.push_back(entry.size);
+		ratioLabels.push_back(entry.ratioLabel);
+	}
+	if (sizes.empty()) {
+		for (const CuratedResolution &entry : CuratedResolutions) {
+			sizes.push_back(entry.size);
+			ratioLabels.push_back(entry.ratioLabel);
 		}
 	}
-	// Ensures that the ini specified resolution is present in resolution list even if it doesn't match a monitor resolution (for example if played in window mode)
-	sizes.push_back(this->size);
-	// Ensures that the platform's preferred default resolution is always present
-	sizes.emplace_back(Size { DEFAULT_WIDTH, DEFAULT_HEIGHT });
-	// Ensures that the vanilla Diablo resolution is present on systems that would support it
-	if (supportsAnyResolution)
-		sizes.emplace_back(Size { 640, 480 });
 
-#ifndef USE_SDL1
-	if (*sgOptions.Graphics.fitToScreen) {
-		SDL_DisplayMode mode;
-		if (SDL_GetDesktopDisplayMode(0, &mode) != 0) {
-			ErrSdl();
-		}
-		for (auto &size : sizes) {
-			// Ensure that the ini specified resolution remains present in the resolution list
-			if (size.height == this->size.height)
-				size.width = this->size.width;
-			else
-				size.width = size.height * mode.w / mode.h;
-		}
+	// Ensures the ini-specified resolution is present even in the unexpected case that it isn't
+	// already one of the curated entries (LoadFromIni snaps it to the nearest one via
+	// SnapToNearestCuratedResolution, so this is a defensive fallback, not the normal path).
+	if (std::find(sizes.begin(), sizes.end(), this->size) == sizes.end()) {
+		sizes.push_back(this->size);
+		ratioLabels.push_back("custom");
 	}
-#endif
 
-	// Sort by width then by height
-	std::sort(sizes.begin(), sizes.end(),
-	    [](const Size &x, const Size &y) -> bool {
-		    if (x.width == y.width)
-			    return x.height > y.height;
-		    return x.width > y.width;
-	    });
-	// Remove duplicate entries
-	sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
-
-	for (auto &size : sizes) {
+	for (size_t i = 0; i < sizes.size(); i++) {
+		Size size = sizes[i];
 #ifndef USE_SDL1
 		if (*sgOptions.Graphics.fitToScreen) {
+			// Fit to Screen stretches every entry's width to the desktop's own aspect ratio, so
+			// the curated ratio label no longer describes what's actually displayed - keep the
+			// original "XXXp" height-only labeling for this mode instead of the ratio hint.
+			if (desktopSize.width > 0 && desktopSize.height > 0)
+				size.width = size.height * desktopSize.width / desktopSize.height;
 			resolutions.emplace_back(size, StrCat(size.height, "p"));
 			continue;
 		}
 #endif
-		resolutions.emplace_back(size, StrCat(size.width, "x", size.height));
+		resolutions.emplace_back(size, StrCat(size.width, "x", size.height, " (", ratioLabels[i], ")"));
 	}
 }
 
@@ -1117,7 +1161,6 @@ GraphicsOptions::GraphicsOptions()
               { FrameRateControl::CPUSleep, N_("Limit FPS") },
           })
     , gammaCorrection("Gamma Correction", OptionEntryFlags::Invisible, "Gamma Correction", "Gamma correction level.", 100)
-    , zoom("Zoom", OptionEntryFlags::None, N_("Zoom"), N_("Zoom on when enabled."), false)
     , colorCycling("Color Cycling", OptionEntryFlags::None, N_("Color Cycling"), N_("Color cycling effect used for water, lava, and acid animation."), true)
     , alternateNestArt("Alternate nest art", OptionEntryFlags::OnlyHellfire | OptionEntryFlags::CantChangeInGame, N_("Alternate nest art"), N_("The game will use an alternative palette for Hellfire’s nest tileset."), false)
 #if SDL_VERSION_ATLEAST(2, 0, 0)
@@ -1157,7 +1200,6 @@ std::vector<OptionEntryBase *> GraphicsOptions::GetEntries()
 #endif
 		&frameRateControl,
 		&gammaCorrection,
-		&zoom,
 		&showFPS,
 		&colorCycling,
 		&alternateNestArt,
@@ -1307,6 +1349,7 @@ OracoolOptions::OracoolOptions()
     , monsterRangeHighlight("Monster Range Highlight", OptionEntryFlags::None, N_("Monster Range Highlight"), N_("Monsters within this many tiles get the same red outline shown when hovering them."), 0, { 0, 1, 2, 3, 4, 5 })
     , monsterWallOutline("Monster Wall Outline", OptionEntryFlags::None, N_("Monster Wall Outline"), N_("Draws a red outline on monsters hidden behind walls or other architecture, so you can tell they're there."), false)
     , warriorSplashDamageRange("Warrior Splash Damage Range", OptionEntryFlags::None, N_("Warrior Splash Damage Range"), N_("A Warrior's melee hits also damage nearby monsters: full damage at 1 tile, 50% at 2, 25% at 3."), 1, { 0, 1, 2, 3 })
+    , dungeonZoomLevel("Dungeon Zoom Level", OptionEntryFlags::Invisible, "Dungeon Zoom Level", "Continuous dungeon-view zoom, in tenths (10-20 = 1.0x-2.0x). Set live via mouse wheel / middle-click.", 10)
 {
 }
 
@@ -1356,6 +1399,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&monsterRangeHighlight,
 		&monsterWallOutline,
 		&warriorSplashDamageRange,
+		&dungeonZoomLevel,
 	};
 
 	// Oracool: user request - show the settings menu's Oracool Edition category alphabetically by

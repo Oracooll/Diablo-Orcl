@@ -860,12 +860,16 @@ bool MiniMapActive;
 uint8_t AutomapView[DMAXX][DMAXY];
 int AutoMapScale;
 Displacement AutomapOffset;
+int MiniMapScale;
+Displacement MiniMapOffset;
 
 void InitAutomapOnce()
 {
 	AutomapActive = false;
 	MiniMapActive = false;
 	AutoMapScale = 50;
+	MiniMapScale = 12;
+	MiniMapOffset = { 0, 0 };
 }
 
 void InitAutomap()
@@ -927,6 +931,61 @@ void AutomapZoomOut()
 		return;
 
 	AutoMapScale -= 5;
+}
+
+void ToggleAutomapZoom()
+{
+	AutoMapScale = (AutoMapScale >= 125) ? 50 : 200;
+}
+
+void MiniMapUp()
+{
+	MiniMapOffset.deltaX--;
+	MiniMapOffset.deltaY--;
+}
+
+void MiniMapDown()
+{
+	MiniMapOffset.deltaX++;
+	MiniMapOffset.deltaY++;
+}
+
+void MiniMapLeft()
+{
+	MiniMapOffset.deltaX--;
+	MiniMapOffset.deltaY++;
+}
+
+void MiniMapRight()
+{
+	MiniMapOffset.deltaX++;
+	MiniMapOffset.deltaY--;
+}
+
+void RecenterMiniMap()
+{
+	MiniMapOffset = { 0, 0 };
+}
+
+void MiniMapZoomIn()
+{
+	if (MiniMapScale >= MiniMapScaleMax)
+		return;
+
+	MiniMapScale++;
+}
+
+void MiniMapZoomOut()
+{
+	if (MiniMapScale <= MiniMapScaleMin)
+		return;
+
+	MiniMapScale--;
+}
+
+void ToggleMiniMapZoom()
+{
+	MiniMapScale = (MiniMapScale >= (MiniMapScaleMin + MiniMapScaleMax) / 2) ? MiniMapScaleMin : MiniMapScaleMax;
 }
 
 /**
@@ -1075,9 +1134,6 @@ namespace {
 // DrawAutomapCore's cellsBasisWidth below) rather than the on-screen box's actual shape - see
 // the diamond-bounds calculation right below for why those stopped being the same thing.
 constexpr Size MiniMapSize { 223, 223 };
-// Much more zoomed out than the full map's own minimum (50) - the corner is tiny, so a wider
-// area needs to fit into it to still be a useful "where am I relative to nearby rooms" glance.
-constexpr int MiniMapScale = 12;
 
 constexpr int MiniMapMargin = 8;
 
@@ -1147,7 +1203,15 @@ void DrawMiniMap(const Surface &out)
 
 	const int savedScale = AutoMapScale;
 	AutoMapScale = MiniMapScale;
+	// Oracool: the mini-map has its own independent pan offset (ALT+Arrows/ALT+`) - swapped into
+	// the shared AutomapOffset for the duration of this call the same way AutoMapScale is above,
+	// so DrawAutomapCore's bounds-clamping (which reads/writes AutomapOffset directly) applies to
+	// and is picked back up from MiniMapOffset instead of disturbing the full map's own pan.
+	const Displacement savedOffset = AutomapOffset;
+	AutomapOffset = MiniMapOffset;
 	DrawAutomapCore(miniMapSurface, diamondCenter, MiniMapSize.width, /*applyPanelAvoidance=*/false);
+	MiniMapOffset = AutomapOffset;
+	AutomapOffset = savedOffset;
 	AutoMapScale = savedScale;
 
 	// Oracool: gold border around the cropped box's own edges - user feedback specifically asked
