@@ -2497,7 +2497,10 @@ void AddPlrExperience(Player &player, int lvl, int exp)
 
 		// for low level characters experience gain is capped to 1/20 of current levels xp
 		// for high level characters experience gain is capped to 200 * current level - this is a smaller value than 1/20 of the exp needed for the next level after level 5.
-		clampedExp = std::min({ clampedExp, /* level 0-5: */ ExpLvlsTbl[clampedPlayerLevel] / 20U, /* level 6-99: */ 200ULL * clampedPlayerLevel });
+		// UINT64_C(200), not a plain 200ULL literal - uint64_t is `unsigned long` rather than
+		// `unsigned long long` on LP64 platforms (e.g. PS4), and std::min's initializer_list
+		// overload requires every element to deduce to the exact same type.
+		clampedExp = std::min({ clampedExp, /* level 0-5: */ ExpLvlsTbl[clampedPlayerLevel] / 20U, /* level 6-99: */ UINT64_C(200) * clampedPlayerLevel });
 	}
 
 	const uint64_t MaxExperience = ExpLvlsTbl[MaxCharacterLevel - 1];
