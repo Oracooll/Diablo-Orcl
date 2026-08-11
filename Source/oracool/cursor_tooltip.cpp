@@ -8,6 +8,8 @@
 #include "engine/point.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
+#include "inv.h"
+#include "qol/stash.h"
 #include "utils/ui_fwd.h"
 
 namespace devilution::oracool {
@@ -18,6 +20,18 @@ namespace {
 // centred just above the cursor rather than trailing below-right of it. Without a backdrop the
 // text is outlined instead, which is what keeps it legible over bright dungeon floors.
 constexpr int GapAboveCursor = 6;
+
+// Oracool: user request (2026-08-12) - items are the exception to the above. An item's block runs
+// to a dozen lines of stats, which as bare outlined text over a dungeon floor is unreadable, so
+// item hovers get a real panel: padded, darkened, bordered. This replaces BOTH the outlined
+// tooltip and the fixed "item stats" box that used to sit beside the inventory - one panel, at the
+// cursor, sized to its contents.
+constexpr int PanelPaddingX = 10;
+constexpr int PanelPaddingY = 7;
+constexpr int PanelBorderWidth = 2;
+/** Muted gold from the shared upper half of the palette - the same index the engine outlines
+ * hovered objects with, and a match for the HUD's bronze trim. */
+constexpr uint8_t PanelBorderColor = 194;
 
 Rectangle PrevTooltipRect;
 
@@ -38,6 +52,27 @@ void MeasureText(string_view text, int &maxWidth, int &lineCount)
 			break;
 		start = newline + 1;
 	}
+}
+
+/**
+ * @brief Whether what is under the cursor right now is an item, and so wants the panel treatment.
+ *
+ * Derived from the hover globals rather than from a flag the hover code sets, deliberately: every
+ * one of these is already cleared and repopulated once per frame by the cursor/hover pass, so
+ * there is no way for this to go stale, and no new plumbing threaded through inv.cpp, stash.cpp
+ * and control.cpp for something all three already record.
+ *
+ * `pcursinvitem` covers the inventory grid, the equipment slots and the belt; `ActiveTabItemHovered`
+ * covers the extra inventory tabs, whose items have no pcursinvitem encoding (see CheckInvHLight).
+ * A held item is not included - it is a single line, and a plate following a dragged item around
+ * would be in the way.
+ */
+bool IsHoveringItem()
+{
+	return pcursitem != -1
+	    || pcursinvitem != -1
+	    || pcursstashitem != StashStruct::EmptyCell
+	    || ActiveTabItemHovered;
 }
 
 } // namespace
@@ -62,23 +97,45 @@ void DrawCursorTooltip(const Surface &out)
 	const int lineHeight = GetLineHeight(InfoString.str(), GameFont12);
 	const Size textSize { maxWidth, lineCount * lineHeight };
 
-	Point origin { MousePosition.x - textSize.width / 2, MousePosition.y - textSize.height - GapAboveCursor };
-	origin.x = std::clamp(origin.x, 0, static_cast<int>(gnScreenWidth) - textSize.width);
-	// Near the top of the screen there is no room above the cursor, so fall below it instead of
-	// letting the text sit on top of what is being hovered.
-	if (origin.y < 0)
-		origin.y = std::min(MousePosition.y + GapAboveCursor, static_cast<int>(gnScreenHeight) - textSize.height);
-	origin.y = std::clamp(origin.y, 0, static_cast<int>(gnScreenHeight) - textSize.height);
+	const bool asPanel = IsHoveringItem();
+	const int padX = asPanel ? PanelPaddingX + PanelBorderWidth : 0;
+	const int padY = asPanel ? PanelPaddingY + PanelBorderWidth : 0;
+	const Size boxSize { textSize.width + 2 * padX, textSize.height + 2 * padY };
 
-	const Rectangle textArea { origin, textSize };
+	// The upper bounds are floored at 0 rather than used raw: std::clamp is undefined when hi < lo,
+	// which is what a box wider or taller than the screen would produce. Unlikely with a 12pt font
+	// on a 960-wide canvas, but the item panel made it reachable in a way the one-line tooltip
+	// never was, and UnsafeDrawBorder2px below does no clipping of its own.
+	const int maxX = std::max(0, static_cast<int>(gnScreenWidth) - boxSize.width);
+	const int maxY = std::max(0, static_cast<int>(gnScreenHeight) - boxSize.height);
+
+	Point origin { MousePosition.x - boxSize.width / 2, MousePosition.y - boxSize.height - GapAboveCursor };
+	origin.x = std::clamp(origin.x, 0, maxX);
+	// Near the top of the screen there is no room above the cursor, so fall below it instead of
+	// letting the text sit on top of what is being hovered. A tall item panel hits this often.
+	if (origin.y < 0)
+		origin.y = std::min(MousePosition.y + GapAboveCursor, maxY);
+	origin.y = std::clamp(origin.y, 0, maxY);
+
+	const Rectangle box { origin, boxSize };
+	const bool boxFitsOnScreen = boxSize.width <= static_cast<int>(gnScreenWidth) && boxSize.height <= static_cast<int>(gnScreenHeight);
+	if (asPanel && boxFitsOnScreen) {
+		// Twice, for ~75% darkening: one pass leaves the floor tiles reading straight through the
+		// stat lines, which is the readability problem this panel exists to solve.
+		DrawHalfTransparentRectTo(out, box.position.x, box.position.y, box.size.width, box.size.height);
+		DrawHalfTransparentRectTo(out, box.position.x, box.position.y, box.size.width, box.size.height);
+		UnsafeDrawBorder2px(out, box, PanelBorderColor);
+	}
+
+	const Rectangle textArea { origin + Displacement { padX, padY }, textSize };
 	DrawString(out, InfoString, textArea,
-	    { InfoColor | UiFlags::AlignCenter | UiFlags::KerningFitSpacing | UiFlags::Outlined, 1, lineHeight });
+	    { InfoColor | UiFlags::AlignCenter | UiFlags::KerningFitSpacing | (asPanel ? UiFlags::None : UiFlags::Outlined), 1, lineHeight });
 
 	// The outline bleeds a pixel past the glyphs, so the region the dirty-rect path has to erase
-	// is slightly larger than the text box itself.
-	constexpr int OutlineBleed = 2;
-	PrevTooltipRect = { { origin.x - OutlineBleed, origin.y - OutlineBleed },
-		{ textSize.width + OutlineBleed * 2, textSize.height + OutlineBleed * 2 } };
+	// is slightly larger than the text box itself. The panel's border is already inside `box`.
+	const int bleed = asPanel ? 0 : 2;
+	PrevTooltipRect = { { origin.x - bleed, origin.y - bleed },
+		{ boxSize.width + bleed * 2, boxSize.height + bleed * 2 } };
 }
 
 } // namespace devilution::oracool

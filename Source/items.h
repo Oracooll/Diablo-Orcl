@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file items.h
  *
  * Interface of item functionality.
@@ -650,7 +650,6 @@ extern DVL_API_FOR_TEST uint8_t ActiveItems[MAXITEMS];
 extern DVL_API_FOR_TEST uint8_t ActiveItemCount;
 /** Contains the location of dropped items. */
 extern int8_t dItem[MAXDUNX][MAXDUNY];
-extern bool ShowUniqueItemInfoBox;
 extern CornerStoneStruct CornerStone;
 extern bool UniqueItemFlags[128];
 
@@ -771,7 +770,6 @@ bool DoOil(Player &player, int cii, int tabIdx = -1);
 [[nodiscard]] StringOrView PrintItemPower(char plidx, const Item &item);
 /** @brief Like PrintItemPower, but reads a Rare/Buffed Unique/Primal item's own per-affix value instead of the item's shared accumulated field - see the definition for why that distinction matters. */
 [[nodiscard]] StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item);
-void DrawUniqueInfo(const Surface &out);
 void PrintItemDetails(const Item &item);
 void PrintItemDur(const Item &item);
 void UseItem(size_t pnum, item_misc_id Mid, SpellID spellID, int spellFrom);

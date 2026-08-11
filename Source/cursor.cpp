@@ -515,7 +515,6 @@ void CheckCursMove()
 	pcursinvitem = -1;
 	pcursstashitem = StashStruct::EmptyCell;
 	pcursplr = -1;
-	ShowUniqueItemInfoBox = false;
 	ActiveTabItemHovered = false;
 	panelflag = false;
 	trigflag = false;

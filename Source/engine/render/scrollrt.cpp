@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file scrollrt.cpp
  *
  * Implementation of functionality for rendering the dungeons, monsters and calling other render routines.
@@ -498,13 +498,52 @@ void DrawDeadPlayer(const Surface &out, Point tilePosition, Point targetBufferPo
 }
 
 /**
+ * @brief Which of the three passes an object's sprite belongs in.
+ *
+ * Vanilla has two, selected by `_oPreFlag`, and both run inside the per-tile content loop: one
+ * before that tile's characters and one after. Oracool adds a third that runs during the whole
+ * viewport's floor pass, i.e. beneath every tile's contents rather than just its own.
+ */
+enum class ObjectDrawPass : uint8_t {
+	Floor,
+	BeforeCharacters,
+	AfterCharacters,
+};
+
+/**
+ * @brief Oracool: user report - the waypoint platform drew on top of the player and of nearby
+ * monsters.
+ *
+ * `_oPreFlag` only orders an object against its OWN tile's contents. The waypoint's sprite is
+ * 106px tall, roughly three tile-rows, so anything standing on a tile behind it - drawn earlier in
+ * the back-to-front sweep - was painted over by a sprite that visually belongs on the floor. That
+ * is the ordinary fate of any object drawn much larger than its tile.
+ *
+ * Rather than shrink the art or give the object a multi-tile footprint, the waypoint moves to the
+ * floor pass: it is a floor platform, so drawing it with the floor is both correct and what the
+ * user asked for ("it just needs to render way behind"). The cost is that its pillars also pass
+ * under anything standing in front of them, which is the expected behaviour for a floor decal.
+ */
+bool IsFloorPassObject(const Object &object)
+{
+	return object._otype == _object_id::OBJ_WAYPOINT;
+}
+
+ObjectDrawPass GetObjectDrawPass(const Object &object)
+{
+	if (IsFloorPassObject(object))
+		return ObjectDrawPass::Floor;
+	return object._oPreFlag ? ObjectDrawPass::BeforeCharacters : ObjectDrawPass::AfterCharacters;
+}
+
+/**
  * @brief Render an object sprite
  * @param out Output buffer
  * @param tilePosition dPiece coordinates
  * @param targetBufferPosition Output buffer coordinates
- * @param pre Is the sprite in the background
+ * @param pass Which draw pass is currently running
  */
-void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPosition, bool pre)
+void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPosition, ObjectDrawPass pass)
 {
 	if (LightTableIndex >= LightsMax) {
 		return;
@@ -516,7 +555,7 @@ void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPositi
 	}
 
 	const Object &objectToDraw = *object;
-	if (objectToDraw._oPreFlag != pre) {
+	if (GetObjectDrawPass(objectToDraw) != pass) {
 		return;
 	}
 
@@ -685,6 +724,11 @@ void DrawFloor(const Surface &out, Point tilePosition, Point targetBufferPositio
 			    levelCelBlock, MaskType::Solid, tbl);
 		}
 	}
+
+	// Oracool: floor-pass objects (see IsFloorPassObject) draw here, on top of their own tile but
+	// beneath every tile's characters, items and missiles - the whole floor sweep completes before
+	// DrawTileContent starts.
+	DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::Floor);
 }
 
 /**
@@ -903,7 +947,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 			ClxDrawLight(out, position, sprite, LightTableIndex);
 		}
 	}
-	DrawObject(out, tilePosition, targetBufferPosition, true);
+	DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::BeforeCharacters);
 	DrawItem(out, tilePosition, targetBufferPosition, true);
 
 	if (TileContainsDeadPlayer(tilePosition)) {
@@ -917,7 +961,7 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 		DrawMonsterHelper(out, tilePosition, targetBufferPosition);
 	}
 	DrawMissile(out, tilePosition, targetBufferPosition, false, LightTableIndex);
-	DrawObject(out, tilePosition, targetBufferPosition, false);
+	DrawObject(out, tilePosition, targetBufferPosition, ObjectDrawPass::AfterCharacters);
 	DrawItem(out, tilePosition, targetBufferPosition, false);
 
 	if (leveltype != DTYPE_TOWN) {
@@ -1418,12 +1462,9 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawDiabloMsg(out);
 	}
 	oracool::DrawSaveIndicator(out);
-	// Drawn after every other interface panel/dialog above so a hovered item's floating
-	// stat popup (vanilla Unique, or Oracool-tiered) is always genuinely on top, not just
-	// above the panels it happened to predate in this list.
-	if (ShowUniqueItemInfoBox) {
-		DrawUniqueInfo(out);
-	}
+	// Oracool: user request - the fixed "item stats" box that used to draw here is gone. Its
+	// content now goes into the one cursor-following panel (oracool::DrawCursorTooltip, drawn near
+	// DrawCursor further down), so there is no second place for item information to appear.
 	if (MyPlayerIsDead) {
 		RedBack(out);
 	} else if (PauseMode != 0) {

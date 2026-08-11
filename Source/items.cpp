@@ -62,7 +62,6 @@ Item Items[MAXITEMS + 1];
 uint8_t ActiveItems[MAXITEMS];
 uint8_t ActiveItemCount;
 int8_t dItem[MAXDUNX][MAXDUNY];
-bool ShowUniqueItemInfoBox;
 CornerStoneStruct CornerStone;
 bool UniqueItemFlags[128];
 int MaxGold = GOLD_MAX_LIMIT;
@@ -153,7 +152,6 @@ enum class PlayerArmorGraphic : uint8_t {
 	// clang-format on
 };
 
-Item curruitem;
 
 /**
  * @brief When set, RndPL returns the maximum end of its range instead of rolling, so every
@@ -2017,12 +2015,6 @@ void PrintItemOil(char iDidx)
 	}
 }
 
-void DrawUniqueInfoWindow(const Surface &out, Point position)
-{
-	ClxDraw(out, position + Displacement { 24, 327 }, (*pSTextBoxCels)[0]);
-	DrawHalfTransparentRectTo(out, position.x + 27, position.y + 28, 265, 297);
-}
-
 void printItemMiscKBM(const Item &item, const bool isOil, const bool isCastOnTarget)
 {
 	if (item._iMiscId == IMISC_MAPOFDOOM) {
@@ -3073,7 +3065,6 @@ void InitItems()
 			SpawnNote();
 	}
 
-	ShowUniqueItemInfoBox = false;
 
 	initItemGetRecords();
 }
@@ -4619,71 +4610,35 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 	}
 }
 
-void DrawUniqueInfo(const Surface &out)
+/**
+ * @brief Appends the affix/power lines that used to live in the separate fixed "item stats" window.
+ *
+ * Oracool: user request - there is now one cursor-following panel instead of a tooltip plus a
+ * static box pinned beside the inventory, so these lines join the same panel-string list every
+ * other line of item detail already goes into (see oracool::DrawCursorTooltip).
+ *
+ * Magic items are absent here on purpose: PrintItemDetails already prints their prefix and suffix
+ * powers, and the old box was showing them a second time in a different place.
+ */
+void AddItemPowerPanelStrings(const Item &item)
 {
-	Point position = GetRightPanel().position - Displacement { SidePanelSize.width, 0 };
-	// Oracool bug fix: user report - the popup used to simply not draw at all whenever the
-	// Character (or Quest/Stash) panel was also open, making item stats unreadable until that
-	// panel was closed. Instead of skipping the draw, slide the popup toward the horizontal
-	// middle of the screen - it's fine for it to overlap the Inventory/Character panels there,
-	// as long as it stays visible.
-	if (IsLeftPanelOpen() && GetLeftPanel().contains(position)) {
-		position.x = (gnScreenWidth - SidePanelSize.width) / 2;
-	}
-
-	DrawUniqueInfoWindow(out, position);
-
-	Rectangle rect { position + Displacement { 32, 56 }, { 257, 0 } };
-
-	const Rectangle dividerLineRect { position + Displacement { 26, 25 }, { 267, 3 } };
-	out.BlitFrom(out, MakeSdlRect(dividerLineRect), dividerLineRect.position + Displacement { 0, 5 * 12 + 13 });
-
-	if (curruitem.hasOracoolTier()) {
-		// Rare/Buffed Unique/Primal items: unlike a static UniqueItem, the affix list to
-		// show comes from the item instance itself (up to 3 prefixes + 3 suffixes), so
-		// the vanilla UniqueItems[uid].powers[] table isn't involved at all here.
-		DrawString(out, curruitem._iIName, rect, { curruitem.getTextColor() | UiFlags::AlignCenter });
-
-		const int totalLines = curruitem._iOracoolPrefixCount + curruitem._iOracoolSuffixCount;
-		rect.position.y += (10 - totalLines) * 12;
-		for (int i = 0; i < curruitem._iOracoolPrefixCount; i++) {
-			rect.position.y += 2 * 12;
-			DrawString(out, PrintOracoolAffixPower(curruitem._iOracoolPrefixes[i], curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
-		}
-		for (int i = 0; i < curruitem._iOracoolSuffixCount; i++) {
-			rect.position.y += 2 * 12;
-			DrawString(out, PrintOracoolAffixPower(curruitem._iOracoolSuffixes[i], curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
-		}
+	if (item.hasOracoolTier()) {
+		// Rare/Buffed Unique/Primal items: unlike a static UniqueItem, the affix list comes from
+		// the item instance itself (up to 3 prefixes + 3 suffixes), so the vanilla
+		// UniqueItems[uid].powers[] table isn't involved at all here.
+		for (int i = 0; i < item._iOracoolPrefixCount; i++)
+			AddPanelString(PrintOracoolAffixPower(item._iOracoolPrefixes[i], item));
+		for (int i = 0; i < item._iOracoolSuffixCount; i++)
+			AddPanelString(PrintOracoolAffixPower(item._iOracoolSuffixes[i], item));
 		return;
 	}
 
-	if (curruitem._iMagical == ITEM_QUALITY_MAGIC) {
-		// Oracool: user request - ordinary magic items, name in vanilla's blue font.
-		DrawString(out, curruitem._iIName, rect, { UiFlags::ColorBlue | UiFlags::AlignCenter });
-
-		const int numPowers = (curruitem._iPrePower != -1 ? 1 : 0) + (curruitem._iSufPower != -1 ? 1 : 0);
-		rect.position.y += (10 - numPowers) * 12;
-		if (curruitem._iPrePower != -1) {
-			rect.position.y += 2 * 12;
-			DrawString(out, PrintItemPower(curruitem._iPrePower, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
-		}
-		if (curruitem._iSufPower != -1) {
-			rect.position.y += 2 * 12;
-			DrawString(out, PrintItemPower(curruitem._iSufPower, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
-		}
-		return;
-	}
-
-	const UniqueItem &uitem = UniqueItems[curruitem._iUid];
-	DrawString(out, _(uitem.UIName), rect, { UiFlags::AlignCenter });
-
-	rect.position.y += (10 - uitem.UINumPL) * 12;
+	const UniqueItem &uitem = UniqueItems[item._iUid];
 	assert(uitem.UINumPL <= sizeof(uitem.powers) / sizeof(*uitem.powers));
 	for (const auto &power : uitem.powers) {
 		if (power.type == IPL_INVALID)
 			break;
-		rect.position.y += 2 * 12;
-		DrawString(out, PrintItemPower(power.type, curruitem), rect, { UiFlags::ColorWhite | UiFlags::AlignCenter });
+		AddPanelString(PrintItemPower(power.type, item));
 	}
 }
 
@@ -4720,20 +4675,12 @@ void PrintItemDetails(const Item &item)
 	if (item._iSufPower != -1) {
 		AddPanelString(PrintItemPower(item._iSufPower, item));
 	}
-	// Oracool: user request - the popup description window used to cover only vanilla Unique and
-	// Oracool tiered items; ordinary magic (blue) items now get it too (see the matching branch
-	// in DrawUniqueInfo), without the "unique item"/tier label those two cases print.
 	if (item.hasOracoolTier()) {
 		AddPanelString(GetOracoolTierPanelLabel(item._iOracoolTier));
-		ShowUniqueItemInfoBox = true;
-		curruitem = item;
+		AddItemPowerPanelStrings(item);
 	} else if (item._iMagical == ITEM_QUALITY_UNIQUE) {
 		AddPanelString(_("unique item"));
-		ShowUniqueItemInfoBox = true;
-		curruitem = item;
-	} else if (item._iMagical == ITEM_QUALITY_MAGIC) {
-		ShowUniqueItemInfoBox = true;
-		curruitem = item;
+		AddItemPowerPanelStrings(item);
 	}
 	PrintItemInfo(item);
 }

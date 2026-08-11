@@ -4625,11 +4625,11 @@ Object *AddObject(_object_id objType, Point objPos)
 		AddMagicCircle(object);
 		break;
 	case OBJ_WAYPOINT:
-		// Oracool: user request - Waypoints, restart. Same _oPreFlag = true AddMagicCircle() gives
-		// OBJ_MCIRCLE1/2 above (this exact graphic is a flat floor decal - see the postmortem in
-		// oracool::AddStashChestObject() further down this file for why that matters and what goes
-		// wrong without it). Deliberately nothing else yet - no quest-room _oVar5/_oVar6 plumbing,
-		// no per-tick update, no operate handler.
+		// Oracool: user request - Waypoints. _oPreFlag no longer decides this object's z-order:
+		// once it got its own 144x106 art it towered three tile-rows above its own tile and painted
+		// over anything standing behind it, so it now draws in the renderer's floor pass instead
+		// (see IsFloorPassObject in scrollrt.cpp). The flag is left true to match the magic circles
+		// this object was modelled on, and because nothing else reads it.
 		object._oPreFlag = true;
 		break;
 	case OBJ_STORYBOOK:

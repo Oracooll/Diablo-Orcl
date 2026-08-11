@@ -943,15 +943,14 @@ void UpdateInfoString()
 			GetObjectStr(*ObjectUnderCursor);
 		if (pcursmonst != -1) {
 			if (leveltype != DTYPE_TOWN) {
-				const auto &monster = Monsters[pcursmonst];
-				InfoColor = UiFlags::ColorWhite;
-				InfoString = monster.name();
-				if (monster.isUnique()) {
-					InfoColor = UiFlags::ColorWhitegold;
-					PrintUniqueHistory();
-				} else {
-					PrintMonstHistory(monster.type().type);
-				}
+				// Oracool: user request - monsters no longer populate the cursor tooltip. The
+				// name, which is all of this the player actually needed, is already on the
+				// health bar across the top of the screen the moment a monster is hovered, and
+				// having the same name plus a type/kill-count readout follow the cursor around
+				// was pure distraction in the middle of a fight.
+				//
+				// PrintMonstHistory/PrintUniqueHistory are deliberately not called at all rather
+				// than called and discarded - they are the only source of the "Kills:" line.
 			} else if (pcursitem == -1) {
 				InfoString = string_view(Towners[pcursmonst].name);
 			}
