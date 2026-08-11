@@ -16,7 +16,7 @@ For Diablo Oracool Edition's own feature changelog, see CHANGELOG.txt included i
  - For Chinese, Japanese, and Korean text support download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/fonts.mpq and add it to the game folder.
  - For the Polish voice pack download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/pl.mpq.
  - For the Russian voice pack download https://github.com/diasurgical/devilutionx-assets/releases/download/v2/ru.mpq.
- - Run devilutionx.exe
+ - Run DiabloOrcl.exe
 
 # Multiplayer
  - TCP/IP requires the host to expose port 6112.
