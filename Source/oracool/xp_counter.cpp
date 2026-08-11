@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include <cstdint>
+
 #include "DiabloUI/ui_flags.hpp"
 #include "automap.h"
 #include "engine/rectangle.hpp"
@@ -9,18 +11,24 @@
 #include "monster.h"
 #include "multi.h"
 #include "options.h"
+#include "oracool/hud_layout.h"
 #include "oracool/oracool.h"
 #include "player.h"
 #include "playerdat.hpp"
 #include "utils/format_int.hpp"
+#include "utils/str_cat.hpp"
 
 namespace devilution::oracool {
 
 namespace {
 
-// Oracool: matches the LOG button's/Game Clock's own height/row (event_log.cpp, game_clock.cpp)
-// so all three sit level with each other in the row just below the mini-map.
 constexpr int CounterHeight = 20;
+
+// Oracool: user request (2026-08-11) - moved from the row under the mini-map to sit just above the
+// belt's numbered cells (1-4), whose "1".."4" labels are baked into the plate art. The offset is
+// measured DOWN from the plate's top edge, so a larger value sits lower; tuned by eye in play
+// (started 14px higher, at -2).
+constexpr int CounterOffsetBelowPlateTop = 12;
 
 // Oracool: user request - press and hold the XP Counter to see this instead of the normal
 // remaining-to-next-level readout. Cleared unconditionally on mouse-up (see
@@ -29,15 +37,31 @@ constexpr int CounterHeight = 20;
 bool IsHeld = false;
 
 /**
- * @brief The row just below the mini-map, spanning its full width - not the exact width of
- * whichever text happens to be showing (DrawXpCounter sizes that separately, and it changes
- * between the two things this counter can show). A generous, fixed click target is easier to hit
- * than the precise bounds of a handful of digits.
+ * @brief The strip directly above the belt's four numbered cells, spanning them end to end - not
+ * the exact width of whichever text happens to be showing (that changes between the two things
+ * this counter can display). A generous, fixed click target is easier to hit than the precise
+ * bounds of a handful of digits.
  */
-Rectangle GetButtonRect()
+Rectangle GetCounterRect()
 {
-	const Rectangle miniMap = GetMiniMapScreenRect();
-	return Rectangle { { miniMap.position.x, miniMap.position.y + miniMap.size.height + 1 }, { miniMap.size.width, CounterHeight } };
+	// Belt cells 1..4 are visible indices 1-4; span from the left edge of the first to the right
+	// edge of the last so the readout is centred over the numbered run specifically, not the whole
+	// plate (which also carries the Menu and Portal buttons).
+	const Rectangle first = GetBeltSlotRect(1);
+	const Rectangle last = GetBeltSlotRect(4);
+	const int left = first.position.x;
+	const int width = last.position.x + last.size.width - left;
+	const int bottom = GetMiddleHudRect().position.y + CounterOffsetBelowPlateTop;
+	return Rectangle { { left, bottom - CounterHeight }, { width, CounterHeight } };
+}
+
+/** @brief The experience gap between the player's current level and the next one - the denominator
+ * behind both percentages this counter shows. */
+uint64_t LevelExperienceSpan(const Player &player)
+{
+	const uint64_t levelStart = ExpLvlsTbl[player._pLevel - 1];
+	const uint64_t levelEnd = ExpLvlsTbl[player._pLevel];
+	return (levelEnd > levelStart) ? (levelEnd - levelStart) : 1; // guard against a zero divisor
 }
 
 /**
@@ -73,20 +97,31 @@ void DrawXpCounter(const Surface &out)
 	if (player._pLevel >= MaxCharacterLevel)
 		return;
 
-	const std::string text = IsHeld
-	    ? FormatInteger(CalcRemainingMonsterXp(player))
-	    : FormatInteger(ExpLvlsTbl[player._pLevel] - player._pExperience);
+	// Oracool: user request (2026-08-11) - both readouts carry a percentage, expressed against the
+	// experience gap between this level and the next. Normally that reads how much of the current
+	// level is still to go ("2,000 / 100%" on a freshly-levelled character); while held, it reads
+	// how much of a full level the monsters still alive on this floor are worth - so at a glance
+	// you can tell whether clearing the level will level you up.
+	const uint64_t span = LevelExperienceSpan(player);
+	const uint64_t value = IsHeld
+	    ? CalcRemainingMonsterXp(player)
+	    : (ExpLvlsTbl[player._pLevel] - player._pExperience);
+	const uint64_t percent = value * 100 / span;
+	const std::string text = StrCat(FormatInteger(value), " / ", FormatInteger(percent), "%");
 	const UiFlags color = IsHeld ? UiFlags::ColorWhite : UiFlags::ColorGold;
 
-	// Oracool: sized to the actual rendered text every frame (rather than a fixed box) so it never
-	// clips no matter how many digits (or thousands separators, see FormatInteger) the displayed
-	// value needs - at level 99 the widest case, a fresh level 1 character, needs 11 digits plus 3
-	// separators, but staying dynamic means it's correct at any length without guessing a max up front.
-	const int textWidth = GetLineWidth(text, GameFont12, 1);
-	const Rectangle miniMap = GetMiniMapScreenRect();
-	const Point position { miniMap.position.x + miniMap.size.width / 2 - textWidth / 2, miniMap.position.y + miniMap.size.height + 1 };
-	const Rectangle rect { position, { textWidth, CounterHeight } };
-	DrawString(out, text, rect, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 | color });
+	// Centred in the strip above belt cells 1-4. The box is the full cell span rather than the
+	// text's own width, so the readout stays put as digits come and go.
+	DrawString(out, text, GetCounterRect(), { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 | color });
+}
+
+bool IsPointOverXpCounter(Point mousePosition)
+{
+	if (!*sgOptions.Oracool.xpCounter)
+		return false;
+	if (MyPlayer->_pLevel >= MaxCharacterLevel)
+		return false; // nothing is drawn at max level, so the strip isn't there to click
+	return GetCounterRect().contains(mousePosition);
 }
 
 bool CheckXpCounterButtonClick(Point mousePosition)
@@ -98,7 +133,7 @@ bool CheckXpCounterButtonClick(Point mousePosition)
 	if (player._pLevel >= MaxCharacterLevel)
 		return false;
 
-	if (!GetButtonRect().contains(mousePosition))
+	if (!GetCounterRect().contains(mousePosition))
 		return false;
 
 	IsHeld = true;

@@ -48,16 +48,13 @@ std::string PendingDeathSource;
 // time the window is opened, same as chatlog's own reset-on-open behavior.
 size_t ScrollOffset = 0;
 
-// Oracool: user request - right-aligned to the mini-map's own right border, 1px below its bottom
-// border. Queried live (never cached) since the mini-map's rect is itself resolution- and
-// zoom-dependent, and always on-screen by construction, so no additional bounds-checking is
-// needed here.
-Point ButtonPosition()
+// Oracool: user request (2026-08-11) - the standalone "LOG" button is gone; the log is opened from
+// the belt's Menu popup instead (see oracool/hud_menu.cpp). This is now just the window's own top
+// edge: the row directly below the mini-map, where the button used to sit.
+Point WindowTopLeftBelowMiniMap()
 {
 	const Rectangle miniMap = GetMiniMapScreenRect();
-	const int x = miniMap.position.x + miniMap.size.width - ButtonWidth;
-	const int y = miniMap.position.y + miniMap.size.height + 1;
-	return { x, y };
+	return { miniMap.position.x, miniMap.position.y + miniMap.size.height + 1 };
 }
 
 // Oracool: user request - the window's left and right edges should always line up with the
@@ -76,7 +73,7 @@ int WindowWidth()
 // pathological custom resolution where the mini-map and main panel would otherwise nearly touch.
 int WindowHeight()
 {
-	const int windowTop = ButtonPosition().y + ButtonHeight + 1;
+	const int windowTop = WindowTopLeftBelowMiniMap().y;
 	const int windowBottom = GetMainPanel().position.y - 1;
 	const int minHeight = WindowPadding * 2 + LineHeight + static_cast<int>(MinVisibleLines) * LineHeight;
 	return std::max(windowBottom - windowTop, minHeight);
@@ -93,9 +90,7 @@ Point WindowPosition()
 {
 	// Always exactly the mini-map's own left edge - together with WindowWidth() matching its width,
 	// this keeps both windows' left AND right borders aligned in a straight line, at any resolution.
-	const int x = GetMiniMapScreenRect().position.x;
-	const int y = ButtonPosition().y + ButtonHeight + 1;
-	return { x, y };
+	return WindowTopLeftBelowMiniMap();
 }
 
 std::string CurrentTimestamp()
@@ -138,17 +133,6 @@ void ScrollEventLogDown()
 {
 	if (!Entries.empty() && ScrollOffset < Entries.size() - 1)
 		ScrollOffset++;
-}
-
-void DrawEventLogButton(const Surface &out)
-{
-	if (!*sgOptions.Oracool.eventLog)
-		return;
-
-	// Oracool: user request - no visible box, just the clickable "LOG" text itself. The hit-test
-	// rect in CheckEventLogButtonClick still uses the same area, it's just no longer drawn.
-	const Rectangle rect { ButtonPosition(), { ButtonWidth, ButtonHeight } };
-	DrawString(out, "LOG", rect, { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 | (WindowOpen ? UiFlags::ColorWhite : UiFlags::ColorGold) });
 }
 
 void DrawEventLogWindow(const Surface &out)
@@ -210,19 +194,6 @@ void LogPlayerDeath(const std::string &fallbackReason)
 {
 	LogEvent(fmt::format("Slain by {:s}", PendingDeathSource.empty() ? fallbackReason : PendingDeathSource));
 	PendingDeathSource.clear();
-}
-
-bool CheckEventLogButtonClick(Point mousePosition)
-{
-	if (!*sgOptions.Oracool.eventLog)
-		return false;
-
-	const Rectangle rect { ButtonPosition(), { ButtonWidth, ButtonHeight } };
-	if (!rect.contains(mousePosition))
-		return false;
-
-	ToggleEventLog();
-	return true;
 }
 
 } // namespace devilution::oracool

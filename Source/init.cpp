@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file init.cpp
  *
  * Implementation of routines for initializing the environment, disable screen saver, load MPQ.
@@ -61,6 +61,7 @@ std::optional<std::string> hellfire_data_path;
 std::optional<std::string> font_data_path;
 std::optional<std::string> lang_data_path;
 #else
+std::optional<MpqArchive> oracool_mpq;
 std::optional<MpqArchive> spawn_mpq;
 std::optional<MpqArchive> diabdat_mpq;
 std::optional<MpqArchive> hellfire_mpq;
@@ -257,6 +258,9 @@ void LoadCoreArchives()
 	devilutionx_mpq = LoadMPQ(paths, "devilutionx.mpq");
 #endif
 	font_mpq = LoadMPQ(paths, "fonts.mpq"); // Extra fonts
+	// Oracool Edition's own archive. Optional - absent is a normal, silent state; LoadMPQ returns
+	// nullopt and every lookup simply falls through to the archives below it.
+	oracool_mpq = LoadMPQ(paths, "oracool.mpq");
 #endif
 }
 

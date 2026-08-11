@@ -4,6 +4,7 @@
 
 #include "engine/clx_sprite.hpp"
 #include "engine/point.hpp"
+#include "engine/size.hpp"
 #include "engine/surface.hpp"
 #include "spelldat.h"
 
@@ -28,6 +29,14 @@ void DrawLargeSpellIcon(const Surface &out, Point position, SpellID spell);
  * @param spell Spell ID.
  */
 void DrawSmallSpellIcon(const Surface &out, Point position, SpellID spell);
+
+/**
+ * @brief Oracool: the small spell icon's actual sprite dimensions, read from the loaded CEL.
+ * The HUD's RMB well centres the readied-spell icon inside itself (see DrawSpell) and previously
+ * assumed 37x38 - only the width is fixed by the load call, so the assumed height was wrong and
+ * the icon sat off-centre. Only valid once LoadSmallSpellIcons() has run.
+ */
+Size GetSmallSpellIconSize();
 
 /**
  * Draw an inset 2px border for a large (56x56) spell icon.

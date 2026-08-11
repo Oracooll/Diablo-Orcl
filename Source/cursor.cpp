@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file cursor.cpp
  *
  * Implementation of cursor tracking functionality.
@@ -11,6 +11,7 @@
 
 #include "DiabloUI/diabloui.h"
 #include "control.h"
+#include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
 #include "doom.h"
 #include "engine.h"
@@ -533,7 +534,7 @@ void CheckCursMove()
 	if (DoomFlag) {
 		return;
 	}
-	if (invflag && GetRightPanel().contains(MousePosition)) {
+	if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 		pcursinvitem = CheckInvHLight();
 		return;
 	}

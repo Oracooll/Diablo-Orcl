@@ -1,6 +1,7 @@
-#include "controls/touch/event_handlers.h"
+﻿#include "controls/touch/event_handlers.h"
 
 #include "control.h"
+#include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "diablo.h"
@@ -33,7 +34,8 @@ void SimulateMouseMovement(const SDL_Event &event)
 
 	bool isInMainPanel = GetMainPanel().contains(position);
 	bool isInLeftPanel = GetLeftPanel().contains(position);
-	bool isInRightPanel = GetRightPanel().contains(position);
+	// Oracool V1: the inventory owns its own rect, so this must cover both it and the spellbook.
+	bool isInRightPanel = GetRightPanel().contains(position) || oracool::GetInventoryPanelRect().contains(position);
 	if (IsStashOpen) {
 		if (!spselflag && !isInMainPanel && !isInLeftPanel && !isInRightPanel)
 			return;
@@ -92,17 +94,11 @@ void HandleBottomPanelInteraction(const SDL_Event &event)
 	if (!gbRunGame || !MyPlayer->HoldItem.isEmpty())
 		return;
 
-	ClearPanBtn();
-
-	if (event.type != SDL_FINGERUP) {
-		spselflag = true;
+	// Oracool: HUD overhaul - the 8 old panel buttons and their press/release state machine are
+	// gone (see oracool/hud_menu.h); the only remaining tap target DoPanBtn handles is the RMB
+	// skill button, which acts on the down-event alone.
+	if (event.type == SDL_FINGERUP)
 		DoPanBtn();
-		spselflag = false;
-	} else {
-		DoPanBtn();
-		if (panbtndown)
-			CheckBtnUp();
-	}
 }
 
 void HandleCharacterPanelInteraction(const SDL_Event &event)

@@ -13,6 +13,10 @@
 
 namespace devilution::oracool {
 
+/** @brief Whether `mousePosition` is over the XP counter's strip. Used by diablo.cpp to decide
+ * whether a click is UI or should fall through to the world - see IsPointOverHud. */
+bool IsPointOverXpCounter(Point mousePosition);
+
 /** @brief Draws the counter if the option is on and the player isn't at max level. */
 void DrawXpCounter(const Surface &out);
 

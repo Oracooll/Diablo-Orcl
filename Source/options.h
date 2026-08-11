@@ -738,7 +738,6 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean permanentInfravision;
 	OptionEntryBoolean autoIdentifyDrops;
 	OptionEntryBoolean resetStatsButton;
-	OptionEntryBoolean inventorySortButton;
 	OptionEntryInt<int> autoPickupRange;
 	OptionEntryBoolean autoScrollPickup;
 	OptionEntryInt<int> rareItemDropChance;
@@ -761,13 +760,21 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean autoSaveOnLevelChange;
 	OptionEntryBoolean autoSaveOnItemPickup;
 	OptionEntryBoolean autoSaveOnStorePurchase;
-	OptionEntryInt<int> autoSaveItemDelaySeconds;
+	OptionEntryBoolean autoSaveOnExperienceGain;
+	OptionEntryBoolean autoSaveOnStatPointSpent;
+	OptionEntryBoolean autoSaveOnEquipmentChange;
+	OptionEntryBoolean autoSaveOnItemDrop;
+	OptionEntryBoolean autoSaveOnStashChange;
+	OptionEntryBoolean autoSaveOnStoreTransaction;
+	OptionEntryBoolean autoSaveOnShrineActivation;
+	OptionEntryBoolean autoSaveOnBookRead;
+	OptionEntryBoolean autoSaveOnItemBreak;
+	OptionEntryBoolean autoSaveOnWaypointActivation;
 	OptionEntryBoolean autoSaveNotification;
 	OptionEntryBoolean difficultyLevelGate;
 	OptionEntryTormentMultiplier tormentDifficultyMultiplier;
 	OptionEntryBoolean miniMapEnabled;
 	OptionEntryBoolean eventLog;
-	OptionEntryBoolean furiousCharge;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;
 	OptionEntryBoolean gradualHealing;
@@ -776,7 +783,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean remainingMonsterXpButton;
 	OptionEntryRangeOrOff monsterRangeHighlight;
 	OptionEntryBoolean monsterWallOutline;
-	OptionEntryRangeOrOff warriorSplashDamageRange;
+	OptionEntryBoolean questLogRevealAll;
 	/** @brief Continuous dungeon-view zoom level, in tenths (10-20 = 1.0x-2.0x). Invisible - set
 	 * live via mouse wheel / middle-click, not through the settings dialog. */
 	OptionEntryDungeonZoom dungeonZoomLevel;

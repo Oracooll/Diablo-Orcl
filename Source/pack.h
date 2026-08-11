@@ -71,9 +71,18 @@ struct PlayerPack {
 	int8_t bIsHellfire;
 	uint8_t reserved; // For future use
 	uint16_t wReflections;
-	uint8_t reserved2[2]; // For future use
-	uint8_t pSplLvl2[10]; // Hellfire spells
-	int16_t wReserved8;   // For future use
+	/**
+	 * @brief Oracool: user request - per-difficulty waypoint unlock bitmask, same repurposed-
+	 * reserved-bytes pattern as pStatPtsSpent* below (same reasoning: starting a New Game with an
+	 * existing hero never re-reads the full save via loadsave.cpp's LoadPlayer, only "Continue"
+	 * does, so anything meant to survive a New Game has to live in this compact struct too). Bit
+	 * (i-1) is waypoint list index i (1-16, matching currlevel numbering); index 0 (Tristram) is
+	 * always unlocked and never stored. See player.h's Player::_pWaypointUnlocked and
+	 * pack.cpp's Pack/UnPackPlayer for where these get read/written.
+	 */
+	uint16_t pWaypointUnlockedNormal;    // was reserved2[2]
+	uint8_t pSplLvl2[10];                // Hellfire spells
+	uint16_t pWaypointUnlockedNightmare; // was wReserved8
 	uint32_t pDiabloKillLevel;
 	uint32_t pDifficulty;
 	uint32_t pDamAcFlags;  // `ItemSpecialEffectHf` is 1 byte but this is 4 bytes.
@@ -88,7 +97,8 @@ struct PlayerPack {
 	int32_t pStatPtsSpentMag;
 	int32_t pStatPtsSpentDex;
 	int32_t pStatPtsSpentVit;
-	uint8_t reserved3[4]; // For future use
+	uint16_t pWaypointUnlockedHell;    // was part of reserved3[4]
+	uint16_t pWaypointUnlockedTorment; // was part of reserved3[4]
 };
 
 union ItemNetPack {

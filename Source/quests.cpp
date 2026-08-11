@@ -857,9 +857,21 @@ void StartQuestlog()
 		return QuestsData[a].questBookOrder < QuestsData[b].questBookOrder;
 	};
 
+	// Oracool: user request - with Quest Log Reveal All on (single-player only), every quest
+	// that's part of this game (i.e. not excluded by quest-pool randomization, _qactive !=
+	// QUEST_NOTAVAIL) shows up in the log immediately, including ones the player hasn't
+	// discovered yet (still QUEST_INIT). Deliberately does NOT touch _qactive/_qlog themselves -
+	// every quest's actual trigger (finding the right object/NPC, reaching the right level,
+	// spawning its quest item) still runs exactly as vanilla intends, unaffected by this. Some
+	// quests (e.g. the Mushroom quest's tome spawn in ResyncQuests()) gate a real mechanical step
+	// on _qactive still being QUEST_INIT, so forcing that state early would silently break them -
+	// this only widens what the log *displays*.
+	const bool revealUndiscovered = !gbIsMultiplayer && *sgOptions.Oracool.questLogRevealAll;
+
 	EncounteredQuestCount = 0;
 	for (auto &quest : Quests) {
-		if (quest._qactive == QUEST_ACTIVE && quest._qlog) {
+		if ((quest._qactive == QUEST_ACTIVE && quest._qlog)
+		    || (revealUndiscovered && quest._qactive == QUEST_INIT)) {
 			EncounteredQuests[EncounteredQuestCount] = quest._qidx;
 			EncounteredQuestCount++;
 		}

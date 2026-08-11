@@ -1,10 +1,11 @@
-/**
+﻿/**
  * @file inv.h
  *
  * Interface of player inventory.
  */
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "engine/palette.h"
@@ -17,7 +18,8 @@ namespace devilution {
 
 #define INV_SLOT_SIZE_PX 28
 #define INV_SLOT_HALF_SIZE_PX (INV_SLOT_SIZE_PX / 2)
-constexpr Size InventorySizeInSlots { 10, 4 };
+/** @brief Oracool V1: 10x7 with the new 320x660 window; see oracool/inventory_layout.h. */
+constexpr Size InventorySizeInSlots { 10, 7 };
 #define INV_ROW_SLOT_SIZE InventorySizeInSlots.width
 constexpr Size InventorySlotSizeInPixels { INV_SLOT_SIZE_PX };
 
@@ -31,11 +33,13 @@ enum inv_item : int8_t {
 	INVITEM_HAND_RIGHT = 5,
 	INVITEM_CHEST      = 6,
 	INVITEM_INV_FIRST  = 7,
-	INVITEM_INV_LAST   = 46,
-	INVITEM_BELT_FIRST = 47,
-	INVITEM_BELT_LAST  = 54,
+	// Oracool V1: 70 backpack cells (was 40), so everything after it shifts up by 30.
+	INVITEM_INV_LAST   = INVITEM_INV_FIRST + InventoryGridCells - 1,
+	INVITEM_BELT_FIRST = INVITEM_INV_LAST + 1,
+	INVITEM_BELT_LAST  = INVITEM_BELT_FIRST + MaxBeltItems - 1,
 	// clang-format on
 };
+static_assert(INVITEM_BELT_LAST <= INT8_MAX, "inv_item no longer fits in an int8_t");
 
 /**
  * identifiers for each of the inventory squares
@@ -56,21 +60,46 @@ enum inv_xy_slot : uint8_t {
 	// regular inventory
 	SLOTXY_INV_FIRST      = 7,
 	SLOTXY_INV_ROW1_FIRST = SLOTXY_INV_FIRST,
-	SLOTXY_INV_ROW1_LAST  = 16,
-	SLOTXY_INV_ROW2_FIRST = 17,
-	SLOTXY_INV_ROW2_LAST  = 26,
-	SLOTXY_INV_ROW3_FIRST = 27,
-	SLOTXY_INV_ROW3_LAST  = 36,
-	SLOTXY_INV_ROW4_FIRST = 37,
-	SLOTXY_INV_ROW4_LAST  = 46,
-	SLOTXY_INV_LAST       = SLOTXY_INV_ROW4_LAST,
+	SLOTXY_INV_ROW1_LAST  = SLOTXY_INV_FIRST + InventorySizeInSlots.width - 1,
+	SLOTXY_INV_LAST       = SLOTXY_INV_FIRST + InventoryGridCells - 1,
 
 	// belt items
-	SLOTXY_BELT_FIRST     = 47,
-	SLOTXY_BELT_LAST      = 54,
-	NUM_XY_SLOTS          = 55
+	SLOTXY_BELT_FIRST     = SLOTXY_INV_LAST + 1,
+	SLOTXY_BELT_LAST      = SLOTXY_BELT_FIRST + MaxBeltItems - 1,
+	NUM_XY_SLOTS          = SLOTXY_BELT_LAST + 1
 	// clang-format on
 };
+static_assert(NUM_XY_SLOTS <= UINT8_MAX + 1, "inv_xy_slot no longer fits in a uint8_t");
+
+/**
+ * @brief Whether @p slot is the leftmost cell of a backpack row (or of the belt).
+ *
+ * Oracool V1: replaces the old per-row SLOTXY_INV_ROW*_FIRST constants. Those enumerated all
+ * four rows explicitly, which stopped scaling the moment the grid became seven rows deep -
+ * every caller would have had to list three more. A modulo test says the same thing for any
+ * number of rows.
+ */
+constexpr bool IsAtInvRowStart(int slot)
+{
+	if (slot == SLOTXY_BELT_FIRST)
+		return true;
+	if (slot < SLOTXY_INV_FIRST || slot > SLOTXY_INV_LAST)
+		return false;
+	return (slot - SLOTXY_INV_FIRST) % InventorySizeInSlots.width == 0;
+}
+
+/** @brief Whether @p slot is the rightmost cell of a backpack row (or of the belt). */
+constexpr bool IsAtInvRowEnd(int slot)
+{
+	if (slot == SLOTXY_BELT_LAST)
+		return true;
+	if (slot < SLOTXY_INV_FIRST || slot > SLOTXY_INV_LAST)
+		return false;
+	return (slot - SLOTXY_INV_FIRST) % InventorySizeInSlots.width == InventorySizeInSlots.width - 1;
+}
+
+/** @brief Slot index of the leftmost cell of the backpack's last row. */
+constexpr int SlotXyInvLastRowFirst = SLOTXY_INV_LAST - InventorySizeInSlots.width + 1;
 
 enum item_color : uint8_t {
 	// clang-format off
@@ -82,7 +111,11 @@ enum item_color : uint8_t {
 };
 
 extern bool invflag;
-extern DVL_API_FOR_TEST const Rectangle InvRect[NUM_XY_SLOTS];
+/**
+ * @brief Panel-relative rect of every inventory slot. Generated in inv.cpp from
+ * oracool/inventory_layout.h - see the comment there for why it is no longer a literal table.
+ */
+extern DVL_API_FOR_TEST const std::array<Rectangle, NUM_XY_SLOTS> InvRect;
 /** @brief Oracool Tabbed Inventory: currently displayed backpack page (0 = original backpack). */
 extern DVL_API_FOR_TEST int ActiveInventoryTab;
 /**
@@ -241,15 +274,6 @@ void TransferItemToStash(Player &player, int location);
  * true if an extra-tab item was under the cursor (whether or not the transfer itself succeeded).
  */
 bool TryTransferHoveredActiveTabItemToStash(Player &player);
-/**
- * @brief Oracool: panel-relative position and size of the inventory sort button - sits in the gap
- * between the inventory panel's left edge and the left ring slot (InvRect[SLOTXY_RING_LEFT]).
- * Widened from the original 24x24 (sized to match a slot's icon, back when this drew a single "$"
- * character) to fit a short text label - this button draws no background/frame, only text, so the
- * wider hit-test area has no visible side effect of its own.
- */
-constexpr Point InventorySortButtonPosition { 8, 180 };
-constexpr Size InventorySortButtonSize { 32, 24 };
 /**
  * @brief Oracool: true for the single frame between a mouse-down hit on the sort button and the
  * corresponding mouse-up, purely for click-feedback color (the sort itself already runs

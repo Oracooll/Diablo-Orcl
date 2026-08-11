@@ -808,6 +808,7 @@ void UpdateHellfireFlag(Item &item, const char *identifiedItemName);
 #ifdef _DEBUG
 bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx);
 std::string DebugSpawnItem(std::string itemName);
+std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier);
 std::string DebugSpawnUniqueItem(std::string itemName);
 #endif
 /* data */

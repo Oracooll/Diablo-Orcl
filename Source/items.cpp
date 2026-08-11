@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file items.cpp
  *
  * Implementation of item functionality.
@@ -36,6 +36,7 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
@@ -659,7 +660,10 @@ void GetBookSpell(Item &item, int lvl)
 	SpellID bs = SpellID::Firebolt;
 	while (rv > 0) {
 		int sLevel = GetSpellBookLevel(static_cast<SpellID>(s));
-		if (sLevel != -1 && lvl >= sLevel) {
+		// Oracool: Town Portal is a built-in ability now (see oracool::IsBuiltInPortalAbility), so
+		// its book would teach nothing - skipped here rather than by jumping the enum index the way
+		// the multiplayer-only spells below are, since that would depend on enum adjacency.
+		if (sLevel != -1 && lvl >= sLevel && !oracool::IsBuiltInPortalAbility(static_cast<SpellID>(s))) {
 			rv--;
 			bs = static_cast<SpellID>(s);
 		}
@@ -1391,6 +1395,9 @@ void GetStaffSpell(const Player &player, Item &item, int lvl, bool onlygood)
 	SpellID bs = SpellID::Null;
 	while (rv > 0) {
 		int sLevel = GetSpellStaffLevel(static_cast<SpellID>(s));
+		// Oracool: a Staff of Town Portal would carry charges of an ability the player already has
+		// for free from the HUD's Portal button - excluded from the roll the same way the book's
+		// own spell is (GetBookSpell), by predicate rather than by jumping the enum index.
 		if (sLevel != -1 && l >= sLevel) {
 			rv--;
 			bs = static_cast<SpellID>(s);
@@ -1403,6 +1410,23 @@ void GetStaffSpell(const Player &player, Item &item, int lvl, bool onlygood)
 		if (s == maxSpells)
 			s = static_cast<int8_t>(SpellID::Firebolt);
 	}
+
+	// Oracool: a Staff of Town Portal would carry charges of an ability the player already has
+	// for free from the HUD's Portal button, so it must not spawn.
+	//
+	// This substitution happens AFTER the roll, deliberately. The obvious implementation - adding
+	// !IsBuiltInPortalAbility to the eligibility predicate in the walk above - is what shipped
+	// first, and it broke staves across save/load: pack_test's round-trip caught a staff going in
+	// as "Fire Wall" and coming back as "Lightning". The walk counts `rv` down over spells that
+	// pass the predicate, so excluding one shifts which spell every subsequent roll lands on, and
+	// that mapping is sensitive to `l` (= lvl / 2). Generation and RecreateItem do not always
+	// reach here with the same lvl, so the two diverged and a staff's spell changed when the game
+	// reloaded it.
+	//
+	// Substituting on the result instead leaves the walk bit-for-bit as vanilla, so the same seed
+	// always yields the same spell, and the remap depends only on that spell.
+	if (oracool::IsBuiltInPortalAbility(bs))
+		bs = SpellID::Firebolt;
 
 	int minc = GetSpellData(bs).sStaffMin;
 	int maxc = GetSpellData(bs).sStaffMax - minc + 1;
@@ -1505,6 +1529,14 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		if (item.iRnd == IDROP_NEVER)
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
+			continue;
+		// Oracool: Town Portal is a built-in ability cast from the HUD's Portal button, so its
+		// scrolls are redundant and no longer spawn - as loot, as vendor stock, anywhere. This is
+		// the single chokepoint every generation path funnels through (loot, all four vendors,
+		// uniques), and it deliberately mirrors the single-player Resurrect/HealOther exclusion
+		// directly above. Note this is a *generation* filter only: it is NOT IsItemAvailable, which
+		// also gates save/network validation and would strip scrolls a character already carries.
+		if (oracool::IsBuiltInPortalAbility(item.iSpell))
 			continue;
 		if (!isItemOkay(item))
 			continue;
@@ -1661,7 +1693,7 @@ int GetItemBLevel(int lvl, item_misc_id miscId, bool onlygood, bool uper15)
  * default true - consuming extra randomness there is exactly what a "did this drop become
  * Rare/Buffed Unique" roll is supposed to do.
  */
-void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t iseed, int lvl, int uper, bool onlygood, bool recreate, bool pregen, bool allowTieredRoll = true)
+void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t iseed, int lvl, int uper, bool onlygood, bool recreate, bool pregen, bool allowTieredRoll = true, std::optional<OracoolItemTier> forcedTier = std::nullopt)
 {
 	item._iSeed = iseed;
 	SetRndSeed(iseed);
@@ -1680,7 +1712,32 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 
 	if (item._iMiscId != IMISC_UNIQUE) {
 		int iblvl = GetItemBLevel(lvl, item._iMiscId, onlygood, uper == 15);
-		if (iblvl != -1) {
+		if (iblvl != -1 && forcedTier) {
+			// Oracool: debug-only path (giverare/giveunique/giveprimal) - forces the requested
+			// tier unconditionally instead of the normal probabilistic fork below, reusing this
+			// function's own ItemRndDur/SetupItem sequencing so a forced item is finished
+			// exactly like a naturally-rolled one. Falls back to a plain magic roll if the item
+			// type can't carry tiered affixes at all (e.g. potions, scrolls).
+			const AffixItemType tieredFlgs = GetAffixItemTypeForItem(item);
+			if (tieredFlgs == AffixItemType::None) {
+				GetItemBonus(player, item, iblvl / 2, iblvl, onlygood, true);
+			} else {
+				switch (*forcedTier) {
+				case OracoolItemTier::Rare:
+					GetRareItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood, /*ignoreLevelLimits=*/true);
+					break;
+				case OracoolItemTier::BuffedUnique:
+					GetBuffedUniqueItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood, /*ignoreLevelLimits=*/true);
+					break;
+				case OracoolItemTier::Primal:
+					GetPrimalItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood, /*ignoreLevelLimits=*/true);
+					break;
+				case OracoolItemTier::None:
+					GetItemBonus(player, item, iblvl / 2, iblvl, onlygood, true);
+					break;
+				}
+			}
+		} else if (iblvl != -1) {
 			_unique_items uid = CheckUnique(item, iblvl, uper, recreate, allowTieredRoll);
 			const bool tieredRollEligible = allowTieredRoll && oracool::IsSinglePlayer();
 			// A pure function of item._itype, unchanged by anything below - computed once
@@ -4838,6 +4895,7 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 			if (IsStashOpen) {
 				Stash.RefreshItemStatFlags();
 			}
+			oracool::ScheduleAutoSaveForBookRead();
 		}
 		RedrawComponent(PanelDrawComponent::Mana);
 	} break;
@@ -5385,6 +5443,64 @@ std::string DebugSpawnItem(std::string itemName)
 
 		testItem = {};
 		SetupAllItems(*MyPlayer, testItem, idx, AdvanceRndSeed(), monsterLevel, 1, false, false, false);
+
+		std::string tmp = AsciiStrToLower(testItem._iIName);
+		if (tmp.find(itemName) == std::string::npos)
+			continue;
+		if (!WouldSurviveNetworkValidation(testItem, idx))
+			continue;
+		break;
+	}
+
+	int ii = AllocateItem();
+	auto &item = Items[ii];
+	item = testItem.pop();
+	item._iIdentified = true;
+	Point pos = MyPlayer->position.tile;
+	GetSuperItemSpace(pos, ii);
+	NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
+	return StrCat("Item generated successfully - iterations: ", i);
+}
+
+/**
+ * @brief Oracool: user request - giverare/giveunique/giveprimal debug commands. Same random-base-item
+ * search loop as DebugSpawnItem, but forces the requested Oracool tier via SetupAllItems's
+ * forcedTier parameter instead of leaving it to chance, retrying with a different base item
+ * whenever the picked one can't carry tiered affixes at all (e.g. potions, scrolls, gold).
+ */
+std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier)
+{
+	if (ActiveItemCount >= MAXITEMS)
+		return "No space to generate the item!";
+
+	const int max_time = 3000;
+	const int max_iter = 1000000;
+
+	AsciiStrToLower(itemName);
+
+	Item testItem;
+
+	uint32_t begin = SDL_GetTicks();
+	int i = 0;
+	for (;; i++) {
+		std::uniform_int_distribution<int32_t> dist(0, INT_MAX);
+		SetRndSeed(dist(BetterRng));
+		if (SDL_GetTicks() - begin > max_time)
+			return StrCat("Item not found in ", max_time / 1000, " seconds!");
+
+		if (i > max_iter)
+			return StrCat("Item not found in ", max_iter, " tries!");
+
+		const int8_t monsterLevel = dist(BetterRng) % CF_LEVEL + 1;
+		_item_indexes idx = RndItemForMonsterLevel(monsterLevel);
+		if (IsAnyOf(idx, IDI_NONE, IDI_GOLD))
+			continue;
+
+		testItem = {};
+		SetupAllItems(*MyPlayer, testItem, idx, AdvanceRndSeed(), monsterLevel, 1, false, false, false, /*allowTieredRoll=*/true, tier);
+
+		if (testItem._iOracoolTier != tier)
+			continue; // this base item type can't carry tiered affixes - try another
 
 		std::string tmp = AsciiStrToLower(testItem._iIName);
 		if (tmp.find(itemName) == std::string::npos)

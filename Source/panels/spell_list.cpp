@@ -9,10 +9,13 @@
 #include "engine.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/palette.h"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "inv_iterators.hpp"
 #include "options.h"
 #include "oracool/furious_charge.h"
+#include "oracool/hud_layout.h"
+#include "oracool/oracool.h"
 #include "panels/spell_icons.hpp"
 #include "player.h"
 #include "spells.h"
@@ -103,7 +106,23 @@ void DrawSpell(const Surface &out)
 	if (leveltype == DTYPE_TOWN && st != SpellType::Invalid && !GetSpellData(spl).isAllowedInTown())
 		st = SpellType::Invalid;
 
-	const Point position = GetMainPanel().position + Displacement { 565, 119 };
+	// Oracool: HUD art pass - the plate art (assets/ui/middle_hud.png) frames the RMB well, so the
+	// icon draws bare, centred inside it. The plate's wells fit the engine's SMALL spell icon, not
+	// the 56px large one (small icons are always loaded in-game via InitSpellBook's
+	// LoadSmallSpellIcons). The sprite's real dimensions are queried rather than assumed - only its
+	// width is fixed by the CEL load call, and hardcoding a guessed height left the icon
+	// visibly off-centre in the well.
+	const Rectangle rmbWell = oracool::GetRmbSkillButtonRect();
+	const Size iconSize = GetSmallSpellIconSize();
+	const int SmallIconHeight = iconSize.height;
+	// Oracool: user tuning (2026-08-11) - like the belt item sprites, the spell icon's artwork is
+	// not centred within its own sprite bounds, so geometric centring still reads slightly high and
+	// left. Nudged by eye against the art.
+	constexpr Displacement RmbIconNudge { 1, 3 };
+	// Draw(Small)SpellIcon anchors at the sprite's bottom-left.
+	const Point position = rmbWell.position + RmbIconNudge
+	    + Displacement { (rmbWell.size.width - iconSize.width) / 2,
+		      (rmbWell.size.height - iconSize.height) / 2 + iconSize.height - 1 };
 
 	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (see
 	// FuriousChargeIcon - there's no dedicated art for a mod-only skill) instead of the normal
@@ -114,28 +133,32 @@ void DrawSpell(const Surface &out)
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
 		if (progress >= 1.0f) {
 			SetSpellTrans(st);
-			DrawLargeSpellIcon(out, position, oracool::FuriousChargeIcon);
+			DrawSmallSpellIcon(out, position, oracool::FuriousChargeIcon);
 		} else {
-			const int partition = static_cast<int>(SPLICONLENGTH * progress);
+			const int partition = static_cast<int>(SmallIconHeight * progress);
 			if (partition > 0) {
 				const Surface filledBand = out.subregionY(position.y - partition, partition);
 				SetSpellTransRed();
-				DrawLargeSpellIcon(filledBand, { position.x, partition }, oracool::FuriousChargeIcon);
+				DrawSmallSpellIcon(filledBand, { position.x, partition }, oracool::FuriousChargeIcon);
 			}
-			if (partition < SPLICONLENGTH) {
-				const Surface unfilledBand = out.subregionY(position.y - SPLICONLENGTH, SPLICONLENGTH - partition);
+			if (partition < SmallIconHeight) {
+				const Surface unfilledBand = out.subregionY(position.y - SmallIconHeight, SmallIconHeight - partition);
 				SetSpellTrans(SpellType::Invalid);
-				DrawLargeSpellIcon(unfilledBand, { position.x, SPLICONLENGTH }, oracool::FuriousChargeIcon);
+				DrawSmallSpellIcon(unfilledBand, { position.x, SmallIconHeight }, oracool::FuriousChargeIcon);
 			}
 		}
 	} else {
 		SetSpellTrans(st);
-		DrawLargeSpellIcon(out, position, spl);
+		DrawSmallSpellIcon(out, position, spl);
 	}
 
 	std::optional<string_view> hotkeyName = GetHotkeyName(spl, myPlayer._pRSplType, true);
-	if (hotkeyName)
-		PrintSBookHotkey(out, position, *hotkeyName);
+	if (hotkeyName) {
+		// PrintSBookHotkey aligns against the 56px large icon; this slot draws the small one, so
+		// align to its top-right corner directly.
+		const Point hotkeyPosition = position + Displacement { iconSize.width - (GetLineWidth(hotkeyName->data()) + 4), 5 - SmallIconHeight };
+		DrawString(out, *hotkeyName, hotkeyPosition, { UiFlags::ColorWhite | UiFlags::Outlined });
+	}
 }
 
 void DrawSpellList(const Surface &out)
@@ -256,6 +279,11 @@ std::vector<SpellListItem> GetSpellListItems()
 		int8_t j = static_cast<int8_t>(SpellID::Firebolt);
 		for (uint64_t spl = 1; j < MAX_SPELLS; spl <<= 1, j++) {
 			if ((mask & spl) == 0)
+				continue;
+			// Oracool: Town Portal is a built-in ability cast from the HUD's Portal button, not a
+			// SpeedBook entry - see oracool::IsBuiltInPortalAbility. Filtering it here also keeps
+			// it out of the F5-F8 hotkey assignment, which selects from this same list.
+			if (oracool::IsBuiltInPortalAbility(static_cast<SpellID>(j)))
 				continue;
 			int lx = x;
 			int ly = y - SPLICONLENGTH;

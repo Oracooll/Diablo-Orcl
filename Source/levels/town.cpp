@@ -361,7 +361,9 @@ void CreateTown(lvl_entry entry)
 	dmaxPosition = { 84, 84 };
 
 	if (entry == ENTRY_MAIN) { // New game
-		ViewPosition = { 75, 68 };
+		// Oracool: user request - matches SetupLocalPositions()'s local-player spawn tile
+		// (multi.cpp), so the camera starts centered on the player, not offset from them.
+		ViewPosition = { 56, 67 };
 	} else if (entry == ENTRY_PREV) { // Cathedral
 		ViewPosition = { 25, 31 };
 	} else if (entry == ENTRY_TWARPUP) {

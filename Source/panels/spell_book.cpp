@@ -15,6 +15,7 @@
 #include "init.h"
 #include "missiles.h"
 #include "oracool/furious_charge.h"
+#include "oracool/oracool.h"
 #include "panels/spell_icons.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -141,7 +142,10 @@ void DrawSpellBook(const Surface &out)
 	const int textPaddingTop = 7;
 	for (size_t pageEntry = 0; pageEntry < SpellBookPageEntries; pageEntry++) {
 		SpellID sn = GetSpellFromSpellPage(sbooktab, pageEntry);
-		if (IsValidSpell(sn) && (spl & GetSpellBitmask(sn)) != 0) {
+		// Oracool: Town Portal is a built-in ability, never listed in the book - see
+		// oracool::IsBuiltInPortalAbility. Its row is simply skipped, leaving a gap rather than
+		// reflowing the page, since the pages are a fixed spell-per-slot layout.
+		if (IsValidSpell(sn) && !oracool::IsBuiltInPortalAbility(sn) && (spl & GetSpellBitmask(sn)) != 0) {
 			SpellType st = GetSBookTrans(sn, true);
 			SetSpellTrans(st);
 			const Point spellCellPosition = GetPanelPosition(UiPanels::Spell, { 11, yp + SpellBookDescription.height });

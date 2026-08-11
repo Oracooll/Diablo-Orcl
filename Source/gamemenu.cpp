@@ -10,16 +10,11 @@
 #include "engine/events.hpp"
 #include "engine/sound.h"
 #include "engine/sound_defs.hpp"
-#include "error.h"
 #include "gmenu.h"
 #include "init.h"
-#include "loadsave.h"
 #include "options.h"
-#include "oracool/event_log.h"
-#include "oracool/oracool.h"
-#include "pfile.h"
+#include "oracool/auto_save.h"
 #include "player.h"
-#include "qol/floatingnumbers.h"
 #include "utils/language.h"
 
 namespace devilution {
@@ -27,6 +22,7 @@ namespace {
 
 // Forward-declare menu handlers, used by the global menu structs below.
 void GamemenuPrevious(bool bActivate);
+void GamemenuReturnToGame(bool bActivate);
 void GamemenuNewGame(bool bActivate);
 void GamemenuReturnToMainMenu(bool bActivate);
 void GamemenuRestartTown(bool bActivate);
@@ -38,19 +34,21 @@ void GamemenuGamma(bool bActivate);
 void GamemenuSpeed(bool bActivate);
 
 /**
- * @brief Oracool: user request - the pause menu is trimmed to exactly these five entries while
- * the player is alive. "Exit Game" reuses the vanilla "Quit Game" handler, which already does
- * exactly what the new name says (abandon the current game and close the application). "Main
- * Menu" originally reused vanilla's "New Game" handler too, but that only abandons the current
- * game back to the hero/character-select screen, not the actual title screen - a separate bug
- * report ("MAIN MENU option ... to take me to main game menu, not character selection menu")
- * confirmed the mismatch. It now uses GamemenuReturnToMainMenu instead.
+ * @brief Oracool: user request - the pause menu is trimmed to exactly these three entries while
+ * the player is alive. "Save Game"/"Load Game" were removed entirely as part of the move to
+ * continuous autosave (see oracool/auto_save.h) - with every meaningful change persisted
+ * instantly, a manual save/load concept no longer applies, matching Diablo 3's menus. "Exit Game"
+ * reuses the vanilla "Quit Game" handler, which already does exactly what the new name says
+ * (abandon the current game and close the application). "Main Menu" originally reused vanilla's
+ * "New Game" handler too, but that only abandons the current game back to the hero/character-select
+ * screen, not the actual title screen - a separate bug report ("MAIN MENU option ... to take me to
+ * main game menu, not character selection menu") confirmed the mismatch. It now uses
+ * GamemenuReturnToMainMenu instead.
  */
 TMenuItem sgSingleMenu[] = {
 	// clang-format off
 	// dwFlags,      pszStr,                 fnMenu
-	{ GMENU_ENABLED, N_("Save Game"),       &gamemenu_save_game       },
-	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game       },
+	{ GMENU_ENABLED, N_("Return to Game"),  &GamemenuReturnToGame     },
 	{ GMENU_ENABLED, N_("Main Menu"),       &GamemenuReturnToMainMenu },
 	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions          },
 	{ GMENU_ENABLED, N_("Exit Game"),       &gamemenu_quit_game       },
@@ -62,14 +60,14 @@ TMenuItem sgSingleMenu[] = {
  * enabled, while the character is dead - the underlying menu system draws every item between the
  * array's start and its nullptr terminator unconditionally (enabling/disabling an item only
  * changes its color, not whether it's shown), so a separate array is the only way to actually
- * remove it from the list the rest of the time. Replaces "Save Game" in this slot, which was
- * already effectively non-functional while dead (gamemenu_save_game no-ops in that state).
+ * remove it from the list the rest of the time. "Load Game" was removed entirely along with
+ * sgSingleMenu's copy - see the comment above.
  */
 TMenuItem sgSingleMenuOnDeath[] = {
 	// clang-format off
 	// dwFlags,      pszStr,                 fnMenu
 	{ GMENU_ENABLED, N_("Respawn In Town"), &GamemenuRespawnInTown    },
-	{ GMENU_ENABLED, N_("Load Game"),       &gamemenu_load_game       },
+	{ GMENU_ENABLED, N_("Return to Game"),  &GamemenuReturnToGame     },
 	{ GMENU_ENABLED, N_("Main Menu"),       &GamemenuReturnToMainMenu },
 	{ GMENU_ENABLED, N_("Options"),         &GamemenuOptions          },
 	{ GMENU_ENABLED, N_("Exit Game"),       &gamemenu_quit_game       },
@@ -109,14 +107,6 @@ const char *const SoundToggleNames[] = {
 	N_("Sound Disabled"),
 };
 
-void GamemenuUpdateSingle()
-{
-	// Oracool: index 1 (Load Game) is the same slot in both sgSingleMenu and
-	// sgSingleMenuOnDeath - whichever array gamemenu_on() picked, this still applies correctly.
-	sgSingleMenu[1].setEnabled(gbValidSaveFile);
-	sgSingleMenuOnDeath[1].setEnabled(gbValidSaveFile);
-}
-
 void GamemenuUpdateMulti()
 {
 	sgMultiMenu[2].setEnabled(MyPlayerIsDead);
@@ -127,8 +117,28 @@ void GamemenuPrevious(bool /*bActivate*/)
 	gamemenu_on();
 }
 
+/**
+ * @brief Oracool: user request - an explicit way out of the pause menu. Escape and the HUD's Menu
+ * button both already dismiss it, but neither is visible from inside the menu, so the only listed
+ * options all led away from the current game.
+ */
+void GamemenuReturnToGame(bool /*bActivate*/)
+{
+	gamemenu_off();
+}
+
 void GamemenuNewGame(bool /*bActivate*/)
 {
+	// Oracool: user request - persist the character on the way out, so the last thing you did
+	// before quitting is never lost. Both "Main Menu" (GamemenuReturnToMainMenu) and "Exit Game"
+	// (gamemenu_quit_game) funnel through here, so this one call covers both.
+	//
+	// It must come first: the loop below sets every player's _pmode to PM_QUIT and clears
+	// MyPlayerIsDead, and saving after that would persist a quitting player rather than the one
+	// who was just playing. SaveOnExit() is single-player-only; multiplayer keeps its existing
+	// exit-path save in diablo.cpp.
+	oracool::SaveOnExit();
+
 	for (Player &player : Players) {
 		player._pmode = PM_QUIT;
 		player._pInvincible = true;
@@ -348,69 +358,15 @@ void gamemenu_quit_game(bool bActivate)
 #endif
 }
 
-void gamemenu_load_game(bool /*bActivate*/)
-{
-	EventHandler saveProc = SetEventHandler(DisableInputEventHandler);
-	gamemenu_off();
-	ClearFloatingNumbers();
-	NewCursor(CURSOR_NONE);
-	InitDiabloMsg(EMSG_LOADING);
-	RedrawEverything();
-	DrawAndBlit();
-	LoadGame(false);
-	ClrDiabloMsg();
-	CornerStone.activated = false;
-	PaletteFadeOut(8);
-	MyPlayerIsDead = false;
-	RedrawEverything();
-	DrawAndBlit();
-	LoadPWaterPalette();
-	PaletteFadeIn(8);
-	NewCursor(CURSOR_HAND);
-	interface_msg_pump();
-	SetEventHandler(saveProc);
-}
-
-void gamemenu_save_game(bool /*bActivate*/)
-{
-	if (pcurs != CURSOR_HAND) {
-		return;
-	}
-
-	if (MyPlayer->_pmode == PM_DEATH || MyPlayerIsDead) {
-		gamemenu_off();
-		return;
-	}
-
-	EventHandler saveProc = SetEventHandler(DisableInputEventHandler);
-	NewCursor(CURSOR_NONE);
-	gamemenu_off();
-	InitDiabloMsg(EMSG_SAVING);
-	RedrawEverything();
-	DrawAndBlit();
-	SaveGame();
-	oracool::LogEvent("Game saved", UiFlags::ColorWhite);
-	ClrDiabloMsg();
-	InitDiabloMsg(EMSG_GAME_SAVED, 1000);
-	RedrawEverything();
-	NewCursor(CURSOR_HAND);
-	if (CornerStone.activated) {
-		CornerstoneSave();
-		SaveOptions();
-	}
-	interface_msg_pump();
-	SetEventHandler(saveProc);
-}
-
 void gamemenu_on()
 {
 	if (!gbIsMultiplayer) {
 		// Oracool: user request - pick the death-only variant (with "Respawn In Town" in place
-		// of "Save Game") once here, when the menu is actually opened, rather than every frame -
+		// of "Main Menu") once here, when the menu is actually opened, rather than every frame -
 		// the game simulation (and therefore MyPlayerIsDead/_pmode) is frozen for as long as this
 		// menu stays open, so there's no case where the right choice could change mid-display.
 		const bool isDead = MyPlayerIsDead || MyPlayer->_pmode == PM_DEATH;
-		gmenu_set_items(isDead ? sgSingleMenuOnDeath : sgSingleMenu, GamemenuUpdateSingle);
+		gmenu_set_items(isDead ? sgSingleMenuOnDeath : sgSingleMenu, nullptr);
 	} else {
 		gmenu_set_items(sgMultiMenu, GamemenuUpdateMulti);
 	}

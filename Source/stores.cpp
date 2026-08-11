@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file stores.cpp
  *
  * Implementation of functionality for stores and towner dialogs.
@@ -6,6 +6,7 @@
 #include "stores.h"
 
 #include <algorithm>
+#include <iterator>
 #include <array>
 #include <cctype>
 #include <chrono>
@@ -1685,8 +1686,8 @@ void StartBarmaid()
 	AddSText(0, 2, _("Gillian"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Gillian"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, 14, _("Access Storage"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 16, _("Sort Stash"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	// Oracool: user request - the physical Stash Chest in town (see OperateStashChest in
+	// objects.cpp) replaces Gillian as the way to access and sort the Stash.
 	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
@@ -1781,6 +1782,19 @@ void SmithBuyEnter()
 	stextshold = TalkID::SmithBuy;
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
+
+	// Oracool bug fix: user report - buying out Griswold's entire basic stock let you keep
+	// "buying", which put an indestructible phantom item in the inventory (a zeroed Item, drawn
+	// with the low-index potion sprite, that vanishes when clicked).
+	//
+	// Vanilla bounced out of this screen when the list was empty, and an earlier Oracool change
+	// removed that on the grounds that the empty screen renders fine - which it does. What it does
+	// not do is stop this line mapping a still-selected row onto an empty slot, which then gets
+	// confirmed and auto-placed. Guarding the index keeps the nicer empty-list screen and closes
+	// the hole; the same applies to any row that scrolled past the end of the list.
+	if (idx < 0 || idx >= SMITH_ITEMS || smithitem[idx].isEmpty())
+		return;
+
 	if (!PlayerCanAfford(smithitem[idx]._iIvalue)) {
 		StartStore(TalkID::NoMoney);
 		return;
@@ -2032,6 +2046,7 @@ void StoreSellItem()
 		AddGoldToInventory(myPlayer, cost);
 		myPlayer._pGold += cost;
 	}
+	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
 void SmithSellAllItems()
@@ -2119,11 +2134,13 @@ void SmithRepairItem(int price)
 		}
 		TakePlrsMoney(price);
 		CalcPlrInv(myPlayer, true);
+		oracool::ScheduleAutoSaveForStoreTransaction();
 		return;
 	}
 
 	myPlayer.InvList[i]._iDurability = myPlayer.InvList[i]._iMaxDur;
 	TakePlrsMoney(price);
+	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
 /**
@@ -2259,6 +2276,12 @@ void WitchBuyEnter()
 	int idx = stextsval + ((stextsel - stextup) / 4);
 	Item &selectedItem = WitchStockItem(idx, stextflag == TalkID::SmithConsumables);
 
+	// Same guard as SmithBuyEnter - see the comment there. Defensive here rather than a reported
+	// fault: this list is not known to empty out in practice, but the index is derived the same
+	// way from a possibly-stale selected row, so the same phantom-item outcome is reachable.
+	if (selectedItem.isEmpty())
+		return;
+
 	if (!PlayerCanAfford(selectedItem._iIvalue)) {
 		StartStore(TalkID::NoMoney);
 		return;
@@ -2317,6 +2340,7 @@ void WitchRechargeItem(int price)
 
 	TakePlrsMoney(price);
 	CalcPlrInv(myPlayer, true);
+	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
 void WitchRechargeEnter()
@@ -2504,6 +2528,7 @@ void StorytellerIdentifyItem(Item &item)
 	item._iIdentified = true;
 	TakePlrsMoney(item._iIvalue);
 	CalcPlrInv(myPlayer, true);
+	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
 void ConfirmEnter(Item &item)
@@ -2595,6 +2620,10 @@ void HealerBuyEnter()
 	stextshold = TalkID::HealerBuy;
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
+
+	// Same guard as SmithBuyEnter - see the comment there.
+	if (idx < 0 || static_cast<size_t>(idx) >= std::size(healitem) || healitem[idx].isEmpty())
+		return;
 
 	if (!PlayerCanAfford(healitem[idx]._iIvalue)) {
 		StartStore(TalkID::NoMoney);
@@ -2712,20 +2741,6 @@ void BarmaidEnter()
 		talker = TOWN_BMAID;
 		stextshold = TalkID::Barmaid;
 		StartStore(TalkID::Gossip);
-		break;
-	case 14:
-		stextflag = TalkID::None;
-		IsStashOpen = true;
-		Stash.RefreshItemStatFlags();
-		invflag = true;
-		if (ControlMode != ControlTypes::KeyboardAndMouse) {
-			if (pcurs == CURSOR_DISARM)
-				NewCursor(CURSOR_HAND);
-			FocusOnInventory();
-		}
-		break;
-	case 16:
-		SortStash(*MyPlayer);
 		break;
 	case 18:
 		stextflag = TalkID::None;

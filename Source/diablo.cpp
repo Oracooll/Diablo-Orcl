@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file diablo.cpp
  *
  * Implementation of the main game initialization functions.
@@ -62,6 +62,11 @@
 #include "objects.h"
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
+#include "oracool/hud_layout.h"
+#include "oracool/hud_menu.h"
+#include "oracool/inventory_layout.h"
+#include "oracool/oracool.h"
+#include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "options.h"
 #include "panels/info_box.hpp"
@@ -232,7 +237,13 @@ void LeftMouseCmd(bool bShift)
 {
 	bool bNear;
 
-	assert(!GetMainPanel().contains(MousePosition));
+	// Oracool: bug postmortem (2026-08-11) - this used to assert that the click was outside
+	// GetMainPanel(), which held while the old 640x128 panel swallowed every click inside its rect.
+	// The new HUD is a small centre-bottom plate, and clicks in the empty space around it are meant
+	// to reach the world (user request) - so that invariant is gone, and in a Debug build the stale
+	// assert aborted the game the moment the player clicked anywhere in that band. Removed rather
+	// than relaxed: the caller (LeftMouseDown) already decides what counts as HUD, and CheckCursMove
+	// computes cursPosition for panel-area coordinates too, so the target tile here is valid.
 
 	if (leveltype == DTYPE_TOWN) {
 		CloseGoldWithdraw();
@@ -241,6 +252,17 @@ void LeftMouseCmd(bool bShift)
 			NetSendCmdLocParam1(true, invflag ? CMD_GOTOGETITEM : CMD_GOTOAGETITEM, cursPosition, pcursitem);
 		if (pcursmonst != -1)
 			NetSendCmdLocParam1(true, CMD_TALKXY, cursPosition, pcursmonst);
+		// Oracool: user request - Stash Chest. Vanilla town never needed to click a generic Object
+		// to operate it (NPCs go through pcursmonst/CMD_TALKXY just above; nothing else in vanilla
+		// town used the Object system's click-to-operate path), so this branch never checked
+		// ObjectUnderCursor at all - a click on the chest fell straight through to the walk-there
+		// branch below and silently never opened it. Mirrors the equivalent check in the dungeon
+		// branch further down this function.
+		if (pcursitem == -1 && pcursmonst == -1 && ObjectUnderCursor != nullptr && !ObjectUnderCursor->IsDisabled()) {
+			LastMouseButtonAction = MouseActionType::OperateObject;
+			NetSendCmdLoc(MyPlayerId, true, CMD_OPOBJXY, cursPosition);
+			return;
+		}
 		if (pcursitem == -1 && pcursmonst == -1 && pcursplr == -1) {
 			LastMouseButtonAction = MouseActionType::Walk;
 			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
@@ -328,7 +350,12 @@ void LeftMouseDown(uint16_t modState)
 		return;
 
 	if (MyPlayerIsDead) {
-		control_check_btn_press();
+		// Oracool: HUD overhaul - the old dead-mode panel buttons (Game Menu, Chat) are gone; the
+		// belt's Menu popup covers both, so it stays clickable while dead.
+		if (oracool::IsHudMenuOpen())
+			oracool::CheckHudMenuClick(MousePosition);
+		else
+			oracool::CheckHudMenuSlotClick(MousePosition);
 		return;
 	}
 
@@ -350,30 +377,50 @@ void LeftMouseDown(uint16_t modState)
 		return;
 	}
 
-	// Oracool: the event log toggle button is always-visible during normal gameplay (like the
-	// mini-map), independent of which panel is open, so it's checked here rather than inside the
+	// Oracool: the XP Counter is always-visible during normal gameplay (like the mini-map),
+	// independent of which panel is open, so it's checked here rather than inside the
 	// panel-state-gated branches below.
-	if (oracool::CheckEventLogButtonClick(MousePosition))
-		return;
-
-	// Oracool: same reasoning as the event log button above - the XP Counter sits in the same
-	// always-visible row below the mini-map.
 	if (oracool::CheckXpCounterButtonClick(MousePosition))
 		return;
+
+	// Oracool: bug postmortem (2026-08-11) - the burger menu's icon row has to be tested here,
+	// ahead of the HUD/world split below. The row counts as HUD, so the world branch (which owns
+	// the "click away to close" case) never sees it; but it sits above the plate rather than on
+	// it, so the HUD branch did not see it either. The icons rendered and highlighted correctly
+	// and were simply inert, because their click handler lived in the branch they never reached.
+	if (oracool::IsPointOverHudMenu(MousePosition)) {
+		oracool::CheckHudMenuClick(MousePosition);
+		return;
+	}
 
 	const bool isShiftHeld = (modState & KMOD_SHIFT) != 0;
 	const bool isCtrlHeld = (modState & KMOD_CTRL) != 0;
 
-	if (!GetMainPanel().contains(MousePosition)) {
+	// Oracool: user request (2026-08-11) - the old 640x128 main panel used to swallow every click
+	// inside its rect, but the new HUD occupies only a small plate at the centre-bottom. Everything
+	// else in that rect - the gaps either side of the plate, the strip above the XP counter - is
+	// now empty screen and must behave like it: clicking there walks the player, exactly as
+	// clicking anywhere else in the world does. Only the plate itself, the XP counter's strip, and
+	// (while open) the chat panel still absorb clicks as UI.
+	const bool isOverHud = oracool::GetMiddleHudRect().contains(MousePosition)
+	    || oracool::IsPointOverXpCounter(MousePosition)
+	    || oracool::IsPointOverHudMenu(MousePosition)
+	    || (talkflag && GetMainPanel().contains(MousePosition));
+
+	if (!isOverHud) {
 		if (!gmenu_is_active() && !TryIconCurs()) {
 			if (QuestLogIsOpen && GetLeftPanel().contains(MousePosition)) {
 				QuestlogESC();
+			} else if (oracool::IsWaypointMenuOpen() && GetLeftPanel().contains(MousePosition)) {
+				oracool::CheckWaypointMenuClick(MousePosition);
+			} else if (oracool::IsHudMenuOpen()) {
+				oracool::CheckHudMenuClick(MousePosition);
 			} else if (qtextflag) {
 				qtextflag = false;
 				stream_stop();
 			} else if (chrflag && GetLeftPanel().contains(MousePosition)) {
 				CheckChrBtns();
-			} else if (invflag && GetRightPanel().contains(MousePosition)) {
+			} else if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 				if (!DropGoldFlag)
 					CheckInvItem(isShiftHeld, isCtrlHeld);
 			} else if (IsStashOpen && GetLeftPanel().contains(MousePosition)) {
@@ -398,6 +445,8 @@ void LeftMouseDown(uint16_t modState)
 			}
 		}
 	} else {
+		if (oracool::CheckHudMenuSlotClick(MousePosition) || oracool::CheckTownPortalBeltSlotClick(MousePosition))
+			return;
 		if (!talkflag && !DropGoldFlag && !IsWithdrawGoldOpen && !gmenu_is_active())
 			CheckInvScrn(isShiftHeld, isCtrlHeld);
 		DoPanBtn();
@@ -411,8 +460,6 @@ void LeftMouseUp(uint16_t modState)
 {
 	gmenu_left_mouse(false);
 	control_release_talk_btn();
-	if (panbtndown)
-		CheckBtnUp();
 	CheckStashButtonRelease(MousePosition);
 	if (chrbtnactive) {
 		const bool isShiftHeld = (modState & KMOD_SHIFT) != 0;
@@ -496,6 +543,8 @@ void ClosePanels()
 	CloseCharPanel();
 	sbookflag = false;
 	QuestLogIsOpen = false;
+	oracool::CloseWaypointMenu();
+	oracool::CloseHudMenu();
 }
 
 void PressKey(SDL_Keycode vkey, uint16_t modState)
@@ -1708,12 +1757,15 @@ bool CanPlayerTakeAction()
 
 void InitKeymapActions()
 {
-	for (int i = 0; i < 8; ++i) {
+	// Oracool: HUD overhaul - only belt slots 1-4 are real item slots now (0 is the Menu button, 5
+	// is the permanent Town Portal button, 6/7 are hidden - see hud_layout.h's IsRealBeltItemSlot),
+	// so keys '1'-'4' map straight to SpdList[1..4].
+	for (int i = 1; i <= 4; ++i) {
 		sgOptions.Keymapper.AddAction(
 		    "BeltItem{}",
 		    N_("Belt item {}"),
 		    N_("Use Belt item."),
-		    '1' + i,
+		    '0' + i,
 		    [i] {
 			    Player &myPlayer = *MyPlayer;
 			    if (!myPlayer.SpdList[i].isEmpty() && myPlayer.SpdList[i]._itype != ItemType::Gold) {
@@ -1722,7 +1774,7 @@ void InitKeymapActions()
 		    },
 		    nullptr,
 		    CanPlayerTakeAction,
-		    i + 1);
+		    i);
 	}
 	for (size_t i = 0; i < NumHotkeys; ++i) {
 		sgOptions.Keymapper.AddAction(
@@ -1768,22 +1820,6 @@ void InitKeymapActions()
 	    DisplaySpellsKeyPressed,
 	    nullptr,
 	    CanPlayerTakeAction);
-	sgOptions.Keymapper.AddAction(
-	    "QuickSave",
-	    N_("Quick save"),
-	    N_("Saves the game."),
-	    SDLK_F2,
-	    [] { gamemenu_save_game(false); },
-	    nullptr,
-	    [&]() { return !gbIsMultiplayer && CanPlayerTakeAction(); });
-	sgOptions.Keymapper.AddAction(
-	    "QuickLoad",
-	    N_("Quick load"),
-	    N_("Loads the game."),
-	    SDLK_F3,
-	    [] { gamemenu_load_game(false); },
-	    nullptr,
-	    [&]() { return !gbIsMultiplayer && gbValidSaveFile && stextflag == TalkID::None && IsGameRunning(); });
 #ifndef NOEXIT
 	sgOptions.Keymapper.AddAction(
 	    "QuitGame",
@@ -1980,7 +2016,8 @@ void InitKeymapActions()
 
 void InitPadmapActions()
 {
-	for (int i = 0; i < 8; ++i) {
+	// Oracool: HUD overhaul - see InitKeymapActions' matching comment above.
+	for (int i = 1; i <= 4; ++i) {
 		sgOptions.Padmapper.AddAction(
 		    "BeltItem{}",
 		    N_("Belt item {}"),
@@ -1994,7 +2031,7 @@ void InitPadmapActions()
 		    },
 		    nullptr,
 		    CanPlayerTakeAction,
-		    i + 1);
+		    i);
 	}
 	for (size_t i = 0; i < NumHotkeys; ++i) {
 		sgOptions.Padmapper.AddAction(
@@ -2312,22 +2349,6 @@ void InitPadmapActions()
 	        ControllerButton_BUTTON_BACK,
 	    },
 	    toggleGameMenu);
-	sgOptions.Padmapper.AddAction(
-	    "QuickSave",
-	    N_("Quick save"),
-	    N_("Saves the game."),
-	    ControllerButton_NONE,
-	    [] { gamemenu_save_game(false); },
-	    nullptr,
-	    [&]() { return !gbIsMultiplayer && CanPlayerTakeAction(); });
-	sgOptions.Padmapper.AddAction(
-	    "QuickLoad",
-	    N_("Quick load"),
-	    N_("Loads the game."),
-	    ControllerButton_NONE,
-	    [] { gamemenu_load_game(false); },
-	    nullptr,
-	    [&]() { return !gbIsMultiplayer && gbValidSaveFile && stextflag == TalkID::None && IsGameRunning(); });
 	sgOptions.Padmapper.AddAction(
 	    "Item Highlighting",
 	    N_("Item highlighting"),
@@ -2757,6 +2778,11 @@ bool PressEscKey()
 		rv = true;
 	}
 
+	if (oracool::IsHudMenuOpen()) {
+		oracool::CloseHudMenu();
+		rv = true;
+	}
+
 	if (HelpFlag) {
 		HelpFlag = false;
 		rv = true;
@@ -2914,6 +2940,20 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			InitThemes();
 			if (!HeadlessMode)
 				LoadAllGFX();
+			// Oracool: bug postmortem (2026-08-10) - a revisited dungeon level's waypoint sigil
+			// (if any) crashed the game the moment it came into view. Root cause: its graphic
+			// (OFILE_MCIRL) is only ever registered by AddWaypointSigilObject(), which - like
+			// every level-content placement call - only runs on a fresh level generation, not a
+			// revisit (LoadLevel() restores the object itself, but that's a different system from
+			// the per-level graphics registry). LoadLevel()'s own SyncObjectAnim() call then can't
+			// find the graphic in ObjFileList, logs "Unable to find object_graphic_id" and leaves
+			// the object's _oAnimData unset - DrawObject() dereferences that the instant the
+			// object is close enough to render. Registering the graphic here runs unconditionally
+			// on every entry to a level that could have a waypoint, fresh or revisit, before
+			// LoadLevel()'s sync runs. Levels 1-16 all have a waypoint placed now (town's own is
+			// covered separately - AddWaypointSigilObject already runs unconditionally there).
+			if (currlevel >= 1 && currlevel <= 16)
+				oracool::EnsureWaypointGraphicsLoaded();
 		} else if (!HeadlessMode) {
 			IncProgress();
 #if !defined(USE_SDL1) && !defined(__vita__)
@@ -2998,6 +3038,24 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			}
 
 			InitTowners();
+			// Oracool: bug postmortem (2026-08-10) - user report: after warping to a dungeon level
+			// and back via a waypoint, the Stash Chest and waypoint sigil were both gone. Root
+			// cause: this used to be guarded the same way as the dungeon branch's own
+			// fresh-vs-reload check just below, on the theory that a return-to-town reload via
+			// LoadLevel() would otherwise duplicate these objects. That premise is false for town -
+			// SaveLevel()/LoadLevel() (loadsave.cpp) explicitly skip saving/loading Objects[],
+			// ActiveObjects, and dObject for DTYPE_TOWN (vanilla town has none to save), so
+			// ActiveObjectCount gets restored from the save file but the object data behind it
+			// never does. A return visit therefore always needs these two re-placed from scratch,
+			// never just once on the town's first generation - unlike a dungeon level, whose own
+			// LoadLevel() call genuinely does restore its objects correctly.
+			// InitTownObjectPool() must run first - see its doc comment in oracool/oracool.h - town
+			// never otherwise initializes the Objects[] pool the way every dungeon level's own
+			// InitObjects() does, so without this every object placed here would silently collide
+			// on the same internal slot.
+			oracool::InitTownObjectPool();
+			oracool::AddStashChestObject();
+			oracool::AddWaypointSigilObject();
 			InitStash();
 			InitItems();
 			InitMissiles();

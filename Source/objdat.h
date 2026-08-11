@@ -212,6 +212,10 @@ enum _object_id : int8_t {
 	OBJ_L5RDOOR,
 	OBJ_L5LEVER,
 	OBJ_L5SARC,
+	// Oracool: user request - Waypoints, restart. Pure visual placeholder for now (no
+	// interactivity/operate logic attached yet) - reuses the mcirl magic-circle graphic already
+	// proven to load and render correctly for the Stash Chest saga's town-object work.
+	OBJ_WAYPOINT,
 	OBJ_NULL = -1,
 };
 
@@ -298,7 +302,7 @@ struct ObjectData {
 };
 
 extern const _object_id ObjTypeConv[];
-extern const ObjectData AllObjects[109];
+extern const ObjectData AllObjects[110];
 extern const char *const ObjMasterLoadList[];
 
 } // namespace devilution

@@ -1,4 +1,4 @@
-#include <algorithm>
+﻿#include <algorithm>
 
 #include <gtest/gtest.h>
 
@@ -6,6 +6,7 @@
 #include "cursor.h"
 #include "diablo.h"
 #include "inv.h"
+#include "oracool/inventory_layout.h"
 #include "options.h"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -323,12 +324,16 @@ TEST_F(InvTest, MergeStackableItemIntoBelt_mergesIntoExistingStack)
 	for (auto &beltItem : MyPlayer->SpdList)
 		beltItem.clear();
 
-	MyPlayer->SpdList[0] = MakeStackablePotion(IDI_HEAL, true, 5);
+	// Oracool HUD overhaul: belt slot 0 is the Menu button and slot 5 the Town Portal button;
+	// only 1-4 hold items (oracool::IsRealBeltItemSlot). This used to seed slot 0 and expect the
+	// merge there, which now correctly refuses - auto-place skips the button slots entirely.
+	MyPlayer->SpdList[1] = MakeStackablePotion(IDI_HEAL, true, 5);
 
 	Item incoming = MakeStackablePotion(IDI_HEAL, true, 1);
 	EXPECT_TRUE(AutoPlaceItemInBelt(*MyPlayer, incoming, true));
-	EXPECT_EQ(MyPlayer->SpdList[0].stackCount(), 6);
-	EXPECT_TRUE(MyPlayer->SpdList[1].isEmpty()); // no second belt slot used
+	EXPECT_EQ(MyPlayer->SpdList[1].stackCount(), 6);
+	EXPECT_TRUE(MyPlayer->SpdList[0].isEmpty()) << "the Menu button slot must never take an item";
+	EXPECT_TRUE(MyPlayer->SpdList[2].isEmpty()) << "no second belt slot used";
 }
 
 // Belt Mod: consuming the last unit on a belt slot should refill it in one batch from
@@ -732,7 +737,6 @@ TEST_F(InvTest, CheckInventorySortButtonClick_HitsButtonAndSorts)
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
 	gbIsMultiplayer = false;
 	clear_inventory();
-	sgOptions.Oracool.inventorySortButton.SetValue(true);
 
 	InitializeItem(MyPlayer->InvList[0], IDI_WARRIOR);
 	MyPlayer->InvList[0]._iMagical = ITEM_QUALITY_NORMAL;
@@ -744,22 +748,26 @@ TEST_F(InvTest, CheckInventorySortButtonClick_HitsButtonAndSorts)
 	MyPlayer->InvGrid[1] = 2;
 	MyPlayer->_pNumInv = 2;
 
-	MousePosition = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition) + Displacement { InventorySortButtonSize.width / 2, InventorySortButtonSize.height / 2 };
+	const Rectangle sortRect = oracool::GetSortButtonRect();
+	MousePosition = GetPanelPosition(UiPanels::Inventory, sortRect.position) + Displacement { sortRect.size.width / 2, sortRect.size.height / 2 };
 
 	EXPECT_TRUE(CheckInventorySortButtonClick(MousePosition));
 	EXPECT_EQ(MyPlayer->InvList[0]._ivalue, 400);
 }
 
-TEST_F(InvTest, CheckInventorySortButtonClick_MissesWhenOptionDisabled)
+// Oracool (2026-08-11): the sort control stopped being a setting - it is a standard V1 feature,
+// present whenever the game is single-player. Multiplayer is now the only case that hides it.
+TEST_F(InvTest, CheckInventorySortButtonClick_MissesInMultiplayer)
 {
 	clear_inventory();
-	sgOptions.Oracool.inventorySortButton.SetValue(false);
+	gbIsMultiplayer = true;
 
-	MousePosition = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition) + Displacement { InventorySortButtonSize.width / 2, InventorySortButtonSize.height / 2 };
+	const Rectangle sortRect = oracool::GetSortButtonRect();
+	MousePosition = GetPanelPosition(UiPanels::Inventory, sortRect.position) + Displacement { sortRect.size.width / 2, sortRect.size.height / 2 };
 
 	EXPECT_FALSE(CheckInventorySortButtonClick(MousePosition));
 
-	sgOptions.Oracool.inventorySortButton.SetValue(true);
+	gbIsMultiplayer = false;
 }
 
 // User-reported gap: Ctrl+Click-to-stash only ever worked for tab 1, since TransferItemToStash

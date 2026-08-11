@@ -33,6 +33,7 @@
 #include "nthread.h"
 #include "objects.h"
 #include "options.h"
+#include "oracool/auto_save.h"
 #include "pack.h"
 #include "pfile.h"
 #include "plrmsg.h"
@@ -928,6 +929,7 @@ size_t OnAddStrength(const TCmd *pCmd, size_t pnum)
 		const uint16_t delta = SDL_SwapLE16(message.wParam1);
 		Players[pnum]._pStatPtsSpentStr += delta;
 		ModifyPlrStr(Players[pnum], delta);
+		oracool::ScheduleAutoSaveForStatPointSpent();
 	}
 
 	return sizeof(message);
@@ -943,6 +945,7 @@ size_t OnAddMagic(const TCmd *pCmd, size_t pnum)
 		const uint16_t delta = SDL_SwapLE16(message.wParam1);
 		Players[pnum]._pStatPtsSpentMag += delta;
 		ModifyPlrMag(Players[pnum], delta);
+		oracool::ScheduleAutoSaveForStatPointSpent();
 	}
 
 	return sizeof(message);
@@ -958,6 +961,7 @@ size_t OnAddDexterity(const TCmd *pCmd, int pnum)
 		const uint16_t delta = SDL_SwapLE16(message.wParam1);
 		Players[pnum]._pStatPtsSpentDex += delta;
 		ModifyPlrDex(Players[pnum], delta);
+		oracool::ScheduleAutoSaveForStatPointSpent();
 	}
 
 	return sizeof(message);
@@ -973,6 +977,7 @@ size_t OnAddVitality(const TCmd *pCmd, size_t pnum)
 		const uint16_t delta = SDL_SwapLE16(message.wParam1);
 		Players[pnum]._pStatPtsSpentVit += delta;
 		ModifyPlrVit(Players[pnum], delta);
+		oracool::ScheduleAutoSaveForStatPointSpent();
 	}
 
 	return sizeof(message);
@@ -2301,6 +2306,8 @@ size_t OnCheatExperience(const TCmd *pCmd, size_t pnum) // NOLINT(misc-unused-pa
 			RedrawEverything();
 		}
 		NextPlrLevel(Players[pnum]);
+		if (pnum == MyPlayerId)
+			oracool::ScheduleAutoSaveForExperienceGain();
 	}
 #endif
 	return sizeof(*pCmd);

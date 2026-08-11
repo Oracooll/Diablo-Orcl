@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file inv.cpp
  *
  * Implementation of player inventory.
@@ -26,6 +26,10 @@
 #include "minitext.h"
 #include "options.h"
 #include "oracool/auto_save.h"
+#include "oracool/hud_art.h"
+#include "oracool/hud_layout.h"
+#include "oracool/hud_menu.h"
+#include "oracool/inventory_layout.h"
 #include "oracool/oracool.h"
 #include "panels/ui_panels.hpp"
 #include "plrmsg.h"
@@ -54,87 +58,76 @@ int ActiveInventoryTab;
 bool ActiveTabItemHovered;
 
 /**
- * Maps from inventory slot to screen position. The inventory slots are
- * arranged as follows:
+ * Maps from inventory slot to panel-relative position.
+ *
+ * Oracool V1: generated from oracool/inventory_layout.h rather than written out by hand. The
+ * old table was 55 literal rectangles for a 320x352 panel with a 10x4 grid; at 10x7 that would
+ * be 85, and every one of them would have to be re-typed by hand whenever a slot moved - which
+ * happened three times during the layout pass alone. Equipment rects and grid cells now come
+ * straight from the same constants the artwork is composed against, so the hit-testing and the
+ * picture cannot drift apart.
+ *
+ * The belt entries at the end are NOT part of that: they are positions on the main HUD, not
+ * this panel, and are left exactly as they were.
  *
  * @code{.unparsed}
- *                          00 00
- *                          00 00   03
+ *                     01 00 00 03
+ *                        00 00
+ *              04 04    06 06    05 05
+ *              04 04    06 06    05 05
+ *                       06 06
  *
- *              04 04       06 06       05 05
- *              04 04       06 06       05 05
- *              04 04       06 06       05 05
+ *              07 08 09 10 ... 16      (10 wide)
+ *                    ... 7 rows ...
+ *              67 68 69 70 ... 76
  *
- *                 01                   02
- *
- *              07 08 09 10 11 12 13 14 15 16
- *              17 18 19 20 21 22 23 24 25 26
- *              27 28 29 30 31 32 33 34 35 36
- *              37 38 39 40 41 42 43 44 45 46
- *
- * 47 48 49 50 51 52 53 54
+ * 77 78 79 80 81 82 83 84                (belt, on the main HUD)
  * @endcode
  */
-const Rectangle InvRect[] = {
-	// clang-format off
-	//{   X,   Y }, {  W,  H }
-	{ { 132,   2 }, { 58, 59 } }, // helmet
-	{ {  47, 177 }, { 28, 29 } }, // left ring
-	{ { 248, 177 }, { 28, 29 } }, // right ring
-	{ { 205,  32 }, { 28, 29 } }, // amulet
-	{ {  17,  75 }, { 58, 86 } }, // left hand
-	{ { 248,  75 }, { 58, 87 } }, // right hand
-	{ { 132,  75 }, { 58, 87 } }, // chest
-	{ {  17, 222 }, { 29, 29 } }, // inv row 1
-	{ {  46, 222 }, { 29, 29 } }, // inv row 1
-	{ {  75, 222 }, { 29, 29 } }, // inv row 1
-	{ { 104, 222 }, { 29, 29 } }, // inv row 1
-	{ { 133, 222 }, { 29, 29 } }, // inv row 1
-	{ { 162, 222 }, { 29, 29 } }, // inv row 1
-	{ { 191, 222 }, { 29, 29 } }, // inv row 1
-	{ { 220, 222 }, { 29, 29 } }, // inv row 1
-	{ { 249, 222 }, { 29, 29 } }, // inv row 1
-	{ { 278, 222 }, { 29, 29 } }, // inv row 1
-	{ {  17, 251 }, { 29, 29 } }, // inv row 2
-	{ {  46, 251 }, { 29, 29 } }, // inv row 2
-	{ {  75, 251 }, { 29, 29 } }, // inv row 2
-	{ { 104, 251 }, { 29, 29 } }, // inv row 2
-	{ { 133, 251 }, { 29, 29 } }, // inv row 2
-	{ { 162, 251 }, { 29, 29 } }, // inv row 2
-	{ { 191, 251 }, { 29, 29 } }, // inv row 2
-	{ { 220, 251 }, { 29, 29 } }, // inv row 2
-	{ { 249, 251 }, { 29, 29 } }, // inv row 2
-	{ { 278, 251 }, { 29, 29 } }, // inv row 2
-	{ {  17, 280 }, { 29, 29 } }, // inv row 3
-	{ {  46, 280 }, { 29, 29 } }, // inv row 3
-	{ {  75, 280 }, { 29, 29 } }, // inv row 3
-	{ { 104, 280 }, { 29, 29 } }, // inv row 3
-	{ { 133, 280 }, { 29, 29 } }, // inv row 3
-	{ { 162, 280 }, { 29, 29 } }, // inv row 3
-	{ { 191, 280 }, { 29, 29 } }, // inv row 3
-	{ { 220, 280 }, { 29, 29 } }, // inv row 3
-	{ { 249, 280 }, { 29, 29 } }, // inv row 3
-	{ { 278, 280 }, { 29, 29 } }, // inv row 3
-	{ {  17, 309 }, { 29, 29 } }, // inv row 4
-	{ {  46, 309 }, { 29, 29 } }, // inv row 4
-	{ {  75, 309 }, { 29, 29 } }, // inv row 4
-	{ { 104, 309 }, { 29, 29 } }, // inv row 4
-	{ { 133, 309 }, { 29, 29 } }, // inv row 4
-	{ { 162, 309 }, { 29, 29 } }, // inv row 4
-	{ { 191, 309 }, { 29, 29 } }, // inv row 4
-	{ { 220, 309 }, { 29, 29 } }, // inv row 4
-	{ { 249, 309 }, { 29, 29 } }, // inv row 4
-	{ { 278, 309 }, { 29, 29 } }, // inv row 4
-	{ { 205,   5 }, { 29, 29 } }, // belt
-	{ { 234,   5 }, { 29, 29 } }, // belt
-	{ { 263,   5 }, { 29, 29 } }, // belt
-	{ { 292,   5 }, { 29, 29 } }, // belt
-	{ { 321,   5 }, { 29, 29 } }, // belt
-	{ { 350,   5 }, { 29, 29 } }, // belt
-	{ { 379,   5 }, { 29, 29 } }, // belt
-	{ { 408,   5 }, { 29, 29 } }  // belt
-	// clang-format on
-};
+namespace {
+
+/** @brief Which oracool equipment slot backs each of the seven vanilla body locations. */
+constexpr oracool::EquipSlot EquipSlotForBodyLocation(int slotXy)
+{
+	switch (slotXy) {
+	case SLOTXY_HEAD: return oracool::EquipSlot::Helm;
+	case SLOTXY_RING_LEFT: return oracool::EquipSlot::RingLeft;
+	case SLOTXY_RING_RIGHT: return oracool::EquipSlot::RingRight;
+	case SLOTXY_AMULET: return oracool::EquipSlot::Amulet;
+	case SLOTXY_HAND_LEFT: return oracool::EquipSlot::Weapon;
+	case SLOTXY_HAND_RIGHT: return oracool::EquipSlot::Shield;
+	default: return oracool::EquipSlot::Chest;
+	}
+}
+
+/** @brief Belt cell rects on the main HUD. Unchanged from vanilla; see the note above. */
+constexpr Rectangle BeltRect(int index)
+{
+	return { { 205 + index * 29, 5 }, { 29, 29 } };
+}
+
+constexpr std::array<Rectangle, NUM_XY_SLOTS> MakeInvRect()
+{
+	std::array<Rectangle, NUM_XY_SLOTS> rects {};
+	for (int i = SLOTXY_EQUIPPED_FIRST; i <= SLOTXY_EQUIPPED_LAST; i++)
+		rects[i] = oracool::GetEquipSlotRect(EquipSlotForBodyLocation(i));
+	for (int i = 0; i < InventoryGridCells; i++) {
+		const int col = i % InventorySizeInSlots.width;
+		const int row = i / InventorySizeInSlots.width;
+		rects[SLOTXY_INV_FIRST + i] = {
+			{ oracool::GridOrigin.x + col * oracool::CellPx, oracool::GridOrigin.y + row * oracool::CellPx },
+			{ oracool::CellPx, oracool::CellPx }
+		};
+	}
+	for (int i = 0; i < MaxBeltItems; i++)
+		rects[SLOTXY_BELT_FIRST + i] = BeltRect(i);
+	return rects;
+}
+
+} // namespace
+
+const std::array<Rectangle, NUM_XY_SLOTS> InvRect = MakeInvRect();
+
 
 bool TabbedInventoryEnabled()
 {
@@ -444,6 +437,9 @@ void ChangeEquipment(Player &player, inv_body_loc bodyLocation, const Item &item
 
 	if (&player == MyPlayer) {
 		NetSendCmdChItem(false, bodyLocation, true);
+		// Oracool: user request - equipment changes persist instantly, matching Diablo 3's
+		// always-saved progress rather than waiting for the next scheduled/periodic save.
+		oracool::ScheduleAutoSaveForEquipmentChange();
 	}
 }
 
@@ -468,7 +464,7 @@ bool AutoEquip(Player &player, const Item &item, inv_body_loc bodyLocation, bool
 
 int FindTargetSlotUnderItemCursor(Point cursorPosition, Size itemSize)
 {
-	Displacement panelOffset = Point { 0, 0 } - GetRightPanel().position;
+	Displacement panelOffset = Point { 0, 0 } - oracool::GetInventoryPanelRect().position;
 	for (int r = SLOTXY_EQUIPPED_FIRST; r <= SLOTXY_EQUIPPED_LAST; r++) {
 		if (InvRect[r].contains(cursorPosition + panelOffset))
 			return r;
@@ -499,9 +495,12 @@ int FindTargetSlotUnderItemCursor(Point cursorPosition, Size itemSize)
 		}
 	}
 
-	panelOffset = Point { 0, 0 } - GetMainPanel().position;
+	// Oracool: HUD art pass - belt cells live on the plate art now (hud_layout's GetBeltSlotRect),
+	// not in InvRect. Slot 0 is the Menu button, 5 is Town Portal, 6/7 are hidden.
 	for (int r = SLOTXY_BELT_FIRST; r <= SLOTXY_BELT_LAST; r++) {
-		if (InvRect[r].contains(cursorPosition + panelOffset))
+		if (!oracool::IsRealBeltItemSlot(r - SLOTXY_BELT_FIRST))
+			continue;
+		if (oracool::GetBeltSlotRect(r - SLOTXY_BELT_FIRST).contains(cursorPosition))
 			return r;
 	}
 	return NUM_XY_SLOTS;
@@ -787,15 +786,20 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 
 	uint32_t r = 0;
 	for (; r < NUM_XY_SLOTS; r++) {
-		int xo = GetRightPanel().position.x;
-		int yo = GetRightPanel().position.y;
+		// Oracool: HUD art pass - belt cells hit-test against the plate art's cell rects
+		// (hud_layout), not InvRect. Slot 0 is Menu, 5 is Town Portal, 6/7 are hidden.
 		if (r >= SLOTXY_BELT_FIRST) {
-			xo = GetMainPanel().position.x;
-			yo = GetMainPanel().position.y;
+			const int beltIndex = static_cast<int>(r) - SLOTXY_BELT_FIRST;
+			if (!oracool::IsRealBeltItemSlot(beltIndex))
+				continue;
+			if (oracool::GetBeltSlotRect(beltIndex).contains(cursorPosition))
+				break;
+			continue;
 		}
 
 		// check which inventory rectangle the mouse is in, if any
-		if (InvRect[r].contains(cursorPosition - Displacement(xo, yo))) {
+		const Displacement panelOffset { oracool::GetInventoryPanelRect().position.x, oracool::GetInventoryPanelRect().position.y };
+		if (InvRect[r].contains(cursorPosition - panelOffset)) {
 			break;
 		}
 	}
@@ -1315,49 +1319,45 @@ constexpr const char *RomanNumeralTabLabels[Player::NumExtraInventoryTabs + 1] =
 
 void DrawInventoryTabs(const Surface &out)
 {
-	constexpr int TabY = 208;
-	constexpr int TabHeight = 12;
-	constexpr int EnlargeSelected = 2;
-
-	for (int tab = 0; tab < Player::NumExtraInventoryTabs + 1; tab++) {
-		const Rectangle &column = InvRect[SLOTXY_INV_FIRST + tab];
-		const bool selected = tab == ActiveInventoryTab;
-
-		int x = column.position.x;
-		int y = TabY;
-		int width = column.size.width;
-		int height = TabHeight;
-		if (selected) {
-			x -= EnlargeSelected;
-			y -= EnlargeSelected;
-			width += EnlargeSelected * 2;
-			height += EnlargeSelected;
+	// Oracool V1: real artwork now - roman numerals cut from the user's sheet, silver unselected
+	// and gold selected. Was code-drawn text, which the old 320x352 panel forced because the
+	// ring-to-grid gap was only ~16px tall and its background art could not be edited to make room.
+	// The new window is composed from components, so the tab row is part of the design.
+	//
+	// Unselected tabs draw first so the selected one is never clipped by a neighbour. That costs
+	// nothing today (ActiveTabGrow is 0, so they are all the same size) but keeps the ordering
+	// correct if the selected tab is ever made to stand proud again.
+	for (int pass = 0; pass < 2; pass++) {
+		for (int tab = 0; tab < oracool::TabCount; tab++) {
+			const bool selected = tab == ActiveInventoryTab;
+			if (selected != (pass == 1))
+				continue;
+			oracool::DrawInventoryTab(out, tab, selected ? 1 : 0);
 		}
-
-		// Oracool: was UiFlags::ColorUiSilver - that color remap is tuned for the main-menu art
-		// font and actually renders as dark red against the in-game font (same quirk already
-		// documented in qol/floatingnumbers.cpp), which is why inactive tabs looked red instead
-		// of silver/white. User request: inactive tabs gold, the active tab blue.
-		const UiFlags color = selected ? UiFlags::ColorBlue : UiFlags::ColorGold;
-		DrawString(out, RomanNumeralTabLabels[tab], Rectangle { GetPanelPosition(UiPanels::Inventory, { x, y }), { width, height } }, { color | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 }
 
 bool inventorySortButtonDown;
 
-/**
- * @brief Oracool: draws the inventory sort button as "SRT" - gold normally, white while pressed,
- * for visible click feedback.
- */
+/** @brief Oracool V1: the SORT button, from the user's three-state art. */
 void DrawInventorySortButton(const Surface &out)
 {
-	const Point position = GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition);
-	DrawString(out, "SRT", Rectangle { position, InventorySortButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (inventorySortButtonDown ? UiFlags::ColorWhite : UiFlags::ColorGold) });
+	const Rectangle rect = oracool::GetSortButtonRect();
+	const Point screenPos = GetPanelPosition(UiPanels::Inventory, rect.position);
+	const bool hovered = Rectangle { screenPos, rect.size }.contains(MousePosition);
+	oracool::DrawInventorySortButton(out, inventorySortButtonDown ? 2 : (hovered ? 1 : 0));
 }
 
 void DrawInv(const Surface &out)
 {
-	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, 351 }), (*pInvCels)[0]);
+	// Oracool V1: the new window is a single flat composition - background, silhouette, every slot
+	// frame and the class sygil are baked in at asset-build time. Falls back to the original CEL if
+	// the asset is missing, so a broken/absent PNG degrades instead of leaving a blank panel.
+	if (oracool::HasInventoryPanelArt()) {
+		oracool::DrawInventoryPanelArt(out);
+	} else if (pInvCels) {
+		ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, SidePanelSize.height - 1 }), (*pInvCels)[0]);
+	}
 
 	Size slotSize[] = {
 		{ 2, 2 }, // head
@@ -1369,15 +1369,14 @@ void DrawInv(const Surface &out)
 		{ 2, 3 }, // chest
 	};
 
-	Point slotPos[] = {
-		{ 133, 59 },  // head
-		{ 48, 205 },  // left ring
-		{ 249, 205 }, // right ring
-		{ 205, 60 },  // amulet
-		{ 17, 160 },  // left hand
-		{ 248, 160 }, // right hand
-		{ 133, 160 }, // chest
-	};
+	// Item sprites draw from their bottom-left corner, so each equipment slot's draw origin is the
+	// bottom-left of its rect. Taken from InvRect rather than a second hardcoded table: its first
+	// seven entries are the equipment rects, in this exact order, generated from the same layout
+	// the artwork was composed against.
+	Point slotPos[NUM_INVLOC];
+	for (int slot = INVLOC_HEAD; slot < NUM_INVLOC; slot++) {
+		slotPos[slot] = { InvRect[slot].position.x, InvRect[slot].position.y + InvRect[slot].size.height };
+	}
 
 	Player &myPlayer = *InspectPlayer;
 
@@ -1409,8 +1408,8 @@ void DrawInv(const Surface &out)
 			if (slot == INVLOC_HAND_LEFT) {
 				if (myPlayer.GetItemLocation(myPlayer.InvBody[slot]) == ILOC_TWOHAND) {
 					InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, slotPos[INVLOC_HAND_RIGHT]), { slotSize[INVLOC_HAND_RIGHT].width * InventorySlotSizeInPixels.width, slotSize[INVLOC_HAND_RIGHT].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]);
-					const int dstX = GetRightPanel().position.x + slotPos[INVLOC_HAND_RIGHT].x + (frameSize.width == InventorySlotSizeInPixels.width ? INV_SLOT_HALF_SIZE_PX : 0) - 1;
-					const int dstY = GetRightPanel().position.y + slotPos[INVLOC_HAND_RIGHT].y;
+					const int dstX = oracool::GetInventoryPanelRect().position.x + slotPos[INVLOC_HAND_RIGHT].x + (frameSize.width == InventorySlotSizeInPixels.width ? INV_SLOT_HALF_SIZE_PX : 0) - 1;
+					const int dstY = oracool::GetInventoryPanelRect().position.y + slotPos[INVLOC_HAND_RIGHT].y;
 					ClxDrawBlended(out, { dstX, dstY }, sprite);
 				}
 			}
@@ -1448,7 +1447,9 @@ void DrawInv(const Surface &out)
 	if (TabbedInventoryEnabled())
 		DrawInventoryTabs(out);
 
-	if (*sgOptions.Oracool.inventorySortButton && oracool::IsSinglePlayer())
+	// Oracool: user decision (2026-08-11) - the sort control is a standard V1 feature, not a
+	// setting; it is always present in single-player.
+	if (oracool::IsSinglePlayer())
 		DrawInventorySortButton(out);
 }
 
@@ -1458,20 +1459,26 @@ void DrawInvBelt(const Surface &out)
 		return;
 	}
 
-	const Point mainPanelPosition = GetMainPanel().position;
-
-	DrawPanelBox(out, { 205, 21, 232, 28 }, mainPanelPosition + Displacement { 205, 5 });
-
 	Player &myPlayer = *InspectPlayer;
-	const bool beltModActive = oracool::IsSinglePlayer();
 
-	for (int i = 0; i < MaxBeltItems; i++) {
+	// Oracool: HUD art pass - the plate art (drawn by oracool::DrawMiddleHudArt before this)
+	// carries the cell frames and the Menu/1-4/Portal labels, so this only draws the item sprites
+	// themselves, centered in the art's cells. Slots 0 (Menu) and 5 (Town Portal) are pure
+	// buttons - nothing to draw for them here. The old hotkey-number overlay is gone too: the
+	// art's baked-in 1-4 labels replace it.
+	for (int i = 1; i <= 4; i++) {
 		if (myPlayer.SpdList[i].isEmpty()) {
 			continue;
 		}
 
-		const Point position { InvRect[i + SLOTXY_BELT_FIRST].position.x + mainPanelPosition.x, InvRect[i + SLOTXY_BELT_FIRST].position.y + mainPanelPosition.y + InventorySlotSizeInPixels.height };
-		InvDrawSlotBack(out, position, InventorySlotSizeInPixels, myPlayer.SpdList[i]);
+		// Oracool: user tuning (2026-08-11) - item sprites carry their own internal padding, which
+		// is not symmetric, so geometric centring alone leaves them looking left of centre in the
+		// cell. This nudge is measured by eye against the art, not derived.
+		constexpr Displacement BeltItemNudge { 3, 0 };
+		const Rectangle cell = oracool::GetBeltSlotRect(i);
+		const Point position = cell.position + BeltItemNudge
+		    + Displacement { (cell.size.width - InventorySlotSizeInPixels.width) / 2,
+			      (cell.size.height - InventorySlotSizeInPixels.height) / 2 + InventorySlotSizeInPixels.height };
 		const int cursId = myPlayer.SpdList[i]._iCurs + CURSOR_FIRSTITEM;
 
 		const ClxSprite sprite = GetInvItemSprite(cursId);
@@ -1483,13 +1490,6 @@ void DrawInvBelt(const Surface &out)
 		}
 
 		DrawItem(myPlayer.SpdList[i], out, position, sprite);
-
-		// Belt Mod slots always show an occupant's stack-count overlay instead (see
-		// DrawItem); the hotkey number would be redundant clutter on top of it.
-		if (!beltModActive && myPlayer.SpdList[i].isUsable()
-		    && myPlayer.SpdList[i]._itype != ItemType::Gold) {
-			DrawString(out, StrCat(i + 1), { position - Displacement { 0, 12 }, InventorySlotSizeInPixels }, { UiFlags::ColorWhite | UiFlags::AlignRight });
-		}
 	}
 }
 
@@ -1497,6 +1497,9 @@ void RemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPri)
 {
 	if (&player == MyPlayer) {
 		NetSendCmdDelItem(hiPri, bodyLocation);
+		// Oracool: user request - equipment changes persist instantly, matching Diablo 3's
+		// always-saved progress rather than waiting for the next scheduled/periodic save.
+		oracool::ScheduleAutoSaveForEquipmentChange();
 	}
 
 	player.InvBody[bodyLocation].clear();
@@ -1508,6 +1511,7 @@ void BreakOrRemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPr
 		Item &item = player.InvBody[bodyLocation];
 		item._iDurability = 0;
 		item._iOracoolBroken = true;
+		oracool::ScheduleAutoSaveForItemBreak();
 		return;
 	}
 
@@ -1516,7 +1520,10 @@ void BreakOrRemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPr
 
 bool MergeStackableItemIntoBelt(Player &player, const Item &item, bool persistItem)
 {
-	for (auto &beltItem : player.SpdList) {
+	for (int i = 0; i < MaxBeltItems; i++) {
+		if (!oracool::IsRealBeltItemSlot(i))
+			continue; // Oracool: HUD overhaul - slot 0 is Menu, 5 is Town Portal, 6/7 are hidden
+		Item &beltItem = player.SpdList[i];
 		if (!beltItem.canStackWith(item) || beltItem.stackCount() >= Item::MaxStackCount)
 			continue;
 
@@ -1525,8 +1532,7 @@ bool MergeStackableItemIntoBelt(Player &player, const Item &item, bool persistIt
 			player.CalcScrolls();
 			RedrawComponent(PanelDrawComponent::Belt);
 			if (&player == MyPlayer) {
-				size_t beltIndex = std::distance<const Item *>(&player.SpdList[0], &beltItem);
-				NetSendCmdChBeltItem(false, beltIndex);
+				NetSendCmdChBeltItem(false, i);
 			}
 		}
 
@@ -1547,15 +1553,17 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem)
 		return true;
 	}
 
-	for (auto &beltItem : player.SpdList) {
+	for (int i = 0; i < MaxBeltItems; i++) {
+		if (!oracool::IsRealBeltItemSlot(i))
+			continue; // Oracool: HUD overhaul - slot 0 is Menu, 5 is Town Portal, 6/7 are hidden
+		Item &beltItem = player.SpdList[i];
 		if (beltItem.isEmpty()) {
 			if (persistItem) {
 				beltItem = item;
 				player.CalcScrolls();
 				RedrawComponent(PanelDrawComponent::Belt);
 				if (&player == MyPlayer) {
-					size_t beltIndex = std::distance<const Item *>(&player.SpdList[0], &beltItem);
-					NetSendCmdChBeltItem(false, beltIndex);
+					NetSendCmdChBeltItem(false, i);
 				}
 			}
 
@@ -1975,6 +1983,9 @@ void TransferItemToStash(Player &player, int location)
 		player.RemoveInvItem(location - INVITEM_INV_FIRST);
 	else
 		player.RemoveSpdBarItem(location - INVITEM_BELT_FIRST);
+
+	if (&player == MyPlayer)
+		oracool::ScheduleAutoSaveForStashChange();
 }
 
 bool TryTransferHoveredActiveTabItemToStash(Player &player)
@@ -1982,7 +1993,7 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 	if (ActiveInventoryTab == 0)
 		return false;
 
-	const Displacement panelOffset = Point { 0, 0 } - GetRightPanel().position;
+	const Displacement panelOffset = Point { 0, 0 } - oracool::GetInventoryPanelRect().position;
 	int8_t r = SLOTXY_INV_FIRST;
 	for (; r <= SLOTXY_INV_LAST; r++) {
 		if (InvRect[r].contains(MousePosition + panelOffset))
@@ -2007,6 +2018,8 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 
 	PlaySFX(ItemInvSnds[ItemCAnimTbl[item._iCurs]]);
 	RemoveActiveInvItem(player, iv);
+	if (&player == MyPlayer)
+		oracool::ScheduleAutoSaveForStashChange();
 	return true;
 }
 
@@ -2151,10 +2164,11 @@ void SortInventoryBySellValue(Player &player)
 
 bool CheckInventorySortButtonClick(Point cursorPosition)
 {
-	if (!*sgOptions.Oracool.inventorySortButton || !oracool::IsSinglePlayer())
+	if (!oracool::IsSinglePlayer())
 		return false;
 
-	const Rectangle button { GetPanelPosition(UiPanels::Inventory, InventorySortButtonPosition), InventorySortButtonSize };
+	const Rectangle sortRect = oracool::GetSortButtonRect();
+	const Rectangle button { GetPanelPosition(UiPanels::Inventory, sortRect.position), sortRect.size };
 	if (!button.contains(cursorPosition))
 		return false;
 
@@ -2163,29 +2177,28 @@ bool CheckInventorySortButtonClick(Point cursorPosition)
 	// in diablo.cpp's LeftMouseUp regardless of where the mouse is by then.
 	inventorySortButtonDown = true;
 	SortInventoryBySellValue(*MyPlayer);
+	// Oracool: user request - same sound as the Stash's Sort button (shield-into-slot sound).
+	PlaySFX(IS_ISHIEL);
 	return true;
 }
 
 /**
  * @brief Oracool Tabbed Inventory: hit-tests the 10 tab buttons drawn by DrawInventoryTabs.
- * Uses each button's base (non-enlarged) rectangle regardless of selection state, so the
- * clickable region stays fixed and predictable even though the selected tab draws a few
- * pixels larger. Switching tabs works the same whether or not an item is currently held on
- * the cursor - that's how you carry an item from one tab's view into another's.
+ *
+ * Uses each tab's base (non-enlarged) rectangle regardless of selection state, so the clickable
+ * region stays fixed and predictable even if the selected tab is ever drawn larger than the rest.
+ * Switching tabs works the same whether or not an item is currently held on the cursor - that's
+ * how you carry an item from one tab's view into another's.
  */
 bool CheckInventoryTabClick(Point cursorPosition)
 {
 	if (!TabbedInventoryEnabled())
 		return false;
 
-	constexpr int TabY = 208;
-	constexpr int TabHeight = 12;
-	const Displacement panelOffset = Point { 0, 0 } - GetRightPanel().position;
+	const Displacement panelOffset = Point { 0, 0 } - oracool::GetInventoryPanelRect().position;
 
-	for (int tab = 0; tab < Player::NumExtraInventoryTabs + 1; tab++) {
-		const Rectangle &column = InvRect[SLOTXY_INV_FIRST + tab];
-		const Rectangle tabRect { { column.position.x, TabY }, { column.size.width, TabHeight } };
-		if (tabRect.contains(cursorPosition + panelOffset)) {
+	for (int tab = 0; tab < oracool::TabCount; tab++) {
+		if (oracool::GetTabRect(tab).contains(cursorPosition + panelOffset)) {
 			ActiveInventoryTab = tab;
 			return true;
 		}
@@ -2213,9 +2226,8 @@ void CheckInvItem(bool isShiftHeld, bool isCtrlHeld)
 
 void CheckInvScrn(bool isShiftHeld, bool isCtrlHeld)
 {
-	const Point mainPanelPosition = GetMainPanel().position;
-	if (MousePosition.x > 190 + mainPanelPosition.x && MousePosition.x < 437 + mainPanelPosition.x
-	    && MousePosition.y > mainPanelPosition.y && MousePosition.y < 33 + mainPanelPosition.y) {
+	// Oracool: HUD art pass - the belt's item region is the plate art's middle HUD rect now.
+	if (oracool::GetMiddleHudRect().contains(MousePosition)) {
 		CheckInvItem(isShiftHeld, isCtrlHeld);
 	}
 }
@@ -2223,7 +2235,10 @@ void CheckInvScrn(bool isShiftHeld, bool isCtrlHeld)
 void InvGetItem(Player &player, int ii)
 {
 	auto &item = Items[ii];
-	const bool scheduleAutoSave = &player == MyPlayer && item._itype != ItemType::Gold;
+	// Oracool: user request - gold pickup persists instantly too, matching Diablo 3's
+	// always-saved progress; previously excluded to avoid spamming saves while raking in gold,
+	// but the delay setting (now defaulting to 0) already debounces rapid pickups if desired.
+	const bool scheduleAutoSave = &player == MyPlayer;
 	if (DropGoldFlag) {
 		CloseGoldDrop();
 	}
@@ -2361,7 +2376,10 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 			PlaySFX(IS_IGRAB);
 		}
 
-		const bool scheduleAutoSave = &player == MyPlayer && item._itype != ItemType::Gold;
+		// Oracool: user request - gold pickup persists instantly too, matching Diablo 3's
+		// always-saved progress; previously excluded to avoid spamming saves while raking in gold,
+		// but the delay setting (now defaulting to 0) already debounces rapid pickups if desired.
+		const bool scheduleAutoSave = &player == MyPlayer;
 		CleanupItems(ii);
 		if (scheduleAutoSave)
 			oracool::ScheduleAutoSaveForItemPickup();
@@ -2514,14 +2532,18 @@ int8_t CheckInvHLight()
 
 	int8_t r = 0;
 	for (; r < NUM_XY_SLOTS; r++) {
-		int xo = GetRightPanel().position.x;
-		int yo = GetRightPanel().position.y;
+		// Oracool: HUD art pass - belt cells hit-test against the plate art's cell rects
+		// (hud_layout), not InvRect. Slot 0 is Menu, 5 is Town Portal, 6/7 are hidden.
 		if (r >= SLOTXY_BELT_FIRST) {
-			xo = GetMainPanel().position.x;
-			yo = GetMainPanel().position.y;
+			const int beltIndex = r - SLOTXY_BELT_FIRST;
+			if (!oracool::IsRealBeltItemSlot(beltIndex))
+				continue;
+			if (oracool::GetBeltSlotRect(beltIndex).contains(MousePosition))
+				break;
+			continue;
 		}
 
-		if (InvRect[r].contains(MousePosition - Displacement(xo, yo))) {
+		if (InvRect[r].contains(MousePosition - Displacement(oracool::GetInventoryPanelRect().position.x, oracool::GetInventoryPanelRect().position.y))) {
 			break;
 		}
 	}
@@ -2851,6 +2873,12 @@ bool UseInvItem(int cii)
 			return true;
 		c = cii - INVITEM_BELT_FIRST;
 
+		// Oracool: HUD overhaul - defense-in-depth against any caller still reaching slot 0/5/6/7
+		// (the Menu/Town Portal/hidden slots); the normal mouse/keymap paths already can't produce
+		// these indices (see FindTargetSlotUnderItemCursor, CheckInvHLight, InitKeymapActions).
+		if (!oracool::IsRealBeltItemSlot(c))
+			return false;
+
 		item = &player.SpdList[c];
 		speedlist = true;
 
@@ -3006,6 +3034,7 @@ void CloseStash()
 	}
 
 	IsStashOpen = false;
+	oracool::CloseStashChestObject();
 }
 
 void DoTelekinesis()

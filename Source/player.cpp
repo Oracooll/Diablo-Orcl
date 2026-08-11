@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file player.cpp
  *
  * Implementation of player functionality, leveling, actions, creation, loading, etc.
@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 
 #include "control.h"
+#include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "dead.h"
@@ -36,6 +37,7 @@
 #include "nthread.h"
 #include "objects.h"
 #include "options.h"
+#include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/furious_charge.h"
 #include "oracool/gradual_healing.h"
@@ -2514,6 +2516,11 @@ void AddPlrExperience(Player &player, int lvl, int exp)
 	if (*sgOptions.Oracool.xpGainIndicator && player._pExperience > previousExperience)
 		oracool::TriggerXpGainIndicator(player._pExperience - previousExperience);
 
+	// Oracool: user request - experience gain persists instantly, matching Diablo 3's
+	// always-saved progress rather than waiting for the next scheduled/periodic save.
+	if (player._pExperience > previousExperience)
+		oracool::ScheduleAutoSaveForExperienceGain();
+
 	if (*sgOptions.Gameplay.experienceBar) {
 		RedrawEverything();
 	}
@@ -3256,8 +3263,8 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			return;
 
 		if (
-		    (IsLeftPanelOpen() && GetLeftPanel().contains(MousePosition))      // inside left panel
-		    || (IsRightPanelOpen() && GetRightPanel().contains(MousePosition)) // inside right panel
+		    (IsLeftPanelOpen() && GetLeftPanel().contains(MousePosition)) // inside left panel
+		    || IsOverRightPanel(MousePosition)                           // inside right panel
 		) {
 			if (spellID != SpellID::Healing
 			    && spellID != SpellID::Identify

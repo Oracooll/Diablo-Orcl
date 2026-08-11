@@ -16,7 +16,9 @@
 #include "engine/render/primitive_render.hpp"
 #include "levels/gendung.h"
 #include "levels/setmaps.h"
+#include "objects.h"
 #include "player.h"
+#include "portal.h"
 #include "utils/language.h"
 #include "utils/stdcompat/algorithm.hpp"
 #include "utils/ui_fwd.h"
@@ -44,6 +46,8 @@ enum MapColors : uint8_t {
 	MiniMapColorsDoor = (PAL16_GRAY + 3),
 	/** Oracool: user request - bold mini-map-only marker color for stairs tiles */
 	MiniMapColorsStairs = (PAL16_RED + 2),
+	/** Oracool: user request - bold mini-map-only marker color for waypoint sigils and open Town Portals */
+	MiniMapColorsWaypoint = (PAL8_BLUE + 1),
 };
 
 struct AutomapTile {
@@ -991,6 +995,54 @@ void ToggleMiniMapZoom()
 }
 
 /**
+ * @brief Oracool: same tile-to-screen transform DrawAutomapPlr/SearchAutomapItem already use for
+ * markers drawn outside DrawAutomapCore's own per-tile loop (that loop bakes screenCenter and
+ * myPlayerOffset into its running "screen" origin as it walks the diamond grid; anything drawn
+ * from an absolute tile coordinate afterward, like a player arrow or an item marker, has to
+ * reapply both by hand to land in the same spot). The AmLine(8) y-nudge matches
+ * SearchAutomapItem's own item-diamond placement - the natural fit for a small, symmetric,
+ * "sitting on this tile" marker like a FillRect square.
+ */
+Point AutomapMarkerScreenPosition(Point screenCenter, const Displacement &myPlayerOffset, Point tile)
+{
+	int px = tile.x - 2 * AutomapOffset.deltaX - ViewPosition.x;
+	int py = tile.y - 2 * AutomapOffset.deltaY - ViewPosition.y;
+
+	Point screen = {
+		(myPlayerOffset.deltaX * AutoMapScale / 100 / 2) + (px - py) * AmLine(16) + screenCenter.x,
+		(myPlayerOffset.deltaY * AutoMapScale / 100 / 2) + (px + py) * AmLine(8) + screenCenter.y
+	};
+	screen.y -= AmLine(8);
+	return screen;
+}
+
+/**
+ * @brief Oracool: user request - fixed-size blue mini-map markers for every waypoint sigil and
+ * any open Town Portal on the current level, matching the existing bold stairs/door mini-map
+ * marker pattern (see DrawAutomapTile's MiniMapActive block). Mini-map only - the full automap
+ * doesn't get these, since the sigils and portal are already visible there as real sprites.
+ */
+void DrawAutomapWaypointsAndPortals(const Surface &out, Point screenCenter, const Displacement &myPlayerOffset)
+{
+	// Oracool: user request - match MiniMapPlayerMarkerSize (DrawAutomapPlr) so the waypoint/portal
+	// markers are just as visible as the player's own marker, not half its size.
+	constexpr int MarkerSize = 4;
+
+	for (int i = 0; i < ActiveObjectCount; i++) {
+		Object &object = Objects[ActiveObjects[i]];
+		if (object._otype != _object_id::OBJ_WAYPOINT)
+			continue;
+		Point screen = AutomapMarkerScreenPosition(screenCenter, myPlayerOffset, object.position);
+		FillRect(out, screen.x - MarkerSize / 2, screen.y - MarkerSize / 2, MarkerSize, MarkerSize, static_cast<uint8_t>(MiniMapColorsWaypoint));
+	}
+
+	if (Portals[MyPlayerId].open && PortalOnLevel(MyPlayerId)) {
+		Point screen = AutomapMarkerScreenPosition(screenCenter, myPlayerOffset, Portals[MyPlayerId].position);
+		FillRect(out, screen.x - MarkerSize / 2, screen.y - MarkerSize / 2, MarkerSize, MarkerSize, static_cast<uint8_t>(MiniMapColorsWaypoint));
+	}
+}
+
+/**
  * @brief Oracool: the shared tile/player-rendering core behind both DrawAutomap and DrawMiniMap.
  * Everything about the world-space view (which tile is centered, walk-animation offset) is
  * computed here exactly as it always was; screenCenter and cellsBasisWidth are the only two
@@ -1088,6 +1140,9 @@ void DrawAutomapCore(const Surface &out, Point screenCenter, int cellsBasisWidth
 		}
 	}
 
+	if (MiniMapActive)
+		DrawAutomapWaypointsAndPortals(out, screenCenter, myPlayerOffset);
+
 	myPlayerOffset.deltaY -= TILE_HEIGHT / 2;
 	if (AutoMapShowItems)
 		SearchAutomapItem(out, myPlayerOffset, 8, [](Point position) { return dItem[position.x][position.y] != 0; });
@@ -1167,11 +1222,51 @@ Size CalculateMiniMapDiamondSize()
 	return { diamondWidth, diamondHeight };
 }
 
+/**
+ * @brief Oracool: user request (2026-08-11) - the mini-map frame's fixed on-screen size.
+ *
+ * The frame used to be sized to whatever the rendered diamond happened to measure at the current
+ * zoom (CalculateMiniMapDiamondSize above), which made it resize on almost every zoom step - and
+ * not even monotonically, because the cells-per-view calculation is a chain of integer divisions:
+ * across scales 6-30 the box swung between 232x118 and 306x175, jumping (for example) 256x140 ->
+ * 306x156 -> 306x175 -> 270x148 over four consecutive steps. That is fine for a plain dashed
+ * outline but impossible to build a textured border around, which is what this is for.
+ *
+ * So the frame is now the largest diamond bounding box across every zoom level: big enough that no
+ * zoom ever clips, identical at all of them. Computed by walking the zoom range rather than
+ * hardcoded, so it stays correct if MiniMapSize, the scale limits, or AmLine's math are ever
+ * changed - but note that border ART is sized to the result, so any such change means redrawing
+ * that art. Currently 306x175.
+ *
+ * At anything below the widest zoom the diamond simply sits centred in the frame with dark backing
+ * around it, which is the intended trade for a stable border.
+ */
+Size CalculateMiniMapFrameSize()
+{
+	Size frame { 0, 0 };
+	const int savedScale = MiniMapScale;
+	for (int scale = MiniMapScaleMin; scale <= MiniMapScaleMax; scale++) {
+		MiniMapScale = scale;
+		const Size diamond = CalculateMiniMapDiamondSize();
+		frame.width = std::max(frame.width, diamond.width);
+		frame.height = std::max(frame.height, diamond.height);
+	}
+	MiniMapScale = savedScale;
+	return frame;
+}
+
+const Size &GetMiniMapFrameSize()
+{
+	// Depends only on compile-time constants, so one computation per session is enough.
+	static const Size frameSize = CalculateMiniMapFrameSize();
+	return frameSize;
+}
+
 // Oracool: top-right corner per user request, matching Diablo 3/4's own minimap placement.
 Rectangle CalculateMiniMapScreenRect()
 {
-	const Size diamondSize = CalculateMiniMapDiamondSize();
-	return { { gnScreenWidth - diamondSize.width - MiniMapMargin, MiniMapMargin }, diamondSize };
+	const Size frameSize = GetMiniMapFrameSize();
+	return { { gnScreenWidth - frameSize.width - MiniMapMargin, MiniMapMargin }, frameSize };
 }
 
 } // namespace
@@ -1197,7 +1292,7 @@ void DrawMiniMap(const Surface &out)
 
 	// Dark backing so the small map reads clearly against whatever's happening in the live game
 	// view behind it, instead of the diamond tile shapes blending into the dungeon art. Sized to
-	// the diamond's own bounding box (see above), not a larger square - no more wasted dark space.
+	// the fixed frame (see CalculateMiniMapFrameSize) so it no longer changes with zoom.
 	DrawHalfTransparentRectTo(out, MiniMapScreenPosition.x, MiniMapScreenPosition.y, diamondWidth, diamondHeight);
 
 	const Surface miniMapSurface = out.subregion(MiniMapScreenPosition.x, MiniMapScreenPosition.y, diamondWidth, diamondHeight);
@@ -1216,11 +1311,12 @@ void DrawMiniMap(const Surface &out)
 	AutomapOffset = savedOffset;
 	AutoMapScale = savedScale;
 
-	// Oracool: gold border around the cropped box's own edges - user feedback specifically asked
-	// for a rectangle around the tightened render area (not a diamond-shaped outline following the
-	// isometric content's silhouette), matching the crop above exactly since both use the same
-	// diamondWidth/diamondHeight. Originally a solid 2px border (UnsafeDrawBorder2px); changed to
-	// 1px dashed per follow-up feedback.
+	// Oracool: gold border around the box's own edges - user feedback specifically asked for a
+	// rectangle around the render area (not a diamond-shaped outline following the isometric
+	// content's silhouette). Originally a solid 2px border (UnsafeDrawBorder2px); changed to 1px
+	// dashed per follow-up feedback. This is the placeholder the planned textured border art will
+	// replace - it now traces a constant-size rectangle at every zoom level, which is the whole
+	// point of the fixed frame above.
 	constexpr uint8_t MiniMapBorderColor = PAL16_YELLOW + 2;
 	DrawDashedBorder1px(miniMapSurface, 0, 0, diamondWidth, diamondHeight, MiniMapBorderColor);
 

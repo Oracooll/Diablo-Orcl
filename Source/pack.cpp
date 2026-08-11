@@ -77,6 +77,27 @@ void VerifyGoldSeeds(Player &player)
 	}
 }
 
+/**
+ * @brief Oracool: user request - see PlayerPack::pWaypointUnlockedNormal's doc comment. Bit
+ * (i-1) is waypoint list index i (1-16); index 0 (Tristram) is always unlocked and never stored.
+ */
+uint16_t PackWaypointUnlocked(const Player &player, int difficulty)
+{
+	uint16_t mask = 0;
+	for (int i = 1; i <= 16; i++) {
+		if (player._pWaypointUnlocked[difficulty][i])
+			mask |= static_cast<uint16_t>(1u << (i - 1));
+	}
+	return SDL_SwapLE16(mask);
+}
+
+void UnpackWaypointUnlocked(Player &player, int difficulty, uint16_t packedMask)
+{
+	const uint16_t mask = SDL_SwapLE16(packedMask);
+	for (int i = 1; i <= 16; i++)
+		player._pWaypointUnlocked[difficulty][i] = (mask & (1u << (i - 1))) != 0;
+}
+
 } // namespace
 
 bool RecreateHellfireSpellBook(const Player &player, const TItem &packedItem, Item *item)
@@ -172,6 +193,10 @@ void PackPlayer(PlayerPack &packed, const Player &player)
 	packed.pStatPtsSpentMag = SDL_SwapLE32(player._pStatPtsSpentMag);
 	packed.pStatPtsSpentDex = SDL_SwapLE32(player._pStatPtsSpentDex);
 	packed.pStatPtsSpentVit = SDL_SwapLE32(player._pStatPtsSpentVit);
+	packed.pWaypointUnlockedNormal = PackWaypointUnlocked(player, DIFF_NORMAL);
+	packed.pWaypointUnlockedNightmare = PackWaypointUnlocked(player, DIFF_NIGHTMARE);
+	packed.pWaypointUnlockedHell = PackWaypointUnlocked(player, DIFF_HELL);
+	packed.pWaypointUnlockedTorment = PackWaypointUnlocked(player, DIFF_TORMENT);
 	packed.pExperience = SDL_SwapLE64(player._pExperience);
 	packed.pGold = SDL_SwapLE32(player._pGold);
 	packed.pHPBase = SDL_SwapLE32(player._pHPBase);
@@ -394,6 +419,10 @@ void UnPackPlayer(const PlayerPack &packed, Player &player)
 	player._pStatPtsSpentMag = SDL_SwapLE32(packed.pStatPtsSpentMag);
 	player._pStatPtsSpentDex = SDL_SwapLE32(packed.pStatPtsSpentDex);
 	player._pStatPtsSpentVit = SDL_SwapLE32(packed.pStatPtsSpentVit);
+	UnpackWaypointUnlocked(player, DIFF_NORMAL, packed.pWaypointUnlockedNormal);
+	UnpackWaypointUnlocked(player, DIFF_NIGHTMARE, packed.pWaypointUnlockedNightmare);
+	UnpackWaypointUnlocked(player, DIFF_HELL, packed.pWaypointUnlockedHell);
+	UnpackWaypointUnlocked(player, DIFF_TORMENT, packed.pWaypointUnlockedTorment);
 
 	player._pExperience = SDL_SwapLE64(packed.pExperience);
 	player._pGold = SDL_SwapLE32(packed.pGold);

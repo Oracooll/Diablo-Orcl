@@ -56,16 +56,26 @@ extern bool sbookflag;
 extern bool chrflag;
 extern DVL_API_FOR_TEST StringOrView InfoString;
 extern bool panelflag;
-extern bool panbtndown;
 extern bool spselflag;
 const Rectangle &GetMainPanel();
 const Rectangle &GetLeftPanel();
 const Rectangle &GetRightPanel();
 bool IsLeftPanelOpen();
 bool IsRightPanelOpen();
+
+/**
+ * @brief Whether @p position is over whichever right-hand panel is currently open.
+ *
+ * Oracool V1: the inventory has its own 320x660 top-right rect and no longer lives inside
+ * RightPanel, so "is the cursor over the right-hand UI" stopped being a single rect test. Every
+ * site that gates interaction on the right panel must go through this rather than
+ * GetRightPanel().contains() - otherwise the inventory silently loses every click outside the old
+ * 320x352 band, and those clicks fall through to the world (the character walks off, held items
+ * drop on the ground).
+ */
+bool IsOverRightPanel(Point position);
 extern std::optional<OwnedSurface> pBtmBuff;
 extern OptionalOwnedClxSpriteList pGBoxBuff;
-extern SDL_Rect PanBtnPos[8];
 
 void CalculatePanelAreas();
 bool IsChatAvailable();
@@ -97,33 +107,9 @@ void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition);
 Point GetPanelPosition(UiPanels panel, Point offset = { 0, 0 });
 
 /**
- * Draws the top dome of the life flask (that part that protrudes out of the control panel).
- * The empty flask cel is drawn from the top of the flask to the fill level (there is always a 2 pixel "air gap") and
- * the filled flask cel is drawn from that level to the top of the control panel if required.
- */
-void DrawLifeFlaskUpper(const Surface &out);
-
-/**
- * Controls the drawing of the area of the life flask within the control panel.
- * First sets the fill amount then draws the empty flask cel portion then the filled
- * flask portion.
- */
-void DrawLifeFlaskLower(const Surface &out);
-
-/**
- * Draws the top dome of the mana flask (that part that protrudes out of the control panel).
- * The empty flask cel is drawn from the top of the flask to the fill level (there is always a 2 pixel "air gap") and
- * the filled flask cel is drawn from that level to the top of the control panel if required.
- */
-void DrawManaFlaskUpper(const Surface &out);
-
-/**
- * Controls the drawing of the area of the mana flask within the control panel.
- */
-void DrawManaFlaskLower(const Surface &out);
-
-/**
- * Controls drawing of current / max values (health, mana) within the control panel.
+ * Controls drawing of current / max values (health, mana). Oracool: HUD art pass - the flask
+ * rendering this used to accompany is gone (replaced by oracool/hud_art.cpp's orb compositions);
+ * this text readout survives, drawn centered on each orb's sphere (see scrollrt.cpp).
  */
 void DrawFlaskValues(const Surface &out, Point pos, int currValue, int maxValue);
 
@@ -143,25 +129,14 @@ void control_update_life_mana();
 void DrawSpell(const Surface &out);
 
 void InitControlPan();
-void DrawCtrlPan(const Surface &out);
 
 /**
- * Draws the control panel buttons in their current state. If the button is in the default
- * state draw it from the panel cel(extract its sub-rect). Else draw it from the buttons cel.
- */
-void DrawCtrlBtns(const Surface &out);
-
-/**
- * Clears panel button flags.
- */
-void ClearPanBtn();
-
-/**
- * Checks if the mouse cursor is within any of the panel buttons and flag it if so.
+ * @brief Oracool: HUD overhaul - the 8 old panel buttons are gone (their actions moved to the
+ * belt's Menu popup, oracool/hud_menu.h). This now only handles the RMB skill button
+ * (readied-spell/speedbook slot) click - the one non-belt click target left on the main panel.
  */
 void DoPanBtn();
 
-void control_check_btn_press();
 void DoAutoMap();
 
 /**
@@ -170,17 +145,16 @@ void DoAutoMap();
  */
 void CheckPanelInfo();
 
-/**
- * Check if the mouse is within a control panel button that's flagged.
- * Takes apropiate action if so.
- */
-void CheckBtnUp();
 void FreeControlPan();
 
 /**
- * Sets a string to be drawn in the info box and then draws it.
+ * @brief Populates InfoString/InfoColor from whatever's currently hovered/held (item, monster,
+ * NPC, player, gold). Every hover system already relies on this running each frame - see its
+ * definition in control.cpp. Oracool: HUD overhaul - this used to also draw a fixed-position info
+ * box; that half moved to oracool::DrawCursorTooltip (oracool/cursor_tooltip.h), which reads the
+ * same InfoString/InfoColor this populates.
  */
-void DrawInfoBox(const Surface &out);
+void UpdateInfoString();
 void CheckLvlBtn();
 void ReleaseLvlBtn();
 void DrawLevelUpIcon(const Surface &out);

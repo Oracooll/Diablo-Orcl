@@ -1,4 +1,4 @@
-#include "itemlabels.h"
+﻿#include "itemlabels.h"
 
 #include <algorithm>
 #include <limits>
@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 
 #include "control.h"
+#include "oracool/inventory_layout.h"
 #include "cursor.h"
 #include "engine/point.hpp"
 #include "engine/render/clx_render.hpp"
@@ -131,7 +132,7 @@ void AddItemToLabelQueue(int id, Point position)
 
 bool IsMouseOverGameArea()
 {
-	if ((IsRightPanelOpen()) && GetRightPanel().contains(MousePosition))
+	if (IsOverRightPanel(MousePosition))
 		return false;
 	if ((IsLeftPanelOpen()) && GetLeftPanel().contains(MousePosition))
 		return false;

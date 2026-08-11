@@ -30,7 +30,16 @@
 
 namespace devilution {
 
-constexpr int InventoryGridCells = 40;
+/**
+ * @brief Backpack capacity, one entry per grid cell.
+ *
+ * Oracool V1: raised from vanilla's 40 (10x4) to 70 (10x7) with the new 320x660 inventory
+ * window - see oracool/inventory_layout.h. This is a SAVE-BREAKING change: PlayerPack embeds
+ * InvList and InvGrid at this size and pfile.cpp's ReadHero validates it with a strict
+ * sizeof(), so pre-1.0.85 characters are rejected rather than silently misread. V1 always
+ * starts a New Game, so there is nothing to migrate.
+ */
+constexpr int InventoryGridCells = 70;
 constexpr int MaxBeltItems = 8;
 constexpr int MaxResistance = 75;
 /** @brief Oracool: raised from vanilla's 50 to allow post-Hell/Torment progression. */
@@ -391,6 +400,16 @@ struct Player {
 
 	bool _pLvlVisited[NUMLEVELS];
 	bool _pSLvlVisited[NUMLEVELS]; // only 10 used
+
+	/**
+	 * @brief Oracool: user request - per-difficulty waypoint unlock table. Indexed
+	 * [difficulty][waypoint list index] (0 = Tristram, 1-16 = that dungeon level, matching
+	 * currlevel numbering) - see oracool::IsWaypointUnlocked/UnlockWaypoint
+	 * (oracool/waypoint_menu.h), the only readers/writers. Unlocking a waypoint on one difficulty
+	 * deliberately doesn't unlock it on another, matching the user's explicit request. Index 0 is
+	 * always treated as unlocked regardless of what's stored here - see IsWaypointUnlocked.
+	 */
+	bool _pWaypointUnlocked[4][17] = {};
 
 	item_misc_id _pOilType;
 	uint8_t pTownWarps;

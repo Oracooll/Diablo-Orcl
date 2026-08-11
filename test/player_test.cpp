@@ -258,37 +258,33 @@ TEST(Player, ResetPlayerStats_SurvivesPlayerPackRoundTrip)
 	EXPECT_EQ(player._pStatPtsSpentVit, 0);
 }
 
-TEST(Player, FuriousCharge_IsFuriousChargeSpell_GatedByOptionClassAndMultiplayer)
+// Oracool (2026-08-11): Furious Charge stopped being a settings toggle - it is destined to be an
+// acquirable skill unlocked through progression once the Skills system lands, and until then the
+// Paladin's free slot stays vanilla Item Repair. These tests therefore assert the gate is closed
+// and that nothing substitutes; the dash/cooldown mechanics below remain covered, since they are
+// still intact and will be reused verbatim once the skill can be learned.
+TEST(Player, FuriousCharge_Disabled_UntilSkillsSystemExists)
 {
 	using namespace devilution::oracool;
 
 	gbIsMultiplayer = false;
-	sgOptions.Oracool.furiousCharge.SetValue(false);
-	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "off by default - vanilla Item Repair must be untouched";
-
-	sgOptions.Oracool.furiousCharge.SetValue(true);
-	EXPECT_TRUE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "option on, single-player - this is the only case that substitutes";
-	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::Firebolt)) << "only the Warrior's own ItemRepair slot is ever substituted";
+	EXPECT_FALSE(IsFuriousChargeEnabled()) << "not yet acquirable - the gate must stay closed";
+	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "the Paladin's free slot must remain vanilla Item Repair";
+	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::Firebolt)) << "only the ItemRepair slot was ever a candidate";
 	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::StaffRecharge)) << "the Sorcerer's innate skill must never be affected";
 
 	gbIsMultiplayer = true;
-	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "multiplayer always keeps vanilla Item Repair regardless of the option";
-
+	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "multiplayer keeps vanilla Item Repair too";
 	gbIsMultiplayer = false;
-	sgOptions.Oracool.furiousCharge.SetValue(false);
 }
 
-TEST(Player, FuriousCharge_GetSpellDisplayName_SubstitutesOnlyTheFuriousChargeSlot)
+TEST(Player, FuriousCharge_GetSpellDisplayName_ShowsVanillaNameWhileDisabled)
 {
 	using namespace devilution::oracool;
 
 	gbIsMultiplayer = false;
-	sgOptions.Oracool.furiousCharge.SetValue(true);
-	EXPECT_EQ(GetSpellDisplayName(SpellID::ItemRepair), "Furious Charge") << "the substitute slot's own name must read as Furious Charge everywhere";
+	EXPECT_NE(GetSpellDisplayName(SpellID::ItemRepair), "Furious Charge") << "disabled - vanilla Item Repair's own name must show";
 	EXPECT_NE(GetSpellDisplayName(SpellID::Firebolt), "Furious Charge") << "an unrelated spell's real name must be untouched";
-
-	sgOptions.Oracool.furiousCharge.SetValue(false);
-	EXPECT_NE(GetSpellDisplayName(SpellID::ItemRepair), "Furious Charge") << "option off - vanilla Item Repair's own name must show instead";
 }
 
 TEST(Player, FuriousCharge_DashAndCooldownStateTransitions)
@@ -323,7 +319,10 @@ TEST(Player, GradualHealing_IsEnabled_GatedByOptionAndMultiplayer)
 	sgOptions.Oracool.gradualHealing.SetValue(false);
 }
 
-TEST(Player, WarriorSplashDamage_IsEnabled_GatedByClassOptionAndMultiplayer)
+// Oracool (2026-08-11): splash damage left the settings list alongside Furious Charge, for the
+// same reason - it becomes a skill earned through level progression once the Skills system exists.
+// Until then the gate is closed and melee stays vanilla single-target.
+TEST(Player, WarriorSplashDamage_Disabled_UntilSkillsSystemExists)
 {
 	using namespace devilution::oracool;
 
@@ -332,21 +331,15 @@ TEST(Player, WarriorSplashDamage_IsEnabled_GatedByClassOptionAndMultiplayer)
 	warrior._pClass = HeroClass::Warrior;
 
 	gbIsMultiplayer = false;
-	sgOptions.Oracool.warriorSplashDamageRange.SetValue(0);
-	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "range 0 (OFF) must never splash, even for a Warrior";
-
-	sgOptions.Oracool.warriorSplashDamageRange.SetValue(1);
-	EXPECT_TRUE(IsWarriorSplashDamageEnabled(warrior)) << "Warrior, single-player, range > 0 - this is the only case that splashes";
+	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "not yet acquirable - melee must stay single-target";
 
 	warrior._pClass = HeroClass::Sorcerer;
-	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "only the Warrior class ever splashes";
+	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "and never for other classes";
 	warrior._pClass = HeroClass::Warrior;
 
 	gbIsMultiplayer = true;
-	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "multiplayer always keeps vanilla single-target melee regardless of the option";
-
+	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "multiplayer keeps vanilla melee too";
 	gbIsMultiplayer = false;
-	sgOptions.Oracool.warriorSplashDamageRange.SetValue(0);
 }
 
 TEST(Player, GradualHealing_QueueAndDrain_DeliversFullAmountGraduallyNotInstantly)

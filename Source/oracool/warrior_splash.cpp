@@ -5,16 +5,20 @@
 
 namespace devilution::oracool {
 
-bool IsWarriorSplashDamageEnabled(const Player &player)
+// Oracool: user decision (2026-08-11) - splash damage left the settings list for the same reason
+// Furious Charge did: it becomes an acquirable skill earned through level progression once the
+// Skills system exists, not something toggled in an INI. The mechanics below are untouched and
+// ready; only the gate is closed, and the range that a learned rank would grant is kept here.
+constexpr int LearnedSplashRange = 1;
+
+bool IsWarriorSplashDamageEnabled(const Player & /*player*/)
 {
-	return player._pClass == HeroClass::Warrior
-	    && *sgOptions.Oracool.warriorSplashDamageRange > 0
-	    && IsSinglePlayer();
+	return false;
 }
 
 void ApplyWarriorSplashDamage(Player &player, Monster &primaryTarget, int primaryDamage)
 {
-	const int range = *sgOptions.Oracool.warriorSplashDamageRange;
+	const int range = LearnedSplashRange;
 	if (range <= 0 || primaryDamage <= 0)
 		return;
 

@@ -635,6 +635,16 @@ void LoadPlayer(LoadHelper &file, Player &player)
 
 	player.executedSpell = player.queuedSpell; // Ensures backwards compatibility
 
+	// Oracool: user request - per-difficulty waypoint unlock table, appended after every vanilla
+	// field rather than slotted into the "Available bytes" padding above (not enough of it left -
+	// see the Reset Stats comment). Safe for saves made before this field existed: LoadHelper::Next
+	// returns 0 (unlocked=false) once the read cursor runs past the end of the buffer, so an old
+	// save just loads with every waypoint but Tristram locked, no special-casing needed.
+	for (auto &difficultyRow : player._pWaypointUnlocked) {
+		for (bool &unlocked : difficultyRow)
+			unlocked = file.NextBool8();
+	}
+
 	// Omit pointer _pNData
 	// Omit pointer _pWData
 	// Omit pointer _pAData
@@ -1457,6 +1467,12 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	file.WriteLE<int32_t>(player._pStatPtsSpentDex);
 	file.WriteLE<int32_t>(player._pStatPtsSpentVit);
 	file.Skip(4); // Available bytes
+
+	// Oracool: see the matching LoadPlayer comment above.
+	for (const auto &difficultyRow : player._pWaypointUnlocked) {
+		for (bool unlocked : difficultyRow)
+			file.WriteLE<uint8_t>(unlocked ? 1 : 0);
+	}
 
 	// Omit pointer _pNData
 	// Omit pointer _pWData
@@ -2539,10 +2555,14 @@ void LoadGame(bool firstflag)
 
 	for (int i = 0; i < giNumberQuests; i++)
 		LoadQuest(&file, i);
-	// Oracool: silently resyncs the new-quest-added log detector to this save's actual quest
-	// state, so already-active quests aren't spuriously re-announced as "just added" the next
-	// time CheckQuests() runs.
-	SyncQuestLogState();
+	// Oracool: user request - quest progression is intentionally session-only and never persisted
+	// across a load. The loop above still reads every quest's bytes so the file cursor lands
+	// correctly for LoadPortal and everything that follows, but InitQuests() immediately discards
+	// whatever was just read and reinitializes every quest to the same fresh state a brand-new
+	// character starts with (including this save's own quest-pool randomization, since glSeedTbl
+	// is already loaded by this point). This also resyncs the new-quest-added log detector, same
+	// as the SyncQuestLogState() call this replaces.
+	InitQuests();
 	for (int i = 0; i < MAXPORTAL; i++)
 		LoadPortal(&file, i);
 

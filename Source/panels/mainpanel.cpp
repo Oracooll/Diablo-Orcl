@@ -16,14 +16,12 @@
 
 namespace devilution {
 
-OptionalOwnedClxSpriteList PanelButtonDown;
 OptionalOwnedClxSpriteList TalkButton;
 
 namespace {
 
 OptionalOwnedClxSpriteList PanelButton;
 OptionalOwnedClxSpriteList PanelButtonGrime;
-OptionalOwnedClxSpriteList PanelButtonDownGrime;
 
 void DrawButtonText(const Surface &out, string_view text, Rectangle placement, UiFlags style, int spacing = 1)
 {
@@ -31,65 +29,16 @@ void DrawButtonText(const Surface &out, string_view text, Rectangle placement, U
 	DrawString(out, text, placement, { UiFlags::AlignCenter | UiFlags::KerningFitSpacing | style, spacing });
 }
 
-void DrawButtonOnPanel(Point position, string_view text, int frame)
-{
-	RenderClxSprite(*pBtmBuff, (*PanelButton)[frame], position);
-	int spacing = 2;
-	int width = std::min<int>(GetLineWidth(text, GameFont12, spacing), (*PanelButton)[0].width());
-	if (width > 38) {
-		spacing = 1;
-		width = std::min<int>(GetLineWidth(text, GameFont12, spacing), (*PanelButton)[0].width());
-	}
-	RenderClxSprite(pBtmBuff->subregion(position.x + ((*PanelButton)[0].width() - width) / 2, position.y + 7, width, pBtmBuff->h() - 7), (*PanelButtonGrime)[frame], { 0, 0 });
-	DrawButtonText(*pBtmBuff, text, { position, { (*PanelButton)[0].width(), 0 } }, UiFlags::ColorButtonface, spacing);
-}
-
-void RenderMainButton(const Surface &out, int buttonId, string_view text, int frame)
-{
-	Point panelPosition { PanBtnPos[buttonId].x + 4, PanBtnPos[buttonId].y + 17 };
-	DrawButtonOnPanel(panelPosition, text, frame);
-	if (IsChatAvailable())
-		DrawButtonOnPanel(panelPosition + Displacement { 0, GetMainPanel().size.height + 16 }, text, frame);
-
-	Point position { 0, 19 * buttonId };
-	int spacing = 2;
-	int width = std::min<int>(GetLineWidth(text, GameFont12, spacing), (*PanelButton)[0].width());
-	if (width > 38) {
-		spacing = 1;
-		width = std::min<int>(GetLineWidth(text, GameFont12, spacing), (*PanelButton)[0].width());
-	}
-	RenderClxSprite(out.subregion(position.x + ((*PanelButton)[0].width() - width) / 2, position.y + 9, width, out.h() - position.y - 9), (*PanelButtonDownGrime)[frame], { 0, 0 });
-	DrawButtonText(out, text, { position + Displacement { 0, 2 }, { out.w(), 0 } }, UiFlags::ColorButtonpushed, spacing);
-}
-
 } // namespace
 
+// Oracool: HUD overhaul - the 6 labeled panel buttons this used to bake into pBtmBuff (char/
+// quests/map/menu/inv/spells, plus their pressed-state sprite sheet PanelButtonDown) are gone;
+// their actions live in the belt's Menu popup (oracool/hud_menu.h). Only the multiplayer chat
+// panel's voice/mute buttons are still assembled here.
 void LoadMainPanel()
 {
-	std::optional<OwnedSurface> out;
-	constexpr uint16_t NumButtonSprites = 6;
-	{
-		OptionalOwnedClxSpriteList background = LoadClx("data\\panel8bucp.clx");
-		out.emplace((*background)[0].width(), (*background)[0].height() * NumButtonSprites);
-		int y = 0;
-		for (ClxSprite sprite : ClxSpriteList(*background)) {
-			RenderClxSprite(*out, sprite, { 0, y });
-			y += sprite.height();
-		}
-	}
-
 	PanelButton = LoadOptionalClx("data\\panel8buc.clx");
 	PanelButtonGrime = LoadOptionalClx("data\\dirtybuc.clx");
-	PanelButtonDownGrime = LoadOptionalClx("data\\dirtybucp.clx");
-
-	RenderMainButton(*out, 0, _("char"), 0);
-	RenderMainButton(*out, 1, _("quests"), 1);
-	RenderMainButton(*out, 2, _("map"), 1);
-	RenderMainButton(*out, 3, _("menu"), 0);
-	RenderMainButton(*out, 4, _("inv"), 1);
-	RenderMainButton(*out, 5, _("spells"), 0);
-	PanelButtonDown = SurfaceToClx(*out, NumButtonSprites);
-	out = std::nullopt;
 
 	if (IsChatAvailable()) {
 		OptionalOwnedClxSpriteList talkButton = LoadClx("data\\talkbutton.clx");
@@ -129,7 +78,6 @@ void LoadMainPanel()
 		TalkButton = SurfaceToClx(talkSurface, NumTalkButtonSprites);
 	}
 
-	PanelButtonDownGrime = std::nullopt;
 	PanelButtonGrime = std::nullopt;
 	PanelButton = std::nullopt;
 }
@@ -137,7 +85,6 @@ void LoadMainPanel()
 void FreeMainPanel()
 {
 	TalkButton = std::nullopt;
-	PanelButtonDown = std::nullopt;
 }
 
 } // namespace devilution

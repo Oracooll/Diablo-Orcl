@@ -37,7 +37,10 @@
 #include "missiles.h"
 #include "monster.h"
 #include "options.h"
+#include "oracool/auto_save.h"
 #include "oracool/event_log.h"
+#include "oracool/oracool.h"
+#include "oracool/waypoint_menu.h"
 #include "qol/stash.h"
 #include "stores.h"
 #include "towners.h"
@@ -834,8 +837,14 @@ void SetupObject(Object &object, Point position, _object_id ot)
 	object.position = position;
 
 	if (!HeadlessMode) {
-		const auto &found = std::find(std::begin(ObjFileList), std::end(ObjFileList), ofi);
-		if (found == std::end(ObjFileList)) {
+		// Oracool: bounded to numobjfiles rather than the whole fixed-size ObjFileList array -
+		// slots beyond numobjfiles hold stale object_graphic_id values left over from whichever
+		// earlier level last used them (FreeObjectGFX() only clears numobjfiles and the
+		// corresponding pObjCels entries, never the ObjFileList values themselves), so scanning
+		// past numobjfiles risked matching a leftover stale entry instead of correctly reporting
+		// "not loaded this level".
+		const auto &found = std::find(std::begin(ObjFileList), std::begin(ObjFileList) + numobjfiles, ofi);
+		if (found == std::begin(ObjFileList) + numobjfiles) {
 			LogCritical("Unable to find object_graphic_id {} in list of objects to load, level generation error.", static_cast<int>(ofi));
 			return;
 		}
@@ -2000,6 +2009,75 @@ void OperateLever(Object &object, bool sendmsg)
 
 	if (sendmsg)
 		NetSendCmdLoc(MyPlayerId, false, CMD_OPERATEOBJ, object.position);
+}
+
+/**
+ * @brief Oracool: user request - Waypoints, restart, step 2: opens the travel list. Deliberately
+ * no NetSendCmdLoc(..., CMD_OPERATEOBJ, ...) - this feature is single-player only (AddObject()'s
+ * switch, above, gives this type no per-tick update or other multiplayer-relevant state), and
+ * sending that message is exactly what caused the Stash Chest crash earlier: it gets processed
+ * even in single-player via a local network loopback and lands in SyncOpObject's own separate
+ * dispatch, which has no idea what this object should do.
+ */
+void OperateWaypoint(Object &waypoint)
+{
+	if (waypoint._oSelFlag == 0) {
+		return;
+	}
+
+	// Oracool: user request - first click on a dormant sigil activates it (lit frame + sound)
+	// in the same motion that opens the travel list, matching vanilla Diablo/Diablo 2's own
+	// waypoint feel. waypoint._oVar1 holds this sigil's list index (0 = Tristram, 1-16 = that
+	// dungeon level), set in AddWaypointSigilObject.
+	if (!oracool::IsWaypointUnlocked(waypoint._oVar1)) {
+		oracool::UnlockWaypoint(waypoint._oVar1);
+		waypoint._oAnimFrame = 2; // mcirl.cel's lit variant, matching the town sigil's own frame
+		PlaySfxLoc(IS_MAGIC, waypoint.position);
+	}
+
+	oracool::OpenWaypointMenu(waypoint.position);
+	oracool::ScheduleAutoSaveForWaypointActivation();
+}
+
+// Oracool: user request - the physical Stash Chest's fixed town position. Shared between its
+// placement (AddStashChestObject, further down this file) and OperateObject()'s OBJ_CHEST3 case,
+// which needs to recognize this one specific chest instance among all the other, ordinary
+// OBJ_CHEST3 loot chests placed throughout the dungeon.
+constexpr Point StashChestPosition { 55, 67 };
+
+/**
+ * @brief Oracool: user request - a physical Stash Chest in town. Plays the same open animation as
+ * a regular chest the first time it's used, then stays open and can be re-opened indefinitely
+ * (unlike OperateChest, which is a one-time loot pop and disables itself via _oSelFlag = 0).
+ */
+void OperateStashChest(Object &chest)
+{
+	if (chest._oSelFlag == 0) {
+		return;
+	}
+
+	if (chest._oAnimFrame == 4) {
+		// Oracool: 4 is chest3.cel's second closed-chest visual variant (AddChest() normally picks
+		// between frame 1 and frame 4 on a coin flip for random dungeon chests; the Stash Chest
+		// pins it to 4 deterministically - see AddStashChestObject). +2 matches vanilla
+		// OperateChest()'s own closed->open frame jump, just from this variant's own base frame.
+		PlaySfxLoc(IS_CHEST, chest.position);
+		chest._oAnimFrame += 2;
+	}
+
+	OpenStash();
+
+	// Oracool: bug postmortem (2026-08-09) - deliberately no NetSendCmdLoc(..., CMD_OPERATEOBJ,
+	// ...) here, unlike vanilla OperateChest(). That message is processed even in single-player via
+	// a local network loopback, and lands in SyncOpObject's own separate OBJ_CHEST3 case, which
+	// knows nothing about this chest's fixed position and would call plain OperateChest() on it a
+	// second time. Vanilla chests are safe from that because OperateChest() sets _oSelFlag = 0
+	// before sending, so the second call's own guard immediately no-ops it - but this chest
+	// deliberately never sets _oSelFlag = 0 (it must stay reusable), so that guard never engaged,
+	// and the second OperateChest() call bumped _oAnimFrame a second time (past chest3.cel's real
+	// frame count) and generated random loot at this tile. The out-of-bounds frame index crashed
+	// the game the instant it tried to render. This feature is single-player only anyway (see
+	// AddStashChestObject and OperateObject's OBJ_CHEST3 case), so there is nothing to sync.
 }
 
 void OperateBook(Player &player, Object &book, bool sendmsg)
@@ -3331,8 +3409,10 @@ void OperateShrine(Player &player, Object &shrine, _sfx_id sType)
 		break;
 	}
 
-	if (&player == MyPlayer)
+	if (&player == MyPlayer) {
 		NetSendCmdLoc(MyPlayerId, false, CMD_OPERATEOBJ, shrine.position);
+		oracool::ScheduleAutoSaveForShrineActivation();
+	}
 }
 
 void OperateBookStand(Object &bookStand, bool sendmsg, bool sendLootMsg)
@@ -3548,6 +3628,8 @@ bool OperateFountains(Player &player, Object &fountain)
 		break;
 	}
 	RedrawEverything();
+	if (applied && &player == MyPlayer)
+		oracool::ScheduleAutoSaveForShrineActivation();
 	return applied;
 }
 
@@ -4033,10 +4115,226 @@ void AddSlainHero()
 	AddObject(OBJ_SLAINHERO, rndObjLoc + Displacement { 2, 2 });
 }
 
+namespace oracool {
+
+/**
+ * @brief Oracool: user request - graphics safety net for objects placed programmatically via
+ * AddObject() rather than embedded in a level's .dun file. The normal graphics pre-scans
+ * (InitObjectGFX()'s level-range/theme/quest scan for dungeons, and the town level's own scan of
+ * its .dun file's embedded object layer) only register a graphic file as "needed" for objects that
+ * scan actually finds - a programmatically-placed object that isn't part of either source (like the
+ * town Stash Chest, an OBJ_CHEST3 whose OFILE_CHEST3 graphic town's own scan has no reason to
+ * expect) is invisible to both, and SetupObject() can't find its graphic in ObjFileList - the
+ * object never gets a sprite, and the game hard-crashes with "Unable to find object_graphic_id N".
+ * This loads the file directly and registers it exactly the way LoadLevelObjects() would have, the
+ * first time it's needed on any given level (dungeon or town), and is a no-op on every call after
+ * that (including when a normal scan already loaded it for the current level).
+ */
+void EnsureObjectGraphicsLoaded(object_graphic_id ofile, uint16_t animWidth)
+{
+	if (HeadlessMode)
+		return;
+	for (int i = 0; i < numobjfiles; i++) {
+		if (ObjFileList[i] == ofile)
+			return; // already loaded for this level
+	}
+	if (numobjfiles >= 40)
+		return; // pObjCels/ObjFileList are full; extremely unlikely, but don't overrun them
+
+	ObjFileList[numobjfiles] = ofile;
+	char filestr[32];
+	*BufCopy(filestr, "objects\\", ObjMasterLoadList[ofile]) = '\0';
+	pObjCels[numobjfiles] = LoadCel(filestr, animWidth);
+	numobjfiles++;
+}
+
+/**
+ * @brief Oracool: bug postmortem (2026-08-09) - see the declaration comment in oracool/oracool.h
+ * for the full story. Must be called before any AddObject() call in town, and only once per fresh
+ * town generation (calling it again would wipe out objects placed earlier in the same session).
+ */
+void InitTownObjectPool()
+{
+	if (currlevel != 0 || setlevel)
+		return;
+
+	ClrAllObjects();
+}
+
+/**
+ * @brief Oracool: user request - places the fixed town Stash Chest. Reuses the ordinary OBJ_CHEST3
+ * type (see StashChestPosition's comment for why) rather than a custom object type - an A/B test
+ * against the custom OBJ_STASHCHEST type showed this is both the visual the user wanted and free
+ * of the draw-order bug the custom type had. Town-only, and only on fresh town generation (called
+ * from diablo.cpp's town branch, guarded against re-adding one on a return-to-town reload).
+ */
+void AddStashChestObject()
+{
+	if (currlevel != 0 || setlevel)
+		return;
+
+	EnsureObjectGraphicsLoaded(OFILE_CHEST3, AllObjects[OBJ_CHEST3].animWidth);
+
+	if (dObject[StashChestPosition.x][StashChestPosition.y] != 0) {
+		LogEvent(StrCat("Stash Chest placement collision at (", StashChestPosition.x, ", ", StashChestPosition.y, ")"), UiFlags::ColorRed);
+	}
+
+	Object *chest = AddObject(OBJ_CHEST3, StashChestPosition);
+	if (chest == nullptr)
+		return;
+
+	// Oracool: user request - chest3.cel ships two closed-chest visual variants; AddObject() (via
+	// AddChest()) already picked one at random via a 50/50 coin flip (frame 1 or frame 4). Pin it
+	// deterministically to frame 4, the variant the user asked for, every time.
+	chest->_oAnimFrame = 4;
+}
+
+void CloseStashChestObject()
+{
+	if (currlevel != 0)
+		return;
+
+	Object *chest = FindObjectAtPosition(StashChestPosition);
+	if (chest == nullptr)
+		return;
+
+	if (chest->_oAnimFrame == 6) {
+		// Oracool: no distinct chest-closing sound exists in the game's asset set (only IS_CHEST,
+		// a single generic "chest" sound used for opening) and this engine has no facility for
+		// playing a sound in reverse, so this reuses IS_CHEST rather than adding a new asset or a
+		// runtime audio-reversal system for a single sound effect.
+		PlaySfxLoc(IS_CHEST, chest->position);
+		chest->_oAnimFrame = 4;
+	}
+}
+
+// Oracool: user request - Waypoints, restart. Now interactive (see OperateWaypoint further up
+// this file) - opens the travel list on click.
+constexpr Point WaypointSigilPosition { 61, 80 };
+
+/**
+ * @brief Oracool: bug postmortem (2026-08-10) - see the declaration comment in oracool/oracool.h.
+ */
+void EnsureWaypointGraphicsLoaded()
+{
+	EnsureObjectGraphicsLoaded(OFILE_MCIRL, AllObjects[OBJ_WAYPOINT].animWidth);
+}
+
+/**
+ * @brief Oracool: user request - places the waypoint sigil. Town gets a fixed, always-active
+ * position (town's layout never regenerates); every dungeon level 1-16 gets a random valid floor
+ * tile instead, since dungeon levels regenerate their layout every visit - a hardcoded coordinate
+ * would be a wall or a void on some other generation. GetRndObjLoc's placement search is level-
+ * type-agnostic (Cathedral/Catacombs/Caves/Hell all work the same way), matching how every other
+ * randomly-placed object in this engine already works. Called from diablo.cpp's town branch
+ * (town) and InitObjects() (levels 1-16) respectively.
+ */
+void AddWaypointSigilObject()
+{
+	if (setlevel)
+		return;
+
+	Point position;
+	if (currlevel == 0) {
+		position = WaypointSigilPosition;
+	} else if (currlevel >= 1 && currlevel <= 16) {
+		position = GetRndObjLoc(2);
+	} else {
+		return;
+	}
+
+	EnsureObjectGraphicsLoaded(OFILE_MCIRL, AllObjects[OBJ_WAYPOINT].animWidth);
+
+	if (dObject[position.x][position.y] != 0) {
+		LogEvent(StrCat("Waypoint sigil placement collision at (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
+	}
+
+	Object *sigil = AddObject(OBJ_WAYPOINT, position);
+	if (sigil == nullptr)
+		return;
+
+	// Oracool: user request - this sigil's travel-list index (0 = Tristram, 1-16 = that dungeon
+	// level, matching currlevel numbering). OperateWaypoint reads this to know which entry to
+	// unlock/open.
+	sigil->_oVar1 = currlevel;
+
+	// Town's sigil is unconditionally unlocked; a dungeon sigil's frame reflects whatever
+	// IsWaypointUnlocked already knows - e.g. still lit on a return visit after a level
+	// regenerates, once the player already found and activated it once (see OperateWaypoint).
+	const bool unlocked = currlevel == 0 || IsWaypointUnlocked(currlevel);
+	// Oracool: user request - frame 2 is mcirl.cel's "lit" variant, frame 1 the plain dormant one
+	// (vanilla red - a TRN-based blue recolor was tried and reverted, see git history, since the
+	// recolored sprite came out invisible for reasons not yet diagnosed).
+	sigil->_oAnimFrame = unlocked ? 2 : 1;
+
+	// Oracool: deliberately NOT calling ApplyPendingWaypointSpawn() here - see its own doc comment
+	// for why the reposition has to wait until the level has fully finished loading instead of
+	// happening from inside this mid-load function.
+}
+
+/**
+ * @brief Oracool: bug postmortem (2026-08-10) - see the doc comment in oracool/oracool.h for the
+ * full story. Searches the current level's own active objects for its waypoint sigil rather than
+ * taking a position parameter, so this single implementation works for both a freshly-placed
+ * sigil (fresh town/dungeon generation) and an already-placed one restored by LoadLevel() on a
+ * revisited dungeon level.
+ */
+void ApplyPendingWaypointSpawn()
+{
+	if (!ConsumeWaypointSpawnRequest())
+		return;
+
+	for (int i = 0; i < ActiveObjectCount; i++) {
+		Object &object = Objects[ActiveObjects[i]];
+		if (object._otype != _object_id::OBJ_WAYPOINT)
+			continue;
+
+		// Oracool: mirrors what FixPlayerLocation's own callers (e.g. StartStand) already do for
+		// an in-level reposition - clear the player's old dPlayer collision-grid registration
+		// before moving them, since whatever placed them at their current position (InitPlayer,
+		// or LoadLevel()'s own restore) already registered it there.
+		Player &player = *MyPlayer;
+		if (player.position.tile != object.position) {
+			dPlayer[player.position.tile.x][player.position.tile.y] = 0;
+			player.position.tile = object.position;
+			player.position.old = object.position;
+			dPlayer[object.position.x][object.position.y] = player.getId() + 1;
+		}
+		FixPlayerLocation(player, player._pdir);
+
+		// Oracool: bug postmortem (2026-08-10) - a forced ProcessLightList()/ProcessVisionList()
+		// call here closes a one-tick gap where the level's first frame renders with lighting
+		// still computed for the pre-reposition position (near-total darkness, since the old
+		// position's light radius doesn't reach the new one) - the "black flash" the user
+		// reported. An earlier version of this call ran unconditionally and corrupted town's
+		// ground tiles into red/blue static instead of properly darkening them. Root cause:
+		// diablo.cpp's LoadGameLevel() gives every dungeon level a dLight/dPreLight baseline
+		// before this function ever runs - a fresh generation calls SavePreLighting(), a revisit
+		// restores dLight from that same saved snapshot via LoadLevel() - but town's own branch
+		// does neither; it has no equivalent baseline-establishing step at all. Forcing a
+		// recompute against dungeon's already-settled state works cleanly; doing the same against
+		// town's unestablished state is what produced the corruption. Scoped to dungeon levels
+		// only (currlevel != 0) for that reason - town keeps the brief black flash rather than
+		// risk the corruption recurring.
+		if (currlevel != 0) {
+			ProcessLightList();
+			ProcessVisionList();
+		}
+		return;
+	}
+}
+
+} // namespace oracool
+
 void InitObjects()
 {
 	ClrAllObjects();
 	NaKrulTomeSequence = 0;
+	// Oracool: user request - Waypoints. Placed unconditionally before any level-type-specific
+	// object init below (mirrors how the town branch places its own waypoint sigil right after
+	// ClrAllObjects()-equivalent town setup) - AddWaypointSigilObject() places one on every
+	// dungeon level 1-16; a no-op on any level beyond that (setlvlnum-only maps, etc).
+	oracool::AddWaypointSigilObject();
 	if (currlevel == 16) {
 		AddDiabObjs();
 	} else {
@@ -4326,6 +4624,14 @@ Object *AddObject(_object_id objType, Point objPos)
 	case OBJ_MCIRCLE2:
 		AddMagicCircle(object);
 		break;
+	case OBJ_WAYPOINT:
+		// Oracool: user request - Waypoints, restart. Same _oPreFlag = true AddMagicCircle() gives
+		// OBJ_MCIRCLE1/2 above (this exact graphic is a flat floor decal - see the postmortem in
+		// oracool::AddStashChestObject() further down this file for why that matters and what goes
+		// wrong without it). Deliberately nothing else yet - no quest-room _oVar5/_oVar6 plumbing,
+		// no per-tick update, no operate handler.
+		object._oPreFlag = true;
+		break;
 	case OBJ_STORYBOOK:
 	case OBJ_L5BOOKS:
 		AddStoryBook(object);
@@ -4614,6 +4920,9 @@ void OperateObject(Player &player, Object &object)
 	case OBJ_SWITCHSKL:
 		OperateLever(object, sendmsg);
 		break;
+	case OBJ_WAYPOINT:
+		OperateWaypoint(object);
+		break;
 	case OBJ_BOOK2L:
 		if (sendmsg)
 			OperateBook(player, object, sendmsg);
@@ -4623,11 +4932,21 @@ void OperateObject(Player &player, Object &object)
 		break;
 	case OBJ_CHEST1:
 	case OBJ_CHEST2:
-	case OBJ_CHEST3:
 	case OBJ_TCHEST1:
 	case OBJ_TCHEST2:
 	case OBJ_TCHEST3:
 		OperateChest(player, object, sendmsg);
+		break;
+	case OBJ_CHEST3:
+		// Oracool: user request - the physical Stash Chest reuses this ordinary object type (it's
+		// what visually matched what the user wanted, after a diagnostic A/B test against the
+		// custom OBJ_STASHCHEST type) rather than being its own _object_id, so it's identified by
+		// its fixed town position instead - every other OBJ_CHEST3 in the game is a normal,
+		// one-time loot chest.
+		if (currlevel == 0 && object.position == StashChestPosition)
+			OperateStashChest(object);
+		else
+			OperateChest(player, object, sendmsg);
 		break;
 	case OBJ_SARC:
 	case OBJ_L5SARC:
@@ -4953,8 +5272,10 @@ void SyncObjectAnim(Object &object)
 	object_graphic_id index = AllObjects[object._otype].ofindex;
 
 	if (!HeadlessMode) {
-		const auto &found = std::find(std::begin(ObjFileList), std::end(ObjFileList), index);
-		if (found == std::end(ObjFileList)) {
+		// Oracool: see the matching fix/comment in SetupObject() - bounded to numobjfiles for the
+		// same reason (stale entries beyond it are never cleared by FreeObjectGFX()).
+		const auto &found = std::find(std::begin(ObjFileList), std::begin(ObjFileList) + numobjfiles, index);
+		if (found == std::begin(ObjFileList) + numobjfiles) {
 			LogCritical("Unable to find object_graphic_id {} in list of objects to load, level generation error.", static_cast<int>(index));
 			return;
 		}
@@ -5014,6 +5335,8 @@ StringOrView Object::name() const
 	case OBJ_L5LEVER:
 	case OBJ_FLAMELVR:
 		return _("Lever");
+	case OBJ_WAYPOINT:
+		return _("Waypoint");
 	case OBJ_L1LDOOR:
 	case OBJ_L1RDOOR:
 	case OBJ_L2LDOOR:
@@ -5049,6 +5372,9 @@ StringOrView Object::name() const
 	case OBJ_TCHEST2:
 		return _("Chest");
 	case OBJ_CHEST3:
+		if (currlevel == 0 && position == StashChestPosition)
+			return _("Stash");
+		return _("Large Chest");
 	case OBJ_TCHEST3:
 	case OBJ_SIGNCHEST:
 		return _("Large Chest");

@@ -23,6 +23,7 @@
 #include "init.h"
 #include "loadsave.h"
 #include "oracool/auto_save.h"
+#include "oracool/oracool.h"
 #include "pfile.h"
 #include "plrmsg.h"
 #include "utils/sdl_geometry.h"
@@ -363,6 +364,15 @@ void ShowProgress(interface_mode uMsg)
 		leveltype = GetLevelType(currlevel);
 		IncProgress();
 		LoadGameLevel(false, ENTRY_MAIN);
+		// Oracool: bug postmortem (2026-08-10) - a pending waypoint-spawn reposition (see
+		// ApplyPendingWaypointSpawn's doc comment) needs to run exactly once, exactly after the
+		// destination level has fully finished loading. WM_DIABNEXTLVL is the interface_mode every
+		// waypoint warp uses (see StartNewLvl's call in oracool/waypoint_menu.cpp), and this is the
+		// single place that message's LoadGameLevel call returns - a per-tick check placed
+		// elsewhere in the main loop was tried first and found to fire too early, before this
+		// event had even been processed yet, wasting the pending flag on whatever level the player
+		// was still standing on.
+		oracool::ApplyPendingWaypointSpawn();
 		IncProgress();
 		break;
 	case WM_DIABPREVLVL:

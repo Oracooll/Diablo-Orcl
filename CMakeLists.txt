@@ -61,6 +61,13 @@ endif()
 if(NOT ORACOOL_VERSION_STR)
   file(STRINGS "ORACOOL_VERSION" ORACOOL_VERSION_STR)
 endif()
+# Oracool: `file(STRINGS ...)` above only runs when CMake actually configures,
+# not on a plain `cmake --build` - and editing this plain data file was never
+# declared as a reason to reconfigure, so bumping ORACOOL_VERSION alone was
+# silently having zero effect on the built binary (it kept whatever version
+# string was baked in from the project's last real configure, however old).
+# This makes CMake notice the file changed and reconfigure automatically.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/ORACOOL_VERSION")
 
 if(NOT VERSION_SUFFIX)
   # For versions with a suffix, e.g. "1.5.0-dev", include
@@ -348,10 +355,21 @@ else()
                 $<$<CONFIG:MinSizeRel>:${CMAKE_STRIP}>
         ARGS $<TARGET_FILE:${BIN_TARGET}>)
     endif()
+
+    if(WIN32)
+      set_target_properties(${BIN_TARGET} PROPERTIES OUTPUT_NAME "DiabloOrcl")
+    endif()
 endif()
 
 if(NOT UWP_LIB)
   target_link_libraries(${BIN_TARGET} PRIVATE libdevilutionx)
+
+# Oracool: packs Packaging/resources/oracool_assets/ into oracool.mpq, Oracool Edition's own asset
+# archive. Uses the engine's own MpqWriter (save files are MPQs, so the writer already exists)
+# rather than the external smpq that devilutionx.mpq needs and which is not installed here.
+# Not wired into the default build - run tools\build_oracool_mpq.cmd to rebuild the archive.
+add_executable(oracool_mpq_pack EXCLUDE_FROM_ALL tools/oracool_mpq_pack.cpp)
+target_link_libraries(oracool_mpq_pack PRIVATE libdevilutionx)
 endif()
 
 if(GPERF)

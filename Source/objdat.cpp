@@ -168,7 +168,7 @@ constexpr auto Breakable = ObjectDataFlags::Breakable;
 } // namespace
 
 /** Contains the data related to each object ID. */
-const ObjectData AllObjects[109] = {
+const ObjectData AllObjects[110] = {
 	// clang-format off
 // _object_id          ofindex,         minlvl,  maxlvl, olvltype,        otheme,                  oquest,     flags,                                            animDelay,  animLen,  animWidth,  selFlag
 /*OBJ_L1LIGHT*/      { OFILE_L1BRAZ,         0,       0, DTYPE_CATHEDRAL, THEME_NONE,              Q_INVALID,  Animated | Solid | MissilesPassThrough,                   1,       26,         64,        0 },
@@ -280,6 +280,7 @@ const ObjectData AllObjects[109] = {
 /*OBJ_L5RDOOR*/      { OFILE_L5DOORS,        0,       0, DTYPE_CRYPT,     THEME_NONE,              Q_INVALID,  Light | Trap,                                             2,        0,         64,        3 },
 /*OBJ_L5LEVER*/      { OFILE_L5LEVER,       24,      24, DTYPE_NONE,      THEME_NONE,              Q_INVALID,  Solid | MissilesPassThrough | Light | Trap,               1,        1,         96,        1 },
 /*OBJ_L5SARC*/       { OFILE_L5SARC,        21,      24, DTYPE_NONE,      THEME_NONE,              Q_INVALID,  Solid | MissilesPassThrough | Light | Trap,               1,        5,        128,        3 },
+/*OBJ_WAYPOINT*/     { OFILE_MCIRL,          0,       0, DTYPE_NONE,      THEME_NONE,              Q_INVALID,  MissilesPassThrough | Light,                              1,        0,         96,        1 },
 	// clang-format on
 };
 /** Maps from object_graphic_id to object CEL name. */

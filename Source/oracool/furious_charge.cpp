@@ -27,7 +27,13 @@ uint32_t CooldownStartTime = 0;
 
 bool IsFuriousChargeEnabled()
 {
-	return *sgOptions.Oracool.furiousCharge && IsSinglePlayer();
+	// Oracool: user decision (2026-08-11) - Furious Charge is no longer a settings toggle. It is
+	// destined to be an *acquirable* skill, unlocked through progression once the Skills system
+	// lands; until then the Paladin's free slot stays vanilla Item Repair, the skill he is "gifted
+	// at birth". All the charge mechanics below remain intact and working - only this gate is
+	// closed, so switching it on later is a one-line change to whatever the Skills system uses to
+	// record what the player has learned.
+	return false;
 }
 
 bool IsFuriousChargeSpell(SpellID spellId)

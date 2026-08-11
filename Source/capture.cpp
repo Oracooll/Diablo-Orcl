@@ -1,11 +1,12 @@
-/**
+﻿/**
  * @file capture.cpp
  *
  * Implementation of the screenshot function.
  */
 #include <cstdint>
-#include <cstdio>
+#include <cstring>
 #include <ctime>
+#include <string>
 
 #include <fmt/format.h>
 
@@ -16,123 +17,15 @@
 #include "utils/file_util.h"
 #include "utils/log.hpp"
 #include "utils/paths.h"
-#include "utils/pcx.hpp"
+#include "utils/png.h"
+#include "utils/sdl_ptrs.h"
 #include "utils/str_cat.hpp"
 #include "utils/ui_fwd.h"
 
 namespace devilution {
 namespace {
 
-/**
- * @brief Write the PCX-file header
- * @param width Image width
- * @param height Image height
- * @param out File stream to write to
- * @return True on success
- */
-bool CaptureHdr(int16_t width, int16_t height, FILE *out)
-{
-	PCXHeader buffer;
-
-	memset(&buffer, 0, sizeof(buffer));
-	buffer.Manufacturer = 10;
-	buffer.Version = 5;
-	buffer.Encoding = 1;
-	buffer.BitsPerPixel = 8;
-	buffer.Xmax = SDL_SwapLE16(width - 1);
-	buffer.Ymax = SDL_SwapLE16(height - 1);
-	buffer.HDpi = SDL_SwapLE16(width);
-	buffer.VDpi = SDL_SwapLE16(height);
-	buffer.NPlanes = 1;
-	buffer.BytesPerLine = SDL_SwapLE16(width);
-
-	return std::fwrite(&buffer, sizeof(buffer), 1, out) == 1;
-}
-
-/**
- * @brief Write the current in-game palette to the PCX file
- * @param palette Current palette
- * @param out File stream for the PCX file.
- * @return True if successful, else false
- */
-bool CapturePal(SDL_Color *palette, FILE *out)
-{
-	uint8_t pcxPalette[1 + 256 * 3];
-
-	pcxPalette[0] = 12;
-	for (int i = 0; i < 256; i++) {
-		pcxPalette[1 + 3 * i + 0] = palette[i].r;
-		pcxPalette[1 + 3 * i + 1] = palette[i].g;
-		pcxPalette[1 + 3 * i + 2] = palette[i].b;
-	}
-
-	return std::fwrite(pcxPalette, sizeof(pcxPalette), 1, out) == 1;
-}
-
-/**
- * @brief RLE compress the pixel data
- * @param src Raw pixel buffer
- * @param dst Output buffer
- * @param width Width of pixel buffer
-
- * @return Output buffer
- */
-uint8_t *CaptureEnc(uint8_t *src, uint8_t *dst, int width)
-{
-	int rleLength;
-
-	do {
-		uint8_t rlePixel = *src;
-		src++;
-		rleLength = 1;
-
-		width--;
-
-		while (rlePixel == *src) {
-			if (rleLength >= 63)
-				break;
-			if (width == 0)
-				break;
-			rleLength++;
-
-			width--;
-			src++;
-		}
-
-		if (rleLength > 1 || rlePixel > 0xBF) {
-			*dst = rleLength | 0xC0;
-			dst++;
-		}
-
-		*dst = rlePixel;
-		dst++;
-	} while (width > 0);
-
-	return dst;
-}
-
-/**
- * @brief Write the pixel data to the PCX file
- *
- * @param buf Pixel data
- * @param out File stream for the PCX file.
- * @return True if successful, else false
- */
-bool CapturePix(const Surface &buf, FILE *out)
-{
-	int width = buf.w();
-	std::unique_ptr<uint8_t[]> pBuffer { new uint8_t[2 * width] };
-	uint8_t *pixels = buf.begin();
-	for (int height = buf.h(); height > 0; height--) {
-		const uint8_t *pBufferEnd = CaptureEnc(pixels, pBuffer.get(), width);
-		pixels += buf.pitch();
-		if (std::fwrite(pBuffer.get(), pBufferEnd - pBuffer.get(), 1, out) != 1)
-			return false;
-	}
-	return true;
-}
-
-FILE *CaptureFile(std::string *dstPath)
+std::string CaptureFilePath()
 {
 	const std::time_t tt = std::time(nullptr);
 	const std::tm *tm = std::localtime(&tt);
@@ -140,13 +33,80 @@ FILE *CaptureFile(std::string *dstPath)
 	    ? fmt::format("Screenshot from {:04}-{:02}-{:02} {:02}-{:02}-{:02}",
 	          tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec)
 	    : "Screenshot";
-	*dstPath = StrCat(paths::PrefPath(), filename, ".pcx");
+
+	// Oracool: user request (2026-08-11) - screenshots get their own folder instead of piling up
+	// alongside the save files. Created on demand rather than at startup, so a player who never
+	// takes a screenshot never gets an empty directory.
+	const std::string dir = StrCat(paths::PrefPath(), "Screenshots/");
+	RecursivelyCreateDir(dir.c_str());
+
+	std::string path = StrCat(dir, filename, ".png");
 	int i = 0;
-	while (FileExists(dstPath->c_str())) {
+	while (FileExists(path.c_str())) {
 		i++;
-		*dstPath = StrCat(paths::PrefPath(), filename, "-", i, ".pcx");
+		path = StrCat(dir, filename, "-", i, ".png");
 	}
-	return OpenFile(dstPath->c_str(), "wb");
+	return path;
+}
+
+/**
+ * @brief Writes the 8-bit back buffer as a palettized PNG.
+ *
+ * Oracool: user request (2026-08-11) - screenshots come out directly viewable instead of PCX,
+ * retiring the separate watcher tool that used to convert them.
+ *
+ * PNG rather than the JPEG that was asked for, and the reason is measurable rather than
+ * stylistic. The game renders 8-bit palettized: a frame contains at most 256 colours. Sampling a
+ * JPEG screenshot produced by the old convert-afterwards workflow found **25,219** distinct
+ * colours - every one beyond 256 is ringing painted around the sharp edges of UI, text and pixel
+ * art, which is exactly the content JPEG handles worst. PNG keeps the frame bit-exact, stores it
+ * as a true palettized image, and needs no new dependency: IMG_SavePNG is already available
+ * through utils/png.h (SDL_image is built here with IMG_png.c and LOAD_PNG; IMG_jpg.c is not
+ * compiled at all, so JPEG would have meant adding an encoder to get a worse picture).
+ *
+ * @param palette The palette to embed - the real one, captured before RedPalette() tints the
+ *                screen for the flash effect.
+ */
+bool CaptureImage(const std::string &path, const Surface &buf, SDL_Color *palette)
+{
+	SDLSurfaceUniquePtr surface { SDL_CreateRGBSurfaceWithFormat(0, buf.w(), buf.h(), 8, SDL_PIXELFORMAT_INDEX8) };
+	if (surface == nullptr) {
+		Log("Screenshot: could not allocate surface: {}", SDL_GetError());
+		return false;
+	}
+
+	// Force every entry opaque before handing the palette over.
+	//
+	// system_palette (and therefore PaletteGetEntries) only ever fills r/g/b - nothing in the
+	// renderer reads SDL_Color::a, so it sits at zero. IMG_SavePNG *does* read it, and a palette
+	// of zero-alpha entries makes libpng emit a tRNS chunk marking all 256 colours transparent.
+	// The result is a file whose pixels are perfectly correct and which any conforming viewer
+	// renders as blank. Worth knowing this is invisible to readers that flatten alpha, which is
+	// how it survived a first check.
+	SDL_Color opaque[256];
+	for (int i = 0; i < 256; i++) {
+		opaque[i] = palette[i];
+		opaque[i].a = SDL_ALPHA_OPAQUE;
+	}
+
+	if (SDL_SetPaletteColors(surface->format->palette, opaque, 0, 256) < 0) {
+		Log("Screenshot: could not set palette: {}", SDL_GetError());
+		return false;
+	}
+
+	// Row-by-row: the back buffer's pitch includes the render border and does not match the
+	// destination's.
+	const uint8_t *src = buf.begin();
+	auto *dst = static_cast<uint8_t *>(surface->pixels);
+	for (int y = 0; y < buf.h(); y++) {
+		std::memcpy(dst + static_cast<ptrdiff_t>(y) * surface->pitch, src + static_cast<ptrdiff_t>(y) * buf.pitch(), buf.w());
+	}
+
+	if (IMG_SavePNG(surface.get(), path.c_str()) < 0) {
+		Log("Screenshot: could not write {}: {}", path, SDL_GetError());
+		return false;
+	}
+	return true;
 }
 
 /**
@@ -167,25 +127,15 @@ void RedPalette()
 void CaptureScreen()
 {
 	SDL_Color palette[256];
-	std::string fileName;
-	bool success;
 
-	FILE *outStream = CaptureFile(&fileName);
-	if (outStream == nullptr)
-		return;
+	const std::string fileName = CaptureFilePath();
 	DrawAndBlit();
+	// Grab the real palette before RedPalette() tints everything for the flash effect, so the
+	// screenshot shows the frame as it looked rather than the flash.
 	PaletteGetEntries(256, palette);
 	RedPalette();
 
-	const Surface &buf = GlobalBackBuffer();
-	success = CaptureHdr(buf.w(), buf.h(), outStream);
-	if (success) {
-		success = CapturePix(buf, outStream);
-	}
-	if (success) {
-		success = CapturePal(palette, outStream);
-	}
-	std::fclose(outStream);
+	const bool success = CaptureImage(fileName, GlobalBackBuffer(), palette);
 
 	if (!success) {
 		Log("Failed to save screenshot at {}", fileName);

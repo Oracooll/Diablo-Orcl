@@ -156,7 +156,7 @@ void SelheroListSelect(int value)
 
 		vecSelHeroDlgItems.clear();
 		int itemH = 33;
-		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Warrior"), static_cast<int>(HeroClass::Warrior)));
+		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Paladin"), static_cast<int>(HeroClass::Warrior)));
 		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Rogue"), static_cast<int>(HeroClass::Rogue)));
 		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Sorcerer"), static_cast<int>(HeroClass::Sorcerer)));
 		if (gbIsHellfire) {
@@ -188,14 +188,27 @@ void SelheroListSelect(int value)
 		return;
 	}
 
-	if (selhero_heroInfo.hassaved) {
+	// Oracool: user request - single-player has no "Continue"/resume-session concept at all.
+	// The project's goal is building the strongest character, not finishing a particular game
+	// session - autosave already means the character (level, stats, gear, gold) is always
+	// current, and dungeon/quest state is intentionally session-only and never worth resuming.
+	// So single-player skips this dialog entirely and always falls through to SelheroLoadSelect(1)
+	// below, which is single-player's existing "start a fresh dungeon with this character" path
+	// (shows the difficulty picker, then StartGame(bNewGame=true, ...) - the character itself was
+	// already loaded from selhero_heros[] above, independent of this choice, so nothing about the
+	// character is lost). Multiplayer keeps this dialog: resuming a co-op session together is a
+	// real, distinct choice there, unlike single-player.
+	if (selhero_isMultiPlayer && selhero_heroInfo.hassaved) {
 		vecSelDlgItems.clear();
 
 		SDL_Rect rect1 = { (Sint16)(uiPosition.x + 242), (Sint16)(uiPosition.y + 211), 365, 33 };
-		vecSelDlgItems.push_back(std::make_unique<UiArtText>(_("Save File Exists").data(), rect1, UiFlags::AlignCenter | UiFlags::FontSize30 | UiFlags::ColorUiSilver, 3));
+		vecSelDlgItems.push_back(std::make_unique<UiArtText>(_("Character Exists").data(), rect1, UiFlags::AlignCenter | UiFlags::FontSize30 | UiFlags::ColorUiSilver, 3));
 
 		vecSelHeroDlgItems.clear();
-		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Load Game"), 0));
+		// Oracool: user request - "Load Game" renamed to "Continue" as part of removing manual
+		// save/load terminology from every menu; with continuous autosave there's no separate
+		// "load" action anymore, just resuming the character's always-current state.
+		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("Continue"), 0));
 		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("New Game"), 1));
 		vecSelDlgItems.push_back(std::make_unique<UiList>(vecSelHeroDlgItems, vecSelHeroDlgItems.size(), uiPosition.x + 265, (uiPosition.y + 285), 320, 33, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiGold));
 

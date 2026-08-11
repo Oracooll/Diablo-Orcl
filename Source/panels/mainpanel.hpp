@@ -4,7 +4,6 @@
 
 namespace devilution {
 
-extern OptionalOwnedClxSpriteList PanelButtonDown;
 extern OptionalOwnedClxSpriteList TalkButton;
 
 void LoadMainPanel();

@@ -531,12 +531,10 @@ void OverrideOptions()
 	sgOptions.Oracool.permanentInfravision.SetValue(false);
 	sgOptions.Oracool.autoIdentifyDrops.SetValue(false);
 	sgOptions.Oracool.resetStatsButton.SetValue(false);
-	sgOptions.Oracool.inventorySortButton.SetValue(false);
 	sgOptions.Oracool.difficultyLevelGate.SetValue(false);
 	sgOptions.Oracool.tormentDifficultyMultiplier.SetValue(20);
 	sgOptions.Oracool.miniMapEnabled.SetValue(false);
 	sgOptions.Oracool.eventLog.SetValue(false);
-	sgOptions.Oracool.furiousCharge.SetValue(false);
 	sgOptions.Oracool.gameClock.SetValue(false);
 	sgOptions.Oracool.gameClock12HourFormat.SetValue(false);
 	sgOptions.Oracool.xpCounter.SetValue(false);
@@ -544,7 +542,6 @@ void OverrideOptions()
 	sgOptions.Oracool.remainingMonsterXpButton.SetValue(false);
 	sgOptions.Oracool.monsterRangeHighlight.SetValue(0);
 	sgOptions.Oracool.monsterWallOutline.SetValue(false);
-	sgOptions.Oracool.warriorSplashDamageRange.SetValue(0);
 	sgOptions.Oracool.autoPickupRange.SetValue(1);
 	sgOptions.Oracool.autoScrollPickup.SetValue(false);
 	sgOptions.Oracool.rareItemDropChance.SetValue(0);
@@ -567,7 +564,6 @@ void OverrideOptions()
 	sgOptions.Oracool.autoSaveOnLevelChange.SetValue(false);
 	sgOptions.Oracool.autoSaveOnItemPickup.SetValue(false);
 	sgOptions.Oracool.autoSaveOnStorePurchase.SetValue(false);
-	sgOptions.Oracool.autoSaveItemDelaySeconds.SetValue(0);
 	sgOptions.Oracool.autoSaveNotification.SetValue(false);
 }
 

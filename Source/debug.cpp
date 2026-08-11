@@ -24,6 +24,7 @@
 #include "lighting.h"
 #include "monstdat.h"
 #include "monster.h"
+#include "oracool/waypoint_menu.h"
 #include "pack.h"
 #include "plrmsg.h"
 #include "quests.h"
@@ -46,6 +47,8 @@ bool DebugGodMode = false;
 bool DebugVision = false;
 bool DebugPath = false;
 bool DebugGrid = false;
+bool DebugHideUi = false;
+bool DebugClearUi = false;
 std::unordered_map<int, Point> DebugCoordsMap;
 bool DebugScrollViewEnabled = false;
 std::string debugTRN;
@@ -512,6 +515,16 @@ std::string DebugCmdLevelUp(const string_view parameter)
 	return "New experience leads to new insights.";
 }
 
+std::string DebugCmdGiveWaypoints(const string_view parameter)
+{
+	// Oracool: user request - unlocks every waypoint (1-16; Tristram/0 is always unlocked
+	// already) on the current difficulty, so all 17 travel-list entries can be tried without
+	// having to actually find and activate every sigil first.
+	for (int i = 1; i <= 16; i++)
+		oracool::UnlockWaypoint(i);
+	return "The way is open.";
+}
+
 std::string DebugCmdMaxStats(const string_view parameter)
 {
 	Player &myPlayer = *MyPlayer;
@@ -605,6 +618,21 @@ std::string DebugCmdGenerateItem(const string_view parameter)
 	return DebugSpawnItem(parameter.data());
 }
 
+std::string DebugCmdGenerateRareItem(const string_view parameter)
+{
+	return DebugSpawnTieredItem(parameter.data(), OracoolItemTier::Rare);
+}
+
+std::string DebugCmdGenerateBuffedUniqueItem(const string_view parameter)
+{
+	return DebugSpawnTieredItem(parameter.data(), OracoolItemTier::BuffedUnique);
+}
+
+std::string DebugCmdGeneratePrimalItem(const string_view parameter)
+{
+	return DebugSpawnTieredItem(parameter.data(), OracoolItemTier::Primal);
+}
+
 std::string DebugCmdExit(const string_view parameter)
 {
 	gbRunGame = false;
@@ -649,6 +677,26 @@ std::string DebugCmdShowGrid(const string_view parameter)
 		return "A basket full of rectangles and mushrooms.";
 
 	return "Back to boring.";
+}
+
+std::string DebugCmdHideUi(const string_view parameter)
+{
+	DebugHideUi = !DebugHideUi;
+	RedrawEverything();
+	if (DebugHideUi)
+		return "HUD hidden - dungeon view only.";
+
+	return "HUD restored.";
+}
+
+std::string DebugCmdClearUi(const string_view parameter)
+{
+	DebugClearUi = !DebugClearUi;
+	RedrawEverything();
+	if (DebugClearUi)
+		return "Everything's hidden - clean shot.";
+
+	return "HUD restored.";
 }
 
 std::string DebugCmdSpawnUniqueMonster(const string_view parameter)
@@ -1061,6 +1109,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "help", "Prints help overview or help for a specific command.", "({command})", &DebugCmdHelp },
 	{ "givegold", "Fills the inventory with gold.", "", &DebugCmdGiveGoldCheat },
 	{ "givexp", "Levels the player up (min 1 level or {levels}).", "({levels})", &DebugCmdLevelUp },
+	{ "givewp", "Unlocks every waypoint (1-16) on the current difficulty.", "", &DebugCmdGiveWaypoints },
 	{ "maxstats", "Sets all stat values to maximum.", "", &DebugCmdMaxStats },
 	{ "minstats", "Sets all stat values to minimum.", "", &DebugCmdMinStats },
 	{ "setspells", "Set spell level to {level} for all spells.", "{level}", &DebugCmdSetSpellsLevel },
@@ -1083,10 +1132,15 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "changemp", "Changes mana by {value} (Use a negative value to remove mana).", "{value}", &DebugCmdChangeMana },
 	{ "dropu", "Attempts to generate unique item {name}.", "{name}", &DebugCmdGenerateUniqueItem },
 	{ "drop", "Attempts to generate item {name}.", "{name}", &DebugCmdGenerateItem },
+	{ "giverare", "Attempts to generate a Rare-tier item, optionally matching {name}.", "({name})", &DebugCmdGenerateRareItem },
+	{ "giveunique", "Attempts to generate a Buffed Unique-tier item, optionally matching {name}.", "({name})", &DebugCmdGenerateBuffedUniqueItem },
+	{ "giveprimal", "Attempts to generate a Primal-tier item, optionally matching {name}.", "({name})", &DebugCmdGeneratePrimalItem },
 	{ "talkto", "Interacts with a NPC whose name contains {name}.", "{name}", &DebugCmdTalkToTowner },
 	{ "exit", "Exits the game.", "", &DebugCmdExit },
 	{ "arrow", "Changes arrow effect (normal, fire, lightning, explosion).", "{effect}", &DebugCmdArrow },
 	{ "grid", "Toggles showing grid.", "", &DebugCmdShowGrid },
+	{ "hideui", "Toggles hiding the main HUD (panel, orbs, belt, buttons, XP bar) for clean screenshots.", "", &DebugCmdHideUi },
+	{ "clearui", "Toggles hiding every HUD element (panel, mini-map, overlays, cursor, etc.) for a fully clean screenshot.", "", &DebugCmdClearUi },
 	{ "spawnu", "Spawns unique monster {name}.", "{name} ({count})", &DebugCmdSpawnUniqueMonster },
 	{ "spawn", "Spawns monster {name}.", "{name} ({count})", &DebugCmdSpawnMonster },
 	{ "tiledata", "Toggles showing tile data {name} (leave name empty to see a list).", "{name}", &DebugCmdShowTileData },

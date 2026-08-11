@@ -39,12 +39,18 @@ set(libdevilutionx_SRCS
   objdat.cpp
   objects.cpp
   oracool/auto_save.cpp
+  oracool/cursor_tooltip.cpp
   oracool/event_log.cpp
   oracool/furious_charge.cpp
   oracool/game_clock.cpp
   oracool/gradual_healing.cpp
+  oracool/hud_art.cpp
+  oracool/hud_layout.cpp
+  oracool/hud_menu.cpp
+  oracool/inventory_layout.cpp
   oracool/save_indicator.cpp
   oracool/warrior_splash.cpp
+  oracool/waypoint_menu.cpp
   oracool/xp_counter.cpp
   oracool/xp_gain_indicator.cpp
   options.cpp

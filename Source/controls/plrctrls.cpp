@@ -1,4 +1,4 @@
-#include "controls/plrctrls.h"
+﻿#include "controls/plrctrls.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -10,6 +10,7 @@
 
 #include "automap.h"
 #include "control.h"
+#include "oracool/inventory_layout.h"
 #include "controls/controller_motion.h"
 #ifndef USE_SDL1
 #include "controls/devices/game_controller.h"
@@ -29,6 +30,7 @@
 #include "levels/trigs.h"
 #include "minitext.h"
 #include "missiles.h"
+#include "oracool/auto_save.h"
 #include "panels/spell_icons.hpp"
 #include "panels/spell_list.hpp"
 #include "panels/ui_panels.hpp"
@@ -862,7 +864,7 @@ void InventoryMove(AxisDirection dir)
 	if (dir.x == AxisDirectionX_LEFT) {
 		if (isHoldingItem) {
 			if (Slot >= SLOTXY_INV_FIRST && Slot <= SLOTXY_BELT_LAST) {
-				if (IsNoneOf(Slot, SLOTXY_INV_ROW1_FIRST, SLOTXY_INV_ROW2_FIRST, SLOTXY_INV_ROW3_FIRST, SLOTXY_INV_ROW4_FIRST, SLOTXY_BELT_FIRST)) {
+				if (!IsAtInvRowStart(Slot)) {
 					Slot -= 1;
 				}
 			} else if (heldItem._itype == ItemType::Ring) {
@@ -882,13 +884,13 @@ void InventoryMove(AxisDirection dir)
 			} else if (Slot >= SLOTXY_INV_FIRST && Slot <= SLOTXY_BELT_LAST) {
 				int8_t itemId = GetItemIdOnSlot(Slot);
 				if (itemId != 0) {
-					for (int i = 1; i < INV_ROW_SLOT_SIZE && !IsAnyOf(Slot - i + 1, SLOTXY_INV_ROW1_FIRST, SLOTXY_INV_ROW2_FIRST, SLOTXY_INV_ROW3_FIRST, SLOTXY_INV_ROW4_FIRST, SLOTXY_BELT_FIRST); i++) {
+					for (int i = 1; i < INV_ROW_SLOT_SIZE && !IsAtInvRowStart(Slot - i + 1); i++) {
 						if (itemId != GetItemIdOnSlot(Slot - i)) {
 							Slot -= i;
 							break;
 						}
 					}
-				} else if (IsNoneOf(Slot, SLOTXY_INV_ROW1_FIRST, SLOTXY_INV_ROW2_FIRST, SLOTXY_INV_ROW3_FIRST, SLOTXY_INV_ROW4_FIRST, SLOTXY_BELT_FIRST)) {
+				} else if (!IsAtInvRowStart(Slot)) {
 					Slot -= 1;
 				}
 			}
@@ -896,7 +898,7 @@ void InventoryMove(AxisDirection dir)
 	} else if (dir.x == AxisDirectionX_RIGHT) {
 		if (isHoldingItem) {
 			if (Slot >= SLOTXY_INV_FIRST && Slot <= SLOTXY_BELT_LAST) {
-				if (IsNoneOf(Slot + itemSize.width - 1, SLOTXY_INV_ROW1_LAST, SLOTXY_INV_ROW2_LAST, SLOTXY_INV_ROW3_LAST, SLOTXY_INV_ROW4_LAST, SLOTXY_BELT_LAST)) {
+				if (!IsAtInvRowEnd(Slot + itemSize.width - 1)) {
 					Slot += 1;
 				}
 			} else if (heldItem._itype == ItemType::Ring) {
@@ -916,13 +918,13 @@ void InventoryMove(AxisDirection dir)
 			} else if (Slot >= SLOTXY_INV_FIRST && Slot <= SLOTXY_BELT_LAST) {
 				int8_t itemId = GetItemIdOnSlot(Slot);
 				if (itemId != 0) {
-					for (int i = 1; i < INV_ROW_SLOT_SIZE && !IsAnyOf(Slot + i - 1, SLOTXY_INV_ROW1_LAST, SLOTXY_INV_ROW2_LAST, SLOTXY_INV_ROW3_LAST, SLOTXY_INV_ROW4_LAST, SLOTXY_BELT_LAST); i++) {
+					for (int i = 1; i < INV_ROW_SLOT_SIZE && !IsAtInvRowEnd(Slot + i - 1); i++) {
 						if (itemId != GetItemIdOnSlot(Slot + i)) {
 							Slot += i;
 							break;
 						}
 					}
-				} else if (IsNoneOf(Slot, SLOTXY_INV_ROW1_LAST, SLOTXY_INV_ROW2_LAST, SLOTXY_INV_ROW3_LAST, SLOTXY_INV_ROW4_LAST, SLOTXY_BELT_LAST)) {
+				} else if (!IsAtInvRowEnd(Slot)) {
 					Slot += 1;
 				}
 			}
@@ -930,7 +932,7 @@ void InventoryMove(AxisDirection dir)
 	}
 	if (dir.y == AxisDirectionY_UP) {
 		if (isHoldingItem) {
-			if (Slot >= SLOTXY_INV_ROW2_FIRST) { // general inventory
+			if (Slot >= SLOTXY_INV_FIRST + INV_ROW_SLOT_SIZE) { // general inventory
 				Slot -= INV_ROW_SLOT_SIZE;
 			} else if (Slot >= SLOTXY_INV_FIRST) {
 				if (heldItem._itype == ItemType::Ring) {
@@ -962,7 +964,7 @@ void InventoryMove(AxisDirection dir)
 				Slot = SLOTXY_HAND_RIGHT;
 			} else if (Slot == SLOTXY_HAND_RIGHT) {
 				Slot = SLOTXY_AMULET;
-			} else if (Slot >= SLOTXY_INV_ROW2_FIRST) {
+			} else if (Slot >= SLOTXY_INV_FIRST + INV_ROW_SLOT_SIZE) {
 				int8_t itemId = GetItemIdOnSlot(Slot);
 				if (itemId != 0) {
 					for (int i = 1; i < 5; i++) {
@@ -988,7 +990,7 @@ void InventoryMove(AxisDirection dir)
 				Slot = SLOTXY_INV_ROW1_FIRST + (itemSize.width > 1 ? 0 : 1);
 			} else if (Slot == SLOTXY_RING_RIGHT || Slot == SLOTXY_HAND_RIGHT || Slot == SLOTXY_AMULET) {
 				Slot = SLOTXY_INV_ROW1_LAST - 1;
-			} else if (Slot <= (SLOTXY_INV_ROW4_LAST - (itemSize.height * INV_ROW_SLOT_SIZE))) {
+			} else if (Slot <= (SLOTXY_INV_LAST - (itemSize.height * INV_ROW_SLOT_SIZE))) {
 				Slot += INV_ROW_SLOT_SIZE;
 			} else if (Slot <= SLOTXY_INV_LAST && heldItem._itype == ItemType::Misc && itemSize == Size { 1, 1 }) { // forcing only 1x1 misc items
 				if (Slot + INV_ROW_SLOT_SIZE <= SLOTXY_BELT_LAST)
@@ -1162,7 +1164,11 @@ void StashMove(AxisDirection dir)
 
 		// If we're in the leftmost column (or hovering over an item on the left side of the inventory) or
 		//  left side of the body and we're moving left we need to move into the closest stash column
-		if (IsAnyOf(firstSlot, SLOTXY_HEAD, SLOTXY_HAND_LEFT, SLOTXY_RING_LEFT, SLOTXY_AMULET, SLOTXY_CHEST, SLOTXY_INV_ROW1_FIRST, SLOTXY_INV_ROW2_FIRST, SLOTXY_INV_ROW3_FIRST, SLOTXY_INV_ROW4_FIRST)) {
+		// The belt is excluded explicitly: IsAtInvRowStart also reports true for its first cell,
+		// but the belt is not part of this panel and must not hand off to the stash.
+		const bool inLeftmostBackpackColumn = firstSlot <= SLOTXY_INV_LAST && IsAtInvRowStart(firstSlot);
+		if (inLeftmostBackpackColumn
+		    || IsAnyOf(firstSlot, SLOTXY_HEAD, SLOTXY_HAND_LEFT, SLOTXY_RING_LEFT, SLOTXY_AMULET, SLOTXY_CHEST)) {
 			Point slotCoord = GetSlotCoord(Slot);
 			InvalidateInventorySlot();
 			ActiveStashSlot = FindClosestStashSlot(slotCoord) - Displacement { itemSize.width - 1, 0 };
@@ -1901,7 +1907,7 @@ void PerformPrimaryAction()
 				return;
 			TryIconCurs();
 			NewCursor(CURSOR_HAND);
-		} else if (GetRightPanel().contains(MousePosition) || GetMainPanel().contains(MousePosition)) {
+		} else if (oracool::GetInventoryPanelRect().contains(MousePosition) || GetMainPanel().contains(MousePosition)) {
 			int inventorySlot = (Slot >= 0) ? Slot : FindClosestInventorySlot(MousePosition, MyPlayer->HoldItem);
 
 			int jumpSlot = inventorySlot; // If the cursor is over an inventory slot we may need to adjust it due to pasting items of different sizes over each other
@@ -2049,6 +2055,7 @@ bool TryDropItem()
 	NetSendCmdPItem(true, CMD_PUTITEM, *itemTile, myPlayer.HoldItem);
 	myPlayer.HoldItem.clear();
 	NewCursor(CURSOR_HAND);
+	oracool::ScheduleAutoSaveForItemDrop();
 	return true;
 }
 

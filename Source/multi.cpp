@@ -21,6 +21,7 @@
 #include "menu.h"
 #include "nthread.h"
 #include "options.h"
+#include "oracool/hud_layout.h"
 #include "pfile.h"
 #include "plrmsg.h"
 #include "qol/chatlog.h"
@@ -369,7 +370,9 @@ void SetupLocalPositions()
 	leveltype = DTYPE_TOWN;
 	setlevel = false;
 
-	const WorldTilePosition spawns[9] = { { 75, 68 }, { 77, 70 }, { 75, 70 }, { 77, 68 }, { 76, 69 }, { 75, 69 }, { 76, 68 }, { 77, 69 }, { 76, 70 } };
+	// Oracool: user request - moved the local player's new-game spawn point next to the Stash
+	// Chest (55, 67); the other 8 entries are multiplayer-only fallback offsets, unchanged.
+	const WorldTilePosition spawns[9] = { { 56, 67 }, { 77, 70 }, { 75, 70 }, { 77, 68 }, { 76, 69 }, { 75, 69 }, { 76, 68 }, { 77, 69 }, { 76, 70 } };
 
 	Player &myPlayer = *MyPlayer;
 
@@ -462,6 +465,7 @@ bool InitSingle(GameData *gameData)
 	gbIsMultiplayer = false;
 
 	pfile_read_player_from_save(gSaveNumber, *MyPlayer);
+	oracool::MigrateHiddenBeltSlots(*MyPlayer);
 
 	return true;
 }

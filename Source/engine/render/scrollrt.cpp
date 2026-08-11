@@ -35,9 +35,14 @@
 #include "monster.h"
 #include "nthread.h"
 #include "options.h"
+#include "oracool/cursor_tooltip.h"
 #include "oracool/event_log.h"
+#include "oracool/hud_art.h"
 #include "oracool/game_clock.h"
+#include "oracool/hud_layout.h"
+#include "oracool/hud_menu.h"
 #include "oracool/save_indicator.h"
+#include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "oracool/xp_gain_indicator.h"
 #include "panels/charpanel.hpp"
@@ -1263,7 +1268,11 @@ void DrawView(const Surface &out, Point startPosition)
 	DrawGame(out, startPosition, offset);
 	if (AutomapActive) {
 		DrawAutomap(out.subregionY(0, gnViewportHeight));
-	} else if (*sgOptions.Oracool.miniMapEnabled) {
+	} else if (*sgOptions.Oracool.miniMapEnabled
+#ifdef _DEBUG
+	    && !DebugClearUi
+#endif
+	) {
 		// Oracool: independent of AutomapActive/TAB - always on whenever this option is set and
 		// the full map isn't open, not a toggled state. DrawMiniMap sets MiniMapActive itself for
 		// the brief duration of this call, purely so DrawAutomapPlr (shared by both draw paths)
@@ -1279,8 +1288,11 @@ void DrawView(const Surface &out, Point startPosition)
 	// the mini-map (which AutomapActive already suppresses above) and would otherwise float over
 	// the full map. No saved/restored state needed - they simply resume drawing the next frame
 	// AutomapActive goes false again, same as the mini-map itself.
-	if (!AutomapActive) {
-		oracool::DrawEventLogButton(out);
+	if (!AutomapActive
+#ifdef _DEBUG
+	    && !DebugClearUi
+#endif
+	) {
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawXpGainIndicator(out);
@@ -1346,11 +1358,17 @@ void DrawView(const Surface &out, Point startPosition)
 		}
 	}
 #endif
-	DrawItemNameLabels(out);
-	DrawMonsterHealthBar(out);
-	DrawFloatingNumbers(out, startPosition, offset);
+#ifdef _DEBUG
+	if (!DebugClearUi)
+#endif
+	{
+		DrawItemNameLabels(out);
+		DrawMonsterHealthBar(out);
+		DrawFloatingNumbers(out, startPosition, offset);
+	}
 	// Oracool: drawn after the whole scene above so the outline lands on top of any wall that
-	// would otherwise hide the monster's body; always called to drain the queue every frame.
+	// would otherwise hide the monster's body; always called to drain the queue every frame -
+	// deliberately NOT gated by DebugClearUi, unlike the other overlays above.
 	DrawMonsterWallOutlines(out);
 
 	if (stextflag != TalkID::None && !qtextflag)
@@ -1361,7 +1379,10 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawSpellBook(out);
 	}
 
-	DrawDurIcon(out);
+#ifdef _DEBUG
+	if (!DebugClearUi)
+#endif
+		DrawDurIcon(out);
 
 	if (chrflag) {
 		DrawChr(out);
@@ -1369,6 +1390,11 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawQuestLog(out);
 	} else if (IsStashOpen) {
 		DrawStash(out);
+	} else if (oracool::IsWaypointMenuOpen()) {
+		oracool::DrawWaypointMenu(out);
+	}
+	if (oracool::IsHudMenuOpen()) {
+		oracool::DrawHudMenu(out);
 	}
 	DrawLevelUpIcon(out);
 	if (qtextflag) {
@@ -1408,11 +1434,13 @@ void DrawView(const Surface &out, Point startPosition)
 	DrawPlrMsg(out);
 	gmenu_draw(out);
 	doom_draw(out);
-	DrawInfoBox(out);
+	UpdateInfoString();
 	DrawRefreshUntilHoverTooltip(out);
-	control_update_life_mana(); // Update life/mana totals before rendering any portion of the flask.
-	DrawLifeFlaskUpper(out);
-	DrawManaFlaskUpper(out);
+	control_update_life_mana(); // Update life/mana totals before rendering the orbs.
+	// Oracool: HUD art pass - the corner orb compositions (with their sphere drain effect) replace
+	// the vanilla flask pair entirely.
+	oracool::DrawHealthOrb(out);
+	oracool::DrawManaOrb(out);
 }
 
 /**
@@ -1475,9 +1503,8 @@ void DoBlitScreen(int x, int y, int w, int h)
  * @param drawHp Render health bar
  * @param drawMana Render mana bar
  * @param drawSbar Render belt
- * @param drawBtn Render panel buttons
  */
-void DrawMain(const Surface &out, int dwHgt, bool drawDesc, bool drawHp, bool drawMana, bool drawSbar, bool drawBtn)
+void DrawMain(const Surface &out, int dwHgt, bool drawDesc, bool drawHp, bool drawMana, bool drawSbar)
 {
 	if (!gbActive || RenderDirectlyToOutputSurface) {
 		return;
@@ -1491,31 +1518,33 @@ void DrawMain(const Surface &out, int dwHgt, bool drawDesc, bool drawHp, bool dr
 	if (dwHgt < gnScreenHeight) {
 		const Point mainPanelPosition = GetMainPanel().position;
 		if (drawSbar) {
-			DoBlitScreen(mainPanelPosition.x + 204, mainPanelPosition.y + 5, 232, 28);
+			// Oracool: HUD art pass - the plate rect covers the whole middle HUD including its XP
+			// groove (single source of truth in hud_layout.cpp).
+			const Rectangle middleHud = oracool::GetMiddleHudRect();
+			DoBlitScreen(middleHud.position.x, middleHud.position.y, middleHud.size.width, middleHud.size.height);
 		}
 		if (drawDesc) {
 			if (talkflag) {
 				// When chat input is displayed, the belt is hidden and the chat moves up.
 				DoBlitScreen(mainPanelPosition.x + 171, mainPanelPosition.y + 6, 298, 116);
 			} else {
-				DoBlitScreen(mainPanelPosition.x + InfoBoxTopLeft.deltaX, mainPanelPosition.y + InfoBoxTopLeft.deltaY,
-				    InfoBoxSize.width, InfoBoxSize.height);
+				// Oracool: HUD overhaul - the info box is now a cursor-following tooltip (see
+				// oracool/cursor_tooltip.h) instead of a fixed panel-relative box, so the area that
+				// needs erasing each frame is wherever it was last drawn, tracked the same way
+				// PrevCursorRect tracks the cursor sprite just below.
+				const Rectangle prevTooltipRect = oracool::GetPrevCursorTooltipRect();
+				if (prevTooltipRect.size.width != 0 && prevTooltipRect.size.height != 0) {
+					DoBlitScreen(prevTooltipRect.position.x, prevTooltipRect.position.y, prevTooltipRect.size.width, prevTooltipRect.size.height);
+				}
 			}
 		}
 		if (drawMana) {
-			DoBlitScreen(mainPanelPosition.x + 460, mainPanelPosition.y, 88, 72);
-			DoBlitScreen(mainPanelPosition.x + 564, mainPanelPosition.y + 64, 56, 56);
+			const Rectangle orbRect = oracool::GetManaOrbRect();
+			DoBlitScreen(orbRect.position.x, orbRect.position.y, orbRect.size.width, orbRect.size.height);
 		}
 		if (drawHp) {
-			DoBlitScreen(mainPanelPosition.x + 96, mainPanelPosition.y, 88, 72);
-		}
-		if (drawBtn) {
-			DoBlitScreen(mainPanelPosition.x + 8, mainPanelPosition.y + 7, 74, 114);
-			DoBlitScreen(mainPanelPosition.x + 559, mainPanelPosition.y + 7, 74, 48);
-			if (gbIsMultiplayer) {
-				DoBlitScreen(mainPanelPosition.x + 86, mainPanelPosition.y + 91, 34, 32);
-				DoBlitScreen(mainPanelPosition.x + 526, mainPanelPosition.y + 91, 34, 32);
-			}
+			const Rectangle orbRect = oracool::GetHealthOrbRect();
+			DoBlitScreen(orbRect.position.x, orbRect.position.y, orbRect.size.width, orbRect.size.height);
 		}
 		if (PrevCursorRect.size.width != 0 && PrevCursorRect.size.height != 0) {
 			DoBlitScreen(PrevCursorRect.position.x, PrevCursorRect.position.y, PrevCursorRect.size.width, PrevCursorRect.size.height);
@@ -1779,8 +1808,11 @@ void scrollrt_draw_game_screen()
 
 	const Surface &out = GlobalBackBuffer();
 	UndrawCursor(out);
-	DrawMain(out, hgt, false, false, false, false, false);
-	DrawCursor(out);
+	DrawMain(out, hgt, false, false, false, false);
+#ifdef _DEBUG
+	if (!DebugClearUi)
+#endif
+		DrawCursor(out);
 
 	RenderPresent();
 }
@@ -1794,25 +1826,20 @@ void DrawAndBlit()
 	int hgt = 0;
 	bool drawHealth = IsRedrawComponent(PanelDrawComponent::Health);
 	bool drawMana = IsRedrawComponent(PanelDrawComponent::Mana);
-	bool drawControlButtons = IsRedrawComponent(PanelDrawComponent::ControlButtons);
 	bool drawBelt = IsRedrawComponent(PanelDrawComponent::Belt);
 	bool drawChatInput = talkflag;
 	bool drawInfoBox = false;
-	bool drawCtrlPan = false;
 
 	const Rectangle &mainPanel = GetMainPanel();
 
 	if (gnScreenWidth > mainPanel.size.width || IsRedrawEverything()) {
 		drawHealth = true;
 		drawMana = true;
-		drawControlButtons = true;
 		drawBelt = true;
 		drawInfoBox = false;
-		drawCtrlPan = true;
 		hgt = gnScreenHeight;
 	} else if (IsRedrawViewport()) {
 		drawInfoBox = true;
-		drawCtrlPan = false;
 		hgt = gnViewportHeight;
 	}
 
@@ -1822,37 +1849,58 @@ void DrawAndBlit()
 	nthread_UpdateProgressToNextGameTick();
 
 	DrawView(out, ViewPosition);
-	if (drawCtrlPan) {
-		DrawCtrlPan(out);
+	// Oracool: user request - "hideui" debug command. Skips every always-on HUD element (main
+	// panel, orbs, spell icon, control buttons, belt, chat input, XP bar, flask value text) for a
+	// clean screenshot; the dungeon view above and the cursor below are unaffected. Debug-build
+	// only, like the rest of debug.cpp/debug.h (the whole file is wrapped in #ifdef _DEBUG) - the
+	// Release branch below is simply the original, always-on drawing code, unchanged. "clearui"
+	// (DebugClearUi) also hides this panel, on top of everything else it hides.
+#ifdef _DEBUG
+	if (!DebugHideUi && !DebugClearUi)
+#endif
+	{
+		// Oracool: HUD art pass - the middle HUD plate (assets/ui/middle_hud.png) is the background
+		// everything else on the row draws onto, so it goes first: before the RMB spell icon
+		// (drawMana branch) and the belt items. Hidden while chat input covers the same area,
+		// matching DrawInvBelt's own talkflag gate. The corner orbs draw in DrawView's always-on
+		// tail (see DrawHealthOrb/DrawManaOrb there); only their value text renders here.
+		if (drawBelt && !talkflag) {
+			oracool::DrawMiddleHudArt(out);
+		}
+		if (drawMana) {
+			DrawSpell(out);
+		}
+		if (drawBelt) {
+			DrawInvBelt(out);
+			// Oracool: click feedback for the Menu/Portal cells, whose frames and icons are baked
+			// into the plate art and so have no state of their own to react with.
+			oracool::DrawBeltButtonFeedback(out);
+		}
+		if (drawChatInput) {
+			DrawTalkPan(out);
+		}
+		DrawXPBar(out);
+		if (*sgOptions.Gameplay.showHealthValues) {
+			const Rectangle orbRect = oracool::GetHealthOrbRect();
+			DrawFlaskValues(out, orbRect.position + Displacement { oracool::GetHealthOrbSphereCenterLocal().x, oracool::GetHealthOrbSphereCenterLocal().y }, MyPlayer->_pHitPoints >> 6, MyPlayer->_pMaxHP >> 6);
+		}
+		if (*sgOptions.Gameplay.showManaValues) {
+			const Rectangle orbRect = oracool::GetManaOrbRect();
+			DrawFlaskValues(out, orbRect.position + Displacement { oracool::GetManaOrbSphereCenterLocal().x, oracool::GetManaOrbSphereCenterLocal().y }, MyPlayer->_pMana >> 6, MyPlayer->_pMaxMana >> 6);
+		}
 	}
-	if (drawHealth) {
-		DrawLifeFlaskLower(out);
-	}
-	if (drawMana) {
-		DrawManaFlaskLower(out);
 
-		DrawSpell(out);
+#ifdef _DEBUG
+	if (!DebugClearUi) {
+#endif
+		oracool::DrawCursorTooltip(out);
+		DrawCursor(out);
+		DrawFPS(out);
+#ifdef _DEBUG
 	}
-	if (drawControlButtons) {
-		DrawCtrlBtns(out);
-	}
-	if (drawBelt) {
-		DrawInvBelt(out);
-	}
-	if (drawChatInput) {
-		DrawTalkPan(out);
-	}
-	DrawXPBar(out);
-	if (*sgOptions.Gameplay.showHealthValues)
-		DrawFlaskValues(out, { mainPanel.position.x + 134, mainPanel.position.y + 28 }, MyPlayer->_pHitPoints >> 6, MyPlayer->_pMaxHP >> 6);
-	if (*sgOptions.Gameplay.showManaValues)
-		DrawFlaskValues(out, { mainPanel.position.x + mainPanel.size.width - 138, mainPanel.position.y + 28 }, MyPlayer->_pMana >> 6, MyPlayer->_pMaxMana >> 6);
+#endif
 
-	DrawCursor(out);
-
-	DrawFPS(out);
-
-	DrawMain(out, hgt, drawInfoBox, drawHealth, drawMana, drawBelt, drawControlButtons);
+	DrawMain(out, hgt, drawInfoBox, drawHealth, drawMana, drawBelt);
 
 	RedrawComplete();
 	for (PanelDrawComponent component : enum_values<PanelDrawComponent>()) {

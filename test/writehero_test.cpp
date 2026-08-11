@@ -394,10 +394,15 @@ TEST(Writehero, pfile_write_hero)
 
 	std::vector<unsigned char> s(picosha2::k_digest_size);
 	picosha2::hash256(data.get(), data.get() + size, s.begin(), s.end());
-	// Oracool: hash changed because the "hero" save blob's pExperience field widened from
-	// uint32_t to uint64_t (level-99 curve exceeds UINT32_MAX).
+	// Oracool: this golden hash has been re-baselined twice, both times for a deliberate,
+	// documented change to the on-disk "hero" blob:
+	//   1. pExperience widened from uint32_t to uint64_t (the level-99 curve exceeds UINT32_MAX).
+	//   2. V1's inventory grew from 10x4 to 10x7, so PlayerPack's InvList and InvGrid grew with
+	//      InventoryGridCells (40 -> 70). See oracool/inventory_layout.h.
+	// Re-baseline only for a change you intended to make to the save format - if this fires
+	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "9ae87a3941b15eb2383d293da389893598e05f7d1e10c18cf1269b3793ca0db6");
+	    "17fd4d9a2ebdea44ecc61b6b7377760c812769c247fe955015b80034f7d0ede1");
 }
 
 } // namespace

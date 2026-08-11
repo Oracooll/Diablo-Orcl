@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file control.cpp
  *
  * Implementation of the character and main control panels
@@ -37,6 +37,12 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/furious_charge.h"
+#include "oracool/hud_art.h"
+#include "oracool/hud_layout.h"
+#include "oracool/hud_menu.h"
+#include "oracool/inventory_layout.h"
+#include "oracool/waypoint_menu.h"
+#include "oracool/xp_counter.h"
 #include "panels/charpanel.hpp"
 #include "panels/mainpanel.hpp"
 #include "panels/spell_book.hpp"
@@ -82,7 +88,6 @@ bool sbookflag;
 bool chrflag;
 StringOrView InfoString;
 bool panelflag;
-bool panbtndown;
 bool spselflag;
 Rectangle MainPanel;
 Rectangle LeftPanel;
@@ -104,11 +109,18 @@ const Rectangle &GetRightPanel()
 }
 bool IsLeftPanelOpen()
 {
-	return chrflag || QuestLogIsOpen || IsStashOpen;
+	return chrflag || QuestLogIsOpen || IsStashOpen || oracool::IsWaypointMenuOpen();
 }
 bool IsRightPanelOpen()
 {
 	return invflag || sbookflag;
+}
+bool IsOverRightPanel(Point position)
+{
+	// The inventory and the spellbook no longer share a rect - see the header.
+	if (invflag && oracool::GetInventoryPanelRect().contains(position))
+		return true;
+	return sbookflag && RightPanel.contains(position);
 }
 
 constexpr Size IncrementAttributeButtonSize { 41, 22 };
@@ -120,31 +132,11 @@ Rectangle ChrBtnsRect[4] = {
 	{ { 137, 223 }, IncrementAttributeButtonSize }
 };
 
-/** Positions of panel buttons. */
-SDL_Rect PanBtnPos[8] = {
-	// clang-format off
-	{   9,   9, 71, 19 }, // char button
-	{   9,  35, 71, 19 }, // quests button
-	{   9,  75, 71, 19 }, // map button
-	{   9, 101, 71, 19 }, // menu button
-	{ 560,   9, 71, 19 }, // inv button
-	{ 560,  35, 71, 19 }, // spells button
-	{  87,  91, 33, 32 }, // chat button
-	{ 527,  91, 33, 32 }, // friendly fire button
-	// clang-format on
-};
-
 namespace {
 
-std::optional<OwnedSurface> pLifeBuff;
-std::optional<OwnedSurface> pManaBuff;
 OptionalOwnedClxSpriteList talkButtons;
 OptionalOwnedClxSpriteList pDurIcons;
-OptionalOwnedClxSpriteList multiButtons;
-OptionalOwnedClxSpriteList pPanelButtons;
 
-bool PanelButtons[8];
-int PanelButtonIndex;
 char TalkSave[8][MAX_SEND_STR_LEN];
 uint8_t TalkSaveIndex;
 uint8_t NextTalkSave;
@@ -155,131 +147,6 @@ bool WhisperList[MAX_PLRS];
 
 TextInputCursorState ChatCursor;
 std::optional<TextInputState> ChatInputState;
-
-enum panel_button_id : uint8_t {
-	PanelButtonCharinfo,
-	PanelButtonQlog,
-	PanelButtonAutomap,
-	PanelButtonMainmenu,
-	PanelButtonInventory,
-	PanelButtonSpellbook,
-	PanelButtonSendmsg,
-	PanelButtonFriendly,
-};
-
-/** Maps from panel_button_id to hotkey name. */
-const char *const PanBtnHotKey[8] = { "'c'", "'q'", N_("Tab"), N_("Esc"), "'i'", "'b'", N_("Enter"), nullptr };
-/** Maps from panel_button_id to panel button description. */
-const char *const PanBtnStr[8] = {
-	N_("Character Information"),
-	N_("Quests log"),
-	N_("Automap"),
-	N_("Main Menu"),
-	N_("Inventory"),
-	N_("Spell book"),
-	N_("Send Message"),
-	"" // Player attack
-};
-
-/**
- * Draws a section of the empty flask cel on top of the panel to create the illusion
- * of the flask getting empty. This function takes a cel and draws a
- * horizontal stripe of height (max-min) onto the given buffer.
- * @param out Target buffer.
- * @param position Buffer coordinate.
- * @param celBuf Buffer of the empty flask cel.
- * @param y0 Top of the flask cel section to draw.
- * @param y1 Bottom of the flask cel section to draw.
- */
-void DrawFlaskTop(const Surface &out, Point position, const Surface &celBuf, int y0, int y1)
-{
-	out.BlitFrom(celBuf, MakeSdlRect(0, static_cast<decltype(SDL_Rect {}.y)>(y0), celBuf.w(), y1 - y0), position);
-}
-
-/**
- * Draws the dome of the flask that protrudes above the panel top line.
- * It draws a rectangle of fixed width 59 and height 'h' from the source buffer
- * into the target buffer.
- * @param out The target buffer.
- * @param celBuf Buffer of the empty flask cel.
- * @param sourcePosition Source buffer start coordinate.
- * @param targetPosition Target buffer coordinate.
- * @param h How many lines of the source buffer that will be copied.
- */
-void DrawFlask(const Surface &out, const Surface &celBuf, Point sourcePosition, Point targetPosition, int h)
-{
-	constexpr int FlaskWidth = 59;
-	out.BlitFromSkipColorIndexZero(celBuf, MakeSdlRect(sourcePosition.x, sourcePosition.y, FlaskWidth, h), targetPosition);
-}
-
-/**
- * @brief Draws the part of the life/mana flasks protruding above the bottom panel
- * @see DrawFlaskLower()
- * @param out The display region to draw to
- * @param sourceBuffer A sprite representing the appropriate background/empty flask style
- * @param offset X coordinate offset for where the flask should be drawn
- * @param fillPer How full the flask is (a value from 0 to 80)
- */
-void DrawFlaskUpper(const Surface &out, const Surface &sourceBuffer, int offset, int fillPer)
-{
-	// clamping because this function only draws the top 12% of the flask display
-	int emptyPortion = clamp(80 - fillPer, 0, 11) + 2; // +2 to account for the frame being included in the sprite
-
-	// Draw the empty part of the flask
-	DrawFlask(out, sourceBuffer, { 13, 3 }, GetMainPanel().position + Displacement { offset, -13 }, emptyPortion);
-	if (emptyPortion < 13)
-		// Draw the filled part of the flask
-		DrawFlask(out, *pBtmBuff, { offset, emptyPortion + 3 }, GetMainPanel().position + Displacement { offset, -13 + emptyPortion }, 13 - emptyPortion);
-}
-
-/**
- * @brief Draws the part of the life/mana flasks inside the bottom panel
- * @see DrawFlaskUpper()
- * @param out The display region to draw to
- * @param sourceBuffer A sprite representing the appropriate background/empty flask style
- * @param offset X coordinate offset for where the flask should be drawn
- * @param fillPer How full the flask is (a value from 0 to 80)
- */
-void DrawFlaskLower(const Surface &out, const Surface &sourceBuffer, int offset, int fillPer)
-{
-	int filled = clamp(fillPer, 0, 69);
-
-	if (filled < 69)
-		DrawFlaskTop(out, GetMainPanel().position + Displacement { offset, 0 }, sourceBuffer, 16, 85 - filled);
-
-	// It appears that the panel defaults to having a filled flask and DrawFlaskTop only overlays the appropriate amount of empty space.
-	// This draw might not be necessary?
-	if (filled > 0)
-		DrawPanelBox(out, MakeSdlRect(offset, 85 - filled, 88, filled), GetMainPanel().position + Displacement { offset, 69 - filled });
-}
-
-void SetButtonStateDown(int btnId)
-{
-	PanelButtons[btnId] = true;
-	RedrawComponent(PanelDrawComponent::ControlButtons);
-	panbtndown = true;
-}
-
-void PrintInfo(const Surface &out)
-{
-	if (talkflag)
-		return;
-
-	const int space[] = { 18, 12, 6, 3, 0 };
-	Rectangle infoArea { GetMainPanel().position + InfoBoxTopLeft, InfoBoxSize };
-
-	const int newLineCount = std::count(InfoString.str().begin(), InfoString.str().end(), '\n');
-	const int spaceIndex = std::min(4, newLineCount);
-	const int spacing = space[spaceIndex];
-	const int lineHeight = 12 + spacing;
-
-	// Adjusting the line height to add spacing between lines
-	// will also add additional space beneath the last line
-	// which throws off the vertical centering
-	infoArea.position.y += spacing / 2;
-
-	DrawString(out, InfoString, infoArea, { InfoColor | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::KerningFitSpacing, 2, lineHeight });
-}
 
 int CapStatPointsToAdd(int remainingStatPoints, const Player &player, CharacterAttribute attribute)
 {
@@ -818,8 +685,11 @@ Point GetPanelPosition(UiPanels panel, Point offset)
 	case UiPanels::Character:
 	case UiPanels::Stash:
 		return GetLeftPanel().position + displacement;
-	case UiPanels::Spell:
 	case UiPanels::Inventory:
+		// Oracool V1: the inventory has its own 320x660 top-right rect and no longer shares
+		// RightPanel with the spellbook - see oracool/inventory_layout.h.
+		return oracool::GetInventoryPanelRect().position + displacement;
+	case UiPanels::Spell:
 		return GetRightPanel().position + displacement;
 	default:
 		return GetMainPanel().position + displacement;
@@ -829,30 +699,6 @@ Point GetPanelPosition(UiPanels panel, Point offset)
 void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition)
 {
 	out.BlitFrom(*pBtmBuff, srcRect, targetPosition);
-}
-
-void DrawLifeFlaskUpper(const Surface &out)
-{
-	constexpr int LifeFlaskUpperOffset = 109;
-	DrawFlaskUpper(out, *pLifeBuff, LifeFlaskUpperOffset, MyPlayer->_pHPPer);
-}
-
-void DrawManaFlaskUpper(const Surface &out)
-{
-	constexpr int ManaFlaskUpperOffset = 475;
-	DrawFlaskUpper(out, *pManaBuff, ManaFlaskUpperOffset, MyPlayer->_pManaPer);
-}
-
-void DrawLifeFlaskLower(const Surface &out)
-{
-	constexpr int LifeFlaskLowerOffset = 96;
-	DrawFlaskLower(out, *pLifeBuff, LifeFlaskLowerOffset, MyPlayer->_pHPPer);
-}
-
-void DrawManaFlaskLower(const Surface &out)
-{
-	constexpr int ManaFlaskLowerOffeset = 464;
-	DrawFlaskLower(out, *pManaBuff, ManaFlaskLowerOffeset, MyPlayer->_pManaPer);
 }
 
 void DrawFlaskValues(const Surface &out, Point pos, int currValue, int maxValue)
@@ -879,21 +725,16 @@ void control_update_life_mana()
 void InitControlPan()
 {
 	if (!HeadlessMode) {
+		// Oracool: HUD art pass - pBtmBuff (the vanilla panel8 image) survives only as the chat
+		// panel's backdrop (DrawTalkPan/DrawPanelBox); the flasks it used to feed are gone,
+		// replaced by the corner orb compositions (oracool/hud_art.cpp).
 		pBtmBuff.emplace(GetMainPanel().size.width, (GetMainPanel().size.height + 16) * (IsChatAvailable() ? 2 : 1));
-		pManaBuff.emplace(88, 88);
-		pLifeBuff.emplace(88, 88);
 
 		LoadCharPanel();
 		LoadLargeSpellIcons();
 		{
 			const OwnedClxSpriteList sprite = LoadCel("ctrlpan\\panel8", GetMainPanel().size.width);
 			ClxDraw(*pBtmBuff, { 0, (GetMainPanel().size.height + 16) - 1 }, sprite[0]);
-		}
-		{
-			const Point bulbsPosition { 0, 87 };
-			const OwnedClxSpriteList statusPanel = LoadCel("ctrlpan\\p8bulbs", 88);
-			ClxDraw(*pLifeBuff, bulbsPosition, statusPanel[0]);
-			ClxDraw(*pManaBuff, bulbsPosition, statusPanel[1]);
 		}
 	}
 	talkflag = false;
@@ -904,7 +745,6 @@ void InitControlPan()
 				const OwnedClxSpriteList sprite = LoadCel("ctrlpan\\talkpanl", GetMainPanel().size.width);
 				ClxDraw(*pBtmBuff, { 0, (GetMainPanel().size.height + 16) * 2 - 1 }, sprite[0]);
 			}
-			multiButtons = LoadCel("ctrlpan\\p8but2", 33);
 			talkButtons = LoadCel("ctrlpan\\talkbutt", 61);
 		}
 		sgbPlrTalkTbl = 0;
@@ -918,16 +758,10 @@ void InitControlPan()
 	lvlbtndown = false;
 	if (!HeadlessMode) {
 		LoadMainPanel();
-		pPanelButtons = LoadCel("ctrlpan\\panel8bu", 71);
 
 		static const uint16_t CharButtonsFrameWidths[9] { 95, 41, 41, 41, 41, 41, 41, 41, 41 };
 		pChrButtons = LoadCel("data\\charbut", CharButtonsFrameWidths);
 	}
-	ClearPanBtn();
-	if (!IsChatAvailable())
-		PanelButtonIndex = 6;
-	else
-		PanelButtonIndex = 8;
 	if (!HeadlessMode)
 		pDurIcons = LoadCel("items\\duricons", 32);
 	for (bool &buttonEnabled : chrbtn)
@@ -953,58 +787,15 @@ void InitControlPan()
 		InitModifierHints();
 }
 
-void DrawCtrlPan(const Surface &out)
-{
-	DrawPanelBox(out, MakeSdlRect(0, sgbPlrTalkTbl + 16, GetMainPanel().size.width, GetMainPanel().size.height), GetMainPanel().position);
-	DrawInfoBox(out);
-}
-
-void DrawCtrlBtns(const Surface &out)
-{
-	const Point mainPanelPosition = GetMainPanel().position;
-	for (int i = 0; i < 6; i++) {
-		if (!PanelButtons[i]) {
-			DrawPanelBox(out, MakeSdlRect(PanBtnPos[i].x, PanBtnPos[i].y + 16, 71, 20), mainPanelPosition + Displacement { PanBtnPos[i].x, PanBtnPos[i].y });
-		} else {
-			Point position = mainPanelPosition + Displacement { PanBtnPos[i].x, PanBtnPos[i].y + 18 };
-			ClxDraw(out, position, (*pPanelButtons)[i]);
-			RenderClxSprite(out, (*PanelButtonDown)[i], position + Displacement { 4, -18 });
-		}
-	}
-
-	if (PanelButtonIndex == 8) {
-		ClxDraw(out, mainPanelPosition + Displacement { 87, 122 }, (*multiButtons)[PanelButtons[6] ? 1 : 0]);
-		if (MyPlayer->friendlyMode)
-			ClxDraw(out, mainPanelPosition + Displacement { 527, 122 }, (*multiButtons)[PanelButtons[7] ? 3 : 2]);
-		else
-			ClxDraw(out, mainPanelPosition + Displacement { 527, 122 }, (*multiButtons)[PanelButtons[7] ? 5 : 4]);
-	}
-}
-
-void ClearPanBtn()
-{
-	for (bool &panelButton : PanelButtons)
-		panelButton = false;
-	RedrawComponent(PanelDrawComponent::ControlButtons);
-	panbtndown = false;
-}
-
+// Oracool: HUD overhaul - the old panel background blit (DrawCtrlPan), the 8 panel buttons
+// (DrawCtrlBtns/ClearPanBtn/CheckBtnUp/control_check_btn_press and their PanelButtons/PanBtnPos
+// state), and the fixed info box are all gone. Their actions live on in the belt's Menu popup
+// (oracool/hud_menu.cpp) and the cursor tooltip (oracool/cursor_tooltip.cpp). DoPanBtn below kept
+// its name but now only handles the one click target left on the main panel that isn't the belt:
+// the RMB skill button (readied-spell/speedbook slot).
 void DoPanBtn()
 {
-	const Point mainPanelPosition = GetMainPanel().position;
-
-	for (int i = 0; i < PanelButtonIndex; i++) {
-		int x = PanBtnPos[i].x + mainPanelPosition.x + PanBtnPos[i].w;
-		int y = PanBtnPos[i].y + mainPanelPosition.y + PanBtnPos[i].h;
-		if (MousePosition.x >= PanBtnPos[i].x + mainPanelPosition.x && MousePosition.x <= x) {
-			if (MousePosition.y >= PanBtnPos[i].y + mainPanelPosition.y && MousePosition.y <= y) {
-				PanelButtons[i] = true;
-				RedrawComponent(PanelDrawComponent::ControlButtons);
-				panbtndown = true;
-			}
-		}
-	}
-	if (!spselflag && MousePosition.x >= 565 + mainPanelPosition.x && MousePosition.x < 621 + mainPanelPosition.x && MousePosition.y >= 64 + mainPanelPosition.y && MousePosition.y < 120 + mainPanelPosition.y) {
+	if (!spselflag && oracool::GetRmbSkillButtonRect().contains(MousePosition)) {
 		if ((SDL_GetModState() & KMOD_SHIFT) != 0) {
 			Player &myPlayer = *MyPlayer;
 			myPlayer._pRSpell = SpellID::Invalid;
@@ -1014,27 +805,6 @@ void DoPanBtn()
 		}
 		DoSpeedBook();
 		gamemenu_off();
-	}
-}
-
-void control_check_btn_press()
-{
-	const Point mainPanelPosition = GetMainPanel().position;
-	int x = PanBtnPos[3].x + mainPanelPosition.x + PanBtnPos[3].w;
-	int y = PanBtnPos[3].y + mainPanelPosition.y + PanBtnPos[3].h;
-	if (MousePosition.x >= PanBtnPos[3].x + mainPanelPosition.x
-	    && MousePosition.x <= x
-	    && MousePosition.y >= PanBtnPos[3].y + mainPanelPosition.y
-	    && MousePosition.y <= y) {
-		SetButtonStateDown(3);
-	}
-	x = PanBtnPos[6].x + mainPanelPosition.x + PanBtnPos[6].w;
-	y = PanBtnPos[6].y + mainPanelPosition.y + PanBtnPos[6].h;
-	if (MousePosition.x >= PanBtnPos[6].x + mainPanelPosition.x
-	    && MousePosition.x <= x
-	    && MousePosition.y >= PanBtnPos[6].y + mainPanelPosition.y
-	    && MousePosition.y <= y) {
-		SetButtonStateDown(6);
 	}
 }
 
@@ -1054,27 +824,43 @@ void CheckPanelInfo()
 {
 	panelflag = false;
 	InfoString = StringOrView {};
-	const Point mainPanelPosition = GetMainPanel().position;
-	for (int i = 0; i < PanelButtonIndex; i++) {
-		int xend = PanBtnPos[i].x + mainPanelPosition.x + PanBtnPos[i].w;
-		int yend = PanBtnPos[i].y + mainPanelPosition.y + PanBtnPos[i].h;
-		if (MousePosition.x >= PanBtnPos[i].x + mainPanelPosition.x && MousePosition.x <= xend && MousePosition.y >= PanBtnPos[i].y + mainPanelPosition.y && MousePosition.y <= yend) {
-			if (i != 7) {
-				InfoString = _(PanBtnStr[i]);
-			} else {
-				if (MyPlayer->friendlyMode)
-					InfoString = _("Player friendly");
-				else
-					InfoString = _("Player attack");
-			}
-			if (PanBtnHotKey[i] != nullptr) {
-				AddPanelString(fmt::format(fmt::runtime(_("Hotkey: {:s}")), _(PanBtnHotKey[i])));
-			}
-			InfoColor = UiFlags::ColorWhite;
-			panelflag = true;
-		}
+
+	// Oracool: the burger menu's icon row names whichever icon is hovered - the icons are
+	// wordless, so this is the only thing telling the player what each one does.
+	const int hoveredMenuIcon = oracool::HitTestHudMenuIcon(MousePosition);
+	if (hoveredMenuIcon >= 0) {
+		InfoString = oracool::GetHudMenuEntryLabel(hoveredMenuIcon);
+		InfoColor = UiFlags::ColorWhite;
+		panelflag = true;
+		return;
 	}
-	if (!spselflag && MousePosition.x >= 565 + mainPanelPosition.x && MousePosition.x < 621 + mainPanelPosition.x && MousePosition.y >= 64 + mainPanelPosition.y && MousePosition.y < 120 + mainPanelPosition.y) {
+
+	// Oracool: user request (2026-08-11) - hover hints for the HUD's own controls. These three
+	// carry no affordance of their own: the Menu and Portal cells are painted into the plate art,
+	// and the XP counter is bare text, so nothing about them says "clickable" without this.
+	if (oracool::GetBeltSlotRect(oracool::BeltMenuSlotIndex).contains(MousePosition)) {
+		InfoString = _("Menu Bar");
+		AddPanelString(_("Click to open/close"));
+		InfoColor = UiFlags::ColorWhite;
+		panelflag = true;
+		return;
+	}
+	if (oracool::GetBeltSlotRect(oracool::BeltTownPortalSlotIndex).contains(MousePosition)) {
+		InfoString = _("Town Portal");
+		AddPanelString(_("Click to open."));
+		InfoColor = UiFlags::ColorWhite;
+		panelflag = true;
+		return;
+	}
+	if (oracool::IsPointOverXpCounter(MousePosition)) {
+		InfoString = _("Experience Meter");
+		AddPanelString(_("Click for more."));
+		InfoColor = UiFlags::ColorWhite;
+		panelflag = true;
+		return;
+	}
+
+	if (!spselflag && oracool::GetRmbSkillButtonRect().contains(MousePosition)) {
 		InfoString = _("Select current spell button");
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;
@@ -1108,7 +894,7 @@ void CheckPanelInfo()
 			}
 		}
 	}
-	if (MousePosition.x > 190 + mainPanelPosition.x && MousePosition.x < 437 + mainPanelPosition.x && MousePosition.y > 4 + mainPanelPosition.y && MousePosition.y < 33 + mainPanelPosition.y)
+	if (oracool::GetMiddleHudRect().contains(MousePosition))
 		pcursinvitem = CheckInvHLight();
 
 	if (CheckXPBarInfo()) {
@@ -1116,91 +902,11 @@ void CheckPanelInfo()
 	}
 }
 
-void CheckBtnUp()
-{
-	bool gamemenuOff = true;
-	const Point mainPanelPosition = GetMainPanel().position;
-
-	RedrawComponent(PanelDrawComponent::ControlButtons);
-	panbtndown = false;
-
-	for (int i = 0; i < 8; i++) {
-		if (!PanelButtons[i]) {
-			continue;
-		}
-
-		PanelButtons[i] = false;
-
-		if (MousePosition.x < PanBtnPos[i].x + mainPanelPosition.x
-		    || MousePosition.x > PanBtnPos[i].x + mainPanelPosition.x + PanBtnPos[i].w
-		    || MousePosition.y < PanBtnPos[i].y + mainPanelPosition.y
-		    || MousePosition.y > PanBtnPos[i].y + mainPanelPosition.y + PanBtnPos[i].h) {
-			continue;
-		}
-
-		switch (i) {
-		case PanelButtonCharinfo:
-			ToggleCharPanel();
-			break;
-		case PanelButtonQlog:
-			CloseCharPanel();
-			CloseGoldWithdraw();
-			CloseStash();
-			if (!QuestLogIsOpen)
-				StartQuestlog();
-			else
-				QuestLogIsOpen = false;
-			break;
-		case PanelButtonAutomap:
-			DoAutoMap();
-			break;
-		case PanelButtonMainmenu:
-			qtextflag = false;
-			gamemenu_handle_previous();
-			gamemenuOff = false;
-			break;
-		case PanelButtonInventory:
-			sbookflag = false;
-			CloseGoldWithdraw();
-			CloseStash();
-			invflag = !invflag;
-			if (DropGoldFlag) {
-				CloseGoldDrop();
-			}
-			break;
-		case PanelButtonSpellbook:
-			CloseInventory();
-			if (DropGoldFlag) {
-				CloseGoldDrop();
-			}
-			sbookflag = !sbookflag;
-			break;
-		case PanelButtonSendmsg:
-			if (talkflag)
-				control_reset_talk();
-			else
-				control_type_message();
-			break;
-		case PanelButtonFriendly:
-			// Toggle friendly Mode
-			NetSendCmd(true, CMD_FRIENDLYMODE);
-			break;
-		}
-	}
-
-	if (gamemenuOff)
-		gamemenu_off();
-}
-
 void FreeControlPan()
 {
 	pBtmBuff = std::nullopt;
-	pManaBuff = std::nullopt;
-	pLifeBuff = std::nullopt;
 	FreeLargeSpellIcons();
 	FreeSpellBook();
-	pPanelButtons = std::nullopt;
-	multiButtons = std::nullopt;
 	talkButtons = std::nullopt;
 	pChrButtons = std::nullopt;
 	pDurIcons = std::nullopt;
@@ -1211,9 +917,8 @@ void FreeControlPan()
 	FreeModifierHints();
 }
 
-void DrawInfoBox(const Surface &out)
+void UpdateInfoString()
 {
-	DrawPanelBox(out, { 177, 62, InfoBoxSize.width, InfoBoxSize.height }, GetMainPanel().position + InfoBoxTopLeft);
 	if (!panelflag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && !ActiveTabItemHovered && !spselflag) {
 		InfoString = {};
 		InfoColor = UiFlags::ColorWhite;
@@ -1259,8 +964,6 @@ void DrawInfoBox(const Surface &out)
 			AddPanelString(fmt::format(fmt::runtime(_("Hit Points {:d} of {:d}")), target._pHitPoints >> 6, target._pMaxHP >> 6));
 		}
 	}
-	if (!InfoString.empty())
-		PrintInfo(out);
 }
 
 void CheckLvlBtn()
@@ -1269,27 +972,48 @@ void CheckLvlBtn()
 		return;
 	}
 
-	const Point mainPanelPosition = GetMainPanel().position;
-	if (!lvlbtndown && MousePosition.x >= 40 + mainPanelPosition.x && MousePosition.x <= 81 + mainPanelPosition.x && MousePosition.y >= -39 + mainPanelPosition.y && MousePosition.y <= -17 + mainPanelPosition.y)
+	// Oracool: the indicator moved to under the clock, so both hit-tests read the one rect that
+	// also drives the drawing - the old hardcoded offsets against the main panel had already drifted
+	// once, which is exactly what a shared rect prevents.
+	if (!lvlbtndown && oracool::GetLevelUpIconRect().contains(MousePosition))
 		lvlbtndown = true;
 }
 
 void ReleaseLvlBtn()
 {
-	const Point mainPanelPosition = GetMainPanel().position;
-	if (MousePosition.x >= 40 + mainPanelPosition.x && MousePosition.x <= 81 + mainPanelPosition.x && MousePosition.y >= -39 + mainPanelPosition.y && MousePosition.y <= -17 + mainPanelPosition.y) {
+	if (oracool::GetLevelUpIconRect().contains(MousePosition)) {
 		OpenCharPanel();
 	}
 	lvlbtndown = false;
 }
 
+/**
+ * Oracool: user request - the level-up indicator moved from beside the old bottom panel to under
+ * the game clock in the top-left, and got its own artwork instead of borrowing frame 1/2 of the
+ * character sheet's "+" button. The label sits beneath the icon in gold.
+ */
 void DrawLevelUpIcon(const Surface &out)
 {
-	if (IsLevelUpButtonVisible()) {
-		int nCel = lvlbtndown ? 2 : 1;
-		DrawString(out, _("Level Up"), { GetMainPanel().position + Displacement { 0, -62 }, { 120, 0 } }, { UiFlags::ColorWhite | UiFlags::AlignCenter });
-		ClxDraw(out, GetMainPanel().position + Displacement { 40, -17 }, (*pChrButtons)[nCel]);
-	}
+	if (!IsLevelUpButtonVisible())
+		return;
+
+	const Rectangle rect = oracool::GetLevelUpIconRect();
+
+	int state = 0;
+	if (lvlbtndown)
+		state = 2;
+	else if (rect.contains(MousePosition))
+		state = 1;
+	oracool::DrawLevelUpIconArt(out, state);
+
+	// Centred on the icon, and given room to overhang it - "Level Up" is wider than 32px.
+	constexpr int LabelOverhang = 24;
+	constexpr int LabelGap = 1;
+	const Rectangle label {
+		{ rect.position.x - LabelOverhang, rect.position.y + rect.size.height + LabelGap },
+		{ rect.size.width + LabelOverhang * 2, 0 }
+	};
+	DrawString(out, _("Level Up"), label, { UiFlags::ColorGold | UiFlags::AlignCenter });
 }
 
 void CheckChrBtns()

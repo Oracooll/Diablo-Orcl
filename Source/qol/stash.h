@@ -73,6 +73,13 @@ extern bool IsWithdrawGoldOpen;
 
 Point GetStashSlotCoord(Point slot);
 void InitStash();
+
+/**
+ * @brief Oracool: user request - opens the Stash panel exactly as Gillian's "Access Storage"
+ * dialog option does. Shared so the physical Stash Chest object in town (objects.cpp) can trigger
+ * the same panel-opening sequence without duplicating it.
+ */
+void OpenStash();
 void FreeStashGFX();
 void TransferItemToInventory(Player &player, uint16_t itemId);
 /**

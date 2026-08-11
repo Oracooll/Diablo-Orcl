@@ -45,6 +45,15 @@ extern std::optional<MpqArchive> hfvoice_mpq;
 extern std::optional<MpqArchive> font_mpq;
 extern std::optional<MpqArchive> lang_mpq;
 extern std::optional<MpqArchive> devilutionx_mpq;
+/**
+ * @brief Oracool Edition's own asset archive.
+ *
+ * Built from Packaging/resources/oracool_assets/ by tools/oracool_mpq_pack, and searched ahead of
+ * every other archive (see FindMpqFile in engine/assets.cpp) so anything Oracool ships overrides
+ * the original game data without modifying diabdat.mpq. Optional: the game runs normally when it
+ * is absent, falling back to whatever the other archives provide.
+ */
+extern std::optional<MpqArchive> oracool_mpq;
 #endif
 
 inline bool HaveSpawn()

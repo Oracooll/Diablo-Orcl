@@ -63,7 +63,11 @@ bool FindMpqFile(const char *filename, MpqArchive **archive, uint32_t *fileNumbe
 		return false;
 	};
 
-	return at(font_mpq) || at(lang_mpq) || at(devilutionx_mpq)
+	// Oracool Edition's own archive is searched first, so anything it ships wins over the original
+	// game data without diabdat.mpq ever being modified. It is optional - when absent, `at` sees an
+	// empty optional and the chain carries on unchanged.
+	return at(oracool_mpq)
+	    || at(font_mpq) || at(lang_mpq) || at(devilutionx_mpq)
 	    || (gbIsHellfire && (at(hfvoice_mpq) || at(hfmusic_mpq) || at(hfbarb_mpq) || at(hfbard_mpq) || at(hfmonk_mpq) || at(hellfire_mpq))) || at(spawn_mpq) || at(diabdat_mpq);
 }
 #endif

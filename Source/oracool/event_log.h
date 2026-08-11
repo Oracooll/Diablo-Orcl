@@ -37,17 +37,10 @@ void ScrollEventLogUp();
 /** @brief Scrolls toward older entries. No-op if already at the oldest visible page. Mouse-wheel-down. */
 void ScrollEventLogDown();
 
-/** @brief Draws the always-visible toggle button. Call once per frame during gameplay. */
-void DrawEventLogButton(const Surface &out);
-
-/** @brief Draws the event log window if currently open. Call once per frame, after DrawEventLogButton. */
+/** @brief Draws the event log window if currently open. Call once per frame during gameplay.
+ * Oracool: the standalone "LOG" button that used to toggle this is gone (2026-08-11) - the log is
+ * opened from the belt's Menu popup now, see oracool/hud_menu.cpp's entry list. */
 void DrawEventLogWindow(const Surface &out);
-
-/**
- * @brief Hit-tests the toggle button against a click position; toggles the window and returns
- * true if the button was hit, false otherwise (caller should let the click fall through).
- */
-bool CheckEventLogButtonClick(Point mousePosition);
 
 /**
  * @brief Records the name of whatever is about to (or might) damage the player, so that if this

@@ -14,11 +14,12 @@ namespace devilution::oracool {
 
 namespace {
 
-// Oracool: matches the LOG button's own height/row (event_log.cpp) so the two sit level with each
-// other, mirrored on opposite sides of the mini-map. Wide enough for the longer 12-hour "12:45 PM"
-// form, not just the default 24-hour "14:45".
+// Wide enough for the longer 12-hour "12:45 PM" form, not just the default 24-hour "14:45".
 constexpr int ClockWidth = 72;
 constexpr int ClockHeight = 20;
+// Oracool: user request (2026-08-11) - moved out from under the mini-map to the screen's top-left
+// corner, where nothing else competes for space.
+constexpr int ClockMargin = 8;
 
 std::string CurrentClockText()
 {
@@ -44,9 +45,7 @@ void DrawGameClock(const Surface &out)
 	if (!*sgOptions.Oracool.gameClock)
 		return;
 
-	const Rectangle miniMap = GetMiniMapScreenRect();
-	const Point position { miniMap.position.x, miniMap.position.y + miniMap.size.height + 1 };
-	const Rectangle rect { position, { ClockWidth, ClockHeight } };
+	const Rectangle rect { Point { ClockMargin, ClockMargin }, Size { ClockWidth, ClockHeight } };
 	DrawString(out, CurrentClockText(), rect, { UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::ColorGold });
 }
 

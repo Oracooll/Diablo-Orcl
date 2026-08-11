@@ -431,16 +431,34 @@ void SaveOptions()
 	    "; =============================================================================\n; DEVILUTIONX ORACOOL EDITION OPTIONS\n; =============================================================================\n; Boolean options use 0 = Disabled and 1 = Enabled. Unless stated otherwise,\n; these gameplay options affect single-player games only. Restart the game after\n; changing settings. Options are grouped and alphabetized within each group.\n; =============================================================================\n\n; ----- AUTOMATIC SAVING -------------------------------------------------------\n; Enables all Oracool automatic-save triggers in single-player.\n; Set to 0 to disable every automatic save described below.");
 	setInteger("Auto Save Interval Minutes", *sgOptions.Oracool.autoSaveIntervalMinutes,
 	    "; Time between periodic saves, in minutes.\n; Available values: 1, 2, 3, 5, 10, 15, 30, and 60.");
-	setInteger("Auto Save Item Delay Seconds", *sgOptions.Oracool.autoSaveItemDelaySeconds,
-	    "; Delay before saving after pickups or purchases. Rapid acquisitions restart\n; this timer and are combined into one save. Values: 0, 1, 2, 3, 5, 10, 15, 30.");
 	setBoolean("Auto Save Notification", *sgOptions.Oracool.autoSaveNotification,
 	    "; Displays the normal brief \"Game Saved\" notification after an automatic save.\n; Saving still occurs silently when this setting is disabled.");
 	setBoolean("Auto Save on Item Pickup", *sgOptions.Oracool.autoSaveOnItemPickup,
-	    "; Schedules a save after successfully picking up a non-gold item.\n; Gold pickup and failed pickup attempts do not trigger a save.");
+	    "; Schedules a save after successfully picking up an item or gold.\n; Failed pickup attempts do not trigger a save.");
 	setBoolean("Auto Save on Level Change", *sgOptions.Oracool.autoSaveOnLevelChange,
 	    "; Saves after entering another dungeon level or returning to town.");
 	setBoolean("Auto Save on Store Purchase", *sgOptions.Oracool.autoSaveOnStorePurchase,
 	    "; Schedules a save after a successful store purchase. Cancelled and failed\n; purchases do not trigger a save.");
+	setBoolean("Auto Save on Experience Gain", *sgOptions.Oracool.autoSaveOnExperienceGain,
+	    "; Saves instantly whenever your character gains experience, matching Diablo 3's\n; always-persisted progress.");
+	setBoolean("Auto Save on Stat Point Spent", *sgOptions.Oracool.autoSaveOnStatPointSpent,
+	    "; Saves instantly whenever a stat point is spent on the character panel.");
+	setBoolean("Auto Save on Equipment Change", *sgOptions.Oracool.autoSaveOnEquipmentChange,
+	    "; Saves instantly whenever equipment is worn or removed.");
+	setBoolean("Auto Save on Item Drop", *sgOptions.Oracool.autoSaveOnItemDrop,
+	    "; Saves instantly whenever an item is dropped on the ground.");
+	setBoolean("Auto Save on Stash Change", *sgOptions.Oracool.autoSaveOnStashChange,
+	    "; Saves instantly whenever the Stash's contents change: depositing or withdrawing an item\n; or gold, reading/drinking an item straight from the Stash, or sorting it.");
+	setBoolean("Auto Save on Store Transaction", *sgOptions.Oracool.autoSaveOnStoreTransaction,
+	    "; Saves instantly after selling, repairing, recharging, or identifying an item at a shop.\n; Purchases are covered separately by Auto Save on Store Purchase.");
+	setBoolean("Auto Save on Shrine Activation", *sgOptions.Oracool.autoSaveOnShrineActivation,
+	    "; Saves instantly after activating a Shrine, Goat Shrine, Cauldron, or Fountain.");
+	setBoolean("Auto Save on Book Read", *sgOptions.Oracool.autoSaveOnBookRead,
+	    "; Saves instantly after reading a spell book.");
+	setBoolean("Auto Save on Item Break", *sgOptions.Oracool.autoSaveOnItemBreak,
+	    "; Saves instantly when a weapon or piece of armor breaks (durability reaches 0). Ordinary\n; durability loss from combat does not trigger a save on its own - only the break itself.");
+	setBoolean("Auto Save on Waypoint Activation", *sgOptions.Oracool.autoSaveOnWaypointActivation,
+	    "; Saves instantly whenever a waypoint sigil's travel menu is opened.");
 
 	setBoolean("Difficulty Level Gate", *sgOptions.Oracool.difficultyLevelGate,
 	    "; ----- DIFFICULTY -------------------------------------------------------------\n; Requires a minimum character level to start a single-player game on Nightmare\n; (15), Hell (30), or Torment (40). Disabling this lets any level start any\n; difficulty, matching how Nightmare/Hell already work without this setting.");
@@ -453,11 +471,8 @@ void SaveOptions()
 	setBoolean("Event Log", *sgOptions.Oracool.eventLog,
 	    "; ----- EVENT LOG -----------------------------------------------------------------\n; Shows a small \"LOG\" button above the durability-warning icons that expands into a\n; timestamped log of noteworthy session events (game saves, boss kills, special item\n; drops, deaths). Session-only - not saved to disk.");
 
-	setBoolean("Furious Charge", *sgOptions.Oracool.furiousCharge,
-	    "; ----- FURIOUS CHARGE -----------------------------------------------------------------\n; Replaces the Warrior's free Item Repair skill with a charge attack: right-click a\n; monster with it readied to rush at double speed and swing on arrival, then a 3-second\n; cooldown before it's ready again. Single-player only; vanilla Item Repair returns when\n; this is off.");
-
 	setBoolean("Game Clock", *sgOptions.Oracool.gameClock,
-	    "; ----- GAME CLOCK -----------------------------------------------------------------\n; Shows the current real-world time just below the mini-map's left edge, mirroring the\n; LOG button on the opposite side.");
+	    "; ----- GAME CLOCK -----------------------------------------------------------------\n; Shows the current real-world time in the screen's top-left corner.");
 
 	setBoolean("Game Clock 12 Hour Format", *sgOptions.Oracool.gameClock12HourFormat,
 	    "; If true, the Game Clock shows 12-hour time with an AM/PM suffix (e.g. \"2:45 PM\")\n; instead of the default 24-hour format (e.g. \"14:45\").");
@@ -475,14 +490,10 @@ void SaveOptions()
 	    "; Monsters within this many tiles of the player get the same red outline normally shown\n; only when hovering them. Values: 0 (OFF), 1-5.");
 	setBoolean("Monster Wall Outline", *sgOptions.Oracool.monsterWallOutline,
 	    "; Draws a red outline on top of walls and other architecture for any monster that would\n; otherwise be hidden behind them, so you can tell something is there.");
-	setInteger("Warrior Splash Damage Range", *sgOptions.Oracool.warriorSplashDamageRange,
-	    "; ----- WARRIOR SPLASH DAMAGE -----------------------------------------------------------------\n; When a Warrior's melee attack lands, monsters near the one actually struck also take damage:\n; full damage at 1 tile away, 50% at 2 tiles, 25% at 3 tiles (each additional range value adds a\n; wider, weaker ring on top of the closer ones). Values: 0 (OFF), 1-3. Single-player only.");
-
+	setBoolean("Quest Log Reveal All", *sgOptions.Oracool.questLogRevealAll,
+	    "; ----- QUEST LOG -----------------------------------------------------------------\n; Every quest available this session shows up in the quest log immediately, instead of\n; only after you discover it through normal exploration/dialogue. Quest mechanics\n; (finding the trigger, talking to the right NPC, item spawns) are unaffected - this\n; only changes what the log shows you upfront. Single-player only.");
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
-	setBoolean("Inventory Sort Button", *sgOptions.Oracool.inventorySortButton,
-	    "; Shows a sort control next to the left ring slot on the inventory panel.\n; Repacks the backpack and every extra inventory tab by sell value, highest\n; first, starting from tab 1. Equipped items and the belt are untouched.");
-
 	setBoolean("Griswold Premium Ignore Affix Level Limits", *sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits,
 	    "; ----- GRISWOLD: PREMIUM SHOP -------------------------------------------------\n; Allows compatible Premium prefixes and suffixes regardless of their normal\n; quality-level requirement. Item compatibility and good-affix rules remain.");
 	setBoolean("Griswold Premium Ignore Price Limits", *sgOptions.Oracool.griswoldPremiumIgnorePriceLimits,
@@ -820,8 +831,9 @@ struct CuratedResolution {
  * a fixed, curated list spanning five aspect ratios, from a 960x720 floor up to a 1440-tall
  * ceiling. Real/recognizable resolutions are used where they exist (1024x768, 1920x1080,
  * 2560x1440, WXGA/WSXGA+/WUXGA, common ultrawide panels) rather than purely mathematically
- * generated ones, per the user's "meaningful" requirement. Grouped by ratio (not sorted by
- * size) so the options menu naturally clusters same-ratio choices together.
+ * generated ones, per the user's "meaningful" requirement. Listed here grouped by ratio for
+ * readability, but CheckResolutionsAreInitialized() sorts the displayed list by height then
+ * width (equivalent to ratio, for entries sharing a height) rather than using this array order.
  */
 constexpr CuratedResolution CuratedResolutions[] = {
 	// 4:3
@@ -922,45 +934,62 @@ void OptionEntryResolution::CheckResolutionsAreInitialized() const
 		desktopSize = { desktopMode.w, desktopMode.h };
 #endif
 
-	std::vector<Size> sizes;
-	std::vector<const char *> ratioLabels;
+	std::vector<CuratedResolution> filtered;
 	for (const CuratedResolution &entry : CuratedResolutions) {
 		if (desktopSize.width > 0 && desktopSize.height > 0
 		    && (entry.size.width > desktopSize.width || entry.size.height > desktopSize.height)) {
 			continue;
 		}
-		sizes.push_back(entry.size);
-		ratioLabels.push_back(entry.ratioLabel);
+		filtered.push_back(entry);
 	}
-	if (sizes.empty()) {
-		for (const CuratedResolution &entry : CuratedResolutions) {
-			sizes.push_back(entry.size);
-			ratioLabels.push_back(entry.ratioLabel);
-		}
+	if (filtered.empty()) {
+		for (const CuratedResolution &entry : CuratedResolutions)
+			filtered.push_back(entry);
 	}
 
 	// Ensures the ini-specified resolution is present even in the unexpected case that it isn't
 	// already one of the curated entries (LoadFromIni snaps it to the nearest one via
 	// SnapToNearestCuratedResolution, so this is a defensive fallback, not the normal path).
-	if (std::find(sizes.begin(), sizes.end(), this->size) == sizes.end()) {
-		sizes.push_back(this->size);
-		ratioLabels.push_back("custom");
-	}
+	const bool alreadyPresent = std::find_if(filtered.begin(), filtered.end(), [this](const CuratedResolution &entry) {
+		return entry.size == this->size;
+	}) != filtered.end();
+	if (!alreadyPresent)
+		filtered.push_back({ this->size, "custom" });
 
-	for (size_t i = 0; i < sizes.size(); i++) {
-		Size size = sizes[i];
+	// Oracool: user request - display order is by height first, then width (equivalent to
+	// sorting by aspect ratio for entries that share a height), instead of the fixed
+	// aspect-ratio blocks the CuratedResolutions array is written in above.
+	std::sort(filtered.begin(), filtered.end(), [](const CuratedResolution &a, const CuratedResolution &b) {
+		if (a.size.height != b.size.height)
+			return a.size.height < b.size.height;
+		return a.size.width < b.size.width;
+	});
+
+#ifndef USE_SDL1
+	int lastFitToScreenHeight = -1;
+#endif
+	for (const CuratedResolution &entry : filtered) {
+		Size size = entry.size;
 #ifndef USE_SDL1
 		if (*sgOptions.Graphics.fitToScreen) {
 			// Fit to Screen stretches every entry's width to the desktop's own aspect ratio, so
 			// the curated ratio label no longer describes what's actually displayed - keep the
 			// original "XXXp" height-only labeling for this mode instead of the ratio hint.
+			// Oracool: user request - the stretched width depends only on height and the
+			// desktop's aspect ratio, so every curated entry sharing a height resolves to the
+			// exact same final resolution here; filtered is sorted by height, so duplicates are
+			// adjacent and skipping repeats collapses them to one "XXXp" entry per height
+			// instead of listing the same effective resolution two to four times over.
+			if (size.height == lastFitToScreenHeight)
+				continue;
+			lastFitToScreenHeight = size.height;
 			if (desktopSize.width > 0 && desktopSize.height > 0)
 				size.width = size.height * desktopSize.width / desktopSize.height;
 			resolutions.emplace_back(size, StrCat(size.height, "p"));
 			continue;
 		}
 #endif
-		resolutions.emplace_back(size, StrCat(size.width, "x", size.height, " (", ratioLabels[i], ")"));
+		resolutions.emplace_back(size, StrCat(size.width, "x", size.height, " (", entry.ratioLabel, ")"));
 	}
 }
 
@@ -1311,7 +1340,6 @@ OracoolOptions::OracoolOptions()
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), true)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)
     , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the character panel."), true)
-    , inventorySortButton("Inventory Sort Button", OptionEntryFlags::None, N_("Inventory Sort Button"), N_("Adds a sort control to the inventory panel."), true)
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 5, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
     , autoScrollPickup("Auto Pickup Scrolls", OptionEntryFlags::None, N_("Auto Pickup Scrolls"), N_("Scrolls of every kind are automatically collected when in close proximity to the player."), true)
     , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 20, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
@@ -1331,15 +1359,23 @@ OracoolOptions::OracoolOptions()
     , autoSave("Auto Save", OptionEntryFlags::None, N_("Auto Save"), N_("Enables Oracool automatic saving in single-player."), true)
     , autoSaveIntervalMinutes("Auto Save Interval Minutes", OptionEntryFlags::None, N_("Auto Save Interval Minutes"), N_("Minutes between periodic automatic saves."), 5, { 1, 2, 3, 5, 10, 15, 30, 60 })
     , autoSaveOnLevelChange("Auto Save on Level Change", OptionEntryFlags::None, N_("Auto Save on Level Change"), N_("Saves after entering another dungeon level or returning to town."), true)
-    , autoSaveOnItemPickup("Auto Save on Item Pickup", OptionEntryFlags::None, N_("Auto Save on Item Pickup"), N_("Schedules a save after a non-gold item enters inventory."), true)
+    , autoSaveOnItemPickup("Auto Save on Item Pickup", OptionEntryFlags::None, N_("Auto Save on Item Pickup"), N_("Schedules a save after an item or gold enters inventory."), true)
     , autoSaveOnStorePurchase("Auto Save on Store Purchase", OptionEntryFlags::None, N_("Auto Save on Store Purchase"), N_("Schedules a save after a successful store purchase."), true)
-    , autoSaveItemDelaySeconds("Auto Save Item Delay Seconds", OptionEntryFlags::None, N_("Auto Save Item Delay Seconds"), N_("Delay used to combine rapid acquisitions into one save."), 3, { 0, 1, 2, 3, 5, 10, 15, 30 })
+    , autoSaveOnExperienceGain("Auto Save on Experience Gain", OptionEntryFlags::None, N_("Auto Save on Experience Gain"), N_("Saves instantly whenever your character gains experience."), true)
+    , autoSaveOnStatPointSpent("Auto Save on Stat Point Spent", OptionEntryFlags::None, N_("Auto Save on Stat Point Spent"), N_("Saves instantly whenever a stat point is spent on the character panel."), true)
+    , autoSaveOnEquipmentChange("Auto Save on Equipment Change", OptionEntryFlags::None, N_("Auto Save on Equipment Change"), N_("Saves instantly whenever equipment is worn or removed."), true)
+    , autoSaveOnItemDrop("Auto Save on Item Drop", OptionEntryFlags::None, N_("Auto Save on Item Drop"), N_("Saves instantly whenever an item is dropped on the ground."), true)
+    , autoSaveOnStashChange("Auto Save on Stash Change", OptionEntryFlags::None, N_("Auto Save on Stash Change"), N_("Saves instantly whenever the Stash's contents change."), true)
+    , autoSaveOnStoreTransaction("Auto Save on Store Transaction", OptionEntryFlags::None, N_("Auto Save on Store Transaction"), N_("Saves instantly after selling, repairing, recharging, or identifying an item at a shop."), true)
+    , autoSaveOnShrineActivation("Auto Save on Shrine Activation", OptionEntryFlags::None, N_("Auto Save on Shrine Activation"), N_("Saves instantly after activating a Shrine, Goat Shrine, Cauldron, or Fountain."), true)
+    , autoSaveOnBookRead("Auto Save on Book Read", OptionEntryFlags::None, N_("Auto Save on Book Read"), N_("Saves instantly after reading a spell book."), true)
+    , autoSaveOnItemBreak("Auto Save on Item Break", OptionEntryFlags::None, N_("Auto Save on Item Break"), N_("Saves instantly when a weapon or piece of armor breaks."), true)
+    , autoSaveOnWaypointActivation("Auto Save on Waypoint Activation", OptionEntryFlags::None, N_("Auto Save on Waypoint Activation"), N_("Saves instantly whenever a waypoint sigil's travel menu is opened."), true)
     , autoSaveNotification("Auto Save Notification", OptionEntryFlags::None, N_("Auto Save Notification"), N_("Displays a brief \"Game Saved\" message after an automatic save."), true)
     , difficultyLevelGate("Difficulty Level Gate", OptionEntryFlags::None, N_("Difficulty Level Gate"), N_("Requires a minimum character level to start a game on Nightmare, Hell, or Torment."), true)
     , tormentDifficultyMultiplier("Torment Difficulty Multiplier", OptionEntryFlags::None, N_("Torment Difficulty Multiplier"), N_("How much harder Torment is than Hell, applied on top of Hell's own monster and treasure scaling."), 20, { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50 })
     , miniMapEnabled("Mini-Map", OptionEntryFlags::None, N_("Mini-Map"), N_("Shows an always-on mini-map in the top-right corner during gameplay. Independent of TAB, which still opens/closes the normal full map."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
-    , furiousCharge("Furious Charge", OptionEntryFlags::None, N_("Furious Charge"), N_("Replaces the Warrior's free Item Repair skill with a charge attack: right-click a monster to rush it at double speed, then swing on arrival."), false)
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
     , gradualHealing("Gradual Healing", OptionEntryFlags::None, N_("Gradual Healing"), N_("Potion of Healing and Potion of Mana restore their amount gradually over a few seconds instead of instantly. Full Healing/Full Mana Potions are unaffected."), true)
@@ -1348,7 +1384,7 @@ OracoolOptions::OracoolOptions()
     , remainingMonsterXpButton("Remaining Monster XP Button", OptionEntryFlags::None, N_("Remaining Monster XP Button"), N_("Press and hold the XP Counter to see the total experience worth of every monster still alive on this level."), true)
     , monsterRangeHighlight("Monster Range Highlight", OptionEntryFlags::None, N_("Monster Range Highlight"), N_("Monsters within this many tiles get the same red outline shown when hovering them."), 0, { 0, 1, 2, 3, 4, 5 })
     , monsterWallOutline("Monster Wall Outline", OptionEntryFlags::None, N_("Monster Wall Outline"), N_("Draws a red outline on monsters hidden behind walls or other architecture, so you can tell they're there."), false)
-    , warriorSplashDamageRange("Warrior Splash Damage Range", OptionEntryFlags::None, N_("Warrior Splash Damage Range"), N_("A Warrior's melee hits also damage nearby monsters: full damage at 1 tile, 50% at 2, 25% at 3."), 1, { 0, 1, 2, 3 })
+    , questLogRevealAll("Quest Log Reveal All", OptionEntryFlags::None, N_("Quest Log Reveal All"), N_("Every quest available this session appears in the quest log from the start, instead of only after you discover it. Quests still work exactly as before - this just previews what's out there."), true)
     , dungeonZoomLevel("Dungeon Zoom Level", OptionEntryFlags::Invisible, "Dungeon Zoom Level", "Continuous dungeon-view zoom, in tenths (10-20 = 1.0x-2.0x). Set live via mouse wheel / middle-click.", 10)
 {
 }
@@ -1361,7 +1397,6 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&permanentInfravision,
 		&autoIdentifyDrops,
 		&resetStatsButton,
-		&inventorySortButton,
 		&autoPickupRange,
 		&autoScrollPickup,
 		&rareItemDropChance,
@@ -1383,13 +1418,21 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&autoSaveOnLevelChange,
 		&autoSaveOnItemPickup,
 		&autoSaveOnStorePurchase,
-		&autoSaveItemDelaySeconds,
+		&autoSaveOnExperienceGain,
+		&autoSaveOnStatPointSpent,
+		&autoSaveOnEquipmentChange,
+		&autoSaveOnItemDrop,
+		&autoSaveOnStashChange,
+		&autoSaveOnStoreTransaction,
+		&autoSaveOnShrineActivation,
+		&autoSaveOnBookRead,
+		&autoSaveOnItemBreak,
+		&autoSaveOnWaypointActivation,
 		&autoSaveNotification,
 		&difficultyLevelGate,
 		&tormentDifficultyMultiplier,
 		&miniMapEnabled,
 		&eventLog,
-		&furiousCharge,
 		&gameClock,
 		&gameClock12HourFormat,
 		&gradualHealing,
@@ -1398,7 +1441,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&remainingMonsterXpButton,
 		&monsterRangeHighlight,
 		&monsterWallOutline,
-		&warriorSplashDamageRange,
+		&questLogRevealAll,
 		&dungeonZoomLevel,
 	};
 

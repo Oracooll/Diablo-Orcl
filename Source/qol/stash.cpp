@@ -18,6 +18,7 @@
 #include "engine/size.hpp"
 #include "hwcursor.hpp"
 #include "minitext.h"
+#include "oracool/auto_save.h"
 #include "stores.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -42,16 +43,24 @@ TextInputCursorState GoldWithdrawCursor;
 std::optional<NumberInputState> GoldWithdrawInputState;
 
 constexpr Size ButtonSize { 27, 16 };
-/** Contains mappings for the buttons in the stash (2 navigation buttons, withdraw gold buttons, 2 navigation buttons) */
+/** Contains mappings for the buttons in the stash (2 navigation buttons, sort button, 2 navigation buttons) */
 constexpr Rectangle StashButtonRect[] = {
 	// clang-format off
 	{ {  19, 19 }, ButtonSize }, // 10 left
 	{ {  56, 19 }, ButtonSize }, // 1 left
-	{ {  93, 19 }, ButtonSize }, // withdraw gold
+	{ {  93, 19 }, ButtonSize }, // Oracool: user request - was "withdraw gold"; now Sort (see index 2 below)
 	{ { 242, 19 }, ButtonSize }, // 1 right
 	{ { 279, 19 }, ButtonSize }  // 10 right
 	// clang-format on
 };
+
+/**
+ * @brief Oracool: user request - the gold total's on-screen area (matches DrawStash's own
+ * DrawString call for it) is now the click target for withdrawing gold, freeing up the button
+ * slot at StashButtonRect[2] to become the Sort button instead.
+ */
+constexpr Rectangle GoldDisplayRect { { 122, 19 }, { 107, 13 } };
+bool GoldDisplayPressed = false;
 
 constexpr Size StashGridSize { 10, 10 };
 constexpr PointsInRectangleRange<int> StashGridRange { { { 0, 0 }, StashGridSize } };
@@ -156,6 +165,7 @@ void CheckStashPaste(Point cursorPosition)
 		PlaySFX(IS_GOLD);
 		Stash.dirty = true;
 		NewCursor(CURSOR_HAND);
+		oracool::ScheduleAutoSaveForStashChange();
 		return;
 	}
 
@@ -205,6 +215,7 @@ void CheckStashPaste(Point cursorPosition)
 	AddItemToStashGrid(Stash.GetPage(), firstSlot, stashIndex, itemSize);
 
 	Stash.dirty = true;
+	oracool::ScheduleAutoSaveForStashChange();
 
 	NewCursor(player.HoldItem);
 }
@@ -255,6 +266,7 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 
 		if (!automaticMove || automaticallyMoved) {
 			Stash.RemoveStashItem(iv);
+			oracool::ScheduleAutoSaveForStashChange();
 		}
 	}
 
@@ -295,6 +307,8 @@ int WithdrawGold(Player &player, int amount)
 	Stash.gold -= transferredGold;
 	player._pGold = CalculateGold(player);
 	Stash.dirty = true;
+	if (&player == MyPlayer)
+		oracool::ScheduleAutoSaveForStashChange();
 	return transferredGold;
 }
 
@@ -319,6 +333,18 @@ void InitStash()
 	}
 }
 
+void OpenStash()
+{
+	IsStashOpen = true;
+	Stash.RefreshItemStatFlags();
+	invflag = true;
+	if (ControlMode != ControlTypes::KeyboardAndMouse) {
+		if (pcurs == CURSOR_DISARM)
+			NewCursor(CURSOR_HAND);
+		FocusOnInventory();
+	}
+}
+
 void TransferItemToInventory(Player &player, uint16_t itemId)
 {
 	if (itemId == StashStruct::EmptyCell) {
@@ -338,12 +364,22 @@ void TransferItemToInventory(Player &player, uint16_t itemId)
 	PlaySFX(ItemInvSnds[ItemCAnimTbl[item._iCurs]]);
 
 	Stash.RemoveStashItem(itemId);
+	if (&player == MyPlayer)
+		oracool::ScheduleAutoSaveForStashChange();
 }
 
 int StashButtonPressed = -1;
 
 void CheckStashButtonRelease(Point mousePosition)
 {
+	if (GoldDisplayPressed) {
+		Rectangle goldRect = GoldDisplayRect;
+		goldRect.position = GetPanelPosition(UiPanels::Stash, goldRect.position);
+		if (goldRect.contains(mousePosition))
+			StartGoldWithdraw();
+		GoldDisplayPressed = false;
+	}
+
 	if (StashButtonPressed == -1)
 		return;
 
@@ -358,7 +394,11 @@ void CheckStashButtonRelease(Point mousePosition)
 			Stash.PreviousPage();
 			break;
 		case 2:
-			StartGoldWithdraw();
+			// Oracool: user request - was withdraw gold (moved to clicking the gold total
+			// itself, see GoldDisplayRect); this slot is now Sort. IS_ISHIEL is the sound
+			// normally played when placing a shield into its equip slot, per the user's request.
+			SortStash(*MyPlayer);
+			PlaySFX(IS_ISHIEL);
 			break;
 		case 3:
 			Stash.NextPage();
@@ -374,6 +414,15 @@ void CheckStashButtonRelease(Point mousePosition)
 
 void CheckStashButtonPress(Point mousePosition)
 {
+	Rectangle goldRect = GoldDisplayRect;
+	goldRect.position = GetPanelPosition(UiPanels::Stash, goldRect.position);
+	if (goldRect.contains(mousePosition)) {
+		GoldDisplayPressed = true;
+		StashButtonPressed = -1;
+		return;
+	}
+	GoldDisplayPressed = false;
+
 	Rectangle stashButton;
 
 	for (int i = 0; i < 5; i++) {
@@ -452,6 +501,16 @@ void CheckStashItem(Point mousePosition, bool isShiftHeld, bool isCtrlHeld)
 
 uint16_t CheckStashHLight(Point mousePosition)
 {
+	// Oracool: user request - "Sort" tooltip over the repurposed Sort button (StashButtonRect[2],
+	// formerly Withdraw Gold).
+	Rectangle sortButtonRect = StashButtonRect[2];
+	sortButtonRect.position = GetPanelPosition(UiPanels::Stash, sortButtonRect.position);
+	if (sortButtonRect.contains(mousePosition)) {
+		InfoColor = UiFlags::ColorWhite;
+		InfoString = _("Sort");
+		return StashStruct::EmptyCell;
+	}
+
 	Point slot = InvalidStashPoint;
 	for (auto point : StashGridRange) {
 		Rectangle cell {
@@ -555,9 +614,11 @@ bool UseStashItem(uint16_t c)
 	Item &stashItem = Stash.stashList[c];
 	if (stashItem.isStackableConsumable() && stashItem.stackCount() > 1) {
 		stashItem.setStackCount(stashItem.stackCount() - 1);
+		Stash.dirty = true;
 	} else {
 		Stash.RemoveStashItem(c);
 	}
+	oracool::ScheduleAutoSaveForStashChange();
 
 	return true;
 }
@@ -809,6 +870,8 @@ void SortStash(Player &player)
 		AutoPlaceItemInStash(player, entry.item, true);
 
 	Stash.dirty = true;
+	if (&player == MyPlayer)
+		oracool::ScheduleAutoSaveForStashChange();
 }
 
 } // namespace devilution
