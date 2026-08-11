@@ -39,7 +39,7 @@ jobs:
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "cmake;3.31.0"
 
     - name: Cache CMake build folder
-      uses: actions/cache@v3
+      uses: actions/cache@v6
       with:
         path: android-project/app/.cxx
         key: ${{ github.workflow }}-v3-${{ github.sha }}
