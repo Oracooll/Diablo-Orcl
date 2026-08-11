@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file objects.cpp
  *
  * Implementation of object functionality, interaction, spawning, loading, etc.
@@ -2031,7 +2031,7 @@ void OperateWaypoint(Object &waypoint)
 	// dungeon level), set in AddWaypointSigilObject.
 	if (!oracool::IsWaypointUnlocked(waypoint._oVar1)) {
 		oracool::UnlockWaypoint(waypoint._oVar1);
-		waypoint._oAnimFrame = 2; // mcirl.cel's lit variant, matching the town sigil's own frame
+		waypoint._oAnimFrame = 2; // orclwayp.cel's lit variant
 		PlaySfxLoc(IS_MAGIC, waypoint.position);
 	}
 
@@ -3990,7 +3990,7 @@ bool IsItemBlockingObjectAtPosition(Point position)
 	return false;
 }
 
-void LoadLevelObjects(uint16_t filesWidths[65])
+void LoadLevelObjects(uint16_t filesWidths[NumObjectGraphicFiles])
 {
 	if (HeadlessMode)
 		return;
@@ -4016,7 +4016,7 @@ void LoadLevelObjects(uint16_t filesWidths[65])
 
 void InitObjectGFX()
 {
-	uint16_t filesWidths[65] = {};
+	uint16_t filesWidths[NumObjectGraphicFiles] = {};
 
 	if (IsAnyOf(currlevel, 4, 8, 12)) {
 		filesWidths[OFILE_BKSLBRNT] = AllObjects[OBJ_STORYBOOK].animWidth;
@@ -4217,7 +4217,7 @@ constexpr Point WaypointSigilPosition { 61, 80 };
  */
 void EnsureWaypointGraphicsLoaded()
 {
-	EnsureObjectGraphicsLoaded(OFILE_MCIRL, AllObjects[OBJ_WAYPOINT].animWidth);
+	EnsureObjectGraphicsLoaded(OFILE_ORCLWAYP, AllObjects[OBJ_WAYPOINT].animWidth);
 }
 
 /**
@@ -4243,7 +4243,7 @@ void AddWaypointSigilObject()
 		return;
 	}
 
-	EnsureObjectGraphicsLoaded(OFILE_MCIRL, AllObjects[OBJ_WAYPOINT].animWidth);
+	EnsureObjectGraphicsLoaded(OFILE_ORCLWAYP, AllObjects[OBJ_WAYPOINT].animWidth);
 
 	if (dObject[position.x][position.y] != 0) {
 		LogEvent(StrCat("Waypoint sigil placement collision at (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
@@ -4262,7 +4262,7 @@ void AddWaypointSigilObject()
 	// IsWaypointUnlocked already knows - e.g. still lit on a return visit after a level
 	// regenerates, once the player already found and activated it once (see OperateWaypoint).
 	const bool unlocked = currlevel == 0 || IsWaypointUnlocked(currlevel);
-	// Oracool: user request - frame 2 is mcirl.cel's "lit" variant, frame 1 the plain dormant one
+	// Oracool: user request - frame 2 is orclwayp.cel's lit variant, frame 1 the dormant one
 	// (vanilla red - a TRN-based blue recolor was tried and reverted, see git history, since the
 	// recolored sprite came out invisible for reasons not yet diagnosed).
 	sigil->_oAnimFrame = unlocked ? 2 : 1;
@@ -4486,7 +4486,7 @@ void InitObjects()
 
 void SetMapObjects(const uint16_t *dunData, int startx, int starty)
 {
-	uint16_t filesWidths[65] = {};
+	uint16_t filesWidths[NumObjectGraphicFiles] = {};
 
 	ClrAllObjects();
 

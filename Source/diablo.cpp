@@ -2942,7 +2942,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 				LoadAllGFX();
 			// Oracool: bug postmortem (2026-08-10) - a revisited dungeon level's waypoint sigil
 			// (if any) crashed the game the moment it came into view. Root cause: its graphic
-			// (OFILE_MCIRL) is only ever registered by AddWaypointSigilObject(), which - like
+			// (OFILE_ORCLWAYP) is only ever registered by AddWaypointSigilObject(), which - like
 			// every level-content placement call - only runs on a fresh level generation, not a
 			// revisit (LoadLevel() restores the object itself, but that's a different system from
 			// the per-level graphics registry). LoadLevel()'s own SyncObjectAnim() call then can't

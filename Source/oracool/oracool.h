@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "multi.h"
 #include "spelldat.h"
@@ -70,7 +70,7 @@ void AddWaypointSigilObject();
 
 /**
  * @brief Oracool: bug postmortem (2026-08-10) - registers the waypoint sigil's graphic
- * (OFILE_MCIRL) in the current level's object-graphics list if it isn't there already. Must be
+ * (OFILE_ORCLWAYP) in the current level's object-graphics list if it isn't there already. Must be
  * called unconditionally on every entry to a level that could have a waypoint sigil - fresh
  * generation or a revisit - since only fresh generation places the object itself (via
  * AddWaypointSigilObject, which already does this registration as part of that). A revisit

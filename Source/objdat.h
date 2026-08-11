@@ -99,8 +99,26 @@ enum object_graphic_id : int8_t {
 	OFILE_URN,
 	OFILE_URNEX,
 	OFILE_L5BOOKS,
+	/**
+	 * Oracool: user request - the waypoint's own graphic (objects\orclwayp.cel, shipped in
+	 * oracool.mpq, built by tools/WaypointCel.cs from the user's two-state painting).
+	 *
+	 * Deliberately its own file rather than a replacement for OFILE_MCIRL, which is what
+	 * OBJ_WAYPOINT borrowed while it had no art: mcirl.cel is also OBJ_MCIRCLE1/OBJ_MCIRCLE2, the
+	 * two magic circles in the Archbishop Lazarus quest, and shadowing it would silently turn those
+	 * into waypoint platforms too.
+	 *
+	 * Note this sits AFTER OFILE_L5BOOKS, which is the upper bound of LoadLevelObjects' loop. That
+	 * is intentional and not an oversight: the waypoint is registered explicitly by
+	 * AddWaypointSigilObject/EnsureWaypointGraphicsLoaded on every level rather than by matching a
+	 * level type, since it is the one object that appears in town AND on all 16 dungeon levels.
+	 */
+	OFILE_ORCLWAYP,
 	OFILE_NULL = -1,
 };
+
+/** @brief Number of entries in object_graphic_id, i.e. the size every filesWidths[] array needs. */
+constexpr int NumObjectGraphicFiles = OFILE_ORCLWAYP + 1;
 
 enum _object_id : int8_t {
 	OBJ_L1LIGHT,
@@ -212,9 +230,9 @@ enum _object_id : int8_t {
 	OBJ_L5RDOOR,
 	OBJ_L5LEVER,
 	OBJ_L5SARC,
-	// Oracool: user request - Waypoints, restart. Pure visual placeholder for now (no
-	// interactivity/operate logic attached yet) - reuses the mcirl magic-circle graphic already
-	// proven to load and render correctly for the Stash Chest saga's town-object work.
+	// Oracool: user request - Waypoints. Started life borrowing the mcirl magic-circle graphic as a
+	// placeholder; now draws its own two-state art (see OFILE_ORCLWAYP). Frame 1 is the dormant
+	// platform, frame 2 the lit one, set directly rather than by an animation.
 	OBJ_WAYPOINT,
 	OBJ_NULL = -1,
 };
