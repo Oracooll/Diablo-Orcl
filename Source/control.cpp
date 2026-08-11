@@ -979,8 +979,9 @@ void UpdateInfoString()
 				// having the same name plus a type/kill-count readout follow the cursor around
 				// was pure distraction in the middle of a fight.
 				//
-				// PrintMonstHistory/PrintUniqueHistory are deliberately not called at all rather
-				// than called and discarded - they are the only source of the "Kills:" line.
+				// This branch was the only caller of monster.cpp's PrintMonstHistory and
+				// PrintUniqueHistory, which have since been deleted. Restoring monster hover text
+				// means writing them again, not just re-adding a call.
 			} else if (pcursitem == -1) {
 				InfoString = string_view(Towners[pcursmonst].name);
 			}

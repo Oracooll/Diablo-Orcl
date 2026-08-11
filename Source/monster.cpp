@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file monster.cpp
  *
  * Implementation of monster functionality, AI, actions, spawning, loading, etc.
@@ -14,7 +14,6 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 
-#include "control.h"
 #include "cursor.h"
 #include "dead.h"
 #include "engine/load_cl2.hpp"
@@ -4260,104 +4259,6 @@ void M_FallenFear(Point position)
 		monster.goal = MonsterGoal::Retreat;
 		monster.goalVar1 = runDistance;
 		monster.goalVar2 = static_cast<int>(GetDirection(position, monster.position.tile));
-	}
-}
-
-void PrintMonstHistory(int mt)
-{
-	if (*sgOptions.Gameplay.showMonsterType) {
-		AddPanelString(fmt::format(fmt::runtime(_("Type: {:s}  Kills: {:d}")), GetMonsterTypeText(MonstersData[mt]), MonsterKillCounts[mt]));
-	} else {
-		AddPanelString(fmt::format(fmt::runtime(_("Total kills: {:d}")), MonsterKillCounts[mt]));
-	}
-
-	if (MonsterKillCounts[mt] >= 30) {
-		int minHP = MonstersData[mt].hitPointsMinimum;
-		int maxHP = MonstersData[mt].hitPointsMaximum;
-		if (!gbIsHellfire && mt == MT_DIABLO) {
-			minHP /= 2;
-			maxHP /= 2;
-		}
-		if (!gbIsMultiplayer) {
-			minHP /= 2;
-			maxHP /= 2;
-		}
-		if (minHP < 1)
-			minHP = 1;
-		if (maxHP < 1)
-			maxHP = 1;
-
-		int hpBonusNightmare = 100;
-		int hpBonusHell = 200;
-		if (gbIsHellfire) {
-			hpBonusNightmare = (!gbIsMultiplayer ? 50 : 100);
-			hpBonusHell = (!gbIsMultiplayer ? 100 : 200);
-		}
-		if (sgGameInitInfo.nDifficulty == DIFF_NIGHTMARE) {
-			minHP = 3 * minHP + hpBonusNightmare;
-			maxHP = 3 * maxHP + hpBonusNightmare;
-		} else if (sgGameInitInfo.nDifficulty == DIFF_HELL) {
-			minHP = 4 * minHP + hpBonusHell;
-			maxHP = 4 * maxHP + hpBonusHell;
-		} else if (sgGameInitInfo.nDifficulty == DIFF_TORMENT) {
-			// Oracool: mirrors InitMonster's own Torment HP formula, so the bestiary panel
-			// shows what the monster's stats actually are, not what they'd be on Hell.
-			const float multiplier = GetTormentDifficultyMultiplier();
-			minHP = static_cast<int>((4 * minHP + hpBonusHell) * multiplier);
-			maxHP = static_cast<int>((4 * maxHP + hpBonusHell) * multiplier);
-		}
-		AddPanelString(fmt::format(fmt::runtime(_("Hit Points: {:d}-{:d}")), minHP, maxHP));
-	}
-	if (MonsterKillCounts[mt] >= 15) {
-		int res = (sgGameInitInfo.nDifficulty == DIFF_HELL || sgGameInitInfo.nDifficulty == DIFF_TORMENT) ? MonstersData[mt].resistanceHell : MonstersData[mt].resistance;
-		if ((res & (RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING | IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING)) == 0) {
-			AddPanelString(_("No magic resistance"));
-		} else {
-			if ((res & (RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING)) != 0) {
-				std::string resists = std::string(_("Resists:"));
-				if ((res & RESIST_MAGIC) != 0)
-					AppendStrView(resists, _(" Magic"));
-				if ((res & RESIST_FIRE) != 0)
-					AppendStrView(resists, _(" Fire"));
-				if ((res & RESIST_LIGHTNING) != 0)
-					AppendStrView(resists, _(" Lightning"));
-				AddPanelString(resists);
-			}
-			if ((res & (IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING)) != 0) {
-				std::string immune = std::string(_("Immune:"));
-				if ((res & IMMUNE_MAGIC) != 0)
-					AppendStrView(immune, _(" Magic"));
-				if ((res & IMMUNE_FIRE) != 0)
-					AppendStrView(immune, _(" Fire"));
-				if ((res & IMMUNE_LIGHTNING) != 0)
-					AppendStrView(immune, _(" Lightning"));
-				AddPanelString(immune);
-			}
-		}
-	}
-}
-
-void PrintUniqueHistory()
-{
-	auto &monster = Monsters[pcursmonst];
-	if (*sgOptions.Gameplay.showMonsterType) {
-		AddPanelString(fmt::format(fmt::runtime(_("Type: {:s}")), GetMonsterTypeText(monster.data())));
-	}
-
-	int res = monster.resistance & (RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING | IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING);
-	if (res == 0) {
-		AddPanelString(_("No resistances"));
-		AddPanelString(_("No Immunities"));
-	} else {
-		if ((res & (RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING)) != 0)
-			AddPanelString(_("Some Magic Resistances"));
-		else
-			AddPanelString(_("No resistances"));
-		if ((res & (IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING)) != 0) {
-			AddPanelString(_("Some Magic Immunities"));
-		} else {
-			AddPanelString(_("No Immunities"));
-		}
 	}
 }
 

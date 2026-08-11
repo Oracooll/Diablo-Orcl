@@ -461,8 +461,6 @@ bool LineClearMissile(Point startPoint, Point endPoint);
 bool LineClear(tl::function_ref<bool(Point)> clear, Point startPoint, Point endPoint);
 void SyncMonsterAnim(Monster &monster);
 void M_FallenFear(Point position);
-void PrintMonstHistory(int mt);
-void PrintUniqueHistory();
 void PlayEffect(Monster &monster, MonsterSound mode);
 void MissToMonst(Missile &missile, Point position);
 
