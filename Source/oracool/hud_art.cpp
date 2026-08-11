@@ -28,8 +28,17 @@ struct ArtAsset {
 	int height = 0;
 	bool loadAttempted = false;
 	std::optional<OwnedSurface> bright;
-	/** Only built for the orbs: the same image with the sphere circle dimmed (see file comment). */
-	std::optional<OwnedSurface> dark;
+	/**
+	 * Orbs only. The composition MINUS the sphere: everything outside the glass circle, with the
+	 * circle itself left transparent. Drawn first and opaquely, so the ornament and the rim are
+	 * never affected by whatever happens inside the glass.
+	 */
+	std::optional<OwnedSurface> frame;
+	/**
+	 * Orbs only. The mirror image of `frame`: the sphere circle alone, dimmed, everything else
+	 * transparent. This is what gets blended into the empty part of the orb - see DrawOrb.
+	 */
+	std::optional<OwnedSurface> sphereDim;
 };
 
 ArtAsset PlateArt { "ui\\middle_hud.png" };
@@ -131,10 +140,13 @@ void LoadPixels(ArtAsset &asset)
 }
 
 /**
- * @brief (Re)quantizes an asset's RGBA pixels into its 8-bit surfaces. If `dimCircle` is set
- * (orbs), also builds the dark variant with RGB scaled down inside that circle only - the
- * composition around the sphere stays identical in both surfaces, so the fill blit (which works
- * in full-width rows) can't visibly "re-light" anything outside the sphere.
+ * @brief (Re)quantizes an asset's RGBA pixels into its 8-bit surfaces.
+ *
+ * If `dimCircle` is set (orbs), the composition is also split in two along that circle: `frame`
+ * gets everything outside it, `sphereDim` gets the inside, dimmed. Splitting rather than producing
+ * one whole-image "dark" variant is what lets DrawOrb blend the empty glass against the world
+ * behind it without the ornament and rim going translucent too.
+ *
  * @param dimCircle Sphere circle in asset-local pixels: {center, radius packed as Size.width}.
  */
 void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle)
@@ -143,15 +155,18 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle)
 		return;
 
 	asset.bright.emplace(asset.width, asset.height);
-	if (dimCircle)
-		asset.dark.emplace(asset.width, asset.height);
+	if (dimCircle) {
+		asset.frame.emplace(asset.width, asset.height);
+		asset.sphereDim.emplace(asset.width, asset.height);
+	}
 
 	std::vector<uint8_t> cache(1 << 15, 0);
 
 	for (int y = 0; y < asset.height; y++) {
 		const uint8_t *srcRow = &asset.rgba[static_cast<size_t>(y) * asset.width * 4];
 		uint8_t *brightRow = &(*asset.bright)[Point { 0, y }];
-		uint8_t *darkRow = dimCircle ? &(*asset.dark)[Point { 0, y }] : nullptr;
+		uint8_t *frameRow = dimCircle ? &(*asset.frame)[Point { 0, y }] : nullptr;
+		uint8_t *sphereRow = dimCircle ? &(*asset.sphereDim)[Point { 0, y }] : nullptr;
 		for (int x = 0; x < asset.width; x++) {
 			const uint8_t r = srcRow[x * 4 + 0];
 			const uint8_t g = srcRow[x * 4 + 1];
@@ -160,21 +175,25 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle)
 
 			if (a < 128) {
 				brightRow[x] = 0;
-				if (darkRow != nullptr)
-					darkRow[x] = 0;
+				if (frameRow != nullptr) {
+					frameRow[x] = 0;
+					sphereRow[x] = 0;
+				}
 				continue;
 			}
 
 			brightRow[x] = NearestGlobalPaletteIndex(r, g, b, cache);
 
-			if (darkRow != nullptr) {
+			if (frameRow != nullptr) {
 				const int dx = x - dimCircle->position.x;
 				const int dy = y - dimCircle->position.y;
 				const int radius = dimCircle->size.width;
 				if (dx * dx + dy * dy <= radius * radius) {
-					darkRow[x] = NearestGlobalPaletteIndex(r * 2 / 5, g * 2 / 5, b * 2 / 5, cache);
+					frameRow[x] = 0;
+					sphereRow[x] = NearestGlobalPaletteIndex(r * 2 / 5, g * 2 / 5, b * 2 / 5, cache);
 				} else {
-					darkRow[x] = brightRow[x];
+					frameRow[x] = brightRow[x];
+					sphereRow[x] = 0;
 				}
 			}
 		}
@@ -259,29 +278,62 @@ void EnsureQuantized()
 	QuantizedOnce = true;
 }
 
+/**
+ * @brief Blits rows [srcTop, srcBottom) of an 8-bit surface at half opacity, skipping index 0.
+ *
+ * Oracool: user request - "can you make orbs transparent as they deplete?". There is no alpha in
+ * an 8-bit palettized renderer, so translucency means blending through
+ * `paletteTransparencyLookup`, the engine's own 256x256 table of "the palette entry whose colour
+ * is the average of these two" - the same mechanism behind DrawHalfTransparentRectTo. Half is the
+ * only strength the table gives in one pass; applying it twice moves toward the source, not away,
+ * so it would make the glass LESS transparent rather than more.
+ */
+void BlitHalfTransparentSkipZero(const Surface &out, const Surface &src, Point position, int srcTop, int srcBottom)
+{
+	for (int y = srcTop; y < srcBottom; y++) {
+		const int dstY = position.y + y;
+		if (dstY < 0 || dstY >= out.h())
+			continue;
+		const uint8_t *srcRow = &src[Point { 0, y }];
+		uint8_t *dstRow = &out[Point { 0, dstY }];
+		for (int x = 0; x < src.w(); x++) {
+			if (srcRow[x] == 0)
+				continue;
+			const int dstX = position.x + x;
+			if (dstX < 0 || dstX >= out.w())
+				continue;
+			dstRow[dstX] = paletteTransparencyLookup[dstRow[dstX]][srcRow[x]];
+		}
+	}
+}
+
 void DrawOrb(const Surface &out, ArtAsset &asset, Point position, Point sphereCenterLocal, int currValue, int maxValue)
 {
 	EnsureLoadedAll();
 	if (asset.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!asset.dark || !asset.bright)
+	if (!asset.frame || !asset.sphereDim || !asset.bright)
 		return;
 
-	// Base: the sphere-dimmed variant.
-	out.BlitFromSkipColorIndexZero(*asset.dark, MakeSdlRect(0, 0, asset.width, asset.height), position);
-
-	// Reveal the bright variant bottom-up across the sphere's vertical span, proportional to the
-	// current value. Rows below the sphere are identical in both surfaces, so over-blitting them
-	// is invisible; rows above the reveal line keep the dimmed sphere.
 	const int radius = GetOrbSphereRadius();
 	const int span = 2 * radius;
 	const int64_t curr = std::clamp<int64_t>(currValue, 0, maxValue > 0 ? maxValue : 0);
 	const int filledRows = (maxValue > 0) ? static_cast<int>(span * curr / maxValue) : 0;
-	if (filledRows <= 0)
-		return;
-
 	const int revealTop = std::clamp(sphereCenterLocal.y + radius - filledRows, 0, asset.height);
+
+	// 1. The composition around the glass - ornament, rim, mount - always fully opaque. Drawn from
+	//    its own surface rather than from the whole image, so step 2 cannot touch it.
+	out.BlitFromSkipColorIndexZero(*asset.frame, MakeSdlRect(0, 0, asset.width, asset.height), position);
+
+	// 2. The empty part of the glass, blended into whatever the world drew behind it. This is the
+	//    change the user asked for: the orb used to paint an opaque dimmed sphere here, so a
+	//    near-dead character still had a solid black ball in the corner of the screen. Now the
+	//    glass genuinely empties.
+	BlitHalfTransparentSkipZero(out, *asset.sphereDim, position, 0, revealTop);
+
+	// 3. The filled part, opaque, bottom-up. Full rows: outside the sphere these pixels are
+	//    identical to what step 1 already drew, so overwriting them is invisible.
 	if (revealTop >= asset.height)
 		return;
 	out.BlitFromSkipColorIndexZero(*asset.bright,
