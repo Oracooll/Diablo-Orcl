@@ -49,6 +49,7 @@
 #include "panels/spell_icons.hpp"
 #include "panels/spell_list.hpp"
 #include "playerdat.hpp"
+#include "qol/itemlabels.h"
 #include "qol/stash.h"
 #include "qol/xpbar.h"
 #include "stores.h"
@@ -109,7 +110,28 @@ const Rectangle &GetRightPanel()
 }
 bool IsLeftPanelOpen()
 {
-	return chrflag || QuestLogIsOpen || IsStashOpen || oracool::IsWaypointMenuOpen();
+	return GetLeftPanelContent() != LeftPanelContent::None;
+}
+LeftPanelContent GetLeftPanelContent()
+{
+	// Oracool bug fix: user report - with the waypoint list and the Character panel both open,
+	// clicking the Character panel teleported the player. The draw chain and the click chain each
+	// had their own hand-written precedence and they disagreed: the drawing said Character wins and
+	// showed it, while the click handling tested the waypoint list first and routed the click
+	// there. Both now read this one function, so they cannot drift apart again.
+	//
+	// The order is the one the drawing already used, which is also the sensible one: whatever the
+	// player opened most recently is what they see, and the panels close each other rather than
+	// stacking.
+	if (chrflag)
+		return LeftPanelContent::Character;
+	if (QuestLogIsOpen)
+		return LeftPanelContent::QuestLog;
+	if (IsStashOpen)
+		return LeftPanelContent::Stash;
+	if (oracool::IsWaypointMenuOpen())
+		return LeftPanelContent::WaypointMenu;
+	return LeftPanelContent::None;
 }
 bool IsRightPanelOpen()
 {
@@ -937,9 +959,17 @@ void UpdateInfoString()
 			InfoColor = myPlayer.HoldItem.getTextColor();
 		}
 	} else {
-		if (pcursitem != -1)
-			GetItemStr(Items[pcursitem]);
-		else if (ObjectUnderCursor != nullptr)
+		// Oracool: user request - with item labels on, every item on the floor is already named
+		// where it lies, so the hover panel over one of them is the same information a second time
+		// ("i already see what an item is"). Ground items only: labels do not cover the inventory,
+		// the stash or the belt, which all keep their panel.
+		//
+		// Consequence worth knowing: a magic or unique item on the floor now shows only its name
+		// until it is picked up, since the label carries the name and nothing else.
+		if (pcursitem != -1) {
+			if (!IsHighlightingLabelsEnabled())
+				GetItemStr(Items[pcursitem]);
+		} else if (ObjectUnderCursor != nullptr)
 			GetObjectStr(*ObjectUnderCursor);
 		if (pcursmonst != -1) {
 			if (leveltype != DTYPE_TOWN) {

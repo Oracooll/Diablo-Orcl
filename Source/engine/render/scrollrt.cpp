@@ -1428,14 +1428,21 @@ void DrawView(const Surface &out, Point startPosition)
 #endif
 		DrawDurIcon(out);
 
-	if (chrflag) {
+	switch (GetLeftPanelContent()) {
+	case LeftPanelContent::Character:
 		DrawChr(out);
-	} else if (QuestLogIsOpen) {
+		break;
+	case LeftPanelContent::QuestLog:
 		DrawQuestLog(out);
-	} else if (IsStashOpen) {
+		break;
+	case LeftPanelContent::Stash:
 		DrawStash(out);
-	} else if (oracool::IsWaypointMenuOpen()) {
+		break;
+	case LeftPanelContent::WaypointMenu:
 		oracool::DrawWaypointMenu(out);
+		break;
+	case LeftPanelContent::None:
+		break;
 	}
 	if (oracool::IsHudMenuOpen()) {
 		oracool::DrawHudMenu(out);

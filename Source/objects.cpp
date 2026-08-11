@@ -4,6 +4,7 @@
  * Implementation of object functionality, interaction, spawning, loading, etc.
  */
 #include <climits>
+#include <limits>
 #include <cstdint>
 #include <ctime>
 
@@ -32,6 +33,7 @@
 #include "levels/drlg_l4.h"
 #include "levels/setmaps.h"
 #include "levels/themes.h"
+#include "levels/trigs.h"
 #include "lighting.h"
 #include "minitext.h"
 #include "missiles.h"
@@ -4270,6 +4272,173 @@ void AddWaypointSigilObject()
 	// Oracool: deliberately NOT calling ApplyPendingWaypointSpawn() here - see its own doc comment
 	// for why the reposition has to wait until the level has fully finished loading instead of
 	// happening from inside this mid-load function.
+}
+
+namespace {
+
+/**
+ * Oracool: user report - "wp frequently spawns in odd places", with a screenshot of one perched on
+ * a two-tile-wide cave bridge, half of the platform hanging over the drop.
+ *
+ * The cause is that AddWaypointSigilObject uses GetRndObjLoc(2), the engine's generic "find
+ * somewhere for an object" search. Its only geometric requirement is a 2x2 block of non-solid
+ * floor, which a bridge, a corridor and a doorway all satisfy - fine for a barrel, not for a
+ * platform two tiles across that is meant to read as a landmark.
+ *
+ * These constants describe what a waypoint actually wants instead.
+ */
+
+/** Half-width of the clear block a waypoint prefers: radius 2 is a 5x5 area, comfortably larger
+ * than the platform art, so nothing overlaps a wall. */
+constexpr int WaypointPreferredClearRadius = 2;
+/** ...and the minimum it will settle for. Radius 1 (3x3) is what rules out bridges and corridors. */
+constexpr int WaypointMinClearRadius = 1;
+/** How far it tries to stay from the nearest living monster. Capped rather than maximised - a
+ * waypoint in the emptiest corner of the map is safe and useless. */
+constexpr int WaypointPreferredMonsterDistance = 8;
+/** How far it must stay from a level entrance or exit, so it never lands on the stairs. */
+constexpr int WaypointMinTriggerDistance = 3;
+
+bool IsWaypointTileClear(Point position)
+{
+	if (!InDungeonBounds(position))
+		return false;
+	if (TileHasAny(dPiece[position.x][position.y], TileProperties::Solid))
+		return false;
+	if (dSpecial[position.x][position.y] != 0)
+		return false; // an arch or similar overlay would draw across the platform
+	if (IsObjectAtPosition(position))
+		return false;
+	if (TileContainsSetPiece(position))
+		return false;
+	// Same cathedral/crypt piece-range exclusion RndLocOk applies - those ids are doorway pieces.
+	return IsNoneOf(leveltype, DTYPE_CATHEDRAL, DTYPE_CRYPT) || dPiece[position.x][position.y] <= 125 || dPiece[position.x][position.y] >= 143;
+}
+
+bool IsWaypointAreaClear(Point centre, int radius)
+{
+	for (int y = -radius; y <= radius; y++) {
+		for (int x = -radius; x <= radius; x++) {
+			if (!IsWaypointTileClear(centre + Displacement { x, y }))
+				return false;
+		}
+	}
+	return true;
+}
+
+int DistanceToNearestTrigger(Point position)
+{
+	int nearest = std::numeric_limits<int>::max();
+	for (int i = 0; i < numtrigs; i++)
+		nearest = std::min(nearest, position.WalkingDistance(trigs[i].position));
+	return nearest;
+}
+
+int DistanceToNearestMonster(Point position)
+{
+	int nearest = std::numeric_limits<int>::max();
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const Monster &monster = Monsters[ActiveMonsters[i]];
+		if (monster.hitPoints <= 0 || monster.isPlayerMinion())
+			continue;
+		nearest = std::min(nearest, position.WalkingDistance(monster.position.tile));
+	}
+	return nearest;
+}
+
+/** @brief How good a waypoint spot @p position is, or -1 if it is not usable at all. */
+int ScoreWaypointTile(Point position)
+{
+	if (!IsWaypointAreaClear(position, WaypointMinClearRadius))
+		return -1;
+	if (DistanceToNearestTrigger(position) < WaypointMinTriggerDistance)
+		return -1;
+
+	int openness = WaypointMinClearRadius;
+	while (openness < WaypointPreferredClearRadius && IsWaypointAreaClear(position, openness + 1))
+		openness++;
+
+	// Openness dominates deliberately. A cramped spot is what the user actually complained about,
+	// and it is permanent; monsters wander off and get killed.
+	const int monsterDistance = std::min(DistanceToNearestMonster(position), WaypointPreferredMonsterDistance);
+	return openness * 100 + monsterDistance;
+}
+
+/**
+ * @brief Deterministic per-tile noise, used only to break scoring ties.
+ *
+ * Without it the first tile in scan order wins every tie and the waypoint drifts to the map's
+ * top-left corner on every level. Deliberately NOT drawn from the shared LCG: level generation is
+ * seeded, so consuming from it here would shift every later placement and change what a given seed
+ * produces. Mixing in the level seed is what makes the choice vary between playthroughs.
+ */
+uint32_t WaypointTileJitter(Point position)
+{
+	uint32_t hash = static_cast<uint32_t>(glSeedTbl[currlevel]);
+	hash ^= static_cast<uint32_t>(position.x) * 0x9E3779B9U;
+	hash ^= static_cast<uint32_t>(position.y) * 0x85EBCA6BU;
+	hash ^= hash >> 15;
+	hash *= 0x2545F491U;
+	hash ^= hash >> 13;
+	return hash;
+}
+
+} // namespace
+
+void ImproveWaypointSpawnPosition()
+{
+	if (setlevel || leveltype == DTYPE_TOWN)
+		return;
+
+	size_t waypointIndex = 0;
+	Object *waypoint = nullptr;
+	for (int i = 0; i < ActiveObjectCount; i++) {
+		Object &object = Objects[ActiveObjects[i]];
+		if (object._otype == _object_id::OBJ_WAYPOINT) {
+			waypointIndex = static_cast<size_t>(ActiveObjects[i]);
+			waypoint = &object;
+			break;
+		}
+	}
+	if (waypoint == nullptr)
+		return;
+
+	// Runs after monsters and items are placed - which is the whole point, since AddWaypointSigilObject
+	// runs from InitObjects, long before dMonster holds anything. Scoring where it already is first
+	// means a spot that is already good is simply kept.
+	Point best = waypoint->position;
+	int bestScore = ScoreWaypointTile(best);
+	uint32_t bestJitter = WaypointTileJitter(best);
+
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const Point candidate { x, y };
+			if (candidate == waypoint->position)
+				continue;
+			const int score = ScoreWaypointTile(candidate);
+			if (score < bestScore)
+				continue;
+			const uint32_t jitter = WaypointTileJitter(candidate);
+			if (score == bestScore && jitter <= bestJitter)
+				continue;
+			best = candidate;
+			bestScore = score;
+			bestJitter = jitter;
+		}
+	}
+
+	if (best == waypoint->position)
+		return;
+	if (bestScore < 0) {
+		// Nothing on this level meets even the minimum. Leave the object where the generic search
+		// put it rather than moving it somewhere worse - a badly placed waypoint still works.
+		LogEvent(StrCat("No open waypoint spot found on level ", currlevel, "; keeping the generated position"), UiFlags::ColorRed);
+		return;
+	}
+
+	dObject[waypoint->position.x][waypoint->position.y] = 0;
+	waypoint->position = best;
+	dObject[best.x][best.y] = static_cast<int8_t>(waypointIndex + 1);
 }
 
 /**

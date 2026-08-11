@@ -64,6 +64,25 @@ bool IsLeftPanelOpen();
 bool IsRightPanelOpen();
 
 /**
+ * @brief Which of the mutually exclusive left-hand panels is currently on screen.
+ *
+ * Oracool bug fix: user report - the waypoint list and the Character panel could both be "open",
+ * and the renderer and the click handler each decided independently which one that meant. The
+ * renderer showed the Character panel; the click handler routed the click to the waypoint list and
+ * teleported the player. Every place that needs to know which panel is showing - the draw chain in
+ * scrollrt.cpp's DrawAndBlit and the left-click chain in diablo.cpp's LeftMouseDown - must read it
+ * from here rather than re-deriving it, or the two can disagree again.
+ */
+enum class LeftPanelContent : uint8_t {
+	None,
+	Character,
+	QuestLog,
+	Stash,
+	WaypointMenu,
+};
+LeftPanelContent GetLeftPanelContent();
+
+/**
  * @brief Whether @p position is over whichever right-hand panel is currently open.
  *
  * Oracool V1: the inventory has its own 320x660 top-right rect and no longer lives inside

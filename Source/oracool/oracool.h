@@ -69,6 +69,30 @@ void CloseStashChestObject();
 void AddWaypointSigilObject();
 
 /**
+ * @brief Oracool: user report ("wp frequently spawns in odd places") - moves a freshly generated
+ * dungeon waypoint to a spot that suits a two-tile-wide landmark platform.
+ *
+ * AddWaypointSigilObject has to run from InitObjects, and at that point the level has no monsters
+ * and no items yet, so it can only use the engine's generic GetRndObjLoc - whose sole geometric
+ * requirement is a 2x2 block of non-solid floor. A cave bridge satisfies that, which is how the
+ * user ended up with a platform half-hanging over a drop.
+ *
+ * This runs later, once the level's contents exist, and re-scores every tile: a clear area around
+ * it (3x3 minimum, 5x5 preferred), clear of the stairs, and as far from living monsters as is
+ * useful. It keeps the generated position if that already scores best, and keeps it too if nothing
+ * on the level meets the minimum - a badly placed waypoint still works, and moving it somewhere
+ * worse would not help.
+ *
+ * Uses no randomness at all, deliberately: level generation is seeded, so drawing from the shared
+ * LCG here would shift every later placement and change what a given seed produces. Ties are
+ * broken by a hash of the tile mixed with the level seed instead.
+ *
+ * Call only on fresh generation - a revisited level restores the waypoint's saved position, which
+ * must not move under the player. Defined in objects.cpp; called from diablo.cpp's LoadGameLevel.
+ */
+void ImproveWaypointSpawnPosition();
+
+/**
  * @brief Oracool: bug postmortem (2026-08-10) - registers the waypoint sigil's graphic
  * (OFILE_ORCLWAYP) in the current level's object-graphics list if it isn't there already. Must be
  * called unconditionally on every entry to a level that could have a waypoint sigil - fresh

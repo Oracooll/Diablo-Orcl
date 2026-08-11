@@ -1,4 +1,4 @@
-#include "oracool/event_log.h"
+﻿#include "oracool/event_log.h"
 
 #include <algorithm>
 #include <ctime>
@@ -16,6 +16,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "options.h"
+#include "oracool/ornate_border.h"
 
 namespace devilution::oracool {
 
@@ -144,8 +145,9 @@ void DrawEventLogWindow(const Surface &out)
 	const int windowHeight = WindowHeight();
 	const int windowWidth = WindowWidth();
 	DrawHalfTransparentRectTo(out, windowPosition.x, windowPosition.y, windowWidth, windowHeight);
-	// Oracool: user request - match the mini-map's own 1px dashed border instead of a solid one.
-	DrawDashedBorder1px(out, windowPosition.x, windowPosition.y, windowWidth, windowHeight, EventLogBorderColor);
+	// Oracool: user request - the same textbox_frame00 bevel the mini-map now wears, so the two
+	// stacked windows in the top-right corner read as one set (see oracool/ornate_border.h).
+	DrawOrnateBorder(out, Rectangle { windowPosition, { windowWidth, windowHeight } });
 
 	Point linePosition = windowPosition + Displacement { WindowPadding, WindowPadding };
 	const int contentWidth = windowWidth - WindowPadding * 2;

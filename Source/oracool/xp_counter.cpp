@@ -55,6 +55,25 @@ Rectangle GetCounterRect()
 	return Rectangle { { left, bottom - CounterHeight }, { width, CounterHeight } };
 }
 
+/**
+ * @brief The box the text is DRAWN into, as opposed to the one that is clicked.
+ *
+ * Oracool: user report - a high-level character showed "220,000,000 / 10". Not a wrong number: the
+ * real string is "220,000,000 / 100%" and DrawString was clipping it, because the click target
+ * spans only belt cells 1-4 (~150px) and a ten-digit remainder plus a three-digit percentage needs
+ * more than that.
+ *
+ * Widening the click target instead would have pushed it out over the plate's two skill wells and
+ * let it swallow clicks meant for them, so the two rects are separate. They share a centre - belt
+ * cells 1-4 are themselves centred on the plate - so the readout does not shift.
+ */
+Rectangle GetCounterDrawRect()
+{
+	const Rectangle clickRect = GetCounterRect();
+	const Rectangle plate = GetMiddleHudRect();
+	return Rectangle { { plate.position.x, clickRect.position.y }, { plate.size.width, clickRect.size.height } };
+}
+
 /** @brief The experience gap between the player's current level and the next one - the denominator
  * behind both percentages this counter shows. */
 uint64_t LevelExperienceSpan(const Player &player)
@@ -110,9 +129,10 @@ void DrawXpCounter(const Surface &out)
 	const std::string text = StrCat(FormatInteger(value), " / ", FormatInteger(percent), "%");
 	const UiFlags color = IsHeld ? UiFlags::ColorWhite : UiFlags::ColorGold;
 
-	// Centred in the strip above belt cells 1-4. The box is the full cell span rather than the
-	// text's own width, so the readout stays put as digits come and go.
-	DrawString(out, text, GetCounterRect(), { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 | color });
+	// Centred in the strip above belt cells 1-4. The box is a fixed span rather than the text's own
+	// width, so the readout stays put as digits come and go - and spans the whole plate rather than
+	// just the cells, so a ten-digit remainder is not clipped (see GetCounterDrawRect).
+	DrawString(out, text, GetCounterDrawRect(), { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 | color });
 }
 
 bool IsPointOverXpCounter(Point mousePosition)

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file automap.h
  *
  * Interface of the in-game map overlay.
@@ -158,13 +158,6 @@ void DrawMiniMap(const Surface &out);
  * both its left and right edges, and to anchor its own top boundary below the mini-map's bottom.
  */
 Rectangle GetMiniMapScreenRect();
-
-/**
- * @brief Oracool: draws a 1px dashed rectangle outline, matching the mini-map's own border style -
- * exposed so other UI that wants to visually match the mini-map's border (the event log window)
- * doesn't have to duplicate this or fall back to the plain solid UnsafeDrawBorder2px.
- */
-void DrawDashedBorder1px(const Surface &out, int x, int y, int width, int height, uint8_t color);
 
 /**
  * @brief Updates automap explorer at point if value is higher than existing.

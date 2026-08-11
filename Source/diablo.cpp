@@ -409,24 +409,39 @@ void LeftMouseDown(uint16_t modState)
 
 	if (!isOverHud) {
 		if (!gmenu_is_active() && !TryIconCurs()) {
-			if (QuestLogIsOpen && GetLeftPanel().contains(MousePosition)) {
-				QuestlogESC();
-			} else if (oracool::IsWaypointMenuOpen() && GetLeftPanel().contains(MousePosition)) {
-				oracool::CheckWaypointMenuClick(MousePosition);
+			// Oracool bug fix: user report - one click, routed by whichever left-hand panel is
+			// actually on screen. This used to be four separate `else if`s in an order of their
+			// own, which disagreed with the renderer's: with both the waypoint list and the
+			// Character panel open, the Character panel was drawn but the click went to the
+			// waypoint list and teleported the player. GetLeftPanelContent is now the single
+			// authority, shared with scrollrt.cpp's draw chain.
+			if (GetLeftPanelContent() != LeftPanelContent::None && GetLeftPanel().contains(MousePosition)) {
+				switch (GetLeftPanelContent()) {
+				case LeftPanelContent::Character:
+					CheckChrBtns();
+					break;
+				case LeftPanelContent::QuestLog:
+					QuestlogESC();
+					break;
+				case LeftPanelContent::Stash:
+					if (!IsWithdrawGoldOpen)
+						CheckStashItem(MousePosition, isShiftHeld, isCtrlHeld);
+					CheckStashButtonPress(MousePosition);
+					break;
+				case LeftPanelContent::WaypointMenu:
+					oracool::CheckWaypointMenuClick(MousePosition);
+					break;
+				case LeftPanelContent::None:
+					break;
+				}
 			} else if (oracool::IsHudMenuOpen()) {
 				oracool::CheckHudMenuClick(MousePosition);
 			} else if (qtextflag) {
 				qtextflag = false;
 				stream_stop();
-			} else if (chrflag && GetLeftPanel().contains(MousePosition)) {
-				CheckChrBtns();
 			} else if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 				if (!DropGoldFlag)
 					CheckInvItem(isShiftHeld, isCtrlHeld);
-			} else if (IsStashOpen && GetLeftPanel().contains(MousePosition)) {
-				if (!IsWithdrawGoldOpen)
-					CheckStashItem(MousePosition, isShiftHeld, isCtrlHeld);
-				CheckStashButtonPress(MousePosition);
 			} else if (sbookflag && GetRightPanel().contains(MousePosition)) {
 				CheckSBook();
 			} else if (!MyPlayer->HoldItem.isEmpty()) {
@@ -3008,6 +3023,12 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 				InitMonsters();
 				InitItems();
 				CreateThemeRooms();
+				// Oracool: user report - the waypoint is placed back in InitObjects, before this
+				// level had any monsters or items to avoid, using the engine's generic
+				// "2x2 of floor will do" search. Now that everything is placed, re-pick its spot
+				// properly. Fresh generation only: the revisit branch below restores the saved
+				// position, which must not move under the player.
+				oracool::ImproveWaypointSpawnPosition();
 				IncProgress();
 				[[maybe_unused]] uint32_t mid3Seed = GetLCGEngineState();
 				InitMissiles();

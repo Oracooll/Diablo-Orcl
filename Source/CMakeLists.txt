@@ -1,4 +1,4 @@
-include(Definitions)
+﻿include(Definitions)
 include(functions/devilutionx_library)
 include(functions/genex)
 
@@ -44,6 +44,7 @@ set(libdevilutionx_SRCS
   oracool/furious_charge.cpp
   oracool/game_clock.cpp
   oracool/gradual_healing.cpp
+  oracool/ornate_border.cpp
   oracool/hud_art.cpp
   oracool/hud_layout.cpp
   oracool/hud_menu.cpp
