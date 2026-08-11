@@ -1004,16 +1004,9 @@ void DrawLevelUpIcon(const Surface &out)
 		state = 2;
 	else if (rect.contains(MousePosition))
 		state = 1;
+	// No label. At 40x60 the icon carries the meaning on its own, and the words competed with the
+	// clock directly above them for the same small corner.
 	oracool::DrawLevelUpIconArt(out, state);
-
-	// Centred on the icon, and given room to overhang it - "Level Up" is wider than 32px.
-	constexpr int LabelOverhang = 24;
-	constexpr int LabelGap = 1;
-	const Rectangle label {
-		{ rect.position.x - LabelOverhang, rect.position.y + rect.size.height + LabelGap },
-		{ rect.size.width + LabelOverhang * 2, 0 }
-	};
-	DrawString(out, _("Level Up"), label, { UiFlags::ColorGold | UiFlags::AlignCenter });
 }
 
 void CheckChrBtns()

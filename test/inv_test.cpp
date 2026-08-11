@@ -1099,6 +1099,12 @@ TEST_F(InvTest, ItemSize)
 // located by identity (seed + base item + create info) wherever it actually ended up.
 TEST_F(InvTest, RemoveMatchingInventoryOrExtraTabItem_FindsItemInInvList)
 {
+	// The InvList branch ends in Player::RemoveInvItem, which network-syncs the removal
+	// (CMD_DELINVITEMS) when the owner is MyPlayer. Without a provider that call dereferences a
+	// null connection - the test only passed because an earlier test in the binary had already
+	// initialised one, so it crashed whenever ctest ran it under its own --gtest_filter. The
+	// extra-tab branch needs no provider (single-player only, no packet format for it).
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
 	clear_inventory();
 	MyPlayer->InvList[0]._itype = ItemType::Misc;
 	MyPlayer->InvList[0]._iSeed = 0x1234;

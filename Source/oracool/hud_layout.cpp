@@ -1,4 +1,6 @@
-#include "oracool/hud_layout.h"
+﻿#include "oracool/hud_layout.h"
+
+#include "oracool/game_clock.h"
 
 #include <string>
 
@@ -138,14 +140,16 @@ Rectangle GetRmbSkillButtonRect()
 
 Rectangle GetLevelUpIconRect()
 {
-	// Mirrors the clock's own placement in oracool/game_clock.cpp - margin 8, 72x20 - and sits
-	// directly beneath it, centred on its width. Kept here rather than in game_clock.cpp because
-	// control.cpp needs the rect for hit-testing as well as drawing.
+	// Hangs directly under the clock's ':' rather than under the clock's box. The colon is a fixed
+	// visual anchor; the box is not, because the text is left-aligned inside it and changes width
+	// with the hour and the 12/24-hour option. GetClockColonCentreX measures the real glyphs.
+	//
+	// Lives here rather than in game_clock.cpp because control.cpp needs the rect for hit-testing
+	// as well as drawing - the two must never disagree.
 	constexpr int ClockMargin = 8;
-	constexpr int ClockWidth = 72;
 	constexpr int ClockHeight = 20;
-	constexpr int GapBelowClock = 4;
-	return { { ClockMargin + (ClockWidth - LevelUpIconSize.width) / 2, ClockMargin + ClockHeight + GapBelowClock },
+	constexpr int GapBelowClock = 2;
+	return { { GetClockColonCentreX() - LevelUpIconSize.width / 2, ClockMargin + ClockHeight + GapBelowClock },
 		LevelUpIconSize };
 }
 

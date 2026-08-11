@@ -62,7 +62,7 @@ inline constexpr int MenuIconCount = 8;
  * new HUD art. The top-left corner already holds the clock and nothing else, so the two read as
  * one small status stack.
  */
-inline constexpr Size LevelUpIconSize { 32, 32 };
+inline constexpr Size LevelUpIconSize { 40, 60 };
 Rectangle GetLevelUpIconRect();
 
 /** @brief On-screen bounding box of the middle HUD plate (assets/ui/middle_hud.png, drawn by

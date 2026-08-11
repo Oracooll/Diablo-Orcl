@@ -448,7 +448,7 @@ class HudIconCut
     /// rather than left opaque. The sheet's own order already matches the game's: a steady lit
     /// resting state, a blazing hovered one, and a dimmed pressed one.
     /// </summary>
-    static void CutLevelUp(string sheetPath, string outPath, int size)
+    static void CutLevelUp(string sheetPath, string outPath, int cellW, int cellH)
     {
         Load(sheetPath);
         // 60, not 30. These icons carry a heavy glow that fades smoothly into the black backdrop,
@@ -468,7 +468,14 @@ class HudIconCut
         Console.WriteLine("   row y {0}..{1}, {2} icons", row[0], row[1], cols.Count);
         if (cols.Count != 3) throw new Exception("expected 3 states, got " + cols.Count);
 
-        var outBmp = new Bitmap(size * 3, size, PixelFormat.Format32bppArgb);
+        // One source box size for all three states, from the widest detected band. The blazing
+        // hover state's glow spreads further than the others, so sizing each state to its own band
+        // would render them at different scales and make the icon jump between frames.
+        int side = 0;
+        foreach (var c in cols) side = Math.Max(side, c[1] - c[0] + 1);
+        side = Math.Max(side, row[1] - row[0] + 1);
+
+        var outBmp = new Bitmap(cellW * 3, cellH, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(outBmp))
         {
             g.Clear(Color.Transparent);
@@ -477,12 +484,16 @@ class HudIconCut
             for (int s = 0; s < 3; s++)
             {
                 var c = cols[s];
-                // Square source box centred on the icon, so the three states stay the same scale
-                // even though the blazing one's glow makes its detected band wider.
                 int cx = (c[0] + c[1]) / 2, cy = (row[0] + row[1]) / 2;
-                int side = Math.Max(c[1] - c[0] + 1, row[1] - row[0] + 1);
                 var src = new Rectangle(cx - side / 2, cy - side / 2, side, side);
-                g.DrawImage(Sheet, new Rectangle(s * size, 0, size, size), src, GraphicsUnit.Pixel);
+
+                // Fit by aspect into the cell rather than stretching to it. The cell is portrait
+                // (40x60) while the emblem is square, so stretching would visibly distort it.
+                double scale = Math.Min((double)cellW / side, (double)cellH / side);
+                int w = Math.Max(1, (int)Math.Round(side * scale));
+                int h = Math.Max(1, (int)Math.Round(side * scale));
+                var dst = new Rectangle(s * cellW + (cellW - w) / 2, (cellH - h) / 2, w, h);
+                g.DrawImage(Sheet, dst, src, GraphicsUnit.Pixel);
             }
         }
 
@@ -500,7 +511,7 @@ class HudIconCut
         outBmp.UnlockBits(data);
 
         outBmp.Save(outPath, ImageFormat.Png);
-        Console.WriteLine("   wrote {0} ({1}x{2}, states resting/hover/pressed)", Path.GetFileName(outPath), size * 3, size);
+        Console.WriteLine("   wrote {0} ({1}x{2}, cell {3}x{4}, states resting/hover/pressed)", Path.GetFileName(outPath), cellW * 3, cellH, cellW, cellH);
         outBmp.Dispose();
     }
 
@@ -509,7 +520,7 @@ class HudIconCut
         string srcRoot = args[0], outDir = args[1];
 
         CutLevelUp(Path.Combine(srcRoot, "hud-icons", "level-up-icon-3-states.png"),
-            Path.Combine(outDir, "level_up_icon.png"), 32);
+            Path.Combine(outDir, "level_up_icon.png"), 40, 60);
 
         // Design 1 (index 0): a plain square stone tile, the closest match to the belt cell's own
         // carved square. Only its interior is used, so the frame choice matters little - but a
