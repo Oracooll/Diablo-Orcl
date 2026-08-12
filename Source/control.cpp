@@ -1034,8 +1034,8 @@ void DrawLevelUpIcon(const Surface &out)
 		state = 2;
 	else if (rect.contains(MousePosition))
 		state = 1;
-	// No label. At 40x60 the icon carries the meaning on its own, and the words competed with the
-	// clock directly above them for the same small corner.
+	// No label. The icon carries the meaning on its own, and the words competed with the clock
+	// directly above them for the same small corner.
 	oracool::DrawLevelUpIconArt(out, state);
 }
 
