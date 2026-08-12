@@ -91,11 +91,15 @@ foreach ($k in $kitParts.Keys) {
 }
 Write-Host "  border kit: $($kitParts.Count) elements shipped"
 
-# ---- 3. waypoint pad icons -----------------------------------------------------------------
-# waypoint-2-states.png is one image split at the midpoint - left dormant, right active - which is
-# the same split tools/WaypointCel.cs uses for the in-world object.
+# ---- 3. waypoint sigil icons ---------------------------------------------------------------
+# Split at the midpoint - left dormant, right active - the same convention WaypointCel.cs uses for
+# the in-world object.
+#
+# Source is the TOP-DOWN sigil, not the isometric floor pad in 01-in-use\world. The pad is roughly
+# 2:1, so contain-fitting it into a 30px cell left it about 30x21 and reading as a small lozenge;
+# the top-down sigil is near-square and fills the cell.
 $ICON_W = 30; $ICON_H = 30
-$wpPath = Join-Path $inUse "world\waypoint-2-states.png"
+$wpPath = Join-Path $art "hud-icons\waypoint-sigil-topdown-2-states.png"
 if (-not (Test-Path $wpPath)) { throw "waypoint art not found: $wpPath" }
 $wp = [System.Drawing.Bitmap]::FromFile((Resolve-Path $wpPath))
 $half = [int]($wp.Width / 2)
@@ -159,10 +163,10 @@ $g.PixelOffsetMode   = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
 $g.SmoothingMode     = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAlias
 
-# Darken the list area a little so the pale marble does not fight the row text.
-$shade = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(105,0,0,0))
-$g.FillRectangle($shade, $BORDER, $listTop, ($PW-2*$BORDER), ($ROWS*$ROW_H))
-$shade.Dispose()
+# The background is left UNIFORM. An earlier revision darkened the list area so the pale marble
+# would not fight the row text, which made the panel visibly two-tone - label band luma 143 against
+# list 82 - and that banding was never asked for. The row text is outlined in black instead (see
+# waypoint_menu.cpp), which fixes legibility at its source and leaves the texture as it is.
 
 # Border, built from the kit: corners then bars tiled along the runs between them.
 $cornerSrc = Get-Keyed $kit $kitParts["border2_corner_1"]

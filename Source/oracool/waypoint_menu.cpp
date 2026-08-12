@@ -83,6 +83,26 @@ Point OpenedFromPosition;
 // RequestSpawnAtWaypoint's doc comment for why it can't just set ViewPosition here instead.
 bool WaypointSpawnRequested = false;
 
+/**
+ * @brief Draws @p text with a hard black outline on all four sides.
+ *
+ * The text renderer has no outline or shadow flag. control.cpp's DrawFlaskValues sets the
+ * precedent with a single black draw offset up-left, which is enough over the flask art but not
+ * over a textured stone panel where a name can cross both light and dark grain on the same line.
+ * Four offsets cost four extra DrawString calls per row - 68 per frame for the whole list, only
+ * while it is open - and let the panel keep one uniform texture instead of a darkened band.
+ */
+void DrawStringOutlined(const Surface &out, string_view text, Rectangle area, UiFlags color)
+{
+	constexpr Displacement Offsets[] = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+	for (const Displacement &d : Offsets) {
+		Rectangle shifted = area;
+		shifted.position += d;
+		DrawString(out, text, shifted, { UiFlags::ColorBlack | UiFlags::VerticalCenter });
+	}
+	DrawString(out, text, area, { color | UiFlags::VerticalCenter });
+}
+
 int MouseToEntry(Point mousePosition)
 {
 	const Rectangle panel = PanelRect();
@@ -154,11 +174,10 @@ void DrawWaypointMenu(const Surface &out)
 		// Vertically centre the name in its row rather than sitting it on the row's top edge, so it
 		// lines up with the pad beside it.
 		const Rectangle textArea { { textX, rowTop }, { panel.size.width - PanelBorder - (textX - panel.position.x), RowHeight } };
-		// Gold for reached, plain white for not. Both are already proven legible here - they are the
-		// same two colours this function used before, just assigned the intuitive way round. The
-		// pad beside the name carries the real state cue; this is reinforcement.
-		DrawString(out, WaypointNames[i], textArea,
-		    { (unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorWhite) | UiFlags::VerticalCenter });
+		// Gold for reached, plain white for not, both outlined so they read against any part of the
+		// stone. The sigil beside the name carries the real state cue; colour is reinforcement.
+		DrawStringOutlined(out, WaypointNames[i], textArea,
+		    unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorWhite);
 	}
 }
 
