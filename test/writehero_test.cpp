@@ -1,4 +1,4 @@
-#include "player_test.h"
+﻿#include "player_test.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -213,9 +213,9 @@ void PackPlayerTest(PlayerPack *pPack)
 	pPack->pGold = 0;
 	pPack->pStatPts = 0;
 	pPack->pDiabloKillLevel = 3;
-	for (auto i = 0; i < 40; i++)
+	for (auto i = 0; i < InventoryGridCells; i++)
 		pPack->InvList[i].idx = -1;
-	for (auto i = 0; i < 7; i++)
+	for (auto i = 0; i < NUM_INVLOC; i++)
 		pPack->InvBody[i].idx = -1;
 	for (auto i = 0; i < MaxBeltItems; i++)
 		PackItemFullRejuv(pPack->SpdList + i, i);
@@ -225,7 +225,7 @@ void PackPlayerTest(PlayerPack *pPack)
 			pPack->pSplLvl[i] = 15;
 		}
 	}
-	for (auto i = 0; i < 7; i++)
+	for (auto i = 0; i < NUM_INVLOC; i++)
 		pPack->InvBody[i].idx = -1;
 	strcpy(pPack->pName, "TestPlayer");
 	pPack->pClass = static_cast<uint8_t>(HeroClass::Rogue);
@@ -394,15 +394,16 @@ TEST(Writehero, pfile_write_hero)
 
 	std::vector<unsigned char> s(picosha2::k_digest_size);
 	picosha2::hash256(data.get(), data.get() + size, s.begin(), s.end());
-	// Oracool: this golden hash has been re-baselined twice, both times for a deliberate,
+	// Oracool: this golden hash has been re-baselined three times, each for a deliberate,
 	// documented change to the on-disk "hero" blob:
 	//   1. pExperience widened from uint32_t to uint64_t (the level-99 curve exceeds UINT32_MAX).
 	//   2. V1's inventory grew from 10x4 to 10x7, so PlayerPack's InvList and InvGrid grew with
 	//      InventoryGridCells (40 -> 70). See oracool/inventory_layout.h.
+	//   3. Six worn equipment slots added, so PlayerPack's InvBody grew with NUM_INVLOC (7 -> 13).
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "17fd4d9a2ebdea44ecc61b6b7377760c812769c247fe955015b80034f7d0ede1");
+	    "9c2d0684374683114814e1056fd75e1523cb10cabe8925757f4979583a3af81f");
 }
 
 } // namespace

@@ -40,6 +40,18 @@ string_view ItemTypeToString(ItemType itemType)
 		return "Ring";
 	case ItemType::Amulet:
 		return "Amulet";
+	case ItemType::Shoulders:
+		return "Shoulders";
+	case ItemType::Bracers:
+		return "Bracers";
+	case ItemType::Gloves:
+		return "Gloves";
+	case ItemType::Belt:
+		return "Belt";
+	case ItemType::Legs:
+		return "Legs";
+	case ItemType::Boots:
+		return "Boots";
 	case ItemType::None:
 		return "None";
 	}

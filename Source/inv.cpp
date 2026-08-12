@@ -86,7 +86,14 @@ bool ActiveTabItemHovered;
  */
 namespace {
 
-/** @brief Which oracool equipment slot backs each of the seven vanilla body locations. */
+/**
+ * @brief Which oracool paperdoll slot backs each body location.
+ *
+ * Now total rather than a switch with a `default:` catch-all. That default used to return Chest
+ * for anything unlisted, which was fine while the six extra slots drew nothing - and would have
+ * become six slots all hit-testing the chest the moment they went live. Every case is spelled out
+ * so adding a body location without a rect fails to compile instead.
+ */
 constexpr oracool::EquipSlot EquipSlotForBodyLocation(int slotXy)
 {
 	switch (slotXy) {
@@ -96,9 +103,23 @@ constexpr oracool::EquipSlot EquipSlotForBodyLocation(int slotXy)
 	case SLOTXY_AMULET: return oracool::EquipSlot::Amulet;
 	case SLOTXY_HAND_LEFT: return oracool::EquipSlot::Weapon;
 	case SLOTXY_HAND_RIGHT: return oracool::EquipSlot::Shield;
+	case SLOTXY_CHEST: return oracool::EquipSlot::Chest;
+	case SLOTXY_SHOULDERS: return oracool::EquipSlot::Shoulders;
+	case SLOTXY_BRACERS: return oracool::EquipSlot::Bracers;
+	case SLOTXY_GLOVES: return oracool::EquipSlot::Gloves;
+	case SLOTXY_WAIST: return oracool::EquipSlot::Belt;
+	case SLOTXY_LEGS: return oracool::EquipSlot::Legs;
+	case SLOTXY_BOOTS: return oracool::EquipSlot::Boots;
 	default: return oracool::EquipSlot::Chest;
 	}
 }
+
+// The two enums have to stay in step: InvRect is built by walking inv_body_loc and asking
+// inventory_layout.h for each slot's rect, so a mismatch mis-targets clicks rather than failing.
+static_assert(static_cast<int>(SLOTXY_EQUIPPED_LAST) - static_cast<int>(SLOTXY_EQUIPPED_FIRST) + 1 == NUM_INVLOC,
+    "inv_xy_slot's equipment range no longer matches inv_body_loc");
+static_assert(NUM_INVLOC == oracool::EquipSlotCount,
+    "inv_body_loc and oracool::EquipSlot have drifted apart");
 
 /** @brief Belt cell rects on the main HUD. Unchanged from vanilla; see the note above. */
 constexpr Rectangle BeltRect(int index)
@@ -426,8 +447,48 @@ bool CanEquip(Player &player, const Item &item, inv_body_loc bodyLocation)
 	case INVLOC_RING_RIGHT:
 		return item._iLoc == ILOC_RING;
 
+	// Oracool: the six new worn slots. One item location each, so the mapping is a straight
+	// equality like the helm and amulet cases above - no dual slots, no two-handed rule.
+	case INVLOC_SHOULDERS:
+		return item._iLoc == ILOC_SHOULDERS;
+
+	case INVLOC_BRACERS:
+		return item._iLoc == ILOC_BRACERS;
+
+	case INVLOC_GLOVES:
+		return item._iLoc == ILOC_GLOVES;
+
+	case INVLOC_WAIST:
+		return item._iLoc == ILOC_WAIST;
+
+	case INVLOC_LEGS:
+		return item._iLoc == ILOC_LEGS;
+
+	case INVLOC_BOOTS:
+		return item._iLoc == ILOC_BOOTS;
+
 	default:
 		return false;
+	}
+}
+
+/**
+ * @brief The body location an item goes in, for the slots where that is a straight 1:1 mapping.
+ *
+ * Oracool: the six new locations have no dual-slot or two-handed rules, so every place that needs
+ * "where does this go" can share one table instead of repeating a switch. Returns NUM_INVLOC for
+ * anything it does not own - rings, weapons and shields all have their own placement logic.
+ */
+inv_body_loc OracoolBodyLocationFor(item_equip_type loc)
+{
+	switch (loc) {
+	case ILOC_SHOULDERS: return INVLOC_SHOULDERS;
+	case ILOC_BRACERS: return INVLOC_BRACERS;
+	case ILOC_GLOVES: return INVLOC_GLOVES;
+	case ILOC_WAIST: return INVLOC_WAIST;
+	case ILOC_LEGS: return INVLOC_LEGS;
+	case ILOC_BOOTS: return INVLOC_BOOTS;
+	default: return NUM_INVLOC;
 	}
 }
 
@@ -530,6 +591,19 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 		il = ILOC_ONEHAND;
 	if (slot == SLOTXY_CHEST)
 		il = ILOC_ARMOR;
+	// Oracool: the six new worn slots, each accepting exactly one item location.
+	if (slot == SLOTXY_SHOULDERS)
+		il = ILOC_SHOULDERS;
+	if (slot == SLOTXY_BRACERS)
+		il = ILOC_BRACERS;
+	if (slot == SLOTXY_GLOVES)
+		il = ILOC_GLOVES;
+	if (slot == SLOTXY_WAIST)
+		il = ILOC_WAIST;
+	if (slot == SLOTXY_LEGS)
+		il = ILOC_LEGS;
+	if (slot == SLOTXY_BOOTS)
+		il = ILOC_BOOTS;
 	if (slot >= SLOTXY_BELT_FIRST && slot <= SLOTXY_BELT_LAST)
 		il = ILOC_BELT;
 
@@ -595,7 +669,16 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 	case ILOC_HELM:
 	case ILOC_RING:
 	case ILOC_AMULET:
-	case ILOC_ARMOR: {
+	case ILOC_ARMOR:
+	// Oracool: the six new worn slots take exactly this path - one slot, swap whatever is there
+	// for what is held. They have no dual-slot rule like the rings and no two-handed rule like the
+	// weapons, so there is nothing for them to do that the helm and armour cases do not already do.
+	case ILOC_SHOULDERS:
+	case ILOC_BRACERS:
+	case ILOC_GLOVES:
+	case ILOC_WAIST:
+	case ILOC_LEGS:
+	case ILOC_BOOTS: {
 		auto iLocToInvLoc = [&slot](item_equip_type loc) {
 			switch (loc) {
 			case ILOC_HELM:
@@ -606,8 +689,12 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				return INVLOC_AMULET;
 			case ILOC_ARMOR:
 				return INVLOC_CHEST;
-			default:
-				app_fatal("Unexpected equipment type");
+			default: {
+				const inv_body_loc oracoolSlot = OracoolBodyLocationFor(loc);
+				if (oracoolSlot == NUM_INVLOC)
+					app_fatal("Unexpected equipment type");
+				return oracoolSlot;
+			}
 			}
 		};
 		inv_body_loc slot = iLocToInvLoc(il);
@@ -934,6 +1021,16 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 						break;
 					case ILOC_AMULET:
 						invloc = INVLOC_AMULET;
+						break;
+					// Oracool: shift-click on one of the new worn types targets its single slot,
+					// exactly as armour and helms do above.
+					case ILOC_SHOULDERS:
+					case ILOC_BRACERS:
+					case ILOC_GLOVES:
+					case ILOC_WAIST:
+					case ILOC_LEGS:
+					case ILOC_BOOTS:
+						invloc = OracoolBodyLocationFor(player.GetItemLocation(holdItem));
 						break;
 					case ILOC_ONEHAND:
 						// User is attempting to move a weapon (left hand)
@@ -1597,7 +1694,10 @@ bool AutoEquipEnabled(const Player &player, const Item &item)
 		return player._pClass != HeroClass::Monk && *sgOptions.Gameplay.autoEquipWeapons;
 	}
 
-	if (item.isArmor()) {
+	// Oracool: the new worn types ride the existing armour toggle rather than getting six options
+	// of their own - they are armour by any reasonable reading, and a player who wants armour
+	// auto-equipped wants their boots auto-equipped.
+	if (item.isArmor() || item.isOracoolWorn()) {
 		return *sgOptions.Gameplay.autoEquipArmor;
 	}
 

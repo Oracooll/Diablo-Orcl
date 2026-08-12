@@ -87,6 +87,17 @@ enum class CharacterAttribute : uint8_t {
 };
 
 // Logical equipment locations
+//
+// Oracool: user request - six worn slots added after the original seven. SAVE-BREAKING: PlayerPack
+// embeds InvBody[NUM_INVLOC] at a fixed size and pfile.cpp gates loading on an exact sizeof(), so
+// an old save is rejected cleanly rather than misread. Acceptable under V1's always-new-game rule.
+//
+// Appended rather than inserted so the existing seven keep their numbers - the same reasoning as
+// ItemType's new values. Anything that loops 0..NUM_INVLOC (CalcPlrItemVals via
+// EquippedPlayerItemsRange, durability, the save round-trip) picks the new slots up automatically;
+// anything that names a slot explicitly - notably the armour graphic, which reads INVLOC_CHEST and
+// only INVLOC_CHEST - keeps working unchanged. That is deliberate: the new slots must not require
+// new player animations.
 enum inv_body_loc : uint8_t {
 	INVLOC_HEAD,
 	INVLOC_RING_LEFT,
@@ -95,8 +106,20 @@ enum inv_body_loc : uint8_t {
 	INVLOC_HAND_LEFT,
 	INVLOC_HAND_RIGHT,
 	INVLOC_CHEST,
+	INVLOC_SHOULDERS,
+	INVLOC_BRACERS,
+	INVLOC_GLOVES,
+	INVLOC_WAIST,
+	INVLOC_LEGS,
+	INVLOC_BOOTS,
 	NUM_INVLOC,
 };
+
+/** @brief Whether @p loc is one of the six worn slots Oracool added. */
+constexpr bool IsOracoolBodyLocation(inv_body_loc loc)
+{
+	return loc >= INVLOC_SHOULDERS && loc <= INVLOC_BOOTS;
+}
 
 enum class player_graphic : uint8_t {
 	Stand,

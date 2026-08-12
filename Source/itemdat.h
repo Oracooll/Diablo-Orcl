@@ -103,9 +103,25 @@ enum item_equip_type : int8_t {
 	ILOC_RING,
 	ILOC_AMULET,
 	ILOC_UNEQUIPABLE,
+	/** @brief Goes in the potion belt. NOT the worn waist slot - that is ILOC_WAIST below. */
 	ILOC_BELT,
+	// Oracool: user request - six new worn slots. ILOC_WAIST is named for the body part rather
+	// than the item precisely because ILOC_BELT above already means "stackable thing that goes in
+	// the potion belt"; a slot called ILOC_BELT would read as that and be wrong every time.
+	ILOC_SHOULDERS,
+	ILOC_BRACERS,
+	ILOC_GLOVES,
+	ILOC_WAIST,
+	ILOC_LEGS,
+	ILOC_BOOTS,
 	ILOC_INVALID = -1,
 };
+
+/** @brief Whether @p loc is one of the six worn slots Oracool added (see ILOC_SHOULDERS above). */
+constexpr bool IsOracoolEquipLocation(item_equip_type loc)
+{
+	return loc >= ILOC_SHOULDERS && loc <= ILOC_BOOTS;
+}
 
 /// Item graphic IDs; frame_num-11 of objcurs.cel.
 enum item_cursor_graphic : uint8_t {
@@ -251,8 +267,23 @@ enum class ItemType : int8_t {
 	Gold,
 	Ring,
 	Amulet,
+	// Oracool: user request - the six new worn slots. Appended rather than inserted: ItemType is
+	// written into the tiered-item save extension, so renumbering the existing values would
+	// silently reinterpret every stored item.
+	Shoulders,
+	Bracers,
+	Gloves,
+	Belt,
+	Legs,
+	Boots,
 	None = -1,
 };
+
+/** @brief Whether @p type is one of the six item types Oracool added (see the enum above). */
+constexpr bool IsOracoolItemType(ItemType type)
+{
+	return type >= ItemType::Shoulders && type <= ItemType::Boots;
+}
 
 string_view ItemTypeToString(ItemType itemType);
 

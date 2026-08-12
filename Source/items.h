@@ -340,11 +340,32 @@ struct Item {
 		case ILOC_ONEHAND:
 		case ILOC_RING:
 		case ILOC_TWOHAND:
+		// Oracool: the six new worn locations. This predicate gates CanEquip, so leaving them out
+		// would make every one of the new items permanently unequippable, silently.
+		case ILOC_SHOULDERS:
+		case ILOC_BRACERS:
+		case ILOC_GLOVES:
+		case ILOC_WAIST:
+		case ILOC_LEGS:
+		case ILOC_BOOTS:
 			return true;
 
 		default:
 			return false;
 		}
+	}
+
+	/**
+	 * @brief Whether this is one of the six worn types Oracool added (shoulders, bracers, gloves,
+	 * belt, legs, boots).
+	 *
+	 * Deliberately separate from isArmor() rather than folded into it: isArmor() also drives the
+	 * gamepad's "where does this go" logic in plrctrls.cpp, which assumes an armour is body armour
+	 * bound for INVLOC_CHEST. Widening it there would send boots to the chest slot.
+	 */
+	bool isOracoolWorn() const
+	{
+		return !this->isEmpty() && IsOracoolItemType(this->_itype);
 	}
 
 	/**
