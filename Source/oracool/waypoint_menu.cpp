@@ -102,27 +102,6 @@ Point OpenedFromPosition;
 // RequestSpawnAtWaypoint's doc comment for why it can't just set ViewPosition here instead.
 bool WaypointSpawnRequested = false;
 
-/**
- * @brief Draws @p text with a hard black outline on all four sides.
- *
- * The text renderer has no outline or shadow flag. control.cpp's DrawFlaskValues sets the
- * precedent with a single black draw offset up-left, which is enough over the flask art but not
- * over a textured stone panel where a name can cross both light and dark grain on the same line.
- * Four offsets cost four extra DrawString calls per row - 68 per frame for the whole list, only
- * while it is open - and let the panel keep one uniform texture instead of a darkened band.
- */
-void DrawStringOutlined(const Surface &out, string_view text, Rectangle area, UiFlags color,
-    UiFlags extra = UiFlags::VerticalCenter)
-{
-	constexpr Displacement Offsets[] = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
-	for (const Displacement &d : Offsets) {
-		Rectangle shifted = area;
-		shifted.position += d;
-		DrawString(out, text, shifted, { UiFlags::ColorBlack | extra });
-	}
-	DrawString(out, text, area, { color | extra });
-}
-
 int MouseToEntry(Point mousePosition)
 {
 	const Rectangle panel = PanelRect();
@@ -178,8 +157,8 @@ void DrawWaypointMenu(const Surface &out)
 	// first pass this rect no longer has to grow upward to avoid clipping.
 	const Rectangle labelArea { { panel.position.x + PanelMargin, panel.position.y + PanelMargin },
 		{ panel.size.width - 2 * PanelMargin, LabelHeight } };
-	DrawStringOutlined(out, "WAYPOINT", labelArea, UiFlags::ColorWhitegold,
-	    UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	DrawOutlinedString(out, "WAYPOINT", labelArea,
+	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
 	// Rule under the title, in the frame's own bevel colours. Spans the same inset as the rows, so
 	// its ends line up with the text column rather than running edge to edge.

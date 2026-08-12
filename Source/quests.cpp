@@ -16,6 +16,7 @@
 #include "engine/load_file.hpp"
 #include "engine/random.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo
 #include "engine/render/text_render.hpp"
 #include "engine/world_tile.hpp"
 #include "init.h"
@@ -27,6 +28,7 @@
 #include "monster.h"
 #include "options.h"
 #include "oracool/event_log.h"
+#include "oracool/ornate_border.h"
 #include "panels/ui_panels.hpp"
 #include "stores.h"
 #include "towners.h"
@@ -100,7 +102,40 @@ int FirstFinishedQuest;
 /** Currently selected quest list item */
 int SelectedQuest;
 
-constexpr Rectangle InnerPanel { { 32, 26 }, { 280, 300 } };
+// Oracool V1: the quest log wears the same treatment as the waypoint list and the event log - a
+// half-transparent fill under the ornate textbox_frame00 bevel, with an outlined FontSize30 title
+// over a separator rule. Geometry mirrors oracool/waypoint_menu.cpp deliberately, so the two
+// windows are interchangeable at a glance:
+//
+//   0..24     top margin
+//   24..74    label band, "QUESTS"
+//   74..77    separator rule
+//   77..101   gap below the rule
+//   101..696  entry list
+//   696..720  bottom margin
+//
+// Top margin, gap under the rule and bottom margin are all one QuestPanelMargin.
+//
+// The window owns its own rect rather than GetLeftPanel()'s. That rect is 320x352 and shared with
+// the character sheet; a 720-tall log would drag it along. Flush top-left, like the waypoint list.
+constexpr Size QuestPanelSize { 340, 720 };
+constexpr int QuestPanelMargin = 24;
+constexpr int QuestLabelHeight = 50;
+constexpr int QuestSeparatorGap = QuestPanelMargin;
+constexpr int QuestListTop = QuestPanelMargin + QuestLabelHeight + oracool::OrnateBorderWidth + QuestSeparatorGap;
+
+/**
+ * @brief The entry list's area, in SCREEN coordinates - the panel is flush at the origin.
+ *
+ * This one rect drives all three of: the spacing StartQuestlog computes to fill it, where
+ * DrawQuestLog puts the rows, and what QuestLogMouseToEntry hit-tests. They were already tied
+ * together through the old 280x300 inner rect; re-basing it is what moves the whole log.
+ */
+constexpr Rectangle InnerPanel { { QuestPanelMargin, QuestListTop },
+	{ QuestPanelSize.width - 2 * QuestPanelMargin, QuestPanelSize.height - QuestListTop - QuestPanelMargin } };
+static_assert(InnerPanel.position.y + InnerPanel.size.height + QuestPanelMargin == QuestPanelSize.height,
+    "Quest log list no longer spans QuestListTop..height-margin");
+
 constexpr int LineHeight = 12;
 constexpr int MaxSpacing = LineHeight * 2;
 int ListYOffset;
@@ -215,11 +250,11 @@ void DrawBlood(Point position)
 
 int QuestLogMouseToEntry()
 {
-	Rectangle innerArea = InnerPanel;
-	innerArea.position += Displacement(GetLeftPanel().position.x, GetLeftPanel().position.y);
-	if (!innerArea.contains(MousePosition) || (EncounteredQuestCount == 0))
+	// InnerPanel is already in screen coordinates - the window is flush at the origin, so there is
+	// no GetLeftPanel() offset to add any more.
+	if (!InnerPanel.contains(MousePosition) || (EncounteredQuestCount == 0))
 		return -1;
-	int y = MousePosition.y - innerArea.position.y;
+	int y = MousePosition.y - InnerPanel.position.y;
 	for (int i = 0; i < FirstFinishedQuest; i++) {
 		if ((y >= ListYOffset + i * LineSpacing)
 		    && (y < ListYOffset + i * LineSpacing + LineHeight)) {
@@ -231,14 +266,18 @@ int QuestLogMouseToEntry()
 
 void PrintQLString(const Surface &out, int x, int y, string_view str, bool marked, bool disabled = false)
 {
+	// Screen coordinates throughout now: the window is flush at the origin, so GetPanelPosition's
+	// UiPanels::Quest offset no longer applies. Centred within the list's own width rather than the
+	// old parchment's fixed 257.
+	const int listWidth = InnerPanel.size.width;
 	int width = GetLineWidth(str);
-	x += std::max((257 - width) / 2, 0);
+	x += std::max((listWidth - width) / 2, 0);
 	if (marked) {
-		ClxDraw(out, GetPanelPosition(UiPanels::Quest, { x - 20, y + 13 }), (*pSPentSpn2Cels)[PentSpn2Spin()]);
+		ClxDraw(out, Point { x - 20, y + 13 }, (*pSPentSpn2Cels)[PentSpn2Spin()]);
 	}
-	DrawString(out, str, { GetPanelPosition(UiPanels::Quest, { x, y }), { 257, 0 } }, { disabled ? UiFlags::ColorWhitegold : UiFlags::ColorWhite });
+	DrawString(out, str, { Point { x, y }, { listWidth, 0 } }, { disabled ? UiFlags::ColorWhitegold : UiFlags::ColorWhite });
 	if (marked) {
-		ClxDraw(out, GetPanelPosition(UiPanels::Quest, { x + width + 7, y + 13 }), (*pSPentSpn2Cels)[PentSpn2Spin()]);
+		ClxDraw(out, Point { x + width + 7, y + 13 }, (*pSPentSpn2Cels)[PentSpn2Spin()]);
 	}
 }
 
@@ -839,7 +878,21 @@ void DrawQuestLog(const Surface &out)
 		SelectedQuest = l;
 	}
 	const auto x = InnerPanel.position.x;
-	ClxDraw(out, GetPanelPosition(UiPanels::Quest, { 0, 351 }), (*pQLogCel)[0]);
+
+	// Oracool V1: same chrome as the waypoint list and the event log. The parchment CEL (pQLogCel)
+	// it used to draw here is still loaded - minitext and the waypoint list's fallback both want it
+	// - it is just no longer this window's background.
+	const Rectangle panel { { 0, 0 }, QuestPanelSize };
+	DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
+	oracool::DrawOrnateBorder(out, panel);
+
+	const Rectangle labelArea { { QuestPanelMargin, QuestPanelMargin },
+		{ QuestPanelSize.width - 2 * QuestPanelMargin, QuestLabelHeight } };
+	oracool::DrawOutlinedString(out, _("QUESTS"), labelArea,
+	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	oracool::DrawOrnateSeparator(out, { QuestPanelMargin, QuestPanelMargin + QuestLabelHeight },
+	    QuestPanelSize.width - 2 * QuestPanelMargin);
+
 	int y = InnerPanel.position.y + ListYOffset;
 	for (int i = 0; i < EncounteredQuestCount; i++) {
 		if (i == FirstFinishedQuest) {

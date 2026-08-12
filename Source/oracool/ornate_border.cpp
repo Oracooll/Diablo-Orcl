@@ -1,6 +1,7 @@
 #include "oracool/ornate_border.h"
 
 #include "engine/render/primitive_render.hpp"
+#include "engine/render/text_render.hpp"
 
 namespace devilution::oracool {
 
@@ -60,6 +61,25 @@ void DrawOrnateSeparator(const Surface &out, Point from, int width)
 	DrawHorizontalLine(out, from, width, MidShadowColor);
 	DrawHorizontalLine(out, { from.x, from.y + 1 }, width, OuterColor);
 	DrawHorizontalLine(out, { from.x, from.y + 2 }, width, MidHighlightColor);
+}
+
+void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, UiFlags style)
+{
+	constexpr Displacement Offsets[] = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+	// Strip the caller's colour from the outline pass, keeping its size and alignment, so the
+	// black sits exactly under the glyphs rather than at a different size or offset.
+	constexpr UiFlags ColorMask = UiFlags::ColorUiGold | UiFlags::ColorUiSilver | UiFlags::ColorUiGoldDark
+	    | UiFlags::ColorUiSilverDark | UiFlags::ColorDialogWhite | UiFlags::ColorDialogYellow
+	    | UiFlags::ColorDialogRed | UiFlags::ColorYellow | UiFlags::ColorGold | UiFlags::ColorBlack
+	    | UiFlags::ColorWhite | UiFlags::ColorWhitegold | UiFlags::ColorRed | UiFlags::ColorBlue
+	    | UiFlags::ColorOrange | UiFlags::ColorButtonface | UiFlags::ColorButtonpushed;
+	const UiFlags layout = style & ~ColorMask;
+	for (const Displacement &d : Offsets) {
+		Rectangle shifted = area;
+		shifted.position += d;
+		DrawString(out, text, shifted, { layout | UiFlags::ColorBlack });
+	}
+	DrawString(out, text, area, { style });
 }
 
 } // namespace devilution::oracool

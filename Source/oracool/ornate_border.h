@@ -15,8 +15,10 @@
  */
 #pragma once
 
+#include "DiabloUI/ui_flags.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
+#include "utils/stdcompat/string_view.hpp"
 
 namespace devilution::oracool {
 
@@ -38,5 +40,16 @@ void DrawOrnateBorder(const Surface &out, Rectangle rect);
  * the same frame instead of looking like a line drawn on top of it.
  */
 void DrawOrnateSeparator(const Surface &out, Point from, int width);
+
+/**
+ * @brief Draws @p text with a hard black outline on all four sides - the panel-title treatment.
+ *
+ * The text renderer has no outline or shadow flag; control.cpp's DrawFlaskValues sets the
+ * precedent with a single black draw offset up-left. A title over a half-transparent fill needs it
+ * on all sides, since the fill takes the colour of whatever is behind the window.
+ *
+ * @p style is passed through verbatim, so the caller owns the colour, size and alignment.
+ */
+void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, UiFlags style);
 
 } // namespace devilution::oracool
