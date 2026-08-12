@@ -929,7 +929,17 @@ public:
 			    { 3846694361, 286, 155, 3, 0, 0, 0, 0, 0, 0 },
 			    { 3454746195, 2077, 122, 3, 60, 60, 0, 0, 0, 0 },
 			    { 1560055601, 4117, 75, 3, 50, 50, 0, 0, 0, 0 },
-			    { 3097669048, 286, 70, 3, 66, 90, 0, 0, 0, 0 } },
+			    { 3097669048, 286, 70, 3, 66, 90, 0, 0, 0, 0 },
+			    // Oracool: the six worn slots, explicitly EMPTY. Leaving them off the end of this
+			    // aggregate initialiser value-initialises them to all zeros, and idx 0 is IDI_GOLD -
+			    // a real item, not an empty slot - so the pack would carry six phantom gold pieces in
+			    // equipment slots. Empty is idx 0xFFFF, matching what PackItem writes for a blank.
+			    { 0, 0, 0xFFFF, 0, 0, 0, 0, 0, 0, 0 },
+			    { 0, 0, 0xFFFF, 0, 0, 0, 0, 0, 0, 0 },
+			    { 0, 0, 0xFFFF, 0, 0, 0, 0, 0, 0, 0 },
+			    { 0, 0, 0xFFFF, 0, 0, 0, 0, 0, 0, 0 },
+			    { 0, 0, 0xFFFF, 0, 0, 0, 0, 0, 0, 0 },
+			    { 0, 0, 0xFFFF, 0, 0, 0, 0, 0, 0, 0 } },
 			{ { 423576018, 16400, 82, 0, 0, 0, 0, 0, 0, 0 },
 			    { 543375803, 16400, 81, 0, 0, 0, 0, 0, 0, 0 },
 			    { 1802859062, 8208, 147, 3, 35, 35, 34, 34, 0, 0 },

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file itemdat.cpp
  *
  * Implementation of all item data.
@@ -230,6 +230,28 @@ const ItemData AllItemsList[] = {
 /*               */ { IDROP_REGULAR, ICLASS_MISC,   ILOC_UNEQUIPABLE, ICURS_RUNE_OF_STONE,               ItemType::Misc,        UITYPE_NONE,        N_("Rune of Stone"),               N_("Rune"),           7,            0,        0,        0,       0,       0,        0,       25,        0, ItemSpecialEffect::None,            IMISC_RUNES,     SpellID::Null,           true,         300 },
 /*IDI_SORCERER   */ { IDROP_NEVER,   ICLASS_WEAPON, ILOC_TWOHAND,     ICURS_SHORT_STAFF,                 ItemType::Staff,       UITYPE_NONE,        N_("Short Staff of Charged Bolt"), nullptr,              1,           25,        2,        4,       0,       0,        0,       20,        0, ItemSpecialEffect::None,            IMISC_STAFF,     SpellID::ChargedBolt,    false,        520 },
 /*IDI_ARENAPOT   */ { IDROP_NEVER,   ICLASS_MISC,   ILOC_UNEQUIPABLE, ICURS_ARENA_POTION,                ItemType::Misc,        UITYPE_NONE,        N_("Arena Potion"),                nullptr,              7,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_ARENAPOT,  SpellID::Null,           true,           0 },
+// Oracool: user request - one test item per new worn type, the leather tier of each, cut from the
+// user's own art sheets (see tools/build_item_icons.cmd for the icons).
+//
+// Armour class is deliberately small: the user chose "roughly a third of what a chest piece of the
+// same tier gives", so six of these together add up to about two extra body armours rather than
+// tripling a geared character's AC. Leather Armor for comparison is 10-13 AC at mlvl 6.
+//
+// ICLASS_ARMOR, so the existing magic/rare/tiered affix machinery applies to them unchanged - no
+// new affix tables were needed for any of this.
+//
+// IDROP_NEVER, deliberately, for now: they are spawned by the give*set debug commands and nothing
+// else. Making them IDROP_REGULAR puts them in the shared candidate list that every generation
+// path funnels through (GetItemIndexForDroppableItem), which lengthens the list the RNG indexes
+// into - so the SAME seed produces DIFFERENT items, and pack_test's several dozen golden item
+// structs all stop matching. Joining the loot tables is a deliberate follow-up with its own
+// re-baseline, not something to slip in alongside the plumbing.
+/*IDI_ORACOOL_SHOULDERS            */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_SHOULDERS,   ICURS_ORACOOL_SHOULDERS,           ItemType::Shoulders,   UITYPE_NONE,        N_("Leather Pauldrons"),           N_("Pauldrons"),      2,           25,        0,        0,       2,       4,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,         80 },
+/*IDI_ORACOOL_BRACERS              */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_BRACERS,     ICURS_ORACOOL_BRACERS,             ItemType::Bracers,     UITYPE_NONE,        N_("Leather Bracers"),             N_("Bracers"),        1,           20,        0,        0,       1,       3,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,         60 },
+/*IDI_ORACOOL_GLOVES               */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_GLOVES,      ICURS_ORACOOL_GLOVES,              ItemType::Gloves,      UITYPE_NONE,        N_("Leather Gloves"),              N_("Gloves"),         1,           20,        0,        0,       1,       3,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,         60 },
+/*IDI_ORACOOL_BELT                 */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_WAIST,       ICURS_ORACOOL_BELT,                ItemType::Belt,        UITYPE_NONE,        N_("Leather Belt"),                N_("Belt"),           1,           16,        0,        0,       1,       2,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,         50 },
+/*IDI_ORACOOL_LEGS                 */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_LEGS,        ICURS_ORACOOL_LEGS,                ItemType::Legs,        UITYPE_NONE,        N_("Leather Leggings"),            N_("Leggings"),       3,           28,        0,        0,       3,       5,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,        110 },
+/*IDI_ORACOOL_BOOTS                */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_BOOTS,       ICURS_ORACOOL_BOOTS,               ItemType::Boots,       UITYPE_NONE,        N_("Leather Boots"),               N_("Boots"),          1,           22,        0,        0,       2,       3,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,         70 },
 /*               */ { IDROP_NEVER,   ICLASS_NONE,   ILOC_INVALID,     ICURS_POTION_OF_FULL_MANA,         ItemType::Misc,        UITYPE_NONE,        nullptr,                           nullptr,              0,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,          0 },
 	// clang-format on
 };
