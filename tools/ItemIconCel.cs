@@ -67,7 +67,12 @@ internal static class ItemIconCel
 	{
 		if (args.Length < 4) {
 			Console.Error.WriteLine("Usage: ItemIconCel.exe <palette.pal> <out.cel> <previewDir> <spec> [<spec> ...]");
+			Console.Error.WriteLine("       ItemIconCel.exe <palette.pal> <out.cel> <previewDir> @<specfile>");
 			Console.Error.WriteLine("  spec = <sheet.png>,<srcX>,<srcY>,<srcW>,<srcH>,<cellW>,<cellH>,<name>");
+			Console.Error.WriteLine("  specfile: one spec per line, blank lines ignored. Added once the item count");
+			Console.Error.WriteLine("  outgrew what cmd.exe's ^-continued command lines can reliably carry (a build");
+			Console.Error.WriteLine("  broke partway through an 80-item batch, mid-argument-list, with no clearer");
+			Console.Error.WriteLine("  error than \"Bad spec: ^\" - not a bug in this parser, a shell limit).");
 			return 2;
 		}
 
@@ -78,6 +83,21 @@ internal static class ItemIconCel
 		}
 		string outPath = args[1];
 		string previewDir = args[2];
+
+		// @specfile expansion: one spec per line, so a build script can grow past however many
+		// specs a single ^-continued command line can safely carry without touching this parser
+		// again. Comma-split specs and specfile lines look identical, so the '@' prefix distinguishes
+		// "one big spec list, keep going" from "actually 4 args, this is a mistake" the same way it
+		// already reads to anyone who has used response files with other command-line tools.
+		if (args.Length == 4 && args[3].StartsWith("@")) {
+			string specPath = args[3].Substring(1);
+			List<string> expanded = new List<string> { args[0], args[1], args[2] };
+			foreach (string line in File.ReadAllLines(specPath)) {
+				if (line.Trim().Length > 0)
+					expanded.Add(line.Trim());
+			}
+			args = expanded.ToArray();
+		}
 
 		List<byte[]> frames = new List<byte[]>();
 		List<int> widths = new List<int>();
@@ -167,12 +187,31 @@ internal static class ItemIconCel
 	// never the dominant one - so GreenKeyFullThreshold and GreenKeyNoneThreshold sit with wide,
 	// measured margin on both sides, not just inside the gap between the two closest observed
 	// values.
-	private const int GreenKeyFullThreshold = 80; // excess at/above this: fully background
-	private const int GreenKeyNoneThreshold = 20;  // excess at/below this: fully opaque, kept as-is
+	// Bug postmortem, second pass: the first fix (a separate ContentBoxByGreenKey cutoff) only
+	// addressed bounding-box tightening. It left the alpha ramp itself still built around a
+	// background excess of 190-245 (the original individual renders), but the eight tier-set
+	// composite sheets turned out to sit far lower and vary tier to tier - obsidian measured
+	// ~78-85, infernal ~60-69 (histogrammed directly: a dense content cluster at roughly -20..10
+	// and a dense background cluster at roughly 50-70, with almost nothing in between). Pixels
+	// in that gap between the OLD 20-80 ramp bounds and a tier's real background value got real,
+	// substantial partial alpha - not near-zero - which PostProcess's KeepAlpha cutoff then
+	// forced fully opaque, dithering a color blended from green-tinted background into a visible
+	// checkerboard where there should have been clean transparency.
+	//
+	// 40/10 sits inside the empirically-measured valley between every distribution seen so far -
+	// comfortably below the *lowest* tier's background cluster (infernal, ~50-70) and comfortably
+	// above the content clusters' typical range (rarely above 10-20) - and leaves the original
+	// individual-render batch (190-245) untouched with enormous margin to spare, so this is a
+	// strict improvement, not a tradeoff between the two source styles.
+	private const int GreenKeyFullThreshold = 40; // excess at/above this: fully background
+	private const int GreenKeyNoneThreshold = 10;  // excess at/below this: fully opaque, kept as-is
+	// Content-box cutoff at the ramp's midpoint, not a second independent number to keep in sync
+	// by hand - see the postmortem above this constant's first version for why they must agree.
+	private const int GreenKeyContentThreshold = (GreenKeyFullThreshold + GreenKeyNoneThreshold) / 2;
 
 	private static bool IsGreenBackground(int r, int g, int b)
 	{
-		return (g - Math.Max(r, b)) >= GreenKeyFullThreshold;
+		return (g - Math.Max(r, b)) >= GreenKeyContentThreshold;
 	}
 
 	/** @brief Tight box of everything NOT part of the flat green backdrop inside `region`. */

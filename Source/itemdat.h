@@ -94,7 +94,92 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	// ILOC_*/SLOTXY_*/paperdoll plumbing required, just a table row plus its own icon.
 	IDI_ORACOOL_HELM,
 
-	IDI_LAST = IDI_ORACOOL_HELM,
+	// Oracool: user request - "ship every item you harvest from these files... name them,
+	// categorize them... give them adequate stats and make them part of the game." Two armor-
+	// slot items (no Oracool item previously existed at ILOC_ARMOR/ILOC_ONEHAND-shield) plus a
+	// full eight-tier progression across all nine worn/armor/shield slots, sourced from eight
+	// green-screen composite sheets ("Iron Set", "Steel Set", etc.). Iron tier has no separate
+	// helm entry - IDI_ORACOOL_HELM above already fills that role; its icon was re-sourced from
+	// the matching Iron Set sheet for visual consistency with the rest of that tier instead of
+	// duplicating the item. Tier order (Iron < Steel < Crusader < Bone < Royal < Obsidian <
+	// Infernal < Diamond) and every stat are a judgment call, not a balance pass - see the dev
+	// report for the formula.
+	IDI_ORACOOL_LEATHER_ARMOR,
+	IDI_ORACOOL_LEATHER_SHIELD,
+
+	IDI_ORACOOL_IRON_GLOVES,
+	IDI_ORACOOL_IRON_SHOULDERS,
+	IDI_ORACOOL_IRON_BRACERS,
+	IDI_ORACOOL_IRON_BELT,
+	IDI_ORACOOL_IRON_LEGS,
+	IDI_ORACOOL_IRON_BOOTS,
+	IDI_ORACOOL_IRON_ARMOR,
+	IDI_ORACOOL_IRON_SHIELD,
+	IDI_ORACOOL_STEEL_GLOVES,
+	IDI_ORACOOL_STEEL_SHOULDERS,
+	IDI_ORACOOL_STEEL_BRACERS,
+	IDI_ORACOOL_STEEL_BELT,
+	IDI_ORACOOL_STEEL_LEGS,
+	IDI_ORACOOL_STEEL_BOOTS,
+	IDI_ORACOOL_STEEL_ARMOR,
+	IDI_ORACOOL_STEEL_SHIELD,
+	IDI_ORACOOL_STEEL_HELM,
+	IDI_ORACOOL_CRUSADER_GLOVES,
+	IDI_ORACOOL_CRUSADER_SHOULDERS,
+	IDI_ORACOOL_CRUSADER_BRACERS,
+	IDI_ORACOOL_CRUSADER_BELT,
+	IDI_ORACOOL_CRUSADER_LEGS,
+	IDI_ORACOOL_CRUSADER_BOOTS,
+	IDI_ORACOOL_CRUSADER_ARMOR,
+	IDI_ORACOOL_CRUSADER_SHIELD,
+	IDI_ORACOOL_CRUSADER_HELM,
+	IDI_ORACOOL_BONE_GLOVES,
+	IDI_ORACOOL_BONE_SHOULDERS,
+	IDI_ORACOOL_BONE_BRACERS,
+	IDI_ORACOOL_BONE_BELT,
+	IDI_ORACOOL_BONE_LEGS,
+	IDI_ORACOOL_BONE_BOOTS,
+	IDI_ORACOOL_BONE_ARMOR,
+	IDI_ORACOOL_BONE_SHIELD,
+	IDI_ORACOOL_BONE_HELM,
+	IDI_ORACOOL_ROYAL_GLOVES,
+	IDI_ORACOOL_ROYAL_SHOULDERS,
+	IDI_ORACOOL_ROYAL_BRACERS,
+	IDI_ORACOOL_ROYAL_BELT,
+	IDI_ORACOOL_ROYAL_LEGS,
+	IDI_ORACOOL_ROYAL_BOOTS,
+	IDI_ORACOOL_ROYAL_ARMOR,
+	IDI_ORACOOL_ROYAL_SHIELD,
+	IDI_ORACOOL_ROYAL_HELM,
+	IDI_ORACOOL_OBSIDIAN_GLOVES,
+	IDI_ORACOOL_OBSIDIAN_SHOULDERS,
+	IDI_ORACOOL_OBSIDIAN_BRACERS,
+	IDI_ORACOOL_OBSIDIAN_BELT,
+	IDI_ORACOOL_OBSIDIAN_LEGS,
+	IDI_ORACOOL_OBSIDIAN_BOOTS,
+	IDI_ORACOOL_OBSIDIAN_ARMOR,
+	IDI_ORACOOL_OBSIDIAN_SHIELD,
+	IDI_ORACOOL_OBSIDIAN_HELM,
+	IDI_ORACOOL_INFERNAL_GLOVES,
+	IDI_ORACOOL_INFERNAL_SHOULDERS,
+	IDI_ORACOOL_INFERNAL_BRACERS,
+	IDI_ORACOOL_INFERNAL_BELT,
+	IDI_ORACOOL_INFERNAL_LEGS,
+	IDI_ORACOOL_INFERNAL_BOOTS,
+	IDI_ORACOOL_INFERNAL_ARMOR,
+	IDI_ORACOOL_INFERNAL_SHIELD,
+	IDI_ORACOOL_INFERNAL_HELM,
+	IDI_ORACOOL_DIAMOND_GLOVES,
+	IDI_ORACOOL_DIAMOND_SHOULDERS,
+	IDI_ORACOOL_DIAMOND_BRACERS,
+	IDI_ORACOOL_DIAMOND_BELT,
+	IDI_ORACOOL_DIAMOND_LEGS,
+	IDI_ORACOOL_DIAMOND_BOOTS,
+	IDI_ORACOOL_DIAMOND_ARMOR,
+	IDI_ORACOOL_DIAMOND_SHIELD,
+	IDI_ORACOOL_DIAMOND_HELM,
+
+	IDI_LAST = IDI_ORACOOL_DIAMOND_HELM,
 	IDI_NONE = -1,
 };
 
@@ -105,15 +190,16 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
  * Used by loadsave.cpp's save-remap guard, which needs this exact range for a completely
  * different reason (these ids must NOT be treated as Hellfire-exclusive) than the one this header
  * comment might suggest - see IsOracoolItemIdx's caller in loadsave.cpp for that story.
- * items.cpp's DebugSpawnItem bounds its own direct-match loop to the same IDI_ORACOOL_SHOULDERS..
- * IDI_ORACOOL_HELM range for a third reason (IDROP_NEVER items are structurally unreachable
- * through the normal random-reroll search); kept as one named range here instead of three
- * hand-copied bounds so the three call sites can't quietly drift apart the next time this range
- * grows.
+ * items.cpp's DebugSpawnItem bounds its own direct-match loop to the same range for a third
+ * reason (IDROP_NEVER items are structurally unreachable through the normal random-reroll
+ * search); kept as one named range here instead of three hand-copied bounds so the three call
+ * sites can't quietly drift apart the next time this range grows - which it just did, from
+ * IDI_ORACOOL_HELM to IDI_ORACOOL_DIAMOND_HELM, adding the leather armor/shield items and the
+ * eight-tier set expansion in one jump.
  */
 constexpr bool IsOracoolItemIdx(int i)
 {
-	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_ORACOOL_HELM;
+	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_ORACOOL_DIAMOND_HELM;
 }
 
 enum item_drop_rate : uint8_t {
@@ -304,7 +390,80 @@ enum item_cursor_graphic : uint16_t {
 	ICURS_ORACOOL_LEGS                = 233,
 	ICURS_ORACOOL_BOOTS               = 234,
 	ICURS_ORACOOL_HELM                = 235,
-	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_HELM,
+	ICURS_ORACOOL_LEATHER_ARMOR       = 236,
+	ICURS_ORACOOL_LEATHER_SHIELD      = 237,
+	ICURS_ORACOOL_IRON_GLOVES           = 238,
+	ICURS_ORACOOL_IRON_SHOULDERS        = 239,
+	ICURS_ORACOOL_IRON_BRACERS          = 240,
+	ICURS_ORACOOL_IRON_BELT             = 241,
+	ICURS_ORACOOL_IRON_LEGS             = 242,
+	ICURS_ORACOOL_IRON_BOOTS            = 243,
+	ICURS_ORACOOL_IRON_ARMOR            = 244,
+	ICURS_ORACOOL_IRON_SHIELD           = 245,
+	ICURS_ORACOOL_STEEL_GLOVES          = 246,
+	ICURS_ORACOOL_STEEL_SHOULDERS       = 247,
+	ICURS_ORACOOL_STEEL_BRACERS         = 248,
+	ICURS_ORACOOL_STEEL_BELT            = 249,
+	ICURS_ORACOOL_STEEL_LEGS            = 250,
+	ICURS_ORACOOL_STEEL_BOOTS           = 251,
+	ICURS_ORACOOL_STEEL_ARMOR           = 252,
+	ICURS_ORACOOL_STEEL_SHIELD          = 253,
+	ICURS_ORACOOL_STEEL_HELM            = 254,
+	ICURS_ORACOOL_CRUSADER_GLOVES       = 255,
+	ICURS_ORACOOL_CRUSADER_SHOULDERS    = 256,
+	ICURS_ORACOOL_CRUSADER_BRACERS      = 257,
+	ICURS_ORACOOL_CRUSADER_BELT         = 258,
+	ICURS_ORACOOL_CRUSADER_LEGS         = 259,
+	ICURS_ORACOOL_CRUSADER_BOOTS        = 260,
+	ICURS_ORACOOL_CRUSADER_ARMOR        = 261,
+	ICURS_ORACOOL_CRUSADER_SHIELD       = 262,
+	ICURS_ORACOOL_CRUSADER_HELM         = 263,
+	ICURS_ORACOOL_BONE_GLOVES           = 264,
+	ICURS_ORACOOL_BONE_SHOULDERS        = 265,
+	ICURS_ORACOOL_BONE_BRACERS          = 266,
+	ICURS_ORACOOL_BONE_BELT             = 267,
+	ICURS_ORACOOL_BONE_LEGS             = 268,
+	ICURS_ORACOOL_BONE_BOOTS            = 269,
+	ICURS_ORACOOL_BONE_ARMOR            = 270,
+	ICURS_ORACOOL_BONE_SHIELD           = 271,
+	ICURS_ORACOOL_BONE_HELM             = 272,
+	ICURS_ORACOOL_ROYAL_GLOVES          = 273,
+	ICURS_ORACOOL_ROYAL_SHOULDERS       = 274,
+	ICURS_ORACOOL_ROYAL_BRACERS         = 275,
+	ICURS_ORACOOL_ROYAL_BELT            = 276,
+	ICURS_ORACOOL_ROYAL_LEGS            = 277,
+	ICURS_ORACOOL_ROYAL_BOOTS           = 278,
+	ICURS_ORACOOL_ROYAL_ARMOR           = 279,
+	ICURS_ORACOOL_ROYAL_SHIELD          = 280,
+	ICURS_ORACOOL_ROYAL_HELM            = 281,
+	ICURS_ORACOOL_OBSIDIAN_GLOVES       = 282,
+	ICURS_ORACOOL_OBSIDIAN_SHOULDERS    = 283,
+	ICURS_ORACOOL_OBSIDIAN_BRACERS      = 284,
+	ICURS_ORACOOL_OBSIDIAN_BELT         = 285,
+	ICURS_ORACOOL_OBSIDIAN_LEGS         = 286,
+	ICURS_ORACOOL_OBSIDIAN_BOOTS        = 287,
+	ICURS_ORACOOL_OBSIDIAN_ARMOR        = 288,
+	ICURS_ORACOOL_OBSIDIAN_SHIELD       = 289,
+	ICURS_ORACOOL_OBSIDIAN_HELM         = 290,
+	ICURS_ORACOOL_INFERNAL_GLOVES       = 291,
+	ICURS_ORACOOL_INFERNAL_SHOULDERS    = 292,
+	ICURS_ORACOOL_INFERNAL_BRACERS      = 293,
+	ICURS_ORACOOL_INFERNAL_BELT         = 294,
+	ICURS_ORACOOL_INFERNAL_LEGS         = 295,
+	ICURS_ORACOOL_INFERNAL_BOOTS        = 296,
+	ICURS_ORACOOL_INFERNAL_ARMOR        = 297,
+	ICURS_ORACOOL_INFERNAL_SHIELD       = 298,
+	ICURS_ORACOOL_INFERNAL_HELM         = 299,
+	ICURS_ORACOOL_DIAMOND_GLOVES        = 300,
+	ICURS_ORACOOL_DIAMOND_SHOULDERS     = 301,
+	ICURS_ORACOOL_DIAMOND_BRACERS       = 302,
+	ICURS_ORACOOL_DIAMOND_BELT          = 303,
+	ICURS_ORACOOL_DIAMOND_LEGS          = 304,
+	ICURS_ORACOOL_DIAMOND_BOOTS         = 305,
+	ICURS_ORACOOL_DIAMOND_ARMOR         = 306,
+	ICURS_ORACOOL_DIAMOND_SHIELD        = 307,
+	ICURS_ORACOOL_DIAMOND_HELM          = 308,
+	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_DIAMOND_HELM,
 	// clang-format on
 };
 

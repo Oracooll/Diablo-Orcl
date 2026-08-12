@@ -86,7 +86,9 @@ constexpr uint16_t InvItems2Size = sizeof(InvItemWidth2) / sizeof(InvItemWidth2[
 
 /**
  * Oracool: a third icon sheet - the six worn item types the original game has no art for, plus
- * any other custom item icon added since (a new ILOC_HELM item as of the seventh frame).
+ * every other custom item icon added since: a standalone ILOC_HELM item, leather-tier armor and
+ * shield, and an eight-tier progression (Iron through Diamond) across all nine worn/armor/shield
+ * slots, 80 frames in total.
  *
  * Ships in oracool.mpq as data\inv\oracool_items.cel and is loaded unconditionally - unlike
  * objcurs2, which is Hellfire-only, these items exist in both games. Its ids continue straight on
@@ -103,6 +105,79 @@ const uint16_t InvItemWidth3[] = {
 	2 * 28, // legs
 	2 * 28, // boots
 	2 * 28, // helm
+	2 * 28, // leather_armor
+	2 * 28, // leather_shield
+	2 * 28, // iron_gloves
+	2 * 28, // iron_shoulders
+	2 * 28, // iron_bracers
+	2 * 28, // iron_belt
+	2 * 28, // iron_legs
+	2 * 28, // iron_boots
+	2 * 28, // iron_armor
+	2 * 28, // iron_shield
+	2 * 28, // steel_gloves
+	2 * 28, // steel_shoulders
+	2 * 28, // steel_bracers
+	2 * 28, // steel_belt
+	2 * 28, // steel_legs
+	2 * 28, // steel_boots
+	2 * 28, // steel_armor
+	2 * 28, // steel_shield
+	2 * 28, // steel_helm
+	2 * 28, // crusader_gloves
+	2 * 28, // crusader_shoulders
+	2 * 28, // crusader_bracers
+	2 * 28, // crusader_belt
+	2 * 28, // crusader_legs
+	2 * 28, // crusader_boots
+	2 * 28, // crusader_armor
+	2 * 28, // crusader_shield
+	2 * 28, // crusader_helm
+	2 * 28, // bone_gloves
+	2 * 28, // bone_shoulders
+	2 * 28, // bone_bracers
+	2 * 28, // bone_belt
+	2 * 28, // bone_legs
+	2 * 28, // bone_boots
+	2 * 28, // bone_armor
+	2 * 28, // bone_shield
+	2 * 28, // bone_helm
+	2 * 28, // royal_gloves
+	2 * 28, // royal_shoulders
+	2 * 28, // royal_bracers
+	2 * 28, // royal_belt
+	2 * 28, // royal_legs
+	2 * 28, // royal_boots
+	2 * 28, // royal_armor
+	2 * 28, // royal_shield
+	2 * 28, // royal_helm
+	2 * 28, // obsidian_gloves
+	2 * 28, // obsidian_shoulders
+	2 * 28, // obsidian_bracers
+	2 * 28, // obsidian_belt
+	2 * 28, // obsidian_legs
+	2 * 28, // obsidian_boots
+	2 * 28, // obsidian_armor
+	2 * 28, // obsidian_shield
+	2 * 28, // obsidian_helm
+	2 * 28, // infernal_gloves
+	2 * 28, // infernal_shoulders
+	2 * 28, // infernal_bracers
+	2 * 28, // infernal_belt
+	2 * 28, // infernal_legs
+	2 * 28, // infernal_boots
+	2 * 28, // infernal_armor
+	2 * 28, // infernal_shield
+	2 * 28, // infernal_helm
+	2 * 28, // diamond_gloves
+	2 * 28, // diamond_shoulders
+	2 * 28, // diamond_bracers
+	2 * 28, // diamond_belt
+	2 * 28, // diamond_legs
+	2 * 28, // diamond_boots
+	2 * 28, // diamond_armor
+	2 * 28, // diamond_shield
+	2 * 28, // diamond_helm
 };
 const uint16_t InvItemHeight3[] = {
 	2 * 28, // shoulders
@@ -112,6 +187,79 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // legs
 	2 * 28, // boots
 	2 * 28, // helm
+	2 * 28, // leather_armor
+	2 * 28, // leather_shield
+	2 * 28, // iron_gloves
+	2 * 28, // iron_shoulders
+	2 * 28, // iron_bracers
+	1 * 28, // iron_belt - 2x1
+	2 * 28, // iron_legs
+	2 * 28, // iron_boots
+	2 * 28, // iron_armor
+	2 * 28, // iron_shield
+	2 * 28, // steel_gloves
+	2 * 28, // steel_shoulders
+	2 * 28, // steel_bracers
+	1 * 28, // steel_belt - 2x1
+	2 * 28, // steel_legs
+	2 * 28, // steel_boots
+	2 * 28, // steel_armor
+	2 * 28, // steel_shield
+	2 * 28, // steel_helm
+	2 * 28, // crusader_gloves
+	2 * 28, // crusader_shoulders
+	2 * 28, // crusader_bracers
+	1 * 28, // crusader_belt - 2x1
+	2 * 28, // crusader_legs
+	2 * 28, // crusader_boots
+	2 * 28, // crusader_armor
+	2 * 28, // crusader_shield
+	2 * 28, // crusader_helm
+	2 * 28, // bone_gloves
+	2 * 28, // bone_shoulders
+	2 * 28, // bone_bracers
+	1 * 28, // bone_belt - 2x1
+	2 * 28, // bone_legs
+	2 * 28, // bone_boots
+	2 * 28, // bone_armor
+	2 * 28, // bone_shield
+	2 * 28, // bone_helm
+	2 * 28, // royal_gloves
+	2 * 28, // royal_shoulders
+	2 * 28, // royal_bracers
+	1 * 28, // royal_belt - 2x1
+	2 * 28, // royal_legs
+	2 * 28, // royal_boots
+	2 * 28, // royal_armor
+	2 * 28, // royal_shield
+	2 * 28, // royal_helm
+	2 * 28, // obsidian_gloves
+	2 * 28, // obsidian_shoulders
+	2 * 28, // obsidian_bracers
+	1 * 28, // obsidian_belt - 2x1
+	2 * 28, // obsidian_legs
+	2 * 28, // obsidian_boots
+	2 * 28, // obsidian_armor
+	2 * 28, // obsidian_shield
+	2 * 28, // obsidian_helm
+	2 * 28, // infernal_gloves
+	2 * 28, // infernal_shoulders
+	2 * 28, // infernal_bracers
+	1 * 28, // infernal_belt - 2x1
+	2 * 28, // infernal_legs
+	2 * 28, // infernal_boots
+	2 * 28, // infernal_armor
+	2 * 28, // infernal_shield
+	2 * 28, // infernal_helm
+	2 * 28, // diamond_gloves
+	2 * 28, // diamond_shoulders
+	2 * 28, // diamond_bracers
+	1 * 28, // diamond_belt - 2x1
+	2 * 28, // diamond_legs
+	2 * 28, // diamond_boots
+	2 * 28, // diamond_armor
+	2 * 28, // diamond_shield
+	2 * 28, // diamond_helm
 };
 constexpr uint16_t InvItems3Size = sizeof(InvItemWidth3) / sizeof(InvItemWidth3[0]);
 static_assert(sizeof(InvItemHeight3) / sizeof(InvItemHeight3[0]) == InvItems3Size,

@@ -1,40 +1,60 @@
 @echo off
-REM Builds data\inv\oracool_items.cel - the inventory icons for the six worn item types Oracool
-REM added, plus any other custom item icon (currently: one new ILOC_HELM item) - from the user's
-REM art sheets, and installs it into both asset channels.
+REM Builds data\inv\oracool_items.cel - every Oracool custom item icon - from the user's art
+REM sheets, and installs it into both asset channels.
 REM
 REM Frame order is load-bearing: it must match InvItemWidth3/InvItemHeight3 in Source/cursor.cpp
-REM and the ICURS_ORACOOL_* values in Source/itemdat.h. A CEL stores no widths of its own.
+REM and the ICURS_ORACOOL_* values in Source/itemdat.h EXACTLY, in numeric order - a CEL stores
+REM no widths and no names of its own, only a flat frame list, so a frame's POSITION is the only
+REM thing that ties it to an ICURS_* id. Bug caught while first writing this: the Iron tier's helm
+REM cell and the original standalone helm render both wanted to produce a frame called "helm" -
+REM harmless-looking (spec "name" is only used for console logging and preview filenames), but
+REM having both specs present would have appended TWO frames, silently shifting every ICURS_*
+REM value after 235 (helm) off by one and corrupting every icon from Leather Armor onward. Only
+REM ONE spec may ever produce each named frame; the list below matches the ICURS_ORACOOL_*
+REM numeric sequence for exactly that reason - keep it that way.
 REM
-REM All seven specs below are green-screen "-v2"/"-v3" sources as of this pass, each a single
-REM full-canvas render (source rect is always the whole 1254x1254 image - there is nothing else
-REM on the canvas to crop away), cut with mode=green (see ItemIconCel.cs's ExtractWithGreenKey).
-REM User request, after the original hand-painted-sheet and dark-canvas-render sources kept
-REM causing their own investigations (torn edges, then enclosed punctures) - green versus this
-REM item family's browns/bronzes/iron greys needs no flood-fill connectivity analysis to tell
-REM apart, unlike black versus a dark item interior. Confirmed on this batch: 0 enclosed
-REM punctures on every icon except a 9-pixel fleck on boots (negligible, left alone - compare the
-REM belt's confirmed-real 212px gap discovered the same way).
+REM Specs go through a temp file and ItemIconCel.exe's "@specfile" mode instead of ^-continued
+REM command-line arguments. Second bug caught while first writing this: at 80 items, a single
+REM ^-continued command line stopped partway through with "Bad spec: ^" and no clearer diagnosis -
+REM not a bug in the parser, a cmd.exe limit on very long continued lines. One echo per spec, one
+REM invocation reading the file, sidesteps it entirely and has no per-batch ceiling to hit again.
 REM
-REM Each spec's trailing three fields are backdropCut (30, the shared default - present only
-REM because it is positional and mode sits after it), fillPunctures (false - not needed for any
-REM of these seven, verified per-icon rather than assumed), and mode (green).
+REM Three source generations feed this file:
+REM   - The original six worn-slot items (shoulders/bracers/gloves/belt/legs/boots): single
+REM     full-canvas green-screen renders, mode=green.
+REM   - Helm: sourced from the Iron tier's own composite sheet (below), not a separate standalone
+REM     render - re-cut for visual consistency with the rest of that tier instead of shipping a
+REM     mismatched one-off.
+REM   - Leather Armor/Shield: the two pieces held back from the original batch until an item was
+REM     actually named for them - see itemdat.cpp.
+REM   - The eight-tier set expansion (Iron/Steel/Crusader/Bone/Royal/Obsidian/Infernal/Diamond):
+REM     each tier is ONE 1402x1122 composite sheet holding all nine pieces in a 3x3 grid (gloves,
+REM     shoulders, bracers / belt, legs, boots / armor, shield, helm), cut nine times per sheet
+REM     with per-cell source rects. Cell (0,0) - gloves - is offset 80px down to clear the
+REM     "<Tier> Set vN" title text baked into that corner; the other eight cells are plain
+REM     uniform thirds of the canvas (1402/3, 1122/3), left untightened beyond that because
+REM     ContentBoxByGreenKey does the real work and the gutters between cells measured wide
+REM     enough (~100px+) that a few px of slop here risks nothing.
 REM
-REM Two ADDITIONAL green-screen renders exist in the same source folder - body-armour-v2 and
-REM shields-v3 - cut just as cleanly but deliberately NOT wired in below: unlike these seven,
-REM ILOC_ARMOR/ILOC_SHIELD have no Oracool item occupying them yet, and adding one is a new-item
-REM decision (name, stats, whether it ships at all) nobody has made, not an art swap. Cut them by
-REM hand with ItemIconCel.exe directly if you want a preview.
+REM All specs use the same trailing three fields: backdropCut (30, the shared dark-canvas
+REM default - present only because it is positional and mode sits after it, unused whenever
+REM mode=green), fillPunctures (false throughout this file - checked per-icon with a border
+REM flood-fill puncture counter after cutting, not assumed; see the dev report for the two real
+REM bugs that check caught: a ContentBoxByGreenKey/ExtractWithGreenKey threshold mismatch, then
+REM the green-key ramp itself needing recalibration per composite sheet), and mode (green
+REM throughout - see ItemIconCel.cs's ExtractWithGreenKey for why a chroma key replaced the
+REM original dark-canvas flood fill for every single-subject render in this pipeline).
 REM
 REM Usage:  tools\build_item_icons.cmd
 REM Run from the repository root.
 
-setlocal
+setlocal enabledelayedexpansion
 set ART=..\Oracool.MPQ\02-source-art\items
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\data\inv\oracool_items.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set EXE=%TEMP%\ItemIconCel.exe
+set SPECFILE=%TEMP%\oracool_item_specs.txt
 
 if not exist "%ART%" (
   echo ERROR: source art folder not found: %ART%
@@ -43,14 +63,93 @@ if not exist "%ART%" (
 
 "%CSC%" /nologo /unsafe /optimize /target:exe /out:"%EXE%" /r:System.Drawing.dll tools\ItemIconCel.cs || exit /b 1
 
-"%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" ^
-  "%ART%\item-icons-shoulders-v2.png,0,0,1254,1254,56,56,shoulders,30,false,green" ^
-  "%ART%\item-icons-bracers-v2.png,0,0,1254,1254,56,56,bracers,30,false,green" ^
-  "%ART%\item-icons-gloves-v2.png,0,0,1254,1254,56,56,gloves,30,false,green" ^
-  "%ART%\item-icons-belts-v2.png,0,0,1254,1254,56,28,belt,30,false,green" ^
-  "%ART%\item-icons-legs-v2.png,0,0,1254,1254,56,56,legs,30,false,green" ^
-  "%ART%\item-icons-boots-v3.png,0,0,1254,1254,56,56,boots,30,false,green" ^
-  "%ART%\item-icons-helm-v2.png,0,0,1254,1254,56,56,helm,30,false,green" || exit /b 1
+REM Spec order = ICURS_ORACOOL_* numeric order (229..308). Do not reorder without re-checking
+REM every frame index against itemdat.h - see the header comment above.
+if exist "%SPECFILE%" del "%SPECFILE%"
+> "%SPECFILE%" (
+  echo %ART%\item-icons-shoulders-v2.png,0,0,1254,1254,56,56,shoulders,30,false,green
+  echo %ART%\item-icons-bracers-v2.png,0,0,1254,1254,56,56,bracers,30,false,green
+  echo %ART%\item-icons-gloves-v2.png,0,0,1254,1254,56,56,gloves,30,false,green
+  echo %ART%\item-icons-belts-v2.png,0,0,1254,1254,56,28,belt,30,false,green
+  echo %ART%\item-icons-legs-v2.png,0,0,1254,1254,56,56,legs,30,false,green
+  echo %ART%\item-icons-boots-v3.png,0,0,1254,1254,56,56,boots,30,false,green
+  echo %ART%\item-set-iron-v1.png,934,748,468,374,56,56,helm,30,false,green
+  echo %ART%\item-icons-body-armour-v2.png,0,0,1254,1254,56,56,leather_armor,30,false,green
+  echo %ART%\item-icons-shields-v3.png,0,0,1254,1254,56,56,leather_shield,30,false,green
+  echo %ART%\item-set-iron-v1.png,0,80,467,294,56,56,iron_gloves,30,false,green
+  echo %ART%\item-set-iron-v1.png,467,0,467,374,56,56,iron_shoulders,30,false,green
+  echo %ART%\item-set-iron-v1.png,934,0,468,374,56,56,iron_bracers,30,false,green
+  echo %ART%\item-set-iron-v1.png,0,374,467,374,56,28,iron_belt,30,false,green
+  echo %ART%\item-set-iron-v1.png,467,374,467,374,56,56,iron_legs,30,false,green
+  echo %ART%\item-set-iron-v1.png,934,374,468,374,56,56,iron_boots,30,false,green
+  echo %ART%\item-set-iron-v1.png,0,748,467,374,56,56,iron_armor,30,false,green
+  echo %ART%\item-set-iron-v1.png,467,748,467,374,56,56,iron_shield,30,false,green
+  echo %ART%\item-set-steel-v1.png,0,80,467,294,56,56,steel_gloves,30,false,green
+  echo %ART%\item-set-steel-v1.png,467,0,467,374,56,56,steel_shoulders,30,false,green
+  echo %ART%\item-set-steel-v1.png,934,0,468,374,56,56,steel_bracers,30,false,green
+  echo %ART%\item-set-steel-v1.png,0,374,467,374,56,28,steel_belt,30,false,green
+  echo %ART%\item-set-steel-v1.png,467,374,467,374,56,56,steel_legs,30,false,green
+  echo %ART%\item-set-steel-v1.png,934,374,468,374,56,56,steel_boots,30,false,green
+  echo %ART%\item-set-steel-v1.png,0,748,467,374,56,56,steel_armor,30,false,green
+  echo %ART%\item-set-steel-v1.png,467,748,467,374,56,56,steel_shield,30,false,green
+  echo %ART%\item-set-steel-v1.png,934,748,468,374,56,56,steel_helm,30,false,green
+  echo %ART%\item-set-steel-v2.png,0,80,467,294,56,56,crusader_gloves,30,false,green
+  echo %ART%\item-set-steel-v2.png,467,0,467,374,56,56,crusader_shoulders,30,false,green
+  echo %ART%\item-set-steel-v2.png,934,0,468,374,56,56,crusader_bracers,30,false,green
+  echo %ART%\item-set-steel-v2.png,0,374,467,374,56,28,crusader_belt,30,false,green
+  echo %ART%\item-set-steel-v2.png,467,374,467,374,56,56,crusader_legs,30,false,green
+  echo %ART%\item-set-steel-v2.png,934,374,468,374,56,56,crusader_boots,30,false,green
+  echo %ART%\item-set-steel-v2.png,0,748,467,374,56,56,crusader_armor,30,false,green
+  echo %ART%\item-set-steel-v2.png,467,748,467,374,56,56,crusader_shield,30,false,green
+  echo %ART%\item-set-steel-v2.png,934,748,468,374,56,56,crusader_helm,30,false,green
+  echo %ART%\item-set-bone-v1.png,0,80,467,294,56,56,bone_gloves,30,false,green
+  echo %ART%\item-set-bone-v1.png,467,0,467,374,56,56,bone_shoulders,30,false,green
+  echo %ART%\item-set-bone-v1.png,934,0,468,374,56,56,bone_bracers,30,false,green
+  echo %ART%\item-set-bone-v1.png,0,374,467,374,56,28,bone_belt,30,false,green
+  echo %ART%\item-set-bone-v1.png,467,374,467,374,56,56,bone_legs,30,false,green
+  echo %ART%\item-set-bone-v1.png,934,374,468,374,56,56,bone_boots,30,false,green
+  echo %ART%\item-set-bone-v1.png,0,748,467,374,56,56,bone_armor,30,false,green
+  echo %ART%\item-set-bone-v1.png,467,748,467,374,56,56,bone_shield,30,false,green
+  echo %ART%\item-set-bone-v1.png,934,748,468,374,56,56,bone_helm,30,false,green
+  echo %ART%\item-set-gold-v1.png,0,80,467,294,56,56,royal_gloves,30,false,green
+  echo %ART%\item-set-gold-v1.png,467,0,467,374,56,56,royal_shoulders,30,false,green
+  echo %ART%\item-set-gold-v1.png,934,0,468,374,56,56,royal_bracers,30,false,green
+  echo %ART%\item-set-gold-v1.png,0,374,467,374,56,28,royal_belt,30,false,green
+  echo %ART%\item-set-gold-v1.png,467,374,467,374,56,56,royal_legs,30,false,green
+  echo %ART%\item-set-gold-v1.png,934,374,468,374,56,56,royal_boots,30,false,green
+  echo %ART%\item-set-gold-v1.png,0,748,467,374,56,56,royal_armor,30,false,green
+  echo %ART%\item-set-gold-v1.png,467,748,467,374,56,56,royal_shield,30,false,green
+  echo %ART%\item-set-gold-v1.png,934,748,468,374,56,56,royal_helm,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,0,80,467,294,56,56,obsidian_gloves,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,467,0,467,374,56,56,obsidian_shoulders,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,934,0,468,374,56,56,obsidian_bracers,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,0,374,467,374,56,28,obsidian_belt,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,467,374,467,374,56,56,obsidian_legs,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,934,374,468,374,56,56,obsidian_boots,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,0,748,467,374,56,56,obsidian_armor,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,467,748,467,374,56,56,obsidian_shield,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,934,748,468,374,56,56,obsidian_helm,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,0,80,467,294,56,56,infernal_gloves,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,467,0,467,374,56,56,infernal_shoulders,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,934,0,468,374,56,56,infernal_bracers,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,0,374,467,374,56,28,infernal_belt,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,467,374,467,374,56,56,infernal_legs,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,934,374,468,374,56,56,infernal_boots,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,0,748,467,374,56,56,infernal_armor,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,467,748,467,374,56,56,infernal_shield,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,934,748,468,374,56,56,infernal_helm,30,false,green
+  echo %ART%\item-set-diamond-v1.png,0,80,467,294,56,56,diamond_gloves,30,false,green
+  echo %ART%\item-set-diamond-v1.png,467,0,467,374,56,56,diamond_shoulders,30,false,green
+  echo %ART%\item-set-diamond-v1.png,934,0,468,374,56,56,diamond_bracers,30,false,green
+  echo %ART%\item-set-diamond-v1.png,0,374,467,374,56,28,diamond_belt,30,false,green
+  echo %ART%\item-set-diamond-v1.png,467,374,467,374,56,56,diamond_legs,30,false,green
+  echo %ART%\item-set-diamond-v1.png,934,374,468,374,56,56,diamond_boots,30,false,green
+  echo %ART%\item-set-diamond-v1.png,0,748,467,374,56,56,diamond_armor,30,false,green
+  echo %ART%\item-set-diamond-v1.png,467,748,467,374,56,56,diamond_shield,30,false,green
+  echo %ART%\item-set-diamond-v1.png,934,748,468,374,56,56,diamond_helm,30,false,green
+)
+
+"%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1
 
 REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet
 REM still finds the sheet. InitCursor loads it unconditionally, so a missing file is fatal.
