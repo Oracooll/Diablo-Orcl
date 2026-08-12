@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 REM Builds data\inv\oracool_items.cel - every Oracool custom item icon - from the user's art
 REM sheets, and installs it into both asset channels.
 REM
@@ -70,7 +70,7 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-icons-shoulders-v2.png,0,0,1254,1254,56,56,shoulders,30,false,green
   echo %ART%\item-icons-bracers-v2.png,0,0,1254,1254,56,56,bracers,30,false,green
   echo %ART%\item-icons-gloves-v2.png,0,0,1254,1254,56,56,gloves,30,false,green
-  echo %ART%\item-icons-belts-v2.png,0,0,1254,1254,56,28,belt,30,false,green
+  echo %ART%\item-icons-belts-v2.png,0,0,1254,1254,56,28,belt,30,false,green,1.25
   echo %ART%\item-icons-legs-v2.png,0,0,1254,1254,56,56,legs,30,false,green
   echo %ART%\item-icons-boots-v3.png,0,0,1254,1254,56,56,boots,30,false,green
   echo %ART%\item-set-iron-v1.png,934,748,468,374,56,56,helm,30,false,green
@@ -79,7 +79,7 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-iron-v1.png,0,80,467,294,56,56,iron_gloves,30,false,green
   echo %ART%\item-set-iron-v1.png,467,0,467,374,56,56,iron_shoulders,30,false,green
   echo %ART%\item-set-iron-v1.png,934,0,468,374,56,56,iron_bracers,30,false,green
-  echo %ART%\item-set-iron-v1.png,0,374,467,374,56,28,iron_belt,30,false,green
+  echo %ART%\item-set-iron-v1.png,0,374,467,374,56,28,iron_belt,30,false,green,1.25
   echo %ART%\item-set-iron-v1.png,467,374,467,374,56,56,iron_legs,30,false,green
   echo %ART%\item-set-iron-v1.png,934,374,468,374,56,56,iron_boots,30,false,green
   echo %ART%\item-set-iron-v1.png,0,748,467,374,56,56,iron_armor,30,false,green
@@ -87,7 +87,7 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-steel-v1.png,0,80,467,294,56,56,steel_gloves,30,false,green
   echo %ART%\item-set-steel-v1.png,467,0,467,374,56,56,steel_shoulders,30,false,green
   echo %ART%\item-set-steel-v1.png,934,0,468,374,56,56,steel_bracers,30,false,green
-  echo %ART%\item-set-steel-v1.png,0,374,467,374,56,28,steel_belt,30,false,green
+  echo %ART%\item-set-steel-v1.png,0,374,467,374,56,28,steel_belt,30,false,green,1.25
   echo %ART%\item-set-steel-v1.png,467,374,467,374,56,56,steel_legs,30,false,green
   echo %ART%\item-set-steel-v1.png,934,374,468,374,56,56,steel_boots,30,false,green
   echo %ART%\item-set-steel-v1.png,0,748,467,374,56,56,steel_armor,30,false,green
@@ -96,7 +96,7 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-steel-v2.png,0,80,467,294,56,56,crusader_gloves,30,false,green
   echo %ART%\item-set-steel-v2.png,467,0,467,374,56,56,crusader_shoulders,30,false,green
   echo %ART%\item-set-steel-v2.png,934,0,468,374,56,56,crusader_bracers,30,false,green
-  echo %ART%\item-set-steel-v2.png,0,374,467,374,56,28,crusader_belt,30,false,green
+  echo %ART%\item-set-steel-v2.png,0,374,467,374,56,28,crusader_belt,30,false,green,1.25
   echo %ART%\item-set-steel-v2.png,467,374,467,374,56,56,crusader_legs,30,false,green
   echo %ART%\item-set-steel-v2.png,934,374,468,374,56,56,crusader_boots,30,false,green
   echo %ART%\item-set-steel-v2.png,0,748,467,374,56,56,crusader_armor,30,false,green
@@ -105,7 +105,7 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-bone-v1.png,0,80,467,294,56,56,bone_gloves,30,false,green
   echo %ART%\item-set-bone-v1.png,467,0,467,374,56,56,bone_shoulders,30,false,green
   echo %ART%\item-set-bone-v1.png,934,0,468,374,56,56,bone_bracers,30,false,green
-  echo %ART%\item-set-bone-v1.png,0,374,467,374,56,28,bone_belt,30,false,green
+  echo %ART%\item-set-bone-v1.png,0,374,467,374,56,28,bone_belt,30,false,green,1.25
   echo %ART%\item-set-bone-v1.png,467,374,467,374,56,56,bone_legs,30,false,green
   echo %ART%\item-set-bone-v1.png,934,374,468,374,56,56,bone_boots,30,false,green
   echo %ART%\item-set-bone-v1.png,0,748,467,374,56,56,bone_armor,30,false,green
@@ -114,7 +114,7 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-gold-v1.png,0,80,467,294,56,56,royal_gloves,30,false,green
   echo %ART%\item-set-gold-v1.png,467,0,467,374,56,56,royal_shoulders,30,false,green
   echo %ART%\item-set-gold-v1.png,934,0,468,374,56,56,royal_bracers,30,false,green
-  echo %ART%\item-set-gold-v1.png,0,374,467,374,56,28,royal_belt,30,false,green
+  echo %ART%\item-set-gold-v1.png,0,374,467,374,56,28,royal_belt,30,false,green,1.25
   echo %ART%\item-set-gold-v1.png,467,374,467,374,56,56,royal_legs,30,false,green
   echo %ART%\item-set-gold-v1.png,934,374,468,374,56,56,royal_boots,30,false,green
   echo %ART%\item-set-gold-v1.png,0,748,467,374,56,56,royal_armor,30,false,green
@@ -123,7 +123,7 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-obsidian-v1.png,0,80,467,294,56,56,obsidian_gloves,30,false,green
   echo %ART%\item-set-obsidian-v1.png,467,0,467,374,56,56,obsidian_shoulders,30,false,green
   echo %ART%\item-set-obsidian-v1.png,934,0,468,374,56,56,obsidian_bracers,30,false,green
-  echo %ART%\item-set-obsidian-v1.png,0,374,467,374,56,28,obsidian_belt,30,false,green
+  echo %ART%\item-set-obsidian-v1.png,0,374,467,374,56,28,obsidian_belt,30,false,green,1.25
   echo %ART%\item-set-obsidian-v1.png,467,374,467,374,56,56,obsidian_legs,30,false,green
   echo %ART%\item-set-obsidian-v1.png,934,374,468,374,56,56,obsidian_boots,30,false,green
   echo %ART%\item-set-obsidian-v1.png,0,748,467,374,56,56,obsidian_armor,30,false,green
@@ -132,7 +132,7 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-obsidian-v2.png,0,80,467,294,56,56,infernal_gloves,30,false,green
   echo %ART%\item-set-obsidian-v2.png,467,0,467,374,56,56,infernal_shoulders,30,false,green
   echo %ART%\item-set-obsidian-v2.png,934,0,468,374,56,56,infernal_bracers,30,false,green
-  echo %ART%\item-set-obsidian-v2.png,0,374,467,374,56,28,infernal_belt,30,false,green
+  echo %ART%\item-set-obsidian-v2.png,0,374,467,374,56,28,infernal_belt,30,false,green,1.25
   echo %ART%\item-set-obsidian-v2.png,467,374,467,374,56,56,infernal_legs,30,false,green
   echo %ART%\item-set-obsidian-v2.png,934,374,468,374,56,56,infernal_boots,30,false,green
   echo %ART%\item-set-obsidian-v2.png,0,748,467,374,56,56,infernal_armor,30,false,green
@@ -141,12 +141,75 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-diamond-v1.png,0,80,467,294,56,56,diamond_gloves,30,false,green
   echo %ART%\item-set-diamond-v1.png,467,0,467,374,56,56,diamond_shoulders,30,false,green
   echo %ART%\item-set-diamond-v1.png,934,0,468,374,56,56,diamond_bracers,30,false,green
-  echo %ART%\item-set-diamond-v1.png,0,374,467,374,56,28,diamond_belt,30,false,green
+  echo %ART%\item-set-diamond-v1.png,0,374,467,374,56,28,diamond_belt,30,false,green,1.25
   echo %ART%\item-set-diamond-v1.png,467,374,467,374,56,56,diamond_legs,30,false,green
   echo %ART%\item-set-diamond-v1.png,934,374,468,374,56,56,diamond_boots,30,false,green
   echo %ART%\item-set-diamond-v1.png,0,748,467,374,56,56,diamond_armor,30,false,green
   echo %ART%\item-set-diamond-v1.png,467,748,467,374,56,56,diamond_shield,30,false,green
   echo %ART%\item-set-diamond-v1.png,934,748,468,374,56,56,diamond_helm,30,false,green
+  echo %ART%\item-set-red-diamond-v1.png,0,80,467,294,56,56,ruby_gloves,30,false,green
+  echo %ART%\item-set-red-diamond-v1.png,467,0,467,374,56,56,ruby_shoulders,30,false,green
+  echo %ART%\item-set-red-diamond-v1.png,934,0,468,374,56,56,ruby_bracers,30,false,green
+  echo %ART%\item-set-red-diamond-v1.png,0,374,467,374,56,28,ruby_belt,30,false,green,1.25
+  echo %ART%\item-set-red-diamond-v1.png,467,374,467,374,56,56,ruby_legs,30,false,green
+  echo %ART%\item-set-red-diamond-v1.png,934,374,468,374,56,56,ruby_boots,30,false,green
+  echo %ART%\item-set-red-diamond-v1.png,0,748,467,374,56,56,ruby_armor,30,false,green
+  echo %ART%\item-set-red-diamond-v1.png,467,748,467,374,56,56,ruby_shield,30,false,green
+  echo %ART%\item-set-red-diamond-v1.png,934,748,468,374,56,56,ruby_helm,30,false,green
+  echo %ART%\item-set-black-diamond-v1.png,0,80,467,294,56,56,onyx_gloves,30,false,green
+  echo %ART%\item-set-black-diamond-v1.png,467,0,467,374,56,56,onyx_shoulders,30,false,green
+  echo %ART%\item-set-black-diamond-v1.png,934,0,468,374,56,56,onyx_bracers,30,false,green
+  echo %ART%\item-set-black-diamond-v1.png,0,374,467,374,56,28,onyx_belt,30,false,green,1.25
+  echo %ART%\item-set-black-diamond-v1.png,467,374,467,374,56,56,onyx_legs,30,false,green
+  echo %ART%\item-set-black-diamond-v1.png,934,374,468,374,56,56,onyx_boots,30,false,green
+  echo %ART%\item-set-black-diamond-v1.png,0,748,467,374,56,56,onyx_armor,30,false,green
+  echo %ART%\item-set-black-diamond-v1.png,467,748,467,374,56,56,onyx_shield,30,false,green
+  echo %ART%\item-set-black-diamond-v1.png,934,748,468,374,56,56,onyx_helm,30,false,green
+  echo %ART%\item-set-ice-v1.png,0,80,467,294,56,56,glacial_gloves,30,false,green
+  echo %ART%\item-set-ice-v1.png,467,0,467,374,56,56,glacial_shoulders,30,false,green
+  echo %ART%\item-set-ice-v1.png,934,0,468,374,56,56,glacial_bracers,30,false,green
+  echo %ART%\item-set-ice-v1.png,0,374,467,374,56,28,glacial_belt,30,false,green,1.25
+  echo %ART%\item-set-ice-v1.png,467,374,467,374,56,56,glacial_legs,30,false,green
+  echo %ART%\item-set-ice-v1.png,934,374,468,374,56,56,glacial_boots,30,false,green
+  echo %ART%\item-set-ice-v1.png,0,748,467,374,56,56,glacial_armor,30,false,green
+  echo %ART%\item-set-ice-v1.png,467,748,467,374,56,56,glacial_shield,30,false,green
+  echo %ART%\item-set-ice-v1.png,934,748,468,374,56,56,glacial_helm,30,false,green
+  echo %ART%\item-set-cyborg-v1.png,0,80,467,294,56,56,cyborg_gloves,30,false,green
+  echo %ART%\item-set-cyborg-v1.png,1100,748,302,374,56,56,cyborg_shoulders,30,false,green
+  echo %ART%\item-set-cyborg-v1.png,934,0,468,374,56,56,cyborg_bracers,30,false,green
+  echo %ART%\item-set-cyborg-v1.png,0,374,467,374,56,28,cyborg_belt,30,false,green,1.25
+  echo %ART%\item-set-cyborg-v1.png,467,374,467,374,56,56,cyborg_legs,30,false,green
+  echo %ART%\item-set-cyborg-v1.png,934,374,468,374,56,56,cyborg_boots,30,false,green
+  echo %ART%\item-set-cyborg-v1.png,0,748,467,374,56,56,cyborg_armor,30,false,green
+  echo %ART%\item-set-cyborg-v1.png,467,748,467,374,56,56,cyborg_shield,30,false,green
+  echo %ART%\item-set-cyborg-v1.png,467,0,467,374,56,56,cyborg_helm,30,false,green
+  echo %ART%\item-set-dark-angel-v1.png,0,80,467,294,56,56,fallen_gloves,30,false,green
+  echo %ART%\item-set-dark-angel-v1.png,934,748,468,374,56,56,fallen_shoulders,30,false,green
+  echo %ART%\item-set-dark-angel-v1.png,934,0,468,374,56,56,fallen_bracers,30,false,green
+  echo %ART%\item-set-dark-angel-v1.png,0,374,467,374,56,28,fallen_belt,30,false,green,1.25
+  echo %ART%\item-set-dark-angel-v1.png,467,374,467,374,56,56,fallen_legs,30,false,green
+  echo %ART%\item-set-dark-angel-v1.png,934,374,468,374,56,56,fallen_boots,30,false,green
+  echo %ART%\item-set-dark-angel-v1.png,0,748,467,374,56,56,fallen_armor,30,false,green
+  echo %ART%\item-set-dark-angel-v1.png,467,748,467,374,56,56,fallen_shield,30,false,green
+  echo %ART%\item-set-dark-angel-v1.png,467,0,467,374,56,56,fallen_helm,30,false,green
+  echo %ART%\item-set-angelic-gold-v1.png,0,80,467,294,56,56,seraphic_gloves,30,false,green
+  echo %ART%\item-set-angelic-gold-v1.png,934,748,468,374,56,56,seraphic_shoulders,30,false,green
+  echo %ART%\item-set-angelic-gold-v1.png,934,0,468,374,56,56,seraphic_bracers,30,false,green
+  echo %ART%\item-set-angelic-gold-v1.png,0,374,467,374,56,28,seraphic_belt,30,false,green,1.25
+  echo %ART%\item-set-angelic-gold-v1.png,467,374,467,374,56,56,seraphic_legs,30,false,green
+  echo %ART%\item-set-angelic-gold-v1.png,934,374,468,374,56,56,seraphic_boots,30,false,green
+  echo %ART%\item-set-angelic-gold-v1.png,0,748,467,374,56,56,seraphic_armor,30,false,green
+  echo %ART%\item-set-angelic-gold-v1.png,467,748,467,374,56,56,seraphic_shield,30,false,green
+  echo %ART%\item-set-angelic-gold-v1.png,467,0,467,374,56,56,seraphic_helm,30,false,green
+  echo %ART%\item-set-ghostly-v1.png,0,80,467,294,56,56,spectral_gloves,30,false,green
+  echo %ART%\item-set-ghostly-v1.png,934,748,468,374,56,56,spectral_shoulders,30,false,green
+  echo %ART%\item-set-ghostly-v1.png,934,0,468,374,56,56,spectral_bracers,30,false,green
+  echo %ART%\item-set-ghostly-v1.png,0,374,467,374,56,28,spectral_belt,30,false,green,1.25
+  echo %ART%\item-set-ghostly-v1.png,467,374,467,374,56,56,spectral_legs,30,false,green
+  echo %ART%\item-set-ghostly-v1.png,934,374,468,374,56,56,spectral_boots,30,false,green
+  echo %ART%\item-set-ghostly-v1.png,0,748,467,374,56,56,spectral_armor,30,false,green
+  echo %ART%\item-set-ghostly-v1.png,467,748,467,374,56,56,spectral_shield,30,false,green
+  echo %ART%\item-set-ghostly-v1.png,467,0,467,374,56,56,spectral_helm,30,false,green
 )
 
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1

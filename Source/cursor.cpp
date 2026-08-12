@@ -178,6 +178,69 @@ const uint16_t InvItemWidth3[] = {
 	2 * 28, // diamond_armor
 	2 * 28, // diamond_shield
 	2 * 28, // diamond_helm
+	2 * 28, // ruby_gloves
+	2 * 28, // ruby_shoulders
+	2 * 28, // ruby_bracers
+	2 * 28, // ruby_belt
+	2 * 28, // ruby_legs
+	2 * 28, // ruby_boots
+	2 * 28, // ruby_armor
+	2 * 28, // ruby_shield
+	2 * 28, // ruby_helm
+	2 * 28, // onyx_gloves
+	2 * 28, // onyx_shoulders
+	2 * 28, // onyx_bracers
+	2 * 28, // onyx_belt
+	2 * 28, // onyx_legs
+	2 * 28, // onyx_boots
+	2 * 28, // onyx_armor
+	2 * 28, // onyx_shield
+	2 * 28, // onyx_helm
+	2 * 28, // glacial_gloves
+	2 * 28, // glacial_shoulders
+	2 * 28, // glacial_bracers
+	2 * 28, // glacial_belt
+	2 * 28, // glacial_legs
+	2 * 28, // glacial_boots
+	2 * 28, // glacial_armor
+	2 * 28, // glacial_shield
+	2 * 28, // glacial_helm
+	2 * 28, // cyborg_gloves
+	2 * 28, // cyborg_shoulders
+	2 * 28, // cyborg_bracers
+	2 * 28, // cyborg_belt
+	2 * 28, // cyborg_legs
+	2 * 28, // cyborg_boots
+	2 * 28, // cyborg_armor
+	2 * 28, // cyborg_shield
+	2 * 28, // cyborg_helm
+	2 * 28, // fallen_gloves
+	2 * 28, // fallen_shoulders
+	2 * 28, // fallen_bracers
+	2 * 28, // fallen_belt
+	2 * 28, // fallen_legs
+	2 * 28, // fallen_boots
+	2 * 28, // fallen_armor
+	2 * 28, // fallen_shield
+	2 * 28, // fallen_helm
+	2 * 28, // seraphic_gloves
+	2 * 28, // seraphic_shoulders
+	2 * 28, // seraphic_bracers
+	2 * 28, // seraphic_belt
+	2 * 28, // seraphic_legs
+	2 * 28, // seraphic_boots
+	2 * 28, // seraphic_armor
+	2 * 28, // seraphic_shield
+	2 * 28, // seraphic_helm
+	2 * 28, // spectral_gloves
+	2 * 28, // spectral_shoulders
+	2 * 28, // spectral_bracers
+	2 * 28, // spectral_belt
+	2 * 28, // spectral_legs
+	2 * 28, // spectral_boots
+	2 * 28, // spectral_armor
+	2 * 28, // spectral_shield
+	2 * 28, // spectral_helm
 };
 const uint16_t InvItemHeight3[] = {
 	2 * 28, // shoulders
@@ -260,6 +323,69 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // diamond_armor
 	2 * 28, // diamond_shield
 	2 * 28, // diamond_helm
+	2 * 28, // ruby_gloves
+	2 * 28, // ruby_shoulders
+	2 * 28, // ruby_bracers
+	1 * 28, // ruby_belt - 2x1
+	2 * 28, // ruby_legs
+	2 * 28, // ruby_boots
+	2 * 28, // ruby_armor
+	2 * 28, // ruby_shield
+	2 * 28, // ruby_helm
+	2 * 28, // onyx_gloves
+	2 * 28, // onyx_shoulders
+	2 * 28, // onyx_bracers
+	1 * 28, // onyx_belt - 2x1
+	2 * 28, // onyx_legs
+	2 * 28, // onyx_boots
+	2 * 28, // onyx_armor
+	2 * 28, // onyx_shield
+	2 * 28, // onyx_helm
+	2 * 28, // glacial_gloves
+	2 * 28, // glacial_shoulders
+	2 * 28, // glacial_bracers
+	1 * 28, // glacial_belt - 2x1
+	2 * 28, // glacial_legs
+	2 * 28, // glacial_boots
+	2 * 28, // glacial_armor
+	2 * 28, // glacial_shield
+	2 * 28, // glacial_helm
+	2 * 28, // cyborg_gloves
+	2 * 28, // cyborg_shoulders
+	2 * 28, // cyborg_bracers
+	1 * 28, // cyborg_belt - 2x1
+	2 * 28, // cyborg_legs
+	2 * 28, // cyborg_boots
+	2 * 28, // cyborg_armor
+	2 * 28, // cyborg_shield
+	2 * 28, // cyborg_helm
+	2 * 28, // fallen_gloves
+	2 * 28, // fallen_shoulders
+	2 * 28, // fallen_bracers
+	1 * 28, // fallen_belt - 2x1
+	2 * 28, // fallen_legs
+	2 * 28, // fallen_boots
+	2 * 28, // fallen_armor
+	2 * 28, // fallen_shield
+	2 * 28, // fallen_helm
+	2 * 28, // seraphic_gloves
+	2 * 28, // seraphic_shoulders
+	2 * 28, // seraphic_bracers
+	1 * 28, // seraphic_belt - 2x1
+	2 * 28, // seraphic_legs
+	2 * 28, // seraphic_boots
+	2 * 28, // seraphic_armor
+	2 * 28, // seraphic_shield
+	2 * 28, // seraphic_helm
+	2 * 28, // spectral_gloves
+	2 * 28, // spectral_shoulders
+	2 * 28, // spectral_bracers
+	1 * 28, // spectral_belt - 2x1
+	2 * 28, // spectral_legs
+	2 * 28, // spectral_boots
+	2 * 28, // spectral_armor
+	2 * 28, // spectral_shield
+	2 * 28, // spectral_helm
 };
 constexpr uint16_t InvItems3Size = sizeof(InvItemWidth3) / sizeof(InvItemWidth3[0]);
 static_assert(sizeof(InvItemHeight3) / sizeof(InvItemHeight3[0]) == InvItems3Size,

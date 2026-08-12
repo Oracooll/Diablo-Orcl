@@ -1,4 +1,4 @@
-#include <cstdint>
+﻿#include <cstdint>
 
 #include <gtest/gtest.h>
 
@@ -801,7 +801,7 @@ TEST_F(PackTest, UnPackItem_diablo_strip_hellfire_items)
 // IDI_ORACOOL_HELM joined the list when it was added: same new-id-past-IDI_ARENAPOT exposure,
 // same IsOracoolItemIdx guard, so the same test covers it for free.
 //
-// Iterates IsOracoolItemIdx's own range (IDI_ORACOOL_SHOULDERS..IDI_ORACOOL_DIAMOND_HELM as of
+// Iterates IsOracoolItemIdx's own range (IDI_ORACOOL_SHOULDERS..IDI_ORACOOL_SPECTRAL_HELM as of
 // the eight-tier set expansion, 80 items) instead of a hand-maintained array: that range is
 // already the single source of truth this guard itself is built from, and a hand-copied list of
 // 80 names is exactly the kind of thing that quietly stops matching reality one item at a time.
@@ -811,7 +811,7 @@ TEST_F(PackTest, PackItem_diablo_roundtrip_preserves_oracool_worn_items)
 	gbIsMultiplayer = false;
 	gbIsSpawn = false;
 
-	for (int i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_DIAMOND_HELM; i++) {
+	for (int i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_SPECTRAL_HELM; i++) {
 		const auto idx = static_cast<_item_indexes>(i);
 		Item original = {};
 		InitializeItem(original, idx);

@@ -5420,7 +5420,7 @@ std::string DebugSpawnItem(std::string itemName)
 	// finds correctly. Running after preserves that existing behaviour exactly - our items only
 	// get a look in on a query the search below could never have satisfied anyway.
 	const auto trySpawnOracoolItem = [&itemName]() -> std::optional<std::string> {
-		for (std::underlying_type_t<_item_indexes> idx = IDI_ORACOOL_SHOULDERS; idx <= IDI_ORACOOL_DIAMOND_HELM; idx++) {
+		for (std::underlying_type_t<_item_indexes> idx = IDI_ORACOOL_SHOULDERS; idx <= IDI_ORACOOL_SPECTRAL_HELM; idx++) {
 			std::string candidateName = AsciiStrToLower(_(AllItemsList[idx].iName));
 			if (candidateName.find(itemName) == std::string::npos)
 				continue;

@@ -105,7 +105,7 @@ internal static class ItemIconCel
 
 		for (int i = 3; i < args.Length; i++) {
 			string[] parts = args[i].Split(',');
-			if (parts.Length < 8 || parts.Length > 11) {
+			if (parts.Length < 8 || parts.Length > 12) {
 				Console.Error.WriteLine("Bad spec: " + args[i]);
 				return 1;
 			}
@@ -115,6 +115,17 @@ internal static class ItemIconCel
 			int cellH = int.Parse(parts[6]);
 			string name = parts[7];
 			int backdropCut = parts.Length >= 9 ? int.Parse(parts[8]) : BackdropLumaCut;
+			// fitScale > 1 deliberately overflows the cell and lets FitInto clip the excess.
+			// User request for belts: "some belt icons are super tiny. make them bigger. don't
+			// worry about the belt sticking slightly out of its slot." A belt's art is a wide
+			// ring whose widest point is its horizontal diameter, so a strict contain-fit leaves
+			// it short of the cell on one axis; nudging past 1.0 trims the extreme top and bottom
+			// of the ring, which reads as intended rather than as damage.
+			// InvariantCulture matters: this machine's locale uses a comma decimal separator, so
+			// a plain double.Parse would reject or misread "1.25".
+			double fitScale = parts.Length >= 12
+			    ? double.Parse(parts[11], System.Globalization.CultureInfo.InvariantCulture)
+			    : 1.0;
 			// Opt-in, per spec, deliberately not on by default - see FillEnclosedPunctures's own
 			// comment for why: it is only proven safe on the helm so far. The belt's own enclosed
 			// gap was explicitly reviewed and confirmed intentional in an earlier pass ("daylight
@@ -122,7 +133,7 @@ internal static class ItemIconCel
 			// re-deciding that via a general pipeline change, for six icons nobody asked to revisit,
 			// is exactly the kind of side effect this flag exists to prevent.
 			bool fillPunctures = parts.Length >= 10 && parts[9] == "true";
-			bool greenKey = parts.Length == 11 && parts[10] == "green";
+			bool greenKey = parts.Length >= 11 && parts[10] == "green";
 
 			using (Bitmap sheet = new Bitmap(sheetPath)) {
 				Rectangle content = greenKey ? ContentBoxByGreenKey(sheet, srcBox) : ContentBox(sheet, srcBox);
@@ -131,7 +142,7 @@ internal static class ItemIconCel
 				// Backdrop removed at full resolution, BEFORE scaling: real alpha goes onto the
 				// crop, and the scale then blends it into soft edges for PostProcess to resolve.
 				using (Bitmap crop = greenKey ? ExtractWithGreenKey(sheet, content) : ExtractWithAlpha(sheet, content, backdropCut))
-				using (Bitmap cell = FitInto(crop, new Rectangle(0, 0, crop.Width, crop.Height), cellW, cellH)) {
+				using (Bitmap cell = FitInto(crop, new Rectangle(0, 0, crop.Width, crop.Height), cellW, cellH, fitScale)) {
 					PostProcess(cell, fillPunctures);
 					byte[] idx = Quantise(cell, pal, name);
 					frames.Add(idx);
@@ -214,33 +225,116 @@ internal static class ItemIconCel
 		return (g - Math.Max(r, b)) >= GreenKeyContentThreshold;
 	}
 
-	/** @brief Tight box of everything NOT part of the flat green backdrop inside `region`. */
+	// A component this much smaller than the cell's largest one is a sliver of a NEIGHBOURING
+	// item bleeding across the cell boundary, not part of this item.
+	//
+	// User report: "some of them don't align in the center of their slots, but in the right or
+	// left." 45 of 143 icons were off-centre, and the margin pattern gave the mechanism away -
+	// content jammed hard against one edge (margin 0) with a large gap opposite, e.g. onyx_legs
+	// at L0/R20 and fallen_shield at L16/R0. A plain min/max box over every non-green pixel
+	// includes the bleed, so the box is too wide; the fit then centres THAT box, which pushes the
+	// real item to one side AND scales it down to make room for a sliver that PostProcess's
+	// island sweep deletes later anyway. Excluding the bleed before the box is computed fixes the
+	// off-centring and the under-scaling together, at the cause.
+	//
+	// 0.25 is measured, not guessed, and deliberately not an "does it touch the cell edge" test -
+	// that would be wrong, since a legitimate second boot touches the edge too. Component sizes
+	// as a fraction of each cell's largest: real paired items (two boots, two gloves) come in at
+	// 85.7% and 97.5%; bleed slivers at 4.7%, 2.5%, 2.2%, 1.5% and 0.2%. Nothing observed lands
+	// between 5% and 85%, so the threshold sits in a wide empty gap rather than near either side.
+	private const double GreenKeyMinComponentFraction = 0.25;
+
+	/**
+	 * @brief Tight box of this cell's own art inside `region`, ignoring neighbouring-cell bleed.
+	 *
+	 * Connected components of non-green pixels, keeping only those at least
+	 * GreenKeyMinComponentFraction of the largest - see that constant for the measurements.
+	 */
 	private static Rectangle ContentBoxByGreenKey(Bitmap bmp, Rectangle region)
 	{
-		int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+		int left = Math.Max(0, region.Left), top = Math.Max(0, region.Top);
+		int right = Math.Min(region.Right, bmp.Width), bottom = Math.Min(region.Bottom, bmp.Height);
+		int w = right - left, h = bottom - top;
+		if (w <= 0 || h <= 0)
+			throw new InvalidOperationException("search box is empty");
+
+		bool[] opaque = new bool[w * h];
 		BitmapData data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
 		try {
 			unsafe {
 				byte* basePtr = (byte*)data.Scan0;
-				for (int y = region.Top; y < Math.Min(region.Bottom, bmp.Height); y++) {
-					byte* row = basePtr + y * data.Stride;
-					for (int x = region.Left; x < Math.Min(region.Right, bmp.Width); x++) {
-						int b = row[x * 4], g = row[x * 4 + 1], r = row[x * 4 + 2];
-						if (IsGreenBackground(r, g, b))
-							continue;
-						if (x < minX) minX = x;
-						if (x > maxX) maxX = x;
-						if (y < minY) minY = y;
-						if (y > maxY) maxY = y;
+				for (int y = 0; y < h; y++) {
+					byte* row = basePtr + (top + y) * data.Stride;
+					for (int x = 0; x < w; x++) {
+						int px = (left + x) * 4;
+						opaque[y * w + x] = !IsGreenBackground(row[px + 2], row[px + 1], row[px]);
 					}
 				}
 			}
 		} finally {
 			bmp.UnlockBits(data);
 		}
-		if (maxX < 0)
+
+		// Label components, recording each one's pixel count and bounding box in one pass.
+		int[] label = new int[w * h];
+		List<int> areas = new List<int>();
+		List<int[]> boxes = new List<int[]>(); // minX, minY, maxX, maxY
+		int[] dx = { 1, -1, 0, 0 };
+		int[] dy = { 0, 0, 1, -1 };
+		Queue<int> bfs = new Queue<int>();
+		for (int start = 0; start < w * h; start++) {
+			if (!opaque[start] || label[start] != 0)
+				continue;
+			int id = areas.Count + 1;
+			label[start] = id;
+			bfs.Enqueue(start);
+			int area = 0;
+			int[] box = { int.MaxValue, int.MaxValue, -1, -1 };
+			while (bfs.Count > 0) {
+				int cell = bfs.Dequeue();
+				int cx = cell % w, cy = cell / w;
+				area++;
+				if (cx < box[0]) box[0] = cx;
+				if (cy < box[1]) box[1] = cy;
+				if (cx > box[2]) box[2] = cx;
+				if (cy > box[3]) box[3] = cy;
+				for (int d = 0; d < 4; d++) {
+					int nx = cx + dx[d], ny = cy + dy[d];
+					if (nx < 0 || nx >= w || ny < 0 || ny >= h)
+						continue;
+					int n = ny * w + nx;
+					if (!opaque[n] || label[n] != 0)
+						continue;
+					label[n] = id;
+					bfs.Enqueue(n);
+				}
+			}
+			areas.Add(area);
+			boxes.Add(box);
+		}
+		if (areas.Count == 0)
 			throw new InvalidOperationException("search box contains no art");
-		return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+
+		int largest = 0;
+		foreach (int a in areas)
+			largest = Math.Max(largest, a);
+		double keepAbove = largest * GreenKeyMinComponentFraction;
+
+		int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+		int dropped = 0;
+		for (int i = 0; i < areas.Count; i++) {
+			if (areas[i] < keepAbove) {
+				dropped++;
+				continue;
+			}
+			minX = Math.Min(minX, boxes[i][0]);
+			minY = Math.Min(minY, boxes[i][1]);
+			maxX = Math.Max(maxX, boxes[i][2]);
+			maxY = Math.Max(maxY, boxes[i][3]);
+		}
+		if (dropped > 0)
+			Console.WriteLine("    (dropped {0} bleed component(s) from the content box)", dropped);
+		return new Rectangle(left + minX, top + minY, maxX - minX + 1, maxY - minY + 1);
 	}
 
 	/**
@@ -454,9 +548,9 @@ internal static class ItemIconCel
 	 * either into its cell would distort it badly. The letterboxing is transparent, which costs
 	 * nothing - CEL skips transparent runs.
 	 */
-	private static Bitmap FitInto(Bitmap source, Rectangle srcBox, int cellW, int cellH)
+	private static Bitmap FitInto(Bitmap source, Rectangle srcBox, int cellW, int cellH, double fitScale)
 	{
-		double scale = Math.Min(cellW / (double)srcBox.Width, cellH / (double)srcBox.Height);
+		double scale = Math.Min(cellW / (double)srcBox.Width, cellH / (double)srcBox.Height) * fitScale;
 		int drawW = Math.Max(1, (int)Math.Round(srcBox.Width * scale));
 		int drawH = Math.Max(1, (int)Math.Round(srcBox.Height * scale));
 
