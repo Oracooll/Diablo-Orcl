@@ -52,4 +52,14 @@ void DrawOrnateBorder(const Surface &out, Rectangle rect)
 	DrawRing(out, Inset(rect, 2), InnerColor, InnerColor);
 }
 
+void DrawOrnateSeparator(const Surface &out, Point from, int width)
+{
+	// The bevel's own vertical cross-section, top to bottom: the shadow it puts on a top edge, the
+	// mid-gold body, then the highlight it puts on a bottom edge. Reusing those three indices is
+	// what makes a rule drawn here read as part of the same frame rather than a line laid over it.
+	DrawHorizontalLine(out, from, width, MidShadowColor);
+	DrawHorizontalLine(out, { from.x, from.y + 1 }, width, OuterColor);
+	DrawHorizontalLine(out, { from.x, from.y + 2 }, width, MidHighlightColor);
+}
+
 } // namespace devilution::oracool

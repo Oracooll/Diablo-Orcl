@@ -31,4 +31,12 @@ constexpr int OrnateBorderWidth = 3;
  */
 void DrawOrnateBorder(const Surface &out, Rectangle rect);
 
+/**
+ * @brief Draws a horizontal rule OrnateBorderWidth tall, in the bevel's own colours.
+ *
+ * For dividing a panel into sections - a title band from a list, say - so the divider belongs to
+ * the same frame instead of looking like a line drawn on top of it.
+ */
+void DrawOrnateSeparator(const Surface &out, Point from, int width);
+
 } // namespace devilution::oracool

@@ -49,24 +49,33 @@ constexpr std::array<const char *, 17> WaypointNames { {
 
 // Oracool V1 waypoint list geometry.
 //
-//   0..18     top margin
-//   18..47    label band, "WAYPOINT"
-//   47..642   seventeen 35px rows
-//   642..660  bottom margin
+//   0..24     top margin
+//   24..74    label band, "WAYPOINT"
+//   74..77    separator rule
+//   77..101   gap below the rule
+//   101..696  seventeen 35px rows
+//   696..720  bottom margin
 //
 // The window is drawn the way the event log is - a half-transparent fill under the ornate
 // textbox_frame00 bevel - rather than from the composed stone panel it used at first, which read as
-// too heavy. Dimensions, row pitch, fonts and the waypoint sigils are unchanged from that version;
-// only the background and frame differ. ui\waypoint_panel.png is therefore no longer loaded;
-// tools/BuildWaypointPanel.ps1 still builds it if the heavier treatment is ever wanted back.
+// too heavy. ui\waypoint_panel.png is therefore no longer loaded; tools/BuildWaypointPanel.ps1
+// still builds it if the heavier treatment is ever wanted back.
 //
-// PanelMargin is now inset, not a drawn border - the ornate bevel is only OrnateBorderWidth (3px)
+// PanelMargin is inset, not a drawn border - the ornate bevel is only OrnateBorderWidth (3px)
 // thick, so the margin is what keeps rows clear of the frame.
-constexpr Size PanelSize { 340, 660 };
-constexpr int PanelMargin = 18;
-constexpr int LabelHeight = 29;
+//
+// The window is full screen height. Growing 660 -> 720 freed 60px, spent on symmetry rather than
+// on more rows: the top margin, the gap under the separator and the bottom margin are all one
+// PanelMargin, so the list sits in an evenly inset block. The label band also grew 29 -> 50, which
+// is what lets the FontSize30 title sit in its own rect instead of overflowing upward as it did
+// when the band was shorter than the face.
+constexpr Size PanelSize { 340, 720 };
+constexpr int PanelMargin = 24;
+constexpr int LabelHeight = 50;
+constexpr int SeparatorHeight = OrnateBorderWidth;
+constexpr int SeparatorGap = PanelMargin; // deliberately equal - see the symmetry note above
 constexpr int RowHeight = 35;
-constexpr int ListTop = PanelMargin + LabelHeight;
+constexpr int ListTop = PanelMargin + LabelHeight + SeparatorHeight + SeparatorGap;
 constexpr int IconGap = 8;   // from the inner edge of the margin to the sigil
 constexpr int TextGap = 10;  // from the sigil to the name
 
@@ -165,14 +174,17 @@ void DrawWaypointMenu(const Surface &out)
 
 	// The title used to be baked into the panel art; with that gone it is drawn here, in FontSize30 -
 	// the face the NPC gossip overlay uses (minitext.cpp's DrawQTextContent). Applied to the title
-	// only; the rows keep the default face.
-	//
-	// A 30px face in a 29px band would clip if it were boxed, so the label rect is grown upward into
-	// the top margin, which is empty. The band's nominal 29px still sets where the first row starts.
-	const Rectangle labelArea { { panel.position.x + PanelMargin, panel.position.y + PanelMargin / 2 },
-		{ panel.size.width - 2 * PanelMargin, LabelHeight + PanelMargin / 2 } };
+	// only; the rows keep the default face. The band is now taller than the face, so unlike the
+	// first pass this rect no longer has to grow upward to avoid clipping.
+	const Rectangle labelArea { { panel.position.x + PanelMargin, panel.position.y + PanelMargin },
+		{ panel.size.width - 2 * PanelMargin, LabelHeight } };
 	DrawStringOutlined(out, "WAYPOINT", labelArea, UiFlags::ColorWhitegold,
 	    UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+
+	// Rule under the title, in the frame's own bevel colours. Spans the same inset as the rows, so
+	// its ends line up with the text column rather than running edge to edge.
+	DrawOrnateSeparator(out, { panel.position.x + PanelMargin, panel.position.y + PanelMargin + LabelHeight },
+	    panel.size.width - 2 * PanelMargin);
 
 	const Size iconSize = GetWaypointIconSize();
 	const int iconX = panel.position.x + PanelMargin + IconGap;
