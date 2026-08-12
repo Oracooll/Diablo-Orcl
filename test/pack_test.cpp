@@ -791,6 +791,40 @@ TEST_F(PackTest, UnPackItem_diablo_strip_hellfire_items)
 	ASSERT_EQ(id._itype, ItemType::None);
 }
 
+// Oracool bug fix: user report - "all new type items are gone after starting a new game." The six
+// worn types sit past IDI_ARENAPOT, inside the id band RemapItemIdxToDiablo wrote off as
+// "Hellfire exclusive, does not exist in Diablo" - so in a Diablo game PackItem mapped each one
+// to -1, the EMPTY SLOT marker, destroying the item at save time. New Game (which reloads the
+// character through this exact pack round trip) merely revealed it. This drives PackItem and
+// UnPackItem in Diablo mode, one item per new type, exactly the path the user's character took.
+TEST_F(PackTest, PackItem_diablo_roundtrip_preserves_oracool_worn_items)
+{
+	gbIsHellfire = false;
+	gbIsMultiplayer = false;
+	gbIsSpawn = false;
+
+	constexpr _item_indexes WornIndices[] = {
+		IDI_ORACOOL_SHOULDERS, IDI_ORACOOL_BRACERS, IDI_ORACOOL_GLOVES,
+		IDI_ORACOOL_BELT, IDI_ORACOOL_LEGS, IDI_ORACOOL_BOOTS
+	};
+
+	for (const _item_indexes idx : WornIndices) {
+		Item original = {};
+		InitializeItem(original, idx);
+		original._iSeed = 0x12345678;
+		original._iCreateInfo = 5; // plain dungeon item, level 5
+
+		ItemPack packed;
+		PackItem(packed, original, /*isHellfire=*/false);
+		ASSERT_NE(packed.idx, 0xFFFF) << "item " << idx << " was packed as an empty slot - the Diablo remap destroyed it";
+
+		Item roundTripped;
+		UnPackItem(packed, *MyPlayer, roundTripped, /*isHellfire=*/false);
+		EXPECT_EQ(roundTripped.IDidx, idx) << "item " << idx << " did not survive the Diablo pack round trip";
+		EXPECT_FALSE(roundTripped.isEmpty());
+	}
+}
+
 TEST_F(PackTest, UnPackItem_empty)
 {
 	const auto is = SwappedLE(ItemPack { 0, 0, 0xFFFF, 0, 0, 0, 0, 0, 0, 0 });

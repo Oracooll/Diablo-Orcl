@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file loadsave.cpp
  *
  * Implementation of save game functionality.
@@ -2158,9 +2158,32 @@ void RemoveInvalidItem(Item &item)
 	}
 }
 
+/**
+ * Oracool bug fix: user report - "all new type items are gone after starting a new game."
+ *
+ * The six worn types (IDI_ORACOOL_SHOULDERS..IDI_ORACOOL_BOOTS, 168-173) sit past IDI_ARENAPOT,
+ * squarely inside the `i >= 161` band RemapItemIdxToDiablo below writes off as "Hellfire
+ * exclusive, does not exist in Diablo" - so in a Diablo game, PackItem/SaveItem mapped each one to
+ * -1, which is the EMPTY SLOT marker. The items were destroyed at save time; New Game merely
+ * showed the result. The vanilla seven survived because their ids sit below the band.
+ *
+ * They are not Hellfire items - they exist in both games - so both directions now pass the range
+ * through unchanged, ahead of every shift. Claiming 168-173 in the Diablo save numbering is
+ * provably collision-free: the Diablo format compresses all 168 Hellfire ids into 0-155 (minus 4
+ * oils, 1 scroll, 7 runes/quest ids), with 166 special-cased for the Sorcerer staff, so no
+ * legitimate vanilla save ever contains a value above 166.
+ */
+constexpr bool IsOracoolItemIdx(int i)
+{
+	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_ORACOOL_BOOTS;
+}
+
 _item_indexes RemapItemIdxFromDiablo(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) -> int {
+		if (IsOracoolItemIdx(i)) {
+			return i; // Oracool worn items - stored as themselves, see above
+		}
 		if (i == IDI_SORCERER) {
 			return IDI_SORCERER_DIABLO;
 		}
@@ -2183,6 +2206,9 @@ _item_indexes RemapItemIdxFromDiablo(_item_indexes i)
 _item_indexes RemapItemIdxToDiablo(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) -> int {
+		if (IsOracoolItemIdx(i)) {
+			return i; // Oracool worn items - NOT Hellfire-exclusive; see RemapItemIdxFromDiablo
+		}
 		if (i == IDI_SORCERER_DIABLO) {
 			return IDI_SORCERER;
 		}
@@ -2205,6 +2231,9 @@ _item_indexes RemapItemIdxToDiablo(_item_indexes i)
 _item_indexes RemapItemIdxFromSpawn(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) {
+		if (IsOracoolItemIdx(i)) {
+			return i; // Oracool worn items - same identity mapping as the Diablo remap
+		}
 		if (i >= 62) {
 			i += 9; // Medium and heavy armors
 		}
@@ -2236,6 +2265,9 @@ _item_indexes RemapItemIdxFromSpawn(_item_indexes i)
 _item_indexes RemapItemIdxToSpawn(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) {
+		if (IsOracoolItemIdx(i)) {
+			return i; // Oracool worn items - same identity mapping as the Diablo remap
+		}
 		if (i >= 104) {
 			i -= 1; // Scroll of Apocalypse
 		}
