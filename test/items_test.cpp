@@ -863,6 +863,48 @@ TEST(WouldSurviveNetworkValidation, AgreesWithIsDungeonItemValidAcrossFullLevelR
 		EXPECT_EQ(WouldSurviveNetworkValidation(item, IDI_ROCK), IsDungeonItemValid(item._iCreateInfo, item.dwBuff)) << "level " << level;
 	}
 }
+
+// Oracool: user report ("still only the same items... everytime the same set of items drops")
+// after the give*set commands grew a material-tier prefix. This pins the selection function those
+// commands resolve through, in a plain Diablo game, so "the prefix picks the right base item" is
+// a tested fact rather than a code-reading assertion - the first version of these commands
+// shipped with a selection that could structurally only ever return the leather tier, and that
+// also "read correct".
+TEST(FirstBaseItemForEquipLocation, PrefixSelectsTieredBaseItems)
+{
+	gbIsHellfire = false;
+	gbIsSpawn = false;
+
+	// Empty prefix: unchanged first-in-table behavior - leather for the worn slots.
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_GLOVES), IDI_ORACOOL_GLOVES);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_SHOULDERS), IDI_ORACOOL_SHOULDERS);
+
+	// Material prefixes reach every tier, including past the leather items in table order.
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_GLOVES, "bone"), IDI_ORACOOL_BONE_GLOVES);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_GLOVES, "iron"), IDI_ORACOOL_IRON_GLOVES);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_GLOVES, "diamond"), IDI_ORACOOL_DIAMOND_GLOVES);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_HELM, "diamond"), IDI_ORACOOL_DIAMOND_HELM);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_HELM, "iron"), IDI_ORACOOL_HELM); // "Iron Helm" IS the iron-tier helm
+	// Name collision with vanilla's own index-59 "Leather Armor", which sits far earlier in the
+	// table: Oracool's item must still win, or `give*set leather` hands back the old icon.
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_ARMOR, "leather"), IDI_ORACOOL_LEATHER_ARMOR);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_ONEHAND, "steel"), IDI_ORACOOL_STEEL_SHIELD);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_WAIST, "obsidian"), IDI_ORACOOL_OBSIDIAN_BELT);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_LEGS, "infernal"), IDI_ORACOOL_INFERNAL_LEGS);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_BOOTS, "royal"), IDI_ORACOOL_ROYAL_BOOTS);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_BRACERS, "crusader"), IDI_ORACOOL_CRUSADER_BRACERS);
+
+	// The caller lowercases the user's text; the item-name side is lowercased inside the
+	// function itself, so a mixed-case table name ("Bone Gloves") still matches.
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_GLOVES, "bo"), IDI_ORACOOL_BONE_GLOVES);
+
+	// No item of that material at the slot: IDI_NONE, reported by the command as a missing slot
+	// rather than silently substituting a different tier.
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_AMULET, "bone"), IDI_NONE);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_RING, "diamond"), IDI_NONE);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_HELM, "leather"), IDI_NONE);
+	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_GLOVES, "adamantite"), IDI_NONE);
+}
 #endif
 
 } // namespace devilution

@@ -829,6 +829,11 @@ void UpdateHellfireFlag(Item &item, const char *identifiedItemName);
 bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx);
 std::string DebugSpawnItem(std::string itemName);
 std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier);
+/** @brief Oracool: the base item each give*set slot spawns - first-in-table for an empty prefix,
+ * case-insensitive (pre-lowercased) name-prefix match otherwise. Declared here for items_test:
+ * this selection is exactly what a user's "givebset bone" resolves through, and the test exists
+ * because "it reads correct" was asserted once already and turned out to matter. */
+_item_indexes FirstBaseItemForEquipLocation(item_equip_type loc, string_view namePrefix = {});
 /** @brief Oracool: give{b,m,r,u,p}set - one item for every equipment slot at once. Pass no tier
  * and magical=false for the plain set; no tier and magical=true for the magic set.
  *

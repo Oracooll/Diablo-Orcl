@@ -5563,22 +5563,42 @@ std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier)
  */
 _item_indexes FirstBaseItemForEquipLocation(item_equip_type loc, string_view namePrefix)
 {
+	if (!namePrefix.empty()) {
+		// Tier-prefix mode (user report: "all assets seem to be of the same type" - correct,
+		// first-in-table could only ever surface the leather tier). Every tiered item is
+		// IDROP_NEVER by design, so the drop-rate skip in the plain path below must not apply
+		// here; the prefix itself is the selector instead.
+		//
+		// Two passes, Oracool items first, because item names are NOT unique across the table:
+		// IDI_ORACOOL_LEATHER_ARMOR is called "Leather Armor" and so is vanilla's own index 59,
+		// which sits far earlier - a single pass silently handed back the vanilla item, i.e. the
+		// old icon, for `give*set leather` (caught by items_test, not by reading the code). These
+		// commands exist to exercise Oracool's own items, so ours win any name collision; the
+		// second pass keeps vanilla-only materials reachable.
+		for (const bool oracoolOnly : { true, false }) {
+			for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+				if (!IsItemAvailable(i))
+					continue;
+				if (oracoolOnly && !IsOracoolItemIdx(i))
+					continue;
+				const ItemData &data = AllItemsList[i];
+				if (data.iLoc != loc)
+					continue;
+				const std::string name = AsciiStrToLower(_(data.iName));
+				if (name.compare(0, namePrefix.size(), namePrefix) != 0)
+					continue;
+				return static_cast<_item_indexes>(i);
+			}
+		}
+		return IDI_NONE;
+	}
+
 	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
 		if (!IsItemAvailable(i))
 			continue;
 		const ItemData &data = AllItemsList[i];
 		if (data.iLoc != loc)
 			continue;
-		if (!namePrefix.empty()) {
-			// Tier-prefix mode (user report: "all assets seem to be of the same type" - correct,
-			// first-in-table could only ever surface the leather tier). Every tiered item is
-			// IDROP_NEVER by design, so the drop-rate skip below must not apply here; the prefix
-			// itself is the selector instead.
-			const std::string name = AsciiStrToLower(_(data.iName));
-			if (name.compare(0, namePrefix.size(), namePrefix) != 0)
-				continue;
-			return static_cast<_item_indexes>(i);
-		}
 		if (data.iRnd == IDROP_NEVER && !IsOracoolEquipLocation(loc))
 			continue;
 		return static_cast<_item_indexes>(i);
@@ -5644,9 +5664,17 @@ std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool mag
 	// Reported rather than assumed. GetSuperItemSpace widens its search until it finds a free
 	// tile, so thirteen items do fit around the player in the open - but a corridor or a doorway
 	// is a different matter, and silently dropping nine of thirteen would be worse than saying so.
+	//
+	// The message names the material, or says "default" and lists the alternatives when none was
+	// given: without that, a plain `giveuset` and a `giveuset diamond` that silently fell back
+	// look identical on screen - which is exactly how the missing prefix went unnoticed through a
+	// whole play session (user report: "everytime the same set of items drops").
+	const std::string what = prefixLower.empty()
+	    ? std::string("default (leather) tier - try: givebset iron|steel|crusader|bone|royal|obsidian|infernal|diamond")
+	    : StrCat(prefixLower, " tier");
 	if (missingBase > 0)
-		return StrCat("Spawned ", spawned, " of ", SlotCount, " - ", missingBase, " slot(s) have no base item yet.");
-	return StrCat("Spawned ", spawned, " items, one per equipment slot.");
+		return StrCat("Spawned ", spawned, " of ", SlotCount, ", ", what, " - ", missingBase, " slot(s) have no item at that tier.");
+	return StrCat("Spawned ", spawned, " items, ", what, ".");
 }
 
 std::string DebugSpawnUniqueItem(std::string itemName)
