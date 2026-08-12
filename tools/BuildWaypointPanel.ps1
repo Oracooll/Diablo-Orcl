@@ -4,11 +4,19 @@
 #   3. cuts the waypoint pad icons     -> ui\waypoint_icons.png  (dormant | active)
 #   4. assembles the waypoint panel    -> ui\waypoint_panel.png  (340x660)
 #
-# PANEL BUDGET. 340x660 with a 50px label band and sixteen 35px rows only fits if the border is
-# thinner than the kit's native 27px bar:
-#     18 top border + 50 label + 14 separator + 16*35 rows + 18 bottom border = 660 exactly.
-# At the native 27px the same stack needs 691px and overruns by 31, so the bars are scaled to 18.
-# These are asserted below rather than left as arithmetic in a comment.
+# PANEL BUDGET, asserted below rather than left as arithmetic in a comment:
+#     18 top border + 29 label + 17*35 rows + 18 bottom border = 660 exactly.
+#
+# All seventeen waypoints are listed (Tristram plus sixteen levels) - the first pass showed sixteen
+# and had nowhere to put "17. Hell Level 16". Seventeen rows cost 595px, which is what squeezes the
+# label: with the separator removed there are 29px left for it, down from 50. That is a bigger cut
+# than "shrink a bit" implies, but at 340x660 with 35px rows it is the only value that fits, and
+# shrinking the border instead would thin the frame the design already settled on.
+#
+# The horizontal separator between the label and the list is gone, on request.
+#
+# The kit's native bar is 27px; at that thickness this stack needs 678 and overruns, so the bars
+# are scaled to 18.
 #
 # The background is a single 340x660 CROP of the texture, never a tile or a stretch. The textures
 # are 1448x1086, so a panel-sized window fits with room to spare - and cropping means no seam can
@@ -133,10 +141,10 @@ Write-Host "  waypoint icons: 2 states at ${ICON_W}x${ICON_H}, common box ${bw}x
 
 # ---- 4. the panel --------------------------------------------------------------------------
 $PW = 340; $PH = 660
-$BORDER = 18; $LABEL_H = 50; $SEP_H = 14; $ROW_H = 35; $ROWS = 16
-$listTop = $BORDER + $LABEL_H + $SEP_H
+$BORDER = 18; $LABEL_H = 29; $ROW_H = 35; $ROWS = 17
+$listTop = $BORDER + $LABEL_H
 if (($listTop + $ROWS*$ROW_H + $BORDER) -ne $PH) {
-    throw "panel budget does not close: $BORDER + $LABEL_H + $SEP_H + $ROWS*$ROW_H + $BORDER = $($listTop + $ROWS*$ROW_H + $BORDER), expected $PH"
+    throw "panel budget does not close: $BORDER + $LABEL_H + $ROWS*$ROW_H + $BORDER = $($listTop + $ROWS*$ROW_H + $BORDER), expected $PH"
 }
 
 $texPath = Join-Path $art "textures\texture-stone-v7-pale-marble.png"   # most recent of the seven
@@ -193,25 +201,24 @@ function Draw-Frame($gfx,[int]$x,[int]$y,[int]$w,[int]$h,[int]$bd,[int]$cs) {
 }
 Draw-Frame $g 0 0 $PW $PH $BORDER $CSZ
 
-# Separator between the label band and the list, drawn from the same horizontal bar.
-$sepY = $BORDER + $LABEL_H
-for ($i=0; $i -lt ($PW-2*$BORDER); $i += $hc.Width) {
-    $seg=[Math]::Min($hc.Width,($PW-2*$BORDER)-$i)
-    $g.DrawImage($hc,(New-Object System.Drawing.Rectangle ($BORDER+$i),$sepY,$seg,$SEP_H),0,0,$seg,$hc.Height,[System.Drawing.GraphicsUnit]::Pixel)
-}
+# No separator bar between the label and the list - removed on request.
 
 # "WAYPOINT" baked into the label band. Baked rather than drawn at runtime for the same reason the
 # inventory sygil is: it never changes, and this way it can use a display face and a carved look
 # the in-game bitmap font cannot produce.
+#
+# The fit loop now constrains HEIGHT as well as width. It only checked width before, which was fine
+# against a 50px band but would overflow a 29px one and spill the glyphs into the first row.
 $label = "WAYPOINT"
 $fs = 30.0
 $font = New-Object System.Drawing.Font "Georgia", $fs, ([System.Drawing.FontStyle]::Bold)
 $sz = $g.MeasureString($label, $font)
-while (($sz.Width -gt ($PW - 2*$BORDER - 24)) -and $fs -gt 10) {
+while ((($sz.Width -gt ($PW - 2*$BORDER - 24)) -or ($sz.Height -gt ($LABEL_H - 2))) -and $fs -gt 8) {
     $font.Dispose(); $fs -= 1.0
     $font = New-Object System.Drawing.Font "Georgia", $fs, ([System.Drawing.FontStyle]::Bold)
     $sz = $g.MeasureString($label, $font)
 }
+Write-Host "  label: '$label' at ${fs}pt, $([int]$sz.Width)x$([int]$sz.Height) in a ${LABEL_H}px band"
 $tx = ($PW - $sz.Width)/2.0
 $ty = $BORDER + ($LABEL_H - $sz.Height)/2.0
 $g.DrawString($label, $font, (New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(190,0,0,0))), ($tx+2), ($ty+2))
@@ -222,5 +229,5 @@ $g.Dispose()
 Save-All $panel "waypoint_panel.png"
 $panel.Dispose()
 $cornerSrc.Dispose(); $hbarSrc.Dispose(); $vbarSrc.Dispose(); $hc.Dispose(); $vc.Dispose(); $kit.Dispose()
-Write-Host "  panel: ${PW}x${PH}  border $BORDER  label $LABEL_H  sep $SEP_H  rows ${ROWS}x${ROW_H} from y $listTop"
+Write-Host "  panel: ${PW}x${PH}  border $BORDER  label $LABEL_H  no separator  rows ${ROWS}x${ROW_H} from y $listTop"
 Write-Host "done"
