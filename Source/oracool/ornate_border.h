@@ -41,6 +41,9 @@ void DrawOrnateBorder(const Surface &out, Rectangle rect);
  */
 void DrawOrnateSeparator(const Surface &out, Point from, int width);
 
+/** @brief DrawOrnateSeparator's vertical twin - a rule OrnateBorderWidth wide, @p height tall. */
+void DrawOrnateSeparatorVertical(const Surface &out, Point from, int height);
+
 /**
  * @brief Draws @p text with a hard black outline on all four sides - the panel-title treatment.
  *
@@ -51,5 +54,16 @@ void DrawOrnateSeparator(const Surface &out, Point from, int width);
  * @p style is passed through verbatim, so the caller owns the colour, size and alignment.
  */
 void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, UiFlags style);
+
+/**
+ * @brief The theme's window fill: a half-transparent darkening of whatever is behind @p rect.
+ *
+ * @p passes controls how opaque it lands. The renderer is 8-bit palettized with no alpha, so
+ * translucency means blending through paletteTransparencyLookup, and that table only gives one
+ * strength - half. More opacity therefore means blending repeatedly: one pass is 1/2 toward black,
+ * two is 3/4, three is 7/8. Used to sit item slots and the grid more solidly than the panel they
+ * are on, so they read as recesses cut into it.
+ */
+void DrawThemedFill(const Surface &out, Rectangle rect, int passes = 1);
 
 } // namespace devilution::oracool

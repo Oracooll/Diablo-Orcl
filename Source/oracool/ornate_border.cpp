@@ -1,5 +1,7 @@
 #include "oracool/ornate_border.h"
 
+#include <algorithm>
+
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 
@@ -61,6 +63,23 @@ void DrawOrnateSeparator(const Surface &out, Point from, int width)
 	DrawHorizontalLine(out, from, width, MidShadowColor);
 	DrawHorizontalLine(out, { from.x, from.y + 1 }, width, OuterColor);
 	DrawHorizontalLine(out, { from.x, from.y + 2 }, width, MidHighlightColor);
+}
+
+void DrawOrnateSeparatorVertical(const Surface &out, Point from, int height)
+{
+	// Left-to-right this time, matching how the bevel lights a left edge dark and a right edge
+	// bright - so a vertical rule reads consistently with the frame's own sides.
+	DrawVerticalLine(out, from, height, MidShadowColor);
+	DrawVerticalLine(out, { from.x + 1, from.y }, height, OuterColor);
+	DrawVerticalLine(out, { from.x + 2, from.y }, height, MidHighlightColor);
+}
+
+void DrawThemedFill(const Surface &out, Rectangle rect, int passes)
+{
+	if (rect.size.width <= 0 || rect.size.height <= 0)
+		return;
+	for (int i = 0; i < std::max(1, passes); i++)
+		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 }
 
 void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, UiFlags style)

@@ -30,6 +30,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/ornate_border.h"
 #include "oracool/oracool.h"
 #include "panels/ui_panels.hpp"
 #include "plrmsg.h"
@@ -1447,11 +1448,21 @@ void DrawInventoryTabs(const Surface &out)
 	// Unselected tabs draw first so the selected one is never clipped by a neighbour. That costs
 	// nothing today (ActiveTabGrow is 0, so they are all the same size) but keeps the ordering
 	// correct if the selected tab is ever made to stand proud again.
+	const Rectangle panel = oracool::GetInventoryPanelRect();
 	for (int pass = 0; pass < 2; pass++) {
 		for (int tab = 0; tab < oracool::TabCount; tab++) {
 			const bool selected = tab == ActiveInventoryTab;
 			if (selected != (pass == 1))
 				continue;
+
+			// Oracool V1 theme: every tab takes the bevel, and the SELECTED one is filled twice
+			// against the others' once, so the open tab sits more solidly than its neighbours -
+			// matching how the item slots and grid sit against the panel.
+			const Rectangle r = oracool::GetTabRect(tab);
+			const Rectangle screenRect { panel.position + Displacement { r.position.x, r.position.y }, r.size };
+			oracool::DrawThemedFill(out, screenRect, selected ? 2 : 1);
+			oracool::DrawOrnateBorder(out, screenRect);
+
 			oracool::DrawInventoryTab(out, tab, selected ? 1 : 0);
 		}
 	}
@@ -1470,14 +1481,39 @@ void DrawInventorySortButton(const Surface &out)
 
 void DrawInv(const Surface &out)
 {
-	// Oracool V1: the new window is a single flat composition - background, silhouette, every slot
-	// frame and the class sygil are baked in at asset-build time. Falls back to the original CEL if
-	// the asset is missing, so a broken/absent PNG degrades instead of leaving a blank panel.
-	if (oracool::HasInventoryPanelArt()) {
-		oracool::DrawInventoryPanelArt(out);
-	} else if (pInvCels) {
-		ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, SidePanelSize.height - 1 }), (*pInvCels)[0]);
+	// Oracool V1: the window wears the shared theme - a half-transparent fill under the ornate
+	// textbox_frame00 bevel - the same treatment as the waypoint list, quest log and event log. It
+	// replaces the composed stone panel (ui\inventory_panel.png), which is no longer drawn.
+	//
+	// That art carried the class silhouette baked into it, so the silhouette is gone with it. The
+	// slot frames and grid it also carried are now drawn here instead, procedurally, which is what
+	// lets them take the bevel and their own fill.
+	const Rectangle invPanel = oracool::GetInventoryPanelRect();
+	oracool::DrawThemedFill(out, invPanel);
+	oracool::DrawOrnateBorder(out, invPanel);
+
+	// Equipment slots and the backpack grid sit at two fill passes against the panel's one, so they
+	// read as recesses cut into it rather than outlines drawn on it.
+	constexpr int RecessPasses = 2;
+	for (int s = 0; s < oracool::EquipSlotCount; s++) {
+		const Rectangle r = oracool::GetEquipSlotRect(static_cast<oracool::EquipSlot>(s));
+		const Rectangle screenRect { invPanel.position + Displacement { r.position.x, r.position.y }, r.size };
+		oracool::DrawThemedFill(out, screenRect, RecessPasses);
+		oracool::DrawOrnateBorder(out, screenRect);
 	}
+
+	const Rectangle gridRect {
+		invPanel.position + Displacement { oracool::GridOrigin.x, oracool::GridOrigin.y },
+		{ oracool::GridSizeInCells.width * oracool::CellPx, oracool::GridSizeInCells.height * oracool::CellPx }
+	};
+	oracool::DrawThemedFill(out, gridRect, RecessPasses);
+	// One bevel around the whole grid, with plain rules between the cells. Bevelling all seventy
+	// individually would put 70 three-pixel frames in a 280x196 box and read as noise.
+	for (int c = 1; c < oracool::GridSizeInCells.width; c++)
+		oracool::DrawOrnateSeparatorVertical(out, { gridRect.position.x + c * oracool::CellPx, gridRect.position.y }, gridRect.size.height);
+	for (int r = 1; r < oracool::GridSizeInCells.height; r++)
+		oracool::DrawOrnateSeparator(out, { gridRect.position.x, gridRect.position.y + r * oracool::CellPx }, gridRect.size.width);
+	oracool::DrawOrnateBorder(out, gridRect);
 
 	// Oracool bug fix: user report - the game crashed as soon as one of the six new slots held an
 	// item. This was a hand-written 7-entry table indexed by `slot`, which now runs to 12: reading
