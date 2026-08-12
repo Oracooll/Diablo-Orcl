@@ -13,7 +13,7 @@
 // the ICURS_ORACOOL_* values in itemdat.h.
 //
 // Usage: ItemIconCel.exe <palette.pal> <out.cel> <previewDir> <spec> [<spec> ...]
-//   spec = <sheet.png>,<srcX>,<srcY>,<srcW>,<srcH>,<cellW>,<cellH>,<name>[,<backdropCut>]
+//   spec = <sheet.png>,<srcX>,<srcY>,<srcW>,<srcH>,<cellW>,<cellH>,<name>[,<backdropCut>[,<fillPunctures>[,<mode>]]]
 //
 // backdropCut overrides BackdropLumaCut for that one spec (default: the constant below). Added
 // for single AI-rendered "product shot" icons (a soft vignette glow around the subject, not the
@@ -23,6 +23,15 @@
 // reach as far as a physically unbroken dark path from the canvas edge, so a higher cut still
 // can't breach into a subject's own shadowed interior as long as brighter material - metal, cloth,
 // whatever encloses it - forms an unbroken firewall around it.
+//
+// mode selects the background-removal method: "dark" (default) is the flood fill above, built for
+// the hand-painted sheets' and early product shots' near-black canvas. "green" is a flat chroma
+// key for flat-green-background renders - user request, after the "dark" path's fundamental
+// ambiguity (a dark backdrop and a dark item interior look identical by brightness alone, only
+// solved there by connectivity) kept causing trouble: torn edges, then enclosed punctures, each
+// its own investigation. Green vs. brown/bronze/iron needs no such analysis - see
+// ExtractWithGreenKey. backdropCut is meaningless in "green" mode but the field still has to be
+// present for positional parsing; pass the default (30) as a placeholder.
 
 using System;
 using System.Collections.Generic;
@@ -76,7 +85,7 @@ internal static class ItemIconCel
 
 		for (int i = 3; i < args.Length; i++) {
 			string[] parts = args[i].Split(',');
-			if (parts.Length < 8 || parts.Length > 10) {
+			if (parts.Length < 8 || parts.Length > 11) {
 				Console.Error.WriteLine("Bad spec: " + args[i]);
 				return 1;
 			}
@@ -92,15 +101,16 @@ internal static class ItemIconCel
 			// through the middle of the loop, the way a real belt looks laid flat"); silently
 			// re-deciding that via a general pipeline change, for six icons nobody asked to revisit,
 			// is exactly the kind of side effect this flag exists to prevent.
-			bool fillPunctures = parts.Length == 10 && parts[9] == "true";
+			bool fillPunctures = parts.Length >= 10 && parts[9] == "true";
+			bool greenKey = parts.Length == 11 && parts[10] == "green";
 
 			using (Bitmap sheet = new Bitmap(sheetPath)) {
-				Rectangle content = ContentBox(sheet, srcBox);
+				Rectangle content = greenKey ? ContentBoxByGreenKey(sheet, srcBox) : ContentBox(sheet, srcBox);
 				Console.WriteLine("{0}: search box {1} -> content {2}", name, srcBox, content);
 
 				// Backdrop removed at full resolution, BEFORE scaling: real alpha goes onto the
 				// crop, and the scale then blends it into soft edges for PostProcess to resolve.
-				using (Bitmap crop = ExtractWithAlpha(sheet, content, backdropCut))
+				using (Bitmap crop = greenKey ? ExtractWithGreenKey(sheet, content) : ExtractWithAlpha(sheet, content, backdropCut))
 				using (Bitmap cell = FitInto(crop, new Rectangle(0, 0, crop.Width, crop.Height), cellW, cellH)) {
 					PostProcess(cell, fillPunctures);
 					byte[] idx = Quantise(cell, pal, name);
@@ -147,6 +157,106 @@ internal static class ItemIconCel
 		if (maxX < 0)
 			throw new InvalidOperationException("search box contains no art");
 		return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+	}
+
+	// Excess of green over the stronger of red/blue. Measured directly against the actual green-
+	// screen renders (corners and edge midpoints sampled across three separate images) rather than
+	// assumed to be a clean #00FF00: the flat fill carries some low-level dither/noise, sitting
+	// around excess 190-245 everywhere sampled. Leather/bronze/iron item material never gets
+	// remotely close - warm browns and greys both have green as the weakest or a middling channel,
+	// never the dominant one - so GreenKeyFullThreshold and GreenKeyNoneThreshold sit with wide,
+	// measured margin on both sides, not just inside the gap between the two closest observed
+	// values.
+	private const int GreenKeyFullThreshold = 80; // excess at/above this: fully background
+	private const int GreenKeyNoneThreshold = 20;  // excess at/below this: fully opaque, kept as-is
+
+	private static bool IsGreenBackground(int r, int g, int b)
+	{
+		return (g - Math.Max(r, b)) >= GreenKeyFullThreshold;
+	}
+
+	/** @brief Tight box of everything NOT part of the flat green backdrop inside `region`. */
+	private static Rectangle ContentBoxByGreenKey(Bitmap bmp, Rectangle region)
+	{
+		int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1;
+		BitmapData data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+		try {
+			unsafe {
+				byte* basePtr = (byte*)data.Scan0;
+				for (int y = region.Top; y < Math.Min(region.Bottom, bmp.Height); y++) {
+					byte* row = basePtr + y * data.Stride;
+					for (int x = region.Left; x < Math.Min(region.Right, bmp.Width); x++) {
+						int b = row[x * 4], g = row[x * 4 + 1], r = row[x * 4 + 2];
+						if (IsGreenBackground(r, g, b))
+							continue;
+						if (x < minX) minX = x;
+						if (x > maxX) maxX = x;
+						if (y < minY) minY = y;
+						if (y > maxY) maxY = y;
+					}
+				}
+			}
+		} finally {
+			bmp.UnlockBits(data);
+		}
+		if (maxX < 0)
+			throw new InvalidOperationException("search box contains no art");
+		return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+	}
+
+	/**
+	 * @brief Copies `srcBox` out of the sheet with green-background pixels made transparent.
+	 *
+	 * User request: "only make transparent the GREEN pixels" - a plain per-pixel chroma key, not
+	 * ExtractWithAlpha's luma flood fill. That flood fill exists purely to solve one problem: a
+	 * dark backdrop and a dark item interior are indistinguishable by brightness alone, so only
+	 * connectivity from the canvas edge can tell them apart - and that same fix is what left
+	 * enclosed punctures behind once a downscale thinned away the connecting path. Green versus
+	 * this item family's browns, bronzes and iron greys has no such ambiguity: nothing in any of
+	 * these renders is remotely green, so a flat per-pixel test is both simpler and safer than
+	 * flood-filling, with no risk of it misreading a shadowed fold as part of the backdrop.
+	 *
+	 * The threshold is a soft ramp, not a hard cutoff, specifically to avoid trading one edge
+	 * artefact for another: a hard cutoff leaves a visible bright-green fringe on anti-aliased
+	 * edge pixels (a blend of item colour and background green that isn't green ENOUGH to key out
+	 * whole, but reads as a sickly halo once kept whole). The ramp instead hands those pixels to
+	 * PostProcess as partial alpha, and its existing edge compositing blends them toward the dark
+	 * panel tone exactly as it already does for the luma path - reused, not reinvented.
+	 */
+	private static Bitmap ExtractWithGreenKey(Bitmap sheet, Rectangle srcBox)
+	{
+		int w = srcBox.Width, h = srcBox.Height;
+		Bitmap crop = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+		using (Graphics g = Graphics.FromImage(crop)) {
+			g.CompositingMode = CompositingMode.SourceCopy;
+			g.DrawImage(sheet, new Rectangle(0, 0, w, h), srcBox, GraphicsUnit.Pixel);
+		}
+
+		BitmapData data = crop.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+		try {
+			unsafe {
+				byte* basePtr = (byte*)data.Scan0;
+				for (int y = 0; y < h; y++) {
+					byte* row = basePtr + y * data.Stride;
+					for (int x = 0; x < w; x++) {
+						byte* p = row + x * 4;
+						int b = p[0], gCh = p[1], r = p[2];
+						int excess = gCh - Math.Max(r, b);
+						int alpha;
+						if (excess >= GreenKeyFullThreshold)
+							alpha = 0;
+						else if (excess <= GreenKeyNoneThreshold)
+							alpha = 255;
+						else
+							alpha = 255 - (excess - GreenKeyNoneThreshold) * 255 / (GreenKeyFullThreshold - GreenKeyNoneThreshold);
+						p[3] = (byte)alpha;
+					}
+				}
+			}
+		} finally {
+			crop.UnlockBits(data);
+		}
+		return crop;
 	}
 
 	/**
