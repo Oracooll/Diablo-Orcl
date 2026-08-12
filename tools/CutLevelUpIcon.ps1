@@ -19,6 +19,13 @@
 # The plaques are 521x548 / 529x548 - slightly taller than square - so they are contain-fitted and
 # centred rather than stretched to fill the cell, which would distort them.
 #
+# They are fitted through a COMMON box, not each through its own. Fitting them independently made
+# the plaque jump: CLICKED's detected box is 8px wider than DEFAULT's because its glow spreads
+# further, so it scaled to 59px against DEFAULT's 58px and the two centred to x=0 and x=1. The
+# right edge matched and the left did not, which reads as the border twitching every time the
+# button is hovered. Both states now use one box - the largest, centred on each plaque's own
+# centre - so they share a scale factor and land on the same pixel.
+#
 # Supersedes CutLevelUp in tools/HudIconCut.cs, which still targets the old
 # hud-icons\level-up-icon-3-states.png at 40x60. That function is not wired into any build script;
 # running it would overwrite this asset with the old art at the old size.
@@ -38,6 +45,16 @@ $DEFAULT = @(190, 413, 521, 548)
 $CLICKED = @(815, 413, 529, 548)
 $order = @($DEFAULT, $CLICKED, $DEFAULT)   # idle, hover, pressed
 
+# One box for every state: the largest of them, re-centred on each plaque's own centre. This is
+# what keeps the states from shifting relative to each other - see the header note.
+$boxW = [Math]::Max($DEFAULT[2], $CLICKED[2])
+$boxH = [Math]::Max($DEFAULT[3], $CLICKED[3])
+function Get-CommonBox($b) {
+    $cx = $b[0] + $b[2] / 2.0
+    $cy = $b[1] + $b[3] / 2.0
+    return @([int][Math]::Round($cx - $boxW/2.0), [int][Math]::Round($cy - $boxH/2.0), $boxW, $boxH)
+}
+
 if (-not (Test-Path $sheet)) { throw "sheet not found: $sheet" }
 $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $sheet))
 
@@ -48,7 +65,12 @@ $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQuality
 $g.PixelOffsetMode   = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
 
 for ($s = 0; $s -lt 3; $s++) {
-    $b = $order[$s]
+    $b = Get-CommonBox $order[$s]
+    # Re-centring grows the smaller state's box, so make sure it did not run off the sheet or it
+    # would silently read garbage instead of failing.
+    if ($b[0] -lt 0 -or $b[1] -lt 0 -or ($b[0]+$b[2]) -gt $src.Width -or ($b[1]+$b[3]) -gt $src.Height) {
+        throw "state $s common box ($($b[0]),$($b[1])) $($b[2])x$($b[3]) falls outside the $($src.Width)x$($src.Height) sheet"
+    }
     # Green -> transparent at SOURCE resolution, before any downscale, so the chroma edge is never
     # averaged into the plaque by the resampler.
     $crop = New-Object System.Drawing.Bitmap $b[2], $b[3], ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
