@@ -76,7 +76,7 @@ internal static class ItemIconCel
 
 		for (int i = 3; i < args.Length; i++) {
 			string[] parts = args[i].Split(',');
-			if (parts.Length != 8 && parts.Length != 9) {
+			if (parts.Length < 8 || parts.Length > 10) {
 				Console.Error.WriteLine("Bad spec: " + args[i]);
 				return 1;
 			}
@@ -85,7 +85,14 @@ internal static class ItemIconCel
 			int cellW = int.Parse(parts[5]);
 			int cellH = int.Parse(parts[6]);
 			string name = parts[7];
-			int backdropCut = parts.Length == 9 ? int.Parse(parts[8]) : BackdropLumaCut;
+			int backdropCut = parts.Length >= 9 ? int.Parse(parts[8]) : BackdropLumaCut;
+			// Opt-in, per spec, deliberately not on by default - see FillEnclosedPunctures's own
+			// comment for why: it is only proven safe on the helm so far. The belt's own enclosed
+			// gap was explicitly reviewed and confirmed intentional in an earlier pass ("daylight
+			// through the middle of the loop, the way a real belt looks laid flat"); silently
+			// re-deciding that via a general pipeline change, for six icons nobody asked to revisit,
+			// is exactly the kind of side effect this flag exists to prevent.
+			bool fillPunctures = parts.Length == 10 && parts[9] == "true";
 
 			using (Bitmap sheet = new Bitmap(sheetPath)) {
 				Rectangle content = ContentBox(sheet, srcBox);
@@ -95,7 +102,7 @@ internal static class ItemIconCel
 				// crop, and the scale then blends it into soft edges for PostProcess to resolve.
 				using (Bitmap crop = ExtractWithAlpha(sheet, content, backdropCut))
 				using (Bitmap cell = FitInto(crop, new Rectangle(0, 0, crop.Width, crop.Height), cellW, cellH)) {
-					PostProcess(cell);
+					PostProcess(cell, fillPunctures);
 					byte[] idx = Quantise(cell, pal, name);
 					frames.Add(idx);
 					widths.Add(cellW);
@@ -334,8 +341,12 @@ internal static class ItemIconCel
 	 * 3. The source art's tonal range (roughly 25..170) collapsed into two or three palette
 	 *    entries, reading as flat mud. A per-icon percentile stretch spreads it across the ramp
 	 *    before quantisation gets its one chance.
+	 *
+	 * fillPunctures additionally closes enclosed transparent holes with opaque black - see Pass 4
+	 * below. Opt-in per caller; do not default this to true without re-reviewing every existing
+	 * icon first, the belt specifically (see the spec-parsing comment on fillPunctures in Main).
 	 */
-	private static void PostProcess(Bitmap bmp)
+	private static void PostProcess(Bitmap bmp, bool fillPunctures)
 	{
 		int w = bmp.Width, h = bmp.Height;
 		// The tone the game paints behind items: InvDrawSlotBack's darkened slot. Edge pixels blend
@@ -447,6 +458,64 @@ internal static class ItemIconCel
 					if (cells.Count < MinCellIsland) {
 						foreach (int cell in cells)
 							(basePtr + (cell / w) * data.Stride)[(cell % w) * 4 + 3] = 0;
+					}
+				}
+
+				// Pass 4: fill enclosed transparent "punctures" with opaque black. Opt-in
+				// (fillPunctures) - see this function's doc comment for why it isn't unconditional.
+				//
+				// User report ("full of punctures... I don't approve it") on the helm - the mirror
+				// image of Pass 3's floating debris, same root cause. At full source resolution the
+				// helmet's shadowed interior is validly connected to the crop's real background by a
+				// thin dark channel; that channel is exactly the kind of detail Pass 3's own comment
+				// describes thinning below survival during the downscale into a 56px cell. Once it's
+				// gone, whatever was on the far side of it - background at cut time - is stranded:
+				// still transparent, but now with no path out, enclosed by opaque material on every
+				// side. A flood fill from THIS cell's own four edges (not the original crop's, which
+				// no longer means anything at this resolution) finds every pixel still genuinely open
+				// to the outside; anything transparent it can't reach only used to be open by way of a
+				// bridge that the downscale has already erased, and reads as a hole rather than a
+				// silhouette to anyone looking at the final icon.
+				if (fillPunctures) {
+					bool[] reachesEdge = new bool[w * h];
+					Queue<int> queue = new Queue<int>();
+					for (int x = 0; x < w; x++) {
+						foreach (int y in new[] { 0, h - 1 }) {
+							int i = y * w + x;
+							if (!reachesEdge[i] && (basePtr + y * data.Stride)[x * 4 + 3] == 0) { reachesEdge[i] = true; queue.Enqueue(i); }
+						}
+					}
+					for (int y = 0; y < h; y++) {
+						foreach (int x in new[] { 0, w - 1 }) {
+							int i = y * w + x;
+							if (!reachesEdge[i] && (basePtr + y * data.Stride)[x * 4 + 3] == 0) { reachesEdge[i] = true; queue.Enqueue(i); }
+						}
+					}
+					while (queue.Count > 0) {
+						int cell = queue.Dequeue();
+						int cx = cell % w, cy = cell / w;
+						for (int d = 0; d < 4; d++) {
+							int nx = cx + dx[d], ny = cy + dy[d];
+							if (nx < 0 || nx >= w || ny < 0 || ny >= h)
+								continue;
+							int n = ny * w + nx;
+							if (reachesEdge[n] || (basePtr + ny * data.Stride)[nx * 4 + 3] != 0)
+								continue;
+							reachesEdge[n] = true;
+							queue.Enqueue(n);
+						}
+					}
+					for (int y = 0; y < h; y++) {
+						byte* row = basePtr + y * data.Stride;
+						for (int x = 0; x < w; x++) {
+							int i = y * w + x;
+							if (row[x * 4 + 3] != 0 || reachesEdge[i])
+								continue;
+							row[x * 4] = 0;
+							row[x * 4 + 1] = 0;
+							row[x * 4 + 2] = 0;
+							row[x * 4 + 3] = 255;
+						}
 					}
 				}
 			}

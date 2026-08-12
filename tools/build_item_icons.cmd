@@ -11,6 +11,14 @@ REM per type. They stop short of each cell's boxed ground icon and caption, whic
 REM beneath the large art; a taller box picks those up and they end up composited into the icon.
 REM The helm is its own single-render source image, so its rect is simply the full canvas.
 REM
+REM The helm's spec carries two trailing tuning fields the other six don't: an explicit backdrop
+REM cutoff (30, same as the shared default - written out because the tenth field can't be passed
+REM without it) and fillPunctures=true, which closes enclosed transparent holes left by the
+REM downscale (see ItemIconCel.cs's Pass 4). Deliberately NOT enabled on the six worn types: the
+REM belt's own enclosed gap was reviewed and confirmed intentional in an earlier pass ("daylight
+REM through the middle of the loop"), and turning this on for all seven would silently re-decide
+REM that call as a side effect of a fix nobody asked to revisit it for.
+REM
 REM Usage:  tools\build_item_icons.cmd
 REM Run from the repository root.
 
@@ -35,7 +43,7 @@ if not exist "%ART%" (
   "%ART%\item-icons-belts.png,20,90,270,120,56,28,belt" ^
   "%ART%\item-icons-legs.png,20,70,225,152,56,56,legs" ^
   "%ART%\item-icons-boots-v2.png,20,70,225,152,56,56,boots" ^
-  "%ART%\item-icons-helm.png,0,0,1536,1024,56,56,helm" || exit /b 1
+  "%ART%\item-icons-helm.png,0,0,1536,1024,56,56,helm,30,true" || exit /b 1
 
 REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet
 REM still finds the sheet. InitCursor loads it unconditionally, so a missing file is fatal.
