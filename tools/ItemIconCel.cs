@@ -226,6 +226,47 @@ internal static class ItemIconCel
 						isBackdrop[cell] = true;
 				}
 
+				// Quality postmortem (user report, viewed against a WHITE background where the
+				// dark game panel had been hiding it): the flood fill was leaking through hairline
+				// shadow creases IN the leather itself - the seams between a wrist-wrap's straps,
+				// the sliver connecting a dangling buckle-strap to the hand - and treating them as
+				// open background. Two symptoms from one cause: interior pixels punched through
+				// solid material, and small decorative bits (a strap end, a stud) severed into
+				// free-floating islands too large for the debris filter below to catch.
+				//
+				// Fix: erode the backdrop set by one layer. A true backdrop pixel is deep inside a
+				// wide dark region and has nearly all 8 neighbours also marked backdrop; a leaked
+				// pixel sits in a seam only 1-2px wide and has few. Reclaiming low-neighbour-count
+				// backdrop pixels closes the leaks without touching the real background, which is
+				// wide enough everywhere that this costs it only its outermost fringe - exactly
+				// what the edge-compositing in PostProcess exists to blend cleanly anyway.
+				const int MinBackdropNeighbors = 5;
+				bool[] erodedBackdrop = (bool[])isBackdrop.Clone();
+				for (int y = 0; y < h; y++) {
+					for (int x = 0; x < w; x++) {
+						int i = y * w + x;
+						if (!isBackdrop[i])
+							continue;
+						int neighbors = 0;
+						for (int oy = -1; oy <= 1; oy++) {
+							for (int ox = -1; ox <= 1; ox++) {
+								if (ox == 0 && oy == 0)
+									continue;
+								int nx = x + ox, ny = y + oy;
+								if (nx < 0 || nx >= w || ny < 0 || ny >= h) {
+									neighbors++; // treat off-canvas as backdrop, not a leak signal
+									continue;
+								}
+								if (isBackdrop[ny * w + nx])
+									neighbors++;
+							}
+						}
+						if (neighbors < MinBackdropNeighbors)
+							erodedBackdrop[i] = false;
+					}
+				}
+				isBackdrop = erodedBackdrop;
+
 				for (int y = 0; y < h; y++) {
 					byte* row = basePtr + y * data.Stride;
 					for (int x = 0; x < w; x++) {
@@ -354,9 +395,19 @@ internal static class ItemIconCel
 					}
 				}
 
-				// Pass 3: final-resolution island sweep. Anything under 5 cell pixels detached from
-				// the icon is downscale debris, not art.
-				const int MinCellIsland = 5;
+				// Pass 3: final-resolution island sweep.
+				//
+				// Measured directly rather than guessed, after the erosion pass above turned out
+				// not to reach these (the gap between a dangling buckle-strap/stud and the hand it
+				// hangs off is 5-7px wide post-downscale - a real gap, not a hairline leak - and
+				// closing it safely risks fusing the intentional gaps between splayed claw-tips
+				// elsewhere on the same icon). Connected-component sizes across all six icons:
+				// debris tops out at 57px (a gloves fragment), real content starts at 171px
+				// (the smaller of the two boot pieces - boots legitimately renders as a pair, so
+				// nothing here assumes "one icon = one island"). 90 sits with margin in the gap
+				// and confirmed to change no icon's silhouette in the least-detailed direction
+				// (belt, at 56x28, has no fragmented content to lose).
+				const int MinCellIsland = 90;
 				bool[] visited = new bool[w * h];
 				int[] dx = { 1, -1, 0, 0 };
 				int[] dy = { 0, 0, 1, -1 };
