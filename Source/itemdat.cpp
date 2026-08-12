@@ -59,7 +59,7 @@ string_view ItemTypeToString(ItemType itemType)
 }
 
 /** Contains the data related to each item ID. */
-const ItemData AllItemsList[] = {
+DVL_API_FOR_TEST const ItemData AllItemsList[] = {
 	// clang-format off
 // _item_indexes      iRnd,          iClass,        iLoc,             iCurs,                             itype,                 iItemId,            iName,                             iSName,        iMinMLvl,  iDurability,  iMinDam,  iMaxDam,  iMinAC,  iMaxAC,  iMinStr,  iMinMag,  iMinDex, iFlags,                             iMiscId,         iSpell,                  iUsable,   iValue
 /*IDI_GOLD       */ { IDROP_REGULAR, ICLASS_GOLD,   ILOC_UNEQUIPABLE, ICURS_GOLD,                        ItemType::Gold,        UITYPE_NONE,        N_("Gold"),                        nullptr,              1,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           true,           0 },

@@ -656,7 +656,7 @@ struct UniqueItem {
 	ItemPower powers[6];
 };
 
-extern const ItemData AllItemsList[];
+extern DVL_API_FOR_TEST const ItemData AllItemsList[];
 extern DVL_API_FOR_TEST const PLStruct ItemPrefixes[];
 extern DVL_API_FOR_TEST const PLStruct ItemSuffixes[];
 extern const UniqueItem UniqueItems[];

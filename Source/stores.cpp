@@ -2935,6 +2935,80 @@ void SimulateStorytellerIdentifyForTest(size_t index)
 	StorytellerIdentifyItem(storehold[index]);
 }
 
+// Oracool: defined here, OUTSIDE the anonymous namespace (same pattern as CloseRefreshUntilPrompt
+// above), so the stores.h declaration gets a real external-linkage definition - the internal
+// helpers it calls stay reachable regardless, since anonymous-namespace visibility spans the TU.
+int ResolveBackRowClickLine(int mouseX, int uiLeft)
+{
+	// Back's row is shared real estate. "Refresh Until" sits flush against the left golden
+	// border, "Refresh"/"Repair all"/"Sell all" flush against the right one, and Back's own text
+	// in the centre. A click on this row goes to whichever button is within a generous fixed
+	// width of its border - comfortably wider than any of the short strings ever renders - and
+	// falls through to Back otherwise, including dead centre, where Back itself renders.
+	//
+	// Every redirect is gated on ITS OWN screen's stextflag. The Premium pair used to check only
+	// "does that line index have text", on the recorded assumption that only the Premium screen
+	// ever populates those lines. Oracool bug fix: user report - "again Sell All is not working" -
+	// proved that assumption wrong: on a Sell page with exactly four items, the last item's second
+	// attribute line lands on the exact line PremiumRefreshLine() names, so the Premium branch
+	// hijacked every right-zone click before the Sell branch was consulted, and CheckStoreBtn's
+	// walk-back turned it into the last item's single-item confirmation - the user clicked
+	// "Sell all" and got "sell Sapphire Buckler?". Intermittent by list shape, which is why it
+	// kept coming back: with one to three items on the page, that line is empty and everything
+	// works. The left-zone twin was worse: on the Sell screen PremiumRefreshUntilLine() coincides
+	// with SmithSellAllLine() itself, so a click near Back's LEFT edge would have sold everything
+	// with no confirmation.
+	//
+	// Separate function (and exported) so the routing itself is testable - the first regression
+	// test written for this pinned the StoreEnter dispatch instead and passed with the bug intact.
+	constexpr int RedirectZoneWidth = 100;
+	const int leftBorder = uiLeft + 24;
+	const int rightBorder = uiLeft + 616;
+
+	if (stextflag == TalkID::SmithPremiumBuy && mouseX < leftBorder + RedirectZoneWidth && stext[PremiumRefreshUntilLine()].hasText())
+		return PremiumRefreshUntilLine();
+	if (stextflag == TalkID::SmithPremiumBuy && mouseX >= rightBorder - RedirectZoneWidth && stext[PremiumRefreshLine()].hasText())
+		return PremiumRefreshLine();
+	if (stextflag == TalkID::SmithRepair && mouseX >= rightBorder - RedirectZoneWidth && stext[SmithRepairAllLine()].hasText())
+		return SmithRepairAllLine();
+	if (stextflag == TalkID::SmithSell && mouseX >= rightBorder - RedirectZoneWidth && stext[SmithSellAllLine()].hasText())
+		return SmithSellAllLine();
+	return BackButtonLine();
+}
+
+// Oracool: test surface for the Sell All click-routing regression (see stores_test.cpp's
+// SmithSell_FourItemPage_SellAllRowNotHijackedByPremiumRedirect). stext/stextsel/the line-index
+// helpers are all internal to this translation unit, and exporting the whole STextStruct array
+// for one test would be a far bigger interface than the test deserves.
+int GetSellAllLineForTest()
+{
+	return SmithSellAllLine();
+}
+
+int GetPremiumRefreshLineForTest()
+{
+	return PremiumRefreshLine();
+}
+
+bool StoreLineHasTextForTest(int line)
+{
+	return stext[line].hasText();
+}
+
+void SetStoreSelectionForTest(int line)
+{
+	stextsel = line;
+}
+
+void RescrollStoreForTest()
+{
+	// Mirrors DrawSText's per-frame ScrollSmithSell(stextsval) dispatch. StartStore only sets
+	// stextflag AFTER the Start* function has populated the screen, so anything ScrollSmithSell
+	// gates on stextflag - the Sell all/Repair all buttons - is absent until the first frame's
+	// redraw re-runs it. The game always gets that frame; a headless test has to ask for it.
+	ScrollSmithSell(stextsval);
+}
+
 size_t GetSmithConsumablesStockCountForTest()
 {
 	return SmithConsumablesStock().size();
@@ -3724,34 +3798,7 @@ void CheckStoreBtn()
 			// specific button is currently live and overlaid on this exact row, so this can't
 			// misfire on any other store screen.
 			if (y == BackButtonLine()) {
-				// Oracool bug fix: user report - "BACK button in Griswold Premium doesn't go
-				// back, it refreshes the list." The previous split-the-row-in-half-at-midX logic
-				// covered the *entire* row with the two side buttons, leaving no click region for
-				// Back at all - Back's own centered text was simply unreachable. Refresh Until
-				// sits flush against the left golden border and Refresh flush against the right
-				// one (see ScrollSmithPremiumBuy), so only clicks actually within reach of each
-				// button's own text - a generous fixed width from its border, comfortably wider
-				// than either short string ever renders - redirect; everything else (including
-				// dead center, where "Back" itself renders) now correctly falls through to Back.
-				constexpr int RedirectZoneWidth = 100;
-				const int leftBorder = uiPosition.x + 24;
-				const int rightBorder = uiPosition.x + 616;
-				if (MousePosition.x < leftBorder + RedirectZoneWidth && stext[PremiumRefreshUntilLine()].hasText()) {
-					y = PremiumRefreshUntilLine();
-				} else if (MousePosition.x >= rightBorder - RedirectZoneWidth && stext[PremiumRefreshLine()].hasText()) {
-					y = PremiumRefreshLine();
-				} else if (stextflag == TalkID::SmithRepair && MousePosition.x >= rightBorder - RedirectZoneWidth && stext[SmithRepairAllLine()].hasText()) {
-					// Oracool: "Repair all"/"Sell all" share Back's row the same way Refresh does
-					// above - explicitly gated on stextflag (unlike the Premium checks above, which
-					// rely on only the Premium screen ever populating those exact line indices)
-					// because SmithRepairAllLine()/SmithSellAllLine() can numerically coincide with
-					// PremiumRefreshLine()/PremiumRefreshUntilLine() depending on font size, and
-					// Sell/Repair are different screens that must never be confused with Premium
-					// Buy's redirect.
-					y = SmithRepairAllLine();
-				} else if (stextflag == TalkID::SmithSell && MousePosition.x >= rightBorder - RedirectZoneWidth && stext[SmithSellAllLine()].hasText()) {
-					y = SmithSellAllLine();
-				}
+				y = ResolveBackRowClickLine(MousePosition.x, uiPosition.x);
 			}
 			// Oracool bug fix: user report - clicking in the visually-blank gap between the item
 			// list and "Sell all"/"Repair all"/Back (e.g. row 19, between SmithSellAllLine's row 20

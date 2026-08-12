@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file stores.h
  *
  * Interface of functionality for stores and towner dialogs.
@@ -85,6 +85,16 @@ extern DVL_API_FOR_TEST Item witchitem[WITCH_ITEMS];
 size_t GetSmithConsumablesStockCountForTest();
 item_misc_id GetSmithConsumablesStockMiscIdForTest(size_t index);
 bool IsSmithConsumablesStockFromPepinForTest(size_t index);
+/** @brief Test surface for the Sell All click-routing regression - see stores.cpp. */
+int GetSellAllLineForTest();
+int GetPremiumRefreshLineForTest();
+bool StoreLineHasTextForTest(int line);
+void SetStoreSelectionForTest(int line);
+void RescrollStoreForTest();
+/** @brief Which line a click at @p mouseX on Back's shared row actually targets (Back itself, or
+ * one of the border-hugging buttons: Refresh/Refresh Until/Repair all/Sell all). Exported so the
+ * routing is directly testable - see stores.cpp for the bug that made that necessary. */
+int ResolveBackRowClickLine(int mouseX, int uiLeft);
 void UpdateSmithConsumablesStockAfterPurchaseForTest(size_t index);
 /** Simulates clicking a SmithConsumables item and confirming the purchase, exactly as the real UI would. Returns whether the confirm screen was reached (false = probe reported no room). */
 bool SimulateSmithConsumablesPurchaseForTest(size_t combinedIndex);

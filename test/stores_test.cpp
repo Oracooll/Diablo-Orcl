@@ -1,4 +1,4 @@
-#include <algorithm>
+﻿#include <algorithm>
 #include <array>
 
 #include <gtest/gtest.h>
@@ -48,8 +48,8 @@ TEST(Stores, SmithConsumablesListsFourInfinitePepinPotionsBeforeWitchStock)
 }
 
 // Regression test for a real bug: Item::clear() only resets _itype (which isEmpty()
-// checks) and deliberately leaves every other field — including _iMiscId/_iClass/IDidx
-// — as stale leftover data, since vanilla code always fully overwrites a cleared slot
+// checks) and deliberately leaves every other field вЂ” including _iMiscId/_iClass/IDidx
+// вЂ” as stale leftover data, since vanilla code always fully overwrites a cleared slot
 // via assignment rather than reading its other fields. Before the fix, a cleared
 // inventory/belt slot whose stale _iMiscId happened to match the item being purchased
 // looked like a valid merge target to isStackableConsumable()/canStackWith(), so the
@@ -58,7 +58,7 @@ TEST(Stores, SmithConsumablesListsFourInfinitePepinPotionsBeforeWitchStock)
 // reproduced the user's report exactly ("if I don't own a single consumable, some
 // purchases don't appear") because a belt/inventory slot only carries this kind of
 // stale-but-matching leftover data right after the player's last item of that type was
-// used up — CreatePlayer's starting belt item plus the explicit .clear() calls below
+// used up вЂ” CreatePlayer's starting belt item plus the explicit .clear() calls below
 // recreate exactly that condition.
 TEST(Stores, SmithConsumablesBuy_AfterClearingSlotWithStaleMatchingData_ItemIsActuallyPlaced)
 {
@@ -412,6 +412,98 @@ TEST(Stores, SmithBuy_EmptyStock_StaysOnBuyScreenInsteadOfBouncingOut)
 	StartStore(TalkID::SmithBuy);
 
 	EXPECT_EQ(stextflag, TalkID::SmithBuy) << "an empty Buy Basic Items list should render normally, not back out to the store menu";
+}
+
+// User-reported bug, third strike in this click-routing area: "again Sell All is not working."
+// Clicking Sell All on a sell page with exactly FOUR items opened the last item's single-item
+// confirmation instead. The Premium Refresh/Refresh-Until redirects on Back's row were gated only
+// on "does that line index have text" - and on a four-item sell page the last item's second
+// attribute line lands on the exact line PremiumRefreshLine() names, so the Premium branch
+// hijacked the click before the Sell-All branch was ever consulted. Intermittent by list shape
+// (one to three items leave that line empty), which is why it kept coming back. Every redirect is
+// now gated on its own screen's stextflag; this test pins the four-item layout that armed the trap.
+TEST(Stores, SmithSell_FourItemPage_SellAllRowNotHijackedByPremiumRedirect)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	MyPlayer->InvTabList = {};
+	MyPlayer->InvTabGrid = {};
+	MyPlayer->_pNumInvTab = {};
+
+	for (int i = 0; i < InventoryGridCells; i++)
+		MyPlayer->InvList[i].clear();
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	// A plain droppable shield base, found by walking the table rather than hardcoding an index -
+	// SmithSellOk rejects quest-range ids for non-unique items, so IDI_HARCREST (used by the
+	// neighbouring test, which marks its item unique) would be silently filtered out here.
+	devilution::_item_indexes shieldIdx = IDI_NONE;
+	for (std::underlying_type_t<devilution::_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].itype == ItemType::Shield && AllItemsList[i].iRnd != IDROP_NEVER) {
+			shieldIdx = static_cast<devilution::_item_indexes>(i);
+			break;
+		}
+	}
+	ASSERT_NE(shieldIdx, IDI_NONE);
+
+	// Four identified magic shields: each renders a name line plus TWO attribute lines, which is
+	// what pushes the fourth item's tail onto PremiumRefreshLine()'s row.
+	for (int i = 0; i < 4; i++) {
+		devilution::Item &item = MyPlayer->InvList[i];
+		InitializeItem(item, shieldIdx);
+		item._iMagical = ITEM_QUALITY_MAGIC;
+		item._iIdentified = true;
+		item._iPrePower = IPL_LIGHTRES;
+		item._iPLLR = 51;
+		item._iAC = 2;
+		item._iDurability = 6;
+		item._iMaxDur = 16;
+		item._ivalue = 100;
+		item._iIvalue = 4312 - i; // distinct, harmless
+		item._iCreateInfo = 0;
+	}
+	MyPlayer->_pNumInv = 4;
+
+	Stash = {};
+	StartStore(TalkID::SmithSell);
+	// StartStore sets stextflag only after populating, and the Sell all button is added by the
+	// per-frame rescroll that gates on it - which a headless test must request explicitly.
+	RescrollStoreForTest();
+	ASSERT_EQ(storenumh, 4);
+
+	// The trap this bug depended on: the last item's text reaching PremiumRefreshLine()'s row.
+	// If a layout change ever un-arms it, this test needs a new arrangement, not deletion.
+	ASSERT_TRUE(StoreLineHasTextForTest(GetPremiumRefreshLineForTest()))
+	    << "test setup no longer reproduces the four-item layout the bug depended on";
+
+	// The routing itself, which is where the bug lived: a click in the right zone of Back's row
+	// must resolve to Sell All's line. Before the fix this returned PremiumRefreshLine() - the
+	// Premium branch hijacked it because the fourth item's text made that line non-empty.
+	const int uiLeft = 0;
+	const int rightZoneX = uiLeft + 616 - 20;
+	EXPECT_EQ(ResolveBackRowClickLine(rightZoneX, uiLeft), GetSellAllLineForTest())
+	    << "right-zone click on Back's row was hijacked away from Sell All";
+
+	// And the left zone must be Back, NOT Sell All - on this screen PremiumRefreshUntilLine()
+	// numerically coincides with SmithSellAllLine(), so before the fix a click near Back's left
+	// edge would have sold everything with no confirmation.
+	EXPECT_NE(ResolveBackRowClickLine(uiLeft + 24 + 20, uiLeft), GetSellAllLineForTest())
+	    << "left-zone click on Back's row must not trigger Sell All";
+
+	// Then the dispatch: entering on Sell All's line must run Sell All, not a single-item confirm.
+	SetStoreSelectionForTest(GetSellAllLineForTest());
+	StoreEnter();
+
+	EXPECT_NE(stextflag, TalkID::Confirm)
+	    << "Sell All click opened a single-item confirmation - the Premium redirect hijacked it";
+	int remaining = 0;
+	for (int i = 0; i < InventoryGridCells; i++) {
+		if (!MyPlayer->InvList[i].isEmpty())
+			remaining++;
+	}
+	EXPECT_EQ(remaining, 0) << "Sell All should have sold every listed item";
 }
 
 // User request: "Sort Stash" (Gillian's dialog) should sort by item category (Weapons, Armor,
