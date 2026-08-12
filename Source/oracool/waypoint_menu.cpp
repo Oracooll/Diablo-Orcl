@@ -10,6 +10,7 @@
 #include "interfac.h"
 #include "levels/gendung.h"
 #include "multi.h"
+#include "oracool/hud_art.h"
 #include "player.h"
 #include "quests.h"
 #include "utils/language.h"
@@ -43,8 +44,36 @@ constexpr std::array<const char *, 17> WaypointNames { {
     "17. Hell Level 16",
 } };
 
-constexpr Rectangle InnerPanel { { 32, 26 }, { 280, 300 } };
-constexpr int LineHeight = 16;
+// Oracool V1 waypoint list geometry. These MUST stay in step with tools/BuildWaypointPanel.ps1,
+// which bakes the border and the "WAYPOINT" label into ui\waypoint_panel.png against exactly these
+// numbers; the script carries the matching comment and throws if its own budget stops closing.
+//
+//   0..18     top border
+//   18..47    label band, "WAYPOINT" baked in
+//   47..642   seventeen 35px rows
+//   642..660  bottom border
+constexpr Size PanelSize { 340, 660 };
+constexpr int PanelBorder = 18;
+constexpr int LabelHeight = 29;
+constexpr int RowHeight = 35;
+constexpr int ListTop = PanelBorder + LabelHeight;
+constexpr int IconGap = 8;   // from the inner edge of the border to the pad
+constexpr int TextGap = 10;  // from the pad to the name
+
+static_assert(ListTop + 17 * RowHeight + PanelBorder == PanelSize.height,
+    "Waypoint panel budget no longer closes - rebuild the art with tools/BuildWaypointPanel.ps1");
+
+/**
+ * @brief Screen rect of the waypoint list: flush to the top-left corner.
+ *
+ * Deliberately its own rect rather than GetLeftPanel()'s. That one is 320x352 and shared with the
+ * character sheet and quest log, exactly as the inventory found when it grew to 660 - stretching it
+ * would drag those along. Top-left mirrors the inventory's top-right placement.
+ */
+Rectangle PanelRect()
+{
+	return { { 0, 0 }, PanelSize };
+}
 
 bool WaypointMenuOpen = false;
 Point OpenedFromPosition;
@@ -56,12 +85,14 @@ bool WaypointSpawnRequested = false;
 
 int MouseToEntry(Point mousePosition)
 {
-	Rectangle innerArea = InnerPanel;
-	innerArea.position += Displacement(GetLeftPanel().position.x, GetLeftPanel().position.y);
-	if (!innerArea.contains(mousePosition))
+	const Rectangle panel = PanelRect();
+	if (!panel.contains(mousePosition))
 		return -1;
-	int y = mousePosition.y - innerArea.position.y;
-	int index = y / LineHeight;
+	// Above the first row - the label band and the top border are not clickable.
+	const int y = mousePosition.y - (panel.position.y + ListTop);
+	if (y < 0)
+		return -1;
+	const int index = y / RowHeight;
 	if (index < 0 || static_cast<size_t>(index) >= WaypointNames.size())
 		return -1;
 	return index;
@@ -94,18 +125,40 @@ void DrawWaypointMenu(const Surface &out)
 		return;
 	}
 
-	// Oracool: reuses the Quest Log's own parchment panel art (pQLogCel, quests.cpp/quests.h) -
-	// already loaded for the whole session regardless of whether the Quest Log itself is
-	// currently open, and this panel is never shown at the same time as the real Quest Log.
-	ClxDraw(out, GetPanelPosition(UiPanels::Quest, { 0, 351 }), (*pQLogCel)[0]);
+	const Rectangle panel = PanelRect();
 
-	const int x = InnerPanel.position.x;
-	int y = InnerPanel.position.y;
+	// Oracool V1: the panel is its own composed art now. It falls back to the Quest Log's parchment
+	// CEL (pQLogCel) if the asset is missing, which is what this used unconditionally before - that
+	// art is loaded for the whole session anyway, and this list is never open at the same time as
+	// the real Quest Log.
+	if (HasWaypointPanelArt()) {
+		DrawWaypointPanelArt(out, panel.position);
+	} else {
+		ClxDraw(out, GetPanelPosition(UiPanels::Quest, { 0, 351 }), (*pQLogCel)[0]);
+		return;
+	}
+
+	const Size iconSize = GetWaypointIconSize();
+	const int iconX = panel.position.x + PanelBorder + IconGap;
+	const int textX = iconX + iconSize.width + TextGap;
+
 	for (size_t i = 0; i < WaypointNames.size(); i++) {
 		const bool unlocked = IsWaypointUnlocked(static_cast<int>(i));
-		const UiFlags color = unlocked ? UiFlags::ColorWhite : UiFlags::ColorWhitegold;
-		DrawString(out, WaypointNames[i], GetPanelPosition(UiPanels::Quest, { x, y }), { color });
-		y += LineHeight;
+		const int rowTop = panel.position.y + ListTop + static_cast<int>(i) * RowHeight;
+
+		// The pad is the waypoint's own art: lit for a waypoint the player has reached, dormant
+		// otherwise - the same two states the in-world sigil uses.
+		if (iconSize.height > 0)
+			DrawWaypointIcon(out, { iconX, rowTop + (RowHeight - iconSize.height) / 2 }, unlocked);
+
+		// Vertically centre the name in its row rather than sitting it on the row's top edge, so it
+		// lines up with the pad beside it.
+		const Rectangle textArea { { textX, rowTop }, { panel.size.width - PanelBorder - (textX - panel.position.x), RowHeight } };
+		// Gold for reached, plain white for not. Both are already proven legible here - they are the
+		// same two colours this function used before, just assigned the intuitive way round. The
+		// pad beside the name carries the real state cue; this is reinforcement.
+		DrawString(out, WaypointNames[i], textArea,
+		    { (unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorWhite) | UiFlags::VerticalCenter });
 	}
 }
 

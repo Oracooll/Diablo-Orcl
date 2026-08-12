@@ -62,6 +62,18 @@ void DrawInventoryPanelArt(const Surface &out);
 /** @brief Whether the inventory panel asset loaded (so callers can fall back to the old panel). */
 bool HasInventoryPanelArt();
 
+/** @brief Draws the 340x660 waypoint list panel with its top-left corner at @p origin. */
+void DrawWaypointPanelArt(const Surface &out, Point origin);
+
+/** @brief Whether the waypoint panel asset loaded (so callers can fall back to the old panel). */
+bool HasWaypointPanelArt();
+
+/** @brief Draws one waypoint pad at @p origin - the active pad if @p active, else the dormant one. */
+void DrawWaypointIcon(const Surface &out, Point origin, bool active);
+
+/** @brief On-screen size of a single waypoint pad, or {0,0} if the asset is missing. */
+Size GetWaypointIconSize();
+
 /**
  * @brief Draws inventory tab @p index (0-9). @p state is 0 unselected, 1 selected, 2 pressed.
  * Position comes from inventory_layout's GetTabCellOrigin().

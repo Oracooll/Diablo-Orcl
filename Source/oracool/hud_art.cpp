@@ -63,6 +63,14 @@ constexpr Size TownPortalIconSize { 27, 29 };
 ArtAsset BurgerMenuButtonArt { "ui\\burger_menu_button.png" };
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
 ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
+/**
+ * Oracool V1 waypoint list. The panel is one flat 340x660 composition - stone texture, segmented
+ * border and the baked "WAYPOINT" label - built by tools/BuildWaypointPanel.ps1. The per-row pads
+ * ship separately because which state each row draws depends on the player's unlocked waypoints.
+ * waypoint_icons.png is two 30x30 cells: column 0 dormant, column 1 active.
+ */
+ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
+ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
 constexpr Size BurgerMenuButtonSize { 27, 29 };
 /**
  * User request: nudge the burger button up by a pixel. Centring it in the cell puts it a touch
@@ -232,6 +240,10 @@ void EnsureLoadedAll()
 		LoadPixels(BurgerMenuButtonArt);
 	if (!LevelUpIconArt.loadAttempted)
 		LoadPixels(LevelUpIconArt);
+	if (!WaypointPanelArt.loadAttempted)
+		LoadPixels(WaypointPanelArt);
+	if (!WaypointIconsArt.loadAttempted)
+		LoadPixels(WaypointIconsArt);
 }
 
 bool NeedsQuantize()
@@ -258,6 +270,10 @@ bool NeedsQuantize()
 		return true;
 	if (!LevelUpIconArt.rgba.empty() && !LevelUpIconArt.bright)
 		return true;
+	if (!WaypointPanelArt.rgba.empty() && !WaypointPanelArt.bright)
+		return true;
+	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
+		return true;
 	return false;
 }
 
@@ -276,6 +292,8 @@ void EnsureQuantized()
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
 	QuantizeAsset(BurgerMenuButtonArt, std::nullopt);
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
+	QuantizeAsset(WaypointPanelArt, std::nullopt);
+	QuantizeAsset(WaypointIconsArt, std::nullopt);
 
 	std::memcpy(PaletteSnapshot.data(), &orig_palette[128], sizeof(PaletteSnapshot));
 	QuantizedOnce = true;
@@ -504,6 +522,49 @@ void DrawLevelUpIconArt(const Surface &out, int state)
 	out.BlitFromSkipColorIndexZero(*LevelUpIconArt.bright,
 	    MakeSdlRect(state * LevelUpIconSize.width, 0, LevelUpIconSize.width, LevelUpIconSize.height),
 	    rect.position);
+}
+
+void DrawWaypointPanelArt(const Surface &out, Point origin)
+{
+	EnsureLoadedAll();
+	if (WaypointPanelArt.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!WaypointPanelArt.bright)
+		return;
+
+	out.BlitFromSkipColorIndexZero(*WaypointPanelArt.bright,
+	    MakeSdlRect(0, 0, WaypointPanelArt.width, WaypointPanelArt.height), origin);
+}
+
+bool HasWaypointPanelArt()
+{
+	EnsureLoadedAll();
+	return !WaypointPanelArt.rgba.empty();
+}
+
+void DrawWaypointIcon(const Surface &out, Point origin, bool active)
+{
+	EnsureLoadedAll();
+	if (WaypointIconsArt.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!WaypointIconsArt.bright)
+		return;
+
+	// Two equal cells side by side: column 0 dormant, column 1 active. Derived from the sheet's own
+	// width rather than a hardcoded 30 so a recut at a different icon size still lines up.
+	const int cell = WaypointIconsArt.width / 2;
+	out.BlitFromSkipColorIndexZero(*WaypointIconsArt.bright,
+	    MakeSdlRect(active ? cell : 0, 0, cell, WaypointIconsArt.height), origin);
+}
+
+Size GetWaypointIconSize()
+{
+	EnsureLoadedAll();
+	if (WaypointIconsArt.rgba.empty())
+		return { 0, 0 };
+	return { WaypointIconsArt.width / 2, WaypointIconsArt.height };
 }
 
 void DrawHealthOrb(const Surface &out)
