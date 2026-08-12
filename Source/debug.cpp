@@ -633,6 +633,34 @@ std::string DebugCmdGeneratePrimalItem(const string_view parameter)
 	return DebugSpawnTieredItem(parameter.data(), OracoolItemTier::Primal);
 }
 
+// Oracool: user request - one item for every equipment slot at once, at a chosen quality. Mainly
+// for exercising the six worn slots, which have no loot-table presence yet and are otherwise only
+// reachable by name through givemagic and friends.
+std::string DebugCmdGiveBasicSet(const string_view parameter)
+{
+	return DebugSpawnEquipmentSet(std::nullopt, /*magical=*/false);
+}
+
+std::string DebugCmdGiveMagicSet(const string_view parameter)
+{
+	return DebugSpawnEquipmentSet(std::nullopt, /*magical=*/true);
+}
+
+std::string DebugCmdGiveRareSet(const string_view parameter)
+{
+	return DebugSpawnEquipmentSet(OracoolItemTier::Rare, /*magical=*/true);
+}
+
+std::string DebugCmdGiveBuffedUniqueSet(const string_view parameter)
+{
+	return DebugSpawnEquipmentSet(OracoolItemTier::BuffedUnique, /*magical=*/true);
+}
+
+std::string DebugCmdGivePrimalSet(const string_view parameter)
+{
+	return DebugSpawnEquipmentSet(OracoolItemTier::Primal, /*magical=*/true);
+}
+
 std::string DebugCmdExit(const string_view parameter)
 {
 	gbRunGame = false;
@@ -1135,6 +1163,11 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "giverare", "Attempts to generate a Rare-tier item, optionally matching {name}.", "({name})", &DebugCmdGenerateRareItem },
 	{ "giveunique", "Attempts to generate a Buffed Unique-tier item, optionally matching {name}.", "({name})", &DebugCmdGenerateBuffedUniqueItem },
 	{ "giveprimal", "Attempts to generate a Primal-tier item, optionally matching {name}.", "({name})", &DebugCmdGeneratePrimalItem },
+	{ "givebset", "Drops a Basic item for each of the 13 equipment slots.", "", &DebugCmdGiveBasicSet },
+	{ "givemset", "Drops a Magic item for each of the 13 equipment slots.", "", &DebugCmdGiveMagicSet },
+	{ "giverset", "Drops a Rare item for each of the 13 equipment slots.", "", &DebugCmdGiveRareSet },
+	{ "giveuset", "Drops a Buffed Unique item for each of the 13 equipment slots.", "", &DebugCmdGiveBuffedUniqueSet },
+	{ "givepset", "Drops a Primal item for each of the 13 equipment slots.", "", &DebugCmdGivePrimalSet },
 	{ "talkto", "Interacts with a NPC whose name contains {name}.", "{name}", &DebugCmdTalkToTowner },
 	{ "exit", "Exits the game.", "", &DebugCmdExit },
 	{ "arrow", "Changes arrow effect (normal, fire, lightning, explosion).", "{effect}", &DebugCmdArrow },

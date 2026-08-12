@@ -829,6 +829,9 @@ void UpdateHellfireFlag(Item &item, const char *identifiedItemName);
 bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx);
 std::string DebugSpawnItem(std::string itemName);
 std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier);
+/** @brief Oracool: give{b,m,r,u,p}set - one item for every equipment slot at once. Pass no tier
+ * and magical=false for the plain set; no tier and magical=true for the magic set. */
+std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical);
 std::string DebugSpawnUniqueItem(std::string itemName);
 #endif
 /* data */

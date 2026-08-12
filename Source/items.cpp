@@ -5493,6 +5493,89 @@ std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier)
 	return StrCat("Item generated successfully - iterations: ", i);
 }
 
+/**
+ * @brief Oracool: user request - give{b,m,r,u,p}set. One item for every equipment slot at once.
+ *
+ * Picks a base item per slot by walking AllItemsList for the first entry with the right iLoc,
+ * rather than hardcoding thirteen indices: those indices are positional and shift whenever the
+ * table gains a row, which is exactly what this feature has been doing to it.
+ *
+ * IDROP_NEVER entries are skipped so a slot does not land on a quest or unique base (ILOC_HELM's
+ * first match is The Undead Crown) - except for the six worn types, which are all IDROP_NEVER on
+ * purpose right now and would otherwise be unreachable from here.
+ */
+_item_indexes FirstBaseItemForEquipLocation(item_equip_type loc)
+{
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsItemAvailable(i))
+			continue;
+		const ItemData &data = AllItemsList[i];
+		if (data.iLoc != loc)
+			continue;
+		if (data.iRnd == IDROP_NEVER && !IsOracoolEquipLocation(loc))
+			continue;
+		return static_cast<_item_indexes>(i);
+	}
+	return IDI_NONE;
+}
+
+std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical)
+{
+	// One per slot. Rings are the only slot pair sharing an item location, so ILOC_RING appears
+	// twice - the set is thirteen items, matching the thirteen paperdoll slots, not thirteen
+	// distinct item locations.
+	static const item_equip_type SlotLocations[] = {
+		ILOC_HELM, ILOC_AMULET, ILOC_ARMOR, ILOC_ONEHAND, ILOC_ONEHAND,
+		ILOC_RING, ILOC_RING,
+		ILOC_SHOULDERS, ILOC_BRACERS, ILOC_GLOVES, ILOC_WAIST, ILOC_LEGS, ILOC_BOOTS
+	};
+	constexpr int SlotCount = sizeof(SlotLocations) / sizeof(SlotLocations[0]);
+
+	if (ActiveItemCount + SlotCount > MAXITEMS)
+		return "Not enough free item slots on this level for a whole set.";
+
+	const int lvl = std::max(1, static_cast<int>(MyPlayer->_pLevel));
+	int spawned = 0;
+	int missingBase = 0;
+
+	for (item_equip_type loc : SlotLocations) {
+		const _item_indexes idx = FirstBaseItemForEquipLocation(loc);
+		if (idx == IDI_NONE) {
+			missingBase++;
+			continue;
+		}
+
+		Item item;
+		if (!magical && !tier) {
+			// Plain: base attributes only, no affix roll at all. SetupAllItems always rolls
+			// something, so the basic set skips it and finishes the item by hand instead.
+			GetItemAttrs(item, idx, lvl);
+			item._iCreateInfo = lvl;
+			item._iSeed = AdvanceRndSeed();
+			SetupItem(item);
+		} else {
+			SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 1, /*onlygood=*/true,
+			    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true,
+			    tier ? tier : std::optional<OracoolItemTier> { OracoolItemTier::None });
+		}
+
+		const int ii = AllocateItem();
+		Items[ii] = item.pop();
+		Items[ii]._iIdentified = true;
+		Point pos = MyPlayer->position.tile;
+		GetSuperItemSpace(pos, ii);
+		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+		spawned++;
+	}
+
+	// Reported rather than assumed. GetSuperItemSpace widens its search until it finds a free
+	// tile, so thirteen items do fit around the player in the open - but a corridor or a doorway
+	// is a different matter, and silently dropping nine of thirteen would be worse than saying so.
+	if (missingBase > 0)
+		return StrCat("Spawned ", spawned, " of ", SlotCount, " - ", missingBase, " slot(s) have no base item yet.");
+	return StrCat("Spawned ", spawned, " items, one per equipment slot.");
+}
+
 std::string DebugSpawnUniqueItem(std::string itemName)
 {
 	if (ActiveItemCount >= MAXITEMS)
