@@ -73,9 +73,16 @@ if ($colXs.Count -ne 3) { throw "expected 3 button columns, found $($colXs.Count
 # Source column order is ACTIVE, INACTIVE, CLICKED (left to right, per the sheet's own headers).
 $srcActive, $srcInactive, $srcClicked = $colXs
 # Destination row order is what DrawInventoryTab expects: 0 inactive, 1 active, 2 clicked.
-$rowForColumn = @{ $srcInactive = 0; $srcActive = 1; $srcClicked = 2 }
-Write-Host "source columns: active=$srcActive inactive=$srcInactive clicked=$srcClicked"
-Write-Host "-> sheet rows:  0=inactive 1=active 2=clicked"
+#
+# The sheet's own ACTIVE column is gold, and at a 28px cell that gold sits too close to the
+# silver of its neighbours - rendering the row showed you had to hunt for which tab was open.
+# The sheet's CLICKED column is orange and separates from silver far more strongly, so it is
+# promoted to the ACTIVE state instead. The gold column is not discarded: it moves down into
+# row 2, so all three states still ship and a real pressed state has art if one is ever wired
+# up (DrawInventoryTabs currently only ever asks for 0 or 1).
+$rowForColumn = @{ $srcInactive = 0; $srcClicked = 1; $srcActive = 2 }
+Write-Host "source columns: active/gold=$srcActive inactive/silver=$srcInactive clicked/orange=$srcClicked"
+Write-Host "-> sheet rows:  0=inactive(silver) 1=active(ORANGE) 2=spare(gold)"
 
 $out = New-Object System.Drawing.Bitmap ($tabs*$cell), ($states*$cell), ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
 $g = [System.Drawing.Graphics]::FromImage($out)

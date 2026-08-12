@@ -51,7 +51,10 @@ ArtAsset MenuIconsArt { "ui\\menu_icons.png" };
  * and SORT button ship separately because they change state at runtime.
  */
 ArtAsset InventoryPanelArt { "ui\\inventory_panel.png" };
-ArtAsset InventoryTabsArt { "ui\\inventory_tabs.png" };
+// v3 of the tab strip: arabic 1-9 and X, square and borderless, replacing the roman-numeral
+// set. Same 280x84 shape and same 28px cells as the sheet it replaces, so this is a pure
+// asset swap - see tools/CutTabButtonsV3.ps1, which cuts it to that format deliberately.
+ArtAsset InventoryTabsArt { "ui\\inventory_tabs_v3.png" };
 ArtAsset InventorySortArt { "ui\\inventory_sort.png" };
 /** The belt's Town Portal button. Drawn over the portal ring painted into the plate art. */
 ArtAsset TownPortalIconArt { "ui\\town_portal_icon.png" };

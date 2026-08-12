@@ -1437,11 +1437,6 @@ void InitInv()
  * game's original, non-editable inv.cel/inv_rog.cel/inv_sor.cel background images - can't move to
  * make room. Selected tab is gold and drawn a few pixels larger; inactive tabs are a muted gray.
  */
-/** @brief Oracool: user request - tab numbers 1-10 shown as roman numerals instead of digits. */
-constexpr const char *RomanNumeralTabLabels[Player::NumExtraInventoryTabs + 1] = {
-	"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"
-};
-
 void DrawInventoryTabs(const Surface &out)
 {
 	// Oracool V1: real artwork now - roman numerals cut from the user's sheet, silver unselected
