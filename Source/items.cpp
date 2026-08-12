@@ -92,6 +92,8 @@ int8_t ItemCAnimTbl[] = {
 	3, 1, 6, 6, 6, 1, 8, 6, 11, 3,
 	6, 8, 1, 6, 6, 17, 40, 0, 0
 };
+static_assert(sizeof(ItemCAnimTbl) / sizeof(ItemCAnimTbl[0]) == ICURS_ORACOOL_FIRST,
+    "ItemCAnimTbl no longer covers exactly the vanilla item graphics");
 
 /** Maps of drop sounds effect of placing the item in the inventory. */
 _sfx_id ItemInvSnds[] = {
@@ -139,6 +141,30 @@ _sfx_id ItemInvSnds[] = {
 	IS_ILARM,
 	IS_ILARM,
 };
+
+/**
+ * @brief Ground-drop animation index for an item graphic, safe for any cursor id.
+ *
+ * Oracool: ItemCAnimTbl is a flat array with one entry per VANILLA item graphic, indexed by
+ * _iCurs with no bounds check. Our own icons live past its end, so reading it directly for one of
+ * them is an out-of-bounds read that happens to work until it doesn't.
+ *
+ * The six new types deliberately borrow existing drop animations rather than shipping six more
+ * ground CELs. The tumbling object on the floor is small, and this keeps an entire art dependency
+ * off the critical path - swapping in dedicated animations later is a one-line change here plus
+ * the new entries in ItemDropNames/ItemAnimLs.
+ */
+int8_t GetItemDropAnimIndex(uint16_t curs)
+{
+	if (curs < ICURS_ORACOOL_FIRST)
+		return ItemCAnimTbl[curs];
+
+	// 14 is "larmor" - light armour, a soft cloth/leather tumble. The closest existing match for
+	// gloves, boots, bracers, shoulders and legs; the belt borrows it too rather than the noisier
+	// metal-armour drop.
+	constexpr int8_t OracoolWornDropAnim = 14;
+	return OracoolWornDropAnim;
+}
 
 namespace {
 
@@ -4175,7 +4201,7 @@ void SpawnTheodore(Point position, bool sendmsg)
 
 void RespawnItem(Item &item, bool flipFlag)
 {
-	int it = ItemCAnimTbl[item._iCurs];
+	int it = GetItemDropAnimIndex(item._iCurs);
 	item.setNewAnimation(flipFlag);
 	item._iRequest = false;
 
@@ -4220,7 +4246,7 @@ void ProcessItems()
 				item.AnimInfo.currentFrame = 10;
 		} else {
 			if (item.AnimInfo.currentFrame == (item.AnimInfo.numberOfFrames - 1) / 2)
-				PlaySfxLoc(ItemDropSnds[ItemCAnimTbl[item._iCurs]], item.position);
+				PlaySfxLoc(ItemDropSnds[GetItemDropAnimIndex(item._iCurs)], item.position);
 
 			if (item.AnimInfo.isLastFrame()) {
 				item.AnimInfo.currentFrame = item.AnimInfo.numberOfFrames - 1;
@@ -4241,7 +4267,7 @@ void FreeItemGFX()
 
 void GetItemFrm(Item &item)
 {
-	int it = ItemCAnimTbl[item._iCurs];
+	int it = GetItemDropAnimIndex(item._iCurs);
 	if (itemanims[it])
 		item.AnimInfo.sprites.emplace(*itemanims[it]);
 }
@@ -5559,7 +5585,7 @@ bool Item::isUsable() const
 
 void Item::setNewAnimation(bool showAnimation)
 {
-	int8_t it = ItemCAnimTbl[_iCurs];
+	int8_t it = GetItemDropAnimIndex(_iCurs);
 	int8_t numberOfFrames = ItemAnimLs[it];
 	OptionalClxSpriteList sprite = itemanims[it] ? OptionalClxSpriteList { *itemanims[static_cast<size_t>(it)] } : std::nullopt;
 	if (_iCurs != ICURS_MAGIC_ROCK)

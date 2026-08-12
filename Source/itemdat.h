@@ -254,6 +254,19 @@ enum item_cursor_graphic : uint16_t {
 	ICURS_GREY_SUIT                   = 198,
 	ICURS_BROWN_SUIT                  = 199,
 	ICURS_BOVINE                      = 226,
+
+	// Oracool: our own icon sheet (data\inv\oracool_items.cel, shipped in oracool.mpq). Ids
+	// continue past the 229 vanilla item graphics - sheet 1 holds 0-167 and Hellfire's sheet 2
+	// holds 168-228. cursor.cpp static_asserts that this first value really is where sheet 3
+	// begins, since the arithmetic depends on three table sizes and CURSOR_FIRSTITEM.
+	ICURS_ORACOOL_FIRST               = 229,
+	ICURS_ORACOOL_SHOULDERS           = 229,
+	ICURS_ORACOOL_BRACERS             = 230,
+	ICURS_ORACOOL_GLOVES              = 231,
+	ICURS_ORACOOL_BELT                = 232,
+	ICURS_ORACOOL_LEGS                = 233,
+	ICURS_ORACOOL_BOOTS               = 234,
+	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_BOOTS,
 	// clang-format on
 };
 

@@ -836,6 +836,9 @@ std::string DebugSpawnUniqueItem(std::string itemName);
 extern DVL_API_FOR_TEST int MaxGold;
 
 extern int8_t ItemCAnimTbl[];
+/** @brief Ground-drop animation index for an item graphic. Use this rather than indexing
+ * ItemCAnimTbl directly - Oracool's own icon ids sit past the end of that array. */
+int8_t GetItemDropAnimIndex(uint16_t curs);
 extern _sfx_id ItemInvSnds[];
 
 } // namespace devilution

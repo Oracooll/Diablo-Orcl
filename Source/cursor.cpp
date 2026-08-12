@@ -44,6 +44,8 @@ namespace {
 /** Cursor images CEL */
 OptionalOwnedClxSpriteList pCursCels;
 OptionalOwnedClxSpriteList pCursCels2;
+/** Oracool: our own icon sheet - see InvItemWidth3. */
+OptionalOwnedClxSpriteList pCursCels3;
 
 /** Maps from objcurs.cel frame number to frame width. */
 const uint16_t InvItemWidth1[] = {
@@ -81,6 +83,44 @@ const uint16_t InvItemWidth2[] = {
 };
 constexpr uint16_t InvItems1Size = sizeof(InvItemWidth1) / sizeof(InvItemWidth1[0]);
 constexpr uint16_t InvItems2Size = sizeof(InvItemWidth2) / sizeof(InvItemWidth2[0]);
+
+/**
+ * Oracool: a third icon sheet, for the six worn item types the original game has no art for.
+ *
+ * Ships in oracool.mpq as data\inv\oracool_items.cel and is loaded unconditionally - unlike
+ * objcurs2, which is Hellfire-only, these items exist in both games. Its ids continue straight on
+ * from sheet 2's, whether or not sheet 2 was actually loaded: the id space is fixed at compile
+ * time, so a Diablo game and a Hellfire game agree on which id means which icon.
+ *
+ * Frame order must match the ICURS_ORACOOL_* values in itemdat.h.
+ */
+const uint16_t InvItemWidth3[] = {
+	2 * 28, // shoulders
+	2 * 28, // bracers
+	2 * 28, // gloves
+	2 * 28, // belt
+	2 * 28, // legs
+	2 * 28, // boots
+};
+const uint16_t InvItemHeight3[] = {
+	2 * 28, // shoulders
+	2 * 28, // bracers
+	2 * 28, // gloves
+	1 * 28, // belt - the one 2x1 among them
+	2 * 28, // legs
+	2 * 28, // boots
+};
+constexpr uint16_t InvItems3Size = sizeof(InvItemWidth3) / sizeof(InvItemWidth3[0]);
+static_assert(sizeof(InvItemHeight3) / sizeof(InvItemHeight3[0]) == InvItems3Size,
+    "oracool icon sheet width and height tables disagree on the frame count");
+
+// itemdat.h hardcodes where our ids start, because that is how every other ICURS_ value is
+// written. This is the check that the hardcoded number is still right: it depends on both vanilla
+// sheet sizes and on CURSOR_FIRSTITEM, none of which are visible from itemdat.h.
+static_assert(ICURS_ORACOOL_FIRST == InvItems1Size + InvItems2Size + 1 - static_cast<int>(CURSOR_FIRSTITEM),
+    "ICURS_ORACOOL_FIRST no longer matches where the third icon sheet actually begins");
+static_assert(ICURS_ORACOOL_LAST - ICURS_ORACOOL_FIRST + 1 == InvItems3Size,
+    "the ICURS_ORACOOL_* range and the third icon sheet disagree on the frame count");
 
 /** Maps from objcurs.cel frame number to frame height. */
 const uint16_t InvItemHeight1[InvItems1Size] = {
@@ -151,6 +191,8 @@ void InitCursor()
 	pCursCels = LoadCel("data\\inv\\objcurs", InvItemWidth1);
 	if (gbIsHellfire)
 		pCursCels2 = LoadCel("data\\inv\\objcurs2", InvItemWidth2);
+	// Oracool: unconditional - the six worn types exist in Diablo as well as Hellfire.
+	pCursCels3 = LoadCel("data\\inv\\oracool_items", InvItemWidth3);
 	ClearCursor();
 }
 
@@ -158,6 +200,7 @@ void FreeCursor()
 {
 	pCursCels = std::nullopt;
 	pCursCels2 = std::nullopt;
+	pCursCels3 = std::nullopt;
 	ClearCursor();
 }
 
@@ -165,17 +208,21 @@ ClxSprite GetInvItemSprite(int cursId)
 {
 	if (cursId <= InvItems1Size)
 		return (*pCursCels)[cursId - 1];
-	return (*pCursCels2)[cursId - InvItems1Size - 1];
+	if (cursId <= InvItems1Size + InvItems2Size)
+		return (*pCursCels2)[cursId - InvItems1Size - 1];
+	return (*pCursCels3)[cursId - InvItems1Size - InvItems2Size - 1];
 }
 
 size_t GetNumInvItems()
 {
-	return InvItems1Size + InvItems2Size;
+	return InvItems1Size + InvItems2Size + InvItems3Size;
 }
 
 Size GetInvItemSize(int cursId)
 {
 	const int i = cursId - 1;
+	if (i >= InvItems1Size + InvItems2Size)
+		return { InvItemWidth3[i - InvItems1Size - InvItems2Size], InvItemHeight3[i - InvItems1Size - InvItems2Size] };
 	if (i >= InvItems1Size)
 		return { InvItemWidth2[i - InvItems1Size], InvItemHeight2[i - InvItems1Size] };
 	return { InvItemWidth1[i], InvItemHeight1[i] };
@@ -195,9 +242,13 @@ void CreateHalfSizeItemSprites()
 {
 	if (HalfSizeItemSprites != nullptr)
 		return;
-	const int numInvItems = gbIsHellfire
-	    ? InvItems1Size + InvItems2Size - (static_cast<size_t>(CURSOR_FIRSTITEM) - 1)
-	    : InvItems1Size + (static_cast<size_t>(CURSOR_FIRSTITEM) - 1);
+	// Oracool: sized for all three sheets in both games, and indexed by _iCurs directly.
+	//
+	// This used to size itself by whether Hellfire's sheet 2 was loaded. That worked only because
+	// sheet 2's ids are never used in a Diablo game, so the tail of the array was simply unreached.
+	// Sheet 3's ids ARE used in both games and sit past sheet 2's block, so the index space has to
+	// exist whether or not sheet 2's content does - see the skipped-but-counted loop below.
+	const int numInvItems = InvItems1Size + InvItems2Size + InvItems3Size - (static_cast<size_t>(CURSOR_FIRSTITEM) - 1);
 	HalfSizeItemSprites = new OptionalOwnedClxSpriteList[numInvItems];
 	HalfSizeItemSpritesRed = new OptionalOwnedClxSpriteList[numInvItems];
 	const uint8_t *redTrn = GetInfravisionTRN();
@@ -234,10 +285,14 @@ void CreateHalfSizeItemSprites()
 	for (size_t i = static_cast<int>(CURSOR_FIRSTITEM) - 1; i < InvItems1Size; ++i, ++outputIndex) {
 		createHalfSize((*pCursCels)[i], outputIndex);
 	}
-	if (gbIsHellfire) {
-		for (size_t i = 0; i < InvItems2Size; ++i, ++outputIndex) {
+	// Sheet 2's slots are counted even in a Diablo game, where its content does not exist - that is
+	// what keeps sheet 3's indices in the same place in both games.
+	for (size_t i = 0; i < InvItems2Size; ++i, ++outputIndex) {
+		if (gbIsHellfire)
 			createHalfSize((*pCursCels2)[i], outputIndex);
-		}
+	}
+	for (size_t i = 0; i < InvItems3Size; ++i, ++outputIndex) {
+		createHalfSize((*pCursCels3)[i], outputIndex);
 	}
 }
 

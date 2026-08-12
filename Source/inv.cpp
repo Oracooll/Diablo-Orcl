@@ -514,7 +514,7 @@ bool AutoEquip(Player &player, const Item &item, inv_body_loc bodyLocation, bool
 		ChangeEquipment(player, bodyLocation, item);
 
 		if (*sgOptions.Audio.autoEquipSound && &player == MyPlayer) {
-			PlaySFX(ItemInvSnds[ItemCAnimTbl[item._iCurs]]);
+			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
 		}
 
 		CalcPlrInv(player, true);
@@ -663,7 +663,7 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 		return;
 
 	if (&player == MyPlayer)
-		PlaySFX(ItemInvSnds[ItemCAnimTbl[player.HoldItem._iCurs]]);
+		PlaySFX(ItemInvSnds[GetItemDropAnimIndex(player.HoldItem._iCurs)]);
 
 	switch (il) {
 	case ILOC_HELM:
@@ -1124,7 +1124,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 
 		if (&player == MyPlayer) {
 			if (automaticallyEquipped) {
-				PlaySFX(ItemInvSnds[ItemCAnimTbl[holdItem._iCurs]]);
+				PlaySFX(ItemInvSnds[GetItemDropAnimIndex(holdItem._iCurs)]);
 			} else if (!automaticMove || automaticallyMoved) {
 				PlaySFX(IS_IGRAB);
 			}
@@ -2074,7 +2074,7 @@ void TransferItemToStash(Player &player, int location)
 		return;
 	}
 
-	PlaySFX(ItemInvSnds[ItemCAnimTbl[item._iCurs]]);
+	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
 
 	if (location < INVITEM_INV_FIRST) {
 		RemoveEquipment(player, static_cast<inv_body_loc>(location), false);
@@ -2116,7 +2116,7 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 		return true;
 	}
 
-	PlaySFX(ItemInvSnds[ItemCAnimTbl[item._iCurs]]);
+	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
 	RemoveActiveInvItem(player, iv);
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
@@ -3070,7 +3070,7 @@ bool UseInvItem(int cii)
 		return true;
 	}
 
-	int idata = ItemCAnimTbl[item->_iCurs];
+	int idata = GetItemDropAnimIndex(item->_iCurs);
 	if (item->_iMiscId == IMISC_BOOK)
 		PlaySFX(IS_RBOOK);
 	else if (&player == MyPlayer)
@@ -3127,7 +3127,7 @@ void CloseStash()
 				// to not have room for the item all 3 cases are extremely unlikely
 				app_fatal(_("No room for item"));
 			}
-			PlaySFX(ItemInvSnds[ItemCAnimTbl[myPlayer.HoldItem._iCurs]]);
+			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(myPlayer.HoldItem._iCurs)]);
 		}
 		myPlayer.HoldItem.clear();
 		NewCursor(CURSOR_HAND);
