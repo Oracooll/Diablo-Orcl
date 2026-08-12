@@ -65,17 +65,24 @@ int WindowWidth()
 	return GetMiniMapScreenRect().size.width;
 }
 
-// Oracool: user request - the window spans from 1px below the button down to 1px above the main
-// GUI panel at the bottom of the screen, whatever that leaves. This is the authoritative height -
-// unlike the previous line-count-driven design, it isn't quantized to a whole number of entry
-// lines, so there may be a little unused padding at the bottom if the exact span doesn't divide
-// evenly by LineHeight. The main panel is always on-screen by construction, so this is always a
-// safe, positive size in practice; the MinVisibleLines-based floor only guards against a
-// pathological custom resolution where the mini-map and main panel would otherwise nearly touch.
+// Oracool: user request (2026-08-13) - the window unfolds until its bottom edge is as far from the
+// bottom of the screen as the mini-map's top edge is from the top, so the column reads as
+// symmetrically inset. It used to stop 1px above the legacy main-panel rect, which was an
+// invisible anchor and left the window ending well short of the screen's bottom.
+//
+// The gap is taken from GetMiniMapScreenRect().position.y rather than automap.cpp's MiniMapMargin
+// constant, which is private to that file - and this is the same rect the window already uses for
+// its top edge and its width, so all three stay tied to one source.
+//
+// This is the authoritative height - unlike the previous line-count-driven design, it isn't
+// quantized to a whole number of entry lines, so there may be a little unused padding at the bottom
+// if the exact span doesn't divide evenly by LineHeight. The MinVisibleLines-based floor only
+// guards against a pathological custom resolution where the mini-map would otherwise nearly reach
+// the bottom of the screen.
 int WindowHeight()
 {
 	const int windowTop = WindowTopLeftBelowMiniMap().y;
-	const int windowBottom = GetMainPanel().position.y - 1;
+	const int windowBottom = gnScreenHeight - GetMiniMapScreenRect().position.y;
 	const int minHeight = WindowPadding * 2 + LineHeight + static_cast<int>(MinVisibleLines) * LineHeight;
 	return std::max(windowBottom - windowTop, minHeight);
 }
