@@ -61,6 +61,22 @@ constexpr Size PlateScreenSize { PlateScreenWidth, ScalePlate(PlateSrcSize.heigh
 // the prep script applies - that origin is the art's own alpha>=128 bounding box). The two skill
 // wells are both taller and wider than the belt cells, and sit higher up the plate.
 constexpr Rectangle LmbWellSrc { { 25, 26 }, { 208, 217 } };
+/**
+ * @brief Thickness of the metal bezel drawn around a skill well's opening, in screen pixels.
+ *
+ * The well rects above are the OPENINGS - deliberately, because that is what the readied-spell
+ * icon has to fit inside. The level-up icon is sized to the button's full footprint instead, so it
+ * needs the opening plus this.
+ */
+constexpr int SkillWellBezelPx = 5;
+
+// The level-up icon is cut to the LMB button's full footprint. LevelUpIconSize has to be a literal
+// in the header (hud_art blits the PNG unscaled, so the art is cut to exactly that size), so tie it
+// to the real geometry here instead of trusting two numbers to stay in step by hand.
+static_assert(LevelUpIconSize.width == ScalePlateRect(LmbWellSrc).size.width + 2 * SkillWellBezelPx
+        && LevelUpIconSize.height == ScalePlateRect(LmbWellSrc).size.height + 2 * SkillWellBezelPx,
+    "Level-up icon size no longer matches the LMB well plus its bezel - recut the art and update "
+    "LevelUpIconSize in hud_layout.h");
 constexpr Rectangle RmbWellSrc { { 1271, 26 }, { 207, 217 } };
 constexpr int BeltCellSrcX[6] = { 263, 434, 599, 766, 931, 1099 };
 constexpr int BeltCellSrcY = 91;
@@ -140,19 +156,21 @@ Rectangle GetRmbSkillButtonRect()
 
 Rectangle GetLevelUpIconRect()
 {
-	// Flush to the screen's left edge, a few pixels under the clock.
+	// Sits directly above the LMB skill button, matched to that button's full footprint - the well's
+	// opening plus its bezel - so the two read as a stack rather than two unrelated widgets.
 	//
-	// This used to centre on the clock's ':' via GetClockColonCentreX, which measured real glyph
-	// widths so it tracked the hour and the 12/24-hour option. That anchor is gone: x is now simply
-	// 0, so nothing about the clock's text can move the icon, and the helper it depended on has
-	// been removed as dead code.
+	// Anchored to GetLmbSkillButtonRect() rather than to a screen corner, so it follows the plate
+	// automatically: the plate is centred and bottom-flush, so its position moves with the
+	// resolution. Earlier revisions pinned this to the clock (first centred on the clock's ':', then
+	// flush to the left edge); both are gone.
 	//
-	// Lives here rather than in game_clock.cpp because control.cpp needs the rect for hit-testing
-	// as well as drawing - the two must never disagree.
-	constexpr int ClockMargin = 8;
-	constexpr int ClockHeight = 20;
-	constexpr int GapBelowClock = 4;
-	return { { 0, ClockMargin + ClockHeight + GapBelowClock }, LevelUpIconSize };
+	// Lives here rather than beside the clock because control.cpp needs the rect for hit-testing as
+	// well as drawing - the two must never disagree.
+	const Rectangle lmb = GetLmbSkillButtonRect();
+	constexpr int GapAboveButton = 4;
+	return { { lmb.position.x + (lmb.size.width - LevelUpIconSize.width) / 2,
+	             lmb.position.y - SkillWellBezelPx - GapAboveButton - LevelUpIconSize.height },
+		LevelUpIconSize };
 }
 
 Rectangle GetBeltSlotRect(int visibleIndex)

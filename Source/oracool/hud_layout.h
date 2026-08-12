@@ -62,7 +62,15 @@ inline constexpr int MenuIconCount = 8;
  * new HUD art. The top-left corner already holds the clock and nothing else, so the two read as
  * one small status stack.
  */
-inline constexpr Size LevelUpIconSize { 53, 53 };
+/**
+ * @brief Level-up icon size: the LMB skill well PLUS its bezel.
+ *
+ * The well's opening scales to 50x51 on screen and its metal bezel is 5px on every side, so the
+ * button's full visual footprint is 60x61. Hardcoded because hud_art blits the art unscaled - the
+ * PNG is cut to exactly this size - but hud_layout.cpp static_asserts it against the real scaled
+ * LMB rect, so the two cannot drift apart silently.
+ */
+inline constexpr Size LevelUpIconSize { 60, 61 };
 Rectangle GetLevelUpIconRect();
 
 /** @brief On-screen bounding box of the middle HUD plate (assets/ui/middle_hud.png, drawn by
