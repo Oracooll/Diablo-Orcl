@@ -43,6 +43,20 @@ if exist build\x64-Debug\assets\ui (
   copy /y "%OUT%\inventory_sort.png"  build\x64-Debug\assets\ui\ >nul
   echo Mirrored into build\x64-Debug\assets\ui
 )
+
+REM Bug postmortem: this script predates oracool.mpq and only ever wrote to %OUT% (loose
+REM "assets", the fallback path). build_oracool_mpq.cmd packs from oracool_assets, a SEPARATE
+REM tree - every other build_*.cmd in this folder mirrors into both; this one silently didn't,
+REM so panel changes rebuilt cleanly, previewed correctly, and then packed the OLD art into the
+REM MPQ every time, with no error anywhere in the chain to catch it.
+set MPQ_OUT=Packaging\resources\oracool_assets\ui
+if not exist "%MPQ_OUT%" mkdir "%MPQ_OUT%"
+copy /y "%OUT%\inventory_panel.png" "%MPQ_OUT%\" >nul
+copy /y "%OUT%\inventory_tabs.png"  "%MPQ_OUT%\" >nul
+copy /y "%OUT%\inventory_sort.png"  "%MPQ_OUT%\" >nul
+copy /y "%OUT%\inventory_sygil.png" "%MPQ_OUT%\" >nul
+echo Mirrored into %MPQ_OUT% - run tools\build_oracool_mpq.cmd next to pick this up.
+
 echo Preview written to %TEMP%\inventory_preview.png
 
 echo Done.

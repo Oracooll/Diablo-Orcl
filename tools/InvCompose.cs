@@ -244,6 +244,61 @@ class InvCompose
         }
     }
 
+    /// <summary>
+    /// User request: the 70 backpack grid cells read as flat, uniform panels next to DevilutionX's
+    /// own shared-stash grid, whose cells carry a mottled, blotchy stone grain. Reusing the stash's
+    /// own art directly was ruled out (it is DevilutionX's own baked, non-Oracool asset - the same
+    /// reasoning that kept town.pal out of a shipped commit earlier in this project); this generates
+    /// an equivalent-effect grain from scratch instead, procedurally, so nothing is copied.
+    ///
+    /// Blotchy rather than per-pixel static on purpose - zooming the stash's own texture showed
+    /// chunky multi-pixel patches, not fine noise, so a single random value is drawn per BlockPx
+    /// block and nearest-neighbour filled, which reads as coarse stone grain instead of TV static.
+    /// Skewed dark (mostly 0 to -NoiseRange, occasionally up to +NoiseHighlight) because the
+    /// reference reads as scattered darker patches over the base tone, not scattered highlights.
+    ///
+    /// Confined to each cell's interior (the frame border itself, held in the caller's mask, is
+    /// left untouched) and seeded, so the output is deterministic across rebuilds.
+    /// </summary>
+    static void ApplyGridGrain(Surface panel, int seed)
+    {
+        const int BlockPx = 3;
+        const int NoiseRange = 48;
+        const int NoiseHighlight = 20;
+        const int InteriorMargin = 3; // stays clear of the frame ring the grid tiling already drew
+
+        var rng = new Random(seed);
+        for (int r = 0; r < GridRows; r++)
+        {
+            for (int c = 0; c < GridCols; c++)
+            {
+                int cellX = GridX + c * Cell, cellY = GridY + r * Cell;
+                for (int by = InteriorMargin; by < Cell - InteriorMargin; by += BlockPx)
+                {
+                    for (int bx = InteriorMargin; bx < Cell - InteriorMargin; bx += BlockPx)
+                    {
+                        int delta = rng.Next(-NoiseRange, NoiseHighlight + 1);
+                        int bw = Math.Min(BlockPx, Cell - InteriorMargin - bx);
+                        int bh = Math.Min(BlockPx, Cell - InteriorMargin - by);
+                        for (int y = 0; y < bh; y++)
+                        {
+                            int py = cellY + by + y;
+                            if (!panel.In(0, py)) continue;
+                            for (int x = 0; x < bw; x++)
+                            {
+                                int px = cellX + bx + x;
+                                if (!panel.In(px, 0)) continue;
+                                int i = panel.Idx(px, py);
+                                for (int ch = 0; ch < 3; ch++)
+                                    panel.B[i + ch] = (byte)Math.Max(0, Math.Min(255, panel.B[i + ch] + delta));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     static void Main(string[] args)
     {
         dir = args[0];
@@ -293,6 +348,12 @@ class InvCompose
             }
         }
         Console.WriteLine("grid {0}x{1} cells at ({2},{3}), bottom {4}", GridCols, GridRows, GridX, GridY, GridY + GridRows * Cell);
+
+        // User request: give the grid cells the same mottled stone-grain feel as DevilutionX's own
+        // shared-stash grid, without reusing that grid's own art - see ApplyGridGrain's doc comment.
+        const int GridGrainSeed = 20260812;
+        ApplyGridGrain(panel, GridGrainSeed);
+        Console.WriteLine("grid grain applied (seed {0})", GridGrainSeed);
 
         // Class sygil, centred in the band between the grid and the mana orb. Baked in rather
         // than drawn at runtime because it never changes state - see inventory_layout.h for why
