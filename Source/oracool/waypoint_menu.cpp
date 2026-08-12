@@ -4,6 +4,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
+#include "diablo.h" // MousePosition, for the hover highlight
 #include "engine/rectangle.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/text_render.hpp"
@@ -162,8 +163,13 @@ void DrawWaypointMenu(const Surface &out)
 	const int iconX = panel.position.x + PanelBorder + IconGap;
 	const int textX = iconX + iconSize.width + TextGap;
 
+	// Hit-tested with the same function the click handler uses, so what lights up under the cursor
+	// and what a click actually resolves to can never disagree.
+	const int hovered = MouseToEntry(MousePosition);
+
 	for (size_t i = 0; i < WaypointNames.size(); i++) {
 		const bool unlocked = IsWaypointUnlocked(static_cast<int>(i));
+		const bool isHovered = (hovered == static_cast<int>(i));
 		const int rowTop = panel.position.y + ListTop + static_cast<int>(i) * RowHeight;
 
 		// The pad is the waypoint's own art: lit for a waypoint the player has reached, dormant
@@ -176,8 +182,13 @@ void DrawWaypointMenu(const Surface &out)
 		const Rectangle textArea { { textX, rowTop }, { panel.size.width - PanelBorder - (textX - panel.position.x), RowHeight } };
 		// Gold for reached, plain white for not, both outlined so they read against any part of the
 		// stone. The sigil beside the name carries the real state cue; colour is reinforcement.
-		DrawStringOutlined(out, WaypointNames[i], textArea,
-		    unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorWhite);
+		//
+		// Hover SWAPS the two rather than introducing a third colour, so the row visibly reacts
+		// whichever state it is in, and the palette stays at two entries.
+		UiFlags color = unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
+		if (isHovered)
+			color = unlocked ? UiFlags::ColorWhite : UiFlags::ColorWhitegold;
+		DrawStringOutlined(out, WaypointNames[i], textArea, color);
 	}
 }
 
