@@ -994,6 +994,26 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 		}
 	}
 
+	// Oracool: the six new worn slots, one range branch instead of six copies of the block above.
+	// SLOTXY_* and inv_body_loc are parallel across the whole equipped range (static_assert near
+	// EquipSlotForBodyLocation), so `r` IS the body location. Without this, an equipped item in
+	// one of these slots simply could not be picked back out - the click fell through and did
+	// nothing.
+	if (r >= SLOTXY_SHOULDERS && r <= SLOTXY_BOOTS) {
+		Item &wornItem = player.InvBody[r];
+		if (!wornItem.isEmpty()) {
+			holdItem = wornItem;
+			if (automaticMove) {
+				automaticallyUnequip = true;
+				automaticallyMoved = automaticallyEquipped = AutoPlaceItemInInventory(player, holdItem, true);
+			}
+
+			if (!automaticMove || automaticallyMoved) {
+				RemoveEquipment(player, static_cast<inv_body_loc>(r), false);
+			}
+		}
+	}
+
 	if (r >= SLOTXY_INV_FIRST && r <= SLOTXY_INV_LAST) {
 		int ig = r - SLOTXY_INV_FIRST;
 		int8_t ii = GetActiveInvGridCell(player, ig);
@@ -2685,6 +2705,15 @@ int8_t CheckInvHLight()
 	} else if (r == SLOTXY_CHEST) {
 		rv = INVLOC_CHEST;
 		pi = &myPlayer.InvBody[rv];
+	} else if (r >= SLOTXY_SHOULDERS && r <= SLOTXY_BOOTS) {
+		// Oracool bug fix: user report - "I tried putting boots in the boots slot - crash!" This
+		// chain had no branch for the six new slots, so pi stayed nullptr and the isEmpty() check
+		// below dereferenced it. The paste itself succeeded; the crash fired on the first
+		// bare-handed hover over any new slot - which the frame right after dropping an item into
+		// one always is, since the paste empties the cursor while it still sits on the slot.
+		// SLOTXY_* and inv_body_loc are parallel across the equipped range, so r IS the location.
+		rv = r;
+		pi = &myPlayer.InvBody[r];
 	} else if (r >= SLOTXY_INV_FIRST && r <= SLOTXY_INV_LAST) {
 		int8_t itemId = abs(GetActiveInvGridCell(myPlayer, r - SLOTXY_INV_FIRST));
 		if (itemId == 0)
@@ -2715,7 +2744,9 @@ int8_t CheckInvHLight()
 		rv = r + INVITEM_BELT_FIRST;
 	}
 
-	if (pi->isEmpty())
+	// The nullptr arm is load-bearing, not paranoia: pi starts null and the chain above must
+	// explicitly claim every slot. A slot nobody claims used to dereference null right here.
+	if (pi == nullptr || pi->isEmpty())
 		return -1;
 
 	if (pi->_itype == ItemType::Gold) {
