@@ -581,6 +581,27 @@ bool UnPackNetPlayer(const PlayerNetPack &packed, Player &player)
 		case INVLOC_CHEST:
 			ValidateField(loc, loc == ILOC_ARMOR);
 			break;
+		// Oracool: the six new worn slots, found by the same SLOTXY_CHEST/INVLOC_CHEST audit grep
+		// as the hover and un-equip chains. Without these cases a peer's pack passes with anything
+		// in these slots - not a crash, but the only slot-consistency check multiplayer has.
+		case INVLOC_SHOULDERS:
+			ValidateField(loc, loc == ILOC_SHOULDERS);
+			break;
+		case INVLOC_BRACERS:
+			ValidateField(loc, loc == ILOC_BRACERS);
+			break;
+		case INVLOC_GLOVES:
+			ValidateField(loc, loc == ILOC_GLOVES);
+			break;
+		case INVLOC_WAIST:
+			ValidateField(loc, loc == ILOC_WAIST);
+			break;
+		case INVLOC_LEGS:
+			ValidateField(loc, loc == ILOC_LEGS);
+			break;
+		case INVLOC_BOOTS:
+			ValidateField(loc, loc == ILOC_BOOTS);
+			break;
 		}
 	}
 
