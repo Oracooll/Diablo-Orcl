@@ -17,6 +17,7 @@
 #include "playerdat.hpp"
 #include "options.h"
 #include "oracool/oracool.h"
+#include "oracool/ornate_border.h"
 #include "qol/stash.h"
 #include "utils/display.h"
 #include "utils/format_int.hpp"
@@ -290,9 +291,13 @@ void DrawStatButtons(const Surface &out)
 
 void LoadCharPanel()
 {
+	// Oracool V1: charbg.clx is loaded for its DIMENSIONS only - it is no longer rendered. The
+	// window's background is now the shared theme (half-transparent fill under the ornate bevel),
+	// drawn per-frame in DrawChr. Leaving the surface at index 0 means SurfaceToClx below encodes
+	// everything the field boxes and labels do not cover as transparent runs, so this composition
+	// becomes an overlay on that background instead of a page with a parchment baked in.
 	OptionalOwnedClxSpriteList background = LoadClx("data\\charbg.clx");
 	OwnedSurface out((*background)[0].width(), (*background)[0].height());
-	RenderClxSprite(out, (*background)[0], { 0, 0 });
 	background = std::nullopt;
 
 	{
@@ -326,6 +331,15 @@ void FreeCharPanel()
 void DrawChr(const Surface &out)
 {
 	Point pos = GetPanelPosition(UiPanels::Character, { 0, 0 });
+
+	// Oracool V1: shared theme, same as the inventory, waypoint list, quest log and event log.
+	// Kept at the panel's own size rather than the 340x720 those use - every entry position in
+	// panelEntries, the four stat buttons and the Reset Stats button are laid out against this
+	// rect, so resizing is a separate job from restyling.
+	const Rectangle panel { pos, Size { (*Panel)[0].width(), (*Panel)[0].height() } };
+	oracool::DrawThemedFill(out, panel);
+	oracool::DrawOrnateBorder(out, panel);
+
 	RenderClxSprite(out, (*Panel)[0], pos);
 	for (auto &entry : panelEntries) {
 		if (entry.statDisplayFunc) {
