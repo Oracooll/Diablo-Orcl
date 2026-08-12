@@ -140,17 +140,19 @@ Rectangle GetRmbSkillButtonRect()
 
 Rectangle GetLevelUpIconRect()
 {
-	// Hangs directly under the clock's ':' rather than under the clock's box. The colon is a fixed
-	// visual anchor; the box is not, because the text is left-aligned inside it and changes width
-	// with the hour and the 12/24-hour option. GetClockColonCentreX measures the real glyphs.
+	// Flush to the screen's left edge, a few pixels under the clock.
+	//
+	// This used to centre on the clock's ':' via GetClockColonCentreX, which measured real glyph
+	// widths so it tracked the hour and the 12/24-hour option. That anchor is gone: x is now simply
+	// 0, so nothing about the clock's text can move the icon, and the helper it depended on has
+	// been removed as dead code.
 	//
 	// Lives here rather than in game_clock.cpp because control.cpp needs the rect for hit-testing
 	// as well as drawing - the two must never disagree.
 	constexpr int ClockMargin = 8;
 	constexpr int ClockHeight = 20;
-	constexpr int GapBelowClock = 2;
-	return { { GetClockColonCentreX() - LevelUpIconSize.width / 2, ClockMargin + ClockHeight + GapBelowClock },
-		LevelUpIconSize };
+	constexpr int GapBelowClock = 4;
+	return { { 0, ClockMargin + ClockHeight + GapBelowClock }, LevelUpIconSize };
 }
 
 Rectangle GetBeltSlotRect(int visibleIndex)

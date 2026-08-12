@@ -40,20 +40,6 @@ std::string CurrentClockText()
 
 } // namespace
 
-int GetClockColonCentreX()
-{
-	const std::string text = CurrentClockText();
-	const size_t colon = text.find(':');
-	if (colon == std::string::npos)
-		return ClockMargin + ClockWidth / 2;
-
-	// Width of everything before the colon, plus half the colon itself. Same font and spacing the
-	// clock actually draws with, so this tracks the real glyph metrics rather than an estimate.
-	const int beforeColon = GetLineWidth(string_view(text.data(), colon), GameFont12, 1);
-	const int colonWidth = GetLineWidth(":", GameFont12, 1);
-	return ClockMargin + beforeColon + colonWidth / 2;
-}
-
 void DrawGameClock(const Surface &out)
 {
 	if (!*sgOptions.Oracool.gameClock)
