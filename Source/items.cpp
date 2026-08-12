@@ -5561,7 +5561,7 @@ std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier)
  * first match is The Undead Crown) - except for the six worn types, which are all IDROP_NEVER on
  * purpose right now and would otherwise be unreachable from here.
  */
-_item_indexes FirstBaseItemForEquipLocation(item_equip_type loc)
+_item_indexes FirstBaseItemForEquipLocation(item_equip_type loc, string_view namePrefix)
 {
 	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
 		if (!IsItemAvailable(i))
@@ -5569,6 +5569,16 @@ _item_indexes FirstBaseItemForEquipLocation(item_equip_type loc)
 		const ItemData &data = AllItemsList[i];
 		if (data.iLoc != loc)
 			continue;
+		if (!namePrefix.empty()) {
+			// Tier-prefix mode (user report: "all assets seem to be of the same type" - correct,
+			// first-in-table could only ever surface the leather tier). Every tiered item is
+			// IDROP_NEVER by design, so the drop-rate skip below must not apply here; the prefix
+			// itself is the selector instead.
+			const std::string name = AsciiStrToLower(_(data.iName));
+			if (name.compare(0, namePrefix.size(), namePrefix) != 0)
+				continue;
+			return static_cast<_item_indexes>(i);
+		}
 		if (data.iRnd == IDROP_NEVER && !IsOracoolEquipLocation(loc))
 			continue;
 		return static_cast<_item_indexes>(i);
@@ -5576,7 +5586,7 @@ _item_indexes FirstBaseItemForEquipLocation(item_equip_type loc)
 	return IDI_NONE;
 }
 
-std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical)
+std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix)
 {
 	// One per slot. Rings are the only slot pair sharing an item location, so ILOC_RING appears
 	// twice - the set is thirteen items, matching the thirteen paperdoll slots, not thirteen
@@ -5587,6 +5597,8 @@ std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool mag
 		ILOC_SHOULDERS, ILOC_BRACERS, ILOC_GLOVES, ILOC_WAIST, ILOC_LEGS, ILOC_BOOTS
 	};
 	constexpr int SlotCount = sizeof(SlotLocations) / sizeof(SlotLocations[0]);
+
+	const std::string prefixLower = AsciiStrToLower(namePrefix);
 
 	if (ActiveItemCount + SlotCount > MAXITEMS)
 		return "Not enough free item slots on this level for a whole set.";
@@ -5600,7 +5612,7 @@ std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool mag
 	int missingBase = 0;
 
 	for (item_equip_type loc : SlotLocations) {
-		const _item_indexes idx = FirstBaseItemForEquipLocation(loc);
+		const _item_indexes idx = FirstBaseItemForEquipLocation(loc, prefixLower);
 		if (idx == IDI_NONE) {
 			missingBase++;
 			continue;

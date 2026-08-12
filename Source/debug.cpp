@@ -634,31 +634,36 @@ std::string DebugCmdGeneratePrimalItem(const string_view parameter)
 }
 
 // Oracool: user request - one item for every equipment slot at once, at a chosen quality. Mainly
-// for exercising the six worn slots, which have no loot-table presence yet and are otherwise only
-// reachable by name through givemagic and friends.
+// for exercising the worn slots and the tiered set items, which have no loot-table presence and
+// are otherwise only reachable one at a time by name through drop/givemagic and friends.
+//
+// The optional parameter is a material-tier name prefix ("givebset steel", "givemset diamond"):
+// without it each slot spawns its first-in-table base (the leather tier), which is also all it
+// COULD spawn before the prefix existed - the eight-tier set items all sit later in the table
+// (user report: "all assets seem to be of the same type" - they were, structurally).
 std::string DebugCmdGiveBasicSet(const string_view parameter)
 {
-	return DebugSpawnEquipmentSet(std::nullopt, /*magical=*/false);
+	return DebugSpawnEquipmentSet(std::nullopt, /*magical=*/false, parameter);
 }
 
 std::string DebugCmdGiveMagicSet(const string_view parameter)
 {
-	return DebugSpawnEquipmentSet(std::nullopt, /*magical=*/true);
+	return DebugSpawnEquipmentSet(std::nullopt, /*magical=*/true, parameter);
 }
 
 std::string DebugCmdGiveRareSet(const string_view parameter)
 {
-	return DebugSpawnEquipmentSet(OracoolItemTier::Rare, /*magical=*/true);
+	return DebugSpawnEquipmentSet(OracoolItemTier::Rare, /*magical=*/true, parameter);
 }
 
 std::string DebugCmdGiveBuffedUniqueSet(const string_view parameter)
 {
-	return DebugSpawnEquipmentSet(OracoolItemTier::BuffedUnique, /*magical=*/true);
+	return DebugSpawnEquipmentSet(OracoolItemTier::BuffedUnique, /*magical=*/true, parameter);
 }
 
 std::string DebugCmdGivePrimalSet(const string_view parameter)
 {
-	return DebugSpawnEquipmentSet(OracoolItemTier::Primal, /*magical=*/true);
+	return DebugSpawnEquipmentSet(OracoolItemTier::Primal, /*magical=*/true, parameter);
 }
 
 std::string DebugCmdExit(const string_view parameter)
@@ -1163,11 +1168,11 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "giverare", "Attempts to generate a Rare-tier item, optionally matching {name}.", "({name})", &DebugCmdGenerateRareItem },
 	{ "giveunique", "Attempts to generate a Buffed Unique-tier item, optionally matching {name}.", "({name})", &DebugCmdGenerateBuffedUniqueItem },
 	{ "giveprimal", "Attempts to generate a Primal-tier item, optionally matching {name}.", "({name})", &DebugCmdGeneratePrimalItem },
-	{ "givebset", "Drops a Basic item for each of the 13 equipment slots.", "", &DebugCmdGiveBasicSet },
-	{ "givemset", "Drops a Magic item for each of the 13 equipment slots.", "", &DebugCmdGiveMagicSet },
-	{ "giverset", "Drops a Rare item for each of the 13 equipment slots.", "", &DebugCmdGiveRareSet },
-	{ "giveuset", "Drops a Buffed Unique item for each of the 13 equipment slots.", "", &DebugCmdGiveBuffedUniqueSet },
-	{ "givepset", "Drops a Primal item for each of the 13 equipment slots.", "", &DebugCmdGivePrimalSet },
+	{ "givebset", "Drops a Basic item for each of the 13 equipment slots, optionally of material {tier} (leather/iron/steel/crusader/bone/royal/obsidian/infernal/diamond).", "({tier})", &DebugCmdGiveBasicSet },
+	{ "givemset", "Drops a Magic item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveMagicSet },
+	{ "giverset", "Drops a Rare item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveRareSet },
+	{ "giveuset", "Drops a Buffed Unique item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveBuffedUniqueSet },
+	{ "givepset", "Drops a Primal item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGivePrimalSet },
 	{ "talkto", "Interacts with a NPC whose name contains {name}.", "{name}", &DebugCmdTalkToTowner },
 	{ "exit", "Exits the game.", "", &DebugCmdExit },
 	{ "arrow", "Changes arrow effect (normal, fire, lightning, explosion).", "{effect}", &DebugCmdArrow },

@@ -830,8 +830,13 @@ bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx);
 std::string DebugSpawnItem(std::string itemName);
 std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier);
 /** @brief Oracool: give{b,m,r,u,p}set - one item for every equipment slot at once. Pass no tier
- * and magical=false for the plain set; no tier and magical=true for the magic set. */
-std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical);
+ * and magical=false for the plain set; no tier and magical=true for the magic set.
+ *
+ * namePrefix, when non-empty, picks each slot's base item by case-insensitive item-name prefix
+ * ("steel", "diamond", ...) instead of first-in-table - the way to reach the eight-tier set
+ * items, which all sit behind the leather items in AllItemsList and are otherwise unreachable
+ * from these commands (user report: "all assets seem to be of the same type"). */
+std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix = {});
 std::string DebugSpawnUniqueItem(std::string itemName);
 #endif
 /* data */
