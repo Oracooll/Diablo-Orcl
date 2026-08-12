@@ -2,7 +2,7 @@
 title: 2026-08-12 - The Iron Helm, a New Item at an Old Slot
 date: 2026-08-12
 tags: [dev-report]
-summary: A stray root folder of ChatGPT exports got sorted per the art vault's own naming convention, and the one helmet render among them shipped as a genuinely new item - "Iron Helm" at ILOC_HELM. Unlike the six worn slots added earlier this session, ILOC_HELM already existed in vanilla Diablo, so this was table-row-and-icon work, not new-equip-location plumbing.
+summary: A stray root folder of ChatGPT exports got sorted per the art vault's own naming convention, and the one helmet render among them shipped as a genuinely new item - "Iron Helm" at ILOC_HELM. Unlike the six worn slots added earlier this session, ILOC_HELM already existed in vanilla Diablo, so this was table-row-and-icon work, not new-equip-location plumbing. A follow-up question from the user ("are you sure about this command") caught that the debug command claimed as the way to reach it didn't actually work - it needed its own fix.
 ---
 
 # The Iron Helm, a New Item at an Old Slot
@@ -31,7 +31,15 @@ The six items added earlier this session each needed a brand new `ILOC_*`/`SLOTX
 - `loadsave.cpp`: `IsOracoolItemIdx`'s range extended by one - the exact guard added earlier this session after the six worn items were discovered to be getting destroyed by the Diablo save remap. Same exposure, same fix, and skipping it here would have reintroduced that bug for this one item specifically.
 - `tools/build_item_icons.cmd`: a seventh spec line, source rect the full canvas (a single render, not a multi-item sheet needing a sub-crop).
 
-Everything downstream of `iLoc` - pack/sync/msg validation, right-click equip, hover highlighting, the paperdoll slot itself - already handles `ILOC_HELM` generically, because it's handled the same five vanilla items since before this project touched it. Confirmed by grep rather than assumed: `pack.cpp`'s slot validator already has an `INVLOC_HEAD` case, and `IsOracoolEquipLocation` (which gates the `give*set` debug commands' willingness to surface `IDROP_NEVER` items) is explicitly scoped to the six worn locations only - `ILOC_HELM` correctly falls outside it, so those commands keep surfacing vanilla Cap for the helm slot and the new item is reached the same way the six are when no set-command applies: `drop Iron Helm` at the debug console.
+Everything downstream of `iLoc` - pack/sync/msg validation, right-click equip, hover highlighting, the paperdoll slot itself - already handles `ILOC_HELM` generically, because it's handled the same five vanilla items since before this project touched it. Confirmed by grep rather than assumed: `pack.cpp`'s slot validator already has an `INVLOC_HEAD` case, and `IsOracoolEquipLocation` (which gates the `give*set` debug commands' willingness to surface `IDROP_NEVER` items) is explicitly scoped to the six worn locations only - `ILOC_HELM` correctly falls outside it, so those commands keep surfacing vanilla Cap for the helm slot as before.
+
+## `drop Iron Helm` didn't actually work - a claim caught, not assumed
+
+Said `drop Iron Helm` was the way to reach the item in-game, in this same report, on first pass. It wasn't - the user asked "are you sure about this command," which was the right question. Traced it rather than re-asserting: `drop` (`DebugSpawnItem`) doesn't look items up by name at all. It repeatedly rolls a random item via `RndItemForMonsterLevel`, and only keeps the roll if the *generated* name happens to contain the query - a loot simulator wearing a name filter, not a lookup. That RNG path runs through `GetItemIndexForDroppableItem`, which unconditionally skips every `IDROP_NEVER` entry (`items.cpp:1564`). Iron Helm is `IDROP_NEVER` by design, so `drop Iron Helm` could never terminate on a match - it would burn the full 3-second/1,000,000-try budget and report "not found," every time.
+
+The six worn items dodge this because `givebset` and friends go through a *different* function (`FirstBaseItemForEquipLocation`) with its own, separate `IDROP_NEVER` bypass - but that bypass is scoped to the six new `ILOC_*` locations specifically, and doesn't (and structurally can't just be extended to) help `ILOC_HELM`: that function returns the *first* item matching a location, and four vanilla Helm-tier items outrank Iron Helm in table order regardless of any drop-rate bypass. Iron Helm had no reachable path through any existing debug command.
+
+Fixed in `DebugSpawnItem` itself: a small direct-match check against just the seven `IDI_ORACOOL_*` indices, spawning immediately on a name hit via the same plain-item construction `givebset`'s basic tier already uses (`GetItemAttrs`+`SetupItem`). Deliberately wired as a *fallback*, tried only after the existing random search has already given up - not first. Several of these names genuinely overlap vanilla ones (`"helm"` is a substring of both "Iron Helm" and vanilla "Helm"/"Full Helm"/"Great Helm"); checking first would have made `drop helm` silently start returning Iron Helm instead of the vanilla items it already correctly finds. Running only after the existing search exhausts itself preserves every previously-working query exactly as it behaved before, and only adds a path for queries - like this one - that could never have succeeded anyway. `IsOracoolItemIdx` (the same range loadsave.cpp's save-remap guard uses) moved from a loadsave.cpp-local `constexpr` into `itemdat.h` so both files reference one definition instead of two hand-copied ranges.
 
 ## A naming-convention catch
 
@@ -43,9 +51,9 @@ Extended `PackTest.PackItem_diablo_roundtrip_preserves_oracool_worn_items` (adde
 
 ## Verification
 
-Closed-loop MPQ check repeated from the last two units of work: extracted `data\inv\oracool_items.cel` back out of the freshly-packed `oracool.mpq` and hash-matched it against the source (`48e0fcd9...`, match). Debug build clean at `ORACOOL_VERSION` **1.1.23**, confirmed embedded in the built exe. Full suite: **349/351**, the same two pre-existing failures as every build this session.
+Closed-loop MPQ check repeated from the last two units of work: extracted `data\inv\oracool_items.cel` back out of the freshly-packed `oracool.mpq` and hash-matched it against the source (`48e0fcd9...`, match). Full suite stayed at **349/351** (the same two pre-existing failures) across both builds - `ORACOOL_VERSION` **1.1.23** for the item itself, **1.1.24** for the `drop` fix, both confirmed embedded in their respective built exes. The shipped icon was also hash-verified against a fresh preview render pulled from the same build that produced the packed MPQ, not a separate/potentially-stale one.
 
-Not yet verified: actually equipping the item and looking at it on the paperdoll or character panel in a running session - that needs an interactive pass this tooling can't drive itself. `drop Iron Helm` at the debug console is the way in.
+Still not verified: actually equipping the item and looking at it on the paperdoll or character panel in a running session - that needs an interactive pass this tooling can't drive itself. `drop Iron Helm` is now confirmed to actually work as that path, rather than just asserted to.
 
 ## Related
 

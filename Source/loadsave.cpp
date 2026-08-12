@@ -2176,12 +2176,12 @@ void RemoveInvalidItem(Item &item)
  * IDI_ORACOOL_HELM (174) extends the same range on the same reasoning - it is not one of the six
  * worn types (ILOC_HELM is an ordinary vanilla slot), but it is just as new an id and just as
  * exposed to the same remap-to-empty-slot bug if left out here.
+ *
+ * IsOracoolItemIdx itself now lives in itemdat.h - items.cpp needs the same range for a second,
+ * unrelated reason (letting debug spawn commands past the IDROP_NEVER filter), and two files each
+ * hand-maintaining the same id range is exactly the kind of drift that caused the bug this
+ * function exists to fix in the first place.
  */
-constexpr bool IsOracoolItemIdx(int i)
-{
-	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_ORACOOL_HELM;
-}
-
 _item_indexes RemapItemIdxFromDiablo(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) -> int {

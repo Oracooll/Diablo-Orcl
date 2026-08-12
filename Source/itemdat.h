@@ -98,6 +98,24 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	IDI_NONE = -1,
 };
 
+/**
+ * @brief Whether @p i is one of Oracool's own added item indexes (the six worn types plus any
+ * other custom item appended after them, currently just IDI_ORACOOL_HELM).
+ *
+ * Used by loadsave.cpp's save-remap guard, which needs this exact range for a completely
+ * different reason (these ids must NOT be treated as Hellfire-exclusive) than the one this header
+ * comment might suggest - see IsOracoolItemIdx's caller in loadsave.cpp for that story.
+ * items.cpp's DebugSpawnItem bounds its own direct-match loop to the same IDI_ORACOOL_SHOULDERS..
+ * IDI_ORACOOL_HELM range for a third reason (IDROP_NEVER items are structurally unreachable
+ * through the normal random-reroll search); kept as one named range here instead of three
+ * hand-copied bounds so the three call sites can't quietly drift apart the next time this range
+ * grows.
+ */
+constexpr bool IsOracoolItemIdx(int i)
+{
+	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_ORACOOL_HELM;
+}
+
 enum item_drop_rate : uint8_t {
 	IDROP_NEVER,
 	IDROP_REGULAR,

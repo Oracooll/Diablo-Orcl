@@ -5401,10 +5401,50 @@ std::string DebugSpawnItem(std::string itemName)
 	if (ActiveItemCount >= MAXITEMS)
 		return "No space to generate the item!";
 
+	AsciiStrToLower(itemName);
+
+	// Oracool bug fix: user report - "are you sure about this command" for `drop Iron Helm`. The
+	// random-reroll search below can NEVER find any of our own items: they are IDROP_NEVER on
+	// purpose (see the AllItemsList comment above IDI_ORACOOL_SHOULDERS), and
+	// GetItemIndexForDroppableItem - the shared chokepoint RndItemForMonsterLevel calls into -
+	// unconditionally skips IDROP_NEVER entries. The six worn types have a separate way in
+	// (givebset and friends, via FirstBaseItemForEquipLocation's IsOracoolEquipLocation bypass),
+	// but that bypass is scoped to their six new ILOC_* locations and does nothing for
+	// IDI_ORACOOL_HELM, which sits at the ordinary, already-occupied ILOC_HELM - so it had no path
+	// in at all.
+	//
+	// Deliberately a FALLBACK, tried only once the search below has already given up - not a
+	// first check. Several of our names (a substring like "helm") legitimately overlap vanilla
+	// item names, and checking first would make `drop helm` steal every future query for our
+	// single Iron Helm instead of the vanilla Helm/Full Helm/Great Helm the search below already
+	// finds correctly. Running after preserves that existing behaviour exactly - our items only
+	// get a look in on a query the search below could never have satisfied anyway.
+	const auto trySpawnOracoolItem = [&itemName]() -> std::optional<std::string> {
+		for (std::underlying_type_t<_item_indexes> idx = IDI_ORACOOL_SHOULDERS; idx <= IDI_ORACOOL_HELM; idx++) {
+			std::string candidateName = AsciiStrToLower(_(AllItemsList[idx].iName));
+			if (candidateName.find(itemName) == std::string::npos)
+				continue;
+
+			const int lvl = std::clamp(static_cast<int>(MyPlayer->_pLevel), 1, 30);
+			Item item = {};
+			GetItemAttrs(item, static_cast<_item_indexes>(idx), lvl);
+			item._iCreateInfo = lvl;
+			item._iSeed = AdvanceRndSeed();
+			SetupItem(item);
+			item._iIdentified = true;
+
+			const int ii = AllocateItem();
+			Items[ii] = item.pop();
+			Point pos = MyPlayer->position.tile;
+			GetSuperItemSpace(pos, ii);
+			NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+			return "Item generated successfully.";
+		}
+		return std::nullopt;
+	};
+
 	const int max_time = 3000;
 	const int max_iter = 1000000;
-
-	AsciiStrToLower(itemName);
 
 	Item testItem;
 
@@ -5414,11 +5454,17 @@ std::string DebugSpawnItem(std::string itemName)
 		// using a better rng here to seed the item to prevent getting stuck repeating same values using old one
 		std::uniform_int_distribution<int32_t> dist(0, INT_MAX);
 		SetRndSeed(dist(BetterRng));
-		if (SDL_GetTicks() - begin > max_time)
+		if (SDL_GetTicks() - begin > max_time) {
+			if (std::optional<std::string> result = trySpawnOracoolItem())
+				return *result;
 			return StrCat("Item not found in ", max_time / 1000, " seconds!");
+		}
 
-		if (i > max_iter)
+		if (i > max_iter) {
+			if (std::optional<std::string> result = trySpawnOracoolItem())
+				return *result;
 			return StrCat("Item not found in ", max_iter, " tries!");
+		}
 
 		const int8_t monsterLevel = dist(BetterRng) % CF_LEVEL + 1;
 		_item_indexes idx = RndItemForMonsterLevel(monsterLevel);
