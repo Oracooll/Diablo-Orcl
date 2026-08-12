@@ -27,9 +27,23 @@ internal static class ItemIconCel
 	// The art sheets paint on near-black rather than transparency, so content is found by
 	// brightness. 40 keeps the dark leather of a plain glove and drops the backdrop's noise.
 	private const int BboxLumaCut = 40;
-	// Rendering cut, applied after downscaling. Higher than the bbox cut because a scaled-down
-	// edge pixel that is half backdrop reads as a dark fringe around the icon.
-	private const int RenderLumaCut = 55;
+	// Backdrop flood-fill threshold. Bug postmortem (user report: "new items seemed transparent"):
+	// the first cut dropped every pixel below a brightness of 55, but dark leather IS below 55, so
+	// the icons came out riddled with holes. Brightness cannot separate a dark item from a dark
+	// backdrop - connectivity can: the backdrop is one contiguous dark region touching the crop's
+	// edges, while an item's dark interior is enclosed by its brighter silhouette. So backdrop
+	// removal is a flood fill inward from the edges through pixels below this cut, and interior
+	// pixels survive no matter how dark they are.
+	//
+	// 30 comes from measurement, not taste: the sheets' canvas is luma 3-17 and item interiors
+	// start around 70. The first fill used 48 and leaked through shadowed silhouette edges into
+	// the items themselves.
+	private const int BackdropLumaCut = 30;
+
+	// The canvas texture has bright specks above the fill cut; the fill correctly walls around
+	// them and they survive as floating opaque dots. Anything smaller than this many source
+	// pixels is noise - real secondary pieces (a pauldron's strap) run to hundreds.
+	private const int MinIslandArea = 60;
 
 	private static int Main(string[] args)
 	{
@@ -67,7 +81,11 @@ internal static class ItemIconCel
 				Rectangle content = ContentBox(sheet, srcBox);
 				Console.WriteLine("{0}: search box {1} -> content {2}", name, srcBox, content);
 
-				using (Bitmap cell = FitInto(sheet, content, cellW, cellH)) {
+				// Backdrop removed at full resolution, BEFORE scaling: real alpha goes onto the
+				// crop, the scale then blends it into soft edges, and quantisation cuts at 50%.
+				// Removing it after scaling instead leaves every silhouette edge half-backdrop.
+				using (Bitmap crop = ExtractWithAlpha(sheet, content))
+				using (Bitmap cell = FitInto(crop, new Rectangle(0, 0, crop.Width, crop.Height), cellW, cellH)) {
 					byte[] idx = Quantise(cell, pal, name);
 					frames.Add(idx);
 					widths.Add(cellW);
@@ -115,6 +133,114 @@ internal static class ItemIconCel
 	}
 
 	/**
+	 * @brief Copies `srcBox` out of the sheet with the backdrop made genuinely transparent.
+	 *
+	 * The backdrop is every below-BackdropLumaCut pixel reachable from the crop's edges without
+	 * crossing a brighter one - a flood fill. An item's own dark pixels are enclosed by its
+	 * brighter silhouette, so the fill never reaches them.
+	 */
+	private static Bitmap ExtractWithAlpha(Bitmap sheet, Rectangle srcBox)
+	{
+		int w = srcBox.Width, h = srcBox.Height;
+		Bitmap crop = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+		using (Graphics g = Graphics.FromImage(crop)) {
+			g.CompositingMode = CompositingMode.SourceCopy;
+			g.DrawImage(sheet, new Rectangle(0, 0, w, h), srcBox, GraphicsUnit.Pixel);
+		}
+
+		bool[] isBackdrop = new bool[w * h];
+		Queue<int> queue = new Queue<int>();
+
+		BitmapData data = crop.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+		try {
+			unsafe {
+				byte* basePtr = (byte*)data.Scan0;
+				Func<int, int, bool> isDark = (x, y) => {
+					byte* p = basePtr + y * data.Stride + x * 4;
+					return Math.Max(p[2], Math.Max(p[1], p[0])) < BackdropLumaCut;
+				};
+
+				for (int x = 0; x < w; x++) {
+					foreach (int y in new[] { 0, h - 1 }) {
+						if (!isBackdrop[y * w + x] && isDark(x, y)) { isBackdrop[y * w + x] = true; queue.Enqueue(y * w + x); }
+					}
+				}
+				for (int y = 0; y < h; y++) {
+					foreach (int x in new[] { 0, w - 1 }) {
+						if (!isBackdrop[y * w + x] && isDark(x, y)) { isBackdrop[y * w + x] = true; queue.Enqueue(y * w + x); }
+					}
+				}
+
+				int[] dx = { 1, -1, 0, 0 };
+				int[] dy = { 0, 0, 1, -1 };
+				while (queue.Count > 0) {
+					int cell = queue.Dequeue();
+					int cx = cell % w, cy = cell / w;
+					for (int d = 0; d < 4; d++) {
+						int nx = cx + dx[d], ny = cy + dy[d];
+						if (nx < 0 || nx >= w || ny < 0 || ny >= h)
+							continue;
+						int n = ny * w + nx;
+						if (isBackdrop[n] || !isDark(nx, ny))
+							continue;
+						isBackdrop[n] = true;
+						queue.Enqueue(n);
+					}
+				}
+
+				// Island filter: opaque components below MinIslandArea are canvas noise, not item.
+				int[] label = new int[w * h];
+				int nextLabel = 0;
+				List<int> areas = new List<int>();
+				List<List<int>> members = new List<List<int>>();
+				for (int start = 0; start < w * h; start++) {
+					if (isBackdrop[start] || label[start] != 0)
+						continue;
+					nextLabel++;
+					List<int> cells = new List<int>();
+					Queue<int> bfs = new Queue<int>();
+					label[start] = nextLabel;
+					bfs.Enqueue(start);
+					while (bfs.Count > 0) {
+						int cell = bfs.Dequeue();
+						cells.Add(cell);
+						int cx = cell % w, cy = cell / w;
+						for (int d = 0; d < 4; d++) {
+							int nx = cx + dx[d], ny = cy + dy[d];
+							if (nx < 0 || nx >= w || ny < 0 || ny >= h)
+								continue;
+							int n = ny * w + nx;
+							if (isBackdrop[n] || label[n] != 0)
+								continue;
+							label[n] = nextLabel;
+							bfs.Enqueue(n);
+						}
+					}
+					areas.Add(cells.Count);
+					members.Add(cells);
+				}
+				for (int c = 0; c < members.Count; c++) {
+					if (areas[c] >= MinIslandArea)
+						continue;
+					foreach (int cell in members[c])
+						isBackdrop[cell] = true;
+				}
+
+				for (int y = 0; y < h; y++) {
+					byte* row = basePtr + y * data.Stride;
+					for (int x = 0; x < w; x++) {
+						if (isBackdrop[y * w + x])
+							row[x * 4 + 3] = 0;
+					}
+				}
+			}
+		} finally {
+			crop.UnlockBits(data);
+		}
+		return crop;
+	}
+
+	/**
 	 * @brief Scales `srcBox` to fit inside cellW x cellH with its aspect preserved, centred.
 	 *
 	 * "Contain", not "stretch": a glove is roughly square and a belt is roughly 3:1, so stretching
@@ -138,7 +264,8 @@ internal static class ItemIconCel
 		return dst;
 	}
 
-	/** @brief Flattens to palette indices, 0 meaning transparent (safe: output is 128-255 only). */
+	/** @brief Flattens to palette indices, 0 meaning transparent (safe: output is 128-255 only).
+	 * Cuts on the alpha the flood fill produced, NOT on brightness - see BackdropLumaCut. */
 	private static byte[] Quantise(Bitmap bmp, byte[] pal, string label)
 	{
 		int w = bmp.Width, h = bmp.Height;
@@ -153,8 +280,8 @@ internal static class ItemIconCel
 				for (int y = 0; y < h; y++) {
 					byte* row = basePtr + y * data.Stride;
 					for (int x = 0; x < w; x++) {
-						int b = row[x * 4], g = row[x * 4 + 1], r = row[x * 4 + 2];
-						if (Math.Max(r, Math.Max(g, b)) < RenderLumaCut)
+						int b = row[x * 4], g = row[x * 4 + 1], r = row[x * 4 + 2], a = row[x * 4 + 3];
+						if (a < 128)
 							continue;
 						int key = (r << 16) | (g << 8) | b;
 						byte idx;

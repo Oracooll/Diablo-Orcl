@@ -1456,15 +1456,18 @@ void DrawInv(const Surface &out)
 		ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, SidePanelSize.height - 1 }), (*pInvCels)[0]);
 	}
 
-	Size slotSize[] = {
-		{ 2, 2 }, // head
-		{ 1, 1 }, // left ring
-		{ 1, 1 }, // right ring
-		{ 1, 1 }, // amulet
-		{ 2, 3 }, // left hand
-		{ 2, 3 }, // right hand
-		{ 2, 3 }, // chest
-	};
+	// Oracool bug fix: user report - the game crashed as soon as one of the six new slots held an
+	// item. This was a hand-written 7-entry table indexed by `slot`, which now runs to 12: reading
+	// slotSize[7..12] walked off the end of a stack array, and a smashed stack takes the next
+	// unrelated thing down with it (the user also saw a crash equipping a plain magic amulet).
+	//
+	// Derived from the layout table for the same reason slotPos below is - one source of truth, and
+	// total by construction, so a fourteenth slot cannot reintroduce this.
+	Size slotSize[NUM_INVLOC];
+	for (int slot = INVLOC_HEAD; slot < NUM_INVLOC; slot++) {
+		const Size rectSize = oracool::GetEquipSlotRect(EquipSlotForBodyLocation(slot)).size;
+		slotSize[slot] = { rectSize.width / oracool::CellPx, rectSize.height / oracool::CellPx };
+	}
 
 	// Item sprites draw from their bottom-left corner, so each equipment slot's draw origin is the
 	// bottom-left of its rect. Taken from InvRect rather than a second hardcoded table: its first

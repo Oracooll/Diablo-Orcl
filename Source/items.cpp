@@ -1518,6 +1518,17 @@ AffixItemType GetAffixItemTypeForItem(const Item &item)
 	case ItemType::Ring:
 	case ItemType::Amulet:
 		return AffixItemType::Misc;
+	// Oracool bug fix: user report - the give*set commands could not produce magic/rare/tiered
+	// samples of the new worn types. This map is what every affix roll consults, and the six new
+	// types fell to the None fallthrough - "cannot carry affixes at all", the same bucket as gold.
+	// They take armour affixes, exactly like the helm they sit alongside.
+	case ItemType::Shoulders:
+	case ItemType::Bracers:
+	case ItemType::Gloves:
+	case ItemType::Belt:
+	case ItemType::Legs:
+	case ItemType::Boots:
+		return AffixItemType::Armor;
 	case ItemType::None:
 	case ItemType::Misc:
 	case ItemType::Gold:
@@ -5534,7 +5545,11 @@ std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool mag
 	if (ActiveItemCount + SlotCount > MAXITEMS)
 		return "Not enough free item slots on this level for a whole set.";
 
-	const int lvl = std::max(1, static_cast<int>(MyPlayer->_pLevel));
+	// Oracool bug fix: user report - every spawn produced "sent an invalid packet" spam. The spawn
+	// message loops back through the network layer even in single player, and IsDungeonItemValid
+	// rejects any item level above 30 that matches no monster's level - which the raw _pLevel of
+	// any high-level character is. 30 is the highest level valid everywhere.
+	const int lvl = std::clamp(static_cast<int>(MyPlayer->_pLevel), 1, 30);
 	int spawned = 0;
 	int missingBase = 0;
 
