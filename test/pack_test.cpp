@@ -797,6 +797,9 @@ TEST_F(PackTest, UnPackItem_diablo_strip_hellfire_items)
 // to -1, the EMPTY SLOT marker, destroying the item at save time. New Game (which reloads the
 // character through this exact pack round trip) merely revealed it. This drives PackItem and
 // UnPackItem in Diablo mode, one item per new type, exactly the path the user's character took.
+//
+// IDI_ORACOOL_HELM joined the list when it was added: same new-id-past-IDI_ARENAPOT exposure,
+// same IsOracoolItemIdx guard, so the same test covers it for free.
 TEST_F(PackTest, PackItem_diablo_roundtrip_preserves_oracool_worn_items)
 {
 	gbIsHellfire = false;
@@ -805,7 +808,7 @@ TEST_F(PackTest, PackItem_diablo_roundtrip_preserves_oracool_worn_items)
 
 	constexpr _item_indexes WornIndices[] = {
 		IDI_ORACOOL_SHOULDERS, IDI_ORACOOL_BRACERS, IDI_ORACOOL_GLOVES,
-		IDI_ORACOOL_BELT, IDI_ORACOOL_LEGS, IDI_ORACOOL_BOOTS
+		IDI_ORACOOL_BELT, IDI_ORACOOL_LEGS, IDI_ORACOOL_BOOTS, IDI_ORACOOL_HELM
 	};
 
 	for (const _item_indexes idx : WornIndices) {

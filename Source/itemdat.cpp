@@ -252,6 +252,13 @@ DVL_API_FOR_TEST const ItemData AllItemsList[] = {
 /*IDI_ORACOOL_BELT                 */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_WAIST,       ICURS_ORACOOL_BELT,                ItemType::Belt,        UITYPE_NONE,        N_("Leather Belt"),                N_("Belt"),           1,           16,        0,        0,       1,       2,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,         50 },
 /*IDI_ORACOOL_LEGS                 */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_LEGS,        ICURS_ORACOOL_LEGS,                ItemType::Legs,        UITYPE_NONE,        N_("Leather Leggings"),            N_("Leggings"),       3,           28,        0,        0,       3,       5,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,        110 },
 /*IDI_ORACOOL_BOOTS                */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_BOOTS,       ICURS_ORACOOL_BOOTS,               ItemType::Boots,       UITYPE_NONE,        N_("Leather Boots"),               N_("Boots"),          1,           22,        0,        0,       2,       3,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,         70 },
+
+// IDI_ORACOOL_HELM: user request - a new ILOC_HELM item, deliberately NOT part of the leather
+// tier above. The generated art reads as riveted iron/steel, not leather, so it is stat-matched
+// to vanilla "Helm" (itself ILOC_HELM, row above the Oracool block) rather than to the low-tier
+// leather items' numbers. IDROP_NEVER for the same reason as the six above: joining the loot
+// tables perturbs pack_test's RNG-seeded golden items and is a deliberate separate follow-up.
+/*IDI_ORACOOL_HELM                 */ { IDROP_NEVER  , ICLASS_ARMOR,  ILOC_HELM,        ICURS_ORACOOL_HELM,                ItemType::Helm,        UITYPE_NONE,        N_("Iron Helm"),                   N_("Helm"),           8,           30,        0,        0,       4,       6,       25,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,         40 },
 /*               */ { IDROP_NEVER,   ICLASS_NONE,   ILOC_INVALID,     ICURS_POTION_OF_FULL_MANA,         ItemType::Misc,        UITYPE_NONE,        nullptr,                           nullptr,              0,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,          0 },
 	// clang-format on
 };

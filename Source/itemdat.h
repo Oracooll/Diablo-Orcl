@@ -88,7 +88,13 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	IDI_ORACOOL_LEGS,
 	IDI_ORACOOL_BOOTS,
 
-	IDI_LAST = IDI_ORACOOL_BOOTS,
+	// Oracool: user request - a new ILOC_HELM item, deliberately NOT part of the leather set above.
+	// Unlike those six, ILOC_HELM already exists in vanilla Diablo (Cap/Skull Cap/Helm/Full
+	// Helm/Great Helm all share it), so this is an ordinary new item at an ordinary slot - no new
+	// ILOC_*/SLOTXY_*/paperdoll plumbing required, just a table row plus its own icon.
+	IDI_ORACOOL_HELM,
+
+	IDI_LAST = IDI_ORACOOL_HELM,
 	IDI_NONE = -1,
 };
 
@@ -279,7 +285,8 @@ enum item_cursor_graphic : uint16_t {
 	ICURS_ORACOOL_BELT                = 232,
 	ICURS_ORACOOL_LEGS                = 233,
 	ICURS_ORACOOL_BOOTS               = 234,
-	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_BOOTS,
+	ICURS_ORACOOL_HELM                = 235,
+	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_HELM,
 	// clang-format on
 };
 

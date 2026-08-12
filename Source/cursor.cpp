@@ -85,7 +85,8 @@ constexpr uint16_t InvItems1Size = sizeof(InvItemWidth1) / sizeof(InvItemWidth1[
 constexpr uint16_t InvItems2Size = sizeof(InvItemWidth2) / sizeof(InvItemWidth2[0]);
 
 /**
- * Oracool: a third icon sheet, for the six worn item types the original game has no art for.
+ * Oracool: a third icon sheet - the six worn item types the original game has no art for, plus
+ * any other custom item icon added since (a new ILOC_HELM item as of the seventh frame).
  *
  * Ships in oracool.mpq as data\inv\oracool_items.cel and is loaded unconditionally - unlike
  * objcurs2, which is Hellfire-only, these items exist in both games. Its ids continue straight on
@@ -101,6 +102,7 @@ const uint16_t InvItemWidth3[] = {
 	2 * 28, // belt
 	2 * 28, // legs
 	2 * 28, // boots
+	2 * 28, // helm
 };
 const uint16_t InvItemHeight3[] = {
 	2 * 28, // shoulders
@@ -109,6 +111,7 @@ const uint16_t InvItemHeight3[] = {
 	1 * 28, // belt - the one 2x1 among them
 	2 * 28, // legs
 	2 * 28, // boots
+	2 * 28, // helm
 };
 constexpr uint16_t InvItems3Size = sizeof(InvItemWidth3) / sizeof(InvItemWidth3[0]);
 static_assert(sizeof(InvItemHeight3) / sizeof(InvItemHeight3[0]) == InvItems3Size,

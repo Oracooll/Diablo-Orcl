@@ -13,7 +13,16 @@
 // the ICURS_ORACOOL_* values in itemdat.h.
 //
 // Usage: ItemIconCel.exe <palette.pal> <out.cel> <previewDir> <spec> [<spec> ...]
-//   spec = <sheet.png>,<srcX>,<srcY>,<srcW>,<srcH>,<cellW>,<cellH>,<name>
+//   spec = <sheet.png>,<srcX>,<srcY>,<srcW>,<srcH>,<cellW>,<cellH>,<name>[,<backdropCut>]
+//
+// backdropCut overrides BackdropLumaCut for that one spec (default: the constant below). Added
+// for single AI-rendered "product shot" icons (a soft vignette glow around the subject, not the
+// hand-painted sheets' flat near-black canvas) - the vignette can sit well above the sheets' 30
+// cut, and a fill that stops partway up the glow ramp leaves a hazy ring baked into the icon. Safe
+// to raise per-image because the flood fill is connectivity-, not brightness-, gated: it can only
+// reach as far as a physically unbroken dark path from the canvas edge, so a higher cut still
+// can't breach into a subject's own shadowed interior as long as brighter material - metal, cloth,
+// whatever encloses it - forms an unbroken firewall around it.
 
 using System;
 using System.Collections.Generic;
@@ -67,7 +76,7 @@ internal static class ItemIconCel
 
 		for (int i = 3; i < args.Length; i++) {
 			string[] parts = args[i].Split(',');
-			if (parts.Length != 8) {
+			if (parts.Length != 8 && parts.Length != 9) {
 				Console.Error.WriteLine("Bad spec: " + args[i]);
 				return 1;
 			}
@@ -76,6 +85,7 @@ internal static class ItemIconCel
 			int cellW = int.Parse(parts[5]);
 			int cellH = int.Parse(parts[6]);
 			string name = parts[7];
+			int backdropCut = parts.Length == 9 ? int.Parse(parts[8]) : BackdropLumaCut;
 
 			using (Bitmap sheet = new Bitmap(sheetPath)) {
 				Rectangle content = ContentBox(sheet, srcBox);
@@ -83,7 +93,7 @@ internal static class ItemIconCel
 
 				// Backdrop removed at full resolution, BEFORE scaling: real alpha goes onto the
 				// crop, and the scale then blends it into soft edges for PostProcess to resolve.
-				using (Bitmap crop = ExtractWithAlpha(sheet, content))
+				using (Bitmap crop = ExtractWithAlpha(sheet, content, backdropCut))
 				using (Bitmap cell = FitInto(crop, new Rectangle(0, 0, crop.Width, crop.Height), cellW, cellH)) {
 					PostProcess(cell);
 					byte[] idx = Quantise(cell, pal, name);
@@ -139,7 +149,7 @@ internal static class ItemIconCel
 	 * crossing a brighter one - a flood fill. An item's own dark pixels are enclosed by its
 	 * brighter silhouette, so the fill never reaches them.
 	 */
-	private static Bitmap ExtractWithAlpha(Bitmap sheet, Rectangle srcBox)
+	private static Bitmap ExtractWithAlpha(Bitmap sheet, Rectangle srcBox, int backdropLumaCut)
 	{
 		int w = srcBox.Width, h = srcBox.Height;
 		Bitmap crop = new Bitmap(w, h, PixelFormat.Format32bppArgb);
@@ -157,7 +167,7 @@ internal static class ItemIconCel
 				byte* basePtr = (byte*)data.Scan0;
 				Func<int, int, bool> isDark = (x, y) => {
 					byte* p = basePtr + y * data.Stride + x * 4;
-					return Math.Max(p[2], Math.Max(p[1], p[0])) < BackdropLumaCut;
+					return Math.Max(p[2], Math.Max(p[1], p[0])) < backdropLumaCut;
 				};
 
 				for (int x = 0; x < w; x++) {

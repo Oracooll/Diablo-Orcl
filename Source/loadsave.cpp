@@ -2172,10 +2172,14 @@ void RemoveInvalidItem(Item &item)
  * provably collision-free: the Diablo format compresses all 168 Hellfire ids into 0-155 (minus 4
  * oils, 1 scroll, 7 runes/quest ids), with 166 special-cased for the Sorcerer staff, so no
  * legitimate vanilla save ever contains a value above 166.
+ *
+ * IDI_ORACOOL_HELM (174) extends the same range on the same reasoning - it is not one of the six
+ * worn types (ILOC_HELM is an ordinary vanilla slot), but it is just as new an id and just as
+ * exposed to the same remap-to-empty-slot bug if left out here.
  */
 constexpr bool IsOracoolItemIdx(int i)
 {
-	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_ORACOOL_BOOTS;
+	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_ORACOOL_HELM;
 }
 
 _item_indexes RemapItemIdxFromDiablo(_item_indexes i)
