@@ -82,10 +82,10 @@ internal static class ItemIconCel
 				Console.WriteLine("{0}: search box {1} -> content {2}", name, srcBox, content);
 
 				// Backdrop removed at full resolution, BEFORE scaling: real alpha goes onto the
-				// crop, the scale then blends it into soft edges, and quantisation cuts at 50%.
-				// Removing it after scaling instead leaves every silhouette edge half-backdrop.
+				// crop, and the scale then blends it into soft edges for PostProcess to resolve.
 				using (Bitmap crop = ExtractWithAlpha(sheet, content))
 				using (Bitmap cell = FitInto(crop, new Rectangle(0, 0, crop.Width, crop.Height), cellW, cellH)) {
+					PostProcess(cell);
 					byte[] idx = Quantise(cell, pal, name);
 					frames.Add(idx);
 					widths.Add(cellW);
@@ -264,13 +264,156 @@ internal static class ItemIconCel
 		return dst;
 	}
 
-	/** @brief Flattens to palette indices, 0 meaning transparent (safe: output is 128-255 only).
-	 * Cuts on the alpha the flood fill produced, NOT on brightness - see BackdropLumaCut. */
-	private static byte[] Quantise(Bitmap bmp, byte[] pal, string label)
+	/**
+	 * @brief Resolves the downscaled cell into hard-edged, quantiser-ready pixels.
+	 *
+	 * Quality postmortem (user report: the icons "look a bit like parts of them are gone due to bad
+	 * background removal"). The background removal was actually fine by this point - the damage
+	 * came from what happened to its output AFTER the downscale:
+	 *
+	 * 1. Every edge pixel the bicubic scale left at less than 50% alpha was simply dropped, so any
+	 *    feature thinner than ~2 source-scaled pixels (boot tops, cuff rims, straps) came out torn.
+	 *    Now: pixels with meaningful partial alpha are COMPOSITED over a dark tone close to the
+	 *    inventory slot backdrop and kept. Binary transparency cannot fade, but it can darken - the
+	 *    edge reads as a clean anti-aliased outline on the dark panels it always sits on.
+	 * 2. Dropping those pixels also orphaned fragments whose thin connections vanished, leaving
+	 *    floating crumbs beside the icon. The source-resolution island filter cannot see these -
+	 *    they only become islands after the downscale - so a second, final-resolution sweep runs
+	 *    here.
+	 * 3. The source art's tonal range (roughly 25..170) collapsed into two or three palette
+	 *    entries, reading as flat mud. A per-icon percentile stretch spreads it across the ramp
+	 *    before quantisation gets its one chance.
+	 */
+	private static void PostProcess(Bitmap bmp)
 	{
 		int w = bmp.Width, h = bmp.Height;
+		// The tone the game paints behind items: InvDrawSlotBack's darkened slot. Edge pixels blend
+		// toward this, so on the actual panel the outline is seamless.
+		const int BackR = 38, BackG = 33, BackB = 30;
+		const int KeepAlpha = 56; // below this an edge pixel is discarded; above, composited
+
+		BitmapData data = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+		try {
+			unsafe {
+				byte* basePtr = (byte*)data.Scan0;
+
+				// Pass 1: tonal percentiles over meaningfully-opaque pixels.
+				List<int> lumas = new List<int>();
+				for (int y = 0; y < h; y++) {
+					byte* row = basePtr + y * data.Stride;
+					for (int x = 0; x < w; x++) {
+						if (row[x * 4 + 3] < 128)
+							continue;
+						lumas.Add((row[x * 4 + 2] * 3 + row[x * 4 + 1] * 6 + row[x * 4]) / 10);
+					}
+				}
+				double gain = 1.0;
+				int bias = 0;
+				if (lumas.Count >= 32) {
+					lumas.Sort();
+					int p05 = lumas[lumas.Count * 5 / 100];
+					int p95 = lumas[lumas.Count * 95 / 100];
+					if (p95 - p05 >= 24) {
+						// Map [p05, p95] onto [20, 168]. The first pass used a 205 ceiling and
+						// turned every brown into bright copper - brightened warm tones land on the
+						// palette's orange ramp instead of its red-brown ones, so the ceiling is
+						// what controls the icons' apparent hue, not just their brightness. The
+						// dither carries the mid-tone gradients now, so the stretch only needs to
+						// lift the art out of the bottom two ramp entries, not maximise contrast.
+						gain = (168.0 - 20.0) / (p95 - p05);
+						gain = Math.Min(gain, 1.5);
+						bias = 20 - (int)(p05 * gain);
+					}
+				}
+
+				// Pass 2: stretch + edge compositing.
+				for (int y = 0; y < h; y++) {
+					byte* row = basePtr + y * data.Stride;
+					for (int x = 0; x < w; x++) {
+						byte* p = row + x * 4;
+						int a = p[3];
+						if (a < KeepAlpha) {
+							p[3] = 0;
+							continue;
+						}
+						int r = (int)(p[2] * gain) + bias;
+						int g = (int)(p[1] * gain) + bias;
+						int b = (int)(p[0] * gain) + bias;
+						r = Math.Max(0, Math.Min(255, r));
+						g = Math.Max(0, Math.Min(255, g));
+						b = Math.Max(0, Math.Min(255, b));
+						if (a < 255) {
+							r = (r * a + BackR * (255 - a)) / 255;
+							g = (g * a + BackG * (255 - a)) / 255;
+							b = (b * a + BackB * (255 - a)) / 255;
+						}
+						p[2] = (byte)r;
+						p[1] = (byte)g;
+						p[0] = (byte)b;
+						p[3] = 255;
+					}
+				}
+
+				// Pass 3: final-resolution island sweep. Anything under 5 cell pixels detached from
+				// the icon is downscale debris, not art.
+				const int MinCellIsland = 5;
+				bool[] visited = new bool[w * h];
+				int[] dx = { 1, -1, 0, 0 };
+				int[] dy = { 0, 0, 1, -1 };
+				for (int start = 0; start < w * h; start++) {
+					int sx = start % w, sy = start / w;
+					if (visited[start] || (basePtr + sy * data.Stride)[sx * 4 + 3] == 0)
+						continue;
+					List<int> cells = new List<int>();
+					Queue<int> bfs = new Queue<int>();
+					visited[start] = true;
+					bfs.Enqueue(start);
+					while (bfs.Count > 0) {
+						int cell = bfs.Dequeue();
+						cells.Add(cell);
+						int cx = cell % w, cy = cell / w;
+						for (int d = 0; d < 4; d++) {
+							int nx = cx + dx[d], ny = cy + dy[d];
+							if (nx < 0 || nx >= w || ny < 0 || ny >= h)
+								continue;
+							int n = ny * w + nx;
+							if (visited[n] || (basePtr + ny * data.Stride)[nx * 4 + 3] == 0)
+								continue;
+							visited[n] = true;
+							bfs.Enqueue(n);
+						}
+					}
+					if (cells.Count < MinCellIsland) {
+						foreach (int cell in cells)
+							(basePtr + (cell / w) * data.Stride)[(cell % w) * 4 + 3] = 0;
+					}
+				}
+			}
+		} finally {
+			bmp.UnlockBits(data);
+		}
+	}
+
+	/**
+	 * @brief Flattens to palette indices, 0 meaning transparent (safe: output is 128-255 only).
+	 *
+	 * Floyd-Steinberg at reduced strength, not plain nearest-match. With ~128 usable entries a
+	 * nearest match collapses the art's gradients into two or three flat patches - the "muddy"
+	 * look. Error diffusion trades that for fine speckle, which is exactly what the original
+	 * game's own item icons do; it is the texture this palette was drawn for. Error never
+	 * diffuses into transparent pixels, so the silhouette stays crisp.
+	 */
+	private static byte[] Quantise(Bitmap bmp, byte[] pal, string label)
+	{
+		// Full-strength FS at 56px shimmers; half-strength keeps the ramps without the noise.
+		const double DitherStrength = 0.5;
+
+		int w = bmp.Width, h = bmp.Height;
 		byte[] outIdx = new byte[w * h];
-		Dictionary<int, byte> cache = new Dictionary<int, byte>();
+		double[] errR = new double[w * h];
+		double[] errG = new double[w * h];
+		double[] errB = new double[w * h];
+		bool[] opaqueMask = new bool[w * h];
 		int opaque = 0;
 
 		BitmapData data = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
@@ -279,25 +422,54 @@ internal static class ItemIconCel
 				byte* basePtr = (byte*)data.Scan0;
 				for (int y = 0; y < h; y++) {
 					byte* row = basePtr + y * data.Stride;
+					for (int x = 0; x < w; x++)
+						opaqueMask[y * w + x] = row[x * 4 + 3] >= 128;
+				}
+
+				for (int y = 0; y < h; y++) {
+					byte* row = basePtr + y * data.Stride;
 					for (int x = 0; x < w; x++) {
-						int b = row[x * 4], g = row[x * 4 + 1], r = row[x * 4 + 2], a = row[x * 4 + 3];
-						if (a < 128)
+						int i = y * w + x;
+						if (!opaqueMask[i])
 							continue;
-						int key = (r << 16) | (g << 8) | b;
-						byte idx;
-						if (!cache.TryGetValue(key, out idx)) {
-							idx = Nearest(pal, r, g, b);
-							cache[key] = idx;
-						}
-						outIdx[y * w + x] = idx;
+
+						double r = row[x * 4 + 2] + errR[i];
+						double g = row[x * 4 + 1] + errG[i];
+						double b = row[x * 4] + errB[i];
+						int ri = (int)Math.Max(0, Math.Min(255, Math.Round(r)));
+						int gi = (int)Math.Max(0, Math.Min(255, Math.Round(g)));
+						int bi = (int)Math.Max(0, Math.Min(255, Math.Round(b)));
+
+						byte idx = Nearest(pal, ri, gi, bi);
+						outIdx[i] = idx;
 						opaque++;
+
+						double dr = (r - pal[idx * 3]) * DitherStrength;
+						double dg = (g - pal[idx * 3 + 1]) * DitherStrength;
+						double db = (b - pal[idx * 3 + 2]) * DitherStrength;
+
+						// Standard FS kernel: right 7/16, below-left 3/16, below 5/16, below-right 1/16.
+						if (x + 1 < w && opaqueMask[i + 1]) {
+							errR[i + 1] += dr * 7 / 16; errG[i + 1] += dg * 7 / 16; errB[i + 1] += db * 7 / 16;
+						}
+						if (y + 1 < h) {
+							if (x > 0 && opaqueMask[i + w - 1]) {
+								errR[i + w - 1] += dr * 3 / 16; errG[i + w - 1] += dg * 3 / 16; errB[i + w - 1] += db * 3 / 16;
+							}
+							if (opaqueMask[i + w]) {
+								errR[i + w] += dr * 5 / 16; errG[i + w] += dg * 5 / 16; errB[i + w] += db * 5 / 16;
+							}
+							if (x + 1 < w && opaqueMask[i + w + 1]) {
+								errR[i + w + 1] += dr * 1 / 16; errG[i + w + 1] += dg * 1 / 16; errB[i + w + 1] += db * 1 / 16;
+							}
+						}
 					}
 				}
 			}
 		} finally {
 			bmp.UnlockBits(data);
 		}
-		Console.WriteLine("  {0}: {1}x{2}, {3} opaque px, {4} distinct source colours", label, w, h, opaque, cache.Count);
+		Console.WriteLine("  {0}: {1}x{2}, {3} opaque px", label, w, h, opaque);
 		return outIdx;
 	}
 
