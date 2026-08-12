@@ -530,6 +530,21 @@ void RightMouseDown(bool isShiftHeld)
 		return;
 	if (pcursstashitem != StashStruct::EmptyCell && UseStashItem(pcursstashitem))
 		return;
+	// Oracool: user request - inside the inventory window a right-click equips or un-equips
+	// instead of falling through to the readied spell ("right click on the inv window casts the
+	// RMB skill which is meaningless in this case"). Order matters: the UseInvItem attempts above
+	// have already run, so potions still drink and scrolls still read - only what they refused
+	// (equipment is not usable; a worn item's cii is below INVITEM_INV_FIRST) reaches this.
+	// CheckInvCut's automaticMove path is the exact machinery shift-click uses: backpack
+	// equipment auto-equips, a worn item auto-stashes into the backpack.
+	//
+	// The unconditional return is the other half of the request: a right-click anywhere in the
+	// window - empty cells, panel chrome - now does nothing rather than casting.
+	if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
+		if (MyPlayer->HoldItem.isEmpty() && pcurs == CURSOR_HAND)
+			CheckInvCut(*MyPlayer, MousePosition, /*automaticMove=*/true, /*dropItem=*/false);
+		return;
+	}
 	if (pcurs == CURSOR_HAND) {
 		CheckPlrSpell(isShiftHeld);
 	} else if (pcurs > CURSOR_HAND && pcurs < CURSOR_FIRSTITEM) {

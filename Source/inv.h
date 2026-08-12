@@ -316,6 +316,15 @@ bool CheckInventorySortButtonClick(Point cursorPosition);
 void CheckInvItem(bool isShiftHeld = false, bool isCtrlHeld = false);
 
 /**
+ * @brief Picks up (or, with @p automaticMove, auto-moves) whatever sits under @p cursorPosition.
+ *
+ * Oracool: exported for RightMouseDown - a right-click inside the inventory window routes here
+ * with automaticMove=true, which is the exact machinery shift-click uses: backpack equipment
+ * auto-equips, a worn item auto-stashes into the backpack.
+ */
+void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool dropItem);
+
+/**
  * Check for interactions with belt
  */
 void CheckInvScrn(bool isShiftHeld, bool isCtrlHeld);

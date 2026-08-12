@@ -861,6 +861,12 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 	}
 }
 
+} // namespace
+
+// Oracool: hoisted out of the anonymous namespace (same pattern as stores.cpp's test hooks) so
+// RightMouseDown can reach it - a right-click inside the inventory window routes here with
+// automaticMove=true, the exact machinery shift-click uses. The anonymous-namespace helpers it
+// calls stay visible from here, since that visibility spans the whole translation unit.
 void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool dropItem)
 {
 	if (player._pmode > PM_WALK_SIDEWAYS) {
@@ -1169,6 +1175,8 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 		TryDropItem();
 	}
 }
+
+namespace {
 
 void TryCombineNaKrulNotes(Player &player, Item &noteItem)
 {
