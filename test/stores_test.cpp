@@ -423,7 +423,11 @@ TEST(Stores, SortStash_OrdersByCategoryThenDescendingPrice)
 	gbIsMultiplayer = false;
 	Stash = {};
 
-	auto makeItem = [](ItemType itype, int8_t curs, int value) {
+	// `curs` is item_cursor_graphic, not int8_t. It was int8_t, which silently truncated every id
+	// above 127 - ICURS_LEATHER_ARMOR (135) arrived as -121. That round-tripped back to 135 only
+	// because Item::_iCurs was itself uint8_t; once it widened to uint16_t the same -121 became
+	// 65415, GetInvItemSize read far out of bounds, and the sort crashed with a divide by zero.
+	auto makeItem = [](ItemType itype, item_cursor_graphic curs, int value) {
 		devilution::Item item;
 		item._itype = itype;
 		item._iCurs = curs;

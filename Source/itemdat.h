@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file itemdat.h
  *
  * Interface of all item data.
@@ -124,7 +124,12 @@ constexpr bool IsOracoolEquipLocation(item_equip_type loc)
 }
 
 /// Item graphic IDs; frame_num-11 of objcurs.cel.
-enum item_cursor_graphic : uint8_t {
+///
+/// Oracool: widened from uint8_t. Sheets 1 and 2 already use ids 0-228 of the 0-255 a byte
+/// offers, and the six new worn types need roughly a hundred icons between them. Runtime only -
+/// saves store the AllItemsList index and rebuild the item from its seed, so nothing on disk
+/// carries a cursor id except the ear-name packing, which is unaffected.
+enum item_cursor_graphic : uint16_t {
 	// clang-format off
 	ICURS_POTION_OF_FULL_MANA         = 0,
 	ICURS_SCROLL_OF                   = 1,

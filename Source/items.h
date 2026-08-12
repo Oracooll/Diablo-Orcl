@@ -245,7 +245,8 @@ struct Item {
 	char _iIName[64] = {};
 	item_equip_type _iLoc = ILOC_NONE;
 	item_class _iClass = ICLASS_NONE;
-	uint8_t _iCurs = 0;
+	/** @brief Item graphic id. uint16_t, not uint8_t - see item_cursor_graphic. */
+	uint16_t _iCurs = 0;
 	int _ivalue = 0;
 	int _iIvalue = 0;
 	uint8_t _iMinDam = 0;
