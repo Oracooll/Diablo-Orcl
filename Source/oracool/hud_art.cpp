@@ -441,25 +441,6 @@ void DrawInventoryTab(const Surface &out, int index, int state)
 	    origin);
 }
 
-void DrawInventorySortButton(const Surface &out, int state)
-{
-	if (state < 0 || state > 2)
-		return;
-
-	EnsureLoadedAll();
-	if (InventorySortArt.rgba.empty())
-		return;
-	EnsureQuantized();
-	if (!InventorySortArt.bright)
-		return;
-
-	const Rectangle rect = GetSortButtonRect();
-	const Point origin = GetInventoryPanelRect().position + Displacement { rect.position.x, rect.position.y };
-	out.BlitFromSkipColorIndexZero(*InventorySortArt.bright,
-	    MakeSdlRect(state * SortButtonSize.width, 0, SortButtonSize.width, SortButtonSize.height),
-	    origin);
-}
-
 void DrawTownPortalIcon(const Surface &out, int state)
 {
 	if (state < 0 || state > 2)

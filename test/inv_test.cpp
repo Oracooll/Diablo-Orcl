@@ -748,8 +748,12 @@ TEST_F(InvTest, CheckInventorySortButtonClick_HitsButtonAndSorts)
 	MyPlayer->InvGrid[1] = 2;
 	MyPlayer->_pNumInv = 2;
 
-	const Rectangle sortRect = oracool::GetSortButtonRect();
-	MousePosition = GetPanelPosition(UiPanels::Inventory, sortRect.position) + Displacement { sortRect.size.width / 2, sortRect.size.height / 2 };
+	// Oracool V1: SORT is the last tab position now, not a standalone button, and the inventory
+	// window owns its own rect rather than sitting inside UiPanels::Inventory.
+	const Rectangle sortRect = oracool::GetTabRect(oracool::SortTabIndex);
+	MousePosition = oracool::GetInventoryPanelRect().position
+	    + Displacement { sortRect.position.x + sortRect.size.width / 2,
+		    sortRect.position.y + sortRect.size.height / 2 };
 
 	EXPECT_TRUE(CheckInventorySortButtonClick(MousePosition));
 	EXPECT_EQ(MyPlayer->InvList[0]._ivalue, 400);
@@ -762,8 +766,12 @@ TEST_F(InvTest, CheckInventorySortButtonClick_MissesInMultiplayer)
 	clear_inventory();
 	gbIsMultiplayer = true;
 
-	const Rectangle sortRect = oracool::GetSortButtonRect();
-	MousePosition = GetPanelPosition(UiPanels::Inventory, sortRect.position) + Displacement { sortRect.size.width / 2, sortRect.size.height / 2 };
+	// Oracool V1: SORT is the last tab position now, not a standalone button, and the inventory
+	// window owns its own rect rather than sitting inside UiPanels::Inventory.
+	const Rectangle sortRect = oracool::GetTabRect(oracool::SortTabIndex);
+	MousePosition = oracool::GetInventoryPanelRect().position
+	    + Displacement { sortRect.position.x + sortRect.size.width / 2,
+		    sortRect.position.y + sortRect.size.height / 2 };
 
 	EXPECT_FALSE(CheckInventorySortButtonClick(MousePosition));
 

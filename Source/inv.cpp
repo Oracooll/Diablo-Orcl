@@ -1448,6 +1448,14 @@ void DrawInventoryTabs(const Surface &out)
 	// Unselected tabs draw first so the selected one is never clipped by a neighbour. That costs
 	// nothing today (ActiveTabGrow is 0, so they are all the same size) but keeps the ordering
 	// correct if the selected tab is ever made to stand proud again.
+	// Oracool V1: the tabs are drawn, not blitted. The v3 numeral sheet is gone - positions 0-8 are
+	// the digits 1-9 and the last is "S", the sort button.
+	//
+	// Unselected tabs get the bevel and NOTHING behind it, so the panel shows through unchanged.
+	// The selected tab is the only one with a fill, and it also grows to 30x30 - one pixel out each
+	// side and two up, bottom edge pinned, so the row stays seated on one line and only the open
+	// tab stands proud. Drawn in a second pass for that reason: its extra two pixels would
+	// otherwise be painted over by whichever neighbour drew next.
 	const Rectangle panel = oracool::GetInventoryPanelRect();
 	for (int pass = 0; pass < 2; pass++) {
 		for (int tab = 0; tab < oracool::TabCount; tab++) {
@@ -1455,29 +1463,32 @@ void DrawInventoryTabs(const Surface &out)
 			if (selected != (pass == 1))
 				continue;
 
-			// Oracool V1 theme: every tab takes the bevel, and the SELECTED one is filled twice
-			// against the others' once, so the open tab sits more solidly than its neighbours -
-			// matching how the item slots and grid sit against the panel.
-			const Rectangle r = oracool::GetTabRect(tab);
+			const Rectangle r = selected ? oracool::GetActiveTabRect(tab) : oracool::GetTabRect(tab);
 			const Rectangle screenRect { panel.position + Displacement { r.position.x, r.position.y }, r.size };
-			oracool::DrawThemedFill(out, screenRect, selected ? 2 : 1);
+			if (selected)
+				oracool::DrawThemedFill(out, screenRect, 2);
 			oracool::DrawOrnateBorder(out, screenRect);
 
-			oracool::DrawInventoryTab(out, tab, selected ? 1 : 0);
+			// White on the open tab, gold on the rest.
+			DrawString(out, oracool::TabLabel(tab), screenRect,
+			    { (selected ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
+			        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 		}
 	}
 }
 
-bool inventorySortButtonDown;
-
-/** @brief Oracool V1: the SORT button, from the user's three-state art. */
-void DrawInventorySortButton(const Surface &out)
+/** @brief Oracool V1: the player's gold, centred under the backpack grid. */
+void DrawInventoryGoldRow(const Surface &out)
 {
-	const Rectangle rect = oracool::GetSortButtonRect();
-	const Point screenPos = GetPanelPosition(UiPanels::Inventory, rect.position);
-	const bool hovered = Rectangle { screenPos, rect.size }.contains(MousePosition);
-	oracool::DrawInventorySortButton(out, inventorySortButtonDown ? 2 : (hovered ? 1 : 0));
+	const Rectangle r = oracool::GetGoldRowRect();
+	const Rectangle screenRect { oracool::GetInventoryPanelRect().position
+		    + Displacement { r.position.x, r.position.y },
+		r.size };
+	DrawString(out, StrCat(_("GOLD: "), FormatInteger(MyPlayer->_pGold)), screenRect,
+	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
+
+bool inventorySortButtonDown;
 
 void DrawInv(const Surface &out)
 {
@@ -1609,7 +1620,7 @@ void DrawInv(const Surface &out)
 	// Oracool: user decision (2026-08-11) - the sort control is a standard V1 feature, not a
 	// setting; it is always present in single-player.
 	if (oracool::IsSinglePlayer())
-		DrawInventorySortButton(out);
+		DrawInventoryGoldRow(out);
 }
 
 void DrawInvBelt(const Surface &out)
@@ -2329,8 +2340,11 @@ bool CheckInventorySortButtonClick(Point cursorPosition)
 	if (!oracool::IsSinglePlayer())
 		return false;
 
-	const Rectangle sortRect = oracool::GetSortButtonRect();
-	const Rectangle button { GetPanelPosition(UiPanels::Inventory, sortRect.position), sortRect.size };
+	// Oracool V1: SORT is no longer a standalone widget - it is the last tab position, labelled "S".
+	const Rectangle sortRect = oracool::GetTabRect(oracool::SortTabIndex);
+	const Rectangle button { oracool::GetInventoryPanelRect().position
+		    + Displacement { sortRect.position.x, sortRect.position.y },
+		sortRect.size };
 	if (!button.contains(cursorPosition))
 		return false;
 

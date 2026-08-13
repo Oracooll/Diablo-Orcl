@@ -81,7 +81,9 @@ Size GetWaypointIconSize();
 void DrawInventoryTab(const Surface &out, int index, int state);
 
 /** @brief Draws the SORT button at GetSortButtonRect(). @p state is 0 idle, 1 hovered, 2 pressed. */
-void DrawInventorySortButton(const Surface &out, int state);
+// DrawInventorySortButton is gone: the SORT button is no longer a standalone widget with its own
+// art. It is tab position oracool::SortTabIndex, drawn as the letter "S" alongside the numbered
+// tabs - see DrawInventoryTabs in inv.cpp.
 
 /**
  * @brief Draws the belt's Town Portal button. @p state is 0 resting, 1 hovered, 2 pressed.

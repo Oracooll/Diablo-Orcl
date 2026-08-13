@@ -30,7 +30,10 @@ namespace devilution {
 namespace oracool {
 
 /** @brief Size of the inventory window. Matches the source art, 1:1, no scaling. */
-constexpr Size InventoryPanelSize { 320, 660 };
+constexpr Size InventoryPanelSize { 340, 720 };
+
+/** @brief Inset from the panel edge, matching the waypoint list and quest log's PanelMargin. */
+constexpr int PanelMargin = 24;
 
 /**
  * @brief Grid cell pitch. Locked to INV_SLOT_SIZE_PX (28) because item icons are fixed-size
@@ -44,7 +47,15 @@ constexpr Size GridSizeInCells { 10, 7 };
 constexpr int GridCellCount = GridSizeInCells.width * GridSizeInCells.height;
 
 /** @brief Panel-relative top-left of the item grid. Horizontally centred: (320 - 10*28) / 2. */
-constexpr Point GridOrigin { (InventoryPanelSize.width - GridSizeInCells.width * CellPx) / 2, 400 };
+/**
+ * @brief Panel-relative top-left of the item grid.
+ *
+ * Horizontally centred: (340 - 10*28) / 2. Vertically pinned so the grid's BOTTOM lands exactly on
+ * OrbClearanceBottom - at 720 tall the panel now reaches the bottom of the screen, so the grid can
+ * no longer simply sit where it fits; it has to stop where the mana orb starts.
+ */
+constexpr Point GridOrigin { (InventoryPanelSize.width - GridSizeInCells.width * CellPx) / 2,
+	624 - GridSizeInCells.height * CellPx };
 constexpr int GridBottom = GridOrigin.y + GridSizeInCells.height * CellPx;
 
 /**
@@ -72,6 +83,26 @@ static_assert(TabCount == GridSizeInCells.width,
  * this is 0 - GetActiveTabRect() collapses onto GetTabRect() - and raising it is the whole
  * change if a raised selected tab is ever wanted again.
  */
+/**
+ * @brief How far the selected tab grows beyond an unselected one.
+ *
+ * The selected tab is 30x30 against the others' 28x28, and it grows ASYMMETRICALLY: one pixel left
+ * and right, two upward, and none downward. Keeping the bottom edge fixed is the point - all ten
+ * tabs stay seated on the same line above the grid, and only the open one stands proud of it.
+ */
+constexpr int ActiveTabGrowSides = 1;
+constexpr int ActiveTabGrowTop = 2;
+
+/** @brief Index of the tab position that is the SORT button rather than a storage tab. */
+constexpr int SortTabIndex = TabCount - 1;
+
+/** @brief Label drawn in tab @p index: "1".."9" for the storage tabs, "S" for the sort button. */
+constexpr const char *TabLabel(int index)
+{
+	constexpr const char *Labels[TabCount] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "S" };
+	return Labels[index];
+}
+
 constexpr int ActiveTabGrow = 0;
 
 /** @brief Panel-relative rect of tab @p index (0 = the original backpack, 1-9 = extra tabs). */
@@ -84,9 +115,16 @@ constexpr Rectangle GetTabRect(int index)
 constexpr Rectangle GetActiveTabRect(int index)
 {
 	const Rectangle r = GetTabRect(index);
-	return { { r.position.x - ActiveTabGrow, r.position.y - ActiveTabGrow },
-		{ r.size.width + 2 * ActiveTabGrow, r.size.height + 2 * ActiveTabGrow } };
+	return { { r.position.x - ActiveTabGrowSides, r.position.y - ActiveTabGrowTop },
+		{ r.size.width + 2 * ActiveTabGrowSides, r.size.height + ActiveTabGrowTop } };
 }
+
+// The selected tab is 30x30 and shares its bottom edge with the unselected ones.
+static_assert(GetActiveTabRect(0).size.width == 30 && GetActiveTabRect(0).size.height == 30,
+    "Selected tab is no longer 30x30");
+static_assert(GetActiveTabRect(0).position.y + GetActiveTabRect(0).size.height
+        == GetTabRect(0).position.y + GetTabRect(0).size.height,
+    "Selected tab no longer shares its bottom edge with the unselected tabs");
 
 /**
  * @brief Source cell size in the tab strip asset. Every cell is the *active* size; the two
@@ -109,31 +147,10 @@ constexpr Point GetTabCellOrigin(int index)
  */
 constexpr int OrbClearanceBottom = 624;
 
-/**
- * @brief Inner edge of the panel's decorative bottom border. Measured off the background art:
- * scanning per-row mean luma up from the bottom, the carved frame occupies 651-659 and flat
- * stone resumes at 650.
- */
-constexpr int PanelInnerBottom = 650;
+// The sygil constants that lived here are gone with the composed stone panel: the sygil was baked
+// into ui\inventory_panel.png, which the shared theme replaced. The band it occupied is now the
+// gold readout's - see GetGoldRowRect below.
 
-/**
- * @brief The class sygil, centred in the footer between the grid and the panel's bottom border.
- *
- * Note this DOES sit partly under the mana orb at 960x720, where the orb covers everything
- * below y 624 - roughly the bottom half of the plaque. That is the requested placement:
- * centred in the footer proper, not in the orb-free part of it. At 1280 wide the orb clears
- * the panel entirely and the whole plaque is visible.
- */
-constexpr int SygilBandTop = GridBottom;
-constexpr int SygilBandBottom = PanelInnerBottom;
-constexpr Size SygilSize { 163, 48 };
-constexpr Point SygilPosition {
-	(InventoryPanelSize.width - SygilSize.width) / 2,
-	SygilBandTop + (SygilBandBottom - SygilBandTop - SygilSize.height) / 2
-};
-static_assert(SygilPosition.y >= GridBottom
-        && SygilPosition.y + SygilSize.height <= PanelInnerBottom,
-    "Sygil does not fit between the grid and the panel's bottom border");
 static_assert(GridBottom <= OrbClearanceBottom,
     "Inventory grid extends into the mana orb - move the grid up or shorten it");
 static_assert(GridBottom <= InventoryPanelSize.height,
@@ -189,9 +206,16 @@ struct EquipSlotLayout {
 	Rectangle rect;
 };
 
-constexpr int EquipColLeft = 34;
+// Widened 320 -> 340, so the side columns move out by half that each to stay symmetric about the
+// centre column, which derives from the panel width and therefore moved on its own.
+constexpr int EquipColLeft = 44;
 constexpr int EquipColCentre = (InventoryPanelSize.width - 2 * CellPx) / 2;
-constexpr int EquipColRight = 230;
+constexpr int EquipColRight = 240;
+static_assert(EquipColLeft + 2 * CellPx < EquipColCentre
+        && EquipColCentre + 2 * CellPx < EquipColRight,
+    "Equipment columns overlap");
+static_assert(EquipColRight + 2 * CellPx <= InventoryPanelSize.width - PanelMargin,
+    "Right equipment column runs into the panel margin");
 
 /**
  * @brief Horizontal gap between the centre column (armor) and the side columns (gloves,
@@ -211,10 +235,13 @@ constexpr int AmuletX = EquipColCentre + 2 * CellPx + HeadFlankGap;
 /**
  * @brief The rings share the belt's row - all three are one cell tall, so they line up exactly.
  */
-constexpr int BeltAndRingRowY = 182;
+// Every equipment row shifted down by EquipRowShift when the panel grew 660 -> 720: the block used
+// to span 18..340 in a 320x660 panel and now sits centred in the 24..TabRowY space above the tabs.
+constexpr int EquipRowShift = 33;
+constexpr int BeltAndRingRowY = 182 + EquipRowShift;
 
 /** @brief Bottom edge of the gloves/bracers row, which the ring row is spaced beneath. */
-constexpr int GlovesRowBottom = 104 + 2 * CellPx;
+constexpr int GlovesRowBottom = 104 + EquipRowShift + 2 * CellPx;
 
 /**
  * @brief Vertical gap above the ring row. Weapon and shield then sit the same distance below
@@ -236,26 +263,30 @@ constexpr Rectangle EquipRect1x1(int columnX, int y)
 }
 
 constexpr EquipSlotLayout EquipSlots[EquipSlotCount] = {
-	{ EquipSlot::Helm, EquipRect(EquipColCentre, 18, 2, 2) },
-	{ EquipSlot::Shoulders, EquipRect(ShouldersX, 36, 2, 2) },
-	{ EquipSlot::Amulet, EquipRect(AmuletX, 48, 1, 1) },
-	{ EquipSlot::Chest, EquipRect(EquipColCentre, 88, 2, 3) },
-	{ EquipSlot::Gloves, EquipRect(EquipColLeft, 104, 2, 2) },
-	{ EquipSlot::Bracers, EquipRect(EquipColRight, 104, 2, 2) },
+	{ EquipSlot::Helm, EquipRect(EquipColCentre, 18 + EquipRowShift, 2, 2) },
+	{ EquipSlot::Shoulders, EquipRect(ShouldersX, 36 + EquipRowShift, 2, 2) },
+	{ EquipSlot::Amulet, EquipRect(AmuletX, 48 + EquipRowShift, 1, 1) },
+	{ EquipSlot::Chest, EquipRect(EquipColCentre, 88 + EquipRowShift, 2, 3) },
+	{ EquipSlot::Gloves, EquipRect(EquipColLeft, 104 + EquipRowShift, 2, 2) },
+	{ EquipSlot::Bracers, EquipRect(EquipColRight, 104 + EquipRowShift, 2, 2) },
 	{ EquipSlot::RingLeft, EquipRect1x1(EquipColLeft, BeltAndRingRowY) },
 	{ EquipSlot::RingRight, EquipRect1x1(EquipColRight, BeltAndRingRowY) },
 	{ EquipSlot::Belt, EquipRect(EquipColCentre, BeltAndRingRowY, 2, 1) },
 	{ EquipSlot::Weapon, EquipRect(EquipColLeft, WeaponRowY, 2, 3) },
 	{ EquipSlot::Shield, EquipRect(EquipColRight, WeaponRowY, 2, 3) },
-	{ EquipSlot::Legs, EquipRect(EquipColCentre, 220, 2, 2) },
-	{ EquipSlot::Boots, EquipRect(EquipColCentre, 284, 2, 2) },
+	{ EquipSlot::Legs, EquipRect(EquipColCentre, 220 + EquipRowShift, 2, 2) },
+	{ EquipSlot::Boots, EquipRect(EquipColCentre, 284 + EquipRowShift, 2, 2) },
 };
+
 
 /** @brief Panel-relative rect of @p slot. */
 constexpr Rectangle GetEquipSlotRect(EquipSlot slot)
 {
 	return EquipSlots[static_cast<int>(slot)].rect;
 }
+
+static_assert(GetEquipSlotRect(EquipSlot::Helm).position.y >= PanelMargin,
+    "Equipment block starts above the panel margin");
 
 static_assert(GetEquipSlotRect(EquipSlot::Boots).position.y
         + GetEquipSlotRect(EquipSlot::Boots).size.height
@@ -285,17 +316,24 @@ static_assert(ShouldersX + 2 * CellPx < EquipColCentre
  * weapon row moves - which it already did once, when the ring row was aligned to the belt.
  * Declared here, after the equipment block, because it depends on those constants.
  */
-constexpr Size SortButtonSize { 28, 28 };
-constexpr int SortButtonCentreX = EquipColLeft + CellPx; // centre of a 2-cell-wide column
 constexpr int WeaponRowBottom = WeaponRowY + 3 * CellPx;
-constexpr Rectangle GetSortButtonRect()
+
+/**
+ * @brief The gold readout, centred in the band between the grid's bottom and the panel's.
+ *
+ * Replaces the standalone SORT button, which is now tab position SortTabIndex. The band exists
+ * because the grid stops at OrbClearanceBottom while the panel runs to 720 - so this sits in space
+ * the mana orb already covers at 960x720, and is fully visible at wider resolutions where the orb
+ * clears the panel.
+ */
+constexpr int GoldRowHeight = 24;
+constexpr Rectangle GetGoldRowRect()
 {
-	return { { SortButtonCentreX - SortButtonSize.width / 2,
-	             WeaponRowBottom + (TabRowY - WeaponRowBottom - SortButtonSize.height) / 2 },
-		SortButtonSize };
+	return { { PanelMargin, GridBottom + 4 },
+		{ InventoryPanelSize.width - 2 * PanelMargin, GoldRowHeight } };
 }
-static_assert(WeaponRowBottom + SortButtonSize.height <= TabRowY,
-    "No room for the SORT button between the weapon slot and the tab row");
+static_assert(GetGoldRowRect().position.y + GoldRowHeight <= InventoryPanelSize.height,
+    "Gold row runs past the bottom of the panel");
 
 } // namespace oracool
 } // namespace devilution
