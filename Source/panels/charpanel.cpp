@@ -239,15 +239,9 @@ constexpr int PanelFieldPaddingTop = 3;
 constexpr int PanelFieldPaddingBottom = 3;
 constexpr int PanelFieldInnerHeight = PanelFieldHeight - PanelFieldPaddingTop - PanelFieldPaddingBottom;
 
-void DrawPanelField(const Surface &out, Point pos, int len, ClxSprite left, ClxSprite middle, ClxSprite right)
-{
-	RenderClxSprite(out, left, pos);
-	pos.x += left.width();
-	len -= left.width() + right.width();
-	RenderClxSprite(out.subregion(pos.x, pos.y, len, middle.height()), middle, Point { 0, 0 });
-	pos.x += len;
-	RenderClxSprite(out, right, pos);
-}
+// DrawPanelField is gone with the field boxes it drew. It was the vanilla 3-slice - left cap,
+// middle clipped to the needed width, right cap - and is worth remembering as the pattern for a
+// seamless resizable border, since the middle was clipped rather than tiled or stretched.
 
 void DrawShadowString(const Surface &out, const PanelEntry &entry)
 {
@@ -328,10 +322,10 @@ void LoadCharPanel()
 	background = std::nullopt;
 
 	{
-		OwnedClxSpriteList boxLeft = LoadClx("data\\boxleftend.clx");
-		OwnedClxSpriteList boxMiddle = LoadClx("data\\boxmiddle.clx");
-		OwnedClxSpriteList boxRight = LoadClx("data\\boxrightend.clx");
-
+		// Oracool V1: the field boxes are gone - no bezel and no background behind the values.
+		// boxleftend/boxmiddle/boxrightend.clx are no longer loaded, and DrawPanelField with them.
+		// The values now sit directly on the themed panel, which is what the rest of the window
+		// already does.
 		const bool isSmallFontTall = IsSmallFontTall();
 		const int attributeHeadersY = isSmallFontTall ? 112 : 114;
 		for (unsigned i : AttributeHeaderEntryIndices) {
@@ -340,9 +334,6 @@ void LoadCharPanel()
 		panelEntries[GoldHeaderEntryIndex].position.y = isSmallFontTall ? 105 : 106;
 
 		for (auto &entry : panelEntries) {
-			if (entry.statDisplayFunc) {
-				DrawPanelField(out, entry.position, entry.length, boxLeft[0], boxMiddle[0], boxRight[0]);
-			}
 			DrawShadowString(out, entry);
 		}
 	}
