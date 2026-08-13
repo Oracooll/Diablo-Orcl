@@ -778,6 +778,38 @@ TEST_F(InvTest, CheckInventorySortButtonClick_MissesInMultiplayer)
 	gbIsMultiplayer = false;
 }
 
+/**
+ * User-reported bug (2026-08-13): "SORT doesn't sort, nor feedbacks on click. I think clicks on it
+ * land on ghost tab 10."
+ *
+ * Exactly right. CheckInventoryTabClick looped to TabCount, so it claimed the SORT position as if
+ * it were a tab - setting ActiveInventoryTab to a tab that is never drawn selected, and returning
+ * true. CheckInvItem calls it BEFORE CheckInventorySortButtonClick, so the sort never saw the
+ * click. This pins the ordering contract rather than just the loop bound: whatever the tab
+ * hit-test does, a click on the SORT position must not be consumed as a tab.
+ */
+TEST_F(InvTest, TabClickDoesNotClaimTheSortButtonPosition)
+{
+	clear_inventory();
+	ActiveInventoryTab = 3;
+
+	const Rectangle sortRect = oracool::GetTabRect(oracool::SortTabIndex);
+	const Point sortCentre = oracool::GetInventoryPanelRect().position
+	    + Displacement { sortRect.position.x + sortRect.size.width / 2,
+		    sortRect.position.y + sortRect.size.height / 2 };
+
+	EXPECT_FALSE(CheckInventoryTabClick(sortCentre))
+	    << "the SORT position was claimed as a tab, which swallows the click before SORT sees it";
+	EXPECT_EQ(ActiveInventoryTab, 3) << "clicking SORT changed the open tab";
+
+	// And a real tab still works, so the fix did not just disable the row.
+	const Rectangle tab2 = oracool::GetTabRect(1);
+	const Point tab2Centre = oracool::GetInventoryPanelRect().position
+	    + Displacement { tab2.position.x + tab2.size.width / 2, tab2.position.y + tab2.size.height / 2 };
+	EXPECT_TRUE(CheckInventoryTabClick(tab2Centre));
+	EXPECT_EQ(ActiveInventoryTab, 1);
+}
+
 // User-reported gap: Ctrl+Click-to-stash only ever worked for tab 1, since TransferItemToStash
 // is driven by pcursinvitem, which stays -1 for an extra tab's items (see CheckInvHLight). Fixed
 // via a dedicated hit-test that bypasses pcursinvitem entirely for extra tabs.

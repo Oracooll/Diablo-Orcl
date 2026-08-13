@@ -1519,9 +1519,19 @@ void DrawInventoryTabs(const Surface &out)
 	}
 }
 
-/** @brief Oracool V1: the player's gold, centred under the backpack grid. */
+/**
+ * @brief Oracool V1: the player's gold, centred in the band under the backpack grid.
+ *
+ * Drawn from scrollrt AFTER the orbs, not from DrawInv. At 340x720 the inventory reaches the bottom
+ * of the screen, and the mana orb (x 658..755, y 624..720 at 960x720) sits squarely over this band.
+ * DrawInv runs long before the orbs, so drawing it there put the readout underneath one - which is
+ * what made the gold look broken rather than merely misplaced.
+ */
 void DrawInventoryGoldRow(const Surface &out)
 {
+	if (!invflag || !oracool::IsSinglePlayer())
+		return;
+
 	const Rectangle r = oracool::GetGoldRowRect();
 	const Rectangle screenRect { oracool::GetInventoryPanelRect().position
 		    + Displacement { r.position.x, r.position.y },
@@ -1664,10 +1674,8 @@ void DrawInv(const Surface &out)
 	if (TabbedInventoryEnabled())
 		DrawInventoryTabs(out);
 
-	// Oracool: user decision (2026-08-11) - the sort control is a standard V1 feature, not a
-	// setting; it is always present in single-player.
-	if (oracool::IsSinglePlayer())
-		DrawInventoryGoldRow(out);
+	// The gold readout is NOT drawn here - see DrawInventoryGoldRow's own comment. It has to come
+	// after the orbs, which scrollrt draws long after this function.
 }
 
 void DrawInvBelt(const Surface &out)
@@ -2433,7 +2441,12 @@ bool CheckInventoryTabClick(Point cursorPosition)
 
 	const Displacement panelOffset = Point { 0, 0 } - oracool::GetInventoryPanelRect().position;
 
-	for (int tab = 0; tab < oracool::TabCount; tab++) {
+	// STOPS SHORT of SortTabIndex. That position looks like a tab but is the SORT button, and this
+	// loop used to run to TabCount and claim it - setting ActiveInventoryTab to a tab that is never
+	// drawn as selected, and returning true, which swallowed the click before
+	// CheckInventorySortButtonClick (called after this in CheckInvItem) could ever see it. That is
+	// why SORT neither sorted nor flashed: a ghost tab was eating every click on it.
+	for (int tab = 0; tab < oracool::SortTabIndex; tab++) {
 		if (oracool::GetTabRect(tab).contains(cursorPosition + panelOffset)) {
 			ActiveInventoryTab = tab;
 			return true;

@@ -1497,6 +1497,11 @@ void DrawView(const Surface &out, Point startPosition)
 	// the vanilla flask pair entirely.
 	oracool::DrawHealthOrb(out);
 	oracool::DrawManaOrb(out);
+
+	// Oracool: after the orbs, deliberately. The inventory's gold readout sits in the band below its
+	// grid, and at 340x720 the mana orb covers exactly that band - drawn from DrawInv it landed
+	// underneath the orb. No-ops unless the inventory is open.
+	DrawInventoryGoldRow(out);
 }
 
 /**
