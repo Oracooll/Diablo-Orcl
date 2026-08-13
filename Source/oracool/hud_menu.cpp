@@ -1,5 +1,6 @@
 #include "oracool/hud_menu.h"
 
+#include <algorithm> // std::max, for keeping the icon row clear of the level-up indicator
 #include <array>
 #include <cstdint>
 
@@ -119,9 +120,23 @@ constexpr std::array<HudMenuEntry, MenuIconCount> MenuEntries { {
     // because IconRowRect() derives its width from MenuIconCount.
 } };
 
-constexpr int IconGap = 2;
+// Packed with no gap. At 2px the eight icons spanned 254px and the centred row began at plate+51,
+// while the level-up indicator occupies plate+0..60 - a 9px overlap on the leftmost icon.
+constexpr int IconGap = 0;
 // Clears the XP counter, which sits just above the plate's top edge.
 constexpr int RowGapAbovePlate = 12;
+/** @brief Kept between the level-up indicator and the first icon when the two would collide. */
+constexpr int LevelUpClearance = 4;
+
+/**
+ * @brief Inset from an icon cell to the area INSIDE its drawn frame.
+ *
+ * Measured off menu_icons.png: a cell is 30x33 and its content runs x 2..26, so four pixels clears
+ * the frame on every side. Used to keep the click flash on the icon rather than over its frame.
+ */
+constexpr int IconFrameInset = 4;
+/** @brief The click flash's colour. PAL16 ramps run light to dark, so a low offset is bright. */
+constexpr uint8_t IconFlashColor = PAL16_ORANGE + 4;
 
 bool HudMenuOpen = false;
 
@@ -130,7 +145,15 @@ Rectangle IconRowRect()
 {
 	const int width = MenuIconCount * MenuIconSize.width + (MenuIconCount - 1) * IconGap;
 	const Rectangle plate = GetMiddleHudRect();
-	return { { plate.position.x + (plate.size.width - width) / 2,
+
+	// Centred on the plate, then pushed right if that would put the first icon under the level-up
+	// indicator - which shares this strip of screen above the plate. Expressed as "do not overlap"
+	// rather than as a fixed nudge so it stays correct if either widget is resized. The level-up
+	// rect does not change with its visibility, so the row never jumps when the player levels.
+	const int centred = plate.position.x + (plate.size.width - width) / 2;
+	const Rectangle levelUp = GetLevelUpIconRect();
+	const int clearOfLevelUp = levelUp.position.x + levelUp.size.width + LevelUpClearance;
+	return { { std::max(centred, clearOfLevelUp),
 	             plate.position.y - RowGapAbovePlate - MenuIconSize.height },
 		{ width, MenuIconSize.height } };
 }
@@ -183,11 +206,22 @@ void DrawHudMenu(const Surface &out)
 		// Lit whenever the thing this entry opens is showing, so the row doubles as a status
 		// readout; momentary actions borrow the same lit frame briefly when clicked.
 		int state = 0;
-		if ((MenuEntries[i].isOn != nullptr && MenuEntries[i].isOn()) || i == flashingIcon)
+		if (MenuEntries[i].isOn != nullptr && MenuEntries[i].isOn())
 			state = 2;
 		else if (rect.contains(MousePosition))
 			state = 1;
 		DrawMenuIcon(out, i, state, rect.position);
+
+		// The click flash is drawn OVER the icon rather than by swapping to the art's lit state.
+		// The lit state tints the whole cell, frame included; blending inside the frame keeps the
+		// flash on the icon itself, which is what a pressed button looks like. The persistent
+		// "this panel is open" indication above still uses the art's own lit state - that one is a
+		// status readout, not a press.
+		if (i == flashingIcon) {
+			const Rectangle inner = rect.inset({ IconFrameInset, IconFrameInset });
+			DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y,
+			    inner.size.width, inner.size.height, IconFlashColor);
+		}
 	}
 }
 

@@ -1396,10 +1396,13 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// Blending an explicit colour instead works against ANY background, which is the point - the
 	// backing must not depend on what the panel happens to be painted with. Mid-ramp (+8) rather
 	// than the ramp's base index, because the base is the darkest entry and barely reads.
-	// +3 into the ramp, not +8. Mid-ramp read as a solid slab of colour behind the item; the
-	// backing is meant to say "this is rare" at a glance without competing with the icon on top of
-	// it. Low in the ramp is darker, so the blend tints rather than fills.
-	const uint8_t tint = static_cast<uint8_t>(colorBlock + 3);
+	// Deep into the ramp. PAL16 ramps run LIGHT to DARK as the offset grows - engine/palette.h says
+	// so outright: "(dark blue): PAL16_BLUE+14, (light red): PAL16_RED+2". The previous change to
+	// +3 was made believing the opposite, so it made the backings LIGHTER when the intent was to
+	// tone them down, which is why they read worse rather than subtler. +13 is near the dark end,
+	// so the blend leaves a deep tint that identifies the tier without competing with the icon.
+	constexpr uint8_t TierBackingRampOffset = 13;
+	const uint8_t tint = static_cast<uint8_t>(colorBlock + TierBackingRampOffset);
 	DrawHalfTransparentRectTo(out, targetPosition.x, targetPosition.y - size.height + 1,
 	    size.width, size.height, tint);
 }
