@@ -88,8 +88,14 @@ $mask = New-Object System.Drawing.Bitmap $fw, $fh, ([System.Drawing.Imaging.Pixe
 #
 # The band is dark on purpose. This is blitted through paletteTransparencyLookup, which darkens
 # what is behind it, so a lighter band would wash the silhouette out against the panel.
-$DARKEST = 12    # deepest shadow in the figure
-$LIGHTEST = 74   # its brightest lit edge
+#
+# Raised on request to make the figure read more clearly. This blit AVERAGES with the panel behind
+# it, so the band's position relative to the panel's own tone is what decides the effect: below it
+# the figure darkens, above it the figure lifts. The old 12..74 sat entirely below, giving a shadow
+# so faint it barely registered. 22..112 straddles the panel, so the shadowed parts still darken
+# while the lit edges - pauldrons, shield boss, mace head - now come up out of it.
+$DARKEST = 22    # deepest shadow in the figure
+$LIGHTEST = 112  # its brightest lit edge
 $kept = 0
 for ($y = 0; $y -lt $fh; $y++) {
     for ($x = 0; $x -lt $fw; $x++) {
