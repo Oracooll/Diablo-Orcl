@@ -26,6 +26,15 @@ namespace devilution::oracool {
 constexpr int OrnateBorderWidth = 3;
 
 /**
+ * @brief Half the bevel's width, for centring a rule ON a boundary rather than starting it there.
+ *
+ * A rule drawn AT a cell boundary puts its whole width inside the cell to the right, which shifts
+ * that cell's visible interior and leaves anything centred in its rect looking off by half the
+ * rule. Subtract this from the boundary coordinate to make rect centre and visual centre agree.
+ */
+constexpr int OrnateBorderWidthHalf = OrnateBorderWidth / 2;
+
+/**
  * @brief Draws textbox_frame00's bevel around (and just inside) @p rect.
  *
  * Replaces the 1px dashed placeholder the mini-map and event log shared. Clipped, so a rect that

@@ -1396,7 +1396,10 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// Blending an explicit colour instead works against ANY background, which is the point - the
 	// backing must not depend on what the panel happens to be painted with. Mid-ramp (+8) rather
 	// than the ramp's base index, because the base is the darkest entry and barely reads.
-	const uint8_t tint = static_cast<uint8_t>(colorBlock + 8);
+	// +3 into the ramp, not +8. Mid-ramp read as a solid slab of colour behind the item; the
+	// backing is meant to say "this is rare" at a glance without competing with the icon on top of
+	// it. Low in the ramp is darker, so the blend tints rather than fills.
+	const uint8_t tint = static_cast<uint8_t>(colorBlock + 3);
 	DrawHalfTransparentRectTo(out, targetPosition.x, targetPosition.y - size.height + 1,
 	    size.width, size.height, tint);
 }
@@ -1487,9 +1490,15 @@ void DrawInventoryTabs(const Surface &out)
 	// geometry outright, so they cannot drift.
 	const Rectangle rowRect { panel.position + Displacement { oracool::TabRowX, oracool::TabRowY },
 		{ oracool::TabCount * oracool::TabSize.width, oracool::TabSize.height } };
+	// Rules are CENTRED on the cell boundary, not started at it. A 3px rule drawn at the boundary
+	// puts all three pixels inside the cell to its right, so that cell's visible interior runs
+	// x+3..x+28 while its rect is x..x+28 - and anything centred in the rect, the label and the
+	// selected tab's fill alike, lands ~1.5px left of where the cell looks like it is. Offsetting
+	// by half the rule's width makes rect centre and visual centre the same point.
+	constexpr int RuleOffset = oracool::OrnateBorderWidthHalf;
 	for (int c = 1; c < oracool::TabCount; c++)
 		oracool::DrawOrnateSeparatorVertical(out,
-		    { rowRect.position.x + c * oracool::TabSize.width, rowRect.position.y }, rowRect.size.height);
+		    { rowRect.position.x + c * oracool::TabSize.width - RuleOffset, rowRect.position.y }, rowRect.size.height);
 	oracool::DrawOrnateBorder(out, rowRect);
 
 	const bool sortFlashing = InventorySortFlashActive();
@@ -1536,13 +1545,12 @@ void DrawInventoryGoldRow(const Surface &out)
 	const Rectangle screenRect { oracool::GetInventoryPanelRect().position
 		    + Displacement { r.position.x, r.position.y },
 		r.size };
-	// _pGold, NOT CalculateGold. Reasoning reversed by evidence: CalculateGold sums ItemType::Gold
-	// entries in InvList, which is empty on a character whose gold never arrived as a pickup - a
-	// debug-spawned one, for instance, where debug.cpp writes _pGold directly. A screenshot showed
-	// the character sheet reading 862,667 while this read 0, which is exactly that case. The
-	// character sheet uses _pGold, and "the value from the character screen" is what was asked for,
-	// so this now reads the same field and cannot disagree with it.
-	DrawString(out, StrCat(_("GOLD: "), FormatInteger(InspectPlayer->_pGold)), screenRect,
+	// TotalPlayerGold(), the same call the store screen uses and the same sum the character sheet
+	// shows. Gold reads 0 from the player alone in this project: picked-up and sold gold goes to
+	// the shared Stash pool, so the money lives in Stash.gold, not _pGold. Two earlier attempts
+	// here - CalculateGold over InvList, then _pGold - both read player-side fields and both
+	// therefore showed 0 while the sheet showed the real figure.
+	DrawString(out, StrCat(_("GOLD: "), FormatInteger(TotalPlayerGold())), screenRect,
 	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 
@@ -1563,9 +1571,13 @@ void DrawInv(const Surface &out)
 
 	// The class figure, behind the equipment slots. Drawn between the panel fill and the slots so
 	// the slots sit on top of it, exactly as they did when both were baked into the old panel art.
-	// Its top clears the panel margin; the asset is pre-scaled to the equipment area's height.
-	oracool::DrawClassSilhouette(out, invPanel.position, oracool::InventoryPanelSize.width,
-	    oracool::PanelMargin + 4);
+	//
+	// Sits ABOVE the panel margin on purpose. At the margin its 370px reached y 398 and its feet
+	// stopped two pixels short of the tab row, which read as the figure standing on the grid.
+	// Raising it clears the tab row by 14. The panel's bevel only occupies the first 3px, so there
+	// is nothing up here for it to collide with.
+	constexpr int SilhouetteTop = 16;
+	oracool::DrawClassSilhouette(out, invPanel.position, oracool::InventoryPanelSize.width, SilhouetteTop);
 
 	// Equipment slots and the backpack grid sit at two fill passes against the panel's one, so they
 	// read as recesses cut into it rather than outlines drawn on it.
@@ -1584,10 +1596,14 @@ void DrawInv(const Surface &out)
 	oracool::DrawThemedFill(out, gridRect, RecessPasses);
 	// One bevel around the whole grid, with plain rules between the cells. Bevelling all seventy
 	// individually would put 70 three-pixel frames in a 280x196 box and read as noise.
+	// Centred on the boundary, same reason as the tab row's rules above - here it keeps item icons
+	// centred in the cell they are actually drawn into.
 	for (int c = 1; c < oracool::GridSizeInCells.width; c++)
-		oracool::DrawOrnateSeparatorVertical(out, { gridRect.position.x + c * oracool::CellPx, gridRect.position.y }, gridRect.size.height);
+		oracool::DrawOrnateSeparatorVertical(out,
+		    { gridRect.position.x + c * oracool::CellPx - oracool::OrnateBorderWidthHalf, gridRect.position.y }, gridRect.size.height);
 	for (int r = 1; r < oracool::GridSizeInCells.height; r++)
-		oracool::DrawOrnateSeparator(out, { gridRect.position.x, gridRect.position.y + r * oracool::CellPx }, gridRect.size.width);
+		oracool::DrawOrnateSeparator(out,
+		    { gridRect.position.x, gridRect.position.y + r * oracool::CellPx - oracool::OrnateBorderWidthHalf }, gridRect.size.width);
 	oracool::DrawOrnateBorder(out, gridRect);
 
 	// Oracool bug fix: user report - the game crashed as soon as one of the six new slots held an

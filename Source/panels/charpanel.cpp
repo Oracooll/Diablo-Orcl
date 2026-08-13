@@ -19,6 +19,7 @@
 #include "oracool/oracool.h"
 #include "oracool/ornate_border.h"
 #include "qol/stash.h"
+#include "stores.h" // TotalPlayerGold
 #include "utils/display.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -169,11 +170,16 @@ PanelEntry panelEntries[] = {
 	{ N_("Gold"), { TopRightLabelX, /* set dynamically */ 0 }, 0, 98, {} },
 	{ "", { TopRightLabelX, 127 }, 99, 0,
 	    []() {
-	        // Oracool: picked-up and sold gold goes to the shared Stash pool now, so the total
-	        // shown here needs to include it - matching the store screen's TotalPlayerGold().
-	        int gold = InspectPlayer->_pGold;
-	        if (oracool::IsSinglePlayer())
-	            gold += Stash.gold;
+	        // Oracool: picked-up and sold gold goes to the shared Stash pool, so the total has to
+	        // include it. This used to re-derive that sum inline; it now calls the one helper the
+	        // store screen and the inventory readout also use, so the three cannot drift apart.
+	        //
+	        // TotalPlayerGold reads MyPlayer, so it is only right when inspecting yourself - which
+	        // is also the only case the Stash belongs to. Another player's sheet still shows just
+	        // their carried gold.
+	        const uint32_t gold = (InspectPlayer == MyPlayer && oracool::IsSinglePlayer())
+	            ? TotalPlayerGold()
+	            : static_cast<uint32_t>(InspectPlayer->_pGold);
 	        return StyledText { UiFlags::ColorWhite, FormatInteger(gold) };
 	    } },
 

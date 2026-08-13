@@ -126,6 +126,17 @@ void StoreDown();
 void StorePrior();
 void StoreNext();
 void TakePlrsMoney(int cost);
+/**
+ * @brief The player's whole spendable gold: carried plus the shared Stash pool.
+ *
+ * Oracool: picked-up and sold gold goes to the Stash now, so _pGold alone is NOT the amount the
+ * player has - on a character who never picked gold up by hand it reads 0 while the Stash holds all
+ * of it. Every place that shows or spends "your gold" must go through this. Exported precisely
+ * because it was not: the character sheet had already re-derived the same sum inline, and the
+ * inventory's readout was written twice against the wrong field before this was noticed.
+ */
+uint32_t TotalPlayerGold();
+
 void StoreEnter();
 void CheckStoreBtn();
 void ReleaseStoreBtn();

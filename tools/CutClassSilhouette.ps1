@@ -78,17 +78,32 @@ $ow = [int][Math]::Round($fw * $scale); $oh = $TARGET_H
 # Key at source resolution first, then scale the MASK - scaling the sheet directly would blend
 # card grey into the figure's edge and thicken it.
 $mask = New-Object System.Drawing.Bitmap $fw, $fh, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-# A dark neutral rather than pure black: the panel it sits on is itself a half-transparent
-# darkening, and black-on-that reads as a hole rather than a shadow.
-$R = 44; $G = 40; $B = 36
+
+# The figure's own shading is preserved, not flattened. The first version filled every kept pixel
+# with one flat colour, which threw away the armour, cloak and shield modelling the source actually
+# has - it came out as a featureless blob. Alpha still has to be binary (hud_art's QuantizeAsset
+# thresholds at a<128), so the detail is carried in the COLOUR instead: the source luminance is
+# remapped across a narrow dark band, so darker parts of the figure stay darker and the modelling
+# survives.
+#
+# The band is dark on purpose. This is blitted through paletteTransparencyLookup, which darkens
+# what is behind it, so a lighter band would wash the silhouette out against the panel.
+$DARKEST = 12    # deepest shadow in the figure
+$LIGHTEST = 74   # its brightest lit edge
 $kept = 0
 for ($y = 0; $y -lt $fh; $y++) {
     for ($x = 0; $x -lt $fw; $x++) {
-        if ((Luma $src.GetPixel($mnX + $x, $mnY + $y)) -lt $thr) {
-            $mask.SetPixel($x, $y, [System.Drawing.Color]::FromArgb(255, $R, $G, $B)); $kept++
-        } else {
-            $mask.SetPixel($x, $y, [System.Drawing.Color]::FromArgb(0, 0, 0, 0))
-        }
+        $l = Luma $src.GetPixel($mnX + $x, $mnY + $y)
+        if ($l -ge $thr) { $mask.SetPixel($x, $y, [System.Drawing.Color]::FromArgb(0,0,0,0)); continue }
+        # 0 at the figure's darkest, 1 at the keying threshold.
+        $t = ($l - $floor) / [Math]::Max(1.0, ($thr - $floor))
+        $v = [int][Math]::Round($DARKEST + $t * ($LIGHTEST - $DARKEST))
+        if ($v -lt 0) { $v = 0 } elseif ($v -gt 255) { $v = 255 }
+        # Very slightly warm, so it sits with the gold bevel rather than reading as flat grey.
+        $r2 = [int][Math]::Min(255, $v * 1.10)
+        $b2 = [int][Math]::Max(0, $v * 0.88)
+        $mask.SetPixel($x, $y, [System.Drawing.Color]::FromArgb(255, $r2, $v, $b2))
+        $kept++
     }
 }
 $src.Dispose()

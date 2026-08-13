@@ -611,10 +611,10 @@ void ScrollSmithBuy(int idx)
 		stextsel = stextdown;
 }
 
-uint32_t TotalPlayerGold()
-{
-	return MyPlayer->_pGold + Stash.gold;
-}
+// TotalPlayerGold's definition moved OUT of this anonymous namespace - see below the namespace's
+// close. It is declared in stores.h now so the character sheet and the inventory's gold readout can
+// share it; leaving the definition here as well made the name ambiguous between the internal one
+// and the exported one. Calls from inside this namespace resolve to the exported one via stores.h.
 
 // TODO: Change `_iIvalue` to be unsigned instead of passing `int` here.
 bool PlayerCanAfford(int price)
@@ -2802,6 +2802,19 @@ void DrawSelector(const Surface &out, const Rectangle &rect, string_view text, U
 }
 
 } // namespace
+
+/**
+ * @brief The player's whole spendable gold: carried plus the shared Stash pool.
+ *
+ * Outside the anonymous namespace, and declared in stores.h, so the character sheet and the
+ * inventory's gold readout share it. It was internal here, which is how the character sheet ended
+ * up re-deriving the same sum inline and the inventory's readout was written twice against
+ * player-side fields that read 0 - all the gold is in the Stash.
+ */
+uint32_t TotalPlayerGold()
+{
+	return MyPlayer->_pGold + Stash.gold;
+}
 
 // Oracool: defined outside the anonymous namespace (same rationale as
 // SimulateStorytellerIdentifyForTest below) so diablo.cpp/scrollrt.cpp can call these - internal
