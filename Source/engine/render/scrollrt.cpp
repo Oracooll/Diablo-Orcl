@@ -1310,9 +1310,17 @@ void DrawView(const Surface &out, Point startPosition)
 	Displacement offset = {};
 	CalcFirstTilePosition(startPosition, offset);
 	DrawGame(out, startPosition, offset);
+	// Oracool: user request - the corner HUD is suppressed while the inventory is open. At 340x720
+	// the inventory window is the full height of the screen in the top-right corner, which is
+	// exactly where the mini-map (306x175 at x=646) and the event log below it live, so they would
+	// otherwise sit under it with their edges poking out. Nothing is toggled or saved: they simply
+	// stop drawing for as long as invflag is set, the same way AutomapActive already suppresses
+	// them.
+	const bool cornerHudHidden = invflag;
+
 	if (AutomapActive) {
 		DrawAutomap(out.subregionY(0, gnViewportHeight));
-	} else if (*sgOptions.Oracool.miniMapEnabled
+	} else if (*sgOptions.Oracool.miniMapEnabled && !cornerHudHidden
 #ifdef _DEBUG
 	    && !DebugClearUi
 #endif
@@ -1332,7 +1340,7 @@ void DrawView(const Surface &out, Point startPosition)
 	// the mini-map (which AutomapActive already suppresses above) and would otherwise float over
 	// the full map. No saved/restored state needed - they simply resume drawing the next frame
 	// AutomapActive goes false again, same as the mini-map itself.
-	if (!AutomapActive
+	if (!AutomapActive && !cornerHudHidden
 #ifdef _DEBUG
 	    && !DebugClearUi
 #endif

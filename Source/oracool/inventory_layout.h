@@ -329,7 +329,9 @@ constexpr int WeaponRowBottom = WeaponRowY + 3 * CellPx;
 constexpr int GoldRowHeight = 24;
 constexpr Rectangle GetGoldRowRect()
 {
-	return { { PanelMargin, GridBottom + 4 },
+	// Centred in the band between the grid's bottom edge and the panel's, rather than tucked just
+	// under the grid.
+	return { { PanelMargin, GridBottom + (InventoryPanelSize.height - GridBottom - GoldRowHeight) / 2 },
 		{ InventoryPanelSize.width - 2 * PanelMargin, GoldRowHeight } };
 }
 static_assert(GetGoldRowRect().position.y + GoldRowHeight <= InventoryPanelSize.height,

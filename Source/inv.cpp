@@ -29,6 +29,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
+#include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
 #include "oracool/inventory_layout.h"
 #include "oracool/ornate_border.h"
 #include "oracool/oracool.h"
@@ -1384,18 +1385,20 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		}
 	}
 
-	std::uint8_t *dst = &out[targetPosition];
-	const auto dstPitch = out.pitch();
-
-	for (int hgt = size.height; hgt != 0; hgt--, dst -= dstPitch + size.width) {
-		for (int wdt = size.width; wdt != 0; wdt--) {
-			std::uint8_t pix = *dst;
-			if (pix >= PAL16_GRAY) {
-				pix -= PAL16_GRAY - colorBlock - 1;
-			}
-			*dst++ = pix;
-		}
-	}
+	// Oracool V1 bug postmortem: this used to recolour by palette SHIFT -
+	//     if (pix >= PAL16_GRAY) pix -= PAL16_GRAY - colorBlock - 1;
+	// which only fires on pixels already in the grey ramp (240-255). That held while the slot sat
+	// on the old stone/parchment art, whose fill lived in exactly that range. The shared theme
+	// draws slots as a half-transparent fill blended through paletteTransparencyLookup, and those
+	// results land well below 240 - so the test never passed and item backgrounds vanished
+	// entirely: magic, unique, rare and every Oracool tier all rendered as bare slot.
+	//
+	// Blending an explicit colour instead works against ANY background, which is the point - the
+	// backing must not depend on what the panel happens to be painted with. Mid-ramp (+8) rather
+	// than the ramp's base index, because the base is the darkest entry and barely reads.
+	const uint8_t tint = static_cast<uint8_t>(colorBlock + 8);
+	DrawHalfTransparentRectTo(out, targetPosition.x, targetPosition.y - size.height + 1,
+	    size.width, size.height, tint);
 }
 
 bool CanBePlacedOnBelt(const Item &item)
@@ -1438,6 +1441,23 @@ void InitInv()
  * game's original, non-editable inv.cel/inv_rog.cel/inv_sor.cel background images - can't move to
  * make room. Selected tab is gold and drawn a few pixels larger; inactive tabs are a muted gray.
  */
+/**
+ * @brief When the SORT button's click flash expires, as an SDL tick.
+ *
+ * SORT is a button, not a tab - there is no "selected" state for it to sit in - so the only
+ * feedback that a click registered is a brief flash of the selected-tab look. Held as an expiry
+ * rather than a bool because nothing polls a mouse-up here: the sort runs instantly on mouse-down,
+ * and a flag cleared elsewhere would either linger or need a second owner.
+ */
+uint32_t InventorySortFlashUntil = 0;
+/** Long enough to see, short enough not to read as a mode change. */
+constexpr uint32_t InventorySortFlashMs = 170;
+
+bool InventorySortFlashActive()
+{
+	return SDL_GetTicks() < InventorySortFlashUntil;
+}
+
 void DrawInventoryTabs(const Surface &out)
 {
 	// Oracool V1: real artwork now - roman numerals cut from the user's sheet, silver unselected
@@ -1457,23 +1477,45 @@ void DrawInventoryTabs(const Surface &out)
 	// tab stands proud. Drawn in a second pass for that reason: its extra two pixels would
 	// otherwise be painted over by whichever neighbour drew next.
 	const Rectangle panel = oracool::GetInventoryPanelRect();
-	for (int pass = 0; pass < 2; pass++) {
-		for (int tab = 0; tab < oracool::TabCount; tab++) {
-			const bool selected = tab == ActiveInventoryTab;
-			if (selected != (pass == 1))
-				continue;
 
-			const Rectangle r = selected ? oracool::GetActiveTabRect(tab) : oracool::GetTabRect(tab);
-			const Rectangle screenRect { panel.position + Displacement { r.position.x, r.position.y }, r.size };
-			if (selected)
-				oracool::DrawThemedFill(out, screenRect, 2);
+	// The row is bevelled as ONE strip with plain rules between the tabs, exactly like the grid
+	// below it - not as ten individually bevelled boxes.
+	//
+	// That was the bug: ten boxes put tab N's right ring at 28N+25..27 and tab N+1's left ring at
+	// 28N+28..30, so the visual join between two tabs sat ~1.5px left of the grid's separator at
+	// the same column boundary. Drawing the row the way the grid is drawn makes the two share their
+	// geometry outright, so they cannot drift.
+	const Rectangle rowRect { panel.position + Displacement { oracool::TabRowX, oracool::TabRowY },
+		{ oracool::TabCount * oracool::TabSize.width, oracool::TabSize.height } };
+	for (int c = 1; c < oracool::TabCount; c++)
+		oracool::DrawOrnateSeparatorVertical(out,
+		    { rowRect.position.x + c * oracool::TabSize.width, rowRect.position.y }, rowRect.size.height);
+	oracool::DrawOrnateBorder(out, rowRect);
+
+	const bool sortFlashing = InventorySortFlashActive();
+	for (int tab = 0; tab < oracool::TabCount; tab++) {
+		// The SORT position is a button, not a tab: it is never "the open tab", it only borrows the
+		// selected look for a moment when clicked.
+		const bool isSort = tab == oracool::SortTabIndex;
+		const bool lit = isSort ? sortFlashing : (tab == ActiveInventoryTab);
+
+		Rectangle screenRect;
+		if (lit) {
+			// Grown 30x30 with the bottom edge pinned, and filled - drawn over the row's own bevel,
+			// which is why it comes after the strip above rather than in a first pass.
+			const Rectangle r = oracool::GetActiveTabRect(tab);
+			screenRect = { panel.position + Displacement { r.position.x, r.position.y }, r.size };
+			oracool::DrawThemedFill(out, screenRect, 2);
 			oracool::DrawOrnateBorder(out, screenRect);
-
-			// White on the open tab, gold on the rest.
-			DrawString(out, oracool::TabLabel(tab), screenRect,
-			    { (selected ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
-			        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		} else {
+			const Rectangle r = oracool::GetTabRect(tab);
+			screenRect = { panel.position + Displacement { r.position.x, r.position.y }, r.size };
 		}
+
+		// White while lit, gold otherwise.
+		DrawString(out, oracool::TabLabel(tab), screenRect,
+		    { (lit ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
+		        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 }
 
@@ -1484,7 +1526,12 @@ void DrawInventoryGoldRow(const Surface &out)
 	const Rectangle screenRect { oracool::GetInventoryPanelRect().position
 		    + Displacement { r.position.x, r.position.y },
 		r.size };
-	DrawString(out, StrCat(_("GOLD: "), FormatInteger(MyPlayer->_pGold)), screenRect,
+	// Counted from the inventory rather than read from _pGold. That field is a cache, written only
+	// by the paths that add or remove gold (control.cpp's recalc, the pickup handlers, debug), so
+	// it can read 0 on a character whose gold arrived some other way. CalculateGold is a pure sum
+	// over InvList and cannot be stale. Gold is pinned to the backpack - CanItemEnterExtraTab
+	// rejects it - so the extra tabs hold none and summing InvList is the whole amount.
+	DrawString(out, StrCat(_("GOLD: "), FormatInteger(CalculateGold(*MyPlayer))), screenRect,
 	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 
@@ -2196,6 +2243,18 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 	return true;
 }
 
+/**
+ * @brief Extra tabs the sort is allowed to place INTO - one fewer than it drains FROM.
+ *
+ * There are ten tab positions but only nine open one: the last is the SORT button
+ * (oracool::SortTabIndex), so the final extra tab has no way to be viewed. The collection loops
+ * below still drain all NumExtraInventoryTabs, which is what makes SORT the way to recover items
+ * stranded there by an older build. The placement loops stop one short, so it is never refilled -
+ * without that the two ranges match and a sort on a full inventory puts items straight back into
+ * the tab it just rescued them from.
+ */
+constexpr int PlaceableExtraTabs = Player::NumExtraInventoryTabs - 1;
+
 void SortInventoryBySellValue(Player &player)
 {
 	if (!oracool::IsSinglePlayer())
@@ -2272,7 +2331,7 @@ void SortInventoryBySellValue(Player &player)
 					placed = true;
 			}
 		}
-		for (int tab = 0; tab < Player::NumExtraInventoryTabs && !placed; tab++) {
+		for (int tab = 0; tab < PlaceableExtraTabs && !placed; tab++) {
 			for (int row = InventoryRowCount - 1; row >= 0 && !placed; row--) {
 				for (int col = 0; col < InventoryColumnsPerRow && !placed; col++) {
 					if (AutoPlaceItemInExtraTabSlot(player, tab, row * InventoryColumnsPerRow + col, entry.item, true))
@@ -2313,7 +2372,7 @@ void SortInventoryBySellValue(Player &player)
 				placedSlot = slot;
 			}
 		}
-		for (int tab = 0; tab < Player::NumExtraInventoryTabs && !placed; tab++) {
+		for (int tab = 0; tab < PlaceableExtraTabs && !placed; tab++) {
 			for (int slot = 0; slot < InventoryGridCells && !placed; slot++) {
 				if (AutoPlaceItemInExtraTabSlot(player, tab, slot, entry.item, true)) {
 					placed = true;
@@ -2352,6 +2411,7 @@ bool CheckInventorySortButtonClick(Point cursorPosition)
 	// purely so the button visibly changes color for the moment the mouse stays pressed, cleared
 	// in diablo.cpp's LeftMouseUp regardless of where the mouse is by then.
 	inventorySortButtonDown = true;
+	InventorySortFlashUntil = SDL_GetTicks() + InventorySortFlashMs;
 	SortInventoryBySellValue(*MyPlayer);
 	// Oracool: user request - same sound as the Stash's Sort button (shield-into-slot sound).
 	PlaySFX(IS_ISHIEL);
