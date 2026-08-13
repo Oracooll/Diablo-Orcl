@@ -1536,12 +1536,13 @@ void DrawInventoryGoldRow(const Surface &out)
 	const Rectangle screenRect { oracool::GetInventoryPanelRect().position
 		    + Displacement { r.position.x, r.position.y },
 		r.size };
-	// Counted from the inventory rather than read from _pGold. That field is a cache, written only
-	// by the paths that add or remove gold (control.cpp's recalc, the pickup handlers, debug), so
-	// it can read 0 on a character whose gold arrived some other way. CalculateGold is a pure sum
-	// over InvList and cannot be stale. Gold is pinned to the backpack - CanItemEnterExtraTab
-	// rejects it - so the extra tabs hold none and summing InvList is the whole amount.
-	DrawString(out, StrCat(_("GOLD: "), FormatInteger(CalculateGold(*MyPlayer))), screenRect,
+	// _pGold, NOT CalculateGold. Reasoning reversed by evidence: CalculateGold sums ItemType::Gold
+	// entries in InvList, which is empty on a character whose gold never arrived as a pickup - a
+	// debug-spawned one, for instance, where debug.cpp writes _pGold directly. A screenshot showed
+	// the character sheet reading 862,667 while this read 0, which is exactly that case. The
+	// character sheet uses _pGold, and "the value from the character screen" is what was asked for,
+	// so this now reads the same field and cannot disagree with it.
+	DrawString(out, StrCat(_("GOLD: "), FormatInteger(InspectPlayer->_pGold)), screenRect,
 	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 

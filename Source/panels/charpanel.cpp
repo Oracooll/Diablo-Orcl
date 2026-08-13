@@ -341,7 +341,11 @@ void LoadCharPanel()
 		}
 	}
 
-	Panel = SurfaceToClx(out);
+	// Index 0 is TRANSPARENT. SurfaceToClx's transparentColor defaults to nullopt - nothing
+	// transparent - so with the charbg.clx render skipped above, every pixel the field boxes and
+	// labels do not cover was encoded as opaque black. That rendered the sheet as a solid black
+	// rectangle sitting on the themed panel instead of an overlay on it.
+	Panel = SurfaceToClx(out, 1, 0);
 }
 
 void FreeCharPanel()
@@ -356,10 +360,13 @@ Rectangle GetCharacterPanelRect()
 
 Point GetCharacterContentOrigin()
 {
+	// Top-aligned under the separator, not centred in the content area. Centring it left a large
+	// empty band between the title and the first field, which read as a mistake rather than as
+	// spacing - the block is 352 tall in a 595 area, so the slack has to go somewhere, and below
+	// the content is the less conspicuous place for it.
 	const Rectangle panel = GetCharacterPanelRect();
 	return { panel.position.x + (CharPanelSize.width - CharContentSize.width) / 2,
-		panel.position.y + CharContentTop
-		    + (CharPanelSize.height - CharContentTop - CharPanelMargin - CharContentSize.height) / 2 };
+		panel.position.y + CharContentTop };
 }
 
 void DrawChr(const Surface &out)

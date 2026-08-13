@@ -563,9 +563,16 @@ void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, i
 
 	// Centred across the panel's width, hanging from `top`. The asset is pre-scaled by its cutter
 	// to the equipment area's height, so nothing is resized here.
+	//
+	// Blended, NOT blitted opaquely. An opaque blit put a solid mid-grey figure on the panel that
+	// dominated the window - the quantizer maps the cutter's dark fill to the nearest entry in the
+	// shared upper palette, and the nearest is lighter than the half-transparent panel it lands on,
+	// so the "shadow" came out brighter than its background. Blending through
+	// paletteTransparencyLookup darkens whatever is behind instead of replacing it, which is what a
+	// silhouette actually is - and it costs nothing extra, since the orbs' drain effect already
+	// needed this exact blit.
 	const Point origin { panelOrigin.x + (areaWidth - SilhouetteArt.width) / 2, panelOrigin.y + top };
-	out.BlitFromSkipColorIndexZero(*SilhouetteArt.bright,
-	    MakeSdlRect(0, 0, SilhouetteArt.width, SilhouetteArt.height), origin);
+	BlitHalfTransparentSkipZero(out, *SilhouetteArt.bright, origin, 0, SilhouetteArt.height);
 }
 
 Size GetWaypointIconSize()
