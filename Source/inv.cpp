@@ -1401,7 +1401,7 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// +3 was made believing the opposite, so it made the backings LIGHTER when the intent was to
 	// tone them down, which is why they read worse rather than subtler. +13 is near the dark end,
 	// so the blend leaves a deep tint that identifies the tier without competing with the icon.
-	constexpr uint8_t TierBackingRampOffset = 13;
+	constexpr uint8_t TierBackingRampOffset = 10;
 	const uint8_t tint = static_cast<uint8_t>(colorBlock + TierBackingRampOffset);
 	DrawHalfTransparentRectTo(out, targetPosition.x, targetPosition.y - size.height + 1,
 	    size.width, size.height, tint);
@@ -1581,6 +1581,24 @@ void DrawInv(const Surface &out)
 	// is nothing up here for it to collide with.
 	constexpr int SilhouetteTop = 16;
 	oracool::DrawClassSilhouette(out, invPanel.position, oracool::InventoryPanelSize.width, SilhouetteTop);
+
+	// "INVENTORY", in the band between the panel's top edge and the helm slot. Drawn AFTER the
+	// silhouette so it sits over the figure's head rather than under it - that band is the only
+	// space above the equipment block, and the silhouette reaches into it. The outline is what
+	// keeps it legible there.
+	//
+	// The band's bottom is taken from the helm slot itself, so the title follows if the equipment
+	// block ever moves again.
+	{
+		constexpr int TitleTop = 8;
+		const int helmTop = oracool::GetEquipSlotRect(oracool::EquipSlot::Helm).position.y;
+		const Rectangle titleArea {
+			invPanel.position + Displacement { oracool::PanelMargin, TitleTop },
+			{ oracool::InventoryPanelSize.width - 2 * oracool::PanelMargin, helmTop - TitleTop }
+		};
+		oracool::DrawOutlinedString(out, _("INVENTORY"), titleArea,
+		    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	}
 
 	// Equipment slots and the backpack grid sit at two fill passes against the panel's one, so they
 	// read as recesses cut into it rather than outlines drawn on it.
