@@ -71,6 +71,13 @@ ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
  */
 ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
 ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
+/**
+ * The class figure behind the inventory's equipment slots. It used to be baked into
+ * ui\inventory_panel.png; the shared theme replaced that composition with a procedural fill and
+ * bevel, so it ships separately now and survives future restyles. Cut by
+ * tools/CutClassSilhouette.ps1 from the class reference sheet.
+ */
+ArtAsset SilhouetteArt { "ui\\silhouette_paladin.png" };
 constexpr Size BurgerMenuButtonSize { 27, 29 };
 /**
  * User request: nudge the burger button up by a pixel. Centring it in the cell puts it a touch
@@ -244,6 +251,8 @@ void EnsureLoadedAll()
 		LoadPixels(WaypointPanelArt);
 	if (!WaypointIconsArt.loadAttempted)
 		LoadPixels(WaypointIconsArt);
+	if (!SilhouetteArt.loadAttempted)
+		LoadPixels(SilhouetteArt);
 }
 
 bool NeedsQuantize()
@@ -274,6 +283,8 @@ bool NeedsQuantize()
 		return true;
 	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
 		return true;
+	if (!SilhouetteArt.rgba.empty() && !SilhouetteArt.bright)
+		return true;
 	return false;
 }
 
@@ -294,6 +305,7 @@ void EnsureQuantized()
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
 	QuantizeAsset(WaypointPanelArt, std::nullopt);
 	QuantizeAsset(WaypointIconsArt, std::nullopt);
+	QuantizeAsset(SilhouetteArt, std::nullopt);
 
 	std::memcpy(PaletteSnapshot.data(), &orig_palette[128], sizeof(PaletteSnapshot));
 	QuantizedOnce = true;
@@ -538,6 +550,22 @@ void DrawWaypointIcon(const Surface &out, Point origin, bool active)
 	const int cell = WaypointIconsArt.width / 2;
 	out.BlitFromSkipColorIndexZero(*WaypointIconsArt.bright,
 	    MakeSdlRect(active ? cell : 0, 0, cell, WaypointIconsArt.height), origin);
+}
+
+void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, int top)
+{
+	EnsureLoadedAll();
+	if (SilhouetteArt.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!SilhouetteArt.bright)
+		return;
+
+	// Centred across the panel's width, hanging from `top`. The asset is pre-scaled by its cutter
+	// to the equipment area's height, so nothing is resized here.
+	const Point origin { panelOrigin.x + (areaWidth - SilhouetteArt.width) / 2, panelOrigin.y + top };
+	out.BlitFromSkipColorIndexZero(*SilhouetteArt.bright,
+	    MakeSdlRect(0, 0, SilhouetteArt.width, SilhouetteArt.height), origin);
 }
 
 Size GetWaypointIconSize()

@@ -75,6 +75,14 @@ void DrawWaypointIcon(const Surface &out, Point origin, bool active);
 Size GetWaypointIconSize();
 
 /**
+ * @brief Draws the class silhouette behind the inventory's equipment slots.
+ *
+ * Centred across @p areaWidth, hanging from @p top, both panel-relative to @p panelOrigin. The
+ * asset is pre-scaled by its cutter, so nothing is resized at draw time.
+ */
+void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, int top);
+
+/**
  * @brief Draws inventory tab @p index (0-9). @p state is 0 unselected, 1 selected, 2 pressed.
  * Position comes from inventory_layout's GetTabCellOrigin().
  */

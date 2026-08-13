@@ -1560,6 +1560,12 @@ void DrawInv(const Surface &out)
 	oracool::DrawThemedFill(out, invPanel);
 	oracool::DrawOrnateBorder(out, invPanel);
 
+	// The class figure, behind the equipment slots. Drawn between the panel fill and the slots so
+	// the slots sit on top of it, exactly as they did when both were baked into the old panel art.
+	// Its top clears the panel margin; the asset is pre-scaled to the equipment area's height.
+	oracool::DrawClassSilhouette(out, invPanel.position, oracool::InventoryPanelSize.width,
+	    oracool::PanelMargin + 4);
+
 	// Equipment slots and the backpack grid sit at two fill passes against the panel's one, so they
 	// read as recesses cut into it rather than outlines drawn on it.
 	constexpr int RecessPasses = 2;
