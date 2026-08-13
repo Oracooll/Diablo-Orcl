@@ -703,8 +703,12 @@ Point GetPanelPosition(UiPanels panel, Point offset)
 	switch (panel) {
 	case UiPanels::Main:
 		return GetMainPanel().position + displacement;
-	case UiPanels::Quest:
 	case UiPanels::Character:
+		// Oracool V1: the character sheet has its own 340x720 top-left rect, matching the waypoint
+		// list and quest log. This returns its CONTENT origin, not the panel's, so every caller -
+		// the draw, the stat buttons and their hit-testing - moves as one.
+		return GetCharacterContentOrigin() + displacement;
+	case UiPanels::Quest:
 	case UiPanels::Stash:
 		return GetLeftPanel().position + displacement;
 	case UiPanels::Inventory:

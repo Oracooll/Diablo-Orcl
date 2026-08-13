@@ -207,6 +207,27 @@ PanelEntry panelEntries[] = {
 
 OptionalOwnedClxSpriteList Panel;
 
+// Oracool V1: the sheet's own 340x720 rect, matching the waypoint list and quest log, with the
+// same title band above a separator rule:
+//   0..24     top margin
+//   24..74    label band, "CHARACTER"
+//   74..77    separator rule
+//   77..101   gap below the rule
+//   101..696  content area
+//   696..720  bottom margin
+//
+// The content itself is the fixed 320x352 block charbg.clx sizes - field boxes, labels and stat
+// buttons, all positioned against it. Rather than re-laying out every entry, the block is centred
+// in the content area as a unit and GetPanelPosition(UiPanels::Character, ...) returns its origin,
+// so drawing, the stat buttons and their hit-testing all move together.
+constexpr Size CharPanelSize { 340, 720 };
+constexpr int CharPanelMargin = 24;
+constexpr int CharLabelHeight = 50;
+constexpr int CharContentTop = CharPanelMargin + CharLabelHeight + oracool::OrnateBorderWidth + CharPanelMargin;
+constexpr Size CharContentSize { 320, 352 };
+static_assert(CharContentTop + CharContentSize.height + CharPanelMargin <= CharPanelSize.height,
+    "Character sheet content does not fit under its title band");
+
 constexpr int PanelFieldHeight = 24;
 constexpr int PanelFieldPaddingTop = 3;
 constexpr int PanelFieldPaddingBottom = 3;
@@ -328,18 +349,36 @@ void FreeCharPanel()
 	Panel = std::nullopt;
 }
 
+Rectangle GetCharacterPanelRect()
+{
+	return { { 0, 0 }, CharPanelSize };
+}
+
+Point GetCharacterContentOrigin()
+{
+	const Rectangle panel = GetCharacterPanelRect();
+	return { panel.position.x + (CharPanelSize.width - CharContentSize.width) / 2,
+		panel.position.y + CharContentTop
+		    + (CharPanelSize.height - CharContentTop - CharPanelMargin - CharContentSize.height) / 2 };
+}
+
 void DrawChr(const Surface &out)
 {
-	Point pos = GetPanelPosition(UiPanels::Character, { 0, 0 });
-
-	// Oracool V1: shared theme, same as the inventory, waypoint list, quest log and event log.
-	// Kept at the panel's own size rather than the 340x720 those use - every entry position in
-	// panelEntries, the four stat buttons and the Reset Stats button are laid out against this
-	// rect, so resizing is a separate job from restyling.
-	const Rectangle panel { pos, Size { (*Panel)[0].width(), (*Panel)[0].height() } };
+	// Oracool V1: shared theme and geometry, matching the waypoint list and quest log.
+	const Rectangle panel = GetCharacterPanelRect();
 	oracool::DrawThemedFill(out, panel);
 	oracool::DrawOrnateBorder(out, panel);
 
+	const Rectangle labelArea { { panel.position.x + CharPanelMargin, panel.position.y + CharPanelMargin },
+		{ panel.size.width - 2 * CharPanelMargin, CharLabelHeight } };
+	oracool::DrawOutlinedString(out, _("CHARACTER"), labelArea,
+	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	oracool::DrawOrnateSeparator(out,
+	    { panel.position.x + CharPanelMargin, panel.position.y + CharPanelMargin + CharLabelHeight },
+	    panel.size.width - 2 * CharPanelMargin);
+
+	// Everything below is positioned against the content origin, which GetPanelPosition returns.
+	Point pos = GetPanelPosition(UiPanels::Character, { 0, 0 });
 	RenderClxSprite(out, (*Panel)[0], pos);
 	for (auto &entry : panelEntries) {
 		if (entry.statDisplayFunc) {
