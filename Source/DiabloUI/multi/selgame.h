@@ -10,7 +10,10 @@ void selgame_GameSelection_Init();
 void selgame_GameSelection_Focus(int value);
 void selgame_GameSelection_Select(int value);
 void selgame_GameSelection_Esc();
-void selgame_Diff_Focus(int value);
+/**
+ * Oracool: selgame_Diff_Focus is gone. It rewrote the single description panel as the selection moved,
+ * and the difficulty screen now shows all four blurbs at once - see selgame_Difficulty_Init.
+ */
 void selgame_Diff_Select(int value);
 void selgame_Diff_Esc();
 void selgame_GameSpeedSelection();

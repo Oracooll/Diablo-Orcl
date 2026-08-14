@@ -1,11 +1,14 @@
 #include "DiabloUI/multi/selgame.h"
 
 #include <cstdint>
+#include <cstring>
+#include <string>
 
 #include <fmt/format.h>
 
 #include "DiabloUI/diabloui.h"
 #include "DiabloUI/dialogs.h"
+#include "DiabloUI/hero/hero_layout.h"
 #include "DiabloUI/hero/selhero.h"
 #include "DiabloUI/scrollbar.h"
 #include "DiabloUI/selok.h"
@@ -13,6 +16,7 @@
 #include "control.h"
 #include "menu.h"
 #include "options.h"
+#include "oracool/ui_backgrounds.h"
 #include "storm/storm_net.hpp"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -47,6 +51,16 @@ std::vector<std::unique_ptr<UiItemBase>> vecSelGameDialog;
 std::vector<GameInfo> Gamelist;
 uint32_t firstPublicGameInfoRequestSend = 0;
 unsigned HighlightedItem;
+
+/**
+ * @brief The difficulty screen's four wrapped blurbs and its locked rows' requirement lines.
+ *
+ * Held here rather than built inline because `UiArtText` stores a pointer: the text has to outlive the
+ * item. Rewritten only in selgame_Difficulty_Init, which runs after selgame_FreeVectors has destroyed
+ * whatever was pointing at them.
+ */
+std::string selgame_DifficultyBlurb[4];
+std::string selgame_DifficultyRequirement[4];
 
 void selgame_FreeVectors()
 {
@@ -291,6 +305,12 @@ bool UpdateHeroLevel(_uiheroinfo *pInfo)
 	return true;
 }
 
+// Defined further down, beside the level gates they share their thresholds with.
+void selgame_Difficulty_Init();
+string_view DifficultyName(int value);
+const char *DifficultyDescription(int value);
+int DifficultyLevelRequirement(int value);
+
 void selgame_GameSelection_Select(int value)
 {
 	selgame_enteringGame = true;
@@ -306,7 +326,18 @@ void selgame_GameSelection_Select(int value)
 		return;
 	}
 
-	UiAddBackground(&vecSelGameDialog);
+	// Oracool: user request - the difficulty picker gets its own painting. Values 0 and 1 are that
+	// screen (single-player reaches it as 0, straight after choosing a character); 2 is the multiplayer
+	// game list, which keeps the stock plate. The palette is already loaded by the LoadBackgroundArt
+	// that brought us here, which is what AddUiBackground quantizes against.
+	if (value > 1 || !oracool::AddUiBackground(&vecSelGameDialog, oracool::UiBackground::Difficulty))
+		UiAddBackground(&vecSelGameDialog);
+
+	if (value <= 1) {
+		selgame_Difficulty_Init();
+		return;
+	}
+
 	UiAddLogo(&vecSelGameDialog);
 
 	const Point uiPosition = GetUIRectangle().position;
@@ -321,32 +352,6 @@ void selgame_GameSelection_Select(int value)
 	vecSelGameDialog.push_back(std::make_unique<UiArtText>(selgame_Description, rect3, UiFlags::FontSize12 | UiFlags::ColorUiSilverDark, 1, 16));
 
 	switch (value) {
-	case 0:
-	case 1: {
-		title = _("Create Game").data();
-
-		SDL_Rect rect4 = { (Sint16)(uiPosition.x + 299), (Sint16)(uiPosition.y + 211), 295, 35 };
-		vecSelGameDialog.push_back(std::make_unique<UiArtText>(_("Select Difficulty").data(), rect4, UiFlags::AlignCenter | UiFlags::FontSize30 | UiFlags::ColorUiSilver, 3));
-
-		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Normal"), DIFF_NORMAL));
-		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Nightmare"), DIFF_NIGHTMARE));
-		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Hell"), DIFF_HELL));
-		// Oracool: Torment is single-player-only, so it must never appear as a choice when
-		// creating a multiplayer game.
-		if (!selhero_isMultiPlayer)
-			vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Torment"), DIFF_TORMENT));
-
-		vecSelGameDialog.push_back(std::make_unique<UiList>(vecSelGameDlgItems, vecSelGameDlgItems.size(), uiPosition.x + 300, (uiPosition.y + 282), 295, 26, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiGold));
-
-		SDL_Rect rect5 = { (Sint16)(uiPosition.x + 299), (Sint16)(uiPosition.y + 427), 140, 35 };
-		vecSelGameDialog.push_back(std::make_unique<UiArtTextButton>(_("OK"), &UiFocusNavigationSelect, rect5, UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize30 | UiFlags::ColorUiGold));
-
-		SDL_Rect rect6 = { (Sint16)(uiPosition.x + 449), (Sint16)(uiPosition.y + 427), 140, 35 };
-		vecSelGameDialog.push_back(std::make_unique<UiArtTextButton>(_("CANCEL"), &UiFocusNavigationEsc, rect6, UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize30 | UiFlags::ColorUiGold));
-
-		UiInitList(selgame_Diff_Focus, selgame_Diff_Select, selgame_Diff_Esc, vecSelGameDialog, true);
-		break;
-	}
 	case 2: {
 		selgame_Title = fmt::format(fmt::runtime(_("Join {:s} Games")), _(ConnectionNames[provider]));
 		title = selgame_Title.c_str();
@@ -382,6 +387,115 @@ void selgame_GameSelection_Select(int value)
 	}
 }
 
+/**
+ * @brief Oracool: user request - the difficulty picker rebuilt around its own painting.
+ *
+ * The art is four horizontal bands, one per difficulty, and the bands ARE the rows: each carries its
+ * blurb on the left and its name on the right. All four blurbs stay on screen, so the four can be
+ * compared without moving the selection (user's call).
+ *
+ * The band positions are measured off `ui\difficulty_bg.png` rather than assumed to be quarters - they
+ * compress toward the bottom (204/196/181/164 rows of 821). A UiList can only space its rows evenly,
+ * so the pitch runs between the FIRST and LAST measured centres; the two middle rows land within about
+ * 7px of theirs, which is nothing against a 180px band. Using the list rather than hand-rolled
+ * hit-testing was the user's call too, and it is what makes the keyboard, the mouse and the amber focus
+ * glow all work here for free.
+ *
+ * Note this screen serves single-player as well - see SelheroLoadSelect's note on the difficulty hack.
+ */
+void selgame_Difficulty_Init()
+{
+	/** Measured band centres, as per-mille of the painting's height. */
+	constexpr int BandCentrePerMille[] = { 134, 386, 619, 861 };
+	constexpr int TitleTop = 12;
+	/** The description column, the gap, then the name column - inside the action row's own 800px line. */
+	constexpr int BlockWidth = HeroButtonRowWidth;
+	constexpr int DescriptionWidth = 380;
+	constexpr int NameOffset = 440;
+	constexpr int NameWidth = 300;
+	/** The FontSize24 line height, for the requirement line tucked under a locked name. */
+	constexpr int RequirementHeight = 26;
+	/**
+	 * Lower than the other screens' 50. This one has no logo (user's call), so the bottom of the screen
+	 * is free - and Torment's band is both the shortest and the lowest, so its name needs the room.
+	 */
+	constexpr int ButtonRowBottomMargin = 16;
+
+	const int blockLeft = (gnScreenWidth - BlockWidth) / 2;
+	const int descriptionX = blockLeft;
+	const int nameX = blockLeft + NameOffset;
+	const int firstCentre = gnScreenHeight * BandCentrePerMille[0] / 1000;
+	const int lastCentre = gnScreenHeight * BandCentrePerMille[3] / 1000;
+	const int pitch = (lastCentre - firstCentre) / 3;
+	const int rowsTop = firstCentre - pitch / 2;
+	const int buttonRowTop = gnScreenHeight - ButtonRowBottomMargin - HeroButtonRowHeight;
+
+	title = _("Create Game").data();
+
+	vecSelGameDialog.push_back(std::make_unique<UiArtText>(_("Select Difficulty").data(),
+	    MakeSdlRect(0, TitleTop, static_cast<Uint16>(gnScreenWidth), HeroTitleHeight),
+	    UiFlags::AlignCenter | HeroTitleFontSize | UiFlags::ColorUiSilver, 3));
+
+	// Oracool: Torment is single-player-only, so it must never appear as a choice when creating a
+	// multiplayer game.
+	const int difficultyCount = selhero_isMultiPlayer ? 3 : 4;
+	for (int i = 0; i < difficultyCount; i++) {
+		const int required = DifficultyLevelRequirement(i);
+		const bool locked = heroLevel < required;
+
+		// Wrapped here rather than at draw time because UiArtText holds a pointer: the strings must
+		// outlive the items, and these are refilled only after selgame_FreeVectors has destroyed them.
+		//
+		// Wrapped at the font it is DRAWN in. These three - the wrap's font, the size flag and the
+		// line height - have to move together or the column breaks at the wrong width, which is how
+		// the OK dialog ended up wrapping 160px short of its own box (see that screen's note).
+		selgame_DifficultyBlurb[i] = WordWrapString(DifficultyDescription(i), DescriptionWidth, GameFont12);
+		vecSelGameDialog.push_back(std::make_unique<UiArtText>(selgame_DifficultyBlurb[i].c_str(),
+		    MakeSdlRect(static_cast<Sint16>(descriptionX), static_cast<Sint16>(rowsTop + i * pitch),
+		        DescriptionWidth, static_cast<Uint16>(pitch)),
+		    // Smaller on the user's call, and back to the size the old screen drew this text at. The
+		    // colour is the title's, also on the user's call: the dark silver these started in tops out
+		    // at 204 against ColorUiSilver's 243, and over paintings this dark that was not readable.
+		    UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::ColorUiSilver, 1, 16));
+
+		// A locked row says so on the screen instead of only in the popup that follows a click on it
+		// (user's call). The popup still works - this just means you can see it coming.
+		if (locked) {
+			selgame_DifficultyRequirement[i] = fmt::format(fmt::runtime(_("requires level {:d}")), required);
+			vecSelGameDialog.push_back(std::make_unique<UiArtText>(selgame_DifficultyRequirement[i].c_str(),
+			    MakeSdlRect(static_cast<Sint16>(nameX),
+			        static_cast<Sint16>(rowsTop + i * pitch + pitch / 2 + HeroTitleHeight / 2),
+			        NameWidth, RequirementHeight),
+			    UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiSilverDark));
+		}
+
+		// ElementDisabled both dims the name and makes UiFocus step over it, so the arrow keys walk
+		// only what this character has earned.
+		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(DifficultyName(i), i,
+		    locked ? UiFlags::ColorUiSilverDark | UiFlags::ElementDisabled : UiFlags::ColorUiGold));
+	}
+
+	// BEFORE the list, deliberately. The last row's rect reaches down past the button line - a row is
+	// a whole band tall - and UiItemMouseEvents takes the FIRST item whose rect contains the click, so
+	// whichever is pushed first wins the overlap. The buttons have to.
+	vecSelGameDialog.push_back(std::make_unique<UiArtTextButton>(_("OK"), &UiFocusNavigationSelect,
+	    MakeSdlRect(static_cast<Sint16>(HeroButtonRect(OkButtonIndex).x), static_cast<Sint16>(buttonRowTop),
+	        static_cast<Uint16>(HeroButtonRect(OkButtonIndex).w), HeroButtonRowHeight),
+	    HeroButtonFlags));
+	vecSelGameDialog.push_back(std::make_unique<UiArtTextButton>(_("CANCEL"), &UiFocusNavigationEsc,
+	    MakeSdlRect(static_cast<Sint16>(HeroButtonRect(CancelButtonIndex).x), static_cast<Sint16>(buttonRowTop),
+	        static_cast<Uint16>(HeroButtonRect(CancelButtonIndex).w), HeroButtonRowHeight),
+	    HeroButtonFlags));
+
+	vecSelGameDialog.push_back(std::make_unique<UiList>(vecSelGameDlgItems, vecSelGameDlgItems.size(),
+	    static_cast<Sint16>(nameX), static_cast<Sint16>(rowsTop), NameWidth, static_cast<Uint16>(pitch),
+	    UiFlags::AlignCenter | UiFlags::VerticalCenter | HeroButtonFontSize | UiFlags::ColorUiGold));
+
+	// No focus callback: the blurbs are all on screen at once, so there is nothing left to rewrite as
+	// the selection moves.
+	UiInitList(nullptr, selgame_Diff_Select, selgame_Diff_Esc, vecSelGameDialog, true);
+}
+
 void selgame_GameSelection_Esc()
 {
 	UiInitList_clear();
@@ -389,34 +503,84 @@ void selgame_GameSelection_Esc()
 	selgame_endMenu = true;
 }
 
-void selgame_Diff_Focus(int value)
+string_view DifficultyName(int value)
 {
-	switch (vecSelGameDlgItems[value]->m_value) {
-	case DIFF_NORMAL:
-		CopyUtf8(selgame_Label, _("Normal"), sizeof(selgame_Label));
-		CopyUtf8(selgame_Description, _("Normal Difficulty\nThis is where a starting character should begin the quest to defeat Diablo."), sizeof(selgame_Description));
-		break;
+	switch (value) {
 	case DIFF_NIGHTMARE:
-		CopyUtf8(selgame_Label, _("Nightmare"), sizeof(selgame_Label));
-		CopyUtf8(selgame_Description, _("Nightmare Difficulty\nThe denizens of the Labyrinth have been bolstered and will prove to be a greater challenge. This is recommended for experienced characters only."), sizeof(selgame_Description));
+		return _("Nightmare");
+	case DIFF_HELL:
+		return _("Hell");
+	case DIFF_TORMENT:
+		return _("Torment");
+	default:
+		return _("Normal");
+	}
+}
+
+/**
+ * @brief The difficulty's blurb WITHOUT its leading "<Name> Difficulty" line.
+ *
+ * Oracool: each band shows its name as its own label now, so that first line would print the name
+ * twice. Skipping past the newline reuses the existing translated strings rather than duplicating
+ * them, and the pointer is still a valid C string - the body runs to the same terminator.
+ */
+const char *DifficultyDescription(int value)
+{
+	string_view full;
+	switch (value) {
+	case DIFF_NIGHTMARE:
+		full = _("Nightmare Difficulty\nThe denizens of the Labyrinth have been bolstered and will prove to be a greater challenge. This is recommended for experienced characters only.");
 		break;
 	case DIFF_HELL:
-		CopyUtf8(selgame_Label, _("Hell"), sizeof(selgame_Label));
-		CopyUtf8(selgame_Description, _("Hell Difficulty\nThe most powerful of the underworld's creatures lurk at the gateway into Hell. Only the most experienced characters should venture in this realm."), sizeof(selgame_Description));
+		full = _("Hell Difficulty\nThe most powerful of the underworld's creatures lurk at the gateway into Hell. Only the most experienced characters should venture in this realm.");
 		break;
 	case DIFF_TORMENT:
-		CopyUtf8(selgame_Label, _("Torment"), sizeof(selgame_Label));
-		CopyUtf8(selgame_Description, _("Torment Difficulty\nBeyond Hell lies a still crueler realm. Every foe here is stronger still, and only those who have already conquered Hell should attempt it."), sizeof(selgame_Description));
+		full = _("Torment Difficulty\nBeyond Hell lies a still crueler realm. Every foe here is stronger still, and only those who have already conquered Hell should attempt it.");
+		break;
+	default:
+		full = _("Normal Difficulty\nThis is where a starting character should begin the quest to defeat Diablo.");
 		break;
 	}
-	CopyUtf8(selgame_Description, WordWrapString(selgame_Description, DESCRIPTION_WIDTH), sizeof(selgame_Description));
+	const char *body = std::strchr(full.data(), '\n');
+	return body != nullptr ? body + 1 : full.data();
+}
+
+/**
+ * @brief The character level @p value needs, or 0 if it is open to anyone.
+ *
+ * The single place the thresholds live. Both gate functions below read it, and so does the screen -
+ * which needs the answer WITHOUT the popup those two raise, to know which rows to grey out.
+ * Multiplayer keeps its own (lower) pair; single-player's is behind its own toggle.
+ */
+int DifficultyLevelRequirement(int value)
+{
+	if (selhero_isMultiPlayer) {
+		if (value == 1)
+			return 20;
+		if (value == 2)
+			return 30;
+		return 0;
+	}
+	if (!*sgOptions.Oracool.difficultyLevelGate)
+		return 0;
+	if (value == 1)
+		return 15;
+	if (value == 2)
+		return 30;
+	if (value == 3)
+		return 40;
+	return 0;
+}
+
+bool IsDifficultyUnlocked(int value)
+{
+	return heroLevel >= DifficultyLevelRequirement(value);
 }
 
 bool IsDifficultyAllowed(int value)
 {
-	if (value == 0 || (value == 1 && heroLevel >= 20) || (value == 2 && heroLevel >= 30)) {
+	if (IsDifficultyUnlocked(value))
 		return true;
-	}
 
 	selgame_Free();
 
@@ -437,12 +601,8 @@ bool IsDifficultyAllowed(int value)
  */
 bool IsSinglePlayerDifficultyAllowed(int value)
 {
-	if (!*sgOptions.Oracool.difficultyLevelGate)
+	if (IsDifficultyUnlocked(value))
 		return true;
-
-	if (value == 0 || (value == 1 && heroLevel >= 15) || (value == 2 && heroLevel >= 30) || (value == 3 && heroLevel >= 40)) {
-		return true;
-	}
 
 	selgame_Free();
 

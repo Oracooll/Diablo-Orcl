@@ -1,6 +1,8 @@
 #include "selstart.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <vector>
 
 #include <function_ref.hpp>
 
@@ -13,6 +15,7 @@
 #include "engine/render/text_render.hpp"
 #include "hwcursor.hpp"
 #include "options.h"
+#include "oracool/ui_backgrounds.h"
 #include "utils/display.h"
 #include "utils/language.h"
 #include "utils/stdcompat/optional.hpp"
@@ -354,10 +357,18 @@ void UiSettingsMenu()
 			{ uiWidth, gnScreenHeight }
 		};
 
+		// UiLoadBlackBackground still runs: it is what loads this screen's palette
+		// (ui_art\diablo.pal), which the background below has to quantize against. It leaves
+		// ArtBackground empty, which is why this screen was a black plate - so there is nothing to
+		// replace here, only something to add. UiAddBackground stays as the fallback for a missing
+		// asset, where it does exactly what it did before: nothing.
 		UiLoadBlackBackground();
 		LoadScrollBar();
-		UiAddBackground(&vecDialog);
-		UiAddLogo(&vecDialog, uiRectangle.position.y);
+		if (!oracool::AddUiBackground(&vecDialog, oracool::UiBackground::Settings))
+			UiAddBackground(&vecDialog);
+		// The logo and the title used to be pushed here, hanging from the screen's top edge. They
+		// move with the rest of the block now, so they are pushed after its height is known - see
+		// blockTop below. Only the background can be added before that, because it has to be first.
 
 		const int descriptionLineHeight = IsSmallFontTall() ? 20 : 18;
 		const int descriptionMarginTop = IsSmallFontTall() ? 10 : 16;
@@ -376,26 +387,39 @@ void UiSettingsMenu()
 			titleText = selectedOption->GetName();
 			break;
 		}
-		vecDialog.push_back(std::make_unique<UiArtText>(titleText.data(), MakeSdlRect(uiRectangle.position.x, uiRectangle.position.y + 161, uiRectangle.size.width, 35), UiFlags::FontSize30 | UiFlags::ColorUiSilver | UiFlags::AlignCenter, 8));
-
 		size_t itemToSelect = 0;
 		std::optional<tl::function_ref<bool(SDL_Event &)>> eventHandler;
 
 		switch (shownMenu) {
 		case ShownMenuType::Categories: {
-			size_t catCount = 0;
+			// Oracool: user request - alphabetical, rather than the order options.cpp happens to
+			// declare the categories in. Only the DISPLAY order moves: each row's value stays the
+			// category's index into GetCategories(), which is what ItemSelected looks it up by.
+			struct CategoryRow {
+				string_view name;
+				size_t index;
+			};
+			std::vector<CategoryRow> categoryRows;
 			size_t catIndex = 0;
 			for (auto *pCategory : sgOptions.GetCategories()) {
 				for (auto *pEntry : pCategory->GetEntries()) {
 					if (!IsValidEntry(pEntry))
 						continue;
-					if (selectedCategory == pCategory)
-						itemToSelect = vecDialogItems.size();
-					catCount += 1;
-					vecDialogItems.push_back(std::make_unique<UiListItem>(pCategory->GetName(), static_cast<int>(catIndex), UiFlags::ColorUiGold));
+					categoryRows.push_back({ pCategory->GetName(), catIndex });
 					break;
 				}
 				catIndex++;
+			}
+			// Compared as displayed, because "alphabetical" means alphabetical in the language on
+			// screen - GetName() is already translated.
+			std::sort(categoryRows.begin(), categoryRows.end(),
+			    [](const CategoryRow &a, const CategoryRow &b) { return a.name < b.name; });
+			// itemToSelect is resolved after the sort, so returning from a category still lands on
+			// it rather than on whatever now sits at its old position.
+			for (const CategoryRow &row : categoryRows) {
+				if (selectedCategory == sgOptions.GetCategories()[row.index])
+					itemToSelect = vecDialogItems.size();
+				vecDialogItems.push_back(std::make_unique<UiListItem>(row.name, static_cast<int>(row.index), UiFlags::ColorUiGold));
 			}
 		} break;
 		case ShownMenuType::Settings: {
@@ -533,17 +557,53 @@ void UiSettingsMenu()
 		vecDialogItems.push_back(std::make_unique<UiListItem>("", static_cast<int>(SpecialMenuEntry::None), UiFlags::ElementDisabled));
 		vecDialogItems.push_back(std::make_unique<UiListItem>(_("Previous Menu"), static_cast<int>(SpecialMenuEntry::PreviousMenu), UiFlags::ColorUiGold));
 
-		constexpr int ListItemHeight = 26;
-		rectList = { uiRectangle.position + Displacement { 50, 204 },
-			Size { uiRectangle.size.width - 100, std::min<int>(vecDialogItems.size() * ListItemHeight, uiRectangle.size.height - 272) } };
+		// Oracool: user request - a bigger font on the CATEGORIES list, and the whole block centred
+		// vertically instead of hanging from the top edge with all the slack below it.
+		//
+		// Bigger only on the categories list, deliberately. Its rows are single words with room to
+		// spare; an option list's rows are "Name: Value" and already need two-line handling to fit at
+		// 24. IsOptionTooLong also measures against GameFont24 by name, so raising the option lists
+		// would need that measurement changed in step or two-line detection would start lying.
+		//
+		// The row pitch is TIGHTER than the font's natural line height (text_render.cpp's
+		// LineHeights: 24 -> 26, 30 -> 38): 34, on the user's call, because at 38 the taller list
+		// consumed the vertical slack the block was meant to be centred in. The pitch is therefore
+		// passed to UiList as an explicit line height as well - without that, DrawString anchors each
+		// glyph's bottom at rect.y + 38 while clipping at rect.y + 34 and quietly shaves four pixels
+		// off every row, descenders first, in a list that has three of them.
+		const bool isCategoryList = shownMenu == ShownMenuType::Categories;
+		const int listItemHeight = isCategoryList ? 34 : 26;
+		const UiFlags listFontSize = isCategoryList ? UiFlags::FontSize30 : UiFlags::FontSize24;
+
+		// The block, top-down: logo (from its top), title at +161, list at +204, and a fixed 80px
+		// reserved for the option description under it. The list is the only variable-height part, so
+		// everything else is a constant and the block's extent falls out of the list's height.
+		constexpr int ListTop = 204;
+		constexpr int DescriptionHeight = 80;
+		rectList = { uiRectangle.position + Displacement { 50, ListTop },
+			Size { uiRectangle.size.width - 100, std::min<int>(vecDialogItems.size() * listItemHeight, uiRectangle.size.height - 272) } };
+		// A list long enough to hit that cap fills the screen, blockTop clamps to 0 and this is
+		// exactly the old layout - so only screens with slack to spare actually move.
+		const int blockHeight = ListTop + rectList.size.height + DescriptionHeight;
+		const int blockTop = std::max(0, (uiRectangle.size.height - blockHeight) / 2);
+		rectList.position.y += blockTop;
+
+		// Logo and title, now that the block's top is known. Pushed after the background and before
+		// the list, so the draw order is unchanged from when they sat further up this function.
+		UiAddLogo(&vecDialog, uiRectangle.position.y + blockTop);
+		vecDialog.push_back(std::make_unique<UiArtText>(titleText.data(),
+		    MakeSdlRect(uiRectangle.position.x, uiRectangle.position.y + blockTop + 161, uiRectangle.size.width, 35),
+		    UiFlags::FontSize30 | UiFlags::ColorUiSilver | UiFlags::AlignCenter, 8));
+
 		rectDescription = { rectList.position + Displacement { -26, rectList.size.height + descriptionMarginTop },
-			Size { uiRectangle.size.width - 50, 80 - descriptionMarginTop } };
+			Size { uiRectangle.size.width - 50, DescriptionHeight - descriptionMarginTop } };
 		vecDialog.push_back(std::make_unique<UiScrollbar>((*ArtScrollBarBackground)[0], (*ArtScrollBarThumb)[0],
 		    *ArtScrollBarArrow, MakeSdlRect(rectList.position.x + rectList.size.width + 5, rectList.position.y, 25, rectList.size.height)));
 		vecDialog.push_back(std::make_unique<UiArtText>(optionDescription, MakeSdlRect(rectDescription),
 		    UiFlags::FontSize12 | UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, 1, descriptionLineHeight));
-		vecDialog.push_back(std::make_unique<UiList>(vecDialogItems, rectList.size.height / ListItemHeight,
-		    rectList.position.x, rectList.position.y, rectList.size.width, ListItemHeight, UiFlags::FontSize24 | UiFlags::AlignCenter));
+		vecDialog.push_back(std::make_unique<UiList>(vecDialogItems, rectList.size.height / listItemHeight,
+		    rectList.position.x, rectList.position.y, rectList.size.width, listItemHeight,
+		    listFontSize | UiFlags::AlignCenter, /*spacing=*/1, /*lineHeight=*/listItemHeight));
 
 		UiInitList(ItemFocused, ItemSelected, EscPressed, vecDialog, true, FullscreenChanged, nullptr, itemToSelect);
 

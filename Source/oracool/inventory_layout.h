@@ -86,20 +86,27 @@ static_assert(TabCount == GridSizeInCells.width,
 /**
  * @brief How far the selected tab grows beyond an unselected one.
  *
- * The selected tab is 30x30 against the others' 28x28, and it grows ASYMMETRICALLY: one pixel left
- * and right, two upward, and none downward. Keeping the bottom edge fixed is the point - all ten
+ * The selected tab is 32x31 against the others' 28x28, and it grows ASYMMETRICALLY: two pixels left
+ * and right, three upward, and none downward. Keeping the bottom edge fixed is the point - all ten
  * tabs stay seated on the same line above the grid, and only the open one stands proud of it.
  */
-constexpr int ActiveTabGrowSides = 1;
-constexpr int ActiveTabGrowTop = 2;
+constexpr int ActiveTabGrowSides = 2;
+constexpr int ActiveTabGrowTop = 3;
 
-/** @brief Index of the tab position that is the SORT button rather than a storage tab. */
-constexpr int SortTabIndex = TabCount - 1;
-
-/** @brief Label drawn in tab @p index: "1".."9" for the storage tabs, "S" for the sort button. */
+/**
+ * @brief Label drawn in tab @p index. All ten positions are storage tabs.
+ *
+ * Oracool: user request - the last position used to be "S", the SORT button, which meant the tab row
+ * only opened nine of the ten pages. SORT is a text button in the footer now (GetSortButtonRect) and
+ * this position is tab 10.
+ *
+ * That also un-strands a page. Storage was always ten deep - the vanilla backpack plus
+ * Player::NumExtraInventoryTabs (9) - and the tenth had no way to be viewed, only drained by SORT.
+ * Nothing about the save changes here; the page was being written all along.
+ */
 constexpr const char *TabLabel(int index)
 {
-	constexpr const char *Labels[TabCount] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "S" };
+	constexpr const char *Labels[TabCount] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10" };
 	return Labels[index];
 }
 
@@ -119,12 +126,22 @@ constexpr Rectangle GetActiveTabRect(int index)
 		{ r.size.width + 2 * ActiveTabGrowSides, r.size.height + ActiveTabGrowTop } };
 }
 
-// The selected tab is 30x30 and shares its bottom edge with the unselected ones.
-static_assert(GetActiveTabRect(0).size.width == 30 && GetActiveTabRect(0).size.height == 30,
-    "Selected tab is no longer 30x30");
+// The one invariant the growth must never break: all ten tabs stay seated on the same line, and
+// only the open one stands proud of it.
 static_assert(GetActiveTabRect(0).position.y + GetActiveTabRect(0).size.height
         == GetTabRect(0).position.y + GetTabRect(0).size.height,
     "Selected tab no longer shares its bottom edge with the unselected tabs");
+
+// The tab row is inset from the panel margin by the slack the grid centring leaves (6px each side
+// at 10 columns of 28 in a 340 panel), and the end tabs eat into that slack as they grow. These
+// bound the growth against the margin rather than restating the size, which an earlier "is it
+// 30x30?" assert did - that one only ever repeated GetActiveTabRect's own arithmetic back at it,
+// so it could not catch anything, and it had to be edited every time the size was tuned.
+static_assert(GetActiveTabRect(0).position.x >= PanelMargin,
+    "Selected first tab now grows past the panel's left margin");
+static_assert(GetActiveTabRect(TabCount - 1).position.x + GetActiveTabRect(TabCount - 1).size.width
+        <= InventoryPanelSize.width - PanelMargin,
+    "Selected last tab now grows past the panel's right margin");
 
 /**
  * @brief Source cell size in the tab strip asset. Every cell is the *active* size; the two
@@ -319,21 +336,36 @@ static_assert(ShouldersX + 2 * CellPx < EquipColCentre
 constexpr int WeaponRowBottom = WeaponRowY + 3 * CellPx;
 
 /**
- * @brief The gold readout, centred in the band between the grid's bottom and the panel's.
+ * @brief The footer: the SORT button under the grid, the gold readout under that.
  *
- * Replaces the standalone SORT button, which is now tab position SortTabIndex. The band exists
- * because the grid stops at OrbClearanceBottom while the panel runs to 720 - so this sits in space
- * the mana orb already covers at 960x720, and is fully visible at wider resolutions where the orb
- * clears the panel.
+ * The band exists because the grid stops at OrbClearanceBottom while the panel runs the full 720 - so
+ * all of it is vertically behind the mana orb at 960x720. Horizontally it is not: the orb spans screen
+ * x 658..755 and these rows are centred at x 790, clear of it. Both are drawn AFTER the orbs anyway
+ * (see DrawInventoryFooter), which is what makes the overlap a non-issue rather than a bug.
+ *
+ * SORT goes first, tucked under the grid where the user marked it, with gold below.
  */
-constexpr int GoldRowHeight = 24;
+constexpr int FooterRowHeight = 24;
+constexpr int FooterRowGap = 8;
+constexpr int GoldRowHeight = FooterRowHeight;
+
+/** @brief Oracool: user request - "a gold SORT INVENTORY text button", where tab "S" used to be. */
+constexpr Rectangle GetSortButtonRect()
+{
+	return { { PanelMargin, GridBottom + FooterRowGap },
+		{ InventoryPanelSize.width - 2 * PanelMargin, FooterRowHeight } };
+}
+
 constexpr Rectangle GetGoldRowRect()
 {
-	// Centred in the band between the grid's bottom edge and the panel's, rather than tucked just
-	// under the grid.
-	return { { PanelMargin, GridBottom + (InventoryPanelSize.height - GridBottom - GoldRowHeight) / 2 },
+	return { { PanelMargin, GetSortButtonRect().position.y + FooterRowHeight + FooterRowGap },
 		{ InventoryPanelSize.width - 2 * PanelMargin, GoldRowHeight } };
 }
+
+static_assert(GetSortButtonRect().position.y >= GridBottom,
+    "SORT button overlaps the item grid");
+static_assert(GetGoldRowRect().position.y >= GetSortButtonRect().position.y + FooterRowHeight,
+    "Gold row overlaps the SORT button");
 static_assert(GetGoldRowRect().position.y + GoldRowHeight <= InventoryPanelSize.height,
     "Gold row runs past the bottom of the panel");
 

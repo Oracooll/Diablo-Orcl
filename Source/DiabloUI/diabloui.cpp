@@ -2,11 +2,15 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
+#include <variant>
+#include <vector>
 
 #include "DiabloUI/button.h"
 #include "DiabloUI/dialogs.h"
 #include "DiabloUI/scrollbar.h"
+#include "capture.h"
 #include "controls/controller.h"
 #include "controls/devices/kbcontroller.h"
 #include "controls/input.h"
@@ -19,6 +23,7 @@
 #include "engine/dx.h"
 #include "engine/load_pcx.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "hwcursor.hpp"
 #include "utils/display.h"
 #include "utils/language.h"
@@ -55,6 +60,11 @@ std::array<OptionalOwnedClxSpriteList, 3> ArtFocus;
 
 OptionalOwnedClxSpriteList ArtBackgroundWidescreen;
 OptionalOwnedClxSpriteList ArtBackground;
+
+/** @brief A menu screenshot was asked for; taken at the end of the frame. See UiHandleEvents. */
+bool PendingUiCapture = false;
+
+bool UiListSelectorHidden = false;
 OptionalOwnedClxSpriteList ArtCursor;
 
 bool textInputActive = true;
@@ -186,10 +196,15 @@ void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*
 			});
 		} else if (item->IsType(UiType::List)) {
 			auto *uiList = static_cast<UiList *>(item.get());
-			SelectedItemMax = std::max(uiList->m_vecItems.size() - 1, static_cast<size_t>(0));
+			// Oracool: `size() - 1` on an EMPTY list wraps size_t to SIZE_MAX, and std::max then
+			// happily keeps it - after which the guarded GetItem(selectedItem) below indexes an empty
+			// vector. Latent until the hero-select screen moved "New Hero" out of its list and into a
+			// button, which made a character list with nothing in it reachable on a fresh install.
+			SelectedItemMax = uiList->m_vecItems.empty() ? 0 : uiList->m_vecItems.size() - 1;
 			ListViewportSize = uiList->viewportSize;
 			gUiList = uiList;
-			if (selectedItem <= SelectedItemMax && HasAnyOf(uiList->GetItem(selectedItem)->uiFlags, UiFlags::NeedsNextElement))
+			if (!uiList->m_vecItems.empty() && selectedItem <= SelectedItemMax
+			    && HasAnyOf(uiList->GetItem(selectedItem)->uiFlags, UiFlags::NeedsNextElement))
 				AdjustListOffset(selectedItem + 1);
 		} else if (item->IsType(UiType::Scrollbar)) {
 			uiScrollbar = static_cast<UiScrollbar *>(item.get());
@@ -199,7 +214,12 @@ void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*
 	AdjustListOffset(selectedItem);
 
 	if (uiScrollbar != nullptr) {
-		if (ListViewportSize >= static_cast<std::size_t>(SelectedItemMax + 1)) {
+		// An EMPTY list has a viewport of 0 (UiList clamps it to the item count) against a
+		// SelectedItemMax of 0, which reads as "0 >= 1, so there is more to scroll to" and showed a
+		// scrollbar beside nothing. Same trigger as the underflow above: the hero-select screen's
+		// character list can now be empty.
+		const bool listIsEmpty = gUiList == nullptr || gUiList->m_vecItems.empty();
+		if (listIsEmpty || ListViewportSize >= static_cast<std::size_t>(SelectedItemMax + 1)) {
 			uiScrollbar->Hide();
 		} else {
 			uiScrollbar->Show();
@@ -457,6 +477,31 @@ void UiHandleEvents(SDL_Event *event)
 #endif
 		MousePosition = { event->motion.x, event->motion.y };
 		return;
+	}
+
+	// Oracool: user report - screenshots were impossible on every front-end screen. The Screenshot
+	// action is a Keymapper binding, and the Keymapper is only consulted while a game is running, so
+	// the key reached nothing here.
+	//
+	// F12 as well as Print Screen, deliberately: Windows 11 binds PrtScn to the Snipping Tool by
+	// default and swallows it before the game sees it, which is the likely reason the key "did
+	// nothing" even where it was bound. F12 is unclaimed both by the OS and by these screens.
+	if (event->type == SDL_KEYDOWN) {
+		const SDL_Keycode key = event->key.keysym.sym;
+#ifdef USE_SDL1
+		const bool isScreenshotKey = key == SDLK_PRINT || key == SDLK_F12;
+#else
+		const bool isScreenshotKey = key == SDLK_PRINTSCREEN || key == SDLK_F12;
+#endif
+		if (isScreenshotKey) {
+			// Deferred to the end of the frame rather than taken here. Events are polled at the TOP
+			// of UiPollAndRender, before UiRenderListItems draws the list, the buttons and the
+			// scrollbar - and the previous frame's copy of them has already been wiped by this
+			// frame's background blit. Capturing on the keypress therefore saved a screen with its
+			// controls missing, which is exactly what the first menu screenshots came out as.
+			PendingUiCapture = true;
+			return;
+		}
 	}
 
 #if HAS_KBCTRL == 0
@@ -745,29 +790,134 @@ void UiFadeIn()
 	RenderPresent();
 }
 
-void DrawSelector(const SDL_Rect &rect)
+namespace {
+
+/**
+ * @brief Every colour bit GetColorFromFlags tests.
+ *
+ * The halo has to REPLACE a widget's colour, not join it: GetColorFromFlags returns on the first
+ * colour bit it finds, in its own fixed order, so a row that already says ColorUiGold would keep
+ * drawing gold no matter what was ORed in beside it.
+ */
+constexpr UiFlags AllTextColorFlags = UiFlags::ColorUiGold | UiFlags::ColorUiSilver
+    | UiFlags::ColorUiGoldDark | UiFlags::ColorUiSilverDark | UiFlags::ColorDialogWhite
+    | UiFlags::ColorDialogYellow | UiFlags::ColorDialogRed | UiFlags::ColorYellow
+    | UiFlags::ColorGold | UiFlags::ColorBlack | UiFlags::ColorWhite | UiFlags::ColorWhitegold
+    | UiFlags::ColorRed | UiFlags::ColorBlue | UiFlags::ColorOrange | UiFlags::ColorButtonface
+    | UiFlags::ColorButtonpushed;
+
+/**
+ * @brief The focus glow's two ring colours - the one place to change what the glow is made of.
+ *
+ * Amber, on the user's call, after seeing gold (too dim) and silver (bright, but cold). It is
+ * fonts\whitegold.trn, which in `ui_art\diablo.pal` maps the font's ramp onto indices 193-207 - a
+ * fifteen-shade run from (244,201,150) peach through (199,75,31) burnt orange to black. Firelight,
+ * which is the one thing in this palette that looks like something is actually burning.
+ *
+ * The outer rings are the dark gold rather than a dark amber, because there is no dark amber: every
+ * other bright ramp here ships a compressed companion (goldui/golduis, grayui/grayuis) and this one
+ * does not. `golduis` is warm and tops out at 195 against amber's 208, so the ordering a falloff needs
+ * still holds - just with less headroom between the rings than the silver pair had. If the aura ever
+ * wants more depth, the honest fix is to cut a `whitegolds.trn` the way golduis relates to goldui;
+ * that needs a new UiFlags bit, a text_color entry, and an MPQ repack, which is why it is not here.
+ */
+constexpr UiFlags GlowInnerColor = UiFlags::ColorWhitegold;
+constexpr UiFlags GlowOuterColor = UiFlags::ColorUiGoldDark;
+
+/** @brief @p flags with its colour swapped for @p color, keeping font size, alignment and the rest. */
+constexpr UiFlags WithTextColor(UiFlags flags, UiFlags color)
 {
-	int size = FOCUS_SMALL;
-	if (rect.h >= 42)
-		size = FOCUS_BIG;
-	else if (rect.h >= 30)
-		size = FOCUS_MED;
-	const ClxSpriteList sprites = *ArtFocus[size];
-	const ClxSprite sprite = sprites[GetAnimationFrame(sprites.numSprites())];
+	return (flags & ~AllTextColorFlags) | color;
+}
 
-	// TODO FOCUS_MED appares higher than the box
-	// Oracool: user request - a list whose row height is padded purely to add blank spacing below
-	// each top-aligned line of text (e.g. the trimmed main menu, OE-036) would otherwise center
-	// the spinner in the FULL padded row instead of next to the text sitting at its top. Clamping
-	// to the vanilla single-line row height (43px - the tallest any other list in the game already
-	// uses) re-aligns those padded rows without moving the spinner for any other, unpadded list.
-	constexpr int MaxSingleLineRowHeight = 43;
-	const int effectiveHeight = std::min(rect.h, MaxSingleLineRowHeight);
-	const int y = rect.y + (effectiveHeight - static_cast<int>(sprite.height())) / 2;
+/** @brief A copy of @p args with every argument's own colour swapped for @p color. */
+std::vector<DrawStringFormatArg> RecolorArgs(const std::vector<DrawStringFormatArg> &args, UiFlags color)
+{
+	std::vector<DrawStringFormatArg> result;
+	result.reserve(args.size());
+	for (const DrawStringFormatArg &arg : args) {
+		const UiFlags flags = WithTextColor(arg.GetFlags(), color);
+		if (std::holds_alternative<string_view>(arg.value()))
+			result.emplace_back(std::get<string_view>(arg.value()), flags);
+		else
+			result.emplace_back(std::get<int>(arg.value()), flags);
+	}
+	return result;
+}
 
+} // namespace
+
+/**
+ * @brief Makes the focused item glow, by ringing its own text in gold light.
+ *
+ * Oracool: user request, twice. First "replace the pentagrams cursors with golden border sitting
+ * below the selected item" - the two animated pentagrams that used to flank each row are gone. Then
+ * "the border bellow the items in not nice. remove it. try finding a way to make the selectem item
+ * glow", which is this.
+ *
+ * The halo is the SAME TEXT drawn repeatedly around itself, with the real text laid back on top -
+ * light coming off the letterforms rather than a shape drawn near them. Crucially the core is drawn
+ * LAST, so the glyphs keep their exact edges and the row does not just look fatter.
+ *
+ * Three rings, two colours (see GlowInnerColor), and that pair is the whole falloff:
+ *
+ * - The **innermost** ring is the bright one - at the top of its ramp, the brightest entry the UI
+ *   palette has - so the letters sit in a band of full-brightness light.
+ * - The **outer two** are its dark companion .trn, the same ramp compressed toward the dim end, so
+ *   they top out below the inner ring and bottom out at the background.
+ *
+ * Outermost first, so each ring overdraws the last and what survives is brightest against the letters.
+ * The softness within each ring is free: the glyphs are already antialiased across those ramps, so an
+ * offset copy feathers at its own edges. Nothing here blends anything.
+ *
+ * Which matters, because the obvious implementation is not available in a menu. Blending goes through
+ * `paletteTransparencyLookup`, and only `LoadPalette(..., blend=true)` rebuilds it; the front end
+ * loads its palettes without that (`UiLoadDefaultPalette` passes false, `LoadPalInMem` just copies),
+ * so in these screens that table still holds whatever the last DUNGEON palette generated. A
+ * translucent halo here would come out in colours from another palette entirely.
+ *
+ * It does not animate. It did for one version - the radius breathed between 1 and 2 - and the user
+ * asked for it to stop; a steady glow is the one that reads as "this row is lit" rather than as
+ * something demanding attention.
+ *
+ * @param drawHalo Draws the widget's own text offset by the given amount, in `WithTextColor` of its
+ *                 own flags and the given colour. The caller owns the rect, font size, alignment and
+ *                 spacing - all of which differ per widget - and draws the real text afterwards.
+ */
+void DrawFocusGlow(tl::function_ref<void(UiFlags haloColor, Displacement offset)> drawHalo)
+{
+	// 3 on the user's call, after 2 read as too faint. Width is the only lever left: index 176 is the
+	// brightest entry in this palette's gold and the text already uses it.
+	//
+	// It fits. At the tightest pitch any of these lists uses - the settings menu's 34px rows, whose
+	// glyph band runs about 12 to 34 within the row - there are 12 clear pixels between one row's
+	// glyph bottom and the next row's glyph top, so a 3px aura does not reach the neighbours. Past
+	// that it would, and rows are drawn in order: a halo spreading upwards would tint the descenders
+	// of the row above, which is drawn before it.
+	constexpr int GlowRadius = 3;
+
+	for (int ring = GlowRadius; ring >= 1; ring--) {
+		const UiFlags color = ring == 1 ? GlowInnerColor : GlowOuterColor;
+		for (int dy = -ring; dy <= ring; dy++) {
+			for (int dx = -ring; dx <= ring; dx++) {
+				if (std::max(std::abs(dx), std::abs(dy)) == ring)
+					drawHalo(color, Displacement { dx, dy });
+			}
+		}
+	}
+}
+
+void DrawFocusGlow(const UiArtTextButton &button)
+{
 	const Surface &out = Surface(DiabloUiSurface());
-	RenderClxSprite(out, sprite, { rect.x, y });
-	RenderClxSprite(out, sprite, { rect.x + rect.w - sprite.width(), y });
+	const Rectangle rect = MakeRectangle(button.m_rect);
+	DrawFocusGlow([&](UiFlags haloColor, Displacement offset) {
+		DrawString(out, button.GetText(), Rectangle { rect.position + offset, rect.size },
+		    { WithTextColor(button.GetFlags(), haloColor) });
+	});
+	// Redrawn rather than relied upon: this is called after the button has already been rendered, so
+	// the halo has just been laid over the label's own outer pixels and has to give them back.
+	DrawString(out, button.GetText(), rect, { button.GetFlags() });
 }
 
 void UiClearScreen()
@@ -794,6 +944,13 @@ void UiPollAndRender(std::optional<tl::function_ref<bool(SDL_Event &)>> eventHan
 	// `UiFadeIn` calls `SetFadeLevel` which reinitializes the hardware cursor.
 	if (IsHardwareCursor() && fadeValue != 0)
 		SetHardwareCursorVisible(ControlDevice == ControlTypes::KeyboardAndMouse);
+
+	// The frame is complete and presented by here, so this is the only point at which the surface
+	// holds everything the player can see. See the note where the flag is set.
+	if (PendingUiCapture) {
+		PendingUiCapture = false;
+		CaptureUiScreen();
+	}
 
 #ifdef __3DS__
 	// Keyboard blocks until input is finished
@@ -851,60 +1008,116 @@ void Render(const UiList &uiList)
 	for (std::size_t i = listOffset; i < uiList.m_vecItems.size() && (i - listOffset) < ListViewportSize; ++i) {
 		SDL_Rect rect = uiList.itemRect(i - listOffset);
 		const UiListItem &item = *uiList.GetItem(i);
-		if (i == SelectedItem)
-			DrawSelector(rect);
+		const Rectangle rectangle = MakeRectangle(rect);
+		const UiFlags flags = uiList.GetFlags() | item.uiFlags;
+		const bool focused = i == SelectedItem && !UiListSelectorHidden;
 
-		Rectangle rectangle = MakeRectangle(rect);
-		if (item.args.empty())
-			DrawString(out, item.m_text, rectangle, { uiList.GetFlags() | item.uiFlags, uiList.GetSpacing() });
-		else
-			DrawStringWithColors(out, item.m_text, item.args, rectangle, { uiList.GetFlags() | item.uiFlags, uiList.GetSpacing() });
+		if (item.args.empty()) {
+			if (focused) {
+				DrawFocusGlow([&](UiFlags haloColor, Displacement offset) {
+					DrawString(out, item.m_text, Rectangle { rectangle.position + offset, rectangle.size },
+					    { WithTextColor(flags, haloColor), uiList.GetSpacing(), uiList.GetLineHeight() });
+				});
+			}
+			DrawString(out, item.m_text, rectangle, { flags, uiList.GetSpacing(), uiList.GetLineHeight() });
+		} else {
+			if (focused) {
+				// Recoloured copies of the arguments, one per ring. Each argument carries its own
+				// colour - the settings rows draw an option's name in gold and its value in silver -
+				// and a ring has to be one colour, or it stops reading as light and starts reading as
+				// a blurred second row. Rebuilt rather than copy-and-edited because the flags are
+				// private to the argument; hoisted out of the ring loop because there are only two
+				// colours and two dozen passes.
+				const std::vector<DrawStringFormatArg> innerArgs = RecolorArgs(item.args, GlowInnerColor);
+				const std::vector<DrawStringFormatArg> outerArgs = RecolorArgs(item.args, GlowOuterColor);
+				DrawFocusGlow([&](UiFlags haloColor, Displacement offset) {
+					DrawStringWithColors(out, item.m_text,
+					    haloColor == GlowInnerColor ? innerArgs : outerArgs,
+					    Rectangle { rectangle.position + offset, rectangle.size },
+					    { WithTextColor(flags, haloColor), uiList.GetSpacing(), uiList.GetLineHeight() });
+				});
+			}
+			DrawStringWithColors(out, item.m_text, item.args, rectangle, { flags, uiList.GetSpacing(), uiList.GetLineHeight() });
+		}
 	}
 }
 
+/**
+ * @brief The theme's scrollbar - a narrow recessed groove with a bevelled thumb.
+ *
+ * Oracool: user request - "put the same elegant scrol bar which you use for Char Stats ui window".
+ * The vanilla art (a 25px tiled channel between two arrow buttons) is the last piece of the old
+ * front-end furniture on these screens, and next to a painted background it reads as a control bolted
+ * on rather than part of the window.
+ *
+ * The colours below are not an approximation of the in-game bar - they are the SAME colours. The
+ * character sheet draws its groove and thumb in indices sampled from `textbox_frame00`, and the warm
+ * ramp those come from exists in the front-end palette too, just at different indices. Each constant
+ * here is the entry in `ui_art\diablo.pal` whose RGB is identical to the in-game one, so the two bars
+ * are the same bar rather than a pair that merely look alike:
+ *
+ *   in-game 204 -> here 188   (57,49,29)    the shadow the bevel puts on a left edge
+ *   in-game 202 -> here 186   (91,81,52)    its mid-gold body
+ *   in-game 198 -> here 182   (152,139,93)  the highlight on a right edge
+ *
+ * The groove is the one thing that had to change rather than move. In game it is `DrawThemedFill`, a
+ * half-transparent darkening of the panel behind it - and blending is unavailable in a menu, since
+ * `paletteTransparencyLookup` still holds whatever the last dungeon palette generated (see
+ * DrawFocusGlow for the same problem). It is drawn solid in the ornate frame's own near-black
+ * instead, which is the colour that theme already uses to separate the frame from what it surrounds.
+ *
+ * The widget's rect is left alone: it is the mouse target, and every hit test in
+ * `HandleMouseEventScrollBar` is derived from it. The rect is sized for the hand, the bar for the eye,
+ * and the thumb is drawn at `ThumbRect`'s own position so the two never disagree about where it is.
+ * The arrow buttons are no longer drawn but their zones still scroll when clicked - the top of the
+ * bar scrolls up, which is what a player would expect of it anyway.
+ */
 void Render(const UiScrollbar &uiSb)
 {
+	constexpr uint8_t GrooveColor = 191;    // (20,11,0) - the ornate frame's innermost ring
+	constexpr uint8_t ShadowColor = 188;    // (57,49,29)
+	constexpr uint8_t BodyColor = 186;      // (91,81,52)
+	constexpr uint8_t HighlightColor = 182; // (152,139,93)
+	constexpr int BarWidth = 3;             // oracool::OrnateBorderWidth, the theme's bevel thickness
+
 	const Surface out = Surface(DiabloUiSurface());
+	const int x = uiSb.m_rect.x + std::max(0, (uiSb.m_rect.w - BarWidth) / 2);
 
-	// Bar background (tiled):
-	{
-		const int bgY = uiSb.m_rect.y + uiSb.m_arrow[0].height();
-		const int bgH = DownArrowRect(uiSb).y - bgY;
-		const Surface backgroundOut = out.subregion(uiSb.m_rect.x, bgY, ScrollBarBgWidth, bgH);
-		int y = 0;
-		while (y < bgH) {
-			RenderClxSprite(backgroundOut, uiSb.m_bg, { 0, y });
-			y += uiSb.m_bg.height();
-		}
-	}
+	// Only as tall as the thumb can travel, so the bar has no dead ends the thumb never reaches.
+	const SDL_Rect track = BarRect(uiSb);
+	for (int i = 0; i < BarWidth; i++)
+		DrawVerticalLine(out, { x + i, track.y }, track.h, GrooveColor);
 
-	// Arrows:
-	{
-		const SDL_Rect rect = UpArrowRect(uiSb);
-		const auto frame = static_cast<uint16_t>(scrollBarState.upArrowPressed ? ScrollBarArrowFrame_UP_ACTIVE : ScrollBarArrowFrame_UP);
-		RenderClxSprite(out.subregion(rect.x, 0, ScrollBarArrowWidth, out.h()), uiSb.m_arrow[frame], { 0, rect.y });
-	}
-	{
-		const SDL_Rect rect = DownArrowRect(uiSb);
-		const auto frame = static_cast<uint16_t>(scrollBarState.downArrowPressed ? ScrollBarArrowFrame_DOWN_ACTIVE : ScrollBarArrowFrame_DOWN);
-		RenderClxSprite(out.subregion(rect.x, 0, ScrollBarArrowWidth, out.h()), uiSb.m_arrow[frame], { 0, rect.y });
-	}
-
-	// Thumb:
 	if (SelectedItemMax > 0) {
-		const SDL_Rect rect = ThumbRect(uiSb, SelectedItem, SelectedItemMax + 1);
-		RenderClxSprite(out, uiSb.m_thumb, { rect.x, rect.y });
+		const SDL_Rect thumb = ThumbRect(uiSb, SelectedItem, SelectedItemMax + 1);
+		// Left to right, matching how the bevel lights a left edge dark and a right edge bright.
+		DrawVerticalLine(out, { x, thumb.y }, thumb.h, ShadowColor);
+		DrawVerticalLine(out, { x + 1, thumb.y }, thumb.h, BodyColor);
+		DrawVerticalLine(out, { x + 2, thumb.y }, thumb.h, HighlightColor);
 	}
 }
 
 void Render(const UiEdit &uiEdit)
 {
-	DrawSelector(uiEdit.m_rect);
-
-	// To simulate padding we inset the region used to draw text in an edit control
-	Rectangle rect = MakeRectangle(uiEdit.m_rect).inset({ 43, 1 });
+	// To simulate padding we inset the region used to draw text in an edit control.
+	//
+	// 43 -> 12: the old figure was not padding, it was clearance for the two pentagram cursors that
+	// used to flank the box, and they are gone. On the hero-name box that reclaims 62px, which is what
+	// lets a full 15-character name fit now that the box sits in the 320px list column rather than a
+	// 400px centred one.
+	Rectangle rect = MakeRectangle(uiEdit.m_rect).inset({ 12, 1 });
 
 	const Surface &out = Surface(DiabloUiSurface());
+
+	// An edit box is always the focused thing on its screen - it is where the pentagrams used to sit -
+	// so what is typed into it glows like a focused row. The halo passes leave out the caret and the
+	// selection highlight: those are solid rectangles, and smearing them across the ring offsets would
+	// blur the box instead of lighting up the name in it.
+	DrawFocusGlow([&](UiFlags haloColor, Displacement offset) {
+		DrawString(out, uiEdit.m_value, Rectangle { rect.position + offset, rect.size },
+		    { WithTextColor(uiEdit.GetFlags(), haloColor), /*spacing=*/1 });
+	});
+
 	DrawString(out, uiEdit.m_value, rect,
 	    {
 	        uiEdit.GetFlags(),

@@ -425,14 +425,20 @@ struct Player {
 	bool _pSLvlVisited[NUMLEVELS]; // only 10 used
 
 	/**
+	 * @brief Waypoint list slots stored per difficulty: index 0 is Tristram, 1-24 the dungeon
+	 * levels. 25 rather than 17 because Hellfire's Nest (17-20) and Crypt (21-24) have waypoints
+	 * too; a plain Diablo game simply never sets the last eight (oracool::VisibleWaypointCount).
+	 */
+	static constexpr size_t MaxWaypointSlots = 25;
+	/**
 	 * @brief Oracool: user request - per-difficulty waypoint unlock table. Indexed
-	 * [difficulty][waypoint list index] (0 = Tristram, 1-16 = that dungeon level, matching
+	 * [difficulty][waypoint list index] (0 = Tristram, 1-24 = that dungeon level, matching
 	 * currlevel numbering) - see oracool::IsWaypointUnlocked/UnlockWaypoint
 	 * (oracool/waypoint_menu.h), the only readers/writers. Unlocking a waypoint on one difficulty
 	 * deliberately doesn't unlock it on another, matching the user's explicit request. Index 0 is
 	 * always treated as unlocked regardless of what's stored here - see IsWaypointUnlocked.
 	 */
-	bool _pWaypointUnlocked[4][17] = {};
+	bool _pWaypointUnlocked[4][MaxWaypointSlots] = {};
 
 	item_misc_id _pOilType;
 	uint8_t pTownWarps;

@@ -11,6 +11,7 @@
 #include "inv.h"
 #include "levels/gendung.h"
 #include "minitext.h"
+#include "panels/charpanel.hpp"
 #include "panels/ui_panels.hpp"
 #include "qol/stash.h"
 #include "stores.h"
@@ -161,6 +162,10 @@ bool InteractsWithCharButton(Point point)
 {
 	Player &myPlayer = *MyPlayer;
 	if (myPlayer._pStatPts == 0)
+		return false;
+	// Oracool V1: the character sheet scrolls, so a + button's rect can be sitting outside the
+	// window. Same gate the mouse path uses in control.cpp's CheckChrBtns.
+	if (!GetCharacterContentRect().contains(point))
 		return false;
 	for (auto attribute : enum_values<CharacterAttribute>()) {
 		if (myPlayer.GetBaseAttributeValue(attribute) >= myPlayer.GetMaximumAttributeValue(attribute))

@@ -1250,8 +1250,19 @@ GameplayOptions::GameplayOptions()
     , cowQuest("Cow Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Cow Quest"), N_("Enable Jersey's quest. Lester the farmer is replaced by the Complete Nut."), false)
     , friendlyFire("Friendly Fire", OptionEntryFlags::CantChangeInMultiPlayer, N_("Friendly Fire"), N_("Allow arrow/spell damage between players in multiplayer even when the friendly mode is on."), true)
     , multiplayerFullQuests("MultiplayerFullQuests", OptionEntryFlags::CantChangeInMultiPlayer, N_("Full quests in Multiplayer"), N_("Enables the full/uncut singleplayer version of quests."), false)
-    , testBard("Test Bard", OptionEntryFlags::CantChangeInGame, N_("Test Bard"), N_("Force the Bard character type to appear in the hero selection menu."), false)
-    , testBarbarian("Test Barbarian", OptionEntryFlags::CantChangeInGame, N_("Test Barbarian"), N_("Force the Barbarian character type to appear in the hero selection menu."), false)
+    // Oracool: user request - the full six-class roster is on offer, so the Bard is back, on by
+    // default, with its switch visible in the settings menu again. Same treatment as the Barbarian
+    // below: vanilla hides both behind these test switches, and flipping the default is the whole
+    // change - the option stays, so the class can still be turned off.
+    //
+    // Turning it off is safe for a Bard that already exists: the class vanishes from the new-hero
+    // list, but its starting Sword and Dagger stay available to IsItemAvailable() either way, so
+    // they are not stripped off the character on load. See the note there.
+    , testBard("Test Bard", OptionEntryFlags::CantChangeInGame, N_("Test Bard"), N_("Force the Bard character type to appear in the hero selection menu."), true)
+    // Oracool: user request - the Barbarian is on by default. It is a Hellfire class that vanilla
+    // hides behind this switch; Oracool wants it in the hero list from the start, and flipping the
+    // default here is the whole change - the option stays, so it can still be turned off.
+    , testBarbarian("Test Barbarian", OptionEntryFlags::CantChangeInGame, N_("Test Barbarian"), N_("Force the Barbarian character type to appear in the hero selection menu."), true)
     , experienceBar("Experience Bar", OptionEntryFlags::None, N_("Experience Bar"), N_("Experience Bar is added to the UI at the bottom of the screen."), true)
     , showItemGraphicsInStores("Show Item Graphics in Stores", OptionEntryFlags::None, N_("Show Item Graphics in Stores"), N_("Show item graphics to the left of item descriptions in store menus."), true)
     , showHealthValues("Show health values", OptionEntryFlags::None, N_("Show health values"), N_("Displays current / max health value on health globe."), true)

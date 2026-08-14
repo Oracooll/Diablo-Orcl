@@ -43,14 +43,13 @@ extern bool chrbtn[4];
 extern bool lvlbtndown;
 extern bool chrbtnactive;
 extern bool resetStatsButtonDown;
-/** @brief Panel-relative position and size of the Reset Stats button - shared by charpanel.cpp's
- * drawing code and control.cpp's press/release hit-testing so the visual and clickable area can
- * never drift apart again (they briefly did, after OE-022 repositioned the button but missed
- * updating these two hardcoded hit-test rectangles). */
-constexpr Point ResetStatsButtonPosition { 141, 246 };
+/** @brief Size of the Reset Stats button - shared by charpanel.cpp's drawing code and control.cpp's
+ * press/release hit-testing so the visual and clickable area can never drift apart again (they
+ * briefly did, after OE-022 repositioned the button but missed updating these two hardcoded
+ * hit-test rectangles). Its POSITION now depends on measured text, so it comes from
+ * GetResetStatsButtonPosition() in panels/charpanel.hpp rather than a constant here. */
 constexpr Size ResetStatsButtonSize { 44, 24 };
 extern UiFlags InfoColor;
-extern int sbooktab;
 extern bool talkflag;
 extern bool sbookflag;
 extern bool chrflag;
@@ -93,6 +92,19 @@ LeftPanelContent GetLeftPanelContent();
  * drop on the ground).
  */
 bool IsOverRightPanel(Point position);
+
+/**
+ * @brief Screen rect of whatever the left panel is currently showing, or an empty rect if nothing.
+ *
+ * NOT the same as GetLeftPanel(). That is the vanilla 320x352 slot; the character sheet, quest log
+ * and waypoint list have each grown into their own 340x720 window. Anything routing or absorbing a
+ * click over the left panel must use this, so that no part of an open window lets a click reach the
+ * ground beneath it.
+ */
+Rectangle GetLeftPanelContentRect();
+
+/** @brief Whether @p position is over the open left-panel window, per GetLeftPanelContentRect(). */
+bool IsOverLeftPanel(Point position);
 extern std::optional<OwnedSurface> pBtmBuff;
 extern OptionalOwnedClxSpriteList pGBoxBuff;
 
@@ -122,6 +134,35 @@ void ToggleSpell(size_t slot);
 
 void AddPanelString(string_view str);
 void AddPanelString(std::string &&str);
+
+/**
+ * @brief Appends a line to InfoString and records the colour it should be drawn in.
+ *
+ * Oracool V1: the hover panel used to draw the whole block in one colour (InfoColor), which is
+ * fine for a one-line label and wrong for an item, where the name, its base stats, its affixes and
+ * its requirements are different KINDS of information. This carries a colour per line alongside the
+ * text, in InfoStringLineColors, so oracool::DrawCursorTooltip can render each line in its own.
+ *
+ * The uncoloured overloads above keep working and record white, so nothing outside the item path
+ * needs touching.
+ */
+void AddPanelString(string_view str, UiFlags color);
+void AddPanelString(std::string &&str, UiFlags color);
+
+/** @brief Replaces InfoString with a single coloured line, resetting the per-line colours. */
+void SetPanelString(StringOrView str, UiFlags color);
+
+/** @brief Clears InfoString and its per-line colours together - they must not drift apart. */
+void ClearPanelStrings();
+
+/**
+ * @brief One colour per LINE of InfoString, or empty when the hover did not supply any.
+ *
+ * Consumers MUST check that its size matches the line count before using it and fall back to
+ * InfoColor otherwise: not every producer of InfoString goes through AddPanelString, so the two can
+ * legitimately be out of step.
+ */
+extern std::vector<UiFlags> InfoStringLineColors;
 void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition);
 Point GetPanelPosition(UiPanels panel, Point offset = { 0, 0 });
 

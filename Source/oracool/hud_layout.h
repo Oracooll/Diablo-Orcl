@@ -88,6 +88,39 @@ Rectangle GetLmbSkillButtonRect();
  * on it (control.cpp's DoPanBtn/CheckPanelInfo). */
 Rectangle GetRmbSkillButtonRect();
 
+/**
+ * @brief Cell size of ui\attack_icons.png, the strip the two skill wells draw.
+ *
+ * NOT sized to the wells, which are ~49x51 and could take a much larger icon. Sized to the engine's
+ * small spell icon - 37x38, the one Item Repair and every readied spell draws at, and not resizable
+ * since it comes from the game's own CEL. The RMB well alternates between that icon and this one
+ * depending on whether a spell is readied, so a bigger attack icon made the slot's contents change
+ * size with its state. It also matches the aura and Barbarian strips, which keeps every icon in the
+ * Abilities window on one rhythm.
+ *
+ * 38 rather than 37 because DrawStripIcon takes square cells (it derives the cell size from the
+ * strip's height); a pixel of extra width against the spell icon is invisible next to the state
+ * change it avoids.
+ *
+ * A literal here for the same reason as LevelUpIconSize: hud_art blits the art unscaled, so the PNG
+ * is cut to exactly this. hud_layout.cpp static_asserts it fits the wells and pins the centring it
+ * produces; attack_skills.cpp asserts the loaded art actually matches it. Between them, nothing here
+ * can drift without something failing.
+ */
+inline constexpr Size SkillWellIconSize { 38, 38 };
+
+/**
+ * @brief Top-left origin that puts a @p content-sized sprite dead centre in the LMB well.
+ *
+ * Centred on the well's TRUE opening rather than inside GetLmbSkillButtonRect(), whose edges are
+ * each truncated to a whole pixel - all four in the same direction, which moves its centre up to a
+ * pixel up and left of the opening it describes. See CentreInWell in hud_layout.cpp for the numbers.
+ */
+Point GetLmbSkillIconOrigin(Size content);
+
+/** @brief GetLmbSkillIconOrigin's twin for the RMB well. */
+Point GetRmbSkillIconOrigin(Size content);
+
 /** @brief Absolute screen rect of belt cell `visibleIndex` (0 = Menu, 1-4 = items, 5 = Town
  * Portal) on the plate art. Replaces the old InvRect-plus-panel-offset math for every belt draw
  * call and hit-test - InvRect itself stays untouched (its values are save/hit-test-shared

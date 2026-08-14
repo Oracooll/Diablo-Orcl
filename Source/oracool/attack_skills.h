@@ -1,0 +1,87 @@
+/**
+ * @file oracool/attack_skills.h
+ *
+ * Oracool: user request (2026-08-13) - "Regular Attack" and "Fist Attack", the two basic attacks,
+ * as visible abilities: listed on the Abilities window's Skills sheet and shown in the HUD's LMB and
+ * RMB skill wells.
+ *
+ * They are deliberately NOT new SpellIDs. Both are the engine's existing "no spell readied" state
+ * (SpellID::Invalid), which is exactly what makes a click swing the weapon rather than cast; adding
+ * enum entries would mean new rows in SpellITbl, SpellsData, the save format's spell bitmasks and
+ * every table keyed on MAX_SPELLS, all to describe a state the player already has. So this module is
+ * a *presentation* of that state, and the only real decision it makes is which of the two icons it
+ * wears:
+ *
+ *   armed   -> Regular Attack
+ *   unarmed -> Fist Attack
+ *
+ * That also explains why one of them is selectable and the other is not, which otherwise looks
+ * arbitrary. Selecting Regular Attack means "ready the basic attack" - it clears the readied spell.
+ * There is nothing separate to select for Fist Attack: it is the same underlying state, and which
+ * icon you get is decided by what is in your hand, not by a click.
+ */
+#pragma once
+
+#include "engine/rectangle.hpp"
+#include "engine/surface.hpp"
+#include "player.h"
+
+namespace devilution::oracool {
+
+/**
+ * @brief A cell of ui\attack_icons.png. The strip is cut in this order - see tools/CutAttackIcons.ps1.
+ */
+enum class AttackIcon : int {
+	/** Sword on a red burst. */
+	Regular = 0,
+	/** Bound fist on a gold burst. */
+	Fist = 1,
+
+	LAST = Fist,
+};
+
+/** @brief Number of cells in the strip, and therefore rows the Skills sheet lists for it. */
+inline constexpr size_t AttackIconCount = static_cast<size_t>(AttackIcon::LAST) + 1;
+
+/**
+ * @brief Whether @p player would swing fists rather than a weapon right now.
+ *
+ * Asks the animation's weapon class rather than reading InvBody directly, because that is the value
+ * the engine itself already resolved from the equipped items (CalcPlrItemVals recomputes it on every
+ * equip change) and it is what decides the attack animation actually played. Reading the two hand
+ * slots here would be a second, parallel answer to the same question, free to disagree.
+ */
+bool IsFightingUnarmed(const Player &player);
+
+/** @brief Which icon @p player's basic attack currently wears. */
+AttackIcon BasicAttackIcon(const Player &player);
+
+/** @brief Display name for @p icon, untranslated - callers wrap it in _(). */
+const char *AttackIconName(AttackIcon icon);
+
+/**
+ * @brief The row's second line: whether this is the attack currently in the player's hands.
+ *
+ * Exactly one of the two is "active" at any moment, so the pair reads as one status rather than as
+ * two independent abilities. Untranslated - callers wrap it in _().
+ */
+const char *AttackIconDetail(AttackIcon icon, bool active);
+
+/**
+ * @brief Fills the HUD plate's LMB well with the basic attack's icon.
+ *
+ * Unconditionally: left-clicking a target attacks with whatever is in hand, always, and that has
+ * never been assignable. The well was drawn empty until now for want of an icon to put in it, which
+ * made the plate's only permanently-empty socket the one control that never changes.
+ */
+void DrawLmbSkillWell(const Surface &out);
+
+/**
+ * @brief The RMB well's counterpart, drawn when no spell is readied - which IS the basic attack.
+ *
+ * Called from DrawSpell rather than from the plate's draw block, because unlike the LMB well this
+ * one is only the attack some of the time.
+ */
+void DrawRmbSkillWell(const Surface &out);
+
+} // namespace devilution::oracool

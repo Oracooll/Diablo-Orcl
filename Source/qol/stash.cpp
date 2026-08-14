@@ -13,12 +13,15 @@
 #include "engine/load_clx.hpp"
 #include "engine/points_in_rectangle_range.hpp"
 #include "engine/rectangle.hpp"
+#include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/size.hpp"
 #include "hwcursor.hpp"
 #include "minitext.h"
 #include "oracool/auto_save.h"
+#include "oracool/ornate_border.h"
 #include "stores.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -42,31 +45,83 @@ char GoldWithdrawText[21];
 TextInputCursorState GoldWithdrawCursor;
 std::optional<NumberInputState> GoldWithdrawInputState;
 
+// Oracool V1: the shared theme and geometry - the same 340x720 window, title band and separator as
+// the inventory, character sheet, quest log, waypoint list and Abilities window.
+//   0..24      top margin
+//   24..74     label band, "STASH"
+//   74..77     separator rule
+//   77..101    gap below the rule
+//   101..127   page row: << < page N > >>
+//   131..153   gold row: the total on the left, SORT on the right
+//   161..654   the item grid
+//   654..720   clear - below y=660 the central HUD begins
+constexpr Size StashPanelSize { 340, 720 };
+constexpr int StashMargin = 24;
+constexpr int StashLabelHeight = 50;
+constexpr int StashContentTop = StashMargin + StashLabelHeight + oracool::OrnateBorderWidth + StashMargin;
+
 constexpr Size ButtonSize { 27, 16 };
-/** Contains mappings for the buttons in the stash (2 navigation buttons, sort button, 2 navigation buttons) */
-constexpr Rectangle StashButtonRect[] = {
-	// clang-format off
-	{ {  19, 19 }, ButtonSize }, // 10 left
-	{ {  56, 19 }, ButtonSize }, // 1 left
-	{ {  93, 19 }, ButtonSize }, // Oracool: user request - was "withdraw gold"; now Sort (see index 2 below)
-	{ { 242, 19 }, ButtonSize }, // 1 right
-	{ { 279, 19 }, ButtonSize }  // 10 right
-	// clang-format on
-};
+constexpr int StashPageRowY = StashContentTop;
+constexpr int StashPageRowHeight = 26;
+/** Buttons are shorter than their row, so they sit centred in it. */
+constexpr int StashButtonY = StashPageRowY + (StashPageRowHeight - ButtonSize.height) / 2;
+
+constexpr int StashGoldRowY = StashPageRowY + StashPageRowHeight + 4;
+constexpr int StashGoldRowHeight = 22;
 
 /**
- * @brief Oracool: user request - the gold total's on-screen area (matches DrawStash's own
- * DrawString call for it) is now the click target for withdrawing gold, freeing up the button
- * slot at StashButtonRect[2] to become the Sort button instead.
+ * @brief Contains mappings for the four page-navigation buttons.
+ *
+ * Index 2 used to be a fifth button here (originally Withdraw Gold, then Sort). It is drawn as a
+ * text button now, like the character sheet's RESET and the inventory's sort tab, so it no longer
+ * needs a slot in this table - but the ORDER of the remaining four still matters, because
+ * StashButtonPressed indexes both this and the nav-button art.
  */
-constexpr Rectangle GoldDisplayRect { { 122, 19 }, { 107, 13 } };
+constexpr Rectangle StashButtonRect[] = {
+	// clang-format off
+	{ {  25, StashButtonY }, ButtonSize }, // 10 left
+	{ {  57, StashButtonY }, ButtonSize }, // 1 left
+	{ { 256, StashButtonY }, ButtonSize }, // 1 right
+	{ { 288, StashButtonY }, ButtonSize }  // 10 right
+	// clang-format on
+};
+constexpr int StashNavButtonCount = 4;
+/** @brief Drawn as text, in the same order as StashButtonRect. */
+constexpr const char *StashNavLabel[StashNavButtonCount] = { "<<", "<", ">", ">>" };
+
+/** @brief Shared with the inventory grid - see oracool::ThemeGridLineColor for the reasoning. */
+constexpr uint8_t StashGridLineColor = oracool::ThemeGridLineColor;
+
+/** @brief The page number, between the two pairs of navigation buttons. */
+constexpr Rectangle StashPageLabelRect { { 92, StashPageRowY }, { 156, StashPageRowHeight } };
+
+/**
+ * @brief Oracool: user request - the gold total's on-screen area is the click target for
+ * withdrawing gold, which is what freed the old button slot up to become Sort.
+ */
+constexpr Rectangle GoldDisplayRect { { 25, StashGoldRowY }, { 180, StashGoldRowHeight } };
 bool GoldDisplayPressed = false;
 
-constexpr Size StashGridSize { 10, 10 };
+/** @brief Drawn as a word rather than art, matching RESET on the character sheet. */
+constexpr Rectangle StashSortButtonRect { { 258, StashGoldRowY }, { 57, StashGoldRowHeight } };
+
+constexpr Size StashGridSize { StashGridColumns, StashGridRows };
 constexpr PointsInRectangleRange<int> StashGridRange { { { 0, 0 }, StashGridSize } };
 
-OptionalOwnedClxSpriteList StashPanelArt;
-OptionalOwnedClxSpriteList StashNavButtonArt;
+/** @brief Cell pitch - the slot plus its 1px rule, matching the inventory grid. */
+constexpr int StashCellPx = INV_SLOT_SIZE_PX + 1;
+constexpr int StashGridWidth = StashGridColumns * StashCellPx;
+constexpr int StashGridTop = StashGoldRowY + StashGoldRowHeight + 8;
+/** @brief Centred across the panel. */
+constexpr int StashGridLeft = (StashPanelSize.width - StashGridWidth) / 2;
+constexpr int StashGridBottom = StashGridTop + StashGridRows * StashCellPx;
+
+// The whole point of the taller window: the grid must reach as far down as it can without entering
+// the central HUD's territory, which begins around y=660.
+static_assert(StashGridBottom <= 660, "Stash grid now overlaps the central HUD");
+static_assert(StashGridBottom + StashCellPx > 660, "Another stash row would still fit - raise StashGridRows");
+static_assert(StashGridLeft >= StashMargin, "Stash grid is wider than the panel's margins allow");
+
 
 /**
  * @param page The stash page index.
@@ -312,25 +367,27 @@ int WithdrawGold(Player &player, int amount)
 	return transferredGold;
 }
 
+Rectangle GetStashPanelRect()
+{
+	// Flush to the top-left corner, like the character sheet, quest log and waypoint list - the
+	// stash shares the left-hand slot with them and opens with the inventory on the right.
+	return { { 0, 0 }, StashPanelSize };
+}
+
 Point GetStashSlotCoord(Point slot)
 {
-	constexpr int StashNextCell = INV_SLOT_SIZE_PX + 1; // spacing between each cell
-
-	return GetPanelPosition(UiPanels::Stash, slot * StashNextCell + Displacement { 17, 48 });
+	return GetPanelPosition(UiPanels::Stash, slot * StashCellPx + Displacement { StashGridLeft, StashGridTop });
 }
 
 void FreeStashGFX()
 {
-	StashNavButtonArt = std::nullopt;
-	StashPanelArt = std::nullopt;
+	// Nothing left to free: data\stash.clx went with the panel it drew, and data\stashnavbtns.clx
+	// with the arrows, which are text now. Kept as a function because InitStash's counterpart is
+	// called from the shutdown path.
 }
 
 void InitStash()
 {
-	if (!HeadlessMode) {
-		StashPanelArt = LoadClx("data\\stash.clx");
-		StashNavButtonArt = LoadClx("data\\stashnavbtns.clx");
-	}
 }
 
 void OpenStash()
@@ -369,6 +426,8 @@ void TransferItemToInventory(Player &player, uint16_t itemId)
 }
 
 int StashButtonPressed = -1;
+/** @brief Set while SORT is held, so it can be drawn pressed - it is text, not art. */
+bool StashSortPressed = false;
 
 void CheckStashButtonRelease(Point mousePosition)
 {
@@ -380,12 +439,28 @@ void CheckStashButtonRelease(Point mousePosition)
 		GoldDisplayPressed = false;
 	}
 
+	if (StashSortPressed) {
+		Rectangle sortRect = StashSortButtonRect;
+		sortRect.position = GetPanelPosition(UiPanels::Stash, sortRect.position);
+		if (sortRect.contains(mousePosition)) {
+			// Oracool: user request - was withdraw gold (moved to clicking the gold total itself,
+			// see GoldDisplayRect); this control is Sort. IS_ISHIEL is the sound normally played
+			// when placing a shield into its equip slot, per the user's request.
+			SortStash(*MyPlayer);
+			PlaySFX(IS_ISHIEL);
+		}
+		StashSortPressed = false;
+	}
+
 	if (StashButtonPressed == -1)
 		return;
 
 	Rectangle stashButton = StashButtonRect[StashButtonPressed];
 	stashButton.position = GetPanelPosition(UiPanels::Stash, stashButton.position);
 	if (stashButton.contains(mousePosition)) {
+		// Four buttons now, not five - Sort left this table for a text control, so the indices
+		// after it shifted down by one. Kept as a switch on the index rather than a table of
+		// function pointers because the art is indexed the same way.
 		switch (StashButtonPressed) {
 		case 0:
 			Stash.PreviousPage(10);
@@ -394,16 +469,9 @@ void CheckStashButtonRelease(Point mousePosition)
 			Stash.PreviousPage();
 			break;
 		case 2:
-			// Oracool: user request - was withdraw gold (moved to clicking the gold total
-			// itself, see GoldDisplayRect); this slot is now Sort. IS_ISHIEL is the sound
-			// normally played when placing a shield into its equip slot, per the user's request.
-			SortStash(*MyPlayer);
-			PlaySFX(IS_ISHIEL);
-			break;
-		case 3:
 			Stash.NextPage();
 			break;
-		case 4:
+		case 3:
 			Stash.NextPage(10);
 			break;
 		}
@@ -423,10 +491,17 @@ void CheckStashButtonPress(Point mousePosition)
 	}
 	GoldDisplayPressed = false;
 
-	Rectangle stashButton;
+	Rectangle sortRect = StashSortButtonRect;
+	sortRect.position = GetPanelPosition(UiPanels::Stash, sortRect.position);
+	if (sortRect.contains(mousePosition)) {
+		StashSortPressed = true;
+		StashButtonPressed = -1;
+		return;
+	}
+	StashSortPressed = false;
 
-	for (int i = 0; i < 5; i++) {
-		stashButton = StashButtonRect[i];
+	for (int i = 0; i < StashNavButtonCount; i++) {
+		Rectangle stashButton = StashButtonRect[i];
 		stashButton.position = GetPanelPosition(UiPanels::Stash, stashButton.position);
 		if (stashButton.contains(mousePosition)) {
 			StashButtonPressed = i;
@@ -439,11 +514,53 @@ void CheckStashButtonPress(Point mousePosition)
 
 void DrawStash(const Surface &out)
 {
-	RenderClxSprite(out, (*StashPanelArt)[0], GetPanelPosition(UiPanels::Stash));
+	// Oracool V1: the shared theme replaces data\stash.clx, exactly as it did for the other five
+	// windows - half-transparent fill under the ornate bevel, outlined FontSize30 title, separator.
+	const Rectangle panel = GetStashPanelRect();
+	oracool::DrawThemedFill(out, panel);
+	oracool::DrawOrnateBorder(out, panel);
 
-	if (StashButtonPressed != -1) {
-		Point stashButton = GetPanelPosition(UiPanels::Stash, StashButtonRect[StashButtonPressed].position);
-		RenderClxSprite(out, (*StashNavButtonArt)[StashButtonPressed], stashButton);
+	const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + StashMargin },
+		{ panel.size.width - 2 * StashMargin, StashLabelHeight } };
+	oracool::DrawOutlinedString(out, _("STASH"), labelArea,
+	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	oracool::DrawOrnateSeparator(out,
+	    { panel.position.x + StashMargin, panel.position.y + StashMargin + StashLabelHeight },
+	    panel.size.width - 2 * StashMargin);
+
+	// Bug fix: the four page arrows were INVISIBLE until pressed. data\stashnavbtns.clx only holds
+	// each button's pressed frame - the unpressed state was painted into data\stash.clx, which the
+	// theme replaced, so nothing drew them at rest. They are text now, like SORT beside them and
+	// RESET on the character sheet, which also drops the last dependency on that CEL.
+	for (int i = 0; i < StashNavButtonCount; i++) {
+		const Rectangle rect { GetPanelPosition(UiPanels::Stash, StashButtonRect[i].position), StashButtonRect[i].size };
+		DrawString(out, StashNavLabel[i], rect,
+		    { UiFlags::AlignCenter | UiFlags::VerticalCenter
+		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold) });
+	}
+
+	// One bevelled recess around the whole grid, the way the inventory frames its own.
+	const Rectangle gridRect { GetPanelPosition(UiPanels::Stash, { StashGridLeft, StashGridTop }),
+		{ StashGridWidth, StashGridRows * StashCellPx } };
+	oracool::DrawThemedFill(out, gridRect, 2);
+	oracool::DrawOrnateBorder(out, gridRect);
+
+	// Oracool: user request - 1px cell rules, deliberately a DIFFERENT colour from the inventory
+	// grid's. The inventory divides its cells with the theme's 3px gold bevel; the stash is a much
+	// larger grid, and the same treatment at 17 rows would read as a gold mesh rather than as
+	// storage. Dark grey, one pixel, is enough to separate the cells and lets the items carry the
+	// colour.
+	//
+	// Drawn on the boundary pixel between neighbouring cells - each cell's pitch is 29 (a 28px slot
+	// plus its rule), so the rule is the last pixel of the preceding cell's span and no slot loses
+	// any of its 28.
+	for (int col = 1; col < StashGridColumns; col++) {
+		const int x = gridRect.position.x + col * StashCellPx - 1;
+		DrawVerticalLine(out, { x, gridRect.position.y }, gridRect.size.height, StashGridLineColor);
+	}
+	for (int row = 1; row < StashGridRows; row++) {
+		const int y = gridRect.position.y + row * StashCellPx - 1;
+		DrawHorizontalLine(out, { gridRect.position.x, y }, gridRect.size.width, StashGridLineColor);
 	}
 
 	constexpr Displacement offset { 0, INV_SLOT_SIZE_PX - 1 };
@@ -481,11 +598,22 @@ void DrawStash(const Surface &out)
 		DrawItem(item, out, position, sprite);
 	}
 
-	Point position = GetPanelPosition(UiPanels::Stash);
-	UiFlags style = UiFlags::VerticalCenter | UiFlags::ColorWhite;
+	const Point position = GetPanelPosition(UiPanels::Stash);
+	constexpr UiFlags Style = UiFlags::VerticalCenter | UiFlags::ColorWhite;
 
-	DrawString(out, StrCat(Stash.GetPage() + 1), { position + Displacement { 132, 0 }, { 57, 11 } }, { UiFlags::AlignCenter | style });
-	DrawString(out, FormatInteger(Stash.gold), { position + Displacement { 122, 19 }, { 107, 13 } }, { UiFlags::AlignRight | style });
+	DrawString(out, fmt::format(fmt::runtime(_("Page {:d} / {:d}")), Stash.GetPage() + 1, CountStashPages),
+	    { position + Displacement { StashPageLabelRect.position.x, StashPageLabelRect.position.y }, StashPageLabelRect.size },
+	    { UiFlags::AlignCenter | Style });
+
+	// Gold in the theme's own gold, matching the inventory's readout, rather than the plain white
+	// the vanilla panel used.
+	DrawString(out, StrCat(_("GOLD: "), FormatInteger(Stash.gold)),
+	    { position + Displacement { GoldDisplayRect.position.x, GoldDisplayRect.position.y }, GoldDisplayRect.size },
+	    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter });
+
+	DrawString(out, _("SORT"),
+	    { position + Displacement { StashSortButtonRect.position.x, StashSortButtonRect.position.y }, StashSortButtonRect.size },
+	    { UiFlags::AlignCenter | UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) });
 }
 
 void CheckStashItem(Point mousePosition, bool isShiftHeld, bool isCtrlHeld)
@@ -501,7 +629,7 @@ void CheckStashItem(Point mousePosition, bool isShiftHeld, bool isCtrlHeld)
 
 uint16_t CheckStashHLight(Point mousePosition)
 {
-	// Oracool: user request - "Sort" tooltip over the repurposed Sort button (StashButtonRect[2],
+	// Oracool: user request - "Sort" tooltip over the Sort control (StashSortButtonRect,
 	// formerly Withdraw Gold).
 	Rectangle sortButtonRect = StashButtonRect[2];
 	sortButtonRect.position = GetPanelPosition(UiPanels::Stash, sortButtonRect.position);
@@ -539,8 +667,8 @@ uint16_t CheckStashHLight(Point mousePosition)
 		return -1;
 	}
 
-	InfoColor = item.getTextColor();
-	InfoString = item.getName();
+	// Through SetPanelString - see the note at the matching call in inv.cpp's CheckInvHLight.
+	SetPanelString(item.getName(), item.getTextColor());
 	if (item._iIdentified) {
 		PrintItemDetails(item);
 	} else {

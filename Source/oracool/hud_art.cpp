@@ -12,6 +12,7 @@
 #include "engine/palette.h"
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/ornate_border.h" // ThemeEdgeColor
 #include "player.h"
 #include "utils/log.hpp"
 #include "utils/png.h"
@@ -39,7 +40,22 @@ struct ArtAsset {
 	 * transparent. This is what gets blended into the empty part of the orb - see DrawOrb.
 	 */
 	std::optional<OwnedSurface> sphereDim;
+	/**
+	 * Silhouette only. A 1px band tracing just outside the figure's edge, everything else
+	 * transparent. Drawn opaquely after the blended body, which is the whole point: the body is
+	 * half-transparent and takes the panel's colour, so without a solid edge the shape has no
+	 * definition at all.
+	 */
+	std::optional<OwnedSurface> outline;
 };
+
+/**
+ * @brief How far the HUD's chrome is pulled toward the theme's gold, in percent.
+ *
+ * Shared by every tinted HUD asset so they cannot drift into different golds - the whole point is
+ * that they read as one surface. See the note at the QuantizeAsset calls for why it is partial.
+ */
+constexpr int HudTintStrengthPercent = 50;
 
 ArtAsset PlateArt { "ui\\middle_hud.png" };
 ArtAsset HealthOrbArt { "ui\\health_orb.png" };
@@ -71,13 +87,58 @@ ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
  */
 ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
 ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
+/** Oracool: the 24 Paladin aura icons, one 38x38 cell per aura, in oracool::Aura order. */
+ArtAsset AuraIconsArt { "ui\\aura_icons.png" };
+/** Oracool: the 18 Barbarian skill icons, same 38x38 cells, in oracool::BarbSkill order. */
+ArtAsset BarbSkillIconsArt { "ui\\barb_skill_icons.png" };
 /**
- * The class figure behind the inventory's equipment slots. It used to be baked into
- * ui\inventory_panel.png; the shared theme replaced that composition with a procedural fill and
- * bevel, so it ships separately now and survives future restyles. Cut by
- * tools/CutClassSilhouette.ps1 from the class reference sheet.
+ * Oracool: the two basic-attack icons - cell 0 Regular Attack, cell 1 Fist Attack, in
+ * oracool::AttackIcon order. Same 38x38 cells as the aura and Barbarian sheets, deliberately: this
+ * strip is drawn in the Abilities window's rows AND in the HUD's two skill wells, and the wells
+ * were sized for the engine's 37x38 small spell icon.
  */
-ArtAsset SilhouetteArt { "ui\\silhouette_paladin.png" };
+ArtAsset AttackIconsArt { "ui\\attack_icons.png" };
+/**
+ * The class figures behind the inventory's equipment slots. They used to be baked into
+ * ui\inventory_panel.png; the shared theme replaced that composition with a procedural fill and
+ * bevel, so they ship separately now and survive future restyles. Cut by
+ * tools/CutClassSilhouette.ps1 from the class reference sheet.
+ *
+ * Named for the reference sheet's figures, not for the classes - the sheet calls the Rogue "Archer"
+ * and calls HeroClass::Warrior "Paladin" (which is also what Oracool displays). SilhouetteForClass
+ * below is the one place that mapping lives.
+ */
+ArtAsset SilhouetteArt[] = {
+	{ "ui\\silhouette_paladin.png" },
+	{ "ui\\silhouette_archer.png" },
+	{ "ui\\silhouette_sorcerer.png" },
+	{ "ui\\silhouette_barbarian.png" },
+};
+
+/**
+ * @brief The silhouette for @p heroClass, or nullptr if that class has no figure on the sheet.
+ *
+ * Monk has no figure at all. Bard shares the Rogue's, matching the sprite set it already borrows
+ * (playerdat.cpp gives both "rogue"). A null return simply draws no silhouette, which is what the
+ * inventory did for every class before this.
+ */
+ArtAsset *SilhouetteForClass(HeroClass heroClass)
+{
+	switch (heroClass) {
+	case HeroClass::Warrior:
+		return &SilhouetteArt[0];
+	case HeroClass::Rogue:
+	case HeroClass::Bard:
+		return &SilhouetteArt[1];
+	case HeroClass::Sorcerer:
+		return &SilhouetteArt[2];
+	case HeroClass::Barbarian:
+		return &SilhouetteArt[3];
+	case HeroClass::Monk:
+		break;
+	}
+	return nullptr;
+}
 constexpr Size BurgerMenuButtonSize { 27, 29 };
 /**
  * User request: nudge the burger button up by a pixel. Centring it in the cell puts it a touch
@@ -167,7 +228,92 @@ void LoadPixels(ArtAsset &asset)
  *
  * @param dimCircle Sphere circle in asset-local pixels: {center, radius packed as Size.width}.
  */
-void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle)
+/**
+ * @brief Maps a pixel's luminance onto one of the palette's 16-shade colour ramps.
+ *
+ * A PAL16 ramp runs LIGHT to DARK as the offset grows (engine/palette.h: "(dark blue):
+ * PAL16_BLUE+14, (light red): PAL16_RED+2"), so brighter source pixels take a smaller offset.
+ *
+ * The range is deliberately 4..14 rather than the full 0..15. The top of a ramp is bright enough
+ * to read as a lit object rather than a tinted one, and the point here is a tint. Centring on
+ * roughly +9 also puts it in the same part of the ramp as the unique-item backing (PAL16_YELLOW
+ * + 10, see inv.cpp's InvDrawSlotBack), which is what makes the two read as the same family.
+ */
+uint8_t RampIndexFromLuminance(uint8_t rampBase, uint8_t r, uint8_t g, uint8_t b)
+{
+	constexpr int DarkestOffset = 14;
+	constexpr int LightestOffset = 4;
+	const int luminance = (299 * r + 587 * g + 114 * b) / 1000;
+	const int offset = DarkestOffset - luminance * (DarkestOffset - LightestOffset) / 255;
+	return static_cast<uint8_t>(rampBase + offset);
+}
+
+/**
+ * @brief Nudges a pixel @p strengthPercent of the way toward the ramp's shade of the same luminance.
+ *
+ * The difference between this and using RampIndexFromLuminance directly is the difference between
+ * tinting and repainting. A full remap throws the source's own hue away and puts every pixel on one
+ * 16-shade ramp - right for a flat silhouette, wrong for a large piece of modelled art, which comes
+ * out looking like a single sheet of metal with the detail flattened out of it.
+ *
+ * Blending toward the ramp instead keeps the art's own variation and still moves the whole thing
+ * into the theme's colour. The target is taken FROM the palette, so the destination is exactly the
+ * gold the rest of the UI uses rather than an invented one; only the distance travelled is a knob.
+ */
+uint8_t TintedPaletteIndex(uint8_t rampBase, int strengthPercent, uint8_t r, uint8_t g, uint8_t b,
+    std::vector<uint8_t> &cache)
+{
+	if (strengthPercent >= 100)
+		return RampIndexFromLuminance(rampBase, r, g, b);
+	const SDL_Color &target = orig_palette[RampIndexFromLuminance(rampBase, r, g, b)];
+	const auto mix = [strengthPercent](uint8_t src, uint8_t dst) {
+		return static_cast<uint8_t>((src * (100 - strengthPercent) + dst * strengthPercent) / 100);
+	};
+	return NearestGlobalPaletteIndex(mix(r, target.r), mix(g, target.g), mix(b, target.b), cache);
+}
+
+/** @brief Whether the source pixel at (@p x, @p y) is opaque. Out of bounds counts as transparent. */
+bool IsOpaqueAt(const ArtAsset &asset, int x, int y)
+{
+	if (x < 0 || y < 0 || x >= asset.width || y >= asset.height)
+		return false;
+	return asset.rgba[(static_cast<size_t>(y) * asset.width + x) * 4 + 3] >= 128;
+}
+
+/**
+ * @brief Fills @p asset.outline with a 1px band hugging the OUTSIDE of the figure's edge.
+ *
+ * Outside rather than inside so the silhouette keeps its full shape - an inner outline would eat a
+ * pixel of an already small figure, and on thin parts (fingers, a weapon haft) it would eat the
+ * part entirely.
+ *
+ * The band is one pixel of the source bitmap, so a figure touching the bitmap's own edge simply
+ * has no room for an outline there. The cutter leaves a transparent margin, so in practice this
+ * only matters if the art is ever recut tight to the subject.
+ */
+void BuildOutline(ArtAsset &asset, uint8_t outlineIndex)
+{
+	asset.outline.emplace(asset.width, asset.height);
+	for (int y = 0; y < asset.height; y++) {
+		uint8_t *row = &(*asset.outline)[Point { 0, y }];
+		for (int x = 0; x < asset.width; x++) {
+			// A transparent pixel with an opaque 8-neighbour. Eight rather than four, or the band
+			// breaks into dashes wherever the edge runs diagonally.
+			if (IsOpaqueAt(asset, x, y)) {
+				row[x] = 0;
+				continue;
+			}
+			const bool touchesFigure = IsOpaqueAt(asset, x - 1, y) || IsOpaqueAt(asset, x + 1, y)
+			    || IsOpaqueAt(asset, x, y - 1) || IsOpaqueAt(asset, x, y + 1)
+			    || IsOpaqueAt(asset, x - 1, y - 1) || IsOpaqueAt(asset, x + 1, y - 1)
+			    || IsOpaqueAt(asset, x - 1, y + 1) || IsOpaqueAt(asset, x + 1, y + 1);
+			row[x] = touchesFigure ? outlineIndex : 0;
+		}
+	}
+}
+
+void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
+    std::optional<uint8_t> tintRampBase = std::nullopt, int tintStrengthPercent = 100)
 {
 	if (asset.rgba.empty())
 		return;
@@ -200,7 +346,13 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle)
 				continue;
 			}
 
-			brightRow[x] = NearestGlobalPaletteIndex(r, g, b, cache);
+			// A tinted asset has the game, not the art, decide its colour. At full strength it
+			// keeps only its shape and shading, so a neutral grey cut-out can be recoloured
+			// freely; below that it keeps its own hue too and is merely pulled toward the theme.
+			// Nearest-palette matching alone can do neither - given grey it finds grey.
+			brightRow[x] = tintRampBase
+			    ? TintedPaletteIndex(*tintRampBase, tintStrengthPercent, r, g, b, cache)
+			    : NearestGlobalPaletteIndex(r, g, b, cache);
 
 			if (frameRow != nullptr) {
 				const int dx = x - dimCircle->position.x;
@@ -251,8 +403,16 @@ void EnsureLoadedAll()
 		LoadPixels(WaypointPanelArt);
 	if (!WaypointIconsArt.loadAttempted)
 		LoadPixels(WaypointIconsArt);
-	if (!SilhouetteArt.loadAttempted)
-		LoadPixels(SilhouetteArt);
+	if (!AuraIconsArt.loadAttempted)
+		LoadPixels(AuraIconsArt);
+	if (!BarbSkillIconsArt.loadAttempted)
+		LoadPixels(BarbSkillIconsArt);
+	if (!AttackIconsArt.loadAttempted)
+		LoadPixels(AttackIconsArt);
+	for (ArtAsset &silhouette : SilhouetteArt) {
+		if (!silhouette.loadAttempted)
+			LoadPixels(silhouette);
+	}
 }
 
 bool NeedsQuantize()
@@ -283,8 +443,16 @@ bool NeedsQuantize()
 		return true;
 	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
 		return true;
-	if (!SilhouetteArt.rgba.empty() && !SilhouetteArt.bright)
+	if (!AuraIconsArt.rgba.empty() && !AuraIconsArt.bright)
 		return true;
+	if (!BarbSkillIconsArt.rgba.empty() && !BarbSkillIconsArt.bright)
+		return true;
+	if (!AttackIconsArt.rgba.empty() && !AttackIconsArt.bright)
+		return true;
+	for (const ArtAsset &silhouette : SilhouetteArt) {
+		if (!silhouette.rgba.empty() && !silhouette.bright)
+			return true;
+	}
 	return false;
 }
 
@@ -293,19 +461,55 @@ void EnsureQuantized()
 	if (!NeedsQuantize())
 		return;
 
-	QuantizeAsset(PlateArt, std::nullopt);
+	// Oracool: user request - "now that our UI theme is predominantly goldish I say we apply
+	// goldish tint on the main HUD", then the burger menu with it. Half strength, not full: these
+	// are modelled art with their own highlights and recesses, and a full remap onto one ramp would
+	// iron those flat. Half moves them unmistakably into the theme while the stone still reads as
+	// stone. One constant across all three so they cannot drift into different golds.
+	//
+	// The ORBS are deliberately left alone. Their red and blue are not decoration - they are how
+	// you read your health and mana at a glance - and their ornament already sits warm against the
+	// gold. If the frames alone are ever wanted in gold, that needs the tint applied to `frame`
+	// while `sphereDim` is spared, which is a separate change from this one.
+	QuantizeAsset(PlateArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(HealthOrbArt, Rectangle { GetHealthOrbSphereCenterLocal(), Size { GetOrbSphereRadius(), 0 } });
 	QuantizeAsset(ManaOrbArt, Rectangle { GetManaOrbSphereCenterLocal(), Size { GetOrbSphereRadius(), 0 } });
-	QuantizeAsset(MenuIconsArt, std::nullopt);
+	// Same 50% gold as the plate, so the menu the burger button opens matches the HUD it sits on.
+	//
+	// This sheet is the one place where chrome and content share pixels: each cell is a frame with
+	// its pictogram baked inside, so tinting the frame necessarily tints the glyph. That is
+	// survivable only because the tint is partial - at 50% each pictogram keeps half its own hue,
+	// so the ten entries stay told apart by colour as well as by shape. At full strength they would
+	// all collapse to one gold and the row would read as ten identical buttons.
+	QuantizeAsset(MenuIconsArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(InventoryPanelArt, std::nullopt);
 	QuantizeAsset(InventoryTabsArt, std::nullopt);
 	QuantizeAsset(InventorySortArt, std::nullopt);
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
-	QuantizeAsset(BurgerMenuButtonArt, std::nullopt);
+	QuantizeAsset(BurgerMenuButtonArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
 	QuantizeAsset(WaypointPanelArt, std::nullopt);
 	QuantizeAsset(WaypointIconsArt, std::nullopt);
-	QuantizeAsset(SilhouetteArt, std::nullopt);
+	// No tint: the aura icons are the artwork itself, not chrome, and their colour is how the
+	// elemental auras are told apart at a glance.
+	QuantizeAsset(AuraIconsArt, std::nullopt);
+	QuantizeAsset(BarbSkillIconsArt, std::nullopt);
+	// Same reasoning, and one more: these two sit in the HUD's skill wells next to the engine's own
+	// spell icons, which are drawn untinted. A gold pass here would make the basic attack the one
+	// icon on the plate that did not match the icon beside it.
+	QuantizeAsset(AttackIconsArt, std::nullopt);
+	// Oracool: user request - the silhouette reads as gold rather than grey, in the same ramp the
+	// unique-item backing uses, so the figure behind the equipment slots belongs to the window's
+	// gold theme instead of sitting in it as a neutral shadow.
+	for (ArtAsset &silhouette : SilhouetteArt)
+		QuantizeAsset(silhouette, std::nullopt, PAL16_YELLOW);
+	// Walked down from +2, which read as near-white, then +6, which was still hot. The shared
+	// constant records where it landed and why - and the cursor tooltip's border now reads the same
+	// one, so the two thin gold edges on screen cannot drift apart.
+	for (ArtAsset &silhouette : SilhouetteArt) {
+		if (!silhouette.rgba.empty())
+			BuildOutline(silhouette, ThemeEdgeColor);
+	}
 
 	std::memcpy(PaletteSnapshot.data(), &orig_palette[128], sizeof(PaletteSnapshot));
 	QuantizedOnce = true;
@@ -321,21 +525,27 @@ void EnsureQuantized()
  * only strength the table gives in one pass; applying it twice moves toward the source, not away,
  * so it would make the glass LESS transparent rather than more.
  */
-void BlitHalfTransparentSkipZero(const Surface &out, const Surface &src, Point position, int srcTop, int srcBottom)
+/**
+ * @param srcLeft, srcWidth Optional horizontal window into @p src, for blitting one cell out of a
+ * sprite strip. Defaulted, so callers blitting a whole surface are unaffected.
+ */
+void BlitHalfTransparentSkipZero(const Surface &out, const Surface &src, Point position, int srcTop, int srcBottom,
+    int srcLeft = 0, int srcWidth = -1)
 {
+	const int width = srcWidth < 0 ? src.w() : srcWidth;
 	for (int y = srcTop; y < srcBottom; y++) {
 		const int dstY = position.y + y;
 		if (dstY < 0 || dstY >= out.h())
 			continue;
 		const uint8_t *srcRow = &src[Point { 0, y }];
 		uint8_t *dstRow = &out[Point { 0, dstY }];
-		for (int x = 0; x < src.w(); x++) {
-			if (srcRow[x] == 0)
+		for (int x = 0; x < width; x++) {
+			if (srcRow[srcLeft + x] == 0)
 				continue;
 			const int dstX = position.x + x;
 			if (dstX < 0 || dstX >= out.w())
 				continue;
-			dstRow[dstX] = paletteTransparencyLookup[dstRow[dstX]][srcRow[x]];
+			dstRow[dstX] = paletteTransparencyLookup[dstRow[dstX]][srcRow[srcLeft + x]];
 		}
 	}
 }
@@ -555,10 +765,13 @@ void DrawWaypointIcon(const Surface &out, Point origin, bool active)
 void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, int top)
 {
 	EnsureLoadedAll();
-	if (SilhouetteArt.rgba.empty())
+	// Oracool: user request - each class shows its own figure. InspectPlayer rather than MyPlayer,
+	// so inspecting another character in multiplayer shows theirs and not yours.
+	ArtAsset *silhouette = SilhouetteForClass(InspectPlayer->_pClass);
+	if (silhouette == nullptr || silhouette->rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!SilhouetteArt.bright)
+	if (!silhouette->bright)
 		return;
 
 	// Centred across the panel's width, hanging from `top`. The asset is pre-scaled by its cutter
@@ -571,8 +784,88 @@ void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, i
 	// paletteTransparencyLookup darkens whatever is behind instead of replacing it, which is what a
 	// silhouette actually is - and it costs nothing extra, since the orbs' drain effect already
 	// needed this exact blit.
-	const Point origin { panelOrigin.x + (areaWidth - SilhouetteArt.width) / 2, panelOrigin.y + top };
-	BlitHalfTransparentSkipZero(out, *SilhouetteArt.bright, origin, 0, SilhouetteArt.height);
+	const Point origin { panelOrigin.x + (areaWidth - silhouette->width) / 2, panelOrigin.y + top };
+	BlitHalfTransparentSkipZero(out, *silhouette->bright, origin, 0, silhouette->height);
+
+	// The edge goes on OPAQUELY, and after the body. Blending it would sink it into the same muted
+	// gold as everything else and there would be no outline to see - the body is deliberately
+	// half-transparent, so the only way the shape gets a defined edge is for that edge to be the
+	// one part that is not.
+	if (silhouette->outline) {
+		out.BlitFromSkipColorIndexZero(*silhouette->outline,
+		    MakeSdlRect(0, 0, silhouette->width, silhouette->height), origin);
+	}
+}
+
+/**
+ * @brief Draws cell @p index of a square-cell icon strip, opaque when @p unlocked, else blended.
+ *
+ * Shared by the aura and Barbarian-skill sheets, which are the same asset shape and want the same
+ * locked treatment - blended rather than drawn from a second, greyed copy of the art. The Spells
+ * sheet greys unlearned entries through SetSpellTrans, which works because spell icons are one
+ * palette ramp; these are full-colour paintings with no ramp to remap, so halving them into the
+ * panel is the honest equivalent - visible, clearly inert, and no second asset to keep in step.
+ */
+void DrawStripIcon(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked)
+{
+	EnsureLoadedAll();
+	if (asset.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!asset.bright)
+		return;
+
+	// One square cell per entry, so the cell size is the strip's height - derived rather than
+	// hardcoded, so a recut at a different icon size still indexes correctly.
+	const int cell = asset.height;
+	const int cells = asset.width / cell;
+	if (index < 0 || index >= cells)
+		return;
+
+	const SDL_Rect src = MakeSdlRect(index * cell, 0, cell, cell);
+	if (unlocked) {
+		out.BlitFromSkipColorIndexZero(*asset.bright, src, origin);
+		return;
+	}
+	BlitHalfTransparentSkipZero(out, *asset.bright, origin, 0, cell, src.x, src.w);
+}
+
+Size StripIconSize(ArtAsset &asset)
+{
+	EnsureLoadedAll();
+	if (asset.rgba.empty())
+		return { 0, 0 };
+	return { asset.height, asset.height };
+}
+
+void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked)
+{
+	DrawStripIcon(out, AuraIconsArt, origin, auraIndex, unlocked);
+}
+
+Size GetAuraIconSize()
+{
+	return StripIconSize(AuraIconsArt);
+}
+
+void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked)
+{
+	DrawStripIcon(out, BarbSkillIconsArt, origin, skillIndex, unlocked);
+}
+
+Size GetBarbSkillIconSize()
+{
+	return StripIconSize(BarbSkillIconsArt);
+}
+
+void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active)
+{
+	DrawStripIcon(out, AttackIconsArt, origin, iconIndex, active);
+}
+
+Size GetAttackIconSize()
+{
+	return StripIconSize(AttackIconsArt);
 }
 
 Size GetWaypointIconSize()

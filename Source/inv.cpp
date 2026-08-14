@@ -1504,12 +1504,10 @@ void DrawInventoryTabs(const Surface &out)
 		    { rowRect.position.x + c * oracool::TabSize.width - RuleOffset, rowRect.position.y }, rowRect.size.height);
 	oracool::DrawOrnateBorder(out, rowRect);
 
-	const bool sortFlashing = InventorySortFlashActive();
+	// All ten positions are storage tabs now - SORT moved to the footer (user request), which is what
+	// made the tenth page reachable at all. See oracool::TabLabel.
 	for (int tab = 0; tab < oracool::TabCount; tab++) {
-		// The SORT position is a button, not a tab: it is never "the open tab", it only borrows the
-		// selected look for a moment when clicked.
-		const bool isSort = tab == oracool::SortTabIndex;
-		const bool lit = isSort ? sortFlashing : (tab == ActiveInventoryTab);
+		const bool lit = tab == ActiveInventoryTab;
 
 		Rectangle screenRect;
 		if (lit) {
@@ -1532,28 +1530,36 @@ void DrawInventoryTabs(const Surface &out)
 }
 
 /**
- * @brief Oracool V1: the player's gold, centred in the band under the backpack grid.
+ * @brief Oracool V1: the SORT button and the player's gold, in the band under the backpack grid.
  *
  * Drawn from scrollrt AFTER the orbs, not from DrawInv. At 340x720 the inventory reaches the bottom
  * of the screen, and the mana orb (x 658..755, y 624..720 at 960x720) sits squarely over this band.
  * DrawInv runs long before the orbs, so drawing it there put the readout underneath one - which is
- * what made the gold look broken rather than merely misplaced.
+ * what made the gold look broken rather than merely misplaced. SORT joined it here for the same
+ * reason: a button behind an orb is worse than a number behind one.
  */
-void DrawInventoryGoldRow(const Surface &out)
+void DrawInventoryFooter(const Surface &out)
 {
 	if (!invflag || !oracool::IsSinglePlayer())
 		return;
 
-	const Rectangle r = oracool::GetGoldRowRect();
-	const Rectangle screenRect { oracool::GetInventoryPanelRect().position
-		    + Displacement { r.position.x, r.position.y },
-		r.size };
+	const Rectangle panel = oracool::GetInventoryPanelRect();
+	const auto toScreen = [&panel](Rectangle r) {
+		return Rectangle { panel.position + Displacement { r.position.x, r.position.y }, r.size };
+	};
+
+	// Gold, and white for the moment after a click - the same treatment and the same word the stash's
+	// own Sort button uses, so the two read as one control in two windows.
+	DrawString(out, _("SORT INVENTORY"), toScreen(oracool::GetSortButtonRect()),
+	    { (InventorySortFlashActive() ? UiFlags::ColorWhite : UiFlags::ColorGold)
+	        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+
 	// TotalPlayerGold(), the same call the store screen uses and the same sum the character sheet
 	// shows. Gold reads 0 from the player alone in this project: picked-up and sold gold goes to
 	// the shared Stash pool, so the money lives in Stash.gold, not _pGold. Two earlier attempts
 	// here - CalculateGold over InvList, then _pGold - both read player-side fields and both
 	// therefore showed 0 while the sheet showed the real figure.
-	DrawString(out, StrCat(_("GOLD: "), FormatInteger(TotalPlayerGold())), screenRect,
+	DrawString(out, StrCat(_("GOLD: "), FormatInteger(TotalPlayerGold())), toScreen(oracool::GetGoldRowRect()),
 	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 
@@ -1615,16 +1621,22 @@ void DrawInv(const Surface &out)
 		{ oracool::GridSizeInCells.width * oracool::CellPx, oracool::GridSizeInCells.height * oracool::CellPx }
 	};
 	oracool::DrawThemedFill(out, gridRect, RecessPasses);
-	// One bevel around the whole grid, with plain rules between the cells. Bevelling all seventy
-	// individually would put 70 three-pixel frames in a 280x196 box and read as noise.
-	// Centred on the boundary, same reason as the tab row's rules above - here it keeps item icons
-	// centred in the cell they are actually drawn into.
-	for (int c = 1; c < oracool::GridSizeInCells.width; c++)
-		oracool::DrawOrnateSeparatorVertical(out,
-		    { gridRect.position.x + c * oracool::CellPx - oracool::OrnateBorderWidthHalf, gridRect.position.y }, gridRect.size.height);
-	for (int r = 1; r < oracool::GridSizeInCells.height; r++)
-		oracool::DrawOrnateSeparator(out,
-		    { gridRect.position.x, gridRect.position.y + r * oracool::CellPx - oracool::OrnateBorderWidthHalf }, gridRect.size.width);
+	// One bevel around the whole grid, with 1px grey rules between the cells - the same treatment
+	// the stash grid uses, on user request, and shared through oracool::ThemeGridLineColor so the
+	// two cannot drift.
+	//
+	// These were 3px gold separators, centred on each boundary. Bevelling all seventy cells
+	// individually was never on the table (70 three-pixel frames in a 280x196 box is noise), but
+	// even as plain rules the gold dominated: it drew the grid rather than the items in it. One
+	// dark pixel per boundary separates the cells and gets out of the way.
+	for (int c = 1; c < oracool::GridSizeInCells.width; c++) {
+		const int x = gridRect.position.x + c * oracool::CellPx - 1;
+		DrawVerticalLine(out, { x, gridRect.position.y }, gridRect.size.height, oracool::ThemeGridLineColor);
+	}
+	for (int r = 1; r < oracool::GridSizeInCells.height; r++) {
+		const int y = gridRect.position.y + r * oracool::CellPx - 1;
+		DrawHorizontalLine(out, { gridRect.position.x, y }, gridRect.size.width, oracool::ThemeGridLineColor);
+	}
 	oracool::DrawOrnateBorder(out, gridRect);
 
 	// Oracool bug fix: user report - the game crashed as soon as one of the six new slots held an
@@ -1718,8 +1730,8 @@ void DrawInv(const Surface &out)
 	if (TabbedInventoryEnabled())
 		DrawInventoryTabs(out);
 
-	// The gold readout is NOT drawn here - see DrawInventoryGoldRow's own comment. It has to come
-	// after the orbs, which scrollrt draws long after this function.
+	// The SORT button and the gold readout are NOT drawn here - see DrawInventoryFooter's own comment.
+	// They have to come after the orbs, which scrollrt draws long after this function.
 }
 
 void DrawInvBelt(const Surface &out)
@@ -2296,16 +2308,14 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 }
 
 /**
- * @brief Extra tabs the sort is allowed to place INTO - one fewer than it drains FROM.
+ * @brief Extra tabs the sort may place INTO - now every one it drains FROM.
  *
- * There are ten tab positions but only nine open one: the last is the SORT button
- * (oracool::SortTabIndex), so the final extra tab has no way to be viewed. The collection loops
- * below still drain all NumExtraInventoryTabs, which is what makes SORT the way to recover items
- * stranded there by an older build. The placement loops stop one short, so it is never refilled -
- * without that the two ranges match and a sort on a full inventory puts items straight back into
- * the tab it just rescued them from.
+ * It used to stop one short, because the tenth tab position was the SORT button and so the last extra
+ * tab could not be opened: refilling it would have put items straight back somewhere unreachable.
+ * SORT is a footer button now and all ten pages open, so the asymmetry has nothing left to protect
+ * against - and keeping it would waste a page's worth of space on every sort.
  */
-constexpr int PlaceableExtraTabs = Player::NumExtraInventoryTabs - 1;
+constexpr int PlaceableExtraTabs = Player::NumExtraInventoryTabs;
 
 void SortInventoryBySellValue(Player &player)
 {
@@ -2451,8 +2461,9 @@ bool CheckInventorySortButtonClick(Point cursorPosition)
 	if (!oracool::IsSinglePlayer())
 		return false;
 
-	// Oracool V1: SORT is no longer a standalone widget - it is the last tab position, labelled "S".
-	const Rectangle sortRect = oracool::GetTabRect(oracool::SortTabIndex);
+	// Oracool V1: a text button in the footer under the grid (user request). It was the last tab
+	// position labelled "S" for a while, which cost the tenth storage page its only way to be opened.
+	const Rectangle sortRect = oracool::GetSortButtonRect();
 	const Rectangle button { oracool::GetInventoryPanelRect().position
 		    + Displacement { sortRect.position.x, sortRect.position.y },
 		sortRect.size };
@@ -2485,12 +2496,11 @@ bool CheckInventoryTabClick(Point cursorPosition)
 
 	const Displacement panelOffset = Point { 0, 0 } - oracool::GetInventoryPanelRect().position;
 
-	// STOPS SHORT of SortTabIndex. That position looks like a tab but is the SORT button, and this
-	// loop used to run to TabCount and claim it - setting ActiveInventoryTab to a tab that is never
-	// drawn as selected, and returning true, which swallowed the click before
-	// CheckInventorySortButtonClick (called after this in CheckInvItem) could ever see it. That is
-	// why SORT neither sorted nor flashed: a ghost tab was eating every click on it.
-	for (int tab = 0; tab < oracool::SortTabIndex; tab++) {
+	// All ten, now that SORT has left the row for the footer. It used to stop one short, because the
+	// last position was the SORT button and claiming it here set ActiveInventoryTab to a tab that was
+	// never drawn as selected AND swallowed the click before CheckInventorySortButtonClick could see
+	// it. Both problems are gone with the button; the tenth page is simply a page.
+	for (int tab = 0; tab < oracool::TabCount; tab++) {
 		if (oracool::GetTabRect(tab).contains(cursorPosition + panelOffset)) {
 			ActiveInventoryTab = tab;
 			return true;
@@ -2923,8 +2933,11 @@ int8_t CheckInvHLight()
 		int nGold = pi->_ivalue;
 		InfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
 	} else {
-		InfoColor = pi->getTextColor();
-		InfoString = pi->getName();
+		// Through SetPanelString, so the name's tier colour is recorded as line 0's colour. A bare
+		// assignment leaves the per-line colour list one entry short of the block PrintItemDetails
+		// then builds, and the tooltip's size check correctly refuses the whole thing and falls
+		// back to one colour - which is exactly how this went unnoticed the first time.
+		SetPanelString(pi->getName(), pi->getTextColor());
 		if (pi->_iIdentified) {
 			PrintItemDetails(*pi);
 		} else {

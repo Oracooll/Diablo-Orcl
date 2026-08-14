@@ -468,3 +468,8 @@ uwp-project/Assets/ui_art
 # never be committed or published. tools\build_asset_studio.cmd stages it on demand from the
 # local extracted originals, so nothing depends on it being in the repository.
 /tools/town.pal
+
+# Same rule, same reason: whole player sprite sets decoded out of diabdat.mpq and hfmonk.mpq by
+# tools/oracool_sprite_export.cpp. It is an inspection artefact - run the exporter again to
+# recreate it - and at ~200MB of copyrighted original art it must never reach a remote.
+/sprite-export/

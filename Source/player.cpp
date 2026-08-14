@@ -42,6 +42,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
+#include "oracool/sprite_import.h"
 #include "oracool/warrior_splash.h"
 #include "oracool/xp_gain_indicator.h"
 #include "player.h"
@@ -2188,7 +2189,21 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 	char pszName[256];
 	*fmt::format_to(pszName, R"(plrgfx\{0}\{1}\{1}{2})", path, string_view(prefix, 3), szCel) = 0;
 	const uint16_t animationWidth = GetPlayerSpriteWidth(cls, graphic, animWeaponId);
-	animationData.sprites = LoadCl2Sheet(pszName, animationWidth);
+
+	// Oracool: a PNG sheet supplied for this animation wins over the CL2. Looked up under the
+	// character's OWN class rather than `cls` - which is the class whose CL2s it borrows, "warrior"
+	// for a Barbarian - because supplying art is exactly how a class stops borrowing. Absent or
+	// malformed, LoadPngSpriteSheet returns nothing and the original loads as before, so a class can
+	// be converted one animation at a time. See oracool/sprite_import.h.
+	char pngName[256];
+	*fmt::format_to(pngName, R"(plrgfx\{0}\{1}\{1}{2}.png)",
+	    oracool::ClassSpriteFolder(player._pClass), string_view(prefix, 3), szCel)
+	    = 0;
+	if (OptionalOwnedClxSpriteSheet imported = oracool::LoadPngSpriteSheet(pngName, animationWidth)) {
+		animationData.sprites = std::move(imported);
+	} else {
+		animationData.sprites = LoadCl2Sheet(pszName, animationWidth);
+	}
 	std::optional<std::array<uint8_t, 256>> trn = GetClassTRN(player);
 	if (trn) {
 		ClxApplyTrans(*animationData.sprites, trn->data());

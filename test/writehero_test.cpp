@@ -53,6 +53,13 @@ void SwapLE(PlayerPack &player)
 		SwapLE(item);
 	}
 	player.wReflections = SDL_SwapLE16(player.wReflections);
+	// Oracool: the four waypoint masks widened to 32 bits at 1.5.0 for Hellfire's Nest and Crypt.
+	// A no-op on a little-endian host - and the test's fixture leaves them zero - but this helper
+	// exists to mirror the struct, and run_big_endian_tests.sh is where that stops being academic.
+	player.pWaypointUnlockedNormal = SDL_SwapLE32(player.pWaypointUnlockedNormal);
+	player.pWaypointUnlockedNightmare = SDL_SwapLE32(player.pWaypointUnlockedNightmare);
+	player.pWaypointUnlockedHell = SDL_SwapLE32(player.pWaypointUnlockedHell);
+	player.pWaypointUnlockedTorment = SDL_SwapLE32(player.pWaypointUnlockedTorment);
 	player.pDiabloKillLevel = SDL_SwapLE32(player.pDiabloKillLevel);
 	player.pDifficulty = SDL_SwapLE32(player.pDifficulty);
 	player.pDamAcFlags = SDL_SwapLE32(player.pDamAcFlags);
@@ -400,10 +407,15 @@ TEST(Writehero, pfile_write_hero)
 	//   2. V1's inventory grew from 10x4 to 10x7, so PlayerPack's InvList and InvGrid grew with
 	//      InventoryGridCells (40 -> 70). See oracool/inventory_layout.h.
 	//   3. Six worn equipment slots added, so PlayerPack's InvBody grew with NUM_INVLOC (7 -> 13).
+	//   4. The four per-difficulty waypoint masks widened from uint16_t to uint32_t (1.5.0), so the
+	//      travel list could reach Hellfire's Nest and Crypt - levels 17-24 need 24 bits, not 16.
+	//      Unlike 1-3 this one also GREW the struct by 8 bytes rather than reshaping it in place,
+	//      which is what made pre-1.5.0 characters unloadable (pfile.cpp's ReadHero demands an exact
+	//      size match). See PlayerPack::pWaypointUnlockedNormal for why that was affordable.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "9c2d0684374683114814e1056fd75e1523cb10cabe8925757f4979583a3af81f");
+	    "67e45a2eba2334bd1fb58864fda1e3244999a07e2fcf501ead7af8623615915f");
 }
 
 } // namespace

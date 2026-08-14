@@ -76,13 +76,21 @@ struct PlayerPack {
 	 * reserved-bytes pattern as pStatPtsSpent* below (same reasoning: starting a New Game with an
 	 * existing hero never re-reads the full save via loadsave.cpp's LoadPlayer, only "Continue"
 	 * does, so anything meant to survive a New Game has to live in this compact struct too). Bit
-	 * (i-1) is waypoint list index i (1-16, matching currlevel numbering); index 0 (Tristram) is
+	 * (i-1) is waypoint list index i (1-24, matching currlevel numbering); index 0 (Tristram) is
 	 * always unlocked and never stored. See player.h's Player::_pWaypointUnlocked and
 	 * pack.cpp's Pack/UnPackPlayer for where these get read/written.
+	 *
+	 * WIDENED 16 -> 32 BITS at 1.5.0 for Hellfire's Nest and Crypt waypoints (levels 17-24). This
+	 * is the first change to actually GROW this struct rather than repurpose spare bytes inside it,
+	 * and pfile.cpp's ReadHero only accepts a file whose size matches sizeof(PlayerPack) exactly,
+	 * so every character saved before it stopped loading. That was affordable precisely then and
+	 * probably never again: adding hellfire.mpq had just moved saves from .sv to .hsv, so the old
+	 * files were already out of reach. Any further waypoint growth is free (8 spare bits); anything
+	 * else wanting space here should still hunt for reserved bytes first.
 	 */
-	uint16_t pWaypointUnlockedNormal;    // was reserved2[2]
+	uint32_t pWaypointUnlockedNormal;    // was reserved2[2], widened at 1.5.0
 	uint8_t pSplLvl2[10];                // Hellfire spells
-	uint16_t pWaypointUnlockedNightmare; // was wReserved8
+	uint32_t pWaypointUnlockedNightmare; // was wReserved8, widened at 1.5.0
 	uint32_t pDiabloKillLevel;
 	uint32_t pDifficulty;
 	uint32_t pDamAcFlags;  // `ItemSpecialEffectHf` is 1 byte but this is 4 bytes.
@@ -97,8 +105,8 @@ struct PlayerPack {
 	int32_t pStatPtsSpentMag;
 	int32_t pStatPtsSpentDex;
 	int32_t pStatPtsSpentVit;
-	uint16_t pWaypointUnlockedHell;    // was part of reserved3[4]
-	uint16_t pWaypointUnlockedTorment; // was part of reserved3[4]
+	uint32_t pWaypointUnlockedHell;    // was part of reserved3[4], widened at 1.5.0
+	uint32_t pWaypointUnlockedTorment; // was part of reserved3[4], widened at 1.5.0
 };
 
 union ItemNetPack {

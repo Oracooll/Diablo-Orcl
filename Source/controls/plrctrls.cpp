@@ -31,6 +31,8 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "oracool/auto_save.h"
+#include "panels/charpanel.hpp"
+#include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
 #include "panels/spell_list.hpp"
 #include "panels/ui_panels.hpp"
@@ -581,6 +583,17 @@ void AttrIncBtnSnap(AxisDirection dir)
 	// move cursor to our new location
 	button = ChrBtnsRect[slot];
 	button.position = GetPanelPosition(UiPanels::Character, button.position);
+	// Oracool V1: the sheet scrolls, and the button rects move with it. If the one we picked is
+	// scrolled out of the window, parking the cursor on it would put it over the title band or off
+	// the panel - so scroll the sheet until it is on screen instead, then move.
+	while (!GetCharacterContentRect().contains(button.Center())) {
+		const int before = button.position.y;
+		ScrollCharacterSheet(button.Center().y < GetCharacterContentRect().position.y ? -1 : 1);
+		button = ChrBtnsRect[slot];
+		button.position = GetPanelPosition(UiPanels::Character, button.position);
+		if (button.position.y == before)
+			return; // already at an end of the scroll range - nothing more to do
+	}
 	SetCursorPos(button.Center());
 }
 
@@ -1337,12 +1350,13 @@ void SpellBookMove(AxisDirection dir)
 	static AxisDirectionRepeater repeater;
 	dir = repeater.Get(dir);
 
-	if (dir.x == AxisDirectionX_LEFT) {
-		if (sbooktab > 0)
-			sbooktab--;
-	} else if (dir.x == AxisDirectionX_RIGHT) {
-		if ((gbIsHellfire && sbooktab < 4) || (!gbIsHellfire && sbooktab < 3))
-			sbooktab++;
+	// Oracool V1: the book has no tabs any more - every spell is in one scrolling list - so the
+	// stick scrolls it rather than paging between six grids. Left/right kept alongside up/down
+	// because the old binding was horizontal and muscle memory is cheap to honour.
+	if (dir.x == AxisDirectionX_LEFT || dir.y == AxisDirectionY_UP) {
+		ScrollSpellBook(-1);
+	} else if (dir.x == AxisDirectionX_RIGHT || dir.y == AxisDirectionY_DOWN) {
+		ScrollSpellBook(1);
 	}
 }
 
@@ -1749,6 +1763,7 @@ void ProcessGameAction(const GameAction &action)
 			CloseInventory();
 			spselflag = false;
 			sbookflag = !sbookflag;
+			ResetSpellBookScroll(); // open at the top - see SpellBookKeyPressed
 		}
 		break;
 	}
@@ -1862,7 +1877,7 @@ void plrctrls_after_check_curs_move()
 		return;
 	}
 	if (!invflag) {
-		InfoString = {};
+		ClearPanelStrings(); // text and its per-line colours go together - see control.h
 		FindActor();
 		FindItemOrObject();
 		FindTrigger();

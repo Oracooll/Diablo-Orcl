@@ -748,9 +748,10 @@ TEST_F(InvTest, CheckInventorySortButtonClick_HitsButtonAndSorts)
 	MyPlayer->InvGrid[1] = 2;
 	MyPlayer->_pNumInv = 2;
 
-	// Oracool V1: SORT is the last tab position now, not a standalone button, and the inventory
-	// window owns its own rect rather than sitting inside UiPanels::Inventory.
-	const Rectangle sortRect = oracool::GetTabRect(oracool::SortTabIndex);
+	// Oracool V1: SORT is a text button in the panel's footer - it spent a while as the tab row's
+	// last position - and the inventory window owns its own rect rather than sitting inside
+	// UiPanels::Inventory.
+	const Rectangle sortRect = oracool::GetSortButtonRect();
 	MousePosition = oracool::GetInventoryPanelRect().position
 	    + Displacement { sortRect.position.x + sortRect.size.width / 2,
 		    sortRect.position.y + sortRect.size.height / 2 };
@@ -766,9 +767,10 @@ TEST_F(InvTest, CheckInventorySortButtonClick_MissesInMultiplayer)
 	clear_inventory();
 	gbIsMultiplayer = true;
 
-	// Oracool V1: SORT is the last tab position now, not a standalone button, and the inventory
-	// window owns its own rect rather than sitting inside UiPanels::Inventory.
-	const Rectangle sortRect = oracool::GetTabRect(oracool::SortTabIndex);
+	// Oracool V1: SORT is a text button in the panel's footer - it spent a while as the tab row's
+	// last position - and the inventory window owns its own rect rather than sitting inside
+	// UiPanels::Inventory.
+	const Rectangle sortRect = oracool::GetSortButtonRect();
 	MousePosition = oracool::GetInventoryPanelRect().position
 	    + Displacement { sortRect.position.x + sortRect.size.width / 2,
 		    sortRect.position.y + sortRect.size.height / 2 };
@@ -779,35 +781,49 @@ TEST_F(InvTest, CheckInventorySortButtonClick_MissesInMultiplayer)
 }
 
 /**
- * User-reported bug (2026-08-13): "SORT doesn't sort, nor feedbacks on click. I think clicks on it
- * land on ghost tab 10."
+ * Oracool (2026-08-13, user request): every tab position is a storage page.
  *
- * Exactly right. CheckInventoryTabClick looped to TabCount, so it claimed the SORT position as if
- * it were a tab - setting ActiveInventoryTab to a tab that is never drawn selected, and returning
- * true. CheckInvItem calls it BEFORE CheckInventorySortButtonClick, so the sort never saw the
- * click. This pins the ordering contract rather than just the loop bound: whatever the tab
- * hit-test does, a click on the SORT position must not be consumed as a tab.
+ * This test used to pin the opposite - that the LAST position must not be claimed as a tab, because
+ * it was the SORT button and a tab hit-test claiming it swallowed the click before SORT could see it
+ * ("SORT doesn't sort, nor feedbacks on click. I think clicks on it land on ghost tab 10"). SORT has
+ * moved to a text button in the footer, so the row now opens all ten pages - and the tenth, which had
+ * storage behind it all along and no way to be viewed, is finally reachable.
+ *
+ * The ordering contract it was really guarding still matters and is still checked below: whatever the
+ * tab hit-test does, it must not consume a click meant for SORT.
  */
-TEST_F(InvTest, TabClickDoesNotClaimTheSortButtonPosition)
+TEST_F(InvTest, EveryTabPositionOpensAStoragePage)
+{
+	clear_inventory();
+
+	for (int tab = 0; tab < oracool::TabCount; tab++) {
+		ActiveInventoryTab = -1;
+		const Rectangle r = oracool::GetTabRect(tab);
+		const Point centre = oracool::GetInventoryPanelRect().position
+		    + Displacement { r.position.x + r.size.width / 2, r.position.y + r.size.height / 2 };
+
+		EXPECT_TRUE(CheckInventoryTabClick(centre)) << "tab position " << tab << " is not clickable";
+		EXPECT_EQ(ActiveInventoryTab, tab) << "tab position " << tab << " opened the wrong page";
+	}
+
+	// One page per position, and the storage to back it: tab 0 is the vanilla backpack, 1..9 index
+	// InvTabList. A tab position with no page behind it would run off that array.
+	EXPECT_EQ(oracool::TabCount, Player::NumExtraInventoryTabs + 1);
+}
+
+TEST_F(InvTest, TabClickDoesNotClaimTheSortButton)
 {
 	clear_inventory();
 	ActiveInventoryTab = 3;
 
-	const Rectangle sortRect = oracool::GetTabRect(oracool::SortTabIndex);
+	const Rectangle sortRect = oracool::GetSortButtonRect();
 	const Point sortCentre = oracool::GetInventoryPanelRect().position
 	    + Displacement { sortRect.position.x + sortRect.size.width / 2,
 		    sortRect.position.y + sortRect.size.height / 2 };
 
 	EXPECT_FALSE(CheckInventoryTabClick(sortCentre))
-	    << "the SORT position was claimed as a tab, which swallows the click before SORT sees it";
+	    << "the SORT button was claimed as a tab, which swallows the click before SORT sees it";
 	EXPECT_EQ(ActiveInventoryTab, 3) << "clicking SORT changed the open tab";
-
-	// And a real tab still works, so the fix did not just disable the row.
-	const Rectangle tab2 = oracool::GetTabRect(1);
-	const Point tab2Centre = oracool::GetInventoryPanelRect().position
-	    + Displacement { tab2.position.x + tab2.size.width / 2, tab2.position.y + tab2.size.height / 2 };
-	EXPECT_TRUE(CheckInventoryTabClick(tab2Centre));
-	EXPECT_EQ(ActiveInventoryTab, 1);
 }
 
 // User-reported gap: Ctrl+Click-to-stash only ever worked for tab 1, since TransferItemToStash

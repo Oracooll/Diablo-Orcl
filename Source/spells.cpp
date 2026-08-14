@@ -48,11 +48,13 @@ bool IsReadiedSpellValid(const Player &player)
 	}
 }
 
-/**
- * @brief Clears the current player's readied spell selection.
- * @note Will force a UI redraw in case the values actually change, so that the new spell reflects on the bottom panel.
- * @param player The player whose readied spell is to be cleared.
- */
+} // namespace
+
+// Oracool: lifted out of the anonymous namespace above. "No spell readied" is not just an internal
+// housekeeping state any more - it is the Regular Attack the Abilities window lists and the HUD's
+// skill wells draw, so more than one place needs to be able to put the player back into it. Two of
+// them were already writing the same pair of fields by hand (control.cpp's shift-click on the RMB
+// well); one named function is what stops a third from doing it slightly differently.
 void ClearReadiedSpell(Player &player)
 {
 	if (player._pRSpell != SpellID::Invalid) {
@@ -65,8 +67,6 @@ void ClearReadiedSpell(Player &player)
 		RedrawEverything();
 	}
 }
-
-} // namespace
 
 bool IsValidSpell(SpellID spl)
 {

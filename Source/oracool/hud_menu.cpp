@@ -24,6 +24,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/oracool.h"
+#include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
 #include "player.h"
 #include "quests.h"
@@ -73,13 +74,9 @@ void DoInventory()
 	if (DropGoldFlag)
 		CloseGoldDrop();
 }
-void DoSpellbook()
-{
-	CloseInventory();
-	if (DropGoldFlag)
-		CloseGoldDrop();
-	sbookflag = !sbookflag;
-}
+// Was a duplicate of ToggleAbilitiesWindow's body; folded into it so the menu entry and the HUD's
+// skill buttons cannot disagree about what gets closed on the way.
+void DoSpellbook() { ToggleAbilitiesWindow(); }
 void DoEventLog() { ToggleEventLog(); }
 
 bool IsCharacterOpen() { return chrflag; }

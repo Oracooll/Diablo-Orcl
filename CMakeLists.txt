@@ -370,6 +370,11 @@ if(NOT UWP_LIB)
 # Not wired into the default build - run tools\build_oracool_mpq.cmd to rebuild the archive.
 add_executable(oracool_mpq_pack EXCLUDE_FROM_ALL tools/oracool_mpq_pack.cpp)
 target_link_libraries(oracool_mpq_pack PRIVATE libdevilutionx)
+
+# Oracool: exports a class's player sprites out of the archives as PNG sheets. Also EXCLUDE_FROM_ALL -
+# it is an inspection tool, not part of the game. See the file header for how to run it.
+add_executable(oracool_sprite_export EXCLUDE_FROM_ALL tools/oracool_sprite_export.cpp)
+target_link_libraries(oracool_sprite_export PRIVATE libdevilutionx)
 endif()
 
 if(GPERF)

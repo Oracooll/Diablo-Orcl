@@ -4,6 +4,7 @@
 #include "DiabloUI/selok.h"
 #include "control.h"
 #include "engine/load_clx.hpp"
+#include "oracool/ui_backgrounds.h"
 #include "utils/language.h"
 
 namespace devilution {
@@ -52,7 +53,13 @@ void MainmenuLoad(const char *name)
 		LoadBackgroundArt("ui_art\\swmmenu");
 	}
 
-	UiAddBackground(&vecMainMenuDialog);
+	// Oracool: user request - the 21:9 painting, cropped to whatever resolution is running. It has to
+	// come after LoadBackgroundArt above (which is what puts this screen's palette in place) and it
+	// REPLACES the stock background rather than layering over it: the stock one is a 640x480 plate
+	// drawn centred, so leaving it in would paint a near-black rectangle over the middle of the new
+	// art. Falls back to the stock background if the asset is missing.
+	if (!oracool::AddUiBackground(&vecMainMenuDialog, oracool::UiBackground::MainMenu))
+		UiAddBackground(&vecMainMenuDialog);
 	UiAddLogo(&vecMainMenuDialog);
 
 	const Point uiPosition = GetUIRectangle().position;

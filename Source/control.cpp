@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -36,6 +37,7 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/attack_skills.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
@@ -44,6 +46,7 @@
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "panels/charpanel.hpp"
+#include "quests.h" // GetQuestLogPanelRect
 #include "panels/mainpanel.hpp"
 #include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
@@ -83,7 +86,7 @@ bool lvlbtndown;
 bool chrbtnactive;
 bool resetStatsButtonDown;
 UiFlags InfoColor;
-int sbooktab;
+std::vector<UiFlags> InfoStringLineColors;
 bool talkflag;
 bool sbookflag;
 bool chrflag;
@@ -133,16 +136,48 @@ LeftPanelContent GetLeftPanelContent()
 		return LeftPanelContent::WaypointMenu;
 	return LeftPanelContent::None;
 }
+Rectangle GetLeftPanelContentRect()
+{
+	// Oracool bug fix: user rule - "area of UI screens should in no case permit clicks on the
+	// ground". Routing used GetLeftPanel(), the vanilla 320x352, but three of the four contents
+	// have since grown to their own 340x720 windows. Every click below y=352 or right of x=320
+	// therefore missed the panel entirely and fell through to the world: the character sheet's
+	// RESET button was unclickable, its + buttons responded only left of x=320, waypoint entries
+	// 8-16 walked the player instead of warping, and the same for quest log rows.
+	//
+	// Rect and content now come from the same switch, so a window cannot be drawn in one place and
+	// hit-tested in another. A window that grows must export its rect and be added here.
+	switch (GetLeftPanelContent()) {
+	case LeftPanelContent::Character:
+		return GetCharacterPanelRect();
+	case LeftPanelContent::QuestLog:
+		return GetQuestLogPanelRect();
+	case LeftPanelContent::WaypointMenu:
+		return oracool::GetWaypointMenuRect();
+	case LeftPanelContent::Stash:
+		return GetStashPanelRect();
+	case LeftPanelContent::None:
+		break;
+	}
+	return { { 0, 0 }, { 0, 0 } };
+}
+bool IsOverLeftPanel(Point position)
+{
+	return GetLeftPanelContent() != LeftPanelContent::None
+	    && GetLeftPanelContentRect().contains(position);
+}
 bool IsRightPanelOpen()
 {
 	return invflag || sbookflag;
 }
 bool IsOverRightPanel(Point position)
 {
-	// The inventory and the spellbook no longer share a rect - see the header.
+	// The inventory and the spellbook no longer share a rect - see the header. Both have since
+	// grown into their own 340x720 windows, so neither may be tested against RightPanel's vanilla
+	// 320x352: a window hit-tested smaller than it draws lets clicks reach the ground beneath it.
 	if (invflag && oracool::GetInventoryPanelRect().contains(position))
 		return true;
-	return sbookflag && RightPanel.contains(position);
+	return sbookflag && GetSpellBookPanelRect().contains(position);
 }
 
 constexpr Size IncrementAttributeButtonSize { 41, 22 };
@@ -656,6 +691,9 @@ void FocusOnCharInfo()
 
 void OpenCharPanel()
 {
+	// The sheet is roughly twice its window's height now, so opening it should always show the top
+	// rather than wherever it was left last time.
+	ResetCharacterSheetScroll();
 	QuestLogIsOpen = false;
 	CloseGoldWithdraw();
 	CloseStash();
@@ -680,20 +718,68 @@ void ToggleCharPanel()
 		OpenCharPanel();
 }
 
+namespace {
+
+/**
+ * @brief Records @p color once per LINE of @p str, keeping InfoStringLineColors parallel to
+ * InfoString's lines.
+ *
+ * Per line, not per call: several callers pass strings with an embedded newline ("Right-click to
+ * read, then\nleft-click to target"), so one call can produce two lines. Counting calls instead
+ * would slide every colour after the first such string one row up.
+ */
+void PushLineColors(string_view str, UiFlags color)
+{
+	size_t lines = 1;
+	for (const char c : str) {
+		if (c == '\n')
+			lines++;
+	}
+	InfoStringLineColors.insert(InfoStringLineColors.end(), lines, color);
+}
+
+} // namespace
+
 void AddPanelString(string_view str)
+{
+	AddPanelString(str, UiFlags::ColorWhite);
+}
+
+void AddPanelString(std::string &&str)
+{
+	AddPanelString(std::move(str), UiFlags::ColorWhite);
+}
+
+void AddPanelString(string_view str, UiFlags color)
 {
 	if (InfoString.empty())
 		InfoString = str;
 	else
 		InfoString = StrCat(InfoString, "\n", str);
+	PushLineColors(str, color);
 }
 
-void AddPanelString(std::string &&str)
+void AddPanelString(std::string &&str, UiFlags color)
 {
+	PushLineColors(str, color);
 	if (InfoString.empty())
 		InfoString = std::move(str);
 	else
 		InfoString = StrCat(InfoString, "\n", str);
+}
+
+void SetPanelString(StringOrView str, UiFlags color)
+{
+	InfoString = std::move(str);
+	InfoColor = color;
+	InfoStringLineColors.clear();
+	PushLineColors(InfoString.str(), color);
+}
+
+void ClearPanelStrings()
+{
+	InfoString = {};
+	InfoStringLineColors.clear();
 }
 
 Point GetPanelPosition(UiPanels panel, Point offset)
@@ -710,13 +796,16 @@ Point GetPanelPosition(UiPanels panel, Point offset)
 		return GetCharacterContentOrigin() + displacement;
 	case UiPanels::Quest:
 	case UiPanels::Stash:
-		return GetLeftPanel().position + displacement;
+		// Oracool V1: the stash has its own 340x720 top-left rect - see qol/stash.h.
+		return GetStashPanelRect().position + displacement;
 	case UiPanels::Inventory:
 		// Oracool V1: the inventory has its own 320x660 top-right rect and no longer shares
 		// RightPanel with the spellbook - see oracool/inventory_layout.h.
 		return oracool::GetInventoryPanelRect().position + displacement;
 	case UiPanels::Spell:
-		return GetRightPanel().position + displacement;
+		// Oracool V1: the book has its own 340x720 top-right rect, like the inventory - see
+		// panels/spell_book.hpp.
+		return GetSpellBookPanelRect().position + displacement;
 	default:
 		return GetMainPanel().position + displacement;
 	}
@@ -793,12 +882,14 @@ void InitControlPan()
 	for (bool &buttonEnabled : chrbtn)
 		buttonEnabled = false;
 	chrbtnactive = false;
-	InfoString = {};
+	ClearPanelStrings();
 	RedrawComponent(PanelDrawComponent::Health);
 	RedrawComponent(PanelDrawComponent::Mana);
 	CloseCharPanel();
 	spselflag = false;
-	sbooktab = 0;
+	// sbooktab is gone with the book's six tabs - it is one scrolling list now, and its scroll
+	// position is reset by ResetSpellBookScroll() at every open rather than once at game start.
+	ResetSpellBookScroll();
 	sbookflag = false;
 
 	if (!HeadlessMode) {
@@ -823,10 +914,7 @@ void DoPanBtn()
 {
 	if (!spselflag && oracool::GetRmbSkillButtonRect().contains(MousePosition)) {
 		if ((SDL_GetModState() & KMOD_SHIFT) != 0) {
-			Player &myPlayer = *MyPlayer;
-			myPlayer._pRSpell = SpellID::Invalid;
-			myPlayer._pRSplType = SpellType::Invalid;
-			RedrawEverything();
+			ClearReadiedSpell(*MyPlayer);
 			return;
 		}
 		DoSpeedBook();
@@ -849,7 +937,10 @@ void DoAutoMap()
 void CheckPanelInfo()
 {
 	panelflag = false;
-	InfoString = StringOrView {};
+	// Through ClearPanelStrings, not a bare assignment: this runs at the top of the hover pass
+	// every frame, so it is the point that guarantees last frame's per-line colours cannot survive
+	// into this one's text.
+	ClearPanelStrings();
 
 	// Oracool: the burger menu's icon row names whichever icon is hovered - the icons are
 	// wordless, so this is the only thing telling the player what each one does.
@@ -865,35 +956,52 @@ void CheckPanelInfo()
 	// carry no affordance of their own: the Menu and Portal cells are painted into the plate art,
 	// and the XP counter is bare text, so nothing about them says "clickable" without this.
 	if (oracool::GetBeltSlotRect(oracool::BeltMenuSlotIndex).contains(MousePosition)) {
-		InfoString = _("Menu Bar");
+		SetPanelString(_("Menu Bar"), UiFlags::ColorWhite);
 		AddPanelString(_("Click to open/close"));
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;
 		return;
 	}
 	if (oracool::GetBeltSlotRect(oracool::BeltTownPortalSlotIndex).contains(MousePosition)) {
-		InfoString = _("Town Portal");
+		SetPanelString(_("Town Portal"), UiFlags::ColorWhite);
 		AddPanelString(_("Click to open."));
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;
 		return;
 	}
 	if (oracool::IsPointOverXpCounter(MousePosition)) {
-		InfoString = _("Experience Meter");
+		SetPanelString(_("Experience Meter"), UiFlags::ColorWhite);
 		AddPanelString(_("Click for more."));
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;
 		return;
 	}
 
+	// Oracool: the LMB well now holds the basic attack rather than nothing, so it has something to
+	// say. It is also the plate's other opener for the Abilities window (diablo.cpp's LeftMouseDown),
+	// which was previously findable only by clicking the empty socket and seeing what happened.
+	if (oracool::GetLmbSkillButtonRect().contains(MousePosition)) {
+		const oracool::AttackIcon icon = oracool::BasicAttackIcon(*MyPlayer);
+		SetPanelString(_(oracool::AttackIconName(icon)), UiFlags::ColorWhite);
+		AddPanelString(_("Left click to attack"));
+		AddPanelString(_("Click here for abilities"));
+		InfoColor = UiFlags::ColorWhite;
+		panelflag = true;
+		return;
+	}
+
 	if (!spselflag && oracool::GetRmbSkillButtonRect().contains(MousePosition)) {
-		InfoString = _("Select current spell button");
+		SetPanelString(_("Select current spell button"), UiFlags::ColorWhite);
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;
 		AddPanelString(_("Hotkey: 's'"));
 		Player &myPlayer = *MyPlayer;
 		const SpellID spellId = myPlayer._pRSpell;
-		if (IsValidSpell(spellId)) {
+		if (!IsValidSpell(spellId)) {
+			// Nothing readied - which is the basic attack, and the icon in the well says so. Name it
+			// here too, so hovering never reports an empty slot for a slot that does something.
+			AddPanelString(_(oracool::AttackIconName(oracool::BasicAttackIcon(myPlayer))));
+		} else {
 			switch (myPlayer._pRSplType) {
 			case SpellType::Skill:
 				AddPanelString(fmt::format(fmt::runtime(_("{:s} Skill")), oracool::GetSpellDisplayName(spellId)));
@@ -946,7 +1054,7 @@ void FreeControlPan()
 void UpdateInfoString()
 {
 	if (!panelflag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && !ActiveTabItemHovered && !spselflag) {
-		InfoString = {};
+		ClearPanelStrings();
 		InfoColor = UiFlags::ColorWhite;
 	}
 	Player &myPlayer = *MyPlayer;
@@ -959,8 +1067,9 @@ void UpdateInfoString()
 		} else if (!myPlayer.CanUseItem(myPlayer.HoldItem)) {
 			InfoString = _("Requirements not met");
 		} else {
-			InfoString = myPlayer.HoldItem.getName();
-			InfoColor = myPlayer.HoldItem.getTextColor();
+			// One line, so the colour list is trivially in step - but through SetPanelString
+			// anyway, so that "an item's name is set this way" holds without exception.
+			SetPanelString(myPlayer.HoldItem.getName(), myPlayer.HoldItem.getTextColor());
 		}
 	} else {
 		// Oracool: user request - with item labels on, every item on the floor is already named
@@ -1050,8 +1159,16 @@ void CheckChrBtns()
 	if (chrbtnactive)
 		return;
 
+	// Oracool V1: the sheet scrolls, so a + or RESET button can be sitting outside the window -
+	// scrolled up under the title band, say. Their rects move with the scroll (charpanel.cpp's
+	// PlaceWidgets), which keeps the visible ones correct, but a rect that has moved off the top
+	// would still contain a click on the title. Gating every press on the scrolling area closes
+	// that: a point outside it can never be inside a rect that is also outside it.
+	if (!GetCharacterContentRect().contains(MousePosition))
+		return;
+
 	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer) {
-		Rectangle resetButton { GetPanelPosition(UiPanels::Character, ResetStatsButtonPosition), ResetStatsButtonSize };
+		Rectangle resetButton { GetPanelPosition(UiPanels::Character, GetResetStatsButtonPosition()), ResetStatsButtonSize };
 		if (resetButton.contains(MousePosition)) {
 			resetStatsButtonDown = true;
 			chrbtnactive = true;
@@ -1079,9 +1196,17 @@ void CheckChrBtns()
 void ReleaseChrBtns(bool addAllStatPoints)
 {
 	chrbtnactive = false;
+	// Same scroll gate as CheckChrBtns - a button that scrolled out from under the cursor between
+	// press and release must not still act on the release.
+	if (!GetCharacterContentRect().contains(MousePosition)) {
+		resetStatsButtonDown = false;
+		for (bool &pressed : chrbtn)
+			pressed = false;
+		return;
+	}
 	if (resetStatsButtonDown) {
 		resetStatsButtonDown = false;
-		Rectangle resetButton { GetPanelPosition(UiPanels::Character, ResetStatsButtonPosition), ResetStatsButtonSize };
+		Rectangle resetButton { GetPanelPosition(UiPanels::Character, GetResetStatsButtonPosition()), ResetStatsButtonSize };
 		if (resetButton.contains(MousePosition)) {
 			ResetPlayerStats(*MyPlayer);
 			// Oracool: user request - reuses the armor-drop sound for a satisfying "clunk"

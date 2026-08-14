@@ -1,5 +1,6 @@
 #include "oracool/waypoint_menu.h"
 
+#include <algorithm>
 #include <array>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -10,6 +11,7 @@
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo
 #include "engine/render/text_render.hpp"
 #include "oracool/ornate_border.h"
+#include "init.h" // gbIsHellfire, for whether the Nest and Crypt rows exist at all
 #include "interfac.h"
 #include "levels/gendung.h"
 #include "multi.h"
@@ -22,12 +24,16 @@ namespace devilution::oracool {
 
 namespace {
 
-// Oracool: user request - the 17 waypoints, numbered and worded exactly as specified. Index i
-// (1-16) corresponds to dungeon level i, matching currlevel numbering - see
-// Player::_pWaypointUnlocked and OperateWaypoint's _oVar1 usage. All 17 are placed
+// Oracool: user request - the waypoints, numbered and worded exactly as specified. Index i
+// (1-24) corresponds to dungeon level i, matching currlevel numbering - see
+// Player::_pWaypointUnlocked and OperateWaypoint's _oVar1 usage. All are placed
 // (AddWaypointSigilObject, objects.cpp): town's is fixed, each dungeon level's is a fresh random
 // floor tile every visit.
-constexpr std::array<const char *, 17> WaypointNames { {
+//
+// The second number is the ABSOLUTE dungeon level, not the level within its region - which is why
+// the Catacombs start at 5 and not at 1. Hellfire's own two regions continue that: the Nest is
+// levels 17-20 and the Crypt 21-24, so they carry on counting rather than restarting.
+constexpr std::array<const char *, 25> WaypointNames { {
     "1. Tristram",
     "2. Cathedral Level 1",
     "3. Cathedral Level 2",
@@ -45,7 +51,29 @@ constexpr std::array<const char *, 17> WaypointNames { {
     "15. Hell Level 14",
     "16. Hell Level 15",
     "17. Hell Level 16",
+    "18. Nest Level 17",
+    "19. Nest Level 18",
+    "20. Nest Level 19",
+    "21. Nest Level 20",
+    "22. Crypt Level 21",
+    "23. Crypt Level 22",
+    "24. Crypt Level 23",
+    "25. Crypt Level 24",
 } };
+
+/**
+ * @brief How many rows the list actually offers.
+ *
+ * The storage behind it is always 25 (see Player::_pWaypointUnlocked), but a plain Diablo game has
+ * no levels past 16 and AddWaypointSigilObject places no sigil there, so listing the Nest and the
+ * Crypt outside Hellfire would be eight rows that can never light up and can never be travelled
+ * to. Keyed on `gbIsHellfire` rather than on HaveMonk(): these are levels, and levels are exactly
+ * what hellfire.mpq brings.
+ */
+size_t VisibleWaypointCount()
+{
+	return gbIsHellfire ? WaypointNames.size() : 17;
+}
 
 // Oracool V1 waypoint list geometry.
 //
@@ -53,7 +81,7 @@ constexpr std::array<const char *, 17> WaypointNames { {
 //   24..74    label band, "WAYPOINT"
 //   74..77    separator rule
 //   77..101   gap below the rule
-//   101..696  seventeen 35px rows
+//   101..696  the scrolling list viewport (595px)
 //   696..720  bottom margin
 //
 // The window is drawn the way the event log is - a half-transparent fill under the ornate
@@ -74,13 +102,33 @@ constexpr int PanelMargin = 24;
 constexpr int LabelHeight = 50;
 constexpr int SeparatorHeight = OrnateBorderWidth;
 constexpr int SeparatorGap = PanelMargin; // deliberately equal - see the symmetry note above
-constexpr int RowHeight = 35;
+// Oracool: user request (2026-08-14) - "make wp row 43px + 2px gap between two rows. make the wp
+// picture fit 43x43 invisible frame as to its diameter tangents on the 43px row borders."
+//
+// 43 is also exactly what a vanilla spellbook row was (SpellBookDescription's height), so the pad
+// and the name sit on the same rhythm the rest of the game's lists use. The pad fills the row
+// outright rather than being inset - ui\waypoint_icons.png is cut at 43x43 per cell for this, see
+// tools/CutWaypointIcons.ps1.
+constexpr int RowHeight = 43;
+/** @brief Air between one row and the next. Not part of either row's hit box. */
+constexpr int RowGap = 2;
+constexpr int RowPitch = RowHeight + RowGap;
 constexpr int ListTop = PanelMargin + LabelHeight + SeparatorHeight + SeparatorGap;
 constexpr int IconGap = 8;   // from the inner edge of the margin to the sigil
 constexpr int TextGap = 10;  // from the sigil to the name
 
-static_assert(ListTop + 17 * RowHeight + PanelMargin == PanelSize.height,
-    "Waypoint list no longer fits its panel - the seventeen rows must span ListTop..PanelSize.height-PanelMargin");
+/** @brief The list's visible window. 25 rows are 1125px tall, so the list scrolls inside this. */
+constexpr int ViewportHeight = PanelSize.height - ListTop - PanelMargin;
+static_assert(ViewportHeight > 0, "the waypoint list viewport must fit between the rule and the bottom margin");
+
+// The scrollbar is the Abilities window's, to the pixel - see DrawScrollbar in panels/spell_book.cpp.
+// Two scrolling lists in the same game that disagree about how a scrollbar looks is one list too many.
+constexpr int ScrollbarWidth = OrnateBorderWidth;
+constexpr int ScrollbarMinThumb = 24;
+constexpr int ScrollbarGap = 6;
+constexpr int RightPad = 8;
+/** @brief Right edge available to a row's text - short of the scrollbar, not of the panel. */
+constexpr int ContentRightLimit = PanelSize.width - RightPad - ScrollbarWidth - ScrollbarGap;
 
 /**
  * @brief Screen rect of the waypoint list: flush to the top-left corner.
@@ -97,27 +145,68 @@ Rectangle PanelRect()
 bool WaypointMenuOpen = false;
 Point OpenedFromPosition;
 
+/** @brief Pixels of list scrolled above the top of the viewport. Reset each time the menu opens. */
+int ScrollOffset = 0;
+int MaxScrollOffset = 0;
+int ListHeight = 0;
+
 // Oracool: user request - "spawn at the waypoint" flag, set right before a warp and consumed
 // once by AddWaypointSigilObject() (objects.cpp) after it places the destination's sigil - see
 // RequestSpawnAtWaypoint's doc comment for why it can't just set ViewPosition here instead.
 bool WaypointSpawnRequested = false;
+
+/** @brief Recomputes the scroll extent from the current row count and re-clamps the offset. */
+void UpdateScrollBounds()
+{
+	ListHeight = static_cast<int>(VisibleWaypointCount()) * RowPitch;
+	MaxScrollOffset = std::max(0, ListHeight - ViewportHeight);
+	ScrollOffset = std::clamp(ScrollOffset, 0, MaxScrollOffset);
+}
 
 int MouseToEntry(Point mousePosition)
 {
 	const Rectangle panel = PanelRect();
 	if (!panel.contains(mousePosition))
 		return -1;
-	// Above the first row - the label band and the top border are not clickable.
+	// Above the first row - the label band and the top border are not clickable - or past the
+	// bottom of the viewport, in the panel's bottom margin.
 	const int y = mousePosition.y - (panel.position.y + ListTop);
-	if (y < 0)
+	if (y < 0 || y >= ViewportHeight)
 		return -1;
-	const int index = y / RowHeight;
-	if (index < 0 || static_cast<size_t>(index) >= WaypointNames.size())
+
+	const int listY = y + ScrollOffset;
+	// The gap between two rows belongs to neither, so a click landing in it misses rather than
+	// being rounded into whichever row happens to be above.
+	if (listY % RowPitch >= RowHeight)
+		return -1;
+	const int index = listY / RowPitch;
+	if (index < 0 || static_cast<size_t>(index) >= VisibleWaypointCount())
 		return -1;
 	return index;
 }
 
+/** @brief The theme's scrollbar: a recessed groove in the right margin with a bevelled thumb. */
+void DrawScrollbar(const Surface &out, const Rectangle &panel)
+{
+	if (MaxScrollOffset <= 0)
+		return;
+
+	const int x = panel.position.x + PanelSize.width - RightPad - ScrollbarWidth;
+	const int top = panel.position.y + ListTop;
+	DrawThemedFill(out, { { x, top }, { ScrollbarWidth, ViewportHeight } }, 2);
+
+	const int thumbHeight = std::max(ScrollbarMinThumb, ViewportHeight * ViewportHeight / ListHeight);
+	const int travel = ViewportHeight - thumbHeight;
+	const int thumbY = top + travel * ScrollOffset / MaxScrollOffset;
+	DrawOrnateSeparatorVertical(out, { x, thumbY }, thumbHeight);
+}
+
 } // namespace
+
+Rectangle GetWaypointMenuRect()
+{
+	return PanelRect();
+}
 
 bool IsWaypointMenuOpen()
 {
@@ -128,6 +217,24 @@ void OpenWaypointMenu(Point sigilPosition)
 {
 	WaypointMenuOpen = true;
 	OpenedFromPosition = sigilPosition;
+	// Back to Tristram at the top every time, the same reset-on-open the event log does. Reopening
+	// where you last scrolled to would be a small surprise every single time.
+	ScrollOffset = 0;
+}
+
+// One row per wheel notch, so the list moves by the thing it is made of rather than by a pixel
+// count that happens to feel right. UpdateScrollBounds first because the row count depends on
+// gbIsHellfire and the wheel can arrive before the first draw has run.
+void ScrollWaypointMenuUp()
+{
+	UpdateScrollBounds();
+	ScrollOffset = std::max(0, ScrollOffset - RowPitch);
+}
+
+void ScrollWaypointMenuDown()
+{
+	UpdateScrollBounds();
+	ScrollOffset = std::min(MaxScrollOffset, ScrollOffset + RowPitch);
 }
 
 void CloseWaypointMenu()
@@ -165,27 +272,45 @@ void DrawWaypointMenu(const Surface &out)
 	DrawOrnateSeparator(out, { panel.position.x + PanelMargin, panel.position.y + PanelMargin + LabelHeight },
 	    panel.size.width - 2 * PanelMargin);
 
+	UpdateScrollBounds();
+	DrawScrollbar(out, panel);
+
+	// Rows draw through a subregion covering only the scrolling area, so a row straddling its top
+	// or bottom edge is clipped there rather than spilling onto the separator above or the bottom
+	// bevel below. Everything from here on is in viewport-local coordinates, not screen ones.
+	const Surface content = out.subregion(panel.position.x, panel.position.y + ListTop,
+	    panel.size.width, ViewportHeight);
+
 	const Size iconSize = GetWaypointIconSize();
-	const int iconX = panel.position.x + PanelMargin + IconGap;
+	const int iconX = PanelMargin + IconGap;
 	const int textX = iconX + iconSize.width + TextGap;
 
 	// Hit-tested with the same function the click handler uses, so what lights up under the cursor
-	// and what a click actually resolves to can never disagree.
+	// and what a click actually resolves to can never disagree - including after scrolling, which
+	// is exactly the case where two separate implementations would drift apart.
 	const int hovered = MouseToEntry(MousePosition);
 
-	for (size_t i = 0; i < WaypointNames.size(); i++) {
+	const size_t count = VisibleWaypointCount();
+	for (size_t i = 0; i < count; i++) {
+		const int rowTop = static_cast<int>(i) * RowPitch - ScrollOffset;
+		// Wholly outside the viewport. The subregion would clip it anyway; skipping saves drawing
+		// twenty of the twenty-five rows every frame.
+		if (rowTop + RowHeight <= 0 || rowTop >= ViewportHeight)
+			continue;
+
 		const bool unlocked = IsWaypointUnlocked(static_cast<int>(i));
 		const bool isHovered = (hovered == static_cast<int>(i));
-		const int rowTop = panel.position.y + ListTop + static_cast<int>(i) * RowHeight;
 
 		// The pad is the waypoint's own art: lit for a waypoint the player has reached, dormant
-		// otherwise - the same two states the in-world sigil uses.
+		// otherwise - the same two states the in-world sigil uses. It is cut to the row's exact
+		// height (43x43, see tools/CutWaypointIcons.ps1), so this centring term is zero today and
+		// stays correct if the art is ever recut smaller.
 		if (iconSize.height > 0)
-			DrawWaypointIcon(out, { iconX, rowTop + (RowHeight - iconSize.height) / 2 }, unlocked);
+			DrawWaypointIcon(content, { iconX, rowTop + (RowHeight - iconSize.height) / 2 }, unlocked);
 
 		// Vertically centre the name in its row rather than sitting it on the row's top edge, so it
-		// lines up with the sigil beside it.
-		const Rectangle textArea { { textX, rowTop }, { panel.size.width - PanelMargin - (textX - panel.position.x), RowHeight } };
+		// lines up with the sigil beside it. Stops short of the scrollbar, not of the panel edge.
+		const Rectangle textArea { { textX, rowTop }, { ContentRightLimit - textX, RowHeight } };
 
 		// Gold for reached, plain white for not. Hover SWAPS the two rather than introducing a third
 		// colour, so the row visibly reacts whichever state it is in. The sigil beside the name
@@ -196,8 +321,10 @@ void DrawWaypointMenu(const Surface &out)
 
 		// No outline on the rows - it was there to hold contrast against the stone panel, and that
 		// panel is gone; over the half-transparent fill it only thickened the glyphs. The title
-		// keeps its outline. Default face too; the gossip font is title-only.
-		DrawString(out, WaypointNames[i], textArea, { color | UiFlags::VerticalCenter });
+		// keeps its outline. FontSize24 rather than the default face now the row is 43px tall: a
+		// 12px name beside a 43px pad read as a caption under a picture rather than as a list entry.
+		DrawString(content, WaypointNames[i], textArea,
+		    { color | UiFlags::FontSize24 | UiFlags::VerticalCenter });
 	}
 }
 

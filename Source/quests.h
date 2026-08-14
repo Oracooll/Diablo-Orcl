@@ -141,6 +141,14 @@ void LoadPWaterPalette();
 void UpdatePWaterPalette();
 void ResyncMPQuests();
 void ResyncQuests();
+/**
+ * @brief Screen rect of the quest log - 340x720, flush to the top-left corner.
+ *
+ * Its own rect, not GetLeftPanel()'s 320x352. Exported so control.cpp's GetLeftPanelContentRect()
+ * can route and absorb clicks over the whole window rather than over the vanilla rect it outgrew.
+ */
+Rectangle GetQuestLogPanelRect();
+
 void DrawQuestLog(const Surface &out);
 void StartQuestlog();
 void QuestlogUp();

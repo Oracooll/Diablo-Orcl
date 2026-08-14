@@ -144,6 +144,14 @@ text_color GetColorFromFlags(UiFlags flags)
 	if (HasAnyOf(flags, UiFlags::ColorButtonpushed))
 		return ColorButtonpushed;
 
+	// Last, and only for the sake of being written down: ColorWhitegold is also what this returns for
+	// no recognised colour at all, which is how every existing caller of that flag has been getting it.
+	// Placing the check here rather than up with the others keeps every one of them on exactly the path
+	// it was already taking, while letting a caller that clears the colour bits and sets this one
+	// (see WithTextColor) mean it deliberately.
+	if (HasAnyOf(flags, UiFlags::ColorWhitegold))
+		return ColorWhitegold;
+
 	return ColorWhitegold;
 }
 

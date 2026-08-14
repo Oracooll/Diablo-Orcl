@@ -75,6 +75,38 @@ void DrawWaypointIcon(const Surface &out, Point origin, bool active);
 Size GetWaypointIconSize();
 
 /**
+ * @brief Draws Paladin aura icon @p auraIndex (oracool::Aura order) at @p origin.
+ *
+ * An @p unlocked icon is blitted opaquely; a locked one is blended into the panel at half strength,
+ * which is this sheet's equivalent of the Spells sheet greying out an unlearned spell. It cannot
+ * use SetSpellTrans for that: these are full-colour paintings rather than single-ramp icons, so
+ * there is no ramp to remap onto grey.
+ */
+void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked);
+
+/** @brief On-screen size of one aura icon, or {0,0} if the asset is missing. */
+Size GetAuraIconSize();
+
+/** @brief Draws Barbarian skill icon @p skillIndex (oracool::BarbSkill order). Same locked
+ * treatment as DrawAuraIcon - the two sheets share one implementation. */
+void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked);
+
+/** @brief On-screen size of one Barbarian skill icon, or {0,0} if the asset is missing. */
+Size GetBarbSkillIconSize();
+
+/**
+ * @brief Draws basic-attack icon @p iconIndex (oracool::AttackIcon order) at @p origin.
+ *
+ * Third user of the same strip implementation. @p active is DrawStripIcon's "unlocked": the two
+ * attack icons are never locked, but exactly one of them is what the player's hand is currently
+ * doing, and blending the other is how the pair says which. See oracool/attack_skills.h.
+ */
+void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active);
+
+/** @brief On-screen size of one basic-attack icon, or {0,0} if the asset is missing. */
+Size GetAttackIconSize();
+
+/**
  * @brief Draws the class silhouette behind the inventory's equipment slots.
  *
  * Centred across @p areaWidth, hanging from @p top, both panel-relative to @p panelOrigin. The
@@ -88,10 +120,9 @@ void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, i
  */
 void DrawInventoryTab(const Surface &out, int index, int state);
 
-/** @brief Draws the SORT button at GetSortButtonRect(). @p state is 0 idle, 1 hovered, 2 pressed. */
-// DrawInventorySortButton is gone: the SORT button is no longer a standalone widget with its own
-// art. It is tab position oracool::SortTabIndex, drawn as the letter "S" alongside the numbered
-// tabs - see DrawInventoryTabs in inv.cpp.
+// DrawInventorySortButton is gone: the SORT button has no art of its own. It spent a while as the
+// tab row's last position, drawn as the letter "S", and is now a text button in the panel's footer -
+// see DrawInventoryFooter in inv.cpp. That freed the tab position to become the tenth storage page.
 
 /**
  * @brief Draws the belt's Town Portal button. @p state is 0 resting, 1 hovered, 2 pressed.

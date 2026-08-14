@@ -33,9 +33,12 @@ void SimulateMouseMovement(const SDL_Event &event)
 	Point position = ScaleToScreenCoordinates(event.tfinger.x, event.tfinger.y);
 
 	bool isInMainPanel = GetMainPanel().contains(position);
-	bool isInLeftPanel = GetLeftPanel().contains(position);
-	// Oracool V1: the inventory owns its own rect, so this must cover both it and the spellbook.
-	bool isInRightPanel = GetRightPanel().contains(position) || oracool::GetInventoryPanelRect().contains(position);
+	// Oracool V1: the sheet, quest log and waypoint list each own their own 340x720 rect, so this
+	// asks the same authority the click router does rather than the vanilla 320x352 slot.
+	bool isInLeftPanel = IsOverLeftPanel(position);
+	// Oracool V1: the inventory and the spell book each own their own 340x720 rect, so this asks
+	// the same authority the click router does rather than the vanilla 320x352 slot.
+	bool isInRightPanel = IsOverRightPanel(position);
 	if (IsStashOpen) {
 		if (!spselflag && !isInMainPanel && !isInLeftPanel && !isInRightPanel)
 			return;

@@ -13,9 +13,11 @@
 #include "engine/render/text_render.hpp"
 #include "inv_iterators.hpp"
 #include "options.h"
+#include "oracool/attack_skills.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
 #include "oracool/oracool.h"
+#include "panels/spell_book.hpp" // ToggleAbilitiesWindow
 #include "panels/spell_icons.hpp"
 #include "player.h"
 #include "spells.h"
@@ -91,8 +93,12 @@ void DrawSpell(const Surface &out)
 	SpellType st = myPlayer._pRSplType;
 
 	if (!IsValidSpell(spl)) {
-		st = SpellType::Invalid;
-		spl = SpellID::Null;
+		// Oracool: no spell readied IS the basic attack - that is exactly the state in which a
+		// right click swings rather than casts - so the well shows the attack's own icon instead of
+		// the engine's blank SpellID::Null tile. See oracool/attack_skills.h. Nothing follows: an
+		// unreadied slot has no hotkey to label and no cooldown to fill.
+		oracool::DrawRmbSkillWell(out);
+		return;
 	}
 
 	if (st == SpellType::Spell) {
@@ -163,7 +169,7 @@ void DrawSpell(const Surface &out)
 
 void DrawSpellList(const Surface &out)
 {
-	InfoString = {};
+	ClearPanelStrings(); // text and its per-line colours go together - see control.h
 
 	Player &myPlayer = *MyPlayer;
 
@@ -384,59 +390,20 @@ void ToggleSpell(size_t slot)
 
 void DoSpeedBook()
 {
-	spselflag = true;
-	const Point mainPanelPosition = GetMainPanel().position;
-	int xo = mainPanelPosition.x + 12 + SPLICONLENGTH * 10;
-	int yo = mainPanelPosition.y - 17;
-	int x = xo + SPLICONLENGTH / 2;
-	int y = yo - SPLICONLENGTH / 2;
-
-	Player &myPlayer = *MyPlayer;
-
-	if (IsValidSpell(myPlayer._pRSpell)) {
-		for (auto i : enum_values<SpellType>()) {
-			uint64_t spells;
-			switch (static_cast<SpellType>(i)) {
-			case SpellType::Skill:
-				spells = myPlayer._pAblSpells;
-				break;
-			case SpellType::Spell:
-				spells = myPlayer._pMemSpells;
-				break;
-			case SpellType::Scroll:
-				spells = myPlayer._pScrlSpells;
-				break;
-			case SpellType::Charges:
-				spells = myPlayer._pISpells;
-				break;
-			default:
-				continue;
-			}
-			uint64_t spell = 1;
-			for (int j = 1; j < MAX_SPELLS; j++) {
-				if ((spell & spells) != 0) {
-					if (j == static_cast<int8_t>(myPlayer._pRSpell) && static_cast<SpellType>(i) == myPlayer._pRSplType) {
-						x = xo + SPLICONLENGTH / 2;
-						y = yo - SPLICONLENGTH / 2;
-					}
-					xo -= SPLICONLENGTH;
-					if (xo == mainPanelPosition.x + 12 - SPLICONLENGTH) {
-						xo = mainPanelPosition.x + 12 + SPLICONLENGTH * SPLROWICONLS;
-						yo -= SPLICONLENGTH;
-					}
-				}
-				spell <<= 1ULL;
-			}
-			if (spells != 0 && xo != mainPanelPosition.x + 12 + SPLICONLENGTH * SPLROWICONLS)
-				xo -= SPLICONLENGTH;
-			if (xo == mainPanelPosition.x + 12 - SPLICONLENGTH) {
-				xo = mainPanelPosition.x + 12 + SPLICONLENGTH * SPLROWICONLS;
-				yo -= SPLICONLENGTH;
-			}
-		}
-	}
-
-	SetCursorPos({ x, y });
+	// Oracool: user request - "S button to open Abilities window. Forget about this belt of
+	// spells/skills above the bottom HUD." The speedbook ring is retired: choosing a spell is the
+	// Abilities window's job now, and having both would be two competing answers to the same
+	// question on screen at once.
+	//
+	// Replacing this body rather than deleting the function is deliberate - all three callers (the
+	// S key, the gamepad's quick-spell action, and the RMB well via DoPanBtn) want "open the
+	// ability chooser", so they inherit the new behaviour without three separate edits.
+	//
+	// This is also the ONLY place that ever set spselflag true. With it gone the flag is
+	// permanently false, so DrawSpellList and CheckSpellList below are unreachable and the ring
+	// never renders. They are left in place for now rather than deleted, because the game is
+	// running and this change cannot be compiled to check - the removal is a follow-up.
+	ToggleAbilitiesWindow();
 }
 
 } // namespace devilution

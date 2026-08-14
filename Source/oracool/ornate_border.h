@@ -15,7 +15,10 @@
  */
 #pragma once
 
+#include <cstdint>
+
 #include "DiabloUI/ui_flags.hpp"
+#include "engine/palette.h"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
 #include "utils/stdcompat/string_view.hpp"
@@ -24,6 +27,34 @@ namespace devilution::oracool {
 
 /** @brief Thickness of the bevel, in pixels. Content should inset by at least this much. */
 constexpr int OrnateBorderWidth = 3;
+
+/**
+ * @brief The theme's gold for a thin drawn edge - a silhouette outline, a tooltip's border.
+ *
+ * One constant because the eye compares them: two edges of slightly different gold on screen at the
+ * same time read as a mistake rather than as two elements. Both started life as separate literals
+ * at +2, both were then asked to be dimmed, and keeping them in step by editing two numbers is a
+ * promise that would be broken the first time only one of them was tuned.
+ *
+ * PAL16 ramps run LIGHT to DARK as the offset grows (see engine/palette.h), so +9 is a deep gold,
+ * one step off the unique-item backing's own +10. An edge does not need to be bright to read - it
+ * is drawn opaque against backgrounds that are half-transparent, and being solid is what separates
+ * it.
+ */
+constexpr uint8_t ThemeEdgeColor = PAL16_YELLOW + 9;
+
+/**
+ * @brief The theme's 1px rule between item-grid cells - dark grey, in both the stash and inventory.
+ *
+ * One constant for the same reason as ThemeEdgeColor: the two grids are on screen together whenever
+ * the stash is open, so a difference between them would read as a mistake.
+ *
+ * Grey rather than the gold bevel these grids used to divide their cells with. At 3px of gold per
+ * boundary, a large grid becomes a gold mesh with items sitting inside it; one dark pixel separates
+ * the cells and lets the items carry the colour. PAL16 ramps run light to dark as the offset grows
+ * (engine/palette.h), so +11 is deep grey.
+ */
+constexpr uint8_t ThemeGridLineColor = PAL16_GRAY + 11;
 
 /**
  * @brief Half the bevel's width, for centring a rule ON a boundary rather than starting it there.

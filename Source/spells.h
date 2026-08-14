@@ -27,6 +27,13 @@ void ConsumeSpell(Player &player, SpellID sn);
 SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool manaonly);
 
 /**
+ * @brief Clears the player's readied spell selection - the state in which a click attacks.
+ * @note Will force a UI redraw in case the values actually change, so that the new spell reflects on the bottom panel.
+ * @param player The player whose readied spell is to be cleared.
+ */
+void ClearReadiedSpell(Player &player);
+
+/**
  * @brief Ensures the player's current readied spell is a valid selection for the character. If the current selection is
  * incompatible with the player's items and spell (for example, if the player does not currently have access to the spell),
  * the selection is cleared.

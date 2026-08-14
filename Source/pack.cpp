@@ -79,22 +79,25 @@ void VerifyGoldSeeds(Player &player)
 
 /**
  * @brief Oracool: user request - see PlayerPack::pWaypointUnlockedNormal's doc comment. Bit
- * (i-1) is waypoint list index i (1-16); index 0 (Tristram) is always unlocked and never stored.
+ * (i-1) is waypoint list index i (1-24); index 0 (Tristram) is always unlocked and never stored.
  */
-uint16_t PackWaypointUnlocked(const Player &player, int difficulty)
+constexpr int PackedWaypointBits = static_cast<int>(Player::MaxWaypointSlots) - 1;
+static_assert(PackedWaypointBits <= 32, "the waypoint unlock mask no longer fits a uint32_t");
+
+uint32_t PackWaypointUnlocked(const Player &player, int difficulty)
 {
-	uint16_t mask = 0;
-	for (int i = 1; i <= 16; i++) {
+	uint32_t mask = 0;
+	for (int i = 1; i <= PackedWaypointBits; i++) {
 		if (player._pWaypointUnlocked[difficulty][i])
-			mask |= static_cast<uint16_t>(1u << (i - 1));
+			mask |= static_cast<uint32_t>(1u << (i - 1));
 	}
-	return SDL_SwapLE16(mask);
+	return SDL_SwapLE32(mask);
 }
 
-void UnpackWaypointUnlocked(Player &player, int difficulty, uint16_t packedMask)
+void UnpackWaypointUnlocked(Player &player, int difficulty, uint32_t packedMask)
 {
-	const uint16_t mask = SDL_SwapLE16(packedMask);
-	for (int i = 1; i <= 16; i++)
+	const uint32_t mask = SDL_SwapLE32(packedMask);
+	for (int i = 1; i <= PackedWaypointBits; i++)
 		player._pWaypointUnlocked[difficulty][i] = (mask & (1u << (i - 1))) != 0;
 }
 

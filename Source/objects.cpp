@@ -4237,9 +4237,14 @@ void AddWaypointSigilObject()
 		return;
 
 	Point position;
+	// Oracool: the upper bound is the travel list's own last index rather than a literal 16, so a
+	// sigil exists on every level the list can offer. That now includes Hellfire's Nest (17-20) and
+	// Crypt (21-24); without this they would be eight rows that could never light up, since the
+	// only thing that unlocks a waypoint is standing on its sigil (OperateWaypoint, above). In a
+	// plain Diablo game currlevel never reaches them, so the wider bound costs nothing there.
 	if (currlevel == 0) {
 		position = WaypointSigilPosition;
-	} else if (currlevel >= 1 && currlevel <= 16) {
+	} else if (currlevel >= 1 && currlevel < static_cast<int>(Player::MaxWaypointSlots)) {
 		position = GetRndObjLoc(2);
 	} else {
 		return;
@@ -4502,7 +4507,8 @@ void InitObjects()
 	// Oracool: user request - Waypoints. Placed unconditionally before any level-type-specific
 	// object init below (mirrors how the town branch places its own waypoint sigil right after
 	// ClrAllObjects()-equivalent town setup) - AddWaypointSigilObject() places one on every
-	// dungeon level 1-16; a no-op on any level beyond that (setlvlnum-only maps, etc).
+	// dungeon level the travel list covers (1-24 in Hellfire, 1-16 otherwise); a no-op on any
+	// level beyond that (setlvlnum-only maps, etc).
 	oracool::AddWaypointSigilObject();
 	if (currlevel == 16) {
 		AddDiabObjs();

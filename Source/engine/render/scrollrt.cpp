@@ -35,6 +35,7 @@
 #include "monster.h"
 #include "nthread.h"
 #include "options.h"
+#include "oracool/attack_skills.h"
 #include "oracool/cursor_tooltip.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h"
@@ -1310,13 +1311,17 @@ void DrawView(const Surface &out, Point startPosition)
 	Displacement offset = {};
 	CalcFirstTilePosition(startPosition, offset);
 	DrawGame(out, startPosition, offset);
-	// Oracool: user request - the corner HUD is suppressed while the inventory is open. At 340x720
-	// the inventory window is the full height of the screen in the top-right corner, which is
-	// exactly where the mini-map (306x175 at x=646) and the event log below it live, so they would
-	// otherwise sit under it with their edges poking out. Nothing is toggled or saved: they simply
-	// stop drawing for as long as invflag is set, the same way AutomapActive already suppresses
-	// them.
-	const bool cornerHudHidden = invflag;
+	// Oracool: user rule - a window hides the UI behind it until it closes. At 340x720 a right-hand
+	// window is the full height of the screen in the top-right corner, which is exactly where the
+	// mini-map (306x175 at x=646) and the event log below it live, so they would otherwise sit
+	// under it with their edges poking out. Nothing is toggled or saved: they simply stop drawing
+	// while a window is open, the same way AutomapActive already suppresses them.
+	//
+	// Asked of IsRightPanelOpen() rather than of invflag, so this covers the spell book too and any
+	// later window that takes the right-hand slot - the rule is about the space being occupied, not
+	// about which window occupies it. The left-hand windows do not need this: they sit at x 0..340
+	// and the corner HUD is entirely to the right of them.
+	const bool cornerHudHidden = IsRightPanelOpen();
 
 	if (AutomapActive) {
 		DrawAutomap(out.subregionY(0, gnViewportHeight));
@@ -1501,7 +1506,7 @@ void DrawView(const Surface &out, Point startPosition)
 	// Oracool: after the orbs, deliberately. The inventory's gold readout sits in the band below its
 	// grid, and at 340x720 the mana orb covers exactly that band - drawn from DrawInv it landed
 	// underneath the orb. No-ops unless the inventory is open.
-	DrawInventoryGoldRow(out);
+	DrawInventoryFooter(out);
 }
 
 /**
@@ -1927,6 +1932,10 @@ void DrawAndBlit()
 		// tail (see DrawHealthOrb/DrawManaOrb there); only their value text renders here.
 		if (drawBelt && !talkflag) {
 			oracool::DrawMiddleHudArt(out);
+			// Oracool: the LMB well's content. Part of the plate rather than of the readied-spell
+			// state, so it draws here rather than under drawMana with DrawSpell - left click always
+			// attacks, whatever the RMB well happens to be holding.
+			oracool::DrawLmbSkillWell(out);
 		}
 		if (drawMana) {
 			DrawSpell(out);

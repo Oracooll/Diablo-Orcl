@@ -83,6 +83,30 @@ inline bool HaveHellfire()
 #endif
 }
 
+/**
+ * @brief Whether the Monk's own data is present.
+ *
+ * Oracool: the Monk is the one class Hellfire actually drew. `hfmonk.mpq` carries a complete sprite
+ * set at its own scale - 112px idles, 130px attacks, a 160px death frame, matching no other class -
+ * where `hfbard.mpq` and `hfbarb.mpq` carry stats and voice for classes that wear the Rogue's and the
+ * Warrior's art (see the classPath column in PlayersData). So the Monk is the one added class worth
+ * offering on its own, without dragging Hellfire's quests, levels and monsters along with it.
+ *
+ * Separate from HaveHellfire on purpose: `gbIsHellfire` is set by hellfire.mpq and changes the whole
+ * game, while this asks only "is there a Monk to draw".
+ *
+ * Unpacked builds have no separate monk path - everything Hellfire ships sits under one folder - so
+ * there this necessarily means the same thing as HaveHellfire().
+ */
+inline bool HaveMonk()
+{
+#ifdef UNPACKED_MPQS
+	return bool(hellfire_data_path);
+#else
+	return bool(hfmonk_mpq);
+#endif
+}
+
 inline bool HaveExtraFonts()
 {
 #ifdef UNPACKED_MPQS

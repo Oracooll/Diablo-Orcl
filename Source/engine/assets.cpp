@@ -66,9 +66,23 @@ bool FindMpqFile(const char *filename, MpqArchive **archive, uint32_t *fileNumbe
 	// Oracool Edition's own archive is searched first, so anything it ships wins over the original
 	// game data without diabdat.mpq ever being modified. It is optional - when absent, `at` sees an
 	// empty optional and the chain carries on unchanged.
+	// Oracool: hfmonk.mpq is searched whether or not this is a Hellfire game, and it is the only one
+	// of the hf*.mpq set that is. Without this, HaveMonk() (see init.h) offers a class whose sprites
+	// can never be found: `gbIsHellfire` is set by hellfire.mpq, so a player who supplies only the
+	// monk archive gets the row and then a missing-file abort the moment the character is drawn.
+	//
+	// Safe because that archive carries a class rather than an expansion. Probed by path, it holds
+	// plrgfx\monk\ and sfx\monk\ and nothing else - no ui_art, data, levels, music, monsters, items,
+	// nor the warrior/rogue sprites the Barbarian and Bard borrow - so there is nothing in it that
+	// could shadow what diabdat.mpq provides. Anything it does not hold falls through unchanged.
+	//
+	// Appended AFTER the Hellfire group rather than lifted out of it, so that in a real Hellfire game
+	// the archive precedence is exactly what it was.
 	return at(oracool_mpq)
 	    || at(font_mpq) || at(lang_mpq) || at(devilutionx_mpq)
-	    || (gbIsHellfire && (at(hfvoice_mpq) || at(hfmusic_mpq) || at(hfbarb_mpq) || at(hfbard_mpq) || at(hfmonk_mpq) || at(hellfire_mpq))) || at(spawn_mpq) || at(diabdat_mpq);
+	    || (gbIsHellfire && (at(hfvoice_mpq) || at(hfmusic_mpq) || at(hfbarb_mpq) || at(hfbard_mpq) || at(hfmonk_mpq) || at(hellfire_mpq)))
+	    || at(hfmonk_mpq)
+	    || at(spawn_mpq) || at(diabdat_mpq);
 }
 #endif
 

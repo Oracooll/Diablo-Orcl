@@ -871,6 +871,11 @@ void ResyncQuests()
 	LoadingMapObjects = false;
 }
 
+Rectangle GetQuestLogPanelRect()
+{
+	return { { 0, 0 }, QuestPanelSize };
+}
+
 void DrawQuestLog(const Surface &out)
 {
 	int l = QuestLogMouseToEntry();

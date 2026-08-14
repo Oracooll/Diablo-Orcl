@@ -69,6 +69,7 @@
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "options.h"
+#include "panels/charpanel.hpp" // ScrollCharacterSheet
 #include "panels/info_box.hpp"
 #include "panels/spell_book.hpp"
 #include "panels/spell_list.hpp"
@@ -415,7 +416,11 @@ void LeftMouseDown(uint16_t modState)
 			// Character panel open, the Character panel was drawn but the click went to the
 			// waypoint list and teleported the player. GetLeftPanelContent is now the single
 			// authority, shared with scrollrt.cpp's draw chain.
-			if (GetLeftPanelContent() != LeftPanelContent::None && GetLeftPanel().contains(MousePosition)) {
+			//
+			// The rect comes from GetLeftPanelContentRect(), not GetLeftPanel(): the sheet, log
+			// and waypoint list are 340x720 windows in a 320x352 slot, and routing on the slot let
+			// clicks over the rest of the window walk the player.
+			if (IsOverLeftPanel(MousePosition)) {
 				switch (GetLeftPanelContent()) {
 				case LeftPanelContent::Character:
 					CheckChrBtns();
@@ -442,7 +447,7 @@ void LeftMouseDown(uint16_t modState)
 			} else if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 				if (!DropGoldFlag)
 					CheckInvItem(isShiftHeld, isCtrlHeld);
-			} else if (sbookflag && GetRightPanel().contains(MousePosition)) {
+			} else if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
 				CheckSBook();
 			} else if (!MyPlayer->HoldItem.isEmpty()) {
 				if (!TryOpenDungeonWithMouse()) {
@@ -462,6 +467,16 @@ void LeftMouseDown(uint16_t modState)
 	} else {
 		if (oracool::CheckHudMenuSlotClick(MousePosition) || oracool::CheckTownPortalBeltSlotClick(MousePosition))
 			return;
+		// Oracool: user request - either skill button opens the Abilities window, which is where
+		// spells, skills and auras are now chosen. The LMB well was purely decorative before this.
+		//
+		// Only the LMB well is claimed here. The RMB well is left to DoPanBtn below, which already
+		// opens the chooser AND handles shift-click-to-clear the readied spell; intercepting it
+		// here would run before DoPanBtn and silently kill that shortcut.
+		if (oracool::GetLmbSkillButtonRect().contains(MousePosition)) {
+			ToggleAbilitiesWindow();
+			return;
+		}
 		if (!talkflag && !DropGoldFlag && !IsWithdrawGoldOpen && !gmenu_is_active())
 			CheckInvScrn(isShiftHeld, isCtrlHeld);
 		DoPanBtn();
@@ -486,6 +501,7 @@ void LeftMouseUp(uint16_t modState)
 		ReleaseStoreBtn();
 	inventorySortButtonDown = false;
 	oracool::ReleaseXpCounterButton();
+	ReleaseSpellBookButtons();
 }
 
 void RightMouseDown(bool isShiftHeld)
@@ -512,7 +528,7 @@ void RightMouseDown(bool isShiftHeld)
 		SetSpell();
 		return;
 	}
-	if (sbookflag && GetRightPanel().contains(MousePosition))
+	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition))
 		return;
 	if (TryIconCurs())
 		return;
@@ -902,8 +918,22 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				ChatLogScrollUp();
 			} else if (oracool::IsEventLogOpen()) {
 				oracool::ScrollEventLogUp();
+			} else if (oracool::IsWaypointMenuOpen() && oracool::GetWaypointMenuRect().contains(MousePosition)) {
+				// Oracool V1: the travel list is 25 rows against a 595px viewport once Hellfire's
+				// Nest and Crypt are in it. Gated on the cursor actually being over the panel, like
+				// the character sheet and spell book below, so the wheel still zooms the dungeon
+				// everywhere else while it is open.
+				oracool::ScrollWaypointMenuUp();
 			} else if (IsStashOpen) {
 				Stash.PreviousPage();
+			} else if (chrflag && IsOverLeftPanel(MousePosition)) {
+				// Oracool V1: the character sheet scrolls - the hidden stats below Mana make it
+				// about twice its window's height. Gated on the cursor actually being over the
+				// sheet so the wheel still zooms the dungeon everywhere else while it is open.
+				ScrollCharacterSheet(-1);
+			} else if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
+				// Oracool V1: the book is one scrolling list of every spell, not six tabbed pages.
+				ScrollSpellBook(-1);
 			} else if (SDL_GetModState() & KMOD_CTRL) {
 				if (AutomapActive) {
 					AutomapZoomIn();
@@ -931,8 +961,17 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				ChatLogScrollDown();
 			} else if (oracool::IsEventLogOpen()) {
 				oracool::ScrollEventLogDown();
+			} else if (oracool::IsWaypointMenuOpen() && oracool::GetWaypointMenuRect().contains(MousePosition)) {
+				// Oracool V1: travel list scrolling - see the wheel-up branch above.
+				oracool::ScrollWaypointMenuDown();
 			} else if (IsStashOpen) {
 				Stash.NextPage();
+			} else if (chrflag && IsOverLeftPanel(MousePosition)) {
+				// Oracool V1: character sheet scrolling - see the wheel-up branch above.
+				ScrollCharacterSheet(1);
+			} else if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
+				// Oracool V1: spell book scrolling - see the wheel-up branch above.
+				ScrollSpellBook(1);
 			} else if (SDL_GetModState() & KMOD_CTRL) {
 				if (AutomapActive) {
 					AutomapZoomOut();
@@ -1625,7 +1664,7 @@ void TimeoutCursor(bool bTimeout)
 		if (sgnTimeoutCurs == CURSOR_NONE && sgbMouseDown == CLICK_NONE) {
 			sgnTimeoutCurs = pcurs;
 			multi_net_ping();
-			InfoString = {};
+			ClearPanelStrings();
 			AddPanelString(_("-- Network timeout --"));
 			AddPanelString(_("-- Waiting for players --"));
 			NewCursor(CURSOR_HOURGLASS);
@@ -1639,7 +1678,7 @@ void TimeoutCursor(bool bTimeout)
 		if (pcurs == CURSOR_HOURGLASS)
 			NewCursor(sgnTimeoutCurs);
 		sgnTimeoutCurs = CURSOR_NONE;
-		InfoString = {};
+		ClearPanelStrings();
 		RedrawEverything();
 	}
 }
@@ -1649,7 +1688,7 @@ void HelpKeyPressed()
 	if (HelpFlag) {
 		HelpFlag = false;
 	} else if (stextflag != TalkID::None) {
-		InfoString = {};
+		ClearPanelStrings();
 		AddPanelString(_("No help available")); /// BUGFIX: message isn't displayed
 		AddPanelString(_("while in stores"));
 		LastMouseButtonAction = MouseActionType::None;
@@ -1740,13 +1779,12 @@ void DisplaySpellsKeyPressed()
 		return;
 	CloseCharPanel();
 	QuestLogIsOpen = false;
-	CloseInventory();
-	sbookflag = false;
-	if (!spselflag) {
-		DoSpeedBook();
-	} else {
-		spselflag = false;
-	}
+	// Oracool: user request - S opens the Abilities window; the speedbook ring it used to raise is
+	// retired. ToggleAbilitiesWindow closes the inventory itself, so the explicit CloseInventory
+	// and the `sbookflag = false` that used to precede this are gone - the latter actively broke
+	// the toggle, forcing the window closed a line before flipping it back open, so S could only
+	// ever open and never close.
+	ToggleAbilitiesWindow();
 	LastMouseButtonAction = MouseActionType::None;
 }
 
@@ -1755,6 +1793,9 @@ void SpellBookKeyPressed()
 	if (stextflag != TalkID::None)
 		return;
 	sbookflag = !sbookflag;
+	// Oracool V1: the book is a scrolling list twice its window's height, so opening it should
+	// always show the top. Unconditional because resetting a closed book costs nothing.
+	ResetSpellBookScroll();
 	if (!IsLeftPanelOpen() && CanPanelsCoverView()) {
 		if (!sbookflag) { // We closed the invetory
 			if (MousePosition.x < 480 && MousePosition.y < GetMainPanel().position.y) {
@@ -1844,8 +1885,8 @@ void InitKeymapActions()
 	    CanPlayerTakeAction);
 	sgOptions.Keymapper.AddAction(
 	    "DisplaySpells",
-	    N_("Speedbook"),
-	    N_("Open Speedbook."),
+	    N_("Abilities"),
+	    N_("Open the Abilities window."),
 	    'S',
 	    DisplaySpellsKeyPressed,
 	    nullptr,
@@ -2248,8 +2289,8 @@ void InitPadmapActions()
 	    CanPlayerTakeAction);
 	sgOptions.Padmapper.AddAction(
 	    "DisplaySpells",
-	    N_("Speedbook"),
-	    N_("Open Speedbook."),
+	    N_("Abilities"),
+	    N_("Open the Abilities window."),
 	    ControllerButton_BUTTON_A,
 	    [] {
 		    ProcessGameAction(GameAction { GameActionType_TOGGLE_QUICK_SPELL_MENU });

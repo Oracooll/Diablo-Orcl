@@ -6,18 +6,35 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <map>
 #include <vector>
 
 #include "engine/point.hpp"
+#include "engine/rectangle.hpp"
 #include "items.h"
 
 namespace devilution {
 
+/**
+ * @brief Stash page dimensions, in cells.
+ *
+ * Oracool V1: the stash window grew to the shared 340x720 theme, and the page grew with it - the
+ * old 10x10 filled barely half the taller window. 17 rows is what fits between the control row and
+ * y=660, below which the central HUD begins.
+ *
+ * These live here rather than in stash.cpp because StashGrid's type is built from them AND
+ * loadsave.cpp sizes the save file from them; three places deriving from one pair of numbers is
+ * what keeps the array, the layout and the save format from disagreeing.
+ */
+constexpr int StashGridColumns = 10;
+constexpr int StashGridRows = 17;
+
 class StashStruct {
 public:
 	using StashCell = uint16_t;
-	using StashGrid = std::array<std::array<StashCell, 10>, 10>;
+	// Indexed [x][y] - see GetItemIdAtPosition - so the OUTER array is columns.
+	using StashGrid = std::array<std::array<StashCell, StashGridRows>, StashGridColumns>;
 	static constexpr StashCell EmptyCell = -1;
 
 	void RemoveStashItem(StashCell iv);
@@ -80,6 +97,14 @@ void InitStash();
  * the same panel-opening sequence without duplicating it.
  */
 void OpenStash();
+/**
+ * @brief Screen rect of the stash: 340x720, flush to the top-left corner.
+ *
+ * Its own rect rather than GetLeftPanel's 320x352, like every other window that outgrew that slot.
+ * Anything routing or absorbing a click over the stash must use this.
+ */
+Rectangle GetStashPanelRect();
+
 void FreeStashGFX();
 void TransferItemToInventory(Player &player, uint16_t itemId);
 /**

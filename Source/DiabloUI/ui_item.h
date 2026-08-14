@@ -376,9 +376,25 @@ class UiList : public UiItemBase {
 public:
 	using vUiListItem = std::vector<std::unique_ptr<UiListItem>>;
 
-	UiList(const vUiListItem &vItems, size_t viewportMaxSize, Sint16 x, Sint16 y, Uint16 item_width, Uint16 item_height, UiFlags flags = UiFlags::None, int spacing = 1)
-	    : UiList(PrivateConstructor {}, vItems, std::min<size_t>(viewportMaxSize, vItems.size()), x, y, item_width, item_height, flags, spacing)
+	/**
+	 * @param lineHeight Line height for the item text, or -1 to use the font's own.
+	 *
+	 * Oracool: a row's height and its text's line height are two different numbers, and the default
+	 * quietly assumes they agree. They do not have to. A row TALLER than the font's line height is
+	 * fine and is how the main menu gets its blank space (item height 86 at FontSize42) - the text
+	 * simply sits at the top. A row SHORTER than it silently clips: DrawString anchors each glyph's
+	 * bottom at rect.y + lineHeight and clips at rect.y + rect.height, so a 34px row of FontSize30
+	 * text (line height 38) loses the bottom four pixels of every glyph, descenders first. Passing
+	 * the row height here makes the two agree; -1 keeps every existing caller exactly as it was.
+	 */
+	UiList(const vUiListItem &vItems, size_t viewportMaxSize, Sint16 x, Sint16 y, Uint16 item_width, Uint16 item_height, UiFlags flags = UiFlags::None, int spacing = 1, int lineHeight = -1)
+	    : UiList(PrivateConstructor {}, vItems, std::min<size_t>(viewportMaxSize, vItems.size()), x, y, item_width, item_height, flags, spacing, lineHeight)
 	{
+	}
+
+	[[nodiscard]] int GetLineHeight() const
+	{
+		return lineHeight_;
 	}
 
 	[[nodiscard]] SDL_Rect itemRect(int i) const
@@ -435,7 +451,7 @@ private:
 	struct PrivateConstructor final {
 	};
 
-	UiList(PrivateConstructor tag, const vUiListItem &vItems, size_t viewportSize, Sint16 x, Sint16 y, Uint16 item_width, Uint16 item_height, UiFlags flags, int spacing)
+	UiList(PrivateConstructor tag, const vUiListItem &vItems, size_t viewportSize, Sint16 x, Sint16 y, Uint16 item_width, Uint16 item_height, UiFlags flags, int spacing, int lineHeight)
 	    : UiItemBase(UiType::List, { x, y, item_width, static_cast<Uint16>(item_height * viewportSize) }, flags)
 	    , viewportSize(viewportSize)
 	    , m_x(x)
@@ -443,6 +459,7 @@ private:
 	    , m_width(item_width)
 	    , m_height(item_height)
 	    , spacing_(spacing)
+	    , lineHeight_(lineHeight)
 	{
 		for (const auto &item : vItems)
 			m_vecItems.push_back(item.get());
@@ -451,6 +468,7 @@ private:
 	}
 
 	int spacing_;
+	int lineHeight_;
 
 	// State
 	size_t pressed_item_index_;

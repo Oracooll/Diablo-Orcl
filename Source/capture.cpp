@@ -22,8 +22,48 @@
 #include "utils/str_cat.hpp"
 #include "utils/ui_fwd.h"
 
+#ifdef _WIN32
+// For FOLDERID_Pictures - the folder Win+PrtScn writes to.
+//
+// LAST, and with NOMINMAX, both deliberately. windows.h defines min/max as macros, which turns every
+// std::min/std::max in the headers above into a syntax error; including it after them keeps the
+// damage to this file, and NOMINMAX keeps it out of this file too.
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <objbase.h>
+#include <shlobj.h>
+#endif
+
 namespace devilution {
 namespace {
+
+/**
+ * @brief The directory screenshots go under, WITHOUT the trailing "Screenshots/".
+ *
+ * Windows' Pictures folder, so captures land in the same place Win+PrtScn puts them and show up in
+ * the Photos app without anyone having to know where the game keeps its saves. Falls back to the
+ * game's own preference directory - which is what this always used - if the shell cannot tell us,
+ * and on any platform that has no such notion.
+ */
+std::string ScreenshotDir()
+{
+#ifdef _WIN32
+	PWSTR picturesPath = nullptr;
+	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Pictures, 0, nullptr, &picturesPath)) && picturesPath != nullptr) {
+		const int size = WideCharToMultiByte(CP_UTF8, 0, picturesPath, -1, nullptr, 0, nullptr, nullptr);
+		std::string result;
+		if (size > 1) {
+			result.resize(static_cast<size_t>(size) - 1);
+			WideCharToMultiByte(CP_UTF8, 0, picturesPath, -1, result.data(), size, nullptr, nullptr);
+			result += '/';
+		}
+		CoTaskMemFree(picturesPath);
+		if (!result.empty())
+			return result;
+	}
+#endif
+	return paths::PrefPath();
+}
 
 std::string CaptureFilePath()
 {
@@ -37,7 +77,14 @@ std::string CaptureFilePath()
 	// Oracool: user request (2026-08-11) - screenshots get their own folder instead of piling up
 	// alongside the save files. Created on demand rather than at startup, so a player who never
 	// takes a screenshot never gets an empty directory.
-	const std::string dir = StrCat(paths::PrefPath(), "Screenshots/");
+	//
+	// Oracool: user request (2026-08-13) - "why that folder? why not the default ss folder?". Fair:
+	// PrefPath is wherever the game keeps its saves and .ini, and for this build that is the
+	// directory the exe sits in - so screenshots were landing inside build\x64-Debug, which is a
+	// place you go to run a game, not a place you go to look at pictures. Windows has a registered
+	// folder for exactly this (the one Win+PrtScn uses), so that is where they go now, with the old
+	// location kept as the fallback for anything that cannot resolve it.
+	const std::string dir = StrCat(ScreenshotDir(), "Screenshots/");
 	RecursivelyCreateDir(dir.c_str());
 
 	std::string path = StrCat(dir, filename, ".png");
@@ -122,20 +169,24 @@ void RedPalette()
 	BltFast(nullptr, nullptr);
 	RenderPresent();
 }
-} // namespace
-
-void CaptureScreen()
+/**
+ * @brief Writes @p buf out, with the red flash, and puts the palette back afterwards.
+ *
+ * Oracool: extracted so the in-game and front-end captures cannot drift. The only difference between
+ * them is which surface holds the frame and who drew it - everything after that is identical, and it
+ * is the fiddly half (grab the real palette BEFORE the flash tints it, delay, restore).
+ */
+void CaptureTo(const Surface &buf)
 {
 	SDL_Color palette[256];
 
 	const std::string fileName = CaptureFilePath();
-	DrawAndBlit();
 	// Grab the real palette before RedPalette() tints everything for the flash effect, so the
 	// screenshot shows the frame as it looked rather than the flash.
 	PaletteGetEntries(256, palette);
 	RedPalette();
 
-	const bool success = CaptureImage(fileName, GlobalBackBuffer(), palette);
+	const bool success = CaptureImage(fileName, buf, palette);
 
 	if (!success) {
 		Log("Failed to save screenshot at {}", fileName);
@@ -148,7 +199,26 @@ void CaptureScreen()
 		system_palette[i] = palette[i];
 	}
 	palette_update();
+}
+
+} // namespace
+
+void CaptureScreen()
+{
+	DrawAndBlit();
+	CaptureTo(GlobalBackBuffer());
 	RedrawEverything();
+}
+
+void CaptureUiScreen()
+{
+	// No DrawAndBlit here, and that is the whole point of a second entry: it renders the dungeon
+	// view and the HUD, neither of which exists on a front-end screen. The menu loop has already
+	// drawn this frame into the UI surface, so the frame to save is simply the one on screen.
+	//
+	// No RedrawEverything either - that flags the in-game renderer's dirty state, which nothing in
+	// the menus reads. The menu redraws itself every iteration regardless.
+	CaptureTo(Surface(DiabloUiSurface()));
 }
 
 } // namespace devilution

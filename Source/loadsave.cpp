@@ -2079,7 +2079,7 @@ bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
 	const size_t expectedSize = sizeof(uint8_t)
 	    + sizeof(uint32_t)
 	    + sizeof(uint32_t)
-	    + (sizeof(uint32_t) + 10 * 10 * sizeof(uint16_t)) * pages
+	    + (sizeof(uint32_t) + StashGridColumns * StashGridRows * sizeof(uint16_t)) * pages
 	    + sizeof(uint32_t)
 	    + itemSize * itemCount
 	    + sizeof(uint32_t);
@@ -2424,7 +2424,11 @@ void LoadHeroItems(Player &player)
 // and base stats, read before it, stayed intact). Bumped to 1 and switched to an exact-match
 // check (matching heroitems/heroinvtabs's existing pattern) so a stale-format Stash is rejected
 // cleanly instead of silently misread.
-constexpr uint8_t StashVersion = 1;
+// Oracool V1: bumped to 2 when the stash page grew from 10x10 to 10x17 (StashGridRows). A version
+// 1 file has a different cell count per page, so it cannot be read into the new grid - LoadStash
+// rejects it and says so, which is the supported path rather than silent corruption. Wiping was an
+// explicit call: "we are developing a product, saves are not important."
+constexpr uint8_t StashVersion = 2;
 
 void LoadStash()
 {

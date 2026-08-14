@@ -202,7 +202,7 @@ void DrawInv(const Surface &out);
  * Separate from DrawInv, and called AFTER the orbs, because the mana orb overlaps the band this
  * sits in - see the definition for the geometry.
  */
-void DrawInventoryGoldRow(const Surface &out);
+void DrawInventoryFooter(const Surface &out);
 
 void DrawInvBelt(const Surface &out);
 

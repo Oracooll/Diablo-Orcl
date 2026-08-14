@@ -41,14 +41,20 @@ set(libdevilutionx_SRCS
   oracool/auto_save.cpp
   oracool/cursor_tooltip.cpp
   oracool/event_log.cpp
+  oracool/attack_skills.cpp
+  oracool/auras.cpp
+  oracool/barb_skills.cpp
   oracool/furious_charge.cpp
   oracool/game_clock.cpp
   oracool/gradual_healing.cpp
   oracool/ornate_border.cpp
+  oracool/hero_preview.cpp
   oracool/hud_art.cpp
   oracool/hud_layout.cpp
   oracool/hud_menu.cpp
   oracool/inventory_layout.cpp
+  oracool/sprite_import.cpp
+  oracool/ui_backgrounds.cpp
   oracool/save_indicator.cpp
   oracool/warrior_splash.cpp
   oracool/waypoint_menu.cpp

@@ -25,6 +25,7 @@
 #include "engine/trn.hpp"
 #include "hwcursor.hpp"
 #include "inv.h"
+#include "panels/spell_book.hpp" // GetSpellBookPanelRect
 #include "levels/trigs.h"
 #include "missiles.h"
 #include "options.h"
@@ -700,7 +701,7 @@ void CheckTown()
 		if (missile._mitype == MissileID::TownPortal) {
 			if (EntranceBoundaryContains(missile.position.tile, cursPosition)) {
 				trigflag = true;
-				InfoString = _("Town Portal");
+				SetPanelString(_("Town Portal"), UiFlags::ColorWhite);
 				AddPanelString(fmt::format(fmt::runtime(_("from {:s}")), Players[missile._misource]._pName));
 				cursPosition = missile.position.tile;
 			}
@@ -714,7 +715,7 @@ void CheckRportal()
 		if (missile._mitype == MissileID::RedPortal) {
 			if (EntranceBoundaryContains(missile.position.tile, cursPosition)) {
 				trigflag = true;
-				InfoString = _("Portal to");
+				SetPanelString(_("Portal to"), UiFlags::ColorWhite);
 				AddPanelString(!setlevel ? _("The Unholy Altar") : _("level 15"));
 				cursPosition = missile.position.tile;
 			}
@@ -872,10 +873,16 @@ void CheckCursMove()
 	if (IsStashOpen && GetLeftPanel().contains(MousePosition)) {
 		pcursstashitem = CheckStashHLight(MousePosition);
 	}
-	if (sbookflag && GetRightPanel().contains(MousePosition)) {
+	// Oracool V1: the book owns a 340x720 rect now, not GetRightPanel's 320x352 - hovering the part
+	// outside that slot must not highlight what is on the ground behind the window.
+	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
 		return;
 	}
-	if (IsLeftPanelOpen() && GetLeftPanel().contains(MousePosition)) {
+	// Same rect the click router uses (control.h's GetLeftPanelContentRect): hovering the part of
+	// an open window that falls outside the vanilla 320x352 slot must not highlight monsters and
+	// items on the ground behind it, or the cursor would invite exactly the click the router
+	// refuses.
+	if (IsOverLeftPanel(MousePosition)) {
 		return;
 	}
 

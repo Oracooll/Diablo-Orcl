@@ -19,6 +19,23 @@ namespace devilution {
 extern std::size_t SelectedItem;
 bool IsTextInputActive();
 
+/**
+ * @brief Stops the list glowing its own selected row, for a screen whose focus can leave the list.
+ *
+ * Oracool: the character-select screen's focus runs list rows -> action buttons, and the buttons are
+ * not list items - nothing in the shared focus model knows about them. While focus sits on one, the
+ * list must stop marking a row, or the screen glows in two places at once.
+ */
+extern bool UiListSelectorHidden;
+
+/**
+ * @brief Draws @p button's label with the focus glow, over the button as already rendered.
+ *
+ * Exported so focus that lives outside a list (see UiListSelectorHidden) is marked exactly the way a
+ * list row is, rather than by a second indicator that merely looks similar.
+ */
+void DrawFocusGlow(const UiArtTextButton &button);
+
 extern const string_view BannedNames[];
 extern const size_t BannedNamesCount;
 
@@ -63,6 +80,16 @@ struct _uiheroinfo {
 	uint16_t magic;
 	uint16_t dexterity;
 	uint16_t vitality;
+	/**
+	 * @brief Player::_pgfxnum - which sprite variant this character wears (armour in the high nibble,
+	 * weapon in the low one).
+	 *
+	 * Oracool: carried so the character-select screen can show the character's own animated sprite in
+	 * the gear it actually has. Free to provide: pfile_ui_set_hero_infos already unpacks the save and
+	 * runs CalcPlrInv before calling Game2UiPlayer, so the value is sitting there fully computed - it
+	 * was simply never copied out.
+	 */
+	uint8_t gfxnum;
 	bool hassaved;
 	bool spawned;
 };

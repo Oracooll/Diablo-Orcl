@@ -78,6 +78,61 @@ static_assert(LevelUpIconSize.width == ScalePlateRect(LmbWellSrc).size.width + 2
     "Level-up icon size no longer matches the LMB well plus its bezel - recut the art and update "
     "LevelUpIconSize in hud_layout.h");
 constexpr Rectangle RmbWellSrc { { 1271, 26 }, { 207, 217 } };
+
+/** @brief Integer division rounding to nearest. @p denominator must be positive. */
+constexpr int RoundedDiv(int numerator, int denominator)
+{
+	return numerator >= 0 ? (numerator + denominator / 2) / denominator
+	                      : -((-numerator + denominator / 2) / denominator);
+}
+
+/**
+ * @brief Plate-local top-left origin that centres @p content on a well's TRUE opening.
+ *
+ * Not "centred inside ScalePlateRect(srcWell)", which is the obvious thing and is measurably wrong.
+ * ScalePlateRect truncates each edge to a whole pixel, and for both wells all four edges truncate
+ * DOWNWARD - so the rect's centre lands up to a pixel left of and above the opening it stands for:
+ *
+ *     LMB opening   x  5.914..55.115   y  6.150..57.480   true centre (30.514, 31.815)
+ *     LMB rect      x  5..55           y  6..57           rect centre (30.0,   31.5)
+ *     RMB opening   x  300.649..349.613                   true centre (325.131, 31.815)
+ *     RMB rect      x  300..349                           rect centre (324.5,   31.5)
+ *
+ * Centring in the rect therefore put the icon a pixel left and a pixel high in BOTH wells - visible
+ * once the icon grew enough to nearly fill the recess, and the reason DrawSpell's readied-spell icon
+ * has carried a hand-tuned +1 x nudge since the art pass. This works from the unrounded source
+ * geometry instead and rounds once, at the end.
+ */
+constexpr Point CentreInWell(Rectangle srcWell, Size content)
+{
+	constexpr int Denominator = 2 * PlateSrcSize.width;
+	return { RoundedDiv((2 * srcWell.position.x + srcWell.size.width) * PlateScreenWidth
+	             - content.width * PlateSrcSize.width,
+	             Denominator),
+		RoundedDiv((2 * srcWell.position.y + srcWell.size.height) * PlateScreenWidth
+		        - content.height * PlateSrcSize.width,
+		    Denominator) };
+}
+
+// The two wells are the same art mirrored, so the icon must fit the NARROWER of the two scaled
+// openings - the RMB's, which comes out a pixel short of the LMB's purely through where its edges
+// fall against the truncation.
+//
+// Only the upper bound is checked. There is deliberately no "and it must be snug" companion: the
+// icon is sized to the engine's small spell icon, which the same well draws whenever a spell IS
+// readied, not to the well. Filling the opening would mean the slot changed size with its state.
+static_assert(SkillWellIconSize.width <= ScalePlateRect(RmbWellSrc).size.width
+        && SkillWellIconSize.height <= ScalePlateRect(RmbWellSrc).size.height,
+    "The skill-well icon no longer fits the RMB well's opening - recut ui\\attack_icons.png "
+    "smaller (tools/CutAttackIcons.ps1) or fix the plate geometry");
+// The centring maths pinned to hand-computed values, so a change to the plate scale cannot quietly
+// shift both icons. Derived in the doc comment above.
+static_assert(CentreInWell(LmbWellSrc, SkillWellIconSize).x == 12
+        && CentreInWell(LmbWellSrc, SkillWellIconSize).y == 13
+        && CentreInWell(RmbWellSrc, SkillWellIconSize).x == 306
+        && CentreInWell(RmbWellSrc, SkillWellIconSize).y == 13,
+    "Skill-well icon centring moved - re-derive it against the plate art before accepting this");
+
 constexpr int BeltCellSrcX[6] = { 263, 434, 599, 766, 931, 1099 };
 constexpr int BeltCellSrcY = 91;
 constexpr Size BeltCellSrcSize { 139, 150 };
@@ -152,6 +207,18 @@ Rectangle GetRmbSkillButtonRect()
 {
 	const Rectangle scaled = ScalePlateRect(RmbWellSrc);
 	return { GetMiddleHudRect().position + Displacement { scaled.position.x, scaled.position.y }, scaled.size };
+}
+
+Point GetLmbSkillIconOrigin(Size content)
+{
+	const Point local = CentreInWell(LmbWellSrc, content);
+	return GetMiddleHudRect().position + Displacement { local.x, local.y };
+}
+
+Point GetRmbSkillIconOrigin(Size content)
+{
+	const Point local = CentreInWell(RmbWellSrc, content);
+	return GetMiddleHudRect().position + Displacement { local.x, local.y };
 }
 
 Rectangle GetLevelUpIconRect()

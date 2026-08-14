@@ -1,6 +1,7 @@
 #include "oracool/cursor_tooltip.h"
 
 #include <algorithm>
+#include <cassert>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
@@ -9,6 +10,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "inv.h"
+#include "oracool/ornate_border.h" // ThemeEdgeColor
 #include "qol/stash.h"
 #include "utils/ui_fwd.h"
 
@@ -28,10 +30,12 @@ constexpr int GapAboveCursor = 6;
 // cursor, sized to its contents.
 constexpr int PanelPaddingX = 10;
 constexpr int PanelPaddingY = 7;
+/** Extra air between the panel's rows, on top of the font's own line height. */
+constexpr int PanelLineGap = 4;
 constexpr int PanelBorderWidth = 2;
-/** Muted gold from the shared upper half of the palette - the same index the engine outlines
- * hovered objects with, and a match for the HUD's bronze trim. */
-constexpr uint8_t PanelBorderColor = 194;
+/** Deep gold, shared with the class silhouette's outline so the two edges cannot drift apart -
+ * see oracool::ThemeEdgeColor for why that is one constant rather than two literals. */
+constexpr uint8_t PanelBorderColor = ThemeEdgeColor;
 
 Rectangle PrevTooltipRect;
 
@@ -95,9 +99,19 @@ void DrawCursorTooltip(const Surface &out)
 	int lineCount = 0;
 	MeasureText(InfoString.str(), maxWidth, lineCount);
 	const int lineHeight = GetLineHeight(InfoString.str(), GameFont12);
-	const Size textSize { maxWidth, lineCount * lineHeight };
 
 	const bool asPanel = IsHoveringItem();
+
+	// Oracool: user request - an item's stat block reads cramped at the font's own line height, so
+	// the panel opens the rows up. Only the panel: a one-line hover has no rows to space out.
+	//
+	// The gap goes BETWEEN rows, not below each of them - the height is n line boxes plus n-1 gaps.
+	// Adding it to every row instead would leave a trailing gap under the last line, making the
+	// panel's bottom padding visibly deeper than its top.
+	const int lineGap = asPanel ? PanelLineGap : 0;
+	const int lineStride = lineHeight + lineGap;
+	const Size textSize { maxWidth, lineCount * lineHeight + (lineCount - 1) * lineGap };
+
 	const int padX = asPanel ? PanelPaddingX + PanelBorderWidth : 0;
 	const int padY = asPanel ? PanelPaddingY + PanelBorderWidth : 0;
 	const Size boxSize { textSize.width + 2 * padX, textSize.height + 2 * padY };
@@ -128,8 +142,49 @@ void DrawCursorTooltip(const Surface &out)
 	}
 
 	const Rectangle textArea { origin + Displacement { padX, padY }, textSize };
-	DrawString(out, InfoString, textArea,
-	    { InfoColor | UiFlags::AlignCenter | UiFlags::KerningFitSpacing | (asPanel ? UiFlags::None : UiFlags::Outlined), 1, lineHeight });
+	const UiFlags sharedFlags = UiFlags::AlignCenter | UiFlags::KerningFitSpacing
+	    | (asPanel ? UiFlags::None : UiFlags::Outlined);
+
+	// Oracool: an item's block is several KINDS of information - its name, what it is, what was
+	// rolled onto it, what it demands of you - and each line carries its own colour (see
+	// control.h's InfoStringLineColors). Drawing per line is the only way to honour that, since
+	// DrawString takes one colour for the whole string.
+	//
+	// An empty colour list is normal: hovers that are a single line - a monster, an NPC, a shrine -
+	// assign InfoString directly and keep the single-colour path exactly as before.
+	//
+	// A list that is non-empty but the WRONG size is not normal, it is the signature of a bug:
+	// somebody appended coloured lines onto text that was assigned without registering its own
+	// colour. That is precisely how the item panel shipped in one colour - the inventory, stash and
+	// held-item hovers each set the name with a bare assignment, leaving the list one short of the
+	// block PrintItemDetails then built, and this check quietly refused all of it. Silence is what
+	// made it hard to see, so it asserts now.
+	string_view text = InfoString.str();
+	const bool perLineColors = InfoStringLineColors.size() == static_cast<size_t>(lineCount);
+	assert((InfoStringLineColors.empty() || perLineColors)
+	    && "InfoString gained lines whose colours were never recorded - use SetPanelString/AddPanelString");
+	if (!perLineColors) {
+		// lineStride, not lineHeight: DrawString's lineHeight option IS the row-to-row step, so
+		// this is where the gap gets applied on the single-colour path.
+		DrawString(out, text, textArea, { InfoColor | sharedFlags, 1, lineStride });
+	} else {
+		size_t start = 0;
+		for (int i = 0; i < lineCount; i++) {
+			const size_t newline = text.find('\n', start);
+			const string_view line = (newline == string_view::npos)
+			    ? text.substr(start)
+			    : text.substr(start, newline - start);
+			// Stepped by the stride, but each row's box is one line tall - the gap is the space
+			// between boxes, not part of them.
+			const Rectangle lineArea { textArea.position + Displacement { 0, i * lineStride },
+				{ textArea.size.width, lineHeight } };
+			DrawString(out, line, lineArea,
+			    { InfoStringLineColors[i] | sharedFlags, 1, lineHeight });
+			if (newline == string_view::npos)
+				break;
+			start = newline + 1;
+		}
+	}
 
 	// The outline bleeds a pixel past the glyphs, so the region the dirty-rect path has to erase
 	// is slightly larger than the text box itself. The panel's border is already inside `box`.

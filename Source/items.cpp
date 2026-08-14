@@ -2155,6 +2155,21 @@ void PrintItemMisc(const Item &item)
 	}
 }
 
+/**
+ * @brief Oracool: the hover panel's colour scheme, per user specification.
+ *
+ * The name takes the item's own tier colour (Item::getTextColor), and everything below it splits
+ * into two kinds: what the item IS - its damage or armour, durability, charges, stat requirements -
+ * which is white, and what has been ADDED to it - its prefixes and suffixes - which is blue. The
+ * point is that a glance at the panel separates the base item from its rolls without reading a
+ * word, and that a magic item's blue name is echoed by the blue lines that earned it.
+ *
+ * The tier label line ("unique item", or an Oracool tier's name) is not in either group: it names
+ * the tier, so it takes the tier's colour along with the name.
+ */
+constexpr UiFlags ItemBaseStatColor = UiFlags::ColorWhite;
+constexpr UiFlags ItemAffixColor = UiFlags::ColorBlue;
+
 void PrintItemInfo(const Item &item)
 {
 	PrintItemMisc(item);
@@ -2169,7 +2184,9 @@ void PrintItemInfo(const Item &item)
 			text.append(fmt::format(fmt::runtime(_(" {:d} Mag")), mag));
 		if (dex != 0)
 			text.append(fmt::format(fmt::runtime(_(" {:d} Dex")), dex));
-		AddPanelString(text);
+		// Oracool: requirements are base information about the item, so white - see the colour
+		// scheme note in PrintItemDetails.
+		AddPanelString(std::move(text), ItemBaseStatColor);
 	}
 }
 
@@ -2986,7 +3003,15 @@ bool IsItemAvailable(int i)
 	    || (
 	        // Bard items are technically Hellfire-exclusive
 	        // but are just normal items with adjusted stats.
-	        *sgOptions.Gameplay.testBard && IsAnyOf(i, IDI_BARDSWORD, IDI_BARDDAGGER));
+	        //
+	        // Oracool: no longer gated on the Test Bard switch. This function does not only decide what
+	        // can be generated - it also decides what survives UnPackItem (pack.cpp:330), so with the
+	        // switch in the condition, turning the Bard off silently deleted an existing Bard's starting
+	        // Sword and Dagger the next time that character loaded. Nothing is given up by keeping them
+	        // available unconditionally: both are IDROP_NEVER, and every generation path - loot, all
+	        // four vendors, uniques - skips IDROP_NEVER, so they still cannot spawn anywhere. The only
+	        // way to hold one remains being a Bard.
+	        IsAnyOf(i, IDI_BARDSWORD, IDI_BARDDAGGER));
 }
 
 int GetItemSellValue(const Item &item)
@@ -4286,8 +4311,9 @@ void GetItemFrm(Item &item)
 void GetItemStr(Item &item)
 {
 	if (item._itype != ItemType::Gold) {
-		InfoString = item.getName();
-		InfoColor = item.getTextColor();
+		// Oracool: the name carries the item's tier colour, and SetPanelString records that as line
+		// 0's colour so the stat lines below it can be coloured independently.
+		SetPanelString(item.getName(), item.getTextColor());
 	} else {
 		int nGold = item._ivalue;
 		InfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
@@ -4664,9 +4690,9 @@ void AddItemPowerPanelStrings(const Item &item)
 		// the item instance itself (up to 3 prefixes + 3 suffixes), so the vanilla
 		// UniqueItems[uid].powers[] table isn't involved at all here.
 		for (int i = 0; i < item._iOracoolPrefixCount; i++)
-			AddPanelString(PrintOracoolAffixPower(item._iOracoolPrefixes[i], item));
+			AddPanelString(PrintOracoolAffixPower(item._iOracoolPrefixes[i], item), ItemAffixColor);
 		for (int i = 0; i < item._iOracoolSuffixCount; i++)
-			AddPanelString(PrintOracoolAffixPower(item._iOracoolSuffixes[i], item));
+			AddPanelString(PrintOracoolAffixPower(item._iOracoolSuffixes[i], item), ItemAffixColor);
 		return;
 	}
 
@@ -4675,8 +4701,45 @@ void AddItemPowerPanelStrings(const Item &item)
 	for (const auto &power : uitem.powers) {
 		if (power.type == IPL_INVALID)
 			break;
-		AddPanelString(PrintItemPower(power.type, item));
+		AddPanelString(PrintItemPower(power.type, item), ItemAffixColor);
 	}
+}
+
+/**
+ * @brief Whether one of the affix lines below will already say "Indestructible".
+ *
+ * Oracool: user request - the base stat line stops repeating it when an affix states it. An
+ * indestructible item has no durability to print in that slot either, so the line becomes just the
+ * damage or armour and the blue affix line below carries the fact - which also says something the
+ * merged line did not: that indestructibility was rolled rather than inherent.
+ *
+ * This deliberately mirrors what PrintItemDetails actually prints rather than asking the item
+ * whether it has the property anywhere: a unique's powers are only listed for uniques, and an
+ * Oracool tier's affixes only for tiered items, so an item can be indestructible with nothing below
+ * to say so. Those keep the word on the base line, which is the only place it would appear.
+ */
+bool AffixStatesIndestructible(const Item &item)
+{
+	if (item._iPrePower == IPL_INDESTRUCTIBLE || item._iSufPower == IPL_INDESTRUCTIBLE)
+		return true;
+	if (item.hasOracoolTier()) {
+		for (int i = 0; i < item._iOracoolPrefixCount; i++) {
+			if (item._iOracoolPrefixes[i].type == IPL_INDESTRUCTIBLE)
+				return true;
+		}
+		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+			if (item._iOracoolSuffixes[i].type == IPL_INDESTRUCTIBLE)
+				return true;
+		}
+	} else if (item._iMagical == ITEM_QUALITY_UNIQUE) {
+		for (const auto &power : UniqueItems[item._iUid].powers) {
+			if (power.type == IPL_INVALID)
+				break;
+			if (power.type == IPL_INDESTRUCTIBLE)
+				return true;
+		}
+	}
+	return false;
 }
 
 void PrintItemDetails(const Item &item)
@@ -4684,39 +4747,51 @@ void PrintItemDetails(const Item &item)
 	if (HeadlessMode)
 		return;
 
+	const bool indestructible = item._iMaxDur == DUR_INDESTRUCTIBLE;
+	// Only suppressed when something below will actually print the word - see the helper.
+	const bool affixSaysIndestructible = indestructible && AffixStatesIndestructible(item);
+
+	// Oracool: colours per ItemBaseStatColor / ItemAffixColor - base stats white, rolls blue, the
+	// tier label with the name's own colour.
 	if (item._iClass == ICLASS_WEAPON) {
 		if (item._iMinDam == item._iMaxDam) {
-			if (item._iMaxDur == DUR_INDESTRUCTIBLE)
-				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}  Indestructible")), item._iMinDam));
+			if (!indestructible)
+				AddPanelString(fmt::format(fmt::runtime(_(/* TRANSLATORS: Dur: is durability */ "damage: {:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iDurability, item._iMaxDur), ItemBaseStatColor);
+			else if (affixSaysIndestructible)
+				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}")), item._iMinDam), ItemBaseStatColor);
 			else
-				AddPanelString(fmt::format(fmt::runtime(_(/* TRANSLATORS: Dur: is durability */ "damage: {:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iDurability, item._iMaxDur));
+				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}  Indestructible")), item._iMinDam), ItemBaseStatColor);
 		} else {
-			if (item._iMaxDur == DUR_INDESTRUCTIBLE)
-				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Indestructible")), item._iMinDam, item._iMaxDam));
+			if (!indestructible)
+				AddPanelString(fmt::format(fmt::runtime(_(/* TRANSLATORS: Dur: is durability */ "damage: {:d}-{:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iMaxDam, item._iDurability, item._iMaxDur), ItemBaseStatColor);
+			else if (affixSaysIndestructible)
+				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}")), item._iMinDam, item._iMaxDam), ItemBaseStatColor);
 			else
-				AddPanelString(fmt::format(fmt::runtime(_(/* TRANSLATORS: Dur: is durability */ "damage: {:d}-{:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iMaxDam, item._iDurability, item._iMaxDur));
+				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Indestructible")), item._iMinDam, item._iMaxDam), ItemBaseStatColor);
 		}
 	}
 	if (item._iClass == ICLASS_ARMOR) {
-		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
-			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Indestructible")), item._iAC));
+		if (!indestructible)
+			AddPanelString(fmt::format(fmt::runtime(_(/* TRANSLATORS: Dur: is durability */ "armor: {:d}  Dur: {:d}/{:d}")), item._iAC, item._iDurability, item._iMaxDur), ItemBaseStatColor);
+		else if (affixSaysIndestructible)
+			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}")), item._iAC), ItemBaseStatColor);
 		else
-			AddPanelString(fmt::format(fmt::runtime(_(/* TRANSLATORS: Dur: is durability */ "armor: {:d}  Dur: {:d}/{:d}")), item._iAC, item._iDurability, item._iMaxDur));
+			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Indestructible")), item._iAC), ItemBaseStatColor);
 	}
 	if (item._iMiscId == IMISC_STAFF && item._iMaxCharges != 0) {
-		AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges));
+		AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges), ItemBaseStatColor);
 	}
 	if (item._iPrePower != -1) {
-		AddPanelString(PrintItemPower(item._iPrePower, item));
+		AddPanelString(PrintItemPower(item._iPrePower, item), ItemAffixColor);
 	}
 	if (item._iSufPower != -1) {
-		AddPanelString(PrintItemPower(item._iSufPower, item));
+		AddPanelString(PrintItemPower(item._iSufPower, item), ItemAffixColor);
 	}
 	if (item.hasOracoolTier()) {
-		AddPanelString(GetOracoolTierPanelLabel(item._iOracoolTier));
+		AddPanelString(GetOracoolTierPanelLabel(item._iOracoolTier), item.getTextColor());
 		AddItemPowerPanelStrings(item);
 	} else if (item._iMagical == ITEM_QUALITY_UNIQUE) {
-		AddPanelString(_("unique item"));
+		AddPanelString(_("unique item"), item.getTextColor());
 		AddItemPowerPanelStrings(item);
 	}
 	PrintItemInfo(item);
@@ -4727,33 +4802,36 @@ void PrintItemDur(const Item &item)
 	if (HeadlessMode)
 		return;
 
+	// Oracool: the unidentified view shows only base stats, so it is white throughout. "Not
+	// Identified" takes the affix colour because it stands in for the affix lines that are being
+	// withheld - it is a statement about the rolls, not about the base item.
 	if (item._iClass == ICLASS_WEAPON) {
 		if (item._iMinDam == item._iMaxDam) {
 			if (item._iMaxDur == DUR_INDESTRUCTIBLE)
-				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}  Indestructible")), item._iMinDam));
+				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}  Indestructible")), item._iMinDam), ItemBaseStatColor);
 			else
-				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iDurability, item._iMaxDur));
+				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iDurability, item._iMaxDur), ItemBaseStatColor);
 		} else {
 			if (item._iMaxDur == DUR_INDESTRUCTIBLE)
-				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Indestructible")), item._iMinDam, item._iMaxDam));
+				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Indestructible")), item._iMinDam, item._iMaxDam), ItemBaseStatColor);
 			else
-				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iMaxDam, item._iDurability, item._iMaxDur));
+				AddPanelString(fmt::format(fmt::runtime(_("damage: {:d}-{:d}  Dur: {:d}/{:d}")), item._iMinDam, item._iMaxDam, item._iDurability, item._iMaxDur), ItemBaseStatColor);
 		}
 		if (item._iMiscId == IMISC_STAFF && item._iMaxCharges > 0) {
-			AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges));
+			AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges), ItemBaseStatColor);
 		}
 		if (item._iMagical != ITEM_QUALITY_NORMAL)
-			AddPanelString(_("Not Identified"));
+			AddPanelString(_("Not Identified"), ItemAffixColor);
 	}
 	if (item._iClass == ICLASS_ARMOR) {
 		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
-			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Indestructible")), item._iAC));
+			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Indestructible")), item._iAC), ItemBaseStatColor);
 		else
-			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Dur: {:d}/{:d}")), item._iAC, item._iDurability, item._iMaxDur));
+			AddPanelString(fmt::format(fmt::runtime(_("armor: {:d}  Dur: {:d}/{:d}")), item._iAC, item._iDurability, item._iMaxDur), ItemBaseStatColor);
 		if (item._iMagical != ITEM_QUALITY_NORMAL)
-			AddPanelString(_("Not Identified"));
+			AddPanelString(_("Not Identified"), ItemAffixColor);
 		if (item._iMiscId == IMISC_STAFF && item._iMaxCharges > 0) {
-			AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges));
+			AddPanelString(fmt::format(fmt::runtime(_("Charges: {:d}/{:d}")), item._iCharges, item._iMaxCharges), ItemBaseStatColor);
 		}
 	}
 	if (IsAnyOf(item._itype, ItemType::Ring, ItemType::Amulet))

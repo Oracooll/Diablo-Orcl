@@ -33,21 +33,41 @@ void OpenWaypointMenu(Point sigilPosition);
 /** @brief Closes the travel list. Safe to call even when already closed. */
 void CloseWaypointMenu();
 
+/**
+ * @brief Scrolls the travel list by one row. Mouse-wheel, dispatched from diablo.cpp alongside the
+ * event log and the other scrolling windows.
+ *
+ * The list is 25 rows of 45px against a 595px viewport, so roughly half of it is off-screen at any
+ * time and scrolling is the only way to reach the Crypt. Both are no-ops at their respective ends,
+ * and both re-clamp first, since the row count depends on whether this is a Hellfire game.
+ */
+void ScrollWaypointMenuUp();
+void ScrollWaypointMenuDown();
+
 /** @brief Draws the menu. Only called while the menu is open (see scrollrt.cpp's DrawAndBlit).
  * Checks the walk-away distance first (see OpenWaypointMenu's doc comment) and closes the menu
  * instead of drawing if the player has moved too far from the sigil that opened it. */
 void DrawWaypointMenu(const Surface &out);
 
 /**
+ * @brief Screen rect of the waypoint list - 340x720, flush to the top-left corner.
+ *
+ * Exported so control.cpp's GetLeftPanelContentRect() can route and absorb clicks over the whole
+ * window. Routing used to go through GetLeftPanel()'s 320x352, which left entries 8-16 - every row
+ * below y=352 - unclickable, with the click falling through and walking the player instead.
+ */
+Rectangle GetWaypointMenuRect();
+
+/**
  * @brief Handles a left-click while the menu is open. Selecting an unlocked entry closes the
  * menu and warps the player there (a no-op if that's already where they are); clicking a locked
  * entry or empty panel space does nothing. Only called when the click already landed inside the
- * left panel area - see diablo.cpp's LeftMouseDown.
+ * menu's own rect - see diablo.cpp's LeftMouseDown and GetLeftPanelContentRect().
  */
 void CheckWaypointMenuClick(Point mousePosition);
 
 /**
- * @brief Whether waypoint list entry/dungeon level `index` (0 = Tristram, 1-16 = that dungeon
+ * @brief Whether waypoint list entry/dungeon level `index` (0 = Tristram, 1-24 = that dungeon
  * level, matching currlevel numbering) has been unlocked on the current difficulty. Index 0 is
  * always unlocked. Persisted per character per difficulty in Player::_pWaypointUnlocked (see its
  * doc comment in player.h) - unlocking on Normal doesn't unlock the same waypoint on Nightmare/
