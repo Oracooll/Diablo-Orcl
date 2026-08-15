@@ -40,6 +40,23 @@ bool IsQuestUnique(const UniqueMonsterData &data)
 	return data.mtalkmsg != TEXT_NONE;
 }
 
+/**
+ * @brief Whether a champion of this identity is already standing on the level.
+ *
+ * Needed once a floor hosts several packs (2-6 by difficulty as of 1.6.1): without it a level could
+ * field three of the same named champion, which reads as a bug rather than as variety. Scanning the
+ * live monsters rather than tracking picks in a list also catches the floor's SCRIPTED unique for
+ * free, since PlaceUniqueMonsters runs before this does.
+ */
+bool IsUniqueAlreadyPlaced(UniqueMonsterType type)
+{
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		if (Monsters[ActiveMonsters[i]].uniqueType == type)
+			return true;
+	}
+	return false;
+}
+
 } // namespace
 
 std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned)
@@ -56,6 +73,8 @@ std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned)
 			continue;
 		if (!LevelHasMonsterType(data.mtype))
 			continue;
+		if (IsUniqueAlreadyPlaced(static_cast<UniqueMonsterType>(i)))
+			continue;
 		candidates.push_back(static_cast<UniqueMonsterType>(i));
 	}
 
@@ -70,9 +89,37 @@ int LesserUniqueCountForLevel()
 	// generated - dropping a random pack into Lachdanan's tomb would be vandalism, not variety.
 	if (currlevel == 0 || setlevel)
 		return 0;
-	// One pack at 100%, three at 300%. Integer division floors, so 150% and 250% land on one and two
-	// rather than rounding up into a busier level than the setting reads as promising.
-	return std::max(1 * *sgOptions.Oracool.lesserUniqueDensityPercent / 100, 1);
+	// Oracool: user call after playing it (2026-08-15) - "one pack per level is not ok. increase
+	// packs 2-3 per normal. 3-4 nightmare. 4-5 hell. 5-6 torment."
+	//
+	// A RANGE rather than a fixed count, so two floors at the same difficulty are not the same
+	// arithmetic twice - which is what "diversification and freshness" asked for in the first place.
+	// The ladder also does something the difficulty ladder alone does not: Hell is not merely the
+	// same dungeon with tougher monsters, it is a dungeon with more champions IN it.
+	int fewest = 2;
+	int most = 3;
+	switch (sgGameInitInfo.nDifficulty) {
+	case DIFF_NIGHTMARE:
+		fewest = 3;
+		most = 4;
+		break;
+	case DIFF_HELL:
+		fewest = 4;
+		most = 5;
+		break;
+	case DIFF_TORMENT:
+		fewest = 5;
+		most = 6;
+		break;
+	case DIFF_NORMAL:
+		break;
+	}
+
+	const int packs = fewest + GenerateRnd(most - fewest + 1);
+	// The dial multiplies the roll rather than replacing it, so 300% on Torment is genuinely
+	// crowded. PlaceLesserUniques stops early when MaxMonsters runs out, which is the real ceiling
+	// and is checked per pack rather than trusted to a number here.
+	return std::max(packs * *sgOptions.Oracool.lesserUniqueDensityPercent / 100, 1);
 }
 
 LesserUniqueAffix RollLesserUniqueAffix()

@@ -566,8 +566,12 @@ void PlaceLesserUniques()
 	const int wanted = oracool::LesserUniqueCountForLevel();
 	for (int placed = 0; placed < wanted; placed++) {
 		const std::optional<UniqueMonsterType> choice = oracool::ChooseLesserUnique();
-		if (!choice)
-			return; // this level hosts no monster type that has a champion written for it
+		if (!choice) {
+			// Either this level hosts no monster type with a champion written for it, or - once a
+			// floor wants several packs - it has run out of DISTINCT ones. Both mean stop: a level
+			// fielding the same named champion three times reads as a bug, not as variety.
+			return;
+		}
 
 		const size_t minionType = GetMonsterTypeIndex(UniqueMonstersData[static_cast<size_t>(*choice)].mtype);
 		if (minionType == LevelMonsterTypeCount)
