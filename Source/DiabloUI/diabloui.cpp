@@ -1147,10 +1147,15 @@ int SelectorPadding(int rowHeight)
  * Applied to every row rather than only the focused one on purpose: inset only when selected and the
  * text would shift sideways every time the selection moved.
  *
- * MEASURED against the four hero-screen buttons before doing this, since they share the treatment
- * and a too-narrow rect would clip them instead: at FontSize42 in a 240px zone less two 28px
- * pentagrams, "New Hero" is the widest at 182px against 184px available. It fits, but by 2px - so if
- * a button label is ever reworded, measure it.
+ * LISTS ONLY. UiArtTextButton used this too and it clipped "New Hero" to "New Her" - see the note at
+ * Render(const UiArtTextButton &) for why an inset can only ever remove letters from centred text,
+ * never move it clear of anything. What makes it earn its place here is FitToWidth below, which
+ * treats this width as a budget and shortens the string; that does move the text. For a
+ * left- or right-aligned row the inset also does real work on its own.
+ *
+ * A caution earned the hard way: this pad comes from the sprite at runtime, but the figure I sized
+ * the buttons against came from measuring a screenshot, and it was about 3px short. Do not plan a
+ * layout against an estimate of it - ask SelectorPadding.
  */
 Rectangle LabelRect(const SDL_Rect &rect)
 {
@@ -1231,9 +1236,19 @@ void Render(const UiArtTextButton &uiButton)
 	    && gUiButtons[SelectedButton] == &uiButton)
 		DrawSelector(uiButton.m_rect);
 
-	// LabelRect, not the whole button: the pentagrams stand in the row's two ends. No truncation on a
-	// button - its labels are fixed strings that were measured to fit (see LabelRect).
-	DrawString(out, uiButton.GetText(), LabelRect(uiButton.m_rect), { uiButton.GetFlags() | CenteredInBox });
+	// The WHOLE button, not LabelRect. This briefly used the inset rect and the user reported "New
+	// Hero" reading as "New Her" - the o clipped off.
+	//
+	// The reason it was wrong is worth keeping, because the inset looked free. With AlignCenter an
+	// inset CANNOT move the text: centred x is rect.x + (rect.w - textWidth) / 2 for the full rect and
+	// rect.x + pad + (rect.w - 2*pad - textWidth) / 2 for the inset one, and those are the same value
+	// exactly (the 2*pad cancels, and it is even so the integer division does not drift). The only
+	// thing an inset changes for centred text is where DrawString clips. So on a button it could never
+	// buy clearance, only take letters away.
+	//
+	// It is load-bearing on UiList precisely because that path does not stop at the rect: FitToWidth
+	// uses the inset width as its budget and shortens the string, which does move the text.
+	DrawString(out, uiButton.GetText(), MakeRectangle(uiButton.m_rect), { uiButton.GetFlags() | CenteredInBox });
 }
 
 void Render(const UiList &uiList)
