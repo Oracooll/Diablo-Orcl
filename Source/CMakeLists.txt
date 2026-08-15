@@ -61,6 +61,7 @@ set(libdevilutionx_SRCS
   oracool/ui_backgrounds.cpp
   oracool/save_indicator.cpp
   oracool/paladin_melee.cpp
+  oracool/paladin_ranged.cpp
   oracool/waypoint_menu.cpp
   oracool/xp_counter.cpp
   oracool/xp_gain_indicator.cpp

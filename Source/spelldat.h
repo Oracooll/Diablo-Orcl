@@ -261,6 +261,11 @@ enum class MissileID : int8_t {
 	BlueExplosion,
 	BlueExplosion2,
 	OrangeExplosion,
+	/**
+	 * Oracool: the Paladin's Blessed Hammer. Appended last, because misdat.cpp's MissilesData is
+	 * indexed by this enum positionally and every existing value has to keep its place.
+	 */
+	BlessedHammer,
 	Null = -1,
 	// clang-format on
 };

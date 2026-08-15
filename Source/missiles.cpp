@@ -6,6 +6,7 @@
 #include "missiles.h"
 
 #include <climits>
+#include <cmath>
 #include <cstdint>
 
 #include "control.h"
@@ -49,6 +50,21 @@ int AddClassHealingBonus(int hp, HeroClass heroClass)
 		return hp;
 	}
 }
+
+/**
+ * @brief Blessed Hammer's spiral, in the three numbers that describe it.
+ *
+ * Tuned against the skill's range of 10 tiles (oracool/paladin_skills.h): 60 ticks at 2.2px a tick
+ * reaches 132 screen pixels, and one tile step is 32px across, so the hammer winds out to roughly
+ * four tiles over three seconds. Well inside the range cap, because the spiral has to be watchable -
+ * a hammer that reached the range limit would be a blur.
+ *
+ * The angle step gives a little over three full turns in that time, which is what makes it read as a
+ * spiral rather than as a wide arc.
+ */
+constexpr int BlessedHammerTicks = 60;
+constexpr float BlessedHammerPixelsPerTick = 2.2F;
+constexpr float BlessedHammerRadiansPerTick = 0.35F;
 
 int ScaleSpellEffect(int base, int spellLevel)
 {
@@ -2537,6 +2553,21 @@ void AddInfravision(Missile &missile, AddMissileParameter & /*parameter*/)
 }
 
 /**
+ * @brief Oracool: the Paladin's Blessed Hammer - a hammer that spirals outward from the caster.
+ *
+ * var1 counts ticks, which is what drives both the angle and the radius. var2/var3 hold the last
+ * tile damaged, so one pass hurts a monster once rather than every frame it overlaps it; they start
+ * on the caster's own tile so the hammer does not strike the ground it launched from.
+ */
+void AddBlessedHammer(Missile &missile, AddMissileParameter & /*parameter*/)
+{
+	missile._mirange = BlessedHammerTicks;
+	missile.var1 = 0;
+	missile.var2 = missile.position.start.x;
+	missile.var3 = missile.position.start.y;
+}
+
+/**
  * @brief Oracool: Etherealize had no behaviour at all until now - see ProcessEtherealize.
  *
  * The effect itself was already fully wired: SpellFlag::Etherealize makes arrows pass through
@@ -3861,6 +3892,56 @@ void ProcessFireWallControl(Missile &missile)
 			missile.var7 = 1;
 		}
 	}
+}
+
+/**
+ * @brief Oracool: walks Blessed Hammer one step around its spiral.
+ *
+ * This is the only missile in the file that does not travel on a velocity vector, so it does not go
+ * through MoveMissile at all. It writes position.traveled - the fixed-point pixel displacement from
+ * position.start that UpdateMissilePos turns back into a tile and an offset - directly from an angle
+ * and a radius, both growing with the tick count. That seam is what makes a spiral expressible here
+ * without touching the movement code every other missile depends on.
+ *
+ * The y term is halved because the dungeon is drawn isometrically: a circle traced on the ground is
+ * an ellipse of half the height on screen, so an unhalved circle would look like it was standing up.
+ */
+void ProcessBlessedHammer(Missile &missile)
+{
+	missile._mirange--;
+	missile.var1++;
+
+	const float ticks = static_cast<float>(missile.var1);
+	const float angle = ticks * BlessedHammerRadiansPerTick;
+	const float radius = ticks * BlessedHammerPixelsPerTick;
+	const auto pixelsX = static_cast<int>(std::cos(angle) * radius);
+	const auto pixelsY = static_cast<int>(std::sin(angle) * radius / 2);
+	missile.position.traveled = { pixelsX << 16, pixelsY << 16 };
+	UpdateMissilePos(missile);
+
+	const Point tile = missile.position.tile;
+	// Guarded, and this is the same hazard SpawnLightning was carrying earlier today: a missile that
+	// leaves the map indexes dPiece out of bounds. A spiral is if anything likelier to do it, since
+	// it walks outward with no target to stop at.
+	if (!InDungeonBounds(tile)) {
+		missile._miDelFlag = true;
+		return;
+	}
+
+	// Only when the tile changes: without this the hammer would damage whatever it overlaps on every
+	// single tick, which at 20 ticks a second is not a hammer, it is a blender.
+	if (tile != Point { missile.var2, missile.var3 }) {
+		missile.var2 = tile.x;
+		missile.var3 = tile.y;
+		CheckMissileCol(missile, GetMissileData(missile._mitype).damageType(), missile._midam, missile._midam,
+		    false, tile, /*dontDeleteOnCollision=*/true);
+	}
+
+	if (missile._mirange == 0) {
+		missile._miDelFlag = true;
+		return;
+	}
+	PutMissile(missile);
 }
 
 void ProcessEtherealize(Missile &missile)

@@ -46,6 +46,7 @@
 #include "oracool/oracool.h"
 #include "oracool/sprite_import.h"
 #include "oracool/paladin_melee.h"
+#include "oracool/paladin_ranged.h"
 #include "oracool/xp_gain_indicator.h"
 #include "player.h"
 #include "playerdat.hpp"
@@ -3384,6 +3385,15 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			oracool::ArmMeleeSkill(std::nullopt);
 			LastMouseButtonAction = MouseActionType::Walk;
 			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
+			return;
+		}
+
+		// The skills that strike at a distance get their chance first. A successful cast is the whole
+		// action - no swing, no walk - and a refusal (unaffordable, no shield, not built yet) falls
+		// through to the swing below, which is the same "never does nothing" fallback the rest use.
+		if (oracool::CastRangedPaladinSkill(myPlayer, *skill, Monsters[pcursmonst].position.tile)) {
+			oracool::ArmMeleeSkill(std::nullopt);
+			LastMouseButtonAction = MouseActionType::Spell;
 			return;
 		}
 

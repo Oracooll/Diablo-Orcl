@@ -106,21 +106,14 @@ bool IsPaladinSkillTargetInRange(const Player &player, PaladinSkill skill)
 
 bool IsPaladinSkillImplemented(PaladinSkill skill)
 {
-	// Charge rides oracool/furious_charge.cpp; Zeal, Hammer of Faith and Shield Bash ride the shared
-	// melee hook in oracool/paladin_melee.cpp. The three that throw something are still art and a
-	// description.
-	switch (skill) {
-	case PaladinSkill::Charge:
-	case PaladinSkill::Zeal:
-	case PaladinSkill::HammerOfFaith:
-	case PaladinSkill::ShieldBash:
-		return true;
-	case PaladinSkill::BlessedShield:
-	case PaladinSkill::FistOfTheHeavens:
-	case PaladinSkill::BlessedHammer:
-		break;
-	}
-	return false;
+	// All seven, as of 2026-08-15. Charge rides oracool/furious_charge.cpp; Zeal, Hammer of Faith and
+	// Shield Bash ride the shared melee hook in oracool/paladin_melee.cpp; the other three are cast
+	// from oracool/paladin_ranged.cpp.
+	//
+	// Kept rather than deleted now that it always returns true: it is the one place that states which
+	// skills have mechanics, and the next skill added will start out without any.
+	(void)skill;
+	return true;
 }
 
 bool ClassHasPaladinSkills(const Player &player)

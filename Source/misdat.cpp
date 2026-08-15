@@ -138,6 +138,11 @@ const MissileData MissilesData[] = {
 /*BlueExplosion*/        { &AddMissileExplosion,    &ProcessMissileExplosion,     LS_FIRIMP2,  SFX_NONE,    MissileGraphicID::BlueFlareExplosion,   Physical,              MissileMovementDistribution::Disabled    },
 /*BlueExplosion2*/       { &AddMissileExplosion,    &ProcessMissileExplosion,     LS_FIRIMP2,  SFX_NONE,    MissileGraphicID::BlueFlareExplosion2,  Physical,              MissileMovementDistribution::Disabled    },
 /*OrangeExplosion*/      { &AddMissileExplosion,    &ProcessMissileExplosion,     LS_FIRIMP2,  SFX_NONE,    MissileGraphicID::OrangeFlareExplosion, Physical,              MissileMovementDistribution::Disabled    },
+// Oracool: the Paladin's Blessed Hammer. Movement Disabled because it does NOT travel on a velocity
+// vector - ProcessBlessedHammer writes position.traveled itself each tick from an angle and a radius,
+// which is the one thing no other missile in this table does. Fireball's sprite is a placeholder for
+// the user's own art (their "reuse now, swap later"); Physical because it is a hammer.
+/*BlessedHammer*/        { &AddBlessedHammer,       &ProcessBlessedHammer,        IS_CAST2,    SFX_NONE,    MissileGraphicID::Fireball,             Physical,              MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 
