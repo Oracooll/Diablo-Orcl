@@ -6,6 +6,7 @@
 #include "monhealthbar.h"
 
 #include <cstdint>
+#include <string>
 
 #include <fmt/format.h>
 
@@ -16,6 +17,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "options.h"
+#include "oracool/lesser_uniques.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -131,14 +133,31 @@ void DrawMonsterHealthBar(const Surface &out)
 	}
 
 	UiFlags style = UiFlags::AlignCenter | UiFlags::VerticalCenter;
-	DrawString(out, monster.name(), { position + Displacement { -1, 1 }, { width, height } }, { style | UiFlags::ColorBlack });
+
+	// Oracool: a lesser unique wears its modifier in front of its name - "Warded Rotfeast the
+	// Hungry". This bar is the ONLY place a monster's name reaches the player (the cursor tooltip
+	// stopped carrying monsters on an earlier request), so it is the only place the modifier can be
+	// learned, and learning it is the whole point: a champion the player cannot read is just a
+	// monster that unaccountably takes longer to kill.
+	//
+	// It is also what stands in for the "shrunken in size" the user asked for. There is no scale
+	// parameter anywhere in the CLX renderer - see the design doc - and legibility, not literal size,
+	// is what that request was after.
+	std::string displayName;
+	string_view name = monster.name();
+	if (monster.lesserAffix != LesserUniqueAffix::None) {
+		displayName = StrCat(_(oracool::GetLesserUniqueAffixName(monster.lesserAffix)), " ", name);
+		name = displayName;
+	}
+
+	DrawString(out, name, { position + Displacement { -1, 1 }, { width, height } }, { style | UiFlags::ColorBlack });
 	if (monster.isUnique())
 		style |= UiFlags::ColorWhitegold;
 	else if (monster.leader != Monster::NoLeader)
 		style |= UiFlags::ColorBlue;
 	else
 		style |= UiFlags::ColorWhite;
-	DrawString(out, monster.name(), { position, { width, height } }, { style });
+	DrawString(out, name, { position, { width, height } }, { style });
 
 	if (multiplier > 0)
 		DrawString(out, StrCat("x", multiplier), { position, { width - 2, height } }, { UiFlags::ColorWhite | UiFlags::AlignRight | UiFlags::VerticalCenter });

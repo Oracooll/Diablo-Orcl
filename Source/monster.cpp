@@ -1030,6 +1030,13 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		CreateSpellBook(monster.position.tile, SpellID::Apocalypse, sendmsg, false);
 	} else if (!monster.isPlayerMinion()) {
 		SpawnItem(monster, monster.position.tile, sendmsg);
+		// Oracool: a champion is the reason to fight it, which is what D2 and D3 both understood.
+		// A SECOND roll on the same table rather than a better single one - no new item code, just
+		// another ticket in the lottery the fork already runs (Unique, then Primal, then Buffed
+		// Unique, then Rare, all in Oracool options). Two chances at that ladder is a materially
+		// better drop without inventing a rarity tier nobody has balanced.
+		if (monster.lesserAffix != LesserUniqueAffix::None)
+			SpawnItem(monster, monster.position.tile, sendmsg);
 	}
 }
 
