@@ -692,14 +692,18 @@ void GetBookSpell(Item &item, int lvl)
 			bs = static_cast<SpellID>(s);
 		}
 		s++;
-		if (!gbIsMultiplayer) {
-			if (s == static_cast<int8_t>(SpellID::Resurrect))
-				s = static_cast<int8_t>(SpellID::Telekinesis);
-		}
-		if (!gbIsMultiplayer) {
-			if (s == static_cast<int8_t>(SpellID::HealOther))
-				s = static_cast<int8_t>(SpellID::BloodStar);
-		}
+		// Oracool: user request (2026-08-15) - Resurrect gets a book, so the skip that made its book
+		// undroppable had to go with it.
+		//
+		// Vanilla jumps the enum past Resurrect and Heal Other in single-player because both target
+		// ANOTHER player, which in a solo game means they can never be cast. That reasoning is sound
+		// and it is why the two are still skipped upstream - but this build is single-player only, so
+		// under it those two spells could never be obtained at all while still being listed in the
+		// book. That is the "listed but unlearnable" state Search and Etherealize were just cleaned
+		// out of, so keeping it here would have re-created the thing we removed.
+		//
+		// Both are lifted together: they were one decision and share one justification. What they do
+		// when cast solo is unchanged - this only decides whether their books can drop.
 		if (s == maxSpells)
 			s = 1;
 	}

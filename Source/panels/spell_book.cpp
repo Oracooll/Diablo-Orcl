@@ -38,21 +38,32 @@ namespace devilution {
 
 namespace {
 
-const size_t SpellBookPages = 6;
+// Oracool: 6 -> 7 on 2026-08-15, when fifteen spells that had no book were given one. The table is
+// no longer a LAYOUT - the list sorts itself by requirement (see BuildSpellRows) - so a "page" is
+// now only a block of the set, and the split that still matters is which blocks a plain Diablo game
+// reads. Pages 0-4 are Diablo's, 5-6 are Hellfire's; BuildSpellRows stops at 5 or 7 accordingly.
+const size_t SpellBookPages = 7;
 const size_t SpellBookPageEntries = 7;
+/** @brief Pages 0..DiabloSpellPages-1 hold spells a non-Hellfire game must also be able to find. */
+const size_t DiabloSpellPages = 5;
 
 /** Maps from spellbook page number and position to SpellID. */
 const SpellID SpellPages[SpellBookPages][SpellBookPageEntries] = {
-	{ SpellID::Null, SpellID::Firebolt, SpellID::ChargedBolt, SpellID::HolyBolt, SpellID::Healing, SpellID::HealOther, SpellID::Inferno },
+	// --- Diablo's, pages 0-4 -------------------------------------------------------------------
+	// Slot 0 was SpellID::Null, the placeholder the class skill used to occupy; the class skills
+	// moved to their own sheet on 2026-08-15, so it takes a real spell now.
+	{ SpellID::Infravision, SpellID::Firebolt, SpellID::ChargedBolt, SpellID::HolyBolt, SpellID::Healing, SpellID::HealOther, SpellID::Inferno },
 	{ SpellID::Resurrect, SpellID::FireWall, SpellID::Telekinesis, SpellID::Lightning, SpellID::TownPortal, SpellID::Flash, SpellID::StoneCurse },
 	{ SpellID::Phasing, SpellID::ManaShield, SpellID::Elemental, SpellID::Fireball, SpellID::FlameWave, SpellID::ChainLightning, SpellID::Guardian },
 	{ SpellID::Nova, SpellID::Golem, SpellID::Teleport, SpellID::Apocalypse, SpellID::BoneSpirit, SpellID::BloodStar, SpellID::Etherealize },
-	// Search was here, and it was the one class skill that also sat in the book's page table - so a
-	// Monk saw it on two sheets and everyone else saw a row they could never learn (it has no book).
-	// It is a Class Skill now, like the other five. Its slot takes Doom Serpents, one of the four
-	// spells given books on 2026-08-15.
-	{ SpellID::LightningWall, SpellID::Immolation, SpellID::Warp, SpellID::Reflect, SpellID::Berserk, SpellID::RingOfFire, SpellID::DoomSerpents },
-	{ SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid }
+	// The three the original developers left as name-only stubs - they carry MissileID::Null in both
+	// slots, so casting one does nothing at all. Listed and given books on the user's explicit call
+	// (2026-08-15), to be given substance later. Search used to sit on the old page 4 and is a Class
+	// Skill now.
+	{ SpellID::DoomSerpents, SpellID::BloodRitual, SpellID::Invisibility, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid },
+	// --- Hellfire's, pages 5-6 -----------------------------------------------------------------
+	{ SpellID::LightningWall, SpellID::Immolation, SpellID::Warp, SpellID::Reflect, SpellID::Berserk, SpellID::RingOfFire, SpellID::Mana },
+	{ SpellID::Magi, SpellID::Jester, SpellID::RuneOfFire, SpellID::RuneOfLight, SpellID::RuneOfNova, SpellID::RuneOfImmolation, SpellID::RuneOfStone }
 };
 
 /**
@@ -100,7 +111,7 @@ constexpr size_t MaxSpellRows = SpellBookPages * SpellBookPageEntries;
  */
 size_t BuildSpellRows(SpellID *rows)
 {
-	const size_t pages = gbIsHellfire ? 5 : 4;
+	const size_t pages = gbIsHellfire ? SpellBookPages : DiabloSpellPages;
 	size_t count = 0;
 	for (size_t page = 0; page < pages; page++) {
 		for (size_t entry = 0; entry < SpellBookPageEntries; entry++) {
