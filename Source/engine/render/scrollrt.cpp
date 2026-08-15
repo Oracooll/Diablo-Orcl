@@ -47,6 +47,7 @@
 #include "oracool/xp_counter.h"
 #include "oracool/xp_gain_indicator.h"
 #include "panels/charpanel.hpp"
+#include "panels/spell_book.hpp"
 #include "plrmsg.h"
 #include "qol/chatlog.h"
 #include "qol/floatingnumbers.h"
@@ -1965,6 +1966,9 @@ void DrawAndBlit()
 #ifdef _DEBUG
 	if (!DebugClearUi) {
 #endif
+		// Above the HUD, deliberately. The Abilities window is drawn far earlier in this function, so
+		// its hover panel has to be deferred to here or the belt and orbs paint over it.
+		DrawAbilityHoverPanel(out);
 		oracool::DrawCursorTooltip(out);
 		DrawCursor(out);
 		DrawFPS(out);

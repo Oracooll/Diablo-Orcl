@@ -54,4 +54,15 @@ void FreeSpellBook();
 void CheckSBook();
 void DrawSpellBook(const Surface &out);
 
+/**
+ * @brief Draws the hovered row's description panel, if any, and clears it.
+ *
+ * Separate from DrawSpellBook so the frame can put it ABOVE the HUD. The window itself is drawn
+ * early - before the plate, the belt and the orbs - so a panel drawn with it is painted over by
+ * them. Call this beside the cursor tooltip, which occupies the same "above everything" slot.
+ *
+ * Safe to call on a frame where the window is closed: it simply has nothing pending.
+ */
+void DrawAbilityHoverPanel(const Surface &out);
+
 } // namespace devilution

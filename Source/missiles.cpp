@@ -805,6 +805,21 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 
 	Player &myPlayer = *MyPlayer;
 
+	// Oracool: bug postmortem (2026-08-15) - the Abilities window showed "Damage: -858993460" for
+	// Mana, which is 0xCCCCCCCC, MSVC's uninitialised-stack marker.
+	//
+	// The switch below has an explicit "no damage" bucket that writes -1, but it was never
+	// EXHAUSTIVE: Mana, the Magi, the Jester and four of the five runes match no case at all, so the
+	// function returned without writing either output and the caller printed its own uninitialised
+	// locals. That was invisible until those spells became listable, which happened this morning when
+	// they were given books.
+	//
+	// Defaulting here rather than adding them to the bucket makes the contract total - "-1 means no
+	// damage" now holds for every SpellID, including any added later - and no caller needed changing,
+	// because they all already test for -1.
+	*mind = -1;
+	*maxd = -1;
+
 	switch (i) {
 	case SpellID::Firebolt:
 		*mind = (myPlayer._pMagic / 8) + sl + 1;

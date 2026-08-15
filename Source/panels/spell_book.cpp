@@ -160,12 +160,19 @@ size_t BuildSpellRows(SpellID *rows)
  */
 size_t BuildClassSkillRows(SpellID *rows)
 {
+	// All six, unconditionally. Oracool: user request (2026-08-15) - "Class skills sheet is missing
+	// Repair Skill. Bring it back. New paladin skills we introduce or have already introduced will be
+	// independent, not replacing Repair Skill."
+	//
+	// This used to skip Item Repair while it was rendering as Charge, because Charge is implemented
+	// as a behaviour substitution ON that slot - so listing both would have been one ability under
+	// two names. Repair is now always listed, which makes the sheet honest about what the class
+	// actually has; the remaining half of the user's instruction - Charge getting a slot of its own
+	// so it stops displacing Repair at all - is a deeper change and is NOT done here. See the note in
+	// oracool/furious_charge.cpp.
 	size_t count = 0;
-	for (const SpellID skill : oracool::ClassSkills) {
-		if (oracool::IsFuriousChargeSpell(skill))
-			continue;
+	for (const SpellID skill : oracool::ClassSkills)
 		rows[count++] = skill;
-	}
 	return count;
 }
 
@@ -266,6 +273,16 @@ enum class AbilitySheet : uint8_t {
 constexpr size_t AbilitySheetCount = 5;
 
 AbilitySheet CurrentSheet = AbilitySheet::Spells;
+
+/**
+ * @brief The hover panel's text and anchor, handed forward to the end of the frame.
+ *
+ * See the note at the bottom of DrawHoverFeedback: the panel has to be drawn after the HUD, and the
+ * Abilities window is drawn long before it.
+ */
+std::string PendingHoverText;
+Rectangle PendingHoverAnchor;
+bool HasPendingHover = false;
 /** @brief Scroll offset per sheet, so switching sheets does not lose your place in the others. */
 int ScrollOffset[AbilitySheetCount] = {};
 int MaxScrollOffset = 0;
@@ -554,8 +571,10 @@ std::string GetSpellDetail(SpellID sn, bool known)
 		return fmt::format(fmt::runtime(pgettext("spellbook", "Mana: {:d}")), mana) + "   "
 		    + std::string(_(/* TRANSLATORS: UI constraints, keep short please.*/ "Dmg: 1/3 target hp"));
 
-	int min;
-	int max;
+	// Initialised even though GetDamageAmt now always writes both - this is the call site that
+	// printed 0xCCCCCCCC when it did not.
+	int min = -1;
+	int max = -1;
 	GetDamageAmt(sn, &min, &max);
 	std::string cost = fmt::format(fmt::runtime(pgettext("spellbook", "Mana: {:d}")), mana);
 	if (min == -1)
@@ -1063,13 +1082,32 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	// Local to the content subregion, which is what clips it to the scrolling area.
 	oracool::DrawHoverOutline(content, { { 0, rowTop - scroll }, { AbilitiesContentRightLimit, rowHeight } });
 
-	// The panel is placed against the row in SCREEN coordinates, and drawn into `out` so it can
-	// extend past the window's own edges.
+	// DEFERRED, not drawn here. Oracool: user request (2026-08-15) - "pop-up windows to be rendered
+	// on top of all including bottom hud, to be readable." The Abilities window is drawn early in the
+	// frame (scrollrt.cpp ~1436), well before the HUD plate and the orbs, so a panel drawn at this
+	// point is painted over by them - which is exactly what a screenshot showed, the panel's lower
+	// half swallowed by the belt.
+	//
+	// So the row hands its text to DrawAbilityHoverPanel, which the frame calls beside the cursor
+	// tooltip - the slot already reserved for "above everything". The OUTLINE stays here on purpose:
+	// it belongs under the row's own icon and text, and inside the clipped content subregion.
 	if (!description.empty()) {
-		const Rectangle anchor { { contentRect.position.x, contentRect.position.y + rowTop - scroll },
+		PendingHoverText = description;
+		PendingHoverAnchor = { { contentRect.position.x, contentRect.position.y + rowTop - scroll },
 			{ AbilitiesContentRightLimit, rowHeight } };
-		oracool::DrawHoverPanel(out, description, anchor);
+		HasPendingHover = true;
 	}
+}
+
+void DrawAbilityHoverPanel(const Surface &out)
+{
+	if (!HasPendingHover)
+		return;
+	// Cleared unconditionally, before the draw rather than after: this is the only consumer, and if
+	// it is ever called on a frame where the window closed after setting it, the panel must not
+	// survive into the next one.
+	HasPendingHover = false;
+	oracool::DrawHoverPanel(out, PendingHoverText, PendingHoverAnchor);
 }
 
 void DrawSpellBook(const Surface &out)
