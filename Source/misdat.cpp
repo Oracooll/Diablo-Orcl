@@ -143,6 +143,14 @@ const MissileData MissilesData[] = {
 // which is the one thing no other missile in this table does. Fireball's sprite is a placeholder for
 // the user's own art (their "reuse now, swap later"); Physical because it is a hammer.
 /*BlessedHammer*/        { &AddBlessedHammer,       &ProcessBlessedHammer,        IS_CAST2,    SFX_NONE,    MissileGraphicID::Fireball,             Physical,              MissileMovementDistribution::Disabled    },
+// Oracool: Blessed Shield's throw. HolyBolt's sprite is a placeholder - the game ships no shield
+// missile art at all, and the one shield the user asked for lives in the ITEM cursor sheet as a
+// static 2x3 icon with no spin frames. Holy's bright bolt is at least the right register for a
+// BLESSED throw. Blockable so a wall stops it, like every other thrown thing.
+/*BlessedShieldThrow*/   { &AddBlessedShieldThrow,  &ProcessBlessedShieldThrow,   IS_CAST2,    SFX_NONE,    MissileGraphicID::HolyBolt,             Physical,              MissileMovementDistribution::Blockable   },
+// Oracool: Fist of the Heavens' mini-Nova bolt - NovaBall's own add and process functions with
+// ChargedBolt's smaller sprite. See the note at MissileID::MiniNovaBall.
+/*MiniNovaBall*/         { &AddNovaBall,            &ProcessNovaBall,             SFX_NONE,    SFX_NONE,    MissileGraphicID::ChargedBolt,          Lightning,             MissileMovementDistribution::Unblockable },
 	// clang-format on
 };
 

@@ -266,6 +266,17 @@ enum class MissileID : int8_t {
 	 * indexed by this enum positionally and every existing value has to keep its place.
 	 */
 	BlessedHammer,
+	/** Oracool: Blessed Shield's thrown projectile. Splashes on impact - see ProcessBlessedShieldThrow. */
+	BlessedShieldThrow,
+	/**
+	 * Oracool: Fist of the Heavens' mini-Nova bolt.
+	 *
+	 * NovaBall's behaviour with ChargedBolt's sprite, which is the file "miniltng" - literally mini
+	 * lightning. That is the whole of "shrunken down animation of Nova": the ring geometry and the
+	 * travel distance are already what the user asked for (ProcessNovaCommon's radius is 4 tiles),
+	 * so only the bolt needed to get smaller, and the art for that already shipped.
+	 */
+	MiniNovaBall,
 	Null = -1,
 	// clang-format on
 };

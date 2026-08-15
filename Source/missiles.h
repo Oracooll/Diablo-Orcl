@@ -370,6 +370,7 @@ void AddFireWallControl(Missile &missile, AddMissileParameter &parameter);
 void AddInfravision(Missile &missile, AddMissileParameter &parameter);
 void AddEtherealize(Missile &missile, AddMissileParameter &parameter);
 void AddBlessedHammer(Missile &missile, AddMissileParameter &parameter);
+void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter);
 
 /**
  * var1: X coordinate of the destination
@@ -436,6 +437,7 @@ void ProcessFireWallControl(Missile &missile);
 void ProcessInfravision(Missile &missile);
 void ProcessEtherealize(Missile &missile);
 void ProcessBlessedHammer(Missile &missile);
+void ProcessBlessedShieldThrow(Missile &missile);
 void ProcessApocalypse(Missile &missile);
 void ProcessFlameWaveControl(Missile &missile);
 void ProcessNova(Missile &missile);

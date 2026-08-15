@@ -62,6 +62,17 @@ int AddClassHealingBonus(int hp, HeroClass heroClass)
  * The angle step gives a little over three full turns in that time, which is what makes it read as a
  * spiral rather than as a wide arc.
  */
+/** @brief The pace AddHolyBolt launches at - Blessed Shield is specified as twice it. */
+constexpr int HolyBoltSpeed = 16;
+constexpr int BlessedShieldSpeedMultiplier = 2;
+/**
+ * @brief How long a thrown shield stays in the air.
+ *
+ * Comfortably longer than the skill's 10-tile reach needs at this speed; the throw ends when it hits
+ * something, and this is only the backstop for a throw that hits nothing at all.
+ */
+constexpr int BlessedShieldRangeTicks = 255;
+
 constexpr int BlessedHammerTicks = 60;
 constexpr float BlessedHammerPixelsPerTick = 2.2F;
 constexpr float BlessedHammerRadiansPerTick = 0.35F;
@@ -2559,6 +2570,52 @@ void AddInfravision(Missile &missile, AddMissileParameter & /*parameter*/)
  * tile damaged, so one pass hurts a monster once rather than every frame it overlaps it; they start
  * on the caster's own tile so the hammer does not strike the ground it launched from.
  */
+/**
+ * @brief Oracool: Blessed Shield's throw - the shield leaves the hand at twice a Holy Bolt's pace.
+ *
+ * "with speed of 2x Holy Bolts move" (user, 2026-08-15). AddHolyBolt uses 16, so this uses 32; the
+ * number is written as the doubling rather than as 32 so the relationship survives a change to
+ * either.
+ */
+void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter)
+{
+	Point dst = parameter.dst;
+	if (missile.position.start == dst)
+		dst += parameter.midir;
+	UpdateMissileVelocity(missile, dst, HolyBoltSpeed * BlessedShieldSpeedMultiplier);
+	missile._mirange = BlessedShieldRangeTicks;
+	SetMissDir(missile, GetDirection16(missile.position.start, dst));
+}
+
+/**
+ * @brief Carries the thrown shield, and bursts it over one tile of ground where it lands.
+ *
+ * "causing splash dmg with range 1 on hit" - so the impact is not the shield's own collision alone,
+ * it is a small blast centred on it. ApocalypseBoom is the engine's one-tile blast, and dropping a
+ * ring of them is the same pattern Apocalypse itself uses.
+ */
+void ProcessBlessedShieldThrow(Missile &missile)
+{
+	missile._mirange--;
+	MoveMissileAndCheckMissileCol(missile, GetMissileData(missile._mitype).damageType(),
+	    missile._midam, missile._midam, true, true);
+
+	if (missile._miHitFlag || missile._mirange == 0) {
+		missile._miDelFlag = true;
+		const Point impact = missile.position.tile;
+		for (int dy = -1; dy <= 1; dy++) {
+			for (int dx = -1; dx <= 1; dx++) {
+				const Point tile = impact + Displacement { dx, dy };
+				if (!InDungeonBounds(tile))
+					continue;
+				AddMissile(tile, tile, Direction::South, MissileID::ApocalypseBoom, missile._micaster,
+				    missile._misource, missile._midam, missile._mispllvl);
+			}
+		}
+	}
+	PutMissile(missile);
+}
+
 void AddBlessedHammer(Missile &missile, AddMissileParameter & /*parameter*/)
 {
 	missile._mirange = BlessedHammerTicks;

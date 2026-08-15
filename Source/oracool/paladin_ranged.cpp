@@ -54,19 +54,27 @@ void DropBlast(const Player &player, Point tile, int damage, int spellLevel)
 
 /** @brief Fist of the Heavens' blast on the target's own tile, as a percentage of weapon damage. */
 constexpr int FistCentrePercent = 150;
-/** @brief And on each of the eight squares around it - it is the edge of the impact, not the fist. */
-constexpr int FistSplashPercent = 75;
+/** @brief And what each mini-Nova bolt carries - it is the shockwave, not the fist. */
+constexpr int FistNovaPercent = 60;
 
-/** @brief Blessed Shield's damage to the enemy it is thrown at. */
-constexpr int BlessedShieldPrimaryPercent = 125;
-/** @brief And to each enemy it carries on to. */
-constexpr int BlessedShieldCarryPercent = 100;
-/** @brief How many further enemies one throw can reach. */
-constexpr int BlessedShieldCarryTargets = 4;
-/** @brief How far from the first enemy the shield will look for the rest of the crowd, in tiles. */
-constexpr int BlessedShieldCarryRange = 3;
+/** @brief Blessed Shield's damage, as a percentage of weapon damage. */
+constexpr int BlessedShieldPercent = 125;
 
-/** @brief A divine fist lands on the target and shakes the ground around it. */
+/**
+ * @brief A divine fist lands on the target, and lightning runs out from where it struck.
+ *
+ * User spec (2026-08-15): the impact, then "cast Mini-Nova spell at cursor location [...] with dmg
+ * according to equipped weapon and travel distance of lightnings of 4 tiles".
+ *
+ * The 4 tiles needed no work: ProcessNovaCommon already fires its bolts at a radius-4 ring, so
+ * vanilla Nova's reach IS the number asked for. What "mini" needed was a smaller bolt, and that art
+ * also already shipped - MissileID::MiniNovaBall is NovaBall's behaviour with ChargedBolt's sprite,
+ * whose file is literally named "miniltng".
+ *
+ * NOT YET the falling mace. The user believed an animation existed for it; all 42 missile sprites
+ * are accounted for and none is a mace, and the item art is a static inventory icon with no frames
+ * to fall. The impact blast stands in until that art is made - see the dev report.
+ */
 bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 {
 	const int damage = RollWeaponDamage(player);
@@ -74,54 +82,50 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 		return false;
 
 	DropBlast(player, target, damage * FistCentrePercent / 100, spellLevel);
-	// The eight squares touching it. Drawn as separate blasts rather than as one big one because the
-	// engine has no big one - and because each then damages its own tile, which is the behaviour
-	// "splash damage on enemies nearby" describes.
-	for (int dy = -1; dy <= 1; dy++) {
-		for (int dx = -1; dx <= 1; dx++) {
-			if (dx == 0 && dy == 0)
-				continue;
-			DropBlast(player, target + Displacement { dx, dy }, damage * FistSplashPercent / 100, spellLevel);
+	// "Replace the sound on ground hit with the sound we use for SORT buttons" - IS_ISHIEL, the
+	// shield-into-slot sound the Stash's and the inventory's Sort buttons both play.
+	PlaySfxLoc(IS_ISHIEL, target);
+
+	// The ring, laid out exactly as ProcessNovaCommon does: a quarter arc mirrored into four, which
+	// is what gives Nova its round front rather than a square one.
+	constexpr std::array<WorldTileDisplacement, 9> quarterRadius = {
+		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
+	};
+	const int boltDamage = std::max(damage * FistNovaPercent / 100, 1);
+	for (WorldTileDisplacement quarterOffset : quarterRadius) {
+		const std::array<WorldTileDisplacement, 4> offsets {
+			quarterOffset, quarterOffset.flipXY(), quarterOffset.flipX(), quarterOffset.flipY()
+		};
+		for (WorldTileDisplacement offset : offsets) {
+			AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
+			    TARGET_MONSTERS, player.getId(), boltDamage, spellLevel);
 		}
 	}
 	return true;
 }
 
 /**
- * @brief A shield thrown into a crowd: the enemy aimed at, then the nearest few around it.
+ * @brief Hurls the shield at the target, to burst over a tile's radius where it lands.
  *
- * The carry targets are chosen by distance from the FIRST enemy rather than from the player, which
- * is what makes it read as a shield bouncing through a knot of monsters instead of as a second area
- * blast centred on the caster.
+ * User spec (2026-08-15): thrown at the monster, travelling at twice a Holy Bolt's speed, "causing
+ * splash dmg with range 1 on hit". A real travelling missile now, where the first version dropped
+ * blasts on several enemies at once - which delivered damage to a crowd but never actually threw
+ * anything.
+ *
+ * The spin and the brighter shield are NOT here: the game ships no shield missile art, and the item
+ * shield is a static inventory icon with no frames to spin. HolyBolt's bright bolt stands in, which
+ * is at least the right register for a blessed throw. See the dev report.
  */
 bool CastBlessedShield(Player &player, Point target, int spellLevel)
 {
 	// No shield check here any more: requiresShield is part of IsPaladinSkillUnlocked, which
 	// CanUsePaladinSkill already asked before this ran, so a shieldless Paladin never gets here.
-	Monster *primary = FindMonsterAtPosition(target);
-	if (primary == nullptr)
-		return false;
-
-	// Gathered before anything is applied: killing a monster mid-scan reorders ActiveMonsters, and
-	// the mana must not be charged until the throw is committed.
-	Monster *carried[BlessedShieldCarryTargets] = {};
-	int found = 0;
-	for (size_t i = 0; i < ActiveMonsterCount && found < BlessedShieldCarryTargets; i++) {
-		Monster &other = Monsters[ActiveMonsters[i]];
-		if (&other == primary || !other.isPossibleToHit())
-			continue;
-		if (other.position.tile.WalkingDistance(primary->position.tile) > BlessedShieldCarryRange)
-			continue;
-		carried[found++] = &other;
-	}
-
-	const int damage = RollWeaponDamage(player);
+	const int damage = RollWeaponDamage(player) * BlessedShieldPercent / 100;
 	if (!SpendPaladinSkillMana(player, PaladinSkill::BlessedShield))
 		return false;
 
-	DropBlast(player, primary->position.tile, damage * BlessedShieldPrimaryPercent / 100, spellLevel);
-	for (int i = 0; i < found; i++)
-		DropBlast(player, carried[i]->position.tile, damage * BlessedShieldCarryPercent / 100, spellLevel);
+	AddMissile(player.position.tile, target, player._pdir, MissileID::BlessedShieldThrow,
+	    TARGET_MONSTERS, player.getId(), std::max(damage, 1), spellLevel);
 	return true;
 }
 
