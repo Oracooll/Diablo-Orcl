@@ -235,6 +235,27 @@ bool ProcessInput()
 	return true;
 }
 
+/**
+ * @brief Whether the cursor is over something the world lets you ACT on, rather than fight.
+ *
+ * Oracool: user report (2026-08-15) - a skill readied on the left button made items, doors, shrines
+ * and bookstands unclickable, because the skill dispatch skipped LeftMouseCmd and LeftMouseCmd is
+ * where all of them are handled. This is the test that lets interaction win.
+ *
+ * Monsters are deliberately absent: attacking one IS the interaction there, and that is what the
+ * readied skill is for. Townspeople are present - pcursmonst covers them too, so the town check is
+ * what separates "talk to Griswold" from "hit the thing in front of me".
+ */
+bool IsInteractableUnderCursor()
+{
+	if (pcursitem != -1)
+		return true;
+	if (ObjectUnderCursor != nullptr && !ObjectUnderCursor->IsDisabled())
+		return true;
+	// In town every "monster" is a townsperson, so a click on one is a conversation.
+	return leveltype == DTYPE_TOWN && pcursmonst != -1;
+}
+
 void LeftMouseCmd(bool bShift)
 {
 	bool bNear;
@@ -470,15 +491,20 @@ void LeftMouseDown(uint16_t modState)
 				CheckLvlBtn();
 				if (!lvlbtndown) {
 					// Oracool: user request (2026-08-15) - a spell assigned to the LEFT button casts
-					// instead of swinging. Shift still forces the plain attack, exactly as it does
-					// for the right button, so there is always a way to hit the thing in front of
-					// you without unassigning anything.
+					// instead of swinging. Routed through the same CheckPlrSpell the right button
+					// uses, just with the other pair of fields, so casting rules, mana, targeting
+					// and the Charge intercept all behave identically on both buttons.
 					//
-					// Routed through the same CheckPlrSpell the right button uses, just with the
-					// other pair of fields, so casting rules, mana, targeting and the Charge
-					// intercept all behave identically on both buttons rather than being reimplemented.
+					// INTERACTION WINS (user report, 2026-08-15: "Left Click to always interact with
+					// interact-able objects [...] Currently i cant interact with anything if i have a
+					// skill on LMB"). The world's own affordances - an item to pick up, a door, a
+					// shrine, a bookstand, a townsperson to talk to - are not things a readied skill
+					// should be able to switch off, and this dispatch used to switch all of them off
+					// at once by skipping LeftMouseCmd, which is where every one of them is handled.
+					// A MONSTER under the cursor is deliberately not in that set: attacking it IS the
+					// interaction, and that is what the skill is for.
 					Player &lmbPlayer = *MyPlayer;
-					if (!isShiftHeld && IsValidSpell(lmbPlayer._pLRSpell))
+					if (IsValidSpell(lmbPlayer._pLRSpell) && !IsInteractableUnderCursor())
 						CheckPlrSpell(false, lmbPlayer._pLRSpell, lmbPlayer._pLRSplType);
 					else
 						LeftMouseCmd(isShiftHeld);

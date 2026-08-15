@@ -736,10 +736,15 @@ void DrawAttackRow(const Surface &content, size_t index, int top)
 	// blended icon, not by the plate under it.
 	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active, oracool::SkillPlateTint::Pink);
 
-	// Regular Attack is the row that MEANS "this button swings", so a button holding no spell is a
-	// button assigned to this row - ring it. Fist Attack never carries an assignment: which of the
-	// two icons you get is decided by what is in your hand, not by a click (see CheckSBook).
-	if (icon == oracool::AttackIcon::Regular)
+	// The ring goes on whichever row is what the button ACTUALLY does - which is the active one, not
+	// Regular unconditionally.
+	//
+	// Oracool: user bug report (2026-08-15) - "if only shield is equipped LMB shows Fist Attack, but
+	// skill sheet shows RegAtak selected". The well has always drawn BasicAttackIcon's answer, and a
+	// shield is not a weapon, so shield-only draws the fist; the sheet meanwhile ringed Regular
+	// whatever was equipped. Two readings of one state. `active` is that same answer, so the two
+	// cannot disagree again.
+	if (active)
 		DrawAssignmentRings(content, { iconPos, iconSize }, SpellID::Invalid, SpellType::Invalid);
 
 	// Oracool: user request (2026-08-15) - "Remove all text from Skills Ability sheet. I will later
@@ -1372,24 +1377,23 @@ void CheckSBook(bool assignToRightButton)
 			if (y >= top && y < top + height) {
 				switch (rows[i].kind) {
 				case SkillRowKind::Attack:
-					// Regular Attack readies the basic attack, which in this engine means clearing
-					// the readied spell - that IS the state in which a click swings the weapon. It
-					// is worth having as a row because there was previously no way back to it once a
-					// spell was readied, short of the undiscoverable shift-click on the RMB well.
+					// Either attack row readies the basic attack, which in this engine means clearing
+					// the readied spell - that IS the state in which a click swings.
 					//
-					// Fist Attack is inert on purpose (user request): it is the same underlying
-					// state, and which of the two icons you get is decided by what is in your hand,
-					// not by a click. Its row exists to say so.
-					if (rows[i].attack == oracool::AttackIcon::Regular) {
-						// Clears whichever button you clicked it with, matching how assignment works
-						// below - so Regular Attack is how you get either button back to swinging.
-						if (assignToRightButton) {
-							ClearReadiedSpell(*MyPlayer);
-						} else {
-							MyPlayer->_pLRSpell = SpellID::Invalid;
-							MyPlayer->_pLRSplType = SpellType::Invalid;
-							RedrawEverything();
-						}
+					// BOTH rows, where Fist Attack used to be inert. They are one state shown as two
+					// pictures, and which picture you get is decided by what is in your hand, not by
+					// a click. Leaving Fist inert meant a player with only a shield equipped - whose
+					// well correctly shows the fist - clicked the row matching their own HUD and had
+					// nothing happen. See the same bug's other half in DrawAttackRow.
+					//
+					// Clears whichever button you clicked it with, matching how assignment works
+					// below, so either row is the way back to swinging on either button.
+					if (assignToRightButton) {
+						ClearReadiedSpell(*MyPlayer);
+					} else {
+						MyPlayer->_pLRSpell = SpellID::Invalid;
+						MyPlayer->_pLRSplType = SpellType::Invalid;
+						RedrawEverything();
 					}
 					return;
 				case SkillRowKind::Spell:

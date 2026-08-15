@@ -3371,18 +3371,24 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// through the missile system, so it would find MissileID::Null in both slots, spawn nothing, and
 	// then call ConsumeSpell - charging mana for no effect.
 	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spellID); skill.has_value()) {
-		// Shift is the engine-wide "swing where I point, ignore what is readied", so it stays a plain
-		// attack here rather than becoming a walk - and disarms the skill, since that is what
-		// ignoring what is readied means.
-		if (isShiftHeld) {
-			oracool::ArmMeleeSkill(std::nullopt);
-			return;
-		}
+		// Oracool: user correction (2026-08-15) - "LMB/RMB Clicks + Shift - as designed by Blizzard -
+		// to always cast spell/skill, no matter what as long as we are not breaking other hard
+		// disablers". Shift used to force a plain attack here and disarm the skill, on the reading
+		// that it means "ignore what is readied". It means the opposite: act, now, without walking
+		// anywhere first. So it is no longer an early-out at all - it simply does not stop the skill.
+		//
+		// The hard disablers below still hold: the level gate, the mana price, a missing shield, and
+		// the range test. Shift forces the ATTEMPT, not the outcome.
 
 		if (!oracool::IsPaladinSkillTargetInRange(myPlayer, *skill)) {
-			// Disarmed on the way to a walk: nothing is being swung, and leaving the latch set would
-			// let the NEXT swing - however it was thrown - inherit this skill.
+			// Disarmed either way: nothing is being swung, and leaving the latch set would let the
+			// NEXT swing - however it was thrown - inherit this skill.
 			oracool::ArmMeleeSkill(std::nullopt);
+			// Out of range with shift down is the one case that does NOTHING. Walking there is the
+			// standing rule ("else - move command"), but shift's whole meaning is act without moving,
+			// so obeying both at once would mean disobeying shift.
+			if (isShiftHeld)
+				return;
 			LastMouseButtonAction = MouseActionType::Walk;
 			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
 			return;
