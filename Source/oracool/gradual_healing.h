@@ -23,6 +23,12 @@ namespace devilution::oracool {
 bool IsGradualHealingEnabled();
 
 /**
+ * @brief Clears any pending gradual heal/mana. Call when a game session starts, so a potion drunk
+ * in the last seconds of the previous session cannot drip onto the next character loaded.
+ */
+void ResetGradualHealing();
+
+/**
  * @brief Queues `amount` (in the game's 1/64 HP fixed-point units) of life to be delivered
  * gradually instead of instantly. Adds to, rather than replaces, whatever's already pending.
  */

@@ -61,6 +61,7 @@
 #include "nthread.h"
 #include "objects.h"
 #include "oracool/auto_save.h"
+#include "oracool/gradual_healing.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
@@ -167,8 +168,11 @@ bool was_ui_init = false;
 
 void StartGame(interface_mode uMsg)
 {
-	if (uMsg == WM_DIABNEWGAME || uMsg == WM_DIABLOADGAME)
+	if (uMsg == WM_DIABNEWGAME || uMsg == WM_DIABLOADGAME) {
 		oracool::ResetAutoSave();
+		// Same reason as the autosave clock: session state must not leak from the previous hero.
+		oracool::ResetGradualHealing();
+	}
 	CalcViewportGeometry();
 	cineflag = false;
 	InitCursor();

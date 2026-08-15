@@ -34,8 +34,9 @@ uint8_t PackReadiedSpell(SpellID spell)
 {
 	if (!IsValidSpell(spell))
 		return 0;
-	// +1 so that SpellID::Null (0) and "nothing readied" stay distinguishable. MAX_SPELLS is 53, so
-	// the largest value written is 53 and the byte never overflows.
+	// +1 so that SpellID::Null (0) and "nothing readied" stay distinguishable. MAX_SPELLS is 59 (it
+	// was 53 when this was written; Charge and the six Paladin skills grew it), so the largest value
+	// written is 59 and the byte never overflows.
 	return static_cast<uint8_t>(static_cast<int8_t>(spell) + 1);
 }
 

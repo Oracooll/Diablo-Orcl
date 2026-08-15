@@ -30,6 +30,19 @@ bool IsGradualHealingEnabled()
 	return *sgOptions.Oracool.gradualHealing && IsSinglePlayer();
 }
 
+void ResetGradualHealing()
+{
+	// Called when a game session starts (self-audit, 2026-08-15). These four are file-scope and
+	// nothing cleared them: a potion drunk in the last three seconds before quitting to the main
+	// menu left its remainder pending, and the next character loaded - a DIFFERENT character -
+	// inherited the tail of the heal. Small in magnitude, but health appearing from a previous
+	// hero's potion is exactly the kind of leak that surfaces as an unreproducible report later.
+	HealAmountRemaining = 0;
+	HealTicksRemaining = 0;
+	ManaAmountRemaining = 0;
+	ManaTicksRemaining = 0;
+}
+
 void QueueGradualHeal(int amount)
 {
 	HealAmountRemaining += amount;
