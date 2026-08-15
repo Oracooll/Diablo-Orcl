@@ -2474,6 +2474,19 @@ void LoadStash()
 	Stash.gold = file.NextLE<uint32_t>();
 
 	auto pages = file.NextLE<uint32_t>();
+	// Self-audit (2026-08-15): bound `pages` BEFORE the loop below trusts it. IsStashSizeValid
+	// rejects a torn file exactly, but it runs after the grids are read - so a corrupted count in
+	// the billions would spin this loop against an exhausted stream for minutes before the
+	// validation ever saw it. The file itself is the cheapest ceiling: a page costs at least its
+	// grid, so more pages than the whole file could hold is corruption, answered the same way the
+	// exact check answers it. This matters more here than in vanilla, whose stash is written once
+	// per session - this fork's autosave rewrites it constantly, so a torn write is a matter of time.
+	constexpr size_t PageSaveSize = sizeof(uint32_t) + StashGridColumns * StashGridRows * sizeof(uint16_t);
+	if (pages > file.Size() / PageSaveSize) {
+		Stash = {};
+		EventPlrMsg(_("Stash size invalid. If you attempt to access your stash, data will be overwritten!!"), UiFlags::ColorRed);
+		return;
+	}
 	for (unsigned i = 0; i < pages; i++) {
 		auto page = file.NextLE<uint32_t>();
 		for (auto &row : Stash.stashGrids[page]) {
@@ -2492,6 +2505,20 @@ void LoadStash()
 	Stash.stashList.resize(itemCount);
 	for (unsigned i = 0; i < itemCount; i++) {
 		LoadAndValidateItemData(file, Stash.stashList[i]);
+	}
+
+	// And the grids must agree with the list they were saved beside (self-audit, 2026-08-15): a cell
+	// is an index+1 into stashList, and GetItemIdAtPosition feeds it to a std::vector unchecked, so a
+	// cell past itemCount is an out-of-bounds read waiting on a hover. Same guard, same reasoning as
+	// LoadInventoryTabs' - the byte-size check above proves the file's SHAPE, not that its references
+	// point inside each other. A bad cell becomes an empty one; the items themselves are kept.
+	for (auto &[pageNumber, grid] : Stash.stashGrids) {
+		for (auto &column : grid) {
+			for (uint16_t &cell : column) {
+				if (cell > itemCount)
+					cell = 0;
+			}
+		}
 	}
 
 	Stash.SetPage(file.NextLE<uint32_t>());
@@ -2540,6 +2567,18 @@ void LoadInventoryTabs(Player &player)
 		const uint8_t itemCount = file.NextLE<uint8_t>();
 		if (itemCount > InventoryGridCells)
 			return; // implausible count; stop here, tabs already loaded stay loaded
+
+		// Self-audit (2026-08-15): the grid must agree with the count it was saved beside. A cell is
+		// an index+1 into InvTabList (negatives mark a multi-cell item's continuation), and a cell
+		// pointing past itemCount indexes items this record never wrote - values up to 127 would read
+		// past the 70-item array entirely. The main InvGrid shares this trust model, but it is written
+		// once per save slot where this file is rewritten on every autosave, so a torn write is a
+		// plausibility here, not a hypothetical. A bad cell becomes an empty one; the item list itself
+		// is untouched, so at worst an item loses its grid spot rather than the tab losing its items.
+		for (int8_t &cell : player.InvTabGrid[t]) {
+			if (abs(cell) > itemCount)
+				cell = 0;
+		}
 
 		player._pNumInvTab[t] = itemCount;
 		for (uint8_t i = 0; i < itemCount; i++) {
