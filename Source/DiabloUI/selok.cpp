@@ -14,11 +14,8 @@ namespace {
 
 char dialogText[256];
 
-/**
- * Oracool: the lone OK, drawn every frame - it is the only control on the screen, so it is always the
- * focused one and there is nothing to navigate between.
- */
-UiArtTextButton *OkButton = nullptr;
+// The lone OK used to be caught in a pointer here and have its focus drawn by hand every frame. The
+// shared focus rule marks it on entry instead, being the only focusable thing on the screen.
 
 } // namespace
 
@@ -41,7 +38,6 @@ void selok_Free()
 
 	vecSelOkDialog.clear();
 	vecSelOkItems.clear();
-	OkButton = nullptr;
 }
 
 void selok_Select(int /*value*/)
@@ -98,14 +94,11 @@ void UiSelOkDialog(const char *title, const char *body, bool background)
 	vecSelOkDialog.push_back(std::make_unique<UiArtText>(dialogText, bodyRect,
 	    UiFlags::AlignCenter | HeroListFontSize | UiFlags::ColorUiSilver));
 
-	// Centred on the action row's own line: a lone answer belongs in the middle of it, the way the
-	// delete prompt's two sit either side of the middle. Three cells rather than the row's usual four
-	// is what puts a single one dead centre - and keeps its click target 266px wide rather than the
-	// whole 800px strip, which a one-cell row would have made quietly clickable.
-	auto okButton = std::make_unique<UiArtTextButton>(_("OK"), &UiFocusNavigationSelect,
-	    HeroButtonRect(1, 3), HeroButtonFlags);
-	OkButton = okButton.get();
-	vecSelOkItems.push_back(std::move(okButton));
+	// Zone 2, where OK is on every other screen. This used to quarter the row into thirds to put its
+	// single button dead centre; under the user's zone rule OK has a place and does not move to suit
+	// the number of buttons beside it - here there simply are none.
+	vecSelOkItems.push_back(std::make_unique<UiArtTextButton>(_("OK"), &UiFocusNavigationSelect,
+	    HeroButtonRect(OkButtonIndex), HeroButtonFlags));
 
 	UiInitList(nullptr, selok_Select, selok_Esc, vecSelOkItems, false);
 
@@ -113,8 +106,6 @@ void UiSelOkDialog(const char *title, const char *body, bool background)
 	while (!selok_endMenu) {
 		UiClearScreen();
 		UiRenderItems(vecSelOkDialog);
-		if (OkButton != nullptr)
-			DrawFocusGlow(*OkButton);
 		UiPollAndRender();
 	}
 

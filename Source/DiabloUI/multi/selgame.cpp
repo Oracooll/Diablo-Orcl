@@ -408,8 +408,14 @@ void selgame_Difficulty_Init()
 	/** Measured band centres, as per-mille of the painting's height. */
 	constexpr int BandCentrePerMille[] = { 134, 386, 619, 861 };
 	constexpr int TitleTop = 12;
-	/** The description column, the gap, then the name column - inside the action row's own 800px line. */
-	constexpr int BlockWidth = HeroButtonRowWidth;
+	/**
+	 * The description column, the gap, then the name column, on an 800px line centred on the screen.
+	 *
+	 * It borrowed HeroButtonRowWidth for this, back when the action row was itself an 800px centred
+	 * line. The zone rule made the row the whole window, so the constant is gone and the figure is
+	 * written out here - it was only ever this block's width, and the sharing was a coincidence.
+	 */
+	constexpr int BlockWidth = 800;
 	constexpr int DescriptionWidth = 380;
 	constexpr int NameOffset = 440;
 	constexpr int NameWidth = 300;
@@ -432,9 +438,15 @@ void selgame_Difficulty_Init()
 
 	title = _("Create Game").data();
 
+	// Oracool: user report - "super dim, unreadable". Outlined rather than recoloured: this title was
+	// already ColorUiSilver, the brightest silver there is, and it still washed out. The trouble is
+	// not the ink, it is that it sits on a photographic sky whose own values run right through the
+	// text's - so there is no colour that separates from all of it. UiFlags::Outlined rings each glyph
+	// in palette index 0, which is black in every palette, and an edge does what a brighter fill
+	// cannot: it works against a light background and a dark one at the same time.
 	vecSelGameDialog.push_back(std::make_unique<UiArtText>(_("Select Difficulty").data(),
 	    MakeSdlRect(0, TitleTop, static_cast<Uint16>(gnScreenWidth), HeroTitleHeight),
-	    UiFlags::AlignCenter | HeroTitleFontSize | UiFlags::ColorUiSilver, 3));
+	    UiFlags::AlignCenter | HeroTitleFontSize | UiFlags::ColorUiSilver | UiFlags::Outlined, 3));
 
 	// Oracool: Torment is single-player-only, so it must never appear as a choice when creating a
 	// multiplayer game.
@@ -460,13 +472,19 @@ void selgame_Difficulty_Init()
 
 		// A locked row says so on the screen instead of only in the popup that follows a click on it
 		// (user's call). The popup still works - this just means you can see it coming.
+		//
+		// Oracool: user report - this was the worst of the two. It was ColorUiSilverDark, which tops
+		// out at 204 against ColorUiSilver's 243, printed small over the darkest bands on the screen:
+		// on Hell's and Torment's rows it was very nearly invisible. Brightened AND outlined, because
+		// the blurbs above went through exactly this once already and only the colour was fixed then -
+		// which was enough for a line of body text and not for four words in a corner.
 		if (locked) {
 			selgame_DifficultyRequirement[i] = fmt::format(fmt::runtime(_("requires level {:d}")), required);
 			vecSelGameDialog.push_back(std::make_unique<UiArtText>(selgame_DifficultyRequirement[i].c_str(),
 			    MakeSdlRect(static_cast<Sint16>(nameX),
 			        static_cast<Sint16>(rowsTop + i * pitch + pitch / 2 + HeroTitleHeight / 2),
 			        NameWidth, RequirementHeight),
-			    UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiSilverDark));
+			    UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::Outlined));
 		}
 
 		// ElementDisabled both dims the name and makes UiFocus step over it, so the arrow keys walk
@@ -861,7 +879,8 @@ void selgame_Password_Select(int /*value*/)
 	m_game_data->nTickRate = nTickRate;
 	m_game_data->bRunInTown = *sgOptions.Gameplay.runInTown ? 1 : 0;
 	m_game_data->bTheoQuest = *sgOptions.Gameplay.theoQuest ? 1 : 0;
-	m_game_data->bCowQuest = *sgOptions.Gameplay.cowQuest ? 1 : 0;
+	// Random resolves to the farmer - see the matching note in multi.cpp.
+	m_game_data->bCowQuest = (*sgOptions.Gameplay.farmerQuest == FarmerQuestMode::AlwaysCow) ? 1 : 0;
 
 	GameData gameInitInfo = *m_game_data;
 	gameInitInfo.swapLE();

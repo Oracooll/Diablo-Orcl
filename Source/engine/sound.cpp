@@ -56,8 +56,26 @@ bool LoadAudioFile(const char *path, bool stream, bool errorDialog, SoundSample 
 		foundPath = path;
 		isMp3 = false;
 	}
-	if (!ref.ok())
-		ErrDlg("Audio file not found", StrCat(path, "\n", SDL_GetError(), "\n"), __FILE__, __LINE__);
+	// Oracool: bug postmortem (2026-08-15) - this was an unconditional ErrDlg, i.e. FATAL, and it was
+	// the odd one out: every other failure path in this function already honours `errorDialog` and
+	// returns false. A file that is merely absent is the mildest of the three and was the only one
+	// that killed the process.
+	//
+	// It surfaced as "clicking the Wandering Trader quest crashes the game". That quest's log entry is
+	// a voice line and nothing else (Speeches[TEXT_TRADER] is { "", true, TSFX_TRADER1 }), and
+	// sfx\hellfire\trader1.wav is not in this install's Hellfire archives - so reading the entry took
+	// the game down. A missing voice line is not a reason to end someone's run.
+	//
+	// Degrading is already what the rest of the engine expects: sound_file_load ignores this return and
+	// hands back a TSnd whose buffer simply never loaded, and StreamPlay guards on DSB.IsLoaded()
+	// before playing one. The guard was written; it was just unreachable past the dialog above.
+	// A wholly absent archive is still caught, and caught better, by CheckArchivesUpToDate at startup.
+	if (!ref.ok()) {
+		if (errorDialog)
+			ErrDlg("Audio file not found", StrCat(path, "\n", SDL_GetError(), "\n"), __FILE__, __LINE__);
+		LogWarn("Audio file not found: {}", path);
+		return false;
+	}
 
 #ifdef STREAM_ALL_AUDIO_MIN_FILE_SIZE
 #if STREAM_ALL_AUDIO_MIN_FILE_SIZE == 0
@@ -174,6 +192,13 @@ void snd_play_snd(TSnd *pSnd, int lVolume, int lPan)
 		return;
 	}
 
+	// A sound whose file was missing arrives here unloaded (see sound_file_load). StreamPlay already
+	// checked this before playing; this path did not, and PlayWithVolumeAndPan dereferences the
+	// stream unconditionally - so without this it would trade the old crash for a null deref.
+	if (!pSnd->DSB.IsLoaded()) {
+		return;
+	}
+
 	SoundSample *sound = &pSnd->DSB;
 	if (sound->IsPlaying()) {
 		sound = DuplicateSound(*sound);
@@ -190,7 +215,11 @@ std::unique_ptr<TSnd> sound_file_load(const char *path, bool stream)
 	auto snd = std::make_unique<TSnd>();
 	snd->start_tc = SDL_GetTicks() - 80 - 1;
 #ifndef NOSOUND
-	LoadAudioFile(path, stream, /*errorDialog=*/true, snd->DSB);
+	// errorDialog=false: this return has always been discarded, because a TSnd whose buffer failed to
+	// load is a valid thing to hand back - callers check DSB.IsLoaded() before playing. So the one
+	// sound goes quiet and the game carries on, which is the right trade for an individual effect.
+	// See LoadAudioFile for the Wandering Trader crash this pairs with.
+	LoadAudioFile(path, stream, /*errorDialog=*/false, snd->DSB);
 #endif
 	return snd;
 }

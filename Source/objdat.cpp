@@ -280,7 +280,13 @@ const ObjectData AllObjects[110] = {
 /*OBJ_L5RDOOR*/      { OFILE_L5DOORS,        0,       0, DTYPE_CRYPT,     THEME_NONE,              Q_INVALID,  Light | Trap,                                             2,        0,         64,        3 },
 /*OBJ_L5LEVER*/      { OFILE_L5LEVER,       24,      24, DTYPE_NONE,      THEME_NONE,              Q_INVALID,  Solid | MissilesPassThrough | Light | Trap,               1,        1,         96,        1 },
 /*OBJ_L5SARC*/       { OFILE_L5SARC,        21,      24, DTYPE_NONE,      THEME_NONE,              Q_INVALID,  Solid | MissilesPassThrough | Light | Trap,               1,        5,        128,        3 },
-/*OBJ_WAYPOINT*/     { OFILE_ORCLWAYP,       0,       0, DTYPE_NONE,      THEME_NONE,              Q_INVALID,  MissilesPassThrough | Light,                              1,        0,        144,        1 },
+// Oracool: user request - "move the clickable zone over the WP in the middle of it or covering its
+// whole size. Right now i need to aim at the 6 oclock corner." selFlag was 1, which per CheckCursMove
+// (cursor.cpp) means "selectable from its own tile only". The sigil's art is 144px wide - well over
+// two 64px tiles - and is drawn centred above its anchor tile, so that one hittable tile sat at the
+// bottom point of the platform: the 6 o'clock corner exactly. 3 is the doors' value, "own tile AND
+// the tile above it AND the two lower diagonals", which is every tile the platform visibly covers.
+/*OBJ_WAYPOINT*/     { OFILE_ORCLWAYP,       0,       0, DTYPE_NONE,      THEME_NONE,              Q_INVALID,  MissilesPassThrough | Light,                              1,        0,        144,        3 },
 	// clang-format on
 };
 /** Maps from object_graphic_id to object CEL name. */

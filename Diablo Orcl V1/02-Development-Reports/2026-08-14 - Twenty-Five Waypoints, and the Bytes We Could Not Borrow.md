@@ -1,7 +1,7 @@
 ---
 date: 2026-08-14
-version: 1.5.0
-area: Waypoints / save format / UI art
+version: 1.5.2
+area: Waypoints / save format / UI art / startup / menu chrome
 ---
 
 # Twenty-Five Waypoints, and the Bytes We Could Not Borrow
@@ -135,6 +135,77 @@ Two details are this list's own:
 The wheel is gated on the cursor being over the panel, like the character sheet and spell book, so it
 still zooms the dungeon everywhere else while the list is open.
 
+## Part five: Hellfire stops announcing itself (1.5.1)
+
+> i don't want Diablo Orcl to ask Diablo or Hellfire on boot or after initial installation. Hellfire
+> is Default.
+> I also don't want the Hellfire logo on the menu screens. I preffer the Diablo logo. Use it
+> exclusively unless we are breaking some law.
+
+**The prompt.** Vanilla runs `UiSelStartUpGameOption()` from `DiabloInit` when `hellfire.mpq` is
+present and `GameMode.gameMode` is still `Ask`, which is the shipped default. Flipping that default
+to `Hellfire` is the obvious fix and on its own it would have changed nothing here: the local
+`diablo.ini` already read `Game=0`, and a stored value beats a default forever. Worse, `Ask` is
+deliberately hidden from the settings menu ("Ask is missing, cause we want to hide it from
+UI-Settings"), so a config stuck on it has no in-game escape.
+
+So both: the default is now `Hellfire`, **and** a stored `Ask` is migrated on boot, guarded on
+`gbIsHellfire` so an install without the archive is never promised a game it cannot deliver. The
+dialog call is gone; `UiSelStartUpGameOption()` itself stays in the tree unreferenced, the same way
+the multiplayer screens do - unreachable, not deleted. Choosing Diablo from the settings menu still
+works, and so does `--diablo`.
+
+**The logo forks in three places, not one.** Worth writing down, because finding only the first would
+have looked like a finished job:
+
+| where | Hellfire art | Diablo art | what it is |
+|---|---|---|---|
+| `DiabloUI/diabloui.cpp` `LoadUiGFX` | `ui_art\hf_logo2`, 16 frames, key 0 | `ui_art\smlogo`, 15 frames, key 250 | every front-end menu |
+| `gmenu.cpp` `sgpLogo` | `data\hf_logo3`, 430px | `data\diabsmal`, 296px | the in-game pause menu |
+| `DiabloUI/title.cpp` | `ui_art\hf_logo1` + `hf_titlew.clx` | `ui_art\title` + `ui_art\logo` | the startup title screen |
+
+None of the three is a filename swap. The front-end pair differ in frame count *and* transparent
+index; the pause-menu pair differ in width by 134px; and the title screen's Hellfire branch composes
+an animated background with an optional widescreen strip, where Diablo's paints a background and
+lays a logo and a copyright line over it. All three now take the Diablo path unconditionally.
+
+**Then the Diablo logo turned out to be the wrong Diablo logo (1.5.2).**
+
+> the diablo logo doesn't look nice. where is the vanilla logo?
+> I don't want the main menu to say exit hellfire.
+
+Diablo ships the same flaming letters at two sizes and vanilla only ever used the small one in the
+menus. Swapping `hf_logo2` (640x154) for `smlogo` (390x154) had not changed the masthead so much as
+**shrunk it by 40%**. `ui_art\logo` is the other one - 550x216 - and it is what the title screen has
+always used.
+
+Both are 15 frames keyed on index 250, so the load is a filename swap. The layout was not. Frame 0 of
+each was measured rather than assumed, and both are full-bleed: ink runs from y=0 to within 2px of the
+frame's bottom, so there is no transparent padding to absorb the extra 62px. Three screens hang off
+the masthead and all three had to move:
+
+- **The hero screens.** `HeroTitleTop` 61 -> 117. Not the full 62, and that is the interesting part:
+  the whole 62 would have left `HeroContentTop..HeroContentBottom` at 307px against a six-class list
+  of 6 x 52 = **312**, so the class list would have overflowed into the action row's clearance by
+  5px. 117 gives a 313px band - six classes fit with a single pixel spare, and 21px of air under the
+  flames instead of the old 27. **The band now holds exactly six class rows**, which is written into
+  the header: a seventh class, a taller row or a lower title all need the list to start scrolling.
+- **The main menu.** Raised by exactly 62 so the logo's *bottom* edge stays put, because the menu list
+  is pinned at `uiPosition.y + 192` and the logo growing downward would have run 24px into the first
+  entry. The old 38px of air under the flames is preserved and the logo grows upward instead.
+- **The settings screen.** Its title offset and `ListTop` both moved 161 -> 223 and 204 -> 266.
+  `blockHeight` is derived from `ListTop` and `blockTop` from `blockHeight`, so the block re-centres
+  itself and nothing else there needed touching.
+
+`Exit Hellfire` is gone from the main menu too - always `Exit Diablo` now. It was the last string
+announcing the expansion.
+
+**On the legal question.** There is nothing to avoid here. Both logos are original Blizzard art read
+at runtime out of archives the user owns, and this project redistributes neither - they live in
+`diabdat.mpq` and `hellfire.mpq`, never in `oracool.mpq`. Which of the two gets drawn has no legal
+dimension at all; what would matter is shipping either one, and nothing here does. The only cost is
+cosmetic honesty: the game now shows the Diablo logo while running Hellfire's levels and monsters.
+
 ## Files
 
 - `tools/CutWaypointIcons.ps1` (new) - the 43x43 cut, the shared crop, and why both are what they are.
@@ -147,10 +218,17 @@ still zooms the dungeon everywhere else while the list is open.
   struct when nothing before it did.
 - `Source/diablo.cpp` - the wheel, both directions.
 - `test/writehero_test.cpp` - re-baselined golden hash, reason four, and the widened fields in `SwapLE`.
+- `Source/diablo.cpp`, `Source/options.cpp` - the startup dialog removed, `Ask` migrated, the default
+  changed to Hellfire (1.5.1).
+- `Source/DiabloUI/diabloui.cpp`, `Source/gmenu.cpp`, `Source/DiabloUI/title.cpp` - the Diablo logo in
+  all three places it used to fork (1.5.1), then the big `ui_art\logo` rather than `smlogo` (1.5.2).
+- `Source/DiabloUI/hero/hero_layout.h`, `mainmenu.cpp`, `settingsmenu.cpp` - the three layouts moved
+  to clear a masthead 62px taller, and the note that the hero band now holds exactly six class rows.
+- `Source/DiabloUI/mainmenu.cpp` - "Exit Diablo" unconditionally.
 
 ## Verification
 
-Debug build clean at `ORACOOL_VERSION` **1.5.0**. Tests **352/354** -
+Debug build clean at `ORACOOL_VERSION` **1.5.0**, **1.5.1** and **1.5.2**. Tests **352/354** at each -
 `Drlg_l1.CreateL5Dungeon_diablo_3_844660068` and `Timedemo.WarriorLevel1to2`, the same two
 pre-existing failures as every build this session.
 

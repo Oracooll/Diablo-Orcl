@@ -2428,7 +2428,11 @@ void LoadHeroItems(Player &player)
 // 1 file has a different cell count per page, so it cannot be read into the new grid - LoadStash
 // rejects it and says so, which is the supported path rather than silent corruption. Wiping was an
 // explicit call: "we are developing a product, saves are not important."
-constexpr uint8_t StashVersion = 2;
+// Oracool V1: bumped to 3 when the page lost its last row to the health orb, 10x17 -> 10x16. Same
+// reasoning as the bump before it - the cell count per page changed, so a version 2 stash is
+// rejected rather than read at the wrong stride. Existing stashes are lost, which is the known cost
+// of that call.
+constexpr uint8_t StashVersion = 3;
 
 void LoadStash()
 {
@@ -2790,7 +2794,11 @@ void SaveStash(SaveWriter &stashWriter)
 	    sizeof(uint8_t)
 	        + sizeof(uint32_t)
 	        + sizeof(uint32_t)
-	        + (sizeof(uint32_t) + 10 * 10 * sizeof(uint16_t)) * Stash.stashGrids.size()
+	        // From the constants, not a literal 10 * 10. This was still saying 10x10 while the page
+	        // was 10x17, so the figure has been wrong since that change - harmless, because it only
+	        // sizes the write buffer, but it is the same divergence StashGridRows lives in stash.h to
+	        // prevent and there was no reason for it to be exempt.
+	        + (sizeof(uint32_t) + StashGridColumns * StashGridRows * sizeof(uint16_t)) * Stash.stashGrids.size()
 	        + sizeof(uint32_t)
 	        + itemSize * Stash.stashList.size()
 	        + sizeof(uint32_t));

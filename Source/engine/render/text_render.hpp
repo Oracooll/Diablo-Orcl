@@ -58,6 +58,11 @@ enum text_color : uint8_t {
 	ColorInGameDialogWhite,  // Dialog white in-game
 	ColorInGameDialogYellow, // Dialog yellow in-game
 	ColorInGameDialogRed,    // Dialog red in-game
+
+	// Oracool: the focus glow's yellow pair, on the palette's 128-135 ramp. Appended so no existing
+	// value moves - these index ColorTranslations positionally.
+	ColorOracoolYellow,
+	ColorOracoolYellowDark,
 };
 
 constexpr GameFontTables GetFontSizeFromUiFlags(UiFlags flags)

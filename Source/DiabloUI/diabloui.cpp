@@ -64,7 +64,6 @@ OptionalOwnedClxSpriteList ArtBackground;
 /** @brief A menu screenshot was asked for; taken at the end of the frame. See UiHandleEvents. */
 bool PendingUiCapture = false;
 
-bool UiListSelectorHidden = false;
 OptionalOwnedClxSpriteList ArtCursor;
 
 bool textInputActive = true;
@@ -127,6 +126,53 @@ bool UiItemsWraps;
 std::optional<TextInputState> UiTextInputState;
 bool allowEmptyTextInput = false;
 
+/**
+ * @brief The screen's buttons, left to right - the second half of the focus rule's path.
+ *
+ * Oracool: user rule 1 - "all clickable menu items to be reachable with the keyboard and the pentagram
+ * selector." The shared focus model only ever knew about a list: `SelectedItem` indexes `gUiList` and
+ * nothing else, and a `UiArtTextButton` was a click target and no more. Three screens had each grown
+ * their own private answer to that - selhero's action row, selyesno's two answers, selok's lone OK -
+ * which meant three keyboard rules, three focus-drawing loops, and the difficulty picker (a fourth
+ * screen, with an OK and a CANCEL) getting none of it and staying mouse-only.
+ *
+ * One ring here instead. Filled by UiInitList from whatever the screen hands it, so a screen written
+ * tomorrow satisfies the rule by existing rather than by remembering to.
+ *
+ * Left-to-right and not push order: the row IS spatial - the zones of hero_layout.h - so Left and
+ * Right have to walk it the way it looks, and selgame pushes its OK and CANCEL before its list for
+ * an unrelated hit-testing reason (see the note there).
+ */
+std::vector<UiArtTextButton *> gUiButtons;
+/** -1: the list has focus, or nothing does. Otherwise an index into gUiButtons. */
+int SelectedButton = -1;
+/** @brief Stops the list marking a row while a button is marked - see FocusButton. */
+bool UiListSelectorHidden = false;
+
+/**
+ * @brief Rule 2's state: which item a click has armed, and for a list, which row.
+ *
+ * User rule 2 - "all selection actions to require double click or Enter if reached with pentagram.
+ * Single click doesn't initiate the action the button carries unless clicked twice."
+ *
+ * A pointer to the item and not a copy of it: the only question asked is "is this the same thing the
+ * last click armed", and the pointer is never dereferenced. Cleared before anything is activated,
+ * because activating usually rebuilds the screen and frees what this points at.
+ *
+ * Lists already came close to this - vanilla focused a row on the first click and acted on a genuine
+ * double-click - but only on screens that passed a focus callback. `gfnListFocus == nullptr` was a
+ * shortcut straight to the action, and the main menu, the difficulty picker and the class list all
+ * take that path. Which is to say the screens the rule is about were exactly the ones without it.
+ */
+const void *ArmedItem = nullptr;
+std::size_t ArmedIndex = 0;
+
+void DisarmClicks()
+{
+	ArmedItem = nullptr;
+	ArmedIndex = 0;
+}
+
 uint32_t fadeTc;
 int fadeValue = 0;
 
@@ -149,6 +195,44 @@ void AdjustListOffset(std::size_t itemIndex)
 		listOffset = itemIndex;
 }
 
+bool IsFocusable(const UiItemBase &item)
+{
+	return !HasAnyOf(item.GetFlags(), UiFlags::ElementDisabled | UiFlags::ElementHidden);
+}
+
+/** @brief Whether the screen has a list with anything in it for focus to sit in. */
+bool ListHasRows()
+{
+	return gUiList != nullptr && !gUiList->m_vecItems.empty();
+}
+
+/**
+ * @brief The next focusable button @p step away from @p from, wrapping. -1 if the row has none.
+ *
+ * Delete is disabled whenever the highlighted row is not a real character, and stopping the rule on a
+ * greyed-out word would look like the screen had hung.
+ */
+int NextFocusableButton(int from, int step)
+{
+	const int count = static_cast<int>(gUiButtons.size());
+	if (count == 0)
+		return -1;
+	for (int i = 1; i <= count; i++) {
+		const int candidate = ((from + step * i) % count + count) % count;
+		if (IsFocusable(*gUiButtons[candidate]))
+			return candidate;
+	}
+	return -1;
+}
+
+/** @brief Moves the pentagrams to button @p index, or back to the list with -1. */
+void FocusButton(int index)
+{
+	SelectedButton = index;
+	// The list must stop marking a row while a button is marked, or the screen glows in two places.
+	UiListSelectorHidden = index >= 0;
+}
+
 } // namespace
 
 void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*fnEsc)(), const std::vector<std::unique_ptr<UiItemBase>> &items, bool itemsWraps, void (*fnFullscreen)(), bool (*fnYesNo)(), size_t selectedItem /*= 0*/)
@@ -166,6 +250,19 @@ void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*
 		gUiItems.push_back(item.get());
 	UiItemsWraps = itemsWraps;
 	listOffset = 0;
+
+	// The button row, rebuilt with the screen. Nothing may survive here across a screen change: every
+	// pointer is into the vector the caller is about to own, and activating a button usually frees it.
+	gUiButtons.clear();
+	for (const auto &item : items) {
+		if (item->IsType(UiType::ArtTextButton))
+			gUiButtons.push_back(static_cast<UiArtTextButton *>(item.get()));
+	}
+	std::sort(gUiButtons.begin(), gUiButtons.end(),
+	    [](const UiArtTextButton *a, const UiArtTextButton *b) { return a->m_rect.x < b->m_rect.x; });
+	FocusButton(-1);
+	DisarmClicks();
+
 	if (fnFocus != nullptr)
 		fnFocus(selectedItem);
 
@@ -225,6 +322,18 @@ void UiInitList(void (*fnFocus)(int value), void (*fnSelect)(int value), void (*
 			uiScrollbar->Show();
 		}
 	}
+
+	// A screen whose only controls are buttons - the message box, the delete prompt - starts on the
+	// leftmost of them, since there is no list for focus to sit in and rule 1 says something must be
+	// marked. On the delete prompt that leftmost is Yes, which is where its own default was.
+	//
+	// Not on a screen with a text box, though. The name box has no list either, but it is where focus
+	// belongs on arrival and it wants the arrow keys for its own caret - see MenuAction_LEFT below.
+	// Down reaches its OK and Cancel from there, which is the same path the character list uses.
+	if (!ListHasRows() && !textInputActive) {
+		if (const int first = NextFocusableButton(-1, 1); first >= 0)
+			FocusButton(first);
+	}
 }
 
 void UiRenderListItems()
@@ -244,6 +353,9 @@ void UiInitList_clear()
 	gfnListYesNo = nullptr;
 	gUiList = nullptr;
 	gUiItems.clear();
+	gUiButtons.clear();
+	FocusButton(-1);
+	DisarmClicks();
 	UiItemsWraps = false;
 }
 
@@ -356,22 +468,96 @@ void SelheroCatToName(const char *inBuf, char *outBuf, int cnt)
 	CopyUtf8(dest, inBuf, destCount);
 }
 
+/** @brief Fires the focused button. Nothing may touch gUiButtons after this - see the note there. */
+void ActivateFocusedButton()
+{
+	if (SelectedButton >= static_cast<int>(gUiButtons.size()))
+		return;
+	UiArtTextButton *button = gUiButtons[SelectedButton];
+	DisarmClicks();
+	UiPlaySelectSound();
+	button->Activate();
+}
+
+/**
+ * @brief Rule 1's navigation: the list first, then the button row under it.
+ *
+ * Written against MenuAction rather than raw SDL keys, which is what the three screens this replaces
+ * could not do - they hooked UiPollAndRender's event handler and matched SDLK_ symbols, so their
+ * buttons answered a keyboard and nothing else. Here the same code serves the keyboard, the
+ * controller and the touch pad, because GetMenuActions already folds all three into these.
+ */
 bool HandleMenuAction(MenuAction menuAction)
 {
+	// MenuAction_NONE FIRST, and this is not a tidiness check. UiPollAndRender calls this every frame
+	// with GetMenuHeldUpDownAction(), which is NONE whenever nothing is held - so anything done above
+	// this line runs once per frame rather than once per input. Disarming there wiped the first click
+	// on the very next frame, and the second click found nothing armed and only re-armed: double-click
+	// did nothing at all and Enter was the only way to act.
+	if (menuAction == MenuAction_NONE)
+		return false;
+
+	// Now it is safe. Any deliberate move disarms a half-finished click: the two clicks rule 2 asks
+	// for have to be consecutive, or one left over from three screens ago could complete against
+	// whatever now occupies that spot.
+	DisarmClicks();
+
+	const bool onButtons = SelectedButton >= 0;
 	switch (menuAction) {
 	case MenuAction_SELECT:
+		if (onButtons) {
+			ActivateFocusedButton();
+			return true;
+		}
 		UiFocusNavigationSelect();
 		return true;
 	case MenuAction_UP:
+		if (onButtons) {
+			// Back to whatever sits above the row - a list, or the name box's text field. Nothing on a
+			// screen that is only buttons, where leaving would mean marking nothing at all.
+			if (ListHasRows() || textInputActive)
+				FocusButton(-1);
+			return true;
+		}
 		UiFocusUp();
 		return true;
 	case MenuAction_DOWN:
-		UiFocusDown();
+		if (onButtons)
+			return true; // already at the bottom of the screen; swallow rather than wrap
+		// Only once the list has nowhere further to go, so Down still walks the rows first.
+		if (ListHasRows() && SelectedItem < static_cast<std::size_t>(SelectedItemMax)) {
+			UiFocusDown();
+			return true;
+		}
+		if (const int first = NextFocusableButton(-1, 1); first >= 0) {
+			FocusButton(first);
+			return true;
+		}
+		UiFocusDown(); // no buttons: a wrapping list wraps, exactly as before
 		return true;
+	case MenuAction_LEFT:
+	case MenuAction_RIGHT: {
+		// Left/Right reached nothing in the front end before this; the row is the only thing on these
+		// screens laid out horizontally, so it is the only thing they can mean.
+		//
+		// Returning false when focus is NOT on the row is load-bearing rather than tidy: the name box
+		// hands unclaimed events to HandleTextInputEvent, and these two are how its caret moves. Take
+		// them unconditionally and typing a name loses its arrow keys.
+		if (!onButtons)
+			return false;
+		const int step = menuAction == MenuAction_LEFT ? -1 : 1;
+		if (const int next = NextFocusableButton(SelectedButton, step); next >= 0)
+			FocusButton(next);
+		return true;
+	}
 	case MenuAction_PAGE_UP:
+		if (onButtons)
+			return true;
 		UiFocusPageUp();
 		return true;
 	case MenuAction_PAGE_DOWN:
+		if (onButtons)
+			return true;
 		UiFocusPageDown();
 		return true;
 	case MenuAction_DELETE:
@@ -523,6 +709,13 @@ void UiHandleEvents(SDL_Event *event)
 #ifndef USE_SDL1
 	HandleControllerAddedOrRemovedEvent(*event);
 
+	// The front end's own copy of MainWndProc's switch, and it needs the same guard: only this
+	// window's events may speak for this window. See the note there.
+	if (event->type == SDL_WINDOWEVENT && ghMainWnd != nullptr
+	    && event->window.windowID != SDL_GetWindowID(ghMainWnd)) {
+		return;
+	}
+
 	if (event->type == SDL_WINDOWEVENT) {
 		if (IsAnyOf(event->window.event, SDL_WINDOWEVENT_SHOWN, SDL_WINDOWEVENT_EXPOSED, SDL_WINDOWEVENT_RESTORED)) {
 			gbActive = true;
@@ -580,6 +773,17 @@ void UiFocusNavigationEsc()
 		gfnListEsc();
 }
 
+bool UiClickArms(const void *item)
+{
+	if (ArmedItem == item) {
+		DisarmClicks();
+		return true;
+	}
+	ArmedItem = item;
+	ArmedIndex = 0;
+	return false;
+}
+
 void UiFocusNavigationYesNo()
 {
 	if (gfnListYesNo == nullptr)
@@ -624,11 +828,19 @@ void LoadHeros()
 
 void LoadUiGFX()
 {
-	if (gbIsHellfire) {
-		ArtLogo = LoadPcxSpriteList("ui_art\\hf_logo2", /*numFrames=*/16, /*transparentColor=*/0);
-	} else {
-		ArtLogo = LoadPcxSpriteList("ui_art\\smlogo", /*numFrames=*/15, /*transparentColor=*/250);
-	}
+	// Oracool: user request - the Diablo logo on every menu screen, in Hellfire mode too. Vanilla
+	// swaps in ui_art\hf_logo2 here whenever gbIsHellfire is set; this build never does. One of
+	// three places the logo used to fork - see gmenu.cpp's sgpLogo and DiabloUI/title.cpp.
+	//
+	// The BIG one (550x216), not ui_art\smlogo (390x154), on the user's call. Diablo ships two
+	// versions of the same flaming letters and vanilla only ever used the small one here; against
+	// Hellfire's 640-wide masthead the small one read as a shrunken title rather than as a
+	// different one. Both are 15 frames keyed on 250, so this is a filename swap - but it is 62px
+	// taller, and the screens that hang off it had to move: see HeroTitleTop in hero/hero_layout.h,
+	// and the logo offsets in mainmenu.cpp and settingsmenu.cpp.
+	//
+	// Neither is interchangeable with hf_logo2, which is 16 frames keyed on 0.
+	ArtLogo = LoadPcxSpriteList("ui_art\\logo", /*numFrames=*/15, /*transparentColor=*/250);
 	DifficultyIndicator = LoadPcx("ui_art\\r1_gry", /*transparentColor=*/0);
 	ArtFocus[FOCUS_SMALL] = LoadPcxSpriteList("ui_art\\focus16", /*numFrames=*/8, /*transparentColor=*/250);
 	ArtFocus[FOCUS_MED] = LoadPcxSpriteList("ui_art\\focus", /*numFrames=*/8, /*transparentColor=*/250);
@@ -724,9 +936,20 @@ Sint16 GetCenterOffset(Sint16 w, Sint16 bw)
 	return (bw - w) / 2;
 }
 
+/**
+ * @brief The front-end palette. Always Diablo's, never Hellfire's.
+ *
+ * Oracool: vanilla picks ui_art\hellfire.pal whenever gbIsHellfire is set. This build does not, for
+ * the same reason it draws the Diablo logo and says "Exit Diablo" - the front end is Diablo's
+ * regardless of what content the game loads.
+ *
+ * It is also the palette every colour in these screens was MEASURED against: the gold ramp at
+ * 176-191, silver at 224-239, the focus glow's amber at 193-207, the scrollbar bevel at 182/186/
+ * 188/191. Those indices mean what they are supposed to mean here and nowhere else.
+ */
 void UiLoadDefaultPalette()
 {
-	LoadPalette(gbIsHellfire ? "ui_art\\hellfire.pal" : "ui_art\\diablo.pal", /*blend=*/false);
+	LoadPalette("ui_art\\diablo.pal", /*blend=*/false);
 	ApplyGamma(logical_palette, orig_palette, 256);
 }
 
@@ -793,132 +1016,45 @@ void UiFadeIn()
 namespace {
 
 /**
- * @brief Every colour bit GetColorFromFlags tests.
+ * @brief The focus selector: the two rotating pentagrams that flank the highlighted row.
  *
- * The halo has to REPLACE a widget's colour, not join it: GetColorFromFlags returns on the first
- * colour bit it finds, in its own fixed order, so a row that already says ColorUiGold would keep
- * drawing gold no matter what was ORed in beside it.
+ * Oracool: user request - back, after a spell as a gold border and then as a glow, and a size
+ * smaller than vanilla drew them. The art was never removed: ArtFocus holds ui_art\focus16, focus
+ * and focus42, eight animation frames each, and LoadUiGFX has been loading all three throughout.
+ * Only the size picker below is new.
+ *
+ * ONE STEP DOWN is the whole of "a bit smaller". Vanilla gave a row 42px or taller the big pair and
+ * a 30px row the medium; every row now takes the next size down, so the hero list (52px), the
+ * waypoint list (43px) and the Abilities rows (44px) get the medium pair where they used to get the
+ * big one, and the settings rows keep the small. Floored at FOCUS_SMALL because there is nothing
+ * below it.
  */
-constexpr UiFlags AllTextColorFlags = UiFlags::ColorUiGold | UiFlags::ColorUiSilver
-    | UiFlags::ColorUiGoldDark | UiFlags::ColorUiSilverDark | UiFlags::ColorDialogWhite
-    | UiFlags::ColorDialogYellow | UiFlags::ColorDialogRed | UiFlags::ColorYellow
-    | UiFlags::ColorGold | UiFlags::ColorBlack | UiFlags::ColorWhite | UiFlags::ColorWhitegold
-    | UiFlags::ColorRed | UiFlags::ColorBlue | UiFlags::ColorOrange | UiFlags::ColorButtonface
-    | UiFlags::ColorButtonpushed;
-
-/**
- * @brief The focus glow's two ring colours - the one place to change what the glow is made of.
- *
- * Amber, on the user's call, after seeing gold (too dim) and silver (bright, but cold). It is
- * fonts\whitegold.trn, which in `ui_art\diablo.pal` maps the font's ramp onto indices 193-207 - a
- * fifteen-shade run from (244,201,150) peach through (199,75,31) burnt orange to black. Firelight,
- * which is the one thing in this palette that looks like something is actually burning.
- *
- * The outer rings are the dark gold rather than a dark amber, because there is no dark amber: every
- * other bright ramp here ships a compressed companion (goldui/golduis, grayui/grayuis) and this one
- * does not. `golduis` is warm and tops out at 195 against amber's 208, so the ordering a falloff needs
- * still holds - just with less headroom between the rings than the silver pair had. If the aura ever
- * wants more depth, the honest fix is to cut a `whitegolds.trn` the way golduis relates to goldui;
- * that needs a new UiFlags bit, a text_color entry, and an MPQ repack, which is why it is not here.
- */
-constexpr UiFlags GlowInnerColor = UiFlags::ColorWhitegold;
-constexpr UiFlags GlowOuterColor = UiFlags::ColorUiGoldDark;
-
-/** @brief @p flags with its colour swapped for @p color, keeping font size, alignment and the rest. */
-constexpr UiFlags WithTextColor(UiFlags flags, UiFlags color)
+void DrawSelector(const SDL_Rect &rect)
 {
-	return (flags & ~AllTextColorFlags) | color;
+	const int size = rect.h >= 42 ? FOCUS_MED : FOCUS_SMALL;
+	if (!ArtFocus[size])
+		return;
+	const ClxSpriteList sprites = *ArtFocus[size];
+	const ClxSprite sprite = sprites[GetAnimationFrame(sprites.numSprites())];
+
+	const int y = rect.y + (rect.h - static_cast<int>(sprite.height())) / 2;
+	const Surface &out = Surface(DiabloUiSurface());
+	RenderClxSprite(out, sprite, { rect.x, y });
+	RenderClxSprite(out, sprite, { rect.x + rect.w - sprite.width(), y });
 }
 
-/** @brief A copy of @p args with every argument's own colour swapped for @p color. */
-std::vector<DrawStringFormatArg> RecolorArgs(const std::vector<DrawStringFormatArg> &args, UiFlags color)
-{
-	std::vector<DrawStringFormatArg> result;
-	result.reserve(args.size());
-	for (const DrawStringFormatArg &arg : args) {
-		const UiFlags flags = WithTextColor(arg.GetFlags(), color);
-		if (std::holds_alternative<string_view>(arg.value()))
-			result.emplace_back(std::get<string_view>(arg.value()), flags);
-		else
-			result.emplace_back(std::get<int>(arg.value()), flags);
-	}
-	return result;
-}
+// The focus glow lived here for a dozen versions - three rings of the row's own text redrawn around
+// itself, amber and then bright yellow - and is gone on the user's call in favour of the pentagrams
+// above. With it went AllTextColorFlags, WithTextColor and RecolorArgs, which existed only to swap a
+// widget's colour for a halo colour and had no other caller.
+//
+// Two things it leaves behind on purpose. UiFlags::ColorOracoolYellow and its dark companion, with
+// fonts\oracool_yellow.trn and oracool_yellows.trn, are still wired through text_render: they are the
+// palette's 128-135 yellow ramp, whose top (255,253,159) at luminance 243 is the brightest text this
+// front end can draw, and finding that was the expensive part rather than using it. Any future
+// highlight can just ask for the flag.
 
 } // namespace
-
-/**
- * @brief Makes the focused item glow, by ringing its own text in gold light.
- *
- * Oracool: user request, twice. First "replace the pentagrams cursors with golden border sitting
- * below the selected item" - the two animated pentagrams that used to flank each row are gone. Then
- * "the border bellow the items in not nice. remove it. try finding a way to make the selectem item
- * glow", which is this.
- *
- * The halo is the SAME TEXT drawn repeatedly around itself, with the real text laid back on top -
- * light coming off the letterforms rather than a shape drawn near them. Crucially the core is drawn
- * LAST, so the glyphs keep their exact edges and the row does not just look fatter.
- *
- * Three rings, two colours (see GlowInnerColor), and that pair is the whole falloff:
- *
- * - The **innermost** ring is the bright one - at the top of its ramp, the brightest entry the UI
- *   palette has - so the letters sit in a band of full-brightness light.
- * - The **outer two** are its dark companion .trn, the same ramp compressed toward the dim end, so
- *   they top out below the inner ring and bottom out at the background.
- *
- * Outermost first, so each ring overdraws the last and what survives is brightest against the letters.
- * The softness within each ring is free: the glyphs are already antialiased across those ramps, so an
- * offset copy feathers at its own edges. Nothing here blends anything.
- *
- * Which matters, because the obvious implementation is not available in a menu. Blending goes through
- * `paletteTransparencyLookup`, and only `LoadPalette(..., blend=true)` rebuilds it; the front end
- * loads its palettes without that (`UiLoadDefaultPalette` passes false, `LoadPalInMem` just copies),
- * so in these screens that table still holds whatever the last DUNGEON palette generated. A
- * translucent halo here would come out in colours from another palette entirely.
- *
- * It does not animate. It did for one version - the radius breathed between 1 and 2 - and the user
- * asked for it to stop; a steady glow is the one that reads as "this row is lit" rather than as
- * something demanding attention.
- *
- * @param drawHalo Draws the widget's own text offset by the given amount, in `WithTextColor` of its
- *                 own flags and the given colour. The caller owns the rect, font size, alignment and
- *                 spacing - all of which differ per widget - and draws the real text afterwards.
- */
-void DrawFocusGlow(tl::function_ref<void(UiFlags haloColor, Displacement offset)> drawHalo)
-{
-	// 3 on the user's call, after 2 read as too faint. Width is the only lever left: index 176 is the
-	// brightest entry in this palette's gold and the text already uses it.
-	//
-	// It fits. At the tightest pitch any of these lists uses - the settings menu's 34px rows, whose
-	// glyph band runs about 12 to 34 within the row - there are 12 clear pixels between one row's
-	// glyph bottom and the next row's glyph top, so a 3px aura does not reach the neighbours. Past
-	// that it would, and rows are drawn in order: a halo spreading upwards would tint the descenders
-	// of the row above, which is drawn before it.
-	constexpr int GlowRadius = 3;
-
-	for (int ring = GlowRadius; ring >= 1; ring--) {
-		const UiFlags color = ring == 1 ? GlowInnerColor : GlowOuterColor;
-		for (int dy = -ring; dy <= ring; dy++) {
-			for (int dx = -ring; dx <= ring; dx++) {
-				if (std::max(std::abs(dx), std::abs(dy)) == ring)
-					drawHalo(color, Displacement { dx, dy });
-			}
-		}
-	}
-}
-
-void DrawFocusGlow(const UiArtTextButton &button)
-{
-	const Surface &out = Surface(DiabloUiSurface());
-	const Rectangle rect = MakeRectangle(button.m_rect);
-	DrawFocusGlow([&](UiFlags haloColor, Displacement offset) {
-		DrawString(out, button.GetText(), Rectangle { rect.position + offset, rect.size },
-		    { WithTextColor(button.GetFlags(), haloColor) });
-	});
-	// Redrawn rather than relied upon: this is called after the button has already been rendered, so
-	// the halo has just been laid over the label's own outer pixels and has to give them back.
-	DrawString(out, button.GetText(), rect, { button.GetFlags() });
-}
 
 void UiClearScreen()
 {
@@ -963,16 +1099,104 @@ void UiPollAndRender(std::optional<tl::function_ref<bool(SDL_Event &)>> eventHan
 
 namespace {
 
+/**
+ * @brief Oracool: every front-end label sits in the middle of its own box, not on the box's top edge.
+ *
+ * User request - "make all available menus in the front end have their items/texts/articles be
+ * vertically centered in their invisible text boxes", pointing at the main menu, where "Single
+ * Player" hung from the top of an 86px row with 44px of air below it.
+ *
+ * Added here rather than at the ~40 places a widget is constructed, for three reasons. It cannot be
+ * forgotten on a screen added later. It is idempotent - the multiplayer screens already pass
+ * VerticalCenter on their buttons and lists, and OR-ing it again changes nothing. And it is a no-op
+ * wherever the box was already the size of its text: DrawString centres by
+ * `max(0, (rect.h - lines * lineHeight) / 2)`, so a rect of height 0 (the common "no explicit
+ * height" case) and a rect exactly one line tall both offset by zero.
+ *
+ * Safe on the multi-line bodies because that line count comes from counting '\n' in the string, and
+ * every paragraph in this front end is already run through WordWrapString before it is handed to a
+ * widget (dialogs.cpp, selok, selyesno, settingsmenu, selgame, selconn) - the breaks are in the text
+ * itself, not decided at draw time, so the measured height is the real one.
+ */
+constexpr UiFlags CenteredInBox = UiFlags::VerticalCenter;
+
+/**
+ * @brief Width one pentagram reserves at a row's end.
+ *
+ * Deliberately mirrors DrawSelector's own size pick rather than restating a number: the two must
+ * agree or the label is centred against a gap the art does not actually leave. Reads the sprite's
+ * real width instead of a constant because ui_art\focus*.pcx comes out of diabdat.mpq, so its size
+ * is the archive's fact, not ours - and 0 when the art is absent, which DrawSelector also tolerates.
+ */
+int SelectorPadding(int rowHeight)
+{
+	const int size = rowHeight >= 42 ? FOCUS_MED : FOCUS_SMALL;
+	if (!ArtFocus[size])
+		return 0;
+	return static_cast<int>((*ArtFocus[size])[0].width());
+}
+
+/**
+ * @brief The row minus the two pentagram zones - where a centred label actually belongs.
+ *
+ * Oracool: user request - "we need to do something about player names fitting between the
+ * pentagrams". The bug was that DrawSelector puts its two sprites at rect.x and
+ * rect.x + rect.w - sprite.width() while the label was centred across the WHOLE rect, so the row's
+ * two ends were being drawn twice over. A long enough string simply ran underneath the art.
+ *
+ * Applied to every row rather than only the focused one on purpose: inset only when selected and the
+ * text would shift sideways every time the selection moved.
+ *
+ * MEASURED against the four hero-screen buttons before doing this, since they share the treatment
+ * and a too-narrow rect would clip them instead: at FontSize42 in a 240px zone less two 28px
+ * pentagrams, "New Hero" is the widest at 182px against 184px available. It fits, but by 2px - so if
+ * a button label is ever reworded, measure it.
+ */
+Rectangle LabelRect(const SDL_Rect &rect)
+{
+	const int pad = SelectorPadding(rect.h);
+	Rectangle out = MakeRectangle(rect);
+	if (pad <= 0 || 2 * pad >= out.size.width)
+		return out; // nothing to reserve, or the row is too narrow to give any of it up
+	out.position.x += pad;
+	out.size.width -= 2 * pad;
+	return out;
+}
+
+/**
+ * @brief Shortens @p text with a trailing ellipsis until it fits @p maxWidth.
+ *
+ * The backstop under the hero list's 10-character name cap. MEASURED at FontSize30 against that
+ * list's 168px column (224 less the two pentagrams): a ten-character "Bartholome" is 157px and ten
+ * digits are 139px, so a normal name never reaches this; ten capital Ms are 219px and ten zeros
+ * 209px, so a pathological one still can. Truncating beats the alternative, which with AlignCenter
+ * is a string clipped at BOTH ends.
+ */
+string_view FitToWidth(string_view text, int maxWidth, GameFontTables font, int spacing, std::string &scratch)
+{
+	if (maxWidth <= 0 || GetLineWidth(text, font, spacing) <= maxWidth)
+		return text;
+	constexpr string_view Ellipsis = "...";
+	const int ellipsisWidth = GetLineWidth(Ellipsis, font, spacing);
+	string_view head = text;
+	// TruncateUtf8 backs up to a code point boundary, so this always shrinks and always terminates.
+	while (!head.empty() && GetLineWidth(head, font, spacing) + ellipsisWidth > maxWidth)
+		head = TruncateUtf8(head, head.size() - 1);
+	scratch.assign(head);
+	scratch.append(Ellipsis);
+	return scratch;
+}
+
 void Render(const UiText &uiText)
 {
 	const Surface &out = Surface(DiabloUiSurface());
-	DrawString(out, uiText.GetText(), MakeRectangle(uiText.m_rect), { uiText.GetFlags() | UiFlags::FontSizeDialog });
+	DrawString(out, uiText.GetText(), MakeRectangle(uiText.m_rect), { uiText.GetFlags() | UiFlags::FontSizeDialog | CenteredInBox });
 }
 
 void Render(const UiArtText &uiArtText)
 {
 	const Surface &out = Surface(DiabloUiSurface());
-	DrawString(out, uiArtText.GetText(), MakeRectangle(uiArtText.m_rect), { uiArtText.GetFlags(), uiArtText.GetSpacing(), uiArtText.GetLineHeight() });
+	DrawString(out, uiArtText.GetText(), MakeRectangle(uiArtText.m_rect), { uiArtText.GetFlags() | CenteredInBox, uiArtText.GetSpacing(), uiArtText.GetLineHeight() });
 }
 
 void Render(const UiImageClx &uiImage)
@@ -998,45 +1222,49 @@ void Render(const UiImageAnimatedClx &uiImage)
 void Render(const UiArtTextButton &uiButton)
 {
 	const Surface &out = Surface(DiabloUiSurface());
-	DrawString(out, uiButton.GetText(), MakeRectangle(uiButton.m_rect), { uiButton.GetFlags() });
+
+	// Here rather than in each screen's own draw, which is where the three private focus rings had to
+	// put it: gUiItems is rendered LAST in a frame (UiPollAndRender), so a screen that drew the
+	// pentagrams itself before that had them painted over by its own background. Drawn from inside the
+	// last pass, the problem those files each worked around does not arise.
+	if (SelectedButton >= 0 && SelectedButton < static_cast<int>(gUiButtons.size())
+	    && gUiButtons[SelectedButton] == &uiButton)
+		DrawSelector(uiButton.m_rect);
+
+	// LabelRect, not the whole button: the pentagrams stand in the row's two ends. No truncation on a
+	// button - its labels are fixed strings that were measured to fit (see LabelRect).
+	DrawString(out, uiButton.GetText(), LabelRect(uiButton.m_rect), { uiButton.GetFlags() | CenteredInBox });
 }
 
 void Render(const UiList &uiList)
 {
 	const Surface &out = Surface(DiabloUiSurface());
+	std::string scratch; // holds an ellipsised label for as long as DrawString needs it
 
 	for (std::size_t i = listOffset; i < uiList.m_vecItems.size() && (i - listOffset) < ListViewportSize; ++i) {
 		SDL_Rect rect = uiList.itemRect(i - listOffset);
 		const UiListItem &item = *uiList.GetItem(i);
-		const Rectangle rectangle = MakeRectangle(rect);
-		const UiFlags flags = uiList.GetFlags() | item.uiFlags;
+		// LabelRect, not the row: the pentagrams own the row's two ends. CenteredInBox then puts the
+		// label on the same centre line DrawSelector uses, so on a row taller than its text the two
+		// stop disagreeing about where the middle is. On the main menu that is a 44px disagreement.
+		const Rectangle rectangle = LabelRect(rect);
+		const UiFlags flags = uiList.GetFlags() | item.uiFlags | CenteredInBox;
 		const bool focused = i == SelectedItem && !UiListSelectorHidden;
 
+		// Before the text, not after: with the label now inset between them nothing overlaps either
+		// way, and this only decides which is on top in the degenerate case where LabelRect gave up
+		// because the row was too narrow to inset at all.
+		if (focused)
+			DrawSelector(rect);
+
 		if (item.args.empty()) {
-			if (focused) {
-				DrawFocusGlow([&](UiFlags haloColor, Displacement offset) {
-					DrawString(out, item.m_text, Rectangle { rectangle.position + offset, rectangle.size },
-					    { WithTextColor(flags, haloColor), uiList.GetSpacing(), uiList.GetLineHeight() });
-				});
-			}
-			DrawString(out, item.m_text, rectangle, { flags, uiList.GetSpacing(), uiList.GetLineHeight() });
+			// Multi-line bodies are left alone: they arrive pre-wrapped (see CenteredInBox above), so
+			// GetLineWidth would measure only the first line and "fitting" it would be meaningless.
+			const string_view text = item.m_text.find('\n') == string_view::npos
+			    ? FitToWidth(item.m_text, rectangle.size.width, GetFontSizeFromUiFlags(flags), uiList.GetSpacing(), scratch)
+			    : item.m_text;
+			DrawString(out, text, rectangle, { flags, uiList.GetSpacing(), uiList.GetLineHeight() });
 		} else {
-			if (focused) {
-				// Recoloured copies of the arguments, one per ring. Each argument carries its own
-				// colour - the settings rows draw an option's name in gold and its value in silver -
-				// and a ring has to be one colour, or it stops reading as light and starts reading as
-				// a blurred second row. Rebuilt rather than copy-and-edited because the flags are
-				// private to the argument; hoisted out of the ring loop because there are only two
-				// colours and two dozen passes.
-				const std::vector<DrawStringFormatArg> innerArgs = RecolorArgs(item.args, GlowInnerColor);
-				const std::vector<DrawStringFormatArg> outerArgs = RecolorArgs(item.args, GlowOuterColor);
-				DrawFocusGlow([&](UiFlags haloColor, Displacement offset) {
-					DrawStringWithColors(out, item.m_text,
-					    haloColor == GlowInnerColor ? innerArgs : outerArgs,
-					    Rectangle { rectangle.position + offset, rectangle.size },
-					    { WithTextColor(flags, haloColor), uiList.GetSpacing(), uiList.GetLineHeight() });
-				});
-			}
 			DrawStringWithColors(out, item.m_text, item.args, rectangle, { flags, uiList.GetSpacing(), uiList.GetLineHeight() });
 		}
 	}
@@ -1109,18 +1337,13 @@ void Render(const UiEdit &uiEdit)
 
 	const Surface &out = Surface(DiabloUiSurface());
 
-	// An edit box is always the focused thing on its screen - it is where the pentagrams used to sit -
-	// so what is typed into it glows like a focused row. The halo passes leave out the caret and the
-	// selection highlight: those are solid rectangles, and smearing them across the ring offsets would
-	// blur the box instead of lighting up the name in it.
-	DrawFocusGlow([&](UiFlags haloColor, Displacement offset) {
-		DrawString(out, uiEdit.m_value, Rectangle { rect.position + offset, rect.size },
-		    { WithTextColor(uiEdit.GetFlags(), haloColor), /*spacing=*/1 });
-	});
-
+	// No selector on the edit box, and deliberately: the pentagrams came back to the lists but not to
+	// here. An edit box is the only interactive thing on its screen, so marking it "selected" says
+	// nothing - and the 12px inset above IS the clearance they used to need. Flanking the box again
+	// would mean going back to 43 and giving up the 62px that lets a full 15-character name fit.
 	DrawString(out, uiEdit.m_value, rect,
 	    {
-	        uiEdit.GetFlags(),
+	        uiEdit.GetFlags() | CenteredInBox,
 	        /*spacing=*/1,
 	        /*lineHeight=*/-1,
 	        /*cursorPosition=*/static_cast<int>(uiEdit.m_cursor.position),
@@ -1134,14 +1357,31 @@ bool HandleMouseEventArtTextButton(const SDL_Event &event, const UiArtTextButton
 	if (event.type != SDL_MOUSEBUTTONUP || event.button.button != SDL_BUTTON_LEFT) {
 		return false;
 	}
+	if (!IsFocusable(*uiButton))
+		return false;
 
+	// Rule 2. The first click marks the button; only a second one on the SAME button acts. A genuine
+	// double-click needs no special case - it is simply those two clicks arriving quickly.
+	if (ArmedItem != uiButton) {
+		ArmedItem = uiButton;
+		ArmedIndex = 0;
+		for (int i = 0; i < static_cast<int>(gUiButtons.size()); i++) {
+			if (gUiButtons[i] == uiButton) {
+				FocusButton(i);
+				break;
+			}
+		}
+		UiPlayMoveSound();
+		return true;
+	}
+
+	DisarmClicks();
 	uiButton->Activate();
 	return true;
 }
 
-#ifdef USE_SDL1
-Uint32 dbClickTimer;
-#endif
+// dbClickTimer is gone with the double-click it timed: arming (see below) needs no clock, so the SDL1
+// and SDL2 paths - which differed only in how they asked "was that a double-click" - are now one.
 
 bool HandleMouseEventList(const SDL_Event &event, UiList *uiList)
 {
@@ -1151,7 +1391,13 @@ bool HandleMouseEventList(const SDL_Event &event, UiList *uiList)
 	if (event.type != SDL_MOUSEBUTTONUP && event.type != SDL_MOUSEBUTTONDOWN)
 		return false;
 
-	std::size_t index = uiList->indexAt(event.button.y);
+	// "None" is a real answer now: with the main menu's rows scattered across a painting there is
+	// scenery between them that belongs to no row, and a click there must fall through rather than
+	// pick whichever row shares its y.
+	const std::optional<std::size_t> hit = uiList->itemAt(event.button.x, event.button.y);
+	if (!hit)
+		return false;
+	std::size_t index = *hit;
 	if (event.type == SDL_MOUSEBUTTONDOWN) {
 		uiList->Press(index);
 		return true;
@@ -1161,25 +1407,36 @@ bool HandleMouseEventList(const SDL_Event &event, UiList *uiList)
 		return false;
 
 	index += listOffset;
+	// Both halves matter. An EMPTY list has SelectedItemMax 0, so the bound alone would let index 0
+	// through into GetItem on a vector with nothing in it - the same underflow UiInitList guards, from
+	// the other side. And a disabled row is not a target: the old code checked that only on the branch
+	// that acted, so a click could still move the rule onto a locked difficulty.
+	if (uiList->m_vecItems.empty() || index > static_cast<std::size_t>(SelectedItemMax))
+		return false;
+	if (HasAnyOf(uiList->GetItem(index)->uiFlags, UiFlags::ElementHidden | UiFlags::ElementDisabled))
+		return false;
 
-	if (gfnListFocus != nullptr && SelectedItem != index) {
-		UiFocus(index, true, false);
-#ifdef USE_SDL1
-		dbClickTimer = SDL_GetTicks();
-	} else if (gfnListFocus == NULL || dbClickTimer + 500 >= SDL_GetTicks()) {
-#else
-	} else if (gfnListFocus == nullptr || event.button.clicks >= 2) {
-#endif
-		if (HasAnyOf(uiList->GetItem(index)->uiFlags, UiFlags::ElementHidden | UiFlags::ElementDisabled))
-			return false;
-		SelectedItem = index;
-		UiFocusNavigationSelect();
-#ifdef USE_SDL1
-	} else {
-		dbClickTimer = SDL_GetTicks();
-#endif
+	// Rule 2, and the reason this is no longer three branches. What stood here focused a row on the
+	// first click and acted on a genuine double-click - but only when the screen had a focus callback;
+	// `gfnListFocus == nullptr` fell straight through to the action. The main menu, the class list and
+	// the difficulty picker all pass nullptr, so on exactly the screens the rule is about, one click
+	// started a game. Arming makes the two paths one: the first click marks the row wherever it came
+	// from, the second acts.
+	if (ArmedItem != uiList || ArmedIndex != index) {
+		ArmedItem = uiList;
+		ArmedIndex = index;
+		// Off the button row, if a click had left it there, so the screen marks one place at a time.
+		FocusButton(-1);
+		if (SelectedItem != index)
+			UiFocus(index, true, false);
+		else
+			UiPlayMoveSound();
+		return true;
 	}
 
+	DisarmClicks();
+	SelectedItem = index;
+	UiFocusNavigationSelect();
 	return true;
 }
 

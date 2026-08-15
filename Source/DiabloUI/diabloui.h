@@ -19,22 +19,18 @@ namespace devilution {
 extern std::size_t SelectedItem;
 bool IsTextInputActive();
 
-/**
- * @brief Stops the list glowing its own selected row, for a screen whose focus can leave the list.
- *
- * Oracool: the character-select screen's focus runs list rows -> action buttons, and the buttons are
- * not list items - nothing in the shared focus model knows about them. While focus sits on one, the
- * list must stop marking a row, or the screen glows in two places at once.
- */
-extern bool UiListSelectorHidden;
+// UiListSelectorHidden and DrawFocusSelector were exported here so a screen could run its own focus
+// over its own buttons and mark them the way a list row is marked. Both are internal now: the focus
+// rule walks the list AND the button row on its own (see gUiButtons in diabloui.cpp), so no screen
+// has to know how focus is drawn, and three that did have stopped.
 
 /**
- * @brief Draws @p button's label with the focus glow, over the button as already rendered.
+ * @brief Rule 2's arming, for a mouse handler that lives outside diabloui.cpp.
  *
- * Exported so focus that lives outside a list (see UiListSelectorHidden) is marked exactly the way a
- * list row is, rather than by a second indicator that merely looks similar.
+ * Returns false on the first click at @p item - the caller should do nothing but look armed - and
+ * true on the next one, meaning the action may now run. @p item is compared, never dereferenced.
  */
-void DrawFocusGlow(const UiArtTextButton &button);
+bool UiClickArms(const void *item);
 
 extern const string_view BannedNames[];
 extern const size_t BannedNamesCount;

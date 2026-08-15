@@ -323,6 +323,40 @@ void InitQuests()
 		}
 	}
 
+	// Oracool: user request - Farmer's Orchard and The Jersey's Jersey are chosen here, from a
+	// three-way setting: Random, Always Farmer, Always Cow.
+	//
+	// They are the one pair in the game that CANNOT both be on: the cow quest replaces Lester the
+	// farmer with the Complete Nut, which is why Farmer's own gate reads `bCowQuest == 0`
+	// (towners.cpp). Every other quest is on for good, so this is the only choice left in the set.
+	//
+	// Random is seeded from glSeedTbl[15], the level-16 seed, for the same reason
+	// InitialiseQuestPools uses it: it is fixed for a given game and it is SAVED. That matters more
+	// here than it looks. Neither sgGameInitInfo.bCowQuest nor the quests themselves are persisted -
+	// InitQuests re-runs on load and rebuilds both from scratch (see loadsave.cpp) - so anything not
+	// derived from the save's own seed would re-roll on every load, and the farmer standing in town
+	// could change identity underneath a quest already in progress.
+	//
+	// Before the pool block below, deliberately: SetRndSeed there restarts the same stream from the
+	// same seed, so this draw cannot shift which quests that would cull if it is ever switched on.
+	//
+	// Single-player only. In multiplayer sgGameInitInfo comes off the wire from the host and every
+	// client must agree with it, so resolving locally there would desync the town.
+	if (!gbIsMultiplayer && gbIsHellfire) {
+		switch (*sgOptions.Gameplay.farmerQuest) {
+		case FarmerQuestMode::AlwaysFarmer:
+			sgGameInitInfo.bCowQuest = 0;
+			break;
+		case FarmerQuestMode::AlwaysCow:
+			sgGameInitInfo.bCowQuest = 1;
+			break;
+		case FarmerQuestMode::Random:
+			SetRndSeed(glSeedTbl[15]);
+			sgGameInitInfo.bCowQuest = static_cast<uint8_t>(GenerateRnd(2) != 0 ? 1 : 0);
+			break;
+		}
+	}
+
 	if (!UseMultiplayerQuests() && *sgOptions.Gameplay.randomizeQuests) {
 		// Quests are set from the seed used to generate level 16.
 		InitialiseQuestPools(glSeedTbl[15], Quests);

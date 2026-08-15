@@ -19,6 +19,10 @@
 #include <SDL.h>
 
 #include "DiabloUI/ui_flags.hpp"
+#include "engine/point.hpp"
+#include "engine/rectangle.hpp"
+#include "engine/size.hpp"
+#include "oracool/ui_backgrounds.h" // MapBackgroundPointToScreen - the dais mark
 #include "utils/display.h"
 #include "utils/sdl_geometry.h"
 
@@ -34,8 +38,23 @@ inline int HeroLogoTop()
 	return std::max(0, GetUIRectangle().position.y - 120);
 }
 
-/** @brief The screen title's band, UI-rect-relative. Shared so the content can start below it. */
-constexpr int HeroTitleTop = 61;
+/**
+ * @brief The screen title's band, UI-rect-relative. Shared so the content can start below it.
+ *
+ * 117, not the 61 that stood here while the masthead was ui_art\smlogo. The logo is ui_art\logo now
+ * (user request) and that frame is 216px tall against smlogo's 154 - measured, and both are
+ * full-bleed, with ink running to within 2px of the frame's bottom edge, so there is no transparent
+ * padding to absorb the difference.
+ *
+ * At 720p the logo sits at screen y=0 (HeroLogoTop) and ends at 216; the title starts at 120+117=237,
+ * leaving 21px of air under the flames. The full 62px shift would have given the old 27px gap but
+ * left the content band 5px short of six class rows - see below.
+ *
+ * THE BAND HOLDS EXACTLY SIX CLASS ROWS AT 720p. HeroContentTop..HeroContentBottom works out at
+ * 313px and the class list is 6 x HeroListItemHeight (52) = 312. A seventh class, a taller row or a
+ * lower title all need the class list to start scrolling rather than just being nudged.
+ */
+constexpr int HeroTitleTop = 117;
 constexpr int HeroTitleHeight = 42; // the FontSize42 line height - see HeroTitleRect
 constexpr UiFlags HeroTitleFontSize = UiFlags::FontSize42;
 
@@ -53,18 +72,22 @@ inline SDL_Rect HeroTitleRect()
 }
 
 /**
- * Oracool: user request - the character screens' action row.
+ * Oracool: user rule - "divide the 960px screen into 4 equal width vertical zones. The bottom of each
+ * zone, in the middle, to be considered a button designation."
  *
- * Four buttons spread evenly along an 800px line centred on the SCREEN (not on the 640-wide UI rect
- * the rest of these dialogs hang off), sitting 50px above the bottom edge. Each button owns a quarter
- * of the line and centres its label inside it, so the row stays evenly spaced whatever the labels
- * translate to.
+ * So the row is the WHOLE window, quartered - not the 800px line centred on the screen that stood
+ * here before, which left 80px of dead margin at each end and made a "zone" something you had to
+ * measure rather than something you could see. A zone is `gnScreenWidth / 4`: 240px at 960, and it
+ * scales, so the rule holds at every resolution rather than only at the one it was written for.
+ *
+ * Each button fills its zone and centres its label in it, so the row stays evenly spaced whatever the
+ * labels translate to, and a wider zone (240 against the old 200) gives the longest label - New Hero -
+ * more room than it had.
  *
  * Height is the FontSize42 line height rather than the 35 the old buttons used: DrawString anchors a
  * glyph's bottom at rect.y + lineHeight and clips at rect.y + rect.height, so 35 was quietly shaving
  * pixels off every label. Nothing showed because none of these words has a descender.
  */
-constexpr int HeroButtonRowWidth = 800;
 constexpr int HeroButtonRowHeight = 42;
 constexpr int HeroButtonRowBottomMargin = 50;
 /** @brief Buttons and hero names, both a size up on the user's call. */
@@ -72,26 +95,29 @@ constexpr UiFlags HeroButtonFontSize = UiFlags::FontSize42;
 constexpr UiFlags HeroListFontSize = UiFlags::FontSize30;
 
 /**
- * @brief The action row: four cells, and which one each button occupies.
+ * @brief The four zones, and which button owns each.
  *
- * OK and Cancel keep their cells on every screen that has them - the character list, the class list,
- * the name box, the multiplayer Continue prompt - so neither button moves as you step between them.
- * That is worth more than packing a two-button row closer together: a control that stays put is one
- * you stop having to look for.
+ * Oracool: user rule, verbatim - "buttons OK, Cancel live in section 2 and 3 on every front end
+ * screen"; "should more buttons be required by a screen they will occupy bottoms of zone 1 and 4.
+ * New Hero takes 1, Delete takes 4."
  *
- * The user calls these the button columns, counting from one. The delete confirmation puts its two
- * answers in the second and third.
+ * The user counts zones from one, so the indices below are their numbers minus one. Reading them in
+ * order gives the row as it appears: New Hero, OK, Cancel, Delete.
+ *
+ * The point of fixing them by zone rather than by "next free cell" is that no button ever moves
+ * between screens. OK is in the same place on the character list, the class list, the name box, the
+ * difficulty picker and the delete prompt; a screen with only OK and Cancel simply leaves zones 1 and
+ * 4 empty rather than sliding its two controls inward to close the gap. A control that stays put is
+ * one you stop having to look for.
+ *
+ * Yes/No on the delete prompt are the OK and Cancel of that screen and take those two zones (see
+ * selyesno.cpp) - the rule is about the positions, not about the words printed in them.
  */
 constexpr int HeroButtonCount = 4;
-constexpr int OkButtonIndex = 0;
-constexpr int DeleteButtonIndex = 1;
-/**
- * New Hero and Cancel swapped on the user's call, which puts **Cancel in the row's last cell** - the
- * one the list column sits over (see HeroListX). Both list screens therefore have the same button
- * under their list, which is the point of the swap.
- */
-constexpr int NewHeroButtonIndex = 2;
-constexpr int CancelButtonIndex = 3;
+constexpr int NewHeroButtonIndex = 0;
+constexpr int OkButtonIndex = 1;
+constexpr int CancelButtonIndex = 2;
+constexpr int DeleteButtonIndex = 3;
 
 /** @brief Every action-row button's look. Shared so a screen cannot drift from the others. */
 constexpr UiFlags HeroButtonFlags = UiFlags::AlignCenter | HeroButtonFontSize | UiFlags::ColorUiGold;
@@ -104,11 +130,37 @@ inline int HeroButtonRowTop()
 	return gnScreenHeight - HeroButtonRowBottomMargin - HeroButtonRowHeight;
 }
 
-/** @brief Cell @p index of a @p count-cell action row. */
+/**
+ * @brief The width the zones are cut from - the window, but never more than 960.
+ *
+ * Oracool: user report - "are you sure the four main buttons at the bottom fit within 960px width
+ * with change of aspect ratio, to me it seems as if they drift away with increased ratio."
+ *
+ * They fit, and they drifted. Nothing ever left the window or clipped: measured at 960 the widest
+ * label is New Hero at 180px inside a 240px zone, and the labels do not grow with the window. But
+ * the ZONES did - cutting gnScreenWidth into quarters put the outer two centres at 120 and 840 at
+ * 960 wide and at 160 and 1120 at 1280, so the row spread by 200px at each end while the words in it
+ * stayed the same size and everything else on the screen stayed put.
+ *
+ * Capped, so the row has one shape at every width. The user's rule named "the 960px screen" when it
+ * set these zones out, which is what this restores: at 960 the arithmetic is bit-for-bit what it was,
+ * and wider windows centre the same 960px row rather than stretching it.
+ */
+constexpr int HeroButtonRowMaxWidth = 960;
+
+/**
+ * @brief Zone @p index of @p count equal zones, at the button line.
+ *
+ * @p count is a parameter only so a screen can say what it means; every caller now passes the default.
+ * The one that did not was the lone-OK message box, which quartered the row into thirds to get its
+ * single button dead centre - and under the zone rule OK belongs in zone 2 like everywhere else.
+ */
 inline SDL_Rect HeroButtonRect(int index, int count = HeroButtonCount)
 {
-	const int cell = HeroButtonRowWidth / count;
-	const int left = (gnScreenWidth - HeroButtonRowWidth) / 2;
+	// Cast, because gnScreenWidth is not an int and std::min will not deduce across the two.
+	const int rowWidth = std::min(static_cast<int>(gnScreenWidth), HeroButtonRowMaxWidth);
+	const int left = (static_cast<int>(gnScreenWidth) - rowWidth) / 2;
+	const int cell = rowWidth / count;
 	return MakeSdlRect(static_cast<Sint16>(left + index * cell), static_cast<Sint16>(HeroButtonRowTop()),
 	    static_cast<Uint16>(cell), static_cast<Uint16>(HeroButtonRowHeight));
 }
@@ -155,11 +207,101 @@ inline int HeroFormBodyTopFor(int height)
 	return top + std::max(0, (HeroContentBottom() - top - height) / 2);
 }
 
+/**
+ * @brief @p height centred in the WHOLE content band, for a screen with no caption over it.
+ *
+ * The difference is HeroFormCaptionHeight + HeroFormCaptionGap - 58px that a captioned screen spends
+ * before its body starts. That is not a rounding matter: the class list is six rows of
+ * HeroListItemHeight (52) = 312px, and the band is 313, so a caption above it puts the last class
+ * straight through the action row. Losing the caption is what makes six classes fit at all.
+ */
+inline int HeroContentTopFor(int height)
+{
+	const int top = HeroContentTop();
+	return top + std::max(0, (HeroContentBottom() - top - height) / 2);
+}
+
 /** @brief A caption sitting under the title, over a column of the given width. */
 inline SDL_Rect HeroCaptionRect(int x, int width)
 {
 	return MakeSdlRect(static_cast<Sint16>(x), static_cast<Sint16>(HeroContentTop()),
 	    static_cast<Uint16>(width), HeroFormCaptionHeight);
+}
+
+/**
+ * @brief The character screens' painting, and the spot on it a character is meant to stand.
+ *
+ * Oracool: user request - "one is to be used as background for hero select. the other one has a
+ * green circle on it - i want you to make it so that the preview sprites of heros land on that
+ * spot." Two copies of the same 1916x821 image were supplied, one clean and one with the spot marked
+ * in pure green.
+ *
+ * MEASURED off the marked copy rather than eyeballed: every pixel with G > 90 and G more than 50
+ * above both R and B, 4324 of them, forming an ellipse with its bounding box at x 898..1015,
+ * y 623..668 and its centroid at (957, 646). An ellipse and not a circle because it is a mark on the
+ * FLOOR, drawn in the painting's perspective - the middle of the stone dais in the foreground.
+ *
+ * Only the centroid is kept. The ellipse's size says how big the dais is, not how big the character
+ * should be, and reading a scale out of it would be inventing a requirement.
+ *
+ * Here rather than in selhero.cpp because the DELETE prompt stands its character on the same dais
+ * (user request). One measurement, two screens - the alternative was a second copy of these numbers
+ * that agreed until one of them was edited.
+ */
+constexpr Size HeroSelectArtSize { 1916, 821 };
+constexpr Point HeroSelectGroundInArt { 957, 646 };
+
+/**
+ * @brief How far below the measured mark the figure actually stands.
+ *
+ * Oracool: user request - "bring the previews about 20-30px lower". Kept as an offset rather than
+ * folded into HeroSelectGroundInArt above, so the measurement stays a measurement: that centroid is
+ * what the green ellipse says, and this is the adjustment made after looking at a character standing
+ * on it. Editing the marked point would have left a number that agreed with nothing.
+ *
+ * SCREEN pixels, not art pixels, because that is the space the request was made in - and it holds at
+ * both target resolutions, which are 720 tall.
+ */
+constexpr int HeroPreviewGroundNudgeY = 25;
+
+/** @brief That spot, in screen pixels at the current resolution. */
+inline Point HeroPreviewGroundPoint()
+{
+	const Point mark = oracool::MapBackgroundPointToScreen(HeroSelectArtSize, HeroSelectGroundInArt);
+	return { mark.x, mark.y + HeroPreviewGroundNudgeY };
+}
+
+/**
+ * @brief The figure's own top - closer under the title than HeroContentTop's, by 16px.
+ *
+ * That 24px gap is the LIST's breathing room: rows of text immediately under a heading of the same
+ * colour need the separation. The figure does not - it reads as a picture, not as another line - and
+ * every pixel here is a pixel of scale, since the preview is height-bound (see PreviewScaleFor).
+ */
+inline int HeroPreviewTop()
+{
+	return GetUIRectangle().position.y + HeroTitleTop + HeroTitleHeight + 8;
+}
+
+/**
+ * @brief Where the animated character stands - on the dais the painting draws for it.
+ *
+ * The rect is built so its BOTTOM EDGE is the mark and its middle is over it, because that is where
+ * DrawHeroPreview puts the figure: centred across the area, standing on its bottom. Aiming the area
+ * rather than the sprite means nothing in the preview code has to learn about backgrounds.
+ *
+ * On the character list this used to be "everything left of the list and its scrollbar", which was
+ * the right answer for a screen with no painting behind it - the figure went in the empty half. The
+ * painting has a place for it now, and that place is the middle of the screen.
+ */
+inline Rectangle HeroPreviewRect()
+{
+	const Point ground = HeroPreviewGroundPoint();
+	const int top = HeroPreviewTop();
+	// Wider than any figure at any scale, so the width is never what limits PreviewScaleFor and the
+	// only thing deciding the size is the height between the title and the dais.
+	constexpr int Width = 440;
+	return { { ground.x - Width / 2, top }, { Width, std::max(0, ground.y - top) } };
 }
 
 } // namespace devilution

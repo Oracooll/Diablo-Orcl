@@ -816,6 +816,21 @@ void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition)
 	out.BlitFrom(*pBtmBuff, srcRect, targetPosition);
 }
 
+/**
+ * @brief Draws "current/max" with the SLASH centred on @p pos.
+ *
+ * Oracool: user request - "make the health and mana points slash symbol to be dead center in the
+ * orbs". @p pos is the orb's sphere centre (scrollrt passes GetHealthOrbSphereCenterLocal and its
+ * mana twin), and the slash is the right thing to centre on it rather than the string as a whole:
+ * the two numbers either side change width independently - 9/10 against 100/100 - so centring the
+ * whole line would let the divider wander off the middle as the values moved.
+ *
+ * It was off on both axes. Horizontally the slash's LEFT EDGE sat on the centre, putting the glyph
+ * half its own width to the right. Vertically `pos` was passed straight to the Point overload of
+ * DrawString, whose y is the TOP of the line, so the whole readout hung a half line-height below the
+ * middle of the sphere. Both are corrected here rather than by nudging the numbers scrollrt passes,
+ * so anything else that ever draws a pair of values gets the same centring.
+ */
 void DrawFlaskValues(const Surface &out, Point pos, int currValue, int maxValue)
 {
 	UiFlags color = (currValue > 0 ? (currValue == maxValue ? UiFlags::ColorGold : UiFlags::ColorWhite) : UiFlags::ColorRed);
@@ -825,10 +840,15 @@ void DrawFlaskValues(const Surface &out, Point pos, int currValue, int maxValue)
 		DrawString(out, text, pos, { color | UiFlags::KerningFitSpacing, 0 });
 	};
 
+	const int slashWidth = GetLineWidth("/", GameFont12);
+	const int lineHeight = GetLineHeight("/", GameFont12);
+	// The slash's own top-left, such that its centre lands on pos.
+	const Point slashPos { pos.x - slashWidth / 2, pos.y - lineHeight / 2 };
+
 	std::string currText = StrCat(currValue);
-	drawStringWithShadow(currText, pos - Displacement { GetLineWidth(currText, GameFont12) + 1, 0 });
-	drawStringWithShadow("/", pos);
-	drawStringWithShadow(StrCat(maxValue), pos + Displacement { GetLineWidth("/", GameFont12) + 1, 0 });
+	drawStringWithShadow(currText, slashPos - Displacement { GetLineWidth(currText, GameFont12) + 1, 0 });
+	drawStringWithShadow("/", slashPos);
+	drawStringWithShadow(StrCat(maxValue), slashPos + Displacement { slashWidth + 1, 0 });
 }
 
 void control_update_life_mana()

@@ -514,7 +514,10 @@ void InitGameInfo()
 	sgGameInitInfo.nTickRate = *sgOptions.Gameplay.tickRate;
 	sgGameInitInfo.bRunInTown = *sgOptions.Gameplay.runInTown ? 1 : 0;
 	sgGameInitInfo.bTheoQuest = *sgOptions.Gameplay.theoQuest ? 1 : 0;
-	sgGameInitInfo.bCowQuest = *sgOptions.Gameplay.cowQuest ? 1 : 0;
+	// Random resolves to the farmer here. The wire carries one byte and every client has to agree
+	// with it, so the draw InitQuests makes cannot happen on this path - and Lester is the canonical
+	// half of the pair. Single player never reaches this line.
+	sgGameInitInfo.bCowQuest = (*sgOptions.Gameplay.farmerQuest == FarmerQuestMode::AlwaysCow) ? 1 : 0;
 	sgGameInitInfo.bFriendlyFire = *sgOptions.Gameplay.friendlyFire ? 1 : 0;
 	sgGameInitInfo.fullQuests = (!gbIsMultiplayer || *sgOptions.Gameplay.multiplayerFullQuests) ? 1 : 0;
 }

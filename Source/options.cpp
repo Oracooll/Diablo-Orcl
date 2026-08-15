@@ -699,7 +699,11 @@ string_view OptionCategoryBase::GetDescription() const
 
 GameModeOptions::GameModeOptions()
     : OptionCategoryBase("GameMode", N_("Game Mode"), N_("Game Mode Settings"))
-    , gameMode("Game", OptionEntryFlags::NeedHellfireMpq | OptionEntryFlags::RecreateUI, N_("Game Mode"), N_("Play Diablo or Hellfire."), StartUpGameMode::Ask,
+    // Oracool: user request - Hellfire is the default, and the game never asks. Vanilla's default
+    // is Ask, which is what triggered the startup dialog; that dialog is gone and any .ini still
+    // holding Ask is migrated on boot (see DiabloInit). Ask stays in the enum so an old .ini still
+    // parses, and stays out of the list below so it cannot be chosen again.
+    , gameMode("Game", OptionEntryFlags::NeedHellfireMpq | OptionEntryFlags::RecreateUI, N_("Game Mode"), N_("Play Diablo or Hellfire."), StartUpGameMode::Hellfire,
           {
               { StartUpGameMode::Diablo, N_("Diablo") },
               // Ask is missing, cause we want to hide it from UI-Settings.
@@ -1246,8 +1250,26 @@ GameplayOptions::GameplayOptions()
     , tickRate("Speed", OptionEntryFlags::Invisible, "Speed", "Gameplay ticks per second.", 20)
     , runInTown("Run in Town", OptionEntryFlags::CantChangeInMultiPlayer, N_("Run in Town"), N_("Enable jogging/fast walking in town for Diablo and Hellfire. This option was introduced in the expansion."), true)
     , grabInput("Grab Input", OptionEntryFlags::None, N_("Grab Input"), N_("When enabled mouse is locked to the game window."), false)
-    , theoQuest("Theo Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Theo Quest"), N_("Enable Little Girl quest."), false)
-    , cowQuest("Cow Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Cow Quest"), N_("Enable Jersey's quest. Lester the farmer is replaced by the Complete Nut."), false)
+    // Oracool: user request - the Little Girl quest is on by default now. Same treatment as the Bard
+    // and the Barbarian: vanilla hides a finished piece of content behind a switch that defaults off,
+    // and flipping the default is the whole change - the option stays, so it can still be turned off.
+    //
+    // Safe to default on, unlike its neighbour below: this one ADDS a towner (Celia, in town once
+    // level 17 has been visited - see towners.cpp) and takes nothing away. Nothing else changes.
+    , theoQuest("Theo Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Theo Quest"), N_("Enable Little Girl quest."), true)
+    // Oracool: user request - three ways rather than two, because the interesting answer was the one
+    // a boolean could not hold. Random is the default: the pair is mutually exclusive, so leaving it
+    // to the seed is the only way a playthrough can meet either of them.
+    //
+    // The ini key stays "Cow Quest" although the option is no longer named that. Renaming it would
+    // silently discard the setting out of every existing ini for nothing - the key is internal and
+    // the enum's values are chosen to match what that key already held (see FarmerQuestMode).
+    , farmerQuest("Cow Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Farmer's Quest"), N_("Which farmer stands outside town. Lester offers Farmer's Orchard; the Complete Nut offers The Jersey's Jersey. They cannot both appear, so Random draws one per game."), FarmerQuestMode::Random,
+          {
+              { FarmerQuestMode::Random, N_("Random") },
+              { FarmerQuestMode::AlwaysFarmer, N_("Always Farmer") },
+              { FarmerQuestMode::AlwaysCow, N_("Always Cow") },
+          })
     , friendlyFire("Friendly Fire", OptionEntryFlags::CantChangeInMultiPlayer, N_("Friendly Fire"), N_("Allow arrow/spell damage between players in multiplayer even when the friendly mode is on."), true)
     , multiplayerFullQuests("MultiplayerFullQuests", OptionEntryFlags::CantChangeInMultiPlayer, N_("Full quests in Multiplayer"), N_("Enables the full/uncut singleplayer version of quests."), false)
     // Oracool: user request - the full six-class roster is on offer, so the Bard is back, on by
@@ -1309,7 +1331,7 @@ std::vector<OptionEntryBase *> GameplayOptions::GetEntries()
 		&multiplayerFullQuests,
 		&randomizeQuests,
 		&theoQuest,
-		&cowQuest,
+		&farmerQuest,
 		&runInTown,
 		&quickCast,
 		&testBard,

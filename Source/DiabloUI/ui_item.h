@@ -1,7 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -397,8 +399,49 @@ public:
 		return lineHeight_;
 	}
 
+	/**
+	 * @brief Places the rows at explicit positions instead of stacking them.
+	 *
+	 * Oracool: the main menu's three entries sit at three unrelated spots on the painting behind them
+	 * - one by the forge, one by the cathedral steps, one on the portal - which a stacked list cannot
+	 * express. Given as an option rather than making every list carry a table: pass nothing and the
+	 * arithmetic below is exactly what it always was.
+	 *
+	 * The widget's OWN rect is recomputed here as the union of the rows. That is not tidiness: it is
+	 * the rect HandleMouseEvent gates on before it ever asks which row was hit, so a row outside it
+	 * is simply not clickable. This was the caller's job for one version and the caller got it wrong
+	 * - the list kept the `item_height * count` rect from its constructor, 126px against the 272px
+	 * the three entries actually span, which covered the first, clipped the second and missed the
+	 * third. Two thirds of the main menu answered the keyboard and not the mouse, and nothing at the
+	 * call site looked wrong. That is why it belongs here.
+	 */
+	void SetItemRects(std::vector<SDL_Rect> rects)
+	{
+		itemRects_ = std::move(rects);
+		if (itemRects_.empty())
+			return;
+
+		int left = itemRects_[0].x;
+		int top = itemRects_[0].y;
+		int right = left + itemRects_[0].w;
+		int bottom = top + itemRects_[0].h;
+		for (const SDL_Rect &r : itemRects_) {
+			left = std::min(left, r.x);
+			top = std::min(top, r.y);
+			right = std::max(right, r.x + r.w);
+			bottom = std::max(bottom, r.y + r.h);
+		}
+		m_rect.x = static_cast<Sint16>(left);
+		m_rect.y = static_cast<Sint16>(top);
+		m_rect.w = static_cast<Uint16>(right - left);
+		m_rect.h = static_cast<Uint16>(bottom - top);
+	}
+
 	[[nodiscard]] SDL_Rect itemRect(int i) const
 	{
+		if (!itemRects_.empty() && static_cast<size_t>(i) < itemRects_.size())
+			return itemRects_[static_cast<size_t>(i)];
+
 		SDL_Rect tmp;
 		tmp.x = m_x;
 		tmp.y = m_y + m_height * i;
@@ -408,11 +451,30 @@ public:
 		return tmp;
 	}
 
-	[[nodiscard]] size_t indexAt(Sint16 y) const
+	/**
+	 * @brief Which row is under (@p x, @p y), if any.
+	 *
+	 * Takes the whole point and returns "none", where this used to take a y and divide it by the row
+	 * height. Both had to change for scattered rows: x matters once the rows are not all in the same
+	 * column, and there is now empty scenery BETWEEN them that belongs to no row at all - which the
+	 * old version could only answer with an assert.
+	 */
+	[[nodiscard]] std::optional<size_t> itemAt(Sint16 x, Sint16 y) const
 	{
-		ASSERT(y >= m_rect.y);
-		const size_t index = (y - m_rect.y) / m_height;
-		ASSERT(index < m_vecItems.size());
+		if (!itemRects_.empty()) {
+			for (size_t i = 0; i < itemRects_.size() && i < m_vecItems.size(); i++) {
+				const SDL_Rect &r = itemRects_[i];
+				if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)
+					return i;
+			}
+			return std::nullopt;
+		}
+
+		if (y < m_rect.y || m_height <= 0)
+			return std::nullopt;
+		const size_t index = static_cast<size_t>(y - m_rect.y) / m_height;
+		if (index >= m_vecItems.size())
+			return std::nullopt;
 		return index;
 	}
 
@@ -446,6 +508,8 @@ public:
 	Sint16 m_x, m_y;
 	Uint16 m_width, m_height;
 	std::vector<UiListItem *> m_vecItems;
+	/** @brief Empty for an ordinary stacked list - see SetItemRects. */
+	std::vector<SDL_Rect> itemRects_;
 
 private:
 	struct PrivateConstructor final {

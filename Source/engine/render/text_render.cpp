@@ -81,7 +81,7 @@ constexpr std::array<int, 6> LineHeights = { 12, 26, 38, 42, 50, 22 };
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 6> BaseLineOffset = { -3, -2, -3, -6, -7, 3 };
 
-std::array<const char *, 19> ColorTranslations = {
+std::array<const char *, 21> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -105,9 +105,13 @@ std::array<const char *, 19> ColorTranslations = {
 	"fonts\\gamedialogwhite.trn",
 	"fonts\\gamedialogyellow.trn",
 	"fonts\\gamedialogred.trn",
+
+	// Oracool: generated, not authored - see tools/MakeYellowFontTrn.ps1.
+	"fonts\\oracool_yellow.trn",
+	"fonts\\oracool_yellows.trn",
 };
 
-std::array<std::optional<std::array<uint8_t, 256>>, 19> ColorTranslationsData;
+std::array<std::optional<std::array<uint8_t, 256>>, 21> ColorTranslationsData;
 
 text_color GetColorFromFlags(UiFlags flags)
 {
@@ -143,6 +147,12 @@ text_color GetColorFromFlags(UiFlags flags)
 		return ColorButtonface;
 	if (HasAnyOf(flags, UiFlags::ColorButtonpushed))
 		return ColorButtonpushed;
+	// Oracool: the focus glow's pair. Above the Whitegold fallback below so a caller that asks for
+	// them gets them, and nowhere near the top so no existing caller's path changes.
+	if (HasAnyOf(flags, UiFlags::ColorOracoolYellow))
+		return ColorOracoolYellow;
+	if (HasAnyOf(flags, UiFlags::ColorOracoolYellowDark))
+		return ColorOracoolYellowDark;
 
 	// Last, and only for the sake of being written down: ColorWhitegold is also what this returns for
 	// no recognised colour at all, which is how every existing caller of that flag has been getting it.

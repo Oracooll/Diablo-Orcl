@@ -116,10 +116,25 @@ constexpr int StashGridTop = StashGoldRowY + StashGoldRowHeight + 8;
 constexpr int StashGridLeft = (StashPanelSize.width - StashGridWidth) / 2;
 constexpr int StashGridBottom = StashGridTop + StashGridRows * StashCellPx;
 
-// The whole point of the taller window: the grid must reach as far down as it can without entering
-// the central HUD's territory, which begins around y=660.
-static_assert(StashGridBottom <= 660, "Stash grid now overlaps the central HUD");
-static_assert(StashGridBottom + StashCellPx > 660, "Another stash row would still fit - raise StashGridRows");
+/**
+ * @brief The health orb's top edge - what the grid's height is actually limited by.
+ *
+ * Not the 660 that stood here, which was the central HUD PLATE's top. The plate is not the thing the
+ * stash meets: the health orb sits to the plate's left (oracool::GetHealthOrbRect), is 96px tall
+ * against the plate's shorter body, and therefore reaches higher - and the stash panel is at the
+ * screen's top-left, so the orb is its actual neighbour. The assert passed while the user was
+ * looking at a row drawn underneath a sphere.
+ *
+ * 720 - HealthOrbScreenSize.height. Hardcoded like the 660 before it, because a static_assert cannot
+ * call GetHealthOrbRect(); safe because every resolution this project targets is 720 tall.
+ */
+constexpr int StashHealthOrbTop = 720 - 96;
+
+// -1 because StashGridBottom is the row AFTER the last one: the grid's final pixel is
+// StashGridBottom - 1, and it is allowed to sit on the orb's first row. That single shared line is
+// the grid's bottom rule meeting the very top of the sphere, which is a few pixels wide there.
+static_assert(StashGridBottom - 1 <= StashHealthOrbTop, "Stash grid now runs under the health orb - lower StashGridRows");
+static_assert(StashGridBottom - 1 + StashCellPx > StashHealthOrbTop, "Another stash row would still fit - raise StashGridRows");
 static_assert(StashGridLeft >= StashMargin, "Stash grid is wider than the panel's margins allow");
 
 
@@ -547,7 +562,7 @@ void DrawStash(const Surface &out)
 
 	// Oracool: user request - 1px cell rules, deliberately a DIFFERENT colour from the inventory
 	// grid's. The inventory divides its cells with the theme's 3px gold bevel; the stash is a much
-	// larger grid, and the same treatment at 17 rows would read as a gold mesh rather than as
+	// larger grid, and the same treatment at sixteen rows would read as a gold mesh rather than as
 	// storage. Dark grey, one pixel, is enough to separate the cells and lets the items carry the
 	// colour.
 	//

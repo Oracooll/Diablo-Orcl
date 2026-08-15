@@ -219,6 +219,14 @@ void RenderPresent()
 
 	SDL_Surface *surface = GetOutputSurface();
 
+	// Self-healing, and this is the one that actually fixes the reported freeze. Syncing once at the
+	// end of ResizeWindow is not enough on its own: the hide/show traffic a resize generates is still
+	// sitting in the event queue at that point, and a HIDDEN dequeued afterwards puts the flag back.
+	// Asked here, the window gets to correct the record on the very next frame, so the worst case is
+	// one skipped frame rather than a picture that never updates again.
+	if (!gbActive)
+		SyncWindowActiveState();
+
 	if (!gbActive) {
 		LimitFrameRate();
 		return;

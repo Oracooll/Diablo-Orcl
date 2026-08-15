@@ -22,48 +22,8 @@
 #include "utils/str_cat.hpp"
 #include "utils/ui_fwd.h"
 
-#ifdef _WIN32
-// For FOLDERID_Pictures - the folder Win+PrtScn writes to.
-//
-// LAST, and with NOMINMAX, both deliberately. windows.h defines min/max as macros, which turns every
-// std::min/std::max in the headers above into a syntax error; including it after them keeps the
-// damage to this file, and NOMINMAX keeps it out of this file too.
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-#include <objbase.h>
-#include <shlobj.h>
-#endif
-
 namespace devilution {
 namespace {
-
-/**
- * @brief The directory screenshots go under, WITHOUT the trailing "Screenshots/".
- *
- * Windows' Pictures folder, so captures land in the same place Win+PrtScn puts them and show up in
- * the Photos app without anyone having to know where the game keeps its saves. Falls back to the
- * game's own preference directory - which is what this always used - if the shell cannot tell us,
- * and on any platform that has no such notion.
- */
-std::string ScreenshotDir()
-{
-#ifdef _WIN32
-	PWSTR picturesPath = nullptr;
-	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Pictures, 0, nullptr, &picturesPath)) && picturesPath != nullptr) {
-		const int size = WideCharToMultiByte(CP_UTF8, 0, picturesPath, -1, nullptr, 0, nullptr, nullptr);
-		std::string result;
-		if (size > 1) {
-			result.resize(static_cast<size_t>(size) - 1);
-			WideCharToMultiByte(CP_UTF8, 0, picturesPath, -1, result.data(), size, nullptr, nullptr);
-			result += '/';
-		}
-		CoTaskMemFree(picturesPath);
-		if (!result.empty())
-			return result;
-	}
-#endif
-	return paths::PrefPath();
-}
 
 std::string CaptureFilePath()
 {
@@ -78,13 +38,18 @@ std::string CaptureFilePath()
 	// alongside the save files. Created on demand rather than at startup, so a player who never
 	// takes a screenshot never gets an empty directory.
 	//
-	// Oracool: user request (2026-08-13) - "why that folder? why not the default ss folder?". Fair:
-	// PrefPath is wherever the game keeps its saves and .ini, and for this build that is the
-	// directory the exe sits in - so screenshots were landing inside build\x64-Debug, which is a
-	// place you go to run a game, not a place you go to look at pictures. Windows has a registered
-	// folder for exactly this (the one Win+PrtScn uses), so that is where they go now, with the old
-	// location kept as the fallback for anything that cannot resolve it.
-	const std::string dir = StrCat(ScreenshotDir(), "Screenshots/");
+	// Under PrefPath - i.e. Saved_Games\Screenshots\ beside the exe - and that is the whole history
+	// of this line, reversed once and reversed back:
+	//
+	//   2026-08-13, "why that folder? why not the default ss folder?" - moved to Windows'
+	//   FOLDERID_Pictures, the folder Win+PrtScn uses.
+	//   2026-08-14, moved back here on request. In practice the captures are wanted next to the
+	//   build being tested, where they can be found and read without leaving the project.
+	//
+	// So this is deliberately NOT the OS picture folder, and the shell lookup that fetched it is
+	// gone rather than left switchable - it was 20 lines and a windows.h include for a path this
+	// project does not want.
+	const std::string dir = StrCat(paths::PrefPath(), "Screenshots/");
 	RecursivelyCreateDir(dir.c_str());
 
 	std::string path = StrCat(dir, filename, ".png");

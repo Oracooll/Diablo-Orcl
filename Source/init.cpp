@@ -381,6 +381,12 @@ void MainWndProc(const SDL_Event &event)
 #ifndef USE_SDL1
 	if (event.type != SDL_WINDOWEVENT)
 		return;
+	// Only the game window's own events. Events queued for a window that has since been destroyed are
+	// still delivered, and FreeRenderer really does destroy and recreate this one (Windows, D3D9 -
+	// see the SDL VSYNC-timer workaround there). Without this, a HIDDEN belonging to the window we
+	// just replaced clears gbActive and rendering stops for good.
+	if (ghMainWnd != nullptr && event.window.windowID != SDL_GetWindowID(ghMainWnd))
+		return;
 	switch (event.window.event) {
 	case SDL_WINDOWEVENT_HIDDEN:
 	case SDL_WINDOWEVENT_MINIMIZED:

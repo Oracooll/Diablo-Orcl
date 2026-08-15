@@ -27,6 +27,7 @@
 #include "controls/touch/gamepad.h"
 #include "engine/backbuffer_state.hpp"
 #include "engine/dx.h"
+#include "init.h" // gbActive - see SyncWindowActiveState
 #include "options.h"
 #include "utils/log.hpp"
 #include "utils/sdl_geometry.h"
@@ -192,6 +193,27 @@ Size GetPreferredWindowSize()
 }
 
 } // namespace
+
+void SyncWindowActiveState()
+{
+#ifndef USE_SDL1
+	if (ghMainWnd == nullptr)
+		return;
+
+	// The window's own flags, which cannot be stale - unlike the event that last spoke about them.
+	const Uint32 flags = SDL_GetWindowFlags(ghMainWnd);
+	const bool active = (flags & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED)) == 0;
+	if (active == gbActive)
+		return;
+
+	// Logged rather than corrected silently: a correction here means the window told us one thing and
+	// the event stream another, and if this stops appearing the disagreement has stopped happening.
+	Log("Window active state was {}, the window itself says {} - correcting", gbActive, active);
+	gbActive = active;
+	if (active)
+		RedrawEverything();
+#endif
+}
 
 void AdjustToScreenGeometry(Size windowSize)
 {
@@ -493,6 +515,7 @@ void SetFullscreenMode()
 	}
 	InitializeVirtualGamepad();
 #endif
+	SyncWindowActiveState();
 	RedrawEverything();
 }
 
@@ -536,6 +559,10 @@ void ResizeWindow()
 #endif
 
 	CreateBackBuffer();
+
+	// The window is here, sized and shown. Whatever hide/show traffic getting it here produced, this
+	// is the state that is true - see SyncWindowActiveState.
+	SyncWindowActiveState();
 	RedrawEverything();
 }
 

@@ -34,6 +34,20 @@ void SetVideoMode(int width, int height, int bpp, uint32_t flags);
 void SetVideoModeToPrimary(bool fullscreen, int width, int height);
 #endif
 
+/**
+ * @brief Sets `gbActive` from what the window actually IS, rather than from the last event about it.
+ *
+ * `gbActive` gates RenderPresent - false and the frame is computed and thrown away. It is otherwise
+ * only ever written from SDL_WINDOWEVENT_HIDDEN/MINIMIZED and SHOWN/EXPOSED/RESTORED, which is fine
+ * while nothing but the user's window manager moves the window, and not fine across a resize: SDL
+ * emits its own hide/show/minimise traffic there, and if the last of it to be processed says
+ * "hidden", rendering stops for good while the game carries on running underneath.
+ *
+ * Call after anything that resizes, recreates or changes the mode of the window. A no-op under SDL1,
+ * which has no per-window state to ask.
+ */
+void SyncWindowActiveState();
+
 bool IsFullScreen();
 
 // Returns:

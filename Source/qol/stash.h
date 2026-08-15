@@ -20,15 +20,23 @@ namespace devilution {
  * @brief Stash page dimensions, in cells.
  *
  * Oracool V1: the stash window grew to the shared 340x720 theme, and the page grew with it - the
- * old 10x10 filled barely half the taller window. 17 rows is what fits between the control row and
- * y=660, below which the central HUD begins.
+ * old 10x10 filled barely half the taller window.
+ *
+ * 16 rows, not the 17 that stood here. 17 was sized against y=660, "below which the central HUD
+ * begins" - but the health orb is not part of the central HUD. It is pinned to the screen's
+ * bottom-LEFT corner, which is the corner the stash occupies, and it reaches higher than the middle
+ * row does. Measured: the grid starts at y=161 on a 29px pitch, so the 17th row ran 625..654 and the
+ * orb's disc starts around 628. The 16th ends at 625 and clears it.
+ *
+ * Deleted rather than hidden, on the user's call - a row you cannot see but the auto-place code can
+ * still fill is worse than no row.
  *
  * These live here rather than in stash.cpp because StashGrid's type is built from them AND
  * loadsave.cpp sizes the save file from them; three places deriving from one pair of numbers is
  * what keeps the array, the layout and the save format from disagreeing.
  */
 constexpr int StashGridColumns = 10;
-constexpr int StashGridRows = 17;
+constexpr int StashGridRows = 16;
 
 class StashStruct {
 public:

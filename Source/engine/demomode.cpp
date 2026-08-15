@@ -87,7 +87,9 @@ struct {
 	uint8_t tickRate = 20;
 	bool runInTown = false;
 	bool theoQuest = false;
-	bool cowQuest = false;
+	// One raw byte, as before. FarmerQuestMode's 0 and 1 are the old boolean's values on purpose, so
+	// demos recorded before it became three-way still replay with the farmer they were recorded with.
+	FarmerQuestMode farmerQuest = FarmerQuestMode::AlwaysFarmer;
 	bool autoGoldPickup = false;
 	bool autoElixirPickup = false;
 	bool autoOilPickup = false;
@@ -127,7 +129,7 @@ void ReadSettings(FILE *in, uint8_t version)
 	if (version > 0) {
 		DemoSettings.runInTown = ReadByte(in) != 0;
 		DemoSettings.theoQuest = ReadByte(in) != 0;
-		DemoSettings.cowQuest = ReadByte(in) != 0;
+		DemoSettings.farmerQuest = static_cast<FarmerQuestMode>(ReadByte(in));
 		DemoSettings.autoGoldPickup = ReadByte(in) != 0;
 		DemoSettings.autoElixirPickup = ReadByte(in) != 0;
 		DemoSettings.autoOilPickup = ReadByte(in) != 0;
@@ -159,7 +161,7 @@ void WriteSettings(FILE *out)
 	WriteLE16(out, gnScreenHeight);
 	WriteByte(out, *sgOptions.Gameplay.runInTown);
 	WriteByte(out, *sgOptions.Gameplay.theoQuest);
-	WriteByte(out, *sgOptions.Gameplay.cowQuest);
+	WriteByte(out, static_cast<uint8_t>(*sgOptions.Gameplay.farmerQuest));
 	WriteByte(out, *sgOptions.Gameplay.autoGoldPickup);
 	WriteByte(out, *sgOptions.Gameplay.autoElixirPickup);
 	WriteByte(out, *sgOptions.Gameplay.autoOilPickup);
@@ -502,7 +504,7 @@ void OverrideOptions()
 
 	sgOptions.Gameplay.runInTown.SetValue(DemoSettings.runInTown);
 	sgOptions.Gameplay.theoQuest.SetValue(DemoSettings.theoQuest);
-	sgOptions.Gameplay.cowQuest.SetValue(DemoSettings.cowQuest);
+	sgOptions.Gameplay.farmerQuest.SetValue(DemoSettings.farmerQuest);
 	sgOptions.Gameplay.autoGoldPickup.SetValue(DemoSettings.autoGoldPickup);
 	sgOptions.Gameplay.autoElixirPickup.SetValue(DemoSettings.autoElixirPickup);
 	sgOptions.Gameplay.autoOilPickup.SetValue(DemoSettings.autoOilPickup);

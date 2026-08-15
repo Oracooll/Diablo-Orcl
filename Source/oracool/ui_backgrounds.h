@@ -25,8 +25,23 @@
 #include <vector>
 
 #include "DiabloUI/ui_item.h"
+#include "engine/point.hpp"
+#include "engine/size.hpp"
 
 namespace devilution::oracool {
+
+/**
+ * @brief Where a point marked in a background's own pixels ends up on screen.
+ *
+ * For art that carries a position in it - the character screens' painting has a stone dais, and the
+ * hero preview stands on it. The backgrounds are cover-cropped and scaled to the window, so a spot
+ * measured in the source is not a spot on screen until it has been through the same transform; this
+ * runs the very same CropForScreen the painting does, so the two cannot disagree.
+ *
+ * @param artSize the source image's full size, as measured
+ * @param pointInArt the spot, in that image's pixels
+ */
+Point MapBackgroundPointToScreen(Size artSize, Point pointInArt);
 
 /**
  * @brief Which painting to draw. One cache slot each, so screens do not evict one another.
@@ -41,8 +56,11 @@ enum class UiBackground : size_t {
 	MainMenu,
 	Settings,
 	HeroSelect,
-	/** The class-selection screen's own painting: the six classes around a campfire. */
-	ChooseHero,
+	// ChooseHero - the six classes around a campfire - was here. Removed rather than left unwired on
+	// the user's call ("doesn't fit the D2R style"); the class list is back on HeroSelect's painting
+	// with the other two character screens. An entry with no caller is what this enum had before, and
+	// it took an audit to notice: `ui\choose_hero_bg.png` shipped for a slot nothing ever asked for.
+	// The asset is still in Packaging/resources/oracool_assets/ui and is now unreferenced.
 	/**
 	 * The difficulty picker. Reached in single-player straight after choosing a character, and drawn
 	 * by selgame.cpp - which is the multiplayer file, but this screen is single-player's too (see

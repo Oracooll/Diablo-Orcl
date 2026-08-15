@@ -16,15 +16,14 @@ OptionalOwnedClxSpriteList DiabloTitleLogo;
 
 std::vector<std::unique_ptr<UiItemBase>> vecTitleScreen;
 
+// Oracool: user request - the Diablo title screen even in Hellfire mode. Vanilla loads the animated
+// ui_art\hf_logo1 (plus its widescreen strip) whenever gbIsHellfire is set; this build always uses
+// Diablo's painted title and its logo. The third and last place the logo used to fork - the other
+// two are LoadUiGFX in DiabloUI/diabloui.cpp and sgpLogo in gmenu.cpp.
 void TitleLoad()
 {
-	if (gbIsHellfire) {
-		LoadBackgroundArt("ui_art\\hf_logo1", 16);
-		ArtBackgroundWidescreen = LoadOptionalClx("ui_art\\hf_titlew.clx");
-	} else {
-		LoadBackgroundArt("ui_art\\title");
-		DiabloTitleLogo = LoadPcxSpriteList("ui_art\\logo", /*numFrames=*/15, /*transparentColor=*/250);
-	}
+	LoadBackgroundArt("ui_art\\title");
+	DiabloTitleLogo = LoadPcxSpriteList("ui_art\\logo", /*numFrames=*/15, /*transparentColor=*/250);
 }
 
 void TitleFree()
@@ -42,20 +41,16 @@ void UiTitleDialog()
 {
 	TitleLoad();
 	const Point uiPosition = GetUIRectangle().position;
-	if (gbIsHellfire) {
-		SDL_Rect rect = MakeSdlRect(0, uiPosition.y, 0, 0);
-		if (ArtBackgroundWidescreen)
-			vecTitleScreen.push_back(std::make_unique<UiImageClx>((*ArtBackgroundWidescreen)[0], rect, UiFlags::AlignCenter));
-		vecTitleScreen.push_back(std::make_unique<UiImageAnimatedClx>(*ArtBackground, rect, UiFlags::AlignCenter));
-	} else {
-		UiAddBackground(&vecTitleScreen);
+	// Matches TitleLoad above: the Diablo title, unconditionally. The Hellfire branch that stood
+	// here composed hf_logo1 as an animated background with an optional widescreen strip behind it,
+	// which is a different construction entirely rather than the same layout with other art.
+	UiAddBackground(&vecTitleScreen);
 
-		vecTitleScreen.push_back(std::make_unique<UiImageAnimatedClx>(
-		    *DiabloTitleLogo, MakeSdlRect(0, uiPosition.y + 182, 0, 0), UiFlags::AlignCenter));
+	vecTitleScreen.push_back(std::make_unique<UiImageAnimatedClx>(
+	    *DiabloTitleLogo, MakeSdlRect(0, uiPosition.y + 182, 0, 0), UiFlags::AlignCenter));
 
-		SDL_Rect rect = MakeSdlRect(uiPosition.x, uiPosition.y + 410, 640, 26);
-		vecTitleScreen.push_back(std::make_unique<UiArtText>(_("Copyright © 1996-2001 Blizzard Entertainment").data(), rect, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiSilver));
-	}
+	SDL_Rect rect = MakeSdlRect(uiPosition.x, uiPosition.y + 410, 640, 26);
+	vecTitleScreen.push_back(std::make_unique<UiArtText>(_("Copyright © 1996-2001 Blizzard Entertainment").data(), rect, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiSilver));
 
 	bool endMenu = false;
 	Uint32 timeOut = SDL_GetTicks() + 7000;

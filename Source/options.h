@@ -43,6 +43,28 @@ enum class StartUpSplash : uint8_t {
 	LogoAndTitleDialog = 2,
 };
 
+/**
+ * @brief Which of the two mutually exclusive Hellfire farmer quests a game gets.
+ *
+ * Oracool: user request - "make it a three-way option: random / always farmer / always cow." The
+ * pair cannot both be on: enabling the cow quest REPLACES Lester the farmer with the Complete Nut,
+ * which is why Farmer's own gate reads `bCowQuest == 0` (towners.cpp). It was a plain "Cow Quest"
+ * boolean until the middle option existed.
+ *
+ * The values are pinned, not incidental. 0 and 1 are exactly what the old boolean wrote, so an
+ * existing `Cow Quest=0`/`=1` in the ini still means what it always did - and so do the bytes in
+ * already-recorded demos, which store this setting raw (see demomode.cpp). Random is the new value
+ * and therefore has to be the one on the end.
+ */
+enum class FarmerQuestMode : uint8_t {
+	/** Lester the farmer, and Farmer's Orchard. The old `Cow Quest = false`. */
+	AlwaysFarmer = 0,
+	/** The Complete Nut, and The Jersey's Jersey. The old `Cow Quest = true`. */
+	AlwaysCow = 1,
+	/** One or the other, drawn per game from the save's own seed - see InitQuests. */
+	Random = 2,
+};
+
 enum class ScalingQuality : uint8_t {
 	NearestPixel,
 	BilinearFiltering,
@@ -661,8 +683,8 @@ struct GameplayOptions : OptionCategoryBase {
 	OptionEntryBoolean grabInput;
 	/** @brief Enable the Theo quest. */
 	OptionEntryBoolean theoQuest;
-	/** @brief Enable the cow quest. */
-	OptionEntryBoolean cowQuest;
+	/** @brief Which of the mutually exclusive farmer quests a game gets - see FarmerQuestMode. */
+	OptionEntryEnum<FarmerQuestMode> farmerQuest;
 	/** @brief Will players still damage other players in non-PvP mode. */
 	OptionEntryBoolean friendlyFire;
 	/** @brief Enables the full/uncut singleplayer version of quests. */

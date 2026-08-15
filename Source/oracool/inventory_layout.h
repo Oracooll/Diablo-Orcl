@@ -339,9 +339,12 @@ constexpr int WeaponRowBottom = WeaponRowY + 3 * CellPx;
  * @brief The footer: the SORT button under the grid, the gold readout under that.
  *
  * The band exists because the grid stops at OrbClearanceBottom while the panel runs the full 720 - so
- * all of it is vertically behind the mana orb at 960x720. Horizontally it is not: the orb spans screen
- * x 658..755 and these rows are centred at x 790, clear of it. Both are drawn AFTER the orbs anyway
- * (see DrawInventoryFooter), which is what makes the overlap a non-issue rather than a bug.
+ * all of it is vertically behind the mana orb at 960x720. Horizontally it depends on the LABEL: the
+ * orb spans screen x 658..755 and these rows are centred at x 790, so a short one is clear of it and
+ * a long one is not. The note here used to claim "clear of it" flatly, which was true of the rect and
+ * false of the text inside it - "SORT INVENTORY" ran back to about x 735 and printed itself across
+ * the glass. The label is "SORT" now, and the orb draws over these rows rather than under them
+ * (see DrawInventoryFooter), so the two answers are belt and braces.
  *
  * SORT goes first, tucked under the grid where the user marked it, with gold below.
  */

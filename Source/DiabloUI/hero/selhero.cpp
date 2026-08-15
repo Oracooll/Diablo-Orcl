@@ -50,6 +50,18 @@ std::vector<std::unique_ptr<UiItemBase>> vecSelHeroDialog;
 std::vector<std::unique_ptr<UiListItem>> vecSelHeroDlgItems;
 std::vector<std::unique_ptr<UiItemBase>> vecSelDlgItems;
 
+/**
+ * @brief Whether a background item is actually in vecSelHeroDialog - see RemoveSelHeroBackground.
+ *
+ * Up here rather than beside those two functions because SelheroFree, which clears the vector, is
+ * defined above them.
+ */
+bool SelHeroBackgroundAdded = false;
+
+// All three of these screens share one painting again, on the user's call - the campfire the class
+// list briefly had "doesn't fit the D2R style". So `selhero_background` and `SetSelHeroBackground`
+// are gone with it: there is one background, set once at the top of the dialog, and the two places
+// that put it BACK after a modal have nothing to choose between.
 
 /**
  * @brief What SelheroLoadSelect is being asked to do.
@@ -89,7 +101,13 @@ void SelheroUiFocusNavigationYesNo()
 }
 
 /** @brief The character list's geometry. At file scope because the preview area is defined against it. */
-constexpr int HeroListWidth = 320;
+/**
+ * @brief The list column is the button row's FOURTH ZONE - see HeroListX and HeroListWidth.
+ *
+ * A function rather than the constant 320 it used to be, because the zone's width is what decides it
+ * now and that is derived from the window.
+ */
+int HeroListWidth();
 constexpr int HeroListItemHeight = 52;
 /**
  * @brief The scrollbar's column - a rect for the mouse, not for the bar.
@@ -103,30 +121,39 @@ constexpr int HeroScrollbarGap = 4;
 constexpr int HeroPreviewGap = 8;
 
 /**
- * @brief The list column's left edge - every list on these screens sits centred over the Cancel button.
+ * @brief The list column IS the button row's fourth zone - list, gap and scrollbar all inside it.
  *
- * Oracool: user request, twice. First "over the New Hero button" rather than flush with the screen's
- * right edge; then New Hero and Cancel swapped, which left the column where it was and changed what
- * stands under it. Derived from that button's own rect rather than from a second calculation that
- * happens to land in the same place: "over the Cancel button" is a relationship, and writing it as one
- * means moving the button row moves every list with it.
+ * Oracool: user request - "keep existing heros list and new hero class select list within the 4th
+ * column within the 960 boundary."
+ *
+ * This column has been anchored three ways now, and the reason it kept moving is worth recording.
+ * First it was centred over the Cancel button; then, when the zone rule made a zone 240px against
+ * this column's 320, the relationship could not hold and it was pinned to the WINDOW's right edge
+ * instead. That was fine while the button row also ran to the window's edges - and stopped being
+ * fine the moment the row was capped to a centred 960 band, because the list then drifted away from
+ * the buttons at any width past 960.
+ *
+ * So it is tied to the row again, this time to something that can actually contain it: zone 4's own
+ * rect. At 960 that is x 720..960, and the column fills it exactly - 224 of list, a 4px gap, then the
+ * 12px scrollbar. At 1280 the zone is at 880..1120 and the column goes with it, which is the whole
+ * point.
+ *
+ * The cost, stated because it is real: the list is 224 wide where it was 320, and the two pentagrams
+ * take 28px each of that (see LabelRect in diabloui.cpp), leaving a 168px column for the name. This
+ * did bite, exactly as predicted here - the fix was not the size down this note originally guessed
+ * at, because MEASURING the glyphs showed no available face makes an arbitrary fifteen-character name
+ * fit: even FontSize12 needs 179px for fifteen capital Ms. It was the name cap instead, cut 15 -> 10
+ * on the user's call (see the UiEdit below), with FitToWidth's ellipsis as the backstop.
  */
-int HeroListX()
+int HeroListWidth()
 {
-	const SDL_Rect cancelButton = HeroButtonRect(CancelButtonIndex, HeroButtonCount);
-	return cancelButton.x + (cancelButton.w - HeroListWidth) / 2;
+	const SDL_Rect zone = HeroButtonRect(DeleteButtonIndex);
+	return std::max(0, zone.w - HeroScrollbarGap - HeroScrollbarWidth);
 }
 
-/**
- * @brief The figure's own top - closer under the title than HeroContentTop's, by 16px.
- *
- * That 24px gap is the LIST's breathing room: rows of text immediately under a heading of the same
- * colour need the separation. The figure does not - it reads as a picture, not as another line - and
- * every pixel here is a pixel of scale, since the preview is height-bound (see PreviewScaleFor).
- */
-int HeroPreviewTop()
+int HeroListX()
 {
-	return GetUIRectangle().position.y + HeroTitleTop + HeroTitleHeight + 8;
+	return HeroButtonRect(DeleteButtonIndex).x;
 }
 
 /** Tall enough that the FontSize30 line inside cannot be clipped - the character list's row height. */
@@ -141,122 +168,25 @@ void AddHeroFormButtons(std::vector<std::unique_ptr<UiItemBase>> &items)
 	    HeroButtonRect(CancelButtonIndex, HeroButtonCount), HeroButtonFlags));
 }
 
-/**
- * @brief Where the animated character stands: everything left of the list and its scrollbar.
- *
- * Oracool: user request - this replaced the class portrait and the stat block, which sat in a
- * 180x76 box with five label/value rows under it. The figure is drawn straight into this rect by the
- * render loop rather than being a UiItemBase, because it animates from the shared frame clock and has
- * no click behaviour - a widget would be all ceremony and no benefit.
- */
-Rectangle HeroPreviewRect()
-{
-	const int left = GetUIRectangle().position.x;
-	const int right = HeroListX() - HeroPreviewGap;
-	const int top = HeroPreviewTop();
-	return { { left, top }, { std::max(0, right - left), std::max(0, HeroContentBottom() - top) } };
-}
+// HeroPreviewRect and the dais mark it is built from moved to hero_layout.h when the delete prompt
+// was asked for the same figure in the same place. Two screens deriving one position from one set of
+// measurements, rather than two that happen to agree today.
 
 /**
- * Oracool: user request - the focus rule must be able to leave the character list and walk the action
- * buttons. Nothing in the shared focus model knows about buttons: SelectedItem indexes the UiList and
- * only the UiList, and a UiArtTextButton has never been anything but a click target.
+ * The action row's focus ring used to live here - `HeroActionButtons`, `SelectedActionButton`,
+ * `ActionRowFocusable`, `NextEnabledActionButton`, `HeroActionRowNavigation`, `ResetActionRowFocus`,
+ * and the manual `DrawFocusSelector` in the render loop. It is gone into the shared focus rule
+ * (gUiButtons in diabloui.cpp), on the user's rule that EVERY clickable front-end item be reachable
+ * this way - which a copy living in this file could never deliver to the difficulty picker or to any
+ * screen written later.
  *
- * So the ring is kept here rather than bolted onto every menu in the game. -1 means the list has
- * focus and behaves exactly as before; 0..3 means one of the buttons does, the list's own rule is
- * hidden (UiListSelectorHidden), and this file draws and activates it.
+ * Three things came free with the move. `UiInitList` collects the buttons itself, so no pointer has
+ * to be caught as each is built and no reset is needed when the screen is rebuilt. The rule is
+ * written against MenuAction rather than SDLK_ symbols, so the controller and the touch pad reach the
+ * buttons that only a keyboard could reach before. And `Delete` still steps over itself while it is
+ * disabled, because the shared version reads UiFlags::ElementDisabled - the same flag this file was
+ * already setting on it.
  */
-UiArtTextButton *HeroActionButtons[HeroButtonCount] = {};
-int SelectedActionButton = -1;
-/** Only the character-list screen has an action row; the class and name screens do not. */
-bool ActionRowFocusable = false;
-
-void FocusActionButton(int index)
-{
-	SelectedActionButton = index;
-	UiListSelectorHidden = index >= 0;
-}
-
-bool IsActionButtonEnabled(int index)
-{
-	const UiArtTextButton *button = HeroActionButtons[index];
-	return button != nullptr && !HasAnyOf(button->GetFlags(), UiFlags::ElementDisabled | UiFlags::ElementHidden);
-}
-
-/**
- * @brief The next selectable button @p step away from @p from, wrapping. -1 if none is selectable.
- *
- * Delete is disabled whenever the highlighted row is not a real character, and stopping the rule on a
- * greyed-out word would look like the screen had hung.
- */
-int NextEnabledActionButton(int from, int step)
-{
-	for (int i = 1; i <= HeroButtonCount; i++) {
-		const int candidate = ((from + step * i) % HeroButtonCount + HeroButtonCount) % HeroButtonCount;
-		if (IsActionButtonEnabled(candidate))
-			return candidate;
-	}
-	return -1;
-}
-
-/**
- * @brief Keyboard focus for the action row, run before the shared navigation gets the event.
- *
- * Returning false hands the event on untouched, which is what keeps every other key - Escape, the
- * mouse, the controller - working exactly as it did.
- */
-bool HeroActionRowNavigation(SDL_Event &event)
-{
-	if (!ActionRowFocusable || event.type != SDL_KEYDOWN)
-		return false;
-
-	const bool onButtons = SelectedActionButton >= 0;
-	switch (event.key.keysym.sym) {
-	case SDLK_DOWN:
-		if (onButtons)
-			return true; // already at the bottom of the screen; swallow it rather than wrap
-		// Only once the list has nowhere further to go, so Down still walks the characters first.
-		if (!vecSelHeroDlgItems.empty() && SelectedItem + 1 < vecSelHeroDlgItems.size())
-			return false;
-		if (const int first = NextEnabledActionButton(-1, 1); first >= 0)
-			FocusActionButton(first);
-		return true;
-	case SDLK_UP:
-		if (!onButtons)
-			return false;
-		FocusActionButton(-1);
-		return true;
-	case SDLK_LEFT:
-	case SDLK_RIGHT: {
-		if (!onButtons)
-			return false;
-		const int step = event.key.keysym.sym == SDLK_LEFT ? -1 : 1;
-		if (const int next = NextEnabledActionButton(SelectedActionButton, step); next >= 0)
-			FocusActionButton(next);
-		return true;
-	}
-	case SDLK_RETURN:
-	case SDLK_KP_ENTER:
-		if (!onButtons)
-			return false;
-		// Nothing may touch HeroActionButtons after this: activating New Hero or Cancel rebuilds
-		// vecSelDlgItems, and every pointer in that array is into what it just freed.
-		HeroActionButtons[SelectedActionButton]->Activate();
-		return true;
-	default:
-		break;
-	}
-	return false;
-}
-
-/** @brief Puts focus back in the list and forgets the buttons - for a screen about to be rebuilt. */
-void ResetActionRowFocus()
-{
-	ActionRowFocusable = false;
-	FocusActionButton(-1);
-	for (UiArtTextButton *&button : HeroActionButtons)
-		button = nullptr;
-}
 
 /**
  * @brief The "New Hero" button's action - the branch selecting the old list's last row used to take.
@@ -273,9 +203,10 @@ void SelheroNewHero()
 void SelheroFree()
 {
 	oracool::FreeHeroPreview();
-	ResetActionRowFocus();
 	ArtBackground = std::nullopt;
 
+	// The vector goes with it, so whatever was in it is no longer there to erase.
+	SelHeroBackgroundAdded = false;
 	vecSelHeroDialog.clear();
 
 	vecSelDlgItems.clear();
@@ -354,18 +285,18 @@ bool SelheroListDeleteYesNo()
 
 void SelheroListSelect(int value)
 {
-	// Every branch below rebuilds vecSelDlgItems, which frees the buttons this file holds pointers
-	// to. Dropping them here means there is no window in which a stale one could be reached.
-	ResetActionRowFocus();
+	// The reset that stood here dropped this file's own pointers into vecSelDlgItems before the
+	// branches below free it. gUiButtons has the same exposure and is rebuilt by the UiInitList each
+	// branch ends with - the same window gUiItems has always had, and nothing polls events inside it.
 
 	if (static_cast<std::size_t>(value) == selhero_SaveCount) {
 		vecSelDlgItems.clear();
 
-		// In the list column rather than the centred one, on the user's call: the character list and
-		// the class list are the same control doing the same job one step apart, so they stand in the
-		// same place with the same button under them. The caption goes with it - a heading belongs
-		// over what it heads.
-		vecSelDlgItems.push_back(std::make_unique<UiArtText>(_("Choose Class").data(), HeroCaptionRect(HeroListX(), HeroListWidth), UiFlags::AlignCenter | UiFlags::FontSize30 | UiFlags::ColorUiSilver, 3));
+		// Oracool: user request - no "Choose Class" heading here, and the list moved up into the space
+		// it occupied. Not only taste: a caption costs HeroFormCaptionHeight + HeroFormCaptionGap =
+		// 58px off the top of the band, and with the masthead now 62px taller (see HeroTitleTop) the
+		// six-class list no longer fit underneath one - the last row ran through the Cancel button.
+		// The screen's own title already says which list this is.
 
 		// Oracool: user request - Barbarian, Paladin, Sorcerer, Rogue. Not vanilla's order and not
 		// alphabetical; it is the order the user wants them offered in. Only the rows move: each item
@@ -404,8 +335,8 @@ void SelheroListSelect(int value)
 		// squeezing them into - the band is the whole screen now and has room for every class.
 		const int listHeight = static_cast<int>(vecSelHeroDlgItems.size()) * HeroListItemHeight;
 		vecSelDlgItems.push_back(std::make_unique<UiList>(vecSelHeroDlgItems, vecSelHeroDlgItems.size(),
-		    static_cast<Sint16>(HeroListX()), static_cast<Sint16>(HeroFormBodyTopFor(listHeight)),
-		    HeroListWidth, HeroListItemHeight, UiFlags::AlignCenter | HeroListFontSize | UiFlags::ColorUiGold));
+		    static_cast<Sint16>(HeroListX()), static_cast<Sint16>(HeroContentTopFor(listHeight)),
+		    static_cast<Uint16>(HeroListWidth()), HeroListItemHeight, UiFlags::AlignCenter | HeroListFontSize | UiFlags::ColorUiGold));
 
 		AddHeroFormButtons(vecSelDlgItems);
 
@@ -507,23 +438,41 @@ bool ShouldPrefillHeroName()
 #endif
 }
 
+// The temporary "no painting" toggle from 1.5.22 is gone: the user has supplied the painting these
+// screens were waiting for. Its one lasting lesson is kept below, because it cost a bug report -
+// pinning the palette is the FRONT END's job and only looks like the background's.
+
 void RemoveSelHeroBackground()
 {
-	vecSelHeroDialog.erase(vecSelHeroDialog.begin());
+	// Guarded rather than bare, though the background is always added now. This erases begin() on the
+	// assumption that the background is the first item; if an add ever fails or is skipped, a bare
+	// erase would take the LOGO instead and the following add would not put it back, so each modal
+	// would eat one more element off the front of the screen.
+	if (SelHeroBackgroundAdded) {
+		vecSelHeroDialog.erase(vecSelHeroDialog.begin());
+		SelHeroBackgroundAdded = false;
+	}
 	ArtBackground = std::nullopt;
 }
 
 void AddSelHeroBackground()
 {
-	// LoadBackgroundArt still runs: it is what loads this screen's palette, which the background
-	// below quantizes against, and it is also the fallback if the asset is missing. Inserted at the
-	// FRONT either way, because RemoveSelHeroBackground takes the background back off by erasing
-	// begin().
+	// LoadBackgroundArt runs first: it is what loads a palette at all, and it is the fallback if the
+	// painting is missing. It ADOPTS ui_art\selhero.pcx's palette, which is not the one this front
+	// end draws in - AddUiBackground below opens by calling UiLoadDefaultPalette and pins
+	// ui_art\diablo.pal over it. Anything that skips AddUiBackground must pin the palette itself or
+	// the whole screen renders in the wrong one, logo first (see 1.5.22/1.5.24).
+	//
+	// Inserted at the FRONT, because RemoveSelHeroBackground takes it off by erasing begin().
 	LoadBackgroundArt("ui_art\\selhero");
-	if (oracool::AddUiBackground(&vecSelHeroDialog, oracool::UiBackground::HeroSelect, /*atFront=*/true))
+	if (oracool::AddUiBackground(&vecSelHeroDialog, oracool::UiBackground::HeroSelect, /*atFront=*/true)) {
+		SelHeroBackgroundAdded = true;
 		return;
+	}
+	UiLoadDefaultPalette();
 	vecSelHeroDialog.insert(vecSelHeroDialog.begin(),
 	    std::make_unique<UiImageClx>((*ArtBackground)[0], MakeSdlRect(0, GetUIRectangle().position.y, 0, 0), UiFlags::AlignCenter));
+	SelHeroBackgroundAdded = true;
 }
 
 void SelheroClassSelectorSelect(int value)
@@ -544,13 +493,19 @@ void SelheroClassSelectorSelect(int value)
 	vecSelDlgItems.clear();
 	// In the list column, on the user's call - so every step of making a character happens in the same
 	// place on screen: pick a class there, name it there, and the same Cancel underneath throughout.
-	vecSelDlgItems.push_back(std::make_unique<UiArtText>(_("Enter Name").data(), HeroCaptionRect(HeroListX(), HeroListWidth), UiFlags::AlignCenter | UiFlags::FontSize30 | UiFlags::ColorUiSilver, 3));
+	vecSelDlgItems.push_back(std::make_unique<UiArtText>(_("Enter Name").data(), HeroCaptionRect(HeroListX(), HeroListWidth()), UiFlags::AlignCenter | UiFlags::FontSize30 | UiFlags::ColorUiSilver, 3));
 
 	// A size up to match the character list, and in a box tall enough for it - the old 33px rect was
 	// cut for FontSize24. It is the only thing on this screen, so it takes the middle of the band.
 	SDL_Rect nameRect = MakeSdlRect(static_cast<Sint16>(HeroListX()),
-	    static_cast<Sint16>(HeroFormBodyTopFor(HeroFormBoxHeight)), HeroListWidth, HeroFormBoxHeight);
-	vecSelDlgItems.push_back(std::make_unique<UiEdit>(_("Enter Name"), selhero_heroInfo.name, 15, false, nameRect, UiFlags::AlignCenter | HeroListFontSize | UiFlags::ColorUiGold));
+	    static_cast<Sint16>(HeroFormBodyTopFor(HeroFormBoxHeight)), static_cast<Uint16>(HeroListWidth()), HeroFormBoxHeight);
+	// Oracool: user request - "reduce characters to 10 for a name", down from vanilla's 15. The list
+	// column is 224px wide and the two pentagrams take 28px each of it (see LabelRect in diabloui.cpp),
+	// leaving 168px for the name. MEASURED at FontSize30: fifteen characters needed 209px for plain
+	// digits and 314px for zeros, so the cap is what actually makes a name fit rather than the font.
+	// At ten it is 139px and 209px respectively - normal names now clear it with room, and only a
+	// pathological all-caps one still reaches FitToWidth's ellipsis.
+	vecSelDlgItems.push_back(std::make_unique<UiEdit>(_("Enter Name"), selhero_heroInfo.name, 10, false, nameRect, UiFlags::AlignCenter | HeroListFontSize | UiFlags::ColorUiGold));
 
 	AddHeroFormButtons(vecSelDlgItems);
 
@@ -769,10 +724,9 @@ void selhero_List_Init()
 			selectedItem = i;
 	}
 
-	// Oracool: user request - the list sits over the New Hero button. It was flush with the screen's
-	// right edge for a while (the focus pentagram all but touching it); centring it on the button
-	// underneath ties the two together instead. See HeroListX.
+	// The list column is the button row's fourth zone - see HeroListX.
 	const int listX = HeroListX();
+	const int listWidth = HeroListWidth();
 
 	// Oracool: user request - the list sits in the band between the title and the action row, and is
 	// centred vertically inside it rather than hanging from a fixed offset. Both the viewport and the
@@ -787,39 +741,33 @@ void selhero_List_Init()
 	const int listY = listAreaTop
 	    + std::max(0, (listAreaBottom - listAreaTop - static_cast<int>(viewportSize) * HeroListItemHeight) / 2);
 	vecSelDlgItems.push_back(std::make_unique<UiList>(vecSelHeroDlgItems, viewportSize,
-	    static_cast<Sint16>(listX), static_cast<Sint16>(listY), HeroListWidth, HeroListItemHeight,
+	    static_cast<Sint16>(listX), static_cast<Sint16>(listY), static_cast<Uint16>(listWidth), HeroListItemHeight,
 	    UiFlags::AlignCenter | HeroListFontSize | UiFlags::ColorUiGold));
 
 	// On the list's RIGHT, on the user's call. It was on the left because the vanilla art is 25px wide
 	// and the list's right edge is 940 of 960 - a bar beside it would have run off the screen. The
 	// themed bar is 3px in a 12px grab column, which fits the 20px that were there all along.
-	SDL_Rect rect2 = { static_cast<Sint16>(listX + HeroListWidth + HeroScrollbarGap), static_cast<Sint16>(listY),
+	SDL_Rect rect2 = { static_cast<Sint16>(listX + listWidth + HeroScrollbarGap), static_cast<Sint16>(listY),
 		HeroScrollbarWidth, static_cast<Uint16>(viewportSize * HeroListItemHeight) };
 	vecSelDlgItems.push_back(std::make_unique<UiScrollbar>((*ArtScrollBarBackground)[0], (*ArtScrollBarThumb)[0], *ArtScrollBarArrow, rect2));
 
 	// The action row, in the order the user listed it. New Hero's index is shared with HeroListX,
 	// which centres the list over it; OK's and Cancel's are shared with the class and name screens,
 	// which put their own pair in the same two cells.
-	auto okButton = std::make_unique<UiArtTextButton>(_("OK"), &UiFocusNavigationSelect, HeroButtonRect(OkButtonIndex, HeroButtonCount), HeroButtonFlags);
-	HeroActionButtons[OkButtonIndex] = okButton.get();
-	vecSelDlgItems.push_back(std::move(okButton));
+	vecSelDlgItems.push_back(std::make_unique<UiArtTextButton>(_("OK"), &UiFocusNavigationSelect,
+	    HeroButtonRect(OkButtonIndex), HeroButtonFlags));
 
-	auto setlistDialogDeleteButton = std::make_unique<UiArtTextButton>(_("Delete"), &SelheroUiFocusNavigationYesNo, HeroButtonRect(DeleteButtonIndex, HeroButtonCount), UiFlags::AlignCenter | HeroButtonFontSize | UiFlags::ColorUiSilver | UiFlags::ElementDisabled);
+	auto setlistDialogDeleteButton = std::make_unique<UiArtTextButton>(_("Delete"), &SelheroUiFocusNavigationYesNo, HeroButtonRect(DeleteButtonIndex), UiFlags::AlignCenter | HeroButtonFontSize | UiFlags::ColorUiSilver | UiFlags::ElementDisabled);
+	// The one pointer still caught here: SelheroListFocus enables and disables this as the highlighted
+	// row changes. The focus rule needs no pointer of its own - UiInitList collects the buttons below.
 	SELLIST_DIALOG_DELETE_BUTTON = setlistDialogDeleteButton.get();
-	HeroActionButtons[DeleteButtonIndex] = setlistDialogDeleteButton.get();
 	vecSelDlgItems.push_back(std::move(setlistDialogDeleteButton));
 
-	auto cancelButton = std::make_unique<UiArtTextButton>(_("Cancel"), &UiFocusNavigationEsc, HeroButtonRect(CancelButtonIndex, HeroButtonCount), HeroButtonFlags);
-	HeroActionButtons[CancelButtonIndex] = cancelButton.get();
-	vecSelDlgItems.push_back(std::move(cancelButton));
+	vecSelDlgItems.push_back(std::make_unique<UiArtTextButton>(_("Cancel"), &UiFocusNavigationEsc,
+	    HeroButtonRect(CancelButtonIndex), HeroButtonFlags));
 
-	auto newHeroButton = std::make_unique<UiArtTextButton>(_("New Hero"), &SelheroNewHero, HeroButtonRect(NewHeroButtonIndex, HeroButtonCount), HeroButtonFlags);
-	HeroActionButtons[NewHeroButtonIndex] = newHeroButton.get();
-	vecSelDlgItems.push_back(std::move(newHeroButton));
-
-	// Focus starts in the list and can walk down into these - see HeroActionRowNavigation.
-	FocusActionButton(-1);
-	ActionRowFocusable = true;
+	vecSelDlgItems.push_back(std::make_unique<UiArtTextButton>(_("New Hero"), &SelheroNewHero,
+	    HeroButtonRect(NewHeroButtonIndex), HeroButtonFlags));
 
 	UiInitList(SelheroListFocus, SelheroListSelect, SelheroListEsc, vecSelDlgItems, false, nullptr, SelheroListDeleteYesNo, selectedItem);
 	if (selhero_isMultiPlayer) {
@@ -868,25 +816,24 @@ static void UiSelHeroDialog(
 			// After the background and before UiPollAndRender's list pass, so the figure sits over
 			// the painting and under nothing it could collide with - the list is on the far side.
 			oracool::DrawHeroPreview(Surface(DiabloUiSurface()), HeroPreviewRect());
-			// The focused button's glow, drawn here because the buttons went down with the rest of
-			// vecSelHeroDialog above and the halo belongs behind the label. DrawFocusGlow puts the
-			// label back on top of it for exactly that reason.
-			if (SelectedActionButton >= 0 && HeroActionButtons[SelectedActionButton] != nullptr)
-				DrawFocusGlow(*HeroActionButtons[SelectedActionButton]);
 			RenderDifficultyIndicators();
-			UiPollAndRender(HeroActionRowNavigation);
+			// No event handler of its own any more: the action row's keys went into the shared focus
+			// rule, and the pentagrams on a focused button are drawn by that rule's own render pass.
+			UiPollAndRender();
 		}
 		SelheroFree();
 
 		if (selhero_navigateYesNo) {
 			char dialogTitle[128];
-			char dialogText[256];
 			if (selhero_isMultiPlayer) {
 				CopyUtf8(dialogTitle, _("Delete Multi Player Hero"), sizeof(dialogTitle));
 			} else {
 				CopyUtf8(dialogTitle, _("Delete Single Player Hero"), sizeof(dialogTitle));
 			}
-			strcpy(dialogText, fmt::format(fmt::runtime(_("Are you sure you want to delete the character \"{:s}\"?")), selhero_heroInfo.name).c_str());
+			// Oracool: user request - the "Are you sure you want to delete the character ..." sentence
+			// is gone from that screen, so the bare NAME goes down now instead of a sentence with the
+			// name inside it. Formatting a string only for the dialog to pick it apart again would have
+			// been a parser that worked in English.
 
 			// Oracool: user request - the confirmation shows the character it is asking about, so you
 			// see who you are about to destroy rather than reading their name off a line of text.
@@ -896,7 +843,7 @@ static void UiSelHeroDialog(
 			// handshake the character screen itself uses between SelheroSetStats and its render loop.
 			oracool::SetHeroPreview(selhero_heroInfo.heroclass, selhero_heroInfo.gfxnum);
 
-			if (UiSelHeroYesNoDialog(dialogTitle, dialogText))
+			if (UiSelHeroYesNoDialog(dialogTitle, selhero_heroInfo.name))
 				fnremove(&selhero_heroInfo);
 		}
 	} while (selhero_navigateYesNo);

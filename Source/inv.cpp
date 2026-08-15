@@ -1532,11 +1532,17 @@ void DrawInventoryTabs(const Surface &out)
 /**
  * @brief Oracool V1: the SORT button and the player's gold, in the band under the backpack grid.
  *
- * Drawn from scrollrt AFTER the orbs, not from DrawInv. At 340x720 the inventory reaches the bottom
- * of the screen, and the mana orb (x 658..755, y 624..720 at 960x720) sits squarely over this band.
- * DrawInv runs long before the orbs, so drawing it there put the readout underneath one - which is
- * what made the gold look broken rather than merely misplaced. SORT joined it here for the same
- * reason: a button behind an orb is worse than a number behind one.
+ * Drawn from scrollrt rather than from DrawInv, and BEFORE the orbs - the reverse of what it did
+ * until 1.5.23. At 340x720 the inventory reaches the bottom of the screen and the mana orb
+ * (x 658..755, y 624..720 at 960x720) sits over this band, so the two have to be ordered
+ * deliberately either way; drawing the text last was the first answer and the user's call is the
+ * other one: "mana orb to draw in front of sort and gold texts". An orb with a word printed across
+ * its glass looked worse than a word with its tail tucked behind one.
+ *
+ * The label was shortened in the same pass, which is what makes the ordering nearly moot: these rows
+ * are centred at screen x 790 and the orb ends at 755, so a SHORT label never reaches it. It was
+ * "SORT INVENTORY" - about 110px, spreading to x 735 and well into the glass. "SORT" stops around
+ * 772. The z-order now only covers the gold row, whose longest values still creep left.
  */
 void DrawInventoryFooter(const Surface &out)
 {
@@ -1550,7 +1556,7 @@ void DrawInventoryFooter(const Surface &out)
 
 	// Gold, and white for the moment after a click - the same treatment and the same word the stash's
 	// own Sort button uses, so the two read as one control in two windows.
-	DrawString(out, _("SORT INVENTORY"), toScreen(oracool::GetSortButtonRect()),
+	DrawString(out, _("SORT"), toScreen(oracool::GetSortButtonRect()),
 	    { (InventorySortFlashActive() ? UiFlags::ColorWhite : UiFlags::ColorGold)
 	        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 

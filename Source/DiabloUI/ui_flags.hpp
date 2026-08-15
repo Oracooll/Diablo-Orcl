@@ -55,8 +55,20 @@ enum class UiFlags : uint64_t {
 	/** @brief Ensures that the if current element is active that the next element is also visible. */
 	NeedsNextElement   = 1U << 31U,
 
-	// Bits 32+ are free for a future color or flag - see the widening note above. None are
-	// assigned yet: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)
+	/**
+	 * @brief Oracool: the focus glow's yellow, and its dim companion.
+	 *
+	 * The first users of the bits the widening below made room for, and the note beneath is what
+	 * made them possible: the palette's named bright blocks DO include yellow, at 128-135. The
+	 * shipped `yellow.trn` was no use - it targets 144-151, which is yellow in the level palette
+	 * and pink in ui_art\diablo.pal. These two point at 128-135 instead; see
+	 * tools/MakeYellowFontTrn.ps1 for the ramp and why each entry is doubled.
+	 */
+	ColorOracoolYellow     = 1ULL << 32,
+	ColorOracoolYellowDark = 1ULL << 33,
+
+	// Bits 34+ are free for a future color or flag - see the widening note above. The two above
+	// were the first assigned: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)
 	// works by remapping a 16-shade ramp inside vanilla Diablo's own palette, and that
 	// palette's only named bright-color blocks (Source/engine/palette.h) are blue, red,
 	// yellow, orange, beige, and gray - there is no green/cyan/purple block to remap into.

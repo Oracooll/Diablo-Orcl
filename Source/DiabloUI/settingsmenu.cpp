@@ -575,10 +575,15 @@ void UiSettingsMenu()
 		const int listItemHeight = isCategoryList ? 34 : 26;
 		const UiFlags listFontSize = isCategoryList ? UiFlags::FontSize30 : UiFlags::FontSize24;
 
-		// The block, top-down: logo (from its top), title at +161, list at +204, and a fixed 80px
+		// The block, top-down: logo (from its top), title at +223, list at +266, and a fixed 80px
 		// reserved for the option description under it. The list is the only variable-height part, so
 		// everything else is a constant and the block's extent falls out of the list's height.
-		constexpr int ListTop = 204;
+		//
+		// Oracool: both offsets moved up by 62 from +161/+204 when the masthead became ui_art\logo,
+		// which is 216px tall against ui_art\smlogo's 154 (see LoadUiGFX). The 7px of air the title
+		// had under the flames is preserved. blockHeight grows with ListTop and blockTop is derived
+		// from it, so the whole block simply re-centres itself - nothing else here needed touching.
+		constexpr int ListTop = 266;
 		constexpr int DescriptionHeight = 80;
 		rectList = { uiRectangle.position + Displacement { 50, ListTop },
 			Size { uiRectangle.size.width - 100, std::min<int>(vecDialogItems.size() * listItemHeight, uiRectangle.size.height - 272) } };
@@ -592,7 +597,7 @@ void UiSettingsMenu()
 		// the list, so the draw order is unchanged from when they sat further up this function.
 		UiAddLogo(&vecDialog, uiRectangle.position.y + blockTop);
 		vecDialog.push_back(std::make_unique<UiArtText>(titleText.data(),
-		    MakeSdlRect(uiRectangle.position.x, uiRectangle.position.y + blockTop + 161, uiRectangle.size.width, 35),
+		    MakeSdlRect(uiRectangle.position.x, uiRectangle.position.y + blockTop + 223, uiRectangle.size.width, 35),
 		    UiFlags::FontSize30 | UiFlags::ColorUiSilver | UiFlags::AlignCenter, 8));
 
 		rectDescription = { rectList.position + Displacement { -26, rectList.size.height + descriptionMarginTop },

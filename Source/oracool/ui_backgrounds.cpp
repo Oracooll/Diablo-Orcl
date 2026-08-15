@@ -9,6 +9,7 @@
 
 #include <SDL.h>
 
+#include "DiabloUI/diabloui.h" // UiLoadDefaultPalette - the front end's one palette
 #include "engine/palette.h"
 #include "engine/point.hpp"
 #include "engine/size.hpp"
@@ -38,13 +39,14 @@ struct BackgroundSlot {
 
 // Indexed by UiBackground; the static_assert below keeps the two in step.
 //
-// Settings and HeroSelect share a file and not a slot - one painting, two screens, two palettes.
-// See the enum's comment.
+// Settings and HeroSelect USED to share hero_settings_bg.png - one painting, two screens, two
+// palettes, which is why they were given separate slots even then. The character screens have their
+// own painting now (user-supplied): a cathedral with a stone dais, and the dais is load-bearing -
+// selhero positions the character preview on a mark measured off it. See HeroSelectGroundInArt.
 BackgroundSlot Slots[] = {
 	{ "ui\\main_menu_bg.png" },
 	{ "ui\\hero_settings_bg.png" },
-	{ "ui\\hero_settings_bg.png" },
-	{ "ui\\choose_hero_bg.png" },
+	{ "ui\\hero_select_bg.png" },
 	{ "ui\\difficulty_bg.png" },
 };
 static_assert(sizeof(Slots) / sizeof(Slots[0]) == static_cast<size_t>(UiBackground::LAST) + 1,
@@ -204,9 +206,50 @@ bool Build(BackgroundSlot &slot)
 
 } // namespace
 
+Point MapBackgroundPointToScreen(Size artSize, Point pointInArt)
+{
+	// The SAME CropForScreen the painting itself goes through, deliberately. A screen that wants to
+	// put something on a spot marked in the art has to agree with the art about where that spot ended
+	// up, and the only way to guarantee that is to ask the one function rather than to re-derive the
+	// arithmetic beside it. Cover-cropping is centred, so this is exact rather than approximate.
+	SourceImage shape;
+	shape.width = artSize.width;
+	shape.height = artSize.height;
+	const Size screen { gnScreenWidth, gnScreenHeight };
+	const Rectangle crop = CropForScreen(shape, screen);
+	return { (pointInArt.x - crop.position.x) * screen.width / crop.size.width,
+		(pointInArt.y - crop.position.y) * screen.height / crop.size.height };
+}
+
 bool AddUiBackground(std::vector<std::unique_ptr<UiItemBase>> *vecDialog, UiBackground which, bool atFront)
 {
 	BackgroundSlot &slot = Slots[static_cast<size_t>(which)];
+
+	// Oracool: pin the front end to ui_art\diablo.pal, BEFORE Build quantizes into it.
+	//
+	// Every caller reaches this having just run LoadBackgroundArt, which adopts the palette of
+	// whatever stock .pcx it loaded - and once hellfire.mpq is present, FindMpqFile serves
+	// `ui_art\mainmenu.pcx` out of THAT archive, so the whole front end ran on Hellfire's menu
+	// palette. Hellfire and Diablo agree on the UI half (gold 176-191, silver 224-239, the glow's
+	// amber 193-207 are byte-identical) and disagree on the scene half - and the Diablo logo's
+	// FLAMES live down at indices 10-19. Measured against ui_art\logo.pcx's own pixels, 37 of the
+	// indices it uses are defined differently there, covering 406,143 pixels. That is what punched
+	// the black holes through the fire.
+	//
+	// Before Build and not after, because Build maps the PNG to nearest indices in the current
+	// palette and caches the result against it (BackgroundSlot::builtForPalette); pinning first is
+	// also what keeps that cache key stable instead of flapping per screen.
+	//
+	// This call was here at 1.5.5, blamed for a crash, and reverted at 1.5.6. It was innocent: the
+	// crash was IMG_LoadPNG_RW being handed a null RWops by LoadPNG for a missing file (fixed at
+	// 1.5.7, see utils/png.h), which is also what LoadSource below would have hit. Restored.
+	//
+	// NOTE for anyone who skips this function: pinning the palette is the front end's, not this
+	// painting's. It only lives here because every screen happened to draw a painting. A screen that
+	// does not - selhero with its background hidden, at 1.5.22 - has to call UiLoadDefaultPalette
+	// itself, and the symptom of forgetting is the logo's fire going black, not a missing picture.
+	UiLoadDefaultPalette();
+
 	if (!Build(slot))
 		return false;
 

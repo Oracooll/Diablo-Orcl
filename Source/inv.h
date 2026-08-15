@@ -199,8 +199,8 @@ void DrawInv(const Surface &out);
 /**
  * @brief Draws the inventory's gold readout. No-op unless the inventory is open.
  *
- * Separate from DrawInv, and called AFTER the orbs, because the mana orb overlaps the band this
- * sits in - see the definition for the geometry.
+ * Separate from DrawInv, and called from scrollrt just BEFORE the orbs, because the mana orb
+ * overlaps the band this sits in and is meant to cover it - see the definition for the geometry.
  */
 void DrawInventoryFooter(const Surface &out);
 

@@ -5,7 +5,9 @@
  */
 #include "gmenu.h"
 
+#include <array>
 #include <cstdint>
+#include <cstring>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
@@ -14,6 +16,8 @@
 #include "engine.h"
 #include "engine/clx_sprite.hpp"
 #include "engine/load_cel.hpp"
+#include "engine/load_pcx.hpp" // LoadPcxSpriteList - the masthead is ui_art\smlogo, not a CEL
+#include "engine/palette.h"    // orig_palette - what the masthead's TRN is matched against
 #include "engine/render/clx_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "options.h"
@@ -51,12 +55,65 @@ OptionalOwnedClxSpriteList optbar_cel;
 OptionalOwnedClxSpriteList PentSpin_cel;
 OptionalOwnedClxSpriteList option_cel;
 OptionalOwnedClxSpriteList sgpLogo;
+
+/**
+ * @brief The masthead's own palette, and a table translating it into the level's.
+ *
+ * Oracool: user report - "the fire is funny looking". It was, and the screenshot says exactly how:
+ * the LETTERS render correctly and only the flames are wrong. That split is the whole diagnosis.
+ *
+ * `ui_art\smlogo` is front-end art (it came here at 1.5.9 to escape the crash that `data\diabsmal`
+ * causes when hellfire.mpq shadows it - see gmenu_init_menu). Its letters are drawn in the palette's
+ * UPPER half, which every palette in the game shares by design, so they survive being drawn in a
+ * level. Its flames are down at indices 10-19, in the SCENE half - the half that is recoloured per
+ * dungeon type. In town those indices are mud and stone, which is what produced the pink and red
+ * blocks over the fire.
+ *
+ * So the sprite is drawn through a TRN that maps each of its own colours to the nearest one the
+ * level palette actually has, matching on RGB rather than on index. Two things fall out of that
+ * which are worth knowing: the letters barely move, because a colour already present matches itself,
+ * and the fire lands on PAL16_YELLOW/ORANGE/RED (192-239, see engine/palette.h) which is where fire
+ * belongs.
+ *
+ * Matched against `orig_palette` and restricted to 128-255, both for the same reason hud_art.cpp
+ * gives: that is the level palette's stable half, and orig_palette is the real one rather than the
+ * gamma-corrected copy.
+ */
+std::array<SDL_Color, 256> LogoPalette;
+std::array<uint8_t, 256> LogoTrn;
+std::array<SDL_Color, 128> LogoTrnBuiltFor;
+bool LogoTrnBuilt;
+
 bool isDraggingSlider;
 TMenuItem *sgpCurrItem;
-int LogoAnim_tick;
-uint8_t LogoAnim_frame;
 void (*gmenu_current_option)();
 int sgCurrentMenuIdx;
+
+/** @brief (Re)builds LogoTrn against the level palette in place now. Cheap enough to do per level. */
+void BuildLogoTrn()
+{
+	for (int src = 0; src < 256; src++) {
+		const SDL_Color &want = LogoPalette[src];
+		int best = 128;
+		int bestDist = INT32_MAX;
+		for (int i = 128; i < 256; i++) {
+			const SDL_Color &have = orig_palette[i];
+			const int dr = static_cast<int>(have.r) - want.r;
+			const int dg = static_cast<int>(have.g) - want.g;
+			const int db = static_cast<int>(have.b) - want.b;
+			// The same channel weighting the HUD's quantizer uses, so a colour cannot land in one
+			// place there and a visibly different one here.
+			const int dist = 2 * dr * dr + 4 * dg * dg + 3 * db * db;
+			if (dist < bestDist) {
+				bestDist = dist;
+				best = i;
+			}
+		}
+		LogoTrn[src] = static_cast<uint8_t>(best);
+	}
+	std::memcpy(LogoTrnBuiltFor.data(), &orig_palette[128], sizeof(LogoTrnBuiltFor));
+	LogoTrnBuilt = true;
+}
 
 void GmenuUpDown(bool isDown)
 {
@@ -195,7 +252,6 @@ void FreeGMenu()
 
 void gmenu_init_menu()
 {
-	LogoAnim_frame = 0;
 	sgpCurrentMenu = nullptr;
 	sgpCurrItem = nullptr;
 	gmenu_current_option = nullptr;
@@ -205,10 +261,24 @@ void gmenu_init_menu()
 	if (HeadlessMode)
 		return;
 
-	if (gbIsHellfire)
-		sgpLogo = LoadCel("data\\hf_logo3", 430);
-	else
-		sgpLogo = LoadCel("data\\diabsmal", 296);
+	// Oracool: user request - the pause menu must not say HELLFIRE. It shows ui_art\smlogo, the same
+	// Diablo masthead the front end uses, in both modes.
+	//
+	// Neither of the two files vanilla picks between works here. `data\hf_logo3` IS the Hellfire
+	// wordmark. `data\diabsmal` is Diablo's, but it is one of the seven assets hellfire.mpq shadows -
+	// its copy is 5,341 bytes against diabdat's 10,829, a different image, because vanilla Hellfire
+	// never loads that file at all. Forcing it at 1.5.1 crashed on entering a game: decoded at width
+	// 296 it ran off the end of the buffer, an out-of-bounds read in AppendClxPixelsOrFillRun.
+	//
+	// smlogo is the way out and needs no branch: it is NOT shadowed, so it comes from diabdat
+	// whatever archives are present, and nothing has to be shipped inside oracool.mpq - which is
+	// what the alternative, packing Blizzard's diabsmal.cel, would have meant. It is a PCX sprite
+	// list rather than a CEL, but both load to the same OwnedClxSpriteList, and gmenu_draw centres
+	// the sprite by its own width, so the 390px masthead needs no repositioning.
+	// The palette comes out with it now - the TRN above needs to know what smlogo's own indices mean
+	// before it can say what they should become here.
+	sgpLogo = LoadPcxSpriteList("ui_art\\smlogo", /*numFrames=*/15, /*transparentColor=*/250, LogoPalette.data());
+	LogoTrnBuilt = false;
 	PentSpin_cel = LoadCel("data\\pentspin", 48);
 	option_cel = LoadCel("data\\option", SliderMarkerWidth);
 	optbar_cel = LoadCel("data\\optbar", SliderValueBoxWidth);
@@ -247,18 +317,28 @@ void gmenu_draw(const Surface &out)
 		GameMenuMove();
 		if (gmenu_current_option != nullptr)
 			gmenu_current_option();
-		if (gbIsHellfire) {
-			const uint32_t ticks = SDL_GetTicks();
-			if ((int)(ticks - LogoAnim_tick) > 25) {
-				++LogoAnim_frame;
-				if (LogoAnim_frame >= 16)
-					LogoAnim_frame = 0;
-				LogoAnim_tick = ticks;
-			}
-		}
 		int uiPositionY = GetUIRectangle().position.y;
-		const ClxSprite sprite = (*sgpLogo)[LogoAnim_frame];
-		ClxDraw(out, { (gnScreenWidth - sprite.width()) / 2, 102 + uiPositionY }, sprite);
+		// Oracool: the banner is ui_art\smlogo in both modes now (see gmenu_init_menu), so it
+		// animates in both rather than only under Hellfire, and the frame count comes from the sheet
+		// instead of a literal 16 - smlogo has 15, and running past the end would index a sprite that
+		// is not there. Guarded, because a masthead that failed to load should cost the menu its
+		// picture and nothing else.
+		if (sgpLogo) {
+			// Rebuilt when the level palette's stable half actually moves, which in practice is once
+			// per level load, and never while the menu is up.
+			if (!LogoTrnBuilt || std::memcmp(LogoTrnBuiltFor.data(), &orig_palette[128], sizeof(LogoTrnBuiltFor)) != 0)
+				BuildLogoTrn();
+
+			const ClxSpriteList frames { *sgpLogo };
+			// Oracool: user report - "the animation is too fast". It was hand-rolled here at a frame
+			// every 25ms: 15 frames in under four tenths of a second, a flicker rather than a flame.
+			// GetAnimationFrame is the shared clock the FRONT END's logo runs on, at 60ms a frame, so
+			// using it both slows this to something that reads as fire and makes the two mastheads
+			// animate at one speed instead of two. The tick counter and frame index it replaces were
+			// this file's alone.
+			const ClxSprite sprite = frames[GetAnimationFrame(static_cast<int>(frames.numSprites()))];
+			ClxDrawTRN(out, { (gnScreenWidth - sprite.width()) / 2, 102 + uiPositionY }, sprite, LogoTrn.data());
+		}
 		int y = 110 + uiPositionY;
 		TMenuItem *i = sgpCurrentMenu;
 		if (sgpCurrentMenu->fnMenu != nullptr) {

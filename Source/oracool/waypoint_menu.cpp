@@ -13,6 +13,8 @@
 #include "oracool/ornate_border.h"
 #include "init.h" // gbIsHellfire, for whether the Nest and Crypt rows exist at all
 #include "interfac.h"
+#include "inv.h"              // CloseInventory - see OpenWaypointMenu
+#include "oracool/hud_menu.h" // CloseHudMenu - ditto
 #include "levels/gendung.h"
 #include "multi.h"
 #include "oracool/hud_art.h"
@@ -24,41 +26,46 @@ namespace devilution::oracool {
 
 namespace {
 
-// Oracool: user request - the waypoints, numbered and worded exactly as specified. Index i
-// (1-24) corresponds to dungeon level i, matching currlevel numbering - see
-// Player::_pWaypointUnlocked and OperateWaypoint's _oVar1 usage. All are placed
-// (AddWaypointSigilObject, objects.cpp): town's is fixed, each dungeon level's is a fresh random
-// floor tile every visit.
+// Oracool: user request - the waypoints, worded exactly as specified. Index i (1-24) corresponds to
+// dungeon level i, matching currlevel numbering - see Player::_pWaypointUnlocked and
+// OperateWaypoint's _oVar1 usage. All are placed (AddWaypointSigilObject, objects.cpp): town's is
+// fixed, each dungeon level's is a fresh random floor tile every visit.
 //
-// The second number is the ABSOLUTE dungeon level, not the level within its region - which is why
+// The ordinal prefix these carried ("6. Catacombs Level 5") was dropped on the user's call when the
+// rows moved to FontSize24 - see the DrawString below. It cost 31px on the widest name, which was
+// the difference between fitting the text column and wrapping. Nothing was lost with it: the row's
+// position in the list already gave the ordinal, and the trailing number - the one that matters -
+// is still there. Purely a display string; no code parses it, the array index carries the level.
+//
+// That trailing number is the ABSOLUTE dungeon level, not the level within its region - which is why
 // the Catacombs start at 5 and not at 1. Hellfire's own two regions continue that: the Nest is
 // levels 17-20 and the Crypt 21-24, so they carry on counting rather than restarting.
 constexpr std::array<const char *, 25> WaypointNames { {
-    "1. Tristram",
-    "2. Cathedral Level 1",
-    "3. Cathedral Level 2",
-    "4. Cathedral Level 3",
-    "5. Cathedral Level 4",
-    "6. Catacombs Level 5",
-    "7. Catacombs Level 6",
-    "8. Catacombs Level 7",
-    "9. Catacombs Level 8",
-    "10. Caves Level 9",
-    "11. Caves Level 10",
-    "12. Caves Level 11",
-    "13. Caves Level 12",
-    "14. Hell Level 13",
-    "15. Hell Level 14",
-    "16. Hell Level 15",
-    "17. Hell Level 16",
-    "18. Nest Level 17",
-    "19. Nest Level 18",
-    "20. Nest Level 19",
-    "21. Nest Level 20",
-    "22. Crypt Level 21",
-    "23. Crypt Level 22",
-    "24. Crypt Level 23",
-    "25. Crypt Level 24",
+    "Tristram",
+    "Cathedral Level 1",
+    "Cathedral Level 2",
+    "Cathedral Level 3",
+    "Cathedral Level 4",
+    "Catacombs Level 5",
+    "Catacombs Level 6",
+    "Catacombs Level 7",
+    "Catacombs Level 8",
+    "Caves Level 9",
+    "Caves Level 10",
+    "Caves Level 11",
+    "Caves Level 12",
+    "Hell Level 13",
+    "Hell Level 14",
+    "Hell Level 15",
+    "Hell Level 16",
+    "Nest Level 17",
+    "Nest Level 18",
+    "Nest Level 19",
+    "Nest Level 20",
+    "Crypt Level 21",
+    "Crypt Level 22",
+    "Crypt Level 23",
+    "Crypt Level 24",
 } };
 
 /**
@@ -97,6 +104,15 @@ size_t VisibleWaypointCount()
 // PanelMargin, so the list sits in an evenly inset block. The label band also grew 29 -> 50, which
 // is what lets the FontSize30 title sit in its own rect instead of overflowing upward as it did
 // when the band was shorter than the face.
+// Width stays 340 even though the rows moved up to FontSize24, because the names were shortened to
+// suit rather than the panel widened to fit them - the user's call, and the better trade: 28px of
+// screen is worth more than an ordinal the row's own position already tells you.
+//
+// MEASURED, not estimated. The glyph widths were read out of fonts\24-00.clx and summed the way
+// GetLineWidth does, per name. The text column is PanelSize.width - 102 (RightPad + ScrollbarWidth
+// + ScrollbarGap + textX) = 238px, and at FontSize24 the widest of the 25 names is "Catacombs
+// Level 5" at 224px - 14px of slack. With the old "6. " prefixes it was 255px and eight names would
+// have wrapped to a clipped second line.
 constexpr Size PanelSize { 340, 720 };
 constexpr int PanelMargin = 24;
 constexpr int LabelHeight = 50;
@@ -215,6 +231,20 @@ bool IsWaypointMenuOpen()
 
 void OpenWaypointMenu(Point sigilPosition)
 {
+	// Oracool: user request - clicking a sigil with the quest log or character sheet open used to
+	// leave them stacked on top of the travel list, since both live on the left of the screen. The
+	// list now takes the screen for itself, like every other window in this build.
+	//
+	// NOT ClosePanels() (diablo.cpp), for two reasons: it sits in that file's anonymous namespace so
+	// it cannot be called from here at all, and it closes the waypoint menu as well - so even if it
+	// were reachable it would have to run strictly before the open below rather than after. These
+	// are its closes minus that one, which is why they are spelled out.
+	CloseInventory();
+	CloseCharPanel();
+	sbookflag = false;
+	QuestLogIsOpen = false;
+	CloseHudMenu();
+
 	WaypointMenuOpen = true;
 	OpenedFromPosition = sigilPosition;
 	// Back to Tristram at the top every time, the same reset-on-open the event log does. Reopening
@@ -312,17 +342,35 @@ void DrawWaypointMenu(const Surface &out)
 		// lines up with the sigil beside it. Stops short of the scrollbar, not of the panel edge.
 		const Rectangle textArea { { textX, rowTop }, { ContentRightLimit - textX, RowHeight } };
 
-		// Gold for reached, plain white for not. Hover SWAPS the two rather than introducing a third
-		// colour, so the row visibly reacts whichever state it is in. The sigil beside the name
-		// carries the real state cue; colour is reinforcement.
-		UiFlags color = unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
+		// Oracool: user request - gold for LOCKED, white for unlocked. The inverse of what this was,
+		// and of the usual instinct to highlight what you can use. It reads better here because of
+		// what the two states mean on this screen: an unlocked row is somewhere you can go now and a
+		// locked one is somewhere you have not been, so the gold marks what is left to find rather
+		// than what is already done.
+		//
+		// Hover still SWAPS the pair rather than introducing a third colour, so a row visibly reacts
+		// whichever state it is in. The lit or dormant sigil beside the name carries the real state
+		// cue either way; colour is reinforcement.
+		UiFlags color = unlocked ? UiFlags::ColorWhite : UiFlags::ColorWhitegold;
 		if (isHovered)
-			color = unlocked ? UiFlags::ColorWhite : UiFlags::ColorWhitegold;
+			color = unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
 
 		// No outline on the rows - it was there to hold contrast against the stone panel, and that
 		// panel is gone; over the half-transparent fill it only thickened the glyphs. The title
-		// keeps its outline. FontSize24 rather than the default face now the row is 43px tall: a
-		// 12px name beside a 43px pad read as a caption under a picture rather than as a list entry.
+		// keeps its outline.
+		//
+		// FontSize24, NOT the 22px FontSizeDialog these rows used until now, and the reason is the
+		// colours above rather than the size. MEASURED off a screenshot: at FontSizeDialog a locked
+		// row, an unlocked row and the hovered row all rendered the identical (255,189,189), while
+		// the panel's own FontSize30 title in the same frame came out gold (221,196,126). The 22px
+		// face is a separate asset (FontSizes = {12,24,30,42,46,22} -> fonts\22-XX.clx) and its ink
+		// does not sit in the 192-207 range every colour .trn remaps, so EVERY colour flag was a
+		// no-op on it. These rows have never actually been two colours - the old comment here
+		// claiming "gold for reached, plain white for not" described an intention, not the screen.
+		//
+		// 12 and 24 are the only other faces small enough for a 43px row (LineHeights: 26px at 24
+		// against a 43px row) and 12 is half the size, so 24 is the choice. It only fits because the
+		// names lost their ordinal prefix at the same time - see WaypointNames and PanelSize.
 		DrawString(content, WaypointNames[i], textArea,
 		    { color | UiFlags::FontSize24 | UiFlags::VerticalCenter });
 	}

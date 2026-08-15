@@ -161,9 +161,19 @@ void InitQTextMsg(_speech_id m)
 	default:
 		break;
 	}
-	if (Speeches[m].scrlltxt) {
+	// Oracool: the text check is ours. Nineteen entries in Speeches have no text at all, and four of
+	// those still ask to scroll - TEXT_TRADER (the Wandering Trader's log entry) among them, which is
+	// a voice line and nothing else. Opening the overlay for one of those gave a blank parchment the
+	// player had to dismiss, and that became visible here rather than in vanilla because this build
+	// lists every quest in the log (Oracool.questLogRevealAll), so entries that are normally
+	// unreachable can be read.
+	//
+	// It also sidesteps a gettext trap: _("") does not return "", it returns the catalogue's own
+	// metadata header, so on any translated build an empty entry would have scrolled the .po header.
+	const char *speechText = Speeches[m].txtstr;
+	if (Speeches[m].scrlltxt && speechText != nullptr && speechText[0] != '\0') {
 		QuestLogIsOpen = false;
-		LoadText(_(Speeches[m].txtstr));
+		LoadText(_(speechText));
 		qtextflag = true;
 		qtextSpd = CalculateTextSpeed(sfxnr);
 		ScrollStart = SDL_GetTicks();

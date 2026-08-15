@@ -1498,15 +1498,17 @@ void DrawView(const Surface &out, Point startPosition)
 	UpdateInfoString();
 	DrawRefreshUntilHoverTooltip(out);
 	control_update_life_mana(); // Update life/mana totals before rendering the orbs.
+
+	// Oracool: user request - "mana orb to draw in front of sort and gold texts". So the footer goes
+	// down FIRST and the orb over it, which is the opposite of the order this had until 1.5.23. It
+	// still cannot live in DrawInv: that runs long before this point, under half the HUD. No-ops
+	// unless the inventory is open.
+	DrawInventoryFooter(out);
+
 	// Oracool: HUD art pass - the corner orb compositions (with their sphere drain effect) replace
 	// the vanilla flask pair entirely.
 	oracool::DrawHealthOrb(out);
 	oracool::DrawManaOrb(out);
-
-	// Oracool: after the orbs, deliberately. The inventory's gold readout sits in the band below its
-	// grid, and at 340x720 the mana orb covers exactly that band - drawn from DrawInv it landed
-	// underneath the orb. No-ops unless the inventory is open.
-	DrawInventoryFooter(out);
 }
 
 /**

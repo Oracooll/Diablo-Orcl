@@ -68,7 +68,10 @@ set(devilutionx_assets
   fonts/12-02.clx
   fonts/12-03.clx
   fonts/12-04.clx
+  fonts/12-1f1.clx
+  fonts/12-1f3.clx
   fonts/12-1f4.clx
+  fonts/12-1f5.clx
   fonts/12-1f6.clx
   fonts/12-1f9.clx
   fonts/12-20.clx
@@ -86,7 +89,10 @@ set(devilutionx_assets
   fonts/24-02.clx
   fonts/24-03.clx
   fonts/24-04.clx
+  fonts/24-1f1.clx
+  fonts/24-1f3.clx
   fonts/24-1f4.clx
+  fonts/24-1f5.clx
   fonts/24-1f6.clx
   fonts/24-1f9.clx
   fonts/24-20.clx
@@ -98,6 +104,7 @@ set(devilutionx_assets
   fonts/30-03.clx
   fonts/30-04.clx
   fonts/30-20.clx
+  fonts/30-e0.clx
   fonts/42-00.clx
   fonts/42-01.clx
   fonts/42-02.clx
@@ -114,6 +121,17 @@ set(devilutionx_assets
   fonts/blue.trn
   fonts/buttonface.trn
   fonts/buttonpushed.trn
+  # ColorTranslations (text_render.cpp) names these three for the in-game dialog colours, and
+  # LoadFileInMem is FATAL on a missing file - so leaving them out of this list did not degrade
+  # anything, it crashed. Worse, the only in-game consumer of gamedialogwhite.trn is the error
+  # dialog itself (UiText defaults to UiFlags::ColorDialogWhite, which GetColorFromFlags maps to
+  # ColorInGameDialogWhite once gbRunGame is set), so ANY in-game app_fatal died while drawing its
+  # own message and re-entered UiOkDialog with inDialog already true - which falls through to a bare
+  # SDL_ShowSimpleMessageBox showing the FONT error instead of the real one. Every in-game fatal was
+  # being reported as "Failed to open file: fonts\gamedialogwhite.trn" no matter what actually broke.
+  fonts/gamedialogred.trn
+  fonts/gamedialogwhite.trn
+  fonts/gamedialogyellow.trn
   fonts/golduis.trn
   fonts/goldui.trn
   fonts/grayuis.trn

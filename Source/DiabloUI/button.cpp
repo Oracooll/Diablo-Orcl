@@ -54,6 +54,13 @@ bool HandleMouseEventButton(const SDL_Event &event, UiButton *button)
 	switch (event.type) {
 	case SDL_MOUSEBUTTONUP:
 		if (button->IsPressed()) {
+			// Rule 2, on the one screen still wearing the vanilla button art: the first click only
+			// arms it. Safe to require two here because this dialog's own loop already ends on Enter
+			// or Escape (see DialogLoop), so an error box can never become hard to dismiss.
+			if (!UiClickArms(button)) {
+				button->Release();
+				return true;
+			}
 			button->Activate();
 			return true;
 		}

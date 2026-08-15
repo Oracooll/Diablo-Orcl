@@ -1374,6 +1374,21 @@ void DiabloInit()
 {
 	if (forceSpawn || *sgOptions.GameMode.shareware)
 		gbIsSpawn = true;
+
+	// Oracool: user request - "I don't want Diablo Orcl to ask Diablo or Hellfire on boot or after
+	// initial installation. Hellfire is Default."
+	//
+	// Migrated rather than only defaulted. The option's default is now Hellfire, but that alone
+	// fixes nothing for anyone who has already run the game: vanilla's startup dialog leaves
+	// `Ask` written in diablo.ini, and a stored value beats a default forever. Ask is also hidden
+	// from the settings menu (see GameModeOptions), so a character stuck on it has no way to pick
+	// anything else from inside the game.
+	//
+	// Guarded on gbIsHellfire, which init.cpp sets from hellfire.mpq's presence: without that
+	// archive this would promise a Hellfire game the install cannot deliver.
+	if (gbIsHellfire && *sgOptions.GameMode.gameMode == StartUpGameMode::Ask)
+		sgOptions.GameMode.gameMode.SetValue(StartUpGameMode::Hellfire);
+
 	if (forceDiablo || *sgOptions.GameMode.gameMode == StartUpGameMode::Diablo)
 		gbIsHellfire = false;
 	if (forceHellfire)
@@ -1395,16 +1410,11 @@ void DiabloInit()
 	UiInitialize();
 	was_ui_init = true;
 
-	if (gbIsHellfire && !forceHellfire && *sgOptions.GameMode.gameMode == StartUpGameMode::Ask) {
-		UiSelStartUpGameOption();
-		if (!gbIsHellfire) {
-			// Reinitialize the UI Elements cause we changed the game
-			UnloadUiGFX();
-			UiInitialize();
-			if (IsHardwareCursor())
-				SetHardwareCursor(CursorInfo::UnknownCursor());
-		}
-	}
+	// Oracool: the "Play Diablo or Hellfire?" startup dialog used to run here. It is gone on the
+	// user's instruction - see the migration in DiabloInit above, which is what guarantees the
+	// setting can never sit on Ask and reach this point. UiSelStartUpGameOption() itself is left in
+	// the tree, unreferenced, the same way the multiplayer screens are: unreachable, not deleted.
+	// The Game Mode setting still switches to Diablo for anyone who wants it.
 
 	DiabloInitScreen();
 
