@@ -1227,7 +1227,7 @@ void DrawSpellBook(const Surface &out)
 	}
 }
 
-void CheckSBook()
+void CheckSBook(bool assignToRightButton)
 {
 	// The arrows first, and outside the inspect guard - cycling sheets is reading, not acting, so
 	// it stays available while inspecting another player's abilities. Hit-tested only when they are
@@ -1285,14 +1285,14 @@ void CheckSBook()
 					// state, and which of the two icons you get is decided by what is in your hand,
 					// not by a click. Its row exists to say so.
 					if (rows[i].attack == oracool::AttackIcon::Regular) {
-						// Shift clears the LEFT button's assignment, matching how shift assigns it
-						// above - so Regular Attack is how you get either button back to swinging.
-						if ((SDL_GetModState() & KMOD_SHIFT) != 0) {
+						// Clears whichever button you clicked it with, matching how assignment works
+						// below - so Regular Attack is how you get either button back to swinging.
+						if (assignToRightButton) {
+							ClearReadiedSpell(*MyPlayer);
+						} else {
 							MyPlayer->_pLRSpell = SpellID::Invalid;
 							MyPlayer->_pLRSplType = SpellType::Invalid;
 							RedrawEverything();
-						} else {
-							ClearReadiedSpell(*MyPlayer);
 						}
 					}
 					return;
@@ -1341,19 +1341,19 @@ void CheckSBook()
 	if ((player._pAblSpells & GetSpellBitmask(sn)) != 0) {
 		st = SpellType::Skill;
 	}
-	// Oracool: user request (2026-08-15) - "All skills and spells must be able to be set on both
-	// places." A plain click still assigns the RIGHT button, which is what every previous build did
-	// and what muscle memory expects; SHIFT-click assigns the LEFT one.
+	// Oracool: user request (2026-08-15) - "whichever mouse button i click with on a skill/spell
+	// that's where the skill/spell lands." The row is assigned to the button that clicked it, full
+	// stop: no modifier to discover, and the gesture states the outcome.
 	//
-	// Shift rather than a right-click on the row, because a right-click inside the window is already
-	// how the game closes panels, and because the modifier reads the same way here as it does in
-	// play - shift is "the other button's business" throughout this HUD.
-	if ((SDL_GetModState() & KMOD_SHIFT) != 0) {
-		player._pLRSpell = sn;
-		player._pLRSplType = st;
-	} else {
+	// This replaced a shift-click, which was chosen because right-clicking inside a panel is usually
+	// how this game closes one. It turns out not to be here - RightMouseDown's only response to a
+	// click inside the Abilities window was to return - so the obvious gesture was free all along.
+	if (assignToRightButton) {
 		player._pRSpell = sn;
 		player._pRSplType = st;
+	} else {
+		player._pLRSpell = sn;
+		player._pLRSplType = st;
 	}
 	RedrawEverything();
 }

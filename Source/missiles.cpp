@@ -718,7 +718,14 @@ void SpawnLightning(Missile &missile, int dam)
 	missile._mirange--;
 	MoveMissile(
 	    missile, [&](Point tile) {
-		    assert(InDungeonBounds(tile));
+		    // Oracool: a bolt aimed at the edge of the map walks straight off dPiece. Easy to do in
+		    // town, where the player can stand far closer to the boundary than any dungeon lets them.
+		    // This was the one checkTile in the file that ASSERTED on leaving the dungeon rather than
+		    // treating it as a stop, which is what the others all do - so do the same here.
+		    if (!InDungeonBounds(tile)) {
+			    missile._mirange = 0;
+			    return false;
+		    }
 		    int pn = dPiece[tile.x][tile.y];
 		    assert(pn >= 0 && pn <= MAXTILES);
 
@@ -732,10 +739,12 @@ void SpawnLightning(Missile &missile, int dam)
 		    return true;
 	    });
 
-	auto position = missile.position.tile;
-	int pn = dPiece[position.x][position.y];
-	if (!TileHasAny(pn, TileProperties::BlockMissile)) {
-		if (position != Point { missile.var1, missile.var2 } && InDungeonBounds(position)) {
+	// MoveMissile parks the missile ON the tile that failed the check, so this can be the very tile
+	// the lambda above just rejected. The dPiece read has to be inside the bounds test, not after it
+	// - the one that used to guard AddMissile was a line too late to protect this read.
+	const Point position = missile.position.tile;
+	if (InDungeonBounds(position) && !TileHasAny(dPiece[position.x][position.y], TileProperties::BlockMissile)) {
+		if (position != Point { missile.var1, missile.var2 }) {
 			MissileID type = MissileID::Lightning;
 			if (missile.sourceType() == MissileSource::Monster
 			    && IsAnyOf(missile.sourceMonster()->type().type, MT_STORM, MT_RSTORM, MT_STORML, MT_MAEL)) {

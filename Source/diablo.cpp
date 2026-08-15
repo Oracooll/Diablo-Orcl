@@ -448,7 +448,7 @@ void LeftMouseDown(uint16_t modState)
 				if (!DropGoldFlag)
 					CheckInvItem(isShiftHeld, isCtrlHeld);
 			} else if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
-				CheckSBook();
+				CheckSBook(/*assignToRightButton=*/false);
 			} else if (!MyPlayer->HoldItem.isEmpty()) {
 				if (!TryOpenDungeonWithMouse()) {
 					Point currentPosition = MyPlayer->position.tile;
@@ -541,8 +541,13 @@ void RightMouseDown(bool isShiftHeld)
 		SetSpell();
 		return;
 	}
-	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition))
+	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
+		// Oracool: user request (2026-08-15) - a row is readied on the button that clicked it, so the
+		// right button has to reach the window too. This used to be a bare return, which is why the
+		// previous build needed a shift-click to assign the left button.
+		CheckSBook(/*assignToRightButton=*/true);
 		return;
+	}
 	if (TryIconCurs())
 		return;
 	if (isShiftHeld && pcursinvitem != -1 && TryStartStackSplit(pcursinvitem))

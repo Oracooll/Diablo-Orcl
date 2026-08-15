@@ -51,7 +51,14 @@ void ToggleAbilitiesWindow();
 
 void InitSpellBook();
 void FreeSpellBook();
-void CheckSBook();
+/**
+ * @brief Handles a click inside the Abilities window.
+ *
+ * @param assignToRightButton which mouse button did the clicking - a row is readied on the button
+ * that clicked it (user request, 2026-08-15). Defaults to the left, which is also where a touch tap
+ * belongs, since a touchscreen has no second button to offer.
+ */
+void CheckSBook(bool assignToRightButton = false);
 void DrawSpellBook(const Surface &out);
 
 /**
