@@ -765,6 +765,16 @@ struct OracoolOptions : OptionCategoryBase {
 	 * would need rounding rules written down somewhere.
 	 */
 	OptionEntryInt<int> monsterDensityPercent;
+	/**
+	 * @brief How many lesser uniques a level hosts, as a PERCENTAGE of the base of one.
+	 *
+	 * Oracool: the second half of the user's request of 2026-08-15 - "another Unique Monster
+	 * modifier. same range" - which could not be built at the time, because Diablo 1 had no random
+	 * uniques to multiply. It has them now (oracool/lesser_uniques.h), so this is that dial.
+	 *
+	 * Same 100..300 steps as monsterDensityPercent, and stored the same way and for the same reasons.
+	 */
+	OptionEntryInt<int> lesserUniqueDensityPercent;
 	OptionEntryBoolean unlockAllTownEntrances;
 	OptionEntryBoolean permanentInfravision;
 	OptionEntryBoolean autoIdentifyDrops;

@@ -1,10 +1,12 @@
 #include "oracool/lesser_uniques.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "engine/random.hpp"
 #include "levels/gendung.h"
 #include "monster.h"
+#include "options.h"
 
 namespace devilution::oracool {
 
@@ -59,11 +61,13 @@ std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned)
 
 int LesserUniqueCountForLevel()
 {
-	// One, until the rate option lands in step 3. Town has no champions and neither do the set
-	// levels, whose contents are authored rather than generated.
+	// Town has no champions, and neither do the set levels, whose contents are authored rather than
+	// generated - dropping a random pack into Lachdanan's tomb would be vandalism, not variety.
 	if (currlevel == 0 || setlevel)
 		return 0;
-	return 1;
+	// One pack at 100%, three at 300%. Integer division floors, so 150% and 250% land on one and two
+	// rather than rounding up into a busier level than the setting reads as promising.
+	return std::max(1 * *sgOptions.Oracool.lesserUniqueDensityPercent / 100, 1);
 }
 
 } // namespace devilution::oracool
