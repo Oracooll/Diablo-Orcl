@@ -12,6 +12,7 @@
 #include "init.h"
 #include "items/validation.h"
 #include "loadsave.h"
+#include "oracool/readied_spells.h"
 #include "playerdat.hpp"
 #include "plrmsg.h"
 #include "stores.h"
@@ -226,6 +227,8 @@ void PackPlayer(PlayerPack &packed, const Player &player)
 	for (int i = 0; i < MaxBeltItems; i++)
 		PackItem(packed.SpdList[i], player.SpdList[i], gbIsHellfire);
 
+	packed.pReadiedSpellRight = oracool::PackReadiedSpell(player._pRSpell);
+	packed.pReadiedSpellLeft = oracool::PackReadiedSpell(player._pLRSpell);
 	packed.wReflections = SDL_SwapLE16(player.wReflections);
 	packed.pDamAcFlags = SDL_SwapLE32(static_cast<uint32_t>(player.pDamAcFlags));
 	packed.pDiabloKillLevel = SDL_SwapLE32(player.pDiabloKillLevel);
@@ -463,6 +466,13 @@ void UnPackPlayer(const PlayerPack &packed, Player &player)
 	CalcPlrInv(player, false);
 	player.wReflections = SDL_SwapLE16(packed.wReflections);
 	player.pDiabloKillLevel = SDL_SwapLE32(packed.pDiabloKillLevel);
+
+	// Last, and not one line earlier: the readied spells are validated against _pAblSpells and
+	// _pMemSpells (set by InitPlayer and above), and CalcPlrInv is what auto-readies an equipped
+	// staff's charged spell - a hero saved with nothing readied must keep that staff, so decoding
+	// has to happen after it and must leave both pairs alone when the byte is zero.
+	oracool::UnpackReadiedSpell(player, packed.pReadiedSpellRight, player._pRSpell, player._pRSplType);
+	oracool::UnpackReadiedSpell(player, packed.pReadiedSpellLeft, player._pLRSpell, player._pLRSplType);
 }
 
 bool UnPackNetItem(const Player &player, const ItemNetPack &packedItem, Item &item)

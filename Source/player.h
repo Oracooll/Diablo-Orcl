@@ -402,10 +402,8 @@ struct Player {
 	 * SpellID::Invalid means "left click attacks", which is vanilla behaviour and the default, so a
 	 * player who never assigns anything here notices no change.
 	 *
-	 * Deliberately NOT persisted, matching _pRSpell: neither is in PlayerPack, so the readied pair
-	 * has always been per-session. Adding it to the save would have changed sizeof(PlayerPack), and
-	 * pfile.cpp's ReadHero accepts only an exact size match - i.e. it would have invalidated every
-	 * existing hero for a convenience.
+	 * Persisted alongside _pRSpell as of 1.5.59 - see pack.h's pReadiedSpellRight. Neither pair used
+	 * to survive a New Game with an existing hero, because neither was in PlayerPack at all.
 	 */
 	SpellID _pLRSpell;
 	SpellType _pLRSplType;

@@ -64,12 +64,29 @@ struct PlayerPack {
 	int8_t pTownWarps;
 	int8_t pDungMsgs;
 	int8_t pLvlLoad;
-	uint8_t pBattleNet;
+	/**
+	 * @brief Oracool: user request (2026-08-15) - "make the readied spells persist across saves".
+	 * The RIGHT mouse button's readied spell; pReadiedSpellLeft below is the left button's.
+	 *
+	 * Repurposed from pBattleNet rather than appended, deliberately. Growing this struct changes
+	 * sizeof(PlayerPack) and pfile.cpp's ReadHero accepts only an exact size match, so appending
+	 * would have invalidated every existing hero for a convenience - see the waypoint comment below
+	 * for the one time that price was worth paying. pBattleNet was dead weight instead: PackPlayer
+	 * memsets it and never writes it, loadsave.cpp only file.Skip(1)s past it, and the sole writer
+	 * that ever set it was the original 1.09 game, whose .sv heroes this fork stopped being able to
+	 * read when it moved to Hellfire's .hsv. UnPackPlayer validates what it reads regardless.
+	 *
+	 * Encoding lives in oracool/readied_spells.cpp: 0 means nothing readied - which is what the
+	 * memset already wrote, so every pre-existing hero decodes correctly - and any other value is
+	 * the SpellID plus one. The spell TYPE is not stored; it is re-derived from the character's own
+	 * skills and memorised spells, which costs no bytes and drops bindings they no longer have.
+	 */
+	uint8_t pReadiedSpellRight; // was pBattleNet
 	uint8_t pManaShield;
 	uint8_t pDungMsgs2;
 	/** The format the charater is in, 0: Diablo, 1: Hellfire */
 	int8_t bIsHellfire;
-	uint8_t reserved; // For future use
+	uint8_t pReadiedSpellLeft; // was reserved; same encoding as pReadiedSpellRight above
 	uint16_t wReflections;
 	/**
 	 * @brief Oracool: user request - per-difficulty waypoint unlock bitmask, same repurposed-

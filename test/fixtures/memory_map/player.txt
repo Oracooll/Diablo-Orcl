@@ -40,7 +40,7 @@ R 8 _pSplType
 R 8 _pSplFrom
 R 16 alignment
 R 32 _pTSpell
-R 8 _pTSplType
+R 8 _pLRSpell
 R 24 alignment
 R 32 _pRSpell
 R 8 _pRSplType

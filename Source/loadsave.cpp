@@ -31,6 +31,7 @@
 #include "monster.h"
 #include "mpq/mpq_common.hpp"
 #include "oracool/auto_save.h"
+#include "oracool/readied_spells.h"
 #include "pfile.h"
 #include "playerdat.hpp"
 #include "plrmsg.h"
@@ -442,8 +443,13 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	player.queuedSpell.spellFrom = spellFrom;
 	file.Skip(2); // Alignment
 	player.inventorySpell = static_cast<SpellID>(file.NextLE<int32_t>());
-	file.Skip<int8_t>(); // Skip _pTSplType
-	file.Skip(3);        // Alignment
+	// Oracool: user request (2026-08-15) - the LEFT button's readied spell, in the byte vanilla used
+	// for _pTSplType and devilutionX has only ever skipped. The right button's pair is already saved
+	// a few lines below; this keeps the two consistent instead of one of them vanishing on a reload.
+	// Decoded further down, once _pAblSpells and _pMemSpells are in - see pack.h's pReadiedSpellRight
+	// for the encoding and why an unused byte was used rather than a new field.
+	const uint8_t packedLeftSpell = file.NextLE<uint8_t>();
+	file.Skip(3); // Alignment
 	player._pRSpell = static_cast<SpellID>(file.NextLE<int32_t>());
 	player._pRSplType = static_cast<SpellType>(file.NextLE<int8_t>());
 	file.Skip(3); // Alignment
@@ -457,6 +463,8 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	player._pScrlSpells = file.NextLE<uint64_t>();
 	player._pSpellFlags = static_cast<SpellFlag>(file.NextLE<uint8_t>());
 	file.Skip(3); // Alignment
+
+	oracool::UnpackReadiedSpell(player, packedLeftSpell, player._pLRSpell, player._pLRSplType);
 
 	// Extra hotkeys: to keep single player save compatibility, read only 4 hotkeys here, rely on LoadHotkeys for the rest
 	for (size_t i = 0; i < 4; i++) {
@@ -1286,8 +1294,8 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	file.WriteLE<int8_t>(player.queuedSpell.spellFrom);
 	file.Skip(2); // Alignment
 	file.WriteLE<int32_t>(static_cast<int8_t>(player.inventorySpell));
-	file.Skip<int8_t>(); // Skip _pTSplType
-	file.Skip(3);        // Alignment
+	file.WriteLE<uint8_t>(oracool::PackReadiedSpell(player._pLRSpell)); // was _pTSplType, see LoadPlayer
+	file.Skip(3);                                                       // Alignment
 	file.WriteLE<int32_t>(static_cast<int8_t>(player._pRSpell));
 	file.WriteLE<int8_t>(static_cast<uint8_t>(player._pRSplType));
 	file.Skip(3); // Alignment

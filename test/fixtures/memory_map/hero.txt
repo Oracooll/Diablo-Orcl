@@ -32,11 +32,11 @@ C 8 itemPack SpdList
 R 8 pTownWarps
 R 8 pDungMsgs
 R 8 pLvlLoad
-R 8 pBattleNet
+R 8 pReadiedSpellRight
 R 8 pManaShield
 R 8 pDungMsgs2
 R 8 bIsHellfire
-R 8 reserved
+R 8 pReadiedSpellLeft
 R 16 wReflections
 R 16 reserved
 M 10 8 pSplLvl2

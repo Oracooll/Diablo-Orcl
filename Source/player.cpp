@@ -2589,6 +2589,10 @@ void InitPlayer(Player &player, bool firstTime)
 	if (firstTime) {
 		player._pRSplType = SpellType::Invalid;
 		player._pRSpell = SpellID::Invalid;
+		// The left button's pair needs the same reset: value-initialising a Player leaves it at
+		// SpellID::Null, not Invalid, and only Invalid means "left click swings" everywhere else.
+		player._pLRSplType = SpellType::Invalid;
+		player._pLRSpell = SpellID::Invalid;
 		if (&player == MyPlayer)
 			LoadHotkeys();
 		player._pSBkSpell = SpellID::Invalid;
