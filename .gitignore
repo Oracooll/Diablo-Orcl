@@ -473,3 +473,6 @@ uwp-project/Assets/ui_art
 # tools/oracool_sprite_export.cpp. It is an inspection artefact - run the exporter again to
 # recreate it - and at ~200MB of copyrighted original art it must never reach a remote.
 /sprite-export/
+
+# Release packages
+DiabloOrcl-*-win64.zip
