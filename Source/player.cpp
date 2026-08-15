@@ -2378,6 +2378,9 @@ void CreatePlayer(Player &player, HeroClass c)
 	// weapon-repair/trap-disarm/etc. that identifies it.
 	player._pAblSpells = oracool::InnateSpellsBitmask(player);
 	player._pRSpell = s;
+	// Left button starts as the plain attack, which is vanilla behaviour.
+	player._pLRSpell = SpellID::Invalid;
+	player._pLRSplType = SpellType::Invalid;
 
 	if (c == HeroClass::Sorcerer) {
 		player._pMemSpells = GetSpellBitmask(SpellID::Firebolt);

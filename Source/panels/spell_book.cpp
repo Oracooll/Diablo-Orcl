@@ -1284,8 +1284,17 @@ void CheckSBook()
 					// Fist Attack is inert on purpose (user request): it is the same underlying
 					// state, and which of the two icons you get is decided by what is in your hand,
 					// not by a click. Its row exists to say so.
-					if (rows[i].attack == oracool::AttackIcon::Regular)
-						ClearReadiedSpell(*MyPlayer);
+					if (rows[i].attack == oracool::AttackIcon::Regular) {
+						// Shift clears the LEFT button's assignment, matching how shift assigns it
+						// above - so Regular Attack is how you get either button back to swinging.
+						if ((SDL_GetModState() & KMOD_SHIFT) != 0) {
+							MyPlayer->_pLRSpell = SpellID::Invalid;
+							MyPlayer->_pLRSplType = SpellType::Invalid;
+							RedrawEverything();
+						} else {
+							ClearReadiedSpell(*MyPlayer);
+						}
+					}
 					return;
 				case SkillRowKind::Spell:
 					sn = rows[i].spell;
@@ -1332,8 +1341,20 @@ void CheckSBook()
 	if ((player._pAblSpells & GetSpellBitmask(sn)) != 0) {
 		st = SpellType::Skill;
 	}
-	player._pRSpell = sn;
-	player._pRSplType = st;
+	// Oracool: user request (2026-08-15) - "All skills and spells must be able to be set on both
+	// places." A plain click still assigns the RIGHT button, which is what every previous build did
+	// and what muscle memory expects; SHIFT-click assigns the LEFT one.
+	//
+	// Shift rather than a right-click on the row, because a right-click inside the window is already
+	// how the game closes panels, and because the modifier reads the same way here as it does in
+	// play - shift is "the other button's business" throughout this HUD.
+	if ((SDL_GetModState() & KMOD_SHIFT) != 0) {
+		player._pLRSpell = sn;
+		player._pLRSplType = st;
+	} else {
+		player._pRSpell = sn;
+		player._pRSplType = st;
+	}
 	RedrawEverything();
 }
 

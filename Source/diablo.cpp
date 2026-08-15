@@ -460,8 +460,21 @@ void LeftMouseDown(uint16_t modState)
 				}
 			} else {
 				CheckLvlBtn();
-				if (!lvlbtndown)
-					LeftMouseCmd(isShiftHeld);
+				if (!lvlbtndown) {
+					// Oracool: user request (2026-08-15) - a spell assigned to the LEFT button casts
+					// instead of swinging. Shift still forces the plain attack, exactly as it does
+					// for the right button, so there is always a way to hit the thing in front of
+					// you without unassigning anything.
+					//
+					// Routed through the same CheckPlrSpell the right button uses, just with the
+					// other pair of fields, so casting rules, mana, targeting and the Charge
+					// intercept all behave identically on both buttons rather than being reimplemented.
+					Player &lmbPlayer = *MyPlayer;
+					if (!isShiftHeld && IsValidSpell(lmbPlayer._pLRSpell))
+						CheckPlrSpell(false, lmbPlayer._pLRSpell, lmbPlayer._pLRSplType);
+					else
+						LeftMouseCmd(isShiftHeld);
+				}
 			}
 		}
 	} else {

@@ -394,6 +394,21 @@ struct Player {
 	int8_t spellFrom;
 	SpellID _pRSpell;
 	SpellType _pRSplType;
+	/**
+	 * Oracool: user request (2026-08-15) - "All skills and spells must be able to be set on both
+	 * places and cast with both mouse buttons." Vanilla has ONE readied spell, the pair above, and
+	 * the left button always swings. This is the left button's own pair.
+	 *
+	 * SpellID::Invalid means "left click attacks", which is vanilla behaviour and the default, so a
+	 * player who never assigns anything here notices no change.
+	 *
+	 * Deliberately NOT persisted, matching _pRSpell: neither is in PlayerPack, so the readied pair
+	 * has always been per-session. Adding it to the save would have changed sizeof(PlayerPack), and
+	 * pfile.cpp's ReadHero accepts only an exact size match - i.e. it would have invalidated every
+	 * existing hero for a convenience.
+	 */
+	SpellID _pLRSpell;
+	SpellType _pLRSplType;
 	SpellID _pSBkSpell;
 	uint8_t _pSplLvl[64];
 	/** @brief Bitmask of staff spell */

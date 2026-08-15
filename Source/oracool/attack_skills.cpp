@@ -1,4 +1,7 @@
-#include "oracool/attack_skills.h"
+﻿#include "oracool/attack_skills.h"
+
+#include "panels/spell_icons.hpp"
+#include "spells.h"
 
 #include <cassert>
 
@@ -62,10 +65,34 @@ Size WellIconSize()
 	// icon recut at a size that no longer fits cannot reach the screen unnoticed.
 	assert(loaded.width == 0
 	    || (loaded.width == SkillWellIconSize.width && loaded.height == SkillWellIconSize.height));
-	return loaded;
+	if (loaded.width != 0)
+		return loaded;
+	// No attack strip shipped. The wells used to give up here and draw nothing - which is exactly
+	// what a screenshot showed once the icon sheets were removed - but they now also draw a readied
+	// SPELL's own icon, and that art is the engine's and always present. So fall back to its size
+	// rather than returning 0 and blanking a well that has something to show.
+	return GetSmallSpellIconSize();
 }
 
 } // namespace
+
+/**
+ * @brief Draws @p spell's own icon in a well, or the basic-attack icon when nothing is assigned.
+ *
+ * Oracool: user request (2026-08-15) - "LMB and RMB - To show actual Skills Icons." Both wells used
+ * to draw the basic-attack icon unconditionally, so a readied spell was invisible on the button that
+ * would cast it. The spell icons anchor BOTTOM-left where the attack strip anchors top-left, which is
+ * the whole reason this is one function rather than two lines at each call site.
+ */
+void DrawWellIcon(const Surface &out, Point origin, Size iconSize, SpellID spell, SpellType type)
+{
+	if (!IsValidSpell(spell)) {
+		DrawAttackIcon(out, origin, static_cast<int>(BasicAttackIcon(*MyPlayer)), /*active=*/true);
+		return;
+	}
+	SetSpellTrans(type);
+	DrawSmallSpellIcon(out, { origin.x, origin.y + iconSize.height - 1 }, spell);
+}
 
 void DrawLmbSkillWell(const Surface &out)
 {
@@ -75,7 +102,7 @@ void DrawLmbSkillWell(const Surface &out)
 	// Always "active": a well shows what its button does right now, so there is no inactive state for
 	// it to render. The dimmed variant belongs to the Abilities window's row pair, where it says
 	// which of the two attacks is the one in your hands.
-	DrawAttackIcon(out, GetLmbSkillIconOrigin(iconSize), static_cast<int>(BasicAttackIcon(*MyPlayer)), /*active=*/true);
+	DrawWellIcon(out, GetLmbSkillIconOrigin(iconSize), iconSize, MyPlayer->_pLRSpell, MyPlayer->_pLRSplType);
 }
 
 void DrawRmbSkillWell(const Surface &out)
@@ -83,7 +110,7 @@ void DrawRmbSkillWell(const Surface &out)
 	const Size iconSize = WellIconSize();
 	if (iconSize.width == 0)
 		return;
-	DrawAttackIcon(out, GetRmbSkillIconOrigin(iconSize), static_cast<int>(BasicAttackIcon(*MyPlayer)), /*active=*/true);
+	DrawWellIcon(out, GetRmbSkillIconOrigin(iconSize), iconSize, MyPlayer->_pRSpell, MyPlayer->_pRSplType);
 }
 
 } // namespace devilution::oracool
