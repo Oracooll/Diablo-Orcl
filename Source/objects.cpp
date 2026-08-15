@@ -2029,8 +2029,9 @@ void OperateWaypoint(Object &waypoint)
 
 	// Oracool: user request - first click on a dormant sigil activates it (lit frame + sound)
 	// in the same motion that opens the travel list, matching vanilla Diablo/Diablo 2's own
-	// waypoint feel. waypoint._oVar1 holds this sigil's list index (0 = Tristram, 1-16 = that
-	// dungeon level), set in AddWaypointSigilObject.
+	// waypoint feel. waypoint._oVar1 holds this sigil's list index (0 = Tristram, 1-24 = that
+	// dungeon level - 17-24 are Hellfire's Nest and Crypt since v1.5.0), set in
+	// AddWaypointSigilObject, which bounds it against Player::MaxWaypointSlots.
 	if (!oracool::IsWaypointUnlocked(waypoint._oVar1)) {
 		oracool::UnlockWaypoint(waypoint._oVar1);
 		waypoint._oAnimFrame = 2; // orclwayp.cel's lit variant
