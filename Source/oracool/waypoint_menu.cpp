@@ -331,6 +331,13 @@ void DrawWaypointMenu(const Surface &out)
 		const bool unlocked = IsWaypointUnlocked(static_cast<int>(i));
 		const bool isHovered = (hovered == static_cast<int>(i));
 
+		// Oracool: user request (2026-08-15) - the same subtle gold outline the Abilities window
+		// marks its hovered row with. Before the icon and the name, so it frames them rather than
+		// striking through. Spans the row's clickable width, stopping short of the scrollbar, so what
+		// lights up is exactly what a click would take.
+		if (isHovered)
+			DrawHoverOutline(content, { { PanelMargin, rowTop }, { ContentRightLimit - PanelMargin, RowHeight } });
+
 		// The pad is the waypoint's own art: lit for a waypoint the player has reached, dormant
 		// otherwise - the same two states the in-world sigil uses. It is cut to the row's exact
 		// height (43x43, see tools/CutWaypointIcons.ps1), so this centring term is zero today and

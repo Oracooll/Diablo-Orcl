@@ -20,6 +20,7 @@
 #include "oracool/auras.h"
 #include "oracool/class_skills.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/spell_descriptions.h"
 #include "oracool/barb_skills.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
@@ -879,6 +880,106 @@ void FreeSpellBook()
 	FreeSmallSpellIcons();
 }
 
+/**
+ * @brief Marks the row under the cursor and describes it.
+ *
+ * Oracool: user request (2026-08-15) - a subtle gold outline on the hovered row, and a pop-up
+ * describing it. Both together here because they answer the same question ("which row is the cursor
+ * on?") and answering it twice would be two chances to disagree.
+ *
+ * Walks the rows exactly as the draw loop below does, accumulating heights, so the Skills sheet's
+ * mixed row heights are handled without a second copy of that arithmetic. Runs BEFORE the rows are
+ * drawn so the outline sits under the icons and text rather than across them; the pop-up is drawn
+ * into `out` at the end for the opposite reason - it must cover whatever it overlaps.
+ */
+void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle contentRect, int scroll)
+{
+	// Same span a click uses: short of the scrollbar, so hovering the bar does not light a row.
+	const Rectangle hoverArea { contentRect.position, { AbilitiesContentRightLimit, contentRect.size.height } };
+	if (!hoverArea.contains(MousePosition))
+		return;
+
+	const int y = MousePosition.y - contentRect.position.y + scroll;
+	string_view description;
+	int rowTop = 0;
+	int rowHeight = 0;
+	bool found = false;
+
+	if (CurrentSheet == AbilitySheet::Skills) {
+		SkillRow rows[MaxSkillSheetRows];
+		const size_t rowCount = BuildSkillsSheetRows(rows);
+		int top = 0;
+		for (size_t i = 0; i < rowCount && !found; i++) {
+			const int height = rows[i].kind == SkillRowKind::Paladin ? DescribedRowHeight : SpellRowHeight;
+			if (y >= top && y < top + height) {
+				rowTop = top;
+				rowHeight = height;
+				found = true;
+				switch (rows[i].kind) {
+				case SkillRowKind::Attack:
+					description = rows[i].attack == oracool::AttackIcon::Regular
+					    ? _("Swing whatever is in hand. What a click does when no spell is readied.")
+					    : _("Strike bare-handed. What Regular Attack becomes with no weapon held.");
+					break;
+				case SkillRowKind::Spell:
+					description = _(oracool::GetSpellDescription(rows[i].spell));
+					break;
+				case SkillRowKind::Paladin:
+					description = _(oracool::GetPaladinSkillData(rows[i].paladin).description);
+					break;
+				}
+			}
+			top += height;
+		}
+	} else {
+		const int height = RowHeightFor(CurrentSheet);
+		const size_t index = static_cast<size_t>(y / height);
+		if (index < GetRowCount(CurrentSheet)) {
+			rowTop = static_cast<int>(index) * height;
+			rowHeight = height;
+			found = true;
+			switch (CurrentSheet) {
+			case AbilitySheet::Auras: {
+				const oracool::Aura aura = oracool::GetAuraAtDisplayIndex(index);
+				description = _(oracool::GetAuraData(aura).description);
+				break;
+			}
+			case AbilitySheet::Barbarian: {
+				const oracool::BarbSkill skill = oracool::GetBarbSkillAtDisplayIndex(index);
+				description = _(oracool::GetBarbSkillData(skill).description);
+				break;
+			}
+			case AbilitySheet::Spells:
+			case AbilitySheet::ClassSkills: {
+				SpellID rows[MaxSpellRows];
+				const size_t rowCount = CurrentSheet == AbilitySheet::ClassSkills
+				    ? BuildClassSkillRows(rows)
+				    : BuildSpellRows(rows);
+				if (index < rowCount)
+					description = _(oracool::GetSpellDescription(rows[index]));
+				break;
+			}
+			case AbilitySheet::Skills:
+				break; // handled above
+			}
+		}
+	}
+
+	if (!found)
+		return;
+
+	// Local to the content subregion, which is what clips it to the scrolling area.
+	oracool::DrawHoverOutline(content, { { 0, rowTop - scroll }, { AbilitiesContentRightLimit, rowHeight } });
+
+	// The panel is placed against the row in SCREEN coordinates, and drawn into `out` so it can
+	// extend past the window's own edges.
+	if (!description.empty()) {
+		const Rectangle anchor { { contentRect.position.x, contentRect.position.y + rowTop - scroll },
+			{ AbilitiesContentRightLimit, rowHeight } };
+		oracool::DrawHoverPanel(out, description, anchor);
+	}
+}
+
 void DrawSpellBook(const Surface &out)
 {
 	if (!IsSheetAvailable(CurrentSheet))
@@ -915,6 +1016,8 @@ void DrawSpellBook(const Surface &out)
 
 	const int rowHeight = RowHeightFor(CurrentSheet);
 	const int scroll = CurrentScroll();
+
+	DrawHoverFeedback(out, content, contentRect, scroll);
 
 	// The Skills sheet walks its own enumeration because its rows differ in kind AND in height; every
 	// other sheet is uniform and keeps the simple stride.

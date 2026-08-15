@@ -106,4 +106,26 @@ void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, Ui
  */
 void DrawThemedFill(const Surface &out, Rectangle rect, int passes = 1);
 
+/**
+ * @brief A one-pixel gold rectangle marking the row under the cursor.
+ *
+ * Oracool: user request (2026-08-15) - "a subtle golden rectangle around the item I am hovering
+ * over. Subtle gold outline, like the outline of silhouettes." Deliberately an OUTLINE and not a
+ * fill: these rows sit on a half-transparent panel over the dungeon, and a fill would either wash
+ * the row out or fight the icon's own art.
+ *
+ * One pixel, mid-ramp gold, no corners softened. Drawn on the row's own rect, so a caller that
+ * already knows which row the cursor is on needs nothing else.
+ */
+void DrawHoverOutline(const Surface &out, Rectangle rect);
+
+/**
+ * @brief A floating panel of wrapped text, placed beside @p anchor and kept on screen.
+ *
+ * The hover description window. Sizes itself to the wrapped text rather than to a fixed box, so a
+ * one-line spell and a three-line one both look deliberate, and flips to the other side of the
+ * anchor rather than running off the edge.
+ */
+void DrawHoverPanel(const Surface &out, string_view text, Rectangle anchor);
+
 } // namespace devilution::oracool

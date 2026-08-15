@@ -1,6 +1,7 @@
 #include "oracool/ornate_border.h"
 
 #include <algorithm>
+#include <string>
 
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
@@ -80,6 +81,78 @@ void DrawThemedFill(const Surface &out, Rectangle rect, int passes)
 		return;
 	for (int i = 0; i < std::max(1, passes); i++)
 		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+}
+
+void DrawHoverOutline(const Surface &out, Rectangle rect)
+{
+	if (rect.size.width <= 1 || rect.size.height <= 1)
+		return;
+	// MidHighlightColor, the frame's LIT gold, rather than OuterColor's dimmer one. Both are "gold"
+	// and the dim one is the more literal reading of "subtle", but these rows sit on a
+	// half-transparent panel over the dungeon, where 202 barely separates from the fill. 198 reads as
+	// a highlight at a glance and still belongs to the same frame the window is built from.
+	const int x = rect.position.x;
+	const int y = rect.position.y;
+	const int w = rect.size.width;
+	const int h = rect.size.height;
+	DrawHorizontalLine(out, { x, y }, w, MidHighlightColor);
+	DrawHorizontalLine(out, { x, y + h - 1 }, w, MidHighlightColor);
+	DrawVerticalLine(out, { x, y }, h, MidHighlightColor);
+	DrawVerticalLine(out, { x + w - 1, y }, h, MidHighlightColor);
+}
+
+void DrawHoverPanel(const Surface &out, string_view text, Rectangle anchor)
+{
+	if (text.empty())
+		return;
+
+	// Wide enough for a sentence without becoming a paragraph, and narrow enough to sit beside the
+	// 340px window rather than across the view.
+	constexpr int MaxTextWidth = 240;
+	constexpr int Padding = 10;
+	constexpr int Gap = 8; // between the row being described and the panel
+
+	const std::string wrapped = WordWrapString(text, MaxTextWidth, GameFont12, 1);
+	const int lineHeight = 18;
+	int lines = 1;
+	for (const char c : wrapped) {
+		if (c == '\n')
+			lines++;
+	}
+
+	// Measured from the WRAPPED text, so a short description gets a short panel instead of always
+	// reserving the full MaxTextWidth.
+	int textWidth = 0;
+	size_t start = 0;
+	while (start <= wrapped.size()) {
+		const size_t end = wrapped.find('\n', start);
+		const string_view line = string_view(wrapped).substr(start, end == std::string::npos ? std::string::npos : end - start);
+		textWidth = std::max(textWidth, GetLineWidth(line, GameFont12, 1));
+		if (end == std::string::npos)
+			break;
+		start = end + 1;
+	}
+
+	const int panelWidth = textWidth + 2 * Padding;
+	const int panelHeight = lines * lineHeight + 2 * Padding;
+
+	// To the right of the row by default; flipped to its left when there is no room, so the panel
+	// never leaves the screen and never covers the thing it is describing.
+	int px = anchor.position.x + anchor.size.width + Gap;
+	if (px + panelWidth > out.w())
+		px = anchor.position.x - Gap - panelWidth;
+	px = std::clamp(px, 0, std::max(0, out.w() - panelWidth));
+	// Vertically centred on the row, then pulled back inside the screen.
+	int py = anchor.position.y + (anchor.size.height - panelHeight) / 2;
+	py = std::clamp(py, 0, std::max(0, out.h() - panelHeight));
+
+	const Rectangle panel { { px, py }, { panelWidth, panelHeight } };
+	// Two passes: one is too sheer to read text over when the dungeon behind it is bright.
+	DrawThemedFill(out, panel, 2);
+	DrawOrnateBorder(out, panel);
+	DrawString(out, wrapped,
+	    { { px + Padding, py + Padding }, { textWidth, lines * lineHeight } },
+	    { UiFlags::ColorWhite, 1, lineHeight });
 }
 
 void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, UiFlags style)
