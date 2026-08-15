@@ -52,13 +52,16 @@ function Write-Trn([string]$name, [int[]]$ramp) {
     for ($i = 0; $i -lt 256; $i++) { $bytes[$i] = [byte]$i }   # identity everywhere else
     for ($i = 0; $i -lt $ramp.Count; $i++) { $bytes[$InkFirst + $i] = [byte]$ramp[$i] }
 
-    foreach ($dir in @('assets', 'oracool_assets')) {
-        $path = Join-Path $repoRoot "Packaging\resources\$dir\fonts\$name"
-        $parent = Split-Path -Parent $path
-        if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-        [System.IO.File]::WriteAllBytes($path, $bytes)
-        Write-Host ("wrote {0} ({1} bytes)" -f $path, $bytes.Length)
-    }
+    # oracool_assets ONLY. This used to write to Packaging\resources\assets as well, and that second
+    # copy was pure dead weight: the stock assets tree only reaches the game through the explicit
+    # devilutionx_assets list in CMake\Assets.cmake, these were never in it, so that copy never
+    # deployed anywhere. The live pair is the one packed into oracool.mpq by
+    # tools\build_oracool_mpq.cmd, which is what ColorTranslations actually resolves against.
+    $path = Join-Path $repoRoot "Packaging\resources\oracool_assets\fonts\$name"
+    $parent = Split-Path -Parent $path
+    if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    [System.IO.File]::WriteAllBytes($path, $bytes)
+    Write-Host ("wrote {0} ({1} bytes)" -f $path, $bytes.Length)
 }
 
 Write-Trn 'oracool_yellow.trn'  $brightRamp
