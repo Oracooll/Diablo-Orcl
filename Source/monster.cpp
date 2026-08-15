@@ -34,6 +34,7 @@
 #include "movie.h"
 #include "options.h"
 #include "oracool/event_log.h"
+#include "oracool/lesser_uniques.h"
 #include "qol/floatingnumbers.h"
 #include "spelldat.h"
 #include "storm/storm_net.hpp"
@@ -460,6 +461,40 @@ void ClrAllMonsters()
 		monster.isInvalid = false;
 		monster.enemy = GenerateRnd(gbActivePlayers);
 		monster.enemyPosition = Players[monster.enemy].position.future;
+	}
+}
+
+/**
+ * @brief Oracool: places the lesser uniques this level hosts, if any.
+ *
+ * Deliberately built on PlaceUniqueMonst rather than beside it: everything that makes a champion a
+ * champion - the authored name and palette, the AI, the resistances, the minion escort through
+ * PlaceGroup - is already in PrepareUniqueMonst, and duplicating it would mean two definitions of
+ * "unique" drifting apart. The lesser part is the stats, and those are step 2 of the plan.
+ *
+ * The pack size is smaller than the scripted 8. A lesser unique is an encounter, not a set piece,
+ * and its escort comes out of the same MaxMonsters pool the scattered monsters and the density dial
+ * both draw on.
+ */
+void PlaceLesserUniques()
+{
+	constexpr int LesserUniquePackSize = 4;
+
+	const int wanted = oracool::LesserUniqueCountForLevel();
+	for (int placed = 0; placed < wanted; placed++) {
+		const std::optional<UniqueMonsterType> choice = oracool::ChooseLesserUnique();
+		if (!choice)
+			return; // this level hosts no monster type that has a champion written for it
+
+		const size_t minionType = GetMonsterTypeIndex(UniqueMonstersData[static_cast<size_t>(*choice)].mtype);
+		if (minionType == LevelMonsterTypeCount)
+			return;
+		// The same headroom check the scattered monsters get. A champion plus escort is five bodies,
+		// and the pool is shared.
+		if (ActiveMonsterCount + LesserUniquePackSize + 1 > MaxMonsters - 10)
+			return;
+
+		PlaceUniqueMonst(*choice, minionType, LesserUniquePackSize);
 	}
 }
 
@@ -3531,6 +3566,12 @@ void InitMonsters()
 					na++;
 			}
 		}
+		// Oracool: lesser uniques go in BEFORE the scatter, deliberately. They and their escorts draw
+		// on the same MaxMonsters pool, and the scatter's own clamp a few lines down is what keeps the
+		// total inside it - so the champions must already be counted in ActiveMonsterCount when that
+		// clamp runs, or a dense level would overrun the pool and lose monsters at random.
+		PlaceLesserUniques();
+
 		int numplacemonsters = na / 30;
 		if (gbIsMultiplayer)
 			numplacemonsters += numplacemonsters / 2;
