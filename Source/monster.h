@@ -270,6 +270,22 @@ struct Monster { // note: missing field _mAFNum
 	 * writes as "Unused", which is symmetric on both sides. Checked before it was added, not after.
 	 */
 	LesserUniqueAffix lesserAffix = LesserUniqueAffix::None;
+	/**
+	 * @brief Oracool: the roll a lesser unique's name and tint are both derived from.
+	 *
+	 * A field rather than a derivation, and it is here because the first version tried to avoid being
+	 * one. That version read aiSeed, on the reasoning that it is already per-monster and already
+	 * saved - both true, and both beside the point: multi.cpp's MonsterSeeds rewrites every monster's
+	 * aiSeed from the game-loop counter on EVERY tick, single-player included. It is a per-tick nonce
+	 * that happens to be stored per monster, not an identity. The name changed several times a second
+	 * (user report, 2026-08-15: "his name was constantly changing").
+	 *
+	 * Two bytes, taken from the three still spare in the same "Unused" run that already holds
+	 * lesserAffix - so this is still no save-format change. A save written before it reads zero, which
+	 * gives every old champion the first name in the book; they are level furniture, not characters
+	 * with histories, and a fresh floor re-rolls them anyway.
+	 */
+	uint16_t lesserNameSeed = 0;
 	uint8_t uniqTrans;
 	int8_t corpseId;
 	int8_t whoHit;

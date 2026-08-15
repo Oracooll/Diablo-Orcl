@@ -686,7 +686,10 @@ void LoadMonster(LoadHelper *file, Monster &monster, MonsterConversionData *mons
 	// unused. No save-format change, and a save written before lesser uniques existed reads zero here
 	// - which is LesserUniqueAffix::None, exactly what a monster from such a save should have.
 	monster.lesserAffix = static_cast<LesserUniqueAffix>(file->NextLE<uint8_t>());
-	file->Skip(3); // Unused
+	// And two more of the same run for the name/tint roll - see Monster::lesserNameSeed for why that
+	// could not just be read off aiSeed. One byte of the original four is still spare.
+	monster.lesserNameSeed = file->NextLE<uint16_t>();
+	file->Skip(1); // Unused
 	monster.pathCount = file->NextLE<uint8_t>();
 	file->Skip(3); // Alignment
 	monster.position.tile.x = file->NextLE<int32_t>();
@@ -1508,7 +1511,8 @@ void SaveMonster(SaveHelper *file, Monster &monster, MonsterConversionData *mons
 	file->WriteLE<int32_t>(monster.goalVar2);
 	file->WriteLE<int32_t>(monster.goalVar3);
 	file->WriteLE<uint8_t>(static_cast<uint8_t>(monster.lesserAffix)); // was the first Unused byte
-	file->Skip(3);                                                     // Unused
+	file->WriteLE<uint16_t>(monster.lesserNameSeed);                   // was the second and third
+	file->Skip(1);                                                     // Unused
 	file->WriteLE<uint8_t>(monster.pathCount);
 	file->Skip(3); // Alignment
 	file->WriteLE<int32_t>(monster.position.tile.x);

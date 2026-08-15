@@ -108,7 +108,23 @@ void ApplyLesserUniqueAffix(Monster &monster);
  */
 void OnLesserUniqueDealtDamage(Monster &monster, int damage);
 
-/** @brief Oracool: shifts a champion's palette a shade or two, so a repeated sprite still differs. */
+/**
+ * @brief Rolls the value Monster::lesserNameSeed holds - given name, epithet and tint in one number.
+ *
+ * One roll rather than three, packed as a mixed-radix number (given + 50*epithet + 1300*tint), for
+ * two reasons. It fits the two spare save bytes, where three separate rolls would not. And the range
+ * stays under GenerateRnd's 0x7FFF threshold, above which it stops correcting for LCG bias and hands
+ * back raw low bits - which are exactly the bits `% 50` would then read.
+ */
+uint16_t RollLesserUniqueNameSeed();
+
+/**
+ * @brief Oracool: shifts a champion's palette a shade or two, so a repeated sprite still differs.
+ *
+ * Must be called on a FRESHLY loaded TRN, never on one already tinted - each call shifts again. The
+ * two call sites both satisfy that: placement tints straight after PrepareUniqueMonst loads the
+ * palette, and SyncMonsterAnim re-tints straight after InitTRNForUniqueMonster reloads it from file.
+ */
 void TintLesserUnique(Monster &monster);
 
 /** @brief Oracool: a champion's on-death modifier - Thunderous discharges here. */

@@ -102,6 +102,21 @@ const char *const Epithets[] = {
 };
 constexpr size_t EpithetCount = sizeof(Epithets) / sizeof(Epithets[0]);
 
+/** @brief How many shades TintLesserUnique picks between: -2..+2, so five. */
+constexpr uint32_t TintChoices = 5;
+
+/**
+ * @brief The mixed-radix range of Monster::lesserNameSeed: given, then epithet, then tint.
+ *
+ * 50 x 26 x 5 = 6,500, which is both small enough for the two spare save bytes and small enough to
+ * stay under GenerateRnd's 0x7FFF bias-correction threshold. Each field reads a different "digit", so
+ * a champion's name and its colour are independent draws off one number rather than two views of the
+ * same low bits.
+ */
+constexpr uint32_t NameSeedRange = GivenNameCount * EpithetCount * TintChoices;
+static_assert(NameSeedRange <= 0x7FFF,
+    "lesserNameSeed's range must stay inside GenerateRnd's bias-corrected band - see RollLesserUniqueNameSeed");
+
 /** @brief Whether a champion of @p type on this level already carries @p affix. */
 bool IsAffixUsedBy(UniqueMonsterType type, LesserUniqueAffix affix)
 {
@@ -270,6 +285,11 @@ void OnLesserUniqueDealtDamage(Monster &monster, int damage)
 	monster.hitPoints = std::min(monster.hitPoints + damage * VampiricPercent / 100, monster.maxHitPoints);
 }
 
+uint16_t RollLesserUniqueNameSeed()
+{
+	return static_cast<uint16_t>(GenerateRnd(static_cast<int32_t>(NameSeedRange)));
+}
+
 void TintLesserUnique(Monster &monster)
 {
 	if (!monster.uniqueMonsterTRN)
@@ -283,8 +303,10 @@ void TintLesserUnique(Monster &monster)
 	// recognisably what it is and reads a little paler or a little darker than its twin. Anything
 	// stronger and the game's existing unique palettes - which are hand-picked per champion - stop
 	// meaning what they were chosen to mean.
-	const int shift = static_cast<int>(monster.aiSeed % 5) - 2; // -2..+2, and 0 is a valid outcome
-	if (shift == 0)
+	// The seed's third digit, so the colour is an independent draw from the name rather than another
+	// view of the same low bits - see NameSeedRange.
+	const int shift = static_cast<int>((monster.lesserNameSeed / (GivenNameCount * EpithetCount)) % TintChoices) - 2;
+	if (shift == 0) // -2..+2, and 0 is a valid outcome
 		return;
 
 	uint8_t *trn = monster.uniqueMonsterTRN.get();
@@ -306,13 +328,15 @@ void TintLesserUnique(Monster &monster)
 
 std::string GetLesserUniqueName(const Monster &monster)
 {
-	// Derived from aiSeed rather than stored, and that is the whole trick: aiSeed is already per
-	// monster AND already saved, so a champion keeps its name across a save and reload without this
-	// costing a field, a string table, or another look at the save format.
+	// lesserNameSeed, not aiSeed. The first version of this read aiSeed, reasoning that it is already
+	// per-monster and already saved - both true, and both beside the point. multi.cpp's MonsterSeeds
+	// rewrites EVERY monster's aiSeed from the game-loop counter on every tick, in single-player too:
+	// it is a per-tick nonce that happens to live on the monster, not an identity. The name changed
+	// several times a second (user report, 2026-08-15: "his name was constantly changing").
 	//
-	// Two independent draws from one seed - the division moves to a different part of the number, so
-	// the given name and the epithet do not march in lockstep as the seed increments.
-	const uint32_t seed = monster.aiSeed;
+	// Two digits of one mixed-radix number, so the given name and the epithet are independent draws
+	// rather than marching in lockstep as the seed increments.
+	const uint32_t seed = monster.lesserNameSeed;
 	const char *given = GivenNames[seed % GivenNameCount];
 	const char *epithet = Epithets[(seed / GivenNameCount) % EpithetCount];
 	return StrCat(given, " ", _(epithet));

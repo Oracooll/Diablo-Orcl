@@ -155,6 +155,7 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 	// Oracool: cleared beside uniqueType and for the same reason - Monster slots are reused between
 	// levels, so an ordinary monster taking a champion's old slot would inherit its modifier.
 	monster.lesserAffix = LesserUniqueAffix::None;
+	monster.lesserNameSeed = 0;
 	monster.activeForTicks = 0;
 	monster.lightId = NO_LIGHT;
 	monster.rndItemSeed = AdvanceRndSeed();
@@ -542,7 +543,12 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 	// The modifier last, so anything it adds sits on top of the floor-scaled numbers rather than
 	// being overwritten by them. Setting it is also what MARKS this monster as a lesser unique:
 	// uniqueType alone cannot tell Garbud from a champion borrowing his shape.
-	monster.lesserAffix = oracool::RollLesserUniqueAffix();
+	monster.lesserAffix = oracool::RollLesserUniqueAffix(uniqindex);
+	// Rolled once, here, and then saved - see Monster::lesserNameSeed. Both the name and the tint read
+	// it, which is also what keeps them consistent with each other: two champions that look alike are
+	// named alike only if they really are the same roll.
+	monster.lesserNameSeed = oracool::RollLesserUniqueNameSeed();
+	oracool::TintLesserUnique(monster);
 	oracool::ApplyLesserUniqueAffix(monster);
 
 	// The escort PlaceGroup just created. They are ordinary monsters of the same type, so they are
@@ -4357,6 +4363,15 @@ void SyncMonsterAnim(Monster &monster)
 #endif
 	if (monster.isUnique()) {
 		InitTRNForUniqueMonster(monster);
+		// Oracool: and re-apply the tint, because the line above just threw it away. The champion's
+		// palette is reloaded from its .trn file here rather than saved, so a lesser unique's recolour
+		// - which lives only in that in-memory buffer - did not survive a save/load or a walk back up
+		// the stairs. Found while fixing the changing name; same root cause, that both were derived
+		// from state nobody had checked the lifetime of.
+		//
+		// Safe to call every time precisely BECAUSE the reload just happened: the tint always shifts a
+		// freshly loaded palette, never an already-shifted one.
+		oracool::TintLesserUnique(monster);
 	}
 	MonsterGraphic graphic = MonsterGraphic::Stand;
 
