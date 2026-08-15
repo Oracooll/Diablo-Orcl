@@ -536,6 +536,9 @@ void SaveOptions()
 	setInteger("Unique Item Drop Multiplier", *sgOptions.Oracool.uniqueItemDropMultiplier,
 	    "; Multiplies the chance that an eligible drop becomes unique. One is the normal\n; rate; higher values make uniques more common, with final probability capped.");
 
+	setInteger("Monster Density", *sgOptions.Oracool.monsterDensityPercent,
+	    "; How many monsters a dungeon level scatters, as a percentage of the vanilla count.\n; 100 is vanilla; 150, 200, 250 and 300 are one and a half to three times as many.\n; Quest monsters and the named uniques are placed by their own rules and ignore this.\n; The engine's own ceiling on live monsters still applies, so the densest levels\n; approach it rather than exceeding it.");
+
 	setBoolean("Permanent Infravision", *sgOptions.Oracool.permanentInfravision,
 	    "; ----- WORLD AND EXPLORATION --------------------------------------------------\n; Permanently reveals nearby monsters through walls as if infravision were active.");
 	setBoolean("Unlock All Town Entrances", *sgOptions.Oracool.unlockAllTownEntrances,
@@ -1369,6 +1372,7 @@ std::vector<OptionEntryBase *> GameplayOptions::GetEntries()
 OracoolOptions::OracoolOptions()
     : OptionCategoryBase("Oracool Edition", N_("Oracool Edition"), N_("Optional single-player features for Diablo Oracool Edition."))
     , uniqueItemDropMultiplier("Unique Item Drop Multiplier", OptionEntryFlags::None, N_("Unique Item Drop Multiplier"), N_("Multiplies the chance that an eligible item drop becomes unique."), 25, { 1, 2, 5, 10, 25, 50, 100 })
+    , monsterDensityPercent("Monster Density", OptionEntryFlags::CantChangeInGame, N_("Monster Density"), N_("Multiplies how many monsters a dungeon level scatters. 100 is vanilla."), 100, { 100, 150, 200, 250, 300 })
     , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), true)
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), true)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)
@@ -1426,6 +1430,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 {
 	std::vector<OptionEntryBase *> entries = {
 		&uniqueItemDropMultiplier,
+		&monsterDensityPercent,
 		&unlockAllTownEntrances,
 		&permanentInfravision,
 		&autoIdentifyDrops,

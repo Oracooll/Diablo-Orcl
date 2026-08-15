@@ -3534,6 +3534,14 @@ void InitMonsters()
 		int numplacemonsters = na / 30;
 		if (gbIsMultiplayer)
 			numplacemonsters += numplacemonsters / 2;
+		// Oracool: user request (2026-08-15) - a monster density dial in the INI, 1x to 3x. Applied
+		// to the SCATTERED count only: quest monsters and the named uniques are placed above by their
+		// own rules and are not a density question - there is one Butcher whatever this says.
+		//
+		// Multiplied before the clamp below, deliberately, so the engine's own ceiling on live
+		// monsters stays the last word. At 3x a large level reaches that ceiling rather than
+		// overrunning it, which is why this needs no separate cap of its own.
+		numplacemonsters = numplacemonsters * *sgOptions.Oracool.monsterDensityPercent / 100;
 		if (ActiveMonsterCount + numplacemonsters > MaxMonsters - 10)
 			numplacemonsters = MaxMonsters - 10 - ActiveMonsterCount;
 		totalmonsters = ActiveMonsterCount + numplacemonsters;

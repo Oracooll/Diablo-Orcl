@@ -756,6 +756,15 @@ struct OracoolOptions : OptionCategoryBase {
 	std::vector<OptionEntryBase *> GetEntries() override;
 
 	OptionEntryInt<int> uniqueItemDropMultiplier;
+	/**
+	 * @brief How many monsters a level scatters, as a PERCENTAGE of vanilla's count.
+	 *
+	 * Oracool: user request (2026-08-15) - a density dial with the steps 1, 1.5, 2, 2.5, 3. Stored as
+	 * 100..300 rather than as a float because the option system's discrete-value list is integer, and
+	 * because the arithmetic it feeds is integer too: a percentage multiplies cleanly where a float
+	 * would need rounding rules written down somewhere.
+	 */
+	OptionEntryInt<int> monsterDensityPercent;
 	OptionEntryBoolean unlockAllTownEntrances;
 	OptionEntryBoolean permanentInfravision;
 	OptionEntryBoolean autoIdentifyDrops;
