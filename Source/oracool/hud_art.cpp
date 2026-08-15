@@ -918,8 +918,11 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
  * paintings. DrawStripIcon is then a no-op when its sheet is missing, which is what lets the user's
  * new icons drop in with no code change: ship the strip and it appears on the plate.
  */
+// Pink default, matching the header's exported defaults (user report, 2026-08-15: the wells showed
+// the basic attack on yellow - the sheets all pass a tint explicitly, so a default only ever fires
+// on a well path, and the wells are Skills-sheet content).
 void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Yellow)
+    SkillPlateTint tint = SkillPlateTint::Pink)
 {
 	DrawSkillIconPlate(out, origin, tint);
 	DrawStripIcon(out, asset, origin, index, unlocked);

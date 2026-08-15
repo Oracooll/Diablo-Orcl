@@ -122,7 +122,7 @@ enum class SkillPlateTint : uint8_t {
  * there is no ramp to remap onto grey.
  */
 void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Yellow);
+    SkillPlateTint tint = SkillPlateTint::Pink);
 
 /** @brief On-screen size of one aura icon, or {0,0} if the asset is missing. */
 Size GetAuraIconSize();
@@ -130,7 +130,7 @@ Size GetAuraIconSize();
 /** @brief Draws Barbarian skill icon @p skillIndex (oracool::BarbSkill order). Same locked
  * treatment as DrawAuraIcon - the two sheets share one implementation. */
 void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Yellow);
+    SkillPlateTint tint = SkillPlateTint::Pink);
 
 /** @brief On-screen size of one Barbarian skill icon, or {0,0} if the asset is missing. */
 Size GetBarbSkillIconSize();
@@ -138,7 +138,7 @@ Size GetBarbSkillIconSize();
 /** @brief Draws Paladin skill icon @p skillIndex (oracool::PaladinSkill order - 0 Charge, 1 Zeal).
  * Same locked treatment as DrawAuraIcon; same shared strip implementation. */
 void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Yellow);
+    SkillPlateTint tint = SkillPlateTint::Pink);
 
 /** @brief On-screen size of one Paladin skill icon, or {0,0} if the asset is missing. */
 Size GetPaladinSkillIconSize();
@@ -189,7 +189,7 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint = 
  * doing, and blending the other is how the pair says which. See oracool/attack_skills.h.
  */
 void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active,
-    SkillPlateTint tint = SkillPlateTint::Yellow);
+    SkillPlateTint tint = SkillPlateTint::Pink);
 
 /** @brief On-screen size of one basic-attack icon, or {0,0} if the asset is missing. */
 Size GetAttackIconSize();
