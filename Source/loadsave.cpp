@@ -682,7 +682,11 @@ void LoadMonster(LoadHelper *file, Monster &monster, MonsterConversionData *mons
 	monster.goalVar1 = file->NextLENarrow<int32_t, int16_t>();
 	monster.goalVar2 = file->NextLENarrow<int32_t, int8_t>();
 	monster.goalVar3 = file->NextLENarrow<int32_t, int8_t>();
-	file->Skip(4); // Unused
+	// Oracool: the champion modifier, in the first of the four bytes this block has always written as
+	// unused. No save-format change, and a save written before lesser uniques existed reads zero here
+	// - which is LesserUniqueAffix::None, exactly what a monster from such a save should have.
+	monster.lesserAffix = static_cast<LesserUniqueAffix>(file->NextLE<uint8_t>());
+	file->Skip(3); // Unused
 	monster.pathCount = file->NextLE<uint8_t>();
 	file->Skip(3); // Alignment
 	monster.position.tile.x = file->NextLE<int32_t>();
@@ -1503,7 +1507,8 @@ void SaveMonster(SaveHelper *file, Monster &monster, MonsterConversionData *mons
 	file->WriteLE<int32_t>(monster.goalVar1);
 	file->WriteLE<int32_t>(monster.goalVar2);
 	file->WriteLE<int32_t>(monster.goalVar3);
-	file->Skip(4); // Unused
+	file->WriteLE<uint8_t>(static_cast<uint8_t>(monster.lesserAffix)); // was the first Unused byte
+	file->Skip(3);                                                     // Unused
 	file->WriteLE<uint8_t>(monster.pathCount);
 	file->Skip(3); // Alignment
 	file->WriteLE<int32_t>(monster.position.tile.x);

@@ -23,6 +23,7 @@
 #include "init.h"
 #include "misdat.h"
 #include "monstdat.h"
+#include "oracool/lesser_uniques.h" // LesserUniqueAffix, carried as a field below
 #include "spelldat.h"
 #include "textdat.h"
 #include "utils/language.h"
@@ -258,6 +259,17 @@ struct Monster { // note: missing field _mAFNum
 	/** Stores information for how many ticks the monster will remain active */
 	uint8_t activeForTicks;
 	UniqueMonsterType uniqueType;
+	/**
+	 * @brief Oracool: which champion modifier this monster carries, if any.
+	 *
+	 * See oracool/lesser_uniques.h. Non-None ALSO marks the monster as a lesser unique rather than a
+	 * scripted one, which is the distinction nothing else records: a lesser unique is a real
+	 * UniqueMonsterType, so uniqueType alone cannot tell Garbud from a champion borrowing his shape.
+	 *
+	 * Costs no save-format change - it goes into the four bytes loadsave.cpp's monster block already
+	 * writes as "Unused", which is symmetric on both sides. Checked before it was added, not after.
+	 */
+	LesserUniqueAffix lesserAffix = LesserUniqueAffix::None;
 	uint8_t uniqTrans;
 	int8_t corpseId;
 	int8_t whoHit;

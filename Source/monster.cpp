@@ -34,7 +34,7 @@
 #include "movie.h"
 #include "options.h"
 #include "oracool/event_log.h"
-#include "oracool/lesser_uniques.h"
+
 #include "qol/floatingnumbers.h"
 #include "spelldat.h"
 #include "storm/storm_net.hpp"
@@ -152,6 +152,9 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 	monster.pathCount = 0;
 	monster.isInvalid = false;
 	monster.uniqueType = UniqueMonsterType::None;
+	// Oracool: cleared beside uniqueType and for the same reason - Monster slots are reused between
+	// levels, so an ordinary monster taking a champion's old slot would inherit its modifier.
+	monster.lesserAffix = LesserUniqueAffix::None;
 	monster.activeForTicks = 0;
 	monster.lightId = NO_LIGHT;
 	monster.rndItemSeed = AdvanceRndSeed();
@@ -535,6 +538,12 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 	monster.minDamageSpecial = scaleDamage(ordinaryMinSpecial, LesserUniqueDamagePercent);
 	monster.maxDamageSpecial = scaleDamage(ordinaryMaxSpecial, LesserUniqueDamagePercent);
 	monster.armorClass = static_cast<uint8_t>(std::min(ordinaryArmor + LesserUniqueArmorBonus, 255));
+
+	// The modifier last, so anything it adds sits on top of the floor-scaled numbers rather than
+	// being overwritten by them. Setting it is also what MARKS this monster as a lesser unique:
+	// uniqueType alone cannot tell Garbud from a champion borrowing his shape.
+	monster.lesserAffix = oracool::RollLesserUniqueAffix();
+	oracool::ApplyLesserUniqueAffix(monster);
 
 	// The escort PlaceGroup just created. They are ordinary monsters of the same type, so they are
 	// already floor-correct - this only lifts them enough to read as a champion's retinue rather than
@@ -1333,6 +1342,10 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		}
 		oracool::NotePendingDeathSource(std::string(monster.name()));
 		ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
+		// Oracool: the one seam where "this monster wounded the player, for this much" is known, which
+		// is what a Vampiric champion needs. After the reflect subtraction, so it drains what it
+		// actually landed rather than what it swung for.
+		oracool::OnLesserUniqueDealtDamage(monster, dam);
 	}
 
 	// Reflect can also kill a monster, so make sure the monster is still alive
@@ -3852,6 +3865,10 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 
 	if (monster.isUnique())
 		oracool::LogEvent(fmt::format("Defeated {:s}", monster.name()));
+
+	// Oracool: before the loot, so a Thunderous discharge is part of the kill rather than an
+	// afterthought that goes off while the player is already picking things up.
+	oracool::OnLesserUniqueKilled(monster);
 
 	SpawnLoot(monster, sendmsg);
 

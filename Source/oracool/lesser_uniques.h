@@ -29,6 +29,34 @@ namespace devilution {
 // Forward-declared rather than including monster.h: this header is included from monster.cpp itself,
 // and the enum's underlying type is fixed, so the declaration is all a caller needs.
 enum class UniqueMonsterType : uint8_t;
+struct Monster;
+struct Player;
+
+/**
+ * @brief The champion modifier a lesser unique carries.
+ *
+ * Oracool: user request (2026-08-15) - "you have diablo 2 3 4 to draw inspiration from". These are
+ * the D2/D3 champion modifiers, chosen because each is expressible with machinery Diablo 1 already
+ * has rather than because it sounded good on a list:
+ *
+ *   Warded     - resistances, already a per-unique bitfield
+ *   Relentless - MFLAG_KNOCKBACK and the stun path already exist
+ *   Fortified  - armour, which is per-monster where movement speed is not (see the .cpp)
+ *   Vampiric   - Blood Star monsters already drain life
+ *   Thunderous - MissileID::MiniNovaBall, added for Fist of the Heavens at 1.5.78
+ *
+ * Lives in the devilution namespace rather than oracool because Monster carries one as a field, and
+ * a member's type should not need a nested namespace to name.
+ */
+enum class LesserUniqueAffix : uint8_t {
+	None,
+	Warded,
+	Relentless,
+	Fortified,
+	Vampiric,
+	Thunderous,
+	LAST = Thunderous,
+};
 
 namespace oracool {
 
@@ -50,6 +78,31 @@ std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned = tru
 
 /** @brief How many lesser uniques this level should try to host. */
 int LesserUniqueCountForLevel();
+
+/** @brief Rolls a modifier for a new champion. Never None - a lesser unique always has one. */
+LesserUniqueAffix RollLesserUniqueAffix();
+
+/** @brief The word that goes in front of a champion's name, e.g. "Warded". */
+const char *GetLesserUniqueAffixName(LesserUniqueAffix affix);
+
+/**
+ * @brief Applies the parts of @p affix that are set once, when the champion is created.
+ *
+ * The rest - the parts that fire during combat - live at the points in the engine where that combat
+ * already happens, because a resistance is a field and a life-steal is an event.
+ */
+void ApplyLesserUniqueAffix(Monster &monster);
+
+/**
+ * @brief Oracool: a champion's on-hit modifier, called when @p monster wounds a player.
+ *
+ * Vampiric heals the monster for a share of what it dealt. Nothing else keys off this yet, but it is
+ * the one seam where "the champion did damage" is known, so it is where that family belongs.
+ */
+void OnLesserUniqueDealtDamage(Monster &monster, int damage);
+
+/** @brief Oracool: a champion's on-death modifier - Thunderous discharges here. */
+void OnLesserUniqueKilled(Monster &monster);
 
 } // namespace oracool
 } // namespace devilution
