@@ -1814,19 +1814,27 @@ void SmithBuyEnter()
  */
 void SmithBuyPItem(Item &item)
 {
-	TakePlrsMoney(item._iIvalue);
-	if (item._iMagical == ITEM_QUALITY_NORMAL)
-		item._iIdentified = false;
-	StoreAutoPlace(item, true);
-
+	// The slot scan runs FIRST (self-audit, 2026-08-15), for two reasons. It is bounded now - the
+	// old loop's only condition was the skip count, so a stale selected row (the premium list
+	// shrinks on every purchase, and ConfirmEnter restores the old selection over the rebuilt
+	// screen) walked isEmpty() past the end of the array; and this is the copy of the scan that
+	// CLEARS a slot, so overrunning would zero whatever lives after it. And it runs before the
+	// money: bailing on a stale row after TakePlrsMoney would be a purchase with no goods.
 	int idx = stextvhold + ((stextlhold - stextup) / 4);
-	int xx = 0;
-	for (int i = 0; idx >= 0; i++) {
+	int xx = -1;
+	for (int i = 0; i < SMITH_PREMIUM_ITEMS && idx >= 0; i++) {
 		if (!premiumitems[i].isEmpty()) {
 			idx--;
 			xx = i;
 		}
 	}
+	if (xx < 0 || idx >= 0)
+		return; // stale row: nothing charged, nothing placed, nothing cleared
+
+	TakePlrsMoney(item._iIvalue);
+	if (item._iMagical == ITEM_QUALITY_NORMAL)
+		item._iIdentified = false;
+	StoreAutoPlace(item, true);
 
 	premiumitems[xx].clear();
 	numpremium--;
@@ -1835,9 +1843,14 @@ void SmithBuyPItem(Item &item)
 
 void SmithBuyUniqueItem(Item &item)
 {
+	int idx = stextvhold + ((stextlhold - stextup) / 4);
+	// Clamped before the shift loop below uses it as a write index (self-audit, 2026-08-15): a
+	// negative stale index would write before the array. Checked before the money, like
+	// SmithBuyPItem, so a stale row costs nothing rather than costing gold for no goods.
+	if (idx < 0 || idx >= SmithUniqueItemsMaximum)
+		return;
 	TakePlrsMoney(item._iIvalue);
 	StoreAutoPlace(item, true);
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
 	for (; idx < SmithUniqueItemsMaximum - 1; ++idx)
 		smithUniqueItems[idx] = std::move(smithUniqueItems[idx + 1]);
 	smithUniqueItems[SmithUniqueItemsMaximum - 1].clear();
@@ -1856,6 +1869,10 @@ void SmithUniqueBuyEnter()
 	stextlhold = stextsel;
 	stextvhold = stextsval;
 	const int idx = stextsval + ((stextsel - stextup) / 4);
+	// Stale-row guard - see SmithSellEnter (self-audit, 2026-08-15). The unique stock shrinks on
+	// every purchase, and the completion's shift loop would start from this index raw.
+	if (idx < 0 || idx >= SmithUniqueItemsMaximum || smithUniqueItems[idx].isEmpty())
+		return;
 	if (!PlayerCanAfford(smithUniqueItems[idx]._iIvalue)) {
 		StartStore(TalkID::NoMoney);
 		return;
@@ -1975,13 +1992,22 @@ void SmithPremiumBuyEnter()
 	stextvhold = stextsval;
 
 	int xx = stextsval + ((stextsel - stextup) / 4);
-	int idx = 0;
-	for (int i = 0; xx >= 0; i++) {
+	// Self-audit (2026-08-15): the scan is bounded now. It walks the sparse premiumitems array
+	// counting non-empty slots until it has skipped `xx` of them - and its loop condition was `xx >=
+	// 0` alone, so a stale selected row (the list SHRINKS when a premium item is bought, and
+	// ConfirmEnter restores the old selection over the rebuilt screen) asked it to find more items
+	// than exist, and it kept reading isEmpty() past the end of the array until the bytes beyond it
+	// happened to satisfy the count. Same stale-row family as the SmithBuyEnter phantom item, with
+	// an out-of-bounds read instead of a phantom.
+	int idx = -1;
+	for (int i = 0; i < SMITH_PREMIUM_ITEMS && xx >= 0; i++) {
 		if (!premiumitems[i].isEmpty()) {
 			xx--;
 			idx = i;
 		}
 	}
+	if (idx < 0 || xx >= 0)
+		return; // stale row: fewer premium items exist than the selection asks to skip
 
 	if (!PlayerCanAfford(premiumitems[idx]._iIvalue)) {
 		StartStore(TalkID::NoMoney);
@@ -2091,6 +2117,15 @@ void SmithSellEnter()
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
 
+	// Self-audit (2026-08-15): the same stale-row guard SmithBuyEnter got when the user reported
+	// the phantom-item purchase, applied to every storehold-based Enter. ConfirmEnter restores the
+	// old selected row after the list rebuilds, so selling the last item leaves the selection on a
+	// row past the new count - and here a stale row is worse than a phantom: storehold entries past
+	// storenumh hold whatever an earlier screen left in them, and their storehidx feeds fixed-size
+	// arrays (InvList is 40 items; the index can reach 47).
+	if (idx < 0 || idx >= storenumh)
+		return;
+
 	if (!StoreGoldFit(storehold[idx])) {
 		StartStore(TalkID::NoRoom);
 		return;
@@ -2191,6 +2226,11 @@ void SmithRepairEnter()
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
 
+	// Stale-row guard - see SmithSellEnter (self-audit, 2026-08-15). For repair the stale storehidx
+	// would write _iDurability through InvList[i] with i from a dead screen.
+	if (idx < 0 || idx >= storenumh)
+		return;
+
 	if (!PlayerCanAfford(storehold[idx]._iIvalue)) {
 		StartStore(TalkID::NoMoney);
 		return;
@@ -2274,7 +2314,18 @@ void WitchBuyEnter()
 	stextshold = stextflag;
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
-	Item &selectedItem = WitchStockItem(idx, stextflag == TalkID::SmithConsumables);
+
+	// Self-audit (2026-08-15): the bounds test must come BEFORE WitchStockItem, not ride on the
+	// isEmpty guard below. For the plain witch that indirection reads a fixed 20-slot array, where a
+	// stale row lands on an empty Item and the guard catches it - but for the SmithConsumables
+	// screen it indexes a std::vector built fresh from Pepin's potions plus only the LIVE witch
+	// items, which is smaller than the fixed array. A stale selected row indexed past the vector's
+	// end one line before the guard that existed to catch exactly this class of row.
+	const bool fromSmithConsumables = stextflag == TalkID::SmithConsumables;
+	const int stockSize = fromSmithConsumables ? static_cast<int>(SmithConsumablesStock().size()) : WITCH_ITEMS;
+	if (idx < 0 || idx >= stockSize)
+		return;
+	Item &selectedItem = WitchStockItem(idx, fromSmithConsumables);
 
 	// Same guard as SmithBuyEnter - see the comment there. Defensive here rather than a reported
 	// fault: this list is not known to empty out in practice, but the index is derived the same
@@ -2309,6 +2360,10 @@ void WitchSellEnter()
 	stextvhold = stextsval;
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
+
+	// Stale-row guard - see SmithSellEnter (self-audit, 2026-08-15).
+	if (idx < 0 || idx >= storenumh)
+		return;
 
 	if (!StoreGoldFit(storehold[idx])) {
 		StartStore(TalkID::NoRoom);
@@ -2357,6 +2412,11 @@ void WitchRechargeEnter()
 	stextvhold = stextsval;
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
+
+	// Stale-row guard - see SmithSellEnter (self-audit, 2026-08-15). For recharge the stale
+	// storehidx would write _iCharges through InvList[i] with i from a dead screen.
+	if (idx < 0 || idx >= storenumh)
+		return;
 
 	if (!PlayerCanAfford(storehold[idx]._iIvalue)) {
 		StartStore(TalkID::NoMoney);
@@ -2453,7 +2513,14 @@ void UpdateSmithConsumablesStockAfterPurchase(const ConsumablesStockEntry &entry
 void SmithConsumablesBuyItem(Item &item)
 {
 	const int combinedIndex = stextvhold + ((stextlhold - stextup) / 4);
-	const ConsumablesStockEntry entry = SmithConsumablesStock()[combinedIndex];
+	// Bounded for the same reason as WitchBuyEnter's guard (self-audit, 2026-08-15): this indexes
+	// the same freshly built vector with an index captured at Enter. Enter now validates it, and
+	// the stock cannot change between Enter and Confirm - but this is the line that would corrupt
+	// memory if either of those facts ever stopped holding, so it carries its own bound.
+	const std::vector<ConsumablesStockEntry> stock = SmithConsumablesStock();
+	if (combinedIndex < 0 || static_cast<size_t>(combinedIndex) >= stock.size())
+		return;
+	const ConsumablesStockEntry entry = stock[combinedIndex];
 	if (entry.isReplenishing())
 		item._iSeed = AdvanceRndSeed();
 	if (entry.vendor == ConsumablesVendor::Pepin)
@@ -2671,6 +2738,10 @@ void StorytellerIdentifyEnter()
 
 	int idx = stextsval + ((stextsel - stextup) / 4);
 
+	// Stale-row guard - see SmithSellEnter (self-audit, 2026-08-15).
+	if (idx < 0 || idx >= storenumh)
+		return;
+
 	if (!PlayerCanAfford(storehold[idx]._iIvalue)) {
 		StartStore(TalkID::NoMoney);
 		return;
@@ -2813,7 +2884,16 @@ void DrawSelector(const Surface &out, const Rectangle &rect, string_view text, U
  */
 uint32_t TotalPlayerGold()
 {
-	return MyPlayer->_pGold + Stash.gold;
+	// Self-audit (2026-08-15): 64-bit sum, saturated. Both operands are int, and the stash's own
+	// deposit guard deliberately allows Stash.gold to grow to INT_MAX - so the plain int addition
+	// that stood here overflows exactly when the player has been rich for long enough, and signed
+	// overflow is UB besides. The wraparound would not have been cosmetic: a negative sum converts
+	// to a huge uint32_t, PlayerCanAfford starts approving EVERYTHING, and TakePlrsMoney - whose
+	// callers all trust that check - drives Stash.gold negative, which keeps the wraparound alive.
+	// Saturating at UINT32_MAX keeps every comparison against a real price correct.
+	const uint64_t total = static_cast<uint64_t>(std::max(MyPlayer->_pGold, 0))
+	    + static_cast<uint64_t>(std::max(Stash.gold, 0));
+	return static_cast<uint32_t>(std::min<uint64_t>(total, std::numeric_limits<uint32_t>::max()));
 }
 
 // Oracool: defined outside the anonymous namespace (same rationale as
