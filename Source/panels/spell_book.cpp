@@ -19,6 +19,7 @@
 #include "oracool/attack_skills.h"
 #include "oracool/auras.h"
 #include "oracool/class_skills.h"
+#include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/spell_descriptions.h"
 #include "oracool/barb_skills.h"
@@ -1145,9 +1146,21 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 					// The mana price and level gate lived on the row until the sheet lost its text.
 					// Range joined them once it started deciding whether a click casts or walks - a
 					// rule the player is subject to has to be a rule the player can read.
-					description = std::string(_(pd.description)) + "\n\n"
-					    + fmt::format(fmt::runtime(_("Mana: {:d}")), pd.manaCost) + "\n"
-					    + (pd.rangeTiles <= oracool::MeleeSkillRangeTiles
+					description = std::string(_(pd.description)) + "\n\n";
+					// Zeal's strike count grows with character level, so the popup shows what the
+					// player has NOW rather than a sentence that goes stale two levels later. Its
+					// mana line reads per strike for the same reason - the burst's real price is the
+					// count beside it.
+					if (rows[i].paladin == oracool::PaladinSkill::Zeal) {
+						description += fmt::format(fmt::runtime(_("Strikes: {:d}")),
+						                   oracool::ZealStrikeCount(*InspectPlayer))
+						    + "\n"
+						    + fmt::format(fmt::runtime(_("Mana: {:d} per strike")), pd.manaCost) + "\n";
+					} else {
+						description += fmt::format(fmt::runtime(_("Mana: {:d}")), pd.manaCost) + "\n";
+					}
+					description +=
+					    (pd.rangeTiles <= oracool::MeleeSkillRangeTiles
 					            ? std::string(_("Range: melee"))
 					            : fmt::format(fmt::runtime(_("Range: {:d} tiles")), pd.rangeTiles))
 					    + "\n"

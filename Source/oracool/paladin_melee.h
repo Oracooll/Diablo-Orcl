@@ -77,5 +77,26 @@ int MeleeHitFrame(const Player &player);
  */
 void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage);
 
+/**
+ * @brief How many times a Zeal burst strikes at @p player's current level.
+ *
+ * Oracool: user spec (2026-08-15), confirmed as CHARACTER level with Zeal's own gate left at 6:
+ * 6 -> 2 strikes, 8 -> 3, 10 -> 4, 12 -> 5, and capped there. The mana price is the same number,
+ * which is why the table prices Zeal at 1 mana and this is charged per strike landed.
+ *
+ * Public so the Abilities window can show the count the player will actually get, rather than a
+ * sentence that goes stale two levels later.
+ */
+int ZealStrikeCount(const Player &player);
+
+/**
+ * @brief Advances any Zeal burst in flight. Called once per tick, per player.
+ *
+ * The strikes are spread over time rather than landed all at once, because the skill is "up to 5
+ * times within 150% of frames of regular attack" - a burst, not a bigger single blow. The first
+ * strike lands with the swing; the rest follow on this clock.
+ */
+void ProcessZealBurst(Player &player);
+
 } // namespace oracool
 } // namespace devilution

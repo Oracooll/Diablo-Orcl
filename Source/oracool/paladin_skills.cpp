@@ -39,7 +39,7 @@ namespace {
 constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
 	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, false, 12, 10 },
 	{ N_("Zeal"), N_("Strikes up to five times in the time of one swing, spread across nearby enemies."),
-	    SpellID::Zeal, MeleeSkillRangeTiles, false, 6, 2 },
+	    SpellID::Zeal, MeleeSkillRangeTiles, false, 6, 1 },
 	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith,
 	    MeleeSkillRangeTiles, false, 10, 5 },
 	{ N_("Blessed Shield"), N_("Hurl a blessed shield at a crowd of enemies to eradicate them."),

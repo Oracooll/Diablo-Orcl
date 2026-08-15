@@ -12,13 +12,38 @@ namespace {
 std::optional<PaladinSkill> ArmedSkill;
 
 /**
- * @brief Most enemies Zeal's swing carries to, beside the one actually struck.
- *
- * FIVE, from the skill's own description - "Hits up to five adjacent enemies in a rapid succession".
- * One tile of reach is eight surrounding squares, so without this a swing in a crowd could carry to
- * eight and the description would be a lie.
+ * @brief Zeal's ceiling - "to hit up to 5 times", whatever the level.
  */
-constexpr int MaxZealTargets = 5;
+constexpr int MaxZealStrikes = 5;
+
+/** @brief The character level at which Zeal's second strike arrives. Its unlock level, by design. */
+constexpr int ZealFirstUpgradeLevel = 6;
+/** @brief And one more strike every this many levels after it: 8, 10, 12. */
+constexpr int ZealLevelsPerStrike = 2;
+
+/**
+ * @brief How much longer than a plain swing a full Zeal burst is allowed to take, in percent.
+ *
+ * "To hit up to 5 times within 150% of frames of regular attack" (user, 2026-08-15). The burst has a
+ * TIME budget rather than a fixed gap, so a fast weapon's Zeal finishes sooner than a slow one's and
+ * neither ever runs past the swing that started it by more than half again.
+ */
+constexpr int ZealBurstFramesPercent = 150;
+
+/**
+ * @brief A Zeal burst waiting to finish.
+ *
+ * File-scope, like the latch above and for the same reasons: single-player, one burst at a time, and
+ * it must never reach the save format. A burst is abandoned rather than resumed if anything
+ * interrupts it - see ProcessZealBurst.
+ */
+struct ZealBurst {
+	int strikesLeft = 0;
+	int ticksUntilNext = 0;
+	int ticksBetween = 0;
+	int damage = 0;
+};
+ZealBurst PendingZeal;
 
 /**
  * @brief What Hammer of Faith's splash does, as a percentage of the blow that landed.
@@ -69,18 +94,91 @@ int GatherAdjacent(const Monster &centre, Monster **out, int maxTargets)
 	return found;
 }
 
-/** @brief Zeal - the swing carries to up to five neighbours at full force, one after another. */
-void ApplyZeal(Player &player, Monster &primaryTarget, int hitDamage)
+/**
+ * @brief The enemy a Zeal strike should go to next.
+ *
+ * "To hit different enemies if possible i.e. if within range, else - hit whoever is in range as many
+ * hits as the skill currently provides" (user, 2026-08-15). So: prefer a neighbour that has not been
+ * struck yet this burst, and fall back to whatever is still standing next to the player.
+ *
+ * Re-scanned each strike rather than fixed at the start, deliberately - a burst spread over time is
+ * a burst during which enemies die and move, and a list captured up front would keep swinging at a
+ * corpse while a live monster stood beside it.
+ */
+Monster *NextZealTarget(const Player &player, Monster **struck, int struckCount)
 {
-	Monster *targets[MaxZealTargets] = {};
-	const int found = GatherAdjacent(primaryTarget, targets, MaxZealTargets);
-	if (found == 0)
-		return;
-	if (!SpendPaladinSkillMana(player, PaladinSkill::Zeal))
-		return; // ran dry between the caller's check and here
+	Monster *fallback = nullptr;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &candidate = Monsters[ActiveMonsters[i]];
+		if (!candidate.isPossibleToHit() || (candidate.hitPoints >> 6) <= 0)
+			continue;
+		if (candidate.position.tile.WalkingDistance(player.position.tile) > MeleeSkillRangeTiles)
+			continue;
 
-	for (int i = 0; i < found; i++)
-		StrikeMonster(player, *targets[i], hitDamage);
+		bool alreadyStruck = false;
+		for (int s = 0; s < struckCount; s++) {
+			if (struck[s] == &candidate) {
+				alreadyStruck = true;
+				break;
+			}
+		}
+		if (!alreadyStruck)
+			return &candidate; // a fresh enemy always wins
+		if (fallback == nullptr)
+			fallback = &candidate;
+	}
+	return fallback;
+}
+
+/** @brief Who this burst has hit so far, so NextZealTarget can prefer someone else. */
+Monster *ZealStruck[MaxZealStrikes] = {};
+int ZealStruckCount = 0;
+
+/** @brief Lands one strike of the burst, and reports whether there was anything to hit. */
+bool LandZealStrike(Player &player, int damage)
+{
+	Monster *target = NextZealTarget(player, ZealStruck, ZealStruckCount);
+	if (target == nullptr)
+		return false;
+	// One mana a strike, so the burst's total price is its strike count - which is the pairing the
+	// user gave (2 hits / 2 mana, up to 5 / 5). Charged per strike landed, so a burst cut short by a
+	// dying crowd costs only what it actually delivered.
+	if (!SpendPaladinSkillMana(player, PaladinSkill::Zeal))
+		return false;
+
+	if (ZealStruckCount < MaxZealStrikes)
+		ZealStruck[ZealStruckCount++] = target;
+	StrikeMonster(player, *target, damage);
+	return true;
+}
+
+/**
+ * @brief Zeal - a burst of strikes spread across whoever is in reach.
+ *
+ * The first lands with the swing itself; the rest are queued and delivered by ProcessZealBurst so
+ * they arrive as a rapid succession rather than as one enormous blow.
+ */
+void ApplyZeal(Player &player, Monster & /*primaryTarget*/, int hitDamage)
+{
+	ZealStruckCount = 0;
+	PendingZeal = {};
+
+	const int strikes = ZealStrikeCount(player);
+	if (strikes <= 0)
+		return;
+	if (!LandZealStrike(player, hitDamage))
+		return; // nothing in reach, and nothing charged
+
+	if (strikes <= 1)
+		return;
+
+	// The remaining strikes share the time budget. _pAFrames is the swing's own length, so the whole
+	// burst finishes inside 150% of it however fast the weapon is.
+	const int budget = std::max<int>(player._pAFrames, 1) * ZealBurstFramesPercent / 100;
+	PendingZeal.strikesLeft = strikes - 1;
+	PendingZeal.ticksBetween = std::max(budget / strikes, 1);
+	PendingZeal.ticksUntilNext = PendingZeal.ticksBetween;
+	PendingZeal.damage = hitDamage;
 }
 
 /**
@@ -124,6 +222,37 @@ void ApplyShieldBash(Player &player, Monster &primaryTarget)
 }
 
 } // namespace
+
+int ZealStrikeCount(const Player &player)
+{
+	if (player._pLevel < ZealFirstUpgradeLevel)
+		return 0;
+	const int extra = (player._pLevel - ZealFirstUpgradeLevel) / ZealLevelsPerStrike;
+	return std::min(2 + extra, MaxZealStrikes);
+}
+
+void ProcessZealBurst(Player &player)
+{
+	if (PendingZeal.strikesLeft <= 0)
+		return;
+	// Abandoned rather than paused if the Paladin stopped swinging - died, changed level, walked
+	// away. A burst is one action; finishing it after the action ended would land blows out of
+	// nowhere, and the mana rule says you pay for what happens, not for what was planned.
+	if (player._pmode != PM_ATTACK) {
+		PendingZeal = {};
+		return;
+	}
+
+	if (--PendingZeal.ticksUntilNext > 0)
+		return;
+	PendingZeal.ticksUntilNext = PendingZeal.ticksBetween;
+	PendingZeal.strikesLeft--;
+
+	// A strike with nothing left in reach ends the burst rather than waiting: the crowd is dead or
+	// gone, and there is no reason to keep the clock running.
+	if (!LandZealStrike(player, PendingZeal.damage))
+		PendingZeal = {};
+}
 
 void ArmMeleeSkill(std::optional<PaladinSkill> skill)
 {

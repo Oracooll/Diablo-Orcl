@@ -358,6 +358,34 @@ TEST(Player, Zeal_GatedByClass_Level_Mana_AndSinglePlayer)
 	gbIsMultiplayer = false;
 }
 
+// The user's ladder, verbatim (2026-08-15), read as CHARACTER level with Zeal's gate left at 6:
+// 6 -> 2 strikes, 8 -> 3, 10 -> 4, 12 -> 5, capped there. Worth a test because it is a table someone
+// gave in prose and the code turned into arithmetic - the two can drift apart silently.
+TEST(Player, Zeal_StrikeCountLadder)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	devilution::Player &paladin = Players[0];
+	paladin._pClass = HeroClass::Warrior;
+
+	const struct {
+		int8_t level;
+		int expected;
+	} ladder[] = {
+		{ 5, 0 },  // below the gate: no Zeal at all
+		{ 6, 2 },  { 7, 2 },
+		{ 8, 3 },  { 9, 3 },
+		{ 10, 4 }, { 11, 4 },
+		{ 12, 5 }, { 13, 5 },
+		{ 50, 5 }, // capped - "up to 5 times", whatever the level
+	};
+	for (const auto &step : ladder) {
+		paladin._pLevel = step.level;
+		EXPECT_EQ(ZealStrikeCount(paladin), step.expected) << "at character level " << int(step.level);
+	}
+}
+
 // The half of "active only" that CanUsePaladinSkill cannot express: being able to afford Zeal is not
 // the same as having thrown this swing with it. The latch is what carries that from the click to the
 // hit frame, several frames later, and a swing that armed nothing must find nothing armed.

@@ -3182,6 +3182,7 @@ void ProcessPlayers()
 					RedrawComponent(PanelDrawComponent::Mana);
 				}
 				oracool::ProcessGradualHealing(player);
+				oracool::ProcessZealBurst(player);
 			}
 
 			bool tplayer = false;
