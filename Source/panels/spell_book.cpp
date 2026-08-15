@@ -698,7 +698,7 @@ void DrawAssignmentRings(const Surface &content, Rectangle iconRect, SpellID sn,
 
 	// The gold the readied-spell border has used since the spellbook had one, and its counterpart on
 	// the red ramp - PAL8_RED sits beside PAL8_YELLOW in the palette, so the two read as a pair.
-	constexpr uint8_t RightButtonColor = PAL16_YELLOW + 2; // Oracool: PAL8_YELLOW is the green ramp now
+	constexpr uint8_t RightButtonColor = PAL8_YELLOW + 2;
 	constexpr uint8_t LeftButtonColor = PAL8_RED + 2;
 	// 2px: thick enough to read against a busy icon, and the weight the single yellow border had
 	// before there were two of them.

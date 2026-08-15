@@ -104,5 +104,12 @@ int ZealStrikeCount(const Player &player);
  */
 bool TryContinueZealChain(Player &player);
 
+/**
+ * @brief Frames a Zeal-armed swing skips so every swing - the first included - fits the per-swing
+ * budget: 150% of the attack split across the burst's strikes (user spec, 2026-08-15: 2 swings of
+ * ~15 frames, 3 of 10, 4 of 7, 5 of 6 on a 20-frame attack). 0 when the swing is not a Zeal one.
+ */
+int ZealSwingSkipFrames(const Player &player);
+
 } // namespace oracool
 } // namespace devilution

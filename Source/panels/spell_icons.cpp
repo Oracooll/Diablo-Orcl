@@ -244,12 +244,6 @@ void SetSpellTrans(SpellType t)
 		SplTransTbl[PAL16_ORANGE + 15] = 0;
 		break;
 	case SpellType::Skill:
-		// Not the identity it used to be: the PAL8_YELLOW mini-ramp IS the injected green ramp now
-		// (see LoadPalette), so the plate art's three bright accents - painted in indices 144-146 -
-		// must be re-pointed at the big yellow ramp or every class-skill plate wears green pips.
-		SplTransTbl[PAL8_YELLOW] = PAL16_YELLOW + 1;
-		SplTransTbl[PAL8_YELLOW + 1] = PAL16_YELLOW + 3;
-		SplTransTbl[PAL8_YELLOW + 2] = PAL16_YELLOW + 5;
 		break;
 	}
 }

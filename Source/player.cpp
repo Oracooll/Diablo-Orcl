@@ -261,6 +261,13 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	// shorter than _pAFNum the blow would simply never arrive. oracool::MeleeHitFrame clamps it, and
 	// DoAttack asks the same function, so the two cannot disagree about when the hit is.
 	const bool bashesWithShield = oracool::IsShieldBashSwing(player);
+	// Oracool: a Zeal-armed swing is compressed from its FIRST swing (user spec, 2026-08-15) - the
+	// 150% budget divides across every strike of the burst, so a 2-strike Zeal shows two ~15-frame
+	// swings, not one full swing and one stub. Combined with the item speed skips above and clamped
+	// so the hit frame always survives.
+	skippedAnimationFrames = static_cast<int8_t>(std::min<int>(
+	    skippedAnimationFrames + oracool::ZealSwingSkipFrames(player),
+	    std::max(0, oracool::MeleeHitFrame(player) - 2)));
 	NewPlrAnim(player, bashesWithShield ? player_graphic::Block : player_graphic::Attack, d,
 	    animationFlags, skippedAnimationFrames, oracool::MeleeHitFrame(player));
 	player._pmode = PM_ATTACK;
@@ -937,9 +944,16 @@ bool DoAttack(Player &player)
 		}
 	}
 
+	// Oracool: a chained Zeal swing hands over the moment its blow has landed, cutting the recovery
+	// frames - that is what fits N swings inside 150% of ONE attack (user spec, 2026-08-15). The
+	// burst's final swing finds no chain to continue and plays its recovery out through the
+	// isLastFrame path below, so the flurry ends on a complete motion.
+	if (player.AnimInfo.currentFrame >= oracool::MeleeHitFrame(player) && oracool::TryContinueZealChain(player))
+		return false;
+
 	if (player.AnimInfo.isLastFrame()) {
-		// Oracool: a Zeal chain rides real swings now - if one is owed, the attack animation
-		// restarts toward the next target instead of the attack ending. See TryContinueZealChain.
+		// Also asked here for the natural end: a swing whose hit frame IS its last frame (a heavily
+		// compressed chain swing) must still hand over.
 		if (oracool::TryContinueZealChain(player))
 			return false;
 		StartStand(player, player._pdir);

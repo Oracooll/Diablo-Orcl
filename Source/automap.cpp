@@ -36,9 +36,9 @@ Point Automap;
 
 enum MapColors : uint8_t {
 	/** color used to draw the player's arrow */
-	MapColorsPlayer = (PAL8_ORANGE + 1),
+	MapColorsPlayer = (PAL16_ORANGE + 1), // Oracool: PAL8_ORANGE is the injected green ramp now - see LoadPalette
 	/** color for bright map lines (doors, stairs etc.) */
-	MapColorsBright = PAL16_YELLOW + 2, // Oracool: PAL8_YELLOW is the injected green ramp now - see LoadPalette
+	MapColorsBright = PAL8_YELLOW, // bright yellow again - the green ramp moved to the orange minis
 	/** color for dim map lines/dots */
 	MapColorsDim = (PAL16_YELLOW + 8),
 	/** color for items on automap */

@@ -21,22 +21,28 @@ constexpr int ZealFirstUpgradeLevel = 6;
 /** @brief And one more strike every this many levels after it: 8, 10, 12. */
 constexpr int ZealLevelsPerStrike = 2;
 
-/**
- * @brief How many windup frames a chained Zeal swing keeps.
- *
- * User report (2026-08-15): "i dont see the hero making rapid atacks with 8-10 frames each. it was
- * supposed to drop the attack frame and fit 2-5 attacks in 25-30 frames." The first implementation
- * delivered the extra strikes as invisible damage ticks - the numbers happened, the swings did not.
- * The burst is now a CHAIN of real attack animations: when a Zeal swing's animation ends, the next
- * one starts with most of its windup skipped, so each follow-up shows roughly this many frames of
- * swing plus the recovery - which is what puts a 2-5 hit burst inside the 25-30 frames asked for.
- */
-constexpr int ZealChainWindupFrames = 4;
-
 /** @brief Follow-up swings still owed by the current Zeal chain. */
 int ZealChainLeft = 0;
 /** @brief Whether a chain is running, so a landing follow-up swing does not re-initialize it. */
 bool ZealChainActive = false;
+
+/**
+ * @brief The frame budget of ONE Zeal swing - the user's spec verbatim (2026-08-15):
+ *
+ *   "Regular attack should be around 20 frames, so 150% of that is 30 frames.
+ *    Levels 6-7  Zeal makes 2 attacks so each one should be 15 frames.
+ *    Levels 8-9  Zeal makes 3 attacks so each one should be 10 frames.
+ *    Levels 10-11 Zeal makes 4 attacks so each one should be 7.5 frames.
+ *    Levels 12+  Zeal makes 5 attacks so each one should be 6 frames."
+ *
+ * Computed from the character's real _pAFrames rather than a hardcoded 20, so a fast weapon's Zeal
+ * is proportionally faster. Integer division floors the 7.5 case to 7.
+ */
+int ZealPerSwingTicks(const Player &player)
+{
+	const int strikes = std::max(ZealStrikeCount(player), 1);
+	return std::max(4, player._pAFrames * 3 / 2 / strikes);
+}
 
 /**
  * @brief What Hammer of Faith's splash does, as a percentage of the blow that landed.
@@ -229,18 +235,31 @@ bool TryContinueZealChain(Player &player)
 
 	ZealChainLeft--;
 	// A REAL follow-up swing, which is the whole point (user, 2026-08-15: "i dont see the hero
-	// making rapid atacks"): the attack animation restarts toward the next target with most of its
-	// windup skipped, and the blow lands through the same DoAttack hit-frame path as any other
+	// making rapid atacks"): the attack animation restarts toward the next target compressed to the
+	// per-swing budget, and the blow lands through the same DoAttack hit-frame path as any other
 	// swing - real animation, real to-hit roll, real damage. The latch is still armed, so the
 	// landing hit re-enters ApplyZeal, pays its mana and records its target.
 	const Direction d = GetDirection(player.position.tile, target->position.tile);
 	player._pdir = d;
-	const int hitFrame = MeleeHitFrame(player);
-	const int skipped = std::max(0, hitFrame - ZealChainWindupFrames);
 	NewPlrAnim(player, player_graphic::Attack, d,
 	    static_cast<AnimationDistributionFlags>(AnimationDistributionFlags::ProcessAnimationPending | AnimationDistributionFlags::RepeatedAction),
-	    skipped, hitFrame);
+	    ZealSwingSkipFrames(player), MeleeHitFrame(player));
 	return true;
+}
+
+int ZealSwingSkipFrames(const Player &player)
+{
+	// Compression applies to EVERY Zeal swing including the first - the user's arithmetic divides
+	// the whole 150% budget across all of them. The swing keeps its last (budget - 1) windup frames
+	// so the blow still lands on its true hit frame; at least 3 always survive, or the swing stops
+	// reading as a swing at all.
+	if (&player != MyPlayer || !ArmedSkill.has_value() || *ArmedSkill != PaladinSkill::Zeal)
+		return 0;
+	if (ZealStrikeCount(player) < 2)
+		return 0;
+	const int hitFrame = MeleeHitFrame(player);
+	const int keptWindup = std::max(3, ZealPerSwingTicks(player) - 1);
+	return std::max(0, hitFrame - keptWindup);
 }
 
 void ArmMeleeSkill(std::optional<PaladinSkill> skill)

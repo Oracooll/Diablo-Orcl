@@ -216,15 +216,15 @@ FontStack LoadFont(GameFontTables size, text_color color, uint16_t row)
 	if (ColorTranslations[color] != nullptr && !ColorTranslationsData[color]) {
 		ColorTranslationsData[color].emplace();
 		LoadFileInMem(ColorTranslations[color], *ColorTranslationsData[color]);
-		// Oracool (2026-08-15): indices 144-151 are the injected GREEN ramp in-game now (see
-		// LoadPalette), and the shipped yellow.trn points its glyphs exactly there - which turned
-		// every rare item's name green (user: "that is absurd"). Any font colour that lands in the
-		// donor run is healed onto the PAL16_YELLOW ramp at matching brightness (8 shades onto 16,
-		// so i*2) - EXCEPT ColorOracoolGreen, whose whole purpose is to land on the green.
-		if (color != ColorOracoolGreen) {
+		// Oracool (2026-08-15): ColorOracoolGreen loads yellow.trn - the only shipped font with a
+		// full bright mini-ramp mapping - and shifts it onto the injected green ramp, which lives
+		// on the old PAL8_ORANGE minis. Every other colour loads untouched; in particular
+		// ColorYellow keeps its true bright yellow, which is the rare items' colour ("Rare items
+		// color to be bright YELLOW").
+		if (color == ColorOracoolGreen) {
 			for (uint8_t &entry : *ColorTranslationsData[color]) {
-				if (entry >= PAL8_GREEN && entry < PAL8_GREEN + PAL8_GREEN_SHADES)
-					entry = static_cast<uint8_t>(PAL16_YELLOW + (entry - PAL8_GREEN) * 2);
+				if (entry >= PAL8_YELLOW && entry < PAL8_YELLOW + PAL8_GREEN_SHADES)
+					entry = static_cast<uint8_t>(entry - PAL8_YELLOW + PAL8_GREEN);
 			}
 		}
 	}

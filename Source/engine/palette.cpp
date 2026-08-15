@@ -209,11 +209,11 @@ void LoadPalette(const char *pszFileName, bool blend /*= true*/)
 	// Oracool: the green ramp (user, 2026-08-15 - Belzebub has green, "they found a way. so should
 	// we"). The vanilla palette contains no green at all, and the .pal files ship inside the game's
 	// own MPQs - so rather than editing dozens of archives, the ramp is injected here over the
-	// PAL8_YELLOW mini-ramp. That donor was chosen by measurement, not convenience: counting pixel
-	// usage across real gameplay frames put the bright-yellow run at ~2,700 pixels against the
-	// neighbouring blue run's ~23,000, and its two art consumers (the automap's bright lines, the
-	// RMB assignment ring) were re-pointed at the PAL16_YELLOW ramp. Each green shade keeps its
-	// donor's brightness, so anything unaudited shifts hue rather than structure.
+	// PAL8_ORANGE mini-ramp (the second-least-used run in the frame audit at ~2,400 pixels, and the
+	// least-used once bright yellow proved irreplaceable - it is the rare items' colour). The one
+	// code consumer of the orange minis, the automap's player marker, re-points to PAL16_ORANGE.
+	// Each green shade keeps its donor's brightness, so anything unaudited shifts hue, not
+	// structure.
 	//
 	// ONLY for the in-game palettes - user screenshot (2026-08-15): the loading screens' cutscene
 	// art is DENSE with the donor ramp (its dithered highlights speckled every roof green), because

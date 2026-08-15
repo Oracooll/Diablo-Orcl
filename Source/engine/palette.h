@@ -26,20 +26,20 @@ namespace devilution {
 #define PAL8_YELLOW 144
 #define PAL8_ORANGE 152
 /**
- * @brief Oracool: the PAL8_YELLOW mini-ramp's eight entries, repurposed as a GREEN ramp.
+ * @brief Oracool: the PAL8_ORANGE mini-ramp's eight entries, repurposed as a GREEN ramp.
  *
- * The vanilla palette ships no green anywhere, which is why every recolour in this fork has been
- * confined to six ramps - until Belzebub proved the obvious (user, 2026-08-15: "they found a way.
- * so should we"): the palette is ours to edit. LoadPalette overwrites these eight entries with a
- * green ramp on every palette load, keeping each donor shade's brightness so the two art users of
- * the old bright-yellow run were re-pointed rather than broken (automap.cpp's bright lines, the
- * RMB assignment ring) and anything unaudited tints green instead of shattering.
+ * The vanilla palette ships no green anywhere - Belzebub proved the palette is ours to edit (user,
+ * 2026-08-15). LoadPalette overwrites these eight entries with a green ramp on every in-game
+ * palette load.
  *
- * PAL8_YELLOW stays defined and aliased to the same base: art painted in indices 144-146 still
- * NAMES them by the colour its author saw, and the SetSpellTrans tables that remap that art keep
- * reading naturally.
+ * The donor MOVED once: green first took the PAL8_YELLOW minis, until the user pointed out that
+ * bright yellow is rare items' colour and irreplaceable ("Rare items color to be bright YELLOW") -
+ * the pale PAL16_YELLOW substitutes read as unique-gold. The orange minis measured nearly as unused
+ * in the same frame audit (~2,400 px, mostly the near-black darkest shade), their one code consumer
+ * (the automap's player marker) re-points to PAL16_ORANGE, and saturated orange survives there for
+ * everything else. Each green shade keeps its donor's brightness.
  */
-#define PAL8_GREEN 144
+#define PAL8_GREEN 152
 #define PAL8_GREEN_SHADES 8
 #define PAL16_BEIGE 160
 #define PAL16_BLUE 176
