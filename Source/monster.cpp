@@ -1358,7 +1358,10 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 			int reflectedDamage = CheckReflect(monster, player, dam);
 			dam = std::max(dam - reflectedDamage, 0);
 		}
-		oracool::NotePendingDeathSource(std::string(monster.name()));
+		// GetMonsterDisplayName, not name() (self-audit, 2026-08-15): dying to Warded Malgrith must
+		// not report a death at the hands of the champion whose sprite it borrowed. Same authority
+		// the health bar and the kill log use, for the same reason.
+		oracool::NotePendingDeathSource(oracool::GetMonsterDisplayName(monster));
 		ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
 		// Oracool: the one seam where "this monster wounded the player, for this much" is known, which
 		// is what a Vampiric champion needs. After the reflect subtraction, so it drains what it

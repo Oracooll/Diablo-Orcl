@@ -508,8 +508,15 @@ void LeftMouseDown(uint16_t modState)
 					// report that "shift left click still moved my hero" was correct: the left
 					// button could never see the modifier at all, so CheckPlrSpell's shift handling
 					// - the whole point of the previous change - was unreachable from this side.
+					//
+					// And with shift held, interaction does NOT win (self-audit, 2026-08-15). The
+					// interaction-wins rule exists so a readied skill cannot switch off the world's
+					// affordances on a PLAIN click - but shift's meaning is "cast, no matter what",
+					// and vanilla's own shift-click already ignores items and objects to swing in
+					// place. Routing shift+click over an item to LeftMouseCmd made it the one spot
+					// on the screen where shift quietly stopped casting.
 					Player &lmbPlayer = *MyPlayer;
-					if (IsValidSpell(lmbPlayer._pLRSpell) && !IsInteractableUnderCursor())
+					if (IsValidSpell(lmbPlayer._pLRSpell) && (isShiftHeld || !IsInteractableUnderCursor()))
 						CheckPlrSpell(isShiftHeld, lmbPlayer._pLRSpell, lmbPlayer._pLRSplType);
 					else
 						LeftMouseCmd(isShiftHeld);

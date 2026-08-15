@@ -3422,11 +3422,12 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 				LastMouseButtonAction = MouseActionType::Spell;
 				return;
 			}
+			// No dash for Charge here, deliberately (self-audit, 2026-08-15): the dash is a
+			// walk-speed boost, and CMD_SATTACKXY below is a swing IN PLACE - there is no walk for it
+			// to boost. The first version started the dash and spent the 10 mana anyway, which bought
+			// a stationary swing at full price. Shift means "act without moving"; for a skill whose
+			// whole identity is movement, that leaves the swing, so the swing is what shift gets.
 			oracool::ArmMeleeSkill(*skill);
-			if (*skill == oracool::PaladinSkill::Charge && pcursmonst != -1
-			    && !oracool::IsFuriousChargeOnCooldown()
-			    && oracool::SpendPaladinSkillMana(myPlayer, oracool::PaladinSkill::Charge))
-				oracool::StartFuriousChargeDash();
 			LastMouseButtonAction = MouseActionType::Attack;
 			NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, cursPosition);
 			return;

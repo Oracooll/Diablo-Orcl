@@ -257,6 +257,14 @@ void CheckHudMenuClick(Point mousePosition)
 	// the old CheckBtnUp's gamemenuOff bookkeeping - every other entry should close a still-open
 	// pause menu behind this row.
 	constexpr int GameMenuEntryIndex = 3;
+	// Dead players get the Game Menu and nothing else (self-audit, 2026-08-15). The dead-mode branch
+	// in LeftMouseDown routes clicks here so the OLD panel's dead-mode buttons - Game Menu, Chat -
+	// stay reachable from a corpse. But it routes to the WHOLE row, and vanilla's dead mode never let
+	// a corpse open its inventory or flip through the Abilities window. The windows would open
+	// half-functional anyway: LeftMouseDown returns before any in-window click handling while dead,
+	// so an entry like Inventory produced a panel that draws but cannot be clicked.
+	if (MyPlayerIsDead && index != GameMenuEntryIndex)
+		return;
 	MenuEntries[index].action();
 	// Deliberately left open: the icons show what is currently up, so keeping the row on screen
 	// lets several panels be toggled in one go rather than reopening the menu each time.
