@@ -1,7 +1,9 @@
 #include "oracool/spell_descriptions.h"
 
 #include <array>
+#include <optional>
 
+#include "oracool/paladin_skills.h"
 #include "utils/language.h"
 
 namespace devilution {
@@ -9,12 +11,12 @@ namespace oracool {
 
 namespace {
 
-// Order IS the SpellID enum's, starting at Null - the static_assert below catches a spell added to
-// the enum without a line added here.
+// Order IS the SpellID enum's, starting at Null and running to the last spell BEFORE the Paladin's
+// skills - those are handled separately in GetSpellDescription, see there.
 //
 // Kept to one sentence and to roughly the length of the aura and Barbarian descriptions, because
 // they all wrap into the same text column beside the same 38px icon.
-constexpr std::array<const char *, static_cast<size_t>(SpellID::LAST) + 1> Descriptions { {
+constexpr std::array<const char *, static_cast<size_t>(SpellID::Charge)> Descriptions { {
 	/* Null             */ "",
 	/* Firebolt         */ N_("Hurls a small bolt of fire at a single target."),
 	/* Healing          */ N_("Restores a portion of the caster's own health."),
@@ -68,13 +70,36 @@ constexpr std::array<const char *, static_cast<size_t>(SpellID::LAST) + 1> Descr
 	/* RuneOfImmolation */ N_("Sets a rune that engulfs its own ground in fire when disturbed."),
 	/* RuneOfStone      */ N_("Sets a rune that turns whatever disturbs it to stone."),
 } };
-static_assert(Descriptions.size() == static_cast<size_t>(SpellID::LAST) + 1,
-    "a SpellID was added without a description - the two are indexed by each other");
+
+/**
+ * @brief Whether every slot in the table above was actually filled in.
+ *
+ * This replaces a `Descriptions.size() == SpellID::LAST + 1` static_assert that could never fail:
+ * the array's size came FROM the enum, so it was asserting a tautology while a short initialiser
+ * list quietly value-initialised the missing tail to nullptr. It had already happened - Charge was
+ * added to the enum, no line was added here, and the check said nothing. Scanning for the nullptr is
+ * the check that was intended.
+ */
+constexpr bool EveryDescriptionFilled()
+{
+	for (const char *description : Descriptions) {
+		if (description == nullptr)
+			return false;
+	}
+	return true;
+}
+static_assert(EveryDescriptionFilled(),
+    "a SpellID below SpellID::Charge has no description - this table is indexed by the enum");
 
 } // namespace
 
 const char *GetSpellDescription(SpellID spell)
 {
+	// The Paladin's skills describe themselves in paladin_skills.cpp, beside their level gates and
+	// mana prices, rather than having those sentences copied here where the two could disagree.
+	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value())
+		return GetPaladinSkillData(*skill).description;
+
 	const auto index = static_cast<int>(spell);
 	if (index < 0 || static_cast<size_t>(index) >= Descriptions.size())
 		return "";

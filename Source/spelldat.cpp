@@ -79,6 +79,17 @@ const SpellData SpellsData[] = {
 // oracool/furious_charge.cpp, which CheckPlrSpell intercepts before the normal cast path. sManaCost
 // 10 matches the table in paladin_skills.h and is here only so the Abilities window can price it.
 /*SpellID::Charge*/           { P_("spell", "Charge"),             IS_CAST2,           0,            0,         10, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        10,          0,          0 },
+// The Paladin's other six, every field reasoned exactly as Charge's above: -1/-1 so no book or staff
+// can carry them, minInt 0 because the gate is character level, no missile because their mechanics
+// live outside the cast path (Zeal in oracool/warrior_splash.cpp; the other five are not built yet).
+// sManaCost mirrors oracool/paladin_skills.cpp's table and exists here only so the Abilities window
+// and the mana check can price the row - that file stays the one place the numbers are decided.
+/*SpellID::Zeal*/             { P_("spell", "Zeal"),               IS_CAST2,           0,            0,          2, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::HammerOfFaith*/    { P_("spell", "Hammer of Faith"),    IS_CAST2,           0,            0,          5, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         5,          0,          0 },
+/*SpellID::BlessedShield*/    { P_("spell", "Blessed Shield"),     IS_CAST2,           0,            0,         10, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        10,          0,          0 },
+/*SpellID::FistOfTheHeavens*/ { P_("spell", "Fist of the Heavens"), IS_CAST2,          0,            0,         15, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        15,          0,          0 },
+/*SpellID::ShieldBash*/       { P_("spell", "Shield Bash"),        IS_CAST2,           0,            0,          3, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         3,          0,          0 },
+/*SpellID::BlessedHammer*/    { P_("spell", "Blessed Hammer"),     IS_CAST2,           0,            0,          8, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         8,          0,          0 },
 	// clang-format on
 };
 

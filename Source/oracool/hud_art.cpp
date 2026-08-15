@@ -12,6 +12,7 @@
 #include "engine/palette.h"
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/paladin_skills.h"
 #include "oracool/ornate_border.h" // ThemeEdgeColor
 #include "panels/spell_icons.hpp" // the vanilla plate behind every skill icon
 #include "player.h"
@@ -945,6 +946,18 @@ void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool
 Size GetPaladinSkillIconSize()
 {
 	return StripIconSize(PaladinSkillIconsArt);
+}
+
+bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, SkillPlateTint tint)
+{
+	const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell);
+	if (!skill.has_value())
+		return false;
+	// Always drawn as unlocked: this is the readied-spell path, and a spell cannot be readied unless
+	// the player has it. The dimmed variant belongs to the Abilities window's own rows, where it says
+	// what has not been earned yet.
+	DrawPaladinSkillIcon(out, origin, GetPaladinSkillIconIndex(*skill), /*unlocked=*/true, tint);
+	return true;
 }
 
 void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active, SkillPlateTint tint)

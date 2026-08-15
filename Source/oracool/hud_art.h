@@ -22,6 +22,7 @@
 
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
+#include "spelldat.h"
 
 namespace devilution::oracool {
 
@@ -141,6 +142,21 @@ void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool
 
 /** @brief On-screen size of one Paladin skill icon, or {0,0} if the asset is missing. */
 Size GetPaladinSkillIconSize();
+
+/**
+ * @brief Draws @p spell's icon from an Oracool strip if it has one, and reports whether it did.
+ *
+ * Oracool: user request (2026-08-15) - "their icons appear as they should on LMB/RMB". The Paladin's
+ * skills are real SpellIDs, so everything that draws a readied spell reaches for the engine's
+ * spelli2 sheet - where they have no frame, and SpellITbl points them at the empty plate. That is
+ * what a screenshot showed on the skill wells: a spell assigned, and a blank square drawn for it.
+ *
+ * Their art is in ui\paladin_skill_icons.png instead, so any site drawing a readied spell asks this
+ * first and falls back to DrawSmallSpellIcon when it returns false. @p origin is TOP-left, matching
+ * the strip icons rather than the engine's bottom-left spell icons.
+ */
+bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell,
+    SkillPlateTint tint = SkillPlateTint::Yellow);
 
 /**
  * @brief The vanilla empty spell-icon plate every skill icon is drawn on, 37x38.

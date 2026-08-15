@@ -79,12 +79,26 @@ const uint8_t SpellITbl[] = {
 	34,
 	34,
 	34,
-	// Oracool: SpellID::Charge. Frame 26 is the EMPTY plate - the same square every skill icon sits
-	// on - so the slot reads as "no art yet" rather than borrowing another spell's symbol, which is
-	// the complaint that retired the old Heal Other stand-in. Point this at Charge's own frame when
-	// the art ships.
+	// Oracool: the seven Paladin skills - Charge, then Zeal, Hammer of Faith, Blessed Shield, Fist of
+	// the Heavens, Shield Bash, Blessed Hammer. Frame 26 is the EMPTY plate, the same square every
+	// skill icon sits on.
+	//
+	// Their real art is not in this sheet at all: it is ui\paladin_skill_icons.png, drawn through
+	// oracool::DrawPaladinSkillIcon, and every site that draws a readied spell's icon asks
+	// oracool::TryDrawSkillSpellIcon first and only falls back here. So these entries are what shows
+	// if a NEW draw site forgets to ask - a bare plate rather than another spell's symbol, which is
+	// the failure mode that retired the old Heal Other stand-in. They are deliberately not pointed at
+	// a lookalike frame for that reason.
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
 	26,
 };
+static_assert(sizeof(SpellITbl) / sizeof(SpellITbl[0]) == MAX_SPELLS,
+    "every SpellID needs an icon frame - this table is indexed by the enum");
 
 } // namespace
 

@@ -90,6 +90,11 @@ void DrawWellIcon(const Surface &out, Point origin, Size iconSize, SpellID spell
 		DrawAttackIcon(out, origin, static_cast<int>(BasicAttackIcon(*MyPlayer)), /*active=*/true);
 		return;
 	}
+	// The Paladin's skills are real SpellIDs but have no frame in the engine's icon sheet, so asking
+	// for one draws the empty plate - which is exactly what the wells showed for a readied Charge.
+	// Their art comes from ui\paladin_skill_icons.png instead; anything else falls through.
+	if (TryDrawSkillSpellIcon(out, origin, spell))
+		return;
 	SetSpellTrans(type);
 	DrawSmallSpellIcon(out, { origin.x, origin.y + iconSize.height - 1 }, spell);
 }

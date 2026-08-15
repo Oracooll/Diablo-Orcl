@@ -449,16 +449,13 @@ size_t BuildSkillsSheetRows(SkillRow *out)
 	// All listed for the class that has them whether or not the level gate has opened: a locked row
 	// says "Requires level 12", which is the useful thing to know at level 4.
 	//
-	// The SpellID is what makes a row READIABLE, and only Charge has one - Zeal applies itself to
-	// every swing rather than being cast, and the five added on 2026-08-15 have no mechanics behind
-	// them yet (see oracool::IsPaladinSkillImplemented). Everything downstream reads the SpellID
-	// rather than naming a skill, so a future skill that gains a slot becomes readiable by being
-	// given one here and nowhere else.
+	// Every skill carries its own spell slot as of 2026-08-15, which is what makes every row
+	// assignable to a mouse button; the slot comes from the skill table rather than being decided
+	// here, so this loop has no opinion about which skills exist.
 	if (paladin) {
 		for (size_t i = 0; i < oracool::PaladinSkillCount; i++) {
 			const auto skill = static_cast<oracool::PaladinSkill>(i);
-			const SpellID slot = skill == oracool::PaladinSkill::Charge ? SpellID::Charge : SpellID::Invalid;
-			out[count++] = { SkillRowKind::Paladin, {}, slot, skill };
+			out[count++] = { SkillRowKind::Paladin, {}, oracool::GetPaladinSkillData(skill).spellId, skill };
 		}
 	}
 	return count;
@@ -902,11 +899,10 @@ void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, in
 	oracool::DrawPaladinSkillIcon(content, iconPos, oracool::GetPaladinSkillIconIndex(skill), unlocked,
 	    unlocked ? oracool::SkillPlateTint::Pink : oracool::SkillPlateTint::Grey);
 
-	// Only Charge carries a spell slot, so only Charge can be readied on a button; Zeal applies
-	// itself to every swing and has nothing to ring.
-	if (unlocked && skill == oracool::PaladinSkill::Charge) {
-		DrawAssignmentRings(content, { iconPos, iconSize },
-		    SpellID::Charge, GetSBookTrans(SpellID::Charge, true));
+	// Every skill carries a slot now, so every unlocked row can show which button holds it.
+	if (unlocked) {
+		const SpellID sn = oracool::GetPaladinSkillData(skill).spellId;
+		DrawAssignmentRings(content, { iconPos, iconSize }, sn, GetSBookTrans(sn, true));
 	}
 }
 

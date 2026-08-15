@@ -13,11 +13,12 @@
 
 namespace devilution {
 
-// Oracool: 52 -> 53 with SpellID::Charge. NOTE for anything bounded by this: items.cpp's
-// GetItemSpell and CreateSpellBook walk `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable
-// spells, so a new id is a candidate for books and staves unless its sBookLvl and sStaffLvl are both
-// -1. Charge's are, deliberately - it is earned by level, not found.
-#define MAX_SPELLS 53
+// Oracool: 52 -> 53 with SpellID::Charge, then -> 59 with the Paladin's other six skills. NOTE for
+// anything bounded by this: items.cpp's GetItemSpell and CreateSpellBook walk
+// `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
+// and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
+// they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
+#define MAX_SPELLS 59
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -114,7 +115,33 @@ enum class SpellID : int8_t {
 	 */
 	Charge,
 
-	LAST = Charge,
+	/**
+	 * Oracool: the Paladin's other six skills (user request 2026-08-15 - "Make sure all skills are
+	 * selectible and their icons appear as they should on LMB/RMB").
+	 *
+	 * Every one of them needs an id for the same reason Charge did: a row on the Skills sheet is
+	 * assignable to a mouse button exactly when it carries a SpellID, and the readied pair the HUD's
+	 * wells and the save format both speak is a SpellID. Without one they were listed and inert.
+	 *
+	 * Zeal is here despite applying itself to every melee swing rather than being cast - it is a
+	 * skill the player picks, so it belongs on a button like the rest, and casting it simply does
+	 * nothing extra. The other five have no mechanics yet at all (oracool::IsPaladinSkillImplemented);
+	 * all six carry MissileID::Null in both slots, exactly as Charge does, so a cast is a no-op rather
+	 * than an error.
+	 *
+	 * Appended LAST so no existing value moves - every save field and table below is indexed
+	 * positionally. Same save arithmetic as Charge: PlayerPack persists spell LEVELS only for ids
+	 * 0..46, so these join the runes in not persisting a level, while _pMemSpells/_pAblSpells are
+	 * uint64 and bit 57 is still comfortably inside them.
+	 */
+	Zeal,
+	HammerOfFaith,
+	BlessedShield,
+	FistOfTheHeavens,
+	ShieldBash,
+	BlessedHammer,
+
+	LAST = BlessedHammer,
 	Invalid = -1,
 };
 

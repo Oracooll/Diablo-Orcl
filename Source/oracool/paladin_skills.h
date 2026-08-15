@@ -21,7 +21,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
+#include "spelldat.h"
 #include "utils/stdcompat/string_view.hpp"
 
 namespace devilution {
@@ -60,6 +62,15 @@ struct PaladinSkillData {
 	const char *name;
 	/** One sentence, kept short enough to wrap inside the Abilities window's text column. */
 	const char *description;
+	/**
+	 * @brief The spell slot this skill occupies.
+	 *
+	 * Every skill has one as of 2026-08-15 (user request: "Make sure all skills are selectible and
+	 * their icons appear as they should on LMB/RMB"). It is what makes the skill assignable: the
+	 * readied pair the HUD's wells, the cast path and the save format all speak is a SpellID, so a
+	 * skill without one could be listed and described but never put on a button.
+	 */
+	SpellID spellId;
 	/** Character level at which the skill becomes usable. */
 	int minLevel;
 	/**
@@ -73,6 +84,16 @@ struct PaladinSkillData {
 };
 
 const PaladinSkillData &GetPaladinSkillData(PaladinSkill skill);
+
+/**
+ * @brief The skill that owns @p spell, or nullopt if @p spell is not one of these skills.
+ *
+ * The reverse of PaladinSkillData::spellId, and the hinge everything outside this module turns on:
+ * given a readied SpellID it answers "is this a Paladin skill, and which", which is how the HUD's
+ * wells know to draw the skill's own art from ui\paladin_skill_icons.png rather than reaching into
+ * the vanilla spell icon sheet, where these have no frame.
+ */
+std::optional<PaladinSkill> PaladinSkillForSpell(SpellID spell);
 
 /**
  * @brief Whether @p skill has mechanics behind it yet, as opposed to being listed and described.

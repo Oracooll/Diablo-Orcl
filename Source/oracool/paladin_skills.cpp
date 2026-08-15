@@ -4,6 +4,7 @@
 
 #include "engine/backbuffer_state.hpp"
 #include "oracool/oracool.h"
+#include "spells.h"
 #include "player.h"
 #include "utils/language.h"
 
@@ -28,15 +29,19 @@ namespace {
 //   Zeal 6 | Shield Bash 8 | Hammer of Faith 10 | Charge 12 | Blessed Hammer 16 |
 //   Blessed Shield 20 | Fist of the Heavens 24
 constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
-	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), 12, 10 },
-	{ N_("Zeal"), N_("Hits up to five adjacent enemies in a rapid succession."), 6, 2 },
-	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), 10, 5 },
-	{ N_("Blessed Shield"), N_("Hurl a blessed shield at a crowd of enemies to eradicate them."), 20, 10 },
+	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 12, 10 },
+	{ N_("Zeal"), N_("Hits up to five adjacent enemies in a rapid succession."), SpellID::Zeal, 6, 2 },
+	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith, 10, 5 },
+	{ N_("Blessed Shield"), N_("Hurl a blessed shield at a crowd of enemies to eradicate them."),
+	    SpellID::BlessedShield, 20, 10 },
 	{ N_("Fist of the Heavens"),
-	    N_("A divine fist descends from the sky, causing splash damage to enemies nearby."), 24, 15 },
-	{ N_("Shield Bash"), N_("Bash an enemy with your shield, stunning them in the process."), 8, 3 },
+	    N_("A divine fist descends from the sky, causing splash damage to enemies nearby."),
+	    SpellID::FistOfTheHeavens, 24, 15 },
+	{ N_("Shield Bash"), N_("Bash an enemy with your shield, stunning them in the process."),
+	    SpellID::ShieldBash, 8, 3 },
 	{ N_("Blessed Hammer"),
-	    N_("A divine hammer spirals outward from you, hurting every enemy it touches."), 16, 8 },
+	    N_("A divine hammer spirals outward from you, hurting every enemy it touches."),
+	    SpellID::BlessedHammer, 16, 8 },
 } };
 static_assert(Skills.size() == static_cast<size_t>(PaladinSkill::LAST) + 1,
     "a PaladinSkill was added without its data row - the two are indexed by each other");
@@ -60,6 +65,17 @@ const PaladinSkillData &GetPaladinSkillData(PaladinSkill skill)
 {
 	const auto index = static_cast<size_t>(skill);
 	return Skills[index < Skills.size() ? index : 0];
+}
+
+std::optional<PaladinSkill> PaladinSkillForSpell(SpellID spell)
+{
+	if (!IsValidSpell(spell))
+		return std::nullopt;
+	for (size_t i = 0; i < Skills.size(); i++) {
+		if (Skills[i].spellId == spell)
+			return static_cast<PaladinSkill>(i);
+	}
+	return std::nullopt;
 }
 
 bool IsPaladinSkillImplemented(PaladinSkill skill)

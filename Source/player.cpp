@@ -3369,6 +3369,21 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		return;
 	}
 
+	// Oracool: the Paladin's other six skills carry a SpellID so they can be READIED (user request,
+	// 2026-08-15), but none of them is cast through the missile system: Zeal applies itself to every
+	// melee swing and charges its mana per splashing hit, and the other five have no mechanics at
+	// all yet. Falling through to the normal dispatch would run CastSpell, which finds MissileID::Null
+	// in both slots, spawns nothing, and then calls ConsumeSpell - so the button would spend mana for
+	// no effect. Swinging instead follows the rule Charge already set two blocks up: the ability never
+	// "does nothing", and it never charges for what it did not do.
+	if (oracool::PaladinSkillForSpell(spellID).has_value()) {
+		if (pcursmonst != -1 && !isShiftHeld) {
+			LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+			NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
+		}
+		return;
+	}
+
 	const int spellFrom = 0;
 	if (IsWallSpell(spellID)) {
 		LastMouseButtonAction = MouseActionType::Spell;
