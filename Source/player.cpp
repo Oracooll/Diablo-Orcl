@@ -1991,6 +1991,14 @@ void Player::getAnimationFramesAndTicksPerFrame(player_graphic graphics, int8_t 
 	case player_graphic::Block:
 		numberOfFrames = _pBFrames;
 		ticksPerFrame = 3;
+		// Oracool bug fix (2026-08-16): user report - Shield Bash "makes very rapid hits, but should
+		// make regular shield hits animation". The bash borrows this graphic, and the block animation
+		// is 2-6 frames against an attack's 16-20 - at 3 ticks a frame each shove was over in a third
+		// of a second and holding the button read as a jackhammer. Stretched so the WHOLE shove lasts
+		// about one regular attack (_pAFrames ticks), which is the pace of every other swing; a plain
+		// raised-shield block still plays at vanilla speed.
+		if (oracool::IsShieldBashSwing(*this) && _pBFrames > 0)
+			ticksPerFrame = static_cast<int8_t>(std::clamp(static_cast<int>(_pAFrames) / _pBFrames, 3, 12));
 		break;
 	default:
 		app_fatal("Unknown player graphics");

@@ -152,8 +152,8 @@ void AddItemToStashGrid(unsigned page, Point position, uint16_t stashListIndex, 
 }
 
 /**
- * @brief Oracool: category ordering for SortStash - Weapons, Armor, Helms, Shields, Jewelry, then
- * everything else (potions, scrolls, books, oils, misc items, unique-slot items, etc).
+ * @brief Oracool: category ordering for SortStash - Weapons, Armor, Helms, Shields, worn
+ * accessories, Jewelry, then everything else (potions, scrolls, books, oils, misc items, etc).
  */
 int StashSortCategoryRank(const Item &item)
 {
@@ -172,11 +172,22 @@ int StashSortCategoryRank(const Item &item)
 		return 2; // Helms
 	case ItemType::Shield:
 		return 3; // Shields
+	// Oracool bug fix (2026-08-16): user report - the new items "dont get sorted properly". The six
+	// worn types postdate this switch, so every pauldron and greave fell through to Others and
+	// sorted in among the potions and scrolls. They are armor the player wears; they sort with the
+	// other worn gear, in their own band after shields.
+	case ItemType::Shoulders:
+	case ItemType::Bracers:
+	case ItemType::Gloves:
+	case ItemType::Belt:
+	case ItemType::Legs:
+	case ItemType::Boots:
+		return 4; // Worn accessories (the six Oracool slots)
 	case ItemType::Ring:
 	case ItemType::Amulet:
-		return 4; // Jewelry
+		return 5; // Jewelry
 	default:
-		return 5; // Others
+		return 6; // Others
 	}
 }
 

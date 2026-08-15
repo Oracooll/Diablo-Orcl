@@ -567,6 +567,57 @@ void LeftMouseUp(uint16_t modState)
 	ReleaseSpellBookButtons();
 }
 
+// Oracool bug fix (2026-08-16): user report - "i cant hit with rmb with regular attack."
+// Selecting Regular Attack on the right button clears _pRSpell, because the basic attack IS the
+// engine's no-spell-readied state (see oracool/attack_skills.h) - but CheckPlrSpell's first act on
+// an invalid spell is to say "I don't have a spell ready" and return. So the one ability the RMB
+// well always offers was the one ability the button could never throw.
+//
+// This is LeftMouseCmd's attack dispatch without its item-pickup and object-operate branches: the
+// right button is the SKILL button, and Regular Attack on it means swing, not interact - picking
+// things up and opening doors stay the left button's job. Talking still wins over stabbing for
+// towners and quest monsters, exactly as it does on the left.
+void RightMouseBasicAttack(bool isShiftHeld)
+{
+	// The plain swing, so no earlier click's skill may ride it - the same rule LeftMouseCmd applies.
+	oracool::ArmMeleeSkill(std::nullopt);
+
+	Player &myPlayer = *MyPlayer;
+	if (leveltype == DTYPE_TOWN) {
+		if (pcursmonst != -1) {
+			NetSendCmdLocParam1(true, CMD_TALKXY, cursPosition, pcursmonst);
+		} else {
+			LastMouseButtonAction = MouseActionType::Walk;
+			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
+		}
+		return;
+	}
+
+	const bool ranged = myPlayer.UsesRangedWeapon();
+	if (isShiftHeld) {
+		LastMouseButtonAction = MouseActionType::Attack;
+		NetSendCmdLoc(MyPlayerId, true, ranged ? CMD_RATTACKXY : CMD_SATTACKXY, cursPosition);
+		return;
+	}
+	if (pcursmonst != -1) {
+		if (CanTalkToMonst(Monsters[pcursmonst])) {
+			NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
+		} else {
+			LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+			NetSendCmdParam1(true, ranged ? CMD_RATTACKID : CMD_ATTACKID, pcursmonst);
+		}
+		return;
+	}
+	if (pcursplr != -1 && !myPlayer.friendlyMode) {
+		LastMouseButtonAction = MouseActionType::AttackPlayerTarget;
+		NetSendCmdParam1(true, ranged ? CMD_RATTACKPID : CMD_ATTACKPID, pcursplr);
+		return;
+	}
+	// No target at all: move there. The same "never does nothing" rule every skill follows.
+	LastMouseButtonAction = MouseActionType::Walk;
+	NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
+}
+
 void RightMouseDown(bool isShiftHeld)
 {
 	LastMouseButtonAction = MouseActionType::None;
@@ -630,7 +681,11 @@ void RightMouseDown(bool isShiftHeld)
 		return;
 	}
 	if (pcurs == CURSOR_HAND) {
-		CheckPlrSpell(isShiftHeld);
+		// An empty right button swings instead of apologizing - see RightMouseBasicAttack above.
+		if (!IsValidSpell(MyPlayer->_pRSpell))
+			RightMouseBasicAttack(isShiftHeld);
+		else
+			CheckPlrSpell(isShiftHeld);
 	} else if (pcurs > CURSOR_HAND && pcurs < CURSOR_FIRSTITEM) {
 		NewCursor(CURSOR_HAND);
 	}
@@ -1959,6 +2014,18 @@ void InitKeymapActions()
 	    N_("Use mana potions from belt."),
 	    SDLK_UNKNOWN,
 	    [] { UseBeltItem(BLT_MANA); },
+	    nullptr,
+	    CanPlayerTakeAction);
+	// Oracool: user request (2026-08-16) - "i want the town portal to have a hotkey T just like
+	// Diablo 3. To be settable in the keymapping settings." Same cast the belt's Portal button
+	// throws (free, always available, single-player only - see CastTownPortalAtFeet), so the key
+	// and the button can never disagree about what a portal costs or where it opens.
+	sgOptions.Keymapper.AddAction(
+	    "TownPortal",
+	    N_("Town portal"),
+	    N_("Open a Town Portal at your feet."),
+	    'T',
+	    [] { oracool::CastTownPortalAtFeet(); },
 	    nullptr,
 	    CanPlayerTakeAction);
 	sgOptions.Keymapper.AddAction(

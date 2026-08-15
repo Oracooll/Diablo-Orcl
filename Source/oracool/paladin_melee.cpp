@@ -56,11 +56,12 @@ constexpr int HammerOfFaithSplashPercent = 50;
 /**
  * @brief How long Shield Bash holds a monster, in game ticks.
  *
- * The clock runs at 20 ticks a second, so this is about a second and a quarter - long enough to step
- * away or line up the next blow, short enough that it is not a substitute for killing the thing.
- * Shield Bash adds no damage of its own; the stun IS the skill, which is also why it does not scale.
+ * The clock runs at 20 ticks a second, so this is two seconds - "a couple of seconds stun" (user,
+ * 2026-08-16), up from the original second and a quarter. Long enough to step away or line up the
+ * next blow, short enough that it is not a substitute for killing the thing. Shield Bash adds no
+ * damage of its own; the stun IS the skill, which is also why it does not scale.
  */
-constexpr int ShieldBashStunTicks = 25;
+constexpr int ShieldBashStunTicks = 40;
 
 /** @brief Applies @p damage to @p monster, killing it or staggering it as the total decides. */
 void StrikeMonster(Player &player, Monster &monster, int damage)
@@ -193,6 +194,14 @@ void ApplyShieldBash(Player &player, Monster &primaryTarget)
 	// Nothing to stun on a corpse, and charging for it would break the rule that mana follows effect.
 	if ((primaryTarget.hitPoints >> 6) <= 0)
 		return;
+	// "Invalid against uniques and bosses" (user, 2026-08-16): a stun that locks down a boss trivially
+	// beats every other answer to a boss, so the names are exempt - scripted uniques, our lesser
+	// uniques, and Diablo himself, who is placed as a plain MT_DIABLO rather than through
+	// PlaceUniqueMonst and so is the one boss isUnique() cannot see. No mana is charged for the
+	// refusal, same rule as the corpse above: mana follows effect.
+	if (primaryTarget.isUnique() || primaryTarget.lesserAffix != LesserUniqueAffix::None
+	    || primaryTarget.type().type == MT_DIABLO)
+		return;
 	if (!SpendPaladinSkillMana(player, PaladinSkill::ShieldBash))
 		return;
 
@@ -257,6 +266,14 @@ int ZealSwingSkipFrames(const Player &player)
 		return 0;
 	if (ZealStrikeCount(player) < 2)
 		return 0;
+	// Oracool bug fix (2026-08-16): user report - "zeal works even after mana is depleted. should
+	// convert to regular hit until there is at least 1 mana." The chain and the mana charge were
+	// already gated (ApplyZeal refuses, TryContinueZealChain re-checks), but THIS was not: the first
+	// swing compressed on the strength of the latch alone, so an unaffordable Zeal still LOOKED like
+	// Zeal - one fast swing, over and over, for free. An unaffordable Zeal is now a regular attack in
+	// every way, speed included.
+	if (!CanUsePaladinSkill(player, PaladinSkill::Zeal))
+		return 0;
 	const int hitFrame = MeleeHitFrame(player);
 	const int keptWindup = std::max(3, ZealPerSwingTicks(player) - 1);
 	return std::max(0, hitFrame - keptWindup);
@@ -276,7 +293,19 @@ bool IsShieldBashSwing(const Player &player)
 {
 	// MyPlayer only: the latch describes the local player's click, and a remote player's swing has
 	// no click here to have armed it. Single-player anyway, but stating it keeps the latch honest.
-	return &player == MyPlayer && ArmedSkill.has_value() && *ArmedSkill == PaladinSkill::ShieldBash;
+	if (&player != MyPlayer || !ArmedSkill.has_value() || *ArmedSkill != PaladinSkill::ShieldBash)
+		return false;
+	// Oracool bug fix (2026-08-16): the crash the user could not reproduce - "assertion failed
+	// clx_sprite.hpp:630 value_.data_ != nullptr", mid-fight with an item involved. This function
+	// answers "does the swing wear the BLOCK animation", and everything animation asks it: the
+	// graphic choice in StartAttack, the hit frame, the tempo stretch. But LoadPlrGFX silently
+	// REFUSES to load the block sheet when _pBlockFlag is off - so in the gap between the latch
+	// arming and the swing resolving (swap the shield off your arm and click, and the flag drops
+	// while the latch holds), StartAttack requested an animation whose sheet was never loaded, and
+	// spritesForDirection dereferenced an empty optional. Answering false here routes that swing
+	// through the ordinary attack animation instead - same sheet-availability rule LoadPlrGFX
+	// itself applies, asked one step earlier.
+	return player._pBlockFlag && player._pBFrames > 0;
 }
 
 int MeleeHitFrame(const Player &player)

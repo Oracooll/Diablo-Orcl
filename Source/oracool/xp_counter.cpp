@@ -74,14 +74,8 @@ Rectangle GetCounterDrawRect()
 	return Rectangle { { plate.position.x, clickRect.position.y }, { plate.size.width, clickRect.size.height } };
 }
 
-/** @brief The experience gap between the player's current level and the next one - the denominator
- * behind both percentages this counter shows. */
-uint64_t LevelExperienceSpan(const Player &player)
-{
-	const uint64_t levelStart = ExpLvlsTbl[player._pLevel - 1];
-	const uint64_t levelEnd = ExpLvlsTbl[player._pLevel];
-	return (levelEnd > levelStart) ? (levelEnd - levelStart) : 1; // guard against a zero divisor
-}
+// LevelExperienceSpan moved to the public GetLevelExperienceSpan below (the XP gain blinker needs
+// the same denominator for its percentage - user request, 2026-08-16).
 
 /**
  * @brief Sums, over every monster currently alive on this level, the same experience the player
@@ -107,6 +101,18 @@ uint64_t CalcRemainingMonsterXp(const Player &player)
 
 } // namespace
 
+Rectangle GetXpCounterDrawRect()
+{
+	return GetCounterDrawRect();
+}
+
+uint64_t GetLevelExperienceSpan(const Player &player)
+{
+	const uint64_t levelStart = ExpLvlsTbl[player._pLevel - 1];
+	const uint64_t levelEnd = ExpLvlsTbl[player._pLevel];
+	return (levelEnd > levelStart) ? (levelEnd - levelStart) : 1; // guard against a zero divisor
+}
+
 void DrawXpCounter(const Surface &out)
 {
 	if (!*sgOptions.Oracool.xpCounter)
@@ -121,7 +127,7 @@ void DrawXpCounter(const Surface &out)
 	// level is still to go ("2,000 / 100%" on a freshly-levelled character); while held, it reads
 	// how much of a full level the monsters still alive on this floor are worth - so at a glance
 	// you can tell whether clearing the level will level you up.
-	const uint64_t span = LevelExperienceSpan(player);
+	const uint64_t span = GetLevelExperienceSpan(player);
 	const uint64_t value = IsHeld
 	    ? CalcRemainingMonsterXp(player)
 	    : (ExpLvlsTbl[player._pLevel] - player._pExperience);

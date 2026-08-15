@@ -1380,8 +1380,11 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 			colorBlock = PAL16_YELLOW;
 			break;
 		default:
-			colorBlock = PAL16_BEIGE;
-			break;
+			// Oracool: user request (2026-08-16) - "basic item to have no backing." The beige wash
+			// every plain item used to get said nothing (there is no beige in the item colour code)
+			// and cost the grid contrast; a bare slot IS the tier now. Gold rides this branch too,
+			// which reads right - a pile of coins needs no quality halo.
+			return;
 		}
 	}
 

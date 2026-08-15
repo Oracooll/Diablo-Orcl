@@ -18,6 +18,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/oracool.h"
+#include "oracool/paladin_skills.h"
 #include "panels/spell_book.hpp" // ToggleAbilitiesWindow
 #include "panels/spell_icons.hpp"
 #include "player.h"
@@ -145,10 +146,20 @@ void DrawSpell(const Surface &out)
 	// The strip icons anchor TOP-left where DrawSmallSpellIcon anchors bottom-left.
 	const Point iconTopLeft { position.x, position.y - SmallIconHeight + 1 };
 
+	// Oracool: user request (2026-08-16) - "skills unable to perform due to whatever reason to have
+	// their background turned into pink until able to perform again." For a Paladin skill the answer
+	// comes from its own gate (mana, shield, level); for an engine spell it is the st that the checks
+	// above already downgraded to Invalid. Pink rather than Invalid's grey, because grey already means
+	// "not learned" on the Abilities window.
+	oracool::SkillPlateTint wellTint = oracool::SkillPlateTint::Green;
+	if (const std::optional<oracool::PaladinSkill> paladinSkill = oracool::PaladinSkillForSpell(spl);
+	    paladinSkill.has_value() && !oracool::CanUsePaladinSkill(myPlayer, *paladinSkill))
+		wellTint = oracool::SkillPlateTint::Pink;
+
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
 		SetSpellTrans(st);
-		if (!oracool::TryDrawSkillSpellIcon(out, iconTopLeft, spl))
+		if (!oracool::TryDrawSkillSpellIcon(out, iconTopLeft, spl, wellTint))
 			DrawSmallSpellIcon(out, position, oracool::FuriousChargeIcon);
 		if (progress < 1.0f) {
 			// The cooldown still reads as a fill rising from the bottom, but as a DARKENED band over
@@ -159,8 +170,10 @@ void DrawSpell(const Surface &out)
 			if (cooled < SmallIconHeight)
 				DrawHalfTransparentRectTo(out, iconTopLeft.x, iconTopLeft.y, iconSize.width, SmallIconHeight - cooled);
 		}
-	} else if (!oracool::TryDrawSkillSpellIcon(out, iconTopLeft, spl)) {
-		SetSpellTrans(st);
+	} else if (!oracool::TryDrawSkillSpellIcon(out, iconTopLeft, spl, wellTint)) {
+		// The engine-spell equivalent of the pink plate: st has already been downgraded to Invalid by
+		// the checks above when the spell cannot be cast, and the Scroll table is the beige/pink ramp.
+		SetSpellTrans(st == SpellType::Invalid ? SpellType::Scroll : st);
 		DrawSmallSpellIcon(out, position, spl);
 	}
 

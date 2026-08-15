@@ -8,10 +8,27 @@
  */
 #pragma once
 
+#include <cstdint>
+
 #include "engine/point.hpp"
+#include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
+#include "player.h"
 
 namespace devilution::oracool {
+
+/**
+ * @brief The strip the counter's text is drawn into, exposed so the XP gain blinker can anchor
+ * itself directly above the counter (user request, 2026-08-16). Valid whether or not the counter
+ * is currently drawn - the geometry does not depend on the option or the player's level.
+ */
+Rectangle GetXpCounterDrawRect();
+
+/**
+ * @brief The experience gap between @p player's current level and the next - the denominator behind
+ * every percentage this HUD shows. Never returns 0.
+ */
+uint64_t GetLevelExperienceSpan(const Player &player);
 
 /** @brief Whether `mousePosition` is over the XP counter's strip. Used by diablo.cpp to decide
  * whether a click is UI or should fall through to the world - see IsPointOverHud. */

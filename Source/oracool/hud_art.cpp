@@ -898,6 +898,11 @@ void ApplyPlateTint(SkillPlateTint tint)
 		// merely faded next to the pink plates; this one shifts four shades down the ramp.
 		SetSpellTransDarkGrey();
 		break;
+	case SkillPlateTint::Pink:
+		// "Unable to perform right now" (user, 2026-08-16). SpellType::Scroll's table is the engine's
+		// own mapping onto PAL16_BEIGE - the ramp the user calls pink - so no new table is needed.
+		SetSpellTrans(SpellType::Scroll);
+		break;
 	case SkillPlateTint::Yellow:
 		SetSpellTrans(SpellType::Skill);
 		break;

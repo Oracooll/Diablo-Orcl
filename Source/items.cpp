@@ -4830,6 +4830,23 @@ void PrintItemDetails(const Item &item)
 	// Only suppressed when something below will actually print the word - see the helper.
 	const bool affixSaysIndestructible = indestructible && AffixStatesIndestructible(item);
 
+	// Oracool: user request (2026-08-16) - the tier line sits directly BELOW THE NAME and above the
+	// damage stats, for every quality: "basic item" and "magic item" say so out loud now, not just by
+	// the absence of colour, and the tiered labels moved up here from below the affix block. Each
+	// line wears the name's own colour, so the word and the colour teach each other. Equipment only
+	// (anything with a worn slot) - a potion calling itself a basic item would be noise, not
+	// information.
+	if (item._iLoc != ILOC_NONE && item._iLoc != ILOC_UNEQUIPABLE && item._iLoc != ILOC_BELT) {
+		if (item.hasOracoolTier())
+			AddPanelString(GetOracoolTierPanelLabel(item._iOracoolTier), item.getTextColor());
+		else if (item._iMagical == ITEM_QUALITY_UNIQUE)
+			AddPanelString(_("unique item"), item.getTextColor());
+		else if (item._iMagical == ITEM_QUALITY_MAGIC)
+			AddPanelString(_("magic item"), item.getTextColor());
+		else
+			AddPanelString(_("basic item"), item.getTextColor());
+	}
+
 	// Oracool: colours per ItemBaseStatColor / ItemAffixColor - base stats white, rolls blue, the
 	// tier label with the name's own colour.
 	if (item._iClass == ICLASS_WEAPON) {
@@ -4866,11 +4883,9 @@ void PrintItemDetails(const Item &item)
 	if (item._iSufPower != -1) {
 		AddPanelString(PrintItemPower(item._iSufPower, item), ItemAffixColor);
 	}
-	if (item.hasOracoolTier()) {
-		AddPanelString(GetOracoolTierPanelLabel(item._iOracoolTier), item.getTextColor());
-		AddItemPowerPanelStrings(item);
-	} else if (item._iMagical == ITEM_QUALITY_UNIQUE) {
-		AddPanelString(_("unique item"), item.getTextColor());
+	// The tier label used to print here, between the affixes and the power list; it now leads the
+	// panel instead (user request, 2026-08-16 - "just below their name and above the dmg stats").
+	if (item.hasOracoolTier() || item._iMagical == ITEM_QUALITY_UNIQUE) {
 		AddItemPowerPanelStrings(item);
 	}
 	PrintItemInfo(item);

@@ -95,6 +95,14 @@ enum class SkillPlateTint : uint8_t {
 	/** Every ability sheet drawn on plates: Skills, Auras and Barbarian - the injected green ramp. */
 	Green,
 	/**
+	 * Cannot be performed RIGHT NOW - out of mana, missing shield, wrong place - as opposed to Grey's
+	 * "not earned yet". User request (2026-08-16): "skills unable to perform due to whatever reason to
+	 * have their background turned into pink until able to perform again." The PAL16_BEIGE ramp - the
+	 * colour the user has always called pink - which stopped being any sheet's resting colour when the
+	 * plates went green, freeing it to mean exactly this.
+	 */
+	Pink,
+	/**
 	 * Not earned yet (user request, 2026-08-15: "not yet learned skills to have gray background").
 	 *
 	 * The same grey the Spells sheet has always given an unlearned spell - SpellType::Invalid's ramp,

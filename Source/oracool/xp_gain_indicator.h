@@ -1,8 +1,9 @@
 /**
  * @file xp_gain_indicator.h
  *
- * Oracool: a brief "+N" flash shown 1px below the XP Counter whenever the player gains
- * experience, mirroring save_indicator.h's own trigger-once/draw-per-frame pattern.
+ * Oracool: a brief "+N (x.x%)" flash shown directly above the XP Counter whenever the player gains
+ * experience - the percentage being that gain against the current level's whole experience span
+ * (user request, 2026-08-16). Mirrors save_indicator.h's trigger-once/draw-per-frame pattern.
  */
 #pragma once
 

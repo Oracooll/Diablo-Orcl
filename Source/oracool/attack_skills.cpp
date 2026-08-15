@@ -9,6 +9,7 @@
 #include "levels/gendung.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
+#include "oracool/paladin_skills.h"
 #include "utils/language.h"
 
 namespace devilution::oracool {
@@ -94,19 +95,32 @@ void DrawWellIcon(const Surface &out, Point origin, Size iconSize, SpellID spell
 	// The Paladin's skills are real SpellIDs but have no frame in the engine's icon sheet, so asking
 	// for one draws the empty plate - which is exactly what the wells showed for a readied Charge.
 	// Their art comes from ui\paladin_skill_icons.png instead; anything else falls through.
-	if (TryDrawSkillSpellIcon(out, origin, spell))
-		return;
+	//
+	// The plate says whether the skill can be thrown RIGHT NOW: pink for "not at the moment" (out of
+	// mana, missing shield - user request, 2026-08-16), green otherwise. The same question every
+	// engine spell answers below by going pink.
+	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value()) {
+		const SkillPlateTint tint = CanUsePaladinSkill(*MyPlayer, *skill)
+		    ? SkillPlateTint::Green
+		    : SkillPlateTint::Pink;
+		if (TryDrawSkillSpellIcon(out, origin, spell, tint))
+			return;
+	}
 	// The same can-I-actually-cast-this dance DrawSpell does for the RMB well (self-audit,
 	// 2026-08-15): without it the LMB well kept a spell's full colour while the RMB well correctly
 	// greyed it on empty mana - two wells, two answers to one question.
+	bool usable = true;
 	if (type == SpellType::Spell) {
 		if (MyPlayer->GetSpellLevel(spell) <= 0
 		    || CheckSpell(*MyPlayer, spell, type, /*manaonly=*/true) != SpellCheckResult::Success)
-			type = SpellType::Invalid;
+			usable = false;
 	}
-	if (leveltype == DTYPE_TOWN && type != SpellType::Invalid && !GetSpellData(spell).isAllowedInTown())
-		type = SpellType::Invalid;
-	SetSpellTrans(type);
+	if (leveltype == DTYPE_TOWN && !GetSpellData(spell).isAllowedInTown())
+		usable = false;
+	// Pink, not SpellType::Invalid's grey (user request, 2026-08-16): grey already means "not learned"
+	// on the Abilities window, and one colour meaning two things is how the confusion started. The
+	// Scroll table is the engine's own beige/pink mapping.
+	SetSpellTrans(usable ? type : SpellType::Scroll);
 	DrawSmallSpellIcon(out, { origin.x, origin.y + iconSize.height - 1 }, spell);
 }
 
