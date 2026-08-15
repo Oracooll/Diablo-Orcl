@@ -64,6 +64,7 @@
 #include "oracool/event_log.h"
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
+#include "oracool/paladin_melee.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/oracool.h"
 #include "oracool/waypoint_menu.h"
@@ -237,6 +238,13 @@ bool ProcessInput()
 void LeftMouseCmd(bool bShift)
 {
 	bool bNear;
+
+	// Oracool: this is the plain-attack path - reached when no skill is readied on the left button,
+	// or when shift forces the swing - so whatever skill an earlier click armed does not apply to
+	// what happens next. Cleared here rather than at every attack site because this is the one that
+	// means "no skill"; the controller and hold-to-attack repeat paths deliberately leave the latch
+	// alone, since you are still holding the same button. See oracool/paladin_melee.h.
+	oracool::ArmMeleeSkill(std::nullopt);
 
 	// Oracool: bug postmortem (2026-08-11) - this used to assert that the click was outside
 	// GetMainPanel(), which held while the old 640x128 panel swallowed every click inside its rect.

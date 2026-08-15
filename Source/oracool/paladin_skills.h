@@ -10,7 +10,7 @@
  * copies of the numbers:
  *
  *   Charge - oracool/furious_charge.cpp, the rush-and-strike on the Paladin's class-skill slot.
- *   Zeal   - oracool/warrior_splash.cpp, the melee hit that carries to adjacent enemies.
+ *   Zeal, Hammer of Faith, Shield Bash - oracool/paladin_melee.cpp, the shared melee-swing hook.
  *
  * "Paladin" is HeroClass::Warrior. Oracool renames the Warrior in display data only
  * (playerdat.cpp's className), leaving the enum, the sprite folder and every save field on the

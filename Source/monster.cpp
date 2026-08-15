@@ -3695,6 +3695,13 @@ void M_StartHit(Monster &monster, int dam)
 	}
 }
 
+void StunMonster(Monster &monster, int ticks)
+{
+	// AiDelay carries the guard this needs: Lazarus is exempt, because his scripted set-piece drives
+	// his own mode and a stun would strand it. Inherited rather than restated.
+	AiDelay(monster, ticks);
+}
+
 void M_StartHit(Monster &monster, const Player &player, int dam)
 {
 	monster.tag(player);

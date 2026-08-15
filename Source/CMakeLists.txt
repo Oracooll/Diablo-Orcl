@@ -60,7 +60,7 @@ set(libdevilutionx_SRCS
   oracool/sprite_import.cpp
   oracool/ui_backgrounds.cpp
   oracool/save_indicator.cpp
-  oracool/warrior_splash.cpp
+  oracool/paladin_melee.cpp
   oracool/waypoint_menu.cpp
   oracool/xp_counter.cpp
   oracool/xp_gain_indicator.cpp

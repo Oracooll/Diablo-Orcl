@@ -81,7 +81,8 @@ const SpellData SpellsData[] = {
 /*SpellID::Charge*/           { P_("spell", "Charge"),             IS_CAST2,           0,            0,         10, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        10,          0,          0 },
 // The Paladin's other six, every field reasoned exactly as Charge's above: -1/-1 so no book or staff
 // can carry them, minInt 0 because the gate is character level, no missile because their mechanics
-// live outside the cast path (Zeal in oracool/warrior_splash.cpp; the other five are not built yet).
+// live outside the cast path (the melee three in oracool/paladin_melee.cpp; the thrown three are not
+// built yet).
 // sManaCost mirrors oracool/paladin_skills.cpp's table and exists here only so the Abilities window
 // and the mana check can price the row - that file stays the one place the numbers are decided.
 /*SpellID::Zeal*/             { P_("spell", "Zeal"),               IS_CAST2,           0,            0,          2, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         2,          0,          0 },

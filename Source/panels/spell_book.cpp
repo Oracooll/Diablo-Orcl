@@ -304,7 +304,7 @@ int PressedArrow = 0;
  * "ActiveAura on Player" and no such member exists anywhere in the codebase. A page of things that
  * cannot be used reads as a bug rather than as a promise, so both wait for the Skills system - the
  * same gate already holding Furious Charge and the Warrior splash (both fully implemented and
- * returning false, see oracool/furious_charge.cpp and warrior_splash.cpp).
+ * returning false, see oracool/furious_charge.cpp and paladin_melee.cpp).
  *
  * Gated HERE and not in ClassHasAuras/ClassHasBarbSkills deliberately. Those answer "does this class
  * have auras at all", which is still true, and is the question the unlock-by-level checks inside

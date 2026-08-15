@@ -8,7 +8,7 @@
 #include "options.h"
 #include "oracool/furious_charge.h"
 #include "oracool/gradual_healing.h"
-#include "oracool/warrior_splash.h"
+#include "oracool/paladin_melee.h"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "storm/storm_net.hpp"
@@ -324,27 +324,62 @@ TEST(Player, GradualHealing_IsEnabled_GatedByOptionAndMultiplayer)
 	sgOptions.Oracool.gradualHealing.SetValue(false);
 }
 
-// Oracool (2026-08-11): splash damage left the settings list alongside Furious Charge, for the
-// same reason - it becomes a skill earned through level progression once the Skills system exists.
-// Until then the gate is closed and melee stays vanilla single-target.
-TEST(Player, WarriorSplashDamage_Disabled_UntilSkillsSystemExists)
+// Oracool (2026-08-15): Zeal is ACTIVE ONLY - it carries a swing to neighbours when it is the skill
+// readied on the button that swung, and not otherwise. This replaces a test that asserted the older
+// "not acquirable at all" state; that one had stopped testing anything real, because it passed on a
+// level-0 fixture whatever the gate did.
+TEST(Player, Zeal_GatedByClass_Level_Mana_AndSinglePlayer)
 {
 	using namespace devilution::oracool;
 
 	Players.resize(1);
-	devilution::Player &warrior = Players[0];
-	warrior._pClass = HeroClass::Warrior;
-
+	devilution::Player &paladin = Players[0];
+	paladin._pClass = HeroClass::Warrior; // "Paladin" is a display name only - see paladin_skills.h
+	paladin._pLevel = GetPaladinSkillData(PaladinSkill::Zeal).minLevel;
+	paladin._pMana = 64 * GetPaladinSkillData(PaladinSkill::Zeal).manaCost;
 	gbIsMultiplayer = false;
-	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "not yet acquirable - melee must stay single-target";
 
-	warrior._pClass = HeroClass::Sorcerer;
-	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "and never for other classes";
-	warrior._pClass = HeroClass::Warrior;
+	EXPECT_TRUE(CanUsePaladinSkill(paladin, PaladinSkill::Zeal)) << "earned, funded and single player";
+
+	paladin._pLevel--;
+	EXPECT_FALSE(CanUsePaladinSkill(paladin, PaladinSkill::Zeal)) << "one level short of the gate";
+	paladin._pLevel++;
+
+	paladin._pMana--;
+	EXPECT_FALSE(CanUsePaladinSkill(paladin, PaladinSkill::Zeal)) << "one point short of the price";
+	paladin._pMana++;
+
+	paladin._pClass = HeroClass::Sorcerer;
+	EXPECT_FALSE(CanUsePaladinSkill(paladin, PaladinSkill::Zeal)) << "never for other classes";
+	paladin._pClass = HeroClass::Warrior;
 
 	gbIsMultiplayer = true;
-	EXPECT_FALSE(IsWarriorSplashDamageEnabled(warrior)) << "multiplayer keeps vanilla melee too";
+	EXPECT_FALSE(CanUsePaladinSkill(paladin, PaladinSkill::Zeal)) << "multiplayer keeps vanilla melee";
 	gbIsMultiplayer = false;
+}
+
+// The half of "active only" that CanUsePaladinSkill cannot express: being able to afford Zeal is not
+// the same as having thrown this swing with it. The latch is what carries that from the click to the
+// hit frame, several frames later, and a swing that armed nothing must find nothing armed.
+TEST(Player, MeleeSkillLatch_RemembersWhatTheSwingWasThrownWith)
+{
+	using namespace devilution::oracool;
+
+	ArmMeleeSkill(std::nullopt);
+	EXPECT_FALSE(ArmedMeleeSkill().has_value()) << "a plain swing arms nothing";
+
+	ArmMeleeSkill(PaladinSkill::Zeal);
+	ASSERT_TRUE(ArmedMeleeSkill().has_value());
+	EXPECT_EQ(*ArmedMeleeSkill(), PaladinSkill::Zeal);
+
+	// Overwritten rather than accumulated: the latch describes the CURRENT swing, so switching
+	// buttons mid-fight must not leave the previous skill applying to the next blow.
+	ArmMeleeSkill(PaladinSkill::ShieldBash);
+	ASSERT_TRUE(ArmedMeleeSkill().has_value());
+	EXPECT_EQ(*ArmedMeleeSkill(), PaladinSkill::ShieldBash);
+
+	ArmMeleeSkill(std::nullopt);
+	EXPECT_FALSE(ArmedMeleeSkill().has_value()) << "and a plain swing clears it again";
 }
 
 TEST(Player, GradualHealing_QueueAndDrain_DeliversFullAmountGraduallyNotInstantly)

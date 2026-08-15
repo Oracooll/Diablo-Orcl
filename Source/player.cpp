@@ -45,7 +45,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
 #include "oracool/sprite_import.h"
-#include "oracool/warrior_splash.h"
+#include "oracool/paladin_melee.h"
 #include "oracool/xp_gain_indicator.h"
 #include "player.h"
 #include "playerdat.hpp"
@@ -869,11 +869,14 @@ bool DoAttack(Player &player)
 		}
 
 		if (monster != nullptr) {
-			int splashDamage = 0;
-			didhit = PlrHitMonst(player, *monster, false, &splashDamage);
-			if (didhit && oracool::IsWarriorSplashDamageEnabled(player)) {
-				oracool::ApplyWarriorSplashDamage(player, *monster, splashDamage);
-			}
+			int hitDamage = 0;
+			didhit = PlrHitMonst(player, *monster, false, &hitDamage);
+			// Oracool: one hook for every skill that rides a swing - Zeal, Hammer of Faith, Shield
+			// Bash. Which of them applies, if any, is decided by the button that threw this swing,
+			// latched at the click because it is gone by the time the animation lands. See
+			// oracool/paladin_melee.h.
+			if (didhit)
+				oracool::ApplyMeleeSkillOnHit(player, *monster, hitDamage);
 		} else if (PlayerAtPosition(position) != nullptr && !player.friendlyMode) {
 			didhit = PlrHitPlr(player, *PlayerAtPosition(position));
 		} else {
@@ -3368,15 +3371,26 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// then call ConsumeSpell - charging mana for no effect.
 	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spellID); skill.has_value()) {
 		// Shift is the engine-wide "swing where I point, ignore what is readied", so it stays a plain
-		// attack here rather than becoming a walk.
-		if (isShiftHeld)
+		// attack here rather than becoming a walk - and disarms the skill, since that is what
+		// ignoring what is readied means.
+		if (isShiftHeld) {
+			oracool::ArmMeleeSkill(std::nullopt);
 			return;
+		}
 
 		if (!oracool::IsPaladinSkillTargetInRange(myPlayer, *skill)) {
+			// Disarmed on the way to a walk: nothing is being swung, and leaving the latch set would
+			// let the NEXT swing - however it was thrown - inherit this skill.
+			oracool::ArmMeleeSkill(std::nullopt);
 			LastMouseButtonAction = MouseActionType::Walk;
 			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
 			return;
 		}
+
+		// Armed for DoAttack, which resolves the swing several frames from now and cannot otherwise
+		// tell which button threw it. Set for every skill, including the ones with no melee effect,
+		// so the latch always describes the CURRENT swing rather than some earlier one.
+		oracool::ArmMeleeSkill(*skill);
 
 		if (*skill == oracool::PaladinSkill::Charge) {
 			// Mana is spent only when the dash actually launches, and the && short-circuits so a

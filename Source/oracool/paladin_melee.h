@@ -1,0 +1,70 @@
+/**
+ * @file oracool/paladin_melee.h
+ *
+ * Oracool: the three Paladin skills that ride a melee swing - Zeal, Hammer of Faith, Shield Bash.
+ *
+ * They share one hook, in DoAttack, because they all answer the same question: "this swing just
+ * landed - does the skill on the button that threw it do anything extra?" Charge is not here; it
+ * changes how you REACH the target rather than what the blow does, so it lives in
+ * oracool/furious_charge.cpp and is intercepted before the swing.
+ *
+ * Replaces oracool/warrior_splash.{h,cpp}, which was this hook when Zeal was the only skill using it.
+ */
+#pragma once
+
+#include <optional>
+
+#include "oracool/paladin_skills.h"
+
+namespace devilution {
+
+struct Player;
+struct Monster;
+
+namespace oracool {
+
+/**
+ * @brief Records which skill the swing now being launched was thrown with.
+ *
+ * Oracool: user decision (2026-08-15) - Zeal is "active only", meaning it splashes only when Zeal is
+ * the skill readied on the button you attacked with. DoAttack cannot work that out for itself: by
+ * the time the animation reaches its hit frame, all that survives is _pRSpell / _pLRSpell, and which
+ * of the two threw this swing is gone. So the answer is latched at the moment the button acts.
+ *
+ * Armed from CheckPlrSpell, the single funnel through which a mouse button acts, which already
+ * receives the pair for whichever button was pressed. Cleared by LeftMouseCmd, the path a plain
+ * swing takes. The controller and hold-to-attack repeat paths deliberately do NOT clear it - you are
+ * still holding the same button down.
+ *
+ * File-scope state rather than a Player field, deliberately: single-player only, one swing resolving
+ * at a time, and it must not reach the save format or the net packet. Same shape as
+ * IsFuriousChargeOnCooldown's timer.
+ */
+void ArmMeleeSkill(std::optional<PaladinSkill> skill);
+
+/** @brief The skill the swing being resolved was thrown with, if any. */
+std::optional<PaladinSkill> ArmedMeleeSkill();
+
+/**
+ * @brief Whether @p player is holding a shield right now.
+ *
+ * Oracool: user decision (2026-08-15) - Blessed Shield and Shield Bash require one. Reads the same
+ * slot inv.cpp does, so "has a shield" means the same thing here as everywhere else.
+ */
+bool HasShieldEquipped(const Player &player);
+
+/**
+ * @brief Runs the armed skill's extra effect for a swing that just connected.
+ *
+ * @p hitDamage is the damage the swing itself dealt. Every skill here scales from it rather than
+ * rolling its own, which is what makes them WEAPON-damage based (user decision, 2026-08-15) without
+ * any of them having to know what a weapon is.
+ *
+ * Charges mana only when the effect actually happens - a Zeal swing with nobody else in reach, or a
+ * Shield Bash on an already-dying monster, costs nothing. That rule predates these skills and is
+ * stated at every site that spends for one.
+ */
+void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage);
+
+} // namespace oracool
+} // namespace devilution

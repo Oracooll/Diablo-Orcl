@@ -442,6 +442,21 @@ void M_ClearSquares(const Monster &monster);
 void M_GetKnockback(Monster &monster);
 void M_StartHit(Monster &monster, int dam);
 void M_StartHit(Monster &monster, const Player &player, int dam);
+
+/**
+ * @brief Oracool: holds @p monster still for @p ticks - a stun.
+ *
+ * A named front door onto AiDelay, monster.cpp's own "make the AI wait before thinking again", which
+ * is file-local and reads as an AI-pacing detail rather than as an effect a skill can inflict. It is
+ * the right primitive: the monster stands with its normal animation, does nothing, and returns to
+ * Stand on its own, with no graphic swap and no missile to keep alive.
+ *
+ * Deliberately NOT petrify. Stone Curse's freeze looks correct in code - it even has a duration and a
+ * saved mode to restore - but Monster::getVisualMonsterMode() finds the saved pose by searching for a
+ * MissileID::StoneCurse missile that owns the monster, so a petrify inflicted by anything else would
+ * render as the stone statue. Shield Bash is a shove, not a spell.
+ */
+void StunMonster(Monster &monster, int ticks);
 void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg);
 void MonsterDeath(Monster &monster, Direction md, bool sendmsg);
 void KillMyGolem();
