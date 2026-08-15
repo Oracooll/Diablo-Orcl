@@ -573,9 +573,10 @@ void PlaceLesserUniques()
 	for (int placed = 0; placed < wanted; placed++) {
 		const std::optional<UniqueMonsterType> choice = oracool::ChooseLesserUnique();
 		if (!choice) {
-			// Either this level hosts no monster type with a champion written for it, or - once a
-			// floor wants several packs - it has run out of DISTINCT ones. Both mean stop: a level
-			// fielding the same named champion three times reads as a bug, not as variety.
+			// This level hosts no monster type with a champion written for it at all. Running out of
+			// DISTINCT ones no longer ends up here - since 1.6.1 ChooseLesserUnique falls back to a
+			// repeat with a different modifier, and since 1.6.2 that repeat is renamed and recoloured,
+			// so it reads as another champion rather than as a duplication bug.
 			return;
 		}
 
@@ -3881,13 +3882,19 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	SetRndSeed(monster.rndItemSeed);
 
 	if (monster.isUnique())
-		oracool::LogEvent(fmt::format("Defeated {:s}", monster.name()));
-
-	// Oracool: before the loot, so a Thunderous discharge is part of the kill rather than an
-	// afterthought that goes off while the player is already picking things up.
-	oracool::OnLesserUniqueKilled(monster);
+		oracool::LogEvent(fmt::format("Defeated {:s}", oracool::GetMonsterDisplayName(monster)));
 
 	SpawnLoot(monster, sendmsg);
+
+	// Oracool: AFTER the loot, and the reason is the line above SetRndSeed(monster.rndItemSeed).
+	// That seed exists to make a monster's drop reproducible, and Thunderous spends 36 AddMissile
+	// calls - each one drawing a random animation frame - so firing it first shifted the item stream
+	// out from under SpawnLoot. Still deterministic, but it meant a champion's drop depended on which
+	// modifier it happened to be wearing, which is a coupling with nothing to recommend it.
+	//
+	// Both happen in the same tick, so the ordering the earlier comment defended - the discharge
+	// reading as part of the kill - is not something the player can perceive either way.
+	oracool::OnLesserUniqueKilled(monster);
 
 	if (monster.type().type == MT_DIABLO)
 		DiabloDeath(monster, true);

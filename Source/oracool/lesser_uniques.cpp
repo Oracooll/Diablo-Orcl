@@ -31,14 +31,35 @@ bool LevelHasMonsterType(_monster_id type)
 /**
  * @brief Whether @p data is quest content rather than a champion we may borrow.
  *
- * mtalkmsg is the game's own marker: the uniques that speak are the ones a quest is about - Garbud
- * greeting you, Zhar objecting to being disturbed, Lazarus taunting. Reading the data rather than
- * listing names by hand means a unique added later is classified correctly without anyone
- * remembering to update a list here.
+ * TWO tests, and the second was missing until the 2026-08-15 self-audit.
+ *
+ * mtalkmsg catches the uniques that SPEAK - Gharbad greeting you, Zhar objecting to being disturbed,
+ * Lazarus taunting. That is the game's own marker for a quest boss, and reading it beats listing
+ * names by hand.
+ *
+ * But four quest bosses do not talk: the Skeleton King, the Butcher, the Hork Demon and Na-Krul, all
+ * TEXT_NONE. Every one of them was a legal candidate, and each carried its own hazard, because
+ * GetUniqueMonstPosition special-cases exactly this set:
+ *
+ *   - the Butcher's position is read off SetPiece, so a borrowed one would spawn in the real
+ *     Butcher's own room
+ *   - Na-Krul's case WRITES UberDiabloMonsterIndex, so a borrowed one would repoint - or with
+ *     UberRow unset, erase - the state the Na-Krul quest runs on
+ *
+ * Their monster types are all MonsterAvailability::Never, which is the game's marker for "this
+ * creature exists only for scripted content". Nothing that appears on a random level can be Never,
+ * so the test costs no ordinary champion and catches every quest boss added later for free - the
+ * same reason mtalkmsg was chosen over a name list.
+ *
+ * LevelHasMonsterType is not protection here: these types ARE loaded on the floor their quest owns,
+ * and PlaceLesserUniques runs after PlaceQuestMonsters, so that is precisely where they were
+ * reachable.
  */
 bool IsQuestUnique(const UniqueMonsterData &data)
 {
-	return data.mtalkmsg != TEXT_NONE;
+	if (data.mtalkmsg != TEXT_NONE)
+		return true;
+	return MonstersData[static_cast<size_t>(data.mtype)].availability == MonsterAvailability::Never;
 }
 
 /**
@@ -292,6 +313,16 @@ uint16_t RollLesserUniqueNameSeed()
 
 void TintLesserUnique(Monster &monster)
 {
+	// Oracool bug fix (2026-08-15, self-audit): LESSER uniques only. This guard was missing, and it
+	// did not matter while the only caller was PlaceLesserUniqueMonst - but the caller added to
+	// SyncMonsterAnim an hour earlier runs for EVERY unique on the level, on every load and every
+	// level entry. A scripted unique has lesserNameSeed 0, which decodes to a shift of -2, so Gharbad,
+	// Zhar, Lazarus, the Butcher and the rest were all quietly being repainted two shades darker.
+	//
+	// lesserAffix is the marker for "this is a lesser unique" - uniqueType cannot be, because a lesser
+	// unique IS a real UniqueMonsterType borrowing a champion's identity.
+	if (monster.lesserAffix == LesserUniqueAffix::None)
+		return;
 	if (!monster.uniqueMonsterTRN)
 		return;
 
@@ -340,6 +371,13 @@ std::string GetLesserUniqueName(const Monster &monster)
 	const char *given = GivenNames[seed % GivenNameCount];
 	const char *epithet = Epithets[(seed / GivenNameCount) % EpithetCount];
 	return StrCat(given, " ", _(epithet));
+}
+
+std::string GetMonsterDisplayName(const Monster &monster)
+{
+	if (monster.lesserAffix == LesserUniqueAffix::None)
+		return std::string(monster.name());
+	return StrCat(_(GetLesserUniqueAffixName(monster.lesserAffix)), " ", GetLesserUniqueName(monster));
 }
 
 void OnLesserUniqueKilled(Monster &monster)

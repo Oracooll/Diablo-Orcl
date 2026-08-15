@@ -144,5 +144,17 @@ void OnLesserUniqueKilled(Monster &monster);
  */
 std::string GetLesserUniqueName(const Monster &monster);
 
+/**
+ * @brief What to CALL @p monster anywhere the player will read it - the one authority.
+ *
+ * "Warded Malgrith the Unclean" for a lesser unique; its ordinary name for anything else.
+ *
+ * A function rather than two copies of the same StrCat, because there were about to be two and they
+ * had already diverged: the health bar composed the full name while MonsterDeath's kill log still
+ * printed monster.name(), so the player fought Malgrith and was told they had defeated Rotfeast. Any
+ * new place that names a monster should call this rather than assembling its own.
+ */
+std::string GetMonsterDisplayName(const Monster &monster);
+
 } // namespace oracool
 } // namespace devilution

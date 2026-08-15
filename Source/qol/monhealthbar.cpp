@@ -148,12 +148,8 @@ void DrawMonsterHealthBar(const Surface &out)
 	// It is also what stands in for the "shrunken in size" the user asked for. There is no scale
 	// parameter anywhere in the CLX renderer - see the design doc - and legibility, not literal size,
 	// is what that request was after.
-	std::string displayName;
-	string_view name = monster.name();
-	if (monster.lesserAffix != LesserUniqueAffix::None) {
-		displayName = StrCat(_(oracool::GetLesserUniqueAffixName(monster.lesserAffix)), " ", oracool::GetLesserUniqueName(monster));
-		name = displayName;
-	}
+	const std::string displayName = oracool::GetMonsterDisplayName(monster);
+	const string_view name = displayName;
 
 	DrawString(out, name, { position + Displacement { -1, 1 }, { width, height } }, { style | UiFlags::ColorBlack });
 	if (monster.isUnique())
