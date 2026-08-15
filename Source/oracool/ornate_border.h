@@ -126,6 +126,6 @@ void DrawHoverOutline(const Surface &out, Rectangle rect);
  * one-line spell and a three-line one both look deliberate, and flips to the other side of the
  * anchor rather than running off the edge.
  */
-void DrawHoverPanel(const Surface &out, string_view text, Rectangle anchor);
+void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor);
 
 } // namespace devilution::oracool

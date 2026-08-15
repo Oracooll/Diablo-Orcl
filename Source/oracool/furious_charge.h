@@ -27,15 +27,21 @@ bool IsFuriousChargeEnabled();
 bool IsFuriousChargeSpell(SpellID spellId);
 
 /**
- * @brief Oracool: user request - the borrowed icon used for Furious Charge's slot everywhere
- * it's drawn (the main panel indicator, the SpeedBook list, the spell book grid) - there's no
- * dedicated art for a mod-only skill, so this reuses an existing spell's icon instead. Uses Heal
- * Other rather than a Hellfire-exclusive spell (the earlier choice, Berserk) specifically so this
- * renders correctly with only the base Diablo MPQs - no hellfire.mpq/hfmonk.mpq/hfmusic.mpq/
- * hfvoice.mpq required just for one icon. Centralized here so every draw site shares one answer
- * rather than each picking its own.
+ * @brief The icon Charge's slot draws everywhere it appears - the skill wells, the SpeedBook list
+ * and the Abilities window.
+ *
+ * Oracool: user request (2026-08-15) - "Heal Other icon to be gone. it is not correct to be visible
+ * in the RMB or LMB." It was Heal Other: a borrowed icon chosen back when Charge had no art of its
+ * own, picked over a Hellfire-exclusive spell so it would render with only the base Diablo MPQs. The
+ * borrowing was always a placeholder and it read as the wrong ability, which is precisely the
+ * complaint.
+ *
+ * SpellID::Null is the engine's EMPTY plate (frame 26 of spelli2, the same square every skill icon
+ * now sits on), so Charge shows a bare slot rather than another spell's symbol. That is the honest
+ * state while the user redraws the skill icons: nothing claimed rather than something wrong. When
+ * Charge's own art ships in ui\paladin_skill_icons.png, this is where it gets pointed at it.
  */
-inline constexpr SpellID FuriousChargeIcon = SpellID::HealOther;
+inline constexpr SpellID FuriousChargeIcon = SpellID::Null;
 
 /**
  * @brief Oracool: user request - "Furious Charge" (translated) wherever a UI would otherwise show

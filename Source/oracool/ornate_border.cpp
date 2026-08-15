@@ -101,9 +101,9 @@ void DrawHoverOutline(const Surface &out, Rectangle rect)
 	DrawVerticalLine(out, { x + w - 1, y }, h, MidHighlightColor);
 }
 
-void DrawHoverPanel(const Surface &out, string_view text, Rectangle anchor)
+void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor)
 {
-	if (text.empty())
+	if (title.empty() && text.empty())
 		return;
 
 	// Wide enough for a sentence without becoming a paragraph, and narrow enough to sit beside the
@@ -133,8 +133,16 @@ void DrawHoverPanel(const Surface &out, string_view text, Rectangle anchor)
 		start = end + 1;
 	}
 
-	const int panelWidth = textWidth + 2 * Padding;
-	const int panelHeight = lines * lineHeight + 2 * Padding;
+	// Oracool: user request (2026-08-15) - "Put Skill name with Gold letters in the pop-up window."
+	// The name moved here because the rows themselves lost their text, so this is now the ONLY place
+	// a skill says what it is called. Gold rather than the body's white to keep the two apart at a
+	// glance, and measured into the panel's width so a long name widens the box rather than wrapping
+	// under the description.
+	const int titleWidth = title.empty() ? 0 : GetLineWidth(title, GameFont12, 1);
+	const int titleHeight = title.empty() ? 0 : lineHeight;
+
+	const int panelWidth = std::max(textWidth, titleWidth) + 2 * Padding;
+	const int panelHeight = titleHeight + lines * lineHeight + 2 * Padding;
 
 	// To the right of the row by default; flipped to its left when there is no room, so the panel
 	// never leaves the screen and never covers the thing it is describing.
@@ -150,9 +158,16 @@ void DrawHoverPanel(const Surface &out, string_view text, Rectangle anchor)
 	// Two passes: one is too sheer to read text over when the dungeon behind it is bright.
 	DrawThemedFill(out, panel, 2);
 	DrawOrnateBorder(out, panel);
-	DrawString(out, wrapped,
-	    { { px + Padding, py + Padding }, { textWidth, lines * lineHeight } },
-	    { UiFlags::ColorWhite, 1, lineHeight });
+	const int innerWidth = panelWidth - 2 * Padding;
+	if (!title.empty()) {
+		DrawString(out, title, { { px + Padding, py + Padding }, { innerWidth, lineHeight } },
+		    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter });
+	}
+	if (!wrapped.empty()) {
+		DrawString(out, wrapped,
+		    { { px + Padding, py + Padding + titleHeight }, { innerWidth, lines * lineHeight } },
+		    { UiFlags::ColorWhite, 1, lineHeight });
+	}
 }
 
 void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, UiFlags style)

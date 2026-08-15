@@ -1,4 +1,4 @@
-#include "panels/spell_book.hpp"
+﻿#include "panels/spell_book.hpp"
 
 #include <cstdint>
 
@@ -280,6 +280,7 @@ AbilitySheet CurrentSheet = AbilitySheet::Spells;
  * See the note at the bottom of DrawHoverFeedback: the panel has to be drawn after the HUD, and the
  * Abilities window is drawn long before it.
  */
+std::string PendingHoverTitle;
 std::string PendingHoverText;
 Rectangle PendingHoverAnchor;
 bool HasPendingHover = false;
@@ -480,7 +481,7 @@ int RowHeightAt(AbilitySheet sheet, size_t index)
 	const size_t count = BuildSkillsSheetRows(rows);
 	if (index >= count)
 		return SpellRowHeight;
-	return rows[index].kind == SkillRowKind::Paladin ? DescribedRowHeight : SpellRowHeight;
+	return SpellRowHeight; // uniform again since the sheet lost its text (2026-08-15)
 }
 
 /** @brief Total height of every row on @p sheet. */
@@ -663,17 +664,10 @@ void DrawAttackRow(const Surface &content, size_t index, int top)
 	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
 	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active);
 
-	const int textX = RowTextX();
-	const int textWidth = AbilitiesContentRightLimit - textX;
-	const UiFlags nameColor = active ? UiFlags::ColorWhitegold : UiFlags::ColorUiSilverDark;
-	const UiFlags detailColor = active ? UiFlags::ColorWhite : UiFlags::ColorUiSilverDark;
-	const int textTop = top + (SpellRowHeight - 2 * AbilitiesLineHeight) / 2;
-	DrawString(content, _(oracool::AttackIconName(icon)),
-	    { { textX, textTop }, { textWidth, AbilitiesLineHeight } },
-	    { nameColor | UiFlags::VerticalCenter });
-	DrawString(content, _(oracool::AttackIconDetail(icon, active)),
-	    { { textX, textTop + AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
-	    { detailColor | UiFlags::VerticalCenter });
+	// Oracool: user request (2026-08-15) - "Remove all text from Skills Ability sheet. I will later
+	// introduce skill runes which will take its place. Text will only be reachable through the pop-up
+	// window." So the row is the icon and nothing else; the name and description live in the hover
+	// panel, and the space the text used to fill is being kept for the runes.
 }
 
 void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
@@ -814,12 +808,23 @@ void DrawAuraRow(const Surface &content, size_t index, int top)
  * nothing, whereas "10 mana" is the one number a player needs before deciding to lean on it - and it
  * is the field the Barbarian sheet already established for "the thing to know at a glance".
  */
+/**
+ * @brief Charge and Zeal - icon only, like the rest of the Skills sheet.
+ *
+ * Oracool: user request (2026-08-15) stripped this sheet's text. These two used to be tall described
+ * rows carrying a name, a mana price, a wrapped description and a "Requires level N" line; all four
+ * moved to the hover panel, which is now the only place they appear. That also returned the sheet to
+ * a UNIFORM row height - the mixed-height walk BuildSkillsSheetRows exists for is currently
+ * academic, and is kept because the rune slots the user is planning will reintroduce the variety.
+ */
 void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, int top)
 {
-	const oracool::PaladinSkillData &data = oracool::GetPaladinSkillData(skill);
-	DrawDescribedRow(content, top, oracool::GetPaladinSkillIconIndex(skill), DescribedIcons::Paladin,
-	    oracool::IsPaladinSkillUnlocked(*InspectPlayer, skill), _(data.name),
-	    fmt::format(fmt::runtime(_("{:d} mana")), data.manaCost), _(data.description), data.minLevel);
+	Size iconSize = oracool::GetPaladinSkillIconSize();
+	if (iconSize.height == 0)
+		iconSize = oracool::GetSkillIconPlateSize();
+	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
+	oracool::DrawPaladinSkillIcon(content, iconPos, oracool::GetPaladinSkillIconIndex(skill),
+	    oracool::IsPaladinSkillUnlocked(*InspectPlayer, skill));
 }
 
 void DrawBarbSkillRow(const Surface &content, size_t index, int top)
@@ -996,6 +1001,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		return;
 
 	const int y = MousePosition.y - contentRect.position.y + scroll;
+	std::string title;
 	std::string description;
 	int rowTop = 0;
 	int rowHeight = 0;
@@ -1021,23 +1027,31 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		const size_t rowCount = BuildSkillsSheetRows(rows);
 		int top = 0;
 		for (size_t i = 0; i < rowCount && !found; i++) {
-			const int height = rows[i].kind == SkillRowKind::Paladin ? DescribedRowHeight : SpellRowHeight;
+			const int height = SpellRowHeight;
 			if (y >= top && y < top + height) {
 				rowTop = top;
 				rowHeight = height;
 				found = true;
 				switch (rows[i].kind) {
 				case SkillRowKind::Attack:
+					title = _(oracool::AttackIconName(rows[i].attack));
 					description = rows[i].attack == oracool::AttackIcon::Regular
 					    ? _("Swing whatever is in hand. What a click does when no spell is readied.")
 					    : _("Strike bare-handed. What Regular Attack becomes with no weapon held.");
 					break;
 				case SkillRowKind::Spell:
+					title = oracool::GetSpellDisplayName(rows[i].spell); // already translated
 					description = spellInfo(rows[i].spell);
 					break;
-				case SkillRowKind::Paladin:
-					description = _(oracool::GetPaladinSkillData(rows[i].paladin).description);
+				case SkillRowKind::Paladin: {
+					const oracool::PaladinSkillData &pd = oracool::GetPaladinSkillData(rows[i].paladin);
+					title = _(pd.name);
+					// The mana price and level gate lived on the row until the sheet lost its text.
+					description = std::string(_(pd.description)) + "\n\n"
+					    + fmt::format(fmt::runtime(_("Mana: {:d}")), pd.manaCost) + "\n"
+					    + fmt::format(fmt::runtime(_("Requires level {:d}")), pd.minLevel);
 					break;
+				}
 				}
 			}
 			top += height;
@@ -1052,11 +1066,13 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 			switch (CurrentSheet) {
 			case AbilitySheet::Auras: {
 				const oracool::Aura aura = oracool::GetAuraAtDisplayIndex(index);
+				title = _(oracool::GetAuraData(aura).name);
 				description = _(oracool::GetAuraData(aura).description);
 				break;
 			}
 			case AbilitySheet::Barbarian: {
 				const oracool::BarbSkill skill = oracool::GetBarbSkillAtDisplayIndex(index);
+				title = _(oracool::GetBarbSkillData(skill).name);
 				description = _(oracool::GetBarbSkillData(skill).description);
 				break;
 			}
@@ -1066,8 +1082,10 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 				const size_t rowCount = CurrentSheet == AbilitySheet::ClassSkills
 				    ? BuildClassSkillRows(rows)
 				    : BuildSpellRows(rows);
-				if (index < rowCount)
+				if (index < rowCount) {
+					title = oracool::GetSpellDisplayName(rows[index]); // already translated
 					description = spellInfo(rows[index]);
+				}
 				break;
 			}
 			case AbilitySheet::Skills:
@@ -1091,7 +1109,10 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	// So the row hands its text to DrawAbilityHoverPanel, which the frame calls beside the cursor
 	// tooltip - the slot already reserved for "above everything". The OUTLINE stays here on purpose:
 	// it belongs under the row's own icon and text, and inside the clipped content subregion.
-	if (!description.empty()) {
+	// Either half is enough to be worth showing: the Skills sheet's rows now carry NO text at all, so
+	// on that sheet the name in the panel is the only thing naming the icon under the cursor.
+	if (!description.empty() || !title.empty()) {
+		PendingHoverTitle = title;
 		PendingHoverText = description;
 		PendingHoverAnchor = { { contentRect.position.x, contentRect.position.y + rowTop - scroll },
 			{ AbilitiesContentRightLimit, rowHeight } };
@@ -1107,7 +1128,7 @@ void DrawAbilityHoverPanel(const Surface &out)
 	// it is ever called on a frame where the window closed after setting it, the panel must not
 	// survive into the next one.
 	HasPendingHover = false;
-	oracool::DrawHoverPanel(out, PendingHoverText, PendingHoverAnchor);
+	oracool::DrawHoverPanel(out, PendingHoverTitle, PendingHoverText, PendingHoverAnchor);
 }
 
 void DrawSpellBook(const Surface &out)
@@ -1156,7 +1177,7 @@ void DrawSpellBook(const Surface &out)
 		const size_t rowCount = BuildSkillsSheetRows(rows);
 		int top = -scroll;
 		for (size_t i = 0; i < rowCount; i++) {
-			const int height = rows[i].kind == SkillRowKind::Paladin ? DescribedRowHeight : SpellRowHeight;
+			const int height = SpellRowHeight;
 			if (top + height > 0 && top < AbilitiesContentSize.height) {
 				switch (rows[i].kind) {
 				case SkillRowKind::Attack:
@@ -1250,7 +1271,7 @@ void CheckSBook()
 		const size_t rowCount = BuildSkillsSheetRows(rows);
 		int top = 0;
 		for (size_t i = 0; i < rowCount; i++) {
-			const int height = rows[i].kind == SkillRowKind::Paladin ? DescribedRowHeight : SpellRowHeight;
+			const int height = SpellRowHeight;
 			if (y >= top && y < top + height) {
 				switch (rows[i].kind) {
 				case SkillRowKind::Attack:
