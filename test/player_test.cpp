@@ -150,7 +150,12 @@ static void AssertPlayer(devilution::Player &player)
 	ASSERT_EQ(player._pRSpell, SpellID::TrapDisarm);
 	ASSERT_EQ(player._pRSplType, SpellType::Skill);
 	ASSERT_EQ(player._pSBkSpell, SpellID::Null);
-	ASSERT_EQ(player._pAblSpells, 134217728);
+	// Oracool (2026-08-15): every class is born with all six innate skills, not just its own, so this
+	// is their combined bitmask rather than TrapDisarm's alone (which was 134217728 = 1 << 27).
+	// Bits, by SpellID ordinal: Identify 5, Rage 22, ItemRepair 26, StaffRecharge 27, TrapDisarm 28,
+	// Search 46. The READIED spell above is still the Rogue's own, which is the part that identifies
+	// the class - only what she knows has widened.
+	ASSERT_EQ(player._pAblSpells, 35184609067024ULL);
 	ASSERT_EQ(player._pScrlSpells, 0);
 	ASSERT_EQ(player._pSpellFlags, SpellFlag::None);
 	ASSERT_EQ(player._pBlockFlag, 0);

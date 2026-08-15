@@ -44,6 +44,7 @@ set(libdevilutionx_SRCS
   oracool/attack_skills.cpp
   oracool/auras.cpp
   oracool/barb_skills.cpp
+  oracool/class_skills.cpp
   oracool/furious_charge.cpp
   oracool/game_clock.cpp
   oracool/gradual_healing.cpp

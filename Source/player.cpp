@@ -39,6 +39,7 @@
 #include "options.h"
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
+#include "oracool/class_skills.h"
 #include "oracool/furious_charge.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/gradual_healing.h"
@@ -2372,7 +2373,10 @@ void CreatePlayer(Player &player, HeroClass c)
 
 	player._pRSplType = SpellType::Skill;
 	SpellID s = playerData.skill;
-	player._pAblSpells = GetSpellBitmask(s);
+	// Oracool: user request (2026-08-15) - every class is born with all six innate skills, not just
+	// its own. The class's own remains the one READIED, so a new character still starts with the
+	// weapon-repair/trap-disarm/etc. that identifies it.
+	player._pAblSpells = oracool::AllClassSkillsBitmask();
 	player._pRSpell = s;
 
 	if (c == HeroClass::Sorcerer) {
@@ -2622,8 +2626,9 @@ void InitPlayer(Player &player, bool firstTime)
 		ActivateVision(player.position.tile, player._pLightRad, player.getId());
 	}
 
-	SpellID s = PlayersData[static_cast<size_t>(player._pClass)].skill;
-	player._pAblSpells = GetSpellBitmask(s);
+	// Oracool: all six, as at creation. This runs on every load, which is what lets a character made
+	// before 2026-08-15 pick up the other five without a save migration.
+	player._pAblSpells = oracool::AllClassSkillsBitmask();
 
 	player._pNextExper = ExpLvlsTbl[std::min<int8_t>(player._pLevel, MaxCharacterLevel - 1)];
 	player._pInvincible = false;

@@ -18,6 +18,7 @@
 #include "missiles.h"
 #include "oracool/attack_skills.h"
 #include "oracool/auras.h"
+#include "oracool/class_skills.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/barb_skills.h"
 #include "oracool/furious_charge.h"
@@ -46,7 +47,11 @@ const SpellID SpellPages[SpellBookPages][SpellBookPageEntries] = {
 	{ SpellID::Resurrect, SpellID::FireWall, SpellID::Telekinesis, SpellID::Lightning, SpellID::TownPortal, SpellID::Flash, SpellID::StoneCurse },
 	{ SpellID::Phasing, SpellID::ManaShield, SpellID::Elemental, SpellID::Fireball, SpellID::FlameWave, SpellID::ChainLightning, SpellID::Guardian },
 	{ SpellID::Nova, SpellID::Golem, SpellID::Teleport, SpellID::Apocalypse, SpellID::BoneSpirit, SpellID::BloodStar, SpellID::Etherealize },
-	{ SpellID::LightningWall, SpellID::Immolation, SpellID::Warp, SpellID::Reflect, SpellID::Berserk, SpellID::RingOfFire, SpellID::Search },
+	// Search was here, and it was the one class skill that also sat in the book's page table - so a
+	// Monk saw it on two sheets and everyone else saw a row they could never learn (it has no book).
+	// It is a Class Skill now, like the other five. Its slot takes Doom Serpents, one of the four
+	// spells given books on 2026-08-15.
+	{ SpellID::LightningWall, SpellID::Immolation, SpellID::Warp, SpellID::Reflect, SpellID::Berserk, SpellID::RingOfFire, SpellID::DoomSerpents },
 	{ SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid, SpellID::Invalid }
 };
 
@@ -134,6 +139,25 @@ size_t BuildSpellRows(SpellID *rows)
 }
 
 /**
+ * @brief Fills @p rows with the Class Skills sheet's entries. Returns how many.
+ *
+ * All six, to every class (user request 2026-08-15) - see oracool/class_skills.h. The one omission
+ * is Item Repair while it is rendering as the Paladin's Charge: that has its own described row on
+ * the Skills sheet, with a level gate and a mana price this compact row could not show, and listing
+ * it twice under one name would be the same duplicate Search used to be.
+ */
+size_t BuildClassSkillRows(SpellID *rows)
+{
+	size_t count = 0;
+	for (const SpellID skill : oracool::ClassSkills) {
+		if (oracool::IsFuriousChargeSpell(skill))
+			continue;
+		rows[count++] = skill;
+	}
+	return count;
+}
+
+/**
  * @brief Fills @p rows with the SPELL-backed skills the Skills sheet lists. Returns how many.
  *
  * The two basic attacks are listed ahead of these and are not in here, because they are not spells -
@@ -145,13 +169,13 @@ size_t BuildSpellRows(SpellID *rows)
  * cannot be clicked to any effect. Everything the window does with a row - ready it, price it in
  * mana, grey it when unlearned - is meaningless for it.
  */
-size_t BuildSkillRows(SpellID *rows)
+size_t BuildSkillRows(SpellID * /*rows*/)
 {
-	size_t count = 0;
-	const SpellID skill = GetClassSkill();
-	if (IsValidSpell(skill))
-		rows[count++] = skill;
-	return count;
+	// Empty since 2026-08-15: the class skill that used to be this sheet's one spell-backed row now
+	// lives on the Class Skills sheet with the other five. Kept as a function rather than deleted
+	// because the Skills sheet is where a future spell-backed skill would go, and its caller already
+	// threads the result through BuildSkillsSheetRows.
+	return 0;
 }
 
 /**
@@ -222,11 +246,12 @@ constexpr Size ArrowHitSize { 28, 28 };
 enum class AbilitySheet : uint8_t {
 	Spells,
 	Skills,
+	ClassSkills,
 	Auras,
 	Barbarian,
 	LAST = Barbarian,
 };
-constexpr size_t AbilitySheetCount = 4;
+constexpr size_t AbilitySheetCount = 5;
 
 AbilitySheet CurrentSheet = AbilitySheet::Spells;
 /** @brief Scroll offset per sheet, so switching sheets does not lose your place in the others. */
@@ -272,8 +297,11 @@ bool IsSheetAvailable(AbilitySheet sheet)
 	case AbilitySheet::Barbarian:
 		return !ClassAbilitySheetsHidden && oracool::ClassHasBarbSkills(*InspectPlayer);
 	case AbilitySheet::Skills:
-		// Always: every class has an innate skill, so this sheet is never empty and is the safe
-		// landing place when nothing else is available.
+		// Always: every class has the two basic attacks, so this sheet is never empty and is the
+		// safe landing place when nothing else is available.
+		break;
+	case AbilitySheet::ClassSkills:
+		// Always, and that is the point of it: as of 2026-08-15 every class has all six.
 		break;
 	}
 	return true;
@@ -315,6 +343,8 @@ string_view GetSheetTitle(AbilitySheet sheet)
 		return _("SPELLS");
 	case AbilitySheet::Skills:
 		return _("SKILLS");
+	case AbilitySheet::ClassSkills:
+		return _("CLASS SKILLS");
 	case AbilitySheet::Auras:
 		return _("AURAS");
 	case AbilitySheet::Barbarian:
@@ -402,6 +432,8 @@ size_t GetRowCount(AbilitySheet sheet)
 		SkillRow skillRows[MaxSkillSheetRows];
 		return BuildSkillsSheetRows(skillRows);
 	}
+	case AbilitySheet::ClassSkills:
+		return BuildClassSkillRows(rows);
 	case AbilitySheet::Auras:
 		return oracool::AuraCount;
 	case AbilitySheet::Barbarian:
@@ -900,9 +932,13 @@ void DrawSpellBook(const Surface &out)
 	}
 
 	SpellID rows[MaxSpellRows];
-	const size_t rowCount = CurrentSheet == AbilitySheet::Spells
-	    ? BuildSpellRows(rows)
-	    : GetRowCount(CurrentSheet);
+	size_t rowCount = 0;
+	if (CurrentSheet == AbilitySheet::Spells)
+		rowCount = BuildSpellRows(rows);
+	else if (CurrentSheet == AbilitySheet::ClassSkills)
+		rowCount = BuildClassSkillRows(rows);
+	else
+		rowCount = GetRowCount(CurrentSheet);
 
 	for (size_t i = 0; i < rowCount; i++) {
 		const int top = static_cast<int>(i) * rowHeight - scroll;
@@ -916,6 +952,7 @@ void DrawSpellBook(const Surface &out)
 			DrawBarbSkillRow(content, i, top);
 			break;
 		case AbilitySheet::Spells:
+		case AbilitySheet::ClassSkills:
 			DrawSpellRow(content, i, rows[i], top);
 			break;
 		case AbilitySheet::Skills:
@@ -1008,7 +1045,9 @@ void CheckSBook()
 			return;
 	} else {
 		SpellID rows[MaxSpellRows];
-		const size_t rowCount = BuildSpellRows(rows);
+		const size_t rowCount = CurrentSheet == AbilitySheet::ClassSkills
+		    ? BuildClassSkillRows(rows)
+		    : BuildSpellRows(rows);
 		const size_t rowIndex = static_cast<size_t>(y / RowHeightFor(CurrentSheet));
 		if (rowIndex >= rowCount)
 			return;
