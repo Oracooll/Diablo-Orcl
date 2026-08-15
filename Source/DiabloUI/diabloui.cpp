@@ -1029,7 +1029,7 @@ namespace {
  * big one, and the settings rows keep the small. Floored at FOCUS_SMALL because there is nothing
  * below it.
  */
-void DrawSelector(const SDL_Rect &rect)
+void DrawSelector(const SDL_Rect &rect, bool dimmed = false)
 {
 	const int size = rect.h >= 42 ? FOCUS_MED : FOCUS_SMALL;
 	if (!ArtFocus[size])
@@ -1039,6 +1039,26 @@ void DrawSelector(const SDL_Rect &rect)
 
 	const int y = rect.y + (rect.h - static_cast<int>(sprite.height())) / 2;
 	const Surface &out = Surface(DiabloUiSurface());
+
+	// Oracool: user request (2026-08-15) - "when on hero list and i click DELETE the pentagram moves
+	// to delete, but i also need one on the character that was selected. maybe leave a gray cloned
+	// rotating pentagram until i select another hero?"
+	//
+	// Half-transparency rather than a grey translation table, and that is a deliberate choice: the
+	// front end's palette comes from whichever background art is loaded, so a table mapping gold to
+	// grey would have to be rebuilt per screen and would be wrong the first time a background
+	// changed. Blending is palette-independent - the pentagram sinks halfway into whatever is behind
+	// it - and reads as the same "present but not active" either way.
+	//
+	// Still ANIMATED, as asked: it is a clone of the selector, not a static mark, and it goes on
+	// pointing at the row the buttons will act upon.
+	if (dimmed) {
+		// ClxDrawBlended anchors at the sprite's BOTTOM, where RenderClxSprite anchors at its top.
+		const int bottom = y + static_cast<int>(sprite.height()) - 1;
+		ClxDrawBlended(out, { rect.x, bottom }, sprite);
+		ClxDrawBlended(out, { rect.x + rect.w - static_cast<int>(sprite.width()), bottom }, sprite);
+		return;
+	}
 	RenderClxSprite(out, sprite, { rect.x, y });
 	RenderClxSprite(out, sprite, { rect.x + rect.w - sprite.width(), y });
 }
@@ -1264,13 +1284,17 @@ void Render(const UiList &uiList)
 		// stop disagreeing about where the middle is. On the main menu that is a 44px disagreement.
 		const Rectangle rectangle = LabelRect(rect);
 		const UiFlags flags = uiList.GetFlags() | item.uiFlags | CenteredInBox;
-		const bool focused = i == SelectedItem && !UiListSelectorHidden;
+		// The selected row keeps its pentagrams even while a button holds focus - dimmed, to say the
+		// focus is elsewhere while still naming the row that focus came from and will return to. It
+		// used to vanish entirely, which left "Delete" with nothing on screen saying WHICH hero it
+		// meant. See DrawSelector.
+		const bool selected = i == SelectedItem;
 
 		// Before the text, not after: with the label now inset between them nothing overlaps either
 		// way, and this only decides which is on top in the degenerate case where LabelRect gave up
 		// because the row was too narrow to inset at all.
-		if (focused)
-			DrawSelector(rect);
+		if (selected)
+			DrawSelector(rect, /*dimmed=*/UiListSelectorHidden);
 
 		if (item.args.empty()) {
 			// Multi-line bodies are left alone: they arrive pre-wrapped (see CenteredInBox above), so
