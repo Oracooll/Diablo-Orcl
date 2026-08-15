@@ -235,6 +235,26 @@ int ListHeight = 0;
 /** @brief Set while an arrow is held, purely so it can be drawn pressed. */
 int PressedArrow = 0;
 
+/**
+ * @brief Oracool: user request (2026-08-15) - "hide SKILLS abilities pages in Paladin and Barb for
+ * now. We will reintroduce them when they are more developed."
+ *
+ * The Auras sheet (Paladin) and the Barbarian sheet are finished as LISTS - names, descriptions,
+ * tiers, icons, unlock-by-level - and completely inert in play. Selecting one has no combat effect,
+ * and there is not even anywhere to record a choice: oracool/auras.h's doc comment points at
+ * "ActiveAura on Player" and no such member exists anywhere in the codebase. A page of things that
+ * cannot be used reads as a bug rather than as a promise, so both wait for the Skills system - the
+ * same gate already holding Furious Charge and the Warrior splash (both fully implemented and
+ * returning false, see oracool/furious_charge.cpp and warrior_splash.cpp).
+ *
+ * Gated HERE and not in ClassHasAuras/ClassHasBarbSkills deliberately. Those answer "does this class
+ * have auras at all", which is still true, and is the question the unlock-by-level checks inside
+ * oracool/auras.cpp and barb_skills.cpp ask of themselves. This flag answers the different question
+ * of whether the window should offer the page yet. Reintroducing them is deleting this constant and
+ * the two terms below - nothing else has to be remembered.
+ */
+constexpr bool ClassAbilitySheetsHidden = true;
+
 /** @brief Whether @p sheet is available to this character. */
 bool IsSheetAvailable(AbilitySheet sheet)
 {
@@ -247,9 +267,9 @@ bool IsSheetAvailable(AbilitySheet sheet)
 		// list of things a Paladin can genuinely learn.
 		break;
 	case AbilitySheet::Auras:
-		return oracool::ClassHasAuras(*InspectPlayer);
+		return !ClassAbilitySheetsHidden && oracool::ClassHasAuras(*InspectPlayer);
 	case AbilitySheet::Barbarian:
-		return oracool::ClassHasBarbSkills(*InspectPlayer);
+		return !ClassAbilitySheetsHidden && oracool::ClassHasBarbSkills(*InspectPlayer);
 	case AbilitySheet::Skills:
 		// Always: every class has an innate skill, so this sheet is never empty and is the safe
 		// landing place when nothing else is available.
