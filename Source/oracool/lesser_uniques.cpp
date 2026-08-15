@@ -9,6 +9,7 @@
 #include "monster.h"
 #include "options.h"
 #include "utils/language.h"
+#include "utils/str_cat.hpp"
 
 namespace devilution::oracool {
 
@@ -57,6 +58,61 @@ bool IsUniqueAlreadyPlaced(UniqueMonsterType type)
 	return false;
 }
 
+/**
+ * @brief The namebook - given names and epithets, combined rather than listed.
+ *
+ * Oracool: user request (2026-08-15) - "you can rename them randomly. make a thousand random names
+ * namebook and draw from there."
+ *
+ * A thousand names, but not a thousand strings. 50 given names against 26 epithets is 1,300
+ * combinations from 76 entries, which is the same variety at a fifteenth of the size - and it stays
+ * editable: adding one given name adds twenty-six names, not one. A literal list of a thousand would
+ * also have to be translated a thousand times.
+ *
+ * This is what makes a repeated champion honest. The user's earlier constraint - never two Rotfeasts
+ * on a floor - stops being a constraint when the second one is called something else entirely; the
+ * SPRITE repeats, which is unavoidable on a floor that loads four monster types, but the character
+ * does not.
+ */
+const char *const GivenNames[] = {
+	"Malgrith", "Vorgath", "Skarn", "Yzrel", "Thagrim", "Nurvok", "Ashvane", "Belgor",
+	"Cythrak", "Dreggan", "Ekthar", "Falgrim", "Ghorrim", "Hesk", "Ithrune", "Jarnok",
+	"Kelvorn", "Lurghan", "Mordrek", "Naskul", "Orvath", "Prygg", "Quorrin", "Rhaskel",
+	"Sythrin", "Tormund", "Ulgrek", "Vashk", "Wrethan", "Xarphel", "Yggron", "Zelkath",
+	"Braugh", "Crellik", "Draskin", "Emberok", "Fenrig", "Grosvane", "Halgrin", "Ixthal",
+	"Jorvath", "Kraggen", "Lysshen", "Morrow", "Nyxhal", "Oskaran", "Pelthar", "Rukkath",
+	"Sorrell", "Tzavik",
+};
+constexpr size_t GivenNameCount = sizeof(GivenNames) / sizeof(GivenNames[0]);
+
+/**
+ * @brief The epithet half, marked for translation where the given names are not.
+ *
+ * A given name is an invented proper noun - "Malgrith" is Malgrith in every language, and asking a
+ * translator to render it would produce fifty entries of busywork that all come back unchanged. An
+ * epithet is an English phrase and reads as one, so these are the half worth extracting.
+ */
+const char *const Epithets[] = {
+	N_("the Unclean"), N_("the Flayer"), N_("the Gravebound"), N_("the Wretched"), N_("the Devourer"),
+	N_("the Hollow"), N_("the Blightborn"), N_("the Sundered"), N_("the Pale"), N_("the Rotting"),
+	N_("the Merciless"), N_("the Forsaken"), N_("the Cruel"), N_("the Undying"), N_("the Ravenous"),
+	N_("the Defiler"), N_("the Skinless"), N_("the Wailing"), N_("the Corpsemaker"), N_("the Blackened"),
+	N_("the Vile"), N_("the Faithless"), N_("the Gorged"), N_("the Marrowdrinker"), N_("the Twisted"),
+	N_("the Nameless"),
+};
+constexpr size_t EpithetCount = sizeof(Epithets) / sizeof(Epithets[0]);
+
+/** @brief Whether a champion of @p type on this level already carries @p affix. */
+bool IsAffixUsedBy(UniqueMonsterType type, LesserUniqueAffix affix)
+{
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const Monster &monster = Monsters[ActiveMonsters[i]];
+		if (monster.uniqueType == type && monster.lesserAffix == affix)
+			return true;
+	}
+	return false;
+}
+
 } // namespace
 
 std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned)
@@ -64,7 +120,14 @@ std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned)
 	// Collected rather than sampled-until-hit: the candidate set is usually small (a level loads a
 	// handful of monster types, and only some have champions written for them), so rejection sampling
 	// could spin for a long time or miss a level's only candidate entirely.
-	std::vector<UniqueMonsterType> candidates;
+	//
+	// Two lists, because a repeat is ACCEPTABLE but not PREFERRED. Shallow floors load few monster
+	// types and so have few champions written for them, and Torment wanting six packs on level 2 was
+	// simply getting fewer - the level ran out of distinct identities and stopped. A second Rotfeast
+	// with a different modifier is a better answer than an empty floor (user call, 2026-08-15), but
+	// only once every unused champion has been spent.
+	std::vector<UniqueMonsterType> fresh;
+	std::vector<UniqueMonsterType> repeats;
 	for (size_t i = 0; UniqueMonstersData[i].mtype != -1; i++) {
 		const UniqueMonsterData &data = UniqueMonstersData[i];
 		if (IsQuestUnique(data))
@@ -73,14 +136,18 @@ std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned)
 			continue;
 		if (!LevelHasMonsterType(data.mtype))
 			continue;
-		if (IsUniqueAlreadyPlaced(static_cast<UniqueMonsterType>(i)))
-			continue;
-		candidates.push_back(static_cast<UniqueMonsterType>(i));
+
+		const auto type = static_cast<UniqueMonsterType>(i);
+		if (IsUniqueAlreadyPlaced(type))
+			repeats.push_back(type);
+		else
+			fresh.push_back(type);
 	}
 
-	if (candidates.empty())
+	const std::vector<UniqueMonsterType> &pool = !fresh.empty() ? fresh : repeats;
+	if (pool.empty())
 		return std::nullopt;
-	return candidates[GenerateRnd(static_cast<int32_t>(candidates.size()))];
+	return pool[GenerateRnd(static_cast<int32_t>(pool.size()))];
 }
 
 int LesserUniqueCountForLevel()
@@ -122,12 +189,27 @@ int LesserUniqueCountForLevel()
 	return std::max(packs * *sgOptions.Oracool.lesserUniqueDensityPercent / 100, 1);
 }
 
-LesserUniqueAffix RollLesserUniqueAffix()
+LesserUniqueAffix RollLesserUniqueAffix(UniqueMonsterType forType)
 {
 	// From 1, not 0: a lesser unique always carries something. A champion with no modifier is just a
 	// monster with more health, and the point of the system is that each one is a different fight.
-	const int count = static_cast<int>(LesserUniqueAffix::LAST);
-	return static_cast<LesserUniqueAffix>(1 + GenerateRnd(count));
+	//
+	// And when this identity is already on the floor - which happens once a level wants more packs
+	// than it has distinct champions - the modifier MUST differ. That is the whole justification for
+	// allowing the repeat: a second Warded Rotfeast is the same fight twice, where a Thunderous one
+	// is a new one wearing a familiar face.
+	std::vector<LesserUniqueAffix> available;
+	for (int i = 1; i <= static_cast<int>(LesserUniqueAffix::LAST); i++) {
+		const auto affix = static_cast<LesserUniqueAffix>(i);
+		if (!IsAffixUsedBy(forType, affix))
+			available.push_back(affix);
+	}
+
+	// Every modifier already spent on this identity - a floor with six packs and two champions can
+	// reach that. Repeating one is better than refusing to place, and the pairing is still novel.
+	if (available.empty())
+		return static_cast<LesserUniqueAffix>(1 + GenerateRnd(static_cast<int>(LesserUniqueAffix::LAST)));
+	return available[GenerateRnd(static_cast<int32_t>(available.size()))];
 }
 
 const char *GetLesserUniqueAffixName(LesserUniqueAffix affix)
@@ -186,6 +268,54 @@ void OnLesserUniqueDealtDamage(Monster &monster, int damage)
 	// fight without being able to out-heal a player who is winning.
 	constexpr int VampiricPercent = 33;
 	monster.hitPoints = std::min(monster.hitPoints + damage * VampiricPercent / 100, monster.maxHitPoints);
+}
+
+void TintLesserUnique(Monster &monster)
+{
+	if (!monster.uniqueMonsterTRN)
+		return;
+
+	// Oracool: user request (2026-08-15) - "you can just recolor them a little bit." A floor that
+	// loads four monster types will show the same sprite twice however the champions are named, so
+	// the palette does the rest of the work the name started.
+	//
+	// A step or two ALONG each colour's own 16-shade ramp, not a hue change: the champion stays
+	// recognisably what it is and reads a little paler or a little darker than its twin. Anything
+	// stronger and the game's existing unique palettes - which are hand-picked per champion - stop
+	// meaning what they were chosen to mean.
+	const int shift = static_cast<int>(monster.aiSeed % 5) - 2; // -2..+2, and 0 is a valid outcome
+	if (shift == 0)
+		return;
+
+	uint8_t *trn = monster.uniqueMonsterTRN.get();
+	for (int i = 0; i < 256; i++) {
+		const uint8_t mapped = trn[i];
+		// Entries below 128 are the level-specific half of the palette, which differs per dungeon
+		// type - shifting inside it would change colour unpredictably from floor to floor.
+		if (mapped < 128)
+			continue;
+		const int ramp = mapped & 0xF0;
+		const int within = (mapped & 0x0F) + shift;
+		// Clamped by SKIPPING rather than by saturating: a colour at the end of its ramp stays put,
+		// where saturating would pile several shades onto the same index and flatten the shading.
+		if (within < 0 || within > 15)
+			continue;
+		trn[i] = static_cast<uint8_t>(ramp | within);
+	}
+}
+
+std::string GetLesserUniqueName(const Monster &monster)
+{
+	// Derived from aiSeed rather than stored, and that is the whole trick: aiSeed is already per
+	// monster AND already saved, so a champion keeps its name across a save and reload without this
+	// costing a field, a string table, or another look at the save format.
+	//
+	// Two independent draws from one seed - the division moves to a different part of the number, so
+	// the given name and the epithet do not march in lockstep as the seed increments.
+	const uint32_t seed = monster.aiSeed;
+	const char *given = GivenNames[seed % GivenNameCount];
+	const char *epithet = Epithets[(seed / GivenNameCount) % EpithetCount];
+	return StrCat(given, " ", _(epithet));
 }
 
 void OnLesserUniqueKilled(Monster &monster)

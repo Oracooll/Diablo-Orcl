@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 
 namespace devilution {
 
@@ -79,8 +80,14 @@ std::optional<UniqueMonsterType> ChooseLesserUnique(bool excludeLevelOwned = tru
 /** @brief How many lesser uniques this level should try to host. */
 int LesserUniqueCountForLevel();
 
-/** @brief Rolls a modifier for a new champion. Never None - a lesser unique always has one. */
-LesserUniqueAffix RollLesserUniqueAffix();
+/**
+ * @brief Rolls a modifier for a new champion. Never None - a lesser unique always has one.
+ *
+ * Prefers a modifier no champion of @p forType on this level already carries. That matters only when
+ * an identity repeats, which happens once a floor wants more packs than it has distinct champions -
+ * and a repeat is only worth allowing if the second one is a DIFFERENT fight.
+ */
+LesserUniqueAffix RollLesserUniqueAffix(UniqueMonsterType forType);
 
 /** @brief The word that goes in front of a champion's name, e.g. "Warded". */
 const char *GetLesserUniqueAffixName(LesserUniqueAffix affix);
@@ -101,8 +108,25 @@ void ApplyLesserUniqueAffix(Monster &monster);
  */
 void OnLesserUniqueDealtDamage(Monster &monster, int damage);
 
+/** @brief Oracool: shifts a champion's palette a shade or two, so a repeated sprite still differs. */
+void TintLesserUnique(Monster &monster);
+
 /** @brief Oracool: a champion's on-death modifier - Thunderous discharges here. */
 void OnLesserUniqueKilled(Monster &monster);
+
+/**
+ * @brief A lesser unique's own name, e.g. "Malgrith the Unclean".
+ *
+ * Oracool: user request (2026-08-15) - "you can rename them randomly. make a thousand random names
+ * namebook and draw from there." 50 given names against 26 epithets, so 1,300 combinations without
+ * a thousand literal strings to write, translate and maintain.
+ *
+ * Derived from the monster's aiSeed, which is already per-monster and already saved - so the name
+ * survives a save and reload without costing a field or another look at the save format. It also
+ * makes a repeated CHAMPION harmless: the sprite may recur on a floor that loads four monster types,
+ * but the character never does.
+ */
+std::string GetLesserUniqueName(const Monster &monster);
 
 } // namespace oracool
 } // namespace devilution

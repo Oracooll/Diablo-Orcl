@@ -134,11 +134,16 @@ void DrawMonsterHealthBar(const Surface &out)
 
 	UiFlags style = UiFlags::AlignCenter | UiFlags::VerticalCenter;
 
-	// Oracool: a lesser unique wears its modifier in front of its name - "Warded Rotfeast the
-	// Hungry". This bar is the ONLY place a monster's name reaches the player (the cursor tooltip
-	// stopped carrying monsters on an earlier request), so it is the only place the modifier can be
-	// learned, and learning it is the whole point: a champion the player cannot read is just a
-	// monster that unaccountably takes longer to kill.
+	// Oracool: a lesser unique wears its modifier in front of a name of its OWN - "Warded Malgrith
+	// the Unclean", not "Warded Rotfeast the Hungry". The borrowed champion's name is dropped
+	// entirely, because a lesser unique borrows a sprite and a stat line, not an identity; keeping
+	// the original name would tell the player they had met the floor's real champion when they had
+	// not, and would make a repeated identity read as a duplication bug.
+	//
+	// This bar is the ONLY place a monster's name reaches the player (the cursor tooltip stopped
+	// carrying monsters on an earlier request), so it is the only place either the modifier or the
+	// name can be learned - and learning them is the whole point: a champion the player cannot read
+	// is just a monster that unaccountably takes longer to kill.
 	//
 	// It is also what stands in for the "shrunken in size" the user asked for. There is no scale
 	// parameter anywhere in the CLX renderer - see the design doc - and legibility, not literal size,
@@ -146,7 +151,7 @@ void DrawMonsterHealthBar(const Surface &out)
 	std::string displayName;
 	string_view name = monster.name();
 	if (monster.lesserAffix != LesserUniqueAffix::None) {
-		displayName = StrCat(_(oracool::GetLesserUniqueAffixName(monster.lesserAffix)), " ", name);
+		displayName = StrCat(_(oracool::GetLesserUniqueAffixName(monster.lesserAffix)), " ", oracool::GetLesserUniqueName(monster));
 		name = displayName;
 	}
 
