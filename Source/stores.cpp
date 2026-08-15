@@ -3123,6 +3123,17 @@ void UpdateSmithConsumablesStockAfterPurchaseForTest(size_t index)
 	UpdateSmithConsumablesStockAfterPurchase(entry);
 }
 
+void SimulateSmithPremiumBuyForTest(int selectedIndex, Item &item)
+{
+	// The held-selection encoding SmithBuyPItem re-derives its index from: with lhold == up the
+	// row term is zero and vhold carries the whole visible index, which is how ConfirmEnter's
+	// restore presents it too.
+	stextvhold = selectedIndex;
+	stextlhold = 0;
+	stextup = 0;
+	SmithBuyPItem(item);
+}
+
 bool SimulateSmithConsumablesPurchaseForTest(size_t combinedIndex)
 {
 	// Mirrors WitchBuyEnter() + ConfirmEnter()'s SmithConsumables case exactly (probe,

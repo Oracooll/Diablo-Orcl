@@ -31,6 +31,7 @@ set(tests
   loadsave_test
   math_test
   missiles_test
+  oracool_audit_test
   pack_test
   path_test
   player_test

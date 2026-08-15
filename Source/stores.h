@@ -70,11 +70,11 @@ DVL_API_FOR_TEST void SimulateStorytellerIdentifyForTest(size_t index);
 /** Items sold by Griswold */
 extern DVL_API_FOR_TEST Item smithitem[SMITH_ITEMS];
 /** Number of premium items for sale by Griswold */
-extern int numpremium;
+extern DVL_API_FOR_TEST int numpremium;
 /** Base level of current premium items sold by Griswold */
 extern int premiumlevel;
 /** Premium items sold by Griswold */
-extern Item premiumitems[SMITH_PREMIUM_ITEMS];
+extern DVL_API_FOR_TEST Item premiumitems[SMITH_PREMIUM_ITEMS];
 
 /** Items sold by Pepin */
 extern DVL_API_FOR_TEST Item healitem[20];
@@ -98,6 +98,11 @@ int ResolveBackRowClickLine(int mouseX, int uiLeft);
 void UpdateSmithConsumablesStockAfterPurchaseForTest(size_t index);
 /** Simulates clicking a SmithConsumables item and confirming the purchase, exactly as the real UI would. Returns whether the confirm screen was reached (false = probe reported no room). */
 bool SimulateSmithConsumablesPurchaseForTest(size_t combinedIndex);
+/** Sets the held store selection to visible row @p selectedIndex and runs the premium-buy
+ * completion, exactly as ConfirmEnter would. Exposed so the audit regression tests can pin the
+ * stale-row guard: a selection past the live premium stock must charge nothing, place nothing and
+ * clear nothing (self-audit, 2026-08-15). */
+void SimulateSmithPremiumBuyForTest(int selectedIndex, Item &item);
 
 /** Current level of the item sold by Wirt */
 extern int boylevel;

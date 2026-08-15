@@ -1,6 +1,7 @@
 #include "oracool/lesser_uniques.h"
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include "engine/random.hpp"
@@ -371,6 +372,15 @@ std::string GetLesserUniqueName(const Monster &monster)
 	const char *given = GivenNames[seed % GivenNameCount];
 	const char *epithet = Epithets[(seed / GivenNameCount) % EpithetCount];
 	return StrCat(given, " ", _(epithet));
+}
+
+int IsQuestUniqueForTest(const char *mName)
+{
+	for (size_t i = 0; UniqueMonstersData[i].mtype != -1; i++) {
+		if (std::strcmp(UniqueMonstersData[i].mName, mName) == 0)
+			return IsQuestUnique(UniqueMonstersData[i]) ? 1 : 0;
+	}
+	return -1;
 }
 
 std::string GetMonsterDisplayName(const Monster &monster)

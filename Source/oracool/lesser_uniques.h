@@ -156,5 +156,18 @@ std::string GetLesserUniqueName(const Monster &monster);
  */
 std::string GetMonsterDisplayName(const Monster &monster);
 
+/**
+ * @brief Test seam: whether the unique named @p mName (untranslated, as in UniqueMonstersData) is
+ * quest content ChooseLesserUnique must never borrow. -1 if no unique has that name, 0 if it is a
+ * borrowable champion, 1 if it is quest content.
+ *
+ * Exposes the internal IsQuestUnique so the audit regression tests can pin the classification -
+ * both halves of it, the mtalkmsg test AND the MonsterAvailability::Never test added when the four
+ * silent quest bosses (Skeleton King, Butcher, Hork Demon, Na-Krul) were found spawnable
+ * (self-audit, 2026-08-15). Looks the name up here rather than taking an index so the test does not
+ * need UniqueMonstersData itself exported from the DLL.
+ */
+int IsQuestUniqueForTest(const char *mName);
+
 } // namespace oracool
 } // namespace devilution
