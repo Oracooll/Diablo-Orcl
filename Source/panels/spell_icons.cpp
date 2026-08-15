@@ -139,6 +139,11 @@ void DrawLargeSpellIcon(const Surface &out, Point position, SpellID spell)
 
 void DrawSmallSpellIcon(const Surface &out, Point position, SpellID spell)
 {
+	// Oracool: guarded. The Abilities window now draws the empty plate (SpellID::Null, frame 26)
+	// behind every skill icon, and that runs from the row renderer rather than from the spell list -
+	// a path that can be reached before LoadSmallSpellIcons() has run.
+	if (!SmallSpellIcons)
+		return;
 #ifdef UNPACKED_MPQS
 	ClxDrawTRN(out, position, (*SmallSpellIconsBackground)[0], SplTransTbl);
 #endif

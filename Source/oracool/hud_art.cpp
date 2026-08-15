@@ -13,7 +13,9 @@
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/ornate_border.h" // ThemeEdgeColor
+#include "panels/spell_icons.hpp" // the vanilla plate behind every skill icon
 #include "player.h"
+#include "spelldat.h"
 #include "utils/log.hpp"
 #include "utils/png.h"
 #include "utils/sdl_geometry.h"
@@ -837,17 +839,61 @@ void DrawStripIcon(const Surface &out, ArtAsset &asset, Point origin, int index,
 	BlitHalfTransparentSkipZero(out, *asset.bright, origin, 0, cell, src.x, src.w);
 }
 
+/** @brief Size of the vanilla empty spell-icon plate, or {0,0} before the icons are loaded. */
+Size SkillIconPlateSize()
+{
+	return GetSmallSpellIconSize();
+}
+
 Size StripIconSize(ArtAsset &asset)
 {
 	EnsureLoadedAll();
 	if (asset.rgba.empty())
-		return { 0, 0 };
+		return SkillIconPlateSize(); // no custom art: the bare plate is what the row shows
 	return { asset.height, asset.height };
+}
+
+/**
+ * @brief Draws the vanilla empty spell-icon plate - the yellow square every skill now sits on.
+ *
+ * Oracool: user request (2026-08-15) - "take the vanilla yellow square background of skills and
+ * apply it behind every skill from now on [...] we need consistency in skills icons. Right now we
+ * dont have it."
+ *
+ * No new asset was needed. The plate is frame 26 of data\spelli2, which the engine already maps
+ * SpellID::Null to (SpellITbl[0] == 26) as its empty-slot icon, and the yellow is not painted in -
+ * it comes from SetSpellTrans(SpellType::Skill), the same recolour the speedbook uses to say
+ * "skill" rather than "spell". So this is the game's own plate through the game's own TRN.
+ *
+ * DrawSmallSpellIcon anchors at the BOTTOM-left, unlike the strips above, which is what the height
+ * term corrects for.
+ */
+void DrawSkillIconPlate(const Surface &out, Point origin)
+{
+	const Size plate = GetSmallSpellIconSize();
+	if (plate.height <= 0)
+		return;
+	SetSpellTrans(SpellType::Skill);
+	DrawSmallSpellIcon(out, { origin.x, origin.y + plate.height - 1 }, SpellID::Null);
+}
+
+/**
+ * @brief The plate, then whatever custom art exists on top of it.
+ *
+ * Both halves are deliberate. The plate goes down for EVERY skill so the sheets read as one set -
+ * which they did not while the aura, Barbarian, Paladin and attack strips were four unrelated
+ * paintings. DrawStripIcon is then a no-op when its sheet is missing, which is what lets the user's
+ * new icons drop in with no code change: ship the strip and it appears on the plate.
+ */
+void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked)
+{
+	DrawSkillIconPlate(out, origin);
+	DrawStripIcon(out, asset, origin, index, unlocked);
 }
 
 void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked)
 {
-	DrawStripIcon(out, AuraIconsArt, origin, auraIndex, unlocked);
+	DrawIconOnPlate(out, AuraIconsArt, origin, auraIndex, unlocked);
 }
 
 Size GetAuraIconSize()
@@ -857,7 +903,7 @@ Size GetAuraIconSize()
 
 void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked)
 {
-	DrawStripIcon(out, BarbSkillIconsArt, origin, skillIndex, unlocked);
+	DrawIconOnPlate(out, BarbSkillIconsArt, origin, skillIndex, unlocked);
 }
 
 Size GetBarbSkillIconSize()
@@ -867,7 +913,7 @@ Size GetBarbSkillIconSize()
 
 void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked)
 {
-	DrawStripIcon(out, PaladinSkillIconsArt, origin, skillIndex, unlocked);
+	DrawIconOnPlate(out, PaladinSkillIconsArt, origin, skillIndex, unlocked);
 }
 
 Size GetPaladinSkillIconSize()
@@ -877,7 +923,7 @@ Size GetPaladinSkillIconSize()
 
 void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active)
 {
-	DrawStripIcon(out, AttackIconsArt, origin, iconIndex, active);
+	DrawIconOnPlate(out, AttackIconsArt, origin, iconIndex, active);
 }
 
 Size GetAttackIconSize()
