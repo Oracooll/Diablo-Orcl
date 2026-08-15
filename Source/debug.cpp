@@ -547,6 +547,14 @@ std::string DebugCmdMinStats(const string_view parameter)
 
 std::string DebugCmdSetSpellsLevel(const string_view parameter)
 {
+	// Oracool: this both LEARNS and levels - CMD_CHANGE_SPELL_LEVEL's handler sets _pMemSpells as
+	// well as _pSplLvl (see OnChangeSpellLevel in msg.cpp), so one call is the whole "teach me
+	// everything" button.
+	//
+	// Its reach is "every spell with a book", which as of 2026-08-15 is every spell in the game bar
+	// the six class skills - and those are granted to every class at birth now anyway
+	// (oracool::AllClassSkillsBitmask), so between the two nothing castable is left out. Before that
+	// day fifteen spells had no book and could not be handed over by any means at all.
 	uint8_t level = static_cast<uint8_t>(std::max(0, atoi(parameter.data())));
 	for (uint8_t i = static_cast<uint8_t>(SpellID::Firebolt); i < MAX_SPELLS; i++) {
 		if (GetSpellBookLevel(static_cast<SpellID>(i)) != -1) {
@@ -1145,7 +1153,11 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "givewp", "Unlocks every waypoint (1-16) on the current difficulty.", "", &DebugCmdGiveWaypoints },
 	{ "maxstats", "Sets all stat values to maximum.", "", &DebugCmdMaxStats },
 	{ "minstats", "Sets all stat values to minimum.", "", &DebugCmdMinStats },
-	{ "setspells", "Set spell level to {level} for all spells.", "{level}", &DebugCmdSetSpellsLevel },
+	// Oracool: reworded 2026-08-15. It said "Set spell level to {level} for all spells", which
+	// undersold it - OnChangeSpellLevel also sets _pMemSpells, so this LEARNS every spell it touches
+	// rather than only levelling ones already known. The user went looking for a separate "teach me
+	// all spells" command because the help did not say so.
+	{ "setspells", "Learn every spell that has a book, at spell level {level}. 0 forgets them all again.", "{level}", &DebugCmdSetSpellsLevel },
 	{ "takegold", "Removes all gold from inventory.", "", &DebugCmdTakeGoldCheat },
 	{ "givequest", "Enable a given quest.", "({id})", &DebugCmdQuest },
 	{ "givemap", "Reveal the map.", "", &DebugCmdMapReveal },
