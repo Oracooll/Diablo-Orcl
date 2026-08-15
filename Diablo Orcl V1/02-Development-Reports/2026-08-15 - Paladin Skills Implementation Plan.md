@@ -30,6 +30,56 @@ Two judgement calls I made rather than asking, both easily reversed:
   Hammer of Faith = *one swing whose impact also damages everything adjacent to the target* (one
   blow, splash around it).
 
+## Standing rules for every skill (user, 2026-08-15)
+
+> skills rule: melee skills only initiate when clicked on monsters within range, else - move command.
+> it goes for lmb/rmb
+> skills rule: ranged skills only initiate when clicked on monsters within range, else - move command.
+> it goes for lmb/rmb
+> skills rule: we need to define range of skills. i suggest no more than a 640x480px worth of screen
+> estate.
+
+These are laws for the whole set, not per-skill behaviour, so they belong above the build order.
+
+**A click that cannot reach a target is a MOVE, not a nothing.** The current code fails this, and
+fails it silently:
+
+```cpp
+if (oracool::PaladinSkillForSpell(spellID).has_value()) {
+    if (pcursmonst != -1 && !isShiftHeld) { ...attack... }
+    return;                     // <- no monster under the cursor: the click does nothing at all
+}
+```
+
+Charge's own branch two blocks above has the same shape. Both need the else: walk to the clicked
+tile. This is the more useful reading of "the ability never does nothing" than the one already
+written there — a skill on your button should never make the ground unclickable.
+
+**Range has to be a per-skill number**, because the rule is "within range" and nothing currently
+carries one. It belongs in `PaladinSkillData` beside `minLevel` and `manaCost`, so the sheet, the
+hover popup and the targeting check read one table — the same reason the spell slot went there.
+
+### Deriving the cap from 640×480
+
+Worth showing the arithmetic, because the answer is a tile count and the request is in pixels.
+
+DevilutionX's isometric grid is `TILE_WIDTH` 64, `TILE_HEIGHT` 32, so **one tile step moves the view
+32px horizontally and 16px vertically**. A 640×480 box centred on the player reaches ±320px and
+±240px, which is:
+
+| Axis | Budget | Per tile | Tiles |
+|---|---|---|---|
+| Horizontal | 320px | 32px | **10** |
+| Vertical | 240px | 16px | 15 |
+
+Horizontal binds, so the cap is **10 tiles**. Melee skills are 1 tile (adjacent, as they already
+are); ranged skills get their own value up to 10.
+
+That is also a sane number on its own terms — 10 tiles is a little under half the visible width at
+960×720, so a ranged skill reaches meaningfully across the screen without out-ranging what the player
+can see coming. If the 640×480 figure was meant as the whole reachable *area* rather than a radius,
+the answer halves to 5 tiles; say so and it is one constant.
+
 ## The one structural piece to build first
 
 Three of the seven are melee (Zeal, Hammer of Faith, Shield Bash). `DoAttack` resolves every swing
@@ -60,6 +110,9 @@ Then `DoAttack`'s existing Zeal hook becomes one dispatch for all three melee sk
 
 Sequenced so each step is independently testable and the hard ones come last.
 
+0. **Targeting rules** — the per-skill range field, the in-range check, and the walk-instead-of-
+   nothing fallback on both buttons. First, because every skill after it inherits the behaviour, and
+   because it also fixes Charge, which is already shipping with the silent-nothing bug.
 1. **Foundation** — the latch, a shared weapon-damage helper, `HasShieldEquipped`, and the melee
    dispatch in `DoAttack`.
 2. **Zeal** — flip from passive to armed-only. Smallest change, proves the latch works end to end.
