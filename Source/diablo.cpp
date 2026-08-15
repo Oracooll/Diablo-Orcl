@@ -2989,6 +2989,16 @@ bool PressEscKey()
 void DisableInputEventHandler(const SDL_Event &event, uint16_t modState)
 {
 	switch (event.type) {
+	// Oracool: user request (2026-08-15) - "enable screenshot taking during loading screens".
+	// This handler is what ShowProgress swaps in for the whole load, and it swallowed every key -
+	// which made a loading-screen rendering problem impossible to capture with the game's own
+	// screenshot key. The same two keys the front end accepts (DiabloUI/diabloui.cpp), for the
+	// same reason it accepts them: a screenshot is observation, not input, and the loading screen
+	// has nothing an observer could disturb.
+	case SDL_KEYDOWN:
+		if (event.key.keysym.sym == SDLK_PRINTSCREEN || event.key.keysym.sym == SDLK_F12)
+			CaptureScreen();
+		return;
 	case SDL_MOUSEMOTION:
 		MousePosition = { event.motion.x, event.motion.y };
 		return;
