@@ -2536,6 +2536,24 @@ void AddInfravision(Missile &missile, AddMissileParameter & /*parameter*/)
 	missile._mirange = ScaleSpellEffect(1584, missile._mispllvl);
 }
 
+/**
+ * @brief Oracool: Etherealize had no behaviour at all until now - see ProcessEtherealize.
+ *
+ * The effect itself was already fully wired: SpellFlag::Etherealize makes arrows pass through
+ * (missiles.cpp's CheckMissileCol paths), monsters miss (monster.cpp's PlayerHit) and melee miss
+ * (player.cpp's PlrHitPlr). Vanilla set the flag from nowhere and cleared it in InitMissiles, which
+ * is the shape of a spell that was cut before its caster was written. This is that caster.
+ */
+void AddEtherealize(Missile &missile, AddMissileParameter & /*parameter*/)
+{
+	Player &player = Players[missile._misource];
+	player._pSpellFlags |= SpellFlag::Etherealize;
+	// A tenth of Infravision's base, because the description promises "briefly untouchable" and this
+	// is untouchable, not merely dark-sighted. ~8 seconds at spell level 1 on the 20-tick clock.
+	missile._mirange = ScaleSpellEffect(160, missile._mispllvl);
+	RedrawEverything();
+}
+
 void AddFlameWaveControl(Missile &missile, AddMissileParameter &parameter)
 {
 	missile.var1 = parameter.dst.x;
@@ -2826,7 +2844,15 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 		PlaySfxLoc(*lSFX, missile.position.start);
 	}
 
+	// Oracool: mAddProc is null for the missiles vanilla defined but never spawned, and this call was
+	// unconditional - so the first spell we made castable that pointed at one of them (Etherealize)
+	// crashed on a null function pointer rather than doing nothing. Treat "no behaviour" as a fizzle:
+	// nothing to run, nothing to keep, and no way for the next such missile to take the game down.
 	AddMissileParameter parameter = { dst, midir, parent, false };
+	if (missileData.mAddProc == nullptr) {
+		missile._miDelFlag = true;
+		return nullptr;
+	}
 	missileData.mAddProc(missile, parameter);
 	if (parameter.spellFizzled) {
 		return nullptr;
@@ -3834,6 +3860,21 @@ void ProcessFireWallControl(Missile &missile)
 		} else {
 			missile.var7 = 1;
 		}
+	}
+}
+
+void ProcessEtherealize(Missile &missile)
+{
+	Player &player = Players[missile._misource];
+	missile._mirange--;
+	// Re-asserted every tick rather than only on cast, matching ProcessInfravision: InitMissiles
+	// clears the flag on every level entry, and the missile survives that, so without this a stair
+	// would silently end the effect while its timer kept running.
+	player._pSpellFlags |= SpellFlag::Etherealize;
+	if (missile._mirange == 0) {
+		missile._miDelFlag = true;
+		player._pSpellFlags &= ~SpellFlag::Etherealize;
+		RedrawEverything();
 	}
 }
 

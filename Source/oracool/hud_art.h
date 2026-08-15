@@ -94,9 +94,30 @@ void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool un
 /** @brief On-screen size of one Barbarian skill icon, or {0,0} if the asset is missing. */
 Size GetBarbSkillIconSize();
 
+/**
+ * @brief Which recolour a skill plate is drawn in, so the sheets are colour-coded by ability kind.
+ *
+ * Oracool: user request (2026-08-15) - "we need to come up with a color of the background of the
+ * skills (not the CLASS SKILLS). Spells have Blue. Class Skills have YELLOW. Maybe we make SPECIFIC
+ * SKILLS brown or green or dark blue or something else?"
+ *
+ * Brown, and the palette picked it rather than taste: the plate is recoloured through the engine's
+ * spell TRNs, which only reach the six 16-shade ramps the game ships. Blue is already spells, yellow
+ * is class skills, grey is "cannot cast", orange is a staff's charges, and red now marks the left
+ * mouse button's assignment. Beige is the one ramp left - and green was never on the table, because
+ * the palette has no green ramp to give it.
+ */
+enum class SkillPlateTint : uint8_t {
+	/** The vanilla yellow - Class Skills, the Auras and Barbarian sheets, and the HUD's wells. */
+	Yellow,
+	/** The Skills sheet. */
+	Brown,
+};
+
 /** @brief Draws Paladin skill icon @p skillIndex (oracool::PaladinSkill order - 0 Charge, 1 Zeal).
  * Same locked treatment as DrawAuraIcon; same shared strip implementation. */
-void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked);
+void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
+    SkillPlateTint tint = SkillPlateTint::Yellow);
 
 /** @brief On-screen size of one Paladin skill icon, or {0,0} if the asset is missing. */
 Size GetPaladinSkillIconSize();
@@ -113,7 +134,7 @@ Size GetPaladinSkillIconSize();
 Size GetSkillIconPlateSize();
 
 /** @brief Draws the plate at @p origin, taking a TOP-left origin like the strip icons. */
-void DrawSkillIconPlate(const Surface &out, Point origin);
+void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint = SkillPlateTint::Yellow);
 
 /**
  * @brief Draws basic-attack icon @p iconIndex (oracool::AttackIcon order) at @p origin.
@@ -122,7 +143,8 @@ void DrawSkillIconPlate(const Surface &out, Point origin);
  * attack icons are never locked, but exactly one of them is what the player's hand is currently
  * doing, and blending the other is how the pair says which. See oracool/attack_skills.h.
  */
-void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active);
+void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active,
+    SkillPlateTint tint = SkillPlateTint::Yellow);
 
 /** @brief On-screen size of one basic-attack icon, or {0,0} if the asset is missing. */
 Size GetAttackIconSize();

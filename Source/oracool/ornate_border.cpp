@@ -83,22 +83,27 @@ void DrawThemedFill(const Surface &out, Rectangle rect, int passes)
 		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 }
 
-void DrawHoverOutline(const Surface &out, Rectangle rect)
+void DrawColoredOutline(const Surface &out, Rectangle rect, uint8_t color)
 {
 	if (rect.size.width <= 1 || rect.size.height <= 1)
 		return;
-	// MidHighlightColor, the frame's LIT gold, rather than OuterColor's dimmer one. Both are "gold"
-	// and the dim one is the more literal reading of "subtle", but these rows sit on a
-	// half-transparent panel over the dungeon, where 202 barely separates from the fill. 198 reads as
-	// a highlight at a glance and still belongs to the same frame the window is built from.
 	const int x = rect.position.x;
 	const int y = rect.position.y;
 	const int w = rect.size.width;
 	const int h = rect.size.height;
-	DrawHorizontalLine(out, { x, y }, w, MidHighlightColor);
-	DrawHorizontalLine(out, { x, y + h - 1 }, w, MidHighlightColor);
-	DrawVerticalLine(out, { x, y }, h, MidHighlightColor);
-	DrawVerticalLine(out, { x + w - 1, y }, h, MidHighlightColor);
+	DrawHorizontalLine(out, { x, y }, w, color);
+	DrawHorizontalLine(out, { x, y + h - 1 }, w, color);
+	DrawVerticalLine(out, { x, y }, h, color);
+	DrawVerticalLine(out, { x + w - 1, y }, h, color);
+}
+
+void DrawHoverOutline(const Surface &out, Rectangle rect)
+{
+	// MidHighlightColor, the frame's LIT gold, rather than OuterColor's dimmer one. Both are "gold"
+	// and the dim one is the more literal reading of "subtle", but these rows sit on a
+	// half-transparent panel over the dungeon, where 202 barely separates from the fill. 198 reads as
+	// a highlight at a glance and still belongs to the same frame the window is built from.
+	DrawColoredOutline(out, rect, MidHighlightColor);
 }
 
 void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor)

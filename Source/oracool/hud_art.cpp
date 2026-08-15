@@ -878,12 +878,15 @@ Size GetSkillIconPlateSize()
 	return GetSmallSpellIconSize();
 }
 
-void DrawSkillIconPlate(const Surface &out, Point origin)
+void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
 {
 	const Size plate = GetSmallSpellIconSize();
 	if (plate.height <= 0)
 		return;
-	SetSpellTrans(SpellType::Skill);
+	// SpellType::Scroll's translation table IS the PAL16_BEIGE ramp - it is named for the thing it
+	// was written to colour, and it is used here for the colour alone. No scroll is involved and none
+	// is implied; see SkillPlateTint for why brown was the only choice left on this palette.
+	SetSpellTrans(tint == SkillPlateTint::Brown ? SpellType::Scroll : SpellType::Skill);
 	DrawSmallSpellIcon(out, { origin.x, origin.y + plate.height - 1 }, SpellID::Null);
 }
 
@@ -895,9 +898,10 @@ void DrawSkillIconPlate(const Surface &out, Point origin)
  * paintings. DrawStripIcon is then a no-op when its sheet is missing, which is what lets the user's
  * new icons drop in with no code change: ship the strip and it appears on the plate.
  */
-void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked)
+void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked,
+    SkillPlateTint tint = SkillPlateTint::Yellow)
 {
-	DrawSkillIconPlate(out, origin);
+	DrawSkillIconPlate(out, origin, tint);
 	DrawStripIcon(out, asset, origin, index, unlocked);
 }
 
@@ -921,9 +925,9 @@ Size GetBarbSkillIconSize()
 	return StripIconSize(BarbSkillIconsArt);
 }
 
-void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked)
+void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked, SkillPlateTint tint)
 {
-	DrawIconOnPlate(out, PaladinSkillIconsArt, origin, skillIndex, unlocked);
+	DrawIconOnPlate(out, PaladinSkillIconsArt, origin, skillIndex, unlocked, tint);
 }
 
 Size GetPaladinSkillIconSize()
@@ -931,9 +935,9 @@ Size GetPaladinSkillIconSize()
 	return StripIconSize(PaladinSkillIconsArt);
 }
 
-void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active)
+void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active, SkillPlateTint tint)
 {
-	DrawIconOnPlate(out, AttackIconsArt, origin, iconIndex, active);
+	DrawIconOnPlate(out, AttackIconsArt, origin, iconIndex, active, tint);
 }
 
 Size GetAttackIconSize()

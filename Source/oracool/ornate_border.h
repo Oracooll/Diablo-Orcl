@@ -120,6 +120,16 @@ void DrawThemedFill(const Surface &out, Rectangle rect, int passes = 1);
 void DrawHoverOutline(const Surface &out, Rectangle rect);
 
 /**
+ * @brief The same one-pixel rectangle in a caller-chosen palette index.
+ *
+ * DrawHoverOutline is this with the frame's gold. Split out for the Abilities window's assignment
+ * rings, which say which mouse button an ability is readied on and so need two more colours.
+ * Clip-safe: it draws through the engine's line primitives, so a row half-scrolled out of a
+ * subregion is cut rather than written past.
+ */
+void DrawColoredOutline(const Surface &out, Rectangle rect, uint8_t color);
+
+/**
  * @brief A floating panel of wrapped text, placed beside @p anchor and kept on screen.
  *
  * The hover description window. Sizes itself to the wrapped text rather than to a fixed box, so a

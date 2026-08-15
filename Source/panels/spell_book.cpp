@@ -649,6 +649,49 @@ int RowTextX()
 	return AbilitiesIconX + RowIconColumnWidth() + AbilitiesTextGap;
 }
 
+/**
+ * @brief The colour-coded ring saying which mouse button an ability is readied on.
+ *
+ * Oracool: user request (2026-08-15) - "We need RED outline on a skill/spell when it is used in LMB,
+ * just like we need the existing YELLOW outline to inform us a skill/spell is assigned to RMB. These
+ * color code outlines to work across all ability sheets."
+ *
+ * Each button owns a ring POSITION as well as a colour: the right button takes the outer ring and
+ * the left the inner one, always. So neither ring moves when the other appears, and a spell readied
+ * on both buttons shows both instead of one hiding the other.
+ *
+ * @p iconRect is the icon's own top-left rect, which is why this takes a rect rather than a row: the
+ * three row kinds anchor their icons differently and only they know where theirs ended up.
+ */
+void DrawAssignmentRings(const Surface &content, Rectangle iconRect, SpellID sn, SpellType st)
+{
+	if (IsInspectingPlayer())
+		return;
+	const Player &player = *InspectPlayer;
+
+	// The gold the readied-spell border has used since the spellbook had one, and its counterpart on
+	// the red ramp - PAL8_RED sits beside PAL8_YELLOW in the palette, so the two read as a pair.
+	constexpr uint8_t RightButtonColor = PAL8_YELLOW + 2;
+	constexpr uint8_t LeftButtonColor = PAL8_RED + 2;
+
+	const auto ring = [&content](Rectangle rect, uint8_t color) {
+		// Two passes, one inset, for a 2px ring: thick enough to read against a busy icon, and the
+		// same weight the single yellow border had before there were two of them.
+		oracool::DrawColoredOutline(content, rect, color);
+		oracool::DrawColoredOutline(content,
+		    { { rect.position.x + 1, rect.position.y + 1 }, { rect.size.width - 2, rect.size.height - 2 } }, color);
+	};
+
+	if (sn == player._pRSpell && st == player._pRSplType)
+		ring(iconRect, RightButtonColor);
+	if (sn == player._pLRSpell && st == player._pLRSplType) {
+		// Inset 3, so there is a clear pixel between the two rings when both are drawn.
+		ring({ { iconRect.position.x + 3, iconRect.position.y + 3 },
+		         { iconRect.size.width - 6, iconRect.size.height - 6 } },
+		    LeftButtonColor);
+	}
+}
+
 /** @brief One row of the Skills sheet's two basic attacks. @p index is oracool::AttackIcon order. */
 void DrawAttackRow(const Surface &content, size_t index, int top)
 {
@@ -663,7 +706,13 @@ void DrawAttackRow(const Surface &content, size_t index, int top)
 	if (iconSize.height == 0)
 		iconSize = oracool::GetSkillIconPlateSize();
 	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
-	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active);
+	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active, oracool::SkillPlateTint::Brown);
+
+	// Regular Attack is the row that MEANS "this button swings", so a button holding no spell is a
+	// button assigned to this row - ring it. Fist Attack never carries an assignment: which of the
+	// two icons you get is decided by what is in your hand, not by a click (see CheckSBook).
+	if (icon == oracool::AttackIcon::Regular)
+		DrawAssignmentRings(content, { iconPos, iconSize }, SpellID::Invalid, SpellType::Invalid);
 
 	// Oracool: user request (2026-08-15) - "Remove all text from Skills Ability sheet. I will later
 	// introduce skill runes which will take its place. Text will only be reachable through the pop-up
@@ -689,9 +738,10 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// Oracool: user request - the book must show the same borrowed icon Furious Charge uses
 	// everywhere else, not the vanilla Item Repair icon.
 	DrawSmallSpellIcon(content, iconPos, oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
-	if (known && sn == player._pRSpell && GetSBookTrans(sn, true) == player._pRSplType && !IsInspectingPlayer()) {
-		SetSpellTrans(SpellType::Skill);
-		DrawSmallSpellIconBorder(content, iconPos);
+	if (known) {
+		// iconPos is a BOTTOM-left anchor; the rings want the top-left rect.
+		DrawAssignmentRings(content, { { iconPos.x, iconPos.y - iconSize.height + 1 }, iconSize },
+		    sn, GetSBookTrans(sn, true));
 	}
 
 	const UiFlags nameColor = known ? UiFlags::ColorWhitegold : UiFlags::ColorUiSilverDark;
@@ -824,8 +874,16 @@ void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, in
 	if (iconSize.height == 0)
 		iconSize = oracool::GetSkillIconPlateSize();
 	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
+	const bool unlocked = oracool::IsPaladinSkillUnlocked(*InspectPlayer, skill);
 	oracool::DrawPaladinSkillIcon(content, iconPos, oracool::GetPaladinSkillIconIndex(skill),
-	    oracool::IsPaladinSkillUnlocked(*InspectPlayer, skill));
+	    unlocked, oracool::SkillPlateTint::Brown);
+
+	// Only Charge carries a spell slot, so only Charge can be readied on a button; Zeal applies
+	// itself to every swing and has nothing to ring.
+	if (unlocked && skill == oracool::PaladinSkill::Charge) {
+		DrawAssignmentRings(content, { iconPos, iconSize },
+		    SpellID::Charge, GetSBookTrans(SpellID::Charge, true));
+	}
 }
 
 void DrawBarbSkillRow(const Surface &content, size_t index, int top)
