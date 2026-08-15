@@ -885,8 +885,9 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
 		return;
 	// SpellType::Scroll's translation table IS the PAL16_BEIGE ramp - it is named for the thing it
 	// was written to colour, and it is used here for the colour alone. No scroll is involved and none
-	// is implied; see SkillPlateTint for why brown was the only choice left on this palette.
-	SetSpellTrans(tint == SkillPlateTint::Brown ? SpellType::Scroll : SpellType::Skill);
+	// is implied; see SkillPlateTint for why this ramp was the only choice left on this palette, and
+	// why what the engine files under "beige" is called pink here.
+	SetSpellTrans(tint == SkillPlateTint::Pink ? SpellType::Scroll : SpellType::Skill);
 	DrawSmallSpellIcon(out, { origin.x, origin.y + plate.height - 1 }, SpellID::Null);
 }
 
@@ -905,9 +906,9 @@ void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int inde
 	DrawStripIcon(out, asset, origin, index, unlocked);
 }
 
-void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked)
+void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked, SkillPlateTint tint)
 {
-	DrawIconOnPlate(out, AuraIconsArt, origin, auraIndex, unlocked);
+	DrawIconOnPlate(out, AuraIconsArt, origin, auraIndex, unlocked, tint);
 }
 
 Size GetAuraIconSize()
@@ -915,9 +916,9 @@ Size GetAuraIconSize()
 	return StripIconSize(AuraIconsArt);
 }
 
-void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked)
+void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked, SkillPlateTint tint)
 {
-	DrawIconOnPlate(out, BarbSkillIconsArt, origin, skillIndex, unlocked);
+	DrawIconOnPlate(out, BarbSkillIconsArt, origin, skillIndex, unlocked, tint);
 }
 
 Size GetBarbSkillIconSize()

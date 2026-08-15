@@ -75,6 +75,31 @@ void DrawWaypointIcon(const Surface &out, Point origin, bool active);
 Size GetWaypointIconSize();
 
 /**
+ * @brief Which recolour a skill plate is drawn in, so the sheets are colour-coded by ability kind.
+ *
+ * Oracool: user request (2026-08-15) - "we need to come up with a color of the background of the
+ * skills (not the CLASS SKILLS). Spells have Blue. Class Skills have YELLOW. Maybe we make SPECIFIC
+ * SKILLS brown or green or dark blue or something else?"
+ *
+ * The palette picked the colour rather than taste: the plate is recoloured through the engine's
+ * spell TRNs, which only reach the six 16-shade ramps the game ships. Blue is already spells, yellow
+ * is class skills, grey is "cannot cast", orange is a staff's charges, and red now marks the left
+ * mouse button's assignment. One ramp was left - and green was never on the table, because the
+ * palette has no green ramp to give it.
+ *
+ * That ramp is PAL16_BEIGE, and the engine calls it beige. On screen, at this size, over the
+ * half-transparent panel, the user calls it PINK - "let's call it pink, because that's what it looks
+ * to me, not beige or brown" (2026-08-15). The name here follows the eye, not the palette table,
+ * because everyone reading this code will be looking at the screen while they do.
+ */
+enum class SkillPlateTint : uint8_t {
+	/** The vanilla yellow - Class Skills and the HUD's wells. */
+	Yellow,
+	/** Every ability sheet drawn on plates: Skills, Auras and Barbarian. */
+	Pink,
+};
+
+/**
  * @brief Draws Paladin aura icon @p auraIndex (oracool::Aura order) at @p origin.
  *
  * An @p unlocked icon is blitted opaquely; a locked one is blended into the panel at half strength,
@@ -82,37 +107,19 @@ Size GetWaypointIconSize();
  * use SetSpellTrans for that: these are full-colour paintings rather than single-ramp icons, so
  * there is no ramp to remap onto grey.
  */
-void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked);
+void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked,
+    SkillPlateTint tint = SkillPlateTint::Yellow);
 
 /** @brief On-screen size of one aura icon, or {0,0} if the asset is missing. */
 Size GetAuraIconSize();
 
 /** @brief Draws Barbarian skill icon @p skillIndex (oracool::BarbSkill order). Same locked
  * treatment as DrawAuraIcon - the two sheets share one implementation. */
-void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked);
+void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
+    SkillPlateTint tint = SkillPlateTint::Yellow);
 
 /** @brief On-screen size of one Barbarian skill icon, or {0,0} if the asset is missing. */
 Size GetBarbSkillIconSize();
-
-/**
- * @brief Which recolour a skill plate is drawn in, so the sheets are colour-coded by ability kind.
- *
- * Oracool: user request (2026-08-15) - "we need to come up with a color of the background of the
- * skills (not the CLASS SKILLS). Spells have Blue. Class Skills have YELLOW. Maybe we make SPECIFIC
- * SKILLS brown or green or dark blue or something else?"
- *
- * Brown, and the palette picked it rather than taste: the plate is recoloured through the engine's
- * spell TRNs, which only reach the six 16-shade ramps the game ships. Blue is already spells, yellow
- * is class skills, grey is "cannot cast", orange is a staff's charges, and red now marks the left
- * mouse button's assignment. Beige is the one ramp left - and green was never on the table, because
- * the palette has no green ramp to give it.
- */
-enum class SkillPlateTint : uint8_t {
-	/** The vanilla yellow - Class Skills, the Auras and Barbarian sheets, and the HUD's wells. */
-	Yellow,
-	/** The Skills sheet. */
-	Brown,
-};
 
 /** @brief Draws Paladin skill icon @p skillIndex (oracool::PaladinSkill order - 0 Charge, 1 Zeal).
  * Same locked treatment as DrawAuraIcon; same shared strip implementation. */

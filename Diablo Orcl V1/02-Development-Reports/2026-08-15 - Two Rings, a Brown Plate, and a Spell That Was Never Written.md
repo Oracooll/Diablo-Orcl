@@ -80,6 +80,11 @@ every spell before it in the list was fine.
 
 ## 3. Brown for the Skills sheet
 
+> **Superseded the same day, at 1.5.62.** The colour is unchanged; its NAME is now *pink*, on the
+> user's reading of the screen, and the Auras and Barbarian sheets took it too. See
+> *Pink Is What It Looks Like*.
+
+
 > we need to come up with a color of the background of the skills (the not the CLASS SKILLS). Spells
 > have Blue. Class Skils have YELLOW. Maybe we make SPECIFIC SKILLS brow or green or dark blue or
 > something else?
