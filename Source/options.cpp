@@ -1376,7 +1376,10 @@ OracoolOptions::OracoolOptions()
     : OptionCategoryBase("Oracool Edition", N_("Oracool Edition"), N_("Optional single-player features for Diablo Oracool Edition."))
     , uniqueItemDropMultiplier("Unique Item Drop Multiplier", OptionEntryFlags::None, N_("Unique Item Drop Multiplier"), N_("Multiplies the chance that an eligible item drop becomes unique."), 25, { 1, 2, 5, 10, 25, 50, 100 })
     , monsterDensityPercent("Monster Density", OptionEntryFlags::CantChangeInGame, N_("Monster Density"), N_("Multiplies how many monsters a dungeon level scatters. 100 is vanilla."), 100, { 100, 150, 200, 250, 300 })
-    , lesserUniqueDensityPercent("Lesser Unique Density", OptionEntryFlags::CantChangeInGame, N_("Lesser Unique Density"), N_("How many champion packs a dungeon level hosts. 100 is one."), 100, { 100, 150, 200, 250, 300 })
+    // "2-6 by difficulty", not "one": the base count stopped being a single pack at 1.6.1, when the
+    // user asked for 2-3 packs on Normal rising to 5-6 on Torment. The text said "100 is one" for a
+    // day longer than it was true (self-audit, 2026-08-15).
+    , lesserUniqueDensityPercent("Lesser Unique Density", OptionEntryFlags::CantChangeInGame, N_("Lesser Unique Density"), N_("Multiplies the champion packs a dungeon level hosts. 100 is the base 2-6 by difficulty."), 100, { 100, 150, 200, 250, 300 })
     , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), true)
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), true)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)
