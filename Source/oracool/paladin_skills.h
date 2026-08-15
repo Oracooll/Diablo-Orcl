@@ -31,19 +31,29 @@ struct Player;
 namespace oracool {
 
 /**
- * @brief The two skills, in the order of the icon sheet (ui\paladin_skill_icons.png).
+ * @brief The skills, in the order of the icon sheet (ui\paladin_skill_icons.png).
  *
  * Enum order IS icon order - GetPaladinSkillIconIndex is the identity - so the sheet and this list
- * cannot drift. Also the display order, unlike the auras: with two entries there is nothing to gain
- * from a separate ordering, so there is deliberately no GetPaladinSkillAtDisplayIndex.
+ * cannot drift. Also the display order, unlike the auras: there is nothing here to gain from a
+ * separate ordering, so there is deliberately no GetPaladinSkillAtDisplayIndex.
+ *
+ * Grew from two to seven on 2026-08-15 when the second art delivery arrived. Smite is drawn on that
+ * sheet and is NOT here: the user asked for it to be held back ("ignore this skill for now. Don't
+ * add it."), and tools/CutPaladinSkills.ps1 skips its grid cell for the same reason - so the strip
+ * has seven cells, not eight, and this list still lines up with it.
  */
 enum class PaladinSkill : uint8_t {
 	Charge,
 	Zeal,
-	LAST = Zeal,
+	HammerOfFaith,
+	BlessedShield,
+	FistOfTheHeavens,
+	ShieldBash,
+	BlessedHammer,
+	LAST = BlessedHammer,
 };
 
-constexpr size_t PaladinSkillCount = 2;
+constexpr size_t PaladinSkillCount = 7;
 
 struct PaladinSkillData {
 	/** Untranslated; run through _() at the point of display. */
@@ -63,6 +73,20 @@ struct PaladinSkillData {
 };
 
 const PaladinSkillData &GetPaladinSkillData(PaladinSkill skill);
+
+/**
+ * @brief Whether @p skill has mechanics behind it yet, as opposed to being listed and described.
+ *
+ * Charge and Zeal do; the five added on 2026-08-15 do not - they arrived as art plus one line of
+ * description each, the same way the auras and the Barbarian skills did, and the gameplay for them
+ * is a separate pass. The level gate and mana price in the table are placeholders until then.
+ *
+ * Nothing in the Abilities window branches on this: a row is readiable when it carries a SpellID,
+ * which is the narrower and more direct test (Zeal is implemented and still cannot be readied,
+ * because it applies itself to every swing rather than being cast). This exists so the distinction
+ * is stated somewhere rather than being inferred from a table of numbers that all look alike.
+ */
+bool IsPaladinSkillImplemented(PaladinSkill skill);
 
 /** @brief Whether this class has these skills at all. Paladin (HeroClass::Warrior) only. */
 bool ClassHasPaladinSkills(const Player &player);

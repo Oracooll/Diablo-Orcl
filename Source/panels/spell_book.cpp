@@ -441,13 +441,20 @@ size_t BuildSkillsSheetRows(SkillRow *out)
 		out[count++] = { SkillRowKind::Spell, {}, spells[i], {} };
 	}
 
-	// Both listed for the class that has them whether or not the level gate has opened: a locked row
-	// says "Requires level 12", which is the useful thing to know at level 4. Charge carries its slot
-	// (SpellID::ItemRepair) so an unlocked row can ready it; Zeal has no slot to carry.
+	// All listed for the class that has them whether or not the level gate has opened: a locked row
+	// says "Requires level 12", which is the useful thing to know at level 4.
+	//
+	// The SpellID is what makes a row READIABLE, and only Charge has one - Zeal applies itself to
+	// every swing rather than being cast, and the five added on 2026-08-15 have no mechanics behind
+	// them yet (see oracool::IsPaladinSkillImplemented). Everything downstream reads the SpellID
+	// rather than naming a skill, so a future skill that gains a slot becomes readiable by being
+	// given one here and nowhere else.
 	if (paladin) {
-		// SpellID::Charge, its own id since 2026-08-15 - readying this row no longer arms Item Repair.
-		out[count++] = { SkillRowKind::Paladin, {}, SpellID::Charge, oracool::PaladinSkill::Charge };
-		out[count++] = { SkillRowKind::Paladin, {}, SpellID::Invalid, oracool::PaladinSkill::Zeal };
+		for (size_t i = 0; i < oracool::PaladinSkillCount; i++) {
+			const auto skill = static_cast<oracool::PaladinSkill>(i);
+			const SpellID slot = skill == oracool::PaladinSkill::Charge ? SpellID::Charge : SpellID::Invalid;
+			out[count++] = { SkillRowKind::Paladin, {}, slot, skill };
+		}
 	}
 	return count;
 }
@@ -1361,14 +1368,15 @@ void CheckSBook(bool assignToRightButton)
 					sn = rows[i].spell;
 					break;
 				case SkillRowKind::Paladin:
-					// Charge rides a real spell slot, so an unlocked row readies it like any other.
-					// Zeal has no slot to ready - it applies itself to every melee swing - so its row
-					// is inert, the same way Fist Attack's is.
-					if (rows[i].paladin != oracool::PaladinSkill::Charge)
+					// A row is readiable when it carries a spell slot, which BuildSkillsSheetRows is
+					// the only place that decides. Charge has one; Zeal does not, because it applies
+					// itself to every melee swing rather than being cast, and neither do the five
+					// skills that are still art and a description. Testing the slot rather than
+					// naming Charge means a skill that later gains one needs no edit here.
+					if (!IsValidSpell(rows[i].spell))
 						return;
-					// A locked row is inert too: readying it would arm the slot's Item Repair under
-					// a name the player has not earned yet.
-					if (!oracool::IsPaladinSkillUnlocked(*InspectPlayer, oracool::PaladinSkill::Charge))
+					// A locked row is inert too - it names something the player has not earned yet.
+					if (!oracool::IsPaladinSkillUnlocked(*InspectPlayer, rows[i].paladin))
 						return;
 					sn = rows[i].spell;
 					break;

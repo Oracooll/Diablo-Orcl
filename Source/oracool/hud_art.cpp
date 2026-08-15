@@ -93,7 +93,7 @@ ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
 ArtAsset AuraIconsArt { "ui\\aura_icons.png" };
 /** Oracool: the 18 Barbarian skill icons, same 38x38 cells, in oracool::BarbSkill order. */
 ArtAsset BarbSkillIconsArt { "ui\\barb_skill_icons.png" };
-/** Oracool: the Paladin's Charge and Zeal, same 38x38 cells, in oracool::PaladinSkill order. */
+/** Oracool: the Paladin's seven skills, same 38x38 cells, in oracool::PaladinSkill order. */
 ArtAsset PaladinSkillIconsArt { "ui\\paladin_skill_icons.png" };
 /**
  * Oracool: the two basic-attack icons - cell 0 Regular Attack, cell 1 Fist Attack, in
