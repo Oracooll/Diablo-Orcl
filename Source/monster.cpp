@@ -476,6 +476,80 @@ void ClrAllMonsters()
  * and its escort comes out of the same MaxMonsters pool the scattered monsters and the density dial
  * both draw on.
  */
+/**
+ * @brief Oracool: places one lesser unique, scaled to THIS floor rather than to its own.
+ *
+ * The trick is the capture. PlaceMonster runs InitMonster, which sets the ordinary stats a monster of
+ * this type has on this level - already difficulty-scaled, because InitMonster does that itself.
+ * PrepareUniqueMonst then overwrites them with the champion's authored numbers. So we capture the
+ * ordinary values in between, and put back a multiple of them afterwards.
+ *
+ * That is what "stats appropriate for uniques compare to local mobs on current dungeon level" (user,
+ * 2026-08-15) means, and it is why the authored numbers are wrong for this: a level-16 champion's
+ * 2,000 hit points standing on level 3 is the exact problem being solved. The table supplies
+ * IDENTITY - name, palette, AI, resistances; the floor supplies POWER.
+ *
+ * Capturing rather than recomputing also means the difficulty ladder is inherited for free, instead
+ * of this needing its own copy of the Nightmare/Hell/Torment arithmetic to drift out of step.
+ */
+void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int packSize)
+{
+	// A champion is worth several ordinary monsters, but is still something a player at this depth is
+	// meant to beat. Three times the health is the felt difference; damage rises more gently, because
+	// a monster that hits three times as hard on level 2 does not read as a champion, it reads as a
+	// mistake.
+	constexpr int LesserUniqueHealthPercent = 300;
+	constexpr int LesserUniqueDamagePercent = 150;
+	constexpr int LesserUniqueArmorBonus = 4;
+	constexpr int MinionHealthPercent = 150;
+	constexpr int MinionDamagePercent = 120;
+
+	const auto &uniqueMonsterData = UniqueMonstersData[static_cast<size_t>(uniqindex)];
+	const size_t typeIndex = GetMonsterTypeIndex(uniqueMonsterData.mtype);
+	const Point position = GetUniqueMonstPosition(uniqindex);
+
+	const size_t championIndex = ActiveMonsterCount;
+	PlaceMonster(championIndex, typeIndex, position);
+	Monster &monster = Monsters[championIndex];
+	ActiveMonsterCount++;
+
+	// What an ordinary one of these is worth on this floor, before the champion data lands on it.
+	const int ordinaryHealth = monster.maxHitPoints;
+	const uint8_t ordinaryMinDamage = monster.minDamage;
+	const uint8_t ordinaryMaxDamage = monster.maxDamage;
+	const uint8_t ordinaryMinSpecial = monster.minDamageSpecial;
+	const uint8_t ordinaryMaxSpecial = monster.maxDamageSpecial;
+	const uint8_t ordinaryArmor = monster.armorClass;
+
+	const size_t firstMinionIndex = ActiveMonsterCount;
+	PrepareUniqueMonst(monster, uniqindex, minionType, packSize, uniqueMonsterData);
+
+	const auto scaleDamage = [](uint8_t base, int percent) {
+		return static_cast<uint8_t>(std::min(base * percent / 100, 255));
+	};
+
+	monster.maxHitPoints = std::max(ordinaryHealth * LesserUniqueHealthPercent / 100, 64);
+	monster.hitPoints = monster.maxHitPoints;
+	monster.minDamage = scaleDamage(ordinaryMinDamage, LesserUniqueDamagePercent);
+	monster.maxDamage = scaleDamage(ordinaryMaxDamage, LesserUniqueDamagePercent);
+	monster.minDamageSpecial = scaleDamage(ordinaryMinSpecial, LesserUniqueDamagePercent);
+	monster.maxDamageSpecial = scaleDamage(ordinaryMaxSpecial, LesserUniqueDamagePercent);
+	monster.armorClass = static_cast<uint8_t>(std::min(ordinaryArmor + LesserUniqueArmorBonus, 255));
+
+	// The escort PlaceGroup just created. They are ordinary monsters of the same type, so they are
+	// already floor-correct - this only lifts them enough to read as a champion's retinue rather than
+	// as the wandering monsters they are standing next to.
+	for (size_t i = firstMinionIndex; i < ActiveMonsterCount; i++) {
+		Monster &minion = Monsters[i];
+		minion.maxHitPoints = std::max(minion.maxHitPoints * MinionHealthPercent / 100, 64);
+		minion.hitPoints = minion.maxHitPoints;
+		minion.minDamage = scaleDamage(minion.minDamage, MinionDamagePercent);
+		minion.maxDamage = scaleDamage(minion.maxDamage, MinionDamagePercent);
+		minion.minDamageSpecial = scaleDamage(minion.minDamageSpecial, MinionDamagePercent);
+		minion.maxDamageSpecial = scaleDamage(minion.maxDamageSpecial, MinionDamagePercent);
+	}
+}
+
 void PlaceLesserUniques()
 {
 	constexpr int LesserUniquePackSize = 4;
@@ -494,7 +568,7 @@ void PlaceLesserUniques()
 		if (ActiveMonsterCount + LesserUniquePackSize + 1 > MaxMonsters - 10)
 			return;
 
-		PlaceUniqueMonst(*choice, minionType, LesserUniquePackSize);
+		PlaceLesserUniqueMonst(*choice, minionType, LesserUniquePackSize);
 	}
 }
 
