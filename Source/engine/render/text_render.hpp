@@ -63,6 +63,8 @@ enum text_color : uint8_t {
 	// value moves - these index ColorTranslations positionally.
 	ColorOracoolYellow,
 	ColorOracoolYellowDark,
+	/** Oracool: the injected green ramp - set items (2026-08-15). */
+	ColorOracoolGreen,
 };
 
 constexpr GameFontTables GetFontSizeFromUiFlags(UiFlags flags)

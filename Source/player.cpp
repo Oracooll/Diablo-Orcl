@@ -938,6 +938,10 @@ bool DoAttack(Player &player)
 	}
 
 	if (player.AnimInfo.isLastFrame()) {
+		// Oracool: a Zeal chain rides real swings now - if one is owed, the attack animation
+		// restarts toward the next target instead of the attack ending. See TryContinueZealChain.
+		if (oracool::TryContinueZealChain(player))
+			return false;
 		StartStand(player, player._pdir);
 		ClearStateVariables(player);
 		return true;
@@ -3183,7 +3187,6 @@ void ProcessPlayers()
 					RedrawComponent(PanelDrawComponent::Mana);
 				}
 				oracool::ProcessGradualHealing(player);
-				oracool::ProcessZealBurst(player);
 			}
 
 			bool tplayer = false;

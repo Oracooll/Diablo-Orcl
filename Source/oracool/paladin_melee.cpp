@@ -22,28 +22,21 @@ constexpr int ZealFirstUpgradeLevel = 6;
 constexpr int ZealLevelsPerStrike = 2;
 
 /**
- * @brief How much longer than a plain swing a full Zeal burst is allowed to take, in percent.
+ * @brief How many windup frames a chained Zeal swing keeps.
  *
- * "To hit up to 5 times within 150% of frames of regular attack" (user, 2026-08-15). The burst has a
- * TIME budget rather than a fixed gap, so a fast weapon's Zeal finishes sooner than a slow one's and
- * neither ever runs past the swing that started it by more than half again.
+ * User report (2026-08-15): "i dont see the hero making rapid atacks with 8-10 frames each. it was
+ * supposed to drop the attack frame and fit 2-5 attacks in 25-30 frames." The first implementation
+ * delivered the extra strikes as invisible damage ticks - the numbers happened, the swings did not.
+ * The burst is now a CHAIN of real attack animations: when a Zeal swing's animation ends, the next
+ * one starts with most of its windup skipped, so each follow-up shows roughly this many frames of
+ * swing plus the recovery - which is what puts a 2-5 hit burst inside the 25-30 frames asked for.
  */
-constexpr int ZealBurstFramesPercent = 150;
+constexpr int ZealChainWindupFrames = 4;
 
-/**
- * @brief A Zeal burst waiting to finish.
- *
- * File-scope, like the latch above and for the same reasons: single-player, one burst at a time, and
- * it must never reach the save format. A burst is abandoned rather than resumed if anything
- * interrupts it - see ProcessZealBurst.
- */
-struct ZealBurst {
-	int strikesLeft = 0;
-	int ticksUntilNext = 0;
-	int ticksBetween = 0;
-	int damage = 0;
-};
-ZealBurst PendingZeal;
+/** @brief Follow-up swings still owed by the current Zeal chain. */
+int ZealChainLeft = 0;
+/** @brief Whether a chain is running, so a landing follow-up swing does not re-initialize it. */
+bool ZealChainActive = false;
 
 /**
  * @brief What Hammer of Faith's splash does, as a percentage of the blow that landed.
@@ -130,60 +123,34 @@ Monster *NextZealTarget(const Player &player, Monster **struck, int struckCount)
 	return fallback;
 }
 
-/** @brief Who this burst has hit so far, so NextZealTarget can prefer someone else. */
+/** @brief Who this chain has hit so far, so NextZealTarget can prefer someone else. */
 Monster *ZealStruck[MaxZealStrikes] = {};
 int ZealStruckCount = 0;
 
-/** @brief Lands one strike of the burst, and reports whether there was anything to hit. */
-bool LandZealStrike(Player &player, int damage)
-{
-	Monster *target = NextZealTarget(player, ZealStruck, ZealStruckCount);
-	if (target == nullptr)
-		return false;
-	// One mana a strike, so the burst's total price is its strike count - which is the pairing the
-	// user gave (2 hits / 2 mana, up to 5 / 5). Charged per strike landed, so a burst cut short by a
-	// dying crowd costs only what it actually delivered.
-	if (!SpendPaladinSkillMana(player, PaladinSkill::Zeal))
-		return false;
-
-	if (ZealStruckCount < MaxZealStrikes)
-		ZealStruck[ZealStruckCount++] = target;
-	StrikeMonster(player, *target, damage);
-	return true;
-}
-
 /**
- * @brief Zeal - a burst of strikes spread across whoever is in reach.
+ * @brief Zeal - called when a Zeal-armed swing LANDS, real animation and all.
  *
- * The first lands with the swing itself; the rest are queued and delivered by ProcessZealBurst so
- * they arrive as a rapid succession rather than as one enormous blow.
+ * The swing's own damage has already been applied by the normal melee path; this charges the
+ * strike's mana, remembers who was hit so the chain prefers fresh targets, and - on the burst's
+ * first hit - arms the follow-up swings TryContinueZealChain delivers as the animations end.
  */
-void ApplyZeal(Player &player, Monster & /*primaryTarget*/, int hitDamage)
+void ApplyZeal(Player &player, Monster &primaryTarget)
 {
-	ZealStruckCount = 0;
-	PendingZeal = {};
-
-	const int strikes = ZealStrikeCount(player);
-	if (strikes <= 0)
+	// One mana a strike, the pairing the user gave (2 hits / 2 mana, up to 5 / 5), charged per
+	// LANDED swing. A chain the player cannot pay for ends rather than swinging free.
+	if (!SpendPaladinSkillMana(player, PaladinSkill::Zeal)) {
+		ZealChainActive = false;
+		ZealChainLeft = 0;
 		return;
-	if (!LandZealStrike(player, hitDamage))
-		return; // nothing in reach, and nothing charged
+	}
 
-	if (strikes <= 1)
-		return;
-
-	// The gap is the budget divided by the MAXIMUM strike count, not by this burst's count - so the
-	// rhythm of a Zeal burst is the same at every level and only its LENGTH grows. Dividing by
-	// `strikes` made a 2-strike burst put half a second between its two blows and a 5-strike burst a
-	// tenth, which read as the low-level version being slower rather than shorter.
-	//
-	// At the cap the whole burst still spans the 150% of a swing the user asked for; below the cap it
-	// simply ends sooner. _pAFrames is the swing's own length, so a fast weapon's Zeal is faster.
-	const int budget = std::max<int>(player._pAFrames, 1) * ZealBurstFramesPercent / 100;
-	PendingZeal.strikesLeft = strikes - 1;
-	PendingZeal.ticksBetween = std::max(budget / MaxZealStrikes, 1);
-	PendingZeal.ticksUntilNext = PendingZeal.ticksBetween;
-	PendingZeal.damage = hitDamage;
+	if (!ZealChainActive) {
+		ZealChainActive = true;
+		ZealStruckCount = 0;
+		ZealChainLeft = ZealStrikeCount(player) - 1;
+	}
+	if (ZealStruckCount < MaxZealStrikes)
+		ZealStruck[ZealStruckCount++] = &primaryTarget;
 }
 
 /**
@@ -236,39 +203,44 @@ int ZealStrikeCount(const Player &player)
 	return std::min(2 + extra, MaxZealStrikes);
 }
 
-void ProcessZealBurst(Player &player)
+bool TryContinueZealChain(Player &player)
 {
-	if (PendingZeal.strikesLeft <= 0)
-		return;
-	// Oracool bug fix (2026-08-15): user report - "i dont see zeal making burst hits". They were
-	// being queued and then thrown away, every single time.
-	//
-	// This used to abandon the burst whenever _pmode was no longer PM_ATTACK, on the reasoning that a
-	// burst is one action and should not outlive it. The arithmetic makes that impossible to satisfy:
-	// the first strike lands at the swing's HIT frame, a little past its middle, and the remaining
-	// strikes are spaced across a budget of 150% of the whole swing - so by construction they fall
-	// after the animation has ended. The guard did not trim the burst's tail, it deleted all of it.
-	//
-	// A burst outliving its swing by a few ticks is what "within 150% of frames of regular attack"
-	// asked for in the first place. What must still stop it is the Paladin no longer being there to
-	// throw it: dead, or on another floor. Walking away does not, and should not - the strikes are
-	// already paid for by the swing that landed, and NextZealTarget re-checks reach before each one,
-	// so a Paladin who steps back simply finds nothing to hit and the burst ends itself.
-	if ((player._pHitPoints >> 6) <= 0 || player._pLvlChanging || player._pmode == PM_DEATH
-	    || player._pmode == PM_NEWLVL || player._pmode == PM_QUIT) {
-		PendingZeal = {};
-		return;
+	if (&player != MyPlayer || !ZealChainActive)
+		return false;
+	if (ZealChainLeft <= 0) {
+		ZealChainActive = false;
+		return false;
+	}
+	// The mana and gate re-check, so a chain the player can no longer pay for ends mid-burst rather
+	// than swinging free - the same rule every skill follows.
+	if (!CanUsePaladinSkill(player, PaladinSkill::Zeal)) {
+		ZealChainActive = false;
+		ZealChainLeft = 0;
+		return false;
+	}
+	// Re-scanned each swing rather than fixed at the start: enemies die and move between swings, and
+	// a list captured up front would keep swinging at a corpse while a live monster stood beside it.
+	Monster *target = NextZealTarget(player, ZealStruck, ZealStruckCount);
+	if (target == nullptr) {
+		ZealChainActive = false;
+		ZealChainLeft = 0;
+		return false;
 	}
 
-	if (--PendingZeal.ticksUntilNext > 0)
-		return;
-	PendingZeal.ticksUntilNext = PendingZeal.ticksBetween;
-	PendingZeal.strikesLeft--;
-
-	// A strike with nothing left in reach ends the burst rather than waiting: the crowd is dead or
-	// gone, and there is no reason to keep the clock running.
-	if (!LandZealStrike(player, PendingZeal.damage))
-		PendingZeal = {};
+	ZealChainLeft--;
+	// A REAL follow-up swing, which is the whole point (user, 2026-08-15: "i dont see the hero
+	// making rapid atacks"): the attack animation restarts toward the next target with most of its
+	// windup skipped, and the blow lands through the same DoAttack hit-frame path as any other
+	// swing - real animation, real to-hit roll, real damage. The latch is still armed, so the
+	// landing hit re-enters ApplyZeal, pays its mana and records its target.
+	const Direction d = GetDirection(player.position.tile, target->position.tile);
+	player._pdir = d;
+	const int hitFrame = MeleeHitFrame(player);
+	const int skipped = std::max(0, hitFrame - ZealChainWindupFrames);
+	NewPlrAnim(player, player_graphic::Attack, d,
+	    static_cast<AnimationDistributionFlags>(AnimationDistributionFlags::ProcessAnimationPending | AnimationDistributionFlags::RepeatedAction),
+	    skipped, hitFrame);
+	return true;
 }
 
 void ArmMeleeSkill(std::optional<PaladinSkill> skill)
@@ -309,7 +281,7 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 
 	switch (*ArmedSkill) {
 	case PaladinSkill::Zeal:
-		ApplyZeal(player, primaryTarget, hitDamage);
+		ApplyZeal(player, primaryTarget);
 		break;
 	case PaladinSkill::HammerOfFaith:
 		ApplyHammerOfFaith(player, primaryTarget, hitDamage);

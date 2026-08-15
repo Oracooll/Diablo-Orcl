@@ -66,6 +66,8 @@ enum class UiFlags : uint64_t {
 	 */
 	ColorOracoolYellow     = 1ULL << 32,
 	ColorOracoolYellowDark = 1ULL << 33,
+	/** @brief Oracool: green text on the injected PAL8_GREEN ramp - set items, Belzebub-style (2026-08-15). */
+	ColorOracoolGreen      = 1ULL << 34,
 
 	// Bits 34+ are free for a future color or flag - see the widening note above. The two above
 	// were the first assigned: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)

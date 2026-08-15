@@ -96,7 +96,13 @@ int ZealStrikeCount(const Player &player);
  * times within 150% of frames of regular attack" - a burst, not a bigger single blow. The first
  * strike lands with the swing; the rest follow on this clock.
  */
-void ProcessZealBurst(Player &player);
+/**
+ * @brief Continues a running Zeal chain when a swing's animation ends: restarts a REAL attack
+ * animation toward the next target with most of the windup skipped. Returns true if it did, in
+ * which case DoAttack must not end the attack. Replaces the invisible-tick burst (user, 2026-08-15:
+ * "i dont see the hero making rapid atacks").
+ */
+bool TryContinueZealChain(Player &player);
 
 } // namespace oracool
 } // namespace devilution

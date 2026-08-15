@@ -23,6 +23,7 @@
 #include "engine/load_pcx.hpp"
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
+#include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/surface.hpp"
@@ -81,7 +82,7 @@ constexpr std::array<int, 6> LineHeights = { 12, 26, 38, 42, 50, 22 };
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 6> BaseLineOffset = { -3, -2, -3, -6, -7, 3 };
 
-std::array<const char *, 21> ColorTranslations = {
+std::array<const char *, 22> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -109,9 +110,16 @@ std::array<const char *, 21> ColorTranslations = {
 	// Oracool: generated, not authored - see tools/MakeYellowFontTrn.ps1.
 	"fonts\\oracool_yellow.trn",
 	"fonts\\oracool_yellows.trn",
+
+	// Oracool: GREEN text (user, 2026-08-15 - "Set Green items as in belzebub"). Deliberately the
+	// same file as ColorYellow: yellow.trn has always pointed its glyphs at indices 144-151, and
+	// LoadPalette now injects the green ramp exactly there - so the file that used to mean yellow
+	// IS the green, unhealed. ColorYellow itself gets healed onto the PAL16_YELLOW ramp at load
+	// (see the remap below), which is what keeps rare items yellow.
+	"fonts\\yellow.trn",
 };
 
-std::array<std::optional<std::array<uint8_t, 256>>, 21> ColorTranslationsData;
+std::array<std::optional<std::array<uint8_t, 256>>, 22> ColorTranslationsData;
 
 text_color GetColorFromFlags(UiFlags flags)
 {
@@ -153,6 +161,9 @@ text_color GetColorFromFlags(UiFlags flags)
 		return ColorOracoolYellow;
 	if (HasAnyOf(flags, UiFlags::ColorOracoolYellowDark))
 		return ColorOracoolYellowDark;
+	// Oracool: set-item green (2026-08-15) - see ColorTranslations' last entry.
+	if (HasAnyOf(flags, UiFlags::ColorOracoolGreen))
+		return ColorOracoolGreen;
 
 	// Last, and only for the sake of being written down: ColorWhitegold is also what this returns for
 	// no recognised colour at all, which is how every existing caller of that flag has been getting it.
@@ -205,6 +216,17 @@ FontStack LoadFont(GameFontTables size, text_color color, uint16_t row)
 	if (ColorTranslations[color] != nullptr && !ColorTranslationsData[color]) {
 		ColorTranslationsData[color].emplace();
 		LoadFileInMem(ColorTranslations[color], *ColorTranslationsData[color]);
+		// Oracool (2026-08-15): indices 144-151 are the injected GREEN ramp in-game now (see
+		// LoadPalette), and the shipped yellow.trn points its glyphs exactly there - which turned
+		// every rare item's name green (user: "that is absurd"). Any font colour that lands in the
+		// donor run is healed onto the PAL16_YELLOW ramp at matching brightness (8 shades onto 16,
+		// so i*2) - EXCEPT ColorOracoolGreen, whose whole purpose is to land on the green.
+		if (color != ColorOracoolGreen) {
+			for (uint8_t &entry : *ColorTranslationsData[color]) {
+				if (entry >= PAL8_GREEN && entry < PAL8_GREEN + PAL8_GREEN_SHADES)
+					entry = static_cast<uint8_t>(PAL16_YELLOW + (entry - PAL8_GREEN) * 2);
+			}
+		}
 	}
 
 	const uint32_t fontId = GetFontId(size, row);

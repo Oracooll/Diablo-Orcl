@@ -603,6 +603,14 @@ struct Item {
 
 	UiFlags getTextColor() const
 	{
+		// Oracool: user request (2026-08-15) - "yellow rare AND Set Green items as in belzebub".
+		// SET membership beats the tier colour, exactly as D2/Belzebub rank it: a rare-tier Steel
+		// Helm is still a Steel SET piece first, and green is the one fact the colour must carry.
+		// IsOracoolItemIdx is the whole set range - the eight material tiers across the thirteen
+		// slots, leather through spectral. The green itself is the injected PAL8_GREEN ramp, via
+		// fonts\yellow.trn's original (unhealed) indices - see text_render.cpp's ColorTranslations.
+		if (IsOracoolItemIdx(IDidx))
+			return UiFlags::ColorOracoolGreen;
 		if (hasOracoolTier()) {
 			switch (_iOracoolTier) {
 			case OracoolItemTier::Rare:
