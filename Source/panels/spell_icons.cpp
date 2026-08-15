@@ -247,23 +247,4 @@ void SetSpellTrans(SpellType t)
 	}
 }
 
-void SetSpellTransRed()
-{
-	for (int i = 128; i < 256; i++)
-		SplTransTbl[i] = i;
-	SplTransTbl[255] = 0;
-
-	SplTransTbl[PAL8_YELLOW] = PAL16_RED + 1;
-	SplTransTbl[PAL8_YELLOW + 1] = PAL16_RED + 3;
-	SplTransTbl[PAL8_YELLOW + 2] = PAL16_RED + 5;
-	for (int i = PAL16_RED; i < PAL16_RED + 15; i++) {
-		SplTransTbl[PAL16_BEIGE - PAL16_RED + i] = i;
-		SplTransTbl[PAL16_YELLOW - PAL16_RED + i] = i;
-		SplTransTbl[PAL16_ORANGE - PAL16_RED + i] = i;
-	}
-	SplTransTbl[PAL16_BEIGE + 15] = 0;
-	SplTransTbl[PAL16_YELLOW + 15] = 0;
-	SplTransTbl[PAL16_ORANGE + 15] = 0;
-}
-
 } // namespace devilution

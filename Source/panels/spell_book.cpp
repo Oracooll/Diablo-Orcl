@@ -453,8 +453,20 @@ size_t BuildSkillsSheetRows(SkillRow *out)
 	// assignable to a mouse button; the slot comes from the skill table rather than being decided
 	// here, so this loop has no opinion about which skills exist.
 	if (paladin) {
-		for (size_t i = 0; i < oracool::PaladinSkillCount; i++) {
-			const auto skill = static_cast<oracool::PaladinSkill>(i);
+		// Ordered by level requirement, lowest first (user request, 2026-08-15) - so the sheet reads
+		// as the order they will actually be earned in, under the two attacks that need no level at
+		// all. SORTED from the table rather than kept as a second hand-written order: change a
+		// minLevel in paladin_skills.cpp and the row moves with it, and the two cannot disagree.
+		// Stable, so skills that ever share a level keep their enum (and icon strip) order.
+		size_t order[oracool::PaladinSkillCount];
+		for (size_t i = 0; i < oracool::PaladinSkillCount; i++)
+			order[i] = i;
+		std::stable_sort(std::begin(order), std::end(order), [](size_t a, size_t b) {
+			return oracool::GetPaladinSkillData(static_cast<oracool::PaladinSkill>(a)).minLevel
+			    < oracool::GetPaladinSkillData(static_cast<oracool::PaladinSkill>(b)).minLevel;
+		});
+		for (const size_t index : order) {
+			const auto skill = static_cast<oracool::PaladinSkill>(index);
 			out[count++] = { SkillRowKind::Paladin, {}, oracool::GetPaladinSkillData(skill).spellId, skill };
 		}
 	}

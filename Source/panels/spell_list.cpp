@@ -15,6 +15,7 @@
 #include "options.h"
 #include "oracool/attack_skills.h"
 #include "oracool/furious_charge.h"
+#include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/oracool.h"
 #include "panels/spell_book.hpp" // ToggleAbilitiesWindow
@@ -135,25 +136,30 @@ void DrawSpell(const Surface &out)
 	// single-color Item Repair icon. User request - the cooldown fill grows in red (rather than
 	// the ready color) bottom-up as it cools, then flips to the normal ready tint the instant it's fully
 	// cooled, instead of gradually blending from gray to color.
+	// Oracool: user report (2026-08-15) - "the skill icons dont show on rmb". The fix that gave the
+	// LMB well the Paladin skills' own art went into oracool::DrawWellIcon, and THIS well only
+	// delegates there when nothing is readied - the moment a spell is on the button, the drawing
+	// happens right here instead, still asking the engine's icon sheet, where these skills have no
+	// frame and SpellITbl points at the empty plate. So the ask has to be repeated on this path.
+	//
+	// The strip icons anchor TOP-left where DrawSmallSpellIcon anchors bottom-left.
+	const Point iconTopLeft { position.x, position.y - SmallIconHeight + 1 };
+
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
-		if (progress >= 1.0f) {
-			SetSpellTrans(st);
+		SetSpellTrans(st);
+		if (!oracool::TryDrawSkillSpellIcon(out, iconTopLeft, spl))
 			DrawSmallSpellIcon(out, position, oracool::FuriousChargeIcon);
-		} else {
-			const int partition = static_cast<int>(SmallIconHeight * progress);
-			if (partition > 0) {
-				const Surface filledBand = out.subregionY(position.y - partition, partition);
-				SetSpellTransRed();
-				DrawSmallSpellIcon(filledBand, { position.x, partition }, oracool::FuriousChargeIcon);
-			}
-			if (partition < SmallIconHeight) {
-				const Surface unfilledBand = out.subregionY(position.y - SmallIconHeight, SmallIconHeight - partition);
-				SetSpellTrans(SpellType::Invalid);
-				DrawSmallSpellIcon(unfilledBand, { position.x, SmallIconHeight }, oracool::FuriousChargeIcon);
-			}
+		if (progress < 1.0f) {
+			// The cooldown still reads as a fill rising from the bottom, but as a DARKENED band over
+			// the part not yet cooled rather than as two differently-tinted copies of the sprite. The
+			// two-copy trick needed a single-ramp CLX to recolour; Charge's icon is a blitted image
+			// now, with no ramp to remap, and an overlay works on any art the user ships next.
+			const int cooled = static_cast<int>(SmallIconHeight * progress);
+			if (cooled < SmallIconHeight)
+				DrawHalfTransparentRectTo(out, iconTopLeft.x, iconTopLeft.y, iconSize.width, SmallIconHeight - cooled);
 		}
-	} else {
+	} else if (!oracool::TryDrawSkillSpellIcon(out, iconTopLeft, spl)) {
 		SetSpellTrans(st);
 		DrawSmallSpellIcon(out, position, spl);
 	}
