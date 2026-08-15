@@ -179,6 +179,15 @@ extern bool MissilePreFlag;
 void GetDamageAmt(SpellID i, int *mind, int *maxd);
 
 /**
+ * @brief Same, but for an explicit spell level rather than the player's current one.
+ *
+ * Oracool: what lets the Abilities window show what a spell would do ONE LEVEL FROM NOW beside what
+ * it does today. Still reads the player for everything else - Magic, character level, class - since
+ * those are not what is being hypothesised about.
+ */
+void GetDamageAmtAtLevel(SpellID i, int spellLevel, int *mind, int *maxd);
+
+/**
  * @brief Returns the direction a vector from p1(x1, y1) to p2(x2, y2) is pointing to.
  *
  * @code{.unparsed}

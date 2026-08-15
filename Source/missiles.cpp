@@ -788,11 +788,22 @@ bool IsMissileBlockedByTile(Point tile)
 void GetDamageAmt(SpellID i, int *mind, int *maxd)
 {
 	assert(MyPlayer != nullptr);
+	GetDamageAmtAtLevel(i, MyPlayer->GetSpellLevel(i), mind, maxd);
+}
+
+// Oracool: the spell level is a PARAMETER here rather than read from the player, so the Abilities
+// window can ask "and what would this do one level from now?" - see the hover panel in
+// panels/spell_book.cpp. Everything else still goes through the overload above, which supplies the
+// player's current level and is what every pre-existing caller uses.
+//
+// The parameter is deliberately named `sl`, the name the body already used for the local it
+// replaces, so the hundred-odd formulas below are untouched.
+void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
+{
+	assert(MyPlayer != nullptr);
 	assert(i >= SpellID::FIRST && i <= SpellID::LAST);
 
 	Player &myPlayer = *MyPlayer;
-
-	const int sl = myPlayer.GetSpellLevel(i);
 
 	switch (i) {
 	case SpellID::Firebolt:

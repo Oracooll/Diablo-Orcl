@@ -881,6 +881,74 @@ void FreeSpellBook()
 }
 
 /**
+ * @brief The stat block the hover panel puts under a spell's description.
+ *
+ * Oracool: user request (2026-08-15) - "stats of spells like dmg, which level it currently is, dmg
+ * at next level and whatever else is required for a full informative pop-up".
+ *
+ * What is worth showing turns out to be decided by the spell rather than uniform, so this is a set
+ * of conditional lines rather than a fixed template:
+ *
+ *   - The magic requirement is shown ONLY when the character does not meet it, where it is the
+ *     reason the spell is unusable. Once met it is noise.
+ *   - Damage is skipped entirely for the spells that have none - GetDamageAmt reports -1 for them,
+ *     which is every utility spell in the game. Bone Spirit is its own case: its damage is a
+ *     fraction of the target's health, not a range.
+ *   - Healing spells say "Heals" rather than "Damage", because they do.
+ *   - The next-level line is omitted when the spell is unusable (level 0 tells you nothing about
+ *     level 1's numbers being reachable) and when the numbers do not actually change, which is true
+ *     of several spells whose damage scales on character level alone.
+ */
+std::string BuildSpellStatBlock(SpellID sn)
+{
+	const Player &player = *InspectPlayer;
+	std::string out;
+	const auto line = [&out](const std::string &text) {
+		if (!out.empty())
+			out += '\n';
+		out += text;
+	};
+
+	const int required = GetSpellData(sn).minInt;
+	const int level = player.GetSpellLevel(sn);
+
+	if (GetSBookTrans(sn, false) == SpellType::Spell) {
+		line(level == 0
+		        ? std::string(_("Spell Level 0 - Unusable"))
+		        : fmt::format(fmt::runtime(_("Spell Level {:d}")), level));
+	}
+	if (player._pMagic < required)
+		line(fmt::format(fmt::runtime(_("Requires {:d} Magic")), required));
+
+	line(fmt::format(fmt::runtime(_("Mana: {:d}")), GetManaAmount(player, sn) >> 6));
+
+	if (sn == SpellID::BoneSpirit) {
+		line(std::string(_("Damage: 1/3 of target's health")));
+		return out;
+	}
+
+	int min = -1;
+	int max = -1;
+	GetDamageAmt(sn, &min, &max);
+	if (min == -1)
+		return out; // a utility spell - it has no damage to report, so it says nothing
+
+	const bool heals = sn == SpellID::Healing || sn == SpellID::HealOther;
+	line(fmt::format(fmt::runtime(heals ? _("Heals: {:d} - {:d}") : _("Damage: {:d} - {:d}")), min, max));
+
+	if (level > 0) {
+		int nextMin = -1;
+		int nextMax = -1;
+		GetDamageAmtAtLevel(sn, level + 1, &nextMin, &nextMax);
+		if (nextMin != -1 && (nextMin != min || nextMax != max)) {
+			line(fmt::format(fmt::runtime(heals ? _("Next level: {:d} - {:d}") : _("Next level: {:d} - {:d}")),
+			    nextMin, nextMax));
+		}
+	}
+	return out;
+}
+
+/**
  * @brief Marks the row under the cursor and describes it.
  *
  * Oracool: user request (2026-08-15) - a subtle gold outline on the hovered row, and a pop-up
@@ -900,10 +968,25 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		return;
 
 	const int y = MousePosition.y - contentRect.position.y + scroll;
-	string_view description;
+	std::string description;
 	int rowTop = 0;
 	int rowHeight = 0;
 	bool found = false;
+
+	// A spell's panel is its prose and then its numbers, separated by a blank line. The other sheets
+	// pass through unchanged: an aura or Barbarian skill has no numbers yet, and a Paladin skill
+	// already carries its price and gate on the row itself.
+	const auto spellInfo = [](SpellID spell) {
+		// Explicit construction: _() hands back a string_view, and that conversion is explicit.
+		std::string text { _(oracool::GetSpellDescription(spell)) };
+		const std::string stats = BuildSpellStatBlock(spell);
+		if (!stats.empty()) {
+			if (!text.empty())
+				text += "\n\n";
+			text += stats;
+		}
+		return text;
+	};
 
 	if (CurrentSheet == AbilitySheet::Skills) {
 		SkillRow rows[MaxSkillSheetRows];
@@ -922,7 +1005,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 					    : _("Strike bare-handed. What Regular Attack becomes with no weapon held.");
 					break;
 				case SkillRowKind::Spell:
-					description = _(oracool::GetSpellDescription(rows[i].spell));
+					description = spellInfo(rows[i].spell);
 					break;
 				case SkillRowKind::Paladin:
 					description = _(oracool::GetPaladinSkillData(rows[i].paladin).description);
@@ -956,7 +1039,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 				    ? BuildClassSkillRows(rows)
 				    : BuildSpellRows(rows);
 				if (index < rowCount)
-					description = _(oracool::GetSpellDescription(rows[index]));
+					description = spellInfo(rows[index]);
 				break;
 			}
 			case AbilitySheet::Skills:
