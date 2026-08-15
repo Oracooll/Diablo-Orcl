@@ -1568,6 +1568,14 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		const ItemData &item = AllItemsList[i];
 		if (item.iRnd == IDROP_NEVER)
 			continue;
+		// Oracool (2026-08-15): the set items are droppable (IDROP_REGULAR, so IsDungeonItemValid
+		// accepts them on the wire) but NOT through this pool - because this pool is part of the
+		// save format. UnPackItem recreates a dungeon item's INDEX by replaying its seed through
+		// this exact walk, so growing the list re-routes every seeded recreation: the first attempt
+		// put them here and pack_test watched a Jade Great Helm come back as Jade Leggings. Set
+		// items drop through their own hook instead - see TrySpawnOracoolSetItem.
+		if (IsOracoolItemIdx(i))
+			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
 		// Oracool: Town Portal is a built-in ability cast from the HUD's Portal button, so its
@@ -4330,6 +4338,53 @@ OptionalClxSpriteList GetItemDropAnim(int8_t animIndex)
 	if (animIndex < 0 || animIndex >= ITEMTYPES || !itemanims[animIndex])
 		return std::nullopt;
 	return OptionalClxSpriteList { *itemanims[animIndex] };
+}
+
+void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
+{
+	// Oracool: user report (2026-08-15) - "for 6 level not a single new tier item dropped. i think
+	// they dont drop at all." They did not: every set item shipped IDROP_NEVER, reachable only
+	// through the debug spawn commands. This is their drop path - a hook of its own rather than a
+	// seat in GetItemIndexForDroppableItem's pool, because that pool is replayed from item seeds on
+	// unpack and growing it transforms existing items (see the guard there).
+	//
+	// Single-player only, like the tier system itself: the compact multiplayer item pack cannot
+	// recreate an item that is not in the seeded pool, and V1 does not play multiplayer.
+	if (!oracool::IsSinglePlayer())
+		return;
+
+	// Roughly one monster in twelve carries a set piece - loot you notice without every floor
+	// papering the ground in green names.
+	constexpr int SetDropPercent = 8;
+	if (GenerateRnd(100) >= SetDropPercent)
+		return;
+
+	const int mlvl = monster.level(sgGameInitInfo.nDifficulty);
+	// Every set item this depth has earned: iMinMLvl carries the tier ladder (leather at 1-2 up to
+	// spectral at 50), so deeper floors drop better tiers by data rather than by a table here.
+	_item_indexes candidates[IDI_LAST + 1];
+	int candidateCount = 0;
+	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_SPECTRAL_HELM; i++) {
+		if (AllItemsList[i].iMinMLvl <= mlvl)
+			candidates[candidateCount++] = static_cast<_item_indexes>(i);
+	}
+	if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
+		return;
+	const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
+
+	// The same construction the debug set commands use, magic roll and tier ladder included; the
+	// level clamp is the same 30 that keeps IsDungeonItemValid satisfied on the loopback.
+	const int lvl = std::clamp(mlvl, 1, 30);
+	Item item;
+	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 1, /*onlygood=*/false,
+	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true);
+
+	const int ii = AllocateItem();
+	Items[ii] = item.pop();
+	Point position = monster.position.tile;
+	GetSuperItemSpace(position, ii);
+	if (sendmsg)
+		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
 }
 
 void GetItemStr(Item &item)

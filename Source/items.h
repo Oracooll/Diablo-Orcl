@@ -806,6 +806,8 @@ constexpr int8_t MaceDropAnimIndex = 6;
 /** @brief Drop-animation index of the shield - a shield tumbling end over end. */
 constexpr int8_t ShieldDropAnimIndex = 7;
 void GetItemStr(Item &item);
+/** @brief Oracool: the set items' own drop hook - see items.cpp. Called from SpawnLoot after the vanilla rolls. */
+void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg);
 /**
  * @brief tabIdx selects an Oracool Tabbed Inventory extra tab (0-8) instead of the vanilla
  * InvBody/InvList encoding cii would otherwise resolve through - pass -1 (the default) for the

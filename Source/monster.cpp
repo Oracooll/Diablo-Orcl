@@ -1048,6 +1048,10 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		// better drop without inventing a rarity tier nobody has balanced.
 		if (monster.lesserAffix != LesserUniqueAffix::None)
 			SpawnItem(monster, monster.position.tile, sendmsg);
+		// Oracool: the set items' own drop roll, AFTER the vanilla spawns so the rndItemSeed-driven
+		// stream above stays byte-identical - see TrySpawnOracoolSetItem for why they cannot ride
+		// the ordinary pool.
+		TrySpawnOracoolSetItem(monster, sendmsg);
 	}
 }
 
