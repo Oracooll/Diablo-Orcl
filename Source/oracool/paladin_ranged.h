@@ -31,5 +31,16 @@ namespace oracool {
  */
 bool CastRangedPaladinSkill(Player &player, PaladinSkill skill, Point target);
 
+/**
+ * @brief Everything Fist of the Heavens does the moment the mace lands.
+ *
+ * Split out because the descent is a missile and the impact is not: ProcessFallingMace calls this on
+ * the animation's last frame, so the blast, the sound and the mini-Nova all happen when the mace is
+ * seen to hit the ground rather than when the button was pressed.
+ *
+ * @p damage is already the weapon roll for this cast; the mana was charged at the cast.
+ */
+void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellLevel);
+
 } // namespace oracool
 } // namespace devilution

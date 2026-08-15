@@ -26,6 +26,8 @@
 #include "lighting.h"
 #include "monster.h"
 #include "oracool/event_log.h"
+#include "oracool/divine_trn.h"
+#include "oracool/paladin_ranged.h"
 #include "spells.h"
 #include "utils/str_cat.hpp"
 
@@ -2577,6 +2579,35 @@ void AddInfravision(Missile &missile, AddMissileParameter & /*parameter*/)
  * number is written as the doubling rather than as 32 so the relationship survives a change to
  * either.
  */
+/**
+ * @brief Oracool: points a missile at one of the ITEM DROP animations.
+ *
+ * The user asked "what is the animation played when i drop mace from inventory on ground?", and the
+ * answer corrected an earlier claim of mine. I had searched only MissileSpriteData, found no mace or
+ * shield among its 42 entries, and reported that neither animation existed. They exist - as
+ * items\mace.cel and items\shield.cel, the tumbles an item plays when it lands on the floor. They
+ * are the only animations in the game of an OBJECT in flight rather than a character holding one,
+ * which is exactly what a thrown shield and a falling mace need.
+ *
+ * Single-direction, so the missile is left facing frame 0; these tumble rather than aim.
+ */
+void UseItemDropAnimation(Missile &missile, int8_t animIndex)
+{
+	OptionalClxSpriteList sprites = GetItemDropAnim(animIndex);
+	if (!sprites)
+		return; // before InitItems, or after the graphics were freed - keep the misdat sprite
+	missile._miAnimData = sprites;
+	missile._miAnimLen = static_cast<int>(sprites->numSprites());
+	missile._miAnimWidth = (*sprites)[0].width();
+	missile._miAnimWidth2 = CalculateWidth2(missile._miAnimWidth);
+	missile._miAnimFrame = 1;
+	missile._miAnimCnt = 0;
+	// The borrowed sprite is painted as LOOT - a plain steel shield reads as something to pick up,
+	// not as something a Paladin blessed and threw. The recolour is what makes it divine rather than
+	// dropped (user, 2026-08-15: "make them a bit shiny. lightning shiny. divine shyni").
+	missile.oracoolTrn = oracool::GetDivineTrn();
+}
+
 void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter)
 {
 	Point dst = parameter.dst;
@@ -2585,6 +2616,37 @@ void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter)
 	UpdateMissileVelocity(missile, dst, HolyBoltSpeed * BlessedShieldSpeedMultiplier);
 	missile._mirange = BlessedShieldRangeTicks;
 	SetMissDir(missile, GetDirection16(missile.position.start, dst));
+	// The shield's own tumble - "in spinning motion animation, if available". It is available.
+	UseItemDropAnimation(missile, ShieldDropAnimIndex);
+}
+
+/**
+ * @brief Oracool: the mace Fist of the Heavens drops on the target, using the item's own fall.
+ *
+ * It does not travel - it lands. The animation IS the descent, so the missile sits on the target
+ * tile playing it out and fires the impact when the last frame shows.
+ */
+void AddFallingMace(Missile &missile, AddMissileParameter &parameter)
+{
+	missile.position.tile = parameter.dst;
+	missile.position.start = parameter.dst;
+	UseItemDropAnimation(missile, MaceDropAnimIndex);
+	// The animation's own length, so the blast lands exactly when the mace does rather than on a
+	// number picked to look about right.
+	missile._mirange = missile._miAnimLen;
+}
+
+void ProcessFallingMace(Missile &missile)
+{
+	missile._mirange--;
+	if (missile._mirange <= 0) {
+		missile._miDelFlag = true;
+		Player *player = missile.sourcePlayer();
+		if (player != nullptr)
+			oracool::FistOfTheHeavensImpact(*player, missile.position.tile, missile._midam, missile._mispllvl);
+		return;
+	}
+	PutMissile(missile);
 }
 
 /**

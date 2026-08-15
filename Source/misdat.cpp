@@ -147,7 +147,13 @@ const MissileData MissilesData[] = {
 // missile art at all, and the one shield the user asked for lives in the ITEM cursor sheet as a
 // static 2x3 icon with no spin frames. Holy's bright bolt is at least the right register for a
 // BLESSED throw. Blockable so a wall stops it, like every other thrown thing.
+// Oracool: Blessed Shield's throw. The sprite named here is only the fallback - AddBlessedShieldThrow
+// swaps in items\shield.cel, the tumble a dropped shield plays, which is the spinning motion the user
+// asked for. Blockable so a wall stops it, like every other thrown thing.
 /*BlessedShieldThrow*/   { &AddBlessedShieldThrow,  &ProcessBlessedShieldThrow,   IS_CAST2,    SFX_NONE,    MissileGraphicID::HolyBolt,             Physical,              MissileMovementDistribution::Blockable   },
+// Oracool: Fist of the Heavens' descent. Same story - the real animation is items\mace.cel, swapped
+// in by AddFallingMace. Invisible would be wrong; this one is the whole point of the effect.
+/*FallingMace*/          { &AddFallingMace,         &ProcessFallingMace,          SFX_NONE,    SFX_NONE,    MissileGraphicID::ApocalypseBoom,       Physical,              MissileMovementDistribution::Disabled    },
 // Oracool: Fist of the Heavens' mini-Nova bolt - NovaBall's own add and process functions with
 // ChargedBolt's smaller sprite. See the note at MissileID::MiniNovaBall.
 /*MiniNovaBall*/         { &AddNovaBall,            &ProcessNovaBall,             SFX_NONE,    SFX_NONE,    MissileGraphicID::ChargedBolt,          Lightning,             MissileMovementDistribution::Unblockable },

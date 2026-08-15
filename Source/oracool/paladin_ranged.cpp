@@ -71,9 +71,9 @@ constexpr int BlessedShieldPercent = 125;
  * also already shipped - MissileID::MiniNovaBall is NovaBall's behaviour with ChargedBolt's sprite,
  * whose file is literally named "miniltng".
  *
- * NOT YET the falling mace. The user believed an animation existed for it; all 42 missile sprites
- * are accounted for and none is a mace, and the item art is a static inventory icon with no frames
- * to fall. The impact blast stands in until that art is made - see the dev report.
+ * The mace really does fall: MissileID::FallingMace plays items\mace.cel, the tumble an item makes
+ * when it lands on the floor. Everything below happens on its last frame - see
+ * FistOfTheHeavensImpact.
  */
 bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 {
@@ -81,26 +81,8 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 	if (!SpendPaladinSkillMana(player, PaladinSkill::FistOfTheHeavens))
 		return false;
 
-	DropBlast(player, target, damage * FistCentrePercent / 100, spellLevel);
-	// "Replace the sound on ground hit with the sound we use for SORT buttons" - IS_ISHIEL, the
-	// shield-into-slot sound the Stash's and the inventory's Sort buttons both play.
-	PlaySfxLoc(IS_ISHIEL, target);
-
-	// The ring, laid out exactly as ProcessNovaCommon does: a quarter arc mirrored into four, which
-	// is what gives Nova its round front rather than a square one.
-	constexpr std::array<WorldTileDisplacement, 9> quarterRadius = {
-		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
-	};
-	const int boltDamage = std::max(damage * FistNovaPercent / 100, 1);
-	for (WorldTileDisplacement quarterOffset : quarterRadius) {
-		const std::array<WorldTileDisplacement, 4> offsets {
-			quarterOffset, quarterOffset.flipXY(), quarterOffset.flipX(), quarterOffset.flipY()
-		};
-		for (WorldTileDisplacement offset : offsets) {
-			AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
-			    TARGET_MONSTERS, player.getId(), boltDamage, spellLevel);
-		}
-	}
+	AddMissile(target, target, player._pdir, MissileID::FallingMace, TARGET_MONSTERS,
+	    player.getId(), std::max(damage, 1), spellLevel);
 	return true;
 }
 
@@ -155,6 +137,31 @@ bool CastBlessedHammer(Player &player, int spellLevel)
 }
 
 } // namespace
+
+void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellLevel)
+{
+	DropBlast(player, target, damage * FistCentrePercent / 100, spellLevel);
+	// "Replace the sound on ground hit with the sound we use for SORT buttons" - IS_ISHIEL, the
+	// shield-into-slot sound the Stash's and the inventory's Sort buttons both play.
+	PlaySfxLoc(IS_ISHIEL, target);
+
+	// The ring, laid out exactly as ProcessNovaCommon does: a quarter arc mirrored into four, which
+	// is what gives Nova its round front rather than a square one. Its radius is 4 tiles, which is
+	// already the travel distance the user asked for.
+	constexpr std::array<WorldTileDisplacement, 9> quarterRadius = {
+		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
+	};
+	const int boltDamage = std::max(damage * FistNovaPercent / 100, 1);
+	for (WorldTileDisplacement quarterOffset : quarterRadius) {
+		const std::array<WorldTileDisplacement, 4> offsets {
+			quarterOffset, quarterOffset.flipXY(), quarterOffset.flipX(), quarterOffset.flipY()
+		};
+		for (WorldTileDisplacement offset : offsets) {
+			AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
+			    TARGET_MONSTERS, player.getId(), boltDamage, spellLevel);
+		}
+	}
+}
 
 bool CastRangedPaladinSkill(Player &player, PaladinSkill skill, Point target)
 {

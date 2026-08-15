@@ -343,7 +343,11 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 
 	const Point missileRenderPosition { targetBufferPosition + missile.position.offsetForRendering - Displacement { missile._miAnimWidth2, 0 } };
 	const ClxSprite sprite = (*missile._miAnimData)[missile._miAnimFrame - 1];
-	if (missile._miUniqTrans != 0)
+	// Oracool: a caller-supplied recolour, checked before the unique-monster one because a player's
+	// missile can never have the latter. See Missile::oracoolTrn.
+	if (missile.oracoolTrn != nullptr)
+		ClxDrawTRN(out, missileRenderPosition, sprite, missile.oracoolTrn);
+	else if (missile._miUniqTrans != 0)
 		ClxDrawTRN(out, missileRenderPosition, sprite, Monsters[missile._misource].uniqueMonsterTRN.get());
 	else if (missile._miLightFlag)
 		ClxDrawLight(out, missileRenderPosition, sprite, lightTableIndex);

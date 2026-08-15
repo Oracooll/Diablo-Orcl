@@ -4312,6 +4312,13 @@ void GetItemFrm(Item &item)
 		item.AnimInfo.sprites.emplace(*itemanims[it]);
 }
 
+OptionalClxSpriteList GetItemDropAnim(int8_t animIndex)
+{
+	if (animIndex < 0 || animIndex >= ITEMTYPES || !itemanims[animIndex])
+		return std::nullopt;
+	return OptionalClxSpriteList { *itemanims[animIndex] };
+}
+
 void GetItemStr(Item &item)
 {
 	if (item._itype != ItemType::Gold) {

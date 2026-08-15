@@ -268,6 +268,8 @@ enum class MissileID : int8_t {
 	BlessedHammer,
 	/** Oracool: Blessed Shield's thrown projectile. Splashes on impact - see ProcessBlessedShieldThrow. */
 	BlessedShieldThrow,
+	/** Oracool: Fist of the Heavens' descent - plays items\mace.cel, the item drop tumble. */
+	FallingMace,
 	/**
 	 * Oracool: Fist of the Heavens' mini-Nova bolt.
 	 *

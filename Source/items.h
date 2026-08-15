@@ -779,6 +779,24 @@ void DeleteItem(int i);
 void ProcessItems();
 void FreeItemGFX();
 void GetItemFrm(Item &item);
+
+/**
+ * @brief Oracool: the drop animation an item of @p animIndex tumbles to the ground with.
+ *
+ * These are the CELs named in ItemDropNames, loaded per level into itemanims. They are the only
+ * animations in the game of an OBJECT falling and settling - every other sprite of a weapon is
+ * either a static inventory icon or a character swinging one - which is what makes them worth
+ * exposing: a missile that wants to look like a thrown shield or a falling mace has nowhere else to
+ * get the frames.
+ *
+ * Empty before InitItems has run, and after FreeItemGFX; callers must tolerate that.
+ */
+OptionalClxSpriteList GetItemDropAnim(int8_t animIndex);
+
+/** @brief Drop-animation index of the mace - a mace falling to the ground and settling. */
+constexpr int8_t MaceDropAnimIndex = 6;
+/** @brief Drop-animation index of the shield - a shield tumbling end over end. */
+constexpr int8_t ShieldDropAnimIndex = 7;
 void GetItemStr(Item &item);
 /**
  * @brief tabIdx selects an Oracool Tabbed Inventory extra tab (0-8) instead of the vanilla

@@ -40,6 +40,7 @@ set(libdevilutionx_SRCS
   objects.cpp
   oracool/auto_save.cpp
   oracool/cursor_tooltip.cpp
+  oracool/divine_trn.cpp
   oracool/event_log.cpp
   oracool/attack_skills.cpp
   oracool/auras.cpp
