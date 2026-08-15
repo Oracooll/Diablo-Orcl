@@ -879,27 +879,34 @@ Size GetSkillIconPlateSize()
 	return GetSmallSpellIconSize();
 }
 
+// Each tint is a SpellType chosen for the RAMP its translation table lands on, not for what the
+// type is called: Scroll is PAL16_BEIGE (the pink), Skill is the identity and so the vanilla
+// yellow. No scroll is involved or implied - see SkillPlateTint for why these were the ramps left
+// to choose from.
+void ApplyPlateTint(SkillPlateTint tint)
+{
+	switch (tint) {
+	case SkillPlateTint::Pink:
+		SetSpellTrans(SpellType::Scroll);
+		break;
+	case SkillPlateTint::Grey:
+		// The DARKER grey, not SpellType::Invalid's pale one - "make the inactive skill background
+		// darker gray" (user, 2026-08-15). Invalid's table maps ramps 1:1 onto grey, which read as
+		// merely faded next to the pink plates; this one shifts four shades down the ramp.
+		SetSpellTransDarkGrey();
+		break;
+	case SkillPlateTint::Yellow:
+		SetSpellTrans(SpellType::Skill);
+		break;
+	}
+}
+
 void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
 {
 	const Size plate = GetSmallSpellIconSize();
 	if (plate.height <= 0)
 		return;
-	// Each tint is a SpellType chosen for the RAMP its translation table lands on, not for what the
-	// type is called: Scroll is PAL16_BEIGE (the pink), Invalid is PAL16_GRAY, Skill is the identity
-	// and so the vanilla yellow. No scroll and no invalid spell is involved or implied - see
-	// SkillPlateTint for why these were the ramps left to choose from.
-	SpellType ramp = SpellType::Skill;
-	switch (tint) {
-	case SkillPlateTint::Pink:
-		ramp = SpellType::Scroll;
-		break;
-	case SkillPlateTint::Grey:
-		ramp = SpellType::Invalid;
-		break;
-	case SkillPlateTint::Yellow:
-		break;
-	}
-	SetSpellTrans(ramp);
+	ApplyPlateTint(tint);
 	DrawSmallSpellIcon(out, { origin.x, origin.y + plate.height - 1 }, SpellID::Null);
 }
 
@@ -957,6 +964,30 @@ bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, Skil
 	// the player has it. The dimmed variant belongs to the Abilities window's own rows, where it says
 	// what has not been earned yet.
 	DrawPaladinSkillIcon(out, origin, GetPaladinSkillIconIndex(*skill), /*unlocked=*/true, tint);
+	return true;
+}
+
+bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell, SkillPlateTint tint)
+{
+	const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell);
+	if (!skill.has_value())
+		return false;
+
+	// The large empty plate through the tint's ramp - the same square the speedbook draws for every
+	// other entry, so the seven skills sit in the grid rather than on their own kind of card.
+	ApplyPlateTint(tint);
+	DrawLargeSpellIcon(out, bottomLeft, SpellID::Null);
+
+	// The strip icon is 38px against the 56px plate; centred, with the plate's bottom-left anchor
+	// converted to the strip's top-left.
+	Size iconSize = GetPaladinSkillIconSize();
+	if (iconSize.width == 0)
+		return true; // no strip shipped: the plate alone is still better than a blank tile
+	const Point iconOrigin {
+		bottomLeft.x + (SPLICONLENGTH - iconSize.width) / 2,
+		bottomLeft.y - SPLICONLENGTH + 1 + (SPLICONLENGTH - iconSize.height) / 2
+	};
+	DrawStripIcon(out, PaladinSkillIconsArt, iconOrigin, GetPaladinSkillIconIndex(*skill), /*unlocked=*/true);
 	return true;
 }
 

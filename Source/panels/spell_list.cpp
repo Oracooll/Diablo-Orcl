@@ -193,10 +193,16 @@ void DrawSpellList(const Surface &out)
 				transType = SpellType::Invalid;
 		}
 
-		SetSpellTrans(transType);
-		// Oracool: user request - the SpeedBook list must show the same borrowed icon Furious
-		// Charge uses everywhere else, not the vanilla Item Repair icon, for the Warrior's slot.
-		DrawLargeSpellIcon(out, spellListItem.location, oracool::IsFuriousChargeSpell(spellId) ? oracool::FuriousChargeIcon : spellId);
+		// Oracool: user bug report (2026-08-15) - the Paladin skills have no frame in the engine's
+		// LARGE icon sheet, so the speedbook drew seven blank plates for them. Their strip art is
+		// centred on the large plate instead, in the Skills-sheet pink; everything else keeps the
+		// vanilla sheet and the type's own ramp.
+		if (!oracool::TryDrawSkillSpellIconLarge(out, spellListItem.location, spellId)) {
+			SetSpellTrans(transType);
+			// Oracool: user request - the SpeedBook list must show the same borrowed icon Furious
+			// Charge uses everywhere else, not the vanilla Item Repair icon, for the Warrior's slot.
+			DrawLargeSpellIcon(out, spellListItem.location, oracool::IsFuriousChargeSpell(spellId) ? oracool::FuriousChargeIcon : spellId);
+		}
 
 		std::optional<string_view> shortHotkeyName = GetHotkeyName(spellId, spellListItem.type, true);
 

@@ -156,7 +156,16 @@ Size GetPaladinSkillIconSize();
  * the strip icons rather than the engine's bottom-left spell icons.
  */
 bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell,
-    SkillPlateTint tint = SkillPlateTint::Yellow);
+    SkillPlateTint tint = SkillPlateTint::Pink);
+
+/**
+ * @brief TryDrawSkillSpellIcon for the speedbook's 56px LARGE plate; @p bottomLeft matches
+ * DrawLargeSpellIcon's anchor. The engine's large icon sheet has no frames for the Paladin skills,
+ * so the speedbook drew seven blank plates (user bug report, 2026-08-15) - this draws the large
+ * plate in the Skills-sheet pink and centres the 38px strip icon on it.
+ */
+bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell,
+    SkillPlateTint tint = SkillPlateTint::Pink);
 
 /**
  * @brief The vanilla empty spell-icon plate every skill icon is drawn on, 37x38.

@@ -60,6 +60,8 @@ void DrawSmallSpellIconBorder(const Surface &out, Point position);
  * @brief Set the color mapping for the `Draw(Small|Large)SpellIcon(Border)` calls.
  */
 void SetSpellTrans(SpellType t);
+/** @brief Oracool: the darker locked-plate grey - SetSpellTrans(Invalid) shifted four shades down the ramp. See the .cpp. */
+void SetSpellTransDarkGrey();
 
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();

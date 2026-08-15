@@ -1,5 +1,6 @@
 #include "panels/spell_icons.hpp"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "engine.h"
@@ -245,6 +246,34 @@ void SetSpellTrans(SpellType t)
 	case SpellType::Skill:
 		break;
 	}
+}
+
+void SetSpellTransDarkGrey()
+{
+	// Oracool: user request (2026-08-15) - "make the inactive skill background darker gray". The
+	// SpellType::Invalid table above maps each ramp onto PAL16_GRAY at the SAME within-ramp index,
+	// which reads pale next to the pink plates around it. This maps four shades further down the
+	// ramp instead (higher index = darker in the game's palettes), saturated at the ramp's last
+	// opaque shade, so a locked plate reads unmistakably "off" rather than merely faded.
+	for (int i = 0; i < 256; i++)
+		SplTransTbl[i] = static_cast<uint8_t>(i);
+	SplTransTbl[255] = 0;
+
+	constexpr int Darken = 4;
+	SplTransTbl[PAL8_YELLOW] = PAL16_GRAY + 5;
+	SplTransTbl[PAL8_YELLOW + 1] = PAL16_GRAY + 7;
+	SplTransTbl[PAL8_YELLOW + 2] = PAL16_GRAY + 9;
+	for (int within = 0; within < 15; within++) {
+		const auto dark = static_cast<uint8_t>(PAL16_GRAY + std::min(within + Darken, 14));
+		SplTransTbl[PAL16_BEIGE + within] = dark;
+		SplTransTbl[PAL16_YELLOW + within] = dark;
+		SplTransTbl[PAL16_ORANGE + within] = dark;
+		SplTransTbl[PAL16_GRAY + within] = dark;
+	}
+	// The ramp-end entries stay the Invalid table's transparent 0, or the plate gains a solid corner.
+	SplTransTbl[PAL16_BEIGE + 15] = 0;
+	SplTransTbl[PAL16_YELLOW + 15] = 0;
+	SplTransTbl[PAL16_ORANGE + 15] = 0;
 }
 
 } // namespace devilution

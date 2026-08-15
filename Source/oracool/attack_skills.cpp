@@ -6,6 +6,7 @@
 #include <cassert>
 
 #include "engine/size.hpp"
+#include "levels/gendung.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "utils/language.h"
@@ -95,6 +96,16 @@ void DrawWellIcon(const Surface &out, Point origin, Size iconSize, SpellID spell
 	// Their art comes from ui\paladin_skill_icons.png instead; anything else falls through.
 	if (TryDrawSkillSpellIcon(out, origin, spell))
 		return;
+	// The same can-I-actually-cast-this dance DrawSpell does for the RMB well (self-audit,
+	// 2026-08-15): without it the LMB well kept a spell's full colour while the RMB well correctly
+	// greyed it on empty mana - two wells, two answers to one question.
+	if (type == SpellType::Spell) {
+		if (MyPlayer->GetSpellLevel(spell) <= 0
+		    || CheckSpell(*MyPlayer, spell, type, /*manaonly=*/true) != SpellCheckResult::Success)
+			type = SpellType::Invalid;
+	}
+	if (leveltype == DTYPE_TOWN && type != SpellType::Invalid && !GetSpellData(spell).isAllowedInTown())
+		type = SpellType::Invalid;
 	SetSpellTrans(type);
 	DrawSmallSpellIcon(out, { origin.x, origin.y + iconSize.height - 1 }, spell);
 }
