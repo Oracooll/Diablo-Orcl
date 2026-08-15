@@ -130,6 +130,20 @@ void DrawHoverOutline(const Surface &out, Rectangle rect);
 void DrawColoredOutline(const Surface &out, Rectangle rect, uint8_t color);
 
 /**
+ * @brief A @p weight-pixel rectangle whose left and top edges are one colour and right and bottom
+ * another.
+ *
+ * Oracool: user request (2026-08-15) - the Abilities window marks an ability readied on the left
+ * mouse button in red and on the right in yellow, both on the icon's own edge and at the same
+ * weight. One rect cannot be two colours, so an ability readied on BOTH buttons splits it: "RED take
+ * left and top edges, YELLOW take right and bottom edges."
+ *
+ * Pass the same colour twice for a plain single-colour ring - which is what a one-button assignment
+ * draws, so the marker is the same square either way.
+ */
+void DrawSplitOutline(const Surface &out, Rectangle rect, uint8_t leftTopColor, uint8_t rightBottomColor, int weight);
+
+/**
  * @brief A floating panel of wrapped text, placed beside @p anchor and kept on screen.
  *
  * The hover description window. Sizes itself to the wrapped text rather than to a fixed box, so a

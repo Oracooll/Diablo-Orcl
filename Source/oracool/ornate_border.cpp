@@ -97,6 +97,30 @@ void DrawColoredOutline(const Surface &out, Rectangle rect, uint8_t color)
 	DrawVerticalLine(out, { x + w - 1, y }, h, color);
 }
 
+void DrawSplitOutline(const Surface &out, Rectangle rect, uint8_t leftTopColor, uint8_t rightBottomColor, int weight)
+{
+	if (weight <= 0 || rect.size.width <= 2 * weight || rect.size.height <= 2 * weight)
+		return;
+	const int x = rect.position.x;
+	const int y = rect.position.y;
+	const int w = rect.size.width;
+	const int h = rect.size.height;
+
+	// The VERTICALS run the full height and the horizontals stop short of them, so each corner
+	// belongs to the side it is on: both left corners to the left edge's colour, both right corners
+	// to the right edge's. Drawing all four full length instead would hand both mixed corners to
+	// whichever colour was painted second, which reads as one colour bleeding into the other rather
+	// than as a square split down the middle.
+	const int innerX = x + weight;
+	const int innerWidth = w - 2 * weight;
+	for (int i = 0; i < weight; i++) {
+		DrawHorizontalLine(out, { innerX, y + i }, innerWidth, leftTopColor);
+		DrawHorizontalLine(out, { innerX, y + h - 1 - i }, innerWidth, rightBottomColor);
+		DrawVerticalLine(out, { x + i, y }, h, leftTopColor);
+		DrawVerticalLine(out, { x + w - 1 - i, y }, h, rightBottomColor);
+	}
+}
+
 void DrawHoverOutline(const Surface &out, Rectangle rect)
 {
 	// MidHighlightColor, the frame's LIT gold, rather than OuterColor's dimmer one. Both are "gold"

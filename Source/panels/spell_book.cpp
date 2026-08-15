@@ -668,9 +668,14 @@ int RowTextX()
  * just like we need the existing YELLOW outline to inform us a skill/spell is assigned to RMB. These
  * color code outlines to work across all ability sheets."
  *
- * Each button owns a ring POSITION as well as a colour: the right button takes the outer ring and
- * the left the inner one, always. So neither ring moves when the other appears, and a spell readied
- * on both buttons shows both instead of one hiding the other.
+ * Both rings are the SAME rect and the same weight - the icon's own edge (user request,
+ * 2026-08-15: "make RED outline of skills same size as Yellow outline"). The first version nested
+ * them, red inside yellow, which made the left button's marker visibly the lesser of the two when
+ * the buttons are equals.
+ *
+ * That leaves the case where one ability is readied on both buttons, and one rect cannot be two
+ * colours. It is split by EDGE instead: "If both outlines end up on the same skill/spell - RED take
+ * left and top edges, YELLOW take right and bottom edges." One square, read as two halves.
  *
  * @p iconRect is the icon's own top-left rect, which is why this takes a rect rather than a row: the
  * three row kinds anchor their icons differently and only they know where theirs ended up.
@@ -685,23 +690,22 @@ void DrawAssignmentRings(const Surface &content, Rectangle iconRect, SpellID sn,
 	// the red ramp - PAL8_RED sits beside PAL8_YELLOW in the palette, so the two read as a pair.
 	constexpr uint8_t RightButtonColor = PAL8_YELLOW + 2;
 	constexpr uint8_t LeftButtonColor = PAL8_RED + 2;
+	// 2px: thick enough to read against a busy icon, and the weight the single yellow border had
+	// before there were two of them.
+	constexpr int RingWeight = 2;
 
-	const auto ring = [&content](Rectangle rect, uint8_t color) {
-		// Two passes, one inset, for a 2px ring: thick enough to read against a busy icon, and the
-		// same weight the single yellow border had before there were two of them.
-		oracool::DrawColoredOutline(content, rect, color);
-		oracool::DrawColoredOutline(content,
-		    { { rect.position.x + 1, rect.position.y + 1 }, { rect.size.width - 2, rect.size.height - 2 } }, color);
-	};
+	const bool right = sn == player._pRSpell && st == player._pRSplType;
+	const bool left = sn == player._pLRSpell && st == player._pLRSplType;
+	if (!right && !left)
+		return;
 
-	if (sn == player._pRSpell && st == player._pRSplType)
-		ring(iconRect, RightButtonColor);
-	if (sn == player._pLRSpell && st == player._pLRSplType) {
-		// Inset 3, so there is a clear pixel between the two rings when both are drawn.
-		ring({ { iconRect.position.x + 3, iconRect.position.y + 3 },
-		         { iconRect.size.width - 6, iconRect.size.height - 6 } },
-		    LeftButtonColor);
-	}
+	// When only one button holds it, both halves get that button's colour and the result is a plain
+	// square - so a single assignment looks the same whichever button it is on, which is the whole
+	// point of the two markers being the same size now.
+	oracool::DrawSplitOutline(content, iconRect,
+	    left ? LeftButtonColor : RightButtonColor,
+	    right ? RightButtonColor : LeftButtonColor,
+	    RingWeight);
 }
 
 /** @brief One row of the Skills sheet's two basic attacks. @p index is oracool::AttackIcon order. */
