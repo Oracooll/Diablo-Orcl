@@ -25,6 +25,22 @@ namespace devilution {
 #define PAL8_RED 136
 #define PAL8_YELLOW 144
 #define PAL8_ORANGE 152
+/**
+ * @brief Oracool: the PAL8_YELLOW mini-ramp's eight entries, repurposed as a GREEN ramp.
+ *
+ * The vanilla palette ships no green anywhere, which is why every recolour in this fork has been
+ * confined to six ramps - until Belzebub proved the obvious (user, 2026-08-15: "they found a way.
+ * so should we"): the palette is ours to edit. LoadPalette overwrites these eight entries with a
+ * green ramp on every palette load, keeping each donor shade's brightness so the two art users of
+ * the old bright-yellow run were re-pointed rather than broken (automap.cpp's bright lines, the
+ * RMB assignment ring) and anything unaudited tints green instead of shattering.
+ *
+ * PAL8_YELLOW stays defined and aliased to the same base: art painted in indices 144-146 still
+ * NAMES them by the colour its author saw, and the SetSpellTrans tables that remap that art keep
+ * reading naturally.
+ */
+#define PAL8_GREEN 144
+#define PAL8_GREEN_SHADES 8
 #define PAL16_BEIGE 160
 #define PAL16_BLUE 176
 #define PAL16_YELLOW 192

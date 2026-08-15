@@ -20,6 +20,7 @@
 #include "items.h"
 #include "monstdat.h"
 #include "monster.h"
+#include "multi.h"
 #include "oracool/class_skills.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/lesser_uniques.h"
@@ -277,6 +278,31 @@ TEST(OracoolAudit, GradualHealDoesNotOutliveItsHero)
 		oracool::ProcessGradualHealing(player);
 	EXPECT_GT(player._pHitPoints, 100 << 6);
 	oracool::ResetGradualHealing();
+}
+
+// Not a bug fix but a claim worth pinning (user, 2026-08-15, citing Belzebub's 65k stacks): this
+// fork's single-player gold cap is 100,000,000 per stack, applied by CalcPlrItemVals whenever the
+// local player is in a single-player game. The compact ItemPack.wValue uint16 is NOT the ceiling -
+// single-player's authoritative item data is int32 and overwrites it on load (see items.h's
+// GoldStackSaveLimit note). If this test goes red, someone re-tied the cap to the 16-bit field.
+TEST(OracoolAudit, SinglePlayerGoldStackCapIsOneHundredMillion)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	gbIsMultiplayer = false;
+	for (auto &item : player.InvBody)
+		item.clear();
+	for (int i = 0; i < InventoryGridCells; i++)
+		player.InvGrid[i] = 0;
+	player._pNumInv = 0;
+	for (auto &beltItem : player.SpdList)
+		beltItem.clear();
+
+	CalcPlrInv(player, /*loadgfx=*/false);
+
+	EXPECT_EQ(MaxGold, GoldStackSaveLimit);
+	EXPECT_EQ(GoldStackSaveLimit, 100'000'000);
 }
 
 // Bug (v1.6.11): SmithBuyPItem's sparse-array scan had the skip count as its only loop condition.

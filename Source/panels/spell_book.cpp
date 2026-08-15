@@ -698,7 +698,7 @@ void DrawAssignmentRings(const Surface &content, Rectangle iconRect, SpellID sn,
 
 	// The gold the readied-spell border has used since the spellbook had one, and its counterpart on
 	// the red ramp - PAL8_RED sits beside PAL8_YELLOW in the palette, so the two read as a pair.
-	constexpr uint8_t RightButtonColor = PAL8_YELLOW + 2;
+	constexpr uint8_t RightButtonColor = PAL16_YELLOW + 2; // Oracool: PAL8_YELLOW is the green ramp now
 	constexpr uint8_t LeftButtonColor = PAL8_RED + 2;
 	// 2px: thick enough to read against a busy icon, and the weight the single yellow border had
 	// before there were two of them.
@@ -735,7 +735,7 @@ void DrawAttackRow(const Surface &content, size_t index, int top)
 	// Pink even for the inactive one, deliberately: grey means "not earned yet" everywhere else on
 	// these sheets, and both attacks are always earned. Which one is in your hand is said by the
 	// blended icon, not by the plate under it.
-	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active, oracool::SkillPlateTint::Pink);
+	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active, oracool::SkillPlateTint::Green);
 
 	// The ring goes on whichever row is what the button ACTUALLY does - which is the active one, not
 	// Regular unconditionally.
@@ -836,7 +836,7 @@ void DrawDescribedRow(const Surface &content, int top, int iconIndex, DescribedI
 	// Auras and Barbarian followed once it was clear the plate colour separates ABILITY KINDS from
 	// spells and class skills, not one sheet from the other three. Grey when the row is not earned
 	// yet - the same grey an unlearned spell gets on the Spells sheet.
-	const oracool::SkillPlateTint tint = unlocked ? oracool::SkillPlateTint::Pink : oracool::SkillPlateTint::Grey;
+	const oracool::SkillPlateTint tint = unlocked ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Grey;
 	switch (icons) {
 	case DescribedIcons::Aura:
 		oracool::DrawAuraIcon(content, iconPos, iconIndex, unlocked, tint);
@@ -915,7 +915,7 @@ void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, in
 	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
 	const bool unlocked = oracool::IsPaladinSkillUnlocked(*InspectPlayer, skill);
 	oracool::DrawPaladinSkillIcon(content, iconPos, oracool::GetPaladinSkillIconIndex(skill), unlocked,
-	    unlocked ? oracool::SkillPlateTint::Pink : oracool::SkillPlateTint::Grey);
+	    unlocked ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Grey);
 
 	// Every skill carries a slot now, so every unlocked row can show which button holds it.
 	if (unlocked) {

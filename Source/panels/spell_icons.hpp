@@ -62,6 +62,8 @@ void DrawSmallSpellIconBorder(const Surface &out, Point position);
 void SetSpellTrans(SpellType t);
 /** @brief Oracool: the darker locked-plate grey - SetSpellTrans(Invalid) shifted four shades down the ramp. See the .cpp. */
 void SetSpellTransDarkGrey();
+/** @brief Oracool: the Skills-sheet green - plate ramps mapped onto the injected PAL8_GREEN ramp. */
+void SetSpellTransGreen();
 
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();

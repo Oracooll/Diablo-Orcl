@@ -886,8 +886,11 @@ Size GetSkillIconPlateSize()
 void ApplyPlateTint(SkillPlateTint tint)
 {
 	switch (tint) {
-	case SkillPlateTint::Pink:
-		SetSpellTrans(SpellType::Scroll);
+	case SkillPlateTint::Green:
+		// The injected PAL8_GREEN ramp (see LoadPalette), which replaced the pink the user never
+		// warmed to - "i dont like the pink" (2026-08-15). Belzebub's green was the proof the
+		// palette could be taught a colour it never shipped.
+		SetSpellTransGreen();
 		break;
 	case SkillPlateTint::Grey:
 		// The DARKER grey, not SpellType::Invalid's pale one - "make the inactive skill background
@@ -922,7 +925,7 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
 // the basic attack on yellow - the sheets all pass a tint explicitly, so a default only ever fires
 // on a well path, and the wells are Skills-sheet content).
 void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Pink)
+    SkillPlateTint tint = SkillPlateTint::Green)
 {
 	DrawSkillIconPlate(out, origin, tint);
 	DrawStripIcon(out, asset, origin, index, unlocked);

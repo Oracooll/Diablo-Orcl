@@ -38,7 +38,7 @@ enum MapColors : uint8_t {
 	/** color used to draw the player's arrow */
 	MapColorsPlayer = (PAL8_ORANGE + 1),
 	/** color for bright map lines (doors, stairs etc.) */
-	MapColorsBright = PAL8_YELLOW,
+	MapColorsBright = PAL16_YELLOW + 2, // Oracool: PAL8_YELLOW is the injected green ramp now - see LoadPalette
 	/** color for dim map lines/dots */
 	MapColorsDim = (PAL16_YELLOW + 8),
 	/** color for items on automap */

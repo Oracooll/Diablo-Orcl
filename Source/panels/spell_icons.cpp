@@ -244,8 +244,39 @@ void SetSpellTrans(SpellType t)
 		SplTransTbl[PAL16_ORANGE + 15] = 0;
 		break;
 	case SpellType::Skill:
+		// Not the identity it used to be: the PAL8_YELLOW mini-ramp IS the injected green ramp now
+		// (see LoadPalette), so the plate art's three bright accents - painted in indices 144-146 -
+		// must be re-pointed at the big yellow ramp or every class-skill plate wears green pips.
+		SplTransTbl[PAL8_YELLOW] = PAL16_YELLOW + 1;
+		SplTransTbl[PAL8_YELLOW + 1] = PAL16_YELLOW + 3;
+		SplTransTbl[PAL8_YELLOW + 2] = PAL16_YELLOW + 5;
 		break;
 	}
+}
+
+void SetSpellTransGreen()
+{
+	// Oracool: user request (2026-08-15) - a green plate for the Skills sheet, replacing the pink
+	// the user never warmed to. The green lives in the PAL8_GREEN ramp LoadPalette injects; it is 8
+	// shades against the source art's 16, so each pair of source shades shares one green (i / 2),
+	// which at plate size reads as the same bevel with slightly simpler shading.
+	for (int i = 0; i < 256; i++)
+		SplTransTbl[i] = static_cast<uint8_t>(i);
+	SplTransTbl[255] = 0;
+
+	SplTransTbl[PAL8_YELLOW] = PAL8_GREEN + 1;
+	SplTransTbl[PAL8_YELLOW + 1] = PAL8_GREEN + 2;
+	SplTransTbl[PAL8_YELLOW + 2] = PAL8_GREEN + 3;
+	for (int i = 0; i < 16; i++) {
+		const auto green = static_cast<uint8_t>(PAL8_GREEN + std::min(i / 2, PAL8_GREEN_SHADES - 1));
+		SplTransTbl[PAL16_BEIGE + i] = green;
+		SplTransTbl[PAL16_YELLOW + i] = green;
+		SplTransTbl[PAL16_ORANGE + i] = green;
+	}
+	// The ramp-end entries follow SetSpellTrans(Invalid)'s convention - transparent, not solid.
+	SplTransTbl[PAL16_BEIGE + 15] = 0;
+	SplTransTbl[PAL16_YELLOW + 15] = 0;
+	SplTransTbl[PAL16_ORANGE + 15] = 0;
 }
 
 void SetSpellTransDarkGrey()

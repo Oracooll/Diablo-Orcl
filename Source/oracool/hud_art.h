@@ -82,22 +82,18 @@ Size GetWaypointIconSize();
  * skills (not the CLASS SKILLS). Spells have Blue. Class Skills have YELLOW. Maybe we make SPECIFIC
  * SKILLS brown or green or dark blue or something else?"
  *
- * The palette picked the colour rather than taste: the plate is recoloured through the engine's
- * spell TRNs, which only reach the six 16-shade ramps the game ships. Blue is already spells, yellow
- * is class skills, grey is "cannot cast", orange is a staff's charges, and red now marks the left
- * mouse button's assignment. One ramp was left - and green was never on the table, because the
- * palette has no green ramp to give it.
- *
- * That ramp is PAL16_BEIGE, and the engine calls it beige. On screen, at this size, over the
- * half-transparent panel, the user calls it PINK - "let's call it pink, because that's what it looks
- * to me, not beige or brown" (2026-08-15). The name here follows the eye, not the palette table,
- * because everyone reading this code will be looking at the screen while they do.
+ * The palette used to pick the colour rather than taste: the plate is recoloured through the
+ * engine's spell TRNs, which reached only the six 16-shade ramps the game ships - so the sheets
+ * wore PAL16_BEIGE ("pink", the user's word) purely because it was the ramp left over. The user
+ * never warmed to it, and Belzebub settled the argument that the palette itself is editable ("they
+ * found a way. so should we", 2026-08-15): LoadPalette injects a GREEN ramp over the barely-used
+ * PAL8_YELLOW mini-ramp, and the sheets wear that instead.
  */
 enum class SkillPlateTint : uint8_t {
 	/** The vanilla yellow - Class Skills and the HUD's wells. */
 	Yellow,
-	/** Every ability sheet drawn on plates: Skills, Auras and Barbarian. */
-	Pink,
+	/** Every ability sheet drawn on plates: Skills, Auras and Barbarian - the injected green ramp. */
+	Green,
 	/**
 	 * Not earned yet (user request, 2026-08-15: "not yet learned skills to have gray background").
 	 *
@@ -108,7 +104,7 @@ enum class SkillPlateTint : uint8_t {
 	 *
 	 * Chosen per ROW rather than derived inside the plate drawing, because "locked" is not the only
 	 * reason an icon is dimmed: the two basic attacks blend the one NOT in your hand, and neither of
-	 * them is ever unlearned. Their rows keep the Pink plate deliberately.
+	 * them is ever unlearned. Their rows keep the Green plate deliberately.
 	 */
 	Grey,
 };
@@ -122,7 +118,7 @@ enum class SkillPlateTint : uint8_t {
  * there is no ramp to remap onto grey.
  */
 void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Pink);
+    SkillPlateTint tint = SkillPlateTint::Green);
 
 /** @brief On-screen size of one aura icon, or {0,0} if the asset is missing. */
 Size GetAuraIconSize();
@@ -130,7 +126,7 @@ Size GetAuraIconSize();
 /** @brief Draws Barbarian skill icon @p skillIndex (oracool::BarbSkill order). Same locked
  * treatment as DrawAuraIcon - the two sheets share one implementation. */
 void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Pink);
+    SkillPlateTint tint = SkillPlateTint::Green);
 
 /** @brief On-screen size of one Barbarian skill icon, or {0,0} if the asset is missing. */
 Size GetBarbSkillIconSize();
@@ -138,7 +134,7 @@ Size GetBarbSkillIconSize();
 /** @brief Draws Paladin skill icon @p skillIndex (oracool::PaladinSkill order - 0 Charge, 1 Zeal).
  * Same locked treatment as DrawAuraIcon; same shared strip implementation. */
 void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Pink);
+    SkillPlateTint tint = SkillPlateTint::Green);
 
 /** @brief On-screen size of one Paladin skill icon, or {0,0} if the asset is missing. */
 Size GetPaladinSkillIconSize();
@@ -156,7 +152,7 @@ Size GetPaladinSkillIconSize();
  * the strip icons rather than the engine's bottom-left spell icons.
  */
 bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell,
-    SkillPlateTint tint = SkillPlateTint::Pink);
+    SkillPlateTint tint = SkillPlateTint::Green);
 
 /**
  * @brief TryDrawSkillSpellIcon for the speedbook's 56px LARGE plate; @p bottomLeft matches
@@ -165,7 +161,7 @@ bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell,
  * plate in the Skills-sheet pink and centres the 38px strip icon on it.
  */
 bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell,
-    SkillPlateTint tint = SkillPlateTint::Pink);
+    SkillPlateTint tint = SkillPlateTint::Green);
 
 /**
  * @brief The vanilla empty spell-icon plate every skill icon is drawn on, 37x38.
@@ -189,7 +185,7 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint = 
  * doing, and blending the other is how the pair says which. See oracool/attack_skills.h.
  */
 void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active,
-    SkillPlateTint tint = SkillPlateTint::Pink);
+    SkillPlateTint tint = SkillPlateTint::Green);
 
 /** @brief On-screen size of one basic-attack icon, or {0,0} if the asset is missing. */
 Size GetAttackIconSize();
