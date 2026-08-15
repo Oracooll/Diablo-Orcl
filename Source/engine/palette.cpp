@@ -6,6 +6,7 @@
 #include "engine/palette.h"
 
 #include <cstdint>
+#include <cstring>
 
 #include <fmt/core.h>
 
@@ -207,24 +208,35 @@ void LoadPalette(const char *pszFileName, bool blend /*= true*/)
 
 	// Oracool: the green ramp (user, 2026-08-15 - Belzebub has green, "they found a way. so should
 	// we"). The vanilla palette contains no green at all, and the .pal files ship inside the game's
-	// own MPQs - so rather than editing dozens of archives, the ramp is injected here, on every
-	// load, over the PAL8_YELLOW mini-ramp. That donor was chosen by measurement, not convenience:
-	// counting pixel usage across real gameplay frames put the bright-yellow run at ~2,700 pixels
-	// against the neighbouring blue run's ~23,000, and its two art consumers (the automap's bright
-	// lines, the RMB assignment ring) were re-pointed at the PAL16_YELLOW ramp. Each green shade
-	// keeps its donor's brightness, so anything unaudited shifts hue rather than structure.
+	// own MPQs - so rather than editing dozens of archives, the ramp is injected here over the
+	// PAL8_YELLOW mini-ramp. That donor was chosen by measurement, not convenience: counting pixel
+	// usage across real gameplay frames put the bright-yellow run at ~2,700 pixels against the
+	// neighbouring blue run's ~23,000, and its two art consumers (the automap's bright lines, the
+	// RMB assignment ring) were re-pointed at the PAL16_YELLOW ramp. Each green shade keeps its
+	// donor's brightness, so anything unaudited shifts hue rather than structure.
+	//
+	// ONLY for the in-game palettes - user screenshot (2026-08-15): the loading screens' cutscene
+	// art is DENSE with the donor ramp (its dithered highlights speckled every roof green), because
+	// the audit that picked the donor sampled gameplay frames, where that art never appears. The
+	// gendata\ cutscene and ui_art\ front-end palettes keep their vanilla bright yellow; no skill
+	// plate ever draws on either, so the green is not needed there. Every in-game palette lives
+	// under levels\ or nlevels\ - see LoadRndLvlPal and the setmaps/quests loaders.
 	//
 	// Everything downstream adapts by itself: logical_palette copies from orig_palette after this,
 	// the HUD's PNG quantization and the divine TRN both rebuild against orig_palette when it
 	// changes, and the blended lookup below is generated from the already-injected values.
-	static constexpr Color GreenRamp[PAL8_GREEN_SHADES] = {
-		{ 183, 255, 183 }, { 120, 255, 120 }, { 64, 254, 64 }, { 0, 244, 0 },
-		{ 0, 211, 0 }, { 0, 162, 0 }, { 0, 120, 0 }, { 0, 50, 0 }
-	};
-	for (int i = 0; i < PAL8_GREEN_SHADES; i++) {
-		orig_palette[PAL8_GREEN + i].r = GreenRamp[i].r;
-		orig_palette[PAL8_GREEN + i].g = GreenRamp[i].g;
-		orig_palette[PAL8_GREEN + i].b = GreenRamp[i].b;
+	const bool isInGamePalette = std::strncmp(pszFileName, "levels\\", 7) == 0
+	    || std::strncmp(pszFileName, "nlevels\\", 8) == 0;
+	if (isInGamePalette) {
+		static constexpr Color GreenRamp[PAL8_GREEN_SHADES] = {
+			{ 183, 255, 183 }, { 120, 255, 120 }, { 64, 254, 64 }, { 0, 244, 0 },
+			{ 0, 211, 0 }, { 0, 162, 0 }, { 0, 120, 0 }, { 0, 50, 0 }
+		};
+		for (int i = 0; i < PAL8_GREEN_SHADES; i++) {
+			orig_palette[PAL8_GREEN + i].r = GreenRamp[i].r;
+			orig_palette[PAL8_GREEN + i].g = GreenRamp[i].g;
+			orig_palette[PAL8_GREEN + i].b = GreenRamp[i].b;
+		}
 	}
 
 	if (blend) {
