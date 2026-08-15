@@ -198,10 +198,13 @@ size_t BuildSkillRows(SpellID * /*rows*/)
 }
 
 /**
- * @brief Rows the Skills sheet puts ahead of the spell-backed ones: Regular Attack and Fist Attack.
+ * @brief Rows the Skills sheet puts ahead of the spell-backed ones: Fist Attack and Regular Attack.
  *
- * First, because they are what the character does when nothing else is chosen - the floor the rest
- * of the sheet sits on.
+ * First, for every class, because they are what the character does when nothing else is chosen - the
+ * floor the rest of the sheet sits on. Whatever skills a class has of its own follow them.
+ *
+ * Fist above Regular per the user (2026-08-15); the listing order lives in
+ * oracool::AttackIconDisplayOrder, apart from the enum, which is the icon strip's order.
  */
 constexpr size_t AttackRowCount = oracool::AttackIconCount;
 
@@ -425,8 +428,10 @@ constexpr size_t MaxSkillSheetRows = MaxSpellRows + AttackRowCount + oracool::Pa
 size_t BuildSkillsSheetRows(SkillRow *out)
 {
 	size_t count = 0;
+	// Display order, not enum order - Fist above Regular (user request, 2026-08-15). The enum is the
+	// icon strip's order and stays put; see oracool::AttackIconDisplayOrder.
 	for (size_t i = 0; i < AttackRowCount; i++)
-		out[count++] = { SkillRowKind::Attack, static_cast<oracool::AttackIcon>(i), SpellID::Invalid, {} };
+		out[count++] = { SkillRowKind::Attack, oracool::AttackIconDisplayOrder[i], SpellID::Invalid, {} };
 
 	const bool paladin = InspectPlayer != nullptr && oracool::ClassHasPaladinSkills(*InspectPlayer);
 

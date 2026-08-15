@@ -44,6 +44,22 @@ enum class AttackIcon : int {
 inline constexpr size_t AttackIconCount = static_cast<size_t>(AttackIcon::LAST) + 1;
 
 /**
+ * @brief The order the Skills sheet LISTS the two attacks in - Fist first, then Regular.
+ *
+ * Oracool: user request (2026-08-15) - "Move Fist attack on top of skills list, followed by regular
+ * attack. Follow this for all classes."
+ *
+ * Deliberately separate from the enum, which is the ICON STRIP's order and must not move: the strip
+ * is cut in enum order by tools/CutAttackIcons.ps1, and DrawAttackIcon indexes it by the enum value.
+ * Reordering the enum to change a list would have silently swapped the two pictures instead. Same
+ * split the auras already use, and for the same reason - see GetAuraAtDisplayIndex.
+ */
+inline constexpr AttackIcon AttackIconDisplayOrder[AttackIconCount] = {
+	AttackIcon::Fist,
+	AttackIcon::Regular,
+};
+
+/**
  * @brief Whether @p player would swing fists rather than a weapon right now.
  *
  * Asks the animation's weapon class rather than reading InvBody directly, because that is the value
