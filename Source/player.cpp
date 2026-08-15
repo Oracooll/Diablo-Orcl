@@ -3354,33 +3354,41 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// the normal spell dispatch below for that slot, never falling back to Repair's cursor-switch
 	// behavior. Off cooldown, the dash gets the speed boost (see StartWalkAnimation); on cooldown,
 	// it still attacks normally, just without the speed boost - the ability never "does nothing."
-	if (oracool::IsFuriousChargeSpell(spellID)) {
-		if (pcursmonst != -1 && !isShiftHeld) {
+	// Oracool: standing rule (2026-08-15) - "melee skills only initiate when clicked on monsters
+	// within range, else - move command", and the same for ranged, on both mouse buttons.
+	//
+	// This one block now covers every Paladin skill including Charge, which used to have its own
+	// copy and its own bug: with no monster under the cursor it fell out of the `if` and RETURNED,
+	// so a click on open ground did nothing at all - the ground was unclickable while a skill sat on
+	// your button. Walking there is both the rule and the better reading of the promise Charge's own
+	// comment made, that the ability never "does nothing".
+	//
+	// Reaching CastSpell would be wrong for all seven for a second reason: none of them is cast
+	// through the missile system, so it would find MissileID::Null in both slots, spawn nothing, and
+	// then call ConsumeSpell - charging mana for no effect.
+	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spellID); skill.has_value()) {
+		// Shift is the engine-wide "swing where I point, ignore what is readied", so it stays a plain
+		// attack here rather than becoming a walk.
+		if (isShiftHeld)
+			return;
+
+		if (!oracool::IsPaladinSkillTargetInRange(myPlayer, *skill)) {
+			LastMouseButtonAction = MouseActionType::Walk;
+			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
+			return;
+		}
+
+		if (*skill == oracool::PaladinSkill::Charge) {
 			// Mana is spent only when the dash actually launches, and the && short-circuits so a
-			// Charge refused by the cooldown costs nothing. That follows the rule already stated
-			// above: out of cooldown or out of mana, the ability still swings rather than doing
-			// nothing - it just arrives at walking pace.
+			// Charge refused by the cooldown costs nothing. That follows the same rule: out of
+			// cooldown or out of mana, the ability still swings rather than doing nothing - it just
+			// arrives at walking pace.
 			if (!oracool::IsFuriousChargeOnCooldown()
 			    && oracool::SpendPaladinSkillMana(myPlayer, oracool::PaladinSkill::Charge))
 				oracool::StartFuriousChargeDash();
-			LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
-			NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
 		}
-		return;
-	}
-
-	// Oracool: the Paladin's other six skills carry a SpellID so they can be READIED (user request,
-	// 2026-08-15), but none of them is cast through the missile system: Zeal applies itself to every
-	// melee swing and charges its mana per splashing hit, and the other five have no mechanics at
-	// all yet. Falling through to the normal dispatch would run CastSpell, which finds MissileID::Null
-	// in both slots, spawns nothing, and then calls ConsumeSpell - so the button would spend mana for
-	// no effect. Swinging instead follows the rule Charge already set two blocks up: the ability never
-	// "does nothing", and it never charges for what it did not do.
-	if (oracool::PaladinSkillForSpell(spellID).has_value()) {
-		if (pcursmonst != -1 && !isShiftHeld) {
-			LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
-			NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
-		}
+		LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+		NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
 		return;
 	}
 

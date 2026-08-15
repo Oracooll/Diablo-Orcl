@@ -57,6 +57,25 @@ enum class PaladinSkill : uint8_t {
 
 constexpr size_t PaladinSkillCount = 7;
 
+/**
+ * @brief The furthest any skill may reach, in tiles.
+ *
+ * Oracool: user rule (2026-08-15) - "no more than a 640x480px worth of screen estate", confirmed as
+ * a RADIUS rather than a total area. The request is in pixels and the code needs tiles, so:
+ *
+ * The isometric grid is TILE_WIDTH 64 and TILE_HEIGHT 32, which means one tile step moves the view
+ * 32px horizontally and 16px vertically. A 640x480 box centred on the player reaches 320px and 240px
+ * from it, so 320/32 = 10 tiles across and 240/16 = 15 tiles down. HORIZONTAL BINDS, so 10.
+ *
+ * It is also a sane number on its own terms: a little under half the visible width at 960x720, so a
+ * ranged skill reaches meaningfully across the screen without out-ranging what the player can see
+ * coming at them.
+ */
+constexpr int MaxSkillRangeTiles = 10;
+
+/** @brief The reach of a skill that only strikes what the character is standing next to. */
+constexpr int MeleeSkillRangeTiles = 1;
+
 struct PaladinSkillData {
 	/** Untranslated; run through _() at the point of display. */
 	const char *name;
@@ -71,6 +90,17 @@ struct PaladinSkillData {
 	 * skill without one could be listed and described but never put on a button.
 	 */
 	SpellID spellId;
+	/**
+	 * @brief How far the skill reaches, in tiles, measured as walking (Chebyshev) distance.
+	 *
+	 * Oracool: user rule (2026-08-15) - "melee skills only initiate when clicked on monsters within
+	 * range, else - move command", the same for ranged, and "we need to define range of skills. i
+	 * suggest no more than a 640x480px worth of screen estate."
+	 *
+	 * 1 is melee: the tile you are facing. See MaxSkillRangeTiles for where the upper bound comes
+	 * from and why it is 10.
+	 */
+	int rangeTiles;
 	/** Character level at which the skill becomes usable. */
 	int minLevel;
 	/**
@@ -94,6 +124,15 @@ const PaladinSkillData &GetPaladinSkillData(PaladinSkill skill);
  * the vanilla spell icon sheet, where these have no frame.
  */
 std::optional<PaladinSkill> PaladinSkillForSpell(SpellID spell);
+
+/**
+ * @brief Whether @p player could reach the monster under the cursor with @p skill right now.
+ *
+ * Walking (Chebyshev) distance, which is the grid's own notion of "how many steps away" and the one
+ * every other reach check in the engine uses. False when nothing is targeted at all, so a caller can
+ * treat "no target" and "target too far" as the single case they are: not a cast.
+ */
+bool IsPaladinSkillTargetInRange(const Player &player, PaladinSkill skill);
 
 /**
  * @brief Whether @p skill has mechanics behind it yet, as opposed to being listed and described.

@@ -1138,8 +1138,14 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 					const oracool::PaladinSkillData &pd = oracool::GetPaladinSkillData(rows[i].paladin);
 					title = _(pd.name);
 					// The mana price and level gate lived on the row until the sheet lost its text.
+					// Range joined them once it started deciding whether a click casts or walks - a
+					// rule the player is subject to has to be a rule the player can read.
 					description = std::string(_(pd.description)) + "\n\n"
 					    + fmt::format(fmt::runtime(_("Mana: {:d}")), pd.manaCost) + "\n"
+					    + (pd.rangeTiles <= oracool::MeleeSkillRangeTiles
+					            ? std::string(_("Range: melee"))
+					            : fmt::format(fmt::runtime(_("Range: {:d} tiles")), pd.rangeTiles))
+					    + "\n"
 					    + fmt::format(fmt::runtime(_("Requires level {:d}")), pd.minLevel);
 					break;
 				}

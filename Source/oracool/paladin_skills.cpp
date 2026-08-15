@@ -2,10 +2,12 @@
 
 #include <array>
 
+#include "cursor.h" // pcursmonst - what the targeting rule is measured against
 #include "engine/backbuffer_state.hpp"
+#include "monster.h"
 #include "oracool/oracool.h"
-#include "spells.h"
 #include "player.h"
+#include "spells.h"
 #include "utils/language.h"
 
 namespace devilution {
@@ -28,21 +30,37 @@ namespace {
 //
 //   Zeal 6 | Shield Bash 8 | Hammer of Faith 10 | Charge 12 | Blessed Hammer 16 |
 //   Blessed Shield 20 | Fist of the Heavens 24
+//
+// The range column is the user's targeting rule made per-skill (2026-08-15): a click on a monster
+// further away than this is a MOVE, not a cast. Melee skills take MeleeSkillRangeTiles; the four
+// that strike at a distance take the full MaxSkillRangeTiles, except Charge, which is deliberately
+// shorter - it closes the gap on foot, and a dash from the far edge of the screen would read as a
+// teleport rather than as a charge.
 constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
-	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 12, 10 },
-	{ N_("Zeal"), N_("Hits up to five adjacent enemies in a rapid succession."), SpellID::Zeal, 6, 2 },
-	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith, 10, 5 },
+	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, 12, 10 },
+	{ N_("Zeal"), N_("Hits up to five adjacent enemies in a rapid succession."), SpellID::Zeal,
+	    MeleeSkillRangeTiles, 6, 2 },
+	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith,
+	    MeleeSkillRangeTiles, 10, 5 },
 	{ N_("Blessed Shield"), N_("Hurl a blessed shield at a crowd of enemies to eradicate them."),
-	    SpellID::BlessedShield, 20, 10 },
+	    SpellID::BlessedShield, MaxSkillRangeTiles, 20, 10 },
 	{ N_("Fist of the Heavens"),
 	    N_("A divine fist descends from the sky, causing splash damage to enemies nearby."),
-	    SpellID::FistOfTheHeavens, 24, 15 },
+	    SpellID::FistOfTheHeavens, MaxSkillRangeTiles, 24, 15 },
 	{ N_("Shield Bash"), N_("Bash an enemy with your shield, stunning them in the process."),
-	    SpellID::ShieldBash, 8, 3 },
+	    SpellID::ShieldBash, MeleeSkillRangeTiles, 8, 3 },
 	{ N_("Blessed Hammer"),
 	    N_("A divine hammer spirals outward from you, hurting every enemy it touches."),
-	    SpellID::BlessedHammer, 16, 8 },
+	    SpellID::BlessedHammer, MaxSkillRangeTiles, 16, 8 },
 } };
+static_assert([] {
+	for (const PaladinSkillData &skill : Skills) {
+		if (skill.rangeTiles < 1 || skill.rangeTiles > MaxSkillRangeTiles)
+			return false;
+	}
+	return true;
+}(),
+    "a skill's range is outside 1..MaxSkillRangeTiles - see the 640x480 derivation in paladin_skills.h");
 static_assert(Skills.size() == static_cast<size_t>(PaladinSkill::LAST) + 1,
     "a PaladinSkill was added without its data row - the two are indexed by each other");
 
@@ -76,6 +94,14 @@ std::optional<PaladinSkill> PaladinSkillForSpell(SpellID spell)
 			return static_cast<PaladinSkill>(i);
 	}
 	return std::nullopt;
+}
+
+bool IsPaladinSkillTargetInRange(const Player &player, PaladinSkill skill)
+{
+	if (pcursmonst == -1)
+		return false;
+	const Monster &monster = Monsters[pcursmonst];
+	return player.position.tile.WalkingDistance(monster.position.tile) <= GetPaladinSkillData(skill).rangeTiles;
 }
 
 bool IsPaladinSkillImplemented(PaladinSkill skill)
