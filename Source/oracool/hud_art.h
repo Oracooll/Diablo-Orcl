@@ -97,6 +97,19 @@ enum class SkillPlateTint : uint8_t {
 	Yellow,
 	/** Every ability sheet drawn on plates: Skills, Auras and Barbarian. */
 	Pink,
+	/**
+	 * Not earned yet (user request, 2026-08-15: "not yet learned skills to have gray background").
+	 *
+	 * The same grey the Spells sheet has always given an unlearned spell - SpellType::Invalid's ramp,
+	 * PAL16_GRAY - so "you cannot use this" looks identical whether it is a spell you have not read
+	 * or a skill you have not levelled into. The dimmed ICON already said so; the plate was still
+	 * being drawn at full strength underneath it, which undercut that at a glance.
+	 *
+	 * Chosen per ROW rather than derived inside the plate drawing, because "locked" is not the only
+	 * reason an icon is dimmed: the two basic attacks blend the one NOT in your hand, and neither of
+	 * them is ever unlearned. Their rows keep the Pink plate deliberately.
+	 */
+	Grey,
 };
 
 /**

@@ -713,6 +713,9 @@ void DrawAttackRow(const Surface &content, size_t index, int top)
 	if (iconSize.height == 0)
 		iconSize = oracool::GetSkillIconPlateSize();
 	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
+	// Pink even for the inactive one, deliberately: grey means "not earned yet" everywhere else on
+	// these sheets, and both attacks are always earned. Which one is in your hand is said by the
+	// blended icon, not by the plate under it.
 	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active, oracool::SkillPlateTint::Pink);
 
 	// Regular Attack is the row that MEANS "this button swings", so a button holding no spell is a
@@ -807,16 +810,18 @@ void DrawDescribedRow(const Surface &content, int top, int iconIndex, DescribedI
 	const Point iconPos { AbilitiesIconX, top + (DescribedRowHeight - iconHeight) / 2 };
 	// Pink on every plate-drawn sheet (user request, 2026-08-15): the Skills sheet got it first, and
 	// Auras and Barbarian followed once it was clear the plate colour separates ABILITY KINDS from
-	// spells and class skills, not one sheet from the other three.
+	// spells and class skills, not one sheet from the other three. Grey when the row is not earned
+	// yet - the same grey an unlearned spell gets on the Spells sheet.
+	const oracool::SkillPlateTint tint = unlocked ? oracool::SkillPlateTint::Pink : oracool::SkillPlateTint::Grey;
 	switch (icons) {
 	case DescribedIcons::Aura:
-		oracool::DrawAuraIcon(content, iconPos, iconIndex, unlocked, oracool::SkillPlateTint::Pink);
+		oracool::DrawAuraIcon(content, iconPos, iconIndex, unlocked, tint);
 		break;
 	case DescribedIcons::Barbarian:
-		oracool::DrawBarbSkillIcon(content, iconPos, iconIndex, unlocked, oracool::SkillPlateTint::Pink);
+		oracool::DrawBarbSkillIcon(content, iconPos, iconIndex, unlocked, tint);
 		break;
 	case DescribedIcons::Paladin:
-		oracool::DrawPaladinSkillIcon(content, iconPos, iconIndex, unlocked, oracool::SkillPlateTint::Pink);
+		oracool::DrawPaladinSkillIcon(content, iconPos, iconIndex, unlocked, tint);
 		break;
 	}
 
@@ -885,8 +890,8 @@ void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, in
 		iconSize = oracool::GetSkillIconPlateSize();
 	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
 	const bool unlocked = oracool::IsPaladinSkillUnlocked(*InspectPlayer, skill);
-	oracool::DrawPaladinSkillIcon(content, iconPos, oracool::GetPaladinSkillIconIndex(skill),
-	    unlocked, oracool::SkillPlateTint::Pink);
+	oracool::DrawPaladinSkillIcon(content, iconPos, oracool::GetPaladinSkillIconIndex(skill), unlocked,
+	    unlocked ? oracool::SkillPlateTint::Pink : oracool::SkillPlateTint::Grey);
 
 	// Only Charge carries a spell slot, so only Charge can be readied on a button; Zeal applies
 	// itself to every swing and has nothing to ring.

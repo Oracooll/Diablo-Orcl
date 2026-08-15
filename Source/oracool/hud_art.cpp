@@ -883,11 +883,22 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
 	const Size plate = GetSmallSpellIconSize();
 	if (plate.height <= 0)
 		return;
-	// SpellType::Scroll's translation table IS the PAL16_BEIGE ramp - it is named for the thing it
-	// was written to colour, and it is used here for the colour alone. No scroll is involved and none
-	// is implied; see SkillPlateTint for why this ramp was the only choice left on this palette, and
-	// why what the engine files under "beige" is called pink here.
-	SetSpellTrans(tint == SkillPlateTint::Pink ? SpellType::Scroll : SpellType::Skill);
+	// Each tint is a SpellType chosen for the RAMP its translation table lands on, not for what the
+	// type is called: Scroll is PAL16_BEIGE (the pink), Invalid is PAL16_GRAY, Skill is the identity
+	// and so the vanilla yellow. No scroll and no invalid spell is involved or implied - see
+	// SkillPlateTint for why these were the ramps left to choose from.
+	SpellType ramp = SpellType::Skill;
+	switch (tint) {
+	case SkillPlateTint::Pink:
+		ramp = SpellType::Scroll;
+		break;
+	case SkillPlateTint::Grey:
+		ramp = SpellType::Invalid;
+		break;
+	case SkillPlateTint::Yellow:
+		break;
+	}
+	SetSpellTrans(ramp);
 	DrawSmallSpellIcon(out, { origin.x, origin.y + plate.height - 1 }, SpellID::Null);
 }
 
