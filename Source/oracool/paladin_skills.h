@@ -101,6 +101,19 @@ struct PaladinSkillData {
 	 * from and why it is 10.
 	 */
 	int rangeTiles;
+	/**
+	 * @brief Whether the skill is unusable without a shield equipped.
+	 *
+	 * Oracool: user rule (2026-08-15) - "Carrying shield is mandatory, else - skill is inactivated."
+	 * Part of IsPaladinSkillUnlocked rather than a separate check at each cast site, so an unmet
+	 * requirement greys the row on the Skills sheet and makes it unclickable, exactly as an unmet
+	 * level gate does.
+	 *
+	 * This supersedes an earlier decision (also 2026-08-15) that grey plates would stay level-only
+	 * because gear changes minute to minute. The user has since asked for gear to disable a skill
+	 * outright, and a skill that cannot be used should look the same whatever the reason.
+	 */
+	bool requiresShield;
 	/** Character level at which the skill becomes usable. */
 	int minLevel;
 	/**
@@ -133,6 +146,9 @@ std::optional<PaladinSkill> PaladinSkillForSpell(SpellID spell);
  * treat "no target" and "target too far" as the single case they are: not a cast.
  */
 bool IsPaladinSkillTargetInRange(const Player &player, PaladinSkill skill);
+
+/** @brief Whether @p player is holding a shield right now - what requiresShield is tested against. */
+bool HasShieldEquipped(const Player &player);
 
 /**
  * @brief Whether @p skill has mechanics behind it yet, as opposed to being listed and described.

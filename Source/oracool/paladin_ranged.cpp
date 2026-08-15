@@ -96,9 +96,8 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
  */
 bool CastBlessedShield(Player &player, Point target, int spellLevel)
 {
-	if (!HasShieldEquipped(player))
-		return false;
-
+	// No shield check here any more: requiresShield is part of IsPaladinSkillUnlocked, which
+	// CanUsePaladinSkill already asked before this ran, so a shieldless Paladin never gets here.
 	Monster *primary = FindMonsterAtPosition(target);
 	if (primary == nullptr)
 		return false;

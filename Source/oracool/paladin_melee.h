@@ -46,12 +46,23 @@ void ArmMeleeSkill(std::optional<PaladinSkill> skill);
 std::optional<PaladinSkill> ArmedMeleeSkill();
 
 /**
- * @brief Whether @p player is holding a shield right now.
+ * @brief Whether the swing being started is a Shield Bash - i.e. should shove with the shield.
  *
- * Oracool: user decision (2026-08-15) - Blessed Shield and Shield Bash require one. Reads the same
- * slot inv.cpp does, so "has a shield" means the same thing here as everywhere else.
+ * Oracool: user request (2026-08-15) - "always play Shield Hit animation, regardless of equipped
+ * weapon". Asks the latch, so it is true only for the swing that skill actually threw.
  */
-bool HasShieldEquipped(const Player &player);
+bool IsShieldBashSwing(const Player &player);
+
+/**
+ * @brief The animation frame a swing lands its blow on.
+ *
+ * Normally the weapon's own _pAFNum. For a Shield Bash it is clamped inside the BLOCK animation's
+ * length, because that swing borrows the block graphic and a hit frame past its last frame would
+ * never arrive - the blow would silently never land. StartAttack and DoAttack both ask this, which
+ * is the point: the frame the animation is distributed around and the frame the hit fires on have to
+ * be the same number.
+ */
+int MeleeHitFrame(const Player &player);
 
 /**
  * @brief Runs the armed skill's extra effect for a swing that just connected.

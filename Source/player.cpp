@@ -251,7 +251,17 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	auto animationFlags = AnimationDistributionFlags::ProcessAnimationPending;
 	if (player._pmode == PM_ATTACK)
 		animationFlags = static_cast<AnimationDistributionFlags>(animationFlags | AnimationDistributionFlags::RepeatedAction);
-	NewPlrAnim(player, player_graphic::Attack, d, animationFlags, skippedAnimationFrames, player._pAFNum);
+	// Oracool: user request (2026-08-15) - Shield Bash "always play Shield Hit animation, regardless
+	// of equipped weapon". The character shoves with the shield, so it borrows the BLOCK graphic
+	// rather than the weapon's swing; every other skill and a plain attack are unaffected.
+	//
+	// The hit frame has to come with it. player_graphic::Block runs _pBFrames frames where the swing
+	// runs to _pAFNum, and DoAttack lands the blow on a specific frame - so on a block animation
+	// shorter than _pAFNum the blow would simply never arrive. oracool::MeleeHitFrame clamps it, and
+	// DoAttack asks the same function, so the two cannot disagree about when the hit is.
+	const bool bashesWithShield = oracool::IsShieldBashSwing(player);
+	NewPlrAnim(player, bashesWithShield ? player_graphic::Block : player_graphic::Attack, d,
+	    animationFlags, skippedAnimationFrames, oracool::MeleeHitFrame(player));
 	player._pmode = PM_ATTACK;
 	FixPlayerLocation(player, d);
 	SetPlayerOld(player);
@@ -842,13 +852,16 @@ bool PlrHitObj(const Player &player, Object &targetObject)
 
 bool DoAttack(Player &player)
 {
-	if (player.AnimInfo.currentFrame == player._pAFNum - 2) {
+	// Oracool: MeleeHitFrame, not _pAFNum - a Shield Bash borrows the shorter block animation and
+	// lands its blow earlier. See oracool/paladin_melee.h.
+	const int hitFrame = oracool::MeleeHitFrame(player);
+	if (player.AnimInfo.currentFrame == hitFrame - 2) {
 		PlaySfxLoc(PS_SWING, player.position.tile);
 	}
 
 	bool didhit = false;
 
-	if (player.AnimInfo.currentFrame == player._pAFNum - 1) {
+	if (player.AnimInfo.currentFrame == hitFrame - 1) {
 		Point position = player.position.tile + player._pdir;
 		Monster *monster = FindMonsterAtPosition(position);
 
@@ -935,6 +948,8 @@ bool DoAttack(Player &player)
 bool DoRangeAttack(Player &player)
 {
 	int arrows = 0;
+	// _pAFNum, not the melee hit frame: a bow shot never borrows the block animation, and Shield Bash
+	// is a melee skill that cannot reach this path at all.
 	if (player.AnimInfo.currentFrame == player._pAFNum - 1) {
 		arrows = 1;
 	}

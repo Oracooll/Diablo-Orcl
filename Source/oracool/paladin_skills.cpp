@@ -37,21 +37,21 @@ namespace {
 // shorter - it closes the gap on foot, and a dash from the far edge of the screen would read as a
 // teleport rather than as a charge.
 constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
-	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, 12, 10 },
-	{ N_("Zeal"), N_("Hits up to five adjacent enemies in a rapid succession."), SpellID::Zeal,
-	    MeleeSkillRangeTiles, 6, 2 },
+	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, false, 12, 10 },
+	{ N_("Zeal"), N_("Strikes up to five times in the time of one swing, spread across nearby enemies."),
+	    SpellID::Zeal, MeleeSkillRangeTiles, false, 6, 2 },
 	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith,
-	    MeleeSkillRangeTiles, 10, 5 },
+	    MeleeSkillRangeTiles, false, 10, 5 },
 	{ N_("Blessed Shield"), N_("Hurl a blessed shield at a crowd of enemies to eradicate them."),
-	    SpellID::BlessedShield, MaxSkillRangeTiles, 20, 10 },
+	    SpellID::BlessedShield, MaxSkillRangeTiles, true, 20, 10 },
 	{ N_("Fist of the Heavens"),
 	    N_("A divine fist descends from the sky, causing splash damage to enemies nearby."),
-	    SpellID::FistOfTheHeavens, MaxSkillRangeTiles, 24, 15 },
+	    SpellID::FistOfTheHeavens, MaxSkillRangeTiles, false, 24, 15 },
 	{ N_("Shield Bash"), N_("Bash an enemy with your shield, stunning them in the process."),
-	    SpellID::ShieldBash, MeleeSkillRangeTiles, 8, 3 },
+	    SpellID::ShieldBash, MeleeSkillRangeTiles, true, 8, 3 },
 	{ N_("Blessed Hammer"),
 	    N_("A divine hammer spirals outward from you, hurting every enemy it touches."),
-	    SpellID::BlessedHammer, MaxSkillRangeTiles, 16, 8 },
+	    SpellID::BlessedHammer, MaxSkillRangeTiles, false, 16, 8 },
 } };
 static_assert([] {
 	for (const PaladinSkillData &skill : Skills) {
@@ -124,11 +124,23 @@ bool ClassHasPaladinSkills(const Player &player)
 	return player._pClass == HeroClass::Warrior;
 }
 
+bool HasShieldEquipped(const Player &player)
+{
+	// The same slot inv.cpp reads, so "has a shield" means the same thing here as everywhere else.
+	return player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield;
+}
+
 bool IsPaladinSkillUnlocked(const Player &player, PaladinSkill skill)
 {
 	if (!ClassHasPaladinSkills(player))
 		return false;
-	return player._pLevel >= GetPaladinSkillData(skill).minLevel;
+	const PaladinSkillData &data = GetPaladinSkillData(skill);
+	// The shield sits alongside the level gate rather than being checked at the cast, so a skill that
+	// cannot be used is GREY and inert on the sheet whichever requirement is unmet - the player is
+	// told before they click, not after (user rule, 2026-08-15: "else - skill is inactivated").
+	if (data.requiresShield && !HasShieldEquipped(player))
+		return false;
+	return player._pLevel >= data.minLevel;
 }
 
 bool CanUsePaladinSkill(const Player &player, PaladinSkill skill)

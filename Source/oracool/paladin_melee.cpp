@@ -111,8 +111,9 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 /** @brief Shield Bash - no extra damage, but the target loses its next second and a bit. */
 void ApplyShieldBash(Player &player, Monster &primaryTarget)
 {
-	if (!HasShieldEquipped(player))
-		return;
+	// No shield check here any more: requiresShield is part of IsPaladinSkillUnlocked now, so a
+	// shieldless Paladin cannot arm this skill at all - the row is greyed and inert.
+	//
 	// Nothing to stun on a corpse, and charging for it would break the rule that mana follows effect.
 	if ((primaryTarget.hitPoints >> 6) <= 0)
 		return;
@@ -134,9 +135,21 @@ std::optional<PaladinSkill> ArmedMeleeSkill()
 	return ArmedSkill;
 }
 
-bool HasShieldEquipped(const Player &player)
+bool IsShieldBashSwing(const Player &player)
 {
-	return player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield;
+	// MyPlayer only: the latch describes the local player's click, and a remote player's swing has
+	// no click here to have armed it. Single-player anyway, but stating it keeps the latch honest.
+	return &player == MyPlayer && ArmedSkill.has_value() && *ArmedSkill == PaladinSkill::ShieldBash;
+}
+
+int MeleeHitFrame(const Player &player)
+{
+	if (!IsShieldBashSwing(player) || player._pBFrames <= 0)
+		return player._pAFNum;
+	// Never past the block animation's last frame. _pBFrames is only non-zero with a shield equipped,
+	// which Shield Bash requires anyway - the guard above is for the frame between unequipping and
+	// the swing resolving.
+	return std::min<int>(player._pAFNum, player._pBFrames);
 }
 
 void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
