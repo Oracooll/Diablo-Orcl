@@ -13,7 +13,25 @@
 
 namespace devilution {
 
-#define MAX_SPELLS 52
+// Oracool: 52 -> 53 with SpellID::Charge. NOTE for anything bounded by this: items.cpp's
+// GetItemSpell and CreateSpellBook walk `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable
+// spells, so a new id is a candidate for books and staves unless its sBookLvl and sStaffLvl are both
+// -1. Charge's are, deliberately - it is earned by level, not found.
+#define MAX_SPELLS 53
+
+/**
+ * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
+ *
+ * Oracool: pinned at 52 when SpellID::Charge became id 52. Item generation does not merely SKIP
+ * ineligible spells, it draws `GenerateRnd(maxSpells)` and walks from there, so widening the bound
+ * changes which spell a given seed lands on even for a spell that can never be chosen. Charge is
+ * earned, never found, so letting it move the loot tables would be a bug with no upside - and it was
+ * caught as one: PackTest's fixtures encode a seed's expected book, and they broke the moment
+ * MAX_SPELLS went up.
+ *
+ * A new id that IS meant to drop belongs below this line, with this raised to match.
+ */
+#define MAX_ITEM_SPELLS 52
 
 enum class SpellType : uint8_t {
 	Skill,
@@ -81,7 +99,22 @@ enum class SpellID : int8_t {
 	RuneOfImmolation,
 	RuneOfStone,
 
-	LAST = RuneOfStone,
+	/**
+	 * Oracool: the Paladin's Charge (user request 2026-08-15 - "New paladin skills we introduce or
+	 * have already introduced will be independent, not replacing Repair Skill").
+	 *
+	 * It used to be a behaviour substitution ON SpellID::ItemRepair, which is exactly why it
+	 * displaced Repair and why it could not be assigned freely. Appended LAST so no existing value
+	 * moves - every save field and table below is indexed positionally.
+	 *
+	 * Costs no save-format change, which is worth recording because it looks like it should: the
+	 * hero file (PlayerPack) persists spell LEVELS only for ids 0..46, so the five runes at 47..51
+	 * already do not survive a reload and Charge simply joins them. What does persist is
+	 * _pMemSpells/_pAblSpells, both uint64, where bit 52 fits with room to spare.
+	 */
+	Charge,
+
+	LAST = Charge,
 	Invalid = -1,
 };
 

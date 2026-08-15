@@ -2376,7 +2376,7 @@ void CreatePlayer(Player &player, HeroClass c)
 	// Oracool: user request (2026-08-15) - every class is born with all six innate skills, not just
 	// its own. The class's own remains the one READIED, so a new character still starts with the
 	// weapon-repair/trap-disarm/etc. that identifies it.
-	player._pAblSpells = oracool::AllClassSkillsBitmask();
+	player._pAblSpells = oracool::InnateSpellsBitmask(player);
 	player._pRSpell = s;
 
 	if (c == HeroClass::Sorcerer) {
@@ -2451,6 +2451,12 @@ void NextPlrLevel(Player &player)
 {
 	player._pLevel++;
 	player._pMaxLvl++;
+
+	// Oracool: Charge is granted by CHARACTER level (12), and _pAblSpells was previously only built
+	// at creation and on load - so without this the skill would not appear until the next reload.
+	// Recomputing the whole innate mask rather than OR-ing one bit keeps this site from needing to
+	// know which skills are level-gated.
+	player._pAblSpells = oracool::InnateSpellsBitmask(player);
 
 	// Oracool: user request - the same "quest completed" jingle used when the Poisoned Water
 	// Supply quest finishes (see quests.cpp's StartPWaterPurify), repurposed as a level-up cue.
@@ -2628,7 +2634,7 @@ void InitPlayer(Player &player, bool firstTime)
 
 	// Oracool: all six, as at creation. This runs on every load, which is what lets a character made
 	// before 2026-08-15 pick up the other five without a save migration.
-	player._pAblSpells = oracool::AllClassSkillsBitmask();
+	player._pAblSpells = oracool::InnateSpellsBitmask(player);
 
 	player._pNextExper = ExpLvlsTbl[std::min<int8_t>(player._pLevel, MaxCharacterLevel - 1)];
 	player._pInvincible = false;

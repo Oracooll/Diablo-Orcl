@@ -44,7 +44,11 @@ bool IsFuriousChargeEnabled()
 
 bool IsFuriousChargeSpell(SpellID spellId)
 {
-	return spellId == SpellID::ItemRepair && IsFuriousChargeEnabled();
+	// SpellID::Charge, its own id since 2026-08-15. It was SpellID::ItemRepair - Charge was a
+	// behaviour substitution ON the Paladin's class-skill slot, which is what made it displace Repair
+	// from the Class Skills sheet and what stopped it being assignable like anything else. Repair is
+	// now just Repair everywhere, and this asks about a spell that means only one thing.
+	return spellId == SpellID::Charge && IsFuriousChargeEnabled();
 }
 
 string_view GetSpellDisplayName(SpellID spellId)

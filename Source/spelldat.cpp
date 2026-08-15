@@ -72,6 +72,13 @@ const SpellData SpellsData[] = {
 /*SpellID::RuneOfNova*/       { P_("spell", "Rune of Nova"),       IS_CAST8,         800,           30,        255, Magic | Targeted,             10,         -1,      48, { MissileID::RuneOfNova,           MissileID::Null,    },         1,        10,         40,         80 },
 /*SpellID::RuneOfImmolation*/ { P_("spell", "Rune of Immolation"), IS_CAST8,         800,           30,        255, Magic | Targeted,             10,         -1,      48, { MissileID::RuneOfImmolation,     MissileID::Null,    },         1,        10,         40,         80 },
 /*SpellID::RuneOfStone*/      { P_("spell", "Rune of Stone"),      IS_CAST8,         800,           30,        255, Magic | Targeted,             10,         -1,      48, { MissileID::RuneOfStone,          MissileID::Null,    },         1,        10,         40,         80 },
+// Oracool: the Paladin's Charge. sBookLvl AND sStaffLvl are both -1 on purpose - it is earned at
+// character level 12 (oracool/paladin_skills.h), never found, and items.cpp walks this table looking
+// for droppable spells, so a level here would put "Book of Charge" in the loot pool. minInt 0 for the
+// same reason: the gate is the level, not Magic. No missile - the dash and the swing are driven by
+// oracool/furious_charge.cpp, which CheckPlrSpell intercepts before the normal cast path. sManaCost
+// 10 matches the table in paladin_skills.h and is here only so the Abilities window can price it.
+/*SpellID::Charge*/           { P_("spell", "Charge"),             IS_CAST2,           0,            0,         10, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        10,          0,          0 },
 	// clang-format on
 };
 

@@ -20,6 +20,9 @@
 #include "spelldat.h"
 
 namespace devilution {
+
+struct Player;
+
 namespace oracool {
 
 constexpr size_t ClassSkillCount = 6;
@@ -49,6 +52,16 @@ bool IsClassSkill(SpellID spell);
  * than written as a literal so adding a seventh here needs nothing else changed.
  */
 uint64_t AllClassSkillsBitmask();
+
+/**
+ * @brief Everything @p player has WITHOUT learning it: the six class skills, plus Charge once its
+ * level gate opens.
+ *
+ * This is what `_pAblSpells` should be set to. Charge is neither a class skill nor a book spell, but
+ * it has to live in a mask to be selectable at all - the speedbook and the skill wells list what the
+ * masks contain - so it is folded in here rather than becoming a third mechanism.
+ */
+uint64_t InnateSpellsBitmask(const Player &player);
 
 } // namespace oracool
 } // namespace devilution

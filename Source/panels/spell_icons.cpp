@@ -79,6 +79,11 @@ const uint8_t SpellITbl[] = {
 	34,
 	34,
 	34,
+	// Oracool: SpellID::Charge. Frame 26 is the EMPTY plate - the same square every skill icon sits
+	// on - so the slot reads as "no art yet" rather than borrowing another spell's symbol, which is
+	// the complaint that retired the old Heal Other stand-in. Point this at Charge's own frame when
+	// the art ships.
+	26,
 };
 
 } // namespace

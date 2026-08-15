@@ -445,7 +445,8 @@ size_t BuildSkillsSheetRows(SkillRow *out)
 	// says "Requires level 12", which is the useful thing to know at level 4. Charge carries its slot
 	// (SpellID::ItemRepair) so an unlocked row can ready it; Zeal has no slot to carry.
 	if (paladin) {
-		out[count++] = { SkillRowKind::Paladin, {}, SpellID::ItemRepair, oracool::PaladinSkill::Charge };
+		// SpellID::Charge, its own id since 2026-08-15 - readying this row no longer arms Item Repair.
+		out[count++] = { SkillRowKind::Paladin, {}, SpellID::Charge, oracool::PaladinSkill::Charge };
 		out[count++] = { SkillRowKind::Paladin, {}, SpellID::Invalid, oracool::PaladinSkill::Zeal };
 	}
 	return count;
