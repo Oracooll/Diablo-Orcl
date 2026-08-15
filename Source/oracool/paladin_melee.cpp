@@ -172,11 +172,16 @@ void ApplyZeal(Player &player, Monster & /*primaryTarget*/, int hitDamage)
 	if (strikes <= 1)
 		return;
 
-	// The remaining strikes share the time budget. _pAFrames is the swing's own length, so the whole
-	// burst finishes inside 150% of it however fast the weapon is.
+	// The gap is the budget divided by the MAXIMUM strike count, not by this burst's count - so the
+	// rhythm of a Zeal burst is the same at every level and only its LENGTH grows. Dividing by
+	// `strikes` made a 2-strike burst put half a second between its two blows and a 5-strike burst a
+	// tenth, which read as the low-level version being slower rather than shorter.
+	//
+	// At the cap the whole burst still spans the 150% of a swing the user asked for; below the cap it
+	// simply ends sooner. _pAFrames is the swing's own length, so a fast weapon's Zeal is faster.
 	const int budget = std::max<int>(player._pAFrames, 1) * ZealBurstFramesPercent / 100;
 	PendingZeal.strikesLeft = strikes - 1;
-	PendingZeal.ticksBetween = std::max(budget / strikes, 1);
+	PendingZeal.ticksBetween = std::max(budget / MaxZealStrikes, 1);
 	PendingZeal.ticksUntilNext = PendingZeal.ticksBetween;
 	PendingZeal.damage = hitDamage;
 }
@@ -235,10 +240,22 @@ void ProcessZealBurst(Player &player)
 {
 	if (PendingZeal.strikesLeft <= 0)
 		return;
-	// Abandoned rather than paused if the Paladin stopped swinging - died, changed level, walked
-	// away. A burst is one action; finishing it after the action ended would land blows out of
-	// nowhere, and the mana rule says you pay for what happens, not for what was planned.
-	if (player._pmode != PM_ATTACK) {
+	// Oracool bug fix (2026-08-15): user report - "i dont see zeal making burst hits". They were
+	// being queued and then thrown away, every single time.
+	//
+	// This used to abandon the burst whenever _pmode was no longer PM_ATTACK, on the reasoning that a
+	// burst is one action and should not outlive it. The arithmetic makes that impossible to satisfy:
+	// the first strike lands at the swing's HIT frame, a little past its middle, and the remaining
+	// strikes are spaced across a budget of 150% of the whole swing - so by construction they fall
+	// after the animation has ended. The guard did not trim the burst's tail, it deleted all of it.
+	//
+	// A burst outliving its swing by a few ticks is what "within 150% of frames of regular attack"
+	// asked for in the first place. What must still stop it is the Paladin no longer being there to
+	// throw it: dead, or on another floor. Walking away does not, and should not - the strikes are
+	// already paid for by the swing that landed, and NextZealTarget re-checks reach before each one,
+	// so a Paladin who steps back simply finds nothing to hit and the burst ends itself.
+	if ((player._pHitPoints >> 6) <= 0 || player._pLvlChanging || player._pmode == PM_DEATH
+	    || player._pmode == PM_NEWLVL || player._pmode == PM_QUIT) {
 		PendingZeal = {};
 		return;
 	}

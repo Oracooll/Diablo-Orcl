@@ -37,6 +37,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/auto_save.h"
+#include "oracool/class_skills.h"
 #include "oracool/event_log.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
@@ -3515,6 +3516,18 @@ void CalcPlrInv(Player &player, bool loadgfx)
 		loadgfx = false;
 	}
 	CalcPlrItemVals(player, loadgfx);
+
+	// Oracool bug fix (2026-08-15): the innate skill mask depends on EQUIPMENT now, not just on
+	// character level - Shield Bash and Blessed Shield require a shield - so it has to be rebuilt
+	// wherever equipment changes, which is here. It was previously computed only at character
+	// creation, on level-up and on level load, so picking up a shield left the mask stale: the
+	// Abilities window drew the two rows as unlocked (that reads HasShieldEquipped live) but
+	// refused to ready them, because readying tests IsSpellKnown, which reads the mask. The skill
+	// appeared, and then did nothing when clicked, until the next floor.
+	//
+	// Recomputing the whole mask rather than toggling two bits keeps this site from having to know
+	// which skills are gated on what - same reason NextPlrLevel does it this way.
+	player._pAblSpells = oracool::InnateSpellsBitmask(player);
 
 	if (&player == MyPlayer) {
 		// Now that stat gains from equipped items have been calculated, mark unusable scrolls etc

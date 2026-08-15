@@ -432,10 +432,11 @@ void LeftMouseDown(uint16_t modState)
 	// now empty screen and must behave like it: clicking there walks the player, exactly as
 	// clicking anywhere else in the world does. Only the plate itself, the XP counter's strip, and
 	// (while open) the chat panel still absorb clicks as UI.
-	const bool isOverHud = oracool::GetMiddleHudRect().contains(MousePosition)
-	    || oracool::IsPointOverXpCounter(MousePosition)
-	    || oracool::IsPointOverHudMenu(MousePosition)
-	    || (talkflag && GetMainPanel().contains(MousePosition));
+	//
+	// The test moved into hud_layout.cpp on 2026-08-15 because it turned out not to be the only one:
+	// CheckPlrSpell kept a second, stale idea of where the UI is, and the disagreement made every
+	// skill click in the lower band do nothing. See IsPointOverHudChrome.
+	const bool isOverHud = oracool::IsPointOverHudChrome(MousePosition);
 
 	if (!isOverHud) {
 		if (!gmenu_is_active() && !TryIconCurs()) {
@@ -503,9 +504,13 @@ void LeftMouseDown(uint16_t modState)
 					// at once by skipping LeftMouseCmd, which is where every one of them is handled.
 					// A MONSTER under the cursor is deliberately not in that set: attacking it IS the
 					// interaction, and that is what the skill is for.
+					// isShiftHeld, not a hardcoded false. It was false here, which is why the user's
+					// report that "shift left click still moved my hero" was correct: the left
+					// button could never see the modifier at all, so CheckPlrSpell's shift handling
+					// - the whole point of the previous change - was unreachable from this side.
 					Player &lmbPlayer = *MyPlayer;
 					if (IsValidSpell(lmbPlayer._pLRSpell) && !IsInteractableUnderCursor())
-						CheckPlrSpell(false, lmbPlayer._pLRSpell, lmbPlayer._pLRSplType);
+						CheckPlrSpell(isShiftHeld, lmbPlayer._pLRSpell, lmbPlayer._pLRSplType);
 					else
 						LeftMouseCmd(isShiftHeld);
 				}

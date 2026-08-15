@@ -41,6 +41,7 @@
 #include "oracool/event_log.h"
 #include "oracool/class_skills.h"
 #include "oracool/furious_charge.h"
+#include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
@@ -3313,7 +3314,17 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		if (pcurs != CURSOR_HAND)
 			return;
 
-		if (GetMainPanel().contains(MousePosition)) // inside main panel
+		// Oracool bug fix (2026-08-15): user report - "skills dont seem to work". This line was why.
+		// It used to test GetMainPanel(), the vanilla 640x128 rect at the screen bottom, which the
+		// HUD overhaul deliberately left in place because the flyout panels centre against it - but
+		// which has not been solid UI since. A right-click on a monster anywhere in that band
+		// returned here having done nothing: no cast, no walk, no message. With the button empty the
+		// same click went to LeftMouseCmd instead and worked, so it read as "the skills are broken"
+		// rather than "the bottom third of the screen eats clicks".
+		//
+		// oracool::IsPointOverHudChrome is the same test LeftMouseDown routes on, so the two can no
+		// longer disagree about where the UI is.
+		if (oracool::IsPointOverHudChrome(MousePosition))
 			return;
 
 		if (
@@ -3391,20 +3402,40 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		// to always cast spell/skill, no matter what as long as we are not breaking other hard
 		// disablers". Shift used to force a plain attack here and disarm the skill, on the reading
 		// that it means "ignore what is readied". It means the opposite: act, now, without walking
-		// anywhere first. So it is no longer an early-out at all - it simply does not stop the skill.
+		// anywhere first.
 		//
-		// The hard disablers below still hold: the level gate, the mana price, a missing shield, and
-		// the range test. Shift forces the ATTEMPT, not the outcome.
+		// The hard disablers still hold: the level gate, the mana price, and a missing shield. The
+		// RANGE test is not one of them when shift is down - that is what shift overrides.
+		if (isShiftHeld) {
+			// Oracool bug fix (2026-08-15): user report - "shift click didnt produce blessed hamer.
+			// shift left click still moved my hero." The previous version treated out-of-range-with-
+			// shift as the one case that does NOTHING, reasoning that walking would disobey shift.
+			// That reasoning stopped one line short: the answer is not to walk OR to give up, it is
+			// to act where the cursor is - which is what shift means everywhere else in this game.
+			//
+			// So a ranged skill fires at the cursor's own tile, monster or not, and a melee skill
+			// swings in place toward it (CMD_SATTACKXY, the same command vanilla shift-click uses)
+			// with the latch armed, so Zeal, Hammer of Faith and Shield Bash still ride the swing if
+			// it connects with anything.
+			if (oracool::CastRangedPaladinSkill(myPlayer, *skill, cursPosition)) {
+				oracool::ArmMeleeSkill(std::nullopt);
+				LastMouseButtonAction = MouseActionType::Spell;
+				return;
+			}
+			oracool::ArmMeleeSkill(*skill);
+			if (*skill == oracool::PaladinSkill::Charge && pcursmonst != -1
+			    && !oracool::IsFuriousChargeOnCooldown()
+			    && oracool::SpendPaladinSkillMana(myPlayer, oracool::PaladinSkill::Charge))
+				oracool::StartFuriousChargeDash();
+			LastMouseButtonAction = MouseActionType::Attack;
+			NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, cursPosition);
+			return;
+		}
 
 		if (!oracool::IsPaladinSkillTargetInRange(myPlayer, *skill)) {
-			// Disarmed either way: nothing is being swung, and leaving the latch set would let the
-			// NEXT swing - however it was thrown - inherit this skill.
+			// Disarmed: nothing is being swung, and leaving the latch set would let the NEXT swing -
+			// however it was thrown - inherit this skill.
 			oracool::ArmMeleeSkill(std::nullopt);
-			// Out of range with shift down is the one case that does NOTHING. Walking there is the
-			// standing rule ("else - move command"), but shift's whole meaning is act without moving,
-			// so obeying both at once would mean disobeying shift.
-			if (isShiftHeld)
-				return;
 			LastMouseButtonAction = MouseActionType::Walk;
 			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
 			return;

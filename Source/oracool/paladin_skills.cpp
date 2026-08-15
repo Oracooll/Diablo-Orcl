@@ -126,8 +126,18 @@ bool ClassHasPaladinSkills(const Player &player)
 
 bool HasShieldEquipped(const Player &player)
 {
-	// The same slot inv.cpp reads, so "has a shield" means the same thing here as everywhere else.
-	return player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield;
+	// Oracool bug fix (2026-08-15): BOTH hands. This used to read INVLOC_HAND_RIGHT alone, which is
+	// where a shield USUALLY ends up but not where it must be: shields are ILOC_ONEHAND (itemdat.cpp
+	// - Buckler, Small Shield, Large Shield and every tier above them), and CheckInvPaste's
+	// ILOC_ONEHAND case puts a one-handed item in whichever hand slot it was dropped on. Drop a
+	// shield on the left slot and it stays there.
+	//
+	// The engine's own armour-class and block-chance code has always checked both hands
+	// (items.cpp's CalcPlrItemVals) - this was the odd one out, and the cost of being wrong was
+	// silent: Shield Bash and Blessed Shield are gated on this, so both simply vanished from the
+	// Abilities window for a player whose shield happened to sit on the left.
+	return player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield
+	    || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield;
 }
 
 bool IsPaladinSkillUnlocked(const Player &player, PaladinSkill skill)

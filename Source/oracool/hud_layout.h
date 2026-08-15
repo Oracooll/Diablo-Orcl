@@ -157,4 +157,25 @@ inline bool IsRealBeltItemSlot(int i)
  */
 void MigrateHiddenBeltSlots(Player &player);
 
+/**
+ * @brief Whether @p mousePosition is over HUD chrome rather than over the world.
+ *
+ * Oracool bug fix (2026-08-15): user report - "skills dont seem to work". They worked; they were
+ * being eaten. CheckPlrSpell had its own idea of where the UI is, `GetMainPanel().contains(...)`,
+ * and GetMainPanel is still the vanilla 640x128 rect at the screen bottom because the flyout panels
+ * centre against it. After the HUD overhaul almost none of that rect is chrome any more - it is the
+ * gaps either side of a small centre plate - so a click on a monster low on the screen returned from
+ * CheckPlrSpell having done nothing at all. Not walked, not cast: nothing. With no skill readied the
+ * same click went to LeftMouseCmd and worked fine, which is exactly the shape of "the skills are
+ * broken" rather than "the bottom of the screen is dead".
+ *
+ * So there is one authority now, and both the click router and the cast path ask it. Anything that
+ * needs to know where the UI is must call this rather than testing a rect of its own; that is the
+ * whole point of it existing.
+ *
+ * The chat panel is in the list only while it is open, which is why the old panel rect appears here
+ * at all - the chat box is still drawn against it.
+ */
+bool IsPointOverHudChrome(Point mousePosition);
+
 } // namespace devilution::oracool

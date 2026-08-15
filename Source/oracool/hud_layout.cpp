@@ -10,7 +10,9 @@
 #include "engine/backbuffer_state.hpp"
 #include "inv.h"
 #include "oracool/event_log.h"
+#include "oracool/hud_menu.h"
 #include "oracool/oracool.h"
+#include "oracool/xp_counter.h"
 #include "utils/ui_fwd.h"
 
 namespace devilution::oracool {
@@ -283,6 +285,17 @@ void MigrateHiddenBeltSlots(Player &player)
 		player.CalcScrolls();
 		RedrawComponent(PanelDrawComponent::Belt);
 	}
+}
+
+bool IsPointOverHudChrome(Point mousePosition)
+{
+	// The four things that actually absorb a click, and nothing else. GetMainPanel() appears only
+	// under talkflag because the chat box is still drawn against the vanilla panel rect; the rest of
+	// that 640x128 band is empty screen and must behave like it.
+	return GetMiddleHudRect().contains(mousePosition)
+	    || IsPointOverXpCounter(mousePosition)
+	    || IsPointOverHudMenu(mousePosition)
+	    || (talkflag && GetMainPanel().contains(mousePosition));
 }
 
 } // namespace devilution::oracool
