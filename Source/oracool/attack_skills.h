@@ -32,9 +32,9 @@ namespace devilution::oracool {
  * @brief A cell of ui\attack_icons.png. The strip is cut in this order - see tools/CutAttackIcons.ps1.
  */
 enum class AttackIcon : int {
-	/** Sword on a red burst. */
+	/** Crossed swords. */
 	Regular = 0,
-	/** Bound fist on a gold burst. */
+	/** A bare fist. */
 	Fist = 1,
 
 	LAST = Fist,
