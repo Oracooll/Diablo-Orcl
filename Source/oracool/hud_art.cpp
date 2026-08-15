@@ -839,17 +839,22 @@ void DrawStripIcon(const Surface &out, ArtAsset &asset, Point origin, int index,
 	BlitHalfTransparentSkipZero(out, *asset.bright, origin, 0, cell, src.x, src.w);
 }
 
-/** @brief Size of the vanilla empty spell-icon plate, or {0,0} before the icons are loaded. */
-Size SkillIconPlateSize()
-{
-	return GetSmallSpellIconSize();
-}
-
 Size StripIconSize(ArtAsset &asset)
 {
 	EnsureLoadedAll();
+	// {0,0} means "no custom art", and it has to keep meaning exactly that.
+	//
+	// Bug postmortem (2026-08-15): this briefly returned the PLATE's size instead, so that the
+	// Abilities window's rows kept a sensible text column after the four icon sheets were removed.
+	// That broke the HUD, because GetAttackIconSize feeds the LMB/RMB wells too, and those assert
+	// their art is exactly SkillWellIconSize (38x38) or absent. The plate is 37x38 - one pixel
+	// narrower - so the assert fired the moment a game started.
+	//
+	// The mistake was giving one function two meanings. It reports what the ART is; a caller that
+	// wants to fall back to the plate asks GetSkillIconPlateSize for itself, which is what the
+	// Abilities window now does. The wells get their 0 back and draw nothing, as they always did.
 	if (asset.rgba.empty())
-		return SkillIconPlateSize(); // no custom art: the bare plate is what the row shows
+		return { 0, 0 };
 	return { asset.height, asset.height };
 }
 
@@ -868,6 +873,11 @@ Size StripIconSize(ArtAsset &asset)
  * DrawSmallSpellIcon anchors at the BOTTOM-left, unlike the strips above, which is what the height
  * term corrects for.
  */
+Size GetSkillIconPlateSize()
+{
+	return GetSmallSpellIconSize();
+}
+
 void DrawSkillIconPlate(const Surface &out, Point origin)
 {
 	const Size plate = GetSmallSpellIconSize();

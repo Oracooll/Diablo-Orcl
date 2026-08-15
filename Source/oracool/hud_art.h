@@ -102,6 +102,20 @@ void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool
 Size GetPaladinSkillIconSize();
 
 /**
+ * @brief The vanilla empty spell-icon plate every skill icon is drawn on, 37x38.
+ *
+ * Frame 26 of data\spelli2 through SetSpellTrans(SpellType::Skill) - the game's own empty-slot
+ * square and the game's own "this is a skill" yellow. Callers that lay out a row should fall back to
+ * THIS when a custom strip is absent, rather than expecting the Get*IconSize functions above to lie
+ * about the art: those report {0,0} when there is no art, and the HUD's skill wells depend on that
+ * (see the postmortem at StripIconSize).
+ */
+Size GetSkillIconPlateSize();
+
+/** @brief Draws the plate at @p origin, taking a TOP-left origin like the strip icons. */
+void DrawSkillIconPlate(const Surface &out, Point origin);
+
+/**
  * @brief Draws basic-attack icon @p iconIndex (oracool::AttackIcon order) at @p origin.
  *
  * Third user of the same strip implementation. @p active is DrawStripIcon's "unlocked": the two

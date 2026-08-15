@@ -637,7 +637,10 @@ void DrawAttackRow(const Surface &content, size_t index, int top)
 	// state. It is what makes the pair read as one status line instead of two abilities.
 	const bool active = oracool::BasicAttackIcon(*InspectPlayer) == icon;
 
-	const Size iconSize = oracool::GetAttackIconSize();
+	// The plate's height when no attack strip is shipped - it is what the row actually draws then.
+	Size iconSize = oracool::GetAttackIconSize();
+	if (iconSize.height == 0)
+		iconSize = oracool::GetSkillIconPlateSize();
 	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
 	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active);
 
@@ -718,13 +721,19 @@ void DrawDescribedRow(const Surface &content, int top, int iconIndex, DescribedI
 		iconSize = oracool::GetPaladinSkillIconSize();
 		break;
 	}
+	// With no custom strip shipped the row still shows the plate, so it is the plate that decides the
+	// layout - asking hud_art for it rather than having the Get*IconSize functions pretend the art
+	// exists, which is the mistake that fired an assert in the HUD's skill wells on 2026-08-15.
+	if (iconSize.width == 0)
+		iconSize = oracool::GetSkillIconPlateSize();
 	const int iconWidth = iconSize.width > 0 ? iconSize.width : 38;
+	const int iconHeight = iconSize.height > 0 ? iconSize.height : 38;
 	const int textX = AbilitiesIconX + iconWidth + AbilitiesTextGap;
 	const int textWidth = AbilitiesContentRightLimit - textX;
 
 	// Top-left origin here, unlike the spell icons' bottom-left - these are blitted rather than
 	// drawn as CLX sprites.
-	const Point iconPos { AbilitiesIconX, top + (DescribedRowHeight - iconSize.height) / 2 };
+	const Point iconPos { AbilitiesIconX, top + (DescribedRowHeight - iconHeight) / 2 };
 	switch (icons) {
 	case DescribedIcons::Aura:
 		oracool::DrawAuraIcon(content, iconPos, iconIndex, unlocked);
