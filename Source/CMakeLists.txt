@@ -53,6 +53,7 @@ set(libdevilutionx_SRCS
   oracool/hud_layout.cpp
   oracool/hud_menu.cpp
   oracool/inventory_layout.cpp
+  oracool/paladin_skills.cpp
   oracool/sprite_import.cpp
   oracool/ui_backgrounds.cpp
   oracool/save_indicator.cpp

@@ -1,10 +1,14 @@
 /**
  * @file warrior_splash.h
  *
- * Oracool: user request - a Warrior's melee attack also damages monsters near the one actually
- * struck. Falls off with tile distance: full damage at 1 tile, 50% at 2 tiles, 25% at 3 tiles,
- * each an additional ring layered on top of the closer ones rather than a replacement. The
- * configurable range option controls how many rings apply (0 disables entirely, up to 3).
+ * Oracool: the Paladin skill **ZEAL** - a melee attack that also damages monsters near the one
+ * actually struck. Falls off with tile distance: full damage at 1 tile, 50% at 2, 25% at 3, each an
+ * additional ring layered on top of the closer ones rather than a replacement.
+ *
+ * The file is still called warrior_splash because that is what the mechanic was before it was a
+ * skill, and because the class really is HeroClass::Warrior underneath its "Paladin" display name -
+ * renaming the file would make it look like it belonged to some other class. Its price and level
+ * gate are NOT here: they live in oracool/paladin_skills.h with the rest of the skill's data.
  */
 #pragma once
 
@@ -14,8 +18,8 @@
 namespace devilution::oracool {
 
 /**
- * @brief True if this player's next landed melee hit should splash - Warrior class, the option
- * is above 0, and this is a single-player game.
+ * @brief True if this player's next landed melee hit should carry - Paladin, single-player, level 6
+ * or above, AND holding at least Zeal's 2 mana. Below that it simply swings normally.
  */
 bool IsWarriorSplashDamageEnabled(const Player &player);
 

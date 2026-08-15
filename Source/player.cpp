@@ -40,6 +40,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/furious_charge.h"
+#include "oracool/paladin_skills.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
 #include "oracool/sprite_import.h"
@@ -3337,7 +3338,12 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// it still attacks normally, just without the speed boost - the ability never "does nothing."
 	if (oracool::IsFuriousChargeSpell(spellID)) {
 		if (pcursmonst != -1 && !isShiftHeld) {
-			if (!oracool::IsFuriousChargeOnCooldown())
+			// Mana is spent only when the dash actually launches, and the && short-circuits so a
+			// Charge refused by the cooldown costs nothing. That follows the rule already stated
+			// above: out of cooldown or out of mana, the ability still swings rather than doing
+			// nothing - it just arrives at walking pace.
+			if (!oracool::IsFuriousChargeOnCooldown()
+			    && oracool::SpendPaladinSkillMana(myPlayer, oracool::PaladinSkill::Charge))
 				oracool::StartFuriousChargeDash();
 			LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
 			NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);

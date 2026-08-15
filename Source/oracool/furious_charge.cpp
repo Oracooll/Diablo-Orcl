@@ -4,6 +4,8 @@
 
 #include "options.h"
 #include "oracool/oracool.h"
+#include "oracool/paladin_skills.h"
+#include "player.h"
 #include "utils/language.h"
 
 namespace devilution::oracool {
@@ -27,13 +29,17 @@ uint32_t CooldownStartTime = 0;
 
 bool IsFuriousChargeEnabled()
 {
-	// Oracool: user decision (2026-08-11) - Furious Charge is no longer a settings toggle. It is
-	// destined to be an *acquirable* skill, unlocked through progression once the Skills system
-	// lands; until then the Paladin's free slot stays vanilla Item Repair, the skill he is "gifted
-	// at birth". All the charge mechanics below remain intact and working - only this gate is
-	// closed, so switching it on later is a one-line change to whatever the Skills system uses to
-	// record what the player has learned.
-	return false;
+	// Oracool: user request (2026-08-15) - reopened. It was closed on 2026-08-11 with the note that
+	// this would become an ACQUIRABLE skill rather than a settings toggle, and that switching it on
+	// again would be "a one-line change to whatever the Skills system uses to record what the player
+	// has learned". That record is oracool/paladin_skills.h, and this is that line: a level gate
+	// (12) rather than an INI entry, so the Paladin's slot is vanilla Item Repair - the skill he is
+	// "gifted at birth" - right up until he earns the charge.
+	//
+	// MyPlayer rather than a passed-in player because the callers are rendering paths asking "does
+	// this slot show as Charge", and the slot they draw is always the local player's own.
+	return MyPlayer != nullptr && IsSinglePlayer()
+	    && IsPaladinSkillUnlocked(*MyPlayer, PaladinSkill::Charge);
 }
 
 bool IsFuriousChargeSpell(SpellID spellId)
@@ -43,8 +49,11 @@ bool IsFuriousChargeSpell(SpellID spellId)
 
 string_view GetSpellDisplayName(SpellID spellId)
 {
+	// The name comes from the skill table rather than being spelled again here, so the Abilities
+	// window's row and the readied-spell caption cannot disagree about what it is called. It is
+	// "Charge" as of 2026-08-15, shortened from "Furious Charge" on the user's call.
 	if (IsFuriousChargeSpell(spellId))
-		return _("Furious Charge");
+		return _(GetPaladinSkillData(PaladinSkill::Charge).name);
 	return pgettext("spell", GetSpellData(spellId).sNameText);
 }
 

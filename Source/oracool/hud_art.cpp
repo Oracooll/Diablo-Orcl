@@ -91,6 +91,8 @@ ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
 ArtAsset AuraIconsArt { "ui\\aura_icons.png" };
 /** Oracool: the 18 Barbarian skill icons, same 38x38 cells, in oracool::BarbSkill order. */
 ArtAsset BarbSkillIconsArt { "ui\\barb_skill_icons.png" };
+/** Oracool: the Paladin's Charge and Zeal, same 38x38 cells, in oracool::PaladinSkill order. */
+ArtAsset PaladinSkillIconsArt { "ui\\paladin_skill_icons.png" };
 /**
  * Oracool: the two basic-attack icons - cell 0 Regular Attack, cell 1 Fist Attack, in
  * oracool::AttackIcon order. Same 38x38 cells as the aura and Barbarian sheets, deliberately: this
@@ -407,6 +409,8 @@ void EnsureLoadedAll()
 		LoadPixels(AuraIconsArt);
 	if (!BarbSkillIconsArt.loadAttempted)
 		LoadPixels(BarbSkillIconsArt);
+	if (!PaladinSkillIconsArt.loadAttempted)
+		LoadPixels(PaladinSkillIconsArt);
 	if (!AttackIconsArt.loadAttempted)
 		LoadPixels(AttackIconsArt);
 	for (ArtAsset &silhouette : SilhouetteArt) {
@@ -446,6 +450,8 @@ bool NeedsQuantize()
 	if (!AuraIconsArt.rgba.empty() && !AuraIconsArt.bright)
 		return true;
 	if (!BarbSkillIconsArt.rgba.empty() && !BarbSkillIconsArt.bright)
+		return true;
+	if (!PaladinSkillIconsArt.rgba.empty() && !PaladinSkillIconsArt.bright)
 		return true;
 	if (!AttackIconsArt.rgba.empty() && !AttackIconsArt.bright)
 		return true;
@@ -494,6 +500,7 @@ void EnsureQuantized()
 	// elemental auras are told apart at a glance.
 	QuantizeAsset(AuraIconsArt, std::nullopt);
 	QuantizeAsset(BarbSkillIconsArt, std::nullopt);
+	QuantizeAsset(PaladinSkillIconsArt, std::nullopt);
 	// Same reasoning, and one more: these two sit in the HUD's skill wells next to the engine's own
 	// spell icons, which are drawn untinted. A gold pass here would make the basic attack the one
 	// icon on the plate that did not match the icon beside it.
@@ -856,6 +863,16 @@ void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool un
 Size GetBarbSkillIconSize()
 {
 	return StripIconSize(BarbSkillIconsArt);
+}
+
+void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked)
+{
+	DrawStripIcon(out, PaladinSkillIconsArt, origin, skillIndex, unlocked);
+}
+
+Size GetPaladinSkillIconSize()
+{
+	return StripIconSize(PaladinSkillIconsArt);
 }
 
 void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active)

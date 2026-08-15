@@ -94,6 +94,13 @@ void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool un
 /** @brief On-screen size of one Barbarian skill icon, or {0,0} if the asset is missing. */
 Size GetBarbSkillIconSize();
 
+/** @brief Draws Paladin skill icon @p skillIndex (oracool::PaladinSkill order - 0 Charge, 1 Zeal).
+ * Same locked treatment as DrawAuraIcon; same shared strip implementation. */
+void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked);
+
+/** @brief On-screen size of one Paladin skill icon, or {0,0} if the asset is missing. */
+Size GetPaladinSkillIconSize();
+
 /**
  * @brief Draws basic-attack icon @p iconIndex (oracool::AttackIcon order) at @p origin.
  *

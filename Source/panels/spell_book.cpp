@@ -18,6 +18,7 @@
 #include "missiles.h"
 #include "oracool/attack_skills.h"
 #include "oracool/auras.h"
+#include "oracool/paladin_skills.h"
 #include "oracool/barb_skills.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
@@ -327,6 +328,69 @@ int RowHeightFor(AbilitySheet sheet)
 	return (sheet == AbilitySheet::Auras || sheet == AbilitySheet::Barbarian) ? DescribedRowHeight : SpellRowHeight;
 }
 
+/**
+ * @brief One row of the Skills sheet, which is the only sheet with more than one KIND of row.
+ *
+ * Oracool: introduced 2026-08-15 with Charge and Zeal. Everywhere else a sheet's rows are uniform,
+ * so drawing, scrolling and hit-testing could each do `index * rowHeight` independently. The Skills
+ * sheet now mixes compact spell rows with tall described ones, and three separate copies of that
+ * arithmetic would be three chances to disagree about which row the cursor is on. So the sheet is
+ * enumerated ONCE, here, and all three walk the same list.
+ *
+ * It also retires the `rowIndex -= AttackRowCount` shift the draw and click paths each used to do
+ * by hand.
+ */
+enum class SkillRowKind : uint8_t {
+	Attack,   ///< Regular/Fist Attack, from the attack strip. Not a spell.
+	Spell,    ///< The class's innate skill, drawn as a compact spell row.
+	Paladin,  ///< Charge or Zeal - a described row with an icon, description and price.
+};
+
+struct SkillRow {
+	SkillRowKind kind;
+	oracool::AttackIcon attack;
+	SpellID spell;
+	oracool::PaladinSkill paladin;
+};
+
+constexpr size_t MaxSkillSheetRows = MaxSpellRows + AttackRowCount + oracool::PaladinSkillCount;
+
+/**
+ * @brief Fills @p out with the Skills sheet's rows, in display order. Returns how many.
+ *
+ * Charge is NOT a row of its own: it IS the Paladin's class skill (SpellID::ItemRepair), so the
+ * spell row that would have carried it is replaced by the described one rather than sitting beside
+ * it. Zeal has no spell backing at all and is simply appended.
+ */
+size_t BuildSkillsSheetRows(SkillRow *out)
+{
+	size_t count = 0;
+	for (size_t i = 0; i < AttackRowCount; i++)
+		out[count++] = { SkillRowKind::Attack, static_cast<oracool::AttackIcon>(i), SpellID::Invalid, {} };
+
+	const bool paladin = InspectPlayer != nullptr && oracool::ClassHasPaladinSkills(*InspectPlayer);
+
+	SpellID spells[MaxSpellRows];
+	const size_t spellCount = BuildSkillRows(spells);
+	for (size_t i = 0; i < spellCount; i++) {
+		// Once Charge is earned it REPLACES the slot's Item Repair, so the compact spell row would be
+		// a second name for a thing already listed below. Before then the slot really is Item Repair
+		// - "the skill he is gifted at birth" - and keeps its row.
+		if (oracool::IsFuriousChargeSpell(spells[i]))
+			continue;
+		out[count++] = { SkillRowKind::Spell, {}, spells[i], {} };
+	}
+
+	// Both listed for the class that has them whether or not the level gate has opened: a locked row
+	// says "Requires level 12", which is the useful thing to know at level 4. Charge carries its slot
+	// (SpellID::ItemRepair) so an unlocked row can ready it; Zeal has no slot to carry.
+	if (paladin) {
+		out[count++] = { SkillRowKind::Paladin, {}, SpellID::ItemRepair, oracool::PaladinSkill::Charge };
+		out[count++] = { SkillRowKind::Paladin, {}, SpellID::Invalid, oracool::PaladinSkill::Zeal };
+	}
+	return count;
+}
+
 /** @brief How many rows @p sheet has right now. */
 size_t GetRowCount(AbilitySheet sheet)
 {
@@ -334,8 +398,10 @@ size_t GetRowCount(AbilitySheet sheet)
 	switch (sheet) {
 	case AbilitySheet::Spells:
 		return BuildSpellRows(rows);
-	case AbilitySheet::Skills:
-		return AttackRowCount + BuildSkillRows(rows);
+	case AbilitySheet::Skills: {
+		SkillRow skillRows[MaxSkillSheetRows];
+		return BuildSkillsSheetRows(skillRows);
+	}
 	case AbilitySheet::Auras:
 		return oracool::AuraCount;
 	case AbilitySheet::Barbarian:
@@ -344,10 +410,34 @@ size_t GetRowCount(AbilitySheet sheet)
 	return 0;
 }
 
+/** @brief Height of row @p index on @p sheet - uniform everywhere except the Skills sheet. */
+int RowHeightAt(AbilitySheet sheet, size_t index)
+{
+	if (sheet != AbilitySheet::Skills)
+		return RowHeightFor(sheet);
+	SkillRow rows[MaxSkillSheetRows];
+	const size_t count = BuildSkillsSheetRows(rows);
+	if (index >= count)
+		return SpellRowHeight;
+	return rows[index].kind == SkillRowKind::Paladin ? DescribedRowHeight : SpellRowHeight;
+}
+
+/** @brief Total height of every row on @p sheet. */
+int TotalListHeight(AbilitySheet sheet)
+{
+	const size_t count = GetRowCount(sheet);
+	if (sheet != AbilitySheet::Skills)
+		return static_cast<int>(count) * RowHeightFor(sheet);
+	int total = 0;
+	for (size_t i = 0; i < count; i++)
+		total += RowHeightAt(sheet, i);
+	return total;
+}
+
 /** @brief Recomputes the scroll extent for the current sheet and re-clamps its offset. */
 void UpdateScrollBounds()
 {
-	ListHeight = static_cast<int>(GetRowCount(CurrentSheet)) * RowHeightFor(CurrentSheet);
+	ListHeight = TotalListHeight(CurrentSheet);
 	MaxScrollOffset = std::max(0, ListHeight - AbilitiesContentSize.height);
 	int &offset = ScrollOffset[static_cast<size_t>(CurrentSheet)];
 	offset = std::clamp(offset, 0, MaxScrollOffset);
@@ -554,17 +644,36 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	    { detailColor | UiFlags::VerticalCenter });
 }
 
+/** @brief Which 38x38 strip a described row takes its icon from. */
+enum class DescribedIcons : uint8_t {
+	Aura,
+	Barbarian,
+	Paladin,
+};
+
 /**
- * @brief Draws an icon-plus-prose row - the shape both the Auras and Barbarian sheets use.
+ * @brief Draws an icon-plus-prose row - the shape the Auras, Barbarian and Paladin rows all use.
  *
  * @p tag is an optional short right-aligned label on the name line (the Barbarian's Combat/Warcry/
- * Passive/Utility); empty for the auras, which have no such distinction.
+ * Passive/Utility, the Paladin skills' mana price); empty for the auras, which have no such
+ * distinction.
  * @p requirement replaces the description when the entry is locked.
  */
-void DrawDescribedRow(const Surface &content, int top, int iconIndex, bool isAura, bool unlocked,
+void DrawDescribedRow(const Surface &content, int top, int iconIndex, DescribedIcons icons, bool unlocked,
     string_view name, string_view tag, string_view description, int requiredLevel)
 {
-	const Size iconSize = isAura ? oracool::GetAuraIconSize() : oracool::GetBarbSkillIconSize();
+	Size iconSize {};
+	switch (icons) {
+	case DescribedIcons::Aura:
+		iconSize = oracool::GetAuraIconSize();
+		break;
+	case DescribedIcons::Barbarian:
+		iconSize = oracool::GetBarbSkillIconSize();
+		break;
+	case DescribedIcons::Paladin:
+		iconSize = oracool::GetPaladinSkillIconSize();
+		break;
+	}
 	const int iconWidth = iconSize.width > 0 ? iconSize.width : 38;
 	const int textX = AbilitiesIconX + iconWidth + AbilitiesTextGap;
 	const int textWidth = AbilitiesContentRightLimit - textX;
@@ -572,10 +681,17 @@ void DrawDescribedRow(const Surface &content, int top, int iconIndex, bool isAur
 	// Top-left origin here, unlike the spell icons' bottom-left - these are blitted rather than
 	// drawn as CLX sprites.
 	const Point iconPos { AbilitiesIconX, top + (DescribedRowHeight - iconSize.height) / 2 };
-	if (isAura)
+	switch (icons) {
+	case DescribedIcons::Aura:
 		oracool::DrawAuraIcon(content, iconPos, iconIndex, unlocked);
-	else
+		break;
+	case DescribedIcons::Barbarian:
 		oracool::DrawBarbSkillIcon(content, iconPos, iconIndex, unlocked);
+		break;
+	case DescribedIcons::Paladin:
+		oracool::DrawPaladinSkillIcon(content, iconPos, iconIndex, unlocked);
+		break;
+	}
 
 	const UiFlags nameColor = unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorUiSilverDark;
 	const UiFlags detailColor = unlocked ? UiFlags::ColorWhite : UiFlags::ColorUiSilverDark;
@@ -613,17 +729,32 @@ void DrawAuraRow(const Surface &content, size_t index, int top)
 	// ordered by unlock level. See GetAuraAtDisplayIndex.
 	const oracool::Aura aura = oracool::GetAuraAtDisplayIndex(index);
 	const oracool::AuraData &data = oracool::GetAuraData(aura);
-	DrawDescribedRow(content, top, oracool::GetAuraIconIndex(aura), /*isAura=*/true,
+	DrawDescribedRow(content, top, oracool::GetAuraIconIndex(aura), DescribedIcons::Aura,
 	    oracool::IsAuraUnlocked(*InspectPlayer, aura), _(data.name),
 	    oracool::GetAuraTierName(data.tier), _(data.description),
 	    oracool::GetAuraTierMinLevel(data.tier));
+}
+
+/**
+ * @brief Charge and Zeal: the two Paladin skills that actually do something.
+ *
+ * The tag slot carries the mana price rather than a category. With two entries a category would say
+ * nothing, whereas "10 mana" is the one number a player needs before deciding to lean on it - and it
+ * is the field the Barbarian sheet already established for "the thing to know at a glance".
+ */
+void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, int top)
+{
+	const oracool::PaladinSkillData &data = oracool::GetPaladinSkillData(skill);
+	DrawDescribedRow(content, top, oracool::GetPaladinSkillIconIndex(skill), DescribedIcons::Paladin,
+	    oracool::IsPaladinSkillUnlocked(*InspectPlayer, skill), _(data.name),
+	    fmt::format(fmt::runtime(_("{:d} mana")), data.manaCost), _(data.description), data.minLevel);
 }
 
 void DrawBarbSkillRow(const Surface &content, size_t index, int top)
 {
 	const oracool::BarbSkill skill = oracool::GetBarbSkillAtDisplayIndex(index);
 	const oracool::BarbSkillData &data = oracool::GetBarbSkillData(skill);
-	DrawDescribedRow(content, top, oracool::GetBarbSkillIconIndex(skill), /*isAura=*/false,
+	DrawDescribedRow(content, top, oracool::GetBarbSkillIconIndex(skill), DescribedIcons::Barbarian,
 	    oracool::IsBarbSkillUnlocked(*InspectPlayer, skill), _(data.name),
 	    oracool::GetBarbSkillKindName(data.kind), _(data.description), data.minLevel);
 }
@@ -742,17 +873,36 @@ void DrawSpellBook(const Surface &out)
 	const int rowHeight = RowHeightFor(CurrentSheet);
 	const int scroll = CurrentScroll();
 
+	// The Skills sheet walks its own enumeration because its rows differ in kind AND in height; every
+	// other sheet is uniform and keeps the simple stride.
+	if (CurrentSheet == AbilitySheet::Skills) {
+		SkillRow rows[MaxSkillSheetRows];
+		const size_t rowCount = BuildSkillsSheetRows(rows);
+		int top = -scroll;
+		for (size_t i = 0; i < rowCount; i++) {
+			const int height = rows[i].kind == SkillRowKind::Paladin ? DescribedRowHeight : SpellRowHeight;
+			if (top + height > 0 && top < AbilitiesContentSize.height) {
+				switch (rows[i].kind) {
+				case SkillRowKind::Attack:
+					DrawAttackRow(content, static_cast<size_t>(rows[i].attack), top);
+					break;
+				case SkillRowKind::Spell:
+					DrawSpellRow(content, i, rows[i].spell, top);
+					break;
+				case SkillRowKind::Paladin:
+					DrawPaladinSkillRow(content, rows[i].paladin, top);
+					break;
+				}
+			}
+			top += height;
+		}
+		return;
+	}
+
 	SpellID rows[MaxSpellRows];
-	size_t rowCount = 0;
-	// Rows the Skills sheet draws from the attack strip instead of from `rows`, because they are not
-	// spells. Zero on every other sheet, which makes the index shift below a no-op there.
-	const size_t attackRows = CurrentSheet == AbilitySheet::Skills ? AttackRowCount : 0;
-	if (CurrentSheet == AbilitySheet::Spells)
-		rowCount = BuildSpellRows(rows);
-	else if (CurrentSheet == AbilitySheet::Skills)
-		rowCount = attackRows + BuildSkillRows(rows);
-	else
-		rowCount = GetRowCount(CurrentSheet);
+	const size_t rowCount = CurrentSheet == AbilitySheet::Spells
+	    ? BuildSpellRows(rows)
+	    : GetRowCount(CurrentSheet);
 
 	for (size_t i = 0; i < rowCount; i++) {
 		const int top = static_cast<int>(i) * rowHeight - scroll;
@@ -766,12 +916,10 @@ void DrawSpellBook(const Surface &out)
 			DrawBarbSkillRow(content, i, top);
 			break;
 		case AbilitySheet::Spells:
-		case AbilitySheet::Skills:
-			if (i < attackRows)
-				DrawAttackRow(content, i, top);
-			else
-				DrawSpellRow(content, i, rows[i - attackRows], top);
+			DrawSpellRow(content, i, rows[i], top);
 			break;
+		case AbilitySheet::Skills:
+			break; // handled above
 		}
 	}
 }
@@ -804,9 +952,7 @@ void CheckSBook()
 		return;
 
 	UpdateScrollBounds();
-	const int rowHeight = RowHeightFor(CurrentSheet);
 	const int y = MousePosition.y - content.position.y + CurrentScroll();
-	const size_t index = static_cast<size_t>(y / rowHeight);
 
 	// Auras and Barbarian skills are listed and described but not yet selectable - the gameplay
 	// passes that give them effects have not been built. Clicking one deliberately does nothing
@@ -814,33 +960,60 @@ void CheckSBook()
 	if (CurrentSheet == AbilitySheet::Auras || CurrentSheet == AbilitySheet::Barbarian)
 		return;
 
-	if (CurrentSheet == AbilitySheet::Skills && index < AttackRowCount) {
-		// Regular Attack readies the basic attack, which in this engine means clearing the readied
-		// spell - that IS the state in which a click swings the weapon. It is worth having as a row
-		// because there was previously no way back to it once a spell was readied, short of the
-		// undiscoverable shift-click on the RMB well.
-		//
-		// Fist Attack is inert on purpose (user request): it is the same underlying state, and which
-		// of the two icons you get is decided by what is in your hand, not by a click. Its row exists
-		// to say so.
-		if (static_cast<oracool::AttackIcon>(index) == oracool::AttackIcon::Regular)
-			ClearReadiedSpell(*MyPlayer);
-		return;
-	}
-
-	SpellID rows[MaxSpellRows];
-	size_t rowCount = 0;
-	size_t rowIndex = index;
-	if (CurrentSheet == AbilitySheet::Spells) {
-		rowCount = BuildSpellRows(rows);
+	SpellID sn = SpellID::Invalid;
+	if (CurrentSheet == AbilitySheet::Skills) {
+		// Walks the same enumeration the draw loop does, accumulating heights, because this sheet's
+		// rows are not all the same height - `y / rowHeight` would land on the wrong row the moment a
+		// tall Paladin row sat above the cursor.
+		SkillRow rows[MaxSkillSheetRows];
+		const size_t rowCount = BuildSkillsSheetRows(rows);
+		int top = 0;
+		for (size_t i = 0; i < rowCount; i++) {
+			const int height = rows[i].kind == SkillRowKind::Paladin ? DescribedRowHeight : SpellRowHeight;
+			if (y >= top && y < top + height) {
+				switch (rows[i].kind) {
+				case SkillRowKind::Attack:
+					// Regular Attack readies the basic attack, which in this engine means clearing
+					// the readied spell - that IS the state in which a click swings the weapon. It
+					// is worth having as a row because there was previously no way back to it once a
+					// spell was readied, short of the undiscoverable shift-click on the RMB well.
+					//
+					// Fist Attack is inert on purpose (user request): it is the same underlying
+					// state, and which of the two icons you get is decided by what is in your hand,
+					// not by a click. Its row exists to say so.
+					if (rows[i].attack == oracool::AttackIcon::Regular)
+						ClearReadiedSpell(*MyPlayer);
+					return;
+				case SkillRowKind::Spell:
+					sn = rows[i].spell;
+					break;
+				case SkillRowKind::Paladin:
+					// Charge rides a real spell slot, so an unlocked row readies it like any other.
+					// Zeal has no slot to ready - it applies itself to every melee swing - so its row
+					// is inert, the same way Fist Attack's is.
+					if (rows[i].paladin != oracool::PaladinSkill::Charge)
+						return;
+					// A locked row is inert too: readying it would arm the slot's Item Repair under
+					// a name the player has not earned yet.
+					if (!oracool::IsPaladinSkillUnlocked(*InspectPlayer, oracool::PaladinSkill::Charge))
+						return;
+					sn = rows[i].spell;
+					break;
+				}
+				break;
+			}
+			top += height;
+		}
+		if (sn == SpellID::Invalid)
+			return;
 	} else {
-		rowCount = BuildSkillRows(rows);
-		rowIndex -= AttackRowCount;
+		SpellID rows[MaxSpellRows];
+		const size_t rowCount = BuildSpellRows(rows);
+		const size_t rowIndex = static_cast<size_t>(y / RowHeightFor(CurrentSheet));
+		if (rowIndex >= rowCount)
+			return;
+		sn = rows[rowIndex];
 	}
-	if (rowIndex >= rowCount)
-		return;
-
-	const SpellID sn = rows[rowIndex];
 	// An unlearned row is inert. It is listed so the book shows the whole set, not so it can be
 	// readied - and its greyed icon already says so.
 	if (!IsSpellKnown(sn))
