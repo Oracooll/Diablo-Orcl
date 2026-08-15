@@ -26,9 +26,9 @@
 # one here.
 #
 # Strip order IS PaladinSkill's enum order - GetPaladinSkillIconIndex is the identity, so the sheet
-# and the enum cannot drift. SMITE IS DELIBERATELY SKIPPED: it is drawn on the sheet, but the user
-# asked for it to be left out ("ignore this skill for now. Don't add it."), so its grid cell is named
-# below and then not emitted.
+# and the enum cannot drift. One grid cell is deliberately not emitted; see $layout for which and
+# why. Skipping it in the CUTTER rather than filtering downstream is what keeps that true: the strip
+# gets seven cells rather than eight with a hole to index around.
 #
 # Usage: powershell -ExecutionPolicy Bypass -File tools\CutPaladinSkills.ps1
 # Run from the repository root.
@@ -41,13 +41,21 @@ $srcPath = "..\Oracool.MPQ\Paladin Skills.png"
 # every sheet in the Abilities window keeps the same row rhythm.
 $ICON = 38
 
-# Grid cell -> strip slot. $null means "on the sheet, not in the game".
-# Row-major, 4 columns x 2 rows, exactly as delivered.
+# Grid cell -> the GAME SKILL that takes that cell's drawing. $null means "on the sheet, not in the
+# game". Row-major, 4 columns x 2 rows, exactly as delivered.
+#
+# Cells 5 and 6 do not match their printed labels, deliberately (user request, 2026-08-15): the sheet
+# labels cell 5 "Smite" and cell 6 "Shield Bash", but cell 5's drawing - a shield driven into a
+# recoiling figure - is the one that reads as a bash, while cell 6 is a shield with an impact burst
+# beside it. So Shield Bash takes cell 5's art and cell 6 is the one held back.
+#
+# This is the reason the mapping is a table of cell -> skill rather than a list of names to skip: the
+# sheet's own labels are the artist's, and where the game disagrees with one, the disagreement should
+# be visible on one line instead of hidden in an index somewhere downstream.
 $layout = @(
     "Charge", "Zeal", "Hammer of Faith", "Blessed Shield",
-    "Fist of the Heavens", $null, "Shield Bash", "Blessed Hammer"
+    "Fist of the Heavens", "Shield Bash", $null, "Blessed Hammer"
 )
-$SMITE_CELL = 5
 
 # The delivered key measures (25,218,25). Generous on green, strict on the other two channels: the
 # artwork is white and black, so nothing in it comes close to a high-green low-red pixel.
@@ -118,7 +126,7 @@ for ($r = 0; $r -lt 2; $r++) {
         $cellIndex = $r * 4 + $c
         $name = $layout[$cellIndex]
         if ($null -eq $name) {
-            Write-Host ("  cell {0}: skipped (Smite, held back by request)" -f $cellIndex)
+            Write-Host ("  cell {0}: skipped - no game skill takes this drawing" -f $cellIndex)
             continue
         }
 

@@ -55,6 +55,13 @@ black with nothing near the key, so the simpler test is also the safe one here.
 
 ## Smite is skipped in the cutter, not filtered later
 
+> **Amended at 1.5.64.** Smite's *drawing* is now used, for **Shield Bash** — cell 5 shows a shield
+> driven into a recoiling figure and reads as a bash, where the cell the sheet labels "Shield Bash"
+> is a shield with an impact burst beside it. The two cells swapped roles; the skipped cell is now
+> cell 6. Everything below still holds, and the change was one line in `$layout`, which is what the
+> cell → skill mapping is shaped that way for.
+
+
 Its grid cell is named in the layout table and mapped to `$null`. So the strip has seven cells rather
 than eight-with-a-hole, `PaladinSkillCount` is 7, and the enum still lines up with the sheet
 index-for-index — `GetPaladinSkillIconIndex` stays the identity. Adding Smite later is one edit: give
