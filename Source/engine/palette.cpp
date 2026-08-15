@@ -228,9 +228,13 @@ void LoadPalette(const char *pszFileName, bool blend /*= true*/)
 	const bool isInGamePalette = std::strncmp(pszFileName, "levels\\", 7) == 0
 	    || std::strncmp(pszFileName, "nlevels\\", 8) == 0;
 	if (isInGamePalette) {
+		// Forest green (user, 2026-08-15: "make the green darker, more forest green") - the first
+		// ramp mirrored the donor's neon brightness and read minty; this one is anchored around
+		// classic forest green (34,139,34) and slightly desaturated (r == b, never zero), which is
+		// what separates "forest" from "signal light" at plate size.
 		static constexpr Color GreenRamp[PAL8_GREEN_SHADES] = {
-			{ 183, 255, 183 }, { 120, 255, 120 }, { 64, 254, 64 }, { 0, 244, 0 },
-			{ 0, 211, 0 }, { 0, 162, 0 }, { 0, 120, 0 }, { 0, 50, 0 }
+			{ 140, 190, 140 }, { 100, 160, 100 }, { 62, 130, 62 }, { 34, 110, 34 },
+			{ 24, 90, 24 }, { 16, 70, 16 }, { 10, 50, 10 }, { 4, 28, 4 }
 		};
 		for (int i = 0; i < PAL8_GREEN_SHADES; i++) {
 			orig_palette[PAL8_GREEN + i].r = GreenRamp[i].r;

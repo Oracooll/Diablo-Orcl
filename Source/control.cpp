@@ -738,6 +738,30 @@ void PushLineColors(string_view str, UiFlags color)
 	InfoStringLineColors.insert(InfoStringLineColors.end(), lines, color);
 }
 
+/**
+ * @brief Records InfoColor for any InfoString lines that were assigned bare, before appending more.
+ *
+ * Oracool: crash fix (2026-08-15, user screenshot - the assert in cursor_tooltip.cpp fired on a
+ * shrine hover). `InfoString = name; AddPanelString(description);` is a pattern vanilla uses all
+ * over - GetObjectStr's shrines, the speedbook's selected entry, the player hover - and it was
+ * perfectly legal until the per-line-colour tooltip made an unrecorded line an error. The first
+ * attempt fixed individual call sites and missed these; this honours the pattern instead: lines
+ * that existed before an append are credited with InfoColor, which is exactly the colour the
+ * single-colour path would have painted them.
+ */
+void BackfillLineColors()
+{
+	if (InfoString.empty())
+		return;
+	size_t lines = 1;
+	for (const char c : InfoString.str()) {
+		if (c == '\n')
+			lines++;
+	}
+	if (InfoStringLineColors.size() < lines)
+		InfoStringLineColors.insert(InfoStringLineColors.end(), lines - InfoStringLineColors.size(), InfoColor);
+}
+
 } // namespace
 
 void AddPanelString(string_view str)
@@ -752,6 +776,7 @@ void AddPanelString(std::string &&str)
 
 void AddPanelString(string_view str, UiFlags color)
 {
+	BackfillLineColors();
 	if (InfoString.empty())
 		InfoString = str;
 	else
@@ -761,6 +786,7 @@ void AddPanelString(string_view str, UiFlags color)
 
 void AddPanelString(std::string &&str, UiFlags color)
 {
+	BackfillLineColors();
 	PushLineColors(str, color);
 	if (InfoString.empty())
 		InfoString = std::move(str);
