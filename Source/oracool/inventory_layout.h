@@ -68,8 +68,22 @@ constexpr Size TabSize { CellPx, CellPx };
 constexpr int GridWidth = GridSizeInCells.width * CellPx;
 constexpr int TabRowX = GridOrigin.x;
 
-/** @brief The row's bottom edge is flush with the top border of the grid's first row. */
-constexpr int TabRowY = GridOrigin.y - TabSize.height;
+/**
+ * @brief Air between the tab row's bottom edge and the grid's top edge.
+ *
+ * 3, not 0 - user request (2026-08-16): "move the inventory tab buttons 3px up to reveal grid top
+ * border." The grid's frame is drawn OUTSIDE its cells (DrawOrnateBorderOutside), so its top border
+ * occupies the three pixels immediately above GridOrigin.y - exactly the three the tab row was
+ * sitting on while it was flush. Lifting the row by the border's own width uncovers all of it and
+ * nothing more.
+ *
+ * Tied to OrnateBorderWidth rather than written as a literal 3: it is that border being revealed, so
+ * if the frame ever gets thicker the tabs step off it by the same amount.
+ */
+constexpr int TabRowGridGap = OrnateBorderWidth;
+
+/** @brief The row's bottom edge clears the grid's top border by TabRowGridGap. */
+constexpr int TabRowY = GridOrigin.y - TabSize.height - TabRowGridGap;
 
 static_assert(TabCount * TabSize.width == GridWidth,
     "Tab row no longer spans exactly the grid width");
@@ -187,8 +201,10 @@ static_assert(GridBottom + OrnateBorderWidth <= OrbClearanceBottom,
     "Inventory grid or its frame extends into the mana orb - move the grid up or shorten it");
 static_assert(GridBottom <= InventoryPanelSize.height,
     "Inventory grid extends past the bottom of the panel");
-static_assert(TabRowY + TabSize.height == GridOrigin.y,
-    "Tab row is no longer flush with the top of the grid's first row");
+static_assert(TabRowY + TabSize.height == GridOrigin.y - TabRowGridGap,
+    "Tab row no longer clears the grid's top border by exactly TabRowGridGap");
+static_assert(TabRowGridGap >= OrnateBorderWidth,
+    "The tab row is back on top of the grid's border, which is the thing the gap exists to reveal");
 static_assert(GridWidth <= InventoryPanelSize.width,
     "Tab row is wider than the panel");
 
@@ -390,6 +406,16 @@ constexpr int GoldRowHeight = FooterRowHeight;
  * and the text itself stays clear of the tab art.
  */
 constexpr int FooterAboveTabsGap = 2;
+/**
+ * Anchored to the TAB ROW, so lifting the tabs to uncover the grid's border (TabRowGridGap,
+ * 2026-08-16) carries SORT and the gold count up with them.
+ *
+ * That is the right way round. The request behind the 2px gap was "move SORT and GOLD COUNTER 6px
+ * down. They are way up" - a complaint about the distance between those labels and the tabs, not
+ * about their absolute height in the panel. Pinning them to the grid instead would hold that
+ * absolute height and let the gap close back up to 1px of overlap, which is the thing that was
+ * being fixed.
+ */
 constexpr int FooterRowY = TabRowY - FooterAboveTabsGap - FooterRowHeight;
 
 /** @brief The x of tab @p index's left edge, used to span the row above by whole tabs. */
