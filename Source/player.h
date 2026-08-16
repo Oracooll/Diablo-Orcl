@@ -244,8 +244,24 @@ struct PlayerAnimationData {
 	 */
 	OptionalOwnedClxSpriteSheet sprites;
 
-	[[nodiscard]] ClxSpriteList spritesForDirection(Direction direction) const
+	/**
+	 * @brief The sprite list for @p direction, or nullopt when this animation was never loaded.
+	 *
+	 * Oracool audit (2026-08-16): this used to dereference `sprites` unconditionally, while its
+	 * exact twin for monsters - AnimStruct::spritesForDirection in monster.h - returns nullopt.
+	 * The two were written to different standards and the player's was the wrong one, because
+	 * LoadPlrGFX declines four graphics outright (Attack and Hit in town, Block without the block
+	 * flag, and - until v1.7.21 - Death with a weapon held), so an unloaded animation is a REACHABLE
+	 * state rather than a programming error.
+	 *
+	 * This is the deref behind the v1.6.24 crash. That fix removed one path to it (Shield Bash
+	 * selecting the block graphic without the sheet); the deref itself stayed, and callers that
+	 * checked for an empty result were checking downstream of an assert that had already fired.
+	 */
+	[[nodiscard]] OptionalClxSpriteList spritesForDirection(Direction direction) const
 	{
+		if (!sprites)
+			return std::nullopt;
 		return (*sprites)[static_cast<size_t>(direction)];
 	}
 };

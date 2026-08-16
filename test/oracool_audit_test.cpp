@@ -971,6 +971,21 @@ TEST(OracoolGems, TirGrantsManaPerKillFromWornSockets)
 namespace {
 
 /** @brief A level-30 Paladin with an empty tree and a pool of points to spend. */
+devilution::Player &FreshHero(HeroClass heroClass, int unspent = 40)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player._pClass = heroClass;
+	// Past the seventh tier's level 36, so nothing in any class's table is gated on level.
+	player._pLevel = 50;
+	player._pUnspentSkillPoints = static_cast<uint16_t>(unspent);
+	player._pOracoolActiveAura = 0xFF;
+	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	std::memset(player._pClassTreeInvestment, 0, sizeof(player._pClassTreeInvestment));
+	return player;
+}
+
 devilution::Player &FreshPaladin(int unspent = 40)
 {
 	Players.resize(1);
@@ -986,6 +1001,45 @@ devilution::Player &FreshPaladin(int unspent = 40)
 }
 
 } // namespace
+
+// Audit (2026-08-16): the inert-row rule is THE standing promise of the class-tree system - a row
+// the engine has no channel for is listed, described and contributes nothing, so a player is never
+// told a point bought something it did not. class_tree.h states it, and until now it was pinned by
+// a hand-written list of five Paladin auras. There are 161 skills across six classes and most of
+// the inert ones were on no list at all.
+//
+// Exhaustive instead of enumerated, so the rule cannot rot as rows are added: every row that
+// declares implemented == false must leave the totals byte-identical to nothing. Deliberate
+// adaptations are allowed by that rule, but they set implemented == true and say so in their own
+// description - which is exactly the line this test draws.
+TEST(OracoolClassTree, EveryInertRowContributesNothing)
+{
+	const oracool::ItemBonusTotals empty;
+	int checked = 0;
+
+	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+		const auto skill = static_cast<oracool::ClassTreeSkill>(i);
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
+		if (data.implemented)
+			continue;
+
+		devilution::Player &player = FreshHero(data.heroClass);
+		ASSERT_TRUE(oracool::InvestClassTreePoint(player, skill))
+		    << _(data.name) << " could not take a point at level 50 with points in hand";
+		// An aura contributes only while it burns, so an unlit one would pass trivially.
+		if (data.kind == oracool::ClassTreeKind::Aura)
+			ASSERT_TRUE(oracool::ToggleClassAura(player, skill)) << _(data.name) << " would not light";
+
+		oracool::ItemBonusTotals totals;
+		oracool::ApplyClassTreeToTotals(player, totals);
+		EXPECT_EQ(std::memcmp(&totals, &empty, sizeof(empty)), 0)
+		    << _(data.name) << " is marked inert but leaked an effect";
+		checked++;
+	}
+
+	EXPECT_GT(checked, 50) << "almost nothing was inert - did the implemented flag get inverted?";
+}
+
 
 // Walks EVERY class tree - the generalization's own proof, and the check that catches a class
 // added to the enum but forgotten in FirstSkillOf or the page builder.

@@ -28,8 +28,17 @@ struct Corpse {
 	 * @param direction One of the 16 directions. Valid range: [0, 15].
 	 * @return ClxSpriteList
 	 */
-	[[nodiscard]] ClxSpriteList spritesForDirection(Direction direction) const
+	/**
+	 * @brief The sprite list for @p direction, or nullopt when this corpse has no graphics.
+	 *
+	 * Oracool audit (2026-08-16): guarded to match AnimStruct::spritesForDirection. A Corpse entry
+	 * with no sprites is reachable between a level being torn down and the next one's graphics
+	 * loading, and dCorpse still names it during that window.
+	 */
+	[[nodiscard]] OptionalClxSpriteList spritesForDirection(Direction direction) const
 	{
+		if (!sprites)
+			return std::nullopt;
 		return sprites->isSheet() ? sprites->sheet()[static_cast<size_t>(direction)] : sprites->list();
 	}
 };

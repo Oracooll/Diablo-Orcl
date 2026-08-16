@@ -2260,7 +2260,13 @@ void InitMissileAnimationFromMonster(Missile &mis, Direction midir, const Monste
 	const AnimStruct &anim = mon.type().getAnimData(graphic);
 	mis._mimfnum = static_cast<int32_t>(midir);
 	mis._miAnimFlags = MissileGraphicsFlags::None;
-	ClxSpriteList sprites = *anim.spritesForDirection(midir);
+	// Oracool audit (2026-08-16): the monster helper correctly returns nullopt, and this was the one
+	// caller that threw the guard away with a bare `*`. A monster whose animation has not loaded
+	// firing a missile that borrows it is the reachable case.
+	const OptionalClxSpriteList maybeSprites = anim.spritesForDirection(midir);
+	if (!maybeSprites)
+		return;
+	ClxSpriteList sprites = *maybeSprites;
 	const uint16_t width = sprites[0].width();
 	mis._miAnimData.emplace(sprites);
 	mis._miAnimDelay = anim.rate;

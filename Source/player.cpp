@@ -2149,9 +2149,14 @@ void Player::UpdatePreviewCelSprite(_cmd_id cmdId, Point point, uint16_t wParam1
 		return;
 
 	LoadPlrGFX(*this, *graphic);
-	ClxSpriteList sprites = AnimationData[static_cast<size_t>(*graphic)].spritesForDirection(dir);
-	if (!previewCelSprite || *previewCelSprite != sprites[0]) {
-		previewCelSprite = sprites[0];
+	const OptionalClxSpriteList sprites = AnimationData[static_cast<size_t>(*graphic)].spritesForDirection(dir);
+	// No sheet, no preview. LoadPlrGFX declines Attack and Hit in town and Block without the block
+	// flag, and this runs on every click - it is the busiest path into an animation that might not
+	// be there.
+	if (!sprites)
+		return;
+	if (!previewCelSprite || *previewCelSprite != (*sprites)[0]) {
+		previewCelSprite = (*sprites)[0];
 		progressToNextGameTickWhenPreviewWasSet = ProgressToNextGameTick;
 	}
 }

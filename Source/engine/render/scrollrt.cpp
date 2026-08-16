@@ -343,6 +343,12 @@ void DrawMissilePrivate(const Surface &out, const Missile &missile, Point target
 	if (missile._miPreFlag != pre || !missile._miDrawFlag)
 		return;
 
+	// Oracool audit (2026-08-16): _miAnimData is an optional and several paths into it can decline -
+	// MissileData::spritesForDirection returns nullopt when the graphic is not loaded, and
+	// InitMissileAnimationFromMonster now bails rather than dereferencing an unloaded monster
+	// animation. An undrawable missile is a missing sprite, not a reason to end the session.
+	if (!missile._miAnimData)
+		return;
 	const Point missileRenderPosition { targetBufferPosition + missile.position.offsetForRendering - Displacement { missile._miAnimWidth2, 0 } };
 	const ClxSprite sprite = (*missile._miAnimData)[missile._miAnimFrame - 1];
 	// Oracool: a caller-supplied recolour, checked before the unique-monster one because a player's
@@ -764,6 +770,11 @@ void DrawItem(const Surface &out, Point tilePosition, Point targetBufferPosition
 	if (item._iPostDraw == pre)
 		return;
 
+	// Oracool audit (2026-08-16): the same unguarded deref that crashed on death, on the item drop
+	// animation. This fork ships ~73 new base items across three cursor sheets, so "the drop
+	// animation is always loaded" is a bigger assumption than it was.
+	if (!item.AnimInfo.sprites)
+		return;
 	const ClxSprite sprite = item.AnimInfo.currentSprite();
 	int px = targetBufferPosition.x - CalculateWidth2(sprite.width());
 	const Point position { px, targetBufferPosition.y };
@@ -968,6 +979,8 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 			if (OptionalClxSpriteListOrSheet scaled = oracool::GetScaledCorpse(Monsters[corpse.translationPaletteIndex - 1]))
 				sprites = scaled;
 		}
+		if (!sprites)
+			return;
 		const ClxSpriteList list = sprites->isSheet() ? (*sprites).sheet()[static_cast<size_t>(direction)] : (*sprites).list();
 		const ClxSprite sprite = list[corpse.frame];
 		// Centred on the sprite's own width rather than the table's, so a scaled corpse sits on the
