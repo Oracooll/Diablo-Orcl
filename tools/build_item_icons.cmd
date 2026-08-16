@@ -280,6 +280,16 @@ if not exist "Source\oracool\item_sets_icon_specs.txt" (
 )
 type "Source\oracool\item_sets_icon_specs.txt" >> "%SPECFILE%"
 
+REM The expansion uniques' 143 frames, appended AFTER the sets so their frames land at 506 onward -
+REM the order cursor.cpp's static_asserts and the generated ICURS_ORACOOL_UNQ_* ids assume.
+REM Same asis mode, same one-generator discipline: tools\GenUniqueItems.ps1 emits this spec together
+REM with the ids and the width/height rows in one walk.
+if not exist "Source\oracool\unique_items_icon_specs.txt" (
+  echo ERROR: Source\oracool\unique_items_icon_specs.txt is missing - run tools\GenUniqueItems.ps1 first
+  exit /b 1
+)
+type "Source\oracool\unique_items_icon_specs.txt" >> "%SPECFILE%"
+
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1
 
 REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet

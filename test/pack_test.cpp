@@ -1,4 +1,4 @@
-﻿#include <cstdint>
+#include <cstdint>
 
 #include <gtest/gtest.h>
 
@@ -678,7 +678,7 @@ const TestItemStruct HellfireItems[] = {
 	{ "Ring of precision", (ItemType)12, 3, 12, 10200, 0, 0, 0, (ItemSpecialEffect)0, 25, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 23, 0, 0, 0, 158 },
 	{ "Amulet of titans", (ItemType)13, 3, 45, 20896, 0, 0, 0, (ItemSpecialEffect)0, 26, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 19, 0, 0, 0, 160 },
 	{ "Gold Amulet", (ItemType)13, 3, 45, 13692, 0, 0, 0, (ItemSpecialEffect)0, 26, (SpellID)0, 0, 0, 0, 0, 0, 29, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 160 },
-	{ "The Unking's Scepter", (ItemType)2, 1, 143, 20000, 12, 30, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 75, 75, 50, 14, 0, 0, 0, 0, 4, 5, 5, 5, 0, 0, 4, 0, 0, 0, 151, 0, 0, 0, 0, -1, -1, 80, 0, 0, 135 },
+	{ "The Unking's Scepter", (ItemType)2, 1, 547, 20000, 12, 30, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 75, 75, 50, 14, 0, 0, 0, 0, 4, 5, 5, 5, 0, 0, 4, 0, 0, 0, 151, 0, 0, 0, 0, -1, -1, 80, 0, 0, 135 },
 	{ "Vicious Maul of structure", (ItemType)4, 1, 122, 10489, 6, 20, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 127, 128, 72, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 35, 55, 0, 0, 142 },
 	{ "Short Sword", (ItemType)1, 1, 64, 120, 2, 6, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 15, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 18, 0, 0, 119 },
 	{ "Long Battle Bow of shock", (ItemType)3, 1, 119, 8000, 1, 10, 0, (ItemSpecialEffect)33554432, 0, (SpellID)0, 0, 0, 18, 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 6, -1, 43, 30, 0, 60, 148 },
@@ -715,7 +715,7 @@ const TestItemStruct HellfireItems[] = {
 	{ "Oil of Permanence", (ItemType)0, 3, 30, 15000, 0, 0, 0, (ItemSpecialEffect)0, 38, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 86 },
 	{ "Doppelganger's Axe", (ItemType)2, 1, 144, 6640, 4, 12, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 23, 32, 86, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 89, -1, 22, 0, 0, 131 },
 	{ "Flail of vampires", (ItemType)4, 1, 131, 16500, 2, 12, 0, (ItemSpecialEffect)16384, 0, (SpellID)0, 0, 0, 36, 36, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 55, 30, 0, 0, 141 },
-	{ "The Unbroken Zero", (ItemType)12, 3, 12, 6000, 0, 0, 0, (ItemSpecialEffect)0, 25, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 3, 0, 896, 0, 0, 0, 0, 250, 0, 0, 0, 0, -1, -1, 0, 0, 0, 157 },
+	{ "The Unbroken Zero", (ItemType)12, 3, 646, 6000, 0, 0, 0, (ItemSpecialEffect)0, 25, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 3, 0, 896, 0, 0, 0, 0, 250, 0, 0, 0, 0, -1, -1, 0, 0, 0, 157 },
 	{ "Warrior's Staff of the moon", (ItemType)10, 1, 124, 42332, 8, 16, 0, (ItemSpecialEffect)0, 23, (SpellID)0, 0, 0, 75, 75, 54, 15, 0, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 27, 30, 0, 0, 155 },
 	{ "Kite Shield of the ages", (ItemType)5, 2, 113, 2600, 0, 0, 10, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 37, 50, 0, 0, 74 },
 	{ "Heavy Club of puncturing", (ItemType)4, 1, 70, 5239, 3, 6, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 20, 20, 52, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 57, 18, 0, 0, 139 },
@@ -730,16 +730,16 @@ const TestItemStruct HellfireItems[] = {
 	{ "Ring of Truth", (ItemType)12, 3, 10, 9100, 0, 0, 0, (ItemSpecialEffect)0, 27, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 0, 640, 0, -1, 0, 0, 4, 0, 0, 0, 0, -1, -1, 0, 0, 0, 11 },
 	{ "Red Armor of paralysis", (ItemType)6, 2, 107, 800, 0, 0, 17, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 18, 45, 0, 0, 0, 0, 0, -8, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 24, 20, 0, 0, 61 },
 	{ "Bent Hunter's Bow", (ItemType)3, 1, 102, 1, 2, 5, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 26, 40, -69, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, -1, 20, 0, 35, 144 },
-	{ "Dust Covenant", (ItemType)4, 1, 59, 6000, 1, 8, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 32, 32, 30, 9, 0, 0, 0, 0, 0, 0, 0, 7, 640, 0, 3, 0, 0, 0, 152, 0, 0, 0, 0, -1, -1, 16, 0, 0, 136 },
+	{ "Dust Covenant", (ItemType)4, 1, 548, 6000, 1, 8, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 32, 32, 30, 9, 0, 0, 0, 0, 0, 0, 0, 7, 640, 0, 3, 0, 0, 0, 152, 0, 0, 0, 0, -1, -1, 16, 0, 0, 136 },
 	{ "Deadly Spiked Club", (ItemType)4, 1, 70, 1556, 3, 6, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 8, 20, 47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, -1, 18, 0, 0, 139 },
-	{ "Chapelbreaker", (ItemType)3, 1, 102, 20000, 2, 5, 0, (ItemSpecialEffect)262160, 0, (SpellID)0, 0, 0, 255, 255, 130, 33, 0, 11, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 0, 155, 5, 16, 0, 0, -1, -1, 20, 0, 35, 144 },
-	{ "The Final Equation", (ItemType)4, 1, 121, 60000, 5, 9, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 255, 255, 95, 24, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 9, 0, -1, 0, 153, 0, 0, 0, 0, -1, -1, 40, 0, 0, 138 },
+	{ "Chapelbreaker", (ItemType)3, 1, 551, 20000, 2, 5, 0, (ItemSpecialEffect)262160, 0, (SpellID)0, 0, 0, 255, 255, 130, 33, 0, 11, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 0, 155, 5, 16, 0, 0, -1, -1, 20, 0, 35, 144 },
+	{ "The Final Equation", (ItemType)4, 1, 549, 60000, 5, 9, 0, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 255, 255, 95, 24, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 9, 0, -1, 0, 153, 0, 0, 0, 0, -1, -1, 40, 0, 0, 138 },
 	{ "Rod of Onan", (ItemType)10, 1, 124, 44167, 8, 16, 0, (ItemSpecialEffect)0, 23, (SpellID)21, 50, 50, 75, 75, 100, 0, 0, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 0, 0, 0, 0, -1, -1, 30, 0, 0, 155 },
 	{ "Flambeau", (ItemType)3, 1, 209, 30000, 0, 0, 0, (ItemSpecialEffect)33554440, 0, (SpellID)0, 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 99, 15, 20, 0, 0, -1, -1, 25, 0, 40, 146 },
-	{ "The Unbroken Zero", (ItemType)12, 3, 12, 6000, 0, 0, 0, (ItemSpecialEffect)0, 25, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 3, 0, 896, 0, 0, 0, 0, 250, 0, 0, 0, 0, -1, -1, 0, 0, 0, 156 },
-	{ "The Drowned Oath", (ItemType)13, 3, 45, 20000, 0, 0, 0, (ItemSpecialEffect)0, 26, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 7, 2, 9, 9, 20, 0, 0, 0, 0, 0, 0, 230, 0, 0, 0, 0, -1, -1, 0, 0, 0, 159 },
-	{ "The Crooked Meridian", (ItemType)10, 1, 109, 60000, 2, 4, 0, (ItemSpecialEffect)0, 23, (SpellID)0, 0, 0, 25, 25, 90, 23, 0, 0, 0, 0, 0, 0, 0, 16, 1728, 0, 0, 0, 0, 0, 158, 0, 0, 0, 0, -1, -1, 0, 0, 0, 151 },
-	{ "Black Meridian Robe", (ItemType)8, 2, 111, 6000, 0, 0, 18, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 55, 55, 0, 0, 30, 0, 0, 4, 0, 0, 0, 0, 0, 768, 0, 0, 0, 0, 216, 0, 0, 0, 0, -1, -1, 30, 0, 0, 63 },
+	{ "The Unbroken Zero", (ItemType)12, 3, 646, 6000, 0, 0, 0, (ItemSpecialEffect)0, 25, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 3, 3, 3, 3, 0, 896, 0, 0, 0, 0, 250, 0, 0, 0, 0, -1, -1, 0, 0, 0, 156 },
+	{ "The Drowned Oath", (ItemType)13, 3, 626, 20000, 0, 0, 0, (ItemSpecialEffect)0, 26, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 7, 2, 9, 9, 20, 0, 0, 0, 0, 0, 0, 230, 0, 0, 0, 0, -1, -1, 0, 0, 0, 159 },
+	{ "The Crooked Meridian", (ItemType)10, 1, 554, 60000, 2, 4, 0, (ItemSpecialEffect)0, 23, (SpellID)0, 0, 0, 25, 25, 90, 23, 0, 0, 0, 0, 0, 0, 0, 16, 1728, 0, 0, 0, 0, 0, 158, 0, 0, 0, 0, -1, -1, 0, 0, 0, 151 },
+	{ "Black Meridian Robe", (ItemType)8, 2, 612, 6000, 0, 0, 18, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 55, 55, 0, 0, 30, 0, 0, 4, 0, 0, 0, 0, 0, 768, 0, 0, 0, 0, 216, 0, 0, 0, 0, -1, -1, 30, 0, 0, 63 },
 	{ "Oil of Permanence", (ItemType)0, 3, 30, 15000, 0, 0, 0, (ItemSpecialEffect)0, 38, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 86 },
 	{ "Demon Plate Armor", (ItemType)9, 2, 225, 80000, 0, 0, 80, (ItemSpecialEffect)0, 0, (SpellID)0, 0, 0, 90, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 107, 0, 0, 0, 0, -1, -1, 90, 0, 0, 70 },
 	{ "Oil of Fortitude", (ItemType)0, 3, 30, 2500, 0, 0, 0, (ItemSpecialEffect)0, 37, (SpellID)0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, 0, 86 },

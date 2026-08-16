@@ -285,6 +285,10 @@ const uint16_t InvItemWidth3[] = {
 // The item sets' 94 frames - widths. GENERATED with the ICURS_ORACOOL_SET_* ids and the CEL's own
 // frame order; see tools/GenItemSets.ps1.
 #include "oracool/item_sets_curs_widths.inc"
+// The expansion uniques' 143 frames - widths. GENERATED; see tools/GenUniqueItems.ps1. The width
+// here IS the item's inventory footprint: IPL_INVCURS points _iCurs at the frame, and everything
+// that sizes an item reads these tables through _iCurs.
+#include "oracool/unique_items_curs_widths.inc"
 };
 const uint16_t InvItemHeight3[] = {
 	2 * 28, // shoulders
@@ -473,7 +477,16 @@ const uint16_t InvItemHeight3[] = {
 // The item sets' 94 frames. GENERATED with the ICURS_ORACOOL_SET_* ids and the CEL's frame order -
 // see tools/GenItemSets.ps1. The static_asserts below are what catch the three drifting apart.
 #include "oracool/item_sets_curs_heights.inc"
+// The expansion uniques' 143 frames. GENERATED; see tools/GenUniqueItems.ps1.
+#include "oracool/unique_items_curs_heights.inc"
 };
+
+// The uniques' frames must start exactly one past the sets' - the CEL is built by concatenating
+// the two spec lists in this order, and a gap or overlap here means every unique icon is off by
+// the difference while nothing else complains.
+static_assert(ICURS_ORACOOL_UNQ_FIRST == ICURS_ORACOOL_SET_COURT_RELIQUARY + 1,
+    "the unique icons no longer start where the set icons end - FirstCursorId in GenUniqueItems.ps1 "
+    "must be the set run's end + 1");
 constexpr uint16_t InvItems3Size = sizeof(InvItemWidth3) / sizeof(InvItemWidth3[0]);
 static_assert(sizeof(InvItemHeight3) / sizeof(InvItemHeight3[0]) == InvItems3Size,
     "oracool icon sheet width and height tables disagree on the frame count");

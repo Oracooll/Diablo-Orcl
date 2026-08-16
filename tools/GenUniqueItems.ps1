@@ -18,9 +18,21 @@
 
 param(
     [string]$Package    = "..\Oracool.MPQ\02-source-art\unique-items\unique-item-expansion-250.zip",
+    # The art, delivered separately ("i am waiting for the sprites", 2026-08-17, and then they came).
+    # 250 native 28px-per-cell PNGs plus sprite-manifest.json, joined to the design by id.
+    [string]$SpriteZip  = "..\Oracool.MPQ\02-source-art\unique-items\unique-item-sprites-250.zip",
     [string]$AffixTable = "Source\oracool\unique_affixes.cpp",
     [string]$BaseEnum   = "Source\itemdat.h",
-    [string]$OutFile    = "Source\oracool\unique_items_data.inc"
+    [string]$OutFile    = "Source\oracool\unique_items_data.inc",
+    # The four icon artefacts, same one-walk-one-order discipline as the item sets: a CEL ties a
+    # frame to an id by POSITION alone, so the spec list, the enum, and the width/height rows must
+    # come out of a single pass or drift silently.
+    [string]$IconSpecFile = "Source\oracool\unique_items_icon_specs.txt",
+    [string]$CursEnumFile = "Source\oracool\unique_items_curs.inc",
+    [string]$CursWidthFile = "Source\oracool\unique_items_curs_widths.inc",
+    [string]$CursHeightFile = "Source\oracool\unique_items_curs_heights.inc",
+    # One past the set items' last frame: 412 + 94. cursor.cpp static_asserts the adjacency.
+    [int]$FirstCursorId = 506
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,6 +45,20 @@ $jsonPath = Get-ChildItem $work -Recurse -Filter "unique-items.json" | Select-Ob
 if (-not $jsonPath) { throw "no unique-items.json inside $Package" }
 $pkg = Get-Content $jsonPath.FullName -Raw | ConvertFrom-Json
 Write-Host "package: $($pkg.items.Count) items"
+
+# --- the sprites -----------------------------------------------------------------------------------
+$spriteWork = Join-Path ([System.IO.Path]::GetTempPath()) "oracool-unique-sprites"
+if (Test-Path $spriteWork) { Remove-Item -Recurse -Force $spriteWork }
+Expand-Archive -Path $SpriteZip -DestinationPath $spriteWork -Force
+$manifestPath = Get-ChildItem $spriteWork -Recurse -Filter "sprite-manifest.json" | Select-Object -First 1
+if (-not $manifestPath) { throw "no sprite-manifest.json inside $SpriteZip" }
+$manifest = Get-Content $manifestPath.FullName -Raw | ConvertFrom-Json
+$cellsDir = Get-ChildItem $spriteWork -Recurse -Directory -Filter "native-28px-cells" | Select-Object -First 1
+if (-not $cellsDir) { throw "no native-28px-cells directory inside $SpriteZip" }
+# id -> { slug, grid }. Joined by id, never by display name - the handoff's own rule 2.
+$spriteById = @{}
+foreach ($s in $manifest.items) { $spriteById[$s.id] = @{ Slug = $s.spriteSlug; Grid = $s.grid } }
+Write-Host "sprites: $($spriteById.Count) manifest records, cells at $($cellsDir.FullName)"
 
 # --- the affix mapping, read out of the C++ table so the two cannot drift --------------------------
 $affix = @{}
@@ -59,6 +85,10 @@ Write-Host "engine bases: $($engineBases.Count) UITYPE_ values"
 # --- walk the items --------------------------------------------------------------------------------
 $rows = @()
 $skippedNoBase = @{}
+$iconSpecs = @()
+$cursEnum = @()
+$cursWidths = @()
+$cursHeights = @()
 $disagreements = @()
 $liveAffixes = 0
 $inertAffixes = 0
@@ -112,14 +142,37 @@ foreach ($it in $pkg.items) {
         $powers += "{ $($m.Power), $v, $p2 }"
     }
 
-    # UniqueItem carries six power slots and UINumPL counts them.
-    if ($powers.Count -gt 6) { throw "item $($it.id) has $($powers.Count) live affixes, more than the six slots" }
     # A unique that grants nothing is the failure this project already shipped once, in the item-set
     # bonus ladders. It is a build error here, not something to find in play.
     if ($powers.Count -eq 0) { $emptyItems += $it.id; continue }
 
+    # --- the icon: one CEL frame, one ICURS_ id, one width/height row, all in emitted order -------
+    # The handoff's own gate: "Missing art is a hard build error, not a silent generic-icon
+    # fallback." An emitted unique with no sprite stops the generator.
+    if (-not $spriteById.ContainsKey($it.id)) { throw "item $($it.id): no sprite-manifest record" }
+    $sprite = $spriteById[$it.id]
+    $png = Join-Path $cellsDir.FullName "$($sprite.Slug).png"
+    if (-not (Test-Path $png)) { throw "item $($it.id): sprite '$($sprite.Slug).png' missing from native-28px-cells" }
+    $gw = [int]$sprite.Grid[0]; $gh = [int]$sprite.Grid[1]
+    $cursId = $FirstCursorId + $rows.Count
+    $cursName = "ICURS_ORACOOL_UNQ_" + ($it.id -replace '^UNIQUE_', '')
+    $iconSpecs += "$png,0,0,$($gw*28),$($gh*28),$($gw*28),$($gh*28),$($sprite.Slug),30,false,asis"
+    $cursEnum += "`t$cursName = $cursId,"
+    $cursWidths += "`t$gw * 28, // $($sprite.Slug)"
+    $cursHeights += "`t$gh * 28, // $($sprite.Slug)"
+
+    # The icon rides IPL_INVCURS, vanilla's own channel - SaveItemPower does `item._iCurs = param1`,
+    # and the inventory footprint follows _iCurs through InvItemWidth3/Height3, so the package's
+    # declared grid becomes the item's real footprint with no new field anywhere. Appended LAST so
+    # the description loop prints the real affixes first (PrintItemPower renders INVCURS as a lone
+    # space, vanilla's own way of making it description-safe).
+    $powers += "{ IPL_INVCURS, $cursId, 0 }"
+
+    # SEVEN slots, not six. 26 of the emitted uniques carry six live affixes, and the icon needs a
+    # slot of its own - which is why UniqueItem::powers grew to 7 (see itemdat.h).
+    if ($powers.Count -gt 7) { throw "item $($it.id) has $($powers.Count) powers, more than the seven slots" }
     $numPl = $powers.Count
-    while ($powers.Count -lt 6) { $powers += "{ IPL_INVALID, 0, 0 }" }
+    while ($powers.Count -lt 7) { $powers += "{ IPL_INVALID, 0, 0 }" }
 
     # UIValue is the gold value the vanilla roller assigns. The package has no such field, so it is
     # derived from the drop band rather than invented per item: a late-band unique should not be
@@ -162,3 +215,19 @@ $out += "// clang-format on"
 
 Set-Content -Path $OutFile -Value $out -Encoding utf8
 Write-Host "wrote $OutFile : $($rows.Count) uniques"
+
+# --- the four icon artefacts -----------------------------------------------------------------------
+$header = "// GENERATED by tools/GenUniqueItems.ps1 - do not edit. Frame order is the contract."
+# NO BOM on the spec list: build_item_icons.cmd appends it with `type`, and a BOM landing mid-file
+# becomes the first characters of a path - the System.Drawing NotSupportedException lesson the set
+# icons already paid for.
+[System.IO.File]::WriteAllLines((Join-Path (Get-Location).Path $IconSpecFile), [string[]]$iconSpecs,
+    (New-Object System.Text.UTF8Encoding($false)))
+# FIRST/LAST aliases bracket the run so itemdat.h and cursor.cpp can assert adjacency with the set
+# icons and size their tables without naming any specific unique.
+$cursEnum = @("`tICURS_ORACOOL_UNQ_FIRST = $FirstCursorId,") + $cursEnum +
+    @("`tICURS_ORACOOL_UNQ_LAST = $($FirstCursorId + $iconSpecs.Count - 1),")
+Set-Content -Path $CursEnumFile   -Value (@($header) + $cursEnum) -Encoding utf8
+Set-Content -Path $CursWidthFile  -Value (@($header) + $cursWidths) -Encoding utf8
+Set-Content -Path $CursHeightFile -Value (@($header) + $cursHeights) -Encoding utf8
+Write-Host "icons: $($iconSpecs.Count) frames, cursor ids $FirstCursorId..$($FirstCursorId + $iconSpecs.Count - 1)"
