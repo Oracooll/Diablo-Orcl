@@ -192,5 +192,16 @@ void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals);
 int ForEachEarnedSetBonus(const Player &player, const ItemSetDefinition &set,
     void (*visit)(const SetBonusDefinition &rung, void *context), void *context);
 
+/** @brief Whether @p player is WEARING this exact piece (not merely carrying it). */
+bool IsSetPieceWorn(const Player &player, const SetItemDefinition &piece);
+
+/**
+ * @brief The slot word shown in brackets after a piece's name, e.g. "helm", "main hand".
+ *
+ * Player-facing, so it is not the raw JSON token: "torso" reads as "body" and "main_hand" loses its
+ * underscore. Untranslated - run through _() at the point of display.
+ */
+const char *SetSlotDisplayName(string_view slot);
+
 } // namespace oracool
 } // namespace devilution

@@ -88,6 +88,7 @@ bool chrbtnactive;
 bool resetStatsButtonDown;
 UiFlags InfoColor;
 std::vector<UiFlags> InfoStringLineColors;
+std::vector<uint16_t> InfoStringLineTailStart;
 bool talkflag;
 bool sbookflag;
 bool chrflag;
@@ -741,6 +742,10 @@ void PushLineColors(string_view str, UiFlags color)
 			lines++;
 	}
 	InfoStringLineColors.insert(InfoStringLineColors.end(), lines, color);
+	// The tail array walks in lockstep with the colour array whether or not anybody uses it, so a
+	// consumer can index either with the same line number. 0 = no tail, the state every existing
+	// caller wants.
+	InfoStringLineTailStart.insert(InfoStringLineTailStart.end(), lines, 0);
 }
 
 /**
@@ -765,6 +770,8 @@ void BackfillLineColors()
 	}
 	if (InfoStringLineColors.size() < lines)
 		InfoStringLineColors.insert(InfoStringLineColors.end(), lines - InfoStringLineColors.size(), InfoColor);
+	if (InfoStringLineTailStart.size() < lines)
+		InfoStringLineTailStart.insert(InfoStringLineTailStart.end(), lines - InfoStringLineTailStart.size(), 0);
 }
 
 } // namespace
@@ -799,11 +806,24 @@ void AddPanelString(std::string &&str, UiFlags color)
 		InfoString = StrCat(InfoString, "\n", str);
 }
 
+void AddPanelStringSplit(std::string &&str, UiFlags color, size_t tailStart)
+{
+	// The split only makes sense on a single line, and every caller passes one; a multi-line string
+	// would give its tail offset to the first row and leave the rest bare, which is worse than
+	// ignoring it. Clamped rather than asserted because a translation could legitimately shorten
+	// the string past the offset the caller computed from the untranslated form.
+	const size_t clamped = std::min(tailStart, str.size());
+	AddPanelString(std::move(str), color);
+	if (!InfoStringLineTailStart.empty())
+		InfoStringLineTailStart.back() = static_cast<uint16_t>(clamped);
+}
+
 void SetPanelString(StringOrView str, UiFlags color)
 {
 	InfoString = std::move(str);
 	InfoColor = color;
 	InfoStringLineColors.clear();
+	InfoStringLineTailStart.clear();
 	PushLineColors(InfoString.str(), color);
 }
 
@@ -811,6 +831,7 @@ void ClearPanelStrings()
 {
 	InfoString = {};
 	InfoStringLineColors.clear();
+	InfoStringLineTailStart.clear();
 }
 
 Point GetPanelPosition(UiPanels panel, Point offset)

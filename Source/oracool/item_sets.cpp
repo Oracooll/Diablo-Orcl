@@ -215,6 +215,32 @@ void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals)
 	}
 }
 
+bool IsSetPieceWorn(const Player &player, const SetItemDefinition &piece)
+{
+	for (const Item &equipped : player.InvBody) {
+		if (!equipped.isEmpty() && equipped._iCurs == piece.cursor)
+			return true;
+	}
+	return false;
+}
+
+const char *SetSlotDisplayName(string_view slot)
+{
+	if (slot == "helm") return N_("helm");
+	if (slot == "torso") return N_("body");
+	if (slot == "gloves") return N_("gloves");
+	if (slot == "belt") return N_("belt");
+	if (slot == "boots") return N_("boots");
+	if (slot == "shoulders") return N_("shoulders");
+	if (slot == "main_hand") return N_("main hand");
+	if (slot == "off_hand") return N_("off hand");
+	if (slot == "amulet") return N_("amulet");
+	if (slot == "ring") return N_("ring");
+	if (slot == "relic") return N_("relic");
+	if (slot == "cloak") return N_("cloak");
+	return N_("item");
+}
+
 int ForEachEarnedSetBonus(const Player &player, const ItemSetDefinition &set,
     void (*visit)(const SetBonusDefinition &rung, void *context), void *context)
 {

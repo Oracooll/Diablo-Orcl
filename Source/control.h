@@ -165,6 +165,26 @@ void ClearPanelStrings();
  * legitimately be out of step.
  */
 extern std::vector<UiFlags> InfoStringLineColors;
+
+/**
+ * @brief Where a line's WHITE tail starts, per line, or 0 for "the whole line is one colour".
+ *
+ * The tooltip draws one colour per line, which is all an item needed until the set panel: the user
+ * asked (2026-08-16) for a set's item list to show each piece's name in green or red with its slot
+ * "in brackets with white text", which is two colours on one row.
+ *
+ * A byte offset rather than a general run-list, because that is the whole requirement: one head, one
+ * white tail. A line whose entry is 0 draws exactly as before, so every other producer is untouched.
+ * Parallel to InfoStringLineColors and subject to the same size check.
+ */
+extern std::vector<uint16_t> InfoStringLineTailStart;
+
+/**
+ * @brief Appends a line drawn in two colours: @p str up to @p tailStart in @p color, the rest white.
+ *
+ * @p tailStart is a byte offset into @p str. Passing 0 is the same as the plain overload.
+ */
+void AddPanelStringSplit(std::string &&str, UiFlags color, size_t tailStart);
 void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition);
 Point GetPanelPosition(UiPanels panel, Point offset = { 0, 0 });
 

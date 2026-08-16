@@ -178,6 +178,28 @@ void DrawCursorTooltip(const Surface &out)
 			// between boxes, not part of them.
 			const Rectangle lineArea { textArea.position + Displacement { 0, i * lineStride },
 				{ textArea.size.width, lineHeight } };
+			// A line may be drawn in TWO runs: the head in its own colour and a white tail from
+			// InfoStringLineTailStart. The set panel's item list needs it - each piece's name is
+			// green or red while its slot "(helm)" is white (user request, 2026-08-16) - and one
+			// colour per line cannot say that. Zero, the value every other producer records, takes
+			// the single-run path below unchanged.
+			const size_t tailStart = i < static_cast<int>(InfoStringLineTailStart.size())
+			    ? InfoStringLineTailStart[i]
+			    : 0;
+			if (tailStart > 0 && tailStart < line.size()) {
+				const string_view head = line.substr(0, tailStart);
+				const string_view tail = line.substr(tailStart);
+				DrawString(out, head, lineArea, { InfoStringLineColors[i] | sharedFlags, 1, lineHeight });
+				// Measured rather than assumed: the head is a translated item name, so its width is
+				// only knowable from the font that will actually draw it.
+				const Rectangle tailArea { lineArea.position + Displacement { GetLineWidth(head), 0 },
+					{ lineArea.size.width - GetLineWidth(head), lineHeight } };
+				DrawString(out, tail, tailArea, { UiFlags::ColorWhite | sharedFlags, 1, lineHeight });
+				if (newline == string_view::npos)
+					break;
+				start = newline + 1;
+				continue;
+			}
 			DrawString(out, line, lineArea,
 			    { InfoStringLineColors[i] | sharedFlags, 1, lineHeight });
 			if (newline == string_view::npos)

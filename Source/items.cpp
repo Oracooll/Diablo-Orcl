@@ -4918,29 +4918,48 @@ void AddItemPowerPanelStrings(const Item &item)
 	// problem PrintOracoolAffixPower exists to solve for multi-affix tiered items.
 	if (item._iOracoolTier == OracoolItemTier::Set) {
 		const oracool::SetItemDefinition *def = oracool::FindSetItemByCursor(item._iCurs);
-		if (def != nullptr) {
-			for (const ItemPower &power : def->powers) {
-				if (power.type == IPL_INVALID)
-					break;
-				AddPanelString(PrintItemPower(power.type, item), ItemAffixColor);
-			}
-			// Then the set itself: which one this belongs to, how much of it is being worn, and the
-			// name of every rung that has earned (user, 2026-08-16: "arent there any set bonuses?" -
-			// they were being applied, but nothing on screen said so).
-			//
-			// The rungs come from ForEachEarnedSetBonus, the same walk that applies them, so the
-			// panel cannot claim a bonus the wearer does not have or miss one they do.
-			if (const oracool::ItemSetDefinition *set = oracool::FindItemSetOwning(def->id); set != nullptr) {
-				const int worn = oracool::WornSetPieces(*MyPlayer, *set);
-				AddPanelString(fmt::format(fmt::runtime(_("{:s} ({:d}/{:d})")), _(set->name), worn, set->itemCount),
-				    UiFlags::ColorOracoolGreen);
-				oracool::ForEachEarnedSetBonus(*MyPlayer, *set,
-				    [](const oracool::SetBonusDefinition &rung, void * /*context*/) {
-					    // Indented, so an earned rung reads as belonging to the set line above it.
-					    AddPanelString(StrCat("  ", _(rung.name)), UiFlags::ColorOracoolGreen);
-				    },
-				    nullptr);
-			}
+		if (def == nullptr)
+			return;
+
+		// The piece's OWN stats first, in the ordinary affix blue. Green is reserved for what the
+		// SET grants (user, 2026-08-16: "Regullar affixes to be in blue") - so the two kinds of
+		// bonus are told apart by colour, which is the whole reason the block below is green.
+		for (const ItemPower &power : def->powers) {
+			if (power.type == IPL_INVALID)
+				break;
+			AddPanelString(PrintItemPower(power.type, item), ItemAffixColor);
+		}
+
+		const oracool::ItemSetDefinition *set = oracool::FindItemSetOwning(def->id);
+		if (set == nullptr)
+			return;
+		const int worn = oracool::WornSetPieces(*MyPlayer, *set);
+		AddPanelString(fmt::format(fmt::runtime(_("{:s} ({:d}/{:d})")), _(set->name), worn, set->itemCount),
+		    UiFlags::ColorOracoolGreen);
+
+		// Every piece of the set, worn ones green and missing ones red, each followed by its slot in
+		// white brackets. The white tail is a two-run line - see AddPanelStringSplit and the tail
+		// handling in oracool::DrawCursorTooltip; one colour per line could not say this.
+		for (int i = 0; i < set->itemCount; i++) {
+			const oracool::SetItemDefinition &piece = oracool::ItemSetItems[set->firstItem + i];
+			std::string name = StrCat("  ", _(piece.name));
+			// The offset is taken BEFORE the bracket is appended, so it is the byte the white run
+			// starts at whatever the translated name's length turns out to be.
+			const size_t tailStart = name.size();
+			name = StrCat(name, " (", _(oracool::SetSlotDisplayName(piece.slot)), ")");
+			AddPanelStringSplit(std::move(name),
+			    oracool::IsSetPieceWorn(*MyPlayer, piece) ? UiFlags::ColorOracoolGreen : UiFlags::ColorRed,
+			    tailStart);
+		}
+
+		// Then the ladder, in rung order, each labelled with the pieces it needs. Green once earned,
+		// red until then - so the panel shows the whole progression rather than only what is already
+		// in hand. Read straight off the set's rungs rather than through ForEachEarnedSetBonus,
+		// because this list wants the UNEARNED ones too.
+		for (int i = 0; i < set->bonusCount; i++) {
+			const oracool::SetBonusDefinition &rung = oracool::ItemSetBonuses[set->firstBonus + i];
+			AddPanelString(fmt::format(fmt::runtime(_("  ({:d}) {:s}")), rung.pieces, _(rung.name)),
+			    rung.pieces <= worn ? UiFlags::ColorOracoolGreen : UiFlags::ColorRed);
 		}
 		return;
 	}
