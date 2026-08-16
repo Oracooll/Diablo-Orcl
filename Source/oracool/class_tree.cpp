@@ -726,6 +726,42 @@ bool InvestClassTreePoint(Player &player, Skill skill)
 	return true;
 }
 
+bool CanRefundClassTreePoint(const Player &player, Skill skill)
+{
+	return ClassTreeInvestment(player, skill) > 0;
+}
+
+bool RefundClassTreePoint(Player &player, Skill skill)
+{
+	if (!CanRefundClassTreePoint(player, skill))
+		return false;
+	player._pUnspentSkillPoints++;
+	const SpellID slot = ClassTreeSpellId(skill);
+	if (slot != SpellID::Invalid) {
+		player._pSkillInvestment[static_cast<size_t>(slot)]--;
+	} else {
+		player._pClassTreeInvestment[ClassTreeIconIndex(skill)]--;
+	}
+
+	// An aura at zero has no strength left to give, and ToggleClassAura already refuses to LIGHT one
+	// in that state - so leaving it burning would be the one way to hold an aura the rules say you
+	// cannot have. Put out here rather than guarded at every reader.
+	if (GetClassTreeSkillData(skill).kind == Kind::Aura
+	    && GetActiveClassAura(player) == skill
+	    && ClassTreeInvestment(player, skill) <= 0) {
+		player._pOracoolActiveAura = static_cast<uint8_t>(Skill::None);
+		if (&player == MyPlayer)
+			StopClassAuraLoop();
+	}
+
+	if (&player == MyPlayer) {
+		LogEvent(fmt::format("{:s} lowered to {:d}", std::string(_(GetClassTreeSkillData(skill).name)),
+		             ClassTreeInvestment(player, skill)),
+		    UiFlags::ColorWhitegold);
+	}
+	return true;
+}
+
 Skill GetActiveClassAura(const Player &player)
 {
 	const auto skill = static_cast<Skill>(player._pOracoolActiveAura);

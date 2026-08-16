@@ -10,6 +10,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "init.h"
+#include "oracool/sprite_scale.h"
 #include "utils/stdcompat/optional.hpp"
 
 namespace devilution {
@@ -296,6 +297,76 @@ void SetSpellTransDarkGrey()
 		SplTransTbl[PAL16_GRAY + within] = dark;
 	}
 	// The ramp-end entries stay the Invalid table's transparent 0, or the plate gains a solid corner.
+	SplTransTbl[PAL16_BEIGE + 15] = 0;
+	SplTransTbl[PAL16_YELLOW + 15] = 0;
+	SplTransTbl[PAL16_ORANGE + 15] = 0;
+}
+
+void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell)
+{
+	if (!SmallSpellIcons) {
+		return;
+	}
+	const Size natural = GetSmallSpellIconSize();
+	if (natural.width <= 0 || natural.height <= 0)
+		return;
+
+	// ONE percent for both axes - that is all ScaleClxList takes - so a 37x38 plate cannot land
+	// exactly on a 56x56 cell. Rounded UP so the plate always covers the cell rather than falling
+	// short: a pixel of overhang reads as a border, a pixel of shortfall reads as the bug being
+	// fixed here.
+	const int percent = std::max((cell.size.width * 100 + natural.width - 1) / natural.width,
+	    (cell.size.height * 100 + natural.height - 1) / natural.height);
+	if (percent <= 100) {
+		// Already at least as big as the cell; the unscaled draw is exact and costs nothing.
+		DrawSmallSpellIcon(out, { cell.position.x, cell.position.y + natural.height - 1 }, SpellID::Null);
+		return;
+	}
+
+	// Cached on the percentage, not rebuilt per draw - a tree page is up to eighteen cells and they
+	// all want the same size. ScaleClxList caps at 400%, which no sane cell reaches.
+	static OptionalOwnedClxSpriteList scaled;
+	static int scaledPercent = 0;
+	const int clamped = std::min(percent, 400);
+	if (!scaled || scaledPercent != clamped) {
+		scaled = oracool::ScaleClxList(ClxSpriteList { *SmallSpellIcons }, static_cast<unsigned>(clamped));
+		scaledPercent = clamped;
+	}
+
+	const ClxSprite plate = (*scaled)[static_cast<size_t>(SpellID::Null)];
+	const Point centred { cell.position.x + (cell.size.width - static_cast<int>(plate.width())) / 2,
+		cell.position.y + (cell.size.height - static_cast<int>(plate.height())) / 2 };
+	// CLX is drawn from the sprite's BOTTOM-left, the convention every other call here follows.
+	ClxDrawTRN(out, { centred.x, centred.y + static_cast<int>(plate.height()) - 1 }, plate, SplTransTbl);
+}
+
+void SetSpellTransRed()
+{
+	// Oracool: user request (2026-08-17) - "Unlocked skills with 0 points in them are unavailable
+	// and inactive, ergo need to have red background, not green."
+	//
+	// This is a THIRD state, distinct from the two that already existed and easily confused with
+	// both: Grey means "not earned yet" and Pink means "earned but cannot be performed right now"
+	// (no mana, no shield). Red means "earned and spendable, but you have put nothing into it" -
+	// the only one of the three the player can fix by spending a point.
+	//
+	// No palette injection needed, unlike the green: PAL16_RED is one of the game's own ramps, so
+	// this is the same shape as the Pink case - map the plate's ramps onto it 1:1 and keep the
+	// ramp-end entries transparent, or the plate gains a solid corner.
+	for (int i = 0; i < 256; i++)
+		SplTransTbl[i] = static_cast<uint8_t>(i);
+	SplTransTbl[255] = 0;
+
+	SplTransTbl[PAL8_YELLOW] = PAL16_RED + 2;
+	SplTransTbl[PAL8_YELLOW + 1] = PAL16_RED + 4;
+	SplTransTbl[PAL8_YELLOW + 2] = PAL16_RED + 6;
+	for (int within = 0; within < 15; within++) {
+		const auto red = static_cast<uint8_t>(PAL16_RED + within);
+		SplTransTbl[PAL16_BEIGE + within] = red;
+		SplTransTbl[PAL16_YELLOW + within] = red;
+		SplTransTbl[PAL16_ORANGE + within] = red;
+		SplTransTbl[PAL16_GRAY + within] = red;
+	}
 	SplTransTbl[PAL16_BEIGE + 15] = 0;
 	SplTransTbl[PAL16_YELLOW + 15] = 0;
 	SplTransTbl[PAL16_ORANGE + 15] = 0;

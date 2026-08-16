@@ -64,6 +64,17 @@ void SetSpellTrans(SpellType t);
 void SetSpellTransDarkGrey();
 /** @brief Oracool: the Skills-sheet green - plate ramps mapped onto the injected PAL8_GREEN ramp. */
 void SetSpellTransGreen();
+/** @brief Oracool: unlocked but UNSPENT - the plate ramps mapped onto the game's own PAL16_RED. */
+void SetSpellTransRed();
+
+/**
+ * @brief Oracool: the blank plate, rescaled to cover @p cell and centred in it.
+ *
+ * The plate art is 37x38; a class-tree cell is 56x56. Drawn at its natural size the backing is
+ * visibly smaller than the icon standing on it, which is what "make it fit the skill picture"
+ * (2026-08-17) was about. Uses the current translation table, so callers set their tint first.
+ */
+void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell);
 
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();

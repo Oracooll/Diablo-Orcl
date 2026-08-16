@@ -374,6 +374,21 @@ int ClassTreeInvestment(const Player &player, ClassTreeSkill skill);
 /** @brief Whether an invest click would take: unlocked, a point unspent, cap not reached. */
 bool CanInvestClassTreePoint(const Player &player, ClassTreeSkill skill);
 
+/** @brief Whether @p skill has a rank that can be taken back - simply "is anything invested". */
+bool CanRefundClassTreePoint(const Player &player, ClassTreeSkill skill);
+
+/**
+ * @brief Takes one point back out of @p skill and returns it to the unspent pool.
+ *
+ * Free and unlimited, by design (user, 2026-08-17: "We want players to be able to redistribute skill
+ * points at will"). There is no respec cost and no confirmation, which is what makes the trees a
+ * place to experiment rather than a set of decisions to regret.
+ *
+ * Puts out an aura that this drops to zero: ToggleClassAura already refuses to LIGHT an aura with
+ * nothing invested, so leaving one burning would be the only way to hold a state the rules forbid.
+ */
+bool RefundClassTreePoint(Player &player, ClassTreeSkill skill);
+
 /** @brief Spends one of Phase 2.1's unspent points on @p skill. False changes nothing. */
 bool InvestClassTreePoint(Player &player, ClassTreeSkill skill);
 

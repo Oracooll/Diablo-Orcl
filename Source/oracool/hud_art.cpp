@@ -1000,6 +1000,11 @@ void ApplyPlateTint(SkillPlateTint tint)
 		// own mapping onto PAL16_BEIGE - the ramp the user calls pink - so no new table is needed.
 		SetSpellTrans(SpellType::Scroll);
 		break;
+	case SkillPlateTint::Red:
+		// "Unlocked but unspent" (user, 2026-08-17). PAL16_RED is one of the game's own ramps, so
+		// unlike the green this needs no palette injection.
+		SetSpellTransRed();
+		break;
 	case SkillPlateTint::Yellow:
 		SetSpellTrans(SpellType::Skill);
 		break;
@@ -1084,6 +1089,25 @@ void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, in
     bool unlocked, SkillPlateTint tint)
 {
 	DrawIconOnPlate(out, TreeStripFor(heroClass), origin, skillIndex, unlocked, tint);
+}
+
+void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
+    bool unlocked, SkillPlateTint tint)
+{
+	// Bug (fixed 2026-08-17, user: "Fix the damn background of the skills. it has been like this
+	// forever. Dont you see it. Make it fit the skill picture.").
+	//
+	// DrawSkillIconPlate sizes itself from GetSmallSpellIconSize() - the vanilla 37x38 spell icon -
+	// while a tree cell is 56x56 and the class strips draw at their own natural size on top. So the
+	// plate has been ~19px too narrow and ~18px too short under every tree icon since the plates went
+	// in, which is why it never read as a backing and always read as a smaller square peeking out.
+	//
+	// The scaling lives in spell_icons.cpp because the plate list and the translation table are both
+	// file-local there; reaching for them from here would have meant exporting two internals to fix
+	// one drawing call.
+	ApplyPlateTint(tint);
+	DrawSmallSpellIconScaledTo(out, cell);
+	DrawStripIcon(out, TreeStripFor(heroClass), cell.position, skillIndex, unlocked);
 }
 
 Size GetClassTreeIconSize(HeroClass heroClass)

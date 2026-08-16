@@ -764,6 +764,45 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 
 
 /**
+ * @brief The invisible hit box for a spend glyph - 13x13 (user, 2026-08-17).
+ *
+ * "Invisible frame" is exact: the box is the CLICK target and the glyph is drawn inside it with a
+ * margin, so the bars are 4-5px thick as asked without the target shrinking to the bars themselves.
+ */
+constexpr int SpendBoxSize = 13;
+/** @brief Thickness of the plus/minus bars. */
+constexpr int SpendBarThickness = 4;
+
+/** @brief Bottom-RIGHT of the icon: spend a point here. */
+Rectangle SpendPlusRect(Rectangle icon)
+{
+	return { { icon.position.x + TreeIconSize - SpendBoxSize,
+		         icon.position.y + TreeIconSize - SpendBoxSize },
+		{ SpendBoxSize, SpendBoxSize } };
+}
+
+/** @brief Bottom-LEFT of the icon: take one back. */
+Rectangle SpendMinusRect(Rectangle icon)
+{
+	return { { icon.position.x, icon.position.y + TreeIconSize - SpendBoxSize },
+		{ SpendBoxSize, SpendBoxSize } };
+}
+
+/** @brief A thick plus (green) or minus (red), centred in its 13x13 box. */
+void DrawSpendGlyph(const Surface &out, Rectangle box, bool plus)
+{
+	// PAL8_YELLOW is the injected green ramp (see oracool::SkillPlateTint), so the plus reads in the
+	// same green the sheets already wear; the minus takes the game's own red.
+	const uint8_t color = plus ? static_cast<uint8_t>(PAL8_YELLOW + 1) : static_cast<uint8_t>(PAL16_RED + 4);
+	const int len = box.size.width - 2;
+	const int mid = (box.size.width - SpendBarThickness) / 2;
+	// The crossbar of both glyphs.
+	FillRect(out, box.position.x + 1, box.position.y + mid, len, SpendBarThickness, color);
+	if (plus)
+		FillRect(out, box.position.x + mid, box.position.y + 1, SpendBarThickness, len, color);
+}
+
+/**
  * @brief One cell of a tree page: the icon, and under it the point counter that doubles as the
  * invest button.
  *
@@ -785,9 +824,16 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 
 	// An unbuilt skill is drawn like a locked one even at level: "listed but inert" and "not yet
 	// earned" are both "you cannot use this", and a bright icon that does nothing is the lie.
-	oracool::DrawClassTreeIcon(content, icon.position, player._pClass, oracool::ClassTreeIconIndex(skill),
-	    unlocked && data.implemented,
-	    unlocked && data.implemented ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Grey);
+	//
+	// Three states, not two (user, 2026-08-17: "Unlocked skills with 0 points in them are unavailable
+	// and inactive, ergo need to have red background, not green"). Green now means the skill has
+	// something in it; red means it is yours to fill and empty; grey means it is not yours yet.
+	const bool usable = unlocked && data.implemented;
+	const oracool::SkillPlateTint tint = !usable
+	    ? oracool::SkillPlateTint::Grey
+	    : (invested > 0 ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Red);
+	oracool::DrawClassTreeIcon(content, icon, player._pClass, oracool::ClassTreeIconIndex(skill),
+	    usable, tint);
 
 	if (data.kind == oracool::ClassTreeKind::Aura) {
 		if (oracool::GetActiveClassAura(player) == skill)
@@ -796,21 +842,24 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		DrawAssignmentRings(content, icon, slot, GetSBookTrans(slot, true));
 	}
 
-	// The counter says something in exactly two cases: you can feed this skill, or you already have.
-	//
-	// It used to be drawn unconditionally, so a page put a "0" under every icon on it - and since
-	// most of a tree is locked at any given level, most of those zeroes were under grey plates that
-	// already said "not yours yet". Ten of them down a page is what made these sheets read as
-	// cluttered (user, 2026-08-16: "full of issues"). Silence is the honest default here.
-	const bool canInvest = !IsInspectingPlayer() && oracool::CanInvestClassTreePoint(*MyPlayer, skill);
-	if (canInvest) {
-		oracool::DrawHoverOutline(content, bar);
-		DrawString(content, fmt::format("+ {:d}", invested), bar,
+	// The gold "+ 0" bar under each icon is gone (user, 2026-08-17: "Remove the gold +0 buttons below
+	// the skills"). Spending now happens on the icon itself: a green plus at the bottom-right when
+	// there is a point to put in, a red minus at the bottom-left when there is a rank to take back.
+	// The rank sits between them, on the icon's bottom edge, so the whole cell is one object instead
+	// of an icon plus a widget - which also gives the sheets back a row of height.
+	if (IsInspectingPlayer())
+		return;
+	const Player &me = *MyPlayer;
+	if (invested > 0) {
+		DrawString(content, fmt::format("{:d}", invested),
+		    { { icon.position.x + SpendBoxSize, icon.position.y + TreeIconSize - SpendBoxSize },
+		        { TreeIconSize - 2 * SpendBoxSize, SpendBoxSize } },
 		    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	} else if (invested > 0) {
-		DrawString(content, fmt::format("{:d}", invested), bar,
-		    { UiFlags::ColorWhite | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
+	if (oracool::CanInvestClassTreePoint(me, skill))
+		DrawSpendGlyph(content, SpendPlusRect(icon), true);
+	if (oracool::CanRefundClassTreePoint(me, skill))
+		DrawSpendGlyph(content, SpendMinusRect(icon), false);
 }
 
 /** @brief Draws a whole tree page. */
@@ -1219,15 +1268,28 @@ void CheckSBook(bool assignToRightButton)
 		const std::optional<oracool::ClassTreeSkill> hit = TreeCellAt(*page, local, onBar);
 		if (!hit.has_value())
 			return;
-		if (onBar) {
-			if (oracool::InvestClassTreePoint(*MyPlayer, *hit)) {
+		// The spend corners are tested BEFORE the icon's own action, because they sit inside the
+		// icon's rect: a click in the bottom-left is a refund, not a "ready this skill".
+		{
+			Rectangle cellIcon = TreeIconRect(oracool::GetClassTreeSkillData(*hit).column,
+			    oracool::GetClassTreeSkillData(*hit).tier);
+			const bool spent = SpendPlusRect(cellIcon).contains(local)
+			        && oracool::CanInvestClassTreePoint(*MyPlayer, *hit)
+			    ? oracool::InvestClassTreePoint(*MyPlayer, *hit)
+			    : (SpendMinusRect(cellIcon).contains(local)
+			              && oracool::CanRefundClassTreePoint(*MyPlayer, *hit)
+			            ? oracool::RefundClassTreePoint(*MyPlayer, *hit)
+			            : false);
+			if (spent) {
 				// The whole of "make it take effect": the aura provider and every ladder read the
 				// investment on the next totals walk.
 				CalcPlrInv(*MyPlayer, false);
 				RedrawEverything();
+				return;
 			}
-			return;
 		}
+		if (onBar)
+			return; // the counter row is inert now; the corners above are the spend controls
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hit);
 		if (data.kind == oracool::ClassTreeKind::Aura) {
 			if (oracool::ToggleClassAura(*MyPlayer, *hit)) {

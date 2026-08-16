@@ -111,6 +111,16 @@ enum class SkillPlateTint : uint8_t {
 	 */
 	Pink,
 	/**
+	 * Earned and spendable, but nothing invested yet - so the skill exists and does nothing (user
+	 * request, 2026-08-17: "Unlocked skills with 0 points in them are unavailable and inactive, ergo
+	 * need to have red background, not green").
+	 *
+	 * The third of three "you cannot use this" colours, and the only one the player can clear by
+	 * spending a point: Grey is not earned, Pink is earned but blocked right now, Red is earned and
+	 * empty.
+	 */
+	Red,
+	/**
 	 * Not earned yet (user request, 2026-08-15: "not yet learned skills to have gray background").
 	 *
 	 * The same grey the Spells sheet has always given an unlearned spell - SpellType::Invalid's ramp,
@@ -134,6 +144,15 @@ enum class SkillPlateTint : uint8_t {
  * to remap onto grey.
  */
 void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, int skillIndex,
+    bool unlocked, SkillPlateTint tint = SkillPlateTint::Green);
+/**
+ * @brief A tree icon drawn into a CELL, with the plate scaled to fill it.
+ *
+ * The Point overload above sizes the plate from GetSmallSpellIconSize() - 37x38 - which is smaller
+ * than a 56x56 tree cell and was why the backing never matched the art. Prefer this one for the
+ * tree sheets; see the definition.
+ */
+void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint = SkillPlateTint::Green);
 
 /** @brief On-screen size of one tree icon, or {0,0} if that class's strip is missing. */
