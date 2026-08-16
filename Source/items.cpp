@@ -5066,13 +5066,17 @@ void AddItemPowerPanelStrings(const Item &item)
 		for (int i = 0; i < set->bonusCount; i++) {
 			const oracool::SetBonusDefinition &rung = oracool::ItemSetBonuses[set->firstBonus + i];
 			const UiFlags rungColor = rung.pieces <= worn ? UiFlags::ColorOracoolGreen : UiFlags::ColorRed;
-			AddPanelString(fmt::format(fmt::runtime(_("  ({:d}) {:s}")), rung.pieces, _(rung.name)),
-			    rungColor);
 
-			// What the rung actually GRANTS, joined onto one line beneath its name (user, 2026-08-16:
-			// "they sound strange" - a name alone is flavour text, and for forty-five of the seventy-
-			// three that was all there was). One line rather than one per stat, because Leoric's
-			// thirteen-piece ladder would otherwise be taller than the screen.
+			// What the tier GRANTS, and only that. Its NAME - "Cinderbrand", "Take Root" - is not
+			// shown (user, 2026-08-16: "they just take extra rows and nobody cares abot them. we,
+			// players, care about the buff not the fancy name for it").
+			//
+			// The names stay in the DATA: the override table is organised by them, the tests name
+			// them when they fail, and they are the record of what each tier was designed to be.
+			// They are simply not what a player reading a tooltip needs.
+			//
+			// One line per tier, stats joined - which also halves the block, so Leoric's thirteen-
+			// piece ladder now fits on screen rather than merely nearly fitting.
 			std::string granted;
 			for (const ItemPower &power : rung.powers) {
 				if (power.type == IPL_INVALID)
@@ -5084,10 +5088,12 @@ void AddItemPowerPanelStrings(const Item &item)
 					granted = StrCat(granted, ", ");
 				granted = StrCat(granted, text);
 			}
-			// Never reached with the current data - the generator refuses to emit an empty rung - but
-			// a blank indented line would be the visible symptom if that guard were ever removed.
-			if (!granted.empty())
-				AddPanelString(StrCat("      ", granted), rungColor);
+			// Unreachable with the current data - the generator refuses an empty tier and
+			// EverySetBonusStatHasText refuses an unrenderable one - but a bare "  (4)" with nothing
+			// after it would be the symptom, so fall back to the name rather than to nothing.
+			if (granted.empty())
+				granted = _(rung.name);
+			AddPanelString(fmt::format(fmt::runtime(_("  ({:d}) {:s}")), rung.pieces, granted), rungColor);
 		}
 		return;
 	}
