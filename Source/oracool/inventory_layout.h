@@ -145,18 +145,30 @@ static_assert(GetActiveTabRect(TabCount - 1).position.x + GetActiveTabRect(TabCo
     "Selected last tab now grows past the panel's right margin");
 
 /**
- * @brief Source cell size in the tab strip asset. Every cell is the *active* size; the two
- * unselected states are drawn inset within their cell, padded with transparency. That way a
- * tab is always blitted from a uniform grid at one position - GetTabRect() offset by
- * -ActiveTabGrow - and the size difference falls out of the artwork instead of needing
- * per-state placement maths at the call site.
+ * @brief Source cell size in the tab atlas, and where a cell sits relative to its logical tab.
+ *
+ * The reliquary-chest atlas (ui\inventory_tabs_chest.png) is three 34x31 frames - inactive, hover,
+ * active - and every frame is the same size. The two unselected states carry their extra area as
+ * transparent padding, which is what lets one blit position serve all three: the difference between
+ * a flat tab and a raised one falls out of the artwork rather than out of placement maths.
+ *
+ * The cell is wider and taller than the 28x28 logical tab because the open tab's lip overhangs its
+ * neighbours by 3px on each side and 3px above, with the bottom edge pinned - so all ten stay
+ * seated on one line and only the open one stands proud. Hit-testing never sees the overhang; it
+ * stays on GetTabRect.
  */
-constexpr Size TabCellSize { TabSize.width + 2 * ActiveTabGrow, TabSize.height + 2 * ActiveTabGrow };
+constexpr Size TabCellSize { 34, 31 };
+constexpr Displacement TabCellOffset { -3, -3 };
 
-/** @brief Where to blit a tab cell so its inset content lands on GetTabRect(index). */
+static_assert(TabCellSize.width == TabSize.width - 2 * TabCellOffset.deltaX,
+    "Tab atlas cell no longer matches the logical tab plus its overhang on both sides");
+static_assert(TabCellSize.height == TabSize.height - TabCellOffset.deltaY,
+    "Tab atlas cell no longer matches the logical tab plus its overhang above (bottom edge pinned)");
+
+/** @brief Where to blit a tab cell so its logical 28x28 content lands on GetTabRect(index). */
 constexpr Point GetTabCellOrigin(int index)
 {
-	return GetActiveTabRect(index).position;
+	return GetTabRect(index).position + TabCellOffset;
 }
 
 /**

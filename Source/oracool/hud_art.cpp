@@ -83,10 +83,11 @@ ArtAsset MenuIconsArt { "ui\\menu_icons.png" };
  */
 ArtAsset InventoryPanelArt { "ui\\inventory_background.png" };
 ArtAsset SidePanelArt { "ui\\stash_background.png" };
-// v3 of the tab strip: arabic 1-9 and X, square and borderless, replacing the roman-numeral
-// set. Same 280x84 shape and same 28px cells as the sheet it replaces, so this is a pure
-// asset swap - see tools/CutTabButtonsV3.ps1, which cuts it to that format deliberately.
-ArtAsset InventoryTabsArt { "ui\\inventory_tabs_v3.png" };
+// The reliquary-chest tabs: a 102x31 atlas of three 34x31 frames - inactive, hover, active - from
+// oracool-stash-tab-button-pack. Replaces the numeral strips entirely (v1 roman bordered, v2 roman
+// borderless, v3 arabic), and with them the idea that a tab needs a number on it: all ten pages
+// wear the same chest, and the open one is told apart by standing proud and lighting red.
+ArtAsset InventoryTabsArt { "ui\\inventory_tabs_chest.png" };
 ArtAsset InventorySortArt { "ui\\inventory_sort.png" };
 /** The belt's Town Portal button. Drawn over the portal ring painted into the plate art. */
 ArtAsset TownPortalIconArt { "ui\\town_portal_icon.png" };
@@ -735,9 +736,9 @@ bool HasSidePanelArt()
 	return !SidePanelArt.rgba.empty();
 }
 
-void DrawInventoryTab(const Surface &out, int index, int state)
+void DrawInventoryTab(const Surface &out, int index, InventoryTabState state)
 {
-	if (index < 0 || index >= TabCount || state < 0 || state > 2)
+	if (index < 0 || index >= TabCount)
 		return;
 
 	EnsureLoadedAll();
@@ -747,13 +748,26 @@ void DrawInventoryTab(const Surface &out, int index, int state)
 	if (!InventoryTabsArt.bright)
 		return;
 
-	// Uniform grid: column = tab, row = state. Every cell is the *selected* size and the
-	// unselected states are inset within their cell with transparent padding, so the blit
-	// position is the same whatever the state - see TabCellSize in inventory_layout.h.
-	const Point origin = GetInventoryPanelRect().position + Displacement { GetTabCellOrigin(index).x, GetTabCellOrigin(index).y };
+	// A three-frame atlas, one frame per state, NOT one column per tab: the reliquary chest is the
+	// same on all ten pages, so the tab that is open is told apart by its own art rather than by a
+	// number printed on it. Which is also why the frames are uniform - every state blits at the
+	// same place and only the source column moves.
+	//
+	// The cell is larger than the 28x28 logical tab and is drawn 3px up and left of it, so the open
+	// tab's raised lip overhangs its neighbours. Inactive and hover carry that overhang as
+	// transparent padding, which is what lets one blit position serve all three.
+	const Rectangle logical = GetTabRect(index);
+	const Point origin = GetInventoryPanelRect().position
+	    + Displacement { logical.position.x + TabCellOffset.deltaX, logical.position.y + TabCellOffset.deltaY };
 	out.BlitFromSkipColorIndexZero(*InventoryTabsArt.bright,
-	    MakeSdlRect(index * TabCellSize.width, state * TabCellSize.height, TabCellSize.width, TabCellSize.height),
+	    MakeSdlRect(static_cast<int>(state) * TabCellSize.width, 0, TabCellSize.width, TabCellSize.height),
 	    origin);
+}
+
+bool HasInventoryTabArt()
+{
+	EnsureLoadedAll();
+	return !InventoryTabsArt.rgba.empty();
 }
 
 void DrawTownPortalIcon(const Surface &out, int state)

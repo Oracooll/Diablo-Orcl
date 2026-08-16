@@ -1551,6 +1551,31 @@ void DrawInventoryTabs(const Surface &out)
 	// otherwise be painted over by whichever neighbour drew next.
 	const Rectangle panel = oracool::GetInventoryPanelRect();
 
+	// Oracool (2026-08-16): real artwork, from oracool-stash-tab-button-pack - a reliquary chest in
+	// three states. It replaces the numerals AND the code-drawn chrome: the art carries its own
+	// frame per tab, so the row bevel and the rules between tabs go with it.
+	//
+	// Ten identical chests, told apart by position and by which one is lit. That is the pack's
+	// design and it is the same bargain Diablo II's stash tabs make - the open page stands proud
+	// and glows red, which reads faster across a dark panel than a small numeral does.
+	if (oracool::HasInventoryTabArt()) {
+		// Every other tab first, the open one last: its lip overhangs both neighbours by 3px, so
+		// drawing in index order would let tab N+1 paint over tab N's raised edge.
+		for (int tab = 0; tab < oracool::TabCount; tab++) {
+			if (tab == ActiveInventoryTab)
+				continue;
+			const Rectangle hit { panel.position + Displacement { oracool::GetTabRect(tab).position.x, oracool::GetTabRect(tab).position.y },
+				oracool::GetTabRect(tab).size };
+			// Hover is tested against the LOGICAL rect, never the overhang - a tab must not answer
+			// to the mouse in a strip of pixels that visually belongs to its neighbour.
+			const bool hovered = hit.contains(MousePosition);
+			oracool::DrawInventoryTab(out, tab,
+			    hovered ? oracool::InventoryTabState::Hover : oracool::InventoryTabState::Inactive);
+		}
+		oracool::DrawInventoryTab(out, ActiveInventoryTab, oracool::InventoryTabState::Active);
+		return;
+	}
+
 	// The row is bevelled as ONE strip with plain rules between the tabs, exactly like the grid
 	// below it - not as ten individually bevelled boxes.
 	//

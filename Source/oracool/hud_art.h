@@ -206,11 +206,23 @@ Size GetAttackIconSize();
  */
 void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, int top);
 
+/** @brief Which of the tab atlas's three frames to draw. Order IS the atlas's column order. */
+enum class InventoryTabState : uint8_t {
+	Inactive,
+	Hover,
+	Active,
+};
+
 /**
- * @brief Draws inventory tab @p index (0-9). @p state is 0 unselected, 1 selected, 2 pressed.
- * Position comes from inventory_layout's GetTabCellOrigin().
+ * @brief Draws inventory tab @p index (0-9) in @p state, from the three-frame chest atlas.
+ *
+ * The open tab overhangs its neighbours, so callers must draw every other tab first and the open
+ * one last. Hit-testing stays on the logical 28x28 GetTabRect, never on the overhang.
  */
-void DrawInventoryTab(const Surface &out, int index, int state);
+void DrawInventoryTab(const Surface &out, int index, InventoryTabState state);
+
+/** @brief Whether the tab atlas loaded, so callers can fall back to the drawn tabs. */
+bool HasInventoryTabArt();
 
 // DrawInventorySortButton is gone: the SORT button has no art of its own. It spent a while as the
 // tab row's last position, drawn as the letter "S", and is now a text button in the panel's footer -
