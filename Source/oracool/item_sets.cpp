@@ -177,36 +177,58 @@ bool AnySetBonusActive(const Player &player)
 void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals)
 {
 	for (const ItemSetDefinition &set : ItemSets) {
-		const SetBonusDefinition *rung = ActiveSetBonus(set, WornSetPieces(player, set));
-		if (rung == nullptr)
-			continue;
-
-		// A rung's stats go onto a SCRATCH item, and the scratch item then goes through the same
-		// ItemBonusTotals::AddItem every worn item goes through.
-		//
-		// The alternative - a switch mapping each IPL_ onto a totals field - would be a second copy
-		// of SaveItemPower's switch, and the two would drift the first time either gained a case.
-		// This way a set bonus is, by construction, worth exactly what the same stats would be worth
-		// on a piece of equipment.
-		//
-		// The scratch carries no base damage, armour or granted spell, so AddItem contributes only
-		// its bonus block; _iStatFlag and _iIdentified are what let that block count at all.
-		Item scratch {};
-		scratch._itype = ItemType::Misc;
-		scratch._iIdentified = true;
-		scratch._iStatFlag = true;
-		bool anyLive = false;
-		for (const ItemPower &power : rung->powers) {
-			// A rung can be entirely inert - "Cinderbrand" is one proc and nothing else. It is still
-			// EARNED and still named; it simply adds nothing here.
-			if (power.type == IPL_INVALID)
+		const int worn = WornSetPieces(player, set);
+		for (int i = 0; i < set.bonusCount; i++) {
+			const SetBonusDefinition *rung = &ItemSetBonuses[set.firstBonus + i];
+			// CUMULATIVE: every rung the wearer has reached, not just the top one. See the header
+			// for why the "highest only" reading was wrong - it made a sixth piece take away the
+			// five rungs below it.
+			if (rung->pieces > worn)
 				continue;
-			ApplyItemPower(player, scratch, power);
-			anyLive = true;
+
+			// A rung's stats go onto a SCRATCH item, and the scratch item then goes through the same
+			// ItemBonusTotals::AddItem every worn item goes through.
+			//
+			// The alternative - a switch mapping each IPL_ onto a totals field - would be a second
+			// copy of SaveItemPower's switch, and the two would drift the first time either gained a
+			// case. This way a set bonus is, by construction, worth exactly what the same stats would
+			// be worth on a piece of equipment.
+			//
+			// The scratch carries no base damage, armour or granted spell, so AddItem contributes
+			// only its bonus block; _iStatFlag and _iIdentified are what let that block count at all.
+			Item scratch {};
+			scratch._itype = ItemType::Misc;
+			scratch._iIdentified = true;
+			scratch._iStatFlag = true;
+			bool anyLive = false;
+			for (const ItemPower &power : rung->powers) {
+				// A rung can be entirely inert - "Cinderbrand" is one proc and nothing else. It is
+				// still EARNED and still named; it simply adds nothing here.
+				if (power.type == IPL_INVALID)
+					continue;
+				ApplyItemPower(player, scratch, power);
+				anyLive = true;
+			}
+			if (anyLive)
+				totals.AddItem(scratch);
 		}
-		if (anyLive)
-			totals.AddItem(scratch);
 	}
+}
+
+int ForEachEarnedSetBonus(const Player &player, const ItemSetDefinition &set,
+    void (*visit)(const SetBonusDefinition &rung, void *context), void *context)
+{
+	const int worn = WornSetPieces(player, set);
+	int earned = 0;
+	for (int i = 0; i < set.bonusCount; i++) {
+		const SetBonusDefinition &rung = ItemSetBonuses[set.firstBonus + i];
+		if (rung.pieces > worn)
+			continue;
+		earned++;
+		if (visit != nullptr)
+			visit(rung, context);
+	}
+	return earned;
 }
 
 } // namespace devilution::oracool

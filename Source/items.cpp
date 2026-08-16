@@ -4924,6 +4924,23 @@ void AddItemPowerPanelStrings(const Item &item)
 					break;
 				AddPanelString(PrintItemPower(power.type, item), ItemAffixColor);
 			}
+			// Then the set itself: which one this belongs to, how much of it is being worn, and the
+			// name of every rung that has earned (user, 2026-08-16: "arent there any set bonuses?" -
+			// they were being applied, but nothing on screen said so).
+			//
+			// The rungs come from ForEachEarnedSetBonus, the same walk that applies them, so the
+			// panel cannot claim a bonus the wearer does not have or miss one they do.
+			if (const oracool::ItemSetDefinition *set = oracool::FindItemSetOwning(def->id); set != nullptr) {
+				const int worn = oracool::WornSetPieces(*MyPlayer, *set);
+				AddPanelString(fmt::format(fmt::runtime(_("{:s} ({:d}/{:d})")), _(set->name), worn, set->itemCount),
+				    UiFlags::ColorOracoolGreen);
+				oracool::ForEachEarnedSetBonus(*MyPlayer, *set,
+				    [](const oracool::SetBonusDefinition &rung, void * /*context*/) {
+					    // Indented, so an earned rung reads as belonging to the set line above it.
+					    AddPanelString(StrCat("  ", _(rung.name)), UiFlags::ColorOracoolGreen);
+				    },
+				    nullptr);
+			}
 		}
 		return;
 	}

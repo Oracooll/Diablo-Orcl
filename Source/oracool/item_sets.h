@@ -115,10 +115,9 @@ const SetItemDefinition *FindSetItem(string_view itemId);
 /**
  * @brief The highest bonus rung @p set grants for @p wornPieces, or nullptr below the first rung.
  *
- * The rungs are cumulative in Diablo II and are NOT here: a rung replaces the one below it rather
- * than stacking on it. That is the simpler reading of a ladder whose upper rungs already restate the
- * lower ones' stats, and it is what the delivered data describes - the Ashen Saint's five-piece
- * carries its own resistances rather than assuming the two-piece is still applied.
+ * A QUERY, not the application rule. Every rung at or below the worn count is granted - see
+ * ApplySetBonusesToTotals. This one answers "how far up the ladder are you", which is what a
+ * description line wants.
  */
 const SetBonusDefinition *ActiveSetBonus(const ItemSetDefinition &set, int wornPieces);
 
@@ -168,9 +167,30 @@ bool AnySetBonusActive(const Player &player);
  * header names "three pieces worn?" as the condition hook's reason for existing.
  *
  * Every set is considered independently, so wearing four of one and two of another earns both
- * ladders' rungs. Within one set only the highest rung applies; see ActiveSetBonus.
+ * ladders' rungs. Within one set the rungs are CUMULATIVE: every rung at or below the worn count is
+ * granted, Diablo II's rule.
+ *
+ * Corrected 2026-08-16 (user: "arent there any set bonuses?"). This applied only the highest rung,
+ * on a claim that the upper rungs restate the lower ones. Reading the delivered ladders back, they
+ * do not - every rung is distinct. The Ashen Saint's six rungs are fire resist and vitality, then
+ * all-resist and hit recovery, then a proc, then damage reduction and mana, then spell levels and
+ * fire damage. Under the old rule a sixth piece REMOVED the five rungs beneath it, so completing the
+ * set made the wearer worse off in resistances, mana and damage taken.
  */
 void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals);
+
+/**
+ * @brief Visits every rung @p player has earned of @p set, in ladder order. Returns how many.
+ *
+ * The same walk ApplySetBonusesToTotals does, exposed so the description panel can NAME what it is
+ * granting. One walk, one rule - a display that decided for itself which rungs were earned would be
+ * a second opinion waiting to disagree with the one that actually applies the stats.
+ *
+ * A plain function pointer rather than a template, because the only caller is in items.cpp and this
+ * header is included from itemdat-adjacent code where pulling in <functional> is not worth it.
+ */
+int ForEachEarnedSetBonus(const Player &player, const ItemSetDefinition &set,
+    void (*visit)(const SetBonusDefinition &rung, void *context), void *context);
 
 } // namespace oracool
 } // namespace devilution

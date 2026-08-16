@@ -2471,3 +2471,66 @@ TEST(OracoolAudit2, SetItemPresentsAsASetItem)
 	EXPECT_GT(oracool::CountLivePowers(found->powers, 6), 0)
 	    << "the armour has no live powers, so the description would be empty however it is printed";
 }
+
+// Set bonus rungs are CUMULATIVE. They were "highest rung only" at first, on my claim that the upper
+// rungs restate the lower ones - reading the delivered ladders back, they do not. Every rung of the
+// Ashen Saint is distinct, so under the old rule a SIXTH piece removed the five beneath it and made
+// completing the set a downgrade in resistances, mana and damage taken (user, 2026-08-16: "arent
+// there any set bonuses?").
+//
+// The property worth pinning is monotonicity: one more piece never takes a stat away.
+TEST(OracoolAudit2, SetBonusesAccumulateAndNeverRegress)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	MyPlayer = &player;
+
+	const oracool::ItemSetDefinition *ashen = oracool::FindItemSetOwning("SET_ASHEN_HELM");
+	ASSERT_NE(ashen, nullptr);
+
+	// Equip the set one piece at a time, in whatever slots they take, and watch the totals climb.
+	int previousFire = -1;
+	int previousMana = -1;
+	int previousEarned = -1;
+	for (int pieces = 0; pieces <= ashen->itemCount; pieces++) {
+		for (auto &slot : player.InvBody)
+			slot.clear();
+		int placed = 0;
+		for (int i = 0; i < ashen->itemCount && placed < pieces; i++) {
+			const oracool::SetItemDefinition &def = oracool::ItemSetItems[ashen->firstItem + i];
+			const int base = oracool::BaseItemForSetSlot(def.slot);
+			if (base < 0)
+				continue; // amulet/ring/relic/cloak have no base item yet
+			devilution::Item piece {};
+			InitializeItem(piece, static_cast<_item_indexes>(base));
+			oracool::MakeSetItem(piece, def);
+			// Straight into the matching body slot - this test is about the bonus ladder, not about
+			// the equip rules, so it places by the item's own location.
+			player.InvBody[piece._iLoc == ILOC_ONEHAND ? INVLOC_HAND_LEFT
+			        : piece._iLoc == ILOC_ARMOR       ? INVLOC_CHEST
+			        : piece._iLoc == ILOC_HELM        ? INVLOC_HEAD
+			        : piece._iLoc == ILOC_GLOVES      ? INVLOC_GLOVES
+			        : piece._iLoc == ILOC_BOOTS       ? INVLOC_BOOTS
+			                                          : INVLOC_WAIST]
+			    = piece;
+			placed++;
+		}
+
+		oracool::ItemBonusTotals totals {};
+		oracool::ApplySetBonusesToTotals(player, totals);
+		const int earned = oracool::ForEachEarnedSetBonus(player, *ashen, nullptr, nullptr);
+
+		EXPECT_GE(totals.fireResist, previousFire) << "fire resist FELL at " << placed << " pieces";
+		EXPECT_GE(totals.mana, previousMana) << "mana FELL at " << placed << " pieces";
+		EXPECT_GE(earned, previousEarned) << "an earned rung was lost at " << placed << " pieces";
+		previousFire = totals.fireResist;
+		previousMana = totals.mana;
+		previousEarned = earned;
+	}
+
+	// And concretely: with every spawnable piece worn, the two-piece rung's fire resist is still
+	// there alongside the five-piece rung's mana. Under "highest only" exactly one of these held.
+	EXPECT_GE(previousFire, 15) << "the two-piece rung's fire resist was dropped by a later rung";
+	EXPECT_GE(previousMana, 25) << "the five-piece rung's mana was dropped by a later rung";
+}
