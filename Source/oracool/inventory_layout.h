@@ -380,7 +380,16 @@ constexpr int GoldRowHeight = FooterRowHeight;
  * Splitting the line by TAB COLUMNS rather than by fractions is what keeps them aligned with the
  * grid beneath - each label starts exactly where a tab does, so nothing floats between columns.
  */
-constexpr int FooterAboveTabsGap = 8;
+/**
+ * @brief Clearance between the footer row's BOX and the logical tab row. 2, not 8 - user request
+ * (2026-08-16): "move SORT and GOLD COUNTER 6px down. They are way up."
+ *
+ * Deliberately smaller than the open tab's 3px raised lip, which reaches TabRowY - 3: the box
+ * overlaps that lip by a pixel. Harmless, because a box is not ink - both labels are the default
+ * 12px face vertically centred in a 24px row, so roughly 6px of the box below the glyphs is empty
+ * and the text itself stays clear of the tab art.
+ */
+constexpr int FooterAboveTabsGap = 2;
 constexpr int FooterRowY = TabRowY - FooterAboveTabsGap - FooterRowHeight;
 
 /** @brief The x of tab @p index's left edge, used to span the row above by whole tabs. */
