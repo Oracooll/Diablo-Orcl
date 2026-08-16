@@ -428,10 +428,19 @@ TEST(Writehero, pfile_write_hero)
 	//      generalized to all four classes: the array is now thirty entries indexed by
 	//      position-within-class rather than twenty indexed from the first aura. Tag 5 is still
 	//      READ and migrated onto the new slots, so a hero saved in between keeps its points.
+	//   9. The ClassTree chunk grew 30 -> 32 entries (2026-08-16), because the Paladin gained two
+	//      skills - Hammer of Faith and Blessed Shield - and reached 31, one past the old
+	//      oracool::MaxSkillsPerClass that indexes the array. The blob is 2 bytes longer and the
+	//      chunk's own count byte reads 32.
+	//
+	//      Note this is a TAIL change, not a PlayerPack one: the fixed struct is byte-identical, so
+	//      ReadHero's exact-size check on the base is unaffected and pre-1.7.40 heroes still load.
+	//      ApplyClassTree clamps to the smaller of the chunk's count and the array, so their 30
+	//      entries land in the first 30 slots with the rest zeroed.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "367feb1c83fd13cc9a7cb8710d1c05f7b95aaa20e7c037cf77a4f756e3e92788");
+	    "b30cd0424d6c9ca799c14edb9e7904a4d7717c8b3659a53d1b7375d6bd2ab244");
 }
 
 } // namespace

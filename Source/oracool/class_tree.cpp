@@ -104,6 +104,23 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 2, 5, 1, Kind::Aura, SpellID::Invalid, false },
 	{ N_("Salvation"), N_("Wards you against fire, lightning and magic alike."),
 	    Pal, 2, 5, 2, Kind::Aura, SpellID::Invalid, true },
+	// --- Combat Skills, appended out of page order (2026-08-16) ---
+	//
+	// These two are this fork's own, with no Diablo II row to sit in, and until now they had no tree
+	// home at all - they were reachable only from the Skills sheet, which the user has since removed.
+	// They are page 0 and draw among the other Combat Skills; only their position in THIS table is
+	// unusual, and it has to be, because a Paladin skill's index here is its icon frame and its save
+	// slot. See the note beside HammerOfFaith in class_tree.h.
+	//
+	// Tiers chosen as the smallest move from each skill's existing level: Hammer of Faith was 10 and
+	// tier 2 is 12; Blessed Shield was 20 and tier 3 is 18. paladin_skills.cpp now carries those two
+	// numbers, and IsClassTreeSkillUnlocked defers to it, so tier and skill agree.
+	//
+	// Columns fill the gaps their tiers had: Vengeance holds (2,0) and Blessed Hammer (3,2).
+	{ N_("Hammer of Faith"), N_("A heavy swing whose force splashes over everything around your target."),
+	    Pal, 0, 2, 1, Kind::Active, SpellID::Invalid, true },
+	{ N_("Blessed Shield"), N_("Hurls your shield at a crowd, striking several of them before it returns. A shield is mandatory."),
+	    Pal, 0, 3, 0, Kind::Active, SpellID::Invalid, true },
 
 	// ======================= BARBARIAN =======================
 	// --- Combat Skills ---
@@ -555,6 +572,10 @@ std::optional<PaladinSkill> BorrowedPaladinSkill(Skill skill)
 		return PaladinSkill::BlessedHammer;
 	case Skill::FistOfTheHeavens:
 		return PaladinSkill::FistOfTheHeavens;
+	case Skill::HammerOfFaith:
+		return PaladinSkill::HammerOfFaith;
+	case Skill::BlessedShield:
+		return PaladinSkill::BlessedShield;
 	default:
 		return std::nullopt;
 	}

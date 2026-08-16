@@ -542,6 +542,19 @@ void LeftMouseDown(uint16_t modState)
 		// opens the chooser AND handles shift-click-to-clear the readied spell; intercepting it
 		// here would run before DoPanBtn and silently kill that shortcut.
 		if (oracool::GetLmbSkillButtonRect().contains(MousePosition)) {
+			// Shift-click clears the left button, exactly as it does on the RMB well (DoPanBtn).
+			//
+			// Added 2026-08-16 with the Skills sheet's removal. That sheet's two basic-attack rows
+			// were the ONLY way back to a plain left click once a skill had been put there - clicking
+			// either one cleared _pLRSpell - so deleting the sheet without this would have made a
+			// left-button assignment permanent. The right button never had that problem, because it
+			// has had this shortcut since the HUD overhaul.
+			if (isShiftHeld) {
+				MyPlayer->_pLRSpell = SpellID::Invalid;
+				MyPlayer->_pLRSplType = SpellType::Invalid;
+				RedrawEverything();
+				return;
+			}
 			ToggleAbilitiesWindow();
 			return;
 		}

@@ -445,8 +445,13 @@ struct Player {
 	 * within its own class (oracool::ClassTreeIconIndex). The tree's castable skills store their
 	 * points in _pSkillInvestment instead, keyed by SpellID, so GetSpellLevel picks them up.
 	 * Persisted via the HeroChunkClassTree chunk.
+	 *
+	 * 32, grown from 30 on 2026-08-16 with oracool::MaxSkillsPerClass, which indexes it. Widening it
+	 * is backward compatible both ways: the chunk carries its own length byte and ApplyClassTree
+	 * clamps to the smaller of that and this array, so an old 30-entry tail loads into the first 30
+	 * slots with the rest zeroed.
 	 */
-	uint8_t _pClassTreeInvestment[30] = {};
+	uint8_t _pClassTreeInvestment[32] = {};
 	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers
 	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
 	int _pMagicFind = 0;

@@ -1782,9 +1782,12 @@ TEST(OracoolAudit2, AbilitiesWindowContentStaysInsideThePaintedFrame)
 	EXPECT_EQ(panel.size.height, 720) << "no longer the shared side-panel size";
 }
 
-// Five rows of the Paladin's Combat Skills tree are second faces on skills oracool/paladin_skills.h
-// owns - same spell slot, same investment store, same mana. They are NOT second implementations, so
-// the two sheets must never disagree about whether one is available.
+// Every row of the Paladin's Combat Skills tree that carries a spell slot is a second face on a skill
+// oracool/paladin_skills.h owns - same slot, same investment store, same mana. They are NOT second
+// implementations, so the tree must never disagree with that module about availability.
+//
+// All seven as of 2026-08-16: Hammer of Faith and Blessed Shield were given tree rows when the user
+// removed the Skills sheet that had been their only home. The count below is the guard on that.
 //
 // They did. IsClassTreeSkillUnlocked stopped at the row's TIER level while the skill itself gates on
 // its own minLevel and, for two of them, on a shield being held. The visible half was Smite: the
@@ -1836,7 +1839,7 @@ TEST(OracoolAudit2, TreeAndSkillsSheetAgreeOnBorrowedPaladinSkills)
 			}
 		}
 	}
-	EXPECT_EQ(paired, 5) << "the set of borrowed Paladin skills changed - is that deliberate?";
+	EXPECT_EQ(paired, 7) << "the set of borrowed Paladin skills changed - is that deliberate?";
 }
 
 // The stash page grew from the vanilla 10x10 to 10x16 when it moved into the 340x720 theme, but

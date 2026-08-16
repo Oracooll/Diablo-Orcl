@@ -16,10 +16,6 @@
 #include "init.h"
 #include "inv.h" // CloseInventory
 #include "missiles.h"
-#include "oracool/attack_skills.h"
-#include "oracool/class_skills.h"
-#include "oracool/paladin_melee.h"
-#include "oracool/paladin_skills.h"
 #include "oracool/class_tree.h"
 #include "oracool/skill_points.h"
 #include "oracool/spell_descriptions.h"
@@ -67,32 +63,6 @@ const SpellID SpellPages[SpellBookPages][SpellBookPageEntries] = {
 	{ SpellID::LightningWall, SpellID::Immolation, SpellID::Warp, SpellID::Reflect, SpellID::Berserk, SpellID::RingOfFire, SpellID::Mana },
 	{ SpellID::Magi, SpellID::Jester, SpellID::RuneOfFire, SpellID::RuneOfLight, SpellID::RuneOfNova, SpellID::RuneOfImmolation, SpellID::RuneOfStone }
 };
-
-/**
- * @brief The class's innate skill - Item Repair, Trap Disarm, Staff Recharge and so on.
- *
- * It used to sit in page 0 slot 0 of the table above, which made it look like a spell. It has its
- * own sheet now (user request), so it is resolved here rather than being patched into the spell
- * grid on the way past.
- */
-SpellID GetClassSkill()
-{
-	switch (InspectPlayer->_pClass) {
-	case HeroClass::Warrior:
-		return SpellID::ItemRepair;
-	case HeroClass::Rogue:
-		return SpellID::TrapDisarm;
-	case HeroClass::Sorcerer:
-		return SpellID::StaffRecharge;
-	case HeroClass::Monk:
-		return SpellID::Search;
-	case HeroClass::Bard:
-		return SpellID::Identify;
-	case HeroClass::Barbarian:
-		return SpellID::Rage;
-	}
-	return SpellID::Invalid;
-}
 
 // Oracool V1: the book is one scrolling list per sheet, not six paged grids. The pages above survive
 // as the SOURCE of the Spells list rather than as a layout - they are the game's own curated set of
@@ -169,64 +139,6 @@ size_t BuildSpellRows(SpellID *rows)
 	});
 	return count;
 }
-
-/**
- * @brief Fills @p rows with the Class Skills sheet's entries. Returns how many.
- *
- * All six, to every class (user request 2026-08-15) - see oracool/class_skills.h. The one omission
- * is Item Repair while it is rendering as the Paladin's Charge: that has its own described row on
- * the Skills sheet, with a level gate and a mana price this compact row could not show, and listing
- * it twice under one name would be the same duplicate Search used to be.
- */
-size_t BuildClassSkillRows(SpellID *rows)
-{
-	// All six, unconditionally. Oracool: user request (2026-08-15) - "Class skills sheet is missing
-	// Repair Skill. Bring it back. New paladin skills we introduce or have already introduced will be
-	// independent, not replacing Repair Skill."
-	//
-	// This used to skip Item Repair while it was rendering as Charge, because Charge is implemented
-	// as a behaviour substitution ON that slot - so listing both would have been one ability under
-	// two names. Repair is now always listed, which makes the sheet honest about what the class
-	// actually has; the remaining half of the user's instruction - Charge getting a slot of its own
-	// so it stops displacing Repair at all - is a deeper change and is NOT done here. See the note in
-	// oracool/furious_charge.cpp.
-	size_t count = 0;
-	for (const SpellID skill : oracool::ClassSkills)
-		rows[count++] = skill;
-	return count;
-}
-
-/**
- * @brief Fills @p rows with the SPELL-backed skills the Skills sheet lists. Returns how many.
- *
- * The two basic attacks are listed ahead of these and are not in here, because they are not spells -
- * see AttackRowCount below and oracool/attack_skills.h.
- *
- * The built-in Town Portal is deliberately NOT here either (user request). It was listed for a while
- * on the reasoning that it is a skill the character has - but it is a fixed HUD button, always
- * available and never chosen, so a row for it can say nothing the button does not already say and
- * cannot be clicked to any effect. Everything the window does with a row - ready it, price it in
- * mana, grey it when unlearned - is meaningless for it.
- */
-size_t BuildSkillRows(SpellID * /*rows*/)
-{
-	// Empty since 2026-08-15: the class skill that used to be this sheet's one spell-backed row now
-	// lives on the Class Skills sheet with the other five. Kept as a function rather than deleted
-	// because the Skills sheet is where a future spell-backed skill would go, and its caller already
-	// threads the result through BuildSkillsSheetRows.
-	return 0;
-}
-
-/**
- * @brief Rows the Skills sheet puts ahead of the spell-backed ones: Fist Attack and Regular Attack.
- *
- * First, for every class, because they are what the character does when nothing else is chosen - the
- * floor the rest of the sheet sits on. Whatever skills a class has of its own follow them.
- *
- * Fist above Regular per the user (2026-08-15); the listing order lives in
- * oracool::AttackIconDisplayOrder, apart from the enum, which is the icon strip's order.
- */
-constexpr size_t AttackRowCount = oracool::AttackIconCount;
 
 // Oracool V1: the shared theme and geometry - the same 340x720 window as the waypoint list, quest
 // log, character sheet, stash and inventory.
@@ -316,14 +228,27 @@ constexpr int ArrowHeight = 16;
 /** @brief The arrow's clickable box - generous around a small glyph, as a target should be. */
 constexpr Size ArrowHitSize { 28, 28 };
 
+/**
+ * @brief The window's sheets: the book of spells, then the class's three tree pages.
+ *
+ * Two more sat here until 2026-08-16, and the user removed both: "get rid of skills sheet + get rid
+ * of class skills. V1 will not need those, they are useless."
+ *
+ * SKILLS held the two basic attacks and the seven Paladin skills, five of which the Combat Skills
+ * tree page already carried - the same spell slot, the same investment, drawn twice. The remaining
+ * two (Hammer of Faith, Blessed Shield) were given tree rows of their own rather than deleted, so
+ * the tree is now the single place a Paladin skill lives.
+ *
+ * CLASS SKILLS listed Item Repair, Trap Disarm, Staff Recharge, Search, Identify and Rage. The
+ * ABILITIES are untouched - every class still has all six in _pAblSpells, and the speedbook still
+ * offers them; only the sheet is gone.
+ */
 enum class AbilitySheet : uint8_t {
 	Spells,
-	Skills,
-	ClassSkills,
 	/**
-	 * Diablo II's Paladin tree, one sheet per page. These replaced the single "Auras" sheet, which
-	 * listed an invented 24-aura set that never matched D2 and was hidden from the window anyway
-	 * (ClassAbilitySheetsHidden). See oracool/paladin_tree.h.
+	 * Diablo II's class tree, one sheet per page. These replaced the single "Auras" sheet, which
+	 * listed an invented 24-aura set that never matched D2 and was hidden from the window anyway.
+	 * See oracool/class_tree.h.
 	 */
 	ClassTree0,
 	ClassTree1,
@@ -405,13 +330,6 @@ bool IsSheetAvailable(AbilitySheet sheet)
 		// Not behind ClassAbilitySheetsHidden: unlike the list it replaced, the tree is spendable
 		// and its skills act, so there is nothing inert to hide.
 		return oracool::ClassHasTree(InspectPlayer->_pClass);
-	case AbilitySheet::Skills:
-		// Always: every class has the two basic attacks, so this sheet is never empty and is the
-		// safe landing place when nothing else is available.
-		break;
-	case AbilitySheet::ClassSkills:
-		// Always, and that is the point of it: as of 2026-08-15 every class has all six.
-		break;
 	}
 	return true;
 }
@@ -429,11 +347,11 @@ size_t AvailableSheetCount()
 /**
  * @brief The sheet to fall back to when the current one is not available to this class.
  *
- * Always Spells today, since Spells and Skills are both universal - so this looks like a loop that
- * could be a constant. It was a hardcoded Spells once, and that was fine right up until Spells was
- * reserved to the Sorcerer, at which point a Paladin was sent to a sheet it did not have by the one
- * guard whose whole job was to prevent that. Spells is universal again now, which is exactly why
- * this stays a search: availability has already changed twice.
+ * Always Spells today, since Spells is universal - so this looks like a loop that could be a
+ * constant. It was a hardcoded Spells once, and that was fine right up until Spells was reserved to
+ * the Sorcerer, at which point a Paladin was sent to a sheet it did not have by the one guard whose
+ * whole job was to prevent that. Spells is universal again now, which is exactly why this stays a
+ * search: availability has already changed twice.
  */
 AbilitySheet FirstAvailableSheet()
 {
@@ -442,7 +360,7 @@ AbilitySheet FirstAvailableSheet()
 		if (IsSheetAvailable(sheet))
 			return sheet;
 	}
-	return AbilitySheet::Skills;
+	return AbilitySheet::Spells;
 }
 
 string_view GetSheetTitle(AbilitySheet sheet)
@@ -450,10 +368,6 @@ string_view GetSheetTitle(AbilitySheet sheet)
 	switch (sheet) {
 	case AbilitySheet::Spells:
 		return _("SPELLS");
-	case AbilitySheet::Skills:
-		return _("SKILLS");
-	case AbilitySheet::ClassSkills:
-		return _("CLASS SKILLS");
 	case AbilitySheet::ClassTree0:
 	case AbilitySheet::ClassTree1:
 	case AbilitySheet::ClassTree2:
@@ -506,88 +420,6 @@ Rectangle TreeBarRect(int column, int tier)
 		{ TreeIconSize, TreeBarHeight } };
 }
 
-/**
- * @brief One row of the Skills sheet, which is the only sheet with more than one KIND of row.
- *
- * Oracool: introduced 2026-08-15 with Charge and Zeal. Everywhere else a sheet's rows are uniform,
- * so drawing, scrolling and hit-testing could each do `index * rowHeight` independently. The Skills
- * sheet now mixes compact spell rows with tall described ones, and three separate copies of that
- * arithmetic would be three chances to disagree about which row the cursor is on. So the sheet is
- * enumerated ONCE, here, and all three walk the same list.
- *
- * It also retires the `rowIndex -= AttackRowCount` shift the draw and click paths each used to do
- * by hand.
- */
-enum class SkillRowKind : uint8_t {
-	Attack,   ///< Regular/Fist Attack, from the attack strip. Not a spell.
-	Spell,    ///< The class's innate skill, drawn as a compact spell row.
-	Paladin,  ///< Charge or Zeal - a described row with an icon, description and price.
-};
-
-struct SkillRow {
-	SkillRowKind kind;
-	oracool::AttackIcon attack;
-	SpellID spell;
-	oracool::PaladinSkill paladin;
-};
-
-constexpr size_t MaxSkillSheetRows = MaxSpellRows + AttackRowCount + oracool::PaladinSkillCount;
-
-/**
- * @brief Fills @p out with the Skills sheet's rows, in display order. Returns how many.
- *
- * Charge is NOT a row of its own: it IS the Paladin's class skill (SpellID::ItemRepair), so the
- * spell row that would have carried it is replaced by the described one rather than sitting beside
- * it. Zeal has no spell backing at all and is simply appended.
- */
-size_t BuildSkillsSheetRows(SkillRow *out)
-{
-	size_t count = 0;
-	// Display order, not enum order - Fist above Regular (user request, 2026-08-15). The enum is the
-	// icon strip's order and stays put; see oracool::AttackIconDisplayOrder.
-	for (size_t i = 0; i < AttackRowCount; i++)
-		out[count++] = { SkillRowKind::Attack, oracool::AttackIconDisplayOrder[i], SpellID::Invalid, {} };
-
-	const bool paladin = InspectPlayer != nullptr && oracool::ClassHasPaladinSkills(*InspectPlayer);
-
-	SpellID spells[MaxSpellRows];
-	const size_t spellCount = BuildSkillRows(spells);
-	for (size_t i = 0; i < spellCount; i++) {
-		// Once Charge is earned it REPLACES the slot's Item Repair, so the compact spell row would be
-		// a second name for a thing already listed below. Before then the slot really is Item Repair
-		// - "the skill he is gifted at birth" - and keeps its row.
-		if (oracool::IsFuriousChargeSpell(spells[i]))
-			continue;
-		out[count++] = { SkillRowKind::Spell, {}, spells[i], {} };
-	}
-
-	// All listed for the class that has them whether or not the level gate has opened: a locked row
-	// says "Requires level 12", which is the useful thing to know at level 4.
-	//
-	// Every skill carries its own spell slot as of 2026-08-15, which is what makes every row
-	// assignable to a mouse button; the slot comes from the skill table rather than being decided
-	// here, so this loop has no opinion about which skills exist.
-	if (paladin) {
-		// Ordered by level requirement, lowest first (user request, 2026-08-15) - so the sheet reads
-		// as the order they will actually be earned in, under the two attacks that need no level at
-		// all. SORTED from the table rather than kept as a second hand-written order: change a
-		// minLevel in paladin_skills.cpp and the row moves with it, and the two cannot disagree.
-		// Stable, so skills that ever share a level keep their enum (and icon strip) order.
-		size_t order[oracool::PaladinSkillCount];
-		for (size_t i = 0; i < oracool::PaladinSkillCount; i++)
-			order[i] = i;
-		std::stable_sort(std::begin(order), std::end(order), [](size_t a, size_t b) {
-			return oracool::GetPaladinSkillData(static_cast<oracool::PaladinSkill>(a)).minLevel
-			    < oracool::GetPaladinSkillData(static_cast<oracool::PaladinSkill>(b)).minLevel;
-		});
-		for (const size_t index : order) {
-			const auto skill = static_cast<oracool::PaladinSkill>(index);
-			out[count++] = { SkillRowKind::Paladin, {}, oracool::GetPaladinSkillData(skill).spellId, skill };
-		}
-	}
-	return count;
-}
-
 /** @brief How many rows @p sheet has right now. */
 size_t GetRowCount(AbilitySheet sheet)
 {
@@ -595,12 +427,6 @@ size_t GetRowCount(AbilitySheet sheet)
 	switch (sheet) {
 	case AbilitySheet::Spells:
 		return BuildSpellRows(rows);
-	case AbilitySheet::Skills: {
-		SkillRow skillRows[MaxSkillSheetRows];
-		return BuildSkillsSheetRows(skillRows);
-	}
-	case AbilitySheet::ClassSkills:
-		return BuildClassSkillRows(rows);
 	case AbilitySheet::ClassTree0:
 	case AbilitySheet::ClassTree1:
 	case AbilitySheet::ClassTree2: {
@@ -631,11 +457,7 @@ int TotalListHeight(AbilitySheet sheet)
 			deepest = std::max(deepest, oracool::GetClassTreeSkillData(skills[i]).tier);
 		return (deepest + 1) * TreeRowPitch;
 	}
-	// Every list sheet is a uniform stride. The Skills sheet briefly was not - it mixed compact rows
-	// with tall described ones - and RowHeightAt existed to walk it; that ended when the sheet lost
-	// its text (2026-08-15) and the function became a per-row rebuild of the whole sheet to return a
-	// constant, called once per row from here. BuildSkillsSheetRows survives because the click and
-	// hover paths need the row KINDS, and because the planned rune slots will bring the variety back.
+	// Spells is the only list sheet left, and it is a uniform stride.
 	return static_cast<int>(GetRowCount(sheet)) * RowHeightFor(sheet);
 }
 
@@ -782,14 +604,13 @@ void DrawArrow(const Surface &out, int direction)
 /**
  * @brief Width of the icon column every row of a list shares.
  *
- * The Skills sheet mixes two icon sources - the engine's 37px small spell icon and the 38px attack
- * strip - and a row taking its text offset from its own icon would start its text one pixel off the
- * row above it. Both read this instead, so the column is a property of the LIST rather than of
- * whichever icon a row happens to hold.
+ * A property of the LIST rather than of whichever icon a row happens to hold, so rows starting from
+ * different icon sources still line their text up. Only one source is left - Spells is the only list
+ * sheet - but the seam stays, because it cost nothing and the sheet has had two sources before.
  */
 int RowIconColumnWidth()
 {
-	return std::max(GetSmallSpellIconSize().width, oracool::GetAttackIconSize().width);
+	return GetSmallSpellIconSize().width;
 }
 
 int RowTextX()
@@ -844,42 +665,6 @@ void DrawAssignmentRings(const Surface &content, Rectangle iconRect, SpellID sn,
 	    RingWeight);
 }
 
-/** @brief One row of the Skills sheet's two basic attacks. @p index is oracool::AttackIcon order. */
-void DrawAttackRow(const Surface &content, size_t index, int top)
-{
-	const auto icon = static_cast<oracool::AttackIcon>(index);
-	// Exactly one of the two is what the hand is currently doing, and the other is blended - the
-	// same treatment a locked aura gets, used here as an indicator rather than as an availability
-	// state. It is what makes the pair read as one status line instead of two abilities.
-	const bool active = oracool::BasicAttackIcon(*InspectPlayer) == icon;
-
-	// The plate's height when no attack strip is shipped - it is what the row actually draws then.
-	Size iconSize = oracool::GetAttackIconSize();
-	if (iconSize.height == 0)
-		iconSize = oracool::GetSkillIconPlateSize();
-	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
-	// Pink even for the inactive one, deliberately: grey means "not earned yet" everywhere else on
-	// these sheets, and both attacks are always earned. Which one is in your hand is said by the
-	// blended icon, not by the plate under it.
-	oracool::DrawAttackIcon(content, iconPos, static_cast<int>(index), active, oracool::SkillPlateTint::Green);
-
-	// The ring goes on whichever row is what the button ACTUALLY does - which is the active one, not
-	// Regular unconditionally.
-	//
-	// Oracool: user bug report (2026-08-15) - "if only shield is equipped LMB shows Fist Attack, but
-	// skill sheet shows RegAtak selected". The well has always drawn BasicAttackIcon's answer, and a
-	// shield is not a weapon, so shield-only draws the fist; the sheet meanwhile ringed Regular
-	// whatever was equipped. Two readings of one state. `active` is that same answer, so the two
-	// cannot disagree again.
-	if (active)
-		DrawAssignmentRings(content, { iconPos, iconSize }, SpellID::Invalid, SpellType::Invalid);
-
-	// Oracool: user request (2026-08-15) - "Remove all text from Skills Ability sheet. I will later
-	// introduce skill runes which will take its place. Text will only be reachable through the pop-up
-	// window." So the row is the icon and nothing else; the name and description live in the hover
-	// panel, and the space the text used to fill is being kept for the runes.
-}
-
 // Phase 2.1: the invest control. A small gold "+" at the row's right edge, shown only while the
 // local player has an unspent point this row can take - so the sheet is quiet until level-up hands
 // out a point, and quiet again once it is sunk. The invested count sits beside it permanently.
@@ -892,22 +677,14 @@ constexpr int InvestCountGap = 4;
 constexpr int InvestGroupWidth = InvestCountWidth + InvestCountGap + InvestButtonSize.width;
 
 /**
- * @brief Left edge of the [count][+] group on the sheet being drawn.
+ * @brief Left edge of the [count][+] group: the row's right edge, tucked against the scrollbar.
  *
- * Everywhere but the Skills sheet this is the row's right edge, tucked against the scrollbar and
- * clear of the row's text.
- *
- * The Skills sheet is the exception, and was visibly broken by the rule (user report, 2026-08-16 -
- * "full of issues", with a screenshot showing a "+4" and a "+" floating in the middle of nowhere).
- * That sheet's rows are icon-only by request (2026-08-15: "Remove all text from Skills Ability
- * sheet"), so between the 38px icon and the panel's right edge there is 200px of nothing, and a
- * control parked at the far end of it reads as belonging to no row at all. It follows the icon
- * instead, into the column the text used to occupy.
+ * This briefly special-cased the Skills sheet, whose icon-only rows left 200px of nothing between
+ * the icon and a control parked at that edge. That sheet is gone, and Spells - the only list left -
+ * has text all the way across, so the plain rule is correct again for every row that reaches here.
  */
 int InvestGroupLeft()
 {
-	if (CurrentSheet == AbilitySheet::Skills)
-		return RowTextX();
 	return AbilitiesContentRightLimit - InvestGroupWidth - InvestButtonRightPad;
 }
 
@@ -1065,42 +842,6 @@ std::optional<oracool::ClassTreeSkill> TreeCellAt(int page, Point localPoint, bo
 		}
 	}
 	return std::nullopt;
-}
-
-/**
- * @brief Charge and Zeal: the two Paladin skills that actually do something.
- *
- * The tag slot carries the mana price rather than a category. With two entries a category would say
- * nothing, whereas "10 mana" is the one number a player needs before deciding to lean on it - and it
- * is the field the Barbarian sheet already established for "the thing to know at a glance".
- */
-/**
- * @brief Charge and Zeal - icon only, like the rest of the Skills sheet.
- *
- * Oracool: user request (2026-08-15) stripped this sheet's text. These two used to be tall described
- * rows carrying a name, a mana price, a wrapped description and a "Requires level N" line; all four
- * moved to the hover panel, which is now the only place they appear. That also returned the sheet to
- * a UNIFORM row height - the mixed-height walk BuildSkillsSheetRows exists for is currently
- * academic, and is kept because the rune slots the user is planning will reintroduce the variety.
- */
-void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, int top)
-{
-	Size iconSize = oracool::GetPaladinSkillIconSize();
-	if (iconSize.height == 0)
-		iconSize = oracool::GetSkillIconPlateSize();
-	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight - iconSize.height) / 2 };
-	const bool unlocked = oracool::IsPaladinSkillUnlocked(*InspectPlayer, skill);
-	oracool::DrawPaladinSkillIcon(content, iconPos, oracool::GetPaladinSkillIconIndex(skill), unlocked,
-	    unlocked ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Grey);
-
-	// Every skill carries a slot now, so every unlocked row can show which button holds it.
-	if (unlocked) {
-		const SpellID sn = oracool::GetPaladinSkillData(skill).spellId;
-		DrawAssignmentRings(content, { iconPos, iconSize }, sn, GetSBookTrans(sn, true));
-		// Investment keys on the skill's SpellID even where the row is not readiable (Zeal): the
-		// slot exists for every skill, only BuildSkillsSheetRows withholds it from the ready path.
-		DrawInvestControls(content, top, SpellRowHeight, sn);
-	}
 }
 
 } // namespace
@@ -1308,85 +1049,18 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		return;
 	}
 
-	if (CurrentSheet == AbilitySheet::Skills) {
-		SkillRow rows[MaxSkillSheetRows];
-		const size_t rowCount = BuildSkillsSheetRows(rows);
-		int top = 0;
-		for (size_t i = 0; i < rowCount && !found; i++) {
-			const int height = SpellRowHeight;
-			if (y >= top && y < top + height) {
-				rowTop = top;
-				rowHeight = height;
-				found = true;
-				switch (rows[i].kind) {
-				case SkillRowKind::Attack:
-					title = _(oracool::AttackIconName(rows[i].attack));
-					description = rows[i].attack == oracool::AttackIcon::Regular
-					    ? _("Swing whatever is in hand. What a click does when no spell is readied.")
-					    : _("Strike bare-handed. What Regular Attack becomes with no weapon held.");
-					break;
-				case SkillRowKind::Spell:
-					title = oracool::GetSpellDisplayName(rows[i].spell); // already translated
-					description = spellInfo(rows[i].spell);
-					break;
-				case SkillRowKind::Paladin: {
-					const oracool::PaladinSkillData &pd = oracool::GetPaladinSkillData(rows[i].paladin);
-					title = _(pd.name);
-					// The mana price and level gate lived on the row until the sheet lost its text.
-					// Range joined them once it started deciding whether a click casts or walks - a
-					// rule the player is subject to has to be a rule the player can read.
-					description = std::string(_(pd.description)) + "\n\n";
-					// Zeal's strike count grows with character level, so the popup shows what the
-					// player has NOW rather than a sentence that goes stale two levels later. Its
-					// mana line reads per strike for the same reason - the burst's real price is the
-					// count beside it.
-					if (rows[i].paladin == oracool::PaladinSkill::Zeal) {
-						description += fmt::format(fmt::runtime(_("Strikes: {:d}")),
-						                   oracool::ZealStrikeCount(*InspectPlayer))
-						    + "\n"
-						    + fmt::format(fmt::runtime(_("Mana: {:d} per strike")), pd.manaCost) + "\n";
-					} else {
-						description += fmt::format(fmt::runtime(_("Mana: {:d}")), pd.manaCost) + "\n";
-					}
-					description +=
-					    (pd.rangeTiles <= oracool::MeleeSkillRangeTiles
-					            ? std::string(_("Range: melee"))
-					            : fmt::format(fmt::runtime(_("Range: {:d} tiles")), pd.rangeTiles))
-					    + "\n"
-					    + fmt::format(fmt::runtime(_("Requires level {:d}")), pd.minLevel);
-					break;
-				}
-				}
-			}
-			top += height;
-		}
-	} else {
+	// Everything past the tree is the Spells list, a uniform stride.
+	{
 		const int height = RowHeightFor(CurrentSheet);
 		const size_t index = static_cast<size_t>(y / height);
-		if (index < GetRowCount(CurrentSheet)) {
+		SpellID rows[MaxSpellRows];
+		const size_t rowCount = BuildSpellRows(rows);
+		if (index < rowCount) {
 			rowTop = static_cast<int>(index) * height;
 			rowHeight = height;
 			found = true;
-			switch (CurrentSheet) {
-			case AbilitySheet::ClassTree0:
-			case AbilitySheet::ClassTree1:
-			case AbilitySheet::ClassTree2:
-				break; // handled above - the tree is a grid, not a row list
-			case AbilitySheet::Spells:
-			case AbilitySheet::ClassSkills: {
-				SpellID rows[MaxSpellRows];
-				const size_t rowCount = CurrentSheet == AbilitySheet::ClassSkills
-				    ? BuildClassSkillRows(rows)
-				    : BuildSpellRows(rows);
-				if (index < rowCount) {
-					title = oracool::GetSpellDisplayName(rows[index]); // already translated
-					description = spellInfo(rows[index]);
-				}
-				break;
-			}
-			case AbilitySheet::Skills:
-				break; // handled above
-			}
+			title = oracool::GetSpellDisplayName(rows[index]); // already translated
+			description = spellInfo(rows[index]);
 		}
 	}
 
@@ -1493,57 +1167,14 @@ void DrawSpellBook(const Surface &out)
 		return;
 	}
 
-	// The Skills sheet walks its own enumeration because its rows differ in kind AND in height; every
-	// other sheet is uniform and keeps the simple stride.
-	if (CurrentSheet == AbilitySheet::Skills) {
-		SkillRow rows[MaxSkillSheetRows];
-		const size_t rowCount = BuildSkillsSheetRows(rows);
-		int top = -scroll;
-		for (size_t i = 0; i < rowCount; i++) {
-			const int height = SpellRowHeight;
-			if (top + height > 0 && top < AbilitiesContentSize.height) {
-				switch (rows[i].kind) {
-				case SkillRowKind::Attack:
-					DrawAttackRow(content, static_cast<size_t>(rows[i].attack), top);
-					break;
-				case SkillRowKind::Spell:
-					DrawSpellRow(content, i, rows[i].spell, top);
-					break;
-				case SkillRowKind::Paladin:
-					DrawPaladinSkillRow(content, rows[i].paladin, top);
-					break;
-				}
-			}
-			top += height;
-		}
-		return;
-	}
-
+	// Spells: the one list sheet left, a uniform stride.
 	SpellID rows[MaxSpellRows];
-	size_t rowCount = 0;
-	if (CurrentSheet == AbilitySheet::Spells)
-		rowCount = BuildSpellRows(rows);
-	else if (CurrentSheet == AbilitySheet::ClassSkills)
-		rowCount = BuildClassSkillRows(rows);
-	else
-		rowCount = GetRowCount(CurrentSheet);
-
+	const size_t rowCount = BuildSpellRows(rows);
 	for (size_t i = 0; i < rowCount; i++) {
 		const int top = static_cast<int>(i) * rowHeight - scroll;
 		if (top + rowHeight <= 0 || top >= AbilitiesContentSize.height)
 			continue;
-		switch (CurrentSheet) {
-		case AbilitySheet::ClassTree0:
-		case AbilitySheet::ClassTree1:
-		case AbilitySheet::ClassTree2:
-			break; // handled above
-		case AbilitySheet::Spells:
-		case AbilitySheet::ClassSkills:
-			DrawSpellRow(content, i, rows[i], top);
-			break;
-		case AbilitySheet::Skills:
-			break; // handled above
-		}
+		DrawSpellRow(content, i, rows[i], top);
 	}
 }
 
@@ -1625,78 +1256,11 @@ void CheckSBook(bool assignToRightButton)
 		RedrawEverything();
 		return;
 	}
+	// Spells: the one list sheet left.
 	SpellID sn = SpellID::Invalid;
-	if (CurrentSheet == AbilitySheet::Skills) {
-		// Walks the same enumeration the draw loop does, accumulating heights, because this sheet's
-		// rows are not all the same height - `y / rowHeight` would land on the wrong row the moment a
-		// tall Paladin row sat above the cursor.
-		SkillRow rows[MaxSkillSheetRows];
-		const size_t rowCount = BuildSkillsSheetRows(rows);
-		int top = 0;
-		for (size_t i = 0; i < rowCount; i++) {
-			const int height = SpellRowHeight;
-			if (y >= top && y < top + height) {
-				switch (rows[i].kind) {
-				case SkillRowKind::Attack:
-					// Either attack row readies the basic attack, which in this engine means clearing
-					// the readied spell - that IS the state in which a click swings.
-					//
-					// BOTH rows, where Fist Attack used to be inert. They are one state shown as two
-					// pictures, and which picture you get is decided by what is in your hand, not by
-					// a click. Leaving Fist inert meant a player with only a shield equipped - whose
-					// well correctly shows the fist - clicked the row matching their own HUD and had
-					// nothing happen. See the same bug's other half in DrawAttackRow.
-					//
-					// Clears whichever button you clicked it with, matching how assignment works
-					// below, so either row is the way back to swinging on either button.
-					if (assignToRightButton) {
-						ClearReadiedSpell(*MyPlayer);
-					} else {
-						MyPlayer->_pLRSpell = SpellID::Invalid;
-						MyPlayer->_pLRSplType = SpellType::Invalid;
-						RedrawEverything();
-					}
-					return;
-				case SkillRowKind::Spell:
-					if (investClick && oracool::InvestSkillPoint(*MyPlayer, rows[i].spell)) {
-						RedrawEverything();
-						return;
-					}
-					sn = rows[i].spell;
-					break;
-				case SkillRowKind::Paladin:
-					// Investment works through the skill's own SpellID even on rows the ready path
-					// withholds a slot from (Zeal) - so the invest check comes before that gate.
-					if (investClick
-					    && oracool::InvestSkillPoint(*MyPlayer,
-					        oracool::GetPaladinSkillData(rows[i].paladin).spellId)) {
-						RedrawEverything();
-						return;
-					}
-					// A row is readiable when it carries a spell slot, which BuildSkillsSheetRows is
-					// the only place that decides. Charge has one; Zeal does not, because it applies
-					// itself to every melee swing rather than being cast, and neither do the five
-					// skills that are still art and a description. Testing the slot rather than
-					// naming Charge means a skill that later gains one needs no edit here.
-					if (!IsValidSpell(rows[i].spell))
-						return;
-					// A locked row is inert too - it names something the player has not earned yet.
-					if (!oracool::IsPaladinSkillUnlocked(*InspectPlayer, rows[i].paladin))
-						return;
-					sn = rows[i].spell;
-					break;
-				}
-				break;
-			}
-			top += height;
-		}
-		if (sn == SpellID::Invalid)
-			return;
-	} else {
+	{
 		SpellID rows[MaxSpellRows];
-		const size_t rowCount = CurrentSheet == AbilitySheet::ClassSkills
-		    ? BuildClassSkillRows(rows)
-		    : BuildSpellRows(rows);
+		const size_t rowCount = BuildSpellRows(rows);
 		const size_t rowIndex = static_cast<size_t>(y / RowHeightFor(CurrentSheet));
 		if (rowIndex >= rowCount)
 			return;

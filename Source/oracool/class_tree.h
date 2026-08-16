@@ -104,7 +104,18 @@ enum class ClassTreeSkill : uint8_t {
 	Meditation,
 	Redemption,
 	Salvation,
-	PALADIN_LAST = Salvation,
+	// ---------------- Paladin: Combat Skills, appended ----------------
+	// Two Combat Skills rows living at the END of the Paladin block rather than beside their
+	// page-mates. Their `page` field is what puts them on the Combat Skills sheet - the table's
+	// grouping is for reading, and BuildClassTreePage sorts by tier and column regardless.
+	//
+	// Appended because a skill's POSITION in its class block is its icon-strip frame AND its slot in
+	// Player::_pClassTreeInvestment. Inserting them beside Vengeance would have shifted every
+	// Paladin aura down two frames and two save slots, silently reassigning the points a live
+	// character had already paid.
+	HammerOfFaith,
+	BlessedShield,
+	PALADIN_LAST = BlessedShield,
 
 	// ---------------- Barbarian: Combat Skills ----------------
 	Bash,
@@ -277,9 +288,16 @@ enum class ClassTreeSkill : uint8_t {
 	None = 0xFF,
 };
 
-constexpr size_t ClassTreeSkillCount = 161;
-/** @brief The most skills any one class has - the size of the per-character investment array. */
-constexpr size_t MaxSkillsPerClass = 30;
+constexpr size_t ClassTreeSkillCount = 163;
+/**
+ * @brief The most skills any one class has - the size of the per-character investment array.
+ *
+ * 32 since the Paladin reached 31 (Hammer of Faith and Blessed Shield, 2026-08-16). It bounds
+ * BuildClassTreePage's search, so a class with more skills than this simply loses the overflow, and
+ * it must not exceed the size of Player::_pClassTreeInvestment, which it indexes. The two are grown
+ * together - see the static_assert beside that array.
+ */
+constexpr size_t MaxSkillsPerClass = 32;
 /** @brief Tiers a page can have. Seven since the Monk; Diablo II's five classes use the first six. */
 constexpr int ClassTreeTierCount = 7;
 /** @brief Points a single tree skill accepts, matching the spell-investment cap. */
