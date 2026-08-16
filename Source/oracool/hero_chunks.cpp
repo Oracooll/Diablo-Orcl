@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 #include "oracool/event_log.h"
 #include "player.h"
@@ -71,6 +72,16 @@ void ApplySkillPoints(Player &player, const uint8_t *payload, size_t len)
 	std::memcpy(player._pSkillInvestment, payload + 3, count);
 }
 
+void ApplyPaladinAuras(Player &player, const uint8_t *payload, size_t len)
+{
+	if (len < 1)
+		return;
+	const size_t count = std::min<size_t>({ payload[0], len - 1,
+	    std::size(player._pPaladinAuraInvestment) });
+	std::memset(player._pPaladinAuraInvestment, 0, sizeof(player._pPaladinAuraInvestment));
+	std::memcpy(player._pPaladinAuraInvestment, payload + 1, count);
+}
+
 void ApplyWaypoints64(Player &player, const uint8_t *payload, size_t len)
 {
 	if (len < 4 * sizeof(uint64_t))
@@ -116,6 +127,14 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		EndChunk(out, at);
 	}
 
+	{
+		const size_t at = BeginChunk(out, HeroChunkPaladinAuras);
+		const auto count = static_cast<uint8_t>(std::size(player._pPaladinAuraInvestment));
+		out.push_back(count);
+		out.insert(out.end(), player._pPaladinAuraInvestment, player._pPaladinAuraInvestment + count);
+		EndChunk(out, at);
+	}
+
 	return out;
 }
 
@@ -156,9 +175,12 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			ApplyWaypoints64(player, payload, chunkLen);
 			break;
 		case HeroChunkActiveAura:
-			// First byte only; anything after it is Stage 2's per-aura levels, not written yet.
+			// First byte only; anything after it belongs to a newer build's larger payload.
 			if (chunkLen >= 1)
 				player._pOracoolActiveAura = payload[0];
+			break;
+		case HeroChunkPaladinAuras:
+			ApplyPaladinAuras(player, payload, chunkLen);
 			break;
 		default:
 			// An unknown tag is a chunk from a newer build - skipped, by design.

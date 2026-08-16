@@ -57,11 +57,17 @@ enum HeroChunkTag : uint16_t {
 	 */
 	HeroChunkCompanion = 3,
 	/**
-	 * @brief Phase 2 Stage 1: the active aura, one u8 (the oracool::Aura enum byte, 0xFF = none).
-	 * Room is left in the payload for Stage 2's 24 per-aura levels to append later - the reader
-	 * takes the first byte and skips the rest, so that growth needs no new tag.
+	 * @brief The burning aura, one u8 (the oracool::PaladinTreeSkill byte, 0xFF = none). The reader
+	 * takes the first byte and skips any remainder, so the payload can grow without a new tag.
 	 */
 	HeroChunkActiveAura = 4,
+	/**
+	 * @brief Points invested in the Paladin tree's twenty auras: u8 count, then count bytes in
+	 * PaladinTreeSkill::FIRST_AURA order. Count-prefixed so the aura list can grow without a new
+	 * tag. The tree's castable skills are NOT here - their points ride in the SkillPoints chunk,
+	 * keyed by SpellID, which is what lets GetSpellLevel see them.
+	 */
+	HeroChunkPaladinAuras = 5,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

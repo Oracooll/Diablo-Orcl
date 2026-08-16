@@ -90,8 +90,12 @@ ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
  */
 ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
 ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
-/** Oracool: the 24 Paladin aura icons, one 38x38 cell per aura, in oracool::Aura order. */
-ArtAsset AuraIconsArt { "ui\\aura_icons.png" };
+/**
+ * Oracool: Diablo II's Paladin skill tree - 29 icons, one 56x56 cell each, in
+ * oracool::PaladinTreeSkill order. Cut by tools/CutPaladinTree.ps1. Larger cells than the other
+ * strips because the tree lays them out three to a row rather than one per list row.
+ */
+ArtAsset PaladinTreeIconsArt { "ui\\paladin_tree_icons.png" };
 /** Oracool: the 18 Barbarian skill icons, same 38x38 cells, in oracool::BarbSkill order. */
 ArtAsset BarbSkillIconsArt { "ui\\barb_skill_icons.png" };
 /** Oracool: the Paladin's seven skills, same 38x38 cells, in oracool::PaladinSkill order. */
@@ -408,8 +412,8 @@ void EnsureLoadedAll()
 		LoadPixels(WaypointPanelArt);
 	if (!WaypointIconsArt.loadAttempted)
 		LoadPixels(WaypointIconsArt);
-	if (!AuraIconsArt.loadAttempted)
-		LoadPixels(AuraIconsArt);
+	if (!PaladinTreeIconsArt.loadAttempted)
+		LoadPixels(PaladinTreeIconsArt);
 	if (!BarbSkillIconsArt.loadAttempted)
 		LoadPixels(BarbSkillIconsArt);
 	if (!PaladinSkillIconsArt.loadAttempted)
@@ -450,7 +454,7 @@ bool NeedsQuantize()
 		return true;
 	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
 		return true;
-	if (!AuraIconsArt.rgba.empty() && !AuraIconsArt.bright)
+	if (!PaladinTreeIconsArt.rgba.empty() && !PaladinTreeIconsArt.bright)
 		return true;
 	if (!BarbSkillIconsArt.rgba.empty() && !BarbSkillIconsArt.bright)
 		return true;
@@ -499,9 +503,9 @@ void EnsureQuantized()
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
 	QuantizeAsset(WaypointPanelArt, std::nullopt);
 	QuantizeAsset(WaypointIconsArt, std::nullopt);
-	// No tint: the aura icons are the artwork itself, not chrome, and their colour is how the
-	// elemental auras are told apart at a glance.
-	QuantizeAsset(AuraIconsArt, std::nullopt);
+	// No tint: the tree icons are the artwork itself, not chrome - their shapes carry the meaning.
+	
+	QuantizeAsset(PaladinTreeIconsArt, std::nullopt);
 	QuantizeAsset(BarbSkillIconsArt, std::nullopt);
 	QuantizeAsset(PaladinSkillIconsArt, std::nullopt);
 	// Same reasoning, and one more: these two sit in the HUD's skill wells next to the engine's own
@@ -937,7 +941,7 @@ void ResetHudArtCaches()
 	reset(LevelUpIconArt);
 	reset(WaypointPanelArt);
 	reset(WaypointIconsArt);
-	reset(AuraIconsArt);
+	reset(PaladinTreeIconsArt);
 	reset(BarbSkillIconsArt);
 	reset(PaladinSkillIconsArt);
 	reset(AttackIconsArt);
@@ -972,16 +976,6 @@ void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int inde
 	DrawStripIcon(out, asset, origin, index, unlocked);
 }
 
-void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked, SkillPlateTint tint)
-{
-	DrawIconOnPlate(out, AuraIconsArt, origin, auraIndex, unlocked, tint);
-}
-
-Size GetAuraIconSize()
-{
-	return StripIconSize(AuraIconsArt);
-}
-
 void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked, SkillPlateTint tint)
 {
 	DrawIconOnPlate(out, BarbSkillIconsArt, origin, skillIndex, unlocked, tint);
@@ -1000,6 +994,16 @@ void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool
 Size GetPaladinSkillIconSize()
 {
 	return StripIconSize(PaladinSkillIconsArt);
+}
+
+void DrawPaladinTreeIcon(const Surface &out, Point origin, int skillIndex, bool unlocked, SkillPlateTint tint)
+{
+	DrawIconOnPlate(out, PaladinTreeIconsArt, origin, skillIndex, unlocked, tint);
+}
+
+Size GetPaladinTreeIconSize()
+{
+	return StripIconSize(PaladinTreeIconsArt);
 }
 
 bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, SkillPlateTint tint)

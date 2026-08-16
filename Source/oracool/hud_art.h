@@ -118,18 +118,18 @@ enum class SkillPlateTint : uint8_t {
 };
 
 /**
- * @brief Draws Paladin aura icon @p auraIndex (oracool::Aura order) at @p origin.
+ * @brief Draws Paladin tree icon @p skillIndex (oracool::PaladinTreeSkill order) at @p origin.
  *
  * An @p unlocked icon is blitted opaquely; a locked one is blended into the panel at half strength,
  * which is this sheet's equivalent of the Spells sheet greying out an unlearned spell. It cannot
- * use SetSpellTrans for that: these are full-colour paintings rather than single-ramp icons, so
- * there is no ramp to remap onto grey.
+ * use SetSpellTrans for that: these are pictures rather than single-ramp icons, so there is no ramp
+ * to remap onto grey.
  */
-void DrawAuraIcon(const Surface &out, Point origin, int auraIndex, bool unlocked,
+void DrawPaladinTreeIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
     SkillPlateTint tint = SkillPlateTint::Green);
 
-/** @brief On-screen size of one aura icon, or {0,0} if the asset is missing. */
-Size GetAuraIconSize();
+/** @brief On-screen size of one tree icon, or {0,0} if the asset is missing. */
+Size GetPaladinTreeIconSize();
 
 /** @brief Draws Barbarian skill icon @p skillIndex (oracool::BarbSkill order). Same locked
  * treatment as DrawAuraIcon - the two sheets share one implementation. */

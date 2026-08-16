@@ -3,7 +3,7 @@
  *
  * Oracool: the Barbarian's 18 skills - names, descriptions, kinds and unlock levels.
  *
- * DATA ONLY, exactly like oracool/auras.h. Nothing here casts, buffs or damages anything: the
+ * DATA ONLY.  Nothing here casts, buffs or damages anything: the
  * skills are listed, described and unlocked by level. The gameplay design - including the Fury
  * resource the brief proposes as the Barbarian's answer to the Paladin's auras - is a later pass.
  */

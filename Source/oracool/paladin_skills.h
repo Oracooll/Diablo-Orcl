@@ -3,7 +3,7 @@
  *
  * Oracool: the Paladin's two ACTIVE skills - Charge and Zeal.
  *
- * Unlike oracool/auras.h and oracool/barb_skills.h, which are data-only lists waiting on a gameplay
+ * Unlike oracool/barb_skills.h, which is a data-only list waiting on a gameplay
  * pass, both of these DO something. Their mechanics were written months earlier and then switched
  * off (user decision 2026-08-11) pending a way to earn them; this file is that way. It supplies the
  * level gate and the mana price, and the two mechanic modules ask it rather than carrying their own

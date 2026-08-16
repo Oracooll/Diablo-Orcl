@@ -421,10 +421,13 @@ TEST(Writehero, pfile_write_hero)
 	//      CONTENT changes deliberately.
 	//   6. Exactly that: Phase 2 Stage 1 appends the ActiveAura chunk (tag 4, one byte - the
 	//      Paladin's burning aura). Old readers skip the tag; pre-1.7.12 heroes load with no aura.
+	//   7. The PaladinAuras chunk (tag 5): points invested in the skill tree's twenty auras. The
+	//      tree's castable skills are NOT here - their points ride in the SkillPoints chunk, keyed
+	//      by SpellID. Same additive rules as #5 and #6.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "6c6b4463a2967c413766e34567f26f7867978d261a1040ab7f812936e80468c3");
+	    "14fe0e23d609f7fb6745c5f1d732302cfe9603af9cf4c0000363ba068325289f");
 }
 
 } // namespace

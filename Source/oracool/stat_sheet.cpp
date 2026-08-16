@@ -1,9 +1,9 @@
 #include "oracool/stat_sheet.h"
 
 #include "items.h"
-#include "oracool/auras.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
+#include "oracool/paladin_tree.h"
 #include "oracool/runewords.h"
 #include "player.h"
 #include "spells.h"
@@ -133,19 +133,18 @@ void ApplyCharms(const BonusContext &ctx, ItemBonusTotals &totals)
 }
 
 /**
- * @brief Source 5 (Phase 2 Stage 1): the Paladin's active aura. The condition re-checks the
- * unlock, so an aura left active in a save cannot keep working on a character it no longer fits
- * (it cannot happen through the UI, but state that outlives its rules must be re-validated).
+ * @brief Source 5: the Paladin's burning aura, from the skill tree. ApplyPaladinAuraToTotals
+ * re-checks the class, the tier and the invested points itself, so an aura that outlives the rules
+ * it was lit under contributes nothing rather than quietly persisting.
  */
 bool AuraIsRelevant(const BonusContext &ctx)
 {
-	const Aura aura = GetActiveAura(*ctx.owner);
-	return aura != Aura::None && IsAuraUnlocked(*ctx.owner, aura);
+	return GetActivePaladinAura(*ctx.owner) != PaladinTreeSkill::None;
 }
 
 void ApplyAura(const BonusContext &ctx, ItemBonusTotals &totals)
 {
-	ApplyAuraToTotals(GetActiveAura(*ctx.owner), ctx.owner->_pLevel, totals);
+	ApplyPaladinAuraToTotals(*ctx.owner, totals);
 }
 
 constexpr BonusProvider Providers[] = {

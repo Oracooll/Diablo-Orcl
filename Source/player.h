@@ -418,11 +418,18 @@ struct Player {
 	uint16_t _pUnspentSkillPoints = 0;
 	uint8_t _pSkillInvestment[MAX_SPELLS] = {};
 	/**
-	 * @brief Oracool Phase 2 Stage 1: the active aura, as the raw enum byte (0xFF = none) so this
-	 * header does not need oracool/auras.h. Persisted via the HeroChunkActiveAura chunk; applied
-	 * through the "aura" bonus provider in stat_sheet.cpp. See oracool::GetActiveAura/ToggleAura.
+	 * @brief Oracool: the burning Paladin aura, as the raw oracool::PaladinTreeSkill byte
+	 * (0xFF = none) so this header does not need oracool/paladin_tree.h. Persisted via the
+	 * HeroChunkActiveAura chunk; applied through the "aura" bonus provider in stat_sheet.cpp.
 	 */
 	uint8_t _pOracoolActiveAura = 0xFF;
+	/**
+	 * @brief Points sunk into each of the tree's twenty auras, indexed from
+	 * PaladinTreeSkill::FIRST_AURA. The tree's castable skills store their points in
+	 * _pSkillInvestment instead (keyed by SpellID, so GetSpellLevel picks them up); only the auras,
+	 * which have no spell slot, need this. Persisted via the HeroChunkPaladinAuras chunk.
+	 */
+	uint8_t _pPaladinAuraInvestment[20] = {};
 	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers
 	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
 	int _pMagicFind = 0;
