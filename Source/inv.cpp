@@ -31,6 +31,7 @@
 #include "oracool/hud_menu.h"
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
 #include "oracool/inventory_layout.h"
+#include "oracool/telemetry.h"
 #include "oracool/ornate_border.h"
 #include "oracool/oracool.h"
 #include "panels/ui_panels.hpp"
@@ -2566,6 +2567,9 @@ void InvGetItem(Player &player, int ii)
 	// LoadAndValidateItemData - ground items that were never saved (dropped and picked back up in
 	// the same session) never go through that path, so pickup needs its own call too.
 	RepairOracoolAffixesIfCorrupted(item);
+	// Phase 0.9: what actually enters the player's hands, by tier - the economy's tuning signal.
+	if (&player == MyPlayer)
+		oracool::TelemetryRecordPickup(item);
 
 	// Oracool bug fix: user report - elixirs (and, in principle, any stackable consumable) didn't
 	// stack when picked up. Root cause: the QoL "Auto Pickup Range" loop (qol/autopickup.cpp) only
@@ -2660,6 +2664,9 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 	// Oracool: see the matching comment in InvGetItem - self-heals a pre-v0.3.42 tiered item on
 	// the auto-pickup path too.
 	RepairOracoolAffixesIfCorrupted(item);
+	// Phase 0.9: the auto-pickup half of the same signal InvGetItem records.
+	if (&player == MyPlayer)
+		oracool::TelemetryRecordPickup(item);
 
 	bool done;
 	bool autoEquipped = false;

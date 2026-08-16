@@ -34,6 +34,7 @@
 #include "movie.h"
 #include "options.h"
 #include "oracool/event_log.h"
+#include "oracool/telemetry.h"
 
 #include "qol/floatingnumbers.h"
 #include "spelldat.h"
@@ -3866,6 +3867,8 @@ void StunMonster(Monster &monster, int ticks)
 void M_StartHit(Monster &monster, const Player &player, int dam)
 {
 	monster.tag(player);
+	// Phase 0.9: the time-to-kill clock starts at the first player hit that connects.
+	oracool::TelemetryRecordFirstHit(monster);
 	if (IsHardHit(monster, dam)) {
 		monster.enemy = player.getId();
 		monster.enemyPosition = player.position.future;
@@ -3890,6 +3893,9 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 
 	if (monster.isUnique())
 		oracool::LogEvent(fmt::format("Defeated {:s}", oracool::GetMonsterDisplayName(monster)));
+	// Phase 0.9: one CSV row per real kill - minions grant no experience and tell no tuning story.
+	if (!monster.isPlayerMinion())
+		oracool::TelemetryRecordKill(monster);
 
 	SpawnLoot(monster, sendmsg);
 

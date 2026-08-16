@@ -31,6 +31,7 @@
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
 #include "oracool/sprite_scale.h"
+#include "oracool/telemetry.h"
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
@@ -653,4 +654,15 @@ TEST(OracoolSpriteScale, HalvingRoundsDownButNeverBelowOnePixel)
 
 	OwnedClxSpriteList quarterFloor = oracool::ScaleClxList(ClxSpriteList(original), 25);
 	EXPECT_GE(ClxSpriteList(quarterFloor)[0].width(), 1) << "scaling floored below one pixel";
+}
+
+// Megaplan Phase 0.9: the telemetry CSV's one pure function - field escaping. Everything else in
+// that module is file IO gated behind an option; the escaping is where a malformed row could
+// corrupt the whole file for analysis.
+TEST(OracoolTelemetry, CsvFieldEscaping)
+{
+	EXPECT_EQ(oracool::TelemetryEscapeCsvField("Fallen One"), "Fallen One");
+	EXPECT_EQ(oracool::TelemetryEscapeCsvField("Sword, Rare"), "\"Sword, Rare\"");
+	EXPECT_EQ(oracool::TelemetryEscapeCsvField("The \"Butcher\""), "\"The \"\"Butcher\"\"\"");
+	EXPECT_EQ(oracool::TelemetryEscapeCsvField(""), "");
 }

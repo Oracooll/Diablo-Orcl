@@ -17,6 +17,7 @@
 #include "engine/render/text_render.hpp"
 #include "options.h"
 #include "oracool/ornate_border.h"
+#include "oracool/telemetry.h"
 
 namespace devilution::oracool {
 
@@ -201,7 +202,10 @@ void NotePendingDeathSource(std::string source)
 
 void LogPlayerDeath(const std::string &fallbackReason)
 {
-	LogEvent(fmt::format("Slain by {:s}", PendingDeathSource.empty() ? fallbackReason : PendingDeathSource));
+	const std::string &source = PendingDeathSource.empty() ? fallbackReason : PendingDeathSource;
+	LogEvent(fmt::format("Slain by {:s}", source));
+	// Phase 0.9: deaths are the loudest tuning signal there is.
+	TelemetryRecordPlayerDeath(source);
 	PendingDeathSource.clear();
 }
 
