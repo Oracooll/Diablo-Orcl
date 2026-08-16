@@ -59,6 +59,15 @@ std::optional<NumberInputState> GoldWithdrawInputState;
 constexpr Size StashPanelSize { 340, 720 };
 constexpr int StashMargin = 24;
 constexpr int StashLabelHeight = 50;
+/**
+ * @brief Where the window title sits, and how tall its band is.
+ *
+ * User request (2026-08-16): 12px from the top. The band is one FontSize30 line (38px) rather than
+ * the old 50px label height, so the string's VerticalCenter has no slack to drift in - the title's
+ * top edge IS PanelTitleTop. The inventory's title uses the same pair; see inv.cpp.
+ */
+constexpr int PanelTitleTop = 12;
+constexpr int PanelTitleHeight = 38;
 constexpr int StashContentTop = StashMargin + StashLabelHeight + oracool::OrnateBorderWidth + StashMargin;
 
 constexpr Size ButtonSize { 27, 16 };
@@ -555,13 +564,15 @@ void DrawStash(const Surface &out)
 		oracool::DrawOrnateBorder(out, panel);
 	}
 
-	const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + StashMargin },
-		{ panel.size.width - 2 * StashMargin, StashLabelHeight } };
+	// User request (2026-08-16): the title sits 12px from the panel's top edge, and the gold rule
+	// that used to run under it is gone - the painted background brings its own header framing, so
+	// the separator was a second line drawn across the first.
+	//
+	// The band is exactly one line tall so VerticalCenter cannot drift it: 12 means 12.
+	const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + PanelTitleTop },
+		{ panel.size.width - 2 * StashMargin, PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, _("STASH"), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
-	oracool::DrawOrnateSeparator(out,
-	    { panel.position.x + StashMargin, panel.position.y + StashMargin + StashLabelHeight },
-	    panel.size.width - 2 * StashMargin);
 
 	// Bug fix: the four page arrows were INVISIBLE until pressed. data\stashnavbtns.clx only holds
 	// each button's pressed frame - the unpressed state was painted into data\stash.clx, which the

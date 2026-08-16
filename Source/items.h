@@ -533,6 +533,17 @@ struct Item {
 			return true;
 		if (_iMiscId > IMISC_OILFIRST && _iMiscId < IMISC_OILLAST)
 			return true; // Hellfire oils
+		// Oracool (user request, 2026-08-16): gems, skulls and runes stack like any other
+		// consumable. They ARE consumables - a socketing material is spent the moment it goes into
+		// an item, exactly as a potion is - and they drop in the quantities that make an unstacked
+		// backpack unusable: seven gem types across five qualities, plus 33 runes.
+		//
+		// Identified by base-item INDEX rather than by _iMiscId, which is what socketing already
+		// does (see oracool/gems.h): these carry no misc id of their own, and the index is the
+		// whole of their identity - which is also why they merge safely, since two gems with the
+		// same index are genuinely interchangeable.
+		if (IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx))
+			return true;
 		return false;
 	}
 
@@ -558,8 +569,24 @@ struct Item {
 		// dungeon-dropped mana potion with the option off could therefore have _iIdentified=false
 		// while an otherwise-identical one bought from Adria has it true - comparing this field
 		// made two visually and functionally identical potions silently refuse to stack.
-		return isStackableConsumable() && other.isStackableConsumable()
-		    && _iMiscId == other._iMiscId && _iSpell == other._iSpell;
+		if (!isStackableConsumable() || !other.isStackableConsumable())
+			return false;
+
+		// Oracool (2026-08-16): the _iMiscId rule above is right for POTIONS, whose duplicate
+		// indices are the problem it was written for. It is dangerously wrong for gems and runes,
+		// which carry no misc id at all - every one of them is IMISC_NONE, so _iMiscId alone would
+		// happily stack a Ruby into an Emerald and a Tir into an El.
+		//
+		// Caught by OracoolCrafting.AscendRunesConsumesPairAndProducesNextRung the moment these
+		// became stackable: the crafted Tir merged into the El pile it was made from and the recipe
+		// produced nothing. For these two families the base-item INDEX is the whole identity - the
+		// same rule socketing already uses - so it is what has to match.
+		const bool eitherIsMaterial = IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx)
+		    || IsOracoolGemIdx(other.IDidx) || IsOracoolRuneIdx(other.IDidx);
+		if (eitherIsMaterial)
+			return IDidx == other.IDidx;
+
+		return _iMiscId == other._iMiscId && _iSpell == other._iSpell;
 	}
 
 	/** @brief Maximum number of prefix (or suffix) affixes an Oracool-tiered item may carry. */

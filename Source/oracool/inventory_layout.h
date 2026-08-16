@@ -352,25 +352,56 @@ constexpr int FooterRowHeight = 24;
 constexpr int FooterRowGap = 8;
 constexpr int GoldRowHeight = FooterRowHeight;
 
+/**
+ * @brief Where the window title sits, and how tall its band is. Shared with the stash.
+ *
+ * User request (2026-08-16): 12px from the top. The band is one FontSize30 line (38px) so the
+ * string's VerticalCenter has no slack to drift in - the title's top edge IS PanelTitleTop.
+ */
+constexpr int PanelTitleTop = 12;
+constexpr int PanelTitleHeight = 38;
+
+/**
+ * @brief SORT and the gold readout moved ABOVE the tab row (user request, 2026-08-16).
+ *
+ * They used to sit in a footer under the grid, which put the two things the player reads most at
+ * the very bottom of a 720px panel. They now share one line 12px above the tabs: SORT over tabs
+ * 1-2, the gold count over tabs 3-8, both on the same baseline.
+ *
+ * Splitting the line by TAB COLUMNS rather than by fractions is what keeps them aligned with the
+ * grid beneath - each label starts exactly where a tab does, so nothing floats between columns.
+ */
+constexpr int FooterAboveTabsGap = 12;
+constexpr int FooterRowY = TabRowY - FooterAboveTabsGap - FooterRowHeight;
+
+/** @brief The x of tab @p index's left edge, used to span the row above by whole tabs. */
+constexpr int TabColumnX(int index)
+{
+	return TabRowX + index * TabSize.width;
+}
+
 /** @brief Oracool: user request - "a gold SORT INVENTORY text button", where tab "S" used to be. */
 constexpr Rectangle GetSortButtonRect()
 {
-	return { { PanelMargin, GridBottom + FooterRowGap },
-		{ InventoryPanelSize.width - 2 * PanelMargin, FooterRowHeight } };
+	// Tabs 1 and 2.
+	return { { TabColumnX(0), FooterRowY }, { 2 * TabSize.width, FooterRowHeight } };
 }
 
 constexpr Rectangle GetGoldRowRect()
 {
-	return { { PanelMargin, GetSortButtonRect().position.y + FooterRowHeight + FooterRowGap },
-		{ InventoryPanelSize.width - 2 * PanelMargin, GoldRowHeight } };
+	// Tabs 3 through 8, on SORT's line.
+	return { { TabColumnX(2), FooterRowY }, { 6 * TabSize.width, GoldRowHeight } };
 }
 
-static_assert(GetSortButtonRect().position.y >= GridBottom,
-    "SORT button overlaps the item grid");
-static_assert(GetGoldRowRect().position.y >= GetSortButtonRect().position.y + FooterRowHeight,
+static_assert(GetSortButtonRect().position.y + FooterRowHeight <= TabRowY,
+    "SORT button overlaps the tab row");
+static_assert(GetGoldRowRect().position.y == GetSortButtonRect().position.y,
+    "Gold row is no longer on SORT's baseline");
+static_assert(GetGoldRowRect().position.x >= GetSortButtonRect().position.x + GetSortButtonRect().size.width,
     "Gold row overlaps the SORT button");
-static_assert(GetGoldRowRect().position.y + GoldRowHeight <= InventoryPanelSize.height,
-    "Gold row runs past the bottom of the panel");
+static_assert(GetGoldRowRect().position.x + GetGoldRowRect().size.width <= TabColumnX(TabCount),
+    "Gold row runs past the tab row it is aligned to");
+static_assert(FooterRowY > 0, "The footer row was pushed off the top of the panel");
 
 } // namespace oracool
 } // namespace devilution

@@ -228,6 +228,21 @@ FontStack LoadFont(GameFontTables size, text_color color, uint16_t row)
 					entry = static_cast<uint8_t>(entry - PAL8_YELLOW + PAL8_GREEN);
 			}
 		}
+		// Oracool bug fix (2026-08-16, user report "Primals ... are now Green"). The font glyphs are
+		// authored in the PAL16_YELLOW band (192-207) - every .trn remaps that band and nothing else
+		// - and vanilla's orange.trn remaps it onto 152-159, the PAL8_ORANGE mini-ramp. This fork
+		// OVERWROTE those eight slots with its injected green ramp (see engine/palette.h), so the
+		// one colour that pointed at them turned green, and Primal is that colour's only user.
+		//
+		// Re-pointed onto PAL16_ORANGE (208+), which is real saturated orange and untouched. The
+		// mini-ramp runs light-to-dark like the PAL16 ramps do, so index order carries over
+		// directly and the glyph keeps its shading.
+		if (color == ColorOrange) {
+			for (uint8_t &entry : *ColorTranslationsData[color]) {
+				if (entry >= PAL8_GREEN && entry < PAL8_GREEN + PAL8_GREEN_SHADES)
+					entry = static_cast<uint8_t>(entry - PAL8_GREEN + PAL16_ORANGE);
+			}
+		}
 	}
 
 	const uint32_t fontId = GetFontId(size, row);

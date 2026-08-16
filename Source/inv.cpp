@@ -1436,12 +1436,42 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// results land well below 240 - so the test never passed and item backgrounds vanished
 	// entirely: magic, unique, rare and every Oracool tier all rendered as bare slot.
 	//
-	// Blending an explicit colour instead works against ANY background, which is the point - the
-	// backing must not depend on what the panel happens to be painted with. See
-	// TierBackingRampOffset above for which end of the ramp is picked and why.
-	const uint8_t tint = static_cast<uint8_t>(colorBlock + rampOffset);
-	DrawHalfTransparentRectTo(out, targetPosition.x, targetPosition.y - size.height + 1,
-	    size.width, size.height, tint);
+	// Then it became a HALF-TRANSPARENT fill, which fixed that and introduced the graininess the
+	// user reported (2026-08-16: "It is grainy or something"). A half-transparent fill looks up
+	// every pixel as tint-blended-with-whatever-is-behind-it, so the result is only as smooth as
+	// the background is flat - and the painted panel is stone texture with cracks in it. Yellow
+	// showed it worst because the mini-ramp's neighbours are far apart, so adjacent background
+	// pixels landed on visibly different blends.
+	//
+	// OPAQUE now (user request: "not transparent to avoid backgrounds protruding through them").
+	// One flat index, so no lookup, no dependence on the panel behind it, and nothing to speckle.
+	// Subtlety comes from picking a DEEP shade instead of from transparency.
+	const Rectangle backing { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
+	const uint8_t interior = static_cast<uint8_t>(colorBlock + rampOffset);
+	FillRect(out, backing.position.x, backing.position.y, backing.size.width, backing.size.height, interior);
+
+	// A 3px border INSIDE the backing's bounds, in the item class's own colour (user request):
+	// Magic blue, Rare yellow, Unique gold - the same hue as the interior but several shades
+	// brighter, so the class reads at a glance without the fill competing with the icon.
+	//
+	// The brighter end of the SAME ramp rather than a separate colour, because PAL16 ramps run
+	// light-to-dark: subtracting from the offset is what "brighter" means here, and clamping at the
+	// ramp's own base keeps it from wrapping into the neighbouring colour.
+	constexpr int BorderThickness = 3;
+	constexpr int BorderLift = 8;
+	const uint8_t border = static_cast<uint8_t>(colorBlock + std::max(rampOffset - BorderLift, 0));
+	for (int i = 0; i < BorderThickness; i++) {
+		const int x = backing.position.x + i;
+		const int y = backing.position.y + i;
+		const int w = backing.size.width - 2 * i;
+		const int h = backing.size.height - 2 * i;
+		if (w <= 0 || h <= 0)
+			break;
+		FillRect(out, x, y, w, 1, border);
+		FillRect(out, x, y + h - 1, w, 1, border);
+		FillRect(out, x, y, 1, h, border);
+		FillRect(out, x + w - 1, y, 1, h, border);
+	}
 }
 
 bool CanBePlacedOnBelt(const Item &item)
@@ -1651,11 +1681,12 @@ void DrawInv(const Surface &out)
 	// The band's bottom is taken from the helm slot itself, so the title follows if the equipment
 	// block ever moves again.
 	{
-		constexpr int TitleTop = 8;
-		const int helmTop = oracool::GetEquipSlotRect(oracool::EquipSlot::Helm).position.y;
+		// User request (2026-08-16): 12px from the top, matching the stash. The band is exactly one
+		// FontSize30 line rather than stretching to the helm slot, so VerticalCenter has no slack
+		// to drift in - the title's top edge IS PanelTitleTop.
 		const Rectangle titleArea {
-			invPanel.position + Displacement { oracool::PanelMargin, TitleTop },
-			{ oracool::InventoryPanelSize.width - 2 * oracool::PanelMargin, helmTop - TitleTop }
+			invPanel.position + Displacement { oracool::PanelMargin, oracool::PanelTitleTop },
+			{ oracool::InventoryPanelSize.width - 2 * oracool::PanelMargin, oracool::PanelTitleHeight }
 		};
 		oracool::DrawOutlinedString(out, _("INVENTORY"), titleArea,
 		    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);

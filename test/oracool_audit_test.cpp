@@ -1695,6 +1695,44 @@ TEST(OracoolCrafting, AscendRunesConsumesPairAndProducesNextRung)
 	EXPECT_EQ(elCount, 0) << "the consumed pair survived";
 }
 
+// Gems and runes became stackable at v1.7.30, and stacking asks a question potions never had to
+// answer: what counts as "the same item". canStackWith compares _iMiscId, which is correct for
+// potions (the item table carries duplicate indices for several) and catastrophic here - every gem
+// and rune is IMISC_NONE, so that rule alone stacks a Ruby into an Emerald and silently converts it.
+//
+// For these two families the base-item INDEX is the whole identity, which is the same rule
+// socketing already uses. This pins it in both directions.
+TEST(OracoolCrafting, MaterialsStackOnlyWithTheirOwnKind)
+{
+	devilution::Item el {};
+	InitializeItem(el, IDI_ORACOOL_RUNE_EL);
+	devilution::Item el2 {};
+	InitializeItem(el2, IDI_ORACOOL_RUNE_EL);
+	devilution::Item tir {};
+	InitializeItem(tir, IDI_ORACOOL_RUNE_TIR);
+
+	EXPECT_TRUE(el.canStackWith(el2)) << "two El runes refused to stack with each other";
+	EXPECT_FALSE(el.canStackWith(tir)) << "an El stacked with a Tir - the index is the identity";
+	EXPECT_FALSE(tir.canStackWith(el)) << "the refusal must hold in both directions";
+
+	// The same across families: a gem must never merge into a rune pile, and vice versa.
+	devilution::Item gem {};
+	InitializeItem(gem, static_cast<_item_indexes>(oracool::GemIndexFor(oracool::GemType::Ruby, oracool::GemQuality::Chipped)));
+	devilution::Item otherGem {};
+	InitializeItem(otherGem, static_cast<_item_indexes>(oracool::GemIndexFor(oracool::GemType::Emerald, oracool::GemQuality::Chipped)));
+	devilution::Item sameGem {};
+	InitializeItem(sameGem, static_cast<_item_indexes>(oracool::GemIndexFor(oracool::GemType::Ruby, oracool::GemQuality::Chipped)));
+
+	EXPECT_TRUE(gem.canStackWith(sameGem)) << "two chipped Rubies refused to stack";
+	EXPECT_FALSE(gem.canStackWith(otherGem)) << "a Ruby stacked with an Emerald";
+	EXPECT_FALSE(gem.canStackWith(el)) << "a gem stacked with a rune";
+
+	// A different QUALITY of the same gem is a different item too - the ladder depends on it.
+	devilution::Item flawlessRuby {};
+	InitializeItem(flawlessRuby, static_cast<_item_indexes>(oracool::GemIndexFor(oracool::GemType::Ruby, oracool::GemQuality::Flawless)));
+	EXPECT_FALSE(gem.canStackWith(flawlessRuby)) << "two qualities of one gem merged into one stack";
+}
+
 TEST(OracoolCrafting, MixedGemsDoNotSatisfyThreeOfAKind)
 {
 	Players.resize(1);
