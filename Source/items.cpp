@@ -6110,6 +6110,11 @@ StringOrView Item::getName() const
 	if (isEmpty()) {
 		return string_view("");
 	} else if (!_iIdentified || _iCreateInfo == 0 || _iMagical == ITEM_QUALITY_NORMAL) {
+		// Phase 1 audit fix (2026-08-16): a completed runeword writes its name into _iIName, but
+		// this branch returns the BASE name for NORMAL quality - the one quality runewords form
+		// on, so "Steel" showed as "Short Sword" everywhere. The word's name wins.
+		if (_iMagical == ITEM_QUALITY_NORMAL && oracool::GetActiveRuneword(*this) != nullptr)
+			return string_view(_iIName);
 		return GetTranslatedItemName(*this);
 	} else if (_iMagical == ITEM_QUALITY_UNIQUE) {
 		return _(UniqueItems[_iUid].UIName);

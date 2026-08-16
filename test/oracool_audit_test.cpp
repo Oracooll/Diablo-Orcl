@@ -36,6 +36,7 @@
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/telemetry.h"
+#include "oracool/xp_counter.h"
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
@@ -896,4 +897,31 @@ TEST(OracoolFindStats, GoldFindScalesDroppedGold)
 	plain._ivalue = 100;
 	ApplyMagicAndGoldFindToDrop(plain, 5);
 	EXPECT_EQ(plain._ivalue, 100);
+}
+
+// 2026-08-16 audit findings, pinned so they stay fixed.
+TEST(OracoolAudit2, RunewordNameActuallyDisplays)
+{
+	devilution::Item sword {};
+	sword._itype = ItemType::Sword;
+	sword.IDidx = IDI_SORCERER; // any valid idx; the name path reads _iIName for a completed word
+	sword._iMagical = ITEM_QUALITY_NORMAL;
+	sword._iSocketCount = 2;
+	sword._iSocketed[0] = IDI_ORACOOL_RUNE_TIR;
+	sword._iSocketed[1] = IDI_ORACOOL_RUNE_EL;
+	ASSERT_TRUE(oracool::TryCompleteRuneword(sword));
+
+	const std::string displayed { std::string(sword.getName()) };
+	EXPECT_EQ(displayed, "Steel") << "the runeword rename is invisible again - getName's NORMAL branch";
+}
+
+TEST(OracoolAudit2, LevelSpanIsSafeAtTheCap)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pLevel = static_cast<int8_t>(MaxCharacterLevel);
+	EXPECT_EQ(oracool::GetLevelExperienceSpan(player), 1u) << "the cap read past ExpLvlsTbl";
+	player._pLevel = 0;
+	EXPECT_EQ(oracool::GetLevelExperienceSpan(player), 1u);
 }

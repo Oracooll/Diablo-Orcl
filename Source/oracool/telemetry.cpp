@@ -119,6 +119,11 @@ void TelemetryRecordKill(const Monster &monster)
 	if (id < MaxMonsters && FirstHitAtMs[id] != 0) {
 		timeToKillMs = SDL_GetTicks() - FirstHitAtMs[id];
 		FirstHitAtMs[id] = 0;
+		// Audit fix (2026-08-16): monster slots recycle across levels, and a monster that was HIT
+		// but never killed leaves its clock running - the next kill in that slot would then log a
+		// nonsense hours-long TTK. Anything over ten minutes is a stale clock, not a fight.
+		if (timeToKillMs > 10U * 60U * 1000U)
+			timeToKillMs = 0;
 	}
 	AppendRow("kill", GetMonsterDisplayName(monster),
 	    static_cast<int>(monster.level(sgGameInitInfo.nDifficulty)), static_cast<int>(timeToKillMs));

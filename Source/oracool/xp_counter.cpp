@@ -108,6 +108,12 @@ Rectangle GetXpCounterDrawRect()
 
 uint64_t GetLevelExperienceSpan(const Player &player)
 {
+	// Audit fix (2026-08-16): the XP counter always guarded max level before asking, but the gain
+	// blinker (its Phase-0-era new caller) did not - at the level cap this indexed one past the
+	// end of ExpLvlsTbl. The bounds live HERE now, the single authority, so no caller can repeat
+	// the mistake: at or past the cap there is no "next level" and the span is a harmless 1.
+	if (player._pLevel < 1 || player._pLevel >= static_cast<int>(MaxCharacterLevel))
+		return 1;
 	const uint64_t levelStart = ExpLvlsTbl[player._pLevel - 1];
 	const uint64_t levelEnd = ExpLvlsTbl[player._pLevel];
 	return (levelEnd > levelStart) ? (levelEnd - levelStart) : 1; // guard against a zero divisor
