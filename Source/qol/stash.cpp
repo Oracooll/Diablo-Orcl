@@ -136,16 +136,17 @@ constexpr int StashGridBottom = StashGridTop + StashGridRows * StashCellPx;
 /**
  * @brief The health orb's top edge - what the grid's height is actually limited by.
  *
- * Not the 660 that stood here, which was the central HUD PLATE's top. The plate is not the thing the
- * stash meets: the health orb sits to the plate's left (oracool::GetHealthOrbRect), is 96px tall
- * against the plate's shorter body, and therefore reaches higher - and the stash panel is at the
- * screen's top-left, so the orb is its actual neighbour. The assert passed while the user was
+ * Not the 660 that once stood here, which was the central HUD PLATE's top. The plate is not the
+ * thing the stash meets: the health orb sits to the plate's left (oracool::GetHealthOrbRect), is
+ * 96px tall against the plate's shorter body, and therefore reaches higher - and the stash panel is
+ * at the screen's top-left, so the orb is its actual neighbour. The assert passed while the user was
  * looking at a row drawn underneath a sphere.
  *
- * 720 - HealthOrbScreenSize.height. Hardcoded like the 660 before it, because a static_assert cannot
- * call GetHealthOrbRect(); safe because every resolution this project targets is 720 tall.
+ * Now the shared oracool::SidePanelContentBottom: the character sheet and quest log turned out to
+ * have exactly the same neighbour and exactly the same bug (user, 2026-08-16), so the line they all
+ * measure against belongs in one place rather than three.
  */
-constexpr int StashHealthOrbTop = 720 - 96;
+constexpr int StashHealthOrbTop = oracool::SidePanelContentBottom;
 
 // -1 because StashGridBottom is the row AFTER the last one: the grid's final pixel is
 // StashGridBottom - 1, and it is allowed to sit on the orb's first row. That single shared line is

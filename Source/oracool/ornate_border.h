@@ -43,6 +43,20 @@ constexpr int PanelTitleTop = 8;
 constexpr int PanelTitleHeight = 38;
 
 /**
+ * @brief Screen y below which an orb draws over a side panel. Content must end above this.
+ *
+ * NOT the panel's own height minus a margin, which is what the character sheet and quest log used
+ * and why their last rows rendered underneath the health orb (user, 2026-08-16). The orbs are
+ * anchored to the screen's bottom corners and sit OVER the panels, so a 720-tall window's usable
+ * area stops where the orb starts, not where the window does.
+ *
+ * 720 - HealthOrbScreenSize.height. Hardcoded rather than derived because a static_assert cannot
+ * call GetHealthOrbRect(); safe because every resolution this project targets is 720 tall. The
+ * stash and the inventory grid already measured against this line - it just had no shared name.
+ */
+constexpr int SidePanelContentBottom = 720 - 96;
+
+/**
  * @brief Frames @p rect from OUTSIDE it, so the bevel costs the content nothing.
  *
  * DrawOrnateBorder draws its three rings inside the rect it is given, which is right for a window

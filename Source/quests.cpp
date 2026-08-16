@@ -132,10 +132,16 @@ constexpr int QuestListTop = QuestPanelMargin + QuestLabelHeight + oracool::Orna
  * DrawQuestLog puts the rows, and what QuestLogMouseToEntry hit-tests. They were already tied
  * together through the old 280x300 inner rect; re-basing it is what moves the whole log.
  */
+// Ends at the health orb's top edge, not at the panel's own height minus a margin. The orb is
+// anchored to the screen's bottom-left corner and draws OVER this panel, so the last quest used to
+// render underneath it (user, 2026-08-16: "move it up so the last Diablo quest lands above the
+// line"). StartQuestlog derives its line spacing from this rect's height and centres the list in
+// it, so shortening the rect is the whole fix - every entry tightens up and rises together.
 constexpr Rectangle InnerPanel { { QuestPanelMargin, QuestListTop },
-	{ QuestPanelSize.width - 2 * QuestPanelMargin, QuestPanelSize.height - QuestListTop - QuestPanelMargin } };
-static_assert(InnerPanel.position.y + InnerPanel.size.height + QuestPanelMargin == QuestPanelSize.height,
-    "Quest log list no longer spans QuestListTop..height-margin");
+	{ QuestPanelSize.width - 2 * QuestPanelMargin, oracool::SidePanelContentBottom - QuestListTop } };
+static_assert(InnerPanel.position.y + InnerPanel.size.height == oracool::SidePanelContentBottom,
+    "Quest log list no longer ends at the orb clearance line");
+static_assert(InnerPanel.size.height > 0, "Quest log list has no room left");
 
 constexpr int LineHeight = 12;
 constexpr int MaxSpacing = LineHeight * 2;

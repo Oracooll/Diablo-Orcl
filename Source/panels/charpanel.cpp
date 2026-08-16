@@ -301,7 +301,7 @@ const CharRow CharRows[] = {
 	    0, CharRowExtra::StatVitality },
 	// Directly under Vitality, with no gap: the points belong to the attribute block they are
 	// spent on, and RESET lines up under the Base column the + buttons feed.
-	{ N_("Points to distribute"),
+	{ N_("Level-up Points"),
 	    []() {
 	        InspectPlayer->_pStatPts = std::min(CalcStatDiff(*InspectPlayer), InspectPlayer->_pStatPts);
 	        return StyledText { UiFlags::ColorRed, (InspectPlayer->_pStatPts > 0 ? StrCat(InspectPlayer->_pStatPts) : "") };
@@ -462,7 +462,12 @@ constexpr Size CharPanelSize { 340, 720 };
 constexpr int CharPanelMargin = 24;
 constexpr int CharLabelHeight = 50;
 constexpr int CharContentTop = CharPanelMargin + CharLabelHeight + oracool::OrnateBorderWidth + CharPanelMargin;
-constexpr Size CharContentSize { CharPanelSize.width, CharPanelSize.height - CharContentTop - CharPanelMargin };
+// Ends at the health orb's top edge rather than at the panel's height minus a margin: the orb is
+// anchored to the screen's bottom-left corner and draws OVER this panel, so the Life and Mana rows
+// were rendering underneath it (user, 2026-08-16). The scrolling viewport is built from this size,
+// so capping it here is what keeps the content inside the visible area.
+constexpr Size CharContentSize { CharPanelSize.width, oracool::SidePanelContentBottom - CharContentTop };
+static_assert(CharContentSize.height > 0, "Character sheet has no content room left");
 
 /** @brief Left edge of the label column - flush to the panel edge, clear of its 3px bevel. */
 constexpr int CharLabelColumnX = oracool::OrnateBorderWidth + 3;
@@ -484,9 +489,10 @@ constexpr int CharColumnDividerX = CharPanelSize.width / 2;
  * is edited. Per user instruction, stability wins - the columns are a property of the window, not
  * of the data in it, and here they are a property of its centre line.
  *
- * The result (161px) clears the longest English label ("Points to distribute", 139px) with room to
- * spare. EnsureLayout asserts nothing exceeds it, so a longer label added later fails loudly in
- * the Debug build rather than silently clipping.
+ * The result (161px) clears every English label with room to spare - the longest was "Points to
+ * distribute" at 139px until it was renamed "Level-up Points" (user, 2026-08-16), which only widens
+ * the margin. EnsureLayout asserts nothing exceeds the column, so a longer label added later fails
+ * loudly in the Debug build rather than silently clipping.
  */
 constexpr int CharLabelColumnWidth = CharColumnDividerX - CharLabelValueGap / 2 - CharLabelColumnX;
 /** @brief Width of each value column. Four digits plus a sign or percent sign. */
@@ -693,7 +699,7 @@ void DrawStatButtons(const Surface &content)
 	}
 
 	if (*sgOptions.Oracool.resetStatsButton && !gbIsMultiplayer && !IsInspectingPlayer()) {
-		// Sits on the "Points to distribute" row, under the Base column the + buttons feed, so it
+		// Sits on the "Level-up Points" row, under the Base column the + buttons feed, so it
 		// reads as "reset the points shown right here" rather than a disconnected button elsewhere
 		// on the panel. The same ResetButtonPosition drives control.cpp's press/release
 		// hit-testing through GetResetStatsButtonPosition() - never a fresh literal.
