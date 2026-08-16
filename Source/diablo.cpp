@@ -64,6 +64,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_layout.h"
+#include "oracool/crafting_menu.h"
 #include "oracool/hud_menu.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/inventory_layout.h"
@@ -470,6 +471,9 @@ void LeftMouseDown(uint16_t modState)
 				case LeftPanelContent::WaypointMenu:
 					oracool::CheckWaypointMenuClick(MousePosition);
 					break;
+				case LeftPanelContent::Crafting:
+					oracool::CheckCraftingMenuClick(MousePosition);
+					break;
 				case LeftPanelContent::None:
 					break;
 				}
@@ -713,6 +717,7 @@ void ClosePanels()
 	sbookflag = false;
 	QuestLogIsOpen = false;
 	oracool::CloseWaypointMenu();
+	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
 }
 

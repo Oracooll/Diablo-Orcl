@@ -25,6 +25,7 @@
 #include "multi.h"
 #include "oracool/charms.h"
 #include "oracool/class_skills.h"
+#include "oracool/crafting.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/gems.h"
 #include "oracool/hero_chunks.h"
@@ -924,4 +925,69 @@ TEST(OracoolAudit2, LevelSpanIsSafeAtTheCap)
 	EXPECT_EQ(oracool::GetLevelExperienceSpan(player), 1u) << "the cap read past ExpLvlsTbl";
 	player._pLevel = 0;
 	EXPECT_EQ(oracool::GetLevelExperienceSpan(player), 1u);
+}
+
+// Phase 1 crafting: the recipe engine's three contracts - materials found by KIND, no partial
+// consumes, and the ladder ascending exactly one rung.
+TEST(OracoolCrafting, AscendRunesConsumesPairAndProducesNextRung)
+{
+	// The crafted player is deliberately NOT MyPlayer: the engine's placement/removal helpers
+	// send network messages for the local player, and those layers are not spun up headlessly.
+	// The crafting logic itself is player-agnostic, which is exactly what this proves.
+	Players.resize(2);
+	MyPlayer = &Players[1];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+
+	for (int i = 0; i < 2; i++) {
+		player.InvList[i] = {};
+		InitializeItem(player.InvList[i], IDI_ORACOOL_RUNE_EL);
+		player.InvList[i]._itype = ItemType::Misc;
+	}
+	player._pNumInv = 2;
+	// Give the grid a real free cell for the output.
+	for (int8_t &cell : player.InvGrid)
+		cell = 0;
+	player.InvGrid[0] = 1;
+	player.InvGrid[1] = 2;
+
+	ASSERT_TRUE(oracool::CanCraft(player, 1));
+	const std::string crafted = oracool::Craft(player, 1);
+	EXPECT_FALSE(crafted.empty());
+
+	int tirCount = 0;
+	int elCount = 0;
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_TIR)
+			tirCount++;
+		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_EL)
+			elCount++;
+	}
+	EXPECT_EQ(tirCount, 1) << "two El runes should have become one Tir";
+	EXPECT_EQ(elCount, 0) << "the consumed pair survived";
+}
+
+TEST(OracoolCrafting, MixedGemsDoNotSatisfyThreeOfAKind)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	const int gems[3] = { IDI_ORACOOL_GEM_RUBY, IDI_ORACOOL_GEM_SAPPHIRE, IDI_ORACOOL_GEM_TOPAZ };
+	for (int i = 0; i < 3; i++) {
+		player.InvList[i] = {};
+		player.InvList[i]._itype = ItemType::Misc;
+		player.InvList[i].IDidx = static_cast<_item_indexes>(gems[i]);
+	}
+	player._pNumInv = 3;
+	EXPECT_FALSE(oracool::CanCraft(player, 0)) << "three DIFFERENT gems satisfied 'three of one kind'";
+
+	player.InvList[1].IDidx = IDI_ORACOOL_GEM_RUBY;
+	player.InvList[2].IDidx = IDI_ORACOOL_GEM_RUBY;
+	EXPECT_TRUE(oracool::CanCraft(player, 0));
+	// Sol pairs must never ascend - there is nothing above Sol.
+	player.InvList[0].IDidx = IDI_ORACOOL_RUNE_SOL;
+	player.InvList[1].IDidx = IDI_ORACOOL_RUNE_SOL;
+	player._pNumInv = 2;
+	EXPECT_FALSE(oracool::CanCraft(player, 1)) << "a Sol pair offered an ascension past the ladder's top";
 }

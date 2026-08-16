@@ -78,6 +78,8 @@ enum class LeftPanelContent : uint8_t {
 	QuestLog,
 	Stash,
 	WaypointMenu,
+	/** Phase 1: the crafting recipe window (oracool/crafting_menu.h). */
+	Crafting,
 };
 LeftPanelContent GetLeftPanelContent();
 

@@ -20,9 +20,11 @@
 #include "levels/gendung.h"
 #include "minitext.h"
 #include "msg.h"
+#include "oracool/crafting_menu.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
+#include "oracool/waypoint_menu.h"
 #include "oracool/oracool.h"
 #include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
@@ -86,13 +88,23 @@ bool IsInventoryOpen() { return invflag; }
 bool IsSpellbookOpen() { return sbookflag; }
 bool IsLogOpen() { return IsEventLogOpen(); }
 
-// Oracool: placeholder for the Skills system. Present in the menu now so the entry's slot (and,
-// once the icon row replaces this list, its icon) is reserved and familiar before the feature
-// itself exists.
-void DoSkillBook()
+// Oracool: Megaplan Phase 1 - the reserved "Skill Book" slot becomes the Crafting window (the
+// book icon reads perfectly as a recipe book). Mirrors DoQuests' close-the-siblings pattern so
+// the left panel slot swaps cleanly rather than stacking.
+void DoCrafting()
 {
-	InitDiabloMsg(_("The Skill Book is not available yet."));
+	if (IsCraftingMenuOpen()) {
+		CloseCraftingMenu();
+		return;
+	}
+	CloseCharPanel();
+	QuestLogIsOpen = false;
+	CloseGoldWithdraw();
+	CloseStash();
+	CloseWaypointMenu();
+	OpenCraftingMenu();
 }
+bool IsCraftingOpen() { return IsCraftingMenuOpen(); }
 
 // Oracool: order must match the rows of assets/ui/menu_icons.png exactly - the sprite sheet was
 // packed in this order (see scratchpad IconPack.cs). Chat and Friendly Fire were dropped from the
@@ -104,7 +116,7 @@ constexpr std::array<HudMenuEntry, MenuIconCount> MenuEntries { {
     { "Game Menu", DoGameMenu, nullptr },
     { "Inventory", DoInventory, IsInventoryOpen },
     { "Spellbook", DoSpellbook, IsSpellbookOpen },
-    { "Skill Book", DoSkillBook, nullptr },
+    { "Crafting", DoCrafting, IsCraftingOpen },
     // Replaces the standalone "LOG" button that used to sit under the mini-map (event_log.cpp).
     { "Event Log", DoEventLog, IsLogOpen },
     // Oracool: user request (2026-08-11) - the three mini-map entries (Recenter, Zoom In, Zoom

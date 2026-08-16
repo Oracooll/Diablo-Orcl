@@ -43,6 +43,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/crafting_menu.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "panels/charpanel.hpp"
@@ -134,6 +135,8 @@ LeftPanelContent GetLeftPanelContent()
 		return LeftPanelContent::Stash;
 	if (oracool::IsWaypointMenuOpen())
 		return LeftPanelContent::WaypointMenu;
+	if (oracool::IsCraftingMenuOpen())
+		return LeftPanelContent::Crafting;
 	return LeftPanelContent::None;
 }
 Rectangle GetLeftPanelContentRect()
@@ -156,6 +159,8 @@ Rectangle GetLeftPanelContentRect()
 		return oracool::GetWaypointMenuRect();
 	case LeftPanelContent::Stash:
 		return GetStashPanelRect();
+	case LeftPanelContent::Crafting:
+		return oracool::GetCraftingMenuRect();
 	case LeftPanelContent::None:
 		break;
 	}

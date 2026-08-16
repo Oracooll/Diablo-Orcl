@@ -43,6 +43,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
 #include "oracool/save_indicator.h"
+#include "oracool/crafting_menu.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "oracool/xp_gain_indicator.h"
@@ -1458,6 +1459,9 @@ void DrawView(const Surface &out, Point startPosition)
 		break;
 	case LeftPanelContent::WaypointMenu:
 		oracool::DrawWaypointMenu(out);
+		break;
+	case LeftPanelContent::Crafting:
+		oracool::DrawCraftingMenu(out);
 		break;
 	case LeftPanelContent::None:
 		break;
