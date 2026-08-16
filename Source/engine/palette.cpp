@@ -16,7 +16,9 @@
 #include "engine/load_file.hpp"
 #include "engine/random.hpp"
 #include "hwcursor.hpp"
+#include "levels/gendung.h"
 #include "options.h"
+#include "oracool/zone_registry.h"
 #include "utils/display.h"
 #include "utils/sdl_compat.h"
 
@@ -265,6 +267,14 @@ void LoadRndLvlPal(dungeon_type l)
 	}
 
 	int rv = GenerateRnd(4) + 1;
+	// Oracool: Megaplan Phase 0.7 - the recolor-zone seam. A zone row may name its own palette
+	// (built by tools/PaletteVariant.ps1), replacing the type's normal selection - which is
+	// exactly how Hellfire's Crypt is a recolored Cathedral, made data. Checked AFTER the roll
+	// above so the deterministic stream advances identically whether or not an override exists.
+	if (const char *overridePalette = oracool::GetZonePaletteOverride(currlevel); overridePalette != nullptr) {
+		LoadPalette(overridePalette);
+		return;
+	}
 	if (l == DTYPE_CRYPT) {
 		LoadPalette("nlevels\\l5data\\l5base.pal");
 		return;

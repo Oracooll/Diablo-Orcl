@@ -244,4 +244,10 @@ void DrawBurgerMenuButton(const Surface &out, int state);
  */
 void DrawLevelUpIconArt(const Surface &out, int state);
 
+/**
+ * @brief Phase 0.8's art hot-reload: drops every cached PNG asset so the next draw re-reads it
+ * from disk. Wired to the `reloadassets` debug command - edit a PNG, reload, see it in seconds.
+ */
+void ResetHudArtCaches();
+
 } // namespace devilution::oracool

@@ -909,6 +909,42 @@ void ApplyPlateTint(SkillPlateTint tint)
 	}
 }
 
+void ResetHudArtCaches()
+{
+	// Phase 0.8: the art-iteration hot-reload. Every cached PNG asset is dropped back to its
+	// never-loaded state; the next draw call re-reads the file from disk and re-quantizes against
+	// the palette, exactly as on first use. Editing a PNG and pressing the reload debug command
+	// shows the change in seconds instead of restart-per-tweak.
+	const auto reset = [](ArtAsset &asset) {
+		asset.rgba.clear();
+		asset.width = 0;
+		asset.height = 0;
+		asset.loadAttempted = false;
+		asset.bright.reset();
+		asset.frame.reset();
+		asset.sphereDim.reset();
+		asset.outline.reset();
+	};
+	reset(PlateArt);
+	reset(HealthOrbArt);
+	reset(ManaOrbArt);
+	reset(MenuIconsArt);
+	reset(InventoryPanelArt);
+	reset(InventoryTabsArt);
+	reset(InventorySortArt);
+	reset(TownPortalIconArt);
+	reset(BurgerMenuButtonArt);
+	reset(LevelUpIconArt);
+	reset(WaypointPanelArt);
+	reset(WaypointIconsArt);
+	reset(AuraIconsArt);
+	reset(BarbSkillIconsArt);
+	reset(PaladinSkillIconsArt);
+	reset(AttackIconsArt);
+	for (ArtAsset &silhouette : SilhouetteArt)
+		reset(silhouette);
+}
+
 void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
 {
 	const Size plate = GetSmallSpellIconSize();

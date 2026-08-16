@@ -33,7 +33,17 @@ struct ZoneDefinition {
 	dungeon_type levelType;
 	/** @brief Untranslated display name; callers wrap in _() where it reaches the screen. */
 	const char *name;
+	/**
+	 * @brief Optional .pal path replacing the level type's normal palette roll - the recolor-zone
+	 * mechanism (Phase 4.1: Hellfire's own Crypt-is-recolored-Cathedral trick). nullptr = the
+	 * vanilla per-type palette selection in LoadRndLvlPal. Variant palettes are produced by
+	 * tools/PaletteVariant.ps1.
+	 */
+	const char *paletteOverride;
 };
+
+/** @brief The palette override for @p level's zone, or nullptr when the vanilla roll applies. */
+const char *GetZonePaletteOverride(int level);
 
 /** @brief The zone containing @p level, or nullptr for a level no zone claims. */
 const ZoneDefinition *FindZoneForLevel(int level);

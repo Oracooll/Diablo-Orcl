@@ -22,16 +22,21 @@
 #include "inv.h"
 #include "levels/setmaps.h"
 #include "lighting.h"
+#include "levels/gendung.h"
 #include "monstdat.h"
 #include "monster.h"
+#include "oracool/hud_art.h"
 #include "oracool/waypoint_menu.h"
 #include "pack.h"
 #include "plrmsg.h"
 #include "quests.h"
 #include "spells.h"
 #include "towners.h"
+#include <fmt/format.h>
+
 #include "utils/endian_stream.hpp"
 #include "utils/file_util.h"
+#include "utils/paths.h"
 #include "utils/language.h"
 #include "utils/log.hpp"
 #include "utils/str_case.hpp"
@@ -674,6 +679,40 @@ std::string DebugCmdGivePrimalSet(const string_view parameter)
 	return DebugSpawnEquipmentSet(OracoolItemTier::Primal, /*magical=*/true, parameter);
 }
 
+// Oracool: Megaplan Phase 0.8 - the tile-matrix export half of the zone iteration loop. The
+// engine dumps WHAT the generator laid out (dPiece indices); the offline tileset tools composite
+// HOW it looks. Together they let a generated zone be inspected without anyone launching a client.
+std::string DebugCmdDumpDungeon(const string_view parameter)
+{
+	const std::string path = paths::PrefPath() + fmt::format("dungeon_dump_l{:02d}.csv", currlevel);
+	FILE *file = std::fopen(path.c_str(), "wb");
+	if (file == nullptr)
+		return "Could not open the dump file.";
+	const std::string header = fmt::format("# level {:d} type {:d} size {:d}x{:d}\n",
+	    currlevel, static_cast<int>(leveltype), MAXDUNX, MAXDUNY);
+	std::fwrite(header.data(), header.size(), 1, file);
+	for (int y = 0; y < MAXDUNY; y++) {
+		std::string row;
+		for (int x = 0; x < MAXDUNX; x++) {
+			if (x > 0)
+				row += ',';
+			row += fmt::format("{:d}", dPiece[x][y]);
+		}
+		row += '\n';
+		std::fwrite(row.data(), row.size(), 1, file);
+	}
+	std::fclose(file);
+	return fmt::format("Dumped to dungeon_dump_l{:02d}.csv", currlevel);
+}
+
+// Oracool: Megaplan Phase 0.8 - the other half of the art iteration loop: edit a ui\*.png, run
+// this, see the change. See oracool::ResetHudArtCaches.
+std::string DebugCmdReloadAssets(const string_view parameter)
+{
+	oracool::ResetHudArtCaches();
+	return "HUD art caches dropped - every ui\\*.png reloads on its next draw.";
+}
+
 std::string DebugCmdExit(const string_view parameter)
 {
 	gbRunGame = false;
@@ -1187,6 +1226,8 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "givepset", "Drops a Primal item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGivePrimalSet },
 	{ "talkto", "Interacts with a NPC whose name contains {name}.", "{name}", &DebugCmdTalkToTowner },
 	{ "exit", "Exits the game.", "", &DebugCmdExit },
+	{ "dumpdungeon", "Writes the current level's tile matrix to a CSV beside the saves.", "", &DebugCmdDumpDungeon },
+	{ "reloadassets", "Drops cached ui\\*.png art so edits show without restarting.", "", &DebugCmdReloadAssets },
 	{ "arrow", "Changes arrow effect (normal, fire, lightning, explosion).", "{effect}", &DebugCmdArrow },
 	{ "grid", "Toggles showing grid.", "", &DebugCmdShowGrid },
 	{ "hideui", "Toggles hiding the main HUD (panel, orbs, belt, buttons, XP bar) for clean screenshots.", "", &DebugCmdHideUi },
