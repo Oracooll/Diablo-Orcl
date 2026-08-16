@@ -213,12 +213,41 @@ enum class ClassTreeSkill : uint8_t {
 	LightningStrike,
 	LightningFury,
 	ROGUE_LAST = LightningFury,
-	LAST = LightningFury,
+
+	// ---------------- Bard: Melody ----------------
+	// Seven per page rather than ten: the Bard's sheet is the user's own design, not Diablo II's,
+	// and it names seven songs per discipline. Everything else about the tree is unchanged.
+	MelodyOfLife,
+	BARD_FIRST = MelodyOfLife,
+	BattleHymn,
+	SongOfSwiftness,
+	SongOfFortitude,
+	DirgeOfDread,
+	Lullaby,
+	EpicSolo,
+	// ---------------- Bard: Harmony ----------------
+	SoundShock,
+	BardShout,
+	SonicBarrier,
+	Discord,
+	Resonance,
+	EchoingSong,
+	PerfectHarmony,
+	// ---------------- Bard: Poetry ----------------
+	Daze,
+	Charm,
+	Inspiration,
+	TaleOfHeroes,
+	Weaken,
+	OdeToGlory,
+	LegendaryBallad,
+	BARD_LAST = LegendaryBallad,
+	LAST = LegendaryBallad,
 
 	None = 0xFF,
 };
 
-constexpr size_t ClassTreeSkillCount = 119;
+constexpr size_t ClassTreeSkillCount = 140;
 /** @brief The most skills any one class has - the size of the per-character investment array. */
 constexpr size_t MaxSkillsPerClass = 30;
 /** @brief Points a single tree skill accepts, matching the spell-investment cap. */

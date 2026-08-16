@@ -24,7 +24,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File tools\CutClassTree.ps1 -Class barb
 # Run from the repository root.
 param(
-  [Parameter(Mandatory = $true)][ValidateSet("barb", "sorc", "rogue")][string]$Class,
+  [Parameter(Mandatory = $true)][ValidateSet("barb", "sorc", "rogue", "bard")][string]$Class,
   [int]$Icon = 56
 )
 $ErrorActionPreference = "Stop"
@@ -54,6 +54,23 @@ $sheets = @{
       "92 246 : 20-152 179-296 316-446 478-577 600-733 751-866 896-1016 1040-1154 1165-1274 1303-1429",
       "459 607 : 26-147 170-301 310-412 437-552 587-703 704-869 888-989 1021-1144 1154-1276 1295-1430",
       "795 942 : 27-166 180-300 320-439 456-583 597-709 738-860 869-991 1004-1142 1166-1265 1295-1429"
+    )
+  }
+  # The Bard's sheet is laid out differently from the other four: its icon strip sits in THREE
+  # green panels (one per page) each holding two rows - four icons then three - and every icon has
+  # its name printed underneath IN the same white as the icon, so no colour test separates them.
+  # The rows below are the two emblem bands only, read off a vertical ink profile; the label bands
+  # fall in the gaps between them and are excluded by construction. Six band lines rather than
+  # three, ordered Melody 1-7, Harmony 1-7, Poetry 1-7, which is the enum's order.
+  "bard"  = @{
+    File  = "Bard Skill Trees.png"
+    Bands = @(
+      "707 803 : 37-112 146-247 277-368 403-487",
+      "868 969 : 48-127 187-270 327-423",
+      "707 803 : 530-627 653-748 779-871 909-989",
+      "868 969 : 563-642 695-787 831-924",
+      "707 803 : 1038-1122 1159-1239 1276-1364 1395-1502",
+      "868 969 : 1085-1164 1217-1310 1355-1465"
     )
   }
 }

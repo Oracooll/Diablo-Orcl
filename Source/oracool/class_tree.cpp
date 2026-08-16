@@ -25,6 +25,7 @@ constexpr HeroClass Pal = HeroClass::Warrior; // Oracool displays the Warrior as
 constexpr HeroClass Bar = HeroClass::Barbarian;
 constexpr HeroClass Sor = HeroClass::Sorcerer;
 constexpr HeroClass Rog = HeroClass::Rogue;
+constexpr HeroClass Bard = HeroClass::Bard;
 
 // Diablo II's own tier requirements. Six rows per page, and every skill sits on one of them.
 constexpr int TierLevels[] = { 1, 6, 12, 18, 24, 30 };
@@ -56,8 +57,11 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 2, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Blessed Hammer"), N_("Looses a spinning hammer that wheels outward through anything in its path."),
 	    Pal, 0, 3, 2, Kind::Active, SpellID::Invalid, true },
-	{ N_("Conversion"), N_("Turns an enemy to your side for a time. Not yet built: no charmed-monster state exists."),
-	    Pal, 0, 4, 1, Kind::Active, SpellID::Invalid, false },
+	// Corrected 2026-08-16: this row used to claim "no charmed-monster state exists", which was
+	// simply wrong - this engine's Berserk sets MFLAG_GOLEM on the target, making it fight for the
+	// player, which IS conversion. Found while wiring the Bard's Charm onto the same spell.
+	{ N_("Conversion"), N_("Turns an enemy to your side. Rides this engine's Berserk, which does exactly that."),
+	    Pal, 0, 4, 1, Kind::Active, SpellID::Berserk, true },
 	{ N_("Fist of the Heavens"), N_("Calls down a bolt from the sky, which bursts into holy energy where it lands."),
 	    Pal, 0, 5, 2, Kind::Active, SpellID::Invalid, true },
 	// --- Offensive Auras ---
@@ -205,6 +209,49 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Fend"), N_("Strikes every enemy around you in one motion. Not yet built."), Rog, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Lightning Strike"), N_("A thrust whose lightning leaps onward. Not yet built."), Rog, 2, 5, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Lightning Fury"), N_("A javelin that bursts into many bolts. Not yet built."), Rog, 2, 5, 1, Kind::Active, SpellID::Invalid, false },
+
+	// ======================= BARD =======================
+	// The user's own design rather than Diablo II's: seven songs per discipline, described on the
+	// sheet itself. The working songs are AURAS, which is both what they are - a bard plays one
+	// song at a time - and free: the one-at-a-time machinery the Paladin's auras use is already
+	// generic over ClassTreeSkill. Their descriptions say "and allies"; this is single-player, so
+	// in practice that means you.
+	// --- Melody ---
+	{ N_("Melody of Life"), N_("A song that mends your wounds as it plays."), Bard, 0, 0, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Battle Hymn"), N_("A song that sharpens your aim and your blow."), Bard, 0, 0, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Song of Swiftness"), N_("A song that quickens your strikes and your stride - you run rather than walk."),
+	    Bard, 0, 1, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Song of Fortitude"), N_("A song that hardens your guard and your wards."), Bard, 0, 1, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Dirge of Dread"), N_("Weakens enemies and sends them fleeing. Inert: it needs the monster-facing pass."),
+	    Bard, 0, 2, 0, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Lullaby"), N_("Puts enemies to sleep. Inert: this engine has no sleep state."), Bard, 0, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Epic Solo"), N_("Mastery that empowers every Melody song. Inert: there is no per-page channel here."),
+	    Bard, 0, 5, 1, Kind::Passive, SpellID::Invalid, false },
+	// --- Harmony ---
+	{ N_("Sound Shock"), N_("A burst of sonic force in front of you. Not yet built."), Bard, 1, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Shout"), N_("A shout that stuns. Inert: it needs the monster-facing pass."), Bard, 1, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Sonic Barrier"), N_("A barrier that drinks the damage meant for you. Points raise this engine's Mana Shield."),
+	    Bard, 1, 1, 0, Kind::Active, SpellID::ManaShield, true },
+	{ N_("Discord"), N_("Strips enemy defence. Inert: it needs the monster-facing pass."), Bard, 1, 1, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Resonance"), N_("Your blows amplify your next song. Inert: no such carry-over exists here."),
+	    Bard, 1, 2, 0, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Echoing Song"), N_("Your songs reach further and last longer. Inert: songs here have neither range nor duration."),
+	    Bard, 1, 2, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Perfect Harmony"), N_("Mastery that empowers every Harmony skill. Inert: there is no per-page channel here."),
+	    Bard, 1, 5, 1, Kind::Passive, SpellID::Invalid, false },
+	// --- Poetry ---
+	{ N_("Daze"), N_("Sets an enemy wandering and striking at random. Inert: it needs the monster-facing pass."),
+	    Bard, 2, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Charm"), N_("Turns a monster to your side. Rides this engine's Berserk, which does exactly that."),
+	    Bard, 2, 0, 1, Kind::Active, SpellID::Berserk, true },
+	{ N_("Inspiration"), N_("A verse that returns your mana as it plays."), Bard, 2, 1, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Tale of Heroes"), N_("A verse that lends you a hero's strength and grace."), Bard, 2, 1, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Weaken"), N_("Blunts enemy aim and slows their step. Inert: it needs the monster-facing pass."),
+	    Bard, 2, 2, 0, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Ode to Glory"), N_("Raises a fallen ally to fight on. Inert: it needs the corpse-handling pass."),
+	    Bard, 2, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Legendary Ballad"), N_("Mastery that empowers every Poetry skill. Inert: there is no per-page channel here."),
+	    Bard, 2, 5, 1, Kind::Passive, SpellID::Invalid, false },
 };
 
 /** @brief The first skill of @p heroClass's block, or None if the class has no tree. */
@@ -219,6 +266,8 @@ Skill FirstSkillOf(HeroClass heroClass)
 		return Skill::SORCERER_FIRST;
 	case HeroClass::Rogue:
 		return Skill::ROGUE_FIRST;
+	case HeroClass::Bard:
+		return Skill::BARD_FIRST;
 	default:
 		return Skill::None;
 	}
@@ -345,8 +394,29 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		totals.lightningResist += Scaled(p, 10, 3);
 		totals.magicResist += Scaled(p, 10, 3);
 		break;
+	// --- the Bard's songs. One plays at a time, which is what a bard does and what the aura
+	//     machinery already enforces.
+	case Skill::BattleHymn:
+		totals.bonusToHit += Scaled(p, 12, 6);
+		totals.bonusDamage += Scaled(p, 12, 6);
+		break;
+	case Skill::SongOfSwiftness:
+		// The stride half is the run frame skip - see IsClassTreeRunActive.
+		totals.flags |= ItemSpecialEffect::FastAttack;
+		break;
+	case Skill::SongOfFortitude:
+		totals.bonusArmor += Scaled(p, 20, 10);
+		totals.fireResist += Scaled(p, 8, 3);
+		totals.lightningResist += Scaled(p, 8, 3);
+		totals.magicResist += Scaled(p, 8, 3);
+		break;
+	case Skill::TaleOfHeroes:
+		totals.strength += Scaled(p, 4, 2);
+		totals.dexterity += Scaled(p, 4, 2);
+		break;
 	default:
-		// Prayer, Meditation and Vigor act elsewhere; the rest are inert - see their rows.
+		// Prayer, Meditation, Vigor, Melody of Life and Inspiration act elsewhere (the per-tick
+		// hook and the walk animation); the rest are inert - see their rows.
 		break;
 	}
 }
@@ -407,6 +477,10 @@ string_view GetClassTreePageName(HeroClass heroClass, int page)
 		if (page == 0)
 			return _("BOW & CROSSBOW");
 		return page == 1 ? _("PASSIVE & MAGIC") : _("JAVELIN & SPEAR");
+	case HeroClass::Bard:
+		if (page == 0)
+			return _("MELODY");
+		return page == 1 ? _("HARMONY") : _("POETRY");
 	default:
 		return {};
 	}
@@ -547,6 +621,11 @@ bool IsClassTreeRunActive(const Player &player)
 		return ClassTreeInvestment(player, Skill::IncreasedSpeed) > 0
 		    && IsClassTreeSkillUnlocked(player, Skill::IncreasedSpeed);
 	}
+	if (player._pClass == HeroClass::Bard) {
+		const Skill song = GetActiveClassAura(player);
+		return song == Skill::SongOfSwiftness && ClassTreeInvestment(player, song) > 0
+		    && IsClassTreeSkillUnlocked(player, song);
+	}
 	return false;
 }
 
@@ -560,13 +639,17 @@ void ProcessClassTreeTick(Player &player)
 	const Skill aura = GetActiveClassAura(player);
 	if (aura != Skill::None && IsClassTreeSkillUnlocked(player, aura)) {
 		const int p = ClassTreeInvestment(player, aura);
-		if (p > 0 && aura == Skill::Prayer && player._pHitPoints < player._pMaxHP) {
+		// Melody of Life and Inspiration are the Bard's counterparts of Prayer and Meditation -
+		// same channel, same trickle, so they share the branch rather than repeating it.
+		const bool healing = aura == Skill::Prayer || aura == Skill::MelodyOfLife;
+		const bool restoring = aura == Skill::Meditation || aura == Skill::Inspiration;
+		if (p > 0 && healing && player._pHitPoints < player._pMaxHP) {
 			const int heal = Scaled(p, 2, 2);
 			player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
 			player._pHPBase = std::min(player._pHPBase + heal, player._pMaxHPBase);
 			RedrawComponent(PanelDrawComponent::Health);
 		}
-		if (p > 0 && aura == Skill::Meditation && player._pMana < player._pMaxMana
+		if (p > 0 && restoring && player._pMana < player._pMaxMana
 		    && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
 			const int gain = Scaled(p, 2, 2);
 			player._pMana = std::min(player._pMana + gain, player._pMaxMana);

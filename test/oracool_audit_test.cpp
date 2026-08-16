@@ -912,13 +912,14 @@ devilution::Player &FreshPaladin(int unspent = 40)
 
 } // namespace
 
-// Now walks ALL FOUR class trees, not just the Paladin's - the generalization's own proof.
+// Walks EVERY class tree - the generalization's own proof, and the check that catches a class
+// added to the enum but forgotten in FirstSkillOf or the page builder.
 TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 {
 	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
 	size_t total = 0;
 	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Barbarian,
-	         HeroClass::Sorcerer, HeroClass::Rogue }) {
+	         HeroClass::Sorcerer, HeroClass::Rogue, HeroClass::Bard }) {
 	for (size_t p = 0; p < oracool::ClassTreePageCount; p++) {
 		const size_t count = oracool::BuildClassTreePage(heroClass, static_cast<int>(p), skills);
 		EXPECT_GT(count, 0u);
