@@ -38,6 +38,22 @@ the vanilla extraction.
 | `Sorc Skill Tree.png` | 08-16 10:56 | **NEW** → unit 4 |
 | `Rogue Skill Tree.png` | 08-16 11:02 | **NEW** → unit 5 |
 | `README.md` | 08-13 | vault documentation, not an asset |
+| `D1 to D2 Asset Acquiering Plan.png` | 08-16 10:35 | **Reference, not an asset** — see below |
+| `Bard Skill Trees.png` | 08-16 11:57 | **Done** — 21 songs, three disciplines (v1.7.17) |
+| `fonts-8-11.zip` + preview | 08-16 12:26 | **Done** — merged, not copied (v1.7.18) |
+| `monk-skill-tree-package.zip` | 08-16 12:56 | **Done** — 21 skills, seven tiers (v1.7.19) |
+
+### The one file that is not an asset
+
+`D1 to D2 Asset Acquiering Plan.png` is a **roadmap the user assembled**, not something to cut. It
+names eight categories of D2-style art worth making for a D1 mod, and ends with a "Best Next
+Priorities" strip: **jewels, charms, skill icons, expanded inventory + stash UI, waypoints and
+spell FX**.
+
+Four of those five are already shipped — charms in v1.7.0-1.7.2, skill icons across the six class
+trees, the expanded inventory and stash in the HUD overhaul, and the 25 waypoints in v1.5.0. The
+outstanding entries are **jewels** and **spell FX**. Recorded here so the strip is not re-read as
+new work later.
 
 All four new sheets are 1448×1086 green-screen, the same format as the Paladin tree — so the
 `tools/CutPaladinTree.ps1` approach (per-row y-bands to exclude the printed labels, green **spill
