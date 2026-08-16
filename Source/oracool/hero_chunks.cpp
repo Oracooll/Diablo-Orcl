@@ -110,6 +110,12 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		EndChunk(out, at);
 	}
 
+	{
+		const size_t at = BeginChunk(out, HeroChunkActiveAura);
+		out.push_back(player._pOracoolActiveAura);
+		EndChunk(out, at);
+	}
+
 	return out;
 }
 
@@ -148,6 +154,11 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			break;
 		case HeroChunkWaypoints64:
 			ApplyWaypoints64(player, payload, chunkLen);
+			break;
+		case HeroChunkActiveAura:
+			// First byte only; anything after it is Stage 2's per-aura levels, not written yet.
+			if (chunkLen >= 1)
+				player._pOracoolActiveAura = payload[0];
 			break;
 		default:
 			// An unknown tag is a chunk from a newer build - skipped, by design.

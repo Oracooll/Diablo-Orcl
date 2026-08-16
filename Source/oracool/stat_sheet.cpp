@@ -1,6 +1,7 @@
 #include "oracool/stat_sheet.h"
 
 #include "items.h"
+#include "oracool/auras.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
 #include "oracool/runewords.h"
@@ -131,11 +132,28 @@ void ApplyCharms(const BonusContext &ctx, ItemBonusTotals &totals)
 	    &totals);
 }
 
+/**
+ * @brief Source 5 (Phase 2 Stage 1): the Paladin's active aura. The condition re-checks the
+ * unlock, so an aura left active in a save cannot keep working on a character it no longer fits
+ * (it cannot happen through the UI, but state that outlives its rules must be re-validated).
+ */
+bool AuraIsRelevant(const BonusContext &ctx)
+{
+	const Aura aura = GetActiveAura(*ctx.owner);
+	return aura != Aura::None && IsAuraUnlocked(*ctx.owner, aura);
+}
+
+void ApplyAura(const BonusContext &ctx, ItemBonusTotals &totals)
+{
+	ApplyAuraToTotals(GetActiveAura(*ctx.owner), ctx.owner->_pLevel, totals);
+}
+
 constexpr BonusProvider Providers[] = {
 	{ "equipment", nullptr, ApplyEquipment },
 	{ "rage", RageIsRelevant, ApplyRage },
 	{ "sockets", nullptr, ApplySockets },
 	{ "charms", nullptr, ApplyCharms },
+	{ "aura", AuraIsRelevant, ApplyAura },
 };
 
 } // namespace

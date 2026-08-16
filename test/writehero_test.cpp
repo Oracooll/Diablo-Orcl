@@ -419,10 +419,12 @@ TEST(Writehero, pfile_write_hero)
 	//      state appends a chunk, old readers skip it, and ReadHero accepts >= the base size - so
 	//      pre-tail heroes still load and this hash should only ever move again if a chunk's
 	//      CONTENT changes deliberately.
+	//   6. Exactly that: Phase 2 Stage 1 appends the ActiveAura chunk (tag 4, one byte - the
+	//      Paladin's burning aura). Old readers skip the tag; pre-1.7.12 heroes load with no aura.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "71269c2e0528230c5dde05a81b1b18a0859489909c42a9327b170ba043f16f98");
+	    "6c6b4463a2967c413766e34567f26f7867978d261a1040ab7f812936e80468c3");
 }
 
 } // namespace

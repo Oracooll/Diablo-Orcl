@@ -56,6 +56,12 @@ enum HeroChunkTag : uint16_t {
 	 * the tag is claimed here so nothing else takes it.
 	 */
 	HeroChunkCompanion = 3,
+	/**
+	 * @brief Phase 2 Stage 1: the active aura, one u8 (the oracool::Aura enum byte, 0xFF = none).
+	 * Room is left in the payload for Stage 2's 24 per-aura levels to append later - the reader
+	 * takes the first byte and skips the rest, so that growth needs no new tag.
+	 */
+	HeroChunkActiveAura = 4,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

@@ -936,6 +936,9 @@ void DrawAuraRow(const Surface &content, size_t index, int top)
 	    oracool::IsAuraUnlocked(*InspectPlayer, aura), _(data.name),
 	    oracool::GetAuraTierName(data.tier), _(data.description),
 	    oracool::GetAuraTierMinLevel(data.tier));
+	// Phase 2 Stage 1: the burning aura holds the gold hover-style ring permanently on its row.
+	if (oracool::GetActiveAura(*InspectPlayer) == aura)
+		oracool::DrawHoverOutline(content, { { 0, top }, { AbilitiesContentRightLimit, DescribedRowHeight } });
 }
 
 /**
@@ -1429,10 +1432,23 @@ void CheckSBook(bool assignToRightButton)
 	// Phase 2.1: whether this click landed on the row's invest button rather than the row itself.
 	const bool investClick = InvestZoneClicked(MousePosition.x - content.position.x);
 
-	// Auras and Barbarian skills are listed and described but not yet selectable - the gameplay
-	// passes that give them effects have not been built. Clicking one deliberately does nothing
-	// rather than setting a state nothing reads. See the vault's aura implementation plan.
-	if (CurrentSheet == AbilitySheet::Auras || CurrentSheet == AbilitySheet::Barbarian)
+	// Phase 2 Stage 1: an aura row is a toggle - click to burn it, click again to put it out.
+	// One active at a time with no duration (the plan's one rule), so activating simply replaces.
+	// The recalculation is the whole of "make it take effect": the "aura" bonus provider reads
+	// _pOracoolActiveAura on the next totals walk.
+	if (CurrentSheet == AbilitySheet::Auras) {
+		const size_t index = static_cast<size_t>(y / RowHeightFor(CurrentSheet));
+		if (index < GetRowCount(CurrentSheet)
+		    && oracool::ToggleAura(*MyPlayer, oracool::GetAuraAtDisplayIndex(index))) {
+			CalcPlrInv(*MyPlayer, false);
+			RedrawEverything();
+		}
+		return;
+	}
+	// Barbarian skills are listed and described but not yet selectable - their gameplay pass has
+	// not been built. Clicking one deliberately does nothing rather than setting a state nothing
+	// reads.
+	if (CurrentSheet == AbilitySheet::Barbarian)
 		return;
 
 	SpellID sn = SpellID::Invalid;

@@ -15,6 +15,7 @@
 
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "engine/random.hpp"
 #include "engine/render/clx_render.hpp"
@@ -23,6 +24,7 @@
 #include "monstdat.h"
 #include "monster.h"
 #include "multi.h"
+#include "oracool/auras.h"
 #include "oracool/charms.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
@@ -815,6 +817,77 @@ TEST(OracoolGems, TirGrantsManaPerKillFromWornSockets)
 	sword._iStatFlag = true;
 	sword._iSocketed[1] = static_cast<uint16_t>(IDI_ORACOOL_RUNE_EL);
 	EXPECT_EQ(oracool::RuneManaPerKill(player), 2) << "only Tir carries mana per kill";
+}
+
+// Phase 2 Stage 1: aura activation and the fourteen accumulator-shaped effects.
+TEST(OracoolAuras, ToggleRespectsClassAndTierAndFlips)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player._pClass = HeroClass::Rogue;
+	player._pLevel = 30;
+	player._pOracoolActiveAura = 0xFF;
+
+	EXPECT_FALSE(oracool::ToggleAura(player, oracool::Aura::Might)) << "a Rogue lit an aura";
+
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 1;
+	EXPECT_FALSE(oracool::ToggleAura(player, oracool::Aura::Righteousness))
+	    << "a Champion-tier aura lit at level 1";
+
+	EXPECT_TRUE(oracool::ToggleAura(player, oracool::Aura::Might));
+	EXPECT_EQ(oracool::GetActiveAura(player), oracool::Aura::Might);
+	EXPECT_TRUE(oracool::ToggleAura(player, oracool::Aura::Defense)) << "activating replaces";
+	EXPECT_EQ(oracool::GetActiveAura(player), oracool::Aura::Defense);
+	EXPECT_TRUE(oracool::ToggleAura(player, oracool::Aura::Defense)) << "the second click clears";
+	EXPECT_EQ(oracool::GetActiveAura(player), oracool::Aura::None);
+}
+
+TEST(OracoolAuras, EffectsLandOnTheRightAccumulators)
+{
+	oracool::ItemBonusTotals might;
+	oracool::ApplyAuraToTotals(oracool::Aura::Might, 10, might);
+	EXPECT_EQ(might.bonusDamage, 30);
+	EXPECT_EQ(might.bonusArmor, 0);
+
+	oracool::ItemBonusTotals resistance;
+	oracool::ApplyAuraToTotals(oracool::Aura::Resistance, 20, resistance);
+	EXPECT_EQ(resistance.fireResist, 20);
+	EXPECT_EQ(resistance.lightningResist, 20);
+	EXPECT_EQ(resistance.magicResist, 20);
+
+	oracool::ItemBonusTotals endurance;
+	oracool::ApplyAuraToTotals(oracool::Aura::Endurance, 16, endurance);
+	EXPECT_EQ(endurance.vitality, 9);
+	EXPECT_EQ(endurance.getHit, -3) << "Endurance rides the beneficial-negative getHit channel";
+
+	oracool::ItemBonusTotals fanaticism;
+	oracool::ApplyAuraToTotals(oracool::Aura::Fanaticism, 10, fanaticism);
+	EXPECT_TRUE(HasAnyOf(fanaticism.flags, ItemSpecialEffect::FastAttack));
+
+	oracool::ItemBonusTotals none;
+	oracool::ApplyAuraToTotals(oracool::Aura::None, 50, none);
+	EXPECT_EQ(none.bonusDamage, 0);
+	EXPECT_EQ(none.bonusArmor, 0);
+	EXPECT_EQ(none.fireResist, 0);
+
+	// The stage-3+ auras must be completely silent until their mechanics exist.
+	oracool::ItemBonusTotals vigor;
+	oracool::ApplyAuraToTotals(oracool::Aura::Vigor, 50, vigor);
+	EXPECT_EQ(std::memcmp(&vigor, &none, sizeof(vigor)), 0) << "a later-stage aura leaked an effect";
+}
+
+TEST(OracoolAuras, ActiveAuraRoundTripsThroughTheChunkTail)
+{
+	Players.resize(2);
+	devilution::Player &writer = Players[0];
+	writer._pOracoolActiveAura = static_cast<uint8_t>(oracool::Aura::HolyFire);
+
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(writer);
+	devilution::Player &reader = Players[1];
+	reader._pOracoolActiveAura = 0xFF;
+	oracool::ApplyHeroChunks(reader, tail.data(), tail.size());
+	EXPECT_EQ(oracool::GetActiveAura(reader), oracool::Aura::HolyFire);
 }
 
 // Phase 2.1: skill points on level-up, feeding the existing ladders through GetSpellLevel.

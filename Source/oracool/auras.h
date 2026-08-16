@@ -109,6 +109,27 @@ inline int GetAuraIconIndex(Aura aura)
 	return static_cast<int>(aura);
 }
 
+// ---- Phase 2 Stage 1: activation and effects (see the vault's aura implementation plan) ----
+
+struct ItemBonusTotals;
+
+/** @brief The active aura, decoded from the Player's raw byte. None when nothing is on. */
+Aura GetActiveAura(const Player &player);
+
+/**
+ * @brief The click rule: activates @p aura, or clears it if it is already the active one.
+ * Refuses (returns false, changes nothing) for the wrong class or a locked tier. The caller owns
+ * the recalculation (CalcPlrInv) - the same split every other state-setter here uses.
+ */
+bool ToggleAura(Player &player, Aura aura);
+
+/**
+ * @brief Contributes @p aura's standing effects onto @p totals, scaled by character level (aura
+ * levels are Stage 2). The fourteen accumulator-shaped auras act; the rest are silent until their
+ * own stages (pulses, monster-facing, movement). Aura::None contributes nothing.
+ */
+void ApplyAuraToTotals(Aura aura, int characterLevel, ItemBonusTotals &totals);
+
 /**
  * @brief The aura at display position @p index, ordered by unlock level then by name.
  *

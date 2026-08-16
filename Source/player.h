@@ -417,6 +417,12 @@ struct Player {
 	 */
 	uint16_t _pUnspentSkillPoints = 0;
 	uint8_t _pSkillInvestment[MAX_SPELLS] = {};
+	/**
+	 * @brief Oracool Phase 2 Stage 1: the active aura, as the raw enum byte (0xFF = none) so this
+	 * header does not need oracool/auras.h. Persisted via the HeroChunkActiveAura chunk; applied
+	 * through the "aura" bonus provider in stat_sheet.cpp. See oracool::GetActiveAura/ToggleAura.
+	 */
+	uint8_t _pOracoolActiveAura = 0xFF;
 	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers
 	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
 	int _pMagicFind = 0;
