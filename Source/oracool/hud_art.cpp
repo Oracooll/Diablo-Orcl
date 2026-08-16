@@ -118,6 +118,23 @@ ArtAsset BardTreeIconsArt { "ui\\bard_tree_icons.png" };
 /** The Monk's is 21 too, but as three seven-tier ladders. Built by tools/BuildMonkTreeStrip.ps1. */
 ArtAsset MonkTreeIconsArt { "ui\\monk_tree_icons.png" };
 
+/**
+ * @brief Every class tree strip, as one list the load/quantize/reset passes walk.
+ *
+ * Bug fix (2026-08-16, user report "i dont see it" about the stash background, which turned out to
+ * be the same fault): those three passes name each ArtAsset INDIVIDUALLY, and only the Paladin's
+ * strip was ever added. The other five loaded nothing, so DrawStripIcon returned at its
+ * `asset.rgba.empty()` guard and five of the six trees drew plates with no icons on them - silently,
+ * because a missing strip is indistinguishable from a skill that has no icon.
+ *
+ * Grouping them means adding a seventh class is one line in one place instead of four lines in four,
+ * which is what the individual naming got wrong. SilhouetteArt was already shaped this way.
+ */
+ArtAsset *const ClassTreeStrips[] = {
+	&PaladinTreeIconsArt, &BarbTreeIconsArt, &SorcTreeIconsArt,
+	&RogueTreeIconsArt, &BardTreeIconsArt, &MonkTreeIconsArt,
+};
+
 /** @brief The strip @p heroClass's tree draws from, or the Paladin's as a harmless fallback. */
 ArtAsset &TreeStripFor(HeroClass heroClass)
 {
@@ -436,6 +453,8 @@ void EnsureLoadedAll()
 		LoadPixels(MenuIconsArt);
 	if (!InventoryPanelArt.loadAttempted)
 		LoadPixels(InventoryPanelArt);
+	if (!StashPanelArt.loadAttempted)
+		LoadPixels(StashPanelArt);
 	if (!InventoryTabsArt.loadAttempted)
 		LoadPixels(InventoryTabsArt);
 	if (!InventorySortArt.loadAttempted)
@@ -450,8 +469,10 @@ void EnsureLoadedAll()
 		LoadPixels(WaypointPanelArt);
 	if (!WaypointIconsArt.loadAttempted)
 		LoadPixels(WaypointIconsArt);
-	if (!PaladinTreeIconsArt.loadAttempted)
-		LoadPixels(PaladinTreeIconsArt);
+	for (ArtAsset *strip : ClassTreeStrips) {
+		if (!strip->loadAttempted)
+			LoadPixels(*strip);
+	}
 	if (!PaladinSkillIconsArt.loadAttempted)
 		LoadPixels(PaladinSkillIconsArt);
 	if (!AttackIconsArt.loadAttempted)
@@ -476,6 +497,8 @@ bool NeedsQuantize()
 		return true;
 	if (!InventoryPanelArt.rgba.empty() && !InventoryPanelArt.bright)
 		return true;
+	if (!StashPanelArt.rgba.empty() && !StashPanelArt.bright)
+		return true;
 	if (!InventoryTabsArt.rgba.empty() && !InventoryTabsArt.bright)
 		return true;
 	if (!InventorySortArt.rgba.empty() && !InventorySortArt.bright)
@@ -490,8 +513,10 @@ bool NeedsQuantize()
 		return true;
 	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
 		return true;
-	if (!PaladinTreeIconsArt.rgba.empty() && !PaladinTreeIconsArt.bright)
-		return true;
+	for (const ArtAsset *strip : ClassTreeStrips) {
+		if (!strip->rgba.empty() && !strip->bright)
+			return true;
+	}
 	if (!PaladinSkillIconsArt.rgba.empty() && !PaladinSkillIconsArt.bright)
 		return true;
 	if (!AttackIconsArt.rgba.empty() && !AttackIconsArt.bright)
@@ -530,6 +555,7 @@ void EnsureQuantized()
 	// all collapse to one gold and the row would read as ten identical buttons.
 	QuantizeAsset(MenuIconsArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(InventoryPanelArt, std::nullopt);
+	QuantizeAsset(StashPanelArt, std::nullopt);
 	QuantizeAsset(InventoryTabsArt, std::nullopt);
 	QuantizeAsset(InventorySortArt, std::nullopt);
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
@@ -539,7 +565,8 @@ void EnsureQuantized()
 	QuantizeAsset(WaypointIconsArt, std::nullopt);
 	// No tint: the tree icons are the artwork itself, not chrome - their shapes carry the meaning.
 	
-	QuantizeAsset(PaladinTreeIconsArt, std::nullopt);
+	for (ArtAsset *strip : ClassTreeStrips)
+		QuantizeAsset(*strip, std::nullopt);
 	QuantizeAsset(PaladinSkillIconsArt, std::nullopt);
 	// Same reasoning, and one more: these two sit in the HUD's skill wells next to the engine's own
 	// spell icons, which are drawn untinted. A gold pass here would make the basic attack the one
@@ -986,6 +1013,7 @@ void ResetHudArtCaches()
 	reset(ManaOrbArt);
 	reset(MenuIconsArt);
 	reset(InventoryPanelArt);
+	reset(StashPanelArt);
 	reset(InventoryTabsArt);
 	reset(InventorySortArt);
 	reset(TownPortalIconArt);
@@ -993,7 +1021,8 @@ void ResetHudArtCaches()
 	reset(LevelUpIconArt);
 	reset(WaypointPanelArt);
 	reset(WaypointIconsArt);
-	reset(PaladinTreeIconsArt);
+	for (ArtAsset *strip : ClassTreeStrips)
+		reset(*strip);
 	reset(PaladinSkillIconsArt);
 	reset(AttackIconsArt);
 	for (ArtAsset &silhouette : SilhouetteArt)
