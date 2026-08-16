@@ -17,6 +17,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "options.h"
+#include "oracool/aura_field.h"
 #include "oracool/lesser_uniques.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -148,7 +149,12 @@ void DrawMonsterHealthBar(const Surface &out)
 	// It is also what stands in for the "shrunken in size" the user asked for. There is no scale
 	// parameter anywhere in the CLX renderer - see the design doc - and legibility, not literal size,
 	// is what that request was after.
-	const std::string displayName = oracool::GetMonsterDisplayName(monster);
+	// Oracool Phase 3.4: and the aura a champion beside it is lending, if any. A pack bonus the
+	// player cannot read is just a monster that unaccountably hits harder - the same argument that
+	// put the champion's own modifier on this bar in the first place.
+	std::string displayName = oracool::GetMonsterDisplayName(monster);
+	if (const char *lent = oracool::PackAuraName(monster); lent[0] != '\0')
+		StrAppend(displayName, " (", _(lent), ")");
 	const string_view name = displayName;
 
 	DrawString(out, name, { position + Displacement { -1, 1 }, { width, height } }, { style | UiFlags::ColorBlack });
@@ -166,12 +172,17 @@ void DrawMonsterHealthBar(const Surface &out)
 		monster_resistance immunes[] = { IMMUNE_MAGIC, IMMUNE_FIRE, IMMUNE_LIGHTNING };
 		monster_resistance resists[] = { RESIST_MAGIC, RESIST_FIRE, RESIST_LIGHTNING };
 
+		// Oracool bug fix (2026-08-16): these read monster.resistance directly, so a Paladin
+		// standing in his own lit Conviction watched the bar keep showing an immunity he had just
+		// broken. EffectiveResistances is the authority the damage path uses; the bar must agree
+		// with it, or the aura's whole payoff is invisible.
+		const uint16_t shown = oracool::EffectiveResistances(monster);
 		int resOffset = 5;
 		for (size_t i = 0; i < 3; i++) {
-			if ((monster.resistance & immunes[i]) != 0) {
+			if ((shown & immunes[i]) != 0) {
 				RenderClxSprite(out, (*resistance)[i * 2 + 1], position + Displacement { resOffset, height - 6 });
 				resOffset += (*resistance)[0].width() + 2;
-			} else if ((monster.resistance & resists[i]) != 0) {
+			} else if ((shown & resists[i]) != 0) {
 				RenderClxSprite(out, (*resistance)[i * 2], position + Displacement { resOffset, height - 6 });
 				resOffset += (*resistance)[0].width() + 2;
 			}

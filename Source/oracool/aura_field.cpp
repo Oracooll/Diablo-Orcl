@@ -197,6 +197,18 @@ uint8_t PackAdjustedDamage(const Monster &monster, uint8_t base)
 	return RaiseDamageByPercent(base, PackAuraOn(monster).damagePercent);
 }
 
+const char *PackAuraName(const Monster &monster)
+{
+	const PackAuraBonus bonus = PackAuraOn(monster);
+	// Named for what Diablo II called them, because that is what the effect IS - the point of
+	// showing it is that a player who knows the word knows what it does.
+	if (bonus.damagePercent > 0)
+		return N_("Might");
+	if (bonus.armorBonus > 0)
+		return N_("Defiance");
+	return "";
+}
+
 int PackAdjustedArmor(const Monster &monster)
 {
 	return monster.armorClass + PackAuraOn(monster).armorBonus;

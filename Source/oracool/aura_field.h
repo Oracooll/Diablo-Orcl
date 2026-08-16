@@ -132,4 +132,13 @@ uint8_t PackAdjustedDamage(const Monster &monster, uint8_t base);
 /** @brief @p monster's armour class as it stands, its pack aura included. */
 int PackAdjustedArmor(const Monster &monster);
 
+/**
+ * @brief The name of the aura lent to @p monster, e.g. "Might", or empty when it stands alone.
+ *
+ * Untranslated; run through _() where it is displayed. The health bar is the only place a monster's
+ * name reaches the player, so it is the only place this can be learned - and a pack bonus the player
+ * cannot read is just a monster that unaccountably hits harder.
+ */
+const char *PackAuraName(const Monster &monster);
+
 } // namespace devilution::oracool
