@@ -1,10 +1,24 @@
 ---
 date: 2026-08-16
-status: active - executing top to bottom
+status: COMPLETE - all five units shipped (v1.7.14 - v1.7.16)
 area: Asset intake from the MPQ folder's root drop zone
 ---
 
 # MPQ Drop Zone — Introduction Plan
+
+> **Closed 2026-08-16.** Every file in the drop zone is consumed. Unit 1 shipped as v1.7.14 (the
+> gem quality ladder); units 2-5 shipped together as v1.7.15 (the tree generalized to four classes,
+> and the Barbarian, Sorceress and Rogue sheets filling it), with v1.7.16 retiring the invented
+> Barbarian list the real tree superseded. Reports: "Seven Gems, Five Qualities" and
+> "Four Trees, One Grid".
+>
+> The honest backlog the trees leave behind is the set of engine capabilities the inert rows are
+> waiting on: a **cold damage channel** (the whole Sorceress Cold page, Holy Freeze, the Rogue's
+> ice arrows), a **monster-facing aura pass** (Conviction, Sanctuary, the warcries, Inner Sight),
+> **missile work** (every bow skill), **movement work** (Leap, Whirlwind), **corpse handling**
+> (Redemption, Find Item, Find Potion, Grim Ward) and **buffs with a duration** (Shout, Battle
+> Orders, Battle Command). Each unlocks a named group of rows rather than one skill, which is the
+> argument for building the capability rather than the skill.
 
 A sweep of `Oracool.MPQ\` (the "MPQ folder") on 2026-08-16. The **root** is the drop zone: the user
 puts new art there, and everything below it (`01-in-use`, `02-source-art`, `03-concepts`,
