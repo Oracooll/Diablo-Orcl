@@ -210,7 +210,21 @@ constexpr int DescribedRowPadding = 6;
 /** @brief A described row (aura, Barbarian skill): a name line plus the wrapped description. */
 constexpr int DescribedRowHeight = 2 * DescribedRowPadding
     + AbilitiesLineHeight * (1 + DescribedRowDescLines);
-constexpr int AbilitiesIconX = AbilitiesMargin;
+/**
+ * @brief The painted background's INTERIOR, measured from the art (user, 2026-08-17: "The left
+ * column of skill is still partially sitting on top of the bezel... I want to avoid having assets
+ * over the bezel").
+ *
+ * Measured off ui/stash_background.png by column brightness/variance over the content band: the
+ * left bezel's ornament ridges run out to x=44 and the flat interior fill starts at 46; the right
+ * interior ends at 292 with the ornament lip from 296. Every derived margin before this (24, 30,
+ * 31) was an eyeballed number that landed ON the bezel's inner lip - which is exactly what the
+ * user kept seeing. Rows, tree columns and hover outlines all stay inside these two.
+ */
+constexpr int AbilitiesInteriorLeft = 46;
+constexpr int AbilitiesInteriorRight = 292;
+
+constexpr int AbilitiesIconX = AbilitiesInteriorLeft;
 /** @brief Between the icon's right edge and the text column. */
 constexpr int AbilitiesTextGap = 10;
 constexpr int AbilitiesScrollbarWidth = oracool::OrnateBorderWidth;
@@ -218,7 +232,11 @@ constexpr int AbilitiesScrollbarMinThumb = 24;
 constexpr int AbilitiesScrollbarGap = 6;
 constexpr int AbilitiesRightPad = 8;
 /** @brief Right edge available to a row - short of the scrollbar, not of the panel. */
-constexpr int AbilitiesContentRightLimit = AbilitiesPanelSize.width - AbilitiesRightPad - AbilitiesScrollbarWidth - AbilitiesScrollbarGap;
+// The measured interior edge, no longer derived from the scrollbar: the old formula
+// (width - pad - scrollbar - gap = 318) reached 26px onto the right bezel, the same class of
+// mistake as the left margin. The scrollbar itself stays where it was, right of this limit, over
+// the frame - where the stash has always drawn its own.
+constexpr int AbilitiesContentRightLimit = AbilitiesInteriorRight;
 
 /**
  * @brief The sheet-cycling arrows, at each end of the title band.
@@ -394,9 +412,17 @@ int RowHeightFor(AbilitySheet sheet)
 
 constexpr int TreeIconSize = 56;
 constexpr int TreeColumns = 3;
-constexpr int TreeColPitch = 100;
+// 94, down from 100 (2026-08-17): three 56px columns at pitch 100 span 256, and the measured
+// interior is 246 wide - the old span could not fit without a column riding the bezel.
+constexpr int TreeColPitch = 94;
 /** Centres the three columns in the content width. */
-constexpr int TreeColX0 = (AbilitiesContentRightLimit - (TreeColumns - 1) * TreeColPitch - TreeIconSize) / 2;
+// Centred within the INTERIOR, not within [0, limit] - centring from the panel's own left edge is
+// what parked the first column on the bezel.
+constexpr int TreeColX0 = AbilitiesInteriorLeft
+    + (AbilitiesInteriorRight - AbilitiesInteriorLeft - (TreeColumns - 1) * TreeColPitch - TreeIconSize) / 2;
+static_assert(TreeColX0 >= AbilitiesInteriorLeft
+        && TreeColX0 + (TreeColumns - 1) * TreeColPitch + TreeIconSize <= AbilitiesInteriorRight,
+    "the tree grid no longer fits the painted interior - tighten TreeColPitch");
 /** The point counter under each icon, which doubles as the invest button. */
 constexpr int TreeBarHeight = 16;
 constexpr int TreeBarGap = 4;
@@ -1232,7 +1258,10 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		return;
 
 	// Local to the content subregion, which is what clips it to the scrolling area.
-	oracool::DrawHoverOutline(content, { { 0, rowTop - scroll }, { AbilitiesContentRightLimit, rowHeight } });
+	// From the interior's left edge, not the panel's - an outline spanning from x=0 drew its left
+	// side across the bezel, which is the exact thing the interior bounds exist to prevent.
+	oracool::DrawHoverOutline(content, { { AbilitiesInteriorLeft, rowTop - scroll },
+	    { AbilitiesInteriorRight - AbilitiesInteriorLeft, rowHeight } });
 
 	// DEFERRED, not drawn here. Oracool: user request (2026-08-15) - "pop-up windows to be rendered
 	// on top of all including bottom hud, to be readable." The Abilities window is drawn early in the
@@ -1248,7 +1277,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	if (!description.empty() || !title.empty()) {
 		PendingHoverTitle = title;
 		PendingHoverText = description;
-		PendingHoverAnchor = { { contentRect.position.x, contentRect.position.y + rowTop - scroll },
+		PendingHoverAnchor = { { contentRect.position.x + AbilitiesInteriorLeft, contentRect.position.y + rowTop - scroll },
 			{ AbilitiesContentRightLimit, rowHeight } };
 		HasPendingHover = true;
 	}
