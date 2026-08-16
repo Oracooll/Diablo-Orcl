@@ -12,6 +12,7 @@
 #include "levels/drlg_l4.h"
 #include "levels/town.h"
 #include "lighting.h"
+#include "oracool/zone_registry.h"
 #include "options.h"
 
 namespace devilution {
@@ -365,22 +366,12 @@ std::optional<WorldTileSize> GetSizeForThemeRoom()
 
 dungeon_type GetLevelType(int level)
 {
-	if (level == 0)
-		return DTYPE_TOWN;
-	if (level <= 4)
-		return DTYPE_CATHEDRAL;
-	if (level <= 8)
-		return DTYPE_CATACOMBS;
-	if (level <= 12)
-		return DTYPE_CAVES;
-	if (level <= 16)
-		return DTYPE_HELL;
-	if (level <= 20)
-		return DTYPE_NEST;
-	if (level <= 24)
-		return DTYPE_CRYPT;
-
-	return DTYPE_NONE;
+	// Oracool: Megaplan Phase 0.5 - the hardcoded `if (level <= N)` ladder moved into the zone
+	// registry, so a new zone is a data row rather than another rung here. Negative levels never
+	// reached a rung before either (the ladder started at == 0); the registry's miss answer is the
+	// same DTYPE_NONE.
+	const oracool::ZoneDefinition *zone = oracool::FindZoneForLevel(level);
+	return zone != nullptr ? zone->levelType : DTYPE_NONE;
 }
 
 void CreateDungeon(uint32_t rseed, lvl_entry entry)
