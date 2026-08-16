@@ -70,7 +70,7 @@ uint8_t ActiveItems[MAXITEMS];
 uint8_t ActiveItemCount;
 int8_t dItem[MAXDUNX][MAXDUNY];
 CornerStoneStruct CornerStone;
-bool UniqueItemFlags[128];
+bool UniqueItemFlags[MaxUniqueItems];
 int MaxGold = GOLD_MAX_LIMIT;
 
 /** Maps from item_cursor_graphic to in-memory item type. */
@@ -1653,7 +1653,7 @@ _item_indexes RndTypeItems(ItemType itemType, int imid, int lvl)
 
 _unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate, bool allowTieredRoll)
 {
-	std::bitset<128> uok = {};
+	std::bitset<MaxUniqueItems> uok = {};
 
 	int uniqueRollUpperBound = uper;
 	// Reconstructing a previously-generated item (RecreateItem/UnPackItem, allowTieredRoll
@@ -1688,12 +1688,15 @@ _unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate, bool all
 		return UITEM_INVALID;
 
 	DiscardRandomValues(1);
-	uint8_t itemData = 0;
+	// uint16_t and MaxUniqueItems, both of which were a uint8_t and a literal 128. With 230 uniques
+	// in the table the old pair could neither represent an id past 255 nor walk past index 127, so
+	// every unique the expansion added was unreachable even before the bitset overran.
+	uint16_t itemData = 0;
 	while (numu > 0) {
 		if (uok[itemData])
 			numu--;
 		if (numu > 0)
-			itemData = (itemData + 1) % 128;
+			itemData = static_cast<uint16_t>((itemData + 1) % MaxUniqueItems);
 	}
 
 	return (_unique_items)itemData;

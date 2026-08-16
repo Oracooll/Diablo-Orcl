@@ -1105,9 +1105,27 @@ struct UniqueItem {
 	ItemPower powers[6];
 };
 
+/**
+ * @brief Ceiling on the unique table, and on everything indexed by a unique's id.
+ *
+ * Vanilla had 87 uniques and wrote 128 into three separate places - a std::bitset, the
+ * UniqueItemFlags array, and a `% 128` wrap in CheckUnique - none of which named each other. The
+ * 250-unique expansion took the table to 230 and all three broke at once, as a bitset assertion
+ * inside UnPackItem rather than as anything mentioning uniques.
+ *
+ * They all derive from this now, and the static_assert beside the table's definition is what keeps
+ * the number honest: adding uniques past this bound is a compile error, not a corrupted read.
+ *
+ * NOTE the related ceiling in _unique_items' underlying type (items.h). Widening this without
+ * widening that would silently truncate every id past 127.
+ */
+constexpr size_t MaxUniqueItems = 512;
+
 extern DVL_API_FOR_TEST const ItemData AllItemsList[];
 extern DVL_API_FOR_TEST const PLStruct ItemPrefixes[];
 extern DVL_API_FOR_TEST const PLStruct ItemSuffixes[];
 extern const UniqueItem UniqueItems[];
+/** @brief Rows in UniqueItems, including the UITYPE_INVALID sentinel that terminates it. */
+extern DVL_API_FOR_TEST const size_t UniqueItemCount;
 
 } // namespace devilution

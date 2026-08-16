@@ -797,8 +797,31 @@ const UniqueItem UniqueItems[] = {
 { N_("Acolyte's Amulet"),        UITYPE_AMULET,             10,        2,    10000, { { IPL_MANATOLIFE,      50,       50 }, { IPL_INVCURS,        183           }, {                                   }, {                                   }, {                                   }, {                                   } }  },
 	// TRANSLATORS: Unique Item section end.
 { N_("Gladiator's Ring"),        UITYPE_RING,               10,        2,    10000, { { IPL_LIFETOMANA,      40,       40 }, { IPL_INVCURS,        186           }, {                                   }, {                                   }, {                                   }, {                                   } }  },
+
+// Oracool: the 250-unique expansion, appended to the vanilla table rather than kept in one of its
+// own. GENERATED - see tools/GenUniqueItems.ps1.
+//
+// Appending is what makes this cheap. Identity, naming, description, the drop roll in
+// CheckUnique and _iUid's persistence are all vanilla machinery that does not care how long this
+// array is - it scans to the UITYPE_INVALID sentinel below. 143 new uniques therefore cost no save
+// format change, no new field on Item, and no new code path.
+//
+// They carry no IPL_INVCURS, deliberately: that power REPLACES the item's icon, and the expansion's
+// sprites have not arrived yet (they are outside the package on purpose). Without it each unique
+// wears its base item's sprite, which is the honest placeholder - and when the art lands, adding the
+// icon is one more column in the generator rather than a change to any of this.
+#include "oracool/unique_items_data.inc"
+
 { "",                            UITYPE_INVALID,             0,        0,        0, { {                                   }, {                                   }, {                                   }, {                                   }, {                                   }, {                                   } }  },
 	// clang-format on
 };
+
+const size_t UniqueItemCount = sizeof(UniqueItems) / sizeof(UniqueItems[0]);
+
+// The ceiling that three separate places used to write down as a bare 128. Reaching it is now a
+// compile error rather than a bitset assertion inside UnPackItem.
+static_assert(sizeof(UniqueItems) / sizeof(UniqueItems[0]) <= MaxUniqueItems,
+    "the unique table outgrew MaxUniqueItems - widen it in itemdat.h, and check that _unique_items' "
+    "underlying type in items.h is still wide enough for the largest id");
 
 } // namespace devilution

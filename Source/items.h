@@ -105,7 +105,11 @@ struct OracoolAffix {
 	int32_t param2 = 0;
 };
 
-enum _unique_items : int8_t {
+// int16_t, not int8_t. Vanilla's 87 uniques fitted a signed byte with room to spare; the 250-unique
+// expansion takes the table to 230, and every id past 127 would have wrapped negative - silently,
+// since the cast in CheckUnique is explicit. See MaxUniqueItems in itemdat.h for the other three
+// places the old 128 ceiling was written down.
+enum _unique_items : int16_t {
 	UITEM_CLEAVER,
 	UITEM_SKCROWN,
 	UITEM_INFRARING,
@@ -777,7 +781,7 @@ extern DVL_API_FOR_TEST uint8_t ActiveItemCount;
 /** Contains the location of dropped items. */
 extern int8_t dItem[MAXDUNX][MAXDUNY];
 extern CornerStoneStruct CornerStone;
-extern bool UniqueItemFlags[128];
+extern bool UniqueItemFlags[MaxUniqueItems];
 
 uint8_t GetOutlineColor(const Item &item, bool checkReq);
 /**
