@@ -1,6 +1,7 @@
 #include "oracool/stat_sheet.h"
 
 #include "items.h"
+#include "oracool/charms.h"
 #include "oracool/gems.h"
 #include "player.h"
 #include "spells.h"
@@ -116,10 +117,20 @@ void ApplySockets(const BonusContext &ctx, ItemBonusTotals &totals)
  * every contribution commutes. Charms join in a later Phase 1 unit; the set-bonus system adds a
  * row whose isActive counts worn pieces.
  */
+/** @brief Source 4 (Phase 1): the first CharmActiveCap charms in the backpack. */
+void ApplyCharms(const BonusContext &ctx, ItemBonusTotals &totals)
+{
+	ForEachActiveCharm(*ctx.owner, [](uint16_t charmIdx, void *context) {
+		ApplyCharmToTotals(charmIdx, *static_cast<ItemBonusTotals *>(context));
+	},
+	    &totals);
+}
+
 constexpr BonusProvider Providers[] = {
 	{ "equipment", nullptr, ApplyEquipment },
 	{ "rage", RageIsRelevant, ApplyRage },
 	{ "sockets", nullptr, ApplySockets },
+	{ "charms", nullptr, ApplyCharms },
 };
 
 } // namespace

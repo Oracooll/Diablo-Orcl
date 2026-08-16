@@ -23,6 +23,7 @@
 #include "monstdat.h"
 #include "monster.h"
 #include "multi.h"
+#include "oracool/charms.h"
 #include "oracool/class_skills.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/gems.h"
@@ -732,4 +733,50 @@ TEST(OracoolGems, InsertionFillsInOrderAndStopsWhenFull)
 	target._itype = ItemType::Helm;
 	target._iSocketCount = 1;
 	EXPECT_FALSE(oracool::TrySocketGem(target, sword)) << "a non-gem was socketed";
+}
+
+// Phase 1 charms: the active cap IS the pouch. These pin the cap and the reading order.
+TEST(OracoolCharms, OnlyFirstCapCharmsAreActive)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	// Five charms in the main backpack: positions 0-4 of InvList.
+	for (int i = 0; i < 5; i++) {
+		player.InvList[i] = {};
+		player.InvList[i]._itype = ItemType::Misc;
+		player.InvList[i].IDidx = IDI_ORACOOL_CHARM_VIGOR;
+	}
+	player._pNumInv = 5;
+
+	int visited = 0;
+	oracool::ForEachActiveCharm(player, [](uint16_t, void *context) { (*static_cast<int *>(context))++; }, &visited);
+	EXPECT_EQ(visited, oracool::CharmActiveCap) << "the active cap leaked";
+
+	EXPECT_TRUE(oracool::IsCharmActive(player, -1, 0));
+	EXPECT_TRUE(oracool::IsCharmActive(player, -1, 2));
+	EXPECT_FALSE(oracool::IsCharmActive(player, -1, 3)) << "the fourth charm claims to be active";
+	EXPECT_FALSE(oracool::IsCharmActive(player, -1, 4));
+}
+
+TEST(OracoolCharms, CharmEffectsReachTheStatSheet)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 10;
+	player._pBaseStr = 30;
+	player._pLightRad = 10;
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
+
+	player.InvList[0] = {};
+	player.InvList[0]._itype = ItemType::Misc;
+	player.InvList[0].IDidx = IDI_ORACOOL_CHARM_EMBERS; // +15% fire resist from the backpack
+	player._pNumInv = 1;
+
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(player._pFireResist, 15) << "the charm's resist never reached the sheet";
 }

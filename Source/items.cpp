@@ -40,6 +40,7 @@
 #include "oracool/class_skills.h"
 #include "oracool/event_log.h"
 #include "oracool/gradual_healing.h"
+#include "oracool/charms.h"
 #include "oracool/gems.h"
 #include "oracool/oracool.h"
 #include "oracool/stat_sheet.h"
@@ -1578,8 +1579,8 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		// items drop through their own hook instead - see TrySpawnOracoolSetItem.
 		if (IsOracoolItemIdx(i))
 			continue;
-		// Phase 1: gems obey the same pool-is-save-format rule and drop via TrySpawnOracoolGem.
-		if (IsOracoolGemIdx(i))
+		// Phase 1: gems and charms obey the same pool-is-save-format rule; own hooks drop them.
+		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i))
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
@@ -4346,15 +4347,21 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 		return;
 
 	// Rarer than set pieces: a gem is permanent power the moment it lands in a socket, and the
-	// telemetry (Phase 0.9) exists to tune this number against real sessions.
+	// telemetry (Phase 0.9) exists to tune this number against real sessions. The roll covers
+	// gems AND charms in one draw: 3 in 100 rolls a gem, the next 1 in 100 a charm.
 	constexpr int GemDropPercent = 3;
-	if (GenerateRnd(100) >= GemDropPercent)
+	constexpr int CharmDropPercent = 1;
+	const int roll = GenerateRnd(100);
+	if (roll >= GemDropPercent + CharmDropPercent)
 		return;
+	const bool dropCharm = roll >= GemDropPercent;
 
 	const int mlvl = monster.level(sgGameInitInfo.nDifficulty);
-	_item_indexes candidates[8];
+	_item_indexes candidates[12];
 	int candidateCount = 0;
-	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_GEM_RUBY; i <= IDI_ORACOOL_GEM_SKULL; i++) {
+	const int first = dropCharm ? IDI_ORACOOL_CHARM_VIGOR : IDI_ORACOOL_GEM_RUBY;
+	const int last = dropCharm ? IDI_ORACOOL_CHARM_FORTUNE : IDI_ORACOOL_GEM_SKULL;
+	for (int i = first; i <= last; i++) {
 		if (AllItemsList[i].iMinMLvl <= mlvl)
 			candidates[candidateCount++] = static_cast<_item_indexes>(i);
 	}
@@ -4891,6 +4898,12 @@ void PrintItemDetails(const Item &item)
 	// panel instead (user request, 2026-08-16 - "just below their name and above the dmg stats").
 	if (item.hasOracoolTier() || item._iMagical == ITEM_QUALITY_UNIQUE) {
 		AddItemPowerPanelStrings(item);
+	}
+	// Phase 1 charms: the effect, and the rule that governs it - the description is where the
+	// active-cap system explains itself.
+	if (IsOracoolCharmIdx(item.IDidx)) {
+		AddPanelString(oracool::CharmEffectLine(static_cast<uint16_t>(item.IDidx)), ItemAffixColor);
+		AddPanelString(fmt::format(fmt::runtime(_("only your first {:d} charms are active")), oracool::CharmActiveCap), ItemBaseStatColor);
 	}
 	// Phase 1 sockets: the socket line and one line per set gem, each in the gem economy's own
 	// voice. The empty-socket count is the item's pitch - "Sockets: 1/3" is an invitation.

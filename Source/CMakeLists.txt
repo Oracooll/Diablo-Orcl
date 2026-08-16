@@ -42,6 +42,7 @@ set(libdevilutionx_SRCS
   oracool/cursor_tooltip.cpp
   oracool/divine_trn.cpp
   oracool/event_log.cpp
+  oracool/charms.cpp
   oracool/gems.cpp
   oracool/hero_chunks.cpp
   oracool/rng_streams.cpp
