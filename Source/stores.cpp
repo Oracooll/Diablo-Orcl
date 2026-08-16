@@ -34,7 +34,9 @@
 #include "objects.h"
 #include "options.h"
 #include "oracool/auto_save.h"
+#include "oracool/event_log.h"
 #include "oracool/oracool.h"
+#include "oracool/skill_points.h"
 #include "panels/info_box.hpp"
 #include "qol/stash.h"
 #include "towners.h"
@@ -1093,7 +1095,16 @@ void StartWitch()
 	AddSText(0, 14, _("Buy items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 16, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 18, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 20, _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	// Oracool Phase 2.3: the respec, at Adria (megaplan). Selectable only when there are points to
+	// reclaim; the price is on the line so the decision is made before the click.
+	if (oracool::TotalInvestedSkillPoints(*MyPlayer) > 0) {
+		AddSText(0, 20,
+		    fmt::format(fmt::runtime(_("Reset skill points ({:d} gold)")), oracool::RespecCost(*MyPlayer)),
+		    UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	} else {
+		AddSText(0, 20, _("Reset skill points"), UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, false);
+	}
+	AddSText(0, 22, _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	storenumh = 20;
 }
@@ -2261,7 +2272,26 @@ void WitchEnter()
 	case 18:
 		StartStore(TalkID::WitchRecharge);
 		break;
-	case 20:
+	case 20: {
+		// Phase 2.3: the respec. The line is unselectable with nothing invested, so reaching here
+		// means there is something to refund; the price gate still runs.
+		const int cost = oracool::RespecCost(*MyPlayer);
+		if (!PlayerCanAfford(cost)) {
+			stextshold = TalkID::Witch;
+			stextlhold = 20;
+			StartStore(TalkID::NoMoney);
+			break;
+		}
+		TakePlrsMoney(cost);
+		const int refunded = oracool::TotalInvestedSkillPoints(*MyPlayer);
+		oracool::RefundAllSkillPoints(*MyPlayer);
+		oracool::LogEvent(fmt::format("Adria reclaimed {:d} skill point(s) for {:d} gold", refunded, cost),
+		    UiFlags::ColorWhitegold);
+		// Rebuilt rather than left as-is so the line greys out immediately.
+		StartStore(TalkID::Witch);
+		break;
+	}
+	case 22:
 		stextflag = TalkID::None;
 		break;
 	}
