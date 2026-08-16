@@ -36,6 +36,7 @@
 #include "options.h"
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
+#include "oracool/aura_field.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/monster_scale.h"
 #include "oracool/telemetry.h"
@@ -4847,10 +4848,15 @@ bool Monster::isWalking() const
 
 bool Monster::isImmune(MissileID missileType, DamageType missileElement) const
 {
-	if (((resistance & IMMUNE_MAGIC) != 0 && missileElement == DamageType::Magic)
-	    || ((resistance & IMMUNE_FIRE) != 0 && missileElement == DamageType::Fire)
-	    || ((resistance & IMMUNE_LIGHTNING) != 0 && missileElement == DamageType::Lightning)
-	    || ((resistance & IMMUNE_ACID) != 0 && missileElement == DamageType::Acid))
+	// Oracool Phase 3.4: Conviction. Computed from the player's live state rather than written into
+	// this monster, so walking out of the field ends it with nothing to undo - see
+	// oracool/aura_field.h. Deep Conviction breaks an immunity down to a mere resistance; the
+	// resistance itself is stripped in isResistant below.
+	const uint16_t effective = oracool::EffectiveResistances(*this);
+	if (((effective & IMMUNE_MAGIC) != 0 && missileElement == DamageType::Magic)
+	    || ((effective & IMMUNE_FIRE) != 0 && missileElement == DamageType::Fire)
+	    || ((effective & IMMUNE_LIGHTNING) != 0 && missileElement == DamageType::Lightning)
+	    || ((effective & IMMUNE_ACID) != 0 && missileElement == DamageType::Acid))
 		return true;
 	if (missileType == MissileID::HolyBolt && type().type != MT_DIABLO && data().monsterClass != MonsterClass::Undead)
 		return true;
@@ -4859,9 +4865,10 @@ bool Monster::isImmune(MissileID missileType, DamageType missileElement) const
 
 bool Monster::isResistant(MissileID missileType, DamageType missileElement) const
 {
-	if (((resistance & RESIST_MAGIC) != 0 && missileElement == DamageType::Magic)
-	    || ((resistance & RESIST_FIRE) != 0 && missileElement == DamageType::Fire)
-	    || ((resistance & RESIST_LIGHTNING) != 0 && missileElement == DamageType::Lightning))
+	const uint16_t effective = oracool::EffectiveResistances(*this);
+	if (((effective & RESIST_MAGIC) != 0 && missileElement == DamageType::Magic)
+	    || ((effective & RESIST_FIRE) != 0 && missileElement == DamageType::Fire)
+	    || ((effective & RESIST_LIGHTNING) != 0 && missileElement == DamageType::Lightning))
 		return true;
 	if (gbIsHellfire && missileType == MissileID::HolyBolt && IsAnyOf(type().type, MT_DIABLO, MT_BONEDEMN))
 		return true;

@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 
 #include "engine/backbuffer_state.hpp"
+#include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/skill_points.h"
@@ -80,12 +81,12 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 1, 3, 1, Kind::Aura, SpellID::Invalid, false },
 	{ N_("Holy Shock"), N_("Charges your weapon, adding lightning damage to every blow."),
 	    Pal, 1, 4, 1, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Sanctuary"), N_("Harms and repels nearby undead. Inert: it needs the monster-facing pass."),
-	    Pal, 1, 4, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Sanctuary"), N_("Hallows the ground you stand on: nearby undead break and flee from you. Champions are too proud to run."),
+	    Pal, 1, 4, 2, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Fanaticism"), N_("Drives you to strike faster, harder and truer."),
 	    Pal, 1, 5, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Conviction"), N_("Strips nearby enemies of armour and resistance. Inert: it needs the monster-facing pass."),
-	    Pal, 1, 5, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Conviction"), N_("Strips the resistances of every enemy near you, and at five points begins to break their immunities down into mere resistances."),
+	    Pal, 1, 5, 2, Kind::Aura, SpellID::Invalid, true },
 	// --- Defensive Auras ---
 	{ N_("Prayer"), N_("Mends your wounds steadily as you walk."), Pal, 2, 0, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Resist Fire"), N_("Hardens you against fire."), Pal, 2, 0, 1, Kind::Aura, SpellID::Invalid, true },
@@ -777,6 +778,11 @@ void ProcessClassTreeTick(Player &player)
 			RedrawComponent(PanelDrawComponent::Mana);
 		}
 	}
+
+	// Phase 3.4: the outward half of the aura system. Auras that must PUSH run here; auras a monster
+	// can simply be ASKED about (Conviction) are answered at the point of use instead, because a
+	// query cannot go stale. See oracool/aura_field.h.
+	ProcessOutwardAura(player);
 
 	// The Sorceress's Warmth is a passive, so it needs no activation - the points alone.
 	if (player._pClass == HeroClass::Sorcerer && IsClassTreeSkillUnlocked(player, Skill::Warmth)

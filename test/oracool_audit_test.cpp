@@ -28,6 +28,7 @@
 #include "monster.h"
 #include "multi.h"
 #include "oracool/class_tree.h"
+#include "oracool/aura_field.h"
 #include "oracool/charms.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
@@ -114,6 +115,56 @@ TEST(OracoolAudit, DisplayNameIsAffixPlusGeneratedName)
 	const std::string expected = std::string(_(oracool::GetLesserUniqueAffixName(LesserUniqueAffix::Thunderous)))
 	    + " " + oracool::GetLesserUniqueName(monster);
 	EXPECT_EQ(display, expected);
+}
+
+// Phase 3.4, the monster-facing aura pass. Conviction is its flagship, and the property that makes
+// it a design rather than a delete button: an immunity is a statement about what a monster IS, so a
+// strong aura should erode it to a resistance, never all the way to nothing.
+TEST(OracoolAudit, ConvictionErodesImmunitiesButNeverDeletesThem)
+{
+	constexpr int Shallow = 1;
+	constexpr int Deep = 5;
+
+	// Nothing invested changes nothing - the path every monster in the game takes every frame.
+	EXPECT_EQ(oracool::ConvictionAdjusted(IMMUNE_FIRE | RESIST_MAGIC, 0), IMMUNE_FIRE | RESIST_MAGIC);
+
+	// Shallow: plain resistances go, immunities are untouched.
+	const uint16_t shallow = oracool::ConvictionAdjusted(IMMUNE_FIRE | RESIST_MAGIC, Shallow);
+	EXPECT_EQ(shallow & RESIST_MAGIC, 0) << "a plain resistance survived Conviction";
+	EXPECT_NE(shallow & IMMUNE_FIRE, 0) << "a shallow Conviction broke an immunity";
+
+	// Deep: the immunity steps DOWN to a resistance rather than vanishing.
+	const uint16_t deep = oracool::ConvictionAdjusted(IMMUNE_FIRE, Deep);
+	EXPECT_EQ(deep & IMMUNE_FIRE, 0) << "a deep Conviction left the immunity standing";
+	EXPECT_NE(deep & RESIST_FIRE, 0) << "the broken immunity vanished instead of stepping down";
+
+	// The whole point, over every combination: no depth of Conviction ever leaves a monster with
+	// NOTHING where it started with an immunity.
+	for (const uint16_t immunity : { IMMUNE_MAGIC, IMMUNE_FIRE, IMMUNE_LIGHTNING }) {
+		for (int points = 1; points <= 20; points++) {
+			const uint16_t out = oracool::ConvictionAdjusted(immunity, points);
+			EXPECT_NE(out, 0) << "Conviction at " << points
+			                  << " points erased an immunity entirely instead of eroding it";
+		}
+	}
+}
+
+// The radius is what makes an aura a thing you POSITION yourself with. Zero when nothing is
+// invested is the part that matters most: it is how "no aura lit" is expressed everywhere.
+TEST(OracoolAudit, AuraRadiusStartsAtNothingAndIsBounded)
+{
+	EXPECT_EQ(oracool::AuraRadiusForPoints(0), 0);
+	EXPECT_EQ(oracool::AuraRadiusForPoints(-3), 0);
+
+	int previous = 0;
+	for (int points = 1; points <= 20; points++) {
+		const int radius = oracool::AuraRadiusForPoints(points);
+		EXPECT_GE(radius, previous) << "the field shrank as points went in";
+		EXPECT_LE(radius, 8) << "the field grew past the screen, where positioning stops mattering";
+		previous = radius;
+	}
+	EXPECT_GT(oracool::AuraRadiusForPoints(20), oracool::AuraRadiusForPoints(1))
+	    << "investment bought no reach at all";
 }
 
 // Phase 3.3. UniqueMonsterData has ONE resistance column where MonsterData has two, so a champion

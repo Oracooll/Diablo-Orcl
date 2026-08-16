@@ -4,15 +4,7 @@
 
 namespace devilution::oracool {
 
-namespace {
-
-/**
- * @brief @p resistances with every immunity replaced by the matching plain resistance.
- *
- * The Nightmare rung. IMMUNE_ACID is dropped rather than demoted because the enum has no
- * RESIST_ACID to demote it to - an acid immunity simply waits for Hell.
- */
-uint16_t DemoteImmunities(uint16_t resistances)
+uint16_t DemoteImmunitiesToResistances(uint16_t resistances)
 {
 	uint16_t out = resistances & ~static_cast<uint16_t>(IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING | IMMUNE_ACID);
 	if ((resistances & IMMUNE_MAGIC) != 0)
@@ -24,8 +16,6 @@ uint16_t DemoteImmunities(uint16_t resistances)
 	return out;
 }
 
-} // namespace
-
 uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty)
 {
 	switch (difficulty) {
@@ -33,7 +23,7 @@ uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty)
 		// Everything Normal already had, plus Hell's extra walls arriving as resistances first.
 		// Unioned rather than replaced, so a monster can never LOSE a resistance by the difficulty
 		// going up - `resistanceHell` is authored as a replacement set, not a superset.
-		return static_cast<uint16_t>(data.resistance) | DemoteImmunities(data.resistanceHell);
+		return static_cast<uint16_t>(data.resistance) | DemoteImmunitiesToResistances(data.resistanceHell);
 	case DIFF_HELL:
 	case DIFF_TORMENT:
 		return data.resistanceHell;

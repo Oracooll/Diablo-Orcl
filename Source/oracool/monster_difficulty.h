@@ -42,6 +42,15 @@ enum _difficulty : uint8_t;
 
 namespace devilution::oracool {
 
+/**
+ * @brief @p resistances with every immunity replaced by the matching plain resistance.
+ *
+ * Shared rather than private because two systems need the same step down: Nightmare's middle rung
+ * here, and Conviction breaking an immunity in oracool/aura_field.cpp. IMMUNE_ACID is dropped
+ * rather than demoted - the enum has no RESIST_ACID to demote it to.
+ */
+uint16_t DemoteImmunitiesToResistances(uint16_t resistances);
+
 /** @brief The resistance and immunity bits an ordinary monster of @p data carries on @p difficulty. */
 uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty);
 
