@@ -936,6 +936,8 @@ bool DoOil(Player &player, int cii, int tabIdx = -1);
 [[nodiscard]] StringOrView PrintItemPower(char plidx, const Item &item);
 /** @brief Like PrintItemPower, but reads a Rare/Buffed Unique/Primal item's own per-affix value instead of the item's shared accumulated field - see the definition for why that distinction matters. */
 [[nodiscard]] StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item);
+/** @brief One set-BONUS stat, read from the rung's own two parameters - a rung has no item to read. Empty for a type with no rendering; OracoolItemSets.EverySetBonusStatHasText makes that a test failure. */
+[[nodiscard]] std::string PrintSetBonusPower(const ItemPower &power);
 void PrintItemDetails(const Item &item);
 void PrintItemDur(const Item &item);
 void UseItem(size_t pnum, item_misc_id Mid, SpellID spellID, int spellFrom);

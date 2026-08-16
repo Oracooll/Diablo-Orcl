@@ -4894,6 +4894,113 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 }
 
 /**
+ * @brief One set-bonus stat, rendered from the rung's OWN values.
+ *
+ * Neither existing printer fits. PrintItemPower reads an item's accumulated fields and a rung has no
+ * item; PrintOracoolAffixPower takes an OracoolAffix, which carries a single magnitude and so cannot
+ * say "5-10 fire damage". This reads param1/param2 straight off the ItemPower.
+ *
+ * Terser than the item lines above on purpose: a rung's stats are joined onto ONE line under its
+ * name, because the alternative - a line each - makes Leoric's thirteen-piece ladder taller than the
+ * screen. "+15% fire res" rather than "Resist Fire: +15%".
+ *
+ * Every type reachable from a rung has a case. ItemSetsTest.EverySetBonusStatHasText walks the
+ * generated table and fails on any type that lands in the default, so a newly authored stat cannot
+ * silently render as a blank.
+ */
+std::string PrintSetBonusPower(const ItemPower &power)
+{
+	switch (power.type) {
+	case IPL_STR:
+		return fmt::format(fmt::runtime(_("{:+d} str")), power.param1);
+	case IPL_MAG:
+		return fmt::format(fmt::runtime(_("{:+d} mag")), power.param1);
+	case IPL_DEX:
+		return fmt::format(fmt::runtime(_("{:+d} dex")), power.param1);
+	case IPL_VIT:
+		return fmt::format(fmt::runtime(_("{:+d} vit")), power.param1);
+	case IPL_ATTRIBS:
+		return fmt::format(fmt::runtime(_("{:+d} all attributes")), power.param1);
+	case IPL_LIFE:
+		return fmt::format(fmt::runtime(_("{:+d} life")), power.param1);
+	case IPL_MANA:
+		return fmt::format(fmt::runtime(_("{:+d} mana")), power.param1);
+	case IPL_ALLRES:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% all resist")), power.param1);
+	case IPL_FIRERES:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% fire resist")), power.param1);
+	case IPL_LIGHTRES:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% lightning resist")), power.param1);
+	case IPL_MAGICRES:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% magic resist")), power.param1);
+	case IPL_DAMP:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% damage")), power.param1);
+	case IPL_DAMMOD:
+		return fmt::format(fmt::runtime(_("{:+d} damage")), power.param1);
+	case IPL_TOHIT:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% to hit")), power.param1);
+	case IPL_ACP:
+		// Flat on a rung, not a percentage - see the flatArmor accumulator in ApplySetBonusesToTotals
+		// for why a bonus cannot express a percentage of an item it does not have.
+		return fmt::format(fmt::runtime(_("{:+d} armor")), power.param1);
+	case IPL_GETHIT:
+		// The parameter arrives positive and SUBTRACTS, so the sign is flipped for display.
+		return fmt::format(fmt::runtime(_("{:+d} damage taken")), -power.param1);
+	case IPL_LIGHT:
+		return fmt::format(fmt::runtime(_("{:+d} light radius")), power.param1);
+	case IPL_SPLLVLADD:
+		return fmt::format(fmt::runtime(_("{:+d} to all spell levels")), power.param1);
+	case IPL_FIREDAM:
+		return fmt::format(fmt::runtime(_("{:d}-{:d} fire damage")), power.param1, power.param2);
+	case IPL_LIGHTDAM:
+		return fmt::format(fmt::runtime(_("{:d}-{:d} lightning damage")), power.param1, power.param2);
+	case IPL_FIRE_ARROWS:
+		return fmt::format(fmt::runtime(_("{:d}-{:d} fire arrow damage")), power.param1, power.param2);
+	case IPL_LIGHT_ARROWS:
+		return fmt::format(fmt::runtime(_("{:d}-{:d} lightning arrow damage")), power.param1, power.param2);
+	case IPL_FASTATTACK:
+		// A discrete tier in param1, 1..4 - never a percentage. Named rather than numbered, because
+		// "attack speed 2" means nothing to a player.
+		switch (power.param1) {
+		case 1: return std::string(_("quick attack"));
+		case 2: return std::string(_("fast attack"));
+		case 3: return std::string(_("faster attack"));
+		default: return std::string(_("fastest attack"));
+		}
+	case IPL_FASTRECOVER:
+		switch (power.param1) {
+		case 1: return std::string(_("fast hit recovery"));
+		case 2: return std::string(_("faster hit recovery"));
+		default: return std::string(_("fastest hit recovery"));
+		}
+	case IPL_FASTBLOCK:
+		return std::string(_("fast block"));
+	case IPL_THORNS:
+		return std::string(_("attacker takes damage"));
+	case IPL_STEALLIFE:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:d}% life stolen per hit")), power.param1);
+	case IPL_STEALMANA:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:d}% mana stolen per hit")), power.param1);
+	case IPL_MULT_ARROWS:
+		return std::string(_("fires multiple arrows"));
+	case IPL_ABSHALFTRAP:
+		return std::string(_("half trap damage"));
+	case IPL_3XDAMVDEM:
+		return std::string(_("triple damage vs demons"));
+	case IPL_ACDEMON:
+		return std::string(_("extra armor vs demons"));
+	case IPL_ACUNDEAD:
+		return std::string(_("extra armor vs undead"));
+	case IPL_KNOCKBACK:
+		return std::string(_("knocks target back"));
+	default:
+		// Deliberately empty rather than a guess. The test named above turns this into a build-time
+		// failure; at runtime the joiner below simply skips it rather than printing a blank comma.
+		return std::string();
+	}
+}
+
+/**
  * @brief Appends the affix/power lines that used to live in the separate fixed "item stats" window.
  *
  * Oracool: user request - there is now one cursor-following panel instead of a tooltip plus a
@@ -4958,8 +5065,29 @@ void AddItemPowerPanelStrings(const Item &item)
 		// because this list wants the UNEARNED ones too.
 		for (int i = 0; i < set->bonusCount; i++) {
 			const oracool::SetBonusDefinition &rung = oracool::ItemSetBonuses[set->firstBonus + i];
+			const UiFlags rungColor = rung.pieces <= worn ? UiFlags::ColorOracoolGreen : UiFlags::ColorRed;
 			AddPanelString(fmt::format(fmt::runtime(_("  ({:d}) {:s}")), rung.pieces, _(rung.name)),
-			    rung.pieces <= worn ? UiFlags::ColorOracoolGreen : UiFlags::ColorRed);
+			    rungColor);
+
+			// What the rung actually GRANTS, joined onto one line beneath its name (user, 2026-08-16:
+			// "they sound strange" - a name alone is flavour text, and for forty-five of the seventy-
+			// three that was all there was). One line rather than one per stat, because Leoric's
+			// thirteen-piece ladder would otherwise be taller than the screen.
+			std::string granted;
+			for (const ItemPower &power : rung.powers) {
+				if (power.type == IPL_INVALID)
+					continue;
+				std::string text = PrintSetBonusPower(power);
+				if (text.empty())
+					continue; // no rendering for this type; see PrintSetBonusPower's default
+				if (!granted.empty())
+					granted = StrCat(granted, ", ");
+				granted = StrCat(granted, text);
+			}
+			// Never reached with the current data - the generator refuses to emit an empty rung - but
+			// a blank indented line would be the visible symptom if that guard were ever removed.
+			if (!granted.empty())
+				AddPanelString(StrCat("      ", granted), rungColor);
 		}
 		return;
 	}

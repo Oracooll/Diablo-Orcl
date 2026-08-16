@@ -13,15 +13,20 @@
  *
  * Stat keywords are resolved through oracool/item_set_stats.h on the way in. A keyword with no
  * channel in this engine contributes nothing rather than something approximate-and-unstated, so an
- * item's power list is only what the item really does. Two consequences worth knowing:
+ * item's power list is only what the item really does. One consequence worth knowing:
  *
  *   - An item can carry fewer powers than its design lists. Vhal's Girdle of Coals declares four
  *     stats and carries three; `potion_healing` has nowhere to go.
- *   - A whole bonus tier can be empty. "Cinderbrand", the four-piece of the Ashen Saint, is a single
- *     `proc:` and so does nothing at all yet. It is still NAMED, because a player who assembles four
- *     pieces should be told what they earned even while it is inert.
  *
- * 390 of the 540 declared stat lines survive the trip. The rest are listed in
+ * BONUS RUNGS ARE DIFFERENT, as of 2026-08-16. Forty-five of the seventy-three delivered rungs
+ * compiled to an EMPTY power list - a named reward, turning green when earned, granting nothing -
+ * because their stats named bespoke machinery (petition counters, stance machines, thirty-one
+ * distinct `proc:` effects) rather than anything this engine has. Those rungs are re-authored in
+ * oracool/item_set_bonus_overrides.txt out of stats that do pay out, chosen to mean what the rung is
+ * named. The generator now REFUSES to emit a rung with no live powers, so "named but empty" is a
+ * build failure rather than something to find in play.
+ *
+ * 520 of the declared-plus-authored stat lines compile to a power; 39 remain inert and are listed in
  * oracool/item_set_stats.cpp with a note saying what building them would take.
  */
 #pragma once
@@ -169,6 +174,9 @@ bool AnySetBonusActive(const Player &player);
  * Every set is considered independently, so wearing four of one and two of another earns both
  * ladders' rungs. Within one set the rungs are CUMULATIVE: every rung at or below the worn count is
  * granted, Diablo II's rule.
+ *
+ * Armour is the one stat a rung cannot grant through the shared item path - IPL_ACP is a percentage
+ * of an item's own armour, and a rung has no item. See the comment at the flatArmor accumulator.
  *
  * Corrected 2026-08-16 (user: "arent there any set bonuses?"). This applied only the highest rung,
  * on a claim that the upper rungs restate the lower ones. Reading the delivered ladders back, they

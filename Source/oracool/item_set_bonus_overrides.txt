@@ -1,0 +1,160 @@
+# Re-authored set bonus rungs.
+#
+# WHY THIS FILE EXISTS
+#
+# Forty-five of the seventy-three delivered bonus rungs compiled to nothing. Not "approximately
+# nothing" - literally an empty power list, because every stat they declared named a mechanic this
+# engine does not have: petition counters, blight stacks, stance machines, temper state, route
+# trackers, and thirty-one distinct `proc:` effects whose name was the entire specification.
+#
+# The generator was right to refuse them. Inventing a number for `proc:cinderbrand` would have been
+# a lie in the data. But the result was a ladder that was mostly ceremony: a player who assembled
+# four pieces of the Ashen Saint earned "Cinderbrand", saw it turn green, and received nothing.
+#
+# Three more rungs were worse than empty, because they compiled to something:
+#
+#   - "Economy of Night" declared a mana discount (no channel) and light_radius:-1 (a channel). It
+#     survived as -1 light radius and NOTHING ELSE - a third piece was a pure punishment.
+#   - "The Mountain Remembers", the CAPSTONE of a seven-piece set, survived as +15 life.
+#   - "Deep Foundation" declared armor_class_flat:+12, which on a bonus rung was worth +1 armour.
+#     See ApplySetBonusesToTotals for why, and for the fix.
+#
+# So each rung below is re-authored out of stats this engine can actually pay out, chosen to mean
+# what the rung is CALLED. "Cinderbrand" is fire damage. "Take Root" is life and vitality. "Teeth of
+# the Hour" is clockwork lightning. The names were never the problem; they were the only part of the
+# design that survived contact with the engine, so they are what the new stats are fitted to.
+#
+# FORMAT
+#
+#   SET_ID | pieces | keyword:value, keyword:value, ...
+#
+# The keywords are the SAME vocabulary as set-data.json, resolved through the same table in
+# oracool/item_set_stats.cpp. That is the point: an override naming an inert or unknown keyword is a
+# hard error in the generator, so this file cannot reintroduce the problem it exists to fix.
+#
+# An override REPLACES that rung's stats entirely. Four is the maximum, matching SetBonusDefinition.
+#
+# TWO RULES LEARNED FROM THE ENGINE
+#
+#   - life_steal / mana_steal are FLAGS at exactly 3 or 5, and they do not stack: player.cpp assigns
+#     `skdam = 5 * dam / 100` over the top of the 3% case rather than adding. So a ladder carries at
+#     most one steal rung, or a deliberate 3 -> 5 upgrade where the higher rung supersedes the lower.
+#     Two rungs both granting 5 would be one rung's worth of effect charged twice.
+#   - thorns, knockback, half_trap_damage, multiple_arrows and damage_vs_demons carry NO magnitude -
+#     the flag's presence is the whole effect. Granting one twice in a ladder grants it once.
+#
+# Re-run tools/GenItemSets.ps1 after editing.
+
+# --- Vestments of the Ashen Saint (6 pieces) - fire, ash, reliquary -------------------------------
+# Only the four-piece was empty; the rest of this ladder survived intact.
+SET_ASHEN_SAINT           | 4  | fire_damage:[4,12], chance_to_hit:+10
+
+# --- Graveglass Regalia (5 pieces) - the dead, glass, spite ---------------------------------------
+SET_GRAVEGLASS            | 3  | vitality:+8, resist_magic:+15
+# "Returning Malice" declared spell_reflect, which has no hook. Thorns is the engine's own version of
+# the same idea - harm returned to whoever dealt it - so the rung keeps its meaning.
+SET_GRAVEGLASS            | 4  | resist_all:+10, thorns:true
+
+# --- Stormcrow Harness (6 pieces) - bows, lightning, crows ----------------------------------------
+# This is a BOW set, and the engine's arrow powers were sitting unused in the enum the whole time.
+SET_STORMCROW             | 3  | resist_lightning:+15, attack_speed:quick
+SET_STORMCROW             | 4  | chance_to_hit:+15, dexterity:+8
+SET_STORMCROW             | 5  | lightning_arrows:[2,20], resist_lightning:+10
+# The capstone was live but thin. A murder of crows descending is more than one arrow.
+SET_STORMCROW             | 6  | enhanced_bow_damage:+25%, bow_attack_speed:fast, multiple_arrows:true
+
+# --- Panoply of the Iron Root (7 pieces) - earth, bark, immovability ------------------------------
+# Four of six rungs were empty. This ladder is now the fork's defensive wall, which is what every one
+# of its names is about.
+SET_IRON_ROOT             | 3  | damage_taken_flat:-2, armor_class_flat:+15
+SET_IRON_ROOT             | 4  | vitality:+12, max_life:+25
+SET_IRON_ROOT             | 5  | armor_class_flat:+25, resist_all:+10
+SET_IRON_ROOT             | 6  | damage_taken_flat:-3, resist_magic:+15, block_speed:true
+# Was +15 life, as the reward for seven pieces.
+SET_IRON_ROOT             | 7  | max_life:+60, all_attributes:+10, damage_taken_flat:-3, thorns:true
+
+# --- Raiment of the Starless Hour (5 pieces) - darkness, mana, sight ------------------------------
+# The light_radius penalty is KEPT: seeing less is the set's whole conceit. It is now paid for.
+SET_STARLESS_HOUR         | 3  | magic:+10, max_mana:+30, light_radius:-1
+SET_STARLESS_HOUR         | 4  | all_spell_levels:+1, magic:+12
+SET_STARLESS_HOUR         | 5  | all_spell_levels:+1, max_mana:+50, resist_all:+15, mana_steal:5
+
+# --- The Rat King's Tithe (4 pieces) - greed, scavenging ------------------------------------------
+# The set's identity is gold, and gold_from_monsters has no IPL_ to ride (Player::_pGoldFind exists
+# and charms feed it, but nothing writes it from an item). Wiring one is a small separate change and
+# is noted in the continuation plan; until then this ladder is about taking, not about coin.
+SET_RAT_KINGS_TITHE       | 2  | dexterity:+8, chance_to_hit:+10
+SET_RAT_KINGS_TITHE       | 3  | attack_speed:quick, dexterity:+8
+SET_RAT_KINGS_TITHE       | 4  | life_steal:5, enhanced_damage:+30, thorns:true, life:+25
+
+# --- Black Orchard Vesture (6 pieces) - rot, blight, harvest --------------------------------------
+SET_BLACK_ORCHARD         | 3  | thorns:true, vitality:+8
+SET_BLACK_ORCHARD         | 4  | enhanced_damage:+20, damage_taken_flat:-2
+# "Reaping Mercy" was a healing proc. Life steal is the engine's version of harvesting from a kill.
+SET_BLACK_ORCHARD         | 5  | life_steal:5, max_life:+30
+# No steal here - rung 5 already grants the 5% flag and a second one would add nothing.
+SET_BLACK_ORCHARD         | 6  | enhanced_damage:+35, max_life:+40, vitality:+12, resist_magic:+15
+
+# --- Works of the Clockwork Penitent (7 pieces) - gears, time, penance ----------------------------
+SET_CLOCKWORK_PENITENT    | 3  | attack_speed:quick, magic:+8
+SET_CLOCKWORK_PENITENT    | 4  | hit_recovery:fast, dexterity:+10
+SET_CLOCKWORK_PENITENT    | 5  | lightning_damage:[4,16], thorns:true
+SET_CLOCKWORK_PENITENT    | 6  | damage_taken_flat:-3, resist_all:+12
+SET_CLOCKWORK_PENITENT    | 7  | attack_speed:fast, all_attributes:+10, lightning_damage:[8,24], enhanced_damage:+25
+
+# --- The Crimson Compact (5 pieces) - blood, pacts, debt ------------------------------------------
+# The deliberate 3 -> 5 steal upgrade: signing the compact draws a little, fulfilling it draws more.
+# The five-piece supersedes the three-piece rather than adding to it, which is the engine's rule and
+# reads correctly as a progression.
+SET_CRIMSON_COMPACT       | 3  | life_steal:3, melee_damage_flat:+6
+SET_CRIMSON_COMPACT       | 4  | enhanced_damage:+20, max_life:+25
+SET_CRIMSON_COMPACT       | 5  | life_steal:5, enhanced_damage:+35, all_attributes:+8, hit_recovery:faster
+
+# --- Dawnwarden's Reliquary (6 pieces) - dawn, wards, the undead ----------------------------------
+# damage_vs_undead has no channel, but armour AGAINST undead does, and it is the same fantasy from
+# the other side: the dawn holds them off.
+SET_DAWNWARDEN_RELIQUARY  | 3  | armor_vs_undead:true, chance_to_hit:+15
+SET_DAWNWARDEN_RELIQUARY  | 4  | resist_all:+12, light_radius:+2
+SET_DAWNWARDEN_RELIQUARY  | 5  | damage_taken_flat:-3, max_life:+30
+SET_DAWNWARDEN_RELIQUARY  | 6  | damage_vs_demons:true, armor_vs_undead:true, all_spell_levels:+1, fire_damage:[10,20]
+
+# --- Steps of the Empty Hand (7 pieces) - unarmed, flow, counterstrikes ---------------------------
+# "evasion" has no channel - nothing here rolls to dodge, being missed is decided by the attacker's
+# to-hit alone. Armour is the honest neighbour: it is what makes you harder to land a blow on.
+SET_EMPTY_HAND            | 4  | armor_class_flat:+20, dexterity:+10
+SET_EMPTY_HAND            | 5  | thorns:true, unarmed_damage:+8
+SET_EMPTY_HAND            | 6  | armor_class_flat:+25, damage_taken_flat:-2
+SET_EMPTY_HAND            | 7  | unarmed_attack_speed:fast, unarmed_damage:+12, all_attributes:+10, chance_to_hit:+20
+
+# --- Wyrmhide Arsenal (8 pieces) - dragons, elemental temper --------------------------------------
+# The temper state machine (ember / storm / rime, switched in combat) is the most ambitious thing in
+# the delivered data and the furthest from anything here. The elements themselves survive.
+SET_WYRMHIDE_ARSENAL      | 3  | fire_damage:[3,9], lightning_damage:[3,9], resist_all:+8
+SET_WYRMHIDE_ARSENAL      | 4  | resist_fire:+15, resist_lightning:+15
+SET_WYRMHIDE_ARSENAL      | 5  | armor_class_flat:+25, damage_taken_flat:-2
+SET_WYRMHIDE_ARSENAL      | 6  | fire_damage:[6,14], lightning_damage:[6,14], resist_all:+12
+SET_WYRMHIDE_ARSENAL      | 8  | attack_speed:fast, enhanced_damage:+30, all_attributes:+10, resist_all:+15
+
+# --- Choir of Silence (5 pieces) - silence, naves, hostile magic ----------------------------------
+SET_CHOIR_OF_SILENCE      | 3  | resist_magic:+20, resist_all:+8
+SET_CHOIR_OF_SILENCE      | 4  | damage_taken_flat:-3, mana:+30
+SET_CHOIR_OF_SILENCE      | 5  | resist_magic:+25, resist_all:+15, all_spell_levels:+1, mana_steal:5
+
+# --- The Lost Cartographer (4 pieces) - maps, thresholds, roads -----------------------------------
+# Its inert keywords were about doors and traps, and half_trap_damage is a real flag this engine
+# already has - the closest any delivered keyword came to landing on its feet.
+SET_LOST_CARTOGRAPHER     | 2  | dexterity:+8, light_radius:+1
+SET_LOST_CARTOGRAPHER     | 3  | half_trap_damage:true, light_radius:+2
+SET_LOST_CARTOGRAPHER     | 4  | all_attributes:+10, hit_recovery:fast, chance_to_hit:+15, light_radius:+2
+
+# --- Leoric's Fallen Court (13 pieces) - the court, petitions, judgment ---------------------------
+# Five of seven rungs empty, and the longest ladder in the game. NOTE: five of its thirteen items
+# have no droppable base yet (ring, amulet, relic, cloak), so rungs 10, 12 and 13 are unreachable in
+# play until that is built - see the continuation plan. Authored anyway, so the ladder is whole when
+# the items arrive rather than a second job to remember.
+SET_LEORICS_FALLEN_COURT  | 6  | all_attributes:+8, max_life:+30
+SET_LEORICS_FALLEN_COURT  | 8  | enhanced_damage:+30, chance_to_hit:+20, damage_taken_flat:-3
+SET_LEORICS_FALLEN_COURT  | 10 | armor_class_flat:+40, resist_all:+15, life_steal:3
+SET_LEORICS_FALLEN_COURT  | 12 | all_attributes:+12, all_spell_levels:+1, max_mana:+40
+# Thirteen pieces. The largest reward in the game, and it should feel like it.
+SET_LEORICS_FALLEN_COURT  | 13 | all_attributes:+20, enhanced_damage:+50, attack_speed:fast, life_steal:5

@@ -2072,8 +2072,16 @@ TEST(OracoolItemSets, EveryDeliveredKeywordHasAMapping)
 		    << "set-data.json uses '" << keyword << "' and oracool/item_set_stats.cpp has no row for "
 		    << "it - the stat would be dropped without a word";
 	}
-	EXPECT_EQ(std::size(DeliveredSetStatKeywords), oracool::SetStatMappingCount)
-	    << "the table and the delivered vocabulary are different sizes";
+	// The table is a SUPERSET of the delivered vocabulary as of 2026-08-16: nine keywords were added
+	// for channels this engine already had and the delivered data never named, so the bonus rungs
+	// could be re-authored out of things that actually pay out. Equality here would say "the table
+	// may only ever describe what was delivered", which is the opposite of the intent - what must
+	// hold is that nothing delivered is MISSING, and that additions are counted rather than drifting.
+	EXPECT_GE(oracool::SetStatMappingCount, std::size(DeliveredSetStatKeywords))
+	    << "a delivered keyword lost its row";
+	EXPECT_EQ(oracool::SetStatMappingCount - std::size(DeliveredSetStatKeywords), 9u)
+	    << "the fork's own keyword count changed - if that is deliberate, update this number and "
+	    << "the note in item_set_stats.h";
 }
 
 // FindSetStat binary-searches, so the order is load-bearing rather than cosmetic. It is also how a
@@ -2191,9 +2199,13 @@ TEST(OracoolItemSets, GeneratedValuesMatchTheDeliveredJson)
 
 	const oracool::SetItemDefinition *armor = oracool::FindSetItem("SET_ASHEN_ARMOR");
 	ASSERT_NE(armor, nullptr);
-	// enhanced_armor is IPL_TARGAC (-> _iPLEnAc), NOT IPL_ACP (-> _iPLAC). Getting this pair the
-	// wrong way round would apply the bonus to the wrong field and nothing would look broken.
-	EXPECT_EQ(armor->powers[0].type, IPL_TARGAC);
+	// enhanced_armor is IPL_ACP. It was IPL_TARGAC until 2026-08-16, mapped on the name alone, and
+	// this test pinned the mistake: IPL_TARGAC is _iPLEnAc, which is ARMOUR PIERCING, and under
+	// Hellfire Player::CalculateArmorPierce uses it as a SHIFT (`tmac >>= _pIEnAc - 1`). Sixteen
+	// items declared enhanced_armor and were erasing monster armour outright while their tooltip
+	// promised defence. Exactly the failure the old comment here warned about, in the other
+	// direction - "nothing would look broken" was the whole problem.
+	EXPECT_EQ(armor->powers[0].type, IPL_ACP);
 	EXPECT_EQ(armor->powers[0].param1, 20);
 	// damage_taken_flat:-1 arrives POSITIVE: SaveItemPower does `_iPLGetHit -= r`.
 	EXPECT_EQ(armor->powers[3].type, IPL_GETHIT);
@@ -2226,13 +2238,86 @@ TEST(OracoolItemSets, BonusLadderPicksTheHighestRungReached)
 	// More pieces than the ladder has rungs still resolves to the top rung rather than to nothing.
 	EXPECT_EQ(oracool::ActiveSetBonus(*ashen, 99)->pieces, 6);
 
-	// "Cinderbrand", the four-piece, is a single proc: - named, earned, and inert. This is the
-	// inert-row rule reaching the player, and it is deliberate.
+	// "Cinderbrand", the four-piece, WAS a single proc: - named, earned, and granting nothing. It
+	// was one of forty-five such rungs, and on 2026-08-16 all forty-five were re-authored out of
+	// stats this engine can pay (oracool/item_set_bonus_overrides.txt) after the user observed that
+	// the set affixes "sound strange". This test asserted the emptiness; it now asserts the fix.
 	const oracool::SetBonusDefinition *four = oracool::ActiveSetBonus(*ashen, 4);
 	ASSERT_NE(four, nullptr);
-	EXPECT_EQ(oracool::CountLivePowers(four->powers, 4), 0)
-	    << "Cinderbrand gained a working stat - if that is deliberate, update this test";
-	EXPECT_NE(four->name, nullptr) << "an inert rung must still be named";
+	EXPECT_GT(oracool::CountLivePowers(four->powers, 4), 0)
+	    << "Cinderbrand is back to granting nothing";
+	EXPECT_NE(four->name, nullptr);
+}
+
+// The invariant the override pass installed, checked against the shipped table rather than only in
+// the generator: a rung the player is TOLD they earned has to grant something. Forty-five of the
+// seventy-three did not, which is how a ladder of evocative names ended up reading as nonsense.
+TEST(OracoolItemSets, EveryBonusRungGrantsSomething)
+{
+	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		for (int i = 0; i < set.bonusCount; i++) {
+			const oracool::SetBonusDefinition &rung = oracool::ItemSetBonuses[set.firstBonus + i];
+			EXPECT_GT(oracool::CountLivePowers(rung.powers, 4), 0)
+			    << set.id << " rung '" << rung.name << "' (" << rung.pieces
+			    << " pieces) compiles to nothing - add a row to item_set_bonus_overrides.txt";
+		}
+	}
+}
+
+// A stat that grants something but renders as a blank line is the same failure wearing a different
+// hat: the player still cannot tell what the rung does. PrintSetBonusPower returns an empty string
+// for a type it has no case for, and this is what turns that into a red run.
+TEST(OracoolItemSets, EverySetBonusStatHasText)
+{
+	for (const oracool::SetBonusDefinition &rung : oracool::ItemSetBonuses) {
+		for (const ItemPower &power : rung.powers) {
+			if (power.type == IPL_INVALID)
+				continue;
+			EXPECT_FALSE(PrintSetBonusPower(power).empty())
+			    << "rung '" << rung.name << "' carries power type " << static_cast<int>(power.type)
+			    << ", which PrintSetBonusPower has no case for - it would draw as nothing";
+		}
+	}
+}
+
+// The armour trap. IPL_ACP is a PERCENTAGE of the item's own armour, and a bonus rung has no item,
+// so routing it through the scratch item made "+12 armour" worth exactly 1 point (the sign fallback
+// in ItemBonusTotals::AddItem). ApplySetBonusesToTotals adds it flat instead.
+TEST(OracoolItemSets, ArmorOnABonusRungIsWorthItsDeclaredValue)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	const oracool::ItemSetDefinition *ironRoot = oracool::FindItemSetOwning("SET_IRON_ROOT_HELM");
+	ASSERT_NE(ironRoot, nullptr) << "the Iron Root's first item id changed";
+
+	// Find the ladder's total declared armour, so the expectation follows the data rather than
+	// restating a number that would rot the moment a rung was retuned.
+	int declared = 0;
+	for (int i = 0; i < ironRoot->bonusCount; i++) {
+		const oracool::SetBonusDefinition &rung = oracool::ItemSetBonuses[ironRoot->firstBonus + i];
+		for (const ItemPower &power : rung.powers) {
+			if (power.type == IPL_ACP)
+				declared += power.param1;
+		}
+	}
+	ASSERT_GT(declared, 1) << "the Iron Root ladder no longer grants armour; pick another set";
+
+	// Wear the whole set, so every rung is earned. Only _iCurs matters to WornSetPieces - the icon
+	// IS a set piece's identity - but the rest is set so the slot reads as a real worn item.
+	for (int i = 0; i < ironRoot->itemCount && i < NUM_INVLOC; i++) {
+		devilution::Item &slot = player.InvBody[i];
+		slot = {};
+		slot._itype = ItemType::Misc;
+		slot._iStatFlag = true;
+		slot._iIdentified = true;
+		slot._iCurs = static_cast<uint16_t>(oracool::ItemSetItems[ironRoot->firstItem + i].cursor);
+	}
+
+	oracool::ItemBonusTotals totals;
+	oracool::ApplySetBonusesToTotals(player, totals);
+	EXPECT_EQ(totals.bonusArmor, declared)
+	    << "armour on a bonus rung collapsed to the +1 sign fallback again";
 }
 
 // Every power the generator emitted has to be one SaveItemPower will actually act on. An

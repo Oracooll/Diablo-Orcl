@@ -18,6 +18,9 @@ param(
     [string]$SetsRoot = "..\Oracool.MPQ\02-source-art\item-sets",
     [string]$OutFile  = "Source\oracool\item_sets_data.inc",
     [string]$StatTable = "Source\oracool\item_set_stats.cpp",
+    # Re-authored rungs. Forty-five of the delivered seventy-three compiled to an empty power list,
+    # because their stats named mechanics this engine does not have. See the file's own header.
+    [string]$OverrideFile = "Source\oracool\item_set_bonus_overrides.txt",
     # Four more generated fragments, so the ONE frame order is written once and read everywhere.
     # A CEL carries no names and no sizes - a frame's position in the file is the only thing tying
     # it to an ICURS_* id - so these four have to agree exactly or every icon after the first
@@ -41,6 +44,26 @@ foreach ($line in Get-Content $StatTable) {
 }
 Write-Host "stat table: $($mapping.Count) keywords"
 if ($mapping.Count -lt 100) { throw "only $($mapping.Count) keywords parsed from $StatTable - the row format changed?" }
+
+# --- read the re-authored rungs -------------------------------------------------------------------
+# Keyed "SET_ID|pieces". Deliberately the same keyword vocabulary as the JSON, resolved through the
+# same $mapping below, so an override cannot quietly name an inert keyword and reintroduce the very
+# emptiness it exists to fix.
+$overrides = @{}
+foreach ($line in Get-Content $OverrideFile) {
+    $t = $line.Trim()
+    if ($t -eq "" -or $t.StartsWith("#")) { continue }
+    $parts = $t -split '\|'
+    if ($parts.Count -ne 3) { throw "override line is not 'SET_ID | pieces | stats': $t" }
+    $key = "$($parts[0].Trim())|$([int]$parts[1].Trim())"
+    if ($overrides.ContainsKey($key)) { throw "two overrides for $key" }
+    # Split on the commas BETWEEN stats, not the one inside a "[4,12]" damage range. The lookahead
+    # fails while a closing bracket is still reachable without crossing an opening one, which is
+    # exactly the "we are inside a range" condition.
+    $overrides[$key] = @($parts[2] -split ',\s*(?![^\[\]]*\])' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
+}
+Write-Host "overrides: $($overrides.Count) re-authored rungs"
+$overridesUsed = @{}
 
 # --- the archives are zips; work from whatever is extracted beside them, else extract to temp -----
 $work = Join-Path ([System.IO.Path]::GetTempPath()) "oracool-item-sets"
@@ -178,20 +201,49 @@ foreach ($dir in Get-ChildItem $work -Directory | Sort-Object Name) {
     }
 
     foreach ($b in $json.bonuses) {
+        # A re-authored rung REPLACES the delivered stats outright. Overriding rather than topping up
+        # keeps one rung's effect readable in one place - a merge would mean reading two files and
+        # knowing which keywords survived the trip to work out what a rung actually grants.
+        $key = "$($json.id)|$([int]$b.pieces)"
+        $isOverride = $overrides.ContainsKey($key)
+        $stats = if ($isOverride) { $overridesUsed[$key] = $true; $overrides[$key] } else { $b.stats }
+
         $powers = @()
-        foreach ($stat in $b.stats) {
+        foreach ($stat in $stats) {
             $parts = $stat -split ':', 2
             $kw = $parts[0]
             $val = if ($parts.Count -gt 1) { $parts[1] } else { "" }
             if (-not $mapping.ContainsKey($kw)) { throw "bonus $($b.name): unknown stat keyword '$kw'" }
             $m = $mapping[$kw]
-            if ($m.Fidelity -eq "Inert") { $inertSeen++; continue }
+            if ($m.Fidelity -eq "Inert") {
+                # Tolerated in the delivered data - that is the whole reason the overrides exist. Never
+                # tolerated in an override, which would be writing the bug back in by hand.
+                if ($isOverride) { throw "override $key names INERT keyword '$kw' - it would compile to nothing" }
+                $inertSeen++; continue
+            }
+            # These reach the player through a SCRATCH item in ApplySetBonusesToTotals, and a scratch
+            # item has no durability, no strength requirement and no icon of its own to change. A rung
+            # declaring one would look real in the tooltip and do nothing at all.
+            if ($m.Power -in @("IPL_INDESTRUCTIBLE", "IPL_NOMINSTR", "IPL_INVCURS", "IPL_SETDAM", "IPL_SETDUR", "IPL_DUR", "IPL_CHARGES")) {
+                throw "bonus $($b.name): '$kw' maps to $($m.Power), which is a no-op on a set bonus (see ApplySetBonusesToTotals)"
+            }
             $p = ConvertTo-Params $val $m.Power
             if ($null -eq $p) { throw "bonus $($b.name): stat '$stat' maps to $($m.Power) but its value is not a number" }
+            # items.cpp only raises a steal flag for exactly 3 and 5; every other value falls through
+            # both ifs and silently does nothing.
+            if ($m.Power -in @("IPL_STEALLIFE", "IPL_STEALMANA") -and $p[0] -notin @(3, 5)) {
+                throw "bonus $($b.name): '$kw' is $($p[0]), but only 3 and 5 exist - any other value does nothing"
+            }
             $liveSeen++
             $powers += "{ $($m.Power), $($p[0]), $($p[1]) }"
         }
         if ($powers.Count -gt 4) { throw "bonus $($b.name) has $($powers.Count) live powers, more than the four slots" }
+        # The guard this whole exercise exists to install: a NAMED reward that grants nothing is the
+        # bug, and after the override pass it is a build failure rather than something to notice in
+        # play. Empty rungs were how forty-five of the seventy-three shipped.
+        if ($powers.Count -eq 0) {
+            throw "bonus '$($b.name)' ($($b.pieces) pieces of $($json.id)) compiles to NOTHING - add a row to $OverrideFile"
+        }
         while ($powers.Count -lt 4) { $powers += "{ IPL_INVALID, 0, 0 }" }
         $bonusRows += "`t{ $([int]$b.pieces), N_(`"$(Escape-Cpp $b.name)`"), { $($powers -join ', ') } },"
         $bonusIndex++
@@ -201,14 +253,20 @@ foreach ($dir in Get-ChildItem $work -Directory | Sort-Object Name) {
         "$firstItem, $($itemIndex - $firstItem), $firstBonus, $($bonusIndex - $firstBonus) },")
 }
 
+# An override that matches no rung is a typo in a set id or a piece count, and it fails silently in
+# the worst way: the rung it was meant to repair stays empty and the file LOOKS like it covers it.
+$unused = $overrides.Keys | Where-Object { -not $overridesUsed.ContainsKey($_) }
+if ($unused) { throw "these overrides matched no rung (check the set id and piece count): $($unused -join ', ')" }
+
 # --- emit ----------------------------------------------------------------------------------------
 $out = @()
 $out += "// GENERATED by tools/GenItemSets.ps1 - do not edit."
 $out += "//"
-$out += "// Source: the fifteen set-data.json files under Oracool.MPQ/02-source-art/item-sets."
+$out += "// Source: the fifteen set-data.json files under Oracool.MPQ/02-source-art/item-sets,"
+$out += "// with $($overrides.Count) bonus rungs re-authored in oracool/item_set_bonus_overrides.txt."
 $out += "// Keyword meanings come from oracool/item_set_stats.cpp; this file only carries the values."
 $out += "//"
-$out += "// $($setRows.Count) sets, $($itemRows.Count) items, $($bonusRows.Count) bonus tiers."
+$out += "// $($setRows.Count) sets, $($itemRows.Count) items, $($bonusRows.Count) bonus tiers - every one of which grants something."
 $out += "// $liveSeen stat lines compiled to a power; $inertSeen were inert and are deliberately absent."
 $out += ""
 $out += "// clang-format off"

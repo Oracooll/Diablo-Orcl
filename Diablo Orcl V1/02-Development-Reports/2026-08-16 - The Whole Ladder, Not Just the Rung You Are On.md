@@ -135,6 +135,8 @@ Eleven lines of set state under seven lines of item. Which is the right proporti
 
 `(4) Cinderbrand` is a single `proc:` and does nothing in this engine yet. It is still **named** and still turns green at four pieces, because the player earned it. That is the inert-row rule the class trees established, applied here: listed, honest, never a bright number that does nothing.
 
+> **Superseded at 1.7.53.** Showing the user this panel is what prompted "these set affixes sound strange" — and counting them showed Cinderbrand was one of **45 of 73** rungs that granted nothing at all. All 45 were re-authored the same day. See [[2026-08-16 - Forty-Five Rewards That Were Only Names]]. The inert-row rule stands for *skills*; for a set bonus, the right answer turned out to be to give it a real effect rather than to name it honestly and leave it empty.
+
 ---
 
 ## Verification

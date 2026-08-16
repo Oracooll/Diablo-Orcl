@@ -12,20 +12,34 @@ constexpr SetStatFidelity Inert = SetStatFidelity::Inert;
 } // namespace
 
 // ALPHABETICAL, and the test enforces it - this is a lookup table people will read as a reference,
-// and 107 rows in arrival order would be unsearchable by eye.
+// and 116 rows in arrival order would be unsearchable by eye.
 //
 // The IPL semantics below were read out of SaveItemPower (items.cpp), not assumed from the names:
-//   IPL_ACP      -> _iPLAC        (armour bonus)      IPL_TARGAC   -> _iPLEnAc (enhanced armour)
+//   IPL_ACP      -> _iPLAC (% of the item's OWN armour)
 //   IPL_DAMP     -> _iPLDam (%)   IPL_DAMMOD -> _iPLDamMod (flat)
 //   IPL_GETHIT   -> _iPLGetHit -= r, so a POSITIVE param reduces damage taken
 //   IPL_FASTATTACK / IPL_FASTRECOVER take a TIER in param1, not a percentage
+//   IPL_STEALLIFE / IPL_STEALMANA fire ONLY on param1 == 3 or 5; any other value does nothing
+//
+// `enhanced_armor` was mapped to IPL_TARGAC here until 2026-08-16, on the name alone. IPL_TARGAC is
+// _iPLEnAc, which is ARMOUR PIERCING, not armour - and under Hellfire (which this fork runs)
+// Player::CalculateArmorPierce uses it as a SHIFT: `tmac >>= (_pIEnAc - 1)`. Sixteen of the ninety-
+// four items declared "enhanced_armor:+15" and were therefore erasing monster armour outright while
+// their tooltip promised defence. It rides IPL_ACP now, which is what the design meant.
+//
+// There is no flat-armour power in this engine at all. IPL_ACP is a PERCENTAGE of the item's own
+// armour, which works on a real piece of armour and is worth nothing on a set BONUS - a bonus has no
+// item of its own. oracool::ApplySetBonusesToTotals handles that case explicitly; see its comment.
 const SetStatMapping SetStatMappings[SetStatMappingCount] = {
 	// clang-format off
 	{ "acid_damage",                              Inert,  IPL_INVALID,     "no acid damage type; the engine has fire, lightning and magic only" },
 	{ "active_temper_resistance",                 Inert,  IPL_INVALID,     "needs the Wyrmhide temper state machine" },
+	{ "all_attributes",                           Power,  IPL_ATTRIBS,     nullptr },
 	{ "all_spell_levels",                         Power,  IPL_SPLLVLADD,   nullptr },
 	{ "armor_class_flat",                         Approx, IPL_ACP,         "IPL_SETAC would OVERWRITE the base item's armour rather than add to it, so this rides the additive channel instead" },
 	{ "armor_per_held_petition",                  Inert,  IPL_INVALID,     "needs the Crimson Compact petition counter" },
+	{ "armor_vs_demons",                          Power,  IPL_ACDEMON,     nullptr },
+	{ "armor_vs_undead",                          Power,  IPL_ACUNDEAD,    nullptr },
 	{ "attack_speed",                             Approx, IPL_FASTATTACK,  "the engine has four discrete speed tiers, not a percentage; the value picks the nearest tier" },
 	{ "aura",                                     Inert,  IPL_INVALID,     "auras are a class-tree investment, not an item property - see oracool/class_tree.h" },
 	{ "block",                                    Inert,  IPL_INVALID,     "block CHANCE is derived from dexterity and class; only block SPEED is an item power here" },
@@ -51,19 +65,21 @@ const SetStatMapping SetStatMappings[SetStatMappingCount] = {
 	{ "curse_duration",                           Inert,  IPL_INVALID,     "curses carry no duration here - the same gap Cleansing sits in" },
 	{ "damage_taken_flat",                        Power,  IPL_GETHIT,      nullptr },
 	{ "damage_vs_demons",                         Approx, IPL_3XDAMVDEM,   "the engine's flag is a fixed TRIPLE against demons; the declared percentage is ignored" },
-	{ "damage_vs_undead",                         Inert,  IPL_INVALID,     "IPL_ACUNDEAD is ARMOUR against undead, not damage to them; no damage-vs-undead channel exists" },
+	{ "damage_vs_undead",                         Inert,  IPL_INVALID,     "IPL_ACUNDEAD is ARMOUR against undead, not damage to them; no damage-vs-undead channel exists - see armor_vs_undead" },
 	{ "dexterity",                                Power,  IPL_DEX,         nullptr },
 	{ "direct_damage_per_blight_stack",           Inert,  IPL_INVALID,     "needs the Black Orchard blight counter" },
 	{ "direct_damage_per_petition",               Inert,  IPL_INVALID,     "needs the Crimson Compact petition counter" },
 	{ "eligible_vendor_sale_proceeds",            Inert,  IPL_INVALID,     "needs a sale-price hook in the store paths" },
-	{ "enhanced_armor",                           Power,  IPL_TARGAC,      nullptr },
+	{ "enhanced_armor",                           Approx, IPL_ACP,         "a PERCENTAGE of the piece's own armour, not a flat addition - the engine has no flat-armour power" },
 	{ "enhanced_bow_damage",                      Approx, IPL_DAMP,        "not bow-specific: applies to every attack" },
 	{ "enhanced_damage",                          Power,  IPL_DAMP,        nullptr },
 	{ "evasion",                                  Inert,  IPL_INVALID,     "no dodge roll exists; being missed is decided by the attacker's to-hit alone" },
 	{ "final_audience_targets",                   Inert,  IPL_INVALID,     "needs Leoric's Fallen Court court-rank state" },
+	{ "fire_arrows",                              Power,  IPL_FIRE_ARROWS, nullptr },
 	{ "fire_damage",                              Power,  IPL_FIREDAM,     nullptr },
 	{ "flow_required",                            Inert,  IPL_INVALID,     "needs the Steps of the Empty Hand flow counter" },
 	{ "gold_from_monsters",                       Inert,  IPL_INVALID,     "Player::_pGoldFind exists (charms feed it) but no IPL_ power writes it; wiring one is a small, separate change" },
+	{ "half_trap_damage",                         Power,  IPL_ABSHALFTRAP, nullptr },
 	{ "hit_recovery",                             Approx, IPL_FASTRECOVER, "the engine has three discrete recovery tiers, not a percentage; the value picks the nearest tier" },
 	{ "hostile_damage_taken_per_greed_rank",      Inert,  IPL_INVALID,     "needs the Rat King's greed rank" },
 	{ "hostile_spell_damage_reduction",           Inert,  IPL_INVALID,     "monster spell damage is not separable from monster damage here" },
@@ -72,16 +88,20 @@ const SetStatMapping SetStatMappings[SetStatMappingCount] = {
 	{ "interrupt",                                Inert,  IPL_INVALID,     "no cast-interrupt state on monsters" },
 	{ "knockback",                                Power,  IPL_KNOCKBACK,   nullptr },
 	{ "life",                                     Power,  IPL_LIFE,        nullptr },
+	{ "life_steal",                               Approx, IPL_STEALLIFE,   "only 3 and 5 exist as flags; any other value silently does NOTHING, so the generator refuses one" },
 	{ "light_radius",                             Power,  IPL_LIGHT,       nullptr },
+	{ "lightning_arrows",                         Power,  IPL_LIGHT_ARROWS, nullptr },
 	{ "lightning_damage",                         Power,  IPL_LIGHTDAM,    nullptr },
 	{ "magic",                                    Power,  IPL_MAG,         nullptr },
 	{ "mana",                                     Power,  IPL_MANA,        nullptr },
+	{ "mana_steal",                               Approx, IPL_STEALMANA,   "only 3 and 5 exist as flags; any other value silently does NOTHING, so the generator refuses one" },
 	{ "max_life",                                 Approx, IPL_LIFE,        "one channel: this engine's life bonus IS the maximum, so max_life and life are the same stat" },
 	{ "max_mana",                                 Approx, IPL_MANA,        "one channel: this engine's mana bonus IS the maximum" },
 	{ "max_resist_fire",                          Inert,  IPL_INVALID,     "the 75% resistance cap is a constant, not a per-character value" },
 	{ "melee_damage_flat",                        Power,  IPL_DAMMOD,      nullptr },
 	{ "memorized_spell_mana_cost",                Inert,  IPL_INVALID,     "IPL_NOMANA is all-or-nothing; a percentage discount has no channel" },
 	{ "minimum_petitions",                        Inert,  IPL_INVALID,     "needs the Crimson Compact petition counter" },
+	{ "multiple_arrows",                          Power,  IPL_MULT_ARROWS, nullptr },
 	{ "mute_duration",                            Inert,  IPL_INVALID,     "needs a monster silence state" },
 	{ "off_hand_focus",                           Inert,  IPL_INVALID,     "no off-hand casting stat exists" },
 	{ "ordinary_door_action_range",               Inert,  IPL_INVALID,     "object interaction range is a constant" },

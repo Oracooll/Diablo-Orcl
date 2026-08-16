@@ -200,17 +200,30 @@ void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals)
 			scratch._itype = ItemType::Misc;
 			scratch._iIdentified = true;
 			scratch._iStatFlag = true;
-			bool anyLive = false;
+			// Armour is the one stat that cannot ride the scratch item, because IPL_ACP is a
+			// PERCENTAGE of the item's own armour and a bonus rung has no item of its own. Routed
+			// through ApplyItemPower it would reach AddItem as `0 * pct / 100`, which the sign
+			// fallback there turns into exactly 1 point - so "Deep Foundation"'s +12 armour was
+			// worth +1, and every armour rung authored after it would have been worth +1 too.
+			//
+			// On a rung the declared number is read as flat armour points instead. That is the only
+			// reading available (the engine has no flat-armour power at all) and it is the one the
+			// data means.
+			int flatArmor = 0;
+			bool anyOnScratch = false;
 			for (const ItemPower &power : rung->powers) {
-				// A rung can be entirely inert - "Cinderbrand" is one proc and nothing else. It is
-				// still EARNED and still named; it simply adds nothing here.
 				if (power.type == IPL_INVALID)
 					continue;
+				if (power.type == IPL_ACP) {
+					flatArmor += power.param1;
+					continue;
+				}
 				ApplyItemPower(player, scratch, power);
-				anyLive = true;
+				anyOnScratch = true;
 			}
-			if (anyLive)
+			if (anyOnScratch)
 				totals.AddItem(scratch);
+			totals.bonusArmor += flatArmor;
 		}
 	}
 }

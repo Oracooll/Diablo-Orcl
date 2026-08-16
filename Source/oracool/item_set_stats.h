@@ -59,8 +59,17 @@ struct SetStatMapping {
 	const char *note;
 };
 
-/** @brief Every keyword the fifteen sets use. */
-constexpr size_t SetStatMappingCount = 107;
+/**
+ * @brief Every keyword the sets use - the 107 delivered, plus nine this fork added.
+ *
+ * The nine are channels the ENGINE already had and this table had simply never named: all
+ * attributes at once, armour against demons/undead, fire and lightning and multiple arrows, half
+ * trap damage, and life/mana steal. They exist because the delivered ladders were largely written
+ * in mechanics this engine cannot do, and the rungs had to be re-authored out of things it can -
+ * see item_set_bonus_overrides.txt. Adding a keyword is the intended way to widen that palette;
+ * inventing a number for an inert one is not.
+ */
+constexpr size_t SetStatMappingCount = 116;
 
 extern DVL_API_FOR_TEST const SetStatMapping SetStatMappings[SetStatMappingCount];
 
