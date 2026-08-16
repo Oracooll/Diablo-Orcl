@@ -472,6 +472,13 @@ void EnsureLoadedAll()
 		LoadPixels(BurgerMenuButtonArt);
 	if (!LevelUpIconArt.loadAttempted)
 		LoadPixels(LevelUpIconArt);
+	// The numbered points strips. Their absence from this list was the whole of "still the
+	// placeholder there" (user, 2026-08-17): DrawUnspentPointsIcon checked rgba, and nothing had
+	// ever been asked to fill it - the reset list knew these assets, the load list did not.
+	if (!PointsIconsDarkArt.loadAttempted)
+		LoadPixels(PointsIconsDarkArt);
+	if (!PointsIconsLitArt.loadAttempted)
+		LoadPixels(PointsIconsLitArt);
 	if (!WaypointPanelArt.loadAttempted)
 		LoadPixels(WaypointPanelArt);
 	if (!WaypointIconsArt.loadAttempted)
