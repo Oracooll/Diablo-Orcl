@@ -417,6 +417,10 @@ struct Player {
 	 */
 	uint16_t _pUnspentSkillPoints = 0;
 	uint8_t _pSkillInvestment[MAX_SPELLS] = {};
+	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers
+	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
+	int _pMagicFind = 0;
+	int _pGoldFind = 0;
 	/** @brief Bitmask of staff spell */
 	uint64_t _pISpells;
 	/** @brief Bitmask of learned spells */

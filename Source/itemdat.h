@@ -263,7 +263,12 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	IDI_ORACOOL_RUNE_RAL,
 	IDI_ORACOOL_RUNE_ORT,
 	IDI_ORACOOL_RUNE_SOL,
-	IDI_LAST = IDI_ORACOOL_RUNE_SOL,
+	// Phase 1 Magic/Gold Find charms. APPENDED after the runes rather than beside their siblings,
+	// because these indices are positional save format - inserting would renumber every rune in
+	// every save. IsOracoolCharmIdx covers both islands.
+	IDI_ORACOOL_CHARM_LUCK,
+	IDI_ORACOOL_CHARM_GREED,
+	IDI_LAST = IDI_ORACOOL_CHARM_GREED,
 	IDI_NONE = -1,
 };
 
@@ -293,10 +298,11 @@ constexpr bool IsOracoolGemIdx(int i)
 	return i >= IDI_ORACOOL_GEM_RUBY && i <= IDI_ORACOOL_GEM_SKULL;
 }
 
-/** @brief Phase 1: whether @p i is a charm. Same pool-exclusion contract. */
+/** @brief Phase 1: whether @p i is a charm. Two islands - see the enum's append-only note. */
 constexpr bool IsOracoolCharmIdx(int i)
 {
-	return i >= IDI_ORACOOL_CHARM_VIGOR && i <= IDI_ORACOOL_CHARM_FORTUNE;
+	return (i >= IDI_ORACOOL_CHARM_VIGOR && i <= IDI_ORACOOL_CHARM_FORTUNE)
+	    || i == IDI_ORACOOL_CHARM_LUCK || i == IDI_ORACOOL_CHARM_GREED;
 }
 
 /** @brief Phase 1: whether @p i is a rune. Socketable like a gem; see oracool/runewords.h. */

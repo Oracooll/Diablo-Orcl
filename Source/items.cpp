@@ -3345,6 +3345,10 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pILMinDam = lmin;
 	player._pILMaxDam = lmax;
 
+	// Phase 1: Magic/Gold Find, derived like everything else on the sheet.
+	player._pMagicFind = totals.magicFind;
+	player._pGoldFind = totals.goldFind;
+
 	player._pInfraFlag = oracool::IsSinglePlayer() && *sgOptions.Oracool.permanentInfravision;
 
 	player._pBlockFlag = false;
@@ -3951,8 +3955,10 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		mLevel -= 15;
 
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
-	// Phase 1: the socket and ethereal rolls, AFTER setup and outside the seed replay - see
-	// TryAddSocketsToDroppedItem's comment for why they must never move inside SetupAllItems.
+	// Phase 1: the drop tail - Magic/Gold Find first (an upgraded item then correctly skips the
+	// socket roll), then sockets, then ethereal. All AFTER setup and outside the seed replay -
+	// see TryAddSocketsToDroppedItem's comment for why none of this may move into SetupAllItems.
+	ApplyMagicAndGoldFindToDrop(item, mLevel);
 	TryAddSocketsToDroppedItem(item);
 	TryMakeDroppedItemEthereal(item);
 	LogNoteworthyItemDrop(item);
@@ -4360,18 +4366,24 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 
 	int first = IDI_ORACOOL_GEM_RUBY;
 	int last = IDI_ORACOOL_GEM_SKULL;
+	bool charmsOnly = false;
 	if (roll >= GemDropPercent + CharmDropPercent) {
 		first = IDI_ORACOOL_RUNE_EL;
 		last = IDI_ORACOOL_RUNE_SOL;
 	} else if (roll >= GemDropPercent) {
+		// The charms live in two enum islands (the MF/GF pair was appended after the runes -
+		// positional indices), so the walk spans both and filters by the range check.
 		first = IDI_ORACOOL_CHARM_VIGOR;
-		last = IDI_ORACOOL_CHARM_FORTUNE;
+		last = IDI_ORACOOL_CHARM_GREED;
+		charmsOnly = true;
 	}
 
 	const int mlvl = monster.level(sgGameInitInfo.nDifficulty);
 	_item_indexes candidates[12];
 	int candidateCount = 0;
 	for (int i = first; i <= last; i++) {
+		if (charmsOnly && !IsOracoolCharmIdx(i))
+			continue;
 		if (AllItemsList[i].iMinMLvl <= mlvl)
 			candidates[candidateCount++] = static_cast<_item_indexes>(i);
 	}
@@ -4406,6 +4418,40 @@ void TryAddSocketsToDroppedItem(Item &item)
 		return;
 	const int roll = GenerateRnd(100);
 	item._iSocketCount = roll < 60 ? 1 : (roll < 90 ? 2 : 3);
+}
+
+void ApplyMagicAndGoldFindToDrop(Item &item, int mLevel)
+{
+	// Phase 1 Magic/Gold Find, consumed HERE and only here - the unseeded drop tail. Reading the
+	// player's find stats inside seed-replayed setup would make recreation depend on whatever the
+	// player wears at replay time; out here the roll happens once, at the true drop, and the
+	// result rides the full-record save paths like every other drop-tail mutation.
+	if (!oracool::IsSinglePlayer() || MyPlayer == nullptr || item.isEmpty())
+		return;
+
+	if (item._itype == ItemType::Gold) {
+		const int goldFind = MyPlayer->_pGoldFind;
+		if (goldFind > 0) {
+			item._ivalue = std::min<int>(item._ivalue * (100 + goldFind) / 100, MaxGold);
+			SetPlrHandGoldCurs(item);
+		}
+		return;
+	}
+
+	const int magicFind = MyPlayer->_pMagicFind;
+	if (magicFind <= 0 || item._iMagical != ITEM_QUALITY_NORMAL || item.hasOracoolTier())
+		return;
+	if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR)
+		return;
+	if (GenerateRnd(100) >= magicFind)
+		return;
+
+	const AffixItemType flgs = GetAffixItemTypeForItem(item);
+	if (flgs == AffixItemType::None)
+		return;
+	// The same shape the debug giverare path uses: half-to-full of the drop's level band.
+	const int iblvl = std::max(1, mLevel);
+	GetRareItemAffixes(*MyPlayer, item, iblvl / 2, iblvl, flgs, /*onlygood=*/false, /*ignoreLevelLimits=*/true);
 }
 
 void TryMakeDroppedItemEthereal(Item &item)

@@ -848,3 +848,52 @@ TEST(OracoolEthereal, RepairDeclinesEtherealItems)
 	EXPECT_EQ(ghost._iDurability, 5) << "the Repair skill fixed a ghost";
 	EXPECT_EQ(ghost._iMaxDur, 20) << "the Repair skill ground down a ghost's max durability";
 }
+
+// Phase 1 Magic/Gold Find: charm-fed, consumed only in the unseeded drop tail.
+TEST(OracoolFindStats, CharmsFeedFindStatsToThePlayer)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 10;
+	player._pLightRad = 10;
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
+
+	player.InvList[0] = {};
+	player.InvList[0]._itype = ItemType::Misc;
+	player.InvList[0].IDidx = IDI_ORACOOL_CHARM_LUCK;
+	player.InvList[1] = {};
+	player.InvList[1]._itype = ItemType::Misc;
+	player.InvList[1].IDidx = IDI_ORACOOL_CHARM_GREED;
+	player._pNumInv = 2;
+
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(player._pMagicFind, 15);
+	EXPECT_EQ(player._pGoldFind, 30);
+}
+
+TEST(OracoolFindStats, GoldFindScalesDroppedGold)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pGoldFind = 50;
+
+	devilution::Item gold {};
+	InitializeItem(gold, IDI_GOLD);
+	gold._ivalue = 100;
+	ApplyMagicAndGoldFindToDrop(gold, 5);
+	EXPECT_EQ(gold._ivalue, 150) << "+50% gold find did not scale the pile";
+
+	// And with no gold find, nothing moves.
+	player._pGoldFind = 0;
+	devilution::Item plain {};
+	InitializeItem(plain, IDI_GOLD);
+	plain._ivalue = 100;
+	ApplyMagicAndGoldFindToDrop(plain, 5);
+	EXPECT_EQ(plain._ivalue, 100);
+}

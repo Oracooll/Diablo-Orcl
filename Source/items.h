@@ -858,6 +858,9 @@ void TryAddSocketsToDroppedItem(Item &item);
 /** @brief Phase 1: the ethereal roll (5% of durable equipment, any quality): +35% primary stats,
  * half max durability, unrepairable. Drop paths only, same seed-replay rule as the sockets. */
 void TryMakeDroppedItemEthereal(Item &item);
+/** @brief Phase 1: Magic/Gold Find consumption - scales dropped gold by _pGoldFind and gives
+ * plain equipment a _pMagicFind% chance to upgrade to a Rare-tier roll. Drop tail only. */
+void ApplyMagicAndGoldFindToDrop(Item &item, int mLevel);
 /**
  * @brief tabIdx selects an Oracool Tabbed Inventory extra tab (0-8) instead of the vanilla
  * InvBody/InvList encoding cii would otherwise resolve through - pass -1 (the default) for the

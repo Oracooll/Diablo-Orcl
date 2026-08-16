@@ -17,13 +17,17 @@ struct CharmData {
 	int fireRes;
 	int lightningRes;
 	int toHit;
+	int magicFind;
+	int goldFind;
 };
 
 constexpr CharmData Charms[] = {
-	{ IDI_ORACOOL_CHARM_VIGOR, 20, 0, 0, 0 },
-	{ IDI_ORACOOL_CHARM_EMBERS, 0, 15, 0, 0 },
-	{ IDI_ORACOOL_CHARM_STORMS, 0, 0, 15, 0 },
-	{ IDI_ORACOOL_CHARM_FORTUNE, 0, 0, 0, 12 },
+	{ IDI_ORACOOL_CHARM_VIGOR, 20, 0, 0, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_EMBERS, 0, 15, 0, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_STORMS, 0, 0, 15, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_FORTUNE, 0, 0, 0, 12, 0, 0 },
+	{ IDI_ORACOOL_CHARM_LUCK, 0, 0, 0, 0, 15, 0 },
+	{ IDI_ORACOOL_CHARM_GREED, 0, 0, 0, 0, 0, 30 },
 };
 
 const CharmData *FindCharm(uint16_t charmIdx)
@@ -46,6 +50,8 @@ void ApplyCharmToTotals(uint16_t charmIdx, ItemBonusTotals &totals)
 	totals.fireResist += charm->fireRes;
 	totals.lightningResist += charm->lightningRes;
 	totals.bonusToHit += charm->toHit;
+	totals.magicFind += charm->magicFind;
+	totals.goldFind += charm->goldFind;
 }
 
 std::string CharmEffectLine(uint16_t charmIdx)
@@ -59,6 +65,10 @@ std::string CharmEffectLine(uint16_t charmIdx)
 		return fmt::format(fmt::runtime(_("+{:d}% fire resist while in your backpack")), charm->fireRes);
 	if (charm->lightningRes > 0)
 		return fmt::format(fmt::runtime(_("+{:d}% lightning resist while in your backpack")), charm->lightningRes);
+	if (charm->magicFind > 0)
+		return fmt::format(fmt::runtime(_("{:d}% chance a plain drop upgrades to Rare")), charm->magicFind);
+	if (charm->goldFind > 0)
+		return fmt::format(fmt::runtime(_("+{:d}% gold from monsters")), charm->goldFind);
 	return fmt::format(fmt::runtime(_("+{:d}% to hit while in your backpack")), charm->toHit);
 }
 

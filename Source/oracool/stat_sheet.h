@@ -67,6 +67,11 @@ struct ItemBonusTotals {
 	int fireMax = 0;
 	int lightningMin = 0;
 	int lightningMax = 0;
+	/** @brief Phase 1: Magic Find - % chance for a plain drop to upgrade to a Rare-tier roll.
+	 * Consumed in the UNSEEDED drop tail (ApplyMagicAndGoldFindToDrop), never in seeded setup. */
+	int magicFind = 0;
+	/** @brief Phase 1: Gold Find - % increase on dropped gold piles. Same unseeded consumption. */
+	int goldFind = 0;
 
 	/**
 	 * @brief Accumulates one item with the vanilla loop's exact semantics: nothing from an empty
