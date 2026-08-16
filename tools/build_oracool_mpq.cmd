@@ -30,18 +30,24 @@ if not exist "%PACKER%" (
   exit /b 1
 )
 
-REM Collect every file under the source folder as a path relative to it.
-set FILES=
+REM Collect every file under the source folder as a path relative to it, into a RESPONSE FILE.
+REM
+REM Not onto the command line: the skill-sound library took the asset count past 300 and the
+REM accumulated string hit Windows' ~8191-character limit, which cmd.exe reports as "The input line
+REM is too long" without naming a cause. A list file has no such ceiling.
+set LIST=%TEMP%\oracool_mpq_files.txt
+if exist "%LIST%" del "%LIST%"
 pushd "%SRC%"
 for /r %%F in (*) do (
   set "P=%%F"
   set "P=!P:%CD%\=!"
-  set FILES=!FILES! "!P!"
+  echo(!P!>>"%LIST%"
 )
 popd
 
 echo Packing...
-"%PACKER%" "%SRC%" "%OUT%" %FILES% || exit /b 1
+"%PACKER%" "%SRC%" "%OUT%" "@%LIST%" || exit /b 1
+del "%LIST%"
 
 echo.
 echo oracool.mpq written to %OUT%

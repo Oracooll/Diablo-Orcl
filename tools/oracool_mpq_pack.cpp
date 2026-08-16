@@ -15,9 +15,15 @@
  * Paths inside the archive are the relative paths given, with '/' rewritten to '\\' to match how
  * the engine asks for files: LoadCel("objects\\mcirl.cel"), LoadPNG("ui\\inventory_panel.png").
  *
- * Usage: oracool_mpq_pack <source_dir> <output.mpq> <relative_file>...
+ * A single argument of the form `@listfile` reads the relative paths from that file, one per line.
+ * Added 2026-08-16 when the skill-sound library brought the asset count past 300 and the command
+ * line the .cmd builds hit Windows' ~8191-character limit - which surfaced as "The input line is
+ * too long" from cmd.exe, before the packer was reached at all.
+ *
+ * Usage: oracool_mpq_pack <source_dir> <output.mpq> (<relative_file>... | @listfile)
  */
 #include <cstdio>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -35,6 +41,33 @@ int main(int argc, char **argv)
 	const std::string sourceDir = argv[1];
 	const std::string outPath = argv[2];
 
+	// The file list, from the command line or from a response file.
+	std::vector<std::string> relPaths;
+	if (argc == 4 && argv[3][0] == '@') {
+		const char *listPath = argv[3] + 1;
+		std::ifstream list(listPath);
+		if (!list) {
+			std::fprintf(stderr, "ERROR: cannot read list file %s\n", listPath);
+			return 1;
+		}
+		std::string line;
+		while (std::getline(list, line)) {
+			// Tolerate CRLF and blank lines: the .cmd writes this file with `echo`, and a stray
+			// carriage return would become part of the archive path and make the asset unfindable.
+			while (!line.empty() && (line.back() == '\r' || line.back() == '\n' || line.back() == ' '))
+				line.pop_back();
+			if (!line.empty())
+				relPaths.push_back(line);
+		}
+		if (relPaths.empty()) {
+			std::fprintf(stderr, "ERROR: list file %s named no files\n", listPath);
+			return 1;
+		}
+	} else {
+		for (int i = 3; i < argc; i++)
+			relPaths.emplace_back(argv[i]);
+	}
+
 	// Always start from scratch. MpqWriter opens an existing archive for editing, so leaving a
 	// stale file in place would silently keep assets that have since been removed from the source.
 	devilution::RemoveFile(outPath.c_str());
@@ -43,8 +76,7 @@ int main(int argc, char **argv)
 	size_t total = 0;
 	int packed = 0;
 
-	for (int i = 3; i < argc; i++) {
-		std::string rel = argv[i];
+	for (std::string rel : relPaths) {
 		const std::string diskPath = sourceDir + "/" + rel;
 		for (char &ch : rel)
 			if (ch == '/')

@@ -45,6 +45,7 @@
 #include "oracool/item_sets.h"
 #include "oracool/oracool.h"
 #include "oracool/runewords.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "panels/info_box.hpp"
 #include "panels/ui_panels.hpp"
@@ -3524,6 +3525,12 @@ void CalcPlrInv(Player &player, bool loadgfx)
 			// If stash is open, ensure the items are displayed correctly
 			Stash.RefreshItemStatFlags();
 		}
+		// Last, because the stinger fires on an equipment TRANSACTION and this is the point at which
+		// one has fully settled: stat flags recomputed, requirements re-tested, unusable items
+		// demoted. A set whose last piece the wearer cannot actually use is not complete, and asking
+		// any earlier would have rung for it. The rising-edge test lives in the callee - see
+		// CheckSetCompletionTransition for what must NOT ring it.
+		oracool::CheckSetCompletionTransition(player);
 	}
 }
 

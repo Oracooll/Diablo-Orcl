@@ -63,6 +63,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/event_log.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/hud_layout.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/hud_menu.h"
@@ -195,6 +196,12 @@ void StartGame(interface_mode uMsg)
 
 void FreeGame()
 {
+	// Before anything else tears down: a looping aura owns a sound handle, and leaving the game is
+	// one of the transitions the sound package's contract requires it released on. Silenced rather
+	// than stopped, because the stop CUE would be a sound the player has no cause for - they left,
+	// they did not switch the aura off.
+	oracool::SilenceClassAuraLoop();
+
 	FreeMonsterHealthBar();
 	FreeXPBar();
 	FreeControlPan();
@@ -3124,6 +3131,16 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	_music_id neededTrack = GetLevelMusic(leveltype);
 	ClearFloatingNumbers();
 
+	// A level transition releases the aura's loop handle (the sound package's contract lists it
+	// alongside death and disconnect) without its stop cue - the aura itself is still on, and will
+	// be re-lit below once the level is up.
+	oracool::SilenceClassAuraLoop();
+	// And re-baseline which sets are complete, silently. Equipment is recomputed all through a level
+	// load, and without this the first CalcPlrInv would read every already-worn set as newly
+	// finished and ring the stinger for it.
+	if (MyPlayer != nullptr)
+		oracool::ArmSetCompletionBaseline(*MyPlayer);
+
 	if (neededTrack != sgnMusicTrack)
 		music_stop();
 	if (pcurs > CURSOR_HAND && pcurs < CURSOR_FIRSTITEM) {
@@ -3445,6 +3462,20 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	ResetItemlabelHighlighted(); // level changed => item changed
 	pcursmonst = -1;             // ensure pcurstemp is set to a valid value
 	CheckCursMove();
+
+	// Re-attach the aura loop released at the top of this function, now that the level is up and the
+	// player's state is settled. Resume rather than Start: the aura never went out, so its start cue
+	// would announce something that did not happen.
+	if (MyPlayer != nullptr) {
+		if (const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(*MyPlayer);
+		    aura != oracool::ClassTreeSkill::None) {
+			oracool::ResumeClassAuraLoop(aura);
+		}
+	}
+	// And re-baseline once more: the equipment recalculations during the load are finished, so this
+	// is the state the next real transaction will be compared against.
+	if (MyPlayer != nullptr)
+		oracool::ArmSetCompletionBaseline(*MyPlayer);
 }
 
 bool game_loop(bool bStartup)

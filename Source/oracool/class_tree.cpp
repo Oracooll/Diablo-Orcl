@@ -12,6 +12,7 @@
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/skill_points.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "player.h"
 #include "utils/language.h"
@@ -718,6 +719,9 @@ bool InvestClassTreePoint(Player &player, Skill skill)
 		LogEvent(fmt::format("{:s} raised to {:d}", std::string(_(GetClassTreeSkillData(skill).name)),
 		             ClassTreeInvestment(player, skill)),
 		    UiFlags::ColorWhitegold);
+		// The `learn` cue. Only the passives and masteries have one - an active's confirmation is its
+		// first cast - so most skills fall through PlaySkillSound silently, which is intended.
+		PlaySkillSound(skill, SkillSoundEvent::Learn);
 	}
 	return true;
 }
@@ -749,6 +753,13 @@ bool ToggleClassAura(Player &player, Skill skill)
 		LogEvent(switchingOff ? fmt::format("{:s} fades", std::string(_(name)))
 		                      : fmt::format("{:s} burns", std::string(_(name))),
 		    UiFlags::ColorWhitegold);
+		// The persistent cue. StartClassAuraLoop stops whatever was running first, so switching
+		// straight from one aura to another is atomic in the order the sound package asks for: old
+		// loop down, old stop cue, new start cue, new loop up.
+		if (switchingOff)
+			StopClassAuraLoop();
+		else
+			StartClassAuraLoop(skill);
 	}
 	return true;
 }
