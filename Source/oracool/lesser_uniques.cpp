@@ -263,6 +263,8 @@ const char *GetLesserUniqueAffixName(LesserUniqueAffix affix)
 		return N_("Vampiric");
 	case LesserUniqueAffix::Thunderous:
 		return N_("Thunderous");
+	case LesserUniqueAffix::Colossal:
+		return N_("Colossal");
 	case LesserUniqueAffix::None:
 		break;
 	}
@@ -289,6 +291,14 @@ void ApplyLesserUniqueAffix(Monster &monster)
 		// than on the individual - so making one champion fast would make every monster of its type
 		// fast with it. Armour is per-monster, immediate, and reads just as clearly in a fight.
 		monster.armorClass = static_cast<uint8_t>(std::min(monster.armorClass + FortifiedArmorBonus, 255));
+		break;
+	case LesserUniqueAffix::Colossal:
+		// The size itself is drawn from scaled sprite data (oracool/monster_scale.h); what belongs
+		// HERE is the part that makes a bigger creature a harder one, so the silhouette is a promise
+		// rather than a costume. Life rather than damage: a Colossal champion should take longer to
+		// bring down, not delete a player who misjudged its reach.
+		monster.maxHitPoints += monster.maxHitPoints / 2;
+		monster.hitPoints = monster.maxHitPoints;
 		break;
 	case LesserUniqueAffix::Vampiric:
 	case LesserUniqueAffix::Thunderous:

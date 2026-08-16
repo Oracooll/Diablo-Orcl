@@ -176,6 +176,19 @@ enum class MonsterSound : uint8_t {
 	Special
 };
 
+struct Monster;
+
+namespace oracool {
+/**
+ * @brief Oracool Phase 3.2: the scaled animation @p monster should use, or nullptr at normal size.
+ *
+ * Declared here rather than reached through oracool/monster_scale.h because Monster's own inline
+ * changeAnimationData is one of the two places sprites get bound, and that header includes this one.
+ * See oracool/monster_scale.h for what it does and why the cache is shaped the way it is.
+ */
+const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic);
+} // namespace oracool
+
 struct CMonster {
 	std::unique_ptr<byte[]> animData;
 	AnimStruct anims[6];
@@ -308,7 +321,11 @@ struct Monster { // note: missing field _mAFNum
 	 */
 	void changeAnimationData(MonsterGraphic graphic, Direction desiredDirection)
 	{
-		const AnimStruct &animationData = type().getAnimData(graphic);
+		// Oracool Phase 3.2: the second of the two places a monster binds sprites (NewMonsterAnim is
+		// the other). A sized monster must be re-bound here too, or it would snap back to its shared
+		// sprites the first time it merely turned to face the player.
+		const AnimStruct *scaled = oracool::GetScaledAnim(*this, graphic);
+		const AnimStruct &animationData = scaled != nullptr ? *scaled : type().getAnimData(graphic);
 
 		// Passing the frames and rate properties here is only relevant when initialising a monster, but doesn't cause any harm when switching animations.
 		this->animInfo.changeAnimationData(animationData.spritesForDirection(desiredDirection), animationData.frames, animationData.rate);

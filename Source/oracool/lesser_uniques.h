@@ -45,9 +45,14 @@ struct Player;
  *   Fortified  - armour, which is per-monster where movement speed is not (see the .cpp)
  *   Vampiric   - Blood Star monsters already drain life
  *   Thunderous - MissileID::MiniNovaBall, added for Fist of the Heavens at 1.5.78
+ *   Colossal   - Megaplan Phase 3.2; the sprite scaler makes size the second property that can
+ *                escape the shared CMonster (see oracool/monster_scale.h)
  *
  * Lives in the devilution namespace rather than oracool because Monster carries one as a field, and
  * a member's type should not need a nested namespace to name.
+ *
+ * Appended to, never reordered: the value is persisted per monster, so an existing save would read
+ * a different champion's modifier if these moved.
  */
 enum class LesserUniqueAffix : uint8_t {
 	None,
@@ -56,7 +61,8 @@ enum class LesserUniqueAffix : uint8_t {
 	Fortified,
 	Vampiric,
 	Thunderous,
-	LAST = Thunderous,
+	Colossal,
+	LAST = Colossal,
 };
 
 namespace oracool {

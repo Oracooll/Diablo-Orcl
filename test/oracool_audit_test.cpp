@@ -35,6 +35,7 @@
 #include "oracool/gems.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
+#include "oracool/monster_scale.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
@@ -112,6 +113,53 @@ TEST(OracoolAudit, DisplayNameIsAffixPlusGeneratedName)
 	const std::string expected = std::string(_(oracool::GetLesserUniqueAffixName(LesserUniqueAffix::Thunderous)))
 	    + " " + oracool::GetLesserUniqueName(monster);
 	EXPECT_EQ(display, expected);
+}
+
+// Phase 3.2. Two properties matter more than the size itself.
+//
+// The first is that an ORDINARY monster must not touch the scale path at all: GetScaledAnim runs
+// from Monster::changeAnimationData, which fires every time any monster turns to face the player,
+// so anything but an immediate nullptr there is a per-frame cost paid by every monster in the game.
+//
+// The second is that every affix must have a name. GetLesserUniqueAffixName is a switch, and the
+// display name is affix + " " + generated name - so a new enum value that falls through returns ""
+// and the champion silently loses its title.
+TEST(OracoolAudit, ColossalIsNamedAndOnlySizedMonstersReachTheScaler)
+{
+	Monster monster {};
+
+	monster.lesserAffix = LesserUniqueAffix::None;
+	EXPECT_EQ(oracool::GetMonsterSize(monster), oracool::MonsterSize::Normal);
+	EXPECT_EQ(oracool::GetScaledAnim(monster, MonsterGraphic::Stand), nullptr)
+	    << "an ordinary monster reached the scale cache";
+
+	monster.lesserAffix = LesserUniqueAffix::Colossal;
+	EXPECT_EQ(oracool::GetMonsterSize(monster), oracool::MonsterSize::Colossal);
+	EXPECT_GT(oracool::MonsterSizePercent(oracool::MonsterSize::Colossal), 100u);
+	EXPECT_EQ(oracool::MonsterSizePercent(oracool::MonsterSize::Normal), 100u);
+
+	for (int i = 1; i <= static_cast<int>(LesserUniqueAffix::LAST); i++) {
+		const auto affix = static_cast<LesserUniqueAffix>(i);
+		EXPECT_STRNE(oracool::GetLesserUniqueAffixName(affix), "")
+		    << "affix " << i << " has no name - a champion would be called \" Malgrith the Unclean\"";
+	}
+	EXPECT_STREQ(oracool::GetLesserUniqueAffixName(LesserUniqueAffix::None), "");
+}
+
+// A Colossal champion's size is a promise about the fight, so the stat half must land too - and it
+// must leave the monster at FULL health, because ApplyLesserUniqueAffix runs after hit points are
+// already set and raising only the maximum would spawn every one of them visibly wounded.
+TEST(OracoolAudit, ColossalRaisesLifeAndSpawnsAtFull)
+{
+	Monster monster {};
+	monster.lesserAffix = LesserUniqueAffix::Colossal;
+	monster.maxHitPoints = 1000;
+	monster.hitPoints = 1000;
+
+	oracool::ApplyLesserUniqueAffix(monster);
+
+	EXPECT_GT(monster.maxHitPoints, 1000);
+	EXPECT_EQ(monster.hitPoints, monster.maxHitPoints) << "a Colossal champion spawned already hurt";
 }
 
 // Bug (v1.6.5, regression introduced by v1.6.4): TintLesserUnique gained a caller that runs for

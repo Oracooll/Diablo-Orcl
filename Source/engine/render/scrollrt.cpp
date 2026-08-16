@@ -42,6 +42,7 @@
 #include "oracool/game_clock.h"
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
+#include "oracool/monster_scale.h"
 #include "oracool/save_indicator.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/waypoint_menu.h"
@@ -945,8 +946,20 @@ void DrawDungeon(const Surface &out, Point tilePosition, Point targetBufferPosit
 
 	if (LightTableIndex < LightsMax && bDead != 0) {
 		Corpse &corpse = Corpses[(bDead & 0x1F) - 1];
-		const Point position { targetBufferPosition.x - CalculateWidth2(corpse.width), targetBufferPosition.y };
-		const ClxSprite sprite = corpse.spritesForDirection(static_cast<Direction>((bDead >> 5) & 7))[corpse.frame];
+		const auto direction = static_cast<Direction>((bDead >> 5) & 7);
+		OptionalClxSpriteListOrSheet sprites = corpse.sprites;
+		// Oracool Phase 3.2: a Colossal champion must not shrink the instant it dies. The corpse
+		// table is keyed by corpseId and shared, so the SIZED sprites come from the monster the
+		// corpse remembers - which translationPaletteIndex already points at for its palette.
+		if (corpse.translationPaletteIndex != 0) {
+			if (OptionalClxSpriteListOrSheet scaled = oracool::GetScaledCorpse(Monsters[corpse.translationPaletteIndex - 1]))
+				sprites = scaled;
+		}
+		const ClxSpriteList list = sprites->isSheet() ? (*sprites).sheet()[static_cast<size_t>(direction)] : (*sprites).list();
+		const ClxSprite sprite = list[corpse.frame];
+		// Centred on the sprite's own width rather than the table's, so a scaled corpse sits on the
+		// tile its monster died on. Identical for everything else - they are the same number.
+		const Point position { targetBufferPosition.x - CalculateWidth2(sprite.width()), targetBufferPosition.y };
 		if (corpse.translationPaletteIndex != 0) {
 			const uint8_t *trn = Monsters[corpse.translationPaletteIndex - 1].uniqueMonsterTRN.get();
 			ClxDrawTRN(out, position, sprite, trn);

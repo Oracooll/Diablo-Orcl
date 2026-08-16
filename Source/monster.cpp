@@ -36,6 +36,7 @@
 #include "options.h"
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
+#include "oracool/monster_scale.h"
 #include "oracool/telemetry.h"
 
 #include "qol/floatingnumbers.h"
@@ -735,7 +736,10 @@ void DeleteMonster(size_t activeIndex)
 
 void NewMonsterAnim(Monster &monster, MonsterGraphic graphic, Direction md, AnimationDistributionFlags flags = AnimationDistributionFlags::None, int8_t numSkippedFrames = 0, int8_t distributeFramesBeforeFrame = 0)
 {
-	const auto &animData = monster.type().getAnimData(graphic);
+	// Oracool Phase 3.2: the ONE place a monster binds its sprites, and therefore the one place a
+	// size can change them. A normal monster gets the shared CMonster data exactly as before.
+	const AnimStruct *scaled = oracool::GetScaledAnim(monster, graphic);
+	const AnimStruct &animData = scaled != nullptr ? *scaled : monster.type().getAnimData(graphic);
 	monster.animInfo.setNewAnimation(animData.spritesForDirection(md), animData.frames, animData.rate, flags, numSkippedFrames, distributeFramesBeforeFrame);
 	monster.flags &= ~(MFLAG_LOCK_ANIMATION | MFLAG_ALLOW_SPECIAL);
 	monster.direction = md;
@@ -3391,6 +3395,8 @@ void InitLevelMonsters()
 {
 	LevelMonsterTypeCount = 0;
 	monstimgtot = 0;
+	// The scaled sheets are views onto sprite data that is about to be replaced, so they go first.
+	oracool::ClearMonsterScaleCache();
 
 	for (CMonster &levelMonsterType : LevelMonsterTypes) {
 		levelMonsterType.placeFlags = 0;
@@ -4274,6 +4280,7 @@ void ProcessMonsters()
 
 void FreeMonsters()
 {
+	oracool::ClearMonsterScaleCache();
 	for (CMonster &monsterType : LevelMonsterTypes) {
 		monsterType.animData = nullptr;
 		for (AnimStruct &animData : monsterType.anims) {
