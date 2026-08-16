@@ -132,14 +132,6 @@ void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, in
 /** @brief On-screen size of one tree icon, or {0,0} if that class's strip is missing. */
 Size GetClassTreeIconSize(HeroClass heroClass);
 
-/** @brief Draws Barbarian skill icon @p skillIndex (oracool::BarbSkill order). Same locked
- * treatment as DrawAuraIcon - the two sheets share one implementation. */
-void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Green);
-
-/** @brief On-screen size of one Barbarian skill icon, or {0,0} if the asset is missing. */
-Size GetBarbSkillIconSize();
-
 /** @brief Draws Paladin skill icon @p skillIndex (oracool::PaladinSkill order - 0 Charge, 1 Zeal).
  * Same locked treatment as DrawAuraIcon; same shared strip implementation. */
 void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,

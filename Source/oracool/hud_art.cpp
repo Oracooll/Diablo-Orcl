@@ -92,7 +92,7 @@ ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
 ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
 /**
  * Oracool: Diablo II's Paladin skill tree - 29 icons, one 56x56 cell each, in
- * oracool::PaladinTreeSkill order. Cut by tools/CutPaladinTree.ps1. Larger cells than the other
+ * oracool::ClassTreeSkill order. Cut by tools/CutPaladinTree.ps1. Larger cells than the other
  * strips because the tree lays them out three to a row rather than one per list row.
  */
 ArtAsset PaladinTreeIconsArt { "ui\\paladin_tree_icons.png" };
@@ -115,8 +115,6 @@ ArtAsset &TreeStripFor(HeroClass heroClass)
 		return PaladinTreeIconsArt;
 	}
 }
-/** Oracool: the 18 Barbarian skill icons, same 38x38 cells, in oracool::BarbSkill order. */
-ArtAsset BarbSkillIconsArt { "ui\\barb_skill_icons.png" };
 /** Oracool: the Paladin's seven skills, same 38x38 cells, in oracool::PaladinSkill order. */
 ArtAsset PaladinSkillIconsArt { "ui\\paladin_skill_icons.png" };
 /**
@@ -433,8 +431,6 @@ void EnsureLoadedAll()
 		LoadPixels(WaypointIconsArt);
 	if (!PaladinTreeIconsArt.loadAttempted)
 		LoadPixels(PaladinTreeIconsArt);
-	if (!BarbSkillIconsArt.loadAttempted)
-		LoadPixels(BarbSkillIconsArt);
 	if (!PaladinSkillIconsArt.loadAttempted)
 		LoadPixels(PaladinSkillIconsArt);
 	if (!AttackIconsArt.loadAttempted)
@@ -474,8 +470,6 @@ bool NeedsQuantize()
 	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
 		return true;
 	if (!PaladinTreeIconsArt.rgba.empty() && !PaladinTreeIconsArt.bright)
-		return true;
-	if (!BarbSkillIconsArt.rgba.empty() && !BarbSkillIconsArt.bright)
 		return true;
 	if (!PaladinSkillIconsArt.rgba.empty() && !PaladinSkillIconsArt.bright)
 		return true;
@@ -525,7 +519,6 @@ void EnsureQuantized()
 	// No tint: the tree icons are the artwork itself, not chrome - their shapes carry the meaning.
 	
 	QuantizeAsset(PaladinTreeIconsArt, std::nullopt);
-	QuantizeAsset(BarbSkillIconsArt, std::nullopt);
 	QuantizeAsset(PaladinSkillIconsArt, std::nullopt);
 	// Same reasoning, and one more: these two sit in the HUD's skill wells next to the engine's own
 	// spell icons, which are drawn untinted. A gold pass here would make the basic attack the one
@@ -961,7 +954,6 @@ void ResetHudArtCaches()
 	reset(WaypointPanelArt);
 	reset(WaypointIconsArt);
 	reset(PaladinTreeIconsArt);
-	reset(BarbSkillIconsArt);
 	reset(PaladinSkillIconsArt);
 	reset(AttackIconsArt);
 	for (ArtAsset &silhouette : SilhouetteArt)
@@ -993,16 +985,6 @@ void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int inde
 {
 	DrawSkillIconPlate(out, origin, tint);
 	DrawStripIcon(out, asset, origin, index, unlocked);
-}
-
-void DrawBarbSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked, SkillPlateTint tint)
-{
-	DrawIconOnPlate(out, BarbSkillIconsArt, origin, skillIndex, unlocked, tint);
-}
-
-Size GetBarbSkillIconSize()
-{
-	return StripIconSize(BarbSkillIconsArt);
 }
 
 void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked, SkillPlateTint tint)

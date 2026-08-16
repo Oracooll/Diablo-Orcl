@@ -23,7 +23,6 @@
 #include "oracool/class_tree.h"
 #include "oracool/skill_points.h"
 #include "oracool/spell_descriptions.h"
-#include "oracool/barb_skills.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
 #include "oracool/oracool.h"
@@ -279,8 +278,7 @@ enum class AbilitySheet : uint8_t {
 	ClassTree0,
 	ClassTree1,
 	ClassTree2,
-	Barbarian,
-	LAST = Barbarian,
+	LAST = ClassTree2,
 };
 constexpr size_t AbilitySheetCount = 7;
 
@@ -324,25 +322,12 @@ int ListHeight = 0;
 /** @brief Set while an arrow is held, purely so it can be drawn pressed. */
 int PressedArrow = 0;
 
-/**
- * @brief Oracool: user request (2026-08-15) - "hide SKILLS abilities pages in Paladin and Barb for
- * now. We will reintroduce them when they are more developed."
- *
- * The Auras sheet (Paladin) and the Barbarian sheet are finished as LISTS - names, descriptions,
- * tiers, icons, unlock-by-level - and completely inert in play. Selecting one has no combat effect,
- * and there is not even anywhere to record a choice: oracool/auras.h's doc comment points at
- * "ActiveAura on Player" and no such member exists anywhere in the codebase. A page of things that
- * cannot be used reads as a bug rather than as a promise, so both wait for the Skills system - the
- * same gate already holding Furious Charge and the Warrior splash (both fully implemented and
- * returning false, see oracool/furious_charge.cpp and paladin_melee.cpp).
- *
- * Gated HERE and not in ClassHasAuras/ClassHasBarbSkills deliberately. Those answer "does this class
- * have auras at all", which is still true, and is the question the unlock-by-level checks inside
- * oracool/auras.cpp and barb_skills.cpp ask of themselves. This flag answers the different question
- * of whether the window should offer the page yet. Reintroducing them is deleting this constant and
- * the two terms below - nothing else has to be remembered.
- */
-constexpr bool ClassAbilitySheetsHidden = true;
+// The ClassAbilitySheetsHidden flag that used to live here is gone with the two sheets it hid.
+// It was raised on 2026-08-15 because the Paladin's Auras sheet and the Barbarian's skill sheet
+// were finished LISTS with no gameplay behind them, and a page of things that cannot be used reads
+// as a bug rather than a promise. Both lists were invented before the real Diablo II sheets
+// arrived, and both have since been superseded by oracool/class_tree - which is spendable, acts,
+// and is honest about the rows that do not - so there is nothing left to hide.
 
 /** @brief Whether @p sheet is available to this character. */
 bool IsSheetAvailable(AbilitySheet sheet)
@@ -361,8 +346,6 @@ bool IsSheetAvailable(AbilitySheet sheet)
 		// Not behind ClassAbilitySheetsHidden: unlike the list it replaced, the tree is spendable
 		// and its skills act, so there is nothing inert to hide.
 		return oracool::ClassHasTree(InspectPlayer->_pClass);
-	case AbilitySheet::Barbarian:
-		return !ClassAbilitySheetsHidden && oracool::ClassHasBarbSkills(*InspectPlayer);
 	case AbilitySheet::Skills:
 		// Always: every class has the two basic attacks, so this sheet is never empty and is the
 		// safe landing place when nothing else is available.
@@ -417,15 +400,13 @@ string_view GetSheetTitle(AbilitySheet sheet)
 	case AbilitySheet::ClassTree2:
 		// Named by the tree, not here: each class calls its three pages something different.
 		return oracool::GetClassTreePageName(InspectPlayer->_pClass, *TreePageOf(sheet));
-	case AbilitySheet::Barbarian:
-		return _("BARBARIAN");
 	}
 	return {};
 }
 
 int RowHeightFor(AbilitySheet sheet)
 {
-	return (sheet == AbilitySheet::Barbarian) ? DescribedRowHeight : SpellRowHeight;
+	return SpellRowHeight;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -560,8 +541,6 @@ size_t GetRowCount(AbilitySheet sheet)
 		oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
 		return oracool::BuildClassTreePage(InspectPlayer->_pClass, *TreePageOf(sheet), skills);
 	}
-	case AbilitySheet::Barbarian:
-		return oracool::BarbSkillCount;
 	}
 	return 0;
 }
@@ -910,87 +889,6 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	DrawInvestControls(content, top, SpellRowHeight, sn);
 }
 
-/** @brief Which 38x38 strip a described row takes its icon from. */
-enum class DescribedIcons : uint8_t {
-	Barbarian,
-	Paladin,
-};
-
-/**
- * @brief Draws an icon-plus-prose row - the shape the Barbarian and Paladin rows use.
- *
- * @p tag is an optional short right-aligned label on the name line (the Barbarian's Combat/Warcry/
- * Passive/Utility, the Paladin skills' mana price).
- * @p requiredLevel replaces the description when the entry is locked.
- */
-void DrawDescribedRow(const Surface &content, int top, int iconIndex, DescribedIcons icons, bool unlocked,
-    string_view name, string_view tag, string_view description, int requiredLevel)
-{
-	Size iconSize {};
-	switch (icons) {
-	case DescribedIcons::Barbarian:
-		iconSize = oracool::GetBarbSkillIconSize();
-		break;
-	case DescribedIcons::Paladin:
-		iconSize = oracool::GetPaladinSkillIconSize();
-		break;
-	}
-	// With no custom strip shipped the row still shows the plate, so it is the plate that decides the
-	// layout - asking hud_art for it rather than having the Get*IconSize functions pretend the art
-	// exists, which is the mistake that fired an assert in the HUD's skill wells on 2026-08-15.
-	if (iconSize.width == 0)
-		iconSize = oracool::GetSkillIconPlateSize();
-	const int iconWidth = iconSize.width > 0 ? iconSize.width : 38;
-	const int iconHeight = iconSize.height > 0 ? iconSize.height : 38;
-	const int textX = AbilitiesIconX + iconWidth + AbilitiesTextGap;
-	const int textWidth = AbilitiesContentRightLimit - textX;
-
-	// Top-left origin here, unlike the spell icons' bottom-left - these are blitted rather than
-	// drawn as CLX sprites.
-	const Point iconPos { AbilitiesIconX, top + (DescribedRowHeight - iconHeight) / 2 };
-	// Pink on every plate-drawn sheet (user request, 2026-08-15): the Skills sheet got it first, and
-	// Auras and Barbarian followed once it was clear the plate colour separates ABILITY KINDS from
-	// spells and class skills, not one sheet from the other three. Grey when the row is not earned
-	// yet - the same grey an unlearned spell gets on the Spells sheet.
-	const oracool::SkillPlateTint tint = unlocked ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Grey;
-	switch (icons) {
-	case DescribedIcons::Barbarian:
-		oracool::DrawBarbSkillIcon(content, iconPos, iconIndex, unlocked, tint);
-		break;
-	case DescribedIcons::Paladin:
-		oracool::DrawPaladinSkillIcon(content, iconPos, iconIndex, unlocked, tint);
-		break;
-	}
-
-	const UiFlags nameColor = unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorUiSilverDark;
-	const UiFlags detailColor = unlocked ? UiFlags::ColorWhite : UiFlags::ColorUiSilverDark;
-
-	const int textTop = top + DescribedRowPadding;
-	const Rectangle nameArea { { textX, textTop }, { textWidth, AbilitiesLineHeight } };
-	DrawString(content, name, nameArea, { nameColor | UiFlags::VerticalCenter });
-	if (!tag.empty()) {
-		// Right-aligned in the same rect as the name. "Is this something I press, or is it always
-		// on?" is not answerable from the description alone, and it is the first thing to know.
-		DrawString(content, tag, nameArea,
-		    { UiFlags::ColorUiSilverDark | UiFlags::AlignRight | UiFlags::VerticalCenter });
-	}
-
-	// A locked entry says what would unlock it rather than what it does - the requirement is the
-	// useful information at that point, and it keeps the row height identical either way.
-	if (!unlocked) {
-		DrawString(content, fmt::format(fmt::runtime(_("Requires level {:d}")), requiredLevel),
-		    { { textX, textTop + AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
-		    { detailColor | UiFlags::VerticalCenter });
-		return;
-	}
-
-	// Wrapped to the text column rather than trusted to fit: the descriptions are written short
-	// enough for two lines in English, and a longer translation wraps instead of running under the
-	// scrollbar.
-	DrawString(content, WordWrapString(description, textWidth, GameFont12, 1),
-	    { { textX, textTop + AbilitiesLineHeight }, { textWidth, DescribedRowDescLines * AbilitiesLineHeight } },
-	    { detailColor, 1, AbilitiesLineHeight });
-}
 
 /**
  * @brief One cell of a tree page: the icon, and under it the point counter that doubles as the
@@ -1099,15 +997,6 @@ void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, in
 		// slot exists for every skill, only BuildSkillsSheetRows withholds it from the ready path.
 		DrawInvestControls(content, top, SpellRowHeight, sn);
 	}
-}
-
-void DrawBarbSkillRow(const Surface &content, size_t index, int top)
-{
-	const oracool::BarbSkill skill = oracool::GetBarbSkillAtDisplayIndex(index);
-	const oracool::BarbSkillData &data = oracool::GetBarbSkillData(skill);
-	DrawDescribedRow(content, top, oracool::GetBarbSkillIconIndex(skill), DescribedIcons::Barbarian,
-	    oracool::IsBarbSkillUnlocked(*InspectPlayer, skill), _(data.name),
-	    oracool::GetBarbSkillKindName(data.kind), _(data.description), data.minLevel);
 }
 
 } // namespace
@@ -1379,12 +1268,6 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 			case AbilitySheet::ClassTree1:
 			case AbilitySheet::ClassTree2:
 				break; // handled above - the tree is a grid, not a row list
-			case AbilitySheet::Barbarian: {
-				const oracool::BarbSkill skill = oracool::GetBarbSkillAtDisplayIndex(index);
-				title = _(oracool::GetBarbSkillData(skill).name);
-				description = _(oracool::GetBarbSkillData(skill).description);
-				break;
-			}
 			case AbilitySheet::Spells:
 			case AbilitySheet::ClassSkills: {
 				SpellID rows[MaxSpellRows];
@@ -1534,9 +1417,6 @@ void DrawSpellBook(const Surface &out)
 		case AbilitySheet::ClassTree1:
 		case AbilitySheet::ClassTree2:
 			break; // handled above
-		case AbilitySheet::Barbarian:
-			DrawBarbSkillRow(content, i, top);
-			break;
 		case AbilitySheet::Spells:
 		case AbilitySheet::ClassSkills:
 			DrawSpellRow(content, i, rows[i], top);
@@ -1625,12 +1505,6 @@ void CheckSBook(bool assignToRightButton)
 		RedrawEverything();
 		return;
 	}
-	// Barbarian skills are listed and described but not yet selectable - their gameplay pass has
-	// not been built. Clicking one deliberately does nothing rather than setting a state nothing
-	// reads.
-	if (CurrentSheet == AbilitySheet::Barbarian)
-		return;
-
 	SpellID sn = SpellID::Invalid;
 	if (CurrentSheet == AbilitySheet::Skills) {
 		// Walks the same enumeration the draw loop does, accumulating heights, because this sheet's
