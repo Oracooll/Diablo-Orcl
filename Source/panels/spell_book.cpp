@@ -169,9 +169,13 @@ constexpr int AbilitiesMargin = 24;
  * agree when both are open.
  */
 constexpr int AbilitiesArchTop = 101;
-/** @brief The nav row: an arrow at each end, the unspent-points count centred between them. */
-constexpr int AbilitiesNavRowHeight = 26;
-constexpr int AbilitiesContentTop = AbilitiesArchTop + AbilitiesNavRowHeight;
+/**
+ * @brief The content begins where the arch ends. The 26px nav row that used to sit between them is
+ * gone (2026-08-17): its arrows moved up into the title band and its points readout moved out to
+ * the HUD, into the frame above the RMB well - so the row held nothing, and the list gets its
+ * height.
+ */
+constexpr int AbilitiesContentTop = AbilitiesArchTop;
 /**
  * @brief The list's height.
  *
@@ -576,11 +580,16 @@ void DrawScrollbar(const Surface &out, const Rectangle &panel)
  */
 Rectangle GetArrowRect(int direction)
 {
+	// In the TITLE band (user, 2026-08-17: "Arrows for prev/next ability window to be at the title
+	// row"), which is what let the nav row die and the content start 26px higher. Pushed to the
+	// band's extreme ends - inside the ornate border, outside the margin the title text uses - so
+	// the widest sheet names ("OFFENSIVE AURAS", drawn centred at FontSize30) cannot reach them.
+	constexpr int ArrowEdgeInset = 10;
 	const Rectangle panel = GetSpellBookPanelRect();
 	const int cx = direction < 0
-	    ? panel.position.x + AbilitiesMargin + ArrowHitSize.width / 2
-	    : panel.position.x + AbilitiesPanelSize.width - AbilitiesMargin - ArrowHitSize.width / 2;
-	const int cy = panel.position.y + AbilitiesArchTop + AbilitiesNavRowHeight / 2;
+	    ? panel.position.x + ArrowEdgeInset + ArrowHitSize.width / 2
+	    : panel.position.x + AbilitiesPanelSize.width - ArrowEdgeInset - ArrowHitSize.width / 2;
+	const int cy = panel.position.y + oracool::PanelTitleTop + oracool::PanelTitleHeight / 2;
 	return { { cx - ArrowHitSize.width / 2, cy - ArrowHitSize.height / 2 }, ArrowHitSize };
 }
 
@@ -803,11 +812,16 @@ bool SpendBoxHovered(Rectangle box)
 /** @brief A thick plus (green) or minus (red), centred in its 13x13 box. */
 void DrawSpendGlyph(const Surface &out, Rectangle box, bool plus)
 {
-	// 2px black frame on hover (user, 2026-08-17). Drawn FIRST so the glyph's own bars sit on top of
-	// it rather than being clipped by it - the box is only 13px and the bars are 4, so an outline
-	// painted afterwards would eat a third of the crossbar's length.
-	if (SpendBoxHovered(box))
-		UnsafeDrawBorder2px(out, box, 0); // palette index 0 is black
+	// 1px black frame on hover (user, 2026-08-17; thinned from 2px the same day - "make the outline
+	// 1px thick"). Drawn FIRST so the glyph's own bars sit on top of it rather than being clipped by
+	// it - the box is only 13px and the bars are 4.
+	if (SpendBoxHovered(box)) {
+		constexpr uint8_t Black = 0;
+		DrawHorizontalLine(out, box.position, box.size.width, Black);
+		DrawHorizontalLine(out, { box.position.x, box.position.y + box.size.height - 1 }, box.size.width, Black);
+		DrawVerticalLine(out, { box.position.x, box.position.y + 1 }, box.size.height - 2, Black);
+		DrawVerticalLine(out, { box.position.x + box.size.width - 1, box.position.y + 1 }, box.size.height - 2, Black);
+	}
 
 	// PAL8_YELLOW is the injected green ramp (see oracool::SkillPlateTint), so the plus reads in the
 	// same green the sheets already wear; the minus takes the game's own red.
@@ -1194,18 +1208,10 @@ void DrawSpellBook(const Surface &out)
 	oracool::DrawOutlinedString(out, GetSheetTitle(CurrentSheet), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
-	// The nav row, mirroring the stash's page row: an arrow at each end, the readout centred between
-	// them. Phase 2.1 put the unspent pool in the title band instead, right-aligned - where it drew
-	// over both the sheet name and the right-hand arrow.
-	//
-	// The row's HEIGHT is reserved whether or not there is anything to spend (AbilitiesContentTop
-	// includes it), so the list underneath does not jump the moment you level up.
-	const Rectangle navRow { { panel.position.x + AbilitiesMargin, panel.position.y + AbilitiesArchTop },
-		{ panel.size.width - 2 * AbilitiesMargin, AbilitiesNavRowHeight } };
-	if (!IsInspectingPlayer() && MyPlayer->_pUnspentSkillPoints > 0) {
-		DrawString(out, fmt::format(fmt::runtime(_("Points: {:d}")), int(MyPlayer->_pUnspentSkillPoints)),
-		    navRow, { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
+	// No nav row and no "Points:" readout here any more (2026-08-17): the arrows live at the ends of
+	// the title band above, and the unspent pool is a HUD element now - the frame above the RMB well,
+	// where it is visible while playing rather than only with this window open. See
+	// DrawUnspentPointsFrame in control.cpp.
 	// Only when there is somewhere to go - arrows on a window that cannot turn are a control that
 	// lies. Every class has at least Spells and Skills today so this is always true, but it was not
 	// while Spells was the Sorcerer's alone (a Rogue was down to Skills on its own), and the guard

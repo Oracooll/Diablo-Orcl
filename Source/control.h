@@ -240,6 +240,8 @@ void UpdateInfoString();
 void CheckLvlBtn();
 void ReleaseLvlBtn();
 void DrawLevelUpIcon(const Surface &out);
+/** @brief Oracool: the unspent skill pool in a LevelUpIconSize placeholder frame above the RMB well. Hidden at zero. */
+void DrawUnspentPointsFrame(const Surface &out);
 void CheckChrBtns();
 void ReleaseChrBtns(bool addAllStatPoints);
 void DrawDurIcon(const Surface &out);

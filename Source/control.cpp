@@ -43,6 +43,8 @@
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
 #include "oracool/inventory_layout.h"
+#include "engine/render/primitive_render.hpp"
+#include "oracool/ornate_border.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
@@ -1207,6 +1209,32 @@ void ReleaseLvlBtn()
  * the game clock in the top-left, and got its own artwork instead of borrowing frame 1/2 of the
  * character sheet's "+" button. The label sits beneath the icon in gold.
  */
+void DrawUnspentPointsFrame(const Surface &out)
+{
+	// The unspent skill pool, above the RMB well (user, 2026-08-17: "Available skill point to go in
+	// a placeholder frame above the rmb button, the size of Level Up button"). This replaced the
+	// "Points: N" line in the Abilities window's nav row, which existed only while that window was
+	// open - the pool is a standing prompt and belongs on the HUD.
+	//
+	// PLACEHOLDER until the art arrives: a themed fill and border with the count in it, sized
+	// exactly as the promised picture (LevelUpIconSize) so the swap is a draw-call change and no
+	// geometry moves.
+	if (IsInspectingPlayer() || MyPlayer->_pUnspentSkillPoints <= 0)
+		return;
+	const Rectangle rmb = oracool::GetRmbSkillButtonRect();
+	constexpr int GapAboveWell = 6;
+	const Rectangle frame {
+		{ rmb.position.x + (rmb.size.width - oracool::LevelUpIconSize.width) / 2,
+		    rmb.position.y - oracool::LevelUpIconSize.height - GapAboveWell },
+		oracool::LevelUpIconSize
+	};
+	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
+	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
+	UnsafeDrawBorder2px(out, frame, oracool::ThemeEdgeColor);
+	DrawString(out, StrCat(MyPlayer->_pUnspentSkillPoints), frame,
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+}
+
 void DrawLevelUpIcon(const Surface &out)
 {
 	if (!IsLevelUpButtonVisible())

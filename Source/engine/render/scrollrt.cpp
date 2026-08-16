@@ -1509,6 +1509,7 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawHudMenu(out);
 	}
 	DrawLevelUpIcon(out);
+	DrawUnspentPointsFrame(out);
 	if (qtextflag) {
 		DrawQText(out);
 	}

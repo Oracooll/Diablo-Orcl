@@ -167,13 +167,15 @@ void CheckSetCompletionTransition(const Player &player)
 	if (&player != MyPlayer)
 		return; // local UI feedback for the owning player; peers get no replicated cue
 
-	const uint16_t now = CompletedSets(player);
-	// The first look after a load is a RECORDING, never a ring - see BaselineArmed.
-	if (!BaselineArmed) {
-		CompletedSetsMask = now;
-		BaselineArmed = true;
+	// Nothing counts until LoadGameLevel has armed the baseline. The first version of this guard
+	// self-armed on the first check instead - and still rang (user, 2026-08-17: "still chime on
+	// load"), because the load pipeline calls CalcPlrInv MORE THAN ONCE while equipment is landing
+	// piece by piece: the first call recorded a half-dressed character and the next saw the set
+	// "become" complete. Only the arm at the END of LoadGameLevel is the character's real settled
+	// state, so until that runs, a check is a no-op rather than a recording.
+	if (!BaselineArmed)
 		return;
-	}
+	const uint16_t now = CompletedSets(player);
 	// Rising edges only. Removing a piece clears its bit and so REARMS the set, which is what the
 	// contract asks for; swapping one valid piece for another inside a single transaction never
 	// drops the bit in the first place, so it cannot manufacture a false edge.
