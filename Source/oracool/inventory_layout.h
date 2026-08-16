@@ -352,14 +352,8 @@ constexpr int FooterRowHeight = 24;
 constexpr int FooterRowGap = 8;
 constexpr int GoldRowHeight = FooterRowHeight;
 
-/**
- * @brief Where the window title sits, and how tall its band is. Shared with the stash.
- *
- * User request (2026-08-16): 12px from the top. The band is one FontSize30 line (38px) so the
- * string's VerticalCenter has no slack to drift in - the title's top edge IS PanelTitleTop.
- */
-constexpr int PanelTitleTop = 8;
-constexpr int PanelTitleHeight = 38;
+// The title band is oracool::PanelTitleTop / PanelTitleHeight, in ornate_border.h - shared by all
+// five side panels rather than owned by this one.
 
 /**
  * @brief SORT and the gold readout moved ABOVE the tab row (user request, 2026-08-16).

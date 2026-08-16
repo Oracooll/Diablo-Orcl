@@ -15,6 +15,7 @@
 #include "playerdat.hpp"
 #include "options.h"
 #include "oracool/oracool.h"
+#include "oracool/hud_art.h"
 #include "oracool/ornate_border.h"
 #include "stores.h" // TotalPlayerGold
 #include "utils/format_int.hpp"
@@ -770,17 +771,20 @@ void DrawChr(const Surface &out)
 	EnsureLayout();
 
 	// Oracool V1: shared theme and geometry, matching the waypoint list and quest log.
+	// Oracool (2026-08-16): the shared painted side-panel background - see quests.cpp for the note.
+	// The rule under the title went with it; the art brings its own header framing.
 	const Rectangle panel = GetCharacterPanelRect();
-	oracool::DrawThemedFill(out, panel);
-	oracool::DrawOrnateBorder(out, panel);
+	if (oracool::HasSidePanelArt()) {
+		oracool::DrawSidePanelArt(out, panel.position);
+	} else {
+		oracool::DrawThemedFill(out, panel);
+		oracool::DrawOrnateBorder(out, panel);
+	}
 
-	const Rectangle labelArea { { panel.position.x + CharPanelMargin, panel.position.y + CharPanelMargin },
-		{ panel.size.width - 2 * CharPanelMargin, CharLabelHeight } };
+	const Rectangle labelArea { { panel.position.x + CharPanelMargin, panel.position.y + oracool::PanelTitleTop },
+		{ panel.size.width - 2 * CharPanelMargin, oracool::PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, _("CHARACTER"), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
-	oracool::DrawOrnateSeparator(out,
-	    { panel.position.x + CharPanelMargin, panel.position.y + CharPanelMargin + CharLabelHeight },
-	    panel.size.width - 2 * CharPanelMargin);
 
 	DrawScrollbar(out, panel);
 

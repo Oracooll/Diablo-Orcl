@@ -29,6 +29,20 @@ namespace devilution::oracool {
 constexpr int OrnateBorderWidth = 3;
 
 /**
+ * @brief Where a side panel's title sits, and how tall its band is. Shared by all five windows.
+ *
+ * User request (2026-08-16). The band is exactly one FontSize30 line so the string's VerticalCenter
+ * has no slack to drift in - the title's top edge IS PanelTitleTop, in every window, which is what
+ * makes them line up when two are open side by side.
+ *
+ * Lives here rather than in any one panel's header because inventory, stash, character, quests and
+ * the waypoint list all need the same two numbers, and they were already sharing this module's
+ * bevel and separator.
+ */
+constexpr int PanelTitleTop = 8;
+constexpr int PanelTitleHeight = 38;
+
+/**
  * @brief The theme's gold for a thin drawn edge - a silhouette outline, a tooltip's border.
  *
  * One constant because the eye compares them: two edges of slightly different gold on screen at the

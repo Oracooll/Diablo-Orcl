@@ -59,15 +59,8 @@ std::optional<NumberInputState> GoldWithdrawInputState;
 constexpr Size StashPanelSize { 340, 720 };
 constexpr int StashMargin = 24;
 constexpr int StashLabelHeight = 50;
-/**
- * @brief Where the window title sits, and how tall its band is.
- *
- * User request (2026-08-16): 12px from the top. The band is one FontSize30 line (38px) rather than
- * the old 50px label height, so the string's VerticalCenter has no slack to drift in - the title's
- * top edge IS PanelTitleTop. The inventory's title uses the same pair; see inv.cpp.
- */
-constexpr int PanelTitleTop = 8;
-constexpr int PanelTitleHeight = 38;
+// The title band is oracool::PanelTitleTop / PanelTitleHeight - shared by all five side panels so
+// two open side by side line up. See oracool/ornate_border.h.
 constexpr int StashContentTop = StashMargin + StashLabelHeight + oracool::OrnateBorderWidth + StashMargin;
 
 constexpr Size ButtonSize { 27, 16 };
@@ -557,8 +550,8 @@ void DrawStash(const Surface &out)
 	// inventory background's pair, which carries its own arches and border. The procedural fill and
 	// bevel stay as the fallback so the art is droppable rather than required.
 	const Rectangle panel = GetStashPanelRect();
-	if (oracool::HasStashPanelArt()) {
-		oracool::DrawStashPanelArt(out, panel.position);
+	if (oracool::HasSidePanelArt()) {
+		oracool::DrawSidePanelArt(out, panel.position);
 	} else {
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);
@@ -569,8 +562,8 @@ void DrawStash(const Surface &out)
 	// the separator was a second line drawn across the first.
 	//
 	// The band is exactly one line tall so VerticalCenter cannot drift it: 12 means 12.
-	const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + PanelTitleTop },
-		{ panel.size.width - 2 * StashMargin, PanelTitleHeight } };
+	const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + oracool::PanelTitleTop },
+		{ panel.size.width - 2 * StashMargin, oracool::PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, _("STASH"), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 

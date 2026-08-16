@@ -283,24 +283,23 @@ void DrawWaypointMenu(const Surface &out)
 
 	const Rectangle panel = PanelRect();
 
-	// Same treatment as the event log: a half-transparent fill under the ornate bevel. No art asset
-	// is involved, so there is nothing to fall back to and nothing to keep in step with a PNG.
-	DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
-	DrawOrnateBorder(out, panel);
+	// Oracool (2026-08-16): the shared painted side-panel background - see quests.cpp for the note.
+	// The half-transparent fill and bevel stay as the fallback, so the art is droppable.
+	if (HasSidePanelArt()) {
+		DrawSidePanelArt(out, panel.position);
+	} else {
+		DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
+		DrawOrnateBorder(out, panel);
+	}
 
 	// The title used to be baked into the panel art; with that gone it is drawn here, in FontSize30 -
 	// the face the NPC gossip overlay uses (minitext.cpp's DrawQTextContent). Applied to the title
 	// only; the rows keep the default face. The band is now taller than the face, so unlike the
 	// first pass this rect no longer has to grow upward to avoid clipping.
-	const Rectangle labelArea { { panel.position.x + PanelMargin, panel.position.y + PanelMargin },
-		{ panel.size.width - 2 * PanelMargin, LabelHeight } };
+	const Rectangle labelArea { { panel.position.x + PanelMargin, panel.position.y + PanelTitleTop },
+		{ panel.size.width - 2 * PanelMargin, PanelTitleHeight } };
 	DrawOutlinedString(out, "WAYPOINT", labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
-
-	// Rule under the title, in the frame's own bevel colours. Spans the same inset as the rows, so
-	// its ends line up with the text column rather than running edge to edge.
-	DrawOrnateSeparator(out, { panel.position.x + PanelMargin, panel.position.y + PanelMargin + LabelHeight },
-	    panel.size.width - 2 * PanelMargin);
 
 	UpdateScrollBounds();
 	DrawScrollbar(out, panel);

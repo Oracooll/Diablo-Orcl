@@ -66,10 +66,10 @@ void DrawInventoryPanelArt(const Surface &out);
 bool HasInventoryPanelArt();
 
 /** @brief Draws the stash window's background at @p origin, 1:1. Nothing if the art is missing. */
-void DrawStashPanelArt(const Surface &out, Point origin);
+void DrawSidePanelArt(const Surface &out, Point origin);
 
 /** @brief Whether the stash background art loaded, so callers can fall back to the shared theme. */
-bool HasStashPanelArt();
+bool HasSidePanelArt();
 
 /** @brief Draws the 340x660 waypoint list panel with its top-left corner at @p origin. */
 void DrawWaypointPanelArt(const Surface &out, Point origin);

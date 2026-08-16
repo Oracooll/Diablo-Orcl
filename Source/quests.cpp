@@ -28,6 +28,7 @@
 #include "monster.h"
 #include "options.h"
 #include "oracool/event_log.h"
+#include "oracool/hud_art.h"
 #include "oracool/ornate_border.h"
 #include "panels/ui_panels.hpp"
 #include "stores.h"
@@ -921,16 +922,24 @@ void DrawQuestLog(const Surface &out)
 	// Oracool V1: same chrome as the waypoint list and the event log. The parchment CEL (pQLogCel)
 	// it used to draw here is still loaded - minitext and the waypoint list's fallback both want it
 	// - it is just no longer this window's background.
+	// Oracool (2026-08-16): the painted side-panel background, shared with the stash, inventory,
+	// character sheet and waypoint list - all five are the same 340x720 window, so one piece of art
+	// serves them. The procedural fill and bevel stay as the fallback, so the art is droppable.
+	//
+	// The rule under the title went with it: the background brings its own header framing, so the
+	// separator was a second line drawn across the first.
 	const Rectangle panel { { 0, 0 }, QuestPanelSize };
-	DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
-	oracool::DrawOrnateBorder(out, panel);
+	if (oracool::HasSidePanelArt()) {
+		oracool::DrawSidePanelArt(out, panel.position);
+	} else {
+		DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
+		oracool::DrawOrnateBorder(out, panel);
+	}
 
-	const Rectangle labelArea { { QuestPanelMargin, QuestPanelMargin },
-		{ QuestPanelSize.width - 2 * QuestPanelMargin, QuestLabelHeight } };
+	const Rectangle labelArea { { QuestPanelMargin, oracool::PanelTitleTop },
+		{ QuestPanelSize.width - 2 * QuestPanelMargin, oracool::PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, _("QUESTS"), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
-	oracool::DrawOrnateSeparator(out, { QuestPanelMargin, QuestPanelMargin + QuestLabelHeight },
-	    QuestPanelSize.width - 2 * QuestPanelMargin);
 
 	int y = InnerPanel.position.y + ListYOffset;
 	for (int i = 0; i < EncounteredQuestCount; i++) {

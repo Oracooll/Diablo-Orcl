@@ -82,7 +82,7 @@ ArtAsset MenuIconsArt { "ui\\menu_icons.png" };
  * stone panel was retired: baking a figure into the background would give every class the same one.
  */
 ArtAsset InventoryPanelArt { "ui\\inventory_background.png" };
-ArtAsset StashPanelArt { "ui\\stash_background.png" };
+ArtAsset SidePanelArt { "ui\\stash_background.png" };
 // v3 of the tab strip: arabic 1-9 and X, square and borderless, replacing the roman-numeral
 // set. Same 280x84 shape and same 28px cells as the sheet it replaces, so this is a pure
 // asset swap - see tools/CutTabButtonsV3.ps1, which cuts it to that format deliberately.
@@ -453,8 +453,8 @@ void EnsureLoadedAll()
 		LoadPixels(MenuIconsArt);
 	if (!InventoryPanelArt.loadAttempted)
 		LoadPixels(InventoryPanelArt);
-	if (!StashPanelArt.loadAttempted)
-		LoadPixels(StashPanelArt);
+	if (!SidePanelArt.loadAttempted)
+		LoadPixels(SidePanelArt);
 	if (!InventoryTabsArt.loadAttempted)
 		LoadPixels(InventoryTabsArt);
 	if (!InventorySortArt.loadAttempted)
@@ -497,7 +497,7 @@ bool NeedsQuantize()
 		return true;
 	if (!InventoryPanelArt.rgba.empty() && !InventoryPanelArt.bright)
 		return true;
-	if (!StashPanelArt.rgba.empty() && !StashPanelArt.bright)
+	if (!SidePanelArt.rgba.empty() && !SidePanelArt.bright)
 		return true;
 	if (!InventoryTabsArt.rgba.empty() && !InventoryTabsArt.bright)
 		return true;
@@ -555,7 +555,7 @@ void EnsureQuantized()
 	// all collapse to one gold and the row would read as ten identical buttons.
 	QuantizeAsset(MenuIconsArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(InventoryPanelArt, std::nullopt);
-	QuantizeAsset(StashPanelArt, std::nullopt);
+	QuantizeAsset(SidePanelArt, std::nullopt);
 	QuantizeAsset(InventoryTabsArt, std::nullopt);
 	QuantizeAsset(InventorySortArt, std::nullopt);
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
@@ -716,23 +716,23 @@ bool HasInventoryPanelArt()
 	return !InventoryPanelArt.rgba.empty();
 }
 
-void DrawStashPanelArt(const Surface &out, Point origin)
+void DrawSidePanelArt(const Surface &out, Point origin)
 {
 	EnsureLoadedAll();
-	if (StashPanelArt.rgba.empty())
+	if (SidePanelArt.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!StashPanelArt.bright)
+	if (!SidePanelArt.bright)
 		return;
 
-	out.BlitFromSkipColorIndexZero(*StashPanelArt.bright,
-	    MakeSdlRect(0, 0, StashPanelArt.width, StashPanelArt.height), origin);
+	out.BlitFromSkipColorIndexZero(*SidePanelArt.bright,
+	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
 }
 
-bool HasStashPanelArt()
+bool HasSidePanelArt()
 {
 	EnsureLoadedAll();
-	return !StashPanelArt.rgba.empty();
+	return !SidePanelArt.rgba.empty();
 }
 
 void DrawInventoryTab(const Surface &out, int index, int state)
@@ -1013,7 +1013,7 @@ void ResetHudArtCaches()
 	reset(ManaOrbArt);
 	reset(MenuIconsArt);
 	reset(InventoryPanelArt);
-	reset(StashPanelArt);
+	reset(SidePanelArt);
 	reset(InventoryTabsArt);
 	reset(InventorySortArt);
 	reset(TownPortalIconArt);
