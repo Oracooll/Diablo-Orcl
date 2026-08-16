@@ -44,6 +44,7 @@ set(libdevilutionx_SRCS
   oracool/event_log.cpp
   oracool/hero_chunks.cpp
   oracool/rng_streams.cpp
+  oracool/sprite_scale.cpp
   oracool/stat_sheet.cpp
   oracool/zone_registry.cpp
   oracool/attack_skills.cpp

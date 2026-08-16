@@ -17,6 +17,8 @@
 #include <string>
 
 #include "engine/random.hpp"
+#include "engine/render/clx_render.hpp"
+#include "engine/surface.hpp"
 #include "items.h"
 #include "monstdat.h"
 #include "monster.h"
@@ -28,11 +30,13 @@
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
+#include "oracool/sprite_scale.h"
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
 #include "spells.h"
 #include "stores.h"
+#include "utils/surface_to_clx.hpp"
 
 using namespace devilution;
 
@@ -585,4 +589,68 @@ TEST(OracoolHeroChunks, TruncatedTailIsRejectedWhole)
 	// And the empty/absent tail is the legacy no-op, never an error.
 	oracool::ApplyHeroChunks(target, nullptr, 0);
 	EXPECT_EQ(target._pUnspentSkillPoints, 0);
+}
+
+// Megaplan Phase 0.6: the CLX sprite scaler. The synthetic sprite deliberately uses palette index
+// 0 as an OPAQUE pixel - it is the shadow colour in real art, and the scaler's whole reason for
+// decoding runs (rather than colour-keying) is that shadows must survive.
+TEST(OracoolSpriteScale, DoublesDimensionsAndPreservesShadowAndTransparency)
+{
+	// A 4x4, 2-frame source: frame 0 has an opaque index-0 (shadow) top-left 2x2 block and an
+	// opaque index-130 bottom-right 2x2 block; the other two 2x2 corners are transparent.
+	OwnedSurface source(4, 8);
+	constexpr uint8_t Key = 1; // the surface's transparent colour for encoding the SOURCE
+	for (int y = 0; y < 8; y++) {
+		uint8_t *row = &source[Point { 0, y }];
+		for (int x = 0; x < 4; x++)
+			row[x] = Key;
+	}
+	for (int y = 0; y < 2; y++) {
+		for (int x = 0; x < 2; x++) {
+			source[Point { x, y }] = 0;            // frame 0: shadow block, top-left
+			source[Point { x + 2, y + 2 }] = 130;  // frame 0: colour block, bottom-right
+			source[Point { x, y + 4 }] = 140;      // frame 1: colour block, top-left
+		}
+	}
+	OwnedClxSpriteList original = SurfaceToClx(source, 2, Key);
+
+	OwnedClxSpriteList scaled = oracool::ScaleClxList(ClxSpriteList(original), 200);
+	ASSERT_EQ(ClxSpriteList(scaled).numSprites(), 2u);
+	const ClxSprite frame0 = ClxSpriteList(scaled)[0];
+	EXPECT_EQ(frame0.width(), 8);
+	EXPECT_EQ(frame0.height(), 8);
+
+	// Render onto a canvas of 77s: opaque pixels overwrite, transparent pixels leave 77.
+	OwnedSurface canvas(8, 8);
+	for (int y = 0; y < 8; y++) {
+		uint8_t *row = &canvas[Point { 0, y }];
+		for (int x = 0; x < 8; x++)
+			row[x] = 77;
+	}
+	RenderClxSprite(canvas, frame0, { 0, 0 });
+
+	EXPECT_EQ((canvas[Point { 0, 0 }]), 0) << "the opaque shadow block was lost";
+	EXPECT_EQ((canvas[Point { 3, 3 }]), 0) << "shadow block did not scale to 4x4";
+	EXPECT_EQ((canvas[Point { 7, 7 }]), 130) << "the colour block was lost";
+	EXPECT_EQ((canvas[Point { 4, 4 }]), 130) << "colour block did not scale to 4x4";
+	EXPECT_EQ((canvas[Point { 7, 0 }]), 77) << "a transparent corner became opaque";
+	EXPECT_EQ((canvas[Point { 0, 7 }]), 77) << "a transparent corner became opaque";
+}
+
+TEST(OracoolSpriteScale, HalvingRoundsDownButNeverBelowOnePixel)
+{
+	OwnedSurface source(3, 3);
+	for (int y = 0; y < 3; y++) {
+		uint8_t *row = &source[Point { 0, y }];
+		for (int x = 0; x < 3; x++)
+			row[x] = 200;
+	}
+	OwnedClxSpriteList original = SurfaceToClx(source, 1, std::nullopt);
+
+	OwnedClxSpriteList half = oracool::ScaleClxList(ClxSpriteList(original), 50);
+	EXPECT_EQ(ClxSpriteList(half)[0].width(), 1);
+	EXPECT_EQ(ClxSpriteList(half)[0].height(), 1);
+
+	OwnedClxSpriteList quarterFloor = oracool::ScaleClxList(ClxSpriteList(original), 25);
+	EXPECT_GE(ClxSpriteList(quarterFloor)[0].width(), 1) << "scaling floored below one pixel";
 }
