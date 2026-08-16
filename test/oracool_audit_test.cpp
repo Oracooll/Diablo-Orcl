@@ -2391,3 +2391,42 @@ TEST(OracoolAudit2, StashPanelRectContainsEveryGridCell)
 	EXPECT_FALSE(vanillaSlot.contains(lastCell))
 	    << "GetLeftPanel now covers the whole stash grid - the two rects have converged";
 }
+
+// A tier has to survive the save. loadsave.cpp clamped a loaded tier to `<= Primal`, which was every
+// tier when it was written; OracoolItemTier::Set arrived at 4 and was silently reset to None on the
+// way back in - "all set item i acquired with debug commands turned into uniques with suspicious
+// stats" (user, 2026-08-16). The "suspicious stats" were UniqueItems[0], The Butcher's Cleaver:
+// MakeSetItem marks a set piece ITEM_QUALITY_UNIQUE, so once the tier was gone the description fell
+// through to the vanilla unique branch and printed powers belonging to _iUid 0.
+//
+// Walks every tier rather than checking Set alone: the bug was not "Set is missing", it was "the
+// range check names a tier instead of the last one", and only walking all of them catches the next
+// one added.
+TEST(OracoolAudit2, EveryItemTierSurvivesTheSaveRoundTrip)
+{
+	for (int raw = 0; raw <= static_cast<int>(OracoolItemTier::LAST); raw++) {
+		const auto tier = static_cast<OracoolItemTier>(raw);
+		// The load path's own clamp expression, which is the thing that was wrong.
+		const auto loaded = static_cast<uint8_t>(raw) <= static_cast<uint8_t>(OracoolItemTier::LAST)
+		    ? tier
+		    : OracoolItemTier::None;
+		EXPECT_EQ(loaded, tier) << "tier " << raw << " does not survive a save round trip";
+	}
+	// LAST must actually be the last, or the clamp lets a bogus value through instead.
+	EXPECT_EQ(static_cast<int>(OracoolItemTier::LAST), static_cast<int>(OracoolItemTier::Set))
+	    << "a tier was added past Set without moving LAST";
+
+	// And the consequence that made it visible: a set item is quality UNIQUE, so if its tier is ever
+	// lost the description reads UniqueItems[_iUid] - which on a set item is 0, the Cleaver.
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
+	const oracool::SetItemDefinition *helm = oracool::FindSetItem("SET_ASHEN_HELM");
+	ASSERT_NE(helm, nullptr);
+	devilution::Item item {};
+	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetSlot(helm->slot)));
+	oracool::MakeSetItem(item, *helm);
+	EXPECT_EQ(item._iMagical, ITEM_QUALITY_UNIQUE);
+	EXPECT_TRUE(item.hasOracoolTier())
+	    << "a set item without its tier is described as UniqueItems[" << item._iUid << "]";
+}

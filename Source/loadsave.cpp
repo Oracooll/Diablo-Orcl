@@ -365,7 +365,27 @@ void LoadItemData(LoadHelper &file, Item &item)
 	// that need to reject a pre-v0.2.0 save outright (where this data simply isn't present
 	// at this offset) do so before ever reaching here - see OracoolItemFormatVersion.
 	const uint8_t rawTier = file.NextLE<uint8_t>();
-	item._iOracoolTier = rawTier <= static_cast<uint8_t>(OracoolItemTier::Primal) ? static_cast<OracoolItemTier>(rawTier) : OracoolItemTier::None;
+	// Clamped against the LAST tier, not a named one.
+	//
+	// Bug (fixed 2026-08-16, user report: "all set item i acquired with debug commands turned into
+	// uniques with suspicious stats"). This read `<= Primal`, which was every tier when it was
+	// written. OracoolItemTier::Set arrived at 4 the same day, so a set item saved its tier
+	// correctly and then had it silently reset to None on the way back in - "turned into", after a
+	// round trip through the save.
+	//
+	// The result reads as garbage rather than as a plain item, which is why it looked alarming.
+	// MakeSetItem marks a set piece ITEM_QUALITY_UNIQUE, so with the tier gone the description
+	// falls through to the vanilla unique branch and prints UniqueItems[_iUid] - and _iUid is 0 on
+	// a set item, which is The Butcher's Cleaver. Its three powers are exactly what the screenshot
+	// showed: "+0 to strength" (IPL_STR, printed from the item's own _iPLStr, which the Cleaver's
+	// powers never touched), "unusual item damage" (IPL_SETDAM) and "altered durability"
+	// (IPL_SETDUR).
+	//
+	// OracoolItemTier::LAST is now what this compares against, so the next tier added cannot
+	// reintroduce it by being forgotten here.
+	item._iOracoolTier = rawTier <= static_cast<uint8_t>(OracoolItemTier::LAST)
+	    ? static_cast<OracoolItemTier>(rawTier)
+	    : OracoolItemTier::None;
 	item._iOracoolPerfectRoll = file.NextLE<uint8_t>() != 0;
 	item._iOracoolBroken = file.NextLE<uint8_t>() != 0;
 	const uint8_t prefixCount = file.NextLE<uint8_t>();

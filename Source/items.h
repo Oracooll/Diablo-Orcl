@@ -88,6 +88,14 @@ enum class OracoolItemTier : uint8_t {
 	 * Items"). The ramp is the one this fork injected over PAL8_ORANGE.
 	 */
 	Set = 4,
+	/**
+	 * @brief The highest tier that exists. Every range check must compare against THIS.
+	 *
+	 * Added with Set, because Set's arrival broke a check that named Primal instead: loadsave.cpp
+	 * clamped a loaded tier to `<= Primal`, which had been every tier when it was written, so a set
+	 * item lost its tier on the way back in from the save and was described as a vanilla unique.
+	 */
+	LAST = Set,
 };
 
 /** @brief One named affix (prefix or suffix) contributing to an Oracool-tiered item. */

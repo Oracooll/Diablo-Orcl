@@ -654,10 +654,15 @@ void DrawStash(const Surface &out)
 	// RESET on the character sheet, which also drops the last dependency on that CEL.
 	for (int i = 0; i < StashNavButtonCount; i++) {
 		const Rectangle rect { GetPanelPosition(UiPanels::Stash, StashButtonRect[i].position), StashButtonRect[i].size };
-		// A 1px gold box around each (user request, 2026-08-16), so the four read as BUTTONS rather
-		// than as four loose glyphs floating on the background. Drawn before the label, so the text
-		// sits inside its own frame rather than under it.
-		oracool::DrawColoredOutline(out, rect, oracool::ThemeEdgeColor);
+		// A 2px gold box around each (user request, 2026-08-16 - 1px first, then "make the next/prev
+		// buttons borders 2px thick"), so the four read as BUTTONS rather than as loose glyphs on the
+		// background. Drawn before the label, so the text sits inside its own frame rather than under
+		// it.
+		//
+		// DrawSplitOutline with one colour on both halves is the theme's only weighted outline;
+		// DrawColoredOutline is 1px only. Passing the same colour twice collapses the split and
+		// leaves a plain uniform border - see its own comment for why the two-colour form exists.
+		oracool::DrawSplitOutline(out, rect, oracool::ThemeEdgeColor, oracool::ThemeEdgeColor, 2);
 		DrawString(out, StashNavLabel[i], rect,
 		    { UiFlags::AlignCenter | UiFlags::VerticalCenter
 		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold) });
