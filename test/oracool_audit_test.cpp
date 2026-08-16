@@ -23,6 +23,7 @@
 #include "engine/render/text_render.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
+#include "inv.h"
 #include "items.h"
 #include "monstdat.h"
 #include "monster.h"
@@ -1755,4 +1756,98 @@ TEST(OracoolCrafting, MixedGemsDoNotSatisfyThreeOfAKind)
 	player.InvList[1].IDidx = IDI_ORACOOL_RUNE_SOL;
 	player._pNumInv = 2;
 	EXPECT_FALSE(oracool::CanCraft(player, 1)) << "a Sol pair offered an ascension past the ladder's top";
+}
+
+// The stash page grew from the vanilla 10x10 to 10x16 when it moved into the 340x720 theme, but
+// AutoPlaceItemInStash's search rectangle kept the literal 10 in BOTH axes. Every auto-placement -
+// Gillian's deposit, shift-click to stash, and the re-pack SortStash performs - therefore stopped
+// at row 9 and spilled onto the next page while six rows sat empty.
+//
+// The user saw it through Sort, because Sort is the only one that clears the page first: it emptied
+// the last six rows and then refused to refill them.
+TEST(OracoolAudit2, StashAutoPlaceReachesEveryRowOfThePage)
+{
+	Players.resize(2);
+	// Not MyPlayer: SortStash schedules an autosave for the local player, and the save layer is not
+	// spun up headlessly. Placement itself is player-agnostic.
+	MyPlayer = &Players[1];
+	devilution::Player &player = Players[0];
+	player = {};
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	devilution::Item potion {};
+	InitializeItem(potion, IDI_HEAL);
+	ASSERT_EQ(GetInventorySize(potion), (Size { 1, 1 })) << "test assumes a one-cell item";
+
+	// Exactly one page's worth. Under the bug only 100 of these fit before the scan gave up and
+	// wrapped to page 1.
+	constexpr int CellsPerPage = StashGridColumns * StashGridRows;
+	for (int i = 0; i < CellsPerPage; i++)
+		ASSERT_TRUE(AutoPlaceItemInStash(player, potion, true)) << "placement failed at item " << i;
+
+	EXPECT_EQ(Stash.stashGrids.size(), 1u) << "a full page's worth of items spilled onto a second page";
+	for (int y = 0; y < StashGridRows; y++) {
+		for (int x = 0; x < StashGridColumns; x++)
+			EXPECT_NE(Stash.stashGrids[0][x][y], 0) << "cell " << x << "," << y << " was left empty";
+	}
+
+	// And the same holds through Sort, which is where it was reported: re-packing must not push
+	// anything past the bottom row of page 0.
+	SortStash(player);
+	EXPECT_EQ(Stash.stashGrids.size(), 1u) << "Sort spilled a single page of items onto a second page";
+	EXPECT_EQ(Stash.stashList.size(), static_cast<size_t>(CellsPerPage)) << "Sort lost items";
+	for (int x = 0; x < StashGridColumns; x++)
+		EXPECT_NE(Stash.stashGrids[0][x][StashGridRows - 1], 0) << "Sort left the bottom row empty at column " << x;
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+}
+
+// The scan rectangle shrinks by the item's own footprint so a multi-cell item can't hang off the
+// bottom edge. That subtraction is exactly where the old literal hid, so pin the tall case too:
+// a 2x3 item must be placeable with its last row on the page's last row, and no further.
+TEST(OracoolAudit2, StashAutoPlaceSeatsTallItemsAgainstTheBottomEdge)
+{
+	Players.resize(2);
+	MyPlayer = &Players[1];
+	devilution::Player &player = Players[0];
+	player = {};
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	devilution::Item tallItem {};
+	InitializeItem(tallItem, IDI_ROGUE); // short bow - the tallest starting item
+	const Size tallSize = GetInventorySize(tallItem);
+	ASSERT_GT(tallSize.height, 1) << "test assumes a multi-row item";
+
+	// Occupy every row above the last band the item could fit in, so the first-fit scan is forced
+	// all the way down. These are grid marks with no matching stashList entries - the placement scan
+	// only asks "is this cell non-zero", and starting well past any index it will assign keeps the
+	// two from being confused with each other.
+	const int rowsToBlock = StashGridRows - tallSize.height;
+	uint16_t filler = 1000;
+	for (int y = 0; y < rowsToBlock; y++) {
+		for (int x = 0; x < StashGridColumns; x++)
+			Stash.stashGrids[0][x][y] = filler++;
+	}
+
+	ASSERT_TRUE(AutoPlaceItemInStash(player, tallItem, true)) << "no room left for the item in the bottom band";
+	// Under the bug this did NOT fail outright - it ran off the end of the truncated scan and wrapped
+	// to page 1, landing at that page's top-left. Pin the page as well as the row, or the wrap reads
+	// as a success.
+	EXPECT_EQ(Stash.stashGrids.size(), 1u) << "the item wrapped onto a second page with rows still free here";
+	// Items are anchored by their BOTTOM-left cell (see AutoPlaceItemInStash), so the recorded
+	// position's y is the last row it covers.
+	EXPECT_EQ(Stash.stashList.back().position.y, StashGridRows - 1)
+	    << "the item did not reach the bottom band of the page";
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
 }

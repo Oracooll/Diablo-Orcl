@@ -1017,8 +1017,19 @@ bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
 		// Wrap around if needed
 		if (pageIndex >= CountStashPages)
 			pageIndex -= CountStashPages;
-		// Search all possible position in stash grid
-		for (auto stashPosition : PointsInRectangle(Rectangle { { 0, 0 }, Size { 10 - (itemSize.width - 1), 10 - (itemSize.height - 1) } })) {
+		// Search all possible position in stash grid.
+		//
+		// Bug (fixed 2026-08-16, user report: "sort function of stash isnt utilizing last 6 rows"):
+		// both bounds were the literal 10 from the vanilla 10x10 page. The page grew to 10x16 when
+		// the stash moved into the 340x720 theme (StashGridRows, stash.h), but this scan did not,
+		// so rows 10..15 were unreachable for EVERY auto-placement - Gillian's deposit, shift-click
+		// to stash, and the re-pack SortStash does. Only hand-dragging could reach them, which is
+		// why sort appeared to be the culprit: it clears the page and re-places through here, so it
+		// actively emptied the last six rows.
+		//
+		// Derived from StashGridSize now, so the next time the page is resized this follows.
+		const Size scanArea { StashGridSize.width - (itemSize.width - 1), StashGridSize.height - (itemSize.height - 1) };
+		for (auto stashPosition : PointsInRectangle(Rectangle { { 0, 0 }, scanArea })) {
 			// Check that all needed slots are free
 			bool isSpaceFree = true;
 			for (auto itemPoint : PointsInRectangle(Rectangle { stashPosition, itemSize })) {
