@@ -144,6 +144,10 @@ void DrawCursorTooltip(const Surface &out)
 	const Rectangle textArea { origin + Displacement { padX, padY }, textSize };
 	const UiFlags sharedFlags = UiFlags::AlignCenter | UiFlags::KerningFitSpacing
 	    | (asPanel ? UiFlags::None : UiFlags::Outlined);
+	// The same flags WITHOUT centring, for the lines drawn in two runs. Those are positioned by hand
+	// below, and DrawString centring each run inside its own rectangle is precisely what broke them.
+	const UiFlags runFlags = UiFlags::KerningFitSpacing
+	    | (asPanel ? UiFlags::None : UiFlags::Outlined);
 
 	// Oracool: an item's block is several KINDS of information - its name, what it is, what was
 	// rolled onto it, what it demands of you - and each line carries its own colour (see
@@ -189,12 +193,27 @@ void DrawCursorTooltip(const Surface &out)
 			if (tailStart > 0 && tailStart < line.size()) {
 				const string_view head = line.substr(0, tailStart);
 				const string_view tail = line.substr(tailStart);
-				DrawString(out, head, lineArea, { InfoStringLineColors[i] | sharedFlags, 1, lineHeight });
+				// Bug (fixed 2026-08-17, user: "white letters overlap the green one, when there is
+				// obviously enough space to avoid it"). Both runs were drawn with the shared
+				// AlignCenter flag: the head centred inside the FULL line box, the tail centred
+				// inside whatever was left of it to the right. Two independent centrings, so the
+				// white slot label landed on top of the green item name every time - and the space
+				// the user could see going spare was the gap those two centrings left at the edges.
+				//
+				// The pair is centred as ONE line now, then laid out left to right from that
+				// origin. Centred by the whole LINE's width rather than by the sum of the two runs',
+				// so this agrees with how MeasureText sized the panel and puts the text exactly
+				// where a plain centred DrawString would have put it.
+				const int left = lineArea.position.x
+				    + std::max(0, (lineArea.size.width - GetLineWidth(line)) / 2);
 				// Measured rather than assumed: the head is a translated item name, so its width is
 				// only knowable from the font that will actually draw it.
-				const Rectangle tailArea { lineArea.position + Displacement { GetLineWidth(head), 0 },
-					{ lineArea.size.width - GetLineWidth(head), lineHeight } };
-				DrawString(out, tail, tailArea, { UiFlags::ColorWhite | sharedFlags, 1, lineHeight });
+				const int headWidth = GetLineWidth(head);
+				const Rectangle headArea { { left, lineArea.position.y }, { headWidth, lineHeight } };
+				const Rectangle tailArea { { left + headWidth, lineArea.position.y },
+					{ GetLineWidth(tail), lineHeight } };
+				DrawString(out, head, headArea, { InfoStringLineColors[i] | runFlags, 1, lineHeight });
+				DrawString(out, tail, tailArea, { UiFlags::ColorWhite | runFlags, 1, lineHeight });
 				if (newline == string_view::npos)
 					break;
 				start = newline + 1;
