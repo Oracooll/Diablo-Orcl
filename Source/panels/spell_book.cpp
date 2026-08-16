@@ -734,6 +734,8 @@ void DrawInvestControls(const Surface &content, int top, int rowHeight, SpellID 
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 
+void DrawFKeyBadge(const Surface &out, Rectangle iconRect, SpellID sn); // defined with the tree helpers below
+
 void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 {
 	Player &player = *InspectPlayer;
@@ -754,8 +756,9 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	DrawSmallSpellIcon(content, iconPos, oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
 	if (known) {
 		// iconPos is a BOTTOM-left anchor; the rings want the top-left rect.
-		DrawAssignmentRings(content, { { iconPos.x, iconPos.y - iconSize.height + 1 }, iconSize },
-		    sn, GetSBookTrans(sn, true));
+		const Rectangle iconRect { { iconPos.x, iconPos.y - iconSize.height + 1 }, iconSize };
+		DrawAssignmentRings(content, iconRect, sn, GetSBookTrans(sn, true));
+		DrawFKeyBadge(content, iconRect, sn);
 	}
 
 	const UiFlags nameColor = known ? UiFlags::ColorWhitegold : UiFlags::ColorUiSilverDark;
@@ -835,6 +838,37 @@ void DrawSpendGlyph(const Surface &out, Rectangle box, bool plus)
 }
 
 /**
+ * @brief The castable ability under the cursor in this window, refreshed by DrawHoverFeedback
+ * every frame the window draws. What an F-key press binds to.
+ */
+SpellID HoveredAbilitySpell = SpellID::Invalid;
+
+/** @brief Which of the six F-keys @p sn is bound to (1-6), or 0. The lowest slot wins a double. */
+int AssignedFKeyNumber(SpellID sn)
+{
+	for (size_t i = 0; i < AbilityFKeyCount; i++) {
+		if (MyPlayer->_pSplHotKey[i] == sn)
+			return static_cast<int>(i) + 1;
+	}
+	return 0;
+}
+
+/**
+ * @brief The "F1".."F6" badge in a 13x13 invisible frame at the icon's top-RIGHT corner (user,
+ * 2026-08-17: "a Font 12 'FX' 13x13 invisible frame box be put in top right corner").
+ */
+void DrawFKeyBadge(const Surface &out, Rectangle iconRect, SpellID sn)
+{
+	const int fkey = AssignedFKeyNumber(sn);
+	if (fkey == 0)
+		return;
+	const Rectangle box { { iconRect.position.x + iconRect.size.width - SpendBoxSize, iconRect.position.y },
+		{ SpendBoxSize, SpendBoxSize } };
+	DrawString(out, fmt::format("F{:d}", fkey), box,
+	    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+}
+
+/**
  * @brief One cell of a tree page: the icon, and under it the point counter that doubles as the
  * invest button.
  *
@@ -872,6 +906,7 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 			oracool::DrawHoverOutline(content, icon);
 	} else if (const SpellID slot = oracool::ClassTreeSpellId(skill); IsValidSpell(slot)) {
 		DrawAssignmentRings(content, icon, slot, GetSBookTrans(slot, true));
+		DrawFKeyBadge(content, icon, slot);
 	}
 
 	// The gold "+ 0" bar under each icon is gone (user, 2026-08-17: "Remove the gold +0 buttons below
@@ -938,6 +973,41 @@ Rectangle GetSpellBookContentRect()
 {
 	const Rectangle panel = GetSpellBookPanelRect();
 	return { { panel.position.x, panel.position.y + AbilitiesContentTop }, AbilitiesContentSize };
+}
+
+bool HandleAbilityFKey(size_t slot, bool shift)
+{
+	if (slot >= AbilityFKeyCount)
+		return false;
+	Player &me = *MyPlayer;
+
+	// With the window open, an F-key EDITS bindings rather than using them (user, 2026-08-17:
+	// "Assigning hotkeys is by clicking F1-F6 while hovering over a skill/spell. SHIFT+Hotkey
+	// unassignes"). The key is consumed even when nothing is hovered - a bind key that fell
+	// through to casting mid-edit would be worse than one that does nothing.
+	if (sbookflag && !IsInspectingPlayer()) {
+		const SpellID spell = HoveredAbilitySpell;
+		if (!IsValidSpell(spell))
+			return true;
+		if (shift || me._pSplHotKey[slot] == spell) {
+			// SHIFT clears; pressing a key on the ability that already holds it also clears,
+			// which is the vanilla speedbook's own toggle and costs nothing to keep.
+			if (me._pSplHotKey[slot] == spell) {
+				me._pSplHotKey[slot] = SpellID::Invalid;
+				RedrawEverything();
+			}
+			return true;
+		}
+		me._pSplHotKey[slot] = spell;
+		me._pSplTHotKey[slot] = GetSBookTrans(spell, false);
+		RedrawEverything();
+		return true;
+	}
+
+	// In play: the vanilla quick-spell path, which readies the bound ability on the right button
+	// (or casts outright under quickCast). Slots 0-5 ARE F1-F6 - one array, one meaning.
+	ToggleSpell(slot);
+	return true;
 }
 
 void CycleAbilitySheet(int direction)
@@ -1084,6 +1154,10 @@ std::string BuildSpellStatBlock(SpellID sn)
  */
 void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle contentRect, int scroll)
 {
+	// Refreshed every frame BEFORE the early-outs, so leaving the rows also clears the F-key
+	// binding target rather than leaving it on the last row touched.
+	HoveredAbilitySpell = SpellID::Invalid;
+
 	// Same span a click uses: short of the scrollbar, so hovering the bar does not light a row.
 	const Rectangle hoverArea { contentRect.position, { AbilitiesContentRightLimit, contentRect.size.height } };
 	if (!hoverArea.contains(MousePosition))
@@ -1120,6 +1194,13 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 			return;
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hovered);
 		const Rectangle cell = TreeIconRect(data.column, data.tier);
+		// A tree cell is an F-key target when it is a real, buildable, KNOWN ability - the same
+		// gate the click-to-ready path applies.
+		if (data.implemented) {
+			if (const SpellID slot = oracool::ClassTreeSpellId(*hovered);
+			    IsValidSpell(slot) && IsSpellKnown(slot))
+				HoveredAbilitySpell = slot;
+		}
 		PendingHoverTitle = _(data.name);
 		PendingHoverText = std::string(_(data.description)) + "\n\n"
 		    + oracool::ClassTreeEffectLine(*InspectPlayer, *hovered);
@@ -1140,6 +1221,8 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 			rowTop = static_cast<int>(index) * height;
 			rowHeight = height;
 			found = true;
+			if (IsSpellKnown(rows[index]))
+				HoveredAbilitySpell = rows[index];
 			title = oracool::GetSpellDisplayName(rows[index]); // already translated
 			description = spellInfo(rows[index]);
 		}

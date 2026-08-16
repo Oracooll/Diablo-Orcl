@@ -437,10 +437,13 @@ TEST(Writehero, pfile_write_hero)
 	//      ReadHero's exact-size check on the base is unaffected and pre-1.7.40 heroes still load.
 	//      ApplyClassTree clamps to the smaller of the chunk's count and the array, so their 30
 	//      entries land in the first 30 slots with the rest zeroed.
+	// 1.7.61: HeroChunkSpellHotkeys joined the tail - u8 count + 6 PackReadiedSpell bytes, the
+	//      F1-F6 ability hotkeys. Additive tail chunk again; the fixed struct is untouched and an
+	//      older build skips the unknown tag.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "b30cd0424d6c9ca799c14edb9e7904a4d7717c8b3659a53d1b7375d6bd2ab244");
+	    "a1793d6f5912e5211be0c3c3d31bd3fbdf9b97b1c662f0cf3b1dae31d5cb23a1");
 }
 
 } // namespace

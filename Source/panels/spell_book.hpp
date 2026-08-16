@@ -25,6 +25,19 @@ Rectangle GetSpellBookPanelRect();
  */
 Rectangle GetSpellBookContentRect();
 
+/**
+ * @brief F1-F6 are the ability hotkeys - the first six slots of the vanilla _pSplHotKey array,
+ * claimed outright (user, 2026-08-17: F1-F6 "not be used in any other way in the game").
+ */
+constexpr size_t AbilityFKeyCount = 6;
+
+/**
+ * @brief One F-key press: with the Abilities window open, binds/unbinds (@p shift unbinds) the
+ * hovered ability to slot @p slot; in play, readies slot @p slot's ability through the vanilla
+ * quick-spell path. Returns false only for a slot out of range.
+ */
+bool HandleAbilityFKey(size_t slot, bool shift);
+
 /** @brief Scrolls the current sheet by @p notches wheel steps, positive down. Clamped to the list. */
 void ScrollSpellBook(int notches);
 

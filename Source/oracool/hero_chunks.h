@@ -76,6 +76,14 @@ enum HeroChunkTag : uint16_t {
 	 * SkillPoints chunk, keyed by SpellID, which is what lets GetSpellLevel see them.
 	 */
 	HeroChunkClassTree = 6,
+	/**
+	 * @brief The F1-F6 ability hotkeys: u8 count, then count bytes, each a PackReadiedSpell byte
+	 * for _pSplHotKey slot i. The TYPE is not stored - UnpackReadiedSpell re-derives it from the
+	 * already-loaded spell masks, exactly as the readied-spell slots do. Count-prefixed so the key
+	 * span can grow without a new tag. V1 loads characters through the hero pack, which never
+	 * carried the vanilla hotkey array - without this chunk every binding died with the session.
+	 */
+	HeroChunkSpellHotkeys = 7,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

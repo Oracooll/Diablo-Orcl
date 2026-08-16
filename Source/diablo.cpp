@@ -744,6 +744,8 @@ void ClosePanels()
 	oracool::CloseHudMenu();
 }
 
+bool CanPlayerTakeAction(); // defined below, past the keymap tables that also use it
+
 void PressKey(SDL_Keycode vkey, uint16_t modState)
 {
 	remap_keyboard_key(&vkey);
@@ -797,6 +799,16 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	}
 
 	if (sgnTimeoutCurs != CURSOR_NONE) {
+		return;
+	}
+
+	// Oracool: F1-F6 are the ability hotkeys, reserved outright (user, 2026-08-17: "F1-F6 to be
+	// available for hotkeying, ergo not be used in any other way in the game"). Intercepted BEFORE
+	// the keymapper so no ini row - the old Help=F1 and QuickSpell=F5..F8 defaults a settled install
+	// still carries - can double-book them. Help and the quick-spell actions remain in the
+	// keymapper, default-unbound, for anyone who wants them on other keys.
+	if (vkey >= SDLK_F1 && vkey <= SDLK_F6 && CanPlayerTakeAction()) {
+		HandleAbilityFKey(static_cast<size_t>(vkey - SDLK_F1), (modState & KMOD_SHIFT) != 0);
 		return;
 	}
 
@@ -2013,7 +2025,10 @@ void InitKeymapActions()
 		    "QuickSpell{}",
 		    N_("Quick spell {}"),
 		    N_("Hotkey for skill or spell."),
-		    i < 4 ? static_cast<uint32_t>(SDLK_F5) + i : static_cast<uint32_t>(SDLK_UNKNOWN),
+		    // Default-unbound since 2026-08-17: F1-F6 are the reserved ability hotkeys, handled
+		    // ahead of the keymapper (see PressKey), and the old F5-F8 defaults would have aliased
+		    // slots 0-3 onto two keys each.
+		    static_cast<uint32_t>(SDLK_UNKNOWN),
 		    [i]() {
 			    if (spselflag) {
 				    SetSpeedSpell(i);
@@ -2222,7 +2237,9 @@ void InitKeymapActions()
 	    "Help",
 	    N_("Help"),
 	    N_("Open Help Screen."),
-	    SDLK_F1,
+	    // Default-unbound since 2026-08-17: F1 belongs to the reserved ability hotkeys. The action
+	    // stays keymappable for anyone who wants the help screen on another key.
+	    SDLK_UNKNOWN,
 	    HelpKeyPressed,
 	    nullptr,
 	    CanPlayerTakeAction);

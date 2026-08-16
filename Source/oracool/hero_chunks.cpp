@@ -5,7 +5,10 @@
 #include <iterator>
 
 #include "oracool/event_log.h"
+#include "oracool/readied_spells.h"
+#include "panels/spell_book.hpp" // AbilityFKeyCount
 #include "player.h"
+#include "spells.h" // IsValidSpell
 
 namespace devilution::oracool {
 
@@ -154,6 +157,14 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		EndChunk(out, at);
 	}
 
+	{
+		const size_t at = BeginChunk(out, HeroChunkSpellHotkeys);
+		out.push_back(static_cast<uint8_t>(AbilityFKeyCount));
+		for (size_t i = 0; i < AbilityFKeyCount; i++)
+			out.push_back(PackReadiedSpell(player._pSplHotKey[i]));
+		EndChunk(out, at);
+	}
+
 	return out;
 }
 
@@ -203,6 +214,23 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			break;
 		case HeroChunkClassTree:
 			ApplyClassTree(player, payload, chunkLen);
+			break;
+		case HeroChunkSpellHotkeys:
+			if (chunkLen >= 1) {
+				const size_t count = std::min<size_t>({ payload[0], chunkLen - 1, AbilityFKeyCount });
+				for (size_t i = 0; i < count; i++) {
+					// UnpackReadiedSpell leaves both outputs untouched on an empty byte, so an
+					// unbound slot stays exactly as the fixed struct left it. The TYPE is re-derived
+					// from the spell masks, which ApplyHeroChunks' caller has already loaded.
+					SpellID spell = SpellID::Invalid;
+					SpellType type = SpellType::Invalid;
+					UnpackReadiedSpell(player, payload[1 + i], spell, type);
+					if (IsValidSpell(spell)) {
+						player._pSplHotKey[i] = spell;
+						player._pSplTHotKey[i] = type;
+					}
+				}
+			}
 			break;
 		default:
 			// An unknown tag is a chunk from a newer build - skipped, by design.
