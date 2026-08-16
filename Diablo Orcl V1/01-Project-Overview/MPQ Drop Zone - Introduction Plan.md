@@ -100,6 +100,29 @@ Lightning pages land.
 fewest D1 analogues. The passives map onto the totals; the multishot and guided-arrow skills need
 missile work. Last on purpose.
 
+## A note on cutting the three remaining sheets
+
+An attempt to generalize `CutPaladinTree.ps1` into a self-measuring `CutClassTree.ps1` was made and
+**abandoned**: it kept failing with `[System.Object[]] does not contain a method named
+'op_Subtraction'` somewhere in the band scan, and chasing a PowerShell type-coercion bug was not
+worth the time against a method that already works twice over. The script was deleted rather than
+committed broken.
+
+**Use the proven two-step instead**, which is how both `Paladin Skill Tree.png` and `Gems.png` were
+done:
+
+1. Run a small inline scan (Bash/PowerShell one-off, not a committed tool) that prints the y-bands
+   of non-green rows and, inside each band, the x-spans of non-green columns. Read the numbers.
+2. Write those rectangles into a table-driven cut script modelled on `CutPaladinTree.ps1`, which is
+   the reference implementation - including its green **spill suppression** (proportional alpha
+   plus pulling the green channel down to max(R,B)), without which every white emblem keeps a
+   one-pixel green halo on the window's dark fill.
+
+Two traps the Gems unit already paid for, worth re-reading before the next cut: PowerShell's `[int]`
+cast **rounds** rather than truncates (it put icons in the wrong preview row), and a green subject
+on a green key cannot be separated by any threshold - it needs a pre-processed black backdrop and
+the dark-mode extractor.
+
 ## Standing rules for every unit
 
 - Cut with the Paladin tree's script pattern; strip order = enum order.
