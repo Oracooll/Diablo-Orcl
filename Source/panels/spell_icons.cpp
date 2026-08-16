@@ -333,7 +333,12 @@ void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell)
 		scaledPercent = clamped;
 	}
 
-	const ClxSprite plate = (*scaled)[static_cast<size_t>(SpellID::Null)];
+	// Through SpellITbl, NOT by casting the SpellID. A SpellID is not a frame number - the table is
+	// the mapping, and SpellID::Null lands on frame 26, the empty plate. Indexing the list with the
+	// raw enum value instead (as this did when first written, 2026-08-17) picks whatever real spell
+	// icon happens to sit at that index, which is exactly what the user saw: "i see other icons on
+	// top".
+	const ClxSprite plate = (*scaled)[SpellITbl[static_cast<int8_t>(SpellID::Null)]];
 	const Point centred { cell.position.x + (cell.size.width - static_cast<int>(plate.width())) / 2,
 		cell.position.y + (cell.size.height - static_cast<int>(plate.height())) / 2 };
 	// CLX is drawn from the sprite's BOTTOM-left, the convention every other call here follows.

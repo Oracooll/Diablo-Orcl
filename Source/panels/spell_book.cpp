@@ -788,9 +788,27 @@ Rectangle SpendMinusRect(Rectangle icon)
 		{ SpendBoxSize, SpendBoxSize } };
 }
 
+/**
+ * @brief Whether the cursor is inside @p box, which is in CONTENT-local coordinates.
+ *
+ * The spend boxes are drawn from the content surface, whose origin is the panel's, so the mouse has
+ * to come the same way down rather than being compared in screen space.
+ */
+bool SpendBoxHovered(Rectangle box)
+{
+	const Rectangle content = GetSpellBookContentRect();
+	return box.contains(MousePosition.x - content.position.x, MousePosition.y - content.position.y);
+}
+
 /** @brief A thick plus (green) or minus (red), centred in its 13x13 box. */
 void DrawSpendGlyph(const Surface &out, Rectangle box, bool plus)
 {
+	// 2px black frame on hover (user, 2026-08-17). Drawn FIRST so the glyph's own bars sit on top of
+	// it rather than being clipped by it - the box is only 13px and the bars are 4, so an outline
+	// painted afterwards would eat a third of the crossbar's length.
+	if (SpendBoxHovered(box))
+		UnsafeDrawBorder2px(out, box, 0); // palette index 0 is black
+
 	// PAL8_YELLOW is the injected green ramp (see oracool::SkillPlateTint), so the plus reads in the
 	// same green the sheets already wear; the minus takes the game's own red.
 	const uint8_t color = plus ? static_cast<uint8_t>(PAL8_YELLOW + 1) : static_cast<uint8_t>(PAL16_RED + 4);

@@ -201,6 +201,8 @@ void FreeGame()
 	// than stopped, because the stop CUE would be a sound the player has no cause for - they left,
 	// they did not switch the aura off.
 	oracool::SilenceClassAuraLoop();
+	// And the set-completion baseline describes a character who is no longer here.
+	oracool::ResetSetCompletionBaseline();
 
 	FreeMonsterHealthBar();
 	FreeXPBar();

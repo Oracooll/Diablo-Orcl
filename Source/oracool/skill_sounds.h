@@ -119,8 +119,15 @@ void CheckSetCompletionTransition(const Player &player);
  *
  * The suppression half of the above: called when a character is loaded or entered, so an already-
  * complete set is the baseline rather than an achievement the player just earned.
+ *
+ * Belt and braces: CheckSetCompletionTransition also records silently on its FIRST call after a
+ * reset, because the first CalcPlrInv of a character's life runs from the player-file load - before
+ * any code that knows to arm this. See BaselineArmed in the .cpp.
  */
 void ArmSetCompletionBaseline(const Player &player);
+
+/** @brief Forgets the baseline entirely - leaving the game. The next check records, never rings. */
+void ResetSetCompletionBaseline();
 
 } // namespace oracool
 } // namespace devilution

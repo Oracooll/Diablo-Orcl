@@ -46,6 +46,16 @@ Skill AuraLoopSkill = Skill::None;
 /** @brief Which sets were complete last time we looked. Bit i is ItemSets[i]. */
 uint16_t CompletedSetsMask = 0;
 static_assert(ItemSetCount <= 16, "CompletedSetsMask needs a wider type");
+/**
+ * @brief Whether CompletedSetsMask means anything yet.
+ *
+ * Bug (fixed 2026-08-17, user: "dont play set completed sound on game load"). The FIRST CalcPlrInv
+ * of a character's life runs from the player-file load - before LoadGameLevel, where the baseline
+ * used to be armed - so a character loaded wearing a complete set compared it against the static-
+ * init mask of zero and rang. Until armed, a check RECORDS instead of ringing, whichever code path
+ * gets there first; the flag drops on leaving the game so the next character starts mute too.
+ */
+bool BaselineArmed = false;
 
 /** @brief Index into SkillSounds, or SkillSoundCount for "no such cue". */
 size_t FindSound(Skill skill, SkillSoundEvent event)
@@ -158,6 +168,12 @@ void CheckSetCompletionTransition(const Player &player)
 		return; // local UI feedback for the owning player; peers get no replicated cue
 
 	const uint16_t now = CompletedSets(player);
+	// The first look after a load is a RECORDING, never a ring - see BaselineArmed.
+	if (!BaselineArmed) {
+		CompletedSetsMask = now;
+		BaselineArmed = true;
+		return;
+	}
 	// Rising edges only. Removing a piece clears its bit and so REARMS the set, which is what the
 	// contract asks for; swapping one valid piece for another inside a single transaction never
 	// drops the bit in the first place, so it cannot manufacture a false edge.
@@ -174,6 +190,15 @@ void ArmSetCompletionBaseline(const Player &player)
 	// Records without ringing: loading a character who is already wearing a complete set is not an
 	// achievement they just earned.
 	CompletedSetsMask = CompletedSets(player);
+	BaselineArmed = true;
+}
+
+void ResetSetCompletionBaseline()
+{
+	// Leaving the game: the mask describes a character who is no longer here, and the next one's
+	// first check must record rather than ring against it.
+	CompletedSetsMask = 0;
+	BaselineArmed = false;
 }
 
 } // namespace devilution::oracool
