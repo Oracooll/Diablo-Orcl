@@ -268,7 +268,42 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	// every save. IsOracoolCharmIdx covers both islands.
 	IDI_ORACOOL_CHARM_LUCK,
 	IDI_ORACOOL_CHARM_GREED,
-	IDI_LAST = IDI_ORACOOL_CHARM_GREED,
+	// The gem quality ladder (Gems.png, 2026-08-16): Diablo II's seven types in five qualities.
+	// The five above are the NORMAL quality of their type and keep their indices - these are the
+	// thirty that complete the set, appended for the same positional-save-format reason as every
+	// other block here. oracool/gems.h owns the (type, quality) -> index table; nothing outside it
+	// should assume this list's order.
+	IDI_ORACOOL_GEM_AMETHYST_CHIPPED,
+	IDI_ORACOOL_GEM_AMETHYST_FLAWED,
+	IDI_ORACOOL_GEM_AMETHYST_NORMAL,
+	IDI_ORACOOL_GEM_AMETHYST_FLAWLESS,
+	IDI_ORACOOL_GEM_AMETHYST_PERFECT,
+	IDI_ORACOOL_GEM_DIAMOND_CHIPPED,
+	IDI_ORACOOL_GEM_DIAMOND_FLAWED,
+	IDI_ORACOOL_GEM_DIAMOND_NORMAL,
+	IDI_ORACOOL_GEM_DIAMOND_FLAWLESS,
+	IDI_ORACOOL_GEM_DIAMOND_PERFECT,
+	IDI_ORACOOL_GEM_EMERALD_CHIPPED,
+	IDI_ORACOOL_GEM_EMERALD_FLAWED,
+	IDI_ORACOOL_GEM_EMERALD_FLAWLESS,
+	IDI_ORACOOL_GEM_EMERALD_PERFECT,
+	IDI_ORACOOL_GEM_RUBY_CHIPPED,
+	IDI_ORACOOL_GEM_RUBY_FLAWED,
+	IDI_ORACOOL_GEM_RUBY_FLAWLESS,
+	IDI_ORACOOL_GEM_RUBY_PERFECT,
+	IDI_ORACOOL_GEM_SAPPHIRE_CHIPPED,
+	IDI_ORACOOL_GEM_SAPPHIRE_FLAWED,
+	IDI_ORACOOL_GEM_SAPPHIRE_FLAWLESS,
+	IDI_ORACOOL_GEM_SAPPHIRE_PERFECT,
+	IDI_ORACOOL_GEM_TOPAZ_CHIPPED,
+	IDI_ORACOOL_GEM_TOPAZ_FLAWED,
+	IDI_ORACOOL_GEM_TOPAZ_FLAWLESS,
+	IDI_ORACOOL_GEM_TOPAZ_PERFECT,
+	IDI_ORACOOL_GEM_SKULL_CHIPPED,
+	IDI_ORACOOL_GEM_SKULL_FLAWED,
+	IDI_ORACOOL_GEM_SKULL_FLAWLESS,
+	IDI_ORACOOL_GEM_SKULL_PERFECT,
+	IDI_LAST = IDI_ORACOOL_GEM_SKULL_PERFECT,
 	IDI_NONE = -1,
 };
 
@@ -292,10 +327,12 @@ constexpr bool IsOracoolItemIdx(int i)
 }
 
 /** @brief Phase 1: whether @p i is a socketable gem. Same pool-exclusion contract as the range
- * above - a gem never joins the seeded recreation pool. */
+ * above - a gem never joins the seeded recreation pool. Two islands: the original five (which are
+ * the normal quality of their type) and the thirty appended with the quality ladder. */
 constexpr bool IsOracoolGemIdx(int i)
 {
-	return i >= IDI_ORACOOL_GEM_RUBY && i <= IDI_ORACOOL_GEM_SKULL;
+	return (i >= IDI_ORACOOL_GEM_RUBY && i <= IDI_ORACOOL_GEM_SKULL)
+	    || (i >= IDI_ORACOOL_GEM_AMETHYST_CHIPPED && i <= IDI_ORACOOL_GEM_SKULL_PERFECT);
 }
 
 /** @brief Phase 1: whether @p i is a charm. Two islands - see the enum's append-only note. */
@@ -653,7 +690,41 @@ enum item_cursor_graphic : uint16_t {
 	ICURS_ORACOOL_RUNE_RAL                    = 379,
 	ICURS_ORACOOL_RUNE_ORT                    = 380,
 	ICURS_ORACOOL_RUNE_SOL                    = 381,
-	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_RUNE_SOL,
+	// The gem quality ladder (Gems.png). The five above (372-376) keep their numbers and are
+	// re-cut from this same sheet's normal-quality row, so an item already in a save still points
+	// at the right picture - _iCurs is stored per item, which is why these append rather than
+	// renumbering the block.
+	ICURS_ORACOOL_GEM_AMETHYST_CHIPPED        = 382,
+	ICURS_ORACOOL_GEM_AMETHYST_FLAWED         = 383,
+	ICURS_ORACOOL_GEM_AMETHYST_NORMAL         = 384,
+	ICURS_ORACOOL_GEM_AMETHYST_FLAWLESS       = 385,
+	ICURS_ORACOOL_GEM_AMETHYST_PERFECT        = 386,
+	ICURS_ORACOOL_GEM_DIAMOND_CHIPPED         = 387,
+	ICURS_ORACOOL_GEM_DIAMOND_FLAWED          = 388,
+	ICURS_ORACOOL_GEM_DIAMOND_NORMAL          = 389,
+	ICURS_ORACOOL_GEM_DIAMOND_FLAWLESS        = 390,
+	ICURS_ORACOOL_GEM_DIAMOND_PERFECT         = 391,
+	ICURS_ORACOOL_GEM_EMERALD_CHIPPED         = 392,
+	ICURS_ORACOOL_GEM_EMERALD_FLAWED          = 393,
+	ICURS_ORACOOL_GEM_EMERALD_FLAWLESS        = 394,
+	ICURS_ORACOOL_GEM_EMERALD_PERFECT         = 395,
+	ICURS_ORACOOL_GEM_RUBY_CHIPPED            = 396,
+	ICURS_ORACOOL_GEM_RUBY_FLAWED             = 397,
+	ICURS_ORACOOL_GEM_RUBY_FLAWLESS           = 398,
+	ICURS_ORACOOL_GEM_RUBY_PERFECT            = 399,
+	ICURS_ORACOOL_GEM_SAPPHIRE_CHIPPED        = 400,
+	ICURS_ORACOOL_GEM_SAPPHIRE_FLAWED         = 401,
+	ICURS_ORACOOL_GEM_SAPPHIRE_FLAWLESS       = 402,
+	ICURS_ORACOOL_GEM_SAPPHIRE_PERFECT        = 403,
+	ICURS_ORACOOL_GEM_TOPAZ_CHIPPED           = 404,
+	ICURS_ORACOOL_GEM_TOPAZ_FLAWED            = 405,
+	ICURS_ORACOOL_GEM_TOPAZ_FLAWLESS          = 406,
+	ICURS_ORACOOL_GEM_TOPAZ_PERFECT           = 407,
+	ICURS_ORACOOL_GEM_SKULL_CHIPPED           = 408,
+	ICURS_ORACOOL_GEM_SKULL_FLAWED            = 409,
+	ICURS_ORACOOL_GEM_SKULL_FLAWLESS          = 410,
+	ICURS_ORACOOL_GEM_SKULL_PERFECT           = 411,
+	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_GEM_SKULL_PERFECT,
 	// clang-format on
 };
 

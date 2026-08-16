@@ -210,20 +210,60 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-ghostly-v1.png,0,748,467,374,56,56,spectral_armor,30,false,green
   echo %ART%\item-set-ghostly-v1.png,467,748,467,374,56,56,spectral_shield,30,false,green
   echo %ART%\item-set-ghostly-v1.png,467,0,467,374,56,56,spectral_helm,30,false,green
-  REM Gems: the user's 7x5 sheet, row 3 (the oval cuts). Columns: amethyst diamond emerald ruby sapphire topaz skull.
-  echo %ART%\item-gems-v1.png,843,602,281,293,28,28,gem_ruby,30,false,green
-  echo %ART%\item-gems-v1.png,1124,602,281,293,28,28,gem_sapphire,30,false,green
-  echo %ART%\item-gems-v1.png,1405,602,281,293,28,28,gem_topaz,30,false,green
-  REM The emerald is itself green, so the chroma key eats it. Its cell is pre-processed to a black
-  REM backdrop (item-gems-emerald-dark-v1.png) and cut with the dark-mode extractor instead.
-  echo %ART%\item-gems-emerald-dark-v1.png,0,0,281,293,28,28,gem_emerald,30,false
-  echo %ART%\item-gems-v1.png,1686,602,281,293,28,28,gem_skull,30,false,green
+  REM Gems: the user's pixel-art sheet (Gems.png), a clean 7x5 grid measured by green-key scan.
+  REM Columns are types - amethyst diamond emerald ruby sapphire topaz skull - and rows are the
+  REM quality ladder: chipped, flawed, normal, flawless, perfect.
+  REM   col x-spans: 67-187  266-389  467-588  665-786  863-983  1059-1179  1251-1374
+  REM   row y-spans: 102-213  279-399  463-593  651-790  837-987
+  REM These five are the NORMAL row (y 463, height 131) and keep ICURS 372-376, so an item already
+  REM sitting in a save keeps pointing at the right picture - it just gets the better art.
+  echo %ART%\item-gems-v2.png,665,463,122,131,28,28,gem_ruby,30,false,green
+  echo %ART%\item-gems-v2.png,863,463,121,131,28,28,gem_sapphire,30,false,green
+  echo %ART%\item-gems-v2.png,1059,463,121,131,28,28,gem_topaz,30,false,green
+  REM The emerald is itself green, and measurement says no threshold can save it: the backdrop
+  REM reaches a green-excess of 240 and the gem's own body reaches 234. Its column is therefore
+  REM pre-processed to a black backdrop by exact-colour match (item-gems-v2-emerald-dark.png,
+  REM x 467-588 of the sheet cropped to x 0) and cut with the dark-mode extractor instead.
+  echo %ART%\item-gems-v2-emerald-dark.png,0,463,122,131,28,28,gem_emerald,30,false
+  echo %ART%\item-gems-v2.png,1251,463,124,131,28,28,gem_skull,30,false,green
   REM Runes: the user's 33-rune D2 sheet, 11 columns x 3 rows. We use five: El, Tir, Ral, Ort (row 1), Sol (row 2).
   echo %ART%\item-runes-v1.png,38,230,106,140,28,28,rune_el,30,false,green
   echo %ART%\item-runes-v1.png,296,230,105,140,28,28,rune_tir,30,false,green
   echo %ART%\item-runes-v1.png,922,230,106,140,28,28,rune_ral,30,false,green
   echo %ART%\item-runes-v1.png,1048,230,107,140,28,28,rune_ort,30,false,green
   echo %ART%\item-runes-v1.png,36,441,107,140,28,28,rune_sol,30,false,green
+  REM The rest of the gem ladder, ICURS 382-411. Same grid as the five above; these are the four
+  REM other qualities of each type, plus all five of the two types that were missing entirely.
+  echo %ART%\item-gems-v2.png,67,102,121,112,28,28,gem_amethyst_chipped,30,false,green
+  echo %ART%\item-gems-v2.png,67,279,121,121,28,28,gem_amethyst_flawed,30,false,green
+  echo %ART%\item-gems-v2.png,67,463,121,131,28,28,gem_amethyst_normal,30,false,green
+  echo %ART%\item-gems-v2.png,67,651,121,140,28,28,gem_amethyst_flawless,30,false,green
+  echo %ART%\item-gems-v2.png,67,837,121,151,28,28,gem_amethyst_perfect,30,false,green
+  echo %ART%\item-gems-v2.png,266,102,124,112,28,28,gem_diamond_chipped,30,false,green
+  echo %ART%\item-gems-v2.png,266,279,124,121,28,28,gem_diamond_flawed,30,false,green
+  echo %ART%\item-gems-v2.png,266,463,124,131,28,28,gem_diamond_normal,30,false,green
+  echo %ART%\item-gems-v2.png,266,651,124,140,28,28,gem_diamond_flawless,30,false,green
+  echo %ART%\item-gems-v2.png,266,837,124,151,28,28,gem_diamond_perfect,30,false,green
+  echo %ART%\item-gems-v2-emerald-dark.png,0,102,122,112,28,28,gem_emerald_chipped,30,false
+  echo %ART%\item-gems-v2-emerald-dark.png,0,279,122,121,28,28,gem_emerald_flawed,30,false
+  echo %ART%\item-gems-v2-emerald-dark.png,0,651,122,140,28,28,gem_emerald_flawless,30,false
+  echo %ART%\item-gems-v2-emerald-dark.png,0,837,122,151,28,28,gem_emerald_perfect,30,false
+  echo %ART%\item-gems-v2.png,665,102,122,112,28,28,gem_ruby_chipped,30,false,green
+  echo %ART%\item-gems-v2.png,665,279,122,121,28,28,gem_ruby_flawed,30,false,green
+  echo %ART%\item-gems-v2.png,665,651,122,140,28,28,gem_ruby_flawless,30,false,green
+  echo %ART%\item-gems-v2.png,665,837,122,151,28,28,gem_ruby_perfect,30,false,green
+  echo %ART%\item-gems-v2.png,863,102,121,112,28,28,gem_sapphire_chipped,30,false,green
+  echo %ART%\item-gems-v2.png,863,279,121,121,28,28,gem_sapphire_flawed,30,false,green
+  echo %ART%\item-gems-v2.png,863,651,121,140,28,28,gem_sapphire_flawless,30,false,green
+  echo %ART%\item-gems-v2.png,863,837,121,151,28,28,gem_sapphire_perfect,30,false,green
+  echo %ART%\item-gems-v2.png,1059,102,121,112,28,28,gem_topaz_chipped,30,false,green
+  echo %ART%\item-gems-v2.png,1059,279,121,121,28,28,gem_topaz_flawed,30,false,green
+  echo %ART%\item-gems-v2.png,1059,651,121,140,28,28,gem_topaz_flawless,30,false,green
+  echo %ART%\item-gems-v2.png,1059,837,121,151,28,28,gem_topaz_perfect,30,false,green
+  echo %ART%\item-gems-v2.png,1251,102,124,112,28,28,gem_skull_chipped,30,false,green
+  echo %ART%\item-gems-v2.png,1251,279,124,121,28,28,gem_skull_flawed,30,false,green
+  echo %ART%\item-gems-v2.png,1251,651,124,140,28,28,gem_skull_flawless,30,false,green
+  echo %ART%\item-gems-v2.png,1251,837,124,151,28,28,gem_skull_perfect,30,false,green
 )
 
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1

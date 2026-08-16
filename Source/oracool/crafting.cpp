@@ -1,5 +1,7 @@
 #include "oracool/crafting.h"
 
+#include "oracool/gems.h"
+
 #include <algorithm>
 #include <functional>
 #include <vector>
@@ -55,8 +57,13 @@ bool IsCharm(int idx) { return IsOracoolCharmIdx(idx); }
 std::vector<int> MaterialsFor(const Player &player, int index)
 {
 	switch (index) {
-	case 0: // three gems of one kind
-		return LargestSameKindGroup(player, FindMaterials(player, IsGem), 3);
+	case 0: { // three identical gems - same type AND quality, perfect excluded
+		std::vector<int> gems = FindMaterials(player, IsGem);
+		gems.erase(std::remove_if(gems.begin(), gems.end(),
+		                [&](int i) { return IsPerfectGem(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
+		    gems.end());
+		return LargestSameKindGroup(player, gems, 3);
+	}
 	case 1: { // two identical runes, Sol excluded (it has nothing above it)
 		std::vector<int> runes = FindMaterials(player, IsRune);
 		runes.erase(std::remove_if(runes.begin(), runes.end(),
@@ -80,8 +87,8 @@ std::vector<int> MaterialsFor(const Player &player, int index)
 _item_indexes OutputFor(const Player &player, int index, const std::vector<int> &materials)
 {
 	switch (index) {
-	case 0: // a random rune
-		return static_cast<_item_indexes>(IDI_ORACOOL_RUNE_EL + GenerateRnd(5));
+	case 0: // the same gem, one quality better - Diablo II's own gem recipe
+		return static_cast<_item_indexes>(NextGemQuality(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
 	case 1: // the next rune up from the consumed pair
 		return static_cast<_item_indexes>(player.InvList[materials[0]].IDidx + 1);
 	case 2: { // a random charm - the enum's two islands make this a pick-from-list
@@ -102,7 +109,7 @@ const char *CraftingRecipeName(int index)
 {
 	switch (index) {
 	case 0:
-		return N_("Transmute Gems");
+		return N_("Refine Gems");
 	case 1:
 		return N_("Ascend Runes");
 	case 2:
@@ -116,7 +123,7 @@ const char *CraftingRecipeInputs(int index)
 {
 	switch (index) {
 	case 0:
-		return N_("3 gems of one kind -> a random rune");
+		return N_("3 identical gems -> one of the next quality");
 	case 1:
 		return N_("2 identical runes -> the next rune up");
 	case 2:

@@ -30,6 +30,58 @@ namespace devilution::oracool {
 
 struct ItemBonusTotals;
 
+/**
+ * @brief The seven gem types, in the column order of Gems.png.
+ *
+ * Enum order IS the sheet's column order, which is also the order the icon specs were written in,
+ * so the art and this list cannot drift.
+ */
+enum class GemType : uint8_t {
+	Amethyst,
+	Diamond,
+	Emerald,
+	Ruby,
+	Sapphire,
+	Topaz,
+	Skull,
+	LAST = Skull,
+};
+constexpr size_t GemTypeCount = 7;
+
+/** @brief The five quality tiers, in the row order of Gems.png - Diablo II's own ladder. */
+enum class GemQuality : uint8_t {
+	Chipped,
+	Flawed,
+	Normal,
+	Flawless,
+	Perfect,
+	LAST = Perfect,
+};
+constexpr size_t GemQualityCount = 5;
+
+/** @brief The item index of one gem. Every (type, quality) pair has one. */
+uint16_t GemIndexFor(GemType type, GemQuality quality);
+
+/** @brief Whether @p gemIdx is a perfect gem - the top of its ladder, so nothing refines it. */
+bool IsPerfectGem(uint16_t gemIdx);
+
+/**
+ * @brief The same gem one quality better, or @p gemIdx itself if it is already perfect (or not a
+ * gem at all). The crafting window's Refine Gems recipe is the only caller.
+ */
+uint16_t NextGemQuality(uint16_t gemIdx);
+
+/** @brief Decomposes a gem item index. False if @p gemIdx is not a gem at all. */
+bool GemTypeAndQuality(uint16_t gemIdx, GemType &type, GemQuality &quality);
+
+/**
+ * @brief What @p quality multiplies a gem's effects by, in percent.
+ *
+ * Normal is 100 because the five original gems' tuned numbers ARE the normal-quality row - the
+ * ladder was added around them rather than replacing them, so nothing already balanced moved.
+ */
+int GemQualityPercent(GemQuality quality);
+
 /** @brief The three effect groups a socket host falls into. */
 enum class SocketHost : uint8_t {
 	Weapon,

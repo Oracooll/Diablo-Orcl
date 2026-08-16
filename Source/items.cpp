@@ -4364,32 +4364,59 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 	if (roll >= GemDropPercent + CharmDropPercent + RuneDropPercent)
 		return;
 
-	int first = IDI_ORACOOL_GEM_RUBY;
-	int last = IDI_ORACOOL_GEM_SKULL;
-	bool charmsOnly = false;
-	if (roll >= GemDropPercent + CharmDropPercent) {
-		first = IDI_ORACOOL_RUNE_EL;
-		last = IDI_ORACOOL_RUNE_SOL;
-	} else if (roll >= GemDropPercent) {
-		// The charms live in two enum islands (the MF/GF pair was appended after the runes -
-		// positional indices), so the walk spans both and filters by the range check.
-		first = IDI_ORACOOL_CHARM_VIGOR;
-		last = IDI_ORACOOL_CHARM_GREED;
-		charmsOnly = true;
-	}
-
 	const int mlvl = monster.level(sgGameInitInfo.nDifficulty);
-	_item_indexes candidates[12];
-	int candidateCount = 0;
-	for (int i = first; i <= last; i++) {
-		if (charmsOnly && !IsOracoolCharmIdx(i))
-			continue;
-		if (AllItemsList[i].iMinMLvl <= mlvl)
-			candidates[candidateCount++] = static_cast<_item_indexes>(i);
+	_item_indexes idx;
+
+	if (roll < GemDropPercent) {
+		// A gem is picked as a TYPE and a QUALITY rather than as one index out of thirty-five,
+		// because those two axes want different rules: the type is a flat choice among seven, and
+		// the quality is a ladder the depth opens and the weights keep steep, so a chipped stone is
+		// the common find and a perfect one stays a prize even once the floor allows it.
+		static constexpr int QualityWeights[oracool::GemQualityCount] = { 40, 30, 18, 9, 3 };
+		const auto type = static_cast<oracool::GemType>(GenerateRnd(oracool::GemTypeCount));
+		int available[oracool::GemQualityCount];
+		int weights[oracool::GemQualityCount];
+		int count = 0;
+		int weightTotal = 0;
+		for (size_t q = 0; q < oracool::GemQualityCount; q++) {
+			const uint16_t candidate = oracool::GemIndexFor(type, static_cast<oracool::GemQuality>(q));
+			if (AllItemsList[candidate].iMinMLvl > mlvl)
+				continue;
+			available[count] = candidate;
+			weightTotal += QualityWeights[q];
+			weights[count] = weightTotal;
+			count++;
+		}
+		if (count == 0 || ActiveItemCount >= MAXITEMS)
+			return;
+		const int pick = GenerateRnd(weightTotal);
+		int chosen = 0;
+		while (chosen + 1 < count && pick >= weights[chosen])
+			chosen++;
+		idx = static_cast<_item_indexes>(available[chosen]);
+	} else {
+		int first = IDI_ORACOOL_RUNE_EL;
+		int last = IDI_ORACOOL_RUNE_SOL;
+		bool charmsOnly = false;
+		if (roll < GemDropPercent + CharmDropPercent) {
+			// The charms live in two enum islands (the MF/GF pair was appended after the runes -
+			// positional indices), so the walk spans both and filters by the range check.
+			first = IDI_ORACOOL_CHARM_VIGOR;
+			last = IDI_ORACOOL_CHARM_GREED;
+			charmsOnly = true;
+		}
+		_item_indexes candidates[12];
+		int candidateCount = 0;
+		for (int i = first; i <= last; i++) {
+			if (charmsOnly && !IsOracoolCharmIdx(i))
+				continue;
+			if (AllItemsList[i].iMinMLvl <= mlvl)
+				candidates[candidateCount++] = static_cast<_item_indexes>(i);
+		}
+		if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
+			return;
+		idx = candidates[GenerateRnd(candidateCount)];
 	}
-	if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
-		return;
-	const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
 
 	const int ii = AllocateItem();
 	Item &gem = Items[ii];

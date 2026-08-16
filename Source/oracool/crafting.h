@@ -7,7 +7,7 @@
  * Three launch recipes, all pure material transmutes over the MAIN backpack (tab 1 - the pages
  * you can see are the pages the forge reads):
  *
- *   1. Transmute Gems:  three gems of one kind      -> a random rune
+ *   1. Refine Gems:     three identical gems          -> one of the next quality
  *   2. Ascend Runes:    two identical runes         -> the next rune up (El->Tir->Ral->Ort->Sol)
  *   3. Rework Charms:   two charms of any kind      -> a random charm
  *

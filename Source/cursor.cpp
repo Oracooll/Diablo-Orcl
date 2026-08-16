@@ -252,6 +252,36 @@ const uint16_t InvItemWidth3[] = {
 	1 * 28, // rune_ral
 	1 * 28, // rune_ort
 	1 * 28, // rune_sol
+	1 * 28, // gem_amethyst_chipped
+	1 * 28, // gem_amethyst_flawed
+	1 * 28, // gem_amethyst_normal
+	1 * 28, // gem_amethyst_flawless
+	1 * 28, // gem_amethyst_perfect
+	1 * 28, // gem_diamond_chipped
+	1 * 28, // gem_diamond_flawed
+	1 * 28, // gem_diamond_normal
+	1 * 28, // gem_diamond_flawless
+	1 * 28, // gem_diamond_perfect
+	1 * 28, // gem_emerald_chipped
+	1 * 28, // gem_emerald_flawed
+	1 * 28, // gem_emerald_flawless
+	1 * 28, // gem_emerald_perfect
+	1 * 28, // gem_ruby_chipped
+	1 * 28, // gem_ruby_flawed
+	1 * 28, // gem_ruby_flawless
+	1 * 28, // gem_ruby_perfect
+	1 * 28, // gem_sapphire_chipped
+	1 * 28, // gem_sapphire_flawed
+	1 * 28, // gem_sapphire_flawless
+	1 * 28, // gem_sapphire_perfect
+	1 * 28, // gem_topaz_chipped
+	1 * 28, // gem_topaz_flawed
+	1 * 28, // gem_topaz_flawless
+	1 * 28, // gem_topaz_perfect
+	1 * 28, // gem_skull_chipped
+	1 * 28, // gem_skull_flawed
+	1 * 28, // gem_skull_flawless
+	1 * 28, // gem_skull_perfect
 };
 const uint16_t InvItemHeight3[] = {
 	2 * 28, // shoulders
@@ -407,6 +437,36 @@ const uint16_t InvItemHeight3[] = {
 	1 * 28, // rune_ral
 	1 * 28, // rune_ort
 	1 * 28, // rune_sol
+	1 * 28, // gem_amethyst_chipped
+	1 * 28, // gem_amethyst_flawed
+	1 * 28, // gem_amethyst_normal
+	1 * 28, // gem_amethyst_flawless
+	1 * 28, // gem_amethyst_perfect
+	1 * 28, // gem_diamond_chipped
+	1 * 28, // gem_diamond_flawed
+	1 * 28, // gem_diamond_normal
+	1 * 28, // gem_diamond_flawless
+	1 * 28, // gem_diamond_perfect
+	1 * 28, // gem_emerald_chipped
+	1 * 28, // gem_emerald_flawed
+	1 * 28, // gem_emerald_flawless
+	1 * 28, // gem_emerald_perfect
+	1 * 28, // gem_ruby_chipped
+	1 * 28, // gem_ruby_flawed
+	1 * 28, // gem_ruby_flawless
+	1 * 28, // gem_ruby_perfect
+	1 * 28, // gem_sapphire_chipped
+	1 * 28, // gem_sapphire_flawed
+	1 * 28, // gem_sapphire_flawless
+	1 * 28, // gem_sapphire_perfect
+	1 * 28, // gem_topaz_chipped
+	1 * 28, // gem_topaz_flawed
+	1 * 28, // gem_topaz_flawless
+	1 * 28, // gem_topaz_perfect
+	1 * 28, // gem_skull_chipped
+	1 * 28, // gem_skull_flawed
+	1 * 28, // gem_skull_flawless
+	1 * 28, // gem_skull_perfect
 };
 constexpr uint16_t InvItems3Size = sizeof(InvItemWidth3) / sizeof(InvItemWidth3[0]);
 static_assert(sizeof(InvItemHeight3) / sizeof(InvItemHeight3[0]) == InvItems3Size,

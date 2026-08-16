@@ -13,6 +13,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -750,6 +751,77 @@ TEST(OracoolGems, InsertionFillsInOrderAndStopsWhenFull)
 	target._itype = ItemType::Helm;
 	target._iSocketCount = 1;
 	EXPECT_FALSE(oracool::TrySocketGem(target, sword)) << "a non-gem was socketed";
+}
+
+// The gem quality ladder (Gems.png): seven types, five qualities, one effect row per type scaled
+// by quality. These pin the table's structure and the scaling, not the tuning numbers themselves.
+TEST(OracoolGems, EveryTypeAndQualityHasItsOwnIndex)
+{
+	std::vector<uint16_t> seen;
+	for (size_t t = 0; t < oracool::GemTypeCount; t++) {
+		for (size_t q = 0; q < oracool::GemQualityCount; q++) {
+			const uint16_t idx = oracool::GemIndexFor(static_cast<oracool::GemType>(t),
+			    static_cast<oracool::GemQuality>(q));
+			EXPECT_TRUE(IsOracoolGemIdx(idx)) << "a ladder entry is not recognised as a gem";
+			EXPECT_EQ(std::count(seen.begin(), seen.end(), idx), 0) << "two ladder entries share an index";
+			seen.push_back(idx);
+
+			oracool::GemType backType;
+			oracool::GemQuality backQuality;
+			ASSERT_TRUE(oracool::GemTypeAndQuality(idx, backType, backQuality));
+			EXPECT_EQ(static_cast<size_t>(backType), t);
+			EXPECT_EQ(static_cast<size_t>(backQuality), q);
+		}
+	}
+	EXPECT_EQ(seen.size(), oracool::GemTypeCount * oracool::GemQualityCount);
+}
+
+TEST(OracoolGems, QualityScalesEffectsAndNormalIsTheTunedRow)
+{
+	// The original five gems are the NORMAL quality of their type, so their tuned numbers must be
+	// exactly what a normal gem still applies - the ladder was built around them, not over them.
+	EXPECT_EQ(oracool::GemIndexFor(oracool::GemType::Ruby, oracool::GemQuality::Normal),
+	    IDI_ORACOOL_GEM_RUBY);
+	oracool::ItemBonusTotals normal;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY, oracool::SocketHost::Weapon, normal);
+	EXPECT_EQ(normal.fireMin, 2);
+	EXPECT_EQ(normal.fireMax, 6);
+
+	oracool::ItemBonusTotals chipped;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY_CHIPPED, oracool::SocketHost::Weapon, chipped);
+	oracool::ItemBonusTotals perfect;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY_PERFECT, oracool::SocketHost::Weapon, perfect);
+	EXPECT_LT(chipped.fireMax, normal.fireMax) << "a chipped gem is not weaker than a normal one";
+	EXPECT_GT(perfect.fireMax, normal.fireMax) << "a perfect gem is not stronger than a normal one";
+	// Rounding must never erase an effect a gem is supposed to have.
+	EXPECT_GT(chipped.fireMin, 0) << "scaling rounded a real effect away to nothing";
+
+	// The two new types act, and on the channels their descriptions claim.
+	oracool::ItemBonusTotals amethyst;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_AMETHYST_NORMAL, oracool::SocketHost::Armor, amethyst);
+	EXPECT_GT(amethyst.dexterity, 0);
+	oracool::ItemBonusTotals diamond;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_DIAMOND_NORMAL, oracool::SocketHost::Shield, diamond);
+	EXPECT_GT(diamond.fireResist, 0);
+	EXPECT_GT(diamond.lightningResist, 0);
+	EXPECT_GT(diamond.magicResist, 0);
+}
+
+TEST(OracoolGems, RefiningWalksTheLadderAndStopsAtPerfect)
+{
+	uint16_t idx = oracool::GemIndexFor(oracool::GemType::Topaz, oracool::GemQuality::Chipped);
+	for (int step = 0; step < 4; step++) {
+		EXPECT_FALSE(oracool::IsPerfectGem(idx));
+		const uint16_t next = oracool::NextGemQuality(idx);
+		EXPECT_NE(next, idx) << "refining stalled below perfect";
+		idx = next;
+	}
+	EXPECT_TRUE(oracool::IsPerfectGem(idx)) << "four refinements did not reach perfect";
+	EXPECT_EQ(oracool::NextGemQuality(idx), idx) << "a perfect gem refined into something else";
+
+	// A rune is not a gem and must not be walked by the gem recipe.
+	EXPECT_FALSE(oracool::IsPerfectGem(IDI_ORACOOL_RUNE_EL));
+	EXPECT_EQ(oracool::NextGemQuality(IDI_ORACOOL_RUNE_EL), IDI_ORACOOL_RUNE_EL);
 }
 
 // The runes carry Diablo II's own socket numbers (user directive 2026-08-16), with two documented
