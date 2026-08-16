@@ -107,7 +107,11 @@ int BaseItemForSetSlot(string_view slot)
 	// amulet, ring, relic and cloak have NO base yet, and -1 says so rather than resolving to
 	// something close. The first two need a droppable ring/amulet row with a named IDI_ constant
 	// (the vanilla ones are anonymous rows the code cannot reference); the last two are slots this
-	// fork has not built. 30 of the 94 items sit here - listed, described, and not yet spawnable.
+	// fork has not built.
+	//
+	// 21 of the 94 items sit here - amulet 11, ring 8, relic 1, cloak 1 - listed, described, and not
+	// yet spawnable. Only Leoric's Fallen Court is badly hit (5 of its 13); every other set is short
+	// by one or two. See the continuation plan in the vault.
 	return -1;
 }
 

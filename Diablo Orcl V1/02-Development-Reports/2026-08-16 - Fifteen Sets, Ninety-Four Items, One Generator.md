@@ -95,11 +95,15 @@ single `proc:` — and it is still **named**. You are told what you earned.
 
 ## What is NOT done
 
-**30 of the 94 items cannot be spawned.** Their slots — amulet, ring, relic, cloak — have no base
-item this code can name. The vanilla ring and amulet rows are anonymous entries in `AllItemsList`
-with no `IDI_` constant to reference; relic and cloak are slots this fork has not built.
-`BaseItemForSetSlot` returns -1 for them and `giveitemset` reports the shortfall rather than quietly
-handing over four pieces of a six-piece set.
+**21 of the 94 items cannot be spawned** — amulet 11, ring 8, relic 1, cloak 1. Their slots have no
+base item this code can name. The vanilla ring and amulet rows are anonymous entries in
+`AllItemsList` with no `IDI_` constant to reference; relic and cloak are slots this fork has not
+built. `BaseItemForSetSlot` returns -1 for them and `giveitemset` reports the shortfall rather than
+quietly handing over four pieces of a six-piece set.
+
+(Corrected after publication: this said 30, which was an estimate I never checked. Counted from the
+generated table it is 21, so 73 of 94 spawn today. It also lands unevenly — only Leoric's Fallen
+Court is badly hit at 5 of 13; every other set is short by one or two.)
 
 **Nothing drops.** The sets are not in any loot table. `giveitemset {1-15}` is currently the only way
 to see one.
