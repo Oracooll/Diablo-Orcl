@@ -149,6 +149,48 @@ TEST(OracoolAudit, ConvictionErodesImmunitiesButNeverDeletesThem)
 	}
 }
 
+// Phase 3.4's other half: a champion lends to its PACK. Two properties matter.
+//
+// The first is that the lending never runs away with itself - PackAdjustedDamage writes into
+// uint8_t fields, and the Torment difficulty block already had to learn that a wrap makes a
+// STRONGER pack unpredictably weaker.
+//
+// The second is that a champion must not buff itself. A boss that did would just be a boss with
+// bigger numbers, which its own affix already provides.
+TEST(OracoolAudit, PackAuraClampsAndOnlySomeAffixesLend)
+{
+	// Exactly two of the six affixes reach past their own champion. The other four are personal,
+	// and keeping them so is what stops the six blurring into one another.
+	EXPECT_FALSE(oracool::PackAuraFrom(LesserUniqueAffix::Relentless, 1).isNothing());
+	EXPECT_FALSE(oracool::PackAuraFrom(LesserUniqueAffix::Fortified, 1).isNothing());
+	for (const LesserUniqueAffix personal : { LesserUniqueAffix::None, LesserUniqueAffix::Warded,
+	         LesserUniqueAffix::Vampiric, LesserUniqueAffix::Thunderous, LesserUniqueAffix::Colossal }) {
+		EXPECT_TRUE(oracool::PackAuraFrom(personal, 1).isNothing())
+		    << "a personal affix started lending to the pack";
+	}
+
+	// The pack has an edge, and it is somewhere the player can pull a monster past.
+	int lastLending = 0;
+	for (int distance = 0; distance <= 40; distance++) {
+		if (!oracool::PackAuraFrom(LesserUniqueAffix::Relentless, distance).isNothing())
+			lastLending = distance;
+	}
+	EXPECT_GT(lastLending, 0) << "the pack aura reached nothing at all";
+	EXPECT_LT(lastLending, 15) << "the pack reached far enough that pulling a monster out is hopeless";
+	EXPECT_TRUE(oracool::PackAuraFrom(LesserUniqueAffix::Relentless, lastLending + 1).isNothing());
+
+	// The clamp. These land in uint8_t fields, and the Torment block already learned that a wrap
+	// makes a STRONGER pack unpredictably weaker.
+	EXPECT_EQ(oracool::RaiseDamageByPercent(10, 0), 10);
+	EXPECT_GT(oracool::RaiseDamageByPercent(10, 40), 10);
+	for (int base = 0; base <= 255; base++) {
+		for (const int percent : { 0, 40, 100, 500 }) {
+			const uint8_t out = oracool::RaiseDamageByPercent(static_cast<uint8_t>(base), percent);
+			EXPECT_GE(out, base) << "raising " << base << " by " << percent << "% made it smaller";
+		}
+	}
+}
+
 // The radius is what makes an aura a thing you POSITION yourself with. Zero when nothing is
 // invested is the part that matters most: it is how "no aura lit" is expressed everywhere.
 TEST(OracoolAudit, AuraRadiusStartsAtNothingAndIsBounded)

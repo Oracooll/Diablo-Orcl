@@ -37,6 +37,7 @@
 namespace devilution {
 struct Monster;
 struct Player;
+enum class LesserUniqueAffix : uint8_t;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -84,5 +85,51 @@ uint16_t EffectiveResistances(const Monster &monster);
  * point of use belongs in a query above instead, because a query cannot go stale.
  */
 void ProcessOutwardAura(Player &player);
+
+/**
+ * @brief What a champion's presence lends the monsters around it - Phase 3.4's other half.
+ *
+ * Diablo II's scariest idea is not the champion, it is the champion's PACK: an ordinary monster
+ * beside a Might boss hits like something several floors deeper. This fork already spawns lesser
+ * uniques with minion packs, so all that was missing was the lending.
+ *
+ * Derived from the champion's existing `lesserAffix`, which costs no new per-monster state and
+ * therefore no save change - and which makes each affix describe the PACK rather than only its
+ * leader. Three of the six lend something; the other three (Vampiric, Thunderous, Colossal) are
+ * personal and lend nothing, which keeps them distinct from each other.
+ */
+struct PackAuraBonus {
+	/** @brief Percent added to the pack's damage - the champion's Might. */
+	int damagePercent;
+	/** @brief Flat armour class lent to the pack - the champion's Defiance. */
+	int armorBonus;
+
+	[[nodiscard]] bool isNothing() const { return damagePercent == 0 && armorBonus == 0; }
+};
+
+/**
+ * @brief What one champion carrying @p affix lends at @p distance tiles. The rule, on its own.
+ *
+ * Pure, so the mapping from affix to lending is testable without a level: which of the six affixes
+ * reach past their own champion, and where the pack's edge is.
+ */
+PackAuraBonus PackAuraFrom(LesserUniqueAffix affix, int distance);
+
+/**
+ * @brief The bonus @p monster gets from any champion standing near it. Empty for most monsters.
+ *
+ * A champion lends to its neighbours, never to itself - a boss that buffed itself would just be a
+ * boss with bigger numbers, which its own affix already does. A dead one lends nothing at all.
+ */
+PackAuraBonus PackAuraOn(const Monster &monster);
+
+/** @brief @p base raised by @p percent, clamped to a uint8_t rather than wrapped. */
+uint8_t RaiseDamageByPercent(uint8_t base, int percent);
+
+/** @brief @p base raised by whatever pack aura is on @p monster. Clamped to a uint8_t's range. */
+uint8_t PackAdjustedDamage(const Monster &monster, uint8_t base);
+
+/** @brief @p monster's armour class as it stands, its pack aura included. */
+int PackAdjustedArmor(const Monster &monster);
 
 } // namespace devilution::oracool

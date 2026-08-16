@@ -1428,7 +1428,11 @@ void MonsterAttackEnemy(Monster &monster, int hit, int minDam, int maxDam)
 bool MonsterAttack(Monster &monster)
 {
 	if (monster.animInfo.currentFrame == monster.data().animFrameNum - 1) {
-		MonsterAttackEnemy(monster, monster.toHit(sgGameInitInfo.nDifficulty), monster.minDamage, monster.maxDamage);
+		// Phase 3.4: a champion's Might reaches its pack here, at the one place an ordinary
+		// monster's own damage is read for a swing. Queried, never written - see oracool/aura_field.h.
+		MonsterAttackEnemy(monster, monster.toHit(sgGameInitInfo.nDifficulty),
+		    oracool::PackAdjustedDamage(monster, monster.minDamage),
+		    oracool::PackAdjustedDamage(monster, monster.maxDamage));
 		if (monster.ai != MonsterAIID::Snake)
 			PlayEffect(monster, MonsterSound::Attack);
 	}
@@ -2837,7 +2841,9 @@ void CounselorAi(Monster &monster)
 		if (distanceToEnemy >= 2) {
 			if (v < 5 * (monster.intelligence + 10) && LineClearMissile(monster.position.tile, monster.enemyPosition)) {
 				constexpr MissileID MissileTypes[4] = { MissileID::Firebolt, MissileID::ChargedBolt, MissileID::LightningControl, MissileID::Fireball };
-				StartRangedAttack(monster, MissileTypes[monster.intelligence], monster.minDamage + GenerateRnd(monster.maxDamage - monster.minDamage + 1));
+				StartRangedAttack(monster, MissileTypes[monster.intelligence],
+				    oracool::PackAdjustedDamage(monster, monster.minDamage)
+				        + GenerateRnd(monster.maxDamage - monster.minDamage + 1));
 			} else if (GenerateRnd(100) < 30) {
 				monster.goal = MonsterGoal::Move;
 				monster.goalVar1 = 0;
@@ -4545,7 +4551,9 @@ void MissToMonst(Missile &missile, Point position)
 
 		int pnum = dPlayer[oldPosition.x][oldPosition.y] - 1;
 		Player &player = Players[pnum];
-		MonsterAttackPlayer(monster, player, 500, monster.minDamageSpecial, monster.maxDamageSpecial);
+		MonsterAttackPlayer(monster, player, 500,
+		    oracool::PackAdjustedDamage(monster, monster.minDamageSpecial),
+		    oracool::PackAdjustedDamage(monster, monster.maxDamageSpecial));
 
 		if (IsAnyOf(monster.type().type, MT_NSNAKE, MT_RSNAKE, MT_BSNAKE, MT_GSNAKE))
 			return;

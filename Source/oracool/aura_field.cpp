@@ -28,6 +28,21 @@ constexpr int RepelDistance = 4;
 constexpr int ConvictionBreaksImmunityAt = 5;
 
 /**
+ * @brief How close a monster must stand to a champion to be part of its pack.
+ *
+ * Deliberately tighter than a player aura at full investment. A pack should be something the player
+ * can break up by pulling monsters away from their leader, which needs the edge of it to be
+ * somewhere they can reach.
+ */
+constexpr int PackAuraRadius = 6;
+
+/** @brief What a Relentless champion lends its pack, in percent of their own damage. */
+constexpr int MightPackDamagePercent = 40;
+
+/** @brief What a Fortified champion lends its pack, in armour class. */
+constexpr int DefiancePackArmor = 20;
+
+/**
  * @brief The points in @p aura if the local player has it lit and usable, else 0.
  *
  * One place for the three conditions every outward aura shares, so a new consumer cannot forget
@@ -125,6 +140,66 @@ void ProcessOutwardAura(Player &player)
 		monster.goalVar1 = RepelDistance;
 		monster.goalVar2 = static_cast<int>(GetDirection(player.position.tile, monster.position.tile));
 	}
+}
+
+PackAuraBonus PackAuraFrom(LesserUniqueAffix affix, int distance)
+{
+	PackAuraBonus bonus {};
+	if (distance > PackAuraRadius)
+		return bonus;
+	switch (affix) {
+	case LesserUniqueAffix::Relentless:
+		// Might. The champion that will not be knocked back drives its pack forward with it.
+		bonus.damagePercent = MightPackDamagePercent;
+		break;
+	case LesserUniqueAffix::Fortified:
+		// Defiance. The armoured one shelters what stands beside it.
+		bonus.armorBonus = DefiancePackArmor;
+		break;
+	default:
+		// Warded, Vampiric, Thunderous and Colossal are personal - a resistance, a life-steal, a
+		// death burst and a size. Nothing there is lendable, and leaving them personal is what
+		// keeps the six affixes from blurring into one another.
+		break;
+	}
+	return bonus;
+}
+
+PackAuraBonus PackAuraOn(const Monster &monster)
+{
+	PackAuraBonus bonus {};
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const Monster &champion = Monsters[ActiveMonsters[i]];
+		// A monster only takes from ANOTHER monster's presence, and a corpse leads nobody.
+		if (&champion == &monster || (champion.hitPoints >> 6) <= 0)
+			continue;
+		const PackAuraBonus lent = PackAuraFrom(champion.lesserAffix,
+		    champion.position.tile.WalkingDistance(monster.position.tile));
+		// The strongest of each kind rather than the sum, so two champions in one room do not
+		// multiply into something the floor was never balanced for.
+		bonus.damagePercent = std::max(bonus.damagePercent, lent.damagePercent);
+		bonus.armorBonus = std::max(bonus.armorBonus, lent.armorBonus);
+	}
+	return bonus;
+}
+
+uint8_t RaiseDamageByPercent(uint8_t base, int percent)
+{
+	if (percent <= 0)
+		return base;
+	// Clamped rather than wrapped, the same care the Torment difficulty block already takes with
+	// these uint8_t fields: a wrap would make a stronger pack unpredictably WEAKER.
+	return static_cast<uint8_t>(std::min(base + base * percent / 100, 255));
+}
+
+uint8_t PackAdjustedDamage(const Monster &monster, uint8_t base)
+{
+	return RaiseDamageByPercent(base, PackAuraOn(monster).damagePercent);
+}
+
+int PackAdjustedArmor(const Monster &monster)
+{
+	return monster.armorClass + PackAuraOn(monster).armorBonus;
 }
 
 } // namespace devilution::oracool

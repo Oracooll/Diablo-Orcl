@@ -37,6 +37,7 @@
 #include "nthread.h"
 #include "objects.h"
 #include "options.h"
+#include "oracool/aura_field.h"
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/class_skills.h"
@@ -636,7 +637,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		hit = 0;
 	}
 
-	hper += player.GetMeleePiercingToHit() - player.CalculateArmorPierce(monster.armorClass, true);
+	hper += player.GetMeleePiercingToHit() - player.CalculateArmorPierce(oracool::PackAdjustedArmor(monster), true);
 	hper = clamp(hper, 5, 95);
 
 	if (monster.tryLiftGargoyle())

@@ -25,6 +25,7 @@
 #include "levels/trigs.h"
 #include "lighting.h"
 #include "monster.h"
+#include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/divine_trn.h"
 #include "oracool/paladin_ranged.h"
@@ -244,7 +245,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	const MissileData &missileData = GetMissileData(t);
 	if (missileData.isArrow()) {
 		hper = player.GetRangedPiercingToHit();
-		hper -= player.CalculateArmorPierce(monster.armorClass, false);
+		hper -= player.CalculateArmorPierce(oracool::PackAdjustedArmor(monster), false);
 		hper -= (dist * dist) / 2;
 	} else {
 		hper = player.GetMagicToHit() - (monster.level(sgGameInitInfo.nDifficulty) * 2) - dist;
@@ -1017,7 +1018,7 @@ bool MonsterTrapHit(int monsterId, int mindam, int maxdam, int dist, MissileID t
 		return false;
 
 	int hit = GenerateRnd(100);
-	int hper = 90 - monster.armorClass - dist;
+	int hper = 90 - oracool::PackAdjustedArmor(monster) - dist;
 	hper = clamp(hper, 5, 95);
 	if (monster.tryLiftGargoyle())
 		return true;
