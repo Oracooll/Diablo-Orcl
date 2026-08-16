@@ -4,6 +4,7 @@
 #include "oracool/charms.h"
 #include "oracool/gems.h"
 #include "oracool/class_tree.h"
+#include "oracool/item_sets.h"
 #include "oracool/runewords.h"
 #include "player.h"
 #include "spells.h"
@@ -147,12 +148,30 @@ void ApplyAura(const BonusContext &ctx, ItemBonusTotals &totals)
 	ApplyClassTreeToTotals(*ctx.owner, totals);
 }
 
+/**
+ * @brief Source 6: the fifteen item sets' tiered bonuses - see oracool/item_sets.h.
+ *
+ * The condition hook this header describes as existing for "three pieces worn?" finally has its
+ * caller. AnySetBonusActive re-derives the worn count from the equipment itself, so a bonus cannot
+ * outlive the pieces that earned it.
+ */
+bool SetBonusIsRelevant(const BonusContext &ctx)
+{
+	return AnySetBonusActive(*ctx.owner);
+}
+
+void ApplySetBonuses(const BonusContext &ctx, ItemBonusTotals &totals)
+{
+	ApplySetBonusesToTotals(*ctx.owner, totals);
+}
+
 constexpr BonusProvider Providers[] = {
 	{ "equipment", nullptr, ApplyEquipment },
 	{ "rage", RageIsRelevant, ApplyRage },
 	{ "sockets", nullptr, ApplySockets },
 	{ "charms", nullptr, ApplyCharms },
 	{ "class tree", AuraIsRelevant, ApplyAura },
+	{ "item sets", SetBonusIsRelevant, ApplySetBonuses },
 };
 
 } // namespace

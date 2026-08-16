@@ -282,6 +282,9 @@ const uint16_t InvItemWidth3[] = {
 	1 * 28, // gem_skull_flawed
 	1 * 28, // gem_skull_flawless
 	1 * 28, // gem_skull_perfect
+// The item sets' 94 frames - widths. GENERATED with the ICURS_ORACOOL_SET_* ids and the CEL's own
+// frame order; see tools/GenItemSets.ps1.
+#include "oracool/item_sets_curs_widths.inc"
 };
 const uint16_t InvItemHeight3[] = {
 	2 * 28, // shoulders
@@ -467,6 +470,9 @@ const uint16_t InvItemHeight3[] = {
 	1 * 28, // gem_skull_flawed
 	1 * 28, // gem_skull_flawless
 	1 * 28, // gem_skull_perfect
+// The item sets' 94 frames. GENERATED with the ICURS_ORACOOL_SET_* ids and the CEL's frame order -
+// see tools/GenItemSets.ps1. The static_asserts below are what catch the three drifting apart.
+#include "oracool/item_sets_curs_heights.inc"
 };
 constexpr uint16_t InvItems3Size = sizeof(InvItemWidth3) / sizeof(InvItemWidth3[0]);
 static_assert(sizeof(InvItemHeight3) / sizeof(InvItemHeight3[0]) == InvItems3Size,

@@ -23,6 +23,7 @@
 #include "engine/render/text_render.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
+#include "cursor.h"
 #include "inv.h"
 #include "items.h"
 #include "monstdat.h"
@@ -2250,4 +2251,111 @@ TEST(OracoolItemSets, PowerListsAreDenseAndValid)
 		EXPECT_GT(oracool::CountLivePowers(item.powers, 6), 0)
 		    << item.id << " carries no working stat at all - it would be a plain base item";
 	}
+}
+
+// Every set item's icon must be its own, and must be the frame the tables say it is: the CEL, the
+// ICURS_ ids and the width/height rows are three files generated in one pass, and if their order
+// ever diverged every icon after the divergence would be silently wrong.
+TEST(OracoolItemSets, CursorIdsAreUniqueContiguousAndRoundTrip)
+{
+	for (size_t i = 0; i < oracool::ItemSetItemCount; i++) {
+		const oracool::SetItemDefinition &item = oracool::ItemSetItems[i];
+		EXPECT_EQ(oracool::FindSetItemByCursor(item.cursor), &item)
+		    << item.id << "'s cursor resolves to a different item";
+		// Contiguous and in table order, which is what lets the lookup be an index.
+		EXPECT_EQ(item.cursor, ICURS_ORACOOL_SET_ASHEN_HELM + static_cast<int>(i)) << item.id;
+	}
+	EXPECT_EQ(oracool::FindSetItemByCursor(ICURS_ORACOOL_SET_ASHEN_HELM - 1), nullptr);
+	EXPECT_EQ(oracool::FindSetItemByCursor(ICURS_ORACOOL_SET_COURT_RELIQUARY + 1), nullptr);
+}
+
+// The icon's cell size has to match the footprint the item declares, or a 2x3 item draws through a
+// 2x2 frame. cursor.cpp's tables are the ones the renderer reads; the set table is what the
+// inventory grid reserves space from.
+TEST(OracoolItemSets, IconCellSizeMatchesTheDeclaredFootprint)
+{
+	for (const oracool::SetItemDefinition &item : oracool::ItemSetItems) {
+		const Size cell = GetInvItemSize(item.cursor + CURSOR_FIRSTITEM);
+		EXPECT_EQ(cell.width, item.grid.width * 28) << item.id << " icon is the wrong width";
+		EXPECT_EQ(cell.height, item.grid.height * 28) << item.id << " icon is the wrong height";
+	}
+}
+
+// Set bonuses ride the Phase 0.4 provider seam, whose whole reason for having a condition hook was
+// "three pieces worn?". Wearing nothing must contribute nothing, and the count must come from the
+// equipment rather than from any stored state.
+TEST(OracoolItemSets, BonusesRequireTheirPiecesToBeWorn)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	MyPlayer = &player;
+
+	const oracool::ItemSetDefinition *ashen = oracool::FindItemSetOwning("SET_ASHEN_HELM");
+	ASSERT_NE(ashen, nullptr);
+	EXPECT_EQ(oracool::WornSetPieces(player, *ashen), 0);
+	EXPECT_FALSE(oracool::AnySetBonusActive(player));
+
+	// Carrying is not wearing: a piece in the backpack must not count.
+	const oracool::SetItemDefinition *helm = oracool::FindSetItem("SET_ASHEN_HELM");
+	ASSERT_NE(helm, nullptr);
+	player.InvList[0] = {};
+	InitializeItem(player.InvList[0], static_cast<_item_indexes>(oracool::BaseItemForSetSlot(helm->slot)));
+	oracool::MakeSetItem(player.InvList[0], *helm);
+	player._pNumInv = 1;
+	EXPECT_EQ(oracool::WornSetPieces(player, *ashen), 0) << "a carried piece counted toward the set";
+
+	// Worn, it counts - but one piece is still below the first rung.
+	player.InvBody[INVLOC_HEAD] = player.InvList[0];
+	EXPECT_EQ(oracool::WornSetPieces(player, *ashen), 1);
+	EXPECT_FALSE(oracool::AnySetBonusActive(player)) << "one piece should not earn a rung";
+
+	// Two worn pieces reach the two-piece rung.
+	const oracool::SetItemDefinition *belt = oracool::FindSetItem("SET_ASHEN_BELT");
+	ASSERT_NE(belt, nullptr);
+	devilution::Item beltItem {};
+	InitializeItem(beltItem, static_cast<_item_indexes>(oracool::BaseItemForSetSlot(belt->slot)));
+	oracool::MakeSetItem(beltItem, *belt);
+	player.InvBody[INVLOC_WAIST] = beltItem;
+	EXPECT_EQ(oracool::WornSetPieces(player, *ashen), 2);
+	EXPECT_TRUE(oracool::AnySetBonusActive(player));
+
+	// And the rung's stats actually reach the totals. Warmth of the Reliquary is +15 fire resist
+	// and +5 vitality; the two worn pieces carry fire resist of their own, so this checks the DELTA
+	// the bonus adds rather than an absolute.
+	oracool::ItemBonusTotals withBonus {};
+	oracool::ApplySetBonusesToTotals(player, withBonus);
+	EXPECT_EQ(withBonus.fireResist, 15) << "the two-piece rung's resistance did not reach the totals";
+	EXPECT_EQ(withBonus.vitality, 5) << "the two-piece rung's vitality did not reach the totals";
+}
+
+// MakeSetItem has to produce something the rest of the engine recognises as a real item, not a
+// half-filled struct: a name, the Set tier, its own icon, and its stats in the ordinary fields.
+TEST(OracoolItemSets, MakeSetItemProducesARecognisableItem)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
+
+	const oracool::SetItemDefinition *helm = oracool::FindSetItem("SET_ASHEN_HELM");
+	ASSERT_NE(helm, nullptr);
+	devilution::Item item {};
+	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetSlot(helm->slot)));
+	oracool::MakeSetItem(item, *helm);
+
+	EXPECT_TRUE(oracool::IsSetItem(item));
+	EXPECT_EQ(item._iOracoolTier, OracoolItemTier::Set);
+	EXPECT_EQ(item._iCurs, helm->cursor);
+	EXPECT_TRUE(item._iIdentified) << "a set item arrives identified - its stats are not a secret";
+	EXPECT_STREQ(item._iIName, "Vhal's Blackened Halo");
+	// vitality:+8 and resist_fire:+20 land in the ordinary fields, via the engine's own applier.
+	EXPECT_EQ(item._iPLVit, 8);
+	EXPECT_EQ(item._iPLFR, 20);
+	// The helm's armour is a RANGE (12-16), so this checks the band rather than a value.
+	EXPECT_GE(item._iAC, 12);
+	EXPECT_LE(item._iAC, 16);
+	// A base item is not a set item.
+	devilution::Item plain {};
+	InitializeItem(plain, IDI_ORACOOL_HELM);
+	EXPECT_FALSE(oracool::IsSetItem(plain));
 }

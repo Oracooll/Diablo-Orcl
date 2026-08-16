@@ -266,6 +266,20 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-gems-v2.png,1251,837,124,151,28,28,gem_skull_perfect,30,false,green
 )
 
+REM The fifteen item sets' 94 icons, ICURS 412..505. Appended from a GENERATED spec list rather
+REM than written out here: tools\GenItemSets.ps1 walks the same set-data.json files that produce
+REM the ICURS_ORACOOL_SET_* ids and the InvItemWidth3/Height3 rows, and emits all four in one pass
+REM and one order. Ninety-four hand-written spec lines would be ninety-four chances to put the
+REM frame order out of step with the ids, and a CEL has no way to notice.
+REM
+REM Their specs use the "asis" mode: the art is already exactly grid x 28 with real transparency,
+REM so the crop-and-refit every other spec needs would only damage it. See ItemIconCel.cs.
+if not exist "Source\oracool\item_sets_icon_specs.txt" (
+  echo ERROR: Source\oracool\item_sets_icon_specs.txt is missing - run tools\GenItemSets.ps1 first
+  exit /b 1
+)
+type "Source\oracool\item_sets_icon_specs.txt" >> "%SPECFILE%"
+
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1
 
 REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet

@@ -75,6 +75,19 @@ enum class OracoolItemTier : uint8_t {
 	Rare = 1,
 	BuffedUnique = 2,
 	Primal = 3,
+	/**
+	 * @brief A piece of one of the fifteen named sets - see oracool/item_sets.h.
+	 *
+	 * Unlike the three above it, this tier is NOT a roll. The other tiers describe how heavily an
+	 * ordinary item was rolled; a Set item is a specific named object with a fixed stat list and a
+	 * place in a ladder of bonuses. It shares the tier field because everything the tier field
+	 * drives - the name colour, the inventory backing, the description label - is exactly what a
+	 * set piece needs, and because that keeps set items out of the affix roller entirely.
+	 *
+	 * Green, which is why Primal was moved off it (user, 2026-08-16: "Green is for future Set
+	 * Items"). The ramp is the one this fork injected over PAL8_ORANGE.
+	 */
+	Set = 4,
 };
 
 /** @brief One named affix (prefix or suffix) contributing to an Oracool-tiered item. */
@@ -831,6 +844,15 @@ void CalcOracoolTieredItemValue(Item &item, int addTotal, int multTotal);
  */
 bool RepairOracoolAffixesIfCorrupted(Item &item);
 /** @brief The word placed before the base item name for a tiered item's display name, e.g. "Rare {base}". */
+/**
+ * @brief Applies one ItemPower to @p item exactly as the affix roller does.
+ *
+ * The seam oracool/item_sets.cpp uses to give a set item its stats, so they land in the same fields,
+ * with the same signs and flag semantics, as every other item's. See the definition for why
+ * SaveItemPower itself stays file-local.
+ */
+void ApplyItemPower(const Player &player, Item &item, ItemPower power);
+
 string_view GetOracoolTierLabel(OracoolItemTier tier);
 /**
  * @brief The description-panel line shown under the belt row for a tiered item ("rare item" /

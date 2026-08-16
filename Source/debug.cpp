@@ -26,6 +26,7 @@
 #include "monstdat.h"
 #include "monster.h"
 #include "oracool/hud_art.h"
+#include "oracool/item_sets.h"
 #include "oracool/waypoint_menu.h"
 #include "pack.h"
 #include "plrmsg.h"
@@ -679,6 +680,51 @@ std::string DebugCmdGivePrimalSet(const string_view parameter)
 	return DebugSpawnEquipmentSet(OracoolItemTier::Primal, /*magical=*/true, parameter);
 }
 
+/**
+ * @brief `giveitemset N` - every spawnable piece of item set N (1-15) into the backpack.
+ *
+ * The sets are not in the drop tables yet, so this is currently the ONLY way to see one. It reports
+ * what it could not give as well as what it could: thirty of the ninety-four items sit on slots this
+ * fork has no base item for (amulet, ring, relic, cloak), and silently handing over four pieces of a
+ * six-piece set would look like a bug rather than a boundary.
+ */
+std::string DebugCmdGiveItemSet(const string_view parameter)
+{
+	int index = 0;
+	if (!parameter.empty())
+		index = atoi(std::string(parameter).c_str());
+	if (index < 1 || index > static_cast<int>(oracool::ItemSetCount))
+		return fmt::format("Pick a set from 1 to {:d}.", oracool::ItemSetCount);
+
+	const oracool::ItemSetDefinition &set = oracool::ItemSets[index - 1];
+	Player &myPlayer = *MyPlayer;
+	int given = 0;
+	int noBase = 0;
+	int noRoom = 0;
+	for (int i = 0; i < set.itemCount; i++) {
+		const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
+		const int base = oracool::BaseItemForSetSlot(def.slot);
+		if (base < 0) {
+			noBase++;
+			continue;
+		}
+		Item item {};
+		InitializeItem(item, static_cast<_item_indexes>(base));
+		oracool::MakeSetItem(item, def);
+		if (!AutoPlaceItemInInventory(myPlayer, item, true)) {
+			noRoom++;
+			continue;
+		}
+		given++;
+	}
+	std::string result = fmt::format("{:s}: gave {:d} of {:d}", _(set.name), given, set.itemCount);
+	if (noBase > 0)
+		result += fmt::format(", {:d} have no base item for their slot", noBase);
+	if (noRoom > 0)
+		result += fmt::format(", {:d} did not fit", noRoom);
+	return result;
+}
+
 // Oracool: Megaplan Phase 0.8 - the tile-matrix export half of the zone iteration loop. The
 // engine dumps WHAT the generator laid out (dPiece indices); the offline tileset tools composite
 // HOW it looks. Together they let a generated zone be inspected without anyone launching a client.
@@ -1224,6 +1270,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "giverset", "Drops a Rare item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveRareSet },
 	{ "giveuset", "Drops a Buffed Unique item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveBuffedUniqueSet },
 	{ "givepset", "Drops a Primal item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGivePrimalSet },
+	{ "giveitemset", "Gives every spawnable piece of named item set {n} (1-15).", "{n}", &DebugCmdGiveItemSet },
 	{ "talkto", "Interacts with a NPC whose name contains {name}.", "{name}", &DebugCmdTalkToTowner },
 	{ "exit", "Exits the game.", "", &DebugCmdExit },
 	{ "dumpdungeon", "Writes the current level's tile matrix to a CSV beside the saves.", "", &DebugCmdDumpDungeon },

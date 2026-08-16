@@ -1411,6 +1411,12 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		colorBlock = PAL16_YELLOW;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Primal) {
 		colorBlock = PAL16_ORANGE;
+	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Set) {
+		// The green this fork injected over PAL8_ORANGE, which is why Primal was moved off it
+		// (user, 2026-08-16: "Green is for future Set Items"). An EIGHT-shade mini-ramp like Rare's,
+		// so it takes the same halved offset - the 16-ramp offset would run off its end.
+		colorBlock = PAL8_ORANGE;
+		rampOffset = TierBackingRampOffset / 2;
 	} else {
 		switch (item._iMagical) {
 		case ITEM_QUALITY_MAGIC:

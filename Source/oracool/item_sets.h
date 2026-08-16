@@ -32,7 +32,16 @@
 #include "itemdat.h"
 #include "utils/stdcompat/string_view.hpp"
 
-namespace devilution::oracool {
+namespace devilution {
+
+// Forward declarations rather than includes: items.h and player.h both pull in a great deal, and
+// this header is included from itemdat-adjacent code where that would be circular.
+struct Item;
+struct Player;
+
+namespace oracool {
+
+struct ItemBonusTotals;
 
 /** @brief One of the ninety-four items. */
 struct SetItemDefinition {
@@ -56,6 +65,14 @@ struct SetItemDefinition {
 	/** @brief Armour only; 0/0 on weapons. */
 	int armorMin;
 	int armorMax;
+	/**
+	 * @brief The item's own icon: an ICURS_ORACOOL_SET_* frame in data\inv\oracool_items.cel.
+	 *
+	 * Generated alongside the row, so the id, the CEL frame and the width/height tables all come out
+	 * of one walk in one order. A CEL carries no names and no sizes - a frame's POSITION is the only
+	 * thing tying it to an id - so any of those four drifting silently shifts every icon after it.
+	 */
+	int cursor;
 	/** @brief Only the stats this engine can actually apply. Unused slots are IPL_INVALID. */
 	ItemPower powers[6];
 };
@@ -108,4 +125,52 @@ const SetBonusDefinition *ActiveSetBonus(const ItemSetDefinition &set, int wornP
 /** @brief How many of @p set's stat lines actually do something - 0 means an entirely inert rung. */
 int CountLivePowers(const ItemPower *powers, size_t count);
 
-} // namespace devilution::oracool
+/**
+ * @brief The set item whose icon is @p cursor, or nullptr.
+ *
+ * The icon IS the identity. Every one of the ninety-four has a frame of its own
+ * (ICURS_ORACOOL_SET_*), so a set piece needs no extra field on Item to be recognised later - which
+ * means recognising them costs no save-format change at all. _iCurs is already packed, already
+ * synced and already survives a round trip.
+ */
+const SetItemDefinition *FindSetItemByCursor(int cursor);
+
+/** @brief Whether @p item is a piece of one of the fifteen sets. */
+bool IsSetItem(const Item &item);
+
+/**
+ * @brief Turns @p item into @p def: name, icon, footprint, requirements, stats, and the Set tier.
+ *
+ * The caller supplies an item already initialised from a sensible BASE (InitializeItem with a base
+ * index whose ILOC matches the definition's slot). This overrides the parts that make it the named
+ * object rather than the base, and applies its powers through the engine's own SaveItemPower so a
+ * set item's stats land in exactly the fields every other item's stats land in.
+ */
+void MakeSetItem(Item &item, const SetItemDefinition &def);
+
+/** @brief The base item index whose equip location suits @p slot, or -1 if no slot matches. */
+int BaseItemForSetSlot(string_view slot);
+
+/**
+ * @brief How many pieces of @p set the player is wearing, counting equipped slots only.
+ *
+ * Carried pieces do not count - a set bonus is for wearing the set.
+ */
+int WornSetPieces(const Player &player, const ItemSetDefinition &set);
+
+/** @brief Whether @p player is wearing enough of any one set to have earned a rung. */
+bool AnySetBonusActive(const Player &player);
+
+/**
+ * @brief Adds every earned set bonus to @p totals.
+ *
+ * Rides the bonus-provider seam from Phase 0.4, which was built with exactly this in mind - its
+ * header names "three pieces worn?" as the condition hook's reason for existing.
+ *
+ * Every set is considered independently, so wearing four of one and two of another earns both
+ * ladders' rungs. Within one set only the highest rung applies; see ActiveSetBonus.
+ */
+void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals);
+
+} // namespace oracool
+} // namespace devilution

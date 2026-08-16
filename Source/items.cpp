@@ -2731,6 +2731,23 @@ std::string GetTranslatedItemNameMagical(const Item &item, bool hellfireItem, bo
 
 } // namespace
 
+/**
+ * @brief Applies one ItemPower to @p item exactly as the affix roller does.
+ *
+ * A thin door onto SaveItemPower, which is file-local here and should stay that way - it is a big
+ * switch with a lot of neighbours it belongs beside. The fifteen item sets need to apply their stats
+ * from oracool/item_sets.cpp, and going through this rather than reimplementing the switch is what
+ * guarantees a set item's stats land in the same fields, with the same signs and the same flag
+ * semantics, as every other item's.
+ *
+ * Takes the power BY VALUE because SaveItemPower's parameter is non-const (it rolls ranges in place)
+ * while the set tables are constant data.
+ */
+void ApplyItemPower(const Player &player, Item &item, ItemPower power)
+{
+	SaveItemPower(player, item, power);
+}
+
 /** @brief The word placed before the base item name for a tiered item's display name, e.g. "Rare {base}". */
 string_view GetOracoolTierLabel(OracoolItemTier tier)
 {
@@ -2741,6 +2758,8 @@ string_view GetOracoolTierLabel(OracoolItemTier tier)
 		return _("Unique");
 	case OracoolItemTier::Primal:
 		return _("Primal");
+	case OracoolItemTier::Set:
+		return _("Set");
 	case OracoolItemTier::None:
 		break;
 	}
@@ -2762,6 +2781,8 @@ string_view GetOracoolTierPanelLabel(OracoolItemTier tier)
 		return _("unique item");
 	case OracoolItemTier::Primal:
 		return _("primal item");
+	case OracoolItemTier::Set:
+		return _("set item");
 	case OracoolItemTier::None:
 		break;
 	}

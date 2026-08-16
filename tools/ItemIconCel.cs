@@ -134,8 +134,37 @@ internal static class ItemIconCel
 			// is exactly the kind of side effect this flag exists to prevent.
 			bool fillPunctures = parts.Length >= 10 && parts[9] == "true";
 			bool greenKey = parts.Length >= 11 && parts[10] == "green";
+			// "asis": the PNG already IS the frame - exact cell size, real alpha, authored padding.
+			//
+			// Added 2026-08-16 for the fifteen item sets, whose sprites/native-28px-cells art arrives
+			// at exactly grid x 28 with transparency already cut. The normal path would tighten it to
+			// its content box and scale that back up to fill the cell, which re-centres and resamples
+			// art that was already correct - destroying deliberate padding and softening 28px line
+			// work for no gain. Everything else about the frame (quantise, encode, preview) is the
+			// same; only the crop-and-fit is skipped.
+			bool asIs = parts.Length >= 11 && parts[10] == "asis";
 
 			using (Bitmap sheet = new Bitmap(sheetPath)) {
+				if (asIs) {
+					if (sheet.Width != cellW || sheet.Height != cellH) {
+						Console.Error.WriteLine("asis spec {0}: art is {1}x{2} but the cell is {3}x{4}",
+						    name, sheet.Width, sheet.Height, cellW, cellH);
+						return 1;
+					}
+					using (Bitmap cell = new Bitmap(sheet.Width, sheet.Height, PixelFormat.Format32bppArgb))
+					using (Graphics g = Graphics.FromImage(cell)) {
+						g.Clear(Color.Transparent);
+						g.DrawImageUnscaled(sheet, 0, 0);
+						PostProcess(cell, fillPunctures);
+						byte[] idxAsIs = Quantise(cell, pal, name);
+						frames.Add(idxAsIs);
+						widths.Add(cellW);
+						heights.Add(cellH);
+						if (previewDir != "-")
+							WritePreview(idxAsIs, cellW, cellH, pal, Path.Combine(previewDir, "icon_" + name + ".png"));
+					}
+					continue;
+				}
 				Rectangle content = greenKey ? ContentBoxByGreenKey(sheet, srcBox) : ContentBox(sheet, srcBox);
 				Console.WriteLine("{0}: search box {1} -> content {2}", name, srcBox, content);
 
