@@ -35,6 +35,7 @@
 #include "oracool/crafting.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/gems.h"
+#include "oracool/item_set_stats.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/monster_difficulty.h"
@@ -1934,4 +1935,186 @@ TEST(OracoolAudit2, StashAutoPlaceSeatsTallItemsAgainstTheBottomEdge)
 	Stash.stashList.clear();
 	Stash.stashGrids.clear();
 	Stash.SetPage(0);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 1 item sets: the keyword vocabulary.
+//
+// Fifteen sets (94 items) were delivered as data on 2026-08-16 and filed at
+// Oracool.MPQ/02-source-art/item-sets/. Their stats are written in a vocabulary of their own, and
+// oracool/item_set_stats.cpp is where each of those words is decided: exact, approximate, or inert.
+//
+// The list below is not retyped - it was EXTRACTED from the fifteen set-data.json files:
+//
+//   find . -name set-data.json -exec cat {} \; | grep -oE '"[a-z_]+:[^"]*"' \
+//     | sed 's/^"//; s/:.*//' | sort -u
+//
+// so this test is the guard on the real content. A keyword the data uses and the table has never
+// heard of is a stat that would silently vanish from an item, which is the one failure mode the
+// whole table exists to prevent.
+// ---------------------------------------------------------------------------------------------
+const char *const DeliveredSetStatKeywords[] = {
+	"acid_damage",
+	"active_temper_resistance",
+	"all_spell_levels",
+	"armor_class_flat",
+	"armor_per_held_petition",
+	"attack_speed",
+	"aura",
+	"block",
+	"block_speed",
+	"boss_mute_duration",
+	"bow_attack_speed",
+	"bow_chance_to_hit",
+	"bow_damage_flat",
+	"bow_distance_penalty",
+	"chance_to_hit",
+	"condemned_duration",
+	"condemned_target_direct_damage_per_spent",
+	"confluence_duration",
+	"confluence_physical_damage",
+	"confluence_sequence",
+	"confluence_set_elemental_damage",
+	"counterstroke_damage",
+	"counterstroke_duration",
+	"crimson_compact_stacks",
+	"crimson_melee_damage_per_stack",
+	"crimson_recovery",
+	"crowned_resolve",
+	"curse_duration",
+	"damage_taken_flat",
+	"damage_vs_demons",
+	"damage_vs_undead",
+	"dexterity",
+	"direct_damage_per_blight_stack",
+	"direct_damage_per_petition",
+	"eligible_vendor_sale_proceeds",
+	"enhanced_armor",
+	"enhanced_bow_damage",
+	"enhanced_damage",
+	"evasion",
+	"final_audience_targets",
+	"fire_damage",
+	"flow_required",
+	"gold_from_monsters",
+	"hit_recovery",
+	"hostile_damage_taken_per_greed_rank",
+	"hostile_spell_damage_reduction",
+	"hush_credits_required",
+	"hush_duration",
+	"interrupt",
+	"knockback",
+	"life",
+	"light_radius",
+	"lightning_damage",
+	"magic",
+	"mana",
+	"max_life",
+	"max_mana",
+	"max_resist_fire",
+	"melee_damage_flat",
+	"memorized_spell_mana_cost",
+	"minimum_petitions",
+	"mute_duration",
+	"off_hand_focus",
+	"ordinary_door_action_range",
+	"ordinary_trap_disarm_range",
+	"penitent_cooldown_per_trigger",
+	"penitent_engine_damage",
+	"penitent_engine_triggers",
+	"petition_cap",
+	"petition_gain",
+	"potion_healing",
+	"primary_condemned_duration",
+	"primary_condemned_kill_refund",
+	"proc",
+	"resist_all",
+	"resist_fire",
+	"resist_lightning",
+	"resist_magic",
+	"route_credit_tiles",
+	"secondary_condemned_half_magnitude",
+	"shed_charge_roots",
+	"shedstrike",
+	"shedstrike_duration",
+	"shield_block",
+	"skill",
+	"spell_damage",
+	"spell_mana_cost",
+	"spell_reflect",
+	"stance",
+	"strength",
+	"survey_radius",
+	"temper_carrier",
+	"temper_damage",
+	"thorns",
+	"to_hit",
+	"trace_route",
+	"trace_route_path_length",
+	"unarmed_attack_speed",
+	"unarmed_damage",
+	"unarmed_to_hit",
+	"vitality",
+	"walk_speed",
+	"weapon_damage",
+	"weapon_hands",
+	"wearer_direct_damage_taken_by_target_per_spent",
+	"wyrmturn_cost",
+	"wyrmturn_lockout",
+};
+
+TEST(OracoolItemSets, EveryDeliveredKeywordHasAMapping)
+{
+	for (const char *keyword : DeliveredSetStatKeywords) {
+		EXPECT_NE(oracool::FindSetStat(keyword), nullptr)
+		    << "set-data.json uses '" << keyword << "' and oracool/item_set_stats.cpp has no row for "
+		    << "it - the stat would be dropped without a word";
+	}
+	EXPECT_EQ(std::size(DeliveredSetStatKeywords), oracool::SetStatMappingCount)
+	    << "the table and the delivered vocabulary are different sizes";
+}
+
+// FindSetStat binary-searches, so the order is load-bearing rather than cosmetic. It is also how a
+// human reads 107 rows.
+TEST(OracoolItemSets, MappingTableIsSortedAndUnique)
+{
+	for (size_t i = 1; i < oracool::SetStatMappingCount; i++) {
+		EXPECT_LT(std::string(oracool::SetStatMappings[i - 1].keyword),
+		    std::string(oracool::SetStatMappings[i].keyword))
+		    << "row " << i << " (" << oracool::SetStatMappings[i].keyword
+		    << ") is out of order or duplicated - FindSetStat binary-searches this table";
+	}
+}
+
+// The fidelity column and the power column have to agree, or a row lies about itself: an inert row
+// carrying a real power would apply it, and a live row without one would apply nothing.
+TEST(OracoolItemSets, FidelityAndPowerAgree)
+{
+	int live = 0;
+	for (const oracool::SetStatMapping &row : oracool::SetStatMappings) {
+		if (row.fidelity == oracool::SetStatFidelity::Inert) {
+			EXPECT_EQ(row.power, IPL_INVALID) << row.keyword << " is marked inert but carries a power";
+			EXPECT_NE(row.note, nullptr) << row.keyword << " is inert and does not say what it would need";
+			EXPECT_FALSE(oracool::IsSetStatLive(row.keyword)) << row.keyword;
+		} else {
+			live++;
+			EXPECT_NE(row.power, IPL_INVALID) << row.keyword << " claims to work but names no power";
+			EXPECT_TRUE(oracool::IsSetStatLive(row.keyword)) << row.keyword;
+		}
+		// An approximation that does not say how it differs is just an undocumented lie.
+		if (row.fidelity == oracool::SetStatFidelity::Approx)
+			EXPECT_NE(row.note, nullptr) << row.keyword << " is approximate and does not say how";
+	}
+	// Not a target, just a tripwire: if a later pass implements the bespoke mechanics this should
+	// climb, and if it ever DROPS someone has quietly disconnected a stat.
+	EXPECT_GE(live, 30) << "fewer keywords work than when this table was written";
+}
+
+TEST(OracoolItemSets, UnknownKeywordIsRejectedRatherThanGuessed)
+{
+	EXPECT_EQ(oracool::FindSetStat("no_such_stat"), nullptr);
+	EXPECT_FALSE(oracool::IsSetStatLive("no_such_stat"));
+	// Prefixes and suffixes of real keys must not match either - lower_bound makes that a real risk.
+	EXPECT_EQ(oracool::FindSetStat("stren"), nullptr);
+	EXPECT_EQ(oracool::FindSetStat("strengthx"), nullptr);
 }
