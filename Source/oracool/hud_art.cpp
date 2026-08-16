@@ -69,7 +69,20 @@ ArtAsset MenuIconsArt { "ui\\menu_icons.png" };
  * silhouette, slot frames and the class sygil are all baked in by tools/InvCompose.cs); the tabs
  * and SORT button ship separately because they change state at runtime.
  */
-ArtAsset InventoryPanelArt { "ui\\inventory_panel.png" };
+/**
+ * The inventory and stash window backgrounds - the "Cathedral Reliquary" pair, 340x720 each, drawn
+ * 1:1 with no scaling. They REPLACE the procedural themed fill and ornate border on these two
+ * windows only; every other window keeps the shared theme.
+ *
+ * Opaque art, and safe under BlitFromSkipColorIndexZero because NearestGlobalPaletteIndex only ever
+ * searches indices 128-255 - a 0 in the quantized output can only have come from real transparency,
+ * never from a colour the art actually uses.
+ *
+ * The class silhouette stays a SEPARATE overlay drawn on top, as it has been since the composed
+ * stone panel was retired: baking a figure into the background would give every class the same one.
+ */
+ArtAsset InventoryPanelArt { "ui\\inventory_background.png" };
+ArtAsset StashPanelArt { "ui\\stash_background.png" };
 // v3 of the tab strip: arabic 1-9 and X, square and borderless, replacing the roman-numeral
 // set. Same 280x84 shape and same 28px cells as the sheet it replaces, so this is a pure
 // asset swap - see tools/CutTabButtonsV3.ps1, which cuts it to that format deliberately.
@@ -674,6 +687,25 @@ bool HasInventoryPanelArt()
 {
 	EnsureLoadedAll();
 	return !InventoryPanelArt.rgba.empty();
+}
+
+void DrawStashPanelArt(const Surface &out, Point origin)
+{
+	EnsureLoadedAll();
+	if (StashPanelArt.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!StashPanelArt.bright)
+		return;
+
+	out.BlitFromSkipColorIndexZero(*StashPanelArt.bright,
+	    MakeSdlRect(0, 0, StashPanelArt.width, StashPanelArt.height), origin);
+}
+
+bool HasStashPanelArt()
+{
+	EnsureLoadedAll();
+	return !StashPanelArt.rgba.empty();
 }
 
 void DrawInventoryTab(const Surface &out, int index, int state)

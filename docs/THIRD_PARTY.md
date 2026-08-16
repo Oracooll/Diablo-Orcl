@@ -1,5 +1,13 @@
 # Third-party components
 
+## Inventory and stash backgrounds
+
+`Packaging/resources/oracool_assets/ui/{inventory_background,stash_background}.png` are AI-generated
+art commissioned by the project owner from their own prompts and account, delivered as
+`oracool-inventory-stash-background-pack-v1.0.0`. The rights are the project owner's; the pack
+contains no original Diablo artwork and no palette file. Recorded here for provenance rather than
+for any restriction.
+
 ## Derived small fonts (sizes 11, 10, 9 and 8)
 
 `Packaging/resources/assets/fonts/{8,9,10,11}-*.clx` and `fonts/tr/{8,9,10,11}-00.clx`, together

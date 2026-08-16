@@ -55,14 +55,21 @@ void DrawMenuIcon(const Surface &out, int iconIndex, int state, Point position);
 /**
  * @brief Draws the inventory window background at inventory_layout's GetInventoryPanelRect().
  *
- * One flat composition: the stone background, the paladin silhouette, every equipment slot frame
- * and the class sygil are baked in at asset-build time by tools/InvCompose.cs. Only the tabs, the
- * SORT button and the items themselves are drawn on top at runtime.
+ * Background ONLY. The old composition baked the silhouette, the slot frames and the class sygil
+ * into one flat image; ui\inventory_background.png carries none of them - just the painted panel,
+ * its arches and its border. Everything else (title, silhouette, slots, grid, tabs, footer) is
+ * drawn on top at runtime, which is what keeps the layout the code's rather than the art's.
  */
 void DrawInventoryPanelArt(const Surface &out);
 
-/** @brief Whether the inventory panel asset loaded (so callers can fall back to the old panel). */
+/** @brief Whether the inventory panel asset loaded (so callers can fall back to the shared theme). */
 bool HasInventoryPanelArt();
+
+/** @brief Draws the stash window's background at @p origin, 1:1. Nothing if the art is missing. */
+void DrawStashPanelArt(const Surface &out, Point origin);
+
+/** @brief Whether the stash background art loaded, so callers can fall back to the shared theme. */
+bool HasStashPanelArt();
 
 /** @brief Draws the 340x660 waypoint list panel with its top-left corner at @p origin. */
 void DrawWaypointPanelArt(const Surface &out, Point origin);

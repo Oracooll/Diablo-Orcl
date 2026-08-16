@@ -21,6 +21,7 @@
 #include "hwcursor.hpp"
 #include "minitext.h"
 #include "oracool/auto_save.h"
+#include "oracool/hud_art.h"
 #include "oracool/ornate_border.h"
 #include "stores.h"
 #include "utils/format_int.hpp"
@@ -542,9 +543,17 @@ void DrawStash(const Surface &out)
 {
 	// Oracool V1: the shared theme replaces data\stash.clx, exactly as it did for the other five
 	// windows - half-transparent fill under the ornate bevel, outlined FontSize30 title, separator.
+	//
+	// Oracool (2026-08-16): and the theme is in turn replaced here by ui\stash_background.png, the
+	// inventory background's pair, which carries its own arches and border. The procedural fill and
+	// bevel stay as the fallback so the art is droppable rather than required.
 	const Rectangle panel = GetStashPanelRect();
-	oracool::DrawThemedFill(out, panel);
-	oracool::DrawOrnateBorder(out, panel);
+	if (oracool::HasStashPanelArt()) {
+		oracool::DrawStashPanelArt(out, panel.position);
+	} else {
+		oracool::DrawThemedFill(out, panel);
+		oracool::DrawOrnateBorder(out, panel);
+	}
 
 	const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + StashMargin },
 		{ panel.size.width - 2 * StashMargin, StashLabelHeight } };

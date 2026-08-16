@@ -1617,9 +1617,21 @@ void DrawInv(const Surface &out)
 	// That art carried the class silhouette baked into it, so the silhouette is gone with it. The
 	// slot frames and grid it also carried are now drawn here instead, procedurally, which is what
 	// lets them take the bevel and their own fill.
+	//
+	// Oracool (2026-08-16): superseded again, by ui\inventory_background.png - a 340x720 painted
+	// panel that carries its own arches and border, so it replaces BOTH the fill and the bevel.
+	// The procedural pair is kept as the fallback, which is what makes the art droppable: delete
+	// the PNG and the window goes back to the shared theme rather than rendering as a hole.
+	//
+	// Only the background moved. The title, equipment slots, grid, tabs and footer are still drawn
+	// here, on top - the art deliberately carries none of them, so the layout stays the code's.
 	const Rectangle invPanel = oracool::GetInventoryPanelRect();
-	oracool::DrawThemedFill(out, invPanel);
-	oracool::DrawOrnateBorder(out, invPanel);
+	if (oracool::HasInventoryPanelArt()) {
+		oracool::DrawInventoryPanelArt(out);
+	} else {
+		oracool::DrawThemedFill(out, invPanel);
+		oracool::DrawOrnateBorder(out, invPanel);
+	}
 
 	// The class figure, behind the equipment slots. Drawn between the panel fill and the slots so
 	// the slots sit on top of it, exactly as they did when both were baked into the old panel art.
