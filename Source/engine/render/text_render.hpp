@@ -31,6 +31,13 @@ enum GameFontTables : uint8_t {
 	GameFont42,
 	GameFont46,
 	FontSizeDialog,
+	// Derived from Font 12 rather than authored - see docs/THIRD_PARTY.md. Appended so the five
+	// original entries keep their values; the parallel metric arrays in text_render.cpp are
+	// indexed by this enum and grew to match.
+	GameFont11,
+	GameFont10,
+	GameFont9,
+	GameFont8,
 };
 
 enum text_color : uint8_t {
@@ -79,6 +86,16 @@ constexpr GameFontTables GetFontSizeFromUiFlags(UiFlags flags)
 		return GameFont46;
 	if (HasAnyOf(flags, UiFlags::FontSizeDialog))
 		return FontSizeDialog;
+	// The four small sizes are checked last so a caller setting none still lands on GameFont12,
+	// exactly as before they existed.
+	if (HasAnyOf(flags, UiFlags::FontSize11))
+		return GameFont11;
+	if (HasAnyOf(flags, UiFlags::FontSize10))
+		return GameFont10;
+	if (HasAnyOf(flags, UiFlags::FontSize9))
+		return GameFont9;
+	if (HasAnyOf(flags, UiFlags::FontSize8))
+		return GameFont8;
 	return GameFont12;
 }
 

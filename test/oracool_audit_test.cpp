@@ -18,7 +18,9 @@
 #include <string>
 #include <vector>
 
+#include "DiabloUI/ui_flags.hpp"
 #include "engine/random.hpp"
+#include "engine/render/text_render.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
 #include "items.h"
@@ -751,6 +753,31 @@ TEST(OracoolGems, InsertionFillsInOrderAndStopsWhenFull)
 	target._itype = ItemType::Helm;
 	target._iSocketCount = 1;
 	EXPECT_FALSE(oracool::TrySocketGem(target, sword)) << "a non-gem was socketed";
+}
+
+// The four derived small fonts (docs/THIRD_PARTY.md). These pin the WIRING, which is the part a
+// merge can get wrong: the flag-to-font mapping, and that the original sizes still resolve exactly
+// as they did before four more were appended.
+TEST(OracoolFonts, SmallSizeFlagsMapToTheirFontsAndTheOldOnesAreUnmoved)
+{
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize12), GameFont12);
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize24), GameFont24);
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize30), GameFont30);
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize42), GameFont42);
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize46), GameFont46);
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSizeDialog), FontSizeDialog);
+
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize11), GameFont11);
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize10), GameFont10);
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize9), GameFont9);
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::FontSize8), GameFont8);
+
+	// No size flag at all still means Font 12 - the default every existing caller relies on.
+	EXPECT_EQ(GetFontSizeFromUiFlags(UiFlags::ColorWhite), GameFont12);
+
+	// The new flags must not collide with the colour bits this fork added above them.
+	EXPECT_EQ(static_cast<uint64_t>(UiFlags::FontSize11) & static_cast<uint64_t>(UiFlags::ColorOracoolGreen), 0u);
+	EXPECT_EQ(static_cast<uint64_t>(UiFlags::FontSize8) & static_cast<uint64_t>(UiFlags::ColorOracoolYellow), 0u);
 }
 
 // The gem quality ladder (Gems.png): seven types, five qualities, one effect row per type scaled

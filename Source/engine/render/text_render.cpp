@@ -77,10 +77,11 @@ struct FontStack {
 
 std::unordered_map<uint32_t, OwnedFontStack> Fonts;
 
-std::array<int, 6> FontSizes = { 12, 24, 30, 42, 46, 22 };
-constexpr std::array<int, 6> LineHeights = { 12, 26, 38, 42, 50, 22 };
+// Indexed by GameFontTables. The last four are derived from Font 12 - see docs/THIRD_PARTY.md.
+std::array<int, 10> FontSizes = { 12, 24, 30, 42, 46, 22, 11, 10, 9, 8 };
+constexpr std::array<int, 10> LineHeights = { 12, 26, 38, 42, 50, 22, 11, 10, 9, 8 };
 constexpr int SmallFontTallLineHeight = 16;
-std::array<int, 6> BaseLineOffset = { -3, -2, -3, -6, -7, 3 };
+std::array<int, 10> BaseLineOffset = { -3, -2, -3, -6, -7, 3, -3, -3, -2, -2 };
 
 std::array<const char *, 22> ColorTranslations = {
 	"fonts\\goldui.trn",

@@ -105,6 +105,65 @@ set(devilutionx_assets
   fonts/30-04.clx
   fonts/30-20.clx
   fonts/30-e0.clx
+  # The four derived small fonts (see docs/THIRD_PARTY.md). Every Unicode row we ship for
+  # Font 12 is listed here too - including 1f1/1f3/1f5, which this fork packages and stock does
+  # not, so the small sizes do not silently lose glyph rows the large ones have.
+  fonts/11-00.clx
+  fonts/11-01.clx
+  fonts/11-02.clx
+  fonts/11-03.clx
+  fonts/11-04.clx
+  fonts/11-1f1.clx
+  fonts/11-1f3.clx
+  fonts/11-1f4.clx
+  fonts/11-1f5.clx
+  fonts/11-1f6.clx
+  fonts/11-1f9.clx
+  fonts/11-20.clx
+  fonts/11-26.clx
+  fonts/11-e0.clx
+  fonts/10-00.clx
+  fonts/10-01.clx
+  fonts/10-02.clx
+  fonts/10-03.clx
+  fonts/10-04.clx
+  fonts/10-1f1.clx
+  fonts/10-1f3.clx
+  fonts/10-1f4.clx
+  fonts/10-1f5.clx
+  fonts/10-1f6.clx
+  fonts/10-1f9.clx
+  fonts/10-20.clx
+  fonts/10-26.clx
+  fonts/10-e0.clx
+  fonts/9-00.clx
+  fonts/9-01.clx
+  fonts/9-02.clx
+  fonts/9-03.clx
+  fonts/9-04.clx
+  fonts/9-1f1.clx
+  fonts/9-1f3.clx
+  fonts/9-1f4.clx
+  fonts/9-1f5.clx
+  fonts/9-1f6.clx
+  fonts/9-1f9.clx
+  fonts/9-20.clx
+  fonts/9-26.clx
+  fonts/9-e0.clx
+  fonts/8-00.clx
+  fonts/8-01.clx
+  fonts/8-02.clx
+  fonts/8-03.clx
+  fonts/8-04.clx
+  fonts/8-1f1.clx
+  fonts/8-1f3.clx
+  fonts/8-1f4.clx
+  fonts/8-1f5.clx
+  fonts/8-1f6.clx
+  fonts/8-1f9.clx
+  fonts/8-20.clx
+  fonts/8-26.clx
+  fonts/8-e0.clx
   fonts/42-00.clx
   fonts/42-01.clx
   fonts/42-02.clx
@@ -143,6 +202,10 @@ set(devilutionx_assets
   fonts/tr/30-00.clx
   fonts/tr/42-00.clx
   fonts/tr/46-00.clx
+  fonts/tr/11-00.clx
+  fonts/tr/10-00.clx
+  fonts/tr/9-00.clx
+  fonts/tr/8-00.clx
   fonts/whitegold.trn
   fonts/white.trn
   fonts/yellow.trn

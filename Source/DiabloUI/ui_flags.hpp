@@ -69,7 +69,20 @@ enum class UiFlags : uint64_t {
 	/** @brief Oracool: green text on the injected PAL8_GREEN ramp - set items, Belzebub-style (2026-08-15). */
 	ColorOracoolGreen      = 1ULL << 34,
 
-	// Bits 34+ are free for a future color or flag - see the widening note above. The two above
+	/**
+	 * @brief The four small fonts, derived from Font 12 (see the notice in docs/THIRD_PARTY.md).
+	 *
+	 * Up here with the other widened bits rather than beside FontSize12-46 at bits 0-5, because
+	 * those six are contiguous and several places mask them as a block; appending keeps that block
+	 * intact. GetSizeFromFlags checks them after the original six, so a caller that sets none
+	 * still lands on FontSize12 exactly as before.
+	 */
+	FontSize11             = 1ULL << 35,
+	FontSize10             = 1ULL << 36,
+	FontSize9              = 1ULL << 37,
+	FontSize8              = 1ULL << 38,
+
+	// Bits 39+ are free for a future color or flag - see the widening note above. The entries above
 	// were the first assigned: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)
 	// works by remapping a 16-shade ramp inside vanilla Diablo's own palette, and that
 	// palette's only named bright-color blocks (Source/engine/palette.h) are blue, red,
