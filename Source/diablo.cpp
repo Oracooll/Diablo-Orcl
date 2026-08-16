@@ -66,6 +66,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/hud_menu.h"
+#include "oracool/run_toggle.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/oracool.h"
@@ -2031,6 +2032,16 @@ void InitKeymapActions()
 	    N_("Open a Town Portal at your feet."),
 	    'T',
 	    [] { oracool::CastTownPortalAtFeet(); },
+	    nullptr,
+	    CanPlayerTakeAction);
+	// Oracool Phase 2.5: the run toggle - Run In Town's double-speed frame skip, everywhere,
+	// flipped by one key. See oracool/run_toggle.h.
+	sgOptions.Keymapper.AddAction(
+	    "ToggleRun",
+	    N_("Toggle run"),
+	    N_("Switch between walking and running."),
+	    'R',
+	    [] { oracool::ToggleRun(); },
 	    nullptr,
 	    CanPlayerTakeAction);
 	sgOptions.Keymapper.AddAction(

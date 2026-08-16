@@ -46,6 +46,7 @@ set(libdevilutionx_SRCS
   oracool/crafting.cpp
   oracool/crafting_menu.cpp
   oracool/gems.cpp
+  oracool/run_toggle.cpp
   oracool/skill_points.cpp
   oracool/hero_chunks.cpp
   oracool/rng_streams.cpp

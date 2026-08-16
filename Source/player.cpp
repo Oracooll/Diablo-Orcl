@@ -43,6 +43,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/run_toggle.h"
 #include "oracool/skill_points.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
@@ -179,8 +180,10 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 {
 	int8_t skippedFrames = -2;
 	// Oracool: Furious Charge reuses the same double-speed frame-skip Run In Town already uses,
-	// rather than inventing a separate speed mechanic - see oracool/furious_charge.h.
-	if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || oracool::IsFuriousChargeDashing())
+	// rather than inventing a separate speed mechanic - see oracool/furious_charge.h. The Phase 2.5
+	// run toggle (R) is the third consumer, extending that skip to every level type.
+	if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || oracool::IsFuriousChargeDashing()
+	    || oracool::IsRunEnabled())
 		skippedFrames = 2;
 	if (pmWillBeCalled)
 		skippedFrames += 1;
