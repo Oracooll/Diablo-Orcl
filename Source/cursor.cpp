@@ -956,7 +956,23 @@ void CheckCursMove()
 		pcursinvitem = CheckInvHLight();
 		return;
 	}
-	if (IsStashOpen && GetLeftPanel().contains(MousePosition)) {
+	// The stash's OWN rect, not GetLeftPanel's vanilla 320x352 slot.
+	//
+	// Bug (fixed 2026-08-16, user report: "hovering and ctrl+click doesnt work on last 5 rows of
+	// stash grid"). LeftPanel is 320x352 centred vertically, so on a 720-tall screen it spans
+	// y=120..472. The stash grid starts at y=161 and its sixteen 28px rows reach y=609, so row 11
+	// began at 469 and everything from there down fell outside the gate - the last five rows,
+	// exactly as reported.
+	//
+	// Both halves of that report are this one line. Hovering obviously stops, but ctrl+click stops
+	// too, because CheckStashItem's ctrl branch transfers `pcursstashitem` - the value THIS
+	// assignment produces. With no hover there is no item id, so the transfer moved nothing.
+	//
+	// The neighbours above and below were corrected when the windows outgrew that slot (the
+	// inventory reads its own rect, the spellbook its own, and IsOverLeftPanel guards the rest);
+	// this one was missed. Note that the IsOverLeftPanel check further down would have covered the
+	// stash correctly - but it only returns, it does not set pcursstashitem.
+	if (IsStashOpen && GetStashPanelRect().contains(MousePosition)) {
 		pcursstashitem = CheckStashHLight(MousePosition);
 	}
 	// Oracool V1: the book owns a 340x720 rect now, not GetRightPanel's 320x352 - hovering the part

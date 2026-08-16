@@ -2359,3 +2359,35 @@ TEST(OracoolItemSets, MakeSetItemProducesARecognisableItem)
 	InitializeItem(plain, IDI_ORACOOL_HELM);
 	EXPECT_FALSE(oracool::IsSetItem(plain));
 }
+
+// The stash's hover gate read GetLeftPanel() - the vanilla 320x352 slot, which on a 720-tall screen
+// spans y=120..472 - while the stash itself is a 340x720 window whose grid reaches y=609. Rows 11
+// through 15 were therefore outside the gate: "hovering and ctrl+click doesnt work on last 5 rows of
+// stash grid" (user, 2026-08-16). Ctrl+click failed for the same reason, because CheckStashItem's
+// ctrl branch transfers pcursstashitem, which only the hover path ever sets.
+//
+// This pins the property the correct gate has and the wrong one lacked: the stash's own rect
+// contains every cell of its grid, corner to corner.
+TEST(OracoolAudit2, StashPanelRectContainsEveryGridCell)
+{
+	const Rectangle panel = GetStashPanelRect();
+	for (int y = 0; y < StashGridRows; y++) {
+		for (int x = 0; x < StashGridColumns; x++) {
+			const Point topLeft = GetStashSlotCoord({ x, y });
+			// The far corner of the cell, not just its origin - the last row's bottom edge is where
+			// a gate that is very slightly too short shows up.
+			const Point bottomRight = topLeft + Displacement { INV_SLOT_SIZE_PX - 1, INV_SLOT_SIZE_PX - 1 };
+			EXPECT_TRUE(panel.contains(topLeft)) << "cell " << x << "," << y << " starts outside the stash panel";
+			EXPECT_TRUE(panel.contains(bottomRight)) << "cell " << x << "," << y << " ends outside the stash panel";
+		}
+	}
+
+	// And the thing that actually broke: the vanilla side-panel slot does NOT contain the whole
+	// grid, so anything hit-testing the stash against it loses rows. Kept as a live assertion rather
+	// than a comment - if the slot ever grows to cover the window, this fires and someone can decide
+	// whether the distinction still matters.
+	const Rectangle vanillaSlot = GetLeftPanel();
+	const Point lastCell = GetStashSlotCoord({ StashGridColumns - 1, StashGridRows - 1 });
+	EXPECT_FALSE(vanillaSlot.contains(lastCell))
+	    << "GetLeftPanel now covers the whole stash grid - the two rects have converged";
+}

@@ -64,6 +64,25 @@ constexpr int StashLabelHeight = 50;
 // two open side by side line up. See oracool/ornate_border.h.
 constexpr int StashContentTop = StashMargin + StashLabelHeight + oracool::OrnateBorderWidth + StashMargin;
 
+/**
+ * @brief Cell pitch, and where the grid starts. Declared HERE, above the controls, because the
+ * controls are placed from the grid (StashColumnX) rather than the other way round.
+ *
+ * The same 28 the inventory grid uses (oracool::CellPx) - user request, 2026-08-16. This was
+ * INV_SLOT_SIZE_PX + 1: a 28px slot plus a dedicated pixel for its dividing rule, so no slot lost
+ * any of its 28. The comment claimed that matched the inventory grid; it did not. The inventory
+ * draws the same 1px ThemeGridLineColor rule at `c * CellPx - 1` and simply lets the item sprite
+ * overdraw it, which costs the boundary pixel of one cell and keeps the pitch at 28.
+ *
+ * Matching the pitch is what makes the two grids line up: StashGridLeft lands on 30, the same x as
+ * the inventory's GridOrigin, and a 2x3 item spans the same 56x84 in both - which is also the span
+ * the item backing paints, so backings sit flush in the stash instead of 1px inside the cell.
+ */
+constexpr int StashCellPx = INV_SLOT_SIZE_PX;
+constexpr int StashGridWidth = StashGridColumns * StashCellPx;
+/** @brief Centred across the panel. */
+constexpr int StashGridLeft = (StashPanelSize.width - StashGridWidth) / 2;
+
 constexpr Size ButtonSize { 27, 16 };
 constexpr int StashPageRowY = StashContentTop;
 constexpr int StashPageRowHeight = 26;
@@ -82,11 +101,17 @@ constexpr int StashGoldRowHeight = 22;
  * StashButtonPressed indexes both this and the nav-button art.
  */
 constexpr Rectangle StashButtonRect[] = {
+	// Drawn inward by two grid columns on each side (user request, 2026-08-16: "Move Previous tabs
+	// buttons 2 columns (56px) to the right", "Move Next tabs buttons 2 columns to the left"), which
+	// is what opened the middle of the row up for the page label to sit above.
+	//
+	// Written as the old x plus or minus the shift rather than as new literals, so the pairing stays
+	// legible: 25/57 were the left pair's, 256/288 the right pair's.
 	// clang-format off
-	{ {  25, StashButtonY }, ButtonSize }, // 10 left
-	{ {  57, StashButtonY }, ButtonSize }, // 1 left
-	{ { 256, StashButtonY }, ButtonSize }, // 1 right
-	{ { 288, StashButtonY }, ButtonSize }  // 10 right
+	{ {  25 + 2 * StashCellPx, StashButtonY }, ButtonSize }, // 10 left
+	{ {  57 + 2 * StashCellPx, StashButtonY }, ButtonSize }, // 1 left
+	{ { 256 - 2 * StashCellPx, StashButtonY }, ButtonSize }, // 1 right
+	{ { 288 - 2 * StashCellPx, StashButtonY }, ButtonSize }  // 10 right
 	// clang-format on
 };
 constexpr int StashNavButtonCount = 4;
@@ -96,41 +121,70 @@ constexpr const char *StashNavLabel[StashNavButtonCount] = { "<<", "<", ">", ">>
 /** @brief Shared with the inventory grid - see oracool::ThemeGridLineColor for the reasoning. */
 constexpr uint8_t StashGridLineColor = oracool::ThemeGridLineColor;
 
-/** @brief The page number, between the two pairs of navigation buttons. */
-constexpr Rectangle StashPageLabelRect { { 92, StashPageRowY }, { 156, StashPageRowHeight } };
+/**
+ * @brief The x of stash grid column @p column, counting from 1 the way the user does.
+ *
+ * The controls above the grid are placed by COLUMN rather than by pixel (user request, 2026-08-16:
+ * "move SORT above grid columns 8-9", "Move GOLD above grid column 2"). Saying it in columns is what
+ * keeps each control aligned with the cells beneath it; a pixel literal drifts the moment the grid's
+ * width or its centring changes.
+ *
+ * Declared here, above the control rects, which is why StashCellPx and StashGridLeft moved up with
+ * it - the controls are positioned FROM the grid, so the grid's geometry has to be known first.
+ */
+constexpr int StashColumnX(int column)
+{
+	return StashGridLeft + (column - 1) * StashCellPx;
+}
+
+/**
+ * @brief The page number's own line, one grid row above the nav buttons.
+ *
+ * User request (2026-08-16): "Move page 1/100 one row up (around 28px)". Only the LABEL moves - the
+ * four nav buttons keep StashButtonY, and requests 5 and 6 move those horizontally instead, so the
+ * page number now sits on its own line with the buttons drawn in beneath it.
+ *
+ * One grid row rather than a literal 28, because "one row" is what was asked for.
+ */
+constexpr int StashPageLabelY = StashPageRowY - StashCellPx;
+
+/** @brief The page number, centred over the grid on its own line above the nav buttons. */
+constexpr Rectangle StashPageLabelRect { { 92, StashPageLabelY }, { 156, StashPageRowHeight } };
 
 /**
  * @brief Oracool: user request - the gold total's on-screen area is the click target for
  * withdrawing gold, which is what freed the old button slot up to become Sort.
+ *
+ * Columns 2-7 (user request, 2026-08-16: "Move GOLD above grid column 2 - move it one column to the
+ * right"). Six columns wide rather than the old 180px: that is exactly the space between it and
+ * SORT, so the two can no longer collide however long the gold total gets.
  */
-constexpr Rectangle GoldDisplayRect { { 25, StashGoldRowY }, { 180, StashGoldRowHeight } };
+constexpr Rectangle GoldDisplayRect { { StashColumnX(2), StashGoldRowY },
+	{ 6 * StashCellPx, StashGoldRowHeight } };
 bool GoldDisplayPressed = false;
 
-/** @brief Drawn as a word rather than art, matching RESET on the character sheet. */
-constexpr Rectangle StashSortButtonRect { { 258, StashGoldRowY }, { 57, StashGoldRowHeight } };
+/**
+ * @brief Drawn as a word rather than art, matching RESET on the character sheet.
+ *
+ * Columns 8-9 (user request, 2026-08-16), so it sits over the two cells it visually belongs to
+ * rather than at an arbitrary x.
+ */
+constexpr Rectangle StashSortButtonRect { { StashColumnX(8), StashGoldRowY },
+	{ 2 * StashCellPx, StashGoldRowHeight } };
+
+static_assert(GoldDisplayRect.position.x + GoldDisplayRect.size.width <= StashSortButtonRect.position.x,
+    "The gold readout now runs into the SORT button");
+static_assert(StashSortButtonRect.position.x + StashSortButtonRect.size.width <= StashColumnX(11),
+    "The SORT button runs past the last grid column");
 
 constexpr Size StashGridSize { StashGridColumns, StashGridRows };
 constexpr PointsInRectangleRange<int> StashGridRange { { { 0, 0 }, StashGridSize } };
 
-/**
- * @brief Cell pitch. The same 28 the inventory grid uses (oracool::CellPx) - user request, 2026-08-16.
- *
- * This was INV_SLOT_SIZE_PX + 1: a 28px slot plus a dedicated pixel for its dividing rule, so no
- * slot lost any of its 28. The comment claimed that matched the inventory grid; it did not. The
- * inventory draws the same 1px ThemeGridLineColor rule at `c * CellPx - 1` and simply lets the item
- * sprite overdraw it, which costs the boundary pixel of one cell and keeps the pitch at 28.
- *
- * Matching the pitch is what makes the two grids line up: StashGridLeft now lands on 30, the same
- * x as the inventory's GridOrigin, and a 2x3 item spans the same 56x84 in both - which is also the
- * span the item backing paints, so backings sit flush in the stash instead of 1px inside the cell.
- *
- * Costs 10px of width and 16px of height, which the panel has: see the health-orb asserts below.
- */
-constexpr int StashCellPx = INV_SLOT_SIZE_PX;
-constexpr int StashGridWidth = StashGridColumns * StashCellPx;
+// StashCellPx, StashGridWidth and StashGridLeft moved up above the control rects on 2026-08-16 -
+// SORT, the gold readout and the page label are now placed by grid COLUMN (StashColumnX), so the
+// grid's horizontal geometry has to be known before them. The vertical half stays here, where it
+// still reads in order after the rows it measures from.
 constexpr int StashGridTop = StashGoldRowY + StashGoldRowHeight + 8;
-/** @brief Centred across the panel. */
-constexpr int StashGridLeft = (StashPanelSize.width - StashGridWidth) / 2;
 constexpr int StashGridBottom = StashGridTop + StashGridRows * StashCellPx;
 
 /**
@@ -600,6 +654,10 @@ void DrawStash(const Surface &out)
 	// RESET on the character sheet, which also drops the last dependency on that CEL.
 	for (int i = 0; i < StashNavButtonCount; i++) {
 		const Rectangle rect { GetPanelPosition(UiPanels::Stash, StashButtonRect[i].position), StashButtonRect[i].size };
+		// A 1px gold box around each (user request, 2026-08-16), so the four read as BUTTONS rather
+		// than as four loose glyphs floating on the background. Drawn before the label, so the text
+		// sits inside its own frame rather than under it.
+		oracool::DrawColoredOutline(out, rect, oracool::ThemeEdgeColor);
 		DrawString(out, StashNavLabel[i], rect,
 		    { UiFlags::AlignCenter | UiFlags::VerticalCenter
 		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold) });
@@ -675,11 +733,12 @@ void DrawStash(const Surface &out)
 	}
 
 	const Point position = GetPanelPosition(UiPanels::Stash);
-	constexpr UiFlags Style = UiFlags::VerticalCenter | UiFlags::ColorWhite;
 
+	// Gold, not the row's white (user request, 2026-08-16: "use gold font") - so the page readout
+	// reads as a heading over the nav buttons rather than as another value in the row.
 	DrawString(out, fmt::format(fmt::runtime(_("Page {:d} / {:d}")), Stash.GetPage() + 1, CountStashPages),
 	    { position + Displacement { StashPageLabelRect.position.x, StashPageLabelRect.position.y }, StashPageLabelRect.size },
-	    { UiFlags::AlignCenter | Style });
+	    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorGold });
 
 	// Gold in the theme's own gold, matching the inventory's readout, rather than the plain white
 	// the vanilla panel used.
