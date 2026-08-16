@@ -43,6 +43,18 @@ constexpr int PanelTitleTop = 8;
 constexpr int PanelTitleHeight = 38;
 
 /**
+ * @brief Frames @p rect from OUTSIDE it, so the bevel costs the content nothing.
+ *
+ * DrawOrnateBorder draws its three rings inside the rect it is given, which is right for a window
+ * (the frame IS its edge) and wrong for a cell grid: there, the outer row and column each lost 3 of
+ * their 28 pixels to it. User request (2026-08-16) - "I don't want it to take space from the boxes.
+ * There is enough space outside of them to use."
+ *
+ * The caller must leave OrnateBorderWidth of clearance on every side; both item grids do.
+ */
+void DrawOrnateBorderOutside(const Surface &out, Rectangle rect);
+
+/**
  * @brief The theme's gold for a thin drawn edge - a silhouette outline, a tooltip's border.
  *
  * One constant because the eye compares them: two edges of slightly different gold on screen at the

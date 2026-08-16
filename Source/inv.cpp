@@ -1723,7 +1723,11 @@ void DrawInv(const Surface &out)
 		const int y = gridRect.position.y + r * oracool::CellPx - 1;
 		DrawHorizontalLine(out, { gridRect.position.x, y }, gridRect.size.width, oracool::ThemeGridLineColor);
 	}
-	oracool::DrawOrnateBorder(out, gridRect);
+	// Framed from OUTSIDE the cells (user request, 2026-08-16), so the outer row and column keep
+	// all 28 of their pixels instead of surrendering 3 to the bevel. The grid was raised by the
+	// bevel's width to pay for it - see GridOrigin, which now subtracts OrnateBorderWidth from the
+	// mana orb's clearance line rather than sitting flush against it.
+	oracool::DrawOrnateBorderOutside(out, gridRect);
 
 	// Oracool bug fix: user report - the game crashed as soon as one of the six new slots held an
 	// item. This was a hand-written 7-entry table indexed by `slot`, which now runs to 12: reading

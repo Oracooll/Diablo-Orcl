@@ -150,7 +150,10 @@ constexpr int StashHealthOrbTop = 720 - 96;
 // -1 because StashGridBottom is the row AFTER the last one: the grid's final pixel is
 // StashGridBottom - 1, and it is allowed to sit on the orb's first row. That single shared line is
 // the grid's bottom rule meeting the very top of the sphere, which is a few pixels wide there.
-static_assert(StashGridBottom - 1 <= StashHealthOrbTop, "Stash grid now runs under the health orb - lower StashGridRows");
+// The FRAME is what has to clear the orb, not the cells - the bevel is drawn outside the grid now
+// (DrawOrnateBorderOutside), so it reaches OrnateBorderWidth past the last row.
+static_assert(StashGridBottom - 1 + oracool::OrnateBorderWidth <= StashHealthOrbTop,
+    "Stash grid or its frame now runs under the health orb - lower StashGridRows");
 static_assert(StashGridBottom - 1 + StashCellPx > StashHealthOrbTop, "Another stash row would still fit - raise StashGridRows");
 static_assert(StashGridLeft >= StashMargin, "Stash grid is wider than the panel's margins allow");
 
@@ -605,7 +608,9 @@ void DrawStash(const Surface &out)
 	const Rectangle gridRect { GetPanelPosition(UiPanels::Stash, { StashGridLeft, StashGridTop }),
 		{ StashGridWidth, StashGridRows * StashCellPx } };
 	oracool::DrawThemedFill(out, gridRect, 2);
-	oracool::DrawOrnateBorder(out, gridRect);
+	// Outside the cells, matching the inventory - see DrawOrnateBorderOutside. The stash needed no
+	// repositioning to afford it: its grid already had margin on every side.
+	oracool::DrawOrnateBorderOutside(out, gridRect);
 
 	// Oracool: user request - 1px cell rules, deliberately a DIFFERENT colour from the inventory
 	// grid's. The inventory divides its cells with the theme's 3px gold bevel; the stash is a much

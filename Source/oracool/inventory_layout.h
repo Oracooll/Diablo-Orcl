@@ -25,6 +25,7 @@
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/size.hpp"
+#include "oracool/ornate_border.h" // OrnateBorderWidth - the grid reserves room for its own frame
 
 namespace devilution {
 namespace oracool {
@@ -55,7 +56,7 @@ constexpr int GridCellCount = GridSizeInCells.width * GridSizeInCells.height;
  * no longer simply sit where it fits; it has to stop where the mana orb starts.
  */
 constexpr Point GridOrigin { (InventoryPanelSize.width - GridSizeInCells.width * CellPx) / 2,
-	624 - GridSizeInCells.height * CellPx };
+	624 - OrnateBorderWidth - GridSizeInCells.height * CellPx };
 constexpr int GridBottom = GridOrigin.y + GridSizeInCells.height * CellPx;
 
 /**
@@ -168,8 +169,10 @@ constexpr int OrbClearanceBottom = 624;
 // into ui\inventory_panel.png, which the shared theme replaced. The band it occupied is now the
 // gold readout's - see GetGoldRowRect below.
 
-static_assert(GridBottom <= OrbClearanceBottom,
-    "Inventory grid extends into the mana orb - move the grid up or shorten it");
+// The grid's FRAME is what has to clear the orb, not the cells: the bevel is drawn outside the cell
+// area now (DrawOrnateBorderOutside), so it reaches OrnateBorderWidth past GridBottom.
+static_assert(GridBottom + OrnateBorderWidth <= OrbClearanceBottom,
+    "Inventory grid or its frame extends into the mana orb - move the grid up or shorten it");
 static_assert(GridBottom <= InventoryPanelSize.height,
     "Inventory grid extends past the bottom of the panel");
 static_assert(TabRowY + TabSize.height == GridOrigin.y,

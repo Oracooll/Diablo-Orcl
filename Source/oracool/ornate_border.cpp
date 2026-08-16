@@ -49,6 +49,15 @@ Rectangle Inset(Rectangle rect, int by)
 
 } // namespace
 
+void DrawOrnateBorderOutside(const Surface &out, Rectangle rect)
+{
+	// The bevel's three rings are drawn INSIDE whatever rect they are given, so framing content
+	// without eating into it means handing them a rect grown by their own width.
+	DrawOrnateBorder(out,
+	    Rectangle { { rect.position.x - OrnateBorderWidth, rect.position.y - OrnateBorderWidth },
+	        { rect.size.width + 2 * OrnateBorderWidth, rect.size.height + 2 * OrnateBorderWidth } });
+}
+
 void DrawOrnateBorder(const Surface &out, Rectangle rect)
 {
 	DrawRing(out, rect, OuterColor, OuterColor);
