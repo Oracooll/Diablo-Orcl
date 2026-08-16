@@ -22,6 +22,7 @@
 #include "minitext.h"
 #include "oracool/auto_save.h"
 #include "oracool/hud_art.h"
+#include "oracool/inventory_layout.h" // CellPx / GridOrigin - the grid this one must match
 #include "oracool/ornate_border.h"
 #include "stores.h"
 #include "utils/format_int.hpp"
@@ -111,8 +112,21 @@ constexpr Rectangle StashSortButtonRect { { 258, StashGoldRowY }, { 57, StashGol
 constexpr Size StashGridSize { StashGridColumns, StashGridRows };
 constexpr PointsInRectangleRange<int> StashGridRange { { { 0, 0 }, StashGridSize } };
 
-/** @brief Cell pitch - the slot plus its 1px rule, matching the inventory grid. */
-constexpr int StashCellPx = INV_SLOT_SIZE_PX + 1;
+/**
+ * @brief Cell pitch. The same 28 the inventory grid uses (oracool::CellPx) - user request, 2026-08-16.
+ *
+ * This was INV_SLOT_SIZE_PX + 1: a 28px slot plus a dedicated pixel for its dividing rule, so no
+ * slot lost any of its 28. The comment claimed that matched the inventory grid; it did not. The
+ * inventory draws the same 1px ThemeGridLineColor rule at `c * CellPx - 1` and simply lets the item
+ * sprite overdraw it, which costs the boundary pixel of one cell and keeps the pitch at 28.
+ *
+ * Matching the pitch is what makes the two grids line up: StashGridLeft now lands on 30, the same
+ * x as the inventory's GridOrigin, and a 2x3 item spans the same 56x84 in both - which is also the
+ * span the item backing paints, so backings sit flush in the stash instead of 1px inside the cell.
+ *
+ * Costs 10px of width and 16px of height, which the panel has: see the health-orb asserts below.
+ */
+constexpr int StashCellPx = INV_SLOT_SIZE_PX;
 constexpr int StashGridWidth = StashGridColumns * StashCellPx;
 constexpr int StashGridTop = StashGoldRowY + StashGoldRowHeight + 8;
 /** @brief Centred across the panel. */
@@ -139,6 +153,15 @@ constexpr int StashHealthOrbTop = 720 - 96;
 static_assert(StashGridBottom - 1 <= StashHealthOrbTop, "Stash grid now runs under the health orb - lower StashGridRows");
 static_assert(StashGridBottom - 1 + StashCellPx > StashHealthOrbTop, "Another stash row would still fit - raise StashGridRows");
 static_assert(StashGridLeft >= StashMargin, "Stash grid is wider than the panel's margins allow");
+
+// The two grids must agree, and the only reason they did not for so long is that nothing said so
+// out loud - the pitch comment claimed a match that was never checked (user, 2026-08-16: "why is
+// stash 29x29px grid instead of 28x28px"). Both windows are 340 wide with a 10-column grid, so
+// matching the pitch necessarily matches the left edge too; asserting both says which is the cause.
+static_assert(StashCellPx == oracool::CellPx,
+    "Stash and inventory grids no longer share a cell pitch - items would span different widths in each");
+static_assert(StashGridLeft == oracool::GridOrigin.x,
+    "Stash and inventory grids no longer start at the same x - their columns would not line up");
 
 
 /**
@@ -590,9 +613,10 @@ void DrawStash(const Surface &out)
 	// storage. Dark grey, one pixel, is enough to separate the cells and lets the items carry the
 	// colour.
 	//
-	// Drawn on the boundary pixel between neighbouring cells - each cell's pitch is 29 (a 28px slot
-	// plus its rule), so the rule is the last pixel of the preceding cell's span and no slot loses
-	// any of its 28.
+	// Drawn on the last pixel of the preceding cell's span, exactly as the inventory grid draws its
+	// own - same expression, same colour. At a 28 pitch that pixel belongs to a slot rather than to
+	// the rule, so an occupied cell's item overdraws its own boundary; that is what the inventory
+	// has always done, and matching it is the point (user request, 2026-08-16).
 	for (int col = 1; col < StashGridColumns; col++) {
 		const int x = gridRect.position.x + col * StashCellPx - 1;
 		DrawVerticalLine(out, { x, gridRect.position.y }, gridRect.size.height, StashGridLineColor);
