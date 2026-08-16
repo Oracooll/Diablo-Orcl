@@ -358,7 +358,7 @@ constexpr int GoldRowHeight = FooterRowHeight;
  * User request (2026-08-16): 12px from the top. The band is one FontSize30 line (38px) so the
  * string's VerticalCenter has no slack to drift in - the title's top edge IS PanelTitleTop.
  */
-constexpr int PanelTitleTop = 12;
+constexpr int PanelTitleTop = 8;
 constexpr int PanelTitleHeight = 38;
 
 /**
@@ -371,7 +371,7 @@ constexpr int PanelTitleHeight = 38;
  * Splitting the line by TAB COLUMNS rather than by fractions is what keeps them aligned with the
  * grid beneath - each label starts exactly where a tab does, so nothing floats between columns.
  */
-constexpr int FooterAboveTabsGap = 12;
+constexpr int FooterAboveTabsGap = 8;
 constexpr int FooterRowY = TabRowY - FooterAboveTabsGap - FooterRowHeight;
 
 /** @brief The x of tab @p index's left edge, used to span the row above by whole tabs. */

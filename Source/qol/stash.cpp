@@ -66,7 +66,7 @@ constexpr int StashLabelHeight = 50;
  * the old 50px label height, so the string's VerticalCenter has no slack to drift in - the title's
  * top edge IS PanelTitleTop. The inventory's title uses the same pair; see inv.cpp.
  */
-constexpr int PanelTitleTop = 12;
+constexpr int PanelTitleTop = 8;
 constexpr int PanelTitleHeight = 38;
 constexpr int StashContentTop = StashMargin + StashLabelHeight + oracool::OrnateBorderWidth + StashMargin;
 
@@ -617,7 +617,14 @@ void DrawStash(const Surface &out)
 			continue; // No item in the given slot
 		}
 		Item &item = Stash.stashList[itemId];
-		InvDrawSlotBack(out, GetStashSlotCoord(slot) + offset, InventorySlotSizeInPixels, item);
+		// One backing per ITEM, not per cell (user request, 2026-08-16) - see inv.cpp's matching
+		// loop. `item.position != slot` is the same first-slot test the sprite loop below uses.
+		if (item.position != slot)
+			continue;
+		const Size itemCells = GetInventorySize(item);
+		InvDrawSlotBack(out, GetStashSlotCoord(slot) + offset,
+		    { itemCells.width * InventorySlotSizeInPixels.width, itemCells.height * InventorySlotSizeInPixels.height },
+		    item);
 	}
 
 	for (auto slot : StashGridRange) {

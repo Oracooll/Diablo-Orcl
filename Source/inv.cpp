@@ -1450,14 +1450,14 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	const uint8_t interior = static_cast<uint8_t>(colorBlock + rampOffset);
 	FillRect(out, backing.position.x, backing.position.y, backing.size.width, backing.size.height, interior);
 
-	// A 3px border INSIDE the backing's bounds, in the item class's own colour (user request):
+	// A border INSIDE the backing's bounds, in the item class's own colour (user request):
 	// Magic blue, Rare yellow, Unique gold - the same hue as the interior but several shades
 	// brighter, so the class reads at a glance without the fill competing with the icon.
 	//
 	// The brighter end of the SAME ramp rather than a separate colour, because PAL16 ramps run
 	// light-to-dark: subtracting from the offset is what "brighter" means here, and clamping at the
 	// ramp's own base keeps it from wrapping into the neighbouring colour.
-	constexpr int BorderThickness = 3;
+	constexpr int BorderThickness = 2;
 	constexpr int BorderLift = 8;
 	const uint8_t border = static_cast<uint8_t>(colorBlock + std::max(rampOffset - BorderLift, 0));
 	for (int i = 0; i < BorderThickness; i++) {
@@ -1787,12 +1787,21 @@ void DrawInv(const Surface &out)
 
 	for (int i = 0; i < InventoryGridCells; i++) {
 		int8_t cell = GetActiveInvGridCell(myPlayer, i);
-		if (cell != 0) {
+		// User request (2026-08-16): "outline the entire item, not each 28x28 square". This used to
+		// run on EVERY occupied cell (`cell != 0`) and paint a 28x28 backing in each, so a 2x3
+		// weapon wore six separate borders in a grid pattern.
+		//
+		// `cell > 0` is the item's first slot - the same test the sprite loop below uses - and the
+		// item's own footprint is the size to paint, so one backing wraps the whole thing. The
+		// equipment slots never had this problem: they always passed the slot's full size.
+		if (cell > 0) {
+			Item &gridItem = GetActiveInvListItem(myPlayer, cell - 1);
+			const Size itemCells = GetInventorySize(gridItem);
 			InvDrawSlotBack(
 			    out,
 			    GetPanelPosition(UiPanels::Inventory, InvRect[i + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height },
-			    InventorySlotSizeInPixels,
-			    GetActiveInvListItem(myPlayer, abs(cell) - 1));
+			    { itemCells.width * InventorySlotSizeInPixels.width, itemCells.height * InventorySlotSizeInPixels.height },
+			    gridItem);
 		}
 	}
 
