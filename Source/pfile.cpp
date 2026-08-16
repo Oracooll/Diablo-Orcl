@@ -18,6 +18,7 @@
 #include "loadsave.h"
 #include "menu.h"
 #include "mpq/mpq_common.hpp"
+#include "oracool/hero_chunks.h"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
@@ -123,7 +124,11 @@ void RenameTempToPerm(SaveWriter &saveWriter)
 	assert(!GetPermSaveNames(dwIndex, szPerm));
 }
 
-bool ReadHero(SaveReader &archive, PlayerPack *pPack)
+// Oracool: Megaplan Phase 0.1 - the hero file is the fixed PlayerPack plus an OPTIONAL chunk tail
+// (oracool/hero_chunks.h). `read == sizeof` is a pre-tail hero and loads exactly as before;
+// `read > sizeof` carries chunks, handed back through @p chunkTail for the caller to apply AFTER
+// UnPackPlayer. The tail is parsed and validated there, not here - this function only transports.
+bool ReadHero(SaveReader &archive, PlayerPack *pPack, std::vector<uint8_t> *chunkTail = nullptr)
 {
 	size_t read;
 
@@ -132,21 +137,28 @@ bool ReadHero(SaveReader &archive, PlayerPack *pPack)
 		return false;
 
 	bool ret = false;
-	if (read == sizeof(*pPack)) {
+	if (read >= sizeof(*pPack)) {
 		memcpy(pPack, buf.get(), sizeof(*pPack));
+		if (chunkTail != nullptr && read > sizeof(*pPack)) {
+			const auto *bytes = reinterpret_cast<const uint8_t *>(buf.get());
+			chunkTail->assign(bytes + sizeof(*pPack), bytes + read);
+		}
 		ret = true;
 	}
 
 	return ret;
 }
 
-void EncodeHero(SaveWriter &saveWriter, const PlayerPack *pack)
+void EncodeHero(SaveWriter &saveWriter, const PlayerPack *pack, const std::vector<uint8_t> &chunkTail = {})
 {
-	size_t packedLen = codec_get_encoded_len(sizeof(*pack));
+	const size_t plainLen = sizeof(*pack) + chunkTail.size();
+	size_t packedLen = codec_get_encoded_len(plainLen);
 	std::unique_ptr<byte[]> packed { new byte[packedLen] };
 
 	memcpy(packed.get(), pack, sizeof(*pack));
-	codec_encode(packed.get(), sizeof(*pack), packedLen, pfile_get_password());
+	if (!chunkTail.empty())
+		memcpy(packed.get() + sizeof(*pack), chunkTail.data(), chunkTail.size());
+	codec_encode(packed.get(), plainLen, packedLen, pfile_get_password());
 	saveWriter.WriteFile("hero", packed.get(), packedLen);
 }
 
@@ -484,7 +496,7 @@ void pfile_write_hero(SaveWriter &saveWriter, bool writeGameData)
 	Player &myPlayer = *MyPlayer;
 
 	PackPlayer(pkplr, myPlayer);
-	EncodeHero(saveWriter, &pkplr);
+	EncodeHero(saveWriter, &pkplr, oracool::BuildHeroChunkTail(myPlayer));
 	if (!gbVanilla) {
 		SaveHotkeys(saveWriter, myPlayer);
 		SaveHeroItems(saveWriter, myPlayer);
@@ -712,7 +724,7 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo)
 	CreatePlayer(player, heroinfo->heroclass);
 	CopyUtf8(player._pName, heroinfo->name, PlayerNameLength);
 	PackPlayer(pkplr, player);
-	EncodeHero(saveWriter, &pkplr);
+	EncodeHero(saveWriter, &pkplr, oracool::BuildHeroChunkTail(player));
 	Game2UiPlayer(player, heroinfo, false);
 	if (!gbVanilla) {
 		SaveHotkeys(saveWriter, player);
@@ -738,11 +750,12 @@ bool pfile_delete_save(_uiheroinfo *heroInfo)
 void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 {
 	PlayerPack pkplr;
+	std::vector<uint8_t> chunkTail;
 	{
 		std::optional<SaveReader> archive = OpenSaveArchive(saveNum);
 		if (!archive)
 			app_fatal(_("Unable to open archive"));
-		if (!ReadHero(*archive, &pkplr))
+		if (!ReadHero(*archive, &pkplr, &chunkTail))
 			app_fatal(_("Unable to load character"));
 
 		gbValidSaveFile = ArchiveContainsGame(*archive);
@@ -751,6 +764,9 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 	}
 
 	UnPackPlayer(pkplr, player);
+	// AFTER unpack: the chunks widen or add to what the fixed struct decoded (skill points, the
+	// 64-bit waypoint masks). A pre-tail hero has an empty vector here and this is a no-op.
+	oracool::ApplyHeroChunks(player, chunkTail.data(), chunkTail.size());
 	LoadHeroItems(player);
 	if (!gbIsMultiplayer) {
 		LoadInventoryTabs(player);

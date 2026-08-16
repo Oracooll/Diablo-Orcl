@@ -409,6 +409,14 @@ struct Player {
 	SpellType _pLRSplType;
 	SpellID _pSBkSpell;
 	uint8_t _pSplLvl[64];
+	/**
+	 * @brief Oracool: Megaplan Phase 2's skill points, persisted from day one via the hero file's
+	 * chunk tail (oracool/hero_chunks.h, HeroChunkSkillPoints) so the feature can land without a
+	 * save break. Nothing reads these yet; they round-trip through every save until Phase 2 gives
+	 * them a UI and rules.
+	 */
+	uint16_t _pUnspentSkillPoints = 0;
+	uint8_t _pSkillInvestment[MAX_SPELLS] = {};
 	/** @brief Bitmask of staff spell */
 	uint64_t _pISpells;
 	/** @brief Bitmask of learned spells */
@@ -439,10 +447,15 @@ struct Player {
 
 	/**
 	 * @brief Waypoint list slots stored per difficulty: index 0 is Tristram, 1-24 the dungeon
-	 * levels. 25 rather than 17 because Hellfire's Nest (17-20) and Crypt (21-24) have waypoints
-	 * too; a plain Diablo game simply never sets the last eight (oracool::VisibleWaypointCount).
+	 * levels; a plain Diablo game simply never sets slots past 16 (oracool::VisibleWaypointCount).
+	 *
+	 * WIDENED 25 -> 64 for Megaplan Phase 0.2 (2026-08-16): each future dungeon ZONE brings its own
+	 * waypoints, and this constant was re-widened twice already (16 -> 24 -> 25). 64 is the full
+	 * width of the HeroChunkWaypoints64 mask (oracool/hero_chunks.h), so it never moves again.
+	 * PlayerPack's fixed u32 masks keep carrying slots 1-32 for chunkless heroes; the chunk carries
+	 * all 63 storable slots.
 	 */
-	static constexpr size_t MaxWaypointSlots = 25;
+	static constexpr size_t MaxWaypointSlots = 64;
 	/**
 	 * @brief Oracool: user request - per-difficulty waypoint unlock table. Indexed
 	 * [difficulty][waypoint list index] (0 = Tristram, 1-24 = that dungeon level, matching

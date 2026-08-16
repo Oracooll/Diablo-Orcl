@@ -414,10 +414,15 @@ TEST(Writehero, pfile_write_hero)
 	//      Unlike 1-3 this one also GREW the struct by 8 bytes rather than reshaping it in place,
 	//      which is what made pre-1.5.0 characters unloadable (pfile.cpp's ReadHero demands an exact
 	//      size match). See PlayerPack::pWaypointUnlockedNormal for why that was affordable.
+	//   5. The chunk tail (1.6.27, Megaplan Phase 0.1): the hero blob is now PlayerPack + "OEXT" +
+	//      tagged chunks (oracool/hero_chunks.h). Unlike 1-4 this is the LAST planned growth: new
+	//      state appends a chunk, old readers skip it, and ReadHero accepts >= the base size - so
+	//      pre-tail heroes still load and this hash should only ever move again if a chunk's
+	//      CONTENT changes deliberately.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "67e45a2eba2334bd1fb58864fda1e3244999a07e2fcf501ead7af8623615915f");
+	    "71269c2e0528230c5dde05a81b1b18a0859489909c42a9327b170ba043f16f98");
 }
 
 } // namespace

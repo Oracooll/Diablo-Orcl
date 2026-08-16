@@ -82,8 +82,11 @@ void VerifyGoldSeeds(Player &player)
  * @brief Oracool: user request - see PlayerPack::pWaypointUnlockedNormal's doc comment. Bit
  * (i-1) is waypoint list index i (1-24); index 0 (Tristram) is always unlocked and never stored.
  */
-constexpr int PackedWaypointBits = static_cast<int>(Player::MaxWaypointSlots) - 1;
-static_assert(PackedWaypointBits <= 32, "the waypoint unlock mask no longer fits a uint32_t");
+// Capped at 32: MaxWaypointSlots is 64 now (Phase 0.2), but these fixed u32 fields only carry
+// slots 1-32 - the full width travels in the hero file's HeroChunkWaypoints64 chunk, which
+// overrides these on load when present. The fixed fields stay valid so a chunkless hero still
+// decodes every waypoint that exists today (25 < 32).
+constexpr int PackedWaypointBits = std::min<int>(static_cast<int>(Player::MaxWaypointSlots) - 1, 32);
 
 uint32_t PackWaypointUnlocked(const Player &player, int difficulty)
 {
@@ -100,6 +103,11 @@ void UnpackWaypointUnlocked(Player &player, int difficulty, uint32_t packedMask)
 	const uint32_t mask = SDL_SwapLE32(packedMask);
 	for (int i = 1; i <= PackedWaypointBits; i++)
 		player._pWaypointUnlocked[difficulty][i] = (mask & (1u << (i - 1))) != 0;
+	// Slots past the fixed mask's reach: cleared here so a chunkless hero never inherits stale
+	// unlocks from whatever character occupied this Player slot before. The Waypoints64 chunk,
+	// applied AFTER unpack, overwrites the full range for heroes that carry it.
+	for (size_t i = static_cast<size_t>(PackedWaypointBits) + 1; i < Player::MaxWaypointSlots; i++)
+		player._pWaypointUnlocked[difficulty][i] = false;
 }
 
 } // namespace

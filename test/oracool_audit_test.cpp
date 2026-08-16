@@ -23,6 +23,7 @@
 #include "multi.h"
 #include "oracool/class_skills.h"
 #include "oracool/gradual_healing.h"
+#include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
@@ -513,4 +514,75 @@ TEST(OracoolStatSheet, RageProviderMatchesVanillaSwings)
 	player._pSpellFlags = SpellFlag::None;
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(player._pStrength, 30);
+}
+
+// Megaplan Phase 0.1: the hero file's chunk tail (oracool/hero_chunks.h). These three tests are
+// the format's contract: state round-trips, unknown chunks are skipped not fatal, and a torn tail
+// is rejected WHOLE rather than half-applied.
+TEST(OracoolHeroChunks, SkillPointsAndWaypointsRoundTrip)
+{
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pUnspentSkillPoints = 7;
+	source._pSkillInvestment[3] = 5;
+	source._pSkillInvestment[MAX_SPELLS - 1] = 2;
+	source._pWaypointUnlocked[0][1] = true;
+	source._pWaypointUnlocked[0][24] = true;
+	source._pWaypointUnlocked[2][40] = true; // past the fixed u32 masks' reach - chunk-only ground
+	source._pWaypointUnlocked[3][63] = true; // the last storable slot
+
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+	ASSERT_GT(tail.size(), 4u);
+
+	devilution::Player target {};
+	target._pWaypointUnlocked[1][10] = true; // stale state that a full apply must overwrite
+	oracool::ApplyHeroChunks(target, tail.data(), tail.size());
+
+	EXPECT_EQ(target._pUnspentSkillPoints, 7);
+	EXPECT_EQ(target._pSkillInvestment[3], 5);
+	EXPECT_EQ(target._pSkillInvestment[MAX_SPELLS - 1], 2);
+	EXPECT_TRUE(target._pWaypointUnlocked[0][1]);
+	EXPECT_TRUE(target._pWaypointUnlocked[0][24]);
+	EXPECT_TRUE(target._pWaypointUnlocked[2][40]) << "slot 40 lives only in the 64-bit chunk";
+	EXPECT_TRUE(target._pWaypointUnlocked[3][63]);
+	EXPECT_FALSE(target._pWaypointUnlocked[1][10]) << "stale unlock survived a full chunk apply";
+}
+
+TEST(OracoolHeroChunks, UnknownChunkIsSkippedNotFatal)
+{
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pUnspentSkillPoints = 3;
+	std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+
+	// Splice a chunk from "a newer build" (tag 999, 4-byte payload) between magic and the real
+	// chunks. A correct reader walks over it and still applies everything after it.
+	const std::vector<uint8_t> unknown = { 0xE7, 0x03, 0x04, 0x00, 0x00, 0x00, 0xDE, 0xAD, 0xBE, 0xEF };
+	tail.insert(tail.begin() + 4, unknown.begin(), unknown.end());
+
+	devilution::Player target {};
+	oracool::ApplyHeroChunks(target, tail.data(), tail.size());
+	EXPECT_EQ(target._pUnspentSkillPoints, 3) << "a skippable unknown chunk stopped the walk";
+}
+
+TEST(OracoolHeroChunks, TruncatedTailIsRejectedWhole)
+{
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pUnspentSkillPoints = 9;
+	source._pWaypointUnlocked[0][5] = true;
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+
+	devilution::Player target {};
+	// Cut mid-payload: nothing may apply, not even the chunks before the tear.
+	oracool::ApplyHeroChunks(target, tail.data(), tail.size() - 3);
+	EXPECT_EQ(target._pUnspentSkillPoints, 0) << "a torn tail half-applied";
+	EXPECT_FALSE(target._pWaypointUnlocked[0][5]);
+
+	// And the empty/absent tail is the legacy no-op, never an error.
+	oracool::ApplyHeroChunks(target, nullptr, 0);
+	EXPECT_EQ(target._pUnspentSkillPoints, 0);
 }
