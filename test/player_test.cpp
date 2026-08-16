@@ -1,6 +1,7 @@
 #include "player_test.h"
 
 #include <cstdint>
+#include <cstring>
 #include <limits>
 
 #include <gtest/gtest.h>
@@ -9,6 +10,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/paladin_melee.h"
+#include "oracool/paladin_skills.h"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "storm/storm_net.hpp"
@@ -358,9 +360,9 @@ TEST(Player, Zeal_GatedByClass_Level_Mana_AndSinglePlayer)
 	gbIsMultiplayer = false;
 }
 
-// The user's ladder, verbatim (2026-08-15), read as CHARACTER level with Zeal's gate left at 6:
-// 6 -> 2 strikes, 8 -> 3, 10 -> 4, 12 -> 5, capped there. Worth a test because it is a table someone
-// gave in prose and the code turned into arithmetic - the two can drift apart silently.
+// The Zeal ladder after Phase 2.1 (supersedes the 2026-08-15 character-level table): the level-6
+// gate buys the 2-strike burst, and INVESTED skill points buy the rest - one strike per two points,
+// capped at five. Character level beyond the gate no longer adds strikes on its own.
 TEST(Player, Zeal_StrikeCountLadder)
 {
 	using namespace devilution::oracool;
@@ -368,22 +370,26 @@ TEST(Player, Zeal_StrikeCountLadder)
 	Players.resize(1);
 	devilution::Player &paladin = Players[0];
 	paladin._pClass = HeroClass::Warrior;
+	std::memset(paladin._pSkillInvestment, 0, sizeof(paladin._pSkillInvestment));
+	const auto zeal = static_cast<size_t>(GetPaladinSkillData(PaladinSkill::Zeal).spellId);
+
+	paladin._pLevel = 5;
+	EXPECT_EQ(ZealStrikeCount(paladin), 0) << "below the gate: no Zeal at all";
+	paladin._pLevel = 6;
+	EXPECT_EQ(ZealStrikeCount(paladin), 2) << "the gate buys the base burst";
+	paladin._pLevel = 50;
+	EXPECT_EQ(ZealStrikeCount(paladin), 2) << "level alone must not add strikes";
 
 	const struct {
-		int8_t level;
+		int invested;
 		int expected;
-	} ladder[] = {
-		{ 5, 0 },  // below the gate: no Zeal at all
-		{ 6, 2 },  { 7, 2 },
-		{ 8, 3 },  { 9, 3 },
-		{ 10, 4 }, { 11, 4 },
-		{ 12, 5 }, { 13, 5 },
-		{ 50, 5 }, // capped - "up to 5 times", whatever the level
-	};
+	} ladder[] = { { 0, 2 }, { 1, 2 }, { 2, 3 }, { 3, 3 }, { 4, 4 }, { 6, 5 }, { 20, 5 } };
 	for (const auto &step : ladder) {
-		paladin._pLevel = step.level;
-		EXPECT_EQ(ZealStrikeCount(paladin), step.expected) << "at character level " << int(step.level);
+		paladin._pSkillInvestment[zeal] = static_cast<uint8_t>(step.invested);
+		EXPECT_EQ(ZealStrikeCount(paladin), step.expected)
+		    << "with " << step.invested << " points invested";
 	}
+	paladin._pSkillInvestment[zeal] = 0;
 }
 
 // The half of "active only" that CanUsePaladinSkill cannot express: being able to afford Zeal is not

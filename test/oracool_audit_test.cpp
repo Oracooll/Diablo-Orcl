@@ -34,6 +34,7 @@
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
 #include "oracool/runewords.h"
+#include "oracool/skill_points.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/telemetry.h"
@@ -227,21 +228,32 @@ TEST(OracoolAudit, InnateMaskFollowsTheShield)
 	EXPECT_EQ(mask & shieldBash, 0u) << "Paladin skills leaked to another class";
 }
 
-// The Zeal strike ladder the user specified: nothing below the level-6 gate, two strikes at the
-// gate, one more every two levels, capped at five.
+// The Zeal strike ladder, as re-specified by Phase 2.1 (supersedes the 2026-08-15 character-level
+// ladder): the level-6 gate buys the 2-strike burst, INVESTED points buy the rest - one strike per
+// two points, capped at five. Character level beyond the gate no longer adds strikes.
 TEST(OracoolAudit, ZealStrikeLadder)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
+	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	const auto zeal = static_cast<size_t>(
+	    oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId);
+
+	player._pLevel = 5;
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 0) << "below the gate";
+	player._pLevel = 50;
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 2) << "level alone must not add strikes";
 
 	const struct {
-		int level;
+		int invested;
 		int strikes;
-	} ladder[] = { { 1, 0 }, { 5, 0 }, { 6, 2 }, { 7, 2 }, { 8, 3 }, { 10, 4 }, { 12, 5 }, { 14, 5 }, { 50, 5 } };
+	} ladder[] = { { 0, 2 }, { 1, 2 }, { 2, 3 }, { 4, 4 }, { 6, 5 }, { 20, 5 } };
 	for (const auto &step : ladder) {
-		player._pLevel = static_cast<int8_t>(step.level);
-		EXPECT_EQ(oracool::ZealStrikeCount(player), step.strikes) << "at character level " << step.level;
+		player._pSkillInvestment[zeal] = static_cast<uint8_t>(step.invested);
+		EXPECT_EQ(oracool::ZealStrikeCount(player), step.strikes)
+		    << "with " << step.invested << " points invested";
 	}
+	player._pSkillInvestment[zeal] = 0;
 }
 
 // Bug (v1.6.11): TotalPlayerGold summed _pGold + Stash.gold as plain int, while the stash's own
@@ -803,6 +815,58 @@ TEST(OracoolGems, TirGrantsManaPerKillFromWornSockets)
 	sword._iStatFlag = true;
 	sword._iSocketed[1] = static_cast<uint16_t>(IDI_ORACOOL_RUNE_EL);
 	EXPECT_EQ(oracool::RuneManaPerKill(player), 2) << "only Tir carries mana per kill";
+}
+
+// Phase 2.1: skill points on level-up, feeding the existing ladders through GetSpellLevel.
+TEST(OracoolSkillPoints, RetroGrantInvestRefundRoundTrip)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player._pLevel = 5;
+	player._pUnspentSkillPoints = 0;
+	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	player._pAblSpells = 0;
+	std::memset(player._pSplLvl, 0, sizeof(player._pSplLvl));
+
+	oracool::EnsureRetroactiveSkillPoints(player);
+	EXPECT_EQ(player._pUnspentSkillPoints, 4) << "level 5 is owed 4 points";
+	oracool::EnsureRetroactiveSkillPoints(player);
+	EXPECT_EQ(player._pUnspentSkillPoints, 4) << "the retro grant must not pay twice";
+
+	const auto firebolt = static_cast<size_t>(SpellID::Firebolt);
+	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
+	    << "an unlearned spell took a point";
+	player._pSplLvl[firebolt] = 1;
+	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
+	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
+	EXPECT_EQ(player._pUnspentSkillPoints, 2);
+	player._pISplLvlAdd = 0;
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 3)
+	    << "book level 1 + 2 invested should reach the ladders as level 3";
+
+	EXPECT_EQ(oracool::RespecCost(player), 1000) << "the floor price";
+	oracool::RefundAllSkillPoints(player);
+	EXPECT_EQ(player._pUnspentSkillPoints, 4);
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 1);
+}
+
+TEST(OracoolSkillPoints, ZealStrikesArePointDriven)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player._pLevel = 20;
+	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+
+	const auto zeal = static_cast<size_t>(oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId);
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 2)
+	    << "an uninvested Zeal stays at the base burst whatever the character level";
+	player._pSkillInvestment[zeal] = 2;
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 3);
+	player._pSkillInvestment[zeal] = 20;
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 5) << "the cap holds";
+
+	player._pLevel = 1;
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 0) << "the unlock gate is still character level";
 }
 
 // Phase 1 charms: the active cap IS the pouch. These pin the cap and the reading order.

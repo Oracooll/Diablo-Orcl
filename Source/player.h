@@ -694,7 +694,11 @@ struct Player {
 			return 0;
 		}
 
-		return std::max<int>(_pISplLvlAdd + _pSplLvl[static_cast<std::size_t>(spell)], 0);
+		// Oracool Phase 2.1: invested skill points deepen every ladder through this one seam -
+		// anything that already scales with spell level scales with investment automatically.
+		return std::max<int>(_pISplLvlAdd + _pSplLvl[static_cast<std::size_t>(spell)]
+		        + _pSkillInvestment[static_cast<std::size_t>(spell)],
+		    0);
 	}
 
 	/**

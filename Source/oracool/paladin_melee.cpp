@@ -214,7 +214,13 @@ int ZealStrikeCount(const Player &player)
 {
 	if (player._pLevel < ZealFirstUpgradeLevel)
 		return 0;
-	const int extra = (player._pLevel - ZealFirstUpgradeLevel) / ZealLevelsPerStrike;
+	// Phase 2.1: the frame ladder is point-driven now (megaplan: "Zeal's frame ladder becomes
+	// point-driven rather than purely character-level-driven"). Unlocking buys the 2-strike burst;
+	// every ZealLevelsPerStrike points INVESTED in Zeal buy one more, up to the cap. A character
+	// who spreads their points elsewhere keeps the base burst - which also answers the telemetry
+	// watch on 5-hit Zeal being too strong for free.
+	const auto zealSpell = static_cast<size_t>(GetPaladinSkillData(PaladinSkill::Zeal).spellId);
+	const int extra = player._pSkillInvestment[zealSpell] / ZealLevelsPerStrike;
 	return std::min(2 + extra, MaxZealStrikes);
 }
 

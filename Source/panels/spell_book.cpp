@@ -21,6 +21,7 @@
 #include "oracool/class_skills.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/skill_points.h"
 #include "oracool/spell_descriptions.h"
 #include "oracool/barb_skills.h"
 #include "oracool/furious_charge.h"
@@ -754,6 +755,50 @@ void DrawAttackRow(const Surface &content, size_t index, int top)
 	// panel, and the space the text used to fill is being kept for the runes.
 }
 
+// Phase 2.1: the invest control. A small gold "+" at the row's right edge, shown only while the
+// local player has an unspent point this row can take - so the sheet is quiet until level-up hands
+// out a point, and quiet again once it is sunk. The invested count sits beside it permanently.
+constexpr Size InvestButtonSize { 22, 22 };
+constexpr int InvestButtonRightPad = 4;
+
+Rectangle InvestButtonRect(int top, int rowHeight)
+{
+	return { { AbilitiesContentRightLimit - InvestButtonSize.width - InvestButtonRightPad,
+		         top + (rowHeight - InvestButtonSize.height) / 2 },
+		InvestButtonSize };
+}
+
+bool InvestZoneClicked(int localX)
+{
+	return localX >= AbilitiesContentRightLimit - InvestButtonSize.width - InvestButtonRightPad
+	    && localX < AbilitiesContentRightLimit - InvestButtonRightPad;
+}
+
+void DrawInvestControls(const Surface &content, int top, int rowHeight, SpellID sn)
+{
+	if (IsInspectingPlayer())
+		return;
+	const Player &player = *MyPlayer;
+	if (sn == SpellID::Invalid)
+		return;
+	const int invested = player._pSkillInvestment[static_cast<size_t>(sn)];
+	if (invested > 0) {
+		// The sunk points, said plainly and always - the "+" comes and goes with the unspent pool,
+		// but what a skill has already been fed is permanent information.
+		DrawString(content, fmt::format("+{:d}", invested),
+		    { { AbilitiesContentRightLimit - InvestButtonSize.width - InvestButtonRightPad - 34,
+			      top },
+		        { 30, rowHeight } },
+		    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
+	}
+	if (!oracool::CanInvestSkillPoint(player, sn))
+		return;
+	const Rectangle button = InvestButtonRect(top, rowHeight);
+	oracool::DrawHoverOutline(content, button);
+	DrawString(content, "+", button,
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+}
+
 void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 {
 	Player &player = *InspectPlayer;
@@ -787,6 +832,8 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	DrawString(content, GetSpellDetail(sn, known),
 	    { { textX, textTop + AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
 	    { detailColor | UiFlags::VerticalCenter });
+
+	DrawInvestControls(content, top, SpellRowHeight, sn);
 }
 
 /** @brief Which 38x38 strip a described row takes its icon from. */
@@ -921,6 +968,9 @@ void DrawPaladinSkillRow(const Surface &content, oracool::PaladinSkill skill, in
 	if (unlocked) {
 		const SpellID sn = oracool::GetPaladinSkillData(skill).spellId;
 		DrawAssignmentRings(content, { iconPos, iconSize }, sn, GetSBookTrans(sn, true));
+		// Investment keys on the skill's SpellID even where the row is not readiable (Zeal): the
+		// slot exists for every skill, only BuildSkillsSheetRows withholds it from the ready path.
+		DrawInvestControls(content, top, SpellRowHeight, sn);
 	}
 }
 
@@ -1259,6 +1309,12 @@ void DrawSpellBook(const Surface &out)
 		{ panel.size.width - 2 * AbilitiesMargin, AbilitiesLabelHeight } };
 	oracool::DrawOutlinedString(out, GetSheetTitle(CurrentSheet), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	// Phase 2.1: the unspent pool, right-aligned in the title band - present only while there is
+	// something to spend, so the band stays clean the rest of the time.
+	if (!IsInspectingPlayer() && MyPlayer->_pUnspentSkillPoints > 0) {
+		DrawString(out, fmt::format(fmt::runtime(_("Points: {:d}")), int(MyPlayer->_pUnspentSkillPoints)),
+		    labelArea, { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
+	}
 	// Only when there is somewhere to go - arrows on a window that cannot turn are a control that
 	// lies. Every class has at least Spells and Skills today so this is always true, but it was not
 	// while Spells was the Sorcerer's alone (a Rogue was down to Skills on its own), and the guard
@@ -1370,6 +1426,8 @@ void CheckSBook(bool assignToRightButton)
 
 	UpdateScrollBounds();
 	const int y = MousePosition.y - content.position.y + CurrentScroll();
+	// Phase 2.1: whether this click landed on the row's invest button rather than the row itself.
+	const bool investClick = InvestZoneClicked(MousePosition.x - content.position.x);
 
 	// Auras and Barbarian skills are listed and described but not yet selectable - the gameplay
 	// passes that give them effects have not been built. Clicking one deliberately does nothing
@@ -1410,9 +1468,21 @@ void CheckSBook(bool assignToRightButton)
 					}
 					return;
 				case SkillRowKind::Spell:
+					if (investClick && oracool::InvestSkillPoint(*MyPlayer, rows[i].spell)) {
+						RedrawEverything();
+						return;
+					}
 					sn = rows[i].spell;
 					break;
 				case SkillRowKind::Paladin:
+					// Investment works through the skill's own SpellID even on rows the ready path
+					// withholds a slot from (Zeal) - so the invest check comes before that gate.
+					if (investClick
+					    && oracool::InvestSkillPoint(*MyPlayer,
+					        oracool::GetPaladinSkillData(rows[i].paladin).spellId)) {
+						RedrawEverything();
+						return;
+					}
 					// A row is readiable when it carries a spell slot, which BuildSkillsSheetRows is
 					// the only place that decides. Charge has one; Zeal does not, because it applies
 					// itself to every melee swing rather than being cast, and neither do the five
@@ -1441,6 +1511,10 @@ void CheckSBook(bool assignToRightButton)
 		if (rowIndex >= rowCount)
 			return;
 		sn = rows[rowIndex];
+		if (investClick && oracool::InvestSkillPoint(*MyPlayer, sn)) {
+			RedrawEverything();
+			return;
+		}
 	}
 	// An unlearned row is inert. It is listed so the book shows the whole set, not so it can be
 	// readied - and its greyed icon already says so.

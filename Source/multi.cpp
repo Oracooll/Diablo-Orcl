@@ -22,6 +22,7 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/hud_layout.h"
+#include "oracool/skill_points.h"
 #include "pfile.h"
 #include "plrmsg.h"
 #include "qol/chatlog.h"
@@ -466,6 +467,8 @@ bool InitSingle(GameData *gameData)
 
 	pfile_read_player_from_save(gSaveNumber, *MyPlayer);
 	oracool::MigrateHiddenBeltSlots(*MyPlayer);
+	// Phase 2.1: characters who levelled before skill points existed collect what they are owed.
+	oracool::EnsureRetroactiveSkillPoints(*MyPlayer);
 
 	return true;
 }

@@ -43,6 +43,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/skill_points.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
 #include "oracool/sprite_import.h"
@@ -2514,6 +2515,9 @@ void NextPlrLevel(Player &player)
 		PlaySfxLoc(IS_QUESTDN, player.position.tile);
 		oracool::LogEvent(fmt::format("Reached level {:d}", player._pLevel), UiFlags::ColorWhitegold);
 	}
+
+	// Oracool Phase 2.1: one skill point per level, D2's rate.
+	oracool::GrantLevelUpSkillPoint(player);
 
 	CalcPlrInv(player, true);
 
