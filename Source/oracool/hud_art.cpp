@@ -575,6 +575,9 @@ void EnsureQuantized()
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
 	QuantizeAsset(BurgerMenuButtonArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
+	// No tint, same as the level-up icon these were cut from - the numeral IS the information.
+	QuantizeAsset(PointsIconsDarkArt, std::nullopt);
+	QuantizeAsset(PointsIconsLitArt, std::nullopt);
 	QuantizeAsset(WaypointPanelArt, std::nullopt);
 	QuantizeAsset(WaypointIconsArt, std::nullopt);
 	// No tint: the tree icons are the artwork itself, not chrome - their shapes carry the meaning.
@@ -1112,8 +1115,15 @@ bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit
 	// so a pool past 99 keeps showing 99 rather than indexing off the end.
 	ArtAsset &asset = lit ? PointsIconsLitArt : PointsIconsDarkArt;
 	EnsureLoadedAll();
-	if (asset.rgba.empty())
-		return false; // no art shipped - the caller keeps its placeholder
+	EnsureQuantized();
+	// Report whether a draw can actually HAPPEN, not merely whether pixels were read. The first
+	// version tested rgba alone, and when the quantize list had not been taught these assets it
+	// claimed the draw, suppressed the caller's placeholder, and painted nothing - "now no picture
+	// loads at all. i cant tell how many point i have" (user, 2026-08-17). hud_art keeps THREE
+	// hand-maintained per-asset lists (load, quantize, reset); testing the END of that pipeline is
+	// what makes missing any of them degrade to the placeholder instead of to blank.
+	if (asset.rgba.empty() || !asset.bright)
+		return false;
 	const int index = std::clamp(count, 1, 99) - 1;
 	DrawStripIcon(out, asset, origin, index, /*unlocked=*/true);
 	return true;
