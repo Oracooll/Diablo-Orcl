@@ -276,6 +276,15 @@ void DrawBurgerMenuButton(const Surface &out, int state);
 void DrawLevelUpIconArt(const Surface &out, int state);
 
 /**
+ * @brief The numbered skill-points icon: the 64px frame whose numeral IS @p count (clamped 1..99),
+ * dark at rest and lit on @p lit. Returns false when the strips are not shipped, so the caller can
+ * keep its placeholder.
+ */
+bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit);
+/** @brief The numbered icons' cell size - one 64px square strip frame. */
+constexpr Size PointsIconSize { 64, 64 };
+
+/**
  * @brief Phase 0.8's art hot-reload: drops every cached PNG asset so the next draw re-reads it
  * from disk. Wired to the `reloadassets` debug command - edit a PNG, reload, see it in seconds.
  */

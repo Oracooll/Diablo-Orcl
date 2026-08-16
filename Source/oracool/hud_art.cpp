@@ -96,6 +96,12 @@ constexpr Size TownPortalIconSize { 27, 29 };
 ArtAsset BurgerMenuButtonArt { "ui\\burger_menu_button.png" };
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
 ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
+// The numbered skill-point icons (user, 2026-08-17: "use these icons as a display of how many
+// skill points i have available to distribute"). Two 99-frame strips, 64px square cells, frame
+// N-1 wearing the numeral N - cut from the user's own level-up icon states with the cross
+// replaced by the number. Dark is the resting state, lit the hover.
+ArtAsset PointsIconsDarkArt { "ui\\points_icons_dark.png" };
+ArtAsset PointsIconsLitArt { "ui\\points_icons_lit.png" };
 /**
  * Oracool V1 waypoint list. The panel is one flat 340x660 composition - stone texture, segmented
  * border and the baked "WAYPOINT" label - built by tools/BuildWaypointPanel.ps1. The per-row pads
@@ -1038,6 +1044,8 @@ void ResetHudArtCaches()
 	reset(TownPortalIconArt);
 	reset(BurgerMenuButtonArt);
 	reset(LevelUpIconArt);
+	reset(PointsIconsDarkArt);
+	reset(PointsIconsLitArt);
 	reset(WaypointPanelArt);
 	reset(WaypointIconsArt);
 	for (ArtAsset *strip : ClassTreeStrips)
@@ -1089,6 +1097,19 @@ void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, in
     bool unlocked, SkillPlateTint tint)
 {
 	DrawIconOnPlate(out, TreeStripFor(heroClass), origin, skillIndex, unlocked, tint);
+}
+
+bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit)
+{
+	// The number IS the count (user, 2026-08-17). Frame N-1 wears numeral N; the strips run 1..99,
+	// so a pool past 99 keeps showing 99 rather than indexing off the end.
+	ArtAsset &asset = lit ? PointsIconsLitArt : PointsIconsDarkArt;
+	EnsureLoadedAll();
+	if (asset.rgba.empty())
+		return false; // no art shipped - the caller keeps its placeholder
+	const int index = std::clamp(count, 1, 99) - 1;
+	DrawStripIcon(out, asset, origin, index, /*unlocked=*/true);
+	return true;
 }
 
 void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,

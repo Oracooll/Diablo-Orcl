@@ -1223,11 +1223,20 @@ void DrawUnspentPointsFrame(const Surface &out)
 		return;
 	const Rectangle rmb = oracool::GetRmbSkillButtonRect();
 	constexpr int GapAboveWell = 6;
+	// The numbered icons' own 64px canvas - the same canvas the user's level-up art sits on, which
+	// is what "as big as the level up icon" means in practice (LevelUpIconSize's 60x61 is that art
+	// minus the canvas's edge padding).
 	const Rectangle frame {
-		{ rmb.position.x + (rmb.size.width - oracool::LevelUpIconSize.width) / 2,
-		    rmb.position.y - oracool::LevelUpIconSize.height - GapAboveWell },
-		oracool::LevelUpIconSize
+		{ rmb.position.x + (rmb.size.width - oracool::PointsIconSize.width) / 2,
+		    rmb.position.y - oracool::PointsIconSize.height - GapAboveWell },
+		oracool::PointsIconSize
 	};
+	// The delivered numbered icon: its numeral IS the count, dark at rest and lit under the cursor
+	// (user, 2026-08-17: "use these icons as a display of how many skill points i have available").
+	if (oracool::DrawUnspentPointsIcon(out, frame.position, MyPlayer->_pUnspentSkillPoints,
+	        frame.contains(MousePosition)))
+		return;
+	// The pre-art placeholder, kept only as the fallback for a build whose strips are missing.
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
 	UnsafeDrawBorder2px(out, frame, oracool::ThemeEdgeColor);
