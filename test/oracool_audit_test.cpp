@@ -2430,3 +2430,44 @@ TEST(OracoolAudit2, EveryItemTierSurvivesTheSaveRoundTrip)
 	EXPECT_TRUE(item.hasOracoolTier())
 	    << "a set item without its tier is described as UniqueItems[" << item._iUid << "]";
 }
+
+// A set piece has to LOOK like one. Three separate display paths each treated Set as something else,
+// and all three failed silently - the item was correct in memory the whole time (user, 2026-08-16:
+// a complete Ashen Saint showing base names, no affixes and a gold font).
+//
+//   getName()                 -> base name, because MakeSetItem left _iCreateInfo at 0 and getName
+//                                reads a zero there as "no real name here"
+//   getTextColor()            -> gold, because the tier switch had no Set case and fell through to
+//                                _iMagical, which MakeSetItem sets to UNIQUE
+//   AddItemPowerPanelStrings  -> nothing, because Set is an OracoolItemTier so it printed the affix
+//                                ROLLER's arrays, which a set item never fills
+TEST(OracoolAudit2, SetItemPresentsAsASetItem)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
+
+	const oracool::SetItemDefinition *armor = oracool::FindSetItem("SET_ASHEN_ARMOR");
+	ASSERT_NE(armor, nullptr);
+	devilution::Item item {};
+	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetSlot(armor->slot)));
+	oracool::MakeSetItem(item, *armor);
+
+	// Its own name, not the base item's - and specifically NOT dependent on _iCreateInfo.
+	EXPECT_EQ(std::string(item.getName().str()), "Vhal's Emberguard");
+	item._iCreateInfo = 0;
+	EXPECT_EQ(std::string(item.getName().str()), "Vhal's Emberguard")
+	    << "the name went back to the base item's when _iCreateInfo was cleared";
+
+	// Green, which is the whole point of the tier - and must not be the gold a unique gets, since
+	// MakeSetItem marks set pieces ITEM_QUALITY_UNIQUE.
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorOracoolGreen);
+	EXPECT_NE(item.getTextColor(), UiFlags::ColorWhitegold);
+
+	// The definition is reachable from the item alone, which is what the description path needs -
+	// there is no stored set id, only the icon.
+	const oracool::SetItemDefinition *found = oracool::FindSetItemByCursor(item._iCurs);
+	ASSERT_EQ(found, armor);
+	EXPECT_GT(oracool::CountLivePowers(found->powers, 6), 0)
+	    << "the armour has no live powers, so the description would be empty however it is printed";
+}

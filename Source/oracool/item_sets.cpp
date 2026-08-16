@@ -120,7 +120,10 @@ void MakeSetItem(Item &item, const SetItemDefinition &def)
 	// The base carried the equip location and item class in; everything that makes this the named
 	// object rather than the base is overridden here.
 	item._iCurs = static_cast<uint16_t>(def.cursor);
-	item._iCreateInfo = 0;
+	// _iCreateInfo is deliberately LEFT ALONE. Zeroing it here was the cause of a naming bug -
+	// Item::getName reads a zero there as "the roller never gave this a real name" and falls back to
+	// the base item's. getName has a Set branch of its own now, so this is belt and braces, but there
+	// was never a reason to clear the field either.
 	item._iIdentified = true;
 	item._iMagical = ITEM_QUALITY_UNIQUE;
 	item._iOracoolTier = OracoolItemTier::Set;

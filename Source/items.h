@@ -713,6 +713,12 @@ struct Item {
 				// Orange was chosen instead - it's distinct from every other item quality and
 				// happens to match Diablo 3's own convention for Primal Ancient items.
 				return UiFlags::ColorOrange;
+			case OracoolItemTier::Set:
+				// The green the note above reserved for "the REAL set system... which is not built
+				// yet". It is built now. Without this case a set item fell through to the _iMagical
+				// switch below and came out gold, because MakeSetItem marks it ITEM_QUALITY_UNIQUE -
+				// so it read as a unique in the one place the colour is supposed to tell them apart.
+				return UiFlags::ColorOracoolGreen;
 			case OracoolItemTier::None:
 				break;
 			}

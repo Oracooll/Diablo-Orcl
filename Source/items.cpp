@@ -42,6 +42,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
+#include "oracool/item_sets.h"
 #include "oracool/oracool.h"
 #include "oracool/runewords.h"
 #include "oracool/stat_sheet.h"
@@ -4904,6 +4905,29 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
  */
 void AddItemPowerPanelStrings(const Item &item)
 {
+	// A set piece's stats come from its own definition, not from a roll.
+	//
+	// Bug (fixed 2026-08-16, user report: "i dont see any affixes" on a complete set). Set is an
+	// OracoolItemTier, so it fell into the branch below and printed _iOracoolPrefixes /
+	// _iOracoolSuffixes - the arrays the affix ROLLER fills. A set item is never rolled: MakeSetItem
+	// applies its declared powers straight into the _iPL* fields, so those arrays are empty and the
+	// description had nothing to say.
+	//
+	// PrintItemPower reads the item's own accumulated fields, which is exactly right here: a set
+	// piece has one source for each stat, so there is no accumulation to disentangle - the very
+	// problem PrintOracoolAffixPower exists to solve for multi-affix tiered items.
+	if (item._iOracoolTier == OracoolItemTier::Set) {
+		const oracool::SetItemDefinition *def = oracool::FindSetItemByCursor(item._iCurs);
+		if (def != nullptr) {
+			for (const ItemPower &power : def->powers) {
+				if (power.type == IPL_INVALID)
+					break;
+				AddPanelString(PrintItemPower(power.type, item), ItemAffixColor);
+			}
+		}
+		return;
+	}
+
 	if (item.hasOracoolTier()) {
 		// Rare/Buffed Unique/Primal items: unlike a static UniqueItem, the affix list comes from
 		// the item instance itself (up to 3 prefixes + 3 suffixes), so the vanilla
@@ -6162,6 +6186,18 @@ StringOrView Item::getName() const
 {
 	if (isEmpty()) {
 		return string_view("");
+	} else if (_iOracoolTier == OracoolItemTier::Set) {
+		// A set piece's name is the one MakeSetItem wrote, full stop.
+		//
+		// Bug (fixed 2026-08-16, user report: a complete Vestments of the Ashen Saint showing as
+		// "Leather Armor", "Short Sword", "Iron Helm"...). Without this branch a set item fell into
+		// the next one and got GetTranslatedItemName - the BASE name - because MakeSetItem left
+		// _iCreateInfo at 0, and this function reads a zero there as "there is no real name here".
+		// That is true of an item the roller never touched; it is not true of a named object.
+		//
+		// Checked before the _iCreateInfo test rather than after, so a set item's name never depends
+		// on how it happened to be created.
+		return string_view(_iIName);
 	} else if (!_iIdentified || _iCreateInfo == 0 || _iMagical == ITEM_QUALITY_NORMAL) {
 		// Phase 1 audit fix (2026-08-16): a completed runeword writes its name into _iIName, but
 		// this branch returns the BASE name for NORMAL quality - the one quality runewords form
