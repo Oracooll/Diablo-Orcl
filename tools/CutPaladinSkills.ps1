@@ -24,7 +24,7 @@ $layout = @(
 )
 
 & "$PSScriptRoot\CutLabelledIconSheet.ps1" `
-    -Source "..\Oracool.MPQ\Paladin Skills.png" `
+    -Source "..\Oracool.MPQ\02-source-art\paladin-skills\Paladin Skills.png" `
     -Layout $layout `
     -Columns 4 -Rows 2 `
     -OutName "paladin_skill_icons.png" `
