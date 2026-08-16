@@ -105,7 +105,13 @@ const SetStatMapping SetStatMappings[SetStatMappingCount] = {
 	{ "shedstrike",                               Inert,  IPL_INVALID,     "needs the Wyrmhide shed-charge state" },
 	{ "shedstrike_duration",                      Inert,  IPL_INVALID,     "needs the Wyrmhide shed-charge state" },
 	{ "shield_block",                             Inert,  IPL_INVALID,     "block CHANCE is derived, not an item power" },
-	{ "skill",                                    Power,  IPL_SPELL,       nullptr },
+	// Corrected 2026-08-16, before it shipped: this was Power/IPL_SPELL on the reasoning that the
+	// engine can grant a spell from an item. It can - but every one of the six `skill:` values in the
+	// delivered data names a bespoke set ability (pass_judgment, wyrmturn, deploy_penitent_engine,
+	// invoke_crimson_compact), and none of them is a SpellID that exists. IPL_SPELL would have had
+	// nothing to grant. Found by the generator refusing to pack a non-numeric value, which is the
+	// whole reason it refuses rather than defaulting to zero.
+	{ "skill",                                    Inert,  IPL_INVALID,     "names an ability invented for the set; IPL_SPELL can only grant a spell the game already has" },
 	{ "spell_damage",                             Inert,  IPL_INVALID,     "spell damage scales on spell level and character level; no flat wearer bonus exists" },
 	{ "spell_mana_cost",                          Inert,  IPL_INVALID,     "IPL_NOMANA is all-or-nothing; a percentage discount has no channel" },
 	{ "spell_reflect",                            Inert,  IPL_INVALID,     "no missile reflection hook - the Reflect spell is a timed player state, not a wearer stat" },

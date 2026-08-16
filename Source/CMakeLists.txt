@@ -64,6 +64,7 @@ set(libdevilutionx_SRCS
   oracool/furious_charge.cpp
   oracool/game_clock.cpp
   oracool/item_set_stats.cpp
+  oracool/item_sets.cpp
   oracool/gradual_healing.cpp
   oracool/ornate_border.cpp
   oracool/hero_preview.cpp

@@ -36,6 +36,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/gems.h"
 #include "oracool/item_set_stats.h"
+#include "oracool/item_sets.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/monster_difficulty.h"
@@ -2117,4 +2118,136 @@ TEST(OracoolItemSets, UnknownKeywordIsRejectedRatherThanGuessed)
 	// Prefixes and suffixes of real keys must not match either - lower_bound makes that a real risk.
 	EXPECT_EQ(oracool::FindSetStat("stren"), nullptr);
 	EXPECT_EQ(oracool::FindSetStat("strengthx"), nullptr);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 1 item sets: the generated content tables.
+//
+// Source/oracool/item_sets_data.inc is machine-written from the fifteen set-data.json files, so
+// these tests are not checking arithmetic - they are checking that the generator's OUTPUT still
+// describes the content it was given, and that the hand-written accessors around it agree with the
+// shape of that output.
+//
+// The spot-check values below were read off set-01's own set-data.json by hand. That is the point:
+// one item verified against the source by eye anchors the other ninety-three, which were produced
+// by the same code path.
+// ---------------------------------------------------------------------------------------------
+
+TEST(OracoolItemSets, SetRangesCoverEveryItemAndBonusExactlyOnce)
+{
+	int items = 0;
+	int bonuses = 0;
+	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		EXPECT_EQ(set.firstItem, items) << set.id << "'s items do not begin where the previous set's ended";
+		EXPECT_EQ(set.firstBonus, bonuses) << set.id << "'s bonuses do not begin where the previous set's ended";
+		EXPECT_GT(set.itemCount, 0) << set.id << " has no items";
+		EXPECT_GT(set.bonusCount, 0) << set.id << " has no bonus ladder";
+		items += set.itemCount;
+		bonuses += set.bonusCount;
+	}
+	// Contiguous AND complete: a gap would silently orphan items, an overlap would double-count them.
+	EXPECT_EQ(items, static_cast<int>(oracool::ItemSetItemCount));
+	EXPECT_EQ(bonuses, static_cast<int>(oracool::ItemSetBonusCount));
+}
+
+TEST(OracoolItemSets, ItemIdsAreUniqueAndResolveToTheirOwnSet)
+{
+	for (size_t i = 0; i < oracool::ItemSetItemCount; i++) {
+		const oracool::SetItemDefinition &item = oracool::ItemSetItems[i];
+		EXPECT_EQ(oracool::FindSetItem(item.id), &item) << item.id << " resolves to a different row - duplicate id?";
+		const oracool::ItemSetDefinition *owner = oracool::FindItemSetOwning(item.id);
+		ASSERT_NE(owner, nullptr) << item.id << " belongs to no set";
+		const auto index = static_cast<int>(i);
+		EXPECT_GE(index, owner->firstItem);
+		EXPECT_LT(index, owner->firstItem + owner->itemCount);
+	}
+	EXPECT_EQ(oracool::FindSetItem("SET_NO_SUCH_THING"), nullptr);
+	EXPECT_EQ(oracool::FindItemSetOwning("SET_NO_SUCH_THING"), nullptr);
+}
+
+// Read off set-01-vestments-of-the-ashen-saint/set-data.json by hand. Every number here is one the
+// generator had to transform, not copy: the percentage that became a speed TIER, the negative that
+// became a positive because IPL_GETHIT subtracts, and the stat that vanished because it is inert.
+TEST(OracoolItemSets, GeneratedValuesMatchTheDeliveredJson)
+{
+	const oracool::SetItemDefinition *helm = oracool::FindSetItem("SET_ASHEN_HELM");
+	ASSERT_NE(helm, nullptr);
+	EXPECT_EQ(helm->requiredLevel, 18);
+	EXPECT_EQ(helm->requiredStrength, 30);
+	EXPECT_EQ(helm->grid.width, 2);
+	EXPECT_EQ(helm->grid.height, 2);
+	EXPECT_EQ(helm->armorMin, 12);
+	EXPECT_EQ(helm->armorMax, 16);
+	EXPECT_EQ(helm->powers[0].type, IPL_VIT);
+	EXPECT_EQ(helm->powers[0].param1, 8);
+	// thorns:[1,3] - a RANGE, so the two parameters differ where every scalar stat repeats itself.
+	EXPECT_EQ(helm->powers[2].type, IPL_THORNS);
+	EXPECT_EQ(helm->powers[2].param1, 1);
+	EXPECT_EQ(helm->powers[2].param2, 3);
+	// light_radius:-1 keeps its sign.
+	EXPECT_EQ(helm->powers[3].type, IPL_LIGHT);
+	EXPECT_EQ(helm->powers[3].param1, -1);
+
+	const oracool::SetItemDefinition *armor = oracool::FindSetItem("SET_ASHEN_ARMOR");
+	ASSERT_NE(armor, nullptr);
+	// enhanced_armor is IPL_TARGAC (-> _iPLEnAc), NOT IPL_ACP (-> _iPLAC). Getting this pair the
+	// wrong way round would apply the bonus to the wrong field and nothing would look broken.
+	EXPECT_EQ(armor->powers[0].type, IPL_TARGAC);
+	EXPECT_EQ(armor->powers[0].param1, 20);
+	// damage_taken_flat:-1 arrives POSITIVE: SaveItemPower does `_iPLGetHit -= r`.
+	EXPECT_EQ(armor->powers[3].type, IPL_GETHIT);
+	EXPECT_EQ(armor->powers[3].param1, 1);
+
+	// attack_speed:+10% is a TIER, not ten of anything.
+	const oracool::SetItemDefinition *gloves = oracool::FindSetItem("SET_ASHEN_GLOVES");
+	ASSERT_NE(gloves, nullptr);
+	EXPECT_EQ(gloves->powers[2].type, IPL_FASTATTACK);
+	EXPECT_EQ(gloves->powers[2].param1, 1);
+
+	// The belt declares four stats and carries three - potion_healing has no channel and is gone
+	// rather than approximated.
+	const oracool::SetItemDefinition *belt = oracool::FindSetItem("SET_ASHEN_BELT");
+	ASSERT_NE(belt, nullptr);
+	EXPECT_EQ(oracool::CountLivePowers(belt->powers, 6), 3);
+}
+
+// The bonus ladder replaces rather than stacks, and a rung can be entirely inert.
+TEST(OracoolItemSets, BonusLadderPicksTheHighestRungReached)
+{
+	const oracool::ItemSetDefinition *ashen = oracool::FindItemSetOwning("SET_ASHEN_HELM");
+	ASSERT_NE(ashen, nullptr);
+
+	EXPECT_EQ(oracool::ActiveSetBonus(*ashen, 1), nullptr) << "one piece is not a set";
+	const oracool::SetBonusDefinition *two = oracool::ActiveSetBonus(*ashen, 2);
+	ASSERT_NE(two, nullptr);
+	EXPECT_EQ(two->pieces, 2);
+	EXPECT_EQ(oracool::ActiveSetBonus(*ashen, 5)->pieces, 5);
+	// More pieces than the ladder has rungs still resolves to the top rung rather than to nothing.
+	EXPECT_EQ(oracool::ActiveSetBonus(*ashen, 99)->pieces, 6);
+
+	// "Cinderbrand", the four-piece, is a single proc: - named, earned, and inert. This is the
+	// inert-row rule reaching the player, and it is deliberate.
+	const oracool::SetBonusDefinition *four = oracool::ActiveSetBonus(*ashen, 4);
+	ASSERT_NE(four, nullptr);
+	EXPECT_EQ(oracool::CountLivePowers(four->powers, 4), 0)
+	    << "Cinderbrand gained a working stat - if that is deliberate, update this test";
+	EXPECT_NE(four->name, nullptr) << "an inert rung must still be named";
+}
+
+// Every power the generator emitted has to be one SaveItemPower will actually act on. An
+// IPL_INVALID in a leading slot would mean a stat was dropped silently mid-list.
+TEST(OracoolItemSets, PowerListsAreDenseAndValid)
+{
+	for (const oracool::SetItemDefinition &item : oracool::ItemSetItems) {
+		bool seenEmpty = false;
+		for (const ItemPower &power : item.powers) {
+			if (power.type == IPL_INVALID) {
+				seenEmpty = true;
+				continue;
+			}
+			EXPECT_FALSE(seenEmpty) << item.id << " has a live power after an empty slot";
+		}
+		EXPECT_GT(oracool::CountLivePowers(item.powers, 6), 0)
+		    << item.id << " carries no working stat at all - it would be a plain base item";
+	}
 }
