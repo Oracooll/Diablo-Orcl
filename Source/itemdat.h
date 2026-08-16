@@ -242,7 +242,15 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	IDI_ORACOOL_SPECTRAL_ARMOR,
 	IDI_ORACOOL_SPECTRAL_SHIELD,
 	IDI_ORACOOL_SPECTRAL_HELM,
-	IDI_LAST = IDI_ORACOOL_SPECTRAL_HELM,
+	// Megaplan Phase 1: the five socketable gems. Appended so no existing index moves (positional,
+	// stored by every save); excluded from the droppable-item pool for the same save-format reason
+	// as the product lines (see GetItemIndexForDroppableItem) and dropped via their own hook.
+	IDI_ORACOOL_GEM_RUBY,
+	IDI_ORACOOL_GEM_SAPPHIRE,
+	IDI_ORACOOL_GEM_TOPAZ,
+	IDI_ORACOOL_GEM_EMERALD,
+	IDI_ORACOOL_GEM_SKULL,
+	IDI_LAST = IDI_ORACOOL_GEM_SKULL,
 	IDI_NONE = -1,
 };
 
@@ -263,6 +271,13 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 constexpr bool IsOracoolItemIdx(int i)
 {
 	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_ORACOOL_SPECTRAL_HELM;
+}
+
+/** @brief Phase 1: whether @p i is a socketable gem. Same pool-exclusion contract as the range
+ * above - a gem never joins the seeded recreation pool. */
+constexpr bool IsOracoolGemIdx(int i)
+{
+	return i >= IDI_ORACOOL_GEM_RUBY && i <= IDI_ORACOOL_GEM_SKULL;
 }
 
 enum item_drop_rate : uint8_t {

@@ -1,6 +1,7 @@
 #include "oracool/stat_sheet.h"
 
 #include "items.h"
+#include "oracool/gems.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/math.h"
@@ -93,13 +94,32 @@ void ApplyRage(const BonusContext &ctx, ItemBonusTotals &totals)
 }
 
 /**
+ * @brief Source 3 (Phase 1): gems sitting in the sockets of WORN equipment. Host-dependent - the
+ * same Ruby is fire damage in a sword and fire resist in a helm - which is why the walk is per
+ * worn item, not per gem.
+ */
+void ApplySockets(const BonusContext &ctx, ItemBonusTotals &totals)
+{
+	for (const Item &item : ctx.owner->InvBody) {
+		if (item.isEmpty() || !item._iStatFlag || item._iSocketCount == 0)
+			continue;
+		const SocketHost host = SocketHostForItemType(item._itype);
+		for (const uint16_t gemIdx : item._iSocketed) {
+			if (gemIdx != Item::EmptySocket)
+				ApplyGemToTotals(gemIdx, host, totals);
+		}
+	}
+}
+
+/**
  * @brief The provider table. Append here to add a bonus source; order is irrelevant because
- * every contribution commutes. Phase 1 adds sockets/charms rows; the set-bonus system adds a row
- * whose isActive counts worn pieces.
+ * every contribution commutes. Charms join in a later Phase 1 unit; the set-bonus system adds a
+ * row whose isActive counts worn pieces.
  */
 constexpr BonusProvider Providers[] = {
 	{ "equipment", nullptr, ApplyEquipment },
 	{ "rage", RageIsRelevant, ApplyRage },
+	{ "sockets", nullptr, ApplySockets },
 };
 
 } // namespace

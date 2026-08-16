@@ -40,6 +40,7 @@
 #include "oracool/class_skills.h"
 #include "oracool/event_log.h"
 #include "oracool/gradual_healing.h"
+#include "oracool/gems.h"
 #include "oracool/oracool.h"
 #include "oracool/stat_sheet.h"
 #include "panels/info_box.hpp"
@@ -1576,6 +1577,9 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		// put them here and pack_test watched a Jade Great Helm come back as Jade Leggings. Set
 		// items drop through their own hook instead - see TrySpawnOracoolSetItem.
 		if (IsOracoolItemIdx(i))
+			continue;
+		// Phase 1: gems obey the same pool-is-save-format rule and drop via TrySpawnOracoolGem.
+		if (IsOracoolGemIdx(i))
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
@@ -3945,6 +3949,9 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		mLevel -= 15;
 
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
+	// Phase 1: the socket roll, AFTER setup and outside the seed replay - see the function's
+	// comment for why it must never move inside SetupAllItems.
+	TryAddSocketsToDroppedItem(item);
 	LogNoteworthyItemDrop(item);
 
 	if (sendmsg)
@@ -4329,6 +4336,59 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
 	GetSuperItemSpace(position, ii);
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+}
+
+void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
+{
+	// Megaplan Phase 1: the gems' own drop path - a hook rather than a pool seat, for exactly the
+	// reason TrySpawnOracoolSetItem's comment records: the droppable pool is save format.
+	if (!oracool::IsSinglePlayer())
+		return;
+
+	// Rarer than set pieces: a gem is permanent power the moment it lands in a socket, and the
+	// telemetry (Phase 0.9) exists to tune this number against real sessions.
+	constexpr int GemDropPercent = 3;
+	if (GenerateRnd(100) >= GemDropPercent)
+		return;
+
+	const int mlvl = monster.level(sgGameInitInfo.nDifficulty);
+	_item_indexes candidates[8];
+	int candidateCount = 0;
+	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_GEM_RUBY; i <= IDI_ORACOOL_GEM_SKULL; i++) {
+		if (AllItemsList[i].iMinMLvl <= mlvl)
+			candidates[candidateCount++] = static_cast<_item_indexes>(i);
+	}
+	if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
+		return;
+	const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
+
+	const int ii = AllocateItem();
+	Item &gem = Items[ii];
+	InitializeItem(gem, idx);
+	GenerateNewSeed(gem);
+	gem._iIdentified = true; // a gem has no rolls to hide
+	Point position = monster.position.tile;
+	GetSuperItemSpace(position, ii);
+	if (sendmsg)
+		NetSendCmdPItem(false, CMD_SPAWNITEM, gem.position, gem);
+}
+
+void TryAddSocketsToDroppedItem(Item &item)
+{
+	// Megaplan Phase 1: sockets roll ONLY here, on the drop paths, AFTER SetupAllItems - never
+	// inside it. SetupAllItems is replayed from stored seeds when items are recreated, and a roll
+	// added inside that replay would shift every seeded stream (the drop-pool lesson, again). The
+	// full-record save paths (heroitems, stash, per-level items) carry the socket fields verbatim,
+	// so nothing needs the roll to be reproducible.
+	if (!oracool::IsSinglePlayer() || !oracool::CanItemHaveSockets(item))
+		return;
+
+	// A quarter of plain equipment is socketed: common enough that "basic item" stays worth a
+	// look forever, rare enough that a 3-socket roll (1 in 40 drops) still lands as an event.
+	if (GenerateRnd(100) >= 25)
+		return;
+	const int roll = GenerateRnd(100);
+	item._iSocketCount = roll < 60 ? 1 : (roll < 90 ? 2 : 3);
 }
 
 void GetItemStr(Item &item)
@@ -4831,6 +4891,16 @@ void PrintItemDetails(const Item &item)
 	// panel instead (user request, 2026-08-16 - "just below their name and above the dmg stats").
 	if (item.hasOracoolTier() || item._iMagical == ITEM_QUALITY_UNIQUE) {
 		AddItemPowerPanelStrings(item);
+	}
+	// Phase 1 sockets: the socket line and one line per set gem, each in the gem economy's own
+	// voice. The empty-socket count is the item's pitch - "Sockets: 1/3" is an invitation.
+	if (item._iSocketCount > 0) {
+		AddPanelString(fmt::format(fmt::runtime(_("Sockets: {:d}/{:d}")), item.socketedCount(), item._iSocketCount), ItemBaseStatColor);
+		const oracool::SocketHost host = oracool::SocketHostForItemType(item._itype);
+		for (const uint16_t gemIdx : item._iSocketed) {
+			if (gemIdx != Item::EmptySocket)
+				AddPanelString(oracool::GemSocketLine(gemIdx, host), ItemAffixColor);
+		}
 	}
 	PrintItemInfo(item);
 }

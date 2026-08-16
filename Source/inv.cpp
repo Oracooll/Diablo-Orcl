@@ -30,6 +30,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
+#include "oracool/gems.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/telemetry.h"
 #include "oracool/ornate_border.h"
@@ -655,6 +656,23 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 			return;
 	} else if (desiredIl != il) {
 		return;
+	}
+
+	// Oracool Phase 1: a gem dropped onto a single socketed backpack item goes INTO the item
+	// instead of swapping with it - the entire insertion UI, riding the paste path's own target
+	// resolution. Backpack-hosted only, deliberately: a paste onto an EQUIPPED slot already
+	// returned above on the location mismatch, so socketing worn gear means carrying it first -
+	// a beat of friction that makes the decision feel like smithing rather than a hover-swap.
+	if (il == ILOC_UNEQUIPABLE && it > 0 && player.HoldItem._itype != ItemType::Gold) {
+		Item &socketTarget = GetActiveInvListItem(player, it - 1);
+		if (oracool::TrySocketGem(socketTarget, player.HoldItem)) {
+			if (&player == MyPlayer)
+				PlaySFX(IS_IGRAB);
+			player.HoldItem.clear();
+			NewCursor(CURSOR_HAND);
+			CalcPlrInv(player, true);
+			return;
+		}
 	}
 
 	if (IsNoneOf(il, ILOC_UNEQUIPABLE, ILOC_BELT) && !player.CanUseItem(player.HoldItem)) {

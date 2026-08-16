@@ -581,6 +581,42 @@ struct Item {
 	 */
 	bool _iOracoolBroken = false;
 
+	/** @brief Megaplan Phase 1: sockets. The cap is 3 - D1 items are smaller than D2's and the
+	 * economy tighter; three is enough for every planned runeword. */
+	static constexpr int MaxItemSockets = 3;
+	/** @brief The sentinel in _iSocketed for an empty socket (no _item_indexes uses it). */
+	static constexpr uint16_t EmptySocket = 0xFFFF;
+	/**
+	 * @brief Phase 1 sockets: how many sockets this item was born with (rolled only on
+	 * NORMAL-quality tierless equipment - which is what makes plain "basic items" the raw
+	 * material of the socket economy, exactly as in Diablo II), and what sits in each.
+	 *
+	 * A socketed gem or rune is identified by its base-item index alone (_item_indexes as
+	 * uint16_t): gems are fixed-effect, non-magical items, so the index fully describes one.
+	 * Persisted in the fixed item extension record (loadsave.cpp, OracoolItemFormatVersion 3);
+	 * like the tier data, this survives via the full-record heroitems/stash paths, not the
+	 * seed-replay ItemPack.
+	 */
+	uint8_t _iSocketCount = 0;
+	uint16_t _iSocketed[MaxItemSockets] = { EmptySocket, EmptySocket, EmptySocket };
+
+	/** @brief Filled-socket count, derived. */
+	[[nodiscard]] int socketedCount() const
+	{
+		int filled = 0;
+		for (const uint16_t idx : _iSocketed) {
+			if (idx != EmptySocket)
+				filled++;
+		}
+		return filled;
+	}
+
+	/** @brief Whether this item has at least one empty socket. */
+	[[nodiscard]] bool hasOpenSocket() const
+	{
+		return _iSocketCount > 0 && socketedCount() < _iSocketCount;
+	}
+
 	/**
 	 * @brief Whether this item genuinely carries an Oracool tier (Rare/Buffed Unique/Primal).
 	 *
@@ -805,6 +841,11 @@ constexpr int8_t ShieldDropAnimIndex = 7;
 void GetItemStr(Item &item);
 /** @brief Oracool: the set items' own drop hook - see items.cpp. Called from SpawnLoot after the vanilla rolls. */
 void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg);
+/** @brief Phase 1: the gems' own drop hook, same pool-exclusion reasoning. Called from SpawnLoot. */
+void TrySpawnOracoolGem(const Monster &monster, bool sendmsg);
+/** @brief Phase 1: rolls sockets onto a freshly dropped item - only plain NORMAL-quality
+ * equipment, only on the drop paths, never inside the seed-replayed SetupAllItems. */
+void TryAddSocketsToDroppedItem(Item &item);
 /**
  * @brief tabIdx selects an Oracool Tabbed Inventory extra tab (0-8) instead of the vanilla
  * InvBody/InvList encoding cii would otherwise resolve through - pass -1 (the default) for the

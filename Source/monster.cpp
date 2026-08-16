@@ -1053,6 +1053,8 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		// stream above stays byte-identical - see TrySpawnOracoolSetItem for why they cannot ride
 		// the ordinary pool.
 		TrySpawnOracoolSetItem(monster, sendmsg);
+		// Phase 1: and the gems' roll, same placement for the same stream-safety reason.
+		TrySpawnOracoolGem(monster, sendmsg);
 	}
 }
 

@@ -25,12 +25,14 @@
 #include "multi.h"
 #include "oracool/class_skills.h"
 #include "oracool/gradual_healing.h"
+#include "oracool/gems.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
 #include "oracool/sprite_scale.h"
+#include "oracool/stat_sheet.h"
 #include "oracool/telemetry.h"
 #include "player.h"
 #include "playerdat.hpp"
@@ -665,4 +667,69 @@ TEST(OracoolTelemetry, CsvFieldEscaping)
 	EXPECT_EQ(oracool::TelemetryEscapeCsvField("Sword, Rare"), "\"Sword, Rare\"");
 	EXPECT_EQ(oracool::TelemetryEscapeCsvField("The \"Butcher\""), "\"The \"\"Butcher\"\"\"");
 	EXPECT_EQ(oracool::TelemetryEscapeCsvField(""), "");
+}
+
+// Megaplan Phase 1: gems and sockets. These pin the three rules the system stands on: sockets
+// only on plain equipment, host-dependent gem effects, and insertion filling in order.
+TEST(OracoolGems, SocketsOnlyOnPlainEquipment)
+{
+	devilution::Item sword {};
+	sword._itype = ItemType::Sword;
+	sword._iMagical = ITEM_QUALITY_NORMAL;
+	EXPECT_TRUE(oracool::CanItemHaveSockets(sword));
+
+	sword._iMagical = ITEM_QUALITY_MAGIC;
+	EXPECT_FALSE(oracool::CanItemHaveSockets(sword)) << "a magic item took sockets";
+
+	sword._iMagical = ITEM_QUALITY_NORMAL;
+	sword._iOracoolTier = OracoolItemTier::Rare;
+	EXPECT_FALSE(oracool::CanItemHaveSockets(sword)) << "a tiered item took sockets";
+
+	devilution::Item potion {};
+	potion._itype = ItemType::Misc;
+	potion._iMagical = ITEM_QUALITY_NORMAL;
+	EXPECT_FALSE(oracool::CanItemHaveSockets(potion)) << "a misc item took sockets";
+}
+
+TEST(OracoolGems, RubyIsFireDamageInWeaponsAndFireResistInArmor)
+{
+	oracool::ItemBonusTotals weaponTotals;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY, oracool::SocketHost::Weapon, weaponTotals);
+	EXPECT_GT(weaponTotals.fireMax, 0);
+	EXPECT_EQ(weaponTotals.fireResist, 0);
+
+	oracool::ItemBonusTotals armorTotals;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY, oracool::SocketHost::Armor, armorTotals);
+	EXPECT_EQ(armorTotals.fireMax, 0);
+	EXPECT_GT(armorTotals.fireResist, 0);
+
+	oracool::ItemBonusTotals shieldTotals;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY, oracool::SocketHost::Shield, shieldTotals);
+	EXPECT_GT(shieldTotals.fireResist, armorTotals.fireResist) << "the shield roll should be the bigger one";
+}
+
+TEST(OracoolGems, InsertionFillsInOrderAndStopsWhenFull)
+{
+	devilution::Item host {};
+	host._itype = ItemType::Helm;
+	host._iMagical = ITEM_QUALITY_NORMAL;
+	host._iSocketCount = 2;
+
+	devilution::Item ruby {};
+	ruby._itype = ItemType::Misc;
+	ruby.IDidx = IDI_ORACOOL_GEM_RUBY;
+
+	EXPECT_TRUE(oracool::TrySocketGem(host, ruby));
+	EXPECT_EQ(host._iSocketed[0], static_cast<uint16_t>(IDI_ORACOOL_GEM_RUBY));
+	EXPECT_TRUE(oracool::TrySocketGem(host, ruby));
+	EXPECT_EQ(host.socketedCount(), 2);
+	EXPECT_FALSE(oracool::TrySocketGem(host, ruby)) << "a full item accepted a third gem";
+
+	devilution::Item sword {};
+	sword._itype = ItemType::Sword;
+	sword.IDidx = IDI_SORCERER;
+	devilution::Item target {};
+	target._itype = ItemType::Helm;
+	target._iSocketCount = 1;
+	EXPECT_FALSE(oracool::TrySocketGem(target, sword)) << "a non-gem was socketed";
 }

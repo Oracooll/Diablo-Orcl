@@ -265,7 +265,8 @@ struct LevelConversionData {
  * reading an old, shorter record here would silently misalign every subsequent field instead
  * of failing loudly.
  */
-constexpr uint8_t OracoolItemFormatVersion = 2;
+// Version 3 (Megaplan Phase 1): the socket fields joined the record - see SaveItem/LoadItemData.
+constexpr uint8_t OracoolItemFormatVersion = 3;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
@@ -383,6 +384,12 @@ void LoadItemData(LoadHelper &file, Item &item)
 		affix.param1 = file.NextLE<int32_t>();
 		affix.param2 = file.NextLE<int32_t>();
 	}
+
+	// Megaplan Phase 1 sockets (OracoolItemFormatVersion 3+): count plus one gem/rune base-item
+	// index per slot, EmptySocket for a hole. Clamped on read like every other extension field.
+	item._iSocketCount = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxItemSockets);
+	for (uint16_t &socket : item._iSocketed)
+		socket = file.NextLE<uint16_t>();
 }
 
 void LoadAndValidateItemData(LoadHelper &file, Item &item)
@@ -1238,6 +1245,11 @@ void SaveItem(SaveHelper &file, const Item &item)
 		file.WriteLE<int32_t>(affix.param1);
 		file.WriteLE<int32_t>(affix.param2);
 	}
+
+	// Megaplan Phase 1 sockets - see the matching read in LoadItemData.
+	file.WriteLE<uint8_t>(item._iSocketCount);
+	for (const uint16_t socket : item._iSocketed)
+		file.WriteLE<uint16_t>(socket);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2081,11 +2093,12 @@ void LoadLevel(LevelConversionData *levelConversionData)
 	}
 }
 
-// +58 bytes vs the vanilla-compatible base size, for the Oracool tier/affix data folded
-// directly into SaveItem/LoadItemData's fixed-size item record (v0.2.0+): 4 header bytes
-// (tier, perfect-roll flag, prefix count, suffix count) plus 3 prefixes + 3 suffixes at
-// 9 bytes each (1-byte affix type + two int32_t params).
-constexpr int OracoolItemExtensionSaveSize = 5 + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4);
+// The Oracool extension folded into SaveItem/LoadItemData's fixed-size item record: 5 header
+// bytes (tier, perfect-roll, broken, prefix count, suffix count), 3 prefixes + 3 suffixes at
+// 9 bytes each, and - since OracoolItemFormatVersion 3 (Megaplan Phase 1) - the socket block:
+// 1 count byte + MaxItemSockets uint16 gem indices.
+constexpr int OracoolItemExtensionSaveSize = 5 + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4)
+    + 1 + Item::MaxItemSockets * 2;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 
@@ -2449,7 +2462,10 @@ void LoadHeroItems(Player &player)
 // reasoning as the bump before it - the cell count per page changed, so a version 2 stash is
 // rejected rather than read at the wrong stride. Existing stashes are lost, which is the known cost
 // of that call.
-constexpr uint8_t StashVersion = 3;
+// Version 4 (Megaplan Phase 1): bumped ALONGSIDE OracoolItemFormatVersion 3 (the socket fields),
+// per the lesson recorded above - every item embedded in the stash file is subject to the item
+// record's layout, so the two versions must move together. Existing stashes are lost; known cost.
+constexpr uint8_t StashVersion = 4;
 
 void LoadStash()
 {
