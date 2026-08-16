@@ -35,6 +35,7 @@
 #include "oracool/gems.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
+#include "oracool/monster_difficulty.h"
 #include "oracool/monster_scale.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
@@ -113,6 +114,77 @@ TEST(OracoolAudit, DisplayNameIsAffixPlusGeneratedName)
 	const std::string expected = std::string(_(oracool::GetLesserUniqueAffixName(LesserUniqueAffix::Thunderous)))
 	    + " " + oracool::GetLesserUniqueName(monster);
 	EXPECT_EQ(display, expected);
+}
+
+// Phase 3.3. UniqueMonsterData has ONE resistance column where MonsterData has two, so a champion
+// used to keep its Normal-difficulty set forever while the rank and file it leads switched to the
+// hard set on Hell - champions got relatively SOFTER as the difficulty rose.
+//
+// The invariant, and the reason the fix is a union rather than a second authored column: a champion
+// is never less resistant than an ordinary monster of its own type, on any difficulty, and it never
+// loses a bit it was hand-authored with.
+TEST(OracoolAudit, AChampionIsNeverSofterThanItsOwnRankAndFile)
+{
+	// Every combination of the seven meaningful bits in BOTH columns, rather than a walk over
+	// MonstersData - which is not exported to the test binary, and which in any case only contains
+	// the pairings the game happens to ship. This covers pairings it does not.
+	constexpr uint8_t Bits[] = { RESIST_MAGIC, RESIST_FIRE, RESIST_LIGHTNING,
+		IMMUNE_MAGIC, IMMUNE_FIRE, IMMUNE_LIGHTNING, IMMUNE_ACID };
+	constexpr int Combos = 1 << 7;
+
+	for (int normalMask = 0; normalMask < Combos; normalMask++) {
+		for (int hellMask = 0; hellMask < Combos; hellMask++) {
+			MonsterData data {};
+			for (int b = 0; b < 7; b++) {
+				if ((normalMask & (1 << b)) != 0)
+					data.resistance |= Bits[b];
+				if ((hellMask & (1 << b)) != 0)
+					data.resistanceHell |= Bits[b];
+			}
+
+			for (const _difficulty difficulty : { DIFF_NORMAL, DIFF_NIGHTMARE, DIFF_HELL, DIFF_TORMENT }) {
+				const uint16_t ordinary = oracool::MonsterResistancesFor(data, difficulty);
+				// A champion whose own sheet grants nothing is the worst case, and exactly the one
+				// that used to come out weaker than the monsters standing beside it.
+				const uint16_t champion = oracool::ChampionResistancesFor(0, data, difficulty);
+				ASSERT_EQ(champion & ordinary, ordinary)
+				    << "champion lost a resistance the rank and file keep: normal=" << normalMask
+				    << " hell=" << hellMask << " difficulty=" << static_cast<int>(difficulty);
+
+				// And an authored bit survives whatever the type's ladder says.
+				const uint16_t authored = oracool::ChampionResistancesFor(IMMUNE_LIGHTNING, data, difficulty);
+				ASSERT_NE(authored & IMMUNE_LIGHTNING, 0) << "champion lost its own authored immunity";
+			}
+		}
+	}
+}
+
+// Nightmare used to be Normal with fatter monsters - the second resistance column only arrived at
+// Hell. It now gets Hell's set with the IMMUNITIES demoted to plain resistances, so the walls Hell
+// will put up start pushing back a difficulty early without anything becoming unkillable yet.
+TEST(OracoolAudit, NightmareDemotesHellImmunitiesToResistances)
+{
+	MonsterData data {};
+	data.resistance = 0;
+	data.resistanceHell = IMMUNE_FIRE | RESIST_MAGIC;
+
+	EXPECT_EQ(oracool::MonsterResistancesFor(data, DIFF_NORMAL), 0);
+
+	const uint16_t nightmare = oracool::MonsterResistancesFor(data, DIFF_NIGHTMARE);
+	EXPECT_EQ(nightmare & IMMUNE_FIRE, 0) << "an immunity arrived a whole difficulty early";
+	EXPECT_NE(nightmare & RESIST_FIRE, 0) << "the demoted immunity bought nothing";
+	EXPECT_NE(nightmare & RESIST_MAGIC, 0) << "a plain Hell resistance was dropped instead of demoted";
+
+	EXPECT_EQ(oracool::MonsterResistancesFor(data, DIFF_HELL), data.resistanceHell);
+	EXPECT_EQ(oracool::MonsterResistancesFor(data, DIFF_TORMENT), data.resistanceHell);
+
+	// Nightmare must never REMOVE something Normal already had: resistanceHell is authored as a
+	// replacement set, not a superset, so the ladder unions rather than overwrites.
+	MonsterData keeps {};
+	keeps.resistance = RESIST_LIGHTNING;
+	keeps.resistanceHell = IMMUNE_FIRE;
+	EXPECT_NE(oracool::MonsterResistancesFor(keeps, DIFF_NIGHTMARE) & RESIST_LIGHTNING, 0)
+	    << "a monster lost a Normal resistance by the difficulty going up";
 }
 
 // Phase 3.2. Two properties matter more than the size itself.

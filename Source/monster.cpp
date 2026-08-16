@@ -36,6 +36,7 @@
 #include "options.h"
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
+#include "oracool/monster_difficulty.h"
 #include "oracool/monster_scale.h"
 #include "oracool/telemetry.h"
 
@@ -170,7 +171,9 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 	monster.minDamageSpecial = monster.data().minDamageSpecial;
 	monster.maxDamageSpecial = monster.data().maxDamageSpecial;
 	monster.armorClass = monster.data().armorClass;
-	monster.resistance = monster.data().resistance;
+	// Phase 3.3: the whole difficulty ladder in one call, including Nightmare's new middle rung.
+	// The Hell and Torment blocks below used to re-assign this; they no longer need to.
+	monster.resistance = oracool::MonsterResistancesFor(monster.data(), sgGameInitInfo.nDifficulty);
 	monster.leader = Monster::NoLeader;
 	monster.leaderRelation = LeaderRelation::None;
 	monster.flags = monster.data().abilityFlags;
@@ -207,7 +210,6 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 		monster.minDamageSpecial = 4 * monster.minDamageSpecial + 6;
 		monster.maxDamageSpecial = 4 * monster.maxDamageSpecial + 6;
 		monster.armorClass += HellAcBonus;
-		monster.resistance = monster.data().resistanceHell;
 	} else if (sgGameInitInfo.nDifficulty == DIFF_TORMENT) {
 		const float multiplier = GetTormentDifficultyMultiplier();
 		monster.maxHitPoints = 4 * monster.maxHitPoints;
@@ -226,7 +228,6 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 		monster.minDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.minDamageSpecial + 6) * multiplier), 255));
 		monster.maxDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamageSpecial + 6) * multiplier), 255));
 		monster.armorClass = static_cast<uint8_t>(std::min(monster.armorClass + static_cast<int>(HellAcBonus * multiplier), 255));
-		monster.resistance = monster.data().resistanceHell;
 	}
 }
 
@@ -3308,7 +3309,12 @@ void PrepareUniqueMonst(Monster &monster, UniqueMonsterType monsterType, size_t 
 	monster.maxDamage = uniqueMonsterData.mMaxDamage;
 	monster.minDamageSpecial = uniqueMonsterData.mMinDamage;
 	monster.maxDamageSpecial = uniqueMonsterData.mMaxDamage;
-	monster.resistance = uniqueMonsterData.mMagicRes;
+	// Phase 3.3: UniqueMonsterData has only ONE resistance column where MonsterData has two, so this
+	// used to hand a champion its Normal-difficulty set on every difficulty - leaving it softer than
+	// the rank and file it leads once Hell switched THEM to the hard set. Unioned with its own
+	// type's ladder, so it keeps its authored identity and can never be the weaker of the two.
+	monster.resistance = oracool::ChampionResistancesFor(uniqueMonsterData.mMagicRes, monster.data(),
+	    sgGameInitInfo.nDifficulty);
 	monster.talkMsg = uniqueMonsterData.mtalkmsg;
 	if (monsterType == UniqueMonsterType::HorkDemon)
 		monster.lightId = NO_LIGHT;
