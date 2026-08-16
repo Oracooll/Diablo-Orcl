@@ -21,6 +21,7 @@
 #include "engine/points_in_rectangle_range.hpp"
 #include "engine/random.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/backbuffer_state.hpp"
 #include "engine/sound_position.hpp"
 #include "engine/world_tile.hpp"
 #include "init.h"
@@ -34,6 +35,7 @@
 #include "movie.h"
 #include "options.h"
 #include "oracool/event_log.h"
+#include "oracool/gems.h"
 #include "oracool/telemetry.h"
 
 #include "qol/floatingnumbers.h"
@@ -3883,6 +3885,29 @@ void M_StartHit(Monster &monster, const Player &player, int dam)
 	M_StartHit(monster, dam);
 }
 
+namespace {
+
+/**
+ * @brief Tir's D2 rule: mana restored on each kill, from runes socketed in worn equipment. Local
+ * player only (mirrors AddPlrMonstExper's locality) and honors the mana-steal path's NoMana guard.
+ */
+void GrantRuneKillMana(char pmask)
+{
+	if ((pmask & (1 << MyPlayerId)) == 0)
+		return;
+	Player &player = *MyPlayer;
+	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::NoMana))
+		return;
+	const int mana = oracool::RuneManaPerKill(player) << 6; // mana runs in <<6 fixed point
+	if (mana <= 0)
+		return;
+	player._pMana = std::min(player._pMana + mana, player._pMaxMana);
+	player._pManaBase = std::min(player._pManaBase + mana, player._pMaxManaBase);
+	RedrawComponent(PanelDrawComponent::Mana);
+}
+
+} // namespace
+
 void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 {
 	if (!monster.isPlayerMinion())
@@ -3896,8 +3921,10 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	if (monster.isUnique())
 		oracool::LogEvent(fmt::format("Defeated {:s}", oracool::GetMonsterDisplayName(monster)));
 	// Phase 0.9: one CSV row per real kill - minions grant no experience and tell no tuning story.
-	if (!monster.isPlayerMinion())
+	if (!monster.isPlayerMinion()) {
 		oracool::TelemetryRecordKill(monster);
+		GrantRuneKillMana(monster.whoHit);
+	}
 
 	SpawnLoot(monster, sendmsg);
 

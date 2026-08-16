@@ -242,6 +242,16 @@ const uint16_t InvItemWidth3[] = {
 	2 * 28, // spectral_armor
 	2 * 28, // spectral_shield
 	2 * 28, // spectral_helm
+	1 * 28, // gem_ruby
+	1 * 28, // gem_sapphire
+	1 * 28, // gem_topaz
+	1 * 28, // gem_emerald
+	1 * 28, // gem_skull
+	1 * 28, // rune_el
+	1 * 28, // rune_tir
+	1 * 28, // rune_ral
+	1 * 28, // rune_ort
+	1 * 28, // rune_sol
 };
 const uint16_t InvItemHeight3[] = {
 	2 * 28, // shoulders
@@ -387,6 +397,16 @@ const uint16_t InvItemHeight3[] = {
 	2 * 28, // spectral_armor
 	2 * 28, // spectral_shield
 	2 * 28, // spectral_helm
+	1 * 28, // gem_ruby
+	1 * 28, // gem_sapphire
+	1 * 28, // gem_topaz
+	1 * 28, // gem_emerald
+	1 * 28, // gem_skull
+	1 * 28, // rune_el
+	1 * 28, // rune_tir
+	1 * 28, // rune_ral
+	1 * 28, // rune_ort
+	1 * 28, // rune_sol
 };
 constexpr uint16_t InvItems3Size = sizeof(InvItemWidth3) / sizeof(InvItemWidth3[0]);
 static_assert(sizeof(InvItemHeight3) / sizeof(InvItemHeight3[0]) == InvItems3Size,

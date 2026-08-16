@@ -738,6 +738,73 @@ TEST(OracoolGems, InsertionFillsInOrderAndStopsWhenFull)
 	EXPECT_FALSE(oracool::TrySocketGem(target, sword)) << "a non-gem was socketed";
 }
 
+// The runes carry Diablo II's own socket numbers (user directive 2026-08-16), with two documented
+// adaptations: El's +50 Attack Rating maps to +5% to-hit, Sol's min-only damage is +9 flat.
+TEST(OracoolGems, RunesCarryDiabloTwoNumbers)
+{
+	// Ral: adds 5-30 fire damage in weapons; Fire Resist +30% armor, +35% shield.
+	oracool::ItemBonusTotals ralWeapon;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_RAL, oracool::SocketHost::Weapon, ralWeapon);
+	EXPECT_EQ(ralWeapon.fireMin, 5);
+	EXPECT_EQ(ralWeapon.fireMax, 30);
+	oracool::ItemBonusTotals ralArmor;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_RAL, oracool::SocketHost::Armor, ralArmor);
+	EXPECT_EQ(ralArmor.fireResist, 30);
+	oracool::ItemBonusTotals ralShield;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_RAL, oracool::SocketHost::Shield, ralShield);
+	EXPECT_EQ(ralShield.fireResist, 35);
+
+	// Ort: adds 1-50 lightning damage in weapons; Lightning Resist +30% armor, +35% shield.
+	oracool::ItemBonusTotals ortWeapon;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_ORT, oracool::SocketHost::Weapon, ortWeapon);
+	EXPECT_EQ(ortWeapon.lightningMin, 1);
+	EXPECT_EQ(ortWeapon.lightningMax, 50);
+	oracool::ItemBonusTotals ortShield;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_ORT, oracool::SocketHost::Shield, ortShield);
+	EXPECT_EQ(ortShield.lightningResist, 35);
+
+	// Sol: +9 damage in weapons; Damage Reduced by 7 in armor and shields (and never in weapons).
+	oracool::ItemBonusTotals solWeapon;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_SOL, oracool::SocketHost::Weapon, solWeapon);
+	EXPECT_EQ(solWeapon.damageMod, 9);
+	EXPECT_EQ(solWeapon.getHit, 0);
+	oracool::ItemBonusTotals solArmor;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_SOL, oracool::SocketHost::Armor, solArmor);
+	EXPECT_EQ(solArmor.getHit, -7) << "Damage Reduced by 7 rides the beneficial-negative getHit channel";
+
+	// El: +5% to-hit in weapons, +15 defense in armor and shields, +1 light radius everywhere.
+	oracool::ItemBonusTotals elWeapon;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_EL, oracool::SocketHost::Weapon, elWeapon);
+	EXPECT_EQ(elWeapon.bonusToHit, 5);
+	EXPECT_EQ(elWeapon.lightRadius, 1);
+	oracool::ItemBonusTotals elShield;
+	oracool::ApplyGemToTotals(IDI_ORACOOL_RUNE_EL, oracool::SocketHost::Shield, elShield);
+	EXPECT_EQ(elShield.bonusArmor, 15);
+	EXPECT_EQ(elShield.lightRadius, 1);
+}
+
+TEST(OracoolGems, TirGrantsManaPerKillFromWornSockets)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	for (devilution::Item &worn : player.InvBody)
+		worn = {};
+	devilution::Item &sword = player.InvBody[INVLOC_HAND_LEFT];
+	sword._itype = ItemType::Sword;
+	sword._iStatFlag = true;
+	sword._iSocketCount = 2;
+	sword._iSocketed[0] = static_cast<uint16_t>(IDI_ORACOOL_RUNE_TIR);
+	sword._iSocketed[1] = static_cast<uint16_t>(IDI_ORACOOL_RUNE_TIR);
+	EXPECT_EQ(oracool::RuneManaPerKill(player), 4) << "two Tirs should stack to +4 mana per kill";
+
+	sword._iStatFlag = false;
+	EXPECT_EQ(oracool::RuneManaPerKill(player), 0) << "an unusable item's sockets should stay inert";
+
+	sword._iStatFlag = true;
+	sword._iSocketed[1] = static_cast<uint16_t>(IDI_ORACOOL_RUNE_EL);
+	EXPECT_EQ(oracool::RuneManaPerKill(player), 2) << "only Tir carries mana per kill";
+}
+
 // Phase 1 charms: the active cap IS the pouch. These pin the cap and the reading order.
 TEST(OracoolCharms, OnlyFirstCapCharmsAreActive)
 {

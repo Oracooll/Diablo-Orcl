@@ -23,6 +23,7 @@
 
 namespace devilution {
 struct Item;
+struct Player;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -57,5 +58,9 @@ std::string GemSocketLine(uint16_t gemIdx, SocketHost host);
  * and recalculates). False leaves both items untouched, and the paste proceeds as a normal swap.
  */
 bool TrySocketGem(Item &target, const Item &held);
+
+/** @brief Total mana restored to @p player on each kill by socketed runes (Tir's D2 rule: +2 per
+ * Tir). Summed over every usable worn item's filled sockets; consumed in MonsterDeath. */
+int RuneManaPerKill(const Player &player);
 
 } // namespace devilution::oracool

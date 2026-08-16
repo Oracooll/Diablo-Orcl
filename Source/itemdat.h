@@ -378,6 +378,12 @@ enum item_cursor_graphic : uint16_t {
 	ICURS_EAR_WARRIOR                 = 20,
 	ICURS_EAR_ROGUE                   = 21,
 	ICURS_BLOOD_STONE                 = 25,
+	// Oracool Phase 1: three unused vanilla icons (sheet frames 37-39), claimed for the gems -
+	// found by contact-sheeting the whole cursor sheet. A glossy red orb, a cut blue gem, and an
+	// amber crystal, all original Diablo art.
+	ICURS_ORACOOL_RED_ORB             = 26,
+	ICURS_ORACOOL_BLUE_GEM            = 27,
+	ICURS_ORACOOL_AMBER_CRYSTAL       = 28,
 	ICURS_OIL                         = 30,
 	ICURS_ELIXIR_OF_VITALITY          = 31,
 	ICURS_POTION_OF_HEALING           = 32,
@@ -635,7 +641,19 @@ enum item_cursor_graphic : uint16_t {
 	ICURS_ORACOOL_SPECTRAL_ARMOR              = 369,
 	ICURS_ORACOOL_SPECTRAL_SHIELD             = 370,
 	ICURS_ORACOOL_SPECTRAL_HELM               = 371,
-	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_SPECTRAL_HELM,
+	// The gem icons, cut from the user's own gem sheet (Oracool.MPQ\item-gems-v1.png).
+	ICURS_ORACOOL_GEM_RUBY                    = 372,
+	ICURS_ORACOOL_GEM_SAPPHIRE                = 373,
+	ICURS_ORACOOL_GEM_TOPAZ                   = 374,
+	ICURS_ORACOOL_GEM_EMERALD                 = 375,
+	ICURS_ORACOOL_GEM_SKULL                   = 376,
+	// The rune icons, cut from the user's 33-rune D2 sheet (Oracool.MPQ\item-runes-v1.png).
+	ICURS_ORACOOL_RUNE_EL                     = 377,
+	ICURS_ORACOOL_RUNE_TIR                    = 378,
+	ICURS_ORACOOL_RUNE_RAL                    = 379,
+	ICURS_ORACOOL_RUNE_ORT                    = 380,
+	ICURS_ORACOOL_RUNE_SOL                    = 381,
+	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_RUNE_SOL,
 	// clang-format on
 };
 

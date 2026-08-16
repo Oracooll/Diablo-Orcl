@@ -210,6 +210,20 @@ if exist "%SPECFILE%" del "%SPECFILE%"
   echo %ART%\item-set-ghostly-v1.png,0,748,467,374,56,56,spectral_armor,30,false,green
   echo %ART%\item-set-ghostly-v1.png,467,748,467,374,56,56,spectral_shield,30,false,green
   echo %ART%\item-set-ghostly-v1.png,467,0,467,374,56,56,spectral_helm,30,false,green
+  REM Gems: the user's 7x5 sheet, row 3 (the oval cuts). Columns: amethyst diamond emerald ruby sapphire topaz skull.
+  echo %ART%\item-gems-v1.png,843,602,281,293,28,28,gem_ruby,30,false,green
+  echo %ART%\item-gems-v1.png,1124,602,281,293,28,28,gem_sapphire,30,false,green
+  echo %ART%\item-gems-v1.png,1405,602,281,293,28,28,gem_topaz,30,false,green
+  REM The emerald is itself green, so the chroma key eats it. Its cell is pre-processed to a black
+  REM backdrop (item-gems-emerald-dark-v1.png) and cut with the dark-mode extractor instead.
+  echo %ART%\item-gems-emerald-dark-v1.png,0,0,281,293,28,28,gem_emerald,30,false
+  echo %ART%\item-gems-v1.png,1686,602,281,293,28,28,gem_skull,30,false,green
+  REM Runes: the user's 33-rune D2 sheet, 11 columns x 3 rows. We use five: El, Tir, Ral, Ort (row 1), Sol (row 2).
+  echo %ART%\item-runes-v1.png,38,230,106,140,28,28,rune_el,30,false,green
+  echo %ART%\item-runes-v1.png,296,230,105,140,28,28,rune_tir,30,false,green
+  echo %ART%\item-runes-v1.png,922,230,106,140,28,28,rune_ral,30,false,green
+  echo %ART%\item-runes-v1.png,1048,230,107,140,28,28,rune_ort,30,false,green
+  echo %ART%\item-runes-v1.png,36,441,107,140,28,28,rune_sol,30,false,green
 )
 
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1
