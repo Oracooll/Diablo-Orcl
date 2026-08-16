@@ -1,0 +1,629 @@
+#include "oracool/class_tree.h"
+
+#include <algorithm>
+#include <array>
+#include <cassert>
+
+#include <fmt/format.h>
+
+#include "engine/backbuffer_state.hpp"
+#include "oracool/event_log.h"
+#include "oracool/paladin_skills.h"
+#include "oracool/skill_points.h"
+#include "oracool/stat_sheet.h"
+#include "player.h"
+#include "utils/language.h"
+
+namespace devilution::oracool {
+
+namespace {
+
+using Skill = ClassTreeSkill;
+using Kind = ClassTreeKind;
+
+constexpr HeroClass Pal = HeroClass::Warrior; // Oracool displays the Warrior as "Paladin"
+constexpr HeroClass Bar = HeroClass::Barbarian;
+constexpr HeroClass Sor = HeroClass::Sorcerer;
+constexpr HeroClass Rog = HeroClass::Rogue;
+
+// Diablo II's own tier requirements. Six rows per page, and every skill sits on one of them.
+constexpr int TierLevels[] = { 1, 6, 12, 18, 24, 30 };
+
+/**
+ * @brief The four trees, in icon-strip order within each class.
+ *
+ * Descriptions state D2's effect first, then this engine's adaptation where the two differ. The
+ * `implemented` flag is the honest one: false means the row is listed and described but does
+ * nothing, which the UI shows rather than hides.
+ *
+ * Five Paladin actives carry SpellID::Invalid here and get their real slot from
+ * oracool/paladin_skills.h at call time - see ClassTreeSpellId for why that is not stored.
+ */
+const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
+	// ======================= PALADIN =======================
+	// --- Combat Skills ---
+	{ N_("Sacrifice"), N_("Strike for heavy bonus damage and wound yourself for a share of it. Not yet built."),
+	    Pal, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Smite"), N_("Bash with your shield: it always connects and briefly stuns. A shield is mandatory."),
+	    Pal, 0, 0, 1, Kind::Active, SpellID::Invalid, true },
+	{ N_("Holy Bolt"), N_("A bolt of holy energy that sears the undead. Points raise this engine's own Holy Bolt."),
+	    Pal, 0, 0, 2, Kind::Active, SpellID::HolyBolt, true },
+	{ N_("Zeal"), N_("Strike several times in one furious burst. Each invested pair of points adds a strike, up to five."),
+	    Pal, 0, 1, 0, Kind::Active, SpellID::Invalid, true },
+	{ N_("Charge"), N_("Rush an enemy and land a running blow."),
+	    Pal, 0, 1, 1, Kind::Active, SpellID::Invalid, true },
+	{ N_("Vengeance"), N_("Adds fire, lightning and cold damage to your attack. Not yet built; this engine also has no cold."),
+	    Pal, 0, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Blessed Hammer"), N_("Looses a spinning hammer that wheels outward through anything in its path."),
+	    Pal, 0, 3, 2, Kind::Active, SpellID::Invalid, true },
+	{ N_("Conversion"), N_("Turns an enemy to your side for a time. Not yet built: no charmed-monster state exists."),
+	    Pal, 0, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Fist of the Heavens"), N_("Calls down a bolt from the sky, which bursts into holy energy where it lands."),
+	    Pal, 0, 5, 2, Kind::Active, SpellID::Invalid, true },
+	// --- Offensive Auras ---
+	{ N_("Might"), N_("Increases the damage you deal."), Pal, 1, 0, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Holy Fire"), N_("Wreathes your weapon in flame, adding fire damage to every blow."),
+	    Pal, 1, 1, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Thorns"), N_("Returns damage to whatever strikes you. This engine's thorns is a flat return, so points light it rather than growing it."),
+	    Pal, 1, 1, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Blessed Aim"), N_("Steadies your hand, raising your chance to hit."),
+	    Pal, 1, 2, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Concentration"), N_("Raises damage and steadies you against interruption."),
+	    Pal, 1, 3, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Holy Freeze"), N_("Chills nearby enemies and adds cold damage. Inert: this engine has no cold and no slow."),
+	    Pal, 1, 3, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Holy Shock"), N_("Charges your weapon, adding lightning damage to every blow."),
+	    Pal, 1, 4, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Sanctuary"), N_("Harms and repels nearby undead. Inert: it needs the monster-facing pass."),
+	    Pal, 1, 4, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Fanaticism"), N_("Drives you to strike faster, harder and truer."),
+	    Pal, 1, 5, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Conviction"), N_("Strips nearby enemies of armour and resistance. Inert: it needs the monster-facing pass."),
+	    Pal, 1, 5, 2, Kind::Aura, SpellID::Invalid, false },
+	// --- Defensive Auras ---
+	{ N_("Prayer"), N_("Mends your wounds steadily as you walk."), Pal, 2, 0, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Resist Fire"), N_("Hardens you against fire."), Pal, 2, 0, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Defiance"), N_("Raises your armour class."), Pal, 2, 1, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Resist Cold"), N_("Hardens you against cold. No cold exists here, so it wards against magic instead."),
+	    Pal, 2, 1, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Cleansing"), N_("Shortens poison and curses. Inert: this engine tracks no duration for either."),
+	    Pal, 2, 2, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Resist Lightning"), N_("Hardens you against lightning."), Pal, 2, 2, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Vigor"), N_("Quickens your stride: you run instead of walking, wherever you are."),
+	    Pal, 2, 3, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Meditation"), N_("Restores your mana steadily as you walk."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Redemption"), N_("Consumes the fallen for life and mana. Inert: it needs the corpse-handling pass."),
+	    Pal, 2, 5, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Salvation"), N_("Wards you against fire, lightning and magic alike."),
+	    Pal, 2, 5, 2, Kind::Aura, SpellID::Invalid, true },
+
+	// ======================= BARBARIAN =======================
+	// --- Combat Skills ---
+	{ N_("Bash"), N_("A heavy blow that knocks the target back. Not yet built."), Bar, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Leap"), N_("Vault over anything in the way. Not yet built: it needs new movement work."), Bar, 0, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Double Swing"), N_("Strike with both weapons at once. Not yet built."), Bar, 0, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Stun"), N_("A blow that leaves the target reeling. Not yet built."), Bar, 0, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Double Throw"), N_("Hurl both thrown weapons at once. Inert: this engine has no thrown weapons."), Bar, 0, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Leap Attack"), N_("Leap onto a distant enemy and strike on landing. Not yet built."), Bar, 0, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Concentrate"), N_("A focused blow you cannot be jolted out of. Not yet built."), Bar, 0, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Frenzy"), N_("Each kill drives the next blow faster. Not yet built."), Bar, 0, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Whirlwind"), N_("Spin through a crowd striking everything. Not yet built: it needs new movement work."), Bar, 0, 5, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Berserk"), N_("Trade all defence for a devastating magical blow. Not yet built."), Bar, 0, 5, 1, Kind::Active, SpellID::Invalid, false },
+	// --- Combat Masteries ---
+	{ N_("Sword Mastery"), N_("Sharpens your aim and your blow with any sword held."), Bar, 1, 0, 0, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Axe Mastery"), N_("Sharpens your aim and your blow with any axe held."), Bar, 1, 0, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Mace Mastery"), N_("Sharpens your aim and your blow with any mace or club held."), Bar, 1, 0, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Pole Arm Mastery"), N_("Sharpens your aim and your blow with a staff - this engine's nearest pole arm."),
+	    Bar, 1, 1, 0, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Throwing Mastery"), N_("Mastery of thrown weapons. Inert: this engine has none."), Bar, 1, 1, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Spear Mastery"), N_("Mastery of spears. Inert: this engine has no spear type."), Bar, 1, 1, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Increased Stamina"), N_("Lengthens your wind. Inert: this engine tracks no stamina."), Bar, 1, 2, 0, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Iron Skin"), N_("Toughens your hide, raising armour class."), Bar, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Increased Speed"), N_("You run rather than walk, wherever you are."), Bar, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Natural Resistance"), N_("Hardens you against fire, lightning and magic alike."), Bar, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
+	// --- Warcries ---
+	{ N_("Howl"), N_("Sends nearby enemies fleeing. Inert: it needs the monster-facing pass."), Bar, 2, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Find Potion"), N_("Searches a corpse for a potion. Inert: it needs the corpse-handling pass."), Bar, 2, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Taunt"), N_("Goads an enemy into charging you. Inert: it needs the monster-facing pass."), Bar, 2, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Shout"), N_("A bellow that hardens you. Inert: buffs with a duration have no home here yet."), Bar, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Find Item"), N_("Searches a corpse for loot. Inert: it needs the corpse-handling pass."), Bar, 2, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Battle Cry"), N_("A cry that weakens what hears it. Inert: it needs the monster-facing pass."), Bar, 2, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Battle Orders"), N_("A shout that swells life and mana. Inert: buffs with a duration have no home here yet."), Bar, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Grim Ward"), N_("Raises a corpse as a totem of terror. Inert: it needs the corpse-handling pass."), Bar, 2, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("War Cry"), N_("A shout that stuns everything near. Inert: it needs the monster-facing pass."), Bar, 2, 5, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Battle Command"), N_("A command that deepens every other skill. Inert: buffs with a duration have no home here yet."), Bar, 2, 5, 1, Kind::Active, SpellID::Invalid, false },
+
+	// ======================= SORCERESS =======================
+	// --- Cold Spells: inert as a page. This engine has no cold damage channel and no chill, so
+	//     every one of these would have to be invented rather than adapted. Listed and described.
+	{ N_("Ice Bolt"), N_("A shard of ice that chills what it hits. Inert: this engine has no cold damage."), Sor, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Frozen Armor"), N_("Armour of ice that freezes attackers. Inert: no cold, no freeze."), Sor, 0, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Frost Nova"), N_("A ring of ice bursting outward. Inert: no cold damage."), Sor, 0, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ice Blast"), N_("A shard that freezes its target solid. Inert: no cold, no freeze."), Sor, 0, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Shiver Armor"), N_("Armour that answers blows with ice. Inert: no cold damage."), Sor, 0, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Glacial Spike"), N_("A spike that shatters into freezing shards. Inert: no cold damage."), Sor, 0, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Blizzard"), N_("Ice falls across a wide area. Inert: no cold damage."), Sor, 0, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Chilling Armor"), N_("Armour that answers ranged attacks in kind. Inert: no cold damage."), Sor, 0, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Frozen Orb"), N_("An orb that wanders, shedding ice. Inert: no cold damage."), Sor, 0, 5, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Cold Mastery"), N_("Pierces cold resistance. Inert: there is no cold to master."), Sor, 0, 5, 2, Kind::Passive, SpellID::Invalid, false },
+	// --- Lightning Spells: most of this page is a wiring job - the engine already has the spells.
+	{ N_("Charged Bolt"), N_("Looses a spray of erratic bolts. Points raise this engine's Charged Bolt."), Sor, 1, 0, 0, Kind::Active, SpellID::ChargedBolt, true },
+	{ N_("Static Field"), N_("Strips a share of the life from everything near. Inert: no analogue exists here."), Sor, 1, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Telekinesis"), N_("Works objects and gathers items at a distance. Points raise this engine's Telekinesis."), Sor, 1, 1, 1, Kind::Active, SpellID::Telekinesis, true },
+	{ N_("Nova"), N_("A ring of lightning bursting outward. Points raise this engine's Nova."), Sor, 1, 2, 0, Kind::Active, SpellID::Nova, true },
+	{ N_("Lightning"), N_("A bolt that strikes in a line. Points raise this engine's Lightning."), Sor, 1, 2, 1, Kind::Active, SpellID::Lightning, true },
+	{ N_("Chain Lightning"), N_("A bolt that leaps between enemies. Points raise this engine's Chain Lightning."), Sor, 1, 3, 0, Kind::Active, SpellID::ChainLightning, true },
+	{ N_("Teleport"), N_("Step instantly to a place you can see. Points raise this engine's Teleport."), Sor, 1, 3, 1, Kind::Active, SpellID::Teleport, true },
+	{ N_("Thunder Storm"), N_("A storm that strikes on its own as you fight. Inert: no analogue exists here."), Sor, 1, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Energy Shield"), N_("Mana takes the damage your life would. Points raise this engine's Mana Shield."), Sor, 1, 4, 1, Kind::Active, SpellID::ManaShield, true },
+	{ N_("Lightning Mastery"), N_("Deepens every lightning spell. Inert: there is no per-element channel here."), Sor, 1, 5, 2, Kind::Passive, SpellID::Invalid, false },
+	// --- Fire Spells ---
+	{ N_("Fire Bolt"), N_("A bolt of flame. Points raise this engine's Fire Bolt."), Sor, 2, 0, 0, Kind::Active, SpellID::Firebolt, true },
+	{ N_("Warmth"), N_("Your mana returns of its own accord."), Sor, 2, 0, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Inferno"), N_("A gout of flame from your hands. Points raise this engine's Inferno."), Sor, 2, 1, 0, Kind::Active, SpellID::Inferno, true },
+	{ N_("Blaze"), N_("Leaves fire in your wake. Mapped onto this engine's Flame Wave, the nearest rolling fire it has."), Sor, 2, 2, 0, Kind::Active, SpellID::FlameWave, true },
+	{ N_("Fire Ball"), N_("A bursting ball of flame. Points raise this engine's Fireball."), Sor, 2, 2, 1, Kind::Active, SpellID::Fireball, true },
+	{ N_("Fire Wall"), N_("A wall of flame across the ground. Points raise this engine's Fire Wall."), Sor, 2, 3, 0, Kind::Active, SpellID::FireWall, true },
+	{ N_("Enchant"), N_("Sets a weapon alight. Inert: no analogue exists here."), Sor, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Meteor"), N_("Calls a burning rock down from the sky. Inert: no analogue exists here."), Sor, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Fire Mastery"), N_("Deepens every fire spell. Inert: there is no per-element channel here."), Sor, 2, 5, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Hydra"), N_("Sets a fire-breathing head to guard a spot. Mapped onto this engine's Guardian, which is the same idea."), Sor, 2, 5, 0, Kind::Active, SpellID::Guardian, true },
+
+	// ======================= ROGUE =======================
+	// --- Bow & Crossbow: the bow skills all want missile work this engine has not been given yet.
+	{ N_("Magic Arrow"), N_("An arrow of pure force that costs no ammunition. Not yet built."), Rog, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Fire Arrow"), N_("An arrow wrapped in flame. Not yet built."), Rog, 0, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Cold Arrow"), N_("An arrow that chills. Inert: this engine has no cold damage."), Rog, 0, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Multiple Shot"), N_("Looses a fan of arrows at once. Not yet built."), Rog, 0, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Exploding Arrow"), N_("An arrow that bursts where it lands. Not yet built."), Rog, 0, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ice Arrow"), N_("An arrow that freezes its target. Inert: no cold, no freeze."), Rog, 0, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Guided Arrow"), N_("An arrow that hunts its target. Not yet built."), Rog, 0, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Strafe"), N_("Looses at every enemy in view in turn. Not yet built."), Rog, 0, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Immolation Arrow"), N_("An arrow that leaves a burning pool. Not yet built."), Rog, 0, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Freezing Arrow"), N_("An arrow that freezes everything near where it lands. Inert: no cold."), Rog, 0, 5, 0, Kind::Active, SpellID::Invalid, false },
+	// --- Passive & Magic ---
+	{ N_("Inner Sight"), N_("Lights nearby enemies and strips their defence. Inert: it needs the monster-facing pass."), Rog, 1, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Critical Strike"), N_("A chance to strike for double. This engine has no critical roll, so it raises your damage instead."),
+	    Rog, 1, 0, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Dodge"), N_("A chance to slip a blow while standing. Inert: no avoidance roll exists here."), Rog, 1, 1, 0, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Slow Missiles"), N_("Slows what is thrown at you. Inert: it needs the monster-facing pass."), Rog, 1, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Avoid"), N_("A chance to slip a missile. Inert: no avoidance roll exists here."), Rog, 1, 2, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Penetrate"), N_("Sharpens your aim with anything you wield."), Rog, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Decoy"), N_("A double of yourself to draw fire. Not yet built."), Rog, 1, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Evade"), N_("A chance to slip a blow while moving. Inert: no avoidance roll exists here."), Rog, 1, 4, 0, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Valkyrie"), N_("Calls a warrior to fight beside you. Mapped onto this engine's Golem, which is the same idea."),
+	    Rog, 1, 5, 0, Kind::Active, SpellID::Golem, true },
+	{ N_("Pierce"), N_("Your missiles carry on through. Not yet built."), Rog, 1, 5, 1, Kind::Passive, SpellID::Invalid, false },
+	// --- Javelin & Spear ---
+	{ N_("Jab"), N_("A rapid flurry of thrusts. Not yet built."), Rog, 2, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Power Strike"), N_("A thrust charged with lightning. Not yet built."), Rog, 2, 1, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Poison Javelin"), N_("A javelin trailing venom. Inert: this engine has no poison."), Rog, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Impale"), N_("A savage thrust that wears the weapon. Not yet built."), Rog, 2, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Charged Strike"), N_("A thrust that throws off charged bolts. Not yet built."), Rog, 2, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Lightning Bolt"), N_("Turns a thrown javelin into a bolt. Not yet built."), Rog, 2, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Plague Javelin"), N_("A javelin trailing a cloud of pestilence. Inert: this engine has no poison."), Rog, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Fend"), N_("Strikes every enemy around you in one motion. Not yet built."), Rog, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Lightning Strike"), N_("A thrust whose lightning leaps onward. Not yet built."), Rog, 2, 5, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Lightning Fury"), N_("A javelin that bursts into many bolts. Not yet built."), Rog, 2, 5, 1, Kind::Active, SpellID::Invalid, false },
+};
+
+/** @brief The first skill of @p heroClass's block, or None if the class has no tree. */
+Skill FirstSkillOf(HeroClass heroClass)
+{
+	switch (heroClass) {
+	case HeroClass::Warrior:
+		return Skill::PALADIN_FIRST;
+	case HeroClass::Barbarian:
+		return Skill::BARBARIAN_FIRST;
+	case HeroClass::Sorcerer:
+		return Skill::SORCERER_FIRST;
+	case HeroClass::Rogue:
+		return Skill::ROGUE_FIRST;
+	default:
+		return Skill::None;
+	}
+}
+
+/**
+ * @brief The shape every scaled effect uses: the first point buys @p base, each one after adds
+ * @p perPoint. Zero for nothing invested, which is what keeps an unpaid skill inert.
+ */
+int Scaled(int points, int base, int perPoint)
+{
+	if (points <= 0)
+		return 0;
+	return base + perPoint * (points - 1);
+}
+
+/** @brief Whether @p player is wielding @p type in either hand, for the Barbarian's masteries. */
+bool WieldingType(const Player &player, ItemType type)
+{
+	for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
+		if (!item.isEmpty() && item._iStatFlag && item._itype == type)
+			return true;
+	}
+	return false;
+}
+
+/** @brief Applies one paid-for passive. Auras go through ApplyAura below. */
+void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals &totals)
+{
+	switch (skill) {
+	// --- Barbarian masteries: only while the matching weapon is actually held, which is the
+	//     whole point of a mastery and the reason the provider has a condition hook.
+	case Skill::SwordMastery:
+		if (WieldingType(player, ItemType::Sword)) {
+			totals.bonusToHit += Scaled(points, 10, 5);
+			totals.bonusDamage += Scaled(points, 10, 6);
+		}
+		break;
+	case Skill::AxeMastery:
+		if (WieldingType(player, ItemType::Axe)) {
+			totals.bonusToHit += Scaled(points, 10, 5);
+			totals.bonusDamage += Scaled(points, 10, 6);
+		}
+		break;
+	case Skill::MaceMastery:
+		if (WieldingType(player, ItemType::Mace)) {
+			totals.bonusToHit += Scaled(points, 10, 5);
+			totals.bonusDamage += Scaled(points, 10, 6);
+		}
+		break;
+	case Skill::PoleArmMastery:
+		if (WieldingType(player, ItemType::Staff)) {
+			totals.bonusToHit += Scaled(points, 10, 5);
+			totals.bonusDamage += Scaled(points, 10, 6);
+		}
+		break;
+	case Skill::IronSkin:
+		totals.bonusArmor += Scaled(points, 20, 10);
+		break;
+	case Skill::NaturalResistance:
+		totals.fireResist += Scaled(points, 8, 3);
+		totals.lightningResist += Scaled(points, 8, 3);
+		totals.magicResist += Scaled(points, 8, 3);
+		break;
+	case Skill::CriticalStrike:
+		// D2 rolls a chance to double the blow; this engine has no critical roll, so the expected
+		// value is spent as flat damage instead - stated in the row's own description.
+		totals.bonusDamage += Scaled(points, 12, 6);
+		break;
+	case Skill::Penetrate:
+		totals.bonusToHit += Scaled(points, 12, 6);
+		break;
+	default:
+		// Increased Speed and Warmth act elsewhere (the walk animation and the per-tick hook);
+		// everything else on a passive row is inert and says so.
+		break;
+	}
+}
+
+/** @brief Applies the Paladin's burning aura. */
+void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
+{
+	switch (aura) {
+	case Skill::Might:
+		totals.bonusDamage += Scaled(p, 20, 10);
+		break;
+	case Skill::HolyFire:
+		totals.fireMin += Scaled(p, 2, 1);
+		totals.fireMax += Scaled(p, 6, 4);
+		break;
+	case Skill::Thorns:
+		totals.flags |= ItemSpecialEffect::Thorns;
+		break;
+	case Skill::BlessedAim:
+		totals.bonusToHit += Scaled(p, 15, 7);
+		break;
+	case Skill::Concentration:
+		totals.bonusDamage += Scaled(p, 15, 8);
+		totals.flags |= ItemSpecialEffect::FastestHitRecovery;
+		break;
+	case Skill::HolyShock:
+		totals.lightningMin += 1;
+		totals.lightningMax += Scaled(p, 10, 6);
+		break;
+	case Skill::Fanaticism:
+		totals.flags |= ItemSpecialEffect::FastAttack;
+		totals.bonusToHit += Scaled(p, 10, 5);
+		totals.bonusDamage += Scaled(p, 10, 5);
+		break;
+	case Skill::ResistFire:
+		totals.fireResist += Scaled(p, 15, 4);
+		break;
+	case Skill::Defiance:
+		totals.bonusArmor += Scaled(p, 25, 12);
+		break;
+	case Skill::ResistCold:
+		totals.magicResist += Scaled(p, 15, 4);
+		break;
+	case Skill::ResistLightning:
+		totals.lightningResist += Scaled(p, 15, 4);
+		break;
+	case Skill::Salvation:
+		totals.fireResist += Scaled(p, 10, 3);
+		totals.lightningResist += Scaled(p, 10, 3);
+		totals.magicResist += Scaled(p, 10, 3);
+		break;
+	default:
+		// Prayer, Meditation and Vigor act elsewhere; the rest are inert - see their rows.
+		break;
+	}
+}
+
+} // namespace
+
+const ClassTreeSkillData &GetClassTreeSkillData(Skill skill)
+{
+	const auto index = static_cast<size_t>(skill);
+	assert(index < ClassTreeSkillCount);
+	return Skills[index];
+}
+
+SpellID ClassTreeSpellId(Skill skill)
+{
+	// The five borrowed Paladin slots are resolved HERE rather than stored in the table: they are
+	// owned by oracool/paladin_skills.h, and reading that module's table during this one's static
+	// initialisation would be an initialisation-order gamble across translation units.
+	switch (skill) {
+	case Skill::Smite:
+		return GetPaladinSkillData(PaladinSkill::ShieldBash).spellId;
+	case Skill::Zeal:
+		return GetPaladinSkillData(PaladinSkill::Zeal).spellId;
+	case Skill::Charge:
+		return GetPaladinSkillData(PaladinSkill::Charge).spellId;
+	case Skill::BlessedHammer:
+		return GetPaladinSkillData(PaladinSkill::BlessedHammer).spellId;
+	case Skill::FistOfTheHeavens:
+		return GetPaladinSkillData(PaladinSkill::FistOfTheHeavens).spellId;
+	default:
+		return skill > Skill::LAST ? SpellID::Invalid : Skills[static_cast<size_t>(skill)].spellId;
+	}
+}
+
+int ClassTreeTierMinLevel(int tier)
+{
+	if (tier < 0 || tier >= static_cast<int>(std::size(TierLevels)))
+		return 1;
+	return TierLevels[tier];
+}
+
+string_view GetClassTreePageName(HeroClass heroClass, int page)
+{
+	switch (heroClass) {
+	case HeroClass::Warrior:
+		if (page == 0)
+			return _("COMBAT SKILLS");
+		return page == 1 ? _("OFFENSIVE AURAS") : _("DEFENSIVE AURAS");
+	case HeroClass::Barbarian:
+		if (page == 0)
+			return _("COMBAT SKILLS");
+		return page == 1 ? _("COMBAT MASTERIES") : _("WARCRIES");
+	case HeroClass::Sorcerer:
+		if (page == 0)
+			return _("COLD SPELLS");
+		return page == 1 ? _("LIGHTNING SPELLS") : _("FIRE SPELLS");
+	case HeroClass::Rogue:
+		if (page == 0)
+			return _("BOW & CROSSBOW");
+		return page == 1 ? _("PASSIVE & MAGIC") : _("JAVELIN & SPEAR");
+	default:
+		return {};
+	}
+}
+
+bool ClassHasTree(HeroClass heroClass)
+{
+	return FirstSkillOf(heroClass) != Skill::None;
+}
+
+int ClassTreeIconIndex(Skill skill)
+{
+	if (skill > Skill::LAST)
+		return 0;
+	const Skill first = FirstSkillOf(GetClassTreeSkillData(skill).heroClass);
+	return static_cast<int>(skill) - static_cast<int>(first);
+}
+
+bool IsClassTreeSkillUnlocked(const Player &player, Skill skill)
+{
+	if (skill > Skill::LAST)
+		return false;
+	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+	if (data.heroClass != player._pClass)
+		return false;
+	return player._pLevel >= ClassTreeTierMinLevel(data.tier);
+}
+
+int ClassTreeInvestment(const Player &player, Skill skill)
+{
+	if (skill > Skill::LAST)
+		return 0;
+	// A skill with a slot stores its points where GetSpellLevel will find them; only the rest
+	// need the tree's own array. See the file comment.
+	if (const SpellID slot = ClassTreeSpellId(skill); slot != SpellID::Invalid)
+		return player._pSkillInvestment[static_cast<size_t>(slot)];
+	const int index = ClassTreeIconIndex(skill);
+	if (index < 0 || index >= static_cast<int>(MaxSkillsPerClass))
+		return 0;
+	return player._pClassTreeInvestment[index];
+}
+
+bool CanInvestClassTreePoint(const Player &player, Skill skill)
+{
+	return player._pUnspentSkillPoints > 0
+	    && IsClassTreeSkillUnlocked(player, skill)
+	    && ClassTreeInvestment(player, skill) < MaxTreeInvestment;
+}
+
+bool InvestClassTreePoint(Player &player, Skill skill)
+{
+	if (!CanInvestClassTreePoint(player, skill))
+		return false;
+	player._pUnspentSkillPoints--;
+	if (const SpellID slot = ClassTreeSpellId(skill); slot != SpellID::Invalid) {
+		player._pSkillInvestment[static_cast<size_t>(slot)]++;
+	} else {
+		player._pClassTreeInvestment[ClassTreeIconIndex(skill)]++;
+	}
+	if (&player == MyPlayer) {
+		LogEvent(fmt::format("{:s} raised to {:d}", std::string(_(GetClassTreeSkillData(skill).name)),
+		             ClassTreeInvestment(player, skill)),
+		    UiFlags::ColorWhitegold);
+	}
+	return true;
+}
+
+Skill GetActiveClassAura(const Player &player)
+{
+	const auto skill = static_cast<Skill>(player._pOracoolActiveAura);
+	if (skill > Skill::LAST)
+		return Skill::None;
+	if (GetClassTreeSkillData(skill).kind != Kind::Aura)
+		return Skill::None;
+	return skill;
+}
+
+bool ToggleClassAura(Player &player, Skill skill)
+{
+	if (skill > Skill::LAST || GetClassTreeSkillData(skill).kind != Kind::Aura)
+		return false;
+	if (!IsClassTreeSkillUnlocked(player, skill))
+		return false;
+	const bool switchingOff = GetActiveClassAura(player) == skill;
+	// An aura with nothing invested has no strength to give, so lighting it would be a no-op that
+	// LOOKED like it worked. Switching one off is always allowed.
+	if (!switchingOff && ClassTreeInvestment(player, skill) <= 0)
+		return false;
+	player._pOracoolActiveAura = static_cast<uint8_t>(switchingOff ? Skill::None : skill);
+	if (&player == MyPlayer) {
+		const char *name = GetClassTreeSkillData(skill).name;
+		LogEvent(switchingOff ? fmt::format("{:s} fades", std::string(_(name)))
+		                      : fmt::format("{:s} burns", std::string(_(name))),
+		    UiFlags::ColorWhitegold);
+	}
+	return true;
+}
+
+void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
+{
+	if (!ClassHasTree(player._pClass))
+		return;
+
+	if (const Skill aura = GetActiveClassAura(player);
+	    aura != Skill::None && IsClassTreeSkillUnlocked(player, aura)) {
+		ApplyAura(aura, ClassTreeInvestment(player, aura), totals);
+	}
+
+	// Passives are always on once bought - no activation, no slot, just the points.
+	const Skill first = FirstSkillOf(player._pClass);
+	for (size_t i = 0; i < MaxSkillsPerClass; i++) {
+		const auto skill = static_cast<Skill>(static_cast<size_t>(first) + i);
+		if (skill > Skill::LAST)
+			break;
+		const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+		if (data.heroClass != player._pClass)
+			break;
+		if (data.kind != Kind::Passive || !data.implemented)
+			continue;
+		if (!IsClassTreeSkillUnlocked(player, skill))
+			continue;
+		const int points = ClassTreeInvestment(player, skill);
+		if (points > 0)
+			ApplyPassive(player, skill, points, totals);
+	}
+}
+
+bool IsClassTreeRunActive(const Player &player)
+{
+	if (!ClassHasTree(player._pClass))
+		return false;
+	if (player._pClass == HeroClass::Warrior) {
+		const Skill aura = GetActiveClassAura(player);
+		return aura == Skill::Vigor && ClassTreeInvestment(player, aura) > 0
+		    && IsClassTreeSkillUnlocked(player, aura);
+	}
+	if (player._pClass == HeroClass::Barbarian) {
+		return ClassTreeInvestment(player, Skill::IncreasedSpeed) > 0
+		    && IsClassTreeSkillUnlocked(player, Skill::IncreasedSpeed);
+	}
+	return false;
+}
+
+void ProcessClassTreeTick(Player &player)
+{
+	if (!ClassHasTree(player._pClass))
+		return;
+
+	// Both regenerations are whole points per tick against the <<6 fixed point the life and mana
+	// fields use, so one invested point is a trickle rather than a heal button.
+	const Skill aura = GetActiveClassAura(player);
+	if (aura != Skill::None && IsClassTreeSkillUnlocked(player, aura)) {
+		const int p = ClassTreeInvestment(player, aura);
+		if (p > 0 && aura == Skill::Prayer && player._pHitPoints < player._pMaxHP) {
+			const int heal = Scaled(p, 2, 2);
+			player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
+			player._pHPBase = std::min(player._pHPBase + heal, player._pMaxHPBase);
+			RedrawComponent(PanelDrawComponent::Health);
+		}
+		if (p > 0 && aura == Skill::Meditation && player._pMana < player._pMaxMana
+		    && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+			const int gain = Scaled(p, 2, 2);
+			player._pMana = std::min(player._pMana + gain, player._pMaxMana);
+			player._pManaBase = std::min(player._pManaBase + gain, player._pMaxManaBase);
+			RedrawComponent(PanelDrawComponent::Mana);
+		}
+	}
+
+	// The Sorceress's Warmth is a passive, so it needs no activation - the points alone.
+	if (player._pClass == HeroClass::Sorcerer && IsClassTreeSkillUnlocked(player, Skill::Warmth)
+	    && player._pMana < player._pMaxMana && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+		const int p = ClassTreeInvestment(player, Skill::Warmth);
+		if (p > 0) {
+			const int gain = Scaled(p, 2, 2);
+			player._pMana = std::min(player._pMana + gain, player._pMaxMana);
+			player._pManaBase = std::min(player._pManaBase + gain, player._pMaxManaBase);
+			RedrawComponent(PanelDrawComponent::Mana);
+		}
+	}
+}
+
+size_t BuildClassTreePage(HeroClass heroClass, int page, Skill *out)
+{
+	const Skill first = FirstSkillOf(heroClass);
+	if (first == Skill::None)
+		return 0;
+	size_t count = 0;
+	for (int tier = 0; tier < static_cast<int>(std::size(TierLevels)); tier++) {
+		for (int column = 0; column < 3; column++) {
+			for (size_t i = 0; i < MaxSkillsPerClass; i++) {
+				const size_t index = static_cast<size_t>(first) + i;
+				if (index >= ClassTreeSkillCount)
+					break;
+				const ClassTreeSkillData &data = Skills[index];
+				if (data.heroClass != heroClass)
+					break;
+				if (data.page == page && data.tier == tier && data.column == column)
+					out[count++] = static_cast<Skill>(index);
+			}
+		}
+	}
+	return count;
+}
+
+std::string ClassTreeEffectLine(const Player &player, Skill skill)
+{
+	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+	const int p = ClassTreeInvestment(player, skill);
+	std::string out = fmt::format(fmt::runtime(_("Points: {:d} of {:d}")), p, MaxTreeInvestment);
+	out += "\n" + fmt::format(fmt::runtime(_("Requires level {:d}")), ClassTreeTierMinLevel(data.tier));
+	if (!data.implemented)
+		out += "\n" + std::string(_("No effect yet"));
+	else if (data.kind == Kind::Aura && p == 0)
+		out += "\n" + std::string(_("Invest a point to light it"));
+	else if (data.kind == Kind::Passive && p == 0)
+		out += "\n" + std::string(_("Invest a point to gain it"));
+	return out;
+}
+
+} // namespace devilution::oracool

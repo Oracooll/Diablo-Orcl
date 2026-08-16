@@ -3,7 +3,7 @@
 #include "items.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
-#include "oracool/paladin_tree.h"
+#include "oracool/class_tree.h"
 #include "oracool/runewords.h"
 #include "player.h"
 #include "spells.h"
@@ -133,18 +133,18 @@ void ApplyCharms(const BonusContext &ctx, ItemBonusTotals &totals)
 }
 
 /**
- * @brief Source 5: the Paladin's burning aura, from the skill tree. ApplyPaladinAuraToTotals
- * re-checks the class, the tier and the invested points itself, so an aura that outlives the rules
- * it was lit under contributes nothing rather than quietly persisting.
+ * @brief Source 5: the class skill tree - the Paladin's burning aura plus every class's
+ * paid-for passives. ApplyClassTreeToTotals re-checks the class, the tier and the invested points
+ * itself, so state that outlives the rules it was bought under contributes nothing.
  */
 bool AuraIsRelevant(const BonusContext &ctx)
 {
-	return GetActivePaladinAura(*ctx.owner) != PaladinTreeSkill::None;
+	return ClassHasTree(ctx.owner->_pClass);
 }
 
 void ApplyAura(const BonusContext &ctx, ItemBonusTotals &totals)
 {
-	ApplyPaladinAuraToTotals(*ctx.owner, totals);
+	ApplyClassTreeToTotals(*ctx.owner, totals);
 }
 
 constexpr BonusProvider Providers[] = {
@@ -152,7 +152,7 @@ constexpr BonusProvider Providers[] = {
 	{ "rage", RageIsRelevant, ApplyRage },
 	{ "sockets", nullptr, ApplySockets },
 	{ "charms", nullptr, ApplyCharms },
-	{ "aura", AuraIsRelevant, ApplyAura },
+	{ "class tree", AuraIsRelevant, ApplyAura },
 };
 
 } // namespace

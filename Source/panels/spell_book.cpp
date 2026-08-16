@@ -20,7 +20,7 @@
 #include "oracool/class_skills.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
-#include "oracool/paladin_tree.h"
+#include "oracool/class_tree.h"
 #include "oracool/skill_points.h"
 #include "oracool/spell_descriptions.h"
 #include "oracool/barb_skills.h"
@@ -276,24 +276,30 @@ enum class AbilitySheet : uint8_t {
 	 * listed an invented 24-aura set that never matched D2 and was hidden from the window anyway
 	 * (ClassAbilitySheetsHidden). See oracool/paladin_tree.h.
 	 */
-	PaladinCombat,
-	PaladinOffensive,
-	PaladinDefensive,
+	ClassTree0,
+	ClassTree1,
+	ClassTree2,
 	Barbarian,
 	LAST = Barbarian,
 };
 constexpr size_t AbilitySheetCount = 7;
 
-/** @brief The tree page a sheet shows, or nullopt if it is not one of the three. */
-std::optional<oracool::PaladinTreePage> TreePageOf(AbilitySheet sheet)
+/**
+ * @brief The tree page index a sheet shows, or nullopt if it is not one of the three.
+ *
+ * The sheets are numbered rather than named because WHICH tree they show depends on the class -
+ * page 1 is the Paladin's Offensive Auras, the Barbarian's Combat Masteries, the Sorceress's
+ * Lightning Spells and the Rogue's Passive & Magic. The names come from the tree itself.
+ */
+std::optional<int> TreePageOf(AbilitySheet sheet)
 {
 	switch (sheet) {
-	case AbilitySheet::PaladinCombat:
-		return oracool::PaladinTreePage::Combat;
-	case AbilitySheet::PaladinOffensive:
-		return oracool::PaladinTreePage::OffensiveAuras;
-	case AbilitySheet::PaladinDefensive:
-		return oracool::PaladinTreePage::DefensiveAuras;
+	case AbilitySheet::ClassTree0:
+		return 0;
+	case AbilitySheet::ClassTree1:
+		return 1;
+	case AbilitySheet::ClassTree2:
+		return 2;
 	default:
 		return std::nullopt;
 	}
@@ -349,12 +355,12 @@ bool IsSheetAvailable(AbilitySheet sheet)
 		// memorised by reading its book, and any class that finds one can. Reserving the sheet hid a
 		// list of things a Paladin can genuinely learn.
 		break;
-	case AbilitySheet::PaladinCombat:
-	case AbilitySheet::PaladinOffensive:
-	case AbilitySheet::PaladinDefensive:
+	case AbilitySheet::ClassTree0:
+	case AbilitySheet::ClassTree1:
+	case AbilitySheet::ClassTree2:
 		// Not behind ClassAbilitySheetsHidden: unlike the list it replaced, the tree is spendable
 		// and its skills act, so there is nothing inert to hide.
-		return oracool::ClassHasPaladinTree(*InspectPlayer);
+		return oracool::ClassHasTree(InspectPlayer->_pClass);
 	case AbilitySheet::Barbarian:
 		return !ClassAbilitySheetsHidden && oracool::ClassHasBarbSkills(*InspectPlayer);
 	case AbilitySheet::Skills:
@@ -406,12 +412,11 @@ string_view GetSheetTitle(AbilitySheet sheet)
 		return _("SKILLS");
 	case AbilitySheet::ClassSkills:
 		return _("CLASS SKILLS");
-	case AbilitySheet::PaladinCombat:
-		return _("COMBAT SKILLS");
-	case AbilitySheet::PaladinOffensive:
-		return _("OFFENSIVE AURAS");
-	case AbilitySheet::PaladinDefensive:
-		return _("DEFENSIVE AURAS");
+	case AbilitySheet::ClassTree0:
+	case AbilitySheet::ClassTree1:
+	case AbilitySheet::ClassTree2:
+		// Named by the tree, not here: each class calls its three pages something different.
+		return oracool::GetClassTreePageName(InspectPlayer->_pClass, *TreePageOf(sheet));
 	case AbilitySheet::Barbarian:
 		return _("BARBARIAN");
 	}
@@ -547,13 +552,13 @@ size_t GetRowCount(AbilitySheet sheet)
 	}
 	case AbilitySheet::ClassSkills:
 		return BuildClassSkillRows(rows);
-	case AbilitySheet::PaladinCombat:
-	case AbilitySheet::PaladinOffensive:
-	case AbilitySheet::PaladinDefensive: {
+	case AbilitySheet::ClassTree0:
+	case AbilitySheet::ClassTree1:
+	case AbilitySheet::ClassTree2: {
 		// A grid, not a list - the count is only used for the "is there anything here" question
 		// and for scrolling, which TotalListHeight answers separately for these sheets.
-		oracool::PaladinTreeSkill skills[oracool::PaladinTreeSkillCount];
-		return oracool::BuildPaladinTreePage(*TreePageOf(sheet), skills);
+		oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+		return oracool::BuildClassTreePage(InspectPlayer->_pClass, *TreePageOf(sheet), skills);
 	}
 	case AbilitySheet::Barbarian:
 		return oracool::BarbSkillCount;
@@ -995,12 +1000,12 @@ void DrawDescribedRow(const Surface &content, int top, int iconIndex, DescribedI
  * turns gold and grows a "+" only while the character actually holds a point this cell can take.
  * The burning aura keeps the gold ring on its icon.
  */
-void DrawTreeCell(const Surface &content, oracool::PaladinTreeSkill skill, int scroll)
+void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scroll)
 {
-	const oracool::PaladinTreeSkillData &data = oracool::GetPaladinTreeSkillData(skill);
+	const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
 	const Player &player = *InspectPlayer;
-	const bool unlocked = oracool::IsPaladinTreeSkillUnlocked(player, skill);
-	const int invested = oracool::PaladinTreeInvestment(player, skill);
+	const bool unlocked = oracool::IsClassTreeSkillUnlocked(player, skill);
+	const int invested = oracool::ClassTreeInvestment(player, skill);
 
 	Rectangle icon = TreeIconRect(data.column, data.tier);
 	icon.position.y -= scroll;
@@ -1009,18 +1014,18 @@ void DrawTreeCell(const Surface &content, oracool::PaladinTreeSkill skill, int s
 
 	// An unbuilt skill is drawn like a locked one even at level: "listed but inert" and "not yet
 	// earned" are both "you cannot use this", and a bright icon that does nothing is the lie.
-	oracool::DrawPaladinTreeIcon(content, icon.position, oracool::GetPaladinTreeIconIndex(skill),
+	oracool::DrawClassTreeIcon(content, icon.position, player._pClass, oracool::ClassTreeIconIndex(skill),
 	    unlocked && data.implemented,
 	    unlocked && data.implemented ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Grey);
 
-	if (data.kind == oracool::PaladinTreeKind::Aura) {
-		if (oracool::GetActivePaladinAura(player) == skill)
+	if (data.kind == oracool::ClassTreeKind::Aura) {
+		if (oracool::GetActiveClassAura(player) == skill)
 			oracool::DrawHoverOutline(content, icon);
-	} else if (const SpellID slot = oracool::PaladinTreeSpellId(skill); IsValidSpell(slot)) {
+	} else if (const SpellID slot = oracool::ClassTreeSpellId(skill); IsValidSpell(slot)) {
 		DrawAssignmentRings(content, icon, slot, GetSBookTrans(slot, true));
 	}
 
-	const bool canInvest = !IsInspectingPlayer() && oracool::CanInvestPaladinTreePoint(*MyPlayer, skill);
+	const bool canInvest = !IsInspectingPlayer() && oracool::CanInvestClassTreePoint(*MyPlayer, skill);
 	if (canInvest)
 		oracool::DrawHoverOutline(content, bar);
 	DrawString(content,
@@ -1030,10 +1035,10 @@ void DrawTreeCell(const Surface &content, oracool::PaladinTreeSkill skill, int s
 }
 
 /** @brief Draws a whole tree page. */
-void DrawTreePage(const Surface &content, oracool::PaladinTreePage page, int scroll)
+void DrawTreePage(const Surface &content, int page, int scroll)
 {
-	oracool::PaladinTreeSkill skills[oracool::PaladinTreeSkillCount];
-	const size_t count = oracool::BuildPaladinTreePage(page, skills);
+	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+	const size_t count = oracool::BuildClassTreePage(InspectPlayer->_pClass, page, skills);
 	for (size_t i = 0; i < count; i++)
 		DrawTreeCell(content, skills[i], scroll);
 }
@@ -1042,12 +1047,12 @@ void DrawTreePage(const Surface &content, oracool::PaladinTreePage page, int scr
  * @brief The tree cell under @p localPoint (content-local, scroll already added), or nullopt.
  * @param onBar set when the point landed on the cell's counter rather than its icon.
  */
-std::optional<oracool::PaladinTreeSkill> TreeCellAt(oracool::PaladinTreePage page, Point localPoint, bool &onBar)
+std::optional<oracool::ClassTreeSkill> TreeCellAt(int page, Point localPoint, bool &onBar)
 {
-	oracool::PaladinTreeSkill skills[oracool::PaladinTreeSkillCount];
-	const size_t count = oracool::BuildPaladinTreePage(page, skills);
+	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+	const size_t count = oracool::BuildClassTreePage(InspectPlayer->_pClass, page, skills);
 	for (size_t i = 0; i < count; i++) {
-		const oracool::PaladinTreeSkillData &data = oracool::GetPaladinTreeSkillData(skills[i]);
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
 		if (TreeIconRect(data.column, data.tier).contains(localPoint)) {
 			onBar = false;
 			return skills[i];
@@ -1292,17 +1297,17 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	};
 
 	// The tree pages hit-test against their grid rather than against a row stride.
-	if (const std::optional<oracool::PaladinTreePage> page = TreePageOf(CurrentSheet); page.has_value()) {
+	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
 		bool onBar = false;
 		const Point local { MousePosition.x - contentRect.position.x, y };
-		const std::optional<oracool::PaladinTreeSkill> hovered = TreeCellAt(*page, local, onBar);
+		const std::optional<oracool::ClassTreeSkill> hovered = TreeCellAt(*page, local, onBar);
 		if (!hovered.has_value())
 			return;
-		const oracool::PaladinTreeSkillData &data = oracool::GetPaladinTreeSkillData(*hovered);
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hovered);
 		const Rectangle cell = TreeIconRect(data.column, data.tier);
 		PendingHoverTitle = _(data.name);
 		PendingHoverText = std::string(_(data.description)) + "\n\n"
-		    + oracool::PaladinTreeEffectLine(*InspectPlayer, *hovered);
+		    + oracool::ClassTreeEffectLine(*InspectPlayer, *hovered);
 		PendingHoverAnchor = { { contentRect.position.x, contentRect.position.y + cell.position.y - scroll },
 			{ AbilitiesContentRightLimit, cell.size.height } };
 		HasPendingHover = true;
@@ -1370,9 +1375,9 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 			rowHeight = height;
 			found = true;
 			switch (CurrentSheet) {
-			case AbilitySheet::PaladinCombat:
-			case AbilitySheet::PaladinOffensive:
-			case AbilitySheet::PaladinDefensive:
+			case AbilitySheet::ClassTree0:
+			case AbilitySheet::ClassTree1:
+			case AbilitySheet::ClassTree2:
 				break; // handled above - the tree is a grid, not a row list
 			case AbilitySheet::Barbarian: {
 				const oracool::BarbSkill skill = oracool::GetBarbSkillAtDisplayIndex(index);
@@ -1480,7 +1485,7 @@ void DrawSpellBook(const Surface &out)
 
 	DrawHoverFeedback(out, content, contentRect, scroll);
 
-	if (const std::optional<oracool::PaladinTreePage> page = TreePageOf(CurrentSheet); page.has_value()) {
+	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
 		DrawTreePage(content, *page, scroll);
 		return;
 	}
@@ -1525,9 +1530,9 @@ void DrawSpellBook(const Surface &out)
 		if (top + rowHeight <= 0 || top >= AbilitiesContentSize.height)
 			continue;
 		switch (CurrentSheet) {
-		case AbilitySheet::PaladinCombat:
-		case AbilitySheet::PaladinOffensive:
-		case AbilitySheet::PaladinDefensive:
+		case AbilitySheet::ClassTree0:
+		case AbilitySheet::ClassTree1:
+		case AbilitySheet::ClassTree2:
 			break; // handled above
 		case AbilitySheet::Barbarian:
 			DrawBarbSkillRow(content, i, top);
@@ -1577,14 +1582,14 @@ void CheckSBook(bool assignToRightButton)
 	// The tree: the counter under an icon spends a point into it; the icon itself readies an active
 	// skill on the clicked button, or lights an aura. Two targets rather than one gesture with a
 	// modifier, so neither action can be taken by accident while reaching for the other.
-	if (const std::optional<oracool::PaladinTreePage> page = TreePageOf(CurrentSheet); page.has_value()) {
+	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
 		bool onBar = false;
 		const Point local { MousePosition.x - content.position.x, y };
-		const std::optional<oracool::PaladinTreeSkill> hit = TreeCellAt(*page, local, onBar);
+		const std::optional<oracool::ClassTreeSkill> hit = TreeCellAt(*page, local, onBar);
 		if (!hit.has_value())
 			return;
 		if (onBar) {
-			if (oracool::InvestPaladinTreePoint(*MyPlayer, *hit)) {
+			if (oracool::InvestClassTreePoint(*MyPlayer, *hit)) {
 				// The whole of "make it take effect": the aura provider and every ladder read the
 				// investment on the next totals walk.
 				CalcPlrInv(*MyPlayer, false);
@@ -1592,9 +1597,9 @@ void CheckSBook(bool assignToRightButton)
 			}
 			return;
 		}
-		const oracool::PaladinTreeSkillData &data = oracool::GetPaladinTreeSkillData(*hit);
-		if (data.kind == oracool::PaladinTreeKind::Aura) {
-			if (oracool::TogglePaladinAura(*MyPlayer, *hit)) {
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hit);
+		if (data.kind == oracool::ClassTreeKind::Aura) {
+			if (oracool::ToggleClassAura(*MyPlayer, *hit)) {
 				CalcPlrInv(*MyPlayer, false);
 				RedrawEverything();
 			}
@@ -1602,11 +1607,11 @@ void CheckSBook(bool assignToRightButton)
 		}
 		// An active skill readies exactly as it would on any other sheet: unbuilt and locked rows
 		// are inert, and the button that clicked it is the button it lands on.
-		if (!data.implemented || !IsValidSpell(oracool::PaladinTreeSpellId(*hit))
-		    || !oracool::IsPaladinTreeSkillUnlocked(*MyPlayer, *hit))
+		if (!data.implemented || !IsValidSpell(oracool::ClassTreeSpellId(*hit))
+		    || !oracool::IsClassTreeSkillUnlocked(*MyPlayer, *hit))
 			return;
 		Player &treePlayer = *MyPlayer;
-		const SpellID treeSpell = oracool::PaladinTreeSpellId(*hit);
+		const SpellID treeSpell = oracool::ClassTreeSpellId(*hit);
 		const SpellType treeType = (treePlayer._pAblSpells & GetSpellBitmask(treeSpell)) != 0
 		    ? SpellType::Skill
 		    : SpellType::Spell;

@@ -25,7 +25,7 @@
 #include "monstdat.h"
 #include "monster.h"
 #include "multi.h"
-#include "oracool/paladin_tree.h"
+#include "oracool/class_tree.h"
 #include "oracool/charms.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
@@ -906,26 +906,28 @@ devilution::Player &FreshPaladin(int unspent = 40)
 	player._pUnspentSkillPoints = static_cast<uint16_t>(unspent);
 	player._pOracoolActiveAura = 0xFF;
 	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
-	std::memset(player._pPaladinAuraInvestment, 0, sizeof(player._pPaladinAuraInvestment));
+	std::memset(player._pClassTreeInvestment, 0, sizeof(player._pClassTreeInvestment));
 	return player;
 }
 
 } // namespace
 
-TEST(OracoolPaladinTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
+// Now walks ALL FOUR class trees, not just the Paladin's - the generalization's own proof.
+TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 {
-	oracool::PaladinTreeSkill skills[oracool::PaladinTreeSkillCount];
+	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
 	size_t total = 0;
-	for (size_t p = 0; p < oracool::PaladinTreePageCount; p++) {
-		const auto page = static_cast<oracool::PaladinTreePage>(p);
-		const size_t count = oracool::BuildPaladinTreePage(page, skills);
+	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Barbarian,
+	         HeroClass::Sorcerer, HeroClass::Rogue }) {
+	for (size_t p = 0; p < oracool::ClassTreePageCount; p++) {
+		const size_t count = oracool::BuildClassTreePage(heroClass, static_cast<int>(p), skills);
 		EXPECT_GT(count, 0u);
 		total += count;
 		// Two skills sharing a (tier, column) would draw on top of each other and only the second
 		// would be clickable - the grid's one structural invariant.
 		bool taken[6][3] = {};
 		for (size_t i = 0; i < count; i++) {
-			const oracool::PaladinTreeSkillData &data = oracool::GetPaladinTreeSkillData(skills[i]);
+			const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
 			ASSERT_GE(data.tier, 0);
 			ASSERT_LT(data.tier, 6);
 			ASSERT_GE(data.column, 0);
@@ -935,135 +937,139 @@ TEST(OracoolPaladinTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 			taken[data.tier][data.column] = true;
 		}
 	}
-	EXPECT_EQ(total, oracool::PaladinTreeSkillCount) << "a skill is on no page, or on two";
+	}
+	EXPECT_EQ(total, oracool::ClassTreeSkillCount) << "a skill is on no page, or on two";
 }
 
-TEST(OracoolPaladinTree, InvestmentRespectsClassLevelPoolAndCap)
+TEST(OracoolClassTree, InvestmentRespectsClassLevelPoolAndCap)
 {
 	devilution::Player &player = FreshPaladin(3);
 
 	player._pClass = HeroClass::Rogue;
-	EXPECT_FALSE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Might))
+	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might))
 	    << "a Rogue spent a point in the Paladin tree";
 
 	player._pClass = HeroClass::Warrior;
 	player._pLevel = 1;
-	EXPECT_FALSE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Fanaticism))
+	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Fanaticism))
 	    << "a level-30 tier took a point at level 1";
 
 	player._pLevel = 30;
-	EXPECT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Might));
-	EXPECT_EQ(oracool::PaladinTreeInvestment(player, oracool::PaladinTreeSkill::Might), 1);
+	EXPECT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
+	EXPECT_EQ(oracool::ClassTreeInvestment(player, oracool::ClassTreeSkill::Might), 1);
 	EXPECT_EQ(player._pUnspentSkillPoints, 2);
 
 	player._pUnspentSkillPoints = 0;
-	EXPECT_FALSE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Might))
+	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might))
 	    << "spent a point that was not there";
 }
 
 // The two stores, and why they exist: a skill with a spell slot must reach GetSpellLevel so every
 // ladder that already scales with spell level scales with the tree.
-TEST(OracoolPaladinTree, CastableSkillsInvestThroughTheSpellLevelSeam)
+TEST(OracoolClassTree, CastableSkillsInvestThroughTheSpellLevelSeam)
 {
 	devilution::Player &player = FreshPaladin();
 	player._pISplLvlAdd = 0;
 	const int before = player.GetSpellLevel(SpellID::HolyBolt);
 
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::HolyBolt));
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::HolyBolt));
-	EXPECT_EQ(oracool::PaladinTreeInvestment(player, oracool::PaladinTreeSkill::HolyBolt), 2);
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::HolyBolt));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::HolyBolt));
+	EXPECT_EQ(oracool::ClassTreeInvestment(player, oracool::ClassTreeSkill::HolyBolt), 2);
 	EXPECT_EQ(player.GetSpellLevel(SpellID::HolyBolt), before + 2)
 	    << "a castable tree skill's points did not reach GetSpellLevel";
 
-	// An aura has no slot, so its points must NOT land in the spell array.
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Might));
-	EXPECT_EQ(oracool::PaladinTreeInvestment(player, oracool::PaladinTreeSkill::Might), 1);
-	EXPECT_EQ(player._pPaladinAuraInvestment[0], 1) << "Might is the first aura in the array";
+	// An aura has no slot, so its points land in the tree's own array instead - indexed by the
+	// skill's position within its class, which for Might is 9 (the nine combat skills precede it).
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
+	EXPECT_EQ(oracool::ClassTreeInvestment(player, oracool::ClassTreeSkill::Might), 1);
+	const int mightSlot = oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might);
+	EXPECT_EQ(mightSlot, 9);
+	EXPECT_EQ(player._pClassTreeInvestment[mightSlot], 1);
 }
 
-TEST(OracoolPaladinTree, AuraNeedsAPointBeforeItCanBurn)
+TEST(OracoolClassTree, AuraNeedsAPointBeforeItCanBurn)
 {
 	devilution::Player &player = FreshPaladin();
 
-	EXPECT_FALSE(oracool::TogglePaladinAura(player, oracool::PaladinTreeSkill::Might))
+	EXPECT_FALSE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might))
 	    << "an aura with nothing invested lit anyway";
-	EXPECT_FALSE(oracool::TogglePaladinAura(player, oracool::PaladinTreeSkill::Zeal))
+	EXPECT_FALSE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Zeal))
 	    << "a combat skill was lit as an aura";
 
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Might));
-	EXPECT_TRUE(oracool::TogglePaladinAura(player, oracool::PaladinTreeSkill::Might));
-	EXPECT_EQ(oracool::GetActivePaladinAura(player), oracool::PaladinTreeSkill::Might);
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
+	EXPECT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might));
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Might);
 
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Defiance));
-	EXPECT_TRUE(oracool::TogglePaladinAura(player, oracool::PaladinTreeSkill::Defiance)) << "activating replaces";
-	EXPECT_EQ(oracool::GetActivePaladinAura(player), oracool::PaladinTreeSkill::Defiance);
-	EXPECT_TRUE(oracool::TogglePaladinAura(player, oracool::PaladinTreeSkill::Defiance)) << "the second click clears";
-	EXPECT_EQ(oracool::GetActivePaladinAura(player), oracool::PaladinTreeSkill::None);
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Defiance));
+	EXPECT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Defiance)) << "activating replaces";
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Defiance);
+	EXPECT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Defiance)) << "the second click clears";
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::None);
 }
 
-TEST(OracoolPaladinTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
+TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 {
 	devilution::Player &player = FreshPaladin();
 
 	// Nothing burning contributes nothing.
 	oracool::ItemBonusTotals off;
-	oracool::ApplyPaladinAuraToTotals(player, off);
+	oracool::ApplyClassTreeToTotals(player, off);
 	EXPECT_EQ(off.bonusDamage, 0);
 
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Might));
-	ASSERT_TRUE(oracool::TogglePaladinAura(player, oracool::PaladinTreeSkill::Might));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might));
 	oracool::ItemBonusTotals onePoint;
-	oracool::ApplyPaladinAuraToTotals(player, onePoint);
+	oracool::ApplyClassTreeToTotals(player, onePoint);
 	EXPECT_GT(onePoint.bonusDamage, 0);
 
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Might));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
 	oracool::ItemBonusTotals twoPoints;
-	oracool::ApplyPaladinAuraToTotals(player, twoPoints);
+	oracool::ApplyClassTreeToTotals(player, twoPoints);
 	EXPECT_GT(twoPoints.bonusDamage, onePoint.bonusDamage) << "the second point bought nothing";
 
 	// Resist Cold is the documented remap onto magic resistance - this engine has no cold.
 	devilution::Player &cold = FreshPaladin();
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(cold, oracool::PaladinTreeSkill::ResistCold));
-	ASSERT_TRUE(oracool::TogglePaladinAura(cold, oracool::PaladinTreeSkill::ResistCold));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(cold, oracool::ClassTreeSkill::ResistCold));
+	ASSERT_TRUE(oracool::ToggleClassAura(cold, oracool::ClassTreeSkill::ResistCold));
 	oracool::ItemBonusTotals coldTotals;
-	oracool::ApplyPaladinAuraToTotals(cold, coldTotals);
+	oracool::ApplyClassTreeToTotals(cold, coldTotals);
 	EXPECT_GT(coldTotals.magicResist, 0);
 
 	// The auras whose mechanics this engine has no channel for must contribute NOTHING, so a
 	// player cannot be told a point bought something it did not.
-	for (const oracool::PaladinTreeSkill inert : { oracool::PaladinTreeSkill::HolyFreeze,
-	         oracool::PaladinTreeSkill::Sanctuary, oracool::PaladinTreeSkill::Conviction,
-	         oracool::PaladinTreeSkill::Cleansing, oracool::PaladinTreeSkill::Redemption }) {
+	for (const oracool::ClassTreeSkill inert : { oracool::ClassTreeSkill::HolyFreeze,
+	         oracool::ClassTreeSkill::Sanctuary, oracool::ClassTreeSkill::Conviction,
+	         oracool::ClassTreeSkill::Cleansing, oracool::ClassTreeSkill::Redemption }) {
 		devilution::Player &p = FreshPaladin();
-		ASSERT_TRUE(oracool::InvestPaladinTreePoint(p, inert));
-		ASSERT_TRUE(oracool::TogglePaladinAura(p, inert));
+		ASSERT_TRUE(oracool::InvestClassTreePoint(p, inert));
+		ASSERT_TRUE(oracool::ToggleClassAura(p, inert));
 		oracool::ItemBonusTotals inertTotals;
 		oracool::ItemBonusTotals empty;
-		oracool::ApplyPaladinAuraToTotals(p, inertTotals);
+		oracool::ApplyClassTreeToTotals(p, inertTotals);
 		EXPECT_EQ(std::memcmp(&inertTotals, &empty, sizeof(empty)), 0)
-		    << _(oracool::GetPaladinTreeSkillData(inert).name) << " leaked an effect it does not have";
+		    << _(oracool::GetClassTreeSkillData(inert).name) << " leaked an effect it does not have";
 	}
 }
 
-TEST(OracoolPaladinTree, VigorRunsAndOnlyWhenPaidFor)
+TEST(OracoolClassTree, VigorRunsAndOnlyWhenPaidFor)
 {
 	devilution::Player &player = FreshPaladin();
-	EXPECT_FALSE(oracool::IsPaladinVigorActive(player));
+	EXPECT_FALSE(oracool::IsClassTreeRunActive(player));
 
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(player, oracool::PaladinTreeSkill::Vigor));
-	ASSERT_TRUE(oracool::TogglePaladinAura(player, oracool::PaladinTreeSkill::Vigor));
-	EXPECT_TRUE(oracool::IsPaladinVigorActive(player));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	EXPECT_TRUE(oracool::IsClassTreeRunActive(player));
 
-	ASSERT_TRUE(oracool::TogglePaladinAura(player, oracool::PaladinTreeSkill::Vigor));
-	EXPECT_FALSE(oracool::IsPaladinVigorActive(player)) << "Vigor kept running after it was put out";
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	EXPECT_FALSE(oracool::IsClassTreeRunActive(player)) << "Vigor kept running after it was put out";
 }
 
-TEST(OracoolPaladinTree, AuraStateRoundTripsThroughTheChunkTail)
+TEST(OracoolClassTree, AuraStateRoundTripsThroughTheChunkTail)
 {
 	devilution::Player &writer = FreshPaladin();
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(writer, oracool::PaladinTreeSkill::HolyFire));
-	ASSERT_TRUE(oracool::InvestPaladinTreePoint(writer, oracool::PaladinTreeSkill::HolyFire));
-	ASSERT_TRUE(oracool::TogglePaladinAura(writer, oracool::PaladinTreeSkill::HolyFire));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(writer, oracool::ClassTreeSkill::HolyFire));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(writer, oracool::ClassTreeSkill::HolyFire));
+	ASSERT_TRUE(oracool::ToggleClassAura(writer, oracool::ClassTreeSkill::HolyFire));
 	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(writer);
 
 	Players.resize(2);
@@ -1071,11 +1077,11 @@ TEST(OracoolPaladinTree, AuraStateRoundTripsThroughTheChunkTail)
 	reader._pClass = HeroClass::Warrior;
 	reader._pLevel = 30;
 	reader._pOracoolActiveAura = 0xFF;
-	std::memset(reader._pPaladinAuraInvestment, 0, sizeof(reader._pPaladinAuraInvestment));
+	std::memset(reader._pClassTreeInvestment, 0, sizeof(reader._pClassTreeInvestment));
 	oracool::ApplyHeroChunks(reader, tail.data(), tail.size());
 
-	EXPECT_EQ(oracool::GetActivePaladinAura(reader), oracool::PaladinTreeSkill::HolyFire);
-	EXPECT_EQ(oracool::PaladinTreeInvestment(reader, oracool::PaladinTreeSkill::HolyFire), 2);
+	EXPECT_EQ(oracool::GetActiveClassAura(reader), oracool::ClassTreeSkill::HolyFire);
+	EXPECT_EQ(oracool::ClassTreeInvestment(reader, oracool::ClassTreeSkill::HolyFire), 2);
 }
 
 // Phase 2.1: skill points on level-up, feeding the existing ladders through GetSpellLevel.

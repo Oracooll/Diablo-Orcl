@@ -72,14 +72,33 @@ void ApplySkillPoints(Player &player, const uint8_t *payload, size_t len)
 	std::memcpy(player._pSkillInvestment, payload + 3, count);
 }
 
+/**
+ * @brief The superseded tag-5 payload: twenty Paladin aura investments. Migrated rather than
+ * dropped - the Paladin's auras sit at positions 9-28 of its class list, so aura i lands at
+ * class slot 9 + i and a hero saved between the two builds keeps the points it paid for.
+ */
 void ApplyPaladinAuras(Player &player, const uint8_t *payload, size_t len)
 {
 	if (len < 1)
 		return;
+	constexpr size_t PaladinFirstAuraSlot = 9;
+	const size_t count = std::min<size_t>({ payload[0], len - 1, 20 });
+	for (size_t i = 0; i < count; i++) {
+		const size_t slot = PaladinFirstAuraSlot + i;
+		if (slot >= std::size(player._pClassTreeInvestment))
+			break;
+		player._pClassTreeInvestment[slot] = payload[1 + i];
+	}
+}
+
+void ApplyClassTree(Player &player, const uint8_t *payload, size_t len)
+{
+	if (len < 1)
+		return;
 	const size_t count = std::min<size_t>({ payload[0], len - 1,
-	    std::size(player._pPaladinAuraInvestment) });
-	std::memset(player._pPaladinAuraInvestment, 0, sizeof(player._pPaladinAuraInvestment));
-	std::memcpy(player._pPaladinAuraInvestment, payload + 1, count);
+	    std::size(player._pClassTreeInvestment) });
+	std::memset(player._pClassTreeInvestment, 0, sizeof(player._pClassTreeInvestment));
+	std::memcpy(player._pClassTreeInvestment, payload + 1, count);
 }
 
 void ApplyWaypoints64(Player &player, const uint8_t *payload, size_t len)
@@ -128,10 +147,10 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 	}
 
 	{
-		const size_t at = BeginChunk(out, HeroChunkPaladinAuras);
-		const auto count = static_cast<uint8_t>(std::size(player._pPaladinAuraInvestment));
+		const size_t at = BeginChunk(out, HeroChunkClassTree);
+		const auto count = static_cast<uint8_t>(std::size(player._pClassTreeInvestment));
 		out.push_back(count);
-		out.insert(out.end(), player._pPaladinAuraInvestment, player._pPaladinAuraInvestment + count);
+		out.insert(out.end(), player._pClassTreeInvestment, player._pClassTreeInvestment + count);
 		EndChunk(out, at);
 	}
 
@@ -181,6 +200,9 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			break;
 		case HeroChunkPaladinAuras:
 			ApplyPaladinAuras(player, payload, chunkLen);
+			break;
+		case HeroChunkClassTree:
+			ApplyClassTree(player, payload, chunkLen);
 			break;
 		default:
 			// An unknown tag is a chunk from a newer build - skipped, by design.

@@ -43,7 +43,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
-#include "oracool/paladin_tree.h"
+#include "oracool/class_tree.h"
 #include "oracool/run_toggle.h"
 #include "oracool/skill_points.h"
 #include "oracool/gradual_healing.h"
@@ -186,7 +186,7 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 	// Vigor is the fourth consumer: Diablo II's movement-speed aura, in an engine with no
 	// walk-speed modifier, is exactly this frame skip held on for as long as the aura burns.
 	if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || oracool::IsFuriousChargeDashing()
-	    || oracool::IsRunEnabled() || oracool::IsPaladinVigorActive(player))
+	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player))
 		skippedFrames = 2;
 	if (pmWillBeCalled)
 		skippedFrames += 1;
@@ -3221,7 +3221,7 @@ void ProcessPlayers()
 				oracool::ProcessGradualHealing(player);
 				// The Paladin's Prayer and Meditation auras regenerate here, beside the engine's
 				// own per-tick life and mana effects.
-				oracool::ProcessPaladinAuraTick(player);
+				oracool::ProcessClassTreeTick(player);
 			}
 
 			bool tplayer = false;

@@ -62,12 +62,20 @@ enum HeroChunkTag : uint16_t {
 	 */
 	HeroChunkActiveAura = 4,
 	/**
-	 * @brief Points invested in the Paladin tree's twenty auras: u8 count, then count bytes in
-	 * PaladinTreeSkill::FIRST_AURA order. Count-prefixed so the aura list can grow without a new
-	 * tag. The tree's castable skills are NOT here - their points ride in the SkillPoints chunk,
-	 * keyed by SpellID, which is what lets GetSpellLevel see them.
+	 * @brief SUPERSEDED by HeroChunkClassTree. Held the Paladin's twenty aura investments in
+	 * PaladinTreeSkill::FIRST_AURA order, before the tree generalized to four classes and the
+	 * array was re-indexed by position-within-class. Still READ, and migrated onto the new slots
+	 * (aura i sat at class position 9 + i), so a hero saved between the two builds keeps its
+	 * points. Never written any more.
 	 */
 	HeroChunkPaladinAuras = 5,
+	/**
+	 * @brief Points invested in class-tree skills that have no spell slot: u8 count, then count
+	 * bytes indexed by position-within-class. Count-prefixed so a class's skill list can grow
+	 * without a new tag. The tree's castable skills are NOT here - their points ride in the
+	 * SkillPoints chunk, keyed by SpellID, which is what lets GetSpellLevel see them.
+	 */
+	HeroChunkClassTree = 6,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

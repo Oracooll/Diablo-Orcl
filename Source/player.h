@@ -424,12 +424,13 @@ struct Player {
 	 */
 	uint8_t _pOracoolActiveAura = 0xFF;
 	/**
-	 * @brief Points sunk into each of the tree's twenty auras, indexed from
-	 * PaladinTreeSkill::FIRST_AURA. The tree's castable skills store their points in
-	 * _pSkillInvestment instead (keyed by SpellID, so GetSpellLevel picks them up); only the auras,
-	 * which have no spell slot, need this. Persisted via the HeroChunkPaladinAuras chunk.
+	 * @brief Points sunk into each class-tree skill that has no spell slot - every aura, every
+	 * passive, and the actives whose mechanics are not built yet - indexed by the skill's position
+	 * within its own class (oracool::ClassTreeIconIndex). The tree's castable skills store their
+	 * points in _pSkillInvestment instead, keyed by SpellID, so GetSpellLevel picks them up.
+	 * Persisted via the HeroChunkClassTree chunk.
 	 */
-	uint8_t _pPaladinAuraInvestment[20] = {};
+	uint8_t _pClassTreeInvestment[30] = {};
 	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers
 	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
 	int _pMagicFind = 0;

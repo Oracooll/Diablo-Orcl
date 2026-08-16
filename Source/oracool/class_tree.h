@@ -1,0 +1,328 @@
+/**
+ * @file oracool/class_tree.h
+ *
+ * Oracool: Diablo II's class skill trees - three pages of ten (nine for the Paladin), for four of
+ * this game's classes.
+ *
+ * Grew out of oracool/paladin_tree, which was written for one class when only the Paladin's sheet
+ * had arrived. Three more followed the same afternoon (Barbarian, Sorceress, Rogue), all in the
+ * same format, so the page machinery generalized rather than being copied three times. The
+ * Paladin's behaviour is unchanged and its tests still pin it.
+ *
+ * ## One enum, four classes
+ *
+ * Every tree skill in the game is one value of PaladinTreeSkill's successor, ClassTreeSkill, and
+ * each row carries the class it belongs to. That keeps investment, persistence and the UI working
+ * on a single index type instead of four parallel ones. A class's own skills are contiguous, and
+ * ClassTreeIconIndex is a skill's position WITHIN its class - which is also its position in that
+ * class's icon strip, so the art and the table cannot drift.
+ *
+ * ## Gating: level tiers, not a prerequisite graph
+ *
+ * Every skill sits in one of Diablo II's six tiers - character level 1, 6, 12, 18, 24, 30 - and
+ * the tier is the whole gate. D2 also has a per-skill prerequisite graph including cross-tree
+ * links; it is deliberately NOT reproduced, because rebuilding it from memory would mean inventing
+ * edges and presenting them as D2's. See the same note in the Paladin's original module.
+ *
+ * ## Investment: one accessor over two stores
+ *
+ * Points come from Phase 2.1's pool (oracool/skill_points.h). Where a tree skill has a SpellID its
+ * investment lives in Player::_pSkillInvestment keyed by that SpellID, which means it flows into
+ * Player::GetSpellLevel and therefore into every ladder that already scales with spell level - for
+ * free. That is what makes the Sorceress page mostly a wiring job: this engine already HAS Fire
+ * Bolt, Fireball, Fire Wall, Inferno, Lightning, Chain Lightning, Nova, Charged Bolt, Teleport,
+ * Telekinesis, Mana Shield and Guardian, and investing in the tree raises them.
+ *
+ * Skills without a SpellID (every aura, every passive, and the actives whose mechanics do not
+ * exist yet) use Player::_pClassTreeInvestment, indexed by position-within-class and persisted by
+ * the HeroChunkClassTree chunk. ClassTreeInvestment() hides which store a skill uses; nothing
+ * outside this module should reach for either array.
+ *
+ * ## Honesty about what the engine cannot do
+ *
+ * Each row's description states D2's effect. Where this engine has no channel for it - there is no
+ * cold damage, no chill, no poison duration, no stamina, no monster-facing aura pass - the skill is
+ * listed, described, and INERT rather than approximated, `implemented` says so, and the UI draws it
+ * greyed. A test asserts the inert ones contribute nothing.
+ */
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+
+#include "player.h"
+#include "spelldat.h"
+#include "utils/stdcompat/string_view.hpp"
+
+namespace devilution {
+
+struct Player;
+
+namespace oracool {
+
+struct ItemBonusTotals;
+
+/**
+ * @brief Every tree skill in the game, grouped by class and, within a class, in icon-strip order.
+ *
+ * A class's block is contiguous and starts at its FIRST_* marker; ClassTreeIconIndex is the offset
+ * from that marker, which is the index into that class's strip.
+ */
+enum class ClassTreeSkill : uint8_t {
+	// ---------------- Paladin: Combat Skills ----------------
+	Sacrifice,
+	FIRST = Sacrifice,
+	PALADIN_FIRST = Sacrifice,
+	Smite,
+	HolyBolt,
+	Zeal,
+	Charge,
+	Vengeance,
+	BlessedHammer,
+	Conversion,
+	FistOfTheHeavens,
+	// ---------------- Paladin: Offensive Auras ----------------
+	Might,
+	HolyFire,
+	Thorns,
+	BlessedAim,
+	Concentration,
+	HolyFreeze,
+	HolyShock,
+	Sanctuary,
+	Fanaticism,
+	Conviction,
+	// ---------------- Paladin: Defensive Auras ----------------
+	Prayer,
+	ResistFire,
+	Defiance,
+	ResistCold,
+	Cleansing,
+	ResistLightning,
+	Vigor,
+	Meditation,
+	Redemption,
+	Salvation,
+	PALADIN_LAST = Salvation,
+
+	// ---------------- Barbarian: Combat Skills ----------------
+	Bash,
+	BARBARIAN_FIRST = Bash,
+	Leap,
+	DoubleSwing,
+	Stun,
+	DoubleThrow,
+	LeapAttack,
+	Concentrate,
+	Frenzy,
+	Whirlwind,
+	Berserk,
+	// ---------------- Barbarian: Combat Masteries ----------------
+	SwordMastery,
+	AxeMastery,
+	MaceMastery,
+	PoleArmMastery,
+	ThrowingMastery,
+	SpearMastery,
+	IncreasedStamina,
+	IronSkin,
+	IncreasedSpeed,
+	NaturalResistance,
+	// ---------------- Barbarian: Warcries ----------------
+	Howl,
+	FindPotion,
+	Taunt,
+	Shout,
+	FindItem,
+	BattleCry,
+	BattleOrders,
+	GrimWard,
+	WarCry,
+	BattleCommand,
+	BARBARIAN_LAST = BattleCommand,
+
+	// ---------------- Sorceress: Cold Spells ----------------
+	IceBolt,
+	SORCERER_FIRST = IceBolt,
+	FrozenArmor,
+	FrostNova,
+	IceBlast,
+	ShiverArmor,
+	GlacialSpike,
+	Blizzard,
+	ChillingArmor,
+	FrozenOrb,
+	ColdMastery,
+	// ---------------- Sorceress: Lightning Spells ----------------
+	ChargedBoltSkill,
+	StaticField,
+	TelekinesisSkill,
+	NovaSkill,
+	LightningSkill,
+	ChainLightningSkill,
+	TeleportSkill,
+	ThunderStorm,
+	EnergyShield,
+	LightningMastery,
+	// ---------------- Sorceress: Fire Spells ----------------
+	FireBoltSkill,
+	Warmth,
+	InfernoSkill,
+	Blaze,
+	FireBallSkill,
+	FireWallSkill,
+	Enchant,
+	Meteor,
+	FireMastery,
+	Hydra,
+	SORCERER_LAST = Hydra,
+
+	// ---------------- Rogue: Bow & Crossbow ----------------
+	MagicArrow,
+	ROGUE_FIRST = MagicArrow,
+	FireArrow,
+	ColdArrow,
+	MultipleShot,
+	ExplodingArrow,
+	IceArrow,
+	GuidedArrow,
+	Strafe,
+	ImmolationArrow,
+	FreezingArrow,
+	// ---------------- Rogue: Passive & Magic ----------------
+	InnerSight,
+	CriticalStrike,
+	Dodge,
+	SlowMissiles,
+	Avoid,
+	Penetrate,
+	Decoy,
+	Evade,
+	Valkyrie,
+	Pierce,
+	// ---------------- Rogue: Javelin & Spear ----------------
+	Jab,
+	PowerStrike,
+	PoisonJavelin,
+	Impale,
+	LightningBoltSkill,
+	ChargedStrike,
+	PlagueJavelin,
+	Fend,
+	LightningStrike,
+	LightningFury,
+	ROGUE_LAST = LightningFury,
+	LAST = LightningFury,
+
+	None = 0xFF,
+};
+
+constexpr size_t ClassTreeSkillCount = 119;
+/** @brief The most skills any one class has - the size of the per-character investment array. */
+constexpr size_t MaxSkillsPerClass = 30;
+/** @brief Points a single tree skill accepts, matching the spell-investment cap. */
+constexpr int MaxTreeInvestment = 20;
+constexpr size_t ClassTreePageCount = 3;
+
+/** @brief What kind of thing a row is, which decides what a click does. */
+enum class ClassTreeKind : uint8_t {
+	/** Cast or swung - clicking readies it on the mouse button that clicked. */
+	Active,
+	/** Burns until switched off. Exactly one aura at a time, Paladin only. */
+	Aura,
+	/** Always on once paid for - masteries and the like. Clicking does nothing. */
+	Passive,
+};
+
+struct ClassTreeSkillData {
+	/** Untranslated; run through _() at the point of display. */
+	const char *name;
+	/** What the skill does in Diablo II, plus this engine's adaptation where they differ. */
+	const char *description;
+	HeroClass heroClass;
+	/** 0-2, the page within the class's tree. */
+	int page;
+	/** 0-5. The character level required is ClassTreeTierMinLevel(tier). */
+	int tier;
+	/** 0-2, the grid column on its page. */
+	int column;
+	ClassTreeKind kind;
+	/**
+	 * @brief The spell slot, or SpellID::Invalid. Read it through ClassTreeSpellId(), which also
+	 * resolves the handful of Paladin skills whose slot is owned by oracool/paladin_skills.h.
+	 */
+	SpellID spellId;
+	/** Whether this row does anything yet - false means listed, described, and inert. */
+	bool implemented;
+};
+
+const ClassTreeSkillData &GetClassTreeSkillData(ClassTreeSkill skill);
+
+/** @brief The spell slot @p skill readies, or SpellID::Invalid. The one authority. */
+SpellID ClassTreeSpellId(ClassTreeSkill skill);
+
+/** @brief Character level required by @p tier: Diablo II's 1, 6, 12, 18, 24, 30. */
+int ClassTreeTierMinLevel(int tier);
+
+/** @brief Display name of @p page for @p heroClass, for the window's title band. */
+string_view GetClassTreePageName(HeroClass heroClass, int page);
+
+/** @brief Whether @p heroClass has a tree at all. All four playable-in-V1 classes do. */
+bool ClassHasTree(HeroClass heroClass);
+
+/** @brief @p skill's position within its own class - its index into that class's icon strip. */
+int ClassTreeIconIndex(ClassTreeSkill skill);
+
+/** @brief Whether @p player's level meets @p skill's tier, and it is their class's skill. */
+bool IsClassTreeSkillUnlocked(const Player &player, ClassTreeSkill skill);
+
+/** @brief Points sunk into @p skill, from whichever store it uses. See the file comment. */
+int ClassTreeInvestment(const Player &player, ClassTreeSkill skill);
+
+/** @brief Whether an invest click would take: unlocked, a point unspent, cap not reached. */
+bool CanInvestClassTreePoint(const Player &player, ClassTreeSkill skill);
+
+/** @brief Spends one of Phase 2.1's unspent points on @p skill. False changes nothing. */
+bool InvestClassTreePoint(Player &player, ClassTreeSkill skill);
+
+/** @brief The burning aura, or None. Paladin only; decoded from Player::_pOracoolActiveAura. */
+ClassTreeSkill GetActiveClassAura(const Player &player);
+
+/**
+ * @brief Click rule for an aura row: activates @p skill, or switches it off if already burning.
+ * Refuses a non-aura, a locked tier, the wrong class, or an aura with nothing invested in it.
+ */
+bool ToggleClassAura(Player &player, ClassTreeSkill skill);
+
+/**
+ * @brief Contributes the burning aura AND every paid-for passive onto @p totals. Auras scale with
+ * the points in them; passives are always on once bought. Effects this engine has no channel for
+ * contribute nothing.
+ */
+void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals);
+
+/**
+ * @brief Whether the character is running for free right now - the Paladin's Vigor aura or the
+ * Barbarian's Increased Speed mastery. Both reach an engine with no walk-speed modifier the same
+ * way: by holding on the double-speed frame skip the run toggle uses.
+ */
+bool IsClassTreeRunActive(const Player &player);
+
+/**
+ * @brief Per-tick work: the Paladin's Prayer and Meditation auras, and the Sorceress's Warmth.
+ * Called once per game logic tick for the local player.
+ */
+void ProcessClassTreeTick(Player &player);
+
+/**
+ * @brief Fills @p out with the skills on @p page of @p heroClass's tree, in grid order. Returns
+ * how many; @p out must hold at least MaxSkillsPerClass.
+ */
+size_t BuildClassTreePage(HeroClass heroClass, int page, ClassTreeSkill *out);
+
+/** @brief The line the hover panel puts under the description: what the points bought. */
+std::string ClassTreeEffectLine(const Player &player, ClassTreeSkill skill);
+
+} // namespace oracool
+} // namespace devilution

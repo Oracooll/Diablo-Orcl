@@ -96,6 +96,25 @@ ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
  * strips because the tree lays them out three to a row rather than one per list row.
  */
 ArtAsset PaladinTreeIconsArt { "ui\\paladin_tree_icons.png" };
+/** The other three class trees, same 56x56 cells, each in its own class's skill order. */
+ArtAsset BarbTreeIconsArt { "ui\\barb_tree_icons.png" };
+ArtAsset SorcTreeIconsArt { "ui\\sorc_tree_icons.png" };
+ArtAsset RogueTreeIconsArt { "ui\\rogue_tree_icons.png" };
+
+/** @brief The strip @p heroClass's tree draws from, or the Paladin's as a harmless fallback. */
+ArtAsset &TreeStripFor(HeroClass heroClass)
+{
+	switch (heroClass) {
+	case HeroClass::Barbarian:
+		return BarbTreeIconsArt;
+	case HeroClass::Sorcerer:
+		return SorcTreeIconsArt;
+	case HeroClass::Rogue:
+		return RogueTreeIconsArt;
+	default:
+		return PaladinTreeIconsArt;
+	}
+}
 /** Oracool: the 18 Barbarian skill icons, same 38x38 cells, in oracool::BarbSkill order. */
 ArtAsset BarbSkillIconsArt { "ui\\barb_skill_icons.png" };
 /** Oracool: the Paladin's seven skills, same 38x38 cells, in oracool::PaladinSkill order. */
@@ -996,14 +1015,15 @@ Size GetPaladinSkillIconSize()
 	return StripIconSize(PaladinSkillIconsArt);
 }
 
-void DrawPaladinTreeIcon(const Surface &out, Point origin, int skillIndex, bool unlocked, SkillPlateTint tint)
+void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, int skillIndex,
+    bool unlocked, SkillPlateTint tint)
 {
-	DrawIconOnPlate(out, PaladinTreeIconsArt, origin, skillIndex, unlocked, tint);
+	DrawIconOnPlate(out, TreeStripFor(heroClass), origin, skillIndex, unlocked, tint);
 }
 
-Size GetPaladinTreeIconSize()
+Size GetClassTreeIconSize(HeroClass heroClass)
 {
-	return StripIconSize(PaladinTreeIconsArt);
+	return StripIconSize(TreeStripFor(heroClass));
 }
 
 bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, SkillPlateTint tint)
