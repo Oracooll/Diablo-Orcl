@@ -138,7 +138,7 @@ const _sfx_id herosounds[enum_size<HeroClass>::value][enum_size<HeroSpeech>::val
 };
 
 /** Contains the data related to each player class. */
-const PlayerData PlayersData[] = {
+DVL_API_FOR_TEST const PlayerData PlayersData[] = {
 	// clang-format off
 // HeroClass                 className,       classPath,   baseStr, baseMag,    baseDex,   baseVit,    maxStr, maxMag,     maxDex,    maxVit, blockBonus,   adjLife,                      adjMana,   lvlLife,   lvlMana,  chrLife,                     chrMana,                     itmLife,                      itmMana, skill,
 

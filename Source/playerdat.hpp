@@ -142,7 +142,9 @@ extern const _sfx_id herosounds[enum_size<HeroClass>::value][enum_size<HeroSpeec
  * DVL_API_FOR_TEST is needed here because test binaries now read this array directly.
  */
 extern DVL_API_FOR_TEST const uint64_t ExpLvlsTbl[MaxCharacterLevel];
-extern const PlayerData PlayersData[];
+// DVL_API_FOR_TEST: the Phase 0.4 stat-sheet pin test computes its HP/mana expectations from the
+// class multipliers themselves, so the test cannot drift from the data.
+extern DVL_API_FOR_TEST const PlayerData PlayersData[];
 extern const PlayerSpriteData PlayersSpriteData[];
 extern const PlayerAnimData PlayersAnimData[];
 

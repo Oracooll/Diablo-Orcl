@@ -28,6 +28,7 @@
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
 #include "player.h"
+#include "playerdat.hpp"
 #include "qol/stash.h"
 #include "spells.h"
 #include "stores.h"
@@ -384,4 +385,132 @@ TEST(OracoolRngStreams, MainSeedGuardRestoresEngineState)
 	// And the guard must not have frozen the generator: rolls after the scope still advance it.
 	(void)devilution::GenerateRnd(8);
 	EXPECT_NE(devilution::GetLCGEngineState(), before);
+}
+
+// Megaplan Phase 0.4: pins CalcPlrItemVals' aggregation semantics BEFORE the bonus-provider
+// refactor, so the extraction is provably behaviour-neutral. Every accumulation rule the loop
+// applies is represented: unconditional base stats, the identified-only bonus gate, the
+// percentage-of-own-AC computation with its Sign fallback, the vit/mag->HP/mana multipliers,
+// resistance clamping, and the light radius delta.
+TEST(OracoolStatSheet, CalcPlrItemValsAggregationPinned)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 10;
+	player._pBaseStr = 30;
+	player._pBaseMag = 10;
+	player._pBaseDex = 20;
+	player._pBaseVit = 25;
+	player._pMaxHPBase = 70 << 6;
+	player._pHPBase = 70 << 6;
+	player._pMaxManaBase = 10 << 6;
+	player._pManaBase = 10 << 6;
+	player._pLightRad = 12; // matches the expected 10 + 2 below, so no light engine call fires
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
+
+	// An identified magic sword: base damage counts, bonuses count.
+	devilution::Item &sword = player.InvBody[INVLOC_HAND_LEFT];
+	sword = {};
+	sword._itype = ItemType::Sword;
+	sword._iClass = ICLASS_WEAPON;
+	sword._iStatFlag = true;
+	sword._iMagical = ITEM_QUALITY_MAGIC;
+	sword._iIdentified = true;
+	sword._iMinDam = 3;
+	sword._iMaxDam = 9;
+	sword._iPLDam = 60;
+	sword._iPLToHit = 15;
+	sword._iPLStr = 5;
+	sword._iPLFR = 25;
+	sword._iPLLight = 2;
+
+	// Identified magic armor with a percentage AC bonus and vit/mana feeds.
+	devilution::Item &armor = player.InvBody[INVLOC_CHEST];
+	armor = {};
+	armor._itype = ItemType::MediumArmor;
+	armor._iClass = ICLASS_ARMOR;
+	armor._iStatFlag = true;
+	armor._iMagical = ITEM_QUALITY_MAGIC;
+	armor._iIdentified = true;
+	armor._iAC = 20;
+	armor._iPLAC = 50; // 50% of 20 = +10 bonus AC
+	armor._iPLVit = 4;
+	armor._iPLMag = 6;
+	armor._iPLHP = 3 << 6;
+	armor._iPLMana = 2 << 6;
+	armor._iPLLR = 130; // clamps to MaxResistance
+
+	// An UNidentified magic ring: its base AC contributes, its bonuses must NOT.
+	devilution::Item &ring = player.InvBody[INVLOC_RING_LEFT];
+	ring = {};
+	ring._itype = ItemType::Ring;
+	ring._iClass = ICLASS_MISC;
+	ring._iStatFlag = true;
+	ring._iMagical = ITEM_QUALITY_MAGIC;
+	ring._iIdentified = false;
+	ring._iPLDam = 100;
+	ring._iPLStr = 50;
+	ring._iPLMR = 75;
+
+	CalcPlrItemVals(player, false);
+
+	EXPECT_EQ(player._pIMinDam, 3);
+	EXPECT_EQ(player._pIMaxDam, 9);
+	EXPECT_EQ(player._pIAC, 20);
+	EXPECT_EQ(player._pIBonusDam, 60) << "unidentified bonuses leaked into damage";
+	EXPECT_EQ(player._pIBonusToHit, 15);
+	EXPECT_EQ(player._pIBonusAC, 10) << "percentage-of-own-AC computation changed";
+	EXPECT_EQ(player._pStrength, 35) << "unidentified strength leaked";
+	EXPECT_EQ(player._pMagic, 16);
+	EXPECT_EQ(player._pVitality, 29);
+	EXPECT_EQ(player._pFireResist, 25);
+	EXPECT_EQ(player._pLghtResist, MaxResistance) << "resistance clamp changed";
+	EXPECT_EQ(player._pMagResist, 0) << "unidentified resistance leaked";
+	EXPECT_EQ(player._pLightRad, 12);
+
+	// HP/mana: item points plus the class multiplier on item vit/mag, exactly as the engine
+	// computes them - read the multipliers from PlayersData so the test cannot drift from it.
+	const auto &classData = PlayersData[static_cast<size_t>(HeroClass::Warrior)];
+	const int expectedIhp = (3 << 6) + (((4 * classData.itmLife) >> 6) << 6);
+	const int expectedImana = (2 << 6) + (((6 * classData.itmMana) >> 6) << 6);
+	EXPECT_EQ(player._pMaxHP, expectedIhp + player._pMaxHPBase);
+	EXPECT_EQ(player._pMaxMana, expectedImana + player._pMaxManaBase);
+}
+
+// Phase 0.4: the Rage stat swings moved out of CalcPlrItemVals into the "rage" bonus provider -
+// the first non-item source. Same numbers, new home; this pins the parity in both directions.
+TEST(OracoolStatSheet, RageProviderMatchesVanillaSwings)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Barbarian;
+	player._pLevel = 10;
+	player._pBaseStr = 30;
+	player._pBaseDex = 20;
+	player._pBaseVit = 25;
+	player._pLightRad = 10;
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
+
+	player._pSpellFlags = SpellFlag::RageActive;
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(player._pStrength, 30 + 2 * 10);
+	EXPECT_EQ(player._pDexterity, 20 + 10 + 10 / 2);
+	EXPECT_EQ(player._pVitality, 25 + 2 * 10);
+
+	player._pSpellFlags = SpellFlag::RageCooldown;
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(player._pStrength, 30 - 2 * 10);
+	EXPECT_EQ(player._pDexterity, 20 - 15);
+	EXPECT_EQ(player._pVitality, 25 - 2 * 10);
+
+	player._pSpellFlags = SpellFlag::None;
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(player._pStrength, 30);
 }

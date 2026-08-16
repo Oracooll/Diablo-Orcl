@@ -43,6 +43,7 @@ set(libdevilutionx_SRCS
   oracool/divine_trn.cpp
   oracool/event_log.cpp
   oracool/rng_streams.cpp
+  oracool/stat_sheet.cpp
   oracool/attack_skills.cpp
   oracool/auras.cpp
   oracool/barb_skills.cpp

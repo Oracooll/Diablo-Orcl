@@ -41,6 +41,7 @@
 #include "oracool/event_log.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
+#include "oracool/stat_sheet.h"
 #include "panels/info_box.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -3146,90 +3147,39 @@ void InitItems()
 
 void CalcPlrItemVals(Player &player, bool loadgfx)
 {
-	int mind = 0; // min damage
-	int maxd = 0; // max damage
-	int tac = 0;  // accuracy
+	// Oracool: Megaplan Phase 0.4 - the accumulation is a provider walk now (equipment, rage, and
+	// every source Phase 1 adds), not an inline loop. See oracool/stat_sheet.h; the semantics of
+	// each sum are pinned by OracoolStatSheet.CalcPlrItemValsAggregationPinned.
+	oracool::ItemBonusTotals totals;
+	oracool::AccumulateBonuses({ &player }, totals);
 
-	int bdam = 0;   // bonus damage
-	int btohit = 0; // bonus chance to hit
-	int bac = 0;    // bonus accuracy
-
-	ItemSpecialEffect iflgs = ItemSpecialEffect::None; // item_special_effect flags
-
-	ItemSpecialEffectHf pDamAcFlags = ItemSpecialEffectHf::None;
-
-	int sadd = 0; // added strength
-	int madd = 0; // added magic
-	int dadd = 0; // added dexterity
-	int vadd = 0; // added vitality
-
-	uint64_t spl = 0; // bitarray for all enabled/active spells
-
-	int fr = 0; // fire resistance
-	int lr = 0; // lightning resistance
-	int mr = 0; // magic resistance
-
-	int dmod = 0; // bonus damage mod?
-	int ghit = 0; // increased damage from enemies
-
-	int lrad = 10; // light radius
-
-	int ihp = 0;   // increased HP
-	int imana = 0; // increased mana
-
-	int spllvladd = 0; // increased spell level
-	int enac = 0;      // enhanced accuracy
-
-	int fmin = 0; // minimum fire damage
-	int fmax = 0; // maximum fire damage
-	int lmin = 0; // minimum lightning damage
-	int lmax = 0; // maximum lightning damage
-
-	for (auto &item : player.InvBody) {
-		if (!item.isEmpty() && item._iStatFlag) {
-
-			mind += item._iMinDam;
-			maxd += item._iMaxDam;
-			tac += item._iAC;
-
-			if (IsValidSpell(item._iSpell)) {
-				spl |= GetSpellBitmask(item._iSpell);
-			}
-
-			if (item._iMagical == ITEM_QUALITY_NORMAL || item._iIdentified) {
-				bdam += item._iPLDam;
-				btohit += item._iPLToHit;
-				if (item._iPLAC != 0) {
-					int tmpac = item._iAC;
-					tmpac *= item._iPLAC;
-					tmpac /= 100;
-					if (tmpac == 0)
-						tmpac = math::Sign(item._iPLAC);
-					bac += tmpac;
-				}
-				iflgs |= item._iFlags;
-				pDamAcFlags |= item._iDamAcFlags;
-				sadd += item._iPLStr;
-				madd += item._iPLMag;
-				dadd += item._iPLDex;
-				vadd += item._iPLVit;
-				fr += item._iPLFR;
-				lr += item._iPLLR;
-				mr += item._iPLMR;
-				dmod += item._iPLDamMod;
-				ghit += item._iPLGetHit;
-				lrad += item._iPLLight;
-				ihp += item._iPLHP;
-				imana += item._iPLMana;
-				spllvladd += item._iSplLvlAdd;
-				enac += item._iPLEnAc;
-				fmin += item._iFMinDam;
-				fmax += item._iFMaxDam;
-				lmin += item._iLMinDam;
-				lmax += item._iLMaxDam;
-			}
-		}
-	}
+	int mind = totals.minDamage;
+	int maxd = totals.maxDamage;
+	int tac = totals.armor;
+	int bdam = totals.bonusDamage;
+	int btohit = totals.bonusToHit;
+	int bac = totals.bonusArmor;
+	ItemSpecialEffect iflgs = totals.flags;
+	ItemSpecialEffectHf pDamAcFlags = totals.damAcFlags;
+	int sadd = totals.strength;
+	int madd = totals.magic;
+	int dadd = totals.dexterity;
+	int vadd = totals.vitality;
+	uint64_t spl = totals.spells;
+	int fr = totals.fireResist;
+	int lr = totals.lightningResist;
+	int mr = totals.magicResist;
+	int dmod = totals.damageMod;
+	int ghit = totals.getHit;
+	int lrad = 10 + totals.lightRadius;
+	int ihp = totals.hitPoints;
+	int imana = totals.mana;
+	int spllvladd = totals.spellLevelAdd;
+	int enac = totals.enhancedAccuracy;
+	int fmin = totals.fireMin;
+	int fmax = totals.fireMax;
+	int lmin = totals.lightningMin;
+	int lmax = totals.lightningMax;
 
 	if (mind == 0 && maxd == 0) {
 		mind = 1;
@@ -3249,16 +3199,10 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		}
 	}
 
-	if (HasAnyOf(player._pSpellFlags, SpellFlag::RageActive)) {
-		sadd += 2 * player._pLevel;
-		dadd += player._pLevel + player._pLevel / 2;
-		vadd += 2 * player._pLevel;
-	}
-	if (HasAnyOf(player._pSpellFlags, SpellFlag::RageCooldown)) {
-		sadd -= 2 * player._pLevel;
-		dadd -= player._pLevel + player._pLevel / 2;
-		vadd -= 2 * player._pLevel;
-	}
+	// The Rage stat swings moved into the "rage" bonus provider (stat_sheet.cpp) - the first
+	// non-item source, proving the direct-contribution path the set-bonus system will use. The
+	// resist half of the cooldown penalty stays below, where it interleaves with the Barbarian's
+	// innate resist bonus.
 
 	player._pIMinDam = mind;
 	player._pIMaxDam = maxd;
