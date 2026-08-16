@@ -30,8 +30,10 @@
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
+#include "oracool/event_log.h"
 #include "oracool/gems.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/runewords.h"
 #include "oracool/telemetry.h"
 #include "oracool/ornate_border.h"
 #include "oracool/oracool.h"
@@ -668,6 +670,10 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 		if (oracool::TrySocketGem(socketTarget, player.HoldItem)) {
 			if (&player == MyPlayer)
 				PlaySFX(IS_IGRAB);
+			// The moment of transformation: the right rune sequence, completed just now, renames
+			// the item and announces itself. Derived state - the check costs one table walk.
+			if (oracool::TryCompleteRuneword(socketTarget) && &player == MyPlayer)
+				oracool::LogEvent(fmt::format("Runeword complete: {:s}", socketTarget._iIName));
 			player.HoldItem.clear();
 			NewCursor(CURSOR_HAND);
 			CalcPlrInv(player, true);

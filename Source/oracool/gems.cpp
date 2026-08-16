@@ -42,6 +42,14 @@ constexpr GemData Gems[] = {
 	// Skull: vitality torn from the dead. Weapon +2 flat damage; armor +15 HP; shield +10 HP...
 	// no - shields guard, so a Skull there is +8 AC. Life belongs on the body.
 	{ IDI_ORACOOL_GEM_SKULL, 0, 0, 0, 0, 0, 2, 0, 0, 0, 15, 0, 0, 0, 0, 8 },
+	// The runes: individually smaller than gems on purpose - a rune alone is a down payment on the
+	// runeword it belongs to (oracool/runewords.h), and pricing it above a gem would make every
+	// completed word strictly free power on top of the better socketable.
+	{ IDI_ORACOOL_RUNE_EL, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2 },
+	{ IDI_ORACOOL_RUNE_TIR, 0, 0, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 3 },
+	{ IDI_ORACOOL_RUNE_RAL, 1, 4, 0, 0, 0, 0, 8, 0, 0, 0, 0, 10, 0, 0, 0 },
+	{ IDI_ORACOOL_RUNE_ORT, 0, 0, 1, 6, 0, 0, 0, 8, 0, 0, 0, 0, 10, 0, 0 },
+	{ IDI_ORACOOL_RUNE_SOL, 0, 0, 0, 0, 0, 3, 0, 0, 0, 8, 0, 0, 0, 0, 4 },
 };
 
 const GemData *FindGem(uint16_t gemIdx)
@@ -167,7 +175,7 @@ std::string GemSocketLine(uint16_t gemIdx, SocketHost host)
 
 bool TrySocketGem(Item &target, const Item &held)
 {
-	if (held.isEmpty() || !IsOracoolGemIdx(held.IDidx))
+	if (held.isEmpty() || (!IsOracoolGemIdx(held.IDidx) && !IsOracoolRuneIdx(held.IDidx)))
 		return false;
 	if (!target.hasOpenSocket())
 		return false;

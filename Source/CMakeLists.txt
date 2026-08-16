@@ -46,6 +46,7 @@ set(libdevilutionx_SRCS
   oracool/gems.cpp
   oracool/hero_chunks.cpp
   oracool/rng_streams.cpp
+  oracool/runewords.cpp
   oracool/sprite_scale.cpp
   oracool/stat_sheet.cpp
   oracool/telemetry.cpp

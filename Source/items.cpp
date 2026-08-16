@@ -43,6 +43,7 @@
 #include "oracool/charms.h"
 #include "oracool/gems.h"
 #include "oracool/oracool.h"
+#include "oracool/runewords.h"
 #include "oracool/stat_sheet.h"
 #include "panels/info_box.hpp"
 #include "panels/ui_panels.hpp"
@@ -1579,8 +1580,8 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		// items drop through their own hook instead - see TrySpawnOracoolSetItem.
 		if (IsOracoolItemIdx(i))
 			continue;
-		// Phase 1: gems and charms obey the same pool-is-save-format rule; own hooks drop them.
-		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i))
+		// Phase 1: gems, charms and runes obey the same pool-is-save-format rule; own hooks drop them.
+		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i))
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
@@ -4347,20 +4348,28 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 		return;
 
 	// Rarer than set pieces: a gem is permanent power the moment it lands in a socket, and the
-	// telemetry (Phase 0.9) exists to tune this number against real sessions. The roll covers
-	// gems AND charms in one draw: 3 in 100 rolls a gem, the next 1 in 100 a charm.
+	// telemetry (Phase 0.9) exists to tune these numbers against real sessions. One draw covers
+	// all three socket-economy families: 3 in 100 a gem, the next 1 a charm, the next 2 a rune.
 	constexpr int GemDropPercent = 3;
 	constexpr int CharmDropPercent = 1;
+	constexpr int RuneDropPercent = 2;
 	const int roll = GenerateRnd(100);
-	if (roll >= GemDropPercent + CharmDropPercent)
+	if (roll >= GemDropPercent + CharmDropPercent + RuneDropPercent)
 		return;
-	const bool dropCharm = roll >= GemDropPercent;
+
+	int first = IDI_ORACOOL_GEM_RUBY;
+	int last = IDI_ORACOOL_GEM_SKULL;
+	if (roll >= GemDropPercent + CharmDropPercent) {
+		first = IDI_ORACOOL_RUNE_EL;
+		last = IDI_ORACOOL_RUNE_SOL;
+	} else if (roll >= GemDropPercent) {
+		first = IDI_ORACOOL_CHARM_VIGOR;
+		last = IDI_ORACOOL_CHARM_FORTUNE;
+	}
 
 	const int mlvl = monster.level(sgGameInitInfo.nDifficulty);
 	_item_indexes candidates[12];
 	int candidateCount = 0;
-	const int first = dropCharm ? IDI_ORACOOL_CHARM_VIGOR : IDI_ORACOOL_GEM_RUBY;
-	const int last = dropCharm ? IDI_ORACOOL_CHARM_FORTUNE : IDI_ORACOOL_GEM_SKULL;
 	for (int i = first; i <= last; i++) {
 		if (AllItemsList[i].iMinMLvl <= mlvl)
 			candidates[candidateCount++] = static_cast<_item_indexes>(i);
@@ -4905,6 +4914,22 @@ void PrintItemDetails(const Item &item)
 		AddPanelString(oracool::CharmEffectLine(static_cast<uint16_t>(item.IDidx)), ItemAffixColor);
 		AddPanelString(fmt::format(fmt::runtime(_("only your first {:d} charms are active")), oracool::CharmActiveCap), ItemBaseStatColor);
 	}
+	// Phase 1 runes: every rune teaches the runewords it belongs to - the recipes drop WITH the
+	// runes, which is the whole "discoverable in-game" improvement over D2's wiki homework.
+	if (IsOracoolRuneIdx(item.IDidx)) {
+		const std::string teaching = oracool::RuneTeachingLines(static_cast<uint16_t>(item.IDidx));
+		size_t start = 0;
+		while (start < teaching.size()) {
+			size_t end = teaching.find('\n', start);
+			if (end == std::string::npos)
+				end = teaching.size();
+			AddPanelString(teaching.substr(start, end - start), ItemAffixColor);
+			start = end + 1;
+		}
+	}
+	// A completed runeword announces itself above the stats, in the name's own gold.
+	if (const oracool::RunewordDefinition *word = oracool::GetActiveRuneword(item); word != nullptr)
+		AddPanelString(fmt::format(fmt::runtime(_("Runeword: {:s}")), _(word->name)), UiFlags::ColorWhitegold);
 	// Phase 1 sockets: the socket line and one line per set gem, each in the gem economy's own
 	// voice. The empty-socket count is the item's pitch - "Sockets: 1/3" is an invitation.
 	if (item._iSocketCount > 0) {

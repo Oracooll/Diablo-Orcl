@@ -256,7 +256,14 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	IDI_ORACOOL_CHARM_EMBERS,
 	IDI_ORACOOL_CHARM_STORMS,
 	IDI_ORACOOL_CHARM_FORTUNE,
-	IDI_LAST = IDI_ORACOOL_CHARM_FORTUNE,
+	// Phase 1 runes: socketables like the gems, smaller alone - their real power is runeWORDS
+	// (oracool/runewords.h): the right sequence in a fully socketed plain item transforms it.
+	IDI_ORACOOL_RUNE_EL,
+	IDI_ORACOOL_RUNE_TIR,
+	IDI_ORACOOL_RUNE_RAL,
+	IDI_ORACOOL_RUNE_ORT,
+	IDI_ORACOOL_RUNE_SOL,
+	IDI_LAST = IDI_ORACOOL_RUNE_SOL,
 	IDI_NONE = -1,
 };
 
@@ -290,6 +297,12 @@ constexpr bool IsOracoolGemIdx(int i)
 constexpr bool IsOracoolCharmIdx(int i)
 {
 	return i >= IDI_ORACOOL_CHARM_VIGOR && i <= IDI_ORACOOL_CHARM_FORTUNE;
+}
+
+/** @brief Phase 1: whether @p i is a rune. Socketable like a gem; see oracool/runewords.h. */
+constexpr bool IsOracoolRuneIdx(int i)
+{
+	return i >= IDI_ORACOOL_RUNE_EL && i <= IDI_ORACOOL_RUNE_SOL;
 }
 
 enum item_drop_rate : uint8_t {

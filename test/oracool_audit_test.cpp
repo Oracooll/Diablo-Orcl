@@ -32,6 +32,7 @@
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
+#include "oracool/runewords.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/telemetry.h"
@@ -779,4 +780,56 @@ TEST(OracoolCharms, CharmEffectsReachTheStatSheet)
 
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(player._pFireResist, 15) << "the charm's resist never reached the sheet";
+}
+
+// Phase 1 runewords: derived state, exact order, right host - the three rules in one test each.
+TEST(OracoolRunewords, ExactSequenceInRightHostCompletes)
+{
+	devilution::Item sword {};
+	sword._itype = ItemType::Sword;
+	sword._iMagical = ITEM_QUALITY_NORMAL;
+	sword._iSocketCount = 2;
+	sword._iSocketed[0] = IDI_ORACOOL_RUNE_TIR;
+	sword._iSocketed[1] = IDI_ORACOOL_RUNE_EL;
+	const oracool::RunewordDefinition *steel = oracool::GetActiveRuneword(sword);
+	ASSERT_NE(steel, nullptr) << "Tir+El in a 2-socket sword should be Steel";
+	EXPECT_STREQ(steel->name, "Steel");
+
+	// Wrong ORDER is no runeword at all.
+	devilution::Item wrongOrder = sword;
+	wrongOrder._iSocketed[0] = IDI_ORACOOL_RUNE_EL;
+	wrongOrder._iSocketed[1] = IDI_ORACOOL_RUNE_TIR;
+	EXPECT_EQ(oracool::GetActiveRuneword(wrongOrder), nullptr);
+
+	// Right runes, wrong HOST: Tir+El in a helm is nothing.
+	devilution::Item helm = sword;
+	helm._itype = ItemType::Helm;
+	EXPECT_EQ(oracool::GetActiveRuneword(helm), nullptr);
+
+	// A 3-socket sword with the same two runes is INCOMPLETE, not Steel: socket count must match.
+	devilution::Item threeSockets = sword;
+	threeSockets._iSocketCount = 3;
+	EXPECT_EQ(oracool::GetActiveRuneword(threeSockets), nullptr);
+}
+
+TEST(OracoolRunewords, CompletionRenamesAndRunesTeach)
+{
+	devilution::Item shield {};
+	shield._itype = ItemType::Shield;
+	shield._iMagical = ITEM_QUALITY_NORMAL;
+	shield._iSocketCount = 3;
+	shield._iSocketed[0] = IDI_ORACOOL_RUNE_RAL;
+	shield._iSocketed[1] = IDI_ORACOOL_RUNE_ORT;
+	shield._iSocketed[2] = IDI_ORACOOL_RUNE_EL;
+	ASSERT_TRUE(oracool::TryCompleteRuneword(shield));
+	EXPECT_STREQ(shield._iIName, "Ancient's Pledge");
+
+	// El appears in Steel and Ancient's Pledge - its description must teach both.
+	const std::string teaching = oracool::RuneTeachingLines(IDI_ORACOOL_RUNE_EL);
+	EXPECT_NE(teaching.find("Steel"), std::string::npos);
+	EXPECT_NE(teaching.find("Ancient's Pledge"), std::string::npos);
+	// Sol appears only in Lore.
+	const std::string solTeaching = oracool::RuneTeachingLines(IDI_ORACOOL_RUNE_SOL);
+	EXPECT_NE(solTeaching.find("Lore"), std::string::npos);
+	EXPECT_EQ(solTeaching.find("Steel"), std::string::npos);
 }

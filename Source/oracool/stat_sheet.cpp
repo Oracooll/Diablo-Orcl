@@ -3,6 +3,7 @@
 #include "items.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
+#include "oracool/runewords.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/math.h"
@@ -109,6 +110,10 @@ void ApplySockets(const BonusContext &ctx, ItemBonusTotals &totals)
 			if (gemIdx != Item::EmptySocket)
 				ApplyGemToTotals(gemIdx, host, totals);
 		}
+		// A completed runeword's own bonuses ride ON TOP of the individual runes' effects. The
+		// state is derived right here from the sockets, never stored - it cannot desync.
+		if (const RunewordDefinition *word = GetActiveRuneword(item); word != nullptr)
+			ApplyRunewordToTotals(*word, totals);
 	}
 }
 
