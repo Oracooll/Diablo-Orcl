@@ -141,7 +141,26 @@ size_t BuildSpellRows(SpellID *rows)
 	// `minInt` is the Magic a spell demands, and it is the only real requirement Diablo puts on a
 	// spell - there is no character-level gate. (sBookLvl exists but is about which dungeon level
 	// drops the BOOK, which is loot availability rather than a requirement.)
-	std::sort(rows, rows + count, [](SpellID a, SpellID b) {
+	//
+	// Substance first, though, ahead of both. Three of the entries above - Doom Serpents, Blood
+	// Ritual and Invisibility - are the original developers' name-only stubs, and their table rows
+	// are zeroed throughout: no mana, no book price, MissileID::Null in both slots, and minInt 0.
+	// That last zero is a placeholder, not a requirement, so sorting on it alone put all three
+	// AHEAD of every real spell - the Spells sheet opened with the only three entries in it that do
+	// nothing at all (user, 2026-08-16). They sink to the bottom until they are given substance.
+	//
+	// "Has a missile" is the right test only because this list is the BOOK spells and nothing else:
+	// a book spell is its missile. It would be quite wrong applied generally - every Paladin skill
+	// carries MissileID::Null in both slots too, and each of those is implemented in code.
+	const auto isImplemented = [](SpellID sn) {
+		const SpellData &data = GetSpellData(sn);
+		return data.sMissiles[0] != MissileID::Null || data.sMissiles[1] != MissileID::Null;
+	};
+	std::sort(rows, rows + count, [&isImplemented](SpellID a, SpellID b) {
+		const bool liveA = isImplemented(a);
+		const bool liveB = isImplemented(b);
+		if (liveA != liveB)
+			return liveA;
 		const int reqA = GetSpellData(a).minInt;
 		const int reqB = GetSpellData(b).minInt;
 		if (reqA != reqB)
@@ -209,20 +228,51 @@ size_t BuildSkillRows(SpellID * /*rows*/)
  */
 constexpr size_t AttackRowCount = oracool::AttackIconCount;
 
-// Oracool V1: the shared theme and geometry - the same 340x720 window, title band and separator as
-// the waypoint list, quest log, character sheet and inventory.
-//   0..24     top margin
-//   24..74    label band, the sheet's name, with an arrow at each end
-//   74..77    separator rule
-//   77..101   gap below the rule
-//   101..696  content area - the scrolling list
-//   696..720  bottom margin
+// Oracool V1: the shared theme and geometry - the same 340x720 window as the waypoint list, quest
+// log, character sheet, stash and inventory.
+//
+//   0..8       top margin
+//   8..46      title band, the sheet's name - oracool::PanelTitleTop / PanelTitleHeight, so this
+//              window's title sits on the same line as the other five
+//   46..101    the painted background's arch shoulders - ornament, nothing may be drawn here
+//   101..127   the nav row: the two sheet arrows at its ends, the unspent-points count between them
+//   127..624   content area - the scrolling list, ending at oracool::SidePanelContentBottom
+//   624..720   the background's bottom ornament
+//
+// Rebuilt 2026-08-16. The title band used to be 24..74 with a 74..77 separator rule under it, and
+// the title, the points count AND the right-hand arrow were all drawn into that one 292px-wide rect
+// with three different alignments - so on any sheet whose name is long ("DEFENSIVE AURAS",
+// "OFFENSIVE AURAS", "COMBAT SKILLS") the three simply overlapped. The points count has its own row
+// now, which is also where the arrows moved to; the title has the band to itself and cannot collide
+// with anything.
 constexpr Size AbilitiesPanelSize { 340, 720 };
 constexpr int AbilitiesMargin = 24;
-constexpr int AbilitiesLabelHeight = 50;
-constexpr int AbilitiesContentTop = AbilitiesMargin + AbilitiesLabelHeight + oracool::OrnateBorderWidth + AbilitiesMargin;
+
+/**
+ * @brief First y at which a full-width row clears the painted background's arch.
+ *
+ * Measured off ui/stash_background.png rather than derived from margins: the header strip and the
+ * arch's shoulders carry ornament down to about y=101, and the interior is clear from there to about
+ * y=655. The stash's own page row starts on this same line, which is why the two windows' first rows
+ * agree when both are open.
+ */
+constexpr int AbilitiesArchTop = 101;
+/** @brief The nav row: an arrow at each end, the unspent-points count centred between them. */
+constexpr int AbilitiesNavRowHeight = 26;
+constexpr int AbilitiesContentTop = AbilitiesArchTop + AbilitiesNavRowHeight;
+/**
+ * @brief The list's height.
+ *
+ * Bounded by oracool::SidePanelContentBottom, not by the panel's own height less a margin. The old
+ * bound ran the list to y=696, straight across the background art's bottom ornament - the same
+ * mistake the character sheet and quest log made against the health orb, and the reason that
+ * constant exists.
+ */
 constexpr Size AbilitiesContentSize { AbilitiesPanelSize.width,
-	AbilitiesPanelSize.height - AbilitiesContentTop - AbilitiesMargin };
+	oracool::SidePanelContentBottom - AbilitiesContentTop };
+static_assert(AbilitiesContentTop >= oracool::PanelTitleTop + oracool::PanelTitleHeight,
+    "the list starts inside the title band");
+static_assert(AbilitiesContentSize.height > 0, "the nav row has eaten the whole list");
 
 /** @brief A spell or skill row: the small icon with a little air above and below it. */
 constexpr int SpellRowHeight = 44;
@@ -280,7 +330,16 @@ enum class AbilitySheet : uint8_t {
 	ClassTree2,
 	LAST = ClassTree2,
 };
-constexpr size_t AbilitySheetCount = 7;
+/**
+ * @brief How many sheets exist. DERIVED, never restated.
+ *
+ * Bug (fixed 2026-08-16, user report - a screenshot of a sheet with no title and no content): this
+ * was the literal 7 while the enum held six. Nothing indexed out of bounds, because every consumer
+ * either switches on the enum or indexes ScrollOffset, which was sized from this same number - so
+ * the phantom simply fell through every switch: GetSheetTitle returned an empty string, GetRowCount
+ * returned 0, and IsSheetAvailable's default said yes. The arrows cycled you onto a blank page.
+ */
+constexpr size_t AbilitySheetCount = static_cast<size_t>(AbilitySheet::LAST) + 1;
 
 /**
  * @brief The tree page index a sheet shows, or nullopt if it is not one of the three.
@@ -417,15 +476,24 @@ int RowHeightFor(AbilitySheet sheet)
 
 constexpr int TreeIconSize = 56;
 constexpr int TreeColumns = 3;
-constexpr int TreeTiers = oracool::ClassTreeTierCount;
 constexpr int TreeColPitch = 100;
 /** Centres the three columns in the content width. */
 constexpr int TreeColX0 = (AbilitiesContentRightLimit - (TreeColumns - 1) * TreeColPitch - TreeIconSize) / 2;
 /** The point counter under each icon, which doubles as the invest button. */
 constexpr int TreeBarHeight = 16;
 constexpr int TreeBarGap = 4;
-constexpr int TreeRowGap = 12;
+/**
+ * @brief Air between one tier's counter and the next tier's icon.
+ *
+ * 6, down from 12 (2026-08-16). The nav row cost the list 26px, and at the old pitch a six-tier page
+ * - which is every page the Paladin, Barbarian, Sorcerer and Rogue have - no longer fitted, so all
+ * of them grew a scrollbar for the sake of their last row's counter. The static_assert below is the
+ * real statement: a six-tier page must fit without scrolling.
+ */
+constexpr int TreeRowGap = 6;
 constexpr int TreeRowPitch = TreeIconSize + TreeBarGap + TreeBarHeight + TreeRowGap;
+static_assert(6 * TreeRowPitch <= AbilitiesContentSize.height,
+    "a six-tier tree page no longer fits the list unscrolled - tighten TreeRowGap or the nav row");
 
 Rectangle TreeIconRect(int column, int tier)
 {
@@ -545,32 +613,30 @@ size_t GetRowCount(AbilitySheet sheet)
 	return 0;
 }
 
-/** @brief Height of row @p index on @p sheet - uniform everywhere except the Skills sheet. */
-int RowHeightAt(AbilitySheet sheet, size_t index)
-{
-	if (sheet != AbilitySheet::Skills)
-		return RowHeightFor(sheet);
-	SkillRow rows[MaxSkillSheetRows];
-	const size_t count = BuildSkillsSheetRows(rows);
-	if (index >= count)
-		return SpellRowHeight;
-	return SpellRowHeight; // uniform again since the sheet lost its text (2026-08-15)
-}
-
 /** @brief Total height of every row on @p sheet. */
 int TotalListHeight(AbilitySheet sheet)
 {
-	// The tree pages are a fixed grid: ClassTreeTierCount tall whatever the page holds, so the rows
-	// line up across pages instead of shifting when a sparse tier is skipped.
-	if (TreePageOf(sheet).has_value())
-		return TreeTiers * TreeRowPitch;
-	const size_t count = GetRowCount(sheet);
-	if (sheet != AbilitySheet::Skills)
-		return static_cast<int>(count) * RowHeightFor(sheet);
-	int total = 0;
-	for (size_t i = 0; i < count; i++)
-		total += RowHeightAt(sheet, i);
-	return total;
+	// A tree page is as tall as its deepest tier, not as tall as the tier system allows.
+	//
+	// This used to return TreeTiers * TreeRowPitch unconditionally, on the reasoning that a fixed
+	// grid keeps rows lined up across pages - which it does, but the ROWS are placed from each
+	// skill's own tier and were never affected by this number. All it decided was the scroll extent,
+	// so every six-tier page (the Paladin's three, and every class but the Monk) advertised a
+	// seventh, empty tier and grew a scrollbar to reach it.
+	if (const std::optional<int> page = TreePageOf(sheet); page.has_value()) {
+		oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+		const size_t count = oracool::BuildClassTreePage(InspectPlayer->_pClass, *page, skills);
+		int deepest = -1;
+		for (size_t i = 0; i < count; i++)
+			deepest = std::max(deepest, oracool::GetClassTreeSkillData(skills[i]).tier);
+		return (deepest + 1) * TreeRowPitch;
+	}
+	// Every list sheet is a uniform stride. The Skills sheet briefly was not - it mixed compact rows
+	// with tall described ones - and RowHeightAt existed to walk it; that ended when the sheet lost
+	// its text (2026-08-15) and the function became a per-row rebuild of the whole sheet to return a
+	// constant, called once per row from here. BuildSkillsSheetRows survives because the click and
+	// hover paths need the row KINDS, and because the planned rune slots will bring the variety back.
+	return static_cast<int>(GetRowCount(sheet)) * RowHeightFor(sheet);
 }
 
 /** @brief Recomputes the scroll extent for the current sheet and re-clamps its offset. */
@@ -679,14 +745,20 @@ void DrawScrollbar(const Surface &out, const Rectangle &panel)
 	oracool::DrawOrnateSeparatorVertical(out, { x, thumbY }, thumbHeight);
 }
 
-/** @brief Screen rect of the sheet-cycling arrow. @p direction is -1 for left, +1 for right. */
+/**
+ * @brief Screen rect of the sheet-cycling arrow. @p direction is -1 for left, +1 for right.
+ *
+ * In the nav row, not the title band (2026-08-16). The right-hand arrow used to share the band with
+ * the right-aligned points count, which drew straight over it - "Points: 3" rendered as "Points>3"
+ * with the colon swallowed. Down here each arrow has an end of the row to itself.
+ */
 Rectangle GetArrowRect(int direction)
 {
 	const Rectangle panel = GetSpellBookPanelRect();
 	const int cx = direction < 0
 	    ? panel.position.x + AbilitiesMargin + ArrowHitSize.width / 2
 	    : panel.position.x + AbilitiesPanelSize.width - AbilitiesMargin - ArrowHitSize.width / 2;
-	const int cy = panel.position.y + AbilitiesMargin + AbilitiesLabelHeight / 2;
+	const int cy = panel.position.y + AbilitiesArchTop + AbilitiesNavRowHeight / 2;
 	return { { cx - ArrowHitSize.width / 2, cy - ArrowHitSize.height / 2 }, ArrowHitSize };
 }
 
@@ -813,18 +885,43 @@ void DrawAttackRow(const Surface &content, size_t index, int top)
 // out a point, and quiet again once it is sunk. The invested count sits beside it permanently.
 constexpr Size InvestButtonSize { 22, 22 };
 constexpr int InvestButtonRightPad = 4;
+/** @brief The sunk-points readout that sits left of the button. */
+constexpr int InvestCountWidth = 30;
+constexpr int InvestCountGap = 4;
+/** @brief [count][gap][+] - moved as one, so the two can never drift apart. */
+constexpr int InvestGroupWidth = InvestCountWidth + InvestCountGap + InvestButtonSize.width;
+
+/**
+ * @brief Left edge of the [count][+] group on the sheet being drawn.
+ *
+ * Everywhere but the Skills sheet this is the row's right edge, tucked against the scrollbar and
+ * clear of the row's text.
+ *
+ * The Skills sheet is the exception, and was visibly broken by the rule (user report, 2026-08-16 -
+ * "full of issues", with a screenshot showing a "+4" and a "+" floating in the middle of nowhere).
+ * That sheet's rows are icon-only by request (2026-08-15: "Remove all text from Skills Ability
+ * sheet"), so between the 38px icon and the panel's right edge there is 200px of nothing, and a
+ * control parked at the far end of it reads as belonging to no row at all. It follows the icon
+ * instead, into the column the text used to occupy.
+ */
+int InvestGroupLeft()
+{
+	if (CurrentSheet == AbilitySheet::Skills)
+		return RowTextX();
+	return AbilitiesContentRightLimit - InvestGroupWidth - InvestButtonRightPad;
+}
 
 Rectangle InvestButtonRect(int top, int rowHeight)
 {
-	return { { AbilitiesContentRightLimit - InvestButtonSize.width - InvestButtonRightPad,
+	return { { InvestGroupLeft() + InvestCountWidth + InvestCountGap,
 		         top + (rowHeight - InvestButtonSize.height) / 2 },
 		InvestButtonSize };
 }
 
 bool InvestZoneClicked(int localX)
 {
-	return localX >= AbilitiesContentRightLimit - InvestButtonSize.width - InvestButtonRightPad
-	    && localX < AbilitiesContentRightLimit - InvestButtonRightPad;
+	const int buttonLeft = InvestGroupLeft() + InvestCountWidth + InvestCountGap;
+	return localX >= buttonLeft && localX < buttonLeft + InvestButtonSize.width;
 }
 
 void DrawInvestControls(const Surface &content, int top, int rowHeight, SpellID sn)
@@ -834,14 +931,13 @@ void DrawInvestControls(const Surface &content, int top, int rowHeight, SpellID 
 	const Player &player = *MyPlayer;
 	if (sn == SpellID::Invalid)
 		return;
+	const int left = InvestGroupLeft();
 	const int invested = player._pSkillInvestment[static_cast<size_t>(sn)];
 	if (invested > 0) {
 		// The sunk points, said plainly and always - the "+" comes and goes with the unspent pool,
 		// but what a skill has already been fed is permanent information.
 		DrawString(content, fmt::format("+{:d}", invested),
-		    { { AbilitiesContentRightLimit - InvestButtonSize.width - InvestButtonRightPad - 34,
-			      top },
-		        { 30, rowHeight } },
+		    { { left, top }, { InvestCountWidth, rowHeight } },
 		    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
 	}
 	if (!oracool::CanInvestSkillPoint(player, sn))
@@ -923,13 +1019,21 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		DrawAssignmentRings(content, icon, slot, GetSBookTrans(slot, true));
 	}
 
+	// The counter says something in exactly two cases: you can feed this skill, or you already have.
+	//
+	// It used to be drawn unconditionally, so a page put a "0" under every icon on it - and since
+	// most of a tree is locked at any given level, most of those zeroes were under grey plates that
+	// already said "not yours yet". Ten of them down a page is what made these sheets read as
+	// cluttered (user, 2026-08-16: "full of issues"). Silence is the honest default here.
 	const bool canInvest = !IsInspectingPlayer() && oracool::CanInvestClassTreePoint(*MyPlayer, skill);
-	if (canInvest)
+	if (canInvest) {
 		oracool::DrawHoverOutline(content, bar);
-	DrawString(content,
-	    canInvest ? fmt::format("+ {:d}", invested) : fmt::format("{:d}", invested), bar,
-	    { (canInvest ? UiFlags::ColorWhitegold : (invested > 0 ? UiFlags::ColorWhite : UiFlags::ColorUiSilverDark))
-	        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		DrawString(content, fmt::format("+ {:d}", invested), bar,
+		    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	} else if (invested > 0) {
+		DrawString(content, fmt::format("{:d}", invested), bar,
+		    { UiFlags::ColorWhite | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
 }
 
 /** @brief Draws a whole tree page. */
@@ -1329,18 +1433,37 @@ void DrawSpellBook(const Surface &out)
 		CurrentSheet = FirstAvailableSheet();
 
 	const Rectangle panel = GetSpellBookPanelRect();
-	oracool::DrawThemedFill(out, panel);
-	oracool::DrawOrnateBorder(out, panel);
+	// Oracool (2026-08-16): the shared painted side-panel background - see quests.cpp for the note.
+	// This was the sixth and last themed window still on the half-transparent procedural fill, which
+	// is why the town showed through it in every screenshot the user sent. The fill and bevel stay as
+	// the fallback so the art remains droppable rather than required.
+	//
+	// The rule under the title went with it, as it did in the other five: the art brings its own
+	// header framing, so the separator was a second line drawn across the first.
+	if (oracool::HasSidePanelArt()) {
+		oracool::DrawSidePanelArt(out, panel.position);
+	} else {
+		oracool::DrawThemedFill(out, panel);
+		oracool::DrawOrnateBorder(out, panel);
+	}
 
-	const Rectangle labelArea { { panel.position.x + AbilitiesMargin, panel.position.y + AbilitiesMargin },
-		{ panel.size.width - 2 * AbilitiesMargin, AbilitiesLabelHeight } };
+	// The title has the band to itself, at the same PanelTitleTop every other side panel uses.
+	const Rectangle labelArea { { panel.position.x + AbilitiesMargin, panel.position.y + oracool::PanelTitleTop },
+		{ panel.size.width - 2 * AbilitiesMargin, oracool::PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, GetSheetTitle(CurrentSheet), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
-	// Phase 2.1: the unspent pool, right-aligned in the title band - present only while there is
-	// something to spend, so the band stays clean the rest of the time.
+
+	// The nav row, mirroring the stash's page row: an arrow at each end, the readout centred between
+	// them. Phase 2.1 put the unspent pool in the title band instead, right-aligned - where it drew
+	// over both the sheet name and the right-hand arrow.
+	//
+	// The row's HEIGHT is reserved whether or not there is anything to spend (AbilitiesContentTop
+	// includes it), so the list underneath does not jump the moment you level up.
+	const Rectangle navRow { { panel.position.x + AbilitiesMargin, panel.position.y + AbilitiesArchTop },
+		{ panel.size.width - 2 * AbilitiesMargin, AbilitiesNavRowHeight } };
 	if (!IsInspectingPlayer() && MyPlayer->_pUnspentSkillPoints > 0) {
 		DrawString(out, fmt::format(fmt::runtime(_("Points: {:d}")), int(MyPlayer->_pUnspentSkillPoints)),
-		    labelArea, { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
+		    navRow, { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 	// Only when there is somewhere to go - arrows on a window that cannot turn are a control that
 	// lies. Every class has at least Spells and Skills today so this is always true, but it was not
@@ -1350,9 +1473,6 @@ void DrawSpellBook(const Surface &out)
 		DrawArrow(out, -1);
 		DrawArrow(out, 1);
 	}
-	oracool::DrawOrnateSeparator(out,
-	    { panel.position.x + AbilitiesMargin, panel.position.y + AbilitiesMargin + AbilitiesLabelHeight },
-	    panel.size.width - 2 * AbilitiesMargin);
 
 	UpdateScrollBounds();
 	DrawScrollbar(out, panel);

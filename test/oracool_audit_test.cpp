@@ -46,8 +46,10 @@
 #include "oracool/skill_points.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
+#include "oracool/ornate_border.h"
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
+#include "panels/spell_book.hpp"
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
@@ -1756,6 +1758,85 @@ TEST(OracoolCrafting, MixedGemsDoNotSatisfyThreeOfAKind)
 	player.InvList[1].IDidx = IDI_ORACOOL_RUNE_SOL;
 	player._pNumInv = 2;
 	EXPECT_FALSE(oracool::CanCraft(player, 1)) << "a Sol pair offered an ascension past the ladder's top";
+}
+
+// Every 340x720 side panel draws over the same painted background, whose interior ends at
+// oracool::SidePanelContentBottom - below that is the art's bottom ornament, and on the left-hand
+// panels the health orb as well. The Abilities window was the last one still sizing its list as
+// "panel height less a margin", so its rows ran to y=696, straight across that ornament. It also
+// started its title band 16px lower than the other five, which is what the shared PanelTitleTop
+// exists to prevent.
+TEST(OracoolAudit2, AbilitiesWindowContentStaysInsideThePaintedFrame)
+{
+	const Rectangle panel = GetSpellBookPanelRect();
+	const Rectangle content = GetSpellBookContentRect();
+
+	// Relative to the panel, so this says nothing about where on screen the window sits.
+	const int contentTop = content.position.y - panel.position.y;
+	const int contentBottom = contentTop + content.size.height;
+
+	EXPECT_GE(contentTop, oracool::PanelTitleTop + oracool::PanelTitleHeight)
+	    << "the list starts inside the title band";
+	EXPECT_EQ(contentBottom, oracool::SidePanelContentBottom)
+	    << "the list runs past the background art's interior";
+	EXPECT_EQ(panel.size.height, 720) << "no longer the shared side-panel size";
+}
+
+// Five rows of the Paladin's Combat Skills tree are second faces on skills oracool/paladin_skills.h
+// owns - same spell slot, same investment store, same mana. They are NOT second implementations, so
+// the two sheets must never disagree about whether one is available.
+//
+// They did. IsClassTreeSkillUnlocked stopped at the row's TIER level while the skill itself gates on
+// its own minLevel and, for two of them, on a shield being held. The visible half was Smite: the
+// tree lit it at level 1 bare-handed and let it be clicked onto a mouse button, where it then did
+// nothing, while the Skills sheet greyed the very same skill out.
+//
+// Walks every level rather than spot-checking: an off-by-one in either gate is exactly the shape
+// this bug had.
+TEST(OracoolAudit2, TreeAndSkillsSheetAgreeOnBorrowedPaladinSkills)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior; // the Paladin's slot in this fork
+	ASSERT_TRUE(oracool::ClassHasPaladinSkills(player)) << "the Paladin is no longer HeroClass::Warrior";
+
+	// Pair them up through the spell slot, which is the thing they actually share - so a tree row
+	// that later starts or stops borrowing needs no edit here.
+	oracool::ClassTreeSkill page[oracool::ClassTreeSkillCount];
+	const size_t count = oracool::BuildClassTreePage(player._pClass, 0, page);
+	ASSERT_GT(count, 0u) << "the Paladin's Combat Skills page is empty";
+
+	int paired = 0;
+	for (size_t i = 0; i < count; i++) {
+		// Deliberately NOT filtered through IsValidSpell: that also asks gbIsHellfire, which is false
+		// in the test binary, and every Paladin skill's SpellID sits past SpellID::LastDiablo. The
+		// slot is only being used to pair a tree row with a skill here, and SpellID::Invalid pairs
+		// with nothing.
+		const SpellID slot = oracool::ClassTreeSpellId(page[i]);
+		for (size_t s = 0; s < oracool::PaladinSkillCount; s++) {
+			const auto paladinSkill = static_cast<oracool::PaladinSkill>(s);
+			if (oracool::GetPaladinSkillData(paladinSkill).spellId != slot)
+				continue;
+			paired++;
+			// Both with and without a shield: two of the seven require one, and the tree knew
+			// nothing about that requirement at all.
+			for (const bool shield : { false, true }) {
+				player.InvBody[INVLOC_HAND_RIGHT] = {};
+				if (shield)
+					player.InvBody[INVLOC_HAND_RIGHT]._itype = ItemType::Shield;
+				for (int level = 1; level <= 40; level++) {
+					player._pLevel = static_cast<int8_t>(level);
+					EXPECT_EQ(oracool::IsClassTreeSkillUnlocked(player, page[i]),
+					    oracool::IsPaladinSkillUnlocked(player, paladinSkill))
+					    << "the tree and the Skills sheet disagree about "
+					    << oracool::GetClassTreeSkillData(page[i]).name << " at level " << level
+					    << (shield ? " holding a shield" : " bare-handed");
+				}
+			}
+		}
+	}
+	EXPECT_EQ(paired, 5) << "the set of borrowed Paladin skills changed - is that deliberate?";
 }
 
 // The stash page grew from the vanilla 10x10 to 10x16 when it moved into the 340x720 theme, but

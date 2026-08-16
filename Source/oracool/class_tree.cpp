@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <optional>
 
 #include <fmt/format.h>
 
@@ -531,25 +532,42 @@ const ClassTreeSkillData &GetClassTreeSkillData(Skill skill)
 	return Skills[index];
 }
 
-SpellID ClassTreeSpellId(Skill skill)
+/**
+ * @brief The oracool/paladin_skills.h skill a tree row borrows, if it borrows one.
+ *
+ * Five Combat Skills rows are not implementations at all - they are second faces on skills that
+ * module owns. It keeps their spell slot, their level gate, their shield requirement and their mana
+ * price; this table keeps only their name, description, tier and column.
+ *
+ * ONE list, read by everything that has to know: the slot lookup below and the unlock test further
+ * down both used to answer for themselves, and they disagreed - see IsClassTreeSkillUnlocked.
+ */
+std::optional<PaladinSkill> BorrowedPaladinSkill(Skill skill)
 {
-	// The five borrowed Paladin slots are resolved HERE rather than stored in the table: they are
-	// owned by oracool/paladin_skills.h, and reading that module's table during this one's static
-	// initialisation would be an initialisation-order gamble across translation units.
 	switch (skill) {
 	case Skill::Smite:
-		return GetPaladinSkillData(PaladinSkill::ShieldBash).spellId;
+		return PaladinSkill::ShieldBash;
 	case Skill::Zeal:
-		return GetPaladinSkillData(PaladinSkill::Zeal).spellId;
+		return PaladinSkill::Zeal;
 	case Skill::Charge:
-		return GetPaladinSkillData(PaladinSkill::Charge).spellId;
+		return PaladinSkill::Charge;
 	case Skill::BlessedHammer:
-		return GetPaladinSkillData(PaladinSkill::BlessedHammer).spellId;
+		return PaladinSkill::BlessedHammer;
 	case Skill::FistOfTheHeavens:
-		return GetPaladinSkillData(PaladinSkill::FistOfTheHeavens).spellId;
+		return PaladinSkill::FistOfTheHeavens;
 	default:
-		return skill > Skill::LAST ? SpellID::Invalid : Skills[static_cast<size_t>(skill)].spellId;
+		return std::nullopt;
 	}
+}
+
+SpellID ClassTreeSpellId(Skill skill)
+{
+	// Resolved HERE rather than stored in the table: the borrowed slots are owned by
+	// oracool/paladin_skills.h, and reading that module's table during this one's static
+	// initialisation would be an initialisation-order gamble across translation units.
+	if (const std::optional<PaladinSkill> borrowed = BorrowedPaladinSkill(skill); borrowed.has_value())
+		return GetPaladinSkillData(*borrowed).spellId;
+	return skill > Skill::LAST ? SpellID::Invalid : Skills[static_cast<size_t>(skill)].spellId;
 }
 
 int ClassTreeMaxRank(Skill skill)
@@ -619,7 +637,29 @@ bool IsClassTreeSkillUnlocked(const Player &player, Skill skill)
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
 	if (data.heroClass != player._pClass)
 		return false;
-	return player._pLevel >= ClassTreeTierMinLevel(data.tier);
+	if (player._pLevel < ClassTreeTierMinLevel(data.tier))
+		return false;
+
+	// A row that BORROWS a skill must also answer that skill's own requirements, or the tree offers
+	// something the game will then refuse.
+	//
+	// Bug (fixed 2026-08-16, found while auditing the Abilities window on the user's report that the
+	// sheets were "full of issues"). This function used to stop at the tier level, and the tier level
+	// is not what decides whether a borrowed skill fires - CanUsePaladinSkill asks
+	// IsPaladinSkillUnlocked, which has its own minLevel AND a shield requirement. They disagreed
+	// four times out of five:
+	//
+	//   Smite (Shield Bash)   tier 0 = level 1  vs  level 8 and a shield
+	//   Charge                tier 1 = level 6  vs  level 12
+	//   Blessed Hammer        tier 3 = level 18 vs  level 18   (aligned in paladin_skills.cpp)
+	//   Fist of the Heavens   tier 5 = level 30 vs  level 30   (aligned in paladin_skills.cpp)
+	//
+	// The visible half was Smite: the Combat Skills page lit it at level 1 with no shield in hand,
+	// let it be clicked onto a mouse button, and the button then did nothing - while the Skills
+	// sheet, one arrow away, correctly showed the same skill greyed out.
+	if (const std::optional<PaladinSkill> borrowed = BorrowedPaladinSkill(skill); borrowed.has_value())
+		return IsPaladinSkillUnlocked(player, *borrowed);
+	return true;
 }
 
 int ClassTreeInvestment(const Player &player, Skill skill)

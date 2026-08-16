@@ -28,8 +28,16 @@ namespace {
 // that call something down from outside the Paladin's own reach sit at the top. Each is one edit to
 // change, and none of them is load-bearing until the skill has mechanics to gate.
 //
-//   Zeal 6 | Shield Bash 8 | Hammer of Faith 10 | Charge 12 | Blessed Hammer 16 |
-//   Blessed Shield 20 | Fist of the Heavens 24
+//   Zeal 6 | Shield Bash 8 | Hammer of Faith 10 | Charge 12 | Blessed Hammer 18 |
+//   Blessed Shield 20 | Fist of the Heavens 30
+//
+// Blessed Hammer moved 16 -> 18 and Fist of the Heavens 24 -> 30 on 2026-08-16. Five of these seven
+// also appear on the class tree's Combat Skills page, where the row's TIER carries a level of its own
+// (oracool::ClassTreeTierMinLevel: 1, 6, 12, 18, 24, 30, 36) - so each of those five had two level
+// gates, and the window showed whichever one the sheet you were looking at happened to ask.
+// IsClassTreeSkillUnlocked now defers to this table, which settles it for good; these two numbers
+// moved up to their tiers so that deferral costs nothing, rather than leaving the tree quietly
+// stricter than the Skills sheet. Both were placeholders, per the paragraph above.
 //
 // The range column is the user's targeting rule made per-skill (2026-08-15): a click on a monster
 // further away than this is a MOVE, not a cast. Melee skills take MeleeSkillRangeTiles; the four
@@ -46,12 +54,12 @@ constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
 	    SpellID::BlessedShield, MaxSkillRangeTiles, true, 20, 10 },
 	{ N_("Fist of the Heavens"),
 	    N_("A divine fist descends from the sky, causing splash damage to enemies nearby."),
-	    SpellID::FistOfTheHeavens, MaxSkillRangeTiles, false, 24, 15 },
+	    SpellID::FistOfTheHeavens, MaxSkillRangeTiles, false, 30, 15 },
 	{ N_("Shield Bash"), N_("Bash an enemy with your shield, stunning them in the process."),
 	    SpellID::ShieldBash, MeleeSkillRangeTiles, true, 8, 3 },
 	{ N_("Blessed Hammer"),
 	    N_("A divine hammer spirals outward from you, hurting every enemy it touches."),
-	    SpellID::BlessedHammer, MaxSkillRangeTiles, false, 16, 8 },
+	    SpellID::BlessedHammer, MaxSkillRangeTiles, false, 18, 8 },
 } };
 static_assert([] {
 	for (const PaladinSkillData &skill : Skills) {
