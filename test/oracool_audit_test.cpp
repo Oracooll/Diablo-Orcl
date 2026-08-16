@@ -26,6 +26,7 @@
 #include "oracool/lesser_uniques.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/rng_streams.h"
 #include "player.h"
 #include "qol/stash.h"
 #include "spells.h"
@@ -339,4 +340,48 @@ TEST(OracoolAudit, PremiumBuyStaleRowChargesNothing)
 		premium.clear();
 	numpremium = 0;
 	Stash.gold = savedStashGold;
+}
+
+// Megaplan Phase 0.3 (oracool/rng_streams.h): the cosmetic stream exists so that visual effects
+// can never again shift a deterministic gameplay stream - the Thunderous/SpawnLoot class of bug.
+// These two tests ARE that guarantee: if either fails, some change has re-entangled the streams.
+TEST(OracoolRngStreams, CosmeticStreamDoesNotPerturbMainStream)
+{
+	devilution::SetRndSeed(844660068);
+	int32_t clean[10];
+	for (int32_t &value : clean)
+		value = devilution::GenerateRnd(1000);
+
+	devilution::SetRndSeed(844660068);
+	oracool::SeedCosmeticRngForTest(12345);
+	int32_t interleaved[10];
+	for (int32_t &value : interleaved) {
+		// A burst of cosmetic rolls between every gameplay roll - far denser than any real effect.
+		for (int i = 0; i < 7; i++)
+			(void)oracool::CosmeticRnd(360);
+		(void)oracool::CosmeticFlipCoin();
+		value = devilution::GenerateRnd(1000);
+	}
+
+	for (int i = 0; i < 10; i++)
+		EXPECT_EQ(clean[i], interleaved[i]) << "cosmetic rolls shifted the vanilla stream at " << i;
+}
+
+TEST(OracoolRngStreams, MainSeedGuardRestoresEngineState)
+{
+	devilution::SetRndSeed(555);
+	const uint32_t before = devilution::GetLCGEngineState();
+	{
+		oracool::MainSeedGuard guard;
+		// A legacy-style burst that reaches the vanilla LCG directly, as AddMissile's random
+		// animation frames do.
+		for (int i = 0; i < 36; i++)
+			(void)devilution::GenerateRnd(8);
+	}
+	EXPECT_EQ(devilution::GetLCGEngineState(), before)
+	    << "MainSeedGuard failed to rewind the vanilla engine";
+
+	// And the guard must not have frozen the generator: rolls after the scope still advance it.
+	(void)devilution::GenerateRnd(8);
+	EXPECT_NE(devilution::GetLCGEngineState(), before);
 }

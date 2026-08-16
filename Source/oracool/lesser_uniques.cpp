@@ -9,6 +9,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "options.h"
+#include "oracool/rng_streams.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -394,6 +395,11 @@ void OnLesserUniqueKilled(Monster &monster)
 {
 	if (monster.lesserAffix != LesserUniqueAffix::Thunderous)
 		return;
+	// Phase 0.3 (rng_streams.h): the burst draws random animation frames from the vanilla LCG deep
+	// inside AddMissile - the exact perturbation that once shifted SpawnLoot's seeded drop when this
+	// ran in the wrong order. The order fix (loot first) stands; the guard makes the property hold
+	// by CONSTRUCTION rather than by call order, so the next reorder cannot reintroduce the bug.
+	oracool::MainSeedGuard cosmeticBurst;
 	// The discharge is the reward for killing it AND the sting for standing next to it - the corpse
 	// is not a safe place to be. Reuses the mini-Nova ring built for Fist of the Heavens at 1.5.78.
 	AddMissile(monster.position.tile, monster.position.tile, Direction::South,
