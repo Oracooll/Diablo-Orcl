@@ -2459,8 +2459,16 @@ void BoyEnter()
 void BoyBuyItem(Item &item, int itemPrice)
 {
 	TakePlrsMoney(itemPrice);
+	// Phase 1 gambling: the purchase IS the reveal - the roll was made at stock time, the
+	// knowledge is what the gold bought.
+	item._iIdentified = true;
 	StoreAutoPlace(item, true);
 	item.clear();
+	// And the table never goes empty: a fresh unidentified roll replaces the one just sold, so
+	// gambling is a LOOP rather than a once-per-dungeon-tier event. boylevel is the once-per-tier
+	// gate; zeroing it is what lets SpawnBoy actually restock.
+	boylevel = 0;
+	SpawnBoy(MyPlayer->_pLevel);
 	stextshold = TalkID::Boy;
 	CalcPlrInv(*MyPlayer, true);
 	stextlhold = 12;

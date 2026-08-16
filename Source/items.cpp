@@ -5511,7 +5511,12 @@ void SpawnBoy(int lvl)
 	// Oracool: CF_LEVEL is only 6 bits wide (max 63); clamp so a level 64-99 character's raw
 	// level doesn't bleed into the adjacent flag bits of _iCreateInfo.
 	boyitem._iCreateInfo = std::min(lvl, static_cast<int>(CF_LEVEL)) | CF_BOY;
-	boyitem._iIdentified = true;
+	// Megaplan Phase 1 gambling (2026-08-16): Wirt is the gambler now. The item is UNIDENTIFIED
+	// on his table - you buy the base and the roll reveals itself in your pack (BoyBuyItem flips
+	// the flag). The magic roll happened above exactly as it always did, seeded and validation-
+	// safe (CF_BOY recreation replays the same stream); only the RELEASE of the knowledge moved
+	// to the purchase. That IS the gamble, and it is exactly how Gheed sold it in Diablo II.
+	boyitem._iIdentified = false;
 	boylevel = lvl / 2;
 }
 
