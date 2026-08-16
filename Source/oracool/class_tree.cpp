@@ -26,9 +26,11 @@ constexpr HeroClass Bar = HeroClass::Barbarian;
 constexpr HeroClass Sor = HeroClass::Sorcerer;
 constexpr HeroClass Rog = HeroClass::Rogue;
 constexpr HeroClass Bard = HeroClass::Bard;
+constexpr HeroClass Monk = HeroClass::Monk;
 
-// Diablo II's own tier requirements. Six rows per page, and every skill sits on one of them.
-constexpr int TierLevels[] = { 1, 6, 12, 18, 24, 30 };
+// Diablo II's own tier requirements, plus a seventh the Monk's design doc adds (its branches are
+// seven sequential skills, one per tier). The first six are unchanged, so no existing skill moved.
+constexpr int TierLevels[] = { 1, 6, 12, 18, 24, 30, 36 };
 
 /**
  * @brief The four trees, in icon-strip order within each class.
@@ -252,6 +254,59 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bard, 2, 2, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Legendary Ballad"), N_("Mastery that empowers every Poetry skill. Inert: there is no per-page channel here."),
 	    Bard, 2, 5, 1, Kind::Passive, SpellID::Invalid, false },
+
+	// ======================= MONK =======================
+	// The user's design doc (MONK_SKILL_TREE.md in the package) is the specification, including
+	// the two things this tree did not previously support: a SEVENTH tier at character level 36,
+	// and per-skill rank caps - five ranks for skills 1-6, one for each branch capstone.
+	//
+	// Every skill sits in the middle column because each branch is a ladder: seven skills, one per
+	// tier, each requiring the one below it.
+	// --- Way of the Staff ---
+	{ N_("Sweeping Reed"), N_("Sweep your staff through enemies in a wide arc. Not yet built: it needs the multi-tile melee arc."),
+	    Monk, 0, 0, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Breaking Current"), N_("A focused strike that breaks armour and interrupts. Inert: it needs the monster-facing pass."),
+	    Monk, 0, 1, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Reed in the Wind"), N_("Staff blocks carry you aside. Inert: this engine exposes no block-chance channel."),
+	    Monk, 0, 2, 1, Kind::Passive, SpellID::Invalid, false, 5 },
+	{ N_("Vaulting Strike"), N_("Vault over danger onto a distant foe. Not yet built: it needs new movement work."),
+	    Monk, 0, 3, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Wheel of Heaven"), N_("Spin your staff, striking all around you. Not yet built."),
+	    Monk, 0, 4, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Seven Reeds"), N_("A rapid chain of staff blows. Not yet built; the Paladin's Zeal burst is the nearest machinery."),
+	    Monk, 0, 5, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Master of the Long Staff"), N_("Your mastery of the staff empowers every Way of the Staff skill. With a staff in hand: +10% damage and a sharper aim."),
+	    Monk, 0, 6, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	// --- Way of the Body ---
+	{ N_("Open Palm"), N_("An open-hand strike that drives the enemy back. Not yet built."),
+	    Monk, 1, 0, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Flowing Step"), N_("Move through battle with greater speed. One point makes you run rather than walk; the evade half needs an avoidance roll this engine has not got."),
+	    Monk, 1, 1, 1, Kind::Passive, SpellID::Invalid, true, 5 },
+	{ N_("Iron Robe"), N_("Discipline hardens your body while you wear light armour or none at all. Unarmoured: armour class by level, and blows land lighter. Light armour keeps half. Mail and plate switch it off."),
+	    Monk, 1, 2, 1, Kind::Passive, SpellID::Invalid, true, 5 },
+	{ N_("Counterstroke"), N_("A block empowers your next blow. Inert: nothing here reports a block to build on."),
+	    Monk, 1, 3, 1, Kind::Passive, SpellID::Invalid, false, 5 },
+	{ N_("Purifying Breath"), N_("Centre yourself against the elements. Inert: the cleansing half needs status effects this engine has not got."),
+	    Monk, 1, 4, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Hundred Fists"), N_("A storm of unarmed strikes on one enemy. Not yet built."),
+	    Monk, 1, 5, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Perfect Vessel"), N_("Your mastery of the body empowers every Way of the Body skill: a tenth more life, and you shake off hits faster."),
+	    Monk, 1, 6, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	// --- Way of the Spirit ---
+	{ N_("Inner Sight"), N_("Reveal nearby objects, traps and treasure. Deepens the Monk's own Search: every point holds the sight longer."),
+	    Monk, 2, 0, 1, Kind::Active, SpellID::Search, true, 5 },
+	{ N_("Healing Mantra"), N_("Restore life to yourself over time. Held like an aura rather than cast, so it mends you for as long as it plays."),
+	    Monk, 2, 1, 1, Kind::Aura, SpellID::Invalid, true, 5 },
+	{ N_("Temple Bell"), N_("A tone that staggers and repels the undead. Inert: it needs the monster-facing pass."),
+	    Monk, 2, 2, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Spirit Ward"), N_("Surround yourself with a barrier against magic. Rides this engine's Mana Shield, which drinks the blow into your mana; every point makes it drink deeper."),
+	    Monk, 2, 3, 1, Kind::Active, SpellID::ManaShield, true, 5 },
+	{ N_("Radiant Palm"), N_("Marks an enemy to erupt when it falls. Not yet built."),
+	    Monk, 2, 4, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Tranquility"), N_("A sanctuary that slows enemies and restores allies. Inert: it needs a ground-effect pass."),
+	    Monk, 2, 5, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Enlightenment"), N_("Your mastery of spirit empowers every Way of the Spirit skill: a tenth more mana, and ten points of every resistance."),
+	    Monk, 2, 6, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 };
 
 /** @brief The first skill of @p heroClass's block, or None if the class has no tree. */
@@ -268,6 +323,8 @@ Skill FirstSkillOf(HeroClass heroClass)
 		return Skill::ROGUE_FIRST;
 	case HeroClass::Bard:
 		return Skill::BARD_FIRST;
+	case HeroClass::Monk:
+		return Skill::MONK_FIRST;
 	default:
 		return Skill::None;
 	}
@@ -340,9 +397,52 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 	case Skill::Penetrate:
 		totals.bonusToHit += Scaled(points, 12, 6);
 		break;
+
+	// --- Monk. The capstones are one-rank rows, so they take no per-point step at all; the
+	//     numbers below are the design doc's, mapped onto the channels this engine actually has.
+	case Skill::MasterOfTheLongStaff:
+		// A mastery, so it wants the weapon in hand. The engine files quarterstaves under
+		// ItemType::Staff, which is the type the Barbarian's Pole Arm mastery already tests.
+		// bonusDamage IS a percentage of weapon damage, so +10% is the doc's number exactly;
+		// bonusToHit is a flat attack-rating add, which is the nearest thing to its +15%.
+		if (WieldingType(player, ItemType::Staff)) {
+			totals.bonusDamage += 10;
+			totals.bonusToHit += 15;
+		}
+		break;
+	case Skill::IronRobe:
+		// Discipline in place of plate. Medium and heavy armour switch it off entirely; light
+		// armour keeps half the damage reduction but not the armour class, exactly as the doc has
+		// it - the Monk's level-based AC is innate to the class and does not need buying twice.
+		{
+			const Item &chest = player.InvBody[INVLOC_CHEST];
+			const bool unarmoured = chest.isEmpty();
+			const bool light = !chest.isEmpty() && chest._iStatFlag && chest._itype == ItemType::LightArmor;
+			if (unarmoured || light) {
+				// getHit is a flat subtraction from damage taken, not a percentage, so the doc's
+				// "3% per rank capped at 20%" is spent as points off each blow instead.
+				const int reduction = std::min(3 * points, 20);
+				totals.getHit -= unarmoured ? reduction : reduction / 2;
+				if (unarmoured)
+					totals.bonusArmor += 2 * player._pLevel;
+			}
+		}
+		break;
+	case Skill::PerfectVessel:
+		// A true tenth of the character's own life: _pMaxHPBase is the level-and-vitality base
+		// that totals.hitPoints is added TO, so reading it here is not circular.
+		totals.hitPoints += player._pMaxHPBase / 10;
+		totals.flags |= ItemSpecialEffect::FastHitRecovery;
+		break;
+	case Skill::Enlightenment:
+		totals.mana += player._pMaxManaBase / 10;
+		totals.fireResist += 10;
+		totals.lightningResist += 10;
+		totals.magicResist += 10;
+		break;
 	default:
-		// Increased Speed and Warmth act elsewhere (the walk animation and the per-tick hook);
-		// everything else on a passive row is inert and says so.
+		// Increased Speed, Warmth and Flowing Step act elsewhere (the walk animation and the
+		// per-tick hook); everything else on a passive row is inert and says so.
 		break;
 	}
 }
@@ -451,6 +551,14 @@ SpellID ClassTreeSpellId(Skill skill)
 	}
 }
 
+int ClassTreeMaxRank(Skill skill)
+{
+	if (skill > Skill::LAST)
+		return MaxTreeInvestment;
+	const int declared = Skills[static_cast<size_t>(skill)].maxRank;
+	return declared > 0 ? declared : MaxTreeInvestment;
+}
+
 int ClassTreeTierMinLevel(int tier)
 {
 	if (tier < 0 || tier >= static_cast<int>(std::size(TierLevels)))
@@ -481,6 +589,10 @@ string_view GetClassTreePageName(HeroClass heroClass, int page)
 		if (page == 0)
 			return _("MELODY");
 		return page == 1 ? _("HARMONY") : _("POETRY");
+	case HeroClass::Monk:
+		if (page == 0)
+			return _("WAY OF THE STAFF");
+		return page == 1 ? _("WAY OF THE BODY") : _("WAY OF THE SPIRIT");
 	default:
 		return {};
 	}
@@ -527,7 +639,7 @@ bool CanInvestClassTreePoint(const Player &player, Skill skill)
 {
 	return player._pUnspentSkillPoints > 0
 	    && IsClassTreeSkillUnlocked(player, skill)
-	    && ClassTreeInvestment(player, skill) < MaxTreeInvestment;
+	    && ClassTreeInvestment(player, skill) < ClassTreeMaxRank(skill);
 }
 
 bool InvestClassTreePoint(Player &player, Skill skill)
@@ -626,6 +738,13 @@ bool IsClassTreeRunActive(const Player &player)
 		return song == Skill::SongOfSwiftness && ClassTreeInvestment(player, song) > 0
 		    && IsClassTreeSkillUnlocked(player, song);
 	}
+	if (player._pClass == HeroClass::Monk) {
+		// Flowing Step is a passive like the Barbarian's Increased Speed, not a held stance, so the
+		// points alone carry it. Its other half - a chance to evade a blow outright - is the part
+		// this engine has no roll for, and the row says so.
+		return ClassTreeInvestment(player, Skill::FlowingStep) > 0
+		    && IsClassTreeSkillUnlocked(player, Skill::FlowingStep);
+	}
 	return false;
 }
 
@@ -641,7 +760,8 @@ void ProcessClassTreeTick(Player &player)
 		const int p = ClassTreeInvestment(player, aura);
 		// Melody of Life and Inspiration are the Bard's counterparts of Prayer and Meditation -
 		// same channel, same trickle, so they share the branch rather than repeating it.
-		const bool healing = aura == Skill::Prayer || aura == Skill::MelodyOfLife;
+		const bool healing = aura == Skill::Prayer || aura == Skill::MelodyOfLife
+		    || aura == Skill::HealingMantra;
 		const bool restoring = aura == Skill::Meditation || aura == Skill::Inspiration;
 		if (p > 0 && healing && player._pHitPoints < player._pMaxHP) {
 			const int heal = Scaled(p, 2, 2);
@@ -698,7 +818,7 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill)
 {
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
 	const int p = ClassTreeInvestment(player, skill);
-	std::string out = fmt::format(fmt::runtime(_("Points: {:d} of {:d}")), p, MaxTreeInvestment);
+	std::string out = fmt::format(fmt::runtime(_("Points: {:d} of {:d}")), p, ClassTreeMaxRank(skill));
 	out += "\n" + fmt::format(fmt::runtime(_("Requires level {:d}")), ClassTreeTierMinLevel(data.tier));
 	if (!data.implemented)
 		out += "\n" + std::string(_("No effect yet"));

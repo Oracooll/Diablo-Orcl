@@ -417,7 +417,7 @@ int RowHeightFor(AbilitySheet sheet)
 
 constexpr int TreeIconSize = 56;
 constexpr int TreeColumns = 3;
-constexpr int TreeTiers = 6;
+constexpr int TreeTiers = oracool::ClassTreeTierCount;
 constexpr int TreeColPitch = 100;
 /** Centres the three columns in the content width. */
 constexpr int TreeColX0 = (AbilitiesContentRightLimit - (TreeColumns - 1) * TreeColPitch - TreeIconSize) / 2;
@@ -560,8 +560,8 @@ int RowHeightAt(AbilitySheet sheet, size_t index)
 /** @brief Total height of every row on @p sheet. */
 int TotalListHeight(AbilitySheet sheet)
 {
-	// The tree pages are a fixed grid: six tiers tall whatever the page holds, so the rows line up
-	// across pages instead of shifting when a sparse tier is skipped.
+	// The tree pages are a fixed grid: ClassTreeTierCount tall whatever the page holds, so the rows
+	// line up across pages instead of shifting when a sparse tier is skipped.
 	if (TreePageOf(sheet).has_value())
 		return TreeTiers * TreeRowPitch;
 	const size_t count = GetRowCount(sheet);

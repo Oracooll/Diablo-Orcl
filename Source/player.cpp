@@ -1878,8 +1878,12 @@ bool Player::isWalking() const
 
 int Player::GetManaShieldDamageReduction()
 {
-	constexpr uint8_t Max = 7;
-	return 24 - std::min(_pSplLvl[static_cast<int8_t>(SpellID::ManaShield)], Max) * 3;
+	constexpr int Max = 7;
+	// Oracool: reads the EFFECTIVE level, not the raw memorised one. Vanilla read _pSplLvl here, so
+	// neither +spell-level items nor this fork's skill investment reached the shield - the one
+	// ladder that opted out of the Phase 2.1 seam. The Monk's Spirit Ward rides this spell, and a
+	// row that takes five points has to buy something with all five.
+	return 24 - std::min(GetSpellLevel(SpellID::ManaShield), Max) * 3;
 }
 
 int Player::CalcPartialLifeRestoreAmount() const
@@ -2989,7 +2993,9 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 		AddFloatingNumber(damageType, player, totalDamage);
 	}
 	if (totalDamage > 0 && player.pManaShield) {
-		uint8_t manaShieldLevel = player._pSplLvl[static_cast<int8_t>(SpellID::ManaShield)];
+		// Effective level, for the same reason GetManaShieldDamageReduction uses it: a Monk who
+		// bought Spirit Ward from the tree has nothing in _pSplLvl and would get no reduction.
+		const int manaShieldLevel = player.GetSpellLevel(SpellID::ManaShield);
 		if (manaShieldLevel > 0) {
 			totalDamage += totalDamage / -player.GetManaShieldDamageReduction();
 		}

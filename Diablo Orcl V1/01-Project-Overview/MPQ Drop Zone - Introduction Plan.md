@@ -1,6 +1,6 @@
 ---
 date: 2026-08-16
-status: COMPLETE - all five units shipped (v1.7.14 - v1.7.16)
+status: COMPLETE - five units plus two re-sweep units shipped (v1.7.14 - v1.7.19)
 area: Asset intake from the MPQ folder's root drop zone
 ---
 
@@ -136,6 +136,36 @@ Two traps the Gems unit already paid for, worth re-reading before the next cut: 
 cast **rounds** rather than truncates (it put icons in the wrong preview row), and a green subject
 on a green key cannot be separated by any threshold - it needs a pre-processed black backdrop and
 the dark-mode extractor.
+
+## Re-sweep units
+
+The drop zone kept filling after this plan closed. Two later sweeps found three more drops, each
+shipped as its own unit under the same rules.
+
+### Unit 6 — Bard tree (v1.7.17) and the font pack (v1.7.18)
+
+The Bard's 21 songs, seven per discipline, inheriting the aura machinery whole — one song plays at a
+time, which is both what a bard does and what the Paladin's aura code already enforced. Then
+`fonts-8-11.zip`, **merged rather than copied**: its README says to overlay a clean 1.5.5 checkout,
+and three of its four source files are ones this fork had modified. See "Four Smaller Fonts, Merged
+Not Copied" and `docs/THIRD_PARTY.md`.
+
+### Unit 7 — Monk tree (v1.7.19)
+
+`monk-skill-tree-package.zip`, the best-prepared drop yet: a design doc with per-rank numbers, an
+icon brief, and 21 pre-cut chroma-green PNGs, so no sheet measuring was needed at all. It is the
+**sixth and last** class, closing the tree system.
+
+Its design asked for two things the grid did not have, and both were built rather than trimmed:
+
+- A **seventh tier**, unlocking at character level 36. The first six thresholds are unchanged, so no
+  existing skill moved. `ClassTreeTierCount` now names the number everywhere.
+- **Per-skill rank caps** — five ranks for skills 1-6, one for each branch capstone. Added as a
+  `maxRank` field where **0 means "the usual cap"**, because appending a field to a positional
+  aggregate leaves 140 existing rows at zero. Read through `ClassTreeMaxRank()`, never directly.
+
+Its layout is also the first that is not a grid: each branch is a ladder of seven, one per tier, all
+in the middle column. The tier gate does the "requires the previous skill" work on its own.
 
 ## Standing rules for every unit
 

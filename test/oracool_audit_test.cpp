@@ -946,18 +946,18 @@ TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
 	size_t total = 0;
 	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Barbarian,
-	         HeroClass::Sorcerer, HeroClass::Rogue, HeroClass::Bard }) {
+	         HeroClass::Sorcerer, HeroClass::Rogue, HeroClass::Bard, HeroClass::Monk }) {
 	for (size_t p = 0; p < oracool::ClassTreePageCount; p++) {
 		const size_t count = oracool::BuildClassTreePage(heroClass, static_cast<int>(p), skills);
 		EXPECT_GT(count, 0u);
 		total += count;
 		// Two skills sharing a (tier, column) would draw on top of each other and only the second
 		// would be clickable - the grid's one structural invariant.
-		bool taken[6][3] = {};
+		bool taken[oracool::ClassTreeTierCount][3] = {};
 		for (size_t i = 0; i < count; i++) {
 			const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
 			ASSERT_GE(data.tier, 0);
-			ASSERT_LT(data.tier, 6);
+			ASSERT_LT(data.tier, oracool::ClassTreeTierCount);
 			ASSERT_GE(data.column, 0);
 			ASSERT_LT(data.column, 3);
 			EXPECT_FALSE(taken[data.tier][data.column])
@@ -990,6 +990,40 @@ TEST(OracoolClassTree, InvestmentRespectsClassLevelPoolAndCap)
 	player._pUnspentSkillPoints = 0;
 	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might))
 	    << "spent a point that was not there";
+}
+
+// maxRank is positional aggregate initialisation on a field appended after 140 rows already
+// existed, so the whole scheme rests on 0 meaning "the usual cap". If that reading is ever lost,
+// every pre-Monk skill silently drops to a zero-point cap and the trees stop taking points at all.
+TEST(OracoolClassTree, PerSkillRankCapsApplyAndZeroStillMeansTheUsualCap)
+{
+	EXPECT_EQ(oracool::ClassTreeMaxRank(oracool::ClassTreeSkill::Might), oracool::MaxTreeInvestment)
+	    << "a row that declares no cap stopped meaning MaxTreeInvestment";
+	EXPECT_EQ(oracool::ClassTreeMaxRank(oracool::ClassTreeSkill::IronRobe), 5);
+	EXPECT_EQ(oracool::ClassTreeMaxRank(oracool::ClassTreeSkill::Enlightenment), 1)
+	    << "a branch capstone took more than its one rank";
+
+	devilution::Player &player = FreshPaladin();
+	player._pClass = HeroClass::Monk;
+	player._pLevel = 50; // past tier 7's level 36, so nothing here is gated on level
+
+	for (int i = 0; i < 5; i++) {
+		EXPECT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::IronRobe))
+		    << "point " << i + 1 << " of five was refused";
+	}
+	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::IronRobe))
+	    << "a five-rank skill took a sixth point";
+
+	EXPECT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::PerfectVessel));
+	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::PerfectVessel))
+	    << "a capstone took a second point";
+
+	// The seventh tier is the other thing the Monk introduced; a level-35 character must not reach it.
+	player._pLevel = 35;
+	EXPECT_FALSE(oracool::IsClassTreeSkillUnlocked(player, oracool::ClassTreeSkill::MasterOfTheLongStaff))
+	    << "tier 7 opened before level 36";
+	player._pLevel = 36;
+	EXPECT_TRUE(oracool::IsClassTreeSkillUnlocked(player, oracool::ClassTreeSkill::MasterOfTheLongStaff));
 }
 
 // The two stores, and why they exist: a skill with a spell slot must reach GetSpellLevel so every

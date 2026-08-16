@@ -242,14 +242,46 @@ enum class ClassTreeSkill : uint8_t {
 	OdeToGlory,
 	LegendaryBallad,
 	BARD_LAST = LegendaryBallad,
-	LAST = LegendaryBallad,
+
+	// ---------------- Monk: Way of the Staff ----------------
+	// Also the user's own design, and the most fully specified of the six: seven sequential skills
+	// per branch, one per tier, each requiring the one below it. That linear shape is why every
+	// Monk skill sits in the middle column - the page is a ladder, not a grid.
+	SweepingReed,
+	MONK_FIRST = SweepingReed,
+	BreakingCurrent,
+	ReedInTheWind,
+	VaultingStrike,
+	WheelOfHeaven,
+	SevenReeds,
+	MasterOfTheLongStaff,
+	// ---------------- Monk: Way of the Body ----------------
+	OpenPalm,
+	FlowingStep,
+	IronRobe,
+	Counterstroke,
+	PurifyingBreath,
+	HundredFists,
+	PerfectVessel,
+	// ---------------- Monk: Way of the Spirit ----------------
+	MonkInnerSight,
+	HealingMantra,
+	TempleBell,
+	SpiritWard,
+	RadiantPalm,
+	Tranquility,
+	Enlightenment,
+	MONK_LAST = Enlightenment,
+	LAST = Enlightenment,
 
 	None = 0xFF,
 };
 
-constexpr size_t ClassTreeSkillCount = 140;
+constexpr size_t ClassTreeSkillCount = 161;
 /** @brief The most skills any one class has - the size of the per-character investment array. */
 constexpr size_t MaxSkillsPerClass = 30;
+/** @brief Tiers a page can have. Seven since the Monk; Diablo II's five classes use the first six. */
+constexpr int ClassTreeTierCount = 7;
 /** @brief Points a single tree skill accepts, matching the spell-investment cap. */
 constexpr int MaxTreeInvestment = 20;
 constexpr size_t ClassTreePageCount = 3;
@@ -272,7 +304,7 @@ struct ClassTreeSkillData {
 	HeroClass heroClass;
 	/** 0-2, the page within the class's tree. */
 	int page;
-	/** 0-5. The character level required is ClassTreeTierMinLevel(tier). */
+	/** 0 to ClassTreeTierCount-1. The character level required is ClassTreeTierMinLevel(tier). */
 	int tier;
 	/** 0-2, the grid column on its page. */
 	int column;
@@ -284,7 +316,19 @@ struct ClassTreeSkillData {
 	SpellID spellId;
 	/** Whether this row does anything yet - false means listed, described, and inert. */
 	bool implemented;
+	/**
+	 * @brief Points this one skill accepts, or 0 to mean MaxTreeInvestment.
+	 *
+	 * Zero rather than a real default because every row is positional aggregate initialisation:
+	 * appending a field leaves the existing rows' value at 0, and reading 0 as "the usual cap"
+	 * is what let the Monk introduce per-skill caps without touching 140 other rows. Read it
+	 * through ClassTreeMaxRank(), never directly.
+	 */
+	int maxRank;
 };
+
+/** @brief The cap on @p skill, resolving the table's 0 to MaxTreeInvestment. */
+int ClassTreeMaxRank(ClassTreeSkill skill);
 
 const ClassTreeSkillData &GetClassTreeSkillData(ClassTreeSkill skill);
 

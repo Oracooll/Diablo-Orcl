@@ -102,6 +102,8 @@ ArtAsset SorcTreeIconsArt { "ui\\sorc_tree_icons.png" };
 ArtAsset RogueTreeIconsArt { "ui\\rogue_tree_icons.png" };
 /** The Bard's is 21 cells, not 30 - seven songs per discipline. See oracool/class_tree.h. */
 ArtAsset BardTreeIconsArt { "ui\\bard_tree_icons.png" };
+/** The Monk's is 21 too, but as three seven-tier ladders. Built by tools/BuildMonkTreeStrip.ps1. */
+ArtAsset MonkTreeIconsArt { "ui\\monk_tree_icons.png" };
 
 /** @brief The strip @p heroClass's tree draws from, or the Paladin's as a harmless fallback. */
 ArtAsset &TreeStripFor(HeroClass heroClass)
@@ -115,6 +117,8 @@ ArtAsset &TreeStripFor(HeroClass heroClass)
 		return RogueTreeIconsArt;
 	case HeroClass::Bard:
 		return BardTreeIconsArt;
+	case HeroClass::Monk:
+		return MonkTreeIconsArt;
 	default:
 		return PaladinTreeIconsArt;
 	}
