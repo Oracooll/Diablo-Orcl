@@ -3951,9 +3951,10 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		mLevel -= 15;
 
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
-	// Phase 1: the socket roll, AFTER setup and outside the seed replay - see the function's
-	// comment for why it must never move inside SetupAllItems.
+	// Phase 1: the socket and ethereal rolls, AFTER setup and outside the seed replay - see
+	// TryAddSocketsToDroppedItem's comment for why they must never move inside SetupAllItems.
 	TryAddSocketsToDroppedItem(item);
+	TryMakeDroppedItemEthereal(item);
 	LogNoteworthyItemDrop(item);
 
 	if (sendmsg)
@@ -4405,6 +4406,31 @@ void TryAddSocketsToDroppedItem(Item &item)
 		return;
 	const int roll = GenerateRnd(100);
 	item._iSocketCount = roll < 60 ? 1 : (roll < 90 ? 2 : 3);
+}
+
+void TryMakeDroppedItemEthereal(Item &item)
+{
+	// Phase 1 ethereal: a ghost of an item - more of everything, half the lifespan, and no smith
+	// can touch it. Rolled on the drop paths for any quality of durable equipment; the bargain is
+	// stamped into the item's own stats here, so nothing downstream computes anything.
+	if (!oracool::IsSinglePlayer() || item.isEmpty())
+		return;
+	if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR)
+		return;
+	if (item._iMaxDur == 0 || item._iMaxDur == DUR_INDESTRUCTIBLE)
+		return;
+	if (GenerateRnd(100) >= 5)
+		return;
+
+	item._iOracoolEthereal = true;
+	if (item._iClass == ICLASS_WEAPON) {
+		item._iMinDam = item._iMinDam * 135 / 100;
+		item._iMaxDam = std::max<int>(item._iMaxDam * 135 / 100, item._iMinDam);
+	} else {
+		item._iAC = std::max<int>(item._iAC * 135 / 100, item._iAC + 1);
+	}
+	item._iMaxDur = std::max<int>(1, item._iMaxDur / 2);
+	item._iDurability = std::min<int>(item._iDurability, item._iMaxDur);
 }
 
 void GetItemStr(Item &item)
@@ -4908,6 +4934,10 @@ void PrintItemDetails(const Item &item)
 	if (item.hasOracoolTier() || item._iMagical == ITEM_QUALITY_UNIQUE) {
 		AddItemPowerPanelStrings(item);
 	}
+	// Phase 1 ethereal: the whole bargain in one line, directly under the tier - the buffed stats
+	// already show in the numbers above, so what the line carries is the PRICE.
+	if (item._iOracoolEthereal)
+		AddPanelString(_("Ethereal (cannot be repaired)"), ItemBaseStatColor);
 	// Phase 1 charms: the effect, and the rule that governs it - the description is where the
 	// active-cap system explains itself.
 	if (IsOracoolCharmIdx(item.IDidx)) {
@@ -6072,6 +6102,9 @@ void initItemGetRecords()
 
 void RepairItem(Item &item, int lvl)
 {
+	// Phase 1 ethereal: the Repair skill/spell is still a smith's hand - it declines too.
+	if (item._iOracoolEthereal)
+		return;
 	if (item._iDurability == item._iMaxDur) {
 		return;
 	}

@@ -833,3 +833,18 @@ TEST(OracoolRunewords, CompletionRenamesAndRunesTeach)
 	EXPECT_NE(solTeaching.find("Lore"), std::string::npos);
 	EXPECT_EQ(solTeaching.find("Steel"), std::string::npos);
 }
+
+// Phase 1 ethereal: the bargain is stamped at roll time and the refusals hold.
+TEST(OracoolEthereal, RepairDeclinesEtherealItems)
+{
+	devilution::Item ghost {};
+	ghost._itype = ItemType::Sword;
+	ghost._iClass = ICLASS_WEAPON;
+	ghost._iOracoolEthereal = true;
+	ghost._iDurability = 5;
+	ghost._iMaxDur = 20;
+
+	RepairItem(ghost, 30);
+	EXPECT_EQ(ghost._iDurability, 5) << "the Repair skill fixed a ghost";
+	EXPECT_EQ(ghost._iMaxDur, 20) << "the Repair skill ground down a ghost's max durability";
+}

@@ -600,6 +600,15 @@ struct Item {
 	uint8_t _iSocketCount = 0;
 	uint16_t _iSocketed[MaxItemSockets] = { EmptySocket, EmptySocket, EmptySocket };
 
+	/**
+	 * @brief Phase 1 ethereal: rolled at drop time on equipment of any quality (5%). The bargain
+	 * is stamped into the item's own stats when it rolls (+35% AC or max damage, max durability
+	 * halved) and persisted through the full-record paths like everything else; this flag's job
+	 * is the REFUSALS - repair paths decline it - and the description line. Version 4 of the item
+	 * extension record.
+	 */
+	bool _iOracoolEthereal = false;
+
 	/** @brief Filled-socket count, derived. */
 	[[nodiscard]] int socketedCount() const
 	{
@@ -846,6 +855,9 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg);
 /** @brief Phase 1: rolls sockets onto a freshly dropped item - only plain NORMAL-quality
  * equipment, only on the drop paths, never inside the seed-replayed SetupAllItems. */
 void TryAddSocketsToDroppedItem(Item &item);
+/** @brief Phase 1: the ethereal roll (5% of durable equipment, any quality): +35% primary stats,
+ * half max durability, unrepairable. Drop paths only, same seed-replay rule as the sockets. */
+void TryMakeDroppedItemEthereal(Item &item);
 /**
  * @brief tabIdx selects an Oracool Tabbed Inventory extra tab (0-8) instead of the vanilla
  * InvBody/InvList encoding cii would otherwise resolve through - pass -1 (the default) for the

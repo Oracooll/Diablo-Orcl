@@ -265,8 +265,8 @@ struct LevelConversionData {
  * reading an old, shorter record here would silently misalign every subsequent field instead
  * of failing loudly.
  */
-// Version 3 (Megaplan Phase 1): the socket fields joined the record - see SaveItem/LoadItemData.
-constexpr uint8_t OracoolItemFormatVersion = 3;
+// Version 3 added the socket fields; version 4 the ethereal flag - see SaveItem/LoadItemData.
+constexpr uint8_t OracoolItemFormatVersion = 4;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
@@ -390,6 +390,8 @@ void LoadItemData(LoadHelper &file, Item &item)
 	item._iSocketCount = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxItemSockets);
 	for (uint16_t &socket : item._iSocketed)
 		socket = file.NextLE<uint16_t>();
+	// Version 4: the ethereal flag.
+	item._iOracoolEthereal = file.NextLE<uint8_t>() != 0;
 }
 
 void LoadAndValidateItemData(LoadHelper &file, Item &item)
@@ -1250,6 +1252,8 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint8_t>(item._iSocketCount);
 	for (const uint16_t socket : item._iSocketed)
 		file.WriteLE<uint16_t>(socket);
+	// Version 4: the ethereal flag.
+	file.WriteLE<uint8_t>(item._iOracoolEthereal ? 1 : 0);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2095,10 +2099,10 @@ void LoadLevel(LevelConversionData *levelConversionData)
 
 // The Oracool extension folded into SaveItem/LoadItemData's fixed-size item record: 5 header
 // bytes (tier, perfect-roll, broken, prefix count, suffix count), 3 prefixes + 3 suffixes at
-// 9 bytes each, and - since OracoolItemFormatVersion 3 (Megaplan Phase 1) - the socket block:
-// 1 count byte + MaxItemSockets uint16 gem indices.
+// 9 bytes each; version 3 (Megaplan Phase 1) added the socket block (1 count byte + MaxItemSockets
+// uint16 gem indices), version 4 the ethereal flag byte.
 constexpr int OracoolItemExtensionSaveSize = 5 + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4)
-    + 1 + Item::MaxItemSockets * 2;
+    + 1 + Item::MaxItemSockets * 2 + 1;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 
@@ -2465,7 +2469,7 @@ void LoadHeroItems(Player &player)
 // Version 4 (Megaplan Phase 1): bumped ALONGSIDE OracoolItemFormatVersion 3 (the socket fields),
 // per the lesson recorded above - every item embedded in the stash file is subject to the item
 // record's layout, so the two versions must move together. Existing stashes are lost; known cost.
-constexpr uint8_t StashVersion = 4;
+constexpr uint8_t StashVersion = 5;
 
 void LoadStash()
 {

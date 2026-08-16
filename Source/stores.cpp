@@ -981,6 +981,9 @@ bool SmithRepairOk(int i)
 		return false;
 	if (myPlayer.InvList[i]._itype == ItemType::Gold)
 		return false;
+	// Phase 1 ethereal: no smith can touch a ghost - that refusal IS the item's price.
+	if (myPlayer.InvList[i]._iOracoolEthereal)
+		return false;
 	if (myPlayer.InvList[i]._iDurability == myPlayer.InvList[i]._iMaxDur)
 		return false;
 
