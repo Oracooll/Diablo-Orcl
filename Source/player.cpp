@@ -2190,7 +2190,7 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 		return;
 
 	const HeroClass cls = GetPlayerSpriteClass(player._pClass);
-	const PlayerWeaponGraphic animWeaponId = GetPlayerWeaponGraphic(graphic, static_cast<PlayerWeaponGraphic>(player._pgfxnum & 0xF));
+	PlayerWeaponGraphic animWeaponId = GetPlayerWeaponGraphic(graphic, static_cast<PlayerWeaponGraphic>(player._pgfxnum & 0xF));
 
 	const char *path = PlayersData[static_cast<std::size_t>(cls)].classPath;
 
@@ -2226,8 +2226,21 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 		szCel = "qm";
 		break;
 	case player_graphic::Death:
-		if (animWeaponId != PlayerWeaponGraphic::Unarmed)
-			return;
+		// Oracool bug fix (2026-08-16, user crash report - "assertion failed ... value_.data_ !=
+		// nullptr" on death): this used to RETURN when a weapon was held, loading nothing at all.
+		//
+		// The death animation is only authored unarmed, and the four places that start it all clear
+		// the weapon nibble first - so the refusal looked harmless. It is not, because it is not the
+		// only caller. CalcPlrItemVals rebuilds the current animation whenever _pgfxnum changes, and
+		// on a DEAD player getGraphic() is Death while _pgfxnum has just been recomputed from the
+		// weapon still in hand. LoadPlrGFX refused, AnimInfo was bound to an EMPTY sprite list, and
+		// the next DrawPlayer dereferenced it.
+		//
+		// Fixed the way the Shield Bash block-sheet crash was fixed at v1.6.24 - at the single
+		// authority, by ASKING for the sheet that exists rather than making every caller remember to.
+		// Nothing else reads the weapon for this graphic: the frame count comes from _pDFrames and
+		// GetPlayerSpriteWidth returns spriteData.death whatever the weapon is.
+		animWeaponId = PlayerWeaponGraphic::Unarmed;
 		szCel = "dt";
 		break;
 	case player_graphic::Block:
@@ -2306,7 +2319,10 @@ void NewPlrAnim(Player &player, player_graphic graphic, Direction dir, Animation
 	int previewShownGameTickFragments = 0;
 	if (!HeadlessMode) {
 		sprites = player.AnimationData[static_cast<size_t>(graphic)].spritesForDirection(dir);
-		if (player.previewCelSprite && (*sprites)[0] == *player.previewCelSprite && !player.isWalking()) {
+		// `sprites` first: LoadPlrGFX still declines three graphics outright - Attack and Hit in
+		// town, and Block without the block flag - so an empty list here is a reachable state, not
+		// an impossible one, and this deref had no guard at all.
+		if (sprites && player.previewCelSprite && (*sprites)[0] == *player.previewCelSprite && !player.isWalking()) {
 			previewShownGameTickFragments = clamp<int>(AnimationInfo::baseValueFraction - player.progressToNextGameTickWhenPreviewWasSet, 0, AnimationInfo::baseValueFraction);
 		}
 	}

@@ -1387,11 +1387,26 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// call out their tier. Rare matches its own yellow name color; Buffed Unique matches the
 	// same yellow background vanilla Unique items use (user request - its name color,
 	// Whitegold, is that same family); Primal matches its own orange name color.
+	// Oracool: Rare rides the PAL8_YELLOW mini-ramp, not PAL16_YELLOW. engine/palette.h says outright
+	// that "the pale PAL16_YELLOW substitutes read as unique-gold" - which is right for Buffed Unique
+	// below, and exactly the user's complaint about Rare ("now is gold", 2026-08-16). PAL8_YELLOW is
+	// the saturated yellow the rare NAME colour comes from, so the backing and the name finally agree.
+	// Deep into the ramp. PAL16 ramps run LIGHT to DARK as the offset grows - engine/palette.h says
+	// so outright: "(dark blue): PAL16_BLUE+14, (light red): PAL16_RED+2". An earlier change to +3
+	// was made believing the opposite, so it made the backings LIGHTER when the intent was to tone
+	// them down. +10 leaves a deep tint that identifies the tier without competing with the icon.
+	constexpr uint8_t TierBackingRampOffset = 10;
+
 	uint8_t colorBlock;
+	uint8_t rampOffset = TierBackingRampOffset;
 	if (IsInspectingPlayer()) {
 		colorBlock = PAL16_ORANGE;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Rare) {
-		colorBlock = PAL16_YELLOW;
+		colorBlock = PAL8_YELLOW;
+		// The mini-ramps are EIGHT shades where the PAL16 ramps are sixteen, so the 16-ramp offset
+		// would run off the end into PAL8_ORANGE - which this fork overwrote with green. Half of it
+		// lands at the same relative depth.
+		rampOffset = TierBackingRampOffset / 2;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::BuffedUnique) {
 		colorBlock = PAL16_YELLOW;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Primal) {
@@ -1422,15 +1437,9 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// entirely: magic, unique, rare and every Oracool tier all rendered as bare slot.
 	//
 	// Blending an explicit colour instead works against ANY background, which is the point - the
-	// backing must not depend on what the panel happens to be painted with. Mid-ramp (+8) rather
-	// than the ramp's base index, because the base is the darkest entry and barely reads.
-	// Deep into the ramp. PAL16 ramps run LIGHT to DARK as the offset grows - engine/palette.h says
-	// so outright: "(dark blue): PAL16_BLUE+14, (light red): PAL16_RED+2". The previous change to
-	// +3 was made believing the opposite, so it made the backings LIGHTER when the intent was to
-	// tone them down, which is why they read worse rather than subtler. +13 is near the dark end,
-	// so the blend leaves a deep tint that identifies the tier without competing with the icon.
-	constexpr uint8_t TierBackingRampOffset = 10;
-	const uint8_t tint = static_cast<uint8_t>(colorBlock + TierBackingRampOffset);
+	// backing must not depend on what the panel happens to be painted with. See
+	// TierBackingRampOffset above for which end of the ramp is picked and why.
+	const uint8_t tint = static_cast<uint8_t>(colorBlock + rampOffset);
 	DrawHalfTransparentRectTo(out, targetPosition.x, targetPosition.y - size.height + 1,
 	    size.width, size.height, tint);
 }

@@ -131,6 +131,17 @@ OptionalClxSpriteListOrSheet GetScaledCorpse(const Monster &monster)
 
 void ClearMonsterScaleCache()
 {
+	// Unbind BEFORE freeing. A sized monster's animInfo holds a raw view into this cache, and
+	// dropping the cache under it would leave a dangling pointer rather than an empty optional -
+	// which no null check anywhere could catch. Clearing the binding first means the worst case is
+	// a monster that draws nothing until it rebinds, which the draw paths handle and log.
+	if (!Cache.empty()) {
+		for (size_t i = 0; i < MaxMonsters; i++) {
+			Monster &monster = Monsters[i];
+			if (GetMonsterSize(monster) != MonsterSize::Normal)
+				monster.animInfo.sprites = std::nullopt;
+		}
+	}
 	Cache.clear();
 }
 

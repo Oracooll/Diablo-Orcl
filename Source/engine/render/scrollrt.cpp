@@ -455,6 +455,13 @@ void DrawPlayer(const Surface &out, const Player &player, Point tilePosition, Po
 		return;
 	}
 
+	// Oracool: skipping a frame beats asserting. An animation whose sheet LoadPlrGFX declined leaves
+	// AnimInfo empty, and this deref used to take the whole session down with it - see the Death
+	// case in LoadPlrGFX for the crash that found it.
+	if (!player.previewCelSprite && !player.AnimInfo.sprites) {
+		Log("Draw Player \"{}\": no sprites for the current animation", player._pName);
+		return;
+	}
 	const ClxSprite sprite = player.previewCelSprite ? *player.previewCelSprite : player.AnimInfo.currentSprite();
 
 	Point spriteBufferPosition = targetBufferPosition - Displacement { CalculateWidth2(sprite.width()), 0 };
@@ -839,6 +846,12 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 		return;
 	}
 
+	// Oracool: DrawMonster already logs and returns on an empty sprite list, but it never got the
+	// chance - this line runs ~50 lines earlier and asserted first, which made that check dead code.
+	if (!monster.animInfo.sprites) {
+		Log("Draw Monster \"{}\": no sprites for the current animation", monster.name());
+		return;
+	}
 	const ClxSprite sprite = monster.animInfo.currentSprite();
 
 	Displacement offset = {};
