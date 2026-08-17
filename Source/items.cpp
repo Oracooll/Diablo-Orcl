@@ -5124,6 +5124,12 @@ void AddItemPowerPanelStrings(const Item &item)
 	for (const auto &power : uitem.powers) {
 		if (power.type == IPL_INVALID)
 			break;
+		// The icon assignment is not a stat. PrintItemPower renders it as a lone space - vanilla's
+		// way of keeping its few INVCURS-carrying uniques readable - which was tolerable on a
+		// handful of items and became a phantom blank line at the END of all 143 expansion uniques'
+		// tooltips once every one of them carried its icon this way (audit, 2026-08-17).
+		if (power.type == IPL_INVCURS)
+			continue;
 		AddPanelString(PrintItemPower(power.type, item), ItemAffixColor);
 	}
 }

@@ -1025,7 +1025,14 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 			return true;
 		}
 		me._pSplHotKey[slot] = spell;
-		me._pSplTHotKey[slot] = GetSBookTrans(spell, false);
+		// The type is the spell's IDENTITY - innate Skill or memorized Spell - never GetSBookTrans's
+		// verdict. That function folds MOMENTARY castability into its answer (audit, 2026-08-17): a
+		// memorized spell bound while the mana happened to be short came back SpellType::Invalid,
+		// and the binding stored it - so the F-key stayed dead after the mana returned, wearing its
+		// badge the whole time. A binding outlives the moment it was made in.
+		me._pSplTHotKey[slot] = (me._pAblSpells & GetSpellBitmask(spell)) != 0
+		    ? SpellType::Skill
+		    : SpellType::Spell;
 		RedrawEverything();
 		return true;
 	}
