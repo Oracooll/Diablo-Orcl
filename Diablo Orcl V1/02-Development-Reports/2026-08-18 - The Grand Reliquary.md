@@ -1,8 +1,9 @@
 # The Grand Reliquary
 
-**Version:** 1.7.71
+**Version:** 1.7.71 → 1.7.74 (four passes; each section below says which)
 **Date:** 2026-08-18
 **Request:** "start on Unit A" — the first unit of the 2026-08-18 MPQ drop-zone sweep.
+**Shipped as:** 76×70, mirrored, no shadow.
 
 The town Stash Chest has been borrowing vanilla `chest3.cel` since the day it was placed. It now
 has its own art: a six-frame, 160×160 Grand Reliquary — blackened iron, aged-gold ribs, oxblood
@@ -151,9 +152,26 @@ The frame grew from 76×70 to **82×80** to hold the skirt, and `OracoolStashChe
 bottom edge, so they lift the chest until its base sits at the ellipse's centre — which is now where
 the floor appears to be.
 
+### Reverted, and why the code stayed (1.7.74)
+
+> *"use the non shadow asset"*
+
+Shipped without it. The re-cut CEL came back **byte-identical** to the 1.7.72 asset — 21,614 bytes,
+76×70 — which is a small proof that the shadow really was a pure addition and nothing else drifted
+while it was in.
+
+The shadow code is parked behind `EnableShadow` rather than deleted. What it works out is expensive
+to rediscover and costs nothing to keep: that CEL cannot carry a soft shadow at all, that the
+neutral ramp reads as shade where the blue-grey one reads as water, and where an isometric object's
+floor contact actually is. It is `static readonly` rather than `const` so the parked branch does not
+warn as unreachable — noise, not information, while it is deliberately switched off.
+
+Flipping it back on regrows the frame to 82×80, and `OracoolStashChestAnimWidth` must move with it,
+in the same commit. That pairing is the one rule this asset cannot break.
+
 ## Verification
 
-Debug build clean at 1.7.73; suite **445 of 447**, the two failures being the standing baseline pair
+Debug build clean at 1.7.74; suite **445 of 447**, the two failures being the standing baseline pair
 (`Drlg_l1.CreateL5Dungeon_diablo_3_844660068`, `Timedemo.WarriorLevel1to2`). `oracool.mpq` repacked
 to 387 files, with `objects\orclstash.cel` (21,614 bytes, down from 83,328) alongside
 `objects\orclwayp.cel`.

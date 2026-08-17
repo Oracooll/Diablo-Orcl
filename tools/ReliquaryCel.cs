@@ -54,6 +54,15 @@ internal static class ReliquaryCel
 
 	// --- Contact shadow -------------------------------------------------------------------------
 	//
+	// OFF (user, 2026-08-18: "use the non shadow asset"). The code below stays because what it
+	// works out is expensive to rediscover and cheap to keep: that CEL cannot carry a soft shadow
+	// at all, which ramp reads as shade rather than as a puddle, and where an isometric object's
+	// floor contact actually is. Flip this to true to get it back; the frame grows from 76x70 to
+	// 82x80 when you do, and OracoolStashChestAnimWidth must follow.
+	// static readonly, not const: a const false folds at compile time and the shadow code then
+	// warns as unreachable, which is noise rather than information while it is deliberately parked.
+	private static readonly bool EnableShadow = false;
+	//
 	// The delivered pack has no shadow at all: its palette-and-format doc says "no soft shadow,
 	// aura, or partial-alpha pixel remains in the runtime file", because CEL transparency is binary
 	// and a soft shadow cannot survive it. The engine has no object-shadow pass either - monsters
@@ -128,17 +137,18 @@ internal static class ReliquaryCel
 			// The shadow is measured ONCE, from the closed state, and the identical ellipse is
 			// stamped into all three. Measuring per state would let it breathe as the lid moves,
 			// which is exactly the kind of wobble the shared content box exists to prevent.
-			Shadow shadow = PlanShadow(art[0], artWidth, artHeight);
+			Shadow shadow = EnableShadow ? PlanShadow(art[0], artWidth, artHeight) : new Shadow();
 			int frameWidth = EvenUp(artWidth + 2 * shadow.PadX);
 			int frameHeight = artHeight + shadow.PadY;
 			int offsetX = (frameWidth - artWidth) / 2;
-			Console.WriteLine("art {0}x{1}, frame {2}x{3} (shadow pad {4} x, {5} y)",
-				artWidth, artHeight, frameWidth, frameHeight, shadow.PadX, shadow.PadY);
+			Console.WriteLine("art {0}x{1}, frame {2}x{3} ({4})", artWidth, artHeight, frameWidth, frameHeight,
+				EnableShadow ? "shadow pad " + shadow.PadX + " x, " + shadow.PadY + " y" : "no shadow");
 
 			byte[][] trio = new byte[3][];
 			for (int i = 0; i < 3; i++) {
 				trio[i] = Inset(art[i], artWidth, artHeight, frameWidth, frameHeight, offsetX);
-				StampShadow(trio[i], frameWidth, frameHeight, shadow, offsetX);
+				if (EnableShadow)
+					StampShadow(trio[i], frameWidth, frameHeight, shadow, offsetX);
 				if (previewDir != null)
 					WritePreview(trio[i], frameWidth, frameHeight, pal, Path.Combine(previewDir, "reliquary_" + stateNames[i] + ".png"));
 			}
