@@ -59,3 +59,22 @@ a stat.
 **VERIFIED, unchanged:** Griswold's unique-shop option scans the whole table, so the 143 are
 purchasable there with sprites and band-derived prices — first-class uniques, consistent with the
 accepted displacement. Suite 442/444.
+
+---
+
+## Round three: the persistence chain, verified
+
+The suspicion: the F-key chunk re-derives each binding's type from `_pAblSpells`/`_pMemSpells`,
+and if those masks were empty at chunk-apply time, every innate-skill binding would silently die
+on relog. **Cleared by reading the order**: `UnPackPlayer` decodes the readied slots "Last, and
+not one line earlier" - after its internal `CalcPlrInv` builds the masks from the already-unpacked
+body - and `ApplyHeroChunks` runs after `UnPackPlayer` returns, inheriting those valid masks.
+Within the chunk walk, skill points (tag 1) apply before hotkeys (tag 7), the order the writer
+emits. Innate and memorized bindings both survive a relog.
+
+**One narrow edge, documented rather than churned**: bind a shield-gated skill (Shield Bash,
+Blessed Shield) to an F-key, unequip the shield, save, reload - the mask lacks the skill at apply
+time, `UnpackReadiedSpell` refuses, and the binding is dropped rather than sleeping. The same
+refusal protects the readied slots and predates the hotkeys; making bindings sleep through gate
+changes would mean deriving type at press time instead of storing it, a vanilla-structure change
+not worth the edge. Re-binding takes one keypress.
