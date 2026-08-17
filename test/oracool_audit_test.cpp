@@ -931,7 +931,9 @@ TEST(OracoolGems, SocketsOnlyOnPlainEquipment)
 	EXPECT_FALSE(oracool::CanItemHaveSockets(potion)) << "a misc item took sockets";
 }
 
-TEST(OracoolGems, RubyIsFireDamageInWeaponsAndFireResistInArmor)
+// The gems follow Diablo II's own columns (user directive 2026-08-18): a ruby is fire damage in a
+// weapon, LIFE in armor (not resist - that was this fork's pre-D2 tuning), fire resist in a shield.
+TEST(OracoolGems, RubyFollowsItsDiabloTwoColumn)
 {
 	oracool::ItemBonusTotals weaponTotals;
 	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY, oracool::SocketHost::Weapon, weaponTotals);
@@ -941,11 +943,86 @@ TEST(OracoolGems, RubyIsFireDamageInWeaponsAndFireResistInArmor)
 	oracool::ItemBonusTotals armorTotals;
 	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY, oracool::SocketHost::Armor, armorTotals);
 	EXPECT_EQ(armorTotals.fireMax, 0);
-	EXPECT_GT(armorTotals.fireResist, 0);
+	EXPECT_GT(armorTotals.hitPoints, 0) << "D2's armor ruby is +life";
+	EXPECT_EQ(armorTotals.fireResist, 0) << "the pre-D2 armor resist came back";
 
 	oracool::ItemBonusTotals shieldTotals;
 	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY, oracool::SocketHost::Shield, shieldTotals);
-	EXPECT_GT(shieldTotals.fireResist, armorTotals.fireResist) << "the shield roll should be the bigger one";
+	EXPECT_GT(shieldTotals.fireResist, 0) << "D2's shield ruby is fire resist";
+	EXPECT_EQ(shieldTotals.hitPoints, 0);
+}
+
+// Each gem type's D2 identity, one signature stat per host - the "gems are missing affixes" fix
+// (user, 2026-08-18). Substitutions where the engine lacks a channel are pinned as themselves:
+// sapphire (cold) is the mana gem, emerald's poison resist is magic resist, skull's leech is
+// life-per-kill in weapons and thorns on shields.
+TEST(OracoolGems, EveryGemCarriesItsDiabloTwoIdentity)
+{
+	using oracool::ApplyGemToTotals;
+	using oracool::GemIndexFor;
+	using oracool::GemQuality;
+	using oracool::GemType;
+	using oracool::ItemBonusTotals;
+	using oracool::SocketHost;
+
+	ItemBonusTotals t;
+	ApplyGemToTotals(GemIndexFor(GemType::Amethyst, GemQuality::Normal), SocketHost::Armor, t);
+	EXPECT_GT(t.strength, 0) << "amethyst armor: +strength";
+
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Diamond, GemQuality::Normal), SocketHost::Shield, t);
+	EXPECT_GT(t.fireResist, 0) << "diamond shield: all resists";
+	EXPECT_EQ(t.fireResist, t.lightningResist);
+	EXPECT_EQ(t.fireResist, t.magicResist);
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Diamond, GemQuality::Normal), SocketHost::Armor, t);
+	EXPECT_GT(t.bonusToHit, 0) << "diamond armor: attack rating";
+
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Emerald, GemQuality::Normal), SocketHost::Armor, t);
+	EXPECT_GT(t.dexterity, 0) << "emerald armor: +dexterity";
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Emerald, GemQuality::Normal), SocketHost::Shield, t);
+	EXPECT_GT(t.magicResist, 0) << "emerald shield: poison resist -> magic resist";
+
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Sapphire, GemQuality::Normal), SocketHost::Armor, t);
+	EXPECT_GT(t.mana, 0) << "sapphire armor: +mana (D2's own)";
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Sapphire, GemQuality::Normal), SocketHost::Weapon, t);
+	EXPECT_GT(t.mana, 0) << "sapphire weapon: the cold substitute is mana everywhere";
+
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Topaz, GemQuality::Normal), SocketHost::Weapon, t);
+	EXPECT_GT(t.lightningMax, 0) << "topaz weapon: lightning damage";
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Topaz, GemQuality::Perfect), SocketHost::Armor, t);
+	EXPECT_EQ(t.magicFind, 24) << "topaz armor: +24% magic find at Perfect, D2's own number";
+
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Skull, GemQuality::Normal), SocketHost::Shield, t);
+	EXPECT_TRUE(HasAnyOf(t.flags, ItemSpecialEffect::Thorns)) << "skull shield: thorns";
+	t = {};
+	ApplyGemToTotals(GemIndexFor(GemType::Skull, GemQuality::Normal), SocketHost::Armor, t);
+	EXPECT_GT(t.hitPoints, 0) << "skull armor: replenish-life substitute";
+	EXPECT_GT(t.mana, 0) << "skull armor: regenerate-mana substitute";
+
+	// The skull's weapon leech is an EVENT, not a totals stat: a Perfect skull in a worn weapon
+	// restores quality-scaled life on each kill.
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	devilution::Item &sword = player.InvBody[INVLOC_HAND_LEFT];
+	sword = {};
+	sword._itype = ItemType::Sword;
+	sword._iStatFlag = true;
+	sword._iSocketCount = 1;
+	sword._iSocketed[0] = GemIndexFor(GemType::Skull, GemQuality::Perfect);
+	EXPECT_EQ(oracool::GemLifePerKill(player), 4) << "Perfect (200%) doubles the Normal +2";
+	sword._iSocketed[0] = GemIndexFor(GemType::Skull, GemQuality::Chipped);
+	EXPECT_EQ(oracool::GemLifePerKill(player), 1) << "Chipped floors at 1, never rounds to nothing";
+	sword._itype = ItemType::Helm;
+	EXPECT_EQ(oracool::GemLifePerKill(player), 0) << "the leech is a WEAPON effect, as in D2";
 }
 
 TEST(OracoolGems, InsertionFillsInOrderAndStopsWhenFull)
@@ -1007,7 +1084,11 @@ TEST(OracoolGems, QualityScalesEffectsOnceNotTwice)
 	oracool::ApplyGemToTotals(normal, oracool::SocketHost::Armor, baseArmor);
 	oracool::ItemBonusTotals topArmor;
 	oracool::ApplyGemToTotals(perfect, oracool::SocketHost::Armor, topArmor);
-	EXPECT_EQ(topArmor.fireResist, onceScaled(baseArmor.fireResist))
+	// The armor ruby is +life (D2's column); hitPoints ride <<6 fixed point, so scale the whole-HP
+	// value and shift back - which also proves the fixed-point conversion happens AFTER the single
+	// quality application, not inside it.
+	ASSERT_GT(baseArmor.hitPoints, 0);
+	EXPECT_EQ(topArmor.hitPoints, onceScaled(baseArmor.hitPoints >> 6) << 6)
 	    << "the armor host still double-scales";
 }
 
@@ -1104,14 +1185,15 @@ TEST(OracoolGems, EveryTypeAndQualityHasItsOwnIndex)
 
 TEST(OracoolGems, QualityScalesEffectsAndNormalIsTheTunedRow)
 {
-	// The original five gems are the NORMAL quality of their type, so their tuned numbers must be
-	// exactly what a normal gem still applies - the ladder was built around them, not over them.
+	// The NORMAL row is the tuned anchor of its type's whole ladder. Since the D2 pass
+	// (2026-08-18) the anchors ARE Diablo II's Normal-quality values: the ruby's weapon roll is
+	// D2's own 8-12 fire.
 	EXPECT_EQ(oracool::GemIndexFor(oracool::GemType::Ruby, oracool::GemQuality::Normal),
 	    IDI_ORACOOL_GEM_RUBY);
 	oracool::ItemBonusTotals normal;
 	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY, oracool::SocketHost::Weapon, normal);
-	EXPECT_EQ(normal.fireMin, 2);
-	EXPECT_EQ(normal.fireMax, 6);
+	EXPECT_EQ(normal.fireMin, 8);
+	EXPECT_EQ(normal.fireMax, 12);
 
 	oracool::ItemBonusTotals chipped;
 	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_RUBY_CHIPPED, oracool::SocketHost::Weapon, chipped);
@@ -1122,10 +1204,11 @@ TEST(OracoolGems, QualityScalesEffectsAndNormalIsTheTunedRow)
 	// Rounding must never erase an effect a gem is supposed to have.
 	EXPECT_GT(chipped.fireMin, 0) << "scaling rounded a real effect away to nothing";
 
-	// The two new types act, and on the channels their descriptions claim.
+	// Two more anchors on the channels their D2 columns claim (the full identity sweep lives in
+	// EveryGemCarriesItsDiabloTwoIdentity).
 	oracool::ItemBonusTotals amethyst;
 	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_AMETHYST_NORMAL, oracool::SocketHost::Armor, amethyst);
-	EXPECT_GT(amethyst.dexterity, 0);
+	EXPECT_GT(amethyst.strength, 0) << "D2's armor amethyst is +strength";
 	oracool::ItemBonusTotals diamond;
 	oracool::ApplyGemToTotals(IDI_ORACOOL_GEM_DIAMOND_NORMAL, oracool::SocketHost::Shield, diamond);
 	EXPECT_GT(diamond.fireResist, 0);

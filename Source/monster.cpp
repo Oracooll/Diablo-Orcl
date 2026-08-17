@@ -3907,22 +3907,31 @@ void M_StartHit(Monster &monster, const Player &player, int dam)
 namespace {
 
 /**
- * @brief Tir's D2 rule: mana restored on each kill, from runes socketed in worn equipment. Local
- * player only (mirrors AddPlrMonstExper's locality) and honors the mana-steal path's NoMana guard.
+ * @brief The per-kill socket grants: Tir's D2 mana rule, and the Skull's life-per-kill (its leech
+ * substitute - see the gem table). Local player only (mirrors AddPlrMonstExper's locality); the
+ * mana half honors the mana-steal path's NoMana guard.
  */
 void GrantRuneKillMana(char pmask)
 {
 	if ((pmask & (1 << MyPlayerId)) == 0)
 		return;
 	Player &player = *MyPlayer;
-	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::NoMana))
-		return;
-	const int mana = oracool::RuneManaPerKill(player) << 6; // mana runs in <<6 fixed point
-	if (mana <= 0)
-		return;
-	player._pMana = std::min(player._pMana + mana, player._pMaxMana);
-	player._pManaBase = std::min(player._pManaBase + mana, player._pMaxManaBase);
-	RedrawComponent(PanelDrawComponent::Mana);
+
+	if (!HasAnyOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+		const int mana = oracool::RuneManaPerKill(player) << 6; // mana runs in <<6 fixed point
+		if (mana > 0) {
+			player._pMana = std::min(player._pMana + mana, player._pMaxMana);
+			player._pManaBase = std::min(player._pManaBase + mana, player._pMaxManaBase);
+			RedrawComponent(PanelDrawComponent::Mana);
+		}
+	}
+
+	const int life = oracool::GemLifePerKill(player) << 6; // HP runs in the same fixed point
+	if (life > 0 && player._pHitPoints > 0) {
+		player._pHitPoints = std::min(player._pHitPoints + life, player._pMaxHP);
+		player._pHPBase = std::min(player._pHPBase + life, player._pMaxHPBase);
+		RedrawComponent(PanelDrawComponent::Health);
+	}
 }
 
 } // namespace

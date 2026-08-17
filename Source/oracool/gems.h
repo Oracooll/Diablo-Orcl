@@ -115,4 +115,8 @@ bool TrySocketGem(Item &target, const Item &held);
  * Tir). Summed over every usable worn item's filled sockets; consumed in MonsterDeath. */
 int RuneManaPerKill(const Player &player);
 
+/** @brief Total life restored to @p player on each kill by socketed Skulls in WEAPON hosts - the
+ * quality-scaled substitute for D2's skull leech. Consumed in MonsterDeath beside the rune mana. */
+int GemLifePerKill(const Player &player);
+
 } // namespace devilution::oracool
