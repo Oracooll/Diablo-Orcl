@@ -39,3 +39,23 @@ Reachability today: debug set grants plus manual duplication — no set drops ex
 ## Verification
 
 Debug build clean at 1.7.67; full suite **442 of 444** (one test added this audit) — the two failures are the standing baseline pair.
+
+---
+
+## Round two (v1.7.68)
+
+**FIXED: dead F-key bindings.** `HandleAbilityFKey` stored `GetSBookTrans`'s verdict as the
+binding's `SpellType` — and that function folds *momentary* castability into its answer. A
+memorized spell bound while mana happened to be short came back `SpellType::Invalid`; the binding
+stored it, and the F-key stayed dead after the mana returned, wearing its badge the whole time.
+The stored type is now the spell's identity alone (innate Skill / memorized Spell). A binding
+outlives the moment it was made in.
+
+**FIXED: the phantom tooltip line.** `PrintItemPower` renders `IPL_INVCURS` as a lone space —
+tolerable on vanilla's few icon-carrying uniques, a blank last line on all 143 expansion uniques
+once each carried its icon that way. The description loop skips the icon assignment; it was never
+a stat.
+
+**VERIFIED, unchanged:** Griswold's unique-shop option scans the whole table, so the 143 are
+purchasable there with sprites and band-derived prices — first-class uniques, consistent with the
+accepted displacement. Suite 442/444.
