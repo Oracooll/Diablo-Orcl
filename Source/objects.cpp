@@ -4165,6 +4165,47 @@ void InitTownObjectPool()
 }
 
 /**
+ * @brief Oracool: gives the town Stash Chest its own art (the Grand Reliquary, OFILE_ORCLSTASH)
+ * while leaving it an ordinary OBJ_CHEST3 in every other respect.
+ *
+ * The sprite is swapped on the INSTANCE rather than on the type, for two independent reasons.
+ * OBJ_CHEST3 is shared with every large loot chest in the dungeon, so retargeting the type's
+ * ofindex would turn all of them into reliquaries; and a dedicated object type was already tried
+ * and reverted (see AddStashChestObject below) because it drew in the wrong order. Draw order is a
+ * type-level property (_oPreFlag / IsFloorPassObject in scrollrt.cpp's GetObjectDrawPass) that the
+ * type stays untouched, so this keeps exactly the behaviour that A/B test settled on.
+ *
+ * The price of an instance-level override is that it does not survive a save on its own:
+ * _oAnimData is a pointer, skipped by LoadObject, and rebuilt by SyncObjectAnim from
+ * AllObjects[_otype].ofindex - which says OFILE_CHEST3. That is why this must be applied in BOTH
+ * places, and why SyncObjectAnim carries a matching call. Miss the second one and the chest is a
+ * reliquary until the first return to town and a plain chest forever after.
+ *
+ * Frame numbering carries over unchanged: orclstash.cel repeats its closed/opening/open trio twice,
+ * so the existing "closed is 4, open is 6" logic (AddStashChestObject, OperateStashChest,
+ * CloseStashChestObject) means the same thing in the new art as in chest3.cel.
+ */
+void ApplyStashChestGraphics(Object &chest)
+{
+	if (HeadlessMode)
+		return;
+
+	EnsureObjectGraphicsLoaded(OFILE_ORCLSTASH, OracoolStashChestAnimWidth);
+
+	for (int i = 0; i < numobjfiles; i++) {
+		if (ObjFileList[i] != OFILE_ORCLSTASH)
+			continue;
+		if (pObjCels[i]) {
+			chest._oAnimData.emplace(*pObjCels[i]);
+			// Only ever read back by the save file (loadsave.cpp writes it and its derived
+			// _oAnimWidth2); DrawObject measures the sprite itself. Kept honest anyway.
+			chest._oAnimWidth = OracoolStashChestAnimWidth;
+		}
+		return;
+	}
+}
+
+/**
  * @brief Oracool: user request - places the fixed town Stash Chest. Reuses the ordinary OBJ_CHEST3
  * type (see StashChestPosition's comment for why) rather than a custom object type - an A/B test
  * against the custom OBJ_STASHCHEST type showed this is both the visual the user wanted and free
@@ -4176,6 +4217,9 @@ void AddStashChestObject()
 	if (currlevel != 0 || setlevel)
 		return;
 
+	// Still needed even though the chest ends up wearing orclstash.cel: SetupObject looks the
+	// TYPE's graphic up in ObjFileList and hard-fails ("Unable to find object_graphic_id") if it is
+	// absent, so OFILE_CHEST3 must be loaded before AddObject, and the swap happens after.
 	EnsureObjectGraphicsLoaded(OFILE_CHEST3, AllObjects[OBJ_CHEST3].animWidth);
 
 	if (dObject[StashChestPosition.x][StashChestPosition.y] != 0) {
@@ -4188,8 +4232,11 @@ void AddStashChestObject()
 
 	// Oracool: user request - chest3.cel ships two closed-chest visual variants; AddObject() (via
 	// AddChest()) already picked one at random via a 50/50 coin flip (frame 1 or frame 4). Pin it
-	// deterministically to frame 4, the variant the user asked for, every time.
+	// deterministically to frame 4, the variant the user asked for, every time. orclstash.cel
+	// repeats its own trio across the same two slots, so frame 4 still means "closed".
 	chest->_oAnimFrame = 4;
+
+	ApplyStashChestGraphics(*chest);
 }
 
 void CloseStashChestObject()
@@ -5463,6 +5510,15 @@ void SyncObjectAnim(Object &object)
 		} else {
 			object._oAnimData = std::nullopt;
 		}
+
+		// Oracool: the town Stash Chest is an OBJ_CHEST3 wearing its own art, so the lookup above -
+		// which asks the TYPE for its graphic - has just handed it chest3.cel. Put the reliquary
+		// back. This runs on every load of an existing town save (LoadObject skips the _oAnimData
+		// pointer and leans on this function to rebuild it); without it the chest would look right
+		// only until the first time town was reloaded. Same position test the two OperateObject /
+		// SyncOpObject sites already use to tell this chest from an ordinary one.
+		if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
+			oracool::ApplyStashChestGraphics(object);
 	}
 
 	switch (object._otype) {

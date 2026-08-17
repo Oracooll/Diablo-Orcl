@@ -356,7 +356,8 @@ const char *const ObjMasterLoadList[] = {
 	"urn",
 	"urnexpld",
 	"l5books",
-	"orclwayp", // Oracool: ours, from oracool.mpq - see OFILE_ORCLWAYP
+	"orclwayp",  // Oracool: ours, from oracool.mpq - see OFILE_ORCLWAYP
+	"orclstash", // Oracool: ours, from oracool.mpq - see OFILE_ORCLSTASH
 };
 
 } // namespace devilution

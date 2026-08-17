@@ -114,11 +114,27 @@ enum object_graphic_id : int8_t {
 	 * level type, since it is the one object that appears in town AND on all 16 dungeon levels.
 	 */
 	OFILE_ORCLWAYP,
+	/**
+	 * Oracool: the town Stash Chest's own art - the Grand Reliquary (objects\orclstash.cel, shipped
+	 * in oracool.mpq). Six 160x160 frames: 1/2/3 and 4/5/6 are two identical closed/opening/open
+	 * trios, mirroring chest3.cel's two-variant convention, so the existing "closed is frame 4, open
+	 * is frame 6" logic carries over unchanged.
+	 *
+	 * Like OFILE_ORCLWAYP this sits after OFILE_L5BOOKS and is registered explicitly rather than by
+	 * a level scan (EnsureObjectGraphicsLoaded, from AddStashChestObject). Unlike the waypoint, it
+	 * does NOT belong to an object type: the Stash Chest stays an ordinary OBJ_CHEST3 - see
+	 * ApplyStashChestGraphics in objects.cpp for why, and for the two places that must both apply it.
+	 */
+	OFILE_ORCLSTASH,
 	OFILE_NULL = -1,
 };
 
 /** @brief Number of entries in object_graphic_id, i.e. the size every filesWidths[] array needs. */
-constexpr int NumObjectGraphicFiles = OFILE_ORCLWAYP + 1;
+constexpr int NumObjectGraphicFiles = OFILE_ORCLSTASH + 1;
+
+/** @brief Oracool: orclstash.cel's frame width. CEL stores no width, so LoadCel must be told; the
+ * vanilla chest's 96 would split this sprite's RLE scanlines mid-row and render it as garbage. */
+constexpr uint16_t OracoolStashChestAnimWidth = 160;
 
 enum _object_id : int8_t {
 	OBJ_L1LIGHT,
