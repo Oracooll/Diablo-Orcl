@@ -78,3 +78,26 @@ time, `UnpackReadiedSpell` refuses, and the binding is dropped rather than sleep
 refusal protects the readied slots and predates the hotkeys; making bindings sleep through gate
 changes would mean deriving type at press time instead of storing it, a vanilla-structure change
 not worth the edge. Re-binding takes one keypress.
+
+---
+
+## Round four: two notes, no code
+
+**Footprint migration on pre-sprite uniques.** An expansion unique spawned between 1.7.56 and
+1.7.61 was saved wearing its BASE item's cursor and occupying the base's inventory cells. Loaded at
+1.7.62+, GetUniqueItem applies IPL_INVCURS and the item's footprint becomes the package's declared
+grid - which for some items is LARGER than the base's. The saved InvGrid layout still reserves the
+old cells, so such an item can overlap its neighbours until re-placed. Narrow window (debug spawns
+in a five-version span), self-correcting on pickup, and the same class of edge the set items
+carried at their launch - but it is the general rule worth keeping: CHANGING AN ITEM'S FOOTPRINT
+IS A SAVE MIGRATION, even when no field changed. Any future re-grid of shipped art should ship
+with a load-time re-place pass.
+
+**The tree's dead bar zone.** TreeBarRect still exists and TreeCellAt still hit-tests it, though
+the bar itself no longer draws - a click in the gap under an icon is swallowed by `if (onBar)
+return;` rather than falling through. Harmless (the gap was never a target), left in place because
+removing the bar geometry touches the hover walk too; worth folding into the next sheet pass.
+
+Suite unchanged at 442/444. This closes the audit - four rounds, three fixes shipped
+(duplicated-piece completion, dead F-key bindings, the phantom tooltip line), eleven suspicions
+investigated and recorded.
