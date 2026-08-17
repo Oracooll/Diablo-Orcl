@@ -633,8 +633,9 @@ void DrawStash(const Surface &out)
 	// inventory background's pair, which carries its own arches and border. The procedural fill and
 	// bevel stay as the fallback so the art is droppable rather than required.
 	const Rectangle panel = GetStashPanelRect();
-	if (oracool::HasSidePanelArt()) {
-		oracool::DrawSidePanelArt(out, panel.position);
+	const bool carvedTitle = oracool::HasSidePanelArt(oracool::SidePanel::Stash);
+	if (carvedTitle) {
+		oracool::DrawSidePanelArt(out, panel.position, oracool::SidePanel::Stash);
 	} else {
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);
@@ -645,10 +646,13 @@ void DrawStash(const Surface &out)
 	// the separator was a second line drawn across the first.
 	//
 	// The band is exactly one line tall so VerticalCenter cannot drift it: 12 means 12.
-	const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + oracool::PanelTitleTop },
-		{ panel.size.width - 2 * StashMargin, oracool::PanelTitleHeight } };
-	oracool::DrawOutlinedString(out, _("STASH"), labelArea,
-	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	// Carved into the stone since the 2026-08-18 art (unit D) - drawn only as the fallback.
+	if (!carvedTitle) {
+		const Rectangle labelArea { { panel.position.x + StashMargin, panel.position.y + oracool::PanelTitleTop },
+			{ panel.size.width - 2 * StashMargin, oracool::PanelTitleHeight } };
+		oracool::DrawOutlinedString(out, _("STASH"), labelArea,
+		    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+	}
 
 	// Bug fix: the four page arrows were INVISIBLE until pressed. data\stashnavbtns.clx only holds
 	// each button's pressed frame - the unpressed state was painted into data\stash.clx, which the

@@ -1693,7 +1693,14 @@ void DrawInv(const Surface &out)
 	// Only the background moved. The title, equipment slots, grid, tabs and footer are still drawn
 	// here, on top - the art deliberately carries none of them, so the layout stays the code's.
 	const Rectangle invPanel = oracool::GetInventoryPanelRect();
-	if (oracool::HasInventoryPanelArt()) {
+	// Three deep now (2026-08-18, unit D): the delivered stone with INVENTORY carved into its top
+	// rail, then the older painted background, then the procedural fill. The inventory used to be
+	// the one window with a background all its own; it joined the shared family when that family
+	// grew a per-window variant, and the old art stays as the middle rung rather than being deleted.
+	const bool carvedTitle = oracool::HasSidePanelArt(oracool::SidePanel::Inventory);
+	if (carvedTitle) {
+		oracool::DrawSidePanelArt(out, invPanel.position, oracool::SidePanel::Inventory);
+	} else if (oracool::HasInventoryPanelArt()) {
 		oracool::DrawInventoryPanelArt(out);
 	} else {
 		oracool::DrawThemedFill(out, invPanel);
@@ -1717,7 +1724,8 @@ void DrawInv(const Surface &out)
 	//
 	// The band's bottom is taken from the helm slot itself, so the title follows if the equipment
 	// block ever moves again.
-	{
+	// Carved into the stone since the 2026-08-18 art (unit D) - drawn only as the fallback.
+	if (!carvedTitle) {
 		// User request (2026-08-16): 12px from the top, matching the stash. The band is exactly one
 		// FontSize30 line rather than stretching to the helm slot, so VerticalCenter has no slack
 		// to drift in - the title's top edge IS PanelTitleTop.

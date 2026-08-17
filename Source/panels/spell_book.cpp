@@ -1329,8 +1329,14 @@ void DrawSpellBook(const Surface &out)
 	//
 	// The rule under the title went with it, as it did in the other five: the art brings its own
 	// header framing, so the separator was a second line drawn across the first.
-	if (oracool::HasSidePanelArt()) {
-		oracool::DrawSidePanelArt(out, panel.position);
+	// SidePanel::Plain, alone among the six: the 2026-08-18 family (unit D) carves each window's name
+	// into its top rail, and this window's band cannot be carved because it does not have one name.
+	// It shows the CURRENT SHEET - Skills, Spells, Class Skills, Auras - and carries the page arrows
+	// either side, so incised stone would be right on one sheet and lying on the rest. It gets the
+	// rail-less variant of the same stone and keeps drawing its own title, which is why the block
+	// below is unconditional where the other five panels made theirs a fallback.
+	if (oracool::HasSidePanelArt(oracool::SidePanel::Plain)) {
+		oracool::DrawSidePanelArt(out, panel.position, oracool::SidePanel::Plain);
 	} else {
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);

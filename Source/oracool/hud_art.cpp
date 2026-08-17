@@ -82,7 +82,25 @@ ArtAsset MenuIconsArt { "ui\\menu_icons.png" };
  * stone panel was retired: baking a figure into the background would give every class the same one.
  */
 ArtAsset InventoryPanelArt { "ui\\inventory_background.png" };
-ArtAsset SidePanelArt { "ui\\stash_background.png" };
+/**
+ * One background per side panel - see SidePanel in hud_art.h. Indexed BY the enum, so the array and
+ * the enum cannot drift; the static_assert below is what says so.
+ *
+ * These replaced a single shared ui\stash_background.png that all five titled windows drew. The
+ * delivered family carves each window's name into the stone, so "shared" stopped being possible the
+ * moment the titles became part of the art rather than something drawn over it.
+ */
+ArtAsset SidePanelArts[] = {
+	ArtAsset { "ui\\panel_bg_inventory.png" },
+	ArtAsset { "ui\\panel_bg_stash.png" },
+	ArtAsset { "ui\\panel_bg_quests.png" },
+	ArtAsset { "ui\\panel_bg_waypoints.png" },
+	ArtAsset { "ui\\panel_bg_hero_stats.png" },
+	ArtAsset { "ui\\panel_bg_plain.png" },
+};
+static_assert(sizeof(SidePanelArts) / sizeof(SidePanelArts[0])
+        == static_cast<size_t>(SidePanel::LAST) + 1,
+    "SidePanelArts no longer has exactly one background per SidePanel");
 // The reliquary-chest tabs: a 102x31 atlas of three 34x31 frames - inactive, hover, active - from
 // oracool-stash-tab-button-pack. Replaces the numeral strips entirely (v1 roman bordered, v2 roman
 // borderless, v3 arabic), and with them the idea that a tab needs a number on it: all ten pages
@@ -487,8 +505,10 @@ void EnsureLoadedAll()
 		LoadPixels(MenuIconsArt);
 	if (!InventoryPanelArt.loadAttempted)
 		LoadPixels(InventoryPanelArt);
-	if (!SidePanelArt.loadAttempted)
-		LoadPixels(SidePanelArt);
+	for (ArtAsset &art : SidePanelArts) {
+		if (!art.loadAttempted)
+			LoadPixels(art);
+	}
 	if (!InventoryTabsArt.loadAttempted)
 		LoadPixels(InventoryTabsArt);
 	if (!InventorySortArt.loadAttempted)
@@ -542,8 +562,10 @@ bool NeedsQuantize()
 		return true;
 	if (!InventoryPanelArt.rgba.empty() && !InventoryPanelArt.bright)
 		return true;
-	if (!SidePanelArt.rgba.empty() && !SidePanelArt.bright)
-		return true;
+	for (const ArtAsset &art : SidePanelArts) {
+		if (!art.rgba.empty() && !art.bright)
+			return true;
+	}
 	if (!InventoryTabsArt.rgba.empty() && !InventoryTabsArt.bright)
 		return true;
 	if (!InventorySortArt.rgba.empty() && !InventorySortArt.bright)
@@ -604,7 +626,8 @@ void EnsureQuantized()
 	// all collapse to one gold and the row would read as ten identical buttons.
 	QuantizeAsset(MenuIconsArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(InventoryPanelArt, std::nullopt);
-	QuantizeAsset(SidePanelArt, std::nullopt);
+	for (ArtAsset &art : SidePanelArts)
+		QuantizeAsset(art, std::nullopt);
 	QuantizeAsset(InventoryTabsArt, std::nullopt);
 	QuantizeAsset(InventorySortArt, std::nullopt);
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
@@ -773,23 +796,24 @@ bool HasInventoryPanelArt()
 	return !InventoryPanelArt.rgba.empty();
 }
 
-void DrawSidePanelArt(const Surface &out, Point origin)
+void DrawSidePanelArt(const Surface &out, Point origin, SidePanel which)
 {
+	ArtAsset &art = SidePanelArts[static_cast<size_t>(which)];
+
 	EnsureLoadedAll();
-	if (SidePanelArt.rgba.empty())
+	if (art.rgba.empty())
 		return;
 	EnsureQuantized();
-	if (!SidePanelArt.bright)
+	if (!art.bright)
 		return;
 
-	out.BlitFromSkipColorIndexZero(*SidePanelArt.bright,
-	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
+	out.BlitFromSkipColorIndexZero(*art.bright, MakeSdlRect(0, 0, art.width, art.height), origin);
 }
 
-bool HasSidePanelArt()
+bool HasSidePanelArt(SidePanel which)
 {
 	EnsureLoadedAll();
-	return !SidePanelArt.rgba.empty();
+	return !SidePanelArts[static_cast<size_t>(which)].rgba.empty();
 }
 
 void DrawInventoryTab(const Surface &out, int index, InventoryTabState state)
@@ -1138,7 +1162,8 @@ void ResetHudArtCaches()
 	reset(ManaOrbArt);
 	reset(MenuIconsArt);
 	reset(InventoryPanelArt);
-	reset(SidePanelArt);
+	for (ArtAsset &art : SidePanelArts)
+		reset(art);
 	reset(InventoryTabsArt);
 	reset(InventorySortArt);
 	reset(TownPortalIconArt);
