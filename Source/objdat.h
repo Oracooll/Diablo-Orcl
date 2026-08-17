@@ -116,7 +116,7 @@ enum object_graphic_id : int8_t {
 	OFILE_ORCLWAYP,
 	/**
 	 * Oracool: the town Stash Chest's own art - the Grand Reliquary (objects\orclstash.cel, shipped
-	 * in oracool.mpq). Six 76x70 frames: 1/2/3 and 4/5/6 are two identical closed/opening/open
+	 * in oracool.mpq). Six 82x80 frames: 1/2/3 and 4/5/6 are two identical closed/opening/open
 	 * trios, mirroring chest3.cel's two-variant convention, so the existing "closed is frame 4, open
 	 * is frame 6" logic carries over unchanged.
 	 *
@@ -136,12 +136,13 @@ constexpr int NumObjectGraphicFiles = OFILE_ORCLSTASH + 1;
  * @brief Oracool: orclstash.cel's frame width. CEL stores no width, so LoadCel must be told; a
  * wrong one splits this sprite's RLE scanlines mid-row and renders it as garbage.
  *
- * 76, not the delivered pack's 160: at full size the reliquary spanned two and a half floor tiles
- * and read as a building rather than a chest (user, 2026-08-18 - "this is too big"). The sprite is
- * re-cut at half scale from the RGBA masters by tools\build_reliquary_cel.cmd, which prints the
- * width it produced. If that tool's output ever changes, this constant changes with it.
+ * Not the delivered pack's 160: at full size the reliquary spanned two and a half floor tiles and
+ * read as a building rather than a chest (user, 2026-08-18 - "this is too big"). The sprite is
+ * re-cut at half scale from the RGBA masters by tools\build_reliquary_cel.cmd - 76x70 of chest,
+ * then padded to 82x80 by the contact shadow that same tool paints in. The tool prints the width it
+ * produced; if its output ever changes, this constant changes with it, in the same commit.
  */
-constexpr uint16_t OracoolStashChestAnimWidth = 76;
+constexpr uint16_t OracoolStashChestAnimWidth = 82;
 
 enum _object_id : int8_t {
 	OBJ_L1LIGHT,

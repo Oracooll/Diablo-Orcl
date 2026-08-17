@@ -9,6 +9,9 @@
 // masters and redoes the last two steps of the pack's own pipeline - downsample, then quantise -
 // in that order.
 //
+// It also paints the contact shadow the delivered art has none of (user, 2026-08-18: "it is lacking
+// proper shadow") - see the shadow constants below for how, and why it cannot simply be a soft one.
+//
 // A sibling of tools/WaypointCel.cs, which documents the CEL format in detail; the encoder here is
 // the same one. Three differences worth knowing:
 //
@@ -49,6 +52,37 @@ internal static class ReliquaryCel
 	// framed identically.
 	private const int BboxAlphaCut = 40;
 
+	// --- Contact shadow -------------------------------------------------------------------------
+	//
+	// The delivered pack has no shadow at all: its palette-and-format doc says "no soft shadow,
+	// aura, or partial-alpha pixel remains in the runtime file", because CEL transparency is binary
+	// and a soft shadow cannot survive it. The engine has no object-shadow pass either - monsters
+	// and players get theirs from their own sprites, and DrawObject does exactly one ClxDraw. So a
+	// shadow has to be painted into the art, opaque, the way every vanilla object's is.
+	//
+	// It is painted AFTER quantisation, directly in index space, and only into cells that are still
+	// transparent - so it can never eat a pixel of the chest, and it cannot be dragged off its
+	// intended colours by the nearest-colour search.
+	//
+	// Softness comes from stepping down a palette ramp by radius rather than from alpha, since
+	// there is no alpha to step. 251-254 is the top of the town palette's neutral grey ramp
+	// (61,61,61 down to 17,17,17): dark, but not the pure black that would read as a hole punched
+	// in the floor. The cool blue-grey ramp at 188-191 was tried first and read as a puddle of
+	// water rather than a shadow - a shadow desaturates what is under it, it does not tint it.
+	private static readonly byte[] ShadowRamp = { 254, 253, 252, 251 };
+
+	// Radii as a fraction of the chest's own contact width, and the flattening that makes the
+	// ellipse sit in the isometric ground plane rather than standing up in the picture plane
+	// (Diablo's floor diamonds are 64x32, so anything round on the ground reads as ~2:1; a little
+	// flatter than that keeps the skirt from crowding the tiles in front).
+	private const double ShadowWidthFactor = 1.08;
+	private const double ShadowFlatten = 2.6;
+
+	// How far the ellipse's centre tucks up under the chest, as a fraction of its own vertical
+	// radius. Zero would centre it on the base line and make the chest look like it is hovering
+	// over a puddle; a full radius would hide the shadow entirely behind the chest.
+	private const double ShadowTuck = 0.40;
+
 	private static int Main(string[] args)
 	{
 		if (args.Length < 5) {
@@ -81,17 +115,32 @@ internal static class ReliquaryCel
 				shared = Rectangle.Union(shared, ContentBox(states[i]));
 			Console.WriteLine("shared content box {0}", shared);
 
-			int frameWidth = EvenUp((int)Math.Round(shared.Width * ScaleFactor));
-			int frameHeight = (int)Math.Round(shared.Height * ScaleFactor);
-			Console.WriteLine("frame {0}x{1}", frameWidth, frameHeight);
+			int artWidth = EvenUp((int)Math.Round(shared.Width * ScaleFactor));
+			int artHeight = (int)Math.Round(shared.Height * ScaleFactor);
+
+			byte[][] art = new byte[3][];
+			for (int i = 0; i < 3; i++) {
+				using (Bitmap scaled = ScaleTo(states[i], shared, artWidth, artHeight)) {
+					art[i] = Quantise(scaled, pal, stateNames[i]);
+				}
+			}
+
+			// The shadow is measured ONCE, from the closed state, and the identical ellipse is
+			// stamped into all three. Measuring per state would let it breathe as the lid moves,
+			// which is exactly the kind of wobble the shared content box exists to prevent.
+			Shadow shadow = PlanShadow(art[0], artWidth, artHeight);
+			int frameWidth = EvenUp(artWidth + 2 * shadow.PadX);
+			int frameHeight = artHeight + shadow.PadY;
+			int offsetX = (frameWidth - artWidth) / 2;
+			Console.WriteLine("art {0}x{1}, frame {2}x{3} (shadow pad {4} x, {5} y)",
+				artWidth, artHeight, frameWidth, frameHeight, shadow.PadX, shadow.PadY);
 
 			byte[][] trio = new byte[3][];
 			for (int i = 0; i < 3; i++) {
-				using (Bitmap scaled = ScaleTo(states[i], shared, frameWidth, frameHeight)) {
-					trio[i] = Quantise(scaled, pal, stateNames[i]);
-					if (previewDir != null)
-						WritePreview(trio[i], frameWidth, frameHeight, pal, Path.Combine(previewDir, "reliquary_" + stateNames[i] + ".png"));
-				}
+				trio[i] = Inset(art[i], artWidth, artHeight, frameWidth, frameHeight, offsetX);
+				StampShadow(trio[i], frameWidth, frameHeight, shadow, offsetX);
+				if (previewDir != null)
+					WritePreview(trio[i], frameWidth, frameHeight, pal, Path.Combine(previewDir, "reliquary_" + stateNames[i] + ".png"));
 			}
 
 			// Frames 1-3 and 4-6 are the same trio. The duplication is the point: it mirrors
@@ -115,6 +164,116 @@ internal static class ReliquaryCel
 	private static int EvenUp(int v)
 	{
 		return (v % 2 == 0) ? v : v + 1;
+	}
+
+	/** @brief The planned contact ellipse, in ART coordinates plus the padding the frame needs. */
+	private struct Shadow
+	{
+		public double CentreX;
+		public double CentreY;
+		public double RadiusX;
+		public double RadiusY;
+		public int PadX;
+		public int PadY;
+	}
+
+	/**
+	 * @brief Sizes the contact shadow from the chest's own footprint rather than from constants.
+	 *
+	 * Two different measurements, because they answer two different questions, and conflating them
+	 * was the first attempt's bug. WIDTH comes from the widest opaque row in the bottom third - the
+	 * plinth, the part that actually rests on the floor, rather than the lid. The CONTACT ROW is the
+	 * lowest opaque row of all: on an isometric base that is the near corner of the footprint
+	 * diamond, which is where the floor visually is. Using the widest row's own y as the contact row
+	 * put the ellipse a third of the way up the chest, where the chest itself covered all but 34
+	 * pixels of it.
+	 */
+	private static Shadow PlanShadow(byte[] idx, int width, int height)
+	{
+		int bandTop = height - Math.Max(1, height / 3);
+		int bestLeft = -1, bestRight = -1, bestSpan = -1, baseRow = 0;
+		for (int y = 0; y < height; y++) {
+			int left = -1, right = -1;
+			for (int x = 0; x < width; x++) {
+				if (idx[y * width + x] == 0)
+					continue;
+				if (left < 0) left = x;
+				right = x;
+			}
+			if (left < 0)
+				continue;
+			baseRow = y; // last row with anything opaque in it wins
+			if (y >= bandTop && right - left > bestSpan) {
+				bestSpan = right - left;
+				bestLeft = left;
+				bestRight = right;
+			}
+		}
+		if (bestSpan < 0)
+			throw new InvalidOperationException("no opaque pixels in the contact band");
+
+		Shadow s = new Shadow();
+		s.CentreX = (bestLeft + bestRight) / 2.0;
+		s.RadiusX = (bestSpan + 1) / 2.0 * ShadowWidthFactor;
+		s.RadiusY = s.RadiusX / ShadowFlatten;
+		s.CentreY = baseRow - s.RadiusY * ShadowTuck;
+
+		// Grow the canvas by whatever the ellipse pokes out of it. Extra rows BELOW are the point:
+		// the engine anchors a sprite by its bottom edge, so those rows lift the chest until its
+		// base sits on the ellipse's centre - which is precisely where the floor now appears to be.
+		s.PadX = (int)Math.Ceiling(Math.Max(0, Math.Max(s.RadiusX - s.CentreX, s.CentreX + s.RadiusX - width)));
+		s.PadY = (int)Math.Ceiling(Math.Max(0, s.CentreY + s.RadiusY - (height - 1)));
+		Console.WriteLine("  contact span {0}px at row {1}; ellipse r {2:F1} x {3:F1}",
+			bestSpan + 1, baseRow, s.RadiusX, s.RadiusY);
+		return s;
+	}
+
+	/** @brief Copies the art into a larger frame, bottom-aligned above the shadow padding. */
+	private static byte[] Inset(byte[] art, int artWidth, int artHeight, int frameWidth, int frameHeight, int offsetX)
+	{
+		byte[] outIdx = new byte[frameWidth * frameHeight];
+		for (int y = 0; y < artHeight; y++)
+			for (int x = 0; x < artWidth; x++)
+				outIdx[y * frameWidth + (x + offsetX)] = art[y * artWidth + x];
+		return outIdx;
+	}
+
+	/**
+	 * @brief Paints the ellipse into transparent cells only, stepping down ShadowRamp by radius.
+	 *
+	 * Writing only where the frame is still transparent is what makes this safe to run on all three
+	 * states from one measurement: wherever the chest is, the chest wins, and the shadow simply
+	 * fills in around it.
+	 */
+	private static void StampShadow(byte[] idx, int width, int height, Shadow s, int offsetX)
+	{
+		double cx = s.CentreX + offsetX;
+		double cy = s.CentreY;
+		int painted = 0;
+
+		int x0 = Math.Max(0, (int)Math.Floor(cx - s.RadiusX));
+		int x1 = Math.Min(width - 1, (int)Math.Ceiling(cx + s.RadiusX));
+		int y0 = Math.Max(0, (int)Math.Floor(cy - s.RadiusY));
+		int y1 = Math.Min(height - 1, (int)Math.Ceiling(cy + s.RadiusY));
+
+		for (int y = y0; y <= y1; y++) {
+			for (int x = x0; x <= x1; x++) {
+				if (idx[y * width + x] != 0)
+					continue;
+				double dx = (x - cx) / s.RadiusX;
+				double dy = (y - cy) / s.RadiusY;
+				double d = Math.Sqrt(dx * dx + dy * dy);
+				if (d > 1.0)
+					continue;
+				// Darkest at the core, lightest at the rim; the ramp's own steps are the gradient.
+				int step = (int)(d * ShadowRamp.Length);
+				if (step >= ShadowRamp.Length)
+					step = ShadowRamp.Length - 1;
+				idx[y * width + x] = ShadowRamp[step];
+				painted++;
+			}
+		}
+		Console.WriteLine("  shadow: {0} px", painted);
 	}
 
 	private static Bitmap Mirror(Bitmap source)

@@ -111,9 +111,49 @@ this reason.
 oversized sprite's visual mass, not its anchor. Worth confirming by eye now that the footprint is
 sane.
 
+## The contact shadow (1.7.73)
+
+> *"can you add shadow to this asset? it is lacking proper shadow."*
+
+It was lacking one because nothing in the chain could supply one. The pack's own palette-and-format
+doc states it plainly — *"no soft shadow, aura, or partial-alpha pixel remains in the runtime
+file"* — because CEL transparency is **binary**: a pixel is either in an opaque run or skipped
+entirely, so there is no such thing as a 40%-opacity shadow pixel. And the engine has no
+object-shadow pass to fall back on: `DrawObject` does exactly one `ClxDraw`, and the shadows
+monsters and players cast are painted into their own sprites. Vanilla objects work the same way.
+
+So the shadow is painted into the art, opaque, the way every vanilla object's is — but painted
+**after quantisation, directly in index space**, and only into cells that are still transparent.
+That ordering buys two guarantees for free: the shadow can never eat a pixel of the chest, and the
+nearest-colour search can never drag it off the exact indices chosen for it.
+
+**Softness without alpha.** With no alpha to fade, the gradient comes from stepping down a palette
+ramp by radius: index 254 at the core out to 251 at the rim. The first attempt used the cool
+blue-grey ramp at 188-191, on the theory that a shadow on stone is bluer stone — it read as a
+*puddle of water*. The neutral grey ramp is right: a shadow desaturates what is under it, it does
+not tint it. Pure black was never a candidate; opaque black on a lit floor reads as a hole punched
+through it.
+
+**Sized from the chest, not from constants.** Width comes from the widest opaque row in the bottom
+third — the plinth, the part that rests on the floor rather than the lid. The contact row is the
+**lowest** opaque row of all, which on an isometric base is the near corner of the footprint
+diamond. Conflating those two was the first attempt's bug: using the widest row's own y put the
+ellipse a third of the way up the chest, where the chest covered all but 34 of its pixels. Measured
+properly it is 1,283. The ellipse is then flattened past 2:1 so it lies in the ground plane instead
+of standing up in the picture plane.
+
+**Measured once, stamped three times.** The ellipse is planned from the closed state and applied
+identically to all three, so the shadow cannot breathe as the lid moves — the same discipline the
+shared content box enforces for the chest itself.
+
+The frame grew from 76×70 to **82×80** to hold the skirt, and `OracoolStashChestAnimWidth` moved to
+82 in the same commit. The extra rows below are not padding: the engine anchors a sprite by its
+bottom edge, so they lift the chest until its base sits at the ellipse's centre — which is now where
+the floor appears to be.
+
 ## Verification
 
-Debug build clean at 1.7.72; suite **445 of 447**, the two failures being the standing baseline pair
+Debug build clean at 1.7.73; suite **445 of 447**, the two failures being the standing baseline pair
 (`Drlg_l1.CreateL5Dungeon_diablo_3_844660068`, `Timedemo.WarriorLevel1to2`). `oracool.mpq` repacked
 to 387 files, with `objects\orclstash.cel` (21,614 bytes, down from 83,328) alongside
 `objects\orclwayp.cel`.
