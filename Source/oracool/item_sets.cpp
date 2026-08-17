@@ -153,13 +153,15 @@ void MakeSetItem(Item &item, const SetItemDefinition &def)
 
 int WornSetPieces(const Player &player, const ItemSetDefinition &set)
 {
+	// DISTINCT pieces, not equipped items (audit, 2026-08-17). The first version counted every
+	// equipped item belonging to the set, so two copies of the same set ring - one in each ring
+	// slot - counted as two pieces. On a set with one missing item that reads as complete: the
+	// ladder's top rung lights, and the completion stinger rings, for a set the player does not
+	// have. Walking the set's own definitions and asking "is THIS piece worn" cannot double-count,
+	// because a piece is worn or it is not, however many copies are equipped.
 	int worn = 0;
-	for (const Item &equipped : player.InvBody) {
-		const SetItemDefinition *piece = IsSetItem(equipped) ? FindSetItemByCursor(equipped._iCurs) : nullptr;
-		if (piece == nullptr)
-			continue;
-		const auto index = static_cast<int>(piece - ItemSetItems);
-		if (index >= set.firstItem && index < set.firstItem + set.itemCount)
+	for (int i = 0; i < set.itemCount; i++) {
+		if (IsSetPieceWorn(player, ItemSetItems[set.firstItem + i]))
 			worn++;
 	}
 	return worn;

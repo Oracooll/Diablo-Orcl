@@ -2280,6 +2280,39 @@ TEST(OracoolItemSets, EverySetBonusStatHasText)
 	}
 }
 
+// Two copies of one set piece are ONE piece worn (audit, 2026-08-17). WornSetPieces used to count
+// equipped items rather than distinct pieces, so a duplicated ring in both ring slots pushed a
+// 5-of-6 set to a false 6/6 - top rung granted, completion stinger rung, for a set not owned.
+TEST(OracoolItemSets, DuplicateSetPieceCountsOnce)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	for (auto &slot : player.InvBody)
+		slot.clear();
+
+	const oracool::ItemSetDefinition *court = oracool::FindItemSetOwning("SET_COURT_BETRAYAL");
+	ASSERT_NE(court, nullptr);
+	const oracool::SetItemDefinition *ring = oracool::FindSetItem("SET_COURT_BETRAYAL");
+	ASSERT_NE(ring, nullptr);
+
+	auto wearAt = [&](int slot, const oracool::SetItemDefinition &piece) {
+		devilution::Item &item = player.InvBody[slot];
+		item = {};
+		item._itype = ItemType::Misc;
+		item._iStatFlag = true;
+		item._iIdentified = true;
+		item._iCurs = static_cast<uint16_t>(piece.cursor);
+	};
+
+	wearAt(0, *ring);
+	EXPECT_EQ(oracool::WornSetPieces(player, *court), 1);
+	// The same ring again in a second slot must NOT become a second piece.
+	wearAt(1, *ring);
+	EXPECT_EQ(oracool::WornSetPieces(player, *court), 1)
+	    << "a duplicated piece counted twice - the completion edge is reachable without the set";
+}
+
 // The armour trap. IPL_ACP is a PERCENTAGE of the item's own armour, and a bonus rung has no item,
 // so routing it through the scratch item made "+12 armour" worth exactly 1 point (the sign fallback
 // in ItemBonusTotals::AddItem). ApplySetBonusesToTotals adds it flat instead.
