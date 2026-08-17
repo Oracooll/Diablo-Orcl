@@ -1736,7 +1736,17 @@ void DrawInv(const Surface &out)
 		const Rectangle r = oracool::GetEquipSlotRect(static_cast<oracool::EquipSlot>(s));
 		const Rectangle screenRect { invPanel.position + Displacement { r.position.x, r.position.y }, r.size };
 		oracool::DrawThemedFill(out, screenRect, RecessPasses);
-		oracool::DrawOrnateBorder(out, screenRect);
+		// The carved stone bezel replaces the 3px bevel around each slot. All four slot shapes this
+		// fork uses (1x1, 2x1, 2x2, 2x3) have one; the bevel stays as the fallback so a missing or
+		// unreadable PNG costs the slot its stone, not its outline.
+		//
+		// Note the two frames sit differently: the bezel is OUTSIDE the slot, so the slot keeps all
+		// 28 pixels of each cell, where DrawOrnateBorder drew inside and took three from every edge.
+		if (oracool::HasGridBezel(screenRect.size)) {
+			oracool::DrawGridBezel(out, screenRect);
+		} else {
+			oracool::DrawOrnateBorder(out, screenRect);
+		}
 	}
 
 	const Rectangle gridRect {
@@ -1744,6 +1754,7 @@ void DrawInv(const Surface &out)
 		{ oracool::GridSizeInCells.width * oracool::CellPx, oracool::GridSizeInCells.height * oracool::CellPx }
 	};
 	oracool::DrawThemedFill(out, gridRect, RecessPasses);
+	const bool gridHasBezel = oracool::HasGridBezel(gridRect.size);
 	// One bevel around the whole grid, with 1px grey rules between the cells - the same treatment
 	// the stash grid uses, on user request, and shared through oracool::ThemeGridLineColor so the
 	// two cannot drift.
@@ -1762,9 +1773,13 @@ void DrawInv(const Surface &out)
 	}
 	// Framed from OUTSIDE the cells (user request, 2026-08-16), so the outer row and column keep
 	// all 28 of their pixels instead of surrendering 3 to the bevel. The grid was raised by the
-	// bevel's width to pay for it - see GridOrigin, which now subtracts OrnateBorderWidth from the
-	// mana orb's clearance line rather than sitting flush against it.
-	oracool::DrawOrnateBorderOutside(out, gridRect);
+	// frame's width to pay for it - see GridOrigin, which subtracts it from the mana orb's
+	// clearance line rather than sitting flush against it.
+	if (gridHasBezel) {
+		oracool::DrawGridBezel(out, gridRect);
+	} else {
+		oracool::DrawOrnateBorderOutside(out, gridRect);
+	}
 
 	// Oracool bug fix: user report - the game crashed as soon as one of the six new slots held an
 	// item. This was a hand-written 7-entry table indexed by `slot`, which now runs to 12: reading

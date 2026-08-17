@@ -30,7 +30,20 @@ deduplication, not copying.
 
 ## The seven units
 
-Ordered cheapest-and-most-certain first, which is also lowest-risk first.
+Listed cheapest-and-most-certain first, which is also lowest-risk first.
+
+**Execution order (user, 2026-08-18): A → C → D → E → B.** The three icon refreshes move to last
+despite being the easiest, because the bottom HUD plate (E) re-cuts the recesses those icons sit in —
+doing B first would mean cutting them twice. C and D come before E for the same reason in reverse:
+they settle what the panel family looks like, and the HUD plate has to sit beside it.
+
+| | Unit | Status |
+|---|---|---|
+| 1 | **A** — Grand Reliquary chest | shipped, v1.7.71–74 |
+| 2 | **C** — grid bezel family | |
+| 3 | **D** — side-panel stone backgrounds | |
+| 4 | **E** — bottom HUD limestone plate | |
+| 5 | **B** — burger / portal / level-up icon refreshes | |
 
 ### Unit A — Grand Reliquary chest → `objects\orclstash.cel`
 

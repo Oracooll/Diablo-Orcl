@@ -96,6 +96,33 @@ constexpr Size TownPortalIconSize { 27, 29 };
 ArtAsset BurgerMenuButtonArt { "ui\\burger_menu_button.png" };
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
 ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
+/**
+ * The carved stone bezels - see oracool/grid_bezel.h for the family and the (6,6) placement rule.
+ * Indexed by the size of the content they frame rather than by name, because that is the only
+ * thing a caller knows: DrawGridBezel is handed a rect and has to find the frame that fits it.
+ */
+struct GridBezelEntry {
+	Size content;
+	ArtAsset art;
+};
+GridBezelEntry GridBezels[] = {
+	{ { 1 * CellPx, 1 * CellPx }, ArtAsset { "ui\\grid_bezel_1x1.png" } },
+	{ { 2 * CellPx, 1 * CellPx }, ArtAsset { "ui\\grid_bezel_2x1.png" } },
+	{ { 2 * CellPx, 2 * CellPx }, ArtAsset { "ui\\grid_bezel_2x2.png" } },
+	{ { 2 * CellPx, 3 * CellPx }, ArtAsset { "ui\\grid_bezel_2x3.png" } },
+	{ { 10 * CellPx, 7 * CellPx }, ArtAsset { "ui\\grid_bezel_inventory.png" } },
+	{ { 10 * CellPx, 16 * CellPx }, ArtAsset { "ui\\grid_bezel_stash.png" } },
+};
+constexpr int GridBezelCount = sizeof(GridBezels) / sizeof(GridBezels[0]);
+
+GridBezelEntry *FindGridBezel(Size contentSize)
+{
+	for (GridBezelEntry &entry : GridBezels) {
+		if (entry.content == contentSize)
+			return &entry;
+	}
+	return nullptr;
+}
 // The numbered skill-point icons (user, 2026-08-17: "use these icons as a display of how many
 // skill points i have available to distribute"). Two 99-frame strips, 64px square cells, frame
 // N-1 wearing the numeral N - cut from the user's own level-up icon states with the cross
@@ -472,6 +499,10 @@ void EnsureLoadedAll()
 		LoadPixels(BurgerMenuButtonArt);
 	if (!LevelUpIconArt.loadAttempted)
 		LoadPixels(LevelUpIconArt);
+	for (GridBezelEntry &entry : GridBezels) {
+		if (!entry.art.loadAttempted)
+			LoadPixels(entry.art);
+	}
 	// The numbered points strips. Their absence from this list was the whole of "still the
 	// placeholder there" (user, 2026-08-17): DrawUnspentPointsIcon checked rgba, and nothing had
 	// ever been asked to fill it - the reset list knew these assets, the load list did not.
@@ -523,6 +554,10 @@ bool NeedsQuantize()
 		return true;
 	if (!LevelUpIconArt.rgba.empty() && !LevelUpIconArt.bright)
 		return true;
+	for (const GridBezelEntry &entry : GridBezels) {
+		if (!entry.art.rgba.empty() && !entry.art.bright)
+			return true;
+	}
 	if (!WaypointPanelArt.rgba.empty() && !WaypointPanelArt.bright)
 		return true;
 	if (!WaypointIconsArt.rgba.empty() && !WaypointIconsArt.bright)
@@ -575,6 +610,11 @@ void EnsureQuantized()
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
 	QuantizeAsset(BurgerMenuButtonArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
+	// No tint: the bezels arrived already quantised against town.pal (their stone reads as exact
+	// palette entries - 30,30,30 and 61,61,61 off the grey ramp), so tinting would move art that is
+	// already sitting on the colours it was authored for.
+	for (GridBezelEntry &entry : GridBezels)
+		QuantizeAsset(entry.art, std::nullopt);
 	// No tint, same as the level-up icon these were cut from - the numeral IS the information.
 	QuantizeAsset(PointsIconsDarkArt, std::nullopt);
 	QuantizeAsset(PointsIconsLitArt, std::nullopt);
@@ -850,6 +890,56 @@ void DrawLevelUpIconArt(const Surface &out, int state)
 	    rect.position);
 }
 
+bool HasGridBezel(Size contentSize)
+{
+	GridBezelEntry *entry = FindGridBezel(contentSize);
+	if (entry == nullptr)
+		return false;
+	EnsureLoadedAll();
+	return !entry->art.rgba.empty();
+}
+
+void DrawGridBezel(const Surface &out, Rectangle contentRect)
+{
+	GridBezelEntry *entry = FindGridBezel(contentRect.size);
+	if (entry == nullptr)
+		return;
+
+	EnsureLoadedAll();
+	if (entry->art.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!entry->art.bright)
+		return;
+
+	// FRAME ONLY - four bands, with the art's own interior deliberately not blitted.
+	//
+	// The delivered PNG is opaque all the way through, interior included, so one whole-rect blit
+	// would make every slot and both grids a solid stone recess. That would be faithful to the art
+	// and would quietly delete two things this panel already does: the class silhouette drawn behind
+	// the paperdoll (inv.cpp draws it BEFORE the slots and relies on their half-transparent fill to
+	// show it through), and the item-quality backings behind occupied cells. Blitting the border
+	// bands alone changes the frame and nothing else, which is what the pack's own integration guide
+	// asks for - "replace only the outside group frame/background treatment".
+	//
+	// The interior colour is still there in the asset if a solid recess is ever wanted; it is one
+	// blit away.
+	const int w = entry->art.width;
+	const int h = entry->art.height;
+	const int inset = GridBezelInset;
+	const Point outer = contentRect.position - Displacement { inset, inset };
+
+	// Top and bottom run the full width; the sides fill in between them, so the corners belong to
+	// the horizontal bands and no pixel is drawn twice.
+	out.BlitFromSkipColorIndexZero(*entry->art.bright, MakeSdlRect(0, 0, w, inset), outer);
+	out.BlitFromSkipColorIndexZero(*entry->art.bright, MakeSdlRect(0, h - inset, w, inset),
+	    Point { outer.x, contentRect.position.y + contentRect.size.height });
+	out.BlitFromSkipColorIndexZero(*entry->art.bright, MakeSdlRect(0, inset, inset, h - 2 * inset),
+	    Point { outer.x, contentRect.position.y });
+	out.BlitFromSkipColorIndexZero(*entry->art.bright, MakeSdlRect(w - inset, inset, inset, h - 2 * inset),
+	    Point { contentRect.position.x + contentRect.size.width, contentRect.position.y });
+}
+
 void DrawWaypointPanelArt(const Surface &out, Point origin)
 {
 	EnsureLoadedAll();
@@ -1054,6 +1144,8 @@ void ResetHudArtCaches()
 	reset(TownPortalIconArt);
 	reset(BurgerMenuButtonArt);
 	reset(LevelUpIconArt);
+	for (GridBezelEntry &entry : GridBezels)
+		reset(entry.art);
 	reset(PointsIconsDarkArt);
 	reset(PointsIconsLitArt);
 	reset(WaypointPanelArt);

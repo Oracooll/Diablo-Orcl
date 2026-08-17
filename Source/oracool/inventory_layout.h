@@ -25,7 +25,8 @@
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/size.hpp"
-#include "oracool/ornate_border.h" // OrnateBorderWidth - the grid reserves room for its own frame
+#include "oracool/grid_bezel.h"    // GridBezelInset - the carved frame the grid reserves room for
+#include "oracool/ornate_border.h" // OrnateBorderWidth - its 3px fallback, and the panel's furniture
 
 namespace devilution {
 namespace oracool {
@@ -44,6 +45,19 @@ constexpr int PanelMargin = 24;
 constexpr int CellPx = 28;
 constexpr Size CellSize { CellPx, CellPx };
 
+/**
+ * @brief How much room every framed thing on this panel leaves outside itself for its frame.
+ *
+ * The carved stone bezel's 6, not the old procedural bevel's 3 (MPQ sweep 2026-08-18, unit C). One
+ * name for it because the clearance has to be reserved in the LAYOUT while the drawing decides at
+ * runtime which of the two frames it actually got - reserving 3 and drawing 6 would put the
+ * inventory grid's bottom edge under the mana orb, which is exactly the failure the asserts at the
+ * end of this file exist to catch.
+ */
+constexpr int GridFrameWidth = GridBezelInset;
+static_assert(GridFrameWidth >= OrnateBorderWidth,
+    "The fallback bevel is now thicker than the clearance reserved for it");
+
 constexpr Size GridSizeInCells { 10, 7 };
 constexpr int GridCellCount = GridSizeInCells.width * GridSizeInCells.height;
 
@@ -56,7 +70,7 @@ constexpr int GridCellCount = GridSizeInCells.width * GridSizeInCells.height;
  * no longer simply sit where it fits; it has to stop where the mana orb starts.
  */
 constexpr Point GridOrigin { (InventoryPanelSize.width - GridSizeInCells.width * CellPx) / 2,
-	624 - OrnateBorderWidth - GridSizeInCells.height * CellPx };
+	624 - GridFrameWidth - GridSizeInCells.height * CellPx };
 constexpr int GridBottom = GridOrigin.y + GridSizeInCells.height * CellPx;
 
 /**
@@ -80,7 +94,7 @@ constexpr int TabRowX = GridOrigin.x;
  * Tied to OrnateBorderWidth rather than written as a literal 3: it is that border being revealed, so
  * if the frame ever gets thicker the tabs step off it by the same amount.
  */
-constexpr int TabRowGridGap = OrnateBorderWidth;
+constexpr int TabRowGridGap = GridFrameWidth;
 
 /** @brief The row's bottom edge clears the grid's top border by TabRowGridGap. */
 constexpr int TabRowY = GridOrigin.y - TabSize.height - TabRowGridGap;
@@ -197,13 +211,13 @@ constexpr int OrbClearanceBottom = 624;
 
 // The grid's FRAME is what has to clear the orb, not the cells: the bevel is drawn outside the cell
 // area now (DrawOrnateBorderOutside), so it reaches OrnateBorderWidth past GridBottom.
-static_assert(GridBottom + OrnateBorderWidth <= OrbClearanceBottom,
+static_assert(GridBottom + GridFrameWidth <= OrbClearanceBottom,
     "Inventory grid or its frame extends into the mana orb - move the grid up or shorten it");
 static_assert(GridBottom <= InventoryPanelSize.height,
     "Inventory grid extends past the bottom of the panel");
 static_assert(TabRowY + TabSize.height == GridOrigin.y - TabRowGridGap,
     "Tab row no longer clears the grid's top border by exactly TabRowGridGap");
-static_assert(TabRowGridGap >= OrnateBorderWidth,
+static_assert(TabRowGridGap >= GridFrameWidth,
     "The tab row is back on top of the grid's border, which is the thing the gap exists to reveal");
 static_assert(GridWidth <= InventoryPanelSize.width,
     "Tab row is wider than the panel");
