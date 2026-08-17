@@ -66,42 +66,22 @@ void DrawInventoryPanelArt(const Surface &out);
 bool HasInventoryPanelArt();
 
 /**
- * @brief Which of the 340x720 side panels is being drawn.
+ * @brief Draws the shared 340x720 side-panel background at @p origin, 1:1.
  *
- * Every one of these has its OWN background since the 2026-08-18 MPQ sweep (unit D): the delivered
- * family carves the window's name into the top rail of the stone rather than leaving it to be
- * drawn, so five of the six differ only in that incised title.
+ * ui\panel_bg.png - the artisan-bezel family's ashen limestone (MPQ sweep 2026-08-18, unit D).
+ * ONE background for all six windows: inventory, stash, quests, waypoints, character and abilities.
+ * It carries no title, which is exactly what lets it be shared - each window still draws its own.
  *
- * Abilities is the exception and gets `Plain`, a rail-less variant. Its title band is not decorative
- * - it names the current SHEET (Skills, Spells, Class Skills, Auras) and carries the page arrows, so
- * a title baked into the stone would have to lie on three sheets out of four.
+ * A carved-title family was tried first, one background per window with the name incised into a top
+ * rail. It was not the collection the user wanted, and it cost the Abilities window its sheet name;
+ * see the 2026-08-18 dev report.
+ *
+ * Nothing is drawn if the art is missing; every caller keeps a procedural fill as its fallback.
  */
-enum class SidePanel : uint8_t {
-	Inventory,
-	Stash,
-	Quests,
-	Waypoints,
-	HeroStats,
-	/** The Abilities window - no carved title, because it draws its own. */
-	Plain,
-	LAST = Plain,
-};
+void DrawSidePanelArt(const Surface &out, Point origin);
 
-/** @brief Draws @p which side panel's background at @p origin, 1:1. Nothing if the art is missing. */
-void DrawSidePanelArt(const Surface &out, Point origin, SidePanel which);
-
-/** @brief Whether @p which panel's background loaded, so callers can fall back to the shared theme. */
-bool HasSidePanelArt(SidePanel which);
-
-/**
- * @brief Height of the carved title rail, and therefore the first row content may use.
- *
- * The pack's own contract: "the carved title is already part of the relief... all interactive
- * content must begin at y=44 or lower". Every panel's content already started below this line, so
- * nothing had to move - but a future layout that creeps upward would be writing over incised stone,
- * which is why the number is named here rather than left in the art's README.
- */
-constexpr int SidePanelTitleRailHeight = 44;
+/** @brief Whether the background loaded, so callers can fall back to the shared theme. */
+bool HasSidePanelArt();
 
 /** @brief Draws the 340x660 waypoint list panel with its top-left corner at @p origin. */
 void DrawWaypointPanelArt(const Surface &out, Point origin);

@@ -285,25 +285,20 @@ void DrawWaypointMenu(const Surface &out)
 
 	// Oracool (2026-08-16): the shared painted side-panel background - see quests.cpp for the note.
 	// The half-transparent fill and bevel stay as the fallback, so the art is droppable.
-	const bool carvedTitle = HasSidePanelArt(SidePanel::Waypoints);
-	if (carvedTitle) {
-		DrawSidePanelArt(out, panel.position, SidePanel::Waypoints);
+	if (HasSidePanelArt()) {
+		DrawSidePanelArt(out, panel.position);
 	} else {
 		DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
 		DrawOrnateBorder(out, panel);
 	}
 
-	// The title is INCISED INTO THE STONE since the 2026-08-18 art (unit D), so it is drawn only when
-	// that art is missing. The pack is explicit about this - "do not draw a separate procedural title
-	// plate or title over rows 0..43" - and it is right: two titles in one band is worse than either.
-	// FontSize30 is the face the NPC gossip overlay uses (minitext.cpp's DrawQTextContent), kept for
-	// the fallback so the window still names itself without its art.
-	if (!carvedTitle) {
-		const Rectangle labelArea { { panel.position.x + PanelMargin, panel.position.y + PanelTitleTop },
-			{ panel.size.width - 2 * PanelMargin, PanelTitleHeight } };
-		DrawOutlinedString(out, "WAYPOINT", labelArea,
-		    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
-	}
+	// The title used to be baked into the panel art; with that gone it is drawn here, in FontSize30 -
+	// the face the NPC gossip overlay uses (minitext.cpp's DrawQTextContent). Applied to the title
+	// only; the rows keep the default face.
+	const Rectangle labelArea { { panel.position.x + PanelMargin, panel.position.y + PanelTitleTop },
+		{ panel.size.width - 2 * PanelMargin, PanelTitleHeight } };
+	DrawOutlinedString(out, "WAYPOINT", labelArea,
+	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
 	UpdateScrollBounds();
 	DrawScrollbar(out, panel);

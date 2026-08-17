@@ -935,21 +935,17 @@ void DrawQuestLog(const Surface &out)
 	// The rule under the title went with it: the background brings its own header framing, so the
 	// separator was a second line drawn across the first.
 	const Rectangle panel { { 0, 0 }, QuestPanelSize };
-	const bool carvedTitle = oracool::HasSidePanelArt(oracool::SidePanel::Quests);
-	if (carvedTitle) {
-		oracool::DrawSidePanelArt(out, panel.position, oracool::SidePanel::Quests);
+	if (oracool::HasSidePanelArt()) {
+		oracool::DrawSidePanelArt(out, panel.position);
 	} else {
 		DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
 		oracool::DrawOrnateBorder(out, panel);
 	}
 
-	// Carved into the stone since the 2026-08-18 art (unit D) - drawn only as the fallback.
-	if (!carvedTitle) {
-		const Rectangle labelArea { { QuestPanelMargin, oracool::PanelTitleTop },
-			{ QuestPanelSize.width - 2 * QuestPanelMargin, oracool::PanelTitleHeight } };
-		oracool::DrawOutlinedString(out, _("QUESTS"), labelArea,
-		    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
-	}
+	const Rectangle labelArea { { QuestPanelMargin, oracool::PanelTitleTop },
+		{ QuestPanelSize.width - 2 * QuestPanelMargin, oracool::PanelTitleHeight } };
+	oracool::DrawOutlinedString(out, _("QUESTS"), labelArea,
+	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
 	int y = InnerPanel.position.y + ListYOffset;
 	for (int i = 0; i < EncounteredQuestCount; i++) {

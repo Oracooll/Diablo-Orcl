@@ -780,23 +780,17 @@ void DrawChr(const Surface &out)
 	// Oracool (2026-08-16): the shared painted side-panel background - see quests.cpp for the note.
 	// The rule under the title went with it; the art brings its own header framing.
 	const Rectangle panel = GetCharacterPanelRect();
-	const bool carvedTitle = oracool::HasSidePanelArt(oracool::SidePanel::HeroStats);
-	if (carvedTitle) {
-		oracool::DrawSidePanelArt(out, panel.position, oracool::SidePanel::HeroStats);
+	if (oracool::HasSidePanelArt()) {
+		oracool::DrawSidePanelArt(out, panel.position);
 	} else {
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);
 	}
 
-	// Carved into the stone since the 2026-08-18 art (unit D) - drawn only as the fallback. Note the
-	// art reads HERO STATS where this string says CHARACTER; the delivered family named the six
-	// panels itself, and its wording is the one on screen now.
-	if (!carvedTitle) {
-		const Rectangle labelArea { { panel.position.x + CharPanelMargin, panel.position.y + oracool::PanelTitleTop },
-			{ panel.size.width - 2 * CharPanelMargin, oracool::PanelTitleHeight } };
-		oracool::DrawOutlinedString(out, _("CHARACTER"), labelArea,
-		    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
-	}
+	const Rectangle labelArea { { panel.position.x + CharPanelMargin, panel.position.y + oracool::PanelTitleTop },
+		{ panel.size.width - 2 * CharPanelMargin, oracool::PanelTitleHeight } };
+	oracool::DrawOutlinedString(out, _("CHARACTER"), labelArea,
+	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
 	DrawScrollbar(out, panel);
 
