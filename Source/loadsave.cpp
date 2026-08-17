@@ -2126,11 +2126,13 @@ constexpr int OracoolItemExtensionSaveSize = 5 + (Item::MaxOracoolAffixesPerSlot
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 
-bool IsStashSizeValid(size_t stashSize, uint32_t pages, uint32_t itemCount)
+bool IsStashSizeValid(size_t stashSize, uint8_t version, uint32_t pages, uint32_t itemCount)
 {
 	const size_t itemSize = (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize);
 
-	const size_t expectedSize = sizeof(uint8_t)
+	// Version 6 grew the header by the embedded item-format byte; version 5 has only its own byte.
+	const size_t headerSize = version >= 6 ? 2 * sizeof(uint8_t) : sizeof(uint8_t);
+	const size_t expectedSize = headerSize
 	    + sizeof(uint32_t)
 	    + sizeof(uint32_t)
 	    + (sizeof(uint32_t) + StashGridColumns * StashGridRows * sizeof(uint16_t)) * pages
@@ -2239,8 +2241,12 @@ void RemoveInvalidItem(Item &item)
 _item_indexes RemapItemIdxFromDiablo(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) -> int {
-		if (IsOracoolItemIdx(i)) {
-			return i; // Oracool worn items - stored as themselves, see above
+		if (IsOracoolAddedIdx(i)) {
+			// Every Oracool-appended id - worn types, gems, charms, runes - stored as itself, see
+			// above. This used to test only IsOracoolItemIdx, so the Phase 1 gems/charms/runes
+			// (appended past that range) fell through into the "Hellfire exclusive" band and were
+			// remapped to the empty-slot marker in Diablo-mode saves (external audit, 2026-08-17).
+			return i;
 		}
 		if (i == IDI_SORCERER) {
 			return IDI_SORCERER_DIABLO;
@@ -2264,8 +2270,8 @@ _item_indexes RemapItemIdxFromDiablo(_item_indexes i)
 _item_indexes RemapItemIdxToDiablo(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) -> int {
-		if (IsOracoolItemIdx(i)) {
-			return i; // Oracool worn items - NOT Hellfire-exclusive; see RemapItemIdxFromDiablo
+		if (IsOracoolAddedIdx(i)) {
+			return i; // ALL Oracool-appended ids - NOT Hellfire-exclusive; see RemapItemIdxFromDiablo
 		}
 		if (i == IDI_SORCERER_DIABLO) {
 			return IDI_SORCERER;
@@ -2289,8 +2295,8 @@ _item_indexes RemapItemIdxToDiablo(_item_indexes i)
 _item_indexes RemapItemIdxFromSpawn(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) {
-		if (IsOracoolItemIdx(i)) {
-			return i; // Oracool worn items - same identity mapping as the Diablo remap
+		if (IsOracoolAddedIdx(i)) {
+			return i; // all Oracool-appended ids - same identity mapping as the Diablo remap
 		}
 		if (i >= 62) {
 			i += 9; // Medium and heavy armors
@@ -2323,8 +2329,8 @@ _item_indexes RemapItemIdxFromSpawn(_item_indexes i)
 _item_indexes RemapItemIdxToSpawn(_item_indexes i)
 {
 	constexpr auto GetItemIdValue = [](int i) {
-		if (IsOracoolItemIdx(i)) {
-			return i; // Oracool worn items - same identity mapping as the Diablo remap
+		if (IsOracoolAddedIdx(i)) {
+			return i; // all Oracool-appended ids - same identity mapping as the Diablo remap
 		}
 		if (i >= 104) {
 			i -= 1; // Scroll of Apocalypse
@@ -2444,9 +2450,13 @@ void SaveHotkeys(SaveWriter &saveWriter, const Player &player)
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pRSplType));
 }
 
-void LoadHeroItems(Player &player)
+void LoadHeroItems(Player &player, uint32_t saveNumber)
 {
-	LoadHelper file(OpenSaveArchive(gSaveNumber), "heroitems");
+	// The slot is a PARAMETER, not the gSaveNumber global (external audit, 2026-08-17): the
+	// hero-select preview loop iterates every slot, and reading the global here meant every
+	// hero's preview wore the SELECTED slot's equipment. The real load path passes the same
+	// number the global holds, so it is unchanged in behavior - but now by contract, not luck.
+	LoadHelper file(OpenSaveArchive(saveNumber), "heroitems");
 	if (!file.IsValid())
 		return;
 
@@ -2489,7 +2499,13 @@ void LoadHeroItems(Player &player)
 // Version 4 (Megaplan Phase 1): bumped ALONGSIDE OracoolItemFormatVersion 3 (the socket fields),
 // per the lesson recorded above - every item embedded in the stash file is subject to the item
 // record's layout, so the two versions must move together. Existing stashes are lost; known cost.
-constexpr uint8_t StashVersion = 5;
+// Version 6 (external audit, 2026-08-17): "the two versions must move together" was a rule held
+// by memory, and heroinvtabs proved memory fails - so version 6 EMBEDS OracoolItemFormatVersion
+// as a second header byte, checked on load, and a future item-format bump orphans stale stashes
+// by itself. A version-5 file (the current build's own output until this change) is still
+// accepted and parsed with today's item format, which is the format it was written in; the next
+// save rewrites it as version 6.
+constexpr uint8_t StashVersion = 6;
 
 void LoadStash()
 {
@@ -2506,7 +2522,13 @@ void LoadStash()
 		return;
 
 	auto version = file.NextLE<uint8_t>();
-	if (version != StashVersion) {
+	if (version != StashVersion && version != 5) {
+		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Oracool Edition and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
+		return;
+	}
+	// Version 6 carries the item schema its records were written with; version 5 is the current
+	// build's own pre-audit output, parsed with today's format. See the StashVersion note.
+	if (version == StashVersion && file.NextLE<uint8_t>() != OracoolItemFormatVersion) {
 		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Oracool Edition and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
@@ -2537,7 +2559,7 @@ void LoadStash()
 	}
 
 	auto itemCount = file.NextLE<uint32_t>();
-	if (!IsStashSizeValid(file.Size(), pages, itemCount)) {
+	if (!IsStashSizeValid(file.Size(), version, pages, itemCount)) {
 		Stash = {};
 		EventPlrMsg(_("Stash size invalid. If you attempt to access your stash, data will be overwritten!!"), UiFlags::ColorRed);
 		return;
@@ -2581,21 +2603,36 @@ void LoadStash()
 // (not just "is this newer than what I understand") so an old-format file is rejected the
 // same safe way an unrecognized future one already was - every extra tab just stays empty,
 // matching the existing "absent = default" pattern; nothing is destroyed or misaligned.
-constexpr uint8_t OracoolInvTabsVersion = 2;
+//
+// Version 3 (external audit, 2026-08-17): the version byte above guarded the CONTAINER's layout
+// but not the item records inside it - the exact trap the StashVersion comment below records
+// ("every item embedded is subject to OracoolItemFormatVersion... the two versions must move
+// together"), applied to the stash and missed here: the item record grew twice (sockets, the
+// ethereal flag) while this file kept advertising 2. Rather than trust anyone to remember next
+// time, version 3 EMBEDS OracoolItemFormatVersion as a second header byte, checked on load - a
+// future item-format bump orphans old tab files automatically instead of misreading them.
+// A version-2 file is still accepted, parsed with TODAY's item format: this file is rewritten by
+// every autosave, so any live hero's copy was written by the current build and reads correctly;
+// a genuinely stale one misreads no worse than it already did, once, and the per-item validation
+// plus the grid guards below bound the damage until the next save rewrites it as version 3.
+constexpr uint8_t OracoolInvTabsVersion = 3;
 
-void LoadInventoryTabs(Player &player)
+void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 {
 	player.InvTabList = {};
 	player.InvTabGrid = {};
 	player._pNumInvTab = {};
 
-	LoadHelper file(OpenSaveArchive(gSaveNumber), "heroinvtabs");
+	// Parameterized for the same reason as LoadHeroItems: the preview loop reads OTHER slots.
+	LoadHelper file(OpenSaveArchive(saveNumber), "heroinvtabs");
 	if (!file.IsValid())
 		return; // no extra-tab data: an old save, or one where nothing was ever stored there
 
 	const uint8_t version = file.NextLE<uint8_t>();
-	if (version != OracoolInvTabsVersion)
-		return; // unrecognized (older or newer) format; every extra tab stays empty
+	if (version != OracoolInvTabsVersion && version != 2)
+		return; // unrecognized future format; every extra tab stays empty
+	if (version == OracoolInvTabsVersion && file.NextLE<uint8_t>() != OracoolItemFormatVersion)
+		return; // the embedded item schema disagrees with this build's; see the version-3 note above
 
 	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
 		if (!file.IsValid())
@@ -2620,11 +2657,47 @@ void LoadInventoryTabs(Player &player)
 				cell = 0;
 		}
 
+		// The count must also agree with the grid (external audit, 2026-08-17): a written item
+		// always owns exactly one positive anchor cell, so a count the grid cannot account for is a
+		// record inconsistent with itself - and the count is what the in-game append paths index by,
+		// so accepting it would park the tab one paste away from writing past the list. The item
+		// records are still consumed below either way (they are variable-length; skipping them
+		// blind would misalign every tab after this one) - the tab is emptied after the read.
+		bool anchorsConsistent = true;
+		for (int idx = 1; idx <= itemCount; idx++) {
+			bool anchored = false;
+			for (const int8_t cell : player.InvTabGrid[t]) {
+				if (cell == idx) {
+					anchored = true;
+					break;
+				}
+			}
+			if (!anchored) {
+				anchorsConsistent = false;
+				break;
+			}
+		}
+
 		player._pNumInvTab[t] = itemCount;
 		for (uint8_t i = 0; i < itemCount; i++) {
 			if (!file.IsValid())
 				return;
 			LoadAndValidateItemData(file, player.InvTabList[t][i]);
+		}
+
+		if (!anchorsConsistent) {
+			player.InvTabList[t] = {};
+			player.InvTabGrid[t] = {};
+			player._pNumInvTab[t] = 0;
+			continue;
+		}
+
+		// An item LoadAndValidateItemData cleared (failed validation) keeps its list slot but must
+		// lose its grid cells - the tab equivalent of RemoveEmptyInventory's sweep, so a hover or
+		// paste never resolves a cell onto an empty record.
+		for (int8_t &cell : player.InvTabGrid[t]) {
+			if (cell != 0 && player.InvTabList[t][abs(cell) - 1].isEmpty())
+				cell = 0;
 		}
 	}
 }
@@ -2887,7 +2960,7 @@ void SaveStash(SaveWriter &stashWriter)
 	SaveHelper file(
 	    stashWriter,
 	    filename,
-	    sizeof(uint8_t)
+	    2 * sizeof(uint8_t) // container version + embedded item-format version
 	        + sizeof(uint32_t)
 	        + sizeof(uint32_t)
 	        // From the constants, not a literal 10 * 10. This was still saying 10x10 while the page
@@ -2900,6 +2973,8 @@ void SaveStash(SaveWriter &stashWriter)
 	        + sizeof(uint32_t));
 
 	file.WriteLE<uint8_t>(StashVersion);
+	// The embedded item schema - see the StashVersion note. LoadStash checks this on version 6+.
+	file.WriteLE<uint8_t>(OracoolItemFormatVersion);
 
 	file.WriteLE<uint32_t>(Stash.gold);
 
@@ -2959,12 +3034,15 @@ void SaveInventoryTabs(SaveWriter &saveWriter, const Player &player)
 
 	const size_t itemSize = (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize);
 
-	size_t bufferSize = sizeof(uint8_t);
+	size_t bufferSize = 2 * sizeof(uint8_t); // container version + embedded item-format version
 	for (int numInTab : player._pNumInvTab)
 		bufferSize += InventoryGridCells * sizeof(int8_t) + sizeof(uint8_t) + itemSize * static_cast<size_t>(numInTab);
 
 	SaveHelper file(saveWriter, "heroinvtabs", bufferSize);
 	file.WriteLE<uint8_t>(OracoolInvTabsVersion);
+	// The item schema these records were written with, checked on load - see the version-3 note at
+	// OracoolInvTabsVersion. Bumping OracoolItemFormatVersion now orphans this file by itself.
+	file.WriteLE<uint8_t>(OracoolItemFormatVersion);
 	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
 		for (int8_t cell : player.InvTabGrid[t])
 			file.WriteLE<int8_t>(cell);

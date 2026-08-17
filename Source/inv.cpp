@@ -830,6 +830,12 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 		} else {
 			if (it == 0) {
 				int &numInv = GetActiveNumInv(player);
+				// The list is exactly InventoryGridCells long, and a poisoned sidecar (a count with
+				// no grid backing it) could present an apparently-free cell while the list is
+				// already full - this append would then write one past the array (external audit,
+				// 2026-08-17). A consistent save cannot get here; a torn one must not scribble.
+				if (numInv >= InventoryGridCells)
+					break;
 				GetActiveInvListItem(player, numInv) = player.HoldItem.pop();
 				numInv++;
 				it = numInv;
@@ -2179,6 +2185,10 @@ bool AutoPlaceItemInExtraTabSlot(Player &player, int tabIndex, int slotIndex, co
 
 	if (persistItem) {
 		int &numInv = player._pNumInvTab[tabIndex];
+		// Same capacity guard as the paste path: the grid said there was room, but the LIST is the
+		// thing being written, and a poisoned sidecar can disagree with its own grid.
+		if (numInv >= InventoryGridCells)
+			return false;
 		player.InvTabList[tabIndex][numInv] = item;
 		numInv++;
 

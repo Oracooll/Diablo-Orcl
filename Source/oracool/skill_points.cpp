@@ -4,7 +4,9 @@
 
 #include <fmt/format.h>
 
+#include "oracool/class_tree.h"
 #include "oracool/event_log.h"
+#include "oracool/skill_sounds.h"
 #include "player.h"
 #include "spells.h"
 
@@ -46,8 +48,16 @@ bool InvestSkillPoint(Player &player, SpellID spell)
 
 int TotalInvestedSkillPoints(const Player &player)
 {
+	// BOTH stores. Class-tree skills with a SpellID keep their points in _pSkillInvestment (where
+	// GetSpellLevel finds them); the slotless passives, masteries and auras keep theirs in
+	// _pClassTreeInvestment. Counting only the first store (external audit, 2026-08-17) made every
+	// point spent on a slotless skill invisible to this total - so EnsureRetroactiveSkillPoints
+	// re-granted those points on every game start (an infinite point loop: invest in passives,
+	// relog, repeat), and the respec both undercharged and refunded only half the character.
 	int total = 0;
 	for (const uint8_t invested : player._pSkillInvestment)
+		total += invested;
+	for (const uint8_t invested : player._pClassTreeInvestment)
 		total += invested;
 	return total;
 }
@@ -87,8 +97,18 @@ void RefundAllSkillPoints(Player &player)
 		return;
 	for (uint8_t &invested : player._pSkillInvestment)
 		invested = 0;
+	for (uint8_t &invested : player._pClassTreeInvestment)
+		invested = 0;
 	player._pUnspentSkillPoints = static_cast<uint16_t>(
 	    std::min<int>(player._pUnspentSkillPoints + refunded, UINT16_MAX));
+
+	// Every aura is at rank 0 after a full refund, and an aura the rules would refuse to light must
+	// not stay burning - the same teardown RefundClassTreePoint applies one rank at a time.
+	if (GetActiveClassAura(player) != ClassTreeSkill::None) {
+		player._pOracoolActiveAura = static_cast<uint8_t>(ClassTreeSkill::None);
+		if (&player == MyPlayer)
+			StopClassAuraLoop();
+	}
 }
 
 } // namespace devilution::oracool

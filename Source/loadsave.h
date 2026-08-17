@@ -23,7 +23,9 @@ _item_indexes RemapItemIdxFromSpawn(_item_indexes i);
 _item_indexes RemapItemIdxToSpawn(_item_indexes i);
 bool IsHeaderValid(uint32_t magicNumber);
 void LoadHotkeys();
-void LoadHeroItems(Player &player);
+/** @brief Loads the "heroitems" sidecar of the given save slot - a parameter so the hero-select
+ * preview can read OTHER slots without touching gSaveNumber. */
+void LoadHeroItems(Player &player, uint32_t saveNumber);
 /**
  * @brief Remove invalid inventory items from the inventory grid
  * @param player The player to remove invalid items from
@@ -49,9 +51,10 @@ void SaveStash(SaveWriter &stashWriter);
  * @brief Loads the Oracool Tabbed Inventory's 9 extra backpack pages for the current hero save,
  * if any exist; call alongside LoadHeroItems. A missing, future-versioned, or corrupt file is
  * handled gracefully: every extra tab simply stays empty, exactly like an old pre-feature save
- * or a character that never stored anything in a tab.
+ * or a character that never stored anything in a tab. Takes the save slot for the same reason
+ * LoadHeroItems does - the hero-select preview reads slots other than the selected one.
  */
-void LoadInventoryTabs(Player &player);
+void LoadInventoryTabs(Player &player, uint32_t saveNumber);
 /** @brief Saves the Oracool Tabbed Inventory's 9 extra backpack pages; call alongside SaveHeroItems. */
 void SaveInventoryTabs(SaveWriter &saveWriter, const Player &player);
 

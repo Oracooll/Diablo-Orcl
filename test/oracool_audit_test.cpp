@@ -974,6 +974,86 @@ TEST(OracoolGems, InsertionFillsInOrderAndStopsWhenFull)
 	EXPECT_FALSE(oracool::TrySocketGem(target, sword)) << "a non-gem was socketed";
 }
 
+// Bug (external audit, 2026-08-17): ApplyGemToTotals wrapped every field but one in at(at(...)),
+// applying the quality percentage TWICE while GemSocketLine's tooltip applied it once - a Perfect
+// ruby displaying 4-12 fire damage mechanically granted the numbers squared-scaled (200% became
+// 400%). The mechanics must equal the tooltip's arithmetic: the Normal row, scaled by the quality
+// percent, once, with the never-round-to-nothing floor.
+TEST(OracoolGems, QualityScalesEffectsOnceNotTwice)
+{
+	const uint16_t normal = oracool::GemIndexFor(oracool::GemType::Ruby, oracool::GemQuality::Normal);
+	const uint16_t perfect = oracool::GemIndexFor(oracool::GemType::Ruby, oracool::GemQuality::Perfect);
+
+	oracool::ItemBonusTotals base;
+	oracool::ApplyGemToTotals(normal, oracool::SocketHost::Weapon, base);
+	ASSERT_GT(base.fireMax, 0) << "the Normal ruby row is empty - the test has nothing to scale";
+
+	const int percent = oracool::GemQualityPercent(oracool::GemQuality::Perfect);
+	ASSERT_GT(percent, 100) << "Perfect does not scale up - this test would prove nothing";
+	// AtQuality's contract, restated independently: one application, floor of 1 for nonzero input.
+	const auto onceScaled = [percent](int value) {
+		if (value == 0)
+			return 0;
+		const int scaled = value * percent / 100;
+		return scaled > 0 ? scaled : 1;
+	};
+
+	oracool::ItemBonusTotals top;
+	oracool::ApplyGemToTotals(perfect, oracool::SocketHost::Weapon, top);
+	EXPECT_EQ(top.fireMin, onceScaled(base.fireMin)) << "the quality percent applied more than once";
+	EXPECT_EQ(top.fireMax, onceScaled(base.fireMax)) << "the quality percent applied more than once";
+
+	oracool::ItemBonusTotals baseArmor;
+	oracool::ApplyGemToTotals(normal, oracool::SocketHost::Armor, baseArmor);
+	oracool::ItemBonusTotals topArmor;
+	oracool::ApplyGemToTotals(perfect, oracool::SocketHost::Armor, topArmor);
+	EXPECT_EQ(topArmor.fireResist, onceScaled(baseArmor.fireResist))
+	    << "the armor host still double-scales";
+}
+
+// Bug (external audit, 2026-08-17): TotalInvestedSkillPoints summed only _pSkillInvestment, the
+// slotted store - the class tree's slotless passives, masteries and auras live in
+// _pClassTreeInvestment, invisible to the ledger. EnsureRetroactiveSkillPoints therefore re-granted
+// every passive-invested point on each game start (invest in passives, relog, repeat - an infinite
+// point loop), and the healer's respec undercharged while refunding only the slotted half of the
+// character.
+TEST(OracoolSkillPoints, LedgerCountsBothStoresAndRefundsBoth)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pLevel = 11;
+	player._pUnspentSkillPoints = 0;
+	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	std::memset(player._pClassTreeInvestment, 0, sizeof(player._pClassTreeInvestment));
+
+	// Self-calibrate what level 11 is owed, so this test cannot drift from SkillPointsPerLevel.
+	oracool::EnsureRetroactiveSkillPoints(player);
+	const int owed = player._pUnspentSkillPoints;
+	ASSERT_GT(owed, 1) << "level 11 is owed points, or the whole scenario is empty";
+
+	// Spend everything: half into a slotted skill, half into a slotless tree row.
+	player._pUnspentSkillPoints = 0;
+	player._pSkillInvestment[3] = static_cast<uint8_t>(owed / 2);
+	player._pClassTreeInvestment[5] = static_cast<uint8_t>(owed - owed / 2);
+
+	EXPECT_EQ(oracool::TotalInvestedSkillPoints(player), owed)
+	    << "the slotless store went invisible to the ledger again";
+
+	// Fully invested is fully paid: the top-up must grant NOTHING.
+	oracool::EnsureRetroactiveSkillPoints(player);
+	EXPECT_EQ(player._pUnspentSkillPoints, 0)
+	    << "the top-up re-granted points already sunk in the tree - the infinite point loop is back";
+
+	// And a full refund returns every point and empties BOTH stores.
+	oracool::RefundAllSkillPoints(player);
+	EXPECT_EQ(player._pUnspentSkillPoints, owed);
+	EXPECT_EQ(player._pSkillInvestment[3], 0);
+	EXPECT_EQ(player._pClassTreeInvestment[5], 0);
+	EXPECT_EQ(oracool::TotalInvestedSkillPoints(player), 0);
+}
+
 // The four derived small fonts (docs/THIRD_PARTY.md). These pin the WIRING, which is the part a
 // merge can get wrong: the flag-to-font mapping, and that the original sizes still resolve exactly
 // as they did before four more were appended.

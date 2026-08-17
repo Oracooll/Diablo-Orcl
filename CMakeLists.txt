@@ -69,6 +69,16 @@ endif()
 # This makes CMake notice the file changed and reconfigure automatically.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/ORACOOL_VERSION")
 
+# Oracool: the version split into numeric components, for the multiplayer wire identity
+# (external audit, 2026-08-17). The wire used to advertise the DevilutionX base version, which
+# stopped being honest the moment PlayerNetPack grew past vanilla's shape - a stock 1.5.5 client
+# could version-match this fork and then corrupt on the first player-info exchange. See
+# InitGameInfo (multi.cpp) and the match check in DiabloUI/multi/selgame.cpp.
+string(REPLACE "." ";" ORACOOL_VERSION_PARTS "${ORACOOL_VERSION_STR}")
+list(GET ORACOOL_VERSION_PARTS 0 ORACOOL_VERSION_MAJOR)
+list(GET ORACOOL_VERSION_PARTS 1 ORACOOL_VERSION_MINOR)
+list(GET ORACOOL_VERSION_PARTS 2 ORACOOL_VERSION_PATCH)
+
 if(NOT VERSION_SUFFIX)
   # For versions with a suffix, e.g. "1.5.0-dev", include
   # the build type and the git hash.
@@ -575,6 +585,14 @@ if(CPACK AND (APPLE OR BUILD_ASSETS_MPQ OR SRC_DIST))
     install(FILES "${DEVILUTIONX_MPQ}"
       DESTINATION "."
     )
+    # Oracool: the fork's own asset archive, without which most of the game's UI and content is
+    # missing (external audit, 2026-08-17 - a packaged game could omit it entirely). Built by
+    # tools\build_oracool_mpq.cmd into the binary dir; OPTIONAL because that build step is manual,
+    # but a package built after the normal workflow will have it and now ships it.
+    install(FILES "${CMAKE_BINARY_DIR}/oracool.mpq"
+      DESTINATION "."
+      OPTIONAL
+    )
 
     foreach(_SDL2_WIN32_DLL_PATH ${SDL2_WIN32_ALL_DLLS})
       install(FILES "${_SDL2_WIN32_DLL_PATH}"
@@ -623,6 +641,11 @@ if(CPACK AND (APPLE OR BUILD_ASSETS_MPQ OR SRC_DIST))
     )
     install(FILES "${DEVILUTIONX_MPQ}"
       DESTINATION "share/diasurgical/${project_name}"
+    )
+    # Oracool: same reasoning as the Windows block - ship the fork's asset archive when built.
+    install(FILES "${CMAKE_BINARY_DIR}/oracool.mpq"
+      DESTINATION "share/diasurgical/${project_name}"
+      OPTIONAL
     )
     install(FILES "${PROJECT_SOURCE_DIR}/Packaging/resources/icon_flat.png"
       DESTINATION "share/icons/hicolor/512x512/apps"

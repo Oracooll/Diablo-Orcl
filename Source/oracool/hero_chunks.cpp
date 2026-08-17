@@ -178,18 +178,24 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 	}
 
 	// Validate the WHOLE walk before applying anything: a truncated tail must not half-apply.
+	//
+	// Subtraction-form bounds checks throughout (external audit, 2026-08-17): the additive form
+	// `offset + 6 + chunkLen > len` can WRAP when chunkLen approaches UINT32_MAX on a 32-bit
+	// size_t, passing the check and then advancing the walk by the same wrapped-tiny amount -
+	// an attacker-steered loop over a hostile hero file. `chunkLen > len - offset - 6` compares
+	// the same fact and cannot overflow, because both operands are provably in range when it runs.
 	size_t offset = 4;
 	while (offset < len) {
-		if (offset + 6 > len) {
+		if (len - offset < 6) {
 			LogEvent("Hero extension tail rejected: truncated chunk header");
 			return;
 		}
 		const uint32_t chunkLen = GetU32(data + offset + 2);
-		if (offset + 6 + chunkLen > len) {
+		if (chunkLen > len - offset - 6) {
 			LogEvent("Hero extension tail rejected: truncated chunk payload");
 			return;
 		}
-		offset += 6 + chunkLen;
+		offset += size_t { 6 } + chunkLen;
 	}
 
 	offset = 4;
@@ -236,7 +242,7 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			// An unknown tag is a chunk from a newer build - skipped, by design.
 			break;
 		}
-		offset += 6 + chunkLen;
+		offset += size_t { 6 } + chunkLen; // widened for the same reason as the validation walk
 	}
 }
 

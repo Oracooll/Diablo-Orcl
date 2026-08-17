@@ -511,9 +511,13 @@ void InitGameInfo()
 	sgGameInitInfo.size = sizeof(sgGameInitInfo);
 	sgGameInitInfo.dwSeed = static_cast<uint32_t>(time(nullptr));
 	sgGameInitInfo.programid = GAME_ID;
-	sgGameInitInfo.versionMajor = PROJECT_VERSION_MAJOR;
-	sgGameInitInfo.versionMinor = PROJECT_VERSION_MINOR;
-	sgGameInitInfo.versionPatch = PROJECT_VERSION_PATCH;
+	// The wire identity is the ORACOOL version, not the DevilutionX base (external audit,
+	// 2026-08-17): PlayerNetPack and the item records grew past vanilla's shape, so advertising
+	// the base version let a stock DevilutionX client version-match this fork and then corrupt on
+	// the first player-info exchange. IsGameCompatible (selgame.cpp) compares the same numbers.
+	sgGameInitInfo.versionMajor = static_cast<uint8_t>(ORACOOL_VERSION_MAJOR);
+	sgGameInitInfo.versionMinor = static_cast<uint8_t>(ORACOOL_VERSION_MINOR);
+	sgGameInitInfo.versionPatch = static_cast<uint8_t>(ORACOOL_VERSION_PATCH);
 	sgGameInitInfo.nTickRate = *sgOptions.Gameplay.tickRate;
 	sgGameInitInfo.bRunInTown = *sgOptions.Gameplay.runInTown ? 1 : 0;
 	sgGameInitInfo.bTheoQuest = *sgOptions.Gameplay.theoQuest ? 1 : 0;
@@ -846,13 +850,25 @@ void recv_plrinfo(int pnum, const TCmdPlrInfoHdr &header, bool recv)
 			return;
 		}
 	}
+
+	// Both figures arrive off the wire and drive a raw memcpy into a fixed buffer - they must
+	// prove they fit before anything else happens (external audit, 2026-08-17). A peer claiming
+	// wBytes past the pack's end was a remote out-of-bounds write; multiplayer being hidden from
+	// V1's UI made it dormant, not gone.
+	const uint16_t wOffset = SDL_SwapLE16(header.wOffset);
+	const uint16_t wBytes = SDL_SwapLE16(header.wBytes);
+	if (static_cast<size_t>(wOffset) + wBytes > sizeof(packedPlayer)) {
+		sgwPackPlrOffsetTbl[pnum] = 0;
+		return;
+	}
+
 	if (!recv && sgwPackPlrOffsetTbl[pnum] == 0) {
 		SendPlayerInfo(pnum, CMD_ACK_PLRINFO);
 	}
 
-	memcpy(reinterpret_cast<uint8_t *>(&packedPlayer) + SDL_SwapLE16(header.wOffset), reinterpret_cast<const uint8_t *>(&header) + sizeof(header), SDL_SwapLE16(header.wBytes));
+	memcpy(reinterpret_cast<uint8_t *>(&packedPlayer) + wOffset, reinterpret_cast<const uint8_t *>(&header) + sizeof(header), wBytes);
 
-	sgwPackPlrOffsetTbl[pnum] += SDL_SwapLE16(header.wBytes);
+	sgwPackPlrOffsetTbl[pnum] += wBytes;
 	if (sgwPackPlrOffsetTbl[pnum] != sizeof(packedPlayer)) {
 		return;
 	}

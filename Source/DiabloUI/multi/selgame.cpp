@@ -84,11 +84,12 @@ void selgame_Free()
 
 bool IsGameCompatible(const GameData &data)
 {
-	return (data.versionMajor == PROJECT_VERSION_MAJOR
-	    && data.versionMinor == PROJECT_VERSION_MINOR
-	    && data.versionPatch == PROJECT_VERSION_PATCH
+	// The Oracool version, matching what InitGameInfo advertises - see the note there. The wire
+	// bytes are uint8, so the patch component compares modulo 256 on both sides identically.
+	return (data.versionMajor == static_cast<uint8_t>(ORACOOL_VERSION_MAJOR)
+	    && data.versionMinor == static_cast<uint8_t>(ORACOOL_VERSION_MINOR)
+	    && data.versionPatch == static_cast<uint8_t>(ORACOOL_VERSION_PATCH)
 	    && data.programid == GAME_ID);
-	return false;
 }
 
 static std::string GetErrorMessageIncompatibility(const GameData &data)
@@ -113,7 +114,7 @@ static std::string GetErrorMessageIncompatibility(const GameData &data)
 		}
 		return fmt::format(fmt::runtime(_("The host is running a different game mode ({:s}) than you.")), gameMode);
 	} else {
-		return fmt::format(fmt::runtime(_(/* TRANSLATORS: Error message when somebody tries to join a game running another version. */ "Your version {:s} does not match the host {:d}.{:d}.{:d}.")), PROJECT_VERSION, data.versionMajor, data.versionMinor, data.versionPatch);
+		return fmt::format(fmt::runtime(_(/* TRANSLATORS: Error message when somebody tries to join a game running another version. */ "Your version {:s} does not match the host {:d}.{:d}.{:d}.")), ORACOOL_VERSION, data.versionMajor, data.versionMinor, data.versionPatch);
 	}
 }
 

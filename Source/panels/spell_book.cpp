@@ -1012,27 +1012,42 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 	// unassignes"). The key is consumed even when nothing is hovered - a bind key that fell
 	// through to casting mid-edit would be worse than one that does nothing.
 	if (sbookflag && !IsInspectingPlayer()) {
-		const SpellID spell = HoveredAbilitySpell;
-		if (!IsValidSpell(spell))
-			return true;
-		if (shift || me._pSplHotKey[slot] == spell) {
-			// SHIFT clears; pressing a key on the ability that already holds it also clears,
-			// which is the vanilla speedbook's own toggle and costs nothing to keep.
-			if (me._pSplHotKey[slot] == spell) {
+		// SHIFT+FX clears slot X, full stop - whatever the cursor is over, including nothing
+		// (external audit, 2026-08-17: the old form only cleared while hovering the exact bound
+		// ability, and silently swallowed the press everywhere else - an "unassign" that mostly
+		// did not).
+		if (shift) {
+			if (IsValidSpell(me._pSplHotKey[slot])) {
 				me._pSplHotKey[slot] = SpellID::Invalid;
 				RedrawEverything();
 			}
 			return true;
 		}
+		const SpellID spell = HoveredAbilitySpell;
+		if (!IsValidSpell(spell))
+			return true;
+		if (me._pSplHotKey[slot] == spell) {
+			// Pressing a key on the ability that already holds it also clears - the vanilla
+			// speedbook's own toggle, kept because it costs nothing.
+			me._pSplHotKey[slot] = SpellID::Invalid;
+			RedrawEverything();
+			return true;
+		}
 		me._pSplHotKey[slot] = spell;
-		// The type is the spell's IDENTITY - innate Skill or memorized Spell - never GetSBookTrans's
-		// verdict. That function folds MOMENTARY castability into its answer (audit, 2026-08-17): a
-		// memorized spell bound while the mana happened to be short came back SpellType::Invalid,
-		// and the binding stored it - so the F-key stayed dead after the mana returned, wearing its
-		// badge the whole time. A binding outlives the moment it was made in.
-		me._pSplTHotKey[slot] = (me._pAblSpells & GetSpellBitmask(spell)) != 0
+		// The type is the spell's IDENTITY - innate Skill, memorized Spell, or a staff's Charges -
+		// never GetSBookTrans's verdict. That function folds MOMENTARY castability into its answer
+		// (audit, 2026-08-17): a memorized spell bound while the mana happened to be short came
+		// back SpellType::Invalid, and the binding stored it - so the F-key stayed dead after the
+		// mana returned, wearing its badge the whole time. A binding outlives the moment it was
+		// made in. Charges joined the derivation in the external-audit round: a staff-only spell
+		// typed as Spell would cast down the memorized path and die on the Fail_Level0 gate while
+		// the staff sat charged in hand.
+		const uint64_t bit = GetSpellBitmask(spell);
+		me._pSplTHotKey[slot] = (me._pAblSpells & bit) != 0
 		    ? SpellType::Skill
-		    : SpellType::Spell;
+		    : ((me._pMemSpells & bit) != 0
+		           ? SpellType::Spell
+		           : ((me._pISpells & bit) != 0 ? SpellType::Charges : SpellType::Spell));
 		RedrawEverything();
 		return true;
 	}

@@ -11,12 +11,15 @@ namespace {
  * @brief The type a readied spell should have now, or Invalid if the player cannot cast it at all.
  *
  * Re-derived rather than stored. Storing it would cost a second scarce save byte per binding and be
- * the less correct of the two: a Scroll or Charges binding names an ITEM, and the item is routinely
- * gone by the next session, so a faithfully restored Scroll type would be a binding that silently
- * does nothing. Skill and Spell are the two kinds that belong to the character rather than to their
- * bags, so they are the two that survive a save - and a spell the character has since lost (an
- * unequipped staff, a skill not yet unlocked at this level) resolves to Invalid and is dropped
- * instead of restored as an uncastable binding.
+ * the less correct of the two: a stored Scroll or Charges type names an ITEM, and the item is
+ * routinely gone by the next session, so a faithfully restored stale type would be a binding that
+ * silently does nothing. Deriving means each kind is honored exactly as far as it is still real:
+ * Skill and Spell belong to the character and always survive; Charges is honored when the staff is
+ * STILL EQUIPPED at load time (the masks this reads are freshly rebuilt, so this is a live fact,
+ * not a stale record - added in the external-audit round alongside the bind-time Charges
+ * derivation in HandleAbilityFKey). A spell the character has since lost entirely (an unequipped
+ * staff, a skill not yet unlocked at this level) resolves to Invalid and is dropped instead of
+ * restored as an uncastable binding.
  */
 SpellType ReadiedSpellType(const Player &player, SpellID spell)
 {
@@ -25,6 +28,8 @@ SpellType ReadiedSpellType(const Player &player, SpellID spell)
 		return SpellType::Skill;
 	if ((player._pMemSpells & bit) != 0)
 		return SpellType::Spell;
+	if ((player._pISpells & bit) != 0)
+		return SpellType::Charges;
 	return SpellType::Invalid;
 }
 

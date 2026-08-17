@@ -348,6 +348,24 @@ constexpr bool IsOracoolRuneIdx(int i)
 	return i >= IDI_ORACOOL_RUNE_EL && i <= IDI_ORACOOL_RUNE_SOL;
 }
 
+/**
+ * @brief Whether @p i is ANY id this fork appended to the vanilla+Hellfire table - the worn/tier
+ * lines, the gems, the charms, the runes, and whatever is appended after them (the enum's tail is
+ * append-only and contiguously Oracool's from IDI_ORACOOL_SHOULDERS to IDI_LAST by construction).
+ *
+ * This is the predicate the save-remap guards in loadsave.cpp want: every appended id must pass
+ * through the Diablo/Spawn remaps AS ITSELF, because none of them exist in the vanilla numbering
+ * and the "Hellfire exclusive" bands there would otherwise map them to -1 - the empty-slot marker,
+ * which destroys the item at save time. That exact bug shipped once for the worn types (see
+ * RemapItemIdxToDiablo's comment) and then AGAIN for the gems/charms/runes, because the remaps
+ * tested the narrower IsOracoolItemIdx while the enum grew past it (external audit, 2026-08-17).
+ * A whole-tail range cannot be outgrown by appending.
+ */
+constexpr bool IsOracoolAddedIdx(int i)
+{
+	return i >= IDI_ORACOOL_SHOULDERS && i <= IDI_LAST;
+}
+
 enum item_drop_rate : uint8_t {
 	IDROP_NEVER,
 	IDROP_REGULAR,

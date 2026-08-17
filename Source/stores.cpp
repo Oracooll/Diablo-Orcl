@@ -992,6 +992,17 @@ bool SmithRepairOk(int i)
 	return true;
 }
 
+// Every body slot whose item carries durability, in the order the repair list walks them. The
+// storehidx encoding for a body slot is -(its index here + 1), which keeps the historical -1..-4
+// for the vanilla four and extends the same scheme over the Oracool worn slots - one table read
+// by both StartSmithRepair and SmithRepairItem, so the encoding cannot drift between them.
+// Rings and amulets are absent because jewelry has no durability to lose.
+constexpr inv_body_loc RepairableBodySlots[] = {
+	INVLOC_HEAD, INVLOC_CHEST, INVLOC_HAND_LEFT, INVLOC_HAND_RIGHT,
+	INVLOC_SHOULDERS, INVLOC_BRACERS, INVLOC_GLOVES, INVLOC_WAIST, INVLOC_LEGS, INVLOC_BOOTS
+};
+constexpr int NumRepairableBodySlots = sizeof(RepairableBodySlots) / sizeof(RepairableBodySlots[0]);
+
 void StartSmithRepair()
 {
 	stextsize = true;
@@ -1003,24 +1014,19 @@ void StartSmithRepair()
 
 	Player &myPlayer = *MyPlayer;
 
-	auto &helmet = myPlayer.InvBody[INVLOC_HEAD];
-	if (!helmet.isEmpty() && helmet._iDurability != helmet._iMaxDur) {
-		AddStoreHoldRepair(&helmet, -1);
-	}
-
-	auto &armor = myPlayer.InvBody[INVLOC_CHEST];
-	if (!armor.isEmpty() && armor._iDurability != armor._iMaxDur) {
-		AddStoreHoldRepair(&armor, -2);
-	}
-
-	auto &leftHand = myPlayer.InvBody[INVLOC_HAND_LEFT];
-	if (!leftHand.isEmpty() && leftHand._iDurability != leftHand._iMaxDur) {
-		AddStoreHoldRepair(&leftHand, -3);
-	}
-
-	auto &rightHand = myPlayer.InvBody[INVLOC_HAND_RIGHT];
-	if (!rightHand.isEmpty() && rightHand._iDurability != rightHand._iMaxDur) {
-		AddStoreHoldRepair(&rightHand, -4);
+	// All ten durability-bearing body slots, not just the vanilla four - the Oracool worn slots
+	// take damage now (DamageArmor spreads its wear across every worn piece), so they must also
+	// be repairable, or their gear would only ever decay. The ethereal refusal applies here too
+	// (external audit, 2026-08-17): SmithRepairOk turned ghosts away from the inventory walk while
+	// EQUIPPED ethereals slipped onto the list through these body-slot adds, contradicting both
+	// the item's own "cannot be repaired" line and the Repair spell's decline.
+	for (int k = 0; k < NumRepairableBodySlots; k++) {
+		Item &worn = myPlayer.InvBody[RepairableBodySlots[k]];
+		if (worn.isEmpty() || worn._iDurability == worn._iMaxDur)
+			continue;
+		if (worn._iOracoolEthereal)
+			continue;
+		AddStoreHoldRepair(&worn, static_cast<int8_t>(-(k + 1)));
 	}
 
 	for (int i = 0; i < myPlayer._pNumInv; i++) {
@@ -2164,22 +2170,13 @@ void SmithRepairItem(int price)
 	if (i < 0) {
 		// Reactivates a broken (0-durability, left equipped rather than destroyed) item -
 		// see BreakOrRemoveEquipment/CalcSelfItems. Harmless to clear unconditionally even
-		// if the item was never broken in the first place.
-		if (i == -1) {
-			myPlayer.InvBody[INVLOC_HEAD]._iDurability = myPlayer.InvBody[INVLOC_HEAD]._iMaxDur;
-			myPlayer.InvBody[INVLOC_HEAD]._iOracoolBroken = false;
-		}
-		if (i == -2) {
-			myPlayer.InvBody[INVLOC_CHEST]._iDurability = myPlayer.InvBody[INVLOC_CHEST]._iMaxDur;
-			myPlayer.InvBody[INVLOC_CHEST]._iOracoolBroken = false;
-		}
-		if (i == -3) {
-			myPlayer.InvBody[INVLOC_HAND_LEFT]._iDurability = myPlayer.InvBody[INVLOC_HAND_LEFT]._iMaxDur;
-			myPlayer.InvBody[INVLOC_HAND_LEFT]._iOracoolBroken = false;
-		}
-		if (i == -4) {
-			myPlayer.InvBody[INVLOC_HAND_RIGHT]._iDurability = myPlayer.InvBody[INVLOC_HAND_RIGHT]._iMaxDur;
-			myPlayer.InvBody[INVLOC_HAND_RIGHT]._iOracoolBroken = false;
+		// if the item was never broken in the first place. The slot comes back out of the
+		// same RepairableBodySlots table StartSmithRepair encoded it from.
+		const int k = -i - 1;
+		if (k < NumRepairableBodySlots) {
+			Item &worn = myPlayer.InvBody[RepairableBodySlots[k]];
+			worn._iDurability = worn._iMaxDur;
+			worn._iOracoolBroken = false;
 		}
 		TakePlrsMoney(price);
 		CalcPlrInv(myPlayer, true);
@@ -2285,6 +2282,10 @@ void WitchEnter()
 		TakePlrsMoney(cost);
 		const int refunded = oracool::TotalInvestedSkillPoints(*MyPlayer);
 		oracool::RefundAllSkillPoints(*MyPlayer);
+		// The refunded ranks fed CalcPlrItemVals through the provider chain (spell levels, passive
+		// bonuses, a doused aura) - rebuild before the store screen returns, not on the next
+		// incidental recalc.
+		CalcPlrInv(*MyPlayer, true);
 		oracool::LogEvent(fmt::format("Adria reclaimed {:d} skill point(s) for {:d} gold", refunded, cost),
 		    UiFlags::ColorWhitegold);
 		// Rebuilt rather than left as-is so the line greys out immediately.

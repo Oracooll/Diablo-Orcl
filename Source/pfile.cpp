@@ -660,7 +660,8 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 		std::optional<SaveReader> archive = OpenSaveArchive(i);
 		if (archive) {
 			PlayerPack pkplr;
-			if (ReadHero(*archive, &pkplr)) {
+			std::vector<uint8_t> chunkTail;
+			if (ReadHero(*archive, &pkplr, &chunkTail)) {
 				_uiheroinfo uihero;
 				uihero.saveNumber = i;
 				strcpy(hero_names[i], pkplr.pName);
@@ -670,10 +671,16 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 
 				Player &player = Players[0];
 
+				// The same sequence pfile_read_player_from_save runs, and against slot i's OWN
+				// sidecars (external audit, 2026-08-17): this loop used to call the loaders'
+				// gSaveNumber-reading forms, so every hero's preview wore whatever the GLOBAL slot
+				// held - wrong equipment, wrong tabs, wrong sockets - and skipped the extension
+				// chunks entirely, so tree passives and skill points were missing from the stats.
 				UnPackPlayer(pkplr, player);
-				LoadHeroItems(player);
+				oracool::ApplyHeroChunks(player, chunkTail.data(), chunkTail.size());
+				LoadHeroItems(player, i);
 				if (!gbIsMultiplayer) {
-					LoadInventoryTabs(player);
+					LoadInventoryTabs(player, i);
 				}
 				RemoveAllInvalidItems(player);
 				CalcPlrInv(player, false);
@@ -767,9 +774,9 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 	// AFTER unpack: the chunks widen or add to what the fixed struct decoded (skill points, the
 	// 64-bit waypoint masks). A pre-tail hero has an empty vector here and this is a no-op.
 	oracool::ApplyHeroChunks(player, chunkTail.data(), chunkTail.size());
-	LoadHeroItems(player);
+	LoadHeroItems(player, saveNum);
 	if (!gbIsMultiplayer) {
-		LoadInventoryTabs(player);
+		LoadInventoryTabs(player, saveNum);
 	}
 	RemoveAllInvalidItems(player);
 	CalcPlrInv(player, false);

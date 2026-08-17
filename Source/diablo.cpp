@@ -1471,6 +1471,17 @@ void DiabloParseFlags(int argc, char **argv)
 		DebugCmdsFromCommandLine.push_back(currentCommand);
 #endif
 
+	// Oracool is a Hellfire-based game, full stop (external audit, 2026-08-17). Everything the fork
+	// adds - the class trees' spell ids past the Diablo cutoff, the expansion uniques past index 89,
+	// the 25 waypoints, Nest and Crypt - sits behind gbIsHellfire gates, so a Diablo-mode boot is a
+	// half-broken game that was only ever reachable by accident (--diablo, or a stale ini value).
+	// Forcing it HERE, before the archives load, buys init.cpp's existing missing-hellfire dialog
+	// for free: an install without the Hellfire MPQs is told what to add instead of limping.
+	if (forceDiablo)
+		Log("Diablo Orcl is a Hellfire-based game; --diablo is ignored.");
+	forceDiablo = false;
+	forceHellfire = true;
+
 #ifndef DISABLE_DEMOMODE
 	if (demoNumber != -1)
 		demo::InitPlayBack(demoNumber, timedemo);
@@ -1491,8 +1502,10 @@ void DiabloInitScreen()
 void SetApplicationVersions()
 {
 	// The visible Oracool release version is intentionally independent from
-	// PROJECT_VERSION, which tracks the DevilutionX engine base and is also
-	// used for the multiplayer version-compatibility check.
+	// PROJECT_VERSION, which tracks the DevilutionX engine base. (The multiplayer
+	// version-compatibility check rode PROJECT_VERSION too until the external audit
+	// of 2026-08-17; it now carries the Oracool version - see InitGameInfo in
+	// multi.cpp - because the wire structs no longer match the base engine's.)
 	*BufCopy(gszProductName, PROJECT_NAME, " v", ORACOOL_VERSION, " - Based on DevilutionX ", PROJECT_VERSION) = '\0';
 	*BufCopy(gszVersionNumber, "version ", PROJECT_VERSION) = '\0';
 	*BufCopy(gszMainMenuVersionText, "DevilutionX ", PROJECT_VERSION, "\nOracool Edition v", ORACOOL_VERSION) = '\0';
@@ -1549,7 +1562,11 @@ void DiabloInit()
 	//
 	// Guarded on gbIsHellfire, which init.cpp sets from hellfire.mpq's presence: without that
 	// archive this would promise a Hellfire game the install cannot deliver.
-	if (gbIsHellfire && *sgOptions.GameMode.gameMode == StartUpGameMode::Ask)
+	// Diablo joins Ask in the migration (external audit, 2026-08-17): DiabloParseFlags now forces
+	// Hellfire mode unconditionally, so a stored Diablo value would be a setting the game ignores -
+	// worse than one it honors badly. gbIsHellfire is guaranteed true here by that force (init.cpp
+	// raised the missing-MPQ dialog otherwise), so the guard below keeps its meaning.
+	if (gbIsHellfire && IsAnyOf(*sgOptions.GameMode.gameMode, StartUpGameMode::Ask, StartUpGameMode::Diablo))
 		sgOptions.GameMode.gameMode.SetValue(StartUpGameMode::Hellfire);
 
 	if (forceDiablo || *sgOptions.GameMode.gameMode == StartUpGameMode::Diablo)

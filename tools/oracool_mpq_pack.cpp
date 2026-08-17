@@ -77,6 +77,16 @@ int main(int argc, char **argv)
 	int packed = 0;
 
 	for (std::string rel : relPaths) {
+		// The relative path is both the read location under sourceDir and the name inside the
+		// archive - it must actually BE relative and stay inside the source tree. A '..' segment
+		// or an absolute path would read files from anywhere on disk into the archive (external
+		// audit, 2026-08-17). The substring test over-rejects a filename that merely contains
+		// "..", which no asset has and which is the right side to err on for a guard.
+		if (rel.find("..") != std::string::npos || rel[0] == '/' || rel[0] == '\\'
+		    || (rel.size() > 1 && rel[1] == ':')) {
+			std::fprintf(stderr, "ERROR: refusing path outside the source dir: %s\n", rel.c_str());
+			return 1;
+		}
 		const std::string diskPath = sourceDir + "/" + rel;
 		for (char &ch : rel)
 			if (ch == '/')

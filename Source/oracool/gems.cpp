@@ -250,28 +250,34 @@ void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals)
 	const GemData *gem = ResolveGem(gemIdx, percent);
 	if (gem == nullptr)
 		return;
+	// ONE application of the quality percentage per number - the same single at() the tooltip in
+	// GemSocketLine applies, so what the line promises is what the mechanics deliver. This block
+	// shipped as at(at(...)) on every field but dexterity (external audit, 2026-08-17), squaring
+	// the quality scale: a Perfect gem's 200% became 400%, so a ruby DISPLAYING 4-12 fire damage
+	// was mechanically granting 8-24. The one single-wrapped field is what proved the doubling
+	// was a copy-paste accident rather than a design.
 	const auto at = [percent](int value) { return AtQuality(value, percent); };
 	switch (host) {
 	case SocketHost::Weapon:
-		totals.fireMin += at(at(gem->weaponFireMin));
-		totals.fireMax += at(at(gem->weaponFireMax));
-		totals.lightningMin += at(at(gem->weaponLightMin));
-		totals.lightningMax += at(at(gem->weaponLightMax));
-		totals.bonusToHit += at(at(gem->weaponToHit));
-		totals.damageMod += at(at(gem->weaponDamageMod));
+		totals.fireMin += at(gem->weaponFireMin);
+		totals.fireMax += at(gem->weaponFireMax);
+		totals.lightningMin += at(gem->weaponLightMin);
+		totals.lightningMax += at(gem->weaponLightMax);
+		totals.bonusToHit += at(gem->weaponToHit);
+		totals.damageMod += at(gem->weaponDamageMod);
 		break;
 	case SocketHost::Shield:
-		totals.fireResist += at(at(gem->shieldFireRes));
-		totals.lightningResist += at(at(gem->shieldLightRes));
-		totals.magicResist += at(at(gem->shieldMagicRes));
-		totals.bonusArmor += at(at(gem->shieldBonusAc));
+		totals.fireResist += at(gem->shieldFireRes);
+		totals.lightningResist += at(gem->shieldLightRes);
+		totals.magicResist += at(gem->shieldMagicRes);
+		totals.bonusArmor += at(gem->shieldBonusAc);
 		break;
 	case SocketHost::Armor:
-		totals.fireResist += at(at(gem->armorFireRes));
-		totals.lightningResist += at(at(gem->armorLightRes));
-		totals.magicResist += at(at(gem->armorMagicRes));
-		totals.hitPoints += at(at(gem->armorHitPoints)) << 6; // HP fields run in <<6 fixed point
-		totals.bonusArmor += at(at(gem->armorBonusAc));
+		totals.fireResist += at(gem->armorFireRes);
+		totals.lightningResist += at(gem->armorLightRes);
+		totals.magicResist += at(gem->armorMagicRes);
+		totals.hitPoints += at(gem->armorHitPoints) << 6; // HP fields run in <<6 fixed point
+		totals.bonusArmor += at(gem->armorBonusAc);
 		totals.dexterity += at(gem->armorDexterity);
 		break;
 	}

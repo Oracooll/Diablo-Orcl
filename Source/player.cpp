@@ -1090,38 +1090,37 @@ void DamageArmor(Player &player)
 		return;
 	}
 
-	if (player.InvBody[INVLOC_CHEST].isEmpty() && player.InvBody[INVLOC_HEAD].isEmpty()) {
+	// Every worn armor slot is in the wear pool, not just head and chest (external audit,
+	// 2026-08-17): the Oracool worn slots shipped with gear that could never lose a point of
+	// durability, which made the stat - and ethereal's half-lifespan bargain - meaningless there.
+	// One point per trigger, one uniformly-chosen worn piece, same total wear rate as vanilla
+	// spread across more gear; the smith repairs all ten slots (see stores.cpp's
+	// RepairableBodySlots).
+	constexpr inv_body_loc ArmorWearSlots[] = {
+		INVLOC_HEAD, INVLOC_CHEST,
+		INVLOC_SHOULDERS, INVLOC_BRACERS, INVLOC_GLOVES, INVLOC_WAIST, INVLOC_LEGS, INVLOC_BOOTS
+	};
+
+	inv_body_loc worn[sizeof(ArmorWearSlots) / sizeof(ArmorWearSlots[0])];
+	int wornCount = 0;
+	for (const inv_body_loc loc : ArmorWearSlots) {
+		const Item &item = player.InvBody[loc];
+		if (!item.isEmpty() && item._iDurability != DUR_INDESTRUCTIBLE)
+			worn[wornCount++] = loc;
+	}
+	if (wornCount == 0) {
 		return;
 	}
 
-	bool targetHead = FlipCoin(3);
-	if (!player.InvBody[INVLOC_CHEST].isEmpty() && player.InvBody[INVLOC_HEAD].isEmpty()) {
-		targetHead = false;
-	}
-	if (player.InvBody[INVLOC_CHEST].isEmpty() && !player.InvBody[INVLOC_HEAD].isEmpty()) {
-		targetHead = true;
-	}
+	const inv_body_loc target = worn[wornCount == 1 ? 0 : GenerateRnd(wornCount)];
+	Item &pi = player.InvBody[target];
 
-	Item *pi;
-	if (targetHead) {
-		pi = &player.InvBody[INVLOC_HEAD];
-	} else {
-		pi = &player.InvBody[INVLOC_CHEST];
-	}
-	if (pi->_iDurability == DUR_INDESTRUCTIBLE) {
+	pi._iDurability--;
+	if (pi._iDurability != 0) {
 		return;
 	}
 
-	pi->_iDurability--;
-	if (pi->_iDurability != 0) {
-		return;
-	}
-
-	if (targetHead) {
-		BreakOrRemoveEquipment(player, INVLOC_HEAD, true);
-	} else {
-		BreakOrRemoveEquipment(player, INVLOC_CHEST, true);
-	}
+	BreakOrRemoveEquipment(player, target, true);
 	CalcPlrInv(player, true);
 }
 
