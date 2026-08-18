@@ -62,6 +62,7 @@ set(libdevilutionx_SRCS
   oracool/class_tree.cpp
   oracool/class_skills.cpp
   oracool/furious_charge.cpp
+  oracool/game_speed.cpp
   oracool/game_clock.cpp
   oracool/item_set_stats.cpp
   oracool/skill_sounds.cpp

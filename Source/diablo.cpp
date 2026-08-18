@@ -62,6 +62,7 @@
 #include "objects.h"
 #include "oracool/auto_save.h"
 #include "oracool/gradual_healing.h"
+#include "oracool/game_speed.h"
 #include "oracool/event_log.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/hud_layout.h"
@@ -814,6 +815,32 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	if (vkey >= SDLK_F1 && vkey <= SDLK_F8 && CanPlayerTakeAction()) {
 		HandleAbilityFKey(static_cast<size_t>(vkey - SDLK_F1), (modState & KMOD_SHIFT) != 0);
 		return;
+	}
+
+	// F9-F12, reserved on the same terms and for the same reason - intercepted ahead of the
+	// keymapper, so nothing in the ini can take them (user request, 2026-08-18).
+	//
+	// Deliberately NOT behind CanPlayerTakeAction(), unlike F1-F8 above. Changing the speed, opening
+	// the log and taking a screenshot are all observation or presentation rather than acts in the
+	// world; the loading-screen handler already makes exactly that argument for the screenshot key
+	// in its own comment (see DisableInputEventHandler).
+	switch (vkey) {
+	case SDLK_F9:
+		oracool::AdjustGameSpeed(-1);
+		return;
+	case SDLK_F10:
+		oracool::AdjustGameSpeed(1);
+		return;
+	case SDLK_F11:
+		oracool::ToggleEventLog();
+		return;
+	case SDLK_F12:
+		// In play. The engine already caught F12 during LOADING screens, but the in-game binding was
+		// PrintScreen alone - so the one key the user expects did nothing for the whole game.
+		CaptureScreen();
+		return;
+	default:
+		break;
 	}
 
 	sgOptions.Keymapper.KeyPressed(vkey);
@@ -2186,7 +2213,10 @@ void InitKeymapActions()
 		    "QuickMessage{}",
 		    N_("Quick Message {}"),
 		    N_("Use Quick Message in chat."),
-		    SDLK_F9 + i,
+		    // Default-unbound since 2026-08-18: F9-F12 are reserved (game speed, log, screenshot) and
+		    // handled ahead of the keymapper, so the old F9..F12 defaults would have been dead rows
+		    // that looked bound. The action stays listed for anyone who wants it on other keys.
+		    static_cast<uint32_t>(SDLK_UNKNOWN),
 		    [i]() { DiabloHotkeyMsg(i); },
 		    nullptr,
 		    nullptr,

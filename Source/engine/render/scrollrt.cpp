@@ -1397,6 +1397,7 @@ void DrawView(const Surface &out, Point startPosition)
 	) {
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
+		oracool::DrawGameSpeedReadout(out);
 		oracool::DrawXpGainIndicator(out);
 		oracool::DrawXpCounter(out);
 	}

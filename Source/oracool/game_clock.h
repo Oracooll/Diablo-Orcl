@@ -14,4 +14,8 @@ namespace devilution::oracool {
 /** @brief Draws the clock if the Game Clock option is on. Call once per frame during gameplay. */
 void DrawGameClock(const Surface &out);
 
+/** @brief Draws the game-speed readout in its band under the clock, per the Game Speed Readout
+ * option. Call once per frame during gameplay, beside DrawGameClock. */
+void DrawGameSpeedReadout(const Surface &out);
+
 } // namespace devilution::oracool

@@ -1423,6 +1423,12 @@ OracoolOptions::OracoolOptions()
     , balanceTelemetry("Balance Telemetry", OptionEntryFlags::None, N_("Balance Telemetry"), N_("Appends kills, deaths and item pickups to balance_telemetry.csv beside your saves, as tuning data for balancing the mod. Local file only; nothing leaves your machine."), true)
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
+    , gameSpeedReadout("Game Speed Readout", OptionEntryFlags::None, N_("Game Speed Readout"), N_("Whether the game speed is shown under the clock. Blink shows it for one second whenever F9 or F10 changes it."), GameSpeedReadout::Blink,
+          {
+              { GameSpeedReadout::Off, N_("Off") },
+              { GameSpeedReadout::On, N_("On") },
+              { GameSpeedReadout::Blink, N_("Blink") },
+          })
     , gradualHealing("Gradual Healing", OptionEntryFlags::None, N_("Gradual Healing"), N_("Potion of Healing and Potion of Mana restore their amount gradually over a few seconds instead of instantly. Full Healing/Full Mana Potions are unaffected."), true)
     , xpCounter("XP Counter", OptionEntryFlags::None, N_("XP Counter"), N_("Shows the experience remaining until your next level just below the mini-map."), true)
     , xpGainIndicator("XP Gain Indicator", OptionEntryFlags::None, N_("XP Gain Indicator"), N_("Briefly flashes the experience gained just below the XP Counter."), true)
@@ -1482,6 +1488,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&eventLog,
 		&gameClock,
 		&gameClock12HourFormat,
+		&gameSpeedReadout,
 		&gradualHealing,
 		&xpCounter,
 		&xpGainIndicator,

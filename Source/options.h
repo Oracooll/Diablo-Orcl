@@ -65,6 +65,21 @@ enum class FarmerQuestMode : uint8_t {
 	Random = 2,
 };
 
+
+/**
+ * @brief How the game-speed readout under the clock behaves (user request, 2026-08-18).
+ *
+ * Off is 0 so that the setting reads as a plain on/off to anyone skimming the ini, with Blink as the
+ * third state rather than the middle one.
+ */
+enum class GameSpeedReadout : uint8_t {
+	/** Never drawn. */
+	Off = 0,
+	/** Always under the clock. */
+	On = 1,
+	/** Hidden until F9/F10 moves the speed, then shown blinking for one second. */
+	Blink = 2,
+};
 enum class ScalingQuality : uint8_t {
 	NearestPixel,
 	BilinearFiltering,
@@ -819,6 +834,8 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean balanceTelemetry;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;
+	/** @brief Whether the game-speed readout under the clock is off, always on, or blinks on change. */
+	OptionEntryEnum<GameSpeedReadout> gameSpeedReadout;
 	OptionEntryBoolean gradualHealing;
 	OptionEntryBoolean xpCounter;
 	OptionEntryBoolean xpGainIndicator;
