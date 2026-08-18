@@ -223,6 +223,28 @@ Point GetRmbSkillIconOrigin(Size content)
 	return GetMiddleHudRect().position + Displacement { local.x, local.y };
 }
 
+namespace {
+
+/** @brief Centres the net square inside @p well - see SkillWellNetSize for why it is not the well. */
+Rectangle NetRectIn(Rectangle well)
+{
+	return { { well.position.x + (well.size.width - SkillWellNetSize.width) / 2,
+		         well.position.y + (well.size.height - SkillWellNetSize.height) / 2 },
+		SkillWellNetSize };
+}
+
+} // namespace
+
+Rectangle GetLmbSkillWellNetRect()
+{
+	return NetRectIn(GetLmbSkillButtonRect());
+}
+
+Rectangle GetRmbSkillWellNetRect()
+{
+	return NetRectIn(GetRmbSkillButtonRect());
+}
+
 Rectangle GetLevelUpIconRect()
 {
 	// Sits directly above the LMB skill button, matched to that button's full footprint - the well's

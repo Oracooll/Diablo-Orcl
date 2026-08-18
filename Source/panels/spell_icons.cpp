@@ -345,6 +345,40 @@ void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell)
 	ClxDrawTRN(out, { centred.x, centred.y + static_cast<int>(plate.height()) - 1 }, plate, SplTransTbl);
 }
 
+void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell)
+{
+	if (!SmallSpellIcons)
+		return;
+	const Size natural = GetSmallSpellIconSize();
+	if (natural.width <= 0 || natural.height <= 0)
+		return;
+
+	// The containment twin of DrawSmallSpellIconScaledTo. That one rounds UP so the plate always
+	// covers its cell, which is right for a tree page, where a pixel of overhang lands on more page.
+	// It is wrong for the LMB/RMB wells, where the pixel outside the 46x46 net opening lands on the
+	// bezel (user, 2026-08-18: "stay away from the bezels [...] don't ever spill out of it"). So this
+	// rounds DOWN and centres the remainder: at most one pixel of plate short on an axis, none over.
+	const int percent = std::min(cell.size.width * 100 / natural.width,
+	    cell.size.height * 100 / natural.height);
+	if (percent <= 100) {
+		DrawSmallSpellIcon(out, { cell.position.x, cell.position.y + natural.height - 1 }, SpellID::Null);
+		return;
+	}
+
+	static OptionalOwnedClxSpriteList fitted;
+	static int fittedPercent = 0;
+	const int clamped = std::min(percent, 400);
+	if (!fitted || fittedPercent != clamped) {
+		fitted = oracool::ScaleClxList(ClxSpriteList { *SmallSpellIcons }, static_cast<unsigned>(clamped));
+		fittedPercent = clamped;
+	}
+
+	const ClxSprite plate = (*fitted)[SpellITbl[static_cast<int8_t>(SpellID::Null)]];
+	const Point centred { cell.position.x + (cell.size.width - static_cast<int>(plate.width())) / 2,
+		cell.position.y + (cell.size.height - static_cast<int>(plate.height())) / 2 };
+	ClxDrawTRN(out, { centred.x, centred.y + static_cast<int>(plate.height()) - 1 }, plate, SplTransTbl);
+}
+
 void SetSpellTransRed()
 {
 	// Oracool: user request (2026-08-17) - "Unlocked skills with 0 points in them are unavailable

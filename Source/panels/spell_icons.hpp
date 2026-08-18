@@ -76,6 +76,13 @@ void SetSpellTransRed();
  */
 void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell);
 
+/**
+ * @brief As DrawSmallSpellIconScaledTo, but the plate is guaranteed to stay INSIDE @p cell.
+ *
+ * For the LMB/RMB wells, whose cell is the net opening between the bezels.
+ */
+void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell);
+
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();
 

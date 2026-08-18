@@ -152,9 +152,11 @@ void DrawPlrMsg(const Surface &out)
 	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
 	oracool::DrawOrnateBorder(out, window);
 
-	// Newest at the BOTTOM, growing upward from the window's floor, which is how the old strip read
-	// and what makes the latest line land in the same place every time.
-	int y = window.position.y + window.size.height - TextPad;
+	// Newest at the TOP, filling downward (user, 2026-08-18: "make Message History window populate
+	// top to bottom, not bottom to top"). Messages already arrive newest-first in the array, so this
+	// is simply reading it in order - and it puts the line you just triggered where the eye starts
+	// rather than at the far end of a growing column.
+	int y = window.position.y + TextPad;
 	for (PlayerMessage &message : Messages) {
 		if (message.text.empty())
 			break;
@@ -164,12 +166,12 @@ void DrawPlrMsg(const Surface &out)
 		std::string text = WordWrapString(message.text, textWidth);
 		int chatlines = CountLinesOfText(text);
 		const int blockHeight = message.lineHeight * chatlines;
-		if (y - blockHeight < window.position.y + TextPad)
+		if (y + blockHeight > window.position.y + window.size.height - TextPad)
 			break; // the window is full; older lines simply do not fit
-		y -= blockHeight;
 
 		DrawString(out, text, { { textX, y }, { textWidth, 0 } }, { message.style, 1, message.lineHeight });
 		DrawString(out, message.from, { { textX, y }, { textWidth, 0 } }, { UiFlags::ColorWhitegold, 1, message.lineHeight });
+		y += blockHeight;
 	}
 }
 

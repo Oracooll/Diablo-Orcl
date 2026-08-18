@@ -89,6 +89,26 @@ Rectangle GetLmbSkillButtonRect();
 Rectangle GetRmbSkillButtonRect();
 
 /**
+ * @brief The NET area of a skill well - the flat floor inside the bezel, and a hard boundary.
+ *
+ * User rule (2026-08-18): "measure how many px is the net area within the bezels and don't spill out
+ * of it. I believe it is 46x46 pixels. Consider this the hard boundary of these slots and don't ever
+ * spill over it, just like you dont spill over the 28x28 grid boxes."
+ *
+ * So it is a stated constant, not a derived one, and it is deliberately SMALLER than the well rect
+ * the plate art scales to: that rect is the opening including the moulding that rings it, and art
+ * centred in it still laps onto the bezel. Everything a well draws - the tinted plate behind a skill
+ * and the icon on top of it - is centred in this instead.
+ */
+constexpr Size SkillWellNetSize { 46, 46 };
+
+/** @brief The net square of the LEFT well, centred in its opening. */
+Rectangle GetLmbSkillWellNetRect();
+
+/** @brief The net square of the RIGHT well, centred in its opening. */
+Rectangle GetRmbSkillWellNetRect();
+
+/**
  * @brief Cell size of ui\attack_icons.png, the strip the two skill wells draw.
  *
  * NOT sized to the wells, which are ~49x51 and could take a much larger icon. Sized to the engine's

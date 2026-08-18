@@ -1991,6 +1991,7 @@ void DrawAndBlit()
 		}
 		if (drawMana) {
 			DrawSpell(out);
+			DrawRmbAuraBadge(out);
 		}
 		if (drawBelt) {
 			DrawInvBelt(out);

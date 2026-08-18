@@ -696,6 +696,41 @@ void BlitHalfTransparentSkipZero(const Surface &out, const Surface &src, Point p
 	}
 }
 
+/**
+ * @brief Nearest-neighbour blit of one square strip cell INTO @p dest, whatever size that is.
+ *
+ * Exists because the class-tree strips are cut at 56px while the LMB/RMB wells have a net opening of
+ * 46px (user, 2026-08-18: "measure how many px is the net area within the bezels and don't spill out
+ * of it [...] consider this the hard boundary of these slots and don't ever spill over it"). Centring
+ * a 56px cell in a 46px hole put five pixels of painting over each bezel; clipping instead would eat
+ * the icon's own border. Scaling keeps the whole picture and obeys the boundary.
+ *
+ * Nearest-neighbour rather than a resampler: the source is already palette-quantized, so there are no
+ * in-between colours to interpolate toward - a blend would have to re-quantize per pixel, per frame.
+ */
+void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCell, Rectangle dest)
+{
+	if (dest.size.width <= 0 || dest.size.height <= 0 || srcCell.w <= 0 || srcCell.h <= 0)
+		return;
+	for (int y = 0; y < dest.size.height; y++) {
+		const int dstY = dest.position.y + y;
+		if (dstY < 0 || dstY >= out.h())
+			continue;
+		const int sy = srcCell.y + y * srcCell.h / dest.size.height;
+		const uint8_t *srcRow = &src[Point { 0, sy }];
+		uint8_t *dstRow = &out[Point { 0, dstY }];
+		for (int x = 0; x < dest.size.width; x++) {
+			const uint8_t value = srcRow[srcCell.x + x * srcCell.w / dest.size.width];
+			if (value == 0)
+				continue; // the strips key on index 0, exactly as DrawStripIcon does
+			const int dstX = dest.position.x + x;
+			if (dstX < 0 || dstX >= out.w())
+				continue;
+			dstRow[dstX] = value;
+		}
+	}
+}
+
 void DrawOrb(const Surface &out, ArtAsset &asset, Point position, Point sphereCenterLocal, int currValue, int maxValue)
 {
 	EnsureLoadedAll();
@@ -1259,6 +1294,28 @@ void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, 
 	DrawStripIcon(out, TreeStripFor(heroClass), cell.position, skillIndex, unlocked);
 }
 
+void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, int index)
+{
+	EnsureLoadedAll();
+	if (asset.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!asset.bright)
+		return;
+	// One square cell per entry, derived from the strip's height, exactly as DrawStripIcon does - a
+	// recut at another icon size stays correct here for the same reason it does there.
+	const int cell = asset.height;
+	const int cells = cell > 0 ? asset.width / cell : 0;
+	if (index < 0 || index >= cells)
+		return;
+	BlitStripCellScaled(out, *asset.bright, MakeSdlRect(index * cell, 0, cell, cell), dest);
+}
+
+void DrawClassTreeIconScaledTo(const Surface &out, Rectangle dest, HeroClass heroClass, int skillIndex)
+{
+	DrawStripIconScaledTo(out, TreeStripFor(heroClass), dest, skillIndex);
+}
+
 Size GetClassTreeIconSize(HeroClass heroClass)
 {
 	return StripIconSize(TreeStripFor(heroClass));
@@ -1266,15 +1323,14 @@ Size GetClassTreeIconSize(HeroClass heroClass)
 
 bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, SkillPlateTint tint)
 {
-	// CENTRES what it draws in @p well rather than trusting the caller's origin (user, 2026-08-18:
-	// "make sure whenever a skill/spell is selected its icon fits its background"). The callers size
-	// their origin from the engine's SMALL spell icon, but the art actually drawn here is a class-tree
-	// cell or a Paladin strip cell, and those are not that size - so a tree icon sat low and left of
-	// the well it was supposed to fill.
-	const auto centre = [&well](Size art) {
-		return Point { well.position.x + (well.size.width - art.width) / 2,
-			well.position.y + (well.size.height - art.height) / 2 };
-	};
+	// FILLS @p well, plate and icon both, rather than centring naturally-sized art in it (user,
+	// 2026-08-18: "make backgrounds of skills/auras fit and FILL the net part of the RMB/LMB slots
+	// [...] stay confined within the net area [...] avoid overlapping the bezel"). The callers pass
+	// the wells' 46x46 net opening; the class strips are cut at 56 and the Paladin strip at 38, so
+	// neither one matched it - one spilled over the bezel, the other left a moat of plate.
+	//
+	// Scaled, not clipped: clipping a 56px cell to 46 would shave the icon's own painted border off,
+	// which is the part that makes it read as an icon at all.
 	// The CLASS TREE's own icon first (user, 2026-08-18: "the new Abilities sheets came with their
 	// own set of icons and we must use them with the HUD ui now"). The well used to ask the retired
 	// Skills sheet's seven-icon Paladin strip, so a skill readied off a tree page wore one picture in
@@ -1283,8 +1339,9 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 	// Scoped to the player's own class, since spell ids are global and tree rows are not.
 	const ClassTreeSkill treeSkill = ClassTreeSkillForSpell(InspectPlayer->_pClass, spell);
 	if (treeSkill != ClassTreeSkill::None) {
-		DrawClassTreeIcon(out, centre(GetClassTreeIconSize(InspectPlayer->_pClass)), InspectPlayer->_pClass,
-		    ClassTreeIconIndex(treeSkill), /*unlocked=*/true, tint);
+		ApplyPlateTint(tint);
+		DrawSmallSpellIconFittedTo(out, well);
+		DrawClassTreeIconScaledTo(out, well, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill));
 		return true;
 	}
 
@@ -1297,8 +1354,9 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 	// Always drawn as unlocked: this is the readied-spell path, and a spell cannot be readied unless
 	// the player has it. The dimmed variant belongs to the Abilities window's own rows, where it says
 	// what has not been earned yet.
-	DrawPaladinSkillIcon(out, centre(GetPaladinSkillIconSize()), GetPaladinSkillIconIndex(*skill),
-	    /*unlocked=*/true, tint);
+	ApplyPlateTint(tint);
+	DrawSmallSpellIconFittedTo(out, well);
+	DrawStripIconScaledTo(out, PaladinSkillIconsArt, well, GetPaladinSkillIconIndex(*skill));
 	return true;
 }
 

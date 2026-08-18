@@ -19,6 +19,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/oracool.h"
+#include "oracool/ornate_border.h"
 #include "oracool/paladin_skills.h"
 #include "panels/spell_book.hpp" // ToggleAbilitiesWindow
 #include "panels/spell_icons.hpp"
@@ -99,21 +100,19 @@ void DrawSpell(const Surface &out)
 	if (talkflag)
 		return;
 
-	// A LIT AURA owns this well (user, 2026-08-18: auras assign to RMB, "no aura assigns currently
-	// on RMB"). An aura has no SpellID - it is a toggle, not a cast - so it can never be the readied
-	// spell, which is exactly why nothing showed here before. The well REPORTS it instead: the
-	// button keeps whatever it was doing, and the icon says which aura is burning.
-	if (const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(myPlayer);
-	    aura != oracool::ClassTreeSkill::None) {
-		const Rectangle auraWell = oracool::GetRmbSkillButtonRect();
-		const Size auraIcon = oracool::GetClassTreeIconSize(myPlayer._pClass);
-		if (auraIcon.width > 0) {
-			oracool::DrawClassTreeIcon(out, oracool::GetRmbSkillIconOrigin(auraIcon), myPlayer._pClass,
-			    oracool::ClassTreeIconIndex(aura), /*unlocked=*/true, oracool::SkillPlateTint::Green);
-			return;
-		}
-	}
-
+	// A LIT AURA is reported here, but it does NOT own the well.
+	//
+	// It did for one version, and that was the bug behind "combat skills don't assign to RMB" and
+	// "I can't assign Regular Attack to RMB" (user, 2026-08-18): with an aura burning, this function
+	// drew the aura and RETURNED, so every later assignment was invisible. The assignment had worked
+	// the whole time - the well was just refusing to show it.
+	//
+	// A corner badge instead. An aura has no SpellID and can never be the readied spell, so it has
+	// no claim on the slot's main face; what it needs is to be visible, which a badge does without
+	// taking the well away from the thing the button will actually do.
+	//
+	// Drawn by DrawRmbAuraBadge below, called after this function so it lands on top of whichever
+	// icon this one chose - including the early-return path where nothing is readied.
 	SpellID spl = myPlayer._pRSpell;
 	SpellType st = myPlayer._pRSplType;
 
@@ -182,7 +181,7 @@ void DrawSpell(const Surface &out)
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
 		SetSpellTrans(st);
-		if (!oracool::TryDrawSkillSpellIcon(out, Rectangle { iconTopLeft, iconSize }, spl, wellTint))
+		if (!oracool::TryDrawSkillSpellIcon(out, oracool::GetRmbSkillWellNetRect(), spl, wellTint))
 			DrawSmallSpellIcon(out, position, oracool::FuriousChargeIcon);
 		if (progress < 1.0f) {
 			// The cooldown still reads as a fill rising from the bottom, but as a DARKENED band over
@@ -193,7 +192,7 @@ void DrawSpell(const Surface &out)
 			if (cooled < SmallIconHeight)
 				DrawHalfTransparentRectTo(out, iconTopLeft.x, iconTopLeft.y, iconSize.width, SmallIconHeight - cooled);
 		}
-	} else if (!oracool::TryDrawSkillSpellIcon(out, Rectangle { iconTopLeft, iconSize }, spl, wellTint)) {
+	} else if (!oracool::TryDrawSkillSpellIcon(out, oracool::GetRmbSkillWellNetRect(), spl, wellTint)) {
 		// The engine-spell equivalent of the pink plate: st has already been downgraded to Invalid by
 		// the checks above when the spell cannot be cast, and the Scroll table is the beige/pink ramp.
 		SetSpellTrans(st == SpellType::Invalid ? SpellType::Scroll : st);
@@ -207,6 +206,30 @@ void DrawSpell(const Surface &out)
 		const Point hotkeyPosition = position + Displacement { iconSize.width - (GetLineWidth(hotkeyName->data()) + 4), 5 - SmallIconHeight };
 		DrawString(out, *hotkeyName, hotkeyPosition, { UiFlags::ColorWhite | UiFlags::Outlined });
 	}
+}
+
+void DrawRmbAuraBadge(const Surface &out)
+{
+	if (talkflag)
+		return;
+	Player &myPlayer = *MyPlayer;
+	const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(myPlayer);
+	if (aura == oracool::ClassTreeSkill::None)
+		return;
+
+	// A small square in the well's TOP-LEFT, inside the net area so it never touches the bezel. The
+	// top-right is the F-key badge's corner on the Abilities window's icons, so the aura takes the
+	// other one and the two conventions do not collide.
+	const Rectangle net = oracool::GetRmbSkillWellNetRect();
+	constexpr int BadgeSize = 14;
+	const Rectangle badge { net.position, { BadgeSize, BadgeSize } };
+	DrawHalfTransparentRectTo(out, badge.position.x, badge.position.y, badge.size.width, badge.size.height);
+	oracool::DrawColoredOutline(out, badge, oracool::ThemeEdgeColor);
+	// The aura's own initial rather than its icon: at 14px a tree cell would be unreadable, and the
+	// point of the badge is only "an aura is burning, and which".
+	const string_view name = _(oracool::GetClassTreeSkillData(aura).name);
+	DrawString(out, name.substr(0, 1), badge,
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 
 void DrawSpellList(const Surface &out)
