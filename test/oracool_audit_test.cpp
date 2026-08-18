@@ -1468,12 +1468,17 @@ TEST(OracoolClassTree, CastableSkillsInvestThroughTheSpellLevelSeam)
 {
 	devilution::Player &player = FreshPaladin();
 	player._pISplLvlAdd = 0;
-	const int before = player.GetSpellLevel(SpellID::HolyBolt);
+	// Zeal, not Holy Bolt: Holy Bolt was withdrawn on 2026-08-18 (it collided with the engine's own
+	// Holy Bolt spell), so it no longer HAS a slot and its points land in the tree's own array - which
+	// is the opposite of what this test exists to pin. Zeal reaches its slot through
+	// BorrowedPaladinSkill rather than from the table, which makes it the better witness anyway: the
+	// seam has to work for borrowed rows too.
+	const int before = player.GetSpellLevel(SpellID::Zeal);
 
-	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::HolyBolt));
-	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::HolyBolt));
-	EXPECT_EQ(oracool::ClassTreeInvestment(player, oracool::ClassTreeSkill::HolyBolt), 2);
-	EXPECT_EQ(player.GetSpellLevel(SpellID::HolyBolt), before + 2)
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Zeal));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Zeal));
+	EXPECT_EQ(oracool::ClassTreeInvestment(player, oracool::ClassTreeSkill::Zeal), 2);
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Zeal), before + 2)
 	    << "a castable tree skill's points did not reach GetSpellLevel";
 
 	// An aura has no slot, so its points land in the tree's own array instead - indexed by the
