@@ -353,6 +353,20 @@ const ClassTreeSkillData &GetClassTreeSkillData(ClassTreeSkill skill);
 /** @brief The spell slot @p skill readies, or SpellID::Invalid. The one authority. */
 SpellID ClassTreeSpellId(ClassTreeSkill skill);
 
+/**
+ * @brief The tree row a readied @p spell came from, for @p heroClass, or None.
+ *
+ * The reverse of ClassTreeSpellId, and the reason it exists: the HUD's LMB and RMB wells are handed
+ * a SpellID and have to draw a picture for it. They used to ask the retired Skills sheet's own
+ * seven-icon Paladin strip, which meant a skill readied from a tree page wore a DIFFERENT picture in
+ * the well than the one you clicked (user, 2026-08-18 - "icons in Abilities Sheets to match the
+ * icons in LMB and RMB").
+ *
+ * Class-scoped on purpose. Spell ids are global while tree rows are not, so asking "which row is
+ * this" without saying whose tree would match another class's row for any id two classes share.
+ */
+ClassTreeSkill ClassTreeSkillForSpell(HeroClass heroClass, SpellID spell);
+
 /** @brief Character level required by @p tier: Diablo II's 1, 6, 12, 18, 24, 30. */
 int ClassTreeTierMinLevel(int tier);
 

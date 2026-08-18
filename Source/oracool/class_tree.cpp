@@ -592,6 +592,23 @@ SpellID ClassTreeSpellId(Skill skill)
 	return skill > Skill::LAST ? SpellID::Invalid : Skills[static_cast<size_t>(skill)].spellId;
 }
 
+Skill ClassTreeSkillForSpell(HeroClass heroClass, SpellID spell)
+{
+	if (spell == SpellID::Invalid)
+		return Skill::None;
+	// Linear over 163 rows, called once or twice a frame to pick a HUD icon. A lookup table would
+	// have to be per class and rebuilt whenever the borrowed-slot resolution above changes, which is
+	// a lot of machinery to save a scan that never shows up in a profile.
+	for (size_t i = 0; i < ClassTreeSkillCount; i++) {
+		const Skill skill = static_cast<Skill>(i);
+		if (Skills[i].heroClass != heroClass)
+			continue;
+		if (ClassTreeSpellId(skill) == spell)
+			return skill;
+	}
+	return Skill::None;
+}
+
 int ClassTreeMaxRank(Skill skill)
 {
 	if (skill > Skill::LAST)

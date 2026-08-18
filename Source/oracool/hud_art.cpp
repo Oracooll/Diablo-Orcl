@@ -10,6 +10,7 @@
 #include <SDL.h>
 
 #include "engine/palette.h"
+#include "oracool/class_tree.h" // ClassTreeSkillForSpell - the wells draw the tree's own icons
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/paladin_skills.h"
@@ -1265,6 +1266,22 @@ Size GetClassTreeIconSize(HeroClass heroClass)
 
 bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, SkillPlateTint tint)
 {
+	// The CLASS TREE's own icon first (user, 2026-08-18: "the new Abilities sheets came with their
+	// own set of icons and we must use them with the HUD ui now"). The well used to ask the retired
+	// Skills sheet's seven-icon Paladin strip, so a skill readied off a tree page wore one picture in
+	// the page you clicked and a different one in the well it landed in.
+	//
+	// Scoped to the player's own class, since spell ids are global and tree rows are not.
+	const ClassTreeSkill treeSkill = ClassTreeSkillForSpell(InspectPlayer->_pClass, spell);
+	if (treeSkill != ClassTreeSkill::None) {
+		DrawClassTreeIcon(out, origin, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill),
+		    /*unlocked=*/true, tint);
+		return true;
+	}
+
+	// The old strip stays as the fallback, not as the answer. It still covers the seven Paladin
+	// skills when they are readied by a class whose tree does not list them - the debug commands can
+	// do that - and deleting it would trade a wrong icon for no icon.
 	const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell);
 	if (!skill.has_value())
 		return false;
@@ -1277,8 +1294,11 @@ bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, Skil
 
 bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell, SkillPlateTint tint)
 {
+	// Tree icon first, exactly as the small well does - the two must not disagree about what a
+	// readied skill looks like, or the speedbook and the HUD would each be right on their own terms.
+	const ClassTreeSkill treeSkill = ClassTreeSkillForSpell(InspectPlayer->_pClass, spell);
 	const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell);
-	if (!skill.has_value())
+	if (treeSkill == ClassTreeSkill::None && !skill.has_value())
 		return false;
 
 	// The large empty plate through the tint's ramp - the same square the speedbook draws for every
@@ -1288,14 +1308,20 @@ bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID sp
 
 	// The strip icon is 38px against the 56px plate; centred, with the plate's bottom-left anchor
 	// converted to the strip's top-left.
-	Size iconSize = GetPaladinSkillIconSize();
+	const bool fromTree = treeSkill != ClassTreeSkill::None;
+	Size iconSize = fromTree ? GetClassTreeIconSize(InspectPlayer->_pClass) : GetPaladinSkillIconSize();
 	if (iconSize.width == 0)
 		return true; // no strip shipped: the plate alone is still better than a blank tile
 	const Point iconOrigin {
 		bottomLeft.x + (SPLICONLENGTH - iconSize.width) / 2,
 		bottomLeft.y - SPLICONLENGTH + 1 + (SPLICONLENGTH - iconSize.height) / 2
 	};
-	DrawStripIcon(out, PaladinSkillIconsArt, iconOrigin, GetPaladinSkillIconIndex(*skill), /*unlocked=*/true);
+	if (fromTree) {
+		DrawClassTreeIcon(out, iconOrigin, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill),
+		    /*unlocked=*/true, tint);
+	} else {
+		DrawStripIcon(out, PaladinSkillIconsArt, iconOrigin, GetPaladinSkillIconIndex(*skill), /*unlocked=*/true);
+	}
 	return true;
 }
 
