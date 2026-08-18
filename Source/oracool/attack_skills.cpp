@@ -7,7 +7,9 @@
 
 #include "engine/size.hpp"
 #include "levels/gendung.h"
+#include "engine/backbuffer_state.hpp" // RedrawEverything
 #include "oracool/hud_art.h"
+#include "oracool/ornate_border.h" // DrawHoverOutline
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
 #include "utils/language.h"
@@ -133,6 +135,104 @@ void DrawLmbSkillWell(const Surface &out)
 	// it to render. The dimmed variant belongs to the Abilities window's row pair, where it says
 	// which of the two attacks is the one in your hands.
 	DrawWellIcon(out, GetLmbSkillIconOrigin(iconSize), iconSize, MyPlayer->_pLRSpell, MyPlayer->_pLRSplType);
+}
+
+namespace {
+
+/** @brief Quick-list state. Not persisted: it is a popup, not a setting. */
+bool QuickListOpen = false;
+bool QuickListForLeft = false;
+
+/** @brief Air between the strip's cells, and between the strip and the well it sits above. */
+constexpr int QuickListGap = 4;
+
+/** @brief Screen rect of the whole strip, and of entry @p index within it. */
+Rectangle QuickListRect()
+{
+	const Size icon = GetAttackIconSize();
+	const Rectangle well = QuickListForLeft ? GetLmbSkillButtonRect() : GetRmbSkillButtonRect();
+	const int width = static_cast<int>(AttackIconCount) * icon.width
+	    + (static_cast<int>(AttackIconCount) - 1) * QuickListGap;
+	// Centred over its own well and sitting directly above it, so the strip reads as belonging to
+	// the button that opened it rather than as a panel of its own.
+	return { { well.position.x + (well.size.width - width) / 2,
+		         well.position.y - icon.height - QuickListGap },
+		{ width, icon.height } };
+}
+
+Rectangle QuickListEntryRect(size_t index)
+{
+	const Size icon = GetAttackIconSize();
+	const Rectangle strip = QuickListRect();
+	return { { strip.position.x + static_cast<int>(index) * (icon.width + QuickListGap), strip.position.y },
+		icon };
+}
+
+} // namespace
+
+void OpenAttackQuickList(bool forLeftButton)
+{
+	QuickListOpen = true;
+	QuickListForLeft = forLeftButton;
+}
+
+bool IsAttackQuickListOpen()
+{
+	return QuickListOpen;
+}
+
+void CloseAttackQuickList()
+{
+	QuickListOpen = false;
+}
+
+void DrawAttackQuickList(const Surface &out)
+{
+	if (!QuickListOpen)
+		return;
+	if (GetAttackIconSize().width == 0)
+		return; // no strip shipped - drawing an empty frame would be worse than drawing nothing
+
+	const AttackIcon inHand = BasicAttackIcon(*MyPlayer);
+	for (size_t i = 0; i < AttackIconCount; i++) {
+		const AttackIcon icon = AttackIconDisplayOrder[i];
+		const Rectangle cell = QuickListEntryRect(i);
+		// The one in hand is drawn active; the other is the same state wearing the other face, so it
+		// is dimmed rather than hidden - the pair is the point.
+		DrawAttackIcon(out, cell.position, static_cast<int>(icon), icon == inHand,
+		    SkillPlateTint::Green);
+		if (cell.contains(MousePosition))
+			DrawHoverOutline(out, cell);
+	}
+}
+
+bool CheckAttackQuickListClick()
+{
+	if (!QuickListOpen)
+		return false;
+
+	for (size_t i = 0; i < AttackIconCount; i++) {
+		if (!QuickListEntryRect(i).contains(MousePosition))
+			continue;
+		// Both entries mean the same thing - see the header. Readying the basic attack IS clearing
+		// the readied spell.
+		Player &player = *MyPlayer;
+		if (QuickListForLeft) {
+			player._pLRSpell = SpellID::Invalid;
+			player._pLRSplType = SpellType::Invalid;
+		} else {
+			player._pRSpell = SpellID::Invalid;
+			player._pRSplType = SpellType::Invalid;
+		}
+		QuickListOpen = false;
+		RedrawEverything();
+		return true;
+	}
+
+	// A click anywhere else dismisses it, matching every other popup here.
+	QuickListOpen = false;
+	RedrawEverything();
+	return true;
 }
 
 void DrawRmbSkillWell(const Surface &out)

@@ -60,6 +60,7 @@
 #include "multi.h"
 #include "nthread.h"
 #include "objects.h"
+#include "oracool/attack_skills.h" // the basic-attack quick list
 #include "oracool/auto_save.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/game_speed.h"
@@ -389,6 +390,12 @@ void LeftMouseDown(uint16_t modState)
 	if (gmenu_left_mouse(true))
 		return;
 
+	// The basic-attack quick list eats the click while it is showing - on an entry it readies the
+	// attack, anywhere else it just dismisses. Ahead of everything else for the same reason every
+	// popup is: a strip floating over the world must not let clicks through to the world.
+	if (oracool::CheckAttackQuickListClick())
+		return;
+
 	if (control_check_talk_btn())
 		return;
 
@@ -565,7 +572,8 @@ void LeftMouseDown(uint16_t modState)
 				RedrawEverything();
 				return;
 			}
-			ToggleAbilitiesWindow();
+			// The quick list, matching the RMB well - see DoPanBtn.
+			oracool::OpenAttackQuickList(/*forLeftButton=*/true);
 			return;
 		}
 		if (!talkflag && !DropGoldFlag && !IsWithdrawGoldOpen && !gmenu_is_active())
@@ -743,6 +751,7 @@ void ClosePanels()
 	oracool::CloseWaypointMenu();
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
+	oracool::CloseAttackQuickList();
 }
 
 bool CanPlayerTakeAction(); // defined below, past the keymap tables that also use it

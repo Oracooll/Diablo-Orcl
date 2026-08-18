@@ -990,7 +990,10 @@ void DoPanBtn()
 			ClearReadiedSpell(*MyPlayer);
 			return;
 		}
-		DoSpeedBook();
+		// The quick list, not the Abilities window (user, 2026-08-18): clicking a well is how the
+		// basic attack goes onto that button. The Abilities window keeps the S key and the burger
+		// menu, which is where everything that has to be EARNED is chosen.
+		oracool::OpenAttackQuickList(/*forLeftButton=*/false);
 		gamemenu_off();
 	}
 }

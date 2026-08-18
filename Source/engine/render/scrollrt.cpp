@@ -1997,6 +1997,7 @@ void DrawAndBlit()
 			// Oracool: click feedback for the Menu/Portal cells, whose frames and icons are baked
 			// into the plate art and so have no state of their own to react with.
 			oracool::DrawBeltButtonFeedback(out);
+			oracool::DrawAttackQuickList(out);
 		}
 		if (drawChatInput) {
 			DrawTalkPan(out);
