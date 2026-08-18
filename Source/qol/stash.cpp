@@ -184,7 +184,13 @@ constexpr PointsInRectangleRange<int> StashGridRange { { { 0, 0 }, StashGridSize
 // SORT, the gold readout and the page label are now placed by grid COLUMN (StashColumnX), so the
 // grid's horizontal geometry has to be known before them. The vertical half stays here, where it
 // still reads in order after the rows it measures from.
-constexpr int StashGridTop = StashGoldRowY + StashGoldRowHeight + 8;
+// Pinned so the stash grid's LAST ROW ends on the same line as the inventory grid's (user request,
+// 2026-08-18). Derived from the inventory rather than written as a number, so the two cannot drift:
+// whatever moves oracool::GridBottom moves this with it. The gold row above keeps its own spacing,
+// which simply has more air under it now.
+constexpr int StashGridTop = oracool::GridBottom - StashGridRows * StashCellPx;
+static_assert(StashGridTop >= StashGoldRowY + StashGoldRowHeight,
+    "the stash grid now starts inside the gold readout above it");
 constexpr int StashGridBottom = StashGridTop + StashGridRows * StashCellPx;
 
 /**

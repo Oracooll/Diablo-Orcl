@@ -614,7 +614,12 @@ void EnsureQuantized()
 	QuantizeAsset(MenuIconsArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(InventoryPanelArt, std::nullopt);
 	QuantizeAsset(SidePanelArt, std::nullopt);
-	QuantizeAsset(InventoryTabsArt, std::nullopt);
+	// Pulled toward the palette's GREY ramp at 70% (user request, 2026-08-18: "make Inv Grid Tabs
+	// Buttons more Grayscale in colour to match the Limestone Theme better"). The chest art was cut
+	// warm, for a panel that used to be warm; the limestone around it is neutral, and a warm tab on
+	// cool stone reads as a leftover from the previous theme. Not 100%: at full strength the tab would
+	// keep only its shading and lose the red that tells the OPEN page from the nine closed ones.
+	QuantizeAsset(InventoryTabsArt, std::nullopt, PAL16_GRAY, 70);
 	QuantizeAsset(InventorySortArt, std::nullopt);
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
 	QuantizeAsset(BurgerMenuButtonArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
@@ -1007,16 +1012,20 @@ void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, i
 	// silhouette actually is - and it costs nothing extra, since the orbs' drain effect already
 	// needed this exact blit.
 	const Point origin { panelOrigin.x + (areaWidth - silhouette->width) / 2, panelOrigin.y + top };
-	BlitHalfTransparentSkipZero(out, *silhouette->bright, origin, 0, silhouette->height);
 
-	// The edge goes on OPAQUELY, and after the body. Blending it would sink it into the same muted
-	// gold as everything else and there would be no outline to see - the body is deliberately
-	// half-transparent, so the only way the shape gets a defined edge is for that edge to be the
-	// one part that is not.
-	if (silhouette->outline) {
-		out.BlitFromSkipColorIndexZero(*silhouette->outline,
-		    MakeSdlRect(0, 0, silhouette->width, silhouette->height), origin);
-	}
+	// TWO passes, not one (user request, 2026-08-18: "make the silhouette darker and its details more
+	// visible"). Each pass blends the figure halfway toward its own colours, so a second one lands at
+	// 3/4 rather than 1/2 - darker against the pale limestone, and the art's internal value steps
+	// survive the blend proportionally instead of being washed halfway out. Still not opaque: the
+	// figure has to read as a shadow behind the slots, not as a picture in front of them.
+	for (int pass = 0; pass < 2; pass++)
+		BlitHalfTransparentSkipZero(out, *silhouette->bright, origin, 0, silhouette->height);
+
+	// No outline. It was a gold edge added when the body was a single washed-out pass and the shape
+	// had nothing else to define it; at two passes the figure defines its own edge, and the gold read
+	// as a sticker on the limestone (user request, 2026-08-18: "remove golden outline of silhouette").
+	// The outline asset is still cut and still loaded - only this blit is gone - so restoring it is
+	// one line.
 }
 
 /**

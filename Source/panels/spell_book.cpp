@@ -624,7 +624,13 @@ void DrawArrow(const Surface &out, int direction)
 {
 	const Rectangle hit = GetArrowRect(direction);
 	const Point centre { hit.position.x + hit.size.width / 2, hit.position.y + hit.size.height / 2 };
-	const uint8_t color = PressedArrow == direction ? PAL16_YELLOW + 2 : oracool::ThemeEdgeColor;
+	// Deep gold rather than the theme edge's mid-ramp (user request, 2026-08-18: "make them darker
+	// to increase visibility in Limestone Theme"). The limestone panel is a LIGHT background, so an
+	// arrow reads by being darker than it, not brighter - the old colour was tuned against the
+	// half-transparent fill this window used to have. PAL16 ramps run light to dark as the offset
+	// grows, so +13 is near the bottom of the gold ramp. Pressed stays bright, which keeps the press
+	// visible as a flash TOWARD the light rather than a second dark state.
+	const uint8_t color = PressedArrow == direction ? PAL16_YELLOW + 2 : PAL16_YELLOW + 13;
 
 	// Filled by drawing one horizontal run per row, the run growing toward the base. Row r counts
 	// out from the tip, so the widths are symmetric about the vertical centre.

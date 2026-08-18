@@ -39,7 +39,10 @@ constexpr int OrnateBorderWidth = 3;
  * the waypoint list all need the same two numbers, and they were already sharing this module's
  * bevel and separator.
  */
-constexpr int PanelTitleTop = 8;
+constexpr int PanelTitleTop = 18;
+// 18, not 8 - user request (2026-08-18): "titles of UI windows to move 10px down". One number moves
+// all six windows and the Abilities window's page arrows with them, since GetArrowRect centres on
+// this same band. The limestone panel's own top framing is what the extra ten pixels clear.
 constexpr int PanelTitleHeight = 38;
 
 /**
