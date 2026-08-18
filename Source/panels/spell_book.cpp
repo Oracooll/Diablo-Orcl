@@ -908,6 +908,42 @@ void DrawFKeyBadge(const Surface &out, Rectangle iconRect, SpellID sn)
  * turns gold and grows a "+" only while the character actually holds a point this cell can take.
  * The burning aura keeps the gold ring on its icon.
  */
+/**
+ * @brief A thick red X across @p icon - "this skill is listed but not built yet".
+ *
+ * User request (2026-08-18): "i need visual feedback which skill are not developed. put a big red X
+ * across their icon. i will then know these need work and design input from me in future." 36 of the
+ * 161 class-tree rows are still `implemented = false`, and until now the only thing separating them
+ * from a merely locked skill was the tooltip's "Not yet built." - the plate went grey either way, so
+ * an empty tree page and an unfinished one looked identical.
+ *
+ * Drawn as horizontal runs rather than through a line primitive because the engine has only
+ * axis-aligned ones. Each row of the icon gets a short run on each diagonal, `Thickness` wide, which
+ * is both simpler than a Bresenham walk and gives the stroke a constant horizontal width - the
+ * chunky look a marked-out icon wants.
+ */
+void DrawUnbuiltCross(const Surface &out, Rectangle icon)
+{
+	constexpr int Thickness = 3;
+	// Bright end of the red ramp: this has to be unmistakable against a grey plate and a full-colour
+	// icon, and it is deliberately the loudest thing on the sheet.
+	constexpr uint8_t CrossColor = PAL16_RED + 1;
+
+	const int w = icon.size.width;
+	const int h = icon.size.height;
+	if (w <= 0 || h <= 0)
+		return;
+
+	for (int y = 0; y < h; y++) {
+		// Both diagonals from the same row index, so the two strokes always meet in the middle
+		// however the icon is proportioned.
+		const int down = y * (w - Thickness) / std::max(1, h - 1);
+		const int up = (w - Thickness) - down;
+		DrawHorizontalLine(out, { icon.position.x + down, icon.position.y + y }, Thickness, CrossColor);
+		DrawHorizontalLine(out, { icon.position.x + up, icon.position.y + y }, Thickness, CrossColor);
+	}
+}
+
 void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scroll)
 {
 	const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
@@ -932,6 +968,11 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	    : (invested > 0 ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Red);
 	oracool::DrawClassTreeIcon(content, icon, player._pClass, oracool::ClassTreeIconIndex(skill),
 	    usable, tint);
+
+	// Struck out if the row is listed but not built. AFTER the icon so it reads as a mark made ON the
+	// skill, and before the assignment rings and badges so those stay legible on top of it.
+	if (!data.implemented)
+		DrawUnbuiltCross(content, icon);
 
 	if (data.kind == oracool::ClassTreeKind::Aura) {
 		if (oracool::GetActiveClassAura(player) == skill)

@@ -51,24 +51,24 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Sacrifice"), N_("Strike for heavy bonus damage and wound yourself for a share of it. Not yet built."),
 	    Pal, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Smite"), N_("Bash with your shield: it always connects and briefly stuns. A shield is mandatory."),
-	    Pal, 0, 0, 1, Kind::Active, SpellID::Invalid, true },
+	    Pal, 0, 0, 1, Kind::Active, SpellID::ShieldBash, true },
 	{ N_("Holy Bolt"), N_("A bolt of holy energy that sears the undead. Points raise this engine's own Holy Bolt."),
 	    Pal, 0, 0, 2, Kind::Active, SpellID::HolyBolt, true },
 	{ N_("Zeal"), N_("Strike several times in one furious burst. Each invested pair of points adds a strike, up to five."),
-	    Pal, 0, 1, 0, Kind::Active, SpellID::Invalid, true },
+	    Pal, 0, 1, 0, Kind::Active, SpellID::Zeal, true },
 	{ N_("Charge"), N_("Rush an enemy and land a running blow."),
-	    Pal, 0, 1, 1, Kind::Active, SpellID::Invalid, true },
+	    Pal, 0, 1, 1, Kind::Active, SpellID::Charge, true },
 	{ N_("Vengeance"), N_("Adds fire, lightning and cold damage to your attack. Not yet built; this engine also has no cold."),
 	    Pal, 0, 2, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Blessed Hammer"), N_("Looses a spinning hammer that wheels outward through anything in its path."),
-	    Pal, 0, 3, 2, Kind::Active, SpellID::Invalid, true },
+	    Pal, 0, 3, 2, Kind::Active, SpellID::BlessedHammer, true },
 	// Corrected 2026-08-16: this row used to claim "no charmed-monster state exists", which was
 	// simply wrong - this engine's Berserk sets MFLAG_GOLEM on the target, making it fight for the
 	// player, which IS conversion. Found while wiring the Bard's Charm onto the same spell.
 	{ N_("Conversion"), N_("Turns an enemy to your side. Rides this engine's Berserk, which does exactly that."),
 	    Pal, 0, 4, 1, Kind::Active, SpellID::Berserk, true },
 	{ N_("Fist of the Heavens"), N_("Calls down a bolt from the sky, which bursts into holy energy where it lands."),
-	    Pal, 0, 5, 2, Kind::Active, SpellID::Invalid, true },
+	    Pal, 0, 5, 2, Kind::Active, SpellID::FistOfTheHeavens, true },
 	// --- Offensive Auras ---
 	{ N_("Might"), N_("Increases the damage you deal."), Pal, 1, 0, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Holy Fire"), N_("Wreathes your weapon in flame, adding fire damage to every blow."),
@@ -119,9 +119,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	//
 	// Columns fill the gaps their tiers had: Vengeance holds (2,0) and Blessed Hammer (3,2).
 	{ N_("Hammer of Faith"), N_("A heavy swing whose force splashes over everything around your target."),
-	    Pal, 0, 2, 1, Kind::Active, SpellID::Invalid, true },
+	    Pal, 0, 2, 1, Kind::Active, SpellID::HammerOfFaith, true },
 	{ N_("Blessed Shield"), N_("Hurls your shield at a crowd, striking several of them before it returns. A shield is mandatory."),
-	    Pal, 0, 3, 0, Kind::Active, SpellID::Invalid, true },
+	    Pal, 0, 3, 0, Kind::Active, SpellID::BlessedShield, true },
 
 	// ======================= BARBARIAN =======================
 	// --- Combat Skills ---
