@@ -74,6 +74,7 @@ set(libdevilutionx_SRCS
   oracool/ornate_border.cpp
   oracool/hero_preview.cpp
   oracool/hud_art.cpp
+  oracool/item_tiers.cpp
   oracool/hud_layout.cpp
   oracool/hud_menu.cpp
   oracool/inventory_layout.cpp

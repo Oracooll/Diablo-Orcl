@@ -630,6 +630,15 @@ struct Item {
 	 */
 	uint8_t _iOracoolItemLevel = 0;
 
+	/**
+	 * @brief The BASE tier this was forged at - oracool::BaseItemTier, stored as its byte.
+	 *
+	 * Independent of _iOracoolTier below, which is the QUALITY roll. A Torment basic and a Normal
+	 * primal are both ordinary things to find; see oracool/item_tiers.h for why the two axes are
+	 * separate and why the tier is a byte here rather than 670 more rows in AllItemsList.
+	 */
+	uint8_t _iOracoolBaseTier = 0;
+
 	OracoolItemTier _iOracoolTier = OracoolItemTier::None;
 	bool _iOracoolPerfectRoll = false;
 	uint8_t _iOracoolPrefixCount = 0;

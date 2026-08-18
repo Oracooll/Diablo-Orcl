@@ -36,6 +36,7 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/item_tiers.h"
 #include "oracool/area_level.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_skills.h"
@@ -1769,6 +1770,27 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 	// was found (see GetBookSpell).
 	item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp(itemLevel < 0 ? lvl : itemLevel, 0, 255));
 	GetItemAttrs(item, idx, lvl / 2);
+
+	// The BASE TIER, rolled from the ilvl and applied to the base numbers before any affix touches
+	// them (user, 2026-08-19: "tier 2,3,4 of all basic items, just like in D2 [...] all magic, rare,
+	// uniques, primals and sets items to be able to drop in all 4 tiers"). See oracool/item_tiers.h -
+	// the tier is a property of the item rather than three more copies of every base row, which is
+	// also what lets a set piece or a unique carry one without needing a version of itself per tier.
+	//
+	// Takes NO draw from the seeded stream - it hashes the seed instead. Every generated item is
+	// reconstructible from its seed, so a draw here would shift every affix roll after it and change
+	// what existing seeds produce. See oracool/item_tiers.h.
+	//
+	// FRESH GENERATION ONLY, and the flag for that is allowTieredRoll - NOT the parameter named
+	// `recreate`, which despite its name is set from CF_UNIQUE and means "this is a unique". The
+	// recreate path (RecreateItem, UnPackItem) rebuilds an item from its seed for the compact
+	// multiplayer pack and the character-select preview, and that pack has no room to carry a tier, so
+	// a tiered recreate would silently disagree with the item it came from. Single-player - what V1 is
+	// - never takes that path: SaveItem writes every stat and LoadItemData reads them back, tier
+	// scaling included.
+	if (allowTieredRoll)
+		oracool::ApplyBaseTier(item, oracool::TierForItem(item._iOracoolItemLevel, iseed));
+
 	// CLAMPED to the six bits CF_LEVEL actually has. The area ladder reaches 96 and floor items pass
 	// twice their depth, so an unclamped write would spill into the CF_ONLYGOOD/CF_UPER flag bits
 	// above it. The real ilvl lives in _iOracoolItemLevel, which is a whole byte of its own.
@@ -5248,6 +5270,15 @@ void PrintItemDetails(const Item &item)
 			AddPanelString(_("magic item"), item.getTextColor());
 		else
 			AddPanelString(_("basic item"), item.getTextColor());
+	}
+
+	// The BASE TIER, in its own colour (user, 2026-08-19: white / blue / yellow / gold). Above the
+	// ilvl line because it names what the item IS; the ilvl only says where it was found. Normal is
+	// printed too rather than left blank - "Normal" is information once three other answers exist.
+	if (oracool::CanCarryBaseTier(item)) {
+		const auto baseTier = static_cast<oracool::BaseItemTier>(item._iOracoolBaseTier);
+		AddPanelString(fmt::format(fmt::runtime(_("Tier: {:s}")), _(oracool::TierName(baseTier))),
+		    oracool::TierColor(baseTier));
 	}
 
 	// ilvl, directly under the quality line (user, 2026-08-19: "items to have it in their
