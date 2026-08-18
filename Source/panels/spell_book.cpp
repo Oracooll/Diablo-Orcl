@@ -1503,12 +1503,31 @@ void CheckSBook(bool assignToRightButton)
 			}
 			return;
 		}
-		// An active skill readies exactly as it would on any other sheet: unbuilt and locked rows
-		// are inert, and the button that clicked it is the button it lands on.
-		if (!data.implemented || !IsValidSpell(oracool::ClassTreeSpellId(*hit))
+		// An UNBUILT row readies the basic attack on the clicked button instead of doing nothing
+		// (user request, 2026-08-18: "clicking on unbuild skill to assign Regular/Fist Attack").
+		// A struck-out cell is a promise the game has not kept yet, and the honest thing for it to
+		// hand you is the swing you always have. This is the same state the Skills sheet's Regular
+		// Attack row selects - SpellID::Invalid with SpellType::Invalid, the engine's "nothing
+		// readied", which is precisely what makes a click swing the weapon. Whether the HUD well
+		// then shows crossed swords or a fist is decided by what is in your hand, not here.
+		Player &treePlayer = *MyPlayer;
+		if (!data.implemented) {
+			if (assignToRightButton) {
+				treePlayer._pRSpell = SpellID::Invalid;
+				treePlayer._pRSplType = SpellType::Invalid;
+			} else {
+				treePlayer._pLRSpell = SpellID::Invalid;
+				treePlayer._pLRSplType = SpellType::Invalid;
+			}
+			RedrawEverything();
+			return;
+		}
+		// A built active readies exactly as it would on any other sheet. Locked rows stay inert:
+		// unlike an unbuilt one, a locked skill is something you WILL have, so quietly handing back
+		// the basic attack would misreport it as finished.
+		if (!IsValidSpell(oracool::ClassTreeSpellId(*hit))
 		    || !oracool::IsClassTreeSkillUnlocked(*MyPlayer, *hit))
 			return;
-		Player &treePlayer = *MyPlayer;
 		const SpellID treeSpell = oracool::ClassTreeSpellId(*hit);
 		const SpellType treeType = (treePlayer._pAblSpells & GetSpellBitmask(treeSpell)) != 0
 		    ? SpellType::Skill
