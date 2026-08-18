@@ -125,3 +125,27 @@ Two of the three real findings trace to the same habit: rewriting whole files wi
 instead of making targeted edits. That produced the line-ending churn, the churn hid the backslash,
 and the backslash was the crash. The wrong diagnosis in finding 1 is separate — that was reasoning
 from a plausible-looking guard without following `ClassTreeSpellId` into its first branch.
+
+---
+
+# Resolution (v1.7.87 – v1.7.88)
+
+All three findings are closed.
+
+**Finding 1 — v1.7.87.** New `oracool::ClassTreeLockReason` names the real gate, and the click
+handler prints it in red instead of returning silently: *"Smite needs level 8 and a shield."* The
+borrowed rows are checked first, because theirs are the requirements that surprise — they are not the
+tier's, and the tier is what the page's layout implies. The inert 1.7.80 table edit was left in
+place: its values agree with what the borrowed path returns, so removing it would be churn for its
+own sake.
+
+**Finding 3 — v1.7.87.** `DrawPlrMsg` now returns early while any 340-wide panel is open. Suppressed
+rather than moved: a full-width strip could dodge a panel by shrinking, a fixed column cannot. Panels
+are closed while chatting anyway, which is when the history matters most.
+
+**Finding 2 — v1.7.88, whitespace only.** CRLF restored on all seven files. `git diff -w` is empty
+and insertions equal deletions exactly (10,485 each). Per-file CR counts reconcile against the
+pre-session baseline plus the lines each file legitimately gained or lost, so this restores the
+original endings rather than approximating them.
+
+Suite 445 of 447 at both versions.
