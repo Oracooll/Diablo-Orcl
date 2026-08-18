@@ -38,6 +38,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/event_log.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
@@ -199,14 +200,14 @@ Rectangle ChrBtnsRect[4] = {
 
 namespace {
 
-OptionalOwnedClxSpriteList talkButtons;
 OptionalOwnedClxSpriteList pDurIcons;
 
 char TalkSave[8][MAX_SEND_STR_LEN];
 uint8_t TalkSaveIndex;
 uint8_t NextTalkSave;
 char TalkMessage[MAX_SEND_STR_LEN];
-bool TalkButtonsDown[3];
+/** @brief Oracool: whether the event log was open when chat opened, so it can be put back. */
+bool LogWasOpenBeforeChat = false;
 int sgbPlrTalkTbl;
 bool WhisperList[MAX_PLRS];
 
@@ -930,18 +931,16 @@ void InitControlPan()
 	ChatInputState = std::nullopt;
 	if (IsChatAvailable()) {
 		if (!HeadlessMode) {
-			{
-				const OwnedClxSpriteList sprite = LoadCel("ctrlpan\\talkpanl", GetMainPanel().size.width);
-				ClxDraw(*pBtmBuff, { 0, (GetMainPanel().size.height + 16) * 2 - 1 }, sprite[0]);
-			}
-			talkButtons = LoadCel("ctrlpan\\talkbutt", 61);
+			// Oracool (2026-08-18): ctrlpan\talkpanl still goes into pBtmBuff - other panel drawing
+			// reads that buffer - but ctrlpan\talkbutt is no longer loaded. It held the VOICE button
+			// frames, and nothing draws them since the chat box became a plain bordered rectangle.
+			const OwnedClxSpriteList sprite = LoadCel("ctrlpan\talkpanl", GetMainPanel().size.width);
+			ClxDraw(*pBtmBuff, { 0, (GetMainPanel().size.height + 16) * 2 - 1 }, sprite[0]);
 		}
 		sgbPlrTalkTbl = 0;
 		TalkMessage[0] = '\0';
 		for (bool &whisper : WhisperList)
 			whisper = true;
-		for (bool &talkButtonDown : TalkButtonsDown)
-			talkButtonDown = false;
 	}
 	panelflag = false;
 	lvlbtndown = false;
@@ -1115,7 +1114,6 @@ void FreeControlPan()
 	pBtmBuff = std::nullopt;
 	FreeLargeSpellIcons();
 	FreeSpellBook();
-	talkButtons = std::nullopt;
 	pChrButtons = std::nullopt;
 	pDurIcons = std::nullopt;
 	pQLogCel = std::nullopt;
@@ -1488,22 +1486,31 @@ void DrawTalkPan(const Surface &out)
 
 	const Point mainPanelPosition = GetMainPanel().position;
 
-	DrawPanelBox(out, MakeSdlRect(175, sgbPlrTalkTbl + 20, 294, 5), mainPanelPosition + Displacement { 175, 4 });
-	int off = 0;
-	for (int i = 293; i > 283; off++, i--) {
-		DrawPanelBox(out, MakeSdlRect((off / 2) + 175, sgbPlrTalkTbl + off + 25, i, 1), mainPanelPosition + Displacement { (off / 2) + 175, off + 9 });
-	}
-	DrawPanelBox(out, MakeSdlRect(185, sgbPlrTalkTbl + 35, 274, 30), mainPanelPosition + Displacement { 185, 19 });
-	DrawPanelBox(out, MakeSdlRect(180, sgbPlrTalkTbl + 65, 284, 5), mainPanelPosition + Displacement { 180, 49 });
-	for (int i = 0; i < 10; i++) {
-		DrawPanelBox(out, MakeSdlRect(180, sgbPlrTalkTbl + i + 70, i + 284, 1), mainPanelPosition + Displacement { 180, i + 54 });
-	}
-	DrawPanelBox(out, MakeSdlRect(170, sgbPlrTalkTbl + 80, 310, 55), mainPanelPosition + Displacement { 170, 64 });
+	// Oracool (2026-08-18): a plain bordered black box, drawn by us.
+	//
+	// What was here was six DrawPanelBox blits out of the vanilla ctrlpan\talkpanl composite - a top
+	// cap, two tapered bevel loops, the black inset, and a 310x55 lower plate that had three VOICE
+	// buttons baked into it by LoadMainPanel. Those are Diablo's multiplayer voice-chat controls,
+	// which this single-player fork has no use for, and the panel edging around them belonged to a
+	// HUD that no longer exists (user: "there are some remnants of the vanilla hud and some VOICE
+	// buttons. To be gone. Leave only the black rectangle which fits 66 zeroes").
+	//
+	// The text rect below is UNCHANGED and must stay so: DrawString returns how much fitted and
+	// ChatInputState->truncate(len) cuts the input to it, so this rect IS the length limit. Its
+	// 250x39 at lineHeight 13 is the three rows that hold 66 zeroes.
+	const int x = mainPanelPosition.x + 200;
+	const int y = mainPanelPosition.y + 10;
+	constexpr Size TextSize { 250, 39 };
 
-	int x = mainPanelPosition.x + 200;
-	int y = mainPanelPosition.y + 10;
+	// The box is the text rect plus a margin, and the frame goes OUTSIDE that - so the border never
+	// eats into the space the text measured itself against.
+	constexpr int TextMargin = 6;
+	const Rectangle box { { x - TextMargin, y - TextMargin },
+		{ TextSize.width + 2 * TextMargin, TextSize.height + 2 * TextMargin } };
+	FillRect(out, box.position.x, box.position.y, box.size.width, box.size.height, 0);
+	oracool::DrawOrnateBorderOutside(out, box);
 
-	const uint32_t len = DrawString(out, TalkMessage, { { x, y }, { 250, 39 } },
+	const uint32_t len = DrawString(out, TalkMessage, { { x, y }, TextSize },
 	    TextRenderOptions {
 	        /*flags=*/UiFlags::ColorWhite | UiFlags::PentaCursor,
 	        /*spacing=*/1,
@@ -1512,91 +1519,27 @@ void DrawTalkPan(const Surface &out)
 	        /*highlightRange=*/ { static_cast<int>(ChatCursor.selection.begin), static_cast<int>(ChatCursor.selection.end) },
 	    });
 	ChatInputState->truncate(len);
-
-	x += 46;
-	int talkBtn = 0;
-	for (size_t i = 0; i < Players.size(); i++) {
-		Player &player = Players[i];
-		if (&player == MyPlayer)
-			continue;
-
-		UiFlags color = player.friendlyMode ? UiFlags::ColorWhitegold : UiFlags::ColorRed;
-		const Point talkPanPosition = mainPanelPosition + Displacement { 172, 84 + 18 * talkBtn };
-		if (WhisperList[i]) {
-			// the normal (unpressed) voice button is pre-rendered on the panel, only need to draw over it when the button is held
-			if (TalkButtonsDown[talkBtn]) {
-				unsigned spriteIndex = talkBtn == 0 ? 2 : 3; // the first button sprite includes a tip from the devils wing so is different to the rest.
-				ClxDraw(out, talkPanPosition, (*talkButtons)[spriteIndex]);
-
-				// Draw the translated string over the top of the default (english) button. This graphic is inset to avoid overlapping the wingtip, letting
-				// the first button be treated the same as the other two further down the panel.
-				RenderClxSprite(out, (*TalkButton)[2], talkPanPosition + Displacement { 4, -15 });
-			}
-		} else {
-			unsigned spriteIndex = talkBtn == 0 ? 0 : 1; // the first button sprite includes a tip from the devils wing so is different to the rest.
-			if (TalkButtonsDown[talkBtn])
-				spriteIndex += 4; // held button sprites are at index 4 and 5 (with and without wingtip respectively)
-			ClxDraw(out, talkPanPosition, (*talkButtons)[spriteIndex]);
-
-			// Draw the translated string over the top of the default (english) button. This graphic is inset to avoid overlapping the wingtip, letting
-			// the first button be treated the same as the other two further down the panel.
-			RenderClxSprite(out, (*TalkButton)[TalkButtonsDown[talkBtn] ? 1 : 0], talkPanPosition + Displacement { 4, -15 });
-		}
-		if (player.plractive) {
-			DrawString(out, player._pName, { { x, y + 60 + talkBtn * 18 }, { 204, 0 } }, { color });
-		}
-
-		talkBtn++;
-	}
 }
 
+/**
+ * @brief Retired with the VOICE buttons (Oracool, 2026-08-18).
+ *
+ * These hit-tested the three whisper toggles that used to sit on the chat panel's lower plate, at
+ * hardcoded rows 69..123 and columns 172..233 of the vanilla art. That art and those buttons are
+ * gone - they were Diablo's multiplayer voice-chat controls, and this fork is single-player - so
+ * there is nothing there to press.
+ *
+ * Kept as no-ops rather than deleted outright because both are called from diablo.cpp's mouse
+ * handlers, where they sit ahead of every other click test; removing them means touching that
+ * ordering, and the ordering is the part that is easy to get subtly wrong.
+ */
 bool control_check_talk_btn()
 {
-	if (!talkflag)
-		return false;
-
-	const Point mainPanelPosition = GetMainPanel().position;
-
-	if (MousePosition.x < 172 + mainPanelPosition.x)
-		return false;
-	if (MousePosition.y < 69 + mainPanelPosition.y)
-		return false;
-	if (MousePosition.x > 233 + mainPanelPosition.x)
-		return false;
-	if (MousePosition.y > 123 + mainPanelPosition.y)
-		return false;
-
-	for (bool &talkButtonDown : TalkButtonsDown) {
-		talkButtonDown = false;
-	}
-
-	TalkButtonsDown[(MousePosition.y - (69 + mainPanelPosition.y)) / 18] = true;
-
-	return true;
+	return false;
 }
 
 void control_release_talk_btn()
 {
-	if (!talkflag)
-		return;
-
-	for (bool &talkButtonDown : TalkButtonsDown)
-		talkButtonDown = false;
-
-	const Point mainPanelPosition = GetMainPanel().position;
-
-	if (MousePosition.x < 172 + mainPanelPosition.x || MousePosition.y < 69 + mainPanelPosition.y || MousePosition.x > 233 + mainPanelPosition.x || MousePosition.y > 123 + mainPanelPosition.y)
-		return;
-
-	int off = (MousePosition.y - (69 + mainPanelPosition.y)) / 18;
-
-	size_t playerId = 0;
-	for (; playerId < Players.size() && off != -1; ++playerId) {
-		if (playerId != MyPlayerId)
-			off--;
-	}
-	if (playerId > 0 && playerId <= Players.size())
-		WhisperList[playerId - 1] = !WhisperList[playerId - 1];
 }
 
 void control_type_message()
@@ -1612,9 +1555,13 @@ void control_type_message()
 	SDL_Rect rect = MakeSdlRect(GetMainPanel().position.x + 200, GetMainPanel().position.y + 22, 0, 27);
 	SDL_SetTextInputRect(&rect);
 	TalkMessage[0] = '\0';
-	for (bool &talkButtonDown : TalkButtonsDown) {
-		talkButtonDown = false;
-	}
+
+	// The log shares this column with the message history, so it stands aside while chatting (user,
+	// 2026-08-18: "when the Messages History window pops-up, the Log to close temporary"). Remembered
+	// rather than simply closed, so "temporary" is honoured - control_reset_talk puts it back.
+	LogWasOpenBeforeChat = oracool::IsEventLogOpen();
+	if (LogWasOpenBeforeChat)
+		oracool::ToggleEventLog();
 	sgbPlrTalkTbl = GetMainPanel().size.height + 16;
 	RedrawEverything();
 	TalkSaveIndex = NextTalkSave;
@@ -1624,6 +1571,9 @@ void control_type_message()
 void control_reset_talk()
 {
 	talkflag = false;
+	if (LogWasOpenBeforeChat && !oracool::IsEventLogOpen())
+		oracool::ToggleEventLog();
+	LogWasOpenBeforeChat = false;
 	SDL_StopTextInput();
 	ChatInputState = std::nullopt;
 	sgbPlrTalkTbl = 0;

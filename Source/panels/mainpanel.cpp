@@ -40,44 +40,15 @@ void LoadMainPanel()
 	PanelButton = LoadOptionalClx("data\\panel8buc.clx");
 	PanelButtonGrime = LoadOptionalClx("data\\dirtybuc.clx");
 
-	if (IsChatAvailable()) {
-		OptionalOwnedClxSpriteList talkButton = LoadClx("data\\talkbutton.clx");
-		const int talkButtonWidth = (*talkButton)[0].width();
-
-		constexpr size_t NumOtherPlayers = 3;
-		// Render the unpressed voice buttons to pBtmBuff.
-		string_view text = _("voice");
-		const int textWidth = GetLineWidth(text, GameFont12, 1);
-		for (size_t i = 0; i < NumOtherPlayers; ++i) {
-			Point position { 176, static_cast<int>(GetMainPanel().size.height + 101 + 18 * i) };
-			RenderClxSprite(*pBtmBuff, (*talkButton)[0], position);
-			int width = std::min<int>(textWidth, (*PanelButton)[0].width());
-			RenderClxSprite(pBtmBuff->subregion(position.x + (talkButtonWidth - width) / 2, position.y + 6, width, 9), (*PanelButtonGrime)[1], { 0, 0 });
-			DrawButtonText(*pBtmBuff, text, { position, { talkButtonWidth, 0 } }, UiFlags::ColorButtonface);
-		}
-
-		const int talkButtonHeight = (*talkButton)[0].height();
-		constexpr uint16_t NumTalkButtonSprites = 3;
-		OwnedSurface talkSurface(talkButtonWidth, talkButtonHeight * NumTalkButtonSprites);
-
-		// Prerender translated versions of the other button states for voice buttons
-		RenderClxSprite(talkSurface, (*talkButton)[0], { 0, 0 });                    // background for unpressed mute button
-		RenderClxSprite(talkSurface, (*talkButton)[1], { 0, talkButtonHeight });     // background for pressed mute button
-		RenderClxSprite(talkSurface, (*talkButton)[1], { 0, talkButtonHeight * 2 }); // background for pressed voice button
-
-		talkButton = std::nullopt;
-
-		int muteWidth = GetLineWidth(_("mute"), GameFont12, 2);
-		RenderClxSprite(talkSurface.subregion((talkButtonWidth - muteWidth) / 2, 6, muteWidth, 9), (*PanelButtonGrime)[1], { 0, 0 });
-		DrawButtonText(talkSurface, _("mute"), { { 0, 0 }, { talkButtonWidth, 0 } }, UiFlags::ColorButtonface);
-		RenderClxSprite(talkSurface.subregion((talkButtonWidth - muteWidth) / 2, 23, muteWidth, 9), (*PanelButtonGrime)[1], { 0, 0 });
-		DrawButtonText(talkSurface, _("mute"), { { 0, 17 }, { talkButtonWidth, 0 } }, UiFlags::ColorButtonpushed);
-		int voiceWidth = GetLineWidth(_("voice"), GameFont12, 2);
-		RenderClxSprite(talkSurface.subregion((talkButtonWidth - voiceWidth) / 2, 39, voiceWidth, 9), (*PanelButtonGrime)[1], { 0, 0 });
-		DrawButtonText(talkSurface, _("voice"), { { 0, 33 }, { talkButtonWidth, 0 } }, UiFlags::ColorButtonpushed);
-		TalkButton = SurfaceToClx(talkSurface, NumTalkButtonSprites);
-	}
-
+	// Oracool (2026-08-18): the VOICE/MUTE button bake is gone.
+	//
+	// This rendered three whisper toggles into pBtmBuff and pre-rendered their translated pressed
+	// states into TalkButton, for the chat panel's lower plate. That plate is no longer drawn - the
+	// Enter box is now a plain bordered rectangle of our own - so the bake was painting buttons onto
+	// a region nothing blits, and loading data\talkbutton.clx to do it.
+	//
+	// TalkButton itself stays declared and freed above/below, at std::nullopt, so anything that
+	// still tests it sees "no art" rather than a dangling reference.
 	PanelButtonGrime = std::nullopt;
 	PanelButton = std::nullopt;
 }
