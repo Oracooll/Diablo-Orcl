@@ -1579,13 +1579,23 @@ void CheckSBook(bool assignToRightButton)
 			return;
 		}
 
-		// AURAS go to the right button whichever button asked, because they have no business on the
-		// left one (user, 2026-08-18). They carry no SpellID - they are a toggle, not a cast - so
-		// "on RMB" means the well REPORTS the lit aura; the button itself keeps doing what it did.
-		// Lighting it is the assignment.
+		// EACH KIND OF ROW HAS ITS OWN RULE, and they are deliberately NOT unified (user,
+		// 2026-08-18: "each sheet to have its own set of rules. don't unify click handling among
+		// ability sheets"). In full:
+		//
+		//   AURA rows      - either button lights the aura, and it shows on the RMB well. They have
+		//                    no business on the left button, and clicking a burning one puts it out,
+		//                    so one row is the whole on/off control.
+		//   ACTIVE rows    - the button that clicked is the button it lands on: left click readies on
+		//                    LMB, right click on RMB. This is what "combat skills should land on LMB"
+		//                    asks for, and it is why the two must not share the aura's rule.
+		//   PASSIVE rows   - unreachable here: they are never assignable, and the spend corners above
+		//                    are all a passive row has.
+		//
+		// An aura carries no SpellID - it is a toggle, not a cast - so "on RMB" means that well
+		// REPORTS it (see DrawRmbSkillWell); the button itself keeps doing whatever it did.
 		if (data.kind == oracool::ClassTreeKind::Aura) {
-			if (oracool::GetActiveClassAura(treePlayer) != *hit)
-				oracool::ToggleClassAura(treePlayer, *hit);
+			oracool::ToggleClassAura(treePlayer, *hit);
 			CalcPlrInv(treePlayer, false);
 			RedrawEverything();
 			return;

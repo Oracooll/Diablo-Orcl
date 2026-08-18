@@ -226,6 +226,25 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint = 
 void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active,
     SkillPlateTint tint = SkillPlateTint::Green);
 
+/**
+ * @brief DrawAttackIcon scaled to FILL @p well, plate and icon both.
+ *
+ * For the LMB/RMB wells, whose @p well is the 46x46 net opening between the bezels. The strip is cut
+ * at 38, so the Point overload left a moat of plate around it (user, 2026-08-18: "reg attack and fist
+ * don't use the 46x46px size").
+ */
+void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, bool active,
+    SkillPlateTint tint = SkillPlateTint::Green);
+
+/**
+ * @brief Draws a class-tree skill's own icon, scaled to fill @p well - for skills with no SpellID.
+ *
+ * The auras are the reason this exists: they are a toggle rather than a cast, so they never appear as
+ * a readied spell and TryDrawSkillSpellIcon can never find them.
+ */
+void DrawClassTreeSkillInWell(const Surface &out, Rectangle well, HeroClass heroClass, int skillIndex,
+    SkillPlateTint tint = SkillPlateTint::Green);
+
 /** @brief On-screen size of one basic-attack icon, or {0,0} if the asset is missing. */
 Size GetAttackIconSize();
 

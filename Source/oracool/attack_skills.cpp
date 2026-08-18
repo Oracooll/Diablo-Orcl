@@ -8,6 +8,7 @@
 #include "engine/size.hpp"
 #include "levels/gendung.h"
 #include "engine/backbuffer_state.hpp" // RedrawEverything
+#include "oracool/class_tree.h" // the lit aura takes the RMB well when nothing is readied
 #include "oracool/hud_art.h"
 #include "oracool/ornate_border.h" // DrawHoverOutline
 #include "oracool/hud_layout.h"
@@ -88,10 +89,17 @@ Size WellIconSize()
  * would cast it. The spell icons anchor BOTTOM-left where the attack strip anchors top-left, which is
  * the whole reason this is one function rather than two lines at each call site.
  */
-void DrawWellIcon(const Surface &out, Point origin, Size iconSize, SpellID spell, SpellType type)
+void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType type)
 {
+	// Takes ITS OWN well's net rect, and this is not a detail.
+	//
+	// Bug (fixed 2026-08-18, user: "now nothing lands on the LMB [...] i think left click lands
+	// everything on RMB"): the Paladin-skill branch below asked for GetRmbSkillWellNetRect()
+	// unconditionally, so a skill readied on the LEFT button was painted into the RIGHT button's
+	// well. The assignment was right, the picture was in the wrong hole, and the two wells looked
+	// exactly like one well that ignored the left mouse button.
 	if (!IsValidSpell(spell)) {
-		DrawAttackIcon(out, origin, static_cast<int>(BasicAttackIcon(*MyPlayer)), /*active=*/true);
+		DrawAttackIconScaledTo(out, net, static_cast<int>(BasicAttackIcon(*MyPlayer)), /*active=*/true);
 		return;
 	}
 	// The Paladin's skills are real SpellIDs but have no frame in the engine's icon sheet, so asking
@@ -105,7 +113,7 @@ void DrawWellIcon(const Surface &out, Point origin, Size iconSize, SpellID spell
 		const SkillPlateTint tint = CanUsePaladinSkill(*MyPlayer, *skill)
 		    ? SkillPlateTint::Green
 		    : SkillPlateTint::Pink;
-		if (TryDrawSkillSpellIcon(out, GetRmbSkillWellNetRect(), spell, tint))
+		if (TryDrawSkillSpellIcon(out, net, spell, tint))
 			return;
 	}
 	// The same can-I-actually-cast-this dance DrawSpell does for the RMB well (self-audit,
@@ -119,22 +127,32 @@ void DrawWellIcon(const Surface &out, Point origin, Size iconSize, SpellID spell
 	}
 	if (leveltype == DTYPE_TOWN && !GetSpellData(spell).isAllowedInTown())
 		usable = false;
+	// Any skill carrying its own tree art, now that the answer to "can I cast it" is in hand - the
+	// tree rows are the wells' usual content, and this is what makes them fill the net rect rather
+	// than sitting at their natural 56px over the bezel.
+	if (TryDrawSkillSpellIcon(out, net, spell,
+	        usable ? SkillPlateTint::Green : SkillPlateTint::Pink))
+		return;
 	// Pink, not SpellType::Invalid's grey (user request, 2026-08-16): grey already means "not learned"
 	// on the Abilities window, and one colour meaning two things is how the confusion started. The
 	// Scroll table is the engine's own beige/pink mapping.
 	SetSpellTrans(usable ? type : SpellType::Scroll);
+	const Size iconSize = GetSmallSpellIconSize();
+	// The engine's icon is bottom-left anchored and smaller than the net opening, so it is centred in
+	// it by hand rather than drawn at the well's corner.
+	const Point origin { net.position.x + (net.size.width - iconSize.width) / 2,
+		net.position.y + (net.size.height - iconSize.height) / 2 };
 	DrawSmallSpellIcon(out, { origin.x, origin.y + iconSize.height - 1 }, spell);
 }
 
 void DrawLmbSkillWell(const Surface &out)
 {
-	const Size iconSize = WellIconSize();
-	if (iconSize.width == 0)
+	if (WellIconSize().width == 0)
 		return;
 	// Always "active": a well shows what its button does right now, so there is no inactive state for
 	// it to render. The dimmed variant belongs to the Abilities window's row pair, where it says
 	// which of the two attacks is the one in your hands.
-	DrawWellIcon(out, GetLmbSkillIconOrigin(iconSize), iconSize, MyPlayer->_pLRSpell, MyPlayer->_pLRSplType);
+	DrawWellIcon(out, GetLmbSkillWellNetRect(), MyPlayer->_pLRSpell, MyPlayer->_pLRSplType);
 }
 
 namespace {
@@ -237,10 +255,23 @@ bool CheckAttackQuickListClick()
 
 void DrawRmbSkillWell(const Surface &out)
 {
-	const Size iconSize = WellIconSize();
-	if (iconSize.width == 0)
+	if (WellIconSize().width == 0)
 		return;
-	DrawWellIcon(out, GetRmbSkillIconOrigin(iconSize), iconSize, MyPlayer->_pRSpell, MyPlayer->_pRSplType);
+	// A lit AURA takes this well's face when nothing is readied on the button (user, 2026-08-18:
+	// "auras don't land anywhere"). An aura carries no SpellID - it is a toggle, not a cast - so it
+	// can never arrive here as _pRSpell, and lighting one used to change nothing on the HUD at all.
+	//
+	// Only when the slot is otherwise EMPTY. A readied skill still owns the face it will be cast
+	// from; the aura keeps its corner badge over it (see DrawRmbAuraBadge). That order is the lesson
+	// of v1.7.91, where the aura took the well unconditionally and hid every later assignment.
+	if (!IsValidSpell(MyPlayer->_pRSpell)) {
+		if (const ClassTreeSkill aura = GetActiveClassAura(*MyPlayer); aura != ClassTreeSkill::None) {
+			DrawClassTreeSkillInWell(out, GetRmbSkillWellNetRect(), MyPlayer->_pClass,
+			    ClassTreeIconIndex(aura));
+			return;
+		}
+	}
+	DrawWellIcon(out, GetRmbSkillWellNetRect(), MyPlayer->_pRSpell, MyPlayer->_pRSplType);
 }
 
 } // namespace devilution::oracool

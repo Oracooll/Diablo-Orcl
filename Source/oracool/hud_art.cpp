@@ -1398,6 +1398,30 @@ void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active
 	DrawIconOnPlate(out, AttackIconsArt, origin, iconIndex, active, tint);
 }
 
+void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, bool active, SkillPlateTint tint)
+{
+	ApplyPlateTint(tint);
+	DrawSmallSpellIconFittedTo(out, well);
+	// The dim pass the Point overload gets from DrawStripIcon has no scaled twin, and the wells never
+	// need one: a well shows what its button does right now, and that is always the active state.
+	if (!active) {
+		DrawStripIcon(out, AttackIconsArt,
+		    { well.position.x + (well.size.width - StripIconSize(AttackIconsArt).width) / 2,
+		        well.position.y + (well.size.height - StripIconSize(AttackIconsArt).height) / 2 },
+		    iconIndex, /*unlocked=*/false);
+		return;
+	}
+	DrawStripIconScaledTo(out, AttackIconsArt, well, iconIndex);
+}
+
+void DrawClassTreeSkillInWell(const Surface &out, Rectangle well, HeroClass heroClass, int skillIndex,
+    SkillPlateTint tint)
+{
+	ApplyPlateTint(tint);
+	DrawSmallSpellIconFittedTo(out, well);
+	DrawClassTreeIconScaledTo(out, well, heroClass, skillIndex);
+}
+
 Size GetAttackIconSize()
 {
 	return StripIconSize(AttackIconsArt);
