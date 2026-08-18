@@ -934,7 +934,7 @@ void InitControlPan()
 			// Oracool (2026-08-18): ctrlpan\talkpanl still goes into pBtmBuff - other panel drawing
 			// reads that buffer - but ctrlpan\talkbutt is no longer loaded. It held the VOICE button
 			// frames, and nothing draws them since the chat box became a plain bordered rectangle.
-			const OwnedClxSpriteList sprite = LoadCel("ctrlpan\talkpanl", GetMainPanel().size.width);
+			const OwnedClxSpriteList sprite = LoadCel("ctrlpan\\talkpanl", GetMainPanel().size.width);
 			ClxDraw(*pBtmBuff, { 0, (GetMainPanel().size.height + 16) * 2 - 1 }, sprite[0]);
 		}
 		sgbPlrTalkTbl = 0;
