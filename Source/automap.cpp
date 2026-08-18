@@ -17,6 +17,7 @@
 #include "levels/gendung.h"
 #include "levels/setmaps.h"
 #include "objects.h"
+#include "oracool/area_level.h"
 #include "oracool/ornate_border.h"
 #include "player.h"
 #include "portal.h"
@@ -793,8 +794,18 @@ void DrawAutomapText(const Surface &out)
 		linePosition.y += 15;
 	}
 
+	// alvl on every map, quest lairs included (user, 2026-08-19: "area lvl to be displayed on the
+	// vanilla map when triggered"). It is the number that decides what this place can drop and how
+	// good the rolls may be, so it belongs beside the place's name rather than in a menu.
+	const auto areaLevelLine = [&out, &linePosition]() {
+		DrawString(out, fmt::format(fmt::runtime(_("Area Level: {:d}")), oracool::CurrentAreaLevel()), linePosition);
+		linePosition.y += 15;
+	};
+
 	if (setlevel) {
 		DrawString(out, _(QuestLevelNames[setlvlnum]), linePosition);
+		linePosition.y += 15;
+		areaLevelLine();
 		return;
 	}
 
@@ -834,6 +845,8 @@ void DrawAutomapText(const Surface &out)
 
 	std::string difficultyString = fmt::format(fmt::runtime(_(/* TRANSLATORS: {:s} means: Game Difficulty. */ "Difficulty: {:s}")), difficulty);
 	DrawString(out, difficultyString, linePosition);
+	linePosition.y += 15;
+	areaLevelLine();
 }
 
 std::unique_ptr<AutomapTile[]> LoadAutomapData(size_t &tileCount)

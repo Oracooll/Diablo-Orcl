@@ -10,7 +10,7 @@ namespace {
 /**
  * @brief Band per SpellID, indexed by the enum. 0 means "not a book spell - no band".
  *
- * Derived from sBookLvl (1-3 -> 6, 4-6 -> 12, 7-9 -> 18, 10-14 -> 24, 15+ -> 30) and then written
+ * Derived from sBookLvl (1-2 -> 1, 3-4 -> 6, 5-6 -> 12, 7-9 -> 18, 10-14 -> 24, 15+ -> 30) and then written
  * out, so a spell can be moved a band without moving every other spell that shares its book depth.
  *
  * The three name-only stubs - Doom Serpents, Blood Ritual, Invisibility - are banded like anything
@@ -23,9 +23,9 @@ namespace {
  */
 constexpr int SpellBand[] = {
 	0,  // Null
-	6,  // Firebolt
-	6,  // Healing
-	12, // Lightning
+	1,  // Firebolt
+	1,  // Healing
+	6,  // Lightning
 	12, // Flash
 	0,  // Identify (class skill, retired)
 	6,  // Fire Wall
@@ -52,14 +52,14 @@ constexpr int SpellBand[] = {
 	0,  // Staff Recharge (class skill, retired)
 	0,  // Trap Disarm (class skill, retired)
 	18, // Elemental
-	6,  // Charged Bolt
-	6,  // Holy Bolt
+	1,  // Charged Bolt
+	1,  // Holy Bolt
 	12, // Resurrect
-	6,  // Telekinesis
-	6,  // Heal Other
+	1,  // Telekinesis
+	1,  // Heal Other
 	24, // Blood Star
 	18, // Bone Spirit
-	6,  // Mana
+	1,  // Mana
 	24, // the Magi
 	18, // the Jester
 	6,  // Lightning Wall
@@ -97,6 +97,29 @@ int SpellRequiredLevel(SpellID spell)
 int SpellRankRequiredLevel(SpellID spell, int rank)
 {
 	return RankRequiredLevel(SpellRequiredLevel(spell), rank);
+}
+
+int SpellBookItemLevel(SpellID spell)
+{
+	// One row per band. The gaps widen with depth on purpose: the early bands sit inside Normal, where
+	// floors are cheap, and the last one lands at the start of Hell, which is where a spell that ends
+	// fights should first become findable.
+	switch (SpellRequiredLevel(spell)) {
+	case 1:
+		return 1;
+	case 6:
+		return 6;
+	case 12:
+		return 18;
+	case 18:
+		return 30;
+	case 24:
+		return 42;
+	case 30:
+		return 52;
+	default:
+		return 0; // not a book spell
+	}
 }
 
 bool CanLearnSpell(const Player &player, SpellID spell)

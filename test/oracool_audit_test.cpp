@@ -1617,11 +1617,13 @@ TEST(OracoolSkillPoints, RetroGrantInvestRefundRoundTrip)
 	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 3)
 	    << "book level 1 + 2 invested should reach the ladders as level 3";
 
-	// The third rank wants level 8, and this character is 7 - with four points still in hand, so the
-	// refusal can only be the Rule of Rangs.
+	// Firebolt sits in band 1 (added 2026-08-19 so a new Sorcerer can use what she finds), so its
+	// third rank wants character level 3. Dropped to 2, the refusal can only be the Rule of Rangs -
+	// there are still four points in hand.
+	player._pLevel = 2;
 	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
 	    << "rank 3 landed a level early";
-	player._pLevel = 8;
+	player._pLevel = 3;
 	EXPECT_TRUE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
 	    << "one more character level should open exactly one more rank";
 	player._pLevel = 7;

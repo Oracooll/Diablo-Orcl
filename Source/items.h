@@ -617,6 +617,19 @@ struct Item {
 	/** @brief Maximum number of prefix (or suffix) affixes an Oracool-tiered item may carry. */
 	static constexpr int MaxOracoolAffixesPerSlot = 3;
 
+	/**
+	 * @brief ilvl: the item level this was generated at. 0 means "unknown" and prints nothing.
+	 *
+	 * Its own byte rather than the six bits of _iCreateInfo the engine already carries, and that is
+	 * not tidiness: CF_LEVEL is a 6-bit field, so it saturates at 63 while the area ladder runs to
+	 * 96 (oracool/area_level.h). An ilvl read back from _iCreateInfo would silently stop rising a
+	 * third of the way up Hell.
+	 *
+	 * Stamped by whatever generated the item - the mlvl of the monster that dropped it, or the alvl
+	 * of the chest, floor or shop it came from - and displayed in the item's description.
+	 */
+	uint8_t _iOracoolItemLevel = 0;
+
 	OracoolItemTier _iOracoolTier = OracoolItemTier::None;
 	bool _iOracoolPerfectRoll = false;
 	uint8_t _iOracoolPrefixCount = 0;
@@ -878,6 +891,9 @@ string_view GetOracoolTierLabel(OracoolItemTier tier);
  */
 string_view GetOracoolTierPanelLabel(OracoolItemTier tier);
 Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level = std::nullopt, bool sendmsg = true, bool exactPosition = false);
+/** &brief mlvl: the loot level of &p monster - the area level plus a champion/unique bonus. */
+int ItemLevelOfMonster(const Monster &monster);
+
 void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn = false);
 void CreateRndItem(Point position, bool onlygood, bool sendmsg, bool delta);
 void CreateRndUseful(Point position, bool sendmsg);

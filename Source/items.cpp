@@ -36,6 +36,7 @@
 #include "minitext.h"
 #include "missiles.h"
 #include "options.h"
+#include "oracool/area_level.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_skills.h"
 #include "oracool/spell_ranks.h"
@@ -437,28 +438,16 @@ bool IsSuffixValidForItemType(int i, AffixItemType flgs, bool hellfireItem)
 
 int ItemsGetCurrlevel()
 {
-	if (setlevel) {
-		switch (setlvlnum) {
-		case SL_SKELKING:
-			return Quests[Q_SKELKING]._qlevel;
-		case SL_BONECHAMB:
-			return Quests[Q_SCHAMB]._qlevel;
-		case SL_POISONWATER:
-			return Quests[Q_PWATER]._qlevel;
-		case SL_VILEBETRAYER:
-			return Quests[Q_BETRAYER]._qlevel;
-		default:
-			return 1;
-		}
-	}
-
-	if (leveltype == DTYPE_NEST)
-		return currlevel - 8;
-
-	if (leveltype == DTYPE_CRYPT)
-		return currlevel - 7;
-
-	return currlevel;
+	// THE AREA LEVEL now, not the floor number (user, 2026-08-19: alvl/mlvl/ilvl). Every item this
+	// function feeds - chest contents, floor spawns, shop stock, quest rewards, gold piles - takes
+	// its depth from here, so redefining this one function moves the whole non-monster half of
+	// generation onto the ladder at once.
+	//
+	// Two things change with it. Difficulty now counts: this returned the same 1-24 in Torment as in
+	// Normal, which is why a Hell chest could hold Cathedral loot. And Hellfire's fold is gone - it
+	// mapped Nest back to 9-12 and Crypt to 14-17, correct when those were a PARALLEL path to the
+	// Cathedral, wrong here where they are floors 17-24 and deeper than everything before them.
+	return oracool::CurrentAreaLevel();
 }
 
 bool ItemPlace(Point position)
@@ -688,10 +677,20 @@ void GetBookSpell(Item &item, int lvl)
 	if (gbIsSpawn && lvl > 5)
 		lvl = 5;
 
+	// The book's own gate is the SPELL BAND now, measured against the item level (user, 2026-08-19).
+	// @p lvl arrives halved - GetItemAttrs is called with lvl/2 - so the ilvl stamped a moment ago in
+	// SetupAllItems is the honest number to compare against, with lvl*2 as the fallback for the
+	// paths that build an item without one (InitializeItem, RecreateItem).
+	const int ilvl = item._iOracoolItemLevel > 0 ? item._iOracoolItemLevel : lvl * 2;
+
 	int s = static_cast<int8_t>(SpellID::Firebolt);
 	SpellID bs = SpellID::Firebolt;
 	while (rv > 0) {
 		int sLevel = GetSpellBookLevel(static_cast<SpellID>(s));
+		// The band gate first: a spell whose book is too deep for this floor is simply not a
+		// candidate, whatever its vanilla sBookLvl says.
+		if (oracool::SpellBookItemLevel(static_cast<SpellID>(s)) > ilvl)
+			sLevel = -1;
 		// Oracool: Town Portal is a built-in ability now (see oracool::IsBuiltInPortalAbility), so
 		// its book would teach nothing - skipped here rather than by jumping the enum index the way
 		// the multiplayer-only spells below are, since that would depend on enum adjacency.
@@ -1613,7 +1612,7 @@ _item_indexes RndUItem(Monster *monster)
 {
 	int itemMaxLevel = ItemsGetCurrlevel() * 2;
 	if (monster != nullptr)
-		itemMaxLevel = monster->level(sgGameInitInfo.nDifficulty);
+		itemMaxLevel = ItemLevelOfMonster(*monster);
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel](const ItemData &item) {
 		if (item.itype == ItemType::Misc && item.iMiscId == IMISC_BOOK)
 			return true;
@@ -1754,12 +1753,26 @@ int GetItemBLevel(int lvl, item_misc_id miscId, bool onlygood, bool uper15)
  * default true - consuming extra randomness there is exactly what a "did this drop become
  * Rare/Buffed Unique" roll is supposed to do.
  */
-void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t iseed, int lvl, int uper, bool onlygood, bool recreate, bool pregen, bool allowTieredRoll = true, std::optional<OracoolItemTier> forcedTier = std::nullopt)
+/**
+ * @param itemLevel the ilvl to stamp on the item: the mlvl of the monster that dropped it, or the
+ * alvl of the chest, floor or shop it came from (oracool/area_level.h). Passed EXPLICITLY rather
+ * than derived from @p lvl, because @p lvl carries two different conventions inherited from vanilla
+ * - monster drops pass the monster level, floor items pass twice the depth - and guessing which one
+ * a caller meant is exactly the kind of thing that would put a wrong number on every chest item.
+ * -1 keeps @p lvl, which is right for the monster-drop callers.
+ */
+void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t iseed, int lvl, int uper, bool onlygood, bool recreate, bool pregen, bool allowTieredRoll = true, std::optional<OracoolItemTier> forcedTier = std::nullopt, int itemLevel = -1)
 {
 	item._iSeed = iseed;
 	SetRndSeed(iseed);
+	// ilvl BEFORE GetItemAttrs, which is where a book picks its spell and needs to know how deep it
+	// was found (see GetBookSpell).
+	item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp(itemLevel < 0 ? lvl : itemLevel, 0, 255));
 	GetItemAttrs(item, idx, lvl / 2);
-	item._iCreateInfo = lvl;
+	// CLAMPED to the six bits CF_LEVEL actually has. The area ladder reaches 96 and floor items pass
+	// twice their depth, so an unclamped write would spill into the CF_ONLYGOOD/CF_UPER flag bits
+	// above it. The real ilvl lives in _iOracoolItemLevel, which is a whole byte of its own.
+	item._iCreateInfo = std::min(lvl, 63);
 
 	if (pregen)
 		item._iCreateInfo |= CF_PREGEN;
@@ -1864,7 +1877,8 @@ void SetupBaseItem(Point position, _item_indexes idx, bool onlygood, bool sendms
 	GetSuperItemSpace(position, ii);
 	int curlv = ItemsGetCurrlevel();
 
-	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * curlv, 1, onlygood, false, delta);
+	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * curlv, 1, onlygood, false, delta,
+	    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/curlv);
 
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_DROPITEM, item.position, item);
@@ -2532,7 +2546,8 @@ void CreateMagicItem(Point position, int lvl, ItemType itemType, int imid, int i
 
 	while (true) {
 		item = {};
-		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * lvl, 1, true, false, delta);
+		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * lvl, 1, true, false, delta,
+		    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
 		if (item._iCurs == icurs)
 			break;
 
@@ -3940,7 +3955,8 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 		_item_indexes idx = GetItemIndexForDroppableItem(false, [&uniqueItemData](const ItemData &item) {
 			return item.itype == uniqueItemData.itype;
 		});
-		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), curlv * 2, 15, true, false, false);
+		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), curlv * 2, 15, true, false, false,
+		    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/curlv);
 	}
 
 	LogNoteworthyItemDrop(item);
@@ -3949,6 +3965,25 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 		NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
 
 	return &item;
+}
+
+/**
+ * @brief mlvl: what a monster is worth as a source of loot.
+ *
+ * The area level, plus a little for what the monster IS - a champion is a harder fight than its
+ * neighbours and pays like one, and a unique more so again. Deliberately NOT Monster::level(), which
+ * drives to-hit, block, experience and some missile damage from thirteen call sites; moving those
+ * onto the area ladder would be a combat rebalance wearing a loot change's clothes (user,
+ * 2026-08-19: "split now, revisit with telemetry").
+ */
+int ItemLevelOfMonster(const Monster &monster)
+{
+	int level = oracool::CurrentAreaLevel();
+	if (monster.isUnique())
+		level += 3;
+	else if (monster.lesserAffix != LesserUniqueAffix::None)
+		level += 2;
+	return std::min(level, oracool::MaxAreaLevel);
 }
 
 void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= false*/)
@@ -3986,7 +4021,7 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		if ((monster.data().treasure & T_NODROP) != 0)
 			return;
 		onlygood = false;
-		idx = RndItemForMonsterLevel(monster.level(sgGameInitInfo.nDifficulty));
+		idx = RndItemForMonsterLevel(static_cast<int8_t>(std::min(ItemLevelOfMonster(monster), 127)));
 	}
 
 	if (idx == IDI_NONE)
@@ -4369,7 +4404,7 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
 	if (GenerateRnd(100) >= SetDropPercent)
 		return;
 
-	const int mlvl = monster.level(sgGameInitInfo.nDifficulty);
+	const int mlvl = ItemLevelOfMonster(monster);
 	// Every set item this depth has earned: iMinMLvl carries the tier ladder (leather at 1-2 up to
 	// spectral at 50), so deeper floors drop better tiers by data rather than by a table here.
 	_item_indexes candidates[IDI_LAST + 1];
@@ -4414,7 +4449,7 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 	if (roll >= GemDropPercent + CharmDropPercent + RuneDropPercent)
 		return;
 
-	const int mlvl = monster.level(sgGameInitInfo.nDifficulty);
+	const int mlvl = ItemLevelOfMonster(monster);
 	_item_indexes idx;
 
 	if (roll < GemDropPercent) {
@@ -5215,6 +5250,12 @@ void PrintItemDetails(const Item &item)
 			AddPanelString(_("basic item"), item.getTextColor());
 	}
 
+	// ilvl, directly under the quality line (user, 2026-08-19: "items to have it in their
+	// description"). Zero means the item predates the ilvl byte or was built by a path that stamps
+	// none - a blank line is better than an invented number.
+	if (item._iOracoolItemLevel > 0)
+		AddPanelString(fmt::format(fmt::runtime(_("Item Level: {:d}")), item._iOracoolItemLevel), ItemBaseStatColor);
+
 	// Oracool: colours per ItemBaseStatColor / ItemAffixColor - base stats white, rolls blue, the
 	// tier label with the name's own colour.
 	if (item._iClass == ICLASS_WEAPON) {
@@ -5877,7 +5918,8 @@ void CreateSpellBook(Point position, SpellID ispell, bool sendmsg, bool delta)
 
 	while (true) {
 		item = {};
-		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * lvl, 1, true, false, delta);
+		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * lvl, 1, true, false, delta,
+		    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
 		if (item._iMiscId == IMISC_BOOK && item._iSpell == ispell)
 			break;
 	}

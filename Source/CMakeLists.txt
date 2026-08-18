@@ -59,6 +59,7 @@ set(libdevilutionx_SRCS
   oracool/telemetry.cpp
   oracool/zone_registry.cpp
   oracool/attack_skills.cpp
+  oracool/area_level.cpp
   oracool/class_tree.cpp
   oracool/spell_ranks.cpp
   oracool/class_skills.cpp

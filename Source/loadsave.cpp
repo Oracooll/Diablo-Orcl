@@ -266,7 +266,7 @@ struct LevelConversionData {
  * of failing loudly.
  */
 // Version 3 added the socket fields; version 4 the ethereal flag - see SaveItem/LoadItemData.
-constexpr uint8_t OracoolItemFormatVersion = 4;
+constexpr uint8_t OracoolItemFormatVersion = 5;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
@@ -412,6 +412,9 @@ void LoadItemData(LoadHelper &file, Item &item)
 		socket = file.NextLE<uint16_t>();
 	// Version 4: the ethereal flag.
 	item._iOracoolEthereal = file.NextLE<uint8_t>() != 0;
+	// Version 5: ilvl (oracool/area_level.h). 0 on anything generated before it existed, which prints
+	// no ilvl line rather than an invented one.
+	item._iOracoolItemLevel = file.NextLE<uint8_t>();
 }
 
 void LoadAndValidateItemData(LoadHelper &file, Item &item)
@@ -1274,6 +1277,8 @@ void SaveItem(SaveHelper &file, const Item &item)
 		file.WriteLE<uint16_t>(socket);
 	// Version 4: the ethereal flag.
 	file.WriteLE<uint8_t>(item._iOracoolEthereal ? 1 : 0);
+	// Version 5: ilvl - see the matching read.
+	file.WriteLE<uint8_t>(item._iOracoolItemLevel);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2120,9 +2125,9 @@ void LoadLevel(LevelConversionData *levelConversionData)
 // The Oracool extension folded into SaveItem/LoadItemData's fixed-size item record: 5 header
 // bytes (tier, perfect-roll, broken, prefix count, suffix count), 3 prefixes + 3 suffixes at
 // 9 bytes each; version 3 (Megaplan Phase 1) added the socket block (1 count byte + MaxItemSockets
-// uint16 gem indices), version 4 the ethereal flag byte.
+// uint16 gem indices), version 4 the ethereal flag byte, version 5 the ilvl byte.
 constexpr int OracoolItemExtensionSaveSize = 5 + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4)
-    + 1 + Item::MaxItemSockets * 2 + 1;
+    + 1 + Item::MaxItemSockets * 2 + 1 + 1;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 

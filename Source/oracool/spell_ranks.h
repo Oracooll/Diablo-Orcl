@@ -5,9 +5,11 @@
  *
  * Two rules, user-authored 2026-08-19, and they compose:
  *
- *  1. LEARNING. Every book spell sits in one of five bands - level 6, 12, 18, 24 or 30 - the same
- *     shape the class trees use for their tiers. Below the band's level the spell cannot be learned
- *     at all, and its book cannot be read.
+ *  1. LEARNING. Every book spell sits in one of SIX bands - level 1, 6, 12, 18, 24 or 30 - the same
+ *     six tiers the class trees use. Band 1 was added on 2026-08-19 ("i want sorc to be able to
+ *     obtain spells right away. i just forgot about lvl 1 tier"): without it the cheapest spells
+ *     were locked away from a level-1 character who had just found their first book. Below the
+ *     band the spell cannot be learned at all, and its book cannot be read.
  *
  *  2. THE RULE OF RANGS. "Each Rang Level requires +1 lvl compared to previous rang." So rank 1 of a
  *     spell wants its band's level, rank 2 wants one more, rank 3 one more again. A level-6 spell
@@ -31,9 +33,9 @@ struct Player;
 
 namespace devilution::oracool {
 
-/** @brief The five bands, in ascending order. Exported so the sheets can group by them. */
-constexpr int SpellLevelBands[] = { 6, 12, 18, 24, 30 };
-constexpr int SpellLevelBandCount = 5;
+/** @brief The six bands, in ascending order. Exported so the sheets can group by them. */
+constexpr int SpellLevelBands[] = { 1, 6, 12, 18, 24, 30 };
+constexpr int SpellLevelBandCount = 6;
 
 /**
  * @brief The character level @p spell demands before it can be learned at all, or 0 if it is not a
@@ -53,6 +55,15 @@ constexpr int RankRequiredLevel(int baseLevel, int rank)
 {
 	return baseLevel + (rank > 1 ? rank - 1 : 0);
 }
+
+/**
+ * @brief The ilvl a BOOK of @p spell needs before it can be generated - its qlvl, in D2 terms.
+ *
+ * Derived from the spell's own band so the two rules cannot drift: a book you could not read is a
+ * book that should not have dropped (user, 2026-08-19: "i dont want to find book of apocalips on
+ * Cathedral LVL1 in Normal"). Apocalypse is band 30, so its book needs ilvl 52 - Hell Cathedral.
+ */
+int SpellBookItemLevel(SpellID spell);
 
 /** @brief Whether @p player is high enough to learn @p spell from a book at all. */
 bool CanLearnSpell(const Player &player, SpellID spell);

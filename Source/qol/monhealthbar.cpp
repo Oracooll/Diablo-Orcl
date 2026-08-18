@@ -168,6 +168,18 @@ void DrawMonsterHealthBar(const Surface &out)
 
 	if (multiplier > 0)
 		DrawString(out, StrCat("x", multiplier), { position, { width - 2, height } }, { UiFlags::ColorWhite | UiFlags::AlignRight | UiFlags::VerticalCenter });
+
+	// mlvl, in the bar's BOTTOM-RIGHT corner (user, 2026-08-19: "monsters to have it displayed
+	// somewhere under their health bar. maybe in the right corner below bar. left corner reserved for
+	// specific buffs"). The bottom-left is where the resistance icons already go, which is exactly
+	// the "specific buffs" the request reserves it for.
+	//
+	// This is the LOOT level - the number that decides what the kill can drop (oracool/area_level.h)
+	// - not Monster::level(), which is the combat curve and a different question. A player reading
+	// "mlvl 61" is reading what the corpse is worth.
+	DrawString(out, StrCat("mlvl ", ItemLevelOfMonster(monster)),
+	    { position + Displacement { 0, height - 13 }, { width - 5, 12 } },
+	    { UiFlags::ColorUiSilverDark | UiFlags::AlignRight });
 	if (monster.isUnique() || MonsterKillCounts[monster.type().type] >= 15) {
 		monster_resistance immunes[] = { IMMUNE_MAGIC, IMMUNE_FIRE, IMMUNE_LIGHTNING };
 		monster_resistance resists[] = { RESIST_MAGIC, RESIST_FIRE, RESIST_LIGHTNING };
