@@ -7,6 +7,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/event_log.h"
 #include "oracool/skill_sounds.h"
+#include "oracool/spell_ranks.h"
 #include "player.h"
 #include "spells.h"
 
@@ -26,9 +27,16 @@ bool IsSkillInvestable(const Player &player, SpellID spell)
 
 bool CanInvestSkillPoint(const Player &player, SpellID spell)
 {
-	return player._pUnspentSkillPoints > 0
-	    && IsSkillInvestable(player, spell)
-	    && player._pSkillInvestment[static_cast<size_t>(spell)] < MaxSkillInvestment;
+	if (player._pUnspentSkillPoints <= 0 || !IsSkillInvestable(player, spell))
+		return false;
+	const int invested = player._pSkillInvestment[static_cast<size_t>(spell)];
+	if (invested >= MaxSkillInvestment)
+		return false;
+	// The Rule of Rangs (user, 2026-08-19): each rank costs one more character level than the one
+	// before it. The rank being bought is invested + 1, counting from the spell's own band - so a
+	// level-6 spell reaches rank 10 at character level 15. This is what replaced the flat cap of 20:
+	// nothing is out of reach for good, but depth is paid for in levels.
+	return player._pLevel >= SpellRankRequiredLevel(spell, invested + 1);
 }
 
 bool InvestSkillPoint(Player &player, SpellID spell)

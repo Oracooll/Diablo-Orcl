@@ -26,7 +26,19 @@ uint64_t AllClassSkillsBitmask()
 
 uint64_t InnateSpellsBitmask(const Player &player)
 {
-	uint64_t mask = AllClassSkillsBitmask();
+	// The six vanilla class skills are NOT granted (user, 2026-08-19: "i created a new paladin hero
+	// and he spawned with Repair Skill assigned to RMB. i told you to retire the vanilla skill from
+	// every possible appearance in the game. for all hero classes").
+	//
+	// They were handed to every class from birth back when the Abilities window had a Class Skills
+	// sheet to list them on. That sheet is gone - oracool/class_tree is the skill system now - so all
+	// the grant did was put Item Repair on a new character's right button and leave six vanilla rows
+	// in the speedbook. AllClassSkillsBitmask is still exported for the debug "give me everything"
+	// command, which is a different question from what a character owns.
+	//
+	// Nothing else breaks: repairing, identifying, recharging and disarming are town services, and
+	// the tree carries every skill a class is meant to have.
+	uint64_t mask = 0;
 	// Oracool: the Paladin's skills are not class skills and not book spells - they are earned by
 	// character level - but each still has to be IN a mask to be selectable, because the speedbook,
 	// the Abilities window and the skill wells all list what the masks say the player has. So they

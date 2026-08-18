@@ -319,9 +319,9 @@ void AssertPlayer(Player &player)
 	ASSERT_EQ(player._pRSpell, SpellID::Invalid);
 	ASSERT_EQ(player._pRSplType, SpellType::Invalid);
 	ASSERT_EQ(player._pSBkSpell, SpellID::Invalid);
-	// Oracool (2026-08-15): all six innate skills, not just this class's own - see the same
-	// assertion in player_test.cpp for the bit-by-bit breakdown.
-	ASSERT_EQ(player._pAblSpells, 35184609067024ULL);
+	// EMPTY since the six vanilla class skills were retired (2026-08-19) - see the same assertion in
+	// player_test.cpp.
+	ASSERT_EQ(player._pAblSpells, 0ULL);
 	ASSERT_EQ(player._pScrlSpells, 0);
 	ASSERT_EQ(player._pSpellFlags, SpellFlag::None);
 	ASSERT_TRUE(player.UsesRangedWeapon());

@@ -2449,13 +2449,13 @@ void CreatePlayer(Player &player, HeroClass c)
 	player._pLightRad = 10;
 	player._pInfraFlag = false;
 
-	player._pRSplType = SpellType::Skill;
-	SpellID s = playerData.skill;
-	// Oracool: user request (2026-08-15) - every class is born with all six innate skills, not just
-	// its own. The class's own remains the one READIED, so a new character still starts with the
-	// weapon-repair/trap-disarm/etc. that identifies it.
+	// Nothing readied on either button. playerData.skill - Item Repair for the Paladin, Trap Disarm
+	// for the Rogue and so on - is no longer granted at all (user, 2026-08-19), so readying it here
+	// would put a skill the character does not have on their right hand, which is exactly what a new
+	// Paladin was spawning with. The right button starts as the basic attack, like the left.
+	player._pRSplType = SpellType::Invalid;
 	player._pAblSpells = oracool::InnateSpellsBitmask(player);
-	player._pRSpell = s;
+	player._pRSpell = SpellID::Invalid;
 	// Left button starts as the plain attack, which is vanilla behaviour.
 	player._pLRSpell = SpellID::Invalid;
 	player._pLRSplType = SpellType::Invalid;
@@ -2720,9 +2720,22 @@ void InitPlayer(Player &player, bool firstTime)
 		ActivateVision(player.position.tile, player._pLightRad, player.getId());
 	}
 
-	// Oracool: all six, as at creation. This runs on every load, which is what lets a character made
-	// before 2026-08-15 pick up the other five without a save migration.
+	// Oracool: rebuilt on every load, which is what lets a level gate open without a save migration -
+	// and, since 2026-08-19, what takes the six retired vanilla class skills back off characters made
+	// while they were still granted.
 	player._pAblSpells = oracool::InnateSpellsBitmask(player);
+
+	// A button still holding a retired skill has to be cleared, or it would point at something the
+	// character no longer owns: the well would draw it and a click would try to cast it.
+	const auto clearIfLost = [&player](SpellID &spell, SpellType &type) {
+		if (type == SpellType::Skill && IsValidSpell(spell)
+		    && (player._pAblSpells & GetSpellBitmask(spell)) == 0) {
+			spell = SpellID::Invalid;
+			type = SpellType::Invalid;
+		}
+	};
+	clearIfLost(player._pRSpell, player._pRSplType);
+	clearIfLost(player._pLRSpell, player._pLRSplType);
 
 	player._pNextExper = ExpLvlsTbl[std::min<int8_t>(player._pLevel, MaxCharacterLevel - 1)];
 	player._pInvincible = false;

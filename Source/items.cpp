@@ -38,6 +38,7 @@
 #include "options.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_skills.h"
+#include "oracool/spell_ranks.h"
 #include "oracool/event_log.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/charms.h"
@@ -5420,6 +5421,14 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 		break;
 	case IMISC_BOOK: {
 		uint8_t newSpellLevel = player._pSplLvl[static_cast<int8_t>(spellID)] + 1;
+		// The level band and the Rule of Rangs, asked as one question (user, 2026-08-19: "apply lvl
+		// req rule to books as well"). A book that would raise the spell past what the reader's level
+		// allows is refused outright - it is not consumed, no mana is granted, nothing happens.
+		//
+		// The same answer updateRequiredStatsCacheForPlayer gives, so a book the inventory draws as
+		// unusable is a book this path also refuses. One rule, asked in two places.
+		if (!oracool::CanReadSpellBookTo(player, spellID, newSpellLevel))
+			return; // the caller refuses first; this is the backstop, and it consumes nothing
 		if (newSpellLevel <= MaxSpellLevel) {
 			player._pSplLvl[static_cast<int8_t>(spellID)] = newSpellLevel;
 			NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(spellID), newSpellLevel);

@@ -1592,16 +1592,19 @@ TEST(OracoolSkillPoints, RetroGrantInvestRefundRoundTrip)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
-	player._pLevel = 5;
+	// Level 7, not 5. Firebolt sits in the level-6 band, and the Rule of Rangs wants 6 for its first
+	// rank and 7 for its second - so 5 is now a character who cannot invest in it at all, which is
+	// the rule working rather than the test failing (2026-08-19).
+	player._pLevel = 7;
 	player._pUnspentSkillPoints = 0;
 	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
 	player._pAblSpells = 0;
 	std::memset(player._pSplLvl, 0, sizeof(player._pSplLvl));
 
 	oracool::EnsureRetroactiveSkillPoints(player);
-	EXPECT_EQ(player._pUnspentSkillPoints, 4) << "level 5 is owed 4 points";
+	EXPECT_EQ(player._pUnspentSkillPoints, 6) << "level 7 is owed 6 points";
 	oracool::EnsureRetroactiveSkillPoints(player);
-	EXPECT_EQ(player._pUnspentSkillPoints, 4) << "the retro grant must not pay twice";
+	EXPECT_EQ(player._pUnspentSkillPoints, 6) << "the retro grant must not pay twice";
 
 	const auto firebolt = static_cast<size_t>(SpellID::Firebolt);
 	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
@@ -1609,14 +1612,29 @@ TEST(OracoolSkillPoints, RetroGrantInvestRefundRoundTrip)
 	player._pSplLvl[firebolt] = 1;
 	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
 	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
-	EXPECT_EQ(player._pUnspentSkillPoints, 2);
+	EXPECT_EQ(player._pUnspentSkillPoints, 4);
 	player._pISplLvlAdd = 0;
 	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 3)
 	    << "book level 1 + 2 invested should reach the ladders as level 3";
 
+	// The third rank wants level 8, and this character is 7 - with four points still in hand, so the
+	// refusal can only be the Rule of Rangs.
+	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
+	    << "rank 3 landed a level early";
+	player._pLevel = 8;
+	EXPECT_TRUE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
+	    << "one more character level should open exactly one more rank";
+	player._pLevel = 7;
+
+	// The per-rank refund, which the Spells sheet's new minus button calls.
+	ASSERT_TRUE(oracool::RefundSkillPoint(player, SpellID::Firebolt));
+	EXPECT_EQ(player._pUnspentSkillPoints, 5);
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 2);
+	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
+
 	EXPECT_EQ(oracool::RespecCost(player), 1000) << "the floor price";
 	oracool::RefundAllSkillPoints(player);
-	EXPECT_EQ(player._pUnspentSkillPoints, 4);
+	EXPECT_EQ(player._pUnspentSkillPoints, 6);
 	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 1);
 }
 

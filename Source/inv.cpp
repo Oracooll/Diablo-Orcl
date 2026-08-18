@@ -28,6 +28,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
+#include "oracool/spell_ranks.h"
 #include "oracool/hud_menu.h"
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
 #include "oracool/event_log.h"
@@ -3428,6 +3429,16 @@ bool UseInvItem(int cii)
 		return false;
 
 	if (!player.CanUseItem(*item)) {
+		player.Say(HeroSpeech::ICantUseThisYet);
+		return true;
+	}
+
+	// The spell bands and the Rule of Rangs (user, 2026-08-19: "apply lvl req rule to books as
+	// well"). Checked HERE rather than inside UseItem, because the book is consumed by this function
+	// AFTER UseItem returns - refusing any later would eat the book and teach nothing.
+	if (item->_iMiscId == IMISC_BOOK
+	    && !oracool::CanReadSpellBookTo(player, item->_iSpell,
+	        player._pSplLvl[static_cast<size_t>(item->_iSpell)] + 1)) {
 		player.Say(HeroSpeech::ICantUseThisYet);
 		return true;
 	}

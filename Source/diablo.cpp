@@ -732,6 +732,17 @@ void ReleaseKey(SDL_Keycode vkey)
 	remap_keyboard_key(&vkey);
 	if (sgnTimeoutCurs != CURSOR_NONE)
 		return;
+	// The reserved keys are swallowed on the way UP as well as on the way down (user, 2026-08-19:
+	// "F12 double screenshot is not fixed - game takes one SS on click and one SS on release").
+	//
+	// The keymapper's Screenshot action is registered with a null actionPressed and CaptureScreen as
+	// its actionRELEASED (see the AddAction call), so an ini that still binds it to F12 - and a
+	// settled install does - fired on the release even though PressKey had already intercepted the
+	// press. Filtering auto-repeat last version fixed a different double, not this one.
+	//
+	// F9-F12 are reserved outright, so nothing else is entitled to either edge of them.
+	if (vkey >= SDLK_F1 && vkey <= SDLK_F12)
+		return;
 	sgOptions.Keymapper.KeyReleased(vkey);
 }
 

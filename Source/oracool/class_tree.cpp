@@ -13,6 +13,7 @@
 #include "oracool/paladin_skills.h"
 #include "oracool/skill_points.h"
 #include "oracool/skill_sounds.h"
+#include "oracool/spell_ranks.h" // the Rule of Rangs
 #include "oracool/stat_sheet.h"
 #include "player.h"
 #include "utils/language.h"
@@ -717,9 +718,19 @@ int ClassTreeInvestment(const Player &player, Skill skill)
 
 bool CanInvestClassTreePoint(const Player &player, Skill skill)
 {
-	return player._pUnspentSkillPoints > 0
-	    && IsClassTreeSkillUnlocked(player, skill)
-	    && ClassTreeInvestment(player, skill) < ClassTreeMaxRank(skill);
+	if (player._pUnspentSkillPoints <= 0 || !IsClassTreeSkillUnlocked(player, skill))
+		return false;
+	const int invested = ClassTreeInvestment(player, skill);
+	if (invested >= ClassTreeMaxRank(skill))
+		return false;
+	// The Rule of Rangs (user, 2026-08-19): each rank costs one character level more than the rank
+	// before it, counting from the skill's own tier. A tier-1 skill takes its second point at level
+	// 2 and its tenth at level 10; a tier-30 skill takes its tenth at 39.
+	//
+	// Applied here rather than inside IsClassTreeSkillUnlocked, which answers "is this row yours at
+	// all" - the tier gate - and is asked by the assignment and drawing paths too. Depth is a
+	// separate question from ownership.
+	return player._pLevel >= RankRequiredLevel(ClassTreeTierMinLevel(GetClassTreeSkillData(skill).tier), invested + 1);
 }
 
 bool InvestClassTreePoint(Player &player, Skill skill)

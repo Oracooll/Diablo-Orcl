@@ -27,8 +27,16 @@ namespace devilution::oracool {
 /** @brief Points granted per character level - D2's own rate. */
 constexpr int SkillPointsPerLevel = 1;
 
-/** @brief Hard cap per skill, D2's own. _pSkillInvestment is a u8, so this also guards it. */
-constexpr int MaxSkillInvestment = 20;
+/**
+ * @brief Hard cap per skill: the WHOLE pool a character can ever earn (user, 2026-08-19: "a player
+ * can invest all 98 possible points they can acquire in one skill/spell").
+ *
+ * 98 is one point per level from 2 to 99, so this says "everything you have" rather than a number of
+ * its own - and _pSkillInvestment is a u8, which it still fits. D2s flat 20 is gone; what actually
+ * paces depth now is the Rule of Rangs (oracool/spell_ranks.h), where each rank past the first costs
+ * a character level.
+ */
+constexpr int MaxSkillInvestment = 98;
 
 /**
  * @brief Whether @p spell is something @p player can sink points into: a spell they have actually

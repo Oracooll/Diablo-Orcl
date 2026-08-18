@@ -44,7 +44,11 @@ constexpr int MaxBeltItems = 8;
 constexpr int MaxResistance = 75;
 /** @brief Oracool: raised from vanilla's 50 to allow post-Hell/Torment progression. */
 constexpr int MaxCharacterLevel = 99;
-constexpr uint8_t MaxSpellLevel = 15;
+// 98, up from 15 (user, 2026-08-19: "skills/spells have no level ceiling. a player can invest all 98
+// possible points they can acquire in one skill/spell"). 98 is exactly the pool a character can earn
+// - one point per level from 2 to 99 - so the cap says "everything you have", not a number of its own.
+// _pSplLvl is a uint8, so this still fits with room to spare.
+constexpr uint8_t MaxSpellLevel = 98;
 constexpr int PlayerNameLength = 32;
 
 constexpr size_t NumHotkeys = 12;

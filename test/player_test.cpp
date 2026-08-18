@@ -149,15 +149,16 @@ static void AssertPlayer(devilution::Player &player)
 	ASSERT_EQ(player.queuedSpell.spellType, SpellType::Skill);
 	ASSERT_EQ(player.queuedSpell.spellFrom, 0);
 	ASSERT_EQ(player.inventorySpell, SpellID::Null);
-	ASSERT_EQ(player._pRSpell, SpellID::TrapDisarm);
-	ASSERT_EQ(player._pRSplType, SpellType::Skill);
+	// Nothing readied at creation (2026-08-19): the six vanilla class skills are retired, so the
+	// Rogue no longer starts with Trap Disarm on her right button - or in her spell masks.
+	ASSERT_EQ(player._pRSpell, SpellID::Invalid);
+	ASSERT_EQ(player._pRSplType, SpellType::Invalid);
 	ASSERT_EQ(player._pSBkSpell, SpellID::Null);
-	// Oracool (2026-08-15): every class is born with all six innate skills, not just its own, so this
-	// is their combined bitmask rather than TrapDisarm's alone (which was 134217728 = 1 << 27).
-	// Bits, by SpellID ordinal: Identify 5, Rage 22, ItemRepair 26, StaffRecharge 27, TrapDisarm 28,
-	// Search 46. The READIED spell above is still the Rogue's own, which is the part that identifies
-	// the class - only what she knows has widened.
-	ASSERT_EQ(player._pAblSpells, 35184609067024ULL);
+	// EMPTY (2026-08-19). The six vanilla class skills - Identify, Rage, Item Repair, Staff Recharge,
+	// Trap Disarm, Search - were granted to every class from 2026-08-15 until the user asked for them
+	// retired outright. Nothing else is innate at level 1: the Paladin skills are level-gated, and the
+	// class trees are bought with points.
+	ASSERT_EQ(player._pAblSpells, 0ULL);
 	ASSERT_EQ(player._pScrlSpells, 0);
 	ASSERT_EQ(player._pSpellFlags, SpellFlag::None);
 	ASSERT_EQ(player._pBlockFlag, 0);

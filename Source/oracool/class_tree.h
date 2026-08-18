@@ -301,7 +301,9 @@ constexpr size_t MaxSkillsPerClass = 32;
 /** @brief Tiers a page can have. Seven since the Monk; Diablo II's five classes use the first six. */
 constexpr int ClassTreeTierCount = 7;
 /** @brief Points a single tree skill accepts, matching the spell-investment cap. */
-constexpr int MaxTreeInvestment = 20;
+// 98, up from D2s 20 (user, 2026-08-19): the cap is the whole pool a character can earn, and the
+// Rule of Rangs - one character level per rank past the first - is what paces depth instead.
+constexpr int MaxTreeInvestment = 98;
 constexpr size_t ClassTreePageCount = 3;
 
 /** @brief What kind of thing a row is, which decides what a click does. */

@@ -18,6 +18,7 @@
 #include "missiles.h"
 #include "oracool/class_tree.h"
 #include "oracool/skill_points.h"
+#include "oracool/spell_ranks.h"
 #include "oracool/spell_descriptions.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
@@ -127,15 +128,19 @@ size_t BuildSpellRows(SpellID *rows)
 		const SpellData &data = GetSpellData(sn);
 		return data.sMissiles[0] != MissileID::Null || data.sMissiles[1] != MissileID::Null;
 	};
+	// The sort key is now the LEVEL BAND (user, 2026-08-19: "divide them into 6,12,18,24,30 groups as
+	// skills and sort them alphabetically in each group and sort groups in ascending order"), not the
+	// Magic requirement it used to be. Same shape as the class trees' tiers, which is the point: a
+	// player reading either window learns the same progression.
 	std::sort(rows, rows + count, [&isImplemented](SpellID a, SpellID b) {
 		const bool liveA = isImplemented(a);
 		const bool liveB = isImplemented(b);
 		if (liveA != liveB)
 			return liveA;
-		const int reqA = GetSpellData(a).minInt;
-		const int reqB = GetSpellData(b).minInt;
-		if (reqA != reqB)
-			return reqA < reqB;
+		const int bandA = oracool::SpellRequiredLevel(a);
+		const int bandB = oracool::SpellRequiredLevel(b);
+		if (bandA != bandB)
+			return bandA < bandB;
 		return oracool::GetSpellDisplayName(a) < oracool::GetSpellDisplayName(b);
 	});
 	return count;
@@ -564,10 +569,16 @@ bool IsSpellKnown(SpellID sn)
 /** @brief The second line of a spell/skill row: what it costs, does, or that it is not yet known. */
 std::string GetSpellDetail(SpellID sn, bool known)
 {
-	if (!known)
-		return std::string(_(/* TRANSLATORS: UI constraints, keep short please.*/ "Not learned"));
-
 	Player &player = *InspectPlayer;
+	if (!known) {
+		// An unlearned spell says WHAT IT WANTS rather than only that it is unlearned (user,
+		// 2026-08-19: the level bands). Below the band the requirement is the whole story; at or
+		// above it, the spell is simply waiting for a book.
+		if (const int band = oracool::SpellRequiredLevel(sn); band > 0 && player._pLevel < band)
+			return fmt::format(fmt::runtime(_("Requires level {:d}")), band);
+		return std::string(_(/* TRANSLATORS: UI constraints, keep short please.*/ "Not learned"));
+	}
+
 	switch (GetSBookTrans(sn, false)) {
 	case SpellType::Skill:
 		return std::string(_("Skill"));

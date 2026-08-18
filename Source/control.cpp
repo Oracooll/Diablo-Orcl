@@ -38,6 +38,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/class_tree.h" // the burning aura is what the RMB well holds
 #include "oracool/event_log.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
@@ -1057,9 +1058,24 @@ void CheckPanelInfo()
 	// say. It is also the plate's other opener for the Abilities window (diablo.cpp's LeftMouseDown),
 	// which was previously findable only by clicking the empty socket and seeing what happened.
 	if (oracool::GetLmbSkillButtonRect().contains(MousePosition)) {
-		const oracool::AttackIcon icon = oracool::BasicAttackIcon(*MyPlayer);
-		SetPanelString(_(oracool::AttackIconName(icon)), UiFlags::ColorWhite);
-		AddPanelString(_("Left click to attack"));
+		// What is actually ON the button (user, 2026-08-19: "when i assign a skill to LMB it lands but
+		// when i hover over LMB popup says Regular Attack"). This reported the basic attack
+		// unconditionally, from back when the left button could hold nothing else; the well has drawn
+		// the readied skill for versions, so the hover was the last place still saying otherwise.
+		const Player &myPlayer = *MyPlayer;
+		const SpellID leftSpell = myPlayer._pLRSpell;
+		if (IsValidSpell(leftSpell)) {
+			SetPanelString(oracool::GetSpellDisplayName(leftSpell), UiFlags::ColorWhite);
+			if (myPlayer._pLRSplType == SpellType::Spell) {
+				const int spellLevel = myPlayer.GetSpellLevel(leftSpell);
+				AddPanelString(spellLevel == 0 ? _("Spell Level 0 - Unusable")
+				                               : fmt::format(fmt::runtime(_("Spell Level {:d}")), spellLevel));
+			}
+			AddPanelString(_("Left click to use"));
+		} else {
+			SetPanelString(_(oracool::AttackIconName(oracool::BasicAttackIcon(myPlayer))), UiFlags::ColorWhite);
+			AddPanelString(_("Left click to attack"));
+		}
 		AddPanelString(_("Click here for abilities"));
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;
@@ -1073,7 +1089,15 @@ void CheckPanelInfo()
 		AddPanelString(_("Hotkey: 's'"));
 		Player &myPlayer = *MyPlayer;
 		const SpellID spellId = myPlayer._pRSpell;
-		if (!IsValidSpell(spellId)) {
+		if (const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(myPlayer);
+		    aura != oracool::ClassTreeSkill::None) {
+			// A burning aura IS this button's setting - it clears any readied spell, so it is checked
+			// first (user, 2026-08-19: "i can successfully assign them but when i hover over RMB it
+			// says Regular Attack"). It carries no SpellID, so nothing below could ever name it.
+			AddPanelString(fmt::format(fmt::runtime(_("{:s} Aura")),
+			    _(oracool::GetClassTreeSkillData(aura).name)));
+			AddPanelString(_("Burning"));
+		} else if (!IsValidSpell(spellId)) {
 			// Nothing readied - which is the basic attack, and the icon in the well says so. Name it
 			// here too, so hovering never reports an empty slot for a slot that does something.
 			AddPanelString(_(oracool::AttackIconName(oracool::BasicAttackIcon(myPlayer))));
