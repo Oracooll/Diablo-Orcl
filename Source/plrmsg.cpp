@@ -116,29 +116,45 @@ void DrawPlrMsg(const Surface &out)
 	if (invflag || sbookflag || chrflag || QuestLogIsOpen || IsStashOpen)
 		return;
 
-	// rising to sit flush under its bottom border, with the same ornate frame the minimap and the
-	// event log wear (user: "span the Messages History window all the way to the right until it hits
-	// flush the right edge of the minimap window. Increase its vertical size all the way up until it
-	// hits flush the minimap window bottom border. Put around it a golden border").
+	// ONE window, the event log's own rect, with ONE frame around it - not a frame per message
+	// (user, 2026-08-18: "make the Message History window the size of Log, and don't put golden
+	// border around every message. Put it around just the window itself").
 	//
-	// It used to be bottom-left anchored, capped at 540px, borderless, and it dodged whichever side
-	// panels were open. Derived from GetMiniMapScreenRect() rather than from the minimap's nominal
-	// 306x175, exactly as event_log.cpp does - the frame size is computed per zoom level and is not
-	// a constant anyone should be restating.
+	// The geometry mirrors event_log.cpp's WindowTopLeftBelowMiniMap/WindowWidth/WindowHeight rather
+	// than inventing its own, so the history and the log occupy exactly the same column - they are
+	// alternatives for that space, and the log steps aside while chat is open.
+	//
+	// All of it derived from GetMiniMapScreenRect(): the minimap's frame is computed per zoom level,
+	// so its nominal 306x175 is not a constant anyone should restate.
 	const Rectangle miniMap = GetMiniMapScreenRect();
-	const int ceiling = miniMap.position.y + miniMap.size.height;
+	const int windowTop = miniMap.position.y + miniMap.size.height + 1;
+	const Rectangle window { { miniMap.position.x, windowTop },
+		{ miniMap.size.width, gnScreenHeight - miniMap.position.y - windowTop } };
+	if (window.size.height <= 0)
+		return;
 
-	const int x = miniMap.position.x;
-	const int width = miniMap.size.width;
-	int y = GetMainPanel().position.y - 13;
-
-	// The frame sits outside the text, so the text column is inset by it on both sides.
+	// The frame sits inside the window's own bounds, so the text column is inset by it plus a little
+	// air on each side.
 	constexpr int FramePad = oracool::OrnateBorderWidth;
-	const int textX = x + FramePad;
-	const int textWidth = width - 2 * FramePad;
+	constexpr int TextPad = FramePad + 4;
+	const int textX = window.position.x + TextPad;
+	const int textWidth = window.size.width - 2 * TextPad;
 	if (textWidth < 100)
 		return;
 
+	// Nothing to say means no window at all - an empty framed box sitting under the minimap would
+	// read as a broken panel rather than as a quiet one.
+	const bool anyVisible = !Messages[0].text.empty()
+	    && (talkflag || SDL_GetTicks() - Messages[0].time < 10000);
+	if (!anyVisible)
+		return;
+
+	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
+	oracool::DrawOrnateBorder(out, window);
+
+	// Newest at the BOTTOM, growing upward from the window's floor, which is how the old strip read
+	// and what makes the latest line land in the same place every time.
+	int y = window.position.y + window.size.height - TextPad;
 	for (PlayerMessage &message : Messages) {
 		if (message.text.empty())
 			break;
@@ -148,15 +164,10 @@ void DrawPlrMsg(const Surface &out)
 		std::string text = WordWrapString(message.text, textWidth);
 		int chatlines = CountLinesOfText(text);
 		const int blockHeight = message.lineHeight * chatlines;
-		// Stop at the minimap rather than running under it. The list grows upward from the main
-		// panel, so the oldest visible message is the one that would cross the line.
-		if (y - blockHeight < ceiling)
-			break;
+		if (y - blockHeight < window.position.y + TextPad)
+			break; // the window is full; older lines simply do not fit
 		y -= blockHeight;
 
-		const Rectangle block { { x, y }, { width, blockHeight } };
-		DrawHalfTransparentRectTo(out, block.position.x, block.position.y, block.size.width, block.size.height);
-		oracool::DrawOrnateBorder(out, block);
 		DrawString(out, text, { { textX, y }, { textWidth, 0 } }, { message.style, 1, message.lineHeight });
 		DrawString(out, message.from, { { textX, y }, { textWidth, 0 } }, { UiFlags::ColorWhitegold, 1, message.lineHeight });
 	}

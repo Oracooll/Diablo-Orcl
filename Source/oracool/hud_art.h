@@ -190,7 +190,7 @@ Size GetPaladinSkillIconSize();
  * first and falls back to DrawSmallSpellIcon when it returns false. @p origin is TOP-left, matching
  * the strip icons rather than the engine's bottom-left spell icons.
  */
-bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell,
+bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell,
     SkillPlateTint tint = SkillPlateTint::Green);
 
 /**

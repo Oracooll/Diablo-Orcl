@@ -108,10 +108,8 @@ void DrawSpell(const Surface &out)
 		const Rectangle auraWell = oracool::GetRmbSkillButtonRect();
 		const Size auraIcon = oracool::GetClassTreeIconSize(myPlayer._pClass);
 		if (auraIcon.width > 0) {
-			const Point auraAt { auraWell.position.x + (auraWell.size.width - auraIcon.width) / 2,
-				auraWell.position.y + (auraWell.size.height - auraIcon.height) / 2 };
-			oracool::DrawClassTreeIcon(out, auraAt, myPlayer._pClass, oracool::ClassTreeIconIndex(aura),
-			    /*unlocked=*/true, oracool::SkillPlateTint::Green);
+			oracool::DrawClassTreeIcon(out, oracool::GetRmbSkillIconOrigin(auraIcon), myPlayer._pClass,
+			    oracool::ClassTreeIconIndex(aura), /*unlocked=*/true, oracool::SkillPlateTint::Green);
 			return;
 		}
 	}
@@ -184,7 +182,7 @@ void DrawSpell(const Surface &out)
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
 		SetSpellTrans(st);
-		if (!oracool::TryDrawSkillSpellIcon(out, iconTopLeft, spl, wellTint))
+		if (!oracool::TryDrawSkillSpellIcon(out, Rectangle { iconTopLeft, iconSize }, spl, wellTint))
 			DrawSmallSpellIcon(out, position, oracool::FuriousChargeIcon);
 		if (progress < 1.0f) {
 			// The cooldown still reads as a fill rising from the bottom, but as a DARKENED band over
@@ -195,7 +193,7 @@ void DrawSpell(const Surface &out)
 			if (cooled < SmallIconHeight)
 				DrawHalfTransparentRectTo(out, iconTopLeft.x, iconTopLeft.y, iconSize.width, SmallIconHeight - cooled);
 		}
-	} else if (!oracool::TryDrawSkillSpellIcon(out, iconTopLeft, spl, wellTint)) {
+	} else if (!oracool::TryDrawSkillSpellIcon(out, Rectangle { iconTopLeft, iconSize }, spl, wellTint)) {
 		// The engine-spell equivalent of the pink plate: st has already been downgraded to Invalid by
 		// the checks above when the spell cannot be cast, and the Scroll table is the beige/pink ramp.
 		SetSpellTrans(st == SpellType::Invalid ? SpellType::Scroll : st);

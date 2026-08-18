@@ -103,7 +103,7 @@ void DrawWellIcon(const Surface &out, Point origin, Size iconSize, SpellID spell
 		const SkillPlateTint tint = CanUsePaladinSkill(*MyPlayer, *skill)
 		    ? SkillPlateTint::Green
 		    : SkillPlateTint::Pink;
-		if (TryDrawSkillSpellIcon(out, origin, spell, tint))
+		if (TryDrawSkillSpellIcon(out, Rectangle { origin, iconSize }, spell, tint))
 			return;
 	}
 	// The same can-I-actually-cast-this dance DrawSpell does for the RMB well (self-audit,

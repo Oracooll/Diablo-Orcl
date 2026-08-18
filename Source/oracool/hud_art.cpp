@@ -1264,8 +1264,17 @@ Size GetClassTreeIconSize(HeroClass heroClass)
 	return StripIconSize(TreeStripFor(heroClass));
 }
 
-bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, SkillPlateTint tint)
+bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, SkillPlateTint tint)
 {
+	// CENTRES what it draws in @p well rather than trusting the caller's origin (user, 2026-08-18:
+	// "make sure whenever a skill/spell is selected its icon fits its background"). The callers size
+	// their origin from the engine's SMALL spell icon, but the art actually drawn here is a class-tree
+	// cell or a Paladin strip cell, and those are not that size - so a tree icon sat low and left of
+	// the well it was supposed to fill.
+	const auto centre = [&well](Size art) {
+		return Point { well.position.x + (well.size.width - art.width) / 2,
+			well.position.y + (well.size.height - art.height) / 2 };
+	};
 	// The CLASS TREE's own icon first (user, 2026-08-18: "the new Abilities sheets came with their
 	// own set of icons and we must use them with the HUD ui now"). The well used to ask the retired
 	// Skills sheet's seven-icon Paladin strip, so a skill readied off a tree page wore one picture in
@@ -1274,8 +1283,8 @@ bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, Skil
 	// Scoped to the player's own class, since spell ids are global and tree rows are not.
 	const ClassTreeSkill treeSkill = ClassTreeSkillForSpell(InspectPlayer->_pClass, spell);
 	if (treeSkill != ClassTreeSkill::None) {
-		DrawClassTreeIcon(out, origin, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill),
-		    /*unlocked=*/true, tint);
+		DrawClassTreeIcon(out, centre(GetClassTreeIconSize(InspectPlayer->_pClass)), InspectPlayer->_pClass,
+		    ClassTreeIconIndex(treeSkill), /*unlocked=*/true, tint);
 		return true;
 	}
 
@@ -1288,7 +1297,8 @@ bool TryDrawSkillSpellIcon(const Surface &out, Point origin, SpellID spell, Skil
 	// Always drawn as unlocked: this is the readied-spell path, and a spell cannot be readied unless
 	// the player has it. The dimmed variant belongs to the Abilities window's own rows, where it says
 	// what has not been earned yet.
-	DrawPaladinSkillIcon(out, origin, GetPaladinSkillIconIndex(*skill), /*unlocked=*/true, tint);
+	DrawPaladinSkillIcon(out, centre(GetPaladinSkillIconSize()), GetPaladinSkillIconIndex(*skill),
+	    /*unlocked=*/true, tint);
 	return true;
 }
 
