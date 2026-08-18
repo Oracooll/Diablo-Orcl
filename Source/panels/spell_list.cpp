@@ -5,6 +5,7 @@
 #include <fmt/format.h>
 
 #include "control.h"
+#include "oracool/class_tree.h" // the lit aura owns the RMB well
 #include "controls/plrctrls.h"
 #include "engine.h"
 #include "engine/backbuffer_state.hpp"
@@ -86,11 +87,35 @@ std::optional<string_view> GetHotkeyName(SpellID spellId, SpellType spellType, b
 	return {};
 }
 
-} // namespace
 
+} // namespace
 void DrawSpell(const Surface &out)
 {
 	Player &myPlayer = *MyPlayer;
+
+	// Hidden while the chat box is open (user, 2026-08-18: "some HUD UI assets remain visible when
+	// the text input dialog is ON - town portal and RMB skill"). The plate itself already steps
+	// aside for the chat; these two were drawn separately and stayed behind.
+	if (talkflag)
+		return;
+
+	// A LIT AURA owns this well (user, 2026-08-18: auras assign to RMB, "no aura assigns currently
+	// on RMB"). An aura has no SpellID - it is a toggle, not a cast - so it can never be the readied
+	// spell, which is exactly why nothing showed here before. The well REPORTS it instead: the
+	// button keeps whatever it was doing, and the icon says which aura is burning.
+	if (const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(myPlayer);
+	    aura != oracool::ClassTreeSkill::None) {
+		const Rectangle auraWell = oracool::GetRmbSkillButtonRect();
+		const Size auraIcon = oracool::GetClassTreeIconSize(myPlayer._pClass);
+		if (auraIcon.width > 0) {
+			const Point auraAt { auraWell.position.x + (auraWell.size.width - auraIcon.width) / 2,
+				auraWell.position.y + (auraWell.size.height - auraIcon.height) / 2 };
+			oracool::DrawClassTreeIcon(out, auraAt, myPlayer._pClass, oracool::ClassTreeIconIndex(aura),
+			    /*unlocked=*/true, oracool::SkillPlateTint::Green);
+			return;
+		}
+	}
+
 	SpellID spl = myPlayer._pRSpell;
 	SpellType st = myPlayer._pRSplType;
 

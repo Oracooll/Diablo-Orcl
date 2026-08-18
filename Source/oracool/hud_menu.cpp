@@ -309,6 +309,13 @@ bool CheckTownPortalBeltSlotClick(Point mousePosition)
 
 void DrawBeltButtonFeedback(const Surface &out)
 {
+	// Nothing on the belt plate while the chat box is open (user, 2026-08-18: the town portal and RMB
+	// skill "remain visible when the text input dialog is ON"). scrollrt already suppresses the plate
+	// itself under talkflag; these buttons are drawn on their own pass and so were left behind on a
+	// plate that was no longer there.
+	if (talkflag)
+		return;
+
 	// The Menu cell is a toggle - lit for as long as its popup is showing. It now has real
 	// three-state art, so it no longer needs the translucent overlay it used to rely on.
 	const Rectangle menuCell = GetBeltSlotRect(BeltMenuSlotIndex);
