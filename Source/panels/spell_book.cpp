@@ -1009,6 +1009,10 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		        { TreeIconSize - 2 * SpendBoxSize, SpendBoxSize } },
 		    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
+	// No spend corners on an unbuilt row (user, 2026-08-18). A struck-out cell that still offered a
+	// green plus invited points into something that does nothing with them.
+	if (!data.implemented)
+		return;
 	if (oracool::CanInvestClassTreePoint(me, skill))
 		DrawSpendGlyph(content, SpendPlusRect(icon), true);
 	if (oracool::CanRefundClassTreePoint(me, skill))
@@ -1342,9 +1346,14 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 			return;
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hovered);
 		const Rectangle cell = TreeIconRect(data.column, data.tier);
-		// A tree cell is an F-key target when it is a real, buildable, KNOWN ability - the same
-		// gate the click-to-ready path applies.
-		if (data.implemented) {
+		// A tree cell is an F-key target only when a CLICK on it would do something - the hotkey and
+		// the click must agree, or a key binds what the mouse refuses (user, 2026-08-18: neither
+		// clicking nor hotkeying an unbuilt or unranked skill should be allowed).
+		//
+		// Auras are excluded too: they have no SpellID to bind, and the well only reports the lit one.
+		if (data.implemented && data.kind != oracool::ClassTreeKind::Aura
+		    && oracool::ClassTreeInvestment(*InspectPlayer, *hovered) > 0
+		    && oracool::IsClassTreeSkillUnlocked(*InspectPlayer, *hovered)) {
 			if (const SpellID slot = oracool::ClassTreeSpellId(*hovered);
 			    IsValidSpell(slot) && IsSpellKnown(slot))
 				HoveredAbilitySpell = slot;
@@ -1549,47 +1558,40 @@ void CheckSBook(bool assignToRightButton)
 		if (onBar)
 			return; // the counter row is inert now; the corners above are the spend controls
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hit);
-		if (data.kind == oracool::ClassTreeKind::Aura) {
-			if (oracool::ToggleClassAura(*MyPlayer, *hit)) {
-				CalcPlrInv(*MyPlayer, false);
-				RedrawEverything();
-			}
-			return;
-		}
-		// An UNBUILT row readies the basic attack on the clicked button instead of doing nothing
-		// (user request, 2026-08-18: "clicking on unbuild skill to assign Regular/Fist Attack").
-		// A struck-out cell is a promise the game has not kept yet, and the honest thing for it to
-		// hand you is the swing you always have. This is the same state the Skills sheet's Regular
-		// Attack row selects - SpellID::Invalid with SpellType::Invalid, the engine's "nothing
-		// readied", which is precisely what makes a click swing the weapon. Whether the HUD well
-		// then shows crossed swords or a fist is decided by what is in your hand, not here.
 		Player &treePlayer = *MyPlayer;
-		if (!data.implemented) {
-			if (assignToRightButton) {
-				treePlayer._pRSpell = SpellID::Invalid;
-				treePlayer._pRSplType = SpellType::Invalid;
-			} else {
-				treePlayer._pLRSpell = SpellID::Invalid;
-				treePlayer._pLRSplType = SpellType::Invalid;
-			}
-			RedrawEverything();
+
+		// UNBUILT rows are wholly inert (user, 2026-08-18): no assignment, no hotkey, no spend
+		// corners. They briefly handed back the basic attack; item 11's quick list is the deliberate
+		// way to do that now, so a struck-out cell simply is not a control.
+		if (!data.implemented)
 			return;
-		}
-		// A built active readies exactly as it would on any other sheet. Locked rows stay inert -
-		// unlike an unbuilt one, a locked skill is something you WILL have, so quietly handing back
-		// the basic attack would misreport it as finished - but they no longer refuse in SILENCE.
-		//
-		// That silence was the whole of "left/right clicks seem to do nothing" (user, 2026-08-18).
-		// The seven Paladin rows that borrow a real skill are gated by IsPaladinSkillUnlocked's own
-		// level AND shield requirement rather than by their tier, so Smite sits on tier 0 - drawn as
-		// though level 1 earns it - and stays locked bare-handed at any level. Nothing on screen said
-		// so, and the audit that found this had first blamed the SpellID, which was never the cause.
-		if (!oracool::IsClassTreeSkillUnlocked(*MyPlayer, *hit)) {
-			const std::string reason = oracool::ClassTreeLockReason(*MyPlayer, *hit);
+
+		// A rank of ZERO is not yours to use yet either, however unlocked the row is. The plate is
+		// already red for exactly this state - "yours to fill and empty" - and a red plate that
+		// still answered a click was the inconsistency.
+		if (oracool::ClassTreeInvestment(treePlayer, *hit) <= 0)
+			return;
+
+		if (!oracool::IsClassTreeSkillUnlocked(treePlayer, *hit)) {
+			const std::string reason = oracool::ClassTreeLockReason(treePlayer, *hit);
 			if (!reason.empty())
 				EventPlrMsg(reason, UiFlags::ColorRed);
 			return;
 		}
+
+		// AURAS go to the right button whichever button asked, because they have no business on the
+		// left one (user, 2026-08-18). They carry no SpellID - they are a toggle, not a cast - so
+		// "on RMB" means the well REPORTS the lit aura; the button itself keeps doing what it did.
+		// Lighting it is the assignment.
+		if (data.kind == oracool::ClassTreeKind::Aura) {
+			if (oracool::GetActiveClassAura(treePlayer) != *hit)
+				oracool::ToggleClassAura(treePlayer, *hit);
+			CalcPlrInv(treePlayer, false);
+			RedrawEverything();
+			return;
+		}
+		// A built, ranked, unlocked active readies as it would on any other sheet - every refusal
+		// above has already had its say.
 		const SpellID treeSpell = oracool::ClassTreeSpellId(*hit);
 		if (!IsValidSpell(treeSpell))
 			return;

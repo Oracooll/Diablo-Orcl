@@ -52,8 +52,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Smite"), N_("Bash with your shield: it always connects and briefly stuns. A shield is mandatory."),
 	    Pal, 0, 0, 1, Kind::Active, SpellID::ShieldBash, true },
-	{ N_("Holy Bolt"), N_("A bolt of holy energy that sears the undead. Points raise this engine's own Holy Bolt."),
-	    Pal, 0, 0, 2, Kind::Active, SpellID::HolyBolt, true },
+	{ N_("Holy Bolt"), N_("A bolt of holy energy that sears the undead. Withdrawn: it collided with this engine's own Holy Bolt spell."),
+	    Pal, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Zeal"), N_("Strike several times in one furious burst. Each invested pair of points adds a strike, up to five."),
 	    Pal, 0, 1, 0, Kind::Active, SpellID::Zeal, true },
 	{ N_("Charge"), N_("Rush an enemy and land a running blow."),
@@ -65,8 +65,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// Corrected 2026-08-16: this row used to claim "no charmed-monster state exists", which was
 	// simply wrong - this engine's Berserk sets MFLAG_GOLEM on the target, making it fight for the
 	// player, which IS conversion. Found while wiring the Bard's Charm onto the same spell.
-	{ N_("Conversion"), N_("Turns an enemy to your side. Rides this engine's Berserk, which does exactly that."),
-	    Pal, 0, 4, 1, Kind::Active, SpellID::Berserk, true },
+	{ N_("Conversion"), N_("Turns an enemy to your side. Withdrawn pending design work: its Berserk behaviour was wrong."),
+	    Pal, 0, 4, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Fist of the Heavens"), N_("Calls down a bolt from the sky, which bursts into holy energy where it lands."),
 	    Pal, 0, 5, 2, Kind::Active, SpellID::FistOfTheHeavens, true },
 	// --- Offensive Auras ---
