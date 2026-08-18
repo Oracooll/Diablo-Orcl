@@ -471,6 +471,9 @@ void SaveOptions()
 	setBoolean("Event Log", *sgOptions.Oracool.eventLog,
 	    "; ----- EVENT LOG -----------------------------------------------------------------\n; Shows a small \"LOG\" button above the durability-warning icons that expands into a\n; timestamped log of noteworthy session events (game saves, boss kills, special item\n; drops, deaths). Session-only - not saved to disk.");
 
+	setBoolean("Naked Heroes", *sgOptions.Oracool.nakedHeroes,
+	    "; ----- NAKED HEROES -------------------------------------------------------------\n; New heroes start with nothing: no weapon, no shield, no armour, no potions and no\n; gold, with both mouse buttons on the bare fist. Read ONCE, when a character is\n; created - turning it off later re-equips nobody, and turning it on strips nobody.");
+
 	setBoolean("Game Clock", *sgOptions.Oracool.gameClock,
 	    "; ----- GAME CLOCK -----------------------------------------------------------------\n; Shows the current real-world time in the screen's top-left corner.");
 
@@ -1421,6 +1424,7 @@ OracoolOptions::OracoolOptions()
     , miniMapEnabled("Mini-Map", OptionEntryFlags::None, N_("Mini-Map"), N_("Shows an always-on mini-map in the top-right corner during gameplay. Independent of TAB, which still opens/closes the normal full map."), true)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
     , balanceTelemetry("Balance Telemetry", OptionEntryFlags::None, N_("Balance Telemetry"), N_("Appends kills, deaths and item pickups to balance_telemetry.csv beside your saves, as tuning data for balancing the mod. Local file only; nothing leaves your machine."), true)
+    , nakedHeroes("Naked Heroes", OptionEntryFlags::None, N_("Naked Heroes"), N_("New heroes start with no equipment, no potions and no gold. Read once, when the character is created."), true)
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
     , gameSpeedReadout("Game Speed Readout", OptionEntryFlags::None, N_("Game Speed Readout"), N_("Whether the game speed is shown under the clock. Blink shows it for one second whenever F9 or F10 changes it."), GameSpeedReadout::Blink,
@@ -1486,6 +1490,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&tormentDifficultyMultiplier,
 		&miniMapEnabled,
 		&eventLog,
+		&nakedHeroes,
 		&gameClock,
 		&gameClock12HourFormat,
 		&gameSpeedReadout,

@@ -832,6 +832,14 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean miniMapEnabled;
 	OptionEntryBoolean eventLog;
 	OptionEntryBoolean balanceTelemetry;
+	/**
+	 * @brief Whether new heroes start with nothing at all - no gear, no potions, no gold.
+	 *
+	 * ON by default (user, 2026-08-19: "heroes start completely naked [...] Naked Heroes. ON. by
+	 * def"). Read at CHARACTER CREATION only, so flipping it never disturbs a character who already
+	 * exists - it decides what they were born with, not what they may carry.
+	 */
+	OptionEntryBoolean nakedHeroes;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;
 	/** @brief Whether the game-speed readout under the clock is off, always on, or blinks on change. */

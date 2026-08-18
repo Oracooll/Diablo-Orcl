@@ -7,6 +7,7 @@
 #include "levels/gendung.h"
 #include "menu.h"
 #include "multi.h"
+#include "options.h"
 #include "pfile.h"
 #include "player.h"
 #include "qol/stash.h"
@@ -36,6 +37,11 @@ public:
 		// (leftover from a previous test in this fixture) at the moment it runs.
 		MyPlayer = nullptr;
 		Players.resize(2);
+
+		// Starting gear ON for this fixture. These are save round-trip tests, and they need an item to
+		// tag and reload; Naked Heroes (default ON since 2026-08-19) would hand back an empty bag. The
+		// option is read at creation, which pfile_ui_save_create performs below.
+		sgOptions.Oracool.nakedHeroes.SetValue(false);
 	}
 };
 

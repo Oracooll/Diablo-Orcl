@@ -3618,6 +3618,23 @@ void CreatePlrItems(Player &player)
 		item.clear();
 	}
 
+	// NAKED HEROES (user, 2026-08-19: "heroes start completely naked with zero equipment and zero
+	// potions and zero money [...] ON by def"). Everything above has already cleared the body, the
+	// grid, the inventory and the belt, so being naked is simply stopping here - no class gear, no
+	// two healing potions, and no 100 gold below.
+	//
+	// Both mouse buttons are already on the bare fist: CreatePlayer readies nothing on either since
+	// the vanilla class skills were retired, and BasicAttackIcon reports Fist rather than Regular
+	// whenever the hands are empty, which they now are.
+	//
+	// Read HERE, at creation, and nowhere else. The option decides what a character was born with,
+	// not what they are allowed to carry - so turning it off later re-equips nobody and turning it on
+	// strips nobody.
+	if (*sgOptions.Oracool.nakedHeroes) {
+		CalcPlrItemVals(player, false);
+		return;
+	}
+
 	switch (player._pClass) {
 	case HeroClass::Warrior:
 		InitializeItem(player.InvBody[INVLOC_HAND_LEFT], IDI_WARRIOR);

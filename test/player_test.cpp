@@ -101,10 +101,13 @@ TEST(Player, PM_DoGotHit)
 static void AssertPlayer(devilution::Player &player)
 {
 	ASSERT_EQ(CountU8(player._pSplLvl, 64), 0);
-	ASSERT_EQ(Count8(player.InvGrid, InventoryGridCells), 1);
-	ASSERT_EQ(CountItems(player.InvBody, NUM_INVLOC), 1);
-	ASSERT_EQ(CountItems(player.InvList, InventoryGridCells), 1);
-	ASSERT_EQ(CountItems(player.SpdList, MaxBeltItems), 2);
+	// Naked Heroes, on by default since 2026-08-19: a new character owns nothing at all - no bow in
+	// the hand, no gold stack in the grid, no two healing potions in the belt. The counts here were
+	// 1/1/1/2 while starting gear was still handed out.
+	ASSERT_EQ(Count8(player.InvGrid, InventoryGridCells), 0);
+	ASSERT_EQ(CountItems(player.InvBody, NUM_INVLOC), 0);
+	ASSERT_EQ(CountItems(player.InvList, InventoryGridCells), 0);
+	ASSERT_EQ(CountItems(player.SpdList, MaxBeltItems), 0);
 	ASSERT_EQ(CountItems(&player.HoldItem, 1), 0);
 
 	ASSERT_EQ(player.position.tile.x, 0);
@@ -126,14 +129,15 @@ static void AssertPlayer(devilution::Player &player)
 	ASSERT_EQ(player._pLevel, 1);
 	ASSERT_EQ(player._pStatPts, 0);
 	ASSERT_EQ(player._pExperience, 0);
-	ASSERT_EQ(player._pGold, 100);
+	// Zero, not the vanilla 100 - Naked Heroes covers the purse as well as the pack (2026-08-19).
+	ASSERT_EQ(player._pGold, 0);
 	ASSERT_EQ(player._pMaxHPBase, 2880);
 	ASSERT_EQ(player._pHPBase, 2880);
 	ASSERT_EQ(player._pBaseToBlk, 20);
 	ASSERT_EQ(player._pMaxManaBase, 1440);
 	ASSERT_EQ(player._pManaBase, 1440);
 	ASSERT_EQ(player._pMemSpells, 0);
-	ASSERT_EQ(player._pNumInv, 1);
+	ASSERT_EQ(player._pNumInv, 0); // no gold stack either - see the Naked Heroes note above
 	ASSERT_EQ(player.wReflections, 0);
 	ASSERT_EQ(player.pTownWarps, 0);
 	ASSERT_EQ(player.pDungMsgs, 0);
