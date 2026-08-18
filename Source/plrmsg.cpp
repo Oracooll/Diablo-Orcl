@@ -16,6 +16,7 @@
 #include "engine/render/text_render.hpp"
 #include "inv.h"
 #include "oracool/ornate_border.h"
+#include "quests.h" // QuestLogIsOpen - the history shares the panels' corner
 #include "qol/chatlog.h"
 #include "qol/stash.h"
 #include "utils/language.h"
@@ -104,7 +105,17 @@ void DrawPlrMsg(const Surface &out)
 	if (ChatLogFlag)
 		return;
 
-	// Oracool (2026-08-18): the history occupies the MINIMAP'S COLUMN - flush to its right edge and
+	// The history lives in the minimap's column now, and every 340-wide side panel is drawn in that
+	// same corner - the inventory is flush top-right at 340x720, with the minimap inside its
+	// footprint. DrawPlrMsg runs after DrawInv, so without this the messages paint straight over an
+	// open panel (audit, 2026-08-18).
+	//
+	// Suppressed rather than moved: the old bottom-left placement dodged panels by shrinking, which
+	// is what a full-width strip could do and a fixed column cannot. While chatting the panels are
+	// closed anyway, so this costs nothing at the moment the history matters most.
+	if (invflag || sbookflag || chrflag || QuestLogIsOpen || IsStashOpen)
+		return;
+
 	// rising to sit flush under its bottom border, with the same ornate frame the minimap and the
 	// event log wear (user: "span the Messages History window all the way to the right until it hits
 	// flush the right edge of the minimap window. Increase its vertical size all the way up until it

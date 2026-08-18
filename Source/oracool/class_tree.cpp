@@ -945,6 +945,39 @@ size_t BuildClassTreePage(HeroClass heroClass, int page, Skill *out)
 	return count;
 }
 
+
+std::string ClassTreeLockReason(const Player &player, Skill skill)
+{
+	if (skill > Skill::LAST)
+		return {};
+	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+	if (data.heroClass != player._pClass)
+		return {};
+	if (IsClassTreeSkillUnlocked(player, skill))
+		return {};
+
+	// The borrowed rows first, because their requirements are the ones that surprise: they are NOT
+	// the tier's, and the tier is what the page's own layout implies. See IsClassTreeSkillUnlocked.
+	if (const std::optional<PaladinSkill> borrowed = BorrowedPaladinSkill(skill); borrowed.has_value()) {
+		const PaladinSkillData &pal = GetPaladinSkillData(*borrowed);
+		const bool needsLevel = player._pLevel < pal.minLevel;
+		const bool needsShield = pal.requiresShield && !HasShieldEquipped(player);
+		if (needsLevel && needsShield)
+			return fmt::format(fmt::runtime(_("{:s} needs level {:d} and a shield.")), _(data.name), pal.minLevel);
+		if (needsShield)
+			return fmt::format(fmt::runtime(_("{:s} needs a shield.")), _(data.name));
+		if (needsLevel)
+			return fmt::format(fmt::runtime(_("{:s} needs level {:d}.")), _(data.name), pal.minLevel);
+		// Unlocked by both and still locked means the class check above - which cannot happen here.
+		return {};
+	}
+
+	const int tierLevel = ClassTreeTierMinLevel(data.tier);
+	if (player._pLevel < tierLevel)
+		return fmt::format(fmt::runtime(_("{:s} needs level {:d}.")), _(data.name), tierLevel);
+	return {};
+}
+
 std::string ClassTreeEffectLine(const Player &player, Skill skill)
 {
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);

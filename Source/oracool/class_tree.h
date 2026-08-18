@@ -444,5 +444,18 @@ size_t BuildClassTreePage(HeroClass heroClass, int page, ClassTreeSkill *out);
 /** @brief The line the hover panel puts under the description: what the points bought. */
 std::string ClassTreeEffectLine(const Player &player, ClassTreeSkill skill);
 
+/**
+ * @brief Why @p skill cannot be readied yet, or an empty string if it can.
+ *
+ * Exists because a locked row used to refuse SILENTLY (user, 2026-08-18: "left/right clicks seem to
+ * do nothing in the three new abilities windows"). For the seven Paladin rows that borrow a real
+ * skill the gate is not the tier at all - IsPaladinSkillUnlocked carries its own minimum level AND a
+ * shield requirement, so Smite is locked at level 1 and stays locked bare-handed at level 20. The
+ * cell looked clickable and said nothing when clicked.
+ *
+ * Phrased as a whole sentence ready for the message line, so callers do not assemble it.
+ */
+std::string ClassTreeLockReason(const Player &player, ClassTreeSkill skill);
+
 } // namespace oracool
 } // namespace devilution

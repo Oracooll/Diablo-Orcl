@@ -27,6 +27,7 @@
 #include "panels/ui_panels.hpp"
 #include "player.h"
 #include "spelldat.h"
+#include "plrmsg.h" // EventPlrMsg - a locked row says why
 #include "spells.h" // ClearReadiedSpell
 #include "utils/display.h"
 #include "utils/language.h"
@@ -1574,13 +1575,24 @@ void CheckSBook(bool assignToRightButton)
 			RedrawEverything();
 			return;
 		}
-		// A built active readies exactly as it would on any other sheet. Locked rows stay inert:
+		// A built active readies exactly as it would on any other sheet. Locked rows stay inert -
 		// unlike an unbuilt one, a locked skill is something you WILL have, so quietly handing back
-		// the basic attack would misreport it as finished.
-		if (!IsValidSpell(oracool::ClassTreeSpellId(*hit))
-		    || !oracool::IsClassTreeSkillUnlocked(*MyPlayer, *hit))
+		// the basic attack would misreport it as finished - but they no longer refuse in SILENCE.
+		//
+		// That silence was the whole of "left/right clicks seem to do nothing" (user, 2026-08-18).
+		// The seven Paladin rows that borrow a real skill are gated by IsPaladinSkillUnlocked's own
+		// level AND shield requirement rather than by their tier, so Smite sits on tier 0 - drawn as
+		// though level 1 earns it - and stays locked bare-handed at any level. Nothing on screen said
+		// so, and the audit that found this had first blamed the SpellID, which was never the cause.
+		if (!oracool::IsClassTreeSkillUnlocked(*MyPlayer, *hit)) {
+			const std::string reason = oracool::ClassTreeLockReason(*MyPlayer, *hit);
+			if (!reason.empty())
+				EventPlrMsg(reason, UiFlags::ColorRed);
 			return;
+		}
 		const SpellID treeSpell = oracool::ClassTreeSpellId(*hit);
+		if (!IsValidSpell(treeSpell))
+			return;
 		const SpellType treeType = (treePlayer._pAblSpells & GetSpellBitmask(treeSpell)) != 0
 		    ? SpellType::Skill
 		    : SpellType::Spell;
