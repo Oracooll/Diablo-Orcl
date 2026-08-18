@@ -88,8 +88,8 @@ size_t VisibleWaypointCount()
 //   24..74    label band, "WAYPOINT"
 //   74..77    separator rule
 //   77..101   gap below the rule
-//   101..696  the scrolling list viewport (595px)
-//   696..720  bottom margin
+//   87..625   the scrolling list viewport (538px, twelve 43px rows on a 45px pitch)
+//   625..720  the limestone panel's frieze - deliberately left to the art
 //
 // The window is drawn the way the event log is - a half-transparent fill under the ornate
 // textbox_frame00 bevel - rather than from the composed stone panel it used at first, which read as
@@ -129,13 +129,31 @@ constexpr int RowHeight = 43;
 /** @brief Air between one row and the next. Not part of either row's hit box. */
 constexpr int RowGap = 2;
 constexpr int RowPitch = RowHeight + RowGap;
-constexpr int ListTop = PanelMargin + LabelHeight + SeparatorHeight + SeparatorGap;
+/**
+ * @brief Top of the scrolling viewport.
+ *
+ * Lifted off the margin stack (user request, 2026-08-18: "move the scrollable window 10px up to step
+ * away from overlapping the Limestone Theme footer"). The lift is 14 rather than 10, because 14 is
+ * what makes twelve FULL rows end exactly on the frieze's first row at y 625 - the stated reason for
+ * moving it at all. At 10 the twelfth row would have been clipped four pixels short, which is the
+ * overlap the request was trying to remove.
+ */
+constexpr int ListLift = 14;
+constexpr int ListTop = PanelMargin + LabelHeight + SeparatorHeight + SeparatorGap - ListLift;
 constexpr int IconGap = 8;   // from the inner edge of the margin to the sigil
 constexpr int TextGap = 10;  // from the sigil to the name
 
-/** @brief The list's visible window. 25 rows are 1125px tall, so the list scrolls inside this. */
-constexpr int ViewportHeight = PanelSize.height - ListTop - PanelMargin;
+/**
+ * @brief The list's visible window - TWELVE rows (user request, 2026-08-18). 25 rows are 1125px
+ * tall, so the list scrolls inside this.
+ *
+ * Twelve full rows rather than "whatever fits above the bottom margin", which was 595px - thirteen
+ * rows and a sliver, running to y 696 and straight across the limestone panel's frieze.
+ */
+constexpr int ViewportHeight = 12 * RowPitch - RowGap;
 static_assert(ViewportHeight > 0, "the waypoint list viewport must fit between the rule and the bottom margin");
+static_assert(ListTop + ViewportHeight <= 625,
+    "the waypoint list now runs across the limestone panel's frieze - raise ListTop or drop a row");
 
 // The scrollbar is the Abilities window's, to the pixel - see DrawScrollbar in panels/spell_book.cpp.
 // Two scrolling lists in the same game that disagree about how a scrollbar looks is one list too many.
@@ -353,12 +371,11 @@ void DrawWaypointMenu(const Surface &out)
 		// locked one is somewhere you have not been, so the gold marks what is left to find rather
 		// than what is already done.
 		//
-		// Hover still SWAPS the pair rather than introducing a third colour, so a row visibly reacts
-		// whichever state it is in. The lit or dormant sigil beside the name carries the real state
-		// cue either way; colour is reinforcement.
-		UiFlags color = unlocked ? UiFlags::ColorWhite : UiFlags::ColorWhitegold;
-		if (isHovered)
-			color = unlocked ? UiFlags::ColorWhitegold : UiFlags::ColorWhite;
+		// Hover does NOT change it (user request, 2026-08-18: "remove text colour alternation when
+		// hovering over the WPs"). Swapping the pair made the hovered row report the OTHER state's
+		// colour, so a moment's glance at a hovered row read it backwards. The gold rectangle drawn
+		// around the row is the hover cue, and it is unambiguous.
+		const UiFlags color = unlocked ? UiFlags::ColorWhite : UiFlags::ColorWhitegold;
 
 		// No outline on the rows - it was there to hold contrast against the stone panel, and that
 		// panel is gone; over the half-transparent fill it only thickened the glyphs. The title

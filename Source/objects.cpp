@@ -4236,7 +4236,12 @@ void AddStashChestObject()
 	// repeats its own trio across the same two slots, so frame 4 still means "closed".
 	chest->_oAnimFrame = 4;
 
-	ApplyStashChestGraphics(*chest);
+	// The Grand Reliquary is NOT applied (user, 2026-08-18: "bring back previous Stash chest. This
+	// one is not goodlooking"). The chest wears vanilla chest3.cel again, exactly as it did before
+	// the 2026-08-18 sweep. Everything the reliquary needs is still here and still shipped -
+	// OFILE_ORCLSTASH, objects\orclstash.cel, ApplyStashChestGraphics and its twin in SyncObjectAnim
+	// - so putting it back is uncommenting two lines rather than redoing the work.
+	// ApplyStashChestGraphics(*chest);
 }
 
 void CloseStashChestObject()
@@ -5517,8 +5522,11 @@ void SyncObjectAnim(Object &object)
 		// pointer and leans on this function to rebuild it); without it the chest would look right
 		// only until the first time town was reloaded. Same position test the two OperateObject /
 		// SyncOpObject sites already use to tell this chest from an ordinary one.
-		if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
-			oracool::ApplyStashChestGraphics(object);
+		// Parked with its twin in AddStashChestObject - see the note there. The two must return
+		// together or the chest would be a reliquary until the first return to town and a plain
+		// chest forever after.
+		// if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
+		// 	oracool::ApplyStashChestGraphics(object);
 	}
 
 	switch (object._otype) {
