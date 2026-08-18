@@ -43,6 +43,19 @@ bool CanInvestSkillPoint(const Player &player, SpellID spell);
 /** @brief Spends one unspent point on @p spell. Returns false (and changes nothing) otherwise. */
 bool InvestSkillPoint(Player &player, SpellID spell);
 
+/**
+ * @brief Whether a refund click would succeed: at least one point sunk in @p spell.
+ *
+ * The tree has had a per-rank minus since 2026-08-17; the spell list had only the paid respec, so a
+ * point put in by accident cost gold to take back out (user, 2026-08-19: "we need to introduce a
+ * minus button"). Free, one rank at a time, matching the tree exactly - the two sheets spend from
+ * one pool and should not disagree about how it is unspent.
+ */
+bool CanRefundSkillPoint(const Player &player, SpellID spell);
+
+/** @brief Takes one point back out of @p spell and returns it to the unspent pool. */
+bool RefundSkillPoint(Player &player, SpellID spell);
+
 /** @brief All points sunk so far, across every skill. */
 int TotalInvestedSkillPoints(const Player &player);
 

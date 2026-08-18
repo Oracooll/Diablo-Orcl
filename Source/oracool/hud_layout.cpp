@@ -225,11 +225,22 @@ Point GetRmbSkillIconOrigin(Size content)
 
 namespace {
 
-/** @brief Centres the net square inside @p well - see SkillWellNetSize for why it is not the well. */
+/**
+ * @brief Centres the net square inside @p well - see SkillWellNetSize for why it is not the well.
+ *
+ * With a hand nudge (user, 2026-08-19: "move the background and the skill/spell icons in the LMB/RMB
+ * 3px down and 1px right to center them"). The bezel painted into middle_hud.png is not perfectly
+ * symmetric about the button rect the code derives, so geometric centring reads high and left. One
+ * correction here rather than at each drawing site, so every well's content - plate, tree icon,
+ * attack icon, spell icon - moves together and stays aligned with the others.
+ */
+constexpr Displacement NetRectNudge { 1, 3 };
+
 Rectangle NetRectIn(Rectangle well)
 {
-	return { { well.position.x + (well.size.width - SkillWellNetSize.width) / 2,
-		         well.position.y + (well.size.height - SkillWellNetSize.height) / 2 },
+	return { Point { well.position.x + (well.size.width - SkillWellNetSize.width) / 2,
+		         well.position.y + (well.size.height - SkillWellNetSize.height) / 2 }
+		    + NetRectNudge,
 		SkillWellNetSize };
 }
 

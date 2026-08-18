@@ -191,8 +191,28 @@ static_assert(AbilitiesContentTop >= oracool::PanelTitleTop + oracool::PanelTitl
     "the list starts inside the title band");
 static_assert(AbilitiesContentSize.height > 0, "the nav row has eaten the whole list");
 
-/** @brief A spell or skill row: the small icon with a little air above and below it. */
-constexpr int SpellRowHeight = 44;
+/**
+ * @brief The icon square every sheet in this window draws, list rows and tree cells alike.
+ *
+ * ONE number (user, 2026-08-19: "make spell list use 56x56(57)px icons and backgrounds and put on
+ * top the minus, the plus and the lvl number at the bottom of the icons"). The tree has been at 56
+ * since it was built; the Spells list was at the engine's 37x38, which is why the two sheets felt
+ * like different windows and why a spell had no room for the spend corners a tree cell wears.
+ */
+constexpr int SheetIconSize = 56;
+
+/**
+ * @brief The invisible hit box for a spend glyph - 13x13 (user, 2026-08-17).
+ *
+ * "Invisible frame" is exact: the box is the CLICK target and the glyph is drawn inside it with a
+ * margin, so the bars are 4-5px thick as asked without the target shrinking to the bars themselves.
+ *
+ * Up here with the icon size because both sheets place their corners from it.
+ */
+constexpr int SpendBoxSize = 13;
+
+/** @brief A spell or skill row: the icon square with a little air above and below it. */
+constexpr int SpellRowHeight = SheetIconSize + 8;
 /**
  * @brief How many wrapped lines a described row gives its description.
  *
@@ -411,7 +431,7 @@ int RowHeightFor(AbilitySheet sheet)
 // skill or three) and a running index would close those gaps and destroy the shape.
 // ---------------------------------------------------------------------------------------------
 
-constexpr int TreeIconSize = 56;
+constexpr int TreeIconSize = SheetIconSize;
 constexpr int TreeColumns = 3;
 // 94, down from 100 (2026-08-17): three 56px columns at pitch 100 span 256, and the measured
 // interior is 246 wide - the old span could not fit without a column riding the bezel.
@@ -652,7 +672,7 @@ void DrawArrow(const Surface &out, int direction)
  */
 int RowIconColumnWidth()
 {
-	return GetSmallSpellIconSize().width;
+	return SheetIconSize;
 }
 
 int RowTextX()
@@ -707,72 +727,26 @@ void DrawAssignmentRings(const Surface &content, Rectangle iconRect, SpellID sn,
 	    RingWeight);
 }
 
-// Phase 2.1: the invest control. A small gold "+" at the row's right edge, shown only while the
-// local player has an unspent point this row can take - so the sheet is quiet until level-up hands
-// out a point, and quiet again once it is sunk. The invested count sits beside it permanently.
-constexpr Size InvestButtonSize { 22, 22 };
-constexpr int InvestButtonRightPad = 4;
-/** @brief The sunk-points readout that sits left of the button. */
-constexpr int InvestCountWidth = 30;
-constexpr int InvestCountGap = 4;
-/** @brief [count][gap][+] - moved as one, so the two can never drift apart. */
-constexpr int InvestGroupWidth = InvestCountWidth + InvestCountGap + InvestButtonSize.width;
-
-/**
- * @brief Left edge of the [count][+] group: the row's right edge, tucked against the scrollbar.
- *
- * This briefly special-cased the Skills sheet, whose icon-only rows left 200px of nothing between
- * the icon and a control parked at that edge. That sheet is gone, and Spells - the only list left -
- * has text all the way across, so the plain rule is correct again for every row that reaches here.
- */
-int InvestGroupLeft()
-{
-	return AbilitiesContentRightLimit - InvestGroupWidth - InvestButtonRightPad;
-}
-
-Rectangle InvestButtonRect(int top, int rowHeight)
-{
-	return { { InvestGroupLeft() + InvestCountWidth + InvestCountGap,
-		         top + (rowHeight - InvestButtonSize.height) / 2 },
-		InvestButtonSize };
-}
-
-bool InvestZoneClicked(int localX)
-{
-	const int buttonLeft = InvestGroupLeft() + InvestCountWidth + InvestCountGap;
-	return localX >= buttonLeft && localX < buttonLeft + InvestButtonSize.width;
-}
-
-void DrawInvestControls(const Surface &content, int top, int rowHeight, SpellID sn)
-{
-	if (IsInspectingPlayer())
-		return;
-	const Player &player = *MyPlayer;
-	if (sn == SpellID::Invalid)
-		return;
-	const int left = InvestGroupLeft();
-	const int invested = player._pSkillInvestment[static_cast<size_t>(sn)];
-	if (invested > 0) {
-		// The sunk points, said plainly and always - the "+" comes and goes with the unspent pool,
-		// but what a skill has already been fed is permanent information.
-		DrawString(content, fmt::format("+{:d}", invested),
-		    { { left, top }, { InvestCountWidth, rowHeight } },
-		    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
-	}
-	if (!oracool::CanInvestSkillPoint(player, sn))
-		return;
-	const Rectangle button = InvestButtonRect(top, rowHeight);
-	oracool::DrawHoverOutline(content, button);
-	DrawString(content, "+", button,
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-}
+// The old right-edge invest group - a "+N" readout and a 22x22 gold "+" parked against the
+// scrollbar - is gone (user, 2026-08-19). Both sheets now spend on the icon itself: plus at the
+// bottom-right, minus at the bottom-left, the level between them. See DrawSpellRow and DrawTreeCell,
+// which are now the same control drawn twice rather than two different ones.
 
 void DrawFKeyBadge(const Surface &out, Rectangle iconRect, SpellID sn); // defined with the tree helpers below
+// The spend corners, shared with the tree - see their definitions below for the 13x13 hit box.
+Rectangle SpendPlusRect(Rectangle icon);
+Rectangle SpendMinusRect(Rectangle icon);
+void DrawSpendGlyph(const Surface &out, Rectangle box, bool plus);
+
+/** @brief The row's 56x56 icon square, in content-local coordinates. */
+Rectangle SpellRowIconRect(int top)
+{
+	return { { AbilitiesIconX, top + (SpellRowHeight - SheetIconSize) / 2 }, { SheetIconSize, SheetIconSize } };
+}
 
 void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 {
 	Player &player = *InspectPlayer;
-	const Size iconSize = GetSmallSpellIconSize();
 	const int textX = RowTextX();
 	const int textWidth = AbilitiesContentRightLimit - textX;
 	const bool known = IsSpellKnown(sn);
@@ -782,14 +756,15 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// second set of art, and it is the same grey the game already uses for a spell you cannot cast.
 	SetSpellTrans(known ? GetSBookTrans(sn, true) : SpellType::Invalid);
 
-	// DrawSmallSpellIcon takes a BOTTOM-left origin, so this centres the icon in the row.
-	const Point iconPos { AbilitiesIconX, top + (SpellRowHeight + iconSize.height) / 2 };
+	// Scaled to the sheet's icon square. The engine's spell icons carry their own bevelled plate in
+	// the art, so background and symbol scale together and there is nothing to draw underneath -
+	// unlike a tree cell, where the plate is a separate sprite behind a strip icon.
+	const Rectangle iconRect = SpellRowIconRect(top);
 	// Oracool: user request - the book must show the same borrowed icon Furious Charge uses
 	// everywhere else, not the vanilla Item Repair icon.
-	DrawSmallSpellIcon(content, iconPos, oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
+	DrawSmallSpellIconFittedTo(content, iconRect,
+	    oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
 	if (known) {
-		// iconPos is a BOTTOM-left anchor; the rings want the top-left rect.
-		const Rectangle iconRect { { iconPos.x, iconPos.y - iconSize.height + 1 }, iconSize };
 		DrawAssignmentRings(content, iconRect, sn, GetSBookTrans(sn, true));
 		DrawFKeyBadge(content, iconRect, sn);
 	}
@@ -804,32 +779,44 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	    { { textX, textTop + AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
 	    { detailColor | UiFlags::VerticalCenter });
 
-	DrawInvestControls(content, top, SpellRowHeight, sn);
+	// The spend controls live ON the icon now, exactly as they do on a tree cell (user, 2026-08-19):
+	// green plus bottom-right, red minus bottom-left, the invested level between them on the bottom
+	// edge. The old [+N][+] group at the row's right edge is gone with them - two spellings of the
+	// same control on two sheets was the inconsistency.
+	if (IsInspectingPlayer())
+		return;
+	const Player &me = *MyPlayer;
+	const int invested = me._pSkillInvestment[static_cast<size_t>(sn)];
+	if (invested > 0) {
+		DrawString(content, fmt::format("{:d}", invested),
+		    { { iconRect.position.x + SpendBoxSize, iconRect.position.y + SheetIconSize - SpendBoxSize },
+		        { SheetIconSize - 2 * SpendBoxSize, SpendBoxSize } },
+		    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
+	// An unlearned row takes no points, and says so by offering no plus - the same rule the tree's
+	// unbuilt rows follow.
+	if (oracool::CanInvestSkillPoint(me, sn))
+		DrawSpendGlyph(content, SpendPlusRect(iconRect), true);
+	if (oracool::CanRefundSkillPoint(me, sn))
+		DrawSpendGlyph(content, SpendMinusRect(iconRect), false);
 }
 
 
-/**
- * @brief The invisible hit box for a spend glyph - 13x13 (user, 2026-08-17).
- *
- * "Invisible frame" is exact: the box is the CLICK target and the glyph is drawn inside it with a
- * margin, so the bars are 4-5px thick as asked without the target shrinking to the bars themselves.
- */
-constexpr int SpendBoxSize = 13;
 /** @brief Thickness of the plus/minus bars. */
 constexpr int SpendBarThickness = 4;
 
 /** @brief Bottom-RIGHT of the icon: spend a point here. */
 Rectangle SpendPlusRect(Rectangle icon)
 {
-	return { { icon.position.x + TreeIconSize - SpendBoxSize,
-		         icon.position.y + TreeIconSize - SpendBoxSize },
+	return { { icon.position.x + icon.size.width - SpendBoxSize,
+		         icon.position.y + icon.size.height - SpendBoxSize },
 		{ SpendBoxSize, SpendBoxSize } };
 }
 
 /** @brief Bottom-LEFT of the icon: take one back. */
 Rectangle SpendMinusRect(Rectangle icon)
 {
-	return { { icon.position.x, icon.position.y + TreeIconSize - SpendBoxSize },
+	return { { icon.position.x, icon.position.y + icon.size.height - SpendBoxSize },
 		{ SpendBoxSize, SpendBoxSize } };
 }
 
@@ -1523,9 +1510,6 @@ void CheckSBook(bool assignToRightButton)
 
 	UpdateScrollBounds();
 	const int y = MousePosition.y - content.position.y + CurrentScroll();
-	// Phase 2.1: whether this click landed on the row's invest button rather than the row itself.
-	const bool investClick = InvestZoneClicked(MousePosition.x - content.position.x);
-
 	// The tree: the counter under an icon spends a point into it; the icon itself readies an active
 	// skill on the clicked button, or lights an aura. Two targets rather than one gesture with a
 	// modifier, so neither action can be taken by accident while reaching for the other.
@@ -1609,6 +1593,8 @@ void CheckSBook(bool assignToRightButton)
 		    ? SpellType::Skill
 		    : SpellType::Spell;
 		if (assignToRightButton) {
+			// The aura and the right button are one slot - see ClearClassAuraForRightButton.
+			oracool::ClearClassAuraForRightButton(treePlayer);
 			treePlayer._pRSpell = treeSpell;
 			treePlayer._pRSplType = treeType;
 		} else {
@@ -1627,7 +1613,17 @@ void CheckSBook(bool assignToRightButton)
 		if (rowIndex >= rowCount)
 			return;
 		sn = rows[rowIndex];
-		if (investClick && oracool::InvestSkillPoint(*MyPlayer, sn)) {
+		// The spend corners, tested BEFORE the row's own action because they sit inside the icon -
+		// the same order and the same boxes as a tree cell (user, 2026-08-19). A click in the
+		// bottom-left is a refund, not a "ready this spell".
+		const Rectangle iconRect = SpellRowIconRect(
+		    static_cast<int>(rowIndex) * RowHeightFor(CurrentSheet));
+		const Point local { MousePosition.x - content.position.x, y };
+		if (SpendPlusRect(iconRect).contains(local) && oracool::InvestSkillPoint(*MyPlayer, sn)) {
+			RedrawEverything();
+			return;
+		}
+		if (SpendMinusRect(iconRect).contains(local) && oracool::RefundSkillPoint(*MyPlayer, sn)) {
 			RedrawEverything();
 			return;
 		}
@@ -1653,6 +1649,7 @@ void CheckSBook(bool assignToRightButton)
 	// how this game closes one. It turns out not to be here - RightMouseDown's only response to a
 	// click inside the Abilities window was to return - so the obvious gesture was free all along.
 	if (assignToRightButton) {
+		oracool::ClearClassAuraForRightButton(player);
 		player._pRSpell = sn;
 		player._pRSplType = st;
 	} else {

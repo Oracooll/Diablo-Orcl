@@ -100,19 +100,14 @@ void DrawSpell(const Surface &out)
 	if (talkflag)
 		return;
 
-	// A LIT AURA is reported here, but it does NOT own the well.
+	// A LIT AURA never reaches this function's own drawing, and does not need to: lighting one clears
+	// _pRSpell, so the no-spell-readied branch below runs and DrawRmbSkillWell paints the aura at
+	// full size. See ClearClassAuraForRightButton for why the two cannot both be here.
 	//
-	// It did for one version, and that was the bug behind "combat skills don't assign to RMB" and
-	// "I can't assign Regular Attack to RMB" (user, 2026-08-18): with an aura burning, this function
-	// drew the aura and RETURNED, so every later assignment was invisible. The assignment had worked
-	// the whole time - the well was just refusing to show it.
-	//
-	// A corner badge instead. An aura has no SpellID and can never be the readied spell, so it has
-	// no claim on the slot's main face; what it needs is to be visible, which a badge does without
-	// taking the well away from the thing the button will actually do.
-	//
-	// Drawn by DrawRmbAuraBadge below, called after this function so it lands on top of whichever
-	// icon this one chose - including the early-return path where nothing is readied.
+	// The history is worth keeping: for one version the aura drew HERE and returned, which hid every
+	// skill readied afterwards ("combat skills don't assign to RMB"); for the next it wore a corner
+	// badge over the skill, which the user read as the aura failing to land at all. One slot, one
+	// occupant, is the version that answers both.
 	SpellID spl = myPlayer._pRSpell;
 	SpellType st = myPlayer._pRSplType;
 
@@ -136,23 +131,12 @@ void DrawSpell(const Surface &out)
 	if (leveltype == DTYPE_TOWN && st != SpellType::Invalid && !GetSpellData(spl).isAllowedInTown())
 		st = SpellType::Invalid;
 
-	// Oracool: HUD art pass - the plate art (assets/ui/middle_hud.png) frames the RMB well, so the
-	// icon draws bare, centred inside it. The plate's wells fit the engine's SMALL spell icon, not
-	// the 56px large one (small icons are always loaded in-game via InitSpellBook's
-	// LoadSmallSpellIcons). The sprite's real dimensions are queried rather than assumed - only its
-	// width is fixed by the CEL load call, and hardcoding a guessed height left the icon
-	// visibly off-centre in the well.
-	const Rectangle rmbWell = oracool::GetRmbSkillButtonRect();
-	const Size iconSize = GetSmallSpellIconSize();
-	const int SmallIconHeight = iconSize.height;
-	// Oracool: user tuning (2026-08-11) - like the belt item sprites, the spell icon's artwork is
-	// not centred within its own sprite bounds, so geometric centring still reads slightly high and
-	// left. Nudged by eye against the art.
-	constexpr Displacement RmbIconNudge { 1, 3 };
-	// Draw(Small)SpellIcon anchors at the sprite's bottom-left.
-	const Point position = rmbWell.position + RmbIconNudge
-	    + Displacement { (rmbWell.size.width - iconSize.width) / 2,
-		      (rmbWell.size.height - iconSize.height) / 2 + iconSize.height - 1 };
+	// The NET rect, exactly like every other well draw (user, 2026-08-19: "spells icons and
+	// background also need to respect the 46x46px size and also align where other abilities will
+	// align"). This path used to compute its own geometry from the button rect plus a hand nudge, so
+	// a readied SPELL sat a few pixels off from a readied SKILL in the same hole. The nudge moved to
+	// GetRmbSkillWellNetRect itself, where one correction serves all of them.
+	const Rectangle net = oracool::GetRmbSkillWellNetRect();
 
 	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (see
 	// FuriousChargeIcon - there's no dedicated art for a mod-only skill) instead of the normal
@@ -165,8 +149,8 @@ void DrawSpell(const Surface &out)
 	// happens right here instead, still asking the engine's icon sheet, where these skills have no
 	// frame and SpellITbl points at the empty plate. So the ask has to be repeated on this path.
 	//
-	// The strip icons anchor TOP-left where DrawSmallSpellIcon anchors bottom-left.
-	const Point iconTopLeft { position.x, position.y - SmallIconHeight + 1 };
+	// The strip icons anchor TOP-left where DrawSmallSpellIcon anchors bottom-left; the net rect is
+	// top-left, so the cooldown overlay below works from it directly.
 
 	// Oracool: user request (2026-08-16) - "skills unable to perform due to whatever reason to have
 	// their background turned into pink until able to perform again." For a Paladin skill the answer
@@ -181,56 +165,39 @@ void DrawSpell(const Surface &out)
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
 		SetSpellTrans(st);
-		if (!oracool::TryDrawSkillSpellIcon(out, oracool::GetRmbSkillWellNetRect(), spl, wellTint))
-			DrawSmallSpellIcon(out, position, oracool::FuriousChargeIcon);
+		if (!oracool::TryDrawSkillSpellIcon(out, net, spl, wellTint))
+			DrawSmallSpellIconFittedTo(out, net, oracool::FuriousChargeIcon);
 		if (progress < 1.0f) {
 			// The cooldown still reads as a fill rising from the bottom, but as a DARKENED band over
 			// the part not yet cooled rather than as two differently-tinted copies of the sprite. The
 			// two-copy trick needed a single-ramp CLX to recolour; Charge's icon is a blitted image
 			// now, with no ramp to remap, and an overlay works on any art the user ships next.
-			const int cooled = static_cast<int>(SmallIconHeight * progress);
-			if (cooled < SmallIconHeight)
-				DrawHalfTransparentRectTo(out, iconTopLeft.x, iconTopLeft.y, iconSize.width, SmallIconHeight - cooled);
+			const int cooled = static_cast<int>(net.size.height * progress);
+			if (cooled < net.size.height)
+				DrawHalfTransparentRectTo(out, net.position.x, net.position.y, net.size.width,
+				    net.size.height - cooled);
 		}
-	} else if (!oracool::TryDrawSkillSpellIcon(out, oracool::GetRmbSkillWellNetRect(), spl, wellTint)) {
+	} else if (!oracool::TryDrawSkillSpellIcon(out, net, spl, wellTint)) {
 		// The engine-spell equivalent of the pink plate: st has already been downgraded to Invalid by
 		// the checks above when the spell cannot be cast, and the Scroll table is the beige/pink ramp.
 		SetSpellTrans(st == SpellType::Invalid ? SpellType::Scroll : st);
-		DrawSmallSpellIcon(out, position, spl);
+		DrawSmallSpellIconFittedTo(out, net, spl);
 	}
 
 	std::optional<string_view> hotkeyName = GetHotkeyName(spl, myPlayer._pRSplType, true);
 	if (hotkeyName) {
-		// PrintSBookHotkey aligns against the 56px large icon; this slot draws the small one, so
-		// align to its top-right corner directly.
-		const Point hotkeyPosition = position + Displacement { iconSize.width - (GetLineWidth(hotkeyName->data()) + 4), 5 - SmallIconHeight };
+		// PrintSBookHotkey aligns against the 56px large icon; this slot draws into the net rect, so
+		// align to that rect's top-right corner directly.
+		const Point hotkeyPosition = net.position
+		    + Displacement { net.size.width - (GetLineWidth(hotkeyName->data()) + 4), 4 };
 		DrawString(out, *hotkeyName, hotkeyPosition, { UiFlags::ColorWhite | UiFlags::Outlined });
 	}
 }
 
-void DrawRmbAuraBadge(const Surface &out)
-{
-	if (talkflag)
-		return;
-	Player &myPlayer = *MyPlayer;
-	const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(myPlayer);
-	if (aura == oracool::ClassTreeSkill::None)
-		return;
-
-	// A small square in the well's TOP-LEFT, inside the net area so it never touches the bezel. The
-	// top-right is the F-key badge's corner on the Abilities window's icons, so the aura takes the
-	// other one and the two conventions do not collide.
-	const Rectangle net = oracool::GetRmbSkillWellNetRect();
-	constexpr int BadgeSize = 14;
-	const Rectangle badge { net.position, { BadgeSize, BadgeSize } };
-	DrawHalfTransparentRectTo(out, badge.position.x, badge.position.y, badge.size.width, badge.size.height);
-	oracool::DrawColoredOutline(out, badge, oracool::ThemeEdgeColor);
-	// The aura's own initial rather than its icon: at 14px a tree cell would be unreadable, and the
-	// point of the badge is only "an aura is burning, and which".
-	const string_view name = _(oracool::GetClassTreeSkillData(aura).name);
-	DrawString(out, name.substr(0, 1), badge,
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-}
+// DrawRmbAuraBadge is gone (user, 2026-08-19: "whenever an aura lands on RMB a letter appears on top
+// corner of RMB slot. why?"). It was the compromise for an aura and a readied skill sharing one well;
+// they no longer share it - see ClearClassAuraForRightButton - so the well simply shows its occupant,
+// aura or skill, at full size and with nothing stuck to the corner.
 
 void DrawSpellList(const Surface &out)
 {
@@ -394,6 +361,8 @@ void SetSpell()
 	}
 
 	Player &myPlayer = *MyPlayer;
+	// The aura and the right button are one slot - see ClearClassAuraForRightButton.
+	oracool::ClearClassAuraForRightButton(myPlayer);
 	myPlayer._pRSpell = pSpell;
 	myPlayer._pRSplType = pSplType;
 
@@ -453,6 +422,7 @@ void ToggleSpell(size_t slot)
 	}
 
 	if ((spells & GetSpellBitmask(spellId)) != 0) {
+		oracool::ClearClassAuraForRightButton(myPlayer);
 		myPlayer._pRSpell = spellId;
 		myPlayer._pRSplType = myPlayer._pSplTHotKey[slot];
 		RedrawEverything();

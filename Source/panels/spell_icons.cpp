@@ -345,7 +345,7 @@ void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell)
 	ClxDrawTRN(out, { centred.x, centred.y + static_cast<int>(plate.height()) - 1 }, plate, SplTransTbl);
 }
 
-void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell)
+void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell)
 {
 	if (!SmallSpellIcons)
 		return;
@@ -361,7 +361,7 @@ void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell)
 	const int percent = std::min(cell.size.width * 100 / natural.width,
 	    cell.size.height * 100 / natural.height);
 	if (percent <= 100) {
-		DrawSmallSpellIcon(out, { cell.position.x, cell.position.y + natural.height - 1 }, SpellID::Null);
+		DrawSmallSpellIcon(out, { cell.position.x, cell.position.y + natural.height - 1 }, spell);
 		return;
 	}
 
@@ -373,7 +373,7 @@ void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell)
 		fittedPercent = clamped;
 	}
 
-	const ClxSprite plate = (*fitted)[SpellITbl[static_cast<int8_t>(SpellID::Null)]];
+	const ClxSprite plate = (*fitted)[SpellITbl[static_cast<int8_t>(spell)]];
 	const Point centred { cell.position.x + (cell.size.width - static_cast<int>(plate.width())) / 2,
 		cell.position.y + (cell.size.height - static_cast<int>(plate.height())) / 2 };
 	ClxDrawTRN(out, { centred.x, centred.y + static_cast<int>(plate.height()) - 1 }, plate, SplTransTbl);

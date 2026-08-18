@@ -46,6 +46,32 @@ bool InvestSkillPoint(Player &player, SpellID spell)
 	return true;
 }
 
+bool CanRefundSkillPoint(const Player &player, SpellID spell)
+{
+	if (spell == SpellID::Invalid || static_cast<size_t>(spell) >= MAX_SPELLS)
+		return false;
+	// Deliberately NOT gated on IsSkillInvestable. A spell can stop being investable - a scroll-only
+	// spell forgotten, an ability lost with the equipment that granted it - and the points already
+	// sunk into it must still be recoverable, or they are stranded.
+	return player._pSkillInvestment[static_cast<size_t>(spell)] > 0;
+}
+
+bool RefundSkillPoint(Player &player, SpellID spell)
+{
+	if (!CanRefundSkillPoint(player, spell))
+		return false;
+	player._pSkillInvestment[static_cast<size_t>(spell)]--;
+	player._pUnspentSkillPoints = static_cast<uint16_t>(
+	    std::min<int>(player._pUnspentSkillPoints + 1, UINT16_MAX));
+	if (&player == MyPlayer) {
+		LogEvent(fmt::format("{:s} lowered to {:d}",
+		             std::string(GetSpellData(spell).sNameText),
+		             int(player._pSkillInvestment[static_cast<size_t>(spell)])),
+		    UiFlags::ColorWhitegold);
+	}
+	return true;
+}
+
 int TotalInvestedSkillPoints(const Player &player)
 {
 	// BOTH stores. Class-tree skills with a SpellID keep their points in _pSkillInvestment (where

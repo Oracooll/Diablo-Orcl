@@ -416,6 +416,20 @@ ClassTreeSkill GetActiveClassAura(const Player &player);
 bool ToggleClassAura(Player &player, ClassTreeSkill skill);
 
 /**
+ * @brief Puts out whatever aura is burning, because the right button has just been given a skill.
+ *
+ * The aura and the readied right-button skill are ONE slot (user, 2026-08-19: "if i put a combat
+ * skill on RMB i cant seem to put an aura there. if i put reg attack then i AM able"). D2 works the
+ * same way - an aura is what the right button is set to, not a badge riding along beside it - and the
+ * alternative was the state that broke v1.7.91, where an aura sat on the well and hid every skill
+ * readied afterwards.
+ *
+ * So: lighting an aura clears the readied right-button skill (ToggleClassAura does that end), and
+ * readying a right-button skill calls this. No third state, and nothing invisible.
+ */
+void ClearClassAuraForRightButton(Player &player);
+
+/**
  * @brief Contributes the burning aura AND every paid-for passive onto @p totals. Auras scale with
  * the points in them; passives are always on once bought. Effects this engine has no channel for
  * contribute nothing.

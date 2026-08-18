@@ -1088,6 +1088,16 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 
 	switch (event.type) {
 	case SDL_KEYDOWN: {
+		// Auto-repeat is dropped for the four reserved keys (user, 2026-08-19: "when i press F12 game
+		// takes two screenshots"). CaptureScreen blocks for 300ms inside SDL_Delay while it restores
+		// the palette, so an ordinary press is still held when the handler returns - long enough for
+		// the OS to have queued a repeat, which then captured a second file. The same reasoning
+		// covers F9/F10, where a repeat would silently step the speed twice per press.
+		//
+		// Only these four: a held movement or hotkey key SHOULD repeat, which is why this is not a
+		// blanket filter on event.key.repeat.
+		if (event.key.repeat != 0 && event.key.keysym.sym >= SDLK_F9 && event.key.keysym.sym <= SDLK_F12)
+			return;
 		PressKey(event.key.keysym.sym, modState);
 		return;
 	}

@@ -137,12 +137,9 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// on the Abilities window, and one colour meaning two things is how the confusion started. The
 	// Scroll table is the engine's own beige/pink mapping.
 	SetSpellTrans(usable ? type : SpellType::Scroll);
-	const Size iconSize = GetSmallSpellIconSize();
-	// The engine's icon is bottom-left anchored and smaller than the net opening, so it is centred in
-	// it by hand rather than drawn at the well's corner.
-	const Point origin { net.position.x + (net.size.width - iconSize.width) / 2,
-		net.position.y + (net.size.height - iconSize.height) / 2 };
-	DrawSmallSpellIcon(out, { origin.x, origin.y + iconSize.height - 1 }, spell);
+	// Scaled into the net rect like everything else, so a readied SPELL sits exactly where a readied
+	// skill would (user, 2026-08-19).
+	DrawSmallSpellIconFittedTo(out, net, spell);
 }
 
 void DrawLmbSkillWell(const Surface &out)
@@ -257,19 +254,16 @@ void DrawRmbSkillWell(const Surface &out)
 {
 	if (WellIconSize().width == 0)
 		return;
-	// A lit AURA takes this well's face when nothing is readied on the button (user, 2026-08-18:
-	// "auras don't land anywhere"). An aura carries no SpellID - it is a toggle, not a cast - so it
-	// can never arrive here as _pRSpell, and lighting one used to change nothing on the HUD at all.
+	// A lit AURA is this well's occupant, at full size (user, 2026-08-18: "auras don't land
+	// anywhere"). An aura carries no SpellID - it is a toggle, not a cast - so it can never arrive
+	// here as _pRSpell, and lighting one used to change nothing on the HUD at all.
 	//
-	// Only when the slot is otherwise EMPTY. A readied skill still owns the face it will be cast
-	// from; the aura keeps its corner badge over it (see DrawRmbAuraBadge). That order is the lesson
-	// of v1.7.91, where the aura took the well unconditionally and hid every later assignment.
-	if (!IsValidSpell(MyPlayer->_pRSpell)) {
-		if (const ClassTreeSkill aura = GetActiveClassAura(*MyPlayer); aura != ClassTreeSkill::None) {
-			DrawClassTreeSkillInWell(out, GetRmbSkillWellNetRect(), MyPlayer->_pClass,
-			    ClassTreeIconIndex(aura));
-			return;
-		}
+	// No coexistence to arbitrate: lighting an aura clears the readied skill and readying a skill
+	// puts the aura out, so at most one of them is ever here. See ClearClassAuraForRightButton.
+	if (const ClassTreeSkill aura = GetActiveClassAura(*MyPlayer); aura != ClassTreeSkill::None) {
+		DrawClassTreeSkillInWell(out, GetRmbSkillWellNetRect(), MyPlayer->_pClass,
+		    ClassTreeIconIndex(aura));
+		return;
 	}
 	DrawWellIcon(out, GetRmbSkillWellNetRect(), MyPlayer->_pRSpell, MyPlayer->_pRSplType);
 }

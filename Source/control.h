@@ -209,7 +209,6 @@ void control_update_life_mana();
  * @param out screen buffer representing the main UI panel
  */
 void DrawSpell(const Surface &out);
-void DrawRmbAuraBadge(const Surface &out);
 
 void InitControlPan();
 

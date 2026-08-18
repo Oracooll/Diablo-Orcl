@@ -801,6 +801,12 @@ bool ToggleClassAura(Player &player, Skill skill)
 	if (!switchingOff && ClassTreeInvestment(player, skill) <= 0)
 		return false;
 	player._pOracoolActiveAura = static_cast<uint8_t>(switchingOff ? Skill::None : skill);
+	// The aura IS the right button's setting, so lighting one clears whatever skill was readied
+	// there. See ClearClassAuraForRightButton for the other half and the reasoning.
+	if (!switchingOff) {
+		player._pRSpell = SpellID::Invalid;
+		player._pRSplType = SpellType::Invalid;
+	}
 	if (&player == MyPlayer) {
 		const char *name = GetClassTreeSkillData(skill).name;
 		LogEvent(switchingOff ? fmt::format("{:s} fades", std::string(_(name)))
@@ -815,6 +821,17 @@ bool ToggleClassAura(Player &player, Skill skill)
 			StartClassAuraLoop(skill);
 	}
 	return true;
+}
+
+void ClearClassAuraForRightButton(Player &player)
+{
+	if (GetActiveClassAura(player) == Skill::None)
+		return;
+	player._pOracoolActiveAura = static_cast<uint8_t>(Skill::None);
+	if (&player == MyPlayer)
+		StopClassAuraLoop();
+	// No "fades" line here. The player is looking at the skill they just readied, and the aura going
+	// out is the visible half of that one action rather than a second event.
 }
 
 void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)

@@ -81,7 +81,7 @@ void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell);
  *
  * For the LMB/RMB wells, whose cell is the net opening between the bezels.
  */
-void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell);
+void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell = SpellID::Null);
 
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();
