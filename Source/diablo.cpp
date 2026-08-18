@@ -802,12 +802,16 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 		return;
 	}
 
-	// Oracool: F1-F6 are the ability hotkeys, reserved outright (user, 2026-08-17: "F1-F6 to be
-	// available for hotkeying, ergo not be used in any other way in the game"). Intercepted BEFORE
-	// the keymapper so no ini row - the old Help=F1 and QuickSpell=F5..F8 defaults a settled install
-	// still carries - can double-book them. Help and the quick-spell actions remain in the
-	// keymapper, default-unbound, for anyone who wants them on other keys.
-	if (vkey >= SDLK_F1 && vkey <= SDLK_F6 && CanPlayerTakeAction()) {
+	// Oracool: F1-F8 are the ability hotkeys, reserved outright (user, 2026-08-17: "F1-F6 to be
+	// available for hotkeying, ergo not be used in any other way in the game"; widened to F8 on
+	// 2026-08-18). Intercepted BEFORE the keymapper, which is also what makes them UNREMAPPABLE as
+	// requested: the keymapper never sees the press, so no ini row - not the old Help=F1 or
+	// QuickSpell=F5..F8 defaults a settled install still carries, and not one the user could add from
+	// the Keymapping screen - can double-book them. Help and the quick-spell actions remain listed
+	// there, default-unbound, for anyone who wants them on other keys.
+	//
+	// SHIFT selects the LEFT button's binding; the bare key is the right's. See HandleAbilityFKey.
+	if (vkey >= SDLK_F1 && vkey <= SDLK_F8 && CanPlayerTakeAction()) {
 		HandleAbilityFKey(static_cast<size_t>(vkey - SDLK_F1), (modState & KMOD_SHIFT) != 0);
 		return;
 	}

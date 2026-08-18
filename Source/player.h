@@ -467,6 +467,16 @@ struct Player {
 	SpellFlag _pSpellFlags;
 	SpellID _pSplHotKey[NumHotkeys];
 	SpellType _pSplTHotKey[NumHotkeys];
+	/**
+	 * Oracool: the LEFT-button half of the same hotkeys (user request, 2026-08-18). F1-F8 bind to
+	 * the right button; LShift+F1-F8 bind the same keys to the left. Two arrays rather than one
+	 * array of pairs, because the vanilla pair above is load-bearing everywhere ToggleSpell runs
+	 * and widening it would have touched every one of those sites to say "the right one".
+	 *
+	 * Persisted by its own hero chunk, HeroChunkSpellHotkeysLeft - see oracool/hero_chunks.cpp.
+	 */
+	SpellID _pSplLHotKey[NumHotkeys];
+	SpellType _pSplLTHotKey[NumHotkeys];
 	bool _pBlockFlag;
 	bool _pInvincible;
 	int8_t _pLightRad;

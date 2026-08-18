@@ -165,6 +165,14 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		EndChunk(out, at);
 	}
 
+	{
+		const size_t at = BeginChunk(out, HeroChunkSpellHotkeysLeft);
+		out.push_back(static_cast<uint8_t>(AbilityFKeyCount));
+		for (size_t i = 0; i < AbilityFKeyCount; i++)
+			out.push_back(PackReadiedSpell(player._pSplLHotKey[i]));
+		EndChunk(out, at);
+	}
+
 	return out;
 }
 
@@ -220,6 +228,20 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			break;
 		case HeroChunkClassTree:
 			ApplyClassTree(player, payload, chunkLen);
+			break;
+		case HeroChunkSpellHotkeysLeft:
+			if (chunkLen >= 1) {
+				const size_t count = std::min<size_t>({ payload[0], chunkLen - 1, AbilityFKeyCount });
+				for (size_t i = 0; i < count; i++) {
+					SpellID spell = SpellID::Invalid;
+					SpellType type = SpellType::Invalid;
+					UnpackReadiedSpell(player, payload[1 + i], spell, type);
+					if (IsValidSpell(spell)) {
+						player._pSplLHotKey[i] = spell;
+						player._pSplLTHotKey[i] = type;
+					}
+				}
+			}
 			break;
 		case HeroChunkSpellHotkeys:
 			if (chunkLen >= 1) {

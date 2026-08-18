@@ -875,29 +875,41 @@ void DrawSpendGlyph(const Surface &out, Rectangle box, bool plus)
  */
 SpellID HoveredAbilitySpell = SpellID::Invalid;
 
-/** @brief Which of the six F-keys @p sn is bound to (1-6), or 0. The lowest slot wins a double. */
-int AssignedFKeyNumber(SpellID sn)
+/** @brief Which F-key @p sn is bound to on @p leftButton's side (1-8), or 0. Lowest slot wins. */
+int AssignedFKeyNumber(SpellID sn, bool leftButton)
 {
+	const SpellID *keys = leftButton ? MyPlayer->_pSplLHotKey : MyPlayer->_pSplHotKey;
 	for (size_t i = 0; i < AbilityFKeyCount; i++) {
-		if (MyPlayer->_pSplHotKey[i] == sn)
+		if (keys[i] == sn)
 			return static_cast<int>(i) + 1;
 	}
 	return 0;
 }
 
 /**
- * @brief The "F1".."F6" badge in a 13x13 invisible frame at the icon's top-RIGHT corner (user,
- * 2026-08-17: "a Font 12 'FX' 13x13 invisible frame box be put in top right corner").
+ * @brief The "F1".."F8" badges in 13x13 invisible frames at the icon's top corners.
+ *
+ * TOP-RIGHT is the right button's binding, TOP-LEFT the left's (user, 2026-08-18) - the same
+ * left-is-left, right-is-right convention the assignment rings already use, so a glance at an icon
+ * reads the same way in both markers. Both can be present at once: a skill may be on F3 for the
+ * right hand and F5 for the left, and the two corners say so without either having to be a compound
+ * label.
+ *
+ * The colours are the rings' too: red for the left button, yellow for the right.
  */
 void DrawFKeyBadge(const Surface &out, Rectangle iconRect, SpellID sn)
 {
-	const int fkey = AssignedFKeyNumber(sn);
-	if (fkey == 0)
-		return;
-	const Rectangle box { { iconRect.position.x + iconRect.size.width - SpendBoxSize, iconRect.position.y },
-		{ SpendBoxSize, SpendBoxSize } };
-	DrawString(out, fmt::format("F{:d}", fkey), box,
-	    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	if (const int right = AssignedFKeyNumber(sn, /*leftButton=*/false); right != 0) {
+		const Rectangle box { { iconRect.position.x + iconRect.size.width - SpendBoxSize, iconRect.position.y },
+			{ SpendBoxSize, SpendBoxSize } };
+		DrawString(out, fmt::format("F{:d}", right), box,
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
+	if (const int left = AssignedFKeyNumber(sn, /*leftButton=*/true); left != 0) {
+		const Rectangle box { iconRect.position, { SpendBoxSize, SpendBoxSize } };
+		DrawString(out, fmt::format("F{:d}", left), box,
+		    { UiFlags::ColorRed | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
 }
 
 /**
@@ -1048,60 +1060,100 @@ Rectangle GetSpellBookContentRect()
 	return { { panel.position.x, panel.position.y + AbilitiesContentTop }, AbilitiesContentSize };
 }
 
+/**
+ * @brief Derives a binding's TYPE from the spell's identity, never from its momentary castability.
+ *
+ * GetSBookTrans folds "can you cast it right now" into its answer (audit, 2026-08-17): a memorized
+ * spell bound while the mana happened to be short came back SpellType::Invalid, and the binding
+ * stored it - so the key stayed dead after the mana returned, wearing its badge the whole time. A
+ * binding outlives the moment it was made in. Charges joined in the external-audit round: a
+ * staff-only spell typed as Spell casts down the memorized path and dies on the Fail_Level0 gate
+ * while the staff sits charged in hand.
+ */
+SpellType BindingTypeFor(const Player &player, SpellID spell)
+{
+	const uint64_t bit = GetSpellBitmask(spell);
+	if ((player._pAblSpells & bit) != 0)
+		return SpellType::Skill;
+	if ((player._pMemSpells & bit) != 0)
+		return SpellType::Spell;
+	if ((player._pISpells & bit) != 0)
+		return SpellType::Charges;
+	return SpellType::Spell;
+}
+
+/**
+ * @brief Strips @p spell out of every hotkey slot on BOTH buttons.
+ *
+ * User request (2026-08-18): "a single hotkey can not be assigned on more than 1 skill and on more
+ * than one skill slot." Enforced by clearing rather than by refusing: a key you press over a skill
+ * should end up on that skill, and the cost of moving it is the old binding going quiet. Refusing
+ * instead would mean silently doing nothing, which is the failure mode this whole item exists to
+ * remove.
+ *
+ * Both arrays are swept, not just the one being written, so a skill cannot sit on F3-left and
+ * F5-right at once and leave the player guessing which badge is authoritative.
+ */
+void ClearSpellFromHotkeys(Player &player, SpellID spell)
+{
+	for (size_t i = 0; i < AbilityFKeyCount; i++) {
+		if (player._pSplHotKey[i] == spell) {
+			player._pSplHotKey[i] = SpellID::Invalid;
+			player._pSplTHotKey[i] = SpellType::Invalid;
+		}
+		if (player._pSplLHotKey[i] == spell) {
+			player._pSplLHotKey[i] = SpellID::Invalid;
+			player._pSplLTHotKey[i] = SpellType::Invalid;
+		}
+	}
+}
+
 bool HandleAbilityFKey(size_t slot, bool shift)
 {
 	if (slot >= AbilityFKeyCount)
 		return false;
 	Player &me = *MyPlayer;
 
-	// With the window open, an F-key EDITS bindings rather than using them (user, 2026-08-17:
-	// "Assigning hotkeys is by clicking F1-F6 while hovering over a skill/spell. SHIFT+Hotkey
-	// unassignes"). The key is consumed even when nothing is hovered - a bind key that fell
-	// through to casting mid-edit would be worse than one that does nothing.
+	// Which button this press is about. Bare key = right, LShift+key = left (user, 2026-08-18).
+	SpellID *keys = shift ? me._pSplLHotKey : me._pSplHotKey;
+	SpellType *types = shift ? me._pSplLTHotKey : me._pSplTHotKey;
+
+	// With the window open, an F-key EDITS bindings rather than using them. The key is consumed even
+	// when nothing is hovered - a bind key that fell through to casting mid-edit would be worse than
+	// one that does nothing.
 	if (sbookflag && !IsInspectingPlayer()) {
-		// SHIFT+FX clears slot X, full stop - whatever the cursor is over, including nothing
-		// (external audit, 2026-08-17: the old form only cleared while hovering the exact bound
-		// ability, and silently swallowed the press everywhere else - an "unassign" that mostly
-		// did not).
-		if (shift) {
-			if (IsValidSpell(me._pSplHotKey[slot])) {
-				me._pSplHotKey[slot] = SpellID::Invalid;
-				RedrawEverything();
-			}
-			return true;
-		}
 		const SpellID spell = HoveredAbilitySpell;
 		if (!IsValidSpell(spell))
 			return true;
-		if (me._pSplHotKey[slot] == spell) {
-			// Pressing a key on the ability that already holds it also clears - the vanilla
-			// speedbook's own toggle, kept because it costs nothing.
-			me._pSplHotKey[slot] = SpellID::Invalid;
+		if (keys[slot] == spell) {
+			// The same key on the same skill takes it back off - assign and remove are one gesture
+			// per button (user, 2026-08-18: "press hotkey again when mouse hovering over").
+			keys[slot] = SpellID::Invalid;
+			types[slot] = SpellType::Invalid;
 			RedrawEverything();
 			return true;
 		}
-		me._pSplHotKey[slot] = spell;
-		// The type is the spell's IDENTITY - innate Skill, memorized Spell, or a staff's Charges -
-		// never GetSBookTrans's verdict. That function folds MOMENTARY castability into its answer
-		// (audit, 2026-08-17): a memorized spell bound while the mana happened to be short came
-		// back SpellType::Invalid, and the binding stored it - so the F-key stayed dead after the
-		// mana returned, wearing its badge the whole time. A binding outlives the moment it was
-		// made in. Charges joined the derivation in the external-audit round: a staff-only spell
-		// typed as Spell would cast down the memorized path and die on the Fail_Level0 gate while
-		// the staff sat charged in hand.
-		const uint64_t bit = GetSpellBitmask(spell);
-		me._pSplTHotKey[slot] = (me._pAblSpells & bit) != 0
-		    ? SpellType::Skill
-		    : ((me._pMemSpells & bit) != 0
-		           ? SpellType::Spell
-		           : ((me._pISpells & bit) != 0 ? SpellType::Charges : SpellType::Spell));
+		// One key, one skill, one button: drop this skill wherever else it sits before writing it
+		// here, on either button.
+		ClearSpellFromHotkeys(me, spell);
+		keys[slot] = spell;
+		types[slot] = BindingTypeFor(me, spell);
 		RedrawEverything();
 		return true;
 	}
 
-	// In play: the vanilla quick-spell path, which readies the bound ability on the right button
-	// (or casts outright under quickCast). Slots 0-5 ARE F1-F6 - one array, one meaning.
-	ToggleSpell(slot);
+	// In play. The bare key is the vanilla quick-spell path, which readies the bound ability on the
+	// right button (or casts outright under quickCast). LShift+key is its left-hand twin, and has to
+	// be written out rather than reusing ToggleSpell, which only ever knew about the right one.
+	if (!shift) {
+		ToggleSpell(slot);
+		return true;
+	}
+	if (IsValidSpell(keys[slot])) {
+		me._pLRSpell = keys[slot];
+		me._pLRSplType = types[slot];
+		RedrawEverything();
+	}
 	return true;
 }
 

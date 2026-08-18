@@ -440,10 +440,14 @@ TEST(Writehero, pfile_write_hero)
 	// 1.7.61: HeroChunkSpellHotkeys joined the tail - u8 count + 6 PackReadiedSpell bytes, the
 	//      F1-F6 ability hotkeys. Additive tail chunk again; the fixed struct is untouched and an
 	//      older build skips the unknown tag.
+	// 1.7.83: HeroChunkSpellHotkeysLeft joined it, same shape - u8 count + one PackReadiedSpell byte
+	//      per slot - carrying the LEFT-button bindings (LShift+F1-F8), and both hotkey chunks grew
+	//      from 6 slots to 8. A separate tag rather than a widening of chunk 7, so a hero written
+	//      before the left bindings existed still loads its right ones and simply has no left ones.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "a1793d6f5912e5211be0c3c3d31bd3fbdf9b97b1c662f0cf3b1dae31d5cb23a1");
+	    "289d91e5cf2c5ceb8e979ab3395ee656361bc0c3b6dd0dc5c990208606d4f63e");
 }
 
 } // namespace

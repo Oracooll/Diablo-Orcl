@@ -77,13 +77,23 @@ enum HeroChunkTag : uint16_t {
 	 */
 	HeroChunkClassTree = 6,
 	/**
-	 * @brief The F1-F6 ability hotkeys: u8 count, then count bytes, each a PackReadiedSpell byte
+	 * @brief The F1-F8 RIGHT-button ability hotkeys: u8 count, then count bytes, each a PackReadiedSpell byte
 	 * for _pSplHotKey slot i. The TYPE is not stored - UnpackReadiedSpell re-derives it from the
 	 * already-loaded spell masks, exactly as the readied-spell slots do. Count-prefixed so the key
 	 * span can grow without a new tag. V1 loads characters through the hero pack, which never
 	 * carried the vanilla hotkey array - without this chunk every binding died with the session.
 	 */
 	HeroChunkSpellHotkeys = 7,
+
+	/**
+	 * @brief The LEFT-button ability hotkeys - _pSplLHotKey, bound with LShift+F1-F8.
+	 *
+	 * Same shape as HeroChunkSpellHotkeys: u8 count, then one PackReadiedSpell byte per slot, type
+	 * re-derived on load. A separate tag rather than a widening of chunk 7, so a hero written by a
+	 * build that predates the left bindings still loads its right ones - the reader simply never
+	 * sees this tag and leaves the left array empty, which is exactly right.
+	 */
+	HeroChunkSpellHotkeysLeft = 8,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

@@ -26,10 +26,15 @@ Rectangle GetSpellBookPanelRect();
 Rectangle GetSpellBookContentRect();
 
 /**
- * @brief F1-F6 are the ability hotkeys - the first six slots of the vanilla _pSplHotKey array,
- * claimed outright (user, 2026-08-17: F1-F6 "not be used in any other way in the game").
+ * @brief F1-F8 are the ability hotkeys - the first eight slots of the vanilla _pSplHotKey array,
+ * claimed outright (user, 2026-08-17: F1-F6 "not be used in any other way in the game"; widened to
+ * F8 on 2026-08-18, with F9-F12 taken for game speed, the log and screenshots).
+ *
+ * Each key carries TWO bindings: _pSplHotKey[i] is what the bare key readies on the RIGHT button,
+ * _pSplLHotKey[i] what LShift+key readies on the LEFT. NumHotkeys is 12, so both arrays already had
+ * the room for the two extra keys.
  */
-constexpr size_t AbilityFKeyCount = 6;
+constexpr size_t AbilityFKeyCount = 8;
 
 /**
  * @brief One F-key press: with the Abilities window open, binds/unbinds (@p shift unbinds) the
