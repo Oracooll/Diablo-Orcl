@@ -944,18 +944,21 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	if (!BurgerMenuButtonArt.bright)
 		return;
 
-	// Dead centre, per the user's 2026-08-19 request. The old BurgerMenuButtonRise of 2 - a nudge
-	// upward asked for when the icon was 27x29 and read low against its neighbours - is gone with
-	// the art that needed it.
+	// Centred, then nudged one pixel right and one down - user, 2026-08-19, looking at it in place.
 	//
-	// The cell is 33x36 and the icon 26x26, so the horizontal leftover is 7 and true centre falls on
-	// a half pixel. Floor puts the extra pixel on the right, matching every other centring in this
-	// file rather than inventing a different rounding for one icon.
+	// The nudge is not arbitrary and it is not fighting the centring. The cell is 33x36 and the icon
+	// 26x26, so the horizontal leftover is 7: an odd number, and floor put the spare pixel on the
+	// right, leaving the icon a pixel left of true centre. +1 lands it on the other side of that
+	// half-pixel, which is as centred as an odd gap allows. Vertically the gap is even and this is
+	// simply a pixel low, because the cell rect includes the plate's label strip along its top edge -
+	// the same asymmetry the old BurgerMenuButtonRise was compensating for in the other direction
+	// when the art was 27x29.
+	constexpr Displacement BurgerMenuNudge { 1, 1 };
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
-	const Point position {
+	const Point position = Point {
 		cell.position.x + (cell.size.width - BurgerMenuButtonSize.width) / 2,
 		cell.position.y + (cell.size.height - BurgerMenuButtonSize.height) / 2
-	};
+	} + BurgerMenuNudge;
 	out.BlitFromSkipColorIndexZero(*BurgerMenuButtonArt.bright,
 	    MakeSdlRect(state * BurgerMenuButtonSize.width, 0, BurgerMenuButtonSize.width, BurgerMenuButtonSize.height),
 	    position);

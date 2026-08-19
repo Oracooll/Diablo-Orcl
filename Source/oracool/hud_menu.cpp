@@ -177,6 +177,19 @@ Rectangle IconRect(int index)
 // ticks rather than a frame counter so the flash lasts the same wall-clock time regardless of
 // frame rate.
 constexpr uint32_t ButtonFlashDurationMs = 140;
+
+/**
+ * @brief How long each unlit/lit step of the menu button's click blink lasts, in milliseconds.
+ *
+ * Oracool: user, 2026-08-19 - "when i click on it make a rapid unlit/lit sequence." Four steps
+ * inside ButtonFlashDurationMs, so the whole thing is over in the same 140ms every other button
+ * flash takes and reads as one flick rather than an animation.
+ *
+ * Driven from the clock rather than counted in frames, so the sequence is identical at 30fps and
+ * 144fps. A frame counter would make the blink twice as long on a slow machine, which is the sort
+ * of thing that gets reported as "the menu button feels sluggish" and traced to the wrong place.
+ */
+constexpr uint32_t MenuBlinkPhaseMs = ButtonFlashDurationMs / 4;
 constexpr uint8_t ButtonHighlightColor = PAL16_YELLOW + 6;
 // Belt cells use their own index; menu icons are offset past them so one variable tracks both.
 constexpr int MenuFlashBase = 100;
@@ -323,34 +336,46 @@ void DrawBeltButtonFeedback(const Surface &out)
 		FlashingCell = -1;
 	const bool flashingNow = FlashingCell >= 0 && FlashingCell < MenuFlashBase;
 
-	// Oracool: the Portal cell still shows the plate's own empty stone box - the user removed that
-	// icon on 2026-08-19 and is sourcing better art. Its label is painted into the plate above it,
-	// so the cell is not anonymous, and the overlay below gives it back the hover and pressed states
-	// its artwork used to carry. A box that looks clickable and never reacts reads as broken.
-	//
-	// DrawTownPortalIcon and its entry in CutHudStateIcons.ps1 both stay, so restoring it is one
-	// line rather than a rebuilt pipeline - which is exactly how the burger came back below.
 	const auto highlight = [&out](const Rectangle &cell) {
 		DrawHalfTransparentRectTo(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
 		    ButtonHighlightColor);
 	};
 
-	// The Menu cell is a toggle: lit for as long as its popup is showing, not just while pressed.
+	// The Menu cell, per the user (2026-08-19): "i dont like the lit effect when hover. use the lit
+	// icon as hover and when i click on it make a rapid unlit/lit sequence."
 	//
-	// Its icon has only TWO states, so the two jobs are split rather than crammed into the art. The
-	// LIT picture means "the popup is open" - a state, not a press - and the overlay does the hover.
-	// Three distinguishable looks out of two pictures: plain, plain-under-cursor, lit-while-open.
+	// So the ART carries hover now and the translucent overlay is off this cell entirely - the
+	// overlay WAS the lit effect being complained about. Lit means "the cursor is here, or the popup
+	// is open"; the click is a blink rather than a state.
 	const Rectangle menuCell = GetBeltSlotRect(BeltMenuSlotIndex);
-	DrawBurgerMenuButton(out, HudMenuOpen ? 1 : 0);
-	if (HudMenuOpen || menuCell.contains(MousePosition))
-		highlight(menuCell);
+	const bool menuHot = HudMenuOpen || menuCell.contains(MousePosition);
 
-	// The Portal cell is momentary - it lights under the cursor and for the flash after a click.
-	// The flash fires even when the cast is refused, so "not available here" does not read as a
-	// dead click; see TryHandleTownPortalClick.
+	// The blink. Alternating on a fixed phase from the click, so it is the same sequence every time
+	// rather than however many frames happened to elapse - at 60fps and 140ms this is unlit, lit,
+	// unlit, lit, and at 30fps it is still exactly that, because the phase is read from the clock
+	// and not counted in frames.
+	int menuState = menuHot ? 1 : 0;
+	if (FlashingCell == BeltMenuSlotIndex) {
+		const uint32_t elapsed = SDL_GetTicks() - FlashStartedAtMs;
+		if (elapsed < ButtonFlashDurationMs)
+			menuState = ((elapsed / MenuBlinkPhaseMs) % 2 == 0) ? 0 : 1;
+	}
+	DrawBurgerMenuButton(out, menuState);
+
+	// The Portal cell has real artwork again as of 2026-08-19 - town.portal.png, three orbs the
+	// artist labelled ACTIVE / HOVER / CLICKED, which is exactly the 0/1/2 this asks for. So the art
+	// carries the states and the overlay stays off this cell, same as the menu button beside it.
+	//
+	// Momentary rather than a toggle: pressed for the flash after a click, hovered under the cursor,
+	// idle otherwise. The flash fires even when the cast is refused, so "not available here" does
+	// not read as a dead click; see TryHandleTownPortalClick.
 	const Rectangle portalCell = GetBeltSlotRect(BeltTownPortalSlotIndex);
-	if ((flashingNow && FlashingCell == BeltTownPortalSlotIndex) || portalCell.contains(MousePosition))
-		highlight(portalCell);
+	int portalState = 0;
+	if (flashingNow && FlashingCell == BeltTownPortalSlotIndex)
+		portalState = 2;
+	else if (portalCell.contains(MousePosition))
+		portalState = 1;
+	DrawTownPortalIcon(out, portalState);
 
 	// And the four real item cells, which only ever flash on use.
 	if (!flashingNow || FlashingCell == BeltTownPortalSlotIndex || FlashingCell == BeltMenuSlotIndex)
