@@ -107,6 +107,16 @@ Rectangle GetLeftPanelContentRect();
 
 /** @brief Whether @p position is over the open left-panel window, per GetLeftPanelContentRect(). */
 bool IsOverLeftPanel(Point position);
+
+/**
+ * @brief Closes whichever left-panel window is open, whatever it is.
+ *
+ * Oracool: the close-button rule (user, 2026-08-19) needs ONE place that knows how to shut the left
+ * slot, for the same reason GetLeftPanelContentRect() exists - five windows share the slot, and
+ * five hand-written closers would drift out of step with the switch above the way the draw and
+ * click chains once did. A window added to that switch must be added here too.
+ */
+void CloseLeftPanelContent();
 extern std::optional<OwnedSurface> pBtmBuff;
 extern OptionalOwnedClxSpriteList pGBoxBuff;
 

@@ -42,6 +42,8 @@
 #include "oracool/game_clock.h"
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
+#include "oracool/inventory_layout.h"
+#include "oracool/window_close.h"
 #include "oracool/monster_scale.h"
 #include "oracool/save_indicator.h"
 #include "oracool/crafting_menu.h"
@@ -1507,6 +1509,18 @@ void DrawView(const Surface &out, Point startPosition)
 	case LeftPanelContent::None:
 		break;
 	}
+	// The close-button rule (user, 2026-08-19): every window the player can browse carries a small
+	// red X in its own top-right corner. Drawn here rather than inside each of the five left-panel
+	// draws for the same reason GetLeftPanelContentRect() is one function - one call cannot be
+	// forgotten by a window added later, and the button cannot end up in five slightly different
+	// places.
+	if (IsLeftPanelOpen())
+		oracool::DrawWindowCloseButton(out, GetLeftPanelContentRect());
+	if (invflag)
+		oracool::DrawWindowCloseButton(out, oracool::GetInventoryPanelRect());
+	else if (sbookflag)
+		oracool::DrawWindowCloseButton(out, GetSpellBookPanelRect());
+
 	// Levski's Roar is a free-floating centred window, NOT a left-panel slot, so it is drawn
 	// outside the panel switch. It spent three builds inside case LeftPanelContent::Crafting -
 	// a branch that never runs for it - which meant the monument's click opened the window and

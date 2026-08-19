@@ -80,6 +80,7 @@
 #include "panels/charpanel.hpp" // ScrollCharacterSheet
 #include "panels/info_box.hpp"
 #include "panels/spell_book.hpp"
+#include "oracool/window_close.h"
 #include "panels/spell_list.hpp"
 #include "pfile.h"
 #include "plrmsg.h"
@@ -481,7 +482,16 @@ void LeftMouseDown(uint16_t modState)
 			// The rect comes from GetLeftPanelContentRect(), not GetLeftPanel(): the sheet, log
 			// and waypoint list are 340x720 windows in a 320x352 slot, and routing on the slot let
 			// clicks over the rest of the window walk the player.
-			if (IsOverLeftPanel(MousePosition)) {
+			// The close-button rule (user, 2026-08-19). Tested ahead of every window's own click
+			// handling, because the X is the one control that must never be shadowed by whatever
+			// happens to sit under it - a scroll arrow, a tab, a grid cell.
+			if (IsLeftPanelOpen() && oracool::CheckWindowCloseButtonClick(GetLeftPanelContentRect(), MousePosition)) {
+				CloseLeftPanelContent();
+			} else if (invflag && oracool::CheckWindowCloseButtonClick(oracool::GetInventoryPanelRect(), MousePosition)) {
+				CloseInventory();
+			} else if (sbookflag && oracool::CheckWindowCloseButtonClick(GetSpellBookPanelRect(), MousePosition)) {
+				sbookflag = false;
+			} else if (IsOverLeftPanel(MousePosition)) {
 				switch (GetLeftPanelContent()) {
 				case LeftPanelContent::Character:
 					CheckChrBtns();
@@ -3140,6 +3150,14 @@ bool PressEscKey()
 
 	if (oracool::IsHudMenuOpen()) {
 		oracool::CloseHudMenu();
+		rv = true;
+	}
+
+	// Oracool: the monument's window is centred over the world rather than docked to a panel, so
+	// none of the panel closers below reach it. Escape is the keyboard half of the close rule the
+	// red X covers for the mouse.
+	if (oracool::IsLevskiRoarOpen()) {
+		oracool::CloseLevskiRoar();
 		rv = true;
 	}
 

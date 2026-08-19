@@ -17,6 +17,7 @@
 #include "oracool/crafting.h"
 #include "oracool/event_log.h"
 #include "oracool/ornate_border.h"
+#include "oracool/window_close.h"
 #include "player.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -186,6 +187,7 @@ void DrawLevskiRoar(const Surface &out)
 
 	const Rectangle window = GetLevskiRoarRect();
 	DrawPanelGround(out, window);
+	DrawWindowCloseButton(out, window);
 
 	DrawString(out, _("Levski's Roar"),
 	    Rectangle { window.position + Displacement { Padding, Padding }, { GridWidth, HeaderHeight } },
@@ -221,6 +223,7 @@ void DrawLevskiRoar(const Surface &out)
 
 	const Rectangle page = GetLevskiRecipeBookRect();
 	DrawPanelGround(out, page);
+	DrawWindowCloseButton(out, page);
 	Point cursor = page.position + Displacement { Padding, Padding };
 	const int textWidth = page.size.width - Padding * 2;
 	DrawString(out, _("Recipes"), Rectangle { cursor, { textWidth, HeaderHeight } },
@@ -257,8 +260,19 @@ bool CheckLevskiRoarClick(Point mousePosition)
 	if (!inWindow && !inBook)
 		return false; // outside both panels: the click belongs to whatever is under it
 
-	if (inBook)
-		return true; // the book is a reference, not a control surface
+	if (inBook) {
+		// The book's own X closes the book, not the window under it - each window owns its button.
+		if (CheckWindowCloseButtonClick(book, mousePosition))
+			RecipeBookOpen = false;
+		return true; // otherwise the book is a reference, not a control surface
+	}
+
+	// Before every other control: the X is the one click that must always work, and this window
+	// absorbs everything else that lands on it.
+	if (CheckWindowCloseButtonClick(window, mousePosition)) {
+		CloseLevskiRoar();
+		return true;
+	}
 
 	if (RecipeButtonRect(window).contains(mousePosition)) {
 		RecipeBookOpen = !RecipeBookOpen;

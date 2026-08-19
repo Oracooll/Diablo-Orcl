@@ -176,6 +176,30 @@ bool IsOverLeftPanel(Point position)
 	return GetLeftPanelContent() != LeftPanelContent::None
 	    && GetLeftPanelContentRect().contains(position);
 }
+void CloseLeftPanelContent()
+{
+	switch (GetLeftPanelContent()) {
+	case LeftPanelContent::Character:
+		CloseCharPanel();
+		break;
+	case LeftPanelContent::QuestLog:
+		QuestLogIsOpen = false;
+		break;
+	case LeftPanelContent::Stash:
+		// CloseStash(), not IsStashOpen = false: it also returns a held item and releases the
+		// chest object, both of which leak if the flag is cleared behind its back.
+		CloseStash();
+		break;
+	case LeftPanelContent::WaypointMenu:
+		oracool::CloseWaypointMenu();
+		break;
+	case LeftPanelContent::Crafting:
+		oracool::CloseCraftingMenu();
+		break;
+	case LeftPanelContent::None:
+		break;
+	}
+}
 bool IsRightPanelOpen()
 {
 	return invflag || sbookflag;
