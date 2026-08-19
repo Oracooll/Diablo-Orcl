@@ -759,7 +759,7 @@ void ReleaseKey(SDL_Keycode vkey)
 	// press. Filtering auto-repeat last version fixed a different double, not this one.
 	//
 	// F9-F12 are reserved outright, so nothing else is entitled to either edge of them.
-	if (vkey >= SDLK_F1 && vkey <= SDLK_F12)
+	if ((vkey >= SDLK_F1 && vkey <= SDLK_F12) || vkey == SDLK_SPACE)
 		return;
 	sgOptions.Keymapper.KeyReleased(vkey);
 }
@@ -781,6 +781,47 @@ void ClosePanels()
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
 	oracool::CloseAttackQuickList();
+}
+
+void CloseAllWindows()
+{
+	// Oracool: the space bar's master close (user, 2026-08-19) - "space bar to close any and all
+	// windows regardless of when they were introduced in the game. space bar should supersede
+	// everything by design and act as master windows closer."
+	//
+	// Deliberately a superset of ClosePanels() rather than a rename of it. ClosePanels() is called
+	// from a dozen places that mean "put the side panels away" - opening a store, taking a
+	// waypoint, starting a cutscene - and none of them should also be dismissing the help screen or
+	// the automap. This one means what the player means when they hit space: everything, gone.
+	//
+	// A window added to the game must be added HERE, not only to ClosePanels(). That is the whole
+	// point of the rule: "regardless of when they were introduced".
+	ClosePanels();
+	CloseStash();
+	CloseGoldWithdraw();
+	DropGoldFlag = false;
+	// Levski's Roar can refuse, and is allowed to: its grid is not save state, so closing on a full
+	// backpack would destroy what is in it. It says so in the log and stays open - the one window
+	// space cannot force, by design rather than by omission.
+	oracool::CloseLevskiRoar();
+	if (oracool::IsEventLogOpen())
+		oracool::ToggleEventLog();
+	// Stores go through StoreESC(), the same path Escape uses - so a store closes the way it always
+	// has, one level at a time out of a nested menu, rather than being torn down from outside.
+	if (stextflag != TalkID::None)
+		StoreESC();
+	HelpFlag = false;
+	ChatLogFlag = false;
+	spselflag = false;
+	if (qtextflag) {
+		qtextflag = false;
+		stream_stop();
+	}
+	if (talkflag)
+		control_reset_talk();
+	AutomapActive = false;
+	CancelCurrentDiabloMsg();
+	doom_close();
 }
 
 bool CanPlayerTakeAction(); // defined below, past the keymap tables that also use it
@@ -850,6 +891,18 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	// there, default-unbound, for anyone who wants them on other keys.
 	//
 	// SHIFT selects the LEFT button's binding; the bare key is the right's. See HandleAbilityFKey.
+	// Oracool: SPACE is the master window closer, reserved on the same terms as the F-keys (user,
+	// 2026-08-19: "space bar should supersede everything by design"). Intercepted ahead of the
+	// keymapper so no ini row can take it - a settled install still carries Hide Info Screens on
+	// SPACE, and that action is a strict subset of this one.
+	//
+	// Everything that legitimately wants a literal space has already returned above: chat typing is
+	// consumed by control_presskeys, and the gold-amount and refresh prompts by their own handlers.
+	if (vkey == SDLK_SPACE) {
+		CloseAllWindows();
+		return;
+	}
+
 	if (vkey >= SDLK_F1 && vkey <= SDLK_F8 && CanPlayerTakeAction()) {
 		HandleAbilityFKey(static_cast<size_t>(vkey - SDLK_F1), (modState & KMOD_SHIFT) != 0);
 		return;
@@ -1005,13 +1058,9 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 			RecenterMiniMap();
 		}
 		return;
-	case SDLK_SPACE:
-		// Oracool: user request - space bar closes the Event Log window when it's open. No-op
-		// otherwise, so any real keyboard binding on space (via the Keymapper call above) is
-		// unaffected.
-		if (oracool::IsEventLogOpen())
-			oracool::ToggleEventLog();
-		return;
+	// SDLK_SPACE used to close the event log here. It is now reserved outright and handled far
+	// above, ahead of the keymapper, as the master window closer - the event log is one of the
+	// windows CloseAllWindows() shuts, so nothing was lost.
 	default:
 		break;
 	}
