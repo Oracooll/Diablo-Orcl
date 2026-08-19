@@ -2640,9 +2640,16 @@ void LoadInventoryTabs(Player &player, uint32_t saveNumber)
 		return; // no extra-tab data: an old save, or one where nothing was ever stored there
 
 	const uint8_t version = file.NextLE<uint8_t>();
-	if (version != OracoolInvTabsVersion && version != 2)
-		return; // unrecognized future format; every extra tab stays empty
-	if (version == OracoolInvTabsVersion && file.NextLE<uint8_t>() != OracoolItemFormatVersion)
+	// Version 2 is no longer accepted (third audit, 2026-08-19). It was allowed on the reasoning that
+	// this file is rewritten by every autosave, so a live hero's copy is always current - true, but it
+	// was parsed with TODAY's item format and had no total-size guard, only per-item validation. The
+	// item record has since grown twice more (the ilvl byte, the base-tier byte), so a genuinely stale
+	// v2 file would now drift two bytes per item through the stream and read later tabs as garbage,
+	// silently. The stash rejects its equivalent outright and says so; this now does the same, and
+	// unlike the stash it costs nothing - an unreadable tab file simply leaves the tabs empty.
+	if (version != OracoolInvTabsVersion)
+		return; // unrecognized or outgrown format; every extra tab stays empty
+	if (file.NextLE<uint8_t>() != OracoolItemFormatVersion)
 		return; // the embedded item schema disagrees with this build's; see the version-3 note above
 
 	for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
