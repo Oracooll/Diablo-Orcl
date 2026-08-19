@@ -29,23 +29,44 @@ namespace {
 bool WindowOpen = false;
 bool RecipeBookOpen = false;
 
-/** The nine transmute slots. Live only while the window is open - see the header's note on why
+/** The transmute slots, indexed by an item's top-left cell. Live only while the window is open - see the header's note on why
  * this is deliberately not save state. */
 Item GridItems[LevskiGridSlots];
 
+/**
+ * Which cell each item anchors to, and which cells it covers.
+ *
+ * GridItems is indexed by the item's TOP-LEFT cell, and GridCells[c] holds that anchor's index + 1
+ * for every cell the item covers (0 = free) - the same shape as Player::InvGrid, deliberately, so
+ * the rules are the ones the player already knows from the backpack and the stash.
+ *
+ * The first version had neither array: twelve 56x56 boxes, one item each, footprint ignored (user,
+ * 2026-08-19: "Why do they fit a whole armor in one? All this makes 0 sense."). It was wrong twice
+ * over - a 56px box is two inventory cells square while a 2x3 armour is 56x84, so the armour never
+ * fitted the box it was drawn in; and treating a rune and a breastplate as the same "one box" made
+ * the cube's capacity mean nothing. A 3x4 cube holds ONE armour, or twelve runes.
+ */
+int8_t GridCells[LevskiGridSlots];
+
 // Geometry. The window is sized from the grid rather than the other way round, so changing the
 // grid's dimensions cannot leave the panel the wrong shape.
-constexpr int SlotSize = 56; // two inventory cells, so a 2x3 two-hander still reads in a slot
+//
+// The cell is the INVENTORY's cell, exactly - not a size of this window's choosing. Item sprites
+// are cut to a whole number of 28px cells, so any other size would either crop them or leave them
+// swimming, and the drag the player already knows from the stash would stop lining up.
+constexpr int CellSize = InventorySlotSizeInPixels.width;
 constexpr int SlotGap = 6;
 constexpr int Padding = 14;
 constexpr int HeaderHeight = 30;
 constexpr int ButtonHeight = 26;
-constexpr int GridWidth = LevskiGridColumns * SlotSize + (LevskiGridColumns - 1) * SlotGap;
-constexpr int GridHeight = LevskiGridRows * SlotSize + (LevskiGridRows - 1) * SlotGap;
-constexpr int WindowWidth = GridWidth + Padding * 2;
+constexpr int GridWidth = LevskiGridColumns * CellSize;
+constexpr int GridHeight = LevskiGridRows * CellSize;
+/** A 3-wide grid is only 84px across - narrower than the word "Transmute". The window is the wider
+ * of the grid and what its own buttons need to read, with the grid centred in it. */
+constexpr int ContentWidth = GridWidth > 150 ? GridWidth : 150;
+constexpr int WindowWidth = ContentWidth + Padding * 2;
 constexpr int WindowHeight = Padding * 2 + HeaderHeight + GridHeight + SlotGap + ButtonHeight * 2 + SlotGap;
 
-constexpr int RecipeRowHeight = 40;
 constexpr int RecipeBookWidth = 420;
 /**
  * The panel's ground, opaque.
@@ -99,29 +120,115 @@ std::string RecipeBookText()
 
 Point GridOrigin(const Rectangle &window)
 {
-	return window.position + Displacement { Padding, Padding + HeaderHeight };
+	// Centred: the grid is narrower than the window's own buttons.
+	return window.position + Displacement { Padding + (ContentWidth - GridWidth) / 2, Padding + HeaderHeight };
 }
 
-Rectangle SlotRect(const Rectangle &window, int slot)
+Rectangle CellRect(const Rectangle &window, int cell)
 {
 	const Point origin = GridOrigin(window);
-	const int column = slot % LevskiGridColumns;
-	const int row = slot / LevskiGridColumns;
-	return Rectangle { { origin.x + column * (SlotSize + SlotGap), origin.y + row * (SlotSize + SlotGap) },
-		{ SlotSize, SlotSize } };
+	return Rectangle { { origin.x + (cell % LevskiGridColumns) * CellSize, origin.y + (cell / LevskiGridColumns) * CellSize },
+		{ CellSize, CellSize } };
+}
+
+/** @brief The cell under @p position, or -1. */
+int CellAt(const Rectangle &window, Point position)
+{
+	for (int cell = 0; cell < LevskiGridSlots; cell++) {
+		if (CellRect(window, cell).contains(position))
+			return cell;
+	}
+	return -1;
+}
+
+/** @brief Whether an item of @p size can sit with its top-left at @p anchor. */
+bool FitsAt(int anchor, Size size)
+{
+	const int column = anchor % LevskiGridColumns;
+	const int row = anchor / LevskiGridColumns;
+	if (column + size.width > LevskiGridColumns || row + size.height > LevskiGridRows)
+		return false;
+	for (int y = 0; y < size.height; y++) {
+		for (int x = 0; x < size.width; x++) {
+			if (GridCells[(row + y) * LevskiGridColumns + column + x] != 0)
+				return false;
+		}
+	}
+	return true;
+}
+
+void MarkCells(int anchor, Size size, int8_t value)
+{
+	const int column = anchor % LevskiGridColumns;
+	const int row = anchor / LevskiGridColumns;
+	for (int y = 0; y < size.height; y++) {
+		for (int x = 0; x < size.width; x++)
+			GridCells[(row + y) * LevskiGridColumns + column + x] = value;
+	}
+}
+
+/**
+ * @brief Puts @p item in the grid, preferring @p preferredAnchor. True if it found room.
+ *
+ * @p preferredAnchor of -1, or one the item does not fit at, falls back to the first cell it does
+ * fit at - so a click that lands slightly off still does what the player meant, rather than nothing.
+ */
+bool PlaceInGrid(const Item &item, int preferredAnchor)
+{
+	const Size size = GetInventorySize(item);
+	int anchor = (preferredAnchor >= 0 && FitsAt(preferredAnchor, size)) ? preferredAnchor : -1;
+	for (int candidate = 0; anchor < 0 && candidate < LevskiGridSlots; candidate++) {
+		if (FitsAt(candidate, size))
+			anchor = candidate;
+	}
+	if (anchor < 0)
+		return false;
+	GridItems[anchor] = item;
+	MarkCells(anchor, size, static_cast<int8_t>(anchor + 1));
+	return true;
+}
+
+/**
+ * @brief Rebuilds the occupancy map from GridItems.
+ *
+ * The recipes rewrite GridItems in place - three gems become one, a socketed item becomes an item
+ * plus its stones - without any idea of footprints, and the result's sizes are not the inputs'. So
+ * after a transmute the map is re-derived rather than patched: collect what is there, clear, and
+ * re-place. Anchors may move, which is correct; the alternative is a stone drawn over a helmet.
+ */
+void RebuildGridOccupancy()
+{
+	Item items[LevskiGridSlots];
+	int count = 0;
+	for (Item &slot : GridItems) {
+		if (!slot.isEmpty())
+			items[count++] = slot;
+		slot.clear();
+	}
+	for (int8_t &cell : GridCells)
+		cell = 0;
+	// Largest first: a 2x3 placed after four runes may find no run of free cells left, while the
+	// runes always fit around it.
+	std::sort(items, items + count, [](const Item &a, const Item &b) {
+		const Size sa = GetInventorySize(a);
+		const Size sb = GetInventorySize(b);
+		return sa.width * sa.height > sb.width * sb.height;
+	});
+	for (int i = 0; i < count; i++)
+		PlaceInGrid(items[i], -1);
 }
 
 Rectangle TransmuteButtonRect(const Rectangle &window)
 {
-	const int y = GridOrigin(window).y + GridHeight + SlotGap;
-	return Rectangle { { window.position.x + Padding, y }, { GridWidth, ButtonHeight } };
+	const int y = window.position.y + Padding + HeaderHeight + GridHeight + SlotGap;
+	return Rectangle { { window.position.x + Padding, y }, { ContentWidth, ButtonHeight } };
 }
 
 Rectangle RecipeButtonRect(const Rectangle &window)
 {
 	const Rectangle transmute = TransmuteButtonRect(window);
 	return Rectangle { { transmute.position.x, transmute.position.y + ButtonHeight + SlotGap },
-		{ GridWidth, ButtonHeight } };
+		{ ContentWidth, ButtonHeight } };
 }
 
 /**
@@ -144,6 +251,9 @@ bool ReturnGridToPlayer()
 		else
 			allReturned = false;
 	}
+	// Rebuild rather than patch: a partial return leaves some items behind, and their occupancy has
+	// to match what is actually still in the grid.
+	RebuildGridOccupancy();
 	return allReturned;
 }
 
@@ -171,6 +281,8 @@ void CloseLevskiRoar()
 		LogEvent(std::string(_("Your pack is full - Levski's Roar keeps what it holds.")), UiFlags::ColorRed);
 		return;
 	}
+	for (int8_t &cell : GridCells)
+		cell = 0;
 	WindowOpen = false;
 	RecipeBookOpen = false;
 }
@@ -227,16 +339,28 @@ void DrawLevskiRoar(const Surface &out)
 	    Rectangle { window.position + Displacement { Padding, Padding }, { GridWidth, HeaderHeight } },
 	    { UiFlags::ColorGold | UiFlags::FontSize24 });
 
-	for (int slot = 0; slot < LevskiGridSlots; slot++) {
-		const Rectangle cell = SlotRect(window, slot);
-		DrawPanelGround(out, cell, SlotFillColor);
-		if (GridItems[slot].isEmpty())
+	// The empty grid first, as one recessed well with cell lines drawn on it - the cells are 28px
+	// now, and twelve individually bordered 28px boxes read as noise rather than as a container.
+	const Point gridOrigin = GridOrigin(window);
+	DrawPanelGround(out, Rectangle { gridOrigin, { GridWidth, GridHeight } }, SlotFillColor);
+	for (int column = 1; column < LevskiGridColumns; column++)
+		DrawVerticalLine(out, { gridOrigin.x + column * CellSize, gridOrigin.y }, GridHeight, PanelFillColor);
+	for (int row = 1; row < LevskiGridRows; row++)
+		DrawHorizontalLine(out, { gridOrigin.x, gridOrigin.y + row * CellSize }, GridWidth, PanelFillColor);
+
+	for (int anchor = 0; anchor < LevskiGridSlots; anchor++) {
+		if (GridItems[anchor].isEmpty())
 			continue;
-		// Centred in the cell: an item's own frame is 1x1 to 2x3 cells, so anchoring to a corner
-		// would leave the small ones floating.
-		const ClxSprite sprite = GetInvItemSprite(GridItems[slot]._iCurs + CURSOR_FIRSTITEM);
-		const int x = cell.position.x + (cell.size.width - sprite.width()) / 2;
-		const int y = cell.position.y + (cell.size.height + sprite.height()) / 2;
+		// Centred in the item's OWN footprint, not in one cell: a 2x3 armour occupies 56x84 and
+		// must be drawn across all of it, which is the whole point of the rebuild.
+		const Size size = GetInventorySize(GridItems[anchor]);
+		const Rectangle footprint {
+			CellRect(window, anchor).position,
+			{ size.width * CellSize, size.height * CellSize }
+		};
+		const ClxSprite sprite = GetInvItemSprite(GridItems[anchor]._iCurs + CURSOR_FIRSTITEM);
+		const int x = footprint.position.x + (footprint.size.width - sprite.width()) / 2;
+		const int y = footprint.position.y + (footprint.size.height + sprite.height()) / 2;
 		ClxDraw(out, { x, y }, sprite);
 	}
 
@@ -315,6 +439,7 @@ bool CheckLevskiRoarClick(Point mousePosition)
 
 	if (TransmuteButtonRect(window).contains(mousePosition)) {
 		const std::string result = TransmuteLevskiGrid(GridItems);
+		RebuildGridOccupancy(); // the recipes rewrite GridItems with no idea of footprints
 		if (!result.empty())
 			LogEvent(StrCat("Levski's Roar: ", result));
 		return true;
@@ -323,18 +448,22 @@ bool CheckLevskiRoarClick(Point mousePosition)
 	// The grid itself: an empty hand takes an item out, a full one puts it in. Swapping is
 	// deliberately absent - a click that both takes and gives is how a stone goes missing.
 	Player &player = *MyPlayer;
-	for (int slot = 0; slot < LevskiGridSlots; slot++) {
-		if (!SlotRect(window, slot).contains(mousePosition))
-			continue;
+	const int cell = CellAt(window, mousePosition);
+	if (cell >= 0) {
 		if (!player.HoldItem.isEmpty()) {
-			if (GridItems[slot].isEmpty()) {
-				GridItems[slot] = player.HoldItem;
+			// The clicked cell is the item's top-left, as in the backpack. If the footprint runs
+			// off the grid or over something, PlaceInGrid finds the first cell it does fit.
+			if (PlaceInGrid(player.HoldItem, cell)) {
 				player.HoldItem.clear();
 				NewCursor(CURSOR_HAND);
 			}
-		} else if (!GridItems[slot].isEmpty()) {
-			player.HoldItem = GridItems[slot];
-			GridItems[slot].clear();
+		} else if (GridCells[cell] != 0) {
+			// Any covered cell lifts the item, not just its anchor - clicking the bottom half of a
+			// breastplate has to work, or half of every large item is dead surface.
+			const int anchor = GridCells[cell] - 1;
+			player.HoldItem = GridItems[anchor];
+			MarkCells(anchor, GetInventorySize(GridItems[anchor]), 0);
+			GridItems[anchor].clear();
 			NewCursor(player.HoldItem._iCurs + CURSOR_FIRSTITEM);
 		}
 		return true;
