@@ -2384,6 +2384,7 @@ void SpawnOnePremium(Item &premiumItem, int plvl, const Player &player)
 		SetRndSeed(premiumItem._iSeed);
 		_item_indexes itemType = RndPremiumItem(player, plvl / 4, plvl);
 		GetItemAttrs(premiumItem, itemType, plvl);
+		oracool::ApplyVendorTier(premiumItem, plvl, premiumItem._iSeed);
 		GetItemBonus(player, premiumItem, plvl / 2, plvl, true, !gbIsHellfire, ignoreAffixLevelLimits);
 
 		if (!gbIsHellfire) {
@@ -5688,6 +5689,9 @@ void SpawnSmith(int lvl)
 			SetRndSeed(newItem._iSeed);
 			_item_indexes itemData = RndSmithItem(*MyPlayer, lvl);
 			GetItemAttrs(newItem, itemData, lvl);
+			// Inside the retry loop, so a tiered item that prices itself past the vendor cap is simply
+			// rolled again - the cap keeps its meaning instead of being quietly exceeded.
+			oracool::ApplyVendorTier(newItem, lvl, newItem._iSeed);
 		} while (newItem._iIvalue > maxValue);
 
 		newItem._iCreateInfo = lvl | CF_SMITH;
@@ -5784,6 +5788,7 @@ void SpawnWitch(int lvl)
 			SetRndSeed(item._iSeed);
 			_item_indexes itemData = RndWitchItem(*MyPlayer, lvl);
 			GetItemAttrs(item, itemData, lvl);
+			oracool::ApplyVendorTier(item, lvl, item._iSeed);
 			int maxlvl = -1;
 			if (GenerateRnd(100) <= 5)
 				maxlvl = 2 * lvl;
@@ -5825,6 +5830,7 @@ void SpawnBoy(int lvl)
 		SetRndSeed(boyitem._iSeed);
 		_item_indexes itype = RndBoyItem(*MyPlayer, lvl);
 		GetItemAttrs(boyitem, itype, lvl);
+		oracool::ApplyVendorTier(boyitem, lvl, boyitem._iSeed);
 		GetItemBonus(*MyPlayer, boyitem, lvl, 2 * lvl, true, true);
 
 		if (!gbIsHellfire) {
@@ -5948,6 +5954,9 @@ void SpawnHealer(int lvl)
 		SetRndSeed(item._iSeed);
 		_item_indexes itype = RndHealerItem(*MyPlayer, lvl);
 		GetItemAttrs(item, itype, lvl);
+		// Pepin sells potions, which CanCarryBaseTier declines - the call is here so the ilvl gets
+		// stamped anyway, and so a future stocked item that IS gear picks the tier up for free.
+		oracool::ApplyVendorTier(item, lvl, item._iSeed);
 		item._iCreateInfo = lvl | CF_HEALER;
 		item._iIdentified = true;
 	}

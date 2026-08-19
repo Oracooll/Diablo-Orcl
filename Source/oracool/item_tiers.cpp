@@ -5,6 +5,8 @@
 
 #include "items.h"
 #include "oracool/area_level.h"
+#include "multi.h"
+#include "options.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 #include "utils/utf8.hpp"
@@ -193,6 +195,31 @@ int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configured
 	return configuredPercent * scale / 10;
 }
 
+int VendorItemLevel(int vendorLevel)
+{
+	// The difficulty block, straight off the area ladder: alvl 1-24 is Normal, 25-48 Nightmare, and so
+	// on, so adding 24 per difficulty puts a vendor in the band its difficulty belongs to.
+	const int block = static_cast<int>(HighestTierForItemLevel(AreaLevel(1, sgGameInitInfo.nDifficulty)));
+	return std::min(vendorLevel + AreaFloorCount * block, MaxAreaLevel);
+}
+
+void ApplyVendorTier(Item &item, int vendorLevel, uint32_t seed)
+{
+	const int itemLevel = VendorItemLevel(vendorLevel);
+	item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp(itemLevel, 0, 255));
+	if (!CanCarryBaseTier(item))
+		return;
+
+	// Salted differently from TierForItem so the two questions are independent: a seed that says
+	// "tiered" must not also decide WHICH tier by the same bits.
+	uint32_t hash = (seed ^ 0x9E3779B9U) * 2654435761U;
+	hash ^= hash >> 16;
+	if (static_cast<int>(hash % 100U) >= *sgOptions.Oracool.vendorTieredStockChance)
+		return; // Normal tier, which is what the base numbers already are
+
+	ApplyBaseTier(item, TierForItem(itemLevel, seed));
+}
+
 bool CanCarryBaseTier(const Item &item)
 {
 	// Worn gear only. A potion or a book has no damage, no armour and no requirements to scale, and
@@ -230,20 +257,18 @@ void ApplyBaseTier(Item &item, BaseItemTier tier)
 	item._ivalue = ScaleByPercent(item._ivalue, scale.value);
 	item._iIvalue = ScaleByPercent(item._iIvalue, scale.value);
 
-	// The name carries the tier so it can be read in the inventory grid, not only in the popup.
-	// Prepended to BOTH names: _iName is what an unidentified item shows and _iIName the identified
-	// one, and a tier is a property of the object rather than something identifying reveals.
-	const string_view prefix = _(TierNamePrefix(tier));
-	if (prefix.empty())
-		return;
-	// std::string, not a char buffer. The first version copied into a char[64] and then handed that
-	// array to string_view, whose ARRAY overload takes the whole 64 bytes - trailing NULs included -
-	// so the rebuilt name was 64 bytes long before it was truncated back to 64, losing the tail. The
-	// pack tests caught it as "Brutal Sword of gore" for what should have been a Long Sword.
-	const std::string baseName = item._iName;
-	const std::string baseIName = item._iIName;
-	*BufCopy(item._iName, prefix, " ", baseName) = '\0';
-	*BufCopy(item._iIName, prefix, " ", baseIName) = '\0';
+	// The NAME is deliberately left alone. TierNamePrefix exists for callers that want the word, but
+	// nothing prepends it to the item.
+	//
+	// An earlier version did, so the tier could be read in the inventory grid. Two problems, both
+	// caught by the pack tests. A magic item's name is composed as prefix + base + suffix against a
+	// width budget, and the engine falls back to the base's SHORT name when it overflows - so
+	// "Jagged Long Sword" came back as "Brutal Sword of gore", losing the tier AND the base. And on
+	// a vendor item the affix name is built BEFORE this runs, giving "Lightning Jagged Maul": the
+	// tier word wedged between the affix and the noun it belongs to.
+	//
+	// The coloured Tier line in the description carries it instead, which is where the request put
+	// it (user, 2026-08-19: white / blue / yellow / gold).
 }
 
 } // namespace devilution::oracool

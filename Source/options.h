@@ -839,6 +839,13 @@ struct OracoolOptions : OptionCategoryBase {
 	 * def"). Read at CHARACTER CREATION only, so flipping it never disturbs a character who already
 	 * exists - it decides what they were born with, not what they may carry.
 	 */
+	/**
+	 * @brief Percent chance a vendor item is offered at a base tier above Normal.
+	 *
+	 * The tier itself follows the difficulty (oracool/item_tiers.h); this is how OFTEN a shelf carries
+	 * one at all. A shop is repeatable in a way the dungeon is not, so this stays well below certain.
+	 */
+	OptionEntryInt<int> vendorTieredStockChance;
 	OptionEntryBoolean nakedHeroes;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;

@@ -147,6 +147,33 @@ int BandedQlvl(int authoredQlvl);
  */
 int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configuredPercent);
 
+/**
+ * @brief The ilvl a vendor's stock is generated at: their own level, lifted by the difficulty.
+ *
+ * Vendor level is the deepest floor visited, clamped to 6-16, and it has never known which
+ * difficulty the game is on - so Adria in Torment offered exactly what Adria in Normal did. Adding
+ * the difficulty block puts shops on the same ladder as the dungeon: 6-16 in Normal, 30-40 in
+ * Nightmare, 54-64 in Hell, 78-88 in Torment, which is one tier band per difficulty.
+ */
+int VendorItemLevel(int vendorLevel);
+
+/**
+ * @brief Stamps a vendor item's ilvl and, on a chance, gives it a base tier.
+ *
+ * A CHANCE rather than the dungeon's flat weighting (user, 2026-08-19: "make vendors have a chance
+ * to offer tiered gear related to the difficulty of the game"). A shop is a reliable, repeatable
+ * source; if every Torment shelf were Torment-tier the dungeon would stop being where gear comes
+ * from. The chance itself is the INI's Vendor Tiered Stock Chance.
+ *
+ * Derived from @p seed by hashing, salted differently from TierForItem so that "is it tiered" and
+ * "which tier" are independent questions rather than the same roll read twice.
+ *
+ * Called on FRESH stock only, never from the Recreate* twins. Those rebuild an item from a stored
+ * seed for the multiplayer pack, which has no room to carry a tier; single-player never keeps a
+ * recreated item, since the save holds every stat. Same rule the dungeon path follows.
+ */
+void ApplyVendorTier(Item &item, int vendorLevel, uint32_t seed);
+
 /** @brief Whether @p item is something base tiers apply to at all: worn gear, not a potion. */
 bool CanCarryBaseTier(const Item &item);
 
