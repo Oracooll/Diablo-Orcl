@@ -656,13 +656,23 @@ void DrawArrow(const Surface &out, int direction)
 {
 	const Rectangle hit = GetArrowRect(direction);
 	const Point centre { hit.position.x + hit.size.width / 2, hit.position.y + hit.size.height / 2 };
-	// Deep gold rather than the theme edge's mid-ramp (user request, 2026-08-18: "make them darker
-	// to increase visibility in Limestone Theme"). The limestone panel is a LIGHT background, so an
-	// arrow reads by being darker than it, not brighter - the old colour was tuned against the
-	// half-transparent fill this window used to have. PAL16 ramps run light to dark as the offset
-	// grows, so +13 is near the bottom of the gold ramp. Pressed stays bright, which keeps the press
-	// visible as a flash TOWARD the light rather than a second dark state.
-	const uint8_t color = PressedArrow == direction ? PAL16_YELLOW + 2 : PAL16_YELLOW + 13;
+	// Idle went +13 -> +6 (user, 2026-08-19: "arrow keys of abilities window are too dark"), and the
+	// cause is worth recording because it was not a change to this file.
+	//
+	// +13 was correct when it was written on 2026-08-18: "make them darker to increase visibility in
+	// Limestone Theme". Bare limestone is a LIGHT background, so an arrow read by being darker than
+	// it. Then v1.8.48 put a half-transparent black backdrop across every side panel's opening,
+	// including this one - the ground under these arrows is now a good deal darker than the stone
+	// they were matched to, and a near-black arrow on it disappears.
+	//
+	// So this is not "the previous value was wrong". It was right against the background it had, and
+	// the background moved out from under it. Anything else on these panels that was tuned dark
+	// against bare limestone is a candidate for the same correction.
+	//
+	// PAL16 ramps run light to dark as the offset grows. Pressed stays at +2 and idle sits four
+	// steps below it, so the press still reads as a flash toward the light rather than a second
+	// state of similar weight.
+	const uint8_t color = PressedArrow == direction ? PAL16_YELLOW + 2 : PAL16_YELLOW + 6;
 
 	// Filled by drawing one horizontal run per row, the run growing toward the base. Row r counts
 	// out from the tip, so the widths are symmetric about the vertical centre.
