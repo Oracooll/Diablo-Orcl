@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classes - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Classes</h1>
+<p class="lede">Six heroes. They differ in starting stats, in how far each stat can be raised, and in
+how much life and mana a level or a point buys - and each has its own three-page skill tree.</p>
+
+<h2>At a glance</h2>
+<div class="cards" id="cards"></div>
+
+<h2>Starting attributes</h2>
+<p>What a new character begins with, before a single point is spent.</p>
+<div class="tablewrap"><table id="starting">
+<thead><tr><th>Class</th><th class="num">Str</th><th class="num">Mag</th><th class="num">Dex</th><th class="num">Vit</th><th class="num">Life</th><th class="num">Mana</th><th class="num">Block</th></tr></thead>
+<tbody></tbody></table></div>
+
+<h2>Attribute ceilings</h2>
+<p>The highest each attribute can be raised to. This is the sharpest difference between the classes -
+a Sorcerer's 250 Magic against a Barbarian's zero is the whole character in one number.</p>
+<div class="tablewrap"><table id="maxima">
+<thead><tr><th>Class</th><th class="num">Max Str</th><th class="num">Max Mag</th><th class="num">Max Dex</th><th class="num">Max Vit</th></tr></thead>
+<tbody></tbody></table></div>
+
+<h2>Life and mana curves</h2>
+<p>What each character level and each spent point is worth. "Per level" is granted automatically;
+"per point" is what you buy when you raise Vitality or Magic.</p>
+<div class="tablewrap"><table id="curves">
+<thead><tr><th>Class</th><th class="num">Life / level</th><th class="num">Mana / level</th><th class="num">Life / Vitality</th><th class="num">Mana / Magic</th></tr></thead>
+<tbody></tbody></table></div>
+
+<div class="note"><b>Reading the curve.</b> A Barbarian gains 2 life per level and 2.5 per point of
+Vitality; a Sorcerer gains 1 life per level and 1 per point, but 2 mana per level and 2 per point of
+Magic. Over 99 levels those small differences are most of what separates the classes.</div>
+
+<h2>What every class shares</h2>
+<ul>
+	<li><b>Naked start.</b> No gear, no potions, no gold, both buttons on the bare fist.</li>
+	<li><b>One skill point per level</b>, spent on the class tree or on deepening a spell.</li>
+	<li><b>No vanilla class skill.</b> Item Repair, Trap Disarm and the rest are retired; the tree is
+		the skill system.</li>
+	<li><b>Every spell is learnable</b> by any class that meets the level band and the Magic
+		requirement - the tree is what makes a class distinct, not the spell list.</li>
+</ul>
+
+<h2>Experience</h2>
+<p>The full ladder to level <b id="maxlvl"></b>. One skill point per level, so the whole pool is
+<b id="pool"></b> points.</p>
+<div class="tools" id="exptools"></div>
+<div class="tablewrap"><table id="exp">
+<thead><tr><th class="num">Level</th><th class="num">Experience</th><th class="num">Gained this level</th></tr></thead>
+<tbody></tbody></table></div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const classes = WIKI.classes;
+
+document.getElementById('cards').innerHTML = classes.map(function (c) {
+	const tree = WIKI.skills.filter(function (s) { return s.class === c.name; });
+	const built = tree.filter(function (s) { return s.implemented; }).length;
+	return '<div class="card"><b>' + c.name + '</b><span>' +
+		'Str ' + c.baseStr + ' / Mag ' + c.baseMag + ' / Dex ' + c.baseDex + ' / Vit ' + c.baseVit + '<br>' +
+		'max Str ' + c.maxStr + ', max Mag ' + c.maxMag + '<br>' +
+		tree.length + ' tree skills, ' + built + ' built</span></div>';
+}).join('');
+
+function fill(id, cells) {
+	document.querySelector('#' + id + ' tbody').innerHTML = classes.map(function (c) {
+		return '<tr><td><b>' + c.name + '</b></td>' + cells(c).map(function (v) {
+			return '<td class="num">' + v + '</td>';
+		}).join('') + '</tr>';
+	}).join('');
+}
+
+/* Life and mana at level 1, by the engine's own formula:
+ *     base + per-level x level + per-point x attribute
+ * Checked against the test suite's pinned value for a new Rogue (45 life), which is what stops this
+ * from being a plausible-looking approximation. */
+fill('starting', function (c) {
+	return [c.baseStr, c.baseMag, c.baseDex, c.baseVit,
+		Math.round(c.startLife + c.lifePerLevel + c.baseVit * c.lifePerVit),
+		Math.round(c.startMana + c.manaPerLevel + c.baseMag * c.manaPerMag),
+		c.blockBonus + '%'];
+});
+fill('maxima', function (c) { return [c.maxStr, c.maxMag, c.maxDex, c.maxVit]; });
+fill('curves', function (c) {
+	return [c.lifePerLevel, c.manaPerLevel, c.lifePerVit, c.manaPerMag];
+});
+
+document.getElementById('maxlvl').textContent = WIKI.mechanics.maxCharacterLevel;
+document.getElementById('pool').textContent = WIKI.mechanics.maxInvestment;
+
+/* The experience table is 99 rows of mostly-uninteresting middle, so it starts collapsed to the
+   milestones a player actually plans around and opens on request. */
+const expBody = document.querySelector('#exp tbody');
+const milestones = [1, 5, 6, 10, 12, 15, 18, 20, 24, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 95, 98, 99];
+let showAll = false;
+
+function drawExp() {
+	const rows = WIKI.expTable.filter(function (e) {
+		return showAll || milestones.indexOf(e.level) >= 0;
+	});
+	expBody.innerHTML = rows.map(function (e, i) {
+		const prev = WIKI.expTable[e.level - 2];
+		const gained = prev ? (e.toNext - prev.toNext) : e.toNext;
+		const band = WIKI.mechanics.spellBands.indexOf(e.level) >= 0
+			? ' style="background:rgba(217,180,90,.10)"' : '';
+		return '<tr' + band + '><td class="num">' + e.level + '</td><td class="num">' +
+			e.toNext.toLocaleString() + '</td><td class="num">' + gained.toLocaleString() + '</td></tr>';
+	}).join('');
+}
+
+const toggle = document.createElement('select');
+toggle.innerHTML = '<option value="0">Milestone levels</option><option value="1">All 99 levels</option>';
+toggle.addEventListener('change', function () { showAll = toggle.value === '1'; drawExp(); });
+document.getElementById('exptools').appendChild(toggle);
+const hint = document.createElement('span');
+hint.className = 'count';
+hint.textContent = 'Highlighted rows are skill and spell tier openings.';
+document.getElementById('exptools').appendChild(hint);
+drawExp();
+</script>
+</body>
+</html>

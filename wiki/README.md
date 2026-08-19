@@ -36,3 +36,16 @@ it annotates.
 | `wiki.js` | Navigation and the shared sortable/filterable table. |
 | `data.js` | Generated. Do not edit - `BuildWiki.ps1` overwrites it. |
 | `sprites/` | Generated copy of `Packaging/resources/assets`. |
+
+## Hosted copy
+
+The bundled single-file build is published as a Claude Artifact:
+
+  https://claude.ai/code/artifact/79abf513-fd1b-4f64-89aa-7c0696606337
+
+It is private until shared from the page's share menu. To refresh it after a data change:
+
+    powershell -ExecutionPolicy Bypass -File tools\BuildWiki.ps1
+    powershell -ExecutionPolicy Bypass -File tools\BundleWiki.ps1
+
+then republish `wiki/oracool-wiki-bundle.html` to the same URL.

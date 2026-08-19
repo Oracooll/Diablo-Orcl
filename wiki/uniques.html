@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unique items - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Unique items</h1>
+<p class="lede">Named items with fixed powers. Every one of them is a specific object rather than a
+roll - finding it twice gives you the same item both times.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<h2>How a unique drops</h2>
+<ul>
+	<li>The unique roll happens <b>before</b> any Oracool quality roll, so a unique is never displaced
+		by a rare or a primal.</li>
+	<li>Its <b>minimum level</b> below is a character-level requirement carried by the item itself,
+		separate from the item level of the drop that produced it.</li>
+	<li>Items from a <b>unique monster</b> get a 15% chance at the unique table - the reason champions
+		and bosses are worth seeking out.</li>
+	<li>A unique can be forged at any <a href="tiers.html">base tier</a>, so the same named item is
+		stronger when it turns up deeper.</li>
+</ul>
+
+<h2>Reading the powers</h2>
+<p>Each power is an engine effect and its value. The common ones:</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Power</th><th>Means</th><th>Power</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><code>DAMP</code></td><td>+% damage</td><td><code>TOHIT</code></td><td>+% to hit</td></tr>
+<tr><td><code>ACP</code></td><td>+% armour class</td><td><code>LIFE</code> / <code>MANA</code></td><td>+ hit points / mana</td></tr>
+<tr><td><code>STR</code> <code>MAG</code> <code>DEX</code> <code>VIT</code></td><td>+ that attribute</td><td><code>ALLRES</code></td><td>+ all resistances</td></tr>
+<tr><td><code>FIRERES</code> <code>LIGHTRES</code> <code>MAGICRES</code></td><td>+ that resistance</td><td><code>FASTATTACK</code></td><td>faster attack speed</td></tr>
+<tr><td><code>FIREDAM</code> <code>LIGHTDAM</code></td><td>adds elemental damage</td><td><code>SPLLVLADD</code></td><td>+ to all spell levels</td></tr>
+<tr><td><code>THORNS</code></td><td>damages attackers</td><td><code>LIGHT_CURSE</code></td><td>reduces light radius</td></tr>
+</tbody></table></div>
+
+<h2>All uniques</h2>
+<div id="table"></div>
+
+<div class="note">Some uniques carry a curse alongside their gift - a lower light radius, worse
+armour, a stat penalty. That is the vanilla design and it is preserved: the strongest items ask for
+something back.</div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const rows = WIKI.uniques.map(function (u) {
+	return Object.assign({}, u, {
+		base: u.base.replace(/_/g, ' ').toLowerCase(),
+		curse: /CURSE/.test(u.powers) ? 'yes' : ''
+	});
+});
+
+const levels = rows.map(function (r) { return r.minLvl; });
+document.getElementById('stats').innerHTML =
+	'<div class="stat"><b>' + rows.length + '</b><span>uniques</span></div>' +
+	'<div class="stat"><b>' + Math.min.apply(null, levels) + '-' + Math.max.apply(null, levels) + '</b><span>level range</span></div>' +
+	'<div class="stat"><b>' + new Set(rows.map(function (r) { return r.base; })).size + '</b><span>base types</span></div>' +
+	'<div class="stat"><b>' + rows.filter(function (r) { return r.curse; }).length + '</b><span>carry a curse</span></div>';
+
+makeTable(document.getElementById('table'), rows, [
+	{ key: 'name', label: 'Name' },
+	{ key: 'base', label: 'Base type' },
+	{ key: 'minLvl', label: 'Min level', num: true },
+	{ key: 'powerCount', label: 'Powers', num: true },
+	{ key: 'value', label: 'Value', num: true },
+	{ key: 'curse', label: 'Curse', render: function (v) { return v ? '<span class="tag no">yes</span>' : ''; } },
+	{ key: 'powers', label: 'Effects', cls: 'mono' }
+], {
+	sort: 'minLvl',
+	placeholder: 'Search name, base or effect...',
+	filters: [{ key: 'base', label: 'Base' }]
+});
+</script>
+</body>
+</html>

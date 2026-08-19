@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Item sets - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Item sets</h1>
+<p class="lede">Fifteen named sets. Each piece is worth wearing alone; wearing several from the same
+set adds bonuses on top, and every rung grants something.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<h2>How sets work</h2>
+<ul>
+	<li><b>Green names</b>, in the inventory and in the description.</li>
+	<li>A set piece is <b>not a roll</b>. Its stats are a fixed authored list, which is why it shares
+		the tier field with the rolled qualities but never goes through the affix roller.</li>
+	<li><b>Partial sets count.</b> Bonuses come in rungs - two pieces, three, and so on - and every
+		rung in this build grants something rather than being a placeholder.</li>
+	<li>Set pieces drop through <b>their own hook</b>, not the shared item pool: roughly one monster in
+		twelve carries one, gated by the area level against the piece's own quality level.</li>
+</ul>
+
+<h2>The fifteen sets</h2>
+<div class="cards" id="setcards"></div>
+
+<h2>Every set piece</h2>
+<div id="table"></div>
+
+<div class="note warn"><b>Known gaps.</b> Three things are still missing from the set system and are
+recorded here rather than glossed over: some pieces cannot yet spawn, the named-set drop path does
+not cover every set, and there is no gold sink attached to completing one. The bonus rungs themselves
+are complete and working.</div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const rows = WIKI.setItems.map(function (s) {
+	return Object.assign({}, s, {
+		opens: s.qlvl > 0 ? areaOfLevel(s.qlvl) : ''
+	});
+});
+
+const sets = {};
+rows.forEach(function (r) {
+	if (!sets[r.set]) sets[r.set] = { pieces: 0, minQlvl: 999, slots: [] };
+	sets[r.set].pieces++;
+	sets[r.set].minQlvl = Math.min(sets[r.set].minQlvl, r.qlvl);
+	if (sets[r.set].slots.indexOf(r.slot) < 0) sets[r.set].slots.push(r.slot);
+});
+
+document.getElementById('stats').innerHTML =
+	'<div class="stat"><b>' + Object.keys(sets).length + '</b><span>sets</span></div>' +
+	'<div class="stat"><b>' + rows.length + '</b><span>set pieces</span></div>' +
+	'<div class="stat"><b>' + new Set(rows.map(function (r) { return r.slot; })).size + '</b><span>slots covered</span></div>';
+
+document.getElementById('setcards').innerHTML = Object.keys(sets).sort().map(function (name) {
+	const s = sets[name];
+	return '<div class="card"><b>' + name + '</b><span>' + s.pieces + ' pieces &middot; from ilvl ' +
+		s.minQlvl + '<br>' + s.slots.sort().join(', ') + '</span></div>';
+}).join('');
+
+makeTable(document.getElementById('table'), rows, [
+	{ key: 'name', label: 'Piece' },
+	{ key: 'set', label: 'Set' },
+	{ key: 'slot', label: 'Slot' },
+	{ key: 'base', label: 'Base' },
+	{ key: 'qlvl', label: 'qlvl', num: true },
+	{ key: 'opens', label: 'Opens at' },
+	{ key: 'ac', label: 'Armour', num: true },
+	{ key: 'dur', label: 'Dur', num: true },
+	{ key: 'powers', label: 'Stats', cls: 'mono' }
+], {
+	sort: 'set',
+	placeholder: 'Search piece, set or stat...',
+	filters: [
+		{ key: 'set', label: 'Set' },
+		{ key: 'slot', label: 'Slot' }
+	]
+});
+</script>
+</body>
+</html>

@@ -18,12 +18,18 @@ game's own source tables, so every number below is the number the build actually
 
 <h2>Where to start</h2>
 <div class="cards">
+	<a class="card" href="start.html"><b>Getting started</b><span>New here? The eight things that will catch you out, in the order you meet them</span></a>
+	<a class="card" href="classes.html"><b>Classes</b><span>Six heroes: starting stats, attribute ceilings, life and mana curves</span></a>
 	<a class="card" href="mechanics.html"><b>Core mechanics</b><span>alvl, mlvl, ilvl, the Rule of Rangs, and what changed from vanilla</span></a>
 	<a class="card" href="items.html"><b>Base items</b><span>Every droppable base with its quality level, damage, armour and requirements</span></a>
 	<a class="card" href="spells.html"><b>Spells</b><span id="c-spells">Every spell with its level band, mana curve and missiles</span></a>
 	<a class="card" href="skills.html"><b>Class trees</b><span id="c-skills">Six classes, three pages each, every skill's tier and status</span></a>
 	<a class="card" href="areas.html"><b>Areas</b><span>The 24-area ladder and what each one can drop</span></a>
 	<a class="card" href="monsters.html"><b>Monsters</b><span>Every monster type with its level, hit points and experience</span></a>
+	<a class="card" href="uniques.html"><b>Unique items</b><span>Named items and the fixed powers each one carries</span></a>
+	<a class="card" href="sets.html"><b>Item sets</b><span>Fifteen sets, their pieces and what wearing several does</span></a>
+	<a class="card" href="prefixes.html"><b>Prefixes and suffixes</b><span>The affix tables: what each name gives and when it unlocks</span></a>
+	<a class="card" href="world.html"><b>Quests, shrines, town</b><span>What to do, what to touch, and who to trade with</span></a>
 </div>
 
 <h2>What makes this build different</h2>
@@ -53,7 +59,11 @@ and reload. The version and timestamp in the sidebar tell you how current the pa
 <script src="wiki.js"></script>
 <script>
 const counts = [
+	['classes', WIKI.classes.length, 'classes'],
 	['items', WIKI.items.length, 'base items'],
+	['uniques', WIKI.uniques.length, 'uniques'],
+	['sets', new Set(WIKI.setItems.map(s => s.set)).size, 'item sets'],
+	['affixes', WIKI.affixes.length, 'affixes'],
 	['spells', WIKI.spells.length, 'spells'],
 	['skills', WIKI.skills.length, 'tree skills'],
 	['monsters', WIKI.monsters.length, 'monster types'],

@@ -205,6 +205,207 @@ foreach ($line in ($monBody -split "`n")) {
 }
 
 # ---------------------------------------------------------------------------------------------
+# Character classes and the experience ladder - Source/playerdat.cpp
+# ---------------------------------------------------------------------------------------------
+
+# The life and mana columns are in the engine's 1/64 fixed point, written either as an explicit
+# "(18 << 6)" or as "static_cast<int>(5.5F * 64)". Both are converted to whole points here, which is
+# the unit a player counts in and the unit the character sheet shows.
+function ConvertFixed([string]$raw) {
+    $text = $raw.Trim()
+    if ($text -match '^\(?\s*(-?\d+)\s*<<\s*6\s*\)?$') { return [double]$matches[1] }
+    if ($text -match '^([0-9.]+)x64$') { return [double]$matches[1] }
+    if ($text -match '^\(?\s*(-?\d+)\s*\)?$') { return [double]$matches[1] / 64.0 }
+    return 0
+}
+
+$playerdat = Read-SourceFile 'playerdat.cpp'
+$classes = New-Object System.Collections.ArrayList
+# Bounded to the PlayersData table. The sprite table below it repeats the same "/* HeroClass::X */"
+# comment on every row, so an unbounded walk found each class twice - twelve classes for six.
+$classBody = $playerdat.Substring($playerdat.IndexOf('const PlayerData PlayersData[]'))
+$classBody = $classBody.Substring(0, $classBody.IndexOf('};'))
+foreach ($line in ($classBody -split "`n")) {
+    if ($line -notmatch '^/\* HeroClass::(\w+)\s*\*/\s*\{') { continue }
+    $enum = $matches[1]
+    $name = ''
+    if ($line -match 'N_\("([^"]*)"\)') { $name = $matches[1] }
+    $flat = $line -replace 'N_\("[^"]*"\)', 'NAME'
+    $flat = $flat -replace 'static_cast<int>\(([0-9.]+)F \* 64\)', '$1x64'
+    $parts = $flat.Substring($flat.IndexOf('{') + 1) -split ','
+    for ($i = 0; $i -lt $parts.Count; $i++) { $parts[$i] = $parts[$i].Trim() }
+    if ($parts.Count -lt 20) { continue }
+
+    [void]$classes.Add([ordered]@{
+            enum      = $enum
+            name      = $name
+            # Positional from className: 0 name, 1 sprite path, 2 str, 3 mag, 4 dex, 5 vit,
+            # 6-9 the maxima, 10 block bonus, 11-18 the life and mana curves, 19 the class skill.
+            baseStr   = [int]$parts[2]
+            baseMag   = [int]$parts[3]
+            baseDex   = [int]$parts[4]
+            baseVit   = [int]$parts[5]
+            maxStr    = [int]$parts[6]
+            maxMag    = [int]$parts[7]
+            maxDex    = [int]$parts[8]
+            maxVit    = [int]$parts[9]
+            blockBonus = [int]$parts[10]
+            startLife = ConvertFixed $parts[11]
+            startMana = ConvertFixed $parts[12]
+            lifePerLevel = ConvertFixed $parts[13]
+            manaPerLevel = ConvertFixed $parts[14]
+            lifePerVit   = ConvertFixed $parts[15]
+            manaPerMag   = ConvertFixed $parts[16]
+            skill     = ($parts[19] -replace 'SpellID::', '' -replace '\s*\}.*$', '')
+        })
+}
+
+$expTable = New-Object System.Collections.ArrayList
+$expBody = $playerdat.Substring($playerdat.IndexOf('const uint64_t ExpLvlsTbl'))
+$expBody = $expBody.Substring($expBody.IndexOf('{') + 1)
+$expBody = $expBody.Substring(0, $expBody.IndexOf('};'))
+$level = 1
+foreach ($m in [regex]::Matches($expBody, '(\d[\d]*)')) {
+    [void]$expTable.Add([ordered]@{ level = $level; toNext = [int64]$m.Groups[1].Value })
+    $level++
+}
+
+# ---------------------------------------------------------------------------------------------
+# Affixes - Source/itemdat.cpp's prefix and suffix tables
+# ---------------------------------------------------------------------------------------------
+$affixes = New-Object System.Collections.ArrayList
+foreach ($table in @('ItemPrefixes', 'ItemSuffixes')) {
+    $kind = if ($table -eq 'ItemPrefixes') { 'prefix' } else { 'suffix' }
+    $body = $itemdat.Substring($itemdat.IndexOf("const PLStruct $table[]"))
+    $body = $body.Substring(0, $body.IndexOf('};'))
+    # One row per line, read positionally after the two brace groups. A single regex over the whole
+    # row was tried first and could not be trusted: PLIType is an OR-chain of AffixItemType flags
+    # padded with runs of spaces, so a lazy match ran past the field and a greedy one swallowed the
+    # next row. Splitting the line at its known landmarks is duller and correct.
+    foreach ($line in ($body -split "`n")) {
+        if ($line -notmatch '^\{\s*N_\("([^"]*)"\),\s*\{\s*(IPL_\w+),\s*(-?\d+),\s*(-?\d+)\s*\},\s*(-?\d+),\s*(.+)$') { continue }
+        # Copied out BEFORE the second -match runs. $matches is a single automatic variable that each
+        # match overwrites, so reading the first pattern's groups afterwards silently returns the
+        # second pattern's - which is how "false" ended up being cast to an int here.
+        $affixName = $matches[1]
+        $affixPower = $matches[2] -replace '^IPL_', ''
+        $affixMin = [int]$matches[3]
+        $affixMax = [int]$matches[4]
+        $affixMinLvl = [int]$matches[5]
+        $tail = $matches[6]
+        $types = ($tail -split ',\s*GOE_')[0]
+
+        $align = ''; $double = $false; $good = $false; $minVal = 0; $maxVal = 0; $mult = 0
+        if ($tail -match 'GOE_(\w+),\s*(true|false),\s*(true|false),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)') {
+            $align = $matches[1]
+            $double = ($matches[2] -eq 'true')
+            $good = ($matches[3] -eq 'true')
+            $minVal = [int]$matches[4]
+            $maxVal = [int]$matches[5]
+            $mult = [int]$matches[6]
+        }
+
+        [void]$affixes.Add([ordered]@{
+                kind   = $kind
+                name   = $affixName
+                power  = $affixPower
+                min    = $affixMin
+                max    = $affixMax
+                minLvl = $affixMinLvl
+                types  = (($types -replace 'AffixItemType::', '') -replace '\s+', ' ').Trim()
+                align  = $align
+                double = $double
+                good   = $good
+                minVal = $minVal
+                maxVal = $maxVal
+                mult   = $mult
+            })
+    }
+}
+
+# ---------------------------------------------------------------------------------------------
+# Unique items - the generated include
+# ---------------------------------------------------------------------------------------------
+$uniques = New-Object System.Collections.ArrayList
+$uniquePath = Join-Path $src 'oracool/unique_items_data.inc'
+if (Test-Path $uniquePath) {
+    foreach ($line in (Get-Content $uniquePath -Encoding UTF8)) {
+        if ($line -notmatch '\{\s*N_\("([^"]*)"\),\s*(UITYPE_\w+),\s*(\d+),\s*(\d+),\s*(\d+),') { continue }
+        $powers = New-Object System.Collections.ArrayList
+        foreach ($p in [regex]::Matches($line, '\{\s*(IPL_\w+),\s*(-?\d+),\s*(-?\d+)\s*\}')) {
+            $type = $p.Groups[1].Value
+            if ($type -eq 'IPL_INVALID' -or $type -eq 'IPL_INVCURS') { continue }
+            [void]$powers.Add(($type -replace '^IPL_', '') + ' ' + $p.Groups[2].Value)
+        }
+        [void]$uniques.Add([ordered]@{
+                name    = $matches[1]
+                base    = ($matches[2] -replace '^UITYPE_', '')
+                minLvl  = [int]$matches[3]
+                powerCount = [int]$matches[4]
+                value   = [int]$matches[5]
+                powers  = ($powers -join ', ')
+            })
+    }
+}
+
+# ---------------------------------------------------------------------------------------------
+# Item sets - the generated include
+# ---------------------------------------------------------------------------------------------
+$setItems = New-Object System.Collections.ArrayList
+$setsPath = Join-Path $src 'oracool/item_sets_data.inc'
+if (Test-Path $setsPath) {
+    foreach ($line in (Get-Content $setsPath -Encoding UTF8)) {
+        if ($line -notmatch '\{\s*"(SET_\w+)",\s*N_\("([^"]*)"\),\s*"(\w+)",\s*"(\w+)",\s*(\d+),\s*(\d+),\s*(\d+),') { continue }
+        $powers = New-Object System.Collections.ArrayList
+        foreach ($p in [regex]::Matches($line, '\{\s*(IPL_\w+),\s*(-?\d+),\s*(-?\d+)\s*\}')) {
+            if ($p.Groups[1].Value -eq 'IPL_INVALID') { continue }
+            [void]$powers.Add(($p.Groups[1].Value -replace '^IPL_', '') + ' ' + $p.Groups[2].Value)
+        }
+        # The set's display name is the item name's possessive prefix - "Vhal's Blackened Halo" is a
+        # piece of Vhal's set - so it is derived rather than restated in a second table.
+        $setName = $matches[1] -replace '^SET_', '' -replace '_', ' '
+        [void]$setItems.Add([ordered]@{
+                set     = (Get-Culture).TextInfo.ToTitleCase($setName.ToLower())
+                name    = $matches[2]
+                slot    = $matches[3]
+                base    = ($matches[4] -replace '_', ' ')
+                qlvl    = [int]$matches[5]
+                ac      = [int]$matches[6]
+                dur     = [int]$matches[7]
+                powers  = ($powers -join ', ')
+            })
+    }
+}
+
+# ---------------------------------------------------------------------------------------------
+# Quests and shrines
+# ---------------------------------------------------------------------------------------------
+$questsCpp = Read-SourceFile 'quests.cpp'
+$quests = New-Object System.Collections.ArrayList
+$questBody = $questsCpp.Substring($questsCpp.IndexOf('QuestData QuestsData[]'))
+$questBody = $questBody.Substring(0, $questBody.IndexOf('};'))
+foreach ($m in [regex]::Matches($questBody, '\{\s*(-?\d+),\s*(-?\d+),\s*(\w+),\s*(-?\d+),\s*(\d+),\s*(\w+),\s*(true|false),\s*(\w+),\s*N_\(\s*(?:/\*[^*]*\*/\s*)?"([^"]*)"\s*\)')) {
+    [void]$quests.Add([ordered]@{
+            level      = [int]$m.Groups[1].Value
+            levelType  = ($m.Groups[3].Value -replace 'DTYPE_', '')
+            setLevel   = ($m.Groups[6].Value -replace 'SL_', '')
+            singlePlayer = ($m.Groups[7].Value -eq 'true')
+            name       = $m.Groups[9].Value
+        })
+}
+
+$objectsCpp = Read-SourceFile 'objects.cpp'
+$shrines = New-Object System.Collections.ArrayList
+if ($objectsCpp -match '(?s)const char \*const ShrineNames\[\] = \{(.*?)\};') {
+    $shrineBody = $matches[1]
+    $shrineIndex = 0
+    foreach ($m in [regex]::Matches($shrineBody, 'N_\("([^"]*)"\)')) {
+        [void]$shrines.Add([ordered]@{ index = $shrineIndex; name = $m.Groups[1].Value })
+        $shrineIndex++
+    }
+}
+
+# ---------------------------------------------------------------------------------------------
 # Mechanics constants, read from the modules that define them
 # ---------------------------------------------------------------------------------------------
 function Get-Constant([string]$text, [string]$pattern) {
@@ -318,6 +519,13 @@ if (-not (Test-Path $out)) { New-Item -ItemType Directory -Path $out | Out-Null 
 $data = [ordered]@{
     version   = $version
     generated = $generated
+    classes   = $classes
+    expTable  = $expTable
+    affixes   = $affixes
+    uniques   = $uniques
+    setItems  = $setItems
+    quests    = $quests
+    shrines   = $shrines
     items     = $items
     spells    = $spells
     skills    = $skills
@@ -333,3 +541,5 @@ Set-Content -Path (Join-Path $out 'data.js') -Value ("const WIKI = " + $json + "
 
 Write-Host ("wiki data: {0} items, {1} spells, {2} skills, {3} monsters, {4} options, {5} assets, {6} reports" -f `
         $items.Count, $spells.Count, $skills.Count, $monsters.Count, $options.Count, $assets.Count, $reports.Count)
+Write-Host ("           {0} classes, {1} exp rows, {2} affixes, {3} uniques, {4} set items, {5} quests, {6} shrines" -f `
+        $classes.Count, $expTable.Count, $affixes.Count, $uniques.Count, $setItems.Count, $quests.Count, $shrines.Count)
