@@ -2,8 +2,8 @@
 #
 #     powershell -ExecutionPolicy Bypass -File tools\CutHudPlate.ps1
 #
-# MPQ Unit E. Source is Oracool.MPQ\01-in-use\bottom-hud\hud-plate-v3.png - a 1536x1024 RGBA master
-# whose art occupies a 1505x274 band at (16, 336).
+# MPQ Unit E. Source is one of the masters in Oracool.MPQ\01-in-use\bottom-hud - 1536x1024 RGBA with
+# its art occupying a 1505x274 band at (16, 336). Defaults to hud-plate-v2.png; -Master switches it.
 #
 # ## Why v3 is a drop-in and the earlier limestone package was not
 #
@@ -33,11 +33,18 @@
 # blit the three-state strips cut by tools\CutHudStateIcons.ps1 into belt cells 0 and 5. The plate
 # supplies the frame; the icons supply what is inside it.
 
+param(
+    # Which master to cut. v2 and v3 are different art on an IDENTICAL grid - both 1536x1024 RGBA
+    # with their band at (16, 336) measuring 1505x274 - so switching between them is this argument
+    # and nothing else. Measured rather than assumed, and the assertions below re-check it.
+    [string] $Master = 'hud-plate-v2.png'
+)
+
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$master = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\01-in-use\bottom-hud\hud-plate-v3.png'
+$master = Join-Path (Split-Path -Parent $root) "Oracool.MPQ\01-in-use\bottom-hud\$Master"
 if (-not (Test-Path $master)) { throw "missing master: $master" }
 
 # The art's own alpha bounding box, and the size hud_layout calls PlateSrcSize. Written out rather
@@ -83,7 +90,7 @@ try {
         $plate.Save((Join-Path $root "$dir\middle_hud.png"), [System.Drawing.Imaging.ImageFormat]::Png)
     }
     $plate.Dispose()
-    Write-Host "middle_hud.png <- hud-plate-v3.png crop ${cropX},${cropY} ${srcW}x${srcH} -> ${outW}x${outH}"
+    Write-Host "middle_hud.png <- $Master crop ${cropX},${cropY} ${srcW}x${srcH} -> ${outW}x${outH}"
 } finally {
     $img.Dispose()
 }

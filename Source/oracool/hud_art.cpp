@@ -62,24 +62,19 @@ struct ArtAsset {
 constexpr int HudTintStrengthPercent = 50;
 
 /**
- * @brief How much of the bottom plate's own brightness survives quantization, in percent.
+ * @brief How much of a tinted asset's own brightness survives quantization, in percent.
  *
- * Oracool: user, 2026-08-19 - "the hud seems too bright... it looks way brighter than the master
- * file i provided." Both halves of that are true and they compound.
+ * Added 2026-08-19 to pull the bottom plate down after the v3 art came out brighter in game than
+ * the master did on disk - the 50% pull toward PAL16_YELLOW lifts mid-tones toward the light end of
+ * a gold ramp, and v3's stone was already pale. Superseded within the hour by the user's decision
+ * that the plate should take NO colour treatment at all, so nothing passes a value today.
  *
- * hud-plate-v3's stone is a far lighter grey than the art it replaced, and the 50% pull toward
- * PAL16_YELLOW then lifts every mid-tone toward the light end of a gold ramp. Neither step is wrong
- * on its own; together they land the plate well above where the master sits.
- *
- * Applied as a straight luminance scale BEFORE the ramp lookup and the palette match, so the art
- * keeps its own shading and hue and simply sits lower. Darkening the shared ramp window instead
- * would have taken the burger-menu icons - the only other tinted asset - down with it, and they are
- * already where they should be.
- *
- * A single knob on purpose: this is a matter of taste against a screenshot, so it is meant to be
- * nudged. Lower is darker.
+ * Kept because it is the right knob for the problem and QuantizeAsset defaults it to 100, costing
+ * nothing while unused. If a future asset needs the tint but not the lift, this is where it goes.
+ * Applied BEFORE the ramp lookup and the palette match, so the art keeps its own shading and hue
+ * and simply sits lower.
  */
-constexpr int PlateLuminancePercent = 70;
+constexpr int TintedAssetLuminancePercent = 70;
 
 ArtAsset PlateArt { "ui\\middle_hud.png" };
 ArtAsset HealthOrbArt { "ui\\health_orb.png" };
@@ -629,7 +624,12 @@ void EnsureQuantized()
 	// you read your health and mana at a glance - and their ornament already sits warm against the
 	// gold. If the frames alone are ever wanted in gold, that needs the tint applied to `frame`
 	// while `sphereDim` is spared, which is a separate change from this one.
-	QuantizeAsset(PlateArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent, PlateLuminancePercent);
+	// Oracool: user, 2026-08-19 - "dont apply any color enhancing to it. keep it 100% as delivered."
+	// So NO tint ramp and NO luminance scale: the plate takes the plain nearest-palette path every
+	// untinted asset takes. That is as close to "as delivered" as an 8-bit indexed engine reaches -
+	// every pixel still has to become one of 256 palette entries, and the upper half is the only
+	// tileset-independent part of it - but nothing here chooses a colour the art did not.
+	QuantizeAsset(PlateArt, std::nullopt);
 	QuantizeAsset(HealthOrbArt, Rectangle { GetHealthOrbSphereCenterLocal(), Size { GetOrbSphereRadius(), 0 } });
 	QuantizeAsset(ManaOrbArt, Rectangle { GetManaOrbSphereCenterLocal(), Size { GetOrbSphereRadius(), 0 } });
 	// Same 50% gold as the plate, so the menu the burger button opens matches the HUD it sits on.
