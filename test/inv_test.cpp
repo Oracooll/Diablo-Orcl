@@ -1282,5 +1282,41 @@ TEST_F(InvTest, CtrlClickTransfersGoldStackFromBackpackToStash)
 	EXPECT_EQ(MyPlayer->_pNumInv, 0) << "the stack should have left the backpack";
 	EXPECT_EQ(MyPlayer->InvGrid[0], 0) << "the backpack cell should be free again";
 }
+
+// User report (2026-08-19): "the area where the hover and ctrl+click works is just very tiny. only
+// a few px somewhere around the top part of the grid boxes."
+//
+// Pins the invariant the whole backpack depends on: every pixel of a cell's own rect must resolve
+// to that cell. CheckInvHLight breaks at the FIRST rect containing the point and scans the thirteen
+// equipment slots before the backpack, so an equipment rect overlapping the grid shows up here as a
+// cell whose lower rows answer with someone else's slot - which is exactly the reported signature.
+TEST_F(InvTest, EveryBackpackCellIsLiveAcrossItsWholeRect)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	clear_inventory();
+
+	for (int cell = 0; cell < InventoryGridCells; cell++) {
+		MyPlayer->InvList[0]._itype = ItemType::Misc;
+		MyPlayer->InvList[0].IDidx = IDI_ROCK;
+		MyPlayer->_pNumInv = 1;
+		for (int8_t &c : MyPlayer->InvGrid)
+			c = 0;
+		MyPlayer->InvGrid[cell] = 1;
+
+		const Rectangle rect = InvRect[SLOTXY_INV_FIRST + cell];
+		const Point corners[4] = {
+			rect.position + Displacement { 1, 1 },
+			rect.position + Displacement { rect.size.width - 2, 1 },
+			rect.position + Displacement { 1, rect.size.height - 2 },
+			rect.position + Displacement { rect.size.width - 2, rect.size.height - 2 },
+		};
+		for (const Point &corner : corners) {
+			MousePosition = corner + Displacement { oracool::GetInventoryPanelRect().position.x,
+				               oracool::GetInventoryPanelRect().position.y };
+			EXPECT_EQ(CheckInvHLight(), INVITEM_INV_FIRST)
+			    << "cell " << cell << " dead at panel-relative (" << corner.x << "," << corner.y << ")";
+		}
+	}
+}
 } // namespace
 } // namespace devilution
