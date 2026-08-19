@@ -126,11 +126,25 @@ enum object_graphic_id : int8_t {
 	 * ApplyStashChestGraphics in objects.cpp for why, and for the two places that must both apply it.
 	 */
 	OFILE_ORCLSTASH,
+	/**
+	 * Oracool: Levski's Roar, the town monument (objects\orclroar.cel, shipped in oracool.mpq,
+	 * built by tools/MonumentCel.cs from the user's painting).
+	 *
+	 * One frame: OBJ_STAND is static (animLen 0, no Animated flag), so there is nothing to step
+	 * through. Until 2026-08-20 the monument wore OFILE_ROCKSTAN, the Anvil of Fury's rock stand,
+	 * as an openly-labelled placeholder.
+	 *
+	 * Like the two above it this sits after OFILE_L5BOOKS and is registered explicitly rather than
+	 * by a level scan, and like OFILE_ORCLSTASH it does NOT belong to an object type: the monument
+	 * stays an ordinary OBJ_STAND wearing its own art, so the Caves' rock stands are untouched. See
+	 * ApplyLevskiRoarGraphics in objects.cpp for the two places that must both apply it.
+	 */
+	OFILE_ORCLROAR,
 	OFILE_NULL = -1,
 };
 
 /** @brief Number of entries in object_graphic_id, i.e. the size every filesWidths[] array needs. */
-constexpr int NumObjectGraphicFiles = OFILE_ORCLSTASH + 1;
+constexpr int NumObjectGraphicFiles = OFILE_ORCLROAR + 1;
 
 /**
  * @brief Oracool: orclstash.cel's frame width. CEL stores no width, so LoadCel must be told; a
@@ -144,6 +158,17 @@ constexpr int NumObjectGraphicFiles = OFILE_ORCLSTASH + 1;
  * changes, this constant changes with it, in the same commit.
  */
 constexpr uint16_t OracoolStashChestAnimWidth = 76;
+
+/**
+ * @brief Oracool: orclroar.cel's frame width. Same contract as the constant above - CEL stores no
+ * width, and a wrong one renders the monument as garbage rather than failing.
+ *
+ * Three town tiles. The painting is 971px wide once padded to its floor anchor; the scale is chosen
+ * so the plaza reads as a plaza rather than as a piece of furniture, and so the statue stands about
+ * twice a player's height. tools\build_levski_roar_cel.cmd passes this number in and the tool prints
+ * back what it produced; if either moves, both move, in the same commit.
+ */
+constexpr uint16_t OracoolLevskiRoarAnimWidth = 192;
 
 enum _object_id : int8_t {
 	OBJ_L1LIGHT,

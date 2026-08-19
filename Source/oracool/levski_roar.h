@@ -9,11 +9,14 @@
  * powers are not built, and an empty row of slots promising a system that does not exist is worse
  * than no row at all.
  *
- * PLACEHOLDER ART, by the user's instruction. The monument is OBJ_STAND (objects\rockstan.cel) -
- * the rock stand the Anvil of Fury sits on, and the nearest thing to a smith's anvil that exists
- * as a placeable object; Griswold's own anvil is painted into the town tileset, not an object, so
- * it cannot be placed. The window wears the ordinary ornate border every other panel uses. Both
- * are swapped for the real assets when they arrive, and neither choice constrains that swap.
+ * The monument has its own art as of 2026-08-20: objects\orclroar.cel, three town tiles wide, built
+ * by tools/MonumentCel.cs from the user's painting. It is still an OBJ_STAND - the type is only the
+ * carrier now, and the sprite is swapped onto the instance (ApplyLevskiRoarGraphics in objects.cpp)
+ * so the Caves' actual rock stands are untouched. Before that it wore rockstan.cel outright, as an
+ * openly-labelled placeholder.
+ *
+ * The window still wears the ordinary ornate border every other panel uses, and is still waiting on
+ * art of its own.
  *
  * Items placed in the grid are NEVER persisted: closing the window returns them to the backpack.
  * That is what keeps a crafting station out of the save format entirely - there is no state to

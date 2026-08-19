@@ -4237,12 +4237,43 @@ void AddStashChestObject()
 	// repeats its own trio across the same two slots, so frame 4 still means "closed".
 	chest->_oAnimFrame = 4;
 
-	// The Grand Reliquary is NOT applied (user, 2026-08-18: "bring back previous Stash chest. This
-	// one is not goodlooking"). The chest wears vanilla chest3.cel again, exactly as it did before
-	// the 2026-08-18 sweep. Everything the reliquary needs is still here and still shipped -
-	// OFILE_ORCLSTASH, objects\orclstash.cel, ApplyStashChestGraphics and its twin in SyncObjectAnim
-	// - so putting it back is uncommenting two lines rather than redoing the work.
-	// ApplyStashChestGraphics(*chest);
+	// Live again as of 2026-08-20. This was parked on 2026-08-18 ("bring back previous Stash chest.
+	// This one is not goodlooking") - the objection was to the Grand Reliquary ART, not to the
+	// mechanism, and orclstash.cel now carries the chest the user delivered in its place. Its twin
+	// in SyncObjectAnim came back with it; the two must move together or the chest would wear the
+	// new art until the first return to town and vanilla chest3.cel forever after.
+	ApplyStashChestGraphics(*chest);
+}
+
+/**
+ * @brief Oracool: swaps Levski's Roar onto its own sprite, exactly as ApplyStashChestGraphics does
+ * for the town chest - the same trick and the same two-call rule, for the same reasons.
+ *
+ * The monument stays an ordinary OBJ_STAND. Retargeting the TYPE's ofindex would also repaint every
+ * rock stand in the Caves, including the one the Anvil of Fury quest swaps out; overriding the
+ * INSTANCE leaves those alone. The price is that the override does not survive a save - _oAnimData
+ * is a pointer, skipped by LoadObject and rebuilt by SyncObjectAnim from the type's ofindex - so
+ * SyncObjectAnim carries a matching call. Miss it and the monument is itself until the first return
+ * to town and a rock stand forever after.
+ */
+void ApplyLevskiRoarGraphics(Object &monument)
+{
+	if (HeadlessMode)
+		return;
+
+	EnsureObjectGraphicsLoaded(OFILE_ORCLROAR, OracoolLevskiRoarAnimWidth);
+
+	for (int i = 0; i < numobjfiles; i++) {
+		if (ObjFileList[i] != OFILE_ORCLROAR)
+			continue;
+		if (pObjCels[i]) {
+			monument._oAnimData.emplace(*pObjCels[i]);
+			// Only ever read back by the save file; DrawObject measures the sprite itself. Kept
+			// honest anyway.
+			monument._oAnimWidth = OracoolLevskiRoarAnimWidth;
+		}
+		return;
+	}
 }
 
 void AddLevskiRoarObject()
@@ -4250,9 +4281,10 @@ void AddLevskiRoarObject()
 	if (currlevel != 0 || setlevel)
 		return;
 
-	// PLACEHOLDER: OBJ_STAND wears objects\rockstan.cel, the Anvil of Fury's rock stand. Griswold's
-	// own anvil is painted into the town tileset rather than being an object, so it cannot be
-	// placed; this is the nearest anvil-shaped thing the object table has.
+	// Still needed even though the monument ends up wearing orclroar.cel: SetupObject looks the
+	// TYPE's graphic up in ObjFileList and hard-fails ("Unable to find object_graphic_id") if it is
+	// absent, so OFILE_ROCKSTAN must be loaded before AddObject and the swap happens after. Exactly
+	// the arrangement AddStashChestObject uses.
 	EnsureObjectGraphicsLoaded(OFILE_ROCKSTAN, AllObjects[OBJ_STAND].animWidth);
 
 	// {55,66} by the user's placement (2026-08-19), one tile north of the stash chest at {55,67}.
@@ -4283,6 +4315,7 @@ void AddLevskiRoarObject()
 		// lets the path land ON the monument's tile, where adjacency is trivially satisfied, and
 		// costs nothing: town furniture blocking movement was never the point.
 		monument->_oSolidFlag = false;
+		ApplyLevskiRoarGraphics(*monument);
 		if (position != Requested)
 			LogEvent(StrCat("Levski's Roar fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
 		return;
@@ -5570,16 +5603,22 @@ void SyncObjectAnim(Object &object)
 		}
 
 		// Oracool: the town Stash Chest is an OBJ_CHEST3 wearing its own art, so the lookup above -
-		// which asks the TYPE for its graphic - has just handed it chest3.cel. Put the reliquary
+		// which asks the TYPE for its graphic - has just handed it chest3.cel. Put orclstash.cel
 		// back. This runs on every load of an existing town save (LoadObject skips the _oAnimData
 		// pointer and leans on this function to rebuild it); without it the chest would look right
 		// only until the first time town was reloaded. Same position test the two OperateObject /
 		// SyncOpObject sites already use to tell this chest from an ordinary one.
-		// Parked with its twin in AddStashChestObject - see the note there. The two must return
-		// together or the chest would be a reliquary until the first return to town and a plain
-		// chest forever after.
-		// if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
-		// 	oracool::ApplyStashChestGraphics(object);
+		// Lives and dies with its twin in AddStashChestObject - see the note there.
+		if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
+			oracool::ApplyStashChestGraphics(object);
+
+		// Oracool: the same rebuild, for Levski's Roar. Matched on TYPE rather than on a position
+		// constant, because unlike the chest the monument has a fallback placement (see
+		// AddLevskiRoarObject) - a coordinate test would silently stop matching on the day a
+		// fallback fired. Town has exactly one OBJ_STAND and it is this; the Caves' rock stands are
+		// on other levels, which the currlevel test already excludes.
+		if (currlevel == 0 && !setlevel && object._otype == OBJ_STAND)
+			oracool::ApplyLevskiRoarGraphics(object);
 	}
 
 	switch (object._otype) {
