@@ -2241,11 +2241,16 @@ void InitKeymapActions()
 	// Oracool: user request (2026-08-20) - the runeword book. A KEY rather than a burger-menu entry
 	// because MenuEntries is locked to the row order of menu_icons.png, so adding an entry there
 	// needs the sheet recut first - the same blocker directive point 8 is waiting on.
+	//
+	// W for runeWord. It shipped on B first, which SpellBook already owns further down this same
+	// function - the keymapper took both without complaint and the later registration won, so the
+	// key simply opened the spellbook and the new action was unreachable. Bound keys as of now:
+	// B C F G I L P Q R S T V X Z.
 	sgOptions.Keymapper.AddAction(
 	    "RunewordBook",
 	    N_("Runeword book"),
 	    N_("Open the runeword reference."),
-	    'B',
+	    'W',
 	    [] { oracool::ToggleRunewordBook(); },
 	    nullptr,
 	    CanPlayerTakeAction);
