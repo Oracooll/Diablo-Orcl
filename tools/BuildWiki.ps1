@@ -671,6 +671,53 @@ if ($itemsCpp2 -match 'constexpr int SocketWeights\[Item::MaxItemSockets\] = \{(
         Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ })
 }
 
+
+# ---------------------------------------------------------------------------------------------
+# Runewords - Source/oracool/runewords_data.inc (GENERATED; see tools/GenRunewords.ps1)
+# ---------------------------------------------------------------------------------------------
+$runewordsInc = Get-Content (Join-Path $src 'oracool\runewords_data.inc') -Raw -Encoding UTF8
+$runewords = New-Object System.Collections.ArrayList
+$runeNameByConst = @{}
+foreach ($rune in $runes) { $runeNameByConst[$rune.constant] = $rune.name }
+
+$pattern = '(?s)N_\("([^"]+)"\),\s*static_cast<uint8_t>\(RunewordHost::(\w+)\),\s*(\d+),\s*\{([^}]*)\},\s*([-\d,\s]*?)\}'
+foreach ($m in [regex]::Matches($runewordsInc, $pattern)) {
+    $sequence = @()
+    foreach ($r in [regex]::Matches($m.Groups[4].Value, 'IDI_ORACOOL_RUNE_\w+')) {
+        $name = $runeNameByConst[$r.Value]
+        if ($name) { $sequence += $name }
+    }
+    $nums = @($m.Groups[5].Value -split ',' | ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -match '^-?\d+$' } | ForEach-Object { [int]$_ })
+    while ($nums.Count -lt 8) { $nums += 0 }
+
+    $grants = @()
+    if ($nums[0]) { $grants += "+$($nums[0])% damage" }
+    if ($nums[1]) { $grants += "+$($nums[1]) damage" }
+    if ($nums[2]) { $grants += "+$($nums[2])% to hit" }
+    if ($nums[3]) { $grants += "+$($nums[3])% all resists" }
+    if ($nums[4]) { $grants += "+$($nums[4]) armour" }
+    if ($nums[5]) { $grants += "+$($nums[5]) to spell levels" }
+    if ($nums[6]) { $grants += "+$($nums[6]) mana" }
+    if ($nums[7]) { $grants += "+$($nums[7]) life" }
+
+    # The word's tier is its deepest rune - that is what gates when it can be built at all.
+    $deepest = ''
+    $deepestRung = -1
+    foreach ($runeName in $sequence) {
+        $rung = [array]::IndexOf(@($runes | ForEach-Object { $_.name }), $runeName)
+        if ($rung -gt $deepestRung) { $deepestRung = $rung; $deepest = $runeName }
+    }
+
+    [void]$runewords.Add([ordered]@{
+            name    = $m.Groups[1].Value
+            host    = $m.Groups[2].Value
+            sockets = [int]$m.Groups[3].Value
+            runes   = ($sequence -join ' ')
+            deepest = $deepest
+            grants  = ($grants -join ', ')
+        })
+}
 # ---------------------------------------------------------------------------------------------
 # Debug console commands - Source/debug.cpp
 # ---------------------------------------------------------------------------------------------
@@ -723,6 +770,7 @@ $data = [ordered]@{
     runes     = $runes
     gemQualities = $gemQualities
     charms    = $charms
+
     runewords = $runewords
     socketRules = $socketRules
     debugCmds = $debugCmds

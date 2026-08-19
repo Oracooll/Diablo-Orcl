@@ -68,6 +68,7 @@ the substitution is named in the last column.</p>
 <div class="tablewrap"><table id="qual">
 <thead><tr><th>Quality</th><th class="num">Scale</th><th>Example - a Ruby in a weapon</th></tr></thead>
 <tbody></tbody></table></div>
+
 <p>Scaling never rounds a real effect away: a chipped stone with a small number still gives 1.
 Perfect is exactly double normal, which is where Diablo II's own perfect values land.</p>
 
@@ -87,15 +88,27 @@ panel prints is what the game actually checks. <b>Zod</b> makes the host indestr
 
 <h2>Runewords</h2>
 <p>A runeword is not a recipe you have to look up - <b>every rune's own description lists the words
-it belongs to</b>, so the recipes drop with the ingredients. Fill a socketed item of the right host
+it belongs to</b>, so the recipes drop with the ingredients. Fill a socketed item of the right slot
 with the exact runes, in the exact order, with no socket left empty, and the item takes the word's
 name.</p>
-<div class="tablewrap"><table id="words">
-<thead><tr><th>Word</th><th>Host</th><th>Runes, in order</th><th>Grants</th></tr></thead>
-<tbody></tbody></table></div>
+<div class="stat-row" id="wordstats"></div>
+<ul>
+	<li><b>The word must fill the item exactly.</b> A three-rune word needs a three-socket host -
+		not two, not four. Six-rune words can only form in a 2x3 host, which is what makes them the
+		endgame chase rather than a rarity roll.</li>
+	<li><b>The host is the slot</b>, not the gem's three-way category: a belt word and a helm word
+		are different things even though both are "armour" to a gem.</li>
+	<li><b>Jewelry has no words.</b> Rings and amulets hold one socket, and a one-rune word is just
+		a socketed rune.</li>
+	<li><b>A word's grant is on top of its runes.</b> Every rune still does what it does in that
+		host - the word is the bonus for spelling it, which is why building one beats socketing the
+		same runes loose.</li>
+	<li><b>Sixty-one are Diablo II's own</b>, with D2's own recipes: Steel is Tir El, Enigma is
+		Jah Ith Ber. The rest are this game's.</li>
+</ul>
+<div id="words"></div>
 <p>Runeword state is derived from what is in the sockets rather than stored, so it cannot desync
 and it costs the save format nothing.</p>
-
 <h2>Charms</h2>
 <p>Charms work from your backpack; they are never equipped. <b>Only the first <span id="cap"></span>
 in reading order are live</b> - main backpack first, then the extra tabs in order - which is the
@@ -105,11 +118,13 @@ and each charm's description carries the rule as well as the effect.</p>
 <thead><tr><th>Charm</th><th>Effect</th></tr></thead>
 <tbody></tbody></table></div>
 
+
 <h2>What drops, and how often</h2>
 <p>One draw on each monster death covers the whole family.</p>
 <div class="tablewrap"><table id="drops">
 <thead><tr><th>Family</th><th class="num">Chance per kill</th><th>Notes</th></tr></thead>
 <tbody></tbody></table></div>
+
 <p>A gem drop picks a <b>type</b> flat across the seven, then a <b>quality</b> from the ones the
 floor's depth has opened, weighted <b id="qw"></b> from chipped to perfect. Deep floors still drop
 chipped stones; perfect ones stay rare even where they are allowed.</p>
@@ -119,6 +134,7 @@ chipped stones; perfect ones stay rare even where they are allowed.</p>
 <div class="tablewrap"><table id="recipes">
 <thead><tr><th>Recipe</th><th>Takes</th><th>Gives</th><th>Rule</th></tr></thead>
 <tbody></tbody></table></div>
+
 <div class="note"><b>This is why a chipped gem is worth the inventory square.</b> Three of them
 make a flawed, and four steps make a perfect.</div>
 
@@ -233,20 +249,34 @@ document.querySelector('#qual tbody').innerHTML = WIKI.gemQualities.map(function
 		+ scale(ruby.fields.weaponFireMin) + '-' + scale(ruby.fields.weaponFireMax) + ' fire damage</td></tr>';
 }).join('');
 
-document.querySelector('#words tbody').innerHTML = WIKI.runewords.map(function (w) {
-	const grants = [];
-	if (w.damagePct) grants.push('+' + w.damagePct + '% damage');
-	if (w.damageMod) grants.push('+' + w.damageMod + ' damage');
-	if (w.toHit) grants.push('+' + w.toHit + '% to hit');
-	if (w.allResist) grants.push('+' + w.allResist + '% all resists');
-	if (w.armor) grants.push('+' + w.armor + ' armour');
-	if (w.spellLevels) grants.push('+' + w.spellLevels + ' to spell levels');
-	if (w.mana) grants.push('+' + w.mana + ' mana');
-	if (w.life) grants.push('+' + w.life + ' life');
-	const host = { Weapon: 'weapon', Shield: 'shield', Armor: 'armour' }[w.host] || w.host;
-	return '<tr><td><b>' + w.name + '</b></td><td>' + host + ', ' + w.sockets
-		+ ' sockets</td><td>' + w.runes + '</td><td>' + grants.join(', ') + '</td></tr>';
-}).join('');
+/* 370 words is a table nobody reads top to bottom - it wants search and filters, which is what
+   makeTable gives every other long list on this site. */
+const HOST_LABELS = {
+	Weapon: 'Weapon', Shield: 'Shield', Body: 'Body armour', Helm: 'Helm',
+	Shoulders: 'Shoulders', Bracers: 'Bracers', Gloves: 'Gloves', Belt: 'Belt',
+	Legs: 'Legs', Boots: 'Boots',
+};
+const words = WIKI.runewords.map(function (w) {
+	return Object.assign({}, w, { host: HOST_LABELS[w.host] || w.host });
+});
+
+document.getElementById('wordstats').innerHTML =
+	'<div class="stat"><b>' + words.length + '</b><span>runewords</span></div>' +
+	'<div class="stat"><b>' + Object.keys(HOST_LABELS).length + '</b><span>slots covered</span></div>' +
+	'<div class="stat"><b>' + words.filter(function (w) { return w.sockets >= 5; }).length
+	+ '</b><span>five and six-rune words</span></div>';
+
+makeTable(document.getElementById('words'), words, [
+	{ key: 'name', label: 'Word' },
+	{ key: 'host', label: 'Slot' },
+	{ key: 'sockets', label: 'Sockets', num: true },
+	{ key: 'runes', label: 'Runes, in order' },
+	{ key: 'deepest', label: 'Deepest rune' },
+	{ key: 'grants', label: 'Grants' },
+], { sort: 'name', placeholder: 'Search runewords, runes or slots...', filters: [
+	{ key: 'host', label: 'Slot' },
+	{ key: 'sockets', label: 'Sockets' },
+] });
 
 document.querySelector('#charms tbody').innerHTML = WIKI.charms.map(function (c) {
 	const effect = [];

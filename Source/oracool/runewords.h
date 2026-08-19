@@ -25,12 +25,40 @@ namespace devilution::oracool {
 
 struct ItemBonusTotals;
 
+/**
+ * @brief The ten non-jewelry equipment slots a runeword can form in.
+ *
+ * Wider than gems.h's three-way SocketHost on purpose: a gem's EFFECT only needs to know whether
+ * it sits in a weapon, a shield or armour, but a runeword is a named thing that belongs to a slot,
+ * and "a belt word" and "a helm word" should not be interchangeable. Rings and amulets are absent
+ * deliberately - they hold one socket, and a one-rune word is just a socketed rune.
+ */
+enum class RunewordHost : uint8_t {
+	Weapon,
+	Shield,
+	Body,
+	Helm,
+	Shoulders,
+	Bracers,
+	Gloves,
+	Belt,
+	Legs,
+	Boots,
+	None,
+};
+
+/** @brief Which slot @p item forms words in, or RunewordHost::None for anything that cannot. */
+RunewordHost RunewordHostForItemType(ItemType type);
+
 struct RunewordDefinition {
 	const char *name;
-	/** @brief Which host category (gems.h's SocketHost) the word forms in. */
-	uint8_t host; // SocketHost as uint8_t to keep the table constexpr-friendly
+	/** @brief Which of the ten slots the word forms in - RunewordHost as uint8_t, so the generated
+	 * table stays constexpr-friendly. */
+	uint8_t host;
 	uint8_t runeCount;
-	uint16_t runes[3]; // IDI_ORACOOL_RUNE_* in required order
+	/** @brief IDI_ORACOOL_RUNE_* in required order, zero-padded. Six because that is the largest
+	 * socket count any host can carry (a 2x3 footprint), and a word must fill its host exactly. */
+	uint16_t runes[6];
 	// The word's own bonuses, applied ON TOP of each rune's individual socket effect.
 	int bonusDamagePercent;
 	int damageMod;
@@ -41,6 +69,11 @@ struct RunewordDefinition {
 	int mana; // whole points
 	int hitPoints; // whole points
 };
+
+/** @brief How many words the table holds - the wiki and the tests both ask. */
+size_t RunewordCount();
+/** @brief The word at @p index, for enumeration. Null past the end. */
+const RunewordDefinition *RunewordAt(size_t index);
 
 /** @brief The runeword @p item currently completes, or nullptr. Fully derived, never stored. */
 const RunewordDefinition *GetActiveRuneword(const Item &item);

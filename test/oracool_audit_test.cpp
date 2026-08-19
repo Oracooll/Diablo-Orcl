@@ -14,6 +14,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <map>
+#include <set>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -994,6 +996,72 @@ TEST(OracoolGems, AllThirtyThreeRunesExist)
 	}
 }
 
+// The runeword pool is generated (tools/GenRunewords.ps1), and a generated table's failure mode is
+// not a typo - it is a scheme that quietly produces unreachable or duplicate entries. These are the
+// invariants that catch that.
+TEST(OracoolRunewords, ThePoolIsWellFormed)
+{
+	ASSERT_GE(oracool::RunewordCount(), 300u) << "the runeword pool shrank unexpectedly";
+
+	std::set<std::string> names;
+	std::set<std::string> sequencesPerHost;
+	for (size_t i = 0; i < oracool::RunewordCount(); i++) {
+		const oracool::RunewordDefinition *word = oracool::RunewordAt(i);
+		ASSERT_NE(word, nullptr);
+		const std::string name = word->name;
+
+		EXPECT_TRUE(names.insert(name).second) << name << " is a duplicate runeword name";
+		EXPECT_GE(word->runeCount, 2) << name << " is shorter than two runes";
+		EXPECT_LE(word->runeCount, devilution::Item::MaxItemSockets)
+		    << name << " demands more sockets than any item can carry";
+		EXPECT_LT(word->host, static_cast<uint8_t>(oracool::RunewordHost::None)) << name;
+
+		// Every listed rune must be a rune, and the same rune must not appear twice in one word -
+		// a stride sharing a factor with 33 walked back onto itself and made six-rune words into
+		// X Y Z X Y Z repeats.
+		std::set<uint16_t> distinct;
+		std::string sequence = std::to_string(word->host) + ':';
+		for (int r = 0; r < word->runeCount; r++) {
+			EXPECT_TRUE(IsOracoolRuneIdx(word->runes[r])) << name << " lists a non-rune";
+			EXPECT_TRUE(distinct.insert(word->runes[r]).second) << name << " repeats a rune";
+			sequence += std::to_string(word->runes[r]) + ',';
+		}
+		// The padding past runeCount must be zeroed, or a longer word could match a shorter one's
+		// prefix and shadow it.
+		for (int r = word->runeCount; r < devilution::Item::MaxItemSockets; r++)
+			EXPECT_EQ(word->runes[r], 0) << name << " has junk past its rune count";
+
+		// Two words with the same host AND the same sequence means the second is unreachable.
+		EXPECT_TRUE(sequencesPerHost.insert(sequence).second)
+		    << name << " duplicates another word's sequence in the same host";
+
+		// A word must grant something, or it is a rename with no reward.
+		const bool grants = word->bonusDamagePercent != 0 || word->damageMod != 0 || word->toHit != 0
+		    || word->allResists != 0 || word->bonusAc != 0 || word->spellLevels != 0
+		    || word->mana != 0 || word->hitPoints != 0;
+		EXPECT_TRUE(grants) << name << " grants nothing";
+	}
+}
+
+// Every one of the ten non-jewelry slots must actually have words, and jewelry must have none -
+// a one-socket "word" is just a socketed rune.
+TEST(OracoolRunewords, EveryNonJewellerySlotHasWords)
+{
+	std::map<uint8_t, int> perHost;
+	for (size_t i = 0; i < oracool::RunewordCount(); i++)
+		perHost[oracool::RunewordAt(i)->host]++;
+
+	for (uint8_t host = 0; host < static_cast<uint8_t>(oracool::RunewordHost::None); host++)
+		EXPECT_GT(perHost[host], 0) << "host " << static_cast<int>(host) << " has no runewords";
+
+	EXPECT_EQ(oracool::RunewordHostForItemType(ItemType::Ring), oracool::RunewordHost::None);
+	EXPECT_EQ(oracool::RunewordHostForItemType(ItemType::Amulet), oracool::RunewordHost::None);
+	EXPECT_EQ(oracool::RunewordHostForItemType(ItemType::Misc), oracool::RunewordHost::None);
+	EXPECT_EQ(oracool::RunewordHostForItemType(ItemType::Belt), oracool::RunewordHost::Belt)
+	    << "a belt word must not be a generic armour word";
+	EXPECT_EQ(oracool::RunewordHostForItemType(ItemType::Staff), oracool::RunewordHost::Weapon);
+}
+
 // The two runes that act on the HOST, not on the totals.
 TEST(OracoolGems, HelReducesRequirementsAndZodPreventsBreaking)
 {
@@ -1865,24 +1933,38 @@ TEST(OracoolRunewords, ExactSequenceInRightHostCompletes)
 
 TEST(OracoolRunewords, CompletionRenamesAndRunesTeach)
 {
+	// Diablo II's own Ancient's Pledge is Ral Ort Tal. The fork's launch table had invented
+	// Ral Ort El under that name; the 370-word pool authors D2's 61 real words with their real
+	// recipes, so a player who knows D2 finds what they expect.
 	devilution::Item shield {};
 	shield._itype = ItemType::Shield;
 	shield._iMagical = ITEM_QUALITY_NORMAL;
 	shield._iSocketCount = 3;
 	shield._iSocketed[0] = IDI_ORACOOL_RUNE_RAL;
 	shield._iSocketed[1] = IDI_ORACOOL_RUNE_ORT;
-	shield._iSocketed[2] = IDI_ORACOOL_RUNE_EL;
+	shield._iSocketed[2] = IDI_ORACOOL_RUNE_TAL;
 	ASSERT_TRUE(oracool::TryCompleteRuneword(shield));
 	EXPECT_STREQ(shield._iIName, "Ancient's Pledge");
 
-	// El appears in Steel and Ancient's Pledge - its description must teach both.
+	// The old recipe must no longer form anything under that name.
+	devilution::Item oldRecipe = shield;
+	oldRecipe._iIName[0] = '\0';
+	oldRecipe._iSocketed[2] = IDI_ORACOOL_RUNE_EL;
+	const oracool::RunewordDefinition *word = oracool::GetActiveRuneword(oldRecipe);
+	if (word != nullptr)
+		EXPECT_STRNE(word->name, "Ancient's Pledge");
+
+	// Every rune teaches the words it belongs to - the one thing this fork improved on D2. With
+	// 370 words a popular rune belongs to dozens, so the list is capped at six and the remainder
+	// counted; what must hold is that the teaching is non-empty and names real words.
 	const std::string teaching = oracool::RuneTeachingLines(IDI_ORACOOL_RUNE_EL);
-	EXPECT_NE(teaching.find("Steel"), std::string::npos);
-	EXPECT_NE(teaching.find("Ancient's Pledge"), std::string::npos);
-	// Sol appears only in Lore.
+	EXPECT_FALSE(teaching.empty());
+	EXPECT_NE(teaching.find("Steel"), std::string::npos) << "El's first taught word should be Steel";
+	EXPECT_NE(teaching.find("more runewords"), std::string::npos)
+	    << "a rune in dozens of words must say how many were not listed";
+
 	const std::string solTeaching = oracool::RuneTeachingLines(IDI_ORACOOL_RUNE_SOL);
 	EXPECT_NE(solTeaching.find("Lore"), std::string::npos);
-	EXPECT_EQ(solTeaching.find("Steel"), std::string::npos);
 }
 
 // Phase 1 ethereal: the bargain is stamped at roll time and the refusals hold.
