@@ -26,7 +26,6 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | The 107 remaining uniques | Content | Medium | No | Needs UITYPE values on existing armour bases | 143 of 250 uniques ship with sprites. The cheap 66 of the remainder need only base-item wiring. |
 | Named set drops | Content | Medium | No | | Three gaps left after the 73 rungs shipped: some set items cannot spawn, sets do not drop as sets, and there is no gold mechanic tied to them. |
 | The 97 unbuilt class-tree rows | Content | Large | No | | Of 163 tree skills across six classes, 66 are implemented. The rest are listed with a red X and do nothing. |
-| Skill impact sounds | Content | Small | No | | RESIZED 2026-08-19, was "Cast and impact skill sounds". The sound module, the 304 WAVs and the learn, aura start/loop/stop and set-completion cues all shipped earlier; the CAST cue is wired as of v1.8.34 in StartSpell, which covers all 92 cast rows in one hook. What is left is IMPACT - 64 cues plus 3 arrive - and it has no equivalent single hook: missiles carry no SpellID (checked missiles.h), so a resolved hit cannot be traced back to the tree row that caused it without either a spell id on the missile record or a per-skill call in each of the implementations. That choice is the work. |
 | MPQ Unit E - bottom HUD plate | Art | Small | No | | The 1536x1024 limestone master replacing the 356x64 middle_hud.png. Standing note: do not add a procedural bottom offset. |
 | MPQ Unit B - icon refreshes | Art | Small | No | | New burger-menu, portal and level-up icons from the drop zone. |
 | TRN recolour monster variants | Phase 3 | Medium | No | | Recoloured versions of existing monsters wired into per-zone rosters - the cheapest possible bestiary multiplier. |
@@ -61,7 +60,9 @@ and the class trees' cast cues. v1.8.35 added the resistance soft cap: 75 is now
 start diminishing rather than where they stop, with a hard ceiling of 90 and a per-difficulty
 penetration penalty subtracted before any cap. v1.8.36 finished the scale-variant entry: the Colossal
 champion affix had shipped in Phase 3.2, and ordinary monsters can now be born Runt or Giant, derived
-from the level seed rather than stored.
+from the level seed rather than stored. v1.8.37 closed the sound entry: impact cues now fire from two
+hooks - the missile carries its skill from CastSpell to the moment it lands, and melee skills ring in
+ApplyMeleeSkillOnHit. All seven cue events in the package are now wired.
 
 The 1.6 to 1.8 lines took these out of the backlog: Levski's Roar with its 3x4 grid and recipe book, socket extraction, waypoints, autosave-only play, the HUD rebuild,
 skill trees and respec, the run toggle, charms, item tiers, set items, sockets and gems, all 33

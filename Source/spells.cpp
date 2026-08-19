@@ -4,6 +4,8 @@
  * Implementation of functionality for casting player spells.
  */
 #include "spells.h"
+#include "oracool/class_tree.h"
+#include "oracool/skill_sounds.h"
 
 #include "control.h"
 #include "cursor.h"
@@ -220,6 +222,11 @@ void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl)
 		dir = player.tempDirection;
 	}
 
+	// Oracool: everything AddMissile makes between here and the end of this function belongs to this
+	// skill. CastSpell is the right place rather than StartSpell, which only begins the animation -
+	// the missiles are created later, when the animation reaches its action frame and lands here.
+	oracool::BeginSkillCast(oracool::ClassTreeSkillForSpell(player._pClass, spl));
+
 	bool fizzled = false;
 	const SpellData &spellData = GetSpellData(spl);
 	for (size_t i = 0; i < sizeof(spellData.sMissiles) / sizeof(spellData.sMissiles[0]) && spellData.sMissiles[i] != MissileID::Null; i++) {
@@ -232,6 +239,8 @@ void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl)
 			fizzled |= (missile == nullptr);
 		}
 	}
+	oracool::EndSkillCast();
+
 	if (!fizzled) {
 		ConsumeSpell(player, spl);
 	}

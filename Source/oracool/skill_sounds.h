@@ -32,6 +32,7 @@
 #include <cstdint>
 
 #include "oracool/class_tree.h"
+#include "utils/attributes.h"
 
 namespace devilution {
 
@@ -104,6 +105,27 @@ void StopClassAuraLoop();
  * a stop cue on a level transition would be a sound with no cause the player can see.
  */
 void SilenceClassAuraLoop();
+
+/**
+ * @brief The tree row whose cast is currently creating missiles, or None.
+ *
+ * A missile outlives the call that made it by many ticks, so the skill that fired it has to travel
+ * WITH it rather than be looked up at the moment it lands - by then the player has moved on, may
+ * have readied something else, and `CastSpell`'s arguments are long gone. `AddMissile` stamps this
+ * onto every missile it creates, and the impact cue reads it back off the missile.
+ *
+ * A scoped global rather than a parameter because `AddMissile` has eleven call sites in this engine
+ * that have nothing to do with class skills - traps, monster attacks, town portals - and threading a
+ * skill id through all of them to serve the few that care would be a worse trade than one value set
+ * for the length of one call.
+ */
+DVL_API_FOR_TEST void BeginSkillCast(ClassTreeSkill skill);
+
+/** @brief Ends the window opened by BeginSkillCast. Missiles made after this carry no skill. */
+DVL_API_FOR_TEST void EndSkillCast();
+
+/** @brief The skill missiles created right now belong to, or None outside a cast. */
+DVL_API_FOR_TEST ClassTreeSkill CurrentCastSkill();
 
 /** @brief The shared equipment-set completion stinger, `ui.set.complete`. */
 void PlaySetCompleteSound();

@@ -46,6 +46,8 @@
 #include "oracool/lesser_uniques.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/player_resistance.h"
+#include "oracool/skill_sounds.h"
+#include "missiles.h"
 #include "oracool/monster_scale.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
@@ -3333,4 +3335,32 @@ TEST(OracoolAudit, OddSizedMonstersAreAMinorityAndBothSizesOccur)
 	EXPECT_GT(runts, 0) << "no monster is ever a runt";
 	EXPECT_GT(giants, 0) << "no monster is ever a giant";
 	EXPECT_LT(runts + giants, total / 3) << "odd sizes are common enough to be the new normal";
+}
+
+// ---------------------------------------------------------------------------------------------
+// Impact cues: the cast scope that carries a skill from CastSpell to the missile that lands
+// (2026-08-19). The cues themselves need audio and a running game; these pin the plumbing.
+// ---------------------------------------------------------------------------------------------
+
+TEST(OracoolAudit, AMissileCarriesNoSkillUnlessACastGaveItOne)
+{
+	// The one that would be loud if it broke. Most missiles in the game are not class skills at all
+	// - traps, monster attacks, town portals - and a default of 0 rather than None would make every
+	// one of them ring the impact cue of whichever skill happens to sit first in the tree enum.
+	const Missile fresh {};
+	EXPECT_EQ(static_cast<oracool::ClassTreeSkill>(fresh.oracoolSkill), oracool::ClassTreeSkill::None)
+	    << "a missile nobody cast carries a real skill id";
+	EXPECT_EQ(oracool::CurrentCastSkill(), oracool::ClassTreeSkill::None)
+	    << "a cast scope is open before anything cast";
+}
+
+TEST(OracoolAudit, TheCastScopeClosesBehindItself)
+{
+	// A scope left open would attribute every later missile - a monster's arrow, a trap - to the
+	// last skill the player cast, and the cue would fire on someone else's hit.
+	oracool::BeginSkillCast(oracool::ClassTreeSkill::Sacrifice);
+	EXPECT_EQ(oracool::CurrentCastSkill(), oracool::ClassTreeSkill::Sacrifice);
+	oracool::EndSkillCast();
+	EXPECT_EQ(oracool::CurrentCastSkill(), oracool::ClassTreeSkill::None)
+	    << "the cast scope stayed open after the cast finished";
 }

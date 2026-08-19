@@ -28,6 +28,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/divine_trn.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/paladin_ranged.h"
 #include "spells.h"
 #include "utils/str_cat.hpp"
@@ -465,6 +466,13 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 	}
 
 	if (isMonsterHit) {
+		// Oracool: the impact cue, on the FIRST monster this missile hits and not on later ones -
+		// _miHitFlag is already the "has hit something" latch, and a piercing missile that rang once
+		// per victim would be a machine gun. The contract asks for one impact per resolved cast; a
+		// multi-missile spell like Nova still fires one per bolt, which the mixer's 80ms retrigger
+		// drop collapses into the single sound the player hears.
+		if (!missile._miHitFlag)
+			oracool::PlaySkillSound(static_cast<oracool::ClassTreeSkill>(missile.oracoolSkill), oracool::SkillSoundEvent::Impact);
 		if (!dontDeleteOnCollision)
 			missile._mirange = 0;
 		missile._miHitFlag = true;
@@ -2980,6 +2988,9 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 	missile._miDrawFlag = missileData.isDrawn();
 	missile._mlid = NO_LIGHT;
 	missile.lastCollisionTargetHash = 0;
+	// Oracool: whose cast this is. None outside a class-skill cast, which is most missiles in the
+	// game - traps, monster attacks, town portals - and they simply carry no cue.
+	missile.oracoolSkill = static_cast<uint8_t>(oracool::CurrentCastSkill());
 
 	if (!missile.IsTrap() && micaster == TARGET_PLAYERS) {
 		Monster &monster = Monsters[id];

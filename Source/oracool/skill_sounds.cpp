@@ -144,6 +144,23 @@ void SilenceClassAuraLoop()
 	AuraLoopSkill = Skill::None;
 }
 
+Skill CastingSkill = Skill::None;
+
+void BeginSkillCast(Skill skill)
+{
+	CastingSkill = skill;
+}
+
+void EndSkillCast()
+{
+	CastingSkill = Skill::None;
+}
+
+Skill CurrentCastSkill()
+{
+	return CastingSkill;
+}
+
 void PlaySetCompleteSound()
 {
 	snd_play_snd(LoadCached(SetCompleteSound, SetCompletePath), VolumeOneShot, 0);

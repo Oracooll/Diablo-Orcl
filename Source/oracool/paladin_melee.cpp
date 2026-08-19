@@ -2,6 +2,9 @@
 
 #include "items.h"
 #include "monster.h"
+#include "oracool/class_tree.h"
+#include "oracool/paladin_skills.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/oracool.h"
 #include "player.h"
 
@@ -332,6 +335,14 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 	// which is the same "still does something" rule the rest of these skills follow.
 	if (!CanUsePaladinSkill(player, *ArmedSkill))
 		return;
+
+	// Oracool: the impact cue for skills that never make a missile. A swing lands here and nowhere
+	// else, and it lands ONCE per connected blow, so this needs no latch of its own - unlike the
+	// missile path, which has to ignore a piercing bolt's later victims.
+	if (&player == MyPlayer) {
+		PlaySkillSound(ClassTreeSkillForSpell(player._pClass, GetPaladinSkillData(*ArmedSkill).spellId),
+		    SkillSoundEvent::Impact);
+	}
 
 	switch (*ArmedSkill) {
 	case PaladinSkill::Zeal:
