@@ -1,3 +1,4 @@
+| Gold auto-place still walks a 10x4 backpack | Content | Small | No | | `AddGoldToInventory` (inv.cpp) scans `i = 39..30` and `y = 2..0` - the vanilla 10x4 grid. The backpack has been 10x7 since the inventory rebuild, so gold can never be auto-placed below the fourth row. Same shape as the stash "last 6 rows" bug fixed 2026-08-16: a literal that did not grow when its grid did. Found while hunting the Ctrl+Click gold bug; unrelated to it. |
 # Pipeline
 
 Everything floated and not expressly discarded, and nothing that has already shipped. This file is
