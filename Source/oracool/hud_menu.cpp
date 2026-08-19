@@ -316,16 +316,6 @@ void DrawBeltButtonFeedback(const Surface &out)
 	if (talkflag)
 		return;
 
-	// The Menu cell is a toggle - lit for as long as its popup is showing. It now has real
-	// three-state art, so it no longer needs the translucent overlay it used to rely on.
-	const Rectangle menuCell = GetBeltSlotRect(BeltMenuSlotIndex);
-	int menuState = 0;
-	if (HudMenuOpen)
-		menuState = 2;
-	else if (menuCell.contains(MousePosition))
-		menuState = 1;
-	DrawBurgerMenuButton(out, menuState);
-
 	// SDL_GetTicks wraps roughly every 49 days; the subtraction is unsigned, so a wrap mid-flash
 	// simply ends it early rather than latching the highlight on forever.
 	const bool flashing = FlashingCell >= 0 && FlashingCell < MenuFlashBase;
@@ -333,23 +323,41 @@ void DrawBeltButtonFeedback(const Surface &out)
 		FlashingCell = -1;
 	const bool flashingNow = FlashingCell >= 0 && FlashingCell < MenuFlashBase;
 
-	// The Portal cell has real three-state artwork, so it shows a pressed frame rather than the
-	// translucent overlay the frameless Menu cell has to use.
-	const Rectangle portalCell = GetBeltSlotRect(BeltTownPortalSlotIndex);
-	int portalState = 0;
-	if (flashingNow && FlashingCell == BeltTownPortalSlotIndex)
-		portalState = 2;
-	else if (portalCell.contains(MousePosition))
-		portalState = 1;
-	DrawTownPortalIcon(out, portalState);
+	// Oracool: user, 2026-08-19 - "i will look for better menu and portal icons. these are awful.
+	// remove them." So the two cells show the plate's own empty stone box; the labels Menu and
+	// Portal are painted into the artwork above them, so neither becomes anonymous.
+	//
+	// The overlay is BACK for both, and that is the point rather than an afterthought. The icons
+	// were what gave these two cells their hover and pressed states - that is why the overlay was
+	// taken away from them when the three-state art arrived. Dropping the art without restoring it
+	// would leave two boxes that look clickable, are clickable, and never react, which reads as a
+	// broken button rather than a missing picture.
+	//
+	// DrawBurgerMenuButton and DrawTownPortalIcon are left in hud_art, and CutHudStateIcons.ps1
+	// still cuts their strips - when better art arrives this is two lines coming back, not a
+	// pipeline being rebuilt.
+	const auto highlight = [&out](const Rectangle &cell) {
+		DrawHalfTransparentRectTo(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
+		    ButtonHighlightColor);
+	};
 
-	// Both button cells now show their press through their own artwork, so the overlay is left
-	// only for the four real item cells.
+	// The Menu cell is a toggle: lit for as long as its popup is showing, not just while pressed.
+	const Rectangle menuCell = GetBeltSlotRect(BeltMenuSlotIndex);
+	if (HudMenuOpen || menuCell.contains(MousePosition))
+		highlight(menuCell);
+
+	// The Portal cell is momentary - it lights under the cursor and for the flash after a click.
+	// The flash fires even when the cast is refused, so "not available here" does not read as a
+	// dead click; see TryHandleTownPortalClick.
+	const Rectangle portalCell = GetBeltSlotRect(BeltTownPortalSlotIndex);
+	if ((flashingNow && FlashingCell == BeltTownPortalSlotIndex) || portalCell.contains(MousePosition))
+		highlight(portalCell);
+
+	// And the four real item cells, which only ever flash on use.
 	if (!flashingNow || FlashingCell == BeltTownPortalSlotIndex || FlashingCell == BeltMenuSlotIndex)
 		return;
 
-	const Rectangle cell = GetBeltSlotRect(FlashingCell);
-	DrawHalfTransparentRectTo(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height, ButtonHighlightColor);
+	highlight(GetBeltSlotRect(FlashingCell));
 }
 
 void CastTownPortalAtFeet()
