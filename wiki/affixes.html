@@ -81,9 +81,11 @@ document.getElementById('dr').textContent = rare;
 document.getElementById('db').textContent = buffed;
 document.getElementById('dp').textContent = primal;
 
-const RARE_BY_BAND = [10, 30, 70, 110];
-const BUFFED_BY_BAND = [10, 25, 50, 80];
-const PRIMAL_BY_BAND = [0, 5, 15, 40];
+/* Parsed from item_tiers.cpp rather than copied - these three curves used to be hand-typed here,
+   which meant a retune in the game left this page quoting the old numbers silently. */
+const RARE_BY_BAND = WIKI.mechanics.qualityBands.Rare;
+const BUFFED_BY_BAND = WIKI.mechanics.qualityBands.BuffedUnique;
+const PRIMAL_BY_BAND = WIKI.mechanics.qualityBands.Primal;
 const bands = ['1-24', '25-48', '49-72', '73-96'];
 
 document.querySelector('#odds tbody').innerHTML = bands.map(function (band, i) {

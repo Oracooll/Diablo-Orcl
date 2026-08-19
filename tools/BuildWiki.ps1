@@ -447,6 +447,16 @@ foreach ($m in [regex]::Matches($tiersCpp, '\{\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+
         value      = [int]$m.Groups[4].Value
     }
 }
+
+# The per-band quality scales. These were hand-copied into affixes.html's JS, which is exactly the
+# drift the reaudit is meant to catch - a retune in item_tiers.cpp would have left the wiki quoting
+# the old curve with no way to notice.
+$mechanics.qualityBands = [ordered]@{}
+foreach ($name in @('Rare', 'BuffedUnique', 'Primal')) {
+    if ($tiersCpp -match ("{0}ByBand\[BaseItemTierCount\] = \{{\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)" -f $name)) {
+        $mechanics.qualityBands[$name] = @([int]$matches[1], [int]$matches[2], [int]$matches[3], [int]$matches[4])
+    }
+}
 if ($tiersCpp -match 'TierWeights\[BaseItemTierCount\] = \{\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)') {
     $mechanics.tierWeights = @([int]$matches[1], [int]$matches[2], [int]$matches[3], [int]$matches[4])
 }
