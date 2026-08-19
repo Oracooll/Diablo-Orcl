@@ -47,15 +47,31 @@ constexpr int WindowHeight = Padding * 2 + HeaderHeight + GridHeight + SlotGap +
 
 constexpr int RecipeRowHeight = 40;
 constexpr int RecipeBookWidth = 420;
-/** Two half-transparent passes plus a dark fill: one pass alone left the town's rooftops legible
- * straight through the grid (user screenshot, 2026-08-19). Every other window in the game sits on
- * painted art; this one sits on open ground, so it has to build its own opacity. */
-constexpr uint8_t PanelFillColor = 0;
+/**
+ * The panel's ground, opaque.
+ *
+ * Two half-transparent passes came first and were not enough (user screenshot, 2026-08-19): the
+ * town read straight through the grid, and worse, it read through UNEVENLY - the four cells over
+ * the lit doorway glowed while the rest sat black, so the grid looked like four different
+ * materials. Half-transparency composites against whatever is behind it, and what is behind this
+ * window is a moving, unevenly lit town.
+ *
+ * So: a solid fill. Every other window in the game sits on painted art and hides what is under it
+ * completely; this one has no art yet, and "no art" should still mean "not a window you can see
+ * through". A dark entry of the 16-shade grey ramp, from the shared upper half of the palette
+ * (128-255) that is identical across town and all four tilesets - the same discipline
+ * DrawOrnateBorder follows, so the fill cannot recolour itself by level. Not the ramp's darkest:
+ * that is reserved for the cells, which need somewhere darker to go.
+ */
+constexpr uint8_t PanelFillColor = PAL16_GRAY + 12;
+/** The grid cells, two shades darker than the panel they sit in - so a slot reads as a recessed
+ * well waiting for a stone rather than as a square someone drew on the stone (user screenshot,
+ * 2026-08-19: the cells were the same colour as the panel and read as decoration). */
+constexpr uint8_t SlotFillColor = PAL16_GRAY + 15;
 
-void DrawPanelGround(const Surface &out, const Rectangle &rect)
+void DrawPanelGround(const Surface &out, const Rectangle &rect, uint8_t fill = PanelFillColor)
 {
-	DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, PanelFillColor);
-	DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+	FillRect(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, fill);
 	DrawOrnateBorder(out, rect);
 }
 
@@ -174,10 +190,23 @@ Rectangle GetLevskiRecipeBookRect()
 	const std::string page = RecipeBookText();
 	const int textHeight = static_cast<int>(GetLineHeight(page, GameFont12) * (std::count(page.begin(), page.end(), '\n') + 1));
 	const int height = Padding * 2 + HeaderHeight + textHeight;
-	// LEFT of the window, not right: opening right ran the book under the mini-map, which owns the
-	// top-right corner. There is always room on the left - the window is centred.
-	return Rectangle { { window.position.x - RecipeBookWidth - SlotGap, window.position.y },
-		{ RecipeBookWidth, height } };
+	// LEFT of the window by preference: opening right ran the book under the mini-map, which owns
+	// the top-right corner.
+	//
+	// But NOT unconditionally, and the previous comment here - "there is always room on the left,
+	// the window is centred" - was simply false, which a screenshot caught (user, 2026-08-19: the
+	// book's title read "IPES" and every line lost its first characters off the left edge). The
+	// window is centred in gnScreenWidth, so the room to its left is (gnScreenWidth - WindowWidth)/2,
+	// and at 1024 wide that is 408 against a book needing 426. Centring guarantees symmetry, not
+	// space.
+	//
+	// So: try left, fall back to right if left does not fit, then clamp into the screen regardless -
+	// a book too wide for either side is still fully readable, just overlapping.
+	int x = window.position.x - RecipeBookWidth - SlotGap;
+	if (x < 0)
+		x = window.position.x + window.size.width + SlotGap;
+	x = std::clamp(x, 0, std::max(0, gnScreenWidth - RecipeBookWidth));
+	return Rectangle { { x, window.position.y }, { RecipeBookWidth, height } };
 }
 
 void DrawLevskiRoar(const Surface &out)
@@ -195,7 +224,7 @@ void DrawLevskiRoar(const Surface &out)
 
 	for (int slot = 0; slot < LevskiGridSlots; slot++) {
 		const Rectangle cell = SlotRect(window, slot);
-		DrawPanelGround(out, cell);
+		DrawPanelGround(out, cell, SlotFillColor);
 		if (GridItems[slot].isEmpty())
 			continue;
 		// Centred in the cell: an item's own frame is 1x1 to 2x3 cells, so anchoring to a corner
