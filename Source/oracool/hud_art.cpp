@@ -63,19 +63,23 @@ struct ArtAsset {
 constexpr int HudTintStrengthPercent = 50;
 
 /**
- * @brief How much of a tinted asset's own brightness survives quantization, in percent.
+ * @brief How much of the class silhouette's own brightness survives quantization, in percent.
  *
- * Added 2026-08-19 to pull the bottom plate down after the v3 art came out brighter in game than
- * the master did on disk - the 50% pull toward PAL16_YELLOW lifts mid-tones toward the light end of
- * a gold ramp, and v3's stone was already pale. Superseded within the hour by the user's decision
- * that the plate should take NO colour treatment at all, so nothing passes a value today.
+ * Oracool: user, 2026-08-19 - "now make it darker to stand out a bit more", straight after the gold
+ * tint came off. Untinted, the figure sits at the limestone's own value and stops separating from
+ * it; darkening is what gives it back its edge, and it is the right lever rather than a heavier
+ * blend, because the silhouette is meant to read as a SHADOW behind the equipment slots. A shadow
+ * gets darker, not more opaque - two more transparency passes would have made it a picture in front
+ * of the slots instead, which is the note DrawClassSilhouette already carries.
  *
- * Kept because it is the right knob for the problem and QuantizeAsset defaults it to 100, costing
- * nothing while unused. If a future asset needs the tint but not the lift, this is where it goes.
- * Applied BEFORE the ramp lookup and the palette match, so the art keeps its own shading and hue
- * and simply sits lower.
+ * This knob was written the same day to pull the bottom HUD plate down and went unused when the user
+ * chose no colour treatment there at all. It was kept on the argument that it was the right control
+ * for the problem; this is that bet paying off, on a different asset within the hour.
+ *
+ * Applied BEFORE the palette match, so the art keeps its own shading and simply sits lower. Lower is
+ * darker; this is a taste dial against a screenshot.
  */
-constexpr int TintedAssetLuminancePercent = 70;
+constexpr int SilhouetteLuminancePercent = 55;
 
 ArtAsset PlateArt { "ui\\middle_hud.png" };
 ArtAsset HealthOrbArt { "ui\\health_orb.png" };
@@ -688,8 +692,10 @@ void EnsureQuantized()
 	//
 	// The gold OUTLINE was removed separately on 2026-08-18 for the same reason. The two were the
 	// last of that theme on this window.
+	// No tint ramp, so the third and fourth arguments are the pass-throughs: no ramp, and the tint
+	// strength is moot without one. The luminance scale is the only treatment left on this asset.
 	for (ArtAsset &silhouette : SilhouetteArt)
-		QuantizeAsset(silhouette, std::nullopt);
+		QuantizeAsset(silhouette, std::nullopt, std::nullopt, 100, SilhouetteLuminancePercent);
 	// Walked down from +2, which read as near-white, then +6, which was still hot. The shared
 	// constant records where it landed and why - and the cursor tooltip's border now reads the same
 	// one, so the two thin gold edges on screen cannot drift apart.
