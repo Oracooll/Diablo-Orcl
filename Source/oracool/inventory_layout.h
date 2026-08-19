@@ -447,8 +447,15 @@ constexpr Rectangle GetSortButtonRect()
 
 constexpr Rectangle GetGoldRowRect()
 {
-	// Tabs 3 through 8, on SORT's line.
-	return { { TabColumnX(2), FooterRowY }, { 6 * TabSize.width, GoldRowHeight } };
+	// Tabs 3 through 10, on SORT's line - the row now RUNS OUT to the last tab's right border rather
+	// than stopping two tabs short of it (user, 2026-08-19: "align gold counter flush with tab10
+	// right border"). The counter is drawn right-aligned inside it, so the figure's last digit lands
+	// on that border no matter how many digits it has, which is the point: a centred number drifts
+	// sideways every time the player's gold changes order of magnitude.
+	//
+	// Expressed as "to TabColumnX(TabCount)" rather than as 8 tabs, so it stays flush if the tab row
+	// ever gains or loses a column.
+	return { { TabColumnX(2), FooterRowY }, { TabColumnX(TabCount) - TabColumnX(2), GoldRowHeight } };
 }
 
 static_assert(GetSortButtonRect().position.y + FooterRowHeight <= TabRowY,

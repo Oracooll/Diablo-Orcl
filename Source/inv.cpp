@@ -1670,8 +1670,13 @@ void DrawInventoryFooter(const Surface &out)
 	// the shared Stash pool, so the money lives in Stash.gold, not _pGold. Two earlier attempts
 	// here - CalculateGold over InvList, then _pGold - both read player-side fields and both
 	// therefore showed 0 while the sheet showed the real figure.
-	DrawString(out, StrCat(_("GOLD: "), FormatInteger(TotalPlayerGold())), toScreen(oracool::GetGoldRowRect()),
-	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	//
+	// Digits only, right-aligned on tab 10's border (user, 2026-08-19: "remove the GOLD: text. leave
+	// only the digits. Their a information enough."). The label was carrying no information the
+	// figure does not - it sits in the gold colour, on the money row, in a window whose only number
+	// is money - and dropping it also drops the one part of this readout that needed translating.
+	DrawString(out, FormatInteger(TotalPlayerGold()), toScreen(oracool::GetGoldRowRect()),
+	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
 }
 
 bool inventorySortButtonDown;
