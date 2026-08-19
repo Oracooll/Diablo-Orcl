@@ -4262,8 +4262,17 @@ void AddLevskiRoarObject()
 	for (const Point &position : Candidates) {
 		if (dObject[position.x][position.y] != 0)
 			continue;
-		if (AddObject(OBJ_STAND, position) != nullptr)
-			return;
+		Object *monument = AddObject(OBJ_STAND, position);
+		if (monument == nullptr)
+			continue;
+		// OBJ_STAND ships with selFlag 0 - in the Caves it is scenery the Anvil of Fury quest
+		// swaps out, never something the player clicks, and AddObject copies that straight into
+		// _oSelFlag. Left alone the monument would draw perfectly and be completely unreachable:
+		// no test clicks a town object, so nothing but play would have found it. 3 is what the
+		// bookstand uses - same animWidth, same solid flags, and the value that makes the whole
+		// tile take a click.
+		monument->_oSelFlag = 3;
+		return;
 	}
 	LogEvent("Levski's Roar found no free tile beside the stash", UiFlags::ColorRed);
 }

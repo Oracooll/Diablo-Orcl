@@ -448,6 +448,18 @@ foreach ($m in [regex]::Matches($tiersCpp, '\{\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+
     }
 }
 
+
+# The band -> book-ilvl map. Fourth hand-typed table found inside the generated wiki (after the
+# quality curves, the crafting recipes and the runeword grid size), so it is parsed now: the values
+# happened to be right, but "happened to be right" is not the standard this generator exists for.
+$ranksCpp = Read-SourceFile 'oracool/spell_ranks.cpp'
+$mechanics.bookItemLevel = [ordered]@{}
+if ($ranksCpp -match '(?s)int SpellBookItemLevel\(SpellID spell\)(.*?)\n\}') {
+    foreach ($m in [regex]::Matches($matches[1], 'case (\d+):\s*\r?\n\s*return (\d+);')) {
+        $mechanics.bookItemLevel[$m.Groups[1].Value] = [int]$m.Groups[2].Value
+    }
+}
+
 # The per-band quality scales. These were hand-copied into affixes.html's JS, which is exactly the
 # drift the reaudit is meant to catch - a retune in item_tiers.cpp would have left the wiki quoting
 # the old curve with no way to notice.
