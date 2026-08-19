@@ -1,19 +1,19 @@
-# Oracool asset pipeline: rebuilds the three 3-state HUD icon strips from the drop-zone packages.
+# Oracool asset pipeline: rebuilds the 3-state HUD icon strips from the drop-zone packages.
 #
 #     powershell -ExecutionPolicy Bypass -File tools\CutHudStateIcons.ps1
 #
-# MPQ Unit B, the icon refreshes. Three packages arrived in Oracool.MPQ's root, each shipping its
-# states as separate 1254x1254 masters:
+# MPQ Unit B, the icon refreshes. The packages arrived in Oracool.MPQ's root, each shipping its
+# states as separate 1254x1254 masters. The burger menu was one of them until 2026-08-19 - see the
+# note above $packs for why it is no longer here:
 #
-#   oracool-burger-menu-icon-pack-v1.1.0.zip   inactive / hover / active
 #   oracool-portal-icon-pack-v1.0.0.zip        inactive / hover / click
 #   oracool-level-up-icon-package-v1.0.0.zip   inactive / active          (two, not three)
 #
 # The engine wants each as ONE strip of three cells side by side, indexed `state * cellWidth` along
 # a single row - see DrawBurgerMenuButton, DrawTownPortalIcon and DrawLevelUpIconArt in
-# oracool/hud_art.cpp. Cell sizes are fixed by the code and must not change here:
+# oracool/hud_art.cpp (DrawBurgerMenuButton now reads a strip this script no longer writes). Cell
+# sizes are fixed by the code and must not change here:
 #
-#   ui\burger_menu_button.png   3 x 27x29  = 81x29    (BurgerMenuButtonSize, hud_art.cpp)
 #   ui\town_portal_icon.png     3 x 27x29  = 81x29    (TownPortalIconSize,   hud_art.cpp)
 #   ui\level_up_icon.png        3 x 60x61  = 180x61   (LevelUpIconSize,      hud_layout.h)
 #
@@ -56,16 +56,13 @@ $staging = Join-Path $env:TEMP 'oracool-unit-b'
 $outPrimary = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $outMirror = Join-Path $root 'Packaging\resources\assets\ui'
 
+# The burger entry is GONE from this list as of 2026-08-19, not commented out inside it: the user
+# replaced that art with 'burger menu.png' and tools\CutBurgerMenuIcon.ps1 cuts it at 26x26 in TWO
+# states. Leaving the old pack here would let a routine run of this script overwrite the live icon
+# with superseded art at 27x29 - the wrong size for BurgerMenuButtonSize as well as the wrong
+# picture, so it would not even fail loudly. Same trap CutLevelUpIcon.ps1 documents about
+# HudIconCut.cs, and worth removing rather than annotating.
 $packs = @(
-    @{
-        zip    = 'oracool-burger-menu-icon-pack-v1.1.0.zip'
-        dir    = 'oracool-burger-menu-icon-pack/assets/masters'
-        out    = 'burger_menu_button.png'
-        cell   = @(27, 29)
-        states = @('burger-menu-inactive-master-1254x1254.png',
-            'burger-menu-hover-master-1254x1254.png',
-            'burger-menu-active-master-1254x1254.png')
-    },
     @{
         zip    = 'oracool-portal-icon-pack-v1.0.0.zip'
         dir    = 'oracool-portal-icon-pack/assets/masters'

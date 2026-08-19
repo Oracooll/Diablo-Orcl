@@ -262,13 +262,17 @@ ArtAsset *SilhouetteForClass(HeroClass heroClass)
 	}
 	return nullptr;
 }
-constexpr Size BurgerMenuButtonSize { 27, 29 };
 /**
- * User request: nudge the burger button up by a pixel. Centring it in the cell puts it a touch
- * low against the neighbouring cells, because the cell rect includes the plate's label strip
- * along its top edge.
+ * @brief The burger icon's cell in ui\burger_menu_button.png. TWO states, not three.
+ *
+ * Oracool: user, 2026-08-19 - "take burger menu.png, scale it to 26x26px and use the two states as
+ * burger menu icons, dead centered in the menu slot." Cut by tools\CutBurgerMenuIcon.ps1, which
+ * supersedes the burger entry in CutHudStateIcons.ps1.
+ *
+ *   state 0  dim   - idle, and idle under the cursor (hud_menu's overlay does the hover)
+ *   state 1  lit   - the popup is open
  */
-constexpr int BurgerMenuButtonRise = 2;
+constexpr Size BurgerMenuButtonSize { 26, 26 };
 
 // Bug postmortem (2026-08-10): the first quantization attempt matched against logical_palette on
 // the first drawn frame - but at that moment logical_palette still holds the *loading screen's*
@@ -929,7 +933,8 @@ void DrawTownPortalIcon(const Surface &out, int state)
 
 void DrawBurgerMenuButton(const Surface &out, int state)
 {
-	if (state < 0 || state > 2)
+	// Two cells in the strip now, so 2 is out of range rather than the pressed state it used to be.
+	if (state < 0 || state > 1)
 		return;
 
 	EnsureLoadedAll();
@@ -939,10 +944,17 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	if (!BurgerMenuButtonArt.bright)
 		return;
 
+	// Dead centre, per the user's 2026-08-19 request. The old BurgerMenuButtonRise of 2 - a nudge
+	// upward asked for when the icon was 27x29 and read low against its neighbours - is gone with
+	// the art that needed it.
+	//
+	// The cell is 33x36 and the icon 26x26, so the horizontal leftover is 7 and true centre falls on
+	// a half pixel. Floor puts the extra pixel on the right, matching every other centring in this
+	// file rather than inventing a different rounding for one icon.
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
 	const Point position {
 		cell.position.x + (cell.size.width - BurgerMenuButtonSize.width) / 2,
-		cell.position.y + (cell.size.height - BurgerMenuButtonSize.height) / 2 - BurgerMenuButtonRise
+		cell.position.y + (cell.size.height - BurgerMenuButtonSize.height) / 2
 	};
 	out.BlitFromSkipColorIndexZero(*BurgerMenuButtonArt.bright,
 	    MakeSdlRect(state * BurgerMenuButtonSize.width, 0, BurgerMenuButtonSize.width, BurgerMenuButtonSize.height),

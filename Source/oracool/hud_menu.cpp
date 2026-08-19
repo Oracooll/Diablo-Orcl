@@ -323,26 +323,25 @@ void DrawBeltButtonFeedback(const Surface &out)
 		FlashingCell = -1;
 	const bool flashingNow = FlashingCell >= 0 && FlashingCell < MenuFlashBase;
 
-	// Oracool: user, 2026-08-19 - "i will look for better menu and portal icons. these are awful.
-	// remove them." So the two cells show the plate's own empty stone box; the labels Menu and
-	// Portal are painted into the artwork above them, so neither becomes anonymous.
+	// Oracool: the Portal cell still shows the plate's own empty stone box - the user removed that
+	// icon on 2026-08-19 and is sourcing better art. Its label is painted into the plate above it,
+	// so the cell is not anonymous, and the overlay below gives it back the hover and pressed states
+	// its artwork used to carry. A box that looks clickable and never reacts reads as broken.
 	//
-	// The overlay is BACK for both, and that is the point rather than an afterthought. The icons
-	// were what gave these two cells their hover and pressed states - that is why the overlay was
-	// taken away from them when the three-state art arrived. Dropping the art without restoring it
-	// would leave two boxes that look clickable, are clickable, and never react, which reads as a
-	// broken button rather than a missing picture.
-	//
-	// DrawBurgerMenuButton and DrawTownPortalIcon are left in hud_art, and CutHudStateIcons.ps1
-	// still cuts their strips - when better art arrives this is two lines coming back, not a
-	// pipeline being rebuilt.
+	// DrawTownPortalIcon and its entry in CutHudStateIcons.ps1 both stay, so restoring it is one
+	// line rather than a rebuilt pipeline - which is exactly how the burger came back below.
 	const auto highlight = [&out](const Rectangle &cell) {
 		DrawHalfTransparentRectTo(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height,
 		    ButtonHighlightColor);
 	};
 
 	// The Menu cell is a toggle: lit for as long as its popup is showing, not just while pressed.
+	//
+	// Its icon has only TWO states, so the two jobs are split rather than crammed into the art. The
+	// LIT picture means "the popup is open" - a state, not a press - and the overlay does the hover.
+	// Three distinguishable looks out of two pictures: plain, plain-under-cursor, lit-while-open.
 	const Rectangle menuCell = GetBeltSlotRect(BeltMenuSlotIndex);
+	DrawBurgerMenuButton(out, HudMenuOpen ? 1 : 0);
 	if (HudMenuOpen || menuCell.contains(MousePosition))
 		highlight(menuCell);
 
