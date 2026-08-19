@@ -45,6 +45,7 @@
 #include "oracool/monster_scale.h"
 #include "oracool/save_indicator.h"
 #include "oracool/crafting_menu.h"
+#include "oracool/levski_roar.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "oracool/xp_gain_indicator.h"
@@ -1502,6 +1503,7 @@ void DrawView(const Surface &out, Point startPosition)
 		break;
 	case LeftPanelContent::Crafting:
 		oracool::DrawCraftingMenu(out);
+		oracool::DrawLevskiRoar(out);
 		break;
 	case LeftPanelContent::None:
 		break;

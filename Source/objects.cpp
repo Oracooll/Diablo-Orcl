@@ -41,6 +41,7 @@
 #include "options.h"
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
+#include "oracool/levski_roar.h"
 #include "oracool/oracool.h"
 #include "oracool/waypoint_menu.h"
 #include "qol/stash.h"
@@ -4244,6 +4245,29 @@ void AddStashChestObject()
 	// ApplyStashChestGraphics(*chest);
 }
 
+void AddLevskiRoarObject()
+{
+	if (currlevel != 0 || setlevel)
+		return;
+
+	// PLACEHOLDER: OBJ_STAND wears objects\rockstan.cel, the Anvil of Fury's rock stand. Griswold's
+	// own anvil is painted into the town tileset rather than being an object, so it cannot be
+	// placed; this is the nearest anvil-shaped thing the object table has.
+	EnsureObjectGraphicsLoaded(OFILE_ROCKSTAN, AllObjects[OBJ_STAND].animWidth);
+
+	// One cell from the stash chest at {55,67}, per the user's placement. The candidates are tried
+	// in order rather than one position asserted, because town furniture has moved before and a
+	// silent overlap would put two operable objects on one tile.
+	constexpr Point Candidates[] = { { 56, 67 }, { 55, 68 }, { 54, 67 }, { 55, 66 }, { 56, 68 } };
+	for (const Point &position : Candidates) {
+		if (dObject[position.x][position.y] != 0)
+			continue;
+		if (AddObject(OBJ_STAND, position) != nullptr)
+			return;
+	}
+	LogEvent("Levski's Roar found no free tile beside the stash", UiFlags::ColorRed);
+}
+
 void CloseStashChestObject()
 {
 	if (currlevel != 0)
@@ -5142,6 +5166,13 @@ void OperateObject(Player &player, Object &object)
 	case OBJ_L5RDOOR:
 		if (sendmsg)
 			OperateDoor(object, sendmsg);
+		break;
+	case OBJ_STAND:
+		// Levski's Roar. In town this is the crafting monument (currently wearing the Anvil of
+		// Fury's rock stand as a placeholder); in the Caves it is still the vanilla stand the
+		// Anvil quest uses, which is why this is gated on currlevel rather than on the type alone.
+		if (currlevel == 0 && sendmsg)
+			oracool::ToggleLevskiRoar();
 		break;
 	case OBJ_LEVER:
 	case OBJ_L5LEVER:

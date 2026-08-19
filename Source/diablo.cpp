@@ -69,6 +69,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/hud_menu.h"
+#include "oracool/levski_roar.h"
 #include "oracool/run_toggle.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/inventory_layout.h"
@@ -460,6 +461,13 @@ void LeftMouseDown(uint16_t modState)
 	// CheckPlrSpell kept a second, stale idea of where the UI is, and the disagreement made every
 	// skill click in the lower band do nothing. See IsPointOverHudChrome.
 	const bool isOverHud = oracool::IsPointOverHudChrome(MousePosition);
+
+	// Levski's Roar is a free-floating window rather than a left-panel slot, so it is routed
+	// before the panel switch and claims the click itself. Returning early is what stops a click
+	// over the monument's grid from also walking the player toward it.
+	if (oracool::CheckLevskiRoarClick(MousePosition))
+		return;
+
 
 	if (!isOverHud) {
 		if (!gmenu_is_active() && !TryIconCurs()) {
@@ -3433,6 +3441,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			// on the same internal slot.
 			oracool::InitTownObjectPool();
 			oracool::AddStashChestObject();
+			oracool::AddLevskiRoarObject();
 			oracool::AddWaypointSigilObject();
 			InitStash();
 			InitItems();

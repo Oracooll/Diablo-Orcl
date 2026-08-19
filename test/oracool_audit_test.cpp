@@ -40,6 +40,7 @@
 #include "oracool/gems.h"
 #include "oracool/item_set_stats.h"
 #include "oracool/item_tiers.h"
+#include "oracool/levski_roar.h"
 #include "oracool/item_sets.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
@@ -994,6 +995,69 @@ TEST(OracoolGems, AllThirtyThreeRunesExist)
 		if (idx != IDI_ORACOOL_RUNE_HEL && idx != IDI_ORACOOL_RUNE_ZOD && idx != IDI_ORACOOL_RUNE_TIR)
 			EXPECT_TRUE(doesSomething) << AllItemsList[idx].iName << " grants nothing in any host";
 	}
+}
+
+// Levski's Roar runs the recipes against its own 3x4 grid rather than the backpack, which means a
+// second set of walks that can drift from the first. These pin the two things that would actually
+// cost a player: a recipe that consumes without producing, and extraction losing a stone.
+TEST(OracoolLevskiRoar, GridRecipesConsumeAndProduce)
+{
+	devilution::Item grid[devilution::oracool::LevskiGridSlots] {};
+
+	// Three identical gems refine into one of the next quality, and the grid ends up holding
+	// exactly one item.
+	for (int i = 0; i < 3; i++)
+		InitializeItem(grid[i], IDI_ORACOOL_GEM_RUBY_CHIPPED);
+	ASSERT_TRUE(oracool::CanCraftFromLevskiGrid(grid, 0));
+	EXPECT_FALSE(oracool::TransmuteLevskiGrid(grid).empty());
+
+	int occupied = 0;
+	int refined = 0;
+	for (const devilution::Item &item : grid) {
+		if (item.isEmpty())
+			continue;
+		occupied++;
+		if (item.IDidx == IDI_ORACOOL_GEM_RUBY_FLAWED)
+			refined++;
+	}
+	EXPECT_EQ(occupied, 1) << "the three chipped rubies were not consumed";
+	EXPECT_EQ(refined, 1) << "refining did not produce the next quality up";
+}
+
+// Point 5 of the socket directive: insertion stops being permanent.
+TEST(OracoolLevskiRoar, FreeingSocketsReturnsTheStonesAndTheItem)
+{
+	devilution::Item grid[devilution::oracool::LevskiGridSlots] {};
+	devilution::Item &sword = grid[0];
+	InitializeItem(sword, IDI_ORACOOL_HELM); // any real base; the recipe only reads its sockets
+	sword._iSocketCount = 2;
+	sword._iSocketed[0] = IDI_ORACOOL_RUNE_EL;
+	sword._iSocketed[1] = IDI_ORACOOL_RUNE_TIR;
+	sword._iMaxDur = 40;
+	sword._iDurability = DUR_INDESTRUCTIBLE; // as a Zod would have left it
+	std::strcpy(sword._iIName, "Steel");
+
+	ASSERT_TRUE(oracool::CanCraftFromLevskiGrid(grid, 3));
+	EXPECT_FALSE(oracool::TransmuteLevskiGrid(grid).empty());
+
+	// The host survives, keeps its sockets, and gets its durability back - which is why Zod was
+	// written to leave _iMaxDur intact.
+	EXPECT_FALSE(sword.isEmpty()) << "the host was consumed";
+	EXPECT_EQ(sword._iSocketCount, 2) << "the sockets themselves were lost";
+	EXPECT_EQ(sword.socketedCount(), 0) << "the sockets were not emptied";
+	EXPECT_EQ(sword._iDurability, 40) << "the host stayed indestructible after Zod came out";
+	EXPECT_STREQ(sword._iIName, "") << "the runeword name outlived its runes";
+
+	int el = 0;
+	int tir = 0;
+	for (const devilution::Item &item : grid) {
+		if (item.IDidx == IDI_ORACOOL_RUNE_EL)
+			el++;
+		if (item.IDidx == IDI_ORACOOL_RUNE_TIR)
+			tir++;
+	}
+	EXPECT_EQ(el, 1) << "El did not come back";
+	EXPECT_EQ(tir, 1) << "Tir did not come back";
 }
 
 // The runeword pool is generated (tools/GenRunewords.ps1), and a generated table's failure mode is

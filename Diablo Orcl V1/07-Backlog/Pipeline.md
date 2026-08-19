@@ -16,9 +16,8 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 
 | Name | Group | Size | Save | Blocked | Summary |
 |---|---|---|---|---|---|
-| Levski's Roar | Directive | Large | No | Recipe table needs approval | The crafting monument itself - placement, art, UI, and a Kanai's-Cube-inspired recipe table. Everything below in this group hangs off it. |
-| Socket extraction | Directive | Small | No | Levski's Roar | Pull gems and runes back out of an item, returning both the stone and the host. Groundwork is done: Zod stamps durability but leaves the maximum intact so the item can be handed back whole. |
-| Move crafting into Levski's Roar | Directive | Small | No | Levski's Roar | Gem and rune recipes leave the current crafting window and live at the monument instead. |
+| Levski's Roar - real art | Directive | Small | No | User's assets | The monument and its window ship on placeholders: OBJ_STAND (the Anvil of Fury's rock stand) and the ordinary ornate border. Both swap out when the real assets arrive; neither choice constrains the swap. |
+| Legendary power slots | Phase 6 | Medium | Yes | Unique legendary powers | Kanai's Cube has three slots below its grid for extracted powers. Levski's Roar deliberately has none until the powers exist. |
 | Salvaging, and the seven materials | Directive | Medium | New file | | Break unwanted items into White Scales, Magic Powder, Rare Fibres, Unique Encrustments, Primal Vines, Ethereal Imbueities and Set Engravings. Materials are player-scoped, so they can live in their own absent-tolerant file rather than breaking the hero format. |
 | Point 10 of the socket directive | Directive | ? | ? | Never stated | The nine-point socket list ended with an empty "10." It has stayed blank across four messages. |
 | The 107 remaining uniques | Content | Medium | No | Needs UITYPE values on existing armour bases | 143 of 250 uniques ship with sprites. The cheap 66 of the remainder need only base-item wiring. |
@@ -56,7 +55,7 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 
 ## Shipped, so not listed above
 
-The 1.6 to 1.8 lines took these out of the backlog: waypoints, autosave-only play, the HUD rebuild,
+The 1.6 to 1.8 lines took these out of the backlog: Levski's Roar with its 3x4 grid and recipe book, socket extraction, waypoints, autosave-only play, the HUD rebuild,
 skill trees and respec, the run toggle, charms, item tiers, set items, sockets and gems, all 33
 runes, 370 runewords, the crafting window, gambling at Wirt, ethereal items, Magic and Gold Find,
 lesser uniques with affixes, and the alvl/mlvl/ilvl ladder.

@@ -21,12 +21,29 @@
 #include <string>
 
 namespace devilution {
+struct Item;
 struct Player;
 } // namespace devilution
 
 namespace devilution::oracool {
 
-constexpr int CraftingRecipeCount = 3;
+constexpr int CraftingRecipeCount = 4;
+
+/**
+ * @brief Levski's Roar runs its recipes against the MONUMENT'S 3x3 grid rather than the backpack.
+ *
+ * Same recipes, different larder. The grid is nine Items owned by oracool/levski_roar.cpp and
+ * never persisted, so these take a raw array rather than a Player - which also keeps them testable
+ * without building a character.
+ */
+bool CanCraftFromLevskiGrid(const Item *grid, int index);
+/** @brief The lowest-numbered recipe the grid can currently run, or -1 for none. */
+int FirstReadyLevskiRecipe(const Item *grid);
+/**
+ * @brief Runs the first ready recipe over @p grid (nine slots), consuming and producing in place.
+ * Returns a line for the event log, or empty when nothing was ready.
+ */
+std::string TransmuteLevskiGrid(Item *grid);
 
 /** @brief Display name for recipe @p index, untranslated (callers wrap in _()). */
 const char *CraftingRecipeName(int index);

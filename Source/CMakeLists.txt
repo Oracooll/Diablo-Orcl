@@ -45,6 +45,7 @@ set(libdevilutionx_SRCS
   oracool/charms.cpp
   oracool/crafting.cpp
   oracool/crafting_menu.cpp
+  oracool/levski_roar.cpp
   oracool/gems.cpp
   oracool/run_toggle.cpp
   oracool/skill_points.cpp
