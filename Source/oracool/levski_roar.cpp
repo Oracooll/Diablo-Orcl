@@ -58,16 +58,21 @@ constexpr int RecipeBookWidth = 420;
  *
  * So: a solid fill. Every other window in the game sits on painted art and hides what is under it
  * completely; this one has no art yet, and "no art" should still mean "not a window you can see
- * through". A dark entry of the 16-shade grey ramp, from the shared upper half of the palette
- * (128-255) that is identical across town and all four tilesets - the same discipline
- * DrawOrnateBorder follows, so the fill cannot recolour itself by level. Not the ramp's darkest:
- * that is reserved for the cells, which need somewhere darker to go.
+ * through".
+ *
+ * The indices are DrawOrnateBorder's own, with its measured RGB in the comments - not a `PAL16_x +
+ * n` expression. PAL16_GRAY + 12/15 was the first attempt and came out near-white (user screenshot,
+ * 2026-08-19): the top of the palette is the UI's white end, not the dark end of a grey ramp, so
+ * the arithmetic that reads sensibly - "a high offset is a dark shade", per the palette header's
+ * own dark-blue example - is simply false for that one ramp. Naming proven indices removes the
+ * guess. Both live in the shared upper half (128-255), identical across town and all four
+ * tilesets, so the fill cannot recolour itself by level.
  */
-constexpr uint8_t PanelFillColor = PAL16_GRAY + 12;
-/** The grid cells, two shades darker than the panel they sit in - so a slot reads as a recessed
- * well waiting for a stone rather than as a square someone drew on the stone (user screenshot,
+constexpr uint8_t PanelFillColor = 204; // (57, 49, 29) - the border's own shadow tone, dark stone
+/** The grid cells, near-black against the panel's dark stone - so a slot reads as a recessed well
+ * waiting for a stone rather than as a square someone drew on the stone (user screenshot,
  * 2026-08-19: the cells were the same colour as the panel and read as decoration). */
-constexpr uint8_t SlotFillColor = PAL16_GRAY + 15;
+constexpr uint8_t SlotFillColor = 223; // (15, 5, 0)
 
 void DrawPanelGround(const Surface &out, const Rectangle &rect, uint8_t fill = PanelFillColor)
 {
@@ -200,12 +205,12 @@ Rectangle GetLevskiRecipeBookRect()
 	// and at 1024 wide that is 408 against a book needing 426. Centring guarantees symmetry, not
 	// space.
 	//
-	// So: try left, fall back to right if left does not fit, then clamp into the screen regardless -
-	// a book too wide for either side is still fully readable, just overlapping.
-	int x = window.position.x - RecipeBookWidth - SlotGap;
-	if (x < 0)
-		x = window.position.x + window.size.width + SlotGap;
-	x = std::clamp(x, 0, std::max(0, gnScreenWidth - RecipeBookWidth));
+	// So: place it left and CLAMP at the screen edge. The first fix flipped it to the right of the
+	// window when the left did not fit, and that was worse (user screenshot, 2026-08-19): the right
+	// is where the inventory and the mini-map live, so the book landed on top of the panel the
+	// player had open. Sliding left until it touches x=0 costs at most a few pixels of overlap with
+	// Levski's own window - and the book is drawn after it, so the book stays readable.
+	const int x = std::max(0, window.position.x - RecipeBookWidth - SlotGap);
 	return Rectangle { { x, window.position.y }, { RecipeBookWidth, height } };
 }
 

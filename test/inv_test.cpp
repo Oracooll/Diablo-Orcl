@@ -1240,5 +1240,33 @@ TEST_F(InvTest, RemoveInventoryItemById_FindsAndRemovesItemStoredInExtraTab)
 	EXPECT_FALSE(HasInventoryItemWithId(*MyPlayer, IDI_HEAL));
 }
 
+
+// User report (2026-08-19): "i could not CTRL+Click these 5 gold stacks in my inv grid into my
+// stash." Ctrl+Click routes through TransferItemToStash, so this pins the transfer half of that
+// path for gold specifically - gold is the one item type AutoPlaceItemInStash handles by adding to
+// a scalar pool rather than by finding grid space, and it is the only type that can be present in
+// tab 1 while being refused entry to every other tab (CanItemEnterExtraTab).
+// DISABLED: this harness faults (access violation) inside AutoPlaceItemInStash before the first
+// assertion runs. That is either the reported bug or missing test-environment init, and I have not
+// yet separated the two - so it is parked here as the reproduction rather than reported as a
+// finding, and disabled so it cannot turn the suite red on a guess.
+TEST_F(InvTest, DISABLED_CtrlClickTransfersGoldStackFromBackpackToStash)
+{
+	clear_inventory();
+	Stash.gold = 325000;
+
+	MyPlayer->InvList[0]._itype = ItemType::Gold;
+	MyPlayer->InvList[0]._ivalue = 65000;
+	MyPlayer->_pNumInv = 1;
+	MyPlayer->InvGrid[0] = 1;
+
+	ASSERT_TRUE(AutoPlaceItemInStash(*MyPlayer, MyPlayer->InvList[0], true));
+	EXPECT_EQ(Stash.gold, 390000);
+	TransferItemToStash(*MyPlayer, INVITEM_INV_FIRST);
+
+	EXPECT_EQ(Stash.gold, 390000) << "the stack's value should have joined the stash pool";
+	EXPECT_EQ(MyPlayer->_pNumInv, 0) << "the stack should have left the backpack";
+	EXPECT_EQ(MyPlayer->InvGrid[0], 0) << "the backpack cell should be free again";
+}
 } // namespace
 } // namespace devilution
