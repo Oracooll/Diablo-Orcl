@@ -71,12 +71,19 @@ the substitution is named in the last column.</p>
 <p>Scaling never rounds a real effect away: a chipped stone with a small number still gives 1.
 Perfect is exactly double normal, which is where Diablo II's own perfect values land.</p>
 
-<h2>The five runes</h2>
-<p>Runes have no quality ladder - a rune is a rune - and they carry Diablo II's own numbers. Two
-adaptations: El's +50 Attack Rating maps at D2's own ~10 AR to 1% convention, and Sol's "+9 to
-minimum damage" becomes a flat +9, because this engine's damage roll cannot survive a minimum
-crossing a maximum on a small weapon.</p>
+<h2>The thirty-three runes</h2>
+<p>All of Diablo II's runes, in D2's own order. Runes have no quality ladder - a rune is a rune -
+and they carry D2's own numbers wherever this engine has the channel. Seven needed no substitute at
+all: knockback, faster attack, faster hit recovery, fast block, thorns, life and mana steal, and
+triple damage to demons are real effects here. The rest name their substitution in the last
+column.</p>
+<p>The ladder maps D2's own span onto this game's 1-96 area levels, so <b>El is a first-floor find
+and Zod is a deep Torment one</b>. Value climbs 13% a rung, which is what makes the ascend recipe a
+real ladder rather than a formality.</p>
 <div id="runes"></div>
+<div class="note"><b>Two runes act on the item, not on you.</b> <b>Hel</b> cuts the host's own
+strength, magic and dexterity requirements by 20% - they stack, capped at 60%, and what the item
+panel prints is what the game actually checks. <b>Zod</b> makes the host indestructible.</div>
 
 <h2>Runewords</h2>
 <p>A runeword is not a recipe you have to look up - <b>every rune's own description lists the words
@@ -162,8 +169,31 @@ function effects(fields, host) {
 		add('damageReduction', 'damage taken reduced by #');
 		if (fields.shieldThorns) out.push('thorns - attackers take damage');
 	}
+	/* Every-host effects and the special-effect flags, which is where D2's knockback, speed and
+	   steal actually live in this engine - they are named rather than shown as a raw flag. */
+	const FLAGS = {
+		Knockback: 'knockback',
+		FasterAttack: 'faster attack',
+		FasterHitRecovery: 'faster hit recovery',
+		FastBlock: 'fast block',
+		Thorns: 'thorns - attackers take damage',
+		StealLife5: 'life steal',
+		StealMana5: 'mana steal',
+		TripleDemonDamage: 'triple damage to demons',
+	};
+	const flagField = host === 'weapon' ? 'weaponFlags' : (host === 'armor' ? 'armorFlags' : 'shieldFlags');
+	if (fields[flagField]) out.push(FLAGS[fields[flagField]] || fields[flagField]);
+
 	if (fields.lightRadius) out.push('+' + fields.lightRadius + ' light radius');
 	if (fields.manaPerKill) out.push('+' + fields.manaPerKill + ' mana per kill');
+	if (fields.allStrength) out.push('+' + fields.allStrength + ' strength');
+	if (fields.allMagic) out.push('+' + fields.allMagic + ' magic');
+	if (fields.allDexterity) out.push('+' + fields.allDexterity + ' dexterity');
+	if (fields.allVitality) out.push('+' + fields.allVitality + ' vitality');
+	if (fields.allMagicFind) out.push('+' + fields.allMagicFind + '% magic find');
+	if (fields.allGoldFind) out.push('+' + fields.allGoldFind + '% gold find');
+	if (fields.requirementPercentReduction) out.push('requirements -' + fields.requirementPercentReduction + '%');
+	if (fields.indestructible) out.push('indestructible');
 	return out.length ? out.join(', ') : '&mdash;';
 }
 
@@ -177,19 +207,24 @@ const NOTES = {
 	Skull: "Steal rides fixed 3%/5% flags that cannot scale, so the weapon gets life per kill instead; the shield keeps D2's thorns.",
 };
 
-function renderRows(mount, rows, withNotes) {
-	const head = '<thead><tr><th>Name</th><th>In a weapon</th><th>In armour</th><th>In a shield</th>'
+function renderRows(mount, rows, withNotes, withLadder) {
+	const head = '<thead><tr><th>Name</th>'
+		+ (withLadder ? '<th class="num">Drops from</th><th class="num">Value</th>' : '')
+		+ '<th>In a weapon</th><th>In armour</th><th>In a shield</th>'
 		+ (withNotes ? '<th>Adaptation</th>' : '') + '</tr></thead>';
 	const body = rows.map(function (row) {
-		return '<tr><td><b>' + row.name + '</b></td><td>' + effects(row.fields, 'weapon') + '</td><td>'
+		return '<tr><td><b>' + row.name + '</b></td>'
+			+ (withLadder ? '<td class="num">alvl ' + row.qlvl + '</td><td class="num">'
+				+ (row.value || 0).toLocaleString() + '</td>' : '')
+			+ '<td>' + effects(row.fields, 'weapon') + '</td><td>'
 			+ effects(row.fields, 'armor') + '</td><td>' + effects(row.fields, 'shield') + '</td>'
 			+ (withNotes ? '<td>' + (NOTES[row.name] || '') + '</td>' : '') + '</tr>';
 	}).join('');
 	mount.innerHTML = '<div class="tablewrap"><table>' + head + '<tbody>' + body + '</tbody></table></div>';
 }
 
-renderRows(document.getElementById('gems'), WIKI.gems, true);
-renderRows(document.getElementById('runes'), WIKI.runes, false);
+renderRows(document.getElementById('gems'), WIKI.gems, true, false);
+renderRows(document.getElementById('runes'), WIKI.runes, false, true);
 
 const ruby = WIKI.gems.filter(function (g) { return g.name === 'Ruby'; })[0];
 document.querySelector('#qual tbody').innerHTML = WIKI.gemQualities.map(function (q) {

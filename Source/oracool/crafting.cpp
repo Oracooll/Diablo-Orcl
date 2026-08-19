@@ -64,10 +64,10 @@ std::vector<int> MaterialsFor(const Player &player, int index)
 		    gems.end());
 		return LargestSameKindGroup(player, gems, 3);
 	}
-	case 1: { // two identical runes, Sol excluded (it has nothing above it)
+	case 1: { // two identical runes, Zod excluded (it is the top of the ladder)
 		std::vector<int> runes = FindMaterials(player, IsRune);
 		runes.erase(std::remove_if(runes.begin(), runes.end(),
-		                [&](int i) { return player.InvList[i].IDidx == IDI_ORACOOL_RUNE_SOL; }),
+		                [&](int i) { return IsTopRune(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
 		    runes.end());
 		return LargestSameKindGroup(player, runes, 2);
 	}
@@ -89,8 +89,8 @@ _item_indexes OutputFor(const Player &player, int index, const std::vector<int> 
 	switch (index) {
 	case 0: // the same gem, one quality better - Diablo II's own gem recipe
 		return static_cast<_item_indexes>(NextGemQuality(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
-	case 1: // the next rune up from the consumed pair
-		return static_cast<_item_indexes>(player.InvList[materials[0]].IDidx + 1);
+	case 1: // the next rune up from the consumed pair, by the LADDER - not by index
+		return static_cast<_item_indexes>(NextRune(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
 	case 2: { // a random charm - the enum's two islands make this a pick-from-list
 		constexpr _item_indexes CharmPool[] = {
 			IDI_ORACOOL_CHARM_VIGOR, IDI_ORACOOL_CHARM_EMBERS, IDI_ORACOOL_CHARM_STORMS,

@@ -29,6 +29,12 @@ $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm')
 # Base items - Source/itemdat.cpp
 # ---------------------------------------------------------------------------------------------
 $itemdat = Read-SourceFile 'itemdat.cpp'
+# The rune rows live in generated includes rather than inline (tools/GenRunes.ps1 owns all 33), so
+# they are concatenated here - otherwise the wiki's item count silently drops by the five that
+# moved out and never gains the 28 that arrived, which is exactly what happened on the first run.
+foreach ($inc in @('oracool\runes_shipped_data.inc', 'oracool\runes_data.inc')) {
+    $itemdat += "`n" + (Get-Content (Join-Path $src $inc) -Raw -Encoding UTF8)
+}
 $items = New-Object System.Collections.ArrayList
 
 foreach ($line in ($itemdat -split "`n")) {
@@ -547,6 +553,52 @@ if ($gemsCpp -match '(?s)constexpr GemData Gems\[\] = \{(.*?)\n\};') {
     }
 }
 
+
+# The other 28 runes live in their own generated include rather than inline in gems.cpp, so the
+# table walk above cannot see them - it stops at the file's own rows. Same row shape, same parse.
+$runesEffectsInc = Get-Content (Join-Path $src 'oracool\runes_effects.inc') -Raw -Encoding UTF8
+foreach ($row in [regex]::Matches($runesEffectsInc, '(?s)\{\s*\.idx = (IDI_ORACOOL_\w+)(.*?)\}')) {
+    $idx = $row.Groups[1].Value
+    $fields = [ordered]@{}
+    foreach ($f in [regex]::Matches($row.Groups[2].Value, '\.(\w+) = (-?\d+|true|false|ItemSpecialEffect::\w+)')) {
+        $raw = $f.Groups[2].Value
+        if ($raw -eq 'true') { $fields[$f.Groups[1].Value] = $true }
+        elseif ($raw -eq 'false') { $fields[$f.Groups[1].Value] = $false }
+        elseif ($raw -like 'ItemSpecialEffect::*') { $fields[$f.Groups[1].Value] = $raw.Substring('ItemSpecialEffect::'.Length) }
+        else { $fields[$f.Groups[1].Value] = [int]$raw }
+    }
+    [void]$runes.Add([ordered]@{ name = (Get-PrettyName $idx); constant = $idx; fields = $fields })
+}
+
+# Depth and price, off the generated data rows - both files, so the five shipped runes and the 28
+# appended ones read from the same place the game does.
+$runeQlvl = @{}
+foreach ($file in @('runes_shipped_data.inc', 'runes_data.inc')) {
+    $text = Get-Content (Join-Path $src "oracool\$file") -Raw -Encoding UTF8
+    foreach ($m in [regex]::Matches($text, 'IDI_ORACOOL_RUNE_(\w+)\*/.*?N_\("Rune"\),\s*(\d+),.*?false,\s*(\d+)')) {
+        $key = $m.Groups[1].Value
+        $runeQlvl[$key] = @{ qlvl = [int]$m.Groups[2].Value; value = [int]$m.Groups[3].Value }
+    }
+}
+foreach ($rune in $runes) {
+    $key = $rune.constant -replace '^IDI_ORACOOL_RUNE_', ''
+    if ($runeQlvl.ContainsKey($key)) {
+        $rune.qlvl = $runeQlvl[$key].qlvl
+        $rune.value = $runeQlvl[$key].value
+    }
+}
+
+# The ladder order - the enum interleaves runes with charms and the gem ladder, so this is the only
+# correct sequence, and it is what the wiki must present them in.
+$orderInc = Get-Content (Join-Path $src 'oracool\runes_order.inc') -Raw -Encoding UTF8
+$runeOrder = @([regex]::Matches($orderInc, 'IDI_ORACOOL_RUNE_(\w+),') | ForEach-Object { $_.Groups[1].Value })
+$ordered = New-Object System.Collections.ArrayList
+foreach ($key in $runeOrder) {
+    $match = $runes | Where-Object { ($_.constant -replace '^IDI_ORACOOL_RUNE_', '') -eq $key }
+    if ($match) { [void]$ordered.Add($match) }
+}
+$runes = $ordered
+
 $gemQualities = New-Object System.Collections.ArrayList
 foreach ($q in [regex]::Matches($gemsCpp, 'case GemQuality::(\w+):\s*\r?\n\s*return (\d+);')) {
     [void]$gemQualities.Add([ordered]@{ name = $q.Groups[1].Value; percent = [int]$q.Groups[2].Value })
@@ -608,7 +660,7 @@ $socketRules = [ordered]@{
     charmActiveCap    = $charmCap
     recipes           = @(
         [ordered]@{ name = 'Refine Gems'; input = 'Three identical gems - same type and quality'; output = 'One gem of the next quality up'; note = 'Perfect gems have nothing above them and cannot be refined.' },
-        [ordered]@{ name = 'Ascend Runes'; input = 'Two identical runes'; output = 'One rune of the next rank'; note = 'Sol is the top of the shipped ladder and is excluded.' },
+        [ordered]@{ name = 'Ascend Runes'; input = 'Two identical runes'; output = 'One rune of the next rank'; note = 'Zod is the top of the ladder and is excluded.' },
         [ordered]@{ name = 'Rework Charms'; input = 'Any two charms'; output = 'One random charm'; note = 'The reroll: two charms you are not using become a coin flip at a third.' }
     )
 }

@@ -241,6 +241,46 @@ SocketHost SocketHostForItemType(ItemType hostType)
 	}
 }
 
+namespace {
+
+/**
+ * @brief The 33 runes in Diablo II's order.
+ *
+ * This list exists because the ENUM order is not the rune order and cannot be: the five that
+ * shipped in v1.7.8 sit before the charms and the whole gem ladder, and the other 28 are appended
+ * after all of it. Anything that means "the next rune up" - the crafting ladder, the drop walk -
+ * has to come through here. Doing it with `index + 1` gave Eld -> Nef (skipping Tir) and walked
+ * Sol straight into a charm.
+ */
+constexpr uint16_t RuneOrder[] = {
+#include "oracool/runes_order.inc"
+};
+constexpr size_t RuneCount = sizeof(RuneOrder) / sizeof(RuneOrder[0]);
+static_assert(RuneCount == 33, "Diablo II has 33 runes - regenerate with tools/GenRunes.ps1");
+
+} // namespace
+
+size_t RuneLadderSize() { return RuneCount; }
+
+uint16_t RuneAtLadderPosition(size_t position)
+{
+	return position < RuneCount ? RuneOrder[position] : Item::EmptySocket;
+}
+
+uint16_t NextRune(uint16_t runeIdx)
+{
+	for (size_t i = 0; i + 1 < RuneCount; i++) {
+		if (RuneOrder[i] == runeIdx)
+			return RuneOrder[i + 1];
+	}
+	return runeIdx; // Zod, or not a rune at all - nothing above either.
+}
+
+bool IsTopRune(uint16_t runeIdx)
+{
+	return runeIdx == RuneOrder[RuneCount - 1];
+}
+
 int MaxSocketsForItem(const Item &item)
 {
 	// Sockets v2 (user directive 2026-08-19): "max number of sockets = number of 28x28px boxes the

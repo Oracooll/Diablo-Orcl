@@ -2005,15 +2005,18 @@ TEST(OracoolCrafting, AscendRunesConsumesPairAndProducesNextRung)
 	const std::string crafted = oracool::Craft(player, 1);
 	EXPECT_FALSE(crafted.empty());
 
-	int tirCount = 0;
+	int nextCount = 0;
 	int elCount = 0;
 	for (int i = 0; i < player._pNumInv; i++) {
-		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_TIR)
-			tirCount++;
+		// Diablo II's ladder puts ELD above El, not Tir. The old expectation here encoded the bug
+		// this test now guards against: crafting used to walk the ENUM (index + 1), which skips
+		// Eld entirely because the five v1.7.8 runes and the 28 appended ones are separate islands.
+		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_ELD)
+			nextCount++;
 		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_EL)
 			elCount++;
 	}
-	EXPECT_EQ(tirCount, 1) << "two El runes should have become one Tir";
+	EXPECT_EQ(nextCount, 1) << "two El runes should have become one Eld";
 	EXPECT_EQ(elCount, 0) << "the consumed pair survived";
 }
 
@@ -2072,11 +2075,16 @@ TEST(OracoolCrafting, MixedGemsDoNotSatisfyThreeOfAKind)
 	player.InvList[1].IDidx = IDI_ORACOOL_GEM_RUBY;
 	player.InvList[2].IDidx = IDI_ORACOOL_GEM_RUBY;
 	EXPECT_TRUE(oracool::CanCraft(player, 0));
-	// Sol pairs must never ascend - there is nothing above Sol.
+	// Zod pairs must never ascend - Zod is the top of the 33-rune ladder. This used to say Sol,
+	// which was only the top while five of the thirty-three existed.
+	player.InvList[0].IDidx = IDI_ORACOOL_RUNE_ZOD;
+	player.InvList[1].IDidx = IDI_ORACOOL_RUNE_ZOD;
+	player._pNumInv = 2;
+	EXPECT_FALSE(oracool::CanCraft(player, 1)) << "a Zod pair offered an ascension past the ladder's top";
+	// ...and a pair below the top still does ascend.
 	player.InvList[0].IDidx = IDI_ORACOOL_RUNE_SOL;
 	player.InvList[1].IDidx = IDI_ORACOOL_RUNE_SOL;
-	player._pNumInv = 2;
-	EXPECT_FALSE(oracool::CanCraft(player, 1)) << "a Sol pair offered an ascension past the ladder's top";
+	EXPECT_TRUE(oracool::CanCraft(player, 1)) << "Sol is no longer the top and must ascend";
 }
 
 // Every 340x720 side panel draws over the same painted background, whose interior ends at

@@ -176,6 +176,12 @@ Write-Inc 'runes_curs.inc' 'Their ICURS ids - appended after the uniques, so the
 Write-Inc 'runes_curs_widths.inc' 'Frame widths, in CEL frame order.' $widthLines
 Write-Inc 'runes_curs_heights.inc' 'Frame heights, in CEL frame order.' $heightLines
 Write-Inc 'runes_effects.inc' 'The GemData rows for the 28 new runes.' $effectLines
+
+$orderLines = New-Object System.Collections.ArrayList
+foreach ($rune in $runes) {
+    [void]$orderLines.Add("`tIDI_ORACOOL_RUNE_$($rune.n.ToUpper()),")
+}
+Write-Inc 'runes_order.inc' 'All 33 in Diablo II order - the ONLY correct successor list, since the enum interleaves the five shipped runes with charms and the whole gem ladder.' $orderLines
 # The spec file goes out WITHOUT a BOM: build_item_icons.cmd concatenates it into one spec list with
 # `type`, and a BOM landing mid-file makes the first line after it unparseable.
 [System.IO.File]::WriteAllLines((Join-Path $out 'runes_icon_specs.txt'), $specLines,

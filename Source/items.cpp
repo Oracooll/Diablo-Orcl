@@ -4552,23 +4552,26 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 			chosen++;
 		idx = static_cast<_item_indexes>(available[chosen]);
 	} else {
-		int first = IDI_ORACOOL_RUNE_EL;
-		int last = IDI_ORACOOL_RUNE_SOL;
-		bool charmsOnly = false;
-		if (roll < GemDropPercent + CharmDropPercent) {
-			// The charms live in two enum islands (the MF/GF pair was appended after the runes -
-			// positional indices), so the walk spans both and filters by the range check.
-			first = IDI_ORACOOL_CHARM_VIGOR;
-			last = IDI_ORACOOL_CHARM_GREED;
-			charmsOnly = true;
-		}
-		_item_indexes candidates[12];
+		// The rune walk goes through the LADDER, not an index range: the 33 runes live in two enum
+		// islands (the five from v1.7.8, then 28 appended after the gem ladder), so the old
+		// EL..SOL span would have dropped exactly five of the thirty-three and never the rest.
+		_item_indexes candidates[oracool::MaxRuneLadder];
 		int candidateCount = 0;
-		for (int i = first; i <= last; i++) {
-			if (charmsOnly && !IsOracoolCharmIdx(i))
-				continue;
-			if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
-				candidates[candidateCount++] = static_cast<_item_indexes>(i);
+		if (roll < GemDropPercent + CharmDropPercent) {
+			// The charms live in two enum islands of their own (the MF/GF pair was appended after
+			// the runes), so the walk spans both and filters by the range check.
+			for (int i = IDI_ORACOOL_CHARM_VIGOR; i <= IDI_ORACOOL_CHARM_GREED; i++) {
+				if (!IsOracoolCharmIdx(i))
+					continue;
+				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
+					candidates[candidateCount++] = static_cast<_item_indexes>(i);
+			}
+		} else {
+			for (size_t rung = 0; rung < oracool::RuneLadderSize(); rung++) {
+				const uint16_t rune = oracool::RuneAtLadderPosition(rung);
+				if (oracool::BandedQlvl(AllItemsList[rune].iMinMLvl) <= mlvl)
+					candidates[candidateCount++] = static_cast<_item_indexes>(rune);
+			}
 		}
 		if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
 			return;

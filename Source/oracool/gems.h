@@ -109,6 +109,22 @@ bool CanItemHaveSockets(const Item &item);
  */
 int MaxSocketsForItem(const Item &item);
 
+/**
+ * @brief The rune ladder, in Diablo II's order.
+ *
+ * The ENUM order is not the rune order and cannot be - the five that shipped in v1.7.8 sit before
+ * the charms and the whole gem ladder, and the other 28 are appended after all of it. Anything
+ * that means "the next rune up" must come through here rather than adding 1 to an index.
+ */
+/** @brief The array bound callers need when collecting every rune. */
+constexpr size_t MaxRuneLadder = 33;
+size_t RuneLadderSize();
+uint16_t RuneAtLadderPosition(size_t position);
+/** @brief The rune one rung above @p runeIdx, or @p runeIdx itself for Zod or a non-rune. */
+uint16_t NextRune(uint16_t runeIdx);
+/** @brief Whether @p runeIdx is Zod - the top of the ladder, so nothing ascends it. */
+bool IsTopRune(uint16_t runeIdx);
+
 /** @brief Applies gem @p gemIdx's effect for @p host onto @p totals. Unknown indices are inert. */
 void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals);
 
