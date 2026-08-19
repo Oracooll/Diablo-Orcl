@@ -797,35 +797,10 @@ void DrawChr(const Surface &out)
 		oracool::DrawOrnateBorder(out, panel);
 	}
 
-	// Oracool: user, 2026-08-19 - "put a dark transparent screen 299x609px in the hero stats screen,
-	// to cover all the net area between the four borders." An experiment, so both numbers are named
-	// and sit next to each other rather than being buried in the call.
-	//
-	// The width is the art's own opening: panel_bg.png's frame runs to about x=20 on each side of a
-	// 340-wide panel, which leaves 300 and the user measured 299. Centred on the 41px leftover, so
-	// the spare pixel falls on the right - the same rounding every other centring in this fork uses.
-	//
-	// The top was CharContentTop - under the title - until the user looked at it and asked for 80
-	// less (2026-08-19). That is not an arbitrary nudge: 101 - 80 = 21, and the frame's inner edge
-	// measures ~20, so the band now starts flush inside the top border instead of below the title,
-	// which is what "cover all the net area between the four borders" asked for in the first place.
-	// The first placement read 609 as excluding the title band; it excludes the BOTTOM instead, and
-	// the backdrop runs 21..630 with the lower part of the panel left clear.
-	//
-	// Expressed as the offset the user gave rather than folded into a single literal, so the two
-	// facts stay visible: where it started, and how far it moved.
-	constexpr Size StatsBackdropSize { 299, 609 };
-	constexpr int StatsBackdropRise = 80;
-	constexpr int StatsBackdropTop = CharContentTop - StatsBackdropRise;
-	const Rectangle statsBackdrop {
-		{ panel.position.x + (panel.size.width - StatsBackdropSize.width) / 2,
-		    panel.position.y + StatsBackdropTop },
-		StatsBackdropSize
-	};
-	// Half-transparent black, the same blend the belt's click feedback uses - it darkens whatever is
-	// behind it rather than painting a colour, so the panel art's texture still reads through.
-	DrawHalfTransparentRectTo(out, statsBackdrop.position.x, statsBackdrop.position.y,
-	    statsBackdrop.size.width, statsBackdrop.size.height, 0);
+	// The shared limestone backdrop. Started here as an experiment and moved into hud_art when the
+	// user asked for it on every panel - the three numbers live there now, once, beside the artwork
+	// they were measured against.
+	oracool::DrawSidePanelBackdrop(out, panel.position);
 
 	const Rectangle labelArea { { panel.position.x + CharPanelMargin, panel.position.y + oracool::PanelTitleTop },
 		{ panel.size.width - 2 * CharPanelMargin, oracool::PanelTitleHeight } };

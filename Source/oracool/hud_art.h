@@ -80,6 +80,26 @@ bool HasInventoryPanelArt();
  */
 void DrawSidePanelArt(const Surface &out, Point origin);
 
+/**
+ * @brief Darkens the limestone panel's inner opening at @p origin, behind whatever the window draws.
+ *
+ * Oracool: user, 2026-08-19 - tried on the character sheet first ("put a dark transparent screen
+ * 299x609px in the hero stats screen"), then "i like it. put this screen on all limestone screens in
+ * the game." All six windows share ui\panel_bg.png and all six are 340x720, so they share this too.
+ *
+ * 299x609 at (20, 21): the art's frame runs to about x=20 on each side, leaving a 300px opening that
+ * the user measured as 299, and 21 puts the band flush inside the top border. It stops 90px short of
+ * the panel's bottom, which is deliberate - the shape was chosen by eye against the art.
+ *
+ * Half-transparent black rather than a fill, so the limestone's texture still reads through it, and
+ * drawn BEFORE the window's own content so text, rows and item icons all sit on top at full
+ * brightness. That ordering is the whole point: this darkens the background, not the information.
+ *
+ * Lives beside DrawSidePanelArt because it is a property of that artwork - if the panel art is ever
+ * recut with a different frame, these two numbers move together with it.
+ */
+void DrawSidePanelBackdrop(const Surface &out, Point origin);
+
 /** @brief Whether the background loaded, so callers can fall back to the shared theme. */
 bool HasSidePanelArt();
 

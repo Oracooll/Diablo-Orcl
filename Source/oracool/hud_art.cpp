@@ -9,6 +9,7 @@
 
 #include <SDL.h>
 
+#include "engine/render/primitive_render.hpp"
 #include "engine/palette.h"
 #include "oracool/class_tree.h" // ClassTreeSkillForSpell - the wells draw the tree's own icons
 #include "oracool/hud_layout.h"
@@ -865,6 +866,19 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 
 	out.BlitFromSkipColorIndexZero(*SidePanelArt.bright,
 	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
+}
+
+void DrawSidePanelBackdrop(const Surface &out, Point origin)
+{
+	// The three numbers, together, because they were arrived at together against the artwork - see
+	// the header. Not derived from SidePanelArt's dimensions: the opening is a property of what the
+	// frame LOOKS like, not of the bitmap's size, and a measured constant that says so is honester
+	// than an expression that pretends the frame width is computable.
+	constexpr Size BackdropSize { 299, 609 };
+	constexpr Point BackdropOffset { 20, 21 };
+
+	DrawHalfTransparentRectTo(out, origin.x + BackdropOffset.x, origin.y + BackdropOffset.y,
+	    BackdropSize.width, BackdropSize.height, 0);
 }
 
 bool HasSidePanelArt()

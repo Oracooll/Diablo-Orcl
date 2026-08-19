@@ -937,6 +937,7 @@ void DrawQuestLog(const Surface &out)
 	const Rectangle panel { { 0, 0 }, QuestPanelSize };
 	if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, panel.position);
+		oracool::DrawSidePanelBackdrop(out, panel.position);
 	} else {
 		DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
 		oracool::DrawOrnateBorder(out, panel);

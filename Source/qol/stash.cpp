@@ -641,6 +641,7 @@ void DrawStash(const Surface &out)
 	const Rectangle panel = GetStashPanelRect();
 	if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, panel.position);
+		oracool::DrawSidePanelBackdrop(out, panel.position);
 	} else {
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);
