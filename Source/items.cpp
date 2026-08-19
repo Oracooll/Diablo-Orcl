@@ -1564,6 +1564,44 @@ void GetItemBonus(const Player &player, Item &item, int minlvl, int maxlvl, bool
 		GetItemPower(player, item, minlvl, maxlvl, flgs, onlygood, ignoreLevelLimits);
 }
 
+/**
+ * @brief True while an item is being rebuilt from a stored seed rather than generated fresh.
+ *
+ * THE SEAM. The droppable pool below is part of the save format - UnPackItem rebuilds a dungeon
+ * item's index by replaying its seed through this exact walk, and RecreateTownItem replays the
+ * vendor pools the same way. So the pool a replay sees must be the pool that existed when the item
+ * was made, while fresh generation is free to use the banded qlvl ladder (oracool/item_tiers.h).
+ *
+ * A flag rather than a parameter because the filters are lambdas handed to a shared walk, four
+ * layers below the two functions that know which case this is.
+ */
+bool ReplayingStoredItemSeed = false;
+
+/** @brief RAII: sets ReplayingStoredItemSeed for the duration of a recreation. */
+struct ReplayScope {
+	ReplayScope()
+	    : previous(ReplayingStoredItemSeed)
+	{
+		ReplayingStoredItemSeed = true;
+	}
+	~ReplayScope()
+	{
+		ReplayingStoredItemSeed = previous;
+	}
+	bool previous;
+};
+
+/**
+ * @brief The qlvl a POOL FILTER should compare against: authored while replaying, banded otherwise.
+ *
+ * Every gate that decides whether a base may appear in the shared pool goes through here, so the
+ * two answers can never drift apart by one call site being forgotten.
+ */
+int PoolQlvl(const ItemData &item)
+{
+	return ReplayingStoredItemSeed ? item.iMinMLvl : oracool::BandedQlvl(item.iMinMLvl);
+}
+
 _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_ref<bool(const ItemData &item)> isItemOkay)
 {
 	static std::array<_item_indexes, IDI_LAST * 2> ril;
@@ -1617,7 +1655,7 @@ _item_indexes RndUItem(Monster *monster)
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel](const ItemData &item) {
 		if (item.itype == ItemType::Misc && item.iMiscId == IMISC_BOOK)
 			return true;
-		if (itemMaxLevel < item.iMinMLvl)
+		if (itemMaxLevel < PoolQlvl(item))
 			return false;
 		if (IsAnyOf(item.itype, ItemType::Gold, ItemType::Misc))
 			return false;
@@ -1632,7 +1670,7 @@ _item_indexes RndAllItems()
 
 	int itemMaxLevel = ItemsGetCurrlevel() * 2;
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel](const ItemData &item) {
-		if (itemMaxLevel < item.iMinMLvl)
+		if (itemMaxLevel < PoolQlvl(item))
 			return false;
 		return true;
 	});
@@ -1642,7 +1680,7 @@ _item_indexes RndTypeItems(ItemType itemType, int imid, int lvl)
 {
 	int itemMaxLevel = lvl * 2;
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel, &itemType, &imid](const ItemData &item) {
-		if (itemMaxLevel < item.iMinMLvl)
+		if (itemMaxLevel < PoolQlvl(item))
 			return false;
 		if (item.itype != itemType)
 			return false;
@@ -2274,7 +2312,8 @@ _item_indexes RndVendorItem(const Player &player, int minlvl, int maxlvl)
 	return GetItemIndexForDroppableItem(ConsiderDropRate, [&player, &minlvl, &maxlvl](const ItemData &item) {
 		if (!Ok(player, item))
 			return false;
-		if (item.iMinMLvl < minlvl || item.iMinMLvl > maxlvl)
+		const int poolQlvl = PoolQlvl(item);
+		if (poolQlvl < minlvl || poolQlvl > maxlvl)
 			return false;
 		return true;
 	});
@@ -2608,7 +2647,7 @@ _item_indexes RndItemForMonsterLevel(int8_t monsterLevel)
 		return IDI_GOLD;
 
 	return GetItemIndexForDroppableItem(true, [&monsterLevel](const ItemData &item) {
-		return oracool::BandedQlvl(item.iMinMLvl) <= monsterLevel;
+		return PoolQlvl(item) <= monsterLevel;
 	});
 }
 
@@ -4113,6 +4152,12 @@ void CreateTypeItem(Point position, bool onlygood, ItemType itemType, int imisc,
 
 void RecreateItem(const Player &player, Item &item, _item_indexes idx, uint16_t icreateinfo, uint32_t iseed, int ivalue, bool isHellfire)
 {
+	// Everything below this line is a REPLAY: the item already exists somewhere and is being rebuilt
+	// from its seed. The pool filters must therefore see the authored qlvl ladder, not the banded one -
+	// see ReplayingStoredItemSeed. One guard at the entry point covers the dungeon path, all five
+	// vendor paths through RecreateTownItem, and anything either of them calls.
+	ReplayScope replaying;
+
 	bool tmpIsHellfire = gbIsHellfire;
 	gbIsHellfire = isHellfire;
 

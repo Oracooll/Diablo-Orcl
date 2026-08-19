@@ -115,18 +115,17 @@ void ApplyBaseTier(Item &item, BaseItemTier tier);
  * bases share a qlvl and a floor opens a GROUP of them at once. That is how D2 reads - a depth
  * unlocks a shelf, not one sword.
  *
- * ## Where this is NOT applied, and why
+ * ## The replay seam
  *
- * RndUItem, RndAllItems, RndTypeItems and RndVendorItem filter the SHARED droppable pool, and that
- * pool is replayed during item RECREATION: RecreateItem and UnPackItem re-run the same filtered pick
- * from a stored seed to rebuild an item. Change the filter and the same seed produces a different
- * item - the net-pack validation tests caught exactly that, twenty of them at once. Those four keep
- * the authored values.
+ * The shared droppable pool is part of the SAVE FORMAT: UnPackItem rebuilds a dungeon item's index
+ * by replaying its seed through the pool walk, and RecreateTownItem replays the vendor pools the same
+ * way. Banding the filter unconditionally therefore changed what an existing seed rebuilt, and twenty
+ * net-pack validation tests said so.
  *
- * So the banding governs the MONSTER drop pool, the set and gem spawns, and Adria's book stock -
- * every gate that decides at drop time and is never replayed. Extending it to chests and vendors
- * needs the recreate paths to ask for authored values explicitly while fresh generation asks for
- * banded ones; that is a seam through GetItemIndexForDroppableItem, not a bigger table.
+ * So items.cpp carries one flag - ReplayingStoredItemSeed, set by an RAII guard at RecreateItem's
+ * entry - and every pool filter asks PoolQlvl(), which answers with the AUTHORED qlvl during a replay
+ * and the banded one during fresh generation. Old seeds rebuild exactly as they did; new drops use
+ * the ladder.
  */
 int BandedQlvl(int authoredQlvl);
 
