@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Base items - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Base items</h1>
+<p class="lede">Every row of <code>AllItemsList</code>: the base objects the game builds an item
+from. Quality level (qlvl) is the item level a drop needs before this base can appear at all.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<h2>Reading the table</h2>
+<ul>
+	<li><b>qlvl</b> is the authored value from <code>iMinMLvl</code>. <b>Banded</b> is what the game
+		actually compares against - the authored ladder regrouped onto the 1-60 area scale, so a depth
+		opens a shelf of bases rather than one.</li>
+	<li><b>Opens at</b> names the earliest area whose item level reaches the banded qlvl.</li>
+	<li><b>Drop</b> of <code>NEVER</code> means the base exists but is never randomly generated: quest
+		items, class starting gear, and the set, gem and rune families that drop through their own hooks.</li>
+	<li>Damage, armour, durability and requirements are the <b>Normal-tier</b> numbers. Multiply by the
+		<a href="tiers.html">tier scale</a> for the other three.</li>
+	<li>A few families marked <code>REGULAR</code> are still kept out of the shared drop pool and reach
+		you through their own hooks instead: the fifteen item sets, and the gems, runes and charms. The
+		pool is part of the save format, so growing it would change what every stored seed rebuilds.</li>
+</ul>
+
+<div id="table"></div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+function bandedQlvl(q) {
+	if (q >= 99) return q;
+	const bands = [[3, 1], [6, 5], [9, 9], [12, 13], [15, 17], [18, 21], [21, 25], [24, 29], [27, 33],
+		[30, 37], [33, 41], [36, 45], [39, 49], [42, 52], [45, 55], [48, 57], [51, 60]];
+	for (const b of bands) { if (q <= b[0]) return b[1]; }
+	return 60;
+}
+
+const rows = WIKI.items.map(function (i) {
+	const banded = bandedQlvl(i.qlvl);
+	const req = [];
+	if (i.reqStr) req.push('Str ' + i.reqStr);
+	if (i.reqMag) req.push('Mag ' + i.reqMag);
+	if (i.reqDex) req.push('Dex ' + i.reqDex);
+	return Object.assign({}, i, {
+		banded: banded,
+		opens: banded >= 99 ? 'never' : areaOfLevel(banded),
+		dam: i.maxDam > 0 ? (i.minDam === i.maxDam ? String(i.minDam) : (i.minDam + '-' + i.maxDam)) : '',
+		ac: i.maxAC > 0 ? (i.minAC === i.maxAC ? String(i.minAC) : (i.minAC + '-' + i.maxAC)) : '',
+		req: req.join(', ')
+	});
+});
+
+const droppable = rows.filter(function (r) { return r.drop !== 'NEVER'; }).length;
+const highest = Math.max.apply(null, rows.map(function (r) { return r.banded; })
+	.filter(function (q) { return q < 99; }));
+document.getElementById('stats').innerHTML =
+	'<div class="stat"><b>' + rows.length + '</b><span>base items</span></div>' +
+	'<div class="stat"><b>' + droppable + '</b><span>droppable</span></div>' +
+	'<div class="stat"><b>' + (rows.length - droppable) + '</b><span>hook or quest only</span></div>' +
+	'<div class="stat"><b>' + highest + '</b><span>highest banded qlvl</span></div>';
+
+makeTable(document.getElementById('table'), rows, [
+	{ key: 'name', label: 'Name' },
+	{ key: 'class', label: 'Class' },
+	{ key: 'type', label: 'Type' },
+	{ key: 'loc', label: 'Slot' },
+	{ key: 'qlvl', label: 'qlvl', num: true },
+	{ key: 'banded', label: 'Banded', num: true },
+	{ key: 'opens', label: 'Opens at' },
+	{ key: 'dam', label: 'Damage' },
+	{ key: 'ac', label: 'Armour' },
+	{ key: 'dur', label: 'Dur', num: true },
+	{ key: 'req', label: 'Requires' },
+	{ key: 'value', label: 'Value', num: true },
+	{ key: 'drop', label: 'Drop' },
+	{ key: 'id', label: 'Enum', cls: 'mono' }
+], {
+	sort: 'banded',
+	placeholder: 'Search name, type, slot...',
+	filters: [
+		{ key: 'class', label: 'Class' },
+		{ key: 'type', label: 'Type' },
+		{ key: 'loc', label: 'Slot' },
+		{ key: 'drop', label: 'Drop' }
+	]
+});
+</script>
+</body>
+</html>

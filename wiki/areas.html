@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Areas and levels - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Areas and levels</h1>
+<p class="lede">Twenty-four floors, four difficulties, one continuous ladder from 1 to 96. The area
+level is the number that decides what a place can drop and how good the rolls may be.</p>
+
+<h2>The ladder</h2>
+<pre><code>area level = floor + 24 x difficulty</code></pre>
+<p>Six areas of four floors each: Cathedral 1-4, Catacombs 5-8, Caves 9-12, Hell 13-16, Nest 17-20,
+Crypt 21-24 - then the same six again, one difficulty deeper.</p>
+
+<div class="tablewrap"><table id="ladder">
+<thead><tr><th class="num">#</th><th>Difficulty</th><th>Area</th><th class="num">Floors</th><th class="num">Area level</th><th>Base tier</th><th>Opens</th></tr></thead>
+<tbody></tbody></table></div>
+
+<div class="note"><b>Hell/Hell is the design target.</b> At area levels 61-64 the last base item
+becomes available, so every piece of gear in the game is obtainable by then. The eight areas past it
+exist for better rolls and deeper tiers, not for new things.</div>
+
+<h2>What the area level drives</h2>
+<ul>
+	<li><b>Monster loot level</b> - the area level, +3 for a unique, +2 for a champion.</li>
+	<li><b>Chests, floor spawns and quest rewards</b> - the area level directly.</li>
+	<li><b>Gold piles</b> - the amount scales with it.</li>
+	<li><b>Vendor stock</b> - separately: the vendor's own level, lifted by the difficulty block.</li>
+</ul>
+
+<h2>Two things it fixed</h2>
+<p>The old floor number ignored difficulty entirely, so a chest in Torment held the same grade of
+loot as a chest in Normal. And Hellfire's own arithmetic folded the Nest back to floors 9-12 and the
+Crypt to 14-17, because in Hellfire those are a parallel path to the Cathedral rather than a deeper
+one. In this build they are floors 17-24 and they are deeper, so the ladder uses the floor as it is.</p>
+
+<h2>Quest lairs</h2>
+<p>The Skeleton King's lair, the Bone Chamber, the Poisoned Water Supply and the Vile Betrayer's
+chamber take the level of the quest that owns them, run through the same ladder - so a lair is as
+deep as the floor it hangs off, on every difficulty. An unrecognised set-level falls back to floor 1,
+the least rewarding answer on the ladder.</p>
+
+<h2>Town</h2>
+<p>Town has an area level like anywhere else, but nothing drops there, so the automap does not print
+one. Shops use their own level, described in <a href="tiers.html">Base tiers</a>.</p>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const AREAS = ['Cathedral', 'Catacombs', 'Caves', 'Hell', 'Nest', 'Crypt'];
+const DIFFS = ['Normal', 'Nightmare', 'Hell', 'Torment'];
+
+let html = '';
+let n = 0;
+for (let d = 0; d < 4; d++) {
+	for (let a = 0; a < 6; a++) {
+		n++;
+		const firstFloor = a * 4 + 1;
+		const lastFloor = firstFloor + 3;
+		const lo = firstFloor + 24 * d;
+		const hi = lastFloor + 24 * d;
+		const notes = [];
+		if (d === 2 && a === 3) notes.push('every base item obtainable');
+		if (lo <= 52 && hi >= 52) notes.push('band-30 spell books');
+		if (lo <= 42 && hi >= 42) notes.push('band-24 spell books');
+		if (lo <= 30 && hi >= 30) notes.push('band-18 spell books');
+		if (lo <= 18 && hi >= 18) notes.push('band-12 spell books');
+		const highlight = (d === 2 && a === 3) ? ' style="background:rgba(217,180,90,.10)"' : '';
+		html += '<tr' + highlight + '><td class="num">' + n + '</td><td>' + DIFFS[d] + '</td><td>' + AREAS[a] +
+			'</td><td class="num">' + firstFloor + '-' + lastFloor + '</td><td class="num">' + lo + '-' + hi +
+			'</td><td>' + tierTag(d) + '</td><td>' + notes.join(', ') + '</td></tr>';
+	}
+}
+document.querySelector('#ladder tbody').innerHTML = html;
+</script>
+</body>
+</html>

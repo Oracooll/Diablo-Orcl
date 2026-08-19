@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Class trees - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Class trees</h1>
+<p class="lede">Diablo II's class skill trees: three pages per class, each skill sitting in one of
+six tiers. This is the skill system - the six vanilla class skills are retired.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<h2>How the trees work</h2>
+<ul>
+	<li><b>Tiers gate ownership.</b> A skill's tier is the character level it opens at:
+		<b id="tiers"></b>. That is the whole gate - there is no prerequisite graph.</li>
+	<li><b>The Rule of Rangs gates depth.</b> Rank N of a skill wants <code>tier + (N - 1)</code>
+		character levels, so a tier-1 skill takes its tenth point at level 10 and a tier-30 skill at 39.</li>
+	<li><b>Two stores, one pool.</b> A skill with a spell slot keeps its points where
+		<code>GetSpellLevel</code> finds them, so every ladder that already scaled with spell level
+		scales with investment for free. Slotless skills - auras, passives, masteries - keep theirs
+		separately. Both spend from the same per-level pool, and both refund a rank at a time.</li>
+	<li><b>Auras are the right button.</b> Lighting one clears the readied right-button skill;
+		readying a skill puts the aura out. One slot, one occupant.</li>
+	<li><b>Unbuilt rows are inert.</b> A skill marked not implemented is listed, described and struck
+		through with a red X in game: it takes no points, no hotkey and no assignment. Those are the
+		rows still waiting on design.</li>
+</ul>
+
+<h2>By class</h2>
+<div class="cards" id="classcards"></div>
+
+<h2>Every skill</h2>
+<div id="table"></div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const TIER_LEVELS = [1, 6, 12, 18, 24, 30, 36];
+
+const rows = WIKI.skills.map(function (s) {
+	return Object.assign({}, s, {
+		minLevel: TIER_LEVELS[s.tier] === undefined ? 0 : TIER_LEVELS[s.tier],
+		slot: s.spell === 'Invalid' ? '' : s.spell,
+		status: s.implemented ? 'built' : 'unbuilt'
+	});
+});
+
+const built = rows.filter(function (r) { return r.implemented; }).length;
+document.getElementById('stats').innerHTML =
+	'<div class="stat"><b>' + rows.length + '</b><span>skills</span></div>' +
+	'<div class="stat"><b>' + built + '</b><span>built</span></div>' +
+	'<div class="stat"><b>' + (rows.length - built) + '</b><span>awaiting design</span></div>' +
+	'<div class="stat"><b>' + new Set(rows.map(function (r) { return r.class; })).size + '</b><span>classes</span></div>';
+
+document.getElementById('tiers').textContent = TIER_LEVELS.slice(0, 6).join(', ');
+
+const classes = {};
+rows.forEach(function (r) {
+	if (!classes[r.class]) classes[r.class] = { total: 0, built: 0, kinds: {} };
+	classes[r.class].total++;
+	if (r.implemented) classes[r.class].built++;
+	classes[r.class].kinds[r.kind] = (classes[r.class].kinds[r.kind] || 0) + 1;
+});
+document.getElementById('classcards').innerHTML = Object.keys(classes).sort().map(function (name) {
+	const c = classes[name];
+	const kinds = Object.keys(c.kinds).sort().map(function (k) { return c.kinds[k] + ' ' + k.toLowerCase(); }).join(', ');
+	return '<div class="card"><b>' + name + '</b><span>' + c.total + ' skills, ' + c.built +
+		' built<br>' + kinds + '</span></div>';
+}).join('');
+
+makeTable(document.getElementById('table'), rows, [
+	{ key: 'name', label: 'Skill' },
+	{ key: 'class', label: 'Class' },
+	{ key: 'page', label: 'Page', num: true },
+	{ key: 'tier', label: 'Tier', num: true },
+	{ key: 'minLevel', label: 'Opens at', num: true },
+	{ key: 'kind', label: 'Kind' },
+	{ key: 'status', label: 'Status', render: function (v) { return v === 'built' ? '<span class="tag ok">built</span>' : '<span class="tag no">unbuilt</span>'; } },
+	{ key: 'slot', label: 'Spell slot', cls: 'mono' },
+	{ key: 'description', label: 'Description' }
+], {
+	sort: 'class',
+	placeholder: 'Search skill or description...',
+	filters: [
+		{ key: 'class', label: 'Class' },
+		{ key: 'kind', label: 'Kind' },
+		{ key: 'status', label: 'Status' },
+		{ key: 'tier', label: 'Tier' }
+	]
+});
+</script>
+</body>
+</html>

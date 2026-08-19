@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Version history - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Version history</h1>
+<p class="lede">Every development report in the project vault, newest first. Each one records what
+changed, why, and what to look at in game.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<h2>The 1.8 line - loot mechanics</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Version</th><th>What landed</th></tr></thead>
+<tbody>
+<tr><td><b>1.8.0</b></td><td>alvl, mlvl and ilvl introduced; spell tiers gain a level-1 band; books gated by their spell's band; all three levels made visible</td></tr>
+<tr><td><b>1.8.1</b></td><td>Four base tiers - Normal, Nightmare, Hell, Torment - as a per-item property rather than 670 new rows</td></tr>
+<tr><td><b>1.8.2</b></td><td>Banded quality levels and depth-weighted rare/unique/primal odds</td></tr>
+<tr><td><b>1.8.3</b></td><td>The replay seam: banded pools for fresh generation, authored pools when rebuilding from a stored seed</td></tr>
+<tr><td><b>1.8.4</b></td><td>First audit - guarded quality rolls, no area level in town, and a correction to what 1.8.0 claimed about shops</td></tr>
+<tr><td><b>1.8.5</b></td><td>Vendors stock tiered gear on a chance that follows the difficulty</td></tr>
+<tr><td><b>1.8.6</b></td><td>Second audit - the vendor price cap now declines a tier instead of risking an unbounded retry loop</td></tr>
+<tr><td><b>1.8.7</b></td><td>Third audit - stale inventory-tab files rejected rather than misparsed</td></tr>
+</tbody></table></div>
+
+<h2>All reports</h2>
+<p>The full text of each lives in <code>Diablo Orcl V1/02-Development-Reports/</code>.</p>
+<div id="table"></div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const rows = WIKI.reports.map(function (r) {
+	const m = r.title.match(/^(\d{4}-\d{2}-\d{2})\s*-\s*(.*)$/);
+	return {
+		date: m ? m[1] : '',
+		title: m ? m[2] : r.title,
+		version: r.version,
+		file: r.file,
+		order: r.order
+	};
+});
+
+const versioned = rows.filter(function (r) { return r.version; }).length;
+document.getElementById('stats').innerHTML =
+	'<div class="stat"><b>' + rows.length + '</b><span>reports</span></div>' +
+	'<div class="stat"><b>' + versioned + '</b><span>tied to a version</span></div>' +
+	'<div class="stat"><b>' + WIKI.version + '</b><span>current build</span></div>';
+
+makeTable(document.getElementById('table'), rows, [
+	{ key: 'order', label: '#', num: true },
+	{ key: 'date', label: 'Date', cls: 'mono' },
+	{ key: 'version', label: 'Version', cls: 'mono' },
+	{ key: 'title', label: 'Report' }
+], {
+	sort: 'order',
+	placeholder: 'Search report titles...'
+});
+</script>
+</body>
+</html>

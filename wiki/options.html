@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INI options - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>INI options</h1>
+<p class="lede">Every option this build registers, parsed from <code>options.cpp</code>. They live in
+<code>diablo.ini</code> beside your saves; the Oracool block is written with explanatory comments.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<div class="note">Most options take effect immediately. A few are read once at a specific moment -
+<code>Naked Heroes</code> at character creation, for instance - and the description says so.</div>
+
+<div id="table"></div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const rows = WIKI.options.map(function (o) {
+	let def = o.default;
+	if (def === 'true') def = 'on';
+	else if (def === 'false') def = 'off';
+	def = def.replace(/^N_\("|"\)$/g, '');
+	return Object.assign({}, o, { defaultShown: def });
+});
+
+document.getElementById('stats').innerHTML =
+	'<div class="stat"><b>' + rows.length + '</b><span>options</span></div>';
+
+makeTable(document.getElementById('table'), rows, [
+	{ key: 'key', label: 'INI key' },
+	{ key: 'defaultShown', label: 'Default', cls: 'mono' },
+	{ key: 'description', label: 'What it does' },
+	{ key: 'field', label: 'Code field', cls: 'mono' }
+], {
+	sort: 'key',
+	placeholder: 'Search option or description...'
+});
+</script>
+</body>
+</html>

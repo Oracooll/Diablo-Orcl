@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Art assets - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Art assets</h1>
+<p class="lede">Every PNG that ships in <code>Packaging/resources/assets</code>, measured on disk.
+These are the fork's own sprites - the vanilla art lives inside the MPQ archives in CEL/CLX form and
+is not listed here.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<h2>How art gets into the game</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Kind</th><th>Format</th><th>Pipeline</th></tr></thead>
+<tbody>
+<tr><td>HUD, panels, icon strips</td><td>PNG, 32-bit</td>
+	<td>Loaded directly and quantized onto the shared palette at runtime (<code>oracool/hud_art.cpp</code>)</td></tr>
+<tr><td>Item icons</td><td>CEL</td>
+	<td>Cut from a composite sheet by <code>tools/ItemIconCel.cs</code>, packed into the MPQ</td></tr>
+<tr><td>Player sprites</td><td>CLX</td>
+	<td>Imported from PNG frames by the sprite importer</td></tr>
+<tr><td>Objects (chests, monuments)</td><td>CEL</td>
+	<td>Cut by <code>tools/ReliquaryCel.cs</code> and friends</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Palette rule.</b> Anything quantized at runtime must land on palette indices
+128-255. The lower half changes per dungeon level, so a sprite using it would shift colour when you
+take the stairs.</div>
+
+<h2>Icon strip conventions</h2>
+<ul>
+	<li>A strip is one row of square cells; the cell size is the strip's height, so a recut at a new
+		size needs no code change.</li>
+	<li>Index 0 is the transparent key.</li>
+	<li>Class-tree strips are cut at 56px; the LMB/RMB wells scale them into their 46x46 net opening.</li>
+</ul>
+
+<h2>The sprites</h2>
+<p>Every shipped PNG, drawn at its own size on a dark ground. Icon strips are one row of square
+cells, so a strip 448 pixels wide and 56 tall is eight 56px icons.</p>
+<div class="tools" id="gallerytools"></div>
+<div id="gallery" class="gallery"></div>
+
+<h2>Shipped files</h2>
+<div id="table"></div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const rows = WIKI.assets.map(function (a) {
+	const slash = a.path.lastIndexOf('/');
+	return Object.assign({}, a, {
+		folder: slash < 0 ? '(root)' : a.path.substring(0, slash),
+		file: slash < 0 ? a.path : a.path.substring(slash + 1),
+		size: a.width + ' x ' + a.height,
+		pixels: a.width * a.height
+	});
+});
+
+const totalKb = rows.reduce(function (sum, r) { return sum + r.kb; }, 0);
+document.getElementById('stats').innerHTML =
+	'<div class="stat"><b>' + rows.length + '</b><span>PNG assets</span></div>' +
+	'<div class="stat"><b>' + Math.round(totalKb) + '</b><span>KB on disk</span></div>' +
+	'<div class="stat"><b>' + new Set(rows.map(function (r) { return r.folder; })).size + '</b><span>folders</span></div>';
+
+/* The gallery. Big sheets are capped by CSS rather than resized here, so a 1536px master still
+   shows its whole composition instead of one corner of it. */
+const gallery = document.getElementById('gallery');
+const tools = document.getElementById('gallerytools');
+const folders = Array.from(new Set(rows.map(function (r) { return r.folder; }))).sort();
+
+const select = document.createElement('select');
+select.innerHTML = '<option value="">Folder: all</option>' +
+	folders.map(function (f) { return '<option value="' + f + '">' + f + '</option>'; }).join('');
+tools.appendChild(select);
+
+const searchBox = document.createElement('input');
+searchBox.type = 'search';
+searchBox.placeholder = 'Filter sprites by name...';
+tools.appendChild(searchBox);
+
+const galleryCount = document.createElement('span');
+galleryCount.className = 'count';
+tools.appendChild(galleryCount);
+
+function drawGallery() {
+	const folder = select.value;
+	const query = searchBox.value.toLowerCase();
+	const shown = rows.filter(function (r) {
+		if (folder && r.folder !== folder) return false;
+		return !query || r.path.toLowerCase().indexOf(query) >= 0;
+	});
+	gallery.innerHTML = shown.map(function (r) {
+		return '<figure class="shot">' +
+			'<img class="sprite" src="sprites/' + r.path + '" alt="' + r.file + '" loading="lazy">' +
+			'<figcaption><b>' + r.file + '</b><span>' + r.size + ' &middot; ' + r.kb + ' KB</span>' +
+			'<span class="mono">' + r.folder + '</span></figcaption></figure>';
+	}).join('');
+	galleryCount.textContent = shown.length + ' of ' + rows.length;
+}
+select.addEventListener('change', drawGallery);
+searchBox.addEventListener('input', drawGallery);
+drawGallery();
+
+makeTable(document.getElementById('table'), rows, [
+	{ key: 'file', label: 'File' },
+	{ key: 'folder', label: 'Folder', cls: 'mono' },
+	{ key: 'size', label: 'Dimensions', cls: 'mono' },
+	{ key: 'pixels', label: 'Pixels', num: true },
+	{ key: 'kb', label: 'KB', num: true }
+], {
+	sort: 'folder',
+	placeholder: 'Search file or folder...',
+	filters: [{ key: 'folder', label: 'Folder' }]
+});
+</script>
+</body>
+</html>

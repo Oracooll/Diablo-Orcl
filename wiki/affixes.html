@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quality and affixes - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Quality and affixes</h1>
+<p class="lede">What gets rolled on top of a base item, and how the odds change with depth. Quality
+is independent of <a href="tiers.html">base tier</a> - any quality can appear on any tier.</p>
+
+<h2>The qualities</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Quality</th><th>Name colour</th><th>Affixes</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><b>Basic</b></td><td><span class="tag t-normal">white</span></td><td>none</td>
+	<td>The base item as authored. Feedstock for salvage.</td></tr>
+<tr><td><b>Magic</b></td><td><span class="tag t-nightmare">blue</span></td><td>one prefix and/or one suffix</td>
+	<td>Vanilla's magic roll, gated by the item's affix level.</td></tr>
+<tr><td><b>Rare</b></td><td><span class="tag t-hell">yellow</span></td><td>up to 3 prefixes + 3 suffixes</td>
+	<td>Rolled only after the unique and primal rolls have failed.</td></tr>
+<tr><td><b>Set</b></td><td><span class="tag ok">green</span></td><td>a fixed named list</td>
+	<td>A named piece of one of the fifteen sets - not a roll at all. Drops through its own hook.</td></tr>
+<tr><td><b>Unique</b></td><td><span class="tag t-torment">gold</span></td><td>the unique's own powers</td>
+	<td>The vanilla unique table, expanded to 143 shipped entries.</td></tr>
+<tr><td><b>Buffed unique</b></td><td><span class="tag t-torment">gold</span></td><td>heavier than a rare</td>
+	<td>An Oracool tier above rare.</td></tr>
+<tr><td><b>Primal</b></td><td><span class="tag t-torment">gold</span></td><td>the heaviest roll, full durability</td>
+	<td>The rarest tier; every affix rolls at its maximum.</td></tr>
+</tbody></table></div>
+
+<h2>Odds by depth</h2>
+<p>The INI keeps the master knob for each tier; the item level's band shapes it. At the default
+settings - rare <b id="dr"></b>%, buffed unique <b id="db"></b>%, primal <b id="dp"></b>% - the
+curve is:</p>
+<div class="tablewrap"><table id="odds">
+<thead><tr><th>ilvl band</th><th>Difficulty</th><th class="num">Rare</th><th class="num">Buffed unique</th><th class="num">Primal</th></tr></thead>
+<tbody></tbody></table></div>
+<p>These are the chances an <i>eligible</i> drop takes that quality, checked in order: unique first
+(vanilla's own roll), then primal, then buffed unique, then rare, then a plain magic roll. Primal
+starts at zero because a perfect item found at character level 3 flattens the whole ladder in front
+of the character who found it.</p>
+
+<h2>Whether an item rolls affixes at all</h2>
+<p>That is vanilla's own test, unchanged: a roll against the item's level, with staves, rings and
+amulets always eligible and "only good" drops always eligible. Because deeper items carry higher
+levels, the basic-to-magic ratio shifts with depth on its own - no table needed.</p>
+
+<h2>Affix level</h2>
+<p>The affix pool is gated by an affix level derived from the item level (currently half of it). That
+is unchanged from vanilla so far, and is the first thing to retune once the balance telemetry has
+real sessions in it.</p>
+
+<div class="note"><b>Sockets, gems, runes and charms</b> roll on the drop paths after generation,
+never inside it - the generation sequence is replayed from stored seeds, and a roll added there would
+change what every existing seed produces.</div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+function optionDefault(key, fallback) {
+	const o = WIKI.options.filter(function (x) { return x.key === key; })[0];
+	if (!o) return fallback;
+	const n = parseInt(o.default, 10);
+	return isNaN(n) ? fallback : n;
+}
+
+const rare = optionDefault('Rare Item Drop Chance', 20);
+const buffed = optionDefault('Buffed Unique Item Drop Chance', 10);
+const primal = optionDefault('Primal Item Drop Chance', 5);
+document.getElementById('dr').textContent = rare;
+document.getElementById('db').textContent = buffed;
+document.getElementById('dp').textContent = primal;
+
+const RARE_BY_BAND = [10, 30, 70, 110];
+const BUFFED_BY_BAND = [10, 25, 50, 80];
+const PRIMAL_BY_BAND = [0, 5, 15, 40];
+const bands = ['1-24', '25-48', '49-72', '73-96'];
+
+document.querySelector('#odds tbody').innerHTML = bands.map(function (band, i) {
+	function pct(configured, scale) { return (configured * scale / 100).toFixed(2) + '%'; }
+	return '<tr><td>' + band + '</td><td>' + tierTag(i) + '</td>' +
+		'<td class="num">' + pct(rare, RARE_BY_BAND[i]) + '</td>' +
+		'<td class="num">' + pct(buffed, BUFFED_BY_BAND[i]) + '</td>' +
+		'<td class="num">' + pct(primal, PRIMAL_BY_BAND[i]) + '</td></tr>';
+}).join('');
+</script>
+</body>
+</html>

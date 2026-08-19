@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diablo Orcl V1 - Wiki</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Diablo Orcl V1</h1>
+<p class="lede">A single-player Diablo fork built on DevilutionX. This wiki is generated from the
+game's own source tables, so every number below is the number the build actually uses.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<h2>Where to start</h2>
+<div class="cards">
+	<a class="card" href="mechanics.html"><b>Core mechanics</b><span>alvl, mlvl, ilvl, the Rule of Rangs, and what changed from vanilla</span></a>
+	<a class="card" href="items.html"><b>Base items</b><span>Every droppable base with its quality level, damage, armour and requirements</span></a>
+	<a class="card" href="spells.html"><b>Spells</b><span id="c-spells">Every spell with its level band, mana curve and missiles</span></a>
+	<a class="card" href="skills.html"><b>Class trees</b><span id="c-skills">Six classes, three pages each, every skill's tier and status</span></a>
+	<a class="card" href="areas.html"><b>Areas</b><span>The 24-area ladder and what each one can drop</span></a>
+	<a class="card" href="monsters.html"><b>Monsters</b><span>Every monster type with its level, hit points and experience</span></a>
+</div>
+
+<h2>What makes this build different</h2>
+<p>Vanilla Diablo is the base; these are the systems that replaced or extended it.</p>
+<div class="cards">
+	<a class="card" href="areas.html"><b>A 96-level ladder</b><span>24 floors x 4 difficulties, one continuous progression instead of a floor number that ignored difficulty</span></a>
+	<a class="card" href="tiers.html"><b>Four base tiers</b><span>Normal, Nightmare, Hell and Torment versions of every base item</span></a>
+	<a class="card" href="skills.html"><b>Class skill trees</b><span id="c-trees">Skills across six classes, bought with points earned per level</span></a>
+	<a class="card" href="mechanics.html"><b>The Rule of Rangs</b><span>No level ceiling on any skill; each rank costs one more character level than the last</span></a>
+	<a class="card" href="ui.html"><b>A rebuilt HUD</b><span>Corner orbs, a six-slot belt, an Abilities window and a limestone theme</span></a>
+	<a class="card" href="mechanics.html"><b>Naked heroes</b><span>Characters start with nothing at all, by default</span></a>
+</div>
+
+<h2>How this wiki stays true</h2>
+<p>Every table here is parsed out of <code>Source/</code> when
+<code>tools/BuildWiki.ps1</code> runs. Item stats come from <code>itemdat.cpp</code>, spells from
+<code>spelldat.cpp</code>, skills from <code>oracool/class_tree.cpp</code>, monsters from
+<code>monstdat.cpp</code>, and the loot constants from the modules that define them. Nothing is
+re-typed by hand, so the wiki cannot quietly disagree with the game.</p>
+<div class="note"><b>To refresh:</b> run <code>powershell -ExecutionPolicy Bypass -File tools\BuildWiki.ps1</code>
+and reload. The version and timestamp in the sidebar tell you how current the page you are reading is.</div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const counts = [
+	['items', WIKI.items.length, 'base items'],
+	['spells', WIKI.spells.length, 'spells'],
+	['skills', WIKI.skills.length, 'tree skills'],
+	['monsters', WIKI.monsters.length, 'monster types'],
+	['areas', 24, 'areas'],
+	['levels', WIKI.mechanics.maxAreaLevel, 'max area level'],
+	['options', WIKI.options.length, 'INI options'],
+];
+document.getElementById('stats').innerHTML = counts.map(c =>
+	'<div class="stat"><b>' + c[1] + '</b><span>' + c[2] + '</span></div>').join('');
+
+// Counts in the prose come from the data too - a hand-typed number here is a number that goes stale.
+const bookSpells = WIKI.spells.filter(s => s.role === 'book spell').length;
+document.getElementById('c-spells').textContent =
+	bookSpells + ' book spells with their level bands, mana curves and missiles';
+document.getElementById('c-trees').textContent =
+	WIKI.skills.length + ' skills across six classes, bought with points earned per level';
+</script>
+</body>
+</html>

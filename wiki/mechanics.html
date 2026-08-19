@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core mechanics - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Core mechanics</h1>
+<p class="lede">The rules that govern progression and loot. Everything on this page is enforced in
+code; the numbers are read from the modules that define them.</p>
+
+<h2>The three levels</h2>
+<p>Diablo II keeps three separate numbers where vanilla Diablo has one. This build does the same.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Name</th><th>What it is</th><th>Where it comes from</th><th>Where you see it</th></tr></thead>
+<tbody>
+<tr><td><b>alvl</b> - area level</td><td>A property of the place. Fixed per floor per difficulty.</td>
+	<td><code>floor + 24 x difficulty</code>, so 1-96 across the 24 areas</td><td>The automap, under the difficulty line</td></tr>
+<tr><td><b>mlvl</b> - monster level</td><td>What a monster is worth as a source of loot.</td>
+	<td>The area level, +3 for a unique, +2 for a champion</td><td>Bottom-right of the monster health bar</td></tr>
+<tr><td><b>ilvl</b> - item level</td><td>Stamped on an item when it is generated.</td>
+	<td>The mlvl of whatever dropped it, or the alvl of the chest, floor or shop</td><td>The item's description</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Why mlvl is not the monster's combat level.</b> <code>Monster::level()</code> drives
+to-hit, block chance, experience and some missile damage from thirteen call sites. Moving those onto
+the area ladder would be a combat rebalance disguised as a loot change, so drops ask a separate
+function and the combat curve is untouched.</div>
+
+<h2>What an ilvl gates</h2>
+<ul>
+	<li><b>Which base items can appear.</b> Every base carries a quality level; a base can only drop
+		when <code>qlvl &lt;= ilvl</code>. See <a href="items.html">Base items</a>.</li>
+	<li><b>Which base tier it is forged at.</b> One tier per 24-level block. See <a href="tiers.html">Base tiers</a>.</li>
+	<li><b>How good the roll may be.</b> Rare, buffed-unique and primal chances all climb with the
+		band. See <a href="affixes.html">Quality and affixes</a>.</li>
+	<li><b>Which spell books can exist.</b> A book needs the ilvl its spell's band demands. See
+		<a href="spells.html">Spells</a>.</li>
+</ul>
+
+<h2>Spell and skill tiers</h2>
+<p>Every spell and every class-tree skill sits in one of six tiers, by the character level it
+demands: <b id="bands"></b>. Below its tier a spell cannot be learned and its book cannot be read.</p>
+
+<h2>The Rule of Rangs</h2>
+<p>Each rank of a skill or spell costs one more character level than the rank before it, counting
+from its own tier:</p>
+<pre><code>required character level = tier + (rank - 1)</code></pre>
+<p>A tier-1 spell reaches rank 10 at character level 10; a tier-30 skill reaches rank 10 at 39. This
+is what replaced Diablo II's flat cap of 20 points per skill.</p>
+<div class="note"><b>No ceiling.</b> The cap on any single skill is <b id="maxinv"></b> - the entire
+pool a character can earn, one point per level from 2 to <b id="maxclvl"></b>. Nothing is out of
+reach permanently; depth is paid for in levels rather than forbidden.</div>
+
+<h2>Difficulties</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Difficulty</th><th>Area levels</th><th>Base tier</th><th>Monster level offset</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Normal</td><td>1-24</td><td>Normal</td><td>+0</td><td>The whole 24-floor descent</td></tr>
+<tr><td>Nightmare</td><td>25-48</td><td>Nightmare</td><td>+15 combat</td><td></td></tr>
+<tr><td>Hell</td><td>49-72</td><td>Hell</td><td>+30 combat</td><td>Every base item is obtainable by Hell/Hell (alvl 61-64)</td></tr>
+<tr><td>Torment</td><td>73-96</td><td>Torment</td><td>+30 x multiplier</td><td>Single-player only; the multiplier is an INI setting</td></tr>
+</tbody></table></div>
+
+<h2>Character rules</h2>
+<ul>
+	<li><b>Naked heroes.</b> New characters start with no equipment, no potions and no gold, both
+		buttons on the bare fist. INI-toggleable, on by default, read once at creation.</li>
+	<li><b>No vanilla class skills.</b> Item Repair, Trap Disarm, Staff Recharge, Search, Identify and
+		Rage are retired. The class trees carry every skill a class is meant to have.</li>
+	<li><b>One skill point per level</b>, spendable on either the spell list or the class trees - both
+		draw from the same pool, and both can refund a rank at a time for free.</li>
+	<li><b>Auras occupy the right button.</b> Lighting an aura clears the readied right-button skill,
+		and readying a skill puts the aura out. They are one slot.</li>
+</ul>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+document.getElementById('bands').textContent = WIKI.mechanics.spellBands.join(', ');
+document.getElementById('maxinv').textContent = WIKI.mechanics.maxInvestment;
+document.getElementById('maxclvl').textContent = WIKI.mechanics.maxCharacterLevel;
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monsters - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Monsters</h1>
+<p class="lede">Every monster type in <code>MonstersData</code>, with the floors it appears on and
+the combat numbers it brings. These are the <b>Normal-difficulty</b> values.</p>
+
+<div class="stat-row" id="stats"></div>
+
+<h2>Two different levels</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Number</th><th>What it drives</th><th>How it scales</th></tr></thead>
+<tbody>
+<tr><td><b>Combat level</b> (the Level column below)</td>
+	<td>To-hit, block chance, experience awarded, some missile damage</td>
+	<td>+15 in Nightmare, +30 in Hell, +30 x multiplier in Torment</td></tr>
+<tr><td><b>Loot level</b> (mlvl)</td>
+	<td>Which bases can drop, which tier, how good the roll</td>
+	<td>The <a href="areas.html">area level</a>, +3 for a unique, +2 for a champion</td></tr>
+</tbody></table></div>
+<div class="note">They are deliberately separate. The combat curve is vanilla's, tuned over decades;
+the loot ladder is this build's. Merging them would rebalance every fight in the game as a side
+effect of a loot change.</div>
+
+<h2>Difficulty scaling</h2>
+<p>Hit points and damage scale with difficulty on top of the level offsets above. Torment applies
+Hell's scaling again, multiplied by the <code>Torment Difficulty Multiplier</code> INI setting
+(default 2.0, range 1.1 to 5.0).</p>
+
+<h2>Champions and uniques</h2>
+<p>Beyond the scripted unique monsters, the build spawns <b>lesser uniques</b>: ordinary monsters
+promoted with a champion modifier, their own name and tint, and a pack of minions. They carry +2 to
+their loot level (+3 for a true unique) and roll from a better loot table. The spawn rate is an INI
+setting.</p>
+
+<h2>All monster types</h2>
+<div id="table"></div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const rows = WIKI.monsters.map(function (m) {
+	return Object.assign({}, m, {
+		hp: m.hpMin === m.hpMax ? String(m.hpMin) : (m.hpMin + '-' + m.hpMax),
+		dam: m.minDam === m.maxDam ? String(m.minDam) : (m.minDam + '-' + m.maxDam),
+		floors: m.minLvl === m.maxLvl ? String(m.minLvl) : (m.minLvl + '-' + m.maxLvl)
+	});
+});
+
+const levels = rows.map(function (r) { return r.level; });
+document.getElementById('stats').innerHTML =
+	'<div class="stat"><b>' + rows.length + '</b><span>monster types</span></div>' +
+	'<div class="stat"><b>' + Math.min.apply(null, levels) + '-' + Math.max.apply(null, levels) + '</b><span>combat levels</span></div>' +
+	'<div class="stat"><b>' + new Set(rows.map(function (r) { return r.class; })).size + '</b><span>monster classes</span></div>';
+
+makeTable(document.getElementById('table'), rows, [
+	{ key: 'name', label: 'Monster' },
+	{ key: 'level', label: 'Level', num: true },
+	{ key: 'floors', label: 'Floors' },
+	{ key: 'hp', label: 'Hit points' },
+	{ key: 'ac', label: 'Armour', num: true },
+	{ key: 'toHit', label: 'To hit', num: true },
+	{ key: 'dam', label: 'Damage' },
+	{ key: 'exp', label: 'XP', num: true },
+	{ key: 'class', label: 'Class' },
+	{ key: 'id', label: 'Enum', cls: 'mono' }
+], {
+	sort: 'level',
+	placeholder: 'Search monster or class...',
+	filters: [{ key: 'class', label: 'Class' }]
+});
+</script>
+</body>
+</html>

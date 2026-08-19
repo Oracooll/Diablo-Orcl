@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controls - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Controls</h1>
+<p class="lede">Mouse rules, the reserved F-keys, and what can be remapped.</p>
+
+<h2>Mouse</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Action</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td>Left click, world</td><td>Move, pick up, open, talk - and attack or cast whatever is on the left button. Interaction always wins over the skill.</td></tr>
+<tr><td>Right click, world</td><td>Casts or swings whatever is on the right button.</td></tr>
+<tr><td>Shift + click</td><td>Forces the cast at the cursor instead of stepping toward a target.</td></tr>
+<tr><td>Left click, a skill in the Abilities window</td><td>Readies it on the <b>left</b> button.</td></tr>
+<tr><td>Right click, a skill in the Abilities window</td><td>Readies it on the <b>right</b> button.</td></tr>
+<tr><td>Either click, an aura</td><td>Lights the aura, which is the right button's setting.</td></tr>
+<tr><td>Click a skill well</td><td>Opens the basic-attack quick list.</td></tr>
+<tr><td>Shift + click the RMB well</td><td>Clears the readied spell outright.</td></tr>
+</tbody></table></div>
+<div class="note">Each sheet keeps its own click rules deliberately - auras behave differently from
+actives, and unifying them would make one of the two wrong.</div>
+
+<h2>Reserved keys</h2>
+<p>F1 to F12 are intercepted before the keymapper, which is what makes them unremappable: no INI row
+can double-book them, and nothing else fires on either edge of the press.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Key</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td>F1 - F8</td><td>Ability hotkeys. The bare key uses the <b>right</b> button's binding; Shift + the key uses the <b>left</b> button's.</td></tr>
+<tr><td>F9 / F10</td><td>Game speed down / up. Range 20-60, step 2.</td></tr>
+<tr><td>F11</td><td>Open or close the event log.</td></tr>
+<tr><td>F12</td><td>Screenshot. Auto-repeat is dropped, so holding it takes one.</td></tr>
+</tbody></table></div>
+
+<h2>Other keys</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Key</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td>I / C / Q / S</td><td>Inventory, character, quest log, abilities</td></tr>
+<tr><td>TAB</td><td>Full automap - shows the level name, difficulty and area level</td></tr>
+<tr><td>T</td><td>Town portal</td></tr>
+<tr><td>Enter</td><td>Chat box (three rows, 66 characters); the event log steps aside and returns on Escape</td></tr>
+<tr><td>Escape</td><td>Closes the topmost thing, then the game menu</td></tr>
+<tr><td>1 - 6</td><td>Belt slots</td></tr>
+</tbody></table></div>
+
+<h2>Remapping</h2>
+<p>Everything not on the reserved list is remappable from the Keymapping screen, which still lists
+Help, the quick-spell actions and Screenshot - default-unbound - for anyone who wants them on other
+keys.</p>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+</body>
+</html>

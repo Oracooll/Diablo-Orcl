@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUD and windows - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>HUD and windows</h1>
+<p class="lede">The interface was rebuilt around a limestone theme and a compact centre plate. This
+is where everything sits and what it does.</p>
+
+<h2>The screen</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Corner / region</th><th>What lives there</th></tr></thead>
+<tbody>
+<tr><td>Top left</td><td>Game clock, with the game-speed readout beneath it (off / on / blink)</td></tr>
+<tr><td>Top right</td><td>Always-on mini-map, independent of TAB's full map</td></tr>
+<tr><td>Bottom left</td><td>Health orb</td></tr>
+<tr><td>Bottom right</td><td>Mana orb</td></tr>
+<tr><td>Bottom centre</td><td>The middle HUD plate: LMB well, six belt slots, RMB well, and the XP bar beneath</td></tr>
+<tr><td>Above the LMB well</td><td>Level-up icon when points are unspent</td></tr>
+<tr><td>Under the mini-map</td><td>Message history, and the event log when opened</td></tr>
+</tbody></table></div>
+
+<h2>The two skill wells</h2>
+<p>The LMB and RMB wells each show what their button will do. Their opening between the bezels is
+<b>46 x 46 pixels</b> - the hard boundary every icon and background is scaled into, so nothing spills
+onto the frame.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>State</th><th>LMB well</th><th>RMB well</th></tr></thead>
+<tbody>
+<tr><td>Nothing readied</td><td>Regular or Fist Attack, depending on whether hands are empty</td><td>Same</td></tr>
+<tr><td>A skill readied</td><td>The skill's own icon, scaled to the net rect</td><td>Same</td></tr>
+<tr><td>An aura lit</td><td>-</td><td>The aura's icon; it is the button's setting</td></tr>
+<tr><td>Cannot cast right now</td><td colspan="2">The plate turns pink - out of mana, missing a shield, wrong level</td></tr>
+<tr><td>Clicking the well</td><td colspan="2">Opens the basic-attack quick list, the deliberate way to put Regular/Fist Attack back on a button</td></tr>
+</tbody></table></div>
+
+<h2>Windows</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Window</th><th>Opened by</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Inventory</td><td>I, or the burger menu</td><td>10 x 7 grid, ten tabs, thirteen equipment slots</td></tr>
+<tr><td>Stash</td><td>The stash chest in town</td><td>Multi-page, its own save file</td></tr>
+<tr><td>Character</td><td>C</td><td>Stats, with a reset-points button when enabled</td></tr>
+<tr><td>Abilities</td><td>S, the burger menu, or either skill well</td><td>Spells sheet plus three class-tree pages</td></tr>
+<tr><td>Quest log</td><td>Q</td><td></td></tr>
+<tr><td>Waypoints</td><td>A waypoint</td><td>25 entries, scrolling, 43px sigils</td></tr>
+<tr><td>Event log</td><td>F11, or the burger menu</td><td>Timestamped session events</td></tr>
+<tr><td>Crafting</td><td>The crafting station</td><td>Sockets, gems and runes</td></tr>
+</tbody></table></div>
+
+<h2>Standing interface rules</h2>
+<ul>
+	<li>Every window is keyboard-reachable and never needs more than two clicks to act.</li>
+	<li>OK and Cancel sit in the same two zones in every dialog.</li>
+	<li>A window never lets a click through to the world beneath it.</li>
+	<li>Content that overflows scrolls; it is never clipped silently.</li>
+	<li>An open window hides the HUD behind it rather than overlapping it.</li>
+</ul>
+
+<h2>The Abilities window</h2>
+<p>Four sheets: <b>Spells</b> (the book list, grouped by level band and sorted alphabetically inside
+each) and three <b>class-tree pages</b>. Both use the same 56 x 56 icon cell with the spend controls
+on the icon: green plus bottom-right, red minus bottom-left, the invested level between them.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Marker</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>Green plate</td><td>Has points in it and is usable</td></tr>
+<tr><td>Red plate</td><td>Unlocked but at rank 0 - yours to fill</td></tr>
+<tr><td>Grey plate</td><td>Not yours yet, or not built</td></tr>
+<tr><td>Red X across the icon</td><td>Listed but not implemented; wholly inert</td></tr>
+<tr><td>Yellow ring</td><td>Readied on the right button</td></tr>
+<tr><td>Red ring</td><td>Readied on the left button</td></tr>
+<tr><td>Corner badges</td><td>The F-key it is bound to: top-right for right button, top-left for left</td></tr>
+</tbody></table></div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+</body>
+</html>
