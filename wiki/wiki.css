@@ -161,6 +161,11 @@ td.mono { font-family: var(--mono); font-size: 12.5px; color: var(--ink-dim); }
 .tag.t-nightmare { color: var(--blue); border-color: #33556e; }
 .tag.t-hell { color: var(--yellow); border-color: #6e5d1f; }
 .tag.t-torment { color: var(--gold); border-color: var(--gold-dim); }
+/* The two Oracool tiers above rare do NOT wear the unique gold: buffed uniques are the game's
+   "whitegold" font and primals are orange - true cyan was never available (no free UiFlags bit and
+   no cyan .trn), so orange stands in, matching Diablo 3's Primal Ancient convention. */
+.tag.t-whitegold { color: #efe6c4; border-color: #8a7c4a; }
+.tag.t-orange { color: #e08a3c; border-color: #7a4a1c; }
 .tag.ok { color: var(--green); border-color: #3f5230; }
 .tag.no { color: var(--red); border-color: #5e2d22; }
 

@@ -18,14 +18,29 @@ in the game.</p>
 <h2>Where sockets come from</h2>
 <ul>
 	<li><b id="socketpct"></b> of qualifying drops arrive socketed.</li>
-	<li>Socket count is weighted <b id="socketweights"></b> for one, two and three - a three-socket
-		base is roughly one drop in forty.</li>
-	<li>Only <b>basic quality</b> equipment with <b>no base tier</b> qualifies. Magic, rare, set,
-		unique and primal items never roll sockets, and neither does a Nightmare, Hell or Torment
-		base.</li>
-	<li>Every worn slot can host them: sword, axe, mace, bow, staff, shield, body, helm, shoulders,
-		bracers, gloves, belt, legs and boots.</li>
+	<li>Only <b>basic quality</b> equipment qualifies - magic, rare, set, unique and primal items
+		never roll sockets. <b>Every base tier does</b>, though: a Torment base is the better host,
+		not a worse one.</li>
+	<li><b>Jewelry is the exception.</b> Rings and amulets have no basic versions at all, so they
+		socket at magic, rare, unique and primal instead. Being 1x1, they get exactly one.</li>
+	<li>All thirteen worn slots can host them.</li>
 </ul>
+
+<h3>How many</h3>
+<p>An item's socket ceiling is <b>the number of 28x28 inventory cells it occupies</b> - the same
+footprint the backpack grid uses to place it, so the cap can never disagree with what you see.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Footprint</th><th class="num">Max sockets</th><th>Typical hosts</th></tr></thead>
+<tbody>
+<tr><td>1x1</td><td class="num">1</td><td>rings, amulets</td></tr>
+<tr><td>1x2 / 2x1</td><td class="num">2</td><td>gloves, boots, belts, bracers, small weapons</td></tr>
+<tr><td>2x2</td><td class="num">4</td><td>shields, helms, shoulders, most one-handers</td></tr>
+<tr><td>2x3</td><td class="num">6</td><td>body armour, two-handers, staves</td></tr>
+</tbody></table></div>
+<p>The count is weighted <b id="socketweights"></b> from one socket to six, then truncated at the
+item's own ceiling and renormalised - so a 1x2 glove rolls one against two, rather than rolling six
+and having every high draw clamped down onto two. A full-footprint roll on a large item stays an
+event.</p>
 <div class="note"><b>Insertion is permanent.</b> Drop a gem or rune onto a socketed item in your
 backpack and it goes in. There is no removal, so the empty socket is the decision, not the filled
 one.</div>
@@ -109,7 +124,7 @@ make a flawed, and four steps make a perfect.</div>
 const R = WIKI.socketRules;
 
 document.getElementById('socketpct').textContent = R.socketedPercent + '%';
-document.getElementById('socketweights').textContent = R.socketWeights.join(' / ') + '%';
+document.getElementById('socketweights').textContent = R.socketWeights.join(' / ');
 document.getElementById('cap').textContent = R.charmActiveCap;
 document.getElementById('qw').textContent = R.qualityWeights.join(' / ');
 

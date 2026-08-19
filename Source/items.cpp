@@ -4595,11 +4595,32 @@ void TryAddSocketsToDroppedItem(Item &item)
 		return;
 
 	// A quarter of plain equipment is socketed: common enough that "basic item" stays worth a
-	// look forever, rare enough that a 3-socket roll (1 in 40 drops) still lands as an event.
+	// look forever, rare enough that a full-footprint roll still lands as an event.
 	if (GenerateRnd(100) >= 25)
 		return;
-	const int roll = GenerateRnd(100);
-	item._iSocketCount = roll < 60 ? 1 : (roll < 90 ? 2 : 3);
+
+	// Sockets v2: the ceiling is the item's own footprint, so a ring can only ever take one and a
+	// two-hander can take six. The weights are declared for the full six and then TRUNCATED at the
+	// item's cap and renormalised, which is what keeps a small item's distribution sane - a 1x2
+	// glove rolls 60/25 over one and two sockets rather than rolling six and clamping every high
+	// draw down onto two.
+	const int cap = oracool::MaxSocketsForItem(item);
+	if (cap <= 0)
+		return;
+	constexpr int SocketWeights[Item::MaxItemSockets] = { 60, 25, 8, 4, 2, 1 };
+	int total = 0;
+	for (int i = 0; i < cap; i++)
+		total += SocketWeights[i];
+	int roll = GenerateRnd(total);
+	int count = 1;
+	for (int i = 0; i < cap; i++) {
+		if (roll < SocketWeights[i]) {
+			count = i + 1;
+			break;
+		}
+		roll -= SocketWeights[i];
+	}
+	item._iSocketCount = static_cast<uint8_t>(count);
 }
 
 void ApplyMagicAndGoldFindToDrop(Item &item, int mLevel)

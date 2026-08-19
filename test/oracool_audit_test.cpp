@@ -37,6 +37,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/gems.h"
 #include "oracool/item_set_stats.h"
+#include "oracool/item_tiers.h"
 #include "oracool/item_sets.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
@@ -915,20 +916,58 @@ TEST(OracoolGems, SocketsOnlyOnPlainEquipment)
 {
 	devilution::Item sword {};
 	sword._itype = ItemType::Sword;
+	sword._iCurs = ICURS_SHORT_SWORD;
 	sword._iMagical = ITEM_QUALITY_NORMAL;
 	EXPECT_TRUE(oracool::CanItemHaveSockets(sword));
 
 	sword._iMagical = ITEM_QUALITY_MAGIC;
 	EXPECT_FALSE(oracool::CanItemHaveSockets(sword)) << "a magic item took sockets";
 
+	// Sockets v2: the base TIER no longer disqualifies anything. A Torment sword is the better
+	// host, and excluding it made the deeper base strictly worse raw material - backwards.
 	sword._iMagical = ITEM_QUALITY_NORMAL;
+	sword._iOracoolBaseTier = static_cast<uint8_t>(oracool::BaseItemTier::Torment);
+	EXPECT_TRUE(oracool::CanItemHaveSockets(sword)) << "a tiered base was refused sockets";
+
+	// The Oracool QUALITY tiers are a different axis and still refuse: those items already rolled.
+	sword._iOracoolBaseTier = static_cast<uint8_t>(oracool::BaseItemTier::Normal);
 	sword._iOracoolTier = OracoolItemTier::Rare;
-	EXPECT_FALSE(oracool::CanItemHaveSockets(sword)) << "a tiered item took sockets";
+	sword._iMagical = ITEM_QUALITY_MAGIC;
+	EXPECT_FALSE(oracool::CanItemHaveSockets(sword)) << "a rolled item took sockets";
 
 	devilution::Item potion {};
 	potion._itype = ItemType::Misc;
 	potion._iMagical = ITEM_QUALITY_NORMAL;
 	EXPECT_FALSE(oracool::CanItemHaveSockets(potion)) << "a misc item took sockets";
+}
+
+// Sockets v2 (user directive 2026-08-19): "max number of sockets = number of 28x28px boxes the item
+// is made of", and jewelry - which has no basic versions at all - sockets at magic and better
+// instead of never.
+TEST(OracoolGems, SocketCapIsTheItemFootprint)
+{
+	devilution::Item sword {};
+	sword._itype = ItemType::Sword;
+	sword._iCurs = ICURS_SHORT_SWORD;
+	sword._iMagical = ITEM_QUALITY_NORMAL;
+	const Size swordCells = GetInventorySize(sword);
+	EXPECT_EQ(oracool::MaxSocketsForItem(sword), swordCells.width * swordCells.height);
+
+	devilution::Item plate {};
+	plate._itype = ItemType::HeavyArmor;
+	plate._iCurs = ICURS_FULL_PLATE_MAIL;
+	plate._iMagical = ITEM_QUALITY_NORMAL;
+	EXPECT_EQ(oracool::MaxSocketsForItem(plate), 6) << "a 2x3 body armour is the six-socket host";
+
+	devilution::Item ring {};
+	ring._itype = ItemType::Ring;
+	ring._iCurs = ICURS_RING;
+	ring._iMagical = ITEM_QUALITY_MAGIC;
+	EXPECT_TRUE(oracool::CanItemHaveSockets(ring)) << "jewelry must socket at magic and better";
+	EXPECT_EQ(oracool::MaxSocketsForItem(ring), 1) << "a 1x1 ring takes exactly one";
+
+	// Every cap fits the record, which is what stops a footprint change from writing out of bounds.
+	EXPECT_LE(oracool::MaxSocketsForItem(plate), devilution::Item::MaxItemSockets);
 }
 
 // The gems follow Diablo II's own columns (user directive 2026-08-18): a ruby is fire damage in a

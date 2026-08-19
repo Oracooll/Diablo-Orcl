@@ -267,7 +267,10 @@ struct LevelConversionData {
  * of failing loudly.
  */
 // Version 3 added the socket fields; version 4 the ethereal flag - see SaveItem/LoadItemData.
-constexpr uint8_t OracoolItemFormatVersion = 6;
+// Version 7 (Sockets v2) widened the socket block from 3 slots to 6, because socket allowance is
+// now an item's inventory footprint and the largest footprint is 2x3. The record grew 6 bytes, so
+// this is a real break rather than a tail extension - an older save is rejected here.
+constexpr uint8_t OracoolItemFormatVersion = 7;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {

@@ -655,24 +655,27 @@ struct Item {
 	 */
 	bool _iOracoolBroken = false;
 
-	/** @brief Megaplan Phase 1: sockets. The cap is 3 - D1 items are smaller than D2's and the
-	 * economy tighter; three is enough for every planned runeword. */
-	static constexpr int MaxItemSockets = 3;
+	/**
+	 * @brief Sockets v2 (user directive 2026-08-19): the cap is 6, because an item's socket
+	 * allowance is now the number of 28x28 inventory cells it occupies, and the largest footprint
+	 * in the game is 2x3 - body armour, two-handers and staves. The old cap of 3 predated that
+	 * rule and was a flat guess.
+	 */
+	static constexpr int MaxItemSockets = 6;
 	/** @brief The sentinel in _iSocketed for an empty socket (no _item_indexes uses it). */
 	static constexpr uint16_t EmptySocket = 0xFFFF;
 	/**
-	 * @brief Phase 1 sockets: how many sockets this item was born with (rolled only on
-	 * NORMAL-quality tierless equipment - which is what makes plain "basic items" the raw
-	 * material of the socket economy, exactly as in Diablo II), and what sits in each.
+	 * @brief How many sockets this item was born with, and what sits in each.
 	 *
 	 * A socketed gem or rune is identified by its base-item index alone (_item_indexes as
 	 * uint16_t): gems are fixed-effect, non-magical items, so the index fully describes one.
-	 * Persisted in the fixed item extension record (loadsave.cpp, OracoolItemFormatVersion 3);
+	 * Persisted in the fixed item extension record (loadsave.cpp, OracoolItemFormatVersion 7);
 	 * like the tier data, this survives via the full-record heroitems/stash paths, not the
 	 * seed-replay ItemPack.
 	 */
 	uint8_t _iSocketCount = 0;
-	uint16_t _iSocketed[MaxItemSockets] = { EmptySocket, EmptySocket, EmptySocket };
+	uint16_t _iSocketed[MaxItemSockets] = { EmptySocket, EmptySocket, EmptySocket,
+		EmptySocket, EmptySocket, EmptySocket };
 
 	/**
 	 * @brief Phase 1 ethereal: rolled at drop time on equipment of any quality (5%). The bargain

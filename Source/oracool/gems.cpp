@@ -2,6 +2,9 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
+
+#include "inv.h"
 #include "items.h"
 #include "oracool/stat_sheet.h"
 #include "player.h"
@@ -212,11 +215,28 @@ SocketHost SocketHostForItemType(ItemType hostType)
 	}
 }
 
+int MaxSocketsForItem(const Item &item)
+{
+	// Sockets v2 (user directive 2026-08-19): "max number of sockets = number of 28x28px boxes the
+	// item is made of". GetInventorySize already answers that in cells - it is the same number the
+	// backpack grid uses to place the item, so a socket cap can never disagree with what the player
+	// sees. Clamped to the record's own width, which is sized for the largest footprint (2x3).
+	const Size size = GetInventorySize(item);
+	return std::clamp(size.width * size.height, 0, Item::MaxItemSockets);
+}
+
 bool CanItemHaveSockets(const Item &item)
 {
-	if (item.isEmpty() || item._iMagical != ITEM_QUALITY_NORMAL || item.hasOracoolTier())
+	if (item.isEmpty())
 		return false;
 	switch (item._itype) {
+	case ItemType::Ring:
+	case ItemType::Amulet:
+		// Jewelry has no basic versions to roll on - a ring is magic or better by construction -
+		// so for these two the basic-only rule would mean "never". They socket at any quality
+		// instead; being 1x1 they get exactly one socket, which keeps them a choice rather than a
+		// second equipment slot.
+		break;
 	case ItemType::Sword:
 	case ItemType::Axe:
 	case ItemType::Bow:
@@ -233,10 +253,17 @@ bool CanItemHaveSockets(const Item &item)
 	case ItemType::Belt:
 	case ItemType::Legs:
 	case ItemType::Boots:
-		return true;
+		// Everything else stays basic-only: a magic sword has already been rolled on, and letting
+		// it socket too would leave the white sword with no role at all. The base TIER no longer
+		// disqualifies anything, though - a Torment base is the better host, and excluding it made
+		// the deeper item strictly worse raw material, which is backwards.
+		if (item._iMagical != ITEM_QUALITY_NORMAL)
+			return false;
+		break;
 	default:
 		return false;
 	}
+	return MaxSocketsForItem(item) > 0;
 }
 
 namespace {

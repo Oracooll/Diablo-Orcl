@@ -93,9 +93,21 @@ enum class SocketHost : uint8_t {
 /** @brief Which effect group @p hostType's sockets use. */
 SocketHost SocketHostForItemType(ItemType hostType);
 
-/** @brief Whether @p item may receive sockets at drop time: tierless NORMAL-quality equipment
- * of a socketable type (weapons, shields, body armor, helms, the worn accessories). */
+/**
+ * @brief Whether @p item may receive sockets at drop time.
+ *
+ * Sockets v2: basic-quality equipment of any BASE TIER for the eleven worn equipment types, and
+ * jewelry at any quality (rings and amulets have no basic versions, so basic-only would mean
+ * never). Quality still excludes magic and better everywhere else - the white item's whole role
+ * is being the host.
+ */
 bool CanItemHaveSockets(const Item &item);
+
+/**
+ * @brief The socket ceiling for @p item: its inventory footprint in 28x28 cells, so a 1x1 ring
+ * takes one and a 2x3 two-hander takes six. Clamped to Item::MaxItemSockets.
+ */
+int MaxSocketsForItem(const Item &item);
 
 /** @brief Applies gem @p gemIdx's effect for @p host onto @p totals. Unknown indices are inert. */
 void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals);

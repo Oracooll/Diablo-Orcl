@@ -601,7 +601,7 @@ $socketRules = [ordered]@{
     charmDropPercent  = [int](Get-Constant $itemsCpp2 'constexpr int CharmDropPercent = (\d+)')
     runeDropPercent   = [int](Get-Constant $itemsCpp2 'constexpr int RuneDropPercent = (\d+)')
     socketedPercent   = [int](Get-Constant $itemsCpp2 '(?s)void TryAddSocketsToDroppedItem.*?GenerateRnd\(100\) >= (\d+)')
-    socketWeights     = @(60, 30, 10)
+    socketWeights     = @()
     qualityWeights    = @(40, 30, 18, 9, 3)
     etherealPercent   = [int](Get-Constant $itemsCpp2 '(?s)void TryMakeDroppedItemEthereal.*?GenerateRnd\(100\) >= (\d+)')
     etherealBonusPct  = 135
@@ -611,6 +611,12 @@ $socketRules = [ordered]@{
         [ordered]@{ name = 'Ascend Runes'; input = 'Two identical runes'; output = 'One rune of the next rank'; note = 'Sol is the top of the shipped ladder and is excluded.' },
         [ordered]@{ name = 'Rework Charms'; input = 'Any two charms'; output = 'One random charm'; note = 'The reroll: two charms you are not using become a coin flip at a third.' }
     )
+}
+
+# The socket-count weights, read out of the drop hook so retuning them retunes the wiki.
+if ($itemsCpp2 -match 'constexpr int SocketWeights\[Item::MaxItemSockets\] = \{([^}]*)\}') {
+    $socketRules.socketWeights = @($matches[1] -split ',' | ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ })
 }
 
 # ---------------------------------------------------------------------------------------------
