@@ -344,9 +344,19 @@ void DrawLevskiRoar(const Surface &out)
 	DrawPanelGround(out, window);
 	DrawWindowCloseButton(out, window);
 
-	DrawString(out, _("Levski's Roar"),
-	    Rectangle { window.position + Displacement { Padding, Padding }, { GridWidth, HeaderHeight } },
-	    { UiFlags::ColorGold | UiFlags::FontSize24 });
+	// The largest size the whole name fits in, rather than a fixed one (user, 2026-08-19: "Reduce
+	// the font of the title to fit the name"). At FontSize24 "Levski's Roar" overran a window sized
+	// to three 28px cells and rendered as "LEVSKI'S" - the clip was silent, which is how it shipped.
+	//
+	// Measured rather than chosen, so it stays right if either the name or the window changes: a
+	// longer name drops a size on its own, and a wider window lets the name grow back.
+	const string_view title = _("Levski's Roar");
+	const UiFlags titleSize = GetLineWidth(title, GameFont24) <= ContentWidth
+	    ? UiFlags::FontSize24
+	    : UiFlags::FontSize12;
+	DrawString(out, title,
+	    Rectangle { window.position + Displacement { Padding, Padding }, { ContentWidth, HeaderHeight } },
+	    { UiFlags::ColorGold | titleSize | UiFlags::VerticalCenter });
 
 	// The empty grid first, as one recessed well with cell lines drawn on it - the cells are 28px
 	// now, and twelve individually bordered 28px boxes read as noise rather than as a container.
