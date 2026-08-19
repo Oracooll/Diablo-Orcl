@@ -103,7 +103,21 @@ internal static class ReliquaryCel
 		string[] stateNames = { "closed", "opening", "open" };
 		string palettePath = args[3];
 		string outPath = args[4];
-		string previewDir = args.Length > 5 ? args[5] : null;
+		string previewDir = args.Length > 5 && args[5] != "-" ? args[5] : null;
+
+		// Two optional trailing arguments, both defaulting to the ORIGINAL behaviour so the grand-
+		// reliquary build script keeps producing the byte-identical CEL it always has.
+		//
+		//   args[6]  "nomirror" - leave the art in the facing it was drawn in.
+		//   args[7]  target frame width in pixels; 0 or absent uses ScaleFactor.
+		//
+		// Added 2026-08-20 for the second chest. The mirror was a user choice about the FIRST pack
+		// ("use the mirror asset"), not a property of chests, and the new art is delivered in its
+		// own facing (user: "leave it as drawn"). The target width exists because ScaleFactor is a
+		// ratio: 0.5 of a 160px master is 80, and 0.5 of a 517px master is 258 - the same constant
+		// means a different chest depending on what the artist exported at.
+		bool mirror = !(args.Length > 6 && args[6].Equals("nomirror", StringComparison.OrdinalIgnoreCase));
+		int targetWidth = args.Length > 7 ? int.Parse(args[7]) : 0;
 
 		byte[] pal = File.ReadAllBytes(palettePath);
 		if (pal.Length != 768) {
@@ -114,8 +128,10 @@ internal static class ReliquaryCel
 		Bitmap[] states = new Bitmap[3];
 		try {
 			for (int i = 0; i < 3; i++) {
-				states[i] = Mirror(new Bitmap(statePaths[i]));
-				Console.WriteLine("{0}: {1}x{2} (mirrored)", stateNames[i], states[i].Width, states[i].Height);
+				Bitmap loaded = new Bitmap(statePaths[i]);
+				states[i] = mirror ? Mirror(loaded) : loaded;
+				Console.WriteLine("{0}: {1}x{2} ({3})", stateNames[i], states[i].Width, states[i].Height,
+					mirror ? "mirrored" : "as drawn");
 			}
 
 			// One box for all three - see the header note.
@@ -124,8 +140,12 @@ internal static class ReliquaryCel
 				shared = Rectangle.Union(shared, ContentBox(states[i]));
 			Console.WriteLine("shared content box {0}", shared);
 
-			int artWidth = EvenUp((int)Math.Round(shared.Width * ScaleFactor));
-			int artHeight = (int)Math.Round(shared.Height * ScaleFactor);
+			// A target width wins over the ratio when one is given. Height follows the same factor,
+			// so the aspect is preserved either way - scaling the two independently would squash a
+			// chest that was exported at a different size rather than resizing it.
+			double scale = targetWidth > 0 ? (double)targetWidth / shared.Width : ScaleFactor;
+			int artWidth = EvenUp((int)Math.Round(shared.Width * scale));
+			int artHeight = (int)Math.Round(shared.Height * scale);
 
 			byte[][] art = new byte[3][];
 			for (int i = 0; i < 3; i++) {
