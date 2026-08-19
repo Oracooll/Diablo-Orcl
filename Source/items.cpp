@@ -4695,7 +4695,10 @@ void GetItemStr(Item &item)
 		SetPanelString(item.getName(), item.getTextColor());
 	} else {
 		int nGold = item._ivalue;
-		InfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
+		// SetPanelString, not a bare assignment - see the identical note in CheckInvHLight. This is
+		// the same slip in the same shape: the non-gold arm two lines up records its colour and this
+		// one did not, so the stale list outlived the text it belonged to.
+		SetPanelString(fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold)), UiFlags::ColorWhite);
 	}
 }
 

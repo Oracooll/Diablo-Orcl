@@ -788,7 +788,7 @@ uint16_t CheckStashHLight(Point mousePosition)
 	sortButtonRect.position = GetPanelPosition(UiPanels::Stash, sortButtonRect.position);
 	if (sortButtonRect.contains(mousePosition)) {
 		InfoColor = UiFlags::ColorWhite;
-		InfoString = _("Sort");
+		SetPanelString(_("Sort"), UiFlags::ColorWhite); // not a bare assignment - see CheckInvHLight
 		return StashStruct::EmptyCell;
 	}
 

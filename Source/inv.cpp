@@ -3000,6 +3000,11 @@ int8_t CheckInvHLight()
 	ActiveTabItemHovered = false;
 	pcursinvtabidx = -1;
 	pcursinvtabitem = -1;
+	// The structural half of the fix above: this IS the top of the inventory hover pass, the way
+	// CheckPanelInfo is the top of the main panel's - and CheckPanelInfo clears here for exactly
+	// this reason. CheckCursMove routes an inventory hover straight here and returns, so without
+	// this, nothing on that path ever drops last frame's per-line colours.
+	ClearPanelStrings();
 
 	int8_t r = 0;
 	for (; r < NUM_XY_SLOTS; r++) {
@@ -3099,7 +3104,14 @@ int8_t CheckInvHLight()
 
 	if (pi->_itype == ItemType::Gold) {
 		int nGold = pi->_ivalue;
-		InfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
+		// Through SetPanelString, like the item arm below it. A bare assignment leaves
+		// InfoStringLineColors holding the PREVIOUS hover's per-line colours while the text is
+		// replaced by one line, and DrawCursorTooltip asserts on exactly that mismatch (user
+		// screenshot, 2026-08-19: hovering gold after any coloured item popped the assert dialog,
+		// which is also why gold could not be Ctrl+Clicked to the stash - the click never got past
+		// the dialog). The inventory hover pass has no ClearPanelStrings of its own; CheckPanelInfo
+		// owns that, and it only runs for the main panel.
+		SetPanelString(fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold)), UiFlags::ColorWhite);
 	} else {
 		// Through SetPanelString, so the name's tier colour is recorded as line 0's colour. A bare
 		// assignment leaves the per-line colour list one entry short of the block PrintItemDetails
