@@ -11,9 +11,9 @@
 <nav class="side"></nav>
 <main>
 <h1>Sockets, gems, runes and charms</h1>
-<p class="lede">The reason to pick up a plain white item. Sockets only ever appear on basic,
-tierless equipment - so the cheapest thing in the game is also the raw material of the best thing
-in the game.</p>
+<p class="lede">The reason to pick up a plain white item. Sockets appear on <b>basic-quality</b>
+equipment of any base tier - so the cheapest thing in the game is also the raw material of the best
+thing in the game.</p>
 
 <h2>Where sockets come from</h2>
 <ul>
@@ -41,21 +41,26 @@ footprint the backpack grid uses to place it, so the cap can never disagree with
 item's own ceiling and renormalised - so a 1x2 glove rolls one against two, rather than rolling six
 and having every high draw clamped down onto two. A full-footprint roll on a large item stays an
 event.</p>
-<div class="note"><b>Insertion is permanent.</b> Drop a gem or rune onto a socketed item in your
-backpack and it goes in. There is no removal, so the empty socket is the decision, not the filled
-one.</div>
+<div class="note"><b>Insertion is permanent, and backpack-only.</b> Drop a gem or rune onto a
+socketed item <b>in your backpack</b> and it goes in - an equipped item cannot be socketed where it
+sits, so worn gear has to come off first. Nothing takes a stone back out yet, so an empty socket is
+a decision. <b>This is changing:</b> retrieval is planned, and the groundwork is already in place -
+Zod stamps its host's durability but leaves the maximum intact precisely so the item can be handed
+back whole.</div>
 
-<h2>The three hosts</h2>
-<p>A gem does a different thing depending on what it is set into. There are three host categories,
-and every gem row below reads across all three.</p>
+<h2>What a gem does depends on the host</h2>
+<p>A gem's effect is chosen from <b>three</b> categories, and every gem row below reads across all
+three. These three are about the gem's EFFECT only - runewords use a finer split of ten equipment
+slots, further down.</p>
 <div class="tablewrap"><table>
-<thead><tr><th>Host</th><th>What counts</th></tr></thead>
+<thead><tr><th>Category</th><th>What counts</th></tr></thead>
 <tbody>
 <tr><td><b>Weapon</b></td><td>Sword, axe, mace, bow, staff</td></tr>
 <tr><td><b>Shield</b></td><td>Shields only</td></tr>
-<tr><td><b>Armour</b></td><td>Body, helm, and every worn accessory - shoulders, bracers, gloves, belt, legs, boots</td></tr>
+<tr><td><b>Armour</b></td><td>Everything else that can be worn - body, helm, shoulders, bracers, gloves, belt, legs, boots, <b>and rings and amulets</b></td></tr>
 </tbody></table></div>
-
+<div class="note"><b>A socketed ring or amulet takes the armour column.</b> That is easy to miss and
+it is what a gem in jewelry actually does - a Ruby in a ring gives life, not fire damage.</div>
 <h2>The seven gems</h2>
 <p>Numbers are the <b>normal</b> quality of each type, which is the tuned row; the other four
 qualities are this row scaled. Where Diablo II uses a channel this engine does not have - cold,
