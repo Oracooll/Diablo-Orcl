@@ -37,6 +37,7 @@
 
 namespace devilution {
 struct Item;
+enum class OracoolItemTier : uint8_t;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -101,6 +102,51 @@ const char *TierNamePrefix(BaseItemTier tier);
  * rolls, so affixes stack on top of the tiered base exactly as they do on a Normal one.
  */
 void ApplyBaseTier(Item &item, BaseItemTier tier);
+
+/**
+ * @brief The banded qlvl of a base item - the ilvl a drop needs before this base can appear.
+ *
+ * The authored ItemData::iMinMLvl is vanilla's ladder, 1-51, written against monster levels that
+ * ignored difficulty entirely. The area ladder runs to 96 and its design target is that the LAST
+ * base becomes available at Hell/Hell (alvl 61-64), so the authored numbers are regrouped onto a
+ * 1-60 scale here rather than rewritten in the table.
+ *
+ * A mapping rather than a rescale, and the difference matters: items land ON band edges, so many
+ * bases share a qlvl and a floor opens a GROUP of them at once. That is how D2 reads - a depth
+ * unlocks a shelf, not one sword.
+ *
+ * ## Where this is NOT applied, and why
+ *
+ * RndUItem, RndAllItems, RndTypeItems and RndVendorItem filter the SHARED droppable pool, and that
+ * pool is replayed during item RECREATION: RecreateItem and UnPackItem re-run the same filtered pick
+ * from a stored seed to rebuild an item. Change the filter and the same seed produces a different
+ * item - the net-pack validation tests caught exactly that, twenty of them at once. Those four keep
+ * the authored values.
+ *
+ * So the banding governs the MONSTER drop pool, the set and gem spawns, and Adria's book stock -
+ * every gate that decides at drop time and is never replayed. Extending it to chests and vendors
+ * needs the recreate paths to ask for authored values explicitly while fresh generation asks for
+ * banded ones; that is a seam through GetItemIndexForDroppableItem, not a bigger table.
+ */
+int BandedQlvl(int authoredQlvl);
+
+/**
+ * @brief The configured tier chance for @p itemLevel, in PER MILLE.
+ *
+ * The INI keeps the master knob (Rare/Buffed Unique/Primal Item Drop Chance); this shapes it against
+ * depth, so the same setting means "rare at the top of the curve" rather than one flat number from
+ * Cathedral 1 to Torment Crypt. Per mille rather than percent because the early-band primal chance
+ * is a fraction of one percent and would round away to never.
+ *
+ * At the default settings (rare 20, buffed unique 10, primal 5) the curve is roughly:
+ *
+ *   band       rare   buffed unique   primal
+ *   1-24        2.0%       1.0%         0%
+ *   25-48       6.0%       2.5%        0.25%
+ *   49-72      14.0%       5.0%        0.75%
+ *   73-96      22.0%       8.0%        2.0%
+ */
+int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configuredPercent);
 
 /** @brief Whether @p item is something base tiers apply to at all: worn gear, not a potion. */
 bool CanCarryBaseTier(const Item &item);

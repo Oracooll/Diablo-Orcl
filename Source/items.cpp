@@ -1843,23 +1843,23 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 			const AffixItemType tieredFlgs = GetAffixItemTypeForItem(item);
 			if (uid != UITEM_INVALID) {
 				GetUniqueItem(player, item, uid);
-			} else if (tieredRollEligible && *sgOptions.Oracool.primalItemDropChance > 0
-			    && GenerateRnd(100) < *sgOptions.Oracool.primalItemDropChance
+			} else if (tieredRollEligible
+			    && GenerateRnd(1000) < oracool::QualityChancePerMille(OracoolItemTier::Primal, item._iOracoolItemLevel, *sgOptions.Oracool.primalItemDropChance)
 			    && tieredFlgs != AffixItemType::None) {
 				// Primal is checked before Buffed Unique and Rare: it's the rarest and most
 				// powerful tier, so it gets first crack at the item. Identification is
 				// deliberately NOT forced here - every item, tiered or not, follows the
 				// single shared Auto Identify Drops toggle checked below.
 				GetPrimalItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
-			} else if (tieredRollEligible && *sgOptions.Oracool.buffedUniqueItemDropChance > 0
-			    && GenerateRnd(100) < *sgOptions.Oracool.buffedUniqueItemDropChance
+			} else if (tieredRollEligible
+			    && GenerateRnd(1000) < oracool::QualityChancePerMille(OracoolItemTier::BuffedUnique, item._iOracoolItemLevel, *sgOptions.Oracool.buffedUniqueItemDropChance)
 			    && tieredFlgs != AffixItemType::None) {
 				// Buffed Unique is checked before Rare: it's meant to be the rarer of the
 				// two tiers, so the rarer roll gets first crack at the item before a more
 				// common tier claims it.
 				GetBuffedUniqueItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
-			} else if (tieredRollEligible && *sgOptions.Oracool.rareItemDropChance > 0
-			    && GenerateRnd(100) < *sgOptions.Oracool.rareItemDropChance
+			} else if (tieredRollEligible
+			    && GenerateRnd(1000) < oracool::QualityChancePerMille(OracoolItemTier::Rare, item._iOracoolItemLevel, *sgOptions.Oracool.rareItemDropChance)
 			    && tieredFlgs != AffixItemType::None) {
 				// Rare items sit between Magic and Unique in the quality-roll fork: only
 				// tried once an item has already failed its Unique, Primal, and Buffed
@@ -2608,7 +2608,7 @@ _item_indexes RndItemForMonsterLevel(int8_t monsterLevel)
 		return IDI_GOLD;
 
 	return GetItemIndexForDroppableItem(true, [&monsterLevel](const ItemData &item) {
-		return item.iMinMLvl <= monsterLevel;
+		return oracool::BandedQlvl(item.iMinMLvl) <= monsterLevel;
 	});
 }
 
@@ -4432,7 +4432,7 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
 	_item_indexes candidates[IDI_LAST + 1];
 	int candidateCount = 0;
 	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_SPECTRAL_HELM; i++) {
-		if (AllItemsList[i].iMinMLvl <= mlvl)
+		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
 			candidates[candidateCount++] = static_cast<_item_indexes>(i);
 	}
 	if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
@@ -4487,7 +4487,7 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 		int weightTotal = 0;
 		for (size_t q = 0; q < oracool::GemQualityCount; q++) {
 			const uint16_t candidate = oracool::GemIndexFor(type, static_cast<oracool::GemQuality>(q));
-			if (AllItemsList[candidate].iMinMLvl > mlvl)
+			if (oracool::BandedQlvl(AllItemsList[candidate].iMinMLvl) > mlvl)
 				continue;
 			available[count] = candidate;
 			weightTotal += QualityWeights[q];
@@ -4517,7 +4517,7 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 		for (int i = first; i <= last; i++) {
 			if (charmsOnly && !IsOracoolCharmIdx(i))
 				continue;
-			if (AllItemsList[i].iMinMLvl <= mlvl)
+			if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
 				candidates[candidateCount++] = static_cast<_item_indexes>(i);
 		}
 		if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)
@@ -5715,7 +5715,7 @@ void SpawnWitch(int lvl)
 		if (gbIsHellfire) {
 			if (i < PinnedItemCount + MaxPinnedBookCount && bookCount < pinnedBookCount) {
 				_item_indexes bookType = PinnedBookTypes[i - PinnedItemCount];
-				if (lvl >= AllItemsList[bookType].iMinMLvl) {
+				if (lvl >= oracool::BandedQlvl(AllItemsList[bookType].iMinMLvl)) {
 					item._iSeed = AdvanceRndSeed();
 					SetRndSeed(item._iSeed);
 					DiscardRandomValues(1);

@@ -137,6 +137,62 @@ const char *TierNamePrefix(BaseItemTier tier)
 	return "";
 }
 
+int BandedQlvl(int authoredQlvl)
+{
+	// 99 is the table's "never drops" sentinel, not a level - it must stay above every ilvl the
+	// ladder can produce, so it is passed through untouched.
+	if (authoredQlvl >= 99)
+		return authoredQlvl;
+
+	// Seventeen groups across the authored 1-51, landing on the 1-60 ladder. Read the left column as
+	// "authored up to N" and the right as the ilvl that opens the group.
+	static constexpr struct {
+		int authoredMax;
+		int banded;
+	} Bands[] = {
+		{ 3, 1 }, { 6, 5 }, { 9, 9 }, { 12, 13 }, { 15, 17 }, { 18, 21 },
+		{ 21, 25 }, { 24, 29 }, { 27, 33 }, { 30, 37 }, { 33, 41 }, { 36, 45 },
+		{ 39, 49 }, { 42, 52 }, { 45, 55 }, { 48, 57 }, { 51, 60 },
+	};
+	for (const auto &band : Bands) {
+		if (authoredQlvl <= band.authoredMax)
+			return band.banded;
+	}
+	return 60; // anything authored past the vanilla ladder still tops out at Hell/Hell
+}
+
+int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configuredPercent)
+{
+	if (configuredPercent <= 0)
+		return 0;
+
+	// Percent OF the configured chance, per band. The shape is the point: rare climbs steadily,
+	// buffed unique more slowly, and primal starts at zero because a level-3 character finding a
+	// perfect item would flatten the whole ladder in front of them.
+	static constexpr int RareByBand[BaseItemTierCount] = { 10, 30, 70, 110 };
+	static constexpr int BuffedUniqueByBand[BaseItemTierCount] = { 10, 25, 50, 80 };
+	static constexpr int PrimalByBand[BaseItemTierCount] = { 0, 5, 15, 40 };
+
+	const auto band = static_cast<size_t>(HighestTierForItemLevel(itemLevel));
+	int scale = 0;
+	switch (quality) {
+	case OracoolItemTier::Rare:
+		scale = RareByBand[band];
+		break;
+	case OracoolItemTier::BuffedUnique:
+		scale = BuffedUniqueByBand[band];
+		break;
+	case OracoolItemTier::Primal:
+		scale = PrimalByBand[band];
+		break;
+	default:
+		return 0;
+	}
+
+	// configured% x scale% -> per mille: (c/100) * (s/100) * 1000 = c * s / 10.
+	return configuredPercent * scale / 10;
+}
+
 bool CanCarryBaseTier(const Item &item)
 {
 	// Worn gear only. A potion or a book has no damage, no armour and no requirements to scale, and
