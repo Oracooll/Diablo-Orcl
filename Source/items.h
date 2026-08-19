@@ -1020,6 +1020,15 @@ _item_indexes FirstBaseItemForEquipLocation(item_equip_type loc, string_view nam
  * items, which all sit behind the leather items in AllItemsList and are otherwise unreachable
  * from these commands (user report: "all assets seem to be of the same type"). */
 std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix = {});
+
+/** @brief Drops all 33 runes at the player's feet. See DebugSpawnByIndex in items.cpp. */
+std::string DebugSpawnRunes();
+
+/** @brief Drops every gem, or only those whose name contains @p quality ("givegems perfect"). */
+std::string DebugSpawnGems(string_view quality);
+
+/** @brief Drops every charm. */
+std::string DebugSpawnCharms();
 std::string DebugSpawnUniqueItem(std::string itemName);
 #endif
 /* data */

@@ -6364,6 +6364,91 @@ _item_indexes FirstBaseItemForEquipLocation(item_equip_type loc, string_view nam
 	return IDI_NONE;
 }
 
+
+/**
+ * @brief Drops one plain item per index in [first, last] that @p keep accepts, at the player's feet.
+ *
+ * Oracool: user request (2026-08-19) - "we have introduced a lot of items lately - socketed items,
+ * gems, runes... i need debug commands to spawn them to test them." Runes, gems and charms are all
+ * ordinary AllItemsList rows in contiguous-ish index islands, so one loop with a predicate serves
+ * all three rather than three near-identical functions.
+ *
+ * By INDEX, not by name. `drop {name}` searches by rerolling random drops until one matches, which
+ * cannot reach an item reliably and cannot reach an IDROP_NEVER row at all; these families need to
+ * be spawnable on demand, in full, to be worth testing against.
+ *
+ * Plain attributes with no affix roll - the same path givebset uses for its basic set. A gem or rune
+ * IS its index; there is nothing to roll.
+ */
+std::string DebugSpawnByIndex(int first, int last, tl::function_ref<bool(int)> keep, string_view what)
+{
+	int spawned = 0;
+	int skippedNoSpace = 0;
+	for (int i = first; i <= last; i++) {
+		if (!keep(i))
+			continue;
+		const auto idx = static_cast<_item_indexes>(i);
+		if (!IsItemAvailable(i))
+			continue;
+		if (ActiveItemCount >= MAXITEMS) {
+			skippedNoSpace++;
+			continue;
+		}
+
+		Item item;
+		GetItemAttrs(item, idx, 1);
+		item._iCreateInfo = 1;
+		item._iSeed = AdvanceRndSeed();
+		SetupItem(item);
+
+		const int ii = AllocateItem();
+		Items[ii] = item.pop();
+		Items[ii]._iIdentified = true;
+		Point pos = MyPlayer->position.tile;
+		GetSuperItemSpace(pos, ii);
+		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+		spawned++;
+	}
+
+	if (spawned == 0)
+		return StrCat("No ", what, " could be spawned.");
+	if (skippedNoSpace > 0)
+		return StrCat("Dropped ", spawned, " ", what, "; ", skippedNoSpace, " skipped - item table full.");
+	return StrCat("Dropped ", spawned, " ", what, ".");
+}
+
+std::string DebugSpawnRunes()
+{
+	// Both islands: the five that shipped in 1.7.8 keep their original indices and the other 28 are
+	// appended at the end, so the predicate is what defines the family rather than a single range.
+	return DebugSpawnByIndex(IDI_ORACOOL_RUNE_EL, IDI_ORACOOL_RUNE_ZOD,
+	    [](int i) { return IsOracoolRuneIdx(i); }, "runes");
+}
+
+std::string DebugSpawnGems(string_view quality)
+{
+	// No argument: every gem at every quality, which is what you want when checking the socket
+	// effects table. With one, a quality-name prefix ("givegems perfect") filters to that rung.
+	std::string wanted { quality };
+	AsciiStrToLower(wanted);
+	return DebugSpawnByIndex(IDI_ORACOOL_GEM_RUBY, IDI_ORACOOL_GEM_SKULL_PERFECT,
+	    [&wanted](int i) {
+		    if (!IsOracoolGemIdx(i))
+			    return false;
+		    if (wanted.empty())
+			    return true;
+		    std::string name = AsciiStrToLower(std::string { AllItemsList[i].iName });
+		    return name.find(wanted) != std::string::npos;
+	    },
+	    wanted.empty() ? "gems" : "gems of that quality");
+}
+
+std::string DebugSpawnCharms()
+{
+	return DebugSpawnByIndex(IDI_ORACOOL_CHARM_VIGOR, IDI_ORACOOL_CHARM_GREED,
+	    [](int i) { return IsOracoolCharmIdx(i); }, "charms");
+}
+
 std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix)
 {
 	// One per slot. Rings are the only slot pair sharing an item location, so ILOC_RING appears

@@ -655,6 +655,24 @@ std::string DebugCmdGeneratePrimalItem(const string_view parameter)
 // without it each slot spawns its first-in-table base (the leather tier), which is also all it
 // COULD spawn before the prefix existed - the eight-tier set items all sit later in the table
 // (user report: "all assets seem to be of the same type" - they were, structurally).
+// Oracool: user request (2026-08-19) - the item families added since the tier work have no spawn
+// path at all. `drop {name}` reaches an item by rerolling random drops until one matches, which is
+// unreliable for a specific item and impossible for the IDROP_NEVER rows; these three go by index.
+std::string DebugCmdGiveRunes(const string_view parameter)
+{
+	return DebugSpawnRunes();
+}
+
+std::string DebugCmdGiveGems(const string_view parameter)
+{
+	return DebugSpawnGems(parameter);
+}
+
+std::string DebugCmdGiveCharms(const string_view parameter)
+{
+	return DebugSpawnCharms();
+}
+
 std::string DebugCmdGiveBasicSet(const string_view parameter)
 {
 	return DebugSpawnEquipmentSet(std::nullopt, /*magical=*/false, parameter);
@@ -1270,6 +1288,9 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "giverset", "Drops a Rare item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveRareSet },
 	{ "giveuset", "Drops a Buffed Unique item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveBuffedUniqueSet },
 	{ "givepset", "Drops a Primal item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGivePrimalSet },
+	{ "giverunes", "Drops all 33 runes.", "", &DebugCmdGiveRunes },
+	{ "givegems", "Drops every gem, or only quality {q} (chipped/flawed/normal/flawless/perfect).", "({q})", &DebugCmdGiveGems },
+	{ "givecharms", "Drops every charm.", "", &DebugCmdGiveCharms },
 	{ "giveitemset", "Gives every spawnable piece of named item set {n} (1-15).", "{n}", &DebugCmdGiveItemSet },
 	{ "talkto", "Interacts with a NPC whose name contains {name}.", "{name}", &DebugCmdTalkToTowner },
 	{ "exit", "Exits the game.", "", &DebugCmdExit },
