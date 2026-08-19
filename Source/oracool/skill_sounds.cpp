@@ -82,16 +82,17 @@ TSnd *LoadCached(std::unique_ptr<TSnd> &slot, const char *path)
 
 } // namespace
 
-void PlaySkillSound(Skill skill, SkillSoundEvent event)
+bool PlaySkillSound(Skill skill, SkillSoundEvent event)
 {
 	const size_t index = FindSound(skill, event);
 	if (index == SkillSoundCount)
-		return; // no cue for this pair; normal, and never an error
+		return false; // no cue for this pair; normal, and never an error
 
 	const int volume = event == SkillSoundEvent::Learn || event == SkillSoundEvent::Stop
 	    ? VolumeLearnStop
 	    : VolumeOneShot;
 	snd_play_snd(LoadCached(SoundCache[index], SkillSounds[index].path), volume, 0);
+	return true;
 }
 
 void StartClassAuraLoop(Skill skill)

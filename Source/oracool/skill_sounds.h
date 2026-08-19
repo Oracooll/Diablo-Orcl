@@ -69,8 +69,12 @@ struct SkillSound {
  *
  * Non-spatial: these are the local player's own skills, and the contract asks for `learn` to be
  * non-spatial anyway. A monster-side impact one day would want a pan derived from the hit tile.
+ *
+ * @return whether a cue existed and was played. Callers that have a FALLBACK sound need this - the
+ * cast hook in StartSpell plays the vanilla sSFX only when the tree row has nothing of its own, and
+ * cannot ask "did that ring?" any other way without repeating the lookup.
  */
-void PlaySkillSound(ClassTreeSkill skill, SkillSoundEvent event);
+bool PlaySkillSound(ClassTreeSkill skill, SkillSoundEvent event);
 
 /**
  * @brief Begins @p skill's persistent loop: the start cue, then the looping body beneath it.

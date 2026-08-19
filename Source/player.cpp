@@ -48,6 +48,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/run_toggle.h"
 #include "oracool/skill_points.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/oracool.h"
 #include "oracool/sprite_import.h"
@@ -356,7 +357,19 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 		animationFlags = static_cast<AnimationDistributionFlags>(animationFlags | AnimationDistributionFlags::RepeatedAction);
 	NewPlrAnim(player, GetPlayerGraphicForSpell(player.queuedSpell.spellId), d, animationFlags, 0, player._pSFNum);
 
-	PlaySfxLoc(GetSpellData(player.queuedSpell.spellId).sSFX, player.position.tile);
+	// Oracool: the class tree's own cast cue, where the row has one. StartSpell is the accepted-
+	// activation point for every spell and skill in the game - queued, re-validated, animation
+	// started - so it is the ONE place a cast is true for all six trees at once, rather than a hook
+	// per skill in six implementations. 92 of the 163 tree rows carry a cast cue.
+	//
+	// The vanilla sSFX stays the fallback rather than being replaced: a row without a cue must keep
+	// making its old noise, not go silent. Local player only - PlaySkillSound is non-spatial by
+	// design (see its header), so it would be wrong for anyone else's cast.
+	const oracool::ClassTreeSkill castSkill = &player == MyPlayer
+	    ? oracool::ClassTreeSkillForSpell(player._pClass, player.queuedSpell.spellId)
+	    : oracool::ClassTreeSkill::None;
+	if (!oracool::PlaySkillSound(castSkill, oracool::SkillSoundEvent::Cast))
+		PlaySfxLoc(GetSpellData(player.queuedSpell.spellId).sSFX, player.position.tile);
 
 	player._pmode = PM_SPELL;
 
