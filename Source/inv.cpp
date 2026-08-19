@@ -1661,9 +1661,14 @@ void DrawInventoryFooter(const Surface &out)
 
 	// Gold, and white for the moment after a click - the same treatment and the same word the stash's
 	// own Sort button uses, so the two read as one control in two windows.
+	// Left-aligned on tab 1's border (user, 2026-08-19), the mirror of the gold counter's right edge
+	// on tab 10's. The rect already started at TabColumnX(0); it was the TEXT that sat centred inside
+	// two tabs' width, which put the word a few pixels shy of the border it was supposed to line up
+	// with. There is no AlignLeft flag - left is what you get by not asking for centre or right - so
+	// this is a deletion rather than a substitution.
 	DrawString(out, _("SORT"), toScreen(oracool::GetSortButtonRect()),
 	    { (InventorySortFlashActive() ? UiFlags::ColorWhite : UiFlags::ColorGold)
-	        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	        | UiFlags::VerticalCenter });
 
 	// TotalPlayerGold(), the same call the store screen uses and the same sum the character sheet
 	// shows. Gold reads 0 from the player alone in this project: picked-up and sold gold goes to
