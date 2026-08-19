@@ -2,6 +2,7 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <string>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -44,7 +45,35 @@ constexpr int WindowWidth = GridWidth + Padding * 2;
 constexpr int WindowHeight = Padding * 2 + HeaderHeight + GridHeight + SlotGap + ButtonHeight * 2 + SlotGap;
 
 constexpr int RecipeRowHeight = 40;
-constexpr int RecipeBookWidth = 360;
+constexpr int RecipeBookWidth = 420;
+/** Two half-transparent passes plus a dark fill: one pass alone left the town's rooftops legible
+ * straight through the grid (user screenshot, 2026-08-19). Every other window in the game sits on
+ * painted art; this one sits on open ground, so it has to build its own opacity. */
+constexpr uint8_t PanelFillColor = 0;
+
+void DrawPanelGround(const Surface &out, const Rectangle &rect)
+{
+	DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height, PanelFillColor);
+	DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+	DrawOrnateBorder(out, rect);
+}
+
+/** @brief The recipe book's lines, pre-wrapped to its own text width - the formulas are long
+ * enough that "1 socketed item -> the item, emptied, and its stones back" ran off the panel and
+ * the last line was sliced by the bottom edge. */
+std::string RecipeBookText()
+{
+	std::string page;
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		if (i > 0)
+			page += '\n';
+		page += _(CraftingRecipeName(i));
+		page += '\n';
+		page += WordWrapString(_(CraftingRecipeInputs(i)), RecipeBookWidth - Padding * 2, GameFont12);
+		page += '\n';
+	}
+	return page;
+}
 
 Point GridOrigin(const Rectangle &window)
 {
@@ -139,10 +168,14 @@ Rectangle GetLevskiRecipeBookRect()
 	if (!IsLevskiRecipeBookOpen())
 		return Rectangle { { 0, 0 }, { 0, 0 } };
 	const Rectangle window = GetLevskiRoarRect();
-	const int height = Padding * 2 + HeaderHeight + CraftingRecipeCount * RecipeRowHeight;
-	// Beside the window rather than over it - the book is a reference while you work, so covering
-	// the grid with it would defeat the point of having both open.
-	return Rectangle { { window.position.x + window.size.width + SlotGap, window.position.y },
+	// Height from the WRAPPED text, not from a per-recipe row guess: the formulas wrap to two lines
+	// each and the fixed 40px row left the last one sliced by the panel's bottom edge.
+	const std::string page = RecipeBookText();
+	const int textHeight = static_cast<int>(GetLineHeight(page, GameFont12) * (std::count(page.begin(), page.end(), '\n') + 1));
+	const int height = Padding * 2 + HeaderHeight + textHeight;
+	// LEFT of the window, not right: opening right ran the book under the mini-map, which owns the
+	// top-right corner. There is always room on the left - the window is centred.
+	return Rectangle { { window.position.x - RecipeBookWidth - SlotGap, window.position.y },
 		{ RecipeBookWidth, height } };
 }
 
@@ -152,8 +185,7 @@ void DrawLevskiRoar(const Surface &out)
 		return;
 
 	const Rectangle window = GetLevskiRoarRect();
-	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
-	DrawOrnateBorder(out, window);
+	DrawPanelGround(out, window);
 
 	DrawString(out, _("Levski's Roar"),
 	    Rectangle { window.position + Displacement { Padding, Padding }, { GridWidth, HeaderHeight } },
@@ -161,8 +193,7 @@ void DrawLevskiRoar(const Surface &out)
 
 	for (int slot = 0; slot < LevskiGridSlots; slot++) {
 		const Rectangle cell = SlotRect(window, slot);
-		DrawHalfTransparentRectTo(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height);
-		DrawOrnateBorder(out, cell);
+		DrawPanelGround(out, cell);
 		if (GridItems[slot].isEmpty())
 			continue;
 		// Centred in the cell: an item's own frame is 1x1 to 2x3 cells, so anchoring to a corner
@@ -189,21 +220,28 @@ void DrawLevskiRoar(const Surface &out)
 		return;
 
 	const Rectangle page = GetLevskiRecipeBookRect();
-	DrawHalfTransparentRectTo(out, page.position.x, page.position.y, page.size.width, page.size.height);
-	DrawOrnateBorder(out, page);
+	DrawPanelGround(out, page);
 	Point cursor = page.position + Displacement { Padding, Padding };
 	const int textWidth = page.size.width - Padding * 2;
 	DrawString(out, _("Recipes"), Rectangle { cursor, { textWidth, HeaderHeight } },
 	    { UiFlags::ColorGold | UiFlags::FontSize24 });
 	cursor.y += HeaderHeight;
+	// One wrapped block rather than two DrawStrings per recipe at a guessed row height. The name
+	// keeps its own colour, so each recipe is drawn as its own pair - but both lines are measured
+	// from the SAME wrapped text the panel was sized from, which is what stops the last one being
+	// sliced by the bottom edge.
 	for (int i = 0; i < CraftingRecipeCount; i++) {
 		const bool ready = CanCraftFromLevskiGrid(GridItems, i);
-		DrawString(out, _(CraftingRecipeName(i)), Rectangle { cursor, { textWidth, RecipeRowHeight / 2 } },
+		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
+		DrawString(out, _(CraftingRecipeName(i)), Rectangle { cursor, { textWidth, lineHeight } },
 		    { (ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 });
-		DrawString(out, _(CraftingRecipeInputs(i)),
-		    Rectangle { { cursor.x, cursor.y + RecipeRowHeight / 2 - 4 }, { textWidth, RecipeRowHeight / 2 } },
+		cursor.y += lineHeight;
+
+		const std::string formula = WordWrapString(_(CraftingRecipeInputs(i)), textWidth, GameFont12);
+		const int formulaLines = static_cast<int>(std::count(formula.begin(), formula.end(), '\n')) + 1;
+		DrawString(out, formula, Rectangle { cursor, { textWidth, lineHeight * formulaLines } },
 		    { UiFlags::ColorWhite | UiFlags::FontSize12 });
-		cursor.y += RecipeRowHeight;
+		cursor.y += lineHeight * formulaLines + 6;
 	}
 }
 
