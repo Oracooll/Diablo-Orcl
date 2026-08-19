@@ -26,8 +26,7 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | The 107 remaining uniques | Content | Medium | No | Needs UITYPE values on existing armour bases | 143 of 250 uniques ship with sprites. The cheap 66 of the remainder need only base-item wiring. |
 | Named set drops | Content | Medium | No | | Three gaps left after the 73 rungs shipped: some set items cannot spawn, sets do not drop as sets, and there is no gold mechanic tied to them. |
 | The 97 unbuilt class-tree rows | Content | Large | No | | Of 163 tree skills across six classes, 66 are implemented. The rest are listed with a red X and do nothing. |
-| MPQ Unit E - bottom HUD plate | Art | Small | No | | The 1536x1024 limestone master replacing the 356x64 middle_hud.png. Standing note: do not add a procedural bottom offset. |
-| MPQ Unit B - icon refreshes | Art | Small | No | | New burger-menu, portal and level-up icons from the drop zone. |
+| MPQ Unit E - bottom HUD plate | Art | Medium | No | | RESIZED 2026-08-19, was Small. The package is in the drop zone and measures out differently from the entry. Its content occupies 1497x297 of the 1536x1024 canvas - aspect 5.04 - against the current middle_hud.png at 356x64, aspect 5.56. It is not a drop-in. DrawMiddleHudArt blits 1:1 at the asset size and GetMiddleHudRect returns the constant PlateScreenSize, while every element on the plate (LMB/RMB wells, the six belt cells, the Menu and Portal boxes) is placed by ScalePlateRect mapping SOURCE-ART coordinates into that rect. So the job is three things, not one: scale and key the new plate, change PlateScreenSize to the new aspect, and RE-DERIVE all eight slot rects from the new artwork - the limestone slots are not where the old ones were. Getting the rects wrong moves the HUD hit-testing, and only a screenshot can prove it right. Standing note still applies: do not add a procedural bottom offset, the art is already screen-bottom aligned. |
 | TRN recolour monster variants | Phase 3 | Medium | No | | Recoloured versions of existing monsters wired into per-zone rosters - the cheapest possible bestiary multiplier. |
 | Aura-carrying champion packs | Phase 3 | Medium | No | | Fanaticism and Might packs - D2's scariest idea, and cheap here because the aura and lesser-unique systems both exist. |
 | Zone 1, the recolour zone | Phase 4 | Large | No | | Hellfire's own trick: new palette, retinted tileset, new roster, new waypoints, new entrance. Validates the whole pipeline with zero AI-art risk. |
@@ -62,7 +61,8 @@ penetration penalty subtracted before any cap. v1.8.36 finished the scale-varian
 champion affix had shipped in Phase 3.2, and ordinary monsters can now be born Runt or Giant, derived
 from the level seed rather than stored. v1.8.37 closed the sound entry: impact cues now fire from two
 hooks - the missile carries its skill from CastSpell to the moment it lands, and melee skills ring in
-ApplyMeleeSkillOnHit. All seven cue events in the package are now wired.
+ApplyMeleeSkillOnHit. All seven cue events in the package are now wired. v1.8.38 shipped MPQ Unit B: the burger-menu, portal and
+level-up icons rebuilt as three-state strips from the drop-zone packages by toolsCutHudStateIcons.ps1.
 
 The 1.6 to 1.8 lines took these out of the backlog: Levski's Roar with its 3x4 grid and recipe book, socket extraction, waypoints, autosave-only play, the HUD rebuild,
 skill trees and respec, the run toggle, charms, item tiers, set items, sockets and gems, all 33
