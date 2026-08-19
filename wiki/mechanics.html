@@ -67,6 +67,29 @@ reach permanently; depth is paid for in levels rather than forbidden.</div>
 <tr><td>Torment</td><td>73-96</td><td>Torment</td><td>+30 x multiplier</td><td>Single-player only; the multiplier is an INI setting</td></tr>
 </tbody></table></div>
 
+<h2>Magic Find and Gold Find</h2>
+<p>Two stats that change what a kill is worth rather than how fast it dies. They come from charms,
+from gems, and from affixes, and they are read at the moment an item actually drops.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Stat</th><th>Does</th><th>Where it comes from</th></tr></thead>
+<tbody>
+<tr><td><b>Magic Find</b></td><td>A percentage chance that a plain weapon or armour drop arrives as a <b>rare</b> instead, rolled at half-to-full of the drop's own level band</td><td>Topaz gems in armour, the Luck charm, magic-find affixes</td></tr>
+<tr><td><b>Gold Find</b></td><td>Increases every gold pile by that percentage, up to the stack cap</td><td>The Greed charm, gold-find affixes</td></tr>
+</tbody></table></div>
+<p>Magic Find only upgrades <b>basic, tierless</b> drops - it never touches something that already
+rolled magic or better, and it never touches a tiered base. It cannot turn a drop into a unique.</p>
+
+<h2>Ethereal items</h2>
+<p>A ghost of an item: <b>35% more damage or armour</b>, <b>half the maximum durability</b>, and no
+smith will touch it. Any durable weapon or armour can roll ethereal on the drop, at any quality.</p>
+<p>The bargain is stamped into the item's own numbers when it drops, so what you read on the item is
+what you get. There is no repair path - an ethereal item is a thing you use up.</p>
+
+<h2>Sockets, in one line</h2>
+<p>A quarter of plain, tierless equipment drops with one to three sockets, and gems, runes and
+runewords all live in them. That is a system of its own -
+see <a href="sockets.html">Sockets and gems</a>.</p>
+
 <h2>Character rules</h2>
 <ul>
 	<li><b>Naked heroes.</b> New characters start with no equipment, no potions and no gold, both
@@ -75,6 +98,11 @@ reach permanently; depth is paid for in levels rather than forbidden.</div>
 		Rage are retired. The class trees carry every skill a class is meant to have.</li>
 	<li><b>One skill point per level</b>, spendable on either the spell list or the class trees - both
 		draw from the same pool, and both can refund a rank at a time for free.</li>
+	<li><b>Run anywhere.</b> Press <b>R</b> to switch between walking and running, in town and in the
+		dungeon alike. Session state, default off, and the event log says which mode you just chose.
+		There is no stamina bar.</li>
+	<li><b>Points can be taken back.</b> A rank at a time, free, from the Abilities window - or the
+		whole pool at once from Adria, for gold.</li>
 	<li><b>Auras occupy the right button.</b> Lighting an aura clears the readied right-button skill,
 		and readying a skill puts the aura out. They are one slot.</li>
 </ul>

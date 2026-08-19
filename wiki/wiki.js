@@ -6,6 +6,7 @@ const NAV = [
 	{ href: 'index.html', label: 'Overview' },
 	{ href: 'start.html', label: 'Getting started' },
 	{ href: 'mechanics.html', label: 'Core mechanics' },
+	{ href: 'saving.html', label: 'Saving and progress' },
 	{ heading: 'Characters' },
 	{ href: 'classes.html', label: 'Classes' },
 	{ href: 'skills.html', label: 'Class trees' },
@@ -17,6 +18,7 @@ const NAV = [
 	{ href: 'prefixes.html', label: 'Prefixes and suffixes' },
 	{ href: 'uniques.html', label: 'Unique items' },
 	{ href: 'sets.html', label: 'Item sets' },
+	{ href: 'sockets.html', label: 'Sockets and gems' },
 	{ heading: 'World' },
 	{ href: 'areas.html', label: 'Areas and levels' },
 	{ href: 'monsters.html', label: 'Monsters' },
@@ -27,6 +29,7 @@ const NAV = [
 	{ href: 'options.html', label: 'INI options' },
 	{ heading: 'Project' },
 	{ href: 'assets.html', label: 'Art assets' },
+	{ href: 'debug.html', label: 'Debug console' },
 	{ href: 'history.html', label: 'Version history' },
 ];
 

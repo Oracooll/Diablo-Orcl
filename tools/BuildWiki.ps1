@@ -512,6 +512,135 @@ if (Test-Path $reportDir) {
 }
 
 # ---------------------------------------------------------------------------------------------
+# The socket economy - Source/oracool/gems.cpp, charms.cpp, runewords.cpp, and the drop hook
+# ---------------------------------------------------------------------------------------------
+# Gems and runes share one effect table in gems.cpp, told apart by the index constant's own name.
+# The rows use designated initialisers, which is exactly why they can be parsed at all: every
+# number arrives labelled, so nothing here depends on column order.
+$gemsCpp = Read-SourceFile 'oracool/gems.cpp'
+$charmsCpp = Read-SourceFile 'oracool/charms.cpp'
+$wordsCpp = Read-SourceFile 'oracool/runewords.cpp'
+$itemsCpp2 = Read-SourceFile 'items.cpp'
+
+function Get-PrettyName([string]$constant) {
+    $bare = $constant -replace '^IDI_ORACOOL_(GEM|RUNE|CHARM)_', ''
+    $bare = $bare -replace '_(CHIPPED|FLAWED|NORMAL|FLAWLESS|PERFECT)$', ''
+    return ($bare.Substring(0, 1) + $bare.Substring(1).ToLower())
+}
+
+$gems = New-Object System.Collections.ArrayList
+$runes = New-Object System.Collections.ArrayList
+if ($gemsCpp -match '(?s)constexpr GemData Gems\[\] = \{(.*?)\n\};') {
+    $tableBody = $matches[1]
+    foreach ($row in [regex]::Matches($tableBody, '(?s)\{\s*\.idx = (IDI_ORACOOL_\w+)(.*?)\}')) {
+        $idx = $row.Groups[1].Value
+        $fieldText = $row.Groups[2].Value
+        $fields = [ordered]@{}
+        foreach ($f in [regex]::Matches($fieldText, '\.(\w+) = (-?\d+|true|false)')) {
+            $raw = $f.Groups[2].Value
+            if ($raw -eq 'true') { $fields[$f.Groups[1].Value] = $true }
+            elseif ($raw -eq 'false') { $fields[$f.Groups[1].Value] = $false }
+            else { $fields[$f.Groups[1].Value] = [int]$raw }
+        }
+        $entry = [ordered]@{ name = (Get-PrettyName $idx); constant = $idx; fields = $fields }
+        if ($idx -like '*_RUNE_*') { [void]$runes.Add($entry) } else { [void]$gems.Add($entry) }
+    }
+}
+
+$gemQualities = New-Object System.Collections.ArrayList
+foreach ($q in [regex]::Matches($gemsCpp, 'case GemQuality::(\w+):\s*\r?\n\s*return (\d+);')) {
+    [void]$gemQualities.Add([ordered]@{ name = $q.Groups[1].Value; percent = [int]$q.Groups[2].Value })
+}
+
+$charms = New-Object System.Collections.ArrayList
+if ($charmsCpp -match '(?s)constexpr CharmData Charms\[\] = \{(.*?)\n\};') {
+    foreach ($row in [regex]::Matches($matches[1], '\{\s*(IDI_ORACOOL_CHARM_\w+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\}')) {
+        [void]$charms.Add([ordered]@{
+                name          = (Get-PrettyName $row.Groups[1].Value)
+                life          = [int]$row.Groups[2].Value
+                fireResist    = [int]$row.Groups[3].Value
+                lightResist   = [int]$row.Groups[4].Value
+                toHit         = [int]$row.Groups[5].Value
+                magicFind     = [int]$row.Groups[6].Value
+                goldFind      = [int]$row.Groups[7].Value
+            })
+    }
+}
+$charmCap = [int](Get-Constant (Read-SourceFile 'oracool/charms.h') 'CharmActiveCap = (\d+)')
+
+$runewords = New-Object System.Collections.ArrayList
+if ($wordsCpp -match '(?s)constexpr RunewordDefinition Runewords\[\] = \{(.*?)\n\};') {
+    $pattern = '(?s)N_\("([^"]+)"\),\s*static_cast<uint8_t>\(SocketHost::(\w+)\),\s*(\d+),\s*\{([^}]*)\},\s*([-\d,\s]*?)\}'
+    foreach ($row in [regex]::Matches($matches[1], $pattern)) {
+        $runeList = @()
+        foreach ($r in [regex]::Matches($row.Groups[4].Value, 'IDI_ORACOOL_RUNE_(\w+)')) {
+            $runeList += ($r.Groups[1].Value.Substring(0, 1) + $r.Groups[1].Value.Substring(1).ToLower())
+        }
+        $nums = @($row.Groups[5].Value -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^-?\d+$' } | ForEach-Object { [int]$_ })
+        while ($nums.Count -lt 8) { $nums += 0 }
+        [void]$runewords.Add([ordered]@{
+                name        = $row.Groups[1].Value
+                host        = $row.Groups[2].Value
+                sockets     = [int]$row.Groups[3].Value
+                runes       = ($runeList -join ' ')
+                damagePct   = $nums[0]
+                damageMod   = $nums[1]
+                toHit       = $nums[2]
+                allResist   = $nums[3]
+                armor       = $nums[4]
+                spellLevels = $nums[5]
+                mana        = $nums[6]
+                life        = $nums[7]
+            })
+    }
+}
+
+# The drop hook's own numbers, read out of items.cpp so tuning them updates the wiki with them.
+$socketRules = [ordered]@{
+    gemDropPercent    = [int](Get-Constant $itemsCpp2 'constexpr int GemDropPercent = (\d+)')
+    charmDropPercent  = [int](Get-Constant $itemsCpp2 'constexpr int CharmDropPercent = (\d+)')
+    runeDropPercent   = [int](Get-Constant $itemsCpp2 'constexpr int RuneDropPercent = (\d+)')
+    socketedPercent   = [int](Get-Constant $itemsCpp2 '(?s)void TryAddSocketsToDroppedItem.*?GenerateRnd\(100\) >= (\d+)')
+    socketWeights     = @(60, 30, 10)
+    qualityWeights    = @(40, 30, 18, 9, 3)
+    etherealPercent   = [int](Get-Constant $itemsCpp2 '(?s)void TryMakeDroppedItemEthereal.*?GenerateRnd\(100\) >= (\d+)')
+    etherealBonusPct  = 135
+    charmActiveCap    = $charmCap
+    recipes           = @(
+        [ordered]@{ name = 'Refine Gems'; input = 'Three identical gems - same type and quality'; output = 'One gem of the next quality up'; note = 'Perfect gems have nothing above them and cannot be refined.' },
+        [ordered]@{ name = 'Ascend Runes'; input = 'Two identical runes'; output = 'One rune of the next rank'; note = 'Sol is the top of the shipped ladder and is excluded.' },
+        [ordered]@{ name = 'Rework Charms'; input = 'Any two charms'; output = 'One random charm'; note = 'The reroll: two charms you are not using become a coin flip at a third.' }
+    )
+}
+
+# ---------------------------------------------------------------------------------------------
+# Debug console commands - Source/debug.cpp
+# ---------------------------------------------------------------------------------------------
+$debugCpp = Read-SourceFile 'debug.cpp'
+$debugCmds = New-Object System.Collections.ArrayList
+if ($debugCpp -match '(?s)std::vector<DebugCmdItem> DebugCmdList = \{(.*?)\n\};') {
+    foreach ($row in [regex]::Matches($matches[1], '\{\s*"(\w+)",\s*"([^"]*)",\s*"([^"]*)",\s*&\w+\s*\}')) {
+        [void]$debugCmds.Add([ordered]@{
+                command = $row.Groups[1].Value
+                args    = $row.Groups[3].Value
+                summary = $row.Groups[2].Value
+            })
+    }
+}
+
+# ---------------------------------------------------------------------------------------------
+# Autosave triggers - the declarations in Source/oracool/auto_save.h are the list
+# ---------------------------------------------------------------------------------------------
+$autoSaveH = Read-SourceFile 'oracool/auto_save.h'
+$autoSaveTriggers = New-Object System.Collections.ArrayList
+foreach ($t in [regex]::Matches($autoSaveH, 'void ScheduleAutoSaveFor(\w+)\(\);')) {
+    # "ForStorePurchase" -> "Store purchase": the declaration names ARE the trigger list, so this
+    # cannot drift from the code the way a hand-typed list would.
+    $words = [regex]::Replace($t.Groups[1].Value, '(?<!^)([A-Z])', ' $1')
+    [void]$autoSaveTriggers.Add(($words.Substring(0, 1) + $words.Substring(1).ToLower()))
+}
+
+# ---------------------------------------------------------------------------------------------
 # Emit
 # ---------------------------------------------------------------------------------------------
 if (-not (Test-Path $out)) { New-Item -ItemType Directory -Path $out | Out-Null }
@@ -532,6 +661,14 @@ $data = [ordered]@{
     monsters  = $monsters
     mechanics = $mechanics
     options   = $options
+    gems      = $gems
+    runes     = $runes
+    gemQualities = $gemQualities
+    charms    = $charms
+    runewords = $runewords
+    socketRules = $socketRules
+    debugCmds = $debugCmds
+    autoSaveTriggers = $autoSaveTriggers
     assets    = $assets
     reports   = $reports
 }

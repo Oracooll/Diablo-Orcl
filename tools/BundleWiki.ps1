@@ -20,6 +20,7 @@ $pages = @(
     @{ file = 'index.html'; id = 'overview'; label = 'Overview'; group = 'Start here' },
     @{ file = 'start.html'; id = 'start'; label = 'Getting started'; group = 'Start here' },
     @{ file = 'mechanics.html'; id = 'mechanics'; label = 'Core mechanics'; group = 'Start here' },
+    @{ file = 'saving.html'; id = 'saving'; label = 'Saving and progress'; group = 'Start here' },
     @{ file = 'classes.html'; id = 'classes'; label = 'Classes'; group = 'Characters' },
     @{ file = 'skills.html'; id = 'skills'; label = 'Class trees'; group = 'Characters' },
     @{ file = 'spells.html'; id = 'spells'; label = 'Spells'; group = 'Characters' },
@@ -29,6 +30,7 @@ $pages = @(
     @{ file = 'prefixes.html'; id = 'prefixes'; label = 'Prefixes and suffixes'; group = 'Items' },
     @{ file = 'uniques.html'; id = 'uniques'; label = 'Unique items'; group = 'Items' },
     @{ file = 'sets.html'; id = 'sets'; label = 'Item sets'; group = 'Items' },
+    @{ file = 'sockets.html'; id = 'sockets'; label = 'Sockets and gems'; group = 'Items' },
     @{ file = 'areas.html'; id = 'areas'; label = 'Areas and levels'; group = 'World' },
     @{ file = 'monsters.html'; id = 'monsters'; label = 'Monsters'; group = 'World' },
     @{ file = 'world.html'; id = 'world'; label = 'Quests, shrines, town'; group = 'World' },
@@ -36,6 +38,7 @@ $pages = @(
     @{ file = 'controls.html'; id = 'controls'; label = 'Controls'; group = 'Interface' },
     @{ file = 'options.html'; id = 'options'; label = 'INI options'; group = 'Interface' },
     @{ file = 'assets.html'; id = 'assets'; label = 'Art assets'; group = 'Project' },
+    @{ file = 'debug.html'; id = 'debug'; label = 'Debug console'; group = 'Project' },
     @{ file = 'history.html'; id = 'history'; label = 'Version history'; group = 'Project' }
 )
 

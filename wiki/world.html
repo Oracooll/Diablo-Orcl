@@ -19,6 +19,11 @@ what you can touch, and who you can trade with.</p>
 quest lair on Hell is a Hell-grade place - its own floor's depth, on the difficulty you are playing.</p>
 <div id="questtable"></div>
 
+<div class="note"><b>The quest log starts full.</b> Every quest available in a session is listed
+from the moment you start, rather than being revealed one at a time - so the log reads as a map of
+the run rather than a record of what you happen to have found. The triggers themselves are
+untouched: a quest still starts when you meet the thing that starts it.</div>
+
 <h2>Shrines</h2>
 <p>Shrines give a one-off effect when touched, ranging from genuinely good to genuinely bad. Four of
 them - Fascinating, Ornate, Sacred and Murphy's - alter your <b>spell levels</b> directly, which
@@ -33,9 +38,9 @@ touching an unknown one at low health.</div>
 <thead><tr><th>Who</th><th>Sells</th><th>Also does</th></tr></thead>
 <tbody>
 <tr><td><b>Griswold</b>, the smith</td><td>Weapons and armour, plus a rotating premium shelf</td><td>Repairs, and buys anything</td></tr>
-<tr><td><b>Adria</b>, the witch</td><td>Spell books, staves, mana potions, town portal scrolls</td><td>Recharges staves</td></tr>
+<tr><td><b>Adria</b>, the witch</td><td>Spell books, staves, mana potions, town portal scrolls</td><td>Recharges staves, and <b>resets your skill points</b> for gold</td></tr>
 <tr><td><b>Pepin</b>, the healer</td><td>Healing potions and antidotes</td><td>Heals you free of charge</td></tr>
-<tr><td><b>Wirt</b>, the boy</td><td>One item at a time, priced accordingly</td><td>-</td></tr>
+<tr><td><b>Wirt</b>, the boy</td><td>One <b>unidentified</b> item at a time - you buy the base type and the roll reveals itself in your pack</td><td>Restocks the moment you buy, so he is a repeatable gold sink</td></tr>
 <tr><td><b>Ogden</b>, the tavern</td><td>-</td><td>Quest conversation</td></tr>
 <tr><td><b>Farnham</b> and <b>Cain</b></td><td>-</td><td>Cain identifies items</td></tr>
 </tbody></table></div>
@@ -45,13 +50,29 @@ touching an unknown one at low health.</div>
 block - so shops in Hell stock Hell-grade goods. About a third of the shelf is tiered above Normal.
 Full detail on <a href="tiers.html">Base tiers</a>.</p>
 
+<h3>The respec</h3>
+<p>Adria's menu carries a "Reset skill points" line with the price printed on it, so the decision is
+made before the click. It costs <b>500 gold per point you have sunk</b>, with a floor of 1000. Every
+invested point - class tree and spell ranks alike - returns to the unspent pool at once, and the
+event log records the transaction. With nothing invested the line sits greyed out.</p>
+<p>Single ranks can always be refunded free from the Abilities window; this is the button for
+rebuilding a character from scratch.</p>
+
+<h3>Crafting</h3>
+<p>Gems refine, runes ascend and charms reroll at the crafting window - three recipes, all taking
+materials out of your main backpack. See <a href="sockets.html">Sockets and gems</a>.</p>
+
 <h3>The stash</h3>
 <p>The stash chest in town holds multiple pages and saves separately from your character. Items keep
 everything - tier, item level, sockets, affixes - across the boundary.</p>
 
 <h2>Waypoints</h2>
-<p>Twenty-five waypoints, one per floor plus town. They unlock by being touched and persist per
-character. The list scrolls with the mouse wheel and each entry carries its own sigil.</p>
+<p>Twenty-five waypoints, one per floor plus town. They unlock by being touched. The list scrolls
+with the mouse wheel and each entry carries its own sigil.</p>
+<p>Unlock state is stored <b>per character and per difficulty</b>: the Cathedral Level 1 waypoint you
+touched on Normal is still locked when you start a Nightmare run. Activating one schedules a save
+immediately, so a waypoint is never lost to a crash. Tristram is always unlocked, and waypoints and
+open portals are both marked on the mini-map.</p>
 
 <footer></footer>
 </main>

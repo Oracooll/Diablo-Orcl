@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sockets and gems - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Sockets, gems, runes and charms</h1>
+<p class="lede">The reason to pick up a plain white item. Sockets only ever appear on basic,
+tierless equipment - so the cheapest thing in the game is also the raw material of the best thing
+in the game.</p>
+
+<h2>Where sockets come from</h2>
+<ul>
+	<li><b id="socketpct"></b> of qualifying drops arrive socketed.</li>
+	<li>Socket count is weighted <b id="socketweights"></b> for one, two and three - a three-socket
+		base is roughly one drop in forty.</li>
+	<li>Only <b>basic quality</b> equipment with <b>no base tier</b> qualifies. Magic, rare, set,
+		unique and primal items never roll sockets, and neither does a Nightmare, Hell or Torment
+		base.</li>
+	<li>Every worn slot can host them: sword, axe, mace, bow, staff, shield, body, helm, shoulders,
+		bracers, gloves, belt, legs and boots.</li>
+</ul>
+<div class="note"><b>Insertion is permanent.</b> Drop a gem or rune onto a socketed item in your
+backpack and it goes in. There is no removal, so the empty socket is the decision, not the filled
+one.</div>
+
+<h2>The three hosts</h2>
+<p>A gem does a different thing depending on what it is set into. There are three host categories,
+and every gem row below reads across all three.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Host</th><th>What counts</th></tr></thead>
+<tbody>
+<tr><td><b>Weapon</b></td><td>Sword, axe, mace, bow, staff</td></tr>
+<tr><td><b>Shield</b></td><td>Shields only</td></tr>
+<tr><td><b>Armour</b></td><td>Body, helm, and every worn accessory - shoulders, bracers, gloves, belt, legs, boots</td></tr>
+</tbody></table></div>
+
+<h2>The seven gems</h2>
+<p>Numbers are the <b>normal</b> quality of each type, which is the tuned row; the other four
+qualities are this row scaled. Where Diablo II uses a channel this engine does not have - cold,
+poison, damage to undead, life steal - the effect moves to the nearest channel that exists, and
+the substitution is named in the last column.</p>
+<div id="gems"></div>
+
+<h2>Five qualities</h2>
+<p>Each type comes in five grades, and a grade is a straight percentage of the row above.</p>
+<div class="tablewrap"><table id="qual">
+<thead><tr><th>Quality</th><th class="num">Scale</th><th>Example - a Ruby in a weapon</th></tr></thead>
+<tbody></tbody></table></div>
+<p>Scaling never rounds a real effect away: a chipped stone with a small number still gives 1.
+Perfect is exactly double normal, which is where Diablo II's own perfect values land.</p>
+
+<h2>The five runes</h2>
+<p>Runes have no quality ladder - a rune is a rune - and they carry Diablo II's own numbers. Two
+adaptations: El's +50 Attack Rating maps at D2's own ~10 AR to 1% convention, and Sol's "+9 to
+minimum damage" becomes a flat +9, because this engine's damage roll cannot survive a minimum
+crossing a maximum on a small weapon.</p>
+<div id="runes"></div>
+
+<h2>Runewords</h2>
+<p>A runeword is not a recipe you have to look up - <b>every rune's own description lists the words
+it belongs to</b>, so the recipes drop with the ingredients. Fill a socketed item of the right host
+with the exact runes, in the exact order, with no socket left empty, and the item takes the word's
+name.</p>
+<div class="tablewrap"><table id="words">
+<thead><tr><th>Word</th><th>Host</th><th>Runes, in order</th><th>Grants</th></tr></thead>
+<tbody></tbody></table></div>
+<p>Runeword state is derived from what is in the sockets rather than stored, so it cannot desync
+and it costs the save format nothing.</p>
+
+<h2>Charms</h2>
+<p>Charms work from your backpack; they are never equipped. <b>Only the first <span id="cap"></span>
+in reading order are live</b> - main backpack first, then the extra tabs in order - which is the
+whole answer to Diablo II's charm-rack inventory. Which three are live is answerable by looking,
+and each charm's description carries the rule as well as the effect.</p>
+<div class="tablewrap"><table id="charms">
+<thead><tr><th>Charm</th><th>Effect</th></tr></thead>
+<tbody></tbody></table></div>
+
+<h2>What drops, and how often</h2>
+<p>One draw on each monster death covers the whole family.</p>
+<div class="tablewrap"><table id="drops">
+<thead><tr><th>Family</th><th class="num">Chance per kill</th><th>Notes</th></tr></thead>
+<tbody></tbody></table></div>
+<p>A gem drop picks a <b>type</b> flat across the seven, then a <b>quality</b> from the ones the
+floor's depth has opened, weighted <b id="qw"></b> from chipped to perfect. Deep floors still drop
+chipped stones; perfect ones stay rare even where they are allowed.</p>
+
+<h2>Crafting - the recipes</h2>
+<p>The crafting window consumes materials out of your main backpack.</p>
+<div class="tablewrap"><table id="recipes">
+<thead><tr><th>Recipe</th><th>Takes</th><th>Gives</th><th>Rule</th></tr></thead>
+<tbody></tbody></table></div>
+<div class="note"><b>This is why a chipped gem is worth the inventory square.</b> Three of them
+make a flawed, and four steps make a perfect.</div>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+<script>
+const R = WIKI.socketRules;
+
+document.getElementById('socketpct').textContent = R.socketedPercent + '%';
+document.getElementById('socketweights').textContent = R.socketWeights.join(' / ') + '%';
+document.getElementById('cap').textContent = R.charmActiveCap;
+document.getElementById('qw').textContent = R.qualityWeights.join(' / ');
+
+/* Field names to English, per host. The gem table stores plain numbers on named fields rather than
+   affixes, so this map is the only place the wiki decides what a field READS as - every value is
+   the game's own. */
+function effects(fields, host) {
+	const out = [];
+	function add(key, text) { if (fields[key]) out.push(text.replace('#', fields[key])); }
+	if (host === 'weapon') {
+		if (fields.weaponFireMin) out.push(fields.weaponFireMin + '-' + fields.weaponFireMax + ' fire damage');
+		if (fields.weaponLightMin) out.push(fields.weaponLightMin + '-' + fields.weaponLightMax + ' lightning damage');
+		add('weaponToHit', '+#% to hit');
+		add('weaponDamageMod', '+# damage');
+		add('weaponMana', '+# mana');
+		add('lifePerKill', '+# life per kill');
+	} else if (host === 'armor') {
+		add('armorFireRes', '+#% fire resist');
+		add('armorLightRes', '+#% lightning resist');
+		add('armorMagicRes', '+#% magic resist');
+		add('armorHitPoints', '+# life');
+		add('armorMana', '+# mana');
+		add('armorBonusAc', '+# armour');
+		add('armorStrength', '+# strength');
+		add('armorDexterity', '+# dexterity');
+		add('armorToHit', '+#% to hit');
+		add('armorMagicFind', '+#% magic find');
+		add('damageReduction', 'damage taken reduced by #');
+	} else {
+		add('shieldFireRes', '+#% fire resist');
+		add('shieldLightRes', '+#% lightning resist');
+		add('shieldMagicRes', '+#% magic resist');
+		add('shieldBonusAc', '+# armour');
+		add('shieldMana', '+# mana');
+		add('damageReduction', 'damage taken reduced by #');
+		if (fields.shieldThorns) out.push('thorns - attackers take damage');
+	}
+	if (fields.lightRadius) out.push('+' + fields.lightRadius + ' light radius');
+	if (fields.manaPerKill) out.push('+' + fields.manaPerKill + ' mana per kill');
+	return out.length ? out.join(', ') : '&mdash;';
+}
+
+const NOTES = {
+	Amethyst: "D2's attack-rating gem throughout.",
+	Diamond: "D2 puts damage-to-undead in the weapon half; there is no such channel here, so it becomes flat damage.",
+	Ruby: "D2's numbers exactly.",
+	Sapphire: "D2's cold gem, and this engine has no cold at all - it becomes the mana gem, its armour identity extended to every host.",
+	Topaz: "The magic-find gem, as in D2.",
+	Emerald: "Poison has no channel - the weapon half becomes flat damage, the poison resists become magic resist.",
+	Skull: "Steal rides fixed 3%/5% flags that cannot scale, so the weapon gets life per kill instead; the shield keeps D2's thorns.",
+};
+
+function renderRows(mount, rows, withNotes) {
+	const head = '<thead><tr><th>Name</th><th>In a weapon</th><th>In armour</th><th>In a shield</th>'
+		+ (withNotes ? '<th>Adaptation</th>' : '') + '</tr></thead>';
+	const body = rows.map(function (row) {
+		return '<tr><td><b>' + row.name + '</b></td><td>' + effects(row.fields, 'weapon') + '</td><td>'
+			+ effects(row.fields, 'armor') + '</td><td>' + effects(row.fields, 'shield') + '</td>'
+			+ (withNotes ? '<td>' + (NOTES[row.name] || '') + '</td>' : '') + '</tr>';
+	}).join('');
+	mount.innerHTML = '<div class="tablewrap"><table>' + head + '<tbody>' + body + '</tbody></table></div>';
+}
+
+renderRows(document.getElementById('gems'), WIKI.gems, true);
+renderRows(document.getElementById('runes'), WIKI.runes, false);
+
+const ruby = WIKI.gems.filter(function (g) { return g.name === 'Ruby'; })[0];
+document.querySelector('#qual tbody').innerHTML = WIKI.gemQualities.map(function (q) {
+	function scale(v) { return Math.max(1, Math.round(v * q.percent / 100)); }
+	return '<tr><td><b>' + q.name + '</b></td><td class="num">' + q.percent + '%</td><td>'
+		+ scale(ruby.fields.weaponFireMin) + '-' + scale(ruby.fields.weaponFireMax) + ' fire damage</td></tr>';
+}).join('');
+
+document.querySelector('#words tbody').innerHTML = WIKI.runewords.map(function (w) {
+	const grants = [];
+	if (w.damagePct) grants.push('+' + w.damagePct + '% damage');
+	if (w.damageMod) grants.push('+' + w.damageMod + ' damage');
+	if (w.toHit) grants.push('+' + w.toHit + '% to hit');
+	if (w.allResist) grants.push('+' + w.allResist + '% all resists');
+	if (w.armor) grants.push('+' + w.armor + ' armour');
+	if (w.spellLevels) grants.push('+' + w.spellLevels + ' to spell levels');
+	if (w.mana) grants.push('+' + w.mana + ' mana');
+	if (w.life) grants.push('+' + w.life + ' life');
+	const host = { Weapon: 'weapon', Shield: 'shield', Armor: 'armour' }[w.host] || w.host;
+	return '<tr><td><b>' + w.name + '</b></td><td>' + host + ', ' + w.sockets
+		+ ' sockets</td><td>' + w.runes + '</td><td>' + grants.join(', ') + '</td></tr>';
+}).join('');
+
+document.querySelector('#charms tbody').innerHTML = WIKI.charms.map(function (c) {
+	const effect = [];
+	if (c.life) effect.push('+' + c.life + ' life');
+	if (c.fireResist) effect.push('+' + c.fireResist + '% fire resist');
+	if (c.lightResist) effect.push('+' + c.lightResist + '% lightning resist');
+	if (c.toHit) effect.push('+' + c.toHit + '% to hit');
+	if (c.magicFind) effect.push(c.magicFind + '% chance a plain drop upgrades to rare');
+	if (c.goldFind) effect.push('+' + c.goldFind + '% gold from monsters');
+	return '<tr><td><b>' + c.name + '</b></td><td>' + effect.join(', ') + '</td></tr>';
+}).join('');
+
+document.querySelector('#drops tbody').innerHTML = [
+	['Gem', R.gemDropPercent, 'Type flat across the seven, quality by depth and weight'],
+	['Rune', R.runeDropPercent, 'Only the runes this floor has opened'],
+	['Charm', R.charmDropPercent, 'Any of the six, depth-gated'],
+].map(function (r) {
+	return '<tr><td><b>' + r[0] + '</b></td><td class="num">' + r[1] + '%</td><td>' + r[2] + '</td></tr>';
+}).join('');
+
+document.querySelector('#recipes tbody').innerHTML = R.recipes.map(function (r) {
+	return '<tr><td><b>' + r.name + '</b></td><td>' + r.input + '</td><td>' + r.output
+		+ '</td><td>' + r.note + '</td></tr>';
+}).join('');
+</script>
+</body>
+</html>
