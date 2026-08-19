@@ -333,9 +333,15 @@ void AssertPlayer(Player &player)
 	ASSERT_EQ(player._pMana, 14624);
 	ASSERT_EQ(player._pMaxMana, 14624);
 	ASSERT_EQ(player._pNextExper, 1530707109); // Oracool: level-51 threshold now that MaxCharacterLevel is 99, not the old level-50 cap value
-	ASSERT_EQ(player._pMagResist, 75);
+	// CHANGED 2026-08-19 (v1.8.35). Two of these three were 75 - vanilla's hard cap, which this
+	// character's gear was well past. The soft cap now lets the excess through at a third of its
+	// value up to a ceiling of 90, so the pinned values move. The difficulty here is Normal, whose
+	// penetration penalty is zero, so the whole delta is the soft cap and nothing else. Fire resist
+	// is untouched at 16, which is the useful half of this assertion: a total BELOW the soft cap
+	// must still be exactly what it always was.
+	ASSERT_EQ(player._pMagResist, 89);
 	ASSERT_EQ(player._pFireResist, 16);
-	ASSERT_EQ(player._pLghtResist, 75);
+	ASSERT_EQ(player._pLghtResist, 90);
 	ASSERT_EQ(CountBool(player._pLvlVisited, NUMLEVELS), 0);
 	ASSERT_EQ(CountBool(player._pSLvlVisited, NUMLEVELS), 0);
 	ASSERT_EQ(player._pNFrames, 20);

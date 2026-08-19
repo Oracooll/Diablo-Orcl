@@ -430,6 +430,7 @@ $areaH = Read-SourceFile 'oracool/area_level.h'
 $ranksH = Read-SourceFile 'oracool/spell_ranks.h'
 $pointsH = Read-SourceFile 'oracool/skill_points.h'
 $playerH = Read-SourceFile 'player.h'
+$resistH = Read-SourceFile 'oracool/player_resistance.h'
 
 $mechanics = [ordered]@{
     maxAreaLevel      = 96
@@ -442,6 +443,22 @@ $mechanics = [ordered]@{
     spellBands        = @(1, 6, 12, 18, 24, 30)
     tierScales        = @()
     tierWeights       = @()
+}
+
+# The resistance curve, DERIVED rather than typed - the wiki page states these numbers, and the
+# standing complaint about this wiki is hand-typed values that drift from the source. Changing the
+# constants in player_resistance.h is enough; nothing here needs editing with them.
+$mechanics.resistance = [ordered]@{
+    softCap   = [int](Get-Constant $resistH 'constexpr int ResistanceHardCap = (\d+)')
+    hardCap   = [int](Get-Constant $resistH 'constexpr int ResistanceHardCap = (\d+)')
+    divisor   = [int](Get-Constant $resistH 'constexpr int ResistanceSoftCapDivisor = (\d+)')
+    penalties = @()
+}
+# The soft cap is written as `= MaxResistance`, so it comes from player.h rather than from its own
+# literal - following the alias instead of re-typing 75 here.
+$mechanics.resistance.softCap = [int](Get-Constant $playerH 'constexpr int MaxResistance = (\d+)')
+if ($resistH -match 'ResistancePenaltyPerDifficulty\[\]\s*=\s*\{([^}]*)\}') {
+    $mechanics.resistance.penalties = @($matches[1] -split ',' | ForEach-Object { [int]$_.Trim() })
 }
 
 foreach ($m in [regex]::Matches($tiersCpp, '\{\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\},\s*//\s*(\w+)')) {

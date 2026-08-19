@@ -42,7 +42,6 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Hirelings | Phase 6 | Large | Yes | | A persistent companion off the golem framework. Equipping them is the expensive half. |
 | Jewels | Phase 6 | Medium | Yes | | A socketable with rolled affixes rather than a fixed effect - the third socket family after gems and runes. |
 | Set bonus system | Phase 6 | Medium | Yes | | Real set bonuses for wearing several pieces. The green text colour is already reserved for it. |
-| Resistance soft cap and penetration | Balance | Small | No | | A 75% soft cap with sharply reduced returns past it, plus per-difficulty resistance penalties, so resistance gear matters at endgame. |
 | Health globes | Balance | Small | No | | Monsters drop globes that heal on pickup, shifting part of the healing loop out of the potion menu. |
 | Movement-speed affixes | Balance | Medium | Yes | | RESIZED 2026-08-19, was Small/Save-No. There is no walk-speed item power in the codebase at all - no IPL_FASTERWALK, no speed field on the player. It needs (1) a new `item_effect_type` appended before IPL_INVALID, (2) a SaveItemPower mapping audited against the delivered token, (3) affix table rows with their own level bands, and (4) a movement model: devilutionX walks in animation frames per step, not a scalar, so "faster walk" has to be expressed as a frame count and will interact with the run toggle already shipped. The save flag is Yes because a new power on an item changes what SaveItemPower writes.
 | Skill synergies | Balance | Medium | No | | D2-style: investing in one skill strengthens a related one, so a tree reads as a build rather than a shopping list. |
@@ -59,7 +58,9 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 
 The 1.8.3x line added: gold auto-place across the full 10x7 backpack (it had still been walking the vanilla
 10x4), per-difficulty monster immunities with Torment hardening Hell's resistances rather than repeating them,
-and the class trees' cast cues.
+and the class trees' cast cues. v1.8.35 added the resistance soft cap: 75 is now where returns
+start diminishing rather than where they stop, with a hard ceiling of 90 and a per-difficulty
+penetration penalty subtracted before any cap.
 
 The 1.6 to 1.8 lines took these out of the backlog: Levski's Roar with its 3x4 grid and recipe book, socket extraction, waypoints, autosave-only play, the HUD rebuild,
 skill trees and respec, the run toggle, charms, item tiers, set items, sockets and gems, all 33

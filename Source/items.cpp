@@ -37,6 +37,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/item_tiers.h"
+#include "oracool/player_resistance.h"
 #include "oracool/area_level.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_skills.h"
@@ -3428,9 +3429,15 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		lr = 0;
 	}
 
-	player._pMagResist = clamp(mr, 0, MaxResistance);
-	player._pFireResist = clamp(fr, 0, MaxResistance);
-	player._pLghtResist = clamp(lr, 0, MaxResistance);
+	// Oracool: the soft cap and the difficulty's penetration, replacing vanilla's flat
+	// clamp(x, 0, 75). This is the ONE place the three raw totals become the values the rest of the
+	// game reads, which is why the curve lives behind this call rather than at the points that use
+	// the result - missiles.cpp and objects.cpp read the fields and must keep seeing a plain
+	// percentage. See oracool/player_resistance.h for the curve and its order.
+	const _difficulty difficulty = sgGameInitInfo.nDifficulty;
+	player._pMagResist = static_cast<int8_t>(oracool::ApplyResistanceCurve(mr, difficulty));
+	player._pFireResist = static_cast<int8_t>(oracool::ApplyResistanceCurve(fr, difficulty));
+	player._pLghtResist = static_cast<int8_t>(oracool::ApplyResistanceCurve(lr, difficulty));
 
 	vadd = (vadd * PlayersData[static_cast<size_t>(player._pClass)].itmLife) >> 6;
 	ihp += (vadd << 6); // BUGFIX: blood boil can cause negative shifts here (see line 757)

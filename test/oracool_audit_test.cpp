@@ -45,6 +45,7 @@
 #include "oracool/hero_chunks.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/monster_difficulty.h"
+#include "oracool/player_resistance.h"
 #include "oracool/monster_scale.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
@@ -721,7 +722,11 @@ TEST(OracoolStatSheet, CalcPlrItemValsAggregationPinned)
 	EXPECT_EQ(player._pMagic, 16);
 	EXPECT_EQ(player._pVitality, 29);
 	EXPECT_EQ(player._pFireResist, 25);
-	EXPECT_EQ(player._pLghtResist, MaxResistance) << "resistance clamp changed";
+	// CHANGED 2026-08-19 (v1.8.35), deliberately: this asserted MaxResistance, 75, because that was
+	// vanilla's HARD cap. It is now the SOFT cap - this ring's lightning resist carries the total
+	// far enough past it to reach the ceiling. The test still pins the same thing, that the total is
+	// bounded and by what; the bound moved because the soft cap is the feature.
+	EXPECT_EQ(player._pLghtResist, oracool::ResistanceHardCap) << "the resistance ceiling changed";
 	EXPECT_EQ(player._pMagResist, 0) << "unidentified resistance leaked";
 	EXPECT_EQ(player._pLightRad, 12);
 
@@ -3169,4 +3174,83 @@ TEST(OracoolAudit2, SetBonusesAccumulateAndNeverRegress)
 	// there alongside the five-piece rung's mana. Under "highest only" exactly one of these held.
 	EXPECT_GE(previousFire, 15) << "the two-piece rung's fire resist was dropped by a later rung";
 	EXPECT_GE(previousMana, 25) << "the five-piece rung's mana was dropped by a later rung";
+}
+
+// ---------------------------------------------------------------------------------------------
+// The resistance soft cap and per-difficulty penetration (2026-08-19).
+//
+// Vanilla clamped each resistance to [0, 75] with no reference to the difficulty, so gear stopped
+// mattering the moment a school reached 75 - which a Barbarian reaches from her level alone. These
+// pin the curve's SHAPE, not its constants: the numbers are expected to be tuned from telemetry,
+// and a test that restates them would just have to be edited alongside.
+// ---------------------------------------------------------------------------------------------
+
+TEST(OracoolAudit, ResistanceNeverExceedsTheHardCapNorFallsBelowZero)
+{
+	// The bound the int8_t fields and every reader downstream rely on. Exhaustive over a raw range
+	// far wider than any gear could produce, on every difficulty.
+	for (int difficulty = DIFF_NORMAL; difficulty <= DIFF_TORMENT; difficulty++) {
+		for (int raw = -200; raw <= 400; raw++) {
+			const int out = oracool::ApplyResistanceCurve(raw, static_cast<_difficulty>(difficulty));
+			ASSERT_GE(out, 0) << "raw " << raw << " on difficulty " << difficulty;
+			ASSERT_LE(out, oracool::ResistanceHardCap) << "raw " << raw << " on difficulty " << difficulty;
+		}
+	}
+}
+
+TEST(OracoolAudit, ResistanceIsMonotonicSoMoreGearIsNeverWorse)
+{
+	// The property a player can actually feel: putting on a resistance item must never LOWER the
+	// number on the character sheet. Integer division past the soft cap is where that could go
+	// wrong if the curve were ever rewritten with rounding.
+	for (int difficulty = DIFF_NORMAL; difficulty <= DIFF_TORMENT; difficulty++) {
+		int previous = -1;
+		for (int raw = -200; raw <= 400; raw++) {
+			const int out = oracool::ApplyResistanceCurve(raw, static_cast<_difficulty>(difficulty));
+			ASSERT_GE(out, previous) << "resistance FELL going from raw " << (raw - 1) << " to " << raw
+			                         << " on difficulty " << difficulty;
+			previous = out;
+		}
+	}
+}
+
+TEST(OracoolAudit, ResistanceReturnsDiminishPastTheSoftCap)
+{
+	// Below the soft cap a point is a point; above it a point costs more than one. Stated as a
+	// comparison between the two bands rather than as "1/3", so tuning the divisor keeps this green
+	// while removing the soft cap entirely does not.
+	const int atCap = oracool::ApplyResistanceCurve(oracool::ResistanceSoftCap, DIFF_NORMAL);
+	EXPECT_EQ(atCap, oracool::ResistanceSoftCap) << "the soft cap is not reached one-for-one";
+
+	const int belowGain = atCap - oracool::ApplyResistanceCurve(oracool::ResistanceSoftCap - 30, DIFF_NORMAL);
+	const int aboveGain = oracool::ApplyResistanceCurve(oracool::ResistanceSoftCap + 30, DIFF_NORMAL) - atCap;
+	EXPECT_EQ(belowGain, 30) << "points below the soft cap are not one-for-one";
+	EXPECT_LT(aboveGain, belowGain) << "thirty points bought as much above the soft cap as below it";
+	EXPECT_GT(aboveGain, 0) << "the soft cap is behaving as a hard cap - nothing is gained past it";
+}
+
+TEST(OracoolAudit, HarderDifficultiesPenetrateResistanceStrictlyMore)
+{
+	// The reason gear matters at endgame. The same raw total must be worth less on each rung down,
+	// and Normal must cost nothing - a character who never leaves Normal sees no change from this
+	// work at all.
+	EXPECT_EQ(oracool::ResistancePenaltyFor(DIFF_NORMAL), 0) << "Normal now taxes resistance";
+
+	constexpr int Raw = 100;
+	int previous = oracool::ApplyResistanceCurve(Raw, DIFF_NORMAL);
+	for (int difficulty = DIFF_NIGHTMARE; difficulty <= DIFF_TORMENT; difficulty++) {
+		const int out = oracool::ApplyResistanceCurve(Raw, static_cast<_difficulty>(difficulty));
+		EXPECT_LT(out, previous) << "difficulty " << difficulty << " did not penetrate more than the one before";
+		previous = out;
+	}
+}
+
+TEST(OracoolAudit, TheHardCapIsReachableOnEveryDifficulty)
+{
+	// A ceiling nobody can touch is not a soft cap, it is a lie told on the character sheet. Enough
+	// raw resistance must always get there, including on Torment where the penalty is largest.
+	for (int difficulty = DIFF_NORMAL; difficulty <= DIFF_TORMENT; difficulty++) {
+		const int out = oracool::ApplyResistanceCurve(1000, static_cast<_difficulty>(difficulty));
+		EXPECT_EQ(out, oracool::ResistanceHardCap) << "difficulty " << difficulty << " cannot reach the hard cap";
+	}
 }

@@ -92,6 +92,22 @@ what you get. There is no repair path - an ethereal item is a thing you use up.<
 cells - one for a ring, six for body armour or a two-hander. Every base tier can host them, and
 gems, runes and 370 runewords all live in them. That is a system of its own -
 see <a href="sockets.html">Sockets and gems</a>.</p>
+<h2>Resistance</h2>
+<p>Fire, lightning and magic resistance each reduce incoming damage of that school by their
+	percentage. Two rules shape how much of it you can actually hold.</p>
+<ul>
+	<li><b>The soft cap sits at <span id="ressoft"></span>%.</b> Up to there a point of resistance is a
+		point. Past it every <span id="resdiv"></span> points of gear buy one point of resistance, up
+		to a hard ceiling of <span id="reshard"></span>% that nothing exceeds.</li>
+	<li><b>Each difficulty penetrates.</b> A fixed penalty is subtracted from your total before any
+		cap applies, so harder difficulties demand more gear to stand in the same place:
+		<span id="respen"></span>.</li>
+	<li><b>Resistance never goes below zero.</b> Being unprepared costs you the reduction; it does not
+		amplify the damage.</li>
+</ul>
+<p>The two rules compose: reaching the ceiling costs <span id="resnormal"></span> raw points on
+	Normal and <span id="restorment"></span> on Torment.</p>
+
 <h2>Character rules</h2>
 <ul>
 	<li><b>Naked heroes.</b> New characters start with no equipment, no potions and no gold, both
@@ -118,6 +134,24 @@ see <a href="sockets.html">Sockets and gems</a>.</p>
 document.getElementById('bands').textContent = WIKI.mechanics.spellBands.join(', ');
 document.getElementById('maxinv').textContent = WIKI.mechanics.maxInvestment;
 document.getElementById('maxclvl').textContent = WIKI.mechanics.maxCharacterLevel;
+
+(function () {
+	var r = WIKI.mechanics.resistance;
+	var names = ['Normal', 'Nightmare', 'Hell', 'Torment'];
+	document.getElementById('ressoft').textContent = r.softCap;
+	document.getElementById('reshard').textContent = r.hardCap;
+	document.getElementById('resdiv').textContent = r.divisor;
+	document.getElementById('respen').textContent = r.penalties.map(function (p, i) {
+		return names[i] + ' ' + (p === 0 ? 'none' : '-' + p);
+	}).join(', ');
+	// What the ceiling actually costs, computed from the same three numbers the rules above state,
+	// so the example can never disagree with them.
+	var toCeiling = function (penalty) {
+		return penalty + r.softCap + (r.hardCap - r.softCap) * r.divisor;
+	};
+	document.getElementById('resnormal').textContent = toCeiling(r.penalties[0]);
+	document.getElementById('restorment').textContent = toCeiling(r.penalties[r.penalties.length - 1]);
+}());
 </script>
 </body>
 </html>

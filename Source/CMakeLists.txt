@@ -56,6 +56,7 @@ set(libdevilutionx_SRCS
   oracool/sprite_scale.cpp
   oracool/aura_field.cpp
   oracool/monster_difficulty.cpp
+  oracool/player_resistance.cpp
   oracool/monster_scale.cpp
   oracool/stat_sheet.cpp
   oracool/telemetry.cpp

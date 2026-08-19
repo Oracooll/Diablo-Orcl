@@ -12,6 +12,7 @@
 #include "engine/render/text_render.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
+#include "oracool/player_resistance.h"
 #include "playerdat.hpp"
 #include "options.h"
 #include "oracool/oracool.h"
@@ -186,7 +187,11 @@ StyledText GetResistInfo(int8_t resist)
 		style = UiFlags::ColorWhite;
 	else if (resist < 0)
 		style = UiFlags::ColorRed;
-	else if (resist >= MaxResistance)
+	// Oracool: gold means "there is nothing left to buy", so it marks the HARD cap, not the soft
+	// one. Reaching 75 used to be the end of the road and is now the point where each further point
+	// costs three - worth showing as ordinary progress rather than as an achievement, or the sheet
+	// would tell a player at 75 to stop shopping when 15 points are still on the table.
+	else if (resist >= oracool::ResistanceHardCap)
 		style = UiFlags::ColorWhitegold;
 
 	return { style, StrCat(resist, "%") };
