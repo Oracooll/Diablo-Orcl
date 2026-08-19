@@ -1,3 +1,9 @@
+# SUPERSEDED 2026-08-19 by tools\CutHudStateIcons.ps1, which cuts this same asset from the newer
+# oracool-level-up-icon-package in the drop zone. Running THIS script now silently reverts the icon
+# to the older v5 art at the same size, with no error - the identical hazard this file already
+# documents about tools\HudIconCut.cs at the bottom. Kept for its history and its notes, which
+# CutHudStateIcons.ps1 inherits: the state mapping and the common-box rule both come from here.
+#
 # Oracool asset pipeline: cuts ui\level_up_icon.png from the v5 level-up sheet's IMPROVED pair -
 # the DEFAULT and CLICKED plaques, not the small unmodified Blizzard reference icon in the header.
 #
