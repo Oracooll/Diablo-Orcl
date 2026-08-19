@@ -28,6 +28,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/item_sets.h"
 #include "oracool/waypoint_menu.h"
+#include "oracool/runeword_book.h"
 #include "pack.h"
 #include "plrmsg.h"
 #include "quests.h"
@@ -673,6 +674,15 @@ std::string DebugCmdGiveCharms(const string_view parameter)
 	return DebugSpawnCharms();
 }
 
+// Oracool: a second way in, deliberately. When "the key does nothing" the question is whether the
+// key never fired or the window never drew, and one command that toggles it directly splits that in
+// two without a rebuild.
+std::string DebugCmdRunewordBook(const string_view parameter)
+{
+	oracool::ToggleRunewordBook();
+	return oracool::IsRunewordBookOpen() ? "Runeword book opened." : "Runeword book closed.";
+}
+
 std::string DebugCmdGiveEthereal(const string_view parameter)
 {
 	return DebugSpawnEthereal(parameter);
@@ -1300,6 +1310,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "givepset", "Drops a Primal item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGivePrimalSet },
 	{ "giverunes", "Drops all 33 runes.", "", &DebugCmdGiveRunes },
 	{ "givegems", "Drops every gem, or only quality {q} (chipped/flawed/normal/flawless/perfect).", "({q})", &DebugCmdGiveGems },
+	{ "runewords", "Toggles the runeword book.", "", &DebugCmdRunewordBook },
 	{ "giveethereal", "Spawns an ethereal item, optionally matching {name}.", "({name})", &DebugCmdGiveEthereal },
 	{ "givesockets", "Spawns a basic base with {n} empty sockets, optionally named {name}.", "({n}) ({name})", &DebugCmdGiveSockets },
 	{ "givecharms", "Drops every charm.", "", &DebugCmdGiveCharms },

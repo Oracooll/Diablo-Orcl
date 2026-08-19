@@ -1400,9 +1400,6 @@ void DrawView(const Surface &out, Point startPosition)
 #endif
 	) {
 		oracool::DrawEventLogWindow(out);
-		// After the log so it sits on top: it is the widest window and covers the screen above the
-		// HUD, and its own click handler already claims that whole area.
-		oracool::DrawRunewordBook(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);
 		oracool::DrawXpGainIndicator(out);
@@ -1532,6 +1529,13 @@ void DrawView(const Surface &out, Point startPosition)
 	// the give-away was that it happened EVERY time: an operate that never fires cannot toggle,
 	// but an invisible window toggles happily forever.
 	oracool::DrawLevskiRoar(out);
+	// The runeword book, beside the monument and for the identical reason - and it shipped with
+	// exactly the bug the comment above describes. It was drawn inside the corner-HUD block, which
+	// is gated on !IsRightPanelOpen() and !AutomapActive and runs BEFORE the panels: so the window
+	// vanished whenever the inventory was open, and was painted over by anything drawn later even
+	// when it did run. Same symptom as the monument: a key that appears to do nothing, because an
+	// invisible window toggles happily forever.
+	oracool::DrawRunewordBook(out);
 	if (oracool::IsHudMenuOpen()) {
 		oracool::DrawHudMenu(out);
 	}
