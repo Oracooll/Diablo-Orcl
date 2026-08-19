@@ -61,6 +61,26 @@ struct ArtAsset {
  */
 constexpr int HudTintStrengthPercent = 50;
 
+/**
+ * @brief How much of the bottom plate's own brightness survives quantization, in percent.
+ *
+ * Oracool: user, 2026-08-19 - "the hud seems too bright... it looks way brighter than the master
+ * file i provided." Both halves of that are true and they compound.
+ *
+ * hud-plate-v3's stone is a far lighter grey than the art it replaced, and the 50% pull toward
+ * PAL16_YELLOW then lifts every mid-tone toward the light end of a gold ramp. Neither step is wrong
+ * on its own; together they land the plate well above where the master sits.
+ *
+ * Applied as a straight luminance scale BEFORE the ramp lookup and the palette match, so the art
+ * keeps its own shading and hue and simply sits lower. Darkening the shared ramp window instead
+ * would have taken the burger-menu icons - the only other tinted asset - down with it, and they are
+ * already where they should be.
+ *
+ * A single knob on purpose: this is a matter of taste against a screenshot, so it is meant to be
+ * nudged. Lower is darker.
+ */
+constexpr int PlateLuminancePercent = 70;
+
 ArtAsset PlateArt { "ui\\middle_hud.png" };
 ArtAsset HealthOrbArt { "ui\\health_orb.png" };
 ArtAsset ManaOrbArt { "ui\\mana_orb.png" };
@@ -421,7 +441,8 @@ void BuildOutline(ArtAsset &asset, uint8_t outlineIndex)
 }
 
 void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
-    std::optional<uint8_t> tintRampBase = std::nullopt, int tintStrengthPercent = 100)
+    std::optional<uint8_t> tintRampBase = std::nullopt, int tintStrengthPercent = 100,
+    int luminancePercent = 100)
 {
 	if (asset.rgba.empty())
 		return;
@@ -440,9 +461,15 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
 		uint8_t *frameRow = dimCircle ? &(*asset.frame)[Point { 0, y }] : nullptr;
 		uint8_t *sphereRow = dimCircle ? &(*asset.sphereDim)[Point { 0, y }] : nullptr;
 		for (int x = 0; x < asset.width; x++) {
-			const uint8_t r = srcRow[x * 4 + 0];
-			const uint8_t g = srcRow[x * 4 + 1];
-			const uint8_t b = srcRow[x * 4 + 2];
+			// Scaled before anything reads them, so the ramp lookup, the tint blend and the cache
+			// key all see the same value. Scaling after the match would quantize the bright colour
+			// and then darken the RESULT, which walks off the ramp the tint just put it on.
+			const auto scale = [luminancePercent](uint8_t v) {
+				return static_cast<uint8_t>(v * luminancePercent / 100);
+			};
+			const uint8_t r = scale(srcRow[x * 4 + 0]);
+			const uint8_t g = scale(srcRow[x * 4 + 1]);
+			const uint8_t b = scale(srcRow[x * 4 + 2]);
 			const uint8_t a = srcRow[x * 4 + 3];
 
 			if (a < 128) {
@@ -602,7 +629,7 @@ void EnsureQuantized()
 	// you read your health and mana at a glance - and their ornament already sits warm against the
 	// gold. If the frames alone are ever wanted in gold, that needs the tint applied to `frame`
 	// while `sphereDim` is spared, which is a separate change from this one.
-	QuantizeAsset(PlateArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
+	QuantizeAsset(PlateArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent, PlateLuminancePercent);
 	QuantizeAsset(HealthOrbArt, Rectangle { GetHealthOrbSphereCenterLocal(), Size { GetOrbSphereRadius(), 0 } });
 	QuantizeAsset(ManaOrbArt, Rectangle { GetManaOrbSphereCenterLocal(), Size { GetOrbSphereRadius(), 0 } });
 	// Same 50% gold as the plate, so the menu the burger button opens matches the HUD it sits on.
