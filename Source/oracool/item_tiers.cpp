@@ -203,10 +203,15 @@ int VendorItemLevel(int vendorLevel)
 	return std::min(vendorLevel + AreaFloorCount * block, MaxAreaLevel);
 }
 
-void ApplyVendorTier(Item &item, int vendorLevel, uint32_t seed)
+void StampVendorItemLevel(Item &item, int vendorLevel)
+{
+	item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp(VendorItemLevel(vendorLevel), 0, 255));
+}
+
+void ApplyVendorTier(Item &item, int vendorLevel, uint32_t seed, int maxValue)
 {
 	const int itemLevel = VendorItemLevel(vendorLevel);
-	item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp(itemLevel, 0, 255));
+	StampVendorItemLevel(item, vendorLevel);
 	if (!CanCarryBaseTier(item))
 		return;
 
@@ -217,7 +222,20 @@ void ApplyVendorTier(Item &item, int vendorLevel, uint32_t seed)
 	if (static_cast<int>(hash % 100U) >= *sgOptions.Oracool.vendorTieredStockChance)
 		return; // Normal tier, which is what the base numbers already are
 
-	ApplyBaseTier(item, TierForItem(itemLevel, seed));
+	const BaseItemTier tier = TierForItem(itemLevel, seed);
+
+	// The vendor PRICE CAP, checked before the tier is applied rather than after.
+	//
+	// Every vendor generates in a retry loop that discards an item priced over its cap - and
+	// SpawnOnePremium's loop is unbounded in Diablo, with a TODO in the engine warning it could spin
+	// forever if nothing suitable can be generated. Torment multiplies value by thirty, so tiering
+	// first and letting the loop reject would both skew shops toward the cheapest bases and push that
+	// loop toward the failure its own comment predicts. Declining the tier keeps the item, the cap and
+	// the loop all intact.
+	if (maxValue > 0 && ScaleByPercent(item._ivalue, Scales[static_cast<size_t>(tier)].value) > maxValue)
+		return;
+
+	ApplyBaseTier(item, tier);
 }
 
 bool CanCarryBaseTier(const Item &item)

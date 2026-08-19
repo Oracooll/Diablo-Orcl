@@ -172,7 +172,16 @@ int VendorItemLevel(int vendorLevel);
  * seed for the multiplayer pack, which has no room to carry a tier; single-player never keeps a
  * recreated item, since the save holds every stat. Same rule the dungeon path follows.
  */
-void ApplyVendorTier(Item &item, int vendorLevel, uint32_t seed);
+void ApplyVendorTier(Item &item, int vendorLevel, uint32_t seed, int maxValue);
+
+/**
+ * @brief Stamps a vendor item's ilvl WITHOUT touching its stats, for use before GetItemAttrs.
+ *
+ * Books pick their spell inside GetItemAttrs, and the band gate there reads the item's ilvl - so a
+ * shop book needs its ilvl before that call, not after it. Everything else can wait for
+ * ApplyVendorTier, which stamps the same number again.
+ */
+void StampVendorItemLevel(Item &item, int vendorLevel);
 
 /** @brief Whether @p item is something base tiers apply to at all: worn gear, not a potion. */
 bool CanCarryBaseTier(const Item &item);
