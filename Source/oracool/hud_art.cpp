@@ -676,11 +676,20 @@ void EnsureQuantized()
 	// spell icons, which are drawn untinted. A gold pass here would make the basic attack the one
 	// icon on the plate that did not match the icon beside it.
 	QuantizeAsset(AttackIconsArt, std::nullopt);
-	// Oracool: user request - the silhouette reads as gold rather than grey, in the same ramp the
-	// unique-item backing uses, so the figure behind the equipment slots belongs to the window's
-	// gold theme instead of sitting in it as a neutral shadow.
+	// Oracool: user, 2026-08-19 - "the silhouette is goldish from the previous theme. remove the tint
+	// of the silhouette." So no tint ramp: the plain nearest-palette path, the same one the bottom
+	// plate took when the limestone art arrived.
+	//
+	// It WAS PAL16_YELLOW at full strength, which is not a tint at all but a complete repaint - at
+	// 100 percent TintedPaletteIndex returns the ramp shade outright and the figure's own colours are
+	// discarded. That was right when the window was gold and the silhouette had to belong to it.
+	// The window is limestone now, and a gold figure behind grey stone reads as left over from a
+	// theme that is gone - which is exactly what the user saw.
+	//
+	// The gold OUTLINE was removed separately on 2026-08-18 for the same reason. The two were the
+	// last of that theme on this window.
 	for (ArtAsset &silhouette : SilhouetteArt)
-		QuantizeAsset(silhouette, std::nullopt, PAL16_YELLOW);
+		QuantizeAsset(silhouette, std::nullopt);
 	// Walked down from +2, which read as near-white, then +6, which was still hot. The shared
 	// constant records where it landed and why - and the cursor tooltip's border now reads the same
 	// one, so the two thin gold edges on screen cannot drift apart.
