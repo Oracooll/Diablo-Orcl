@@ -11,6 +11,7 @@
 
 #include "DiabloUI/diabloui.h"
 #include "control.h"
+#include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
 #include "doom.h"
@@ -962,7 +963,25 @@ void CheckCursMove()
 		cursPosition = { mx, my };
 		return;
 	}
-	if (mainPanel.contains(MousePosition)) {
+	// Oracool bug fix (user, 2026-08-19): "the area where the hover and ctrl+click works is just
+	// very tiny. only a few px somewhere around the top part of the grid boxes."
+	//
+	// IsPointOverHudChrome, not mainPanel.contains(). This is the SECOND half of the fix made in
+	// LeftMouseDown on 2026-08-15 - the old 640x128 main panel rect is mostly empty screen now, and
+	// only the HUD plate itself should absorb input. That change went into the click router and
+	// never into the hover router, so clicking behaved correctly while hovering was still being
+	// swallowed by a rect nothing is drawn in.
+	//
+	// It only shows at narrow resolutions, which is why it survived this long. The main panel is
+	// 640 wide and centred; the inventory is 320 wide against the right edge. At 1280 they never
+	// touch. At 960 the panel spans x 160-800 and the inventory starts at 640, so they overlap over
+	// the BOTTOM ROWS OF THE BACKPACK - which is where gold accumulates, and why the reported
+	// symptom was "gold cannot be Ctrl+Clicked" rather than "the inventory is broken". The hover
+	// returned here, pcursinvitem stayed -1, and TransferItemToStash(-1) returns on its first line.
+	//
+	// The width dependence is the whole reason three rounds of reading the gold path found nothing:
+	// the gold path was never wrong.
+	if (oracool::IsPointOverHudChrome(MousePosition)) {
 		CheckPanelInfo();
 		return;
 	}
