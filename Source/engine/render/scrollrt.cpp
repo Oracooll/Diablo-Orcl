@@ -1503,11 +1503,17 @@ void DrawView(const Surface &out, Point startPosition)
 		break;
 	case LeftPanelContent::Crafting:
 		oracool::DrawCraftingMenu(out);
-		oracool::DrawLevskiRoar(out);
 		break;
 	case LeftPanelContent::None:
 		break;
 	}
+	// Levski's Roar is a free-floating centred window, NOT a left-panel slot, so it is drawn
+	// outside the panel switch. It spent three builds inside case LeftPanelContent::Crafting -
+	// a branch that never runs for it - which meant the monument's click opened the window and
+	// nothing ever rendered it. The symptom was "the hero walks over and nothing happens", and
+	// the give-away was that it happened EVERY time: an operate that never fires cannot toggle,
+	// but an invisible window toggles happily forever.
+	oracool::DrawLevskiRoar(out);
 	if (oracool::IsHudMenuOpen()) {
 		oracool::DrawHudMenu(out);
 	}
