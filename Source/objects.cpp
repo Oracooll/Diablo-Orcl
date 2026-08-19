@@ -4276,6 +4276,13 @@ void AddLevskiRoarObject()
 		// A stand is not breakable; clicking a breakable object swings at it instead of operating
 		// it (see ACTION_OPERATE in player.cpp), so this is pinned rather than assumed.
 		monument->_oBreak = 0;
+		// NOT solid, unlike the stand's own table entry. A solid object makes MakePlrPath route to
+		// an ADJACENT tile, and ACTION_OPERATE then waits on IsPlayerAdjacentToObject - so if no
+		// neighbouring tile is walkable the click sends its command, the player never moves, and
+		// nothing ever fires. That is exactly "outline, but clicking does nothing". Clearing it
+		// lets the path land ON the monument's tile, where adjacency is trivially satisfied, and
+		// costs nothing: town furniture blocking movement was never the point.
+		monument->_oSolidFlag = false;
 		if (position != Requested)
 			LogEvent(StrCat("Levski's Roar fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
 		return;
@@ -5613,6 +5620,11 @@ void SyncObjectAnim(Object &object)
 StringOrView Object::name() const
 {
 	switch (_otype) {
+	case OBJ_STAND:
+		// Levski's Roar in town; the Anvil of Fury's stand everywhere else. Object::name()'s
+		// default returns nothing, which is why hovering the monument showed an outline and no
+		// popup - the object was found, it simply had nothing to say.
+		return currlevel == 0 ? _("Levski's Roar") : _("Rock Stand");
 	case OBJ_CRUX1:
 	case OBJ_CRUX2:
 	case OBJ_CRUX3:
