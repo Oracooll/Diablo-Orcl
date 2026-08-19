@@ -39,7 +39,8 @@ $pages = @(
     @{ file = 'options.html'; id = 'options'; label = 'INI options'; group = 'Interface' },
     @{ file = 'assets.html'; id = 'assets'; label = 'Art assets'; group = 'Project' },
     @{ file = 'debug.html'; id = 'debug'; label = 'Debug console'; group = 'Project' },
-    @{ file = 'history.html'; id = 'history'; label = 'Version history'; group = 'Project' }
+    @{ file = 'history.html'; id = 'history'; label = 'Version history'; group = 'Project' },
+    @{ file = 'pipeline.html'; id = 'pipeline'; label = 'Pipeline'; group = 'Project' }
 )
 
 $css = Get-Content (Join-Path $wiki 'wiki.css') -Raw -Encoding UTF8

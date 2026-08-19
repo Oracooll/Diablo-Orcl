@@ -31,6 +31,7 @@ const NAV = [
 	{ href: 'assets.html', label: 'Art assets' },
 	{ href: 'debug.html', label: 'Debug console' },
 	{ href: 'history.html', label: 'Version history' },
+	{ href: 'pipeline.html', label: 'Pipeline' },
 ];
 
 function buildNav() {

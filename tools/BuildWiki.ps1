@@ -728,6 +728,31 @@ foreach ($m in [regex]::Matches($runewordsInc, $pattern)) {
             grants  = ($grants -join ', ')
         })
 }
+
+# ---------------------------------------------------------------------------------------------
+# Pipeline - the vault's own backlog table (Diablo Orcl V1/07-Backlog/Pipeline.md)
+# ---------------------------------------------------------------------------------------------
+# Parsed rather than retyped, and the vault file is the source: the user edits it in Obsidian and
+# the page follows. The old Idea-Backlog.md is NOT read - a dozen of its "not started" entries had
+# shipped without being moved, which is exactly the staleness this page exists to avoid.
+$pipeline = New-Object System.Collections.ArrayList
+$pipelinePath = Join-Path $root 'Diablo Orcl V1\07-Backlog\Pipeline.md'
+if (Test-Path $pipelinePath) {
+    foreach ($line in (Get-Content $pipelinePath -Encoding UTF8)) {
+        if ($line -notmatch '^\|') { continue }
+        if ($line -match '^\|\s*-{2,}' -or $line -match '^\|\s*Name\s*\|') { continue }
+        $cells = @($line.Trim('|') -split '\|' | ForEach-Object { $_.Trim() })
+        if ($cells.Count -lt 6) { continue }
+        [void]$pipeline.Add([ordered]@{
+                name    = $cells[0]
+                group   = $cells[1]
+                size    = $cells[2]
+                save    = $cells[3]
+                blocked = $cells[4]
+                summary = $cells[5]
+            })
+    }
+}
 # ---------------------------------------------------------------------------------------------
 # Debug console commands - Source/debug.cpp
 # ---------------------------------------------------------------------------------------------
@@ -782,6 +807,7 @@ $data = [ordered]@{
     charms    = $charms
 
     runewords = $runewords
+    pipeline  = $pipeline
     socketRules = $socketRules
     debugCmds = $debugCmds
     autoSaveTriggers = $autoSaveTriggers
@@ -792,6 +818,7 @@ $data = [ordered]@{
 $json = $data | ConvertTo-Json -Depth 8 -Compress
 Set-Content -Path (Join-Path $out 'data.js') -Value ("const WIKI = " + $json + ";") -Encoding UTF8
 
+Write-Host ("           {0} runewords, {1} pipeline entries" -f $runewords.Count, $pipeline.Count)
 Write-Host ("wiki data: {0} items, {1} spells, {2} skills, {3} monsters, {4} options, {5} assets, {6} reports" -f `
         $items.Count, $spells.Count, $skills.Count, $monsters.Count, $options.Count, $assets.Count, $reports.Count)
 Write-Host ("           {0} classes, {1} exp rows, {2} affixes, {3} uniques, {4} set items, {5} quests, {6} shrines" -f `
