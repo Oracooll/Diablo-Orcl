@@ -790,47 +790,6 @@ void ClosePanels()
 	oracool::CloseAttackQuickList();
 }
 
-void CloseAllWindows()
-{
-	// Oracool: the space bar's master close (user, 2026-08-19) - "space bar to close any and all
-	// windows regardless of when they were introduced in the game. space bar should supersede
-	// everything by design and act as master windows closer."
-	//
-	// Deliberately a superset of ClosePanels() rather than a rename of it. ClosePanels() is called
-	// from a dozen places that mean "put the side panels away" - opening a store, taking a
-	// waypoint, starting a cutscene - and none of them should also be dismissing the help screen or
-	// the automap. This one means what the player means when they hit space: everything, gone.
-	//
-	// A window added to the game must be added HERE, not only to ClosePanels(). That is the whole
-	// point of the rule: "regardless of when they were introduced".
-	ClosePanels();
-	CloseStash();
-	CloseGoldWithdraw();
-	DropGoldFlag = false;
-	// Levski's Roar can refuse, and is allowed to: its grid is not save state, so closing on a full
-	// backpack would destroy what is in it. It says so in the log and stays open - the one window
-	// space cannot force, by design rather than by omission.
-	oracool::CloseLevskiRoar();
-	oracool::CloseRunewordBook();
-	if (oracool::IsEventLogOpen())
-		oracool::ToggleEventLog();
-	// Stores go through StoreESC(), the same path Escape uses - so a store closes the way it always
-	// has, one level at a time out of a nested menu, rather than being torn down from outside.
-	if (stextflag != TalkID::None)
-		StoreESC();
-	HelpFlag = false;
-	ChatLogFlag = false;
-	spselflag = false;
-	if (qtextflag) {
-		qtextflag = false;
-		stream_stop();
-	}
-	if (talkflag)
-		control_reset_talk();
-	AutomapActive = false;
-	CancelCurrentDiabloMsg();
-	doom_close();
-}
 
 bool CanPlayerTakeAction(); // defined below, past the keymap tables that also use it
 
@@ -2155,6 +2114,51 @@ bool CanPlayerTakeAction()
 	return !IsPlayerDead() && IsGameRunning();
 }
 } // namespace
+
+// Oracool: moved OUT of the anonymous namespace above on 2026-08-20. It was file-local, so
+// declaring it in diablo.h produced an unresolved external rather than a working export - the
+// runeword book is its second caller and the first from another translation unit.
+void CloseAllWindows()
+{
+	// Oracool: the space bar's master close (user, 2026-08-19) - "space bar to close any and all
+	// windows regardless of when they were introduced in the game. space bar should supersede
+	// everything by design and act as master windows closer."
+	//
+	// Deliberately a superset of ClosePanels() rather than a rename of it. ClosePanels() is called
+	// from a dozen places that mean "put the side panels away" - opening a store, taking a
+	// waypoint, starting a cutscene - and none of them should also be dismissing the help screen or
+	// the automap. This one means what the player means when they hit space: everything, gone.
+	//
+	// A window added to the game must be added HERE, not only to ClosePanels(). That is the whole
+	// point of the rule: "regardless of when they were introduced".
+	ClosePanels();
+	CloseStash();
+	CloseGoldWithdraw();
+	DropGoldFlag = false;
+	// Levski's Roar can refuse, and is allowed to: its grid is not save state, so closing on a full
+	// backpack would destroy what is in it. It says so in the log and stays open - the one window
+	// space cannot force, by design rather than by omission.
+	oracool::CloseLevskiRoar();
+	oracool::CloseRunewordBook();
+	if (oracool::IsEventLogOpen())
+		oracool::ToggleEventLog();
+	// Stores go through StoreESC(), the same path Escape uses - so a store closes the way it always
+	// has, one level at a time out of a nested menu, rather than being torn down from outside.
+	if (stextflag != TalkID::None)
+		StoreESC();
+	HelpFlag = false;
+	ChatLogFlag = false;
+	spselflag = false;
+	if (qtextflag) {
+		qtextflag = false;
+		stream_stop();
+	}
+	if (talkflag)
+		control_reset_talk();
+	AutomapActive = false;
+	CancelCurrentDiabloMsg();
+	doom_close();
+}
 
 void InitKeymapActions()
 {

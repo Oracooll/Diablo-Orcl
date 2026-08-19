@@ -1374,7 +1374,7 @@ void DrawView(const Surface &out, Point startPosition)
 
 	if (AutomapActive) {
 		DrawAutomap(out.subregionY(0, gnViewportHeight));
-	} else if (*sgOptions.Oracool.miniMapEnabled && !cornerHudHidden
+	} else if (*sgOptions.Oracool.miniMapEnabled && !cornerHudHidden && !oracool::IsRunewordBookOpen()
 #ifdef _DEBUG
 	    && !DebugClearUi
 #endif
@@ -1394,7 +1394,11 @@ void DrawView(const Surface &out, Point startPosition)
 	// the mini-map (which AutomapActive already suppresses above) and would otherwise float over
 	// the full map. No saved/restored state needed - they simply resume drawing the next frame
 	// AutomapActive goes false again, same as the mini-map itself.
-	if (!AutomapActive && !cornerHudHidden
+	// Oracool: user, 2026-08-20 - "when rwbook opens, close all other windows incl log and minimap".
+	// The mini-map and these corner widgets are not WINDOWS with open state, so they are suppressed
+	// here for as long as the book is up rather than closed - which also means they come straight
+	// back when it closes, with nothing to restore.
+	if (!AutomapActive && !cornerHudHidden && !oracool::IsRunewordBookOpen()
 #ifdef _DEBUG
 	    && !DebugClearUi
 #endif

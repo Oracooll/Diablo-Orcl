@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "automap.h"
+#include "diablo.h" // CloseAllWindows
 #include "control.h"
 #include "cursor.h"
 #include "engine/render/clx_render.hpp"
@@ -15,6 +17,8 @@
 #include "oracool/ornate_border.h"
 #include "oracool/runewords.h"
 #include "oracool/window_close.h"
+#include "player.h"
+#include "qol/stash.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -28,7 +32,12 @@ constexpr Size WindowSize { 944, 616 };
 constexpr int Padding = 10;
 constexpr int TitleHeight = 22;
 
-/** @brief The slot filter keys. One per RunewordHost, in the enum's own order. */
+/**
+ * @brief Air between the title and the slot filter row (user, 2026-08-20: "move first row filter
+ * 8 px down to leave a gap between it and title").
+ */
+constexpr int TitleToFilterGap = 8;
+
 constexpr int SlotFilterCount = 10;
 constexpr const char *SlotFilterNames[SlotFilterCount] = {
 	"Weapon", "Shield", "Armor", "Helm", "Shoulders", "Bracers", "Gloves", "Belt", "Pants", "Boots",
@@ -36,30 +45,38 @@ constexpr const char *SlotFilterNames[SlotFilterCount] = {
 constexpr int SlotKeyHeight = 20;
 constexpr int SlotKeyGap = 4;
 
-/** @brief The rune filter row: every rune, evenly spread across the window's width. */
-constexpr int RuneRowHeight = 30;
+/**
+ * @brief The rune row's height, and the gap that keeps it clear of the slot row above it.
+ *
+ * A rune's inventory sprite is 28px tall - one grid cell - and item sprites in this engine are
+ * drawn from their BOTTOM-left. The first build passed the row's TOP as if it were a centre, so
+ * every icon extended thirteen pixels upward into the slot keys. The row is sized to the sprite and
+ * the icons are bottom-anchored inside it now, which is what makes "no overlapping" structural
+ * rather than a tuned constant.
+ */
+constexpr int RuneIconSize = 28;
+constexpr int RuneRowHeight = RuneIconSize + 4;
+constexpr int RuneRowGap = 6;
 
-/** @brief One list entry. Four columns of these scroll together. */
-constexpr int ColumnCount = 4;
-constexpr int EntryHeight = 74;
-constexpr int EntryGap = 4;
+// Five columns (user, 2026-08-20: "there is enough space"). 944 less 20 of padding is 924, so a
+// column is 184 wide and an entry 178 - which is exactly six rune icons at 28 plus their gaps, the
+// longest recipe the data holds. Any narrower and the six-rune words would wrap.
+constexpr int ColumnCount = 5;
+constexpr int ColumnGap = 6;
 constexpr int LineHeight = 12;
+/** @brief Title line, host line, then the recipe icons. Stat lines are added to this per word. */
+constexpr int EntryHeaderHeight = LineHeight * 2 + RuneIconSize + 4;
+constexpr int EntryGap = 8;
 
 constexpr uint8_t KeyLitColor = PAL16_YELLOW + 4;
-constexpr uint8_t KeyDimColor = PAL16_YELLOW + 12;
+/** @brief The Possible-Runewords toggle. Yellow, per the user, and bright enough to read as a control. */
+constexpr uint8_t PossibleFilterColor = PAL16_YELLOW + 3;
+constexpr int PossibleFilterSize = 18;
 
-int ScrollOffsetRows = 0;
+int ScrollOffsetPx = 0;
 
-/**
- * @brief Which filter keys are lit. Two independent sets - see the header on how they combine.
- *
- * Plain arrays rather than a bitmask: 33 runes needs a 64-bit mask and the debugging value of being
- * able to print one of these is worth more than the eight bytes.
- */
 std::array<bool, SlotFilterCount> SlotSelected {};
 std::vector<bool> RuneSelected;
-
-/** @brief The rune item indices, in ladder order, built once. */
 std::vector<uint16_t> RuneIndices;
 
 void EnsureRuneList()
@@ -73,46 +90,61 @@ void EnsureRuneList()
 	RuneSelected.assign(RuneIndices.size(), false);
 }
 
-/** @brief Whether @p word passes both filter rows. See the header: OR within a row, AND across. */
+bool AnyRuneSelected()
+{
+	return std::any_of(RuneSelected.begin(), RuneSelected.end(), [](bool b) { return b; });
+}
+
 bool PassesFilters(const RunewordDefinition &word)
 {
 	const bool anySlot = std::any_of(SlotSelected.begin(), SlotSelected.end(), [](bool b) { return b; });
-	if (anySlot) {
-		if (word.host >= SlotFilterCount || !SlotSelected[word.host])
-			return false;
-	}
+	if (anySlot && (word.host >= SlotFilterCount || !SlotSelected[word.host]))
+		return false;
 
-	const bool anyRune = std::any_of(RuneSelected.begin(), RuneSelected.end(), [](bool b) { return b; });
-	if (anyRune) {
-		bool matched = false;
-		for (size_t r = 0; r < RuneIndices.size() && !matched; r++) {
-			if (!RuneSelected[r])
-				continue;
-			for (int k = 0; k < word.runeCount; k++) {
-				if (word.runes[k] == RuneIndices[r]) {
-					matched = true;
-					break;
-				}
+	if (AnyRuneSelected()) {
+		// Every rune of the word must be selected, not merely one of them. With the Possible-
+		// Runewords toggle lighting exactly what the player owns, "any" would list words needing
+		// five runes because one is in the stash - the opposite of what the button promises.
+		for (int k = 0; k < word.runeCount; k++) {
+			bool held = false;
+			for (size_t r = 0; r < RuneIndices.size() && !held; r++) {
+				if (RuneSelected[r] && RuneIndices[r] == word.runes[k])
+					held = true;
 			}
+			if (!held)
+				return false;
 		}
-		if (!matched)
-			return false;
 	}
 	return true;
 }
 
-/**
- * @brief The words to show, grouped by host.
- *
- * Rebuilt every frame rather than cached on filter change. 370 rows of pointer-copying is nothing
- * next to the drawing that follows it, and a cache would be a second source of truth that has to be
- * invalidated from four places - the two filter rows, the open, and any future data reload.
- */
+/** @brief The word's stat lines - every non-zero field the definition carries. */
+std::vector<std::string> StatLines(const RunewordDefinition &word)
+{
+	std::vector<std::string> lines;
+	const auto add = [&lines](const char *label, int value, const char *suffix = "") {
+		if (value != 0)
+			lines.push_back(StrCat(label, " ", value > 0 ? "+" : "", value, suffix));
+	};
+	add("Damage", word.bonusDamagePercent, "%");
+	add("Damage", word.damageMod);
+	add("To Hit", word.toHit);
+	add("All Resist", word.allResists, "%");
+	add("Armor", word.bonusAc);
+	add("Spell Levels", word.spellLevels);
+	add("Mana", word.mana);
+	add("Life", word.hitPoints);
+	return lines;
+}
+
+int EntryHeight(const RunewordDefinition &word)
+{
+	return EntryHeaderHeight + static_cast<int>(StatLines(word).size()) * LineHeight;
+}
+
 std::vector<const RunewordDefinition *> VisibleWords()
 {
 	std::vector<const RunewordDefinition *> out;
-	// Grouped by iterating hosts in enum order, which is also the order the filter keys are drawn
-	// in - so the list's grouping and the key row read as the same ordering.
 	for (int host = 0; host < SlotFilterCount; host++) {
 		for (size_t i = 0; i < RunewordCount(); i++) {
 			const RunewordDefinition *word = RunewordAt(i);
@@ -125,84 +157,93 @@ std::vector<const RunewordDefinition *> VisibleWords()
 	return out;
 }
 
-Rectangle ContentRect()
-{
-	const Rectangle window = GetRunewordBookRect();
-	const int top = window.position.y + Padding + TitleHeight + SlotKeyHeight + SlotKeyGap + RuneRowHeight + SlotKeyGap;
-	return { { window.position.x + Padding, top },
-		{ window.size.width - Padding * 2, window.position.y + window.size.height - Padding - top } };
-}
-
 Rectangle SlotKeyRect(int index)
 {
 	const Rectangle window = GetRunewordBookRect();
 	const int usable = window.size.width - Padding * 2;
 	const int keyWidth = (usable - SlotKeyGap * (SlotFilterCount - 1)) / SlotFilterCount;
 	return { { window.position.x + Padding + index * (keyWidth + SlotKeyGap),
-		         window.position.y + Padding + TitleHeight },
+		         window.position.y + Padding + TitleHeight + TitleToFilterGap },
 		{ keyWidth, SlotKeyHeight } };
+}
+
+int RuneRowTop()
+{
+	const Rectangle window = GetRunewordBookRect();
+	return window.position.y + Padding + TitleHeight + TitleToFilterGap + SlotKeyHeight + RuneRowGap;
 }
 
 Rectangle RuneKeyRect(size_t index)
 {
 	const Rectangle window = GetRunewordBookRect();
 	const int usable = window.size.width - Padding * 2;
-	const int count = static_cast<int>(RuneIndices.size());
-	// Evenly distributed across the full width, as asked. Integer division leaves a remainder of at
-	// most count-1 pixels at the right; spreading it would cost a per-key offset table for a gap
-	// nobody can see at this size.
-	const int step = count > 0 ? usable / count : usable;
-	return { { window.position.x + Padding + static_cast<int>(index) * step,
-		         window.position.y + Padding + TitleHeight + SlotKeyHeight + SlotKeyGap },
+	const int count = std::max<int>(1, static_cast<int>(RuneIndices.size()));
+	const int step = usable / count;
+	return { { window.position.x + Padding + static_cast<int>(index) * step, RuneRowTop() },
 		{ step, RuneRowHeight } };
 }
 
-int RowsPerScreen()
+/** @brief The Possible-Runewords toggle, in the window's top-LEFT corner. */
+Rectangle PossibleFilterRect()
 {
-	return std::max(1, ContentRect().size.height / (EntryHeight + EntryGap));
+	const Rectangle window = GetRunewordBookRect();
+	return { { window.position.x + OrnateBorderWidth + 2, window.position.y + OrnateBorderWidth + 2 },
+		{ PossibleFilterSize, PossibleFilterSize } };
 }
 
-int TotalRows(size_t wordCount)
+Rectangle ContentRect()
 {
-	return static_cast<int>((wordCount + ColumnCount - 1) / ColumnCount);
+	const Rectangle window = GetRunewordBookRect();
+	const int top = RuneRowTop() + RuneRowHeight + RuneRowGap;
+	return { { window.position.x + Padding, top },
+		{ window.size.width - Padding * 2, window.position.y + window.size.height - Padding - top } };
 }
 
-Rectangle EntryRect(int row, int column)
-{
-	const Rectangle content = ContentRect();
-	const int columnWidth = content.size.width / ColumnCount;
-	return { { content.position.x + column * columnWidth,
-		         content.position.y + (row - ScrollOffsetRows) * (EntryHeight + EntryGap) },
-		{ columnWidth - EntryGap, EntryHeight } };
-}
-
-/** @brief The word's stat lines, only the ones it actually carries. */
-std::vector<std::string> StatLines(const RunewordDefinition &word)
-{
-	std::vector<std::string> lines;
-	const auto add = [&lines](const char *label, int value, const char *suffix = "") {
-		if (value != 0)
-			lines.push_back(StrCat(label, " ", value > 0 ? "+" : "", value, suffix));
-	};
-	add("Dam", word.bonusDamagePercent, "%");
-	add("Dam", word.damageMod);
-	add("ToHit", word.toHit);
-	add("Res", word.allResists, "%");
-	add("AC", word.bonusAc);
-	add("Spells", word.spellLevels);
-	add("Mana", word.mana);
-	add("Life", word.hitPoints);
-	return lines;
-}
-
-void DrawRuneIcon(const Surface &out, uint16_t runeIdx, Point centre, int boxSize)
+/**
+ * @brief Bottom-anchors a rune's inventory sprite inside @p box, horizontally centred.
+ *
+ * Item sprites are drawn from their bottom-left in this engine. Taking a rect rather than a point is
+ * the whole fix for the overlap: a caller cannot get the anchor convention wrong from here.
+ */
+void DrawRuneIcon(const Surface &out, uint16_t runeIdx, Rectangle box)
 {
 	const int cursId = AllItemsList[runeIdx].iCurs + CURSOR_FIRSTITEM;
 	const ClxSprite sprite = GetInvItemSprite(cursId);
-	// Item sprites are drawn from their BOTTOM-left in this engine, which is why the y here adds
-	// half the box rather than subtracting it - the same convention DrawInv uses.
-	const Point position { centre.x - sprite.width() / 2, centre.y + boxSize / 2 };
+	const Point position { box.position.x + (box.size.width - static_cast<int>(sprite.width())) / 2,
+		box.position.y + box.size.height };
 	ClxDraw(out, position, sprite);
+}
+
+/** @brief Every rune index the player is carrying, in the backpack, on the belt, or in the stash. */
+std::vector<uint16_t> HeldRunes()
+{
+	std::vector<uint16_t> held;
+	const auto note = [&held](const Item &item) {
+		if (item.isEmpty())
+			return;
+		const int idx = static_cast<int>(item.IDidx);
+		if (IsOracoolRuneIdx(idx) && std::find(held.begin(), held.end(), idx) == held.end())
+			held.push_back(static_cast<uint16_t>(idx));
+	};
+
+	if (MyPlayer != nullptr) {
+		for (int i = 0; i < MyPlayer->_pNumInv; i++)
+			note(MyPlayer->InvList[i]);
+		for (const Item &item : MyPlayer->SpdList)
+			note(item);
+	}
+	// The stash is where runes actually live in this fork - gold and loot both go there - so a
+	// "what can I build" button that ignored it would answer the wrong question almost always.
+	for (const Item &item : Stash.stashList)
+		note(item);
+	return held;
+}
+
+void ApplyPossibleFilter()
+{
+	const std::vector<uint16_t> held = HeldRunes();
+	for (size_t i = 0; i < RuneIndices.size(); i++)
+		RuneSelected[i] = std::find(held.begin(), held.end(), RuneIndices[i]) != held.end();
 }
 
 void DrawEntry(const Surface &out, const RunewordDefinition &word, Rectangle rect)
@@ -215,23 +256,42 @@ void DrawEntry(const Surface &out, const RunewordDefinition &word, Rectangle rec
 	    Rectangle { rect.position + Displacement { 0, LineHeight }, { rect.size.width, LineHeight } },
 	    { UiFlags::ColorBlue | UiFlags::FontSize12 });
 
-	// The recipe, as the runes' own icons in order - the picture the user asked for, and more use
-	// than their names: a rune is recognised in the stash by its icon, not by reading it.
-	const int iconBox = 22;
+	const int iconStep = RuneIconSize + 2;
 	for (int i = 0; i < word.runeCount; i++) {
-		const Point centre { rect.position.x + iconBox / 2 + i * (iconBox + 2),
-			rect.position.y + LineHeight * 2 + iconBox / 2 };
-		DrawRuneIcon(out, word.runes[i], centre, iconBox);
+		DrawRuneIcon(out, word.runes[i],
+		    Rectangle { { rect.position.x + i * iconStep, rect.position.y + LineHeight * 2 },
+		        { RuneIconSize, RuneIconSize } });
 	}
 
-	int y = rect.position.y + LineHeight * 2 + iconBox + 2;
+	// Every line, always. The box is sized from the count, so nothing is clipped and nothing needs
+	// to be - which is what "we have unlimited scrolling space, use it" buys.
+	int y = rect.position.y + EntryHeaderHeight;
 	for (const std::string &line : StatLines(word)) {
-		if (y + LineHeight > rect.position.y + rect.size.height)
-			break; // the entry box is fixed; a word with more lines than fit shows what it can
 		DrawString(out, line, Rectangle { { rect.position.x, y }, { rect.size.width, LineHeight } },
 		    { UiFlags::ColorWhite | UiFlags::FontSize12 });
 		y += LineHeight;
 	}
+}
+
+/** @brief Row layout: each row is as tall as its tallest entry, so no two rows can overlap. */
+struct RowLayout {
+	int top;
+	int height;
+	size_t firstIndex;
+};
+
+std::vector<RowLayout> LayOutRows(const std::vector<const RunewordDefinition *> &words)
+{
+	std::vector<RowLayout> rows;
+	int y = 0;
+	for (size_t i = 0; i < words.size(); i += ColumnCount) {
+		int tallest = 0;
+		for (size_t c = 0; c < ColumnCount && i + c < words.size(); c++)
+			tallest = std::max(tallest, EntryHeight(*words[i + c]));
+		rows.push_back(RowLayout { y, tallest, i });
+		y += tallest + EntryGap;
+	}
+	return rows;
 }
 
 } // namespace
@@ -243,20 +303,27 @@ bool IsRunewordBookOpen()
 
 Rectangle GetRunewordBookRect()
 {
-	// Centred horizontally, and centred in the band between the top of the screen and the top of the
-	// HUD plate - "the area above the hud", which is what the user asked for. Clamped to y >= 0 so a
-	// short screen puts it at the top rather than off it.
-	const Rectangle plate = GetMiddleHudRect();
-	const int available = plate.position.y;
-	const int y = std::max(0, (available - WindowSize.height) / 2);
-	return { { (gnScreenWidth - WindowSize.width) / 2, y }, WindowSize };
+	// Flush with the mini-map's top border (user, 2026-08-20). The book is 944 wide against a 960
+	// screen, so it necessarily runs under the mini-map horizontally; lining their top edges up is
+	// what stops that reading as an accident.
+	const int top = GetMiniMapScreenRect().position.y;
+	return { { (gnScreenWidth - WindowSize.width) / 2, top }, WindowSize };
 }
 
 void OpenRunewordBook()
 {
 	EnsureRuneList();
+	// User, 2026-08-20: "when rwbook opens, close all other windows incl log and minimap." The book
+	// is 944 wide on a 960 screen, so it is not a window that shares the screen with anything - it
+	// IS the screen while it is up.
+	//
+	// CloseAllWindows is the space-bar master closer, which is the right one: it is documented as
+	// the list every new window must be added to, so this cannot fall behind as windows are added.
+	// It is called BEFORE BookOpen goes true, because it closes the book too - the mini-map and the
+	// corner widgets have no open state and are suppressed in scrollrt instead.
+	devilution::CloseAllWindows();
 	BookOpen = true;
-	ScrollOffsetRows = 0;
+	ScrollOffsetPx = 0;
 }
 
 void CloseRunewordBook()
@@ -287,6 +354,17 @@ void DrawRunewordBook(const Surface &out)
 	    Rectangle { window.position + Displacement { Padding, Padding }, { window.size.width - Padding * 2, TitleHeight } },
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter });
 
+	// The Possible-Runewords toggle: a yellow X, lit while it is what selected the rune row.
+	const Rectangle possible = PossibleFilterRect();
+	DrawString(out, "X", possible,
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	if (possible.contains(MousePosition)) {
+		// The hover label, drawn just under the glyph so it cannot cover the title.
+		const Rectangle tip { { possible.position.x, possible.position.y + possible.size.height + 2 }, { 120, LineHeight } };
+		DrawHalfTransparentRectTo(out, tip.position.x, tip.position.y, tip.size.width, tip.size.height);
+		DrawString(out, _("Possible RW"), tip, { UiFlags::ColorWhitegold | UiFlags::FontSize12 });
+	}
+
 	for (int i = 0; i < SlotFilterCount; i++) {
 		const Rectangle key = SlotKeyRect(i);
 		DrawOrnateBorder(out, key);
@@ -297,31 +375,42 @@ void DrawRunewordBook(const Surface &out)
 
 	for (size_t i = 0; i < RuneIndices.size(); i++) {
 		const Rectangle key = RuneKeyRect(i);
-		// A lit rune gets a frame; an unlit one is just its icon. Cheaper to read at 33 across than
-		// two shades of the same picture would be.
 		if (RuneSelected[i])
 			UnsafeDrawBorder2px(out, key, KeyLitColor);
 		DrawRuneIcon(out, RuneIndices[i],
-		    { key.position.x + key.size.width / 2, key.position.y + 2 }, RuneRowHeight - 4);
+		    Rectangle { { key.position.x, key.position.y + 2 }, { key.size.width, RuneIconSize } });
 	}
 
 	const std::vector<const RunewordDefinition *> words = VisibleWords();
-	const int rows = TotalRows(words.size());
-	const int perScreen = RowsPerScreen();
-	ScrollOffsetRows = std::clamp(ScrollOffsetRows, 0, std::max(0, rows - perScreen));
+	const Rectangle content = ContentRect();
 
 	if (words.empty()) {
-		DrawString(out, _("No runewords match these filters."), ContentRect(),
+		DrawString(out, _("No runewords match these filters."), content,
 		    { UiFlags::ColorGold | UiFlags::FontSize12 | UiFlags::AlignCenter });
 		return;
 	}
 
-	for (int row = ScrollOffsetRows; row < std::min(rows, ScrollOffsetRows + perScreen); row++) {
-		for (int column = 0; column < ColumnCount; column++) {
-			const size_t index = static_cast<size_t>(row) * ColumnCount + column;
+	const std::vector<RowLayout> rows = LayOutRows(words);
+	const int totalHeight = rows.empty() ? 0 : rows.back().top + rows.back().height;
+	ScrollOffsetPx = std::clamp(ScrollOffsetPx, 0, std::max(0, totalHeight - content.size.height));
+
+	// Clipped to the content area, so a row straddling the bottom edge is cut there rather than
+	// spilling over the border - the alternative to clipping is drawing partial rows by hand, and
+	// that is how entries end up overlapping the frame.
+	const Surface view = out.subregion(content.position.x, content.position.y,
+	    content.size.width, content.size.height);
+	const int columnWidth = content.size.width / ColumnCount;
+
+	for (const RowLayout &row : rows) {
+		const int y = row.top - ScrollOffsetPx;
+		if (y + row.height < 0 || y > content.size.height)
+			continue;
+		for (int c = 0; c < ColumnCount; c++) {
+			const size_t index = row.firstIndex + c;
 			if (index >= words.size())
 				break;
-			DrawEntry(out, *words[index], EntryRect(row, column));
+			DrawEntry(view, *words[index],
+			    Rectangle { { c * columnWidth, y }, { columnWidth - ColumnGap, row.height } });
 		}
 	}
 }
@@ -339,12 +428,21 @@ bool HandleRunewordBookClick(Point position)
 		return true;
 	}
 
+	if (PossibleFilterRect().contains(position)) {
+		// A toggle like every other key here: lit selections come from the player's runes, and
+		// clicking again clears the whole row rather than leaving a selection nobody chose by hand.
+		if (AnyRuneSelected())
+			RuneSelected.assign(RuneIndices.size(), false);
+		else
+			ApplyPossibleFilter();
+		ScrollOffsetPx = 0;
+		return true;
+	}
+
 	for (int i = 0; i < SlotFilterCount; i++) {
 		if (SlotKeyRect(i).contains(position)) {
-			// Toggle, not select: clicking a lit key clears it, which is what makes a multi-select
-			// row usable without a separate reset control.
 			SlotSelected[i] = !SlotSelected[i];
-			ScrollOffsetRows = 0;
+			ScrollOffsetPx = 0;
 			return true;
 		}
 	}
@@ -352,13 +450,11 @@ bool HandleRunewordBookClick(Point position)
 	for (size_t i = 0; i < RuneIndices.size(); i++) {
 		if (RuneKeyRect(i).contains(position)) {
 			RuneSelected[i] = !RuneSelected[i];
-			ScrollOffsetRows = 0;
+			ScrollOffsetPx = 0;
 			return true;
 		}
 	}
 
-	// Anywhere else inside the window: consumed and ignored. Returning false here would let the
-	// click through to the world, which is the standing rule this window must not break.
 	return true;
 }
 
@@ -368,7 +464,9 @@ bool HandleRunewordBookScroll(int delta)
 		return false;
 	if (!GetRunewordBookRect().contains(MousePosition))
 		return false;
-	ScrollOffsetRows = std::max(0, ScrollOffsetRows - delta);
+	// A fixed pixel step rather than one row: rows are variable height now, so "one row" would
+	// scroll a different distance depending on where you happened to be.
+	ScrollOffsetPx = std::max(0, ScrollOffsetPx - delta * (LineHeight * 3));
 	return true;
 }
 

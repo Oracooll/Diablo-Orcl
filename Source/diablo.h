@@ -83,6 +83,15 @@ extern char gszMainMenuVersionText[192];
 extern MouseActionType LastMouseButtonAction;
 
 void InitKeymapActions();
+
+/**
+ * @brief Closes every window in the game - the space bar's master closer.
+ *
+ * Exported 2026-08-20 for the runeword book, which is 944 wide on a 960 screen and so owns the
+ * screen while it is up. Deliberately THIS rather than ClosePanels(): it is documented as the list
+ * every new window must be added to, so a caller cannot fall behind as windows are added.
+ */
+void CloseAllWindows();
 void SetCursorPos(Point position);
 void FreeGameMem();
 bool StartGame(bool bNewGame, bool bSinglePlayer);
