@@ -6449,6 +6449,86 @@ std::string DebugSpawnCharms()
 	    [](int i) { return IsOracoolCharmIdx(i); }, "charms");
 }
 
+
+/**
+ * @brief Spawns one fresh base item carrying @p count empty sockets.
+ *
+ * Oracool: user decision (2026-08-19) - "spawn a fresh base with N sockets", rather than socketing
+ * whatever sits under the cursor. A fresh base is the reproducible half of the pair: the item's
+ * quality, affixes and footprint are known, so a runeword that fails to form is the runeword's
+ * fault and not the host's.
+ *
+ * BASIC quality on purpose. CanItemHaveSockets refuses anything above basic for everything except
+ * jewelry - that is the socketing rule, not an accident of this command - so rolling affixes here
+ * would produce items the socket system would then decline to accept.
+ *
+ * The base is chosen by footprint: the first available row that can hold sockets AND whose own
+ * ceiling reaches @p count, since MaxSocketsForItem is the item's 28x28 cell count and a 1x1 ring
+ * can never hold six. An optional name prefix narrows the search when a particular host is wanted -
+ * "givesockets 4 great sword" for a runeword that needs a specific base.
+ */
+std::string DebugSpawnSocketedBase(string_view parameter)
+{
+	if (ActiveItemCount >= MAXITEMS)
+		return "No space to generate the item!";
+
+	// "{count} {optional name}". A missing or unparsable count means "as many as the base allows",
+	// which is the common case when the point is to test the socket UI rather than a recipe.
+	int wantedCount = Item::MaxItemSockets;
+	std::string namePrefix;
+	{
+		std::string arg { parameter };
+		const size_t space = arg.find(' ');
+		const std::string first = arg.substr(0, space);
+		if (!first.empty() && std::all_of(first.begin(), first.end(), [](unsigned char c) { return std::isdigit(c) != 0; })) {
+			wantedCount = std::atoi(first.c_str());
+			if (space != std::string::npos)
+				namePrefix = arg.substr(space + 1);
+		} else {
+			namePrefix = arg;
+		}
+	}
+	AsciiStrToLower(namePrefix);
+	wantedCount = std::clamp(wantedCount, 1, static_cast<int>(Item::MaxItemSockets));
+
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
+		if (!IsItemAvailable(i))
+			continue;
+		if (!namePrefix.empty()) {
+			std::string name = AsciiStrToLower(std::string { AllItemsList[i].iName });
+			if (name.find(namePrefix) == std::string::npos)
+				continue;
+		}
+
+		Item item;
+		GetItemAttrs(item, static_cast<_item_indexes>(i), 1);
+		item._iCreateInfo = 1;
+		item._iSeed = AdvanceRndSeed();
+		SetupItem(item);
+		if (!oracool::CanItemHaveSockets(item))
+			continue;
+		const int cap = oracool::MaxSocketsForItem(item);
+		if (cap < wantedCount)
+			continue;
+
+		item._iSocketCount = static_cast<uint8_t>(wantedCount);
+		item._iIdentified = true;
+
+		const int ii = AllocateItem();
+		Items[ii] = item.pop();
+		Point pos = MyPlayer->position.tile;
+		GetSuperItemSpace(pos, ii);
+		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+		return StrCat("Dropped ", Items[ii]._iIName, " with ", wantedCount, " sockets.");
+	}
+
+	// Says which constraint failed. "No base found" alone would send you looking for a typo when
+	// the real answer is that nothing 1x1 can hold four.
+	if (!namePrefix.empty())
+		return StrCat("No socketable base matching that name holds ", wantedCount, " sockets.");
+	return StrCat("No socketable base holds ", wantedCount, " sockets.");
+}
+
 std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix)
 {
 	// One per slot. Rings are the only slot pair sharing an item location, so ILOC_RING appears

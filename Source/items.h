@@ -1029,6 +1029,9 @@ std::string DebugSpawnGems(string_view quality);
 
 /** @brief Drops every charm. */
 std::string DebugSpawnCharms();
+
+/** @brief Spawns one basic base item with N empty sockets. "{n} ({name})". */
+std::string DebugSpawnSocketedBase(string_view parameter);
 std::string DebugSpawnUniqueItem(std::string itemName);
 #endif
 /* data */
