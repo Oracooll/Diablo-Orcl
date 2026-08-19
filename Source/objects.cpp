@@ -4255,10 +4255,12 @@ void AddLevskiRoarObject()
 	// placed; this is the nearest anvil-shaped thing the object table has.
 	EnsureObjectGraphicsLoaded(OFILE_ROCKSTAN, AllObjects[OBJ_STAND].animWidth);
 
-	// One cell from the stash chest at {55,67}, per the user's placement. The candidates are tried
-	// in order rather than one position asserted, because town furniture has moved before and a
-	// silent overlap would put two operable objects on one tile.
-	constexpr Point Candidates[] = { { 56, 67 }, { 55, 68 }, { 54, 67 }, { 55, 66 }, { 56, 68 } };
+	// {55,66} by the user's placement (2026-08-19), one tile north of the stash chest at {55,67}.
+	// The fallbacks stay because town furniture has moved before and a silent overlap would put two
+	// operable objects on one tile - but the chosen tile is logged whenever it is NOT the requested
+	// one, so a fallback cannot pass unnoticed the way a silent placement would.
+	constexpr Point Requested { 55, 66 };
+	constexpr Point Candidates[] = { Requested, { 56, 67 }, { 55, 68 }, { 54, 67 }, { 56, 66 } };
 	for (const Point &position : Candidates) {
 		if (dObject[position.x][position.y] != 0)
 			continue;
@@ -4267,11 +4269,15 @@ void AddLevskiRoarObject()
 			continue;
 		// OBJ_STAND ships with selFlag 0 - in the Caves it is scenery the Anvil of Fury quest
 		// swaps out, never something the player clicks, and AddObject copies that straight into
-		// _oSelFlag. Left alone the monument would draw perfectly and be completely unreachable:
-		// no test clicks a town object, so nothing but play would have found it. 3 is what the
-		// bookstand uses - same animWidth, same solid flags, and the value that makes the whole
-		// tile take a click.
+		// _oSelFlag. Left alone the monument draws perfectly and is completely unreachable, which
+		// is exactly how it shipped in 1.8.15: no test clicks a town object, so only play finds it.
+		// 3 is the bookstand's value - same animWidth, same solid flags, whole tile takes a click.
 		monument->_oSelFlag = 3;
+		// A stand is not breakable; clicking a breakable object swings at it instead of operating
+		// it (see ACTION_OPERATE in player.cpp), so this is pinned rather than assumed.
+		monument->_oBreak = 0;
+		if (position != Requested)
+			LogEvent(StrCat("Levski's Roar fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
 		return;
 	}
 	LogEvent("Levski's Roar found no free tile beside the stash", UiFlags::ColorRed);
