@@ -8,6 +8,7 @@
 #include <string>
 
 #include "control.h"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "panels/ui_panels.hpp"
@@ -795,6 +796,30 @@ void DrawChr(const Surface &out)
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);
 	}
+
+	// Oracool: user, 2026-08-19 - "put a dark transparent screen 299x609px in the hero stats screen,
+	// to cover all the net area between the four borders." An experiment, so both numbers are named
+	// and sit next to each other rather than being buried in the call.
+	//
+	// The width is the art's own opening: panel_bg.png's frame runs to about x=20 on each side of a
+	// 340-wide panel, which leaves 300 and the user measured 299. Centred on the 41px leftover, so
+	// the spare pixel falls on the right - the same rounding every other centring in this fork uses.
+	//
+	// The top is CharContentTop, not the frame's inner edge, because 609 does not reach the frame:
+	// 720 - 609 is 111, and CharContentTop is 101, so the band starts under the TITLE rather than
+	// under the top border and stops 10px short of the bottom. That reading is what makes the two
+	// numbers consistent; if it is a pixel out, this is the constant to move.
+	constexpr Size StatsBackdropSize { 299, 609 };
+	constexpr int StatsBackdropTop = CharContentTop;
+	const Rectangle statsBackdrop {
+		{ panel.position.x + (panel.size.width - StatsBackdropSize.width) / 2,
+		    panel.position.y + StatsBackdropTop },
+		StatsBackdropSize
+	};
+	// Half-transparent black, the same blend the belt's click feedback uses - it darkens whatever is
+	// behind it rather than painting a colour, so the panel art's texture still reads through.
+	DrawHalfTransparentRectTo(out, statsBackdrop.position.x, statsBackdrop.position.y,
+	    statsBackdrop.size.width, statsBackdrop.size.height, 0);
 
 	const Rectangle labelArea { { panel.position.x + CharPanelMargin, panel.position.y + oracool::PanelTitleTop },
 		{ panel.size.width - 2 * CharPanelMargin, oracool::PanelTitleHeight } };
