@@ -1032,6 +1032,9 @@ std::string DebugSpawnCharms();
 
 /** @brief Spawns one basic base item with N empty sockets. "{n} ({name})". */
 std::string DebugSpawnSocketedBase(string_view parameter);
+
+/** @brief Spawns one ethereal item, optionally matching @p parameter by name. */
+std::string DebugSpawnEthereal(string_view parameter);
 std::string DebugSpawnUniqueItem(std::string itemName);
 #endif
 /* data */

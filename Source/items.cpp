@@ -4669,19 +4669,22 @@ void ApplyMagicAndGoldFindToDrop(Item &item, int mLevel)
 	GetRareItemAffixes(*MyPlayer, item, iblvl / 2, iblvl, flgs, /*onlygood=*/false, /*ignoreLevelLimits=*/true);
 }
 
-void TryMakeDroppedItemEthereal(Item &item)
+bool MakeItemEthereal(Item &item)
 {
 	// Phase 1 ethereal: a ghost of an item - more of everything, half the lifespan, and no smith
-	// can touch it. Rolled on the drop paths for any quality of durable equipment; the bargain is
-	// stamped into the item's own stats here, so nothing downstream computes anything.
-	if (!oracool::IsSinglePlayer() || item.isEmpty())
-		return;
+	// can touch it. The bargain is stamped into the item's own stats here, so nothing downstream
+	// computes anything.
+	//
+	// Split out of TryMakeDroppedItemEthereal on 2026-08-20 so the debug spawner can force what the
+	// drop path rolls for. The ELIGIBILITY rules live here with the arithmetic rather than at the
+	// caller, which is the point of the split: a command that could make a potion ethereal, or that
+	// applied 135% by its own copy of the sum, would be testing something the game cannot produce.
+	if (item.isEmpty())
+		return false;
 	if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR)
-		return;
+		return false;
 	if (item._iMaxDur == 0 || item._iMaxDur == DUR_INDESTRUCTIBLE)
-		return;
-	if (GenerateRnd(100) >= 5)
-		return;
+		return false;
 
 	item._iOracoolEthereal = true;
 	if (item._iClass == ICLASS_WEAPON) {
@@ -4692,6 +4695,20 @@ void TryMakeDroppedItemEthereal(Item &item)
 	}
 	item._iMaxDur = std::max<int>(1, item._iMaxDur / 2);
 	item._iDurability = std::min<int>(item._iDurability, item._iMaxDur);
+	return true;
+}
+
+void TryMakeDroppedItemEthereal(Item &item)
+{
+	// Rolled on the drop paths for any quality of durable equipment. Single-player only, and the
+	// 5% is the drop rate rather than a property of ethereal itself - which is why it stays here
+	// and not in MakeItemEthereal.
+	if (!oracool::IsSinglePlayer())
+		return;
+	if (GenerateRnd(100) >= 5)
+		return;
+
+	MakeItemEthereal(item);
 }
 
 void GetItemStr(Item &item)
@@ -6527,6 +6544,59 @@ std::string DebugSpawnSocketedBase(string_view parameter)
 	if (!namePrefix.empty())
 		return StrCat("No socketable base matching that name holds ", wantedCount, " sockets.");
 	return StrCat("No socketable base holds ", wantedCount, " sockets.");
+}
+
+
+/**
+ * @brief Spawns one ethereal item, optionally the first base whose name contains @p parameter.
+ *
+ * Oracool: user request (2026-08-20). Ethereal is a 5% roll on ordinary drops, so waiting for one
+ * to test the repair refusal, the damage bonus and the halved durability is not a plan.
+ *
+ * Goes through MakeItemEthereal, the same function the drop path calls, so this cannot produce an
+ * item the game could not - a potion cannot be made ethereal here any more than it can out there,
+ * and the 135% comes from one place.
+ *
+ * Basic quality, matching givesockets: the point is to see the ethereal bargain applied to known
+ * numbers. An affix roll on top would make the damage line harder to read, not more useful.
+ */
+std::string DebugSpawnEthereal(string_view parameter)
+{
+	if (ActiveItemCount >= MAXITEMS)
+		return "No space to generate the item!";
+
+	std::string wanted { parameter };
+	AsciiStrToLower(wanted);
+
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; ++i) {
+		if (!IsItemAvailable(i))
+			continue;
+		if (!wanted.empty()) {
+			std::string name = AsciiStrToLower(std::string { AllItemsList[i].iName });
+			if (name.find(wanted) == std::string::npos)
+				continue;
+		}
+
+		Item item;
+		GetItemAttrs(item, static_cast<_item_indexes>(i), 1);
+		item._iCreateInfo = 1;
+		item._iSeed = AdvanceRndSeed();
+		SetupItem(item);
+		if (!MakeItemEthereal(item))
+			continue;
+		item._iIdentified = true;
+
+		const int ii = AllocateItem();
+		Items[ii] = item.pop();
+		Point pos = MyPlayer->position.tile;
+		GetSuperItemSpace(pos, ii);
+		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+		return StrCat("Dropped ethereal ", Items[ii]._iIName, ".");
+	}
+
+	if (!wanted.empty())
+		return "No durable weapon or armour matching that name - ethereal needs one of those.";
+	return "No durable weapon or armour available.";
 }
 
 std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix)

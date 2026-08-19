@@ -673,6 +673,11 @@ std::string DebugCmdGiveCharms(const string_view parameter)
 	return DebugSpawnCharms();
 }
 
+std::string DebugCmdGiveEthereal(const string_view parameter)
+{
+	return DebugSpawnEthereal(parameter);
+}
+
 std::string DebugCmdGiveSockets(const string_view parameter)
 {
 	return DebugSpawnSocketedBase(parameter);
@@ -1295,6 +1300,7 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "givepset", "Drops a Primal item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGivePrimalSet },
 	{ "giverunes", "Drops all 33 runes.", "", &DebugCmdGiveRunes },
 	{ "givegems", "Drops every gem, or only quality {q} (chipped/flawed/normal/flawless/perfect).", "({q})", &DebugCmdGiveGems },
+	{ "giveethereal", "Spawns an ethereal item, optionally matching {name}.", "({name})", &DebugCmdGiveEthereal },
 	{ "givesockets", "Spawns a basic base with {n} empty sockets, optionally named {name}.", "({n}) ({name})", &DebugCmdGiveSockets },
 	{ "givecharms", "Drops every charm.", "", &DebugCmdGiveCharms },
 	{ "giveitemset", "Gives every spawnable piece of named item set {n} (1-15).", "{n}", &DebugCmdGiveItemSet },
