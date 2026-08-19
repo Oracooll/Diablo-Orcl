@@ -70,6 +70,7 @@
 #include "oracool/crafting_menu.h"
 #include "oracool/hud_menu.h"
 #include "oracool/levski_roar.h"
+#include "oracool/runeword_book.h"
 #include "oracool/run_toggle.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/inventory_layout.h"
@@ -466,6 +467,12 @@ void LeftMouseDown(uint16_t modState)
 	// Levski's Roar is a free-floating window rather than a left-panel slot, so it is routed
 	// before the panel switch and claims the click itself. Returning early is what stops a click
 	// over the monument's grid from also walking the player toward it.
+	// The runeword book is routed FIRST of the free-floating windows: it is the widest thing on
+	// screen and it consumes every click inside its own rect, so anything drawn under it must not
+	// see the click either.
+	if (oracool::HandleRunewordBookClick(MousePosition))
+		return;
+
 	if (oracool::CheckLevskiRoarClick(MousePosition))
 		return;
 
@@ -804,6 +811,7 @@ void CloseAllWindows()
 	// backpack would destroy what is in it. It says so in the log and stays open - the one window
 	// space cannot force, by design rather than by omission.
 	oracool::CloseLevskiRoar();
+	oracool::CloseRunewordBook();
 	if (oracool::IsEventLogOpen())
 		oracool::ToggleEventLog();
 	// Stores go through StoreESC(), the same path Escape uses - so a store closes the way it always
@@ -1199,7 +1207,9 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	case SDL_MOUSEWHEEL:
 		if (event.wheel.y > 0) { // Up
-			if (stextflag != TalkID::None) {
+			if (oracool::HandleRunewordBookScroll(1)) {
+				// consumed
+			} else if (stextflag != TalkID::None) {
 				StoreUp();
 			} else if (QuestLogIsOpen) {
 				QuestlogUp();
@@ -1242,7 +1252,9 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				AdjustDungeonZoom(1);
 			}
 		} else if (event.wheel.y < 0) { // down
-			if (stextflag != TalkID::None) {
+			if (oracool::HandleRunewordBookScroll(-1)) {
+				// consumed
+			} else if (stextflag != TalkID::None) {
 				StoreDown();
 			} else if (QuestLogIsOpen) {
 				QuestlogDown();
@@ -2226,6 +2238,17 @@ void InitKeymapActions()
 	    [] { oracool::ToggleRun(); },
 	    nullptr,
 	    CanPlayerTakeAction);
+	// Oracool: user request (2026-08-20) - the runeword book. A KEY rather than a burger-menu entry
+	// because MenuEntries is locked to the row order of menu_icons.png, so adding an entry there
+	// needs the sheet recut first - the same blocker directive point 8 is waiting on.
+	sgOptions.Keymapper.AddAction(
+	    "RunewordBook",
+	    N_("Runeword book"),
+	    N_("Open the runeword reference."),
+	    'B',
+	    [] { oracool::ToggleRunewordBook(); },
+	    nullptr,
+	    CanPlayerTakeAction);
 	sgOptions.Keymapper.AddAction(
 	    "DisplaySpells",
 	    N_("Abilities"),
@@ -3207,6 +3230,12 @@ bool PressEscKey()
 	// red X covers for the mouse.
 	if (oracool::IsLevskiRoarOpen()) {
 		oracool::CloseLevskiRoar();
+		rv = true;
+	}
+
+	// Same reasoning as the monument above: a free-floating window that no panel closer reaches.
+	if (oracool::IsRunewordBookOpen()) {
+		oracool::CloseRunewordBook();
 		rv = true;
 	}
 

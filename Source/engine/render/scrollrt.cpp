@@ -38,6 +38,7 @@
 #include "oracool/attack_skills.h"
 #include "oracool/cursor_tooltip.h"
 #include "oracool/event_log.h"
+#include "oracool/runeword_book.h"
 #include "oracool/hud_art.h"
 #include "oracool/game_clock.h"
 #include "oracool/hud_layout.h"
@@ -1399,6 +1400,9 @@ void DrawView(const Surface &out, Point startPosition)
 #endif
 	) {
 		oracool::DrawEventLogWindow(out);
+		// After the log so it sits on top: it is the widest window and covers the screen above the
+		// HUD, and its own click handler already claims that whole area.
+		oracool::DrawRunewordBook(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);
 		oracool::DrawXpGainIndicator(out);
