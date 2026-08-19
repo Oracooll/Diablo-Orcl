@@ -668,12 +668,33 @@ $socketRules = [ordered]@{
     etherealPercent   = [int](Get-Constant $itemsCpp2 '(?s)void TryMakeDroppedItemEthereal.*?GenerateRnd\(100\) >= (\d+)')
     etherealBonusPct  = 135
     charmActiveCap    = $charmCap
-    recipes           = @(
-        [ordered]@{ name = 'Refine Gems'; input = 'Three identical gems - same type and quality'; output = 'One gem of the next quality up'; note = 'Perfect gems have nothing above them and cannot be refined.' },
-        [ordered]@{ name = 'Ascend Runes'; input = 'Two identical runes'; output = 'One rune of the next rank'; note = 'Zod is the top of the ladder and is excluded.' },
-        [ordered]@{ name = 'Rework Charms'; input = 'Any two charms'; output = 'One random charm'; note = 'The reroll: two charms you are not using become a coin flip at a third.' }
-    )
+    levskiGridColumns = [int](Get-Constant (Read-SourceFile 'oracool/levski_roar.h') 'LevskiGridColumns = (\d+)')
+    levskiGridRows    = [int](Get-Constant (Read-SourceFile 'oracool/levski_roar.h') 'LevskiGridRows = (\d+)')
+    recipes           = @()
 }
+
+
+# The recipes, parsed from crafting.cpp's own name and input tables rather than retyped - the
+# hand-written list said three recipes and "Sol is the top of the ladder" long after neither was
+# true, which is precisely the drift this generator exists to prevent.
+$craftingCpp = Read-SourceFile 'oracool/crafting.cpp'
+$recipeNames = @{}
+$recipeInputs = @{}
+if ($craftingCpp -match '(?s)const char \*CraftingRecipeName\(int index\)(.*?)\n\}') {
+    foreach ($m in [regex]::Matches($matches[1], 'case (\d+):\s*\r?\n\s*return N_\("([^"]+)"\)')) {
+        $recipeNames[[int]$m.Groups[1].Value] = $m.Groups[2].Value
+    }
+}
+if ($craftingCpp -match '(?s)const char \*CraftingRecipeInputs\(int index\)(.*?)\n\}') {
+    foreach ($m in [regex]::Matches($matches[1], 'case (\d+):\s*\r?\n\s*return N_\("([^"]+)"\)')) {
+        $recipeInputs[[int]$m.Groups[1].Value] = $m.Groups[2].Value
+    }
+}
+$recipeRows = New-Object System.Collections.ArrayList
+foreach ($key in ($recipeNames.Keys | Sort-Object)) {
+    [void]$recipeRows.Add([ordered]@{ name = $recipeNames[$key]; formula = $recipeInputs[$key] })
+}
+$socketRules.recipes = $recipeRows
 
 # The socket-count weights, read out of the drop hook so retuning them retunes the wiki.
 if ($itemsCpp2 -match 'constexpr int SocketWeights\[Item::MaxItemSockets\] = \{([^}]*)\}') {

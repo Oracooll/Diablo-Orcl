@@ -41,12 +41,10 @@ footprint the backpack grid uses to place it, so the cap can never disagree with
 item's own ceiling and renormalised - so a 1x2 glove rolls one against two, rather than rolling six
 and having every high draw clamped down onto two. A full-footprint roll on a large item stays an
 event.</p>
-<div class="note"><b>Insertion is permanent, and backpack-only.</b> Drop a gem or rune onto a
+<div class="note"><b>Insertion is backpack-only, and reversible.</b> Drop a gem or rune onto a
 socketed item <b>in your backpack</b> and it goes in - an equipped item cannot be socketed where it
-sits, so worn gear has to come off first. Nothing takes a stone back out yet, so an empty socket is
-a decision. <b>This is changing:</b> retrieval is planned, and the groundwork is already in place -
-Zod stamps its host's durability but leaves the maximum intact precisely so the item can be handed
-back whole.</div>
+sits, so worn gear has to come off first. Taking stones back out is what <b>Levski's Roar</b> is
+for; see the recipes below.</div>
 
 <h2>What a gem does depends on the host</h2>
 <p>A gem's effect is chosen from <b>three</b> categories, and every gem row below reads across all
@@ -134,15 +132,22 @@ and each charm's description carries the rule as well as the effect.</p>
 floor's depth has opened, weighted <b id="qw"></b> from chipped to perfect. Deep floors still drop
 chipped stones; perfect ones stay rare even where they are allowed.</p>
 
-<h2>Crafting - the recipes</h2>
-<p>The crafting window consumes materials out of your main backpack.</p>
+<h2>Levski's Roar - the crafting monument</h2>
+<p>A monument in town, one tile from the stash. Click it and a <b id="gridsize"></b> grid opens -
+the Horadric Cube's twelve slots - with a Transmute button and a recipe book that opens beside the
+window so you can read while you work.</p>
 <div class="tablewrap"><table id="recipes">
-<thead><tr><th>Recipe</th><th>Takes</th><th>Gives</th><th>Rule</th></tr></thead>
+<thead><tr><th>Recipe</th><th>Formula</th></tr></thead>
 <tbody></tbody></table></div>
-
-<div class="note"><b>This is why a chipped gem is worth the inventory square.</b> Three of them
-make a flawed, and four steps make a perfect.</div>
-
+<div class="note"><b>What you put in the grid is never saved.</b> Closing the window hands
+everything back to your backpack - which is why a full backpack <b>refuses the close</b> and says
+so, rather than dropping your stones on a floor you are about to leave.</div>
+<p><b>Freeing sockets</b> is the recipe that makes an empty socket a decision you can revisit: the
+item comes back with its sockets emptied and every stone beside it, its durability restored, and -
+if it was a runeword - its base name, because with the runes gone it is a base item again.</p>
+<div class="note"><b>Placeholder art.</b> The monument currently wears the Anvil of Fury's rock
+stand and the window wears the ordinary panel border. Both are stand-ins for art that has not
+arrived yet.</div>
 <footer></footer>
 </main>
 </div>
@@ -302,9 +307,9 @@ document.querySelector('#drops tbody').innerHTML = [
 	return '<tr><td><b>' + r[0] + '</b></td><td class="num">' + r[1] + '%</td><td>' + r[2] + '</td></tr>';
 }).join('');
 
+document.getElementById('gridsize').textContent = R.levskiGridColumns + 'x' + R.levskiGridRows;
 document.querySelector('#recipes tbody').innerHTML = R.recipes.map(function (r) {
-	return '<tr><td><b>' + r.name + '</b></td><td>' + r.input + '</td><td>' + r.output
-		+ '</td><td>' + r.note + '</td></tr>';
+	return '<tr><td><b>' + r.name + '</b></td><td>' + r.formula + '</td></tr>';
 }).join('');
 </script>
 </body>
