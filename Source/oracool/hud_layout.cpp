@@ -30,7 +30,12 @@ namespace {
 // old one read as cramped. That gives ~33px belt cells and ~49px skill wells; the RMB readied-spell
 // indicator therefore uses the engine's SMALL (37x38) spell icon rather than the 56px large one
 // (see GetRmbSkillButtonDrawPosition and DrawSpell).
-constexpr Size PlateSrcSize { 1505, 272 };
+// The art's own 1505x274 band in hud-plate-v3.png - see tools\CutHudPlate.ps1, which asserts the
+// crop against the master before cutting. The height went 272 -> 274 with v3 and moves NOTHING:
+// ScalePlate divides by width only, so no source rect shifts, and 272 and 274 both scale to a
+// 64-pixel PlateScreenSize.height. The width is the load-bearing number and it did not change,
+// which is exactly why v3 was a drop-in where the limestone package was not.
+constexpr Size PlateSrcSize { 1505, 274 };
 constexpr int PlateScreenWidth = 356;
 constexpr int PlateBottomMargin = 0; // user: "flush with the bottom"
 
