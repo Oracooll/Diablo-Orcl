@@ -3,12 +3,18 @@
 # Run it after any change to the data tables and the wiki is current again:
 #
 #     powershell -ExecutionPolicy Bypass -File tools\BuildWiki.ps1
+#     powershell -ExecutionPolicy Bypass -File tools\BuildWiki.ps1 -NoBundle
 #
 # Everything the wiki states about items, spells, skills, monsters and the loot mechanics is PARSED
 # from Source/, never re-typed here. That is the whole design: a hand-written wiki is out of date the
 # first time someone edits a table, and a wiki nobody trusts is worse than none. Prose that cannot be
 # derived (what a mechanic is FOR, why a rule exists) lives in this script beside the data it
 # annotates, so it travels with the thing it describes.
+
+param(
+    # Skip the single-file bundle. See the note beside the call at the end of this script.
+    [switch] $NoBundle
+)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -856,3 +862,16 @@ Write-Host ("wiki data: {0} items, {1} spells, {2} skills, {3} monsters, {4} opt
         $items.Count, $spells.Count, $skills.Count, $monsters.Count, $options.Count, $assets.Count, $reports.Count)
 Write-Host ("           {0} classes, {1} exp rows, {2} affixes, {3} uniques, {4} set items, {5} quests, {6} shrines" -f `
         $classes.Count, $expTable.Count, $affixes.Count, $uniques.Count, $setItems.Count, $quests.Count, $shrines.Count)
+
+# The bundle is part of the wiki, not a separate deliverable, so building one without the other is
+# never what anyone wanted. On 2026-08-19 the multi-page wiki was rebuilt alone and the single-file
+# bundle kept serving the previous Pipeline text - no error, no warning, nothing to notice.
+#
+# -NoBundle exists for the case that actually needs it: BundleWiki.ps1 inlines megabytes of sprites,
+# so a run that only wants data.js refreshed can skip it. Anyone who does is choosing the drift, and
+# tools\BundleWiki.ps1 -Verify will say so.
+if ($NoBundle) {
+    Write-Host "wiki bundle: SKIPPED (-NoBundle). tools\BundleWiki.ps1 -Verify will report it stale."
+} else {
+    & (Join-Path $PSScriptRoot 'BundleWiki.ps1')
+}

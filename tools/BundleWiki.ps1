@@ -1,18 +1,49 @@
 # BundleWiki.ps1 - folds the whole wiki into one self-contained HTML file.
 #
 #     powershell -ExecutionPolicy Bypass -File tools\BundleWiki.ps1
+#     powershell -ExecutionPolicy Bypass -File tools\BundleWiki.ps1 -Verify
 #
 # The multi-page wiki under wiki/ is the working copy: fourteen HTML files plus data.js, wiki.css,
 # wiki.js and a sprites folder. That shape cannot be published as a hosted Artifact, which must be a
 # single file with no external requests at all. So this walks the pages, inlines every stylesheet,
 # script and sprite, and rewrites the navigation to switch sections in place rather than load a URL.
 #
-# Run BuildWiki.ps1 first - this bundles whatever is on disk.
+# Run BuildWiki.ps1 first - this bundles whatever is on disk. It now runs this script itself, so the
+# ordinary path cannot leave the two out of step.
+#
+# -Verify builds nothing. It recomputes the fingerprint of every file under wiki/ and compares it to
+# the one stamped into the bundle, exiting non-zero when they differ. That is the check for the
+# failure found on 2026-08-19: the bundle had been published from pages sixteen minutes out of date,
+# and neither script said a word, because neither knew the other existed.
+
+param(
+    [switch] $Verify
+)
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'WikiFingerprint.ps1')
 $root = Split-Path -Parent $PSScriptRoot
 $wiki = Join-Path $root 'wiki'
 $outFile = Join-Path $wiki 'oracool-wiki-bundle.html'
+
+if ($Verify) {
+    $fp = Get-WikiSourceFingerprint -WikiRoot $wiki
+    $stamped = Get-StampedWikiFingerprint -BundlePath $outFile
+    if ($null -eq $stamped) {
+        Write-Host "wiki bundle: NO FINGERPRINT - built before this check existed, or by hand." -ForegroundColor Yellow
+        Write-Host "             run tools\BundleWiki.ps1 to stamp it."
+        exit 1
+    }
+    if ($stamped -ne $fp.Hash) {
+        Write-Host "wiki bundle: STALE - it does not match the pages under wiki/." -ForegroundColor Red
+        Write-Host ("             pages now: {0}" -f $fp.Hash)
+        Write-Host ("             bundle has: {0}" -f $stamped)
+        Write-Host ("             {0} source files hashed. Run tools\BundleWiki.ps1." -f $fp.Count)
+        exit 1
+    }
+    Write-Host ("wiki bundle: current ({0} source files, {1})" -f $fp.Count, $fp.Hash.Substring(0, 12))
+    exit 0
+}
 
 # The page order is the sidebar's order, and it is stated here rather than parsed out of wiki.js so
 # that a page which exists but is not linked cannot silently vanish from the bundle.
@@ -113,8 +144,15 @@ foreach ($page in $pages) {
     [void]$navHtml.Append('<a href="#' + $page.id + '" data-page="' + $page.id + '">' + $page.label + '</a>')
 }
 
+# The fingerprint of everything this bundle was built from, for -Verify. Computed here, at the end
+# of the reading and before the writing, so it describes the inputs actually used. The stamp sits on
+# line two rather than line one because the Artifact publisher takes the page's name from the first
+# <title> it finds, and a comment above it would be the first thing in the file.
+$fingerprint = (Get-WikiSourceFingerprint -WikiRoot $wiki).Hash
+
 $shell = @"
 <title>Oracool Codex</title>
+<!-- wiki-source-fingerprint: $fingerprint -->
 <style>
 $css
 .page { display: none; }
@@ -201,3 +239,11 @@ $size = [math]::Round((Get-Item $outFile).Length / 1MB, 2)
 Write-Host ("bundled {0} pages, {1} sprites inlined ({2} skipped for size) -> {3} MB" -f `
         $pages.Count, $spriteMap.Count, $skipped, $size)
 Write-Host $outFile
+
+# Read the stamp back out of the file just written. Belt and braces: it proves the stamp survived
+# encoding and is where Get-StampedWikiFingerprint looks for it, so -Verify can never fail for the
+# one reason that would make it worthless - a check that has never once passed.
+$readBack = Get-StampedWikiFingerprint -BundlePath $outFile
+if ($readBack -ne $fingerprint) {
+    throw "the fingerprint did not survive the write - stamped $fingerprint, read back $readBack"
+}
