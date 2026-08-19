@@ -2298,15 +2298,31 @@ int AddGoldToInventory(Player &player, int value)
 		SetPlrHandGoldCurs(goldItem);
 	}
 
+	// Oracool bug fix (2026-08-19): these two loops were written for the vanilla 10x4 backpack -
+	// `i = 39..30` for its last row, then `y = 2..0` for the three above. The grid has been 10x7
+	// since the inventory rebuild, so cells 40-69 were unreachable: gold could never be
+	// auto-placed below the fourth row, no matter how full the rest was.
+	//
+	// Exactly the stash's "last 6 rows" bug of 2026-08-16, in a different file - a literal that did
+	// not grow when its grid did. Derived from InventorySizeInSlots now, so the next resize follows.
+	//
+	// Vanilla's fill ORDER is preserved deliberately, because it is the sensible one and players
+	// read it as intentional: the bottom row first, right to left, then the rest in columns from
+	// the bottom up and the right across. Gold collects in the corner furthest from where items
+	// land, instead of fragmenting the space they need.
+	constexpr int Columns = InventorySizeInSlots.width;
+	constexpr int Rows = InventoryGridCells / Columns;
+	constexpr int LastRowFirst = (Rows - 1) * Columns;
+
 	// Last row right to left
-	for (int i = 39; i >= 30 && value > 0; i--) {
+	for (int i = InventoryGridCells - 1; i >= LastRowFirst && value > 0; i--) {
 		value = CreateGoldItemInInventorySlot(player, i, value);
 	}
 
 	// Remaining inventory in columns, bottom to top, right to left
-	for (int x = 9; x >= 0 && value > 0; x--) {
-		for (int y = 2; y >= 0 && value > 0; y--) {
-			value = CreateGoldItemInInventorySlot(player, 10 * y + x, value);
+	for (int x = Columns - 1; x >= 0 && value > 0; x--) {
+		for (int y = Rows - 2; y >= 0 && value > 0; y--) {
+			value = CreateGoldItemInInventorySlot(player, Columns * y + x, value);
 		}
 	}
 

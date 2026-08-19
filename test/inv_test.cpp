@@ -1318,5 +1318,36 @@ TEST_F(InvTest, EveryBackpackCellIsLiveAcrossItsWholeRect)
 		}
 	}
 }
+
+// Oracool bug fix (2026-08-19): AddGoldToInventory's two placement loops were written for the
+// vanilla 10x4 grid (`i = 39..30`, then `y = 2..0`), so cells 40-69 of the 10x7 backpack were
+// unreachable and gold could never be auto-placed below the fourth row.
+//
+// Multiplayer, because single-player sends picked-up gold straight to the stash pool (GoldAutoPlace)
+// and never reaches these loops.
+TEST_F(InvTest, AddGoldToInventory_UsesTheWholeSevenRowGrid)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	gbIsMultiplayer = true;
+	clear_inventory();
+
+	// Block every cell of the first four rows, which is all the old loops could ever see.
+	for (int cell = 0; cell < 4 * InventorySizeInSlots.width; cell++)
+		MyPlayer->InvGrid[cell] = -1;
+
+	const int leftOver = AddGoldToInventory(*MyPlayer, 500);
+
+	EXPECT_EQ(leftOver, 0) << "rows 5-7 are free, so the gold must fit";
+	EXPECT_GT(MyPlayer->_pNumInv, 0) << "a gold stack should have been created";
+
+	bool placedBelowRowFour = false;
+	for (int cell = 4 * InventorySizeInSlots.width; cell < InventoryGridCells; cell++) {
+		if (MyPlayer->InvGrid[cell] > 0)
+			placedBelowRowFour = true;
+	}
+	EXPECT_TRUE(placedBelowRowFour) << "the gold must land in the rows the old loops could not reach";
+
+	gbIsMultiplayer = false;
+}
 } // namespace
 } // namespace devilution
