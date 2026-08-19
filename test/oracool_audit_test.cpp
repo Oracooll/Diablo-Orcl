@@ -941,6 +941,95 @@ TEST(OracoolGems, SocketsOnlyOnPlainEquipment)
 	EXPECT_FALSE(oracool::CanItemHaveSockets(potion)) << "a misc item took sockets";
 }
 
+// Sockets v2: all 33 Diablo II runes exist, in D2's own order, each one recognised as a rune and
+// each one carrying an effect. The two islands are the trap this pins - the five that shipped in
+// v1.7.8 keep their indices and the 28 new ones are appended, so a single-range IsOracoolRuneIdx
+// would silently classify most of them as ordinary misc items that never drop and never socket.
+TEST(OracoolGems, AllThirtyThreeRunesExist)
+{
+	const _item_indexes runes[] = {
+		IDI_ORACOOL_RUNE_EL, IDI_ORACOOL_RUNE_ELD, IDI_ORACOOL_RUNE_TIR, IDI_ORACOOL_RUNE_NEF,
+		IDI_ORACOOL_RUNE_ETH, IDI_ORACOOL_RUNE_ITH, IDI_ORACOOL_RUNE_TAL, IDI_ORACOOL_RUNE_RAL,
+		IDI_ORACOOL_RUNE_ORT, IDI_ORACOOL_RUNE_THUL, IDI_ORACOOL_RUNE_AMN, IDI_ORACOOL_RUNE_SOL,
+		IDI_ORACOOL_RUNE_SHAEL, IDI_ORACOOL_RUNE_DOL, IDI_ORACOOL_RUNE_HEL, IDI_ORACOOL_RUNE_IO,
+		IDI_ORACOOL_RUNE_LUM, IDI_ORACOOL_RUNE_KO, IDI_ORACOOL_RUNE_FAL, IDI_ORACOOL_RUNE_LEM,
+		IDI_ORACOOL_RUNE_PUL, IDI_ORACOOL_RUNE_UM, IDI_ORACOOL_RUNE_MAL, IDI_ORACOOL_RUNE_IST,
+		IDI_ORACOOL_RUNE_GUL, IDI_ORACOOL_RUNE_VEX, IDI_ORACOOL_RUNE_OHM, IDI_ORACOOL_RUNE_LO,
+		IDI_ORACOOL_RUNE_SUR, IDI_ORACOOL_RUNE_BER, IDI_ORACOOL_RUNE_JAH, IDI_ORACOOL_RUNE_CHAM,
+		IDI_ORACOOL_RUNE_ZOD
+	};
+	ASSERT_EQ(sizeof(runes) / sizeof(runes[0]), 33u);
+
+	int previousQlvl = 0;
+	for (const _item_indexes idx : runes) {
+		EXPECT_TRUE(IsOracoolRuneIdx(idx)) << AllItemsList[idx].iName << " is not seen as a rune";
+		EXPECT_NE(AllItemsList[idx].iName, nullptr);
+
+		// The ladder must climb: a rune deeper in D2's order must not drop shallower than the one
+		// before it, or the depth gating stops meaning anything.
+		EXPECT_GE(AllItemsList[idx].iMinMLvl, previousQlvl) << AllItemsList[idx].iName;
+		previousQlvl = AllItemsList[idx].iMinMLvl;
+
+		// Every rune does something in at least one host. A rune with an empty row would be a
+		// silent dud - it would drop, socket, and grant nothing.
+		oracool::ItemBonusTotals weapon, armor, shield;
+		oracool::ApplyGemToTotals(static_cast<uint16_t>(idx), oracool::SocketHost::Weapon, weapon);
+		oracool::ApplyGemToTotals(static_cast<uint16_t>(idx), oracool::SocketHost::Armor, armor);
+		oracool::ApplyGemToTotals(static_cast<uint16_t>(idx), oracool::SocketHost::Shield, shield);
+		const bool doesSomething = weapon.damageMod != 0 || weapon.bonusToHit != 0
+		    || weapon.bonusDamage != 0 || weapon.fireMax != 0 || weapon.lightningMax != 0
+		    || weapon.mana != 0 || weapon.flags != ItemSpecialEffect::None
+		    || armor.hitPoints != 0 || armor.mana != 0 || armor.bonusArmor != 0
+		    || armor.fireResist != 0 || armor.lightningResist != 0 || armor.magicResist != 0
+		    || armor.strength != 0 || armor.magic != 0 || armor.dexterity != 0 || armor.vitality != 0
+		    || armor.magicFind != 0 || armor.goldFind != 0 || armor.getHit != 0
+		    || armor.flags != ItemSpecialEffect::None || shield.bonusArmor != 0
+		    || shield.flags != ItemSpecialEffect::None || weapon.lightRadius != 0;
+		// Three runes are deliberately invisible to the totals walk and are checked elsewhere:
+		// Hel and Zod act on the host ITEM (its requirements, its durability - see the test below),
+		// and Tir's mana-per-kill is an EVENT resolved in RuneManaPerKill, the same shape as the
+		// Skull's life-per-kill. Everything else must show up in a total or it is a silent dud.
+		if (idx != IDI_ORACOOL_RUNE_HEL && idx != IDI_ORACOOL_RUNE_ZOD && idx != IDI_ORACOOL_RUNE_TIR)
+			EXPECT_TRUE(doesSomething) << AllItemsList[idx].iName << " grants nothing in any host";
+	}
+}
+
+// The two runes that act on the HOST, not on the totals.
+TEST(OracoolGems, HelReducesRequirementsAndZodPreventsBreaking)
+{
+	devilution::Item sword {};
+	sword._itype = ItemType::Sword;
+	sword._iCurs = ICURS_SHORT_SWORD;
+	sword._iMagical = ITEM_QUALITY_NORMAL;
+	sword._iMinStr = 100;
+	sword._iMaxDur = 40;
+	sword._iDurability = 40;
+	sword._iSocketCount = 2;
+
+	EXPECT_EQ(oracool::EffectiveRequirement(sword, sword._iMinStr), 100) << "an empty socket reduced a requirement";
+
+	sword._iSocketed[0] = IDI_ORACOOL_RUNE_HEL;
+	EXPECT_EQ(oracool::EffectiveRequirement(sword, sword._iMinStr), 80) << "Hel did not reduce the requirement";
+	sword._iSocketed[1] = IDI_ORACOOL_RUNE_HEL;
+	EXPECT_EQ(oracool::EffectiveRequirement(sword, sword._iMinStr), 60) << "two Hels did not stack";
+	// A requirement that exists stays a requirement, however many Hels are in the item.
+	EXPECT_GE(oracool::EffectiveRequirement(sword, 1), 1);
+
+	devilution::Item axe {};
+	axe._itype = ItemType::Axe;
+	axe._iCurs = ICURS_SHORT_SWORD;
+	axe._iMaxDur = 40;
+	axe._iDurability = 40;
+	axe._iSocketCount = 1;
+	EXPECT_FALSE(oracool::SocketsMakeIndestructible(axe));
+
+	axe._iSocketed[0] = IDI_ORACOOL_RUNE_ZOD;
+	EXPECT_TRUE(oracool::SocketsMakeIndestructible(axe));
+	oracool::ApplyZodToHost(axe);
+	EXPECT_EQ(axe._iDurability, DUR_INDESTRUCTIBLE) << "Zod did not stamp the host";
+	EXPECT_EQ(axe._iMaxDur, 40) << "max durability must survive so extraction can restore the item";
+}
+
 // Sockets v2 (user directive 2026-08-19): "max number of sockets = number of 28x28px boxes the item
 // is made of", and jewelry - which has no basic versions at all - sockets at magic and better
 // instead of never.

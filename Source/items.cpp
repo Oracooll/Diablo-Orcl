@@ -2273,9 +2273,11 @@ constexpr UiFlags ItemAffixColor = UiFlags::ColorBlue;
 void PrintItemInfo(const Item &item)
 {
 	PrintItemMisc(item);
-	uint8_t str = item._iMinStr;
-	uint8_t dex = item._iMinDex;
-	uint8_t mag = item._iMinMag;
+	// Sockets v2: what the panel prints is what CanUseItem checks - both go through Hel's
+	// reduction, so a Hel'd item never claims a requirement it does not actually have.
+	uint8_t str = static_cast<uint8_t>(oracool::EffectiveRequirement(item, item._iMinStr));
+	uint8_t dex = static_cast<uint8_t>(oracool::EffectiveRequirement(item, item._iMinDex));
+	uint8_t mag = static_cast<uint8_t>(oracool::EffectiveRequirement(item, item._iMinMag));
 	if (str != 0 || mag != 0 || dex != 0) {
 		std::string text = std::string(_("Required:"));
 		if (str != 0)

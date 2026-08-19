@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 
 #include "control.h"
+#include "oracool/gems.h"
 #include "oracool/inventory_layout.h"
 #include "controls/plrctrls.h"
 #include "cursor.h"
@@ -1691,9 +1692,11 @@ bool Player::CanUseItem(const Item &item) const
 	if (!IsItemValid(item))
 		return false;
 
-	return _pStrength >= item._iMinStr
-	    && _pMagic >= item._iMinMag
-	    && _pDexterity >= item._iMinDex;
+	// Sockets v2: Hel reduces the host's own requirements. Read here rather than written into the
+	// item, so it cannot compound across the many recalculations a character sheet triggers.
+	return _pStrength >= oracool::EffectiveRequirement(item, item._iMinStr)
+	    && _pMagic >= oracool::EffectiveRequirement(item, item._iMinMag)
+	    && _pDexterity >= oracool::EffectiveRequirement(item, item._iMinDex);
 }
 
 void Player::RemoveInvItem(int iv, bool calcScrolls)

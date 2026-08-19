@@ -112,6 +112,31 @@ int MaxSocketsForItem(const Item &item);
 /** @brief Applies gem @p gemIdx's effect for @p host onto @p totals. Unknown indices are inert. */
 void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals);
 
+/**
+ * @brief Hel's total requirement reduction on @p item, in percent, capped at 60.
+ *
+ * Two runes act on the HOST rather than on the totals, because what they change is not a total:
+ * a requirement is the item's own number, compared against the player's. Reading it here instead
+ * of writing it into the item is what stops the reduction compounding every time the character
+ * sheet recalculates.
+ */
+int SocketRequirementReductionPercent(const Item &item);
+
+/** @brief @p baseRequirement after Hel. Never returns 0 for a requirement that existed. */
+int EffectiveRequirement(const Item &item, int baseRequirement);
+
+/** @brief Zod: whether @p item's sockets make it immune to durability loss. */
+bool SocketsMakeIndestructible(const Item &item);
+
+/**
+ * @brief Stamps Zod's indestructibility onto @p item if its sockets now carry one.
+ *
+ * Called on insertion. Zod is the one rune written into the host instead of read off it, because
+ * "indestructible" is a durability value this engine already has - ten decrement sites test for
+ * it. _iMaxDur is left alone so extraction can restore a destructible item.
+ */
+void ApplyZodToHost(Item &item);
+
 /** @brief One line of description for @p gemIdx socketed in @p host, e.g. "Ruby: +8 fire damage".
  * Translated and formatted; empty for an unknown index. */
 std::string GemSocketLine(uint16_t gemIdx, SocketHost host);
