@@ -30,7 +30,6 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | MPQ Unit E - bottom HUD plate | Art | Small | No | | The 1536x1024 limestone master replacing the 356x64 middle_hud.png. Standing note: do not add a procedural bottom offset. |
 | MPQ Unit B - icon refreshes | Art | Small | No | | New burger-menu, portal and level-up icons from the drop zone. |
 | TRN recolour monster variants | Phase 3 | Medium | No | | Recoloured versions of existing monsters wired into per-zone rosters - the cheapest possible bestiary multiplier. |
-| Scale variants and the Colossal affix | Phase 3 | Small | No | | Giant and runt monsters through the sprite scaler that already ships, plus a Colossal lesser-unique affix. |
 | Aura-carrying champion packs | Phase 3 | Medium | No | | Fanaticism and Might packs - D2's scariest idea, and cheap here because the aura and lesser-unique systems both exist. |
 | Zone 1, the recolour zone | Phase 4 | Large | No | | Hellfire's own trick: new palette, retinted tileset, new roster, new waypoints, new entrance. Validates the whole pipeline with zero AI-art risk. |
 | Zone 2, first generated tileset | Phase 4 | Large | No | Zone 1 proves the pipeline | The first zone built from user art through the tileset pipeline. |
@@ -42,7 +41,7 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Hirelings | Phase 6 | Large | Yes | | A persistent companion off the golem framework. Equipping them is the expensive half. |
 | Jewels | Phase 6 | Medium | Yes | | A socketable with rolled affixes rather than a fixed effect - the third socket family after gems and runes. |
 | Set bonus system | Phase 6 | Medium | Yes | | Real set bonuses for wearing several pieces. The green text colour is already reserved for it. |
-| Health globes | Balance | Small | No | | Monsters drop globes that heal on pickup, shifting part of the healing loop out of the potion menu. |
+| Health globes | Balance | Small | No | | DEFERRED 2026-08-19 at the user's request - "skip the health globes for our project for now". Skipped, not dropped; do not offer it again unasked. Monsters drop globes that heal on pickup, shifting part of the healing loop out of the potion menu. |
 | Movement-speed affixes | Balance | Medium | Yes | | RESIZED 2026-08-19, was Small/Save-No. There is no walk-speed item power in the codebase at all - no IPL_FASTERWALK, no speed field on the player. It needs (1) a new `item_effect_type` appended before IPL_INVALID, (2) a SaveItemPower mapping audited against the delivered token, (3) affix table rows with their own level bands, and (4) a movement model: devilutionX walks in animation frames per step, not a scalar, so "faster walk" has to be expressed as a frame count and will interact with the run toggle already shipped. The save flag is Yes because a new power on an item changes what SaveItemPower writes.
 | Skill synergies | Balance | Medium | No | | D2-style: investing in one skill strengthens a related one, so a tree reads as a build rather than a shopping list. |
 | Telemetry-driven balance pass | Balance | Medium | No | | The CSV has been collecting kills and drops since Phase 0.9 and has never been read back. Drop rates, monster scaling and the tier weights are all tunable from it. |
@@ -60,7 +59,9 @@ The 1.8.3x line added: gold auto-place across the full 10x7 backpack (it had sti
 10x4), per-difficulty monster immunities with Torment hardening Hell's resistances rather than repeating them,
 and the class trees' cast cues. v1.8.35 added the resistance soft cap: 75 is now where returns
 start diminishing rather than where they stop, with a hard ceiling of 90 and a per-difficulty
-penetration penalty subtracted before any cap.
+penetration penalty subtracted before any cap. v1.8.36 finished the scale-variant entry: the Colossal
+champion affix had shipped in Phase 3.2, and ordinary monsters can now be born Runt or Giant, derived
+from the level seed rather than stored.
 
 The 1.6 to 1.8 lines took these out of the backlog: Levski's Roar with its 3x4 grid and recipe book, socket extraction, waypoints, autosave-only play, the HUD rebuild,
 skill trees and respec, the run toggle, charms, item tiers, set items, sockets and gems, all 33

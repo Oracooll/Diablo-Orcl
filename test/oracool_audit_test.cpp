@@ -3254,3 +3254,83 @@ TEST(OracoolAudit, TheHardCapIsReachableOnEveryDifficulty)
 		EXPECT_EQ(out, oracool::ResistanceHardCap) << "difficulty " << difficulty << " cannot reach the hard cap";
 	}
 }
+
+// ---------------------------------------------------------------------------------------------
+// Runt and Giant ordinary monsters (2026-08-19).
+//
+// The Colossal affix shipped in Phase 3.2; the other half of that Pipeline entry - ordinary
+// monsters born at an odd size - did not. The size is DERIVED from the level seed and the monster's
+// index rather than stored, so these pin the two properties that derivation has to have.
+// ---------------------------------------------------------------------------------------------
+
+TEST(OracoolAudit, MonsterSizeIsStableForTheSameSeedAndMonster)
+{
+	// The one that matters: a monster must be the same size after a save and reload. Since nothing
+	// is stored, that is entirely a question of the function being pure and repeatable.
+	for (uint32_t seed : { 1u, 12345u, 0xDEADBEEFu }) {
+		for (size_t type = 0; type < 8; type++) {
+			for (size_t id = 0; id < 40; id++) {
+				const oracool::MonsterSize first = oracool::OrdinaryMonsterSize(seed, type, id);
+				const oracool::MonsterSize again = oracool::OrdinaryMonsterSize(seed, type, id);
+				ASSERT_EQ(first, again) << "size changed between two calls for seed " << seed
+				                        << " type " << type << " id " << id;
+			}
+		}
+	}
+}
+
+TEST(OracoolAudit, OrdinaryMonstersAreNeverColossal)
+{
+	// Colossal belongs to the affix and is the champion's silhouette. If a birth roll could produce
+	// it, a rank-and-file monster would wear a champion's read with none of a champion's danger.
+	for (uint32_t seed = 1; seed <= 200; seed++) {
+		for (size_t type = 0; type < 6; type++) {
+			for (size_t id = 0; id < 20; id++) {
+				ASSERT_NE(oracool::OrdinaryMonsterSize(seed, type, id), oracool::MonsterSize::Colossal);
+			}
+		}
+	}
+}
+
+TEST(OracoolAudit, AtMostOneOddSizePerMonsterTypePerFloor)
+{
+	// The memory bound, stated as the property that produces it. The scale cache owns six
+	// animations per (type, size), so a type that could field BOTH a runt and a giant would cost
+	// three copies of itself on one floor instead of two.
+	for (uint32_t seed = 1; seed <= 300; seed++) {
+		for (size_t type = 0; type < 6; type++) {
+			std::set<int> sizes;
+			for (size_t id = 0; id < 60; id++) {
+				const oracool::MonsterSize size = oracool::OrdinaryMonsterSize(seed, type, id);
+				if (size != oracool::MonsterSize::Normal)
+					sizes.insert(static_cast<int>(size));
+			}
+			ASSERT_LE(sizes.size(), 1u) << "seed " << seed << " type " << type
+			                            << " fielded more than one odd size";
+		}
+	}
+}
+
+TEST(OracoolAudit, OddSizedMonstersAreAMinorityAndBothSizesOccur)
+{
+	// Neither dead code nor the new normal. Across a wide sample both odd sizes must appear, and the
+	// great majority of monsters must still be ordinary - a floor where half the monsters are odd
+	// sized has no odd-sized monsters, only noisy ones.
+	int total = 0;
+	int runts = 0;
+	int giants = 0;
+	for (uint32_t seed = 1; seed <= 500; seed++) {
+		for (size_t type = 0; type < 6; type++) {
+			for (size_t id = 0; id < 20; id++, total++) {
+				switch (oracool::OrdinaryMonsterSize(seed, type, id)) {
+				case oracool::MonsterSize::Runt: runts++; break;
+				case oracool::MonsterSize::Giant: giants++; break;
+				default: break;
+				}
+			}
+		}
+	}
+	EXPECT_GT(runts, 0) << "no monster is ever a runt";
+	EXPECT_GT(giants, 0) << "no monster is ever a giant";
+	EXPECT_LT(runts + giants, total / 3) << "odd sizes are common enough to be the new normal";
+}

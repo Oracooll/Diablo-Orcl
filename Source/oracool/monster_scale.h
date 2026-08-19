@@ -29,6 +29,7 @@
 #include <cstdint>
 
 #include "monster.h"
+#include "utils/attributes.h"
 
 namespace devilution::oracool {
 
@@ -41,7 +42,11 @@ namespace devilution::oracool {
  */
 enum class MonsterSize : uint8_t {
 	Normal,
-	/** A champion that fills its tile and then some. */
+	/** An ordinary monster born small. Rank and file, not a champion. */
+	Runt,
+	/** An ordinary monster born large. Still not a champion - it wears no affix and no colour. */
+	Giant,
+	/** A champion that fills its tile and then some. Only the Colossal affix produces this. */
 	Colossal,
 	LAST = Colossal,
 };
@@ -49,8 +54,38 @@ enum class MonsterSize : uint8_t {
 /** @brief What @p size scales sprites to, in percent. Normal is 100 and never allocates. */
 unsigned MonsterSizePercent(MonsterSize size);
 
-/** @brief The size @p monster is, read from its affix. Normal for anything ordinary. */
+/** @brief The size @p monster is: its affix if it has one, otherwise its birth roll. */
 MonsterSize GetMonsterSize(const Monster &monster);
+
+/**
+ * @brief The size an ORDINARY monster is born at, derived rather than stored.
+ *
+ * No new field on Monster, and therefore no save-format change - which is the whole reason it is
+ * derived. A monster's size has to survive a save and reload unchanged (a runt that grew back on
+ * load would read as a rendering bug), and the two ways to get that are to store it or to compute
+ * it from things already stored. The level seed and the monster's own index are both already
+ * saved and both already stable, so the second way costs nothing.
+ *
+ * NOT the cosmetic RNG stream, despite being purely cosmetic: `CosmeticRnd` is seeded from the wall
+ * clock and never saved, so it is precisely the wrong tool for a value that must be reproducible.
+ *
+ * ## Two rolls, and why it is not one
+ *
+ * The type rolls FIRST for whether it has an odd size on this floor at all, and only then does each
+ * individual roll for whether it is one. That shape is a memory decision as much as a flavour one:
+ * the scale cache holds one owned copy of six animations per (type, size), so a single roll per
+ * monster would let one floor's skeletons demand a runt sheet AND a giant sheet on top of the
+ * normal one. Deciding per type caps it at one extra sheet per type, the same order of cost the
+ * Colossal affix already pays.
+ *
+ * It also reads better. "The skeletons down here run small" is a place with a character; a random
+ * scatter of sizes across every type at once is just noise.
+ *
+ * @param levelSeed the dungeon seed for the floor the monster is on.
+ * @param typeIndex the monster's `levelType`.
+ * @param monsterId the monster's own index.
+ */
+DVL_API_FOR_TEST MonsterSize OrdinaryMonsterSize(uint32_t levelSeed, size_t typeIndex, size_t monsterId);
 
 /**
  * @brief The scaled animation @p monster should bind for @p graphic, or nullptr for normal size.

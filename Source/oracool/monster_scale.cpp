@@ -4,6 +4,8 @@
 #include <vector>
 
 #include "dead.h"
+#include "diablo.h"
+#include "levels/gendung.h"
 #include "oracool/sprite_scale.h"
 
 namespace devilution::oracool {
@@ -87,15 +89,61 @@ unsigned MonsterSizePercent(MonsterSize size)
 		// 140%, which is where the sprite stops reading as "the same monster, closer" and starts
 		// reading as a bigger one. Past about 160% the baked-in shadow separates from the feet.
 		return 140;
+	case MonsterSize::Giant:
+		// Deliberately short of Colossal's 140. A champion has to be the biggest thing in the room,
+		// and two large sizes that read alike would make the affix mean less rather than the giant
+		// mean more.
+		return 120;
+	case MonsterSize::Runt:
+		// Small enough to read instantly, not so small the monster stops covering its own tile -
+		// below about 70% the sprite sits inside the floor diamond and looks like a dropped item.
+		return 75;
 	case MonsterSize::Normal:
 		break;
 	}
 	return 100;
 }
 
+MonsterSize OrdinaryMonsterSize(uint32_t levelSeed, size_t typeIndex, size_t monsterId)
+{
+	// A fixed-point mix, not the engine's LCG: this must be a pure function of values that are
+	// already saved, so that a monster is the same size after a reload as it was before it. Nothing
+	// here touches a stream, which also means it can never shift a deterministic replay.
+	const auto mix = [](uint32_t a, uint32_t b) {
+		uint32_t x = a * 0x9E3779B9u + b * 0x85EBCA6Bu;
+		x ^= x >> 16;
+		x *= 0x7FEB352Du;
+		x ^= x >> 15;
+		return x;
+	};
+
+	// Does this type have an odd size on this floor at all? Half of them do not - see the header on
+	// why this is decided per type rather than per monster.
+	const uint32_t typeRoll = mix(levelSeed, static_cast<uint32_t>(typeIndex) + 1) & 3u;
+	MonsterSize variant;
+	if (typeRoll == 0)
+		variant = MonsterSize::Runt;
+	else if (typeRoll == 1)
+		variant = MonsterSize::Giant;
+	else
+		return MonsterSize::Normal;
+
+	// And is THIS one of them? A quarter of the type's individuals, so an odd-sized monster reads as
+	// an individual rather than as a reskin of the whole floor.
+	const uint32_t memberRoll = mix(levelSeed ^ 0xA5A5A5A5u, static_cast<uint32_t>(monsterId) + 1) & 3u;
+	return memberRoll == 0 ? variant : MonsterSize::Normal;
+}
+
 MonsterSize GetMonsterSize(const Monster &monster)
 {
-	return monster.lesserAffix == LesserUniqueAffix::Colossal ? MonsterSize::Colossal : MonsterSize::Normal;
+	if (monster.lesserAffix == LesserUniqueAffix::Colossal)
+		return MonsterSize::Colossal;
+	// A hand-authored unique and an affixed champion both have a silhouette somebody chose. Rolling
+	// a size on top of that would overwrite a decision with a coin flip, and would put a Colossal
+	// champion beside a giant of its own kind that reads almost the same.
+	if (monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None)
+		return MonsterSize::Normal;
+	return OrdinaryMonsterSize(glSeedTbl[currlevel], monster.levelType, monster.getId());
 }
 
 const AnimStruct *GetScaledAnim(const Monster &monster, MonsterGraphic graphic)
