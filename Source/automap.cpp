@@ -798,6 +798,10 @@ void DrawAutomapText(const Surface &out)
 	// vanilla map when triggered"). It is the number that decides what this place can drop and how
 	// good the rolls may be, so it belongs beside the place's name rather than in a menu.
 	const auto areaLevelLine = [&out, &linePosition]() {
+		// Not in TOWN. The ladder answers for town too - it is floor 1 of whatever difficulty - but town
+		// has no monsters, no chests and no drops, so a number there would be a number about nothing.
+		if (leveltype == DTYPE_TOWN)
+			return;
 		DrawString(out, fmt::format(fmt::runtime(_("Area Level: {:d}")), oracool::CurrentAreaLevel()), linePosition);
 		linePosition.y += 15;
 	};

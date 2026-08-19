@@ -1881,23 +1881,23 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 			const AffixItemType tieredFlgs = GetAffixItemTypeForItem(item);
 			if (uid != UITEM_INVALID) {
 				GetUniqueItem(player, item, uid);
-			} else if (tieredRollEligible
-			    && GenerateRnd(1000) < oracool::QualityChancePerMille(OracoolItemTier::Primal, item._iOracoolItemLevel, *sgOptions.Oracool.primalItemDropChance)
+			} else if (const int primalPerMille = oracool::QualityChancePerMille(OracoolItemTier::Primal, item._iOracoolItemLevel, *sgOptions.Oracool.primalItemDropChance);
+			    tieredRollEligible && primalPerMille > 0 && GenerateRnd(1000) < primalPerMille
 			    && tieredFlgs != AffixItemType::None) {
 				// Primal is checked before Buffed Unique and Rare: it's the rarest and most
 				// powerful tier, so it gets first crack at the item. Identification is
 				// deliberately NOT forced here - every item, tiered or not, follows the
 				// single shared Auto Identify Drops toggle checked below.
 				GetPrimalItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
-			} else if (tieredRollEligible
-			    && GenerateRnd(1000) < oracool::QualityChancePerMille(OracoolItemTier::BuffedUnique, item._iOracoolItemLevel, *sgOptions.Oracool.buffedUniqueItemDropChance)
+			} else if (const int buffedPerMille = oracool::QualityChancePerMille(OracoolItemTier::BuffedUnique, item._iOracoolItemLevel, *sgOptions.Oracool.buffedUniqueItemDropChance);
+			    tieredRollEligible && buffedPerMille > 0 && GenerateRnd(1000) < buffedPerMille
 			    && tieredFlgs != AffixItemType::None) {
 				// Buffed Unique is checked before Rare: it's meant to be the rarer of the
 				// two tiers, so the rarer roll gets first crack at the item before a more
 				// common tier claims it.
 				GetBuffedUniqueItemAffixes(player, item, iblvl / 2, iblvl, tieredFlgs, onlygood);
-			} else if (tieredRollEligible
-			    && GenerateRnd(1000) < oracool::QualityChancePerMille(OracoolItemTier::Rare, item._iOracoolItemLevel, *sgOptions.Oracool.rareItemDropChance)
+			} else if (const int rarePerMille = oracool::QualityChancePerMille(OracoolItemTier::Rare, item._iOracoolItemLevel, *sgOptions.Oracool.rareItemDropChance);
+			    tieredRollEligible && rarePerMille > 0 && GenerateRnd(1000) < rarePerMille
 			    && tieredFlgs != AffixItemType::None) {
 				// Rare items sit between Magic and Unique in the quality-roll fork: only
 				// tried once an item has already failed its Unique, Primal, and Buffed
