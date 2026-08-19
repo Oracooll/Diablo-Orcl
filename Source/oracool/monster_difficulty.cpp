@@ -16,6 +16,41 @@ uint16_t DemoteImmunitiesToResistances(uint16_t resistances)
 	return out;
 }
 
+uint16_t PromoteResistancesToImmunities(uint16_t resistances)
+{
+	// The mirror of DemoteImmunitiesToResistances, with one rule it cannot do without: a monster
+	// must never come out immune to ALL THREE schools. Promoting blindly would hand Torment
+	// monsters that no caster can hurt at all - not a harder fight, an impossible one for half the
+	// classes - and the physical classes would not notice the difficulty existed.
+	//
+	// So the promotion is applied in school order and stops before the last one standing. Whatever
+	// the monster was weakest to on Hell stays merely resisted on Torment, which is also the more
+	// interesting rule: every monster keeps exactly one answer, and finding it is the game.
+	constexpr uint16_t ResistBits = RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING;
+	constexpr uint16_t ImmuneBits = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+
+	uint16_t out = resistances;
+	const struct {
+		uint16_t resist;
+		uint16_t immune;
+	} schools[] = {
+		{ RESIST_MAGIC, IMMUNE_MAGIC },
+		{ RESIST_FIRE, IMMUNE_FIRE },
+		{ RESIST_LIGHTNING, IMMUNE_LIGHTNING },
+	};
+
+	for (const auto &school : schools) {
+		if ((out & school.resist) == 0)
+			continue;
+		// Would this promotion leave nothing but immunities? Count what stays answerable.
+		const uint16_t promoted = static_cast<uint16_t>((out & ~school.resist) | school.immune);
+		if ((promoted & ImmuneBits) == ImmuneBits && (promoted & ResistBits) == 0)
+			break; // the last school standing keeps its resistance
+		out = promoted;
+	}
+	return out;
+}
+
 uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty)
 {
 	switch (difficulty) {
@@ -25,8 +60,13 @@ uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty)
 		// going up - `resistanceHell` is authored as a replacement set, not a superset.
 		return static_cast<uint16_t>(data.resistance) | DemoteImmunitiesToResistances(data.resistanceHell);
 	case DIFF_HELL:
-	case DIFF_TORMENT:
 		return data.resistanceHell;
+	case DIFF_TORMENT:
+		// Torment was byte-identical to Hell, so the fourth difficulty asked nothing the third had
+		// not already asked (Pipeline: "make it difficulty-aware so Hell and Torment demand real
+		// resistance gear"). Hell's resistances harden into immunities here - the same step
+		// Nightmare-to-Hell makes, taken once more.
+		return PromoteResistancesToImmunities(data.resistanceHell);
 	default:
 		return data.resistance;
 	}

@@ -279,7 +279,8 @@ TEST(OracoolAudit, NightmareDemotesHellImmunitiesToResistances)
 	EXPECT_NE(nightmare & RESIST_MAGIC, 0) << "a plain Hell resistance was dropped instead of demoted";
 
 	EXPECT_EQ(oracool::MonsterResistancesFor(data, DIFF_HELL), data.resistanceHell);
-	EXPECT_EQ(oracool::MonsterResistancesFor(data, DIFF_TORMENT), data.resistanceHell);
+	// Torment no longer equals Hell - see TormentHardensHellResistancesIntoImmunities below.
+	EXPECT_NE(oracool::MonsterResistancesFor(data, DIFF_TORMENT), data.resistanceHell);
 
 	// Nightmare must never REMOVE something Normal already had: resistanceHell is authored as a
 	// replacement set, not a superset, so the ladder unions rather than overwrites.
@@ -1594,6 +1595,53 @@ devilution::Player &FreshPaladin(int unspent = 40)
 	return player;
 }
 
+
+// Torment shipped byte-identical to Hell, so the fourth difficulty asked nothing the third had not
+// already asked. Hell's resistances harden into immunities there - the same step Nightmare-to-Hell
+// takes, taken once more.
+TEST(OracoolAudit, TormentHardensHellResistancesIntoImmunities)
+{
+	MonsterData data {};
+	data.resistanceHell = IMMUNE_FIRE | RESIST_MAGIC;
+
+	const uint16_t torment = oracool::MonsterResistancesFor(data, DIFF_TORMENT);
+	EXPECT_NE(torment & IMMUNE_FIRE, 0) << "an existing immunity must survive";
+	EXPECT_NE(torment & IMMUNE_MAGIC, 0) << "the resisted school should have hardened";
+	EXPECT_EQ(torment & RESIST_MAGIC, 0) << "the resistance bit should have been consumed";
+	EXPECT_EQ(oracool::MonsterResistancesFor(data, DIFF_HELL), data.resistanceHell)
+	    << "Hell itself must not have moved";
+}
+
+// The rule the promotion cannot do without: no monster may end up immune to all three schools. That
+// is not a harder fight but an impossible one for the caster classes, while the physical classes
+// would never notice the difficulty existed. Whatever it was weakest to stays merely resisted, so
+// every monster keeps exactly one answer.
+TEST(OracoolAudit, TormentNeverLeavesAMonsterImmuneToEverything)
+{
+	constexpr uint16_t ResistBits = RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING;
+	constexpr uint16_t ImmuneBits = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
+
+	// Every authorable combination of the six school bits, not a sample.
+	for (uint16_t hell = 0; hell < 64; hell++) {
+		MonsterData data {};
+		data.resistanceHell = static_cast<uint8_t>(
+		    ((hell & 1) != 0 ? RESIST_MAGIC : 0) | ((hell & 2) != 0 ? RESIST_FIRE : 0)
+		    | ((hell & 4) != 0 ? RESIST_LIGHTNING : 0) | ((hell & 8) != 0 ? IMMUNE_MAGIC : 0)
+		    | ((hell & 16) != 0 ? IMMUNE_FIRE : 0) | ((hell & 32) != 0 ? IMMUNE_LIGHTNING : 0));
+
+		const uint16_t torment = oracool::MonsterResistancesFor(data, DIFF_TORMENT);
+		const bool immuneToAll = (torment & ImmuneBits) == ImmuneBits && (torment & ResistBits) == 0;
+		const bool authoredThatWay = (data.resistanceHell & ImmuneBits) == ImmuneBits;
+		if (!authoredThatWay) {
+			EXPECT_FALSE(immuneToAll)
+			    << "Torment promoted a monster into total immunity, hell bits = " << hell;
+		}
+
+		// And Torment must never be SOFTER than Hell: every Hell immunity survives.
+		EXPECT_EQ(torment & data.resistanceHell & ImmuneBits, data.resistanceHell & ImmuneBits)
+		    << "Torment dropped an immunity Hell had, hell bits = " << hell;
+	}
+}
 } // namespace
 
 // Audit (2026-08-16): the inert-row rule is THE standing promise of the class-tree system - a row

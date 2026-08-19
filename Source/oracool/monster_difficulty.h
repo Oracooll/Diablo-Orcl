@@ -51,6 +51,16 @@ namespace devilution::oracool {
  */
 uint16_t DemoteImmunitiesToResistances(uint16_t resistances);
 
+/**
+ * @brief The mirror: every resisted school becomes immune, EXCEPT the last one standing.
+ *
+ * Torment's step. A monster must never come out immune to all three schools at once - that is not
+ * a harder fight but an impossible one for the caster classes, while the physical classes would
+ * never notice. Whatever the monster was weakest to on Hell stays merely resisted, so every monster
+ * keeps exactly one answer.
+ */
+uint16_t PromoteResistancesToImmunities(uint16_t resistances);
+
 /** @brief The resistance and immunity bits an ordinary monster of @p data carries on @p difficulty. */
 uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty);
 
