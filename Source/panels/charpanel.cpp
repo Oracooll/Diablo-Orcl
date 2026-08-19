@@ -805,12 +805,18 @@ void DrawChr(const Surface &out)
 	// 340-wide panel, which leaves 300 and the user measured 299. Centred on the 41px leftover, so
 	// the spare pixel falls on the right - the same rounding every other centring in this fork uses.
 	//
-	// The top is CharContentTop, not the frame's inner edge, because 609 does not reach the frame:
-	// 720 - 609 is 111, and CharContentTop is 101, so the band starts under the TITLE rather than
-	// under the top border and stops 10px short of the bottom. That reading is what makes the two
-	// numbers consistent; if it is a pixel out, this is the constant to move.
+	// The top was CharContentTop - under the title - until the user looked at it and asked for 80
+	// less (2026-08-19). That is not an arbitrary nudge: 101 - 80 = 21, and the frame's inner edge
+	// measures ~20, so the band now starts flush inside the top border instead of below the title,
+	// which is what "cover all the net area between the four borders" asked for in the first place.
+	// The first placement read 609 as excluding the title band; it excludes the BOTTOM instead, and
+	// the backdrop runs 21..630 with the lower part of the panel left clear.
+	//
+	// Expressed as the offset the user gave rather than folded into a single literal, so the two
+	// facts stay visible: where it started, and how far it moved.
 	constexpr Size StatsBackdropSize { 299, 609 };
-	constexpr int StatsBackdropTop = CharContentTop;
+	constexpr int StatsBackdropRise = 80;
+	constexpr int StatsBackdropTop = CharContentTop - StatsBackdropRise;
 	const Rectangle statsBackdrop {
 		{ panel.position.x + (panel.size.width - StatsBackdropSize.width) / 2,
 		    panel.position.y + StatsBackdropTop },
