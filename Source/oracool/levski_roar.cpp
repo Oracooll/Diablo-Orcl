@@ -67,7 +67,15 @@ constexpr int ContentWidth = GridWidth > 150 ? GridWidth : 150;
 constexpr int WindowWidth = ContentWidth + Padding * 2;
 constexpr int WindowHeight = Padding * 2 + HeaderHeight + GridHeight + SlotGap + ButtonHeight * 2 + SlotGap;
 
-constexpr int RecipeBookWidth = 420;
+/**  How wide the book may be: all the room left of the window, capped, never overlapping it.
+ *
+ * A constant 420 was wrong twice - first drawn off the left edge, then clamped to x=0 where it sat
+ * ON TOP of Levski's own window and covered its title (user screenshot, 2026-08-19). The room to the
+ * left of a centred window is what it is; the book has to fit that, not assume it. */
+int RecipeBookWidthFor(const Rectangle &window)
+{
+	return std::clamp(window.position.x - SlotGap * 2, 220, 420);
+}
 /**
  * The panel's ground, opaque.
  *
@@ -104,7 +112,7 @@ void DrawPanelGround(const Surface &out, const Rectangle &rect, uint8_t fill = P
 /** @brief The recipe book's lines, pre-wrapped to its own text width - the formulas are long
  * enough that "1 socketed item -> the item, emptied, and its stones back" ran off the panel and
  * the last line was sliced by the bottom edge. */
-std::string RecipeBookText()
+std::string RecipeBookText(int width)
 {
 	std::string page;
 	for (int i = 0; i < CraftingRecipeCount; i++) {
@@ -112,7 +120,7 @@ std::string RecipeBookText()
 			page += '\n';
 		page += _(CraftingRecipeName(i));
 		page += '\n';
-		page += WordWrapString(_(CraftingRecipeInputs(i)), RecipeBookWidth - Padding * 2, GameFont12);
+		page += WordWrapString(_(CraftingRecipeInputs(i)), width - Padding * 2, GameFont12);
 		page += '\n';
 	}
 	return page;
@@ -304,7 +312,8 @@ Rectangle GetLevskiRecipeBookRect()
 	const Rectangle window = GetLevskiRoarRect();
 	// Height from the WRAPPED text, not from a per-recipe row guess: the formulas wrap to two lines
 	// each and the fixed 40px row left the last one sliced by the panel's bottom edge.
-	const std::string page = RecipeBookText();
+	const int bookWidth = RecipeBookWidthFor(window);
+	const std::string page = RecipeBookText(bookWidth);
 	const int textHeight = static_cast<int>(GetLineHeight(page, GameFont12) * (std::count(page.begin(), page.end(), '\n') + 1));
 	const int height = Padding * 2 + HeaderHeight + textHeight;
 	// LEFT of the window by preference: opening right ran the book under the mini-map, which owns
@@ -322,8 +331,8 @@ Rectangle GetLevskiRecipeBookRect()
 	// is where the inventory and the mini-map live, so the book landed on top of the panel the
 	// player had open. Sliding left until it touches x=0 costs at most a few pixels of overlap with
 	// Levski's own window - and the book is drawn after it, so the book stays readable.
-	const int x = std::max(0, window.position.x - RecipeBookWidth - SlotGap);
-	return Rectangle { { x, window.position.y }, { RecipeBookWidth, height } };
+	const int x = std::max(0, window.position.x - bookWidth - SlotGap);
+	return Rectangle { { x, window.position.y }, { bookWidth, height } };
 }
 
 void DrawLevskiRoar(const Surface &out)

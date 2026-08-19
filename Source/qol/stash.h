@@ -91,7 +91,7 @@ private:
 
 constexpr Point InvalidStashPoint { -1, -1 };
 
-extern bool IsStashOpen;
+extern DVL_API_FOR_TEST bool IsStashOpen;
 extern DVL_API_FOR_TEST StashStruct Stash;
 
 extern bool IsWithdrawGoldOpen;

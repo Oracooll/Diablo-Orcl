@@ -32,7 +32,7 @@ enum cursor_id : uint8_t {
 };
 
 extern int pcursmonst;
-extern int8_t pcursinvitem;
+extern DVL_API_FOR_TEST int8_t pcursinvitem;
 /**
  * @brief Oracool Tabbed Inventory: set by CheckInvHLight, alongside pcursinvitem, whenever the
  * mouse is hovering an item stored in one of the Tabbed Inventory extra tabs (2-10). pcursinvitem

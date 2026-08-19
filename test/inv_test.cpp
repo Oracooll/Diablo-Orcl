@@ -6,6 +6,7 @@
 #include "cursor.h"
 #include "diablo.h"
 #include "inv.h"
+#include "oracool/auto_save.h"
 #include "oracool/inventory_layout.h"
 #include "options.h"
 #include "panels/ui_panels.hpp"
@@ -22,6 +23,7 @@ public:
 	{
 		Players.resize(1);
 		MyPlayer = &Players[0];
+		InspectPlayer = MyPlayer; // otherwise IsInspectingPlayer() is true and every inventory click is refused
 		ActiveInventoryTab = 0;
 		MyPlayer->InvTabList = {};
 		MyPlayer->InvTabGrid = {};
@@ -1240,29 +1242,41 @@ TEST_F(InvTest, RemoveInventoryItemById_FindsAndRemovesItemStoredInExtraTab)
 	EXPECT_FALSE(HasInventoryItemWithId(*MyPlayer, IDI_HEAL));
 }
 
-
 // User report (2026-08-19): "i could not CTRL+Click these 5 gold stacks in my inv grid into my
-// stash." Ctrl+Click routes through TransferItemToStash, so this pins the transfer half of that
-// path for gold specifically - gold is the one item type AutoPlaceItemInStash handles by adding to
-// a scalar pool rather than by finding grid space, and it is the only type that can be present in
-// tab 1 while being refused entry to every other tab (CanItemEnterExtraTab).
-// DISABLED: this harness faults (access violation) inside AutoPlaceItemInStash before the first
-// assertion runs. That is either the reported bug or missing test-environment init, and I have not
-// yet separated the two - so it is parked here as the reproduction rather than reported as a
-// finding, and disabled so it cannot turn the suite red on a guess.
-TEST_F(InvTest, DISABLED_CtrlClickTransfersGoldStackFromBackpackToStash)
+// stash." Non-gold items moved; gold did not.
+//
+// This walks the whole in-game chain for a gold stack - hover to set pcursinvitem, then the click
+// router - because bisecting proved every part of it correct in isolation and the earlier version
+// of this test failed for three separate harness reasons, each of which looked like the bug:
+//
+//   1. no SNetInitializeProvider, so Player::RemoveInvItem's NetSendCmdParam1 faulted;
+//   2. InspectPlayer unset, so IsInspectingPlayer() was true and CheckInvItem refused every click
+//      at its first line - which reproduced the reported symptom exactly, and was not the reason;
+//   3. ItemInvSnds / pcursinvitem / IsStashOpen not exported to tests.
+//
+// It passes. So CheckInvHLight, CheckInvItem, TransferItemToStash and AutoPlaceItemInStash are all
+// correct for gold, and whatever fails in the real game is UPSTREAM of CheckInvItem - in
+// LeftMouseDown's routing or the modifier state it is handed. Keeping the test means that half can
+// never quietly regress while the real cause is hunted.
+TEST_F(InvTest, CtrlClickTransfersGoldStackFromBackpackToStash)
 {
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
 	clear_inventory();
 	Stash.gold = 325000;
+	IsStashOpen = true;
+	MyPlayer->HoldItem.clear();
 
 	MyPlayer->InvList[0]._itype = ItemType::Gold;
 	MyPlayer->InvList[0]._ivalue = 65000;
 	MyPlayer->_pNumInv = 1;
 	MyPlayer->InvGrid[0] = 1;
 
-	ASSERT_TRUE(AutoPlaceItemInStash(*MyPlayer, MyPlayer->InvList[0], true));
-	EXPECT_EQ(Stash.gold, 390000);
-	TransferItemToStash(*MyPlayer, INVITEM_INV_FIRST);
+	MousePosition = GetPanelPosition(UiPanels::Inventory, InvRect[SLOTXY_INV_FIRST].position)
+	    + Displacement { InventorySlotSizeInPixels.width / 2, InventorySlotSizeInPixels.height / 2 };
+	pcursinvitem = CheckInvHLight();
+	ASSERT_EQ(pcursinvitem, INVITEM_INV_FIRST) << "the gold stack must be hoverable";
+
+	CheckInvItem(/*isShiftHeld=*/false, /*isCtrlHeld=*/true);
 
 	EXPECT_EQ(Stash.gold, 390000) << "the stack's value should have joined the stash pool";
 	EXPECT_EQ(MyPlayer->_pNumInv, 0) << "the stack should have left the backpack";
