@@ -1,4 +1,4 @@
-﻿#include "panels/spell_book.hpp"
+#include "panels/spell_book.hpp"
 
 #include <cstdint>
 
@@ -215,6 +215,15 @@ constexpr int SheetIconSize = 56;
  * Up here with the icon size because both sheets place their corners from it.
  */
 constexpr int SpendBoxSize = 13;
+
+/**
+ * @brief The outline on a cell that will accept a point right now.
+ *
+ * Near the LIGHT end of the gold ramp - PAL16 runs light to dark as the offset grows, and the
+ * window's own frame sits at +9 - so an eligible cell reads as lit rather than merely outlined, and
+ * cannot be mistaken for the chrome around it. This is what replaced the green plus glyph.
+ */
+constexpr uint8_t EligibleForPointColor = PAL16_YELLOW + 2;
 
 /** @brief A spell or skill row: the icon square with a little air above and below it. */
 constexpr int SpellRowHeight = SheetIconSize + 8;
@@ -748,16 +757,12 @@ void DrawAssignmentRings(const Surface &content, Rectangle iconRect, SpellID sn,
 	    RingWeight);
 }
 
-// The old right-edge invest group - a "+N" readout and a 22x22 gold "+" parked against the
-// scrollbar - is gone (user, 2026-08-19). Both sheets now spend on the icon itself: plus at the
-// bottom-right, minus at the bottom-left, the level between them. See DrawSpellRow and DrawTreeCell,
-// which are now the same control drawn twice rather than two different ones.
+// The spend controls are gone entirely (user, 2026-08-20). First the right-edge "+N" group
+// went (2026-08-19), then the corner glyphs that replaced it: left click invests and right
+// click refunds on the whole cell now, so there is no second target to carve out and nothing
+// to label. What is left is the eligibility outline in DrawTreeCell.
 
 void DrawFKeyBadge(const Surface &out, Rectangle iconRect, SpellID sn); // defined with the tree helpers below
-// The spend corners, shared with the tree - see their definitions below for the 13x13 hit box.
-Rectangle SpendPlusRect(Rectangle icon);
-Rectangle SpendMinusRect(Rectangle icon);
-void DrawSpendGlyph(const Surface &out, Rectangle box, bool plus);
 
 /** @brief The row's 56x56 icon square, in content-local coordinates. */
 Rectangle SpellRowIconRect(int top)
@@ -814,69 +819,11 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 		        { SheetIconSize - 2 * SpendBoxSize, SpendBoxSize } },
 		    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
-	// An unlearned row takes no points, and says so by offering no plus - the same rule the tree's
-	// unbuilt rows follow.
-	if (oracool::CanInvestSkillPoint(me, sn))
-		DrawSpendGlyph(content, SpendPlusRect(iconRect), true);
-	if (oracool::CanRefundSkillPoint(me, sn))
-		DrawSpendGlyph(content, SpendMinusRect(iconRect), false);
+	// No spend controls of any kind on this sheet. A spell's level comes from its books and its
+	// items; there has been nothing to spend here since the 2026-08-20 rule, so there is nothing to
+	// draw either.
 }
 
-
-/** @brief Thickness of the plus/minus bars. */
-constexpr int SpendBarThickness = 4;
-
-/** @brief Bottom-RIGHT of the icon: spend a point here. */
-Rectangle SpendPlusRect(Rectangle icon)
-{
-	return { { icon.position.x + icon.size.width - SpendBoxSize,
-		         icon.position.y + icon.size.height - SpendBoxSize },
-		{ SpendBoxSize, SpendBoxSize } };
-}
-
-/** @brief Bottom-LEFT of the icon: take one back. */
-Rectangle SpendMinusRect(Rectangle icon)
-{
-	return { { icon.position.x, icon.position.y + icon.size.height - SpendBoxSize },
-		{ SpendBoxSize, SpendBoxSize } };
-}
-
-/**
- * @brief Whether the cursor is inside @p box, which is in CONTENT-local coordinates.
- *
- * The spend boxes are drawn from the content surface, whose origin is the panel's, so the mouse has
- * to come the same way down rather than being compared in screen space.
- */
-bool SpendBoxHovered(Rectangle box)
-{
-	const Rectangle content = GetSpellBookContentRect();
-	return box.contains(MousePosition.x - content.position.x, MousePosition.y - content.position.y);
-}
-
-/** @brief A thick plus (green) or minus (red), centred in its 13x13 box. */
-void DrawSpendGlyph(const Surface &out, Rectangle box, bool plus)
-{
-	// 1px black frame on hover (user, 2026-08-17; thinned from 2px the same day - "make the outline
-	// 1px thick"). Drawn FIRST so the glyph's own bars sit on top of it rather than being clipped by
-	// it - the box is only 13px and the bars are 4.
-	if (SpendBoxHovered(box)) {
-		constexpr uint8_t Black = 0;
-		DrawHorizontalLine(out, box.position, box.size.width, Black);
-		DrawHorizontalLine(out, { box.position.x, box.position.y + box.size.height - 1 }, box.size.width, Black);
-		DrawVerticalLine(out, { box.position.x, box.position.y + 1 }, box.size.height - 2, Black);
-		DrawVerticalLine(out, { box.position.x + box.size.width - 1, box.position.y + 1 }, box.size.height - 2, Black);
-	}
-
-	// PAL8_YELLOW is the injected green ramp (see oracool::SkillPlateTint), so the plus reads in the
-	// same green the sheets already wear; the minus takes the game's own red.
-	const uint8_t color = plus ? static_cast<uint8_t>(PAL8_YELLOW + 1) : static_cast<uint8_t>(PAL16_RED + 4);
-	const int len = box.size.width - 2;
-	const int mid = (box.size.width - SpendBarThickness) / 2;
-	// The crossbar of both glyphs.
-	FillRect(out, box.position.x + 1, box.position.y + mid, len, SpendBarThickness, color);
-	if (plus)
-		FillRect(out, box.position.x + mid, box.position.y + 1, SpendBarThickness, len, color);
-}
 
 /**
  * @brief The castable ability under the cursor in this window, refreshed by DrawHoverFeedback
@@ -1003,11 +950,9 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		DrawFKeyBadge(content, icon, slot);
 	}
 
-	// The gold "+ 0" bar under each icon is gone (user, 2026-08-17: "Remove the gold +0 buttons below
-	// the skills"). Spending now happens on the icon itself: a green plus at the bottom-right when
-	// there is a point to put in, a red minus at the bottom-left when there is a rank to take back.
-	// The rank sits between them, on the icon's bottom edge, so the whole cell is one object instead
-	// of an icon plus a widget - which also gives the sheets back a row of height.
+	// The rank counter stays where it is (user, 2026-08-20: "We leave the skill level indicator
+	// where it is for now") - the icon's bottom edge, between where the two spend glyphs used to
+	// sit.
 	if (IsInspectingPlayer())
 		return;
 	const Player &me = *MyPlayer;
@@ -1017,14 +962,19 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		        { TreeIconSize - 2 * SpendBoxSize, SpendBoxSize } },
 		    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
-	// No spend corners on an unbuilt row (user, 2026-08-18). A struck-out cell that still offered a
-	// green plus invited points into something that does nothing with them.
-	if (!data.implemented)
-		return;
-	if (oracool::CanInvestClassTreePoint(me, skill))
-		DrawSpendGlyph(content, SpendPlusRect(icon), true);
-	if (oracool::CanRefundClassTreePoint(me, skill))
-		DrawSpendGlyph(content, SpendMinusRect(icon), false);
+	// The green plus and red minus are GONE (user, 2026-08-20: "We remover the + and - symbols.
+	// Skills eligible for bump just lit brighter than the rest").
+	//
+	// They were never really glyphs - they were two separate click targets carved out of the icon,
+	// needed only because the icon itself meant "ready this skill" and the two actions had to be
+	// kept apart by geometry. Left-invest / right-refund makes the whole cell one target, so what
+	// is left to say is not "here is a button" but "this one will take a point" - which is a state,
+	// and states are drawn, not labelled.
+	//
+	// Same predicate as before, so eligibility means exactly what it always meant; only the way it
+	// is shown has changed.
+	if (data.implemented && oracool::CanInvestClassTreePoint(me, skill))
+		oracool::DrawColoredOutline(content, icon, EligibleForPointColor);
 }
 
 /** @brief Draws a whole tree page. */
@@ -1532,98 +1482,50 @@ void CheckSBook(bool assignToRightButton)
 
 	UpdateScrollBounds();
 	const int y = MousePosition.y - content.position.y + CurrentScroll();
-	// The tree: the counter under an icon spends a point into it; the icon itself readies an active
-	// skill on the clicked button, or lights an aura. Two targets rather than one gesture with a
-	// modifier, so neither action can be taken by accident while reaching for the other.
+	// The tree, and the tree is now purely a place to SPEND. Left click puts a point in, right click
+	// takes one out; nothing here readies a skill or lights an aura any more, because selection
+	// moved to the pickers the LMB and RMB wells open.
 	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
 		bool onBar = false;
 		const Point local { MousePosition.x - content.position.x, y };
 		const std::optional<oracool::ClassTreeSkill> hit = TreeCellAt(*page, local, onBar);
 		if (!hit.has_value())
 			return;
-		// The spend corners are tested BEFORE the icon's own action, because they sit inside the
-		// icon's rect: a click in the bottom-left is a refund, not a "ready this skill".
-		{
-			Rectangle cellIcon = TreeIconRect(oracool::GetClassTreeSkillData(*hit).column,
-			    oracool::GetClassTreeSkillData(*hit).tier);
-			const bool spent = SpendPlusRect(cellIcon).contains(local)
-			        && oracool::CanInvestClassTreePoint(*MyPlayer, *hit)
-			    ? oracool::InvestClassTreePoint(*MyPlayer, *hit)
-			    : (SpendMinusRect(cellIcon).contains(local)
-			              && oracool::CanRefundClassTreePoint(*MyPlayer, *hit)
-			            ? oracool::RefundClassTreePoint(*MyPlayer, *hit)
-			            : false);
-			if (spent) {
-				// The whole of "make it take effect": the aura provider and every ladder read the
-				// investment on the next totals walk.
-				CalcPlrInv(*MyPlayer, false);
-				RedrawEverything();
-				return;
-			}
-		}
+		// POINTS ONLY, and the whole icon is the target. User, 2026-08-20: "in abilities window we
+		// repurpose left/right clicks - left click ADDS point, right click SUBTRACTS."
+		//
+		// The spend corners are gone with the gesture that needed them. They were carved out of the
+		// icon only because the icon itself meant "ready this skill", so the two actions had to be
+		// kept apart by geometry. Readying moved to the LMB/RMB picker, which leaves the cell free to
+		// be one target with two buttons - the simplification is a consequence of the split, not a
+		// tidy-up on top of it.
 		if (onBar)
-			return; // the counter row is inert now; the corners above are the spend controls
+			return; // the counter row reports the rank, it does not act
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hit);
-		Player &treePlayer = *MyPlayer;
-
-		// UNBUILT rows are wholly inert (user, 2026-08-18): no assignment, no hotkey, no spend
-		// corners. They briefly handed back the basic attack; item 11's quick list is the deliberate
-		// way to do that now, so a struck-out cell simply is not a control.
+		// UNBUILT rows stay wholly inert (user, 2026-08-18). Taking points for something that does
+		// nothing with them is exactly the trap that rule exists to prevent, and a struck-out cell
+		// already says it is not a control.
 		if (!data.implemented)
 			return;
 
-		// A rank of ZERO is not yours to use yet either, however unlocked the row is. The plate is
-		// already red for exactly this state - "yours to fill and empty" - and a red plate that
-		// still answered a click was the inconsistency.
-		if (oracool::ClassTreeInvestment(treePlayer, *hit) <= 0)
-			return;
-
-		if (!oracool::IsClassTreeSkillUnlocked(treePlayer, *hit)) {
-			const std::string reason = oracool::ClassTreeLockReason(treePlayer, *hit);
-			if (!reason.empty())
-				EventPlrMsg(reason, UiFlags::ColorRed);
-			return;
-		}
-
-		// EACH KIND OF ROW HAS ITS OWN RULE, and they are deliberately NOT unified (user,
-		// 2026-08-18: "each sheet to have its own set of rules. don't unify click handling among
-		// ability sheets"). In full:
-		//
-		//   AURA rows      - either button lights the aura, and it shows on the RMB well. They have
-		//                    no business on the left button, and clicking a burning one puts it out,
-		//                    so one row is the whole on/off control.
-		//   ACTIVE rows    - the button that clicked is the button it lands on: left click readies on
-		//                    LMB, right click on RMB. This is what "combat skills should land on LMB"
-		//                    asks for, and it is why the two must not share the aura's rule.
-		//   PASSIVE rows   - unreachable here: they are never assignable, and the spend corners above
-		//                    are all a passive row has.
-		//
-		// An aura carries no SpellID - it is a toggle, not a cast - so "on RMB" means that well
-		// REPORTS it (see DrawRmbSkillWell); the button itself keeps doing whatever it did.
-		if (data.kind == oracool::ClassTreeKind::Aura) {
-			oracool::ToggleClassAura(treePlayer, *hit);
-			CalcPlrInv(treePlayer, false);
+		const bool changed = assignToRightButton
+		    ? oracool::RefundClassTreePoint(*MyPlayer, *hit)
+		    : oracool::InvestClassTreePoint(*MyPlayer, *hit);
+		if (changed) {
+			// The whole of "make it take effect": the aura provider and every ladder read the
+			// investment on the next totals walk.
+			CalcPlrInv(*MyPlayer, false);
 			RedrawEverything();
 			return;
 		}
-		// A built, ranked, unlocked active readies as it would on any other sheet - every refusal
-		// above has already had its say.
-		const SpellID treeSpell = oracool::ClassTreeSpellId(*hit);
-		if (!IsValidSpell(treeSpell))
-			return;
-		const SpellType treeType = (treePlayer._pAblSpells & GetSpellBitmask(treeSpell)) != 0
-		    ? SpellType::Skill
-		    : SpellType::Spell;
-		if (assignToRightButton) {
-			// The aura and the right button are one slot - see ClearClassAuraForRightButton.
-			oracool::ClearClassAuraForRightButton(treePlayer);
-			treePlayer._pRSpell = treeSpell;
-			treePlayer._pRSplType = treeType;
-		} else {
-			treePlayer._pLRSpell = treeSpell;
-			treePlayer._pLRSplType = treeType;
+		// A refused INVEST says why where there is something to say. The tier gate is the usual
+		// reason and the one a player cannot deduce from the cell alone; a refused refund needs no
+		// explanation, because "nothing invested" is what the cell already shows.
+		if (!assignToRightButton && !oracool::IsClassTreeSkillUnlocked(*MyPlayer, *hit)) {
+			const std::string reason = oracool::ClassTreeLockReason(*MyPlayer, *hit);
+			if (!reason.empty())
+				EventPlrMsg(reason, UiFlags::ColorRed);
 		}
-		RedrawEverything();
 		return;
 	}
 	// Spells: the one list sheet left.
