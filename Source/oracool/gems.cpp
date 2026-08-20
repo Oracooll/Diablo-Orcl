@@ -476,14 +476,54 @@ int EffectiveRequirement(const Item &item, int baseRequirement)
 	return std::max(1, baseRequirement * (100 - reduction) / 100);
 }
 
-std::string GemSocketLine(uint16_t gemIdx, SocketHost host)
+/**
+ * @brief The flags a rune can carry, as words. Empty for anything not on the list.
+ *
+ * Only the effects the rune sheet actually uses are named. A flag with no text here would print
+ * nothing at all, which is the failure this function exists to end - see GemEffectParts.
+ */
+std::string FlagText(ItemSpecialEffect flags)
 {
-	int percent = 100;
-	const GemData *gem = ResolveGem(gemIdx, percent);
-	if (gem == nullptr)
-		return {};
+	std::string parts;
+	const auto add = [&parts](std::string piece) {
+		if (!parts.empty())
+			parts.append(", ");
+		parts.append(std::move(piece));
+	};
+	if (HasAnyOf(flags, ItemSpecialEffect::FasterAttack))
+		add(std::string(_("faster attack")));
+	if (HasAnyOf(flags, ItemSpecialEffect::FasterHitRecovery))
+		add(std::string(_("faster hit recovery")));
+	if (HasAnyOf(flags, ItemSpecialEffect::FastBlock))
+		add(std::string(_("faster block")));
+	if (HasAnyOf(flags, ItemSpecialEffect::Knockback))
+		add(std::string(_("knockback")));
+	if (HasAnyOf(flags, ItemSpecialEffect::StealLife5))
+		add(std::string(_("steals life")));
+	if (HasAnyOf(flags, ItemSpecialEffect::StealMana5))
+		add(std::string(_("steals mana")));
+	if (HasAnyOf(flags, ItemSpecialEffect::Thorns))
+		add(std::string(_("attackers take damage")));
+	if (HasAnyOf(flags, ItemSpecialEffect::TripleDemonDamage))
+		add(std::string(_("triple damage to demons")));
+	return parts;
+}
+
+/**
+ * @brief Every effect @p gem grants in @p host, as one comma-separated list. No name, no host.
+ *
+ * Split out of GemSocketLine on 2026-08-20 so a LOOSE rune or gem can describe itself too - the
+ * socket line and the inventory description are the same sentence with different framing.
+ *
+ * The extraction came with a real bug fix. GemSocketLine only ever printed the launch gems'
+ * channels, so eight of the fields Sockets v2 added were invisible: weaponDamagePercent, the four
+ * attributes, the two find stats, the three flag sets, Hel's requirement reduction and Zod's
+ * indestructible. A rune whose only weapon effect is a FLAG - Shael is faster attack and nothing
+ * else - rendered as "Shael Rune: " with an empty list after the colon, and had done since 1.8.9.
+ */
+std::string GemEffectParts(const GemData *gem, SocketHost host, int percent)
+{
 	const auto at = [percent](int value) { return AtQuality(value, percent); };
-	const char *name = AllItemsList[gemIdx].iName;
 	// The D2 runes stack several effects on one host (El: armor AND light radius), so the line is
 	// built from every nonzero field rather than the first one found.
 	std::string parts;
@@ -494,6 +534,8 @@ std::string GemSocketLine(uint16_t gemIdx, SocketHost host)
 	};
 	switch (host) {
 	case SocketHost::Weapon:
+		if (at(gem->weaponDamagePercent) > 0)
+			add(fmt::format(fmt::runtime(_("+{:d}% damage")), at(gem->weaponDamagePercent)));
 		if (at(gem->weaponFireMax) > 0)
 			add(fmt::format(fmt::runtime(_("+{:d}-{:d} fire damage")), at(gem->weaponFireMin), at(gem->weaponFireMax)));
 		if (at(gem->weaponLightMax) > 0)
@@ -544,13 +586,68 @@ std::string GemSocketLine(uint16_t gemIdx, SocketHost host)
 			add(fmt::format(fmt::runtime(_("+{:d}% magic find")), at(gem->armorMagicFind)));
 		break;
 	}
+	// The host's own flag set. Sockets v2 put D2's knockback, attack speed, hit recovery, block
+	// speed, steal and demon damage here, and nothing printed them until 2026-08-20.
+	const ItemSpecialEffect flags = host == SocketHost::Weapon ? gem->weaponFlags
+	    : host == SocketHost::Shield                           ? gem->shieldFlags
+	                                                           : gem->armorFlags;
+	if (const std::string flagText = FlagText(flags); !flagText.empty())
+		add(flagText);
+
 	if (host != SocketHost::Weapon && gem->damageReduction > 0)
 		add(fmt::format(fmt::runtime(_("damage taken -{:d}")), gem->damageReduction));
+
+	// Every-host effects: these apply wherever the stone goes, so they close every list.
+	if (gem->allStrength > 0)
+		add(fmt::format(fmt::runtime(_("+{:d} strength")), gem->allStrength));
+	if (gem->allMagic > 0)
+		add(fmt::format(fmt::runtime(_("+{:d} magic")), gem->allMagic));
+	if (gem->allDexterity > 0)
+		add(fmt::format(fmt::runtime(_("+{:d} dexterity")), gem->allDexterity));
+	if (gem->allVitality > 0)
+		add(fmt::format(fmt::runtime(_("+{:d} vitality")), gem->allVitality));
+	if (gem->allMagicFind > 0)
+		add(fmt::format(fmt::runtime(_("+{:d}% magic find")), gem->allMagicFind));
+	if (gem->allGoldFind > 0)
+		add(fmt::format(fmt::runtime(_("+{:d}% gold find")), gem->allGoldFind));
+	if (gem->requirementPercentReduction > 0)
+		add(fmt::format(fmt::runtime(_("requirements -{:d}%")), gem->requirementPercentReduction));
+	if (gem->indestructible)
+		add(std::string(_("indestructible")));
 	if (gem->lightRadius > 0)
 		add(fmt::format(fmt::runtime(_("+{:d} light radius")), gem->lightRadius));
 	if (gem->manaPerKill > 0)
 		add(fmt::format(fmt::runtime(_("+{:d} mana per kill")), gem->manaPerKill));
-	return fmt::format(fmt::runtime(_("{:s}: {:s}")), _(name), parts);
+	return parts;
+}
+
+std::string GemSocketLine(uint16_t gemIdx, SocketHost host)
+{
+	int percent = 100;
+	const GemData *gem = ResolveGem(gemIdx, percent);
+	if (gem == nullptr)
+		return {};
+	const std::string parts = GemEffectParts(gem, host, percent);
+	if (parts.empty())
+		return {};
+	return fmt::format(fmt::runtime(_("{:s}: {:s}")), _(AllItemsList[gemIdx].iName), parts);
+}
+
+std::string GemHostEffectLine(uint16_t gemIdx, SocketHost host)
+{
+	int percent = 100;
+	const GemData *gem = ResolveGem(gemIdx, percent);
+	if (gem == nullptr)
+		return {};
+	const std::string parts = GemEffectParts(gem, host, percent);
+	if (parts.empty())
+		return {};
+	// Framed by where it goes rather than by what it is: the item's own name is already the panel's
+	// first line, so repeating it on all three host lines would be noise.
+	const char *where = host == SocketHost::Weapon ? N_("In weapons")
+	    : host == SocketHost::Shield               ? N_("In shields")
+	                                               : N_("In armor");
+	return fmt::format(fmt::runtime(_("{:s}: {:s}")), _(where), parts);
 }
 
 int RuneManaPerKill(const Player &player)

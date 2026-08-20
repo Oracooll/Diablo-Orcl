@@ -30,6 +30,20 @@ struct ItemLabel {
 	int id, width;
 	Point pos;
 	StringOrView text;
+	/**
+	 * @brief Oracool: the socket count in brackets, drawn in RED after the name.
+	 *
+	 * User, 2026-08-20: "when a socketed item drops add a sucket number suffix to the name in
+	 * brackets in RED font."
+	 *
+	 * Held as its own string rather than appended to `text`, because the label is one DrawString in
+	 * one colour - two colours need two calls, and the second has to know where the first ended.
+	 * Empty for anything with no sockets, which is almost everything.
+	 */
+	std::string socketSuffix;
+	/** @brief Width of `text` alone. `width` covers both, so the box and the collision maths do
+	 * not need to know the suffix exists; only the red DrawString does. */
+	int nameWidth;
 };
 
 std::vector<ItemLabel> labelQueue;
@@ -114,7 +128,18 @@ void AddItemToLabelQueue(int id, Point position)
 		textOnGround = item.getName();
 	}
 
-	int nameWidth = GetLineWidth(textOnGround);
+	// Oracool: the socket count rides the ground label, so a socketed drop is worth walking to
+	// before you know anything else about it. Total count, not the empty ones - "[3]" is the item's
+	// ceiling, which is what makes it interesting; a partly filled base still reads as a host.
+	std::string socketSuffix;
+	if (item._iSocketCount > 0)
+		socketSuffix = fmt::format(" [{:d}]", item._iSocketCount);
+
+	const int textWidth = GetLineWidth(textOnGround);
+	const int suffixWidth = socketSuffix.empty() ? 0 : GetLineWidth(socketSuffix);
+	// The box, and every collision test below, sizes to name PLUS suffix. Sizing to the name alone
+	// would let the red digits overhang the plate and collide with the next label unseen.
+	int nameWidth = textWidth + suffixWidth;
 	nameWidth += MarginX * 2;
 	int index = GetItemDropAnimIndex(item._iCurs);
 	if (!labelCenterOffsets[index]) {
@@ -127,7 +152,7 @@ void AddItemToLabelQueue(int id, Point position)
 	position *= *sgOptions.Oracool.dungeonZoomLevel;
 	position.x -= nameWidth / 2;
 	position.y -= LabelHeight();
-	labelQueue.push_back(ItemLabel { id, nameWidth, position, std::move(textOnGround) });
+	labelQueue.push_back(ItemLabel { id, nameWidth, position, std::move(textOnGround), std::move(socketSuffix), textWidth });
 }
 
 bool IsMouseOverGameArea()
@@ -205,6 +230,14 @@ void DrawItemNameLabels(const Surface &out)
 			DrawHalfTransparentRectTo(clippedOut, label.pos.x, label.pos.y, label.width, labelHeight);
 		DrawString(clippedOut, label.text, { { label.pos.x + MarginX, label.pos.y + labelMarginTop }, { label.width, labelHeight } },
 		    { item.getTextColor() });
+		// The socket count, in its own colour. Deliberately NOT item.getTextColor(): the point of
+		// the suffix is that it is legible at a glance across a floor of drops, so it stays red on
+		// a unique's gold and on a rare's yellow alike.
+		if (!label.socketSuffix.empty()) {
+			DrawString(clippedOut, label.socketSuffix,
+			    { { label.pos.x + MarginX + label.nameWidth, label.pos.y + labelMarginTop }, { label.width, labelHeight } },
+			    { UiFlags::ColorRed });
+		}
 	}
 	labelQueue.clear();
 }

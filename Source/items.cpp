@@ -5439,6 +5439,24 @@ void PrintItemDetails(const Item &item)
 		AddPanelString(oracool::CharmEffectLine(static_cast<uint16_t>(item.IDidx)), ItemAffixColor);
 		AddPanelString(fmt::format(fmt::runtime(_("only your first {:d} charms are active")), oracool::CharmActiveCap), ItemBaseStatColor);
 	}
+	// A LOOSE gem or rune says what it does, per host, before it says anything else.
+	//
+	// User, 2026-08-20: "why runes show available RW instead of their affixes/stats?" - and the
+	// answer was that they never showed them. The teaching lines below were the only rune branch in
+	// this function, and a loose GEM had no branch at all, so the one thing you actually need to
+	// decide whether to socket a stone was the one thing not printed. The effects were always there
+	// (runes are GemData rows) and always rendered - but only from the socket loop further down,
+	// which is to say only after the decision had been made.
+	//
+	// Three hosts because a loose stone does not know where it is going. Empty lists fall away, so
+	// a gem that does nothing in shields simply says nothing about shields.
+	if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx)) {
+		for (const oracool::SocketHost host : { oracool::SocketHost::Weapon, oracool::SocketHost::Shield, oracool::SocketHost::Armor }) {
+			std::string line = oracool::GemHostEffectLine(static_cast<uint16_t>(item.IDidx), host);
+			if (!line.empty())
+				AddPanelString(std::move(line), ItemAffixColor);
+		}
+	}
 	// Phase 1 runes: every rune teaches the runewords it belongs to - the recipes drop WITH the
 	// runes, which is the whole "discoverable in-game" improvement over D2's wiki homework.
 	if (IsOracoolRuneIdx(item.IDidx)) {

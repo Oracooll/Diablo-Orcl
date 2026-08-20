@@ -158,6 +158,14 @@ void ApplyZodToHost(Item &item);
 std::string GemSocketLine(uint16_t gemIdx, SocketHost host);
 
 /**
+ * @brief The same effects framed for a LOOSE stone - "In weapons: +7% damage, knockback".
+ *
+ * Empty when the stone does nothing in @p host, so a caller can print all three hosts and let the
+ * blanks fall away. Runes typically fill all three; a gem's shield and armor lists often differ.
+ */
+std::string GemHostEffectLine(uint16_t gemIdx, SocketHost host);
+
+/**
  * @brief The insertion rule, in one place: if @p held is a gem and @p target has an open socket,
  * the gem goes into the first empty slot and the function returns true (caller clears the cursor
  * and recalculates). False leaves both items untouched, and the paste proceeds as a normal swap.

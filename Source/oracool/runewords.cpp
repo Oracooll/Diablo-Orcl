@@ -140,7 +140,11 @@ std::string RuneTeachingLines(uint16_t runeIdx)
 	// the recipes lived on a wiki. With 309 words a popular rune belongs to dozens of them, so the
 	// list is capped and the remainder counted: an item panel that runs off the screen teaches
 	// nothing at all.
-	constexpr int MaxTaughtWords = 6;
+	//
+	// Cut from 6 to 3 on 2026-08-20, when the rune's own per-host effects moved above this list.
+	// Those three lines are what the panel is FOR - the recipes are the bonus - and at six words
+	// plus a remainder the panel already spanned most of the screen on a common rune like El.
+	constexpr int MaxTaughtWords = 3;
 	std::string lines;
 	int shown = 0;
 	int found = 0;

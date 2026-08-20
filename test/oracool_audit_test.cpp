@@ -3364,3 +3364,40 @@ TEST(OracoolAudit, TheCastScopeClosesBehindItself)
 	EXPECT_EQ(oracool::CurrentCastSkill(), oracool::ClassTreeSkill::None)
 	    << "the cast scope stayed open after the cast finished";
 }
+
+/**
+ * Every rune says something in every host.
+ *
+ * User, 2026-08-20: "why runes show available RW instead of their affixes/stats?" - the answer was
+ * that a loose rune never printed its effects at all. Fixing that surfaced an older bug underneath:
+ * GemSocketLine only ever formatted the launch gems' channels, so the fields Sockets v2 added were
+ * invisible - the percentage damage roll, the four attributes, the two find stats, the special
+ * effect flags, Hel's requirement cut and Zod's indestructible.
+ *
+ * The visible symptom was a rune whose only effect in a host is a FLAG. Shael in a weapon is faster
+ * attack and nothing else, so it rendered as "Shael Rune: " - a colon with an empty list after it,
+ * shipped since 1.8.9 and never noticed, because nothing reads a socket line but a person.
+ *
+ * The 33 runes all carry an effect in all three hosts by design, so an empty list is a formatter
+ * gap rather than a data gap. Gems are deliberately NOT asserted here: a gem legitimately does
+ * nothing in some hosts.
+ */
+TEST(OracoolAudit, EveryRuneDescribesItselfInEveryHost)
+{
+	int runesChecked = 0;
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsOracoolRuneIdx(i))
+			continue;
+		runesChecked++;
+		const auto idx = static_cast<uint16_t>(i);
+		for (const oracool::SocketHost host : { oracool::SocketHost::Weapon, oracool::SocketHost::Shield, oracool::SocketHost::Armor }) {
+			EXPECT_FALSE(oracool::GemHostEffectLine(idx, host).empty())
+			    << AllItemsList[i].iName << " has no printable effect in host " << static_cast<int>(host);
+			// The socket line is the same list with the name in front, so it must be non-empty for
+			// the same reason - and it is the one the player actually sees on a finished item.
+			EXPECT_FALSE(oracool::GemSocketLine(idx, host).empty())
+			    << AllItemsList[i].iName << " has an empty socket line in host " << static_cast<int>(host);
+		}
+	}
+	EXPECT_EQ(runesChecked, 33) << "the D2 rune sheet is 33 runes; the loop found a different number";
+}
