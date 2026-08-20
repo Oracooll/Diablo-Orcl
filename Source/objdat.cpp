@@ -361,4 +361,12 @@ const char *const ObjMasterLoadList[] = {
 	"orclroar",  // Oracool: ours, from oracool.mpq - see OFILE_ORCLROAR
 };
 
+// Oracool audit (2026-08-20): object_graphic_id INDEXES this list - SetupObject and
+// EnsureObjectGraphicsLoaded both do ObjMasterLoadList[ofile]. Add an enumerator without a row and
+// the read runs off the end; add a row without an enumerator and the last one is unreachable.
+// Neither shows up as a build or test failure, so it is asserted here, at the definition, where the
+// two are next to each other.
+static_assert(sizeof(ObjMasterLoadList) / sizeof(ObjMasterLoadList[0]) == NumObjectGraphicFiles,
+    "ObjMasterLoadList and object_graphic_id have drifted - every enumerator needs exactly one row");
+
 } // namespace devilution

@@ -20,7 +20,6 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | The stash chest - real art | Directive | Small | No | User's assets | Back on vanilla chest3.cel at v1.8.63. Two packs have been tried and rejected: the Grand Reliquary read as a building, and the second pack's three states are drawn at visibly different scales, so the chest changes size as it opens. A shared cut box cannot fix that - it pins the frame, not what is inside it. The next pack needs its three states drawn at one scale. The engine side is intact and parked: uncommenting ApplyStashChestGraphics and its SyncObjectAnim twin, together, is the whole job. |
 | Legendary power slots | Phase 6 | Medium | Yes | Unique legendary powers | Kanai's Cube has three slots below its grid for extracted powers. Levski's Roar deliberately has none until the powers exist. |
 | Retire the standalone Crafting window | Directive | Small | No | menu_icons.png recut | Directive point 8 is HALF done. Levski's Roar shipped with the recipes, but the burger menu's own Crafting window was left in place, so the same recipes run from two larders - the monument's grid and the backpack. Removing the burger entry shifts every icon after it, because the row order must match menu_icons.png exactly, so the sheet has to be recut first. |
-| Object-instance test harness | Content | Medium | No | | Nothing in the suite asserts against a placed object after AddObject, which is why Levski's Roar shipped unclickable through three green runs. A harness that builds town and checks placement, selectability and operate routing would have caught it. |
 | Sweep the wiki for typed numbers | Content | Small | No | | LOCATED 2026-08-19, not yet derived. Eleven typed numeric claims survive in the generated pages, and every one spot-checked against source is currently CORRECT - so this is about them being typed, not wrong. The list: affixes.html "143 shipped entries" and "up to 3 prefixes + 3 suffixes"; classes.html "a Sorcerer's 250 Magic against a Barbarian's zero"; sockets.html "climbs 13% a rung", "by 20% ... capped at 60%", "fixed 3%/5% flags", "370 words"; monsters.html "+15 in Nightmare, +30 in Hell", "default 2.0, range 1.1 to 5.0"; ui.html "10 x 7 grid, ten tabs, thirteen equipment slots", "56 x 56 icon cell". Verified against gems.cpp (Hel 20, cap 60), GenRunes.ps1 (1.13 climb), playerdat.cpp (Sorcerer 250, Barbarian 0), runes_effects.inc. The remaining work is routing each through BuildWiki.ps1 so they cannot drift.
 | Salvaging, and the seven materials | Directive | Medium | New file | | Break unwanted items into White Scales, Magic Powder, Rare Fibres, Unique Encrustments, Primal Vines, Ethereal Imbueities and Set Engravings. Materials are player-scoped, so they can live in their own absent-tolerant file rather than breaking the hero format. |
 | Point 10 of the socket directive | Directive | ? | ? | Never stated | The nine-point socket list ended with an empty "10." It has stayed blank across four messages. |
@@ -65,6 +64,13 @@ ApplyMeleeSkillOnHit. All seven cue events in the package are now wired. v1.8.38
 level-up icons rebuilt as three-state strips from the drop-zone packages by toolsCutHudStateIcons.ps1. v1.8.40 shipped MPQ Unit E from hud-plate-v3.png, which - unlike the
 limestone package - is drawn on the same 1505-wide source grid the layout already uses, so every slot
 rect held and only PlateSrcSize.height moved.
+
+v1.8.65 shipped the object-instance test harness: test/oracool_town_objects_test.cpp, 14 tests that
+build town's object pool and assert placement, selectability and operate routing on what comes out.
+Both of the historical failures it targets were reintroduced deliberately to watch it go red before
+it was trusted. It cannot check SPRITES - HeadlessMode short-circuits the whole graphics path - so
+whether an object wears the right art is still a question only the screen answers, and that is
+stated at the top of the file rather than papered over.
 
 The 1.6 to 1.8 lines took these out of the backlog: Levski's Roar with its 3x4 grid and recipe book, socket extraction, waypoints, autosave-only play, the HUD rebuild,
 skill trees and respec, the run toggle, charms, item tiers, set items, sockets and gems, all 33
