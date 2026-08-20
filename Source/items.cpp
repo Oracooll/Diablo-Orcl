@@ -2660,6 +2660,16 @@ _item_indexes RndItemForMonsterLevel(int8_t monsterLevel)
 
 StringOrView GetTranslatedItemName(const Item &item)
 {
+	// IDidx is bounded before it indexes the table. Every name in the game comes through here, so an
+	// item carrying a stale or corrupt index turned an already-bad state into an out-of-bounds READ
+	// on the render path - a crash while merely LOOKING at a list, which is the worst place for one
+	// because it takes the evidence with it.
+	//
+	// Returning the empty string rather than asserting: a nameless row is a visible symptom the
+	// player can report, and it leaves the rest of the panel drawable. The item is still wrong; this
+	// only stops the wrongness being fatal.
+	if (item.IDidx < 0 || item.IDidx > IDI_LAST)
+		return string_view("");
 	const auto &baseItemData = AllItemsList[static_cast<size_t>(item.IDidx)];
 
 	if (item._iCreateInfo == 0) {

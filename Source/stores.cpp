@@ -293,6 +293,14 @@ void InitializeSmithPepinPotions()
 {
 	const std::array<_item_indexes, SmithPepinPotionCount> potionTypes = SmithPepinPotionTypes();
 	for (size_t i = 0; i < SmithPepinPotionCount; ++i) {
+		// Two of the four come from ItemMiscIdIdx, which can now answer IDI_NONE rather than
+		// walking off the table. An empty slot here is correct and survivable: the stock builder
+		// includes all four Pepin rows unconditionally, and an EMPTY item is skipped by the draw and
+		// counted by nothing, whereas InitializeItem(-1) would index AllItemsList at -1.
+		if (potionTypes[i] == IDI_NONE) {
+			smithPepinPotions[i].clear();
+			continue;
+		}
 		InitializeItem(smithPepinPotions[i], potionTypes[i]);
 		smithPepinPotions[i]._iStatFlag = true;
 	}
@@ -1172,13 +1180,20 @@ void ScrollWitchBuy(int idx, bool includePepinPotions)
 		if (idx >= stockSize)
 			break;
 		Item &item = WitchStockItem(idx, includePepinPotions);
+		// idx advances WHATEVER this entry turns out to be. It used to advance only when the entry
+		// was drawn, so a single empty slot stalled the walk: every remaining row re-read the same
+		// empty entry, drew nothing, and the rest of the list became unreachable however far you
+		// scrolled (user, 2026-08-20 - blank rows while "scrolling his consumables store").
+		//
+		// The witch path is where this bites, because it walks the RAW witchitem array rather than
+		// the filtered vector, and that array grows holes as soon as anything is bought from it.
+		idx++;
 		if (!item.isEmpty()) {
 			UiFlags itemColor = item.getTextColorWithStatCheck();
 			AddSText(20, l, item.getName(), itemColor, true, item._iCurs, true);
 			AddSTextVal(l, item._iIvalue);
 			PrintStoreItem(item, l + 1, itemColor, true);
 			stextdown = l;
-			idx++;
 		}
 	}
 

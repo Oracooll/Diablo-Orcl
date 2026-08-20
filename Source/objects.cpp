@@ -5219,12 +5219,24 @@ void ObjChangeMapResync(int x1, int y1, int x2, int y2)
 
 _item_indexes ItemMiscIdIdx(item_misc_id imiscid)
 {
-	std::underlying_type_t<_item_indexes> i = IDI_GOLD;
-	while (AllItemsList[i].iRnd == IDROP_NEVER || AllItemsList[i].iMiscId != imiscid) {
-		i++;
+	// BOUNDED. This walked to the first match with no end test at all, so a misc id that no
+	// droppable row carries walked straight off AllItemsList and kept reading - returning an index
+	// into whatever follows the table, which InitializeItem then builds an item from.
+	//
+	// Vanilla got away with it because its table was short, fixed, and every id this is called with
+	// had a match. Neither of the first two is true here any more: the table has grown by roughly
+	// 250 appended rows and keeps growing, so the walk past the end is longer and lands in
+	// different memory each time the table changes. The termination also depends on iRnd, which
+	// this fork DOES edit - the Town Portal scroll was set to never drop, and one more such edit on
+	// a potion is all it would take.
+	//
+	// Every current caller still finds its match; this is the guard that keeps "still" from being
+	// load-bearing.
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].iRnd != IDROP_NEVER && AllItemsList[i].iMiscId == imiscid)
+			return static_cast<_item_indexes>(i);
 	}
-
-	return static_cast<_item_indexes>(i);
+	return IDI_NONE;
 }
 
 void OperateObject(Player &player, Object &object)
