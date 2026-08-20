@@ -267,14 +267,20 @@ bool ProcessInput()
  * readied skill is for. Townspeople are present - pcursmonst covers them too, so the town check is
  * what separates "talk to Griswold" from "hit the thing in front of me".
  */
-bool IsInteractableUnderCursor()
+/**
+ * @brief Whether the cursor is over something the left button should ATTACK.
+ *
+ * The left button's readied spell fires on this and nothing else (user report, 2026-08-20: "only
+ * fire when over enemy. now they also fire when over ground. makes me not able to move"). The old
+ * rule was the inverse - cast unless something INTERACTABLE was under the cursor - and bare ground
+ * is not interactable, so every click on the floor was a cast and walking became impossible with a
+ * spell readied.
+ *
+ * Townspeople are excluded: in town every "monster" is a conversation, not a target.
+ */
+bool IsEnemyUnderCursor()
 {
-	if (pcursitem != -1)
-		return true;
-	if (ObjectUnderCursor != nullptr && !ObjectUnderCursor->IsDisabled())
-		return true;
-	// In town every "monster" is a townsperson, so a click on one is a conversation.
-	return leveltype == DTYPE_TOWN && pcursmonst != -1;
+	return leveltype != DTYPE_TOWN && pcursmonst != -1;
 }
 
 void LeftMouseCmd(bool bShift)
@@ -567,8 +573,24 @@ void LeftMouseDown(uint16_t modState)
 					// and vanilla's own shift-click already ignores items and objects to swing in
 					// place. Routing shift+click over an item to LeftMouseCmd made it the one spot
 					// on the screen where shift quietly stopped casting.
+					// AN ENEMY, OR SHIFT. Nothing else casts from the left button.
+					//
+					// This gate used to be the inverse - cast unless something interactable was
+					// under the cursor - which meant bare ground cast, because ground is not
+					// interactable. With a spell readied you could not walk (user report,
+					// 2026-08-20: "makes me not able to move"). Movement is the left button's
+					// baseline job and a readied spell must not be able to take it away.
+					//
+					// The interaction-wins rule from 2026-08-15 survives as a consequence rather
+					// than as a clause: an item, a door, a shrine or a townsperson is not an enemy,
+					// so a plain click on one falls through to LeftMouseCmd exactly as it did.
+					//
+					// Shift still means "cast, no matter what", and it is now the ONLY way to aim a
+					// ground-targeted spell - Fire Wall, Teleport, Blessed Hammer - from this
+					// button. That is the trade the report asks for: "they only need to fire if i
+					// hold shift".
 					Player &lmbPlayer = *MyPlayer;
-					if (IsValidSpell(lmbPlayer._pLRSpell) && (isShiftHeld || !IsInteractableUnderCursor()))
+					if (IsValidSpell(lmbPlayer._pLRSpell) && (isShiftHeld || IsEnemyUnderCursor()))
 						CheckPlrSpell(isShiftHeld, lmbPlayer._pLRSpell, lmbPlayer._pLRSplType);
 					else
 						LeftMouseCmd(isShiftHeld);
