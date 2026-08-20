@@ -1018,6 +1018,13 @@ void CheckCursMove()
 	if (sbookflag && GetSpellBookPanelRect().contains(MousePosition)) {
 		return;
 	}
+	// The free-floating windows - Levski's Roar, its recipe book, the runeword book. Every docked
+	// window above excludes itself by rect; these are centred over the world and had no such test,
+	// so hovering them probed straight through to the ground behind. User report, 2026-08-20:
+	// "you can see i can hover over ogden" with the monument panel open over the tavern.
+	if (oracool::IsPointOverFloatingWindow(MousePosition)) {
+		return;
+	}
 	// Same rect the click router uses (control.h's GetLeftPanelContentRect): hovering the part of
 	// an open window that falls outside the vanilla 320x352 slot must not highlight monsters and
 	// items on the ground behind it, or the cursor would invite exactly the click the router

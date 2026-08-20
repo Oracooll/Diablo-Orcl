@@ -116,29 +116,55 @@ int SalvageYield(const Item &item)
 
 int SalvageAllInBackpack(Player &player, SalvageTier tier)
 {
-	// Two passes, and the split matters. Removing from InvList compacts it - every index after the
+	// EVERY page, not just the one on screen. User report, 2026-08-20: "Salvage buttons to sweet
+	// all tabs." The original walk used the GetActive* helpers, which read whichever tab is
+	// displayed - so a button pressed on page 1 left the rares on pages 2-10 untouched, and the
+	// only way to notice was to page through afterwards.
+	//
+	// Two passes, and the split matters. Removing from a list compacts it - every index after the
 	// removed one shifts down - so collecting first and removing afterwards, highest index first,
-	// is what keeps the walk from skipping items.
-	std::vector<int> victims;
+	// is what keeps the walk from skipping items. Tab -1 is the main backpack.
+	struct Victim {
+		int tab;
+		int index;
+	};
+	std::vector<Victim> victims;
 	int materials = 0;
-	for (int i = 0; i < GetActiveNumInv(player); i++) {
-		const Item &item = GetActiveInvListItem(player, i);
-		if (!IsSalvageable(item) || SalvageTierOf(item) != tier)
-			continue;
-		victims.push_back(i);
-		materials += SalvageYield(item);
-	}
+
+	const auto collect = [&](int tab, const Item *list, int count) {
+		for (int i = 0; i < count; i++) {
+			if (!IsSalvageable(list[i]) || SalvageTierOf(list[i]) != tier)
+				continue;
+			victims.push_back({ tab, i });
+			materials += SalvageYield(list[i]);
+		}
+	};
+	collect(-1, player.InvList, player._pNumInv);
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++)
+		collect(tab, player.InvTabList[tab].data(), player._pNumInvTab[tab]);
+
 	if (victims.empty())
 		return 0;
 
-	for (auto it = victims.rbegin(); it != victims.rend(); ++it)
-		RemoveActiveInvItem(player, *it);
+	// Reverse order removes the highest index of each list first. The vector is built tab by tab
+	// and ascending within a tab, so walking it backwards satisfies that for every tab at once.
+	for (auto it = victims.rbegin(); it != victims.rend(); ++it) {
+		if (it->tab < 0)
+			player.RemoveInvItem(it->index, false);
+		else
+			RemoveExtraTabItem(player, it->tab, it->index);
+	}
 
 	// The materials go back into the space the gear just vacated, so a pack that was full enough to
 	// need salvaging always has room for what salvaging produced. They stack, so a hundred White
 	// Scales occupy one cell.
 	Item material;
 	InitializeItem(material, static_cast<_item_indexes>(SalvageMaterialFor(tier)));
+	// Without this the material renders through the infravision TRN - solid RED - until the next
+	// inventory action happens to run CalcPlrInv and set the flag. DrawItem picks the palette off
+	// _iStatFlag alone, and InitializeItem leaves it false. User report, 2026-08-20: "all of them
+	// spawn red then recolor after some interaction with inv."
+	material.updateRequiredStatsCacheForPlayer(player);
 	//
 	// Overflow is close to impossible and is NOT silently swallowed. Each salvaged item frees at
 	// least one cell, and the materials of one tier merge into a single stack until they pass 99 -
@@ -158,6 +184,24 @@ int SalvageAllInBackpack(Player &player, SalvageTier tier)
 	}
 
 	return static_cast<int>(victims.size());
+}
+
+bool AnySalvageableInBackpack(const Player &player, SalvageTier tier)
+{
+	const auto anyIn = [&](const Item *list, int count) {
+		for (int i = 0; i < count; i++) {
+			if (IsSalvageable(list[i]) && SalvageTierOf(list[i]) == tier)
+				return true;
+		}
+		return false;
+	};
+	if (anyIn(player.InvList, player._pNumInv))
+		return true;
+	for (int tab = 0; tab < Player::NumExtraInventoryTabs; tab++) {
+		if (anyIn(player.InvTabList[tab].data(), player._pNumInvTab[tab]))
+			return true;
+	}
+	return false;
 }
 
 uint16_t SalvageCharmFor(SalvageTier tier)
@@ -220,6 +264,7 @@ bool TrySalvageOnPickup(Player &player, const Item &item)
 	const int yield = SalvageYield(item);
 	Item material;
 	InitializeItem(material, static_cast<_item_indexes>(SalvageMaterialFor(tier)));
+	material.updateRequiredStatsCacheForPlayer(player); // see the same call in SalvageAllInBackpack
 	int placed = 0;
 	for (; placed < yield; placed++) {
 		Item one = material;

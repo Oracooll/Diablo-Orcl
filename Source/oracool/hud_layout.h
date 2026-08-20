@@ -198,4 +198,19 @@ void MigrateHiddenBeltSlots(Player &player);
  */
 bool IsPointOverHudChrome(Point mousePosition);
 
+/**
+ * @brief Whether @p mousePosition is over one of the FREE-FLOATING windows - the ones centred over
+ * the world rather than docked into a panel slot.
+ *
+ * The docked windows are each excluded from world hover by their own rect test in CheckCursMove.
+ * The floating ones had no such test, so the world kept being probed straight through them: with
+ * Levski's Roar open over the tavern you could hover Ogden through the panel, and the cursor then
+ * invited a click the router had already decided to absorb (user report, 2026-08-20 - "you can see
+ * i can hover over ogden").
+ *
+ * One function rather than a test per window, for the same reason IsPointOverHudChrome exists: the
+ * next floating window should join a list, not add a fourth place that has to remember this rule.
+ */
+bool IsPointOverFloatingWindow(Point mousePosition);
+
 } // namespace devilution::oracool

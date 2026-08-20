@@ -11,7 +11,9 @@
 #include "inv.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_menu.h"
+#include "oracool/levski_roar.h"
 #include "oracool/oracool.h"
+#include "oracool/runeword_book.h"
 #include "oracool/xp_counter.h"
 #include "utils/ui_fwd.h"
 
@@ -334,6 +336,20 @@ bool IsPointOverHudChrome(Point mousePosition)
 	    || IsPointOverXpCounter(mousePosition)
 	    || IsPointOverHudMenu(mousePosition)
 	    || (talkflag && GetMainPanel().contains(mousePosition));
+}
+
+bool IsPointOverFloatingWindow(Point mousePosition)
+{
+	// Levski's Roar, its recipe book, and the runeword book. Each getter already returns an empty
+	// rect when its window is closed, but the open-flags are tested anyway so this reads as the
+	// list it is.
+	if (IsLevskiRoarOpen() && GetLevskiRoarRect().contains(mousePosition))
+		return true;
+	if (IsLevskiRecipeBookOpen() && GetLevskiRecipeBookRect().contains(mousePosition))
+		return true;
+	if (IsRunewordBookOpen() && GetRunewordBookRect().contains(mousePosition))
+		return true;
+	return false;
 }
 
 } // namespace devilution::oracool

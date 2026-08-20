@@ -1,5 +1,7 @@
 #include "oracool/levski_roar.h"
 
+#include <SDL.h>
+
 #include <fmt/format.h>
 
 #include <algorithm>
@@ -29,6 +31,36 @@ namespace {
 
 bool WindowOpen = false;
 bool RecipeBookOpen = false;
+
+/**
+ * The pressed-button flash. User request, 2026-08-20: "Make some visual feedback when i click on
+ * levskis buttons."
+ *
+ * Held as a button index plus an expiry tick rather than a bool, for the same reason the inventory
+ * SORT button is: these buttons act on mouse-DOWN and nothing here polls a mouse-up, so a flag
+ * would either linger until the next click or need a second owner to clear it. The index is the
+ * salvage tier 0-6, then Transmute and Recipes - one mechanism, every button on the panel.
+ */
+constexpr int ButtonFlashNone = -1;
+constexpr int ButtonFlashTransmute = SalvageTierCount;
+constexpr int ButtonFlashRecipes = SalvageTierCount + 1;
+int ButtonFlashIndex = ButtonFlashNone;
+uint32_t ButtonFlashUntil = 0;
+/** Long enough to see, short enough not to read as a mode change - the SORT button's number. */
+constexpr uint32_t ButtonFlashMs = 170;
+/** A pale gold fill: the same ramp the border is cut from, near its light end. */
+constexpr uint8_t ButtonFlashColor = PAL16_YELLOW + 4;
+
+bool ButtonFlashActive(int index)
+{
+	return ButtonFlashIndex == index && SDL_GetTicks() < ButtonFlashUntil;
+}
+
+void FlashButton(int index)
+{
+	ButtonFlashIndex = index;
+	ButtonFlashUntil = SDL_GetTicks() + ButtonFlashMs;
+}
 
 /** The transmute slots, indexed by an item's top-left cell. Live only while the window is open - see the header's note on why
  * this is deliberately not save state. */
@@ -425,25 +457,39 @@ void DrawLevskiRoar(const Surface &out)
 	for (int i = 0; i < SalvageTierCount; i++) {
 		const auto tier = static_cast<SalvageTier>(i);
 		const Rectangle rect = SalvageButtonRect(window, i);
-		DrawOrnateBorder(out, rect);
-		bool any = false;
-		for (int slot = 0; slot < GetActiveNumInv(*MyPlayer) && !any; slot++) {
-			const Item &item = GetActiveInvListItem(*MyPlayer, slot);
-			any = IsSalvageable(item) && SalvageTierOf(item) == tier;
+		// The pressed flash, under the border so the frame stays crisp. Fired on mouse-down and
+		// held as an expiry, exactly like the inventory SORT button - these buttons run instantly
+		// and nothing here polls a mouse-up, so a bool would either linger or need a second owner.
+		if (ButtonFlashActive(i)) {
+			FillRect(out, rect.position.x + 1, rect.position.y + 1,
+			    rect.size.width - 2, rect.size.height - 2, ButtonFlashColor);
 		}
+		DrawOrnateBorder(out, rect);
+		// EVERY page, matching what the button will actually consume. This read the displayed tab
+		// only, so a button could sit dark while page 3 was full of rares.
+		const bool any = AnySalvageableInBackpack(*MyPlayer, tier);
 		DrawString(out, _(SalvageTierName(tier)), rect,
-		    { (any ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12
-		        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		    { (ButtonFlashActive(i) ? UiFlags::ColorWhite : (any ? UiFlags::ColorGold : UiFlags::ColorWhitegold))
+		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 
 	const Rectangle transmute = TransmuteButtonRect(window);
 	const int ready = FirstReadyLevskiRecipe(GridItems);
+	if (ButtonFlashActive(ButtonFlashTransmute)) {
+		FillRect(out, transmute.position.x + 1, transmute.position.y + 1,
+		    transmute.size.width - 2, transmute.size.height - 2, ButtonFlashColor);
+	}
 	DrawOrnateBorder(out, transmute);
 	DrawString(out, _("Transmute"), transmute,
-	    { (ready >= 0 ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12
-	        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	    { (ButtonFlashActive(ButtonFlashTransmute) ? UiFlags::ColorWhite
+	                                               : (ready >= 0 ? UiFlags::ColorGold : UiFlags::ColorWhitegold))
+	        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 
 	const Rectangle book = RecipeButtonRect(window);
+	if (ButtonFlashActive(ButtonFlashRecipes)) {
+		FillRect(out, book.position.x + 1, book.position.y + 1,
+		    book.size.width - 2, book.size.height - 2, ButtonFlashColor);
+	}
 	DrawOrnateBorder(out, book);
 	DrawString(out, RecipeBookOpen ? _("Close recipes") : _("Recipes"), book,
 	    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
@@ -510,6 +556,7 @@ bool CheckLevskiRoarClick(Point mousePosition)
 	for (int i = 0; i < SalvageTierCount; i++) {
 		if (!SalvageButtonRect(window, i).contains(mousePosition))
 			continue;
+		FlashButton(i); // fires whether or not there was anything to salvage - it acknowledges the CLICK
 		const auto tier = static_cast<SalvageTier>(i);
 		const int consumed = SalvageAllInBackpack(*MyPlayer, tier);
 		if (consumed > 0) {
@@ -524,11 +571,13 @@ bool CheckLevskiRoarClick(Point mousePosition)
 	}
 
 	if (RecipeButtonRect(window).contains(mousePosition)) {
+		FlashButton(ButtonFlashRecipes);
 		RecipeBookOpen = !RecipeBookOpen;
 		return true;
 	}
 
 	if (TransmuteButtonRect(window).contains(mousePosition)) {
+		FlashButton(ButtonFlashTransmute);
 		const std::string result = TransmuteLevskiGrid(GridItems);
 		RebuildGridOccupancy(); // the recipes rewrite GridItems with no idea of footprints
 		if (!result.empty())

@@ -70,6 +70,14 @@ int SalvageYield(const Item &item);
  */
 int SalvageAllInBackpack(Player &player, SalvageTier tier);
 
+/**
+ * @brief Whether @p player holds anything of @p tier anywhere in the backpack.
+ *
+ * Shares SalvageAllInBackpack's walk over EVERY page, so the lit state of a Levski button and what
+ * pressing it actually consumes cannot disagree. They did once: both read the displayed tab only.
+ */
+bool AnySalvageableInBackpack(const Player &player, SalvageTier tier);
+
 /** @brief The Charm of Salvaging that arms @p tier. */
 uint16_t SalvageCharmFor(SalvageTier tier);
 
