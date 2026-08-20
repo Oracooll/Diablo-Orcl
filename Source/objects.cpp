@@ -4318,13 +4318,24 @@ void AddLevskiRoarObject()
 		// A stand is not breakable; clicking a breakable object swings at it instead of operating
 		// it (see ACTION_OPERATE in player.cpp), so this is pinned rather than assumed.
 		monument->_oBreak = 0;
-		// NOT solid, unlike the stand's own table entry. A solid object makes MakePlrPath route to
-		// an ADJACENT tile, and ACTION_OPERATE then waits on IsPlayerAdjacentToObject - so if no
-		// neighbouring tile is walkable the click sends its command, the player never moves, and
-		// nothing ever fires. That is exactly "outline, but clicking does nothing". Clearing it
-		// lets the path land ON the monument's tile, where adjacency is trivially satisfied, and
-		// costs nothing: town furniture blocking movement was never the point.
-		monument->_oSolidFlag = false;
+		// SOLID, which is what OBJ_STAND's own table row already says - so this deliberately does
+		// not override it.
+		//
+		// The flag is really an activation-range switch. msg.cpp's operate handler passes
+		// `!_oSolidFlag && !_oDoorFlag` as MakePlrPath's endsAtTarget, so a non-solid object is
+		// walked ONTO and a solid one is approached and stopped beside. It was cleared on
+		// 2026-08-19 as insurance against "outline, but clicking does nothing" - but that bug was
+		// selFlag 0 (fixed in 1.8.17), and clearing this was belt-and-braces for a failure that
+		// was already gone.
+		//
+		// With real art rather than a knee-high rock stand the cost showed up immediately (user,
+		// 2026-08-20: "my hero walks right over/under it to activate it"). Leaving it solid stops
+		// the player one tile short, which is both the range the user asked for and what every
+		// other piece of town furniture does.
+		//
+		// The insurance is not needed: the monument needs ONE walkable neighbour out of eight, the
+		// placement loop already logs loudly when it falls back, and IsPlayerAdjacentToObject is a
+		// plain Chebyshev test with no extra requirement.
 		ApplyLevskiRoarGraphics(*monument);
 		if (position != Requested)
 			LogEvent(StrCat("Levski's Roar fell back to (", position.x, ", ", position.y, ")"), UiFlags::ColorRed);
@@ -5612,13 +5623,14 @@ void SyncObjectAnim(Object &object)
 			object._oAnimData = std::nullopt;
 		}
 
-		// Oracool: the town Stash Chest is an OBJ_CHEST3 wearing its own art, so the lookup above -
-		// which asks the TYPE for its graphic - has just handed it chest3.cel. Put orclstash.cel
-		// back. This runs on every load of an existing town save (LoadObject skips the _oAnimData
-		// pointer and leans on this function to rebuild it); without it the chest would look right
-		// only until the first time town was reloaded. Same position test the two OperateObject /
-		// SyncOpObject sites already use to tell this chest from an ordinary one.
-		// Lives and dies with its twin in AddStashChestObject - see the note there.
+		// Oracool: the town Stash Chest is an OBJ_CHEST3 that wears its own art when it has any, so
+		// the lookup above - which asks the TYPE for its graphic - has just handed it chest3.cel.
+		// This is where orclstash.cel would be put back, on every load of an existing town save:
+		// LoadObject skips the _oAnimData pointer and leans on this function to rebuild it, so
+		// without this the chest would look right only until the first time town was reloaded. Same
+		// position test the two OperateObject / SyncOpObject sites already use to tell this chest
+		// from an ordinary one.
+		//
 		// Parked with its twin in AddStashChestObject - see the note there. The two must return
 		// together.
 		// if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)

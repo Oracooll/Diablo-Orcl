@@ -6,8 +6,9 @@ REM Until now the monument borrowed OFILE_ROCKSTAN, the Anvil of Fury's rock sta
 REM placeholder. This gives it its own art and its own object_graphic_id.
 REM
 REM The source is found by GLOB rather than by name: the drop-zone files arrive with generated names
-REM containing a Cyrillic abbreviation, and a literal path did not survive tools\CutChestStates.ps1's
-REM encoding. The timestamp is the stable part.
+REM containing a Cyrillic abbreviation, and a literal path in an earlier cut script did not survive
+REM that script's own encoding - it failed looking for a file whose name it had already corrupted.
+REM The timestamp is the stable part.
 REM
 REM 96 must equal OracoolLevskiRoarAnimWidth in Source/objdat.h. CEL stores
 REM no width, so a mismatch splits every RLE scanline at the wrong point and renders the monument as
