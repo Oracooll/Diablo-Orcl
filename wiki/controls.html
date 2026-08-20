@@ -46,13 +46,26 @@ can double-book them, and nothing else fires on either edge of the press.</p>
 <thead><tr><th>Key</th><th>Does</th></tr></thead>
 <tbody>
 <tr><td>I / C / Q / S</td><td>Inventory, character, quest log, abilities</td></tr>
+<tr><td>B</td><td>Spellbook</td></tr>
+<tr><td>W</td><td><a href="sockets.html">Runeword book</a> - every runeword, its recipe and its stats. Opening it closes everything else, including the log and the mini-map</td></tr>
 <tr><td>TAB</td><td>Full automap - shows the level name, difficulty and area level</td></tr>
 <tr><td>T</td><td>Town portal</td></tr>
 <tr><td>R</td><td>Walk / run toggle - anywhere, not just town</td></tr>
+<tr><td>Z</td><td>Zoom - jumps the dungeon view to whichever limit it is not at</td></tr>
+<tr><td>P</td><td>Pause</td></tr>
+<tr><td>F / G</td><td>Gamma up / down</td></tr>
+<tr><td>L</td><td>Chat log</td></tr>
+<tr><td>V</td><td>Prints the Oracool version to the message line</td></tr>
 <tr><td>Enter</td><td>Chat box (three rows, 66 characters); the event log steps aside and returns on Escape. In Debug builds this is also the <a href="debug.html">debug console</a></td></tr>
 <tr><td>Escape</td><td>Closes the topmost thing, then the game menu</td></tr>
+<tr><td>Space</td><td>Master closer - shuts every open window at once, and is reserved so no binding can take it</td></tr>
 <tr><td>1 - 6</td><td>Belt slots</td></tr>
+<tr><td>X</td><td>Debug builds only - toggles the debug overlay</td></tr>
 </tbody></table></div>
+<div class="note">Every letter above is a <i>default</i>, not a reservation - only F1-F12 and Space are
+intercepted. The keymapper does <b>not</b> reject duplicates: bind two actions to one key and the
+later registration silently wins, with no warning at load. The letters currently spoken for are
+B C F G I L P Q R S T V W X Z.</div>
 
 <h2>Remapping</h2>
 <p>Everything not on the reserved list is remappable from the Keymapping screen, which still lists

@@ -41,6 +41,29 @@ if ($Verify) {
         Write-Host ("             {0} source files hashed. Run tools\BundleWiki.ps1." -f $fp.Count)
         exit 1
     }
+    # Second, separate question - and the one the 2026-08-20 audit found nobody was asking. The
+    # fingerprint proves the bundle matches the PAGES. Nothing proved the pages matched the CODE,
+    # and they had drifted 24 versions behind without a single check complaining: data.js said
+    # 1.8.40 while the game was at 1.8.64.
+    #
+    # A full pages-versus-source check is not possible here (most of a page is prose). But data.js
+    # carries the ORACOOL_VERSION it was generated from, so a mismatch is exact proof that
+    # BuildWiki.ps1 has not been run since the last version bump - which is the drift that actually
+    # happens.
+    #
+    # A WARNING rather than a failure: the wiki legitimately lags a bump for as long as it takes to
+    # write the pages for it, and a check that fails during normal work is a check that gets
+    # ignored. It exits 0 so this stays usable in a build gate.
+    $version = (Get-Content (Join-Path $root 'ORACOOL_VERSION') -Raw).Trim()
+    $dataJs = Get-Content (Join-Path $wiki 'data.js') -TotalCount 1 -Encoding UTF8
+    $built = if ($dataJs -match '"version"\s*:\s*"([^"]+)"') { $Matches[1] } else { $null }
+    if ($built -ne $version) {
+        Write-Host ("wiki pages:  BEHIND THE CODE - data.js was generated at {0}, ORACOOL_VERSION is {1}." -f $built, $version) -ForegroundColor Yellow
+        Write-Host  "             Run tools\BuildWiki.ps1. Anything shipped since then is undocumented."
+    } else {
+        Write-Host ("wiki pages:  generated at {0}, matching ORACOOL_VERSION" -f $built)
+    }
+
     Write-Host ("wiki bundle: current ({0} source files, {1})" -f $fp.Count, $fp.Hash.Substring(0, 12))
     exit 0
 }

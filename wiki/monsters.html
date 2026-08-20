@@ -42,6 +42,28 @@ promoted with a champion modifier, their own name and tint, and a pack of minion
 their loot level (+3 for a true unique) and roll from a better loot table. The spawn rate is an INI
 setting.</p>
 
+<h2>Sizes</h2>
+<p>Monsters are not all drawn at one scale. Four sizes exist, and they come from two completely
+different places.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Size</th><th>Scale</th><th>Where it comes from</th></tr></thead>
+<tbody>
+<tr><td>Runt</td><td>75%</td><td>Rolled, ordinary monsters only</td></tr>
+<tr><td>Normal</td><td>100%</td><td>The default - costs nothing, allocates nothing</td></tr>
+<tr><td>Giant</td><td>120%</td><td>Rolled, ordinary monsters only</td></tr>
+<tr><td>Colossal</td><td>140%</td><td>The Colossal champion affix, never rolled</td></tr>
+</tbody></table></div>
+<p>Runt and Giant are decided in <b>two stages</b>, and the split is deliberate. First: does this
+monster <i>type</i> have an odd size on this floor at all? A quarter of types roll Runt, a quarter
+Giant, and <b>half get neither</b>. Then, within a type that did: a <b>quarter</b> of its individuals
+actually wear it. So an odd-sized monster reads as one strange individual rather than as a reskin of
+the whole floor - and the sprite cache never holds more than one extra scaled sheet per type.</p>
+<div class="note"><b>Not saved, and not random.</b> The size is a pure integer hash of the level
+seed, the monster's type and its id - all values the save already holds - so a monster is exactly
+the same size after a reload as before it. It touches no RNG stream, which is also what stops it
+shifting a deterministic replay. Colossal is the exception: it follows the affix, which is real
+saved state.</div>
+
 <h2>All monster types</h2>
 <div id="table"></div>
 

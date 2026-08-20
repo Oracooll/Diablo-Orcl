@@ -61,7 +61,11 @@ rebuilding a character from scratch.</p>
 <h3>Levski's Roar</h3>
 <p>The crafting monument, one tile north of the stash. A 3x4 grid, four recipes, and a recipe book -
 including <b>Free the Sockets</b>, which takes gems and runes back out of an item. See
-<a href="sockets.html">Sockets and gems</a>. Its art is a placeholder.</p>
+<a href="sockets.html">Sockets and gems</a>.</p>
+<p>The monument is a statue of Vasil Levski on a stepped plaza, one and a half tiles wide -
+<code>objects\orclroar.cel</code>, built by <code>tools/MonumentCel.cs</code>. It is <b>solid</b>,
+which in this engine is really an activation range: a solid object is approached and operated from
+an adjacent tile, a non-solid one is walked onto.</p>
 
 <h3>The stash</h3>
 <p>The stash chest in town holds multiple pages and saves separately from your character. Items keep

@@ -28,7 +28,10 @@ is not listed here.</p>
 <tr><td>Player sprites</td><td>CLX</td>
 	<td>Imported from PNG frames by the sprite importer</td></tr>
 <tr><td>Objects (chests, monuments)</td><td>CEL</td>
-	<td>Cut by <code>tools/ReliquaryCel.cs</code> and friends</td></tr>
+	<td>One tool per object family - <code>tools/WaypointCel.cs</code>,
+	<code>tools/ReliquaryCel.cs</code>, <code>tools/MonumentCel.cs</code> - sharing one encoder.
+	CEL carries no frame width, so each has a matching constant in <code>Source/objdat.h</code>
+	that moves in the same commit</td></tr>
 </tbody></table></div>
 
 <div class="note"><b>Palette rule.</b> Anything quantized at runtime must land on palette indices
