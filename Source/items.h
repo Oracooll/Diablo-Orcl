@@ -569,6 +569,10 @@ struct Item {
 		// same index are genuinely interchangeable.
 		if (IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx))
 			return true;
+		// The seven salvage materials, on the same reasoning: a recipe spends them exactly as it
+		// spends a rune, and they arrive in bulk - a salvaged stash produces dozens at a time.
+		if (IsOracoolSalvageIdx(IDidx))
+			return true;
 		return false;
 	}
 
@@ -606,8 +610,11 @@ struct Item {
 		// became stackable: the crafted Tir merged into the El pile it was made from and the recipe
 		// produced nothing. For these two families the base-item INDEX is the whole identity - the
 		// same rule socketing already uses - so it is what has to match.
-		const bool eitherIsMaterial = IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx)
-		    || IsOracoolGemIdx(other.IDidx) || IsOracoolRuneIdx(other.IDidx);
+		//
+		// The salvage materials join this rule for the identical reason: every one of them is
+		// IMISC_NONE too, so the _iMiscId path would merge White Scales into Primal Vines.
+		const bool eitherIsMaterial = IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx) || IsOracoolSalvageIdx(IDidx)
+		    || IsOracoolGemIdx(other.IDidx) || IsOracoolRuneIdx(other.IDidx) || IsOracoolSalvageIdx(other.IDidx);
 		if (eitherIsMaterial)
 			return IDidx == other.IDidx;
 
