@@ -14,6 +14,7 @@
 #include "engine/render/text_render.hpp"
 #include "itemdat.h"
 #include "oracool/hud_layout.h"
+#include "oracool/hud_menu.h"
 #include "oracool/ornate_border.h"
 #include "oracool/runewords.h"
 #include "oracool/window_close.h"
@@ -322,6 +323,15 @@ void OpenRunewordBook()
 	// It is called BEFORE BookOpen goes true, because it closes the book too - the mini-map and the
 	// corner widgets have no open state and are suppressed in scrollrt instead.
 	devilution::CloseAllWindows();
+	// The burger row is NOT in CloseAllWindows - space deliberately leaves it up, and the row's own
+	// click handler keeps it open so several panels can be toggled in one go. Neither argument
+	// survives contact with this window: the row sits just above the HUD plate, the book reaches
+	// within a few pixels of it, and diablo.cpp routes IsPointOverHudMenu BEFORE
+	// HandleRunewordBookClick - so an overlapping row would draw on top of the book AND eat the
+	// clicks in that strip.
+	//
+	// Closed here rather than in the menu entry, so it holds for the W key too.
+	CloseHudMenu();
 	BookOpen = true;
 	ScrollOffsetPx = 0;
 }

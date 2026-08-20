@@ -26,6 +26,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/oracool.h"
+#include "oracool/runeword_book.h"
 #include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
 #include "player.h"
@@ -61,7 +62,12 @@ void DoQuests()
 	else
 		QuestLogIsOpen = false;
 }
-void DoAutomapEntry() { DoAutoMap(); }
+// Oracool: user request (2026-08-20) - "replace the automap button in the burger menu with RWBook.
+// keep the icon, just replace the function and the pop-up tooltip." The map icon stays; only the
+// action and the label move.
+//
+// The automap loses nothing: TAB still opens it, and it was never reachable ONLY from here.
+void DoRunewordBookEntry() { ToggleRunewordBook(); }
 void DoGameMenu()
 {
 	qtextflag = false;
@@ -83,7 +89,6 @@ void DoEventLog() { ToggleEventLog(); }
 
 bool IsCharacterOpen() { return chrflag; }
 bool IsQuestsOpen() { return QuestLogIsOpen; }
-bool IsAutomapOpen() { return AutomapActive; }
 bool IsInventoryOpen() { return invflag; }
 bool IsSpellbookOpen() { return sbookflag; }
 bool IsLogOpen() { return IsEventLogOpen(); }
@@ -112,7 +117,7 @@ bool IsCraftingOpen() { return IsCraftingMenuOpen(); }
 constexpr std::array<HudMenuEntry, MenuIconCount> MenuEntries { {
     { "Character", DoCharacter, IsCharacterOpen },
     { "Quests", DoQuests, IsQuestsOpen },
-    { "Automap", DoAutomapEntry, IsAutomapOpen },
+    { "Runeword Book", DoRunewordBookEntry, IsRunewordBookOpen },
     { "Game Menu", DoGameMenu, nullptr },
     { "Inventory", DoInventory, IsInventoryOpen },
     { "Spellbook", DoSpellbook, IsSpellbookOpen },
