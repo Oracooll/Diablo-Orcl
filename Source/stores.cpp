@@ -1120,7 +1120,34 @@ void ScrollWitchBuy(int idx, bool includePepinPotions)
 	ClearSText(5, 21);
 	stextup = 5;
 
+	// CRASH FIX (user report, 2026-08-20: "i was purchasing consumables from griswold and scrolling
+	// his consumables store when the game suddenly crashed").
+	//
+	// This function runs EVERY FRAME from the store's scroll dispatch, but storenumh and stextsmax
+	// - the numbers that bound stextsval - are only recomputed in StartWitchBuy, when the screen is
+	// opened. Buying a consumable removes it from witchitem immediately (RemoveWitchStockItem), so
+	// the stock shrinks under a scroll offset that nobody re-clamped, and the next frame indexed
+	// past the end.
+	//
+	// On the WITCH's own path that was survivable by accident: WitchStockItem indexes the fixed
+	// 25-entry witchitem array, so a stale index read an empty slot rather than off the end. The
+	// SMITH's path builds a std::vector of only the NON-EMPTY entries, which is both shorter and
+	// has no empty sentinel to stop the walk - so the same stale index is unchecked
+	// vector::operator[] on freed-adjacent memory. The two paths sharing one function is what let
+	// the safe one vouch for the unsafe one.
+	//
+	// Both ends are fixed here rather than at the call site: the loop cannot read past the stock,
+	// and stextsval is pulled back into range so scrolling recovers instead of staying stuck at an
+	// index that renders nothing.
+	const int stockSize = includePepinPotions
+	    ? static_cast<int>(SmithConsumablesStock().size())
+	    : WITCH_ITEMS;
+	idx = std::clamp(idx, 0, std::max(0, stockSize - 1));
+	stextsval = idx;
+
 	for (int l = 5; l < 20; l += 4) {
+		if (idx >= stockSize)
+			break;
 		Item &item = WitchStockItem(idx, includePepinPotions);
 		if (!item.isEmpty()) {
 			UiFlags itemColor = item.getTextColorWithStatCheck();
