@@ -22,6 +22,7 @@
 #include "minitext.h"
 #include "oracool/auto_save.h"
 #include "oracool/hud_art.h"
+#include "oracool/gems.h"
 #include "oracool/inventory_layout.h" // CellPx / GridOrigin - the grid this one must match
 #include "oracool/ornate_border.h"
 #include "oracool/socket_overlay.h"
@@ -1138,6 +1139,44 @@ bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
 	return false;
 }
 
+/**
+ * @brief Oracool: puts one material on an exact cell of @p page, bypassing the first-fit scan.
+ *
+ * AutoPlaceItemInStash cannot be used for the material page: it finds the first hole that fits,
+ * which is precisely what a fixed layout must not do. Every material is 1x1, so there is no
+ * footprint to fit and the cell either holds it or the page is malformed.
+ */
+void PlaceMaterialAt(unsigned page, Point cell, const Item &item)
+{
+	Stash.stashList.emplace_back(item);
+	const auto index = static_cast<uint16_t>(Stash.stashList.size() - 1);
+	Stash.stashList[index].position = cell;
+	AddItemToStashGrid(page, cell, index, { 1, 1 });
+}
+
+/** @brief The first page with nothing on it, searching upward from 0. */
+unsigned FirstEmptyStashPage()
+{
+	for (unsigned page = 0; page < CountStashPages; page++) {
+		bool empty = true;
+		for (const auto &column : Stash.stashGrids[page]) {
+			for (const StashStruct::StashCell cell : column) {
+				if (cell != 0) {
+					empty = false;
+					break;
+				}
+			}
+			if (!empty)
+				break;
+		}
+		if (empty)
+			return page;
+	}
+	// Every page occupied. The caller falls back to the ordinary scan rather than overwriting
+	// somebody's items, which is the only safe answer here.
+	return CountStashPages;
+}
+
 void SortStash(Player &player)
 {
 	struct SortEntry {
@@ -1146,9 +1185,19 @@ void SortStash(Player &player)
 		int value;
 	};
 	std::vector<SortEntry> entries;
+	std::vector<Item> materials;
 	entries.reserve(Stash.stashList.size());
-	for (const Item &item : Stash.stashList)
+
+	// Oracool: user request (2026-08-20) - "Move and sort Runes and Gems in their own tab. The
+	// first one unoccupied by items." Materials are pulled out of the ordinary sort entirely; what
+	// is left packs as it always did, which is also what decides which page comes up empty.
+	for (const Item &item : Stash.stashList) {
+		if (IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx)) {
+			materials.push_back(item);
+			continue;
+		}
 		entries.push_back({ item, StashSortCategoryRank(item), GetItemSellValue(item) });
+	}
 
 	std::stable_sort(entries.begin(), entries.end(), [](const SortEntry &a, const SortEntry &b) {
 		if (a.categoryRank != b.categoryRank)
@@ -1166,6 +1215,82 @@ void SortStash(Player &player)
 
 	for (const SortEntry &entry : entries)
 		AutoPlaceItemInStash(player, entry.item, true);
+
+	// ---------------------------------------------------------------------------------------
+	// The material page
+	// ---------------------------------------------------------------------------------------
+	//
+	// Runes across the TOP, El to Zod, left to right: three full rows of ten and a fourth of three,
+	// which is exactly the 33 the ladder holds. Gems from the BOTTOM UP, one column per type, best
+	// quality on the lowest row and worsening upward - so Perfects line the floor of the page.
+	//
+	// Both blocks are one box per kind, which only works because runes and gems already stack
+	// (Item::isStackableConsumable, 2026-08-16). A kind that has overflowed past MaxStackCount into
+	// a second box is placed in the gap between the two blocks rather than being allowed to shove
+	// the grid out of alignment - the layout is the point, and a 34th rune box is not worth losing
+	// it over.
+	if (!materials.empty()) {
+		const unsigned page = FirstEmptyStashPage();
+		if (page >= CountStashPages) {
+			// No empty page. Fall back to the ordinary scan so nothing is lost.
+			for (const Item &item : materials)
+				AutoPlaceItemInStash(player, item, true);
+		} else {
+			constexpr int RuneRows = 4;
+			// Gems occupy the bottom GemQualityCount rows; quality 0 (Chipped) is the highest of
+			// them and Perfect lands on the last row of the grid.
+			constexpr int GemTopRow = StashGridRows - static_cast<int>(oracool::GemQualityCount);
+			static_assert(GemTopRow > RuneRows, "the rune and gem blocks would overlap");
+
+			std::vector<Item> overflow;
+			// One flag per cell, so a second stack of the same kind is detected rather than
+			// silently overwriting the first - the failure that would make a Zod vanish.
+			bool taken[StashGridColumns][StashGridRows] = {};
+
+			for (const Item &item : materials) {
+				Point cell { -1, -1 };
+				if (IsOracoolRuneIdx(item.IDidx)) {
+					for (size_t p = 0; p < oracool::RuneLadderSize(); p++) {
+						if (oracool::RuneAtLadderPosition(p) != item.IDidx)
+							continue;
+						cell = { static_cast<int>(p % StashGridColumns), static_cast<int>(p / StashGridColumns) };
+						break;
+					}
+				} else {
+					oracool::GemType type;
+					oracool::GemQuality quality;
+					if (oracool::GemTypeAndQuality(item.IDidx, type, quality))
+						cell = { static_cast<int>(type), GemTopRow + static_cast<int>(quality) };
+				}
+
+				if (cell.x < 0 || taken[cell.x][cell.y]) {
+					overflow.push_back(item);
+					continue;
+				}
+				taken[cell.x][cell.y] = true;
+				PlaceMaterialAt(page, cell, item);
+			}
+
+			// The band between the two blocks, filled left to right, top to bottom.
+			int slot = 0;
+			for (const Item &item : overflow) {
+				bool placed = false;
+				for (; slot < (GemTopRow - RuneRows) * StashGridColumns; slot++) {
+					const Point cell { slot % StashGridColumns, RuneRows + slot / StashGridColumns };
+					if (taken[cell.x][cell.y])
+						continue;
+					taken[cell.x][cell.y] = true;
+					PlaceMaterialAt(page, cell, item);
+					placed = true;
+					slot++;
+					break;
+				}
+				// The band is full too - an extreme case, but losing the item is not an option.
+				if (!placed)
+					AutoPlaceItemInStash(player, item, true);
+			}
+		}
+	}
 
 	Stash.dirty = true;
 	if (&player == MyPlayer)

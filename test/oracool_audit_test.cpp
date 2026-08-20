@@ -3446,3 +3446,84 @@ TEST(OracoolAudit, ACompletedRunewordAddsItsOwnBonusesOnTopOfItsRunes)
 	// Life and mana are carried in <<6 fixed point on the totals, in whole points on the word.
 	EXPECT_EQ(withWord.hitPoints - runesOnly.hitPoints, spirit->hitPoints << 6);
 }
+
+/**
+ * SORT gathers runes and gems onto their own page, in fixed positions.
+ *
+ * User request, 2026-08-20: "Move and sort Runes and Gems in their own tab. The first one
+ * unoccupied by items. Sort Runes at the top Left to Right El to Zod. 4 rows total. 3x10 + 1x3
+ * boxes. Start sorting gems from the bottom up ... Better quality gems at lower row. Pbems at
+ * bottom ... All types of certain Gem to form a column Bottom to top, better to lesser."
+ *
+ * Every cell below is derived the way the code derives it - the rune's ladder position, the gem's
+ * (type, quality) - rather than being a transcription of what one run happened to produce. A test
+ * that only recorded the output would agree with the layout drifting.
+ */
+TEST(OracoolAudit, SortMovesRunesAndGemsToTheirOwnPageInFixedPositions)
+{
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	const auto deposit = [](_item_indexes idx) {
+		devilution::Item item;
+		InitializeItem(item, idx);
+		AutoPlaceItemInStash(*MyPlayer, item, true);
+	};
+
+	// Deliberately out of order, and with an ordinary item in the middle, so the sort has real work
+	// to do and page 0 is genuinely occupied by something that is not a material.
+	deposit(IDI_ORACOOL_RUNE_ZOD);
+	deposit(IDI_ORACOOL_GEM_RUBY_PERFECT);
+	deposit(IDI_ORACOOL_HELM);
+	deposit(IDI_ORACOOL_RUNE_EL);
+	deposit(IDI_ORACOOL_GEM_AMETHYST_CHIPPED);
+
+	SortStash(*MyPlayer);
+
+	// The helm keeps page 0 to itself, so the materials land on page 1.
+	constexpr unsigned MaterialPage = 1;
+
+	const auto cellHolds = [](unsigned page, Point cell, _item_indexes idx) {
+		const StashStruct::StashCell id = Stash.stashGrids[page][cell.x][cell.y];
+		if (id == 0)
+			return false;
+		return Stash.stashList[id - 1].IDidx == idx;
+	};
+
+	// Runes: ladder position p -> (p % 10, p / 10). El is position 0; Zod is the last of 33, so
+	// position 32 -> column 2, row 3 - the "1x3" fourth row the user asked for.
+	EXPECT_TRUE(cellHolds(MaterialPage, { 0, 0 }, IDI_ORACOOL_RUNE_EL)) << "El is not in the top-left cell";
+	EXPECT_TRUE(cellHolds(MaterialPage, { 2, 3 }, IDI_ORACOOL_RUNE_ZOD)) << "Zod is not at the end of the fourth rune row";
+	EXPECT_EQ(oracool::RuneLadderSize(), 33u) << "the 3x10 + 1x3 layout assumes exactly 33 runes";
+
+	// Gems: column is the type, row counts DOWN from the bottom by quality, so Perfect sits on the
+	// last row of the grid and Chipped four rows above it.
+	constexpr int GemTopRow = StashGridRows - static_cast<int>(oracool::GemQualityCount);
+	EXPECT_TRUE(cellHolds(MaterialPage,
+	    { static_cast<int>(oracool::GemType::Ruby), GemTopRow + static_cast<int>(oracool::GemQuality::Perfect) },
+	    IDI_ORACOOL_GEM_RUBY_PERFECT))
+	    << "the Perfect Ruby is not on the bottom row of the Ruby column";
+	EXPECT_TRUE(cellHolds(MaterialPage,
+	    { static_cast<int>(oracool::GemType::Amethyst), GemTopRow + static_cast<int>(oracool::GemQuality::Chipped) },
+	    IDI_ORACOOL_GEM_AMETHYST_CHIPPED))
+	    << "the Chipped Amethyst is not at the top of the Amethyst column";
+	EXPECT_EQ(GemTopRow + static_cast<int>(oracool::GemQuality::Perfect), StashGridRows - 1)
+	    << "Perfect must land on the grid's last row - 'Pbems at bottom'";
+
+	// And nothing of either family was left behind on the page the ordinary items packed into.
+	for (int x = 0; x < StashGridColumns; x++) {
+		for (int y = 0; y < StashGridRows; y++) {
+			const StashStruct::StashCell id = Stash.stashGrids[0][x][y];
+			if (id == 0)
+				continue;
+			const devilution::Item &item = Stash.stashList[id - 1];
+			EXPECT_FALSE(IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx))
+			    << "a material was left on page 0 at " << x << "," << y;
+		}
+	}
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+}
