@@ -407,6 +407,18 @@ void DrawSkillPicker(const Surface &out)
 		y += RowsFor(count) * IconSize + (RowsFor(count) - 1) * CellGap + SectionGap;
 	};
 
+	// While the cursor is inside this window the world's hover text is STALE, not absent:
+	// CheckCursMove returns early over a floating window (IsPointOverFloatingWindow), so pcursmonst
+	// and friends keep whatever they last saw and UpdateInfoString happily reprints it. Clearing
+	// here - before the cells get their chance to name themselves - means a gap between two icons
+	// says nothing rather than naming a monster somewhere behind the panel.
+	//
+	// Scoped to the window's own rect on purpose: outside it CheckCursMove runs normally, and
+	// wiping the string unconditionally would kill the tooltip for anything the picker is not
+	// covering.
+	if (window.contains(MousePosition))
+		ClearPanelStrings();
+
 	drawSection(N_("Skills"), 0, skills);
 	drawSection(N_("Spells"), skills, entries.size() - skills);
 }
