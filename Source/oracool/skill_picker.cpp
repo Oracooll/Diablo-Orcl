@@ -157,6 +157,22 @@ int SectionHeight(size_t count)
 	return HeaderHeight + rows * IconSize + (rows - 1) * CellGap;
 }
 
+/**
+ * @brief Whether @p cell is wholly inside @p window's scrolling viewport.
+ *
+ * Shared by the draw and the click walks, and that sharing is the point. The draw skipped cells
+ * outside the viewport while the click walk did not, so a cell scrolled up behind the title band
+ * was invisible and still answered a click - you could bind something you could not see by clicking
+ * the title. Two walks over one geometry that disagreed about a rule only one of them knew: the
+ * exact failure mode this fork keeps re-learning, caught in the audit before the build shipped.
+ */
+bool IsCellVisible(const Rectangle &window, const Rectangle &cell)
+{
+	const int clipTop = window.position.y + Padding + TitleHeight;
+	const int clipBottom = window.position.y + window.size.height - Padding;
+	return cell.position.y >= clipTop && cell.position.y + IconSize <= clipBottom;
+}
+
 int ContentHeight(size_t attacks, size_t trees, size_t spells)
 {
 	int h = TitleHeight;
@@ -281,8 +297,8 @@ void DrawSkillPicker(const Surface &out)
 				{ IconSize, IconSize }
 			};
 			// Whole cells only: a half-drawn icon at the clip edge reads as a rendering fault
-			// rather than as more content below.
-			if (cell.position.y < clipTop || cell.position.y + IconSize > clipBottom)
+			// rather than as more content below. The click walk applies the SAME test.
+			if (!IsCellVisible(window, cell))
 				continue;
 			const Entry &entry = entries[first + i];
 			switch (entry.kind) {
@@ -359,7 +375,9 @@ bool CheckSkillPickerClick(Point mousePosition)
 				    y + row * (IconSize + CellGap) },
 				{ IconSize, IconSize }
 			};
-			if (!cell.contains(mousePosition))
+			// A cell scrolled out of the viewport is not there to be clicked, however much its
+			// coordinates still say it is - see IsCellVisible.
+			if (!IsCellVisible(window, cell) || !cell.contains(mousePosition))
 				continue;
 			const Entry &entry = entries[first + i];
 			switch (entry.kind) {
