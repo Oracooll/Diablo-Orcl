@@ -327,11 +327,29 @@ std::vector<ConsumablesStockEntry> SmithConsumablesStock()
 	return stock;
 }
 
+/**
+ * @brief The stock entry at @p index, bounded.
+ *
+ * The bound lives HERE, not only in the callers, because an unbounded read of either container is
+ * what produced both the crash and the garbage rows (user, 2026-08-20: rows reading "Gold", "Club"
+ * and "Ring of Truth" in Griswold's consumables). Neither of those items is in Adria's stock - they
+ * live in the statics ADJACENT to witchitem, which is what an overrun of a fixed array looks like
+ * when it does not happen to fault. The vector path faults instead, which is the crash.
+ *
+ * Returning a shared empty item rather than clamping to the last entry: a caller that asks for a
+ * row past the end should render nothing, not a duplicate of the final row.
+ */
 Item &WitchStockItem(int index, bool includePepinPotions)
 {
+	static Item OutOfRange;
+	if (index < 0)
+		return OutOfRange;
 	if (!includePepinPotions)
-		return witchitem[index];
-	return *SmithConsumablesStock()[index].item;
+		return index < WITCH_ITEMS ? witchitem[index] : OutOfRange;
+	const std::vector<ConsumablesStockEntry> stock = SmithConsumablesStock();
+	if (static_cast<size_t>(index) >= stock.size())
+		return OutOfRange;
+	return *stock[index].item;
 }
 
 int LineHeight()
@@ -1142,7 +1160,12 @@ void ScrollWitchBuy(int idx, bool includePepinPotions)
 	const int stockSize = includePepinPotions
 	    ? static_cast<int>(SmithConsumablesStock().size())
 	    : WITCH_ITEMS;
-	idx = std::clamp(idx, 0, std::max(0, stockSize - 1));
+	// stextsmax is recomputed HERE as well as in StartWitchBuy, because this function is the one
+	// that runs every frame. StartWitchBuy set it once, when the screen opened; every purchase since
+	// has shrunk the stock without anyone revising the bound StoreDown scrolls against, so the
+	// offset was free to walk off the end of a list that had got shorter underneath it.
+	stextsmax = std::max(stockSize - 4, 0);
+	idx = std::clamp(idx, 0, stextsmax);
 	stextsval = idx;
 
 	for (int l = 5; l < 20; l += 4) {
