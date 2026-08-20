@@ -70,4 +70,37 @@ int SalvageYield(const Item &item);
  */
 int SalvageAllInBackpack(Player &player, SalvageTier tier);
 
+/** @brief The Charm of Salvaging that arms @p tier. */
+uint16_t SalvageCharmFor(SalvageTier tier);
+
+/** @brief Which tier the Charm of Salvaging @p charmIdx arms. Only call for a salvage charm. */
+SalvageTier SalvageTierOfCharm(uint16_t charmIdx);
+
+/**
+ * @brief The one-line description a Charm of Salvaging shows in its item popup.
+ *
+ * Lives here rather than in charms.cpp because the tier names and the material names it quotes are
+ * this file's tables; charms.cpp calls through.
+ */
+const char *SalvageCharmEffectLine(uint16_t charmIdx);
+
+/**
+ * @brief Charms of Salvaging: converts @p item to material AT PICKUP, before it reaches the pack.
+ *
+ * User request, 2026-08-20: "when I put them in inv everytime I pick an item it automatically turns
+ * into salvaged material instead of a regular item. save inv slots and time."
+ *
+ * Only ACTIVE charms count - a salvage charm obeys the same CharmActiveCap as every other charm,
+ * so at most three tiers can be armed at once and arming a fourth means retiring one. That cap is
+ * also the safety rail: without it a full backpack of charms would silently eat everything.
+ *
+ * The conversion is destructive and the player never sees the item, so it is NOT silent - it names
+ * what was consumed and what it became in the event log. That matters most for the tiers you might
+ * regret: a Primal charm eats every Primal, including one you would have kept.
+ *
+ * @return true when @p item was replaced in place by a material stack; the caller then continues
+ * its normal pickup path with the material. False leaves @p item untouched.
+ */
+bool TrySalvageOnPickup(Player &player, const Item &item);
+
 } // namespace devilution::oracool

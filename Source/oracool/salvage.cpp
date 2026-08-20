@@ -1,10 +1,12 @@
 #include "oracool/salvage.h"
 
+#include <string>
 #include <vector>
 
 #include "inv.h"
 #include "items.h"
 #include "player.h"
+#include "oracool/charms.h"
 #include "oracool/event_log.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -28,6 +30,17 @@ constexpr uint16_t TierMaterial[SalvageTierCount] = {
 	IDI_ORACOOL_SALVAGE_PRIMAL_VINES,
 	IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS,
 	IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES,
+};
+
+/** @brief The Charm of Salvaging that arms each bucket. Same one-row-per-tier rule as above. */
+constexpr uint16_t TierCharm[SalvageTierCount] = {
+	IDI_ORACOOL_CHARM_SALVAGE_WHITE_SCALES,
+	IDI_ORACOOL_CHARM_SALVAGE_MAGIC_POWDER,
+	IDI_ORACOOL_CHARM_SALVAGE_RARE_FIBRES,
+	IDI_ORACOOL_CHARM_SALVAGE_UNIQUE_ENCRUSTMENTS,
+	IDI_ORACOOL_CHARM_SALVAGE_PRIMAL_VINES,
+	IDI_ORACOOL_CHARM_SALVAGE_SET_ENGRAVINGS,
+	IDI_ORACOOL_CHARM_SALVAGE_ETHEREAL_IMBUEITIES,
 };
 
 constexpr const char *TierName[SalvageTierCount] = {
@@ -145,6 +158,88 @@ int SalvageAllInBackpack(Player &player, SalvageTier tier)
 	}
 
 	return static_cast<int>(victims.size());
+}
+
+uint16_t SalvageCharmFor(SalvageTier tier)
+{
+	return TierCharm[static_cast<int>(tier)];
+}
+
+SalvageTier SalvageTierOfCharm(uint16_t charmIdx)
+{
+	for (int i = 0; i < SalvageTierCount; i++) {
+		if (TierCharm[i] == charmIdx)
+			return static_cast<SalvageTier>(i);
+	}
+	return SalvageTier::White;
+}
+
+const char *SalvageCharmEffectLine(uint16_t charmIdx)
+{
+	if (!IsOracoolSalvageCharmIdx(charmIdx))
+		return nullptr;
+	// One fixed string per tier rather than a formatted one, because this is returned as a const
+	// char * and the tier names are already translatable literals.
+	static const char *const Lines[SalvageTierCount] = {
+		N_("picked-up white items become White Scales"),
+		N_("picked-up magic items become Magic Powder"),
+		N_("picked-up rare items become Rare Fibres"),
+		N_("picked-up unique items become Unique Encrustments"),
+		N_("picked-up primal items become Primal Vines"),
+		N_("picked-up set items become Set Engravings"),
+		N_("picked-up ethereal items become Ethereal Imbueities"),
+	};
+	return Lines[static_cast<int>(SalvageTierOfCharm(charmIdx))];
+}
+
+bool TrySalvageOnPickup(Player &player, const Item &item)
+{
+	if (!IsSalvageable(item))
+		return false;
+
+	// Which tiers are armed right now. ForEachActiveCharm is the SAME walk the stat sheet uses, so
+	// "the first three charms in reading order" means exactly one thing across the whole fork - a
+	// salvage charm sitting fourth is as dead as a stat charm sitting fourth, and the item popup
+	// already says so.
+	bool armed[SalvageTierCount] = {};
+	ForEachActiveCharm(
+	    player, [](uint16_t charmIdx, void *context) {
+		    if (IsOracoolSalvageCharmIdx(charmIdx))
+			    static_cast<bool *>(context)[static_cast<int>(SalvageTierOfCharm(charmIdx))] = true;
+	    },
+	    armed);
+
+	const SalvageTier tier = SalvageTierOf(item);
+	if (!armed[static_cast<int>(tier)])
+		return false;
+
+	// The name is read BEFORE anything is destroyed, because the log line is the only trace the
+	// player gets - they never see the item itself.
+	const std::string consumed = std::string(item.getName());
+
+	const int yield = SalvageYield(item);
+	Item material;
+	InitializeItem(material, static_cast<_item_indexes>(SalvageMaterialFor(tier)));
+	int placed = 0;
+	for (; placed < yield; placed++) {
+		Item one = material;
+		if (!AutoPlaceItemInInventory(player, one, true))
+			break;
+	}
+	// Nothing fit: decline the conversion outright and let the item be picked up normally, so a
+	// full pack refuses rather than destroying gear for materials it cannot hold.
+	if (placed == 0)
+		return false;
+
+	LogEvent(StrCat(_("Salvaged on pickup: "), consumed, " -> ", placed, " ",
+	             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
+	    UiFlags::ColorWhitegold);
+	if (placed < yield) {
+		LogEvent(StrCat("Salvage: no room for ", yield - placed, " more ",
+		             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
+		    UiFlags::ColorRed);
+	}
+	return true;
 }
 
 } // namespace devilution::oracool

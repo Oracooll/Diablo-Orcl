@@ -475,6 +475,7 @@ DVL_API_FOR_TEST const ItemData AllItemsList[] = {
 // pass as their ids, icons and effect rows.
 #include "oracool/runes_data.inc"
 #include "oracool/salvage_data.inc"
+#include "oracool/salvage_charm_data.inc"
 /*               */ { IDROP_NEVER,   ICLASS_NONE,   ILOC_INVALID,     ICURS_POTION_OF_FULL_MANA,         ItemType::Misc,        UITYPE_NONE,        nullptr,                           nullptr,              0,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,          0 },
 	// clang-format on
 };

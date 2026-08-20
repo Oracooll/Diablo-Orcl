@@ -49,6 +49,7 @@
 #include "oracool/item_sets.h"
 #include "oracool/oracool.h"
 #include "oracool/runewords.h"
+#include "oracool/salvage.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "panels/info_box.hpp"
@@ -4565,9 +4566,13 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 		_item_indexes candidates[oracool::MaxRuneLadder];
 		int candidateCount = 0;
 		if (roll < GemDropPercent + CharmDropPercent) {
-			// The charms live in two enum islands of their own (the MF/GF pair was appended after
-			// the runes), so the walk spans both and filters by the range check.
-			for (int i = IDI_ORACOOL_CHARM_VIGOR; i <= IDI_ORACOOL_CHARM_GREED; i++) {
+			// The charms live in three enum islands of their own (the MF/GF pair was appended after
+			// the runes, the seven Charms of Salvaging after the salvage materials), so the walk
+			// spans all of them and filters by the range check. Bounded by IDI_LAST rather than by
+			// the last charm id on purpose: the previous GREED bound silently excluded every charm
+			// appended after it, which is exactly how the salvage charms would have shipped
+			// unobtainable as drops. The qlvl gate below is what keeps the deep tiers deep.
+			for (int i = IDI_ORACOOL_CHARM_VIGOR; i <= IDI_LAST; i++) {
 				if (!IsOracoolCharmIdx(i))
 					continue;
 				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
@@ -5774,6 +5779,38 @@ bool UseItemOpensGrave(const Item &item, Point position)
 	return false;
 }
 
+/**
+ * @brief Oracool: puts the seven Charms of Salvaging into @p stock's first seven EMPTY slots.
+ *
+ * User request, 2026-08-20: "add in the game and in adria/griswold stores charms 1slot charms of
+ * salvaging." Both vendors carry all seven rather than splitting them, because a utility item you
+ * have to remember the vendor for is a worse utility item.
+ *
+ * They are ordinary restocking stock, not pinned like Adria's potions: buying one removes it and
+ * the next restock brings it back. Pinning would have meant widening the witch's hardcoded
+ * three-slot pinned block, which the random Hellfire book slots sit immediately behind - a
+ * collision for no gain, since a vendor the player returns to anyway restocks on every level
+ * change.
+ *
+ * The callers cap their random stock count so seven empty slots are guaranteed to exist.
+ */
+void StockSalvageCharms(Item *stock, int capacity, int lvl, uint16_t createInfoFlag)
+{
+	int placed = 0;
+	for (int i = 0; i < capacity && placed < oracool::SalvageTierCount; i++) {
+		if (!stock[i].isEmpty())
+			continue;
+		Item &item = stock[i];
+		item = {};
+		item._iSeed = AdvanceRndSeed();
+		GetItemAttrs(item, static_cast<_item_indexes>(oracool::SalvageCharmFor(static_cast<oracool::SalvageTier>(placed))), 1);
+		item._iCreateInfo = lvl | createInfoFlag;
+		item._iIdentified = true;
+		item._iStatFlag = true;
+		placed++;
+	}
+}
+
 void SpawnSmith(int lvl)
 {
 	constexpr int PinnedItemCount = 0;
@@ -5786,6 +5823,8 @@ void SpawnSmith(int lvl)
 	}
 
 	int iCnt = GenerateRnd(maxItems - 10) + 10;
+	// Oracool: hold back seven slots for the Charms of Salvaging below.
+	iCnt = std::min(iCnt, SMITH_ITEMS - oracool::SalvageTierCount);
 	for (int i = 0; i < iCnt; i++) {
 		Item &newItem = smithitem[i];
 
@@ -5804,6 +5843,8 @@ void SpawnSmith(int lvl)
 	}
 	for (int i = iCnt; i < SMITH_ITEMS; i++)
 		smithitem[i].clear();
+
+	StockSalvageCharms(smithitem, SMITH_ITEMS, lvl, CF_SMITH);
 
 	SortVendor(smithitem + PinnedItemCount);
 }
@@ -5851,7 +5892,8 @@ void SpawnWitch(int lvl)
 	int bookCount = 0;
 	const int pinnedBookCount = gbIsHellfire ? GenerateRnd(MaxPinnedBookCount) : 0;
 	const int reservedItems = gbIsHellfire ? 10 : 17;
-	const int itemCount = GenerateRnd(WITCH_ITEMS - reservedItems) + 10;
+	// Oracool: hold back seven slots for the Charms of Salvaging stocked after this loop.
+	const int itemCount = std::min(GenerateRnd(WITCH_ITEMS - reservedItems) + 10, WITCH_ITEMS - oracool::SalvageTierCount);
 	const int maxValue = gbIsHellfire ? MaxVendorValueHf : MaxVendorValue;
 
 	for (int i = 0; i < WITCH_ITEMS; i++) {
@@ -5909,6 +5951,8 @@ void SpawnWitch(int lvl)
 		item._iCreateInfo = lvl | CF_WITCH;
 		item._iIdentified = true;
 	}
+
+	StockSalvageCharms(witchitem, WITCH_ITEMS, lvl, CF_WITCH);
 
 	SortVendor(witchitem + PinnedItemCount);
 }
@@ -6513,7 +6557,9 @@ std::string DebugSpawnGems(string_view quality)
 
 std::string DebugSpawnCharms()
 {
-	return DebugSpawnByIndex(IDI_ORACOOL_CHARM_VIGOR, IDI_ORACOOL_CHARM_GREED,
+	// IDI_LAST, not IDI_ORACOOL_CHARM_GREED: the Charms of Salvaging sit past GREED, and a debug
+	// command that quietly stops at an old boundary is how a new family goes untested.
+	return DebugSpawnByIndex(IDI_ORACOOL_CHARM_VIGOR, IDI_LAST,
 	    [](int i) { return IsOracoolCharmIdx(i); }, "charms");
 }
 

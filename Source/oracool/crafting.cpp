@@ -54,7 +54,10 @@ std::vector<int> LargestSameKindGroup(const Player &player, const std::vector<in
 
 bool IsGem(int idx) { return IsOracoolGemIdx(idx); }
 bool IsRune(int idx) { return IsOracoolRuneIdx(idx); }
-bool IsCharm(int idx) { return IsOracoolCharmIdx(idx); }
+// Stat charms only. A Charm of Salvaging is a charm structurally - it obeys the same active cap -
+// but recipe 2 turns two charms into one random STAT charm, and letting a bought 40,000 gold Primal
+// charm be consumed for a Charm of Vigor is a trap, not a recipe.
+bool IsCharm(int idx) { return IsOracoolCharmIdx(idx) && !IsOracoolSalvageCharmIdx(idx); }
 
 /** @brief The materials a recipe would consume right now, empty when it cannot run. */
 std::vector<int> MaterialsFor(const Player &player, int index)

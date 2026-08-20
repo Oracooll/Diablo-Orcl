@@ -311,7 +311,10 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	// tools/GenSalvageMaterials.ps1 in one walk with their icons, frame sizes and table rows.
 	// Appended, like everything before them, because item indices are positional save format.
 #include "oracool/salvage_enum.inc"
-	IDI_LAST = IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES,
+	// Charms of Salvaging: one per salvage tier. Same generator, same walk, appended after the
+	// materials so both families stay contiguous and the CEL frame order matches the ICURS order.
+#include "oracool/salvage_charm_enum.inc"
+	IDI_LAST = IDI_ORACOOL_CHARM_SALVAGE_ETHEREAL_IMBUEITIES,
 	IDI_NONE = -1,
 };
 
@@ -343,11 +346,27 @@ constexpr bool IsOracoolGemIdx(int i)
 	    || (i >= IDI_ORACOOL_GEM_AMETHYST_CHIPPED && i <= IDI_ORACOOL_GEM_SKULL_PERFECT);
 }
 
-/** @brief Phase 1: whether @p i is a charm. Two islands - see the enum's append-only note. */
+/**
+ * @brief Whether @p i is a Charm of Salvaging - one per salvage tier, appended after the seven
+ * materials, so one contiguous island.
+ *
+ * These are charms in every structural sense and IsOracoolCharmIdx below includes them, which is
+ * deliberate: the CharmActiveCap rule then applies to them too, so at most three salvage tiers can
+ * be armed at once and a salvage charm competes for the same three live slots as a stat charm.
+ * They carry no stat bonus - their whole effect happens at PICKUP time (oracool/salvage.cpp), not
+ * in the stat sheet, so ApplyCharmToTotals leaves them inert by finding no row for them.
+ */
+constexpr bool IsOracoolSalvageCharmIdx(int i)
+{
+	return i >= IDI_ORACOOL_CHARM_SALVAGE_WHITE_SCALES && i <= IDI_ORACOOL_CHARM_SALVAGE_ETHEREAL_IMBUEITIES;
+}
+
+/** @brief Phase 1: whether @p i is a charm. Three islands now - see the enum's append-only note. */
 constexpr bool IsOracoolCharmIdx(int i)
 {
 	return (i >= IDI_ORACOOL_CHARM_VIGOR && i <= IDI_ORACOOL_CHARM_FORTUNE)
-	    || i == IDI_ORACOOL_CHARM_LUCK || i == IDI_ORACOOL_CHARM_GREED;
+	    || i == IDI_ORACOOL_CHARM_LUCK || i == IDI_ORACOOL_CHARM_GREED
+	    || IsOracoolSalvageCharmIdx(i);
 }
 
 /** @brief Whether @p i is a rune. Socketable like a gem; see oracool/runewords.h. Two islands, for
@@ -782,7 +801,12 @@ enum item_cursor_graphic : uint16_t {
 #include "oracool/runes_curs.inc"
 	// Salvage material frames, after the runes - same one-generator rule.
 #include "oracool/salvage_curs.inc"
-	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES,
+	// The seven Charm of Salvaging frames, after the materials - same one-generator rule. Grouped
+	// by family, never interleaved: the CEL stores frames in file order and nothing else ties a
+	// frame to an id, so a charm spec sitting between two material specs would silently shift
+	// every id after it.
+#include "oracool/salvage_charm_curs.inc"
+	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_CHARM_SALVAGE_ETHEREAL_IMBUEITIES,
 	// clang-format on
 };
 

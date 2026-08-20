@@ -19,6 +19,7 @@ const NAV = [
 	{ href: 'uniques.html', label: 'Unique items' },
 	{ href: 'sets.html', label: 'Item sets' },
 	{ href: 'sockets.html', label: 'Sockets and gems' },
+	{ href: 'salvage.html', label: 'Salvaging' },
 	{ heading: 'World' },
 	{ href: 'areas.html', label: 'Areas and levels' },
 	{ href: 'monsters.html', label: 'Monsters' },

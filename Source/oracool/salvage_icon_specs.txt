@@ -5,3 +5,10 @@ C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\salvage_unique_encrustmen
 C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\salvage_primal_vines.png,0,0,28,28,28,28,salvage_primal_vines,30,false,asis
 C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\salvage_set_engravings.png,0,0,28,28,28,28,salvage_set_engravings,30,false,asis
 C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\salvage_ethereal_imbueities.png,0,0,28,28,28,28,salvage_ethereal_imbueities,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\charm_salvage_white_scales.png,0,0,28,28,28,28,charm_salvage_white_scales,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\charm_salvage_magic_powder.png,0,0,28,28,28,28,charm_salvage_magic_powder,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\charm_salvage_rare_fibres.png,0,0,28,28,28,28,charm_salvage_rare_fibres,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\charm_salvage_unique_encrustments.png,0,0,28,28,28,28,charm_salvage_unique_encrustments,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\charm_salvage_primal_vines.png,0,0,28,28,28,28,charm_salvage_primal_vines,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\charm_salvage_set_engravings.png,0,0,28,28,28,28,charm_salvage_set_engravings,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-salvage-orbs\charm_salvage_ethereal_imbueities.png,0,0,28,28,28,28,charm_salvage_ethereal_imbueities,30,false,asis

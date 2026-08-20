@@ -3,6 +3,7 @@
 #include <fmt/format.h>
 
 #include "items.h"
+#include "oracool/salvage.h"
 #include "oracool/stat_sheet.h"
 #include "player.h"
 #include "utils/language.h"
@@ -56,6 +57,10 @@ void ApplyCharmToTotals(uint16_t charmIdx, ItemBonusTotals &totals)
 
 std::string CharmEffectLine(uint16_t charmIdx)
 {
+	// Charms of Salvaging carry no stat row - their effect fires at pickup time - so they answer
+	// from salvage.cpp's tables instead of the CharmData table below.
+	if (IsOracoolSalvageCharmIdx(charmIdx))
+		return std::string(_(SalvageCharmEffectLine(charmIdx)));
 	const CharmData *charm = FindCharm(charmIdx);
 	if (charm == nullptr)
 		return {};

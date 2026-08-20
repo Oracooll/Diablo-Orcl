@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salvaging - Diablo Orcl V1</title>
+<link rel="stylesheet" href="wiki.css">
+</head>
+<body>
+<div class="shell">
+<nav class="side"></nav>
+<main>
+<h1>Salvaging</h1>
+<p class="lede">Unwanted gear breaks down into seven materials. You can do it a bucket at a time at
+Levski's Roar, or arm a Charm of Salvaging and have it happen the moment an item drops.</p>
+
+<h2>The seven buckets</h2>
+<p>Every salvageable item belongs to <b>exactly one</b> bucket. That is not the only design
+available - an ethereal rare could plausibly yield both Rare Fibres and an Ethereal Imbueity - but
+it is the one the buttons demand: with overlap, "Salvage all rares" and "Salvage all ethereal"
+would each claim the same item, and which you pressed first would silently change what you got.</p>
+<p>The priority order is most specific first: <b>ethereal beats set beats tier beats plain
+quality</b>. An ethereal item is an ethereal item whatever else it also is.</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Bucket</th><th>Material</th><th class="num">Yield</th><th class="num">Material value</th></tr></thead>
+<tbody>
+<tr><td>Whites (plain gear)</td><td>White Scales</td><td class="num">1</td><td class="num">40</td></tr>
+<tr><td>Magic</td><td>Magic Powder</td><td class="num">1</td><td class="num">120</td></tr>
+<tr><td>Rare</td><td>Rare Fibres</td><td class="num">2</td><td class="num">320</td></tr>
+<tr><td>Uniques</td><td>Unique Encrustments</td><td class="num">3</td><td class="num">700</td></tr>
+<tr><td>Primal</td><td>Primal Vines</td><td class="num">4</td><td class="num">1,500</td></tr>
+<tr><td>Set</td><td>Set Engravings</td><td class="num">3</td><td class="num">900</td></tr>
+<tr><td>Ethereal</td><td>Ethereal Imbueities</td><td class="num">2</td><td class="num">1,100</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Only gear salvages.</b> Gems, runes, charms, materials, potions, scrolls, books,
+gold and quest items all decline. A system that could eat your rune hoard because you mis-clicked is
+not worth having - and the socketable families are exactly what you are hoarding for the crafting
+this feeds.</div>
+
+<h2>Salvaging at Levski's Roar</h2>
+<p>The panel carries seven gold buttons, one per bucket. A button lights up when your backpack holds
+something it would consume, and pressing it breaks down <b>every</b> matching item at once. The
+materials go back into the space the gear just vacated, so a pack full enough to need salvaging
+always has room for what salvaging produced - materials <a href="items.html">stack to 99</a>, so a
+hundred White Scales occupy one cell.</p>
+<p>If the pack somehow cannot hold everything, the shortfall is reported in the event log in red
+rather than swallowed. Losing count silently is the failure mode worth designing against.</p>
+
+<h2>Charms of Salvaging</h2>
+<p>Seven 1-slot charms, one per bucket. With one live in your backpack, drops of that bucket are
+converted to material <b>at pickup</b> - the item never occupies a cell, and never reaches your
+hands.</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Charm</th><th>Converts</th><th class="num">Drops from</th><th class="num">Vendor price</th></tr></thead>
+<tbody>
+<tr><td>Charm of Salvaging: Whites</td><td>plain gear</td><td class="num">qlvl 1</td><td class="num">4,000</td></tr>
+<tr><td>Charm of Salvaging: Magic</td><td>magic gear</td><td class="num">qlvl 4</td><td class="num">8,000</td></tr>
+<tr><td>Charm of Salvaging: Rare</td><td>rares</td><td class="num">qlvl 8</td><td class="num">16,000</td></tr>
+<tr><td>Charm of Salvaging: Uniques</td><td>uniques</td><td class="num">qlvl 13</td><td class="num">26,000</td></tr>
+<tr><td>Charm of Salvaging: Set</td><td>set items</td><td class="num">qlvl 15</td><td class="num">30,000</td></tr>
+<tr><td>Charm of Salvaging: Ethereal</td><td>ethereals</td><td class="num">qlvl 17</td><td class="num">34,000</td></tr>
+<tr><td>Charm of Salvaging: Primal</td><td>primals</td><td class="num">qlvl 20</td><td class="num">40,000</td></tr>
+</tbody></table></div>
+
+<p>They yield exactly what the matching Levski button would have yielded. A charm buys convenience,
+not value.</p>
+
+<h3>Three rules keep them from being dangerous</h3>
+<ul>
+	<li><b>The active cap applies.</b> A Charm of Salvaging is a charm, so it counts against the
+		same three-charm active limit as the stat charms: only the first three charms in reading
+		order are live, and a fourth is dead weight whose description says so. <b>At most three
+		buckets can be armed at once</b>, and a salvage charm competes for those slots with a Charm
+		of Vigor. Without that cap, a backpack of charms would eat every drop in the game.</li>
+	<li><b>A full pack declines rather than destroys.</b> The materials are placed before the item is
+		consumed. If nothing fits, the conversion is refused and the item is picked up normally.</li>
+	<li><b>It is never silent.</b> You never see the item, so the log names it -
+		<code>Salvaged on pickup: Godly Plate of the Whale -&gt; 4 Primal Vines</code>. That matters
+		most for the buckets you might regret: a Primal charm eats a Primal you would have kept.</li>
+</ul>
+
+<h2>Where they come from</h2>
+<ul>
+	<li><b>Griswold and Adria both stock all seven.</b> They restock like ordinary stock: buying one
+		removes it, and the next restock brings it back.</li>
+	<li>They also <b>drop</b>, gated by the depths in the table above, through the same charm roll
+		as the stat charms.</li>
+	<li><code>givecharms</code> in the <a href="debug.html">debug console</a> gives every charm in
+		the game, salvage charms included.</li>
+</ul>
+
+<h2>Materials in the stash</h2>
+<p>The stash <b>Sort</b> button gives the crafting families a page of their own: runes across the top
+four rows, gems building bottom-up in seven columns by type, and the seven salvage materials in a row
+of their own between them, ordered left to right from White Scales to Ethereal Imbueities.</p>
+
+<footer></footer>
+</main>
+</div>
+<script src="data.js"></script>
+<script src="wiki.js"></script>
+</body>
+</html>

@@ -85,6 +85,10 @@ $pages = @(
     @{ file = 'uniques.html'; id = 'uniques'; label = 'Unique items'; group = 'Items' },
     @{ file = 'sets.html'; id = 'sets'; label = 'Item sets'; group = 'Items' },
     @{ file = 'sockets.html'; id = 'sockets'; label = 'Sockets and gems'; group = 'Items' },
+    # NOTE: this list is a SECOND copy of wiki/wiki.js's NAV. A new page must be added to both, or
+    # it renders in the served wiki and is silently missing from the published bundle - which is the
+    # copy the user actually reads.
+    @{ file = 'salvage.html'; id = 'salvage'; label = 'Salvaging'; group = 'Items' },
     @{ file = 'areas.html'; id = 'areas'; label = 'Areas and levels'; group = 'World' },
     @{ file = 'monsters.html'; id = 'monsters'; label = 'Monsters'; group = 'World' },
     @{ file = 'world.html'; id = 'world'; label = 'Quests, shrines, town'; group = 'World' },

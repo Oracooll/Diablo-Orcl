@@ -35,6 +35,7 @@
 #include "oracool/gems.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/runewords.h"
+#include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
 #include "oracool/telemetry.h"
 #include "oracool/ornate_border.h"
@@ -2795,6 +2796,21 @@ void InvGetItem(Player &player, int ii)
 	if (&player == MyPlayer)
 		oracool::TelemetryRecordPickup(item);
 
+	// Oracool: Charms of Salvaging. An armed charm converts the drop to material before it ever
+	// reaches the pack. Placed AFTER telemetry on purpose - the drop still happened and the economy
+	// signal is about what the floor produced, not what the player chose to keep. Both pickup paths
+	// need this: the QoL auto-pickup radius goes through AutoGetItem, but an item on the exact tile
+	// the player stands on always comes through here instead.
+	if (&player == MyPlayer && oracool::TrySalvageOnPickup(player, item)) {
+		if (*sgOptions.Audio.itemPickupSound)
+			PlaySFX(IS_IGRAB);
+		CleanupItems(ii);
+		pcursitem = -1;
+		if (scheduleAutoSave)
+			oracool::ScheduleAutoSaveForItemPickup();
+		return;
+	}
+
 	// Oracool bug fix: user report - elixirs (and, in principle, any stackable consumable) didn't
 	// stack when picked up. Root cause: the QoL "Auto Pickup Range" loop (qol/autopickup.cpp) only
 	// covers tiles 1+ away, so an item on the exact tile the player is standing on always comes
@@ -2891,6 +2907,16 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 	// Phase 0.9: the auto-pickup half of the same signal InvGetItem records.
 	if (&player == MyPlayer)
 		oracool::TelemetryRecordPickup(item);
+
+	// Oracool: the auto-pickup half of the Charm of Salvaging hook - see InvGetItem's copy. This is
+	// the path that matters most in practice, because it is the one the QoL pickup radius uses.
+	if (&player == MyPlayer && oracool::TrySalvageOnPickup(player, item)) {
+		if (*sgOptions.Audio.itemPickupSound)
+			PlaySFX(IS_IGRAB);
+		CleanupItems(ii);
+		oracool::ScheduleAutoSaveForItemPickup();
+		return;
+	}
 
 	bool done;
 	bool autoEquipped = false;

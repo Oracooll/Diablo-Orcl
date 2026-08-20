@@ -39,14 +39,17 @@ if (-not (Test-Path $artDir)) { New-Item -ItemType Directory -Path $artDir -Forc
 #
 # qval is the sell value. It climbs with the tier the material comes from, so a bag of Primal Vines
 # is worth carrying out and a bag of White Scales is not.
+# Button is the salvage tier's own word, reused as the charm's suffix so "Charm of Salvaging:
+# Uniques" and the Uniques button cannot come to disagree. CharmValue climbs steeply: a charm that
+# removes a whole tier of inventory management is worth more than the gear it eats.
 $materials = @(
-    @{ Id = 'WHITE_SCALES';        Name = 'White Scales';        Colour = @(232, 232, 224); Value = 40 }
-    @{ Id = 'MAGIC_POWDER';        Name = 'Magic Powder';        Colour = @( 72, 118, 214); Value = 120 }
-    @{ Id = 'RARE_FIBRES';         Name = 'Rare Fibres';         Colour = @(214, 200,  60); Value = 320 }
-    @{ Id = 'UNIQUE_ENCRUSTMENTS'; Name = 'Unique Encrustments'; Colour = @(196, 152,  54); Value = 700 }
-    @{ Id = 'PRIMAL_VINES';        Name = 'Primal Vines';        Colour = @(206, 112,  40); Value = 1500 }
-    @{ Id = 'SET_ENGRAVINGS';      Name = 'Set Engravings';      Colour = @( 96, 150,  72); Value = 900 }
-    @{ Id = 'ETHEREAL_IMBUEITIES'; Name = 'Ethereal Imbueities'; Colour = @( 74,  74,  78); Value = 1100 }
+    @{ Id = 'WHITE_SCALES';        Name = 'White Scales';        Button = 'Whites';   Colour = @(232, 232, 224); Value = 40;   CharmValue = 4000;  CharmMinLvl = 1 }
+    @{ Id = 'MAGIC_POWDER';        Name = 'Magic Powder';        Button = 'Magic';    Colour = @( 72, 118, 214); Value = 120;  CharmValue = 8000;  CharmMinLvl = 4 }
+    @{ Id = 'RARE_FIBRES';         Name = 'Rare Fibres';         Button = 'Rare';     Colour = @(214, 200,  60); Value = 320;  CharmValue = 16000; CharmMinLvl = 8 }
+    @{ Id = 'UNIQUE_ENCRUSTMENTS'; Name = 'Unique Encrustments'; Button = 'Uniques';  Colour = @(196, 152,  54); Value = 700;  CharmValue = 26000; CharmMinLvl = 13 }
+    @{ Id = 'PRIMAL_VINES';        Name = 'Primal Vines';        Button = 'Primal';   Colour = @(206, 112,  40); Value = 1500; CharmValue = 40000; CharmMinLvl = 20 }
+    @{ Id = 'SET_ENGRAVINGS';      Name = 'Set Engravings';      Button = 'Set';      Colour = @( 96, 150,  72); Value = 900;  CharmValue = 30000; CharmMinLvl = 15 }
+    @{ Id = 'ETHEREAL_IMBUEITIES'; Name = 'Ethereal Imbueities'; Button = 'Ethereal'; Colour = @( 74,  74,  78); Value = 1100; CharmValue = 34000; CharmMinLvl = 17 }
 )
 
 $cell = 28
@@ -108,12 +111,64 @@ function New-Orb([int[]]$rgb) {
     return $bmp
 }
 
+<#
+.SYNOPSIS
+Draws one 28x28 Charm of Salvaging: a bevelled tablet in its tier's colour.
+
+.DESCRIPTION
+Deliberately NOT an orb. A charm and the material it produces share a colour, and if they shared a
+silhouette too the backpack would show fourteen circles in seven colours and every one would need
+its tooltip read. A tablet against a sphere separates them at a glance, which is the whole job of an
+inventory icon.
+#>
+function New-Charm([int[]]$rgb) {
+    $bmp = New-Object System.Drawing.Bitmap -ArgumentList $cell, $cell, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $lo = 5
+    $hi = $cell - 6
+    for ($y = $lo; $y -le $hi; $y++) {
+        for ($x = $lo; $x -le $hi; $x++) {
+            # Clipped corners, so the tablet reads as cut stone rather than a plain box.
+            if (($x - $lo) + ($y - $lo) -lt 3) { continue }
+            if (($hi - $x) + ($y - $lo) -lt 3) { continue }
+            if (($x - $lo) + ($hi - $y) -lt 3) { continue }
+            if (($hi - $x) + ($hi - $y) -lt 3) { continue }
+
+            # Lit top-left bevel, shadowed bottom-right - the same light direction the orbs use, so
+            # the two families read as belonging together.
+            $shade = 0.80
+            if ($x -le $lo + 1 -or $y -le $lo + 1) { $shade = 1.15 }
+            if ($x -ge $hi - 1 -or $y -ge $hi - 1) { $shade = 0.50 }
+
+            $r = [Math]::Min(255, [int]($rgb[0] * $shade))
+            $g = [Math]::Min(255, [int]($rgb[1] * $shade))
+            $b = [Math]::Min(255, [int]($rgb[2] * $shade))
+            $bmp.SetPixel($x, $y, [System.Drawing.Color]::FromArgb(255, $r, $g, $b))
+        }
+    }
+    return $bmp
+}
+
 $enumLines = @()
 $dataLines = @()
 $cursLines = @()
 $widthLines = @()
 $heightLines = @()
 $specLines = @()
+
+# The charms' rows are collected SEPARATELY and appended after every material's, so the CEL frame
+# order is all-materials-then-all-charms - which is the order the two ICURS blocks are included in
+# itemdat.h.
+#
+# Interleaving them was written and thrown away first: the specs would have run material, charm,
+# material, charm while the enums stayed contiguous by family, so frame N would have belonged to a
+# different id than the size tables claimed and every material would have drawn as a charm. Nothing
+# would have failed to build. One walk still, but two baskets.
+$charmEnumLines = @()
+$charmDataLines = @()
+$charmCursLines = @()
+$charmWidthLines = @()
+$charmHeightLines = @()
+$charmSpecLines = @()
 
 foreach ($m in $materials) {
     $idi = "IDI_ORACOOL_SALVAGE_$($m.Id)"
@@ -131,7 +186,27 @@ foreach ($m in $materials) {
     $widthLines += "`t$cell, // $($m.Name)"
     $heightLines += "`t$cell, // $($m.Name)"
     $specLines += "$png,0,0,$cell,$cell,$cell,$cell,salvage_$($m.Id.ToLowerInvariant()),30,false,asis"
+
+    # The matching Charm of Salvaging. IDROP_REGULAR, unlike the materials: these are meant to drop
+    # as well as be sold by Adria and Griswold.
+    $cidi = "IDI_ORACOOL_CHARM_SALVAGE_$($m.Id)"
+    $cicurs = "ICURS_ORACOOL_CHARM_SALVAGE_$($m.Id)"
+    $cpng = Join-Path $artDir ("charm_salvage_" + $m.Id.ToLowerInvariant() + ".png")
+    $charm = New-Charm $m.Colour
+    try { $charm.Save($cpng, [System.Drawing.Imaging.ImageFormat]::Png) } finally { $charm.Dispose() }
+
+    $charmEnumLines += "`t$cidi,"
+    $charmDataLines += "/*$cidi*/ { IDROP_REGULAR, ICLASS_MISC, ILOC_UNEQUIPABLE, $cicurs, ItemType::Misc, UITYPE_NONE, N_(`"Charm of Salvaging: $($m.Button)`"), N_(`"Charm`"), $($m.CharmMinLvl), 0, 0, 0, 0, 0, 0, 0, 0, ItemSpecialEffect::None, IMISC_NONE, SpellID::Null, false, $($m.CharmValue) },"
+    $charmCursLines += "`t$cicurs,"
+    $charmWidthLines += "`t$cell, // Charm of Salvaging: $($m.Button)"
+    $charmHeightLines += "`t$cell, // Charm of Salvaging: $($m.Button)"
+    $charmSpecLines += "$cpng,0,0,$cell,$cell,$cell,$cell,charm_salvage_$($m.Id.ToLowerInvariant()),30,false,asis"
 }
+
+# Materials first, then charms - see the note above the baskets.
+$widthLines += $charmWidthLines
+$heightLines += $charmHeightLines
+$specLines += $charmSpecLines
 
 function Write-Inc([string]$file, [string]$what, [string[]]$lines) {
     $header = @(
@@ -146,8 +221,11 @@ function Write-Inc([string]$file, [string]$what, [string[]]$lines) {
 Write-Inc 'salvage_enum.inc' 'The seven salvage materials, appended after the runes.' $enumLines
 Write-Inc 'salvage_data.inc' 'Their AllItemsList rows, in enum order.' $dataLines
 Write-Inc 'salvage_curs.inc' 'Their ICURS ids - appended after the runes, so the CEL frames follow.' $cursLines
-Write-Inc 'salvage_curs_widths.inc' 'Frame widths, in CEL frame order.' $widthLines
-Write-Inc 'salvage_curs_heights.inc' 'Frame heights, in CEL frame order.' $heightLines
+Write-Inc 'salvage_charm_enum.inc' 'The seven Charms of Salvaging, appended after the materials.' $charmEnumLines
+Write-Inc 'salvage_charm_data.inc' 'Their AllItemsList rows, in enum order.' $charmDataLines
+Write-Inc 'salvage_charm_curs.inc' 'Their ICURS ids - appended after the material frames.' $charmCursLines
+Write-Inc 'salvage_curs_widths.inc' 'Frame widths, in CEL frame order: 7 materials, then 7 charms.' $widthLines
+Write-Inc 'salvage_curs_heights.inc' 'Frame heights, in CEL frame order: 7 materials, then 7 charms.' $heightLines
 
 # NO BOM. Set-Content -Encoding UTF8 writes one in Windows PowerShell, and build_item_icons.cmd
 # concatenates these files with `type` - so the BOM lands in the middle of the spec list, glued to
