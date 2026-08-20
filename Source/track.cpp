@@ -94,19 +94,30 @@ void RepeatMouseAction()
 		if (pcursplr != -1 && !myPlayer.friendlyMode)
 			NetSendCmdParam1(true, rangedAttack ? CMD_RATTACKPID : CMD_ATTACKPID, pcursplr);
 		break;
+	// All three repeat the spell the last click ACTUALLY cast, not CheckPlrSpell's default
+	// arguments. Those defaults are MyPlayer->_pRSpell / _pRSplType - right for a game where only
+	// the right button holds a spell, wrong the moment this fork let the left button hold one too.
+	// Holding the left button after casting a left-button skill repeated the RIGHT button's spell:
+	// "when i cast fist of the heavens game also casts teleport" (user, 2026-08-20).
+	//
+	// The guard is new as well as the argument. LastMouseButtonSpell is Invalid until something
+	// casts, so a repeat can no longer conjure a spell out of the readied slot when the last action
+	// was not a cast at all.
 	case MouseActionType::Spell:
+		if (!IsValidSpell(LastMouseButtonSpell))
+			break;
 		if (ControlMode != ControlTypes::KeyboardAndMouse) {
-			UpdateSpellTarget(MyPlayer->_pRSpell);
+			UpdateSpellTarget(LastMouseButtonSpell);
 		}
-		CheckPlrSpell(ControlMode == ControlTypes::KeyboardAndMouse);
+		CheckPlrSpell(ControlMode == ControlTypes::KeyboardAndMouse, LastMouseButtonSpell, LastMouseButtonSpellType);
 		break;
 	case MouseActionType::SpellMonsterTarget:
-		if (pcursmonst != -1)
-			CheckPlrSpell(false);
+		if (pcursmonst != -1 && IsValidSpell(LastMouseButtonSpell))
+			CheckPlrSpell(false, LastMouseButtonSpell, LastMouseButtonSpellType);
 		break;
 	case MouseActionType::SpellPlayerTarget:
-		if (pcursplr != -1 && !myPlayer.friendlyMode)
-			CheckPlrSpell(false);
+		if (pcursplr != -1 && !myPlayer.friendlyMode && IsValidSpell(LastMouseButtonSpell))
+			CheckPlrSpell(false, LastMouseButtonSpell, LastMouseButtonSpellType);
 		break;
 	case MouseActionType::OperateObject:
 		if (ObjectUnderCursor != nullptr && !ObjectUnderCursor->isDoor()) {

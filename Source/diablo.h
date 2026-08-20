@@ -9,6 +9,7 @@
 
 #ifdef _DEBUG
 #include "monstdat.h"
+#include "spelldat.h" // SpellID/SpellType, for LastMouseButtonSpell below
 #endif
 #include "init.h"
 #include "levels/gendung.h"
@@ -81,6 +82,22 @@ extern char gszProductName[128];
 extern char gszMainMenuVersionText[192];
 
 extern MouseActionType LastMouseButtonAction;
+
+/**
+ * @brief The spell the last mouse action actually cast, for the hold-to-repeat path.
+ *
+ * Vanilla's RepeatMouseAction re-cast through CheckPlrSpell's DEFAULT arguments, which are
+ * MyPlayer->_pRSpell / _pRSplType - correct in a game where only the right button can hold a spell,
+ * and wrong the moment this fork let the LEFT button hold one too. Holding the left button after
+ * casting a left-button skill repeated the RIGHT button's spell instead (user report, 2026-08-20:
+ * "when i cast fist of the heavens game also casts teleport... is it casting rmb skill by itself?"
+ * - it was).
+ *
+ * Recorded beside LastMouseButtonAction and by the same code, so the action and the spell it stands
+ * for cannot describe different casts.
+ */
+extern SpellID LastMouseButtonSpell;
+extern SpellType LastMouseButtonSpellType;
 
 void InitKeymapActions();
 

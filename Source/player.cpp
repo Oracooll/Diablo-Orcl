@@ -3565,6 +3565,12 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	}
 
 	const int spellFrom = 0;
+	// Remember WHICH spell this cast was, so the hold-to-repeat path can repeat this one rather
+	// than falling back on CheckPlrSpell's default arguments - which are the RIGHT button's spell.
+	// Set once here, above all four dispatch branches, because every one of them is a cast of
+	// exactly this spellID and a per-branch copy is a fifth place to forget.
+	LastMouseButtonSpell = spellID;
+	LastMouseButtonSpellType = spellType;
 	if (IsWallSpell(spellID)) {
 		LastMouseButtonAction = MouseActionType::Spell;
 		Direction sd = GetDirection(myPlayer.position.tile, cursPosition);

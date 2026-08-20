@@ -153,6 +153,8 @@ QuickMessage QuickMessages[QUICK_MESSAGE_OPTIONS] = {
 
 /** This and the following mouse variables are for handling in-game click-and-hold actions */
 MouseActionType LastMouseButtonAction = MouseActionType::None;
+SpellID LastMouseButtonSpell = SpellID::Invalid;
+SpellType LastMouseButtonSpellType = SpellType::Invalid;
 
 // Controller support: Actions to run after updating the cursor state.
 // Defined in SourceX/controls/plctrls.cpp.
@@ -198,6 +200,8 @@ void StartGame(interface_mode uMsg)
 	sgnTimeoutCurs = CURSOR_NONE;
 	sgbMouseDown = CLICK_NONE;
 	LastMouseButtonAction = MouseActionType::None;
+	LastMouseButtonSpell = SpellID::Invalid;
+	LastMouseButtonSpellType = SpellType::Invalid;
 }
 
 void FreeGame()
@@ -396,6 +400,8 @@ bool TryOpenDungeonWithMouse()
 void LeftMouseDown(uint16_t modState)
 {
 	LastMouseButtonAction = MouseActionType::None;
+	LastMouseButtonSpell = SpellID::Invalid;
+	LastMouseButtonSpellType = SpellType::Invalid;
 
 	if (gmenu_left_mouse(true))
 		return;
@@ -705,6 +711,8 @@ void RightMouseBasicAttack(bool isShiftHeld)
 void RightMouseDown(bool isShiftHeld)
 {
 	LastMouseButtonAction = MouseActionType::None;
+	LastMouseButtonSpell = SpellID::Invalid;
+	LastMouseButtonSpellType = SpellType::Invalid;
 
 	if (gmenu_is_active() || sgnTimeoutCurs != CURSOR_NONE || PauseMode == 2 || MyPlayer->_pInvincible) {
 		return;
@@ -2105,6 +2113,8 @@ void DisplaySpellsKeyPressed()
 	// ever open and never close.
 	ToggleAbilitiesWindow();
 	LastMouseButtonAction = MouseActionType::None;
+	LastMouseButtonSpell = SpellID::Invalid;
+	LastMouseButtonSpellType = SpellType::Invalid;
 }
 
 void SpellBookKeyPressed()
@@ -3708,6 +3718,8 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 
 	// Recalculate mouse selection of entities after level change/load
 	LastMouseButtonAction = MouseActionType::None;
+	LastMouseButtonSpell = SpellID::Invalid;
+	LastMouseButtonSpellType = SpellType::Invalid;
 	sgbMouseDown = CLICK_NONE;
 	ResetItemlabelHighlighted(); // level changed => item changed
 	pcursmonst = -1;             // ensure pcurstemp is set to a valid value
