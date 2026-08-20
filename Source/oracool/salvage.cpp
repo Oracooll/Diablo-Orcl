@@ -73,9 +73,19 @@ bool IsSalvageable(const Item &item)
 		return false;
 	if (item._iClass == ICLASS_QUEST)
 		return false;
-	if (item._iClass == ICLASS_MISC)
-		return false;
 	if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx) || IsOracoolSalvageIdx(item.IDidx))
+		return false;
+	// JEWELLERY, tested before the ICLASS_MISC rejection below because it IS ICLASS_MISC (user
+	// report, 2026-08-20: "check why salvaging skips jewelry").
+	//
+	// Rings and amulets carry ICLASS_MISC in AllItemsList - vanilla files them with the oddments
+	// rather than with the armour - so the blanket "misc is not gear" rule swept up every ring and
+	// amulet in the game. Their equip LOCATION is what actually says they are worn, and it is the
+	// same test the socket system already uses to let a ring take a gem, so this fork was already
+	// treating them as first-class equipment everywhere except here.
+	if (item._iLoc == ILOC_RING || item._iLoc == ILOC_AMULET)
+		return true;
+	if (item._iClass == ICLASS_MISC)
 		return false;
 	// Weapons and armour, which is what is left.
 	return item._iClass == ICLASS_WEAPON || item._iClass == ICLASS_ARMOR;

@@ -162,23 +162,30 @@ constexpr Rectangle StashPageLabelRect { { 92, StashPageLabelY }, { 156, StashPa
  * right"). Six columns wide rather than the old 180px: that is exactly the space between it and
  * SORT, so the two can no longer collide however long the gold total gets.
  */
-constexpr Rectangle GoldDisplayRect { { StashColumnX(2), StashGoldRowY },
+constexpr Rectangle GoldDisplayRect { { StashColumnX(11) - 6 * StashCellPx, StashGoldRowY },
 	{ 6 * StashCellPx, StashGoldRowHeight } };
 bool GoldDisplayPressed = false;
 
 /**
  * @brief Drawn as a word rather than art, matching RESET on the character sheet.
  *
- * Columns 8-9 (user request, 2026-08-16), so it sits over the two cells it visually belongs to
- * rather than at an arbitrary x.
+ * SORT sits flush with the LEFT edge of column 1 and the gold total flush with the RIGHT edge of
+ * column 10 (user request, 2026-08-20: "to keep consistancy move sort button in stash flush with
+ * left border of grid column 1 and move gold counter flush with right border of grid column 10").
+ *
+ * The consistency is with the INVENTORY's own header, which already reads SORT-left / gold-right.
+ * They were the other way round here, which is why the two panels never looked like siblings even
+ * though both rows carried the same two controls. This swaps the sides rather than nudging pixels:
+ * StashColumnX(11) is the right edge of column 10, so the gold rect ENDS there by construction and
+ * cannot drift if the cell size or grid origin changes.
  */
-constexpr Rectangle StashSortButtonRect { { StashColumnX(8), StashGoldRowY },
+constexpr Rectangle StashSortButtonRect { { StashColumnX(1), StashGoldRowY },
 	{ 2 * StashCellPx, StashGoldRowHeight } };
 
-static_assert(GoldDisplayRect.position.x + GoldDisplayRect.size.width <= StashSortButtonRect.position.x,
-    "The gold readout now runs into the SORT button");
-static_assert(StashSortButtonRect.position.x + StashSortButtonRect.size.width <= StashColumnX(11),
-    "The SORT button runs past the last grid column");
+static_assert(StashSortButtonRect.position.x + StashSortButtonRect.size.width <= GoldDisplayRect.position.x,
+    "The SORT button now runs into the gold readout");
+static_assert(GoldDisplayRect.position.x + GoldDisplayRect.size.width <= StashColumnX(11),
+    "The gold readout runs past the last grid column");
 
 constexpr Size StashGridSize { StashGridColumns, StashGridRows };
 constexpr PointsInRectangleRange<int> StashGridRange { { { 0, 0 }, StashGridSize } };
@@ -768,13 +775,17 @@ void DrawStash(const Surface &out)
 
 	// Gold in the theme's own gold, matching the inventory's readout, rather than the plain white
 	// the vanilla panel used.
+	// Right-aligned, so the total is FLUSH with column 10's right edge however long it gets - a
+	// left-aligned string in a right-anchored box would leave a ragged gap that grows as the player
+	// gets richer, which is the opposite of what "flush with the right border" asks for.
 	DrawString(out, StrCat(_("GOLD: "), FormatInteger(Stash.gold)),
 	    { position + Displacement { GoldDisplayRect.position.x, GoldDisplayRect.position.y }, GoldDisplayRect.size },
-	    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter });
+	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
 
+	// Left-aligned for the mirror reason: the word starts on column 1's left edge.
 	DrawString(out, _("SORT"),
 	    { position + Displacement { StashSortButtonRect.position.x, StashSortButtonRect.position.y }, StashSortButtonRect.size },
-	    { UiFlags::AlignCenter | UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) });
+	    { UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) });
 }
 
 void CheckStashItem(Point mousePosition, bool isShiftHeld, bool isCtrlHeld)
@@ -1230,6 +1241,40 @@ void SortStash(Player &player)
 	// a second box is placed in the gap between the two blocks rather than being allowed to shove
 	// the grid out of alignment - the layout is the point, and a 34th rune box is not worth losing
 	// it over.
+	// MERGE PARTIAL STACKS FIRST (user report, 2026-08-20: "i've got two stacks of white scales
+	// that dont want to stack").
+	//
+	// The stash has no merge on deposit - AutoPlaceItemInStash finds a free cell, it does not look
+	// for a stack to join - so two half-stacks of the same material can sit in it indefinitely. The
+	// layout below then makes that visible rather than merely wasteful: it allots ONE cell per kind,
+	// so the second stack of White Scales cannot have the white column and gets pushed into the
+	// overflow band above, which is exactly where the report's screenshot shows it.
+	//
+	// Merging here rather than at deposit time is deliberate: SORT is the one moment the player has
+	// asked for the stash to be tidied, and it is the only place that already rebuilds every stack's
+	// position from scratch. Capped at MaxStackCount, so a kind that genuinely overflows still ends
+	// up with a full stack plus a remainder, and the overflow band still catches the remainder.
+	for (size_t i = 0; i < materials.size(); i++) {
+		if (materials[i].isEmpty())
+			continue;
+		for (size_t j = i + 1; j < materials.size(); j++) {
+			if (materials[j].isEmpty() || !materials[i].canStackWith(materials[j]))
+				continue;
+			const int room = Item::MaxStackCount - materials[i].stackCount();
+			if (room <= 0)
+				break;
+			const int moved = std::min(room, materials[j].stackCount());
+			materials[i].setStackCount(materials[i].stackCount() + moved);
+			if (moved == materials[j].stackCount())
+				materials[j].clear();
+			else
+				materials[j].setStackCount(materials[j].stackCount() - moved);
+		}
+	}
+	materials.erase(std::remove_if(materials.begin(), materials.end(),
+	                    [](const Item &item) { return item.isEmpty(); }),
+	    materials.end());
+
 	if (!materials.empty()) {
 		const unsigned page = FirstEmptyStashPage();
 		if (page >= CountStashPages) {
