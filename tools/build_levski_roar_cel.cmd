@@ -9,7 +9,7 @@ REM The source is found by GLOB rather than by name: the drop-zone files arrive 
 REM containing a Cyrillic abbreviation, and a literal path did not survive tools\CutChestStates.ps1's
 REM encoding. The timestamp is the stable part.
 REM
-REM 192 must equal OracoolLevskiRoarAnimWidth in Source/objdat.h - three town tiles wide. CEL stores
+REM 96 must equal OracoolLevskiRoarAnimWidth in Source/objdat.h. CEL stores
 REM no width, so a mismatch splits every RLE scanline at the wrong point and renders the monument as
 REM garbage. The tool prints the width it produced; check it.
 REM
@@ -31,7 +31,7 @@ if "%ART%"=="" (
 echo Source: %ART%
 
 "%CSC%" /nologo /unsafe /optimize /target:exe /out:"%EXE%" /r:System.Drawing.dll tools\MonumentCel.cs || exit /b 1
-"%EXE%" "%ART%" "%PAL%" "%OUT%" 192 "%TEMP%\levski_roar_preview" || exit /b 1
+"%EXE%" "%ART%" "%PAL%" "%OUT%" 96 "%TEMP%\levski_roar_preview" || exit /b 1
 
 REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet
 REM still finds the sprite instead of dying on a missing file.

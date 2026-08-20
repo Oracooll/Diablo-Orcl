@@ -163,12 +163,14 @@ constexpr uint16_t OracoolStashChestAnimWidth = 76;
  * @brief Oracool: orclroar.cel's frame width. Same contract as the constant above - CEL stores no
  * width, and a wrong one renders the monument as garbage rather than failing.
  *
- * Three town tiles. The painting is 971px wide once padded to its floor anchor; the scale is chosen
- * so the plaza reads as a plaza rather than as a piece of furniture, and so the statue stands about
- * twice a player's height. tools\build_levski_roar_cel.cmd passes this number in and the tool prints
- * back what it produced; if either moves, both move, in the same commit.
+ * Halved from 192 on 2026-08-20 ("reduce levski half of current size. he is too big"). At three
+ * tiles the plaza swallowed the path junction it stands on and the statue overtopped the houses
+ * behind it; at one and a half it is furniture in the town rather than a district of it.
+ *
+ * tools\build_levski_roar_cel.cmd passes this number in and the tool prints back what it produced;
+ * if either moves, both move, in the same commit.
  */
-constexpr uint16_t OracoolLevskiRoarAnimWidth = 192;
+constexpr uint16_t OracoolLevskiRoarAnimWidth = 96;
 
 enum _object_id : int8_t {
 	OBJ_L1LIGHT,

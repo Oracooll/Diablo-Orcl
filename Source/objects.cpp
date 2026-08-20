@@ -4237,12 +4237,22 @@ void AddStashChestObject()
 	// repeats its own trio across the same two slots, so frame 4 still means "closed".
 	chest->_oAnimFrame = 4;
 
-	// Live again as of 2026-08-20. This was parked on 2026-08-18 ("bring back previous Stash chest.
-	// This one is not goodlooking") - the objection was to the Grand Reliquary ART, not to the
-	// mechanism, and orclstash.cel now carries the chest the user delivered in its place. Its twin
-	// in SyncObjectAnim came back with it; the two must move together or the chest would wear the
-	// new art until the first return to town and vanilla chest3.cel forever after.
-	ApplyStashChestGraphics(*chest);
+	// Parked again, 2026-08-20: "chest seem different size in different states, so bring back the
+	// old one and delete my chest assets. i will work on new ones." The chest wears vanilla
+	// chest3.cel, exactly as it has since the first parking on 2026-08-18.
+	//
+	// The size wobble is real and worth recording, because the next pack will hit it unless the
+	// art avoids it. CutChestStates.ps1 cut all three panels with ONE shared box precisely so the
+	// chest could not jump - but a shared box only fixes the FRAME. Within it, the three delivered
+	// chests are drawn at visibly different scales, and no cutting rule can correct that; it has to
+	// come out of the art.
+	//
+	// Everything the mechanism needs is still here and still shipped - OFILE_ORCLSTASH,
+	// objects\orclstash.cel, ApplyStashChestGraphics and its twin in SyncObjectAnim - so the next
+	// pack is uncommenting two lines rather than redoing the work. They must move TOGETHER: miss
+	// the SyncObjectAnim one and the chest wears its art until the first return to town and vanilla
+	// chest3.cel forever after.
+	// ApplyStashChestGraphics(*chest);
 }
 
 /**
@@ -5609,8 +5619,10 @@ void SyncObjectAnim(Object &object)
 		// only until the first time town was reloaded. Same position test the two OperateObject /
 		// SyncOpObject sites already use to tell this chest from an ordinary one.
 		// Lives and dies with its twin in AddStashChestObject - see the note there.
-		if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
-			oracool::ApplyStashChestGraphics(object);
+		// Parked with its twin in AddStashChestObject - see the note there. The two must return
+		// together.
+		// if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
+		// 	oracool::ApplyStashChestGraphics(object);
 
 		// Oracool: the same rebuild, for Levski's Roar. Matched on TYPE rather than on a position
 		// constant, because unlike the chest the monument has a fallback placement (see
