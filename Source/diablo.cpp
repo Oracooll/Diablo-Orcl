@@ -60,7 +60,8 @@
 #include "multi.h"
 #include "nthread.h"
 #include "objects.h"
-#include "oracool/attack_skills.h" // the basic-attack quick list
+#include "oracool/attack_skills.h"
+#include "oracool/skill_picker.h"
 #include "oracool/auto_save.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/game_speed.h"
@@ -396,7 +397,7 @@ void LeftMouseDown(uint16_t modState)
 	// The basic-attack quick list eats the click while it is showing - on an entry it readies the
 	// attack, anywhere else it just dismisses. Ahead of everything else for the same reason every
 	// popup is: a strip floating over the world must not let clicks through to the world.
-	if (oracool::CheckAttackQuickListClick())
+	if (oracool::CheckSkillPickerClick(MousePosition))
 		return;
 
 	if (control_check_talk_btn())
@@ -598,7 +599,7 @@ void LeftMouseDown(uint16_t modState)
 				return;
 			}
 			// The quick list, matching the RMB well - see DoPanBtn.
-			oracool::OpenAttackQuickList(/*forLeftButton=*/true);
+			oracool::OpenSkillPicker(/*forLeftButton=*/true);
 			return;
 		}
 		if (!talkflag && !DropGoldFlag && !IsWithdrawGoldOpen && !gmenu_is_active())
@@ -787,7 +788,7 @@ void ClosePanels()
 	oracool::CloseWaypointMenu();
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
-	oracool::CloseAttackQuickList();
+	oracool::CloseSkillPicker();
 }
 
 
@@ -1166,7 +1167,12 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	case SDL_MOUSEWHEEL:
 		if (event.wheel.y > 0) { // Up
-			if (oracool::HandleRunewordBookScroll(1)) {
+			if (oracool::IsSkillPickerOpen()) {
+				// The picker only ever overflows when a character knows more than fits above the
+				// plate; ungated by cursor position because the window is the only thing on screen
+				// worth scrolling while it is open.
+				oracool::ScrollSkillPicker(1);
+			} else if (oracool::HandleRunewordBookScroll(1)) {
 				// consumed
 			} else if (stextflag != TalkID::None) {
 				StoreUp();
@@ -1211,7 +1217,9 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				AdjustDungeonZoom(1);
 			}
 		} else if (event.wheel.y < 0) { // down
-			if (oracool::HandleRunewordBookScroll(-1)) {
+			if (oracool::IsSkillPickerOpen()) {
+				oracool::ScrollSkillPicker(-1); // see the wheel-up branch above
+			} else if (oracool::HandleRunewordBookScroll(-1)) {
 				// consumed
 			} else if (stextflag != TalkID::None) {
 				StoreDown();
@@ -3245,6 +3253,12 @@ bool PressEscKey()
 	// Same reasoning as the monument above: a free-floating window that no panel closer reaches.
 	if (oracool::IsRunewordBookOpen()) {
 		oracool::CloseRunewordBook();
+		rv = true;
+	}
+
+	// The skill picker, for the same reason: it floats over the world and no panel closer reaches it.
+	if (oracool::IsSkillPickerOpen()) {
+		oracool::CloseSkillPicker();
 		rv = true;
 	}
 

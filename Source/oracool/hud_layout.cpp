@@ -14,6 +14,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/oracool.h"
 #include "oracool/runeword_book.h"
+#include "oracool/skill_picker.h"
 #include "oracool/xp_counter.h"
 #include "utils/ui_fwd.h"
 
@@ -348,6 +349,10 @@ bool IsPointOverFloatingWindow(Point mousePosition)
 	if (IsLevskiRecipeBookOpen() && GetLevskiRecipeBookRect().contains(mousePosition))
 		return true;
 	if (IsRunewordBookOpen() && GetRunewordBookRect().contains(mousePosition))
+		return true;
+	// The skill picker sits directly over the play area, above its own well - the most obtrusive of
+	// the four, and so the one where hovering through would be most obvious.
+	if (IsSkillPickerOpen() && GetSkillPickerRect().contains(mousePosition))
 		return true;
 	return false;
 }

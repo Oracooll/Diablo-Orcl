@@ -36,6 +36,7 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/skill_picker.h"
 #include "oracool/cursor_tooltip.h"
 #include "oracool/event_log.h"
 #include "oracool/runeword_book.h"
@@ -2031,7 +2032,7 @@ void DrawAndBlit()
 			// Oracool: click feedback for the Menu/Portal cells, whose frames and icons are baked
 			// into the plate art and so have no state of their own to react with.
 			oracool::DrawBeltButtonFeedback(out);
-			oracool::DrawAttackQuickList(out);
+			oracool::DrawSkillPicker(out);
 		}
 		if (drawChatInput) {
 			DrawTalkPan(out);

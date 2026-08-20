@@ -38,6 +38,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/skill_picker.h"
 #include "oracool/class_tree.h" // the burning aura is what the RMB well holds
 #include "oracool/event_log.h"
 #include "oracool/furious_charge.h"
@@ -1018,7 +1019,7 @@ void DoPanBtn()
 		// The quick list, not the Abilities window (user, 2026-08-18): clicking a well is how the
 		// basic attack goes onto that button. The Abilities window keeps the S key and the burger
 		// menu, which is where everything that has to be EARNED is chosen.
-		oracool::OpenAttackQuickList(/*forLeftButton=*/false);
+		oracool::OpenSkillPicker(/*forLeftButton=*/false);
 		gamemenu_off();
 	}
 }
