@@ -1635,20 +1635,10 @@ void CheckSBook(bool assignToRightButton)
 		if (rowIndex >= rowCount)
 			return;
 		sn = rows[rowIndex];
-		// The spend corners, tested BEFORE the row's own action because they sit inside the icon -
-		// the same order and the same boxes as a tree cell (user, 2026-08-19). A click in the
-		// bottom-left is a refund, not a "ready this spell".
-		const Rectangle iconRect = SpellRowIconRect(
-		    static_cast<int>(rowIndex) * RowHeightFor(CurrentSheet));
-		const Point local { MousePosition.x - content.position.x, y };
-		if (SpendPlusRect(iconRect).contains(local) && oracool::InvestSkillPoint(*MyPlayer, sn)) {
-			RedrawEverything();
-			return;
-		}
-		if (SpendMinusRect(iconRect).contains(local) && oracool::RefundSkillPoint(*MyPlayer, sn)) {
-			RedrawEverything();
-			return;
-		}
+		// The spend corners are GONE from this sheet. User rule, 2026-08-20: "Spells cant be
+		// affected by skill points, only by books. Vanila D1." A spell's level is its book level
+		// plus item bonuses, and nothing on this list spends a point any more - so the whole row is
+		// the ready target again, with no corner carved out of the icon to avoid.
 	}
 	// An unlearned row is inert. It is listed so the book shows the whole set, not so it can be
 	// readied - and its greyed icon already says so.

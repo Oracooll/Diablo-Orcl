@@ -4,8 +4,12 @@
 #include <cstring>
 #include <iterator>
 
+#include <fmt/format.h>
+
+#include "DiabloUI/ui_flags.hpp"
 #include "oracool/event_log.h"
 #include "oracool/readied_spells.h"
+#include "oracool/skill_points.h"
 #include "panels/spell_book.hpp" // AbilityFKeyCount
 #include "player.h"
 #include "spells.h" // IsValidSpell
@@ -265,6 +269,24 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			break;
 		}
 		offset += size_t { 6 } + chunkLen; // widened for the same reason as the validation walk
+	}
+
+	// AFTER every chunk, because it reads _pSkillInvestment and _pUnspentSkillPoints, and the
+	// chunks that fill them may arrive in any order.
+	//
+	// Points could reach a book spell two ways before the 2026-08-20 rule ("Spells cant be affected
+	// by skill points, only by books"): the Abilities window's Spells sheet spent straight into
+	// them, and the Sorceress's tree rows were castable spells whose investment was keyed by
+	// SpellID. Both doors are shut now, so anything still sitting there is stranded where the player
+	// cannot reach it - and for a Sorceress that could be her entire pool. Handing it back is the
+	// only honest migration.
+	//
+	// Idempotent: it zeroes what it refunds, so the next load finds nothing to do. That matters
+	// because there is no version gate here - the repair IS its own gate.
+	if (const int refunded = RefundBookSpellInvestment(player); refunded > 0 && &player == MyPlayer) {
+		LogEvent(fmt::format("Spells are raised by books now - {:d} skill point{:s} returned",
+		             refunded, refunded == 1 ? "" : "s"),
+		    UiFlags::ColorWhitegold);
 	}
 }
 

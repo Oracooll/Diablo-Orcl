@@ -55,6 +55,7 @@
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
 #include "oracool/skill_points.h"
+#include "oracool/spell_ranks.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/ornate_border.h"
@@ -785,8 +786,12 @@ TEST(OracoolHeroChunks, SkillPointsAndWaypointsRoundTrip)
 	devilution::Player &source = Players[0];
 	source = {};
 	source._pUnspentSkillPoints = 7;
-	source._pSkillInvestment[3] = 5;
-	source._pSkillInvestment[MAX_SPELLS - 1] = 2;
+	// BOOKLESS skills on purpose. ApplyHeroChunks now runs the book-spell refund at the end of every
+	// load (the 2026-08-20 rule), so investment parked in a book spell deliberately does NOT
+	// round-trip - it comes back as unspent points. That behaviour has its own test; this one is
+	// about the chunk carrying what it was given.
+	source._pSkillInvestment[static_cast<size_t>(SpellID::Zeal)] = 5;
+	source._pSkillInvestment[static_cast<size_t>(SpellID::Charge)] = 2;
 	source._pWaypointUnlocked[0][1] = true;
 	source._pWaypointUnlocked[0][24] = true;
 	source._pWaypointUnlocked[2][40] = true; // past the fixed u32 masks' reach - chunk-only ground
@@ -800,8 +805,8 @@ TEST(OracoolHeroChunks, SkillPointsAndWaypointsRoundTrip)
 	oracool::ApplyHeroChunks(target, tail.data(), tail.size());
 
 	EXPECT_EQ(target._pUnspentSkillPoints, 7);
-	EXPECT_EQ(target._pSkillInvestment[3], 5);
-	EXPECT_EQ(target._pSkillInvestment[MAX_SPELLS - 1], 2);
+	EXPECT_EQ(target._pSkillInvestment[static_cast<size_t>(SpellID::Zeal)], 5);
+	EXPECT_EQ(target._pSkillInvestment[static_cast<size_t>(SpellID::Charge)], 2);
 	EXPECT_TRUE(target._pWaypointUnlocked[0][1]);
 	EXPECT_TRUE(target._pWaypointUnlocked[0][24]);
 	EXPECT_TRUE(target._pWaypointUnlocked[2][40]) << "slot 40 lives only in the 64-bit chunk";
@@ -1718,7 +1723,17 @@ TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 		}
 	}
 	}
-	EXPECT_EQ(total, oracool::ClassTreeSkillCount) << "a skill is on no page, or on two";
+	// Every row is on exactly one page, EXCEPT the ones retired as book spells (2026-08-20) - those
+	// are on none by design. Counting the retired rows here rather than hardcoding the remainder is
+	// what keeps this assertion meaningful: it still catches a row that fell off a page for any
+	// other reason.
+	size_t retired = 0;
+	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+		if (oracool::IsClassTreeRowRetiredAsSpell(static_cast<oracool::ClassTreeSkill>(i)))
+			retired++;
+	}
+	EXPECT_GT(retired, 0u) << "the book-spell retirement matched nothing - has the rule been lost?";
+	EXPECT_EQ(total + retired, oracool::ClassTreeSkillCount) << "a skill is on no page, or on two";
 }
 
 TEST(OracoolClassTree, InvestmentRespectsClassLevelPoolAndCap)
@@ -1922,38 +1937,98 @@ TEST(OracoolSkillPoints, RetroGrantInvestRefundRoundTrip)
 	oracool::EnsureRetroactiveSkillPoints(player);
 	EXPECT_EQ(player._pUnspentSkillPoints, 6) << "the retro grant must not pay twice";
 
-	const auto firebolt = static_cast<size_t>(SpellID::Firebolt);
-	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
-	    << "an unlearned spell took a point";
-	player._pSplLvl[firebolt] = 1;
-	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
-	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
+	// Zeal, not Firebolt. User rule, 2026-08-20: a spell a BOOK can teach is raised by books alone,
+	// so Firebolt no longer takes points at all - it is asserted below as the rule rather than used
+	// as the vehicle. Zeal is bookless by design (spelldat sBookLvl -1, "earned not bought"), which
+	// is exactly what still accepts investment.
+	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Zeal))
+	    << "a skill the character does not have took a point";
+	player._pAblSpells |= GetSpellBitmask(SpellID::Zeal);
+	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Zeal));
+	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Zeal));
 	EXPECT_EQ(player._pUnspentSkillPoints, 4);
 	player._pISplLvlAdd = 0;
-	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 3)
-	    << "book level 1 + 2 invested should reach the ladders as level 3";
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Zeal), 2)
+	    << "two invested points should reach the ladders as level 2";
 
-	// Firebolt sits in band 1 (added 2026-08-19 so a new Sorcerer can use what she finds), so its
-	// third rank wants character level 3. Dropped to 2, the refusal can only be the Rule of Rangs -
-	// there are still four points in hand.
-	player._pLevel = 2;
-	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
+	// The Rule of Rangs, expressed through the function that defines it rather than a hardcoded
+	// level - the point is that rank 3 needs one more character level than rank 2, whatever band
+	// Zeal sits in.
+	const int rank3 = oracool::SpellRankRequiredLevel(SpellID::Zeal, 3);
+	player._pLevel = rank3 - 1;
+	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Zeal))
 	    << "rank 3 landed a level early";
-	player._pLevel = 3;
-	EXPECT_TRUE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt))
+	player._pLevel = rank3;
+	EXPECT_TRUE(oracool::CanInvestSkillPoint(player, SpellID::Zeal))
 	    << "one more character level should open exactly one more rank";
 	player._pLevel = 7;
 
-	// The per-rank refund, which the Spells sheet's new minus button calls.
-	ASSERT_TRUE(oracool::RefundSkillPoint(player, SpellID::Firebolt));
+	// The per-rank refund.
+	ASSERT_TRUE(oracool::RefundSkillPoint(player, SpellID::Zeal));
 	EXPECT_EQ(player._pUnspentSkillPoints, 5);
-	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 2);
-	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Zeal), 1);
+	ASSERT_TRUE(oracool::InvestSkillPoint(player, SpellID::Zeal));
 
 	EXPECT_EQ(oracool::RespecCost(player), 1000) << "the floor price";
 	oracool::RefundAllSkillPoints(player);
 	EXPECT_EQ(player._pUnspentSkillPoints, 6);
-	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 1);
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Zeal), 0);
+}
+
+/** @brief The 2026-08-20 rule: books raise spells, points raise skills, and never the reverse. */
+TEST(OracoolSkillPoints, BookSpellsRefusePointsAndBooklessSkillsAcceptThem)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pLevel = 30;
+	player._pUnspentSkillPoints = 20;
+
+	// The predicate itself, against both sides of the line as spelldat authored them.
+	EXPECT_TRUE(oracool::SpellHasBook(SpellID::Firebolt));
+	EXPECT_TRUE(oracool::SpellHasBook(SpellID::Fireball));
+	EXPECT_TRUE(oracool::SpellHasBook(SpellID::Golem));
+	EXPECT_FALSE(oracool::SpellHasBook(SpellID::Zeal));
+	EXPECT_FALSE(oracool::SpellHasBook(SpellID::Charge));
+	EXPECT_FALSE(oracool::SpellHasBook(SpellID::BlessedHammer));
+
+	// A fully learned book spell still refuses a point.
+	player._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 5;
+	EXPECT_FALSE(oracool::IsSkillInvestable(player, SpellID::Firebolt));
+	EXPECT_FALSE(oracool::CanInvestSkillPoint(player, SpellID::Firebolt));
+	EXPECT_FALSE(oracool::InvestSkillPoint(player, SpellID::Firebolt));
+	EXPECT_EQ(player._pUnspentSkillPoints, 20) << "a refused invest still spent a point";
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Firebolt), 5) << "books alone should set this";
+
+	// A bookless class skill still takes them.
+	player._pAblSpells |= GetSpellBitmask(SpellID::Zeal);
+	EXPECT_TRUE(oracool::InvestSkillPoint(player, SpellID::Zeal));
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Zeal), 1);
+}
+
+/** @brief The migration: points stranded in book spells come back, once, and only from book spells. */
+TEST(OracoolSkillPoints, StrandedBookSpellPointsAreRefundedIdempotently)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pUnspentSkillPoints = 1;
+	// What an old save could hold: the Sorceress's tree wrote here by SpellID, and the Spells sheet
+	// spent here directly.
+	player._pSkillInvestment[static_cast<size_t>(SpellID::Fireball)] = 6;
+	player._pSkillInvestment[static_cast<size_t>(SpellID::Lightning)] = 4;
+	player._pSkillInvestment[static_cast<size_t>(SpellID::Zeal)] = 3; // bookless: must NOT be taken
+
+	EXPECT_EQ(oracool::RefundBookSpellInvestment(player), 10);
+	EXPECT_EQ(player._pUnspentSkillPoints, 11);
+	EXPECT_EQ(player._pSkillInvestment[static_cast<size_t>(SpellID::Fireball)], 0);
+	EXPECT_EQ(player._pSkillInvestment[static_cast<size_t>(SpellID::Lightning)], 0);
+	EXPECT_EQ(player._pSkillInvestment[static_cast<size_t>(SpellID::Zeal)], 3)
+	    << "a bookless skill's points were confiscated";
+
+	// Idempotent - it zeroes what it refunds, which IS the version gate.
+	EXPECT_EQ(oracool::RefundBookSpellInvestment(player), 0);
+	EXPECT_EQ(player._pUnspentSkillPoints, 11);
 }
 
 TEST(OracoolSkillPoints, ZealStrikesArePointDriven)

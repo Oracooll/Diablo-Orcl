@@ -13,12 +13,38 @@
 
 namespace devilution::oracool {
 
+bool SpellHasBook(SpellID spell)
+{
+	if (spell == SpellID::Invalid || static_cast<size_t>(spell) >= MAX_SPELLS)
+		return false;
+	return GetSpellData(spell).sBookLvl >= 0;
+}
+
+int RefundBookSpellInvestment(Player &player)
+{
+	int refunded = 0;
+	for (size_t i = 0; i < MAX_SPELLS; i++) {
+		if (!SpellHasBook(static_cast<SpellID>(i)))
+			continue;
+		refunded += player._pSkillInvestment[i];
+		player._pSkillInvestment[i] = 0;
+	}
+	if (refunded > 0) {
+		player._pUnspentSkillPoints = static_cast<uint16_t>(
+		    std::min<int>(player._pUnspentSkillPoints + refunded, UINT16_MAX));
+	}
+	return refunded;
+}
+
 bool IsSkillInvestable(const Player &player, SpellID spell)
 {
 	if (spell == SpellID::Invalid || static_cast<size_t>(spell) >= MAX_SPELLS)
 		return false;
-	if (player._pSplLvl[static_cast<size_t>(spell)] > 0)
-		return true;
+	// The rule, at the one seam every invest path already funnels through: a book spell is raised by
+	// books, never by points. Tested BEFORE the knowledge gate below, because a learned book spell
+	// would otherwise pass on the very line that now has to reject it.
+	if (SpellHasBook(spell))
+		return false;
 	// Innate abilities only - knowledge that cannot walk away. Item-granted spells (_pISpells) are
 	// deliberately excluded: unequipping the staff would strand the points in a skill the
 	// character no longer has.

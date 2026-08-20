@@ -716,8 +716,17 @@ int ClassTreeInvestment(const Player &player, Skill skill)
 	return player._pClassTreeInvestment[index];
 }
 
+bool IsClassTreeRowRetiredAsSpell(Skill skill)
+{
+	return SpellHasBook(ClassTreeSpellId(skill));
+}
+
 bool CanInvestClassTreePoint(const Player &player, Skill skill)
 {
+	// Belt and braces with the filter in BuildClassTreePage: the page no longer offers these rows,
+	// and this refuses them even if some other path reaches one.
+	if (IsClassTreeRowRetiredAsSpell(skill))
+		return false;
 	if (player._pUnspentSkillPoints <= 0 || !IsClassTreeSkillUnlocked(player, skill))
 		return false;
 	const int invested = ClassTreeInvestment(player, skill);
@@ -965,6 +974,15 @@ size_t BuildClassTreePage(HeroClass heroClass, int page, Skill *out)
 				const ClassTreeSkillData &data = Skills[index];
 				if (data.heroClass != heroClass)
 					break;
+				// A row whose slot is a BOOK spell is not a tree skill any more (user rule,
+				// 2026-08-20: "Spells cant be affected by skill points, only by books"). It is
+				// filtered out here rather than deleted from the table, because
+				// ClassTreeIconIndex is simultaneously the icon-strip position AND the
+				// _pClassTreeInvestment index - deleting rows would drift the art and misalign
+				// every existing save. The grid is addressed by page/tier/column, so a filtered
+				// row simply leaves its cell empty and shifts nothing.
+				if (IsClassTreeRowRetiredAsSpell(static_cast<Skill>(index)))
+					continue;
 				if (data.page == page && data.tier == tier && data.column == column)
 					out[count++] = static_cast<Skill>(index);
 			}

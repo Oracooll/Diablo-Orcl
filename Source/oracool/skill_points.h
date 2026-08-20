@@ -39,11 +39,41 @@ constexpr int SkillPointsPerLevel = 1;
 constexpr int MaxSkillInvestment = 98;
 
 /**
- * @brief Whether @p spell is something @p player can sink points into: a spell they have actually
- * learned (book level > 0) or an ability/class skill they currently possess. Knowing is the gate -
- * points deepen a skill, they never teach one.
+ * @brief Whether @p spell is a BOOK SPELL - something a Book of it could teach.
+ *
+ * The line between a spell and a skill, and it was already in the data before this rule existed:
+ * spelldat's sBookLvl is -1 for exactly those SpellIDs that no book can teach. The Paladin's seven
+ * were authored that way on purpose ("earned at the tree, not bought" - spelldat.cpp:75), which is
+ * why this predicate lands where it should without a new table to keep in step.
+ *
+ * User rule, 2026-08-20: "Spells cant be affected by skill points, only by books. Vanila D1."
+ * A book spell's level therefore comes from _pSplLvl and items alone; skill points cannot touch it.
+ * A bookless skill is a class skill and takes points as before.
+ */
+bool SpellHasBook(SpellID spell);
+
+/**
+ * @brief Whether @p spell is something @p player can sink points into.
+ *
+ * Two gates. Knowledge: an ability or class skill they currently possess - points deepen a skill,
+ * they never teach one. And SpellHasBook: a spell you learned from a book is raised by more books,
+ * never by points.
  */
 bool IsSkillInvestable(const Player &player, SpellID spell);
+
+/**
+ * @brief One-time repair: returns every point sunk into a BOOK SPELL to the unspent pool.
+ *
+ * Points could reach book spells two ways before the rule above - the Abilities window's Spells
+ * sheet spent directly on them, and the Sorceress's tree rows were castable spells whose investment
+ * was stored by SpellID. Both are closed now, so any surviving value is stranded in a place the
+ * player can no longer reach, and stranding a character's whole pool is worse than the rule it came
+ * from.
+ *
+ * Idempotent by construction: it zeroes what it refunds, so a second run finds nothing.
+ * Returns the number of points handed back.
+ */
+int RefundBookSpellInvestment(Player &player);
 
 /** @brief Whether an invest click would succeed: investable, a point unspent, cap not reached. */
 bool CanInvestSkillPoint(const Player &player, SpellID spell);

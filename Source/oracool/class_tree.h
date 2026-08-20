@@ -347,6 +347,23 @@ struct ClassTreeSkillData {
 	int maxRank;
 };
 
+/**
+ * @brief Whether @p skill has been retired from the tree because its slot is a BOOK spell.
+ *
+ * User rule, 2026-08-20: "Spells cant be affected by skill points, only by books. Vanila D1." A row
+ * whose SpellID a Book could teach is a spell, not a skill, so it leaves the tree - it is still
+ * castable, still readiable, still raised by books, just no longer a place to spend points.
+ *
+ * Costs the Sorceress thirteen rows (her whole castable set) and one row each from the Rogue
+ * (Golem), Bard (Berserk) and Monk (Search). Costs the Paladin nothing: his seven actives carry
+ * sBookLvl -1 deliberately, so this predicate never sees them.
+ *
+ * The row stays in the table. ClassTreeIconIndex is both the icon-strip position and the
+ * _pClassTreeInvestment index, so deleting rows would drift the art and misalign existing saves;
+ * BuildClassTreePage skips them instead, leaving the grid cell empty.
+ */
+bool IsClassTreeRowRetiredAsSpell(ClassTreeSkill skill);
+
 /** @brief The cap on @p skill, resolving the table's 0 to MaxTreeInvestment. */
 int ClassTreeMaxRank(ClassTreeSkill skill);
 
