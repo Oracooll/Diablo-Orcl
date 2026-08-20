@@ -49,6 +49,19 @@ bool DoPickup(Item item)
 		return oracool::IsSinglePlayer() && *sgOptions.Oracool.autoScrollPickup
 		    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || AutoPlaceItemInBelt(*MyPlayer, item, false));
 
+	// Oracool: user request (2026-08-20) - runes and gems, on by default.
+	//
+	// Their own branch above the Misc switch below, because that switch keys on _iMiscId and both
+	// families are IMISC_NONE: they are identified by IDidx, the same test the description and the
+	// socket code use. Routed through IsOracoolRuneIdx/IsOracoolGemIdx rather than an id range, so
+	// a rune added later is picked up without this line being touched.
+	//
+	// Backpack only, no belt: a rune in a belt slot would be a hotkey that does nothing.
+	if (IsOracoolRuneIdx(item.IDidx))
+		return *sgOptions.Oracool.autoRunePickup && AutoPlaceItemInInventory(*MyPlayer, item, false);
+	if (IsOracoolGemIdx(item.IDidx))
+		return *sgOptions.Oracool.autoGemPickup && AutoPlaceItemInInventory(*MyPlayer, item, false);
+
 	if (item._itype == ItemType::Misc
 	    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || AutoPlaceItemInBelt(*MyPlayer, item, false))) {
 		switch (item._iMiscId) {

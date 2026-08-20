@@ -530,6 +530,10 @@ void SaveOptions()
 	    "; Search radius in tiles for DevilutionX's enabled automatic-pickup categories.\n; Values: 1-10. This does not enable categories disabled in normal game options.");
 	setBoolean("Auto Pickup Scrolls", *sgOptions.Oracool.autoScrollPickup,
 	    "; Automatically collects every kind of scroll (Identify, spell scrolls, Town Portal,\n; etc.) when in close proximity to the player, similar to the vanilla potion/elixir/oil options.");
+	setBoolean("Auto Pickup Runes", *sgOptions.Oracool.autoRunePickup,
+	    "; Automatically collects runes when in close proximity to the player. On by default:\n; a rune is never clutter, and walking back over one is the commonest way to lose it.");
+	setBoolean("Auto Pickup Gems", *sgOptions.Oracool.autoGemPickup,
+	    "; Automatically collects gems when in close proximity to the player. On by default,\n; on the same reasoning as runes.");
 	setInteger("Rare Item Drop Chance", *sgOptions.Oracool.rareItemDropChance,
 	    "; Percent chance that an item eligible for Magic quality becomes a Rare item\n; instead, checked after it has already failed its Unique roll. Zero disables Rares.");
 	setInteger("Buffed Unique Item Drop Chance", *sgOptions.Oracool.buffedUniqueItemDropChance,
@@ -1389,6 +1393,8 @@ OracoolOptions::OracoolOptions()
     , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the character panel."), true)
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 5, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
     , autoScrollPickup("Auto Pickup Scrolls", OptionEntryFlags::None, N_("Auto Pickup Scrolls"), N_("Scrolls of every kind are automatically collected when in close proximity to the player."), true)
+    , autoRunePickup("Auto Pickup Runes", OptionEntryFlags::None, N_("Auto Pickup Runes"), N_("Runes are automatically collected when in close proximity to the player."), true)
+    , autoGemPickup("Auto Pickup Gems", OptionEntryFlags::None, N_("Auto Pickup Gems"), N_("Gems are automatically collected when in close proximity to the player."), true)
     , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 20, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
     , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 10, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
     , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Percent chance an eligible drop becomes a Primal item, checked before Buffed Unique."), 5, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
@@ -1457,6 +1463,8 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&resetStatsButton,
 		&autoPickupRange,
 		&autoScrollPickup,
+		&autoRunePickup,
+		&autoGemPickup,
 		&rareItemDropChance,
 		&buffedUniqueItemDropChance,
 		&primalItemDropChance,

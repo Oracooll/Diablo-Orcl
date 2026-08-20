@@ -796,6 +796,11 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean resetStatsButton;
 	OptionEntryInt<int> autoPickupRange;
 	OptionEntryBoolean autoScrollPickup;
+	/** @brief Auto-pickup runes. Its own switch rather than a Misc catch-all: a rune is never
+	 * clutter, and someone who turns scrolls off still wants these. */
+	OptionEntryBoolean autoRunePickup;
+	/** @brief Auto-pickup gems, on the same reasoning as runes. */
+	OptionEntryBoolean autoGemPickup;
 	OptionEntryInt<int> rareItemDropChance;
 	OptionEntryInt<int> buffedUniqueItemDropChance;
 	OptionEntryInt<int> primalItemDropChance;
