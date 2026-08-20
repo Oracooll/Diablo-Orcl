@@ -892,3 +892,32 @@ if ($NoBundle) {
 } else {
     & (Join-Path $PSScriptRoot 'BundleWiki.ps1')
 }
+
+# ---------------------------------------------------------------------------------------------
+# The fourth channel
+# ---------------------------------------------------------------------------------------------
+#
+# The wiki exists in four places: these pages, data.js, the bundle - and the published Artifact,
+# which is the only one the user actually reads. The first three have checks. The fourth had none,
+# and nothing here can give it one: publishing is not something a PowerShell script can do or
+# inspect.
+#
+# So this is a reminder rather than a check, and it is deliberately the LAST thing printed.
+#
+# Found 2026-08-20, and it is worth stating the shape because it has now happened at four different
+# layers of this project. The user reported the wiki listing 56 debug commands where the source had
+# 62. The pages were right, data.js was right, the bundle was right, and BundleWiki.ps1 -Verify said
+# "current" - all correct, all irrelevant, because the artifact was a day old. Same failure as the
+# MPQ that was never repacked and the bundle that was never rebuilt: the thing produced was current
+# and the thing consumed was not.
+$artifactUrl = 'https://claude.ai/code/artifact/79abf513-fd1b-4f64-89aa-7c0696606337'
+Write-Host ''
+if ($NoBundle) {
+    Write-Host 'REPUBLISH: nothing to publish - no bundle was written this run.' -ForegroundColor Yellow
+} else {
+    Write-Host 'REPUBLISH THE ARTIFACT - the wiki is not updated until you do.' -ForegroundColor Yellow
+    Write-Host ('  file: {0}' -f (Join-Path $out 'oracool-wiki-bundle.html'))
+    Write-Host ('  url:  {0}' -f $artifactUrl)
+    Write-Host '  Pass that url when publishing. Without it a SECOND artifact is created and the'
+    Write-Host '  one the user has bookmarked stays stale - which is the failure this line exists for.'
+}
