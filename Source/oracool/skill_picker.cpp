@@ -430,8 +430,20 @@ bool CheckSkillPickerClick(Point mousePosition)
 
 	const Rectangle window = GetSkillPickerRect();
 	if (!window.contains(mousePosition)) {
-		// Outside: close, and let the click through to whatever it was aimed at. Swallowing it would
-		// make cancelling cost two clicks, which is exactly the friction this window exists to
+		// The well that OWNS this picker toggles it, and consumes the click to do so. Without this
+		// the click closed the picker here and the well's own handler - which runs immediately
+		// afterwards - opened it straight back up, so the same well could never shut its own popup
+		// and every attempt silently reset the scroll position.
+		//
+		// Only the owning well. A click on the OTHER well still falls through, so it switches
+		// buttons in one click rather than needing one to dismiss and another to open.
+		const Rectangle ownWell = PickerForLeft ? GetLmbSkillButtonRect() : GetRmbSkillButtonRect();
+		if (ownWell.contains(mousePosition)) {
+			CloseSkillPicker();
+			return true;
+		}
+		// Anywhere else: close, and let the click through to whatever it was aimed at. Swallowing it
+		// would make cancelling cost two clicks, which is exactly the friction this window exists to
 		// remove.
 		CloseSkillPicker();
 		return false;
