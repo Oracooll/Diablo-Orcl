@@ -5352,6 +5352,19 @@ void PrintItemDetails(const Item &item)
 	if (HeadlessMode)
 		return;
 
+	// The title line, for a completed runeword.
+	//
+	// User, 2026-08-20: "The gold name Runeword SPIRIT - move it to the top of description,
+	// replacing the current white title Spirit." The caller has already set the title from
+	// item.getName(); SetPanelString replaces it outright, and at this point the panel holds
+	// nothing but that one line, so this cannot clobber anything else.
+	//
+	// Done HERE rather than in getName() on purpose: the name is persisted in _iIName and also
+	// feeds the ground label and the cursor, where "Runeword: Spirit" would be a mouthful. This is
+	// a framing of the name for one panel, not a change to what the item is called.
+	if (const oracool::RunewordDefinition *word = oracool::GetActiveRuneword(item); word != nullptr)
+		SetPanelString(fmt::format(fmt::runtime(_("Runeword: {:s}")), _(word->name)), UiFlags::ColorWhitegold);
+
 	const bool indestructible = item._iMaxDur == DUR_INDESTRUCTIBLE;
 	// Only suppressed when something below will actually print the word - see the helper.
 	const bool affixSaysIndestructible = indestructible && AffixStatesIndestructible(item);
@@ -5470,9 +5483,29 @@ void PrintItemDetails(const Item &item)
 			start = end + 1;
 		}
 	}
-	// A completed runeword announces itself above the stats, in the name's own gold.
-	if (const oracool::RunewordDefinition *word = oracool::GetActiveRuneword(item); word != nullptr)
-		AddPanelString(fmt::format(fmt::runtime(_("Runeword: {:s}")), _(word->name)), UiFlags::ColorWhitegold);
+	// A completed runeword's OWN bonuses - the ones the word grants on top of its runes.
+	//
+	// User, 2026-08-20: "I don't see the extra affixes the runeword should bring." They were
+	// applied (ApplySockets calls ApplyRunewordToTotals for every worn item) and never printed, so
+	// the panel listed the four runes' individual effects and stopped - and the word itself read as
+	// a name with nothing behind it.
+	//
+	// Formatted from the definition's own fields rather than from a second table, so a word whose
+	// numbers are retuned cannot end up describing its old ones.
+	if (const oracool::RunewordDefinition *word = oracool::GetActiveRuneword(item); word != nullptr) {
+		const auto line = [&item](const char *label, int value, const char *suffix = "") {
+			if (value != 0)
+				AddPanelString(fmt::format(fmt::runtime(_("{:s} {:s}{:d}{:s}")), _(label), value > 0 ? "+" : "", value, suffix), ItemAffixColor);
+		};
+		line(N_("Damage"), word->bonusDamagePercent, "%");
+		line(N_("Damage"), word->damageMod);
+		line(N_("To Hit"), word->toHit, "%");
+		line(N_("All Resistances"), word->allResists, "%");
+		line(N_("Armor"), word->bonusAc);
+		line(N_("Spell Levels"), word->spellLevels);
+		line(N_("Mana"), word->mana);
+		line(N_("Life"), word->hitPoints);
+	}
 	// Phase 1 sockets: the socket line and one line per set gem, each in the gem economy's own
 	// voice. The empty-socket count is the item's pitch - "Sockets: 1/3" is an invitation.
 	if (item._iSocketCount > 0) {

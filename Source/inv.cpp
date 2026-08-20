@@ -35,6 +35,7 @@
 #include "oracool/gems.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/runewords.h"
+#include "oracool/socket_overlay.h"
 #include "oracool/telemetry.h"
 #include "oracool/ornate_border.h"
 #include "oracool/oracool.h"
@@ -1404,6 +1405,45 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// them down. +10 leaves a deep tint that identifies the tier without competing with the icon.
 	constexpr uint8_t TierBackingRampOffset = 10;
 
+	// Oracool: user request (2026-08-20) - sockets outrank quality in the backing.
+	//
+	//   "Introduce a backing for the Runeword sprites. Dark gray, non transparent backing with
+	//    green outline." / "the same dark gray as runewords but with white outline."
+	//
+	// Deliberately BEFORE the tier ladder rather than folded into it: a runeword forms on whatever
+	// base was to hand, so the interesting fact about a Spirit cloak is that it is a Spirit, not
+	// that its base rolled Normal. Both states are derived - GetActiveRuneword reads the sockets,
+	// and _iSocketCount is the item's own - so neither can disagree with the item panel.
+	if (!IsInspectingPlayer() && item._iSocketCount > 0) {
+		// Deep in the grey ramp. PAL16 runs light to dark, so a high offset is the dark grey the
+		// user asked for, and it stays flat behind a busy sprite.
+		constexpr uint8_t SocketBackingInterior = PAL16_GRAY + 12;
+		constexpr int SocketBorderThickness = 2;
+		const bool isRuneword = oracool::GetActiveRuneword(item) != nullptr;
+		// Bright ends of their ramps, for the same reason the ring is bright: the border has to win
+		// against the sprite it frames.
+		// Green is the PAL8_GREEN mini-ramp this fork injected over PAL8_ORANGE - eight shades, so a
+		// low offset is its bright end. White is the top of the grey ramp, which is the whitest index
+		// the shared palette has; there is no PAL16_WHITE.
+		const uint8_t border = isRuneword ? static_cast<uint8_t>(PAL8_GREEN + 1) : static_cast<uint8_t>(PAL16_GRAY);
+		const Rectangle socketBacking { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
+		FillRect(out, socketBacking.position.x, socketBacking.position.y,
+		    socketBacking.size.width, socketBacking.size.height, SocketBackingInterior);
+		for (int i = 0; i < SocketBorderThickness; i++) {
+			const int x = socketBacking.position.x + i;
+			const int y = socketBacking.position.y + i;
+			const int w = socketBacking.size.width - 2 * i;
+			const int h = socketBacking.size.height - 2 * i;
+			if (w <= 0 || h <= 0)
+				break;
+			DrawHorizontalLine(out, { x, y }, w, border);
+			DrawHorizontalLine(out, { x, y + h - 1 }, w, border);
+			DrawVerticalLine(out, { x, y }, h, border);
+			DrawVerticalLine(out, { x + w - 1, y }, h, border);
+		}
+		return;
+	}
+
 	uint8_t colorBlock;
 	uint8_t rampOffset = TierBackingRampOffset;
 	if (IsInspectingPlayer()) {
@@ -1888,11 +1928,16 @@ void DrawInv(const Surface &out)
 
 			const ClxSprite sprite = GetInvItemSprite(cursId);
 			const Point position = GetPanelPosition(UiPanels::Inventory, InvRect[j + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height };
-			if (ActiveInventoryTab == 0 && pcursinvitem == ii + INVITEM_INV_FIRST) {
+			const bool hovered = ActiveInventoryTab == 0 && pcursinvitem == ii + INVITEM_INV_FIRST;
+			if (hovered) {
 				ClxDrawOutline(out, GetOutlineColor(invItem, true), position, sprite);
 			}
 
 			DrawItem(invItem, out, position, sprite);
+			// AFTER the sprite, on purpose: the user asked for the stones and rings "rendered on
+			// top of the sprite", and hover-only so a full stash does not turn into a wall of runes.
+			if (hovered)
+				oracool::DrawSocketOverlay(out, invItem, position, GetInventorySize(invItem));
 		}
 	}
 

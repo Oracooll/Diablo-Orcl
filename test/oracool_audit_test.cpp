@@ -3401,3 +3401,48 @@ TEST(OracoolAudit, EveryRuneDescribesItselfInEveryHost)
 	}
 	EXPECT_EQ(runesChecked, 33) << "the D2 rune sheet is 33 runes; the loop found a different number";
 }
+
+/**
+ * A completed runeword's own bonuses reach the totals.
+ *
+ * User, 2026-08-20, on assembling the fork's first runeword: "I don't see the extra affixes the
+ * runeword should bring. Fix it. Make sure they are displayed and actually working in-game
+ * mid-fight."
+ *
+ * The DISPLAY half was the real gap - the panel listed the four runes' individual effects and
+ * stopped, so the word read as a name with nothing behind it. This pins the other half: that the
+ * word's own fields are actually summed on top of the runes', which is what "working mid-fight"
+ * means, since every combat number is read from these totals.
+ *
+ * Spirit is the case the user hit: four runes, +8 all resists, +24 armor, +16 life on top of Tal,
+ * Thul, Ort and Amn's own effects. Asserted as a DELTA over the runes alone, so the test cannot be
+ * satisfied by the runes doing the word's job.
+ */
+TEST(OracoolAudit, ACompletedRunewordAddsItsOwnBonusesOnTopOfItsRunes)
+{
+	const oracool::RunewordDefinition *spirit = nullptr;
+	for (size_t i = 0; i < oracool::RunewordCount(); i++) {
+		const oracool::RunewordDefinition *word = oracool::RunewordAt(i);
+		if (word != nullptr && std::string(word->name) == "Spirit") {
+			spirit = word;
+			break;
+		}
+	}
+	ASSERT_NE(spirit, nullptr) << "Spirit is gone from the runeword table";
+	ASSERT_GT(spirit->allResists + spirit->bonusAc + spirit->hitPoints, 0)
+	    << "Spirit grants nothing, so this test would pass vacuously";
+
+	// The runes alone.
+	oracool::ItemBonusTotals runesOnly;
+	for (int i = 0; i < spirit->runeCount; i++)
+		oracool::ApplyGemToTotals(spirit->runes[i], oracool::SocketHost::Shield, runesOnly);
+
+	// The runes plus the word, which is the order ApplySockets uses.
+	oracool::ItemBonusTotals withWord = runesOnly;
+	oracool::ApplyRunewordToTotals(*spirit, withWord);
+
+	EXPECT_EQ(withWord.magicResist - runesOnly.magicResist, spirit->allResists);
+	EXPECT_EQ(withWord.bonusArmor - runesOnly.bonusArmor, spirit->bonusAc);
+	// Life and mana are carried in <<6 fixed point on the totals, in whole points on the word.
+	EXPECT_EQ(withWord.hitPoints - runesOnly.hitPoints, spirit->hitPoints << 6);
+}

@@ -24,6 +24,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/inventory_layout.h" // CellPx / GridOrigin - the grid this one must match
 #include "oracool/ornate_border.h"
+#include "oracool/socket_overlay.h"
 #include "stores.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -743,12 +744,16 @@ void DrawStash(const Surface &out)
 		const Point position = GetStashSlotCoord(item.position) + offset;
 		const ClxSprite sprite = GetInvItemSprite(frame);
 
-		if (pcursstashitem == itemId) {
+		const bool hovered = pcursstashitem == itemId;
+		if (hovered) {
 			uint8_t color = GetOutlineColor(item, true);
 			ClxDrawOutline(out, color, position, sprite);
 		}
 
 		DrawItem(item, out, position, sprite);
+		// Over the sprite, hover-only - the same overlay the backpack draws. See inv.cpp's copy.
+		if (hovered)
+			oracool::DrawSocketOverlay(out, item, position, GetInventorySize(item));
 	}
 
 	const Point position = GetPanelPosition(UiPanels::Stash);
