@@ -1336,8 +1336,14 @@ Rectangle SkillPointsNumberRect(Point origin)
 	// second pair of literals, so moving the frame's size cannot leave the number off-centre - the
 	// exact drift the cut script's own comment warns about.
 	constexpr Size NumberArea { 40, 39 };
+	// Four pixels down (user, 2026-08-20), an OPTICAL correction rather than a geometry fix: the
+	// box is still centred on the frame, but the glyphs do not fill their line box - the font's
+	// ascent leaves more air above a digit than its descent leaves below - so a mathematically
+	// centred box reads high. Applied here, at the one place the rect is defined, so the draw and
+	// anything that later measures this box cannot disagree about where the number actually sits.
+	constexpr int OpticalDrop = 4;
 	return { { origin.x + (PointsIconSize.width - NumberArea.width) / 2,
-		         origin.y + (PointsIconSize.height - NumberArea.height) / 2 },
+		         origin.y + (PointsIconSize.height - NumberArea.height) / 2 + OpticalDrop },
 		NumberArea };
 }
 
