@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <set>
 
 #include "debug.h"
 
@@ -763,6 +764,79 @@ std::string DebugCmdGiveItemSet(const string_view parameter)
 	return result;
 }
 
+/**
+ * @brief `givesset` - one SET item per equipment slot, drawn from across the fifteen named sets.
+ *
+ * User request, 2026-08-20: "give as full as possible set of set and etherial items so i can test
+ * them."
+ *
+ * Deliberately NOT DebugSpawnEquipmentSet(OracoolItemTier::Set, ...) like its five siblings. Those
+ * ask the affix roller for a tier, and Set is the one tier that is not a roll - a set piece is a
+ * specific named object with a fixed stat list (see OracoolItemTier::Set's own comment). Asking the
+ * roller for one would produce a Set-coloured item that belongs to no set, which is worse than
+ * useless for testing sets.
+ *
+ * So it walks the real table and takes the FIRST piece that fits each slot. The result is a mongrel
+ * - thirteen pieces from up to thirteen different sets - which is exactly right for testing that
+ * every slot renders, colours and equips, and exactly wrong for testing set BONUSES. `giveitemset N`
+ * stays the command for one coherent set.
+ */
+std::string DebugCmdGiveSetSet(const string_view parameter)
+{
+	Player &myPlayer = *MyPlayer;
+	int given = 0;
+	int noRoom = 0;
+	// Keyed on the slot WORD, because SetItemDefinition::slot is the design's string ("helm",
+	// "main_hand", ...) and not an engine enum - see its declaration.
+	std::set<std::string> covered;
+
+	for (size_t s = 0; s < oracool::ItemSetCount; s++) {
+		const oracool::ItemSetDefinition &set = oracool::ItemSets[s];
+		for (int i = 0; i < set.itemCount; i++) {
+			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
+			// One per slot: the first set that has a piece for it wins, so the walk is stable and
+			// a second Helm never displaces the first.
+			if (covered.count(def.slot) > 0)
+				continue;
+			const int base = oracool::BaseItemForSetSlot(def.slot);
+			if (base < 0)
+				continue; // no base item for that slot in this fork - giveitemset reports these
+			Item item {};
+			InitializeItem(item, static_cast<_item_indexes>(base));
+			oracool::MakeSetItem(item, def);
+			if (!AutoPlaceItemInInventory(myPlayer, item, true)) {
+				noRoom++;
+				continue;
+			}
+			covered.insert(def.slot);
+			given++;
+		}
+	}
+
+	std::string result = fmt::format("Gave {:d} set items, one per slot, from across the {:d} sets",
+	    given, static_cast<int>(oracool::ItemSetCount));
+	if (noRoom > 0)
+		result += fmt::format(" - {:d} did not fit", noRoom);
+	result += ". These are from DIFFERENT sets: use giveitemset N for one whole set.";
+	return result;
+}
+
+/**
+ * @brief `giveeset` - one ETHEREAL item per equipment slot.
+ *
+ * Ethereal is not a quality, it is a stamp applied on top of one - so this spawns the ordinary
+ * per-slot set and then makes each piece ethereal, which is the same order the drop path uses.
+ * MakeItemEthereal carries the whole bargain (+35% AC or max damage, max durability halved), so
+ * nothing here has to know what ethereal means.
+ *
+ * Magic-quality bases rather than plain: an ethereal white has almost nothing to show, and the
+ * point of the command is to see the stamp against real numbers.
+ */
+std::string DebugCmdGiveEtherealSet(const string_view parameter)
+{
+	return DebugSpawnEquipmentSet(std::nullopt, /*magical=*/true, parameter, /*ethereal=*/true);
+}
+
 // Oracool: Megaplan Phase 0.8 - the tile-matrix export half of the zone iteration loop. The
 // engine dumps WHAT the generator laid out (dPiece indices); the offline tileset tools composite
 // HOW it looks. Together they let a generated zone be inspected without anyone launching a client.
@@ -1308,6 +1382,8 @@ std::vector<DebugCmdItem> DebugCmdList = {
 	{ "giverset", "Drops a Rare item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveRareSet },
 	{ "giveuset", "Drops a Buffed Unique item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveBuffedUniqueSet },
 	{ "givepset", "Drops a Primal item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGivePrimalSet },
+	{ "givesset", "Gives one SET item per equipment slot, taken from across the 15 named sets - use giveitemset {n} for one whole set.", "", &DebugCmdGiveSetSet },
+	{ "giveeset", "Drops an ETHEREAL magic item for each of the 13 equipment slots, optionally of material {tier}.", "({tier})", &DebugCmdGiveEtherealSet },
 	{ "giverunes", "Drops all 33 runes.", "", &DebugCmdGiveRunes },
 	{ "givegems", "Drops every gem, or only quality {q} (chipped/flawed/normal/flawless/perfect).", "({q})", &DebugCmdGiveGems },
 	{ "runewords", "Toggles the runeword book.", "", &DebugCmdRunewordBook },

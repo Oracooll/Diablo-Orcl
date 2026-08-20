@@ -1026,7 +1026,7 @@ _item_indexes FirstBaseItemForEquipLocation(item_equip_type loc, string_view nam
  * ("steel", "diamond", ...) instead of first-in-table - the way to reach the eight-tier set
  * items, which all sit behind the leather items in AllItemsList and are otherwise unreachable
  * from these commands (user report: "all assets seem to be of the same type"). */
-std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix = {});
+std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix = {}, bool ethereal = false);
 
 /** @brief Drops all 33 runes at the player's feet. See DebugSpawnByIndex in items.cpp. */
 std::string DebugSpawnRunes();

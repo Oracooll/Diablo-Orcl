@@ -6650,7 +6650,7 @@ std::string DebugSpawnEthereal(string_view parameter)
 	return "No durable weapon or armour available.";
 }
 
-std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix)
+std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool magical, string_view namePrefix, bool ethereal)
 {
 	// One per slot. Rings are the only slot pair sharing an item location, so ILOC_RING appears
 	// twice - the set is thirteen items, matching the thirteen paperdoll slots, not thirteen
@@ -6695,6 +6695,14 @@ std::string DebugSpawnEquipmentSet(std::optional<OracoolItemTier> tier, bool mag
 			    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true,
 			    tier ? tier : std::optional<OracoolItemTier> { OracoolItemTier::None });
 		}
+
+		// Ethereal is a stamp on top of a finished item, not a quality of its own, so it goes on
+		// LAST - the same order the drop path uses, where TryMakeDroppedItemEthereal runs after
+		// SetupAllItems. MakeItemEthereal carries the whole bargain (+35% AC or max damage, max
+		// durability halved), so nothing here has to know what ethereal means, and it declines the
+		// items that cannot be ethereal on its own.
+		if (ethereal)
+			MakeItemEthereal(item);
 
 		const int ii = AllocateItem();
 		Items[ii] = item.pop();
