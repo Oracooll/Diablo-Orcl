@@ -13,10 +13,12 @@
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
+#include "utils/str_cat.hpp"
 #include "utils/ui_fwd.h"
 
 #include "oracool/attack_skills.h"
 #include "oracool/class_tree.h"
+#include "oracool/furious_charge.h" // GetSpellDisplayName
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/ornate_border.h"
@@ -61,6 +63,8 @@ constexpr int HeaderHeight = 14;
 constexpr int SectionGap = 8;
 constexpr int TitleHeight = 18;
 constexpr int ScreenMargin = 8;
+/** Height of the rank badge band across the bottom of a cell. */
+constexpr int LevelBandHeight = 12;
 
 /** The window ground: the border's own shadow tone, proven in the shared upper half of the
  * palette so it cannot recolour itself by tileset. Same value Levski's Roar paints with - see the
@@ -141,6 +145,57 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackC
 			continue;
 		out.push_back({ EntryKind::Spell, 0, ClassTreeSkill::None, spell });
 	}
+}
+
+/**
+ * @brief Whether @p entry can go on the LEFT button.
+ *
+ * Only auras cannot. An aura is a toggle rather than a cast, it has no SpellID to store, and it has
+ * always shown on the RMB well - so there is nothing for the left button to hold.
+ *
+ * The LMB picker still LISTS them, greyed (user, 2026-08-20: "either we filter out the unassignable
+ * or we make their background dark gray. I say we make it dark gray, because that still allows us to
+ * assign it directly to RMB to save time"). Filtering would have made the two pickers different
+ * lists, and hunting for an aura would then mean closing one popup and opening the other.
+ */
+bool IsAssignableToLeft(const Entry &entry)
+{
+	return entry.kind != EntryKind::Tree
+	    || GetClassTreeSkillData(entry.tree).kind != ClassTreeKind::Aura;
+}
+
+/** @brief What the hover popup calls @p entry. */
+std::string EntryName(const Entry &entry)
+{
+	switch (entry.kind) {
+	case EntryKind::Attack:
+		return std::string(_(AttackIconName(static_cast<AttackIcon>(entry.attackIcon))));
+	case EntryKind::Tree:
+		return std::string(_(GetClassTreeSkillData(entry.tree).name));
+	case EntryKind::Spell:
+		return std::string(GetSpellDisplayName(entry.spell));
+	}
+	return {};
+}
+
+/**
+ * @brief The number in a cell's bottom band, or 0 to draw nothing.
+ *
+ * A tree row reports the points sunk into it; a spell reports its effective level, which is books
+ * plus items and - since the 2026-08-20 rule - never skill points. The two are different quantities
+ * wearing the same badge on purpose: both answer "how strong is this for me right now".
+ */
+int EntryLevel(const Player &player, const Entry &entry)
+{
+	switch (entry.kind) {
+	case EntryKind::Attack:
+		return 0; // a swing has no rank
+	case EntryKind::Tree:
+		return ClassTreeInvestment(player, entry.tree);
+	case EntryKind::Spell:
+		return player.GetSpellLevel(entry.spell);
+	}
+	return 0;
 }
 
 int RowsFor(size_t count)
@@ -301,20 +356,25 @@ void DrawSkillPicker(const Surface &out)
 			if (!IsCellVisible(window, cell))
 				continue;
 			const Entry &entry = entries[first + i];
+			// An entry this button cannot take is greyed rather than hidden - the LMB picker's
+			// auras. Grey is already this fork's "you cannot use this" plate everywhere else, so it
+			// needs no new vocabulary. Clicking one still works: it toggles the aura, which lands on
+			// the right button, and saving that trip is the whole reason they are listed here.
+			const bool dimmed = PickerForLeft && !IsAssignableToLeft(entry);
+			const SkillPlateTint tint = dimmed ? SkillPlateTint::Grey : SkillPlateTint::Green;
 			switch (entry.kind) {
 			case EntryKind::Attack:
 				DrawAttackIconScaledTo(out, cell, entry.attackIcon,
-				    static_cast<AttackIcon>(entry.attackIcon) == BasicAttackIcon(player),
-				    SkillPlateTint::Green);
+				    static_cast<AttackIcon>(entry.attackIcon) == BasicAttackIcon(player), tint);
 				break;
 			case EntryKind::Tree:
 				// An aura carries no SpellID - it is a toggle, not a cast - so it can only be drawn
 				// from its own tree art. An invested active prefers the strip icon it wears
 				// everywhere else, and falls back to the engine's spell icon.
 				if (!IsValidSpell(entry.spell)
-				    || !TryDrawSkillSpellIcon(out, cell, entry.spell, SkillPlateTint::Green)) {
+				    || !TryDrawSkillSpellIcon(out, cell, entry.spell, tint)) {
 					DrawClassTreeSkillInWell(out, cell, player._pClass,
-					    ClassTreeIconIndex(entry.tree), SkillPlateTint::Green);
+					    ClassTreeIconIndex(entry.tree), tint);
 				}
 				break;
 			case EntryKind::Spell:
@@ -322,8 +382,27 @@ void DrawSkillPicker(const Surface &out)
 				DrawSmallSpellIconFittedTo(out, cell, entry.spell);
 				break;
 			}
-			if (cell.contains(MousePosition))
+
+			// The rank, bottom-centre (user, 2026-08-20). Drawn over the icon's own art rather than
+			// beside it, because the cell is 38px and a band outside it would cost a row.
+			if (const int level = EntryLevel(player, entry); level > 0) {
+				DrawString(out, StrCat(level),
+				    { { cell.position.x, cell.position.y + IconSize - LevelBandHeight },
+				        { IconSize, LevelBandHeight } },
+				    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter
+				        | UiFlags::VerticalCenter });
+			}
+
+			if (cell.contains(MousePosition)) {
 				DrawHoverOutline(out, cell);
+				// The hover popup rides the existing cursor tooltip, which renders InfoString after
+				// every window in the draw order - so naming the entry here is the whole feature.
+				// CheckCursMove leaves InfoString alone while the cursor is over a floating window,
+				// which is exactly what makes this safe to set from a draw.
+				SetPanelString(EntryName(entry), UiFlags::ColorWhite);
+				if (dimmed)
+					AddPanelString(_("Right button only - click to light it"));
+			}
 		}
 		y += RowsFor(count) * IconSize + (RowsFor(count) - 1) * CellGap + SectionGap;
 	};
