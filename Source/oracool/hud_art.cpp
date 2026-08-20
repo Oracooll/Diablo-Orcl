@@ -157,8 +157,15 @@ GridBezelEntry *FindGridBezel(Size contentSize)
 // skill points i have available to distribute"). Two 99-frame strips, 64px square cells, frame
 // N-1 wearing the numeral N - cut from the user's own level-up icon states with the cross
 // replaced by the number. Dark is the resting state, lit the hover.
-ArtAsset PointsIconsDarkArt { "ui\\points_icons_dark.png" };
-ArtAsset PointsIconsLitArt { "ui\\points_icons_lit.png" };
+/**
+ * The unspent-skill-points frame: ONE picture with a drawn number in it, replacing the two 99-frame
+ * strips (points_icons_dark/lit.png) whose numeral was baked into the art.
+ *
+ * A drawn number is strictly better here and the swap is why the strips are gone rather than
+ * merely unused: baked numerals run out at 100, need regenerating whenever the cap moves, and lock
+ * the count to whatever size the strip was cut at. See tools/CutSkillPointsIcon.ps1.
+ */
+ArtAsset SkillPointsFrameArt { "ui\\skill_points.png" };
 /**
  * Oracool V1 waypoint list. The panel is one flat 340x660 composition - stone texture, segmented
  * border and the baked "WAYPOINT" label - built by tools/BuildWaypointPanel.ps1. The per-row pads
@@ -547,10 +554,8 @@ void EnsureLoadedAll()
 	// The numbered points strips. Their absence from this list was the whole of "still the
 	// placeholder there" (user, 2026-08-17): DrawUnspentPointsIcon checked rgba, and nothing had
 	// ever been asked to fill it - the reset list knew these assets, the load list did not.
-	if (!PointsIconsDarkArt.loadAttempted)
-		LoadPixels(PointsIconsDarkArt);
-	if (!PointsIconsLitArt.loadAttempted)
-		LoadPixels(PointsIconsLitArt);
+	if (!SkillPointsFrameArt.loadAttempted)
+		LoadPixels(SkillPointsFrameArt);
 	if (!WaypointPanelArt.loadAttempted)
 		LoadPixels(WaypointPanelArt);
 	if (!WaypointIconsArt.loadAttempted)
@@ -667,8 +672,7 @@ void EnsureQuantized()
 	for (GridBezelEntry &entry : GridBezels)
 		QuantizeAsset(entry.art, std::nullopt);
 	// No tint, same as the level-up icon these were cut from - the numeral IS the information.
-	QuantizeAsset(PointsIconsDarkArt, std::nullopt);
-	QuantizeAsset(PointsIconsLitArt, std::nullopt);
+	QuantizeAsset(SkillPointsFrameArt, std::nullopt);
 	QuantizeAsset(WaypointPanelArt, std::nullopt);
 	QuantizeAsset(WaypointIconsArt, std::nullopt);
 	// No tint: the tree icons are the artwork itself, not chrome - their shapes carry the meaning.
@@ -1271,8 +1275,7 @@ void ResetHudArtCaches()
 	reset(LevelUpIconArt);
 	for (GridBezelEntry &entry : GridBezels)
 		reset(entry.art);
-	reset(PointsIconsDarkArt);
-	reset(PointsIconsLitArt);
+	reset(SkillPointsFrameArt);
 	reset(WaypointPanelArt);
 	reset(WaypointIconsArt);
 	for (ArtAsset *strip : ClassTreeStrips)
@@ -1326,11 +1329,26 @@ void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, in
 	DrawIconOnPlate(out, TreeStripFor(heroClass), origin, skillIndex, unlocked, tint);
 }
 
+Rectangle SkillPointsNumberRect(Point origin)
+{
+	// Dead centre of the frame, at the size the user specified (2026-08-20: "in its center area in
+	// 40x39px area dead center in the icon"). Derived from PointsIconSize rather than written as a
+	// second pair of literals, so moving the frame's size cannot leave the number off-centre - the
+	// exact drift the cut script's own comment warns about.
+	constexpr Size NumberArea { 40, 39 };
+	return { { origin.x + (PointsIconSize.width - NumberArea.width) / 2,
+		         origin.y + (PointsIconSize.height - NumberArea.height) / 2 },
+		NumberArea };
+}
+
 bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit)
 {
-	// The number IS the count (user, 2026-08-17). Frame N-1 wears numeral N; the strips run 1..99,
-	// so a pool past 99 keeps showing 99 rather than indexing off the end.
-	ArtAsset &asset = lit ? PointsIconsLitArt : PointsIconsDarkArt;
+	// One frame now, with the count DRAWN into it by the caller - not one of 99 pictures whose
+	// numeral was part of the art. @p count survives in the signature only so a caller still has to
+	// have one in hand to draw the frame at all.
+	(void)count;
+	(void)lit;
+	ArtAsset &asset = SkillPointsFrameArt;
 	EnsureLoadedAll();
 	EnsureQuantized();
 	// Report whether a draw can actually HAPPEN, not merely whether pixels were read. The first
@@ -1341,8 +1359,10 @@ bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit
 	// what makes missing any of them degrade to the placeholder instead of to blank.
 	if (asset.rgba.empty() || !asset.bright)
 		return false;
-	const int index = std::clamp(count, 1, 99) - 1;
-	DrawStripIcon(out, asset, origin, index, /*unlocked=*/true);
+	// Index 0: the file is one 64x64 picture, so the "strip" has exactly one frame. Drawn through
+	// DrawStripIcon anyway rather than a bespoke blit, because that is where the quantize/bright
+	// pipeline this function just tested actually lands the pixels.
+	DrawStripIcon(out, asset, origin, /*index=*/0, /*unlocked=*/true);
 	return true;
 }
 

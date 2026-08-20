@@ -327,11 +327,26 @@ void DrawBurgerMenuButton(const Surface &out, int state);
 void DrawLevelUpIconArt(const Surface &out, int state);
 
 /**
- * @brief The numbered skill-points icon: the 64px frame whose numeral IS @p count (clamped 1..99),
- * dark at rest and lit on @p lit. Returns false when the strips are not shipped, so the caller can
- * keep its placeholder.
+ * @brief The skill-points frame at @p origin: one 64px picture, an ornate border around a dark well.
+ *
+ * Returns false when the art is not shipped, so the caller can keep its placeholder - and note that
+ * this reports whether a draw can HAPPEN, not merely whether pixels were read. See the note in the
+ * implementation: hud_art keeps three hand-maintained per-asset lists and testing the end of that
+ * pipeline is what makes missing one degrade to the placeholder rather than to blank.
+ *
+ * The NUMBER is not drawn here. The caller paints it into SkillPointsNumberRect below, because a
+ * drawn count is what replaced the old pair of 99-frame strips whose numeral was baked into the art
+ * (user, 2026-08-20) - baked numerals run out at 100 and need recutting whenever the cap moves.
  */
 bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit);
+
+/**
+ * @brief The 40x39 box dead centre of the frame at @p origin, where the count is drawn.
+ *
+ * The size is the user's (2026-08-20: "in its center area in 40x39px area dead center in the
+ * icon"); the centring is derived from PointsIconSize so the two cannot drift apart.
+ */
+Rectangle SkillPointsNumberRect(Point origin);
 /** @brief The numbered icons' cell size - one 64px square strip frame. */
 constexpr Size PointsIconSize { 64, 64 };
 

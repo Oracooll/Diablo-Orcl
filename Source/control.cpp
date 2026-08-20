@@ -1281,11 +1281,22 @@ void DrawUnspentPointsFrame(const Surface &out)
 		    rmb.position.y - oracool::PointsIconSize.height - GapAboveWell },
 		oracool::PointsIconSize
 	};
-	// The delivered numbered icon: its numeral IS the count, dark at rest and lit under the cursor
-	// (user, 2026-08-17: "use these icons as a display of how many skill points i have available").
+	// The delivered frame, with the count drawn into its well (user, 2026-08-20: "replace the
+	// current skill point indicator above rmb... in its center area in 40x39px area dead center in
+	// the icon i want you to draw with your own font the number of skill point available up to 99").
+	//
+	// Two draws rather than one picture per value: the old art was a pair of 99-frame strips with
+	// the numeral baked in, which could not have shown a hundredth point and had to be recut every
+	// time the cap moved. Clamped at 99 here because that is the number the user asked to see, and
+	// because three digits do not fit the well the art gives us.
 	if (oracool::DrawUnspentPointsIcon(out, frame.position, MyPlayer->_pUnspentSkillPoints,
-	        frame.contains(MousePosition)))
+	        frame.contains(MousePosition))) {
+		const int shown = std::min<int>(MyPlayer->_pUnspentSkillPoints, 99);
+		DrawString(out, StrCat(shown), oracool::SkillPointsNumberRect(frame.position),
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter
+		        | UiFlags::VerticalCenter });
 		return;
+	}
 	// The pre-art placeholder, kept only as the fallback for a build whose strips are missing.
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
