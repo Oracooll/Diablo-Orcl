@@ -624,14 +624,17 @@ void ScrollSmithBuy(int idx)
 	ClearSText(5, 21);
 	stextup = 5;
 
-	for (int l = 5; l < 20; l += 4) {
+	// Bounded, and idx advances unconditionally - the same two corrections ScrollWitchBuy needed,
+	// because these functions are copies of one another. An index that moved only when a row was
+	// DRAWN stalled on the first empty slot and made everything past it unreachable; an unbounded
+	// smithitem[idx] read whatever follows the array once it did get past the end.
+	for (int l = 5; l < 20 && idx < SMITH_ITEMS; l += 4, idx++) {
 		if (!smithitem[idx].isEmpty()) {
 			UiFlags itemColor = smithitem[idx].getTextColorWithStatCheck();
 			AddSText(20, l, smithitem[idx].getName(), itemColor, true, smithitem[idx]._iCurs, true);
 			AddSTextVal(l, smithitem[idx]._iIvalue);
 			PrintStoreItem(smithitem[idx], l + 1, itemColor, true);
 			stextdown = l;
-			idx++;
 		}
 	}
 
@@ -1518,14 +1521,15 @@ void ScrollHealerBuy(int idx)
 {
 	ClearSText(5, 21);
 	stextup = 5;
-	for (int l = 5; l < 20; l += 4) {
+	// Bounded, and idx advances unconditionally - see the note in ScrollSmithBuy. Pepin's list is
+	// the third copy of the same function and carried the same two defects.
+	for (int l = 5; l < 20 && idx < static_cast<int>(std::size(healitem)); l += 4, idx++) {
 		if (!healitem[idx].isEmpty()) {
 			UiFlags itemColor = healitem[idx].getTextColorWithStatCheck();
 			AddSText(20, l, healitem[idx].getName(), itemColor, true, healitem[idx]._iCurs, true);
 			AddSTextVal(l, healitem[idx]._iIvalue);
 			PrintStoreItem(healitem[idx], l + 1, itemColor, true);
 			stextdown = l;
-			idx++;
 		}
 	}
 

@@ -4014,6 +4014,28 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 	if (ActiveItemCount >= MAXITEMS)
 		return nullptr;
 
+	// The base-item lookup happens BEFORE anything is allocated, so failing it costs nothing to
+	// unwind. Bailing out after AllocateItem would leak the slot and leave a cleared item sitting on
+	// the tile with dItem already pointing at it.
+	//
+	// The walk itself used to have no end test - the same shape as ItemMiscIdIdx, and with a live
+	// way to miss: this fork added 143 expansion uniques and a large share of them are still waiting
+	// on base items to exist. A unique whose UIItemId no base carries walked off the table, and
+	// GetItemAttrs then built an item out of whatever it landed on.
+	//
+	// Failing to spawn is the honest outcome. Substituting some other base would put an item in the
+	// world under a name that does not describe it - worse than a drop that visibly did not appear
+	// and gets reported.
+	std::underlying_type_t<_item_indexes> baseIdx = 0;
+	while (baseIdx <= IDI_LAST && AllItemsList[baseIdx].iItemId != UniqueItems[uid].UIItemId)
+		baseIdx++;
+	if (baseIdx > IDI_LAST) {
+		oracool::LogEvent(fmt::format("Unique {:s} has no base item - not spawned",
+		                      std::string(_(UniqueItems[uid].UIName))),
+		    UiFlags::ColorRed);
+		return nullptr;
+	}
+
 	int ii = AllocateItem();
 	auto &item = Items[ii];
 	if (exactPosition && CanPut(position)) {
@@ -4024,9 +4046,7 @@ Item *SpawnUnique(_unique_items uid, Point position, std::optional<int> level /*
 	}
 	int curlv = ItemsGetCurrlevel();
 
-	std::underlying_type_t<_item_indexes> idx = 0;
-	while (AllItemsList[idx].iItemId != UniqueItems[uid].UIItemId)
-		idx++;
+	const std::underlying_type_t<_item_indexes> idx = baseIdx;
 
 	if (sgGameInitInfo.nDifficulty == DIFF_NORMAL) {
 		GetItemAttrs(item, static_cast<_item_indexes>(idx), curlv);
