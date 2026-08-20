@@ -59,6 +59,7 @@ set(libdevilutionx_SRCS
   oracool/player_resistance.cpp
   oracool/runeword_book.cpp
   oracool/socket_overlay.cpp
+  oracool/salvage.cpp
   oracool/monster_scale.cpp
   oracool/stat_sheet.cpp
   oracool/telemetry.cpp

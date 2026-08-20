@@ -53,6 +53,7 @@
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
 #include "oracool/runewords.h"
+#include "oracool/salvage.h"
 #include "oracool/skill_points.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
@@ -3526,4 +3527,55 @@ TEST(OracoolAudit, SortMovesRunesAndGemsToTheirOwnPageInFixedPositions)
 	Stash.stashList.clear();
 	Stash.stashGrids.clear();
 	Stash.SetPage(0);
+}
+
+/**
+ * The seven salvage buckets PARTITION the item space.
+ *
+ * User request, 2026-08-20: seven "salvage all X" buttons. That is what forces the partition - with
+ * overlap, "Salvage all rares" and "Salvage all ethereal" would each claim an ethereal rare, and
+ * which button was pressed first would silently change what you got.
+ *
+ * Also pins the two refusals that matter: nothing in the socketable families can be salvaged, and
+ * neither can a material. A salvage-all that could eat a stack of Zod runes because the wrong box
+ * was clicked is the one bug this system must not have.
+ */
+TEST(OracoolAudit, SalvageBucketsPartitionAndRefuseMaterials)
+{
+	const auto tierOfNew = [](_item_indexes idx) {
+		devilution::Item item;
+		InitializeItem(item, idx);
+		return item;
+	};
+
+	// Every socketable and every material declines, whatever else is true of it.
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsOracoolRuneIdx(i) && !IsOracoolGemIdx(i) && !IsOracoolSalvageIdx(i))
+			continue;
+		const devilution::Item item = tierOfNew(static_cast<_item_indexes>(i));
+		EXPECT_FALSE(oracool::IsSalvageable(item))
+		    << AllItemsList[i].iName << " can be salvaged - runes, gems and materials must not be";
+	}
+
+	// Ethereal outranks quality: one item, one bucket.
+	devilution::Item rare;
+	InitializeItem(rare, IDI_ORACOOL_HELM);
+	rare._iMagical = ITEM_QUALITY_MAGIC;
+	rare._iOracoolTier = OracoolItemTier::Rare;
+	ASSERT_TRUE(oracool::IsSalvageable(rare));
+	EXPECT_EQ(oracool::SalvageTierOf(rare), oracool::SalvageTier::Rare);
+
+	rare._iOracoolEthereal = true;
+	EXPECT_EQ(oracool::SalvageTierOf(rare), oracool::SalvageTier::Ethereal)
+	    << "an ethereal rare must fall in exactly one bucket, and ethereal is the specific one";
+
+	// Every bucket names a distinct material, so no two buttons produce the same orb.
+	std::set<uint16_t> materials;
+	for (int i = 0; i < oracool::SalvageTierCount; i++) {
+		const auto tier = static_cast<oracool::SalvageTier>(i);
+		const uint16_t idx = oracool::SalvageMaterialFor(tier);
+		EXPECT_TRUE(IsOracoolSalvageIdx(idx)) << "tier " << i << " yields something that is not a material";
+		EXPECT_TRUE(materials.insert(idx).second) << "two tiers share a material";
+	}
+	EXPECT_EQ(materials.size(), 7u);
 }

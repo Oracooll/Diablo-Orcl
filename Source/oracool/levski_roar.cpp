@@ -17,6 +17,7 @@
 #include "oracool/crafting.h"
 #include "oracool/event_log.h"
 #include "oracool/ornate_border.h"
+#include "oracool/salvage.h"
 #include "oracool/window_close.h"
 #include "player.h"
 #include "utils/language.h"
@@ -64,8 +65,34 @@ constexpr int GridHeight = LevskiGridRows * CellSize;
 /** A 3-wide grid is only 84px across - narrower than the word "Transmute". The window is the wider
  * of the grid and what its own buttons need to read, with the grid centred in it. */
 constexpr int ContentWidth = GridWidth > 150 ? GridWidth : 150;
-constexpr int WindowWidth = ContentWidth + Padding * 2;
-constexpr int WindowHeight = Padding * 2 + HeaderHeight + GridHeight + SlotGap + ButtonHeight * 2 + SlotGap;
+
+/**
+ * @brief The salvage column: seven "salvage all X" buttons, stacked down the right of the grid.
+ *
+ * User request, 2026-08-20: "add salvage all whites, magic, rare, uniques, primal, set, ethereal
+ * buttons on levski ui. increase it's ui window and add these in placeholder gold boxes."
+ *
+ * A COLUMN beside the grid rather than a row beneath it, and that is the window's shape deciding:
+ * seven buttons wide enough to read would be over 700px in a row, half the screen. Stacked, they
+ * cost 140px of width and reuse height the 3x4 grid already occupies.
+ *
+ * PLACEHOLDER, as asked - a gold-bordered box with the tier's name in it, no art. When real button
+ * art arrives only DrawSalvageButtons changes; the rects and the routing stay.
+ */
+constexpr int SalvageColumnWidth = 140;
+constexpr int SalvageButtonHeight = 24;
+constexpr int SalvageButtonGap = 4;
+constexpr int SalvageColumnGap = 10;
+
+/** The window grew by exactly the column plus its gap - the grid and the buttons under it are
+ * untouched, so nothing that was already placed had to move. */
+constexpr int WindowWidth = ContentWidth + SalvageColumnGap + SalvageColumnWidth + Padding * 2;
+/** Tall enough for whichever side is taller: the grid and its two buttons, or the seven. */
+constexpr int GridSideHeight = HeaderHeight + GridHeight + SlotGap + ButtonHeight * 2 + SlotGap;
+constexpr int SalvageSideHeight = HeaderHeight + SalvageTierCount * SalvageButtonHeight
+    + (SalvageTierCount - 1) * SalvageButtonGap;
+constexpr int WindowHeight = Padding * 2
+    + (GridSideHeight > SalvageSideHeight ? GridSideHeight : SalvageSideHeight);
 
 /**  How wide the book may be: all the room left of the window, capped, never overlapping it.
  *
@@ -239,6 +266,15 @@ Rectangle RecipeButtonRect(const Rectangle &window)
 		{ ContentWidth, ButtonHeight } };
 }
 
+/** @brief Salvage button @p index, counting down the column from the top. */
+Rectangle SalvageButtonRect(const Rectangle &window, int index)
+{
+	const int x = window.position.x + Padding + ContentWidth + SalvageColumnGap;
+	const int y = window.position.y + Padding + HeaderHeight
+	    + index * (SalvageButtonHeight + SalvageButtonGap);
+	return Rectangle { { x, y }, { SalvageColumnWidth, SalvageButtonHeight } };
+}
+
 /**
  * @brief Hands everything in the grid back to the player. True when the grid is empty afterwards.
  *
@@ -383,6 +419,23 @@ void DrawLevskiRoar(const Surface &out)
 		ClxDraw(out, { x, y }, sprite);
 	}
 
+	// The salvage column. Gold-bordered placeholder boxes, one per tier, lit when the backpack
+	// actually holds something that button would consume - so the column doubles as a readout of
+	// what is worth pressing rather than seven identical boxes.
+	for (int i = 0; i < SalvageTierCount; i++) {
+		const auto tier = static_cast<SalvageTier>(i);
+		const Rectangle rect = SalvageButtonRect(window, i);
+		DrawOrnateBorder(out, rect);
+		bool any = false;
+		for (int slot = 0; slot < GetActiveNumInv(*MyPlayer) && !any; slot++) {
+			const Item &item = GetActiveInvListItem(*MyPlayer, slot);
+			any = IsSalvageable(item) && SalvageTierOf(item) == tier;
+		}
+		DrawString(out, _(SalvageTierName(tier)), rect,
+		    { (any ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12
+		        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
+
 	const Rectangle transmute = TransmuteButtonRect(window);
 	const int ready = FirstReadyLevskiRecipe(GridItems);
 	DrawOrnateBorder(out, transmute);
@@ -448,6 +501,25 @@ bool CheckLevskiRoarClick(Point mousePosition)
 	// absorbs everything else that lands on it.
 	if (CheckWindowCloseButtonClick(window, mousePosition)) {
 		CloseLevskiRoar();
+		return true;
+	}
+
+	// Salvage. Reports what it did, always - a button that silently does nothing because you own no
+	// rares is indistinguishable from a button that is broken, and this fork has shipped that exact
+	// ambiguity twice.
+	for (int i = 0; i < SalvageTierCount; i++) {
+		if (!SalvageButtonRect(window, i).contains(mousePosition))
+			continue;
+		const auto tier = static_cast<SalvageTier>(i);
+		const int consumed = SalvageAllInBackpack(*MyPlayer, tier);
+		if (consumed > 0) {
+			LogEvent(StrCat("Salvaged ", consumed, " ", _(SalvageTierName(tier)), " into ",
+			             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
+			    UiFlags::ColorWhitegold);
+			PlaySFX(IS_ISHIEL);
+		} else {
+			LogEvent(StrCat("Nothing to salvage: ", _(SalvageTierName(tier))), UiFlags::ColorWhite);
+		}
 		return true;
 	}
 
