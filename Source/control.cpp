@@ -1292,8 +1292,12 @@ void DrawUnspentPointsFrame(const Surface &out)
 	if (oracool::DrawUnspentPointsIcon(out, frame.position, MyPlayer->_pUnspentSkillPoints,
 	        frame.contains(MousePosition))) {
 		const int shown = std::min<int>(MyPlayer->_pUnspentSkillPoints, 99);
+		// Red, outlined (user, 2026-08-20). The engine has no bold weight - the font ships as five
+		// fixed sizes and size IS the weight - so Outlined is what stands in for one: it thickens
+		// each glyph with a dark edge, which also stops red-on-near-black from sinking into the
+		// frame's own dark well. FontSize42 would be genuinely heavier and would clip a 39px band.
 		DrawString(out, StrCat(shown), oracool::SkillPointsNumberRect(frame.position),
-		    { UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter
+		    { UiFlags::ColorRed | UiFlags::Outlined | UiFlags::FontSize30 | UiFlags::AlignCenter
 		        | UiFlags::VerticalCenter });
 		return;
 	}
@@ -1301,8 +1305,11 @@ void DrawUnspentPointsFrame(const Surface &out)
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
 	UnsafeDrawBorder2px(out, frame, oracool::ThemeEdgeColor);
-	DrawString(out, StrCat(MyPlayer->_pUnspentSkillPoints), frame,
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	// Same treatment as the real path above, so a build running without the art still shows the
+	// count the way the art build does.
+	DrawString(out, StrCat(std::min<int>(MyPlayer->_pUnspentSkillPoints, 99)), frame,
+	    { UiFlags::ColorRed | UiFlags::Outlined | UiFlags::FontSize30 | UiFlags::AlignCenter
+	        | UiFlags::VerticalCenter });
 }
 
 void DrawLevelUpIcon(const Surface &out)
