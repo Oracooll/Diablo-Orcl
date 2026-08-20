@@ -26,6 +26,12 @@ six tiers. This is the skill system - the six vanilla class skills are retired.<
 		<code>GetSpellLevel</code> finds them, so every ladder that already scaled with spell level
 		scales with investment for free. Slotless skills - auras, passives, masteries - keep theirs
 		separately. Both spend from the same per-level pool, and both refund a rank at a time.</li>
+	<li><b>Books raise spells. Points raise skills.</b> A spell a Book could teach takes its level
+		from books and item bonuses <i>only</i> - no skill point can touch it, and the Spells sheet
+		has no spend controls. A skill with no book takes points as before. The line is already in
+		the data: the Paladin's seven were authored bookless on purpose, "earned at the tree, not
+		bought". Any tree row whose slot is a book spell is retired from the tree - still castable,
+		still readiable, just no longer somewhere to spend.</li>
 	<li><b>Auras are the right button.</b> Lighting one clears the readied right-button skill;
 		readying a skill puts the aura out. One slot, one occupant.</li>
 	<li><b>Unbuilt rows are inert.</b> A skill marked not implemented is listed, described and struck

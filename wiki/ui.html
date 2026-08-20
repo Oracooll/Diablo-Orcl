@@ -23,7 +23,8 @@ is where everything sits and what it does.</p>
 <tr><td>Bottom left</td><td>Health orb</td></tr>
 <tr><td>Bottom right</td><td>Mana orb</td></tr>
 <tr><td>Bottom centre</td><td>The middle HUD plate: LMB well, six belt slots, RMB well, and the XP bar beneath</td></tr>
-<tr><td>Above the LMB well</td><td>Level-up icon when points are unspent</td></tr>
+<tr><td>Above the LMB well</td><td>Level-up icon when attribute points are unspent</td></tr>
+<tr><td>Above the RMB well</td><td>The skill-point frame, with the count drawn in its well, when skill points are unspent</td></tr>
 <tr><td>Under the mini-map</td><td>Message history, and the event log when opened</td></tr>
 </tbody></table></div>
 
@@ -38,8 +39,31 @@ onto the frame.</p>
 <tr><td>A skill readied</td><td>The skill's own icon, scaled to the net rect</td><td>Same</td></tr>
 <tr><td>An aura lit</td><td>-</td><td>The aura's icon; it is the button's setting</td></tr>
 <tr><td>Cannot cast right now</td><td colspan="2">The plate turns pink - out of mana, missing a shield, wrong level</td></tr>
-<tr><td>Clicking the well</td><td colspan="2">Opens the basic-attack quick list, the deliberate way to put Regular/Fist Attack back on a button</td></tr>
+<tr><td>Clicking the well</td><td colspan="2">Opens that button's <b>skill picker</b> - see below. Clicking the same well again closes it</td></tr>
 </tbody></table></div>
+
+<h2 id="skill-picker">The skill picker</h2>
+<p><b>Left click the LMB well</b> and its picker opens; <b>left click the RMB well</b> and you get
+the right button's. Click an entry, it binds and the window closes. Two clicks to act, the same
+motion mirrored for each button - which is the whole point of it.</p>
+<div class="note"><b>Right click still casts.</b> The picker is reached from the well on the HUD,
+never by right-clicking the world.</div>
+<p>It lists what you can use <b>right now</b>, in two groups:</p>
+<ul>
+	<li><b>Skills</b> - Regular and Fist Attack, then class-tree rows that are built, unlocked and
+		have a rank in them. Passives never appear: one cannot be readied, and an entry that does
+		nothing when clicked is worse than an absent one.</li>
+	<li><b>Spells</b> - everything you have learned, from books, abilities or a staff.</li>
+</ul>
+<p>Each cell shows its <b>rank</b> bottom-centre, and hovering names it. A tree row's number is the
+points sunk into it; a spell's is its effective level, which is books plus items and never points -
+see <a href="skills.html">Class trees</a>.</p>
+<p><b>Auras are greyed in the LMB picker</b> and stay clickable. An aura is a toggle with no spell
+slot, so the left button has nothing to hold - but clicking it still lights it, which lands on the
+right button, and that saves opening the other picker to do it.</p>
+<p>The list grows to fit its contents rather than filling a fixed grid, so a level-3 character sees
+three icons and not a wall of empty cells. If it ever outgrows the space above the panel, the wheel
+scrolls it.</p>
 
 <h2>Windows</h2>
 <div class="tablewrap"><table>
@@ -48,7 +72,7 @@ onto the frame.</p>
 <tr><td>Inventory</td><td>I, or the burger menu</td><td>10 x 7 grid, ten tabs, thirteen equipment slots</td></tr>
 <tr><td>Stash</td><td>The stash chest in town</td><td>Multi-page, its own save file</td></tr>
 <tr><td>Character</td><td>C</td><td>Stats, with a reset-points button when enabled</td></tr>
-<tr><td>Abilities</td><td>S, the burger menu, or either skill well</td><td>Spells sheet plus three class-tree pages</td></tr>
+<tr><td>Abilities</td><td>S, or the burger menu</td><td>Spells sheet plus three class-tree pages. Spends points only - the skill wells open the picker instead</td></tr>
 <tr><td>Quest log</td><td>Q</td><td></td></tr>
 <tr><td>Waypoints</td><td>A waypoint</td><td>25 entries, scrolling, 43px sigils</td></tr>
 <tr><td>Event log</td><td>F11, or the burger menu</td><td>Timestamped session events</td></tr>
@@ -70,14 +94,23 @@ onto the frame.</p>
 
 <h2>The Abilities window</h2>
 <p>Four sheets: <b>Spells</b> (the book list, grouped by level band and sorted alphabetically inside
-each) and three <b>class-tree pages</b>. Both use the same 56 x 56 icon cell with the spend controls
-on the icon: green plus bottom-right, red minus bottom-left, the invested level between them.</p>
+each) and three <b>class-tree pages</b>, on a 56 x 56 icon cell.</p>
+<div class="note"><b>This window spends points. It does not choose what is on your mouse.</b>
+Selecting moved to the <a href="#skill-picker">skill picker</a> above, and the two jobs want opposite things -
+managing points wants space, tier structure and room to read; picking wants density and speed.</div>
+<p><b>Left click a tree cell to put a point in. Right click to take one back.</b> Refunds are free
+and unlimited - there is no respec cost and no confirmation. There are no <code>+</code> and
+<code>-</code> buttons any more: they only ever existed because the icon itself used to mean "ready
+this", so the two actions had to be kept apart by geometry. Now the whole cell is one target.</p>
+<p>The <b>Spells</b> sheet takes no points at all - see the rule on
+<a href="skills.html">Class trees</a>.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Marker</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td>Green plate</td><td>Has points in it and is usable</td></tr>
 <tr><td>Red plate</td><td>Unlocked but at rank 0 - yours to fill</td></tr>
 <tr><td>Grey plate</td><td>Not yours yet, or not built</td></tr>
+<tr><td>Bright gold outline</td><td>This cell will take a point right now</td></tr>
 <tr><td>Red X across the icon</td><td>Listed but not implemented; wholly inert</td></tr>
 <tr><td>Yellow ring</td><td>Readied on the right button</td></tr>
 <tr><td>Red ring</td><td>Readied on the left button</td></tr>
