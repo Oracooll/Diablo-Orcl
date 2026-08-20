@@ -3579,3 +3579,67 @@ TEST(OracoolAudit, SalvageBucketsPartitionAndRefuseMaterials)
 	}
 	EXPECT_EQ(materials.size(), 7u);
 }
+
+/**
+ * The salvage materials get a row of their own between the runes and the gems.
+ *
+ * User, 2026-08-20: "land them in a row of their own sorted left to right from white to darkgey
+ * somewhere inbetween runes and bems."
+ *
+ * The column is derived from the item index the same way the code derives it, so this cannot agree
+ * with the order drifting - and enum order IS white to dark grey, because the generator emits the
+ * seven in the order the user listed both the colours and the salvage buttons.
+ */
+TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
+{
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	const auto deposit = [](_item_indexes idx) {
+		devilution::Item item;
+		InitializeItem(item, idx);
+		AutoPlaceItemInStash(*MyPlayer, item, true);
+	};
+
+	deposit(IDI_ORACOOL_HELM); // keeps page 0, so the materials land on page 1
+	deposit(IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES);
+	deposit(IDI_ORACOOL_SALVAGE_WHITE_SCALES);
+	deposit(IDI_ORACOOL_RUNE_EL);
+	deposit(IDI_ORACOOL_GEM_RUBY_PERFECT);
+
+	SortStash(*MyPlayer);
+
+	constexpr unsigned MaterialPage = 1;
+	const auto rowOf = [](_item_indexes idx) {
+		for (int x = 0; x < StashGridColumns; x++) {
+			for (int y = 0; y < StashGridRows; y++) {
+				const StashStruct::StashCell id = Stash.stashGrids[MaterialPage][x][y];
+				if (id != 0 && Stash.stashList[id - 1].IDidx == idx)
+					return Point { x, y };
+			}
+		}
+		return Point { -1, -1 };
+	};
+
+	const Point white = rowOf(IDI_ORACOOL_SALVAGE_WHITE_SCALES);
+	const Point grey = rowOf(IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES);
+	ASSERT_NE(white.x, -1) << "White Scales were not placed";
+	ASSERT_NE(grey.x, -1) << "Ethereal Imbueities were not placed";
+
+	EXPECT_EQ(white.y, grey.y) << "the seven materials must share ONE row";
+	EXPECT_EQ(white.x, 0) << "white is the leftmost of the row";
+	EXPECT_EQ(grey.x, oracool::SalvageTierCount - 1) << "dark grey is the rightmost of the row";
+
+	// And that row genuinely sits between the two blocks.
+	const Point el = rowOf(IDI_ORACOOL_RUNE_EL);
+	const Point ruby = rowOf(IDI_ORACOOL_GEM_RUBY_PERFECT);
+	ASSERT_NE(el.x, -1);
+	ASSERT_NE(ruby.x, -1);
+	EXPECT_GT(white.y, el.y) << "the material row must be below the runes";
+	EXPECT_LT(white.y, ruby.y) << "the material row must be above the gems";
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+}

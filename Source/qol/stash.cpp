@@ -25,6 +25,7 @@
 #include "oracool/gems.h"
 #include "oracool/inventory_layout.h" // CellPx / GridOrigin - the grid this one must match
 #include "oracool/ornate_border.h"
+#include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
 #include "stores.h"
 #include "utils/format_int.hpp"
@@ -1192,7 +1193,7 @@ void SortStash(Player &player)
 	// first one unoccupied by items." Materials are pulled out of the ordinary sort entirely; what
 	// is left packs as it always did, which is also what decides which page comes up empty.
 	for (const Item &item : Stash.stashList) {
-		if (IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx)) {
+		if (IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx) || IsOracoolSalvageIdx(item.IDidx)) {
 			materials.push_back(item);
 			continue;
 		}
@@ -1242,6 +1243,24 @@ void SortStash(Player &player)
 			constexpr int GemTopRow = StashGridRows - static_cast<int>(oracool::GemQualityCount);
 			static_assert(GemTopRow > RuneRows, "the rune and gem blocks would overlap");
 
+			// The seven salvage materials get a row of their own between the two blocks (user,
+			// 2026-08-20: "land them in a row of their own sorted left to right from white to
+			// darkgey somewhere inbetween runes and bems").
+			//
+			// Row 6 rather than a computed midpoint: it leaves rows 4-5 free directly under the
+			// runes, which is where rune overflow lands, so the commonest overflow case never has
+			// to step over the material row to find space.
+			//
+			// Left to right in enum order, which IS white to dark grey - the generator emits the
+			// seven in the order the user listed both the colours and the salvage buttons, so
+			// "IDidx - the first material" is the column, and no second ordering table can drift
+			// from the first.
+			constexpr int SalvageRow = 6;
+			static_assert(SalvageRow > RuneRows && SalvageRow < GemTopRow,
+			    "the salvage row must sit between the rune and gem blocks");
+			static_assert(oracool::SalvageTierCount <= StashGridColumns,
+			    "the seven materials must fit across one row");
+
 			std::vector<Item> overflow;
 			// One flag per cell, so a second stack of the same kind is detected rather than
 			// silently overwriting the first - the failure that would make a Zod vanish.
@@ -1256,6 +1275,8 @@ void SortStash(Player &player)
 						cell = { static_cast<int>(p % StashGridColumns), static_cast<int>(p / StashGridColumns) };
 						break;
 					}
+				} else if (IsOracoolSalvageIdx(item.IDidx)) {
+					cell = { item.IDidx - IDI_ORACOOL_SALVAGE_WHITE_SCALES, SalvageRow };
 				} else {
 					oracool::GemType type;
 					oracool::GemQuality quality;
