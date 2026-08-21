@@ -50,6 +50,7 @@
 #include "missiles.h"
 #include "oracool/monster_scale.h"
 #include "oracool/monster_variants.h"
+#include "oracool/treasure_class.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
@@ -4127,4 +4128,133 @@ TEST(OracoolAudit, MonsterVariantRostersArePerDungeonAndComplete)
 			variants++;
 	}
 	EXPECT_NEAR(variants * 100.0 / Samples, 15.0, 1.0) << "the variant rate drifted from 15%";
+}
+
+/**
+ * A place is worth farming for a THING.
+ *
+ * Before v1.9.13 the socketable roll was four constants applied to every monster in the game - 3%
+ * gem, 1% charm, 2% rune, 1% jewel - and the named-set roll was 3% everywhere. Depth changed which
+ * socketables were ELIGIBLE (BandedQlvl keeps a Radiant jewel out of the Church) but never what a
+ * floor was FOR, so two floors at the same area level were interchangeable and the only reason to
+ * prefer one was how fast it cleared.
+ *
+ * What is pinned here is the part that would rot silently: that every dungeon actually HAS a
+ * majority family, that the majorities are not all the same family, and that the weights and the
+ * enum walk agree. A table of numbers nobody asserts on is a table that drifts into a flat
+ * distribution one tuning pass at a time, and a flat distribution is indistinguishable from not
+ * having shipped this at all.
+ */
+TEST(OracoolAudit, TreasureClassesGiveEveryZoneSomethingOfItsOwn)
+{
+	using namespace devilution::oracool;
+
+	constexpr dungeon_type Dungeons[] = { DTYPE_CATHEDRAL, DTYPE_CATACOMBS, DTYPE_CAVES,
+		DTYPE_HELL, DTYPE_NEST, DTYPE_CRYPT };
+
+	// Town gives nothing, and must, or a shopping trip rolls loot.
+	const TreasureClass &town = TreasureClassFor(DTYPE_TOWN);
+	EXPECT_EQ(town.socketablePercent, 0) << "town drops socketables";
+	EXPECT_EQ(town.setPercent, 0) << "town drops set pieces";
+
+	std::set<SocketableFamily> majorities;
+	for (const dungeon_type dungeon : Dungeons) {
+		const TreasureClass &tc = TreasureClassFor(dungeon);
+		const int total = TotalFamilyWeight(tc);
+		ASSERT_GT(total, 0) << tc.name << " has no family weights at all";
+		EXPECT_GT(tc.socketablePercent, 0) << tc.name << " never drops a socketable";
+		EXPECT_GT(tc.setPercent, 0) << tc.name << " never drops a set piece";
+
+		// Walk the whole weight range and count where each roll lands. This is the real
+		// distribution, produced by the real function, not a restatement of the table.
+		int counts[4] = {};
+		for (int roll = 0; roll < total; roll++)
+			counts[static_cast<int>(FamilyForRoll(tc, roll))]++;
+
+		EXPECT_EQ(counts[0], tc.gemWeight) << tc.name << ": the gem share is not its weight";
+		EXPECT_EQ(counts[1], tc.runeWeight) << tc.name << ": the rune share is not its weight";
+		EXPECT_EQ(counts[2], tc.jewelWeight) << tc.name << ": the jewel share is not its weight";
+		EXPECT_EQ(counts[3], tc.charmWeight) << tc.name << ": the charm share is not its weight";
+
+		// A MAJORITY, not a tilt. A zone whose best family is 30% of the draw is a zone nobody can
+		// feel the difference of, which is the failure this whole system exists to avoid.
+		int best = 0;
+		for (int i = 1; i < 4; i++) {
+			if (counts[i] > counts[best])
+				best = i;
+		}
+		EXPECT_GE(counts[best] * 100 / total, 35)
+		    << tc.name << "'s best family is only " << (counts[best] * 100 / total)
+		    << "% of its draw - that is a tilt, not a treasure class";
+		majorities.insert(static_cast<SocketableFamily>(best));
+	}
+
+	// And the majorities differ. Six zones that all favour gems would pass every assertion above
+	// and still leave every floor interchangeable.
+	EXPECT_GE(majorities.size(), 3u)
+	    << "the zones favour fewer than three different families between them";
+
+	// The shallow end does not teach two socket economies at once: no jewels in the Cathedral.
+	EXPECT_EQ(TreasureClassFor(DTYPE_CATHEDRAL).jewelWeight, 0)
+	    << "the Cathedral drops jewels";
+
+	// Depth pays more often. Compared as a pair rather than asserting exact numbers, so tuning the
+	// rates does not break the test - only inverting them does.
+	EXPECT_GT(TreasureClassFor(DTYPE_HELL).socketablePercent,
+	    TreasureClassFor(DTYPE_CATHEDRAL).socketablePercent)
+	    << "Hell is no more generous than the Cathedral";
+	EXPECT_GT(TreasureClassFor(DTYPE_HELL).setPercent,
+	    TreasureClassFor(DTYPE_CATHEDRAL).setPercent);
+
+	// Every table's name is distinct and non-empty - they reach the wiki and the player.
+	std::set<std::string> names;
+	for (const dungeon_type dungeon : Dungeons) {
+		const std::string name = TreasureClassFor(dungeon).name;
+		EXPECT_FALSE(name.empty());
+		EXPECT_TRUE(names.insert(name).second) << "two zones share the name " << name;
+	}
+}
+
+/**
+ * A champion is worth crossing the room for, and a boss is worth hunting.
+ *
+ * The multiplier is the boss half of "zone- and boss-specific". Kept as a multiplier ON the zone's
+ * own rates rather than a table of its own, so re-tuning a zone re-tunes its bosses with it - the
+ * alternative is two tables that agree on the day they are written.
+ */
+TEST(OracoolAudit, TreasureBonusRewardsChampionsAndUniques)
+{
+	using namespace devilution::oracool;
+
+	// Local monsters rather than slots out of the global Monsters array. TreasureBonusFor reads two
+	// fields and nothing else - no level, no type index, no position - so a value-initialised
+	// Monster is a complete input for it, and borrowing shared storage would only add a fixture the
+	// rest of the suite could trip over.
+	devilution::Monster ordinary {};
+	devilution::Monster champion {};
+	devilution::Monster unique {};
+
+	ordinary.uniqueType = UniqueMonsterType::None;
+	ordinary.lesserAffix = LesserUniqueAffix::None;
+	champion.uniqueType = UniqueMonsterType::None;
+	champion.lesserAffix = LesserUniqueAffix::Relentless;
+	unique.uniqueType = UniqueMonsterType::Garbud;
+	unique.lesserAffix = LesserUniqueAffix::None;
+
+	EXPECT_EQ(TreasureBonusFor(ordinary), 1);
+	EXPECT_EQ(TreasureBonusFor(champion), 2) << "a champion is worth no more than an ordinary kill";
+	EXPECT_EQ(TreasureBonusFor(unique), 4) << "a unique is worth no more than a champion";
+
+	// A unique that ALSO carries an affix is still worth the unique's four, not the champion's two.
+	// Order of the two tests inside TreasureBonusFor is the whole of this, and reversing them is a
+	// one-character change that nothing else would notice.
+	unique.lesserAffix = LesserUniqueAffix::Relentless;
+	EXPECT_EQ(TreasureBonusFor(unique), 4)
+	    << "an affixed unique fell through to the champion multiplier";
+
+	// The rates a unique in Hell actually sees, checked against the cap the drop hook applies.
+	const TreasureClass &hell = TreasureClassFor(DTYPE_HELL);
+	EXPECT_LE(hell.socketablePercent * TreasureBonusFor(unique), 100)
+	    << "a unique in Hell asks GenerateRnd(100) for a percentage over 100";
+	EXPECT_LE(hell.setPercent * TreasureBonusFor(unique), 100);
 }

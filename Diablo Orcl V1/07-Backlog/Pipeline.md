@@ -30,8 +30,8 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Zone 1, the recolour zone | Phase 4 | Large | No | | Hellfire's own trick: new palette, retinted tileset, new roster, new waypoints, new entrance. Validates the whole pipeline with zero AI-art risk. |
 | Zone 2, first generated tileset | Phase 4 | Large | No | Zone 1 proves the pipeline | The first zone built from user art through the tileset pipeline. |
 | Zone quest chains | Phase 4 | Medium | No | A zone to put them in | Each new zone gets a quest in the D1 style - a voice, a horror, a reward. |
-| Treasure-class drop tables | Phase 5 | Medium | No | | Zone- and boss-specific drop tables, so a particular place is worth farming for a particular thing. |
-| Endgame bosses | Phase 5 | Medium | No | Treasure classes | Scaled, tinted, affix-loaded versions of existing monsters guarding the best tables. Built entirely from machinery that already exists. |
+| Treasure classes for the BASE item pool | Phase 5 | Large | Yes | | What v1.9.13 deliberately could not do. A class redistributes the additive hooks - socketables and set pieces - but the base item a monster drops still comes from the seeded pool, which is save format: UnPackItem replays an item's seed through it to recover the index. Making a zone drop different WEAPONS means a per-zone pool, which means the replay needs to know which zone an item came from, which means a field on the item. That is the format bump, and it should be paid once alongside whatever else needs one. |
+| Endgame bosses | Phase 5 | Medium | No | | UNBLOCKED 2026-08-22: the treasure classes shipped at v1.9.13, and TreasureBonusFor already pays a unique 4x its zone's rates, so a boss's table costs nothing new. Scaled, tinted, affix-loaded versions of existing monsters guarding the best tables. Built entirely from machinery that already exists. |
 | Difficulty re-runs that mean something | Phase 5 | Medium | No | | New immunities, new lesser-affix pools and new drop tiers per difficulty, so Nightmare is not just Normal with bigger numbers. |
 | Seasonal or challenge characters | Phase 5 | Medium | New file | | A checkbox at creation and a ladder file. Single-player friendly. |
 | Hirelings | Phase 6 | Large | Yes | | A persistent companion off the golem framework. Equipping them is the expensive half. |
@@ -48,6 +48,14 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
 ## Shipped, so not listed above
+
+**Treasure classes** shipped at v1.9.13 - `oracool/treasure_class.cpp`. Six zone tables, each giving
+one socketable family a clear majority of the draw (Cathedral gems, Catacombs charms, Caves runes,
+Hell jewels, Nest charms, Crypt runes) plus a socketable and set-piece rate that climbs with depth,
+multiplied by what the monster is worth: ordinary 1x, champion 2x, unique 4x.
+
+The row above records what it deliberately does NOT do and why the remaining half is a Large with a
+save cost, so that limit is not rediscovered as a bug later.
 
 **Jewels** shipped at v1.9.9 - fifteen of them, five families (Fervor, Focus, Aegis, Ruin, Warding)
 across three grades at 60/100/160 percent, dropping at 1% off the socketable hook. The row asked for

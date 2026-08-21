@@ -87,6 +87,7 @@ set(libdevilutionx_SRCS
   oracool/inventory_layout.cpp
   oracool/lesser_uniques.cpp
   oracool/monster_variants.cpp
+  oracool/treasure_class.cpp
   oracool/paladin_skills.cpp
   oracool/readied_spells.cpp
   oracool/spell_descriptions.cpp

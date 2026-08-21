@@ -52,6 +52,7 @@
 #include "oracool/salvage.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
+#include "oracool/treasure_class.h"
 #include "panels/info_box.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -4567,8 +4568,14 @@ void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 	// Rarer than a tier piece (8%) and rarer than a gem, because a named piece is a step toward a
 	// COMPLETE set rather than a self-contained reward - the ladder is the payoff, and a set you
 	// finish in an afternoon has no ladder worth climbing.
-	constexpr int NamedSetDropPercent = 3;
-	if (GenerateRnd(100) >= NamedSetDropPercent)
+	//
+	// The rate comes from the floor's TREASURE CLASS now (Phase 5), and is multiplied by what the
+	// monster is worth - a champion twice, a unique four times. The base 3% survives as the shallow
+	// zones' number; the deep ones pay 5. Capped at 100 so a hypothetical high table and a unique
+	// cannot ask GenerateRnd for a percentage that does not exist.
+	const oracool::TreasureClass &tc = oracool::CurrentTreasureClass();
+	const int namedSetPercent = std::min(tc.setPercent * oracool::TreasureBonusFor(monster), 100);
+	if (namedSetPercent <= 0 || GenerateRnd(100) >= namedSetPercent)
 		return;
 	if (ActiveItemCount >= MAXITEMS)
 		return;
@@ -4640,25 +4647,29 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 	if (!oracool::IsSinglePlayer())
 		return;
 
-	// Rarer than set pieces: a gem is permanent power the moment it lands in a socket, and the
-	// telemetry (Phase 0.9) exists to tune these numbers against real sessions. One draw covers
-	// all three socket-economy families: 3 in 100 a gem, the next 1 a charm, the next 2 a rune.
-	constexpr int GemDropPercent = 3;
-	constexpr int CharmDropPercent = 1;
-	constexpr int RuneDropPercent = 2;
-	// The jewels, joining the same single draw rather than adding a second roll - one draw covers
-	// the whole socket economy, so the four families' rates are read together and cannot drift into
-	// a combined rate nobody intended. Rarest of the four: a jewel is a permanent, unconditional
-	// bonus in any host, with none of the gem ladder's "you will want a better one later".
-	constexpr int JewelDropPercent = 1;
-	const int roll = GenerateRnd(100);
-	if (roll >= GemDropPercent + CharmDropPercent + RuneDropPercent + JewelDropPercent)
+	// PHASE 5: the rate and the family split both come from the floor's treasure class now. They
+	// used to be four constants applied to every monster in the game - 3% gem, 1% charm, 2% rune,
+	// 1% jewel, everywhere - so depth changed which socketables were ELIGIBLE and never changed
+	// what a floor was for. Two floors at the same area level were interchangeable.
+	//
+	// Still ONE draw for whether-anything-drops and one for which-family, as before, so the number
+	// of GenerateRnd calls on this path is unchanged and no zone consumes the level's stream at a
+	// different rate than another. What changed is only what the draws are taken against.
+	const oracool::TreasureClass &tc = oracool::CurrentTreasureClass();
+	const int bonus = oracool::TreasureBonusFor(monster);
+	const int socketablePercent = std::min(tc.socketablePercent * bonus, 100);
+	const int familyTotal = oracool::TotalFamilyWeight(tc);
+	if (socketablePercent <= 0 || familyTotal <= 0)
 		return;
+	if (GenerateRnd(100) >= socketablePercent)
+		return;
+
+	const oracool::SocketableFamily family = oracool::FamilyForRoll(tc, GenerateRnd(familyTotal));
 
 	const int mlvl = ItemLevelOfMonster(monster);
 	_item_indexes idx;
 
-	if (roll < GemDropPercent) {
+	if (family == oracool::SocketableFamily::Gem) {
 		// A gem is picked as a TYPE and a QUALITY rather than as one index out of thirty-five,
 		// because those two axes want different rules: the type is a flat choice among seven, and
 		// the quality is a ladder the depth opens and the weights keep steep, so a chipped stone is
@@ -4697,7 +4708,7 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 		// runs into. An array named for one family and filled by three is a trap with a fuse.
 		_item_indexes candidates[IDI_LAST + 1];
 		int candidateCount = 0;
-		if (roll < GemDropPercent + CharmDropPercent) {
+		if (family == oracool::SocketableFamily::Charm) {
 			// The charms live in three enum islands of their own (the MF/GF pair was appended after
 			// the runes, the seven Charms of Salvaging after the salvage materials), so the walk
 			// spans all of them and filters by the range check. Bounded by IDI_LAST rather than by
@@ -4710,7 +4721,7 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
 					candidates[candidateCount++] = static_cast<_item_indexes>(i);
 			}
-		} else if (roll < GemDropPercent + CharmDropPercent + RuneDropPercent) {
+		} else if (family == oracool::SocketableFamily::Rune) {
 			for (size_t rung = 0; rung < oracool::RuneLadderSize(); rung++) {
 				const uint16_t rune = oracool::RuneAtLadderPosition(rung);
 				if (oracool::BandedQlvl(AllItemsList[rune].iMinMLvl) <= mlvl)

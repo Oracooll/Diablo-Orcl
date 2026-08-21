@@ -140,11 +140,29 @@ and each charm's description carries the rule as well as the effect.</p>
 <tbody></tbody></table></div>
 
 
-<h2>What drops, and how often</h2>
-<p>One draw on each monster death covers the whole family.</p>
+<h2>What drops, and how often - the treasure classes</h2>
+<p>One draw on each monster death covers all four families. <b>What that draw is taken against
+depends on where you are.</b> Each dungeon type has a treasure class: a chance that anything drops
+at all, and a split saying what this place gives more of than anywhere else.</p>
+<p>Every zone has a clear majority family rather than a gentle tilt, because a 5% edge is not
+something a player can feel, and a treasure class nobody can feel is a table that exists for its own
+sake. The shallow end has <b>no jewels at all</b> - the Cathedral should not be teaching two socket
+economies at once.</p>
 <div class="tablewrap"><table id="drops">
-<thead><tr><th>Family</th><th class="num">Chance per kill</th><th>Notes</th></tr></thead>
+<thead><tr><th>Where</th><th>Treasure class</th><th class="num">Socketable</th><th class="num">Set piece</th>
+<th class="num">Gem</th><th class="num">Rune</th><th class="num">Jewel</th><th class="num">Charm</th></tr></thead>
 <tbody></tbody></table></div>
+<p>The family columns are shares of the socketable draw, so they read across to 100%. The first two
+columns are chances per kill.</p>
+<p>Then the monster multiplies both of those chances: a <b>champion</b> pays <b id="tcchamp"></b>
+and a <b>unique</b> pays <b id="tcuniq"></b>. That is a multiplier on the zone's own numbers rather
+than a table of its own, so re-tuning a zone re-tunes its bosses with it - and it is deliberately
+not a guarantee, because a boss that always drops a socketable turns farming into a loop with no
+roll left in it.</p>
+<div class="note"><b>What a treasure class does not touch.</b> The base item pool is unchanged and
+cannot change: an item's index is recovered by replaying its seed through that pool, which makes the
+pool part of the save format. A zone that altered which swords were in it would transform every item
+in every existing save. Treasure classes redistribute the hooks that were already additive.</div>
 
 <p>A gem drop picks a <b>type</b> flat across the seven, then a <b>quality</b> from the ones the
 floor's depth has opened, weighted <b id="qw"></b> from chipped to perfect. Deep floors still drop
@@ -330,14 +348,22 @@ document.querySelector('#charms tbody').innerHTML = WIKI.charms.map(function (c)
 	return '<tr><td><b>' + c.name + '</b></td><td>' + effect.join(', ') + '</td></tr>';
 }).join('');
 
-document.querySelector('#drops tbody').innerHTML = [
-	['Gem', R.gemDropPercent, 'Type flat across the seven, quality by depth and weight'],
-	['Rune', R.runeDropPercent, 'Only the runes this floor has opened'],
-	['Charm', R.charmDropPercent, 'Any charm the floor has opened, depth-gated'],
-	['Jewel', R.jewelDropPercent, 'Five families, three grades, depth-gated'],
-].map(function (r) {
-	return '<tr><td><b>' + r[0] + '</b></td><td class="num">' + r[1] + '%</td><td>' + r[2] + '</td></tr>';
+document.querySelector('#drops tbody').innerHTML = WIKI.treasureClasses.map(function (tc) {
+	const total = tc.gem + tc.rune + tc.jewel + tc.charm;
+	// Shown as a share of the draw rather than as a raw weight: the weights are relative and can be
+	// re-tuned without summing to a hundred, but a reader wants a percentage.
+	function share(w) {
+		if (!total) return '-';
+		const pct = Math.round(w * 100 / total);
+		return pct === 0 ? '-' : pct + '%';
+	}
+	return '<tr><td><b>' + tc.dungeon + '</b></td><td>' + tc.name + '</td>'
+		+ '<td class="num">' + tc.socketable + '%</td><td class="num">' + tc.set + '%</td>'
+		+ '<td class="num">' + share(tc.gem) + '</td><td class="num">' + share(tc.rune) + '</td>'
+		+ '<td class="num">' + share(tc.jewel) + '</td><td class="num">' + share(tc.charm) + '</td></tr>';
 }).join('');
+document.getElementById('tcchamp').textContent = WIKI.treasureBonuses.champion + 'x';
+document.getElementById('tcuniq').textContent = WIKI.treasureBonuses.unique + 'x';
 
 document.getElementById('gridsize').textContent = R.levskiGridColumns + 'x' + R.levskiGridRows;
 document.querySelector('#recipes tbody').innerHTML = R.recipes.map(function (r) {

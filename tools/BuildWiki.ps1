@@ -639,6 +639,42 @@ foreach ($row in [regex]::Matches($runesEffectsInc, '(?s)\{\s*\.idx = (IDI_ORACO
 # `*_RUNE_*` in the constant, with gems as the else - so if the jewel rows HAD been inline, all
 # fifteen would have been filed as gems and the wiki would have reported a 50-gem ladder in a
 # perfectly clean build. They get a collection of their own here for that reason as much as any.
+# Treasure classes (v1.9.13) - the per-zone drop tables. Parsed straight out of the Classes[] array
+# and its dungeon switch, so the wiki's table IS the game's table. The row order in the array is the
+# order the switch maps onto, and the switch is read too rather than assumed, because "row 4 is
+# Hell" is exactly the kind of correspondence that survives a reorder in the source and not on the
+# page.
+$treasureCpp = Read-SourceFile 'oracool/treasure_class.cpp'
+$tcRows = @()
+if ($treasureCpp -match '(?s)constexpr TreasureClass Classes\[\] = \{(.*?)\n\};') {
+    foreach ($m in [regex]::Matches($matches[1], '\{\s*"([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\}')) {
+        $tcRows += [ordered]@{
+            name        = $m.Groups[1].Value
+            socketable  = [int]$m.Groups[2].Value
+            gem         = [int]$m.Groups[3].Value
+            rune        = [int]$m.Groups[4].Value
+            jewel       = [int]$m.Groups[5].Value
+            charm       = [int]$m.Groups[6].Value
+            set         = [int]$m.Groups[7].Value
+        }
+    }
+}
+$treasureClasses = New-Object System.Collections.ArrayList
+if ($treasureCpp -match '(?s)size_t ClassIndexFor\(dungeon_type dungeon\)(.*?)\n\}') {
+    $switchBody = $matches[1]
+    foreach ($m in [regex]::Matches($switchBody, 'case DTYPE_(\w+):\s*\r?\n\s*return (\d+);')) {
+        $index = [int]$m.Groups[2].Value
+        if ($index -ge $tcRows.Count) { continue }
+        $row = [ordered]@{ dungeon = (Get-Culture).TextInfo.ToTitleCase($m.Groups[1].Value.ToLower()) }
+        foreach ($k in $tcRows[$index].Keys) { $row[$k] = $tcRows[$index][$k] }
+        [void]$treasureClasses.Add($row)
+    }
+}
+$treasureBonuses = [ordered]@{
+    champion = [int](Get-Constant $treasureCpp '(?s)lesserAffix != LesserUniqueAffix::None\)\s*\r?\n\s*return (\d+);')
+    unique   = [int](Get-Constant $treasureCpp '(?s)monster\.isUnique\(\)\)\s*\r?\n\s*return (\d+);')
+}
+
 # Monster variants (v1.9.7) and their per-dungeon rosters (v1.9.11). Parsed rather than typed for
 # the usual reason, and one specific one: the rosters are a design statement - the Cathedral gets no
 # elemental variant, town gets none at all - and a typed copy of a design statement is the kind of
@@ -751,13 +787,11 @@ if ($wordsCpp -match '(?s)constexpr RunewordDefinition Runewords\[\] = \{(.*?)\n
 
 # The drop hook's own numbers, read out of items.cpp so tuning them updates the wiki with them.
 $socketRules = [ordered]@{
-    gemDropPercent    = [int](Get-Constant $itemsCpp2 'constexpr int GemDropPercent = (\d+)')
-    charmDropPercent  = [int](Get-Constant $itemsCpp2 'constexpr int CharmDropPercent = (\d+)')
-    runeDropPercent   = [int](Get-Constant $itemsCpp2 'constexpr int RuneDropPercent = (\d+)')
-    # The fourth family (v1.9.9). Added here the day the wiki was audited against source and found
-    # to be describing a three-family socket economy that had been four for three versions.
-    jewelDropPercent  = [int](Get-Constant $itemsCpp2 'constexpr int JewelDropPercent = (\d+)')
-    namedSetPercent   = [int](Get-Constant $itemsCpp2 'constexpr int NamedSetDropPercent = (\d+)')
+    # The per-family drop percentages used to be read here, as four constants in items.cpp. They
+    # stopped existing at v1.9.13: the rate and the family split both come from the floor's treasure
+    # class now, so they live in $treasureClasses and are rendered per zone. Nothing is read here in
+    # their place deliberately - a single number would have to be an average, and an average across
+    # six zones that were deliberately made to differ is a worse answer than no number.
     socketedPercent   = [int](Get-Constant $itemsCpp2 '(?s)void TryAddSocketsToDroppedItem.*?GenerateRnd\(100\) >= (\d+)')
     socketWeights     = @()
     qualityWeights    = @(40, 30, 18, 9, 3)
@@ -922,6 +956,8 @@ $data = [ordered]@{
     runes     = $runes
     jewels    = $jewels
     monsterVariants = $monsterVariants
+    treasureClasses = $treasureClasses
+    treasureBonuses = $treasureBonuses
     gemQualities = $gemQualities
     charms    = $charms
 
