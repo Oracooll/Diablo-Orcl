@@ -26,8 +26,7 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Named set drops | Content | Medium | No | | Three gaps left after the 73 rungs shipped: some set items cannot spawn, sets do not drop as sets, and there is no gold mechanic tied to them. |
 | The Sorcerer's thin tree | Content | Medium | No | New rows need icon-strip art | PARTLY FIXED at v1.9.2, from 1 live row to 4: Enchant now burns on every blow, and Fire and Lightning Mastery each grant their element's damage plus its resistance. Those three were the only rows this engine had a channel for. The other 13 stay inert honestly - TEN are the cold page and there is no cold damage type at all, and Static Field, Lightning Storm and Meteor have no analogue. A fuller tree means NEW rows, and every row needs an icon in her strip, so the rest is blocked on art rather than on code. |
 | The 97 unbuilt class-tree rows | Content | Large | No | | Of 163 tree skills across six classes, 66 are implemented. The rest are listed with a red X and do nothing. |
-| TRN recolour monster variants | Phase 3 | Medium | No | | Recoloured versions of existing monsters wired into per-zone rosters - the cheapest possible bestiary multiplier. |
-| Aura-carrying champion packs | Phase 3 | Medium | No | | Fanaticism and Might packs - D2's scariest idea, and cheap here because the aura and lesser-unique systems both exist. |
+| TRN recolour monster variants | Phase 3 | Medium | No | | Recoloured versions of existing monsters wired into per-zone rosters - the cheapest possible bestiary multiplier. CHEAPER THAN IT LOOKS (checked 2026-08-21): the TRN plumbing already exists - `uniqueMonsterTRN`, `InitMonsterTRN`, and the champion tinting in lesser_uniques.cpp all load and apply a palette translation per monster. What is missing is only the roster half: named variants and the per-zone tables that pick them. |
 | Zone 1, the recolour zone | Phase 4 | Large | No | | Hellfire's own trick: new palette, retinted tileset, new roster, new waypoints, new entrance. Validates the whole pipeline with zero AI-art risk. |
 | Zone 2, first generated tileset | Phase 4 | Large | No | Zone 1 proves the pipeline | The first zone built from user art through the tileset pipeline. |
 | Zone quest chains | Phase 4 | Medium | No | A zone to put them in | Each new zone gets a quest in the D1 style - a voice, a horror, a reward. |
@@ -51,6 +50,19 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
 ## Shipped, so not listed above
+
+**Aura-carrying champion packs** shipped in Phase 3.4 and the row survived until 2026-08-21 - the
+fourth stale row found that week. `oracool/aura_field.h` has the whole thing: `PackAuraFrom` maps an
+affix to what it lends at a distance, `PackAuraOn` answers for one monster, a champion lends to its
+neighbours but never to itself, and a dead one lends nothing. **Relentless** carries Might (a damage
+percentage) and **Fortified** carries Defiance (flat armour); Vampiric, Thunderous and Colossal are
+personal and lend nothing, which is what keeps the six distinct. It is consumed in four places -
+`MonsterAttack`'s damage roll and three armour checks across melee and missiles.
+
+Note the design constraint recorded there, because it kills the obvious next idea: there can be no
+Fanaticism-style SPEED aura. Monster movement is paced by the animation, and animation timing lives
+on the shared `CMonster` rather than the individual, so making one champion faster would make every
+monster of its type faster with it.
 
 The 1.8.7x-1.8.9x line closed **Salvaging and the seven materials** in full, and then some: the seven
 materials with their own stackable items and sprites, the seven buttons on Levski's Roar, a row of
