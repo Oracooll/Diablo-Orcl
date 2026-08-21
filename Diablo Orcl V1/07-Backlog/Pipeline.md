@@ -23,10 +23,10 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Sweep the wiki for typed numbers | Content | Small | No | | LOCATED 2026-08-19, not yet derived. Eleven typed numeric claims survive in the generated pages, and every one spot-checked against source is currently CORRECT - so this is about them being typed, not wrong. The list: affixes.html "143 shipped entries" and "up to 3 prefixes + 3 suffixes"; classes.html "a Sorcerer's 250 Magic against a Barbarian's zero"; sockets.html "climbs 13% a rung", "by 20% ... capped at 60%", "fixed 3%/5% flags", "370 words"; monsters.html "+15 in Nightmare, +30 in Hell", "default 2.0, range 1.1 to 5.0"; ui.html "10 x 7 grid, ten tabs, thirteen equipment slots", "56 x 56 icon cell". Verified against gems.cpp (Hel 20, cap 60), GenRunes.ps1 (1.13 climb), playerdat.cpp (Sorcerer 250, Barbarian 0), runes_effects.inc. The remaining work is routing each through BuildWiki.ps1 so they cannot drift.
 | Point 10 of the socket directive | Directive | ? | ? | Never stated | The nine-point socket list ended with an empty "10." It has stayed blank across four messages. |
 | The 107 remaining uniques | Content | Medium | No | Needs NEW base items, not just wiring | CORRECTED 2026-08-21 by the affix audit. All 253 shipped uniques already have a valid base - the old "needs UITYPE values on existing armour bases" was wrong. The 107 absent ones ride bases this engine does not have at all: shoulder mantles, reliquaries, cloaks, battle cloaks, spears, pikes, war lutes, arcane foci, war quivers, canticles. So the cheap half is not cheap; each needs a base item authored first. |
-| Named set drops | Content | Medium | No | | Three gaps left after the 73 rungs shipped: some set items cannot spawn, sets do not drop as sets, and there is no gold mechanic tied to them. |
+| Sets drop as SETS, not as pieces | Content | Small | No | | The one thing the set line still does not do. TrySpawnNamedSetPiece rolls each piece independently at 3%, so completing a ladder is pure attrition - nothing makes a set's own pieces likelier once you hold one, and no monster or place is the place to farm a particular set. The obvious shape is a bias term on the roll toward sets the player already has pieces of, which needs no new data. |
 | The Sorcerer's thin tree | Content | Medium | No | New rows need icon-strip art | PARTLY FIXED at v1.9.2, from 1 live row to 4: Enchant now burns on every blow, and Fire and Lightning Mastery each grant their element's damage plus its resistance. Those three were the only rows this engine had a channel for. The other 13 stay inert honestly - TEN are the cold page and there is no cold damage type at all, and Static Field, Lightning Storm and Meteor have no analogue. A fuller tree means NEW rows, and every row needs an icon in her strip, so the rest is blocked on art rather than on code. |
 | The 97 unbuilt class-tree rows | Content | Large | No | | Of 163 tree skills across six classes, 66 are implemented. The rest are listed with a red X and do nothing. |
-| TRN recolour monster variants | Phase 3 | Medium | No | | Recoloured versions of existing monsters wired into per-zone rosters - the cheapest possible bestiary multiplier. CHEAPER THAN IT LOOKS (checked 2026-08-21): the TRN plumbing already exists - `uniqueMonsterTRN`, `InitMonsterTRN`, and the champion tinting in lesser_uniques.cpp all load and apply a palette translation per monster. What is missing is only the roster half: named variants and the per-zone tables that pick them. |
+| Per-ZONE variant rosters | Phase 3 | Small | No | | The variants themselves SHIPPED at v1.9.7 - oracool/monster_variants.cpp, four of them (Ashen, Stormtouched, Hollow, Feral), one trait apiece, derived from the monster's own rndItemSeed so nothing was added to the save. What did NOT ship is the roster half this row was originally about: the chance is a flat 15% everywhere, so a Cathedral skeleton and a Hell knight draw from the same four. Per-zone tables would make a variant say something about where you are. |
 | Zone 1, the recolour zone | Phase 4 | Large | No | | Hellfire's own trick: new palette, retinted tileset, new roster, new waypoints, new entrance. Validates the whole pipeline with zero AI-art risk. |
 | Zone 2, first generated tileset | Phase 4 | Large | No | Zone 1 proves the pipeline | The first zone built from user art through the tileset pipeline. |
 | Zone quest chains | Phase 4 | Medium | No | A zone to put them in | Each new zone gets a quest in the D1 style - a voice, a horror, a reward. |
@@ -35,8 +35,6 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Difficulty re-runs that mean something | Phase 5 | Medium | No | | New immunities, new lesser-affix pools and new drop tiers per difficulty, so Nightmare is not just Normal with bigger numbers. |
 | Seasonal or challenge characters | Phase 5 | Medium | New file | | A checkbox at creation and a ladder file. Single-player friendly. |
 | Hirelings | Phase 6 | Large | Yes | | A persistent companion off the golem framework. Equipping them is the expensive half. |
-| Jewels | Phase 6 | Medium | Yes | | A socketable with rolled affixes rather than a fixed effect - the third socket family after gems and runes. |
-| Set bonus system | Phase 6 | Medium | Yes | | Real set bonuses for wearing several pieces. The green text colour is already reserved for it. |
 | Health globes | Balance | Small | No | | DEFERRED 2026-08-19 at the user's request - "skip the health globes for our project for now". Skipped, not dropped; do not offer it again unasked. Monsters drop globes that heal on pickup, shifting part of the healing loop out of the potion menu. |
 | Movement-speed affixes | Balance | Medium | Yes | | RESIZED 2026-08-19, was Small/Save-No. There is no walk-speed item power in the codebase at all - no IPL_FASTERWALK, no speed field on the player. It needs (1) a new `item_effect_type` appended before IPL_INVALID, (2) a SaveItemPower mapping audited against the delivered token, (3) affix table rows with their own level bands, and (4) a movement model: devilutionX walks in animation frames per step, not a scalar, so "faster walk" has to be expressed as a frame count and will interact with the run toggle already shipped. The save flag is Yes because a new power on an item changes what SaveItemPower writes.
 | Skill synergies | Balance | Medium | No | | D2-style: investing in one skill strengthens a related one, so a tree reads as a build rather than a shopping list. |
@@ -50,6 +48,29 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
 ## Shipped, so not listed above
+
+**Jewels** shipped at v1.9.9 - fifteen of them, five families (Fervor, Focus, Aegis, Ruin, Warding)
+across three grades at 60/100/160 percent, dropping at 1% off the socketable hook. The row asked for
+"rolled affixes rather than a fixed effect" and that is deliberately NOT what shipped:
+`Item::_iSocketed` stores a socket's contents as a bare `uint16_t` base index, so per-instance rolls
+would have meant a new per-socket record in the item extension - `OracoolItemFormatVersion` to 9 and
+a migration for every existing hero - to buy variety rather than depth. Fifteen fixed indices buy
+most of that variety for **no save change at all**. If rolled jewels are still wanted they are a new
+row, not this one, and they pay the format cost once and knowingly.
+
+**Set bonuses** shipped with the 73 rungs across 15 sets: `ApplySetBonusesToTotals` feeds the same
+`ItemBonusTotals` every other provider does, `ActiveSetBonus` answers how far up a ladder you are,
+and `ForEachEarnedSetBonus` lets the description panel name each rung in the reserved green.
+
+**Named set drops** closed all three of its gaps across v1.8.99-1.9.5: every one of the 94 pieces can
+now spawn (the last two were re-slotted at v1.9.1 rather than given new equipment slots),
+`TrySpawnNamedSetPiece` drops them at 3%, and the gold mechanic landed as a real item power -
+`IPL_GOLDFIND` with `Item::_iPLGoldFind` behind it, which is what finally lets the Rat King's Court
+pay 40/50/60% gold find up its ladder. What remains is narrower and has a row of its own: sets drop
+as loose pieces, never as sets.
+
+**Recoloured monster variants** shipped at v1.9.7; only the per-zone roster half is still open, and
+it has a row above.
 
 **Aura-carrying champion packs** shipped in Phase 3.4 and the row survived until 2026-08-21 - the
 fourth stale row found that week. `oracool/aura_field.h` has the whole thing: `PackAuraFrom` maps an
