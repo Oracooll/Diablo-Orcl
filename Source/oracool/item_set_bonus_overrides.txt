@@ -80,12 +80,16 @@ SET_STARLESS_HOUR         | 4  | all_spell_levels:+1, magic:+12
 SET_STARLESS_HOUR         | 5  | all_spell_levels:+1, max_mana:+50, resist_all:+15, mana_steal:5
 
 # --- The Rat King's Tithe (4 pieces) - greed, scavenging ------------------------------------------
-# The set's identity is gold, and gold_from_monsters has no IPL_ to ride (Player::_pGoldFind exists
-# and charms feed it, but nothing writes it from an item). Wiring one is a small separate change and
-# is noted in the continuation plan; until then this ladder is about taking, not about coin.
-SET_RAT_KINGS_TITHE       | 2  | dexterity:+8, chance_to_hit:+10
-SET_RAT_KINGS_TITHE       | 3  | attack_speed:quick, dexterity:+8
-SET_RAT_KINGS_TITHE       | 4  | life_steal:5, enhanced_damage:+30, thorns:true, life:+25
+# RE-AUTHORED 2026-08-21, and this is the one the whole IPL_GOLDFIND change was for. The old note
+# here read: "the set's identity is gold, and gold_from_monsters has no IPL_ to ride... until then
+# this ladder is about taking, not about coin." The channel exists now, so the tithe is a tithe.
+#
+# Scaled against the Charm of Greed, which grants 30% from one inventory slot. A four-piece set is a
+# far larger commitment than one charm, so the ladder ends well above it - 150% at full set, and
+# still stacking with the charm for a deliberate greed build.
+SET_RAT_KINGS_TITHE       | 2  | dexterity:+8, gold_from_monsters:+40
+SET_RAT_KINGS_TITHE       | 3  | attack_speed:quick, gold_from_monsters:+50
+SET_RAT_KINGS_TITHE       | 4  | life_steal:5, enhanced_damage:+30, gold_from_monsters:+60
 
 # --- Black Orchard Vesture (6 pieces) - rot, blight, harvest --------------------------------------
 SET_BLACK_ORCHARD         | 3  | thorns:true, vitality:+8

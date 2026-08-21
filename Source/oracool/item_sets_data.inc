@@ -5,7 +5,7 @@
 // Keyword meanings come from oracool/item_set_stats.cpp; this file only carries the values.
 //
 // 15 sets, 94 items, 73 bonus tiers - every one of which grants something.
-// 520 stat lines compiled to a power; 39 were inert and are deliberately absent.
+// 523 stat lines compiled to a power; 35 were inert and are deliberately absent.
 
 // clang-format off
 const SetItemDefinition ItemSetItems[] = {
@@ -38,10 +38,10 @@ const SetItemDefinition ItemSetItems[] = {
 	{ "SET_STARLESS_HANDS", N_("Hands of the Dark Between"), "gloves", "dark_between_gloves", 25, 0, 25, { 2, 2 }, 0, 0, 4, 6, ICURS_ORACOOL_SET_STARLESS_HANDS, { { IPL_MAG, 5, 5 }, { IPL_MANA, 10, 10 }, { IPL_LIGHTRES, 10, 10 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ "SET_STARLESS_SASH", N_("Sash of the Thirteenth Chime"), "belt", "thirteenth_chime_sash", 26, 0, 32, { 2, 1 }, 0, 0, 5, 8, ICURS_ORACOOL_SET_STARLESS_SASH, { { IPL_MAG, 5, 5 }, { IPL_MANA, 15, 15 }, { IPL_FASTRECOVER, 1, 0 }, { IPL_LIGHT, -1, -1 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ "SET_STARLESS_SIGN", N_("Sign of the Absent Star"), "amulet", "absent_star_astrolabe", 30, 0, 255, { 1, 1 }, 0, 0, 0, 0, ICURS_ORACOOL_SET_STARLESS_SIGN, { { IPL_MAG, 8, 8 }, { IPL_MANA, 25, 25 }, { IPL_MANA, 10, 10 }, { IPL_FIRERES, 10, 10 }, { IPL_LIGHT, -1, -1 }, { IPL_INVALID, 0, 0 } } },
-	{ "SET_RAT_CROWN", N_("Crown of the Gutter Court"), "helm", "gutter_court_coin_crown", 22, 0, 28, { 2, 2 }, 0, 0, 7, 10, ICURS_ORACOOL_SET_RAT_CROWN, { { IPL_DEX, 6, 6 }, { IPL_LIFE, 12, 12 }, { IPL_MAGICRES, 10, 10 }, { IPL_LIGHT, -1, -1 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
-	{ "SET_RAT_LEDGER", N_("Ledger of Gnawed Debts"), "off_hand", "gnawed_debt_ledger", 28, 0, 30, { 2, 2 }, 0, 0, 6, 9, ICURS_ORACOOL_SET_RAT_LEDGER, { { IPL_MAG, 8, 8 }, { IPL_MANA, 15, 15 }, { IPL_MAGICRES, 10, 10 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
-	{ "SET_RAT_GIRDLE", N_("Girdle of Hollow Purses"), "belt", "hollow_purse_girdle", 23, 25, 30, { 2, 1 }, 0, 0, 4, 7, ICURS_ORACOOL_SET_RAT_GIRDLE, { { IPL_VIT, 6, 6 }, { IPL_LIFE, 20, 20 }, { IPL_FASTRECOVER, 1, 0 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
-	{ "SET_RAT_LAST_COPPER", N_("The King's Last Copper"), "ring", "gnawed_copper_signet", 25, 0, 255, { 1, 1 }, 0, 0, 0, 0, ICURS_ORACOOL_SET_RAT_LAST_COPPER, { { IPL_MAG, 5, 5 }, { IPL_DEX, 5, 5 }, { IPL_ALLRES, 8, 8 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ "SET_RAT_CROWN", N_("Crown of the Gutter Court"), "helm", "gutter_court_coin_crown", 22, 0, 28, { 2, 2 }, 0, 0, 7, 10, ICURS_ORACOOL_SET_RAT_CROWN, { { IPL_DEX, 6, 6 }, { IPL_LIFE, 12, 12 }, { IPL_MAGICRES, 10, 10 }, { IPL_GOLDFIND, 15, 15 }, { IPL_LIGHT, -1, -1 }, { IPL_INVALID, 0, 0 } } },
+	{ "SET_RAT_LEDGER", N_("Ledger of Gnawed Debts"), "off_hand", "gnawed_debt_ledger", 28, 0, 30, { 2, 2 }, 0, 0, 6, 9, ICURS_ORACOOL_SET_RAT_LEDGER, { { IPL_MAG, 8, 8 }, { IPL_MANA, 15, 15 }, { IPL_MAGICRES, 10, 10 }, { IPL_GOLDFIND, 20, 20 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ "SET_RAT_GIRDLE", N_("Girdle of Hollow Purses"), "belt", "hollow_purse_girdle", 23, 25, 30, { 2, 1 }, 0, 0, 4, 7, ICURS_ORACOOL_SET_RAT_GIRDLE, { { IPL_VIT, 6, 6 }, { IPL_LIFE, 20, 20 }, { IPL_FASTRECOVER, 1, 0 }, { IPL_GOLDFIND, 15, 15 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ "SET_RAT_LAST_COPPER", N_("The King's Last Copper"), "ring", "gnawed_copper_signet", 25, 0, 255, { 1, 1 }, 0, 0, 0, 0, ICURS_ORACOOL_SET_RAT_LAST_COPPER, { { IPL_MAG, 5, 5 }, { IPL_DEX, 5, 5 }, { IPL_ALLRES, 8, 8 }, { IPL_GOLDFIND, 15, 15 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ "SET_ORCHARD_VEIL", N_("Veil of the Canker Blossom"), "helm", "canker_blossom_veil", 24, 0, 26, { 2, 2 }, 0, 0, 7, 10, ICURS_ORACOOL_SET_ORCHARD_VEIL, { { IPL_VIT, 6, 6 }, { IPL_LIFE, 15, 15 }, { IPL_MAGICRES, 10, 10 }, { IPL_LIGHT, -1, -1 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ "SET_ORCHARD_BARK", N_("Bark of the Widow Tree"), "torso", "widow_tree_bark_vesture", 27, 35, 40, { 2, 3 }, 0, 0, 24, 32, ICURS_ORACOOL_SET_ORCHARD_BARK, { { IPL_ACP, 15, 15 }, { IPL_VIT, 8, 8 }, { IPL_LIFE, 20, 20 }, { IPL_MAGICRES, 15, 15 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ "SET_ORCHARD_HANDS", N_("Hands of the Grafting Knife"), "gloves", "grafting_knife_gauntlets", 25, 0, 28, { 2, 2 }, 0, 0, 5, 8, ICURS_ORACOOL_SET_ORCHARD_HANDS, { { IPL_TOHIT, 8, 8 }, { IPL_FASTATTACK, 1, 0 }, { IPL_DAMMOD, 2, 2 }, { IPL_MAGICRES, 8, 8 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
@@ -130,9 +130,9 @@ const SetBonusDefinition ItemSetBonuses[] = {
 	{ 3, N_("Economy of Night"), { { IPL_MAG, 10, 10 }, { IPL_MANA, 30, 30 }, { IPL_LIGHT, -1, -1 }, { IPL_INVALID, 0, 0 } } },
 	{ 4, N_("Power Beyond Sight"), { { IPL_SPLLVLADD, 1, 1 }, { IPL_MAG, 12, 12 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ 5, N_("The Starless Hour"), { { IPL_SPLLVLADD, 1, 1 }, { IPL_MANA, 50, 50 }, { IPL_ALLRES, 15, 15 }, { IPL_STEALMANA, 5, 5 } } },
-	{ 2, N_("The King's Share"), { { IPL_DEX, 8, 8 }, { IPL_TOHIT, 10, 10 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
-	{ 3, N_("Scavenger's Ledger"), { { IPL_FASTATTACK, 1, 0 }, { IPL_DEX, 8, 8 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
-	{ 4, N_("The Rat King's Tithe"), { { IPL_STEALLIFE, 5, 5 }, { IPL_DAMP, 30, 30 }, { IPL_THORNS, 1, 1 }, { IPL_LIFE, 25, 25 } } },
+	{ 2, N_("The King's Share"), { { IPL_DEX, 8, 8 }, { IPL_GOLDFIND, 40, 40 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ 3, N_("Scavenger's Ledger"), { { IPL_FASTATTACK, 1, 0 }, { IPL_GOLDFIND, 50, 50 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
+	{ 4, N_("The Rat King's Tithe"), { { IPL_STEALLIFE, 5, 5 }, { IPL_DAMP, 30, 30 }, { IPL_GOLDFIND, 60, 60 }, { IPL_INVALID, 0, 0 } } },
 	{ 2, N_("Rootstock of the Dead"), { { IPL_VIT, 8, 8 }, { IPL_MAGICRES, 10, 10 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ 3, N_("First Canker"), { { IPL_THORNS, 1, 1 }, { IPL_VIT, 8, 8 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ 4, N_("Deepening Rot"), { { IPL_DAMP, 20, 20 }, { IPL_GETHIT, 2, 2 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },

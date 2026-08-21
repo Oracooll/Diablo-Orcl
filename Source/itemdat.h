@@ -1133,6 +1133,18 @@ enum item_effect_type : int8_t {
 	IPL_ACUNDEAD,
 	IPL_MANATOLIFE,
 	IPL_LIFETOMANA,
+	/**
+	 * @brief Oracool: percentage bonus to gold dropped by monsters.
+	 *
+	 * Appended AFTER IPL_LIFETOMANA rather than before IPL_INVALID, which is explicitly -1 and so
+	 * is not the enum's last value. That keeps every existing power's number exactly where it was -
+	 * they are persisted inside items - and it is why this could be added without a renumbering.
+	 *
+	 * Note the two bounds that had to move with it: loadsave.cpp's IsOracoolAffixTypeValid, which
+	 * capped at IPL_LIFETOMANA and would have loaded this one as invalid, and the item format
+	 * version for the new field it writes.
+	 */
+	IPL_GOLDFIND,
 	IPL_INVALID = -1,
 };
 

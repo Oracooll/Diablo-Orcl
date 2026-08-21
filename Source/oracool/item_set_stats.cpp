@@ -78,7 +78,10 @@ const SetStatMapping SetStatMappings[SetStatMappingCount] = {
 	{ "fire_arrows",                              Power,  IPL_FIRE_ARROWS, nullptr },
 	{ "fire_damage",                              Power,  IPL_FIREDAM,     nullptr },
 	{ "flow_required",                            Inert,  IPL_INVALID,     "needs the Steps of the Empty Hand flow counter" },
-	{ "gold_from_monsters",                       Inert,  IPL_INVALID,     "Player::_pGoldFind exists (charms feed it) but no IPL_ power writes it; wiring one is a small, separate change" },
+	// Was Inert on "no IPL_ power writes it; wiring one is a small, separate change". Done
+	// 2026-08-21 - IPL_GOLDFIND and Item::_iPLGoldFind - which is what finally lets the Rat King's
+	// Tithe be a set about gold rather than a set that says it is.
+	{ "gold_from_monsters",                       Power,  IPL_GOLDFIND,    nullptr },
 	{ "half_trap_damage",                         Power,  IPL_ABSHALFTRAP, nullptr },
 	{ "hit_recovery",                             Approx, IPL_FASTRECOVER, "the engine has three discrete recovery tiers, not a percentage; the value picks the nearest tier" },
 	{ "hostile_damage_taken_per_greed_rank",      Inert,  IPL_INVALID,     "needs the Rat King's greed rank" },

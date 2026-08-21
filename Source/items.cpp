@@ -1113,6 +1113,11 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		item._iPLHP -= portion;
 		item._iPLMana += portion;
 	} break;
+	case IPL_GOLDFIND:
+		// Additive percent, read by the drop tail exactly as the charms' figure is. See
+		// Item::_iPLGoldFind for why this channel had to be opened at all.
+		item._iPLGoldFind += r;
+		break;
 	default:
 		break;
 	}
@@ -5165,6 +5170,10 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		return fmt::format(fmt::runtime(_("{:+d} damage from enemies")), -affix.param1);
 	case IPL_GETHIT_CURSE:
 		return fmt::format(fmt::runtime(_("{:+d} damage from enemies")), affix.param1);
+	case IPL_GOLDFIND:
+		// Worded to match the Charm of Greed's line, since the two stack and a player comparing them
+		// should not have to work out whether they mean the same thing.
+		return fmt::format(fmt::runtime(_("{:+d}% gold from monsters")), affix.param1);
 	case IPL_LIFE:
 		return fmt::format(fmt::runtime(_("Hit Points: {:+d}")), affix.param1);
 	case IPL_LIFE_CURSE:
@@ -5212,6 +5221,10 @@ std::string PrintSetBonusPower(const ItemPower &power)
 		return fmt::format(fmt::runtime(_("{:+d} mana")), power.param1);
 	case IPL_ALLRES:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% all resist")), power.param1);
+	case IPL_GOLDFIND:
+		// Worded to match the Charm of Greed's own line, since the two stack and a player comparing
+		// them should not have to work out whether they mean the same thing.
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% gold from monsters")), power.param1);
 	case IPL_FIRERES:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% fire resist")), power.param1);
 	case IPL_LIGHTRES:

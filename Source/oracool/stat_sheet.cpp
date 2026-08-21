@@ -55,6 +55,9 @@ void ItemBonusTotals::AddItem(const Item &item)
 	hitPoints += item._iPLHP;
 	mana += item._iPLMana;
 	spellLevelAdd += item._iSplLvlAdd;
+	// The item half of gold find. The charm half already came through ApplyCharmToTotals; this is
+	// what lets a worn item, a set rung or a unique contribute the same way.
+	goldFind += item._iPLGoldFind;
 	enhancedAccuracy += item._iPLEnAc;
 	fireMin += item._iFMinDam;
 	fireMax += item._iFMaxDam;

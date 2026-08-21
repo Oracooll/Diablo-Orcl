@@ -270,11 +270,15 @@ struct LevelConversionData {
 // Version 7 (Sockets v2) widened the socket block from 3 slots to 6, because socket allowance is
 // now an item's inventory footprint and the largest footprint is 2x3. The record grew 6 bytes, so
 // this is a real break rather than a tail extension - an older save is rejected here.
-constexpr uint8_t OracoolItemFormatVersion = 7;
+// Version 8 appends _iPLGoldFind, so an item can carry the gold bonus that ItemBonusTotals,
+// Player::_pGoldFind and the drop tail were all already able to consume. A tail extension rather
+// than a widening, but the version still moves: the record grew, and a v7 reader would run off the
+// end of every item.
+constexpr uint8_t OracoolItemFormatVersion = 8;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
-	return type == IPL_INVALID || (type >= 0 && type <= IPL_LIFETOMANA);
+	return type == IPL_INVALID || (type >= 0 && type <= IPL_GOLDFIND);
 }
 
 void LoadItemData(LoadHelper &file, Item &item)
@@ -422,6 +426,8 @@ void LoadItemData(LoadHelper &file, Item &item)
 	// Version 6: the base tier. 0 is Normal, which is also what everything made before it existed was.
 	item._iOracoolBaseTier = std::min<uint8_t>(file.NextLE<uint8_t>(),
 	    static_cast<uint8_t>(oracool::BaseItemTier::LAST));
+	// Version 8: the gold-find bonus this item carries.
+	item._iPLGoldFind = file.NextLE<int32_t>();
 }
 
 void LoadAndValidateItemData(LoadHelper &file, Item &item)
@@ -1288,6 +1294,8 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint8_t>(item._iOracoolItemLevel);
 	// Version 6: the base tier.
 	file.WriteLE<uint8_t>(item._iOracoolBaseTier);
+	// Version 8: the gold-find bonus.
+	file.WriteLE<int32_t>(item._iPLGoldFind);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)

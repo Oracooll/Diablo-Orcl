@@ -46,7 +46,10 @@ const UniqueAffixMapping UniqueAffixMappings[UniqueAffixMappingCount] = {
 	{ "flat_armor",                            Approx, IPL_ACP,         "declared IPL_SETAC, which OVERWRITES the base's armour; read as a percentage bonus instead, the only additive armour channel there is" },
 	{ "flat_damage",                           Power,  IPL_DAMMOD,      nullptr },
 	{ "fury_gain_percent",                     Inert,  IPL_INVALID,     "no fury resource; the Barbarian's tree is investment-based, not resource-based" },
-	{ "gold_find_percent",                     Inert,  IPL_INVALID,     "ItemBonusTotals::goldFind and Player::_pGoldFind both exist and charms feed them, but no IPL_ writes it from an item - wiring one is a small, separate change and would light this up plus the Rat King's Tithe set" },
+	// Was Inert with the note "wiring one is a small, separate change and would light this up plus
+	// the Rat King's Tithe set". That change is done (2026-08-21): IPL_GOLDFIND, Item::_iPLGoldFind,
+	// and item format version 8.
+	{ "gold_find_percent",                     Power,  IPL_GOLDFIND,    nullptr },
 	{ "healing_done_percent",                  Inert,  IPL_INVALID,     "potion and spell healing are fixed amounts; no wearer multiplier exists" },
 	{ "hit_recovery",                          Approx, IPL_FASTRECOVER, "a discrete tier 1..3, not a percentage; the package's 1..3 is already a tier" },
 	{ "life",                                  Power,  IPL_LIFE,        nullptr },

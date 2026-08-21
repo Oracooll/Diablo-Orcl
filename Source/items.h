@@ -646,6 +646,21 @@ struct Item {
 	 */
 	uint8_t _iOracoolBaseTier = 0;
 
+	/**
+	 * @brief Percentage bonus to gold dropped by monsters, from this item. Persisted at
+	 * OracoolItemFormatVersion 8.
+	 *
+	 * The last missing link in a chain that was otherwise complete: ItemBonusTotals::goldFind
+	 * existed, charms fed it, CalcPlrItemVals copied it to Player::_pGoldFind, and the drop tail
+	 * consumed it - but no ITEM could contribute, because there was no field for SaveItemPower to
+	 * write into. So a set whose whole identity is gold (the Rat King's Tithe) could not express it,
+	 * and both delivered packages' gold tokens sat marked Inert.
+	 *
+	 * A plain int rather than a percentage of anything: the drop tail reads it as a percentage
+	 * directly, exactly as the charms' figure is read.
+	 */
+	int _iPLGoldFind = 0;
+
 	OracoolItemTier _iOracoolTier = OracoolItemTier::None;
 	bool _iOracoolPerfectRoll = false;
 	uint8_t _iOracoolPrefixCount = 0;
