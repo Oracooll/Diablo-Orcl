@@ -148,31 +148,29 @@ SET_LOST_CARTOGRAPHER     | 3  | half_trap_damage:true, light_radius:+2
 SET_LOST_CARTOGRAPHER     | 4  | all_attributes:+10, hit_recovery:fast, chance_to_hit:+15, light_radius:+2
 
 # --- Leoric's Fallen Court (13 pieces) - the court, petitions, judgment ---------------------------
-# RE-BANDED 2026-08-21 to 6/8/9/10/11, from 6/8/10/12/13.
+# BRIEFLY re-banded to 6/8/9/10/11 on 2026-08-21, then restored to 6/8/10/12/13 the same day once
+# the relic and cloak were re-slotted onto bracers and legs (BaseItemForSetSlot). All thirteen
+# pieces are buildable and wearable again, so the ladder that was authored for thirteen is honest
+# for thirteen.
 #
-# The old note here said five items had no droppable base and rungs 10, 12 and 13 were "unreachable
-# in play until that is built". Rings and amulets now resolve (BaseItemForSetSlot, same day), which
-# fixed three of the five - but the note's premise was that the ladder should stay authored for
-# thirteen and wait. That was wrong, and the reachability audit is what showed why: waiting means
-# SHIPPING a set whose last two rungs cannot be earned, with nothing in the game saying so. A player
-# assembles everything that exists, wears eleven pieces, and the ladder simply stops paying.
+# The reason it was re-banded at all is worth keeping, because the mistake is easy to repeat:
 #
-# ELEVEN is the true maximum: two pieces sit in slots this fork has never built (relic, cloak), and
-# the other eleven occupy eleven DISTINCT equipment slots - both rings included, since there are two
-# ring slots - so all eleven are wearable at once. Verified rather than assumed.
+#   The old note said five items had no droppable base and that the ladder should stay authored
+#   for thirteen and WAIT for them. That premise was wrong: waiting means shipping a set whose
+#   last rungs cannot be earned, with nothing in the game saying so. A player assembles everything
+#   that exists and the ladder simply stops paying.
 #
-# Rungs 6 and 8 are untouched. The third moves 10 -> 9 to make room, because five rungs will not fit
-# in 6/8/10/11 and losing a rung would cost more than moving one. The capstone lands on 11, which is
-# now "everything you can actually wear" rather than a number the game cannot reach.
+#   Rings and amulets were fixed first (ItemMiscIdIdx), which took the set from 8 buildable to 11.
+#   The relic and cloak were then re-slotted onto BRACERS and LEGS - the only two equipment
+#   locations this set leaves free. Amulet and shoulders would have looked like the natural homes
+#   and would have changed nothing: the set already has a piece in each, and each holds one item,
+#   so the ceiling would have stayed at eleven with two permanently unwearable duplicates.
 #
-# The deliberate life_steal 3 -> 5 upgrade survives the move: rung 9 grants 3, rung 11 supersedes it
-# with 5. See the two-rules note at the top of this file for why that pair is authored, not doubled.
-#
-# If the relic and cloak slots are ever built, this ladder wants re-banding back to thirteen - and
-# that is a better trigger than a note, because the audit test will not fail on it.
+#   Thirteen is now genuinely wearable: thirteen pieces across thirteen distinct locations, both
+#   rings included. NoSetPromisesARungItCannotPay is the guard that keeps it honest.
 SET_LEORICS_FALLEN_COURT  | 6  | all_attributes:+8, max_life:+30
 SET_LEORICS_FALLEN_COURT  | 8  | enhanced_damage:+30, chance_to_hit:+20, damage_taken_flat:-3
-SET_LEORICS_FALLEN_COURT  | 10>9  | armor_class_flat:+40, resist_all:+15, life_steal:3
-SET_LEORICS_FALLEN_COURT  | 12>10 | all_attributes:+12, all_spell_levels:+1, max_mana:+40
+SET_LEORICS_FALLEN_COURT  | 10 | armor_class_flat:+40, resist_all:+15, life_steal:3
+SET_LEORICS_FALLEN_COURT  | 12 | all_attributes:+12, all_spell_levels:+1, max_mana:+40
 # Eleven pieces - every one that exists. The largest reward in the game, and it should feel like it.
-SET_LEORICS_FALLEN_COURT  | 13>11 | all_attributes:+20, enhanced_damage:+50, attack_speed:fast, life_steal:5
+SET_LEORICS_FALLEN_COURT  | 13 | all_attributes:+20, enhanced_damage:+50, attack_speed:fast, life_steal:5

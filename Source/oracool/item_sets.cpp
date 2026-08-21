@@ -117,8 +117,23 @@ int BaseItemForSetSlot(string_view slot)
 	// That unlocks 19 of the 21 unspawnable pieces - 11 amulets and 8 rings.
 	if (slot == "amulet") return ItemMiscIdIdx(IMISC_AMULET);
 	if (slot == "ring") return ItemMiscIdIdx(IMISC_RING);
-	// RELIC and CLOAK are slots this fork has not built at all - two items, one each. They stay -1,
-	// which says so rather than resolving to something close.
+	// RELIC and CLOAK are re-slotted onto locations that already exist (user decision, 2026-08-21),
+	// rather than the fork growing two new equipment slots for two items.
+	//
+	// The obvious mapping - relic to amulet, cloak to shoulders - does NOT work, and the reason is
+	// worth recording because it is invisible from the slot names. Both items belong to Leoric's
+	// Fallen Court, which ALREADY has an amulet and a shoulders piece, and each of those locations
+	// holds one item. Re-slotting there would leave the set still capped at eleven worn pieces: the
+	// two extra pieces would be buildable, findable, and permanently unwearable together with the
+	// ones they duplicate.
+	//
+	// BRACERS and LEGS are the only two equipment locations that set leaves free, so they are the
+	// only two that actually raise its ceiling. That is the whole reason for this pairing, and it is
+	// why "reliquary on the forearm" and "shroud over the legs" are a fit chosen by the equipment
+	// grid rather than by the fiction. If either slot is ever wanted by a future set piece, this
+	// mapping is what has to move.
+	if (slot == "relic") return IDI_ORACOOL_BRACERS;
+	if (slot == "cloak") return IDI_ORACOOL_LEGS;
 	return -1;
 }
 

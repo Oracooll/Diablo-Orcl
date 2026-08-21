@@ -2871,15 +2871,17 @@ TEST(OracoolItemSets, EveryBonusRungGrantsSomething)
 /**
  * @brief Which set pieces can be BUILT, and therefore dropped.
  *
- * Before 2026-08-21 this was 73 of 94: amulets and rings had no resolvable base because the vanilla
- * rows are anonymous and naming them would have meant inserting into _item_indexes, which is
- * positional save format. ItemMiscIdIdx answers the same question without touching the enum.
+ * Was 73 of 94 on the morning of 2026-08-21. Amulets and rings had no resolvable base because the
+ * vanilla rows are anonymous and naming them would have meant inserting into _item_indexes, which is
+ * positional save format - ItemMiscIdIdx answers the same question without touching the enum. The
+ * last two, relic and cloak, were then re-slotted onto bracers and legs rather than growing the
+ * paperdoll for two items.
  *
  * Pinned as an exact count rather than "most of them", because the failure this guards is silent:
  * an unspawnable piece is simply never rolled, so a set quietly becomes uncompletable and nothing
  * says so.
  */
-TEST(OracoolItemSets, EveryPieceButRelicAndCloakHasASpawnableBase)
+TEST(OracoolItemSets, EverySetPieceHasASpawnableBase)
 {
 	int spawnable = 0;
 	int unspawnable = 0;
@@ -2894,15 +2896,14 @@ TEST(OracoolItemSets, EveryPieceButRelicAndCloakHasASpawnableBase)
 				EXPECT_LE(base, IDI_LAST) << def.name << " resolved past the item table";
 			} else {
 				unspawnable++;
-				// Only the two slots this fork has genuinely not built may fail.
-				const std::string slot = def.slot;
-				EXPECT_TRUE(slot == "relic" || slot == "cloak")
-				    << def.name << " has no base, and its slot '" << slot << "' is not one of the two known gaps";
+				// No slot may fail any more. Relic and cloak were the last two, and they now
+				// resolve onto bracers and legs.
+				ADD_FAILURE() << def.name << " has no base for slot '" << def.slot << "'";
 			}
 		}
 	}
-	EXPECT_EQ(spawnable, 92);
-	EXPECT_EQ(unspawnable, 2) << "the relic and the cloak are the only pieces without a base";
+	EXPECT_EQ(spawnable, 94) << "every set piece should resolve to a base";
+	EXPECT_EQ(unspawnable, 0);
 }
 
 /**
@@ -2920,15 +2921,26 @@ TEST(OracoolItemSets, EveryPieceButRelicAndCloakHasASpawnableBase)
 TEST(OracoolItemSets, NoSetPromisesARungItCannotPay)
 {
 	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
-		std::map<std::string, int> buildableBySlot;
+		// Grouped by the RESOLVED equip location, not by the design's slot word. Those two stopped
+		// agreeing the moment relic and cloak were re-slotted onto bracers and legs (2026-08-21) -
+		// and grouping by the word would have hidden exactly the trap that re-slotting had to avoid:
+		// two pieces named for different slots that land in the same one and cannot be worn together.
+		std::map<int, int> buildableByLoc;
 		for (int i = 0; i < set.itemCount; i++) {
 			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
-			if (oracool::BaseItemForSetSlot(def.slot) >= 0)
-				buildableBySlot[def.slot]++;
+			const int base = oracool::BaseItemForSetSlot(def.slot);
+			if (base >= 0)
+				buildableByLoc[static_cast<int>(AllItemsList[base].iLoc)]++;
 		}
 		int wearable = 0;
-		for (const auto &[slot, count] : buildableBySlot) {
-			const int capacity = slot == "ring" ? 2 : 1;
+		for (const auto &[loc, count] : buildableByLoc) {
+			// TWO locations hold two items: rings, and hands. A set's main_hand and off_hand
+			// pieces both resolve to ILOC_ONEHAND - a shield is a one-hand item - so counting that
+			// as one slot understated four sets by exactly one piece and made this test fail on
+			// data that was correct. Hard-coded rather than derived so a third such location fails
+			// here and gets considered, instead of being quietly over-counted.
+			const int loc2 = static_cast<int>(ILOC_ONEHAND);
+			const int capacity = (loc == static_cast<int>(ILOC_RING) || loc == loc2) ? 2 : 1;
 			wearable += std::min(count, capacity);
 		}
 
