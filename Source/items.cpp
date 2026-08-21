@@ -1629,7 +1629,7 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		if (IsOracoolItemIdx(i))
 			continue;
 		// Phase 1: gems, charms and runes obey the same pool-is-save-format rule; own hooks drop them.
-		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i))
+		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i))
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
@@ -4624,8 +4624,13 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 	constexpr int GemDropPercent = 3;
 	constexpr int CharmDropPercent = 1;
 	constexpr int RuneDropPercent = 2;
+	// The jewels, joining the same single draw rather than adding a second roll - one draw covers
+	// the whole socket economy, so the four families' rates are read together and cannot drift into
+	// a combined rate nobody intended. Rarest of the four: a jewel is a permanent, unconditional
+	// bonus in any host, with none of the gem ladder's "you will want a better one later".
+	constexpr int JewelDropPercent = 1;
 	const int roll = GenerateRnd(100);
-	if (roll >= GemDropPercent + CharmDropPercent + RuneDropPercent)
+	if (roll >= GemDropPercent + CharmDropPercent + RuneDropPercent + JewelDropPercent)
 		return;
 
 	const int mlvl = ItemLevelOfMonster(monster);
@@ -4677,11 +4682,19 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
 					candidates[candidateCount++] = static_cast<_item_indexes>(i);
 			}
-		} else {
+		} else if (roll < GemDropPercent + CharmDropPercent + RuneDropPercent) {
 			for (size_t rung = 0; rung < oracool::RuneLadderSize(); rung++) {
 				const uint16_t rune = oracool::RuneAtLadderPosition(rung);
 				if (oracool::BandedQlvl(AllItemsList[rune].iMinMLvl) <= mlvl)
 					candidates[candidateCount++] = static_cast<_item_indexes>(rune);
+			}
+		} else {
+			// The jewels are one contiguous island, so a plain range walk is enough - no ladder and
+			// no two-island filter. The qlvl gate does the same work it does for every family here:
+			// Flawed jewels from early on, Radiant ones only once the floor has earned them.
+			for (int i = IDI_ORACOOL_JEWEL_FERVOR_FLAWED; i <= IDI_ORACOOL_JEWEL_WARDING_RADIANT; i++) {
+				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
+					candidates[candidateCount++] = static_cast<_item_indexes>(i);
 			}
 		}
 		if (candidateCount == 0 || ActiveItemCount >= MAXITEMS)

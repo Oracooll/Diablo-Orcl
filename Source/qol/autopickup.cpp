@@ -61,6 +61,11 @@ bool DoPickup(Item item)
 		return *sgOptions.Oracool.autoRunePickup && AutoPlaceItemInInventory(*MyPlayer, item, false);
 	if (IsOracoolGemIdx(item.IDidx))
 		return *sgOptions.Oracool.autoGemPickup && AutoPlaceItemInInventory(*MyPlayer, item, false);
+	// Jewels ride the gem toggle rather than getting a fourth option of their own. They are the
+	// third socket family, and a player who wants gems picked up off the floor wants jewels picked
+	// up too; a separate switch would be one more thing to find before the feature appears to work.
+	if (IsOracoolJewelIdx(item.IDidx))
+		return *sgOptions.Oracool.autoGemPickup && AutoPlaceItemInInventory(*MyPlayer, item, false);
 
 	if (item._itype == ItemType::Misc
 	    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || AutoPlaceItemInBelt(*MyPlayer, item, false))) {

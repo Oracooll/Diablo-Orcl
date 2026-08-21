@@ -73,7 +73,8 @@ bool IsSalvageable(const Item &item)
 		return false;
 	if (item._iClass == ICLASS_QUEST)
 		return false;
-	if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx) || IsOracoolSalvageIdx(item.IDidx))
+	if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx) || IsOracoolSalvageIdx(item.IDidx)
+	    || IsOracoolJewelIdx(item.IDidx))
 		return false;
 	// JEWELLERY, tested before the ICLASS_MISC rejection below because it IS ICLASS_MISC (user
 	// report, 2026-08-20: "check why salvaging skips jewelry").

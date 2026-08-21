@@ -1,0 +1,15 @@
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_fervor_flawed.png,0,0,28,28,28,28,jewel_fervor_flawed,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_focus_flawed.png,0,0,28,28,28,28,jewel_focus_flawed,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_aegis_flawed.png,0,0,28,28,28,28,jewel_aegis_flawed,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_ruin_flawed.png,0,0,28,28,28,28,jewel_ruin_flawed,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_warding_flawed.png,0,0,28,28,28,28,jewel_warding_flawed,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_fervor_plain.png,0,0,28,28,28,28,jewel_fervor_plain,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_focus_plain.png,0,0,28,28,28,28,jewel_focus_plain,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_aegis_plain.png,0,0,28,28,28,28,jewel_aegis_plain,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_ruin_plain.png,0,0,28,28,28,28,jewel_ruin_plain,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_warding_plain.png,0,0,28,28,28,28,jewel_warding_plain,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_fervor_radiant.png,0,0,28,28,28,28,jewel_fervor_radiant,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_focus_radiant.png,0,0,28,28,28,28,jewel_focus_radiant,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_aegis_radiant.png,0,0,28,28,28,28,jewel_aegis_radiant,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_ruin_radiant.png,0,0,28,28,28,28,jewel_ruin_radiant,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-jewels\jewel_warding_radiant.png,0,0,28,28,28,28,jewel_warding_radiant,30,false,asis

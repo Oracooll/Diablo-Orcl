@@ -3811,3 +3811,76 @@ TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
 	Stash.stashGrids.clear();
 	Stash.SetPage(0);
 }
+
+/**
+ * The jewel family, end to end.
+ *
+ * Jewels are the third socket family (v1.9.8). Every earlier family taught the same lesson twice
+ * over, so this test pins all four of the places a new socketable silently falls out of the game
+ * while the build stays green:
+ *
+ *  - it is EXCLUDED from the seeded droppable pool. That pool is save format - UnPackItem replays
+ *    a dungeon item's seed through the same walk to recover its index - so a family that joins it
+ *    re-routes every seeded recreation. Runes, gems, charms and set items all drop through their
+ *    own hooks for this reason, and a jewel must too.
+ *  - it has a cursor of its own, distinct from every other item's, or fifteen jewels share one
+ *    picture and the icon strip is a frame short somewhere.
+ *  - it DOES something in a host. A socketable whose effect table row is empty inserts fine, reads
+ *    fine and changes nothing, which is the failure Shael shipped with for a fortnight.
+ *  - it declines salvage. The salvage-all buttons must never eat a hoard of socketables.
+ *
+ * The fifteen are five families x three grades, emitted grade-major by tools/GenJewels.ps1.
+ */
+TEST(OracoolAudit, JewelsAreAWholeSocketFamily)
+{
+	constexpr int First = IDI_ORACOOL_JEWEL_FERVOR_FLAWED;
+	constexpr int Last = IDI_ORACOOL_JEWEL_WARDING_RADIANT;
+	EXPECT_EQ(Last - First + 1, 15) << "the jewel family is not five families by three grades";
+
+	std::set<int> cursors;
+	int seen = 0;
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsOracoolJewelIdx(i))
+			continue;
+		seen++;
+		EXPECT_GE(i, First);
+		EXPECT_LE(i, Last);
+		const ItemData &data = AllItemsList[i];
+
+		// A picture nobody else has.
+		EXPECT_TRUE(cursors.insert(data.iCurs).second)
+		    << data.iName << " shares its cursor with another jewel";
+		EXPECT_LE(data.iCurs, ICURS_ORACOOL_LAST)
+		    << data.iName << " points past the last frame of the icon strip";
+
+		// An effect in at least one host. Unlike a rune, a jewel is allowed to do nothing in some
+		// hosts - a Jewel of Focus in a shield is mana and that is all - but doing nothing in all
+		// three would make it a decoration.
+		const bool anyHost = !oracool::GemHostEffectLine(static_cast<uint16_t>(i), oracool::SocketHost::Weapon).empty()
+		    || !oracool::GemHostEffectLine(static_cast<uint16_t>(i), oracool::SocketHost::Shield).empty()
+		    || !oracool::GemHostEffectLine(static_cast<uint16_t>(i), oracool::SocketHost::Armor).empty();
+		EXPECT_TRUE(anyHost) << data.iName << " has no effect in any host - it is an inert socketable";
+
+		// Salvage declines it, whatever bucket logic decides about ICLASS_MISC.
+		devilution::Item jewel;
+		InitializeItem(jewel, static_cast<_item_indexes>(i));
+		EXPECT_FALSE(oracool::IsSalvageable(jewel)) << data.iName << " can be salvaged";
+	}
+	EXPECT_EQ(seen, 15) << "IsOracoolJewelIdx does not recognise exactly the fifteen jewels";
+
+	// The pool exclusion at items.cpp is one OR-chain of family predicates, so it is only correct
+	// while the predicates stay disjoint: a jewel that also answered yes to IsOracoolGemIdx would
+	// be excluded here and then double-counted by the gem drop hook. Disjointness is the part a
+	// unit test can actually hold - the exclusion itself lives inside a static walk - and it is
+	// also the part that breaks, because every family so far has been a contiguous id range
+	// appended after the last one, and the ranges are hand-written bounds.
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsOracoolJewelIdx(i))
+			continue;
+		EXPECT_FALSE(IsOracoolGemIdx(i)) << AllItemsList[i].iName << " reads as a gem as well as a jewel";
+		EXPECT_FALSE(IsOracoolRuneIdx(i)) << AllItemsList[i].iName << " reads as a rune as well as a jewel";
+		EXPECT_FALSE(IsOracoolCharmIdx(i)) << AllItemsList[i].iName << " reads as a charm as well as a jewel";
+		EXPECT_FALSE(IsOracoolSalvageIdx(i)) << AllItemsList[i].iName << " reads as a material as well as a jewel";
+		EXPECT_FALSE(IsOracoolItemIdx(i)) << AllItemsList[i].iName << " reads as a set/base item as well as a jewel";
+	}
+}

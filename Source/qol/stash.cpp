@@ -1204,7 +1204,8 @@ void SortStash(Player &player)
 	// first one unoccupied by items." Materials are pulled out of the ordinary sort entirely; what
 	// is left packs as it always did, which is also what decides which page comes up empty.
 	for (const Item &item : Stash.stashList) {
-		if (IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx) || IsOracoolSalvageIdx(item.IDidx)) {
+		if (IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx) || IsOracoolSalvageIdx(item.IDidx)
+		    || IsOracoolJewelIdx(item.IDidx)) {
 			materials.push_back(item);
 			continue;
 		}
@@ -1306,6 +1307,22 @@ void SortStash(Player &player)
 			static_assert(oracool::SalvageTierCount <= StashGridColumns,
 			    "the seven materials must fit across one row");
 
+			// Jewels: three rows directly ABOVE the gems, one row per grade, one column per
+			// family. Flawed on top and Radiant on the bottom, so the reading order down the block
+			// is worst to best - the same direction the gem columns run, and the opposite of the
+			// runes above, which run best-downward from El. Sitting them flush against the gem
+			// block groups all three socket families at the foot of the page.
+			//
+			// Column and row both come out of the id, so this cannot drift from the enum: the
+			// generator emits the fifteen grade-major, five families per grade.
+			constexpr int JewelColumns = 5;
+			constexpr int JewelRows = 3;
+			constexpr int JewelTopRow = GemTopRow - JewelRows;
+			static_assert(JewelTopRow > SalvageRow, "the jewel block would collide with the salvage row");
+			static_assert(JewelColumns <= StashGridColumns, "a jewel grade must fit across one row");
+			static_assert(JewelColumns * JewelRows == IDI_ORACOOL_JEWEL_WARDING_RADIANT - IDI_ORACOOL_JEWEL_FERVOR_FLAWED + 1,
+			    "the jewel block is not the size of the jewel family");
+
 			std::vector<Item> overflow;
 			// One flag per cell, so a second stack of the same kind is detected rather than
 			// silently overwriting the first - the failure that would make a Zod vanish.
@@ -1322,6 +1339,9 @@ void SortStash(Player &player)
 					}
 				} else if (IsOracoolSalvageIdx(item.IDidx)) {
 					cell = { item.IDidx - IDI_ORACOOL_SALVAGE_WHITE_SCALES, SalvageRow };
+				} else if (IsOracoolJewelIdx(item.IDidx)) {
+					const int offset = item.IDidx - IDI_ORACOOL_JEWEL_FERVOR_FLAWED;
+					cell = { offset % JewelColumns, JewelTopRow + offset / JewelColumns };
 				} else {
 					oracool::GemType type;
 					oracool::GemQuality quality;
