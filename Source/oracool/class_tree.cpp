@@ -183,7 +183,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Teleport"), N_("Step instantly to a place you can see. Points raise this engine's Teleport."), Sor, 1, 3, 1, Kind::Active, SpellID::Teleport, true },
 	{ N_("Thunder Storm"), N_("A storm that strikes on its own as you fight. Inert: no analogue exists here."), Sor, 1, 4, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Energy Shield"), N_("Mana takes the damage your life would. Points raise this engine's Mana Shield."), Sor, 1, 4, 1, Kind::Active, SpellID::ManaShield, true },
-	{ N_("Lightning Mastery"), N_("Deepens every lightning spell. Inert: there is no per-element channel here."), Sor, 1, 5, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Lightning Mastery"), N_("Your blows carry lightning, and lightning troubles you less. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 1, 5, 2, Kind::Passive, SpellID::Invalid, true },
 	// --- Fire Spells ---
 	{ N_("Fire Bolt"), N_("A bolt of flame. Points raise this engine's Fire Bolt."), Sor, 2, 0, 0, Kind::Active, SpellID::Firebolt, true },
 	{ N_("Warmth"), N_("Your mana returns of its own accord."), Sor, 2, 0, 1, Kind::Passive, SpellID::Invalid, true },
@@ -191,9 +191,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Blaze"), N_("Leaves fire in your wake. Mapped onto this engine's Flame Wave, the nearest rolling fire it has."), Sor, 2, 2, 0, Kind::Active, SpellID::FlameWave, true },
 	{ N_("Fire Ball"), N_("A bursting ball of flame. Points raise this engine's Fireball."), Sor, 2, 2, 1, Kind::Active, SpellID::Fireball, true },
 	{ N_("Fire Wall"), N_("A wall of flame across the ground. Points raise this engine's Fire Wall."), Sor, 2, 3, 0, Kind::Active, SpellID::FireWall, true },
-	{ N_("Enchant"), N_("Sets a weapon alight. Inert: no analogue exists here."), Sor, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Enchant"), N_("Your weapon burns: every blow carries fire. A passive rather than a cast buff, since a tree skill with no spell slot has no way to be cast."), Sor, 2, 3, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Meteor"), N_("Calls a burning rock down from the sky. Inert: no analogue exists here."), Sor, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Fire Mastery"), N_("Deepens every fire spell. Inert: there is no per-element channel here."), Sor, 2, 5, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Fire Mastery"), N_("Fire burns for you and less against you. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 2, 5, 2, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Hydra"), N_("Sets a fire-breathing head to guard a spot. Mapped onto this engine's Guardian, which is the same idea."), Sor, 2, 5, 0, Kind::Active, SpellID::Guardian, true },
 
 	// ======================= ROGUE =======================
@@ -417,6 +417,42 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		break;
 	case Skill::Penetrate:
 		totals.bonusToHit += Scaled(points, 12, 6);
+		break;
+
+	// --- Sorceress: the three rows the engine can actually pay (2026-08-21) -------------------
+	//
+	// She was left with ONE working row when the books rule retired her thirteen castables, so her
+	// page was a grid of struck-out cells with nowhere to put a point. These three are the only
+	// others this engine has a channel for, and each is fitted to a real one rather than
+	// approximated into the nearest spell.
+	//
+	// The ten cold rows stay inert and always will: there is no cold damage type at all, so there
+	// is nothing to scale, resist or pierce. Static Field, Lightning Storm, Meteor and Enchant's
+	// two neighbours stay inert for the same honest reason - no analogue exists.
+	case Skill::Enchant:
+		// The closest thing in the game to what Enchant IS: your weapon burns. D2's version is a
+		// cast buff with a duration; here the investment is the buff, which is the only shape a
+		// slotless tree skill can take. No approximation in the effect itself - fireMin/fireMax are
+		// exactly "this attack also does fire damage".
+		totals.fireMin += Scaled(points, 2, 1);
+		totals.fireMax += Scaled(points, 5, 3);
+		break;
+	case Skill::FireMastery:
+		// NOT "deepens every fire spell" - this engine scales spells by spell level, and there is no
+		// per-element channel to raise. Mastery is read as command OF fire instead: it burns for you
+		// and less against you. Both halves are real channels, and the row's description says so
+		// rather than letting a player infer the D2 meaning.
+		totals.fireMin += Scaled(points, 3, 2);
+		totals.fireMax += Scaled(points, 7, 4);
+		totals.fireResist += Scaled(points, 5, 2);
+		break;
+	case Skill::LightningMastery:
+		// The mirror of Fire Mastery, and deliberately the same shape so the two read as a pair.
+		// Lightning's spread is wider than fire's in this engine (see the Topaz gem and the Ort
+		// rune, both 1..N rather than a tight band), so the minimum stays low and the maximum runs.
+		totals.lightningMin += Scaled(points, 1, 1);
+		totals.lightningMax += Scaled(points, 10, 6);
+		totals.lightningResist += Scaled(points, 5, 2);
 		break;
 
 	// --- Monk. The capstones are one-rank rows, so they take no per-point step at all; the
