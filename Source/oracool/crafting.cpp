@@ -305,12 +305,37 @@ std::string TransmuteLevskiGrid(Item *grid)
 		return {};
 
 	// Freeing sockets is the one recipe that gives back MORE than it takes, so its room check is
-	// its own: the host stays in place and each stone needs a slot of its own.
+	// its own: the host stays in place and each stone needs a cell of its own.
+	//
+	// CELLS, not array slots. GridRoomAfter counts free entries in a twelve-long array, which is
+	// the right answer for recipes that shrink 1x1 inputs into a 1x1 output and the wrong one here:
+	// a 2x3 breastplate holding six stones occupies one array slot and six cells, and "eleven slots
+	// free" approved a transmute that needed thirteen cells in a twelve-cell grid. The repack then
+	// silently dropped whatever did not fit. The full case - a six-socket 2x3 host - exactly fills
+	// the grid with nothing to spare, so anything else sharing the grid is already one cell too
+	// many; this is a boundary the player walks straight into, not a corner.
+	//
+	// So the check is a real packing of the real result, run by the grid's own placement code
+	// (LevskiGridCanHold) rather than by arithmetic here that would have to be kept in step with it.
 	if (recipe == 3) {
 		Item &host = grid[materials[0]];
 		const int stones = host.socketedCount();
-		if (GridRoomAfter(grid, {}) < stones)
-			return {};
+
+		std::vector<Item> after;
+		after.reserve(GridSlots + Item::MaxItemSockets);
+		for (int i = 0; i < GridSlots; i++) {
+			if (!grid[i].isEmpty())
+				after.push_back(grid[i]);
+		}
+		for (const uint16_t socketed : host._iSocketed) {
+			if (socketed == Item::EmptySocket)
+				continue;
+			Item stone;
+			InitializeItem(stone, static_cast<_item_indexes>(socketed));
+			after.push_back(stone);
+		}
+		if (!LevskiGridCanHold(after.data(), static_cast<int>(after.size())))
+			return std::string(_("not enough room to free the stones"));
 
 		std::string freed;
 		int placed = 0;

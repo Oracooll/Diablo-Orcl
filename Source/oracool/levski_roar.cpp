@@ -256,33 +256,54 @@ bool PlaceInGrid(const Item &item, int preferredAnchor)
 }
 
 /**
- * @brief Rebuilds the occupancy map from GridItems.
+ * @brief Collects the non-empty items of @p source into @p out, largest footprint first.
+ *
+ * Largest first is the placement order, not merely a tidy one: a 2x3 placed after four runes may
+ * find no run of free cells left, while the runes always fit around it. Both the simulation and the
+ * real rebuild sort this way, from this one function, so the answer and the act cannot disagree.
+ */
+int CollectLargestFirst(const Item *source, int sourceCount, Item *out)
+{
+	int count = 0;
+	for (int i = 0; i < sourceCount; i++) {
+		if (!source[i].isEmpty())
+			out[count++] = source[i];
+	}
+	std::sort(out, out + count, [](const Item &a, const Item &b) {
+		const Size sa = GetInventorySize(a);
+		const Size sb = GetInventorySize(b);
+		return sa.width * sa.height > sb.width * sb.height;
+	});
+	return count;
+}
+
+/**
+ * @brief Rebuilds the occupancy map from GridItems. False if something could not be placed.
  *
  * The recipes rewrite GridItems in place - three gems become one, a socketed item becomes an item
  * plus its stones - without any idea of footprints, and the result's sizes are not the inputs'. So
  * after a transmute the map is re-derived rather than patched: collect what is there, clear, and
  * re-place. Anchors may move, which is correct; the alternative is a stone drawn over a helmet.
+ *
+ * The return value exists because PlaceInGrid CAN fail - twelve array slots is not twelve free
+ * cells - and for a long time its failure was discarded, which turned "no room" into an item that
+ * quietly stopped existing. Nothing here can put the item anywhere else, so the honest thing is to
+ * report the failure and let the caller undo the whole transmute (see the Transmute button).
  */
-void RebuildGridOccupancy()
+bool RebuildGridOccupancy()
 {
 	Item items[LevskiGridSlots];
-	int count = 0;
-	for (Item &slot : GridItems) {
-		if (!slot.isEmpty())
-			items[count++] = slot;
+	const int count = CollectLargestFirst(GridItems, LevskiGridSlots, items);
+	for (Item &slot : GridItems)
 		slot.clear();
-	}
 	for (int8_t &cell : GridCells)
 		cell = 0;
-	// Largest first: a 2x3 placed after four runes may find no run of free cells left, while the
-	// runes always fit around it.
-	std::sort(items, items + count, [](const Item &a, const Item &b) {
-		const Size sa = GetInventorySize(a);
-		const Size sb = GetInventorySize(b);
-		return sa.width * sa.height > sb.width * sb.height;
-	});
-	for (int i = 0; i < count; i++)
-		PlaceInGrid(items[i], -1);
+	bool allPlaced = true;
+	for (int i = 0; i < count; i++) {
+		if (!PlaceInGrid(items[i], -1))
+			allPlaced = false;
+	}
+	return allPlaced;
 }
 
 Rectangle TransmuteButtonRect(const Rectangle &window)
@@ -335,6 +356,40 @@ bool ReturnGridToPlayer()
 
 } // namespace
 
+
+bool LevskiGridCanHold(const Item *items, int count)
+{
+	// More items than array slots cannot be held whatever their sizes, and the scratch arrays below
+	// are exactly LevskiGridSlots long.
+	if (count > LevskiGridSlots)
+		return false;
+
+	// The real grid arrays are borrowed as the scratch space and put back afterwards. Ugly, but it
+	// is what makes this the SAME packing that will actually run: a separate simulation with its
+	// own occupancy map is a second implementation, and a second implementation of "does it fit"
+	// is exactly how a check comes to disagree with the thing it is checking.
+	Item savedItems[LevskiGridSlots];
+	int8_t savedCells[LevskiGridSlots];
+	std::copy(std::begin(GridItems), std::end(GridItems), savedItems);
+	std::copy(std::begin(GridCells), std::end(GridCells), savedCells);
+
+	Item ordered[LevskiGridSlots];
+	const int orderedCount = CollectLargestFirst(items, count, ordered);
+
+	for (Item &slot : GridItems)
+		slot.clear();
+	for (int8_t &cell : GridCells)
+		cell = 0;
+	bool allFit = true;
+	for (int i = 0; i < orderedCount; i++) {
+		if (!PlaceInGrid(ordered[i], -1))
+			allFit = false;
+	}
+
+	std::copy(std::begin(savedItems), std::end(savedItems), GridItems);
+	std::copy(std::begin(savedCells), std::end(savedCells), GridCells);
+	return allFit;
+}
 
 bool IsLevskiRoarOpen() { return WindowOpen; }
 bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
@@ -578,8 +633,25 @@ bool CheckLevskiRoarClick(Point mousePosition)
 
 	if (TransmuteButtonRect(window).contains(mousePosition)) {
 		FlashButton(ButtonFlashTransmute);
+		// TRANSACTIONAL. The recipes rewrite GridItems with no idea of footprints, and freeing
+		// sockets is the one that gives back more than it takes - so the repack afterwards can find
+		// it has nowhere to put something. Before this snapshot the repack simply dropped whatever
+		// would not fit, and a rune or a jewel stopped existing with no message. TransmuteLevskiGrid
+		// pre-checks the footprints now, so a rollback here should be unreachable; it stays because
+		// "should be unreachable" is not a guarantee to stake a player's stones on, and the next
+		// recipe added will not remember to ask.
+		Item snapshotItems[LevskiGridSlots];
+		int8_t snapshotCells[LevskiGridSlots];
+		std::copy(std::begin(GridItems), std::end(GridItems), snapshotItems);
+		std::copy(std::begin(GridCells), std::end(GridCells), snapshotCells);
+
 		const std::string result = TransmuteLevskiGrid(GridItems);
-		RebuildGridOccupancy(); // the recipes rewrite GridItems with no idea of footprints
+		if (!RebuildGridOccupancy()) {
+			std::copy(std::begin(snapshotItems), std::end(snapshotItems), GridItems);
+			std::copy(std::begin(snapshotCells), std::end(snapshotCells), GridCells);
+			LogEvent("Levski's Roar: not enough room - nothing was transmuted");
+			return true;
+		}
 		if (!result.empty())
 			LogEvent(StrCat("Levski's Roar: ", result));
 		return true;

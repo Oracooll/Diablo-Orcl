@@ -3884,3 +3884,87 @@ TEST(OracoolAudit, JewelsAreAWholeSocketFamily)
 		EXPECT_FALSE(IsOracoolItemIdx(i)) << AllItemsList[i].iName << " reads as a set/base item as well as a jewel";
 	}
 }
+
+/**
+ * Levski's grid measures ROOM IN CELLS, and never loses an item measuring it wrong.
+ *
+ * The grid is 3x4 = twelve CELLS, and items sit in it by footprint - but the recipes operate on a
+ * twelve-long ARRAY of items and have no idea of footprints. "Free the Sockets" is the one recipe
+ * that gives back more than it takes, and it used to ask GridRoomAfter - a count of free array
+ * entries - whether its stones would fit. A 2x3 breastplate holding six stones is ONE array entry
+ * and SIX cells, so that check answered "eleven free" to a transmute needing thirteen cells, and
+ * the repack afterwards discarded whatever would not fit. A rune stopped existing, silently.
+ *
+ * The boundary is not a corner case. MaxItemSockets is 6, so a fully socketed 2x3 host plus its
+ * freed stones is 6 + 6 = exactly twelve cells: the worst case fills the grid with nothing to
+ * spare, and one loose rune sharing the grid is already one cell too many.
+ */
+TEST(OracoolAudit, LevskiGridMeasuresRoomInCellsAndLosesNothing)
+{
+	using namespace devilution::oracool;
+
+	// A real 2x3 base, found by measuring rather than by naming one - a hardcoded index is a
+	// second source of truth about a size the art owns.
+	_item_indexes bigIdx = IDI_NONE;
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		devilution::Item probe;
+		InitializeItem(probe, static_cast<_item_indexes>(i));
+		const Size size = GetInventorySize(probe);
+		if (size.width == 2 && size.height == 3) {
+			bigIdx = static_cast<_item_indexes>(i);
+			break;
+		}
+	}
+	ASSERT_NE(bigIdx, IDI_NONE) << "no 2x3 item exists to test the boundary with";
+
+	devilution::Item big;
+	InitializeItem(big, bigIdx);
+	devilution::Item stone;
+	InitializeItem(stone, IDI_ORACOOL_JEWEL_FERVOR_FLAWED);
+	ASSERT_EQ(GetInventorySize(stone).width, 1);
+	ASSERT_EQ(GetInventorySize(stone).height, 1);
+
+	// Exactly twelve cells: 2x3 plus six singles. This must fit, or a six-socket item can never be
+	// emptied at all.
+	std::vector<devilution::Item> exact { big, stone, stone, stone, stone, stone, stone };
+	EXPECT_TRUE(LevskiGridCanHold(exact.data(), static_cast<int>(exact.size())))
+	    << "a 2x3 host and its six freed stones do not fit - the worst case is unrunnable";
+
+	// One cell past it. Seven array entries became eight, but the point is that it is THIRTEEN
+	// cells: a slot count would still say there is room.
+	std::vector<devilution::Item> overfull = exact;
+	overfull.push_back(stone);
+	EXPECT_FALSE(LevskiGridCanHold(overfull.data(), static_cast<int>(overfull.size())))
+	    << "thirteen cells fit in a twelve-cell grid - the check is still counting slots";
+
+	// And the recipe itself refuses rather than freeing stones it cannot place. Six sockets filled,
+	// plus one loose stone already in the grid: eight array entries, thirteen cells.
+	devilution::Item grid[LevskiGridSlots];
+	grid[0] = big;
+	for (uint16_t &socketed : grid[0]._iSocketed)
+		socketed = static_cast<uint16_t>(IDI_ORACOOL_JEWEL_FERVOR_FLAWED);
+	grid[1] = stone;
+	ASSERT_EQ(grid[0].socketedCount(), devilution::Item::MaxItemSockets);
+
+	const std::string refusal = TransmuteLevskiGrid(grid);
+	EXPECT_EQ(grid[0].socketedCount(), devilution::Item::MaxItemSockets)
+	    << "the host was emptied into a grid that cannot hold the stones";
+	EXPECT_FALSE(refusal.empty())
+	    << "the refusal is silent - the player presses Transmute and is told nothing";
+
+	// With the grid to itself the same host CAN be emptied, so the refusal above is about room and
+	// not about the recipe being broken.
+	devilution::Item room[LevskiGridSlots];
+	room[0] = big;
+	for (uint16_t &socketed : room[0]._iSocketed)
+		socketed = static_cast<uint16_t>(IDI_ORACOOL_JEWEL_FERVOR_FLAWED);
+	const std::string freed = TransmuteLevskiGrid(room);
+	EXPECT_FALSE(freed.empty());
+	EXPECT_EQ(room[0].socketedCount(), 0) << "the host kept its stones when there was room to free them";
+	int stonesBack = 0;
+	for (const devilution::Item &slot : room) {
+		if (!slot.isEmpty() && IsOracoolJewelIdx(slot.IDidx))
+			stonesBack++;
+	}
+	EXPECT_EQ(stonesBack, devilution::Item::MaxItemSockets) << "stones went missing on the way out";
+}

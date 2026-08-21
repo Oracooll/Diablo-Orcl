@@ -31,6 +31,7 @@
 
 namespace devilution {
 struct Player;
+struct Item;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -39,6 +40,19 @@ namespace devilution::oracool {
 constexpr int LevskiGridColumns = 3;
 constexpr int LevskiGridRows = 4;
 constexpr int LevskiGridSlots = LevskiGridColumns * LevskiGridRows;
+
+/**
+ * @brief Whether @p count items would all fit in the grid AT ONCE, by footprint.
+ *
+ * The recipes rewrite the grid's item array with no idea of footprints, so "is there room?" cannot
+ * be answered by counting free array slots - twelve slots is not twelve free cells once a 2x3
+ * breastplate is in one of them. This runs the REAL placement (largest first, first fit) against a
+ * scratch occupancy map and reports whether every item found a home.
+ *
+ * Lives here rather than in crafting.cpp because it must not drift from PlaceInGrid: the packing
+ * that answers the question and the packing that happens afterwards are the same code.
+ */
+bool LevskiGridCanHold(const Item *items, int count);
 
 /** @brief Places the monument in town. Called on fresh town generation, like the stash chest. */
 void AddLevskiRoarObject();
