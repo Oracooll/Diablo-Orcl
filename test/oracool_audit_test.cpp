@@ -2905,6 +2905,43 @@ TEST(OracoolItemSets, EveryPieceButRelicAndCloakHasASpawnableBase)
 	EXPECT_EQ(unspawnable, 2) << "the relic and the cloak are the only pieces without a base";
 }
 
+/**
+ * @brief No set may promise a rung the game cannot pay.
+ *
+ * Leoric's Fallen Court shipped with rungs at 12 and 13 pieces while only 11 of its 13 could be
+ * built - the relic and the cloak sit in slots this fork has never made. A player assembled
+ * everything that exists and the ladder simply stopped paying, with nothing saying why.
+ *
+ * "Wearable" is not the same as "buildable", which is why this counts SLOTS rather than items: a
+ * set with three rings could build all three and still wear only two. Ring is the one slot with a
+ * capacity above one, and hard-coding that here is deliberate - if a second such slot is ever added,
+ * this test should fail and be updated, rather than quietly over-counting.
+ */
+TEST(OracoolItemSets, NoSetPromisesARungItCannotPay)
+{
+	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		std::map<std::string, int> buildableBySlot;
+		for (int i = 0; i < set.itemCount; i++) {
+			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
+			if (oracool::BaseItemForSetSlot(def.slot) >= 0)
+				buildableBySlot[def.slot]++;
+		}
+		int wearable = 0;
+		for (const auto &[slot, count] : buildableBySlot) {
+			const int capacity = slot == "ring" ? 2 : 1;
+			wearable += std::min(count, capacity);
+		}
+
+		int topRung = 0;
+		for (int i = 0; i < set.bonusCount; i++)
+			topRung = std::max(topRung, oracool::ItemSetBonuses[set.firstBonus + i].pieces);
+
+		EXPECT_LE(topRung, wearable)
+		    << set.name << " has a rung at " << topRung << " pieces but only " << wearable
+		    << " can be worn at once - that rung is unreachable and nothing in game says so";
+	}
+}
+
 TEST(OracoolItemSets, EverySetBonusStatHasText)
 {
 	for (const oracool::SetBonusDefinition &rung : oracool::ItemSetBonuses) {

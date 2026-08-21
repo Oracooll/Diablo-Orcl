@@ -176,9 +176,9 @@ const SetBonusDefinition ItemSetBonuses[] = {
 	{ 4, N_("Seats Beneath the Dust"), { { IPL_STR, 8, 8 }, { IPL_MAG, 8, 8 }, { IPL_DEX, 8, 8 }, { IPL_VIT, 8, 8 } } },
 	{ 6, N_("Petitions of the Dead"), { { IPL_ATTRIBS, 8, 8 }, { IPL_LIFE, 30, 30 }, { IPL_INVALID, 0, 0 }, { IPL_INVALID, 0, 0 } } },
 	{ 8, N_("Pass Judgment"), { { IPL_DAMP, 30, 30 }, { IPL_TOHIT, 20, 20 }, { IPL_GETHIT, 3, 3 }, { IPL_INVALID, 0, 0 } } },
-	{ 10, N_("No Appeal Remains"), { { IPL_ACP, 40, 40 }, { IPL_ALLRES, 15, 15 }, { IPL_STEALLIFE, 3, 3 }, { IPL_INVALID, 0, 0 } } },
-	{ 12, N_("The Court Is Never Empty"), { { IPL_ATTRIBS, 12, 12 }, { IPL_SPLLVLADD, 1, 1 }, { IPL_MANA, 40, 40 }, { IPL_INVALID, 0, 0 } } },
-	{ 13, N_("Final Audience"), { { IPL_ATTRIBS, 20, 20 }, { IPL_DAMP, 50, 50 }, { IPL_FASTATTACK, 2, 0 }, { IPL_STEALLIFE, 5, 5 } } },
+	{ 9, N_("No Appeal Remains"), { { IPL_ACP, 40, 40 }, { IPL_ALLRES, 15, 15 }, { IPL_STEALLIFE, 3, 3 }, { IPL_INVALID, 0, 0 } } },
+	{ 10, N_("The Court Is Never Empty"), { { IPL_ATTRIBS, 12, 12 }, { IPL_SPLLVLADD, 1, 1 }, { IPL_MANA, 40, 40 }, { IPL_INVALID, 0, 0 } } },
+	{ 11, N_("Final Audience"), { { IPL_ATTRIBS, 20, 20 }, { IPL_DAMP, 50, 50 }, { IPL_FASTATTACK, 2, 0 }, { IPL_STEALLIFE, 5, 5 } } },
 };
 
 const ItemSetDefinition ItemSets[] = {

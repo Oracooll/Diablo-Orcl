@@ -148,13 +148,31 @@ SET_LOST_CARTOGRAPHER     | 3  | half_trap_damage:true, light_radius:+2
 SET_LOST_CARTOGRAPHER     | 4  | all_attributes:+10, hit_recovery:fast, chance_to_hit:+15, light_radius:+2
 
 # --- Leoric's Fallen Court (13 pieces) - the court, petitions, judgment ---------------------------
-# Five of seven rungs empty, and the longest ladder in the game. NOTE: five of its thirteen items
-# have no droppable base yet (ring, amulet, relic, cloak), so rungs 10, 12 and 13 are unreachable in
-# play until that is built - see the continuation plan. Authored anyway, so the ladder is whole when
-# the items arrive rather than a second job to remember.
+# RE-BANDED 2026-08-21 to 6/8/9/10/11, from 6/8/10/12/13.
+#
+# The old note here said five items had no droppable base and rungs 10, 12 and 13 were "unreachable
+# in play until that is built". Rings and amulets now resolve (BaseItemForSetSlot, same day), which
+# fixed three of the five - but the note's premise was that the ladder should stay authored for
+# thirteen and wait. That was wrong, and the reachability audit is what showed why: waiting means
+# SHIPPING a set whose last two rungs cannot be earned, with nothing in the game saying so. A player
+# assembles everything that exists, wears eleven pieces, and the ladder simply stops paying.
+#
+# ELEVEN is the true maximum: two pieces sit in slots this fork has never built (relic, cloak), and
+# the other eleven occupy eleven DISTINCT equipment slots - both rings included, since there are two
+# ring slots - so all eleven are wearable at once. Verified rather than assumed.
+#
+# Rungs 6 and 8 are untouched. The third moves 10 -> 9 to make room, because five rungs will not fit
+# in 6/8/10/11 and losing a rung would cost more than moving one. The capstone lands on 11, which is
+# now "everything you can actually wear" rather than a number the game cannot reach.
+#
+# The deliberate life_steal 3 -> 5 upgrade survives the move: rung 9 grants 3, rung 11 supersedes it
+# with 5. See the two-rules note at the top of this file for why that pair is authored, not doubled.
+#
+# If the relic and cloak slots are ever built, this ladder wants re-banding back to thirteen - and
+# that is a better trigger than a note, because the audit test will not fail on it.
 SET_LEORICS_FALLEN_COURT  | 6  | all_attributes:+8, max_life:+30
 SET_LEORICS_FALLEN_COURT  | 8  | enhanced_damage:+30, chance_to_hit:+20, damage_taken_flat:-3
-SET_LEORICS_FALLEN_COURT  | 10 | armor_class_flat:+40, resist_all:+15, life_steal:3
-SET_LEORICS_FALLEN_COURT  | 12 | all_attributes:+12, all_spell_levels:+1, max_mana:+40
-# Thirteen pieces. The largest reward in the game, and it should feel like it.
-SET_LEORICS_FALLEN_COURT  | 13 | all_attributes:+20, enhanced_damage:+50, attack_speed:fast, life_steal:5
+SET_LEORICS_FALLEN_COURT  | 10>9  | armor_class_flat:+40, resist_all:+15, life_steal:3
+SET_LEORICS_FALLEN_COURT  | 12>10 | all_attributes:+12, all_spell_levels:+1, max_mana:+40
+# Eleven pieces - every one that exists. The largest reward in the game, and it should feel like it.
+SET_LEORICS_FALLEN_COURT  | 13>11 | all_attributes:+20, enhanced_damage:+50, attack_speed:fast, life_steal:5

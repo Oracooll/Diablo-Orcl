@@ -50,13 +50,29 @@ if ($mapping.Count -lt 100) { throw "only $($mapping.Count) keywords parsed from
 # same $mapping below, so an override cannot quietly name an inert keyword and reintroduce the very
 # emptiness it exists to fix.
 $overrides = @{}
+# key -> the piece count the rung is EMITTED at, when it differs from the package's. See the parser.
+$rebands = @{}
 foreach ($line in Get-Content $OverrideFile) {
     $t = $line.Trim()
     if ($t -eq "" -or $t.StartsWith("#")) { continue }
     $parts = $t -split '\|'
     if ($parts.Count -ne 3) { throw "override line is not 'SET_ID | pieces | stats': $t" }
-    $key = "$($parts[0].Trim())|$([int]$parts[1].Trim())"
+    # The pieces column may RE-BAND as well as override: "10>9" means "the rung the package declares
+    # at ten pieces is emitted at nine". The match still keys on the package's number, so an override
+    # that names a rung the package does not have is still the hard error it was - re-banding cannot
+    # be used to invent a rung, only to move one.
+    #
+    # Added 2026-08-21 for Leoric's Fallen Court, whose top two rungs asked for more pieces than the
+    # game can produce. See that block's note in the override file.
+    $pieceSpec = $parts[1].Trim()
+    $rebandTo = $null
+    if ($pieceSpec -match '^(\d+)\s*>\s*(\d+)$') {
+        $pieceSpec = $Matches[1]
+        $rebandTo = [int]$Matches[2]
+    }
+    $key = "$($parts[0].Trim())|$([int]$pieceSpec)"
     if ($overrides.ContainsKey($key)) { throw "two overrides for $key" }
+    if ($null -ne $rebandTo) { $rebands[$key] = $rebandTo }
     # Split on the commas BETWEEN stats, not the one inside a "[4,12]" damage range. The lookahead
     # fails while a closing bracket is still reachable without crossing an opening one, which is
     # exactly the "we are inside a range" condition.
@@ -245,7 +261,9 @@ foreach ($dir in Get-ChildItem $work -Directory | Sort-Object Name) {
             throw "bonus '$($b.name)' ($($b.pieces) pieces of $($json.id)) compiles to NOTHING - add a row to $OverrideFile"
         }
         while ($powers.Count -lt 4) { $powers += "{ IPL_INVALID, 0, 0 }" }
-        $bonusRows += "`t{ $([int]$b.pieces), N_(`"$(Escape-Cpp $b.name)`"), { $($powers -join ', ') } },"
+        # The piece count an override may have re-banded - see the parser at the top.
+        $emitPieces = if ($rebands.ContainsKey($key)) { $rebands[$key] } else { [int]$b.pieces }
+        $bonusRows += "`t{ $emitPieces, N_(`"$(Escape-Cpp $b.name)`"), { $($powers -join ', ') } },"
         $bonusIndex++
     }
 
