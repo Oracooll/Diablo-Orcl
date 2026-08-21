@@ -10,7 +10,7 @@
 <div class="shell">
 <nav class="side"></nav>
 <main>
-<h1>Sockets, gems, runes and charms</h1>
+<h1>Sockets, gems, runes, jewels and charms</h1>
 <p class="lede">The reason to pick up a plain white item. Sockets appear on <b>basic-quality</b>
 equipment of any base tier - so the cheapest thing in the game is also the raw material of the best
 thing in the game.</p>
@@ -120,6 +120,16 @@ name.</p>
 <div id="words"></div>
 <p>Runeword state is derived from what is in the sockets rather than stored, so it cannot desync
 and it costs the save format nothing.</p>
+<h2>The fifteen jewels</h2>
+<p>The third thing that goes in a socket. Five families - <b>Fervor</b>, <b>Focus</b>, <b>Aegis</b>,
+<b>Ruin</b> and <b>Warding</b> - each in three grades at 60%, 100% and 160% of the tuned row. Unlike
+a gem, a jewel is not a ladder you climb past: a Radiant is better than a Flawed, but the family is
+the choice and there is no sixteenth grade waiting to make your Radiant obsolete.</p>
+<p>Diablo II rolls a jewel's stats per instance. These do not, deliberately: a socket stores its
+contents as a bare item index, so per-instance rolls would mean a new record in the save format and
+a migration for every existing character. Fifteen fixed entries buy the variety for none of that.</p>
+<div id="jewels"></div>
+
 <h2>Charms</h2>
 <p>Charms work from your backpack; they are never equipped. <b>Only the first <span id="cap"></span>
 in reading order are live</b> - main backpack first, then the extra tabs in order - which is the
@@ -260,6 +270,19 @@ function renderRows(mount, rows, withNotes, withLadder) {
 renderRows(document.getElementById('gems'), WIKI.gems, true, false);
 renderRows(document.getElementById('runes'), WIKI.runes, false, true);
 
+// The jewels carry their effects in one table and their name, depth and price in another - the
+// effect rows come out of Gems[], the rest out of AllItemsList - so they are joined here by the
+// enum constant rather than either half being retyped into the other.
+//
+// The NAME comes from the item row, not from the effect row: the effect table is keyed by constant
+// and its display name is derived from that constant, which flattens "IDI_ORACOOL_JEWEL_FERVOR_
+// FLAWED" into something that loses the grade entirely. AllItemsList has the real one.
+const jewelRows = WIKI.jewels.map(function (j) {
+	const row = WIKI.items.filter(function (i) { return i.id === j.constant; })[0] || {};
+	return { name: row.name || j.name, fields: j.fields, qlvl: row.qlvl || 0, value: row.value || 0 };
+});
+renderRows(document.getElementById('jewels'), jewelRows, false, true);
+
 const ruby = WIKI.gems.filter(function (g) { return g.name === 'Ruby'; })[0];
 document.querySelector('#qual tbody').innerHTML = WIKI.gemQualities.map(function (q) {
 	function scale(v) { return Math.max(1, Math.round(v * q.percent / 100)); }
@@ -310,7 +333,8 @@ document.querySelector('#charms tbody').innerHTML = WIKI.charms.map(function (c)
 document.querySelector('#drops tbody').innerHTML = [
 	['Gem', R.gemDropPercent, 'Type flat across the seven, quality by depth and weight'],
 	['Rune', R.runeDropPercent, 'Only the runes this floor has opened'],
-	['Charm', R.charmDropPercent, 'Any of the six, depth-gated'],
+	['Charm', R.charmDropPercent, 'Any charm the floor has opened, depth-gated'],
+	['Jewel', R.jewelDropPercent, 'Five families, three grades, depth-gated'],
 ].map(function (r) {
 	return '<tr><td><b>' + r[0] + '</b></td><td class="num">' + r[1] + '%</td><td>' + r[2] + '</td></tr>';
 }).join('');

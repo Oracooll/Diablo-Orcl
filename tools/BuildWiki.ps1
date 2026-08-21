@@ -35,11 +35,27 @@ $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm')
 # Base items - Source/itemdat.cpp
 # ---------------------------------------------------------------------------------------------
 $itemdat = Read-SourceFile 'itemdat.cpp'
-# The rune rows live in generated includes rather than inline (tools/GenRunes.ps1 owns all 33), so
-# they are concatenated here - otherwise the wiki's item count silently drops by the five that
-# moved out and never gains the 28 that arrived, which is exactly what happened on the first run.
-foreach ($inc in @('oracool\runes_shipped_data.inc', 'oracool\runes_data.inc')) {
-    $itemdat += "`n" + (Get-Content (Join-Path $src $inc) -Raw -Encoding UTF8)
+# Generated rows live in includes rather than inline, so they are concatenated here - otherwise the
+# wiki's item count silently drops by whatever moved out and never gains what arrived.
+#
+# The include list is READ OUT OF itemdat.cpp rather than typed here, and that is the whole point of
+# this block. It was a hardcoded pair - the two rune includes - and by 1.9.9 itemdat.cpp had gained
+# three more: the seven salvage materials, the seven Charms of Salvaging and the fifteen jewels.
+# Twenty-nine items existed in the game and not in the wiki, and nothing said so, because a wiki
+# that is missing a row looks exactly like a wiki that is complete. The comment that used to sit
+# here warned about this exact failure and was then out-of-date itself for three families running.
+#
+# unique_items_data.inc is excluded deliberately: it fills UniqueItems[], not AllItemsList, and has
+# its own parser further down. Everything else that itemdat.cpp includes is a base-item table by
+# construction, and the row parser below gates on IDROP_ and a 22-column shape anyway, so a file
+# that turns out not to be one contributes nothing rather than garbage.
+$itemIncludes = [regex]::Matches($itemdat, '#include\s+"(oracool/[A-Za-z0-9_]+\.inc)"') |
+    ForEach-Object { $_.Groups[1].Value } |
+    Where-Object { $_ -ne 'oracool/unique_items_data.inc' }
+foreach ($inc in $itemIncludes) {
+    $incPath = Join-Path $src ($inc -replace '/', '\')
+    if (-not (Test-Path $incPath)) { continue }
+    $itemdat += "`n" + (Get-Content $incPath -Raw -Encoding UTF8)
 }
 $items = New-Object System.Collections.ArrayList
 
@@ -615,6 +631,47 @@ foreach ($row in [regex]::Matches($runesEffectsInc, '(?s)\{\s*\.idx = (IDI_ORACO
     [void]$runes.Add([ordered]@{ name = (Get-PrettyName $idx); constant = $idx; fields = $fields })
 }
 
+# The jewels (v1.9.9) - same story as the 28 runes above and for the same reason. Their rows are
+# `#include`d into Gems[] rather than written in gems.cpp, so the table walk cannot see them: it
+# reads the FILE's text, and the file holds an include directive, not the fifteen rows.
+#
+# Note what that near-miss would have looked like. The walk sorts a row into $runes or $gems on
+# `*_RUNE_*` in the constant, with gems as the else - so if the jewel rows HAD been inline, all
+# fifteen would have been filed as gems and the wiki would have reported a 50-gem ladder in a
+# perfectly clean build. They get a collection of their own here for that reason as much as any.
+# Monster variants (v1.9.7) and their per-dungeon rosters (v1.9.11). Parsed rather than typed for
+# the usual reason, and one specific one: the rosters are a design statement - the Cathedral gets no
+# elemental variant, town gets none at all - and a typed copy of a design statement is the kind of
+# claim that stays on the page for months after the table under it changes.
+$variantsCpp = Read-SourceFile 'oracool/monster_variants.cpp'
+$variantRosters = New-Object System.Collections.ArrayList
+foreach ($m in [regex]::Matches($variantsCpp, '(?s)constexpr MonsterVariant (\w+)Roster\[\] = \{(.*?)\};')) {
+    $names = [regex]::Matches($m.Groups[2].Value, 'MonsterVariant::(\w+)') | ForEach-Object { $_.Groups[1].Value }
+    [void]$variantRosters.Add([ordered]@{ dungeon = $m.Groups[1].Value; variants = @($names) })
+}
+$monsterVariants = [ordered]@{
+    percent       = [int](Get-Constant $variantsCpp 'constexpr int VariantPercent = (\d+)')
+    hollowLife    = [int](Get-Constant $variantsCpp 'constexpr int HollowLifePercent = (\d+)')
+    hollowDamage  = [int](Get-Constant $variantsCpp 'constexpr int HollowDamagePercent = (\d+)')
+    feralLife     = [int](Get-Constant $variantsCpp 'constexpr int FeralLifePercent = (\d+)')
+    feralDamage   = [int](Get-Constant $variantsCpp 'constexpr int FeralDamagePercent = (\d+)')
+    rosters       = $variantRosters
+}
+
+$jewels = New-Object System.Collections.ArrayList
+$jewelsEffectsInc = Get-Content (Join-Path $src 'oracool\jewels_effects.inc') -Raw -Encoding UTF8
+foreach ($row in [regex]::Matches($jewelsEffectsInc, '(?s)\{\s*\.idx = (IDI_ORACOOL_JEWEL_\w+)(.*?)\}')) {
+    $idx = $row.Groups[1].Value
+    $fields = [ordered]@{}
+    foreach ($f in [regex]::Matches($row.Groups[2].Value, '\.(\w+) = (-?\d+|true|false)')) {
+        $raw = $f.Groups[2].Value
+        if ($raw -eq 'true') { $fields[$f.Groups[1].Value] = $true }
+        elseif ($raw -eq 'false') { $fields[$f.Groups[1].Value] = $false }
+        else { $fields[$f.Groups[1].Value] = [int]$raw }
+    }
+    [void]$jewels.Add([ordered]@{ name = (Get-PrettyName $idx); constant = $idx; fields = $fields })
+}
+
 # Depth and price, off the generated data rows - both files, so the five shipped runes and the 28
 # appended ones read from the same place the game does.
 $runeQlvl = @{}
@@ -697,6 +754,10 @@ $socketRules = [ordered]@{
     gemDropPercent    = [int](Get-Constant $itemsCpp2 'constexpr int GemDropPercent = (\d+)')
     charmDropPercent  = [int](Get-Constant $itemsCpp2 'constexpr int CharmDropPercent = (\d+)')
     runeDropPercent   = [int](Get-Constant $itemsCpp2 'constexpr int RuneDropPercent = (\d+)')
+    # The fourth family (v1.9.9). Added here the day the wiki was audited against source and found
+    # to be describing a three-family socket economy that had been four for three versions.
+    jewelDropPercent  = [int](Get-Constant $itemsCpp2 'constexpr int JewelDropPercent = (\d+)')
+    namedSetPercent   = [int](Get-Constant $itemsCpp2 'constexpr int NamedSetDropPercent = (\d+)')
     socketedPercent   = [int](Get-Constant $itemsCpp2 '(?s)void TryAddSocketsToDroppedItem.*?GenerateRnd\(100\) >= (\d+)')
     socketWeights     = @()
     qualityWeights    = @(40, 30, 18, 9, 3)
@@ -859,6 +920,8 @@ $data = [ordered]@{
     options   = $options
     gems      = $gems
     runes     = $runes
+    jewels    = $jewels
+    monsterVariants = $monsterVariants
     gemQualities = $gemQualities
     charms    = $charms
 

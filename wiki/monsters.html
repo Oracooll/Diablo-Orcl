@@ -42,6 +42,26 @@ promoted with a champion modifier, their own name and tint, and a pack of minion
 their loot level (+3 for a true unique) and roll from a better loot table. The spawn rate is an INI
 setting.</p>
 
+<h2>Variants</h2>
+<p>Below the champions sits a cheaper layer: <b><span id="varpct"></span> of ordinary monsters</b>
+are recoloured variants, each with one trait and a word in front of its name. No new art, no new
+animation - the creature's own palette is walked a step or two along its ramps, so it stays
+recognisably itself while reading clearly different from its twin.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Variant</th><th>Trait</th></tr></thead>
+<tbody id="vartraits"></tbody></table></div>
+<p>Which variants you meet <b>depends on the floor</b>. Each dungeon type offers a subset, so a
+roster is something you can learn about a place - the Cathedral deliberately has no elemental
+variant, because a resistance you have no answer to on floor two is a wall rather than a fight.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Dungeon</th><th>Offers</th></tr></thead>
+<tbody id="varrosters"></tbody></table></div>
+<div class="note"><b>Not saved, and not random.</b> Like the sizes below, a variant is derived from
+the monster's own seed - a value the save already holds - so it costs no per-monster state and a
+monster is the same variant every time you walk back onto the floor. Uniques and champions are
+excluded: they have an identity already, and a "Feral Gharbad the Weak" is two names fighting over
+one monster.</div>
+
 <h2>Sizes</h2>
 <p>Monsters are not all drawn at one scale. Four sizes exist, and they come from two completely
 different places.</p>
@@ -103,6 +123,30 @@ makeTable(document.getElementById('table'), rows, [
 	placeholder: 'Search monster or class...',
 	filters: [{ key: 'class', label: 'Class' }]
 });
+
+// Variants. The traits are prose because they are prose in the source too - one sentence apiece -
+// but every NUMBER in them comes out of monster_variants.cpp, and so does every roster row.
+const MV = WIKI.monsterVariants;
+document.getElementById('varpct').textContent = MV.percent + '%';
+const TRAITS = {
+	Ashen: 'Fire-hardened - resistant, never immune.',
+	Stormtouched: 'Lightning-hardened - resistant, never immune.',
+	Hollow: MV.hollowLife + '% life, ' + MV.hollowDamage + '% damage. A wall rather than a threat.',
+	Feral: MV.feralLife + '% life, ' + MV.feralDamage + '% damage. The mirror of Hollow.'
+};
+// Listed in the order they are first offered, shallowest roster first, so the table reads the way
+// a player meets them.
+const seenVariants = [];
+MV.rosters.forEach(function (r) {
+	r.variants.forEach(function (v) { if (seenVariants.indexOf(v) < 0) seenVariants.push(v); });
+});
+document.getElementById('vartraits').innerHTML = seenVariants.map(function (v) {
+	return '<tr><td><b>' + v + '</b></td><td>' + (TRAITS[v] || '') + '</td></tr>';
+}).join('');
+
+document.getElementById('varrosters').innerHTML = MV.rosters.map(function (r) {
+	return '<tr><td><b>' + r.dungeon + '</b></td><td>' + r.variants.join(', ') + '</td></tr>';
+}).join('') + '<tr><td><b>Town</b></td><td>None</td></tr>';
 </script>
 </body>
 </html>
