@@ -49,6 +49,7 @@
 #include "oracool/skill_sounds.h"
 #include "missiles.h"
 #include "oracool/monster_scale.h"
+#include "oracool/monster_variants.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
@@ -3967,4 +3968,163 @@ TEST(OracoolAudit, LevskiGridMeasuresRoomInCellsAndLosesNothing)
 			stonesBack++;
 	}
 	EXPECT_EQ(stonesBack, devilution::Item::MaxItemSockets) << "stones went missing on the way out";
+}
+
+/**
+ * The named-set drop leans toward the set you are already collecting.
+ *
+ * Before v1.9.11 TrySpawnNamedSetPiece picked uniformly across every eligible piece of all fifteen
+ * sets - roughly ninety of them. Holding five of the Ashen Saint's six made the sixth no likelier
+ * than a piece of a set you had never seen, so completing a ladder was attrition rather than a
+ * pursuit, and the cumulative bonus ladder - the entire reason a named set exists - was something
+ * you finished by accident or not at all.
+ *
+ * Two things are pinned here. The WEIGHT RULE, which is pure arithmetic; and the fact that HELD
+ * means held ANYWHERE - worn, carried, or in the stash. That last one is the part that would
+ * silently half-work: counting only worn pieces biases against exactly the player this helps, the
+ * one hoarding four pieces they cannot equip yet.
+ */
+TEST(OracoolAudit, NamedSetDropsLeanTowardTheSetYouAreCollecting)
+{
+	using namespace devilution::oracool;
+
+	// Nothing held: every piece is equal, which is the old behaviour and must survive for a player
+	// who has never seen a set item.
+	EXPECT_EQ(SetPieceDropWeight(0, false), 1);
+
+	// Held pieces of the set, but not this one: the boost.
+	EXPECT_GT(SetPieceDropWeight(1, false), SetPieceDropWeight(0, false));
+	EXPECT_GT(SetPieceDropWeight(4, false), SetPieceDropWeight(1, false))
+	    << "the boost does not grow with progress - a nearly-complete set is no likelier to finish";
+
+	// A piece already held falls back to the floor, and specifically NOT to zero.
+	EXPECT_EQ(SetPieceDropWeight(4, true), SetPieceDropWeight(0, false));
+	EXPECT_GT(SetPieceDropWeight(4, true), 0)
+	    << "a piece you hold can never drop again - sell one by mistake and it is gone for good";
+
+	// HELD means held anywhere. Built three times over, in the three places a piece can be.
+	const ItemSetDefinition &set = ItemSets[0];
+	ASSERT_GE(set.itemCount, 2);
+	const SetItemDefinition &piece = ItemSetItems[set.firstItem];
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player._pNumInv = 0;
+	for (devilution::Item &slot : player.InvBody)
+		slot.clear();
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	ASSERT_EQ(HeldSetPieces(player, set), 0) << "the fixture did not start empty";
+
+	const int base = BaseItemForSetSlot(piece.slot);
+	ASSERT_GE(base, 0);
+	devilution::Item made;
+	InitializeItem(made, static_cast<_item_indexes>(base));
+	MakeSetItem(made, piece);
+
+	// (1) worn
+	player.InvBody[INVLOC_HEAD] = made;
+	EXPECT_TRUE(IsSetPieceHeld(player, piece)) << "a worn piece is not seen as held";
+	EXPECT_EQ(HeldSetPieces(player, set), 1);
+	player.InvBody[INVLOC_HEAD].clear();
+
+	// (2) in the backpack
+	player.InvList[0] = made;
+	player._pNumInv = 1;
+	EXPECT_TRUE(IsSetPieceHeld(player, piece)) << "a carried piece is not seen as held";
+	EXPECT_EQ(HeldSetPieces(player, set), 1);
+	player._pNumInv = 0;
+	player.InvList[0].clear();
+
+	// (3) in the stash - the case that matters most, and the one a worn-only count misses
+	Stash.stashList.push_back(made);
+	EXPECT_TRUE(IsSetPieceHeld(player, piece)) << "a stashed piece is not seen as held";
+	EXPECT_EQ(HeldSetPieces(player, set), 1);
+
+	// A SECOND copy of the same piece is still one piece of progress, for the reason recorded on
+	// WornSetPieces: two set rings in two ring slots are not two pieces.
+	Stash.stashList.push_back(made);
+	EXPECT_EQ(HeldSetPieces(player, set), 1) << "a duplicate counted as progress";
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+}
+
+/**
+ * A monster variant says something about WHERE you are.
+ *
+ * The four variants shipped at v1.9.7 on a flat 15% everywhere, so a Cathedral skeleton and a Hell
+ * knight drew from the same list and "Ashen" was texture rather than information. Each dungeon type
+ * now offers a subset.
+ *
+ * This is also the first test the variants have had at all - they shipped with none.
+ */
+TEST(OracoolAudit, MonsterVariantRostersArePerDungeonAndComplete)
+{
+	using namespace devilution::oracool;
+
+	constexpr dungeon_type Dungeons[] = { DTYPE_CATHEDRAL, DTYPE_CATACOMBS, DTYPE_CAVES,
+		DTYPE_HELL, DTYPE_NEST, DTYPE_CRYPT };
+
+	// TOWN has no roster, and it is the one that would be actively wrong: an Ashen Griswold.
+	EXPECT_EQ(VariantRosterSize(DTYPE_TOWN), 0) << "town offers variants";
+	for (uint32_t seed = 0; seed < 500; seed++) {
+		ASSERT_EQ(VariantForSeed(seed, DTYPE_TOWN), MonsterVariant::None)
+		    << "a town monster rolled a variant at seed " << seed;
+	}
+
+	std::set<MonsterVariant> everOffered;
+	for (const dungeon_type dungeon : Dungeons) {
+		const int size = VariantRosterSize(dungeon);
+		EXPECT_GT(size, 0) << "dungeon type " << static_cast<int>(dungeon) << " has an empty roster";
+
+		// No duplicates within a roster: a repeated entry silently doubles that variant's share.
+		std::set<MonsterVariant> inThisRoster;
+		for (int i = 0; i < size; i++) {
+			const MonsterVariant variant = VariantInRoster(dungeon, i);
+			EXPECT_NE(variant, MonsterVariant::None) << "None is listed as a roster entry";
+			EXPECT_TRUE(inThisRoster.insert(variant).second)
+			    << "dungeon type " << static_cast<int>(dungeon) << " lists a variant twice";
+			everOffered.insert(variant);
+		}
+
+		// Every variant a seed can produce here is one this roster actually lists. This is the
+		// assertion that fails if the draw ever stops going through the roster.
+		for (uint32_t seed = 0; seed < 2000; seed++) {
+			const MonsterVariant rolled = VariantForSeed(seed, dungeon);
+			if (rolled == MonsterVariant::None)
+				continue;
+			ASSERT_TRUE(inThisRoster.count(rolled) == 1)
+			    << "seed " << seed << " produced a variant outside dungeon type "
+			    << static_cast<int>(dungeon) << "'s roster";
+		}
+	}
+
+	// Every variant is reachable somewhere. A variant listed in the enum and in no roster is dead
+	// code wearing a name, and nothing else would notice.
+	for (int i = 1; i <= static_cast<int>(MonsterVariant::LAST); i++) {
+		EXPECT_EQ(everOffered.count(static_cast<MonsterVariant>(i)), 1u)
+		    << "variant " << i << " appears in no dungeon's roster - it can never spawn";
+	}
+
+	// The shallow end is deliberately free of elemental resistances, so floor two teaches the idea
+	// without a wall the player has no answer to.
+	for (int i = 0; i < VariantRosterSize(DTYPE_CATHEDRAL); i++) {
+		const MonsterVariant variant = VariantInRoster(DTYPE_CATHEDRAL, i);
+		EXPECT_NE(variant, MonsterVariant::Ashen) << "the Cathedral offers a fire-resistant variant";
+		EXPECT_NE(variant, MonsterVariant::Stormtouched) << "the Cathedral offers a lightning-resistant variant";
+	}
+	// Hell offers all four - the deepest floors are where the player is expected to have answers.
+	EXPECT_EQ(VariantRosterSize(DTYPE_HELL), static_cast<int>(MonsterVariant::LAST));
+
+	// The rate is still roughly the declared 15%, whatever the roster's size.
+	int variants = 0;
+	constexpr int Samples = 10000;
+	for (uint32_t seed = 0; seed < Samples; seed++) {
+		if (VariantForSeed(seed, DTYPE_HELL) != MonsterVariant::None)
+			variants++;
+	}
+	EXPECT_NEAR(variants * 100.0 / Samples, 15.0, 1.0) << "the variant rate drifted from 15%";
 }

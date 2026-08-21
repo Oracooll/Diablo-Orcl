@@ -18,8 +18,6 @@ namespace {
  */
 constexpr int VariantPercent = 15;
 
-constexpr int VariantCount = static_cast<int>(MonsterVariant::LAST);
-
 /** @brief Life and damage adjustments, as percentages, for the two that trade one for the other. */
 constexpr int HollowLifePercent = 135;
 constexpr int HollowDamagePercent = 75;
@@ -64,6 +62,93 @@ void TintVariant(Monster &monster, int shift)
 
 } // namespace
 
+/**
+ * @brief Which variants each dungeon type offers.
+ *
+ * The rosters are the point of this table, so the reasoning is here rather than in a commit
+ * message. Each floor gets a SUBSET, because a variant that can appear anywhere describes nothing:
+ * with one global list the Cathedral and Hell drew from the same four and "Ashen" was texture.
+ *
+ *  - CATHEDRAL is the shallow end and gets the two body variants, Hollow and Feral. They teach the
+ *    idea - this one is tougher, this one hits harder - without an elemental resistance the player
+ *    may have no answer to on floor two.
+ *  - CATACOMBS adds Stormtouched. Lightning is the first resistance worth planning around, and by
+ *    the Catacombs a caster has more than one spell.
+ *  - CAVES swap to Ashen for the obvious reason: it is the lava tileset, and fire-hardened belongs
+ *    where fire lives. Feral stays; Hollow does not, so the Caves read as faster and meaner rather
+ *    than merely tougher.
+ *  - HELL offers all four. The deepest floors are where the player is expected to have answers.
+ *  - CRYPT is Hollow and Stormtouched - the drained, the charged; no fire in a Crypt.
+ *  - NEST is Feral and Ashen, which is what a nest of hive beasts over lava should be.
+ *  - TOWN has none, and this is load-bearing rather than tidy: an Ashen Griswold is nonsense.
+ *
+ * Kept as one table with one accessor so "which variants live here" has a single answer. A second
+ * list somewhere - a display filter, a test's own copy - is how a roster comes to disagree with
+ * itself.
+ */
+constexpr MonsterVariant CathedralRoster[] = { MonsterVariant::Hollow, MonsterVariant::Feral };
+constexpr MonsterVariant CatacombsRoster[] = { MonsterVariant::Hollow, MonsterVariant::Feral,
+	MonsterVariant::Stormtouched };
+constexpr MonsterVariant CavesRoster[] = { MonsterVariant::Feral, MonsterVariant::Ashen };
+constexpr MonsterVariant HellRoster[] = { MonsterVariant::Hollow, MonsterVariant::Feral,
+	MonsterVariant::Stormtouched, MonsterVariant::Ashen };
+constexpr MonsterVariant NestRoster[] = { MonsterVariant::Feral, MonsterVariant::Ashen };
+constexpr MonsterVariant CryptRoster[] = { MonsterVariant::Hollow, MonsterVariant::Stormtouched };
+
+struct Roster {
+	const MonsterVariant *variants;
+	int count;
+};
+
+Roster RosterFor(dungeon_type dungeon)
+{
+	switch (dungeon) {
+	case DTYPE_CATHEDRAL:
+		return { CathedralRoster, static_cast<int>(std::size(CathedralRoster)) };
+	case DTYPE_CATACOMBS:
+		return { CatacombsRoster, static_cast<int>(std::size(CatacombsRoster)) };
+	case DTYPE_CAVES:
+		return { CavesRoster, static_cast<int>(std::size(CavesRoster)) };
+	case DTYPE_HELL:
+		return { HellRoster, static_cast<int>(std::size(HellRoster)) };
+	case DTYPE_NEST:
+		return { NestRoster, static_cast<int>(std::size(NestRoster)) };
+	case DTYPE_CRYPT:
+		return { CryptRoster, static_cast<int>(std::size(CryptRoster)) };
+	case DTYPE_TOWN:
+	case DTYPE_NONE:
+		break;
+	}
+	return { nullptr, 0 };
+}
+
+int VariantRosterSize(dungeon_type dungeon)
+{
+	return RosterFor(dungeon).count;
+}
+
+MonsterVariant VariantInRoster(dungeon_type dungeon, int index)
+{
+	const Roster roster = RosterFor(dungeon);
+	if (index < 0 || index >= roster.count)
+		return MonsterVariant::None;
+	return roster.variants[index];
+}
+
+MonsterVariant VariantForSeed(uint32_t seed, dungeon_type dungeon)
+{
+	const Roster roster = RosterFor(dungeon);
+	if (roster.count == 0)
+		return MonsterVariant::None;
+
+	// Two INDEPENDENT draws out of one seed - whether, and which. Taken from different ends of the
+	// value so a monster that just missed being a variant is not always the same variant when a
+	// sibling seed does qualify.
+	if (static_cast<int>(seed % 100) >= VariantPercent)
+		return MonsterVariant::None;
+	return roster.variants[(seed / 100) % static_cast<uint32_t>(roster.count)];
+}
+
 MonsterVariant VariantOf(const Monster &monster)
 {
 	// Uniques and champions are excluded at the source rather than at the call site: they carry an
@@ -71,13 +156,7 @@ MonsterVariant VariantOf(const Monster &monster)
 	if (monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None)
 		return MonsterVariant::None;
 
-	// Two INDEPENDENT draws out of one seed - whether, and which. Taken from different ends of the
-	// value so a monster that just missed being a variant is not always the same variant when a
-	// sibling seed does qualify.
-	const uint32_t seed = monster.rndItemSeed;
-	if (static_cast<int>(seed % 100) >= VariantPercent)
-		return MonsterVariant::None;
-	return static_cast<MonsterVariant>(1 + static_cast<int>((seed / 100) % VariantCount));
+	return VariantForSeed(monster.rndItemSeed, leveltype);
 }
 
 const char *VariantNamePrefix(MonsterVariant variant)

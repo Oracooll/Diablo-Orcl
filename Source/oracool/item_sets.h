@@ -204,6 +204,36 @@ int ForEachEarnedSetBonus(const Player &player, const ItemSetDefinition &set,
 bool IsSetPieceWorn(const Player &player, const SetItemDefinition &piece);
 
 /**
+ * @brief Whether @p player HOLDS this exact piece anywhere - worn, in the backpack, or in the stash.
+ *
+ * Deliberately a different question from IsSetPieceWorn. Bonuses are for wearing; the drop bias is
+ * about what you are COLLECTING, and a piece waiting in the stash for the rest of its suit is the
+ * clearest possible statement of intent. Counting only worn pieces would bias against exactly the
+ * player this is meant to help - the one hoarding four pieces they cannot use yet.
+ */
+bool IsSetPieceHeld(const Player &player, const SetItemDefinition &piece);
+
+/** @brief How many DISTINCT pieces of @p set the player holds anywhere. See IsSetPieceHeld. */
+int HeldSetPieces(const Player &player, const ItemSetDefinition &set);
+
+/**
+ * @brief How heavily a set piece is weighted in the named-set drop roll.
+ *
+ * @param heldInSet     distinct pieces of this piece's set the player already holds
+ * @param holdsThisPiece whether this exact piece is one of them
+ *
+ * Pure arithmetic, lifted out of the drop hook so the RULE can be read and tested without spawning
+ * a monster. A uniform roll over ~90 pieces made completing any one set pure attrition: holding
+ * five of the Ashen Saint's six made the sixth no likelier than a piece of a set you had never
+ * seen, so the ladder - the whole point of a named set - was something you finished by accident.
+ *
+ * A piece you ALREADY hold stays at the floor weight rather than dropping to zero. Duplicates are
+ * legitimate (sold, dropped, a second ring), and a zero would make a piece sold by mistake
+ * unobtainable for as long as the game believed you had it.
+ */
+int SetPieceDropWeight(int heldInSet, bool holdsThisPiece);
+
+/**
  * @brief The slot word shown in brackets after a piece's name, e.g. "helm", "main hand".
  *
  * Player-facing, so it is not the raw JSON token: "torso" reads as "body" and "main_hand" loses its

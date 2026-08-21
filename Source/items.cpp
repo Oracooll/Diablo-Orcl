@@ -4581,9 +4581,15 @@ void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 	struct Candidate {
 		const oracool::SetItemDefinition *def;
 		int base;
+		int weight;
 	};
 	std::vector<Candidate> candidates;
+	int totalWeight = 0;
 	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		// Computed once per SET rather than per piece: HeldSetPieces walks the backpack and the
+		// whole stash for every piece of the set, so asking it inside the inner loop would make
+		// this quadratic in the stash's size on every 3% drop.
+		const int held = oracool::HeldSetPieces(*MyPlayer, set);
 		for (int i = 0; i < set.itemCount; i++) {
 			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
 			if (oracool::BandedQlvl(def.requiredLevel) > mlvl)
@@ -4591,13 +4597,29 @@ void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 			const int base = oracool::BaseItemForSetSlot(def.slot);
 			if (base < 0)
 				continue;
-			candidates.push_back({ &def, base });
+
+			// THE BIAS: a piece is worth more when you already hold pieces of ITS set and do not
+			// hold this one. The rule itself lives in SetPieceDropWeight so it can be read and
+			// tested without spawning a monster; only the two inputs are gathered here.
+			const int weight = oracool::SetPieceDropWeight(held, oracool::IsSetPieceHeld(*MyPlayer, def));
+			candidates.push_back({ &def, base, weight });
+			totalWeight += weight;
 		}
 	}
 	if (candidates.empty())
 		return;
 
-	const Candidate &chosen = candidates[GenerateRnd(static_cast<int>(candidates.size()))];
+	// Weighted pick. GenerateRnd is the level's own stream, the same one the uniform pick used.
+	int roll = GenerateRnd(totalWeight);
+	size_t pick = 0;
+	for (size_t i = 0; i < candidates.size(); i++) {
+		roll -= candidates[i].weight;
+		if (roll < 0) {
+			pick = i;
+			break;
+		}
+	}
+	const Candidate &chosen = candidates[pick];
 	Item item {};
 	InitializeItem(item, static_cast<_item_indexes>(chosen.base));
 	oracool::MakeSetItem(item, *chosen.def);

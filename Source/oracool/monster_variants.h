@@ -31,6 +31,8 @@
 
 #include <cstdint>
 
+#include "levels/gendung.h"
+
 namespace devilution {
 struct Monster;
 } // namespace devilution
@@ -57,8 +59,28 @@ enum class MonsterVariant : uint8_t {
 	LAST = Feral,
 };
 
-/** @brief Which variant @p monster is, derived from its seed. None for most monsters. */
+/** @brief Which variant @p monster is, derived from its seed and the floor it stands on. */
 MonsterVariant VariantOf(const Monster &monster);
+
+/**
+ * @brief The variant a seed draws from @p dungeon's roster. The whole rule, with nothing implicit.
+ *
+ * Split out of VariantOf so the roster can be tested without building a Monster and a level: this
+ * takes the two inputs that decide the answer and reads no globals. VariantOf is the same rule with
+ * `leveltype` and the monster's exclusions supplied.
+ *
+ * The ROSTER is what makes a variant mean something. With one global list a Cathedral skeleton and
+ * a Hell knight drew from the same four, so "Ashen" said nothing about where you were - it was
+ * texture, not information. Each dungeon type now offers a subset, so learning a floor's roster is
+ * learning the floor.
+ */
+MonsterVariant VariantForSeed(uint32_t seed, dungeon_type dungeon);
+
+/** @brief How many variants @p dungeon's roster offers. Zero means no variants spawn there. */
+int VariantRosterSize(dungeon_type dungeon);
+
+/** @brief The @p index'th variant of @p dungeon's roster, or None if out of range. */
+MonsterVariant VariantInRoster(dungeon_type dungeon, int index);
 
 /** @brief The word put in front of the monster's name, or nullptr for None. Untranslated. */
 const char *VariantNamePrefix(MonsterVariant variant);

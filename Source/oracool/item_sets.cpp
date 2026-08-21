@@ -5,6 +5,7 @@
 #include "engine/random.hpp"
 #include "items.h"
 #include "player.h"
+#include "qol/stash.h"
 #include "oracool/stat_sheet.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -259,6 +260,44 @@ bool IsSetPieceWorn(const Player &player, const SetItemDefinition &piece)
 			return true;
 	}
 	return false;
+}
+
+bool IsSetPieceHeld(const Player &player, const SetItemDefinition &piece)
+{
+	if (IsSetPieceWorn(player, piece))
+		return true;
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (!player.InvList[i].isEmpty() && player.InvList[i]._iCurs == piece.cursor)
+			return true;
+	}
+	// The stash counts. It is where a set in progress actually lives - the backpack is for the run
+	// you are on, and a player collecting a suit they cannot wear yet parks it in the chest.
+	for (const Item &stored : Stash.stashList) {
+		if (!stored.isEmpty() && stored._iCurs == piece.cursor)
+			return true;
+	}
+	return false;
+}
+
+int HeldSetPieces(const Player &player, const ItemSetDefinition &set)
+{
+	// DISTINCT pieces, for the reason recorded on WornSetPieces: two copies of the same set ring
+	// are one piece of progress, not two.
+	int held = 0;
+	for (int i = 0; i < set.itemCount; i++) {
+		if (IsSetPieceHeld(player, ItemSetItems[set.firstItem + i]))
+			held++;
+	}
+	return held;
+}
+
+int SetPieceDropWeight(int heldInSet, bool holdsThisPiece)
+{
+	constexpr int FloorWeight = 1;
+	constexpr int PerHeldPiece = 3;
+	if (heldInSet <= 0 || holdsThisPiece)
+		return FloorWeight;
+	return FloorWeight + heldInSet * PerHeldPiece;
 }
 
 const char *SetSlotDisplayName(string_view slot)
