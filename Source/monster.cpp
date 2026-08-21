@@ -1061,6 +1061,9 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		// stream above stays byte-identical - see TrySpawnOracoolSetItem for why they cannot ride
 		// the ordinary pool.
 		TrySpawnOracoolSetItem(monster, sendmsg);
+		// The fifteen NAMED sets, which had no drop path at all until 2026-08-21 - the hook above
+		// drops the worn TIER ladder despite its name. Same placement, same stream-safety reason.
+		TrySpawnNamedSetPiece(monster, sendmsg);
 		// Phase 1: and the gems' roll, same placement for the same stream-safety reason.
 		TrySpawnOracoolGem(monster, sendmsg);
 	}

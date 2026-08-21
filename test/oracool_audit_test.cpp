@@ -2868,6 +2868,43 @@ TEST(OracoolItemSets, EveryBonusRungGrantsSomething)
 // A stat that grants something but renders as a blank line is the same failure wearing a different
 // hat: the player still cannot tell what the rung does. PrintSetBonusPower returns an empty string
 // for a type it has no case for, and this is what turns that into a red run.
+/**
+ * @brief Which set pieces can be BUILT, and therefore dropped.
+ *
+ * Before 2026-08-21 this was 73 of 94: amulets and rings had no resolvable base because the vanilla
+ * rows are anonymous and naming them would have meant inserting into _item_indexes, which is
+ * positional save format. ItemMiscIdIdx answers the same question without touching the enum.
+ *
+ * Pinned as an exact count rather than "most of them", because the failure this guards is silent:
+ * an unspawnable piece is simply never rolled, so a set quietly becomes uncompletable and nothing
+ * says so.
+ */
+TEST(OracoolItemSets, EveryPieceButRelicAndCloakHasASpawnableBase)
+{
+	int spawnable = 0;
+	int unspawnable = 0;
+	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		for (int i = 0; i < set.itemCount; i++) {
+			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
+			const int base = oracool::BaseItemForSetSlot(def.slot);
+			if (base >= 0) {
+				spawnable++;
+				// A resolved base must be a real row, not a stale index - the whole point of
+				// routing rings and amulets through ItemMiscIdIdx is that it cannot invent one.
+				EXPECT_LE(base, IDI_LAST) << def.name << " resolved past the item table";
+			} else {
+				unspawnable++;
+				// Only the two slots this fork has genuinely not built may fail.
+				const std::string slot = def.slot;
+				EXPECT_TRUE(slot == "relic" || slot == "cloak")
+				    << def.name << " has no base, and its slot '" << slot << "' is not one of the two known gaps";
+			}
+		}
+	}
+	EXPECT_EQ(spawnable, 92);
+	EXPECT_EQ(unspawnable, 2) << "the relic and the cloak are the only pieces without a base";
+}
+
 TEST(OracoolItemSets, EverySetBonusStatHasText)
 {
 	for (const oracool::SetBonusDefinition &rung : oracool::ItemSetBonuses) {

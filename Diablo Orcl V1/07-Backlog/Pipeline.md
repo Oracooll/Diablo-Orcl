@@ -21,10 +21,10 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Legendary power slots | Phase 6 | Medium | Yes | Unique legendary powers | Kanai's Cube has three slots below its grid for extracted powers. Levski's Roar deliberately has none until the powers exist. |
 | Retire the standalone Crafting window | Directive | Small | No | menu_icons.png recut | Directive point 8 is HALF done. Levski's Roar shipped with the recipes, but the burger menu's own Crafting window was left in place, so the same recipes run from two larders - the monument's grid and the backpack. Removing the burger entry shifts every icon after it, because the row order must match menu_icons.png exactly, so the sheet has to be recut first. |
 | Sweep the wiki for typed numbers | Content | Small | No | | LOCATED 2026-08-19, not yet derived. Eleven typed numeric claims survive in the generated pages, and every one spot-checked against source is currently CORRECT - so this is about them being typed, not wrong. The list: affixes.html "143 shipped entries" and "up to 3 prefixes + 3 suffixes"; classes.html "a Sorcerer's 250 Magic against a Barbarian's zero"; sockets.html "climbs 13% a rung", "by 20% ... capped at 60%", "fixed 3%/5% flags", "370 words"; monsters.html "+15 in Nightmare, +30 in Hell", "default 2.0, range 1.1 to 5.0"; ui.html "10 x 7 grid, ten tabs, thirteen equipment slots", "56 x 56 icon cell". Verified against gems.cpp (Hel 20, cap 60), GenRunes.ps1 (1.13 climb), playerdat.cpp (Sorcerer 250, Barbarian 0), runes_effects.inc. The remaining work is routing each through BuildWiki.ps1 so they cannot drift.
-| Salvaging, and the seven materials | Directive | Medium | New file | | Break unwanted items into White Scales, Magic Powder, Rare Fibres, Unique Encrustments, Primal Vines, Ethereal Imbueities and Set Engravings. Materials are player-scoped, so they can live in their own absent-tolerant file rather than breaking the hero format. |
 | Point 10 of the socket directive | Directive | ? | ? | Never stated | The nine-point socket list ended with an empty "10." It has stayed blank across four messages. |
-| The 107 remaining uniques | Content | Medium | No | Needs UITYPE values on existing armour bases | 143 of 250 uniques ship with sprites. The cheap 66 of the remainder need only base-item wiring. |
+| The 107 remaining uniques | Content | Medium | No | Needs NEW base items, not just wiring | CORRECTED 2026-08-21 by the affix audit. All 253 shipped uniques already have a valid base - the old "needs UITYPE values on existing armour bases" was wrong. The 107 absent ones ride bases this engine does not have at all: shoulder mantles, reliquaries, cloaks, battle cloaks, spears, pikes, war lutes, arcane foci, war quivers, canticles. So the cheap half is not cheap; each needs a base item authored first. |
 | Named set drops | Content | Medium | No | | Three gaps left after the 73 rungs shipped: some set items cannot spawn, sets do not drop as sets, and there is no gold mechanic tied to them. |
+| The Sorcerer has no tree | Content | Medium | No | | URGENT, and self-inflicted (2026-08-20). The books rule retired 13 of her rows as book spells, leaving 17 of which exactly ONE is implemented - her page is a grid of greyed cells and her skill points have nowhere to go. She needs non-spell skills authored: masteries, passives, anything that is not a SpellID. The other five classes are unaffected; the Paladin lost nothing because his seven actives were authored bookless on purpose. |
 | The 97 unbuilt class-tree rows | Content | Large | No | | Of 163 tree skills across six classes, 66 are implemented. The rest are listed with a red X and do nothing. |
 | TRN recolour monster variants | Phase 3 | Medium | No | | Recoloured versions of existing monsters wired into per-zone rosters - the cheapest possible bestiary multiplier. |
 | Aura-carrying champion packs | Phase 3 | Medium | No | | Fanaticism and Might packs - D2's scariest idea, and cheap here because the aura and lesser-unique systems both exist. |
@@ -51,6 +51,13 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
 ## Shipped, so not listed above
+
+The 1.8.7x-1.8.9x line closed **Salvaging and the seven materials** in full, and then some: the seven
+materials with their own stackable items and sprites, the seven buttons on Levski's Roar, a row of
+their own in the stash SORT, seven Charms of Salvaging that convert a drop at pickup, jewellery
+salvaging, and a sweep across every backpack page rather than the displayed one. Also in that line:
+the skill picker on the LMB/RMB wells, the Abilities window becoming points-only, and the rule that
+books raise spells while points raise skills.
 
 The 1.8.3x line added: gold auto-place across the full 10x7 backpack (it had still been walking the vanilla
 10x4), per-difficulty monster immunities with Torment hardening Hell's resistances rather than repeating them,

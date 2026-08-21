@@ -104,14 +104,21 @@ int BaseItemForSetSlot(string_view slot)
 	if (slot == "shoulders") return IDI_ORACOOL_SHOULDERS;
 	if (slot == "off_hand") return IDI_ORACOOL_LEATHER_SHIELD;
 	if (slot == "main_hand") return IDI_WARRIOR; // Short Sword: a plain one-handed weapon base
-	// amulet, ring, relic and cloak have NO base yet, and -1 says so rather than resolving to
-	// something close. The first two need a droppable ring/amulet row with a named IDI_ constant
-	// (the vanilla ones are anonymous rows the code cannot reference); the last two are slots this
-	// fork has not built.
+	// AMULET and RING resolve now (2026-08-21). The old note said they needed "a droppable
+	// ring/amulet row with a named IDI_ constant", because the vanilla rows are anonymous and the
+	// code could not name them - but naming them means inserting into _item_indexes, and item
+	// indices are positional save format.
 	//
-	// 21 of the 94 items sit here - amulet 11, ring 8, relic 1, cloak 1 - listed, described, and not
-	// yet spawnable. Only Leoric's Fallen Court is badly hit (5 of its 13); every other set is short
-	// by one or two. See the continuation plan in the vault.
+	// ItemMiscIdIdx answers the same question without touching the enum: it finds the first
+	// DROPPABLE row carrying a misc id. It is also now bounded and returns IDI_NONE on a miss
+	// (v1.8.94), which is exactly the -1 this function already means by "no base", so the failure
+	// path needs no special handling.
+	//
+	// That unlocks 19 of the 21 unspawnable pieces - 11 amulets and 8 rings.
+	if (slot == "amulet") return ItemMiscIdIdx(IMISC_AMULET);
+	if (slot == "ring") return ItemMiscIdIdx(IMISC_RING);
+	// RELIC and CLOAK are slots this fork has not built at all - two items, one each. They stay -1,
+	// which says so rather than resolving to something close.
 	return -1;
 }
 

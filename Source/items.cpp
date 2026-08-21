@@ -4542,6 +4542,70 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
 }
 
+/**
+ * @brief The NAMED sets' drop path - the fifteen designed sets, not the tier ladder.
+ *
+ * TrySpawnOracoolSetItem above is misleadingly named: it drops TIER items from the worn-type range,
+ * which are "set" only in the sense of a matching suit. The 94 pieces of the fifteen named sets had
+ * no drop path at all until now - giveitemset was the only way to see one, so fifteen sets of
+ * artwork, stats and a whole cumulative bonus ladder were unreachable in play.
+ *
+ * A hook of its own rather than a seat in the droppable pool, for the reason recorded on every other
+ * hook here: that pool is replayed from item seeds on unpack, and growing it transforms every
+ * existing item.
+ */
+void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
+{
+	if (!oracool::IsSinglePlayer())
+		return;
+
+	// Rarer than a tier piece (8%) and rarer than a gem, because a named piece is a step toward a
+	// COMPLETE set rather than a self-contained reward - the ladder is the payoff, and a set you
+	// finish in an afternoon has no ladder worth climbing.
+	constexpr int NamedSetDropPercent = 3;
+	if (GenerateRnd(100) >= NamedSetDropPercent)
+		return;
+	if (ActiveItemCount >= MAXITEMS)
+		return;
+
+	const int mlvl = ItemLevelOfMonster(monster);
+
+	// Every piece this depth has earned AND that can actually be built. Both filters matter: the
+	// level gate is what makes deep floors drop the deep sets, and the base check is what keeps the
+	// two slots this fork has not built (relic, cloak) from being rolled and silently dropped.
+	struct Candidate {
+		const oracool::SetItemDefinition *def;
+		int base;
+	};
+	std::vector<Candidate> candidates;
+	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		for (int i = 0; i < set.itemCount; i++) {
+			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
+			if (oracool::BandedQlvl(def.requiredLevel) > mlvl)
+				continue;
+			const int base = oracool::BaseItemForSetSlot(def.slot);
+			if (base < 0)
+				continue;
+			candidates.push_back({ &def, base });
+		}
+	}
+	if (candidates.empty())
+		return;
+
+	const Candidate &chosen = candidates[GenerateRnd(static_cast<int>(candidates.size()))];
+	Item item {};
+	InitializeItem(item, static_cast<_item_indexes>(chosen.base));
+	oracool::MakeSetItem(item, *chosen.def);
+
+	const int ii = AllocateItem();
+	Items[ii] = item.pop();
+	Point position = monster.position.tile;
+	GetSuperItemSpace(position, ii);
+	LogNoteworthyItemDrop(Items[ii]);
+	if (sendmsg)
+		NetSendCmdPItem(false, CMD_SPAWNITEM, Items[ii].position, Items[ii]);
+}
+
 void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 {
 	// Megaplan Phase 1: the gems' own drop path - a hook rather than a pool seat, for exactly the
