@@ -2929,8 +2929,15 @@ TEST(OracoolItemSets, NoSetPromisesARungItCannotPay)
 		for (int i = 0; i < set.itemCount; i++) {
 			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
 			const int base = oracool::BaseItemForSetSlot(def.slot);
-			if (base >= 0)
-				buildableByLoc[static_cast<int>(AllItemsList[base].iLoc)]++;
+			if (base < 0)
+				continue;
+			// A two-hander CONSUMES both hand slots, so it would have to subtract capacity rather
+			// than add a piece. No set base is two-handed today - main_hand resolves to a short
+			// sword - and this asserts that rather than assuming it, because the capacity model
+			// below would quietly over-count by one if it ever changed.
+			ASSERT_NE(AllItemsList[base].iLoc, ILOC_TWOHAND)
+			    << def.name << " resolves to a two-handed base; this test's slot model cannot count that";
+			buildableByLoc[static_cast<int>(AllItemsList[base].iLoc)]++;
 		}
 		int wearable = 0;
 		for (const auto &[loc, count] : buildableByLoc) {
