@@ -23,10 +23,10 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Sweep the wiki for typed numbers | Content | Small | No | | LOCATED 2026-08-19, not yet derived. Eleven typed numeric claims survive in the generated pages, and every one spot-checked against source is currently CORRECT - so this is about them being typed, not wrong. The list: affixes.html "143 shipped entries" and "up to 3 prefixes + 3 suffixes"; classes.html "a Sorcerer's 250 Magic against a Barbarian's zero"; sockets.html "climbs 13% a rung", "by 20% ... capped at 60%", "fixed 3%/5% flags", "370 words"; monsters.html "+15 in Nightmare, +30 in Hell", "default 2.0, range 1.1 to 5.0"; ui.html "10 x 7 grid, ten tabs, thirteen equipment slots", "56 x 56 icon cell". Verified against gems.cpp (Hel 20, cap 60), GenRunes.ps1 (1.13 climb), playerdat.cpp (Sorcerer 250, Barbarian 0), runes_effects.inc. The remaining work is routing each through BuildWiki.ps1 so they cannot drift.
 | Point 10 of the socket directive | Directive | ? | ? | Never stated | The nine-point socket list ended with an empty "10." It has stayed blank across four messages. |
 | The 107 remaining uniques | Content | Medium | No | Needs NEW base items, not just wiring | CORRECTED 2026-08-21 by the affix audit, and the count corrected again 2026-08-22 by counting the table: unique_items_data.inc holds 143 rows, not 253, which is also what the wiki reports. All 143 shipped uniques already have a valid base - the old "needs UITYPE values on existing armour bases" was wrong. The 107 absent ones ride bases this engine does not have at all: shoulder mantles, reliquaries, cloaks, battle cloaks, spears, pikes, war lutes, arcane foci, war quivers, canticles. So the cheap half is not cheap; each needs a base item authored first. |
-| Sets drop as SETS, not as pieces | Content | Small | No | | The one thing the set line still does not do. TrySpawnNamedSetPiece rolls each piece independently at 3%, so completing a ladder is pure attrition - nothing makes a set's own pieces likelier once you hold one, and no monster or place is the place to farm a particular set. The obvious shape is a bias term on the roll toward sets the player already has pieces of, which needs no new data. |
+| Jewel upgrade recipe | Content | Small | No | | Three Flawed jewels cannot become a Plain the way three gems climb their ladder. "Refine Gems" tests IsOracoolGemIdx and jewels are deliberately not gems, so the recipe declines them. The grades exist and the ladder is obvious; what is missing is a fifth recipe, or a widened first one. Noticed 2026-08-22 while auditing v1.9.9. |
 | The Sorcerer's thin tree | Content | Medium | No | New rows need icon-strip art | PARTLY FIXED at v1.9.2, from 1 live row to 4: Enchant now burns on every blow, and Fire and Lightning Mastery each grant their element's damage plus its resistance. Those three were the only rows this engine had a channel for. The other 13 stay inert honestly - TEN are the cold page and there is no cold damage type at all, and Static Field, Lightning Storm and Meteor have no analogue. A fuller tree means NEW rows, and every row needs an icon in her strip, so the rest is blocked on art rather than on code. |
 | The 97 unbuilt class-tree rows | Content | Large | No | | Of 163 tree skills across six classes, 66 are implemented. The rest are listed with a red X and do nothing. |
-| Per-ZONE variant rosters | Phase 3 | Small | No | | The variants themselves SHIPPED at v1.9.7 - oracool/monster_variants.cpp, four of them (Ashen, Stormtouched, Hollow, Feral), one trait apiece, derived from the monster's own rndItemSeed so nothing was added to the save. What did NOT ship is the roster half this row was originally about: the chance is a flat 15% everywhere, so a Cathedral skeleton and a Hell knight draw from the same four. Per-zone tables would make a variant say something about where you are. |
+| More monster variants | Phase 3 | Small | No | | The four that exist (Ashen, Stormtouched, Hollow, Feral) are two resistances and two body types, and Hell's roster is now all four - so the deepest floors have nothing the shallowest do not. A fifth and sixth would give the deep rosters something of their own. Any new trait must be a channel an ordinary monster already has, which is what kept the first four to resistance and life/damage. |
 | Zone 1, the recolour zone | Phase 4 | Large | No | | Hellfire's own trick: new palette, retinted tileset, new roster, new waypoints, new entrance. Validates the whole pipeline with zero AI-art risk. |
 | Zone 2, first generated tileset | Phase 4 | Large | No | Zone 1 proves the pipeline | The first zone built from user art through the tileset pipeline. |
 | Zone quest chains | Phase 4 | Medium | No | A zone to put them in | Each new zone gets a quest in the D1 style - a voice, a horror, a reward. |
@@ -69,8 +69,16 @@ now spawn (the last two were re-slotted at v1.9.1 rather than given new equipmen
 pay 40/50/60% gold find up its ladder. What remains is narrower and has a row of its own: sets drop
 as loose pieces, never as sets.
 
-**Recoloured monster variants** shipped at v1.9.7; only the per-zone roster half is still open, and
-it has a row above.
+**Recoloured monster variants** shipped at v1.9.7 and their **per-zone rosters** at v1.9.11. Each
+dungeon type offers a subset - the Cathedral only the two body variants, Hell all four, town none -
+so a roster is something a player can learn about a place. `VariantForSeed(seed, dungeon)` is the
+whole rule and reads no globals, which is what makes it testable without building a level.
+
+**Sets drop as sets** shipped at v1.9.11, though not by making a set drop whole. The pick is
+weighted instead: `1 + held*3` for a missing piece of a set you already hold pieces of, floor weight
+1 otherwise, where held means worn OR carried OR stashed. A piece you already hold stays at the
+floor rather than dropping to zero, so a piece sold by mistake is not gone for good. The RNG stream
+is unchanged - one `GenerateRnd` call, exactly as the uniform pick made.
 
 **Aura-carrying champion packs** shipped in Phase 3.4 and the row survived until 2026-08-21 - the
 fourth stale row found that week. `oracool/aura_field.h` has the whole thing: `PackAuraFrom` maps an
