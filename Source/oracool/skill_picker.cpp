@@ -438,10 +438,15 @@ bool CheckSkillPickerClick(Point mousePosition)
 		// Only the owning well. A click on the OTHER well still falls through, so it switches
 		// buttons in one click rather than needing one to dismiss and another to open.
 		const Rectangle ownWell = PickerForLeft ? GetLmbSkillButtonRect() : GetRmbSkillButtonRect();
-		if (ownWell.contains(mousePosition)) {
+		if (ownWell.contains(mousePosition) && (SDL_GetModState() & KMOD_SHIFT) == 0) {
 			CloseSkillPicker();
 			return true;
 		}
+		// SHIFT is excluded from the toggle above (self-audit, 2026-08-21). Shift-clicking a well
+		// CLEARS that button - the only way back to a plain attack - and consuming the click to
+		// toggle would have swallowed that shortcut whenever the picker happened to be open. Falling
+		// through closes the picker and lets the well's own handler do the clearing; it will not
+		// reopen, because that handler returns after clearing.
 		// Anywhere else: close, and let the click through to whatever it was aimed at. Swallowing it
 		// would make cancelling cost two clicks, which is exactly the friction this window exists to
 		// remove.

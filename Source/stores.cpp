@@ -1168,19 +1168,40 @@ void ScrollWitchBuy(int idx, bool includePepinPotions)
 	// Both ends are fixed here rather than at the call site: the loop cannot read past the stock,
 	// and stextsval is pulled back into range so scrolling recovers instead of staying stuck at an
 	// index that renders nothing.
-	const int stockSize = includePepinPotions
+	// TWO different bounds, and conflating them was a regression in v1.8.92 (self-audit,
+	// 2026-08-21). They answer different questions:
+	//
+	//   readLimit  - how far the loop may INDEX. For the witch that is the fixed array's size, so a
+	//                hole in the middle cannot truncate the list early.
+	//   liveCount  - how many items actually EXIST. This is what bounds scrolling, because scrolling
+	//                past the last real item just shows blank rows.
+	//
+	// v1.8.92 used WITCH_ITEMS for both and assigned it to stextsmax, which quietly overwrote the
+	// correct value StartWitchBuy had computed from storenumh. Adria's list could then scroll to
+	// offset 21 no matter how few potions she had, showing blanks the whole way down. The smith path
+	// was unaffected - its vector holds only non-empty entries, so there the two numbers coincide,
+	// which is exactly why the mistake was invisible on the screen that had prompted the fix.
+	const int readLimit = includePepinPotions
 	    ? static_cast<int>(SmithConsumablesStock().size())
 	    : WITCH_ITEMS;
-	// stextsmax is recomputed HERE as well as in StartWitchBuy, because this function is the one
-	// that runs every frame. StartWitchBuy set it once, when the screen opened; every purchase since
-	// has shrunk the stock without anyone revising the bound StoreDown scrolls against, so the
-	// offset was free to walk off the end of a list that had got shorter underneath it.
-	stextsmax = std::max(stockSize - 4, 0);
+	int liveCount = readLimit;
+	if (!includePepinPotions) {
+		liveCount = 0;
+		for (int i = 0; i < WITCH_ITEMS; i++) {
+			if (!witchitem[i].isEmpty())
+				liveCount++;
+		}
+	}
+	// Recomputed HERE as well as in StartWitchBuy, because this is the function that runs every
+	// frame. StartWitchBuy set it once, when the screen opened; every purchase since has shrunk the
+	// stock without anyone revising the bound StoreDown scrolls against, so the offset was free to
+	// walk off the end of a list that had got shorter underneath it.
+	stextsmax = std::max(liveCount - 4, 0);
 	idx = std::clamp(idx, 0, stextsmax);
 	stextsval = idx;
 
 	for (int l = 5; l < 20; l += 4) {
-		if (idx >= stockSize)
+		if (idx >= readLimit)
 			break;
 		Item &item = WitchStockItem(idx, includePepinPotions);
 		// idx advances WHATEVER this entry turns out to be. It used to advance only when the entry
