@@ -4689,7 +4689,13 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 		// The rune walk goes through the LADDER, not an index range: the 33 runes live in two enum
 		// islands (the five from v1.7.8, then 28 appended after the gem ladder), so the old
 		// EL..SOL span would have dropped exactly five of the thirty-three and never the rest.
-		_item_indexes candidates[oracool::MaxRuneLadder];
+		// Sized for the WHOLE item table, not for the rune ladder. Three different families write
+		// this array - charms, runes, jewels - and it used to be MaxRuneLadder (33), which is the
+		// size of only one of them. The charms are 13 today and the jewels 15, so nothing overflows
+		// now; but the charm walk deliberately runs to IDI_LAST so that a charm family appended
+		// later is picked up without touching it, and the day that happens this bound is what it
+		// runs into. An array named for one family and filled by three is a trap with a fuse.
+		_item_indexes candidates[IDI_LAST + 1];
 		int candidateCount = 0;
 		if (roll < GemDropPercent + CharmDropPercent) {
 			// The charms live in three enum islands of their own (the MF/GF pair was appended after

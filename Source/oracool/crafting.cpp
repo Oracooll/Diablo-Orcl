@@ -389,6 +389,29 @@ std::string TransmuteLevskiGrid(Item *grid)
 	if (output == IDI_NONE)
 		return {};
 
+	// The same cell check "Free the Sockets" does, for the same reason - and it is NOT redundant
+	// here just because these recipes take more items than they give back. They can still grow in
+	// CELLS: Charm of Greed wears ICURS_MAGIC_ROCK, which is two cells wide, so two 1x1 charms can
+	// transmute into one 2-cell charm. GridRoomAfter's slot count says "room" to that every time.
+	//
+	// Checked BEFORE anything is consumed, so a refusal costs the player nothing. The transmute
+	// button's rollback would catch it anyway, but a recipe that half-runs and is then undone is a
+	// worse thing to rely on than one that declines up front.
+	{
+		std::vector<Item> after;
+		after.reserve(GridSlots + 1);
+		for (int i = 0; i < GridSlots; i++) {
+			if (grid[i].isEmpty() || std::find(materials.begin(), materials.end(), i) != materials.end())
+				continue;
+			after.push_back(grid[i]);
+		}
+		Item produced;
+		InitializeItem(produced, output);
+		after.push_back(produced);
+		if (!LevskiGridCanHold(after.data(), static_cast<int>(after.size())))
+			return std::string(_("not enough room for the result"));
+	}
+
 	for (const int slot : materials)
 		grid[slot].clear();
 	for (int slot = 0; slot < GridSlots; slot++) {
