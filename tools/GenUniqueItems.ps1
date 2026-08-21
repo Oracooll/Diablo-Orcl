@@ -92,6 +92,7 @@ $cursHeights = @()
 $disagreements = @()
 $liveAffixes = 0
 $inertAffixes = 0
+$mergedAffixes = 0
 $emptyItems = @()
 
 foreach ($it in $pkg.items) {
@@ -139,8 +140,40 @@ foreach ($it in $pkg.items) {
         # param2 is the range's upper bound, or param1 again for a scalar.
         $p2 = if ($isRange) { [int]$a.value[1] } else { $v }
         $liveAffixes++
-        $powers += "{ $($m.Power), $v, $p2 }"
+        $powers += [pscustomobject]@{ P = $m.Power; V1 = $v; V2 = $p2 }
     }
+
+    # MERGE duplicate additive powers into one slot.
+    #
+    # 42 items carried IPL_ACP twice (audit, 2026-08-20): the documented flat_armor -> IPL_ACP
+    # approximation landing on an item that also has a real enhanced_armor_percent. The two stacked
+    # correctly, so nothing was broken - but the popup showed two identical-looking "+N% armor"
+    # lines, which reads as a rendering fault rather than as two affixes, and it burned a power slot
+    # out of seven for no information.
+    #
+    # STRICTLY the powers SaveItemPower applies with `+=` on a scalar. Merging anything else would be
+    # wrong in a way that is hard to see later: the elemental pair carry a min/max RANGE and
+    # OVERWRITE each other, the speed powers carry a discrete tier where 1+1 is not 2, and the steal
+    # flags only fire on exactly 3 or 5 - summing two 3s would produce a 6 that silently does
+    # nothing. Anything not on this list keeps every one of its slots.
+    $additive = @(
+        "IPL_ACP", "IPL_DAMP", "IPL_TOHIT", "IPL_DAMMOD", "IPL_LIFE", "IPL_MANA",
+        "IPL_STR", "IPL_MAG", "IPL_DEX", "IPL_VIT", "IPL_ATTRIBS",
+        "IPL_FIRERES", "IPL_LIGHTRES", "IPL_MAGICRES", "IPL_ALLRES",
+        "IPL_LIGHT", "IPL_DUR", "IPL_SPLLVLADD"
+    )
+    $merged = @()
+    foreach ($p in $powers) {
+        $prior = if ($additive -contains $p.P) { $merged | Where-Object { $_.P -eq $p.P } | Select-Object -First 1 } else { $null }
+        if ($null -ne $prior) {
+            $prior.V1 = $prior.V1 + $p.V1
+            $prior.V2 = $prior.V1   # scalar: param2 mirrors param1, as the emit path above does
+            $mergedAffixes++
+        } else {
+            $merged += $p
+        }
+    }
+    $powers = @($merged | ForEach-Object { "{ $($_.P), $($_.V1), $($_.V2) }" })
 
     # A unique that grants nothing is the failure this project already shipped once, in the item-set
     # bonus ladders. It is a build error here, not something to find in play.
@@ -187,7 +220,7 @@ foreach ($it in $pkg.items) {
 if ($emptyItems.Count -gt 0) {
     throw "these items compile to NO working affix at all: $($emptyItems -join ', ')"
 }
-Write-Host "affixes: $liveAffixes live, $inertAffixes inert"
+Write-Host "affixes: $liveAffixes live, $inertAffixes inert, $mergedAffixes merged into an existing slot"
 if ($disagreements.Count -gt 0) {
     Write-Host "package/table disagreements (table wins, by design):"
     $disagreements | Sort-Object -Unique | ForEach-Object { Write-Host "  $_" }
