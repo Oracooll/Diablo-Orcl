@@ -28,6 +28,7 @@
 #include "monster.h"
 #include "oracool/hud_art.h"
 #include "oracool/item_sets.h"
+#include "oracool/telemetry.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/runeword_book.h"
 #include "pack.h"
@@ -1465,6 +1466,15 @@ bool CheckDebugTextCommand(const string_view text)
 	string_view parameter = "";
 	if (text.length() > (dbgCmd.text.length() + 1))
 		parameter = text.substr(dbgCmd.text.length() + 1);
+	// Telemetry: a session that used the console is not a session about BALANCE, and the analysis
+	// has to be able to tell (2026-08-21). The first read-back of the CSV could not: it showed 39
+	// Primal pickups against 16 Rare, which inverts the rarity ladder and looks alarming until you
+	// remember the session had run givepset and giveitemset. Debug spawns and real drops were the
+	// same row.
+	//
+	// Recorded BEFORE the command runs, so a command that crashes still leaves its mark - which is
+	// exactly the session whose data you would most want to discard.
+	oracool::TelemetryRecordDebugCommand(std::string(dbgCmd.text));
 	const auto result = dbgCmd.actionProc(parameter);
 	Log("DebugCmd: {} Result: {}", text, result);
 	if (result != "")

@@ -70,6 +70,16 @@ void AppendRow(const std::string &event, const std::string &subject, int value1,
 	FILE *file = std::fopen(path.c_str(), "ab");
 	if (file == nullptr)
 		return; // telemetry must never be able to break the game
+	// SEEK_END before asking, because in APPEND mode the stream position is not the file size.
+	// MSVC leaves it at 0 until the first write (the write is then forced to the end regardless),
+	// so the old `ftell(file) == 0` test was true on every single call and wrote the header before
+	// every row: 914 header lines against 915 data rows in the first file ever read back.
+	//
+	// Nothing was lost - the rows are all there and a parser can skip the repeats - but the file was
+	// twice the size it should be, and the defect survived five months precisely because a
+	// write-only file is never wrong until someone reads it. That is the argument for reading it
+	// back on a schedule, not just when a question needs answering.
+	std::fseek(file, 0, SEEK_END);
 	if (std::ftell(file) == 0) {
 		const char header[] = "time,session,event,level,player_level,subject,value1,value2\n";
 		std::fwrite(header, sizeof(header) - 1, 1, file);
@@ -142,6 +152,13 @@ void TelemetryRecordPickup(const Item &item)
 		return;
 	AppendRow("pickup", std::string(item.getName()),
 	    static_cast<int>(item._iOracoolTier), GetItemSellValue(item));
+}
+
+void TelemetryRecordDebugCommand(const std::string &command)
+{
+	if (!TelemetryEnabled())
+		return;
+	AppendRow("debug", command, 0, 0);
 }
 
 } // namespace devilution::oracool

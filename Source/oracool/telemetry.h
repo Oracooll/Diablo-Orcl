@@ -44,6 +44,19 @@ void TelemetryRecordPlayerDeath(const std::string &source);
 /** @brief Appends a pickup row for an item entering the player's possession from the world. */
 void TelemetryRecordPickup(const Item &item);
 
+/**
+ * @brief Marks that the debug console ran @p command in this session.
+ *
+ * A session that used the console is not a session about balance, and the analysis has to be able to
+ * tell. The first read-back of this file showed 39 Primal pickups against 16 Rare - an inverted
+ * rarity ladder, and alarming until you remember the session had run givepset and giveitemset. Debug
+ * spawns and real drops were indistinguishable rows.
+ *
+ * Emitted as a `debug` event so a reader can drop every session that contains one. Cheaper and more
+ * honest than trying to tag individual items: what is contaminated is the SESSION, not one pickup.
+ */
+void TelemetryRecordDebugCommand(const std::string &command);
+
 /** @brief CSV field escaping, exposed for tests: quotes fields containing comma/quote/newline. */
 std::string TelemetryEscapeCsvField(const std::string &field);
 

@@ -3813,6 +3813,16 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 {
 	AddFloatingNumber(damageType, monster, damage);
 
+	// The time-to-kill clock starts HERE, where damage lands, not in M_StartHit where the monster
+	// STAGGERS (2026-08-21). M_StartHit is the reaction to a blow that did not kill; a monster
+	// killed outright by its first hit never reaches it, so its kill row reported a time of zero.
+	//
+	// The first read-back of this file found 303 of 360 kills doing exactly that - 84% of the
+	// headline metric blank, and blank in a biased way, because the fastest kills are precisely the
+	// ones that skip the stagger. Recording at the point of damage makes a one-shot kill report a
+	// short time instead of no time.
+	oracool::TelemetryRecordFirstHit(monster);
+
 	monster.hitPoints -= damage;
 
 	if (monster.hitPoints >> 6 <= 0) {
