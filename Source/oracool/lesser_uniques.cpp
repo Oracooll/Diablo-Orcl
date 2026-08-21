@@ -1,4 +1,6 @@
-#include "oracool/lesser_uniques.h"
+﻿#include "oracool/lesser_uniques.h"
+
+#include "oracool/monster_variants.h"
 
 #include <algorithm>
 #include <cstring>
@@ -396,8 +398,15 @@ int IsQuestUniqueForTest(const char *mName)
 
 std::string GetMonsterDisplayName(const Monster &monster)
 {
-	if (monster.lesserAffix == LesserUniqueAffix::None)
+	if (monster.lesserAffix == LesserUniqueAffix::None) {
+		// Phase 3: a recoloured variant wears its word in front of the ORDINARY name - "Ashen
+		// Skeleton", not a name of its own. That is the whole distinction from a champion: a
+		// champion is somebody, a variant is a kind. Making them look alike in the bar would sell
+		// a variant as a boss and blunt both.
+		if (const char *variant = VariantNamePrefix(VariantOf(monster)); variant != nullptr)
+			return StrCat(_(variant), " ", monster.name());
 		return std::string(monster.name());
+	}
 	return StrCat(_(GetLesserUniqueAffixName(monster.lesserAffix)), " ", GetLesserUniqueName(monster));
 }
 
@@ -417,3 +426,4 @@ void OnLesserUniqueKilled(Monster &monster)
 }
 
 } // namespace devilution::oracool
+

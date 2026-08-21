@@ -86,6 +86,7 @@ set(libdevilutionx_SRCS
   oracool/hud_menu.cpp
   oracool/inventory_layout.cpp
   oracool/lesser_uniques.cpp
+  oracool/monster_variants.cpp
   oracool/paladin_skills.cpp
   oracool/readied_spells.cpp
   oracool/spell_descriptions.cpp
@@ -383,3 +384,4 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_link_libraries(libdevilutionx PUBLIC c++fs)
   endif()
 endif()
+

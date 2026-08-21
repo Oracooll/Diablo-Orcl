@@ -403,9 +403,11 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawTRN(out, targetBufferPosition, sprite, GetInfravisionTRN());
 		return;
 	}
-	uint8_t *trn = nullptr;
-	if (monster.isUnique())
-		trn = monster.uniqueMonsterTRN.get();
+	// Whether a TRN EXISTS, not whether the monster is unique. Only uniques used to carry one, so
+	// the two questions had the same answer and the narrower one was written; recoloured variants
+	// (oracool/monster_variants.h) build a translation for ordinary monsters, and would have been
+	// invisible behind the old test. Behaviour for uniques is unchanged - they still have theirs.
+	uint8_t *trn = monster.uniqueMonsterTRN.get();
 	if (monster.mode == MonsterMode::Petrified)
 		trn = GetStoneTRN();
 	if (MyPlayer->_pInfraFlag && LightTableIndex > 8)

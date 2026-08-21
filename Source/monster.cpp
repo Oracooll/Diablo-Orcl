@@ -38,6 +38,7 @@
 #include "oracool/gems.h"
 #include "oracool/aura_field.h"
 #include "oracool/monster_difficulty.h"
+#include "oracool/monster_variants.h"
 #include "oracool/monster_scale.h"
 #include "oracool/telemetry.h"
 
@@ -162,6 +163,13 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 	// levels, so an ordinary monster taking a champion's old slot would inherit its modifier.
 	monster.lesserAffix = LesserUniqueAffix::None;
 	monster.lesserNameSeed = 0;
+	// And the palette translation, for the SAME reason - which only became a reason when recoloured
+	// variants started giving ordinary monsters one (Phase 3). Before that only uniques carried a
+	// TRN and only uniques were re-tinted, so a stale one could never be seen; now an ordinary
+	// monster taking a variant's old slot would wear its colour. Cleared here and rebuilt at the end
+	// of this function if this monster is itself a variant; a unique's own TRN is loaded later still,
+	// by InitTRNForUniqueMonster, so this cannot strand one.
+	monster.uniqueMonsterTRN = nullptr;
 	monster.activeForTicks = 0;
 	monster.lightId = NO_LIGHT;
 	monster.rndItemSeed = AdvanceRndSeed();
@@ -230,6 +238,12 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 		monster.maxDamageSpecial = static_cast<uint8_t>(std::min(static_cast<int>((4 * monster.maxDamageSpecial + 6) * multiplier), 255));
 		monster.armorClass = static_cast<uint8_t>(std::min(monster.armorClass + static_cast<int>(HellAcBonus * multiplier), 255));
 	}
+
+	// Phase 3: the recoloured variants, LAST - after the difficulty ladder, so a Feral monster is
+	// 30% harder than whatever this difficulty already made it rather than 30% harder than the
+	// Normal baseline. Derived from rndItemSeed, so it costs no per-monster state and reproduces on
+	// a revisit; see oracool/monster_variants.h.
+	oracool::ApplyMonsterVariant(monster);
 }
 
 bool CanPlaceMonster(Point position)
