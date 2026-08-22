@@ -479,6 +479,7 @@ DVL_API_FOR_TEST const ItemData AllItemsList[] = {
 #include "oracool/jewels_data.inc"
 #include "oracool/mystic_orbs_data.inc"
 #include "oracool/signets_data.inc"
+#include "oracool/growing_charms_data.inc"
 /*               */ { IDROP_NEVER,   ICLASS_NONE,   ILOC_INVALID,     ICURS_POTION_OF_FULL_MANA,         ItemType::Misc,        UITYPE_NONE,        nullptr,                           nullptr,              0,            0,        0,        0,       0,       0,        0,        0,        0, ItemSpecialEffect::None,            IMISC_NONE,      SpellID::Null,           false,          0 },
 	// clang-format on
 };

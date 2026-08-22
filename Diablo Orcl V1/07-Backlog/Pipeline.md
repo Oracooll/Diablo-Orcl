@@ -49,10 +49,21 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 
 | More milestones | Systems | Small | No | | Eight shipped at v1.9.20 and the list is the cheapest content in the game to extend - each is one condition and one enum value, and the mask has 24 spare bits. Obvious candidates: reach Torment, complete a named set, socket a six-socket item, salvage N items, kill every named unique. Worth doing once the telemetry says how fast the twenty-signet cap is actually reached. |
 | PlayerPack's header comment is out of date | Directive | Small | No | | It says pfile.cpp's ReadHero "only accepts a file whose size matches sizeof(PlayerPack) exactly", and warns that anything wanting space should hunt for reserved bytes. ReadHero has accepted a chunked TAIL since 1.6.27 - `read >= sizeof(*pPack)` with the excess handed to ApplyHeroChunks - which is where new per-character state has belonged ever since. The stale comment nearly sent Phase 2 into a struct growth that would have broken every hero file. Correct it before it misdirects someone else. |
-| D2MXL Phase 3: Growing charms | Systems | Medium | No | | Plan - D2MXL to ORCL, Phase 3. A charm that gains stats as milestones are met rather than being fixed at drop. Needs per-item state for the same reason orbs did - and the byte was already paid at v1.9.19, which is why this was planned then and built later rather than the other way round. Wants Phase 2's milestones to grow against. |
+| Growing charms with a PRIVATE history | Systems | Medium | Yes | | What v1.9.22 deliberately did not do. Its charms grow with the CHARACTER's milestones, so two copies are worth the same and no per-item state was needed - which is why that phase cost no format bump. A charm with its own history (it grew because YOU carried it through those fights) is a different and arguably better feeling, and it needs a byte on the item. Worth doing only alongside another change that already pays a bump, and only if play says the shared growth reads as flat. |
 | D2MXL Phase 4: Named encounters | Phase 5 | Large | No | | Plan - D2MXL to ORCL, Phase 4. Median XL's uberquests: a specific hard fight, in a specific place, with a KNOWN reward. Most of the machinery landed in the v1.9.7-1.9.16 line - bosses, treasure classes, tinting, affix pools - so what is missing is the fixed-reward half and somewhere to put it. The only phase of the four that wants new CONTENT rather than new mechanism. |
 
 ## Shipped, so not listed above
+
+**Growing charms** shipped at v1.9.22 - D2MXL-to-ORCL Phase 3. Three charms whose value scales with
+claimed milestones, base deliberately below the fixed charm covering the same stat so the choice is
+"good now" against "better later". The plan budgeted a format bump for per-item state; it was not
+needed, because milestones already live in the chunk tail and the charm's power is a pure function
+of them. The trade - growth belongs to the character, so two copies are worth the same - is recorded
+as its own row above rather than left implicit.
+
+**The Signet as a droppable item** shipped at v1.9.21 - champions and better only, 3% times what the
+monster is worth, with the cap refusal in UseInvItem beside the spell-book gate so a signet used at
+the cap is never consumed.
 
 **Signets of Learning and milestones** shipped at v1.9.20 - D2MXL-to-ORCL Phase 2. Permanent stat
 points with a lifetime cap of 20, paid by eight one-time milestones across depth, combat and the

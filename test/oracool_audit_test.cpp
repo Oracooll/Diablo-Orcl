@@ -54,6 +54,7 @@
 #include "oracool/endgame_boss.h"
 #include "oracool/mystic_orbs.h"
 #include "oracool/signets.h"
+#include "oracool/charms.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
@@ -5371,4 +5372,107 @@ TEST(OracoolAudit, TheSignetIsAUsableItemThatChampionsDrop)
 
 	ApplySignetsUsed(player, 0);
 	player._pStatPts = 0;
+}
+
+/**
+ * Growing charms - D2MXL-to-ORCL Phase 3.
+ *
+ * A charm whose value scales with how many milestones the character has claimed. The plan budgeted
+ * a save format bump for this, on the assumption it needed per-item state. It does not: milestones
+ * already live in the hero chunk tail, so the charm's power is a pure function of something already
+ * persisted and this phase costs NO version bump at all.
+ *
+ * The trade is that growth belongs to the CHARACTER rather than the object, so two copies are worth
+ * the same. That is asserted here rather than left implicit, because it is the thing a reader would
+ * otherwise assume works the other way.
+ */
+TEST(OracoolAudit, GrowingCharmsScaleWithClaimedMilestones)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	ApplyMilestones(player, 0);
+	ApplySignetsUsed(player, 0);
+
+	// Each is a real charm, recognised by the shared predicate - which is what puts them in the
+	// active cap, the drop walk and the stash sort without any of those being told about them.
+	int seen = 0;
+	std::set<int> cursors;
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsOracoolGrowingCharmIdx(i))
+			continue;
+		seen++;
+		EXPECT_TRUE(IsOracoolCharmIdx(i))
+		    << AllItemsList[i].iName << " is a growing charm that is not a charm - it will not obey the active cap";
+		EXPECT_TRUE(cursors.insert(AllItemsList[i].iCurs).second) << "two growing charms share a cursor";
+		EXPECT_LE(AllItemsList[i].iCurs, ICURS_ORACOOL_LAST) << "a growing charm points past the icon strip";
+	}
+	EXPECT_EQ(seen, 3) << "IsOracoolGrowingCharmIdx does not recognise exactly the three";
+
+	// ---- it GROWS ----
+	const auto lifeFrom = [&]() {
+		ItemBonusTotals totals = {};
+		ApplyCharmToTotals(player, static_cast<uint16_t>(IDI_ORACOOL_CHARM_TRIALS), totals);
+		return totals.hitPoints;
+	};
+
+	ApplyMilestones(player, 0);
+	const int atZero = lifeFrom();
+	EXPECT_GT(atZero, 0) << "a growing charm is worth nothing with no milestones - it should have a base";
+
+	ClaimMilestone(player, Milestone::Level20);
+	const int atOne = lifeFrom();
+	EXPECT_GT(atOne, atZero) << "claiming a milestone did not grow the charm";
+
+	ClaimMilestone(player, Milestone::Level40);
+	ClaimMilestone(player, Milestone::SlayDreadBoss);
+	const int atThree = lifeFrom();
+	EXPECT_GT(atThree, atOne) << "the charm stopped growing";
+	// Linear, so three milestones is exactly three steps from zero - a charm that grew faster than
+	// its own stated rate would make the description a lie.
+	EXPECT_EQ(atThree - atZero, 3 * (atOne - atZero))
+	    << "the growth is not the flat per-milestone rate the description promises";
+
+	// The growth belongs to the CHARACTER: two copies are worth the same, which is the trade that
+	// bought a phase with no per-item state.
+	ItemBonusTotals two = {};
+	ApplyCharmToTotals(player, static_cast<uint16_t>(IDI_ORACOOL_CHARM_TRIALS), two);
+	ApplyCharmToTotals(player, static_cast<uint16_t>(IDI_ORACOOL_CHARM_TRIALS), two);
+	EXPECT_EQ(two.hitPoints, atThree * 2) << "two copies are not worth two charms";
+
+	// Every growing charm actually moves the stat it claims, and the three claim different ones -
+	// three charms that all grew life would be one charm with three icons.
+	ApplyMilestones(player, 0);
+	const auto totalsFor = [&](_item_indexes idx) {
+		ItemBonusTotals t = {};
+		ApplyCharmToTotals(player, static_cast<uint16_t>(idx), t);
+		return t;
+	};
+	EXPECT_GT(totalsFor(IDI_ORACOOL_CHARM_TRIALS).hitPoints, 0);
+	EXPECT_GT(totalsFor(IDI_ORACOOL_CHARM_DEEDS).fireResist, 0);
+	EXPECT_GT(totalsFor(IDI_ORACOOL_CHARM_DEEDS).lightningResist, 0);
+	EXPECT_GT(totalsFor(IDI_ORACOOL_CHARM_DEEDS).magicResist, 0);
+	EXPECT_EQ(totalsFor(IDI_ORACOOL_CHARM_DEEDS).hitPoints, 0) << "Deeds grants life as well as resistance";
+	EXPECT_GT(totalsFor(IDI_ORACOOL_CHARM_LEGEND).magicFind, 0);
+	EXPECT_EQ(totalsFor(IDI_ORACOOL_CHARM_LEGEND).hitPoints, 0) << "Legend grants life as well as find";
+
+	// The description states the current value AND the rate, so it can be compared with the fixed
+	// charm beside it. A line that only said the rate would be unreadable mid-run.
+	const std::string line = CharmEffectLine(player, static_cast<uint16_t>(IDI_ORACOOL_CHARM_TRIALS));
+	EXPECT_FALSE(line.empty()) << "a growing charm has no description line";
+	EXPECT_NE(line.find("milestone"), std::string::npos)
+	    << "the description does not say the charm grows: " << line;
+
+	// A fixed charm is untouched by any of this - it must not have become player-dependent.
+	ApplyMilestones(player, 0);
+	const int vigorAtZero = totalsFor(IDI_ORACOOL_CHARM_VIGOR).hitPoints;
+	ClaimMilestone(player, Milestone::Level20);
+	ClaimMilestone(player, Milestone::Level40);
+	EXPECT_EQ(totalsFor(IDI_ORACOOL_CHARM_VIGOR).hitPoints, vigorAtZero)
+	    << "a FIXED charm grew with milestones - the growth branch is catching the wrong charms";
+
+	ApplyMilestones(player, 0);
+	ApplySignetsUsed(player, 0);
 }

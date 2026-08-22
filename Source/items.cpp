@@ -5821,7 +5821,7 @@ void PrintItemDetails(const Item &item)
 	// Phase 1 charms: the effect, and the rule that governs it - the description is where the
 	// active-cap system explains itself.
 	if (IsOracoolCharmIdx(item.IDidx)) {
-		AddPanelString(oracool::CharmEffectLine(static_cast<uint16_t>(item.IDidx)), ItemAffixColor);
+		AddPanelString(oracool::CharmEffectLine(*MyPlayer, static_cast<uint16_t>(item.IDidx)), ItemAffixColor);
 		AddPanelString(fmt::format(fmt::runtime(_("only your first {:d} charms are active")), oracool::CharmActiveCap), ItemBaseStatColor);
 	}
 	// A LOOSE gem or rune says what it does, per host, before it says anything else.

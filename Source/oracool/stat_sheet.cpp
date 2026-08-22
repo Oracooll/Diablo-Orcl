@@ -131,10 +131,17 @@ void ApplySockets(const BonusContext &ctx, ItemBonusTotals &totals)
 /** @brief Source 4 (Phase 1): the first CharmActiveCap charms in the backpack. */
 void ApplyCharms(const BonusContext &ctx, ItemBonusTotals &totals)
 {
+	// The player is threaded through the context alongside the totals, because a growing charm's
+	// value depends on how many milestones that character has claimed - see oracool/charms.h.
+	struct CharmContext {
+		const Player *owner;
+		ItemBonusTotals *totals;
+	} charmContext { ctx.owner, &totals };
 	ForEachActiveCharm(*ctx.owner, [](uint16_t charmIdx, void *context) {
-		ApplyCharmToTotals(charmIdx, *static_cast<ItemBonusTotals *>(context));
+		auto *cc = static_cast<CharmContext *>(context);
+		ApplyCharmToTotals(*cc->owner, charmIdx, *cc->totals);
 	},
-	    &totals);
+	    &charmContext);
 }
 
 /**

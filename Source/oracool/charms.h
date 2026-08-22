@@ -30,11 +30,23 @@ struct ItemBonusTotals;
 /** @brief How many charms may be live at once. */
 constexpr int CharmActiveCap = 3;
 
-/** @brief Applies charm @p charmIdx's effect. Unknown indices are inert. */
-void ApplyCharmToTotals(uint16_t charmIdx, ItemBonusTotals &totals);
+/**
+ * @brief Applies charm @p charmIdx's effect for @p player. Unknown indices are inert.
+ *
+ * Takes the PLAYER because of the growing charms (Phase 3): their value is a function of how many
+ * milestones that character has claimed, so unlike every fixed charm they cannot be evaluated from
+ * the index alone. Passing the player to all of them rather than branching at the call site is what
+ * keeps one door onto "what is this charm worth".
+ */
+void ApplyCharmToTotals(const Player &player, uint16_t charmIdx, ItemBonusTotals &totals);
 
-/** @brief The description line for @p charmIdx, e.g. "+20 life while in your backpack". */
-std::string CharmEffectLine(uint16_t charmIdx);
+/**
+ * @brief The description line for @p charmIdx, e.g. "+20 life while in your backpack".
+ *
+ * A growing charm prints its CURRENT value and what it is growing towards, because a charm whose
+ * worth changes silently is a charm the player cannot compare against the fixed one beside it.
+ */
+std::string CharmEffectLine(const Player &player, uint16_t charmIdx);
 
 /**
  * @brief Whether the charm at backpack list position @p invListIndex (tab -1 = the main backpack,
