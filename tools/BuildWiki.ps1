@@ -707,6 +707,56 @@ foreach ($m in [regex]::Matches($variantsCpp, '(?s)constexpr MonsterVariant (\w+
     $names = [regex]::Matches($m.Groups[2].Value, 'MonsterVariant::(\w+)') | ForEach-Object { $_.Groups[1].Value }
     [void]$variantRosters.Add([ordered]@{ dungeon = $m.Groups[1].Value; variants = @($names) })
 }
+# The per-difficulty ladders (v1.9.16) - the variant rate, the treasure scale and the champion
+# affix pool. All three parsed, because all three are the answer to "does a re-run mean anything",
+# and a typed answer to that question is one that stops being true the next time it is tuned.
+$difficultyLadder = New-Object System.Collections.ArrayList
+$variantRates = @{}
+if ($variantsCpp -match '(?s)int VariantPercentFor\(_difficulty difficulty\)(.*?)\n\}') {
+    foreach ($m in [regex]::Matches($matches[1], 'case DIFF_(\w+):\s*\r?\n\s*return (\d+);')) {
+        $variantRates[$m.Groups[1].Value] = [int]$m.Groups[2].Value
+    }
+}
+$treasureScales = @{}
+if ($treasureCpp -match '(?s)int DifficultyTreasureScale\(_difficulty difficulty\)(.*?)\n\}') {
+    foreach ($m in [regex]::Matches($matches[1], 'case DIFF_(\w+):\s*\r?\n\s*return (\d+);')) {
+        $treasureScales[$m.Groups[1].Value] = [int]$m.Groups[2].Value
+    }
+}
+# The affix pool is a "from here on" test rather than a list, so the arrival difficulty of each
+# modifier is read out of ChampionAffixAllowedOn's own switch and inverted into per-rung lists.
+$affixArrival = @{}
+$diffCpp = Read-SourceFile 'oracool/monster_difficulty.cpp'
+if ($diffCpp -match '(?s)bool ChampionAffixAllowedOn\(LesserUniqueAffix affix, _difficulty difficulty\)(.*?)\n\}') {
+    $body = $matches[1]
+    # The gap between a case group and its return holds the comment explaining WHY that rung, so
+    # the middle is matched with a negative lookahead on the next case label rather than by
+    # excluding characters - a "[^c]*?" here silently matched nothing, because every one of those
+    # comments contains the letter c.
+    foreach ($m in [regex]::Matches($body, '(?s)((?:\s*case LesserUniqueAffix::\w+:)+)((?:(?!case LesserUniqueAffix::).)*?)return ([^;]+);')) {
+        $verdict = $m.Groups[3].Value.Trim()
+        foreach ($c in [regex]::Matches($m.Groups[1].Value, 'LesserUniqueAffix::(\w+)')) {
+            $affix = $c.Groups[1].Value
+            if ($affix -eq 'Dread' -or $affix -eq 'None') { continue }
+            if ($verdict -eq 'true') { $affixArrival[$affix] = 'NORMAL' }
+            elseif ($verdict -match 'DIFF_(\w+)') { $affixArrival[$affix] = $matches[1] }
+        }
+    }
+}
+foreach ($rung in @('NORMAL', 'NIGHTMARE', 'HELL', 'TORMENT')) {
+    $arriving = @($affixArrival.Keys | Where-Object { $affixArrival[$_] -eq $rung } | Sort-Object)
+    $scale = 100
+    if ($treasureScales.ContainsKey($rung)) { $scale = $treasureScales[$rung] }
+    $rate = 15
+    if ($variantRates.ContainsKey($rung)) { $rate = $variantRates[$rung] }
+    [void]$difficultyLadder.Add([ordered]@{
+        name           = (Get-Culture).TextInfo.ToTitleCase($rung.ToLower())
+        variantPercent = $rate
+        treasureScale  = $scale
+        newAffixes     = $arriving
+    })
+}
+
 $monsterVariants = [ordered]@{
     percent       = [int](Get-Constant $variantsCpp 'constexpr int VariantPercent = (\d+)')
     hollowLife    = [int](Get-Constant $variantsCpp 'constexpr int HollowLifePercent = (\d+)')
@@ -981,6 +1031,7 @@ $data = [ordered]@{
     treasureClasses = $treasureClasses
     treasureBonuses = $treasureBonuses
     endgameBoss = $endgameBoss
+    difficultyLadder = $difficultyLadder
     gemQualities = $gemQualities
     charms    = $charms
 

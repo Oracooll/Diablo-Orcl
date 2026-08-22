@@ -38,6 +38,7 @@
 
 namespace devilution {
 enum _difficulty : uint8_t;
+enum class LesserUniqueAffix : uint8_t;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -50,6 +51,24 @@ namespace devilution::oracool {
  * rather than demoted - the enum has no RESIST_ACID to demote it to.
  */
 uint16_t DemoteImmunitiesToResistances(uint16_t resistances);
+
+/**
+ * @brief Whether @p affix is offered to champions on @p difficulty. Phase 5, v1.9.16.
+ *
+ * The third thing "a difficulty re-run that means something" was missing. Resistances answered to
+ * the difficulty from Phase 3.3; the CHAMPION POOL did not - all six modifiers were on the table
+ * from the first floor of Normal, so the only thing a re-run changed about a champion was its
+ * numbers.
+ *
+ * Normal offers the three a new character can read and answer: Relentless, Fortified, Colossal.
+ * Nightmare adds the two that ask for gear - Warded and Thunderous. Hell adds Vampiric, which is
+ * the one that punishes low damage hardest, because a champion out-healing a character is a wall
+ * rather than a fight and Hell is where a character has the damage to break it.
+ *
+ * A rung ADDS; nothing is ever withdrawn. A player who learned to fight Warded champions in
+ * Nightmare keeps meeting them.
+ */
+bool ChampionAffixAllowedOn(LesserUniqueAffix affix, _difficulty difficulty);
 
 /**
  * @brief The mirror: every resisted school becomes immune, EXCEPT the last one standing.

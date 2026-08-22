@@ -35,6 +35,24 @@ effect of a loot change.</div>
 <p>Hit points and damage scale with difficulty on top of the level offsets above. Torment applies
 Hell's scaling again, multiplied by the <code>Torment Difficulty Multiplier</code> INI setting
 (default 2.0, range 1.1 to 5.0).</p>
+<p>But a re-run is meant to be more than the same dungeon with fatter monsters. Three other things
+change as you climb, and none of them is a number on a health bar:</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Difficulty</th><th class="num">Variants</th><th class="num">Loot rate</th><th>New champion modifiers</th></tr></thead>
+<tbody id="difficultyladder"></tbody></table></div>
+<p><b>Variants</b> is the share of ordinary monsters that are recoloured, so a deeper run is denser
+in encounters that are not the rank and file. <b>Loot rate</b> scales every zone's
+<a href="sockets.html">treasure class</a> - a re-run does not merely drop <i>better</i> items, which
+the rising item level already handled, it drops <i>more</i> of them. And the <b>champion modifier
+pool grows</b>: each rung adds, nothing is ever withdrawn, so what you learned to fight keeps
+turning up.</p>
+<p>Normal offers only the three a new character can read and answer - it does not get knocked back,
+it is armoured, it is large - because none of those needs an item you may not own yet. Resistances
+arrive with Nightmare, and Vampiric waits for Hell, where the damage exists to out-pace a champion
+that heals from what it deals.</p>
+<p>Monster resistances climb on their own ladder: Nightmare gets Hell's set with the immunities
+demoted to plain resistances, Hell gets the real set, and Torment hardens Hell's resistances into
+immunities - never all of them, so nothing is ever unkillable.</p>
 
 <h2>Champions and uniques</h2>
 <p>Beyond the scripted unique monsters, the build spawns <b>lesser uniques</b>: ordinary monsters
@@ -140,6 +158,16 @@ makeTable(document.getElementById('table'), rows, [
 	placeholder: 'Search monster or class...',
 	filters: [{ key: 'class', label: 'Class' }]
 });
+
+// The difficulty ladder. All three columns come from source: the variant rate from
+// VariantPercentFor, the loot scale from DifficultyTreasureScale, and the modifier arrivals from
+// ChampionAffixAllowedOn's own switch, inverted into per-rung lists.
+document.getElementById('difficultyladder').innerHTML = WIKI.difficultyLadder.map(function (d) {
+	return '<tr><td><b>' + d.name + '</b></td>'
+		+ '<td class="num">' + d.variantPercent + '%</td>'
+		+ '<td class="num">' + d.treasureScale + '%</td>'
+		+ '<td>' + (d.newAffixes.length ? d.newAffixes.join(', ') : '&mdash;') + '</td></tr>';
+}).join('');
 
 // Endgame bosses. Every number here is read out of endgame_boss.cpp and monster.cpp, including the
 // champion column - the page states the RELATION between the two profiles, and a typed champion

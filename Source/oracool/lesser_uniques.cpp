@@ -1,6 +1,7 @@
 ﻿#include "oracool/lesser_uniques.h"
 
 #include "oracool/endgame_boss.h"
+#include "oracool/monster_difficulty.h"
 #include "oracool/monster_variants.h"
 
 #include <algorithm>
@@ -239,17 +240,32 @@ LesserUniqueAffix RollLesserUniqueAffix(UniqueMonsterType forType)
 	// than it has distinct champions - the modifier MUST differ. That is the whole justification for
 	// allowing the repeat: a second Warded Rotfeast is the same fight twice, where a Thunderous one
 	// is a new one wearing a familiar face.
+	// And the DIFFICULTY gates which exist at all (v1.9.16). All six were on the table from the
+	// first floor of Normal, so the only thing a re-run changed about a champion was its numbers.
+	const _difficulty difficulty = sgGameInitInfo.nDifficulty;
+	std::vector<LesserUniqueAffix> allowed;
 	std::vector<LesserUniqueAffix> available;
 	for (int i = 1; i <= static_cast<int>(LesserUniqueAffix::LAST); i++) {
 		const auto affix = static_cast<LesserUniqueAffix>(i);
+		if (!ChampionAffixAllowedOn(affix, difficulty))
+			continue;
+		allowed.push_back(affix);
 		if (!IsAffixUsedBy(forType, affix))
 			available.push_back(affix);
 	}
 
 	// Every modifier already spent on this identity - a floor with six packs and two champions can
 	// reach that. Repeating one is better than refusing to place, and the pairing is still novel.
-	if (available.empty())
-		return static_cast<LesserUniqueAffix>(1 + GenerateRnd(static_cast<int>(LesserUniqueAffix::LAST)));
+	//
+	// The repeat is drawn from ALLOWED rather than from the whole enum, which is the half that
+	// would have leaked: the old fallback rolled 1..LAST directly, so a crowded Normal floor could
+	// hand out the Vampiric champion the difficulty gate above had just excluded - and only on
+	// crowded floors, which is exactly the kind of bug that never reproduces on demand.
+	if (available.empty()) {
+		if (allowed.empty())
+			return LesserUniqueAffix::Relentless; // unreachable: Normal's three are always allowed
+		return allowed[GenerateRnd(static_cast<int32_t>(allowed.size()))];
+	}
 	return available[GenerateRnd(static_cast<int32_t>(available.size()))];
 }
 

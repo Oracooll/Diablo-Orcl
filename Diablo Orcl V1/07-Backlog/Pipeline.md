@@ -32,7 +32,7 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Zone quest chains | Phase 4 | Medium | No | A zone to put them in | Each new zone gets a quest in the D1 style - a voice, a horror, a reward. |
 | Treasure classes for the BASE item pool | Phase 5 | Large | Yes | | What v1.9.13 deliberately could not do. A class redistributes the additive hooks - socketables and set pieces - but the base item a monster drops still comes from the seeded pool, which is save format: UnPackItem replays an item's seed through it to recover the index. Making a zone drop different WEAPONS means a per-zone pool, which means the replay needs to know which zone an item came from, which means a field on the item. That is the format bump, and it should be paid once alongside whatever else needs one. |
 | Boss art and a boss health bar | Phase 5 | Small | No | User's assets | The bosses shipped at v1.9.14 wearing an existing monster's sprite scaled to Colossal, which is what kept them unblocked. What they do NOT have is a silhouette of their own or a health bar that reads differently from a champion's - both are presentation rather than mechanics, and both are the kind of thing that makes a fight feel like an event. |
-| Difficulty re-runs that mean something | Phase 5 | Medium | No | | New immunities, new lesser-affix pools and new drop tiers per difficulty, so Nightmare is not just Normal with bigger numbers. |
+| Per-difficulty ZONE identity | Phase 5 | Medium | No | | What v1.9.16 did not do. The difficulty now changes the champion pool, the variant density and the loot RATE - but every zone changes by the same multiplier, so the Caves are the rune place on all four difficulties and nothing about WHERE you farm shifts as you climb. Rotating the treasure classes' majorities per difficulty would make a re-run re-map the world rather than re-scale it. Needs the telemetry read back first: rotating what a zone gives is the kind of change that is either the best idea in the backlog or deeply annoying, and taste is not enough to tell which. |
 | Seasonal or challenge characters | Phase 5 | Medium | New file | | A checkbox at creation and a ladder file. Single-player friendly. |
 | Hirelings | Phase 6 | Large | Yes | | A persistent companion off the golem framework. Equipping them is the expensive half. |
 | Health globes | Balance | Small | No | | DEFERRED 2026-08-19 at the user's request - "skip the health globes for our project for now". Skipped, not dropped; do not offer it again unasked. Monsters drop globes that heal on pickup, shifting part of the healing loop out of the potion menu. |
@@ -48,6 +48,15 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
 ## Shipped, so not listed above
+
+**Difficulty re-runs that mean something** shipped at v1.9.16, and auditing the row first found two
+of its three asks already done: immunities answered to the difficulty from Phase 3.3, and drop tiers
+do so through `TierForItem`'s item-level key. What was missing was the affix pool - all six champion
+modifiers were available from the first floor of Normal - plus a fourth thing the row did not name:
+a treasure class is chosen by dungeon type and a re-run walks the same floors, so the Cathedral in
+Torment paid exactly what the Cathedral in Normal paid. Now the pool grows per rung (Normal's three
+need no gear to answer; resistances arrive at Nightmare, Vampiric at Hell), the loot rate scales
+100/115/130/150, and the variant density climbs 15/19/23/28.
 
 **Temper Jewels** shipped at v1.9.15 - a fifth recipe, three identical jewels into one of the next
 grade, Radiant excluded. Its own recipe and its own `IsJewel` rather than a widened Refine Gems: the

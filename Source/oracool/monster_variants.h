@@ -35,6 +35,7 @@
 
 namespace devilution {
 struct Monster;
+enum _difficulty : uint8_t;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -75,6 +76,16 @@ MonsterVariant VariantOf(const Monster &monster);
  * learning the floor.
  */
 MonsterVariant VariantForSeed(uint32_t seed, dungeon_type dungeon);
+
+/**
+ * @brief What percentage of ordinary monsters are variants on @p difficulty.
+ *
+ * Climbs with the ladder (v1.9.16). A re-run walks the same twenty-four floors, so without this the
+ * fourth pass through the Cathedral met exactly as many variants as the first - the monsters were
+ * bigger and nothing else about the encounter had changed. Denser special encounters is something a
+ * player notices; a bigger health bar on the same fight is not.
+ */
+int VariantPercentFor(_difficulty difficulty);
 
 /** @brief How many variants @p dungeon's roster offers. Zero means no variants spawn there. */
 int VariantRosterSize(dungeon_type dungeon);

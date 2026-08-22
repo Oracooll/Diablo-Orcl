@@ -4550,3 +4550,119 @@ TEST(OracoolAudit, TemperJewelsClimbsTheGradeAndStopsAtRadiant)
 	InitializeItem(mixed[2], IDI_ORACOOL_JEWEL_AEGIS_FLAWED);
 	EXPECT_NE(FirstReadyLevskiRecipe(mixed), 4) << "three different jewels were treated as identical";
 }
+
+/**
+ * A re-run is not Normal with bigger numbers.
+ *
+ * The backlog row asked for three things: new immunities, new lesser-affix pools, and new drop
+ * tiers per difficulty. Auditing it before building found one of the three already done and one
+ * done by accident:
+ *
+ *  - IMMUNITIES answered to the difficulty from Phase 3.3 (oracool/monster_difficulty.cpp).
+ *  - DROP TIERS are keyed off item level via TierForItem, and item level rises with the area level,
+ *    which rises with the difficulty. So a re-run already produced BETTER items.
+ *  - The AFFIX POOL did not. All six modifiers were on the table from the first floor of Normal.
+ *
+ * And a fourth thing the row did not name but which is the same complaint: a re-run produced better
+ * items and no MORE of them. A treasure class is chosen by dungeon type, and a re-run walks the same
+ * twenty-four floors, so the Cathedral in Torment paid exactly what the Cathedral in Normal paid.
+ */
+TEST(OracoolAudit, DifficultyChangesWhatARerunOffersAndNotOnlyHowBig)
+{
+	using namespace devilution::oracool;
+
+	constexpr _difficulty Ladder[] = { DIFF_NORMAL, DIFF_NIGHTMARE, DIFF_HELL, DIFF_TORMENT };
+
+	// ---- the affix pool GROWS and never shrinks ----
+	size_t previous = 0;
+	for (const _difficulty difficulty : Ladder) {
+		size_t allowed = 0;
+		for (int i = 1; i <= static_cast<int>(LesserUniqueAffix::LAST); i++) {
+			if (ChampionAffixAllowedOn(static_cast<LesserUniqueAffix>(i), difficulty))
+				allowed++;
+		}
+		EXPECT_GE(allowed, previous)
+		    << "difficulty " << static_cast<int>(difficulty) << " offers FEWER affixes than the one below it";
+		EXPECT_GT(allowed, 0u) << "a difficulty offers no champion affix at all - nothing could spawn";
+		previous = allowed;
+	}
+	// Strictly more by the top, or the ladder is decoration.
+	size_t normalCount = 0;
+	size_t tormentCount = 0;
+	for (int i = 1; i <= static_cast<int>(LesserUniqueAffix::LAST); i++) {
+		if (ChampionAffixAllowedOn(static_cast<LesserUniqueAffix>(i), DIFF_NORMAL))
+			normalCount++;
+		if (ChampionAffixAllowedOn(static_cast<LesserUniqueAffix>(i), DIFF_TORMENT))
+			tormentCount++;
+	}
+	EXPECT_GT(tormentCount, normalCount) << "Torment offers no more champion modifiers than Normal";
+	EXPECT_EQ(tormentCount, static_cast<size_t>(LesserUniqueAffix::LAST))
+	    << "the top difficulty does not offer every rollable affix";
+
+	// Every affix arrives SOMEWHERE. One allowed on no difficulty is dead code wearing a name.
+	for (int i = 1; i <= static_cast<int>(LesserUniqueAffix::LAST); i++) {
+		EXPECT_TRUE(ChampionAffixAllowedOn(static_cast<LesserUniqueAffix>(i), DIFF_TORMENT))
+		    << "affix " << i << " can never be rolled on any difficulty";
+	}
+	// And the boss marker is allowed on NONE of them, on every difficulty.
+	for (const _difficulty difficulty : Ladder) {
+		EXPECT_FALSE(ChampionAffixAllowedOn(LesserUniqueAffix::Dread, difficulty))
+		    << "a champion can roll the endgame-boss marker on difficulty " << static_cast<int>(difficulty);
+		EXPECT_FALSE(ChampionAffixAllowedOn(LesserUniqueAffix::None, difficulty));
+	}
+
+	// The three Normal offers are specifically the ones that need no gear to answer. Named, because
+	// this is a design statement and a design statement that nothing asserts is a comment.
+	EXPECT_TRUE(ChampionAffixAllowedOn(LesserUniqueAffix::Relentless, DIFF_NORMAL));
+	EXPECT_TRUE(ChampionAffixAllowedOn(LesserUniqueAffix::Fortified, DIFF_NORMAL));
+	EXPECT_TRUE(ChampionAffixAllowedOn(LesserUniqueAffix::Colossal, DIFF_NORMAL));
+	EXPECT_FALSE(ChampionAffixAllowedOn(LesserUniqueAffix::Warded, DIFF_NORMAL))
+	    << "a level-two character can meet a Warded champion";
+	EXPECT_FALSE(ChampionAffixAllowedOn(LesserUniqueAffix::Vampiric, DIFF_NIGHTMARE))
+	    << "Vampiric arrives before the damage to break it does";
+
+	// ---- the ROLL honours the pool, including its crowded-floor fallback ----
+	//
+	// This is the half that would have leaked. The fallback fires only when every allowed modifier
+	// is already on the floor, which needs a crowded level - so a fallback that ignored the
+	// difficulty gate would hand out a Vampiric champion in Normal only on busy floors, which is
+	// exactly the kind of bug that never reproduces on demand.
+	const _difficulty saved = sgGameInitInfo.nDifficulty;
+	sgGameInitInfo.nDifficulty = DIFF_NORMAL;
+	for (int draw = 0; draw < 4000; draw++) {
+		const LesserUniqueAffix rolled = RollLesserUniqueAffix(UniqueMonsterType::Garbud);
+		ASSERT_TRUE(ChampionAffixAllowedOn(rolled, DIFF_NORMAL))
+		    << "Normal rolled an affix its own pool excludes: " << GetLesserUniqueAffixName(rolled);
+	}
+	sgGameInitInfo.nDifficulty = saved;
+
+	// ---- a re-run pays MORE OFTEN, not merely better ----
+	int previousScale = 0;
+	for (const _difficulty difficulty : Ladder) {
+		const int scale = DifficultyTreasureScale(difficulty);
+		EXPECT_GT(scale, previousScale)
+		    << "difficulty " << static_cast<int>(difficulty) << " is no more generous than the one below it";
+		previousScale = scale;
+	}
+	EXPECT_EQ(DifficultyTreasureScale(DIFF_NORMAL), 100) << "Normal is not the baseline";
+
+	// The scale is applied and clamped. A rate over 100 fed to GenerateRnd(100) is a silent
+	// guarantee, and the boss multiplier sits on top of this.
+	sgGameInitInfo.nDifficulty = DIFF_TORMENT;
+	EXPECT_GT(ScaleRateForDifficulty(10), 10) << "the difficulty scale is not being applied";
+	EXPECT_LE(ScaleRateForDifficulty(100), 100) << "a scaled rate escaped past 100 percent";
+	EXPECT_LE(ScaleRateForDifficulty(90), 100);
+	sgGameInitInfo.nDifficulty = DIFF_NORMAL;
+	EXPECT_EQ(ScaleRateForDifficulty(11), 11) << "Normal changed a rate it should have left alone";
+	sgGameInitInfo.nDifficulty = saved;
+
+	// ---- and a re-run is DENSER in special encounters ----
+	int previousVariant = 0;
+	for (const _difficulty difficulty : Ladder) {
+		const int pct = VariantPercentFor(difficulty);
+		EXPECT_GT(pct, previousVariant)
+		    << "the variant rate does not climb at difficulty " << static_cast<int>(difficulty);
+		EXPECT_LT(pct, 100) << "the variant rate reached certainty";
+		previousVariant = pct;
+	}
+}

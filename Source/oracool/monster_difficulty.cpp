@@ -1,5 +1,6 @@
 #include "oracool/monster_difficulty.h"
 
+#include "oracool/lesser_uniques.h"
 #include "utils/attributes.h"
 
 namespace devilution::oracool {
@@ -70,6 +71,37 @@ uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty)
 	default:
 		return data.resistance;
 	}
+}
+
+bool ChampionAffixAllowedOn(LesserUniqueAffix affix, _difficulty difficulty)
+{
+	// The difficulty at which each modifier first appears. A rung ADDS - nothing is withdrawn -
+	// so this is a "from here on" test rather than a per-difficulty list, which is also what makes
+	// it impossible to write a pool that accidentally drops something Normal already had.
+	switch (affix) {
+	case LesserUniqueAffix::Relentless:
+	case LesserUniqueAffix::Fortified:
+	case LesserUniqueAffix::Colossal:
+		// The three a new character can read and answer: it does not get knocked back, it is
+		// armoured, it is large. None of them require an item the player may not own yet.
+		return true;
+	case LesserUniqueAffix::Warded:
+	case LesserUniqueAffix::Thunderous:
+		// The two that ask for gear - resistances, and a death that hurts. Nightmare is where a
+		// character has a second damage type and something to resist with.
+		return difficulty >= DIFF_NIGHTMARE;
+	case LesserUniqueAffix::Vampiric:
+		// The one that punishes low damage hardest: a champion out-healing a character is a wall
+		// rather than a fight. Hell is where the damage exists to break it.
+		return difficulty >= DIFF_HELL;
+	case LesserUniqueAffix::Dread:
+		// The endgame-boss marker, never rolled for a champion on any difficulty. It is not a
+		// modifier a champion can have - see oracool/endgame_boss.h.
+		return false;
+	case LesserUniqueAffix::None:
+		break;
+	}
+	return false;
 }
 
 uint16_t ChampionResistancesFor(uint16_t uniqueResistances, const MonsterData &baseData, _difficulty difficulty)

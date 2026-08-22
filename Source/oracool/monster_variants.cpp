@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "monster.h"
+#include "multi.h"
 #include "oracool/lesser_uniques.h"
 
 namespace devilution::oracool {
@@ -10,11 +11,16 @@ namespace devilution::oracool {
 namespace {
 
 /**
- * @brief How many monsters in a hundred are a variant.
+ * @brief How many monsters in a hundred are a variant, on NORMAL.
  *
  * Common enough that a floor looks varied, rare enough that the ordinary monster is still the thing
  * you are fighting. Below about ten the effect is invisible; much above twenty and the palette stops
  * meaning anything because everything is wearing one.
+ *
+ * The upper difficulties climb past twenty deliberately, and that same reasoning is why they stop
+ * at twenty-eight rather than going further: by Torment a player has seen every variant many times,
+ * so the rate can afford to be high enough to shape a floor, but a floor where a third of the
+ * monsters are recoloured has made the recolour the default and the ordinary monster the surprise.
  */
 constexpr int VariantPercent = 15;
 
@@ -122,6 +128,22 @@ Roster RosterFor(dungeon_type dungeon)
 	return { nullptr, 0 };
 }
 
+int VariantPercentFor(_difficulty difficulty)
+{
+	// Normal keeps the shipped 15. The climb is modest for the reason recorded on VariantPercent:
+	// past about a third the recolour becomes the default and the ordinary monster the surprise.
+	switch (difficulty) {
+	case DIFF_NIGHTMARE:
+		return 19;
+	case DIFF_HELL:
+		return 23;
+	case DIFF_TORMENT:
+		return 28;
+	default:
+		return VariantPercent;
+	}
+}
+
 int VariantRosterSize(dungeon_type dungeon)
 {
 	return RosterFor(dungeon).count;
@@ -144,7 +166,12 @@ MonsterVariant VariantForSeed(uint32_t seed, dungeon_type dungeon)
 	// Two INDEPENDENT draws out of one seed - whether, and which. Taken from different ends of the
 	// value so a monster that just missed being a variant is not always the same variant when a
 	// sibling seed does qualify.
-	if (static_cast<int>(seed % 100) >= VariantPercent)
+	//
+	// The RATE climbs with the difficulty (v1.9.16). A re-run walks the same twenty-four floors, so
+	// without this the fourth pass through the Cathedral met exactly as many variants as the first
+	// - the monsters were bigger and nothing else about the encounter had changed. Denser special
+	// encounters is a thing a player notices; a bigger health bar on the same fight is not.
+	if (static_cast<int>(seed % 100) >= VariantPercentFor(sgGameInitInfo.nDifficulty))
 		return MonsterVariant::None;
 	return roster.variants[(seed / 100) % static_cast<uint32_t>(roster.count)];
 }

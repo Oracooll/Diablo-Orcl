@@ -1,6 +1,9 @@
 #include "oracool/treasure_class.h"
 
+#include <algorithm>
+
 #include "monster.h"
+#include "multi.h"
 #include "oracool/endgame_boss.h"
 
 namespace devilution::oracool {
@@ -89,6 +92,32 @@ int TreasureBonusFor(const Monster &monster)
 	if (monster.lesserAffix != LesserUniqueAffix::None)
 		return 2;
 	return 1;
+}
+
+int DifficultyTreasureScale(_difficulty difficulty)
+{
+	// Modest on purpose. The item LEVEL already rises steeply with the area level, so a re-run
+	// already produces better items; what it did not produce was MORE of them. Half again by
+	// Torment is enough to feel without turning the fourth run into a different economy - and the
+	// telemetry (Phase 0.9) is what these should eventually be tuned against rather than taste.
+	switch (difficulty) {
+	case DIFF_NIGHTMARE:
+		return 115;
+	case DIFF_HELL:
+		return 130;
+	case DIFF_TORMENT:
+		return 150;
+	default:
+		return 100;
+	}
+}
+
+int ScaleRateForDifficulty(int percent)
+{
+	// Clamped here rather than at each call site. Both callers feed the result to GenerateRnd(100)
+	// as a threshold, and a threshold over 100 is a silent guarantee - which is exactly what the
+	// boss multiplier on top of this could otherwise produce.
+	return std::min(percent * DifficultyTreasureScale(sgGameInitInfo.nDifficulty) / 100, 100);
 }
 
 int TotalFamilyWeight(const TreasureClass &tc)

@@ -4574,7 +4574,8 @@ void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 	// zones' number; the deep ones pay 5. Capped at 100 so a hypothetical high table and a unique
 	// cannot ask GenerateRnd for a percentage that does not exist.
 	const oracool::TreasureClass &tc = oracool::CurrentTreasureClass();
-	const int namedSetPercent = std::min(tc.setPercent * oracool::TreasureBonusFor(monster), 100);
+	const int namedSetPercent = std::min(
+	    oracool::ScaleRateForDifficulty(tc.setPercent) * oracool::TreasureBonusFor(monster), 100);
 	if (namedSetPercent <= 0 || GenerateRnd(100) >= namedSetPercent)
 		return;
 	if (ActiveItemCount >= MAXITEMS)
@@ -4657,7 +4658,7 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 	// different rate than another. What changed is only what the draws are taken against.
 	const oracool::TreasureClass &tc = oracool::CurrentTreasureClass();
 	const int bonus = oracool::TreasureBonusFor(monster);
-	const int socketablePercent = std::min(tc.socketablePercent * bonus, 100);
+	const int socketablePercent = std::min(oracool::ScaleRateForDifficulty(tc.socketablePercent) * bonus, 100);
 	const int familyTotal = oracool::TotalFamilyWeight(tc);
 	if (socketablePercent <= 0 || familyTotal <= 0)
 		return;
