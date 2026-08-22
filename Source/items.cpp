@@ -2865,10 +2865,29 @@ bool HasUniqueForBaseOf(const Item &item)
 	return !UniquesForBaseOf(item).empty();
 }
 
+/**
+ * @brief Clears the affix record so a reroll starts from a clean item.
+ *
+ * The rollers APPEND - applyPrefix writes at _iOracoolPrefixCount and increments it - which is
+ * correct for a freshly attributed item and wrong for one being rolled a second time. Without this,
+ * rerolling the same item twice at Levski's Roar carried the first roll's affixes into the second
+ * and ran off the end of the array.
+ */
+void ClearOracoolAffixRecord(Item &item)
+{
+	item._iOracoolPrefixCount = 0;
+	item._iOracoolSuffixCount = 0;
+	item._iOracoolPrefixes = {};
+	item._iOracoolSuffixes = {};
+	item._iOracoolPerfectRoll = false;
+	item._iOracoolTier = OracoolItemTier::None;
+}
+
 bool ReforgeOracoolItem(Item &item)
 {
 	if (item.isEmpty())
 		return false;
+	ClearOracoolAffixRecord(item);
 	const int ilvl = item._iOracoolItemLevel;
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
 	// lvl AND itemLevel both the item's own ilvl, which is what SpawnItem passes for a fresh drop:
@@ -2881,11 +2900,41 @@ bool ReforgeOracoolItem(Item &item)
 	return true;
 }
 
+bool RetierOracoolItem(Item &item, OracoolItemTier tier)
+{
+	if (item.isEmpty())
+		return false;
+	ClearOracoolAffixRecord(item);
+	const int ilvl = item._iOracoolItemLevel;
+	const auto idx = static_cast<_item_indexes>(item.IDidx);
+	const bool forcing = tier != OracoolItemTier::None;
+	const std::optional<OracoolItemTier> forced = forcing
+	    ? std::optional<OracoolItemTier>(tier)
+	    : std::nullopt;
+	// onlygood TRUE whenever a tier is being forced, and that is load-bearing rather than
+	// cosmetic. SetupAllItems only reaches the forced-tier branch when GetItemBLevel returns
+	// something other than -1, and with onlygood false that call has a RANDOM component - it can
+	// decide the item rolls no affixes at all. So a forced climb would silently not happen a large
+	// share of the time, the recipe would return false, and the player would press Transmute on a
+	// ready recipe and watch nothing occur. onlygood pins iblvl to the level, which is what makes
+	// "force this tier" actually mean it.
+	//
+	// Left false for tier None, where the point IS to roll like an ordinary drop.
+	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/forcing,
+	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, forced, ilvl);
+	item._iIdentified = true;
+	// A forced tier that the roller could not actually apply - the item has no affix type, say -
+	// leaves the item rerolled but untiered, and the caller is told so rather than being allowed to
+	// charge for a climb that did not happen.
+	return tier == OracoolItemTier::None || item._iOracoolTier == tier;
+}
+
 bool EnnobleOracoolRare(Item &item)
 {
 	const std::vector<int> candidates = UniquesForBaseOf(item);
 	if (candidates.empty())
 		return false;
+	ClearOracoolAffixRecord(item);
 	const int uid = candidates[GenerateRnd(static_cast<int32_t>(candidates.size()))];
 	const int ilvl = item._iOracoolItemLevel;
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
@@ -3013,6 +3062,16 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 	int priceMultTotal = 0;
 
 	auto applyPrefix = [&](int idx) {
+		// BOUNDED. This wrote at _iOracoolPrefixCount unguarded, which was safe only while every
+		// caller reached it with a freshly attributed item. Levski's Roar's reroll recipes break
+		// that assumption - they run the roller over an item that already carries affixes - and the
+		// second reroll of the same item walked straight off the end of a std::array. The counts
+		// are reset by the reroll entry points now, and this is the net under that: an off-by-one
+		// anywhere in the affix pipeline should drop an affix, never corrupt memory.
+		if (item._iOracoolPrefixCount >= Item::MaxOracoolAffixesPerSlot)
+			return;
+		if (pickedCount >= static_cast<int>(std::size(pickedTypes)))
+			return;
 		const PLStruct &affix = ItemPrefixes[idx];
 		ItemPower power = affix.power;
 		int raw = SaveItemPower(player, item, power);
@@ -3026,6 +3085,10 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 			goe = affix.PLGOE;
 	};
 	auto applySuffix = [&](int idx) {
+		if (item._iOracoolSuffixCount >= Item::MaxOracoolAffixesPerSlot)
+			return; // see applyPrefix
+		if (pickedCount >= static_cast<int>(std::size(pickedTypes)))
+			return;
 		const PLStruct &affix = ItemSuffixes[idx];
 		ItemPower power = affix.power;
 		int raw = SaveItemPower(player, item, power);

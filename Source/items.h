@@ -895,6 +895,32 @@ bool EnnobleOracoolRare(Item &item);
 
 /** @brief Whether any unique exists that EnnobleOracoolRare could turn @p item into. */
 bool HasUniqueForBaseOf(const Item &item);
+
+/**
+ * @brief Rerolls @p item at @p tier, keeping its base and its item level. False if it cannot be.
+ *
+ * The one operation behind every tier bump and every reroll on Levski's Roar: Enrich (to Rare),
+ * Awaken (to Primal), and the three rerolls are all this with the tier they want. A bump and a
+ * reroll are the SAME act - take the rolls again, at this rung - and giving them one implementation
+ * is what stops "reroll at Primal" and "climb to Primal" drifting into two different distributions.
+ *
+ * Goes through SetupAllItems' forcedTier parameter rather than calling an affix roller directly, so
+ * the result is exactly what a drop of that tier at that depth would have produced - the level
+ * bands, the base-tier roll and the socket eligibility all still apply.
+ *
+ * @p tier of None rerolls it as an ordinary item, which is what Reforge Gear wants.
+ */
+bool RetierOracoolItem(Item &item, OracoolItemTier tier);
+
+/**
+ * @brief Makes @p item ethereal: +35% damage or AC, half maximum durability. False if ineligible.
+ *
+ * Already the single place that bargain is expressed - the drop path and the debug spawner both go
+ * through it, and the eligibility rules live inside it rather than at the callers. Levski's Roar's
+ * Make Ethereal recipe is a third caller, and going through this rather than applying 135% from its
+ * own copy of the sum is what keeps a crafted ethereal identical to a dropped one.
+ */
+bool MakeItemEthereal(Item &item);
 void SetupItem(Item &item);
 /**
  * @brief Rolls a Rare item's affixes (1-2 prefixes + 1-2 suffixes, at least one of each in

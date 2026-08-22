@@ -4687,7 +4687,11 @@ TEST(OracoolAudit, CubeRecipesChargeTheirReagentAndTransformInPlace)
 {
 	using namespace devilution::oracool;
 
-	ASSERT_EQ(CraftingRecipeCount, 9) << "the recipe table did not grow";
+	// GE, not EQ. This pinned == 9 and went red the moment the tier ladder was added - the second
+	// time in two units that a test failed for a number it does not depend on. What it needs is
+	// that the four Cube recipes are reachable; how many recipes exist belongs to the test that is
+	// about the table.
+	ASSERT_GE(CraftingRecipeCount, 9) << "the four Cube recipes are past the end of the table";
 
 	// Every recipe is named, described, and no two share a name.
 	std::set<std::string> names;
@@ -4822,4 +4826,190 @@ TEST(OracoolAudit, TheMonumentRunsTheRecipeThatUsesTheMostOfWhatYouPutIn)
 	collide[0]._iSocketed[0] = devilution::Item::EmptySocket;
 	EXPECT_EQ(FirstReadyLevskiRecipe(collide), 5)
 	    << "four slots of reforge lost to a one-slot recipe - the most-slots rule is gone";
+}
+
+/**
+ * The tier ladder, the rerolls, and the two ethereal recipes.
+ *
+ * Seventeen recipes now, and most of them are shaped "one item plus one reagent stack". That shape
+ * is what forced explicit selection: a reagent stack of five sits in ONE grid slot, so nearly every
+ * item recipe ties at two slots and the most-slots tie-break decides for the player - and worse,
+ * Ennoble Rares and Reroll Rares want the SAME target and the SAME material at different counts, so
+ * no automatic rule can pick the one that was meant.
+ */
+TEST(OracoolAudit, TheTierLadderClimbsRerollsAndMakesEthereal)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	// Every recipe is named, described, and distinct - the book lists all seventeen.
+	std::set<std::string> names;
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		EXPECT_FALSE(std::string(CraftingRecipeName(i)).empty()) << "recipe " << i << " is a blank row";
+		EXPECT_FALSE(std::string(CraftingRecipeInputs(i)).empty()) << "recipe " << i << " has no formula";
+		EXPECT_TRUE(names.insert(CraftingRecipeName(i)).second) << "two recipes share a name";
+	}
+
+	const auto placeReagent = [](devilution::Item *grid, int slot, _item_indexes material, int count) {
+		InitializeItem(grid[slot], material);
+		grid[slot].setStackCount(count);
+	};
+	// A piece of gear deep enough that every tier is allowed to roll on it.
+	const auto makeGear = [](devilution::Item &item) {
+		InitializeItem(item, IDI_ORACOOL_HELM);
+		item._iOracoolItemLevel = 60;
+		item._iIdentified = true;
+	};
+
+	// ---- ENRICH: a plain item becomes a rare ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		ASSERT_EQ(grid[0]._iOracoolTier, OracoolItemTier::None) << "the fixture started already tiered";
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_MAGIC_POWDER, 10);
+
+		ASSERT_TRUE(CanCraftFromLevskiGrid(grid, 9)) << "Enrich is not offered on a plain item";
+		// Non-empty means something was MADE. A recipe that matches and then silently produces
+		// nothing is the failure this caught for real: SetupAllItems only reaches its forced-tier
+		// branch when GetItemBLevel returns something other than -1, and that call has a random
+		// component unless onlygood is set - so the climb quietly did not happen a large share of
+		// the time while the recipe still read as ready.
+		EXPECT_FALSE(TransmuteLevskiGridWith(grid, 9).empty()) << "Enrich matched but made nothing";
+		EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::Rare) << "Enrich did not reach the Rare tier";
+		EXPECT_EQ(grid[0]._iOracoolItemLevel, 60) << "the item forgot the depth it was found at";
+		EXPECT_EQ(grid[1].stackCount(), 6) << "Enrich charged something other than its four";
+	}
+
+	// ---- AWAKEN: a unique becomes a primal ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		grid[0]._iOracoolTier = OracoolItemTier::BuffedUnique;
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS, 8);
+
+		EXPECT_FALSE(TransmuteLevskiGridWith(grid, 11).empty());
+		EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::Primal) << "Awaken did not reach Primal";
+		EXPECT_TRUE(grid[1].isEmpty()) << "an exactly-sufficient stack was not spent";
+	}
+
+	// ---- REROLL keeps the rung it is on ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		grid[0]._iOracoolTier = OracoolItemTier::Rare;
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_RARE_FIBRES, 3);
+
+		EXPECT_FALSE(TransmuteLevskiGridWith(grid, 12).empty());
+		EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::Rare)
+		    << "a reroll changed the tier - a reroll and a climb are the same act at different rungs, "
+		       "and this one used the wrong rung";
+	}
+
+	// ---- CONSECRATE: a rare becomes a set piece for the SAME SLOT ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		grid[0]._iOracoolTier = OracoolItemTier::Rare;
+		const item_equip_type slot = grid[0]._iLoc;
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 6);
+
+		if (!TransmuteLevskiGridWith(grid, 10).empty()) {
+			EXPECT_TRUE(IsSetItem(grid[0])) << "Consecrate produced something that is not a set piece";
+			EXPECT_EQ(grid[0]._iLoc, slot) << "Consecrate moved the item to a different equipment slot";
+		}
+	}
+
+	// ---- MAKE ETHEREAL, then MEND it ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		const int baseAc = grid[0]._iAC;
+		const int baseMaxDur = grid[0]._iMaxDur;
+		ASSERT_GT(baseMaxDur, 1) << "the fixture has no durability to halve";
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES, 20);
+
+		EXPECT_FALSE(TransmuteLevskiGridWith(grid, 15).empty());
+		EXPECT_TRUE(grid[0]._iOracoolEthereal) << "Make Ethereal did not mark the item";
+		EXPECT_GT(grid[0]._iAC, baseAc) << "the ethereal bonus was not applied";
+		EXPECT_LT(grid[0]._iMaxDur, baseMaxDur) << "ethereal did not halve the lifespan";
+		EXPECT_EQ(grid[1].stackCount(), 15) << "Make Ethereal charged something other than its five";
+
+		// An already-ethereal item is not offered the recipe again - it would take five more for
+		// nothing, and MakeItemEthereal would halve the durability a second time.
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, 15)) << "an ethereal item was offered Make Ethereal again";
+
+		// MEND. Only offered on a DAMAGED one, and it keeps the item ethereal - what is bought is
+		// the removal of ethereal's only price, which is why it is the most expensive recipe here.
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, 16)) << "an undamaged ethereal was offered a repair";
+		grid[0]._iDurability = 1;
+		ASSERT_TRUE(CanCraftFromLevskiGrid(grid, 16));
+		EXPECT_FALSE(TransmuteLevskiGridWith(grid, 16).empty());
+		EXPECT_EQ(grid[0]._iDurability, grid[0]._iMaxDur) << "Mend did not fill the durability";
+		EXPECT_TRUE(grid[0]._iOracoolEthereal) << "Mend stripped the ethereal bargain it was paying for";
+		EXPECT_EQ(grid[1].stackCount(), 3) << "Mend charged something other than its twelve";
+	}
+
+	// Mending is the most expensive recipe in the game, and deliberately dearer than making one.
+	EXPECT_GT(CraftingRecipeReagentCount(16), CraftingRecipeReagentCount(15))
+	    << "repairing an ethereal costs no more than creating one";
+	// And climbing a rung always costs more than rerolling at it.
+	EXPECT_GT(CraftingRecipeReagentCount(9), CraftingRecipeReagentCount(8));
+	EXPECT_GT(CraftingRecipeReagentCount(11), CraftingRecipeReagentCount(13))
+	    << "Awaken costs no more than rerolling a unique in place";
+	EXPECT_GT(CraftingRecipeReagentCount(6), CraftingRecipeReagentCount(12))
+	    << "Ennoble costs no more than rerolling a rare in place";
+}
+
+/**
+ * The player picks the recipe, and a chosen recipe that is not ready runs NOTHING.
+ *
+ * The fallback is the dangerous half. A player selects Reroll Rares, is one fibre short, and a
+ * monument that fell back to "whatever else is ready" would ennoble the item instead - spending a
+ * different pile of materials on a change they did not ask for and cannot undo.
+ */
+TEST(OracoolAudit, ASelectedRecipeRunsOrNothingDoes)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	// A unique-tier item and eight Unique Encrustments. Awaken (recipe 11) wants eight of them and
+	// climbs the item to Primal; Reroll Uniques (13) wants four and leaves the rung alone. SAME
+	// target, SAME material, different cost and different outcome - the collision no automatic rule
+	// can resolve, which is the whole reason selection exists. Asserted rather than assumed.
+	devilution::Item grid[LevskiGridSlots];
+	InitializeItem(grid[0], IDI_ORACOOL_HELM);
+	grid[0]._iOracoolItemLevel = 60;
+	grid[0]._iOracoolTier = OracoolItemTier::BuffedUnique;
+	InitializeItem(grid[1], IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS);
+	grid[1].setStackCount(8);
+
+	ASSERT_TRUE(CanCraftFromLevskiGrid(grid, 11)) << "Awaken is not ready";
+	ASSERT_TRUE(CanCraftFromLevskiGrid(grid, 13)) << "Reroll Uniques is not ready";
+
+	// Choosing the cheaper one runs the cheaper one, and does NOT climb the item.
+	EXPECT_FALSE(TransmuteLevskiGridWith(grid, 13).empty());
+	EXPECT_EQ(grid[1].stackCount(), 4) << "the selection ran a recipe with a different cost";
+	EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::BuffedUnique)
+	    << "the reroll awakened the item to Primal instead - the selection was ignored";
+
+	// Four remain: still enough to reroll, not enough to awaken.
+	ASSERT_TRUE(CanCraftFromLevskiGrid(grid, 13));
+	ASSERT_FALSE(CanCraftFromLevskiGrid(grid, 11));
+
+	// A chosen recipe that is not ready runs NOTHING - and specifically does not fall through to
+	// the one that is. Falling back would spend four encrustments on a reroll the player did not
+	// ask for while they were saving up for the climb.
+	const int before = grid[1].stackCount();
+	const auto tierBefore = grid[0]._iOracoolTier;
+	EXPECT_TRUE(TransmuteLevskiGridWith(grid, 11).empty()) << "an unready selection made something";
+	EXPECT_EQ(grid[1].stackCount(), before) << "an unready selection still spent materials";
+	EXPECT_EQ(grid[0]._iOracoolTier, tierBefore) << "an unready selection fell through to another recipe";
+
+	// -1 is the automatic mode, and still works for the callers that want it.
+	EXPECT_GE(FirstReadyLevskiRecipe(grid), 0) << "nothing is ready in automatic mode";
+	EXPECT_FALSE(TransmuteLevskiGridWith(grid, -1).empty());
 }

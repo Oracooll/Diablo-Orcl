@@ -1202,6 +1202,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// plate; ungated by cursor position because the window is the only thing on screen
 				// worth scrolling while it is open.
 				oracool::ScrollSkillPicker(1);
+			} else if (oracool::HandleLevskiRecipeBookScroll(1)) {
+				// consumed - the recipe book is capped to the screen and scrolls inside the cap
 			} else if (oracool::HandleRunewordBookScroll(1)) {
 				// consumed
 			} else if (stextflag != TalkID::None) {
@@ -1249,6 +1251,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 		} else if (event.wheel.y < 0) { // down
 			if (oracool::IsSkillPickerOpen()) {
 				oracool::ScrollSkillPicker(-1); // see the wheel-up branch above
+			} else if (oracool::HandleLevskiRecipeBookScroll(-1)) {
+				// consumed - see the wheel-up branch above
 			} else if (oracool::HandleRunewordBookScroll(-1)) {
 				// consumed
 			} else if (stextflag != TalkID::None) {

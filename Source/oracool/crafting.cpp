@@ -147,6 +147,22 @@ const char *CraftingRecipeName(int index)
 		return N_("Recast Set Pieces");
 	case 8:
 		return N_("Recolour Gems");
+	case 9:
+		return N_("Enrich Magic");
+	case 10:
+		return N_("Consecrate Rares");
+	case 11:
+		return N_("Awaken Uniques");
+	case 12:
+		return N_("Reroll Rares");
+	case 13:
+		return N_("Reroll Uniques");
+	case 14:
+		return N_("Reroll Primals");
+	case 15:
+		return N_("Make Ethereal");
+	case 16:
+		return N_("Mend the Ethereal");
 	default:
 		return "";
 	}
@@ -180,6 +196,22 @@ const char *CraftingRecipeInputs(int index)
 		return N_("1 set piece + 3 Set Engravings -> a different piece of that set");
 	case 8:
 		return N_("1 gem + 2 Magic Powder -> another type, same quality");
+	case 9:
+		return N_("1 magic item + 4 Magic Powder -> the same item, rolled as a rare");
+	case 10:
+		return N_("1 rare item + 6 Set Engravings -> a set piece for that slot");
+	case 11:
+		return N_("1 unique item + 8 Unique Encrustments -> the same item, rolled as a primal");
+	case 12:
+		return N_("1 rare item + 3 Rare Fibres -> the same item, rare rolls taken again");
+	case 13:
+		return N_("1 unique item + 4 Unique Encrustments -> a different unique of the same kind");
+	case 14:
+		return N_("1 primal item + 6 Primal Vines -> the same item, primal rolls taken again");
+	case 15:
+		return N_("1 weapon or armour + 5 Ethereal Imbueities -> ethereal: +35%, half durability");
+	case 16:
+		return N_("1 damaged ethereal item + 12 Ethereal Imbueities -> fully repaired, still ethereal");
 	default:
 		return "";
 	}
@@ -292,6 +324,27 @@ ReagentSpec ReagentFor(int recipe)
 		return { IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 3 };
 	case 8:
 		return { IDI_ORACOOL_SALVAGE_MAGIC_POWDER, 2 };
+	// The tier ladder (v1.9.18). Climbing costs more than rerolling at the same rung, which is the
+	// whole shape of it: you can chase a better roll cheaply, or pay to change what the item IS.
+	case 9:
+		return { IDI_ORACOOL_SALVAGE_MAGIC_POWDER, 4 };
+	case 10:
+		return { IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 6 };
+	case 11:
+		return { IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS, 8 };
+	case 12:
+		return { IDI_ORACOOL_SALVAGE_RARE_FIBRES, 3 };
+	case 13:
+		return { IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS, 4 };
+	case 14:
+		return { IDI_ORACOOL_SALVAGE_PRIMAL_VINES, 6 };
+	case 15:
+		return { IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES, 5 };
+	case 16:
+		// The expensive one, and deliberately the most expensive recipe in the game. Ethereal is a
+		// bargain - more of everything for half the lifespan and no smith will touch it - so a
+		// repair removes the only price the item was paying. It should cost more than making one.
+		return { IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES, 12 };
 	default:
 		return { IDI_NONE, 0 };
 	}
@@ -391,6 +444,133 @@ int FindGridSetPieceTarget(const Item *grid)
 	return -1;
 }
 
+/**
+ * @brief Every set piece whose slot suits equip location @p loc.
+ *
+ * Consecrate turns a rare into a set piece for the SAME SLOT, so a rare helm becomes a set helm.
+ * The mapping goes through BaseItemForSetSlot - the set table's own slot word resolved to a base
+ * item, whose ILOC is then compared - rather than a second slot-word table here, which is how the
+ * two would come to disagree about what "off_hand" means.
+ */
+std::vector<const SetItemDefinition *> SetPiecesForLoc(item_equip_type loc)
+{
+	std::vector<const SetItemDefinition *> found;
+	if (loc == ILOC_NONE || loc == ILOC_UNEQUIPABLE)
+		return found;
+	for (const ItemSetDefinition &set : ItemSets) {
+		for (int i = 0; i < set.itemCount; i++) {
+			const SetItemDefinition &piece = ItemSetItems[set.firstItem + i];
+			const int base = BaseItemForSetSlot(piece.slot);
+			if (base < 0)
+				continue;
+			if (AllItemsList[base].iLoc == loc)
+				found.push_back(&piece);
+		}
+	}
+	return found;
+}
+
+/** @brief Whether @p item is gear a tier recipe can act on at all. */
+bool IsTierRecipeGear(const Item &item)
+{
+	if (item.isEmpty())
+		return false;
+	if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR)
+		return false;
+	// A socketed item is excluded from every reroll and every tier bump, for the reason Reforge
+	// already records: its stats would come back without the stones inside it, and a completed
+	// runeword's name comes from the word rather than from a seed. Empty it first.
+	return item.socketedCount() == 0;
+}
+
+/** @brief The first grid item matching @p wanted, by the tier a recipe operates on. */
+int FindGridItemOfTier(const Item *grid, OracoolItemTier wanted)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		if (IsTierRecipeGear(grid[i]) && grid[i]._iOracoolTier == wanted)
+			return i;
+	}
+	return -1;
+}
+
+/** @brief A plain-or-magic item - no Oracool tier - the low recipes act on, or -1. */
+int FindGridUntieredItem(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		if (IsTierRecipeGear(grid[i]) && grid[i]._iOracoolTier == OracoolItemTier::None
+		    && grid[i]._iMagical != ITEM_QUALITY_UNIQUE)
+			return i;
+	}
+	return -1;
+}
+
+/**
+ * @brief A unique item, or -1.
+ *
+ * BOTH senses of the word: a vanilla unique (`_iMagical == ITEM_QUALITY_UNIQUE`, a named object
+ * with fixed powers) and this fork's BuffedUnique TIER (an ordinary item rolled heavily). They are
+ * different things that a player calls the same thing, and a recipe that accepted only one of them
+ * would refuse half the items its own name describes.
+ */
+int FindGridUniqueItem(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		if (!IsTierRecipeGear(grid[i]))
+			continue;
+		if (grid[i]._iMagical == ITEM_QUALITY_UNIQUE || grid[i]._iOracoolTier == OracoolItemTier::BuffedUnique)
+			return i;
+	}
+	return -1;
+}
+
+/** @brief Durable gear that is not ethereal yet, or -1. */
+int FindGridEtherealTarget(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		const Item &item = grid[i];
+		if (item.isEmpty() || item._iOracoolEthereal)
+			continue;
+		if (item._iClass != ICLASS_WEAPON && item._iClass != ICLASS_ARMOR)
+			continue;
+		// The same eligibility MakeItemEthereal enforces. Checked here too so the recipe does not
+		// offer itself on an item it would then decline - a Transmute that consumes nothing and
+		// says nothing is the worst of both.
+		if (item._iMaxDur == 0 || item._iMaxDur == DUR_INDESTRUCTIBLE)
+			continue;
+		return i;
+	}
+	return -1;
+}
+
+/** @brief An ethereal item with durability missing, or -1. */
+int FindGridDamagedEthereal(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		const Item &item = grid[i];
+		if (item.isEmpty() || !item._iOracoolEthereal)
+			continue;
+		if (item._iMaxDur == 0 || item._iMaxDur == DUR_INDESTRUCTIBLE)
+			continue;
+		// Only a DAMAGED one. A full-durability ethereal offered this recipe would take twelve
+		// imbueities for nothing.
+		if (item._iDurability < item._iMaxDur)
+			return i;
+	}
+	return -1;
+}
+
+/** @brief A rare whose slot some set piece could fill, or -1. */
+int FindGridConsecrateTarget(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		if (!IsTierRecipeGear(grid[i]) || grid[i]._iOracoolTier != OracoolItemTier::Rare)
+			continue;
+		if (!SetPiecesForLoc(grid[i]._iLoc).empty())
+			return i;
+	}
+	return -1;
+}
+
 /** @brief Any gem, or -1. */
 int FindGridGem(const Item *grid)
 {
@@ -457,19 +637,57 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 	case 5:
 	case 6:
 	case 7:
-	case 8: {
+	case 8:
+	case 9:
+	case 10:
+	case 11:
+	case 12:
+	case 13:
+	case 14:
+	case 15:
+	case 16: {
 		// One shape for all four: find the target this recipe operates on, then find its reagent
 		// through ReagentFor - the same table the consume step reads, so a recipe cannot match on
 		// one cost and charge another.
 		int target = -1;
-		if (index == 5)
+		switch (index) {
+		case 5:
 			target = FindGridReforgeTarget(grid);
-		else if (index == 6)
+			break;
+		case 6:
 			target = FindGridEnnobleTarget(grid);
-		else if (index == 7)
+			break;
+		case 7:
 			target = FindGridSetPieceTarget(grid);
-		else
+			break;
+		case 8:
 			target = FindGridGem(grid);
+			break;
+		case 9:
+			target = FindGridUntieredItem(grid);
+			break;
+		case 10:
+			target = FindGridConsecrateTarget(grid);
+			break;
+		case 11:
+		case 13:
+			target = FindGridUniqueItem(grid);
+			break;
+		case 12:
+			target = FindGridItemOfTier(grid, OracoolItemTier::Rare);
+			break;
+		case 14:
+			target = FindGridItemOfTier(grid, OracoolItemTier::Primal);
+			break;
+		case 15:
+			target = FindGridEtherealTarget(grid);
+			break;
+		case 16:
+			target = FindGridDamagedEthereal(grid);
+			break;
+		default:
+			return {};
+		}
 		if (target < 0)
 			return {};
 
@@ -499,6 +717,16 @@ int GridRoomAfter(const Item *grid, const std::vector<int> &consumed)
 }
 
 } // namespace
+
+int CraftingRecipeReagentCount(int index)
+{
+	return ReagentFor(index).count;
+}
+
+int CraftingRecipeReagentItem(int index)
+{
+	return ReagentFor(index).material;
+}
 
 bool CanCraftFromLevskiGrid(const Item *grid, int index)
 {
@@ -533,7 +761,22 @@ int FirstReadyLevskiRecipe(const Item *grid)
 
 std::string TransmuteLevskiGrid(Item *grid)
 {
-	const int recipe = FirstReadyLevskiRecipe(grid);
+	return TransmuteLevskiGridWith(grid, -1);
+}
+
+std::string TransmuteLevskiGridWith(Item *grid, int index)
+{
+	// A CHOSEN recipe that is not ready runs NOTHING, and returns empty like every other
+	// nothing-happened path. Falling back to whatever else is ready would be the worst possible
+	// answer: the player selected Reroll Rares, is short one fibre, and the monument ennobles the
+	// item instead using a different pile of materials.
+	//
+	// Empty rather than a refusal MESSAGE, though the first draft returned one - the return value's
+	// contract is "what was made", and a caller cannot tell a refusal from a success if both are
+	// text. The monument asks CanCraftFromLevskiGrid itself to say why nothing happened.
+	if (index >= 0 && index < CraftingRecipeCount && !CanCraftFromLevskiGrid(grid, index))
+		return {};
+	const int recipe = index >= 0 ? index : FirstReadyLevskiRecipe(grid);
 	if (recipe < 0)
 		return {};
 	const std::vector<int> materials = GridMaterialsFor(grid, recipe);
@@ -664,6 +907,63 @@ std::string TransmuteLevskiGrid(Item *grid)
 			what = std::string(target.getName());
 			break;
 		}
+		case 9: // ENRICH - a plain or magic item rolled again as a rare
+			if (!RetierOracoolItem(target, OracoolItemTier::Rare))
+				return {};
+			what = std::string(target.getName());
+			break;
+		case 10: { // CONSECRATE - a rare becomes a set piece for the same SLOT
+			const std::vector<const SetItemDefinition *> pieces = SetPiecesForLoc(target._iLoc);
+			if (pieces.empty())
+				return {};
+			const SetItemDefinition *chosen = pieces[GenerateRnd(static_cast<int32_t>(pieces.size()))];
+			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetSlot(chosen->slot)));
+			MakeSetItem(target, *chosen);
+			GenerateNewSeed(target);
+			target._iIdentified = true;
+			what = std::string(target.getName());
+			break;
+		}
+		case 11: // AWAKEN - a unique rolled again as a primal
+			if (!RetierOracoolItem(target, OracoolItemTier::Primal))
+				return {};
+			what = std::string(target.getName());
+			break;
+		case 12: // REROLL RARES - the rare rolls taken again at the same rung
+			if (!RetierOracoolItem(target, OracoolItemTier::Rare))
+				return {};
+			what = std::string(target.getName());
+			break;
+		case 13: // REROLL UNIQUES
+			// A VANILLA unique has fixed powers - rerolling its affixes would return the identical
+			// item - so for one of those the reroll re-picks WHICH unique it is. A BuffedUnique
+			// tier item genuinely is a roll, so that one is rerolled in place. Two behaviours under
+			// one name because a player calls both of them "a unique".
+			if (target._iMagical == ITEM_QUALITY_UNIQUE) {
+				if (!EnnobleOracoolRare(target))
+					return {};
+			} else if (!RetierOracoolItem(target, OracoolItemTier::BuffedUnique)) {
+				return {};
+			}
+			what = std::string(target.getName());
+			break;
+		case 14: // REROLL PRIMALS
+			if (!RetierOracoolItem(target, OracoolItemTier::Primal))
+				return {};
+			what = std::string(target.getName());
+			break;
+		case 15: // MAKE ETHEREAL - the bargain, stamped into the item's own numbers
+			if (!MakeItemEthereal(target))
+				return {};
+			what = std::string(target.getName());
+			break;
+		case 16:
+			// MEND - full durability, and it STAYS ethereal. The +35% is kept; what is bought is
+			// the removal of the only price ethereal charges, which is why this is the most
+			// expensive recipe in the game.
+			target._iDurability = target._iMaxDur;
+			what = std::string(target.getName());
+			break;
 		default:
 			return {};
 		}

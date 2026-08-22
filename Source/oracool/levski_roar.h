@@ -72,6 +72,15 @@ Rectangle GetLevskiRoarRect();
 /** @brief The recipe book's screen rect, empty when closed. */
 Rectangle GetLevskiRecipeBookRect();
 
+/**
+ * @brief Scrolls the recipe book by @p notches. True if it consumed the wheel event.
+ *
+ * The book grew past the screen when the recipe list reached eighteen, so it is capped and scrolled
+ * rather than sized to its content. False when the book is closed, so the wheel falls through to
+ * whatever else wants it.
+ */
+bool HandleLevskiRecipeBookScroll(int notches);
+
 /** @brief Draws the window and, over it, the recipe book. Call once per frame. */
 void DrawLevskiRoar(const Surface &out);
 

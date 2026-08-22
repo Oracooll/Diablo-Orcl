@@ -171,6 +171,24 @@ void DrawPanelGround(const Surface &out, const Rectangle &rect, uint8_t fill = P
 /** @brief The recipe book's lines, pre-wrapped to its own text width - the formulas are long
  * enough that "1 socketed item -> the item, emptied, and its stones back" ran off the panel and
  * the last line was sliced by the bottom edge. */
+/**
+ * @brief The recipe the Transmute button will run, or -1 for "whatever is ready".
+ *
+ * WHY THIS EXISTS. Until v1.9.18 the monument auto-picked - first the lowest-numbered ready recipe,
+ * then the one consuming the most grid slots. Both worked while the recipes had disjoint inputs.
+ * Neither survives the tier ladder: Ennoble Rares and Reroll Rares take the SAME target and the
+ * SAME material at different counts, and a reagent stack of five sits in ONE slot, so nearly every
+ * item recipe ties at two slots and the tie-break decides for the player.
+ *
+ * So the player decides. Clicking a recipe in the book selects it; clicking it again clears the
+ * selection back to automatic. Not persisted - the grid is not either, and a crafting station that
+ * remembers a mode across sessions is a mode you can forget you set.
+ */
+int SelectedRecipe = -1;
+
+/** @brief How far the recipe book is scrolled, in pixels. Clamped on every draw. */
+int RecipeBookScroll = 0;
+
 std::string RecipeBookText(int width)
 {
 	std::string page;
@@ -183,6 +201,53 @@ std::string RecipeBookText(int width)
 		page += '\n';
 	}
 	return page;
+}
+
+/**
+ * @brief Where each recipe's block sits in @p page, scroll already applied.
+ *
+ * ONE geometry, read by the draw and by the click. The rows are not a fixed height - each formula
+ * wraps to as many lines as it needs - so a click handler that divided by a row height would drift
+ * further out of step with every recipe added, and would drift silently.
+ */
+struct RecipeRow {
+	int top;
+	int height;
+};
+
+std::vector<RecipeRow> RecipeBookRows(const Rectangle &page)
+{
+	std::vector<RecipeRow> rows;
+	rows.reserve(CraftingRecipeCount);
+	const int textWidth = page.size.width - Padding * 2;
+	int y = page.position.y + Padding + HeaderHeight - RecipeBookScroll;
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
+		const std::string formula = WordWrapString(_(CraftingRecipeInputs(i)), textWidth, GameFont12);
+		const int formulaLines = static_cast<int>(std::count(formula.begin(), formula.end(), '\n')) + 1;
+		const int height = lineHeight + lineHeight * formulaLines + 6;
+		rows.push_back({ y, height });
+		y += height;
+	}
+	return rows;
+}
+
+/** @brief How far the book can scroll before the last recipe's foot reaches the panel's. */
+int RecipeBookMaxScroll(const Rectangle &page)
+{
+	if (page.size.height <= 0)
+		return 0;
+	// Measured from the UNSCROLLED layout, so the answer does not depend on where the book already
+	// is - a max that moved with the offset is how a scroll runs away from its own bound.
+	const int saved = RecipeBookScroll;
+	RecipeBookScroll = 0;
+	const std::vector<RecipeRow> rows = RecipeBookRows(page);
+	RecipeBookScroll = saved;
+	if (rows.empty())
+		return 0;
+	const int contentBottom = rows.back().top + rows.back().height;
+	const int visibleBottom = page.position.y + page.size.height - Padding;
+	return std::max(0, contentBottom - visibleBottom);
 }
 
 Point GridOrigin(const Rectangle &window)
@@ -391,6 +456,21 @@ bool LevskiGridCanHold(const Item *items, int count)
 	return allFit;
 }
 
+bool HandleLevskiRecipeBookScroll(int notches)
+{
+	if (!WindowOpen || !RecipeBookOpen)
+		return false;
+	const Rectangle book = GetLevskiRecipeBookRect();
+	if (book.size.height <= 0)
+		return false;
+	// A wheel notch moves about one recipe's worth. Bounded at BOTH ends, for the reason recorded
+	// on the skill picker's own scroll: without the upper bound the wheel pushes the list past its
+	// last row and the panel goes blank, which reads as a crash rather than as the end of a list.
+	constexpr int PixelsPerNotch = 40;
+	RecipeBookScroll = std::clamp(RecipeBookScroll - notches * PixelsPerNotch, 0, RecipeBookMaxScroll(book));
+	return true;
+}
+
 bool IsLevskiRoarOpen() { return WindowOpen; }
 bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 
@@ -438,7 +518,11 @@ Rectangle GetLevskiRecipeBookRect()
 	const int bookWidth = RecipeBookWidthFor(window);
 	const std::string page = RecipeBookText(bookWidth);
 	const int textHeight = static_cast<int>(GetLineHeight(page, GameFont12) * (std::count(page.begin(), page.end(), '\n') + 1));
-	const int height = Padding * 2 + HeaderHeight + textHeight;
+	// CAPPED to the screen, and scrolled inside the cap (v1.9.18). The height used to be whatever
+	// the wrapped text came to, which was fine for five recipes and stopped being fine at eighteen:
+	// the panel simply grew past the bottom of a 720-tall screen and the last recipes could not be
+	// read at all, let alone clicked.
+	const int height = std::min(Padding * 2 + HeaderHeight + textHeight, gnScreenHeight - SlotGap * 2);
 	// LEFT of the window by preference: opening right ran the book under the mini-map, which owns
 	// the top-right corner.
 	//
@@ -564,19 +648,43 @@ void DrawLevskiRoar(const Surface &out)
 	// keeps its own colour, so each recipe is drawn as its own pair - but both lines are measured
 	// from the SAME wrapped text the panel was sized from, which is what stops the last one being
 	// sliced by the bottom edge.
+	// Clamped HERE, every frame, rather than only where the wheel turns - the content's height
+	// changes with the window width and with how the formulas wrap, so a scroll that was legal when
+	// it was set can be past the end by the time it is drawn.
+	RecipeBookScroll = std::clamp(RecipeBookScroll, 0, RecipeBookMaxScroll(page));
+
+	const int clipTop = page.position.y + Padding + HeaderHeight;
+	const int clipBottom = page.position.y + page.size.height - Padding;
+	const std::vector<RecipeRow> rows = RecipeBookRows(page);
 	for (int i = 0; i < CraftingRecipeCount; i++) {
+		const RecipeRow &row = rows[i];
+		// Wholly outside the visible band: skipped rather than drawn and overdrawn. A partially
+		// visible row is skipped too - half a formula reads as a rendering fault, not as a hint
+		// that there is more below.
+		if (row.top < clipTop || row.top + row.height > clipBottom)
+			continue;
+
 		const bool ready = CanCraftFromLevskiGrid(GridItems, i);
+		const bool selected = SelectedRecipe == i;
+		if (selected) {
+			// The selection is a filled band behind the block, because the name's colour is
+			// already carrying "can this run right now" and one text colour cannot say two things.
+			FillRect(out, page.position.x + Padding - 2, row.top - 2,
+			    textWidth + 4, row.height - 2, ButtonFlashColor);
+		}
+
+		Point rowCursor { page.position.x + Padding, row.top };
 		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
-		DrawString(out, _(CraftingRecipeName(i)), Rectangle { cursor, { textWidth, lineHeight } },
-		    { (ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 });
-		cursor.y += lineHeight;
+		DrawString(out, _(CraftingRecipeName(i)), Rectangle { rowCursor, { textWidth, lineHeight } },
+		    { (selected ? UiFlags::ColorWhite : (ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold)) | UiFlags::FontSize12 });
+		rowCursor.y += lineHeight;
 
 		const std::string formula = WordWrapString(_(CraftingRecipeInputs(i)), textWidth, GameFont12);
 		const int formulaLines = static_cast<int>(std::count(formula.begin(), formula.end(), '\n')) + 1;
-		DrawString(out, formula, Rectangle { cursor, { textWidth, lineHeight * formulaLines } },
+		DrawString(out, formula, Rectangle { rowCursor, { textWidth, lineHeight * formulaLines } },
 		    { UiFlags::ColorWhite | UiFlags::FontSize12 });
-		cursor.y += lineHeight * formulaLines + 6;
 	}
+	(void)cursor;
 }
 
 bool CheckLevskiRoarClick(Point mousePosition)
@@ -593,9 +701,30 @@ bool CheckLevskiRoarClick(Point mousePosition)
 
 	if (inBook) {
 		// The book's own X closes the book, not the window under it - each window owns its button.
-		if (CheckWindowCloseButtonClick(book, mousePosition))
+		if (CheckWindowCloseButtonClick(book, mousePosition)) {
 			RecipeBookOpen = false;
-		return true; // otherwise the book is a reference, not a control surface
+			return true;
+		}
+		// The book is a control surface now (v1.9.18): clicking a recipe SELECTS it, and clicking
+		// the selected one again clears the selection. It stopped being a pure reference the moment
+		// two recipes could take the same target and the same material at different costs, because
+		// then no auto-pick can be the one the player meant.
+		//
+		// Walked through the same RecipeBookRows the draw used, so a click lands on the row that
+		// was actually under the pointer even though the rows are not a fixed height.
+		const std::vector<RecipeRow> rows = RecipeBookRows(book);
+		const int clipTop = book.position.y + Padding + HeaderHeight;
+		const int clipBottom = book.position.y + book.size.height - Padding;
+		for (int i = 0; i < CraftingRecipeCount; i++) {
+			const RecipeRow &row = rows[i];
+			if (row.top < clipTop || row.top + row.height > clipBottom)
+				continue; // not drawn, so not clickable - the invisible-cell rule from the skill picker
+			if (mousePosition.y < row.top || mousePosition.y >= row.top + row.height)
+				continue;
+			SelectedRecipe = (SelectedRecipe == i) ? -1 : i;
+			return true;
+		}
+		return true;
 	}
 
 	// Before every other control: the X is the one click that must always work, and this window
@@ -645,7 +774,14 @@ bool CheckLevskiRoarClick(Point mousePosition)
 		std::copy(std::begin(GridItems), std::end(GridItems), snapshotItems);
 		std::copy(std::begin(GridCells), std::end(GridCells), snapshotCells);
 
-		const std::string result = TransmuteLevskiGrid(GridItems);
+		// Asked BEFORE the transmute, because the transmute reports what it MADE and a refusal made
+		// nothing. A selected recipe that cannot run has to say so out loud - a Transmute button
+		// that silently does nothing is the exact ambiguity this fork has shipped twice already.
+		if (SelectedRecipe >= 0 && !CanCraftFromLevskiGrid(GridItems, SelectedRecipe)) {
+			LogEvent(StrCat("Levski's Roar: ", _(CraftingRecipeName(SelectedRecipe)), " is not ready"));
+			return true;
+		}
+		const std::string result = TransmuteLevskiGridWith(GridItems, SelectedRecipe);
 		if (!RebuildGridOccupancy()) {
 			std::copy(std::begin(snapshotItems), std::end(snapshotItems), GridItems);
 			std::copy(std::begin(snapshotCells), std::end(snapshotCells), GridCells);
