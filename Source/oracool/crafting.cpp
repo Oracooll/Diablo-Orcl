@@ -54,6 +54,11 @@ std::vector<int> LargestSameKindGroup(const Player &player, const std::vector<in
 
 bool IsGem(int idx) { return IsOracoolGemIdx(idx); }
 bool IsRune(int idx) { return IsOracoolRuneIdx(idx); }
+// Jewels get their own predicate rather than joining IsGem, and their own recipe rather than
+// widening Refine Gems. Both would have been one-line changes and both would have been wrong: the
+// gem recipe takes three of a (type, quality) pair and the jewel ladder is (family, grade), so a
+// shared recipe would have to know which of two decompositions applied to the index in front of it.
+bool IsJewel(int idx) { return IsOracoolJewelIdx(idx); }
 // Stat charms only. A Charm of Salvaging is a charm structurally - it obeys the same active cap -
 // but recipe 2 turns two charms into one random STAT charm, and letting a bought 40,000 gold Primal
 // charm be consumed for a Charm of Vigor is a trap, not a recipe.
@@ -84,6 +89,13 @@ std::vector<int> MaterialsFor(const Player &player, int index)
 		charms.resize(2);
 		return charms;
 	}
+	case 4: { // three identical jewels - same family AND grade, Radiant excluded
+		std::vector<int> jewels = FindMaterials(player, IsJewel);
+		jewels.erase(std::remove_if(jewels.begin(), jewels.end(),
+		                 [&](int i) { return IsTopJewel(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
+		    jewels.end());
+		return LargestSameKindGroup(player, jewels, 3);
+	}
 	default:
 		return {};
 	}
@@ -97,6 +109,8 @@ _item_indexes OutputFor(const Player &player, int index, const std::vector<int> 
 		return static_cast<_item_indexes>(NextGemQuality(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
 	case 1: // the next rune up from the consumed pair, by the LADDER - not by index
 		return static_cast<_item_indexes>(NextRune(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
+	case 4: // the same jewel, one grade better
+		return static_cast<_item_indexes>(NextJewelGrade(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
 	case 2: { // a random charm - the enum's two islands make this a pick-from-list
 		constexpr _item_indexes CharmPool[] = {
 			IDI_ORACOOL_CHARM_VIGOR, IDI_ORACOOL_CHARM_EMBERS, IDI_ORACOOL_CHARM_STORMS,
@@ -122,6 +136,8 @@ const char *CraftingRecipeName(int index)
 		return N_("Rework Charms");
 	case 3:
 		return N_("Free the Sockets");
+	case 4:
+		return N_("Temper Jewels");
 	default:
 		return "";
 	}
@@ -138,6 +154,8 @@ const char *CraftingRecipeInputs(int index)
 		return N_("2 charms of any kind -> a random charm");
 	case 3:
 		return N_("1 socketed item -> the item, emptied, and its stones back");
+	case 4:
+		return N_("3 identical jewels -> one of the next grade");
 	default:
 		return "";
 	}
@@ -263,6 +281,13 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 		const int socketed = FindGridSocketedItem(grid);
 		return socketed < 0 ? std::vector<int> {} : std::vector<int> { socketed };
 	}
+	case 4: { // three identical jewels, Radiant excluded
+		std::vector<int> jewels = FindGridMaterials(grid, IsJewel);
+		jewels.erase(std::remove_if(jewels.begin(), jewels.end(),
+		                 [&](int i) { return IsTopJewel(static_cast<uint16_t>(grid[i].IDidx)); }),
+		    jewels.end());
+		return LargestSameKindGridGroup(grid, jewels, 3);
+	}
 	default:
 		return {};
 	}
@@ -383,6 +408,9 @@ std::string TransmuteLevskiGrid(Item *grid)
 		output = CharmPool[GenerateRnd(6)];
 		break;
 	}
+	case 4:
+		output = static_cast<_item_indexes>(NextJewelGrade(static_cast<uint16_t>(grid[materials[0]].IDidx)));
+		break;
 	default:
 		return {};
 	}

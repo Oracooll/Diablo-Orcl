@@ -125,6 +125,27 @@ uint16_t NextRune(uint16_t runeIdx);
 /** @brief Whether @p runeIdx is Zod - the top of the ladder, so nothing ascends it. */
 bool IsTopRune(uint16_t runeIdx);
 
+/**
+ * @brief The jewel ladder - three grades per family, climbed by the Temper Jewels recipe.
+ *
+ * The fifteen ids are GRADE-MAJOR (all five Flawed, then all five Plain, then all five Radiant), so
+ * the next grade of a jewel is exactly JewelFamilyCount ids further on. That is a property of the
+ * generator's one-walk-one-order discipline rather than a coincidence, and the static_assert in the
+ * .cpp is what keeps it true if the generator is ever changed to emit family-major.
+ */
+constexpr size_t JewelFamilyCount = 5;
+constexpr size_t JewelGradeCount = 3;
+
+/** @brief Whether @p jewelIdx is Radiant - the top of its ladder, so nothing tempers it. */
+bool IsTopJewel(uint16_t jewelIdx);
+
+/**
+ * @brief The same jewel one grade better, or @p jewelIdx itself if it is Radiant (or not a jewel).
+ *
+ * Same contract as NextGemQuality, deliberately: the recipes read alike because they do alike.
+ */
+uint16_t NextJewelGrade(uint16_t jewelIdx);
+
 /** @brief Applies gem @p gemIdx's effect for @p host onto @p totals. Unknown indices are inert. */
 void ApplyGemToTotals(uint16_t gemIdx, SocketHost host, ItemBonusTotals &totals);
 

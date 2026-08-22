@@ -212,6 +212,28 @@ uint16_t NextGemQuality(uint16_t gemIdx)
 	return GemIndexFor(type, static_cast<GemQuality>(static_cast<uint8_t>(quality) + 1));
 }
 
+// The jewel ladder. Both facts it rests on are asserted here rather than trusted: that the fifteen
+// are one contiguous run, and that they are grade-major so a grade step is exactly one family
+// count. Change tools/GenJewels.ps1 to emit family-major and this stops compiling, which is the
+// point - silently it would temper a Flawed Fervor into a Flawed Focus.
+static_assert(IDI_ORACOOL_JEWEL_WARDING_RADIANT - IDI_ORACOOL_JEWEL_FERVOR_FLAWED + 1
+        == static_cast<int>(JewelFamilyCount * JewelGradeCount),
+    "the jewels are no longer one contiguous run of five families by three grades");
+static_assert(IDI_ORACOOL_JEWEL_FERVOR_PLAIN - IDI_ORACOOL_JEWEL_FERVOR_FLAWED == static_cast<int>(JewelFamilyCount),
+    "the jewel ids are no longer grade-major - a grade step is not one family count");
+
+bool IsTopJewel(uint16_t jewelIdx)
+{
+	return jewelIdx >= IDI_ORACOOL_JEWEL_FERVOR_RADIANT && jewelIdx <= IDI_ORACOOL_JEWEL_WARDING_RADIANT;
+}
+
+uint16_t NextJewelGrade(uint16_t jewelIdx)
+{
+	if (!IsOracoolJewelIdx(jewelIdx) || IsTopJewel(jewelIdx))
+		return jewelIdx;
+	return static_cast<uint16_t>(jewelIdx + JewelFamilyCount);
+}
+
 int GemQualityPercent(GemQuality quality)
 {
 	switch (quality) {

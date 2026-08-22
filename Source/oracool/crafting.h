@@ -27,7 +27,7 @@ struct Player;
 
 namespace devilution::oracool {
 
-constexpr int CraftingRecipeCount = 4;
+constexpr int CraftingRecipeCount = 5;
 
 /**
  * @brief Levski's Roar runs its recipes against the MONUMENT'S 3x3 grid rather than the backpack.

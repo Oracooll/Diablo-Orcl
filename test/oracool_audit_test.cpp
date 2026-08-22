@@ -4450,3 +4450,103 @@ TEST(OracoolAudit, EveryBossTraitIsReachableAndNamed)
 	OnBossDealtDamage(champion, 100);
 	EXPECT_EQ(champion.hitPoints, 500) << "the boss drain fired on a champion";
 }
+
+/**
+ * Three Flawed jewels climb to a Plain, and a Radiant is the end of the road.
+ *
+ * The jewels shipped at v1.9.9 with three grades and no way to climb them: "Refine Gems" tests
+ * IsOracoolGemIdx and a jewel is deliberately not a gem, so the ladder existed on paper only.
+ *
+ * The load-bearing fact under the whole recipe is that the fifteen ids are GRADE-MAJOR - all five
+ * Flawed, then all five Plain, then all five Radiant - so a grade step is exactly one family count
+ * of ids. gems.cpp static_asserts that, which is the right place for it; what this pins is the
+ * behaviour that would go wrong if the assert were ever deleted along with the property: a Flawed
+ * Fervor must temper into a Plain FERVOR, not into a Flawed Focus.
+ */
+TEST(OracoolAudit, TemperJewelsClimbsTheGradeAndStopsAtRadiant)
+{
+	using namespace devilution::oracool;
+
+	// Every jewel below Radiant climbs, and climbs WITHIN ITS FAMILY. Walked over all fifteen so a
+	// reordered generator cannot pass by getting one family right.
+	for (int i = IDI_ORACOOL_JEWEL_FERVOR_FLAWED; i <= IDI_ORACOOL_JEWEL_WARDING_RADIANT; i++) {
+		const auto idx = static_cast<uint16_t>(i);
+		const uint16_t next = NextJewelGrade(idx);
+
+		if (IsTopJewel(idx)) {
+			EXPECT_EQ(next, idx) << AllItemsList[i].iName << " tempers into something past Radiant";
+			continue;
+		}
+
+		EXPECT_NE(next, idx) << AllItemsList[i].iName << " does not temper at all";
+		EXPECT_TRUE(IsOracoolJewelIdx(next)) << AllItemsList[i].iName << " tempers into a non-jewel";
+		// Same FAMILY. The family is the id's offset within its grade block, and it must not move.
+		const int fromFamily = (i - IDI_ORACOOL_JEWEL_FERVOR_FLAWED) % static_cast<int>(JewelFamilyCount);
+		const int toFamily = (next - IDI_ORACOOL_JEWEL_FERVOR_FLAWED) % static_cast<int>(JewelFamilyCount);
+		EXPECT_EQ(fromFamily, toFamily)
+		    << AllItemsList[i].iName << " tempers into a different family: " << AllItemsList[next].iName;
+		// And exactly ONE grade, not two.
+		const int fromGrade = (i - IDI_ORACOOL_JEWEL_FERVOR_FLAWED) / static_cast<int>(JewelFamilyCount);
+		const int toGrade = (next - IDI_ORACOOL_JEWEL_FERVOR_FLAWED) / static_cast<int>(JewelFamilyCount);
+		EXPECT_EQ(toGrade, fromGrade + 1) << AllItemsList[i].iName << " skipped a grade";
+		// The result is worth more, which is the reason to do it at all.
+		EXPECT_GT(AllItemsList[next].iValue, AllItemsList[i].iValue)
+		    << AllItemsList[next].iName << " is worth no more than three of " << AllItemsList[i].iName;
+	}
+
+	// Non-jewels are inert rather than mangled - the recipe never sees one, but NextJewelGrade is a
+	// public function and an arithmetic-only version would happily "climb" a rune into a gem.
+	EXPECT_EQ(NextJewelGrade(IDI_ORACOOL_GEM_RUBY_CHIPPED), IDI_ORACOOL_GEM_RUBY_CHIPPED);
+	EXPECT_EQ(NextJewelGrade(IDI_GOLD), IDI_GOLD);
+
+	// The recipe exists, is named, and is reachable through the same table the UI walks.
+	ASSERT_EQ(CraftingRecipeCount, 5) << "the recipe table did not grow";
+	const std::string name = CraftingRecipeName(4);
+	const std::string inputs = CraftingRecipeInputs(4);
+	EXPECT_FALSE(name.empty()) << "recipe 4 has no name - it draws as a blank row";
+	EXPECT_FALSE(inputs.empty()) << "recipe 4 has no input line";
+	// No two recipes share a name, or the window lists the same thing twice.
+	std::set<std::string> names;
+	for (int i = 0; i < CraftingRecipeCount; i++)
+		EXPECT_TRUE(names.insert(CraftingRecipeName(i)).second) << "two recipes share a name";
+
+	// And it runs on Levski's grid: three Flawed Fervor in, one Plain Fervor out.
+	devilution::Item grid[LevskiGridSlots];
+	for (int i = 0; i < 3; i++)
+		InitializeItem(grid[i], IDI_ORACOOL_JEWEL_FERVOR_FLAWED);
+	EXPECT_EQ(FirstReadyLevskiRecipe(grid), 4) << "three identical jewels do not make the recipe ready";
+
+	const std::string result = TransmuteLevskiGrid(grid);
+	EXPECT_FALSE(result.empty()) << "the transmute produced nothing";
+	int plain = 0;
+	int flawed = 0;
+	for (const devilution::Item &slot : grid) {
+		if (slot.isEmpty())
+			continue;
+		if (slot.IDidx == IDI_ORACOOL_JEWEL_FERVOR_PLAIN)
+			plain++;
+		if (slot.IDidx == IDI_ORACOOL_JEWEL_FERVOR_FLAWED)
+			flawed++;
+	}
+	EXPECT_EQ(plain, 1) << "the grid does not hold exactly one Plain Jewel of Fervor";
+	EXPECT_EQ(flawed, 0) << "the three Flawed jewels were not all consumed";
+
+	// TWO of a kind is not enough, and three Radiants are not a recipe at all - the top of the
+	// ladder has to decline rather than consume three jewels for nothing.
+	devilution::Item pair[LevskiGridSlots];
+	for (int i = 0; i < 2; i++)
+		InitializeItem(pair[i], IDI_ORACOOL_JEWEL_FERVOR_FLAWED);
+	EXPECT_NE(FirstReadyLevskiRecipe(pair), 4) << "two jewels were treated as three";
+
+	devilution::Item tops[LevskiGridSlots];
+	for (int i = 0; i < 3; i++)
+		InitializeItem(tops[i], IDI_ORACOOL_JEWEL_FERVOR_RADIANT);
+	EXPECT_NE(FirstReadyLevskiRecipe(tops), 4) << "three Radiant jewels are offered a grade above Radiant";
+
+	// Three of DIFFERENT families is not three of a kind, however many jewels are in the grid.
+	devilution::Item mixed[LevskiGridSlots];
+	InitializeItem(mixed[0], IDI_ORACOOL_JEWEL_FERVOR_FLAWED);
+	InitializeItem(mixed[1], IDI_ORACOOL_JEWEL_FOCUS_FLAWED);
+	InitializeItem(mixed[2], IDI_ORACOOL_JEWEL_AEGIS_FLAWED);
+	EXPECT_NE(FirstReadyLevskiRecipe(mixed), 4) << "three different jewels were treated as identical";
+}
