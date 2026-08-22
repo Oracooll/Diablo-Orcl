@@ -42,6 +42,23 @@ promoted with a champion modifier, their own name and tint, and a pack of minion
 their loot level (+3 for a true unique) and roll from a better loot table. The spawn rate is an INI
 setting.</p>
 
+<h2>Endgame bosses</h2>
+<p>From the first Hell floor onward, <b>every generated floor has one</b>. Below that, a
+<span id="bossintro"></span> chance on floors past the first third, so you meet the idea before you
+meet the one that matters.</p>
+<p>A boss is not a new monster - it is the champion path with a heavier profile, drawn from a type
+the floor already loaded. It is always <b>Colossal</b>, because the silhouette should tell you
+before the name does.</p>
+<div class="tablewrap"><table>
+<thead><tr><th></th><th class="num">Champion</th><th class="num">Boss</th></tr></thead>
+<tbody id="bossprofile"></tbody></table></div>
+<p>And it carries <b>two</b> modifiers where a champion carries one: the Dread marker plus a second
+trait - <span id="bosstraits"></span> - so the same boss type met twice is a different fight. The
+full name shows both, as in <i>Dread Devouring Ashgore</i>.</p>
+<p>It also pays <b id="bossmult"></b> its floor's <a href="sockets.html">treasure class</a>, against
+a unique's <span id="bossuniqmult"></span> and a champion's <span id="bosschampmult"></span> -
+which, at Hell's table, is what makes one worth hunting rather than avoiding.</p>
+
 <h2>Variants</h2>
 <p>Below the champions sits a cheaper layer: <b><span id="varpct"></span> of ordinary monsters</b>
 are recoloured variants, each with one trait and a word in front of its name. No new art, no new
@@ -123,6 +140,24 @@ makeTable(document.getElementById('table'), rows, [
 	placeholder: 'Search monster or class...',
 	filters: [{ key: 'class', label: 'Class' }]
 });
+
+// Endgame bosses. Every number here is read out of endgame_boss.cpp and monster.cpp, including the
+// champion column - the page states the RELATION between the two profiles, and a typed champion
+// column would be the half that goes stale when the champions are next tuned.
+const EB = WIKI.endgameBoss;
+document.getElementById('bossintro').textContent = EB.introPercent + '%';
+document.getElementById('bossprofile').innerHTML = [
+	['Health', EB.champHealth + '%', EB.healthPercent + '%'],
+	['Damage', EB.champDamage + '%', EB.damagePercent + '%'],
+	['Armour', '+' + EB.champArmor, '+' + EB.armorBonus],
+	['Escort', EB.champPack, EB.packSize]
+].map(function (r) {
+	return '<tr><td><b>' + r[0] + '</b></td><td class="num">' + r[1] + '</td><td class="num">' + r[2] + '</td></tr>';
+}).join('');
+document.getElementById('bosstraits').textContent = EB.traits.join(', ');
+document.getElementById('bossmult').textContent = WIKI.treasureBonuses.boss + 'x';
+document.getElementById('bossuniqmult').textContent = WIKI.treasureBonuses.unique + 'x';
+document.getElementById('bosschampmult').textContent = WIKI.treasureBonuses.champion + 'x';
 
 // Variants. The traits are prose because they are prose in the source too - one sentence apiece -
 // but every NUMBER in them comes out of monster_variants.cpp, and so does every roster row.

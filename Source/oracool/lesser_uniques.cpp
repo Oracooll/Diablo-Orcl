@@ -1,5 +1,6 @@
 ﻿#include "oracool/lesser_uniques.h"
 
+#include "oracool/endgame_boss.h"
 #include "oracool/monster_variants.h"
 
 #include <algorithm>
@@ -267,6 +268,10 @@ const char *GetLesserUniqueAffixName(LesserUniqueAffix affix)
 		return N_("Thunderous");
 	case LesserUniqueAffix::Colossal:
 		return N_("Colossal");
+	case LesserUniqueAffix::Dread:
+		// A boss's own word. Its SECOND trait supplies a second one, so the full name reads
+		// "Dread Warding <name>" - see oracool/endgame_boss.h.
+		return N_("Dread");
 	case LesserUniqueAffix::None:
 		break;
 	}
@@ -406,6 +411,12 @@ std::string GetMonsterDisplayName(const Monster &monster)
 		if (const char *variant = VariantNamePrefix(VariantOf(monster)); variant != nullptr)
 			return StrCat(_(variant), " ", monster.name());
 		return std::string(monster.name());
+	}
+	// A boss wears BOTH its words - "Dread Devouring Ashgore" - because it has two things wrong
+	// with it and the name is the only place a player learns the second one before it happens.
+	if (IsEndgameBoss(monster)) {
+		return StrCat(_(GetLesserUniqueAffixName(monster.lesserAffix)), " ",
+		    _(BossTraitName(SecondaryTraitFor(monster))), " ", GetLesserUniqueName(monster));
 	}
 	return StrCat(_(GetLesserUniqueAffixName(monster.lesserAffix)), " ", GetLesserUniqueName(monster));
 }

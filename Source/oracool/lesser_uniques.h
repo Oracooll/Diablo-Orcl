@@ -62,6 +62,16 @@ enum class LesserUniqueAffix : uint8_t {
 	Vampiric,
 	Thunderous,
 	Colossal,
+	/**
+	 * The ENDGAME BOSS marker (v1.9.14). Not rollable - RollLesserUniqueAffix never produces it,
+	 * and the champion placement path never sets it; only PlaceEndgameBoss does. It rides this enum
+	 * rather than a new field on Monster because this one is already a saved uint8_t, so a seventh
+	 * value costs nothing and a new field would cost a format change.
+	 *
+	 * Deliberately AFTER Colossal so LAST still names the last ROLLABLE affix and every existing
+	 * `<= LAST` walk keeps meaning what it meant. See oracool/endgame_boss.h.
+	 */
+	Dread,
 	LAST = Colossal,
 };
 

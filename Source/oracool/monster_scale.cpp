@@ -136,7 +136,9 @@ MonsterSize OrdinaryMonsterSize(uint32_t levelSeed, size_t typeIndex, size_t mon
 
 MonsterSize GetMonsterSize(const Monster &monster)
 {
-	if (monster.lesserAffix == LesserUniqueAffix::Colossal)
+	// A boss is Colossal too, and for the same reason the Colossal affix is: the silhouette is the
+	// promise. It has to be the biggest thing in the room before the player reads its name.
+	if (monster.lesserAffix == LesserUniqueAffix::Colossal || monster.lesserAffix == LesserUniqueAffix::Dread)
 		return MonsterSize::Colossal;
 	// A hand-authored unique and an affixed champion both have a silhouette somebody chose. Rolling
 	// a size on top of that would overwrite a decision with a coin flip, and would put a Colossal

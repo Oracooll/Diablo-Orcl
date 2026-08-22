@@ -39,6 +39,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/monster_variants.h"
+#include "oracool/endgame_boss.h"
 #include "oracool/monster_scale.h"
 #include "oracool/telemetry.h"
 
@@ -516,7 +517,14 @@ void ClrAllMonsters()
  * Capturing rather than recomputing also means the difficulty ladder is inherited for free, instead
  * of this needing its own copy of the Nightmare/Hell/Torment arithmetic to drift out of step.
  */
-void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int packSize)
+/**
+ * @brief Places one champion. @p boss builds it at the endgame-boss profile instead.
+ *
+ * One function rather than two, because a boss IS a champion with heavier numbers - every step
+ * below is the same step, and a second copy of it would be a second place for the escort scaling,
+ * the tint and the name seed to drift.
+ */
+void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int packSize, bool boss = false)
 {
 	// A champion is worth several ordinary monsters, but is still something a player at this depth is
 	// meant to beat. Three times the health is the felt difference; damage rises more gently, because
@@ -552,24 +560,36 @@ void PlaceLesserUniqueMonst(UniqueMonsterType uniqindex, size_t minionType, int 
 		return static_cast<uint8_t>(std::min(base * percent / 100, 255));
 	};
 
-	monster.maxHitPoints = std::max(ordinaryHealth * LesserUniqueHealthPercent / 100, 64);
+	const int healthPercent = boss ? oracool::BossHealthPercent() : LesserUniqueHealthPercent;
+	const int damagePercent = boss ? oracool::BossDamagePercent() : LesserUniqueDamagePercent;
+	const int armorBonus = boss ? oracool::BossArmorBonus() : LesserUniqueArmorBonus;
+
+	monster.maxHitPoints = std::max(ordinaryHealth * healthPercent / 100, 64);
 	monster.hitPoints = monster.maxHitPoints;
-	monster.minDamage = scaleDamage(ordinaryMinDamage, LesserUniqueDamagePercent);
-	monster.maxDamage = scaleDamage(ordinaryMaxDamage, LesserUniqueDamagePercent);
-	monster.minDamageSpecial = scaleDamage(ordinaryMinSpecial, LesserUniqueDamagePercent);
-	monster.maxDamageSpecial = scaleDamage(ordinaryMaxSpecial, LesserUniqueDamagePercent);
-	monster.armorClass = static_cast<uint8_t>(std::min(ordinaryArmor + LesserUniqueArmorBonus, 255));
+	monster.minDamage = scaleDamage(ordinaryMinDamage, damagePercent);
+	monster.maxDamage = scaleDamage(ordinaryMaxDamage, damagePercent);
+	monster.minDamageSpecial = scaleDamage(ordinaryMinSpecial, damagePercent);
+	monster.maxDamageSpecial = scaleDamage(ordinaryMaxSpecial, damagePercent);
+	monster.armorClass = static_cast<uint8_t>(std::min(ordinaryArmor + armorBonus, 255));
 
 	// The modifier last, so anything it adds sits on top of the floor-scaled numbers rather than
 	// being overwritten by them. Setting it is also what MARKS this monster as a lesser unique:
 	// uniqueType alone cannot tell Garbud from a champion borrowing his shape.
-	monster.lesserAffix = oracool::RollLesserUniqueAffix(uniqindex);
+	//
+	// Dread is never ROLLED - RollLesserUniqueAffix cannot produce it - so this assignment is the
+	// only way a boss comes into existence, and reading `lesserAffix == Dread` anywhere else is a
+	// safe test for one.
+	monster.lesserAffix = boss ? LesserUniqueAffix::Dread : oracool::RollLesserUniqueAffix(uniqindex);
 	// Rolled once, here, and then saved - see Monster::lesserNameSeed. Both the name and the tint read
 	// it, which is also what keeps them consistent with each other: two champions that look alike are
 	// named alike only if they really are the same roll.
 	monster.lesserNameSeed = oracool::RollLesserUniqueNameSeed();
 	oracool::TintLesserUnique(monster);
 	oracool::ApplyLesserUniqueAffix(monster);
+	// A boss's SECOND trait, derived from the name seed rolled just above - so it must come after
+	// that roll, and after the profile, for the same reason the affix does: it adds to the finished
+	// numbers rather than to the ordinary ones. Does nothing unless this is a boss.
+	oracool::ApplyBossTrait(monster);
 
 	// The escort PlaceGroup just created. They are ordinary monsters of the same type, so they are
 	// already floor-correct - this only lifts them enough to read as a champion's retinue rather than
@@ -609,6 +629,33 @@ void PlaceLesserUniques()
 			return;
 
 		PlaceLesserUniqueMonst(*choice, minionType, LesserUniquePackSize);
+	}
+}
+
+/**
+ * @brief Places the floor's endgame boss, if it has earned one.
+ *
+ * Runs AFTER PlaceLesserUniques deliberately. The champions take the floor's distinct monster types
+ * first, so the boss gets whatever is left - which is the right way round: a boss repeating a
+ * champion's identity reads as the same fight twice, and it is the boss that should be the one
+ * standing out. ChooseLesserUnique's own repeat fallback still covers the case where the floor has
+ * fewer types than it wants bodies.
+ */
+void PlaceEndgameBoss()
+{
+	for (int placed = 0; placed < oracool::BossCountForLevel(); placed++) {
+		const std::optional<UniqueMonsterType> choice = oracool::ChooseLesserUnique();
+		if (!choice)
+			return;
+		const size_t minionType = GetMonsterTypeIndex(UniqueMonstersData[static_cast<size_t>(*choice)].mtype);
+		if (minionType == LevelMonsterTypeCount)
+			return;
+		// A boss plus its larger escort is seven bodies, against a champion's five - the same
+		// headroom check, with the boss's own pack size in it rather than the champion's.
+		if (ActiveMonsterCount + oracool::BossPackSize() + 1 > MaxMonsters - 10)
+			return;
+
+		PlaceLesserUniqueMonst(*choice, minionType, oracool::BossPackSize(), /*boss=*/true);
 	}
 }
 
@@ -1399,6 +1446,9 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// is what a Vampiric champion needs. After the reflect subtraction, so it drains what it
 		// actually landed rather than what it swung for.
 		oracool::OnLesserUniqueDealtDamage(monster, dam);
+		// And the boss's own drain, which is a different trait on a different field - a boss's
+		// lesserAffix is Dread, so OnLesserUniqueDealtDamage's Vampiric test never fires for one.
+		oracool::OnBossDealtDamage(monster, dam);
 	}
 
 	// Reflect can also kill a monster, so make sure the monster is still alive
@@ -3724,6 +3774,8 @@ void InitMonsters()
 		// total inside it - so the champions must already be counted in ActiveMonsterCount when that
 		// clamp runs, or a dense level would overrun the pool and lose monsters at random.
 		PlaceLesserUniques();
+		// And the floor's boss, before the scatter for the same pool-accounting reason.
+		PlaceEndgameBoss();
 
 		int numplacemonsters = na / 30;
 		if (gbIsMultiplayer)

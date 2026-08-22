@@ -673,6 +673,28 @@ if ($treasureCpp -match '(?s)size_t ClassIndexFor\(dungeon_type dungeon\)(.*?)\n
 $treasureBonuses = [ordered]@{
     champion = [int](Get-Constant $treasureCpp '(?s)lesserAffix != LesserUniqueAffix::None\)\s*\r?\n\s*return (\d+);')
     unique   = [int](Get-Constant $treasureCpp '(?s)monster\.isUnique\(\)\)\s*\r?\n\s*return (\d+);')
+    boss     = [int](Get-Constant $treasureCpp '(?s)IsEndgameBoss\(monster\)\)\s*\r?\n\s*return (\d+);')
+}
+
+# Endgame bosses (v1.9.14). The profile and the traits both come out of endgame_boss.cpp; the
+# champion numbers they are compared against come out of monster.cpp, so the page can state the
+# relation rather than two lists of numbers a reader has to diff themselves.
+$bossCpp = Read-SourceFile 'oracool/endgame_boss.cpp'
+$monsterCpp = Read-SourceFile 'monster.cpp'
+$endgameBoss = [ordered]@{
+    healthPercent   = [int](Get-Constant $bossCpp 'constexpr int HealthPercent = (\d+)')
+    damagePercent   = [int](Get-Constant $bossCpp 'constexpr int DamagePercent = (\d+)')
+    armorBonus      = [int](Get-Constant $bossCpp 'constexpr int ArmorBonus = (\d+)')
+    packSize        = [int](Get-Constant $bossCpp 'constexpr int PackSize = (\d+)')
+    introPercent    = [int](Get-Constant $bossCpp 'constexpr int BossIntroPercent = (\d+)')
+    champHealth     = [int](Get-Constant $monsterCpp 'constexpr int LesserUniqueHealthPercent = (\d+)')
+    champDamage     = [int](Get-Constant $monsterCpp 'constexpr int LesserUniqueDamagePercent = (\d+)')
+    champArmor      = [int](Get-Constant $monsterCpp 'constexpr int LesserUniqueArmorBonus = (\d+)')
+    champPack       = [int](Get-Constant $monsterCpp 'constexpr int LesserUniquePackSize = (\d+)')
+    traits          = @()
+}
+foreach ($m in [regex]::Matches($bossCpp, 'case BossTrait::(\w+):\s*\r?\n\s*return N_\("([^"]+)"\)')) {
+    $endgameBoss.traits += $m.Groups[2].Value
 }
 
 # Monster variants (v1.9.7) and their per-dungeon rosters (v1.9.11). Parsed rather than typed for
@@ -958,6 +980,7 @@ $data = [ordered]@{
     monsterVariants = $monsterVariants
     treasureClasses = $treasureClasses
     treasureBonuses = $treasureBonuses
+    endgameBoss = $endgameBoss
     gemQualities = $gemQualities
     charms    = $charms
 

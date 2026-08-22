@@ -1,6 +1,7 @@
 #include "oracool/treasure_class.h"
 
 #include "monster.h"
+#include "oracool/endgame_boss.h"
 
 namespace devilution::oracool {
 
@@ -79,8 +80,10 @@ const TreasureClass &CurrentTreasureClass()
 
 int TreasureBonusFor(const Monster &monster)
 {
-	// Read in this order deliberately: a unique monster can also carry a lesser affix, and it is
-	// the unique half that should decide.
+	// Read in this order deliberately: an endgame boss borrows a unique's shape AND carries an
+	// affix, so both of the tests below would also answer yes for one. Most specific first.
+	if (IsEndgameBoss(monster))
+		return 6;
 	if (monster.isUnique())
 		return 4;
 	if (monster.lesserAffix != LesserUniqueAffix::None)

@@ -51,6 +51,7 @@
 #include "oracool/monster_scale.h"
 #include "oracool/monster_variants.h"
 #include "oracool/treasure_class.h"
+#include "oracool/endgame_boss.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
@@ -4257,4 +4258,195 @@ TEST(OracoolAudit, TreasureBonusRewardsChampionsAndUniques)
 	EXPECT_LE(hell.socketablePercent * TreasureBonusFor(unique), 100)
 	    << "a unique in Hell asks GenerateRnd(100) for a percentage over 100";
 	EXPECT_LE(hell.setPercent * TreasureBonusFor(unique), 100);
+}
+
+/**
+ * The endgame boss: a champion with heavier numbers, and one byte to say so.
+ *
+ * The treasure classes (v1.9.13) gave every zone something worth farming for. This is what stands
+ * in front of it. Two things are pinned here because both would pass a build while being wrong:
+ *
+ * THE MARKER. LesserUniqueAffix::Dread is a seventh value on an enum whose LAST still names
+ * Colossal, deliberately, so every existing `<= LAST` walk keeps meaning "the rollable affixes".
+ * If Dread ever became rollable, ordinary champions would start spawning at 800% health with a
+ * 6x treasure multiplier and nothing would report it - so the test asserts the roll cannot produce
+ * it, across enough draws that a rare leak would show.
+ *
+ * THE ORDER inside TreasureBonusFor. A boss borrows a unique's shape AND carries an affix, so both
+ * of the other two tests in that function also answer yes for one. Most-specific-first is the whole
+ * of that, and moving the boss test down is a two-line change that quietly pays a boss a champion's
+ * double instead of its own six.
+ */
+TEST(OracoolAudit, EndgameBossIsAHeavierChampionAndIsMarkedByOneByte)
+{
+	using namespace devilution::oracool;
+
+	// The profile is strictly above the champion's on every axis. Compared against the champion's
+	// own constants as a RELATION rather than as fixed numbers, so tuning either one stays legal
+	// and only inverting them fails.
+	constexpr int ChampionHealthPercent = 300;
+	constexpr int ChampionDamagePercent = 150;
+	constexpr int ChampionArmorBonus = 4;
+	constexpr int ChampionPackSize = 4;
+	EXPECT_GT(BossHealthPercent(), ChampionHealthPercent);
+	EXPECT_GT(BossDamagePercent(), ChampionDamagePercent);
+	EXPECT_GT(BossArmorBonus(), ChampionArmorBonus);
+	EXPECT_GT(BossPackSize(), ChampionPackSize);
+	// And life outruns damage by more than damage outruns life. A boss should be a LONG fight, not
+	// a fast death - the same judgement PlaceLesserUniqueMonst already made for champions.
+	EXPECT_GT(BossHealthPercent() * 100 / ChampionHealthPercent,
+	    BossDamagePercent() * 100 / ChampionDamagePercent)
+	    << "the boss profile grew damage faster than health - that is a one-shot, not a boss";
+
+	// uniqueType is set EXPLICITLY on every fixture below, and that is not tidiness. A
+	// value-initialised Monster has uniqueType == 0, which is UniqueMonsterType::Garbud - None is
+	// -1, not 0 - so a zeroed Monster answers isUnique() with TRUE. The first draft of this test
+	// left it out and every fixture came back worth a unique's multiplier.
+	devilution::Monster boss {};
+	boss.uniqueType = UniqueMonsterType::None;
+	boss.lesserAffix = LesserUniqueAffix::Dread;
+	devilution::Monster champion {};
+	champion.uniqueType = UniqueMonsterType::None;
+	champion.lesserAffix = LesserUniqueAffix::Relentless;
+	devilution::Monster ordinary {};
+	ordinary.uniqueType = UniqueMonsterType::None;
+	ordinary.lesserAffix = LesserUniqueAffix::None;
+
+	EXPECT_TRUE(IsEndgameBoss(boss));
+	EXPECT_FALSE(IsEndgameBoss(champion)) << "a champion reads as a boss";
+	EXPECT_FALSE(IsEndgameBoss(ordinary));
+
+	// A boss out-earns a unique, which out-earns a champion, which out-earns an ordinary kill.
+	devilution::Monster unique {};
+	unique.uniqueType = UniqueMonsterType::Garbud;
+	unique.lesserAffix = LesserUniqueAffix::None;
+	EXPECT_GT(TreasureBonusFor(boss), TreasureBonusFor(unique));
+	EXPECT_GT(TreasureBonusFor(unique), TreasureBonusFor(champion));
+	EXPECT_GT(TreasureBonusFor(champion), TreasureBonusFor(ordinary));
+
+	// THE ORDER. A boss that also wears a unique's shape is still worth a boss's multiplier.
+	devilution::Monster bossOnUniqueShape {};
+	bossOnUniqueShape.lesserAffix = LesserUniqueAffix::Dread;
+	bossOnUniqueShape.uniqueType = UniqueMonsterType::Garbud;
+	EXPECT_EQ(TreasureBonusFor(bossOnUniqueShape), TreasureBonusFor(boss))
+	    << "a boss borrowing a unique's shape fell through to the unique multiplier";
+
+	// Even at the most generous table, a boss cannot ask GenerateRnd(100) for over 100 percent.
+	const TreasureClass &hell = TreasureClassFor(DTYPE_HELL);
+	EXPECT_LE(hell.socketablePercent * TreasureBonusFor(boss), 100)
+	    << "the drop hook's min() is load-bearing rather than defensive - check it is still there";
+
+	// A boss is Colossal, because the silhouette is the promise - it has to be the biggest thing in
+	// the room before the player has read its name. Returns early on the affix, so this needs no
+	// level seed behind it.
+	EXPECT_EQ(GetMonsterSize(boss), MonsterSize::Colossal) << "a boss is not Colossal";
+	EXPECT_NE(GetMonsterSize(champion), MonsterSize::Colossal)
+	    << "an ordinary champion is Colossal, so the boss no longer stands out";
+
+	// Dread is NOT rollable. Swept over the named champion types, many draws each - enough that a
+	// leak of even a percent would show. Walked by ENUM rather than by UniqueMonstersData, which is
+	// not exported to the test binary; the roll only uses the type to avoid repeating itself, so
+	// the named ones are a complete exercise of the code path.
+	for (int type = static_cast<int>(UniqueMonsterType::Garbud);
+	     type <= static_cast<int>(UniqueMonsterType::NaKrul); type++) {
+		for (int draw = 0; draw < 200; draw++) {
+			const LesserUniqueAffix rolled = RollLesserUniqueAffix(static_cast<UniqueMonsterType>(type));
+			ASSERT_NE(rolled, LesserUniqueAffix::Dread)
+			    << "RollLesserUniqueAffix produced Dread - ordinary champions are spawning as bosses";
+			ASSERT_NE(rolled, LesserUniqueAffix::None) << "a champion rolled no affix at all";
+		}
+	}
+}
+
+/**
+ * A boss's SECOND trait, and why it costs nothing to store.
+ *
+ * One byte holds one affix, and a boss wants two things wrong with it. The second is derived from
+ * lesserNameSeed - a value the champion path already rolls and already saves - so it needs no field
+ * and reproduces exactly on a revisit, the same trick the monster variants use.
+ *
+ * The sweep is the point: a trait that no seed can reach is dead code wearing a name, and nothing
+ * else in the game would ever notice.
+ */
+TEST(OracoolAudit, EveryBossTraitIsReachableAndNamed)
+{
+	using namespace devilution::oracool;
+
+	constexpr int TraitCount = static_cast<int>(BossTrait::LAST) + 1;
+	std::set<int> seen;
+	int counts[TraitCount] = {};
+	// The seed is a uint16_t, so this is every value it can hold - not a sample.
+	for (int seed = 0; seed <= 0xFFFF; seed++) {
+		const BossTrait trait = SecondaryTraitOf(static_cast<uint16_t>(seed));
+		const int index = static_cast<int>(trait);
+		ASSERT_GE(index, 0);
+		ASSERT_LT(index, TraitCount) << "seed " << seed << " produced a trait outside the enum";
+		seen.insert(index);
+		counts[index]++;
+	}
+	EXPECT_EQ(seen.size(), static_cast<size_t>(TraitCount))
+	    << "a boss trait exists that no seed can produce";
+
+	// Roughly even. Not exact - 65536 does not divide evenly through an integer /97 - but a trait
+	// twice as common as another would be a bug in the mixing rather than a rounding.
+	for (int i = 0; i < TraitCount; i++) {
+		EXPECT_GT(counts[i] * 100 / 65536, 100 / TraitCount - 6)
+		    << "trait " << i << " is far rarer than an even share";
+	}
+
+	// Every trait has a word, because the name is where a player learns the second thing before it
+	// happens to them.
+	std::set<std::string> names;
+	for (int i = 0; i < TraitCount; i++) {
+		const std::string name = BossTraitName(static_cast<BossTrait>(i));
+		EXPECT_FALSE(name.empty()) << "trait " << i << " has no name";
+		EXPECT_TRUE(names.insert(name).second) << "two traits share the name " << name;
+	}
+
+	// And the display name carries BOTH words.
+	devilution::Monster boss {};
+	boss.uniqueType = UniqueMonsterType::None;
+	boss.lesserAffix = LesserUniqueAffix::Dread;
+	boss.lesserNameSeed = 0;
+	const std::string shown = GetMonsterDisplayName(boss);
+	EXPECT_NE(shown.find("Dread"), std::string::npos) << "a boss is not called Dread: " << shown;
+	EXPECT_NE(shown.find(BossTraitName(SecondaryTraitOf(0))), std::string::npos)
+	    << "a boss's second trait is not in its name: " << shown;
+
+	// The drain fires for Devouring and for nothing else. The seeds are FOUND rather than assumed,
+	// so the test cannot disagree with the derivation about which seed is which trait.
+	uint16_t devouringSeed = 0;
+	uint16_t otherSeed = 0;
+	for (int seed = 0; seed <= 0xFFFF; seed++) {
+		if (SecondaryTraitOf(static_cast<uint16_t>(seed)) == BossTrait::Devouring)
+			devouringSeed = static_cast<uint16_t>(seed);
+		else
+			otherSeed = static_cast<uint16_t>(seed);
+	}
+
+	devilution::Monster drainer {};
+	drainer.lesserAffix = LesserUniqueAffix::Dread;
+	drainer.lesserNameSeed = devouringSeed;
+	drainer.maxHitPoints = 1000;
+	drainer.hitPoints = 500;
+	OnBossDealtDamage(drainer, 100);
+	EXPECT_GT(drainer.hitPoints, 500) << "a Devouring boss did not drain";
+	EXPECT_LE(drainer.hitPoints, drainer.maxHitPoints) << "the drain went past full";
+
+	devilution::Monster nonDrainer {};
+	nonDrainer.lesserAffix = LesserUniqueAffix::Dread;
+	nonDrainer.lesserNameSeed = otherSeed;
+	nonDrainer.maxHitPoints = 1000;
+	nonDrainer.hitPoints = 500;
+	OnBossDealtDamage(nonDrainer, 100);
+	EXPECT_EQ(nonDrainer.hitPoints, 500) << "a boss that is not Devouring drained anyway";
+
+	// And a champion never drains through this hook, whatever its affix.
+	devilution::Monster champion {};
+	champion.lesserAffix = LesserUniqueAffix::Vampiric;
+	champion.lesserNameSeed = devouringSeed;
+	champion.maxHitPoints = 1000;
+	champion.hitPoints = 500;
+	OnBossDealtDamage(champion, 100);
+	EXPECT_EQ(champion.hitPoints, 500) << "the boss drain fired on a champion";
 }
