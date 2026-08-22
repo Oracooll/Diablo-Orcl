@@ -1356,12 +1356,102 @@ bool WitchRechargeOk(int i)
 	return false;
 }
 
+/**
+ * @brief What the player has sold this session, newest first, at the price they were paid.
+ *
+ * This is the Sold tab (user request, 2026-08-23: "keep items i sold there so i can buy back at
+ * sold price if i change my mind"). Every sale goes through RecordSale, whichever door it came in
+ * by - a click on the old list, Sell all, or an item dragged onto the shop panel.
+ *
+ * Not saved. A buyback list that survived a reload would have to survive the shop restocking too,
+ * and "the thing you just sold is still there" only needs to hold for as long as changing your mind
+ * is plausible. It is cleared with the rest of the stores in InitStores.
+ */
+std::vector<Item> BuybackStock;
+constexpr size_t MaxBuybackItems = 40;
+
+void RecordSale(const Item &item)
+{
+	if (item.isEmpty())
+		return;
+	// Newest first, and the oldest falls off the end. The price the player was paid is already in
+	// _iIvalue by the time anything calls this - that is what makes buyback "at sold price" free.
+	if (BuybackStock.size() >= MaxBuybackItems)
+		BuybackStock.pop_back();
+	BuybackStock.insert(BuybackStock.begin(), item);
+}
+
+/** @brief Pays @p cost into the player's purse, wherever that is. Split out of StoreSellItemAt. */
+void CreditSaleProceeds(int cost)
+{
+	// Oracool: sale proceeds go to the shared Stash pool, matching where a purchase's change and a
+	// ground pickup's gold already land (see GoldAutoPlace, inv.cpp).
+	Player &myPlayer = *MyPlayer;
+	if (oracool::IsSinglePlayer() && Stash.gold <= std::numeric_limits<int>::max() - cost) {
+		Stash.gold += cost;
+		Stash.dirty = true;
+	} else {
+		AddGoldToInventory(myPlayer, cost);
+		myPlayer._pGold += cost;
+	}
+}
+
+/** @brief Whether @p id is one of Adria's screens - she and Griswold take different things. */
+bool IsWitchShopScreen(TalkID id)
+{
+	return IsAnyOf(id, TalkID::WitchBuy, TalkID::WitchSell, TalkID::WitchRecharge);
+}
+
+/**
+ * @brief Griswold's fee to repair @p item, or 0 when there is nothing to charge for.
+ *
+ * Extracted from AddStoreHoldRepair for the same reason as RechargePriceFor below: the shop's
+ * Repair button prices a HELD item, which is in no list.
+ *
+ * The ethereal refusal is here rather than only at the call sites. Ghosts cannot be repaired at any
+ * price (they have their own recipe), and the last audit found equipped ones slipping onto the
+ * repair list through a path that had not been given the check - putting it in the price makes the
+ * refusal a property of the item rather than of whoever remembered to ask.
+ */
+int RepairPriceFor(const Item &item)
+{
+	// No isEmpty() test: `_iMaxDur <= 0` already covers an empty item, and adding one broke
+	// AddStoreHoldRepair_magic, which pins this formula by handing it a bare struct with durability
+	// fields and nothing else set. An extra refusal that only fires on inputs the formula could
+	// already price at zero is not worth losing that.
+	if (item._iOracoolEthereal || item._iMaxDur <= 0 || item._iDurability >= item._iMaxDur)
+		return 0;
+	const int due = item._iMaxDur - item._iDurability;
+	if (item._iMagical != ITEM_QUALITY_NORMAL && item._iIdentified)
+		return 30 * item._iIvalue * due / (item._iMaxDur * 100 * 2);
+	return std::max(item._ivalue * due / (item._iMaxDur * 2), 1);
+}
+
+/**
+ * @brief Adria's fee to recharge @p item, or 0 when there is nothing to charge for.
+ *
+ * Extracted from AddStoreHoldRecharge (which now calls it) so the shop panel's Recharge button can
+ * price a HELD item - one that is in the player's hand and therefore in no list this file builds.
+ * One copy of the formula, because two would be two things to keep in step.
+ */
+int RechargePriceFor(const Item &item)
+{
+	const bool takesCharges = item._itype == ItemType::Staff
+	    || item._iMiscId == IMISC_UNIQUE || item._iMiscId == IMISC_STAFF;
+	if (item.isEmpty() || !takesCharges || item._iMaxCharges <= 0 || item._iCharges >= item._iMaxCharges)
+		return 0;
+	const int base = item._ivalue + GetSpellData(item._iSpell).staffCost();
+	return base * (item._iMaxCharges - item._iCharges) / (item._iMaxCharges * 2);
+}
+
 void AddStoreHoldRecharge(Item itm, int8_t i)
 {
+	const int price = RechargePriceFor(itm);
+	if (price == 0)
+		return;
 	storehold[storenumh] = itm;
-	storehold[storenumh]._ivalue += GetSpellData(itm._iSpell).staffCost();
-	storehold[storenumh]._ivalue = storehold[storenumh]._ivalue * (storehold[storenumh]._iMaxCharges - storehold[storenumh]._iCharges) / (storehold[storenumh]._iMaxCharges * 2);
-	storehold[storenumh]._iIvalue = storehold[storenumh]._ivalue;
+	storehold[storenumh]._ivalue = price;
+	storehold[storenumh]._iIvalue = price;
 	storehidx[storenumh] = i;
 	storehTabIdx[storenumh] = -1; // recharge never sources from an extra tab; keep the array in sync regardless
 	storenumh++;
@@ -2204,7 +2294,9 @@ void StoreSellItemAt(int idx)
 	else
 		myPlayer.RemoveSpdBarItem(-(storehidx[idx] + 1));
 
-	int cost = storehold[idx]._iIvalue;
+	// Copied BEFORE the compaction below, which overwrites storehold[idx] with its successor.
+	const Item sold = storehold[idx];
+	int cost = sold._iIvalue;
 	storenumh--;
 	if (idx != storenumh) {
 		while (idx < storenumh) {
@@ -2215,15 +2307,8 @@ void StoreSellItemAt(int idx)
 		}
 	}
 
-	// Oracool: sale proceeds go to the shared Stash pool, matching where a purchase's change and a
-	// ground pickup's gold already land (see GoldAutoPlace, inv.cpp).
-	if (oracool::IsSinglePlayer() && Stash.gold <= std::numeric_limits<int>::max() - cost) {
-		Stash.gold += cost;
-		Stash.dirty = true;
-	} else {
-		AddGoldToInventory(myPlayer, cost);
-		myPlayer._pGold += cost;
-	}
+	RecordSale(sold);
+	CreditSaleProceeds(cost);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
@@ -3354,23 +3439,15 @@ bool SimulateSmithConsumablesPurchaseForTest(size_t combinedIndex)
 
 void AddStoreHoldRepair(Item *itm, int8_t i)
 {
-	Item *item;
-	int v;
-
-	item = &storehold[storenumh];
+	const int v = RepairPriceFor(*itm);
+	// Zero means "nothing to charge for", and this list is a list of things to pay for. The old
+	// shape wrote the item into storehold BEFORE this test and then returned without counting it,
+	// leaving a stale entry one past the end for anything that later read past storenumh.
+	if (v == 0)
+		return;
 	storehold[storenumh] = *itm;
-
-	int due = item->_iMaxDur - item->_iDurability;
-	if (item->_iMagical != ITEM_QUALITY_NORMAL && item->_iIdentified) {
-		v = 30 * item->_iIvalue * due / (item->_iMaxDur * 100 * 2);
-		if (v == 0)
-			return;
-	} else {
-		v = item->_ivalue * due / (item->_iMaxDur * 2);
-		v = std::max(v, 1);
-	}
-	item->_iIvalue = v;
-	item->_ivalue = v;
+	storehold[storenumh]._iIvalue = v;
+	storehold[storenumh]._ivalue = v;
 	storehidx[storenumh] = i;
 	storehTabIdx[storenumh] = -1; // repair never sources from an extra tab; keep the array in sync regardless
 	storenumh++;
@@ -3384,6 +3461,8 @@ void InitStores()
 	stextscrl = false;
 	numpremium = 0;
 	premiumlevel = 1;
+
+	BuybackStock.clear();
 
 	for (auto &premiumitem : premiumitems)
 		premiumitem.clear();
@@ -3565,6 +3644,12 @@ void StartStore(TalkID s)
 	sbookflag = false;
 	CloseInventory();
 	CloseCharPanel();
+	// ...and then straight back open for a shop, because that is where the goods you are selling
+	// live (user request, 2026-08-23). CloseInventory runs first rather than being skipped: it also
+	// shuts the stash and the gold-withdraw prompt, which have no business being open over a shop,
+	// and the shop panel occupies the same left-hand slot the stash does.
+	if (oracool::IsShopGridScreen(s))
+		invflag = true;
 	RenderGold = false;
 	QuestLogIsOpen = false;
 	CloseGoldDrop();
@@ -3730,10 +3815,10 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 		break;
 	case TalkID::SmithSell:
 	case TalkID::WitchSell:
-		for (int i = 0; i < storenumh; i++) {
-			if (!storehold[i].isEmpty())
-				stock.push_back({ &storehold[i], i, SellSidePrice(storehold[i]) });
-		}
+		// The Sold tab. Not the player's sellable inventory any more - selling is a drag onto the
+		// panel now, and what this shows is what the vendor has already bought.
+		for (size_t i = 0; i < BuybackStock.size(); i++)
+			stock.push_back({ &BuybackStock[i], static_cast<int>(i), BuybackStock[i]._iIvalue });
 		break;
 	case TalkID::SmithRepair:
 	case TalkID::SmithRecharge:
@@ -3783,21 +3868,124 @@ void ShopSelectIndex(TalkID id, int index)
 		HealerBuyEnter();
 		break;
 	case TalkID::SmithSell:
-		SmithSellEnter();
-		break;
 	case TalkID::WitchSell:
-		WitchSellEnter();
-		break;
-	case TalkID::SmithRepair:
-		SmithRepairEnter();
-		break;
-	case TalkID::SmithRecharge:
-	case TalkID::WitchRecharge:
-		WitchRechargeEnter();
+		ShopBuyBack(index);
 		break;
 	default:
 		break;
 	}
+}
+
+bool ShopSellHeldItem()
+{
+	Player &myPlayer = *MyPlayer;
+	if (myPlayer.HoldItem.isEmpty())
+		return false;
+	// The vendor's own list of what they will take, not a new one. Adria does not buy armour and
+	// Griswold does not buy potions, and that judgement already exists in two functions the sell
+	// screens have always used.
+	const bool accepted = IsWitchShopScreen(stextflag)
+	    ? WitchSellOk(myPlayer.HoldItem)
+	    : SmithSellOk(myPlayer.HoldItem);
+	if (!accepted)
+		return false;
+
+	Item sold = myPlayer.HoldItem;
+	sold._ivalue = GetItemSellValue(sold);
+	sold._iIvalue = sold._ivalue;
+
+	// No room check: in single-player the proceeds land in the Stash pool, which has no grid to
+	// fill. The multiplayer arm of CreditSaleProceeds still puts gold in the backpack, and V1 is
+	// single-player - if that ever changes this needs the StoreGoldFit probe the list path uses.
+	RecordSale(sold);
+	CreditSaleProceeds(sold._ivalue);
+
+	myPlayer.HoldItem.clear();
+	NewCursor(CURSOR_HAND);
+	oracool::ScheduleAutoSaveForStoreTransaction();
+	return true;
+}
+
+bool ShopRepairHeldItem()
+{
+	Player &myPlayer = *MyPlayer;
+	const int price = RepairPriceFor(myPlayer.HoldItem);
+	if (price == 0)
+		return false;
+	if (!PlayerCanAfford(price)) {
+		stextshold = stextflag;
+		stextlhold = stextup;
+		StartStore(TalkID::NoMoney);
+		return false;
+	}
+	TakePlrsMoney(price);
+	myPlayer.HoldItem._iDurability = myPlayer.HoldItem._iMaxDur;
+	// A broken item left equipped is flagged as well as emptied - see SmithRepairItemAt, which
+	// clears the same flag for the same reason.
+	myPlayer.HoldItem._iOracoolBroken = false;
+	oracool::ScheduleAutoSaveForStoreTransaction();
+	return true;
+}
+
+bool ShopRechargeHeldItem()
+{
+	Player &myPlayer = *MyPlayer;
+	const int price = RechargePriceFor(myPlayer.HoldItem);
+	if (price == 0)
+		return false;
+	if (!PlayerCanAfford(price)) {
+		stextshold = stextflag;
+		stextlhold = stextup;
+		StartStore(TalkID::NoMoney);
+		return false;
+	}
+	TakePlrsMoney(price);
+	myPlayer.HoldItem._iCharges = myPlayer.HoldItem._iMaxCharges;
+	oracool::ScheduleAutoSaveForStoreTransaction();
+	return true;
+}
+
+void ShopRepairAll()
+{
+	// Rebuild-and-repeat, exactly as SmithRepairAllItems does, but returning to the tab the button
+	// was pressed on instead of to the repair screen - the repair screen is a button now, not a
+	// place you can be.
+	const TalkID resume = stextflag;
+	while (true) {
+		StartSmithRepair();
+		if (storenumh == 0)
+			break;
+		if (!PlayerCanAfford(storehold[0]._iIvalue))
+			break;
+		SmithRepairItemAt(storehold[0]._iIvalue, 0);
+	}
+	StartStore(resume);
+}
+
+void ShopBuyBack(int index)
+{
+	if (index < 0 || index >= static_cast<int>(BuybackStock.size()))
+		return;
+	Item item = BuybackStock[index];
+	const int price = item._iIvalue;
+
+	// Both refusal screens return to the tab through stextshold, so they have to be told which one
+	// that is before either can fire.
+	stextshold = stextflag;
+	stextlhold = stextup;
+	if (!PlayerCanAfford(price)) {
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	if (!StoreAutoPlace(item, false)) {
+		StartStore(TalkID::NoRoom);
+		return;
+	}
+
+	TakePlrsMoney(price);
+	StoreAutoPlace(item, true);
+	BuybackStock.erase(BuybackStock.begin() + index);
+	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
 std::vector<oracool::ShopAction> GetShopActions(TalkID id)

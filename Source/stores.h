@@ -20,9 +20,14 @@
 
 namespace devilution {
 
-#define WITCH_ITEMS 25
-#define SMITH_ITEMS 25
-#define SMITH_PREMIUM_ITEMS 15
+// Oracool (user request, 2026-08-23: "fill the basic, magic, and supplies shops full of items").
+// The shop is a 10x16 grid now - 160 cells - and vanilla's stock counts were sized for a text list
+// that showed four rows at a time. At an average of four cells an item, filling the grid takes
+// roughly forty, so these are the counts the grid can actually hold rather than the counts the old
+// list could scroll through.
+#define WITCH_ITEMS 45
+#define SMITH_ITEMS 45
+#define SMITH_PREMIUM_ITEMS 30
 #define STORE_LINES 104
 
 enum class TalkID : uint8_t {
@@ -182,6 +187,27 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id);
 
 /** @brief Runs the bulk action on @p line, exactly as pressing Enter on its row would. */
 void ShopActivateAction(TalkID id, int line);
+
+/**
+ * @brief Sells the item in the player's hand to the shop that is open. False if it is not taken.
+ *
+ * Selling is a drag now: pick an item out of the inventory and drop it on the shop panel. False
+ * means the vendor does not deal in it, and the caller should leave the item in the player's hand
+ * rather than swallowing it.
+ */
+bool ShopSellHeldItem();
+
+/** @brief Repairs the item in the player's hand, charging for it. False if there is nothing to do. */
+bool ShopRepairHeldItem();
+
+/** @brief Recharges the item in the player's hand, charging for it. Same contract. */
+bool ShopRechargeHeldItem();
+
+/** @brief Repairs everything the player carries, dearest first, until the gold runs out. */
+void ShopRepairAll();
+
+/** @brief Buys back entry @p index of the Sold tab, at the price the player was paid for it. */
+void ShopBuyBack(int index);
 
 void DrawSText(const Surface &out);
 void StoreESC();

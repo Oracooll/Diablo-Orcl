@@ -2817,13 +2817,15 @@ void LoadGame(bool firstflag)
 	if (gbIsHellfireSaveGame) {
 		giNumberOfLevels = 25;
 		giNumberQuests = 24;
-		giNumberOfSmithPremiumItems = 15;
 	} else {
 		// Todo initialize additional levels and quests if we are running Hellfire
 		giNumberOfLevels = 17;
 		giNumberQuests = 16;
-		giNumberOfSmithPremiumItems = 6;
 	}
+	// Oracool: the premium stock is SMITH_PREMIUM_ITEMS long in both games now (the shop grid holds
+	// it), so the save carries all of it either way. This is a GAME-state format change, not the
+	// hero file's - a save written before v1.9.28 will not load. V1 always starts a new game.
+	giNumberOfSmithPremiumItems = SMITH_PREMIUM_ITEMS;
 
 	pfile_remove_temp_files();
 
@@ -3161,12 +3163,12 @@ void SaveGameData(SaveWriter &saveWriter)
 	if (gbIsHellfire) {
 		giNumberOfLevels = 25;
 		giNumberQuests = 24;
-		giNumberOfSmithPremiumItems = 15;
 	} else {
 		giNumberOfLevels = 17;
 		giNumberQuests = 16;
-		giNumberOfSmithPremiumItems = 6;
 	}
+	// Must match the load path's width exactly - see the note there.
+	giNumberOfSmithPremiumItems = SMITH_PREMIUM_ITEMS;
 
 	file.WriteLE<uint8_t>(setlevel ? 1 : 0);
 	file.WriteBE<uint32_t>(setlvlnum);

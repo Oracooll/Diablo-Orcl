@@ -91,6 +91,25 @@ struct PlacedSlot {
  */
 int ShopGridSel = 0;
 
+/**
+ * @brief Whether the cursor was over a shop item the last time InfoString was rebuilt.
+ *
+ * Read by cursor_tooltip.cpp, which uses it to decide that this hover wants the PANEL treatment - a
+ * padded, darkened, bordered plate - rather than bare outlined text. Set once per frame from
+ * SetShopHoverInfoString, which is the same once-per-frame hover pass every other flag that
+ * function consults is written by, so it cannot go stale relative to them.
+ */
+bool ShopHoverActive = false;
+
+/** @brief The three services, in the order they are drawn. */
+enum class ServiceButton : uint8_t {
+	Repair,
+	RepairAll,
+	Recharge,
+};
+constexpr int ServiceButtonSize = 20;
+constexpr int ServiceButtonGap = 3;
+
 /** @brief Row-major first-fit, the same shape the stash uses to auto-place a withdrawal. */
 std::vector<PlacedSlot> PlaceStock(const std::vector<ShopSlot> &stock)
 {
@@ -255,11 +274,46 @@ bool CheckShopTabRowClick(Point position)
 	return false;
 }
 
-/** @brief Bulk-action buttons share one row above the grid, at most two of them. */
+/** @brief Which services this vendor performs, in draw order. Empty for a vendor with none. */
+std::vector<ServiceButton> ServicesFor(TalkID id)
+{
+	switch (id) {
+	case TalkID::SmithBuy:
+	case TalkID::SmithPremiumBuy:
+	case TalkID::SmithUniqueBuy:
+	case TalkID::SmithConsumables:
+	case TalkID::SmithSell:
+		return { ServiceButton::Repair, ServiceButton::RepairAll, ServiceButton::Recharge };
+	case TalkID::WitchBuy:
+	case TalkID::WitchSell:
+		return { ServiceButton::Recharge };
+	default:
+		return {};
+	}
+}
+
+/** @brief The service buttons sit flush right on the control row; the text actions get what is left. */
+Rectangle ServiceButtonRect(size_t index, size_t count)
+{
+	const Rectangle panel = GetShopPanelRect();
+	const int stripRight = panel.position.x + ShopTabStripLeft + ShopTabStripWidth;
+	const int blockWidth = static_cast<int>(count) * ServiceButtonSize + (static_cast<int>(count) - 1) * ServiceButtonGap;
+	const int left = stripRight - blockWidth + static_cast<int>(index) * (ServiceButtonSize + ServiceButtonGap);
+	return Rectangle { { left, panel.position.y + ShopActionTop }, { ServiceButtonSize, ServiceButtonSize } };
+}
+
+/** @brief Bulk-action buttons share the control row with the service icons, to their left. */
 Rectangle ShopActionRect(size_t index, size_t count)
 {
 	const Rectangle panel = GetShopPanelRect();
-	const int width = ShopTabStripWidth / static_cast<int>(std::max<size_t>(count, 1));
+	const size_t services = ServicesFor(stextflag).size();
+	int available = ShopTabStripWidth;
+	if (services > 0) {
+		const int block = static_cast<int>(services) * ServiceButtonSize
+		    + (static_cast<int>(services) - 1) * ServiceButtonGap;
+		available -= block + ServiceButtonGap;
+	}
+	const int width = available / static_cast<int>(std::max<size_t>(count, 1));
 	return Rectangle { { panel.position.x + ShopTabStripLeft + static_cast<int>(index) * width,
 	                       panel.position.y + ShopActionTop },
 		{ width, ShopActionHeight } };
@@ -270,6 +324,70 @@ Rectangle ShopCloseRect()
 {
 	const Rectangle panel = GetShopPanelRect();
 	return Rectangle { { panel.position.x + panel.size.width - 34, panel.position.y + 14 }, { 20, 20 } };
+}
+
+/**
+ * @brief The service icons, drawn rather than blitted.
+ *
+ * PLACEHOLDER, and the only honest option today: there is no art for these, and the request was for
+ * icons and no text. They are built out of filled rectangles so they read at 20px - a hammer for
+ * Repair, the same hammer over three dots for Repair all, a bolt for Recharge. When art arrives this
+ * is one blit per button and the geometry above does not move.
+ */
+void DrawServiceIcon(const Surface &out, ServiceButton service, Rectangle rect, uint8_t color)
+{
+	const int x = rect.position.x;
+	const int y = rect.position.y;
+	switch (service) {
+	case ServiceButton::Repair:
+	case ServiceButton::RepairAll: {
+		// Head across the top, handle down through the middle. RepairAll is the same hammer lifted
+		// two pixels to make room for the three dots that say "all of them".
+		const int lift = service == ServiceButton::RepairAll ? 2 : 0;
+		FillRect(out, x + 3, y + 5 - lift, 14, 4, color);
+		FillRect(out, x + 9, y + 9 - lift, 3, 7, color);
+		if (service == ServiceButton::RepairAll) {
+			FillRect(out, x + 4, y + 15, 2, 2, color);
+			FillRect(out, x + 9, y + 15, 2, 2, color);
+			FillRect(out, x + 14, y + 15, 2, 2, color);
+		}
+		break;
+	}
+	case ServiceButton::Recharge:
+		// A bolt: two offset wedges meeting at the middle.
+		FillRect(out, x + 10, y + 3, 5, 3, color);
+		FillRect(out, x + 8, y + 6, 5, 3, color);
+		FillRect(out, x + 6, y + 9, 8, 2, color);
+		FillRect(out, x + 7, y + 11, 5, 3, color);
+		FillRect(out, x + 5, y + 14, 5, 3, color);
+		break;
+	}
+}
+
+/** @brief What a service button does when it is clicked, or dropped on. */
+const char *ServiceHint(ServiceButton service)
+{
+	switch (service) {
+	case ServiceButton::Repair:
+		return N_("Repair - drop an item here");
+	case ServiceButton::RepairAll:
+		return N_("Repair all");
+	case ServiceButton::Recharge:
+		return N_("Recharge - drop a staff here");
+	}
+	return "";
+}
+
+void DrawServiceButtons(const Surface &out)
+{
+	const std::vector<ServiceButton> services = ServicesFor(stextflag);
+	for (size_t i = 0; i < services.size(); i++) {
+		const Rectangle rect = ServiceButtonRect(i, services.size());
+		const bool hovered = rect.contains(MousePosition);
+		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+		DrawOrnateBorder(out, rect);
+		DrawServiceIcon(out, services[i], rect, hovered ? PAL8_YELLOW + 2 : ThemeEdgeColor);
+	}
 }
 
 /**
@@ -291,6 +409,8 @@ void DrawShopControls(const Surface &out)
 		DrawString(out, _(actions[i].label), rect,
 		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
+
+	DrawServiceButtons(out);
 
 	const Rectangle goldLine { { panel.position.x + ShopTabStripLeft, panel.position.y + ShopGoldTop },
 		{ ShopTabStripWidth, ShopGoldHeight } };
@@ -411,6 +531,37 @@ bool CheckShopGridClick(Point position)
 	if (CheckShopTabRowClick(position))
 		return true;
 
+	// A held item is a DROP, not a click, and the target decides what happens to it. Ahead of every
+	// other control on the panel: dropping a sword on the Repair button must repair it rather than
+	// fall through to whatever that rect does when the hand is empty.
+	if (!MyPlayer->HoldItem.isEmpty()) {
+		const std::vector<ServiceButton> services = ServicesFor(stextflag);
+		for (size_t i = 0; i < services.size(); i++) {
+			if (!ServiceButtonRect(i, services.size()).contains(position))
+				continue;
+			if (services[i] == ServiceButton::Repair)
+				ShopRepairHeldItem();
+			else if (services[i] == ServiceButton::Recharge)
+				ShopRechargeHeldItem();
+			// Repair all ignores a held item rather than repairing it: it is a button about the
+			// whole inventory, and the held item is not in the inventory.
+			return true;
+		}
+		// Anywhere else on the panel sells it. A refusal leaves the item in the player's hand -
+		// swallowing an item a vendor will not buy is how you lose one.
+		ShopSellHeldItem();
+		return true;
+	}
+
+	const std::vector<ServiceButton> services = ServicesFor(stextflag);
+	for (size_t i = 0; i < services.size(); i++) {
+		if (!ServiceButtonRect(i, services.size()).contains(position))
+			continue;
+		if (services[i] == ServiceButton::RepairAll)
+			ShopRepairAll();
+		return true;
+	}
+
 	const std::vector<ShopAction> actions = GetShopActions(stextflag);
 	for (size_t i = 0; i < actions.size(); i++) {
 		if (ShopActionRect(i, actions.size()).contains(position)) {
@@ -442,15 +593,43 @@ void MoveShopGridSelection(int columns, int rows)
 	ShopGridSel = ((ShopGridSel + step) % count + count) % count;
 }
 
+bool IsShopItemHovered()
+{
+	return ShopHoverActive;
+}
+
 bool SetShopHoverInfoString()
 {
+	ShopHoverActive = false;
 	if (!IsShopGridScreen(stextflag))
 		return false;
+
+	// Anything inside the panel is answered here, item or not. The panel covers the world, and the
+	// producers further down UpdateInfoString were naming towners standing behind it - the user
+	// hovered the Repair tab and got "Gillian the Barmaid".
+	if (!GetShopPanelRect().contains(MousePosition))
+		return false;
+
 	const std::vector<ShopSlot> stock = GetShopStock(stextflag);
 	const std::vector<PlacedSlot> placed = PlaceStock(stock);
 	const int hovered = PlacedSlotAt(placed, MousePosition);
-	if (hovered < 0)
-		return false;
+
+	const std::vector<ServiceButton> services = ServicesFor(stextflag);
+	for (size_t i = 0; i < services.size(); i++) {
+		if (!ServiceButtonRect(i, services.size()).contains(MousePosition))
+			continue;
+		// The icons carry no text, so the hint is the only place their meaning is written down.
+		ClearPanelStrings();
+		SetPanelString(_(ServiceHint(services[i])), UiFlags::ColorWhitegold);
+		return true;
+	}
+
+	if (hovered < 0) {
+		ClearPanelStrings();
+		InfoColor = UiFlags::ColorWhite;
+		return true;
+	}
+	ShopHoverActive = true;
 
 	const ShopSlot &slot = stock[placed[hovered].stockIndex];
 	// The same two calls the inventory's own hover makes, in the same order: the name sets the

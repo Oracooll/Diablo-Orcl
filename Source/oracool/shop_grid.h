@@ -82,4 +82,13 @@ void ResetShopGridSelection();
  */
 bool SetShopHoverInfoString();
 
+/**
+ * @brief Whether the last hover pass landed on a shop item.
+ *
+ * The tooltip asks this to decide between its two treatments: a padded, bordered plate for an item's
+ * stat block, and bare outlined text for a one-line label. Without it the shop's block drew as
+ * outlined text over the grid, which is what the first playtest of the panel showed.
+ */
+bool IsShopItemHovered();
+
 } // namespace devilution::oracool

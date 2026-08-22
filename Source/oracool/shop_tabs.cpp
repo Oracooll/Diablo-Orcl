@@ -50,7 +50,7 @@ const char *ShopTabName(TalkID id)
 	case TalkID::SmithBuy:
 		return N_("Basic");
 	case TalkID::SmithPremiumBuy:
-		return N_("Fine");
+		return N_("Magic");
 	case TalkID::SmithUniqueBuy:
 		return N_("Unique");
 	case TalkID::SmithConsumables:
@@ -59,7 +59,9 @@ const char *ShopTabName(TalkID id)
 		return N_("Supplies");
 	case TalkID::SmithSell:
 	case TalkID::WitchSell:
-		return N_("Sell");
+		// "Sold", not "Sell": selling is a drag onto the panel, and this tab is the record of what
+		// the vendor already bought, offered back at the price they paid.
+		return N_("Sold");
 	case TalkID::SmithRepair:
 		return N_("Repair");
 	case TalkID::SmithRecharge:
@@ -87,13 +89,15 @@ std::vector<TalkID> ShopTabsFor(TalkID id)
 		if (!gbIsMultiplayer)
 			tabs.push_back(TalkID::SmithConsumables);
 		tabs.push_back(TalkID::SmithSell);
-		tabs.push_back(TalkID::SmithRepair);
-		if (!gbIsMultiplayer)
-			tabs.push_back(TalkID::SmithRecharge);
+		// Repair and Recharge are no longer tabs. They are icon buttons on every one of this
+		// vendor's tabs (user request, 2026-08-23), because they are services performed on an item
+		// you already have rather than screens with their own stock to browse - you drop the item
+		// on the button. TalkID::SmithRepair and SmithRecharge still exist as screens; nothing
+		// routes to them any more.
 		return tabs;
 	}
 	case ShopKind::Witch:
-		return { TalkID::WitchBuy, TalkID::WitchSell, TalkID::WitchRecharge };
+		return { TalkID::WitchBuy, TalkID::WitchSell };
 	case ShopKind::Healer:
 		return { TalkID::HealerBuy };
 	case ShopKind::None:

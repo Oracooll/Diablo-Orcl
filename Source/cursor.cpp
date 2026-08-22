@@ -13,6 +13,7 @@
 #include "control.h"
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/shop_grid.h"
 #include "controls/plrctrls.h"
 #include "doom.h"
 #include "engine.h"
@@ -1001,6 +1002,11 @@ void CheckCursMove()
 	if (DoomFlag) {
 		return;
 	}
+	// The shop panel, like the inventory below it: it covers the world, so nothing behind it may be
+	// targeted. Without this the towners in Griswold's shop were being named and highlighted through
+	// their own shop screen (user report, 2026-08-23).
+	if (oracool::IsShopGridScreen(stextflag) && oracool::GetShopPanelRect().contains(MousePosition))
+		return;
 	if (invflag && oracool::GetInventoryPanelRect().contains(MousePosition)) {
 		pcursinvitem = CheckInvHLight();
 		return;

@@ -11,6 +11,7 @@
 #include "engine/render/text_render.hpp"
 #include "inv.h"
 #include "oracool/ornate_border.h" // ThemeEdgeColor
+#include "oracool/shop_grid.h"
 #include "qol/stash.h"
 #include "utils/ui_fwd.h"
 
@@ -76,7 +77,11 @@ bool IsHoveringItem()
 	return pcursitem != -1
 	    || pcursinvitem != -1
 	    || pcursstashitem != StashStruct::EmptyCell
-	    || ActiveTabItemHovered;
+	    || ActiveTabItemHovered
+	    // The shop grid has no pcurs global of its own - its items are the vendor's, not the
+	    // player's, so none of the four above ever describe one. It records its hover instead, on
+	    // the same once-per-frame pass that clears and repopulates these.
+	    || IsShopItemHovered();
 }
 
 } // namespace

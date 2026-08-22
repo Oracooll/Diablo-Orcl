@@ -443,8 +443,15 @@ void LeftMouseDown(uint16_t modState)
 	}
 
 	if (stextflag != TalkID::None) {
-		CheckStoreBtn();
-		return;
+		// A shop grid is a PANEL, not a modal screen. The inventory is open beside it so items can
+		// be dragged across to sell, repair and recharge, so only clicks that land on the shop
+		// itself belong to the store - the rest fall through to the inventory routing below, which
+		// is what lets the player pick an item up in the first place. Every other store screen
+		// (the towner dialogs, Confirm, No money) still swallows the whole screen, as it always did.
+		if (!oracool::IsShopGridScreen(stextflag) || oracool::GetShopPanelRect().contains(MousePosition)) {
+			CheckStoreBtn();
+			return;
+		}
 	}
 
 	// Oracool: the XP Counter is always-visible during normal gameplay (like the mini-map),

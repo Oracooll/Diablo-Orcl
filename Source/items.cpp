@@ -376,37 +376,10 @@ _sfx_id ItemDropSnds[] = {
 	IS_FLARM,
 	IS_FLARM,
 };
-/** Maps from Griswold premium item number to a quality level delta as added to the base quality level. */
-int premiumlvladd[] = {
-	// clang-format off
-	-1,
-	-1,
-	 0,
-	 0,
-	 1,
-	 2,
-	// clang-format on
-};
-/** Maps from Griswold premium item number to a quality level delta as added to the base quality level. */
-int premiumLvlAddHellfire[] = {
-	// clang-format off
-	-1,
-	-1,
-	-1,
-	 0,
-	 0,
-	 0,
-	 0,
-	 1,
-	 1,
-	 1,
-	 1,
-	 2,
-	 2,
-	 3,
-	 3,
-	// clang-format on
-};
+// Oracool: vanilla's two premium quality-level tables (six entries for Diablo, fifteen for
+// Hellfire) are gone. They mapped a SLOT NUMBER to a delta, so they could only ever describe a stock
+// of exactly their own length, and Griswold's premium stock is thirty slots now. PremiumLevelDelta,
+// below SpawnOnePremium, computes the same spread for any length.
 
 bool IsPrefixValidForItemType(int i, AffixItemType flgs, bool hellfireItem)
 {
@@ -2385,10 +2358,22 @@ _item_indexes RndSmithItem(const Player &player, int lvl)
 	return RndVendorItem<SmithItemOk, true>(player, 0, lvl);
 }
 
-void SortVendor(Item *itemList)
+/**
+ * @brief Sorts a vendor's stock by base item, from @p itemList to the first empty slot.
+ *
+ * @param remaining how many slots there are from @p itemList to the end of the array.
+ *
+ * The bound is not decoration. This walked to the first empty slot with nothing stopping it at the
+ * end of the array, which is fine only while a vendor's stock never fills its array - and Griswold's
+ * already could before this was noticed: `iCnt` is capped at SMITH_ITEMS minus the salvage charms,
+ * and StockSalvageCharms then fills exactly that many, so a maximum roll left no empty slot at all
+ * and this walked off the end. Raising the stock counts to fill the shop grid (v1.9.28) turned that
+ * from an occasional overrun into the normal case, which is how it was found.
+ */
+void SortVendor(Item *itemList, int remaining)
 {
 	int count = 1;
-	while (!itemList[count].isEmpty())
+	while (count < remaining && !itemList[count].isEmpty())
 		count++;
 
 	auto cmp = [](const Item &a, const Item &b) {
@@ -6225,13 +6210,15 @@ void SpawnSmith(int lvl)
 	constexpr int PinnedItemCount = 0;
 
 	int maxValue = MaxVendorValue;
-	int maxItems = 20;
-	if (gbIsHellfire) {
+	// Oracool: the stock fills the shop grid now, so the count is derived from the array rather
+	// than from vanilla's two hand-written numbers. The lower bound is three quarters of it, so a
+	// bad roll still leaves a full-looking shop instead of a third of one.
+	int maxItems = SMITH_ITEMS - oracool::SalvageTierCount;
+	if (gbIsHellfire)
 		maxValue = MaxVendorValueHf;
-		maxItems = 25;
-	}
 
-	int iCnt = GenerateRnd(maxItems - 10) + 10;
+	const int minItems = maxItems * 3 / 4;
+	int iCnt = GenerateRnd(maxItems - minItems + 1) + minItems;
 	// Oracool: hold back seven slots for the Charms of Salvaging below.
 	iCnt = std::min(iCnt, SMITH_ITEMS - oracool::SalvageTierCount);
 	for (int i = 0; i < iCnt; i++) {
@@ -6255,38 +6242,44 @@ void SpawnSmith(int lvl)
 
 	StockSalvageCharms(smithitem, SMITH_ITEMS, lvl, CF_SMITH);
 
-	SortVendor(smithitem + PinnedItemCount);
+	SortVendor(smithitem + PinnedItemCount, SMITH_ITEMS - PinnedItemCount);
+}
+
+/**
+ * @brief The quality-level delta for premium slot @p index of @p count.
+ *
+ * Replaces vanilla's two hand-written tables (six entries for Diablo, fifteen for Hellfire), which
+ * could not answer for the thirty-slot stock the shop grid holds. Same shape they had: the cheap end
+ * of the list rolls a level below the player and the dear end up to three above, spread evenly
+ * across however many slots there are.
+ */
+int PremiumLevelDelta(int index, int count)
+{
+	constexpr int Spread = 5; // -1 through +3
+	return -1 + index * Spread / std::max(count, 1);
 }
 
 void SpawnPremium(const Player &player)
 {
 	int8_t lvl = player._pLevel;
-	int maxItems = gbIsHellfire ? SMITH_PREMIUM_ITEMS : 6;
+	constexpr int maxItems = SMITH_PREMIUM_ITEMS;
 	if (numpremium < maxItems) {
 		for (int i = 0; i < maxItems; i++) {
-			if (premiumitems[i].isEmpty()) {
-				int plvl = premiumlevel + (gbIsHellfire ? premiumLvlAddHellfire[i] : premiumlvladd[i]);
-				SpawnOnePremium(premiumitems[i], plvl, player);
-			}
+			if (premiumitems[i].isEmpty())
+				SpawnOnePremium(premiumitems[i], premiumlevel + PremiumLevelDelta(i, maxItems), player);
 		}
 		numpremium = maxItems;
 	}
 	while (premiumlevel < lvl) {
 		premiumlevel++;
-		if (gbIsHellfire) {
-			// Discard first 3 items and shift next 10
-			std::move(&premiumitems[3], &premiumitems[12] + 1, &premiumitems[0]);
-			SpawnOnePremium(premiumitems[10], premiumlevel + premiumLvlAddHellfire[10], player);
-			premiumitems[11] = premiumitems[13];
-			SpawnOnePremium(premiumitems[12], premiumlevel + premiumLvlAddHellfire[12], player);
-			premiumitems[13] = premiumitems[14];
-			SpawnOnePremium(premiumitems[14], premiumlevel + premiumLvlAddHellfire[14], player);
-		} else {
-			// Discard first 2 items and shift next 3
-			std::move(&premiumitems[2], &premiumitems[4] + 1, &premiumitems[0]);
-			SpawnOnePremium(premiumitems[3], premiumlevel + premiumlvladd[3], player);
-			premiumitems[4] = premiumitems[5];
-			SpawnOnePremium(premiumitems[5], premiumlevel + premiumlvladd[5], player);
+		// One generalised rotation in place of vanilla's two hardcoded ones. Both of those discarded
+		// roughly the cheapest third of the list on every level and refilled the tail; this does the
+		// same thing without naming individual slots, which is what made them size-specific.
+		constexpr int discard = std::max(1, maxItems / 3);
+		std::move(&premiumitems[discard], &premiumitems[maxItems], &premiumitems[0]);
+		for (int i = maxItems - discard; i < maxItems; i++) {
+			premiumitems[i].clear();
+			SpawnOnePremium(premiumitems[i], premiumlevel + PremiumLevelDelta(i, maxItems), player);
 		}
 	}
 }
@@ -6300,9 +6293,11 @@ void SpawnWitch(int lvl)
 
 	int bookCount = 0;
 	const int pinnedBookCount = gbIsHellfire ? GenerateRnd(MaxPinnedBookCount) : 0;
-	const int reservedItems = gbIsHellfire ? 10 : 17;
-	// Oracool: hold back seven slots for the Charms of Salvaging stocked after this loop.
-	const int itemCount = std::min(GenerateRnd(WITCH_ITEMS - reservedItems) + 10, WITCH_ITEMS - oracool::SalvageTierCount);
+	// Oracool: same fill as the smith - derived from the array, three quarters full at worst, with
+	// the Charms of Salvaging still held back. Vanilla's `reservedItems` split existed to keep a
+	// 25-slot array from overfilling a four-row list; the grid has room for all of it.
+	const int maxItems = WITCH_ITEMS - oracool::SalvageTierCount;
+	const int itemCount = GenerateRnd(maxItems - maxItems * 3 / 4 + 1) + maxItems * 3 / 4;
 	const int maxValue = gbIsHellfire ? MaxVendorValueHf : MaxVendorValue;
 
 	for (int i = 0; i < WITCH_ITEMS; i++) {
@@ -6363,7 +6358,7 @@ void SpawnWitch(int lvl)
 
 	StockSalvageCharms(witchitem, WITCH_ITEMS, lvl, CF_WITCH);
 
-	SortVendor(witchitem + PinnedItemCount);
+	SortVendor(witchitem + PinnedItemCount, WITCH_ITEMS - PinnedItemCount);
 }
 
 void SpawnBoy(int lvl)
@@ -6524,7 +6519,7 @@ void SpawnHealer(int lvl)
 		item._iIdentified = true;
 	}
 
-	SortVendor(healitem + PinnedItemCount);
+	SortVendor(healitem + PinnedItemCount, static_cast<int>(std::size(healitem)) - PinnedItemCount);
 }
 
 void MakeGoldStack(Item &goldItem, int value)
