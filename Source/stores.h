@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include <SDL.h>
 
@@ -133,6 +134,55 @@ void StartStore(TalkID s);
  * second opinion about whether a tab exists - which shows up as a tab that opens an empty screen.
  */
 bool HasSmithUniqueShop();
+
+namespace oracool {
+
+/**
+ * @brief One item on a shop tab, paired with the index that tab's transaction path expects.
+ *
+ * The two are NOT the same number, and that is the whole reason this type exists. Griswold's basic
+ * stock is indexed by array slot (holes included), his premium stock by visible position (holes
+ * skipped), and the sell/repair/recharge screens by position in storehold. A grid that invented its
+ * own numbering would sell the wrong item on whichever of those it guessed wrong.
+ */
+struct ShopSlot {
+	Item *item;
+	int index;
+	int price;
+};
+
+/**
+ * @brief A bulk action a shop tab offers beside its grid - Sell all, Repair all, Refresh.
+ *
+ * @p line is the store text line the action still owns. The grid does not render that line, but the
+ * tab's Enter handler dispatches on it, so it is what identifies the action.
+ */
+struct ShopAction {
+	const char *label;
+	int line;
+};
+
+} // namespace oracool
+
+/** @brief The stock behind a shop tab, in the order the text list shows it. Empty for non-shop screens. */
+std::vector<oracool::ShopSlot> GetShopStock(TalkID id);
+
+/**
+ * @brief Picks item @p index on tab @p id, exactly as pressing Enter on its row would.
+ *
+ * Implemented by putting the scroll state where the tab's own Enter handler would have found that
+ * index and then calling it, rather than by duplicating its checks. Those checks - can the player
+ * afford it, will it fit, is the row stale - have each been a bug at least once, and a second copy
+ * of them behind the grid would be a second place for them to drift.
+ */
+void ShopSelectIndex(TalkID id, int index);
+
+/** @brief The bulk actions tab @p id offers right now, already gated on the options that hide them. */
+std::vector<oracool::ShopAction> GetShopActions(TalkID id);
+
+/** @brief Runs the bulk action on @p line, exactly as pressing Enter on its row would. */
+void ShopActivateAction(TalkID id, int line);
+
 void DrawSText(const Surface &out);
 void StoreESC();
 void StoreUp();

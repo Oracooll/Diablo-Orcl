@@ -91,6 +91,7 @@ set(libdevilutionx_SRCS
   oracool/mystic_orbs.cpp
   oracool/signets.cpp
   oracool/named_encounters.cpp
+  oracool/shop_grid.cpp
   oracool/shop_tabs.cpp
   oracool/endgame_boss.cpp
   oracool/paladin_skills.cpp

@@ -1,22 +1,11 @@
 #include "oracool/shop_tabs.h"
 
-#include "control.h"
-#include "engine/render/primitive_render.hpp"
-#include "engine/render/text_render.hpp"
 #include "multi.h"
-#include "oracool/ornate_border.h"
 #include "utils/language.h"
 
 namespace devilution::oracool {
 
 namespace {
-
-constexpr int StripHeight = 21;
-/** @brief The store panel's own left and right edges - see DrawSTextBack and CheckStoreBtn. */
-constexpr int PanelLeft = 24;
-constexpr int PanelRight = 616;
-/** @brief Above the panel, which starts at y+28. This is the gap that lets the strip cost no reflow. */
-constexpr int StripTop = 5;
 
 /** @brief Which vendor a tab belongs to, so a tab strip only ever offers one shop's tabs. */
 enum class ShopKind : uint8_t {
@@ -111,78 +100,6 @@ std::vector<TalkID> ShopTabsFor(TalkID id)
 		break;
 	}
 	return {};
-}
-
-Rectangle GetShopTabStripRect()
-{
-	if (!IsShopTab(stextflag))
-		return Rectangle { { 0, 0 }, { 0, 0 } };
-	const Point ui = GetUIRectangle().position;
-	return Rectangle { { ui.x + PanelLeft, ui.y + StripTop }, { PanelRight - PanelLeft, StripHeight } };
-}
-
-namespace {
-
-/** @brief One tab's rect. Widths are equal and derived, so a vendor with six tabs still fits. */
-Rectangle TabRect(const Rectangle &strip, size_t index, size_t count)
-{
-	if (count == 0)
-		return Rectangle { { 0, 0 }, { 0, 0 } };
-	const int width = strip.size.width / static_cast<int>(count);
-	return Rectangle { { strip.position.x + static_cast<int>(index) * width, strip.position.y },
-		{ width, strip.size.height } };
-}
-
-} // namespace
-
-void DrawShopTabs(const Surface &out)
-{
-	const Rectangle strip = GetShopTabStripRect();
-	if (strip.size.width <= 0)
-		return;
-	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
-	if (tabs.empty())
-		return;
-
-	for (size_t i = 0; i < tabs.size(); i++) {
-		const Rectangle rect = TabRect(strip, i, tabs.size());
-		const bool active = tabs[i] == stextflag;
-		// The ACTIVE tab is filled and white; the rest are bordered and dim. One cue, not two - the
-		// player has to be able to tell where they are at a glance while the panel below is dense
-		// with item text.
-		if (active) {
-			FillRect(out, rect.position.x + 1, rect.position.y + 1,
-			    rect.size.width - 2, rect.size.height - 2, PAL8_YELLOW + 6);
-		} else {
-			DrawHalfTransparentRectTo(out, rect.position.x + 1, rect.position.y + 1,
-			    rect.size.width - 2, rect.size.height - 2);
-		}
-		DrawOrnateBorder(out, rect);
-		DrawString(out, _(ShopTabName(tabs[i])), rect,
-		    { (active ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
-		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
-}
-
-bool CheckShopTabClick(Point position)
-{
-	const Rectangle strip = GetShopTabStripRect();
-	if (strip.size.width <= 0 || !strip.contains(position))
-		return false;
-	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
-	for (size_t i = 0; i < tabs.size(); i++) {
-		if (!TabRect(strip, i, tabs.size()).contains(position))
-			continue;
-		// The tab you are already on absorbs the click rather than restarting the screen - a
-		// restart would reset the scroll position under the player's cursor for no reason.
-		if (tabs[i] != stextflag)
-			StartStore(tabs[i]);
-		return true;
-	}
-	// Inside the strip but between two tabs: absorbed, not passed through. The strip is a control
-	// surface, and a click that falls in a one-pixel gap should do nothing rather than reach
-	// whatever happens to be under it.
-	return true;
 }
 
 } // namespace devilution::oracool

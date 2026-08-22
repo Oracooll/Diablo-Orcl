@@ -73,6 +73,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/runeword_book.h"
 #include "oracool/run_toggle.h"
+#include "oracool/shop_grid.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/oracool.h"
@@ -1039,6 +1040,11 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	case SDLK_LEFT:
 		if ((modState & KMOD_ALT) != 0) {
 			MiniMapLeft();
+		} else if (oracool::IsShopGridScreen(stextflag)) {
+			// Left and right only mean something on a store screen that is a GRID. The text list
+			// has one item per row, so the two keys had nothing to move along and were left to the
+			// automap - which is why this is a shop test rather than a `stextflag != None` one.
+			oracool::MoveShopGridSelection(-1, 0);
 		} else if (AutomapActive && !talkflag) {
 			AutomapLeft();
 		}
@@ -1046,6 +1052,8 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	case SDLK_RIGHT:
 		if ((modState & KMOD_ALT) != 0) {
 			MiniMapRight();
+		} else if (oracool::IsShopGridScreen(stextflag)) {
+			oracool::MoveShopGridSelection(1, 0);
 		} else if (AutomapActive && !talkflag) {
 			AutomapRight();
 		}

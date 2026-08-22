@@ -36,6 +36,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/oracool.h"
+#include "oracool/shop_grid.h"
 #include "oracool/shop_tabs.h"
 #include "oracool/skill_points.h"
 #include "panels/info_box.hpp"
@@ -1123,6 +1124,15 @@ void FillManaPlayer()
 	RedrawComponent(PanelDrawComponent::Mana);
 }
 
+/**
+ * @brief Adria's one shop entry.
+ *
+ * A named constant because four places address it: the line that draws it, WitchEnter's dispatch,
+ * and the back paths out of all three shop screens. It was three separate numbers before the tabs
+ * collapsed them into one door, and three of those four sites would still compile after a miss.
+ */
+constexpr int WitchShopDoorLine = 14;
+
 void StartWitch()
 {
 	FillManaPlayer();
@@ -1131,9 +1141,11 @@ void StartWitch()
 	AddSText(0, 2, _("Witch's shack"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Adria"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, 14, _("Buy items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 16, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	// One door, like Griswold's - buy, sell and recharge are tabs inside it now
+	// (oracool/shop_tabs.h). Lines 16 and 18 are deliberately left empty rather than closed up: the
+	// respec below and the leave line are addressed by number from WitchEnter and from three back
+	// paths in the shop screens, and renumbering them buys nothing but a chance to miss one.
+	AddSText(0, WitchShopDoorLine, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	// Oracool Phase 2.3: the respec, at Adria (megaplan). Selectable only when there are points to
 	// reclaim; the price is on the line so the decision is made before the click.
 	if (oracool::TotalInvestedSkillPoints(*MyPlayer) > 0) {
@@ -1943,7 +1955,7 @@ void SmithBuyEnter()
 /**
  * @brief Purchases a premium item from the smith.
  */
-void SmithBuyPItem(Item &item)
+void SmithBuyPItemAt(Item &item, int idx)
 {
 	// The slot scan runs FIRST (self-audit, 2026-08-15), for two reasons. It is bounded now - the
 	// old loop's only condition was the skip count, so a stale selected row (the premium list
@@ -1951,7 +1963,6 @@ void SmithBuyPItem(Item &item)
 	// screen) walked isEmpty() past the end of the array; and this is the copy of the scan that
 	// CLEARS a slot, so overrunning would zero whatever lives after it. And it runs before the
 	// money: bailing on a stale row after TakePlrsMoney would be a purchase with no goods.
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
 	int xx = -1;
 	for (int i = 0; i < SMITH_PREMIUM_ITEMS && idx >= 0; i++) {
 		if (!premiumitems[i].isEmpty()) {
@@ -1972,9 +1983,14 @@ void SmithBuyPItem(Item &item)
 	SpawnPremium(*MyPlayer);
 }
 
-void SmithBuyUniqueItem(Item &item)
+/** @brief The text-store's caller: it still knows the index only as a scroll position. */
+void SmithBuyPItem(Item &item)
 {
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
+	SmithBuyPItemAt(item, stextvhold + ((stextlhold - stextup) / 4));
+}
+
+void SmithBuyUniqueItemAt(Item &item, int idx)
+{
 	// Clamped before the shift loop below uses it as a write index (self-audit, 2026-08-15): a
 	// negative stale index would write before the array. Checked before the money, like
 	// SmithBuyPItem, so a stale row costs nothing rather than costing gold for no goods.
@@ -1986,6 +2002,12 @@ void SmithBuyUniqueItem(Item &item)
 		smithUniqueItems[idx] = std::move(smithUniqueItems[idx + 1]);
 	smithUniqueItems[SmithUniqueItemsMaximum - 1].clear();
 	CalcPlrInv(*MyPlayer, true);
+}
+
+/** @brief The text-store's caller: it still knows the index only as a scroll position. */
+void SmithBuyUniqueItem(Item &item)
+{
+	SmithBuyUniqueItemAt(item, stextvhold + ((stextlhold - stextup) / 4));
 }
 
 void SmithUniqueBuyEnter()
@@ -2171,11 +2193,10 @@ bool StoreGoldFit(Item &item)
 /**
  * @brief Sells an item from the player's inventory or belt.
  */
-void StoreSellItem()
+void StoreSellItemAt(int idx)
 {
 	Player &myPlayer = *MyPlayer;
 
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
 	if (storehTabIdx[idx] >= 0)
 		RemoveExtraTabItem(myPlayer, storehTabIdx[idx], storehidx[idx]);
 	else if (storehidx[idx] >= 0)
@@ -2206,6 +2227,12 @@ void StoreSellItem()
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
+/** @brief The text-store's caller: it still knows the index only as a scroll position. */
+void StoreSellItem()
+{
+	StoreSellItemAt(stextvhold + ((stextlhold - stextup) / 4));
+}
+
 void SmithSellAllItems()
 {
 	while (true) {
@@ -2222,9 +2249,7 @@ void SmithSellAllItems()
 
 		// Rebuilding the list after every removal is intentional: inventory removal compacts
 		// InvList, so every later source index must be recalculated before it is used.
-		stextvhold = 0;
-		stextlhold = stextup;
-		StoreSellItem();
+		StoreSellItemAt(0);
 	}
 
 	StartStore(TalkID::SmithSell);
@@ -2269,9 +2294,8 @@ void SmithSellEnter()
 /**
  * @brief Repairs an item in the player's inventory or body in the smith.
  */
-void SmithRepairItem(int price)
+void SmithRepairItemAt(int price, int idx)
 {
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
 	storehold[idx]._iDurability = storehold[idx]._iMaxDur;
 
 	int8_t i = storehidx[idx];
@@ -2300,6 +2324,12 @@ void SmithRepairItem(int price)
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
+/** @brief The text-store's caller: it still knows the index only as a scroll position. */
+void SmithRepairItem(int price)
+{
+	SmithRepairItemAt(price, stextvhold + ((stextlhold - stextup) / 4));
+}
+
 /**
  * @brief Oracool: user request - "Repair all" button, same list-rebuild-and-repeat pattern as the
  * existing SmithSellAllItems. Repairs storehold[0] over and over (StartSmithRepair already sorts
@@ -2322,9 +2352,10 @@ void SmithRepairAllItems()
 			return;
 		}
 
-		stextvhold = 0;
-		stextlhold = stextup;
-		SmithRepairItem(storehold[0]._iIvalue);
+		// Repair the head of the list by naming it. This used to fake up a scroll position
+		// (stextvhold = 0, stextlhold = stextup) purely so the old SmithRepairItem would derive
+		// index 0 back out of it.
+		SmithRepairItemAt(storehold[0]._iIvalue, 0);
 	}
 
 	StartStore(TalkID::SmithRepair);
@@ -2372,13 +2403,10 @@ void WitchEnter()
 		StartStore(TalkID::Gossip);
 		break;
 	case 14:
+		// The shop's door. WitchSell and WitchRecharge are still reachable - as tabs, and as the
+		// screens their own back paths return to, which is why those cases are gone rather than
+		// redirected.
 		StartStore(TalkID::WitchBuy);
-		break;
-	case 16:
-		StartStore(TalkID::WitchSell);
-		break;
-	case 18:
-		StartStore(TalkID::WitchRecharge);
 		break;
 	case 20: {
 		// Phase 2.3: the respec. The line is unselectable with nothing invested, so reaching here
@@ -2496,7 +2524,7 @@ void WitchSellEnter()
 {
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Witch);
-		stextsel = 16;
+		stextsel = WitchShopDoorLine;
 		return;
 	}
 
@@ -2522,9 +2550,8 @@ void WitchSellEnter()
 /**
  * @brief Recharges an item in the player's inventory or body in the witch.
  */
-void WitchRechargeItem(int price)
+void WitchRechargeItemAt(int price, int idx)
 {
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
 	storehold[idx]._iCharges = storehold[idx]._iMaxCharges;
 
 	Player &myPlayer = *MyPlayer;
@@ -2543,12 +2570,18 @@ void WitchRechargeItem(int price)
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
+/** @brief The text-store's caller: it still knows the index only as a scroll position. */
+void WitchRechargeItem(int price)
+{
+	WitchRechargeItemAt(price, stextvhold + ((stextlhold - stextup) / 4));
+}
+
 void WitchRechargeEnter()
 {
 	if (stextsel == BackButtonLine()) {
 		const bool fromSmith = stextflag == TalkID::SmithRecharge;
 		StartStore(fromSmith ? TalkID::Smith : TalkID::Witch);
-		stextsel = fromSmith ? SmithMenuLine(TalkID::SmithRecharge) : 18;
+		stextsel = fromSmith ? SmithMenuLine(TalkID::SmithRecharge) : WitchShopDoorLine;
 		return;
 	}
 
@@ -3521,6 +3554,11 @@ void ClearSText(int s, int e)
 
 void StartStore(TalkID s)
 {
+	// Only on the way IN to a shop. StartStore is also how a shop screen rebuilds itself after every
+	// purchase, and resetting there would throw the cursor back to the first item each time.
+	if (oracool::IsShopGridScreen(s) && !oracool::IsShopGridScreen(stextflag))
+		oracool::ResetShopGridSelection();
+
 	if (*sgOptions.Gameplay.showItemGraphicsInStores) {
 		CreateHalfSizeItemSprites();
 	}
@@ -3634,18 +3672,198 @@ void StartStore(TalkID s)
 	stextflag = s;
 }
 
+namespace {
+
+/** @brief The price the text list would print beside @p item on a sell-side screen. */
+int SellSidePrice(const Item &item)
+{
+	return (item._iMagical != ITEM_QUALITY_NORMAL && item._iIdentified) ? item._iIvalue : item._ivalue;
+}
+
+} // namespace
+
+std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
+{
+	std::vector<oracool::ShopSlot> stock;
+	switch (id) {
+	case TalkID::SmithBuy:
+		for (int i = 0; i < SMITH_ITEMS; i++) {
+			if (!smithitem[i].isEmpty())
+				stock.push_back({ &smithitem[i], i, smithitem[i]._iIvalue });
+		}
+		break;
+	case TalkID::SmithPremiumBuy: {
+		// Visible position, not array slot - SmithBuyPItemAt counts non-empty entries to find its
+		// item, because a purchase leaves a hole behind rather than compacting the array.
+		int visible = 0;
+		for (int i = 0; i < SMITH_PREMIUM_ITEMS; i++) {
+			if (!premiumitems[i].isEmpty()) {
+				stock.push_back({ &premiumitems[i], visible, premiumitems[i]._iIvalue });
+				visible++;
+			}
+		}
+		break;
+	}
+	case TalkID::SmithUniqueBuy:
+		for (int i = 0; i < SmithUniqueItemsMaximum; i++) {
+			if (!smithUniqueItems[i].isEmpty())
+				stock.push_back({ &smithUniqueItems[i], i, smithUniqueItems[i]._iIvalue });
+		}
+		break;
+	case TalkID::SmithConsumables: {
+		const std::vector<ConsumablesStockEntry> entries = SmithConsumablesStock();
+		for (size_t i = 0; i < entries.size(); i++)
+			stock.push_back({ entries[i].item, static_cast<int>(i), entries[i].item->_iIvalue });
+		break;
+	}
+	case TalkID::WitchBuy:
+		for (int i = 0; i < WITCH_ITEMS; i++) {
+			if (!witchitem[i].isEmpty())
+				stock.push_back({ &witchitem[i], i, witchitem[i]._iIvalue });
+		}
+		break;
+	case TalkID::HealerBuy:
+		for (int i = 0; i < 20; i++) {
+			if (!healitem[i].isEmpty())
+				stock.push_back({ &healitem[i], i, healitem[i]._iIvalue });
+		}
+		break;
+	case TalkID::SmithSell:
+	case TalkID::WitchSell:
+		for (int i = 0; i < storenumh; i++) {
+			if (!storehold[i].isEmpty())
+				stock.push_back({ &storehold[i], i, SellSidePrice(storehold[i]) });
+		}
+		break;
+	case TalkID::SmithRepair:
+	case TalkID::SmithRecharge:
+	case TalkID::WitchRecharge:
+	case TalkID::StorytellerIdentify:
+		// These three screens overwrite _iIvalue with the SERVICE cost when they build storehold -
+		// see StartSmithRepair. The item's own worth is not what the player is being charged.
+		for (int i = 0; i < storenumh; i++) {
+			if (!storehold[i].isEmpty())
+				stock.push_back({ &storehold[i], i, storehold[i]._iIvalue });
+		}
+		break;
+	default:
+		break;
+	}
+	return stock;
+}
+
+void ShopSelectIndex(TalkID id, int index)
+{
+	if (index < 0)
+		return;
+
+	// The tab's Enter handler reads `stextsval + ((stextsel - stextup) / 4)`. Putting the index in
+	// stextsval and the selection on the first row makes that expression evaluate to `index`, so
+	// the handler runs on the item the grid was clicked on and nothing else about it changes. Both
+	// values are scroll state the grid screens do not render, and ConfirmEnter re-clamps stextsval
+	// against stextsmax on the way back out.
+	stextsel = stextup;
+	stextsval = index;
+
+	switch (id) {
+	case TalkID::SmithBuy:
+		SmithBuyEnter();
+		break;
+	case TalkID::SmithPremiumBuy:
+		SmithPremiumBuyEnter();
+		break;
+	case TalkID::SmithUniqueBuy:
+		SmithUniqueBuyEnter();
+		break;
+	case TalkID::SmithConsumables:
+	case TalkID::WitchBuy:
+		WitchBuyEnter();
+		break;
+	case TalkID::HealerBuy:
+		HealerBuyEnter();
+		break;
+	case TalkID::SmithSell:
+		SmithSellEnter();
+		break;
+	case TalkID::WitchSell:
+		WitchSellEnter();
+		break;
+	case TalkID::SmithRepair:
+		SmithRepairEnter();
+		break;
+	case TalkID::SmithRecharge:
+	case TalkID::WitchRecharge:
+		WitchRechargeEnter();
+		break;
+	default:
+		break;
+	}
+}
+
+std::vector<oracool::ShopAction> GetShopActions(TalkID id)
+{
+	// The gating conditions are copied from the places that used to ADD these rows to the text list
+	// - ScrollSmithSell for the two "all" buttons, ScrollSmithPremiumBuy for the two refreshes. They
+	// have to match, because the Enter handlers those rows dispatch to re-test the same conditions
+	// and silently do nothing when they disagree.
+	std::vector<oracool::ShopAction> actions;
+	if (gbIsMultiplayer)
+		return actions;
+	switch (id) {
+	case TalkID::SmithSell:
+		if (storenumh > 0)
+			actions.push_back({ N_("Sell all"), SmithSellAllLine() });
+		break;
+	case TalkID::SmithRepair:
+		if (storenumh > 0)
+			actions.push_back({ N_("Repair all"), SmithRepairAllLine() });
+		break;
+	case TalkID::SmithPremiumBuy:
+		if (*sgOptions.Oracool.griswoldPremiumRefresh)
+			actions.push_back({ N_("Refresh"), PremiumRefreshLine() });
+		if (*sgOptions.Oracool.refreshUntilButton)
+			actions.push_back({ N_("Refresh until"), PremiumRefreshUntilLine() });
+		break;
+	default:
+		break;
+	}
+	return actions;
+}
+
+void ShopActivateAction(TalkID id, int line)
+{
+	// Same bridge as ShopSelectIndex: put the selection where the handler expects to find it, then
+	// let the handler do its own work.
+	stextsel = line;
+	switch (id) {
+	case TalkID::SmithSell:
+		SmithSellEnter();
+		break;
+	case TalkID::SmithRepair:
+		SmithRepairEnter();
+		break;
+	case TalkID::SmithPremiumBuy:
+		SmithPremiumBuyEnter();
+		break;
+	default:
+		break;
+	}
+}
+
 void DrawSText(const Surface &out)
 {
+	// A shop tab is its own panel and draws none of the text box below - see oracool/shop_grid.h.
+	// The vanilla box is still what Confirm, No money, No room and every towner dialog use, so this
+	// is a branch rather than a replacement.
+	if (oracool::IsShopGridScreen(stextflag)) {
+		oracool::DrawShopGrid(out);
+		return;
+	}
+
 	if (!stextsize)
 		DrawSTextBack(out);
 	else
 		DrawQTextBack(out);
-
-	// The shop's tab strip, above the panel. Drawn after the panel background and before the text,
-	// so the panel cannot paint over it and the text is never underneath it - the strip lives in
-	// the gap above y+28, which is exactly why it costs no reflow of the store's fixed line
-	// positions. Does nothing unless a shop tab is open.
-	oracool::DrawShopTabs(out);
 
 	if (stextscrl) {
 		switch (stextflag) {
@@ -3751,16 +3969,11 @@ void StoreESC()
 		stextsel = SmithMenuLine(TalkID::SmithRecharge);
 		break;
 	case TalkID::WitchBuy:
-		StartStore(TalkID::Witch);
-		stextsel = 14;
-		break;
 	case TalkID::WitchSell:
-		StartStore(TalkID::Witch);
-		stextsel = 16;
-		break;
 	case TalkID::WitchRecharge:
+		// All three land back on the one door they now share.
 		StartStore(TalkID::Witch);
-		stextsel = 18;
+		stextsel = WitchShopDoorLine;
 		break;
 	case TalkID::HealerBuy:
 		StartStore(TalkID::Healer);
@@ -3788,6 +4001,13 @@ void StoreESC()
 void StoreUp()
 {
 	PlaySFX(IS_TITLEMOV);
+	// On a grid screen the cursor is a position in the stock, not a text line - see
+	// oracool/shop_grid.h. Up and down move a whole grid row, so a stock of single-cell items walks
+	// the way it looks like it should.
+	if (oracool::IsShopGridScreen(stextflag)) {
+		oracool::MoveShopGridSelection(0, -1);
+		return;
+	}
 	if (stextsel == -1) {
 		return;
 	}
@@ -3825,6 +4045,10 @@ void StoreUp()
 void StoreDown()
 {
 	PlaySFX(IS_TITLEMOV);
+	if (oracool::IsShopGridScreen(stextflag)) {
+		oracool::MoveShopGridSelection(0, 1);
+		return;
+	}
 	if (stextsel == -1) {
 		return;
 	}
@@ -3912,6 +4136,14 @@ void StoreEnter()
 	}
 
 	PlaySFX(IS_TITLSLCT);
+
+	// A grid screen has no selected TEXT LINE for the switch below to dispatch on, so it is handled
+	// here rather than as another case. Escape is still the way back out, via StoreESC.
+	if (oracool::IsShopGridScreen(stextflag)) {
+		oracool::ActivateShopGridSelection();
+		return;
+	}
+
 	switch (stextflag) {
 	case TalkID::Smith:
 		SmithEnter();
@@ -4006,10 +4238,10 @@ void CheckStoreBtn()
 		return;
 	}
 
-	// The tab strip FIRST, because it sits above the panel this function hit-tests - the y range
-	// below starts at PaddingTop and the strip is higher than that, so without this it would be
-	// dead pixels that draw as buttons.
-	if (oracool::CheckShopTabClick(MousePosition))
+	// The shop panel FIRST, and it absorbs every click inside itself. It is a different rect from
+	// the text box this function hit-tests, and it covers the world - so a click on its background
+	// that fell through would walk the player somewhere behind the panel.
+	if (oracool::CheckShopGridClick(MousePosition))
 		return;
 
 	if (stextsel != -1 && MousePosition.y >= (PaddingTop + uiPosition.y) && MousePosition.y <= (320 + uiPosition.y)) {

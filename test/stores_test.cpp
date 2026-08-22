@@ -492,9 +492,16 @@ TEST(Stores, SmithSell_FourItemPage_SellAllRowNotHijackedByPremiumRedirect)
 	EXPECT_NE(ResolveBackRowClickLine(uiLeft + 24 + 20, uiLeft), GetSellAllLineForTest())
 	    << "left-zone click on Back's row must not trigger Sell All";
 
-	// Then the dispatch: entering on Sell All's line must run Sell All, not a single-item confirm.
-	SetStoreSelectionForTest(GetSellAllLineForTest());
-	StoreEnter();
+	// Then the dispatch: activating Sell All must run Sell All, not a single-item confirm.
+	//
+	// Sell is a GRID screen since v1.9.26 (oracool/shop_grid.h), so Sell All is a footer button
+	// rather than a text row and StoreEnter no longer reaches it - it now activates whatever the
+	// grid cursor is on. The button still carries the same line index, which is what identifies it
+	// to the same handler, so the dispatch under test is unchanged; only the door is.
+	const std::vector<oracool::ShopAction> actions = GetShopActions(TalkID::SmithSell);
+	ASSERT_EQ(actions.size(), 1u) << "the Sell screen no longer offers Sell all";
+	ASSERT_EQ(actions[0].line, GetSellAllLineForTest());
+	ShopActivateAction(TalkID::SmithSell, actions[0].line);
 
 	EXPECT_NE(stextflag, TalkID::Confirm)
 	    << "Sell All click opened a single-item confirmation - the Premium redirect hijacked it";
