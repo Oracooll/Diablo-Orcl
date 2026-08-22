@@ -14,6 +14,7 @@
 #include "items.h"
 #include "oracool/grid_bezel.h"
 #include "oracool/hud_art.h"
+#include "oracool/inventory_layout.h" // GridBottom - the line the stash's grid also ends on
 #include "oracool/ornate_border.h"
 #include "oracool/shop_tabs.h"
 #include "utils/format_int.hpp"
@@ -34,20 +35,45 @@ constexpr int ShopGridWidth = ShopGridColumns * ShopCellPx;
 constexpr int ShopGridHeight = ShopGridRows * ShopCellPx;
 constexpr int ShopGridLeft = (ShopPanelSize.width - ShopGridWidth) / 2;
 
-/** @brief Tab strip: rows of at most four, under the title band. */
-constexpr int ShopTabTop = 62;
-constexpr int ShopTabHeight = 22;
+/**
+ * @brief The grid sits as low as the stash's does, and every control is above it (user request).
+ *
+ * `GridBottom` is the inventory's, and the stash derives its own grid top from the same constant
+ * for the same reason: the three grids are the same surface at the same pitch, and a shop grid that
+ * ended anywhere else would be visibly out of line with the inventory beside it. It also puts the
+ * bezel's last pixel exactly on the HUD's content edge, so there is no gap under the grid to
+ * explain away.
+ */
+constexpr int ShopGridTop = GridBottom - ShopGridRows * ShopCellPx;
+
+/** @brief Tab strip: rows of at most three, under the title band. */
+constexpr int ShopTabTop = 58;
+constexpr int ShopTabHeight = 20;
 constexpr int ShopTabRowGap = 2;
-constexpr int ShopTabsPerRow = 4;
-constexpr int ShopTabStripLeft = ShopGridLeft;
-constexpr int ShopTabStripWidth = ShopGridWidth;
+/**
+ * @brief Three, not four.
+ *
+ * Four tabs across a 340px panel is 77px each, and "Supplies" and "Recharge" both overran that at
+ * FontSize12 - the first screenshot of this panel showed "SUPPLIE". Three gives 102px, which is
+ * wide enough for any label the tab sets contain with room to spare.
+ */
+constexpr int ShopTabsPerRow = 3;
+constexpr int ShopTabRows = 3;
+constexpr int ShopTabStripLeft = 16;
+constexpr int ShopTabStripWidth = ShopPanelSize.width - 2 * ShopTabStripLeft;
 
-/** @brief Two tab rows plus a gap, then the grid. Fixed, so the grid does not move when a vendor has fewer tabs. */
-constexpr int ShopTabRows = 2;
-constexpr int ShopGridTop = ShopTabTop + ShopTabRows * (ShopTabHeight + ShopTabRowGap) + 18;
-constexpr int ShopFooterTop = ShopGridTop + ShopGridHeight + 10;
+/** @brief Bulk actions and the gold readout, stacked between the tabs and the grid. */
+// The two gaps are 2, not a more comfortable 4: the grid's bottom is pinned and the title band is
+// fixed, so everything between them shares one fixed budget. GridFrameWidth is 6 - the carved stone
+// bezel's, not the procedural bevel's 3 - and reserving the smaller number is the mistake the
+// assert below exists to catch.
+constexpr int ShopActionTop = ShopTabTop + ShopTabRows * (ShopTabHeight + ShopTabRowGap) + 2;
+constexpr int ShopActionHeight = 20;
+constexpr int ShopGoldTop = ShopActionTop + ShopActionHeight + 2;
+constexpr int ShopGoldHeight = 15;
 
-static_assert(ShopFooterTop < ShopPanelSize.height, "the shop footer starts below the panel");
+static_assert(ShopGoldTop + ShopGoldHeight <= ShopGridTop - GridFrameWidth,
+    "the controls above the shop grid no longer clear it - drop a tab row or shorten the stack");
 static_assert(ShopGridLeft >= 0, "the shop grid is wider than the panel");
 
 /** @brief Where one stock entry sits on the grid, and which stock entry it is. */
@@ -103,6 +129,22 @@ Point CellOrigin(Point cell)
 {
 	const Rectangle grid = GetShopGridRect();
 	return { grid.position.x + cell.x * ShopCellPx, grid.position.y + cell.y * ShopCellPx };
+}
+
+/**
+ * @brief Where ClxDraw wants an item sprite: the pixel just past its BOTTOM row.
+ *
+ * ClxDraw renders upward from the point it is given, so a three-cell-tall sword anchored on its top
+ * row draws 56px above the grid. The first build of this panel did exactly that, and the stock
+ * climbed out over the tab strip. The inventory has always anchored the same way - see inv.cpp's
+ * `+ Displacement { 0, InventorySlotSizeInPixels.height }` - it just gets there differently, because
+ * AddItemToInvGrid marks an item's BOTTOM-left cell as its first slot rather than its top-left. This
+ * grid packs from the top-left, so the item's own height has to be added back here.
+ */
+Point SpriteAnchor(const PlacedSlot &slot)
+{
+	const Point origin = CellOrigin(slot.cell);
+	return { origin.x, origin.y + slot.cells.height * ShopCellPx };
 }
 
 /** @brief Which placed slot @p position is over, or -1. */
@@ -213,21 +255,13 @@ bool CheckShopTabRowClick(Point position)
 	return false;
 }
 
-Rectangle ShopFooterRect()
-{
-	const Rectangle panel = GetShopPanelRect();
-	return Rectangle { { panel.position.x + ShopGridLeft, panel.position.y + ShopFooterTop },
-		{ ShopGridWidth, ShopPanelSize.height - ShopFooterTop - 12 } };
-}
-
-constexpr int ShopActionHeight = 20;
-
-/** @brief Bulk-action buttons share one row across the footer, at most two of them. */
+/** @brief Bulk-action buttons share one row above the grid, at most two of them. */
 Rectangle ShopActionRect(size_t index, size_t count)
 {
-	const Rectangle footer = ShopFooterRect();
-	const int width = footer.size.width / static_cast<int>(std::max<size_t>(count, 1));
-	return Rectangle { { footer.position.x + static_cast<int>(index) * width, footer.position.y + 42 },
+	const Rectangle panel = GetShopPanelRect();
+	const int width = ShopTabStripWidth / static_cast<int>(std::max<size_t>(count, 1));
+	return Rectangle { { panel.position.x + ShopTabStripLeft + static_cast<int>(index) * width,
+	                       panel.position.y + ShopActionTop },
 		{ width, ShopActionHeight } };
 }
 
@@ -238,26 +272,16 @@ Rectangle ShopCloseRect()
 	return Rectangle { { panel.position.x + panel.size.width - 34, panel.position.y + 14 }, { 20, 20 } };
 }
 
-void DrawShopFooter(const Surface &out, const std::vector<ShopSlot> &stock, int hovered)
+/**
+ * @brief The bulk-action row and the gold readout, both above the grid.
+ *
+ * The hovered item's name and price used to live down here too. They are a cursor-following popup
+ * now (SetShopHoverInfoString) - the player is already looking at the icon they are hovering, and a
+ * readout at the far end of the panel made them look away from it to read it.
+ */
+void DrawShopControls(const Surface &out)
 {
-	const Rectangle footer = ShopFooterRect();
-	DrawThemedFill(out, footer, 2);
-	DrawOrnateBorderOutside(out, footer);
-
-	const int lineHeight = 15;
-	Rectangle line { { footer.position.x + 6, footer.position.y + 6 }, { footer.size.width - 12, lineHeight } };
-
-	if (hovered >= 0 && hovered < static_cast<int>(stock.size())) {
-		const ShopSlot &slot = stock[hovered];
-		DrawString(out, slot.item->getName(), line,
-		    { slot.item->getTextColorWithStatCheck() | UiFlags::FontSize12 | UiFlags::AlignCenter });
-		line.position.y += lineHeight;
-		DrawString(out, StrCat(_(ShopPriceLabel(stextflag)), ": ", FormatInteger(slot.price)), line,
-		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
-	} else {
-		DrawString(out, _("Select an item"), line,
-		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
-	}
+	const Rectangle panel = GetShopPanelRect();
 
 	const std::vector<ShopAction> actions = GetShopActions(stextflag);
 	for (size_t i = 0; i < actions.size(); i++) {
@@ -268,9 +292,10 @@ void DrawShopFooter(const Surface &out, const std::vector<ShopSlot> &stock, int 
 		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 
-	line.position.y = footer.position.y + footer.size.height - lineHeight - 6;
-	DrawString(out, fmt::format(fmt::runtime(_("Your gold: {:s}")), FormatInteger(TotalPlayerGold())), line,
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
+	const Rectangle goldLine { { panel.position.x + ShopTabStripLeft, panel.position.y + ShopGoldTop },
+		{ ShopTabStripWidth, ShopGoldHeight } };
+	DrawString(out, fmt::format(fmt::runtime(_("Your gold: {:s}")), FormatInteger(TotalPlayerGold())), goldLine,
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }
 
 void DrawShopClose(const Surface &out)
@@ -352,24 +377,22 @@ void DrawShopGrid(const Surface &out)
 	if (ShopGridSel >= static_cast<int>(stock.size()))
 		ShopGridSel = stock.empty() ? 0 : static_cast<int>(stock.size()) - 1;
 
-	constexpr Displacement SpriteOffset { 0, ShopCellPx - 1 };
-
 	for (const PlacedSlot &slot : placed) {
 		const Item &item = *stock[slot.stockIndex].item;
-		InvDrawSlotBack(out, CellOrigin(slot.cell) + SpriteOffset,
+		InvDrawSlotBack(out, SpriteAnchor(slot),
 		    { slot.cells.width * ShopCellPx, slot.cells.height * ShopCellPx }, item);
 	}
 
 	for (const PlacedSlot &slot : placed) {
 		const Item &item = *stock[slot.stockIndex].item;
 		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
-		const Point position = CellOrigin(slot.cell) + SpriteOffset;
+		const Point position = SpriteAnchor(slot);
 		if (slot.stockIndex == ShopGridSel)
 			ClxDrawOutline(out, GetOutlineColor(item, true), position, sprite);
 		ClxDraw(out, position, sprite);
 	}
 
-	DrawShopFooter(out, stock, stock.empty() ? -1 : ShopGridSel);
+	DrawShopControls(out);
 	DrawShopClose(out);
 }
 
@@ -417,6 +440,29 @@ void MoveShopGridSelection(int columns, int rows)
 	const int step = columns + rows * ShopGridColumns;
 	const int count = static_cast<int>(stock.size());
 	ShopGridSel = ((ShopGridSel + step) % count + count) % count;
+}
+
+bool SetShopHoverInfoString()
+{
+	if (!IsShopGridScreen(stextflag))
+		return false;
+	const std::vector<ShopSlot> stock = GetShopStock(stextflag);
+	const std::vector<PlacedSlot> placed = PlaceStock(stock);
+	const int hovered = PlacedSlotAt(placed, MousePosition);
+	if (hovered < 0)
+		return false;
+
+	const ShopSlot &slot = stock[placed[hovered].stockIndex];
+	// The same two calls the inventory's own hover makes, in the same order: the name sets the
+	// string and its colour, the details append to it. Then the price, which is the one line a shop
+	// adds - and it says what the number is FOR, because on Repair and Recharge the player is not
+	// buying the item.
+	ClearPanelStrings();
+	GetItemStr(*slot.item);
+	PrintItemDetails(*slot.item);
+	AddPanelString(StrCat(_(ShopPriceLabel(stextflag)), ": ", FormatInteger(slot.price)),
+	    UiFlags::ColorWhitegold);
+	return true;
 }
 
 void ActivateShopGridSelection()

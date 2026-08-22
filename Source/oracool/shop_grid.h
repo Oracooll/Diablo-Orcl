@@ -69,4 +69,17 @@ void ActivateShopGridSelection();
 /** @brief Puts the cursor back on the first item. Called whenever a shop screen opens. */
 void ResetShopGridSelection();
 
+/**
+ * @brief Fills InfoString from the shop item under the cursor. True if it did.
+ *
+ * The stat block is a popup that follows the cursor (DrawCursorTooltip), not a readout at the far
+ * end of the panel - the same box the inventory, stash and belt already use on hover, so an item
+ * reads identically wherever the player meets it.
+ *
+ * Called from UpdateInfoString rather than from the draw, because UpdateInfoString runs AFTER the
+ * store draws and clears whatever it finds. It is the one function that decides what the tooltip
+ * says, which makes it the only place this can be answered.
+ */
+bool SetShopHoverInfoString();
+
 } // namespace devilution::oracool

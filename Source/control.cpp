@@ -48,6 +48,7 @@
 #include "oracool/inventory_layout.h"
 #include "engine/render/primitive_render.hpp"
 #include "oracool/ornate_border.h"
+#include "oracool/shop_grid.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
@@ -1177,6 +1178,11 @@ void FreeControlPan()
 
 void UpdateInfoString()
 {
+	// The shop grid answers first and stops. Its panel covers the world, so every other producer
+	// below is describing something the player cannot see or reach while it is open.
+	if (oracool::SetShopHoverInfoString())
+		return;
+
 	if (!panelflag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && !ActiveTabItemHovered && !spselflag) {
 		ClearPanelStrings();
 		InfoColor = UiFlags::ColorWhite;
