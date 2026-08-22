@@ -450,10 +450,17 @@ TEST(Writehero, pfile_write_hero)
 	//      per slot - carrying the LEFT-button bindings (LShift+F1-F8), and both hotkey chunks grew
 	//      from 6 slots to 8. A separate tag rather than a widening of chunk 7, so a hero written
 	//      before the left bindings existed still loads its right ones and simply has no left ones.
+	// 1.9.20: HeroChunkMilestones (u32) and HeroChunkSignets (u8) joined the tail - D2MXL-to-ORCL
+	//      Phase 2's claimed-milestone mask and consumed-signet count. Additive tail chunks, so the
+	//      fixed struct is byte-identical again and an older build skips both unknown tags.
+	//
+	//      They ride the tail rather than growing PlayerPack precisely BECAUSE of what this test
+	//      guards: PlayerPack's own header records that growing it at 1.5.0 broke every character
+	//      then existing, and the tail exists so that never has to happen twice.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "289d91e5cf2c5ceb8e979ab3395ee656361bc0c3b6dd0dc5c990208606d4f63e");
+	    "56e245c05c19b47b7d9881c825f0bb5fa3120bb9057f2c977c41acb67e992c6c");
 }
 
 } // namespace

@@ -1,5 +1,7 @@
 #include "oracool/hero_chunks.h"
 
+#include "oracool/signets.h"
+
 #include <algorithm>
 #include <cstring>
 #include <iterator>
@@ -177,6 +179,20 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		EndChunk(out, at);
 	}
 
+	// D2MXL-to-ORCL Phase 2. Both ride the tail rather than growing PlayerPack, which is what the
+	// tail was built for - a fixed struct's growth invalidates every existing hero file, and this
+	// costs nothing.
+	{
+		const size_t at = BeginChunk(out, HeroChunkMilestones);
+		PutU32(out, PackMilestones(player));
+		EndChunk(out, at);
+	}
+	{
+		const size_t at = BeginChunk(out, HeroChunkSignets);
+		out.push_back(PackSignetsUsed(player));
+		EndChunk(out, at);
+	}
+
 	return out;
 }
 
@@ -232,6 +248,14 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			break;
 		case HeroChunkClassTree:
 			ApplyClassTree(player, payload, chunkLen);
+			break;
+		case HeroChunkMilestones:
+			if (chunkLen >= 4)
+				ApplyMilestones(player, GetU32(payload));
+			break;
+		case HeroChunkSignets:
+			if (chunkLen >= 1)
+				ApplySignetsUsed(player, payload[0]);
 			break;
 		case HeroChunkSpellHotkeysLeft:
 			if (chunkLen >= 1) {

@@ -34,6 +34,7 @@
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
 #include "oracool/mystic_orbs.h"
+#include "oracool/signets.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
@@ -684,6 +685,9 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				PlaySFX(IS_CAST7);
 				oracool::LogEvent(fmt::format("{:s} absorbed into {:s}",
 				    std::string(player.HoldItem.getName()), std::string(socketTarget.getName())));
+				// Phase 2: filling an item to its cap is a milestone. Checked through the passive
+				// walk rather than tested here, so "an item at its cap" has one definition.
+				oracool::CheckPassiveMilestones(player);
 			}
 			player.HoldItem.clear();
 			NewCursor(CURSOR_HAND);
@@ -695,8 +699,13 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				PlaySFX(IS_IGRAB);
 			// The moment of transformation: the right rune sequence, completed just now, renames
 			// the item and announces itself. Derived state - the check costs one table walk.
-			if (oracool::TryCompleteRuneword(socketTarget) && &player == MyPlayer)
+			// Phase 2: a completed runeword is a milestone, and the ONLY moment it can be noticed -
+			// afterwards the item is just an item with a name, and nothing on the player says a
+			// word was ever finished.
+			if (oracool::TryCompleteRuneword(socketTarget) && &player == MyPlayer) {
 				oracool::LogEvent(fmt::format("Runeword complete: {:s}", socketTarget._iIName));
+				oracool::ClaimMilestone(player, oracool::Milestone::CompleteRuneword);
+			}
 			player.HoldItem.clear();
 			NewCursor(CURSOR_HAND);
 			CalcPlrInv(player, true);

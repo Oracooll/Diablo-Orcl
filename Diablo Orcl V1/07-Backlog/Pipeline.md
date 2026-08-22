@@ -47,11 +47,23 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Diablo 2-style shop interface | Systems | Medium | No | | A grid shop with tabs rather than the vanilla scrolling list. |
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
-| D2MXL Phase 2: Signets and challenges | Systems | Medium | New file | | Plan - D2MXL to ORCL, Phase 2. A rare drop granting a PERMANENT character stat point with a lifetime cap, plus milestone challenges ("reach level 30 and kill a Dread boss"). Both live in PlayerPack beside the readied-spell encoding and the waypoint bitmask, so neither touches the item format at all. The cap is the whole design: without it a signet is just a slower level-up. |
+| The Signet as a droppable item | Systems | Small | No | | The half of Phase 2 deliberately left out at v1.9.20. The MECHANISM shipped - cap, permanent points, eight milestones that pay them - and needed no art, no icon rebuild and no MPQ repack. What is missing is the Signet as a thing that DROPS: a generator, one item, a drop hook and a use path. Milestones are meant to be the reliable source and the drop the bonus on top, so the economy works without it and is richer with it. |
+| PlayerPack's header comment is out of date | Directive | Small | No | | It says pfile.cpp's ReadHero "only accepts a file whose size matches sizeof(PlayerPack) exactly", and warns that anything wanting space should hunt for reserved bytes. ReadHero has accepted a chunked TAIL since 1.6.27 - `read >= sizeof(*pPack)` with the excess handed to ApplyHeroChunks - which is where new per-character state has belonged ever since. The stale comment nearly sent Phase 2 into a struct growth that would have broken every hero file. Correct it before it misdirects someone else. |
 | D2MXL Phase 3: Growing charms | Systems | Medium | No | | Plan - D2MXL to ORCL, Phase 3. A charm that gains stats as milestones are met rather than being fixed at drop. Needs per-item state for the same reason orbs did - and the byte was already paid at v1.9.19, which is why this was planned then and built later rather than the other way round. Wants Phase 2's milestones to grow against. |
 | D2MXL Phase 4: Named encounters | Phase 5 | Large | No | | Plan - D2MXL to ORCL, Phase 4. Median XL's uberquests: a specific hard fight, in a specific place, with a KNOWN reward. Most of the machinery landed in the v1.9.7-1.9.16 line - bosses, treasure classes, tinting, affix pools - so what is missing is the fixed-reward half and somewhere to put it. The only phase of the four that wants new CONTENT rather than new mechanism. |
 
 ## Shipped, so not listed above
+
+**Signets of Learning and milestones** shipped at v1.9.20 - D2MXL-to-ORCL Phase 2. Permanent stat
+points with a lifetime cap of 20, paid by eight one-time milestones across depth, combat and the
+item systems. The point goes to the UNSPENT pool so the player chooses where it lands.
+
+The plan said `PlayerPack`; checking that first found it cannot grow for free - its reserved bytes
+were repurposed years ago and its own header records that growing it at 1.5.0 broke every character
+then existing. Both values ride the hero CHUNK TAIL instead, which is tagged, length-prefixed and
+forward-compatible, so the phase breaks no save and bumps no version. `Writehero.pfile_write_hero`
+was re-baselined for the two added chunks, which is the deliberate kind of move that test exists to
+make you notice.
 
 **Mystic Orbs** shipped at v1.9.19 - D2MXL-to-ORCL Phase 1. Eight consumables adding one fixed small
 stat to an item, capped at six per ITEM rather than per orb type, applied by dropping one onto a

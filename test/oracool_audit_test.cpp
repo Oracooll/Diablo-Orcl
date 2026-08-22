@@ -53,6 +53,7 @@
 #include "oracool/treasure_class.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/mystic_orbs.h"
+#include "oracool/signets.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
@@ -5177,4 +5178,118 @@ TEST(OracoolAudit, TheOrbCountAndMagicFindSurviveARoundTrip)
 	totals.AddItem(original);
 	EXPECT_GT(totals.magicFind, 0)
 	    << "an orbed item's magic find never reaches ItemBonusTotals - the stat is written and unread";
+}
+
+/**
+ * Signets of Learning and the milestones that pay them - D2MXL-to-ORCL Phase 2.
+ *
+ * Permanent progression that survives your gear, with a LIFETIME CAP. The cap is the design:
+ * without it a signet is a slower level-up; with it, the pool is a finite resource you can exhaust
+ * and then must live with.
+ *
+ * Unlike Phase 1 this cost no format change at all - both values ride the hero chunk tail, which is
+ * tagged, length-prefixed and forward-compatible. That is worth an assertion of its own, because
+ * "it persists" is the entire claim and nothing else in the build would notice if it stopped.
+ */
+TEST(OracoolAudit, SignetsAreCappedAndMilestonesPayThemOnce)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+
+	// A clean slate. ApplyMilestones/ApplySignetsUsed are the load path, so they are also how a
+	// test resets - going through the real door rather than reaching past it.
+	ApplyMilestones(player, 0);
+	ApplySignetsUsed(player, 0);
+	player._pStatPts = 0;
+	ASSERT_EQ(SignetsUsed(player), 0);
+
+	// Every milestone is named, and no two share a name - they reach the event log.
+	std::set<std::string> names;
+	for (int i = 0; i < MilestoneCount; i++) {
+		const std::string name = MilestoneName(static_cast<Milestone>(i));
+		EXPECT_FALSE(name.empty()) << "milestone " << i << " has no name";
+		EXPECT_TRUE(names.insert(name).second) << "two milestones share the name " << name;
+	}
+	// The mask is a u32 on the wire, so the list must fit in one.
+	EXPECT_LE(MilestoneCount, 32) << "the milestone list outgrew its u32 chunk";
+
+	// ---- a milestone pays ONCE ----
+	EXPECT_FALSE(IsMilestoneClaimed(player, Milestone::Level20));
+	EXPECT_TRUE(ClaimMilestone(player, Milestone::Level20)) << "the first claim was refused";
+	EXPECT_TRUE(IsMilestoneClaimed(player, Milestone::Level20));
+	EXPECT_EQ(player._pStatPts, 1) << "a claimed milestone granted no point";
+	EXPECT_EQ(SignetsUsed(player), 1);
+
+	EXPECT_FALSE(ClaimMilestone(player, Milestone::Level20)) << "a milestone paid twice";
+	EXPECT_EQ(player._pStatPts, 1) << "a second claim still granted a point";
+	EXPECT_EQ(SignetsUsed(player), 1);
+
+	// ---- the CAP, which is the whole design ----
+	ApplyMilestones(player, 0);
+	ApplySignetsUsed(player, 0);
+	player._pStatPts = 0;
+	for (int i = 0; i < SignetLifetimeCap; i++)
+		ASSERT_TRUE(ConsumeSignet(player)) << "signet " << i << " was refused early";
+	EXPECT_EQ(player._pStatPts, SignetLifetimeCap);
+	EXPECT_FALSE(CanConsumeSignet(player)) << "a spent pool still offers room";
+	EXPECT_FALSE(ConsumeSignet(player)) << "the lifetime cap was exceeded";
+	EXPECT_EQ(player._pStatPts, SignetLifetimeCap) << "a refused signet still granted a point";
+
+	// A milestone met with the pool spent is still CLAIMED - it does not lurk and pay out later,
+	// out of order, for something the player did hours ago.
+	EXPECT_TRUE(ClaimMilestone(player, Milestone::SlayDreadBoss)) << "a milestone was not claimed at the cap";
+	EXPECT_TRUE(IsMilestoneClaimed(player, Milestone::SlayDreadBoss));
+	EXPECT_EQ(player._pStatPts, SignetLifetimeCap) << "a milestone paid past the cap";
+
+	// ---- the passive walk is idempotent, because it runs on every level-up ----
+	ApplyMilestones(player, 0);
+	ApplySignetsUsed(player, 0);
+	player._pStatPts = 0;
+	player._pLevel = 45;
+	CheckPassiveMilestones(player);
+	const int afterFirst = player._pStatPts;
+	EXPECT_GE(afterFirst, 2) << "level 45 did not claim the level-20 and level-40 milestones";
+	CheckPassiveMilestones(player);
+	CheckPassiveMilestones(player);
+	EXPECT_EQ(player._pStatPts, afterFirst)
+	    << "the passive walk paid again - it runs on every level-up, so it must be idempotent";
+	// And a threshold not yet reached stays unclaimed.
+	EXPECT_FALSE(IsMilestoneClaimed(player, Milestone::Level60));
+
+	// ---- persistence: the whole claim of this phase ----
+	ApplyMilestones(player, 0);
+	ApplySignetsUsed(player, 0);
+	ClaimMilestone(player, Milestone::Level20);
+	ClaimMilestone(player, Milestone::CompleteRuneword);
+	const uint32_t savedMask = PackMilestones(player);
+	const uint8_t savedUsed = PackSignetsUsed(player);
+
+	ApplyMilestones(player, 0);
+	ApplySignetsUsed(player, 0);
+	ASSERT_FALSE(IsMilestoneClaimed(player, Milestone::Level20)) << "the reset did not take";
+
+	ApplyMilestones(player, savedMask);
+	ApplySignetsUsed(player, savedUsed);
+	EXPECT_TRUE(IsMilestoneClaimed(player, Milestone::Level20)) << "a claimed milestone did not survive";
+	EXPECT_TRUE(IsMilestoneClaimed(player, Milestone::CompleteRuneword));
+	EXPECT_EQ(SignetsUsed(player), savedUsed) << "the consumed count did not survive";
+
+	// A mask from a LATER build, with bits this one cannot name, must not mark unknown milestones
+	// claimed - that would silently withhold a reward this build is supposed to pay.
+	ApplyMilestones(player, 0xFFFFFFFFU);
+	for (int i = 0; i < MilestoneCount; i++)
+		EXPECT_TRUE(IsMilestoneClaimed(player, static_cast<Milestone>(i)));
+	EXPECT_EQ(PackMilestones(player), (MilestoneCount >= 32) ? 0xFFFFFFFFU : ((1U << MilestoneCount) - 1U))
+	    << "unknown milestone bits were kept rather than masked away";
+
+	// A corrupted count is clamped, not trusted.
+	ApplySignetsUsed(player, 200);
+	EXPECT_EQ(SignetsUsed(player), SignetLifetimeCap) << "an out-of-range consumed count was not clamped";
+	EXPECT_FALSE(CanConsumeSignet(player));
+
+	ApplyMilestones(player, 0);
+	ApplySignetsUsed(player, 0);
 }

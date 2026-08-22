@@ -39,6 +39,7 @@
 #include "objects.h"
 #include "options.h"
 #include "oracool/aura_field.h"
+#include "oracool/signets.h"
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/class_skills.h"
@@ -2554,6 +2555,11 @@ void NextPlrLevel(Player &player)
 	// Recomputing the whole innate mask rather than OR-ing one bit keeps this site from needing to
 	// know which skills are level-gated.
 	player._pAblSpells = oracool::InnateSpellsBitmask(player);
+
+	// D2MXL-to-ORCL Phase 2: the level milestones. Checked HERE rather than per-tick, because a
+	// level-up is the only moment their answer can change - and ClaimMilestone is idempotent, so
+	// re-testing every threshold on every level costs a handful of bit tests.
+	oracool::CheckPassiveMilestones(player);
 
 	// Oracool: user request - the same "quest completed" jingle used when the Poisoned Water
 	// Supply quest finishes (see quests.cpp's StartPWaterPurify), repurposed as a level-up cue.

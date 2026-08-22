@@ -94,6 +94,20 @@ enum HeroChunkTag : uint16_t {
 	 * sees this tag and leaves the left array empty, which is exactly right.
 	 */
 	HeroChunkSpellHotkeysLeft = 8,
+	/**
+	 * @brief D2MXL-to-ORCL Phase 2: the claimed-milestone mask, one u32.
+	 *
+	 * Bit N is Milestone N (oracool/signets.h). Masked to the milestones this build knows on read,
+	 * so a save from a later version with more of them cannot silently mark an unknown one claimed.
+	 */
+	HeroChunkMilestones = 9,
+	/**
+	 * @brief D2MXL-to-ORCL Phase 2: signet points consumed, one u8, capped at SignetLifetimeCap.
+	 *
+	 * The lifetime count rather than a remaining count, so the cap can be re-tuned without every
+	 * existing character's pool jumping or vanishing.
+	 */
+	HeroChunkSignets = 10,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

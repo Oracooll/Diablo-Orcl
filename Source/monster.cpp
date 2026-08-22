@@ -41,6 +41,7 @@
 #include "oracool/monster_variants.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/monster_scale.h"
+#include "oracool/signets.h"
 #include "oracool/telemetry.h"
 
 #include "qol/floatingnumbers.h"
@@ -4044,6 +4045,12 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// Both happen in the same tick, so the ordering the earlier comment defended - the discharge
 	// reading as part of the kill - is not something the player can perceive either way.
 	oracool::OnLesserUniqueKilled(monster);
+
+	// D2MXL-to-ORCL Phase 2: killing a Dread boss is a milestone. Claimed here rather than from the
+	// loot path, because the reward is for the KILL - a boss that dropped nothing still counts, and
+	// tying it to the drop would make the milestone depend on a roll.
+	if (oracool::IsEndgameBoss(monster) && MyPlayer != nullptr)
+		oracool::ClaimMilestone(*MyPlayer, oracool::Milestone::SlayDreadBoss);
 
 	if (monster.type().type == MT_DIABLO)
 		DiabloDeath(monster, true);
