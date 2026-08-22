@@ -124,6 +124,15 @@ void DrawSLine(const Surface &out, int sy);
 void DrawSTextHelp();
 void ClearSText(int s, int e);
 void StartStore(TalkID s);
+
+/**
+ * @brief Whether Griswold offers his unique stock at all.
+ *
+ * Exposed so the shop tab strip can ask rather than re-derive it. The rule is
+ * "single-player, and the option is on", and a second copy of that in the tab code would be a
+ * second opinion about whether a tab exists - which shows up as a tab that opens an empty screen.
+ */
+bool HasSmithUniqueShop();
 void DrawSText(const Surface &out);
 void StoreESC();
 void StoreUp();

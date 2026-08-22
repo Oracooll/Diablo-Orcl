@@ -36,6 +36,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/oracool.h"
+#include "oracool/shop_tabs.h"
 #include "oracool/skill_points.h"
 #include "panels/info_box.hpp"
 #include "qol/stash.h"
@@ -246,24 +247,18 @@ int SmithRepairAllLine()
 	return BackButtonLine() - 2;
 }
 
-bool HasSmithUniqueShop()
-{
-	return !gbIsMultiplayer && *sgOptions.Oracool.griswoldSellUniqueItems;
-}
-
 std::vector<TalkID> SmithMenuEntries()
 {
-	std::vector<TalkID> entries { TalkID::Gossip, TalkID::SmithBuy, TalkID::SmithPremiumBuy };
-	if (HasSmithUniqueShop())
-		entries.push_back(TalkID::SmithUniqueBuy);
-	if (!gbIsMultiplayer)
-		entries.push_back(TalkID::SmithConsumables);
-	entries.push_back(TalkID::SmithSell);
-	entries.push_back(TalkID::SmithRepair);
-	if (!gbIsMultiplayer)
-		entries.push_back(TalkID::SmithRecharge);
-	entries.push_back(TalkID::None);
-	return entries;
+	// ONE DOOR. This listed all seven services and had grown a new line every time one was added -
+	// nine entries by v1.9.24, which stops being a menu and becomes a list you read every visit.
+	//
+	// They are all still there; they are TABS now (oracool/shop_tabs.h), which is how D2 and D3
+	// both answer this. Gossip and leave stay out here because one is a conversation and the other
+	// is the way out of the building - neither is a shop screen.
+	//
+	// SmithBuy is the door because it is the tab a player wants most often; the strip lets them
+	// reach any of the others in one further click, which is fewer than the old menu ever managed.
+	return { TalkID::Gossip, TalkID::SmithBuy, TalkID::None };
 }
 
 int SmithMenuFirstLine(size_t entryCount)
@@ -275,9 +270,16 @@ int SmithMenuFirstLine(size_t entryCount)
 int SmithMenuLine(TalkID service)
 {
 	const std::vector<TalkID> entries = SmithMenuEntries();
-	const auto position = std::find(entries.begin(), entries.end(), service);
-	if (position == entries.end())
-		return SmithMenuFirstLine(entries.size());
+	auto position = std::find(entries.begin(), entries.end(), service);
+	if (position == entries.end()) {
+		// The service asked for is a TAB now, not a menu entry - every caller that backs out of one
+		// lands here. Falling back to the first line would put the cursor on "Talk to Griswold",
+		// which is not where anyone leaving the shop wants it; the DOOR is, so that anyone stepping
+		// out is one click from stepping back in.
+		position = std::find(entries.begin(), entries.end(), TalkID::SmithBuy);
+		if (position == entries.end())
+			return SmithMenuFirstLine(entries.size());
+	}
 	return SmithMenuFirstLine(entries.size()) + static_cast<int>(std::distance(entries.begin(), position)) * 2;
 }
 
@@ -588,7 +590,9 @@ void StartSmith()
 			AddSText(0, line, _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 			break;
 		case TalkID::SmithBuy:
-			AddSText(0, line, _("Buy basic items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+			// "Enter Shop", not "Buy basic items" - it opens the shop, and buying basic items is
+			// only the tab it happens to land on.
+			AddSText(0, line, _("Enter Shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 			break;
 		case TalkID::SmithPremiumBuy:
 			AddSText(0, line, _("Buy premium items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
@@ -1861,13 +1865,24 @@ void SmithEnter()
 /**
  * @brief Purchases an item from the smith.
  */
-void SmithBuyItem(Item &item)
+/**
+ * @brief Buys @p item and removes stock entry @p idx, compacting the array.
+ *
+ * The index is a PARAMETER now. Every transaction in this file used to derive it from
+ * `stextvhold + ((stextlhold - stextup) / 4)` - which is not "which item" but "where the text list
+ * happened to be scrolled", and that coupling is the direct cause of the store crash fixed at
+ * v1.8.90 and the three stalled walks found at v1.8.94.
+ *
+ * A grid shop has no text lines to arithmetic on, so it needs to say which item plainly. Splitting
+ * the two apart is worth doing for its own sake: the transaction should not be able to disagree
+ * with the display about what is being sold.
+ */
+void SmithBuyItemAt(Item &item, int idx)
 {
 	TakePlrsMoney(item._iIvalue);
 	if (item._iMagical == ITEM_QUALITY_NORMAL)
 		item._iIdentified = false;
 	StoreAutoPlace(item, true);
-	int idx = stextvhold + ((stextlhold - stextup) / 4);
 	if (idx == SMITH_ITEMS - 1) {
 		smithitem[SMITH_ITEMS - 1].clear();
 	} else {
@@ -1877,6 +1892,12 @@ void SmithBuyItem(Item &item)
 		smithitem[idx].clear();
 	}
 	CalcPlrInv(*MyPlayer, true);
+}
+
+/** @brief The text-store's caller: it still knows the index only as a scroll position. */
+void SmithBuyItem(Item &item)
+{
+	SmithBuyItemAt(item, stextvhold + ((stextlhold - stextup) / 4));
 }
 
 void SmithBuyEnter()
@@ -3006,6 +3027,14 @@ void DrawSelector(const Surface &out, const Rectangle &rect, string_view text, U
 
 } // namespace
 
+bool HasSmithUniqueShop()
+{
+	// Moved out of the anonymous namespace when the shop tab strip needed it. One rule, one place -
+	// the strip decides whether to OFFER the unique tab and StartSmithUniqueBuy decides whether
+	// there is anything behind it, and those two must not be able to disagree.
+	return !gbIsMultiplayer && *sgOptions.Oracool.griswoldSellUniqueItems;
+}
+
 /**
  * @brief The player's whole spendable gold: carried plus the shared Stash pool.
  *
@@ -3612,6 +3641,12 @@ void DrawSText(const Surface &out)
 	else
 		DrawQTextBack(out);
 
+	// The shop's tab strip, above the panel. Drawn after the panel background and before the text,
+	// so the panel cannot paint over it and the text is never underneath it - the strip lives in
+	// the gap above y+28, which is exactly why it costs no reflow of the store's fixed line
+	// positions. Does nothing unless a shop tab is open.
+	oracool::DrawShopTabs(out);
+
 	if (stextscrl) {
 		switch (stextflag) {
 		case TalkID::SmithBuy:
@@ -3968,7 +4003,16 @@ void CheckStoreBtn()
 		qtextflag = false;
 		if (leveltype == DTYPE_TOWN)
 			stream_stop();
-	} else if (stextsel != -1 && MousePosition.y >= (PaddingTop + uiPosition.y) && MousePosition.y <= (320 + uiPosition.y)) {
+		return;
+	}
+
+	// The tab strip FIRST, because it sits above the panel this function hit-tests - the y range
+	// below starts at PaddingTop and the strip is higher than that, so without this it would be
+	// dead pixels that draw as buttons.
+	if (oracool::CheckShopTabClick(MousePosition))
+		return;
+
+	if (stextsel != -1 && MousePosition.y >= (PaddingTop + uiPosition.y) && MousePosition.y <= (320 + uiPosition.y)) {
 		if (!stextsize) {
 			if (MousePosition.x < 344 + uiPosition.x || MousePosition.x > 616 + uiPosition.x)
 				return;
