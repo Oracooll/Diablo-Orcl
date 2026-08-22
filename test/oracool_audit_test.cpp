@@ -4500,7 +4500,11 @@ TEST(OracoolAudit, TemperJewelsClimbsTheGradeAndStopsAtRadiant)
 	EXPECT_EQ(NextJewelGrade(IDI_GOLD), IDI_GOLD);
 
 	// The recipe exists, is named, and is reachable through the same table the UI walks.
-	ASSERT_EQ(CraftingRecipeCount, 5) << "the recipe table did not grow";
+	//
+	// GT rather than EQ: this asserted `== 5` when Temper Jewels was the last recipe, and went red
+	// the moment four more were added. What this test cares about is that recipe 4 is reachable,
+	// not how many recipes exist in total - the count belongs to whichever test is about the table.
+	ASSERT_GT(CraftingRecipeCount, 4) << "recipe 4 is past the end of the table";
 	const std::string name = CraftingRecipeName(4);
 	const std::string inputs = CraftingRecipeInputs(4);
 	EXPECT_FALSE(name.empty()) << "recipe 4 has no name - it draws as a blank row";
@@ -4665,4 +4669,157 @@ TEST(OracoolAudit, DifficultyChangesWhatARerunOffersAndNotOnlyHowBig)
 		EXPECT_LT(pct, 100) << "the variant rate reached certainty";
 		previousVariant = pct;
 	}
+}
+
+/**
+ * The four recipes adopted from Kanai's Cube, and the drain they give the salvage economy.
+ *
+ * Before v1.9.17 the seven salvage materials had NO consumer anywhere in the game. They dropped,
+ * they stacked, they sorted into a row of their own in the stash, and nothing ever spent one. A
+ * faucet with no drain. These four are the drain, and which material pays for what is deliberate:
+ * you salvage uniques to reforge, rares to ennoble, set pieces to recast.
+ *
+ * The thing that would rot silently here is the COST. The match and the consume are two different
+ * pieces of code reading the same requirement, so a recipe that matched on three engravings and
+ * charged two would work perfectly and quietly hand out free crafts forever.
+ */
+TEST(OracoolAudit, CubeRecipesChargeTheirReagentAndTransformInPlace)
+{
+	using namespace devilution::oracool;
+
+	ASSERT_EQ(CraftingRecipeCount, 9) << "the recipe table did not grow";
+
+	// Every recipe is named, described, and no two share a name.
+	std::set<std::string> names;
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		EXPECT_FALSE(std::string(CraftingRecipeName(i)).empty()) << "recipe " << i << " draws as a blank row";
+		EXPECT_FALSE(std::string(CraftingRecipeInputs(i)).empty()) << "recipe " << i << " has no input line";
+		EXPECT_TRUE(names.insert(CraftingRecipeName(i)).second) << "two recipes share a name";
+	}
+
+	// The four new ones are grid-only, and so is Free the Sockets - which is what finally takes it
+	// out of the burger window, where it sat permanently greyed out with no backpack case at all.
+	for (int i = 0; i <= 2; i++)
+		EXPECT_FALSE(CraftingRecipeUsesGrid(i)) << "recipe " << i << " left the backpack window";
+	for (int i = 3; i < CraftingRecipeCount; i++)
+		EXPECT_TRUE(CraftingRecipeUsesGrid(i)) << "recipe " << i << " claims a backpack path it does not have";
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	const auto placeReagent = [](devilution::Item *grid, int slot, _item_indexes material, int count) {
+		InitializeItem(grid[slot], material);
+		grid[slot].setStackCount(count);
+	};
+
+	// ---- RECOLOUR: a gem keeps its quality and changes its type, for two Magic Powder ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		InitializeItem(grid[0], IDI_ORACOOL_GEM_RUBY_CHIPPED);
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_MAGIC_POWDER, 5);
+		ASSERT_EQ(FirstReadyLevskiRecipe(grid), 8) << "a gem and its powder do not make Recolour ready";
+
+		EXPECT_FALSE(TransmuteLevskiGrid(grid).empty());
+		GemType type;
+		GemQuality quality;
+		ASSERT_TRUE(GemTypeAndQuality(static_cast<uint16_t>(grid[0].IDidx), type, quality));
+		EXPECT_NE(grid[0].IDidx, IDI_ORACOOL_GEM_RUBY_CHIPPED) << "the gem did not change type";
+		EXPECT_EQ(quality, GemQuality::Chipped) << "the gem changed QUALITY, which is the other recipe";
+		// And the cost came out of the stack rather than the slot: five paid two, three remain.
+		EXPECT_EQ(grid[1].stackCount(), 3) << "the reagent stack was confiscated rather than charged";
+	}
+
+	// A gem with only ONE powder cannot run - the cost is checked, not assumed.
+	{
+		devilution::Item grid[LevskiGridSlots];
+		InitializeItem(grid[0], IDI_ORACOOL_GEM_RUBY_CHIPPED);
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_MAGIC_POWDER, 1);
+		EXPECT_NE(FirstReadyLevskiRecipe(grid), 8) << "Recolour ran on half its reagent";
+	}
+
+	// The reagents are DISTINCT per recipe: a gem beside the wrong material is not a recipe.
+	{
+		devilution::Item grid[LevskiGridSlots];
+		InitializeItem(grid[0], IDI_ORACOOL_GEM_RUBY_CHIPPED);
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 9);
+		EXPECT_EQ(FirstReadyLevskiRecipe(grid), -1) << "a recipe accepted another recipe's reagent";
+	}
+
+	// ---- RECAST: a set piece becomes a DIFFERENT piece of the same set ----
+	{
+		const ItemSetDefinition &set = ItemSets[0];
+		ASSERT_GE(set.itemCount, 2);
+		const SetItemDefinition &piece = ItemSetItems[set.firstItem];
+		const int base = BaseItemForSetSlot(piece.slot);
+		ASSERT_GE(base, 0);
+
+		devilution::Item grid[LevskiGridSlots];
+		InitializeItem(grid[0], static_cast<_item_indexes>(base));
+		MakeSetItem(grid[0], piece);
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 3);
+		ASSERT_EQ(FirstReadyLevskiRecipe(grid), 7);
+
+		EXPECT_FALSE(TransmuteLevskiGrid(grid).empty());
+		EXPECT_TRUE(IsSetItem(grid[0])) << "the recast produced something that is not a set piece";
+		EXPECT_NE(grid[0]._iCurs, piece.cursor) << "the recast returned the same piece it consumed";
+		const SetItemDefinition *made = FindSetItemByCursor(grid[0]._iCurs);
+		ASSERT_NE(made, nullptr);
+		EXPECT_EQ(FindItemSetOwning(made->id), &set) << "the recast crossed into a different set";
+		EXPECT_TRUE(grid[1].isEmpty()) << "an exactly-sufficient reagent stack was not spent";
+	}
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+}
+
+/**
+ * Nine recipes need a rule for which one runs, and "the lowest-numbered ready one" is not it.
+ *
+ * That rule was fine while the five recipes had disjoint inputs. It stopped being fine the moment
+ * four arrived that all eat "one item plus a reagent": a socketed item with reforge materials
+ * beside it satisfies BOTH Free the Sockets (one slot) and Reforge (four), and lowest-index would
+ * pick Free the Sockets every time - so reforge reagents would be silently unusable on anything
+ * socketed, and nothing would say why.
+ *
+ * Most-slots-wins is the rule because it is the one a player can predict without reading the
+ * source: the monument runs the recipe that uses the most of what you put in front of it.
+ */
+TEST(OracoolAudit, TheMonumentRunsTheRecipeThatUsesTheMostOfWhatYouPutIn)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	// Three identical gems alone: Refine Gems, three slots.
+	devilution::Item gems[LevskiGridSlots];
+	for (int i = 0; i < 3; i++)
+		InitializeItem(gems[i], IDI_ORACOOL_GEM_RUBY_CHIPPED);
+	EXPECT_EQ(FirstReadyLevskiRecipe(gems), 0);
+
+	// An empty grid offers nothing, and must say so rather than picking recipe 0 by default.
+	devilution::Item empty[LevskiGridSlots];
+	EXPECT_EQ(FirstReadyLevskiRecipe(empty), -1) << "an empty grid claims a recipe is ready";
+
+	// THE COLLISION. A socketed item satisfies Free the Sockets on its own; add reforge reagents
+	// and Reforge - which consumes strictly more - must win.
+	devilution::Item collide[LevskiGridSlots];
+	InitializeItem(collide[0], IDI_ORACOOL_HELM);
+	collide[0]._iMagical = ITEM_QUALITY_MAGIC;
+	collide[0]._iSocketed[0] = static_cast<uint16_t>(IDI_ORACOOL_GEM_RUBY_CHIPPED);
+	ASSERT_EQ(FirstReadyLevskiRecipe(collide), 3) << "the socketed item alone is not Free the Sockets";
+
+	InitializeItem(collide[1], IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS);
+	collide[1].setStackCount(3);
+	// Reforge refuses a socketed item outright - its stats would come back without the runes that
+	// are inside it - so with the stones still in, Free the Sockets remains the only answer. That
+	// is the correct outcome and worth pinning: the player empties it first, then reforges.
+	EXPECT_EQ(FirstReadyLevskiRecipe(collide), 3)
+	    << "reforge accepted a socketed item and would have destroyed what was in it";
+
+	// With the sockets empty, the reagents win.
+	collide[0]._iSocketed[0] = devilution::Item::EmptySocket;
+	EXPECT_EQ(FirstReadyLevskiRecipe(collide), 5)
+	    << "four slots of reforge lost to a one-slot recipe - the most-slots rule is gone";
 }

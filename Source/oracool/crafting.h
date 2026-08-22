@@ -27,7 +27,21 @@ struct Player;
 
 namespace devilution::oracool {
 
-constexpr int CraftingRecipeCount = 5;
+constexpr int CraftingRecipeCount = 9;
+
+/**
+ * @brief Whether recipe @p index needs the MONUMENT rather than the backpack.
+ *
+ * The first three recipes turn N small things into one small thing, which the backpack's Craft path
+ * handles generically. Everything after them TRANSFORMS an item in place - frees its sockets,
+ * rerolls it, ennobles it - and there is no generic "one in, one changed" shape to hang that on, so
+ * they live on the grid where the caller can see every slot at once.
+ *
+ * The burger Crafting window asks this and skips the ones that answer true. Before it did,
+ * "Free the Sockets" sat in that window permanently greyed out with nothing saying where it
+ * actually lived - it had no backpack case at all, and CanCraft therefore always answered false.
+ */
+bool CraftingRecipeUsesGrid(int index);
 
 /**
  * @brief Levski's Roar runs its recipes against the MONUMENT'S 3x3 grid rather than the backpack.

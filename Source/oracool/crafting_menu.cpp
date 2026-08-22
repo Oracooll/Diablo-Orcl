@@ -40,11 +40,30 @@ void CloseCraftingMenu()
 	MenuOpen = false;
 }
 
+namespace {
+
+/** @brief The recipes this window lists, in order. Grid-only ones are not among them. */
+std::vector<int> BackpackRecipes()
+{
+	std::vector<int> rows;
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		if (!CraftingRecipeUsesGrid(i))
+			rows.push_back(i);
+	}
+	return rows;
+}
+
+} // namespace
+
 Rectangle GetCraftingMenuRect()
 {
 	// The left-panel slot, flush to the top-left like the waypoint list - sized to its content
-	// rather than the full 720, since three recipes need no scroll.
-	const int height = WindowPadding * 2 + HeaderHeight + CraftingRecipeCount * RowHeight;
+	// rather than the full 720, since a handful of recipes need no scroll.
+	//
+	// Sized off the LISTED count rather than CraftingRecipeCount: when the monument's recipes were
+	// filtered out of the list, the window kept the height of all nine and grew a band of empty
+	// panel under the last row.
+	const int height = WindowPadding * 2 + HeaderHeight + static_cast<int>(BackpackRecipes().size()) * RowHeight;
 	return Rectangle { { 0, 0 }, { WindowWidth, height } };
 }
 
@@ -63,7 +82,11 @@ void DrawCraftingMenu(const Surface &out)
 	    { UiFlags::ColorGold | UiFlags::FontSize24 });
 	cursor.y += HeaderHeight;
 
-	for (int i = 0; i < CraftingRecipeCount; i++) {
+	// The monument's own recipes are not listed here. They transform an item in place and have no
+	// backpack path at all, so CanCraft answers false for them forever - which is exactly what
+	// "Free the Sockets" did in this window from the day it shipped: a permanently grey row with
+	// nothing saying it lived on Levski's Roar instead.
+	for (const int i : BackpackRecipes()) {
 		const bool craftable = CanCraft(*MyPlayer, i);
 		// A craftable recipe reads live (gold name, white formula); one missing its materials is
 		// dimmed but still listed - the recipes teaching themselves is half their value.
@@ -82,10 +105,14 @@ void CheckCraftingMenuClick(Point mousePosition)
 	const Rectangle window = GetCraftingMenuRect();
 	const int rowsTop = window.position.y + WindowPadding + HeaderHeight;
 	const int row = (mousePosition.y - rowsTop) / RowHeight;
-	if (mousePosition.y < rowsTop || row < 0 || row >= CraftingRecipeCount)
+	const std::vector<int> rows = BackpackRecipes();
+	if (mousePosition.y < rowsTop || row < 0 || row >= static_cast<int>(rows.size()))
 		return; // header/padding clicks are absorbed by the window, not acted on
 
-	const std::string crafted = Craft(*MyPlayer, row);
+	// The clicked ROW is not the recipe INDEX any more - the grid-only recipes are filtered out of
+	// the list, so row 3 is whatever the fourth listed recipe happens to be. Mapping through the
+	// same list the draw walked is what keeps a click landing on the row the player pointed at.
+	const std::string crafted = Craft(*MyPlayer, rows[row]);
 	if (crafted.empty())
 		return; // missing materials or no room; the dimmed row already says which
 	LogEvent(fmt::format("Crafted: {:s}", crafted));

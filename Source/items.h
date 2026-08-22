@@ -869,6 +869,32 @@ int AllocateItem();
 uint8_t PlaceItemInWorld(Item &&item, WorldTilePosition position);
 Point GetSuperItemLoc(Point position);
 void GetItemAttrs(Item &item, _item_indexes itemData, int lvl);
+
+/**
+ * @brief Rerolls @p item completely, keeping its base and its item level. False if it cannot be.
+ *
+ * Levski's Roar's Reforge recipe. Exposed as one narrow operation rather than by exporting
+ * SetupAllItems, which is the seed-replay entry point and has eleven parameters whose correct
+ * combination is a thing items.cpp knows and the crafting code should not have to.
+ *
+ * The reroll is taken at the item's OWN item level, with the same arguments a fresh drop at that
+ * depth would use - so a reforged item is distributed exactly like one that had just fallen where
+ * this one did, and rerolling in town cannot launder an item upward.
+ */
+bool ReforgeOracoolItem(Item &item);
+
+/**
+ * @brief Turns a rare @p item into a random unique of the same base kind. False if none exists.
+ *
+ * Levski's Roar's Ennoble recipe. Candidates are matched on the unique table's own UIItemId, so a
+ * short sword can only become a unique short sword, and gated on UIMinLvl against the ITEM's level
+ * rather than the character's - a rare found on floor 3 ennobles into something floor 3 could have
+ * dropped.
+ */
+bool EnnobleOracoolRare(Item &item);
+
+/** @brief Whether any unique exists that EnnobleOracoolRare could turn @p item into. */
+bool HasUniqueForBaseOf(const Item &item);
 void SetupItem(Item &item);
 /**
  * @brief Rolls a Rare item's affixes (1-2 prefixes + 1-2 suffixes, at least one of each in

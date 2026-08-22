@@ -1,6 +1,7 @@
 #include "oracool/crafting.h"
 
 #include "oracool/gems.h"
+#include "oracool/item_sets.h"
 #include "oracool/levski_roar.h"
 
 #include <fmt/format.h>
@@ -138,9 +139,24 @@ const char *CraftingRecipeName(int index)
 		return N_("Free the Sockets");
 	case 4:
 		return N_("Temper Jewels");
+	case 5:
+		return N_("Reforge Gear");
+	case 6:
+		return N_("Ennoble Rares");
+	case 7:
+		return N_("Recast Set Pieces");
+	case 8:
+		return N_("Recolour Gems");
 	default:
 		return "";
 	}
+}
+
+bool CraftingRecipeUsesGrid(int index)
+{
+	// 0-2 are the N-small-things-into-one-small-thing recipes the backpack path handles. Everything
+	// from 3 up transforms an item in place.
+	return index >= 3;
 }
 
 const char *CraftingRecipeInputs(int index)
@@ -156,6 +172,14 @@ const char *CraftingRecipeInputs(int index)
 		return N_("1 socketed item -> the item, emptied, and its stones back");
 	case 4:
 		return N_("3 identical jewels -> one of the next grade");
+	case 5:
+		return N_("1 magic or better item + 3 Unique Encrustments -> the same item, rerolled");
+	case 6:
+		return N_("1 rare item + 5 Rare Fibres -> a unique of the same kind");
+	case 7:
+		return N_("1 set piece + 3 Set Engravings -> a different piece of that set");
+	case 8:
+		return N_("1 gem + 2 Magic Powder -> another type, same quality");
 	default:
 		return "";
 	}
@@ -242,6 +266,141 @@ std::vector<int> LargestSameKindGridGroup(const Item *grid, const std::vector<in
 	return best.size() >= groupSize ? best : std::vector<int> {};
 }
 
+/**
+ * @brief What each transform recipe charges. ONE table, read by the match and by the consume.
+ *
+ * The two halves would otherwise be a cost written twice - a recipe that matched on three
+ * engravings and then consumed two would work perfectly and quietly hand out free crafts.
+ *
+ * The materials are the salvage tiers, and which tier pays for what is deliberate: you salvage
+ * uniques to reforge, rares to ennoble, set pieces to recast. Each recipe is funded by the kind of
+ * item it operates on, so the loop closes on itself.
+ */
+struct ReagentSpec {
+	_item_indexes material;
+	int count;
+};
+
+ReagentSpec ReagentFor(int recipe)
+{
+	switch (recipe) {
+	case 5:
+		return { IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS, 3 };
+	case 6:
+		return { IDI_ORACOOL_SALVAGE_RARE_FIBRES, 5 };
+	case 7:
+		return { IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 3 };
+	case 8:
+		return { IDI_ORACOOL_SALVAGE_MAGIC_POWDER, 2 };
+	default:
+		return { IDI_NONE, 0 };
+	}
+}
+
+/**
+ * @brief @p count slots holding @p materialIdx, or empty if the grid does not hold that many.
+ *
+ * Reagents STACK, so "three Unique Encrustments" may be one slot holding three or three slots
+ * holding one. Both are spelled here, and the stack case returns the one slot - TransmuteLevskiGrid
+ * decrements it rather than clearing it, which is the whole reason this returns slots and lets the
+ * caller decide what consuming means.
+ */
+std::vector<int> FindGridReagents(const Item *grid, _item_indexes materialIdx, int count)
+{
+	std::vector<int> found;
+	int have = 0;
+	for (int i = 0; i < GridSlots && have < count; i++) {
+		if (grid[i].isEmpty() || grid[i].IDidx != materialIdx)
+			continue;
+		found.push_back(i);
+		have += grid[i].stackCount();
+	}
+	return have >= count ? found : std::vector<int> {};
+}
+
+/**
+ * @brief Spends @p count of the reagent held across @p slots, emptying slots as they run dry.
+ *
+ * Stack-aware, because a reagent stack of five sitting in one slot has to be able to pay a cost of
+ * three and leave two behind. Clearing the slot outright would silently confiscate the remainder.
+ */
+void ConsumeGridReagents(Item *grid, const std::vector<int> &slots, int count)
+{
+	int owed = count;
+	for (const int slot : slots) {
+		if (owed <= 0)
+			break;
+		const int taken = std::min(owed, grid[slot].stackCount());
+		if (taken >= grid[slot].stackCount())
+			grid[slot].clear();
+		else
+			grid[slot].setStackCount(grid[slot].stackCount() - taken);
+		owed -= taken;
+	}
+}
+
+/** @brief A magic-or-better item the reforge could reroll, or -1. */
+int FindGridReforgeTarget(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		const Item &item = grid[i];
+		// Gear only, and only gear that HAS rolls to reroll. A white item has nothing to change,
+		// and a socketable is not gear at all.
+		if (item.isEmpty() || item._iMagical == ITEM_QUALITY_NORMAL)
+			continue;
+		if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx) || IsOracoolJewelIdx(item.IDidx)
+		    || IsOracoolSalvageIdx(item.IDidx) || IsOracoolCharmIdx(item.IDidx))
+			continue;
+		// A completed runeword is NOT rerolled. Its stats come from the word, not from a seed, so
+		// rerolling would silently strip it - and the runes are already inside it and would go too.
+		if (item.socketedCount() > 0)
+			continue;
+		return i;
+	}
+	return -1;
+}
+
+/** @brief A rare item that some unique of its own kind could become, or -1. */
+int FindGridEnnobleTarget(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		const Item &item = grid[i];
+		if (item.isEmpty() || item._iOracoolTier != OracoolItemTier::Rare)
+			continue;
+		if (item.socketedCount() > 0)
+			continue;
+		if (HasUniqueForBaseOf(item))
+			return i;
+	}
+	return -1;
+}
+
+/** @brief A set piece whose set holds at least one OTHER piece, or -1. */
+int FindGridSetPieceTarget(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		if (grid[i].isEmpty() || !IsSetItem(grid[i]))
+			continue;
+		const SetItemDefinition *piece = FindSetItemByCursor(grid[i]._iCurs);
+		if (piece == nullptr)
+			continue;
+		const ItemSetDefinition *set = FindItemSetOwning(piece->id);
+		if (set != nullptr && set->itemCount > 1)
+			return i;
+	}
+	return -1;
+}
+
+/** @brief Any gem, or -1. */
+int FindGridGem(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		if (!grid[i].isEmpty() && IsOracoolGemIdx(grid[i].IDidx))
+			return i;
+	}
+	return -1;
+}
+
 /** @brief The single socketed item with at least one stone in it, or -1. */
 int FindGridSocketedItem(const Item *grid)
 {
@@ -288,6 +447,41 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 		    jewels.end());
 		return LargestSameKindGridGroup(grid, jewels, 3);
 	}
+	// ---------------------------------------------------------------------------------------
+	// The four adopted from Kanai's Cube (v1.9.17). Each takes ONE item plus a REAGENT, and the
+	// reagent is what makes them tell each other apart: with four recipes all eating "one item",
+	// an auto-picked transmute needs the inputs to be disjoint or the monument becomes a
+	// lottery. The reagents are the salvage materials, which until now had no consumer anywhere
+	// in the game - they dropped, stacked, sorted into their stash row, and were never spent.
+	// ---------------------------------------------------------------------------------------
+	case 5:
+	case 6:
+	case 7:
+	case 8: {
+		// One shape for all four: find the target this recipe operates on, then find its reagent
+		// through ReagentFor - the same table the consume step reads, so a recipe cannot match on
+		// one cost and charge another.
+		int target = -1;
+		if (index == 5)
+			target = FindGridReforgeTarget(grid);
+		else if (index == 6)
+			target = FindGridEnnobleTarget(grid);
+		else if (index == 7)
+			target = FindGridSetPieceTarget(grid);
+		else
+			target = FindGridGem(grid);
+		if (target < 0)
+			return {};
+
+		const ReagentSpec spec = ReagentFor(index);
+		std::vector<int> out = FindGridReagents(grid, spec.material, spec.count);
+		if (out.empty())
+			return {};
+		// Target FIRST - TransmuteLevskiGrid reads materials[0] as the thing being transformed and
+		// everything after it as reagent slots.
+		out.insert(out.begin(), target);
+		return out;
+	}
 	default:
 		return {};
 	}
@@ -313,11 +507,28 @@ bool CanCraftFromLevskiGrid(const Item *grid, int index)
 
 int FirstReadyLevskiRecipe(const Item *grid)
 {
+	// MOST SLOTS WINS, ties to the lowest index.
+	//
+	// This was "the lowest-numbered ready recipe", which was fine while the five recipes had
+	// disjoint inputs. It stopped being fine the moment four more arrived that all eat "one item
+	// plus a reagent": a socketed rare with three Unique Encrustments beside it satisfies both
+	// Free the Sockets (one slot) and Reforge (four), and lowest-index would silently pick the
+	// former every time - so the reforge reagents would be unusable on anything socketed and the
+	// player would have no way to tell why.
+	//
+	// Most-slots is the rule because it is the one a player can predict without reading this file:
+	// the monument runs the recipe that uses the most of what you put in front of it. Putting in
+	// only what a recipe needs is how you choose, which is how the Horadric Cube always worked.
+	int best = -1;
+	size_t bestSlots = 0;
 	for (int i = 0; i < CraftingRecipeCount; i++) {
-		if (CanCraftFromLevskiGrid(grid, i))
-			return i;
+		const std::vector<int> materials = GridMaterialsFor(grid, i);
+		if (materials.empty() || materials.size() <= bestSlots)
+			continue;
+		best = i;
+		bestSlots = materials.size();
 	}
-	return -1;
+	return best;
 }
 
 std::string TransmuteLevskiGrid(Item *grid)
@@ -387,6 +598,78 @@ std::string TransmuteLevskiGrid(Item *grid)
 		host._iIName[0] = '\0';
 		freed = fmt::format(fmt::runtime(_("{:d} stones freed")), placed);
 		return freed;
+	}
+
+	// The four adopted from Kanai's Cube. All of them TRANSFORM the target in place and consume
+	// their reagent, so the grid can only ever get emptier - no room check is needed or wanted, and
+	// there is no "output item" for the generic path below to place.
+	if (recipe >= 5) {
+		Item &target = grid[materials[0]];
+		const std::vector<int> reagents(materials.begin() + 1, materials.end());
+		std::string what;
+
+		switch (recipe) {
+		case 5: // REFORGE - the same base, every roll taken again at its own item level
+			if (!ReforgeOracoolItem(target))
+				return {};
+			what = std::string(target.getName());
+			break;
+		case 6: // ENNOBLE - a rare becomes a unique of its own kind
+			if (!EnnobleOracoolRare(target))
+				return {};
+			what = std::string(target.getName());
+			break;
+		case 7: { // RECAST - a set piece becomes a DIFFERENT piece of the same set
+			const SetItemDefinition *piece = FindSetItemByCursor(target._iCurs);
+			if (piece == nullptr)
+				return {};
+			const ItemSetDefinition *set = FindItemSetOwning(piece->id);
+			if (set == nullptr || set->itemCount < 2)
+				return {};
+			// Every OTHER piece of the set that this fork can actually build. Excluding the one in
+			// hand is the whole recipe - "convert" that returned the same piece would be a way to
+			// spend three engravings on nothing.
+			std::vector<const SetItemDefinition *> others;
+			for (int i = 0; i < set->itemCount; i++) {
+				const SetItemDefinition &candidate = ItemSetItems[set->firstItem + i];
+				if (candidate.cursor == target._iCurs)
+					continue;
+				if (BaseItemForSetSlot(candidate.slot) < 0)
+					continue;
+				others.push_back(&candidate);
+			}
+			if (others.empty())
+				return {};
+			const SetItemDefinition *chosen = others[GenerateRnd(static_cast<int32_t>(others.size()))];
+			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetSlot(chosen->slot)));
+			MakeSetItem(target, *chosen);
+			GenerateNewSeed(target);
+			target._iIdentified = true;
+			what = std::string(target.getName());
+			break;
+		}
+		case 8: { // RECOLOUR - a gem keeps its quality and changes its type
+			GemType type;
+			GemQuality quality;
+			if (!GemTypeAndQuality(static_cast<uint16_t>(target.IDidx), type, quality))
+				return {};
+			if (GemTypeCount < 2)
+				return {};
+			// Rolled among the OTHER types, so the recipe always changes something.
+			const int step = 1 + GenerateRnd(static_cast<int32_t>(GemTypeCount) - 1);
+			const auto newType = static_cast<GemType>((static_cast<int>(type) + step) % static_cast<int>(GemTypeCount));
+			InitializeItem(target, static_cast<_item_indexes>(GemIndexFor(newType, quality)));
+			GenerateNewSeed(target);
+			target._iIdentified = true;
+			what = std::string(target.getName());
+			break;
+		}
+		default:
+			return {};
+		}
+
+		ConsumeGridReagents(grid, reagents, ReagentFor(recipe).count);
+		return what;
 	}
 
 	if (GridRoomAfter(grid, materials) < 1)

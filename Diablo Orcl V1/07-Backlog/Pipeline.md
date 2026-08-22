@@ -23,7 +23,7 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Sweep the wiki for typed numbers | Content | Small | No | | LOCATED 2026-08-19, not yet derived. Eleven typed numeric claims survive in the generated pages, and every one spot-checked against source is currently CORRECT - so this is about them being typed, not wrong. The list: affixes.html "143 shipped entries" and "up to 3 prefixes + 3 suffixes"; classes.html "a Sorcerer's 250 Magic against a Barbarian's zero"; sockets.html "climbs 13% a rung", "by 20% ... capped at 60%", "fixed 3%/5% flags", "370 words"; monsters.html "+15 in Nightmare, +30 in Hell", "default 2.0, range 1.1 to 5.0"; ui.html "10 x 7 grid, ten tabs, thirteen equipment slots", "56 x 56 icon cell". Verified against gems.cpp (Hel 20, cap 60), GenRunes.ps1 (1.13 climb), playerdat.cpp (Sorcerer 250, Barbarian 0), runes_effects.inc. The remaining work is routing each through BuildWiki.ps1 so they cannot drift.
 | Point 10 of the socket directive | Directive | ? | ? | Never stated | The nine-point socket list ended with an empty "10." It has stayed blank across four messages. |
 | The 107 remaining uniques | Content | Medium | No | Needs NEW base items, not just wiring | CORRECTED 2026-08-21 by the affix audit, and the count corrected again 2026-08-22 by counting the table: unique_items_data.inc holds 143 rows, not 253, which is also what the wiki reports. All 143 shipped uniques already have a valid base - the old "needs UITYPE values on existing armour bases" was wrong. The 107 absent ones ride bases this engine does not have at all: shoulder mantles, reliquaries, cloaks, battle cloaks, spears, pikes, war lutes, arcane foci, war quivers, canticles. So the cheap half is not cheap; each needs a base item authored first. |
-| "Free the Sockets" is a dead row in the Crafting window | Directive | Small | No | | The BACKPACK MaterialsFor has cases 0, 1, 2 and 4 - not 3 - so CanCraft(player, 3) is always false while crafting_menu.cpp draws all five rows from CraftingRecipeCount. The recipe works perfectly on Levski's grid and is permanently greyed out in the burger window with nothing saying where it lives. Either implement it for the backpack (it needs its own branch, like the grid's, because it produces many items rather than one) or hide the row. Related to the "Retire the standalone Crafting window" row, but fixable without waiting on the icon recut. |
+| Extract legendary powers | Phase 6 | Large | Yes | Unique legendary powers | Kanai's Cube's own centrepiece - Archive of Tal Rasha - and the one recipe of the nine that could not be adopted at v1.9.17. It needs powers that CHANGE a skill rather than its numbers (the "Unique legendary powers" row), and it needs somewhere to keep which powers a character has extracted, which is save format. Pairs with the "Legendary power slots" row: the slots and the extraction are one feature split across two rows and should be built together. |
 | The Sorcerer's thin tree | Content | Medium | No | New rows need icon-strip art | PARTLY FIXED at v1.9.2, from 1 live row to 4: Enchant now burns on every blow, and Fire and Lightning Mastery each grant their element's damage plus its resistance. Those three were the only rows this engine had a channel for. The other 13 stay inert honestly - TEN are the cold page and there is no cold damage type at all, and Static Field, Lightning Storm and Meteor have no analogue. A fuller tree means NEW rows, and every row needs an icon in her strip, so the rest is blocked on art rather than on code. |
 | The 97 unbuilt class-tree rows | Content | Large | No | | Of 163 tree skills across six classes, 66 are implemented. The rest are listed with a red X and do nothing. |
 | More monster variants | Phase 3 | Small | No | | The four that exist (Ashen, Stormtouched, Hollow, Feral) are two resistances and two body types, and Hell's roster is now all four - so the deepest floors have nothing the shallowest do not. A fifth and sixth would give the deep rosters something of their own. Any new trait must be a channel an ordinary monster already has, which is what kept the first four to resistance and life/damage. |
@@ -48,6 +48,23 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
 ## Shipped, so not listed above
+
+**Four of Kanai's Cube's recipes** were adopted at v1.9.17: Reforge Gear, Ennoble Rares, Recast Set
+Pieces and Recolour Gems, taking Levski's Roar to nine. All four consume a SALVAGE MATERIAL, which
+until then had no consumer anywhere in the game - the seven dropped, stacked, sorted into their
+stash row and were never spent. Which material pays for what is deliberate: uniques fund reforging,
+rares fund ennobling, set pieces fund recasting.
+
+Three of the Cube's were skipped and the reasons recorded so they are not re-litigated: extracting
+a legendary power needs powers that do not exist yet plus save storage (its own row above),
+Caldesann's augments are a format bump, and Law of Kulle's level-requirement removal would make the
+Hel rune pointless.
+
+The nine recipes also forced a selection rule. "Lowest-numbered ready recipe" was fine while the
+inputs were disjoint; with four recipes all eating "one item plus a reagent" it silently locked
+reforge reagents out of anything socketed. It is now MOST SLOTS WINS - the monument runs the recipe
+that uses the most of what you put in front of it, so putting in only what a recipe needs is how you
+choose it.
 
 **Difficulty re-runs that mean something** shipped at v1.9.16, and auditing the row first found two
 of its three asks already done: immunities answered to the difficulty from Phase 3.3, and drop tiers

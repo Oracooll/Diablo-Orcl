@@ -1935,6 +1935,20 @@ void SetupAllItems(const Player &player, Item &item, _item_indexes idx, uint32_t
 		item._iIdentified = true;
 }
 
+/** @brief Every unique @p item could be ennobled into - same base kind, within its own depth. */
+std::vector<int> UniquesForBaseOf(const Item &item)
+{
+	std::vector<int> found;
+	const auto baseKind = AllItemsList[item.IDidx].iItemId;
+	if (baseKind == UITYPE_NONE)
+		return found;
+	for (int i = 0; i < static_cast<int>(UniqueItemCount); i++) {
+		if (UniqueItems[i].UIItemId == baseKind && UniqueItems[i].UIMinLvl <= item._iOracoolItemLevel)
+			found.push_back(i);
+	}
+	return found;
+}
+
 void SetupBaseItem(Point position, _item_indexes idx, bool onlygood, bool sendmsg, bool delta, bool spawn = false)
 {
 	if (ActiveItemCount >= MAXITEMS)
@@ -2835,6 +2849,56 @@ std::string GetTranslatedItemNameMagical(const Item &item, bool hellfireItem, bo
 }
 
 } // namespace
+
+// ---------------------------------------------------------------------------------------------
+// Levski's Roar's two item-transforming recipes (v1.9.17).
+//
+// Here rather than beside SetupAllItems because that lives inside this file's big anonymous
+// namespace, and these three have to be reachable from oracool/crafting.cpp. Exposed as NARROW
+// operations rather than by exporting the generators: SetupAllItems is the seed-replay entry point
+// and takes eleven parameters whose correct combination is a thing this file knows, and handing
+// that to the crafting code would hand it the ability to produce items no drop path could.
+// ---------------------------------------------------------------------------------------------
+
+bool HasUniqueForBaseOf(const Item &item)
+{
+	return !UniquesForBaseOf(item).empty();
+}
+
+bool ReforgeOracoolItem(Item &item)
+{
+	if (item.isEmpty())
+		return false;
+	const int ilvl = item._iOracoolItemLevel;
+	const auto idx = static_cast<_item_indexes>(item.IDidx);
+	// lvl AND itemLevel both the item's own ilvl, which is what SpawnItem passes for a fresh drop:
+	// there, mLevel IS the ilvl and itemLevel defaults to it. So a reforged item is distributed
+	// exactly like one that had just fallen where this one did, and rerolling in town cannot
+	// launder an item upward.
+	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/false,
+	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, ilvl);
+	item._iIdentified = true;
+	return true;
+}
+
+bool EnnobleOracoolRare(Item &item)
+{
+	const std::vector<int> candidates = UniquesForBaseOf(item);
+	if (candidates.empty())
+		return false;
+	const int uid = candidates[GenerateRnd(static_cast<int32_t>(candidates.size()))];
+	const int ilvl = item._iOracoolItemLevel;
+	const auto idx = static_cast<_item_indexes>(item.IDidx);
+	GetItemAttrs(item, idx, ilvl);
+	GetUniqueItem(*MyPlayer, item, static_cast<_unique_items>(uid));
+	SetupItem(item);
+	// Restored AFTER GetItemAttrs, which sets the item level from its own lvl argument - otherwise
+	// an ennobled item forgets the depth it was found at, and a later reforge would roll it at
+	// whatever GetItemAttrs happened to leave behind.
+	item._iOracoolItemLevel = static_cast<uint8_t>(ilvl);
+	item._iIdentified = true;
+	return true;
+}
 
 /**
  * @brief Applies one ItemPower to @p item exactly as the affix roller does.
