@@ -206,11 +206,71 @@ built later.
 Median XL's uberquests: a specific hard fight, in a specific place, with a **known** reward. This is
 what turns farming into a destination rather than a lottery.
 
-Most of the machinery landed in the last week — endgame bosses, per-zone treasure classes, TRN
-tinting, the lesser-affix pools. What is missing is the fixed-reward half and somewhere to put it.
+## The finding that changes the estimate
 
-Scoped last because it is the only phase here that wants new *content* (a place, a fight, a named
-item) rather than new *mechanism*.
+Scoped last on the reasoning that it "wants new content rather than new mechanism", and specifically
+a **place** — which sounded like the tileset pipeline, a Large blocked on art.
+
+It is not. Checking the engine first (2026-08-22) found the place already exists, three times over:
+
+- **`SL_ARENA_CHURCH`, `SL_ARENA_HELL`, `SL_ARENA_CIRCLE_OF_LIFE`** are set levels that already load
+  from shipped `.dun` files, in three different tilesets, each with an exit trigger wired back to
+  town. `LoadArenaMap(path, viewPosition, exitTrigger)` is the whole of it.
+- **Entry is three lines** — `setlvltype = ...; StartNewLvl(player, WM_DIABSETLVL, arenaLevel);` —
+  and is already proven by the `/arena` text command.
+- **Populating one is shipped machinery.** `AddMonsterType(type, PLACE_UNIQUE)` followed by a place
+  call is exactly how every quest set level fills itself (see the Warlord and Lazarus branches in
+  `InitMonsters`), and `InitMonsters` runs on set levels — only the *scatter* half is behind
+  `if (!setlevel)`, which is the hook this phase wants.
+- **The boss is already built.** `PlaceLesserUniqueMonst(..., boss = true)` produces a Dread boss
+  with the whole v1.9.14 profile.
+
+So Phase 4 needs **no new art, no tileset, and no DRLG work**. That moves it from Large to Medium
+and unblocks it entirely.
+
+## The shape
+
+Three encounters, one per arena map, each a sealed destination:
+
+1. **A Sealed Map drops** from a Dread boss. It is a generated item like every other family here —
+   one icon, one row, a use path. Three of them, one per arena.
+2. **Using it in town** opens the encounter: `setlvltype` for that arena's tileset, `StartNewLvl`.
+   The map is consumed, so repeatability is bounded by drops rather than by a cooldown nobody can
+   see.
+3. **The floor holds one hand-placed Dread boss and its escort**, and nothing else. No scatter, no
+   champions — the encounter is the fight, and a room full of ordinary monsters would dilute it.
+4. **The reward is guaranteed and named on the map itself**, which is where "known reward" lives:
+   the item's own description says what it opens and what it pays. That is cheaper and clearer than
+   wiring the quest log, and it means a player who has never seen one still knows before they go.
+5. **The exit trigger returns to town**, already wired by `LoadArenaMap`.
+
+## The reward
+
+A **unique charm** per encounter — the Hellfire Torch analogue, and the one item shape this fork has
+that is already interesting to compete over, because the active cap is three. Three encounters
+giving three signature charms means the cap is a real decision rather than an inventory rule.
+
+They should be strictly better than a growing charm at its ceiling in ONE stat and worse in breadth,
+so the choice against a Charm of Trials stays live.
+
+## Risks, in the order they will bite
+
+1. **The arenas may be multiplayer-gated somewhere.** `TextCmdArenaPot` refuses outright in
+   single-player; the arena LEVEL entry does not appear to, but that has to be verified before
+   anything else, because it is the assumption the whole phase rests on.
+2. **The arena `.dun` files have no monster spawn points authored** - they are PvP rooms. Placement
+   has to find open tiles itself, which `CanPlaceMonster` already does for the champion packs.
+3. **`setlvltype` must be set before `StartNewLvl`** or the tileset is wrong - the `/arena` command
+   sets it explicitly, which is the tell.
+4. **A set level's own return path** assumes a quest context in places; the arenas are the proof it
+   can work without one, but it wants checking on the single-player path specifically.
+
+## What would still be missing afterwards
+
+The encounters would all be *arenas* - three rooms with one fight each. That is the right first
+version and it is not Median XL's Fauztinville. A real uberquest area needs the zone pipeline, which
+is Phase 4 of the ORIGINAL megaplan and is genuinely blocked on art. This phase should be understood
+as the mechanism landing early, in the cheapest place that can hold it.
 
 ---
 
