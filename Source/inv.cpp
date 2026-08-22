@@ -3582,6 +3582,17 @@ bool UseInvItem(int cii)
 		return true;
 	}
 
+	// The signet's lifetime cap, checked HERE for exactly the reason the book gate above is here:
+	// this function consumes the item AFTER UseItem returns, so refusing any later would eat a
+	// capped, permanent, unrecoverable resource and teach nothing. One rule, asked in two places -
+	// the description panel prints the same count.
+	if (item->_iMiscId == IMISC_ORACOOL_SIGNET && !oracool::CanConsumeSignet(player)) {
+		player.Say(HeroSpeech::ICantUseThisYet);
+		if (&player == MyPlayer)
+			oracool::LogEvent("Signet of Learning: this life has no room for another.");
+		return true;
+	}
+
 	if (item->_iMiscId == IMISC_NONE && item->_itype == ItemType::Gold) {
 		StartGoldDrop();
 		return true;

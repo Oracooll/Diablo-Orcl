@@ -1128,6 +1128,9 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		TrySpawnNamedSetPiece(monster, sendmsg);
 		// Phase 1: and the gems' roll, same placement for the same stream-safety reason.
 		TrySpawnOracoolGem(monster, sendmsg);
+		// D2MXL Phase 2b: the signet, which declines outright on an ordinary kill - same placement,
+		// same reason.
+		TrySpawnSignet(monster, sendmsg);
 	}
 }
 

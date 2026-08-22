@@ -5293,3 +5293,82 @@ TEST(OracoolAudit, SignetsAreCappedAndMilestonesPayThemOnce)
 	ApplyMilestones(player, 0);
 	ApplySignetsUsed(player, 0);
 }
+
+/**
+ * The Signet as an ITEM - D2MXL-to-ORCL Phase 2b.
+ *
+ * Milestones are the reliable source of signets; the drop is the bonus. So the drop is deliberately
+ * champions-and-better only, tied to the same TreasureBonusFor that decides everything else about
+ * what a monster is worth - a bonus that fell off ordinary monsters would be a trickle nobody could
+ * aim at.
+ *
+ * The load-bearing assertion here is the REFUSAL. A signet is capped, permanent and unrecoverable,
+ * so one used at the cap must not be consumed. UseInvItem eats the item AFTER UseItem returns, which
+ * is precisely why the gate lives in UseInvItem beside the spell-book gate and not inside UseItem -
+ * and that is a two-line arrangement that would look fine while quietly eating signets.
+ */
+TEST(OracoolAudit, TheSignetIsAUsableItemThatChampionsDrop)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+
+	// It is a real, usable item with a frame of its own.
+	const ItemData &data = AllItemsList[IDI_ORACOOL_SIGNET_LEARNING];
+	EXPECT_TRUE(IsOracoolSignetIdx(IDI_ORACOOL_SIGNET_LEARNING));
+	EXPECT_TRUE(data.iUsable) << "the signet is not usable - UseItem's switch will never reach it";
+	EXPECT_EQ(data.iMiscId, IMISC_ORACOOL_SIGNET)
+	    << "the signet does not carry its own misc id, so it dispatches as something else";
+	EXPECT_LE(data.iCurs, ICURS_ORACOOL_LAST) << "the signet points past the icon strip";
+
+	// It is not mistaken for any other family, which is what keeps the pool exclusion honest - that
+	// exclusion is one OR-chain of hand-written ranges.
+	EXPECT_FALSE(IsOracoolOrbIdx(IDI_ORACOOL_SIGNET_LEARNING));
+	EXPECT_FALSE(IsOracoolGemIdx(IDI_ORACOOL_SIGNET_LEARNING));
+	EXPECT_FALSE(IsOracoolRuneIdx(IDI_ORACOOL_SIGNET_LEARNING));
+	EXPECT_FALSE(IsOracoolJewelIdx(IDI_ORACOOL_SIGNET_LEARNING));
+	EXPECT_FALSE(IsOracoolSalvageIdx(IDI_ORACOOL_SIGNET_LEARNING));
+	EXPECT_FALSE(IsOracoolCharmIdx(IDI_ORACOOL_SIGNET_LEARNING));
+
+	// A signet is NOT a socketable - it must never be accepted into a socket or absorbed as an orb.
+	devilution::Item signet;
+	InitializeItem(signet, IDI_ORACOOL_SIGNET_LEARNING);
+	devilution::Item host;
+	InitializeItem(host, IDI_ORACOOL_HELM);
+	host._iSocketCount = 3;
+	EXPECT_FALSE(TrySocketGem(host, signet)) << "a signet was socketed";
+	EXPECT_FALSE(TryApplyMysticOrb(player, host, signet)) << "a signet was absorbed as a Mystic Orb";
+	EXPECT_EQ(host._iOracoolOrbCount, 0);
+
+	// ---- the drop is champions and better ----
+	devilution::Monster ordinary {};
+	ordinary.uniqueType = UniqueMonsterType::None;
+	ordinary.lesserAffix = LesserUniqueAffix::None;
+	devilution::Monster champion {};
+	champion.uniqueType = UniqueMonsterType::None;
+	champion.lesserAffix = LesserUniqueAffix::Relentless;
+
+	ASSERT_EQ(TreasureBonusFor(ordinary), 1) << "the fixture's ordinary monster is not ordinary";
+	ASSERT_GT(TreasureBonusFor(champion), 1) << "the fixture's champion is not a champion";
+	// The rule the drop hook applies, asserted as the RULE rather than by sampling the roll: an
+	// ordinary kill is excluded by bonus <= 1, and nothing else about it matters.
+	EXPECT_LE(TreasureBonusFor(ordinary), 1)
+	    << "an ordinary monster would drop signets - the drop is meant to be a reason to fight champions";
+
+	// ---- the CAP refusal, which is the assertion that matters ----
+	ApplySignetsUsed(player, 0);
+	player._pStatPts = 0;
+	EXPECT_TRUE(CanConsumeSignet(player));
+
+	ApplySignetsUsed(player, SignetLifetimeCap);
+	EXPECT_FALSE(CanConsumeSignet(player)) << "a spent pool still offers room";
+	const int ptsAtCap = player._pStatPts;
+	EXPECT_FALSE(ConsumeSignet(player)) << "the cap was exceeded";
+	EXPECT_EQ(player._pStatPts, ptsAtCap) << "a refused signet still granted a point";
+	EXPECT_EQ(SignetsUsed(player), SignetLifetimeCap) << "a refused signet still counted against the cap";
+
+	ApplySignetsUsed(player, 0);
+	player._pStatPts = 0;
+}

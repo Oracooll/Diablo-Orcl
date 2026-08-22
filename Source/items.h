@@ -1047,6 +1047,9 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg);
 /** @brief The fifteen NAMED sets' drop path. Distinct from the tier hook above, which drops the worn
  * ladder rather than a designed set - see the note on the definition. */
 void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg);
+
+/** @brief The Signet of Learning's drop - champions and better only. See the definition. */
+void TrySpawnSignet(const Monster &monster, bool sendmsg);
 /** @brief Phase 1: the gems' own drop hook, same pool-exclusion reasoning. Called from SpawnLoot. */
 void TrySpawnOracoolGem(const Monster &monster, bool sendmsg);
 /** @brief Phase 1: rolls sockets onto a freshly dropped item - only plain NORMAL-quality

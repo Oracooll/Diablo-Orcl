@@ -51,6 +51,7 @@
 #include "oracool/runewords.h"
 #include "oracool/mystic_orbs.h"
 #include "oracool/salvage.h"
+#include "oracool/signets.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/treasure_class.h"
@@ -1637,7 +1638,7 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 			continue;
 		// Phase 1: gems, charms and runes obey the same pool-is-save-format rule; own hooks drop them.
 		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i)
-		    || IsOracoolOrbIdx(i))
+		    || IsOracoolOrbIdx(i) || IsOracoolSignetIdx(i))
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
@@ -2177,6 +2178,13 @@ void PrintItemOil(char iDidx)
 	case IMISC_ARENAPOT:
 		AddPanelString(_("restore all life and mana"));
 		AddPanelString(_("(works only in arenas)"));
+		break;
+	case IMISC_ORACOOL_SIGNET:
+		// The cap is stated on the item itself, because it is the whole mechanism and a player who
+		// learns it only by being refused has learned it too late to plan around.
+		AddPanelString(_("one permanent stat point"));
+		AddPanelString(fmt::format(fmt::runtime(_("{:d} of {:d} used this life")),
+		    oracool::SignetsUsed(*MyPlayer), oracool::SignetLifetimeCap));
 		break;
 	}
 }
@@ -4694,6 +4702,46 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
  * hook here: that pool is replayed from item seeds on unpack, and growing it transforms every
  * existing item.
  */
+/**
+ * @brief The Signet of Learning's drop - D2MXL-to-ORCL Phase 2b.
+ *
+ * CHAMPIONS AND BETTER ONLY, which is the whole design of the drop half. Milestones are the
+ * reliable source of signets; this is the bonus, and a bonus that fell off ordinary monsters would
+ * be a slow trickle nobody could aim at. Tied to TreasureBonusFor, so a monster worth more loot is
+ * worth more signets by the same number that decides everything else - and a champion becomes a
+ * thing you cross the room for on two counts rather than one.
+ *
+ * Its own hook rather than a seat in the socketable draw: that draw is one budget shared by five
+ * families, and a sixth would quietly make every one of them rarer. This is additive.
+ */
+void TrySpawnSignet(const Monster &monster, bool sendmsg)
+{
+	if (!oracool::IsSinglePlayer())
+		return;
+	const int bonus = oracool::TreasureBonusFor(monster);
+	if (bonus <= 1)
+		return; // an ordinary kill never yields one
+	if (ActiveItemCount >= MAXITEMS)
+		return;
+
+	// 3% times what the monster is worth: 6% on a champion, 12% on a unique, 18% on a Dread boss.
+	// Roughly six signets across a full clear, against eight from the milestones - so the two halves
+	// are comparable and neither makes the other pointless.
+	constexpr int SignetDropPercent = 3;
+	if (GenerateRnd(100) >= std::min(SignetDropPercent * bonus, 100))
+		return;
+
+	const int ii = AllocateItem();
+	Item &signet = Items[ii];
+	InitializeItem(signet, IDI_ORACOOL_SIGNET_LEARNING);
+	GenerateNewSeed(signet);
+	signet._iIdentified = true; // it has no rolls to hide
+	Point position = monster.position.tile;
+	GetSuperItemSpace(position, ii);
+	if (sendmsg)
+		NetSendCmdPItem(false, CMD_SPAWNITEM, signet.position, signet);
+}
+
 void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 {
 	if (!oracool::IsSinglePlayer())
@@ -5966,6 +6014,20 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 		if (&player == MyPlayer) {
 			RedrawComponent(PanelDrawComponent::Health);
 			RedrawComponent(PanelDrawComponent::Mana);
+		}
+		break;
+	case IMISC_ORACOOL_SIGNET:
+		// The refusal is the interesting half. A signet used at the lifetime cap must NOT be
+		// consumed - it is a capped, permanent resource, and silently eating one because the pool
+		// was full is the single worst thing this item could do. CanUseItem below is what actually
+		// stops the consumption; this branch only reports.
+		if (oracool::ConsumeSignet(player)) {
+			if (&player == MyPlayer) {
+				oracool::LogEvent(StrCat("Signet of Learning: a permanent stat point (",
+				    StrCat(oracool::SignetsUsed(player)), " of ",
+				    StrCat(oracool::SignetLifetimeCap), " used)"));
+				RedrawComponent(PanelDrawComponent::Health);
+			}
 		}
 		break;
 	case IMISC_SCROLL:
