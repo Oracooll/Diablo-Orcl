@@ -34,6 +34,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/aura_field.h"
 #include "oracool/charms.h"
+#include "oracool/named_encounters.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
 #include "oracool/gradual_healing.h"
@@ -55,6 +56,7 @@
 #include "oracool/mystic_orbs.h"
 #include "oracool/signets.h"
 #include "oracool/charms.h"
+#include "oracool/named_encounters.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
@@ -5475,4 +5477,121 @@ TEST(OracoolAudit, GrowingCharmsScaleWithClaimedMilestones)
 
 	ApplyMilestones(player, 0);
 	ApplySignetsUsed(player, 0);
+}
+
+/**
+ * Named encounters - D2MXL-to-ORCL Phase 4.
+ *
+ * A specific hard fight, in a specific place, with a KNOWN reward. Scoped as a Large blocked on art
+ * and it was not: the three arena set levels already load from shipped .dun files in three
+ * tilesets, each with an exit trigger wired back to town, so the phase needed only the frame - a
+ * way in, a way to know the reward, and a reward.
+ *
+ * What is pinned here is the WIRING, because almost none of the rest can be tested: entering a
+ * level, placing a boss on it and dropping an item at its feet all need a running game. What a test
+ * CAN hold is that every encounter is completely described - a place, a tileset, a monster, a map
+ * that opens it and a charm that pays for it - and that the two directions of the map/encounter
+ * lookup agree. A half-defined encounter would build green and strand a player in an empty room.
+ */
+TEST(OracoolAudit, EveryNamedEncounterIsCompletelyDescribed)
+{
+	using namespace devilution::oracool;
+
+	std::set<int> levels;
+	std::set<int> maps;
+	std::set<int> rewards;
+	std::set<std::string> names;
+
+	for (int i = 0; i < NamedEncounterCount; i++) {
+		const auto encounter = static_cast<NamedEncounter>(i);
+
+		// A place, and a DISTINCT one - two encounters sharing an arena would mean the second could
+		// never be told from the first by CurrentNamedEncounter.
+		const _setlevels level = NamedEncounterLevel(encounter);
+		EXPECT_TRUE(IsArenaLevel(level))
+		    << "encounter " << i << " runs on a level that is not an arena";
+		EXPECT_TRUE(levels.insert(static_cast<int>(level)).second)
+		    << "two encounters share an arena - the second can never be identified";
+
+		// A tileset. Set explicitly rather than inferred, because setlvltype has to be right BEFORE
+		// StartNewLvl or the room draws in the wrong art.
+		const dungeon_type dungeon = NamedEncounterDungeon(encounter);
+		EXPECT_NE(dungeon, DTYPE_TOWN) << "an encounter would load with the town tileset";
+		EXPECT_NE(dungeon, DTYPE_NONE) << "an encounter has no tileset";
+
+		// A name, distinct, because it reaches the map's description and the event log.
+		const std::string name = NamedEncounterName(encounter);
+		EXPECT_FALSE(name.empty()) << "encounter " << i << " has no name";
+		EXPECT_TRUE(names.insert(name).second) << "two encounters share the name " << name;
+
+		// A map that opens it and a charm that pays for it, both distinct and both real items.
+		const int map = NamedEncounterMapItem(encounter);
+		const int reward = NamedEncounterReward(encounter);
+		EXPECT_TRUE(IsOracoolEncounterMapIdx(map)) << name << "'s key is not a Sealed Map";
+		EXPECT_TRUE(IsOracoolEncounterCharmIdx(reward)) << name << "'s reward is not an encounter charm";
+		EXPECT_TRUE(maps.insert(map).second) << "two encounters share a map";
+		EXPECT_TRUE(rewards.insert(reward).second) << "two encounters pay the same charm";
+
+		// The map is USABLE and carries its own misc id, or UseItem's switch never reaches it and
+		// the map is an item that does nothing.
+		EXPECT_TRUE(AllItemsList[map].iUsable) << name << "'s map is not usable";
+		EXPECT_EQ(AllItemsList[map].iMiscId, IMISC_ORACOOL_MAP) << name << "'s map dispatches as something else";
+		EXPECT_LE(AllItemsList[map].iCurs, ICURS_ORACOOL_LAST) << name << "'s map points past the icon strip";
+		EXPECT_LE(AllItemsList[reward].iCurs, ICURS_ORACOOL_LAST) << name << "'s charm points past the icon strip";
+
+		// The reward is a CHARM in the structural sense, so it obeys the three-charm active cap.
+		// That cap is what makes three signature rewards a decision rather than an inventory rule -
+		// a reward that escaped it would just be three free bonuses.
+		EXPECT_TRUE(IsOracoolCharmIdx(reward))
+		    << name << "'s reward escapes the charm active cap";
+
+		// BOTH DIRECTIONS of the lookup agree. EncounterForMapItem is what turns a used map into a
+		// destination, and a disagreement here sends the player to the wrong room.
+		NamedEncounter back;
+		ASSERT_TRUE(EncounterForMapItem(map, back)) << name << "'s map does not resolve to an encounter";
+		EXPECT_EQ(static_cast<int>(back), i) << name << "'s map opens a different encounter";
+	}
+
+	// A non-map resolves to nothing rather than to encounter zero.
+	NamedEncounter spurious;
+	EXPECT_FALSE(EncounterForMapItem(IDI_GOLD, spurious)) << "gold opens an encounter";
+	EXPECT_FALSE(EncounterForMapItem(IDI_ORACOOL_SIGNET_LEARNING, spurious)) << "a signet opens an encounter";
+
+	// The reward charms actually pay something. A charm with no row in the CharmData table is inert,
+	// and an inert reward is the one thing a GUARANTEED reward must not be.
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	for (int i = 0; i < NamedEncounterCount; i++) {
+		const int reward = NamedEncounterReward(static_cast<NamedEncounter>(i));
+		ItemBonusTotals totals = {};
+		ApplyCharmToTotals(player, static_cast<uint16_t>(reward), totals);
+		const bool paysSomething = totals.hitPoints > 0 || totals.fireResist > 0
+		    || totals.lightningResist > 0 || totals.magicResist > 0 || totals.magicFind > 0
+		    || totals.goldFind > 0 || totals.bonusToHit > 0;
+		EXPECT_TRUE(paysSomething)
+		    << AllItemsList[reward].iName << " is a guaranteed reward that grants nothing";
+		EXPECT_FALSE(CharmEffectLine(player, static_cast<uint16_t>(reward)).empty())
+		    << AllItemsList[reward].iName << " has no description line";
+	}
+
+	// EVERY new item must be excluded from the seeded droppable pool - that pool is save format,
+	// because UnPackItem replays an item's seed through the same walk to recover its index, so
+	// anything joining it re-routes every existing item's recreation.
+	//
+	// The exclusion is one OR-chain of family predicates, so what this checks is that each new item
+	// answers TRUE to at least one of them. Writing this test is what caught the Sealed Maps
+	// answering to none: the reward charms were covered by IsOracoolCharmIdx and the maps were
+	// covered by nothing at all, which would have put three items into save format.
+	const auto excludedFromPool = [](int i) {
+		return IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i)
+		    || IsOracoolJewelIdx(i) || IsOracoolOrbIdx(i) || IsOracoolSignetIdx(i)
+		    || IsOracoolEncounterMapIdx(i) || IsOracoolItemIdx(i);
+	};
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsOracoolEncounterMapIdx(i) && !IsOracoolEncounterCharmIdx(i))
+			continue;
+		EXPECT_TRUE(excludedFromPool(i))
+		    << AllItemsList[i].iName << " would enter the seeded droppable pool, which is save format";
+	}
 }

@@ -1,0 +1,6 @@
+C:\Users\hroga\AppData\Local\Temp\oracool-encounters\map_chapel.png,0,0,28,28,28,28,map_chapel,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-encounters\map_mourning.png,0,0,28,28,28,28,map_mourning,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-encounters\map_vault.png,0,0,28,28,28,28,map_vault,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-encounters\rcharm_chapel.png,0,0,28,28,28,28,rcharm_chapel,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-encounters\rcharm_mourning.png,0,0,28,28,28,28,rcharm_mourning,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-encounters\rcharm_vault.png,0,0,28,28,28,28,rcharm_vault,30,false,asis

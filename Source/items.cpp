@@ -50,6 +50,7 @@
 #include "oracool/oracool.h"
 #include "oracool/runewords.h"
 #include "oracool/mystic_orbs.h"
+#include "oracool/named_encounters.h"
 #include "oracool/salvage.h"
 #include "oracool/signets.h"
 #include "oracool/skill_sounds.h"
@@ -1638,7 +1639,7 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 			continue;
 		// Phase 1: gems, charms and runes obey the same pool-is-save-format rule; own hooks drop them.
 		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i)
-		    || IsOracoolOrbIdx(i) || IsOracoolSignetIdx(i))
+		    || IsOracoolOrbIdx(i) || IsOracoolSignetIdx(i) || IsOracoolEncounterMapIdx(i))
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
@@ -2090,9 +2091,17 @@ void ItemDoppel()
 		idoppely = 16;
 }
 
-void PrintItemOil(char iDidx)
+/**
+ * @brief Prints a misc item's own description lines.
+ *
+ * Named for the oils it started as; it has switched on _iMiscId and covered every misc item for a
+ * long time. Takes the ITEM now rather than just the id, because a Sealed Map's line has to name
+ * WHICH encounter it opens and three maps share one misc id - and because the old `char` parameter
+ * was one appended IMISC_ value away from narrowing silently.
+ */
+void PrintItemOil(const Item &item)
 {
-	switch (iDidx) {
+	switch (item._iMiscId) {
 	case IMISC_OILACC:
 		AddPanelString(_("increases a weapon's"));
 		AddPanelString(_("chance to hit"));
@@ -2179,6 +2188,19 @@ void PrintItemOil(char iDidx)
 		AddPanelString(_("restore all life and mana"));
 		AddPanelString(_("(works only in arenas)"));
 		break;
+	case IMISC_ORACOOL_MAP: {
+		// WHERE it goes and WHAT it pays, both, on the item itself. This is where "a known reward"
+		// lives - the whole difference between an encounter and a lottery is that you can decide to
+		// go, and a player who has never seen one still knows before they spend it.
+		oracool::NamedEncounter encounter;
+		if (oracool::EncounterForMapItem(item.IDidx, encounter)) {
+			AddPanelString(fmt::format(fmt::runtime(_("opens {:s}")),
+			    _(oracool::NamedEncounterName(encounter))));
+			AddPanelString(fmt::format(fmt::runtime(_("its guardian carries: {:s}")),
+			    _(AllItemsList[oracool::NamedEncounterReward(encounter)].iName)));
+			AddPanelString(_("use in town - the map is consumed"));
+		}
+	} break;
 	case IMISC_ORACOOL_SIGNET:
 		// The cap is stated on the item itself, because it is the whole mechanism and a player who
 		// learns it only by being refused has learned it too late to plan around.
@@ -2194,7 +2216,7 @@ void printItemMiscKBM(const Item &item, const bool isOil, const bool isCastOnTar
 	if (item._iMiscId == IMISC_MAPOFDOOM) {
 		AddPanelString(_("Right-click to view"));
 	} else if (isOil) {
-		PrintItemOil(item._iMiscId);
+		PrintItemOil(item);
 		AddPanelString(_("Right-click to use"));
 	} else if (isCastOnTarget) {
 		AddPanelString(_("Right-click to read, then\nleft-click to target"));
@@ -2208,7 +2230,7 @@ void printItemMiscGenericGamepad(const Item &item, const bool isOil, bool isCast
 	if (item._iMiscId == IMISC_MAPOFDOOM) {
 		AddPanelString(_("Activate to view"));
 	} else if (isOil) {
-		PrintItemOil(item._iMiscId);
+		PrintItemOil(item);
 		if (!invflag) {
 			AddPanelString(_("Open inventory to use"));
 		} else {
@@ -2246,7 +2268,7 @@ void printItemMiscGamepad(const Item &item, bool isOil, bool isCastOnTarget)
 	if (item._iMiscId == IMISC_MAPOFDOOM) {
 		AddPanelString(fmt::format(fmt::runtime(_("{} to view")), activateButton));
 	} else if (isOil) {
-		PrintItemOil(item._iMiscId);
+		PrintItemOil(item);
 		if (!invflag) {
 			AddPanelString(_("Open inventory to use"));
 		} else {
@@ -6015,6 +6037,12 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 			RedrawComponent(PanelDrawComponent::Health);
 			RedrawComponent(PanelDrawComponent::Mana);
 		}
+		break;
+	case IMISC_ORACOOL_MAP:
+		// Handled in UseInvItem, not here. UseItem is given the MISC ID and not the item, and every
+		// Sealed Map shares one misc id - so this function cannot tell which encounter to open.
+		// UseInvItem has the item itself, which is also where the signet's cap gate lives and for a
+		// related reason: both need to refuse before the item is consumed.
 		break;
 	case IMISC_ORACOOL_SIGNET:
 		// The refusal is the interesting half. A signet used at the lifetime cap must NOT be

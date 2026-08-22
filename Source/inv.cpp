@@ -34,6 +34,7 @@
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
 #include "oracool/mystic_orbs.h"
+#include "oracool/named_encounters.h"
 #include "oracool/signets.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/runewords.h"
@@ -3586,6 +3587,24 @@ bool UseInvItem(int cii)
 	// this function consumes the item AFTER UseItem returns, so refusing any later would eat a
 	// capped, permanent, unrecoverable resource and teach nothing. One rule, asked in two places -
 	// the description panel prints the same count.
+	// A Sealed Map opens its encounter from HERE rather than from UseItem, which is handed only the
+	// misc id and so cannot tell three maps apart. Refused outside town without being consumed -
+	// same reason as the signet gate below: this function eats the item after UseItem returns.
+	if (item->_iMiscId == IMISC_ORACOOL_MAP) {
+		oracool::NamedEncounter encounter;
+		if (!oracool::EncounterForMapItem(item->IDidx, encounter))
+			return true;
+		if (!oracool::EnterNamedEncounter(player, encounter)) {
+			player.Say(HeroSpeech::ICantUseThisYet);
+			if (&player == MyPlayer)
+				oracool::LogEvent("A sealed map only opens in town.");
+			return true;
+		}
+		// Consumed only once the encounter has actually opened.
+		player.RemoveInvItem(cii - INVITEM_INV_FIRST);
+		return true;
+	}
+
 	if (item->_iMiscId == IMISC_ORACOOL_SIGNET && !oracool::CanConsumeSignet(player)) {
 		player.Say(HeroSpeech::ICantUseThisYet);
 		if (&player == MyPlayer)

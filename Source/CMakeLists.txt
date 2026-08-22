@@ -90,6 +90,7 @@ set(libdevilutionx_SRCS
   oracool/treasure_class.cpp
   oracool/mystic_orbs.cpp
   oracool/signets.cpp
+  oracool/named_encounters.cpp
   oracool/endgame_boss.cpp
   oracool/paladin_skills.cpp
   oracool/readied_spells.cpp

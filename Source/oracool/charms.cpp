@@ -30,6 +30,17 @@ constexpr CharmData Charms[] = {
 	{ IDI_ORACOOL_CHARM_FORTUNE, 0, 0, 0, 12, 0, 0 },
 	{ IDI_ORACOOL_CHARM_LUCK, 0, 0, 0, 0, 15, 0 },
 	{ IDI_ORACOOL_CHARM_GREED, 0, 0, 0, 0, 0, 30 },
+	// Phase 4's encounter rewards. Deliberately BIG and NARROW: each is worth clearly more than any
+	// ordinary charm in its one stat and offers nothing else, so choosing to carry one costs a
+	// slot of the three-charm cap rather than merely filling it. That is what makes three signature
+	// charms a decision instead of an inventory rule.
+	//
+	// The Mourning Token's resistance is spelled across all three schools below rather than as one
+	// number, because CharmData has no all-resist column and inventing one would be a second way to
+	// say what fireRes/lightningRes already say.
+	{ IDI_ORACOOL_CHARM_CHAPEL, 60, 0, 0, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_MOURNING, 0, 18, 18, 0, 0, 0 },
+	{ IDI_ORACOOL_CHARM_VAULT, 0, 0, 0, 0, 40, 0 },
 };
 
 const CharmData *FindCharm(uint16_t charmIdx)

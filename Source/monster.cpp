@@ -41,6 +41,7 @@
 #include "oracool/monster_variants.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/monster_scale.h"
+#include "oracool/named_encounters.h"
 #include "oracool/signets.h"
 #include "oracool/telemetry.h"
 
@@ -642,6 +643,36 @@ void PlaceLesserUniques()
  * standing out. ChooseLesserUnique's own repeat fallback still covers the case where the floor has
  * fewer types than it wants bodies.
  */
+/**
+ * @brief Fills a named-encounter arena: one Dread boss and its escort, and nothing else.
+ *
+ * The arena .dun files are PvP rooms with no monster spawn points authored, so the type is loaded
+ * explicitly here - which is exactly what every quest set level does (see the Warlord and Lazarus
+ * branches below). ChooseLesserUnique can then find a unique riding that type, because it only ever
+ * picks from what the level has loaded.
+ *
+ * Nothing else is placed. The encounter IS the fight, and a room of ordinary monsters would dilute
+ * the one thing the player came for.
+ */
+void PlaceNamedEncounter()
+{
+	oracool::NamedEncounter encounter;
+	if (!oracool::CurrentNamedEncounter(encounter))
+		return;
+
+	const size_t typeIndex = AddMonsterType(oracool::NamedEncounterMonster(encounter), PLACE_UNIQUE);
+	if (typeIndex == LevelMonsterTypeCount)
+		return;
+
+	const std::optional<UniqueMonsterType> choice = oracool::ChooseLesserUnique(/*excludeLevelOwned=*/false);
+	if (!choice)
+		return;
+	if (ActiveMonsterCount + oracool::BossPackSize() + 1 > MaxMonsters - 10)
+		return;
+
+	PlaceLesserUniqueMonst(*choice, typeIndex, oracool::BossPackSize(), /*boss=*/true);
+}
+
 void PlaceEndgameBoss()
 {
 	for (int placed = 0; placed < oracool::BossCountForLevel(); placed++) {
@@ -3763,6 +3794,10 @@ void InitMonsters()
 	}
 	if (!gbIsSpawn)
 		PlaceQuestMonsters();
+	// D2MXL-to-ORCL Phase 4: a named encounter runs on a SET level, so it goes on this side of the
+	// branch - the scatter below is what `!setlevel` is guarding, and an encounter arena is
+	// deliberately not scattered.
+	PlaceNamedEncounter();
 	if (!setlevel) {
 		if (!gbIsSpawn)
 			PlaceUniqueMonsters();
@@ -4054,6 +4089,10 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 	// tying it to the drop would make the milestone depend on a roll.
 	if (oracool::IsEndgameBoss(monster) && MyPlayer != nullptr)
 		oracool::ClaimMilestone(*MyPlayer, oracool::Milestone::SlayDreadBoss);
+
+	// Phase 4: a named encounter's guardian pays its reward here. GUARANTEED - the map said what it
+	// carries, and a roll would make that a lie. Does nothing off an encounter level.
+	oracool::AwardNamedEncounter(monster);
 
 	if (monster.type().type == MT_DIABLO)
 		DiabloDeath(monster, true);
