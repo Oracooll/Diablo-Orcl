@@ -567,7 +567,8 @@ struct Item {
 		// does (see oracool/gems.h): these carry no misc id of their own, and the index is the
 		// whole of their identity - which is also why they merge safely, since two gems with the
 		// same index are genuinely interchangeable.
-		if (IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx) || IsOracoolJewelIdx(IDidx))
+		if (IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx) || IsOracoolJewelIdx(IDidx)
+		    || IsOracoolOrbIdx(IDidx))
 			return true;
 		// The seven salvage materials, on the same reasoning: a recipe spends them exactly as it
 		// spends a rune, and they arrive in bulk - a salvaged stash produces dozens at a time.
@@ -613,8 +614,8 @@ struct Item {
 		//
 		// The salvage materials join this rule for the identical reason: every one of them is
 		// IMISC_NONE too, so the _iMiscId path would merge White Scales into Primal Vines.
-		const bool eitherIsMaterial = IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx) || IsOracoolSalvageIdx(IDidx) || IsOracoolJewelIdx(IDidx)
-		    || IsOracoolGemIdx(other.IDidx) || IsOracoolRuneIdx(other.IDidx) || IsOracoolSalvageIdx(other.IDidx) || IsOracoolJewelIdx(other.IDidx);
+		const bool eitherIsMaterial = IsOracoolGemIdx(IDidx) || IsOracoolRuneIdx(IDidx) || IsOracoolSalvageIdx(IDidx) || IsOracoolJewelIdx(IDidx) || IsOracoolOrbIdx(IDidx)
+		    || IsOracoolGemIdx(other.IDidx) || IsOracoolRuneIdx(other.IDidx) || IsOracoolSalvageIdx(other.IDidx) || IsOracoolJewelIdx(other.IDidx) || IsOracoolOrbIdx(other.IDidx);
 		if (eitherIsMaterial)
 			return IDidx == other.IDidx;
 
@@ -660,6 +661,30 @@ struct Item {
 	 * directly, exactly as the charms' figure is read.
 	 */
 	int _iPLGoldFind = 0;
+
+	/**
+	 * @brief Oracool: the magic-find bonus this item carries, as a percentage (v1.9.19).
+	 *
+	 * The twin of _iPLGoldFind, added for the same reason and one version later. ItemBonusTotals
+	 * has had a magicFind figure since Phase 1 and the drop tail reads it, but only a CHARM could
+	 * contribute - so no affix, set rung, unique or Mystic Orb could grant magic find at all.
+	 */
+	int _iPLMagicFind = 0;
+
+	/**
+	 * @brief Oracool: how many Mystic Orbs have been applied to this item (v1.9.19).
+	 *
+	 * The one piece of Phase 1 that cannot be derived. Every other per-item property this fork adds
+	 * is a function of the item's seed - the base tier, the ethereal roll, the affixes - and a
+	 * monster variant or a boss trait is a function of the MONSTER's seed. This is a PLAYER
+	 * DECISION, and there is nowhere to recompute a decision from, so it costs a byte and a format
+	 * bump (OracoolItemFormatVersion 8 -> 9).
+	 *
+	 * Counts orbs, not stat sources, and that distinction is the whole mechanism: the cap is per
+	 * ITEM rather than per orb type, so six into one weapon finishes it and the seventh has to go
+	 * somewhere else. See oracool/mystic_orbs.h.
+	 */
+	uint8_t _iOracoolOrbCount = 0;
 
 	OracoolItemTier _iOracoolTier = OracoolItemTier::None;
 	bool _iOracoolPerfectRoll = false;

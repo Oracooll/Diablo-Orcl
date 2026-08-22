@@ -47,7 +47,18 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Diablo 2-style shop interface | Systems | Medium | No | | A grid shop with tabs rather than the vanilla scrolling list. |
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
+| D2MXL Phase 2: Signets and challenges | Systems | Medium | New file | | Plan - D2MXL to ORCL, Phase 2. A rare drop granting a PERMANENT character stat point with a lifetime cap, plus milestone challenges ("reach level 30 and kill a Dread boss"). Both live in PlayerPack beside the readied-spell encoding and the waypoint bitmask, so neither touches the item format at all. The cap is the whole design: without it a signet is just a slower level-up. |
+| D2MXL Phase 3: Growing charms | Systems | Medium | No | | Plan - D2MXL to ORCL, Phase 3. A charm that gains stats as milestones are met rather than being fixed at drop. Needs per-item state for the same reason orbs did - and the byte was already paid at v1.9.19, which is why this was planned then and built later rather than the other way round. Wants Phase 2's milestones to grow against. |
+| D2MXL Phase 4: Named encounters | Phase 5 | Large | No | | Plan - D2MXL to ORCL, Phase 4. Median XL's uberquests: a specific hard fight, in a specific place, with a KNOWN reward. Most of the machinery landed in the v1.9.7-1.9.16 line - bosses, treasure classes, tinting, affix pools - so what is missing is the fixed-reward half and somewhere to put it. The only phase of the four that wants new CONTENT rather than new mechanism. |
+
 ## Shipped, so not listed above
+
+**Mystic Orbs** shipped at v1.9.19 - D2MXL-to-ORCL Phase 1. Eight consumables adding one fixed small
+stat to an item, capped at six per ITEM rather than per orb type, applied by dropping one onto a
+backpack item through the gem paste path. They cost `OracoolItemFormatVersion` 8 -> 9, which is the
+first per-item value in this fork that is not derived from a seed: a player decision has nowhere to
+be recomputed from. The same bump carried `IPL_MAGICFIND`, closing the gap `IPL_GOLDFIND` closed one
+axis over - magic find had been an `ItemBonusTotals` figure that only a CHARM could contribute to.
 
 **Four of Kanai's Cube's recipes** were adopted at v1.9.17: Reforge Gear, Ennoble Rares, Recast Set
 Pieces and Recolour Gems, taking Levski's Roar to nine. All four consume a SALVAGE MATERIAL, which

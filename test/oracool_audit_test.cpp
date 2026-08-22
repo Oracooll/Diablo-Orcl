@@ -52,6 +52,7 @@
 #include "oracool/monster_variants.h"
 #include "oracool/treasure_class.h"
 #include "oracool/endgame_boss.h"
+#include "oracool/mystic_orbs.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
@@ -4168,19 +4169,33 @@ TEST(OracoolAudit, TreasureClassesGiveEveryZoneSomethingOfItsOwn)
 
 		// Walk the whole weight range and count where each roll lands. This is the real
 		// distribution, produced by the real function, not a restatement of the table.
-		int counts[4] = {};
-		for (int roll = 0; roll < total; roll++)
-			counts[static_cast<int>(FamilyForRoll(tc, roll))]++;
+		// Sized from the ENUM, not from a literal. This was `int counts[4]` and stayed 4 when the
+		// Mystic Orbs made a fifth family - so FamilyForRoll returned index 4, the loop wrote one
+		// past the end of a stack array, and the test did not fail, it HUNG. Exactly the trap the
+		// socketable drop's own candidates[] had, one file over.
+		constexpr int FamilyCount = static_cast<int>(SocketableFamily::Orb) + 1;
+		int counts[FamilyCount] = {};
+		for (int roll = 0; roll < total; roll++) {
+			const int family = static_cast<int>(FamilyForRoll(tc, roll));
+			ASSERT_GE(family, 0);
+			ASSERT_LT(family, FamilyCount) << tc.name << " produced a family outside the enum";
+			counts[family]++;
+		}
 
 		EXPECT_EQ(counts[0], tc.gemWeight) << tc.name << ": the gem share is not its weight";
 		EXPECT_EQ(counts[1], tc.runeWeight) << tc.name << ": the rune share is not its weight";
 		EXPECT_EQ(counts[2], tc.jewelWeight) << tc.name << ": the jewel share is not its weight";
 		EXPECT_EQ(counts[3], tc.charmWeight) << tc.name << ": the charm share is not its weight";
+		EXPECT_EQ(counts[4], tc.orbWeight) << tc.name << ": the orb share is not its weight";
 
 		// A MAJORITY, not a tilt. A zone whose best family is 30% of the draw is a zone nobody can
 		// feel the difference of, which is the failure this whole system exists to avoid.
+		//
+		// Orbs are EXCLUDED from the majority contest deliberately: they take a slice of every zone
+		// rather than owning one, so a zone whose largest share was orbs would be a zone with no
+		// identity - which is the thing being asserted, not a thing to allow.
 		int best = 0;
-		for (int i = 1; i < 4; i++) {
+		for (int i = 1; i < FamilyCount - 1; i++) {
 			if (counts[i] > counts[best])
 				best = i;
 		}
@@ -5012,4 +5027,154 @@ TEST(OracoolAudit, ASelectedRecipeRunsOrNothingDoes)
 	// -1 is the automatic mode, and still works for the callers that want it.
 	EXPECT_GE(FirstReadyLevskiRecipe(grid), 0) << "nothing is ready in automatic mode";
 	EXPECT_FALSE(TransmuteLevskiGridWith(grid, -1).empty());
+}
+
+/**
+ * Mystic Orbs - D2MXL-to-ORCL Phase 1.
+ *
+ * A consumable that adds one fixed small stat to an item, permanently, capped per ITEM. The cap is
+ * the mechanism: six into one weapon finishes it and the seventh has to go somewhere else, which is
+ * what makes an orb a decision rather than an accumulator.
+ *
+ * This is the first per-item value in the fork that is NOT derived from a seed - the base tier, the
+ * ethereal roll and every affix come out of the item's; a monster variant and a boss trait come out
+ * of the monster's. A player decision has nowhere to be recomputed from, so it cost a byte and a
+ * format bump. That makes the round trip below the load-bearing test of the whole phase.
+ */
+TEST(OracoolAudit, MysticOrbsAreCappedPerItemAndSpendThemselves)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+
+	// Every orb is a real item, has a power that is not INVALID, and has a description line.
+	int seen = 0;
+	std::set<int> cursors;
+	std::set<std::string> lines;
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsOracoolOrbIdx(i))
+			continue;
+		seen++;
+		const ItemData &data = AllItemsList[i];
+		EXPECT_TRUE(cursors.insert(data.iCurs).second) << data.iName << " shares a cursor";
+		EXPECT_LE(data.iCurs, ICURS_ORACOOL_LAST) << data.iName << " points past the icon strip";
+		EXPECT_NE(MysticOrbPower(i).type, IPL_INVALID) << data.iName << " grants nothing";
+		// param1 == param2, or the orb ROLLS - and a rolled orb is an affix wearing another name.
+		EXPECT_EQ(MysticOrbPower(i).param1, MysticOrbPower(i).param2)
+		    << data.iName << " rolls a range instead of granting a fixed value";
+		const std::string line = MysticOrbLine(i);
+		EXPECT_FALSE(line.empty()) << data.iName << " has no description line";
+		EXPECT_TRUE(lines.insert(line).second) << "two orbs describe themselves identically";
+		// Excluded from the seeded droppable pool, like every Oracool family - that pool is save
+		// format, and UnPackItem replays a seed through it to recover an index.
+		EXPECT_FALSE(IsOracoolGemIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i)
+		    || IsOracoolSalvageIdx(i) || IsOracoolCharmIdx(i))
+		    << data.iName << " reads as another family as well as an orb";
+	}
+	EXPECT_EQ(seen, 8) << "IsOracoolOrbIdx does not recognise exactly the eight orbs";
+
+	// ---- the CAP, which is the whole mechanism ----
+	devilution::Item helm;
+	InitializeItem(helm, IDI_ORACOOL_HELM);
+	devilution::Item orb;
+	InitializeItem(orb, IDI_ORACOOL_ORB_MIGHT);
+
+	ASSERT_TRUE(CanReceiveMysticOrb(helm)) << "a plain helm cannot take an orb";
+	const int baseStr = helm._iPLStr;
+	for (int i = 0; i < MaxOrbsPerItem; i++) {
+		EXPECT_TRUE(TryApplyMysticOrb(player, helm, orb)) << "orb " << i << " was refused early";
+		EXPECT_EQ(helm._iOracoolOrbCount, i + 1);
+	}
+	EXPECT_GT(helm._iPLStr, baseStr) << "six Orbs of Might granted no strength at all";
+
+	// The seventh is refused, and the item says so by no longer accepting.
+	EXPECT_FALSE(CanReceiveMysticOrb(helm)) << "a full item still offers room";
+	const int strAtCap = helm._iPLStr;
+	EXPECT_FALSE(TryApplyMysticOrb(player, helm, orb)) << "the cap was exceeded";
+	EXPECT_EQ(helm._iOracoolOrbCount, MaxOrbsPerItem) << "a refused orb still counted";
+	EXPECT_EQ(helm._iPLStr, strAtCap) << "a refused orb still granted its stat";
+
+	// The cap counts ORBS, not stat sources: mixing kinds does not buy more room. That is the
+	// difference between a decision and an accumulator, and it is one `++` away from being wrong.
+	devilution::Item mixed;
+	InitializeItem(mixed, IDI_ORACOOL_HELM);
+	devilution::Item vigour;
+	InitializeItem(vigour, IDI_ORACOOL_ORB_VIGOUR);
+	for (int i = 0; i < MaxOrbsPerItem; i++)
+		ASSERT_TRUE(TryApplyMysticOrb(player, mixed, (i % 2 == 0) ? orb : vigour));
+	EXPECT_FALSE(TryApplyMysticOrb(player, mixed, vigour))
+	    << "a different KIND of orb found room past the cap - the cap is per orb type, not per item";
+
+	// ---- what declines ----
+	devilution::Item rune;
+	InitializeItem(rune, IDI_ORACOOL_GEM_RUBY_CHIPPED);
+	EXPECT_FALSE(CanReceiveMysticOrb(rune)) << "a gem accepts orbs";
+	devilution::Item anotherOrb;
+	InitializeItem(anotherOrb, IDI_ORACOOL_ORB_FURY);
+	EXPECT_FALSE(CanReceiveMysticOrb(anotherOrb)) << "an orb accepts orbs";
+	devilution::Item potion;
+	InitializeItem(potion, IDI_HEAL);
+	EXPECT_FALSE(CanReceiveMysticOrb(potion)) << "a potion accepts orbs";
+
+	// And a non-orb held item is not absorbed by anything.
+	devilution::Item target;
+	InitializeItem(target, IDI_ORACOOL_HELM);
+	EXPECT_FALSE(TryApplyMysticOrb(player, target, rune)) << "a gem was absorbed as an orb";
+	EXPECT_EQ(target._iOracoolOrbCount, 0);
+
+	// ---- the description line, which is how a player learns the cap before spending ----
+	EXPECT_FALSE(MysticOrbCountLine(target).empty()) << "an empty item shows no orb line";
+	EXPECT_FALSE(MysticOrbCountLine(helm).empty()) << "a FULL item stops showing its orb line";
+	EXPECT_TRUE(MysticOrbCountLine(rune).empty()) << "a gem shows an orb line";
+}
+
+/**
+ * The orb count survives a save and a load.
+ *
+ * The one thing about Phase 1 that could not be got right by reasoning. Every other per-item value
+ * this fork added was derived and therefore free; this one is stored, and a stored field that is
+ * written but not read - or read at the wrong offset - is the failure mode that byte-shifts every
+ * item after it. OracoolItemFormatVersion moved 8 -> 9 for exactly this.
+ */
+TEST(OracoolAudit, TheOrbCountAndMagicFindSurviveARoundTrip)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+
+	devilution::Item original;
+	InitializeItem(original, IDI_ORACOOL_HELM);
+	devilution::Item fortune;
+	InitializeItem(fortune, IDI_ORACOOL_ORB_FORTUNE);
+	ASSERT_TRUE(TryApplyMysticOrb(player, original, fortune));
+	ASSERT_TRUE(TryApplyMysticOrb(player, original, fortune));
+	ASSERT_EQ(original._iOracoolOrbCount, 2);
+	// IPL_MAGICFIND is new in the same version - magic find had been an ItemBonusTotals figure that
+	// only a CHARM could contribute to, so no item, affix, set rung or orb could grant it.
+	ASSERT_GT(original._iPLMagicFind, 0) << "Orb of Fortune granted no magic find";
+
+	// The SAVE round trip is not reachable from here - SaveItem/LoadItemData are file-local to
+	// loadsave.cpp, and PackItem is the network path, which carries no extension record at all. It
+	// is covered instead by Writehero.pfile_write_hero, whose golden output must move exactly once
+	// at this format bump and never again for this reason.
+	//
+	// What IS asserted here is the half a round-trip test would not catch anyway: that the stat
+	// reaches the player. A field can round-trip perfectly and still be read by nothing.
+
+	// The equipment provider is what actually delivers an orb's stat to the player, so it is
+	// asserted through the totals rather than by reading the field straight back - the field being
+	// set proves nothing about whether anything consumes it.
+	// _iStatFlag is "the wearer meets this item's requirements", and it is set by CalcPlrInv rather
+	// than by InitializeItem - AddItem returns on its first line without it, so a fixture that
+	// omitted it would report a magic find of zero and read as a failure of the orb rather than of
+	// the fixture. It did, on the first run of this test.
+	original._iStatFlag = true;
+	ItemBonusTotals totals = {};
+	totals.AddItem(original);
+	EXPECT_GT(totals.magicFind, 0)
+	    << "an orbed item's magic find never reaches ItemBonusTotals - the stat is written and unread";
 }

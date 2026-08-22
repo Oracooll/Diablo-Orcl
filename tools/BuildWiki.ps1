@@ -647,7 +647,7 @@ foreach ($row in [regex]::Matches($runesEffectsInc, '(?s)\{\s*\.idx = (IDI_ORACO
 $treasureCpp = Read-SourceFile 'oracool/treasure_class.cpp'
 $tcRows = @()
 if ($treasureCpp -match '(?s)constexpr TreasureClass Classes\[\] = \{(.*?)\n\};') {
-    foreach ($m in [regex]::Matches($matches[1], '\{\s*"([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\}')) {
+    foreach ($m in [regex]::Matches($matches[1], '\{\s*"([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\}')) {
         $tcRows += [ordered]@{
             name        = $m.Groups[1].Value
             socketable  = [int]$m.Groups[2].Value
@@ -655,7 +655,8 @@ if ($treasureCpp -match '(?s)constexpr TreasureClass Classes\[\] = \{(.*?)\n\};'
             rune        = [int]$m.Groups[4].Value
             jewel       = [int]$m.Groups[5].Value
             charm       = [int]$m.Groups[6].Value
-            set         = [int]$m.Groups[7].Value
+            orb         = [int]$m.Groups[7].Value
+            set         = [int]$m.Groups[8].Value
         }
     }
 }

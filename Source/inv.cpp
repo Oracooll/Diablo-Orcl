@@ -33,6 +33,7 @@
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
+#include "oracool/mystic_orbs.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
@@ -670,6 +671,25 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 	// a beat of friction that makes the decision feel like smithing rather than a hover-swap.
 	if (il == ILOC_UNEQUIPABLE && it > 0 && player.HoldItem._itype != ItemType::Gold) {
 		Item &socketTarget = GetActiveInvListItem(player, it - 1);
+		// D2MXL-to-ORCL Phase 1: a Mystic Orb dropped onto a backpack item is CONSUMED into that
+		// item's stats. Same seam as the gem paste below and for the same reasons - it inherits the
+		// target resolution, the backpack-only rule (so orbing worn gear means carrying it first),
+		// and needs no window of its own.
+		//
+		// Tried BEFORE the socket insert, because the two can never both apply - an orb is not a
+		// socketable and TrySocketGem declines it - and ordering the specific test first keeps that
+		// independence obvious rather than resting on the other function's exclusion list.
+		if (oracool::TryApplyMysticOrb(player, socketTarget, player.HoldItem)) {
+			if (&player == MyPlayer) {
+				PlaySFX(IS_CAST7);
+				oracool::LogEvent(fmt::format("{:s} absorbed into {:s}",
+				    std::string(player.HoldItem.getName()), std::string(socketTarget.getName())));
+			}
+			player.HoldItem.clear();
+			NewCursor(CURSOR_HAND);
+			CalcPlrInv(player, true);
+			return;
+		}
 		if (oracool::TrySocketGem(socketTarget, player.HoldItem)) {
 			if (&player == MyPlayer)
 				PlaySFX(IS_IGRAB);

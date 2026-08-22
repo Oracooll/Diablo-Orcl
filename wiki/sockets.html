@@ -150,7 +150,7 @@ sake. The shallow end has <b>no jewels at all</b> - the Cathedral should not be 
 economies at once.</p>
 <div class="tablewrap"><table id="drops">
 <thead><tr><th>Where</th><th>Treasure class</th><th class="num">Socketable</th><th class="num">Set piece</th>
-<th class="num">Gem</th><th class="num">Rune</th><th class="num">Jewel</th><th class="num">Charm</th></tr></thead>
+<th class="num">Gem</th><th class="num">Rune</th><th class="num">Jewel</th><th class="num">Charm</th><th class="num">Orb</th></tr></thead>
 <tbody></tbody></table></div>
 <p>The family columns are shares of the socketable draw, so they read across to 100%. The first two
 columns are chances per kill.</p>
@@ -167,6 +167,20 @@ in every existing save. Treasure classes redistribute the hooks that were alread
 <p>A gem drop picks a <b>type</b> flat across the seven, then a <b>quality</b> from the ones the
 floor's depth has opened, weighted <b id="qw"></b> from chipped to perfect. Deep floors still drop
 chipped stones; perfect ones stay rare even where they are allowed.</p>
+
+<h2>Mystic Orbs</h2>
+<p>Not a socketable — an orb is <b>consumed into an item's stats</b> rather than held in a socket.
+Drop one onto an item in your backpack and it is absorbed, permanently. Eight of them: four that
+give <b>+3</b> to a single attribute, plus damage, all-resistance, magic find and gold find.</p>
+<p><b>Any one item can take six, ever.</b> The cap is per item and not per kind of orb, so six into
+one weapon finishes it and the seventh has to go somewhere else — which is the whole point. An orb
+is a decision about which item you are committing to, not a stat you accumulate. Every item that can
+still take one says how many it has left, because applying an orb cannot be undone.</p>
+<p>The values are deliberately small. An orb is worth roughly a third of an affix, so six is a real
+upgrade to a good base and never a substitute for finding a better item — the moment orbing beats
+finding, the drop tables stop mattering.</p>
+<p>Orbs take a slice of every zone's draw rather than owning one. They are useful everywhere and to
+everyone, so a zone that was <i>the</i> orb zone would be the only zone worth farming.</p>
 
 <h2>Where the salvage materials go</h2>
 <p>Salvaging gear yields one of seven materials, graded by what you broke down: White Scales from
@@ -368,7 +382,7 @@ document.querySelector('#charms tbody').innerHTML = WIKI.charms.map(function (c)
 }).join('');
 
 document.querySelector('#drops tbody').innerHTML = WIKI.treasureClasses.map(function (tc) {
-	const total = tc.gem + tc.rune + tc.jewel + tc.charm;
+	const total = tc.gem + tc.rune + tc.jewel + tc.charm + tc.orb;
 	// Shown as a share of the draw rather than as a raw weight: the weights are relative and can be
 	// re-tuned without summing to a hundred, but a reader wants a percentage.
 	function share(w) {
@@ -379,7 +393,8 @@ document.querySelector('#drops tbody').innerHTML = WIKI.treasureClasses.map(func
 	return '<tr><td><b>' + tc.dungeon + '</b></td><td>' + tc.name + '</td>'
 		+ '<td class="num">' + tc.socketable + '%</td><td class="num">' + tc.set + '%</td>'
 		+ '<td class="num">' + share(tc.gem) + '</td><td class="num">' + share(tc.rune) + '</td>'
-		+ '<td class="num">' + share(tc.jewel) + '</td><td class="num">' + share(tc.charm) + '</td></tr>';
+		+ '<td class="num">' + share(tc.jewel) + '</td><td class="num">' + share(tc.charm) + '</td>'
+		+ '<td class="num">' + share(tc.orb) + '</td></tr>';
 }).join('');
 document.getElementById('tcchamp').textContent = WIKI.treasureBonuses.champion + 'x';
 document.getElementById('tcuniq').textContent = WIKI.treasureBonuses.unique + 'x';

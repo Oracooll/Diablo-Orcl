@@ -32,6 +32,7 @@
 #include "mpq/mpq_common.hpp"
 #include "oracool/auto_save.h"
 #include "oracool/item_tiers.h"
+#include "oracool/mystic_orbs.h"
 #include "oracool/readied_spells.h"
 #include "pfile.h"
 #include "playerdat.hpp"
@@ -181,6 +182,8 @@ class SaveHelper {
 	std::unique_ptr<byte[]> m_buffer_;
 	size_t m_cur_ = 0;
 	size_t m_capacity_;
+	/** @brief Set when a write was dropped for want of room. See WriteBytes and the destructor. */
+	bool m_overran_ = false;
 
 public:
 	SaveHelper(SaveWriter &mpqWriter, const char *szFileName, size_t bufferLen)
@@ -211,8 +214,18 @@ public:
 
 	void WriteBytes(const void *bytes, size_t len)
 	{
-		if (!IsValid(len))
+		if (!IsValid(len)) {
+			// SILENT TRUNCATION, until 2026-08-22. This returned without a word, so a caller that
+			// under-declared its buffer wrote a short file and found out much later and somewhere
+			// else - loadsave's own round-trip test HUNG rather than failing, and the cause turned
+			// out to be that OracoolItemExtensionSaveSize had not counted v8's gold-find bytes for
+			// four versions.
+			//
+			// An overrun is never intentional: every caller declares a size it computed from what
+			// it is about to write. Recording it lets the destructor say so.
+			m_overran_ = true;
 			return;
+		}
 
 		memcpy(&m_buffer_[m_cur_], bytes, len);
 		m_cur_ += len;
@@ -234,6 +247,15 @@ public:
 
 	~SaveHelper()
 	{
+		if (m_overran_) {
+			// Loud, and on the way OUT rather than at the dropped write, because by then the file
+			// is already short and the next thing that happens is a load reading past its end. A
+			// save that quietly lost bytes is worse than one that refused: the player keeps
+			// playing, and the damage surfaces as a corrupt character much later.
+			app_fatal(StrCat("Save buffer for \"", m_szFileName_,
+			    "\" was too small - the record grew without its size constant. This is a bug; "
+			    "please report it rather than continuing, as the save is incomplete."));
+		}
 		const auto encodedLen = codec_get_encoded_len(m_cur_);
 		const char *const password = pfile_get_password();
 		codec_encode(m_buffer_.get(), m_cur_, encodedLen, password);
@@ -274,11 +296,21 @@ struct LevelConversionData {
 // Player::_pGoldFind and the drop tail were all already able to consume. A tail extension rather
 // than a widening, but the version still moves: the record grew, and a v7 reader would run off the
 // end of every item.
-constexpr uint8_t OracoolItemFormatVersion = 8;
+// Version 9 (D2MXL-to-ORCL Phase 1) appends TWO fields: _iPLMagicFind, the twin of v8's gold-find
+// channel, and _iOracoolOrbCount.
+//
+// The orb count is the first per-item value in this fork that is not derived from something. The
+// base tier, the ethereal roll and every affix come out of the item's own seed; a monster variant
+// and a boss trait come out of the monster's. A count of Mystic Orbs is a PLAYER DECISION, and a
+// decision has nowhere to be recomputed from - so it is stored, and storing it is what moves the
+// version. Paid once, deliberately: the growing charms in Phase 3 want the same byte.
+constexpr uint8_t OracoolItemFormatVersion = 9;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
-	return type == IPL_INVALID || (type >= 0 && type <= IPL_GOLDFIND);
+	// The bound moves with every appended power, and forgetting it is how a new power would load
+	// back as IPL_INVALID on every existing item - silently, and only after a save/load round trip.
+	return type == IPL_INVALID || (type >= 0 && type <= IPL_MAGICFIND);
 }
 
 void LoadItemData(LoadHelper &file, Item &item)
@@ -428,6 +460,11 @@ void LoadItemData(LoadHelper &file, Item &item)
 	    static_cast<uint8_t>(oracool::BaseItemTier::LAST));
 	// Version 8: the gold-find bonus this item carries.
 	item._iPLGoldFind = file.NextLE<int32_t>();
+	// Version 9: the magic-find twin, and the Mystic Orb count.
+	item._iPLMagicFind = file.NextLE<int32_t>();
+	// Clamped on read like every other extension field - a corrupted byte must cost the player an
+	// orb or two, never the ability to apply any at all.
+	item._iOracoolOrbCount = std::min<uint8_t>(file.NextLE<uint8_t>(), oracool::MaxOrbsPerItem);
 }
 
 void LoadAndValidateItemData(LoadHelper &file, Item &item)
@@ -1296,6 +1333,9 @@ void SaveItem(SaveHelper &file, const Item &item)
 	file.WriteLE<uint8_t>(item._iOracoolBaseTier);
 	// Version 8: the gold-find bonus.
 	file.WriteLE<int32_t>(item._iPLGoldFind);
+	// Version 9: the magic-find twin, and the Mystic Orb count.
+	file.WriteLE<int32_t>(item._iPLMagicFind);
+	file.WriteLE<uint8_t>(item._iOracoolOrbCount);
 }
 
 void SavePlayer(SaveHelper &file, const Player &player)
@@ -2139,12 +2179,34 @@ void LoadLevel(LevelConversionData *levelConversionData)
 	}
 }
 
-// The Oracool extension folded into SaveItem/LoadItemData's fixed-size item record: 5 header
-// bytes (tier, perfect-roll, broken, prefix count, suffix count), 3 prefixes + 3 suffixes at
-// 9 bytes each; version 3 (Megaplan Phase 1) added the socket block (1 count byte + MaxItemSockets
-// uint16 gem indices), version 4 the ethereal flag byte, version 5 the ilvl byte, version 6 the base-tier byte.
-constexpr int OracoolItemExtensionSaveSize = 5 + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4)
-    + 1 + Item::MaxItemSockets * 2 + 1 + 1 + 1;
+// The Oracool extension folded into SaveItem/LoadItemData's fixed-size item record.
+//
+// THIS CONSTANT SIZES THE SAVE BUFFER (see the SaveHelper in SaveHeroItems), so it is not
+// documentation - it is load-bearing, and every field SaveItem writes has to be counted here or the
+// writer runs off the end of the buffer it was given.
+//
+// It had already drifted before v9 found it: version 8 appended _iPLGoldFind's four bytes in
+// August 2026 and this sum was never updated, so every hero save since has been written into a
+// buffer four bytes per item too small. The symptom is not a clean failure - the loadsave round-trip
+// test HANGS - which is exactly why the terms below are now spelled one per line with the version
+// that added them. A sum of bare numbers is a sum nobody re-derives when they add a field.
+constexpr int OracoolItemExtensionSaveSize =
+    // v1: tier, perfect-roll, broken, prefix count, suffix count.
+    5
+    // v1: three prefixes and three suffixes, each a type byte plus two int32 params.
+    + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4)
+    // v3: the socket block - one count byte plus one uint16 base index per slot.
+    + 1 + Item::MaxItemSockets * 2
+    // v4: the ethereal flag.
+    + 1
+    // v5: the item level.
+    + 1
+    // v6: the base tier.
+    + 1
+    // v8: the gold-find bonus. MISSING from this sum until v9 caught it.
+    + 4
+    // v9: the magic-find twin, and the Mystic Orb count.
+    + 4 + 1;
 const int DiabloItemSaveSize = 368 + OracoolItemExtensionSaveSize;
 const int HellfireItemSaveSize = 372 + OracoolItemExtensionSaveSize;
 

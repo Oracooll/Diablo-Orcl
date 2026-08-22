@@ -66,16 +66,27 @@ struct TreasureClass {
 	int runeWeight;
 	int jewelWeight;
 	int charmWeight;
+	/**
+	 * @brief The Mystic Orbs' share (D2MXL-to-ORCL Phase 1).
+	 *
+	 * Orbs join the socketable draw rather than getting a hook of their own, so which zone favours
+	 * them is a table entry beside the other four rather than a fifth rate nobody reads together
+	 * with these. They are not socketables - an orb is consumed into an item's stats - but they
+	 * drop like one, and the draw is about what a place GIVES rather than about what the thing does
+	 * afterwards.
+	 */
+	int orbWeight;
 	/** @brief Chance per kill, in percent, of a named set piece. */
 	int setPercent;
 };
 
-/** @brief The four socketable families, in the order the weights are listed. */
+/** @brief The five socketable-draw families, in the order the weights are listed. */
 enum class SocketableFamily : uint8_t {
 	Gem,
 	Rune,
 	Jewel,
 	Charm,
+	Orb,
 };
 
 /** @brief The class for @p dungeon. Never null - town included, which gives nothing. */

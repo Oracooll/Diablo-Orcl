@@ -49,6 +49,7 @@
 #include "oracool/item_sets.h"
 #include "oracool/oracool.h"
 #include "oracool/runewords.h"
+#include "oracool/mystic_orbs.h"
 #include "oracool/salvage.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/stat_sheet.h"
@@ -1119,6 +1120,11 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		// Item::_iPLGoldFind for why this channel had to be opened at all.
 		item._iPLGoldFind += r;
 		break;
+	case IPL_MAGICFIND:
+		// The twin, and additive for the same reason - ItemBonusTotals sums it with the charms'
+		// figure and the drop tail reads the total as one percentage.
+		item._iPLMagicFind += r;
+		break;
 	default:
 		break;
 	}
@@ -1630,7 +1636,8 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		if (IsOracoolItemIdx(i))
 			continue;
 		// Phase 1: gems, charms and runes obey the same pool-is-save-format rule; own hooks drop them.
-		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i))
+		if (IsOracoolGemIdx(i) || IsOracoolCharmIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i)
+		    || IsOracoolOrbIdx(i))
 			continue;
 		if (IsAnyOf(item.iSpell, SpellID::Resurrect, SpellID::HealOther) && !gbIsMultiplayer)
 			continue;
@@ -4855,11 +4862,19 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 				if (oracool::BandedQlvl(AllItemsList[rune].iMinMLvl) <= mlvl)
 					candidates[candidateCount++] = static_cast<_item_indexes>(rune);
 			}
-		} else {
+		} else if (family == oracool::SocketableFamily::Jewel) {
 			// The jewels are one contiguous island, so a plain range walk is enough - no ladder and
 			// no two-island filter. The qlvl gate does the same work it does for every family here:
 			// Flawed jewels from early on, Radiant ones only once the floor has earned them.
 			for (int i = IDI_ORACOOL_JEWEL_FERVOR_FLAWED; i <= IDI_ORACOOL_JEWEL_WARDING_RADIANT; i++) {
+				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
+					candidates[candidateCount++] = static_cast<_item_indexes>(i);
+			}
+		} else {
+			// The Mystic Orbs, one island again. Their qlvls are NOT flat: the four attribute orbs
+			// open early because a new character can use them at once, while find and resistance
+			// wait for the depth where those are a concern.
+			for (int i = oracool::FirstMysticOrbIdx(); i <= oracool::LastMysticOrbIdx(); i++) {
 				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
 					candidates[candidateCount++] = static_cast<_item_indexes>(i);
 			}
@@ -5354,6 +5369,11 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		// Worded to match the Charm of Greed's line, since the two stack and a player comparing them
 		// should not have to work out whether they mean the same thing.
 		return fmt::format(fmt::runtime(_("{:+d}% gold from monsters")), affix.param1);
+	case IPL_MAGICFIND:
+		// Worded to match the Charm of Luck's line, for the reason the gold one above records: the
+		// two stack, and a player comparing them should not have to work out whether they mean the
+		// same thing.
+		return fmt::format(fmt::runtime(_("{:+d}% better chance of magic items")), affix.param1);
 	case IPL_LIFE:
 		return fmt::format(fmt::runtime(_("Hit Points: {:+d}")), affix.param1);
 	case IPL_LIFE_CURSE:
@@ -5405,6 +5425,8 @@ std::string PrintSetBonusPower(const ItemPower &power)
 		// Worded to match the Charm of Greed's own line, since the two stack and a player comparing
 		// them should not have to work out whether they mean the same thing.
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% gold from monsters")), power.param1);
+	case IPL_MAGICFIND:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% better chance of magic items")), power.param1);
 	case IPL_FIRERES:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% fire resist")), power.param1);
 	case IPL_LIGHTRES:
@@ -5738,6 +5760,16 @@ void PrintItemDetails(const Item &item)
 	// already show in the numbers above, so what the line carries is the PRICE.
 	if (item._iOracoolEthereal)
 		AddPanelString(_("Ethereal (cannot be repaired)"), ItemBaseStatColor);
+	// Phase 1 Mystic Orbs: how many this item has taken and how many it can. The player needs to
+	// know what is left BEFORE they spend one, because applying an orb cannot be undone - an item
+	// silently at its cap is exactly what this line exists to prevent.
+	if (const std::string orbLine = oracool::MysticOrbCountLine(item); !orbLine.empty())
+		AddPanelString(orbLine, ItemBaseStatColor);
+	// The ORB's own line, when the thing being described is the orb rather than its target.
+	if (IsOracoolOrbIdx(item.IDidx)) {
+		AddPanelString(_(oracool::MysticOrbLine(item.IDidx)), ItemAffixColor);
+		AddPanelString(_("drop onto a backpack item to absorb it"), ItemBaseStatColor);
+	}
 	// Phase 1 charms: the effect, and the rule that governs it - the description is where the
 	// active-cap system explains itself.
 	if (IsOracoolCharmIdx(item.IDidx)) {

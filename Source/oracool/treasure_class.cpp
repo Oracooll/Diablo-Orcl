@@ -35,15 +35,23 @@ namespace {
  * OFTEN a socketable falls and how good one is allowed to be, and the two were deliberately not
  * folded together, because the first is a reward for being deep and the second is a cap.
  */
+// Orbs take a slice from every zone rather than owning one, and that is deliberate: an orb is
+// useful everywhere and to everyone, so a zone that was THE orb zone would be the only zone anyone
+// farmed. The share climbs a little with depth, because six orbs is a project and a project wants
+// to be a late-game one.
 constexpr TreasureClass Classes[] = {
-	// name                        rate  gem rune jewel charm  set
-	{ "Nothing at all",               0,   0,   0,    0,    0,   0 }, // town
-	{ "The Cathedral's Offering",     7,  60,  25,    0,   15,   3 },
-	{ "The Catacombs' Reliquary",     8,  25,  20,   10,   45,   3 },
-	{ "The Caves' Forge",             9,  15,  55,   10,   20,   4 },
-	{ "Hell's Own Hoard",            11,  10,  30,   45,   15,   5 },
-	{ "The Nest's Clutch",            9,  10,  15,   35,   40,   4 },
-	{ "Na-Krul's Vault",             11,  10,  50,   30,   10,   5 },
+	// name                        rate  gem rune jewel charm  orb  set
+	{ "Nothing at all",               0,   0,   0,    0,    0,   0,   0 }, // town
+	{ "The Cathedral's Offering",     7,  55,  22,    0,   13,  10,   3 },
+	{ "The Catacombs' Reliquary",     8,  22,  18,    9,   39,  12,   3 },
+	{ "The Caves' Forge",             9,  13,  48,    9,   16,  14,   4 },
+	{ "Hell's Own Hoard",            11,   9,  26,   38,   12,  15,   5 },
+	// The Nest was 9/13/30/34 before orbs took their slice, which left charms at 34% of the draw -
+	// just under the threshold that separates a treasure class from a tilt. Retuned rather than
+	// argued down: the test's 35% is the definition of the feature, and a table that has to lower
+	// it to pass is a table with no identity.
+	{ "The Nest's Clutch",            9,   8,  11,   28,   39,  14,   4 },
+	{ "Na-Krul's Vault",             11,   9,  43,   26,    7,  15,   5 },
 };
 
 /** @brief Index into Classes for @p dungeon. Town and anything unknown fall on the empty row. */
@@ -122,7 +130,7 @@ int ScaleRateForDifficulty(int percent)
 
 int TotalFamilyWeight(const TreasureClass &tc)
 {
-	return tc.gemWeight + tc.runeWeight + tc.jewelWeight + tc.charmWeight;
+	return tc.gemWeight + tc.runeWeight + tc.jewelWeight + tc.charmWeight + tc.orbWeight;
 }
 
 SocketableFamily FamilyForRoll(const TreasureClass &tc, int roll)
@@ -137,10 +145,13 @@ SocketableFamily FamilyForRoll(const TreasureClass &tc, int roll)
 	roll -= tc.runeWeight;
 	if (roll < tc.jewelWeight)
 		return SocketableFamily::Jewel;
-	// Everything left is Charm - including a roll past the end, which a caller can only produce by
+	roll -= tc.jewelWeight;
+	if (roll < tc.charmWeight)
+		return SocketableFamily::Charm;
+	// Everything left is Orb - including a roll past the end, which a caller can only produce by
 	// drawing against a total this function did not compute. Answering rather than reading off the
 	// end is the safe half of that; the test pins the distribution so it stays the unreachable one.
-	return SocketableFamily::Charm;
+	return SocketableFamily::Orb;
 }
 
 } // namespace devilution::oracool

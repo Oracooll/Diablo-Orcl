@@ -1,0 +1,8 @@
+C:\Users\hroga\AppData\Local\Temp\oracool-orbs\orb_might.png,0,0,28,28,28,28,orb_might,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-orbs\orb_grace.png,0,0,28,28,28,28,orb_grace,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-orbs\orb_insight.png,0,0,28,28,28,28,orb_insight,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-orbs\orb_vigour.png,0,0,28,28,28,28,orb_vigour,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-orbs\orb_warding.png,0,0,28,28,28,28,orb_warding,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-orbs\orb_fury.png,0,0,28,28,28,28,orb_fury,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-orbs\orb_fortune.png,0,0,28,28,28,28,orb_fortune,30,false,asis
+C:\Users\hroga\AppData\Local\Temp\oracool-orbs\orb_avarice.png,0,0,28,28,28,28,orb_avarice,30,false,asis
