@@ -81,6 +81,39 @@ quality tier. It never touches something that already rolled magic or better, an
 unique. The <b>base tier is irrelevant</b> - a Torment-tier white sword is upgradeable exactly like
 a Normal one, because base tier and quality are independent axes.</p>
 
+<h2>Progression that outlives your gear</h2>
+<p>A <b>Signet of Learning</b> grants one <b>permanent stat point</b>, and a character may ever
+consume <b id="signetcap"></b> of them. The cap is the whole design: without it a signet is a slower
+level-up; with it the pool is finite, and you can exhaust it and then must live with what you spent
+it on. The point lands in the ordinary unspent pool, so you decide where it goes.</p>
+<p>Signets come from two places. They drop from <b>champions and better only</b> —
+<span id="signetdrop"></span> times what the monster is worth, so 2x that on a champion, 4x on a
+unique and 6x on a Dread boss, and never at all from an ordinary kill. And they are paid by
+<b>milestones</b>: things you do once, each worth exactly one signet, the first time and never
+again.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Milestone</th></tr></thead>
+<tbody id="milestones"></tbody></table></div>
+<p>Milestones are the reliable half and the drop is the bonus, which is why the drop is narrow: a
+trickle from ordinary monsters would be something nobody could aim at.</p>
+<div class="note"><b>A signet at the cap is never consumed.</b> It is refused before it is spent,
+because a capped, permanent, unrecoverable resource silently eaten by a full pool is the worst thing
+the item could do.</div>
+
+<h2>Named encounters</h2>
+<p>A specific hard fight, in a specific place, with a <b>known</b> reward. A <b>Sealed Map</b> drops
+from a Dread boss; using it in town opens its encounter and <b>consumes the map</b>, so how often
+you can run one is bounded by drops rather than by a timer. The floor holds one Dread boss and its
+escort and nothing else — the encounter is the fight.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Encounter</th><th>Where</th><th>Opened by</th><th>Guaranteed reward</th></tr></thead>
+<tbody id="encounters"></tbody></table></div>
+<p>The reward is guaranteed, not rolled — the map says what its guardian carries, and a roll would
+make that a lie. Each is a <b>charm</b>, so it competes for the three-charm active cap: carrying one
+costs a slot rather than filling one, which is what makes three signature rewards a decision.</p>
+<div class="note"><b>The map is spent when the encounter opens</b>, not when it is cleared. Leaving
+before the guardian dies costs you the map.</div>
+
 <h2>Ethereal items</h2>
 <p>A ghost of an item: <b>35% more damage or armour</b>, <b>half the maximum durability</b>, and no
 smith will touch it. Any durable weapon or armour can roll ethereal on the drop, at any quality.</p>
@@ -151,6 +184,23 @@ document.getElementById('maxclvl').textContent = WIKI.mechanics.maxCharacterLeve
 	};
 	document.getElementById('resnormal').textContent = toCeiling(r.penalties[0]);
 	document.getElementById('restorment').textContent = toCeiling(r.penalties[r.penalties.length - 1]);
+}());
+
+// Progression and the named encounters. Every number and every row is parsed from source - these
+// are tuning values the telemetry is expected to correct, and a typed copy would be wrong the first
+// time any of them moved.
+(function () {
+	var p = WIKI.progression;
+	document.getElementById('signetcap').textContent = p.signetCap;
+	document.getElementById('signetdrop').textContent = p.dropPercent + '%';
+	document.getElementById('milestones').innerHTML = p.milestones.map(function (m) {
+		return '<tr><td>' + m + '</td></tr>';
+	}).join('');
+
+	document.getElementById('encounters').innerHTML = WIKI.encounters.map(function (e) {
+		return '<tr><td><b>' + e.name + '</b></td><td>' + e.dungeon + '</td>'
+			+ '<td>' + e.map + '</td><td>' + e.reward + '</td></tr>';
+	}).join('');
 }());
 </script>
 </body>

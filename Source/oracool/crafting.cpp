@@ -63,7 +63,29 @@ bool IsJewel(int idx) { return IsOracoolJewelIdx(idx); }
 // Stat charms only. A Charm of Salvaging is a charm structurally - it obeys the same active cap -
 // but recipe 2 turns two charms into one random STAT charm, and letting a bought 40,000 gold Primal
 // charm be consumed for a Charm of Vigor is a trap, not a recipe.
-bool IsCharm(int idx) { return IsOracoolCharmIdx(idx) && !IsOracoolSalvageCharmIdx(idx); }
+/**
+ * @brief The charms "Rework Charms" may consume: the six BASIC stat charms and nothing else.
+ *
+ * This was `IsOracoolCharmIdx && !IsOracoolSalvageCharmIdx`, which was correct while those were the
+ * only two families. It stopped being correct the moment the charm space grew, and silently: the
+ * predicate kept compiling and kept saying yes to everything new.
+ *
+ * By v1.9.23 that meant the recipe would take two charms of any kind and hand back one random basic
+ * charm - so a Chapel Reliquary, a guaranteed named-encounter reward that cannot be farmed for and
+ * costs a Sealed Map to earn, could be fed in and come back as a Charm of Vigor. Growing charms the
+ * same. A recipe for surplus was quietly a recipe for destroying the best items in the game.
+ *
+ * Written as an explicit LIST rather than as more exclusions, deliberately. Every "everything except
+ * the ones I have thought of" predicate here has eventually been wrong; this one can only be wrong
+ * by someone adding a basic charm and not adding it here, which is a change that makes them look at
+ * this line.
+ */
+bool IsCharm(int idx)
+{
+	return idx == IDI_ORACOOL_CHARM_VIGOR || idx == IDI_ORACOOL_CHARM_EMBERS
+	    || idx == IDI_ORACOOL_CHARM_STORMS || idx == IDI_ORACOOL_CHARM_FORTUNE
+	    || idx == IDI_ORACOOL_CHARM_LUCK || idx == IDI_ORACOOL_CHARM_GREED;
+}
 
 /** @brief The materials a recipe would consume right now, empty when it cannot run. */
 std::vector<int> MaterialsFor(const Player &player, int index)

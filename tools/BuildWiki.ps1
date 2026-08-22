@@ -639,6 +639,55 @@ foreach ($row in [regex]::Matches($runesEffectsInc, '(?s)\{\s*\.idx = (IDI_ORACO
 # `*_RUNE_*` in the constant, with gems as the else - so if the jewel rows HAD been inline, all
 # fifteen would have been filed as gems and the wiki would have reported a 50-gem ladder in a
 # perfectly clean build. They get a collection of their own here for that reason as much as any.
+# D2MXL-to-ORCL Phases 2-4 (v1.9.20-1.9.23): signets, milestones and the named encounters. All
+# parsed, because every number in them is a tuning value the telemetry is expected to correct - a
+# typed copy would be wrong the first time any of them moves.
+$signetsCpp = Read-SourceFile 'oracool/signets.cpp'
+$signetsHdr = Read-SourceFile 'oracool/signets.h'
+$milestones = @()
+if ($signetsCpp -match '(?s)const char \*MilestoneName\(Milestone milestone\)(.*?)\n\}') {
+    foreach ($m in [regex]::Matches($matches[1], 'case Milestone::(\w+):\s*\r?\n\s*return N_\("([^"]+)"\)')) {
+        $milestones += $m.Groups[2].Value
+    }
+}
+$progression = [ordered]@{
+    signetCap  = [int](Get-Constant $signetsHdr 'constexpr int SignetLifetimeCap = (\d+)')
+    dropPercent = [int](Get-Constant $itemsCpp2 'constexpr int SignetDropPercent = (\d+)')
+    milestones = $milestones
+}
+
+# The named encounters - place, tileset and reward, read out of the Places[] table and the generated
+# item table so the wiki cannot claim an encounter pays something it does not.
+$encCpp = Read-SourceFile 'oracool/named_encounters.cpp'
+$encTable = Get-Content (Join-Path $src 'oracool\encounter_items_table.inc') -Raw -Encoding UTF8
+$encPlaces = @()
+if ($encCpp -match '(?s)constexpr EncounterPlace Places\[\] = \{(.*?)\n\};') {
+    foreach ($m in [regex]::Matches($matches[1], '\{\s*SL_(\w+),\s*DTYPE_(\w+),\s*MT_(\w+),\s*"([^"]+)"\s*\}')) {
+        $encPlaces += [ordered]@{
+            arena   = (Get-Culture).TextInfo.ToTitleCase(($m.Groups[1].Value -replace '_', ' ').ToLower())
+            dungeon = (Get-Culture).TextInfo.ToTitleCase($m.Groups[2].Value.ToLower())
+            name    = $m.Groups[4].Value
+        }
+    }
+}
+# The map and reward names come from AllItemsList, so a renamed item renames itself here too.
+$encRows = New-Object System.Collections.ArrayList
+$encIdx = 0
+foreach ($m in [regex]::Matches($encTable, 'NamedEncounter::(\w+),\s*(IDI_\w+),\s*(IDI_\w+)')) {
+    if ($encIdx -ge $encPlaces.Count) { break }
+    $mapItem = $items | Where-Object { $_.id -eq $m.Groups[2].Value } | Select-Object -First 1
+    $rewardItem = $items | Where-Object { $_.id -eq $m.Groups[3].Value } | Select-Object -First 1
+    $row = [ordered]@{
+        name    = $encPlaces[$encIdx].name
+        arena   = $encPlaces[$encIdx].arena
+        dungeon = $encPlaces[$encIdx].dungeon
+        map     = if ($null -ne $mapItem) { $mapItem.name } else { $m.Groups[2].Value }
+        reward  = if ($null -ne $rewardItem) { $rewardItem.name } else { $m.Groups[3].Value }
+    }
+    [void]$encRows.Add($row)
+    $encIdx++
+}
+
 # Treasure classes (v1.9.13) - the per-zone drop tables. Parsed straight out of the Classes[] array
 # and its dungeon switch, so the wiki's table IS the game's table. The row order in the array is the
 # order the switch maps onto, and the switch is read too rather than assumed, because "row 4 is
@@ -1030,6 +1079,8 @@ $data = [ordered]@{
     jewels    = $jewels
     monsterVariants = $monsterVariants
     treasureClasses = $treasureClasses
+    progression = $progression
+    encounters = $encRows
     treasureBonuses = $treasureBonuses
     endgameBoss = $endgameBoss
     difficultyLadder = $difficultyLadder

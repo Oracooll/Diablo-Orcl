@@ -660,9 +660,14 @@ void PlaceNamedEncounter()
 	if (!oracool::CurrentNamedEncounter(encounter))
 		return;
 
+	// AddMonsterType loads the sprites and sounds itself, which is what makes this work on a room
+	// that has none - an arena .dun is a PvP map and loads no monster types at all.
+	//
+	// No "did it fit" check here, deliberately: the `index == LevelMonsterTypeCount` idiom used
+	// elsewhere belongs to GetMonsterTypeIndex, where that value means NOT FOUND. AddMonsterType
+	// increments the count as it adds, so the same comparison after it can never be true - it was
+	// written here first and was inert, which is worse than absent because it reads like a guard.
 	const size_t typeIndex = AddMonsterType(oracool::NamedEncounterMonster(encounter), PLACE_UNIQUE);
-	if (typeIndex == LevelMonsterTypeCount)
-		return;
 
 	const std::optional<UniqueMonsterType> choice = oracool::ChooseLesserUnique(/*excludeLevelOwned=*/false);
 	if (!choice)
