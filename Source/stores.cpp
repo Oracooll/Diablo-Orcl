@@ -36,8 +36,11 @@
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/oracool.h"
+#include "oracool/crafting_menu.h"
+#include "oracool/runeword_book.h"
 #include "oracool/shop_grid.h"
 #include "oracool/shop_tabs.h"
+#include "oracool/waypoint_menu.h"
 #include "oracool/skill_points.h"
 #include "panels/info_box.hpp"
 #include "qol/stash.h"
@@ -3667,6 +3670,12 @@ void StartStore(TalkID s)
 	sbookflag = false;
 	CloseInventory();
 	CloseCharPanel();
+	// The waypoint list and the crafting window share the top-left slot with the character sheet,
+	// the quest log and the stash - all of which this already closes - and since v1.9.26 the shop
+	// panel is in that slot too. They were missed because before the shop moved there, a store was
+	// a box in the middle of the screen and nothing it opened could collide.
+	oracool::CloseWaypointMenu();
+	oracool::CloseCraftingMenu();
 	// ...and then straight back open for a shop, because that is where the goods you are selling
 	// live (user request, 2026-08-23). CloseInventory runs first rather than being skipped: it also
 	// shuts the stash and the gold-withdraw prompt, which have no business being open over a shop,
@@ -4100,6 +4109,19 @@ void DrawSText(const Surface &out)
 	// The vanilla box is still what Confirm, No money, No room and every towner dialog use, so this
 	// is a branch rather than a replacement.
 	if (oracool::IsShopGridScreen(stextflag)) {
+		// The shop cannot share the screen with the windows that overlap it, so the newer one wins
+		// and the shop closes. Two things make this necessary rather than tidy: the shop is drawn
+		// BEFORE the left-panel content, so anything opened over it is visible while the shop
+		// underneath still swallows every click in its rect; and since the click router stopped
+		// treating a shop as modal (so items could be dragged from the inventory), the burger menu
+		// is reachable while a shop is open, which is one click from doing exactly that.
+		//
+		// The test lives here because this is the one place that runs every frame a shop is up.
+		// Putting it at each opener would mean finding all of them, and then finding the next one.
+		if (GetLeftPanelContent() != LeftPanelContent::None || oracool::IsRunewordBookOpen()) {
+			stextflag = TalkID::None;
+			return;
+		}
 		oracool::DrawShopGrid(out);
 		return;
 	}

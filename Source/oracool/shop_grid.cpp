@@ -262,12 +262,10 @@ const char *ShopPriceLabel(TalkID id)
 	switch (id) {
 	case TalkID::SmithSell:
 	case TalkID::WitchSell:
-		return N_("You get");
-	case TalkID::SmithRepair:
-		return N_("Repair");
-	case TalkID::SmithRecharge:
-	case TalkID::WitchRecharge:
-		return N_("Recharge");
+		// "Buy back", not "You get". This tab used to list what the player could sell, and the
+		// number was what they would be paid; it lists what has already been sold now, and the
+		// number is what taking it back costs. Same number, opposite direction.
+		return N_("Buy back");
 	default:
 		return N_("Price");
 	}
