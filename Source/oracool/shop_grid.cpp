@@ -1,6 +1,7 @@
 #include "oracool/shop_grid.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstring>
 #include <vector>
 
@@ -59,18 +60,29 @@ constexpr int ShopTabRowGap = 2;
  * wide enough for any label the tab sets contain with room to spare.
  */
 constexpr int ShopTabsPerRow = 3;
-constexpr int ShopTabRows = 3;
+/**
+ * @brief Rows reserved for the strip, whatever this vendor actually has.
+ *
+ * Two, because five is the most tabs any vendor offers - Griswold's Basic, Magic, Unique, Supplies
+ * and Sold, and the last two of those are already conditional. It was three while Repair and
+ * Recharge were still tabs, and leaving it there after they became buttons would have left a blank
+ * row of reserved space between the tabs and the controls.
+ *
+ * Fixed rather than derived from the tab count, so the grid does not move when a vendor has fewer.
+ * DrawShopTabRow asserts a vendor has not outgrown it.
+ */
+constexpr int ShopTabRows = 2;
 constexpr int ShopTabStripLeft = 16;
 constexpr int ShopTabStripWidth = ShopPanelSize.width - 2 * ShopTabStripLeft;
 
 /** @brief Bulk actions and the gold readout, stacked between the tabs and the grid. */
-// The two gaps are 2, not a more comfortable 4: the grid's bottom is pinned and the title band is
-// fixed, so everything between them shares one fixed budget. GridFrameWidth is 6 - the carved stone
-// bezel's, not the procedural bevel's 3 - and reserving the smaller number is the mistake the
-// assert below exists to catch.
-constexpr int ShopActionTop = ShopTabTop + ShopTabRows * (ShopTabHeight + ShopTabRowGap) + 2;
+// The budget between the fixed title band and the pinned grid top is shared by everything here, so
+// these gaps are checked rather than chosen: the assert below is what says they fit. GridFrameWidth
+// is 6 - the carved stone bezel's, not the procedural bevel's 3 - and reserving the smaller number
+// is the mistake it exists to catch. It has already caught it once.
+constexpr int ShopActionTop = ShopTabTop + ShopTabRows * (ShopTabHeight + ShopTabRowGap) + 10;
 constexpr int ShopActionHeight = 20;
-constexpr int ShopGoldTop = ShopActionTop + ShopActionHeight + 2;
+constexpr int ShopGoldTop = ShopActionTop + ShopActionHeight + 8;
 constexpr int ShopGoldHeight = 15;
 
 static_assert(ShopGoldTop + ShopGoldHeight <= ShopGridTop - GridFrameWidth,
@@ -281,6 +293,11 @@ Rectangle ShopTabRect(size_t index, size_t count)
 void DrawShopTabRow(const Surface &out)
 {
 	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
+	// A vendor that grows past the reserved rows would draw its last row over the control row and
+	// then over the grid, silently. The strip's height is fixed on purpose (see ShopTabRows), so
+	// this is the only thing standing between a new tab and a layout that quietly overlaps.
+	assert(tabs.size() <= static_cast<size_t>(ShopTabsPerRow * ShopTabRows)
+	    && "a vendor has more tabs than the strip reserves rows for - raise ShopTabRows");
 	for (size_t i = 0; i < tabs.size(); i++) {
 		const Rectangle rect = ShopTabRect(i, tabs.size());
 		const bool active = tabs[i] == stextflag;

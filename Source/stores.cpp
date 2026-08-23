@@ -1367,8 +1367,37 @@ bool WitchRechargeOk(int i)
  * and "the thing you just sold is still there" only needs to hold for as long as changing your mind
  * is plausible. It is cleared with the rest of the stores in InitStores.
  */
-std::vector<Item> BuybackStock;
+struct SoldItem {
+	Item item;
+	/** @brief Which vendor bought it. Adria and Griswold do not share a shelf. */
+	bool witch;
+};
+std::vector<SoldItem> BuybackStock;
 constexpr size_t MaxBuybackItems = 40;
+
+/** @brief Whether @p id is one of Adria's screens - she and Griswold take different things. */
+bool IsWitchShopScreen(TalkID id)
+{
+	return IsAnyOf(id, TalkID::WitchBuy, TalkID::WitchSell, TalkID::WitchRecharge);
+}
+
+/**
+ * @brief Positions in BuybackStock that belong on @p id's Sold tab, newest first.
+ *
+ * One function so the tab's CONTENTS and the buyback's TARGET cannot disagree. They are two
+ * different pieces of code reading the same list through the same filter, and a filter written twice
+ * is a filter that eventually sells the wrong item back.
+ */
+std::vector<size_t> BuybackIndicesFor(TalkID id)
+{
+	const bool witch = IsWitchShopScreen(id);
+	std::vector<size_t> indices;
+	for (size_t i = 0; i < BuybackStock.size(); i++) {
+		if (BuybackStock[i].witch == witch)
+			indices.push_back(i);
+	}
+	return indices;
+}
 
 void RecordSale(const Item &item)
 {
@@ -1378,7 +1407,7 @@ void RecordSale(const Item &item)
 	// _iIvalue by the time anything calls this - that is what makes buyback "at sold price" free.
 	if (BuybackStock.size() >= MaxBuybackItems)
 		BuybackStock.pop_back();
-	BuybackStock.insert(BuybackStock.begin(), item);
+	BuybackStock.insert(BuybackStock.begin(), { item, IsWitchShopScreen(stextflag) });
 }
 
 /** @brief Pays @p cost into the player's purse, wherever that is. Split out of StoreSellItemAt. */
@@ -1394,12 +1423,6 @@ void CreditSaleProceeds(int cost)
 		AddGoldToInventory(myPlayer, cost);
 		myPlayer._pGold += cost;
 	}
-}
-
-/** @brief Whether @p id is one of Adria's screens - she and Griswold take different things. */
-bool IsWitchShopScreen(TalkID id)
-{
-	return IsAnyOf(id, TalkID::WitchBuy, TalkID::WitchSell, TalkID::WitchRecharge);
 }
 
 /**
@@ -3649,10 +3672,15 @@ void StartStore(TalkID s)
 	// shuts the stash and the gold-withdraw prompt, which have no business being open over a shop,
 	// and the shop panel occupies the same left-hand slot the stash does.
 	//
-	// stextshold as well as s: Confirm, No money and No room are not shop tabs, but they are screens
-	// a shop tab put you on and will put you back from. Without the second test the inventory shut
-	// and reopened around every single purchase.
-	if (oracool::IsShopGridScreen(s) || oracool::IsShopGridScreen(stextshold))
+	// The three refusal/confirmation screens count too: they are not shop tabs, but they are screens
+	// a shop tab put you on and will put you back from, and without them the inventory shut and
+	// reopened around every single purchase. Named explicitly rather than testing stextshold alone,
+	// because stextshold is stale as often as not - it is only written by the Enter handlers, so
+	// after backing out of a shop it still names the tab you left, and a bare test would have
+	// reopened the inventory over the towner's dialog.
+	const bool returningToShop = IsAnyOf(s, TalkID::Confirm, TalkID::NoMoney, TalkID::NoRoom)
+	    && oracool::IsShopGridScreen(stextshold);
+	if (oracool::IsShopGridScreen(s) || returningToShop)
 		invflag = true;
 	RenderGold = false;
 	QuestLogIsOpen = false;
@@ -3812,7 +3840,9 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 		}
 		break;
 	case TalkID::HealerBuy:
-		for (int i = 0; i < 20; i++) {
+		// std::size, not a literal 20. Pepin's array is the one vendor array this pass did not
+		// resize, and a hardcoded length beside three that just changed is a trap.
+		for (int i = 0; i < static_cast<int>(std::size(healitem)); i++) {
 			if (!healitem[i].isEmpty())
 				stock.push_back({ &healitem[i], i, healitem[i]._iIvalue });
 		}
@@ -3820,9 +3850,15 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 	case TalkID::SmithSell:
 	case TalkID::WitchSell:
 		// The Sold tab. Not the player's sellable inventory any more - selling is a drag onto the
-		// panel now, and what this shows is what the vendor has already bought.
-		for (size_t i = 0; i < BuybackStock.size(); i++)
-			stock.push_back({ &BuybackStock[i], static_cast<int>(i), BuybackStock[i]._iIvalue });
+		// panel now, and what this shows is what THIS vendor has already bought. The index is the
+		// position in the filtered list, which is what ShopBuyBack takes.
+		{
+			const std::vector<size_t> indices = BuybackIndicesFor(id);
+			for (size_t i = 0; i < indices.size(); i++) {
+				SoldItem &sold = BuybackStock[indices[i]];
+				stock.push_back({ &sold.item, static_cast<int>(i), sold.item._iIvalue });
+			}
+		}
 		break;
 	case TalkID::SmithRepair:
 	case TalkID::SmithRecharge:
@@ -3980,9 +4016,13 @@ void ShopRepairAll()
 
 void ShopBuyBack(int index)
 {
-	if (index < 0 || index >= static_cast<int>(BuybackStock.size()))
+	// Through the same filter GetShopStock used to build the tab, so the index means the same thing
+	// on both sides.
+	const std::vector<size_t> indices = BuybackIndicesFor(stextflag);
+	if (index < 0 || index >= static_cast<int>(indices.size()))
 		return;
-	Item item = BuybackStock[index];
+	const size_t slot = indices[index];
+	Item item = BuybackStock[slot].item;
 	const int price = item._iIvalue;
 
 	// Both refusal screens return to the tab through stextshold, so they have to be told which one
@@ -4000,7 +4040,7 @@ void ShopBuyBack(int index)
 
 	TakePlrsMoney(price);
 	StoreAutoPlace(item, true);
-	BuybackStock.erase(BuybackStock.begin() + index);
+	BuybackStock.erase(BuybackStock.begin() + static_cast<ptrdiff_t>(slot));
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
