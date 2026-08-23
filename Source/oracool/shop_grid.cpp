@@ -1,6 +1,7 @@
 #include "oracool/shop_grid.h"
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include <fmt/format.h>
@@ -81,7 +82,11 @@ struct PlacedSlot {
 	int stockIndex;
 	Point cell;
 	Size cells;
+	int page;
 };
+
+/** @brief Which page of the stock is showing. */
+int ShopGridPage = 0;
 
 /**
  * @brief The keyboard cursor, as a position in the tab's stock order.
@@ -110,38 +115,67 @@ enum class ServiceButton : uint8_t {
 constexpr int ServiceButtonSize = 20;
 constexpr int ServiceButtonGap = 3;
 
-/** @brief Row-major first-fit, the same shape the stash uses to auto-place a withdrawal. */
+/**
+ * @brief Row-major first-fit across as many pages as the stock needs.
+ *
+ * Paged, not truncated. The grid is 160 cells and Griswold now carries up to forty-five items; at
+ * the four-to-six cells a weapon or a breastplate occupies that is comfortably more than one page
+ * holds, and the first version of this function silently dropped whatever did not fit. Silently
+ * unbuyable stock is the worst of the available outcomes - worse than a second page, and much worse
+ * than a smaller shop.
+ *
+ * An item that will not fit on the current page starts the next one rather than being squeezed in
+ * behind an earlier item's cells.
+ */
 std::vector<PlacedSlot> PlaceStock(const std::vector<ShopSlot> &stock)
 {
 	std::vector<PlacedSlot> placed;
 	placed.reserve(stock.size());
 	bool taken[ShopGridRows][ShopGridColumns] = {};
+	int page = 0;
 
 	for (size_t i = 0; i < stock.size(); i++) {
 		const Size cells = GetInventorySize(*stock[i].item);
+		// An item wider or taller than the whole grid can never be placed on any page. Nothing in
+		// the game is, but the page-turn below would loop forever if one ever were.
+		if (cells.width > ShopGridColumns || cells.height > ShopGridRows)
+			continue;
+
 		bool done = false;
-		for (int row = 0; row + cells.height <= ShopGridRows && !done; row++) {
-			for (int col = 0; col + cells.width <= ShopGridColumns && !done; col++) {
-				bool free = true;
-				for (int dy = 0; dy < cells.height && free; dy++) {
-					for (int dx = 0; dx < cells.width && free; dx++)
-						free = !taken[row + dy][col + dx];
+		while (!done) {
+			for (int row = 0; row + cells.height <= ShopGridRows && !done; row++) {
+				for (int col = 0; col + cells.width <= ShopGridColumns && !done; col++) {
+					bool free = true;
+					for (int dy = 0; dy < cells.height && free; dy++) {
+						for (int dx = 0; dx < cells.width && free; dx++)
+							free = !taken[row + dy][col + dx];
+					}
+					if (!free)
+						continue;
+					for (int dy = 0; dy < cells.height; dy++) {
+						for (int dx = 0; dx < cells.width; dx++)
+							taken[row + dy][col + dx] = true;
+					}
+					placed.push_back({ static_cast<int>(i), { col, row }, cells, page });
+					done = true;
 				}
-				if (!free)
-					continue;
-				for (int dy = 0; dy < cells.height; dy++) {
-					for (int dx = 0; dx < cells.width; dx++)
-						taken[row + dy][col + dx] = true;
-				}
-				placed.push_back({ static_cast<int>(i), { col, row }, cells });
-				done = true;
 			}
+			if (done)
+				break;
+			page++;
+			std::memset(taken, 0, sizeof(taken));
 		}
-		// An item that does not fit is simply not drawn. 160 cells against a 25-item stock means
-		// this cannot happen today; it is a dropped item rather than a wrapped one on purpose,
-		// because a wrapped item would be drawn on top of another one's cells.
 	}
 	return placed;
+}
+
+/** @brief How many pages the stock spans. Always at least one, so "Page 1 of 1" is sayable. */
+int PageCount(const std::vector<PlacedSlot> &placed)
+{
+	int pages = 1;
+	for (const PlacedSlot &slot : placed)
+		pages = std::max(pages, slot.page + 1);
+	return pages;
 }
 
 Point CellOrigin(Point cell)
@@ -166,7 +200,7 @@ Point SpriteAnchor(const PlacedSlot &slot)
 	return { origin.x, origin.y + slot.cells.height * ShopCellPx };
 }
 
-/** @brief Which placed slot @p position is over, or -1. */
+/** @brief Which placed slot @p position is over ON THE CURRENT PAGE, or -1. */
 int PlacedSlotAt(const std::vector<PlacedSlot> &placed, Point position)
 {
 	const Rectangle grid = GetShopGridRect();
@@ -175,6 +209,11 @@ int PlacedSlotAt(const std::vector<PlacedSlot> &placed, Point position)
 	const Point cell { (position.x - grid.position.x) / ShopCellPx, (position.y - grid.position.y) / ShopCellPx };
 	for (size_t i = 0; i < placed.size(); i++) {
 		const PlacedSlot &slot = placed[i];
+		// The page test is not optional: every page reuses the same cells, so without it a click
+		// resolves to whichever item happens to occupy that cell on ANY page - and the first match
+		// is page 0's.
+		if (slot.page != ShopGridPage)
+			continue;
 		if (cell.x >= slot.cell.x && cell.x < slot.cell.x + slot.cells.width
 		    && cell.y >= slot.cell.y && cell.y < slot.cell.y + slot.cells.height)
 			return static_cast<int>(i);
@@ -319,6 +358,18 @@ Rectangle ShopActionRect(size_t index, size_t count)
 		{ width, ShopActionHeight } };
 }
 
+constexpr int PageButtonWidth = 16;
+
+/** @brief The two page arrows, at the ends of the gold row. 0 is back, 1 is forward. */
+Rectangle ShopPageButtonRect(int index)
+{
+	const Rectangle panel = GetShopPanelRect();
+	const int left = index == 0
+	    ? panel.position.x + ShopTabStripLeft
+	    : panel.position.x + ShopTabStripLeft + ShopTabStripWidth - PageButtonWidth;
+	return Rectangle { { left, panel.position.y + ShopGoldTop }, { PageButtonWidth, ShopGoldHeight } };
+}
+
 /** @brief The red X, top-right, same as every other Oracool window's. */
 Rectangle ShopCloseRect()
 {
@@ -397,7 +448,7 @@ void DrawServiceButtons(const Surface &out)
  * now (SetShopHoverInfoString) - the player is already looking at the icon they are hovering, and a
  * readout at the far end of the panel made them look away from it to read it.
  */
-void DrawShopControls(const Surface &out)
+void DrawShopControls(const Surface &out, int pageCount)
 {
 	const Rectangle panel = GetShopPanelRect();
 
@@ -412,10 +463,26 @@ void DrawShopControls(const Surface &out)
 
 	DrawServiceButtons(out);
 
+	// The page arrows share the gold row rather than taking a row of their own: the space between
+	// the title band and the grid's pinned top is fully spoken for (see the static_assert above),
+	// and the gold readout is one centred line with both ends going spare.
 	const Rectangle goldLine { { panel.position.x + ShopTabStripLeft, panel.position.y + ShopGoldTop },
 		{ ShopTabStripWidth, ShopGoldHeight } };
 	DrawString(out, fmt::format(fmt::runtime(_("Your gold: {:s}")), FormatInteger(TotalPlayerGold())), goldLine,
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+
+	if (pageCount <= 1)
+		return;
+	for (int i = 0; i < 2; i++) {
+		const Rectangle rect = ShopPageButtonRect(i);
+		DrawOrnateBorder(out, rect);
+		DrawString(out, i == 0 ? "<" : ">", rect,
+		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
+	const Rectangle pageLabel { { goldLine.position.x + PageButtonWidth + 2, goldLine.position.y },
+		{ 60, ShopGoldHeight } };
+	DrawString(out, StrCat(ShopGridPage + 1, "/", pageCount), pageLabel,
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 }
 
 void DrawShopClose(const Surface &out)
@@ -450,6 +517,7 @@ Rectangle GetShopGridRect()
 void ResetShopGridSelection()
 {
 	ShopGridSel = 0;
+	ShopGridPage = 0;
 }
 
 void DrawShopGrid(const Surface &out)
@@ -488,22 +556,28 @@ void DrawShopGrid(const Surface &out)
 
 	const std::vector<ShopSlot> stock = GetShopStock(stextflag);
 	const std::vector<PlacedSlot> placed = PlaceStock(stock);
+	const int pageCount = PageCount(placed);
+	ShopGridPage = std::clamp(ShopGridPage, 0, pageCount - 1);
 
 	// The mouse wins over the keyboard cursor while it is over an item, exactly as the inventory
-	// does - otherwise the footer would describe one item while the pointer sits on another.
-	int hoveredPlaced = PlacedSlotAt(placed, MousePosition);
+	// does - otherwise the tooltip would describe one item while the pointer sits on another.
+	const int hoveredPlaced = PlacedSlotAt(placed, MousePosition);
 	if (hoveredPlaced >= 0)
 		ShopGridSel = placed[hoveredPlaced].stockIndex;
 	if (ShopGridSel >= static_cast<int>(stock.size()))
 		ShopGridSel = stock.empty() ? 0 : static_cast<int>(stock.size()) - 1;
 
 	for (const PlacedSlot &slot : placed) {
+		if (slot.page != ShopGridPage)
+			continue;
 		const Item &item = *stock[slot.stockIndex].item;
 		InvDrawSlotBack(out, SpriteAnchor(slot),
 		    { slot.cells.width * ShopCellPx, slot.cells.height * ShopCellPx }, item);
 	}
 
 	for (const PlacedSlot &slot : placed) {
+		if (slot.page != ShopGridPage)
+			continue;
 		const Item &item = *stock[slot.stockIndex].item;
 		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
 		const Point position = SpriteAnchor(slot);
@@ -512,7 +586,7 @@ void DrawShopGrid(const Surface &out)
 		ClxDraw(out, position, sprite);
 	}
 
-	DrawShopControls(out);
+	DrawShopControls(out, pageCount);
 	DrawShopClose(out);
 }
 
@@ -530,6 +604,22 @@ bool CheckShopGridClick(Point position)
 	}
 	if (CheckShopTabRowClick(position))
 		return true;
+
+	{
+		const std::vector<PlacedSlot> pages = PlaceStock(GetShopStock(stextflag));
+		const int pageCount = PageCount(pages);
+		if (pageCount > 1) {
+			for (int i = 0; i < 2; i++) {
+				if (!ShopPageButtonRect(i).contains(position))
+					continue;
+				// Wraps, so a two-page shop turns either way with one button. Both arrows exist
+				// regardless, because a shop that grows a third page should not change how the
+				// first two are reached.
+				ShopGridPage = (ShopGridPage + (i == 0 ? -1 : 1) + pageCount) % pageCount;
+				return true;
+			}
+		}
+	}
 
 	// A held item is a DROP, not a click, and the target decides what happens to it. Ahead of every
 	// other control on the panel: dropping a sword on the Repair button must repair it rather than
@@ -591,6 +681,15 @@ void MoveShopGridSelection(int columns, int rows)
 	const int step = columns + rows * ShopGridColumns;
 	const int count = static_cast<int>(stock.size());
 	ShopGridSel = ((ShopGridSel + step) % count + count) % count;
+
+	// The page follows the cursor. Without this, arrowing off the end of page one moves an invisible
+	// selection and Enter buys something the player cannot see.
+	for (const PlacedSlot &slot : PlaceStock(stock)) {
+		if (slot.stockIndex == ShopGridSel) {
+			ShopGridPage = slot.page;
+			break;
+		}
+	}
 }
 
 bool IsShopItemHovered()

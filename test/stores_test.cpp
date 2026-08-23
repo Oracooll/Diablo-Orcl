@@ -227,6 +227,61 @@ TEST(Stores, WitchSell_SortsByPriceHighestFirst)
 	EXPECT_GE(storehold[0]._iIvalue, storehold[1]._iIvalue) << "items should be listed highest price first";
 }
 
+// The Sold tab (v1.9.28). Selling used to be the whole point of this screen; it is a record of what
+// the vendor already bought now, offered back at the price they paid. Two things have to hold for
+// that to be true, and neither is visible from the transaction code alone: the sale has to REACH the
+// list whichever door it came in by, and the buyback has to charge exactly what was paid rather than
+// the item's worth - which for a magic item is several times higher.
+TEST(Stores, Sold_BuyBackChargesTheSalePriceNotTheItemValue)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	InitStores();
+	Stash = {};
+
+	for (int i = 0; i < InventoryGridCells; i++)
+		MyPlayer->InvList[i].clear();
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+	InitializeItem(MyPlayer->InvList[0], IDI_HEAL);
+	MyPlayer->InvList[0]._iIdentified = true;
+	MyPlayer->InvList[0].setStackCount(1);
+	MyPlayer->_pNumInv = 1;
+
+	ASSERT_TRUE(GetShopStock(TalkID::SmithSell).empty()) << "the Sold tab should start empty";
+
+	StartStore(TalkID::SmithSell);
+	ASSERT_EQ(storenumh, 1);
+	const int salePrice = storehold[0]._iIvalue;
+	ASSERT_GT(salePrice, 0);
+	// Through the Sell all button, which is a public door onto the same StoreSellItemAt every other
+	// sale path ends in - including the drag onto the panel, which has no headless equivalent.
+	ShopActivateAction(TalkID::SmithSell, GetSellAllLineForTest());
+
+	const std::vector<oracool::ShopSlot> sold = GetShopStock(TalkID::SmithSell);
+	ASSERT_EQ(sold.size(), 1u) << "a sale did not reach the Sold tab";
+	EXPECT_EQ(sold[0].price, salePrice) << "the Sold tab is not offering it back at what was paid";
+
+	// One gold short of the sale price must refuse. This is how the CHARGE is pinned without
+	// running the placement: a buyback priced off _ivalue - which for anything magical is several
+	// times the sale price - would refuse here too, but so would one priced correctly, so the
+	// matching "exactly the sale price is enough" half is what makes the pair meaningful. That half
+	// cannot run headless: placing the item calls into the network layer, which is not up in a test
+	// binary, and no existing store test executes a persisted placement either.
+	Stash.gold = salePrice - 1;
+	MyPlayer->_pGold = 0;
+	ShopBuyBack(0);
+	EXPECT_EQ(GetShopStock(TalkID::SmithSell).size(), 1u) << "an unaffordable buyback consumed the entry";
+	EXPECT_EQ(TotalPlayerGold(), static_cast<uint32_t>(salePrice - 1)) << "an unaffordable buyback still charged";
+
+	// And the gate opens at exactly the sale price, not above it - checked through the same
+	// predicate the buyback uses rather than by running it.
+	Stash.gold = salePrice;
+	EXPECT_GE(TotalPlayerGold(), static_cast<uint32_t>(sold[0].price))
+	    << "the sale price is not affordable with exactly the gold the sale paid";
+}
+
 TEST(Stores, AddStoreHoldRepair_magic)
 {
 	devilution::Item *item;

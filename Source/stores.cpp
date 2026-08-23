@@ -3648,7 +3648,11 @@ void StartStore(TalkID s)
 	// live (user request, 2026-08-23). CloseInventory runs first rather than being skipped: it also
 	// shuts the stash and the gold-withdraw prompt, which have no business being open over a shop,
 	// and the shop panel occupies the same left-hand slot the stash does.
-	if (oracool::IsShopGridScreen(s))
+	//
+	// stextshold as well as s: Confirm, No money and No room are not shop tabs, but they are screens
+	// a shop tab put you on and will put you back from. Without the second test the inventory shut
+	// and reopened around every single purchase.
+	if (oracool::IsShopGridScreen(s) || oracool::IsShopGridScreen(stextshold))
 		invflag = true;
 	RenderGold = false;
 	QuestLogIsOpen = false;
@@ -3881,12 +3885,19 @@ bool ShopSellHeldItem()
 	Player &myPlayer = *MyPlayer;
 	if (myPlayer.HoldItem.isEmpty())
 		return false;
+
+	// Pepin buys nothing. He never had a Sell screen, so there is no sellOk function that speaks for
+	// him - and without this test the fall-through below would have had him buying whatever Griswold
+	// buys, at Griswold's prices, the moment an item was dropped on his panel.
+	const bool witch = IsWitchShopScreen(stextflag);
+	if (!witch && !IsAnyOf(stextflag, TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy,
+	        TalkID::SmithConsumables, TalkID::SmithSell))
+		return false;
+
 	// The vendor's own list of what they will take, not a new one. Adria does not buy armour and
 	// Griswold does not buy potions, and that judgement already exists in two functions the sell
 	// screens have always used.
-	const bool accepted = IsWitchShopScreen(stextflag)
-	    ? WitchSellOk(myPlayer.HoldItem)
-	    : SmithSellOk(myPlayer.HoldItem);
+	const bool accepted = witch ? WitchSellOk(myPlayer.HoldItem) : SmithSellOk(myPlayer.HoldItem);
 	if (!accepted)
 		return false;
 
@@ -3951,7 +3962,12 @@ void ShopRepairAll()
 	// was pressed on instead of to the repair screen - the repair screen is a button now, not a
 	// place you can be.
 	const TalkID resume = stextflag;
-	while (true) {
+	// Bounded, and the bound is not paranoia. The loop's exit depends on each pass actually
+	// repairing something, so anything that charges the player without clearing the damage - a
+	// storehidx encoding this function cannot decode, say - would spin here taking gold until the
+	// player could no longer afford the next one. 48 is storehold's capacity, so a run that repairs
+	// something every pass can never reach it.
+	for (int guard = 0; guard < 48; guard++) {
 		StartSmithRepair();
 		if (storenumh == 0)
 			break;
