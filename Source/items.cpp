@@ -2953,9 +2953,26 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 
 bool EnnobleOracoolRare(Item &item)
 {
-	const std::vector<int> candidates = UniquesForBaseOf(item);
+	std::vector<int> candidates = UniquesForBaseOf(item);
 	if (candidates.empty())
 		return false;
+
+	// Rerolling an item that is ALREADY unique must not be able to hand back the same one. This
+	// picked uniformly from every unique the base supports, its current identity included, so
+	// "Reroll Uniques" could consume its reagents and change nothing - and with the small candidate
+	// lists some bases have, not rarely (external audit, 2026-08-25).
+	//
+	// A no-op for recipe 6, "Ennoble Rares", which comes in on a RARE and therefore has no current
+	// unique to exclude. And the exclusion stands down when it would empty the pool: a base with
+	// exactly one unique reroll rolls itself, which is at least honest, where refusing outright
+	// would look like a broken recipe.
+	if (item._iMagical == ITEM_QUALITY_UNIQUE && candidates.size() > 1) {
+		const int current = item._iUid;
+		candidates.erase(std::remove(candidates.begin(), candidates.end(), current), candidates.end());
+		if (candidates.empty())
+			candidates = UniquesForBaseOf(item);
+	}
+
 	ClearOracoolAffixRecord(item);
 	const int uid = candidates[GenerateRnd(static_cast<int32_t>(candidates.size()))];
 	const int ilvl = item._iOracoolItemLevel;
@@ -5049,6 +5066,19 @@ bool MakeItemEthereal(Item &item)
 	}
 	item._iMaxDur = std::max<int>(1, item._iMaxDur / 2);
 	item._iDurability = std::min<int>(item._iDurability, item._iMaxDur);
+
+	// Re-arm a socketed Zod, which the two lines above have just disarmed.
+	//
+	// Zod writes DUR_INDESTRUCTIBLE into _iDurability and leaves _iMaxDur alone (ApplyZodToHost, and
+	// see its comment for why that representation). The eligibility guard at the top of this
+	// function tests _iMaxDur, so a Zod-bearing item passes it - and then the durability clamp above
+	// replaces the indestructible marker with half the old maximum. The rune stayed socketed,
+	// stayed listed on the item, stayed spent, and stopped doing anything (external audit,
+	// 2026-08-25).
+	//
+	// Re-applied rather than refused: an indestructible ethereal item is Diablo II's own best-known
+	// rune combination, not an accident to be prevented. It just has to survive being made.
+	oracool::ApplyZodToHost(item);
 	return true;
 }
 

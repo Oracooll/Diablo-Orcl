@@ -631,6 +631,17 @@ bool CheckShopGridClick(Point position)
 				// regardless, because a shop that grows a third page should not change how the
 				// first two are reached.
 				ShopGridPage = (ShopGridPage + (i == 0 ? -1 : 1) + pageCount) % pageCount;
+
+				// The cursor follows the page. It did not, so after turning a page the selection
+				// was still on an item the player could no longer see - and Enter bought THAT one
+				// (external audit, 2026-08-25). The mouse hides this whenever it happens to be over
+				// the grid, which is most of the time and is why it reads as intermittent.
+				for (const PlacedSlot &slot : pages) {
+					if (slot.page == ShopGridPage) {
+						ShopGridSel = slot.stockIndex;
+						break;
+					}
+				}
 				return true;
 			}
 		}

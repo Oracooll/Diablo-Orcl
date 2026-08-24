@@ -116,8 +116,16 @@ void TelemetryRecordFirstHit(const Monster &monster)
 	const size_t id = static_cast<size_t>(monster.getId());
 	if (id >= MaxMonsters)
 		return;
+	// Stored BIASED BY ONE, so 0 can still mean "no clock running" without corrupting the value.
+	//
+	// This was `| 1U`, which sets the sentinel by damaging the measurement: on an even tick it made
+	// the stored time one millisecond LATER than the hit, so a kill in that same millisecond
+	// computed `now - (t + 1)`, underflowed to about four billion, and was then thrown away by the
+	// ten-minute sanity filter as a stale clock. On an odd tick it read zero. Either way a
+	// same-millisecond one-shot recorded no time at all - which is exactly the kill the 2026-08-21
+	// fix moved this call to ApplyMonsterDamage in order to capture (external audit, 2026-08-25).
 	if (FirstHitAtMs[id] == 0)
-		FirstHitAtMs[id] = SDL_GetTicks() | 1U; // |1 so a tick of 0 still reads as "running"
+		FirstHitAtMs[id] = SDL_GetTicks() + 1U;
 }
 
 void TelemetryRecordKill(const Monster &monster)
@@ -127,7 +135,8 @@ void TelemetryRecordKill(const Monster &monster)
 	const size_t id = static_cast<size_t>(monster.getId());
 	uint32_t timeToKillMs = 0;
 	if (id < MaxMonsters && FirstHitAtMs[id] != 0) {
-		timeToKillMs = SDL_GetTicks() - FirstHitAtMs[id];
+		// Un-bias by the one TelemetryRecordFirstHit added.
+		timeToKillMs = SDL_GetTicks() - (FirstHitAtMs[id] - 1U);
 		FirstHitAtMs[id] = 0;
 		// Audit fix (2026-08-16): monster slots recycle across levels, and a monster that was HIT
 		// but never killed leaves its clock running - the next kill in that slot would then log a

@@ -227,6 +227,13 @@ int ZealStrikeCount(const Player &player)
 	return std::min(2 + extra, MaxZealStrikes);
 }
 
+void ResetZealChain()
+{
+	ZealChainActive = false;
+	ZealChainLeft = 0;
+	ZealStruckCount = 0;
+}
+
 bool TryContinueZealChain(Player &player)
 {
 	if (&player != MyPlayer || !ZealChainActive)

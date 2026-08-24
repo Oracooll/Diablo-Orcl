@@ -36,9 +36,18 @@
  *     sample is three quarters noise and reads as an inverted rarity ladder, which is exactly the
  *     wrong conclusion.
  *
- * Kills need no equivalent rule, but time-to-kill rows written before 2026-08-21 are unusable: the
- * clock started in the stagger reaction, which a one-shot kill never reaches, so the missing 84% is
- * missing in a biased direction. Read `value2 > 0` only from sessions after that date.
+ * Kills need no equivalent rule, but time-to-kill has two caveats of its own:
+ *
+ *  - Rows written before **2026-08-25** are unusable. Before 2026-08-21 the clock started in the
+ *    stagger reaction, which a one-shot kill never reaches, so the missing times were missing in a
+ *    biased direction. Between then and 2026-08-25 the "clock is running" sentinel was set by
+ *    OR-ing 1 into the timestamp, which corrupted it: a kill in the same millisecond as the first
+ *    hit recorded zero either way. Read `value2 > 0` only from sessions after that.
+ *  - The clock starts at ANY damage, not at the player's. `ApplyMonsterDamage` does not know who
+ *    dealt the blow, so a trap or another monster's damage starts it too, and the row then measures
+ *    time-since-something-hurt-it rather than time-to-kill. Attributing damage would mean threading
+ *    the attacker through that function; until then, treat outliers on levels with traps as
+ *    suspect rather than as slow fights.
  */
 #pragma once
 

@@ -152,8 +152,19 @@ bool HasShieldEquipped(const Player &player)
 	// (items.cpp's CalcPlrItemVals) - this was the odd one out, and the cost of being wrong was
 	// silent: Shield Bash and Blessed Shield are gated on this, so both simply vanished from the
 	// Abilities window for a player whose shield happened to sit on the left.
-	return player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield
-	    || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield;
+	// A BROKEN shield does not count, which is the rule everywhere else in the game: a broken item
+	// is left equipped rather than destroyed (BreakOrRemoveEquipment) and contributes nothing at
+	// all - CalcPlrItemVals clears its _iStatFlag before a single bonus is added, so it grants no
+	// armour and no block.
+	//
+	// This asked only about the item's TYPE, so Shield Bash and Blessed Shield stayed available on
+	// a shield that had stopped being one in every way that matters (external audit, 2026-08-25).
+	// The two skills are ABOUT the shield; a shield giving nothing should not power them.
+	const auto usableShield = [](const Item &item) {
+		return item._itype == ItemType::Shield && !item._iOracoolBroken;
+	};
+	return usableShield(player.InvBody[INVLOC_HAND_LEFT])
+	    || usableShield(player.InvBody[INVLOC_HAND_RIGHT]);
 }
 
 bool IsPaladinSkillUnlocked(const Player &player, PaladinSkill skill)

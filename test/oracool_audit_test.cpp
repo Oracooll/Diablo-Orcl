@@ -788,6 +788,63 @@ TEST(OracoolStatSheet, RageProviderMatchesVanillaSwings)
 
 // Megaplan Phase 0.1: the hero file's chunk tail (oracool/hero_chunks.h). These three tests are
 // the format's contract: state round-trips, unknown chunks are skipped not fatal, and a torn tail
+// External audit, 2026-08-25: "Make Ethereal" disarmed a socketed Zod while leaving it installed.
+//
+// Zod writes DUR_INDESTRUCTIBLE into _iDurability and leaves _iMaxDur alone, and the recipe's
+// eligibility guard tests _iMaxDur - so a Zod-bearing item passed it, and the durability clamp at
+// the end of MakeItemEthereal then replaced the indestructible marker with half the old maximum.
+// The rune stayed socketed, stayed listed, stayed spent, and stopped doing anything.
+TEST(OracoolCrafting, MakeEtherealKeepsASocketedZodWorking)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	*MyPlayer = {};
+
+	// Built by hand rather than through InitializeItem: the only fields that matter here are the
+	// durability pair, the class and the socket, and a real base item would drag in its own values.
+	devilution::Item sword {};
+	sword._iClass = ICLASS_WEAPON;
+	sword._itype = ItemType::Sword;
+	sword._iMaxDur = 40;
+	sword._iDurability = 40;
+	sword._iMinDam = 4;
+	sword._iMaxDam = 10;
+	sword._iSocketCount = 1;
+	sword._iSocketed[0] = IDI_ORACOOL_RUNE_ZOD;
+
+	ASSERT_TRUE(oracool::SocketsMakeIndestructible(sword)) << "test setup: the Zod is not registering";
+	oracool::ApplyZodToHost(sword);
+	ASSERT_EQ(sword._iDurability, DUR_INDESTRUCTIBLE);
+
+	ASSERT_TRUE(MakeItemEthereal(sword));
+
+	EXPECT_TRUE(sword._iOracoolEthereal) << "the item did not become ethereal";
+	EXPECT_EQ(sword._iDurability, DUR_INDESTRUCTIBLE)
+	    << "the ethereal transform disarmed a Zod that is still socketed";
+}
+
+// External audit, 2026-08-25: a broken shield still satisfied Shield Bash and Blessed Shield,
+// because only the item's TYPE was checked. A broken item is left equipped rather than destroyed and
+// contributes nothing at all everywhere else - no armour, no block.
+TEST(OracoolPaladinSkills, BrokenShieldDoesNotCountAsAShield)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+
+	devilution::Item &shield = player.InvBody[INVLOC_HAND_RIGHT];
+	shield = {};
+	shield._itype = ItemType::Shield;
+	shield._iOracoolBroken = false;
+	EXPECT_TRUE(oracool::HasShieldEquipped(player)) << "a working shield should count";
+
+	shield._iOracoolBroken = true;
+	EXPECT_FALSE(oracool::HasShieldEquipped(player))
+	    << "a broken shield still powered the shield skills";
+}
+
 // External audit, 2026-08-25 (P0): a save is untrusted input even when this program wrote it - files
 // get truncated, half-copied, hand-edited and restored from backups of another build.
 //

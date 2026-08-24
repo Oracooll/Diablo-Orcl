@@ -2821,6 +2821,13 @@ void StartStand(Player &player, Direction dir)
 		return;
 	}
 
+	// Standing is the end of whatever was happening, so a Zeal burst that has not finished does not
+	// get to finish later. Every interruption reaches here or StartPlrHit - a hit reaction, a
+	// broken weapon, a death, a level change - which is why the reset lives at these two rather
+	// than being chased around each cause. See oracool::ResetZealChain.
+	if (&player == MyPlayer)
+		oracool::ResetZealChain();
+
 	NewPlrAnim(player, player_graphic::Stand, dir);
 	player._pmode = PM_STAND;
 	FixPlayerLocation(player, dir);
@@ -2893,6 +2900,13 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 	} else {
 		skippedAnimationFrames = 0;
 	}
+
+	// The hit reaction interrupts the swing, so an unfinished Zeal burst ends here rather than
+	// resuming inside whatever the player does next. Placed after the two early returns above: a
+	// blow too small to stagger this character does not interrupt anything, so it must not disarm
+	// the chain either. See oracool::ResetZealChain.
+	if (&player == MyPlayer)
+		oracool::ResetZealChain();
 
 	NewPlrAnim(player, player_graphic::Hit, pd, AnimationDistributionFlags::None, skippedAnimationFrames);
 
