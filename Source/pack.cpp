@@ -200,7 +200,12 @@ void PackPlayer(PlayerPack &packed, const Player &player)
 	packed.pBaseDex = player._pBaseDex;
 	packed.pBaseVit = player._pBaseVit;
 	packed.pLevel = player._pLevel;
-	packed.pStatPts = player._pStatPts;
+	// CLAMPED, not narrowed. _pStatPts is an int and this field is a uint8_t, so the old implicit
+	// conversion wrapped: 260 points wrote 4 (external audit, 2026-08-25). The real value rides
+	// HeroChunkStatPoints, which UnPackPlayer prefers when present; this stays filled and sane so a
+	// reader without the tail sees a capped pool instead of a wrapped one. Losing points is bad;
+	// silently turning 490 into 234 is worse, because it looks like a number.
+	packed.pStatPts = static_cast<uint8_t>(std::clamp(player._pStatPts, 0, 255));
 	packed.pStatPtsSpentStr = SDL_SwapLE32(player._pStatPtsSpentStr);
 	packed.pStatPtsSpentMag = SDL_SwapLE32(player._pStatPtsSpentMag);
 	packed.pStatPtsSpentDex = SDL_SwapLE32(player._pStatPtsSpentDex);
@@ -270,7 +275,10 @@ void PackNetPlayer(PlayerNetPack &packed, const Player &player)
 	packed.pBaseDex = player._pBaseDex;
 	packed.pBaseVit = player._pBaseVit;
 	packed.pLevel = player._pLevel;
-	packed.pStatPts = player._pStatPts;
+	// Clamped for the same reason as the hero pack above - see that comment. This is the NETWORK
+	// pack, which multiplayer no longer reaches (oracool::MultiplayerEnabled), but a field that
+	// wraps is a field that wraps.
+	packed.pStatPts = static_cast<uint8_t>(std::clamp(player._pStatPts, 0, 255));
 	packed.pExperience = SDL_SwapLE64(player._pExperience);
 	packed.pHPBase = SDL_SwapLE32(player._pHPBase);
 	packed.pMaxHPBase = SDL_SwapLE32(player._pMaxHPBase);

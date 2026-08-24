@@ -3,6 +3,7 @@
 #include "oracool/signets.h"
 
 #include <algorithm>
+#include <limits>
 #include <cstring>
 #include <iterator>
 
@@ -192,6 +193,14 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		out.push_back(PackSignetsUsed(player));
 		EndChunk(out, at);
 	}
+	{
+		// Always written, not only when it exceeds 255: a chunk that appears at 256 and vanishes at
+		// 254 would be a format that changes shape with the character's level, and the reader would
+		// have to guess whether its absence meant "small" or "old file".
+		const size_t at = BeginChunk(out, HeroChunkStatPoints);
+		PutU32(out, static_cast<uint32_t>(std::max(0, player._pStatPts)));
+		EndChunk(out, at);
+	}
 
 	return out;
 }
@@ -256,6 +265,16 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		case HeroChunkSignets:
 			if (chunkLen >= 1)
 				ApplySignetsUsed(player, payload[0]);
+			break;
+		case HeroChunkStatPoints:
+			if (chunkLen >= 4) {
+				// Overrides whatever the fixed u8 said, which for anything past 255 was a wrapped
+				// value. Clamped to int's range on the way in so a corrupt file cannot hand the
+				// character a negative pool - the audit's other half is that saved numbers are not
+				// to be trusted just because we wrote them.
+				const uint32_t points = GetU32(payload);
+				player._pStatPts = static_cast<int>(std::min<uint32_t>(points, std::numeric_limits<int>::max()));
+			}
 			break;
 		case HeroChunkSpellHotkeysLeft:
 			if (chunkLen >= 1) {

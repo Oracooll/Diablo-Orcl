@@ -31,6 +31,7 @@
 #include "monstdat.h"
 #include "monster.h"
 #include "multi.h"
+#include "pack.h" // PlayerPack - the fixed struct the stat-point clamp test inspects
 #include "oracool/class_tree.h"
 #include "oracool/aura_field.h"
 #include "oracool/charms.h"
@@ -787,6 +788,48 @@ TEST(OracoolStatSheet, RageProviderMatchesVanillaSwings)
 
 // Megaplan Phase 0.1: the hero file's chunk tail (oracool/hero_chunks.h). These three tests are
 // the format's contract: state round-trips, unknown chunks are skipped not fatal, and a torn tail
+// External audit, 2026-08-25: Player::_pStatPts is an int and PlayerPack::pStatPts is a uint8_t, and
+// the pack narrowed it silently. 260 came back as 4. The range is not theoretical - a level-99
+// character has around 490 points to place and Oracool's own Reset Stats button hands all of them
+// back at once, so the feature that makes the number large is one this fork added.
+//
+// The audit named the three values to test; these are them.
+TEST(OracoolHeroChunks, StatPointsRoundTripPastAByte)
+{
+	Players.resize(1);
+	for (const int points : { 0, 1, 254, 255, 256, 490, 1000 }) {
+		devilution::Player &source = Players[0];
+		source = {};
+		source._pStatPts = points;
+
+		const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+		ASSERT_GT(tail.size(), 4u);
+
+		devilution::Player target {};
+		target._pStatPts = 12345; // stale state the apply must overwrite
+		oracool::ApplyHeroChunks(target, tail.data(), tail.size());
+
+		EXPECT_EQ(target._pStatPts, points)
+		    << "unspent stat points did not survive a save/load round trip at " << points;
+	}
+}
+
+// The chunk is what carries the real value, but the fixed struct is still written for a reader that
+// has no tail. It must come back CLAMPED rather than wrapped: losing points is bad, and silently
+// turning 490 into 234 is worse, because 234 looks like a number somebody meant.
+TEST(OracoolHeroChunks, StatPointsFixedFieldClampsInsteadOfWrapping)
+{
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pClass = HeroClass::Warrior;
+	source._pStatPts = 490;
+
+	PlayerPack packed {};
+	PackPlayer(packed, source);
+	EXPECT_EQ(packed.pStatPts, 255) << "the fixed byte wrapped 490 instead of clamping it";
+}
+
 // is rejected WHOLE rather than half-applied.
 TEST(OracoolHeroChunks, SkillPointsAndWaypointsRoundTrip)
 {

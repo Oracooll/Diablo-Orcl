@@ -108,6 +108,22 @@ enum HeroChunkTag : uint16_t {
 	 * existing character's pool jumping or vanishing.
 	 */
 	HeroChunkSignets = 10,
+	/**
+	 * @brief Unspent stat points at full width, one u32. Overrides PlayerPack's u8 when present.
+	 *
+	 * `Player::_pStatPts` is an `int`; `PlayerPack::pStatPts` is a `uint8_t`, and the pack narrowed
+	 * it without a word. Anything past 255 wrapped: 260 points came back as 4 (external audit,
+	 * 2026-08-25).
+	 *
+	 * Not a theoretical range. A level-99 character has around 490 points to place, and Oracool's
+	 * own Reset Stats button hands all of them back at once - so the feature that makes the number
+	 * large is one this fork added, and pressing it then saving destroyed the character's entire
+	 * progression.
+	 *
+	 * The writer still fills the fixed u8, clamped, so a chunkless reader sees a sane character
+	 * rather than a wrapped one - the same contract HeroChunkWaypoints64 has with the u32 masks.
+	 */
+	HeroChunkStatPoints = 11,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

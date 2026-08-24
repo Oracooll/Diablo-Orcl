@@ -457,10 +457,20 @@ TEST(Writehero, pfile_write_hero)
 	//      They ride the tail rather than growing PlayerPack precisely BECAUSE of what this test
 	//      guards: PlayerPack's own header records that growing it at 1.5.0 broke every character
 	//      then existing, and the tail exists so that never has to happen twice.
+	// 1.9.38: HeroChunkStatPoints (tag 11, one u32) joined the tail - unspent stat points at full
+	//      width. Additive tail chunk again, so the fixed struct is byte-identical and an older
+	//      build skips the unknown tag.
+	//
+	//      This one is a BUG FIX rather than a new feature, and worth reading as one. PlayerPack's
+	//      pStatPts is a uint8_t while Player::_pStatPts is an int, and the pack narrowed it in
+	//      silence: a level-99 character pressing Oracool's own Reset Stats button gets around 490
+	//      points back, saved as 490 & 0xFF = 234, and the other 256 were simply gone. The chunk
+	//      carries the real number; the fixed byte is still written but CLAMPED, so a reader without
+	//      the tail sees a capped pool rather than a wrapped one.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "56e245c05c19b47b7d9881c825f0bb5fa3120bb9057f2c977c41acb67e992c6c");
+	    "48afd8b2682b5134e3f9f104b8433b78f903b068bcfe2b9324d0ed185a159e6d");
 }
 
 } // namespace
