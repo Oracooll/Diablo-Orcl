@@ -448,8 +448,20 @@ void LoadItemData(LoadHelper &file, Item &item)
 	// Megaplan Phase 1 sockets (OracoolItemFormatVersion 3+): count plus one gem/rune base-item
 	// index per slot, EmptySocket for a hole. Clamped on read like every other extension field.
 	item._iSocketCount = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxItemSockets);
-	for (uint16_t &socket : item._iSocketed)
-		socket = file.NextLE<uint16_t>();
+	for (uint16_t &socket : item._iSocketed) {
+		const uint16_t stored = file.NextLE<uint16_t>();
+		// The COUNT was clamped and the CONTENTS were not, which is the half that mattered: a socket
+		// holds a base-item index and several readers use it to subscript AllItemsList directly -
+		// the hover line (gems.cpp), the stone overlay (socket_overlay.cpp), extraction. A corrupt
+		// or crafted value indexed off the end of that table (external audit, 2026-08-25, P0).
+		//
+		// Only the three families a socket can actually hold are accepted; anything else becomes an
+		// empty socket. A player who loses a gem to a damaged save is annoyed; a player whose game
+		// reads past a global array is not necessarily even told.
+		const bool socketable = IsOracoolGemIdx(stored) || IsOracoolRuneIdx(stored)
+		    || IsOracoolJewelIdx(stored);
+		socket = (stored == Item::EmptySocket || socketable) ? stored : Item::EmptySocket;
+	}
 	// Version 4: the ethereal flag.
 	item._iOracoolEthereal = file.NextLE<uint8_t>() != 0;
 	// Version 5: ilvl (oracool/area_level.h). 0 on anything generated before it existed, which prints

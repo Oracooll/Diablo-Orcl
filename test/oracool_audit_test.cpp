@@ -788,6 +788,52 @@ TEST(OracoolStatSheet, RageProviderMatchesVanillaSwings)
 
 // Megaplan Phase 0.1: the hero file's chunk tail (oracool/hero_chunks.h). These three tests are
 // the format's contract: state round-trips, unknown chunks are skipped not fatal, and a torn tail
+// External audit, 2026-08-25 (P0): a save is untrusted input even when this program wrote it - files
+// get truncated, half-copied, hand-edited and restored from backups of another build.
+//
+// PlayerPack::_pNumInv is a uint8_t and both InvList arrays hold InventoryGridCells (70), so a
+// record claiming 255 walked the unpack loop 185 entries past the end of both, reading one array out
+// of bounds and WRITING the other. This is the shape of that record.
+TEST(OracoolSaveValidation, ImpossibleInventoryCountIsClamped)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+
+	PlayerPack packed {};
+	packed.pClass = static_cast<uint8_t>(HeroClass::Warrior);
+	packed.pLevel = 1;
+	packed._pNumInv = 255; // impossible: the array holds 70
+
+	UnPackPlayer(packed, player);
+
+	EXPECT_LE(player._pNumInv, InventoryGridCells)
+	    << "an impossible inventory count reached the unpack loop unclamped";
+}
+
+// The grid holds 1-based InvList references, and every reader subscripts InvList with them. A
+// reference past the live item count is cleared rather than trusted - an empty cell is always safe.
+TEST(OracoolSaveValidation, GridReferencesPastTheItemCountAreCleared)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+
+	PlayerPack packed {};
+	packed.pClass = static_cast<uint8_t>(HeroClass::Warrior);
+	packed.pLevel = 1;
+	packed._pNumInv = 2;
+	packed.InvGrid[0] = 1;   // valid - item 0
+	packed.InvGrid[1] = 99;  // nonsense - no such item
+	packed.InvGrid[2] = -99; // nonsense as a continuation cell too
+
+	UnPackPlayer(packed, player);
+
+	EXPECT_EQ(player.InvGrid[0], 1) << "a valid grid reference was discarded";
+	EXPECT_EQ(player.InvGrid[1], 0) << "a grid reference past the item count survived";
+	EXPECT_EQ(player.InvGrid[2], 0) << "a negative out-of-range continuation cell survived";
+}
+
 // External audit, 2026-08-25: Player::_pStatPts is an int and PlayerPack::pStatPts is a uint8_t, and
 // the pack narrowed it silently. 260 came back as 4. The range is not theoretical - a level-99
 // character has around 490 points to place and Oracool's own Reset Stats button hands all of them

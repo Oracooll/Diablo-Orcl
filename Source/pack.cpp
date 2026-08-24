@@ -467,12 +467,30 @@ void UnPackPlayer(const PlayerPack &packed, Player &player)
 	for (int i = 0; i < NUM_INVLOC; i++)
 		UnPackItem(packed.InvBody[i], player, player.InvBody[i], isHellfire);
 
-	player._pNumInv = packed._pNumInv;
+	// CLAMPED, not copied. `packed._pNumInv` is a uint8_t straight off disk and both InvList arrays
+	// hold InventoryGridCells (70) entries, so a corrupt or crafted save saying 255 walked the loop
+	// below 185 entries past the end of BOTH of them - reading one array out of bounds and writing
+	// the other (external audit, 2026-08-25, P0).
+	//
+	// A save is untrusted input even when this program wrote it: files get truncated, copied
+	// half-way, edited by hand and restored from backups of a different build.
+	if (packed._pNumInv > InventoryGridCells) {
+		LogError("Hero has an impossible inventory count ({}); clamped to {}",
+		    packed._pNumInv, InventoryGridCells);
+	}
+	player._pNumInv = std::min<int>(packed._pNumInv, InventoryGridCells);
 	for (int i = 0; i < player._pNumInv; i++)
 		UnPackItem(packed.InvList[i], player, player.InvList[i], isHellfire);
 
-	for (int i = 0; i < InventoryGridCells; i++)
-		player.InvGrid[i] = packed.InvGrid[i];
+	// The grid holds 1-based InvList references (negative for an item's continuation cells), so a
+	// corrupt entry indexes InvList directly wherever it is read - CheckInvHLight, the draw, the
+	// paste. Anything pointing past the live item count is cleared rather than trusted: an empty
+	// cell is always safe, and a stale reference is not.
+	for (int i = 0; i < InventoryGridCells; i++) {
+		const int8_t cell = packed.InvGrid[i];
+		const int referenced = std::abs(static_cast<int>(cell));
+		player.InvGrid[i] = (referenced > player._pNumInv) ? 0 : cell;
+	}
 
 	VerifyGoldSeeds(player);
 
@@ -634,14 +652,22 @@ bool UnPackNetPlayer(const PlayerNetPack &packed, Player &player)
 		}
 	}
 
+	// REJECT rather than clamp, because this function already answers false for a packet it does not
+	// believe and every caller handles that. An inventory count past the array is not a value to
+	// salvage; it is a packet that is not what it claims to be.
+	if (packed._pNumInv > InventoryGridCells)
+		return false;
 	player._pNumInv = packed._pNumInv;
 	for (int i = 0; i < player._pNumInv; i++) {
 		if (!UnPackNetItem(player, packed.InvList[i], player.InvList[i]))
 			return false;
 	}
 
-	for (int i = 0; i < InventoryGridCells; i++)
-		player.InvGrid[i] = packed.InvGrid[i];
+	// Grid references past the live item count are cleared - see the matching walk in UnPackPlayer.
+	for (int i = 0; i < InventoryGridCells; i++) {
+		const int8_t cell = packed.InvGrid[i];
+		player.InvGrid[i] = (std::abs(static_cast<int>(cell)) > player._pNumInv) ? 0 : cell;
+	}
 
 	for (int i = 0; i < MaxBeltItems; i++) {
 		Item &item = player.SpdList[i];

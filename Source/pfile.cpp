@@ -510,7 +510,12 @@ void RemoveAllInvalidItems(Player &player)
 {
 	for (int i = 0; i < NUM_INVLOC; i++)
 		RemoveInvalidItem(player.InvBody[i]);
-	for (int i = 0; i < player._pNumInv; i++)
+	// Bounded independently of _pNumInv. UnPackPlayer clamps that field now, so this cannot be
+	// reached with a bad count today - but this function is a cleanup pass that runs over whatever
+	// it is handed, and it is one of the two places the audit found repeating an unvalidated count
+	// (2026-08-25). A loop that reads a fixed-size array should say the array's size.
+	const int liveItems = std::min(player._pNumInv, InventoryGridCells);
+	for (int i = 0; i < liveItems; i++)
 		RemoveInvalidItem(player.InvList[i]);
 	for (int i = 0; i < MaxBeltItems; i++)
 		RemoveInvalidItem(player.SpdList[i]);
