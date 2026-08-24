@@ -13,6 +13,46 @@ inline bool IsSinglePlayer()
 }
 
 /**
+ * @brief Whether this build will enter a multiplayer game at all. It will not.
+ *
+ * NOT the same question as IsSinglePlayer(), which reports the CURRENT game's mode. This is policy:
+ * a compile-time statement that no code path may put an Oracool hero on a network.
+ *
+ * ## Why this exists rather than the menu simply not offering it
+ *
+ * The main menu has omitted Multi Player since the single-player trim, which makes the mode
+ * unreachable by clicking and does nothing whatsoever about the code behind it. An external audit
+ * (2026-08-25) found three defects that all live there:
+ *
+ *  - `HandleAllPackets` parses without a remaining-length bound, and `OnSendPlayerInfo` trusts a
+ *    packet's own `wBytes` before `recv_plrinfo` copies that many bytes - so a crafted header-only
+ *    packet reads past the received data.
+ *  - `SendPlayerInfo` builds an uninitialised `PlayerNetPack` and transmits the whole struct, and
+ *    `PackNetItem` writes only an index for empty entries - so unused inventory slots ship whatever
+ *    was on the stack.
+ *  - The network item schema carries no sockets, tiers, custom affixes, ethereal state or orb
+ *    count, and player packets carry no tree investment. An Oracool item sent over the wire
+ *    arrives as its base item, and derived-stat validation can reject a legitimate join.
+ *
+ * The third one is the reason the first two are answered this way rather than fixed. A correct
+ * multiplayer would need a separately versioned protocol carrying every custom field this fork has
+ * added - a large piece of work for a mode the project does not ship. Refusing to enter the mode
+ * closes all three at once, and closes them at the door rather than at each parser.
+ *
+ * ## What this deliberately does NOT do
+ *
+ * It does not delete the multiplayer code, and nothing here should. `gbIsMultiplayer` still exists
+ * and the several dozen `!gbIsMultiplayer` guards around the codebase still read correctly - they
+ * describe a mode that can no longer be entered, which is exactly what they should say if it ever
+ * is again. Tests that set `gbIsMultiplayer` directly are unaffected: this gates the two entry
+ * points, not the flag.
+ */
+inline constexpr bool MultiplayerEnabled()
+{
+	return false;
+}
+
+/**
  * @brief Oracool: user request (2026-08-11) - Town Portal is a built-in ability, not a spell in
  * the classical sense. It is cast solely from the HUD's Portal button (see hud_menu.h's
  * CastTownPortalAtFeet), is always available, costs nothing, and never levels up - so it is hidden

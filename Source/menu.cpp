@@ -12,6 +12,7 @@
 #include "init.h"
 #include "movie.h"
 #include "options.h"
+#include "oracool/oracool.h" // MultiplayerEnabled - the policy this menu enforces
 #include "pfile.h"
 #include "storm/storm_net.hpp"
 #include "utils/language.h"
@@ -71,6 +72,19 @@ bool InitSinglePlayerMenu()
 
 bool InitMultiPlayerMenu()
 {
+	// The door, bolted. See oracool::MultiplayerEnabled for why this is a refusal rather than a set
+	// of fixes to the packet parsers: an Oracool hero has sockets, tiers, custom affixes, ethereal
+	// state, orb counts and tree investment that the network schema cannot carry, so it would arrive
+	// at the other end as something else even if every parser were bounded.
+	//
+	// Returning true is "the menu is done, go back", which is what every other declined entry does -
+	// false would end the outer loop and quit the game.
+	if (!oracool::MultiplayerEnabled()) {
+		UiErrorOkDialog(_("Single-player only"),
+		    _("Diablo Oracool Edition does not support multiplayer.\n\nIts characters carry item and skill data that the network protocol cannot describe, so a hero shared over a network would arrive as something other than what it is."));
+		return true;
+	}
+
 	gbIsMultiplayer = true;
 	return InitMenu(SELHERO_CONNECT);
 }

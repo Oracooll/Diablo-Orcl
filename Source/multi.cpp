@@ -22,6 +22,7 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/hud_layout.h"
+#include "oracool/oracool.h" // MultiplayerEnabled - the policy InitMulti enforces
 #include "oracool/skill_points.h"
 #include "pfile.h"
 #include "plrmsg.h"
@@ -475,6 +476,17 @@ bool InitSingle(GameData *gameData)
 
 bool InitMulti(GameData *gameData)
 {
+	// The SECOND door, and the one that matters for the audit's memory-safety findings: this is the
+	// path that registers the network event handlers and starts accepting packets. Refusing here
+	// rather than only in the menu means no argument, debug command or future caller can open a
+	// socket - the parsers the audit found unbounded are never reached because nothing is ever
+	// received. See oracool::MultiplayerEnabled.
+	//
+	// Before RegisterNetEventHandlers and before Players.resize, so the refusal costs nothing and
+	// leaves no half-built multiplayer state behind.
+	if (!oracool::MultiplayerEnabled())
+		return false;
+
 	Players.resize(MAX_PLRS);
 
 	int playerId;
