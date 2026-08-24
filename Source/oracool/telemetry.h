@@ -20,6 +20,25 @@
  *   death:  subject = what killed the player
  *   pickup: subject = item name, value1 = tier (0 basic/magic-less .. 3 primal, matching
  *           OracoolItemTier), value2 = sell value
+ *
+ * ## Cleaning rules for anyone reading this file back
+ *
+ * Both were derived the hard way, and both change the answer rather than tidying it.
+ *
+ *  1. **Drop any session containing a `debug` row.** What a console command contaminates is the
+ *     economy, not one item, so the session is the honest granularity. This was rule one from the
+ *     2026-08-21 read-back.
+ *  2. **Drop `pickup` rows with `level == 0` when measuring DROP rates.** Nothing drops in town;
+ *     anything picked up there was put there. Added 2026-08-25, when 415 of 552 pickups turned out
+ *     to be town rows - 344 of them gems and runes in even counts of four, bench-spawned to test
+ *     the socket system, and untagged because they were dropped on the floor and collected rather
+ *     than conjured by a console command. Rule 1 does not catch them. Without this rule the drop
+ *     sample is three quarters noise and reads as an inverted rarity ladder, which is exactly the
+ *     wrong conclusion.
+ *
+ * Kills need no equivalent rule, but time-to-kill rows written before 2026-08-21 are unusable: the
+ * clock started in the stagger reaction, which a one-shot kill never reaches, so the missing 84% is
+ * missing in a biased direction. Read `value2 > 0` only from sessions after that date.
  */
 #pragma once
 
