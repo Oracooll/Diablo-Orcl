@@ -299,7 +299,14 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem = fa
 /**
  * @brief Calculate the maximum aditional gold that may fit in the user's inventory
  */
-int RoomForGold();
+/**
+ * @brief Free gold capacity across the backpack, in gold.
+ *
+ * int64_t because it does not fit in an int: MaxGold is 100,000,000 and the grid is 70 cells, so an
+ * empty backpack answers 7,000,000,000. Callers comparing it against a cost must keep the
+ * comparison in 64 bits - see StoreGoldFit.
+ */
+int64_t RoomForGold();
 
 /**
  * @return The leftover amount that didn't fit, if any

@@ -344,6 +344,55 @@ int TotalUnitsOf(const Player &player, const Item &like)
 	return total;
 }
 
+/**
+ * External audit, 2026-08-25: the gold accumulators were ints and their totals are not.
+ *
+ * MaxGold is 100,000,000 and the backpack has 70 cells, so an EMPTY backpack means RoomForGold
+ * answers 7,000,000,000 - more than three times INT_MAX. That is the commonest inventory state in
+ * the game, and it was signed overflow: undefined behaviour, not a large number.
+ */
+/**
+ * MaxGold is set by CalcPlrInv, not a constant: vanilla's 5,000 becomes GoldStackSaveLimit
+ * (100,000,000) for a single-player character, which V1 always is. A test that left it at 5,000
+ * would be measuring a configuration this game never runs in - and would have reported no problem.
+ */
+struct RaisedGoldCap {
+	RaisedGoldCap() { MaxGold = GoldStackSaveLimit; }
+	~RaisedGoldCap() { MaxGold = previous; }
+	int previous = MaxGold;
+};
+
+TEST_F(InvTest, RoomForGold_EmptyBackpackDoesNotOverflow)
+{
+	RaisedGoldCap singlePlayerCap;
+	clear_inventory();
+	const int64_t room = RoomForGold();
+	EXPECT_EQ(room, static_cast<int64_t>(InventoryGridCells) * MaxGold)
+	    << "an empty backpack should offer every cell's worth of gold";
+	EXPECT_GT(room, static_cast<int64_t>(std::numeric_limits<int>::max()))
+	    << "the value this test exists for no longer exceeds an int - has MaxGold or the grid changed?";
+}
+
+TEST_F(InvTest, CalculateGold_SaturatesInsteadOfWrapping)
+{
+	RaisedGoldCap singlePlayerCap;
+	clear_inventory();
+	// Twenty-five full stacks is 2.5 billion, past INT_MAX. The old int accumulator wrapped
+	// NEGATIVE, so a very rich character read as being in debt.
+	constexpr int Stacks = 25;
+	for (int i = 0; i < Stacks; i++) {
+		MyPlayer->InvList[i] = {};
+		MakeGoldStack(MyPlayer->InvList[i], MaxGold);
+		MyPlayer->InvGrid[i] = static_cast<int8_t>(i + 1);
+	}
+	MyPlayer->_pNumInv = Stacks;
+
+	const int gold = CalculateGold(*MyPlayer);
+	EXPECT_EQ(gold, std::numeric_limits<int>::max())
+	    << "a total past INT_MAX must saturate, not wrap";
+	EXPECT_GT(gold, 0) << "the total wrapped negative";
+}
+
 TEST_F(InvTest, MergeStackable_FortyOntoFiftyKeepsNinety)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);

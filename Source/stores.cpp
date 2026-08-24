@@ -1422,9 +1422,24 @@ void CreditSaleProceeds(int cost)
 	if (oracool::IsSinglePlayer() && Stash.gold <= std::numeric_limits<int>::max() - cost) {
 		Stash.gold += cost;
 		Stash.dirty = true;
-	} else {
-		AddGoldToInventory(myPlayer, cost);
-		myPlayer._pGold += cost;
+		return;
+	}
+
+	// AddGoldToInventory returns what it could NOT place, and that return was discarded while
+	// `_pGold += cost` credited the full amount regardless - so the purse claimed gold that was in
+	// no stack, and the next CalculateGold silently corrected it back down. The item was already
+	// gone by then (external audit, 2026-08-25).
+	//
+	// _pGold is recomputed from the stacks rather than added to, which is what every other caller
+	// that changes gold does: a total derived from what actually exists cannot claim what does not.
+	const int unplaced = AddGoldToInventory(myPlayer, cost);
+	myPlayer._pGold = CalculateGold(myPlayer);
+	if (unplaced > 0) {
+		// Reaching here means StoreGoldFit said the sale would fit and it did not. That gate is the
+		// thing to fix if this ever appears in a log - saying so is better than losing the gold in
+		// silence, which is what happened before.
+		oracool::LogEvent(StrCat("Sale proceeds could not be placed: ", unplaced, " gold lost"),
+		    UiFlags::ColorRed);
 	}
 }
 
@@ -2297,7 +2312,11 @@ bool StoreGoldFit(Item &item)
 	int cost = item._iIvalue;
 
 	Size itemSize = GetInventorySize(item);
-	int itemRoomForGold = itemSize.width * itemSize.height * MaxGold;
+	// 64-bit throughout. The cell product alone reaches 10 * 100,000,000 for the largest items, and
+	// adding RoomForGold's answer (up to 7,000,000,000 on an empty backpack) overflowed an int -
+	// so the gate that decides whether a sale FITS was itself computing undefined behaviour, on the
+	// commonest inventory state there is (external audit, 2026-08-25).
+	const int64_t itemRoomForGold = static_cast<int64_t>(itemSize.width) * itemSize.height * MaxGold;
 
 	if (cost <= itemRoomForGold) {
 		return true;

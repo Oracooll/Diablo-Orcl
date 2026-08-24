@@ -1011,7 +1011,11 @@ void StartGoldWithdraw()
 	        /*maxLength=*/sizeof(GoldWithdrawText) - 1,
 	    },
 	    /*min=*/0,
-	    /*max=*/std::min(RoomForGold(), Stash.gold),
+	    // Compared in 64 bits and narrowed after: RoomForGold answers up to 7,000,000,000 on an
+	    // empty backpack, which is wider than the int this prompt's cap is. Taking the min FIRST
+	    // means the narrowing only ever happens to a value Stash.gold already bounded, so it cannot
+	    // truncate.
+	    /*max=*/static_cast<int>(std::min<int64_t>(RoomForGold(), Stash.gold)),
 	});
 	SDL_StartTextInput();
 }

@@ -2403,9 +2403,13 @@ bool AutoPlaceItemInExtraTabs(Player &player, const Item &item, bool persistItem
 	return false;
 }
 
-int RoomForGold()
+int64_t RoomForGold()
 {
-	int amount = 0;
+	// int64_t, and not for a distant edge case: MaxGold is 100,000,000 and the grid has 70 cells,
+	// so an EMPTY backpack is 7,000,000,000 - more than three times what a signed 32-bit int can
+	// hold. The accumulator overflowed on the commonest state there is, which is undefined
+	// behaviour rather than a large number (external audit, 2026-08-25).
+	int64_t amount = 0;
 	for (int8_t &itemIndex : MyPlayer->InvGrid) {
 		if (itemIndex < 0) {
 			continue;
@@ -3803,14 +3807,22 @@ void DoTelekinesis()
 
 int CalculateGold(Player &player)
 {
-	int gold = 0;
+	// Accumulated in int64_t and SATURATED on the way out. Twenty-two full stacks is 2.2 billion,
+	// past what an int holds, and the backpack has seventy cells - so the old int accumulator was
+	// reachable overflow, not a theoretical one (external audit, 2026-08-25).
+	//
+	// Saturating rather than widening the return, because the destination is `Player::_pGold`, an
+	// int. Widening this alone would move the overflow one line down into the caller. A player who
+	// somehow holds more than INT_MAX in the backpack sees INT_MAX, which is wrong by a knowable
+	// amount in a knowable direction - unlike a wrap, which is wrong by an unknowable one.
+	int64_t gold = 0;
 
 	for (int i = 0; i < player._pNumInv; i++) {
 		if (player.InvList[i]._itype == ItemType::Gold)
 			gold += player.InvList[i]._ivalue;
 	}
 
-	return gold;
+	return static_cast<int>(std::min<int64_t>(gold, std::numeric_limits<int>::max()));
 }
 
 Size GetInventorySize(const Item &item)
