@@ -37,16 +37,20 @@ it annotates.
 | `data.js` | Generated. Do not edit - `BuildWiki.ps1` overwrites it. |
 | `sprites/` | Generated copy of `Packaging/resources/assets`. |
 
-## Published site
+## Published site — planned, NOT live
 
-<https://www.oracooll.com> is this folder, served by Cloudflare Pages straight from the GitHub
-repository — no build step, output directory `wiki`, production branch `oracool-v1-main`. Every push
-that touches these files redeploys the site, so **there is no separate publish command**: run
-`BuildWiki.ps1`, commit, push.
+The intention is to serve this folder at <https://www.oracooll.com> via Cloudflare Pages, connected
+to the GitHub repository: no build step, output directory `wiki`, production branch
+`oracool-v1-main`. **Nothing is connected yet** (parked 2026-08-24), so pushing changes nothing
+outside the repo and the Artifact below is still the only hosted copy.
 
-`_headers` is read by Pages from this directory. It exists because none of the generated filenames
-carry a content hash — `wiki.css`, `wiki.js` and `data.js` keep their names across every rebuild, so
-without a short browser cache the site would serve yesterday's tables against today's pages.
+The folder is ready for it: every `href` and `src` is relative and nothing fetches, so it works at a
+domain root unchanged — verified by serving it over HTTP rather than assumed.
+
+`_headers` is already here for that day; Pages reads it from the deployed directory and it is inert
+until then. It exists because none of the generated filenames carry a content hash — `wiki.css`,
+`wiki.js` and `data.js` keep their names across every rebuild, so without a short browser cache the
+site would serve yesterday's tables against today's pages.
 
 ## Bundled single-file copy
 
