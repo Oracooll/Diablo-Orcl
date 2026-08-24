@@ -2305,6 +2305,65 @@ TEST(OracoolCrafting, AscendRunesConsumesPairAndProducesNextRung)
 	EXPECT_EQ(elCount, 0) << "the consumed pair survived";
 }
 
+// External audit, 2026-08-25: recipes counted occupied SLOTS while their materials stack, which was
+// wrong in both directions. A single slot holding two El runes did not satisfy "two identical runes"
+// at all, and when two separate slots did satisfy it, both whole stacks were destroyed to make one
+// rune. These two pin each direction; both fail against the pre-fix code.
+TEST(OracoolCrafting, AscendRunes_OneStackSatisfiesThePair)
+{
+	Players.resize(2);
+	MyPlayer = &Players[1];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+
+	// TWO El runes, in ONE slot. The recipe needs two; slot-counting saw one and refused.
+	player.InvList[0] = {};
+	InitializeItem(player.InvList[0], IDI_ORACOOL_RUNE_EL);
+	player.InvList[0]._itype = ItemType::Misc;
+	player.InvList[0].setStackCount(2);
+	player._pNumInv = 1;
+	for (int8_t &cell : player.InvGrid)
+		cell = 0;
+	player.InvGrid[0] = 1;
+
+	EXPECT_TRUE(oracool::CanCraft(player, 1)) << "a stack of two runes is still two runes";
+	EXPECT_FALSE(oracool::Craft(player, 1).empty());
+}
+
+TEST(OracoolCrafting, AscendRunes_SurplusUnitsSurviveTheCraft)
+{
+	Players.resize(2);
+	MyPlayer = &Players[1];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+
+	// Ten El runes. The recipe spends two; the other eight must still be there afterwards.
+	player.InvList[0] = {};
+	InitializeItem(player.InvList[0], IDI_ORACOOL_RUNE_EL);
+	player.InvList[0]._itype = ItemType::Misc;
+	player.InvList[0].setStackCount(10);
+	player._pNumInv = 1;
+	for (int8_t &cell : player.InvGrid)
+		cell = 0;
+	player.InvGrid[0] = 1;
+
+	ASSERT_TRUE(oracool::CanCraft(player, 1));
+	ASSERT_FALSE(oracool::Craft(player, 1).empty());
+
+	int el = 0;
+	int eld = 0;
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_EL)
+			el += player.InvList[i].stackCount();
+		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_ELD)
+			eld += player.InvList[i].stackCount();
+	}
+	EXPECT_EQ(eld, 1) << "the craft did not produce its output";
+	EXPECT_EQ(el, 8) << "the craft destroyed surplus units of the stack it drew from";
+}
+
 // Gems and runes became stackable at v1.7.30, and stacking asks a question potions never had to
 // answer: what counts as "the same item". canStackWith compares _iMiscId, which is correct for
 // potions (the item table carries duplicate indices for several) and catastrophic here - every gem

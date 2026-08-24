@@ -1,4 +1,4 @@
-#include "oracool/crafting.h"
+﻿#include "oracool/crafting.h"
 
 #include "oracool/gems.h"
 #include "oracool/item_sets.h"
@@ -33,24 +33,36 @@ std::vector<int> FindMaterials(const Player &player, bool (*matches)(int idx))
 }
 
 /**
- * @brief The largest same-IDidx group among @p indices, or empty if none reaches @p groupSize.
- * Recipes 1 and 2 both need "N of one KIND", not "N of the family".
+ * @brief @p groupSize UNITS of one kind, or empty if no kind can supply that many.
+ *
+ * Recipes 0, 1 and 4 each need "N of one KIND", not "N of the family".
+ *
+ * The returned vector holds an inventory index per unit to be spent, so a slot appearing twice is a
+ * slot giving up two. That representation is what makes the consumption in TransmuteBackpack able to
+ * take part of a stack, and it keeps `materials[0]` meaning "the kind", which is all OutputFor wants.
+ *
+ * It counted SLOTS before, which was wrong in both directions once gems, runes and jewels started
+ * stacking (external audit, 2026-08-25): a single slot holding three identical gems did not satisfy
+ * a three-gem recipe at all, and when three separate slots did satisfy it, all three whole stacks
+ * were destroyed to make one gem.
  */
-std::vector<int> LargestSameKindGroup(const Player &player, const std::vector<int> &indices, size_t groupSize)
+std::vector<int> SameKindUnits(const Player &player, const std::vector<int> &indices, size_t groupSize)
 {
-	std::vector<int> best;
 	for (const int anchor : indices) {
 		std::vector<int> group;
 		for (const int candidate : indices) {
-			if (player.InvList[candidate].IDidx == player.InvList[anchor].IDidx)
+			if (player.InvList[candidate].IDidx != player.InvList[anchor].IDidx)
+				continue;
+			// stackCount() floors at 1 for anything unstacked, so a non-stacking material still
+			// contributes exactly itself.
+			const int units = std::max(1, player.InvList[candidate].stackCount());
+			for (int u = 0; u < units && group.size() < groupSize; u++)
 				group.push_back(candidate);
+			if (group.size() >= groupSize)
+				return group;
 		}
-		if (group.size() >= groupSize && group.size() > best.size())
-			best = std::move(group);
 	}
-	if (best.size() > groupSize)
-		best.resize(groupSize);
-	return best.size() >= groupSize ? best : std::vector<int> {};
+	return {};
 }
 
 bool IsGem(int idx) { return IsOracoolGemIdx(idx); }
@@ -96,14 +108,14 @@ std::vector<int> MaterialsFor(const Player &player, int index)
 		gems.erase(std::remove_if(gems.begin(), gems.end(),
 		                [&](int i) { return IsPerfectGem(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
 		    gems.end());
-		return LargestSameKindGroup(player, gems, 3);
+		return SameKindUnits(player, gems, 3);
 	}
 	case 1: { // two identical runes, Zod excluded (it is the top of the ladder)
 		std::vector<int> runes = FindMaterials(player, IsRune);
 		runes.erase(std::remove_if(runes.begin(), runes.end(),
 		                [&](int i) { return IsTopRune(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
 		    runes.end());
-		return LargestSameKindGroup(player, runes, 2);
+		return SameKindUnits(player, runes, 2);
 	}
 	case 2: { // two charms of any kind
 		std::vector<int> charms = FindMaterials(player, IsCharm);
@@ -117,7 +129,7 @@ std::vector<int> MaterialsFor(const Player &player, int index)
 		jewels.erase(std::remove_if(jewels.begin(), jewels.end(),
 		                 [&](int i) { return IsTopJewel(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
 		    jewels.end());
-		return LargestSameKindGroup(player, jewels, 3);
+		return SameKindUnits(player, jewels, 3);
 	}
 	default:
 		return {};
@@ -263,13 +275,29 @@ std::string Craft(Player &player, int index)
 	if (!AutoPlaceItemInInventory(player, crafted, /*persistItem=*/true))
 		return {};
 
-	// Consume from the highest InvList index down: RemoveInvItem compacts the list by moving the
-	// last item into the vacated slot, so ascending-order removal would invalidate the later
-	// indices in `materials` - descending order cannot.
-	std::vector<int> toRemove = materials;
-	std::sort(toRemove.begin(), toRemove.end(), std::greater<int>());
-	for (const int invIndex : toRemove)
-		player.RemoveInvItem(invIndex);
+	// Consume by UNIT, not by slot. `materials` holds one entry per unit (see SameKindUnits), so a
+	// slot listed twice gives up two and a slot with more than the recipe asked for keeps the rest.
+	// This removed the whole slot per entry, which destroyed every surplus unit in it - a stack of
+	// twelve chipped rubies paid for one flawed ruby and lost the other nine.
+	//
+	// Still highest index down: RemoveInvItem compacts the list by moving the last item into the
+	// vacated slot, so ascending-order removal would invalidate the later indices. Decrementing a
+	// stack does not compact, so mixing the two in descending order stays safe.
+	std::vector<int> draws = materials;
+	std::sort(draws.begin(), draws.end(), std::greater<int>());
+	for (size_t i = 0; i < draws.size();) {
+		const int invIndex = draws[i];
+		size_t j = i;
+		while (j < draws.size() && draws[j] == invIndex)
+			j++;
+		const int take = static_cast<int>(j - i);
+		Item &material = player.InvList[invIndex];
+		if (material.stackCount() > take)
+			material.setStackCount(material.stackCount() - take);
+		else
+			player.RemoveInvItem(invIndex);
+		i = j;
+	}
 
 	// loadgfx false: crafting moves backpack contents (which the charm provider reads), never the
 	// worn weapon whose sprites loadgfx would reload - and true would crash a headless caller.

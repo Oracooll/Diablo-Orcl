@@ -276,25 +276,23 @@ bool TrySalvageOnPickup(Player &player, const Item &item)
 	Item material;
 	InitializeItem(material, static_cast<_item_indexes>(SalvageMaterialFor(tier)));
 	material.updateRequiredStatsCacheForPlayer(player); // see the same call in SalvageAllInBackpack
-	int placed = 0;
-	for (; placed < yield; placed++) {
-		Item one = material;
-		if (!AutoPlaceItemInInventory(player, one, true))
-			break;
-	}
-	// Nothing fit: decline the conversion outright and let the item be picked up normally, so a
-	// full pack refuses rather than destroying gear for materials it cannot hold.
-	if (placed == 0)
+	// ALL of it, or none. This placed one unit at a time and stopped at the first refusal, declining
+	// only when NOTHING fit - so a pack with room for two of a five-material yield took the two,
+	// destroyed the gear, and logged the shortfall as if losing it were a normal outcome (external
+	// audit, 2026-08-25). It is not: the item is gone and cannot be re-salvaged later.
+	//
+	// Placed as one STACK rather than in a loop, which is both what these are (salvage materials
+	// stack - see Item::isStackableConsumable) and what makes the all-or-nothing check possible:
+	// probing a single unit N times just answers "the first one fits" N times, because a probe
+	// reserves nothing.
+	material.setStackCount(yield);
+	if (!AutoPlaceItemInInventory(player, material, /*persistItem=*/false))
 		return false;
+	AutoPlaceItemInInventory(player, material, /*persistItem=*/true);
 
-	LogEvent(StrCat(_("Salvaged on pickup: "), consumed, " -> ", placed, " ",
+	LogEvent(StrCat(_("Salvaged on pickup: "), consumed, " -> ", yield, " ",
 	             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
 	    UiFlags::ColorWhitegold);
-	if (placed < yield) {
-		LogEvent(StrCat("Salvage: no room for ", yield - placed, " more ",
-		             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
-		    UiFlags::ColorRed);
-	}
 	return true;
 }
 

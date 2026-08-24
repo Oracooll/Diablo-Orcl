@@ -579,6 +579,28 @@ int FindTargetSlotUnderItemCursor(Point cursorPosition, Size itemSize)
 	return NUM_XY_SLOTS;
 }
 
+/**
+ * @brief Spends ONE unit of what the player is holding, leaving the rest in hand.
+ *
+ * Socketing a gem and pasting a Mystic Orb both used to `HoldItem.clear()`, which is right only when
+ * the hand holds exactly one. Gems, runes, jewels and orbs all stack in this fork
+ * (Item::isStackableConsumable), so socketing one rune out of a held stack of twenty destroyed
+ * nineteen (external audit, 2026-08-25).
+ *
+ * The cursor is refreshed from the item rather than reset to CURSOR_HAND when units remain, so the
+ * player keeps carrying the rest and can see that they do.
+ */
+void ConsumeOneHeldUnit(Player &player)
+{
+	if (player.HoldItem.stackCount() > 1) {
+		player.HoldItem.setStackCount(player.HoldItem.stackCount() - 1);
+		NewCursor(player.HoldItem);
+		return;
+	}
+	player.HoldItem.clear();
+	NewCursor(CURSOR_HAND);
+}
+
 void CheckInvPaste(Player &player, Point cursorPosition)
 {
 	Size itemSize = GetInventorySize(player.HoldItem);
@@ -690,8 +712,7 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				// walk rather than tested here, so "an item at its cap" has one definition.
 				oracool::CheckPassiveMilestones(player);
 			}
-			player.HoldItem.clear();
-			NewCursor(CURSOR_HAND);
+			ConsumeOneHeldUnit(player);
 			CalcPlrInv(player, true);
 			return;
 		}
@@ -707,8 +728,7 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 				oracool::LogEvent(fmt::format("Runeword complete: {:s}", socketTarget._iIName));
 				oracool::ClaimMilestone(player, oracool::Milestone::CompleteRuneword);
 			}
-			player.HoldItem.clear();
-			NewCursor(CURSOR_HAND);
+			ConsumeOneHeldUnit(player);
 			CalcPlrInv(player, true);
 			return;
 		}
