@@ -18,6 +18,21 @@
 
 namespace devilution {
 
+/**
+ * @brief Declared as well as included, because the include above is not always effective.
+ *
+ * There is a cycle: spelldat.h pulls in effects.h, which reaches player.h, which includes THIS
+ * header - so a translation unit that enters spelldat.h first arrives here with spelldat.h still in
+ * progress. Its include guard then hands line 12 an empty file, and the two externs below name types
+ * that do not exist yet.
+ *
+ * Both are scoped enums with fixed underlying types, so declaring them is enough for an extern
+ * declaration and costs nothing when the include did work. Breaking the cycle properly is a job of
+ * its own; this is what it takes to build Release, which is where the cycle first bites.
+ */
+enum class SpellID : int8_t;
+enum class SpellType : uint8_t;
+
 constexpr uint32_t GameIdDiabloFull = LoadBE32("DRTL");
 constexpr uint32_t GameIdDiabloSpawn = LoadBE32("DSHR");
 constexpr uint32_t GameIdHellfireFull = LoadBE32("HRTL");

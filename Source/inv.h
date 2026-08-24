@@ -16,6 +16,22 @@
 
 namespace devilution {
 
+/**
+ * @brief Forward declaration, not an include of spelldat.h.
+ *
+ * CanUseScroll and CanUseStaff below name SpellID, and this header did not say where it comes from -
+ * it got away with that in Debug, where every translation unit reaching inv.h happened to have seen
+ * spelldat.h first. The Release build's include order does not, and the fork's first Release build
+ * failed here.
+ *
+ * Including spelldat.h fixes the symptom and creates a cycle: spelldat.h pulls in effects.h, which
+ * comes back round to this header, so on the second entry the include guard hands spelldat.h an
+ * empty file and its own SpellID goes undefined. A scoped enum with a fixed underlying type is a
+ * complete type once declared, which is all a by-value parameter needs - so the declaration is
+ * enough, and it adds no edge to the include graph.
+ */
+enum class SpellID : int8_t;
+
 #define INV_SLOT_SIZE_PX 28
 #define INV_SLOT_HALF_SIZE_PX (INV_SLOT_SIZE_PX / 2)
 /** @brief Oracool V1: 10x7 with the new 320x660 window; see oracool/inventory_layout.h. */
