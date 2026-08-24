@@ -575,8 +575,14 @@ if(CPACK AND (APPLE OR BUILD_ASSETS_MPQ OR SRC_DIST))
     set(CPACK_GENERATOR "ZIP")
     set(CPACK_STRIP_FILES TRUE)
     install(TARGETS ${BIN_TARGET} DESTINATION .)
-    install(FILES "${PROJECT_SOURCE_DIR}/Packaging/windows/README.txt"
+    # Oracool: RELEASE_README.txt, not the upstream README.txt. The generic one describes
+    # DevilutionX and names only diabdat.mpq; ours names all seven archives, says which four go
+    # together, and warns that supplying hellfire.mpq without hfmonk/hfmusic/hfvoice makes the game
+    # exit on start. A package that shipped the other one walked players into that (external audit,
+    # 2026-08-25).
+    install(FILES "${PROJECT_SOURCE_DIR}/Packaging/windows/RELEASE_README.txt"
       DESTINATION "."
+      RENAME "README.txt"
     )
     install(FILES "${PROJECT_SOURCE_DIR}/_ProjectLibrary/Documentation/CHANGELOG.md"
       DESTINATION "."
@@ -586,12 +592,36 @@ if(CPACK AND (APPLE OR BUILD_ASSETS_MPQ OR SRC_DIST))
       DESTINATION "."
     )
     # Oracool: the fork's own asset archive, without which most of the game's UI and content is
-    # missing (external audit, 2026-08-17 - a packaged game could omit it entirely). Built by
-    # tools\build_oracool_mpq.cmd into the binary dir; OPTIONAL because that build step is manual,
-    # but a package built after the normal workflow will have it and now ships it.
+    # missing.
+    #
+    # This was OPTIONAL, and that was the bug. The 2026-08-17 audit found that a package could omit
+    # it entirely; the mitigation was to install it "if present", which means a clean CI or
+    # release build - exactly the one nobody watches - produces a silently gutted game. The
+    # 2026-08-25 audit raised it again for that reason, and it was raised a third time by
+    # experience: the v1.9.31 release zip was assembled by hand, and oracool.mpq had to be copied
+    # out of the Debug directory because no packaging step knew about it.
+    #
+    # Required now, with a message that says what to do. It fires at install/package time only, so
+    # an ordinary build is unaffected - the archive is still produced by tools/build_oracool_mpq.cmd
+    # rather than by the build, which is a separate thing worth fixing and not this.
+    #
+    # FORWARD slashes in the message, and not as a style choice. The path crosses two levels of
+    # CMake string escaping on its way into cmake_install.cmake, and a backslash does not survive
+    # it: `tools\\\\build...` here reaches the generated script as `\b` and aborts the install with
+    # "Invalid character escape". Verified by running both branches of this guard in a throwaway
+    # project, because it can only fail at package time - which is the one time nobody wants a
+    # surprise.
+    install(CODE "
+      if(NOT EXISTS \"${CMAKE_BINARY_DIR}/oracool.mpq\")
+        message(FATAL_ERROR
+          \"oracool.mpq is missing from the build directory, so this package would ship without \"
+          \"Oracool Edition's own art and data - most of the UI and content. Build it first:\\n\"
+          \"    tools/build_oracool_mpq.cmd\\n\"
+          \"(the packer is EXCLUDE_FROM_ALL; build the oracool_mpq_pack target once if it is absent)\")
+      endif()
+    ")
     install(FILES "${CMAKE_BINARY_DIR}/oracool.mpq"
       DESTINATION "."
-      OPTIONAL
     )
 
     foreach(_SDL2_WIN32_DLL_PATH ${SDL2_WIN32_ALL_DLLS})
