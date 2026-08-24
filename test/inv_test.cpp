@@ -319,6 +319,71 @@ TEST_F(InvTest, MergeStackableItemIntoInventory_identifiedStateMismatchStillMerg
 	EXPECT_EQ(MyPlayer->_pNumInv, 1);                // no separate slot needed
 }
 
+/**
+ * Conservation tests (external audit, 2026-08-25).
+ *
+ * The merge functions moved exactly ONE unit however many the incoming stack held, and callers read
+ * the boolean as "the source is dealt with" and discarded the rest. Fifty gems plus a forty stack
+ * produced fifty-one.
+ *
+ * The three tests above passed throughout, because every one of them arrives with a stack of ONE -
+ * the single size at which "+1" is the right answer. These count UNITS, and they arrive with more
+ * than one.
+ */
+int TotalUnitsOf(const Player &player, const Item &like)
+{
+	int total = 0;
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (player.InvList[i].canStackWith(like))
+			total += player.InvList[i].stackCount();
+	}
+	for (int i = 0; i < MaxBeltItems; i++) {
+		if (!player.SpdList[i].isEmpty() && player.SpdList[i].canStackWith(like))
+			total += player.SpdList[i].stackCount();
+	}
+	return total;
+}
+
+TEST_F(InvTest, MergeStackable_FortyOntoFiftyKeepsNinety)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	clear_inventory();
+	gbIsMultiplayer = false;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	MyPlayer->InvList[0] = MakeStackablePotion(IDI_HEAL, true, 50);
+	MyPlayer->InvGrid[0] = 1;
+	MyPlayer->_pNumInv = 1;
+
+	Item incoming = MakeStackablePotion(IDI_HEAL, true, 40);
+	ASSERT_EQ(TotalUnitsOf(*MyPlayer, incoming), 50);
+
+	EXPECT_TRUE(AutoPlaceItemInInventory(*MyPlayer, incoming, true));
+	EXPECT_EQ(TotalUnitsOf(*MyPlayer, incoming), 90)
+	    << "units destroyed merging a 40 stack onto a 50 stack";
+}
+
+TEST_F(InvTest, MergeStackable_OverflowSpillsInsteadOfVanishing)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	clear_inventory();
+	gbIsMultiplayer = false;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	// 95 held, 20 arriving: 4 top the stack up to the 99 cap and 16 must land in a second slot.
+	MyPlayer->InvList[0] = MakeStackablePotion(IDI_HEAL, true, Item::MaxStackCount - 4);
+	MyPlayer->InvGrid[0] = 1;
+	MyPlayer->_pNumInv = 1;
+
+	Item incoming = MakeStackablePotion(IDI_HEAL, true, 20);
+	EXPECT_TRUE(AutoPlaceItemInInventory(*MyPlayer, incoming, true));
+	EXPECT_EQ(TotalUnitsOf(*MyPlayer, incoming), Item::MaxStackCount - 4 + 20)
+	    << "the overflow past MaxStackCount was destroyed instead of spilling to a new slot";
+	EXPECT_EQ(MyPlayer->InvList[0].stackCount(), Item::MaxStackCount);
+}
+
 TEST_F(InvTest, MergeStackableItemIntoBelt_mergesIntoExistingStack)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);

@@ -2044,28 +2044,46 @@ void BreakOrRemoveEquipment(Player &player, inv_body_loc bodyLocation, bool hiPr
 	RemoveEquipment(player, bodyLocation, hiPri);
 }
 
-bool MergeStackableItemIntoBelt(Player &player, const Item &item, bool persistItem)
+/**
+ * @brief Merges as much of @p item as will fit into matching belt stacks.
+ *
+ * @return how many UNITS were taken. Zero means nothing merged.
+ *
+ * This returned `bool` and moved exactly ONE unit however many the incoming stack held, while every
+ * caller read the `true` as "the source is dealt with" and discarded all of it. Withdrawing forty
+ * gems onto a stack of fifty produced fifty-one and destroyed thirty-nine (external audit,
+ * 2026-08-25). The count is the fix: a caller cannot mistake "5 of 40" for "all of it".
+ *
+ * Honours each destination's headroom and keeps going across slots, so a large stack can fill
+ * several partial ones. With @p persistItem false nothing is written and the return is what WOULD
+ * be taken, which is what makes the probe-then-commit callers correct.
+ */
+int MergeStackableItemIntoBelt(Player &player, const Item &item, bool persistItem)
 {
-	for (int i = 0; i < MaxBeltItems; i++) {
+	int remaining = item.stackCount();
+	for (int i = 0; i < MaxBeltItems && remaining > 0; i++) {
 		if (!oracool::IsRealBeltItemSlot(i))
 			continue; // Oracool: HUD overhaul - slot 0 is Menu, 5 is Town Portal, 6/7 are hidden
 		Item &beltItem = player.SpdList[i];
 		if (!beltItem.canStackWith(item) || beltItem.stackCount() >= Item::MaxStackCount)
 			continue;
 
+		const int take = std::min(Item::MaxStackCount - beltItem.stackCount(), remaining);
+		if (take <= 0)
+			continue;
+		remaining -= take;
+
 		if (persistItem) {
-			beltItem.setStackCount(beltItem.stackCount() + 1);
+			beltItem.setStackCount(beltItem.stackCount() + take);
 			player.CalcScrolls();
 			RedrawComponent(PanelDrawComponent::Belt);
 			if (&player == MyPlayer) {
 				NetSendCmdChBeltItem(false, i);
 			}
 		}
-
-		return true;
 	}
 
-	return false;
+	return item.stackCount() - remaining;
 }
 
 bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem)
@@ -2074,9 +2092,15 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem)
 		return false;
 	}
 
-	if (oracool::IsSinglePlayer() && item.isStackableConsumable()
-	    && MergeStackableItemIntoBelt(player, item, persistItem)) {
-		return true;
+	// Merge what fits, then put the REMAINDER in an empty slot - see AutoPlaceItemInInventory for
+	// why returning true on a partial merge destroyed the rest.
+	Item remainder = item;
+	if (oracool::IsSinglePlayer() && item.isStackableConsumable()) {
+		const int merged = MergeStackableItemIntoBelt(player, remainder, persistItem);
+		if (merged >= remainder.stackCount())
+			return true;
+		if (merged > 0)
+			remainder.setStackCount(remainder.stackCount() - merged);
 	}
 
 	for (int i = 0; i < MaxBeltItems; i++) {
@@ -2085,7 +2109,7 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem)
 		Item &beltItem = player.SpdList[i];
 		if (beltItem.isEmpty()) {
 			if (persistItem) {
-				beltItem = item;
+				beltItem = remainder;
 				player.CalcScrolls();
 				RedrawComponent(PanelDrawComponent::Belt);
 				if (&player == MyPlayer) {
@@ -2145,19 +2169,24 @@ bool AutoEquipEnabled(const Player &player, const Item &item)
 	return true;
 }
 
-bool MergeStackableItemIntoInventory(Player &player, const Item &item, bool persistItem)
+/** @brief The backpack's half of the same fix - see MergeStackableItemIntoBelt for the whole story. */
+int MergeStackableItemIntoInventory(Player &player, const Item &item, bool persistItem)
 {
-	for (int i = 0; i < player._pNumInv; i++) {
+	int remaining = item.stackCount();
+	for (int i = 0; i < player._pNumInv && remaining > 0; i++) {
 		Item &existing = player.InvList[i];
 		if (!existing.canStackWith(item) || existing.stackCount() >= Item::MaxStackCount)
 			continue;
 
+		const int take = std::min(Item::MaxStackCount - existing.stackCount(), remaining);
+		if (take <= 0)
+			continue;
+		remaining -= take;
+
 		if (persistItem) {
-			existing.setStackCount(existing.stackCount() + 1);
+			existing.setStackCount(existing.stackCount() + take);
 			NetSyncInvItem(player, i);
 		}
-
-		return true;
 	}
 
 	// A matching stack sitting in one of the 9 Tabbed Inventory extra tabs is just as valid a
@@ -2165,60 +2194,73 @@ bool MergeStackableItemIntoInventory(Player &player, const Item &item, bool pers
 	// extra tabs this way for belt refills, so a fresh pickup/purchase should too rather than
 	// creating a redundant new stack while an existing one in an extra tab goes untouched.
 	if (TabbedInventoryEnabled()) {
-		for (int t = 0; t < Player::NumExtraInventoryTabs; t++) {
-			for (int i = 0; i < player._pNumInvTab[t]; i++) {
+		for (int t = 0; t < Player::NumExtraInventoryTabs && remaining > 0; t++) {
+			for (int i = 0; i < player._pNumInvTab[t] && remaining > 0; i++) {
 				Item &existing = player.InvTabList[t][i];
 				if (!existing.canStackWith(item) || existing.stackCount() >= Item::MaxStackCount)
 					continue;
 
-				if (persistItem)
-					existing.setStackCount(existing.stackCount() + 1);
+				const int take = std::min(Item::MaxStackCount - existing.stackCount(), remaining);
+				if (take <= 0)
+					continue;
+				remaining -= take;
 
-				return true;
+				if (persistItem)
+					existing.setStackCount(existing.stackCount() + take);
 			}
 		}
 	}
 
-	return false;
+	return item.stackCount() - remaining;
 }
 
 bool AutoPlaceItemInInventory(Player &player, const Item &item, bool persistItem)
 {
-	if (oracool::IsSinglePlayer() && item.isStackableConsumable()
-	    && MergeStackableItemIntoInventory(player, item, persistItem)) {
-		return true;
+	// Merge what fits into existing stacks, then place whatever is LEFT as a new one. The old shape
+	// returned true the moment anything merged, which is how a partly-merged stack lost its
+	// remainder: the caller heard "placed" and threw the source away.
+	//
+	// `remainder` is a local copy, so decrementing it is safe on the probe path too - nothing the
+	// caller owns is touched until persistItem says so.
+	Item remainder = item;
+	if (oracool::IsSinglePlayer() && item.isStackableConsumable()) {
+		const int merged = MergeStackableItemIntoInventory(player, remainder, persistItem);
+		if (merged >= remainder.stackCount())
+			return true;
+		if (merged > 0)
+			remainder.setStackCount(remainder.stackCount() - merged);
 	}
 
-	Size itemSize = GetInventorySize(item);
+	Size itemSize = GetInventorySize(remainder);
 	bool placed = false;
 
 	if (itemSize.height == 1) {
 		for (int i = 30; i <= 39 && !placed; i++)
-			placed = AutoPlaceItemInInventorySlot(player, i, item, persistItem);
+			placed = AutoPlaceItemInInventorySlot(player, i, remainder, persistItem);
 		for (int x = 9; x >= 0 && !placed; x--) {
 			for (int y = 2; y >= 0 && !placed; y--)
-				placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem);
+				placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, remainder, persistItem);
 		}
 	} else if (itemSize.height == 2) {
 		for (int x = 10 - itemSize.width; x >= 0 && !placed; x -= itemSize.width) {
 			for (int y = 0; y < 3 && !placed; y++)
-				placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem);
+				placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, remainder, persistItem);
 		}
 		if (!placed && itemSize.width == 2) {
 			for (int x = 7; x >= 0 && !placed; x -= 2) {
 				for (int y = 0; y < 3 && !placed; y++)
-					placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, item, persistItem);
+					placed = AutoPlaceItemInInventorySlot(player, 10 * y + x, remainder, persistItem);
 			}
 		}
 	} else if (itemSize == Size { 1, 3 }) {
 		for (int i = 0; i < 20 && !placed; i++)
-			placed = AutoPlaceItemInInventorySlot(player, i, item, persistItem);
+			placed = AutoPlaceItemInInventorySlot(player, i, remainder, persistItem);
 	} else if (itemSize == Size { 2, 3 }) {
 		for (int i = 0; i < 9 && !placed; i++)
-			placed = AutoPlaceItemInInventorySlot(player, i, item, persistItem);
+			placed = AutoPlaceItemInInventorySlot(player, i, remainder, persistItem);
 		if (!placed) {
 			for (int i = 10; i < 19 && !placed; i++)
-				placed = AutoPlaceItemInInventorySlot(player, i, item, persistItem);
+				placed = AutoPlaceItemInInventorySlot(player, i, remainder, persistItem);
 		}
 	} else {
 		app_fatal(StrCat("Unknown item size: ", itemSize.width, "x", itemSize.height));
@@ -2850,8 +2892,32 @@ void InvGetItem(Player &player, int ii)
 	// that most of them get grabbed from a step or two away and never hit this gap; a rarer item a
 	// player deliberately walks onto (like an elixir) hits it far more often, making the gap look
 	// elixir-specific even though it equally affects every stackable consumable.
-	const bool merged = item._itype != ItemType::Gold && oracool::IsSinglePlayer() && item.isStackableConsumable()
-	    && (MergeStackableItemIntoBelt(player, item, true) || MergeStackableItemIntoInventory(player, item, true));
+	// PROBE, then commit only if every unit finds a home - belt first, backpack for the rest.
+	//
+	// All-or-nothing on purpose, and this is the trap: when `merged` comes out false the else branch
+	// below puts the WHOLE original item into the player's hand. A partial commit would therefore
+	// have moved some units into the belt AND handed the player the full stack, duplicating them.
+	// The old expression was `MergeBelt(...) || MergeInv(...)`, which stopped at the first function
+	// to move anything - so walking onto forty gems with a part-full belt slot moved what fitted,
+	// reported success, and destroyed the rest.
+	auto mergeAll = [&player](const Item &source, bool persist) -> int {
+		Item rest = source;
+		int taken = MergeStackableItemIntoBelt(player, rest, persist);
+		if (taken > 0 && taken < rest.stackCount()) {
+			rest.setStackCount(rest.stackCount() - taken);
+			taken += MergeStackableItemIntoInventory(player, rest, persist);
+		} else if (taken == 0) {
+			taken = MergeStackableItemIntoInventory(player, rest, persist);
+		}
+		return taken;
+	};
+
+	bool merged = false;
+	if (item._itype != ItemType::Gold && oracool::IsSinglePlayer() && item.isStackableConsumable()
+	    && mergeAll(item, /*persist=*/false) >= item.stackCount()) {
+		mergeAll(item, /*persist=*/true);
+		merged = true;
+	}
 
 	if (merged) {
 		if (MyPlayer == &player && *sgOptions.Audio.itemPickupSound) {
