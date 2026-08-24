@@ -3500,9 +3500,18 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			// the object's _oAnimData unset - DrawObject() dereferences that the instant the
 			// object is close enough to render. Registering the graphic here runs unconditionally
 			// on every entry to a level that could have a waypoint, fresh or revisit, before
-			// LoadLevel()'s sync runs. Levels 1-16 all have a waypoint placed now (town's own is
-			// covered separately - AddWaypointSigilObject already runs unconditionally there).
-			if (currlevel >= 1 && currlevel <= 16)
+			// LoadLevel()'s sync runs. Town's own is covered separately - AddWaypointSigilObject
+			// already runs unconditionally there.
+			//
+			// The bound is Player::MaxWaypointSlots, character for character the same test
+			// AddWaypointSigilObject uses to decide whether to PLACE a sigil. It was a literal 16
+			// while placement said 16 too; when placement widened to cover Hellfire's Nest (17-20)
+			// and Crypt (21-24) this did not follow, so a sigil on those eight levels was placed on
+			// a fresh visit and then, on a REVISIT, restored by LoadLevel with no graphic ever
+			// registered - which is precisely the crash the paragraph above describes, re-opened on
+			// the levels nobody had walked back into yet. Two copies of one bound is what let them
+			// drift; there is one now.
+			if (currlevel >= 1 && currlevel < static_cast<int>(Player::MaxWaypointSlots))
 				oracool::EnsureWaypointGraphicsLoaded();
 		} else if (!HeadlessMode) {
 			IncProgress();
