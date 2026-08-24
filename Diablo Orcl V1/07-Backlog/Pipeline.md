@@ -44,7 +44,6 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | Per-affix perfect-roll indicator | Systems | Medium | Yes | | Show which affixes rolled at their maximum. Needs a per-affix flag the item record does not carry. |
 | Transmogrification | Systems | Medium | Yes | | Wear one item's stats with another's appearance. Needs a second cursor id per item. |
 | Unique legendary powers | Systems | Large | Yes | | D3-style: a unique that changes how a skill behaves, not just its numbers. |
-| Diablo 2-style shop interface | Systems | Medium | No | | A grid shop with tabs rather than the vanilla scrolling list. |
 | Randomized bonus dungeon | Systems | Large | No | Zone pipeline | A Nephalem-Rift-style randomised descent built from existing tilesets and rosters. |
 
 | More milestones | Systems | Small | No | | Eight shipped at v1.9.20 and the list is the cheapest content in the game to extend - each is one condition and one enum value, and the mask has 24 spare bits. Obvious candidates: reach Torment, complete a named set, socket a six-socket item, salvage N items, kill every named unique. Worth doing once the telemetry says how fast the twenty-signet cap is actually reached. |
@@ -54,6 +53,31 @@ The old `Idea-Backlog.md` is superseded by this file and kept only for its histo
 | More named encounters | Systems | Small | No | | Three shipped at v1.9.23 and a fourth costs one row in Places[], one in the generator, and nothing else - but there are only three arena .dun files, so a fourth needs somewhere to run. Cheap the moment any new set level exists, for any reason. |
 
 ## Shipped, so not listed above
+
+**The Diablo 2-style shop interface** shipped across v1.9.25-1.9.31, and it was scoped Medium when
+it was two features wearing one name. The STRUCTURAL half - one door per vendor, everything behind
+it as tabs - landed at 1.9.25 and changed no transaction. The VISUAL half took five more versions.
+
+The grid is the stash's geometry, 10x16 at 28px, which is 280x448 and does not fit the vanilla
+592x292 store box - so the shop became a 340x720 panel in the top-left slot. Selling is a drag from
+the inventory, which now opens alongside it; the old Sell screen became a Sold tab that offers back
+what the vendor bought at the price it paid; Repair, Repair all and Recharge became icon buttons you
+drop an item on.
+
+The transactions were NOT rewritten. Every one derived which item from `stextvhold + ((stextlhold -
+stextup) / 4)` - the text list's scroll position, and the arithmetic behind the 1.8.90 crash. They
+were split into `...At(idx)` forms and the grid hands an index to a bridge that runs the tab's own
+Enter handler, so every afford/room/stale-row guard still has exactly one copy.
+
+Three audit passes found seven defects, four of them mine and invisible from a green build: items
+drawing above the grid (ClxDraw renders upward, and the inventory only gets away with the same
+anchor because it marks an item's BOTTOM-left cell); a sixth of Griswold's stock silently unbuyable
+once the stocks were raised to fill the grid (fixed by paging, which also exposed a pre-existing
+unbounded walk in `SortVendor`); Pepin buying anything Griswold buys; and the shop losing its panel
+slot to five other windows that draw over it while it went on swallowing the clicks.
+
+**None of it has been played.** The drag, the icons at 20px, and how many pages a real stock fills
+are the three things no test can reach.
 
 **Named encounters** shipped at v1.9.23 - D2MXL-to-ORCL Phase 4, and the last of the four. Three
 sealed destinations on the three existing arena set levels: a Sealed Map drops from a Dread boss,
