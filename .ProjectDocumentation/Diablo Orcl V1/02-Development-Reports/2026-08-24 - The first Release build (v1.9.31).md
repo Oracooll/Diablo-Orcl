@@ -49,10 +49,34 @@ touching it.
 `discord_game_sdk.dll` ships in the build directory but the executable does not import it, so it is
 not in the zip either — 3.3 MB for nothing.
 
-A `README.txt` says plainly that `diabdat.mpq` is missing on purpose, that the player supplies it
-from a copy of Diablo they own, and that saves live in `%APPDATA%` so a build can be replaced in
-place. The zip is checked after packing for any of the five commercial archives; that check is part
-of the packaging, not a one-off.
+The zip is checked after packing for any of the five commercial archives; that check is part of the
+packaging, not a one-off.
+
+### The README shipped wrong, and the user caught it
+
+The first `README.txt` named only `diabdat.mpq`. The user asked why the Hellfire archives were not
+listed, and they were right — the omission was worse than incomplete:
+
+- **Oracool is built on Hellfire, not just Diablo.** Its area ladder runs to 24 areas and includes
+  the Nest and the Crypt, which are Hellfire's dungeons, and the Monk is one of its six classes.
+  With only `diabdat.mpq` you get a shorter game and five classes, silently.
+- **There is a hard quit.** `init.cpp` ends its archive load with
+  `if (gbIsHellfire && (!hfmonk_mpq || !hfmusic_mpq || !hfvoice_mpq))` → error dialog and
+  `diablo_quit(1)`. Copying in `hellfire.mpq` alone — the obvious thing to do after reading the old
+  README — exits the game. I had shipped a document that walked people into that.
+
+The rewritten README lists all seven archives in three groups: required (`diabdat.mpq`), required
+together for the full game (`hellfire` + `hfmonk` + `hfmusic` + `hfvoice`, with the all-or-none rule
+stated outright), and optional (`hfbard`, `hfbarb`, which only ever added voices — both classes
+borrow other classes' artwork; plus `hfmonk.mpq` alone, which this fork deliberately searches outside
+a Hellfire game so the Monk can be had on Diablo's content).
+
+The asset and the release notes were replaced, then **verified by downloading the published zip back
+and reading the README out of it** rather than trusting the upload.
+
+It now lives at `Packaging/windows/RELEASE_README.txt`, under version control. The first copy existed
+only in a scratch directory, so the next release would have had to reinvent it — which is how the
+same mistake gets made twice.
 
 ## The version was NOT bumped
 
