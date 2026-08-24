@@ -37,9 +37,20 @@ it annotates.
 | `data.js` | Generated. Do not edit - `BuildWiki.ps1` overwrites it. |
 | `sprites/` | Generated copy of `Packaging/resources/assets`. |
 
-## Hosted copy
+## Published site
 
-The bundled single-file build is published as a Claude Artifact:
+<https://www.oracooll.com> is this folder, served by Cloudflare Pages straight from the GitHub
+repository — no build step, output directory `wiki`, production branch `oracool-v1-main`. Every push
+that touches these files redeploys the site, so **there is no separate publish command**: run
+`BuildWiki.ps1`, commit, push.
+
+`_headers` is read by Pages from this directory. It exists because none of the generated filenames
+carry a content hash — `wiki.css`, `wiki.js` and `data.js` keep their names across every rebuild, so
+without a short browser cache the site would serve yesterday's tables against today's pages.
+
+## Bundled single-file copy
+
+The bundled build is also published as a Claude Artifact:
 
   https://claude.ai/code/artifact/79abf513-fd1b-4f64-89aa-7c0696606337
 

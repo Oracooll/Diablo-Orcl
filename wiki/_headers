@@ -1,0 +1,14 @@
+# Cloudflare Pages reads this file from the deployed directory's root.
+#
+# The wiki is regenerated from the game's source tables and redeployed often, and none of its
+# filenames carry a content hash - wiki.css, wiki.js and data.js keep their names across every
+# rebuild. A long browser cache would therefore serve yesterday's tables against today's pages,
+# which is the one failure this file exists to prevent. Five minutes is long enough to be worth
+# having and short enough that nobody has to know to hard-refresh.
+/*
+  Cache-Control: public, max-age=300, must-revalidate
+
+# Sprites are the bulk of the payload (about 22 of the 23 MB) and change only when the art does.
+# Listed second because a later rule wins on the same header.
+/sprites/*
+  Cache-Control: public, max-age=604800
