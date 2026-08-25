@@ -39,6 +39,7 @@ set(libdevilutionx_SRCS
   objdat.cpp
   objects.cpp
   oracool/auto_save.cpp
+  oracool/save_status.cpp
   oracool/cursor_tooltip.cpp
   oracool/divine_trn.cpp
   oracool/event_log.cpp

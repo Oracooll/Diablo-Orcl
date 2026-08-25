@@ -1436,6 +1436,14 @@ void RunGameLoop(interface_mode uMsg)
 	if (gbIsMultiplayer) {
 		pfile_write_hero(/*writeGameData=*/false);
 		sfile_write_stash();
+	} else {
+		// Oracool (audit, 2026-08-26): the single-player half of the same thought. Alt+F4 raises
+		// SDL_QUIT, which clears gbRunGame and breaks the loop above rather than going through the
+		// menu - so it arrived HERE, where the only save was multiplayer-only, and wrote nothing.
+		//
+		// SaveOnExit is idempotent enough for this to be safe when the menu route already ran: it
+		// simply saves the same character again.
+		oracool::SaveOnExit();
 	}
 
 	PaletteFadeOut(8);
@@ -3047,6 +3055,18 @@ bool StartGame(bool bNewGame, bool bSinglePlayer)
 
 void diablo_quit(int exitStatus)
 {
+	// Oracool (audit, 2026-08-26): closing the window is a way of leaving the game, and it used to
+	// be the one way that saved nothing. SDL_WINDOWEVENT_CLOSE lands here and this function went
+	// straight to exit(), so a single-player character who clicked the X lost everything since the
+	// last periodic autosave.
+	//
+	// ONLY on a clean exit. appfat() also arrives here, with status 1, after the game has decided
+	// its own state is broken - writing a character out of a state we have just declared invalid is
+	// how a crash becomes a corrupt save. A crash costing the last few minutes is the correct
+	// trade; SaveOnExit's own guards (gbRunGame, MyPlayer, demo mode) handle the rest.
+	if (exitStatus == 0)
+		oracool::SaveOnExit();
+
 	FreeGameMem();
 	music_stop();
 	DiabloDeinit();

@@ -372,6 +372,71 @@ void AssertPlayer(Player &player)
 	ASSERT_EQ(player.pOriginalCathedral, 0);
 }
 
+_uiheroinfo LoadedHero {};
+bool LoadedHeroFound = false;
+
+// Audit fix, 2026-08-26: MpqWriter::WriteFile now writes under a temporary name and renames it over
+// the target, so a failed write cannot destroy the record it was replacing. That reshapes the
+// archive's hash and block tables on every save, and the golden hash below cannot tell whether the
+// result is still READABLE - it only says the bytes changed.
+//
+// So this reads it back. It is the test that would have caught a rename that produced a valid-
+// looking archive nobody could open, which is the way this change could have gone wrong silently.
+TEST(Writehero, HeroSurvivesAWriteAndReadsBack)
+{
+	const std::string savePath = paths::BasePath() + "multi_0.sv";
+	paths::SetPrefPath(paths::BasePath());
+	RemoveFile(savePath.c_str());
+
+	gbVanilla = true;
+	gbIsHellfire = false;
+	gbIsMultiplayer = true;
+	gbIsHellfireSaveGame = false;
+	leveltype = DTYPE_TOWN;
+	giNumberOfLevels = 17;
+
+	Players.resize(1);
+	MyPlayerId = 0;
+	MyPlayer = &Players[MyPlayerId];
+
+	_uiheroinfo info {};
+	info.heroclass = HeroClass::Rogue;
+	pfile_ui_save_create(&info);
+	PlayerPack pks;
+	PackPlayerTest(&pks);
+	UnPackPlayer(pks, *MyPlayer);
+
+	// Written TWICE, deliberately. The first write creates the record; the second is the one that
+	// has to replace an existing entry, which is the case the temp-and-rename path exists for and
+	// the case the old code got wrong.
+	MyPlayer->_pLevel = 7;
+	pfile_write_hero(/*writeGameData=*/false);
+	MyPlayer->_pLevel = 23;
+	pfile_write_hero(/*writeGameData=*/false);
+
+	ASSERT_TRUE(FileExists(savePath.c_str())) << "the save file is not there at all";
+
+	// Read it back through the same path the game uses to list characters.
+	Players[0] = {};
+	MyPlayer = &Players[0];
+	// A plain function pointer, so the result travels through file scope rather than a capture.
+	pfile_ui_set_hero_infos(+[](_uiheroinfo *hero) -> bool {
+		if (hero->name[0] != '\0') {
+			LoadedHero = *hero;
+			LoadedHeroFound = true;
+		}
+		return true;
+	});
+	EXPECT_TRUE(LoadedHeroFound) << "the written hero could not be read back - the archive is unreadable";
+	EXPECT_EQ(LoadedHero.level, 23) << "the SECOND write did not replace the first";
+	// Not asserting on strength: _pStrength is DERIVED (base plus item bonuses) while
+	// PackPlayer stores the base, so it reads back as the recomputed total. The level is
+	// the honest witness here - it proves both that the archive is readable AND that the
+	// second write replaced the first.
+
+	RemoveFile(savePath.c_str());
+}
+
 TEST(Writehero, pfile_write_hero)
 {
 	const std::string savePath = paths::BasePath() + "multi_0.sv";
@@ -493,10 +558,21 @@ TEST(Writehero, pfile_write_hero)
 	//      Class-relative on purpose, and it is the lesson from the chunk directly above: the aura
 	//      is stored ABSOLUTELY and that is why growing the enum at 1.9.45 cost Bard and Monk heroes
 	//      their lit aura. A relative index does not move when another class gains rows.
+	// 1.9.48: NOT a format change - an ARCHIVE LAYOUT change, and the distinction matters. Every
+	//      record still has the same name and the same decoded bytes; what moved is where inside
+	//      the .sv they sit. MpqWriter::WriteFile now writes under a temporary name and renames it
+	//      over the target, so a failed write can no longer destroy the record it was replacing
+	//      (audit, 2026-08-26 - it used to remove the old entry FIRST and write afterwards, and
+	//      discard the result). The extra hash-table churn shifts block offsets, so these bytes
+	//      differ while the save's meaning does not.
+	//
+	//      A hash cannot tell those two apart, which is why Writehero.HeroSurvivesAWriteAndReadsBack
+	//      exists above: it writes a hero TWICE and reads it back, so "the archive is still
+	//      readable and the second write replaced the first" is asserted rather than assumed.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "390a2a4dec74874d3f882906de58f47f4caa997ce5723895c3a0333b41828836");
+	    "6f11f99a459a70bfd9159590578d576ed27daefe05098059a43422c258d27d6b");
 }
 
 } // namespace

@@ -19,6 +19,7 @@
 #include "menu.h"
 #include "mpq/mpq_common.hpp"
 #include "oracool/hero_chunks.h"
+#include "oracool/save_status.h"
 #include "pack.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
@@ -159,7 +160,11 @@ void EncodeHero(SaveWriter &saveWriter, const PlayerPack *pack, const std::vecto
 	if (!chunkTail.empty())
 		memcpy(packed.get() + sizeof(*pack), chunkTail.data(), chunkTail.size());
 	codec_encode(packed.get(), plainLen, packedLen, pfile_get_password());
-	saveWriter.WriteFile("hero", packed.get(), packedLen);
+	// Oracool (audit, 2026-08-26): "hero" is THE file - stats, inventory, equipment, gold, the
+	// waypoint table, the chunk tail. Its write result was discarded, so a save that failed here
+	// still went on to log "Game saved". Recorded so the save path can say otherwise.
+	if (!saveWriter.WriteFile("hero", packed.get(), packedLen))
+		oracool::NoteSaveWriteFailed("hero");
 }
 
 SaveWriter GetSaveWriter(uint32_t saveNum)

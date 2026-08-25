@@ -516,14 +516,34 @@ void MpqWriter::RemoveHashEntries(bool (*fnGetName)(uint8_t, char *))
 
 bool MpqWriter::WriteFile(const char *filename, const byte *data, size_t size)
 {
-	MpqBlockEntry *blockEntry;
+	// Oracool (audit, 2026-08-26): written under a TEMPORARY name and only then swapped in, so a
+	// failed write cannot destroy the record it was replacing.
+	//
+	// This used to RemoveHashEntry(filename) FIRST and write afterwards. A short write - a full
+	// disk, a failing drive, a device pulled mid-save - therefore deleted the existing "hero" and
+	// left nothing in its place, and the caller was told nothing because the result was discarded.
+	// The character was gone, and the act that destroyed it was the act of saving.
+	//
+	// Safe to rename rather than rewrite because the stored bytes are NOT keyed to the filename:
+	// blocks are written with FlagExists | CompressPkZip and never the encrypted flag, so the
+	// vestigial `Hash(filename, 3)` in WriteFileContents - which in a real MPQ would be the file's
+	// encryption key - has no effect on the data. Verified before relying on it.
+	constexpr const char *TempName = "~oracool_write.tmp";
 
-	RemoveHashEntry(filename);
-	blockEntry = AddFile(filename, nullptr, 0);
-	if (!WriteFileContents(filename, data, size, blockEntry)) {
-		RemoveHashEntry(filename);
+	// A previous attempt that died between writing and renaming would leave this behind. Reclaimed
+	// rather than collided with: AddFile calls app_fatal on a hash collision.
+	RemoveHashEntry(TempName);
+
+	MpqBlockEntry *blockEntry = AddFile(TempName, nullptr, 0);
+	if (!WriteFileContents(TempName, data, size, blockEntry)) {
+		RemoveHashEntry(TempName);
 		return false;
 	}
+
+	// Only now is the old record given up. Both exist for the duration of these two lines, which is
+	// the whole point - there is no window in which neither does.
+	RemoveHashEntry(filename);
+	RenameFile(TempName, filename);
 	return true;
 }
 

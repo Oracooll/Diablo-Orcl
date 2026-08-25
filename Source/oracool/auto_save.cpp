@@ -1,20 +1,26 @@
 #include "oracool/auto_save.h"
 
+#include <string>
 #include <algorithm>
 #include <chrono>
+#include <fmt/format.h>
 
 #include "cursor.h"
 #include "diablo.h"
 #include "engine/demomode.h"
 #include "gmenu.h"
+#include "inv.h"
 #include "loadsave.h"
 #include "minitext.h"
 #include "multi.h"
 #include "options.h"
+#include "oracool/save_status.h"
 #include "oracool/event_log.h"
 #include "oracool/save_indicator.h"
 #include "pfile.h"
 #include "player.h"
+#include "qol/stash.h"
+#include "utils/language.h"
 #include "stores.h"
 
 namespace devilution::oracool {
@@ -31,6 +37,22 @@ bool IsEnabled()
 	return !gbIsMultiplayer && *sgOptions.Oracool.autoSave;
 }
 
+/**
+ * @brief Whether saving happens AT ALL for this session, regardless of the periodic preference.
+ *
+ * Audit finding, 2026-08-26. SaveOnExit was gated on IsEnabled(), which includes the user's Auto
+ * Save preference - so turning that option OFF did not merely stop the periodic autosave, it
+ * removed the only remaining way a single-player character was ever written to disk. The option
+ * reads as "save every N minutes"; it silently meant "never save".
+ *
+ * Exit saving is not a convenience feature and does not belong behind that switch. The multiplayer
+ * exclusion stays: multiplayer keeps its own persistence and V1 does not use it anyway.
+ */
+bool SavingIsPossible()
+{
+	return !gbIsMultiplayer;
+}
+
 bool IsSafeToSave()
 {
 	return IsEnabled()
@@ -45,6 +67,43 @@ bool IsSafeToSave()
 	    && pcurs == CURSOR_HAND
 	    && !demo::IsRunning()
 	    && !demo::IsRecording();
+}
+
+/**
+ * @brief Puts a cursor-held item somewhere it will be saved, before the save happens.
+ *
+ * Tried in the order a player would expect to find it again: inventory, then belt, then stash.
+ * Dropping it on the ground is NOT an option here - this path writes no world snapshot, so the
+ * floor is the one place it would certainly not survive.
+ *
+ * If every container is full the item stays on the cursor and the save proceeds without it. That
+ * is a real loss and it is reported rather than hidden; refusing to exit instead would trap a
+ * player with no free space in a menu they cannot leave, which is worse. In practice it requires
+ * inventory, belt AND stash to be simultaneously full.
+ */
+void ReturnHeldItemBeforeSaving(Player &player)
+{
+	if (player.HoldItem.isEmpty())
+		return;
+
+	const std::string name = player.HoldItem._iIName;
+	bool placed = AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true);
+	if (!placed)
+		placed = AutoPlaceItemInBelt(player, player.HoldItem, /*persistItem=*/true);
+	if (!placed && !IsStashOpen)
+		placed = AutoPlaceItemInStash(player, player.HoldItem, /*persistItem=*/true);
+
+	if (placed) {
+		player.HoldItem.clear();
+		if (&player == MyPlayer)
+			NewCursor(CURSOR_HAND);
+		LogEvent(fmt::format(fmt::runtime(_("{:s} returned to your pack before saving.")), name),
+		    UiFlags::ColorWhitegold);
+		return;
+	}
+
+	LogEvent(fmt::format(fmt::runtime(_("No room to put {:s} away - it will not be saved.")), name),
+	    UiFlags::ColorRed);
 }
 
 void ScheduleAfterSeconds(int seconds)
@@ -148,7 +207,7 @@ void ScheduleAutoSaveForWaypointActivation()
 
 void SaveOnExit()
 {
-	if (!IsEnabled() || !gbRunGame || MyPlayer == nullptr)
+	if (!SavingIsPossible() || !gbRunGame || MyPlayer == nullptr)
 		return;
 	if (demo::IsRunning() || demo::IsRecording())
 		return;
@@ -182,8 +241,29 @@ void SaveOnExit()
 	// hero regardless - stats, inventory, belt, equipment, gold, the waypoint unlock table (packed
 	// into PlayerPack) and the extra inventory tabs (their own sub-file, written alongside
 	// SaveHeroItems). The stash is a separate file and still needs its own write.
+	// An item on the cursor belongs to NOBODY until it is put down. Audit finding, 2026-08-26:
+	// PlayerPack does not carry HoldItem and neither does SaveHeroItems - only SaveGame's world
+	// snapshot does, and this path deliberately does not write one. So picking an item up, closing
+	// the inventory (which leaves it held) and exiting destroyed it, silently, at the moment of
+	// saving.
+	//
+	// Put down rather than persisted: the item belongs in a container, and adding it to the hero
+	// format would mean a character who loads with something stuck to the cursor.
+	ReturnHeldItemBeforeSaving(player);
+
+	BeginSaveAttempt();
 	pfile_write_hero(/*writeGameData=*/false);
 	sfile_write_stash();
+	if (SaveAttemptFailed()) {
+		// Said out loud rather than logged as success. MpqWriter::WriteFile keeps the previous
+		// record when a write fails, so what is on disk is the last good save - which is worth
+		// knowing before quitting on top of it.
+		LogEvent(fmt::format(fmt::runtime(_("SAVE FAILED - \"{:s}\" could not be written. "
+		                                    "Your last successful save is intact.")),
+		             FailedSaveFileName()),
+		    UiFlags::ColorRed);
+		return;
+	}
 	NotifyGameSaved();
 	LogEvent("Game saved (exit)", UiFlags::ColorWhite);
 }

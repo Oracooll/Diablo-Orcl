@@ -30,6 +30,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "mpq/mpq_common.hpp"
+#include "oracool/save_status.h"
 #include "oracool/auto_save.h"
 #include "oracool/item_tiers.h"
 #include "oracool/mystic_orbs.h"
@@ -259,7 +260,13 @@ public:
 		const auto encodedLen = codec_get_encoded_len(m_cur_);
 		const char *const password = pfile_get_password();
 		codec_encode(m_buffer_.get(), m_cur_, encodedLen, password);
-		m_mpqWriter.WriteFile(m_szFileName_, m_buffer_.get(), encodedLen);
+		// Oracool (audit, 2026-08-26): the result is no longer discarded. A destructor cannot
+		// report a failure to its caller, so it is recorded where the save path can see it - see
+		// oracool::NoteSaveWriteFailed. The archive itself now keeps the previous record when a
+		// write fails (MpqWriter::WriteFile), so this is about TELLING somebody rather than about
+		// the data; a save that quietly did not happen is how a player loses an evening.
+		if (!m_mpqWriter.WriteFile(m_szFileName_, m_buffer_.get(), encodedLen))
+			oracool::NoteSaveWriteFailed(m_szFileName_);
 	}
 };
 
