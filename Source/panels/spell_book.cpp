@@ -1469,6 +1469,36 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
 		bool onBar = false;
 		const Point local { MousePosition.x - contentRect.position.x, y };
+		// A slot has to name what it holds. Every passive draws an EMPTY PLATE today - the art is
+		// deliberately not made yet - so without this a filled slot and an empty one differ only by
+		// tint, and nothing anywhere tells you which four you are running.
+		if (IsPassivePage(*page)) {
+			if (const int slot = PassiveSlotAt(local); slot >= 0) {
+				const Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, 0 },
+					{ PassiveSlotSize, PassiveSlotSize } };
+				const oracool::ClassTreeSkill held = oracool::PassiveInSlot(*InspectPlayer, slot);
+				const bool open = InspectPlayer->_pLevel >= oracool::PassiveSlotRequiredLevel(slot);
+				PendingHoverTitle = fmt::format(fmt::runtime(_("Passive slot {:d}")), slot + 1);
+				if (!open) {
+					PendingHoverText = fmt::format(fmt::runtime(_("Opens at level {:d}")),
+					    oracool::PassiveSlotRequiredLevel(slot));
+				} else if (held == oracool::ClassTreeSkill::None) {
+					PendingHoverText = std::string(_("Empty. Click to choose a passive for it."));
+				} else {
+					const oracool::ClassTreeSkillData &heldData = oracool::GetClassTreeSkillData(held);
+					PendingHoverText = std::string(_(heldData.name)) + "\n"
+					    + std::string(_(heldData.description)) + "\n\n"
+					    + std::string(_("Right-click to empty this slot."));
+				}
+				PendingHoverAnchor = { { contentRect.position.x,
+					                       contentRect.position.y + rect.position.y - scroll },
+					{ AbilitiesContentRightLimit, rect.size.height } };
+				HasPendingHover = true;
+				oracool::DrawHoverOutline(content, { { rect.position.x, rect.position.y - scroll },
+				                                       rect.size });
+				return;
+			}
+		}
 		const std::optional<oracool::ClassTreeSkill> hovered = TreeCellAt(*page, local, onBar);
 		if (!hovered.has_value())
 			return;

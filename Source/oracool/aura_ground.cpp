@@ -1,5 +1,6 @@
 #include "oracool/aura_ground.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -242,16 +243,23 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int radiusTi
 	const int left = centre.x - dstW / 2;
 	const int top = centre.y - dstH / 2;
 
-	for (int dy = 0; dy < dstH; dy++) {
+	// Clipped ONCE rather than per pixel. At the eight-tile cap this walks 724x362 = 262,000 pixels,
+	// and standing near a screen edge threw most of them away one `continue` at a time. Exactly
+	// equivalent to the per-pixel test it replaces: the iterations removed are the ones that did
+	// nothing, since an out-of-range pixel had no side effect before it was skipped.
+	const int dyFrom = std::max(0, -top);
+	const int dyTo = std::min(dstH, out.h() - top);
+	const int dxFrom = std::max(0, -left);
+	const int dxTo = std::min(dstW, out.w() - left);
+	if (dyFrom >= dyTo || dxFrom >= dxTo)
+		return;
+
+	for (int dy = dyFrom; dy < dyTo; dy++) {
 		const int y = top + dy;
-		if (y < 0 || y >= out.h())
-			continue;
 		const int sy = dy * ArtHeight / dstH;
 		uint8_t *dstRow = out.at(0, y);
-		for (int dx = 0; dx < dstW; dx++) {
+		for (int dx = dxFrom; dx < dxTo; dx++) {
 			const int x = left + dx;
-			if (x < 0 || x >= out.w())
-				continue;
 			const int sx = dx * ArtWidth / dstW;
 			const size_t at = static_cast<size_t>(sy) * ArtWidth + sx;
 			const uint8_t a = art.alpha[at];

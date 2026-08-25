@@ -2131,6 +2131,66 @@ TEST(OracoolClassTree, ASlotStopsHoldingWhatTheCharacterNoLongerQualifiesFor)
 	    << "a locked slot was still live";
 }
 
+TEST(OracoolClassTree, ALockedPassiveSaysWhyRatherThanRefusingInSilence)
+{
+	// Audit finding, 2026-08-25. ClassTreeLockReason answered from the TIER, and a passive is not
+	// gated by its tier - so for a tier-0 passive (tier level 1, real requirement 2) the "am I below
+	// the tier" test was false and the function returned an EMPTY string. A locked row that refuses
+	// a click and explains nothing is precisely what this function exists to prevent.
+	devilution::Player &player = FreshPaladin(1);
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 1;
+
+	oracool::ClassTreeSkill page[oracool::ClassTreeSkillCount];
+	const size_t count = oracool::BuildClassTreePage(HeroClass::Warrior,
+	    oracool::PassiveSkillsPage, page);
+	ASSERT_GE(count, 19u - 1u);
+
+	// Level 1, first passive needs 2: the tier would have said "you meet level 1" and gone quiet.
+	ASSERT_FALSE(oracool::IsClassTreeSkillUnlocked(player, page[0]));
+	EXPECT_FALSE(oracool::ClassTreeLockReason(player, page[0]).empty())
+	    << "a locked passive refused without saying why";
+
+	// And every locked passive, at every level, says something.
+	for (int level : { 1, 5, 17, 35, 37 }) {
+		player._pLevel = level;
+		for (size_t i = 0; i < count; i++) {
+			if (oracool::IsClassTreeSkillUnlocked(player, page[i]))
+				continue;
+			EXPECT_FALSE(oracool::ClassTreeLockReason(player, page[i]).empty())
+			    << oracool::GetClassTreeSkillData(page[i]).name << " was silent at level " << level;
+		}
+	}
+}
+
+TEST(OracoolHeroChunks, AHeroSavedBeforePassiveSlotsExistedHasNoneSlotted)
+{
+	// The chunk is additive, so an older hero simply has no tag 12 - and then nothing writes to
+	// _pPassiveSlots at all. It has to default to empty on its own, or a pre-1.9.46 character would
+	// load running whatever skill index 0 happens to be, in all four slots at once.
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pClass = HeroClass::Warrior;
+	source._pLevel = 40;
+
+	// A tail with the passive chunk stripped is what an older build would have written.
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+	devilution::Player target {};
+	target._pClass = HeroClass::Warrior;
+	target._pLevel = 40;
+	oracool::ApplyHeroChunks(target, tail.data(), tail.size());
+	for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++) {
+		EXPECT_EQ(oracool::PassiveInSlot(target, slot), oracool::ClassTreeSkill::None)
+		    << "slot " << slot << " came back filled on a character that never filled one";
+	}
+
+	// The value-initialised default is the thing being relied on, so pin it directly too.
+	devilution::Player fresh {};
+	for (const uint8_t value : fresh._pPassiveSlots)
+		EXPECT_EQ(value, 0xFF) << "a fresh Player does not default to empty passive slots";
+}
+
 TEST(OracoolClassTree, AnAuraThatIsNotThisCharactersDoesNotBurn)
 {
 	// The burning aura persists as an ABSOLUTE ClassTreeSkill, and absolute values shift whenever a

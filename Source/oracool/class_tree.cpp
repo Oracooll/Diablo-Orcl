@@ -1218,6 +1218,10 @@ bool SetPassiveSlot(Player &player, int slot, Skill skill)
 	const int existing = PassiveSlotOf(player, skill);
 	if (existing >= 0 && existing != slot)
 		return false;
+	// 0xFF is the empty sentinel, so an index that reached it would read back as "no passive here".
+	// Cannot happen at 64 skills per class; asserted so it cannot start happening quietly either.
+	static_assert(MaxSkillsPerClass < 0xFF,
+	    "a class-relative index can now collide with the empty-slot sentinel");
 	player._pPassiveSlots[slot] = static_cast<uint8_t>(ClassTreeIconIndex(skill));
 	return true;
 }
@@ -1461,6 +1465,16 @@ std::string ClassTreeLockReason(const Player &player, Skill skill)
 		return {};
 	if (IsClassTreeSkillUnlocked(player, skill))
 		return {};
+
+	// A Passive Skills row is gated by its OWN level, never by its tier, so answering from the tier
+	// here would be wrong in both directions - and worse than wrong, SILENT. A tier-0 passive needs
+	// level 2 while its tier needs 1, so `_pLevel < tierLevel` is false and the function used to
+	// fall through and return nothing at all: a locked row that refuses a click and says why it
+	// refused it, except it does not. That is the exact failure this function was written for.
+	if (IsPassiveSkillRow(skill)) {
+		return fmt::format(fmt::runtime(_("{:s} is learned at level {:d}.")),
+		    _(data.name), PassiveSkillRequiredLevel(skill));
+	}
 
 	// The borrowed rows first, because their requirements are the ones that surprise: they are NOT
 	// the tier's, and the tier is what the page's own layout implies. See IsClassTreeSkillUnlocked.
