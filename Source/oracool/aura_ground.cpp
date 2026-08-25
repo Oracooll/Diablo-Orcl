@@ -23,10 +23,22 @@ namespace {
 
 using Skill = ClassTreeSkill;
 
-/** @brief The art is drawn at the maximum aura radius, so scaling only ever shrinks. */
-constexpr int ArtRadiusTiles = 8;
 constexpr int ArtWidth = 512;
 constexpr int ArtHeight = 256;
+
+/**
+ * @brief sqrt(2) as a fraction, to five decimals.
+ *
+ * Needed because one tile step is (TILE_WIDTH/2, TILE_HEIGHT/2) on screen, not (TILE_WIDTH, 0): a
+ * world-space circle of radius R tiles projects to an ellipse whose semi-axes are R*(TILE_WIDTH/2)
+ * and R*(TILE_HEIGHT/2) scaled by sqrt(2), because the extreme point lies on the diagonal.
+ *
+ * The first cut of this file assumed 512px WAS the eight-tile radius and scaled by R/8. That draws
+ * a ring of about 5.7 tiles when it claims eight - every ring 41% too small for the field it
+ * stands for, which nothing but the eye can catch.
+ */
+constexpr int Sqrt2Num = 181;
+constexpr int Sqrt2Den = 128;
 
 /**
  * @brief One aura's art, quantised once and kept.
@@ -142,9 +154,10 @@ void LoadAura(int slot)
 		return;
 	}
 	if (rgba->w != ArtWidth || rgba->h != ArtHeight) {
-		// Refused rather than scaled to fit. Every placement number here is derived from 512x256
-		// being exactly the eight-tile radius; art of another size would land somewhere plausible
-		// and wrong, which is the failure that survives a green build.
+		// Refused rather than scaled to fit. The blit assumes the ring is centred in its frame and
+		// reaches its edges, which is what makes the destination ellipse the aura's actual radius;
+		// art of another size would land somewhere plausible and wrong, which is the failure that
+		// survives a green build.
 		LogWarn("Oracool aura art: {:s} is {}x{}, expected {}x{} - ignored",
 		    path, rgba->w, rgba->h, ArtWidth, ArtHeight);
 		SDL_FreeSurface(rgba);
@@ -217,8 +230,12 @@ int PulsePercent()
  */
 void BlitAura(const Surface &out, const AuraArt &art, Point centre, int radiusTiles, int pulsePercent)
 {
-	const int dstW = ArtWidth * radiusTiles / ArtRadiusTiles;
-	const int dstH = ArtHeight * radiusTiles / ArtRadiusTiles;
+	// The screen ellipse the aura's world-space circle projects to. At the eight-tile cap this is
+	// 724x362, so the art is enlarged by up to sqrt(2) rather than only ever shrunk - acceptable on
+	// a source that is all soft gradient, and the dither is applied in destination space so it stays
+	// fine-grained however far the source is stretched.
+	const int dstW = 2 * radiusTiles * (TILE_WIDTH / 2) * Sqrt2Num / Sqrt2Den;
+	const int dstH = 2 * radiusTiles * (TILE_HEIGHT / 2) * Sqrt2Num / Sqrt2Den;
 	if (dstW <= 0 || dstH <= 0)
 		return;
 
@@ -300,10 +317,16 @@ void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPo
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
 			if (tilePosition == playerTile) {
-				// Bottom-centre of the tile diamond, then the same walking offset the player sprite
+				// The CENTRE of the tile diamond, then the same walking offset the player sprite
 				// carries - without it the ring would jump a whole tile at a time while the player
 				// slid smoothly between them.
-				Point centre = targetBufferPosition + Displacement { TILE_WIDTH / 2, TILE_HEIGHT / 2 };
+				//
+				// targetBufferPosition is the diamond's BOTTOM-left: RenderTile draws upward from it,
+				// covering TriangleHeight (LowerHeight 16 + TriangleUpperHeight 15) rows above. So the
+				// centre is half a tile height ABOVE this point, not below. Getting that sign wrong
+				// put every ring a full tile south of the player - visible instantly in play, and
+				// invisible to the build.
+				Point centre = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 };
 				if (player.isWalking()) {
 					const Displacement walk = GetOffsetForWalking(player.AnimInfo, player._pdir);
 					centre += walk;
