@@ -17,6 +17,23 @@
  * ClassTreeIconIndex is a skill's position WITHIN its class - which is also its position in that
  * class's icon strip, so the art and the table cannot drift.
  *
+ * ## A fourth page, from Diablo III
+ *
+ * Added 2026-08-25 at the user's request: a Passive Skills sheet per class, in Diablo III's shape -
+ * always on, one rank, bought rather than levelled (maxRank 1, Kind::Passive). Five classes take
+ * their D3 counterpart's list verbatim: Paladin from the Crusader, Barbarian from the Barbarian,
+ * Sorceress from the Wizard, Rogue from the Demon Hunter, Monk from the Monk. Diablo III has no
+ * Bard, so hers are authored in the same idiom - as her three song pages already are.
+ *
+ * Every one of them ships INERT (`implemented` false), which is the whole point: they are named
+ * placeholders whose art and effects arrive later. The UI already draws an inert row greyed with a
+ * red X and refuses to invest in it, so no point can be sunk into one by mistake, and an icon frame
+ * that does not exist yet simply draws the empty plate.
+ *
+ * D3's own unlock levels (10 to 70) are NOT reproduced; they are laid out three to a tier down this
+ * game's existing ladder, in D3's order. Same reasoning as the prerequisite graph below: borrowing
+ * the shape without inventing the numbers.
+ *
  * ## Gating: level tiers, not a prerequisite graph
  *
  * Every skill sits in one of Diablo II's six tiers - character level 1, 6, 12, 18, 24, 30 - and
@@ -69,7 +86,11 @@ struct ItemBonusTotals;
  * A class's block is contiguous and starts at its FIRST_* marker; ClassTreeIconIndex is the offset
  * from that marker, which is the index into that class's strip.
  */
-enum class ClassTreeSkill : uint8_t {
+// uint16_t since the Passive Skills page (2026-08-25) took the tree past 255 rows. It was uint8_t
+// with None at 0xFF, and at 273 skills 0xFF became a real Rogue row - so the sentinel and the
+// underlying type had to grow together. Player::_pOracoolActiveAura, which stores one of these,
+// grew with it; see the note there and in hero_chunks.cpp's HeroChunkActiveAura.
+enum class ClassTreeSkill : uint16_t {
 	// ---------------- Paladin: Combat Skills ----------------
 	Sacrifice,
 	FIRST = Sacrifice,
@@ -115,7 +136,32 @@ enum class ClassTreeSkill : uint8_t {
 	// character had already paid.
 	HammerOfFaith,
 	BlessedShield,
-	PALADIN_LAST = BlessedShield,
+	// ---------------- Paladin: Passive Skills ----------------
+	// Diablo III's Crusader passives, placeholders until the effects are built.
+	//
+	// Appended at the END of the class block for exactly the reason Hammer of Faith and Blessed
+	// Shield were: a skill's position within its class IS its icon-strip frame AND its
+	// _pClassTreeInvestment slot, so inserting them anywhere else would silently reassign the
+	// points a live character has already paid.
+	HeavenlyStrength,
+	Fervor,
+	Vigilant,
+	Righteousness,
+	Insurmountable,
+	CrusaderFanaticism,
+	Indestructible,
+	HolyCause,
+	Wrathful,
+	DivineFortress,
+	LordCommander,
+	HoldYourGround,
+	LongArmOfTheLaw,
+	IronMaiden,
+	Renewal,
+	Finery,
+	Blunt,
+	ToweringShield,
+	PALADIN_LAST = ToweringShield,
 
 	// ---------------- Barbarian: Combat Skills ----------------
 	Bash,
@@ -151,7 +197,33 @@ enum class ClassTreeSkill : uint8_t {
 	GrimWard,
 	WarCry,
 	BattleCommand,
-	BARBARIAN_LAST = BattleCommand,
+	// ---------------- Barbarian: Passive Skills ----------------
+	// Diablo III's Barbarian passives, placeholders until the effects are built.
+	//
+	// Appended at the END of the class block for exactly the reason Hammer of Faith and Blessed
+	// Shield were: a skill's position within its class IS its icon-strip frame AND its
+	// _pClassTreeInvestment slot, so inserting them anywhere else would silently reassign the
+	// points a live character has already paid.
+	PoundOfFlesh,
+	Ruthless,
+	NervesOfSteel,
+	WeaponsMaster,
+	InspiringPresence,
+	BerserkerRage,
+	Bloodthirst,
+	Animosity,
+	Superstition,
+	ToughAsNails,
+	NoEscape,
+	Relentless,
+	Brawler,
+	Juggernaut,
+	Unforgiving,
+	BoonOfBulKathos,
+	EarthenMight,
+	SwordAndBoard,
+	Rampage,
+	BARBARIAN_LAST = Rampage,
 
 	// ---------------- Sorceress: Cold Spells ----------------
 	IceBolt,
@@ -187,7 +259,32 @@ enum class ClassTreeSkill : uint8_t {
 	Meteor,
 	FireMastery,
 	Hydra,
-	SORCERER_LAST = Hydra,
+	// ---------------- Sorceress: Passive Skills ----------------
+	// Diablo III's Wizard passives, placeholders until the effects are built.
+	//
+	// Appended at the END of the class block for exactly the reason Hammer of Faith and Blessed
+	// Shield were: a skill's position within its class IS its icon-strip frame AND its
+	// _pClassTreeInvestment slot, so inserting them anywhere else would silently reassign the
+	// points a live character has already paid.
+	PowerHungry,
+	Blur,
+	Evocation,
+	GlassCannon,
+	Prodigy,
+	AstralPresence,
+	Illusionist,
+	ColdBlooded,
+	Conflagration,
+	Paralysis,
+	GalvanizingWard,
+	TemporalFlux,
+	Dominance,
+	ArcaneDynamo,
+	UnstableAnomaly,
+	UnwaveringWill,
+	Audacity,
+	ElementalExposure,
+	SORCERER_LAST = ElementalExposure,
 
 	// ---------------- Rogue: Bow & Crossbow ----------------
 	MagicArrow,
@@ -223,7 +320,33 @@ enum class ClassTreeSkill : uint8_t {
 	Fend,
 	LightningStrike,
 	LightningFury,
-	ROGUE_LAST = LightningFury,
+	// ---------------- Rogue: Passive Skills ----------------
+	// Diablo III's Demon Hunter passives, placeholders until the effects are built.
+	//
+	// Appended at the END of the class block for exactly the reason Hammer of Faith and Blessed
+	// Shield were: a skill's position within its class IS its icon-strip frame AND its
+	// _pClassTreeInvestment slot, so inserting them anywhere else would silently reassign the
+	// points a live character has already paid.
+	ThrillOfTheHunt,
+	TacticalAdvantage,
+	BloodVengeance,
+	SteadyAim,
+	CullTheWeak,
+	NightStalker,
+	Brooding,
+	HotPursuit,
+	Archery,
+	NumbingTraps,
+	Perfectionist,
+	CustomEngineering,
+	Grenadier,
+	Sharpshooter,
+	Ballistics,
+	Leech,
+	Ambush,
+	Awareness,
+	SingleOut,
+	ROGUE_LAST = SingleOut,
 
 	// ---------------- Bard: Melody ----------------
 	// Seven per page rather than ten: the Bard's sheet is the user's own design, not Diablo II's,
@@ -252,7 +375,32 @@ enum class ClassTreeSkill : uint8_t {
 	Weaken,
 	OdeToGlory,
 	LegendaryBallad,
-	BARD_LAST = LegendaryBallad,
+	// ---------------- Bard: Passive Skills ----------------
+	// No Diablo III class matches the Bard, so these are authored in D3's idiom (user, 2026-08-25) - as her three song pages already are.
+	//
+	// Appended at the END of the class block for exactly the reason Hammer of Faith and Blessed
+	// Shield were: a skill's position within its class IS its icon-strip frame AND its
+	// _pClassTreeInvestment slot, so inserting them anywhere else would silently reassign the
+	// points a live character has already paid.
+	PerfectPitch,
+	Crescendo,
+	Sustain,
+	Countermelody,
+	Rhythm,
+	Refrain,
+	Encore,
+	Cadence,
+	Timbre,
+	Virtuoso,
+	Dissonance,
+	Improvisation,
+	Chorus,
+	Overture,
+	Reverberation,
+	Stagecraft,
+	Requiem,
+	MagnumOpus,
+	BARD_LAST = MagnumOpus,
 
 	// ---------------- Monk: Way of the Staff ----------------
 	// Also the user's own design, and the most fully specified of the six: seven sequential skills
@@ -282,29 +430,63 @@ enum class ClassTreeSkill : uint8_t {
 	RadiantPalm,
 	Tranquility,
 	Enlightenment,
-	MONK_LAST = Enlightenment,
-	LAST = Enlightenment,
+	// ---------------- Monk: Passive Skills ----------------
+	// Diablo III's Monk passives, placeholders until the effects are built.
+	//
+	// Appended at the END of the class block for exactly the reason Hammer of Faith and Blessed
+	// Shield were: a skill's position within its class IS its icon-strip frame AND its
+	// _pClassTreeInvestment slot, so inserting them anywhere else would silently reassign the
+	// points a live character has already paid.
+	Resolve,
+	FleetFooted,
+	ExaltedSoul,
+	Transcendence,
+	ChantOfResonance,
+	SeizeTheInitiative,
+	TheGuardiansPath,
+	SixthSense,
+	Determination,
+	RelentlessAssault,
+	BeaconOfYtar,
+	Alacrity,
+	MonkHarmony,
+	CombinationStrike,
+	NearDeathExperience,
+	Unity,
+	Momentum,
+	MythicRhythm,
+	MONK_LAST = MythicRhythm,
+	LAST = MythicRhythm,
 
-	None = 0xFF,
+	None = 0xFFFF,
 };
 
-constexpr size_t ClassTreeSkillCount = 163;
+constexpr size_t ClassTreeSkillCount = 273;
 /**
  * @brief The most skills any one class has - the size of the per-character investment array.
  *
- * 32 since the Paladin reached 31 (Hammer of Faith and Blessed Shield, 2026-08-16). It bounds
- * BuildClassTreePage's search, so a class with more skills than this simply loses the overflow, and
- * it must not exceed the size of Player::_pClassTreeInvestment, which it indexes. The two are grown
- * together - see the static_assert beside that array.
+ * 64 since the Passive Skills page (2026-08-25) took the Paladin, Barbarian and Rogue to 49 apiece.
+ * Was 32, which had been enough since the Paladin reached 31 (Hammer of Faith and Blessed Shield,
+ * 2026-08-16). It bounds BuildClassTreePage's search, so a class with more skills than this simply
+ * loses the overflow, and it must not exceed the size of Player::_pClassTreeInvestment, which it
+ * indexes. The two are grown together - see the note beside that array.
  */
-constexpr size_t MaxSkillsPerClass = 32;
+constexpr size_t MaxSkillsPerClass = 64;
 /** @brief Tiers a page can have. Seven since the Monk; Diablo II's five classes use the first six. */
 constexpr int ClassTreeTierCount = 7;
 /** @brief Points a single tree skill accepts, matching the spell-investment cap. */
 // 98, up from D2s 20 (user, 2026-08-19): the cap is the whole pool a character can earn, and the
 // Rule of Rangs - one character level per rank past the first - is what paces depth instead.
 constexpr int MaxTreeInvestment = 98;
-constexpr size_t ClassTreePageCount = 3;
+/**
+ * @brief Pages in a class's tree. Four since Passive Skills (user, 2026-08-25).
+ *
+ * The first three are Diablo II's own sheets (the Bard's and Monk's are the user's own design in
+ * that shape). The fourth is Diablo III's: a page of always-on passives, one rank each, bought
+ * rather than levelled. It is DERIVED nowhere else - the Abilities window has one sheet per page
+ * and must be grown with it.
+ */
+constexpr size_t ClassTreePageCount = 4;
 
 /** @brief What kind of thing a row is, which decides what a click does. */
 enum class ClassTreeKind : uint8_t {

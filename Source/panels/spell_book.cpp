@@ -310,7 +310,9 @@ enum class AbilitySheet : uint8_t {
 	ClassTree0,
 	ClassTree1,
 	ClassTree2,
-	LAST = ClassTree2,
+	/** The Diablo III-shaped fourth page: always-on passives, one rank each. */
+	ClassTree3,
+	LAST = ClassTree3,
 };
 /**
  * @brief How many sheets exist. DERIVED, never restated.
@@ -339,6 +341,8 @@ std::optional<int> TreePageOf(AbilitySheet sheet)
 		return 1;
 	case AbilitySheet::ClassTree2:
 		return 2;
+	case AbilitySheet::ClassTree3:
+		return 3;
 	default:
 		return std::nullopt;
 	}
@@ -384,8 +388,14 @@ bool IsSheetAvailable(AbilitySheet sheet)
 	case AbilitySheet::ClassTree0:
 	case AbilitySheet::ClassTree1:
 	case AbilitySheet::ClassTree2:
+	case AbilitySheet::ClassTree3:
 		// Not behind ClassAbilitySheetsHidden: unlike the list it replaced, the tree is spendable
 		// and its skills act, so there is nothing inert to hide.
+		//
+		// ClassTree3 - the Passive Skills page - IS entirely inert today, which is the one case that
+		// argument does not cover. It is shown anyway because the user asked for the page as a
+		// visible placeholder, and because the rows carry the same honest red X every other unbuilt
+		// row in the tree wears. A page that says "not yet" is not the same as a page that lies.
 		return oracool::ClassHasTree(InspectPlayer->_pClass);
 	}
 	return true;
@@ -428,7 +438,9 @@ string_view GetSheetTitle(AbilitySheet sheet)
 	case AbilitySheet::ClassTree0:
 	case AbilitySheet::ClassTree1:
 	case AbilitySheet::ClassTree2:
-		// Named by the tree, not here: each class calls its three pages something different.
+	case AbilitySheet::ClassTree3:
+		// Named by the tree, not here: each class calls its first three pages something different.
+		// The fourth is "PASSIVE SKILLS" for everyone, and the tree answers that too.
 		return oracool::GetClassTreePageName(InspectPlayer->_pClass, *TreePageOf(sheet));
 	}
 	return {};
@@ -494,7 +506,8 @@ size_t GetRowCount(AbilitySheet sheet)
 		return BuildSpellRows(rows);
 	case AbilitySheet::ClassTree0:
 	case AbilitySheet::ClassTree1:
-	case AbilitySheet::ClassTree2: {
+	case AbilitySheet::ClassTree2:
+	case AbilitySheet::ClassTree3: {
 		// A grid, not a list - the count is only used for the "is there anything here" question
 		// and for scrolling, which TotalListHeight answers separately for these sheets.
 		oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];

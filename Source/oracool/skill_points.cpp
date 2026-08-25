@@ -165,7 +165,7 @@ void RefundAllSkillPoints(Player &player)
 	// Every aura is at rank 0 after a full refund, and an aura the rules would refuse to light must
 	// not stay burning - the same teardown RefundClassTreePoint applies one rank at a time.
 	if (GetActiveClassAura(player) != ClassTreeSkill::None) {
-		player._pOracoolActiveAura = static_cast<uint8_t>(ClassTreeSkill::None);
+		player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
 		if (&player == MyPlayer)
 			StopClassAuraLoop();
 	}

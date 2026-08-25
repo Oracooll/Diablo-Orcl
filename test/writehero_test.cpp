@@ -467,10 +467,28 @@ TEST(Writehero, pfile_write_hero)
 	//      points back, saved as 490 & 0xFF = 234, and the other 256 were simply gone. The chunk
 	//      carries the real number; the fixed byte is still written but CLAMPED, so a reader without
 	//      the tail sees a capped pool rather than a wrapped one.
+	// 1.9.45: the Passive Skills page (Diablo III-style passives, one sheet per class) moved TWO
+	//      tail chunks at once, and neither touched PlayerPack:
+	//
+	//      HeroChunkClassTree grew 32 -> 64 entries, for the same reason it grew 30 -> 32 at
+	//      1.7.40: three classes now hold 49 skills apiece, past the old oracool::MaxSkillsPerClass
+	//      that indexes the array. 32 bytes longer, and the chunk's own count byte reads 64.
+	//      ApplyClassTree still clamps to the smaller of the count and the array, so a 32-entry
+	//      hero lands in the first 32 slots with the rest zeroed.
+	//
+	//      HeroChunkActiveAura grew 1 -> 2 bytes, which is the less obvious half. The aura is
+	//      stored as a ClassTreeSkill, and at 273 rows that enum outgrew uint8_t - 0xFF, which had
+	//      been the "no aura" sentinel, became a real Rogue skill. The enum, Player's field and
+	//      this chunk widened together. Written little-endian deliberately: an older build reads
+	//      byte 0 only, and byte 0 is the low byte, so it still recovers any aura below 256 - and
+	//      every aura row is.
+	//
+	//      Both are TAIL changes. sizeof(PlayerPack) is untouched, so ReadHero's exact-size check
+	//      on the base is unaffected and every existing hero still loads.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "48afd8b2682b5134e3f9f104b8433b78f903b068bcfe2b9324d0ed185a159e6d");
+	    "6694fa0f081b9c77be4689fb85a932cf91fa15d58f011cbd621abb4efcee466f");
 }
 
 } // namespace

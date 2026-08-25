@@ -442,7 +442,18 @@ struct Player {
 	 * (0xFF = none) so this header does not need oracool/paladin_tree.h. Persisted via the
 	 * HeroChunkActiveAura chunk; applied through the "aura" bonus provider in stat_sheet.cpp.
 	 */
-	uint8_t _pOracoolActiveAura = 0xFF;
+	/**
+	 * @brief The burning aura as an ABSOLUTE oracool::ClassTreeSkill, or 0xFFFF for none.
+	 *
+	 * uint16_t since 2026-08-25, when the Passive Skills page took the tree past 255 rows and the
+	 * enum itself had to widen. Persisted by HeroChunkActiveAura, which now writes two bytes
+	 * little-endian - so an older build, which reads only the first, still recovers any aura below
+	 * 256, and every aura row is.
+	 *
+	 * Absolute, which is the weakness: the value shifts whenever a class earlier in the enum gains
+	 * rows. GetActiveClassAura guards it by checking the row belongs to this character's class.
+	 */
+	uint16_t _pOracoolActiveAura = 0xFFFF;
 	/**
 	 * @brief Points sunk into each class-tree skill that has no spell slot - every aura, every
 	 * passive, and the actives whose mechanics are not built yet - indexed by the skill's position
@@ -450,12 +461,14 @@ struct Player {
 	 * points in _pSkillInvestment instead, keyed by SpellID, so GetSpellLevel picks them up.
 	 * Persisted via the HeroChunkClassTree chunk.
 	 *
-	 * 32, grown from 30 on 2026-08-16 with oracool::MaxSkillsPerClass, which indexes it. Widening it
-	 * is backward compatible both ways: the chunk carries its own length byte and ApplyClassTree
-	 * clamps to the smaller of that and this array, so an old 30-entry tail loads into the first 30
-	 * slots with the rest zeroed.
+	 * 64, grown from 32 on 2026-08-25 with oracool::MaxSkillsPerClass, which indexes it - the
+	 * Passive Skills page took three classes to 49 skills apiece. 32 was itself grown from 30 on
+	 * 2026-08-16. Widening it is backward compatible both ways: the chunk carries its own length
+	 * byte and ApplyClassTree clamps to the smaller of that and this array, so an old 32-entry tail
+	 * loads into the first 32 slots with the rest zeroed, and an older build reading a 64-entry tail
+	 * keeps the first 32 and drops the rest.
 	 */
-	uint8_t _pClassTreeInvestment[32] = {};
+	uint8_t _pClassTreeInvestment[64] = {};
 	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers
 	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
 	int _pMagicFind = 0;

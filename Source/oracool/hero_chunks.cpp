@@ -152,7 +152,11 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 
 	{
 		const size_t at = BeginChunk(out, HeroChunkActiveAura);
-		out.push_back(player._pOracoolActiveAura);
+		// Two bytes since 2026-08-25 - the aura is a ClassTreeSkill and that enum outgrew uint8_t.
+		// Little-endian, which is what keeps an OLDER build reading this file correct rather than
+		// merely safe: it takes byte 0 only, and byte 0 is the low byte, so any aura below 256
+		// survives the round trip intact. Every aura row in the tree is below 256.
+		PutU16(out, player._pOracoolActiveAura);
 		EndChunk(out, at);
 	}
 
@@ -248,8 +252,12 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			ApplyWaypoints64(player, payload, chunkLen);
 			break;
 		case HeroChunkActiveAura:
-			// First byte only; anything after it belongs to a newer build's larger payload.
-			if (chunkLen >= 1)
+			// Two bytes since 2026-08-25; one byte before that. Both are read, because a one-byte
+			// payload is a hero saved by an older build and its value is still a valid aura - the
+			// enum only grew at the top. A longer payload than two belongs to a newer build again.
+			if (chunkLen >= 2)
+				player._pOracoolActiveAura = GetU16(payload);
+			else if (chunkLen == 1)
 				player._pOracoolActiveAura = payload[0];
 			break;
 		case HeroChunkPaladinAuras:

@@ -2990,7 +2990,7 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 	missile.lastCollisionTargetHash = 0;
 	// Oracool: whose cast this is. None outside a class-skill cast, which is most missiles in the
 	// game - traps, monster attacks, town portals - and they simply carry no cue.
-	missile.oracoolSkill = static_cast<uint8_t>(oracool::CurrentCastSkill());
+	missile.oracoolSkill = static_cast<uint16_t>(oracool::CurrentCastSkill());
 
 	if (!missile.IsTrap() && micaster == TARGET_PLAYERS) {
 		Monster &monster = Monsters[id];

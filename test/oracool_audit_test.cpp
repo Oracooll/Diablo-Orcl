@@ -1890,6 +1890,88 @@ TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 	EXPECT_EQ(total + retired, oracool::ClassTreeSkillCount) << "a skill is on no page, or on two";
 }
 
+// ---------------------------------------------------------------------------------------------
+// The Passive Skills page (2026-08-25). Diablo III-shaped placeholders: named, inert, one rank.
+// ---------------------------------------------------------------------------------------------
+
+TEST(OracoolClassTree, EveryClassHasAPassiveSkillsPageAndEveryRowOnItIsAnInertSingleRankPassive)
+{
+	constexpr int PassivePage = 3;
+	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Barbarian,
+	         HeroClass::Sorcerer, HeroClass::Rogue, HeroClass::Bard, HeroClass::Monk }) {
+		const size_t count = oracool::BuildClassTreePage(heroClass, PassivePage, skills);
+		EXPECT_GE(count, 18u) << "a class lost its passive page";
+		EXPECT_EQ(oracool::GetClassTreePageName(heroClass, PassivePage), "PASSIVE SKILLS");
+		for (size_t i = 0; i < count; i++) {
+			const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
+			EXPECT_EQ(data.kind, oracool::ClassTreeKind::Passive) << data.name;
+			// One rank, which is what a D3 passive is: you have it or you do not. The tree's
+			// default of 0 would mean MaxTreeInvestment, i.e. 98 ranks of nothing.
+			EXPECT_EQ(oracool::ClassTreeMaxRank(skills[i]), 1) << data.name;
+			// Inert on purpose - these are placeholders. If one of them is ever built this
+			// assertion is the reminder to take it off the list rather than silently widen it.
+			EXPECT_FALSE(data.implemented) << data.name << " claims to be built";
+			EXPECT_EQ(data.spellId, SpellID::Invalid) << data.name;
+		}
+	}
+}
+
+TEST(OracoolClassTree, AddingThePassivePagesMovedNoExistingSkillsSaveSlot)
+{
+	// The invariant the whole append order exists to protect. ClassTreeIconIndex is simultaneously
+	// a skill's frame in its class icon strip AND its slot in Player::_pClassTreeInvestment, so a
+	// row inserted anywhere but the END of a class block silently reassigns points a live character
+	// has already paid - and nothing about that fails a build.
+	//
+	// Spot-pinned at the boundaries that would actually move: the first and last of the Paladin's
+	// two aura pages, the appended pair that came before the passives, and the first row of each
+	// other class.
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might), 9);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Conviction), 18);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Prayer), 19);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Salvation), 28);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::HammerOfFaith), 29);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::BlessedShield), 30);
+	// ...and the passives start immediately after, at the first free slot.
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::HeavenlyStrength), 31);
+
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Bash), 0);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::IceBolt), 0);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::MagicArrow), 0);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::MelodyOfLife), 0);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::SweepingReed), 0);
+
+	// Every slot must still fit the array it indexes. This is the bound that had to grow from 32.
+	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+		const auto skill = static_cast<oracool::ClassTreeSkill>(i);
+		EXPECT_LT(static_cast<size_t>(oracool::ClassTreeIconIndex(skill)),
+		    oracool::MaxSkillsPerClass)
+		    << oracool::GetClassTreeSkillData(skill).name << " has no investment slot";
+	}
+	EXPECT_LE(oracool::MaxSkillsPerClass, std::size(devilution::Player {}._pClassTreeInvestment))
+	    << "MaxSkillsPerClass indexes past the array it indexes";
+}
+
+TEST(OracoolClassTree, AnAuraThatIsNotThisCharactersDoesNotBurn)
+{
+	// The burning aura persists as an ABSOLUTE ClassTreeSkill, and absolute values shift whenever a
+	// class earlier in the enum gains rows - which the passive pages just did. A Bard or Monk saved
+	// before the change decodes to some other class's row at that number.
+	//
+	// The guard turns that into "no aura" rather than "somebody else's aura".
+	devilution::Player &player = FreshPaladin(30);
+	player._pClass = HeroClass::Warrior;
+	player._pOracoolActiveAura = static_cast<uint16_t>(oracool::ClassTreeSkill::MelodyOfLife);
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::None)
+	    << "a Paladin is burning one of the Bard's songs";
+
+	// None itself must survive the widening: 0xFF was the old sentinel and is now a real row.
+	player._pOracoolActiveAura = 0xFF;
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::None)
+	    << "the retired 0xFF sentinel now decodes to a real skill";
+}
+
 TEST(OracoolClassTree, InvestmentRespectsClassLevelPoolAndCap)
 {
 	devilution::Player &player = FreshPaladin(3);
