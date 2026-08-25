@@ -6,12 +6,21 @@ REM The archive is searched BEFORE every other MPQ (see FindMpqFile in Source/en
 REM so anything in here overrides the original game data without diabdat.mpq ever being touched.
 REM It is optional: if the file is missing the game runs exactly as before.
 REM
-REM Usage:  tools\build_oracool_mpq.cmd
+REM Usage:  tools\build_oracool_mpq.cmd [build-directory]
 REM Run from the repository root.
+REM
+REM The build directory defaults to build\x64-Debug and can be overridden by the first argument:
+REM     tools\build_oracool_mpq.cmd build\x64-Release
+REM
+REM It used to be hardcoded to the Debug tree (audit, 2026-08-26), which is the wrong default in the
+REM one situation that matters most: CMake's package step reads oracool.mpq from the build directory
+REM being packaged, so cutting a Release either failed the install guard or - before that guard
+REM existed - shipped whatever happened to be sitting in the Debug folder, however old.
 
 setlocal enabledelayedexpansion
 set SRC=Packaging\resources\oracool_assets
-set BUILD=build\x64-Debug
+set BUILD=%~1
+if "%BUILD%"=="" set BUILD=build\x64-Debug
 set PACKER=%BUILD%\oracool_mpq_pack.exe
 set OUT=%BUILD%\oracool.mpq
 

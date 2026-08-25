@@ -10,6 +10,8 @@ void ScheduleAutoSaveForStorePurchase();
 void ScheduleAutoSaveForLevelChange();
 void ScheduleAutoSaveForExperienceGain();
 void ScheduleAutoSaveForStatPointSpent();
+/** @brief Skill points, passive slots, the burning aura, the readied skills. */
+void ScheduleAutoSaveForSkillChange();
 void ScheduleAutoSaveForEquipmentChange();
 void ScheduleAutoSaveForItemDrop();
 void ScheduleAutoSaveForStashChange();

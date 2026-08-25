@@ -823,6 +823,8 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean autoSaveOnStorePurchase;
 	OptionEntryBoolean autoSaveOnExperienceGain;
 	OptionEntryBoolean autoSaveOnStatPointSpent;
+	/** @brief Skill points, passive slots, the burning aura and the readied skills. */
+	OptionEntryBoolean autoSaveOnSkillChange;
 	OptionEntryBoolean autoSaveOnEquipmentChange;
 	OptionEntryBoolean autoSaveOnItemDrop;
 	OptionEntryBoolean autoSaveOnStashChange;

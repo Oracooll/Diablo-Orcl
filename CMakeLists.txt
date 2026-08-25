@@ -672,10 +672,23 @@ if(CPACK AND (APPLE OR BUILD_ASSETS_MPQ OR SRC_DIST))
     install(FILES "${DEVILUTIONX_MPQ}"
       DESTINATION "share/diasurgical/${project_name}"
     )
-    # Oracool: same reasoning as the Windows block - ship the fork's asset archive when built.
+    # Oracool: same reasoning as the Windows block, and now the same RULE. This said "same
+    # reasoning" while doing the opposite - it kept the OPTIONAL that was removed there, so a Linux
+    # package would still silently ship without the fork's art and data (audit, 2026-08-26).
+    #
+    # "When built" is exactly the phrasing that hides the bug: the archive is produced by a script
+    # nobody runs on a clean machine, so "when built" means "usually not".
+    install(CODE "
+      if(NOT EXISTS \"${CMAKE_BINARY_DIR}/oracool.mpq\")
+        message(FATAL_ERROR
+          \"oracool.mpq is missing from the build directory, so this package would ship without \"
+          \"Oracool Edition's own art and data - most of the UI and content. Build it first:\\n\"
+          \"    tools/build_oracool_mpq.cmd\\n\"
+          \"(the packer is EXCLUDE_FROM_ALL; build the oracool_mpq_pack target once if it is absent)\")
+      endif()
+    ")
     install(FILES "${CMAKE_BINARY_DIR}/oracool.mpq"
       DESTINATION "share/diasurgical/${project_name}"
-      OPTIONAL
     )
     install(FILES "${PROJECT_SOURCE_DIR}/Packaging/resources/icon_flat.png"
       DESTINATION "share/icons/hicolor/512x512/apps"

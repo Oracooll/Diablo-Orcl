@@ -9,6 +9,7 @@
 
 #include "engine/backbuffer_state.hpp"
 #include "inv.h"
+#include "oracool/auto_save.h"
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
@@ -1042,6 +1043,7 @@ bool InvestClassTreePoint(Player &player, Skill skill)
 		// first cast - so most skills fall through PlaySkillSound silently, which is intended.
 		PlaySkillSound(skill, SkillSoundEvent::Learn);
 	}
+	ScheduleAutoSaveForSkillChange();
 	return true;
 }
 
@@ -1078,6 +1080,7 @@ bool RefundClassTreePoint(Player &player, Skill skill)
 		             ClassTreeInvestment(player, skill)),
 		    UiFlags::ColorWhitegold);
 	}
+	ScheduleAutoSaveForSkillChange();
 	return true;
 }
 
@@ -1224,6 +1227,7 @@ bool SetPassiveSlot(Player &player, int slot, Skill skill)
 	static_assert(MaxSkillsPerClass < 0xFF,
 	    "a class-relative index can now collide with the empty-slot sentinel");
 	player._pPassiveSlots[slot] = static_cast<uint8_t>(ClassTreeIconIndex(skill));
+	ScheduleAutoSaveForSkillChange();
 	return true;
 }
 
@@ -1234,6 +1238,7 @@ bool ClearPassiveSlot(Player &player, int slot)
 	if (player._pPassiveSlots[slot] == 0xFF)
 		return false;
 	player._pPassiveSlots[slot] = 0xFF;
+	ScheduleAutoSaveForSkillChange();
 	return true;
 }
 
@@ -1315,6 +1320,7 @@ bool ToggleClassAura(Player &player, Skill skill)
 	// caller. The skill picker's own CalcPlrInv is now redundant and harmless - left where it is,
 	// because removing a correct recalculation to save a few microseconds is how the asymmetry that
 	// caused this bug gets recreated.
+	oracool::ScheduleAutoSaveForSkillChange();
 	CalcPlrInv(player, false);
 	return true;
 }
@@ -1335,6 +1341,7 @@ void ClearClassAuraForRightButton(Player &player)
 	// Done HERE rather than at the four call sites, which is the whole lesson: ToggleClassAura's
 	// one caller remembered and these four did not, and the next path added would have been a coin
 	// flip. A function that puts an aura out is responsible for the aura being out.
+	oracool::ScheduleAutoSaveForSkillChange();
 	CalcPlrInv(player, false);
 	// No "fades" line here. The player is looking at the skill they just readied, and the aura going
 	// out is the visible half of that one action rather than a second event.

@@ -157,6 +157,15 @@ void ScheduleAutoSaveForStatPointSpent()
 		ScheduleAfterSeconds(0);
 }
 
+void ScheduleAutoSaveForSkillChange()
+{
+	// Audit finding, 2026-08-26: spending a skill point, slotting a passive, lighting an aura
+	// and readying a skill were the only character changes with no trigger at all, so a crash
+	// threw away a build the player had just spent minutes arranging.
+	if (*sgOptions.Oracool.autoSaveOnSkillChange)
+		ScheduleAfterSeconds(0);
+}
+
 void ScheduleAutoSaveForEquipmentChange()
 {
 	if (*sgOptions.Oracool.autoSaveOnEquipmentChange)
@@ -282,7 +291,33 @@ void ProcessAutoSave()
 	if ((!intervalElapsed && !pendingIsDue) || !IsSafeToSave())
 		return;
 
-	SaveGame();
+	// Character only, exactly as SaveOnExit writes it - and for exactly the same reason, which had
+	// simply never been carried across to this function (audit, 2026-08-26).
+	//
+	// SaveGame() is pfile_write_hero(true) plus sfile_write_stash(); the `true` adds a world
+	// snapshot - the whole dungeon level, its monsters, objects, ground items, portals. In V1
+	// single-player NONE of that is ever read back, because LoadGame() is unreachable: every
+	// character always starts a fresh dungeon. So the periodic save was serialising a level and
+	// writing it to disk every few minutes to produce bytes nothing will ever open, which is a
+	// frame hitch and write amplification bought for nothing.
+	//
+	// Everything durable still travels with the hero: stats, inventory, belt, equipment, gold, the
+	// waypoint table, the extra inventory tabs and the chunk tail. The stash is its own file and
+	// still needs its own write.
+	BeginSaveAttempt();
+	pfile_write_hero(/*writeGameData=*/false);
+	sfile_write_stash();
+	if (SaveAttemptFailed()) {
+		LogEvent(fmt::format(fmt::runtime(_("AUTO SAVE FAILED - \"{:s}\" could not be written.")),
+		             FailedSaveFileName()),
+		    UiFlags::ColorRed);
+		return;
+	}
+	// What SaveGame() used to do for us on the way out: reset the interval and clear any pending
+	// request, so the next save is timed from this one. Through NotifyGameSaved rather than by
+	// touching LastSave and SavePending here, because that is the one function that owns them.
+	gbValidSaveFile = true;
+	NotifyGameSaved();
 	LogEvent("Game saved (auto)", UiFlags::ColorWhite);
 	if (*sgOptions.Oracool.autoSaveNotification)
 		TriggerSaveIndicator();

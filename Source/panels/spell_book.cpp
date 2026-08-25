@@ -1134,8 +1134,12 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 	if (IsInspectingPlayer())
 		return;
 	const string_view hint = ArmedPassiveSlot >= 0
-	    ? _("Now click a passive to fill the slot")
-	    : _("Click a slot, then a passive. Right-click a slot to empty it.");
+	    // Short enough to FIT. Audit finding, 2026-08-26: the previous second line was 61 characters
+	    // in a 246x18 box and DrawString clips rather than wraps, so the instruction explaining the
+	    // gesture was itself cut off. The right-click hint it lost now lives in the slot's hover
+	    // tooltip, where there is room for it.
+	    ? _("Now pick a passive")
+	    : _("Click a slot, then a passive");
 	DrawString(content, hint,
 	    { { AbilitiesInteriorLeft, PassiveHintTop - scroll },
 	        { AbilitiesInteriorRight - AbilitiesInteriorLeft, PassiveHintHeight } },
@@ -1744,11 +1748,18 @@ void CheckSBook(bool assignToRightButton)
 				EventPlrMsg(_("Click one of the four slots above first."), UiFlags::ColorRed);
 				return;
 			}
+			// Clicking a passive that is ALREADY slotted takes it out.
+			//
+			// This used to say "already in slot 2" and stop, which is a dead end - and worse, it
+			// left touch players with no way to unslot anything at all, because the touch handler
+			// only ever raises the left-button path (audit, 2026-08-26). Making the left button a
+			// toggle costs nothing: it replaces a message that did nothing with the obvious action,
+			// and right-click still empties a slot for anyone who reaches for it.
 			if (const int already = oracool::PassiveSlotOf(me, *cell); already >= 0) {
-				EventPlrMsg(fmt::format(fmt::runtime(_("{:s} is already in slot {:d}.")),
-				                std::string(_(oracool::GetClassTreeSkillData(*cell).name)),
-				                already + 1),
-				    UiFlags::ColorRed);
+				if (oracool::ClearPassiveSlot(me, already)) {
+					CalcPlrInv(me, false);
+					RedrawEverything();
+				}
 				return;
 			}
 			if (oracool::SetPassiveSlot(me, ArmedPassiveSlot, *cell)) {

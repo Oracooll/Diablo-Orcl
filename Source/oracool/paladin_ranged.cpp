@@ -78,6 +78,10 @@ constexpr int BlessedShieldPercent = 125;
 bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 {
 	const int damage = RollWeaponDamage(player);
+	// Room for the missile is checked BEFORE the mana is taken - AddMissile returns nullptr on
+	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
+	if (!MissilePoolHasRoom())
+		return false;
 	if (!SpendPaladinSkillMana(player, PaladinSkill::FistOfTheHeavens))
 		return false;
 
@@ -103,6 +107,10 @@ bool CastBlessedShield(Player &player, Point target, int spellLevel)
 	// No shield check here any more: requiresShield is part of IsPaladinSkillUnlocked, which
 	// CanUsePaladinSkill already asked before this ran, so a shieldless Paladin never gets here.
 	const int damage = RollWeaponDamage(player) * BlessedShieldPercent / 100;
+	// Room for the missile is checked BEFORE the mana is taken - AddMissile returns nullptr on
+	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
+	if (!MissilePoolHasRoom())
+		return false;
 	if (!SpendPaladinSkillMana(player, PaladinSkill::BlessedShield))
 		return false;
 
@@ -128,6 +136,10 @@ constexpr int BlessedHammerPercent = 60;
 bool CastBlessedHammer(Player &player, int spellLevel)
 {
 	const int damage = RollWeaponDamage(player) * BlessedHammerPercent / 100;
+	// Room for the missile is checked BEFORE the mana is taken - AddMissile returns nullptr on
+	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
+	if (!MissilePoolHasRoom())
+		return false;
 	if (!SpendPaladinSkillMana(player, PaladinSkill::BlessedHammer))
 		return false;
 

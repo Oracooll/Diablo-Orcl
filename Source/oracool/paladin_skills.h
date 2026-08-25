@@ -185,6 +185,14 @@ bool CanUsePaladinSkill(const Player &player, PaladinSkill skill);
  * Call only after CanUsePaladinSkill has agreed. Returns false and spends nothing otherwise, so a
  * caller that forgets the check still cannot drive mana negative.
  */
+/**
+ * @brief Whether a missile can still be allocated. Ask BEFORE spending mana on a cast.
+ *
+ * AddMissile returns nullptr on a full pool, and the three ranged Paladin skills used to
+ * discard that result after already taking the mana.
+ */
+bool MissilePoolHasRoom();
+
 bool SpendPaladinSkillMana(Player &player, PaladinSkill skill);
 
 /** @brief Index of @p skill's icon in ui\paladin_skill_icons.png - the identity, see the enum. */

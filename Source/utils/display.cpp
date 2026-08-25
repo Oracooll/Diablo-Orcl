@@ -90,10 +90,22 @@ void CalculatePreferredWindowSize(int &width, int &height)
 	}
 
 	if (*sgOptions.Graphics.integerScaling) {
-		int factor = std::min(mode.w / width, mode.h / height);
-		width = mode.w / factor;
-		height = mode.h / factor;
-		return;
+		const int factor = std::min(mode.w / width, mode.h / height);
+		// Audit finding, 2026-08-26: a CRASH on startup, not a cosmetic problem. If the saved
+		// internal resolution is larger than the monitor in either axis - a display swapped for a
+		// smaller one, a laptop undocked from a 4K screen, a resolution chosen on another machine -
+		// then one of those divisions is zero, so factor is zero, and the next line divides by it.
+		// The game dies before it draws a frame, and the setting that killed it is in a file the
+		// player has no obvious reason to suspect.
+		//
+		// Integer scaling has nothing to offer below 1x anyway: there is no whole number of screen
+		// pixels per game pixel when the game is bigger than the screen. Falling through to the
+		// fractional fit below is what that case actually wants, and it is already written.
+		if (factor >= 1) {
+			width = mode.w / factor;
+			height = mode.h / factor;
+			return;
+		}
 	}
 
 	float wFactor = (float)mode.w / width;

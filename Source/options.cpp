@@ -443,6 +443,8 @@ void SaveOptions()
 	    "; Saves instantly whenever your character gains experience, matching Diablo 3's\n; always-persisted progress.");
 	setBoolean("Auto Save on Stat Point Spent", *sgOptions.Oracool.autoSaveOnStatPointSpent,
 	    "; Saves instantly whenever a stat point is spent on the character panel.");
+	setBoolean("Auto Save on Skill Change", *sgOptions.Oracool.autoSaveOnSkillChange,
+	    "; Saves instantly whenever a skill point, passive slot, aura or readied skill changes.");
 	setBoolean("Auto Save on Equipment Change", *sgOptions.Oracool.autoSaveOnEquipmentChange,
 	    "; Saves instantly whenever equipment is worn or removed.");
 	setBoolean("Auto Save on Item Drop", *sgOptions.Oracool.autoSaveOnItemDrop,
@@ -1419,6 +1421,7 @@ OracoolOptions::OracoolOptions()
     , autoSaveOnStorePurchase("Auto Save on Store Purchase", OptionEntryFlags::None, N_("Auto Save on Store Purchase"), N_("Schedules a save after a successful store purchase."), true)
     , autoSaveOnExperienceGain("Auto Save on Experience Gain", OptionEntryFlags::None, N_("Auto Save on Experience Gain"), N_("Saves instantly whenever your character gains experience."), true)
     , autoSaveOnStatPointSpent("Auto Save on Stat Point Spent", OptionEntryFlags::None, N_("Auto Save on Stat Point Spent"), N_("Saves instantly whenever a stat point is spent on the character panel."), true)
+    , autoSaveOnSkillChange("Auto Save on Skill Change", OptionEntryFlags::None, N_("Auto Save on Skill Change"), N_("Saves instantly whenever a skill point, passive slot, aura or readied skill changes."), true)
     , autoSaveOnEquipmentChange("Auto Save on Equipment Change", OptionEntryFlags::None, N_("Auto Save on Equipment Change"), N_("Saves instantly whenever equipment is worn or removed."), true)
     , autoSaveOnItemDrop("Auto Save on Item Drop", OptionEntryFlags::None, N_("Auto Save on Item Drop"), N_("Saves instantly whenever an item is dropped on the ground."), true)
     , autoSaveOnStashChange("Auto Save on Stash Change", OptionEntryFlags::None, N_("Auto Save on Stash Change"), N_("Saves instantly whenever the Stash's contents change."), true)
@@ -1489,6 +1492,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&autoSaveOnStorePurchase,
 		&autoSaveOnExperienceGain,
 		&autoSaveOnStatPointSpent,
+		&autoSaveOnSkillChange,
 		&autoSaveOnEquipmentChange,
 		&autoSaveOnItemDrop,
 		&autoSaveOnStashChange,

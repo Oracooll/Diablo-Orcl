@@ -6,6 +6,7 @@
 #include "engine/backbuffer_state.hpp"
 #include "monster.h"
 #include "oracool/oracool.h"
+#include "missiles.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -185,6 +186,15 @@ bool CanUsePaladinSkill(const Player &player, PaladinSkill skill)
 	if (!IsSinglePlayer() || !IsPaladinSkillUnlocked(player, skill))
 		return false;
 	return player._pMana >= ManaCostFixedPoint(skill);
+}
+
+bool MissilePoolHasRoom()
+{
+	// Audit finding, 2026-08-26: the three ranged Paladin skills spent mana and THEN called
+	// AddMissile, discarding its result. AddMissile returns nullptr when the pool is full, so a
+	// busy screen - the exact moment a player reaches for Fist of the Heavens - took the mana
+	// and cast nothing. Asked before the mana is spent instead.
+	return Missiles.size() < Missiles.max_size();
 }
 
 bool SpendPaladinSkillMana(Player &player, PaladinSkill skill)

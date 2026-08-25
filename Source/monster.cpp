@@ -1488,10 +1488,19 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// Oracool: the one seam where "this monster wounded the player, for this much" is known, which
 		// is what a Vampiric champion needs. After the reflect subtraction, so it drains what it
 		// actually landed rather than what it swung for.
-		oracool::OnLesserUniqueDealtDamage(monster, dam);
-		// And the boss's own drain, which is a different trait on a different field - a boss's
-		// lesserAffix is Dread, so OnLesserUniqueDealtDamage's Vampiric test never fires for one.
-		oracool::OnBossDealtDamage(monster, dam);
+		//
+		// Guarded on death mode, and the guard is not hypothetical: CheckReflect above can KILL the
+		// monster with the damage it just reflected. Without this, a Vampiric champion or a
+		// Devouring boss that died to its own reflected blow drained life afterwards and ended up
+		// in MonsterMode::Death with positive hit points - a corpse the health bar says is alive.
+		// The Thorns block immediately below has carried exactly this guard, for exactly this
+		// reason, the whole time (audit, 2026-08-26).
+		if (monster.mode != MonsterMode::Death) {
+			oracool::OnLesserUniqueDealtDamage(monster, dam);
+			// And the boss's own drain, which is a different trait on a different field - a boss's
+			// lesserAffix is Dread, so OnLesserUniqueDealtDamage's Vampiric test never fires for one.
+			oracool::OnBossDealtDamage(monster, dam);
+		}
 	}
 
 	// Reflect can also kill a monster, so make sure the monster is still alive
