@@ -202,6 +202,27 @@ void CloseLeftPanelContent()
 		break;
 	}
 }
+bool IsOverAnyInterface(Point position)
+{
+	// Order is by cost, not by importance - every one of these is authoritative for its own
+	// surface, so the answer does not depend on which is asked first.
+	if (IsOverLeftPanel(position))
+		return true;
+	if (IsOverRightPanel(position))
+		return true;
+	if (oracool::IsPointOverHudChrome(position))
+		return true;
+	if (oracool::IsPointOverFloatingWindow(position))
+		return true;
+	// The shop is a panel rather than a modal screen (see LeftMouseDown), so only the shop's own
+	// rect counts as interface - the rest of the screen stays clickable, which is what lets an item
+	// be dragged out of the inventory to sell it.
+	if (stextflag != TalkID::None && oracool::IsShopGridScreen(stextflag)
+	    && oracool::GetShopPanelRect().contains(position))
+		return true;
+	return false;
+}
+
 bool IsRightPanelOpen()
 {
 	return invflag || sbookflag;

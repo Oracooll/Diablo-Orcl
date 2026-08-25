@@ -146,7 +146,7 @@ enum item_color : uint8_t {
 	// clang-format on
 };
 
-extern bool invflag;
+extern DVL_API_FOR_TEST bool invflag;
 /**
  * @brief Panel-relative rect of every inventory slot. Generated in inv.cpp from
  * oracool/inventory_layout.h - see the comment there for why it is no longer a literal table.

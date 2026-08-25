@@ -36,6 +36,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/charms.h"
 #include "oracool/area_level.h"
+#include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
@@ -59,6 +60,7 @@
 #include "oracool/signets.h"
 #include "oracool/charms.h"
 #include "oracool/area_level.h"
+#include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
@@ -2295,6 +2297,37 @@ TEST(OracoolClassTree, CastableSkillsInvestThroughTheSpellLevelSeam)
 	const int mightSlot = oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might);
 	EXPECT_EQ(mightSlot, 9);
 	EXPECT_EQ(player._pClassTreeInvestment[mightSlot], 1);
+}
+
+TEST(OracoolAudit, TheLowerHalfOfAnOpenWindowIsInterfaceNotWorld)
+{
+	// Audit finding, 2026-08-26, and the shape of it is worth stating: every one of the stale
+	// hit-tests in this family compared against the VANILLA 320x352 slot while the window on screen
+	// was 340x720. So the top of a window absorbed input and the bottom two thirds did not -
+	// right-clicks cast through it, ground-item labels stayed live under it, and the controller
+	// could not act on the lower stash rows.
+	//
+	// The assertion that matters is therefore not "inside the window" but "inside the part of the
+	// window the old rect did not reach".
+	// What is pinned here is the PREMISE, not the routing. IsOverAnyInterface reaches into live HUD
+	// state and cannot run in a bare harness; the routing itself is only verifiable in play, and
+	// that is recorded rather than faked.
+	//
+	// The premise is testable and is the thing that actually went wrong: these windows outgrew the
+	// vanilla slot every stale hit-test was still comparing against. While that stays true, any
+	// code testing SidePanelSize instead of the window's own rect is wrong by construction - which
+	// is why the band below y=352 is where every one of these bugs lived.
+	const Rectangle inventory = oracool::GetInventoryPanelRect();
+	EXPECT_GT(inventory.size.height, SidePanelSize.height)
+	    << "the inventory no longer outgrows the vanilla 320x352 slot";
+
+	const Rectangle abilities = GetSpellBookPanelRect();
+	EXPECT_GT(abilities.size.height, SidePanelSize.height)
+	    << "the Abilities window no longer outgrows the vanilla slot";
+
+	const Rectangle stash = GetStashPanelRect();
+	EXPECT_GT(stash.size.height, SidePanelSize.height)
+	    << "the stash no longer outgrows the vanilla slot - the controller fix assumed it does";
 }
 
 TEST(OracoolAudit, RelentlessAndImplacableResistKnockbackRatherThanDealingIt)

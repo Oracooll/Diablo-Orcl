@@ -51,7 +51,7 @@ extern bool resetStatsButtonDown;
 constexpr Size ResetStatsButtonSize { 44, 24 };
 extern UiFlags InfoColor;
 extern bool talkflag;
-extern bool sbookflag;
+extern DVL_API_FOR_TEST bool sbookflag;
 extern bool chrflag;
 extern DVL_API_FOR_TEST StringOrView InfoString;
 extern bool panelflag;
@@ -107,6 +107,25 @@ Rectangle GetLeftPanelContentRect();
 
 /** @brief Whether @p position is over the open left-panel window, per GetLeftPanelContentRect(). */
 bool IsOverLeftPanel(Point position);
+
+/**
+ * @brief Whether @p position is over ANY interface surface: HUD chrome, either panel, or a
+ * floating window.
+ *
+ * The single authority for "this click belongs to the interface, not to the world", and the answer
+ * every input path should be asking.
+ *
+ * Audit finding, 2026-08-26. LeftMouseDown routes carefully through the pieces this composes;
+ * RightMouseDown had a special case for the inventory and nothing else, so a right-click over the
+ * character sheet, the quest log, the waypoint list, Levski's Roar, the runeword book or the lower
+ * part of any 340x720 window fell straight through to CheckPlrSpell - casting Teleport, laying a
+ * Fire Wall or walking the player, through a window that was plainly on top.
+ *
+ * Composed rather than rewritten: IsPointOverHudChrome, IsPointOverFloatingWindow, IsOverLeftPanel
+ * and IsOverRightPanel each already existed and are each already the authority for their own
+ * surface. What was missing was somewhere that asked all four.
+ */
+DVL_API_FOR_TEST bool IsOverAnyInterface(Point position);
 
 /**
  * @brief Closes whichever left-panel window is open, whatever it is.

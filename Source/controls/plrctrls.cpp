@@ -1960,7 +1960,11 @@ void PerformPrimaryAction()
 				mousePos.y += ((newCursorSizeInCells.height - 1) * InventorySlotSizeInPixels.height) / 2;
 				SetCursorPos(mousePos);
 			}
-		} else if (IsStashOpen && GetLeftPanel().contains(MousePosition)) {
+			// GetStashPanelRect(), not GetLeftPanel(). Audit finding, 2026-08-26: the stash grew into
+			// its own 340x720 window while this kept testing the vanilla 320x352 slot, so the
+			// controller's primary action simply did not fire on the lower stash rows - the cursor
+			// could be sitting on a cell the game did not believe was in the stash.
+		} else if (IsStashOpen && GetStashPanelRect().contains(MousePosition)) {
 			Point stashSlot = (ActiveStashSlot != InvalidStashPoint) ? ActiveStashSlot : FindClosestStashSlot(MousePosition);
 
 			Size cursorSizeInCells = MyPlayer->HoldItem.isEmpty() ? Size { 1, 1 } : GetInventorySize(MyPlayer->HoldItem);

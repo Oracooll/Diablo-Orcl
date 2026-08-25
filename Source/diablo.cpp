@@ -780,6 +780,21 @@ void RightMouseDown(bool isShiftHeld)
 			CheckInvCut(*MyPlayer, MousePosition, /*automaticMove=*/true, /*dropItem=*/false);
 		return;
 	}
+	// Audit finding, 2026-08-26: the authoritative rejection this function never had.
+	//
+	// Everything above handles a specific surface - the spell book, the inventory, an item under
+	// the cursor. What was missing was the general case, so a right-click over the character sheet,
+	// the quest log, the waypoint list, Levski's Roar, the runeword book or the lower half of any
+	// 340x720 window reached CheckPlrSpell and cast through it. Teleport was the loud one; walking
+	// the player toward whatever was behind the window was the common one.
+	//
+	// Placed HERE rather than at the top, because the handlers above are the ones that legitimately
+	// act on interface: readying a skill in the Abilities window, using an item, equipping from the
+	// backpack. This guards only the fall-through to the WORLD, which is the only part that was
+	// ever wrong.
+	if (IsOverAnyInterface(MousePosition))
+		return;
+
 	if (pcurs == CURSOR_HAND) {
 		// An empty right button swings instead of apologizing - see RightMouseBasicAttack above.
 		if (!IsValidSpell(MyPlayer->_pRSpell))

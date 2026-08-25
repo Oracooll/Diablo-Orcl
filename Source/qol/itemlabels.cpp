@@ -157,14 +157,19 @@ void AddItemToLabelQueue(int id, Point position)
 
 bool IsMouseOverGameArea()
 {
-	if (IsOverRightPanel(MousePosition))
-		return false;
-	if ((IsLeftPanelOpen()) && GetLeftPanel().contains(MousePosition))
-		return false;
-	if (GetMainPanel().contains(MousePosition))
-		return false;
-
-	return true;
+	// Audit finding, 2026-08-26: this had its own idea of where the interface is, and it was the
+	// stale one twice over.
+	//
+	// GetLeftPanel() is the vanilla 320x352 slot, but the character sheet, quest log, stash,
+	// waypoint list and crafting window are all 340x720 - so a ground-item label stayed live and
+	// hoverable underneath the bottom two thirds of every one of them. GetMainPanel() is the old
+	// 640x128 bar, most of which is now empty screen, so a strip of genuine play area was
+	// permanently dead to labels. And neither test knew about the floating windows at all.
+	//
+	// One question now, asked of the same authority the mouse paths use. A surface that starts or
+	// stops being interface is right here for free, instead of needing to be remembered in a fourth
+	// place.
+	return !IsOverAnyInterface(MousePosition);
 }
 
 void DrawItemNameLabels(const Surface &out)
