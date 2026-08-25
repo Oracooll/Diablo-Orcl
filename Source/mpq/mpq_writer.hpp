@@ -6,6 +6,9 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
+#include <vector>
+#include <string>
 
 #include "mpq/mpq_common.hpp"
 #include "utils/logged_fstream.hpp"
@@ -30,7 +33,45 @@ public:
 	bool WriteFile(const char *filename, const byte *data, size_t size);
 	void RenameFile(const char *name, const char *newName);
 
+	/**
+	 * @brief Makes the writes that follow ALL-OR-NOTHING until the matching commit.
+	 *
+	 * A save is several records - hero, hotkeys, items, inventory tabs - and until now only each
+	 * one was individually survivable. Injecting a write failure part-way through the pre-fix
+	 * writer produced a hero at the NEW level whose sidecar records had not been written: a torn
+	 * save that looks perfectly fine and is not, which is a nastier thing to hand a player than an
+	 * obviously missing file.
+	 *
+	 * Inside a transaction every record is written under its own temporary name and NOTHING is
+	 * swapped in. The commit then performs the swaps, and that is the property the whole design
+	 * rests on: a swap is a hash-table edit with no disk write in it, so once the data is safely on
+	 * disk the visible change cannot fail half way. All the risk is spent before the commit begins.
+	 *
+	 * Not the default, because it must not change what a lone WriteFile does for every existing
+	 * caller. Outside a transaction WriteFile behaves exactly as before: write temp, swap, done.
+	 */
+	void BeginTransaction();
+
+	/**
+	 * @brief Swaps in every record written since BeginTransaction. False if any of them failed.
+	 *
+	 * A false return means nothing was swapped in and every previous record is untouched - the
+	 * archive still holds the last save that fully succeeded.
+	 */
+	bool CommitTransaction();
+
+	/** @brief Discards every record written since BeginTransaction, leaving the originals alone. */
+	void AbortTransaction();
+
 private:
+	/** @brief A record written under a temporary name, waiting for the commit to swap it in. */
+	struct PendingSwap {
+		std::string temp;
+		std::string target;
+	};
+
+	std::string NextTempName();
+
 	bool IsValidMpqHeader(MpqFileHeader *hdr) const;
 	uint32_t GetHashIndex(uint32_t index, uint32_t hashA, uint32_t hashB) const;
 	uint32_t FetchHandle(const char *filename) const;
@@ -59,6 +100,13 @@ private:
 	std::uintmax_t size_ {};
 	std::unique_ptr<MpqHashEntry[]> hashTable_;
 	std::unique_ptr<MpqBlockEntry[]> blockTable_;
+
+	bool inTransaction_ = false;
+	/** @brief Set when any write inside the transaction failed, so the commit refuses. */
+	bool transactionFailed_ = false;
+	std::vector<PendingSwap> pending_;
+	/** @brief Distinguishes concurrently-staged temporaries; several are outstanding at once. */
+	uint32_t tempCounter_ = 0;
 
 // Amiga cannot Seekp beyond EOF.
 // See https://github.com/bebbo/libnix/issues/30

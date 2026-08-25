@@ -500,6 +500,17 @@ void pfile_write_hero(SaveWriter &saveWriter, bool writeGameData)
 	PlayerPack pkplr;
 	Player &myPlayer = *MyPlayer;
 
+	// A character is FOUR records - the hero itself, the hotkeys, the worn and carried items, and
+	// the extra inventory tabs - and they only make sense together. Written as one transaction so
+	// they arrive together or not at all.
+	//
+	// Found by injecting a write failure (v1.9.56): the archive ended up holding a hero at the NEW
+	// level whose item record had not been written. Not a missing save - a save that loads, looks
+	// entirely normal, and has the wrong things in it. That is a far worse thing to hand a player
+	// than an obvious failure, and it is the case each record being individually atomic does not
+	// cover.
+	saveWriter.BeginTransaction();
+
 	PackPlayer(pkplr, myPlayer);
 	EncodeHero(saveWriter, &pkplr, oracool::BuildHeroChunkTail(myPlayer));
 	if (!gbVanilla) {
@@ -509,6 +520,11 @@ void pfile_write_hero(SaveWriter &saveWriter, bool writeGameData)
 			SaveInventoryTabs(saveWriter, myPlayer);
 		}
 	}
+
+	// The one place the new save becomes visible. A refusal here means every record is discarded and
+	// the archive still holds the last save that fully succeeded.
+	if (!saveWriter.CommitTransaction())
+		oracool::NoteSaveWriteFailed("hero");
 }
 
 void RemoveAllInvalidItems(Player &player)

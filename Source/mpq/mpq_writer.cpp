@@ -9,6 +9,7 @@
 #include "appfat.h"
 #include "encrypt.h"
 #include "engine.h"
+#include "oracool/save_status.h"
 #include "utils/endian_write.hpp"
 #include "utils/file_util.h"
 #include "utils/language.h"
@@ -173,6 +174,13 @@ on_error:
 
 MpqWriter::~MpqWriter()
 {
+	// A transaction still open here was never committed - the save was abandoned, or an early
+	// return skipped the commit. ABORTED rather than committed, deliberately: committing would
+	// swap in whichever records happened to have been written, which is the torn save this
+	// mechanism exists to prevent. Discarding them leaves the previous save whole.
+	if (inTransaction_ || !pending_.empty())
+		AbortTransaction();
+
 	if (!stream_.IsOpen())
 		return;
 	LogVerbose("Closing {}", name_);
@@ -185,8 +193,20 @@ MpqWriter::~MpqWriter()
 		LogVerbose("ResizeFile(\"{}\", {})", name_, size_);
 		result = ResizeFile(name_.c_str(), size_);
 	}
-	if (!result)
+	if (!result) {
 		LogVerbose("Closing failed {}", name_);
+		// Found by the failure sweep (v1.9.57), and it is the last place a save could lie.
+		//
+		// The header, block table and hash table are written HERE, at destruction, and nowhere
+		// else - so every record can write perfectly, the transaction can commit, and the archive
+		// on disk still points at the old records because the tables never landed. The old code
+		// noted that at verbose level and returned, so the save reported SUCCESS while nothing it
+		// had done was visible.
+		//
+		// Reported through the same seam every other write failure uses, so the player is told the
+		// save did not happen rather than discovering it next time they load.
+		oracool::NoteSaveWriteFailed(name_);
+	}
 }
 
 uint32_t MpqWriter::FetchHandle(const char *filename) const
@@ -528,23 +548,80 @@ bool MpqWriter::WriteFile(const char *filename, const byte *data, size_t size)
 	// blocks are written with FlagExists | CompressPkZip and never the encrypted flag, so the
 	// vestigial `Hash(filename, 3)` in WriteFileContents - which in a real MPQ would be the file's
 	// encryption key - has no effect on the data. Verified before relying on it.
-	constexpr const char *TempName = "~oracool_write.tmp";
+	const std::string temp = NextTempName();
 
-	// A previous attempt that died between writing and renaming would leave this behind. Reclaimed
+	// A previous attempt that died between writing and swapping would leave this behind. Reclaimed
 	// rather than collided with: AddFile calls app_fatal on a hash collision.
-	RemoveHashEntry(TempName);
+	RemoveHashEntry(temp.c_str());
 
-	MpqBlockEntry *blockEntry = AddFile(TempName, nullptr, 0);
-	if (!WriteFileContents(TempName, data, size, blockEntry)) {
-		RemoveHashEntry(TempName);
+	MpqBlockEntry *blockEntry = AddFile(temp.c_str(), nullptr, 0);
+	if (!WriteFileContents(temp.c_str(), data, size, blockEntry)) {
+		RemoveHashEntry(temp.c_str());
+		// Inside a transaction the failure is remembered rather than reported and forgotten: the
+		// commit has to refuse, or the records that DID write would be swapped in on their own and
+		// produce exactly the torn save the transaction exists to prevent.
+		transactionFailed_ = true;
 		return false;
 	}
 
-	// Only now is the old record given up. Both exist for the duration of these two lines, which is
-	// the whole point - there is no window in which neither does.
+	if (inTransaction_) {
+		// Staged, not swapped. The old record is still the live one until the commit.
+		pending_.push_back({ temp, filename });
+		return true;
+	}
+
+	// Outside a transaction: swap immediately, as this has always done. The old record is given up
+	// only now, so both exist for the duration of these two lines and there is no window in which
+	// neither does.
 	RemoveHashEntry(filename);
-	RenameFile(TempName, filename);
+	RenameFile(temp.c_str(), filename);
 	return true;
+}
+
+std::string MpqWriter::NextTempName()
+{
+	// Unique per staged record, because a transaction holds several at once. The name is deliberately
+	// one no real save record can collide with.
+	return StrCat("~orcl_stage_", tempCounter_++, ".tmp");
+}
+
+void MpqWriter::BeginTransaction()
+{
+	// Any leftovers from a transaction nobody finished are dropped rather than inherited.
+	AbortTransaction();
+	inTransaction_ = true;
+	transactionFailed_ = false;
+}
+
+bool MpqWriter::CommitTransaction()
+{
+	inTransaction_ = false;
+	if (transactionFailed_) {
+		// Nothing is swapped in. Every original record stays exactly as it was, so what remains on
+		// disk is the last save that fully succeeded rather than a mixture of two.
+		AbortTransaction();
+		return false;
+	}
+
+	// The commit itself. Every one of these is a hash-table edit - no seek, no fwrite, nothing that
+	// can fail on a full disk - which is what makes "all or nothing" a real guarantee rather than a
+	// smaller window. All the risky I/O already happened, above, under names nobody was reading.
+	for (const PendingSwap &swap : pending_) {
+		RemoveHashEntry(swap.target.c_str());
+		RenameFile(swap.temp.c_str(), swap.target.c_str());
+	}
+	pending_.clear();
+	transactionFailed_ = false;
+	return true;
+}
+
+void MpqWriter::AbortTransaction()
+{
+	inTransaction_ = false;
+	transactionFailed_ = false;
+	for (const PendingSwap &swap : pending_)
+		RemoveHashEntry(swap.temp.c_str());
+	pending_.clear();
 }
 
 void MpqWriter::RenameFile(const char *name, const char *newName) // NOLINT(bugprone-easily-swappable-parameters)

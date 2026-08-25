@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <vector>
 
 #include <SDL_endian.h>
@@ -9,7 +10,10 @@
 #include <picosha2.h>
 
 #include "loadsave.h"
+#include "mpq/mpq_reader.hpp"
+#include "mpq/mpq_writer.hpp"
 #include "pack.h"
+#include "oracool/save_status.h"
 #include "pfile.h"
 #include "utils/file_util.h"
 #include "utils/paths.h"
@@ -506,6 +510,88 @@ TEST(Writehero, AFailedSaveLeavesThePreviousOneIntact)
 	StopFailingWrites();
 }
 
+// The transaction itself, tested where it lives rather than through the whole save stack.
+//
+// A first attempt swept an injected failure across `pfile_write_hero` and asserted the new level
+// never appeared. That over-claimed twice over: past the last record the save legitimately
+// SUCCEEDS, and a failure in the header/table write at the very end is reported after everything
+// has already landed - a conservative report, which is the safe direction but not a torn save. The
+// property the transaction actually provides is narrower and worth stating exactly:
+//
+//   several records written together are swapped in TOGETHER, or none of them are.
+TEST(Writehero, ATransactionSwapsInEveryRecordOrNoneOfThem)
+{
+	const std::string archivePath = paths::BasePath() + "txn_test.sv";
+	RemoveFile(archivePath.c_str());
+
+	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
+
+	// A first, complete save: two records that belong together.
+	{
+		MpqWriter writer(archivePath);
+		writer.BeginTransaction();
+		ASSERT_TRUE(writer.WriteFile("recordA", bytes("OLD-A"), 5));
+		ASSERT_TRUE(writer.WriteFile("recordB", bytes("OLD-B"), 5));
+		EXPECT_TRUE(writer.CommitTransaction());
+		EXPECT_TRUE(writer.HasFile("recordA"));
+		EXPECT_TRUE(writer.HasFile("recordB"));
+	}
+
+	// Now a save where the SECOND record fails. The first one wrote perfectly - and under
+	// per-record atomicity alone it would have been swapped in on its own, leaving recordA new and
+	// recordB old. That mixture is the torn save.
+	{
+		MpqWriter writer(archivePath);
+		ASSERT_TRUE(writer.HasFile("recordA")) << "the first save did not survive being reopened";
+
+		writer.BeginTransaction();
+		EXPECT_TRUE(writer.WriteFile("recordA", bytes("NEW-A"), 5));
+		FailWritesAfter(0);
+		EXPECT_FALSE(writer.WriteFile("recordB", bytes("NEW-B"), 5))
+		    << "the injected failure did not take effect";
+		StopFailingWrites();
+
+		EXPECT_FALSE(writer.CommitTransaction())
+		    << "a transaction with a failed record committed anyway";
+
+		// Both originals are still the LIVE records - and this reads their CONTENT, not merely
+		// whether a record of that name exists. A first version of this test asked HasFile, which
+		// is true either way: with staging disabled recordA is swapped in with its NEW bytes under
+		// the same name. The test passed against the broken behaviour it was written to catch.
+	}
+	{
+		int32_t error = 0;
+		std::optional<MpqArchive> archive = MpqArchive::Open(archivePath.c_str(), error);
+		ASSERT_TRUE(archive.has_value()) << "the archive is unreadable after a refused commit";
+		std::size_t sizeA = 0;
+		std::unique_ptr<byte[]> a = archive->ReadFile("recordA", sizeA, error);
+		ASSERT_NE(a, nullptr) << "recordA was lost by a refused commit";
+		EXPECT_EQ(std::string(reinterpret_cast<const char *>(a.get()), sizeA), "OLD-A")
+		    << "recordA was swapped in on its own - the save is a mixture of two";
+		std::size_t sizeB = 0;
+		std::unique_ptr<byte[]> b = archive->ReadFile("recordB", sizeB, error);
+		ASSERT_NE(b, nullptr) << "recordB was lost by a refused commit";
+		EXPECT_EQ(std::string(reinterpret_cast<const char *>(b.get()), sizeB), "OLD-B");
+	}
+
+	// And an abandoned transaction - one nobody committed at all - must leave the originals alone
+	// rather than swapping in whatever happened to be staged when the writer went away.
+	{
+		MpqWriter writer(archivePath);
+		writer.BeginTransaction();
+		EXPECT_TRUE(writer.WriteFile("recordA", bytes("ABND"), 4));
+		// no commit; the destructor runs here
+	}
+	{
+		MpqWriter writer(archivePath);
+		EXPECT_TRUE(writer.HasFile("recordA"))
+		    << "an abandoned transaction destroyed the record it was replacing";
+	}
+
+	RemoveFile(archivePath.c_str());
+	StopFailingWrites();
+}
+
 TEST(Writehero, pfile_write_hero)
 {
 	const std::string savePath = paths::BasePath() + "multi_0.sv";
@@ -638,10 +724,21 @@ TEST(Writehero, pfile_write_hero)
 	//      A hash cannot tell those two apart, which is why Writehero.HeroSurvivesAWriteAndReadsBack
 	//      exists above: it writes a hero TWICE and reads it back, so "the archive is still
 	//      readable and the second write replaced the first" is asserted rather than assumed.
+	// 1.9.57: another ARCHIVE LAYOUT change, not a format one - same records, same decoded bytes,
+	//      different offsets. A character's four records (hero, hotkeys, items, inventory tabs) are
+	//      now written as one TRANSACTION: each is staged under its own temporary name and none is
+	//      swapped in until every one has landed, so they arrive together or not at all. Staging
+	//      several records at once allocates blocks in a different order, which is what moves these
+	//      bytes.
+	//
+	//      The reason it was needed: injecting a write failure showed the previous behaviour could
+	//      leave a hero at the NEW level whose item record had not been written - a save that
+	//      loads, looks entirely normal, and has the wrong things in it. Per-record atomicity does
+	//      not cover that; only a transaction does.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "6f11f99a459a70bfd9159590578d576ed27daefe05098059a43422c258d27d6b");
+	    "c4e48fc4411f2bb3c76640a1f0a96c170f9732c6b809832a7ae82fc93bfba0de");
 }
 
 } // namespace
