@@ -256,8 +256,29 @@ void ApplySetBonusesToTotals(const Player &player, ItemBonusTotals &totals)
 bool IsSetPieceWorn(const Player &player, const SetItemDefinition &piece)
 {
 	for (const Item &equipped : player.InvBody) {
-		if (!equipped.isEmpty() && equipped._iCurs == piece.cursor)
-			return true;
+		if (equipped.isEmpty() || equipped._iCurs != piece.cursor)
+			continue;
+		// WORN is not the same as WORKING. Audit finding, 2026-08-26: this asked only whether a
+		// piece with the right cursor was in a body slot, so a BROKEN set piece - zero durability,
+		// _iOracoolBroken, contributing none of its own stats - still advanced the cumulative set
+		// ladder, still fired the completion sound and still claimed the set milestone.
+		//
+		// A player could therefore be paid the full set bonus for a set they were not actually
+		// wearing, which is the opposite of what breaking an item is supposed to cost. _iStatFlag
+		// is the same test the item's own stats already answer to, so the piece and the set it
+		// belongs to now agree about whether it counts.
+		//
+		// _iOracoolBroken and NOT _iStatFlag, deliberately, though the audit suggested the latter.
+		// _iStatFlag is not a stored fact - it is COMPUTED during CalcPlrItemVals, and its first
+		// assignment there (items.cpp) is literally `_iStatFlag = !_iOracoolBroken` before the
+		// requirement checks refine it. Reading it from here would make set bonuses depend on
+		// whether that pass had reached this item yet, which is an ordering hazard that fails in
+		// the direction of silently losing bonuses - worse than the bug being fixed. The broken
+		// flag is set once, at the moment of breaking, and is the same signal _iStatFlag derives
+		// from.
+		if (equipped._iOracoolBroken)
+			continue;
+		return true;
 	}
 	return false;
 }

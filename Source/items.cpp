@@ -4066,6 +4066,60 @@ Point GetSuperItemLoc(Point position)
 
 void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 {
+	// CRITICAL (audit, 2026-08-26): every per-roll bonus is cleared before the base is written.
+	//
+	// This is the only reset an item gets on its way through SetupAllItems, and it used to reset
+	// the BASE fields alone - type, damage, armour, durability - while leaving every _iPL* bonus
+	// exactly where the last roll put it. SaveItemPower applies almost all of them with +=.
+	//
+	// A fresh drop was safe, because a drop rolls into a brand new Item. But Reforge, Reroll,
+	// Enrich, Awaken and Ennoble all reroll the SAME object, so each one added its new affixes on
+	// top of every affix the item had ever had. The tooltip lists only the current roll, so the
+	// character silently carried the sum of all of them - a rare rerolled twenty times is wearing
+	// twenty rares. Unbounded, invisible, and it survived into the save.
+	//
+	// Cleared HERE rather than in each recipe: there are five of them today and the sixth would
+	// have been written without this line. The one function every path already funnels through is
+	// the only place that cannot be forgotten.
+	item._iPLToHit = 0;
+	item._iPLDam = 0;
+	item._iPLAC = 0;
+	item._iPLStr = 0;
+	item._iPLMag = 0;
+	item._iPLDex = 0;
+	item._iPLVit = 0;
+	item._iPLFR = 0;
+	item._iPLLR = 0;
+	item._iPLMR = 0;
+	item._iPLMana = 0;
+	item._iPLHP = 0;
+	item._iPLDamMod = 0;
+	item._iPLGetHit = 0;
+	item._iPLLight = 0;
+	item._iPLEnAc = 0;
+	item._iPLMagicFind = 0;
+	item._iPLGoldFind = 0;
+	// The rest of what a roll writes, and each one is a real bug of its own if left behind: fire
+	// and lightning damage ranges, charges, spell level, value multipliers, the special-effect
+	// flag words, and the two Oracool flags. _iOracoolEthereal and _iOracoolBroken in particular
+	// outlived the stats they modified - a rerolled item stayed "ethereal" and "broken" while its
+	// durability had just been reset to the base, which is an item that cannot be repaired and has
+	// no stats.
+	item._iFMinDam = 0;
+	item._iFMaxDam = 0;
+	item._iLMinDam = 0;
+	item._iLMaxDam = 0;
+	item._iSplLvlAdd = 0;
+	item._iCharges = 0;
+	item._iMaxCharges = 0;
+	item._iVAdd1 = 0;
+	item._iVAdd2 = 0;
+	item._iVMult1 = 0;
+	item._iVMult2 = 0;
+	item._iDamAcFlags = ItemSpecialEffectHf::None;
+	item._iOracoolEthereal = false;
+	item._iOracoolBroken = false;
+
 	auto &baseItemData = AllItemsList[static_cast<size_t>(itemData)];
 	item._itype = baseItemData.itype;
 	item._iCurs = baseItemData.iCurs;

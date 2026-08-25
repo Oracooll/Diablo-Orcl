@@ -484,6 +484,13 @@ int FindGridSetPieceTarget(const Item *grid)
 	for (int i = 0; i < GridSlots; i++) {
 		if (grid[i].isEmpty() || !IsSetItem(grid[i]))
 			continue;
+		// Recast rebuilds the piece through InitializeItem, which zeroes the entire item - every
+		// socketed gem, rune and jewel with it. Audit finding, 2026-08-26: this selector was the
+		// one reroll target with no socket check, so Recast silently destroyed the stones. Every
+		// other reroll selector refuses a socketed item for precisely this reason, and
+		// IsTierRecipeGear records why.
+		if (grid[i].socketedCount() > 0)
+			continue;
 		const SetItemDefinition *piece = FindSetItemByCursor(grid[i]._iCurs);
 		if (piece == nullptr)
 			continue;
@@ -530,7 +537,21 @@ bool IsTierRecipeGear(const Item &item)
 	// A socketed item is excluded from every reroll and every tier bump, for the reason Reforge
 	// already records: its stats would come back without the stones inside it, and a completed
 	// runeword's name comes from the word rather than from a seed. Empty it first.
-	return item.socketedCount() == 0;
+	if (item.socketedCount() > 0)
+		return false;
+
+	// An ORBED item is excluded for the same shape of reason, discovered by the 2026-08-26 audit.
+	//
+	// Mystic Orbs write into the same _iPL* fields the affix roller does, and the item records only
+	// HOW MANY orbs it has taken, not which - so a reroll cannot put them back. Before the roller
+	// was taught to clear those fields, rerolling an orbed item DUPLICATED the orb bonuses on top
+	// of the new roll, which was the exploit half of that bug; afterwards it would silently delete
+	// investment the player has paid a capped, permanent resource for.
+	//
+	// Neither is acceptable, and a ledger of applied orbs is a save-format change. Refusing the
+	// item is the honest third answer: the orbs stay, and the recipe says no rather than quietly
+	// taking something away.
+	return item._iOracoolOrbCount == 0;
 }
 
 /** @brief The first grid item matching @p wanted, by the tier a recipe operates on. */
@@ -566,6 +587,18 @@ int FindGridUniqueItem(const Item *grid)
 {
 	for (int i = 0; i < GridSlots; i++) {
 		if (!IsTierRecipeGear(grid[i]))
+			continue;
+		// A NAMED SET PIECE is not a unique, whatever its quality byte says. Audit finding,
+		// 2026-08-26: MakeSetItem marks its pieces ITEM_QUALITY_UNIQUE - reasonably, since they are
+		// named objects with fixed powers - so this test accepted them, and Awaken and Reroll
+		// Uniques would consume a set piece and hand back an ordinary primal or vanilla unique.
+		// The set piece, its powers and its place in a set the player was assembling, gone, in
+		// exchange for something the recipe rolled.
+		//
+		// Tested by tier and by IsSetItem rather than by either alone: the tier is what the item
+		// carries and the cursor lookup is what MakeSetItem actually keys on, and a piece that has
+		// lost one of them is exactly the case worth refusing.
+		if (grid[i]._iOracoolTier == OracoolItemTier::Set || IsSetItem(grid[i]))
 			continue;
 		if (grid[i]._iMagical == ITEM_QUALITY_UNIQUE || grid[i]._iOracoolTier == OracoolItemTier::BuffedUnique)
 			return i;
@@ -1012,6 +1045,17 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// the removal of the only price ethereal charges, which is why this is the most
 			// expensive recipe in the game.
 			target._iDurability = target._iMaxDur;
+			// And it is no longer BROKEN, which is the whole point and was missing (audit,
+			// 2026-08-26). Breaking sets durability to zero AND raises _iOracoolBroken, and the
+			// flag is what makes an item statless and unusable - so Mend restored the number,
+			// left the flag, and handed back an item that was still dead. The most expensive
+			// recipe in the game did nothing observable, and there was no other way out: the smith
+			// and the Repair skill both refuse ethereals, which is why Mend exists at all.
+			target._iOracoolBroken = false;
+			// The character's totals still carry the item as contributing nothing until something
+			// recalculates them. Doing it here rather than trusting the caller, for the same reason
+			// the aura functions were given that responsibility.
+			CalcPlrInv(*MyPlayer, false);
 			what = std::string(target.getName());
 			break;
 		default:

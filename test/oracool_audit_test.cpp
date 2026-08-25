@@ -2789,6 +2789,66 @@ TEST(OracoolRunewords, CompletionRenamesAndRunesTeach)
 }
 
 // Phase 1 ethereal: the bargain is stamped at roll time and the refusals hold.
+// ---------------------------------------------------------------------------------------------
+// Audit finding, 2026-08-26 (critical). Every in-place item transformation - Reforge, Reroll,
+// Enrich, Awaken, Ennoble - rerolls the SAME Item object. GetItemAttrs resets the base fields but
+// never touches the _iPL* bonus fields, and SaveItemPower applies almost every bonus with +=. So
+// each reroll stacked its predecessor's bonuses invisibly: the tooltip lists only the current
+// affixes while the character carries the sum of every roll the item has ever had.
+//
+// Rerolled here rather than asserted against a fixture, because a fixture cannot show accumulation.
+// ---------------------------------------------------------------------------------------------
+TEST(OracoolCrafting, RerollingAnItemDoesNotAccumulateGhostBonuses)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+
+	// A real base item, found rather than named: the first ordinary sword in the table. Picking it
+	// by property rather than by an IDI_ constant keeps the test working when the table moves.
+	_item_indexes swordIdx = IDI_NONE;
+	for (std::underlying_type_t<_item_indexes> i = 0; i <= IDI_LAST; i++) {
+		const ItemData &row = AllItemsList[i];
+		if (row.itype == ItemType::Sword && row.iClass == ICLASS_WEAPON && row.iMinDam > 0) {
+			swordIdx = static_cast<_item_indexes>(i);
+			break;
+		}
+	}
+	ASSERT_NE(swordIdx, IDI_NONE) << "no ordinary sword in the item table";
+
+	// Tested at GetItemAttrs rather than through Reforge itself, and that is not a compromise -
+	// it is the exact seam. Every one of those recipes rerolls in place through SetupAllItems,
+	// whose ONLY reset of the item is this call; SaveItemPower then applies each new affix with
+	// +=. So "does GetItemAttrs leave a previous life's bonuses behind" IS the bug, stated
+	// directly. (Driving Reforge end-to-end needs live dungeon state and faults in the harness.)
+	devilution::Item blade {};
+
+	// A previous life: the bonuses an earlier roll would have left on the object.
+	blade._iPLDam = 150;
+	blade._iPLToHit = 150;
+	blade._iPLStr = 40;
+	blade._iPLVit = 40;
+	blade._iPLLight = 8;
+	blade._iPLFR = 60;
+	blade._iPLMana = 500;
+	blade._iPLHP = 500;
+	blade._iFlags = ItemSpecialEffect::FastHitRecovery;
+
+	GetItemAttrs(blade, swordIdx, 30);
+
+	EXPECT_EQ(blade._iPLDam, 0) << "a reroll keeps the previous roll's damage bonus";
+	EXPECT_EQ(blade._iPLToHit, 0) << "a reroll keeps the previous roll's to-hit";
+	EXPECT_EQ(blade._iPLStr, 0) << "a reroll keeps the previous roll's strength";
+	EXPECT_EQ(blade._iPLVit, 0) << "a reroll keeps the previous roll's vitality";
+	EXPECT_EQ(blade._iPLLight, 0) << "a reroll keeps the previous roll's light radius";
+	EXPECT_EQ(blade._iPLFR, 0) << "a reroll keeps the previous roll's fire resistance";
+	EXPECT_EQ(blade._iPLMana, 0) << "a reroll keeps the previous roll's mana";
+	EXPECT_EQ(blade._iPLHP, 0) << "a reroll keeps the previous roll's life";
+}
+
 TEST(OracoolEthereal, RepairDeclinesEtherealItems)
 {
 	devilution::Item ghost {};
