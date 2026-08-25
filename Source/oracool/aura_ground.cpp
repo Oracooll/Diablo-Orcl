@@ -1,0 +1,332 @@
+#include "oracool/aura_ground.h"
+
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <vector>
+
+#include <SDL.h>
+
+#include "engine.h"
+#include "engine/palette.h"
+#include "oracool/aura_field.h"
+#include "oracool/class_tree.h"
+#include "player.h"
+#include "utils/log.hpp"
+#include "utils/png.h"
+
+namespace devilution::oracool {
+
+namespace {
+
+using Skill = ClassTreeSkill;
+
+/** @brief The art is drawn at the maximum aura radius, so scaling only ever shrinks. */
+constexpr int ArtRadiusTiles = 8;
+constexpr int ArtWidth = 512;
+constexpr int ArtHeight = 256;
+
+/**
+ * @brief One aura's art, quantised once and kept.
+ *
+ * `index` is the palette entry per pixel and `alpha` the source coverage. They are kept SEPARATE
+ * rather than folded into one pre-blended image because the blend depends on what is underneath -
+ * a different floor tile every time - so it can only happen at draw.
+ */
+struct AuraArt {
+	std::vector<uint8_t> index;
+	std::vector<uint8_t> alpha;
+	bool loadAttempted = false;
+	bool usable = false;
+};
+
+/** @brief File id per aura, matching the delivered pack exactly. */
+struct AuraFile {
+	Skill skill;
+	const char *id;
+};
+
+constexpr std::array<AuraFile, 20> AuraFiles { {
+    // Offensive
+    { Skill::Might, "might" },
+    { Skill::HolyFire, "holy_fire" },
+    { Skill::Thorns, "thorns" },
+    { Skill::BlessedAim, "blessed_aim" },
+    { Skill::Concentration, "concentration" },
+    { Skill::HolyFreeze, "holy_freeze" },
+    { Skill::HolyShock, "holy_shock" },
+    { Skill::Sanctuary, "sanctuary" },
+    { Skill::Fanaticism, "fanaticism" },
+    { Skill::Conviction, "conviction" },
+    // Defensive
+    { Skill::Prayer, "prayer" },
+    { Skill::ResistFire, "resist_fire" },
+    { Skill::Defiance, "defiance" },
+    { Skill::ResistCold, "resist_cold" },
+    { Skill::Cleansing, "cleansing" },
+    { Skill::ResistLightning, "resist_lightning" },
+    { Skill::Vigor, "vigor" },
+    { Skill::Meditation, "meditation" },
+    { Skill::Redemption, "redemption" },
+    { Skill::Salvation, "salvation" },
+} };
+
+std::array<AuraArt, AuraFiles.size()> Art;
+
+/**
+ * @brief The palette snapshot the art was quantised against.
+ *
+ * Only entries 128-255 matter: the lower half is redefined per level type and colour-cycled, which
+ * is precisely why the brief confined the art to the upper half. If those 128 ever change the
+ * quantisation is stale and everything is dropped and redone.
+ */
+std::array<SDL_Color, 128> QuantisedAgainst {};
+bool HaveQuantised = false;
+
+int IndexOfSkill(Skill skill)
+{
+	for (size_t i = 0; i < AuraFiles.size(); i++) {
+		if (AuraFiles[i].skill == skill)
+			return static_cast<int>(i);
+	}
+	return -1;
+}
+
+uint8_t NearestSharedPaletteIndex(uint8_t r, uint8_t g, uint8_t b, std::vector<uint8_t> &cache)
+{
+	const uint16_t key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+	if (cache[key] != 0)
+		return cache[key];
+	int best = 128;
+	int bestDist = INT32_MAX;
+	for (int i = 128; i < 256; i++) {
+		const SDL_Color &c = orig_palette[i];
+		const int dr = static_cast<int>(c.r) - r;
+		const int dg = static_cast<int>(c.g) - g;
+		const int db = static_cast<int>(c.b) - b;
+		const int dist = 2 * dr * dr + 4 * dg * dg + 3 * db * db;
+		if (dist < bestDist) {
+			bestDist = dist;
+			best = i;
+		}
+	}
+	cache[key] = static_cast<uint8_t>(best);
+	return cache[key];
+}
+
+void LoadAura(int slot)
+{
+	AuraArt &art = Art[slot];
+	art.loadAttempted = true;
+
+	char path[64];
+	std::snprintf(path, sizeof(path), "ui\\aura_%s.png", AuraFiles[slot].id);
+
+	// LoadPNG, NOT IMG_LoadPNG. The first goes through OpenAssetAsSdlRwOps and so finds the file
+	// inside oracool.mpq; the second reads the filesystem directly and would only ever see a loose
+	// copy sitting beside the executable. Both compile, and the difference does not show until the
+	// art is packed - which is when it matters.
+	SDL_Surface *png = LoadPNG(path);
+	if (png == nullptr) {
+		// Not an error worth shouting about: the pack is droppable art, and an aura with no image
+		// simply has no ring. Everything else about it still works.
+		LogVerbose("Oracool aura art: {:s} not found - that aura burns without a ring", path);
+		return;
+	}
+	SDL_Surface *rgba = SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_ABGR8888, 0);
+	SDL_FreeSurface(png);
+	if (rgba == nullptr) {
+		LogWarn("Oracool aura art: conversion failed for {:s}: {:s}", path, SDL_GetError());
+		return;
+	}
+	if (rgba->w != ArtWidth || rgba->h != ArtHeight) {
+		// Refused rather than scaled to fit. Every placement number here is derived from 512x256
+		// being exactly the eight-tile radius; art of another size would land somewhere plausible
+		// and wrong, which is the failure that survives a green build.
+		LogWarn("Oracool aura art: {:s} is {}x{}, expected {}x{} - ignored",
+		    path, rgba->w, rgba->h, ArtWidth, ArtHeight);
+		SDL_FreeSurface(rgba);
+		return;
+	}
+
+	art.index.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
+	art.alpha.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
+	std::vector<uint8_t> cache(1 << 15, 0);
+	const auto *pixels = static_cast<const uint8_t *>(rgba->pixels);
+	for (int y = 0; y < ArtHeight; y++) {
+		const uint8_t *row = pixels + static_cast<size_t>(y) * rgba->pitch;
+		for (int x = 0; x < ArtWidth; x++) {
+			const uint8_t a = row[x * 4 + 3];
+			const size_t at = static_cast<size_t>(y) * ArtWidth + x;
+			if (a == 0)
+				continue;
+			art.index[at] = NearestSharedPaletteIndex(row[x * 4 + 0], row[x * 4 + 1], row[x * 4 + 2], cache);
+			art.alpha[at] = a;
+		}
+	}
+	SDL_FreeSurface(rgba);
+	art.usable = true;
+}
+
+void DropQuantisationIfPaletteMoved()
+{
+	if (HaveQuantised && std::memcmp(QuantisedAgainst.data(), &orig_palette[128], sizeof(QuantisedAgainst)) == 0)
+		return;
+	for (AuraArt &art : Art) {
+		art.index.clear();
+		art.alpha.clear();
+		art.loadAttempted = false;
+		art.usable = false;
+	}
+	std::memcpy(QuantisedAgainst.data(), &orig_palette[128], sizeof(QuantisedAgainst));
+	HaveQuantised = true;
+}
+
+/**
+ * @brief 4x4 ordered dither, values 0-15.
+ *
+ * The engine's only blend is a fixed 50%, so the levels reachable per pixel are none, 50% and 75%.
+ * This is what fills the gaps between them: at a coverage of, say, 30% the matrix lets roughly
+ * three pixels in ten take the 50% blend and leaves the rest alone, which at the size these are
+ * seen reads as 30%.
+ */
+constexpr std::array<uint8_t, 16> DitherMatrix { {
+    0, 8, 2, 10,
+    12, 4, 14, 6,
+    3, 11, 1, 9,
+    15, 7, 13, 5 } };
+
+/** @brief A slow brightness pulse, so a lit aura reads as burning rather than painted on. */
+int PulsePercent()
+{
+	// About a four-second cycle, +/-12%. Deliberately gentle: this sits under the player for as long
+	// as the aura is on, and anything faster becomes something to notice rather than something to
+	// stand in.
+	const uint32_t phase = SDL_GetTicks() % 4000U;
+	const double t = static_cast<double>(phase) / 4000.0 * 2.0 * 3.14159265358979;
+	return 100 + static_cast<int>(12.0 * std::sin(t));
+}
+
+/**
+ * @brief Blits the aura, scaled to @p radiusTiles, centred on @p centre.
+ *
+ * Nearest-neighbour sampled: the source is a soft gradient with no hard edges to alias, and the
+ * shrink is never more than half, so a filtered sample would cost more than it showed.
+ */
+void BlitAura(const Surface &out, const AuraArt &art, Point centre, int radiusTiles, int pulsePercent)
+{
+	const int dstW = ArtWidth * radiusTiles / ArtRadiusTiles;
+	const int dstH = ArtHeight * radiusTiles / ArtRadiusTiles;
+	if (dstW <= 0 || dstH <= 0)
+		return;
+
+	const int left = centre.x - dstW / 2;
+	const int top = centre.y - dstH / 2;
+
+	for (int dy = 0; dy < dstH; dy++) {
+		const int y = top + dy;
+		if (y < 0 || y >= out.h())
+			continue;
+		const int sy = dy * ArtHeight / dstH;
+		uint8_t *dstRow = out.at(0, y);
+		for (int dx = 0; dx < dstW; dx++) {
+			const int x = left + dx;
+			if (x < 0 || x >= out.w())
+				continue;
+			const int sx = dx * ArtWidth / dstW;
+			const size_t at = static_cast<size_t>(sy) * ArtWidth + sx;
+			const uint8_t a = art.alpha[at];
+			if (a == 0)
+				continue;
+
+			// Coverage in sixteenths of the 75% ceiling two blends can reach. The art peaks at 166
+			// of 255 (65%, the brief's cap), so in practice this lands between one and two blends.
+			int coverage = a * pulsePercent / 100;
+			if (coverage > 255)
+				coverage = 255;
+			const int level = coverage * 32 / 255; // 0..32, where 16 == one blend, 32 == two
+			const uint8_t threshold = DitherMatrix[(y & 3) * 4 + (x & 3)];
+
+			int blends = level / 16;
+			if (static_cast<int>(threshold) < (level % 16))
+				blends++;
+			if (blends <= 0)
+				continue;
+
+			uint8_t &dst = dstRow[x];
+			const uint8_t src = art.index[at];
+			dst = paletteTransparencyLookup[dst][src];
+			if (blends > 1)
+				dst = paletteTransparencyLookup[dst][src];
+		}
+	}
+}
+
+} // namespace
+
+void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPosition,
+    int rows, int columns)
+{
+	if (MyPlayer == nullptr || !MyPlayer->isOnActiveLevel())
+		return;
+	const Player &player = *MyPlayer;
+
+	const Skill aura = GetActiveClassAura(player);
+	if (aura == Skill::None)
+		return;
+	if (!IsClassTreeSkillUnlocked(player, aura))
+		return;
+	const int points = ClassTreeInvestment(player, aura);
+	const int radius = AuraRadiusForPoints(points);
+	if (radius <= 0)
+		return;
+
+	const int slot = IndexOfSkill(aura);
+	if (slot < 0)
+		return;
+
+	DropQuantisationIfPaletteMoved();
+	if (!Art[slot].loadAttempted)
+		LoadAura(slot);
+	if (!Art[slot].usable)
+		return;
+
+	// DrawFloor's walk, repeated exactly - see this file's header for why it is repeated rather
+	// than solved. The moment it arrives at the player's tile it knows where on screen that tile
+	// is, which is the one thing this needs.
+	const Point playerTile = player.position.tile;
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < columns; j++) {
+			if (tilePosition == playerTile) {
+				// Bottom-centre of the tile diamond, then the same walking offset the player sprite
+				// carries - without it the ring would jump a whole tile at a time while the player
+				// slid smoothly between them.
+				Point centre = targetBufferPosition + Displacement { TILE_WIDTH / 2, TILE_HEIGHT / 2 };
+				if (player.isWalking()) {
+					const Displacement walk = GetOffsetForWalking(player.AnimInfo, player._pdir);
+					centre += walk;
+				}
+				BlitAura(out, Art[slot], centre, radius, PulsePercent());
+				return;
+			}
+			tilePosition += Direction::East;
+			targetBufferPosition.x += TILE_WIDTH;
+		}
+		tilePosition += Displacement(Direction::West) * columns;
+		targetBufferPosition.x -= columns * TILE_WIDTH;
+		targetBufferPosition.y += TILE_HEIGHT / 2;
+		if ((i & 1) != 0) {
+			tilePosition.x++;
+			columns--;
+			targetBufferPosition.x += TILE_WIDTH / 2;
+		} else {
+			tilePosition.y++;
+			columns++;
+			targetBufferPosition.x -= TILE_WIDTH / 2;
+		}
+	}
+}
+
+} // namespace devilution::oracool

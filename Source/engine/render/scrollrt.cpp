@@ -36,6 +36,7 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/aura_ground.h"
 #include "oracool/skill_picker.h"
 #include "oracool/cursor_tooltip.h"
 #include "oracool/event_log.h"
@@ -1324,6 +1325,11 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 #endif
 
 	DrawFloor(out, position, Point {} + offset, rows, columns);
+	// Between the two passes, and only here: a lit aura's ring lies ON the floor, so every wall,
+	// monster and player must draw over it. See oracool/aura_ground.h - it takes these same four
+	// arguments and repeats DrawFloor's walk rather than deriving the player's screen position
+	// separately, so the two cannot disagree about where a tile is.
+	oracool::DrawAuraGround(out, position, Point {} + offset, rows, columns);
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
 
 	if (zoomFactor > 1.0f) {
