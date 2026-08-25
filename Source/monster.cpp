@@ -1166,6 +1166,9 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		TrySpawnOracoolGem(monster, sendmsg);
 		// D2MXL Phase 2b: the signet, which declines outright on an ordinary kill - same placement,
 		// same reason.
+		// Phase 4: the Sealed Map, which is the ONLY way into a named encounter. Same
+		// placement and the same stream-safety reason as every family above it.
+		oracool::TrySpawnSealedMap(monster, sendmsg);
 		TrySpawnSignet(monster, sendmsg);
 	}
 }

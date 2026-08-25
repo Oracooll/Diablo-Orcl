@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "multi.h"
+#include "oracool/named_encounters.h"
 #include "quests.h"
 #include "utils/language.h"
 
@@ -66,7 +67,13 @@ int CurrentAreaLevel()
 			floor = Quests[Q_BETRAYER]._qlevel;
 			break;
 		default:
-			floor = 1;
+			// A named encounter's arena has no quest to take its depth from, so it carries its own
+			// (oracool/named_encounters.cpp). Audit finding, 2026-08-26: all three fell through to
+			// the `1` below, which is the correct answer for an UNKNOWN place and the wrong one for
+			// an endgame fight - a Dread boss guarding a guaranteed unique charm was paying floor-1
+			// loot and the HUD was reporting floor-1 depth.
+			if (!NamedEncounterFloorForSetLevel(setlvlnum, floor))
+				floor = 1;
 			break;
 		}
 	}

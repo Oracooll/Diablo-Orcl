@@ -5,6 +5,7 @@
 #include "levels/gendung.h"
 #include "monster.h"
 #include "multi.h"
+#include "engine/random.hpp"
 #include "oracool/endgame_boss.h"
 #include "oracool/event_log.h"
 #include "oracool/oracool.h"
@@ -42,13 +43,27 @@ struct EncounterPlace {
 	_setlevels level;
 	dungeon_type dungeon;
 	_monster_id monster;
+	/**
+	 * @brief The dungeon floor this arena counts as, for the area-level ladder.
+	 *
+	 * Audit finding, 2026-08-26. CurrentAreaLevel switches on setlvlnum and these three were not in
+	 * it, so all of them fell through to its `floor = 1` default - the deliberate "an unknown place
+	 * should be the LEAST rewarding thing on the ladder" case. Which is the right default and the
+	 * wrong answer here: an endgame encounter guarded by a Dread boss was paying floor-1 loot and
+	 * showing floor-1 depth on the HUD.
+	 *
+	 * Chosen to sit at the end of each arena's own tileset - Cathedral 1-4, Catacombs 5-8, Hell
+	 * 13-16 - so the room's art and its difficulty agree, and the three climb the way the header
+	 * says they do.
+	 */
+	int floor;
 	const char *name;
 };
 
 constexpr EncounterPlace Places[] = {
-	{ SL_ARENA_CHURCH, DTYPE_CATHEDRAL, MT_WSKELAX, "The Sunken Chapel" },
-	{ SL_ARENA_CIRCLE_OF_LIFE, DTYPE_CATACOMBS, MT_NGOATMC, "The Ring of Mourning" },
-	{ SL_ARENA_HELL, DTYPE_HELL, MT_HORNED, "The Ember Vault" },
+	{ SL_ARENA_CHURCH, DTYPE_CATHEDRAL, MT_WSKELAX, 4, "The Sunken Chapel" },
+	{ SL_ARENA_CIRCLE_OF_LIFE, DTYPE_CATACOMBS, MT_NGOATMC, 8, "The Ring of Mourning" },
+	{ SL_ARENA_HELL, DTYPE_HELL, MT_HORNED, 16, "The Ember Vault" },
 };
 
 static_assert(sizeof(Places) / sizeof(Places[0]) == static_cast<size_t>(NamedEncounterCount),
@@ -59,6 +74,27 @@ static_assert(sizeof(Items_) / sizeof(Items_[0]) == static_cast<size_t>(NamedEnc
 size_t IndexOf(NamedEncounter encounter)
 {
 	return static_cast<size_t>(encounter);
+}
+
+/**
+ * @brief Frees one ground-item slot by discarding the least valuable thing lying about.
+ *
+ * Only ever called when the floor is at MAXITEMS and a guaranteed reward has nowhere to land.
+ * Ordinary quality only: a unique, a set piece or another quest item on the ground is somebody
+ * else's promise and must not be dropped to keep this one.
+ */
+void MakeRoomForGuaranteedReward()
+{
+	for (int i = ActiveItemCount - 1; i >= 0; i--) {
+		const int ii = ActiveItems[i];
+		const Item &candidate = Items[ii];
+		if (candidate._iMagical != ITEM_QUALITY_NORMAL)
+			continue;
+		if (candidate._iCreateInfo == 0 && candidate._iIdentified)
+			continue; // quest-placed items carry no create info; leave them alone
+		DeleteItem(i);
+		return;
+	}
 }
 
 } // namespace
@@ -83,6 +119,17 @@ _monster_id NamedEncounterMonster(NamedEncounter encounter)
 	return Places[IndexOf(encounter)].monster;
 }
 
+bool NamedEncounterFloorForSetLevel(_setlevels level, int &floor)
+{
+	for (const EncounterPlace &place : Places) {
+		if (place.level == level) {
+			floor = place.floor;
+			return true;
+		}
+	}
+	return false;
+}
+
 int NamedEncounterMapItem(NamedEncounter encounter)
 {
 	return Items_[IndexOf(encounter)].map;
@@ -102,6 +149,40 @@ bool EncounterForMapItem(int mapIdx, NamedEncounter &out)
 		}
 	}
 	return false;
+}
+
+void TrySpawnSealedMap(const Monster &monster, bool sendmsg)
+{
+	// Single-player only, like every other Oracool drop family: the compact multiplayer item pack
+	// cannot recreate an item that is not in the seeded pool, and a Sealed Map deliberately is not.
+	if (!IsSinglePlayer())
+		return;
+	if (!IsEndgameBoss(monster))
+		return;
+	// A map dropped inside an encounter would let a player chain arenas without passing through
+	// town, which EnterNamedEncounter already refuses for its own reasons. Refused at the source
+	// too, so the two cannot disagree.
+	if (setlevel)
+		return;
+	if (ActiveItemCount >= MAXITEMS)
+		return;
+
+	// A quarter of Dread bosses. They are guaranteed from the middle of the area ladder onward
+	// (BossGuaranteedAreaLevel), so roughly one a floor at depth - a certain drop would bury the
+	// player in maps and make the encounters routine rather than a destination. The map is the
+	// pacing mechanism this feature has instead of a cooldown, which is exactly why the rate is a
+	// design number and not an afterthought.
+	constexpr int MapDropPercent = 25;
+	if (GenerateRnd(100) >= MapDropPercent)
+		return;
+
+	// Uniform across the three rather than chosen by depth. Depth-gating reads well until you
+	// notice it makes the Sunken Chapel's charm unobtainable the moment a character out-levels the
+	// shallow floors - and all three charms are meant to be gettable, because the three-charm cap
+	// is supposed to be a decision.
+	const auto encounter = static_cast<NamedEncounter>(GenerateRnd(NamedEncounterCount));
+	SpawnQuestItem(static_cast<_item_indexes>(NamedEncounterMapItem(encounter)),
+	    monster.position.tile, /*randarea=*/0, /*selflag=*/0, sendmsg);
 }
 
 bool CurrentNamedEncounter(NamedEncounter &out)
@@ -128,10 +209,24 @@ bool EnterNamedEncounter(Player &player, NamedEncounter encounter)
 	if (!player.isOnLevel(0))
 		return false;
 
+	// A named encounter is always a FRESH instance. Audit finding, 2026-08-26: leaving an arena
+	// runs SaveLevel, which sets _pSLvlVisited[setlvlnum], and LoadGameLevel then takes its
+	// LoadLevel() branch on re-entry instead of generating - so the second Sealed Map opened a room
+	// containing the corpse of the boss you already killed, and was consumed for it.
+	//
+	// Clearing the visited flag is the whole fix: that branch is the only thing that distinguishes
+	// "return to a level you have been to" from "generate one". Ordinary dungeon floors want the
+	// remembering; an arena is a one-use room and wants the opposite.
+	//
+	// The stale saved level stays in the archive and is simply never read. Deleting it would mean
+	// reaching into the save writer from here for no benefit.
+	const _setlevels level = NamedEncounterLevel(encounter);
+	player._pSLvlVisited[level] = false;
+
 	// BEFORE StartNewLvl, not after. The /arena command does the same and that is the tell: the
 	// level loads its tileset from this, so setting it afterwards draws the room in the wrong art.
 	setlvltype = NamedEncounterDungeon(encounter);
-	StartNewLvl(player, WM_DIABSETLVL, NamedEncounterLevel(encounter));
+	StartNewLvl(player, WM_DIABSETLVL, level);
 	return true;
 }
 
@@ -152,8 +247,21 @@ void AwardNamedEncounter(const Monster &monster)
 		return;
 	if (!IsEndgameBoss(monster))
 		return;
+
+	// "Guaranteed" has to survive a full floor. Audit finding, 2026-08-26: this used to return
+	// silently at the item cap, and the boss's ORDINARY loot is spawned first - so the one drop the
+	// map promised was the one drop that could be crowded out by junk.
+	//
+	// Room is made rather than the reward abandoned. An arena holds one boss and its escort, so
+	// reaching 127 ground items here is close to impossible; that is precisely why it must not be
+	// the case that quietly loses the payout.
 	if (ActiveItemCount >= MAXITEMS)
+		MakeRoomForGuaranteedReward();
+	if (ActiveItemCount >= MAXITEMS) {
+		LogEvent(std::string(_("The ground is too littered for the reward to fall - clear some space.")),
+		    UiFlags::ColorRed);
 		return;
+	}
 
 	// GUARANTEED, which is the whole point of a named encounter - the map said what it pays and a
 	// roll here would make that a lie. The map is already spent by the time this runs.

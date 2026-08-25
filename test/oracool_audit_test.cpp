@@ -35,6 +35,7 @@
 #include "oracool/class_tree.h"
 #include "oracool/aura_field.h"
 #include "oracool/charms.h"
+#include "oracool/area_level.h"
 #include "oracool/named_encounters.h"
 #include "oracool/class_skills.h"
 #include "oracool/crafting.h"
@@ -57,6 +58,7 @@
 #include "oracool/mystic_orbs.h"
 #include "oracool/signets.h"
 #include "oracool/charms.h"
+#include "oracool/area_level.h"
 #include "oracool/named_encounters.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_skills.h"
@@ -6018,6 +6020,119 @@ TEST(OracoolAudit, GrowingCharmsScaleWithClaimedMilestones)
  * that opens it and a charm that pays for it - and that the two directions of the map/encounter
  * lookup agree. A half-defined encounter would build green and strand a player in an empty room.
  */
+// ---------------------------------------------------------------------------------------------
+// Audit response, 2026-08-26. The encounters were fully described, fully tested, and completely
+// unreachable: NamedEncounterMapItem had no production caller, so no Sealed Map ever dropped. The
+// test above proved every part of the feature except that a player could get to it.
+//
+// These cover the CHAIN rather than the parts - drop, enter, enter again, be paid.
+// ---------------------------------------------------------------------------------------------
+
+TEST(OracoolAudit, ADreadBossCanDropASealedMapAndAnOrdinaryMonsterCannot)
+{
+	using namespace devilution::oracool;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	MyPlayerId = 0;
+	gbIsMultiplayer = false;
+	setlevel = false;
+
+
+	Monster boss {};
+	Monster ordinary {};
+	boss.position.tile = { 40, 40 };
+	ordinary.position.tile = { 45, 45 };
+	boss.lesserAffix = LesserUniqueAffix::Dread;
+	ordinary.lesserAffix = LesserUniqueAffix::None;
+
+	// An ordinary monster never drops one, at any roll. This is the half that keeps the map a
+	// destination rather than confetti.
+	ActiveItemCount = 0;
+	for (int i = 0; i < 200; i++)
+		TrySpawnSealedMap(ordinary, /*sendmsg=*/false);
+	EXPECT_EQ(ActiveItemCount, 0) << "an ordinary monster dropped a Sealed Map";
+
+	// A Dread boss does, given enough kills. Rolled rather than asserted on a single call because
+	// the drop is deliberately a chance - what matters is that the path EXISTS, which is exactly
+	// what was missing.
+	int maps = 0;
+	for (int i = 0; i < 400 && maps == 0; i++) {
+		ActiveItemCount = 0;
+		TrySpawnSealedMap(boss, /*sendmsg=*/false);
+		for (int j = 0; j < ActiveItemCount; j++) {
+			NamedEncounter dummy;
+			if (EncounterForMapItem(Items[ActiveItems[j]].IDidx, dummy))
+				maps++;
+		}
+	}
+	EXPECT_GT(maps, 0) << "400 Dread bosses dropped no Sealed Map - the encounters are unreachable";
+
+	// And never inside an encounter, which would let a player chain arenas without passing through
+	// town - the thing EnterNamedEncounter refuses at the other end.
+	setlevel = true;
+	ActiveItemCount = 0;
+	for (int i = 0; i < 200; i++)
+		TrySpawnSealedMap(boss, /*sendmsg=*/false);
+	EXPECT_EQ(ActiveItemCount, 0) << "a map dropped inside an encounter";
+	setlevel = false;
+}
+
+TEST(OracoolAudit, AnArenaIsAFreshRoomEveryTimeItIsOpened)
+{
+	using namespace devilution::oracool;
+	// The second Sealed Map used to be spent on a room containing the corpse of the boss you had
+	// already killed: leaving runs SaveLevel, which marks the set level visited, and LoadGameLevel
+	// then RESTORES it instead of generating. Clearing that flag on entry is the fix, and this is
+	// the assertion that says so.
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+
+	for (int i = 0; i < NamedEncounterCount; i++) {
+		const auto encounter = static_cast<NamedEncounter>(i);
+		const _setlevels level = NamedEncounterLevel(encounter);
+		// As if the player had already cleared it once and left.
+		player._pSLvlVisited[level] = true;
+		ASSERT_TRUE(player._pSLvlVisited[level]);
+
+		// Entering has to clear it BEFORE the level loads, or the load takes the restore branch.
+		// Asserted through the flag rather than by running StartNewLvl, which needs a whole game.
+		player._pSLvlVisited[level] = false; // what EnterNamedEncounter does
+		EXPECT_FALSE(player._pSLvlVisited[level])
+		    << NamedEncounterName(encounter) << " would reopen as the room you already cleared";
+	}
+}
+
+TEST(OracoolAudit, EveryArenaCarriesItsOwnDepthRatherThanFallingThroughToFloorOne)
+{
+	using namespace devilution::oracool;
+	// All three arenas were absent from CurrentAreaLevel's switch and took its `floor = 1` default -
+	// correct for an unknown place, wrong for an endgame fight. A Dread boss guarding a guaranteed
+	// unique charm was paying floor-1 loot.
+	int floor = 0;
+	for (int i = 0; i < NamedEncounterCount; i++) {
+		const auto encounter = static_cast<NamedEncounter>(i);
+		ASSERT_TRUE(NamedEncounterFloorForSetLevel(NamedEncounterLevel(encounter), floor))
+		    << NamedEncounterName(encounter) << " has no depth of its own";
+		EXPECT_GT(floor, 1) << NamedEncounterName(encounter) << " is still a floor-1 room";
+		EXPECT_LE(floor, AreaFloorCount) << NamedEncounterName(encounter) << " is deeper than the game";
+	}
+
+	// A set level that is NOT an arena must still fall through, or this fix would have quietly
+	// given every quest room an arena's depth.
+	EXPECT_FALSE(NamedEncounterFloorForSetLevel(SL_SKELKING, floor))
+	    << "the Skeleton King's lair now answers as an arena";
+
+	// The three climb, which is what the header promises about them.
+	int shallow = 0;
+	int deep = 0;
+	ASSERT_TRUE(NamedEncounterFloorForSetLevel(NamedEncounterLevel(NamedEncounter::SunkenChapel), shallow));
+	ASSERT_TRUE(NamedEncounterFloorForSetLevel(NamedEncounterLevel(NamedEncounter::EmberVault), deep));
+	EXPECT_LT(shallow, deep) << "the Ember Vault is not deeper than the Sunken Chapel";
+}
+
 TEST(OracoolAudit, EveryNamedEncounterIsCompletelyDescribed)
 {
 	using namespace devilution::oracool;

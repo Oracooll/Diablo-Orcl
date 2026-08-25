@@ -75,6 +75,13 @@ dungeon_type NamedEncounterDungeon(NamedEncounter encounter);
 /** @brief The monster type whose sprites the encounter's boss borrows. */
 _monster_id NamedEncounterMonster(NamedEncounter encounter);
 
+/**
+ * @brief The dungeon floor @p level counts as for the area-level ladder, if it is an arena.
+ *
+ * Exists so CurrentAreaLevel stops sending all three encounters to its floor-1 default.
+ */
+bool NamedEncounterFloorForSetLevel(_setlevels level, int &floor);
+
 /** @brief The Sealed Map item that opens @p encounter. */
 int NamedEncounterMapItem(NamedEncounter encounter);
 
@@ -94,6 +101,20 @@ bool CurrentNamedEncounter(NamedEncounter &out);
  * that is the tell: without it the level loads with the wrong tileset.
  */
 bool EnterNamedEncounter(Player &player, NamedEncounter encounter);
+
+/**
+ * @brief Rolls a Sealed Map from @p monster's death. Does nothing unless it is a Dread boss.
+ *
+ * The way IN, and until 2026-08-26 it did not exist. NamedEncounterMapItem had no production
+ * caller at all: the maps are excluded from ordinary generation on purpose - they are not pool
+ * items - and the replacement hook this file's own header describes was never written. Every
+ * named encounter was therefore unreachable in normal play, and the only thing that had ever
+ * opened one was a debug command.
+ *
+ * Called from the monster loot hook beside the other Oracool families, and for the same reason
+ * they are there rather than in the seeded pool.
+ */
+void TrySpawnSealedMap(const Monster &monster, bool sendmsg);
 
 /** @brief Whether @p monster is the boss of the encounter currently running. */
 bool IsNamedEncounterBoss(const Monster &monster);
