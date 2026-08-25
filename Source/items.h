@@ -906,6 +906,15 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl);
  * depth would use - so a reforged item is distributed exactly like one that had just fallen where
  * this one did, and rerolling in town cannot launder an item upward.
  */
+/**
+ * @brief Finishes a named set piece: seed, item level, base tier, and optionally the drop-only
+ * ethereal roll.
+ *
+ * One function for all three construction sites - the monster drop, Recast and Consecrate - which
+ * had each finished the job differently, and two of them barely at all (audit, 2026-08-26).
+ */
+void FinalizeSetPiece(Item &item, int itemLevel, bool allowEtherealRoll);
+
 bool ReforgeOracoolItem(Item &item);
 
 /**

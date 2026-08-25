@@ -231,6 +231,23 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 
 void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 {
+	// FIRST, and before every early return below. Audit finding, 2026-08-26.
+	//
+	// The milestone mask and the signet count live in file-static arrays keyed by player SLOT, not
+	// on the Player - and the character-select screen previews every save in turn through
+	// Players[0]. This function only ever writes the chunks a save actually carries, so a hero with
+	// no milestone chunk, a legacy hero with no tail, or a tail rejected for bad magic all left the
+	// PREVIOUS hero's progression sitting in slot 0. Create a new character next and its very first
+	// save serialised that stale state as its own.
+	//
+	// Every consequence points the wrong way: milestones already claimed are withheld, the signet
+	// lifetime cap arrives partly spent, and growing charms read a progression the character never
+	// had.
+	//
+	// Clearing here rather than at each call site is the point - the three early returns below are
+	// exactly the paths a caller-side reset would have been forgotten on.
+	ResetProgressionState(player);
+
 	if (data == nullptr || len == 0)
 		return; // a pre-tail hero - the fixed struct said everything it has to say
 	if (len < 4 || GetU32(data) != HeroChunkMagic) {

@@ -4,6 +4,7 @@
 
 #include "engine/random.hpp"
 #include "items.h"
+#include "inv.h"
 #include "player.h"
 #include "qol/stash.h"
 #include "oracool/stat_sheet.h"
@@ -287,9 +288,20 @@ bool IsSetPieceHeld(const Player &player, const SetItemDefinition &piece)
 {
 	if (IsSetPieceWorn(player, piece))
 		return true;
-	for (int i = 0; i < player._pNumInv; i++) {
-		if (!player.InvList[i].isEmpty() && player.InvList[i]._iCurs == piece.cursor)
-			return true;
+	// Every backpack page, not only the first. Audit finding, 2026-08-26: this walked InvList
+	// directly, so a set piece stored in any of the nine extra tabs read as NOT OWNED - and this
+	// predicate is what weights named-set drops toward the suit a player is actually collecting.
+	// So parking a half-finished set in tab 2, which is exactly what the tabs are for, quietly
+	// stopped the game helping you finish it.
+	//
+	// InventoryPlayerItemsRange already flattens InvList and all nine tabs into one walk; the
+	// shared iterator the fix needs existed, this scan simply predated its use here.
+	{
+		const InventoryPlayerItemsRange carried { const_cast<Player &>(player) };
+		for (const Item &item : carried) {
+			if (!item.isEmpty() && item._iCurs == piece.cursor)
+				return true;
+		}
 	}
 	// The stash counts. It is where a set in progress actually lives - the backpack is for the run
 	// you are on, and a player collecting a suit they cannot wear yet parks it in the chest.

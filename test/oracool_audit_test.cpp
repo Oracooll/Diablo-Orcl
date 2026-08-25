@@ -921,6 +921,53 @@ TEST(OracoolHeroChunks, StatPointsRoundTripPastAByte)
 	}
 }
 
+TEST(OracoolHeroChunks, ProgressionDoesNotBleedFromOneHeroToTheNext)
+{
+	// Audit finding, 2026-08-26. The milestone mask and the signet count live in file-static arrays
+	// keyed by player SLOT, not on the Player - and the character-select screen previews every save
+	// in turn through Players[0]. ApplyHeroChunks writes only the chunks a save carries and returns
+	// early when there is no tail at all, so a legacy hero inherited whatever the last previewed
+	// character had claimed.
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	MyPlayer = &player;
+	player = {};
+	player._pClass = HeroClass::Warrior;
+
+	// A progressed character: milestones claimed, signets spent.
+	oracool::ApplyMilestones(player, 0b1011);
+	oracool::ApplySignetsUsed(player, 7);
+	ASSERT_EQ(oracool::PackMilestones(player), 0b1011u);
+	ASSERT_EQ(oracool::PackSignetsUsed(player), 7);
+
+	// Now the SAME SLOT previews a legacy hero - no extension tail at all. That is the early return
+	// inside ApplyHeroChunks, and it is exactly the path a caller-side reset would have missed.
+	oracool::ApplyHeroChunks(player, nullptr, 0);
+	EXPECT_EQ(oracool::PackMilestones(player), 0u)
+	    << "a legacy hero inherited the previous character's milestones";
+	EXPECT_EQ(oracool::PackSignetsUsed(player), 0)
+	    << "a legacy hero inherited the previous character's spent signets";
+
+	// And a tail REJECTED for bad magic must clear just as thoroughly - a corrupt save must not
+	// hand its reader someone else's progress.
+	oracool::ApplyMilestones(player, 0b1111);
+	oracool::ApplySignetsUsed(player, 9);
+	const uint8_t rubbish[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+	oracool::ApplyHeroChunks(player, rubbish, sizeof(rubbish));
+	EXPECT_EQ(oracool::PackMilestones(player), 0u) << "a rejected tail left stale milestones";
+	EXPECT_EQ(oracool::PackSignetsUsed(player), 0) << "a rejected tail left stale signets";
+
+	// Creating a NEW character in that slot starts from nothing, which is where the stale state
+	// used to be serialised straight into the new hero's first save.
+	oracool::ApplyMilestones(player, 0b0111);
+	oracool::ApplySignetsUsed(player, 5);
+	CreatePlayer(player, HeroClass::Rogue);
+	EXPECT_EQ(oracool::PackMilestones(player), 0u)
+	    << "a brand new character was born with milestones already claimed";
+	EXPECT_EQ(oracool::PackSignetsUsed(player), 0)
+	    << "a brand new character was born with signets already spent";
+}
+
 TEST(OracoolHeroChunks, PassiveSlotsRoundTrip)
 {
 	Players.resize(1);
@@ -2987,6 +3034,55 @@ TEST(OracoolCrafting, AscendRunesConsumesPairAndProducesNextRung)
 // wrong in both directions. A single slot holding two El runes did not satisfy "two identical runes"
 // at all, and when two separate slots did satisfy it, both whole stacks were destroyed to make one
 // rune. These two pin each direction; both fail against the pre-fix code.
+// Audit finding, 2026-08-26. The two tests below this one prove the BACKPACK path counts stack
+// units correctly. The monument GRID path did not, and it was wrong in both directions at once:
+// LargestSameKindGridGroup counted occupied SLOTS, so one stack of two runes was refused, and the
+// consume then cleared whole slots, so three stacks of five gems lost all fifteen to a recipe that
+// costs three.
+//
+// These are the same two scenarios against the grid, which is where nobody was looking.
+TEST(OracoolCrafting, MonumentAscendRunes_OneGridStackSatisfiesThePair)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
+
+	devilution::Item grid[oracool::LevskiGridSlots] = {};
+	InitializeItem(grid[0], IDI_ORACOOL_RUNE_EL);
+	grid[0]._itype = ItemType::Misc;
+	grid[0].setStackCount(2);
+
+	EXPECT_TRUE(oracool::CanCraftFromLevskiGrid(grid, 1))
+	    << "a grid stack of two runes is still two runes";
+}
+
+TEST(OracoolCrafting, MonumentRefine_SurplusUnitsSurviveTheCraft)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
+
+	// Two stacks of five El runes. Ascend Runes costs two; thirteen must survive.
+	devilution::Item grid[oracool::LevskiGridSlots] = {};
+	InitializeItem(grid[0], IDI_ORACOOL_RUNE_EL);
+	grid[0]._itype = ItemType::Misc;
+	grid[0].setStackCount(5);
+	InitializeItem(grid[1], IDI_ORACOOL_RUNE_EL);
+	grid[1]._itype = ItemType::Misc;
+	grid[1].setStackCount(5);
+
+	ASSERT_TRUE(oracool::CanCraftFromLevskiGrid(grid, 1));
+	const std::string made = oracool::TransmuteLevskiGridWith(grid, 1);
+	EXPECT_FALSE(made.empty()) << "the craft did not run";
+
+	int surviving = 0;
+	for (const devilution::Item &cell : grid) {
+		if (!cell.isEmpty() && cell.IDidx == IDI_ORACOOL_RUNE_EL)
+			surviving += std::max(1, cell.stackCount());
+	}
+	EXPECT_EQ(surviving, 8) << "the craft destroyed surplus runes it did not charge for";
+}
+
 TEST(OracoolCrafting, AscendRunes_OneStackSatisfiesThePair)
 {
 	Players.resize(2);

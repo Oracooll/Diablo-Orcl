@@ -109,6 +109,14 @@ bool ConsumeSignet(Player &player);
 /** @brief The chunk payloads, for oracool/hero_chunks.cpp. */
 uint32_t PackMilestones(const Player &player);
 void ApplyMilestones(Player &player, uint32_t mask);
+
+/**
+ * @brief Clears @p player's claimed milestones and spent signets.
+ *
+ * Must be called before applying a hero's extension tail, INCLUDING when there is no tail: these
+ * tables are keyed by player slot and the character-select screen reuses slot 0 for every preview.
+ */
+void ResetProgressionState(const Player &player);
 uint8_t PackSignetsUsed(const Player &player);
 void ApplySignetsUsed(Player &player, uint8_t used);
 

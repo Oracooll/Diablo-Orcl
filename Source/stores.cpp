@@ -35,6 +35,7 @@
 #include "options.h"
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
+#include "oracool/item_sets.h"
 #include "oracool/oracool.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/runeword_book.h"
@@ -484,7 +485,27 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 	std::string productLine;
 
 	if (item._iIdentified) {
-		if (item.hasOracoolTier()) {
+		if (item._iOracoolTier == OracoolItemTier::Set) {
+			// A named set piece has NO rolled affixes - MakeSetItem writes its declared powers
+			// straight into the _iPL* fields, so the prefix and suffix arrays every other tier uses
+			// are empty. Audit finding, 2026-08-26: this branch did not exist, so every tiered item
+			// went through those arrays and a set piece in a store list showed no powers at all -
+			// the one item family whose powers are its entire identity.
+			//
+			// Read from the definition, exactly as the description panel does (see the Set branch
+			// in items.cpp). PrintItemPower is right here for the same reason it is right there: a
+			// set piece has one source per stat, so there is no accumulation to disentangle.
+			if (const oracool::SetItemDefinition *def = oracool::FindSetItemByCursor(item._iCurs);
+			    def != nullptr) {
+				for (const ItemPower &power : def->powers) {
+					if (power.type == IPL_INVALID)
+						break;
+					if (!productLine.empty())
+						AppendStrView(productLine, _(",  "));
+					AppendStrView(productLine, PrintItemPower(power.type, item));
+				}
+			}
+		} else if (item.hasOracoolTier()) {
 			// Oracool-tiered items (up to 3 prefixes + 3 suffixes) don't populate the
 			// vanilla single-prefix/single-suffix _iPrePower/_iSufPower fields, so they
 			// need their own comma-joined line built from the stored affix list instead.

@@ -330,22 +330,84 @@ std::vector<int> FindGridMaterials(const Item *grid, bool (*matches)(int idx))
 	return found;
 }
 
-/** @brief The largest same-IDidx group among @p indices, or empty if none reaches @p groupSize. */
+/**
+ * @brief How many stack UNITS each monument material recipe consumes.
+ *
+ * The same numbers the match side passes to LargestSameKindGridGroup, kept in one place so the two
+ * halves cannot drift - the mistake ReagentFor's own comment warns about, where a recipe matches on
+ * three and consumes two and quietly hands out free crafts.
+ *
+ * Recipes whose materials are single items rather than stacks answer with their slot count, which
+ * is the same number when every stack is one.
+ */
+int MaterialUnitCostFor(int recipe)
+{
+	switch (recipe) {
+	case 0: // Refine Gems - three identical gems
+		return 3;
+	case 1: // Ascend Runes - two identical runes
+		return 2;
+	case 2: // Transmute Charms - two charms of any kind
+		return 2;
+	case 3: // Free the Sockets - one socketed item
+		return 1;
+	case 4: // Temper Jewels - three identical jewels
+		return 3;
+	default:
+		return 1;
+	}
+}
+
+/**
+ * @brief The slots holding the largest same-IDidx group among @p indices worth @p groupSize UNITS.
+ *
+ * Counted in stack UNITS rather than in occupied slots (audit, 2026-08-26), and the old slot count
+ * was wrong in both directions at once. One stack of three gems is three gems, and Refine Gems
+ * refused it because it saw a single slot. Three separate stacks of five looked like exactly three,
+ * were accepted - and the consume then cleared all three SLOTS, destroying fifteen gems to make one
+ * output that costs three.
+ *
+ * Only enough slots to cover the cost are returned, so the consume has nothing spare to throw away,
+ * and the backpack implementations of the same three recipes have counted units correctly all
+ * along - this brings the monument in line with them rather than inventing a rule.
+ */
 std::vector<int> LargestSameKindGridGroup(const Item *grid, const std::vector<int> &indices, size_t groupSize)
 {
+	const auto units = [grid](const std::vector<int> &slots) {
+		int total = 0;
+		for (const int slot : slots)
+			total += std::max(1, grid[slot].stackCount());
+		return total;
+	};
+
 	std::vector<int> best;
+	int bestUnits = 0;
 	for (const int anchor : indices) {
 		std::vector<int> group;
 		for (const int candidate : indices) {
 			if (grid[candidate].IDidx == grid[anchor].IDidx)
 				group.push_back(candidate);
 		}
-		if (group.size() >= groupSize && group.size() > best.size())
+		const int groupUnits = units(group);
+		if (groupUnits >= static_cast<int>(groupSize) && groupUnits > bestUnits) {
+			bestUnits = groupUnits;
 			best = std::move(group);
+		}
 	}
-	if (best.size() > groupSize)
-		best.resize(groupSize);
-	return best.size() >= groupSize ? best : std::vector<int> {};
+	if (bestUnits < static_cast<int>(groupSize))
+		return {};
+
+	// Trimmed to the slots the cost actually reaches into. A fourth stack that is not needed must
+	// not be handed to the consume at all - that is the half that destroyed the surplus.
+	std::vector<int> needed;
+	int owed = static_cast<int>(groupSize);
+	for (const int slot : best) {
+		if (owed <= 0)
+			break;
+		needed.push_back(slot);
+		owed -= std::max(1, grid[slot].stackCount());
+	}
+	return needed;
 }
 
 /**
@@ -966,10 +1028,14 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			}
 			if (others.empty())
 				return {};
+			// The depth the item was FOUND at, captured before InitializeItem wipes it. Audit
+			// finding, 2026-08-26: both recipes rebuilt the item and never put the level or the
+			// base tier back, so recasting a deep set piece quietly reset it to a floor-zero item.
+			const int keptLevel = target._iOracoolItemLevel;
 			const SetItemDefinition *chosen = others[GenerateRnd(static_cast<int32_t>(others.size()))];
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetSlot(chosen->slot)));
 			MakeSetItem(target, *chosen);
-			GenerateNewSeed(target);
+			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
 			target._iIdentified = true;
 			what = std::string(target.getName());
 			break;
@@ -999,10 +1065,14 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			const std::vector<const SetItemDefinition *> pieces = SetPiecesForLoc(target._iLoc);
 			if (pieces.empty())
 				return {};
+			// The depth the item was FOUND at, captured before InitializeItem wipes it. Audit
+			// finding, 2026-08-26: both recipes rebuilt the item and never put the level or the
+			// base tier back, so recasting a deep set piece quietly reset it to a floor-zero item.
+			const int keptLevel = target._iOracoolItemLevel;
 			const SetItemDefinition *chosen = pieces[GenerateRnd(static_cast<int32_t>(pieces.size()))];
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetSlot(chosen->slot)));
 			MakeSetItem(target, *chosen);
-			GenerateNewSeed(target);
+			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
 			target._iIdentified = true;
 			what = std::string(target.getName());
 			break;
@@ -1117,8 +1187,15 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			return std::string(_("not enough room for the result"));
 	}
 
-	for (const int slot : materials)
-		grid[slot].clear();
+	// Unit-accurate, not slot-accurate. Audit finding, 2026-08-26: this cleared every material SLOT
+	// outright, so a stack of five gems paid five for a recipe that costs three and the surplus was
+	// destroyed without a word. ConsumeGridReagents already does the arithmetic correctly and has
+	// done since it was written for the reagent recipes - the refine path simply never used it.
+	//
+	// The cost is asked of the same table the MATCH used, so the two halves cannot drift: a recipe
+	// that matched on three and consumed two would quietly hand out free crafts, which is the note
+	// ReagentFor already carries.
+	ConsumeGridReagents(grid, materials, MaterialUnitCostFor(recipe));
 	for (int slot = 0; slot < GridSlots; slot++) {
 		if (!grid[slot].isEmpty())
 			continue;

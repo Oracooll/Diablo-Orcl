@@ -2428,6 +2428,12 @@ void SetPlrAnims(Player &player)
 void CreatePlayer(Player &player, HeroClass c)
 {
 	player = {};
+	// `player = {}` clears everything ON the Player, but the milestone mask and the signet count
+	// live in side tables keyed by player slot, so they survive it (audit, 2026-08-26). A new hero
+	// is created in slot 0, which the character-select screen has just used to preview every
+	// existing save - and pfile_ui_save_create serialises the tail immediately, so whatever the
+	// last previewed character had claimed became this one's starting position.
+	oracool::ResetProgressionState(player);
 	SetRndSeed(SDL_GetTicks());
 
 	const PlayerData &playerData = PlayersData[static_cast<size_t>(c)];

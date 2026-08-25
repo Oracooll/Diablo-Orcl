@@ -4204,6 +4204,12 @@ void LogNoteworthyItemDrop(const Item &item)
 	case OracoolItemTier::Rare:
 		descriptor = "Rare";
 		break;
+	case OracoolItemTier::Set:
+		// Audit finding, 2026-08-26: the named-set drop path calls this function deliberately, and
+		// this switch had no Set case - so the one drop family added specifically to be noticed
+		// was the one that never appeared in the event log or the telemetry.
+		descriptor = "Set";
+		break;
 	case OracoolItemTier::None:
 		if (item._iMagical == ITEM_QUALITY_UNIQUE)
 			descriptor = "Unique";
@@ -4820,6 +4826,41 @@ void TrySpawnSignet(const Monster &monster, bool sendmsg)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, signet.position, signet);
 }
 
+/**
+ * @brief Finishes a named set piece the way every other dropped item is finished.
+ *
+ * Audit finding, 2026-08-26. The drop path was InitializeItem plus MakeSetItem and nothing else, so
+ * a set piece arrived with:
+ *
+ *  - **no seed**. Two pieces for the same slot were therefore byte-identical as far as the network
+ *    item record is concerned, and its six-second duplicate filter could reject the second pickup -
+ *    a dropped item that simply refuses to be picked up.
+ *  - **no item level**, so its depth read as zero everywhere depth is reported.
+ *  - **no base tier**, though the user's own directive (see the note at ApplyBaseTier's call site)
+ *    asks for sets to drop in all four tiers like everything else. Applied AFTER MakeSetItem
+ *    deliberately: the set's declared numbers are the base the tier scales, not the other way
+ *    round, and the reverse order would have the tier scaled away by the set's own stats.
+ *  - **no ethereal roll**, so the one durable-equipment family in the game that could never be
+ *    ethereal was the one whose pieces a player keeps longest.
+ *
+ * One function so the three construction sites - the monster drop, Recast and Consecrate - cannot
+ * drift apart again, which is exactly how they came to differ in the first place.
+ */
+
+void FinalizeSetPiece(Item &item, int itemLevel, bool allowEtherealRoll)
+{
+	GenerateNewSeed(item);
+	item._iOracoolItemLevel = static_cast<uint8_t>(std::clamp(itemLevel, 0, 255));
+	item._iCreateInfo = std::min(itemLevel, 63);
+	oracool::ApplyBaseTier(item, oracool::TierForItem(item._iOracoolItemLevel, item._iSeed));
+	// Drop-only, like every other durable item - see TryMakeDroppedItemEthereal for why the roll
+	// lives there and not in MakeItemEthereal. Recast and Consecrate pass false: a recipe must not
+	// hand a player an ethereal item they did not ask for, and Make Ethereal is its own recipe.
+	if (allowEtherealRoll)
+		TryMakeDroppedItemEthereal(item);
+}
+
+
 void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 {
 	if (!oracool::IsSinglePlayer())
@@ -4891,6 +4932,7 @@ void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 	Item item {};
 	InitializeItem(item, static_cast<_item_indexes>(chosen.base));
 	oracool::MakeSetItem(item, *chosen.def);
+	FinalizeSetPiece(item, mlvl, /*allowEtherealRoll=*/true);
 
 	const int ii = AllocateItem();
 	Items[ii] = item.pop();

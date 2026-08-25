@@ -7,6 +7,7 @@
 #include "oracool/event_log.h"
 #include "oracool/item_sets.h"
 #include "oracool/mystic_orbs.h"
+#include "inv.h"
 #include "player.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -107,10 +108,19 @@ void CheckPassiveMilestones(Player &player)
 			return;
 		}
 	}
-	for (int i = 0; i < player._pNumInv; i++) {
-		if (atCap(player.InvList[i])) {
-			ClaimMilestone(player, Milestone::FillOrbCap);
-			return;
+	// Every backpack page. Audit finding, 2026-08-26: applying the final Mystic Orb WORKS in an
+	// active extra tab, but this scan only ever looked at InvBody and InvList - so a player who
+	// filled an item's orb cap while working out of tab 2 completed the milestone and was not
+	// credited with it. The action was supported and the reward was not.
+	//
+	// InventoryPlayerItemsRange flattens InvList and all nine tabs into one walk.
+	{
+		const InventoryPlayerItemsRange carried { const_cast<Player &>(player) };
+		for (const Item &item : carried) {
+			if (atCap(item)) {
+				ClaimMilestone(player, Milestone::FillOrbCap);
+				return;
+			}
 		}
 	}
 }
@@ -134,6 +144,26 @@ bool ConsumeSignet(Player &player)
 	// prescription - and it also means the point obeys every rule the ordinary pool already has.
 	player._pStatPts++;
 	return true;
+}
+
+/**
+ * @brief Forgets everything the per-player side tables hold for @p player.
+ *
+ * Audit finding, 2026-08-26. ClaimedMask and ConsumedCount are file-static arrays keyed by
+ * player SLOT, and the character-select screen previews every save in turn through Players[0].
+ * ApplyHeroChunks only ever WRITES the chunks a save actually carries, and returns early when
+ * there is no tail at all - so a hero with no milestone chunk inherited the previous hero's
+ * claimed milestones and spent signets, and a NEW character was then created on top of them and
+ * serialised that stale state into its first save.
+ *
+ * The consequences all point the wrong way: milestones already claimed are withheld, the signet
+ * lifetime cap arrives already spent, and growing charms read a progression the character never
+ * had.
+ */
+void ResetProgressionState(const Player &player)
+{
+	ClaimedMask[IndexOf(player)] = 0;
+	ConsumedCount[IndexOf(player)] = 0;
 }
 
 uint32_t PackMilestones(const Player &player)
