@@ -2297,6 +2297,123 @@ TEST(OracoolClassTree, CastableSkillsInvestThroughTheSpellLevelSeam)
 	EXPECT_EQ(player._pClassTreeInvestment[mightSlot], 1);
 }
 
+TEST(OracoolAudit, RelentlessAndImplacableResistKnockbackRatherThanDealingIt)
+{
+	using namespace devilution::oracool;
+	// Audit finding, 2026-08-26, and an INVERSION rather than an omission. Both set
+	// MFLAG_KNOCKBACK, whose comments said the point was to deny the player space. That flag lives
+	// in the monster-hits-PLAYER path and means "this monster's blows knock YOU back" - so both
+	// granted an offensive power nobody designed, and neither granted the immunity both described,
+	// because the player's knockback runs through M_GetKnockback and never read the flag.
+	Monster relentless {};
+	relentless.lesserAffix = LesserUniqueAffix::Relentless;
+	EXPECT_TRUE(IsKnockbackImmune(relentless)) << "a Relentless champion can still be shoved";
+
+	Monster ordinary {};
+	ordinary.lesserAffix = LesserUniqueAffix::None;
+	EXPECT_FALSE(IsKnockbackImmune(ordinary)) << "an ordinary monster became immune";
+
+	// Every other champion affix keeps its footing exactly as before - the immunity must be
+	// Relentless's alone, or this fix would have quietly handed it to the whole family.
+	for (int i = 0; i < static_cast<int>(LesserUniqueAffix::LAST) + 1; i++) {
+		const auto affix = static_cast<LesserUniqueAffix>(i);
+		if (affix == LesserUniqueAffix::Relentless || affix == LesserUniqueAffix::Dread)
+			continue;
+		Monster other {};
+		other.lesserAffix = affix;
+		EXPECT_FALSE(IsKnockbackImmune(other))
+		    << "affix " << i << " gained knockback immunity it was never given";
+	}
+
+	// A Dread boss is immune only when its derived trait is Implacable. The trait comes from the
+	// seed rather than a field, so this sweeps seeds until it finds one of each.
+	bool sawImmune = false;
+	bool sawVulnerable = false;
+	for (int seed = 0; seed < 4096 && !(sawImmune && sawVulnerable); seed++) {
+		Monster boss {};
+		boss.lesserAffix = LesserUniqueAffix::Dread;
+		boss.lesserNameSeed = static_cast<uint16_t>(seed);
+		if (SecondaryTraitFor(boss) == BossTrait::Implacable)
+			sawImmune = sawImmune || IsKnockbackImmune(boss);
+		else
+			sawVulnerable = sawVulnerable || !IsKnockbackImmune(boss);
+	}
+	EXPECT_TRUE(sawImmune) << "no Implacable boss resisted knockback";
+	EXPECT_TRUE(sawVulnerable) << "every Dread boss resisted knockback, not just the Implacable one";
+}
+
+TEST(OracoolClassTree, ACorpseHasNoAura)
+{
+	// Audit finding, 2026-08-26. The class-tree tick runs unconditionally, so Prayer, Melody of Life
+	// and the Healing Mantra regenerated a DEAD player's zero hit points while they lay in PM_DEATH,
+	// and Sanctuary, Conviction, the ground ring and the looping hum all stayed live over the body.
+	//
+	// Guarded in GetActiveClassAura, which every one of those asks - so one answer suspends the
+	// bonuses, the field, the picture and the sound together.
+	devilution::Player &player = FreshPaladin();
+	player._pMaxHP = 1000;
+	player._pHitPoints = 1000;
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might));
+	ASSERT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Might);
+
+	player._pmode = PM_DEATH;
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::None)
+	    << "a corpse is still burning an aura";
+
+	// And the totals go with it, which is the half that was actually changing numbers.
+	oracool::ItemBonusTotals dead = {};
+	oracool::ApplyClassTreeToTotals(player, dead);
+	EXPECT_EQ(dead.bonusDamage, 0) << "a dead Paladin still had Might's damage";
+
+	// SUSPENDED, not forgotten. Nothing is cleared, so it comes back on revival by itself - a
+	// player who dies with an aura up should not have to relight it.
+	player._pmode = PM_STAND;
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Might)
+	    << "the aura did not come back after revival";
+
+	// Zero health without death mode is the tick or two before StartPlayerKill runs, and counts.
+	//
+	// Set again here rather than relying on the values at the top: ToggleClassAura now recalculates
+	// the character (that is the fix for the bonuses-outlive-the-aura bug), and a recalculation
+	// derives _pMaxHP from _pMaxHPBase, which this fixture leaves at zero. Stating the state where
+	// it is being tested is more honest than a setup line three assertions away.
+	player._pMaxHP = 1000;
+	player._pHitPoints = 0;
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::None);
+
+	// But a fixture that never set health up is NOT dead - "no health left" and "health never
+	// configured" are different states, and reading them as one declared every test a corpse.
+	player._pMaxHP = 0;
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::Might);
+}
+
+TEST(OracoolClassTree, PuttingAnAuraOutTakesItsBonusesWithIt)
+{
+	// Audit finding, 2026-08-26. ClearClassAuraForRightButton cleared the state and stopped the
+	// sound and left the cached totals alone, and all FOUR of its callers forgot to recalculate -
+	// so readying a spell over a lit Might put the ring out and left the damage bonus running.
+	devilution::Player &player = FreshPaladin();
+	player._pMaxHP = 1000;
+	player._pHitPoints = 1000;
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Might));
+
+	// Asserted on the player's CACHED stat, not on a fresh ApplyClassTreeToTotals.
+	//
+	// The first version of this test did the latter and passed with the fix removed, which is to
+	// say it tested nothing: ApplyClassTreeToTotals recomputes from scratch, so it can never
+	// observe a stale cache. The bug was always about the cache - _pIBonusDam keeps the aura's
+	// contribution until something recalculates - so the cache is what has to be looked at.
+	CalcPlrInv(player, false);
+	ASSERT_GT(player._pIBonusDam, 0) << "Might contributed nothing even while burning";
+
+	oracool::ClearClassAuraForRightButton(player);
+	EXPECT_EQ(oracool::GetActiveClassAura(player), oracool::ClassTreeSkill::None);
+	EXPECT_EQ(player._pIBonusDam, 0)
+	    << "the aura went out but its damage bonus was still on the character";
+}
+
 TEST(OracoolClassTree, AuraNeedsAPointBeforeItCanBurn)
 {
 	devilution::Player &player = FreshPaladin();

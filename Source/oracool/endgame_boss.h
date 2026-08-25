@@ -89,6 +89,22 @@ int BossCountForLevel();
 /** @brief Applies @p monster's second trait. Called once, after the Dread affix is set. */
 void ApplyBossTrait(Monster &monster);
 
+/**
+ * @brief Whether @p monster cannot be knocked back by the player.
+ *
+ * Audit finding, 2026-08-26, and it was an INVERSION rather than an omission. Both Relentless (the
+ * champion affix) and Implacable (the boss trait) set MFLAG_KNOCKBACK, with comments saying the
+ * point was to take away the player's ability to buy space. MFLAG_KNOCKBACK does the opposite: it
+ * lives in the monster-hits-PLAYER path and means "this monster's blows knock YOU back". So both
+ * granted an offensive power nobody designed and neither granted the immunity both described,
+ * because the player's knockback goes through M_GetKnockback and never consults that flag at all.
+ *
+ * A predicate rather than a new flag bit: the boss trait is derived from the monster's seed
+ * (SecondaryTraitFor) rather than stored, so there is nothing to set at spawn time, and asking the
+ * question where it is asked keeps one source of truth instead of a flag that can drift from it.
+ */
+bool IsKnockbackImmune(const Monster &monster);
+
 /** @brief A boss's on-hit hook, for the traits that fire during combat rather than being fields. */
 void OnBossDealtDamage(Monster &monster, int damage);
 

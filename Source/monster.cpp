@@ -3978,6 +3978,13 @@ void M_ClearSquares(const Monster &monster)
 
 void M_GetKnockback(Monster &monster)
 {
+	// The one place the player pushes a monster, and therefore the one place immunity to being
+	// pushed can mean anything. Relentless champions and Implacable bosses stand their ground here
+	// - which is what both of them always claimed to do. See oracool::IsKnockbackImmune for the
+	// inversion this replaces.
+	if (oracool::IsKnockbackImmune(monster))
+		return;
+
 	Direction dir = Opposite(monster.direction);
 	if (!IsRelativeMoveOK(monster, monster.position.old, dir)) {
 		return;

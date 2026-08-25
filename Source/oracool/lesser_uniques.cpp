@@ -303,10 +303,15 @@ void ApplyLesserUniqueAffix(Monster &monster)
 		monster.resistance |= RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING;
 		break;
 	case LesserUniqueAffix::Relentless:
-		// Knockback is how a player buys space. Taking it away is what makes this one frightening,
-		// and it costs nothing to express - the flag already exists and the combat code already
-		// honours it.
-		monster.flags |= MFLAG_KNOCKBACK;
+		// Knockback is how a player buys space, and taking it away is what makes this one
+		// frightening. Nothing to set here: the immunity is asked as a question at the one place
+		// the player knocks a monster back - see oracool::IsKnockbackImmune.
+		//
+		// It used to raise MFLAG_KNOCKBACK, and the comment claimed "the combat code already
+		// honours it". It does, for the opposite thing: that flag lives in the monster-hits-PLAYER
+		// path and means "this monster's blows knock YOU back". So Relentless spent months granting
+		// an offensive power nobody designed and never granting the immunity it advertised - the
+		// player's knockback goes through M_GetKnockback, which never consulted the flag at all.
 		break;
 	case LesserUniqueAffix::Fortified:
 		// Armour, not speed. The first draft of this list had "Fleet", and it had to go: monster

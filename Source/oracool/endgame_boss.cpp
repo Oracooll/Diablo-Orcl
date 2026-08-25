@@ -123,7 +123,9 @@ void ApplyBossTrait(Monster &monster)
 		monster.armorClass = static_cast<uint8_t>(std::min(monster.armorClass + WardingArmorBonus, 255));
 		break;
 	case BossTrait::Implacable:
-		monster.flags |= MFLAG_KNOCKBACK;
+		// Nothing to set - the immunity is a question asked at M_GetKnockback, not a field. Same
+		// inversion Relentless carried: MFLAG_KNOCKBACK makes the monster knock the PLAYER back,
+		// which is neither what the name says nor what the trait was for. See IsKnockbackImmune.
 		break;
 	case BossTrait::Adamant:
 		monster.maxHitPoints += monster.maxHitPoints * AdamantExtraPercent / 100;
@@ -133,6 +135,13 @@ void ApplyBossTrait(Monster &monster)
 		// An event, not a field: it fires when the boss lands a hit.
 		break;
 	}
+}
+
+bool IsKnockbackImmune(const Monster &monster)
+{
+	if (monster.lesserAffix == LesserUniqueAffix::Relentless)
+		return true;
+	return IsEndgameBoss(monster) && SecondaryTraitFor(monster) == BossTrait::Implacable;
 }
 
 void OnBossDealtDamage(Monster &monster, int damage)

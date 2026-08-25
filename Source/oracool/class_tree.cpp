@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 
 #include "engine/backbuffer_state.hpp"
+#include "inv.h"
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
@@ -1244,6 +1245,24 @@ Skill GetActiveClassAura(const Player &player)
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
 	if (data.kind != Kind::Aura)
 		return Skill::None;
+	// A CORPSE HAS NO AURA. Audit finding, 2026-08-26: the class-tree tick runs unconditionally, so
+	// Prayer, Melody of Life and the Healing Mantra went on regenerating a dead player's zero hit
+	// points while they lay in PM_DEATH, and Sanctuary, Conviction, the ground ring and the looping
+	// audio all stayed live over the body.
+	//
+	// Answered HERE rather than at each of those, which is the point: this is the one function all
+	// of them ask, so one guard suspends the whole aura - its bonuses, its field, its picture and
+	// its sound - for exactly as long as the player is down. Nothing is cleared, so it comes back
+	// by itself on revival; the aura is suspended, not forgotten.
+	// Death MODE is the unambiguous signal and comes first. The zero-health test is a second net for
+	// the tick or two between the blow landing and StartPlayerKill running - and it is qualified by
+	// _pMaxHP, because "no health left" and "health never set up" are not the same state and only
+	// one of them is death. Reading them as the same is what a first cut of this guard did, and it
+	// declared every test fixture a corpse.
+	if (player._pmode == PM_DEATH)
+		return Skill::None;
+	if (player._pMaxHP > 0 && player._pHitPoints <= 0)
+		return Skill::None;
 	// The burning aura is persisted as an ABSOLUTE ClassTreeSkill value (hero_chunks writes the raw
 	// byte), and absolute values move whenever a class EARLIER in the enum gains rows. The Passive
 	// Skills page did exactly that on 2026-08-25, so a Bard or Monk saved with a song or a mantra
@@ -1291,6 +1310,12 @@ bool ToggleClassAura(Player &player, Skill skill)
 		else
 			StartClassAuraLoop(skill);
 	}
+	// Same responsibility as ClearClassAuraForRightButton: lighting or dousing an aura changes what
+	// the character's totals should be, so this function makes that true rather than trusting the
+	// caller. The skill picker's own CalcPlrInv is now redundant and harmless - left where it is,
+	// because removing a correct recalculation to save a few microseconds is how the asymmetry that
+	// caused this bug gets recreated.
+	CalcPlrInv(player, false);
 	return true;
 }
 
@@ -1301,6 +1326,16 @@ void ClearClassAuraForRightButton(Player &player)
 	player._pOracoolActiveAura = static_cast<uint16_t>(Skill::None);
 	if (&player == MyPlayer)
 		StopClassAuraLoop();
+	// The bonuses go out with the light. Audit finding, 2026-08-26: this cleared the STATE and the
+	// SOUND and left the cached totals alone, and all four callers - the skill picker, the
+	// Abilities window, the spell list and the hotkey path - forgot to recalculate. So readying
+	// Firebolt over a lit Might put the ring out, stopped the hum, and left the damage bonus
+	// running until something unrelated happened to recalculate.
+	//
+	// Done HERE rather than at the four call sites, which is the whole lesson: ToggleClassAura's
+	// one caller remembered and these four did not, and the next path added would have been a coin
+	// flip. A function that puts an aura out is responsible for the aura being out.
+	CalcPlrInv(player, false);
 	// No "fades" line here. The player is looking at the skill they just readied, and the aura going
 	// out is the visible half of that one action rather than a second event.
 }
@@ -1379,6 +1414,24 @@ void ProcessClassTreeTick(Player &player)
 {
 	if (!ClassHasTree(player._pClass))
 		return;
+
+	// The aura's SOUND follows its live state, which death now suspends (see GetActiveClassAura).
+	// Without this the loop would keep playing over the body: the guard there makes the aura report
+	// as None, and a thing that is already None never asks anybody to stop its loop.
+	//
+	// Edge-triggered against the last state rather than called every tick, or restarting the loop
+	// would retrigger the cue sixty times a second.
+	if (&player == MyPlayer) {
+		static Skill LoopedAura = Skill::None;
+		const Skill live = GetActiveClassAura(player);
+		if (live != LoopedAura) {
+			if (live == Skill::None)
+				StopClassAuraLoop();
+			else
+				StartClassAuraLoop(live);
+			LoopedAura = live;
+		}
+	}
 
 	// Both regenerations are whole points per tick against the <<6 fixed point the life and mana
 	// fields use, so one invested point is a trickle rather than a heal button.
