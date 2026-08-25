@@ -124,6 +124,19 @@ enum HeroChunkTag : uint16_t {
 	 * rather than a wrapped one - the same contract HeroChunkWaypoints64 has with the u32 masks.
 	 */
 	HeroChunkStatPoints = 11,
+	/**
+	 * @brief The four Passive Skills slots: a count byte, then one CLASS-RELATIVE index each.
+	 *
+	 * 0xFF is an empty slot. Class-relative rather than the absolute ClassTreeSkill that
+	 * HeroChunkActiveAura carries, and for a reason this project has now paid for once: an absolute
+	 * id means something different the moment a class earlier in the enum gains rows, which is what
+	 * cost Bard and Monk heroes their lit aura when the Passive Skills page landed. A relative index
+	 * is stable under exactly that growth.
+	 *
+	 * Count-prefixed like HeroChunkClassTree so the slot count can grow without a new tag, and read
+	 * back clamped to the smaller of the count and the array.
+	 */
+	HeroChunkPassiveSlots = 12,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

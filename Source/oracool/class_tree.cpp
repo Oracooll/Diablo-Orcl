@@ -948,6 +948,11 @@ bool IsClassTreeSkillUnlocked(const Player &player, Skill skill)
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
 	if (data.heroClass != player._pClass)
 		return false;
+	// A Passive Skills row is gated by its OWN level, not by its tier. Its tier is only where it
+	// sits on the grid: three rows to a tier, but one unlock every even level, so the three cells of
+	// a tier open at 2, 4 and 6 rather than together. Nothing else on the page is bought at all.
+	if (IsPassiveSkillRow(skill))
+		return player._pLevel >= PassiveSkillRequiredLevel(skill);
 	if (player._pLevel < ClassTreeTierMinLevel(data.tier))
 		return false;
 
@@ -997,6 +1002,11 @@ bool CanInvestClassTreePoint(const Player &player, Skill skill)
 	// Belt and braces with the filter in BuildClassTreePage: the page no longer offers these rows,
 	// and this refuses them even if some other path reaches one.
 	if (IsClassTreeRowRetiredAsSpell(skill))
+		return false;
+	// A Passive Skills row costs nothing and cannot be bought (user, 2026-08-25). It arrives on its
+	// own at its level; what a player DECIDES about it is which four to slot. Refused here as well
+	// as at the UI so no other path can put a point somewhere it can never be spent or refunded.
+	if (IsPassiveSkillRow(skill))
 		return false;
 	if (player._pUnspentSkillPoints <= 0 || !IsClassTreeSkillUnlocked(player, skill))
 		return false;
@@ -1067,6 +1077,158 @@ bool RefundClassTreePoint(Player &player, Skill skill)
 		             ClassTreeInvestment(player, skill)),
 		    UiFlags::ColorWhitegold);
 	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Passive Skills page: free, automatic, and slotted (user, 2026-08-25).
+//
+// Three rules, and the third is what makes the page a choice rather than a list. Passives cost no
+// skill points. They unlock on their own, one every even character level. And a passive only DOES
+// anything while it sits in one of four slots, which open at levels 1, 10, 20 and 30 - so a
+// character at the cap has every passive available and may run four of them.
+// ---------------------------------------------------------------------------------------------
+
+bool IsPassiveSkillRow(Skill skill)
+{
+	if (skill > Skill::LAST)
+		return false;
+	return GetClassTreeSkillData(skill).page == PassiveSkillsPage;
+}
+
+namespace {
+
+/**
+ * @brief @p skill's position among its class's passives, counting from zero, or -1.
+ *
+ * Counted rather than derived from a stored base. The passives are contiguous at the end of each
+ * class block today, and an arithmetic shortcut would quietly stop being true the first time that
+ * changes - which is precisely the class of bug this file keeps recording.
+ */
+int PassiveIndexOnPage(Skill skill)
+{
+	if (!IsPassiveSkillRow(skill))
+		return -1;
+	const HeroClass heroClass = GetClassTreeSkillData(skill).heroClass;
+	const Skill first = FirstSkillOf(heroClass);
+	if (first == Skill::None)
+		return -1;
+	int index = 0;
+	for (size_t i = static_cast<size_t>(first); i < ClassTreeSkillCount; i++) {
+		const auto candidate = static_cast<Skill>(i);
+		if (Skills[i].heroClass != heroClass)
+			break;
+		if (candidate == skill)
+			return index;
+		if (Skills[i].page == PassiveSkillsPage)
+			index++;
+	}
+	return -1;
+}
+
+/** @brief The class-relative index stored in a slot byte, or -1 for empty. */
+int SlotByteToIconIndex(uint8_t value)
+{
+	return value == 0xFF ? -1 : static_cast<int>(value);
+}
+
+} // namespace
+
+int PassiveSkillRequiredLevel(Skill skill)
+{
+	const int index = PassiveIndexOnPage(skill);
+	if (index < 0)
+		return 0;
+	// One every even level: the first at 2, the nth at 2n+2. Nineteen passives reach level 38, well
+	// inside the character cap, so no class outruns its own page.
+	return 2 * (index + 1);
+}
+
+int PassiveSlotRequiredLevel(int slot)
+{
+	// 1, 10, 20, 30 (user, 2026-08-25). Slot one opens immediately even though the first passive
+	// does not arrive until level 2 - an empty slot on a level-1 character is the page explaining
+	// itself, not a gap.
+	constexpr int Levels[PassiveSlotCount] = { 1, 10, 20, 30 };
+	if (slot < 0 || slot >= static_cast<int>(PassiveSlotCount))
+		return 0;
+	return Levels[slot];
+}
+
+int UnlockedPassiveSlotCount(const Player &player)
+{
+	int count = 0;
+	for (int slot = 0; slot < static_cast<int>(PassiveSlotCount); slot++) {
+		if (player._pLevel >= PassiveSlotRequiredLevel(slot))
+			count++;
+	}
+	return count;
+}
+
+Skill PassiveInSlot(const Player &player, int slot)
+{
+	if (slot < 0 || slot >= static_cast<int>(PassiveSlotCount))
+		return Skill::None;
+	if (player._pLevel < PassiveSlotRequiredLevel(slot))
+		return Skill::None;
+	const int index = SlotByteToIconIndex(player._pPassiveSlots[slot]);
+	if (index < 0)
+		return Skill::None;
+	const Skill first = FirstSkillOf(player._pClass);
+	if (first == Skill::None)
+		return Skill::None;
+	const size_t absolute = static_cast<size_t>(first) + static_cast<size_t>(index);
+	if (absolute >= ClassTreeSkillCount)
+		return Skill::None;
+	const auto skill = static_cast<Skill>(absolute);
+	// Validated on the way OUT rather than trusted from the save. A slot byte is a class-relative
+	// index, and a character who somehow carries one that is not this class's passive, or is a
+	// passive they no longer meet the level for, reads as an empty slot - never as a live skill
+	// they have not earned.
+	if (!IsPassiveSkillRow(skill) || !IsClassTreeSkillUnlocked(player, skill))
+		return Skill::None;
+	return skill;
+}
+
+int PassiveSlotOf(const Player &player, Skill skill)
+{
+	if (!IsPassiveSkillRow(skill))
+		return -1;
+	for (int slot = 0; slot < static_cast<int>(PassiveSlotCount); slot++) {
+		if (PassiveInSlot(player, slot) == skill)
+			return slot;
+	}
+	return -1;
+}
+
+bool SetPassiveSlot(Player &player, int slot, Skill skill)
+{
+	if (slot < 0 || slot >= static_cast<int>(PassiveSlotCount))
+		return false;
+	if (player._pLevel < PassiveSlotRequiredLevel(slot))
+		return false;
+	if (!IsPassiveSkillRow(skill))
+		return false;
+	if (GetClassTreeSkillData(skill).heroClass != player._pClass)
+		return false;
+	if (!IsClassTreeSkillUnlocked(player, skill))
+		return false;
+	// Already somewhere else: refused rather than moved. Silently emptying another slot is the kind
+	// of helpfulness that reads as a bug when the slot you were not looking at goes dark.
+	const int existing = PassiveSlotOf(player, skill);
+	if (existing >= 0 && existing != slot)
+		return false;
+	player._pPassiveSlots[slot] = static_cast<uint8_t>(ClassTreeIconIndex(skill));
+	return true;
+}
+
+bool ClearPassiveSlot(Player &player, int slot)
+{
+	if (slot < 0 || slot >= static_cast<int>(PassiveSlotCount))
+		return false;
+	if (player._pPassiveSlots[slot] == 0xFF)
+		return false;
+	player._pPassiveSlots[slot] = 0xFF;
 	return true;
 }
 
@@ -1149,7 +1311,15 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 		ApplyAura(aura, ClassTreeInvestment(player, aura), totals);
 	}
 
-	// Passives are always on once bought - no activation, no slot, just the points.
+	// Two kinds of passive, and they turn on for different reasons.
+	//
+	// A Diablo II passive - the Barbarian's masteries, the Rogue's Passive & Magic page - is always
+	// on once BOUGHT, and scales with the points in it.
+	//
+	// A Passive Skills page row is bought with nothing and scales with nothing. It is on if and only
+	// if it sits in one of the four slots, which is the whole of that page's choice. Every one of
+	// them is inert today, so this gate changes no number yet; it is here so that the first one
+	// built cannot accidentally apply from the grid.
 	const Skill first = FirstSkillOf(player._pClass);
 	for (size_t i = 0; i < MaxSkillsPerClass; i++) {
 		const auto skill = static_cast<Skill>(static_cast<size_t>(first) + i);
@@ -1162,6 +1332,11 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 			continue;
 		if (!IsClassTreeSkillUnlocked(player, skill))
 			continue;
+		if (IsPassiveSkillRow(skill)) {
+			if (PassiveSlotOf(player, skill) >= 0)
+				ApplyPassive(player, skill, 1, totals);
+			continue;
+		}
 		const int points = ClassTreeInvestment(player, skill);
 		if (points > 0)
 			ApplyPassive(player, skill, points, totals);
@@ -1312,6 +1487,22 @@ std::string ClassTreeLockReason(const Player &player, Skill skill)
 std::string ClassTreeEffectLine(const Player &player, Skill skill)
 {
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+	// A Passive Skills row has no points and no rank, so the usual two lines would both be lies -
+	// "Points: 0 of 1" invites a click that is refused, and the tier is not its gate.
+	if (IsPassiveSkillRow(skill)) {
+		const int required = PassiveSkillRequiredLevel(skill);
+		std::string out = player._pLevel >= required
+		    ? std::string(_("Learned"))
+		    : fmt::format(fmt::runtime(_("Learned at level {:d}")), required);
+		const int slot = PassiveSlotOf(player, skill);
+		if (slot >= 0)
+			out += "\n" + fmt::format(fmt::runtime(_("Active - slot {:d}")), slot + 1);
+		else if (player._pLevel >= required)
+			out += "\n" + std::string(_("Inactive - not in a slot"));
+		if (!data.implemented)
+			out += "\n" + std::string(_("No effect yet"));
+		return out;
+	}
 	const int p = ClassTreeInvestment(player, skill);
 	std::string out = fmt::format(fmt::runtime(_("Points: {:d} of {:d}")), p, ClassTreeMaxRank(skill));
 	out += "\n" + fmt::format(fmt::runtime(_("Requires level {:d}")), ClassTreeTierMinLevel(data.tier));

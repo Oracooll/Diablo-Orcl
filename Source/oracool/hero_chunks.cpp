@@ -111,6 +111,18 @@ void ApplyClassTree(Player &player, const uint8_t *payload, size_t len)
 	std::memcpy(player._pClassTreeInvestment, payload + 1, count);
 }
 
+void ApplyPassiveSlots(Player &player, const uint8_t *payload, size_t len)
+{
+	if (len < 1)
+		return;
+	const size_t count = std::min<size_t>({ payload[0], len - 1,
+	    std::size(player._pPassiveSlots) });
+	// Cleared first, so a save written with FEWER slots than this build has leaves the extra ones
+	// empty rather than carrying whatever the character happened to be constructed with.
+	std::memset(player._pPassiveSlots, 0xFF, sizeof(player._pPassiveSlots));
+	std::memcpy(player._pPassiveSlots, payload + 1, count);
+}
+
 void ApplyWaypoints64(Player &player, const uint8_t *payload, size_t len)
 {
 	if (len < 4 * sizeof(uint64_t))
@@ -165,6 +177,14 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		const auto count = static_cast<uint8_t>(std::size(player._pClassTreeInvestment));
 		out.push_back(count);
 		out.insert(out.end(), player._pClassTreeInvestment, player._pClassTreeInvestment + count);
+		EndChunk(out, at);
+	}
+
+	{
+		const size_t at = BeginChunk(out, HeroChunkPassiveSlots);
+		const auto count = static_cast<uint8_t>(std::size(player._pPassiveSlots));
+		out.push_back(count);
+		out.insert(out.end(), player._pPassiveSlots, player._pPassiveSlots + count);
 		EndChunk(out, at);
 	}
 
@@ -265,6 +285,9 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			break;
 		case HeroChunkClassTree:
 			ApplyClassTree(player, payload, chunkLen);
+			break;
+		case HeroChunkPassiveSlots:
+			ApplyPassiveSlots(player, payload, chunkLen);
 			break;
 		case HeroChunkMilestones:
 			if (chunkLen >= 4)

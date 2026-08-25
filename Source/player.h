@@ -469,6 +469,18 @@ struct Player {
 	 * keeps the first 32 and drops the rest.
 	 */
 	uint8_t _pClassTreeInvestment[64] = {};
+	/**
+	 * @brief The four Passive Skills slots, as CLASS-RELATIVE skill indices. 0xFF is empty.
+	 *
+	 * Class-relative deliberately, and not the absolute ClassTreeSkill that _pOracoolActiveAura
+	 * stores: an absolute id shifts whenever a class earlier in the enum gains rows, which is
+	 * exactly what cost Bard and Monk heroes their lit aura at 1.9.45. Same index space as
+	 * _pClassTreeInvestment above, so oracool::ClassTreeIconIndex converts both ways.
+	 *
+	 * Persisted by HeroChunkPassiveSlots. A slot holding a skill the character cannot have - the
+	 * wrong class, or a level they no longer meet - reads as empty rather than as that skill.
+	 */
+	uint8_t _pPassiveSlots[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
 	/** @brief Phase 1 Magic/Gold Find: derived each CalcPlrItemVals from the bonus providers
 	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
 	int _pMagicFind = 0;

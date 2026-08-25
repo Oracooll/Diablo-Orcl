@@ -917,6 +917,38 @@ TEST(OracoolHeroChunks, StatPointsRoundTripPastAByte)
 	}
 }
 
+TEST(OracoolHeroChunks, PassiveSlotsRoundTrip)
+{
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	source = {};
+	source._pClass = HeroClass::Warrior;
+	source._pLevel = 40;
+
+	oracool::ClassTreeSkill page[oracool::ClassTreeSkillCount];
+	const size_t count = oracool::BuildClassTreePage(HeroClass::Warrior,
+	    oracool::PassiveSkillsPage, page);
+	ASSERT_GE(count, 3u);
+	ASSERT_TRUE(oracool::SetPassiveSlot(source, 0, page[0]));
+	ASSERT_TRUE(oracool::SetPassiveSlot(source, 2, page[2]));
+
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+
+	devilution::Player target {};
+	target._pClass = HeroClass::Warrior;
+	target._pLevel = 40;
+	// Stale state the apply must clear, not merge into: a slot the saved character did not fill
+	// must come back EMPTY, or loading a hero would inherit whatever the last one was running.
+	target._pPassiveSlots[1] = 0;
+	oracool::ApplyHeroChunks(target, tail.data(), tail.size());
+
+	EXPECT_EQ(oracool::PassiveInSlot(target, 0), page[0]);
+	EXPECT_EQ(oracool::PassiveInSlot(target, 1), oracool::ClassTreeSkill::None)
+	    << "a slot the save left empty came back full";
+	EXPECT_EQ(oracool::PassiveInSlot(target, 2), page[2]);
+	EXPECT_EQ(oracool::PassiveInSlot(target, 3), oracool::ClassTreeSkill::None);
+}
+
 // The chunk is what carries the real value, but the fixed struct is still written for a reader that
 // has no tail. It must come back CLAMPED rather than wrapped: losing points is bad, and silently
 // turning 490 into 234 is worse, because 234 looks like a number somebody meant.
@@ -1833,11 +1865,21 @@ TEST(OracoolClassTree, EveryInertRowContributesNothing)
 			continue;
 
 		devilution::Player &player = FreshHero(data.heroClass);
-		ASSERT_TRUE(oracool::InvestClassTreePoint(player, skill))
-		    << _(data.name) << " could not take a point at level 50 with points in hand";
-		// An aura contributes only while it burns, so an unlit one would pass trivially.
-		if (data.kind == oracool::ClassTreeKind::Aura)
-			ASSERT_TRUE(oracool::ToggleClassAura(player, skill)) << _(data.name) << " would not light";
+		// Each kind is turned on the way that kind is actually turned on, because a row that is
+		// merely OFF would pass this test without proving anything.
+		if (oracool::IsPassiveSkillRow(skill)) {
+			// A Passive Skills row takes no points at all (2026-08-25); it is live when slotted.
+			ASSERT_FALSE(oracool::InvestClassTreePoint(player, skill))
+			    << _(data.name) << " took a skill point - the passive page is meant to be free";
+			ASSERT_TRUE(oracool::SetPassiveSlot(player, 0, skill))
+			    << _(data.name) << " would not go into a slot at level 50";
+		} else {
+			ASSERT_TRUE(oracool::InvestClassTreePoint(player, skill))
+			    << _(data.name) << " could not take a point at level 50 with points in hand";
+			// An aura contributes only while it burns, so an unlit one would pass trivially.
+			if (data.kind == oracool::ClassTreeKind::Aura)
+				ASSERT_TRUE(oracool::ToggleClassAura(player, skill)) << _(data.name) << " would not light";
+		}
 
 		oracool::ItemBonusTotals totals;
 		oracool::ApplyClassTreeToTotals(player, totals);
@@ -1951,6 +1993,142 @@ TEST(OracoolClassTree, AddingThePassivePagesMovedNoExistingSkillsSaveSlot)
 	}
 	EXPECT_LE(oracool::MaxSkillsPerClass, std::size(devilution::Player {}._pClassTreeInvestment))
 	    << "MaxSkillsPerClass indexes past the array it indexes";
+}
+
+TEST(OracoolClassTree, PassivesCostNoPointsAndArriveOneEveryEvenLevel)
+{
+	devilution::Player &player = FreshPaladin(1);
+	player._pClass = HeroClass::Warrior;
+	player._pUnspentSkillPoints = 50;
+
+	oracool::ClassTreeSkill page[oracool::ClassTreeSkillCount];
+	const size_t count = oracool::BuildClassTreePage(HeroClass::Warrior,
+	    oracool::PassiveSkillsPage, page);
+	ASSERT_GT(count, 0u);
+
+	for (size_t i = 0; i < count; i++) {
+		// Grid reading order is unlock order: the nth passive arrives at level 2n+2.
+		EXPECT_EQ(oracool::PassiveSkillRequiredLevel(page[i]), static_cast<int>(2 * (i + 1)))
+		    << oracool::GetClassTreeSkillData(page[i]).name;
+	}
+
+	// Free, and not merely cheap. A point must not be spendable on one at any level.
+	const oracool::ClassTreeSkill first = page[0];
+	player._pLevel = 99;
+	EXPECT_FALSE(oracool::CanInvestClassTreePoint(player, first));
+	EXPECT_FALSE(oracool::InvestClassTreePoint(player, first));
+	EXPECT_EQ(player._pUnspentSkillPoints, 50) << "a passive took a skill point";
+
+	// Automatic: level is the whole gate, and it is per skill rather than per tier.
+	player._pLevel = 1;
+	EXPECT_FALSE(oracool::IsClassTreeSkillUnlocked(player, first));
+	player._pLevel = 2;
+	EXPECT_TRUE(oracool::IsClassTreeSkillUnlocked(player, first));
+	// The three cells of tier 0 open at 2, 4 and 6 - the tier is the row, not the gate.
+	ASSERT_GE(count, 3u);
+	EXPECT_FALSE(oracool::IsClassTreeSkillUnlocked(player, page[2]));
+	player._pLevel = 6;
+	EXPECT_TRUE(oracool::IsClassTreeSkillUnlocked(player, page[2]));
+}
+
+TEST(OracoolClassTree, TheOlderDiabloTwoPassivesStillCostPoints)
+{
+	// The scope line the user drew (2026-08-25): only the new page is free. The Barbarian's Combat
+	// Masteries are Kind::Passive too, and in Diablo II investing deeper IS the mechanic - so if
+	// "passives are free" had been scoped by KIND rather than by PAGE, this is what it would have
+	// silently taken away.
+	devilution::Player &player = FreshPaladin(30);
+	player._pClass = HeroClass::Barbarian;
+	player._pUnspentSkillPoints = 5;
+	EXPECT_FALSE(oracool::IsPassiveSkillRow(oracool::ClassTreeSkill::SwordMastery));
+	EXPECT_TRUE(oracool::CanInvestClassTreePoint(player, oracool::ClassTreeSkill::SwordMastery));
+	EXPECT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::SwordMastery));
+	EXPECT_EQ(oracool::ClassTreeInvestment(player, oracool::ClassTreeSkill::SwordMastery), 1);
+	EXPECT_EQ(player._pUnspentSkillPoints, 4);
+}
+
+TEST(OracoolClassTree, FourPassiveSlotsOpenAtOneTenTwentyThirty)
+{
+	devilution::Player &player = FreshPaladin(1);
+	player._pClass = HeroClass::Warrior;
+
+	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(0), 1);
+	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(1), 10);
+	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(2), 20);
+	EXPECT_EQ(oracool::PassiveSlotRequiredLevel(3), 30);
+
+	player._pLevel = 1;
+	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 1);
+	player._pLevel = 9;
+	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 1);
+	player._pLevel = 10;
+	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 2);
+	player._pLevel = 30;
+	EXPECT_EQ(oracool::UnlockedPassiveSlotCount(player), 4);
+}
+
+TEST(OracoolClassTree, AnUnslottedPassiveIsInactiveAndASlotRefusesWhatItCannotHold)
+{
+	devilution::Player &player = FreshPaladin(1);
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 40;
+
+	oracool::ClassTreeSkill page[oracool::ClassTreeSkillCount];
+	const size_t count = oracool::BuildClassTreePage(HeroClass::Warrior,
+	    oracool::PassiveSkillsPage, page);
+	ASSERT_GE(count, 2u);
+	const oracool::ClassTreeSkill a = page[0];
+	const oracool::ClassTreeSkill b = page[1];
+
+	// Learned but doing nothing - which is the whole point of the slots.
+	EXPECT_TRUE(oracool::IsClassTreeSkillUnlocked(player, a));
+	EXPECT_EQ(oracool::PassiveSlotOf(player, a), -1);
+
+	EXPECT_TRUE(oracool::SetPassiveSlot(player, 0, a));
+	EXPECT_EQ(oracool::PassiveSlotOf(player, a), 0);
+	EXPECT_EQ(oracool::PassiveInSlot(player, 0), a);
+
+	// The same passive twice would be a free doubling of whatever it eventually does.
+	EXPECT_FALSE(oracool::SetPassiveSlot(player, 1, a)) << "one passive filled two slots";
+
+	// Another class's passive, and a non-passive row, are both refused.
+	EXPECT_FALSE(oracool::SetPassiveSlot(player, 1, oracool::ClassTreeSkill::PoundOfFlesh));
+	EXPECT_FALSE(oracool::SetPassiveSlot(player, 1, oracool::ClassTreeSkill::Might));
+
+	EXPECT_TRUE(oracool::SetPassiveSlot(player, 1, b));
+	EXPECT_TRUE(oracool::ClearPassiveSlot(player, 0));
+	EXPECT_EQ(oracool::PassiveSlotOf(player, a), -1);
+	EXPECT_FALSE(oracool::ClearPassiveSlot(player, 0)) << "an empty slot reported a change";
+}
+
+TEST(OracoolClassTree, ASlotStopsHoldingWhatTheCharacterNoLongerQualifiesFor)
+{
+	// Read validation, not write validation. The slot byte survives in the save; the character's
+	// level and class do not have to. A slot holding something they cannot have reads as EMPTY
+	// rather than handing them a passive they have not earned.
+	devilution::Player &player = FreshPaladin(1);
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 40;
+
+	oracool::ClassTreeSkill page[oracool::ClassTreeSkillCount];
+	const size_t count = oracool::BuildClassTreePage(HeroClass::Warrior,
+	    oracool::PassiveSkillsPage, page);
+	ASSERT_GE(count, 4u);
+	const oracool::ClassTreeSkill deep = page[3]; // level 8
+	ASSERT_TRUE(oracool::SetPassiveSlot(player, 0, deep));
+	EXPECT_EQ(oracool::PassiveInSlot(player, 0), deep);
+
+	player._pLevel = 2;
+	EXPECT_EQ(oracool::PassiveInSlot(player, 0), oracool::ClassTreeSkill::None)
+	    << "a slot handed out a passive the character has not reached";
+
+	// A slot past the character's level holds nothing either, however it was filled.
+	player._pLevel = 40;
+	ASSERT_TRUE(oracool::ClearPassiveSlot(player, 0)); // it is still sitting in slot 0
+	ASSERT_TRUE(oracool::SetPassiveSlot(player, 3, deep));
+	player._pLevel = 29;
+	EXPECT_EQ(oracool::PassiveInSlot(player, 3), oracool::ClassTreeSkill::None)
+	    << "a locked slot was still live";
 }
 
 TEST(OracoolClassTree, AnAuraThatIsNotThisCharactersDoesNotBurn)

@@ -488,6 +488,52 @@ constexpr int MaxTreeInvestment = 98;
  */
 constexpr size_t ClassTreePageCount = 4;
 
+/**
+ * @brief The Passive Skills page. Everything about it differs from the three D2 pages.
+ *
+ * Scoped by PAGE and not by ClassTreeKind::Passive, which matters: the Barbarian's ten Combat
+ * Masteries, the Rogue's Passive & Magic page and the Monk's Perfect Vessel are all Kind::Passive
+ * and all still cost points and still hold ranks, because in Diablo II investing deeper IS the
+ * mechanic. Only this page is free, automatic and slotted (user, 2026-08-25).
+ */
+constexpr int PassiveSkillsPage = 3;
+
+/** @brief Slots a character can fill with passives. Unslotted passives do nothing. */
+constexpr size_t PassiveSlotCount = 4;
+
+/** @brief Whether @p skill is a Passive Skills page row - free, auto-unlocking and slot-gated. */
+bool IsPassiveSkillRow(ClassTreeSkill skill);
+
+/**
+ * @brief The character level at which @p skill unlocks: one passive every even level.
+ *
+ * The nth passive on the page (counting from zero, in grid reading order) arrives at level
+ * 2n+2 - so the first at 2, the eighteenth at 36, the nineteenth at 38 for the two classes that
+ * have one. Returns 0 for a row that is not on the Passive Skills page; those are gated by tier.
+ */
+int PassiveSkillRequiredLevel(ClassTreeSkill skill);
+
+/** @brief The character level that opens slot @p slot: 1, 10, 20, 30. */
+int PassiveSlotRequiredLevel(int slot);
+
+/** @brief How many of the four slots @p player has opened. */
+int UnlockedPassiveSlotCount(const Player &player);
+
+/** @brief The passive in @p slot, or None - empty, locked, or holding something invalid. */
+ClassTreeSkill PassiveInSlot(const Player &player, int slot);
+
+/** @brief The slot @p skill occupies, or -1. This is the whole of "is this passive active". */
+int PassiveSlotOf(const Player &player, ClassTreeSkill skill);
+
+/**
+ * @brief Puts @p skill into @p slot. Refuses a locked slot, a locked skill, another class's skill,
+ * a row that is not a passive, or a skill already sitting in a different slot.
+ */
+bool SetPassiveSlot(Player &player, int slot, ClassTreeSkill skill);
+
+/** @brief Empties @p slot. False if it was already empty or the slot does not exist. */
+bool ClearPassiveSlot(Player &player, int slot);
+
 /** @brief What kind of thing a row is, which decides what a click does. */
 enum class ClassTreeKind : uint8_t {
 	/** Cast or swung - clicking readies it on the mouse button that clicked. */

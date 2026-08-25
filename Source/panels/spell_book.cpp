@@ -486,16 +486,86 @@ constexpr int TreeRowPitch = TreeIconSize + TreeBarGap + TreeBarHeight + TreeRow
 static_assert(6 * TreeRowPitch <= AbilitiesContentSize.height,
     "a six-tier tree page no longer fits the list unscrolled - tighten TreeRowGap or the nav row");
 
-Rectangle TreeIconRect(int column, int tier)
+// ---------------------------------------------------------------------------------------------
+// The Passive Skills page's own geometry (2026-08-25).
+//
+// It differs from the other three in two ways that turn out to solve each other. It has a band of
+// four SLOTS above the grid, and its cells have no rank counter - because nothing on the page is
+// bought, so there is no rank to count. Dropping the counter shortens every row by exactly the
+// 20px the band needs, which is what lets a SEVEN-tier page carry a slot band and still fit
+// unscrolled. That matters more than it sounds: with the slot-first gesture the user chose, the
+// slot you are aiming at must never be scrolled off the top while you reach for the grid.
+// ---------------------------------------------------------------------------------------------
+
+/** The four slots sit in a row across the interior, above everything else. */
+constexpr int PassiveSlotSize = SheetIconSize;
+constexpr int PassiveSlotPitch = 63;
+constexpr int PassiveSlotX0 = AbilitiesInteriorLeft
+    + (AbilitiesInteriorRight - AbilitiesInteriorLeft
+        - (static_cast<int>(oracool::PassiveSlotCount) - 1) * PassiveSlotPitch - PassiveSlotSize)
+        / 2;
+static_assert(PassiveSlotX0 >= AbilitiesInteriorLeft
+        && PassiveSlotX0 + (static_cast<int>(oracool::PassiveSlotCount) - 1) * PassiveSlotPitch
+                + PassiveSlotSize
+            <= AbilitiesInteriorRight,
+    "the four passive slots no longer fit the painted interior - tighten PassiveSlotPitch");
+
+/** One line under the slots, which is where the gesture explains itself. */
+constexpr int PassiveHintHeight = 18;
+constexpr int PassiveHintTop = PassiveSlotSize + 4;
+/** The grid begins below the band. */
+constexpr int PassiveGridTop = PassiveHintTop + PassiveHintHeight + 4;
+/** No counter row, so a passive row is its icon plus air. */
+constexpr int PassiveRowGap = 4;
+constexpr int PassiveRowPitch = TreeIconSize + PassiveRowGap;
+static_assert(PassiveGridTop + oracool::ClassTreeTierCount * PassiveRowPitch <= AbilitiesContentSize.height,
+    "the passive page no longer fits unscrolled - the slot band must stay on screen with the grid");
+
+bool IsPassivePage(int page)
 {
+	return page == oracool::PassiveSkillsPage;
+}
+
+Rectangle TreeIconRect(int page, int column, int tier)
+{
+	if (IsPassivePage(page)) {
+		return { { TreeColX0 + column * TreeColPitch, PassiveGridTop + tier * PassiveRowPitch },
+			{ TreeIconSize, TreeIconSize } };
+	}
 	return { { TreeColX0 + column * TreeColPitch, tier * TreeRowPitch }, { TreeIconSize, TreeIconSize } };
 }
 
-Rectangle TreeBarRect(int column, int tier)
+Rectangle TreeBarRect(int page, int column, int tier)
 {
+	// The passive page has no counter at all, so it gets an empty rect rather than a hidden one -
+	// Rectangle::contains is false for a zero-size rect, which makes the hit test agree with the
+	// draw without either of them having to know about the other.
+	if (IsPassivePage(page))
+		return { { 0, 0 }, { 0, 0 } };
 	return { { TreeColX0 + column * TreeColPitch, tier * TreeRowPitch + TreeIconSize + TreeBarGap },
 		{ TreeIconSize, TreeBarHeight } };
 }
+
+/** @brief The slot under @p localPoint, or -1. Only meaningful on the passive page. */
+int PassiveSlotAt(Point localPoint)
+{
+	for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++) {
+		const Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, 0 },
+			{ PassiveSlotSize, PassiveSlotSize } };
+		if (rect.contains(localPoint))
+			return slot;
+	}
+	return -1;
+}
+
+/**
+ * @brief The slot waiting to be filled, or -1.
+ *
+ * The user chose slot-first (2026-08-25): click a slot to arm it, then click a passive to put that
+ * passive in it. File-local rather than per-player because it is a gesture in progress, not state -
+ * it must not survive closing the window, changing sheet, or the character being saved.
+ */
+int ArmedPassiveSlot = -1;
 
 /** @brief How many rows @p sheet has right now. */
 size_t GetRowCount(AbilitySheet sheet)
@@ -533,6 +603,8 @@ int TotalListHeight(AbilitySheet sheet)
 		int deepest = -1;
 		for (size_t i = 0; i < count; i++)
 			deepest = std::max(deepest, oracool::GetClassTreeSkillData(skills[i]).tier);
+		if (IsPassivePage(*page))
+			return PassiveGridTop + (deepest + 1) * PassiveRowPitch;
 		return (deepest + 1) * TreeRowPitch;
 	}
 	// Spells is the only list sheet left, and it is a uniform stride.
@@ -932,9 +1004,9 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	const bool unlocked = oracool::IsClassTreeSkillUnlocked(player, skill);
 	const int invested = oracool::ClassTreeInvestment(player, skill);
 
-	Rectangle icon = TreeIconRect(data.column, data.tier);
+	Rectangle icon = TreeIconRect(data.page, data.column, data.tier);
 	icon.position.y -= scroll;
-	Rectangle bar = TreeBarRect(data.column, data.tier);
+	Rectangle bar = TreeBarRect(data.page, data.column, data.tier);
 	bar.position.y -= scroll;
 
 	// An unbuilt skill is drawn like a locked one even at level: "listed but inert" and "not yet
@@ -943,10 +1015,17 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	// Three states, not two (user, 2026-08-17: "Unlocked skills with 0 points in them are unavailable
 	// and inactive, ergo need to have red background, not green"). Green now means the skill has
 	// something in it; red means it is yours to fill and empty; grey means it is not yours yet.
-	const bool usable = unlocked && data.implemented;
+	// A Passive Skills row is judged by its SLOT, not by its points - it has none and can have none.
+	// It is also usable while unbuilt, which is the one place this page departs from "unbuilt reads
+	// as locked": slotting is the mechanism being shipped, and it genuinely works. The red X still
+	// goes on, because the EFFECT genuinely does not.
+	const bool isPassiveRow = oracool::IsPassiveSkillRow(skill);
+	const bool slotted = isPassiveRow && oracool::PassiveSlotOf(player, skill) >= 0;
+	const bool usable = unlocked && (isPassiveRow || data.implemented);
 	const oracool::SkillPlateTint tint = !usable
 	    ? oracool::SkillPlateTint::Grey
-	    : (invested > 0 ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Red);
+	    : ((isPassiveRow ? slotted : invested > 0) ? oracool::SkillPlateTint::Green
+	                                               : oracool::SkillPlateTint::Red);
 	oracool::DrawClassTreeIcon(content, icon, player._pClass, oracool::ClassTreeIconIndex(skill),
 	    usable, tint);
 
@@ -955,7 +1034,12 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	if (!data.implemented)
 		DrawUnbuiltCross(content, icon);
 
-	if (data.kind == oracool::ClassTreeKind::Aura) {
+	if (isPassiveRow) {
+		// A slotted passive wears the same outline a burning aura does, and for the same reason:
+		// both mean "this one is live right now".
+		if (slotted)
+			oracool::DrawHoverOutline(content, icon);
+	} else if (data.kind == oracool::ClassTreeKind::Aura) {
 		if (oracool::GetActiveClassAura(player) == skill)
 			oracool::DrawHoverOutline(content, icon);
 	} else if (const SpellID slot = oracool::ClassTreeSpellId(skill); IsValidSpell(slot)) {
@@ -969,6 +1053,23 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	if (IsInspectingPlayer())
 		return;
 	const Player &me = *MyPlayer;
+	if (isPassiveRow) {
+		// The one number a passive has is the level it arrives at, and it is worth showing on a
+		// LOCKED cell precisely because the tier no longer answers that question - three cells share
+		// a row and open two levels apart.
+		if (!unlocked) {
+			DrawString(content, fmt::format("{:d}", oracool::PassiveSkillRequiredLevel(skill)),
+			    { { icon.position.x, icon.position.y + TreeIconSize - SpendBoxSize },
+			        { TreeIconSize, SpendBoxSize } },
+			    { UiFlags::ColorRed | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		} else if (ArmedPassiveSlot >= 0) {
+			// A slot is waiting: light every passive that could go into it, so the second half of
+			// the gesture has somewhere obvious to land.
+			if (!slotted)
+				oracool::DrawColoredOutline(content, icon, EligibleForPointColor);
+		}
+		return;
+	}
 	if (invested > 0) {
 		DrawString(content, fmt::format("{:d}", invested),
 		    { { icon.position.x + SpendBoxSize, icon.position.y + TreeIconSize - SpendBoxSize },
@@ -990,9 +1091,62 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		oracool::DrawColoredOutline(content, icon, EligibleForPointColor);
 }
 
+/**
+ * @brief The four slots and the line of guidance under them.
+ *
+ * The hint line is not decoration. Slot-first is the gesture the user chose, and its one weakness
+ * is that a player who clicks a passive without arming a slot gets nothing - so the window says,
+ * at all times, which half of the gesture it is waiting for.
+ */
+void DrawPassiveSlotBand(const Surface &content, int scroll)
+{
+	const Player &player = *InspectPlayer;
+	for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++) {
+		Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, -scroll },
+			{ PassiveSlotSize, PassiveSlotSize } };
+		const bool open = player._pLevel >= oracool::PassiveSlotRequiredLevel(slot);
+		const oracool::ClassTreeSkill held = oracool::PassiveInSlot(player, slot);
+		const bool filled = held != oracool::ClassTreeSkill::None;
+
+		const oracool::SkillPlateTint tint = !open
+		    ? oracool::SkillPlateTint::Grey
+		    : (filled ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Red);
+		if (filled) {
+			oracool::DrawClassTreeIcon(content, rect, player._pClass,
+			    oracool::ClassTreeIconIndex(held), /*unlocked=*/true, tint);
+		} else {
+			// An empty slot is the plate alone - the same empty plate a passive with no art yet
+			// draws, which is the window being consistent rather than a shortcut.
+			oracool::DrawClassTreeIcon(content, rect, player._pClass,
+			    /*skillIndex=*/-1, open, tint);
+		}
+		if (!open) {
+			DrawString(content, fmt::format(fmt::runtime(_("Lv{:d}")),
+			                 oracool::PassiveSlotRequiredLevel(slot)),
+			    { { rect.position.x, rect.position.y + PassiveSlotSize - SpendBoxSize },
+			        { PassiveSlotSize, SpendBoxSize } },
+			    { UiFlags::ColorRed | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		} else if (slot == ArmedPassiveSlot) {
+			oracool::DrawColoredOutline(content, rect, EligibleForPointColor);
+		}
+	}
+
+	if (IsInspectingPlayer())
+		return;
+	const string_view hint = ArmedPassiveSlot >= 0
+	    ? _("Now click a passive to fill the slot")
+	    : _("Click a slot, then a passive. Right-click a slot to empty it.");
+	DrawString(content, hint,
+	    { { AbilitiesInteriorLeft, PassiveHintTop - scroll },
+	        { AbilitiesInteriorRight - AbilitiesInteriorLeft, PassiveHintHeight } },
+	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+}
+
 /** @brief Draws a whole tree page. */
 void DrawTreePage(const Surface &content, int page, int scroll)
 {
+	if (IsPassivePage(page))
+		DrawPassiveSlotBand(content, scroll);
 	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
 	const size_t count = oracool::BuildClassTreePage(InspectPlayer->_pClass, page, skills);
 	for (size_t i = 0; i < count; i++)
@@ -1009,11 +1163,11 @@ std::optional<oracool::ClassTreeSkill> TreeCellAt(int page, Point localPoint, bo
 	const size_t count = oracool::BuildClassTreePage(InspectPlayer->_pClass, page, skills);
 	for (size_t i = 0; i < count; i++) {
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
-		if (TreeIconRect(data.column, data.tier).contains(localPoint)) {
+		if (TreeIconRect(data.page, data.column, data.tier).contains(localPoint)) {
 			onBar = false;
 			return skills[i];
 		}
-		if (TreeBarRect(data.column, data.tier).contains(localPoint)) {
+		if (TreeBarRect(data.page, data.column, data.tier).contains(localPoint)) {
 			onBar = true;
 			return skills[i];
 		}
@@ -1147,6 +1301,8 @@ void CycleAbilitySheet(int direction)
 		if (IsSheetAvailable(CurrentSheet))
 			break;
 	}
+	// A gesture in progress does not survive leaving the page it was started on.
+	ArmedPassiveSlot = -1;
 	UpdateScrollBounds();
 }
 
@@ -1159,6 +1315,7 @@ void ScrollSpellBook(int notches)
 
 void ResetSpellBookScroll()
 {
+	ArmedPassiveSlot = -1;
 	for (int &offset : ScrollOffset)
 		offset = 0;
 	// Opening on a sheet the character cannot use would show an empty window.
@@ -1316,7 +1473,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		if (!hovered.has_value())
 			return;
 		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(*hovered);
-		const Rectangle cell = TreeIconRect(data.column, data.tier);
+		const Rectangle cell = TreeIconRect(data.page, data.column, data.tier);
 		// A tree cell is an F-key target only when a CLICK on it would do something - the hotkey and
 		// the click must agree, or a key binds what the mouse refuses (user, 2026-08-18: neither
 		// clicking nor hotkeying an unbuilt or unranked skill should be allowed).
@@ -1501,6 +1658,77 @@ void CheckSBook(bool assignToRightButton)
 	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value()) {
 		bool onBar = false;
 		const Point local { MousePosition.x - content.position.x, y };
+
+		// The passive page spends nothing, so left/right mean something else on it entirely: the
+		// slot-first gesture the user chose on 2026-08-25.
+		if (IsPassivePage(*page)) {
+			Player &me = *MyPlayer;
+			if (const int slot = PassiveSlotAt(local); slot >= 0) {
+				if (me._pLevel < oracool::PassiveSlotRequiredLevel(slot)) {
+					EventPlrMsg(fmt::format(fmt::runtime(_("This slot opens at level {:d}.")),
+					                oracool::PassiveSlotRequiredLevel(slot)),
+					    UiFlags::ColorRed);
+					return;
+				}
+				if (assignToRightButton) {
+					// Right-click empties, which is the same thing the right button means on every
+					// other page: take back what the left one put in.
+					if (oracool::ClearPassiveSlot(me, slot)) {
+						if (ArmedPassiveSlot == slot)
+							ArmedPassiveSlot = -1;
+						CalcPlrInv(me, false);
+						RedrawEverything();
+					}
+					return;
+				}
+				// Clicking the armed slot again puts the gesture down. Without this the only way
+				// out of a half-finished action would be to complete it.
+				ArmedPassiveSlot = (ArmedPassiveSlot == slot) ? -1 : slot;
+				RedrawEverything();
+				return;
+			}
+			const std::optional<oracool::ClassTreeSkill> cell = TreeCellAt(*page, local, onBar);
+			if (!cell.has_value())
+				return;
+			if (assignToRightButton) {
+				// Right-clicking a slotted passive pulls it out wherever it happens to be sitting,
+				// so a player who wants it gone does not have to find which slot holds it.
+				const int slot = oracool::PassiveSlotOf(me, *cell);
+				if (slot >= 0 && oracool::ClearPassiveSlot(me, slot)) {
+					CalcPlrInv(me, false);
+					RedrawEverything();
+				}
+				return;
+			}
+			if (!oracool::IsClassTreeSkillUnlocked(me, *cell)) {
+				EventPlrMsg(fmt::format(fmt::runtime(_("{:s} is learned at level {:d}.")),
+				                std::string(_(oracool::GetClassTreeSkillData(*cell).name)),
+				                oracool::PassiveSkillRequiredLevel(*cell)),
+				    UiFlags::ColorRed);
+				return;
+			}
+			if (ArmedPassiveSlot < 0) {
+				// The gesture's one failure mode, answered rather than ignored. Clicking a passive
+				// with no slot armed used to be the case where nothing happened and nothing said
+				// why - which is the exact complaint that produced ClassTreeLockReason.
+				EventPlrMsg(_("Click one of the four slots above first."), UiFlags::ColorRed);
+				return;
+			}
+			if (const int already = oracool::PassiveSlotOf(me, *cell); already >= 0) {
+				EventPlrMsg(fmt::format(fmt::runtime(_("{:s} is already in slot {:d}.")),
+				                std::string(_(oracool::GetClassTreeSkillData(*cell).name)),
+				                already + 1),
+				    UiFlags::ColorRed);
+				return;
+			}
+			if (oracool::SetPassiveSlot(me, ArmedPassiveSlot, *cell)) {
+				ArmedPassiveSlot = -1;
+				CalcPlrInv(me, false);
+				RedrawEverything();
+			}
+			return;
+		}
+
 		const std::optional<oracool::ClassTreeSkill> hit = TreeCellAt(*page, local, onBar);
 		if (!hit.has_value())
 			return;

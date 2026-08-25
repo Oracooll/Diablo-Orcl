@@ -485,10 +485,18 @@ TEST(Writehero, pfile_write_hero)
 	//
 	//      Both are TAIL changes. sizeof(PlayerPack) is untouched, so ReadHero's exact-size check
 	//      on the base is unaffected and every existing hero still loads.
+	// 1.9.46: HeroChunkPassiveSlots (tag 12) joined the tail - a count byte and four
+	//      CLASS-RELATIVE skill indices, the passives the character is running. Additive tail chunk,
+	//      so the fixed struct is byte-identical again and an older build skips the unknown tag,
+	//      which costs it only the slot assignment.
+	//
+	//      Class-relative on purpose, and it is the lesson from the chunk directly above: the aura
+	//      is stored ABSOLUTELY and that is why growing the enum at 1.9.45 cost Bard and Monk heroes
+	//      their lit aura. A relative index does not move when another class gains rows.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "6694fa0f081b9c77be4689fb85a932cf91fa15d58f011cbd621abb4efcee466f");
+	    "390a2a4dec74874d3f882906de58f47f4caa997ce5723895c3a0333b41828836");
 }
 
 } // namespace
