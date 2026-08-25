@@ -437,6 +437,75 @@ TEST(Writehero, HeroSurvivesAWriteAndReadsBack)
 	RemoveFile(savePath.c_str());
 }
 
+// The failure-injection test the second external audit asked for, and which could not be written at
+// the time because nothing in the save path could be made to fail.
+//
+// It matters more than an ordinary regression test. MpqWriter::WriteFile was changed so that a
+// failed write can no longer destroy the record it was replacing - and the only evidence for that
+// was that saving still worked, which is evidence about the SUCCESS path. A guarantee about failure
+// that has never seen a failure is a guess.
+TEST(Writehero, AFailedSaveLeavesThePreviousOneIntact)
+{
+	const std::string savePath = paths::BasePath() + "multi_0.sv";
+	paths::SetPrefPath(paths::BasePath());
+	RemoveFile(savePath.c_str());
+
+	gbVanilla = true;
+	gbIsHellfire = false;
+	gbIsMultiplayer = true;
+	gbIsHellfireSaveGame = false;
+	leveltype = DTYPE_TOWN;
+	giNumberOfLevels = 17;
+
+	Players.resize(1);
+	MyPlayerId = 0;
+	MyPlayer = &Players[MyPlayerId];
+
+	_uiheroinfo info {};
+	info.heroclass = HeroClass::Rogue;
+	pfile_ui_save_create(&info);
+	PlayerPack pks;
+	PackPlayerTest(&pks);
+	UnPackPlayer(pks, *MyPlayer);
+
+	// A good save the player would not want to lose.
+	MyPlayer->_pLevel = 42;
+	pfile_write_hero(/*writeGameData=*/false);
+	ASSERT_TRUE(FileExists(savePath.c_str()));
+
+	// Now the disk fills up partway through the next one. The count is deliberately small and not
+	// zero: failing the very first write would be a disk that was already dead, and the dangerous
+	// case is the one that fails PART WAY, after the writer has begun rearranging the archive.
+	MyPlayer->_pLevel = 43;
+	FailWritesAfter(2);
+	pfile_write_hero(/*writeGameData=*/false);
+	StopFailingWrites();
+
+	// The file must still be there, and must still be the level-42 hero. Not a stub, not an empty
+	// archive, not a hero with no "hero" record in it.
+	ASSERT_TRUE(FileExists(savePath.c_str())) << "a failed save deleted the save file";
+
+	Players[0] = {};
+	MyPlayer = &Players[0];
+	LoadedHeroFound = false;
+	LoadedHero = {};
+	pfile_ui_set_hero_infos(+[](_uiheroinfo *hero) -> bool {
+		if (hero->name[0] != '\0') {
+			LoadedHero = *hero;
+			LoadedHeroFound = true;
+		}
+		return true;
+	});
+
+	EXPECT_TRUE(LoadedHeroFound)
+	    << "a failed save destroyed the previous hero - the archive no longer holds one";
+	EXPECT_EQ(LoadedHero.level, 42)
+	    << "the failed save left the file holding neither the old hero nor a good new one";
+
+	RemoveFile(savePath.c_str());
+	StopFailingWrites();
+}
+
 TEST(Writehero, pfile_write_hero)
 {
 	const std::string savePath = paths::BasePath() + "multi_0.sv";
