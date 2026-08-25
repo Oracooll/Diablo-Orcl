@@ -1029,9 +1029,29 @@ size_t OptionEntryResolution::GetActiveListIndex() const
 {
 	CheckResolutionsAreInitialized();
 	auto found = std::find_if(resolutions.begin(), resolutions.end(), [this](const auto &x) { return x.first == this->size; });
-	if (found == resolutions.end())
-		return 0;
-	return std::distance(resolutions.begin(), found);
+	if (found != resolutions.end())
+		return std::distance(resolutions.begin(), found);
+
+	// No exact match. Audit finding, 2026-08-26: this used to answer 0, which silently moved the
+	// player's selection to the shortest resolution in the list.
+	//
+	// It is reachable in Fit to Screen, where the stored size is a width DERIVED from the desktop's
+	// aspect ratio rather than a curated one. Change the monitor and that width no longer matches
+	// anything the list generates, so the menu jumped to its first entry - the setting had not
+	// changed, but the menu said it had, and confirming the screen wrote the lie back.
+	//
+	// The nearest HEIGHT is the honest answer, because height is what the player chose: in Fit to
+	// Screen the list is labelled by height alone ("720p") and the width follows from the desktop.
+	size_t best = 0;
+	int bestDistance = std::numeric_limits<int>::max();
+	for (size_t i = 0; i < resolutions.size(); i++) {
+		const int distance = std::abs(resolutions[i].first.height - this->size.height);
+		if (distance < bestDistance) {
+			bestDistance = distance;
+			best = i;
+		}
+	}
+	return best;
 }
 void OptionEntryResolution::SetActiveListIndex(size_t index)
 {
