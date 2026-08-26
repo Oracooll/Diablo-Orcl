@@ -217,7 +217,7 @@ on_error:
 	app_fatal(StrCat(_("Failed to open archive for writing."), "\n", path, "\n", error));
 }
 
-MpqWriter::~MpqWriter()
+bool MpqWriter::WriteOutAndClose()
 {
 	// A transaction still open here was never committed - the save was abandoned, or an early
 	// return skipped the commit. ABORTED rather than committed, deliberately: committing would
@@ -226,13 +226,9 @@ MpqWriter::~MpqWriter()
 	if (inTransaction_ || !pending_.empty())
 		AbortTransaction();
 
-	if (!stream_.IsOpen()) {
-		// Nothing was ever opened, so there is nothing to publish - but a shadow may still be
-		// sitting on disk from the copy in the constructor, and it must not outlive the writer.
-		if (usingShadow_ && !name_.empty())
-			RemoveFile(name_.c_str());
-		return;
-	}
+	if (!stream_.IsOpen())
+		return false;
+
 	LogVerbose("Closing {}", name_);
 
 	bool result = true;
@@ -244,35 +240,86 @@ MpqWriter::~MpqWriter()
 		result = ResizeFile(name_.c_str(), size_);
 	}
 
-	// The publish. Everything before this point happened to a file nobody reads; this one call is
-	// what makes the save real, and it either takes effect or it does not.
-	if (usingShadow_) {
-		if (result) {
-			result = ReplaceFileAtomically(name_.c_str(), target_.c_str());
-			if (!result)
-				LogError("Could not publish {} over {}", name_, target_);
-		}
-		if (!result) {
-			// The shadow is a save that will never be published. Removed so the next attempt
-			// starts from the archive that is actually good, and so a failed save costs no disk.
-			RemoveFile(name_.c_str());
-		}
-	}
-
 	if (!result) {
 		LogVerbose("Closing failed {}", name_);
 		// Found by the failure sweep (v1.9.57), and it is the last place a save could lie.
 		//
-		// The header, block table and hash table are written HERE, at destruction, and nowhere
-		// else - so every record can write perfectly, the transaction can commit, and the archive
-		// on disk still points at the old records because the tables never landed. The old code
-		// noted that at verbose level and returned, so the save reported SUCCESS while nothing it
-		// had done was visible.
+		// The header, block table and hash table are written HERE and nowhere else - so every
+		// record can write perfectly, the transaction can commit, and the archive on disk still
+		// points at the old records because the tables never landed. The old code noted that at
+		// verbose level and returned, so the save reported SUCCESS while nothing it had done was
+		// visible.
 		//
 		// Reported through the same seam every other write failure uses, so the player is told the
 		// save did not happen rather than discovering it next time they load.
 		oracool::NoteSaveWriteFailed(target_);
 	}
+	return result;
+}
+
+bool MpqWriter::Finish()
+{
+	if (finished_)
+		return finishedCleanly_;
+	finished_ = true;
+	finishedCleanly_ = WriteOutAndClose();
+	if (!finishedCleanly_ && usingShadow_ && !name_.empty())
+		RemoveFile(name_.c_str());
+	return finishedCleanly_;
+}
+
+bool MpqWriter::Publish()
+{
+	if (!Finish())
+		return false;
+	if (!usingShadow_) {
+		// Written straight into the real archive because the shadow could not be staged. It is
+		// already as published as it is going to get.
+		return true;
+	}
+	if (!ReplaceFileAtomically(name_.c_str(), target_.c_str())) {
+		LogError("Could not publish {} over {}", name_, target_);
+		RemoveFile(name_.c_str());
+		oracool::NoteSaveWriteFailed(target_);
+		return false;
+	}
+	// Nothing left to discard, and nothing for the destructor to clean up.
+	usingShadow_ = false;
+	return true;
+}
+
+void MpqWriter::DiscardShadow()
+{
+	Finish();
+	if (usingShadow_ && !name_.empty()) {
+		RemoveFile(name_.c_str());
+		usingShadow_ = false;
+	}
+}
+
+MpqWriter::~MpqWriter()
+{
+	if (finished_) {
+		// Finish() was called explicitly, so the caller owns the publish decision. A shadow still
+		// sitting here means they never made one - discarded, because a finished archive nobody
+		// published is a save nobody asked for.
+		if (usingShadow_ && !name_.empty())
+			RemoveFile(name_.c_str());
+		return;
+	}
+
+	// The ordinary path, for every caller that just wants a save written: finish and publish in
+	// one go. Unchanged in behaviour from before Finish()/Publish() existed.
+	if (!stream_.IsOpen()) {
+		// Nothing was ever opened, so there is nothing to publish - but a shadow may still be
+		// sitting on disk from the copy in the constructor, and it must not outlive the writer.
+		if (inTransaction_ || !pending_.empty())
+			AbortTransaction();
+		if (usingShadow_ && !name_.empty())
+			RemoveFile(name_.c_str());
+		return;
+	}
+	Publish();
 }
 
 uint32_t MpqWriter::FetchHandle(const char *filename) const

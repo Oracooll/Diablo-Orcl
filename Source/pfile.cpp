@@ -6,6 +6,7 @@
 #include "pfile.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -747,6 +748,63 @@ void sfile_write_stash()
 	// previous contents with no further attempt to correct it, which is how an item moved out of
 	// the stash exists in both places or in neither.
 	if (!oracool::SaveAttemptFailed())
+		Stash.dirty = false;
+}
+
+void SaveHeroAndStash(bool writeGameData)
+{
+	// A character and their stash are ONE state spread over two files, and until now they were
+	// saved as two independent acts. Move an item from the stash into your pack and the two
+	// disagree until both are written: if only the hero lands, the item is in your pack AND still
+	// in the stash; if only the stash lands, it is in neither.
+	//
+	// The shadow (v1.9.59) made each file individually safe and, in doing so, made this pairing
+	// WORSE. Before it, both files were being written at roughly the same time. After it, the
+	// hero's shadow is published before the stash's records are written at all - so a disk that
+	// fills up lands squarely in the gap, every time, rather than by chance.
+	//
+	// Two files cannot be swapped in one act; a filesystem does not offer that. What it does offer
+	// is that a rename needs no disk space, and disk space is what actually runs out. So all the
+	// risky work for BOTH archives happens first, and only when both are complete and waiting does
+	// either become visible. A full disk now fails while both are still invisible, and publishes
+	// neither.
+	//
+	// The residual window is between the two renames. It is not zero, and this comment is the
+	// honest place to say so - but it is as small as this can be made without a journal.
+	SaveWriter heroWriter = GetSaveWriter(gSaveNumber);
+	pfile_write_hero(heroWriter, writeGameData);
+	const bool heroReady = heroWriter.Finish();
+
+	const bool stashNeedsWriting = Stash.dirty;
+	std::optional<SaveWriter> stashWriter;
+	bool stashReady = true;
+	if (stashNeedsWriting) {
+		stashWriter.emplace(GetStashWriter());
+		stashWriter->BeginTransaction();
+		SaveStash(*stashWriter);
+		stashReady = stashWriter->CommitTransaction() && stashWriter->Finish();
+		if (!stashReady)
+			oracool::NoteSaveWriteFailed("stash");
+	}
+
+	if (!heroReady || !stashReady) {
+		// Neither is published. The character on disk is still the last one that fully succeeded,
+		// and it still agrees with the stash beside it - which is the property worth protecting.
+		heroWriter.DiscardShadow();
+		if (stashWriter.has_value())
+			stashWriter->DiscardShadow();
+		return;
+	}
+
+	if (!heroWriter.Publish())
+		return;
+	if (stashWriter.has_value() && !stashWriter->Publish())
+		return;
+
+	// Cleared only once the stash is actually on disk. It used to be cleared whether or not the
+	// write succeeded, so a failed stash write marked the stash CLEAN and no later save would try
+	// again (audit, 2026-08-26).
+	if (stashNeedsWriting)
 		Stash.dirty = false;
 }
 

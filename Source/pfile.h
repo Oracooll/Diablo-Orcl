@@ -94,6 +94,26 @@ struct SaveWriter {
 	bool CommitTransaction();
 	void AbortTransaction();
 
+	/**
+	 * @brief The deferred-publish trio, matching MpqWriter's - see mpq_writer.hpp for the why.
+	 *
+	 * A directory backend already stages every record under a temporary name, so all of an
+	 * archive's risk is spent by the time the records are written and Finish() has nothing left to
+	 * do but report whether they made it. Publish() is the batch of renames.
+	 */
+	bool Finish()
+	{
+		return !transactionFailed_;
+	}
+	bool Publish()
+	{
+		return CommitTransaction();
+	}
+	void DiscardShadow()
+	{
+		AbortTransaction();
+	}
+
 private:
 	/** @brief A record written under a temporary name, waiting for the commit to swap it in. */
 	struct PendingSwap {
@@ -147,6 +167,16 @@ HeroCompareResult pfile_compare_hero_demo(int demo, bool logDetails);
 #endif
 
 void sfile_write_stash();
+
+/**
+ * @brief Saves the character AND the stash, publishing neither unless both are ready.
+ *
+ * Use this rather than `pfile_write_hero(); sfile_write_stash();`. The two files are one state -
+ * an item moved between pack and stash exists in both or in neither until they agree - and saving
+ * them as two independent acts leaves a window where a full disk lands between them. See the
+ * comment on the definition for what this does and does not guarantee.
+ */
+void SaveHeroAndStash(bool writeGameData = false);
 bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *));
 void pfile_ui_set_class_stats(unsigned int playerClass, _uidefaultstats *classStats);
 uint32_t pfile_ui_get_first_unused_save_num();

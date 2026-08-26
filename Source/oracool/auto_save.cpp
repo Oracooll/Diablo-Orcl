@@ -294,8 +294,7 @@ void SaveOnExit()
 	ReturnHeldItemBeforeSaving(player);
 
 	BeginSaveAttempt();
-	pfile_write_hero(/*writeGameData=*/false);
-	sfile_write_stash();
+	SaveHeroAndStash(/*writeGameData=*/false);
 	if (SaveAttemptFailed()) {
 		// Said out loud rather than logged as success. MpqWriter::WriteFile keeps the previous
 		// record when a write fails, so what is on disk is the last good save - which is worth
@@ -343,8 +342,7 @@ void ProcessAutoSave()
 	// waypoint table, the extra inventory tabs and the chunk tail. The stash is its own file and
 	// still needs its own write.
 	BeginSaveAttempt();
-	pfile_write_hero(/*writeGameData=*/false);
-	sfile_write_stash();
+	SaveHeroAndStash(/*writeGameData=*/false);
 	if (SaveAttemptFailed()) {
 		// BACKED OFF, not retried immediately. Audit finding, 2026-08-26, and it was my own doing:
 		// the failure branch returned without touching LastSave or SavePending, and ProcessAutoSave

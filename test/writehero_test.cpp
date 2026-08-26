@@ -881,3 +881,97 @@ TEST(Writehero, ReplaceFileAtomicallyOverwritesAndReportsBack)
 
 	RemoveFile(to.c_str());
 }
+
+// The hero and the stash are one state in two files, and the shadow made saving them separately
+// worse rather than better: the hero's shadow is published BEFORE the stash's records are written,
+// so a disk that fills up lands squarely in the gap every time rather than by chance. An item moved
+// out of the stash then exists in both places, or in neither.
+//
+// Finish()/Publish()/DiscardShadow() is what closes that: all the risky work for both archives
+// happens first, and only when both are complete does either become visible. This pins the contract
+// the paired save is built on.
+TEST(Writehero, AFinishedArchiveIsInvisibleUntilItIsPublished)
+{
+	const std::string archivePath = paths::BasePath() + "deferred_test.sv";
+	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
+	const auto readRecord = [&archivePath](const char *name) -> std::string {
+		int32_t error = 0;
+		std::optional<MpqArchive> archive = MpqArchive::Open(archivePath.c_str(), error);
+		if (!archive.has_value())
+			return "<no archive>";
+		std::size_t size = 0;
+		std::unique_ptr<byte[]> data = archive->ReadFile(name, size, error);
+		if (data == nullptr)
+			return "<no record>";
+		return std::string(reinterpret_cast<const char *>(data.get()), size);
+	};
+
+	RemoveFile(archivePath.c_str());
+	RemoveFile((archivePath + ".tmp").c_str());
+
+	{
+		MpqWriter writer(archivePath);
+		ASSERT_TRUE(writer.WriteFile("record", bytes("OLD"), 3));
+	}
+	ASSERT_EQ(readRecord("record"), "OLD") << "test setup: the first save did not land";
+
+	// Finished but not published: the archive on disk must still be the old one. This is the whole
+	// point - it is the state the hero sits in while the stash is still being written.
+	{
+		MpqWriter writer(archivePath);
+		writer.BeginTransaction();
+		ASSERT_TRUE(writer.WriteFile("record", bytes("NEW"), 3));
+		ASSERT_TRUE(writer.CommitTransaction());
+		ASSERT_TRUE(writer.Finish()) << "the archive did not finish cleanly";
+
+		EXPECT_EQ(readRecord("record"), "OLD")
+		    << "a finished archive became visible before anything published it";
+
+		EXPECT_TRUE(writer.Publish()) << "the publish refused";
+		EXPECT_EQ(readRecord("record"), "NEW") << "the publish did not take effect";
+	}
+	EXPECT_EQ(readRecord("record"), "NEW") << "the destructor undid a completed publish";
+
+	// Discarded after finishing - the case where the OTHER archive failed, so this one must not
+	// land even though nothing at all went wrong with it.
+	{
+		MpqWriter writer(archivePath);
+		writer.BeginTransaction();
+		ASSERT_TRUE(writer.WriteFile("record", bytes("BAD"), 3));
+		ASSERT_TRUE(writer.CommitTransaction());
+		ASSERT_TRUE(writer.Finish());
+		writer.DiscardShadow();
+	}
+	EXPECT_EQ(readRecord("record"), "NEW")
+	    << "a discarded archive was published anyway - a partner's failure did not hold it back";
+	EXPECT_FALSE(FileExists((archivePath + ".tmp").c_str()))
+	    << "a discarded archive left its working copy on disk";
+
+	// Finished and then simply abandoned. Nobody made a publish decision, so there is no save to
+	// publish - the destructor must not guess.
+	{
+		MpqWriter writer(archivePath);
+		writer.BeginTransaction();
+		ASSERT_TRUE(writer.WriteFile("record", bytes("ABN"), 3));
+		ASSERT_TRUE(writer.CommitTransaction());
+		ASSERT_TRUE(writer.Finish());
+	}
+	EXPECT_EQ(readRecord("record"), "NEW")
+	    << "an abandoned finished archive was published by its destructor";
+	EXPECT_FALSE(FileExists((archivePath + ".tmp").c_str()))
+	    << "an abandoned finished archive left its working copy on disk";
+
+	// And a writer that is never finished at all still behaves as it always did: it publishes.
+	// Every existing caller in the game relies on this.
+	{
+		MpqWriter writer(archivePath);
+		writer.BeginTransaction();
+		ASSERT_TRUE(writer.WriteFile("record", bytes("END"), 3));
+		ASSERT_TRUE(writer.CommitTransaction());
+	}
+	EXPECT_EQ(readRecord("record"), "END")
+	    << "an ordinary save stopped publishing when Finish() was introduced";
+
+	RemoveFile(archivePath.c_str());
+	StopFailingWrites();
+}

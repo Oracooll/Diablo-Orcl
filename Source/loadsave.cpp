@@ -3331,8 +3331,7 @@ void SaveGameData(SaveWriter &saveWriter)
 void SaveGame()
 {
 	gbValidSaveFile = true;
-	pfile_write_hero(/*writeGameData=*/true);
-	sfile_write_stash();
+	SaveHeroAndStash(/*writeGameData=*/true);
 	oracool::NotifyGameSaved();
 }
 

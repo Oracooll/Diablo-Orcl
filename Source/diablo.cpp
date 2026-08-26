@@ -1463,8 +1463,7 @@ void RunGameLoop(interface_mode uMsg)
 	demo::NotifyGameLoopEnd();
 
 	if (gbIsMultiplayer) {
-		pfile_write_hero(/*writeGameData=*/false);
-		sfile_write_stash();
+		SaveHeroAndStash(/*writeGameData=*/false);
 	} else {
 		// Oracool (audit, 2026-08-26): the single-player half of the same thought. Alt+F4 raises
 		// SDL_QUIT, which clears gbRunGame and breaks the loop above rather than going through the

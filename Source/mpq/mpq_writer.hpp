@@ -63,6 +63,41 @@ public:
 	/** @brief Discards every record written since BeginTransaction, leaving the originals alone. */
 	void AbortTransaction();
 
+	/**
+	 * @brief Finishes the archive but does NOT make it visible. False if anything failed.
+	 *
+	 * For saving two archives - the hero and the stash - without a gap between them where one has
+	 * landed and the other has not.
+	 *
+	 * A character and their stash are one state. Move an item from the stash into your pack and the
+	 * two files disagree until BOTH are written: if only the hero lands, the item is in your pack
+	 * and still in the stash; if only the stash lands, it is in neither. The shadow made each file
+	 * individually safe and, in doing so, made this worse rather than better - the stash's risky
+	 * writes now happen AFTER the hero has already published, so a disk that fills up lands exactly
+	 * in the gap.
+	 *
+	 * Finish() spends all of an archive's risk without publishing any of it. Both archives can be
+	 * finished first, and only then published, so a full disk fails while both are still invisible
+	 * and neither is written at all.
+	 *
+	 * After this the writer is inert: the stream is closed and the shadow is waiting. Call Publish()
+	 * or DiscardShadow(); the destructor discards if neither was called, because a finished archive
+	 * nobody published is a save nobody asked for.
+	 */
+	bool Finish();
+
+	/**
+	 * @brief Swaps the finished shadow over the real archive. False if the swap did not happen.
+	 *
+	 * The publish is one replacing rename, which needs no disk space and is the least likely thing
+	 * in the save to fail. Publishing two archives back to back is therefore not atomic, but the
+	 * window is as small as a filesystem allows one to be.
+	 */
+	bool Publish();
+
+	/** @brief Throws the finished shadow away, leaving the real archive as it was. */
+	void DiscardShadow();
+
 private:
 	/** @brief A record written under a temporary name, waiting for the commit to swap it in. */
 	struct PendingSwap {
@@ -107,6 +142,13 @@ private:
 	 * archive - the pre-2026-08-26 behaviour, kept as a fallback rather than failing the save.
 	 */
 	bool usingShadow_ = false;
+	/** @brief Set by Finish(): the archive is complete on disk and awaiting a publish decision. */
+	bool finished_ = false;
+	/** @brief Whether Finish() succeeded, so Publish() knows there is anything worth publishing. */
+	bool finishedCleanly_ = false;
+
+	/** @brief The shared body of Finish() and the destructor: tables, close, resize. */
+	bool WriteOutAndClose();
 	std::uintmax_t size_ {};
 	std::unique_ptr<MpqHashEntry[]> hashTable_;
 	std::unique_ptr<MpqBlockEntry[]> blockTable_;
