@@ -27,6 +27,35 @@ namespace {
 using Skill = ClassTreeSkill;
 using Kind = ClassTreeKind;
 
+/**
+ * @brief The aura whose loop is currently PLAYING, or None.
+ *
+ * One owner for the audio, at file scope, because two of them is what went wrong. Audit
+ * finding, 2026-08-26 - and this one was mine, introduced with the death guard at v1.9.50.
+ *
+ * ToggleClassAura started the loop directly, and ProcessClassTreeTick kept its own separate
+ * static of what it thought was playing. So the tick saw the same transition a second time
+ * and started the loop AGAIN - and StartClassAuraLoop stops whatever is running first, so
+ * lighting an aura produced start, then stop-and-start a tick later. An audible stutter on
+ * every activation.
+ *
+ * Now every path goes through SetAuraLoop, which is idempotent against this variable, so the
+ * tick can re-assert the correct state as often as it likes and only a real CHANGE is heard.
+ */
+Skill LoopedAura = Skill::None;
+
+/** @brief Makes the aura loop match @p skill. Does nothing if it already does. */
+void SetAuraLoop(Skill skill)
+{
+	if (skill == LoopedAura)
+		return;
+	if (skill == Skill::None)
+		StopClassAuraLoop();
+	else
+		StartClassAuraLoop(skill);
+	LoopedAura = skill;
+}
+
 constexpr HeroClass Pal = HeroClass::Warrior; // Oracool displays the Warrior as "Paladin"
 constexpr HeroClass Bar = HeroClass::Barbarian;
 constexpr HeroClass Sor = HeroClass::Sorcerer;
@@ -943,6 +972,24 @@ int ClassTreeIconIndex(Skill skill)
 	return static_cast<int>(skill) - static_cast<int>(first);
 }
 
+std::optional<ClassTreeSkill> ClassTreeSkillAtIndex(HeroClass heroClass, int index)
+{
+	if (index < 0 || index >= static_cast<int>(MaxSkillsPerClass))
+		return std::nullopt;
+	const Skill first = FirstSkillOf(heroClass);
+	if (first == Skill::None)
+		return std::nullopt;
+	const size_t absolute = static_cast<size_t>(first) + static_cast<size_t>(index);
+	if (absolute >= ClassTreeSkillCount)
+		return std::nullopt;
+	const auto skill = static_cast<Skill>(absolute);
+	// The index must land inside the SAME class, or it is not that class's skill at all -
+	// which is the whole property this representation exists to guarantee.
+	if (GetClassTreeSkillData(skill).heroClass != heroClass)
+		return std::nullopt;
+	return skill;
+}
+
 bool IsClassTreeSkillUnlocked(const Player &player, Skill skill)
 {
 	if (skill > Skill::LAST)
@@ -1072,7 +1119,7 @@ bool RefundClassTreePoint(Player &player, Skill skill)
 	    && ClassTreeInvestment(player, skill) <= 0) {
 		player._pOracoolActiveAura = static_cast<uint16_t>(Skill::None);
 		if (&player == MyPlayer)
-			StopClassAuraLoop();
+			SetAuraLoop(Skill::None);
 	}
 
 	if (&player == MyPlayer) {
@@ -1310,10 +1357,7 @@ bool ToggleClassAura(Player &player, Skill skill)
 		// The persistent cue. StartClassAuraLoop stops whatever was running first, so switching
 		// straight from one aura to another is atomic in the order the sound package asks for: old
 		// loop down, old stop cue, new start cue, new loop up.
-		if (switchingOff)
-			StopClassAuraLoop();
-		else
-			StartClassAuraLoop(skill);
+		SetAuraLoop(switchingOff ? Skill::None : skill);
 	}
 	// Same responsibility as ClearClassAuraForRightButton: lighting or dousing an aura changes what
 	// the character's totals should be, so this function makes that true rather than trusting the
@@ -1331,7 +1375,7 @@ void ClearClassAuraForRightButton(Player &player)
 		return;
 	player._pOracoolActiveAura = static_cast<uint16_t>(Skill::None);
 	if (&player == MyPlayer)
-		StopClassAuraLoop();
+		SetAuraLoop(Skill::None);
 	// The bonuses go out with the light. Audit finding, 2026-08-26: this cleared the STATE and the
 	// SOUND and left the cached totals alone, and all four callers - the skill picker, the
 	// Abilities window, the spell list and the hotkey path - forgot to recalculate. So readying
@@ -1429,15 +1473,8 @@ void ProcessClassTreeTick(Player &player)
 	// Edge-triggered against the last state rather than called every tick, or restarting the loop
 	// would retrigger the cue sixty times a second.
 	if (&player == MyPlayer) {
-		static Skill LoopedAura = Skill::None;
-		const Skill live = GetActiveClassAura(player);
-		if (live != LoopedAura) {
-			if (live == Skill::None)
-				StopClassAuraLoop();
-			else
-				StartClassAuraLoop(live);
-			LoopedAura = live;
-		}
+		// Re-asserted every tick; SetAuraLoop is idempotent, so only a real change is heard.
+		SetAuraLoop(GetActiveClassAura(player));
 	}
 
 	// Both regenerations are whole points per tick against the <<6 fixed point the life and mana
@@ -1470,8 +1507,12 @@ void ProcessClassTreeTick(Player &player)
 	// query cannot go stale. See oracool/aura_field.h.
 	ProcessOutwardAura(player);
 
-	// The Sorceress's Warmth is a passive, so it needs no activation - the points alone.
-	if (player._pClass == HeroClass::Sorcerer && IsClassTreeSkillUnlocked(player, Skill::Warmth)
+	// The Sorceress's Warmth is a passive, so it needs no activation - the points alone. But a
+	// corpse regenerates nothing (audit, 2026-08-26): the aura guard in GetActiveClassAura does not
+	// reach this branch, because Warmth is not an aura and never asks it, so Warmth alone went on
+	// refilling a dead Sorceress's mana.
+	if (player._pHitPoints > 0 && player._pmode != PM_DEATH
+	    && player._pClass == HeroClass::Sorcerer && IsClassTreeSkillUnlocked(player, Skill::Warmth)
 	    && player._pMana < player._pMaxMana && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
 		const int p = ClassTreeInvestment(player, Skill::Warmth);
 		if (p > 0) {

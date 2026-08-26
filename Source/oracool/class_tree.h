@@ -66,6 +66,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "player.h"
@@ -625,6 +626,14 @@ bool ClassHasTree(HeroClass heroClass);
 
 /** @brief @p skill's position within its own class - its index into that class's icon strip. */
 int ClassTreeIconIndex(ClassTreeSkill skill);
+
+/**
+ * @brief The inverse of ClassTreeIconIndex: @p heroClass's skill at @p index, or nullopt.
+ *
+ * Exists so the burning aura can be persisted as (class, index-within-class) instead of an absolute
+ * enum ordinal that shifts whenever an earlier class gains rows.
+ */
+std::optional<ClassTreeSkill> ClassTreeSkillAtIndex(HeroClass heroClass, int index);
 
 /** @brief Whether @p player's level meets @p skill's tier, and it is their class's skill. */
 bool IsClassTreeSkillUnlocked(const Player &player, ClassTreeSkill skill);

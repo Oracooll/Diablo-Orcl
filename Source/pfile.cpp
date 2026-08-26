@@ -671,11 +671,24 @@ void sfile_write_stash()
 	if (!Stash.dirty)
 		return;
 
-	SaveWriter stashWriter = GetStashWriter();
+	{
+		SaveWriter stashWriter = GetStashWriter();
+		stashWriter.BeginTransaction();
+		SaveStash(stashWriter);
+		if (!stashWriter.CommitTransaction())
+			oracool::NoteSaveWriteFailed("stash");
+		// The writer is destroyed HERE, inside the block, so its header and tables are flushed
+		// before the dirty flag is decided. Outside the block that decision would be made while the
+		// most failure-prone write of all was still pending.
+	}
 
-	SaveStash(stashWriter);
-
-	Stash.dirty = false;
+	// Cleared only if the write actually happened. Audit finding, 2026-08-26: this used to clear
+	// unconditionally, so a failed stash write marked the stash CLEAN - the next autosave saw
+	// nothing to do, skipped it, and announced a successful save. The stash on disk stayed at its
+	// previous contents with no further attempt to correct it, which is how an item moved out of
+	// the stash exists in both places or in neither.
+	if (!oracool::SaveAttemptFailed())
+		Stash.dirty = false;
 }
 
 bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))

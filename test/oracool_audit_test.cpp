@@ -968,6 +968,64 @@ TEST(OracoolHeroChunks, ProgressionDoesNotBleedFromOneHeroToTheNext)
 	    << "a brand new character was born with signets already spent";
 }
 
+TEST(OracoolHeroChunks, TheBurningAuraSurvivesTheEnumMovingUnderIt)
+{
+	// Audit finding, 2026-08-26. The aura was persisted as an ABSOLUTE ClassTreeSkill ordinal, which
+	// shifts whenever a class earlier in the enum gains rows - and it already had: the Passive
+	// Skills page moved every Bard and Monk aura, so those characters came back with nothing lit.
+	// A class guard turned that into "no aura" rather than "somebody else's", which was a seatbelt.
+	//
+	// Tag 13 stores (hero class, index WITHIN that class). Both survive growth, because growth only
+	// ever appends to a class block.
+	Players.resize(1);
+	devilution::Player &source = Players[0];
+	MyPlayer = &source;
+	source = {};
+	source._pClass = HeroClass::Warrior;
+	source._pLevel = 30;
+	source._pMaxHP = 1000;
+	source._pHitPoints = 1000;
+	source._pUnspentSkillPoints = 10;
+
+	ASSERT_TRUE(oracool::InvestClassTreePoint(source, oracool::ClassTreeSkill::Might));
+	ASSERT_TRUE(oracool::ToggleClassAura(source, oracool::ClassTreeSkill::Might));
+	ASSERT_EQ(oracool::GetActiveClassAura(source), oracool::ClassTreeSkill::Might);
+
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(source);
+
+	devilution::Player target {};
+	target._pClass = HeroClass::Warrior;
+	target._pLevel = 30;
+	target._pMaxHP = 1000;
+	target._pHitPoints = 1000;
+	std::memcpy(target._pClassTreeInvestment, source._pClassTreeInvestment,
+	    sizeof(target._pClassTreeInvestment));
+	oracool::ApplyHeroChunks(target, tail.data(), tail.size());
+	EXPECT_EQ(oracool::GetActiveClassAura(target), oracool::ClassTreeSkill::Might)
+	    << "the aura did not survive an ordinary round trip";
+
+	// The property that matters: the stored form is the RELATIVE one, so a reader that resolves it
+	// against the class gets the same skill however the enum has grown. Might is the Paladin's
+	// tenth row, and that stays true no matter what is appended to any class.
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might), 9);
+	const std::optional<oracool::ClassTreeSkill> resolved =
+	    oracool::ClassTreeSkillAtIndex(HeroClass::Warrior, 9);
+	ASSERT_TRUE(resolved.has_value());
+	EXPECT_EQ(*resolved, oracool::ClassTreeSkill::Might);
+
+	// An index belonging to another class resolves to nothing rather than to whatever happens to
+	// sit at that offset - which is exactly the confusion the absolute form allowed.
+	EXPECT_FALSE(oracool::ClassTreeSkillAtIndex(HeroClass::Warrior, 999).has_value());
+
+	// A save whose aura says it belongs to a DIFFERENT class is dropped, not reinterpreted.
+	devilution::Player wrongClass {};
+	wrongClass._pClass = HeroClass::Rogue;
+	wrongClass._pLevel = 30;
+	oracool::ApplyHeroChunks(wrongClass, tail.data(), tail.size());
+	EXPECT_EQ(oracool::GetActiveClassAura(wrongClass), oracool::ClassTreeSkill::None)
+	    << "a Rogue inherited a Paladin's aura";
+}
+
 TEST(OracoolHeroChunks, PassiveSlotsRoundTrip)
 {
 	Players.resize(1);

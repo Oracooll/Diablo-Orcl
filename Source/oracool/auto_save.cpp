@@ -31,6 +31,10 @@ using Clock = std::chrono::steady_clock;
 Clock::time_point LastSave = Clock::now();
 Clock::time_point PendingSaveTime;
 bool SavePending = false;
+/** @brief Consecutive failed autosaves, driving the retry backoff and the once-per-run message. */
+int FailedSaveAttempts = 0;
+constexpr int BaseRetrySeconds = 5;
+constexpr int MaxRetrySeconds = 300;
 
 bool IsEnabled()
 {
@@ -90,7 +94,15 @@ void ReturnHeldItemBeforeSaving(Player &player)
 	bool placed = AutoPlaceItemInInventory(player, player.HoldItem, /*persistItem=*/true);
 	if (!placed)
 		placed = AutoPlaceItemInBelt(player, player.HoldItem, /*persistItem=*/true);
-	if (!placed && !IsStashOpen)
+	// The stash is tried whether or not it is OPEN. Audit finding, 2026-08-26, and the open case is
+	// the one that matters most: lift an item OUT of the stash with a full inventory and belt, then
+	// exit. The slot it came from is now vacant and is the obvious place for it - and the old
+	// `!IsStashOpen` guard skipped exactly that, saved the removal, and dropped the item.
+	//
+	// The guard was there because writing to the stash under an open stash window looks unsafe. It
+	// is not, here: this runs on the way out, after the last frame, so nothing will redraw from the
+	// state being changed.
+	if (!placed)
 		placed = AutoPlaceItemInStash(player, player.HoldItem, /*persistItem=*/true);
 
 	if (placed) {
@@ -308,11 +320,34 @@ void ProcessAutoSave()
 	pfile_write_hero(/*writeGameData=*/false);
 	sfile_write_stash();
 	if (SaveAttemptFailed()) {
-		LogEvent(fmt::format(fmt::runtime(_("AUTO SAVE FAILED - \"{:s}\" could not be written.")),
-		             FailedSaveFileName()),
-		    UiFlags::ColorRed);
+		// BACKED OFF, not retried immediately. Audit finding, 2026-08-26, and it was my own doing:
+		// the failure branch returned without touching LastSave or SavePending, and ProcessAutoSave
+		// runs once per game-loop iteration - so a disk that stays full meant a full save attempt
+		// and a red log line EVERY FRAME. The reporting turned a bad situation into an unplayable
+		// one.
+		//
+		// The pending request is KEPT: the save still needs to happen, and giving up on it silently
+		// is how the fix becomes a second bug. What changes is when to try again.
+		FailedSaveAttempts++;
+		const int backoffSeconds = std::min(BaseRetrySeconds << std::min(FailedSaveAttempts - 1, 6),
+		    MaxRetrySeconds);
+		LastSave = Clock::now();
+		SavePending = true;
+		PendingSaveTime = Clock::now() + std::chrono::seconds(backoffSeconds);
+
+		// Said ONCE per run of failures rather than once per attempt. A player needs to know the
+		// game cannot save; they do not need to be told sixty times a second, and a log that
+		// scrolls itself is a log nobody reads.
+		if (FailedSaveAttempts == 1) {
+			LogEvent(fmt::format(fmt::runtime(_("AUTO SAVE FAILED - \"{:s}\" could not be written. "
+			                                    "Your last successful save is intact.")),
+			             FailedSaveFileName()),
+			    UiFlags::ColorRed);
+		}
 		return;
 	}
+	// A success ends the run of failures, so the next one is reported again.
+	FailedSaveAttempts = 0;
 	// What SaveGame() used to do for us on the way out: reset the interval and clear any pending
 	// request, so the next save is timed from this one. Through NotifyGameSaved rather than by
 	// touching LastSave and SavePending here, because that is the one function that owns them.

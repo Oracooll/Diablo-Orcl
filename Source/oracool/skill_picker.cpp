@@ -17,6 +17,7 @@
 #include "utils/ui_fwd.h"
 
 #include "oracool/attack_skills.h"
+#include "oracool/auto_save.h"
 #include "oracool/class_tree.h"
 #include "oracool/furious_charge.h" // GetSpellDisplayName
 #include "oracool/hud_art.h"
@@ -515,11 +516,13 @@ bool CheckSkillPickerClick(Point mousePosition)
 				if (PickerForLeft) {
 					player._pLRSpell = entry.spell;
 					player._pLRSplType = type;
+					oracool::ScheduleAutoSaveForSkillChange();
 				} else {
 					// The aura and the right button are one slot - see ClearClassAuraForRightButton.
 					ClearClassAuraForRightButton(player);
 					player._pRSpell = entry.spell;
 					player._pRSplType = type;
+					oracool::ScheduleAutoSaveForSkillChange();
 				}
 				break;
 			}

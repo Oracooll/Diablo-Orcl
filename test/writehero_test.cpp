@@ -735,10 +735,19 @@ TEST(Writehero, pfile_write_hero)
 	//      leave a hero at the NEW level whose item record had not been written - a save that
 	//      loads, looks entirely normal, and has the wrong things in it. Per-record atomicity does
 	//      not cover that; only a transaction does.
+	// 1.9.58: HeroChunkActiveAuraRelative (tag 13) joined the tail - two bytes, the hero class and
+	//      the aura's index WITHIN that class. A real format addition this time, not a layout shift.
+	//
+	//      Tag 4 still carries the same aura as an ABSOLUTE enum ordinal and is still written, so an
+	//      older build reads what it understands. But an absolute ordinal moves whenever a class
+	//      earlier in the enum gains rows, and it already had: the Passive Skills page at 1.9.45
+	//      shifted every Bard and Monk aura and those characters lost whatever was burning. The
+	//      relative form cannot be reinterpreted that way, because growth only ever appends to a
+	//      class block - so when both tags are present, this one wins.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "c4e48fc4411f2bb3c76640a1f0a96c170f9732c6b809832a7ae82fc93bfba0de");
+	    "3467d8143a7a608c050da4911610722986f1ac28ce573e0e5be335dd90ae987d");
 }
 
 } // namespace

@@ -23,6 +23,7 @@
 #include "oracool/paladin_skills.h"
 #include "panels/spell_book.hpp" // ToggleAbilitiesWindow
 #include "panels/spell_icons.hpp"
+#include "oracool/auto_save.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -365,6 +366,10 @@ void SetSpell()
 	oracool::ClearClassAuraForRightButton(myPlayer);
 	myPlayer._pRSpell = pSpell;
 	myPlayer._pRSplType = pSplType;
+	// The option is called "Auto Save on Skill Change" and this IS a skill change (audit,
+	// 2026-08-26). It only fired from the class tree before, so readying a spell - the commonest
+	// skill change there is - was covered only by accident, when it happened to replace an aura.
+	oracool::ScheduleAutoSaveForSkillChange();
 
 	RedrawEverything();
 }
@@ -425,6 +430,7 @@ void ToggleSpell(size_t slot)
 		oracool::ClearClassAuraForRightButton(myPlayer);
 		myPlayer._pRSpell = spellId;
 		myPlayer._pRSplType = myPlayer._pSplTHotKey[slot];
+		oracool::ScheduleAutoSaveForSkillChange();
 		RedrawEverything();
 	}
 }

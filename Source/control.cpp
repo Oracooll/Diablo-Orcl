@@ -202,6 +202,13 @@ void CloseLeftPanelContent()
 		break;
 	}
 }
+bool IsModalPromptOpen()
+{
+	// The same three ReleaseKey already treats as modal (diablo.cpp), asked in one place so the
+	// keyboard and the mouse cannot disagree about who owns input.
+	return DropGoldFlag || IsWithdrawGoldOpen || IsRefreshUntilPromptOpen;
+}
+
 bool IsOverAnyInterface(Point position)
 {
 	// Order is by cost, not by importance - every one of these is authoritative for its own

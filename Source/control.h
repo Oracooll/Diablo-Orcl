@@ -128,6 +128,19 @@ bool IsOverLeftPanel(Point position);
 DVL_API_FOR_TEST bool IsOverAnyInterface(Point position);
 
 /**
+ * @brief Whether a numeric prompt owns input right now: drop gold, withdraw gold, Refresh Until.
+ *
+ * These three are MODAL - they take every keystroke, and ReleaseKey treats them that way - but no
+ * mouse path knew about them (audit, 2026-08-26). Clicking anywhere outside their small panel
+ * therefore reached the world: the character walked, attacked, cast, or opened a door behind a
+ * prompt that was still waiting for a number.
+ *
+ * A position-free question on purpose. These are not surfaces to be over, they are owners of input,
+ * so the answer must not depend on where the cursor happens to be.
+ */
+bool IsModalPromptOpen();
+
+/**
  * @brief Closes whichever left-panel window is open, whatever it is.
  *
  * Oracool: the close-button rule (user, 2026-08-19) needs ONE place that knows how to shut the left

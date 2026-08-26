@@ -137,6 +137,23 @@ enum HeroChunkTag : uint16_t {
 	 * back clamped to the smaller of the count and the array.
 	 */
 	HeroChunkPassiveSlots = 12,
+	/**
+	 * @brief The burning aura as (hero class, class-RELATIVE index) - the stable form.
+	 *
+	 * Supersedes HeroChunkActiveAura (tag 4), which stores the ABSOLUTE ClassTreeSkill ordinal. That
+	 * ordinal shifts whenever a class earlier in the enum gains rows, and it already has: the Passive
+	 * Skills page at 1.9.45 moved every Bard and Monk aura, and those characters lost whatever was
+	 * burning. A guard in GetActiveClassAura turned that from "somebody else's aura" into "no aura",
+	 * which is a seatbelt and not a fix.
+	 *
+	 * Two bytes: the HeroClass, then the index WITHIN that class. Both are stable under enum growth,
+	 * because growth only ever appends to a class block.
+	 *
+	 * Tag 4 is still WRITTEN, so an older build keeps reading the aura it understands, and still READ
+	 * when this tag is absent. When both are present this one wins - it is the one that cannot have
+	 * been reinterpreted by a later enum.
+	 */
+	HeroChunkActiveAuraRelative = 13,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

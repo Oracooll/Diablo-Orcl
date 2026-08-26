@@ -1,8 +1,10 @@
 #include "oracool/hero_chunks.h"
 
+#include "oracool/class_tree.h"
 #include "oracool/signets.h"
 
 #include <algorithm>
+#include <optional>
 #include <limits>
 #include <cstring>
 #include <iterator>
@@ -111,6 +113,29 @@ void ApplyClassTree(Player &player, const uint8_t *payload, size_t len)
 	std::memcpy(player._pClassTreeInvestment, payload + 1, count);
 }
 
+/**
+ * @brief Restores the burning aura from (hero class, class-relative index).
+ *
+ * The stable representation. Refused rather than guessed when the class does not match the
+ * character - a save whose aura belongs to somebody else is not a puzzle to solve, it is a
+ * value to drop.
+ */
+void ApplyActiveAuraRelative(Player &player, uint8_t heroClass, uint8_t relativeIndex)
+{
+	if (heroClass == 0xFF || relativeIndex == 0xFF) {
+		player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
+		return;
+	}
+	if (static_cast<HeroClass>(heroClass) != player._pClass) {
+		player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
+		return;
+	}
+	const std::optional<ClassTreeSkill> skill =
+	    ClassTreeSkillAtIndex(player._pClass, relativeIndex);
+	player._pOracoolActiveAura = static_cast<uint16_t>(
+	    skill.has_value() ? *skill : ClassTreeSkill::None);
+}
+
 void ApplyPassiveSlots(Player &player, const uint8_t *payload, size_t len)
 {
 	if (len < 1)
@@ -169,6 +194,24 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		// merely safe: it takes byte 0 only, and byte 0 is the low byte, so any aura below 256
 		// survives the round trip intact. Every aura row in the tree is below 256.
 		PutU16(out, player._pOracoolActiveAura);
+		EndChunk(out, at);
+	}
+
+	{
+		// The stable form of the same fact. Written ALONGSIDE tag 4 rather than instead of it, so a
+		// build that predates this tag keeps loading the aura it understands.
+		const size_t at = BeginChunk(out, HeroChunkActiveAuraRelative);
+		const auto aura = static_cast<ClassTreeSkill>(player._pOracoolActiveAura);
+		if (aura <= ClassTreeSkill::LAST
+		    && GetClassTreeSkillData(aura).heroClass == player._pClass) {
+			out.push_back(static_cast<uint8_t>(player._pClass));
+			out.push_back(static_cast<uint8_t>(ClassTreeIconIndex(aura)));
+		} else {
+			// No aura, or one that does not belong to this character. 0xFF for both, which the
+			// reader takes as "nothing burning" without having to know why.
+			out.push_back(0xFF);
+			out.push_back(0xFF);
+		}
 		EndChunk(out, at);
 	}
 
@@ -305,6 +348,13 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			break;
 		case HeroChunkPassiveSlots:
 			ApplyPassiveSlots(player, payload, chunkLen);
+			break;
+		case HeroChunkActiveAuraRelative:
+			// WINS over tag 4 whenever it is present, and the walk applies chunks in file order
+			// with this tag written after it - so the last word belongs to the representation that
+			// cannot have been reinterpreted by a later enum.
+			if (chunkLen >= 2)
+				ApplyActiveAuraRelative(player, payload[0], payload[1]);
 			break;
 		case HeroChunkMilestones:
 			if (chunkLen >= 4)

@@ -16,6 +16,7 @@
 #include "init.h"
 #include "inv.h" // CloseInventory
 #include "missiles.h"
+#include "oracool/auto_save.h"
 #include "oracool/class_tree.h"
 #include "oracool/skill_points.h"
 #include "oracool/spell_ranks.h"
@@ -1848,9 +1849,11 @@ void CheckSBook(bool assignToRightButton)
 		oracool::ClearClassAuraForRightButton(player);
 		player._pRSpell = sn;
 		player._pRSplType = st;
+		oracool::ScheduleAutoSaveForSkillChange();
 	} else {
 		player._pLRSpell = sn;
 		player._pLRSplType = st;
+		oracool::ScheduleAutoSaveForSkillChange();
 	}
 	RedrawEverything();
 }

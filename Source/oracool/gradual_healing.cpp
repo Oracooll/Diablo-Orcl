@@ -72,7 +72,10 @@ void ProcessGradualHealing(Player &player)
 		const int amount = ManaAmountRemaining / ManaTicksRemaining;
 		ManaAmountRemaining -= amount;
 		ManaTicksRemaining -= 1;
-		if (amount > 0 && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+		// `_pHitPoints > 0` matches the health branch above, and its absence here was the whole bug
+		// (audit, 2026-08-26): a queued mana potion went on filling a corpse's orb. The ticks still
+		// count down while dead, exactly as they do for health, so nothing lingers past revival.
+		if (amount > 0 && player._pHitPoints > 0 && HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
 			player._pMana = std::min(player._pMana + amount, player._pMaxMana);
 			player._pManaBase = std::min(player._pManaBase + amount, player._pMaxManaBase);
 			RedrawComponent(PanelDrawComponent::Mana);

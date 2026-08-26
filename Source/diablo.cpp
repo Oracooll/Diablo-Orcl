@@ -404,6 +404,15 @@ void LeftMouseDown(uint16_t modState)
 	LastMouseButtonSpell = SpellID::Invalid;
 	LastMouseButtonSpellType = SpellType::Invalid;
 
+	// A numeric prompt owns input while it is open - drop gold, withdraw gold, Refresh Until.
+	// ReleaseKey has always treated them as modal; no mouse path did, so a click outside their
+	// panel walked the player or swung at something behind the prompt (audit, 2026-08-26).
+	//
+	// Swallowed rather than routed: these three have no mouse handling of their own, so there
+	// is nothing to forward a click TO. Escape and Enter are how they close.
+	if (IsModalPromptOpen())
+		return;
+
 	if (gmenu_left_mouse(true))
 		return;
 
@@ -721,6 +730,10 @@ void RightMouseDown(bool isShiftHeld)
 	LastMouseButtonAction = MouseActionType::None;
 	LastMouseButtonSpell = SpellID::Invalid;
 	LastMouseButtonSpellType = SpellType::Invalid;
+
+	// The same modal owners the left button now respects. See LeftMouseDown.
+	if (IsModalPromptOpen())
+		return;
 
 	if (gmenu_is_active() || sgnTimeoutCurs != CURSOR_NONE || PauseMode == 2 || MyPlayer->_pInvincible) {
 		return;
