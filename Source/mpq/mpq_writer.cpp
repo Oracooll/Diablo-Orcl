@@ -163,30 +163,40 @@ MpqWriter::MpqWriter(const char *requestedPath)
 	LogVerbose("Opening {}", path);
 	bool isNewFile = false;
 	std::string error;
-	if (!FileExists(path)) {
-		// FileExists() may return false in the case of an error
-		// so we use "ab" instead of "wb" to avoid accidentally
-		// truncating an existing file
-		stream_.Open(path, "ab");
 
-		// However, we cannot actually use a file handle that was
-		// opened in "ab" mode because we need to be able to seek
-		// and write to the middle of the file
-		stream_.Close();
-	}
+	// ONE open, not three. Upstream created the file with "ab", closed it, measured it, and
+	// reopened it "r+b" - a dance that exists because it cannot know whether the file is already
+	// there. The shadow always can: this path has just established that `workPath` does not exist,
+	// because the constructor removed any stale one a few lines above.
+	//
+	// Worth removing rather than tidying. Creating a file and immediately reopening it is the
+	// classic way to meet a transient sharing violation from a virus scanner or a sync client
+	// reacting to the new file - and since 2026-08-25 every single save creates a brand new file
+	// this way, where before it reopened a long-lived archive. That multiplied the exposure by
+	// every save the game makes.
+	isNewFile = !FileExists(path);
+	if (isNewFile) {
+		size_ = 0;
+		// "w+b" creates and gives read/write in one call. It truncates, which would be wrong for a
+		// file that might already hold an archive - and is exactly right for one we know does not.
+		if (!stream_.Open(path, "w+b")) {
+			error = "Failed to create file";
+			goto on_error;
+		}
+	} else {
+		if (!GetFileSize(path, &size_)) {
+			error = R"(GetFileSize failed: "{}")";
+			LogError(error, path, std::strerror(errno));
+			goto on_error;
+		}
+		isNewFile = size_ == 0;
+		LogVerbose("GetFileSize(\"{}\") = {}", path, size_);
 
-	if (!GetFileSize(path, &size_)) {
-		error = R"(GetFileSize failed: "{}")";
-		LogError(error, path, std::strerror(errno));
-		goto on_error;
-	}
-	isNewFile = size_ == 0;
-	LogVerbose("GetFileSize(\"{}\") = {}", path, size_);
-
-	if (!stream_.Open(path, "r+b")) {
-		stream_.Close();
-		error = "Failed to open file";
-		goto on_error;
+		if (!stream_.Open(path, "r+b")) {
+			stream_.Close();
+			error = "Failed to open file";
+			goto on_error;
+		}
 	}
 
 	name_ = path;
@@ -239,7 +249,26 @@ MpqWriter::MpqWriter(const char *requestedPath)
 	}
 	return;
 on_error:
-	app_fatal(StrCat(_("Failed to open archive for writing."), "\n", path, "\n", error));
+	// NOT app_fatal. This is the change the crash report forced, and it is the same judgement
+	// already written a few lines above for the staging step: a save that cannot be written is a
+	// failed save, not a reason to end the session.
+	//
+	// It used to kill the game outright, and it is reachable from the ordinary autosave - which in
+	// single-player fires on picking up gold, because gold goes to the stash. So one unlucky file
+	// operation, of the kind a virus scanner or a sync client causes routinely, took the player's
+	// whole session with it. Killing the process also guaranteed the loss it was reacting to: the
+	// hero archive at that moment is finished and waiting to be published, and a dead process never
+	// publishes it.
+	//
+	// Left inert instead. WriteFile refuses, nothing is published, the archive on disk is untouched,
+	// and the player is told the save did not happen.
+	LogError("Failed to open archive for writing: {} ({})", path, error);
+	stream_.Close();
+	if (usingShadow_ && FileExists(path))
+		RemoveFile(path);
+	usingShadow_ = false;
+	name_.clear();
+	oracool::NoteSaveWriteFailed(target_);
 }
 
 void MpqWriter::MakeInert()

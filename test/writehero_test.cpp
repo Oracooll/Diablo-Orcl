@@ -15,6 +15,7 @@
 #include "pack.h"
 #include "oracool/save_status.h"
 #include "pfile.h"
+#include "qol/stash.h"
 #include "utils/file_util.h"
 #include "utils/paths.h"
 
@@ -1171,6 +1172,67 @@ TEST(Writehero, MovingAWriterDoesNotCloseOrPublishTheOriginal)
 	RemoveFile(shadowPath.c_str());
 	RemoveFile((archivePath + ".other").c_str());
 	RemoveFile((archivePath + ".other.tmp").c_str());
+	StopFailingWrites();
+	StopFailingCloses();
+	StopFailingFileCopies();
+	StopFailingFileSizeQueries();
+}
+
+// The user's crash, from actual play: picking up the first gold drop takes the game down.
+//
+// SaveHeroAndStash is the function that runs, and NOTHING in this suite has ever called it - which
+// is the gap the first fix went into blind. In single-player gold goes to the stash, marking it
+// dirty, so this is the branch a real game reaches within a minute of starting, with a brand new
+// character and no save file on disk yet.
+TEST(Writehero, SaveHeroAndStashWritesBothForANewCharacterWithADirtyStash)
+{
+	paths::SetPrefPath(paths::BasePath());
+	const std::string heroPath = paths::BasePath() + "single_0.sv";
+	const std::string stashPath = paths::BasePath() + "stash.sv";
+	RemoveFile(heroPath.c_str());
+	RemoveFile(stashPath.c_str());
+	RemoveFile((heroPath + ".tmp").c_str());
+	RemoveFile((stashPath + ".tmp").c_str());
+
+	gbVanilla = false;
+	gbIsHellfire = false;
+	gbIsMultiplayer = false;
+	gbIsSpawn = false;
+	gbIsHellfireSaveGame = false;
+	leveltype = DTYPE_TOWN;
+	giNumberOfLevels = 17;
+
+	Players.resize(1);
+	MyPlayerId = 0;
+	MyPlayer = &Players[MyPlayerId];
+
+	_uiheroinfo info {};
+	info.heroclass = HeroClass::Rogue;
+	info.saveNumber = 0;
+	ASSERT_TRUE(pfile_ui_save_create(&info)) << "the character could not be created";
+
+	// Exactly what picking up gold does: it lands in the stash pool and marks it dirty.
+	Stash.gold += 100;
+	Stash.dirty = true;
+
+	// The call that crashes in play.
+	SaveHeroAndStash(/*writeGameData=*/false);
+
+	EXPECT_TRUE(FileExists(heroPath.c_str())) << "the character was not saved";
+	EXPECT_TRUE(FileExists(stashPath.c_str())) << "the stash was not saved";
+	EXPECT_FALSE(Stash.dirty) << "the stash is still dirty after a successful save";
+	EXPECT_FALSE(FileExists((heroPath + ".tmp").c_str())) << "a hero shadow was left behind";
+	EXPECT_FALSE(FileExists((stashPath + ".tmp").c_str())) << "a stash shadow was left behind";
+
+	// And again, now that both files exist - the second save is the one that has to COPY them,
+	// which is a different path from creating them.
+	Stash.gold += 100;
+	Stash.dirty = true;
+	SaveHeroAndStash(/*writeGameData=*/false);
+	EXPECT_FALSE(Stash.dirty) << "the second save did not complete";
+
+	RemoveFile(heroPath.c_str());
+	RemoveFile(stashPath.c_str());
 	StopFailingWrites();
 	StopFailingCloses();
 	StopFailingFileCopies();
