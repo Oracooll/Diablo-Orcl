@@ -33,6 +33,25 @@ struct ArtAsset {
 	int width = 0;
 	int height = 0;
 	bool loadAttempted = false;
+	/**
+	 * Strips only. Per cell, the width of the uniform transparent border around its artwork.
+	 *
+	 * The icon batches do not agree about margins and never will: batch 01's Paladin combat icons
+	 * are an opaque 48x48 centred in a 56x56 cell with an exact 4px surround, while the twenty aura
+	 * icons already in the same strip run edge to edge. Scaling the whole CELL onto a skill plate
+	 * therefore filled it for one set and left a ring of bare plate around the other - which is what
+	 * the difference looked like in play once both were on screen together (user, 2026-08-27: "i
+	 * want them to completely overlap the background").
+	 *
+	 * Measured rather than declared, so a future batch with a 6px margin or none at all needs no
+	 * code change and no re-cut art.
+	 *
+	 * A UNIFORM inset - the largest N with at least N transparent pixels on all four sides - not the
+	 * tight bounding box. The tight box of an icon that is 37 wide and 56 tall would be stretched to
+	 * a square plate and come out distorted; taking the same N off each side can only remove empty
+	 * border, never reshape what is drawn. For edge-to-edge art N is 0 and nothing changes at all.
+	 */
+	std::vector<uint8_t> cellInsets;
 	std::optional<OwnedSurface> bright;
 	/**
 	 * Orbs only. The composition MINUS the sphere: everything outside the glass circle, with the
@@ -759,7 +778,8 @@ void BlitHalfTransparentSkipZero(const Surface &out, const Surface &src, Point p
  * Nearest-neighbour rather than a resampler: the source is already palette-quantized, so there are no
  * in-between colours to interpolate toward - a blend would have to re-quantize per pixel, per frame.
  */
-void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCell, Rectangle dest)
+void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCell, Rectangle dest,
+    bool halfTransparent = false)
 {
 	if (dest.size.width <= 0 || dest.size.height <= 0 || srcCell.w <= 0 || srcCell.h <= 0)
 		return;
@@ -777,7 +797,11 @@ void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCel
 			const int dstX = dest.position.x + x;
 			if (dstX < 0 || dstX >= out.w())
 				continue;
-			dstRow[dstX] = value;
+			// The locked half of what DrawStripIcon has always offered, carried over so that the
+			// scaled path is a drop-in for the native one - see the Rectangle overload of
+			// DrawClassTreeIcon. Without it, scaling an Abilities row would have quietly made every
+			// unearned skill look earned.
+			dstRow[dstX] = halfTransparent ? paletteTransparencyLookup[dstRow[dstX]][value] : value;
 		}
 	}
 }
@@ -1372,6 +1396,14 @@ bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit
 	return true;
 }
 
+// Defined further down, next to the other scaled drawing. Declared here because the Rectangle
+// overload of DrawClassTreeIcon below needs it, and moving the definitions up would separate them
+// from BlitStripCellScaled, which is the thing they are all about.
+void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, int index,
+    bool unlocked = true);
+void DrawClassTreeIconScaledTo(const Surface &out, Rectangle dest, HeroClass heroClass, int skillIndex,
+    bool unlocked = true);
+
 void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint)
 {
@@ -1388,10 +1420,59 @@ void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, 
 	// one drawing call.
 	ApplyPlateTint(tint);
 	DrawSmallSpellIconScaledTo(out, cell);
-	DrawStripIcon(out, TreeStripFor(heroClass), cell.position, skillIndex, unlocked);
+	// SCALED to the cell, like the plate under it (user, 2026-08-27: "i want them to completely
+	// overlap the background"). It used to draw at native size, which was indistinguishable from
+	// filling the cell for as long as every icon ran edge to edge - and stopped being so the moment
+	// a batch arrived with a transparent surround inside its cell.
+	DrawStripIconScaledTo(out, TreeStripFor(heroClass), cell, skillIndex, unlocked);
 }
 
-void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, int index)
+/**
+ * @brief The uniform transparent border around cell @p index, measured once and remembered.
+ *
+ * See ArtAsset::cellInsets. Reads the loaded RGBA rather than the quantised surface, because that is
+ * where alpha still exists - the quantiser has already collapsed it to "index 0 or not" by then.
+ */
+uint8_t StripCellInset(ArtAsset &asset, int index, int cell)
+{
+	if (cell <= 0 || asset.rgba.empty())
+		return 0;
+	const int cells = asset.width / cell;
+	if (index < 0 || index >= cells)
+		return 0;
+
+	if (asset.cellInsets.empty()) {
+		asset.cellInsets.assign(static_cast<size_t>(cells), 0);
+		for (int c = 0; c < cells; c++) {
+			// Grow the ring outward while every pixel on it is transparent. Stops one short of
+			// half the cell, so a fully transparent cell reports a border rather than nothing.
+			int inset = 0;
+			while (inset < cell / 2) {
+				bool ringClear = true;
+				for (int i = inset; i < cell - inset && ringClear; i++) {
+					const int xs[] = { inset, cell - 1 - inset, i, i };
+					const int ys[] = { i, i, inset, cell - 1 - inset };
+					for (int k = 0; k < 4; k++) {
+						const size_t px = (static_cast<size_t>(ys[k]) * asset.width
+						                      + static_cast<size_t>(c * cell + xs[k]))
+						    * 4;
+						if (px + 3 < asset.rgba.size() && asset.rgba[px + 3] != 0) {
+							ringClear = false;
+							break;
+						}
+					}
+				}
+				if (!ringClear)
+					break;
+				inset++;
+			}
+			asset.cellInsets[static_cast<size_t>(c)] = static_cast<uint8_t>(inset);
+		}
+	}
+	return asset.cellInsets[static_cast<size_t>(index)];
+}
+
+void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, int index, bool unlocked)
 {
 	EnsureLoadedAll();
 	if (asset.rgba.empty())
@@ -1405,12 +1486,26 @@ void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, 
 	const int cells = cell > 0 ? asset.width / cell : 0;
 	if (index < 0 || index >= cells)
 		return;
-	BlitStripCellScaled(out, *asset.bright, MakeSdlRect(index * cell, 0, cell, cell), dest);
+
+	// The ARTWORK is scaled onto the plate, not the cell it was delivered in. An icon with a
+	// transparent surround would otherwise be scaled surround and all, so it would sit inside the
+	// plate with a ring of plate showing while an edge-to-edge icon beside it covered the same plate
+	// completely - see ArtAsset::cellInsets.
+	//
+	// This costs nothing in quality: the cell was already being resampled to reach `dest`, so all
+	// that changes is which source rectangle goes through the same single scale.
+	const int inset = StripCellInset(asset, index, cell);
+	const int src = cell - 2 * inset;
+	if (src <= 0)
+		return;
+	BlitStripCellScaled(out, *asset.bright, MakeSdlRect(index * cell + inset, inset, src, src), dest,
+	    !unlocked);
 }
 
-void DrawClassTreeIconScaledTo(const Surface &out, Rectangle dest, HeroClass heroClass, int skillIndex)
+void DrawClassTreeIconScaledTo(const Surface &out, Rectangle dest, HeroClass heroClass, int skillIndex,
+    bool unlocked)
 {
-	DrawStripIconScaledTo(out, TreeStripFor(heroClass), dest, skillIndex);
+	DrawStripIconScaledTo(out, TreeStripFor(heroClass), dest, skillIndex, unlocked);
 }
 
 Size GetClassTreeIconSize(HeroClass heroClass)
@@ -1482,8 +1577,19 @@ bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID sp
 		bottomLeft.y - SPLICONLENGTH + 1 + (SPLICONLENGTH - iconSize.height) / 2
 	};
 	if (fromTree) {
-		DrawClassTreeIcon(out, iconOrigin, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill),
-		    /*unlocked=*/true, tint);
+		// FILLS the plate, like the wells do (user, 2026-08-27). A tree cell is the same 56px as
+		// this plate, so drawing it at native size looked like full coverage - and was, right up
+		// until an icon arrived with a transparent surround baked into its cell, which then showed
+		// as a ring of plate here and nowhere else. Routed through the scaled path so the artwork
+		// decides the size rather than the cell it was delivered in.
+		//
+		// The legacy 38px fallback below is deliberately NOT changed: it is a genuinely smaller icon
+		// centred on a larger plate, which is a different thing from one that only looks smaller.
+		const Rectangle plate {
+			Point { bottomLeft.x, bottomLeft.y - SPLICONLENGTH + 1 },
+			Size { SPLICONLENGTH, SPLICONLENGTH }
+		};
+		DrawClassTreeIconScaledTo(out, plate, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill));
 	} else {
 		DrawStripIcon(out, PaladinSkillIconsArt, iconOrigin, GetPaladinSkillIconIndex(*skill), /*unlocked=*/true);
 	}
