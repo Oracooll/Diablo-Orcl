@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 
+#include "utils/attributes.h"
 #include "utils/stdcompat/string_view.hpp"
 
 namespace devilution {
@@ -56,6 +57,48 @@ void RenameFile(const char *from, const char *to);
 bool ReplaceFileAtomically(const char *from, const char *to);
 
 void CopyFileOverwrite(const char *from, const char *to);
+
+/**
+ * @brief Test seams for the two operations the save's staging step depends on.
+ *
+ * The save archive is built on a COPY of the existing one, and whether that copy can be made is
+ * decided by `CopyFileOverwrite` and `GetFileSize` - neither of which goes anywhere near
+ * `LoggedFStream`, so neither could be reached by the write seam. The sixth external audit
+ * (2026-08-26) found two faults in exactly that step and both were untestable:
+ *
+ *   - a failed copy fell back to mutating the LIVE archive, which is the one thing the copy exists
+ *     to prevent, and it did so precisely when the disk was full
+ *   - a failed `GetFileSize` was read as "the file does not exist", so an archive that could not be
+ *     measured would have been replaced by one holding only the current save's records
+ *
+ * Both now fail closed, and these seams are what let a test say so. Same shape as the write seam:
+ * a countdown, -1 disarmed, compiled into every build so the code under test is the code that ships.
+ */
+DVL_API_FOR_TEST extern int CopyFailureCountdown;
+
+/** @brief After @p successesBeforeFailure more copies, every copy silently does nothing. */
+DVL_API_FOR_TEST void FailFileCopiesAfter(int successesBeforeFailure);
+
+/** @brief Disarms the copy seam. */
+DVL_API_FOR_TEST void StopFailingFileCopies();
+
+DVL_API_FOR_TEST extern int FileSizeFailureCountdown;
+
+/** @brief After @p successesBeforeFailure more queries, every GetFileSize reports failure. */
+DVL_API_FOR_TEST void FailFileSizeQueriesAfter(int successesBeforeFailure);
+
+/** @brief Disarms the size-query seam. */
+DVL_API_FOR_TEST void StopFailingFileSizeQueries();
+
+/**
+ * @brief Fails exactly ONE size query, then disarms itself.
+ *
+ * The countdown above fails every query from its trigger onward, which is right for simulating a
+ * dead disk and wrong for simulating a single unreadable file. The distinction is not academic: the
+ * archive writer queries a size twice during construction, and failing both makes it give up at a
+ * different, earlier point than the one under test - so the interesting path is never reached.
+ */
+DVL_API_FOR_TEST void FailNextFileSizeQuery();
 void RemoveFile(const char *path);
 FILE *OpenFile(const char *path, const char *mode);
 

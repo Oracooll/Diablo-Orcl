@@ -37,6 +37,27 @@ DVL_API_FOR_TEST void FailWritesAfter(int successesBeforeFailure);
 /** @brief Disarms it. Tests must call this, or a later test inherits a broken disk. */
 DVL_API_FOR_TEST void StopFailingWrites();
 
+/**
+ * @brief Test seam for the CLOSE, which is a different failure from a failed write.
+ *
+ * Separate from the write counter on purpose. Buffered data is flushed by `fclose`, so a disk that
+ * fills up on the last few kilobytes reports itself here and at no earlier point - every individual
+ * `Write` call succeeds, and the archive is ruined anyway. Simulating that with the write counter is
+ * impossible by construction: arming it makes a write fail, which is the case this one is not.
+ *
+ * Added after the sixth external audit (2026-08-26) found that the shadow archive was published
+ * immediately after an unchecked close, so a save that failed at the very last moment replaced the
+ * good archive. The fix was one line; the reason it took an outside reader to find it is that there
+ * was no way to write a test that could fail.
+ */
+DVL_API_FOR_TEST extern int CloseFailureCountdown;
+
+/** @brief After @p successesBeforeFailure more closes, every close reports failure. */
+DVL_API_FOR_TEST void FailClosesAfter(int successesBeforeFailure);
+
+/** @brief Disarms the close seam. */
+DVL_API_FOR_TEST void StopFailingCloses();
+
 // A wrapper around `FILE *` that logs errors.
 struct LoggedFStream {
 public:
@@ -64,7 +85,15 @@ public:
 			return true;
 		FILE *file = s_;
 		s_ = nullptr;
-		return CheckError(std::fclose(file) == 0, "fclose()");
+		const bool closed = std::fclose(file) == 0;
+		// The file is REALLY closed either way - the handle must not leak just because a test is
+		// pretending the close failed. Only the reported result is injected.
+		if (CloseFailureCountdown >= 0) {
+			if (CloseFailureCountdown == 0)
+				return false;
+			CloseFailureCountdown--;
+		}
+		return CheckError(closed, "fclose()");
 	}
 
 	[[nodiscard]] bool IsOpen() const

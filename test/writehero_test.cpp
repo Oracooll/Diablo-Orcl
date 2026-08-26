@@ -975,3 +975,122 @@ TEST(Writehero, AFinishedArchiveIsInvisibleUntilItIsPublished)
 	RemoveFile(archivePath.c_str());
 	StopFailingWrites();
 }
+
+// The three fixes from the sixth external audit (2026-08-26) that could not be pinned when they
+// were made, because the injection seam reached `Write` and nothing else. It now reaches the close
+// and the staging copy as well, so each of these can fail.
+//
+// All three share one assertion, and it is the only one that matters: whatever goes wrong, the
+// archive already on disk is still the last save that fully succeeded.
+TEST(Writehero, EveryFailureInThePublishLeavesThePreviousSaveWhole)
+{
+	const std::string archivePath = paths::BasePath() + "seam_test.sv";
+	const std::string shadowPath = archivePath + ".tmp";
+	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
+	const auto readRecord = [&archivePath]() -> std::string {
+		int32_t error = 0;
+		std::optional<MpqArchive> archive = MpqArchive::Open(archivePath.c_str(), error);
+		if (!archive.has_value())
+			return "<no archive>";
+		std::size_t size = 0;
+		std::unique_ptr<byte[]> data = archive->ReadFile("record", size, error);
+		if (data == nullptr)
+			return "<no record>";
+		return std::string(reinterpret_cast<const char *>(data.get()), size);
+	};
+	const auto writeGoodSave = [&]() {
+		RemoveFile(archivePath.c_str());
+		RemoveFile(shadowPath.c_str());
+		MpqWriter writer(archivePath);
+		ASSERT_TRUE(writer.WriteFile("record", bytes("OLD"), 3));
+	};
+
+	// 1. The CLOSE fails - every individual write succeeded, and the archive is ruined anyway.
+	//
+	// This is not reachable through the write seam by construction: arming that makes a write fail,
+	// which is the case this is not. Buffered data is flushed by fclose, so a disk that fills up on
+	// the last few kilobytes reports itself here and at no earlier point - and the publish used to
+	// be the very next statement.
+	{
+		SCOPED_TRACE("close failure");
+		writeGoodSave();
+		ASSERT_EQ(readRecord(), "OLD");
+		{
+			MpqWriter writer(archivePath);
+			writer.BeginTransaction();
+			EXPECT_TRUE(writer.WriteFile("record", bytes("NEW"), 3));
+			EXPECT_TRUE(writer.CommitTransaction());
+			FailClosesAfter(0);
+		}
+		StopFailingCloses();
+		EXPECT_EQ(readRecord(), "OLD")
+		    << "a save that failed at the close was published over the good archive";
+		EXPECT_FALSE(FileExists(shadowPath.c_str()))
+		    << "the failed shadow was left on disk";
+	}
+
+	// 2. The staging COPY fails - the condition that causes it is a full disk, which is exactly
+	//    what the copy exists to survive. This used to fall back to editing the live archive.
+	{
+		SCOPED_TRACE("staging copy failure");
+		writeGoodSave();
+		ASSERT_EQ(readRecord(), "OLD");
+		{
+			FailFileCopiesAfter(0);
+			MpqWriter writer(archivePath);
+			StopFailingFileCopies();
+			// The writer never opened, so it must refuse rather than quietly write somewhere.
+			EXPECT_FALSE(writer.WriteFile("record", bytes("NEW"), 3))
+			    << "a writer whose staging failed accepted a record anyway";
+			EXPECT_FALSE(writer.CommitTransaction())
+			    << "a writer whose staging failed reported a successful commit";
+		}
+		StopFailingFileCopies();
+		EXPECT_EQ(readRecord(), "OLD")
+		    << "an unstageable save damaged the archive it could not copy";
+		EXPECT_FALSE(FileExists(shadowPath.c_str()));
+	}
+
+	// 3. The target cannot be MEASURED. The subtler half of the same finding: a failed GetFileSize
+	//    used to collapse into "the file does not exist", and a non-existent target is staged as a
+	//    brand new archive - which holds only the records this save writes. Publishing that over a
+	//    real save would have discarded everything else in it.
+	{
+		SCOPED_TRACE("size query failure");
+		writeGoodSave();
+		ASSERT_EQ(readRecord(), "OLD");
+		{
+			// ONE query - the constructor asks twice, and failing both makes the writer give up at
+			// an earlier point than the one under test. The first is the one against the target.
+			FailNextFileSizeQuery();
+			MpqWriter writer(archivePath);
+			EXPECT_FALSE(writer.WriteFile("record", bytes("NEW"), 3))
+			    << "an archive that could not be measured was written to anyway";
+		}
+		StopFailingFileSizeQueries();
+		EXPECT_EQ(readRecord(), "OLD")
+		    << "an archive that could not be measured was replaced by a fresh one";
+		EXPECT_FALSE(FileExists(shadowPath.c_str()));
+	}
+
+	// And with every seam disarmed the same sequence still saves, so none of the above is being
+	// satisfied by a writer that simply stopped working.
+	{
+		SCOPED_TRACE("no failure");
+		writeGoodSave();
+		{
+			MpqWriter writer(archivePath);
+			writer.BeginTransaction();
+			EXPECT_TRUE(writer.WriteFile("record", bytes("NEW"), 3));
+			EXPECT_TRUE(writer.CommitTransaction());
+		}
+		EXPECT_EQ(readRecord(), "NEW") << "an ordinary save stopped working";
+	}
+
+	RemoveFile(archivePath.c_str());
+	RemoveFile(shadowPath.c_str());
+	StopFailingWrites();
+	StopFailingCloses();
+	StopFailingFileCopies();
+	StopFailingFileSizeQueries();
+}

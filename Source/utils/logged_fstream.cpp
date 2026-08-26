@@ -34,4 +34,17 @@ void StopFailingWrites()
 	WriteFailureCountdown = -1;
 }
 
+// -1: disarmed, and Close reports exactly what fclose said.
+int CloseFailureCountdown = -1;
+
+void FailClosesAfter(int successesBeforeFailure)
+{
+	CloseFailureCountdown = successesBeforeFailure < 0 ? 0 : successesBeforeFailure;
+}
+
+void StopFailingCloses()
+{
+	CloseFailureCountdown = -1;
+}
+
 } // namespace devilution

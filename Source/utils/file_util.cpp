@@ -179,8 +179,48 @@ bool FileExistsAndIsWriteable(const char *path)
 #endif
 }
 
+// -1: both seams disarmed. See file_util.h for why they exist.
+int CopyFailureCountdown = -1;
+int FileSizeFailureCountdown = -1;
+bool FailOneFileSizeQuery = false;
+
+void FailFileCopiesAfter(int successesBeforeFailure)
+{
+	CopyFailureCountdown = successesBeforeFailure < 0 ? 0 : successesBeforeFailure;
+}
+
+void StopFailingFileCopies()
+{
+	CopyFailureCountdown = -1;
+}
+
+void FailFileSizeQueriesAfter(int successesBeforeFailure)
+{
+	FileSizeFailureCountdown = successesBeforeFailure < 0 ? 0 : successesBeforeFailure;
+}
+
+void StopFailingFileSizeQueries()
+{
+	FileSizeFailureCountdown = -1;
+	FailOneFileSizeQuery = false;
+}
+
+void FailNextFileSizeQuery()
+{
+	FailOneFileSizeQuery = true;
+}
+
 bool GetFileSize(const char *path, std::uintmax_t *size)
 {
+	if (FailOneFileSizeQuery) {
+		FailOneFileSizeQuery = false;
+		return false;
+	}
+	if (FileSizeFailureCountdown >= 0) {
+		if (FileSizeFailureCountdown == 0)
+			return false;
+		FileSizeFailureCountdown--;
+	}
 #if defined(_WIN64) || defined(_WIN32)
 	WIN32_FILE_ATTRIBUTE_DATA attr;
 #if defined(NXDK)
@@ -374,6 +414,16 @@ bool ReplaceFileAtomically(const char *from, const char *to)
 
 void CopyFileOverwrite(const char *from, const char *to)
 {
+	// Does NOTHING when armed, which is the honest simulation: the function reports no result, so
+	// from every caller's point of view a failed copy and a copy that never happened are the same
+	// event. The destination is left absent, and callers that care must notice that for themselves.
+	if (CopyFailureCountdown >= 0) {
+		if (CopyFailureCountdown == 0) {
+			LogError("Injected copy failure: {} -> {}", from, to);
+			return;
+		}
+		CopyFailureCountdown--;
+	}
 #if defined(NXDK)
 	if (!::CopyFile(from, to, /*bFailIfExists=*/false)) {
 		LogError("Failed to copy {} to {}", from, to);
