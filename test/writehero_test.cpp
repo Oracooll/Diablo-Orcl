@@ -1094,3 +1094,85 @@ TEST(Writehero, EveryFailureInThePublishLeavesThePreviousSaveWhole)
 	StopFailingFileCopies();
 	StopFailingFileSizeQueries();
 }
+
+// Found by PLAYING the game, 2026-08-26: it crashed on picking up gold, and on leaving to the main
+// menu. One bug behind both. In single-player, gold goes straight to the stash and marks it dirty,
+// so a save then takes the stash branch - which held the writer in a std::optional and put it there
+// with emplace(GetStashWriter()).
+//
+// That MOVES an MpqWriter. LoggedFStream wrapped a raw FILE* with a compiler-written move, so the
+// handle was COPIED and the source kept it; and MpqWriter's move was defaulted too, so the husk
+// left behind still looked live to a destructor that - since the shadow landed - writes the tables,
+// closes the file and publishes the archive. Destroying the husk therefore closed the file the real
+// writer was still using, and the next write went through a closed handle.
+//
+// The lesson is not "do not move writers". It is that a defaulted move stopped being safe the
+// moment the destructor started doing real work, and nothing said so.
+TEST(Writehero, MovingAWriterDoesNotCloseOrPublishTheOriginal)
+{
+	const std::string archivePath = paths::BasePath() + "move_test.sv";
+	const std::string shadowPath = archivePath + ".tmp";
+	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
+	const auto readRecord = [&archivePath]() -> std::string {
+		int32_t error = 0;
+		std::optional<MpqArchive> archive = MpqArchive::Open(archivePath.c_str(), error);
+		if (!archive.has_value())
+			return "<no archive>";
+		std::size_t size = 0;
+		std::unique_ptr<byte[]> data = archive->ReadFile("record", size, error);
+		if (data == nullptr)
+			return "<no record>";
+		return std::string(reinterpret_cast<const char *>(data.get()), size);
+	};
+
+	RemoveFile(archivePath.c_str());
+	RemoveFile(shadowPath.c_str());
+	{
+		MpqWriter writer(archivePath);
+		ASSERT_TRUE(writer.WriteFile("record", bytes("OLD"), 3));
+	}
+	ASSERT_EQ(readRecord(), "OLD") << "test setup: the first save did not land";
+
+	// Exactly the shape that crashed: a writer moved into an optional, the husk destroyed at the
+	// end of the full expression, and then the REAL writer used afterwards.
+	{
+		std::optional<MpqWriter> writer;
+		writer.emplace(MpqWriter(archivePath));
+
+		// If the husk closed the shared handle, this write goes through a dead FILE*.
+		writer->BeginTransaction();
+		EXPECT_TRUE(writer->WriteFile("record", bytes("NEW"), 3))
+		    << "the writer could not write after being moved - the handle was closed under it";
+		EXPECT_TRUE(writer->CommitTransaction());
+
+		// And the husk must not have published anything either. Nothing has been published yet, so
+		// the archive on disk is still the old one.
+		EXPECT_EQ(readRecord(), "OLD")
+		    << "destroying a moved-from writer published the archive early";
+	}
+	EXPECT_EQ(readRecord(), "NEW")
+	    << "the surviving writer did not publish - the move left it unable to finish";
+
+	// Move-assignment has the same hazard and the same contract.
+	{
+		MpqWriter first(archivePath);
+		first.BeginTransaction();
+		EXPECT_TRUE(first.WriteFile("record", bytes("ASN"), 3));
+		EXPECT_TRUE(first.CommitTransaction());
+
+		MpqWriter second(archivePath + ".other");
+		second = std::move(first);
+		// `first` is now a husk; letting it go must not disturb what `second` owns.
+	}
+	EXPECT_EQ(readRecord(), "ASN") << "a move-assigned writer lost its archive";
+	EXPECT_FALSE(FileExists(shadowPath.c_str())) << "a shadow was left behind";
+
+	RemoveFile(archivePath.c_str());
+	RemoveFile(shadowPath.c_str());
+	RemoveFile((archivePath + ".other").c_str());
+	RemoveFile((archivePath + ".other.tmp").c_str());
+	StopFailingWrites();
+	StopFailingCloses();
+	StopFailingFileCopies();
+	StopFailingFileSizeQueries();
+}

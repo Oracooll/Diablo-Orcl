@@ -809,7 +809,12 @@ void SaveHeroAndStash(bool writeGameData)
 	std::optional<SaveWriter> stashWriter;
 	bool stashReady = true;
 	if (stashNeedsWriting) {
-		stashWriter.emplace(GetStashWriter());
+		// Constructed IN PLACE from the path, not moved in from GetStashWriter(). Passing a writer
+		// here move-constructs one and then destroys the husk, and this crashed the game on picking
+		// up gold (2026-08-26) - single-player gold goes straight to the stash, which makes this the
+		// most-travelled save path there is. The move is safe now, but not making one is better:
+		// there is no husk to reason about.
+		stashWriter.emplace(GetStashSavePath());
 		stashWriter->BeginTransaction();
 		SaveStash(*stashWriter);
 		stashReady = stashWriter->CommitTransaction() && stashWriter->Finish();

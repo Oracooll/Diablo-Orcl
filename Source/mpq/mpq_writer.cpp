@@ -5,6 +5,7 @@
 #include <cstring>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 #include "appfat.h"
 #include "encrypt.h"
@@ -239,6 +240,66 @@ MpqWriter::MpqWriter(const char *requestedPath)
 	return;
 on_error:
 	app_fatal(StrCat(_("Failed to open archive for writing."), "\n", path, "\n", error));
+}
+
+void MpqWriter::MakeInert()
+{
+	// The husk left behind by a move. It must not write, publish, or delete anything.
+	//
+	// `finished_ = true` is what does the work: the destructor reads that as "the caller has
+	// already decided what to do with this archive", and so decides nothing itself. The cleared
+	// paths and the cleared shadow flag mean that even if it did, there is nothing to act on.
+	usingShadow_ = false;
+	finished_ = true;
+	finishedCleanly_ = false;
+	inTransaction_ = false;
+	transactionFailed_ = false;
+	pending_.clear();
+	name_.clear();
+	target_.clear();
+}
+
+MpqWriter::MpqWriter(MpqWriter &&other) noexcept
+    : stream_(std::move(other.stream_))
+    , name_(std::move(other.name_))
+    , target_(std::move(other.target_))
+    , usingShadow_(other.usingShadow_)
+    , finished_(other.finished_)
+    , finishedCleanly_(other.finishedCleanly_)
+    , size_(other.size_)
+    , hashTable_(std::move(other.hashTable_))
+    , blockTable_(std::move(other.blockTable_))
+    , inTransaction_(other.inTransaction_)
+    , transactionFailed_(other.transactionFailed_)
+    , pending_(std::move(other.pending_))
+    , tempCounter_(other.tempCounter_)
+{
+	other.MakeInert();
+}
+
+MpqWriter &MpqWriter::operator=(MpqWriter &&other) noexcept
+{
+	if (this != &other) {
+		// Whatever this writer was holding is published first. Dropping an open archive on the
+		// floor because something was assigned over it would silently lose a save.
+		if (!finished_ && stream_.IsOpen())
+			Publish();
+		stream_ = std::move(other.stream_);
+		name_ = std::move(other.name_);
+		target_ = std::move(other.target_);
+		usingShadow_ = other.usingShadow_;
+		finished_ = other.finished_;
+		finishedCleanly_ = other.finishedCleanly_;
+		size_ = other.size_;
+		hashTable_ = std::move(other.hashTable_);
+		blockTable_ = std::move(other.blockTable_);
+		inTransaction_ = other.inTransaction_;
+		transactionFailed_ = other.transactionFailed_;
+		pending_ = std::move(other.pending_);
+		tempCounter_ = other.tempCounter_;
+		other.MakeInert();
+	}
+	return *this;
 }
 
 bool MpqWriter::WriteOutAndClose()

@@ -61,6 +61,42 @@ DVL_API_FOR_TEST void StopFailingCloses();
 // A wrapper around `FILE *` that logs errors.
 struct LoggedFStream {
 public:
+	LoggedFStream() = default;
+
+	/**
+	 * @brief Moving TAKES the handle. The source is left holding nothing.
+	 *
+	 * Crash found in play, 2026-08-26, and it is the worst kind: a raw owning pointer with a
+	 * compiler-written move. The defaulted move COPIES `s_`, so both objects believed they owned
+	 * the same open file - and once MpqWriter's destructor started doing real work (writing the
+	 * tables, closing, publishing the archive), destroying a moved-from writer closed the handle
+	 * the live one was still using. The next write went through a closed FILE* and took the game
+	 * down.
+	 *
+	 * Written out rather than defaulted precisely because `= default` is what was wrong. Copying is
+	 * deleted outright: two owners of one handle has no correct meaning here.
+	 */
+	LoggedFStream(LoggedFStream &&other) noexcept
+	    : s_(other.s_)
+	{
+		other.s_ = nullptr;
+	}
+
+	LoggedFStream &operator=(LoggedFStream &&other) noexcept
+	{
+		if (this != &other) {
+			// Whatever this object was holding is closed first - assigning over an open file must
+			// not leak it.
+			Close();
+			s_ = other.s_;
+			other.s_ = nullptr;
+		}
+		return *this;
+	}
+
+	LoggedFStream(const LoggedFStream &) = delete;
+	LoggedFStream &operator=(const LoggedFStream &) = delete;
+
 	bool Open(const char *path, const char *mode)
 	{
 		s_ = OpenFile(path, mode);

@@ -22,8 +22,22 @@ public:
 	    : MpqWriter(path.c_str())
 	{
 	}
-	MpqWriter(MpqWriter &&other) = default;
-	MpqWriter &operator=(MpqWriter &&other) = default;
+	/**
+	 * @brief Moving takes the whole archive, and leaves the source INERT.
+	 *
+	 * These were `= default`, which was safe only for as long as the destructor did nothing much.
+	 * It stopped being safe when the destructor started publishing the archive: a moved-from writer
+	 * still looked live to it, so destroying the husk left behind by a move closed the file the
+	 * real writer was using and swapped a shadow into place under an empty name. Found by playing
+	 * the game, 2026-08-26 - it crashed on picking up gold.
+	 *
+	 * `finished_` is the flag that makes the husk harmless: the destructor treats a finished writer
+	 * as one whose publish decision has already been made, and makes no decision of its own.
+	 */
+	MpqWriter(MpqWriter &&other) noexcept;
+	MpqWriter &operator=(MpqWriter &&other) noexcept;
+	MpqWriter(const MpqWriter &) = delete;
+	MpqWriter &operator=(const MpqWriter &) = delete;
 	~MpqWriter();
 
 	bool HasFile(const char *name) const;
@@ -149,6 +163,9 @@ private:
 
 	/** @brief The shared body of Finish() and the destructor: tables, close, resize. */
 	bool WriteOutAndClose();
+
+	/** @brief Leaves this object unable to write, publish, or clean anything up. See the move ctor. */
+	void MakeInert();
 	std::uintmax_t size_ {};
 	std::unique_ptr<MpqHashEntry[]> hashTable_;
 	std::unique_ptr<MpqBlockEntry[]> blockTable_;
