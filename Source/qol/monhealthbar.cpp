@@ -169,16 +169,28 @@ void DrawMonsterHealthBar(const Surface &out)
 	if (multiplier > 0)
 		DrawString(out, StrCat("x", multiplier), { position, { width - 2, height } }, { UiFlags::ColorWhite | UiFlags::AlignRight | UiFlags::VerticalCenter });
 
-	// mlvl, in the bar's BOTTOM-RIGHT corner (user, 2026-08-19: "monsters to have it displayed
-	// somewhere under their health bar. maybe in the right corner below bar. left corner reserved for
-	// specific buffs"). The bottom-left is where the resistance icons already go, which is exactly
-	// the "specific buffs" the request reserves it for.
+	// mlvl, BELOW the bar rather than inside it (user, 2026-08-26: "mlvl text should be below the
+	// healthbar of the monsters, so it is more clearly visible. now it is overlaping with the
+	// healthbar").
+	//
+	// The original request (2026-08-19) asked for it "somewhere under their health bar. maybe in the
+	// right corner below bar", and `height - 13` put it in the bar's bottom-right corner instead -
+	// inside the frame, on top of the bar art and whatever colour the health fill happened to be
+	// behind it. It was legible against an empty bar and vanished against a full one.
+	//
+	// Now it sits clear of the frame entirely, still right-aligned, with the same black offset the
+	// name above it uses - because outside the frame it is drawn over the dungeon floor, which is
+	// noisier than any bar.
 	//
 	// This is the LOOT level - the number that decides what the kill can drop (oracool/area_level.h)
 	// - not Monster::level(), which is the combat curve and a different question. A player reading
 	// "mlvl 61" is reading what the corpse is worth.
-	DrawString(out, StrCat("mlvl ", ItemLevelOfMonster(monster)),
-	    { position + Displacement { 0, height - 13 }, { width - 5, 12 } },
+	const std::string monsterLevelText = StrCat("mlvl ", ItemLevelOfMonster(monster));
+	const Rectangle monsterLevelRect { position + Displacement { 0, height + 1 }, { width - 5, 12 } };
+	DrawString(out, monsterLevelText,
+	    { monsterLevelRect.position + Displacement { -1, 1 }, monsterLevelRect.size },
+	    { UiFlags::ColorBlack | UiFlags::AlignRight });
+	DrawString(out, monsterLevelText, monsterLevelRect,
 	    { UiFlags::ColorUiSilverDark | UiFlags::AlignRight });
 	if (monster.isUnique() || MonsterKillCounts[monster.type().type] >= 15) {
 		monster_resistance immunes[] = { IMMUNE_MAGIC, IMMUNE_FIRE, IMMUNE_LIGHTNING };

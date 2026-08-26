@@ -750,8 +750,22 @@ void RightMouseDown(bool isShiftHeld)
 		doom_close();
 		return;
 	}
-	if (stextflag != TalkID::None)
+	if (stextflag != TalkID::None) {
+		// The right button is what BUYS and SELLS now (user, 2026-08-26). It used to be a bare
+		// return, so nothing in a shop answered it at all.
+		//
+		// On the shop panel: a right click on an item is the purchase, complete, with no
+		// confirmation after it - see CheckShopGridClick.
+		if (oracool::CheckShopGridClick(MousePosition, /*rightClick=*/true))
+			return;
+
+		// In the backpack: a right click on an item sells it to whichever vendor is open. Only the
+		// backpack grid - ShopSellInventoryItem refuses a worn item, because selling the armour off
+		// your back to a mis-click is not a trade, it is an accident.
+		if (invflag && pcursinvitem != -1 && ShopSellInventoryItem(pcursinvitem))
+			return;
 		return;
+	}
 	if (spselflag) {
 		SetSpell();
 		return;

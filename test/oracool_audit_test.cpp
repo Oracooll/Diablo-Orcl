@@ -6817,3 +6817,76 @@ TEST(OracoolHeroChunks, ATwoByteTagFourWithoutTagThirteenIsCurrentNumbering)
 		    << "a Monk inherited a Bard's song through the two-byte path";
 	}
 }
+
+// Reported from play, 2026-08-26: "there is a bug with Smite skill - is it requiring lvl 8 for some
+// reason?!"
+//
+// It was. Seven Paladin actives live on the class tree's Combat Skills page AND in
+// paladin_skills.cpp's own table, and each had a level in both places. The tier is what the player
+// is shown - the page's top tier says level 1 - while the table quietly held Smite at 8 and Charge
+// at 12, and the stricter of the two applied.
+//
+// The two are aligned now. This test is the reason they cannot drift apart again: it asserts the
+// property the PLAYER experiences, which is that a character who has reached a row's tier level can
+// actually have that row - not that two constants happen to match today.
+TEST(OracoolClassTree, EveryBorrowedPaladinSkillMatchesItsTreeTier)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior; // displayed as the Paladin
+	player._pMaxHP = 1000;
+	player._pHitPoints = 1000;
+
+	// A shield in hand throughout: several of these rows require one, and this test is about the
+	// LEVEL gate. The shield requirement is deliberate and is checked separately below.
+	devilution::Item &shield = player.InvBody[INVLOC_HAND_RIGHT];
+	shield = {};
+	shield._itype = ItemType::Shield;
+	shield._iOracoolBroken = false;
+	ASSERT_TRUE(HasShieldEquipped(player)) << "test setup: the shield is not registering";
+
+	int checked = 0;
+	for (int i = 0; i <= static_cast<int>(ClassTreeSkill::LAST); i++) {
+		const ClassTreeSkill skill = static_cast<ClassTreeSkill>(i);
+		const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+		if (data.heroClass != HeroClass::Warrior || !data.implemented)
+			continue;
+		if (data.kind != ClassTreeKind::Active || IsPassiveSkillRow(skill))
+			continue;
+
+		const int tierLevel = ClassTreeTierMinLevel(data.tier);
+
+		// One level BELOW the tier it sits on, it must be refused - otherwise this test would pass
+		// against a build with no level gate at all.
+		if (tierLevel > 1) {
+			player._pLevel = tierLevel - 1;
+			EXPECT_FALSE(IsClassTreeSkillUnlocked(player, skill))
+			    << _(data.name) << " was available below its own tier level " << tierLevel;
+		}
+
+		// AT its tier level it must be available. This is the half that was failing: Smite sits on
+		// the tier that opens at level 1 and refused until 8.
+		player._pLevel = tierLevel;
+		EXPECT_TRUE(IsClassTreeSkillUnlocked(player, skill))
+		    << _(data.name) << " is on a tier that opens at level " << tierLevel
+		    << " but a character of that level cannot have it - a second table is overruling the tree";
+		checked++;
+	}
+	EXPECT_GT(checked, 5) << "the sweep found almost no Paladin actives - the filter is wrong";
+
+	// Smite by name, because it is the one that was reported and a named failure reads better than
+	// a sweep's.
+	player._pLevel = 1;
+	EXPECT_TRUE(IsClassTreeSkillUnlocked(player, ClassTreeSkill::Smite))
+	    << "Smite still refuses a level 1 Paladin holding a shield";
+
+	// And the shield requirement survives the fix: it is a real condition, not a level in disguise.
+	shield.clear();
+	ASSERT_FALSE(HasShieldEquipped(player));
+	EXPECT_FALSE(IsClassTreeSkillUnlocked(player, ClassTreeSkill::Smite))
+	    << "Smite no longer requires a shield - the level fix took the shield gate with it";
+}

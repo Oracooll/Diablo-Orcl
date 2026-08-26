@@ -2978,6 +2978,15 @@ void ConfirmEnter(Item &item)
 		default:
 			break;
 		}
+
+		// The coins changing hands (user, 2026-08-26: "i need you to play the gold drop sign when i
+		// buy of sell item"). Every branch above moves gold in one direction or the other, so it is
+		// played once HERE rather than in each of the eleven - a new vendor action gets the sound by
+		// existing, which is the only way this stays true.
+		//
+		// The Storyteller's identify returns before this, and rightly: it is the one branch that
+		// charges nothing.
+		PlaySFX(IS_GOLD);
 	}
 
 	StartStore(stextshold);
@@ -3963,6 +3972,25 @@ void ShopSelectIndex(TalkID id, int index)
 	default:
 		break;
 	}
+
+	// NO CONFIRMATION STEP (user, 2026-08-26: "you need to remove the purchase confirmation windows.
+	// we don't need it with the new interface").
+	//
+	// The handlers above end by opening TalkID::Confirm - a full-screen "Are you sure?" inherited
+	// from the text-list stores, where the click that reached an item was a cursor landing on a row
+	// and could plausibly be a mistake. The shop grid is not that interface: the item is under the
+	// pointer, priced, with its stats beside it, and the purchase now takes a deliberate RIGHT-click.
+	// Asking again afterwards adds a keystroke and answers a question the gesture already answered.
+	//
+	// Answered here rather than by deleting the Confirm screen, because that screen is the one place
+	// every vendor action converges - the buy, the sell, the repair, the recharge, the buy-back. The
+	// handlers still run their own afford and room checks first, and those open NoMoney or NoRoom
+	// INSTEAD of Confirm, so this only ever auto-answers a transaction that was already going to be
+	// allowed.
+	if (stextflag == TalkID::Confirm) {
+		stextsel = 18; // the "Yes" line ConfirmEnter tests for
+		ConfirmEnter(StoreItem);
+	}
 }
 
 bool ShopSellHeldItem()
@@ -3998,6 +4026,54 @@ bool ShopSellHeldItem()
 
 	myPlayer.HoldItem.clear();
 	NewCursor(CURSOR_HAND);
+	PlaySFX(IS_GOLD);
+	oracool::ScheduleAutoSaveForStoreTransaction();
+	return true;
+}
+
+bool ShopSellInventoryItem(int cii)
+{
+	// Selling by RIGHT-CLICKING the item where it lies (user, 2026-08-26: "selling should also be
+	// done by right clicking an item in my inv grid. only in the inv grid, not in the item slots on
+	// my hero").
+	//
+	// The backpack only. A worn item's cii is below INVITEM_INV_FIRST and is refused here rather
+	// than handled: selling the armour off your back with one click, in a window whose whole purpose
+	// is the item under the cursor, is a mis-click that costs a character its gear.
+	if (cii < INVITEM_INV_FIRST || cii > INVITEM_INV_LAST)
+		return false;
+
+	Player &myPlayer = *MyPlayer;
+	if (!myPlayer.HoldItem.isEmpty())
+		return false;
+
+	const int invListIndex = myPlayer.InvGrid[cii - INVITEM_INV_FIRST];
+	if (invListIndex == 0)
+		return false;
+	const int index = std::abs(invListIndex) - 1;
+	if (index < 0 || index >= myPlayer._pNumInv)
+		return false;
+
+	// The vendor's own judgement of what they will take, exactly as the held-item path asks it -
+	// Adria does not buy armour and Griswold does not buy potions, and neither should start doing so
+	// because the item arrived by a different gesture.
+	const bool witch = IsWitchShopScreen(stextflag);
+	if (!witch && !IsAnyOf(stextflag, TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy,
+	        TalkID::SmithConsumables, TalkID::SmithSell))
+		return false;
+
+	Item sold = myPlayer.InvList[index];
+	if (!(witch ? WitchSellOk(sold) : SmithSellOk(sold)))
+		return false;
+
+	sold._ivalue = GetItemSellValue(sold);
+	sold._iIvalue = sold._ivalue;
+
+	myPlayer.RemoveInvItem(index);
+	RecordSale(sold);
+	CreditSaleProceeds(sold._ivalue);
+	PlaySFX(IS_GOLD);
+	CalcPlrInv(myPlayer, true);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 	return true;
 }

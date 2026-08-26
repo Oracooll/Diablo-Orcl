@@ -44,9 +44,26 @@ namespace {
 //   Hammer of Faith     10 -> 12   (tier 2)   2026-08-16, when it was given a tree row
 //   Blessed Shield      20 -> 18   (tier 3)   2026-08-16, when it was given a tree row
 //
-// Each was moved to the NEAREST tier level, so no skill travelled further than it had to. Zeal,
-// Charge and Shield Bash keep the numbers the user set for them; their tiers are looser, and the
-// stricter of the two is what applies.
+// Each was moved to the NEAREST tier level, so no skill travelled further than it had to.
+//
+// The last two followed on 2026-08-26, reported from play: "there is a bug with Smite skill - is it
+// requiring lvl 8 for some reason?!"
+//
+//   Shield Bash (Smite)  8 -> 1    (tier 0)
+//   Charge              12 -> 6    (tier 1)
+//
+// Leaving those two "stricter than their tier" had been a deliberate choice, and it was the wrong
+// one. The tier is not an internal detail: it is the row's POSITION on the Combat Skills page, and
+// the page tells the player in so many words that the top tier opens at level 1. A skill sitting
+// there and refusing until level 8 does not read as balance, it reads as broken - which is exactly
+// how it was reported.
+//
+// So the tier is now the only level gate any of these skills has, and this table agrees with it
+// rather than competing. EveryBorrowedPaladinSkillMatchesItsTreeTier pins that in the test suite,
+// because two tables agreeing today is not the same as two tables that cannot drift.
+//
+// The shield requirement is untouched: that is a real condition the player controls, checked
+// alongside the level and shown the same way.
 //
 // The range column is the user's targeting rule made per-skill (2026-08-15): a click on a monster
 // further away than this is a MOVE, not a cast. Melee skills take MeleeSkillRangeTiles; the four
@@ -54,7 +71,7 @@ namespace {
 // shorter - it closes the gap on foot, and a dash from the far edge of the screen would read as a
 // teleport rather than as a charge.
 constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
-	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, false, 12, 10 },
+	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, false, 6, 10 },
 	{ N_("Zeal"), N_("Strikes up to five times in the time of one swing, spread across nearby enemies."),
 	    SpellID::Zeal, MeleeSkillRangeTiles, false, 6, 1 },
 	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith,
@@ -65,7 +82,7 @@ constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
 	    N_("A divine fist descends from the sky, causing splash damage to enemies nearby."),
 	    SpellID::FistOfTheHeavens, MaxSkillRangeTiles, false, 30, 15 },
 	{ N_("Shield Bash"), N_("Bash an enemy with your shield, stunning them in the process."),
-	    SpellID::ShieldBash, MeleeSkillRangeTiles, true, 8, 3 },
+	    SpellID::ShieldBash, MeleeSkillRangeTiles, true, 1, 3 },
 	{ N_("Blessed Hammer"),
 	    N_("A divine hammer spirals outward from you, hurting every enemy it touches."),
 	    SpellID::BlessedHammer, MaxSkillRangeTiles, false, 18, 8 },

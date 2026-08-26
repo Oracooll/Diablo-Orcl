@@ -605,7 +605,7 @@ void DrawShopGrid(const Surface &out)
 	DrawShopClose(out);
 }
 
-bool CheckShopGridClick(Point position)
+bool CheckShopGridClick(Point position, bool rightClick)
 {
 	if (!IsShopGridScreen(stextflag))
 		return false;
@@ -689,8 +689,20 @@ bool CheckShopGridClick(Point position)
 	const std::vector<ShopSlot> stock = GetShopStock(stextflag);
 	const std::vector<PlacedSlot> placed = PlaceStock(stock);
 	const int hovered = PlacedSlotAt(placed, position);
-	if (hovered >= 0)
-		ShopSelectIndex(stextflag, stock[placed[hovered].stockIndex].index);
+	if (hovered >= 0) {
+		if (rightClick) {
+			// The purchase. ShopSelectIndex runs the vendor's own handler and, since 2026-08-26,
+			// answers the confirmation itself - so this one gesture is the whole transaction.
+			ShopSelectIndex(stextflag, stock[placed[hovered].stockIndex].index);
+		} else {
+			// Looking, not buying. The selection moves so the footer describes this item, and
+			// nothing is spent - which is what makes a right click safe to be unconfirmed.
+			//
+			// stockIndex, not stock[...].index: ShopGridSel indexes the stock vector, which is what
+			// ActivateShopGridSelection reads it back as.
+			ShopGridSel = placed[hovered].stockIndex;
+		}
+	}
 	// Anywhere else on the panel is absorbed: the shop covers the world, and a click on its
 	// background must not walk the player into a wall behind it.
 	return true;

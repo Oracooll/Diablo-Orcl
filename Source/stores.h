@@ -197,6 +197,14 @@ void ShopActivateAction(TalkID id, int line);
  */
 bool ShopSellHeldItem();
 
+/**
+ * @brief Sells the backpack item at @p cii to the open vendor. False if it will not be taken.
+ *
+ * Right-clicking an item where it lies (user, 2026-08-26). Refuses anything outside the backpack
+ * grid - a worn item, a belt slot - so the gesture cannot strip a character by accident.
+ */
+bool ShopSellInventoryItem(int cii);
+
 /** @brief Repairs the item in the player's hand, charging for it. False if there is nothing to do. */
 bool ShopRepairHeldItem();
 

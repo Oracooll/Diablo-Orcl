@@ -57,8 +57,18 @@ Rectangle GetShopGridRect();
 /** @brief Draws the whole shop - panel, tabs, grid, footer. Does nothing off a grid screen. */
 void DrawShopGrid(const Surface &out);
 
-/** @brief Hit-tests the grid. True if the click landed on the panel and was consumed. */
-bool CheckShopGridClick(Point position);
+/**
+ * @brief Hit-tests the grid. True if the click landed on the panel and was consumed.
+ *
+ * @p rightClick separates looking from buying (user, 2026-08-26: "purchase should be done by
+ * right-clicking, not by left clicking and confirming"). A left click on an item only moves the
+ * selection, so the player can read a price and a stat line without committing to anything; a right
+ * click is the purchase, and there is no confirmation after it.
+ *
+ * Every other control on the panel - the tabs, the page arrows, the service buttons, the close X -
+ * answers to both buttons, because for those the click IS the whole intent.
+ */
+bool CheckShopGridClick(Point position, bool rightClick = false);
 
 /** @brief Moves the keyboard cursor by @p rows and @p columns, wrapping through the stock order. */
 void MoveShopGridSelection(int columns, int rows);
