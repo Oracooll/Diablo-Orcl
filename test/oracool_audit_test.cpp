@@ -6727,11 +6727,93 @@ TEST(OracoolCrafting, AFullGridWithASurplusStackRefusesRatherThanEatingTheMateri
 
 	const std::string result = TransmuteLevskiGridWith(grid, 0);
 
-	EXPECT_TRUE(result.empty() || result.find("room") != std::string::npos)
+	// The refusal must be SPOKEN. Audit finding, 2026-08-26: the first version of this test accepted
+	// an empty result, and empty is exactly what makes the Transmute button look broken - the caller
+	// only logs a non-empty string, so the player clicked and nothing happened at all.
+	EXPECT_FALSE(result.empty())
+	    << "the craft refused silently - the button appears to do nothing";
+	EXPECT_NE(result.find("room"), std::string::npos)
 	    << "the craft claimed to have made something with nowhere to put it: " << result;
 	EXPECT_EQ(grid[0].stackCount(), stackBefore)
 	    << "the materials were consumed for a craft that produced nothing";
 	EXPECT_EQ(grid[0].IDidx, idBefore) << "the material slot was overwritten";
 	for (int i = 1; i < LevskiGridSlots; i++)
 		EXPECT_FALSE(grid[i].isEmpty()) << "slot " << i << " was cleared by a refused craft";
+}
+
+// External audit, 2026-08-26 (P2), and it is a correction to the migration added the same day.
+//
+// Tag 4 has had TWO meanings, and the width tells them apart:
+//
+//   one byte  - written before v1.9.45, so a LEGACY ordinal in the 163-row enum
+//   two bytes - written from v1.9.45 on, already in today's 273-row numbering
+//
+// The same commit that renumbered the enum also widened the field, because the enum passed 255
+// rows. The first migration ignored that and treated every tag 4 as legacy whenever tag 13 was
+// absent - which is exactly the v1.9.45-to-v1.9.57 window. A Bard's Melody of Life is 195 there,
+// the legacy table stops at 163, and the aura was thrown away.
+//
+// This fixture is what a v1.9.57 build wrote: two-byte tag 4, no tag 13.
+TEST(OracoolHeroChunks, ATwoByteTagFourWithoutTagThirteenIsCurrentNumbering)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	const auto buildTail = [](uint16_t tag, const std::vector<uint8_t> &payload) {
+		std::vector<uint8_t> tail { 'O', 'E', 'X', 'T' };
+		tail.push_back(static_cast<uint8_t>(tag & 0xFF));
+		tail.push_back(static_cast<uint8_t>(tag >> 8));
+		const uint32_t len = static_cast<uint32_t>(payload.size());
+		tail.push_back(static_cast<uint8_t>(len & 0xFF));
+		tail.push_back(static_cast<uint8_t>((len >> 8) & 0xFF));
+		tail.push_back(static_cast<uint8_t>((len >> 16) & 0xFF));
+		tail.push_back(static_cast<uint8_t>((len >> 24) & 0xFF));
+		tail.insert(tail.end(), payload.begin(), payload.end());
+		return tail;
+	};
+
+	// The Bard's first song, at whatever index it holds in TODAY's enum - read from the enum rather
+	// than written as a literal, because a literal here would silently stop testing the right thing
+	// the next time a class block grows.
+	const uint16_t current = static_cast<uint16_t>(oracool::ClassTreeSkill::MelodyOfLife);
+	ASSERT_GT(current, 163u) << "test premise: this index must be past the legacy table to bite";
+
+	const std::vector<uint8_t> tail = buildTail(4,
+	    { static_cast<uint8_t>(current & 0xFF), static_cast<uint8_t>(current >> 8) });
+
+	devilution::Player &bard = Players[0];
+	bard = {};
+	bard._pClass = HeroClass::Bard;
+	bard._pLevel = 30;
+	bard._pMaxHP = 1000;
+	bard._pHitPoints = 1000;
+	bard._pUnspentSkillPoints = 10;
+	ASSERT_TRUE(oracool::InvestClassTreePoint(bard, oracool::ClassTreeSkill::MelodyOfLife));
+
+	oracool::ApplyHeroChunks(bard, tail.data(), tail.size());
+	EXPECT_EQ(oracool::GetActiveClassAura(bard), oracool::ClassTreeSkill::MelodyOfLife)
+	    << "a two-byte tag 4 was put through the LEGACY table and the aura was lost";
+
+	// Still validated, not merely trusted. A value past the end of the enum is dropped.
+	{
+		const std::vector<uint8_t> bad = buildTail(4, { 0xFF, 0xFF });
+		devilution::Player &p = Players[0];
+		p._pOracoolActiveAura = static_cast<uint16_t>(oracool::ClassTreeSkill::None);
+		oracool::ApplyHeroChunks(p, bad.data(), bad.size());
+		EXPECT_EQ(oracool::GetActiveClassAura(p), oracool::ClassTreeSkill::None)
+		    << "an impossible aura index was accepted";
+	}
+
+	// And an aura belonging to another class is dropped rather than lit on this one.
+	{
+		devilution::Player &monk = Players[0];
+		monk = {};
+		monk._pClass = HeroClass::Monk;
+		monk._pLevel = 30;
+		monk._pMaxHP = 1000;
+		monk._pHitPoints = 1000;
+		oracool::ApplyHeroChunks(monk, tail.data(), tail.size());
+		EXPECT_EQ(oracool::GetActiveClassAura(monk), oracool::ClassTreeSkill::None)
+		    << "a Monk inherited a Bard's song through the two-byte path";
+	}
 }

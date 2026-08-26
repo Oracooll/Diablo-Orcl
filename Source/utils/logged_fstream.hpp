@@ -46,12 +46,25 @@ public:
 		return CheckError(s_ != nullptr, "fopen(\"{}\", \"{}\")", path, mode);
 	}
 
-	void Close()
+	/**
+	 * @brief Closes the file and says whether everything reached the disk.
+	 *
+	 * Audit finding, 2026-08-26: this used to discard `fclose`'s result, and it is the LAST place a
+	 * write can fail. Buffered data is flushed by the close, so a disk that fills up on the final
+	 * few kilobytes reports itself here and nowhere else - and the save archive is published
+	 * immediately afterwards. The damaged shadow then replaced the good archive, which is the exact
+	 * outcome the shadow exists to prevent.
+	 *
+	 * Callers that are already unwinding from an earlier failure may ignore the result; the one
+	 * that publishes must not.
+	 */
+	bool Close()
 	{
-		if (s_ != nullptr) {
-			std::fclose(s_);
-			s_ = nullptr;
-		}
+		if (s_ == nullptr)
+			return true;
+		FILE *file = s_;
+		s_ = nullptr;
+		return CheckError(std::fclose(file) == 0, "fclose()");
 	}
 
 	[[nodiscard]] bool IsOpen() const

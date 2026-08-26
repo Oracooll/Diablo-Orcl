@@ -1265,6 +1265,10 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 			// per button (user, 2026-08-18: "press hotkey again when mouse hovering over").
 			keys[slot] = SpellID::Invalid;
 			types[slot] = SpellType::Invalid;
+			// Audit finding, 2026-08-26. The BINDINGS were the last readied-skill state with no
+			// trigger: they persist in the hotkeys record like everything else, and arranging a
+			// full set of F-keys is several minutes of deliberate work to lose to a crash.
+			oracool::ScheduleAutoSaveForSkillChange();
 			RedrawEverything();
 			return true;
 		}
@@ -1273,6 +1277,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 		ClearSpellFromHotkeys(me, spell);
 		keys[slot] = spell;
 		types[slot] = BindingTypeFor(me, spell);
+		oracool::ScheduleAutoSaveForSkillChange();
 		RedrawEverything();
 		return true;
 	}

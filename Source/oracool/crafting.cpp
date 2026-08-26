@@ -1154,8 +1154,12 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 	std::copy(grid, grid + GridSlots, consumedGrid);
 	ConsumeGridReagents(consumedGrid, materials, MaterialUnitCostFor(recipe));
 
+	// SAYS SO, rather than returning empty. Audit finding, 2026-08-26: refusing without consuming
+	// anything was the fix, but an empty return means the caller logs nothing, so the Transmute
+	// button appeared to do nothing at all - which is the ambiguity this fork has now shipped
+	// three times. The other no-room path below already returns this same message.
 	if (GridRoomAfter(consumedGrid, {}) < 1)
-		return {};
+		return std::string(_("not enough room for the result"));
 
 	_item_indexes output = IDI_NONE;
 	switch (recipe) {

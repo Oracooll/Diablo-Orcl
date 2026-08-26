@@ -201,6 +201,32 @@ void ApplyLegacyAbsoluteAura(Player &player, uint16_t rawValue)
 	player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
 }
 
+/**
+ * @brief Reads a two-byte tag-4 aura: already in today's numbering, but still not trusted.
+ *
+ * The v1.9.45-to-v1.9.57 window, where the field had been widened for the 273-row enum but the
+ * class-relative tag 13 did not yet exist. The number means what it says; what it does not carry is
+ * any guarantee of being a real row, or of belonging to this character.
+ *
+ * Both are checked here for the same reason the other two paths check them: a save is untrusted
+ * input even when this program wrote it, and an aura belonging to somebody else is a value to drop
+ * rather than a puzzle to solve.
+ */
+void ApplyCurrentAbsoluteAura(Player &player, uint16_t rawValue)
+{
+	if (rawValue >= static_cast<uint16_t>(ClassTreeSkillCount)) {
+		// None (0xFFFF) included - there is no row here to light.
+		player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
+		return;
+	}
+	const ClassTreeSkill skill = static_cast<ClassTreeSkill>(rawValue);
+	if (GetClassTreeSkillData(skill).heroClass != player._pClass) {
+		player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
+		return;
+	}
+	player._pOracoolActiveAura = rawValue;
+}
+
 void ApplyPassiveSlots(Player &player, const uint8_t *payload, size_t len)
 {
 	if (len < 1)
@@ -387,6 +413,8 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 	// The aura is settled after the walk, not during it - see HeroChunkActiveAura below.
 	uint16_t legacyAura = 0;
 	bool sawLegacyAura = false;
+	uint16_t currentAura = 0;
+	bool sawCurrentAura = false;
 	bool sawRelativeAura = false;
 
 	offset = 4;
@@ -410,9 +438,23 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			// enum has been renumbered since it was written, so it cannot be interpreted until the
 			// walk is over and we know whether tag 13 - which is renumbering-proof - is also
 			// present. Held, and settled below.
+			//
+			// The WIDTH is the discriminator, and getting that wrong is an audit finding of its
+			// own (2026-08-26). Tag 4 was one byte until v1.9.45 and two bytes from v1.9.45 on -
+			// the enum passed 255 rows when the passives landed, so the same commit that renumbered
+			// everything also widened this field. That makes the two cases entirely different
+			// things wearing one tag:
+			//
+			//   one byte  -> written before the renumbering, so it is a LEGACY ordinal
+			//   two bytes -> written after it, so it is already in today's numbering
+			//
+			// Treating both as legacy - which is what the first version of this did - broke every
+			// save written between v1.9.45 and v1.9.57, the window where tag 4 was two bytes and
+			// tag 13 did not yet exist. A Bard's Melody of Life is 195 there; the legacy table
+			// stops at 163, so it was thrown away.
 			if (chunkLen >= 2) {
-				legacyAura = GetU16(payload);
-				sawLegacyAura = true;
+				currentAura = GetU16(payload);
+				sawCurrentAura = true;
 			} else if (chunkLen == 1) {
 				legacyAura = payload[0];
 				sawLegacyAura = true;
@@ -492,11 +534,20 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		offset += size_t { 6 } + chunkLen; // widened for the same reason as the validation walk
 	}
 
-	// Tag 13 present means the save already carries the renumbering-proof form and tag 4 is a
-	// duplicate written for older builds to read - ignore it. Tag 4 ALONE means a save from before
-	// tag 13 existed, whose ordinal belongs to the pre-v1.9.45 enum and has to be translated.
-	if (sawLegacyAura && !sawRelativeAura)
-		ApplyLegacyAbsoluteAura(player, legacyAura);
+	// Tag 13 present means the save already carries the renumbering-proof form, and tag 4 is a
+	// duplicate written for older builds to read - so it is ignored entirely.
+	if (!sawRelativeAura) {
+		if (sawLegacyAura) {
+			// One-byte tag 4: pre-v1.9.45, so the number belongs to the old enum.
+			ApplyLegacyAbsoluteAura(player, legacyAura);
+		} else if (sawCurrentAura) {
+			// Two-byte tag 4 with no tag 13: v1.9.45 to v1.9.57. Already in today's numbering, so
+			// it is taken as it stands - but VALIDATED rather than trusted, because a saved number
+			// is not to be believed just because we wrote it. An aura belonging to another class,
+			// or to no row at all, is dropped exactly as the other two paths drop it.
+			ApplyCurrentAbsoluteAura(player, currentAura);
+		}
+	}
 
 	// AFTER every chunk, because it reads _pSkillInvestment and _pUnspentSkillPoints, and the
 	// chunks that fill them may arrive in any order.

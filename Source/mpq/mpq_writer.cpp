@@ -112,27 +112,51 @@ MpqWriter::MpqWriter(const char *requestedPath)
 	if (FileExists(workPath.c_str()))
 		RemoveFile(workPath.c_str());
 
+	// FAILS CLOSED, in both directions. Audit finding, 2026-08-26, and the previous version of this
+	// got both halves wrong:
+	//
+	// - It fell back to "writing in place" when the copy failed. But a copy fails because the disk
+	//   is full, which is precisely the condition the shadow exists to survive - so the fallback
+	//   removed the protection at the only moment it was needed, and mutated the live archive.
+	// - It folded a FAILED GetFileSize into "the target does not exist". An existing archive whose
+	//   size could not be read was therefore treated as new, and a new archive holds only the
+	//   records this save writes. Publishing that over a real save would have discarded everything
+	//   else in it - the level records among them.
+	//
+	// So: any doubt about the target, or any failure staging the shadow, and the writer opens
+	// nothing at all. WriteFile then refuses, nothing is published, and the archive on disk is left
+	// exactly as it was. A save that does not happen and says so is the good outcome here.
 	std::uintmax_t targetSize = 0;
-	const bool targetExists = FileExists(target_.c_str()) && GetFileSize(target_.c_str(), &targetSize) && targetSize > 0;
-	if (targetExists) {
-		CopyFileOverwrite(target_.c_str(), workPath.c_str());
-		std::uintmax_t copiedSize = 0;
-		// Checked rather than assumed: CopyFileOverwrite reports nothing back. Editing a shadow
-		// that is a TRUNCATED copy and then swapping it over the real archive would destroy the
-		// save - the exact outcome this change exists to prevent - so a copy that did not land
-		// byte for byte disqualifies the shadow.
-		usingShadow_ = GetFileSize(workPath.c_str(), &copiedSize) && copiedSize == targetSize;
-		if (!usingShadow_) {
-			LogError("Could not stage a copy of {}, writing in place instead", target_);
-			RemoveFile(workPath.c_str());
+	bool staged = true;
+	if (FileExists(target_.c_str())) {
+		if (!GetFileSize(target_.c_str(), &targetSize)) {
+			LogError("Could not measure {} - refusing to write over an archive we cannot read", target_);
+			staged = false;
+		} else if (targetSize > 0) {
+			CopyFileOverwrite(target_.c_str(), workPath.c_str());
+			std::uintmax_t copiedSize = 0;
+			// Checked rather than assumed: CopyFileOverwrite reports nothing back. Editing a shadow
+			// that is a TRUNCATED copy and then swapping it over the real archive would destroy the
+			// save, so a copy that did not land byte for byte disqualifies the whole attempt.
+			if (!GetFileSize(workPath.c_str(), &copiedSize) || copiedSize != targetSize) {
+				LogError("Could not stage a copy of {} - the save will not be attempted", target_);
+				RemoveFile(workPath.c_str());
+				staged = false;
+			}
 		}
-	} else {
-		// Nothing to copy. A brand new archive is still built as a shadow, so a failure part-way
-		// through creating a character leaves no half-made save file behind at all.
-		usingShadow_ = true;
+		// A zero-length file is not an archive. Nothing to copy, and nothing to lose by replacing.
 	}
 
-	const std::string pathStorage = usingShadow_ ? workPath : target_;
+	if (!staged) {
+		// Deliberately leaves the writer inert rather than calling app_fatal: this runs from the
+		// autosave, and killing the game because one save could not be staged would turn a
+		// recoverable full disk into a lost session.
+		oracool::NoteSaveWriteFailed(target_);
+		return;
+	}
+
+	usingShadow_ = true;
+	const std::string pathStorage = workPath;
 	const char *path = pathStorage.c_str();
 
 	LogVerbose("Opening {}", path);
@@ -234,7 +258,12 @@ bool MpqWriter::WriteOutAndClose()
 	bool result = true;
 	if (!(stream_.Seekp(0, SEEK_SET) && WriteHeaderAndTables()))
 		result = false;
-	stream_.Close();
+	// Checked, not merely performed. Audit finding, 2026-08-26: the tables can all "write"
+	// successfully into the C library's buffer and only fail when that buffer is flushed, which
+	// happens HERE - and the publish is the very next thing. An unchecked close meant a shadow that
+	// had failed to write its last kilobytes was swapped over the good archive.
+	if (!stream_.Close())
+		result = false;
 	if (result && size_ != 0) {
 		LogVerbose("ResizeFile(\"{}\", {})", name_, size_);
 		result = ResizeFile(name_.c_str(), size_);
@@ -661,6 +690,14 @@ bool MpqWriter::WriteFile(const char *filename, const byte *data, size_t size)
 	// blocks are written with FlagExists | CompressPkZip and never the encrypted flag, so the
 	// vestigial `Hash(filename, 3)` in WriteFileContents - which in a real MPQ would be the file's
 	// encryption key - has no effect on the data. Verified before relying on it.
+	// The writer never opened, because staging its shadow failed - see the constructor. Refused
+	// here rather than crashing on a null stream, and the refusal travels back to the caller as an
+	// ordinary write failure, which is what it is.
+	if (!stream_.IsOpen()) {
+		transactionFailed_ = true;
+		return false;
+	}
+
 	const std::string temp = NextTempName();
 
 	// A previous attempt that died between writing and swapping would leave this behind. Reclaimed

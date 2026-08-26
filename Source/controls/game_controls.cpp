@@ -6,6 +6,7 @@
 #ifndef USE_SDL1
 #include "controls/devices/game_controller.h"
 #endif
+#include "control.h" // IsModalPromptOpen
 #include "controls/devices/joystick.h"
 #include "controls/plrctrls.h"
 #include "controls/touch/gamepad.h"
@@ -107,6 +108,12 @@ SDL_Keycode TranslateControllerButtonToSpellbookKey(ControllerButton controllerB
 bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, GameAction *action)
 {
 	const bool inGameMenu = InGameMenu();
+	// Oracool (audit, 2026-08-26): the virtual gamepad builds its actions HERE rather than going
+	// through the padmapper, so the modal guard added to CanPlayerTakeAction did not cover it -
+	// a touch player could still attack, cast and quaff behind a drop-gold prompt. The same flag
+	// also routes the pad's confirm and cancel to the prompt, which is the other half: blocking
+	// input without offering a way out would just trap them in it.
+	const bool modalPromptOpen = IsModalPromptOpen();
 
 #ifndef USE_SDL1
 	if (ControlMode == ControlTypes::VirtualGamepad) {
@@ -128,12 +135,12 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.primaryActionButton.isHeld && VirtualGamepadState.primaryActionButton.didStateChange) {
-				if (!inGameMenu && !QuestLogIsOpen && !sbookflag) {
+				if (!modalPromptOpen && !inGameMenu && !QuestLogIsOpen && !sbookflag) {
 					*action = GameAction(GameActionType_PRIMARY_ACTION);
 					if (ControllerActionHeld == GameActionType_NONE) {
 						ControllerActionHeld = GameActionType_PRIMARY_ACTION;
 					}
-				} else if (sgpCurrentMenu != nullptr || stextflag != TalkID::None || QuestLogIsOpen) {
+				} else if (modalPromptOpen || sgpCurrentMenu != nullptr || stextflag != TalkID::None || QuestLogIsOpen) {
 					*action = GameActionSendKey { SDLK_RETURN, false };
 				} else {
 					*action = GameActionSendKey { SDLK_SPACE, false };
@@ -141,7 +148,7 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.secondaryActionButton.isHeld && VirtualGamepadState.secondaryActionButton.didStateChange) {
-				if (!inGameMenu && !QuestLogIsOpen && !sbookflag) {
+				if (!modalPromptOpen && !inGameMenu && !QuestLogIsOpen && !sbookflag) {
 					*action = GameAction(GameActionType_SECONDARY_ACTION);
 					if (ControllerActionHeld == GameActionType_NONE)
 						ControllerActionHeld = GameActionType_SECONDARY_ACTION;
@@ -149,7 +156,7 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.spellActionButton.isHeld && VirtualGamepadState.spellActionButton.didStateChange) {
-				if (!inGameMenu && !QuestLogIsOpen && !sbookflag) {
+				if (!modalPromptOpen && !inGameMenu && !QuestLogIsOpen && !sbookflag) {
 					*action = GameAction(GameActionType_CAST_SPELL);
 					if (ControllerActionHeld == GameActionType_NONE)
 						ControllerActionHeld = GameActionType_CAST_SPELL;
@@ -157,7 +164,7 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.cancelButton.isHeld && VirtualGamepadState.cancelButton.didStateChange) {
-				if (inGameMenu || DoomFlag || spselflag)
+				if (modalPromptOpen || inGameMenu || DoomFlag || spselflag)
 					*action = GameActionSendKey { SDLK_ESCAPE, false };
 				else if (invflag)
 					*action = GameAction(GameActionType_TOGGLE_INVENTORY);
@@ -170,12 +177,12 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 				return true;
 			}
 			if (VirtualGamepadState.healthButton.isHeld && VirtualGamepadState.healthButton.didStateChange) {
-				if (!QuestLogIsOpen && !sbookflag && stextflag == TalkID::None)
+				if (!modalPromptOpen && !QuestLogIsOpen && !sbookflag && stextflag == TalkID::None)
 					*action = GameAction(GameActionType_USE_HEALTH_POTION);
 				return true;
 			}
 			if (VirtualGamepadState.manaButton.isHeld && VirtualGamepadState.manaButton.didStateChange) {
-				if (!QuestLogIsOpen && !sbookflag && stextflag == TalkID::None)
+				if (!modalPromptOpen && !QuestLogIsOpen && !sbookflag && stextflag == TalkID::None)
 					*action = GameAction(GameActionType_USE_MANA_POTION);
 				return true;
 			}
@@ -195,7 +202,16 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 
 	SDL_Keycode translation = SDLK_UNKNOWN;
 
-	if (gmenu_is_active() || stextflag != TalkID::None)
+	// Oracool (audit, 2026-08-26): a numeric prompt - drop gold, withdraw gold, "Refresh Until" -
+	// was reachable by nothing on a controller. CanPlayerTakeAction now refuses gameplay actions
+	// while one is open, which stopped the pad acting THROUGH the prompt but left it with no way to
+	// answer the prompt either: a player who opened one with a controller was stuck.
+	//
+	// The game-menu translation is exactly the right mapping already - A confirms, B cancels - and
+	// the prompt reads those two keys, so it is reused rather than duplicated.
+	if (IsModalPromptOpen())
+		translation = TranslateControllerButtonToGameMenuKey(ctrlEvent.button);
+	else if (gmenu_is_active() || stextflag != TalkID::None)
 		translation = TranslateControllerButtonToGameMenuKey(ctrlEvent.button);
 	else if (inGameMenu)
 		translation = TranslateControllerButtonToMenuKey(ctrlEvent.button);

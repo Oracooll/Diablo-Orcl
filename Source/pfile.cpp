@@ -596,10 +596,33 @@ bool SaveWriter::CommitTransaction()
 		AbortTransaction();
 		return false;
 	}
-	for (const PendingSwap &swap : pending_)
-		::devilution::ReplaceFileAtomically((dir_ + swap.temp).c_str(), (dir_ + swap.target).c_str());
+	// Every result checked. Audit finding, 2026-08-26: these were fired off and ignored, so a batch
+	// where the second rename failed left the hero at the new generation and the items at the old
+	// one - a mixed character - and returned `true`, which is the save reporting success while
+	// having produced exactly the torn state the transaction exists to prevent.
+	//
+	// Checking cannot make the batch atomic; a directory offers no way to swap four files at once.
+	// What it does is stop the lie. The caller is told the save did not complete, so it keeps the
+	// stash dirty, reports the failure to the player, and tries again - rather than announcing
+	// success over a character that is now half of two saves.
+	bool published = true;
+	for (const PendingSwap &swap : pending_) {
+		if (!::devilution::ReplaceFileAtomically((dir_ + swap.temp).c_str(), (dir_ + swap.target).c_str())) {
+			oracool::NoteSaveWriteFailed(swap.target);
+			published = false;
+			// The rest are NOT attempted. Once one record has failed to land the batch is already
+			// incomplete, and publishing more of it only widens the mixture.
+			break;
+		}
+	}
+	// Whatever is left staged describes a save that will not happen. Removed so it cannot be
+	// mistaken for a good record by a later attempt.
+	for (const PendingSwap &swap : pending_) {
+		if (FileExists((dir_ + swap.temp).c_str()))
+			RemoveFile((dir_ + swap.temp).c_str());
+	}
 	pending_.clear();
-	return true;
+	return published;
 }
 
 void SaveWriter::AbortTransaction()
@@ -643,7 +666,14 @@ bool SaveWriter::WriteFile(const char *filename, const byte *data, size_t size)
 		pending_.push_back({ tempName, filename });
 		return true;
 	}
-	::devilution::ReplaceFileAtomically(path.c_str(), (dir_ + filename).c_str());
+	// Checked for the same reason the transactional path is: an unswapped record means the file on
+	// disk is still the previous one, and the caller has to hear that rather than be told the write
+	// succeeded because the BYTES were written somewhere.
+	if (!::devilution::ReplaceFileAtomically(path.c_str(), (dir_ + filename).c_str())) {
+		RemoveFile(path.c_str());
+		transactionFailed_ = true;
+		return false;
+	}
 	return true;
 }
 
