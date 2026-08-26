@@ -31,6 +31,19 @@ using Clock = std::chrono::steady_clock;
 Clock::time_point LastSave = Clock::now();
 Clock::time_point PendingSaveTime;
 bool SavePending = false;
+/**
+ * @brief No save may be attempted before this, however many requests come in.
+ *
+ * Separate from PendingSaveTime because they answer different questions. PendingSaveTime is "the
+ * player did something worth saving" and every trigger is entitled to move it to now.
+ * RetryNotBefore is "the disk said no, wait" and no trigger may move it at all.
+ *
+ * Audit finding, 2026-08-26: with only PendingSaveTime, the two meanings shared one variable and
+ * the wrong one won. A failing save scheduled a retry sixty seconds out, the player picked up an
+ * item, and the pickup trigger overwrote the deadline with now - so the backoff that exists to
+ * stop a full disk being hammered every frame was defeated by ordinary play.
+ */
+Clock::time_point RetryNotBefore;
 /** @brief Consecutive failed autosaves, driving the retry backoff and the once-per-run message. */
 int FailedSaveAttempts = 0;
 constexpr int BaseRetrySeconds = 5;
@@ -123,7 +136,9 @@ void ScheduleAfterSeconds(int seconds)
 	if (!IsEnabled())
 		return;
 	SavePending = true;
-	PendingSaveTime = Clock::now() + std::chrono::seconds(std::max(seconds, 0));
+	// Never EARLIER than an outstanding retry deadline. A trigger may bring a save forward, but it
+	// does not get to overrule a disk that has just refused one.
+	PendingSaveTime = std::max(Clock::now() + std::chrono::seconds(std::max(seconds, 0)), RetryNotBefore);
 }
 
 } // namespace
@@ -132,6 +147,12 @@ void ResetAutoSave()
 {
 	LastSave = Clock::now();
 	SavePending = false;
+	// Cleared here too (audit, 2026-08-26). This is both "a save just succeeded" and "a new session
+	// is starting", and a leftover failure count means either one inherits the previous run's
+	// backoff rung - so the next failure waits minutes instead of five seconds and, because the
+	// message is only printed on the FIRST failure of a run, says nothing at all while it does.
+	FailedSaveAttempts = 0;
+	RetryNotBefore = Clock::now();
 }
 
 void NotifyGameSaved()
@@ -302,6 +323,11 @@ void ProcessAutoSave()
 	const bool pendingIsDue = SavePending && now >= PendingSaveTime;
 	if ((!intervalElapsed && !pendingIsDue) || !IsSafeToSave())
 		return;
+	// The backoff gate, and it sits after the due checks deliberately so it covers BOTH of them.
+	// The periodic interval is not a trigger the player controls, but it would otherwise walk
+	// through a retry deadline just as readily as a pickup did.
+	if (now < RetryNotBefore)
+		return;
 
 	// Character only, exactly as SaveOnExit writes it - and for exactly the same reason, which had
 	// simply never been carried across to this function (audit, 2026-08-26).
@@ -333,7 +359,8 @@ void ProcessAutoSave()
 		    MaxRetrySeconds);
 		LastSave = Clock::now();
 		SavePending = true;
-		PendingSaveTime = Clock::now() + std::chrono::seconds(backoffSeconds);
+		RetryNotBefore = Clock::now() + std::chrono::seconds(backoffSeconds);
+		PendingSaveTime = RetryNotBefore;
 
 		// Said ONCE per run of failures rather than once per attempt. A player needs to know the
 		// game cannot save; they do not need to be told sixty times a second, and a log that

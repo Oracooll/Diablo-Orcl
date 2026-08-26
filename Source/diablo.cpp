@@ -211,7 +211,7 @@ void FreeGame()
 	// one of the transitions the sound package's contract requires it released on. Silenced rather
 	// than stopped, because the stop CUE would be a sound the player has no cause for - they left,
 	// they did not switch the aura off.
-	oracool::SilenceClassAuraLoop();
+	oracool::SilenceAuraLoopForTransition();
 	// And the set-completion baseline describes a character who is no longer here.
 	oracool::ResetSetCompletionBaseline();
 
@@ -640,6 +640,7 @@ void LeftMouseDown(uint16_t modState)
 			if (isShiftHeld) {
 				MyPlayer->_pLRSpell = SpellID::Invalid;
 				MyPlayer->_pLRSplType = SpellType::Invalid;
+				oracool::ScheduleAutoSaveForSkillChange();
 				RedrawEverything();
 				return;
 			}
@@ -2206,7 +2207,16 @@ bool IsGameRunning()
 
 bool CanPlayerTakeAction()
 {
-	return !IsPlayerDead() && IsGameRunning();
+	// Audit finding, 2026-08-26. A numeric prompt - drop gold, withdraw gold, "Refresh Until" -
+	// owns the keyboard while it is open, and the two mouse paths were taught to respect that. The
+	// controller was not: pad actions are dispatched through this predicate, so gamepad attack,
+	// spellcast and potion quaffing went straight past an open prompt into the world.
+	//
+	// It belongs HERE rather than at each of the forty-odd call sites, because every one of them is
+	// a keymapper or padmapper gameplay action and the answer is the same for all of them. The
+	// prompt's own confirm and cancel do not come through this predicate - they are handled in the
+	// text-input path, which checks IsModalPromptOpen first - so the prompt stays usable.
+	return !IsPlayerDead() && IsGameRunning() && !IsModalPromptOpen();
 }
 } // namespace
 
@@ -3460,7 +3470,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	// A level transition releases the aura's loop handle (the sound package's contract lists it
 	// alongside death and disconnect) without its stop cue - the aura itself is still on, and will
 	// be re-lit below once the level is up.
-	oracool::SilenceClassAuraLoop();
+	oracool::SilenceAuraLoopForTransition();
 	// And re-baseline which sets are complete, silently. Equipment is recomputed all through a level
 	// load, and without this the first CalcPlrInv would read every already-worn set as newly
 	// finished and ring the stinger for it.
@@ -3807,7 +3817,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	if (MyPlayer != nullptr) {
 		if (const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(*MyPlayer);
 		    aura != oracool::ClassTreeSkill::None) {
-			oracool::ResumeClassAuraLoop(aura);
+			oracool::ResumeAuraLoopAfterTransition(aura);
 		}
 	}
 	// And re-baseline once more: the equipment recalculations during the load are finished, so this

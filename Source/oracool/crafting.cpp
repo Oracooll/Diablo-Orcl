@@ -1136,7 +1136,25 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		return what;
 	}
 
-	if (GridRoomAfter(grid, materials) < 1)
+	// Audit finding, 2026-08-26. Everything below asks "will the result fit once the materials are
+	// gone", and both checks used to answer it by pretending each material SLOT empties completely.
+	// Consumption is unit-accurate and does not: a stack of five gems paying a cost of three leaves
+	// two behind, in the slot the check had already written off.
+	//
+	// On a full grid that is the difference between a craft and a theft. The preflight sees a free
+	// slot that will not exist, the materials are consumed, the output loop finds nowhere to put
+	// the result and returns empty-handed - and because the grid it leaves behind is perfectly
+	// valid, the caller's rollback sees nothing wrong and does not fire. The player pays three gems
+	// for nothing and is told nothing.
+	//
+	// So the simulation is now the real thing: a copy of the grid with the real consumption run
+	// against it. Both checks read the copy, and the copy cannot disagree with what follows,
+	// because it was produced by the same function.
+	Item consumedGrid[GridSlots];
+	std::copy(grid, grid + GridSlots, consumedGrid);
+	ConsumeGridReagents(consumedGrid, materials, MaterialUnitCostFor(recipe));
+
+	if (GridRoomAfter(consumedGrid, {}) < 1)
 		return {};
 
 	_item_indexes output = IDI_NONE;
@@ -1176,9 +1194,11 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		std::vector<Item> after;
 		after.reserve(GridSlots + 1);
 		for (int i = 0; i < GridSlots; i++) {
-			if (grid[i].isEmpty() || std::find(materials.begin(), materials.end(), i) != materials.end())
+			// consumedGrid, not grid: a material slot with surplus units left in it is still
+			// occupying a cell, and the packing has to be told about it.
+			if (consumedGrid[i].isEmpty())
 				continue;
-			after.push_back(grid[i]);
+			after.push_back(consumedGrid[i]);
 		}
 		Item produced;
 		InitializeItem(produced, output);

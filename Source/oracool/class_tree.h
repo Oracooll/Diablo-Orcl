@@ -686,6 +686,19 @@ bool ToggleClassAura(Player &player, ClassTreeSkill skill);
 void ClearClassAuraForRightButton(Player &player);
 
 /**
+ * @brief Releases the aura's loop for a level change or a game teardown, tracker included.
+ *
+ * Use these two rather than SilenceClassAuraLoop/ResumeClassAuraLoop from skill_sounds.h. Those
+ * talk to the sound layer alone, and this file keeps a record of what it believes is playing so
+ * that the per-tick re-assertion can be a no-op. A lifecycle call that moves one without the other
+ * leaves the two disagreeing, and the tick then "corrects" the wrong one (audit, 2026-08-26).
+ */
+void SilenceAuraLoopForTransition();
+
+/** @brief Re-attaches the loop for @p skill after a transition, tracker included. */
+void ResumeAuraLoopAfterTransition(ClassTreeSkill skill);
+
+/**
  * @brief Contributes the burning aura AND every paid-for passive onto @p totals. Auras scale with
  * the points in them; passives are always on once bought. Effects this engine has no channel for
  * contribute nothing.

@@ -572,18 +572,77 @@ std::unique_ptr<byte[]> SaveReader::ReadFile(const char *filename, std::size_t &
 	return result;
 }
 
+SaveWriter::~SaveWriter()
+{
+	// A transaction still open here was never committed, so the records staged under it describe a
+	// save nobody asked to publish. Discarded, exactly as MpqWriter does it: swapping in whichever
+	// half happened to be written is the torn save the transaction exists to prevent.
+	if (inTransaction_ || !pending_.empty())
+		AbortTransaction();
+}
+
+void SaveWriter::BeginTransaction()
+{
+	inTransaction_ = true;
+	transactionFailed_ = false;
+	pending_.clear();
+}
+
+bool SaveWriter::CommitTransaction()
+{
+	inTransaction_ = false;
+	if (transactionFailed_) {
+		AbortTransaction();
+		return false;
+	}
+	for (const PendingSwap &swap : pending_)
+		::devilution::ReplaceFileAtomically((dir_ + swap.temp).c_str(), (dir_ + swap.target).c_str());
+	pending_.clear();
+	return true;
+}
+
+void SaveWriter::AbortTransaction()
+{
+	inTransaction_ = false;
+	transactionFailed_ = false;
+	for (const PendingSwap &swap : pending_)
+		RemoveFile((dir_ + swap.temp).c_str());
+	pending_.clear();
+}
+
 bool SaveWriter::WriteFile(const char *filename, const byte *data, size_t size)
 {
-	const std::string path = dir_ + filename;
+	// Written under a temporary name whether or not there is a transaction open, so that a failure
+	// part way through cannot leave a HALF of the previous record in its place. Outside a
+	// transaction the swap happens immediately, which is the behaviour every existing caller had.
+	const std::string tempName = std::string(filename) + ".tmp";
+	const std::string path = dir_ + tempName;
 	FILE *file = OpenFile(path.c_str(), "wb");
 	if (file == nullptr) {
+		transactionFailed_ = true;
 		return false;
 	}
-	if (std::fwrite(data, size, 1, file) != 1) {
+	// `fwrite` of a zero-size record returns 0 and is not a failure, so the count is only
+	// meaningful when there is something to write.
+	if (size > 0 && std::fwrite(data, size, 1, file) != 1) {
 		std::fclose(file);
+		RemoveFile(path.c_str());
+		transactionFailed_ = true;
 		return false;
 	}
-	std::fclose(file);
+	// Checked, not assumed: buffered data is flushed by fclose, so this is where a full disk
+	// actually reports itself. Ignoring it is how a truncated record gets called a success.
+	if (std::fclose(file) != 0) {
+		RemoveFile(path.c_str());
+		transactionFailed_ = true;
+		return false;
+	}
+
+	if (inTransaction_) {
+		pending_.push_back({ tempName, filename });
+		return true;
+	}
+	::devilution::ReplaceFileAtomically(path.c_str(), (dir_ + filename).c_str());
 	return true;
 }
 
@@ -762,24 +821,51 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo)
 
 	giNumberOfLevels = gbIsHellfire ? 25 : 17;
 
-	SaveWriter saveWriter = GetSaveWriter(saveNum);
-	saveWriter.RemoveHashEntries(GetFileName);
-	CopyUtf8(hero_names[saveNum], heroinfo->name, sizeof(hero_names[saveNum]));
+	// Audit finding, 2026-08-26. This wrote four records and then returned `true` no matter what
+	// any of them did, so a disk that was full at character creation produced a character the menu
+	// listed, the game happily entered, and the archive did not actually contain. The name was
+	// published into `hero_names` before a single byte was written, which is what made the phantom
+	// visible in the first place.
+	//
+	// Same transaction the ordinary save uses, for the same reason: the four records only mean
+	// anything together. The name is now claimed only once everything has landed.
+	oracool::BeginSaveAttempt();
 
 	Player &player = Players[0];
-	CreatePlayer(player, heroinfo->heroclass);
-	CopyUtf8(player._pName, heroinfo->name, PlayerNameLength);
-	PackPlayer(pkplr, player);
-	EncodeHero(saveWriter, &pkplr, oracool::BuildHeroChunkTail(player));
-	Game2UiPlayer(player, heroinfo, false);
-	if (!gbVanilla) {
-		SaveHotkeys(saveWriter, player);
-		SaveHeroItems(saveWriter, player);
-		if (!gbIsMultiplayer) {
-			SaveInventoryTabs(saveWriter, player);
+	bool committed = false;
+	{
+		// Scoped deliberately. The commit only swaps records INSIDE the archive; the archive
+		// itself is published by the writer's destructor, so "did this save happen" cannot be
+		// answered until the writer is gone. Asking before the closing brace is how the old code
+		// would have been wrong even with the commit checked.
+		SaveWriter saveWriter = GetSaveWriter(saveNum);
+		saveWriter.RemoveHashEntries(GetFileName);
+		saveWriter.BeginTransaction();
+
+		CreatePlayer(player, heroinfo->heroclass);
+		CopyUtf8(player._pName, heroinfo->name, PlayerNameLength);
+		PackPlayer(pkplr, player);
+		EncodeHero(saveWriter, &pkplr, oracool::BuildHeroChunkTail(player));
+		if (!gbVanilla) {
+			SaveHotkeys(saveWriter, player);
+			SaveHeroItems(saveWriter, player);
+			if (!gbIsMultiplayer) {
+				SaveInventoryTabs(saveWriter, player);
+			}
 		}
+
+		committed = saveWriter.CommitTransaction();
 	}
 
+	if (!committed || oracool::SaveAttemptFailed()) {
+		// No save file, so there must be no character. The slot is left exactly as it was found,
+		// free for another attempt once the player has made room on the disk.
+		hero_names[saveNum][0] = '\0';
+		return false;
+	}
+
+	CopyUtf8(hero_names[saveNum], heroinfo->name, sizeof(hero_names[saveNum]));
+	Game2UiPlayer(player, heroinfo, false);
 	return true;
 }
 

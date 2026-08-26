@@ -6599,3 +6599,139 @@ TEST(OracoolAudit, EveryNamedEncounterIsCompletelyDescribed)
 		    << AllItemsList[i].iName << " would enter the seeded droppable pool, which is save format";
 	}
 }
+
+// External audit, 2026-08-26 (P2): a genuine legacy fixture, which the round-trip test above is
+// not - it writes with the CURRENT serializer and picks a Paladin, whose ordinals never moved.
+//
+// v1.9.45 appended 110 passive rows, one batch at the end of each class's block, which shifted
+// every absolute ordinal after the Paladin's. Tag 4 stores an absolute ordinal. So a Bard who saved
+// at v1.9.44 with Melody of Life stored 121, and in today's enum 121 is a Rogue row - the class
+// guard threw it away and she loaded with no song playing. For the four classes past the Paladin
+// that was every aura they had, and it happened silently.
+//
+// The bytes below are hand-built to be what a v1.9.44 build actually wrote: the "OEXT" magic and a
+// single tag-4 chunk. No tag 13, because tag 13 did not exist yet.
+TEST(OracoolHeroChunks, ALegacyAbsoluteAuraIsMigratedForClassesPastThePaladin)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	// The pre-v1.9.45 enum put the Bard's block at 121, and Melody of Life first within it.
+	constexpr uint16_t LegacyMelodyOfLife = 121;
+
+	std::vector<uint8_t> tail;
+	tail.push_back('O');
+	tail.push_back('E');
+	tail.push_back('X');
+	tail.push_back('T');
+	const auto appendChunk = [&tail](uint16_t tag, const std::vector<uint8_t> &payload) {
+		tail.push_back(static_cast<uint8_t>(tag & 0xFF));
+		tail.push_back(static_cast<uint8_t>(tag >> 8));
+		const uint32_t len = static_cast<uint32_t>(payload.size());
+		tail.push_back(static_cast<uint8_t>(len & 0xFF));
+		tail.push_back(static_cast<uint8_t>((len >> 8) & 0xFF));
+		tail.push_back(static_cast<uint8_t>((len >> 16) & 0xFF));
+		tail.push_back(static_cast<uint8_t>((len >> 24) & 0xFF));
+		tail.insert(tail.end(), payload.begin(), payload.end());
+	};
+	// Tag 4, one byte wide, exactly as the older build wrote it.
+	appendChunk(4, { static_cast<uint8_t>(LegacyMelodyOfLife) });
+
+	devilution::Player &bard = Players[0];
+	bard = {};
+	bard._pClass = HeroClass::Bard;
+	bard._pLevel = 30;
+	bard._pMaxHP = 1000;
+	bard._pHitPoints = 1000;
+	bard._pUnspentSkillPoints = 10;
+	// The aura has to be paid for to burn at all - see ToggleClassAura.
+	ASSERT_TRUE(oracool::InvestClassTreePoint(bard, oracool::ClassTreeSkill::MelodyOfLife));
+
+	oracool::ApplyHeroChunks(bard, tail.data(), tail.size());
+	EXPECT_EQ(oracool::GetActiveClassAura(bard), oracool::ClassTreeSkill::MelodyOfLife)
+	    << "a Bard's saved song was read against the current enum and lost";
+
+	// The migration must not fire when the modern tag is also present - that one is authoritative,
+	// whatever order the two appear in the file.
+	{
+		std::vector<uint8_t> both = tail;
+		const auto append = [&both](uint16_t tag, const std::vector<uint8_t> &payload) {
+			both.push_back(static_cast<uint8_t>(tag & 0xFF));
+			both.push_back(static_cast<uint8_t>(tag >> 8));
+			const uint32_t len = static_cast<uint32_t>(payload.size());
+			both.push_back(static_cast<uint8_t>(len & 0xFF));
+			both.push_back(static_cast<uint8_t>((len >> 8) & 0xFF));
+			both.push_back(static_cast<uint8_t>((len >> 16) & 0xFF));
+			both.push_back(static_cast<uint8_t>((len >> 24) & 0xFF));
+			both.insert(both.end(), payload.begin(), payload.end());
+		};
+		// Tag 13 naming the Bard's SECOND row instead, so the two representations disagree and the
+		// test can say which one won.
+		const std::optional<oracool::ClassTreeSkill> second =
+		    oracool::ClassTreeSkillAtIndex(HeroClass::Bard, 1);
+		ASSERT_TRUE(second.has_value());
+		append(13, { static_cast<uint8_t>(HeroClass::Bard), 1 });
+
+		devilution::Player &other = Players[0];
+		other._pOracoolActiveAura = static_cast<uint16_t>(oracool::ClassTreeSkill::None);
+		ASSERT_TRUE(oracool::InvestClassTreePoint(other, *second));
+		oracool::ApplyHeroChunks(other, both.data(), both.size());
+		EXPECT_EQ(oracool::GetActiveClassAura(other), *second)
+		    << "the legacy ordinal overrode the renumbering-proof tag";
+	}
+
+	// A legacy ordinal belonging to somebody else's class is still dropped rather than translated
+	// into whatever sits at that offset - the seatbelt survives the migration.
+	devilution::Player &monk = Players[0];
+	monk = {};
+	monk._pClass = HeroClass::Monk;
+	monk._pLevel = 30;
+	monk._pMaxHP = 1000;
+	monk._pHitPoints = 1000;
+	oracool::ApplyHeroChunks(monk, tail.data(), tail.size());
+	EXPECT_EQ(oracool::GetActiveClassAura(monk), oracool::ClassTreeSkill::None)
+	    << "a Monk inherited a Bard's song";
+}
+
+// External audit, 2026-08-26 (P1): the refine recipes' room check simulated each material SLOT
+// emptying completely, but consumption is unit-accurate and does not - a stack of four gems paying
+// a cost of three leaves one behind, in the slot the check had already written off.
+//
+// On a FULL grid that is the difference between a craft and a theft: the preflight sees a free slot
+// that will not exist, the materials are consumed, the output loop finds nowhere to put the result,
+// and because the grid left behind is perfectly valid the caller's rollback never fires. The player
+// pays three gems for nothing and is told nothing.
+TEST(OracoolCrafting, AFullGridWithASurplusStackRefusesRatherThanEatingTheMaterials)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	devilution::Item grid[LevskiGridSlots] {};
+
+	// Four chipped rubies in one slot. Refine Gems (recipe 0) costs three, so one is left over -
+	// and that leftover keeps the slot occupied.
+	InitializeItem(grid[0], IDI_ORACOOL_GEM_RUBY_CHIPPED);
+	grid[0].setStackCount(4);
+
+	// Every other cell filled with a single-cell item, so the grid is genuinely full.
+	for (int i = 1; i < LevskiGridSlots; i++)
+		InitializeItem(grid[i], IDI_ORACOOL_CHARM_VIGOR);
+
+	ASSERT_TRUE(CanCraftFromLevskiGrid(grid, 0))
+	    << "test setup: three of the four rubies should satisfy Refine Gems";
+
+	const int stackBefore = grid[0].stackCount();
+	const auto idBefore = grid[0].IDidx;
+
+	const std::string result = TransmuteLevskiGridWith(grid, 0);
+
+	EXPECT_TRUE(result.empty() || result.find("room") != std::string::npos)
+	    << "the craft claimed to have made something with nowhere to put it: " << result;
+	EXPECT_EQ(grid[0].stackCount(), stackBefore)
+	    << "the materials were consumed for a craft that produced nothing";
+	EXPECT_EQ(grid[0].IDidx, idBefore) << "the material slot was overwritten";
+	for (int i = 1; i < LevskiGridSlots; i++)
+		EXPECT_FALSE(grid[i].isEmpty()) << "slot " << i << " was cleared by a refused craft";
+}

@@ -96,7 +96,17 @@ private:
 	void InitDefaultMpqHeader(MpqFileHeader *hdr);
 
 	LoggedFStream stream_;
+	/** @brief The file actually being written - the shadow copy when there is one. */
 	std::string name_;
+	/** @brief Where the finished archive must end up. Equal to `name_` when writing in place. */
+	std::string target_;
+	/**
+	 * @brief True when `name_` is a shadow beside `target_`, to be swapped in at close.
+	 *
+	 * False means the shadow could not be made and the writer fell back to editing the real
+	 * archive - the pre-2026-08-26 behaviour, kept as a fallback rather than failing the save.
+	 */
+	bool usingShadow_ = false;
 	std::uintmax_t size_ {};
 	std::unique_ptr<MpqHashEntry[]> hashTable_;
 	std::unique_ptr<MpqBlockEntry[]> blockTable_;

@@ -752,3 +752,132 @@ TEST(Writehero, pfile_write_hero)
 
 } // namespace
 } // namespace devilution
+
+// External audit, 2026-08-26 (P1): the last hole in the save transaction.
+//
+// The transaction makes the RECORDS all-or-nothing, but the header, block table and hash table are
+// written at close, one after another, into the live file. A failure between the block table and
+// the hash table leaves old hash entries - which name the old records - pointing at block entries
+// the commit has already changed: an archive that is neither save, and that says so nowhere.
+//
+// The fix builds the whole session on a copy and swaps it in with one replacing rename, so this
+// test injects a failure at exactly the boundary the earlier transaction test deliberately excluded
+// and asserts the ORIGINAL archive is still readable and still holds the original bytes.
+TEST(Writehero, AFailureWritingTheTablesLeavesThePreviousArchiveIntact)
+{
+	const std::string archivePath = paths::BasePath() + "tables_test.sv";
+	RemoveFile(archivePath.c_str());
+	RemoveFile((archivePath + ".tmp").c_str());
+
+	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
+
+	// SWEPT across every boundary rather than aimed at one, because the first version of this test
+	// aimed at one and was vacuous. It let the header through and failed the block table - and with
+	// the fix reverted it still PASSED, because old hash entries plus an old block table still
+	// resolve to old data that the new records were appended clear of. Only the hash table landing
+	// while the block table did not - or either landing against a resized file - actually tears.
+	//
+	// So the test no longer needs to be right about which write is the dangerous one. It asserts
+	// the property directly: at EVERY point the publish can fail, the previous save survives whole.
+	for (int failAfter = 0; failAfter <= 2; failAfter++) {
+		SCOPED_TRACE("failing the publish after " + std::to_string(failAfter) + " successful writes");
+
+		RemoveFile(archivePath.c_str());
+		RemoveFile((archivePath + ".tmp").c_str());
+
+		{
+			MpqWriter writer(archivePath);
+			writer.BeginTransaction();
+			ASSERT_TRUE(writer.WriteFile("recordA", bytes("OLD-A"), 5));
+			ASSERT_TRUE(writer.WriteFile("recordB", bytes("OLD-B"), 5));
+			ASSERT_TRUE(writer.CommitTransaction());
+		}
+
+		// A second save whose records all write and whose commit succeeds - the failure lands only
+		// once the writer starts publishing its metadata, which is the case the transaction alone
+		// cannot cover because by then it has already said yes.
+		{
+			MpqWriter writer(archivePath);
+			writer.BeginTransaction();
+			EXPECT_TRUE(writer.WriteFile("recordA", bytes("NEW-A"), 5));
+			EXPECT_TRUE(writer.WriteFile("recordB", bytes("NEW-B"), 5));
+			EXPECT_TRUE(writer.CommitTransaction())
+			    << "the records themselves should have written cleanly";
+			// From here the destructor writes the header, the block table and the hash table.
+			FailWritesAfter(failAfter);
+		}
+		StopFailingWrites();
+
+		{
+			int32_t error = 0;
+			std::optional<MpqArchive> archive = MpqArchive::Open(archivePath.c_str(), error);
+			ASSERT_TRUE(archive.has_value())
+			    << "a failure publishing the tables destroyed the archive outright";
+			std::size_t sizeA = 0;
+			std::unique_ptr<byte[]> a = archive->ReadFile("recordA", sizeA, error);
+			ASSERT_NE(a, nullptr) << "recordA is gone after a failed table write";
+			EXPECT_EQ(std::string(reinterpret_cast<const char *>(a.get()), sizeA), "OLD-A")
+			    << "the archive holds neither the old save nor a good new one - this is the tear";
+			std::size_t sizeB = 0;
+			std::unique_ptr<byte[]> b = archive->ReadFile("recordB", sizeB, error);
+			ASSERT_NE(b, nullptr) << "recordB is gone after a failed table write";
+			EXPECT_EQ(std::string(reinterpret_cast<const char *>(b.get()), sizeB), "OLD-B");
+		}
+
+		// And the shadow must not be left lying around: it describes a save never published.
+		EXPECT_FALSE(FileExists((archivePath + ".tmp").c_str()))
+		    << "a failed save left its working copy on disk";
+	}
+
+	// The other half of the contract: when nothing fails, the new save is actually published.
+	// Without this the test could be satisfied by a writer that never wrote anything at all.
+	{
+		MpqWriter writer(archivePath);
+		writer.BeginTransaction();
+		EXPECT_TRUE(writer.WriteFile("recordA", bytes("NEW-A"), 5));
+		EXPECT_TRUE(writer.CommitTransaction());
+	}
+	{
+		int32_t error = 0;
+		std::optional<MpqArchive> archive = MpqArchive::Open(archivePath.c_str(), error);
+		ASSERT_TRUE(archive.has_value());
+		std::size_t size = 0;
+		std::unique_ptr<byte[]> a = archive->ReadFile("recordA", size, error);
+		ASSERT_NE(a, nullptr);
+		EXPECT_EQ(std::string(reinterpret_cast<const char *>(a.get()), size), "NEW-A")
+		    << "a save that succeeded end to end was not published";
+	}
+
+	RemoveFile(archivePath.c_str());
+	StopFailingWrites();
+}
+
+// The swap primitive the publish rests on. RenameFile cannot do this job - it returns void, so a
+// caller cannot tell a move that happened from one that did not, and on Windows it refuses outright
+// when the destination exists, which is the only case that matters here.
+TEST(Writehero, ReplaceFileAtomicallyOverwritesAndReportsBack)
+{
+	const std::string from = paths::BasePath() + "replace_from.bin";
+	const std::string to = paths::BasePath() + "replace_to.bin";
+	RemoveFile(from.c_str());
+	RemoveFile(to.c_str());
+
+	const auto write = [](const std::string &path, const char *contents) {
+		FILE *f = OpenFile(path.c_str(), "wb");
+		ASSERT_NE(f, nullptr);
+		ASSERT_EQ(std::fwrite(contents, std::strlen(contents), 1, f), 1u);
+		ASSERT_EQ(std::fclose(f), 0);
+	};
+	write(from, "NEW");
+	write(to, "OLD-AND-LONGER");
+
+	EXPECT_TRUE(ReplaceFileAtomically(from.c_str(), to.c_str()))
+	    << "the replacing move reported failure over an existing destination";
+	EXPECT_FALSE(FileExists(from.c_str())) << "the source survived the move";
+
+	std::uintmax_t size = 0;
+	ASSERT_TRUE(GetFileSize(to.c_str(), &size));
+	EXPECT_EQ(size, 3u) << "the destination was not replaced by the source's contents";
+
+	RemoveFile(to.c_str());
+}

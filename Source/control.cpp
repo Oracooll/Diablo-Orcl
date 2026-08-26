@@ -38,6 +38,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/auto_save.h"
 #include "oracool/skill_picker.h"
 #include "oracool/class_tree.h" // the burning aura is what the RMB well holds
 #include "oracool/event_log.h"
@@ -1043,6 +1044,9 @@ void DoPanBtn()
 	if (!spselflag && oracool::GetRmbSkillButtonRect().contains(MousePosition)) {
 		if ((SDL_GetModState() & KMOD_SHIFT) != 0) {
 			ClearReadiedSpell(*MyPlayer);
+			// Same omission the skill picker had (audit, 2026-08-26): the shortcut that CLEARS the
+			// button was the one route to a readied-skill change that never asked to be saved.
+			oracool::ScheduleAutoSaveForSkillChange();
 			return;
 		}
 		// The quick list, not the Abilities window (user, 2026-08-18): clicking a well is how the

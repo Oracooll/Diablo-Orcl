@@ -498,6 +498,12 @@ bool CheckSkillPickerClick(Point mousePosition)
 				} else {
 					ClearReadiedSpell(player);
 				}
+				// Audit finding, 2026-08-26. Every OTHER branch of this switch schedules a save and
+				// this one did not, on the unspoken assumption that going back to the basic attack
+				// is not really a change. It is exactly as much of a change as the assignment that
+				// put the skill there - and the one the player is most likely to make right before
+				// a fight, which is right before a crash costs them it.
+				oracool::ScheduleAutoSaveForSkillChange();
 				break;
 			case EntryKind::Tree:
 				if (GetClassTreeSkillData(entry.tree).kind == ClassTreeKind::Aura) {

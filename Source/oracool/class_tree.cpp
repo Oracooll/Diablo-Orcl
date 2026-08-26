@@ -56,6 +56,36 @@ void SetAuraLoop(Skill skill)
 	LoopedAura = skill;
 }
 
+} // namespace (reopened below)
+
+void SilenceAuraLoopForTransition()
+{
+	// Audit finding, 2026-08-26. Level loading and FreeGame called SilenceClassAuraLoop and
+	// ResumeClassAuraLoop straight through to the sound layer, which left LoopedAura describing a
+	// loop that was no longer playing - and SetAuraLoop believes LoopedAura.
+	//
+	// Both directions of that lie are audible. Silence without clearing the tracker means the next
+	// tick sees "already playing" and never re-starts the loop, so an aura that is lit goes quiet
+	// for good. Resume without setting it means the next tick sees a change that did not happen,
+	// stops the loop it just resumed and plays the transition cues over the top of a level load.
+	SilenceClassAuraLoop();
+	LoopedAura = Skill::None;
+}
+
+void ResumeAuraLoopAfterTransition(Skill skill)
+{
+	if (skill == Skill::None) {
+		SilenceAuraLoopForTransition();
+		return;
+	}
+	ResumeClassAuraLoop(skill);
+	// The whole point: the tracker now agrees with the audio, so the tick that follows sees no
+	// change and stays quiet.
+	LoopedAura = skill;
+}
+
+namespace {
+
 constexpr HeroClass Pal = HeroClass::Warrior; // Oracool displays the Warrior as "Paladin"
 constexpr HeroClass Bar = HeroClass::Barbarian;
 constexpr HeroClass Sor = HeroClass::Sorcerer;

@@ -6,6 +6,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "DiabloUI/diabloui.h"
 #include "player.h"
@@ -52,6 +54,8 @@ struct SaveWriter {
 	{
 	}
 
+	~SaveWriter();
+
 	bool WriteFile(const char *filename, const byte *data, size_t size);
 
 	bool HasFile(const char *path)
@@ -71,8 +75,36 @@ struct SaveWriter {
 
 	void RemoveHashEntries(bool (*fnGetName)(uint8_t, char *));
 
+	/**
+	 * @brief The same all-or-nothing contract MpqWriter offers, for the unpacked save directory.
+	 *
+	 * Audit finding, 2026-08-26: pfile.cpp calls BeginTransaction/CommitTransaction unconditionally,
+	 * and this backend had neither - so UNPACKED_SAVES (which is how the RG99 port builds) had not
+	 * compiled since the transaction landed. The build break is the visible half; the real one is
+	 * that a save spread over four separate FILES needs the guarantee at least as much as an
+	 * archive does.
+	 *
+	 * A directory has no hash table to edit, so the swap is a rename per record. That is not one
+	 * atomic act the way the archive's single replacing rename is, and this comment is the honest
+	 * place to say so: four renames can be interrupted after two. What it does buy is that all the
+	 * DATA is safely on disk before any of it becomes visible, which is where the risk actually
+	 * lives - a full disk fails during the writing, not during the renaming.
+	 */
+	void BeginTransaction();
+	bool CommitTransaction();
+	void AbortTransaction();
+
 private:
+	/** @brief A record written under a temporary name, waiting for the commit to swap it in. */
+	struct PendingSwap {
+		std::string temp;
+		std::string target;
+	};
+
 	std::string dir_;
+	bool inTransaction_ = false;
+	bool transactionFailed_ = false;
+	std::vector<PendingSwap> pending_;
 };
 
 #else

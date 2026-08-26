@@ -1287,6 +1287,9 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 	if (IsValidSpell(keys[slot])) {
 		me._pLRSpell = keys[slot];
 		me._pLRSplType = types[slot];
+		// The left-hand twin of ToggleSpell, and it had to be written out rather than reused - so
+		// it also missed the save the right-hand path schedules (audit, 2026-08-26).
+		oracool::ScheduleAutoSaveForSkillChange();
 		RedrawEverything();
 	}
 	return true;

@@ -330,6 +330,48 @@ void RenameFile(const char *from, const char *to)
 #endif
 }
 
+bool ReplaceFileAtomically(const char *from, const char *to)
+{
+#if defined(NXDK)
+	// No replacing move here, so it is done in two steps and the gap is real: a failure between
+	// them leaves neither file at `to`. NXDK is not a platform this fork ships on; the honest
+	// two-step is better than pretending the guarantee holds.
+	::DeleteFile(to);
+	return ::MoveFile(from, to) != 0;
+#elif defined(_WIN64) || defined(_WIN32)
+	const auto fromUtf16 = ToWideChar(from);
+	const auto toUtf16 = ToWideChar(to);
+	if (fromUtf16 == nullptr || toUtf16 == nullptr) {
+		LogError("UTF-8 -> UTF-16 conversion error code {}", ::GetLastError());
+		return false;
+	}
+	// MOVEFILE_REPLACE_EXISTING is the whole reason this exists rather than RenameFile.
+	// MOVEFILE_WRITE_THROUGH makes the call return only once the change is on the disk, so a
+	// power cut just after it cannot undo a swap we have already told the player succeeded.
+	if (::MoveFileExW(&fromUtf16[0], &toUtf16[0], MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == 0) {
+		LogError("MoveFileExW(\"{}\", \"{}\") failed with error code {}", from, to, ::GetLastError());
+		return false;
+	}
+	return true;
+#elif defined(DVL_HAS_FILESYSTEM)
+	std::error_code ec;
+	// std::filesystem::rename replaces an existing destination, unlike ::rename on Windows.
+	std::filesystem::rename(std::filesystem::u8path(from), std::filesystem::u8path(to), ec);
+	if (ec) {
+		LogError("rename(\"{}\", \"{}\") failed: {}", from, to, ec.message());
+		return false;
+	}
+	return true;
+#else
+	// POSIX rename() replaces the destination atomically.
+	if (::rename(from, to) != 0) {
+		LogError("rename(\"{}\", \"{}\") failed: {}", from, to, std::strerror(errno));
+		return false;
+	}
+	return true;
+#endif
+}
+
 void CopyFileOverwrite(const char *from, const char *to)
 {
 #if defined(NXDK)

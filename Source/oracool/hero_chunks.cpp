@@ -136,6 +136,71 @@ void ApplyActiveAuraRelative(Player &player, uint8_t heroClass, uint8_t relative
 	    skill.has_value() ? *skill : ClassTreeSkill::None);
 }
 
+/**
+ * @brief Reads a tag-4 aura value written by a build before the relative form existed.
+ *
+ * Audit finding, 2026-08-26. Tag 4 is an ABSOLUTE ClassTreeSkill ordinal, and v1.9.45 appended 110
+ * passive rows - one batch at the end of each class's block - which moved every ordinal after the
+ * Paladin's. A Bard who saved at v1.9.44 with Melody of Life stored 121; in the current enum 121 is
+ * a Rogue row, so the class check threw it away and she loaded with no song playing. Silent, and
+ * for the four classes past the Paladin it was every aura they had.
+ *
+ * Tag 13 stores the class and the index WITHIN that class instead, which is immune to this, and it
+ * is what every save written from 2026-08-25 carries. This function exists only for the saves
+ * written before it.
+ *
+ * The translation is a block-offset one because of a property that was checked rather than assumed:
+ * across all 163 legacy rows, every one still sits at the same index within its own class block.
+ * The additions went on the END of each block, so relative position was preserved throughout. That
+ * makes the legacy ordinal convertible into exactly the (class, relative index) pair tag 13 would
+ * have stored, and from there the existing path does the rest.
+ *
+ * Every released build that had auras used this one layout - v1.9.31, v1.9.42, v1.9.43 and v1.9.44
+ * all carry 163 rows with these same block starts - so there is one legacy layout to know about
+ * and not a series of them.
+ */
+void ApplyLegacyAbsoluteAura(Player &player, uint16_t rawValue)
+{
+	// The pre-v1.9.45 enum: 163 rows in six class blocks, in this order.
+	struct LegacyBlock {
+		HeroClass heroClass;
+		uint16_t first;
+		uint16_t count;
+	};
+	constexpr LegacyBlock LegacyBlocks[] = {
+		{ HeroClass::Warrior, 0, 31 }, // displayed as the Paladin
+		{ HeroClass::Barbarian, 31, 30 },
+		{ HeroClass::Sorcerer, 61, 30 },
+		{ HeroClass::Rogue, 91, 30 },
+		{ HeroClass::Bard, 121, 21 },
+		{ HeroClass::Monk, 142, 21 },
+	};
+	constexpr uint16_t LegacySkillCount = 163;
+
+	if (rawValue >= LegacySkillCount) {
+		// None (0xFFFF), or a value no legacy build could have written. Nothing to recover.
+		player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
+		return;
+	}
+
+	for (const LegacyBlock &block : LegacyBlocks) {
+		if (rawValue < block.first || rawValue >= block.first + block.count)
+			continue;
+		if (block.heroClass != player._pClass) {
+			// An aura belonging to another class is not a puzzle to solve - the same refusal
+			// ApplyActiveAuraRelative makes, for the same reason.
+			player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
+			return;
+		}
+		const std::optional<ClassTreeSkill> skill =
+		    ClassTreeSkillAtIndex(player._pClass, static_cast<uint8_t>(rawValue - block.first));
+		player._pOracoolActiveAura = static_cast<uint16_t>(
+		    skill.has_value() ? *skill : ClassTreeSkill::None);
+		return;
+	}
+	player._pOracoolActiveAura = static_cast<uint16_t>(ClassTreeSkill::None);
+}
+
 void ApplyPassiveSlots(Player &player, const uint8_t *payload, size_t len)
 {
 	if (len < 1)
@@ -319,6 +384,11 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		offset += size_t { 6 } + chunkLen;
 	}
 
+	// The aura is settled after the walk, not during it - see HeroChunkActiveAura below.
+	uint16_t legacyAura = 0;
+	bool sawLegacyAura = false;
+	bool sawRelativeAura = false;
+
 	offset = 4;
 	while (offset < len) {
 		const uint16_t tag = GetU16(data + offset);
@@ -332,13 +402,21 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			ApplyWaypoints64(player, payload, chunkLen);
 			break;
 		case HeroChunkActiveAura:
-			// Two bytes since 2026-08-25; one byte before that. Both are read, because a one-byte
-			// payload is a hero saved by an older build and its value is still a valid aura - the
-			// enum only grew at the top. A longer payload than two belongs to a newer build again.
-			if (chunkLen >= 2)
-				player._pOracoolActiveAura = GetU16(payload);
-			else if (chunkLen == 1)
-				player._pOracoolActiveAura = payload[0];
+			// Two bytes since 2026-08-25; one byte before that. Both are read - a one-byte payload
+			// is a hero saved by an older build, and its value is still meaningful, just not in
+			// today's numbering. A longer payload than two belongs to a newer build again.
+			//
+			// NOT applied here any more (audit, 2026-08-26). This is an absolute ordinal and the
+			// enum has been renumbered since it was written, so it cannot be interpreted until the
+			// walk is over and we know whether tag 13 - which is renumbering-proof - is also
+			// present. Held, and settled below.
+			if (chunkLen >= 2) {
+				legacyAura = GetU16(payload);
+				sawLegacyAura = true;
+			} else if (chunkLen == 1) {
+				legacyAura = payload[0];
+				sawLegacyAura = true;
+			}
 			break;
 		case HeroChunkPaladinAuras:
 			ApplyPaladinAuras(player, payload, chunkLen);
@@ -350,11 +428,13 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			ApplyPassiveSlots(player, payload, chunkLen);
 			break;
 		case HeroChunkActiveAuraRelative:
-			// WINS over tag 4 whenever it is present, and the walk applies chunks in file order
-			// with this tag written after it - so the last word belongs to the representation that
-			// cannot have been reinterpreted by a later enum.
-			if (chunkLen >= 2)
+			// WINS over tag 4 whenever it is present: it is the representation that cannot have
+			// been reinterpreted by a later enum. Tag 4 is now held back rather than applied, so
+			// this no longer depends on the two arriving in a particular order within the file.
+			if (chunkLen >= 2) {
 				ApplyActiveAuraRelative(player, payload[0], payload[1]);
+				sawRelativeAura = true;
+			}
 			break;
 		case HeroChunkMilestones:
 			if (chunkLen >= 4)
@@ -411,6 +491,12 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		}
 		offset += size_t { 6 } + chunkLen; // widened for the same reason as the validation walk
 	}
+
+	// Tag 13 present means the save already carries the renumbering-proof form and tag 4 is a
+	// duplicate written for older builds to read - ignore it. Tag 4 ALONE means a save from before
+	// tag 13 existed, whose ordinal belongs to the pre-v1.9.45 enum and has to be translated.
+	if (sawLegacyAura && !sawRelativeAura)
+		ApplyLegacyAbsoluteAura(player, legacyAura);
 
 	// AFTER every chunk, because it reads _pSkillInvestment and _pUnspentSkillPoints, and the
 	// chunks that fill them may arrive in any order.

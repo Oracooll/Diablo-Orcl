@@ -86,10 +86,55 @@ bool IsUnallocatedBlock(const MpqBlockEntry *block)
 
 } // namespace
 
-MpqWriter::MpqWriter(const char *path)
+MpqWriter::MpqWriter(const char *requestedPath)
 {
-	const std::string dir = std::string(Dirname(path));
+	const std::string dir = std::string(Dirname(requestedPath));
 	RecursivelyCreateDir(dir.c_str());
+
+	// Built BESIDE the archive, not inside it. Audit finding, 2026-08-26, and the last hole in the
+	// save transaction.
+	//
+	// The in-archive transaction made the RECORDS all-or-nothing, but the header, block table and
+	// hash table are written at close, one after another, straight into the live file. A failure
+	// between the block table and the hash table leaves the old hash entries - which name the old
+	// records - pointing at block entries the commit has already changed. The archive is then
+	// neither the old save nor the new one, and it is not detectably either: the names resolve,
+	// they just resolve to the wrong bytes. No amount of care ordering three writes fixes that,
+	// because the guarantee needed is "all three or none" and a file cannot give it.
+	//
+	// So the whole session works on a copy, and the finished archive is swapped in by a single
+	// replacing rename. Every failure - a record, a table, the resize - leaves the original file
+	// untouched, because nothing ever wrote to it.
+	target_ = requestedPath;
+	std::string workPath = target_ + ".tmp";
+	// A shadow left behind by a save that was interrupted (a crash, a power cut). It describes a
+	// save that was never published, so it is worth nothing and is in the way.
+	if (FileExists(workPath.c_str()))
+		RemoveFile(workPath.c_str());
+
+	std::uintmax_t targetSize = 0;
+	const bool targetExists = FileExists(target_.c_str()) && GetFileSize(target_.c_str(), &targetSize) && targetSize > 0;
+	if (targetExists) {
+		CopyFileOverwrite(target_.c_str(), workPath.c_str());
+		std::uintmax_t copiedSize = 0;
+		// Checked rather than assumed: CopyFileOverwrite reports nothing back. Editing a shadow
+		// that is a TRUNCATED copy and then swapping it over the real archive would destroy the
+		// save - the exact outcome this change exists to prevent - so a copy that did not land
+		// byte for byte disqualifies the shadow.
+		usingShadow_ = GetFileSize(workPath.c_str(), &copiedSize) && copiedSize == targetSize;
+		if (!usingShadow_) {
+			LogError("Could not stage a copy of {}, writing in place instead", target_);
+			RemoveFile(workPath.c_str());
+		}
+	} else {
+		// Nothing to copy. A brand new archive is still built as a shadow, so a failure part-way
+		// through creating a character leaves no half-made save file behind at all.
+		usingShadow_ = true;
+	}
+
+	const std::string pathStorage = usingShadow_ ? workPath : target_;
+	const char *path = pathStorage.c_str();
+
 	LogVerbose("Opening {}", path);
 	bool isNewFile = false;
 	std::string error;
@@ -181,8 +226,13 @@ MpqWriter::~MpqWriter()
 	if (inTransaction_ || !pending_.empty())
 		AbortTransaction();
 
-	if (!stream_.IsOpen())
+	if (!stream_.IsOpen()) {
+		// Nothing was ever opened, so there is nothing to publish - but a shadow may still be
+		// sitting on disk from the copy in the constructor, and it must not outlive the writer.
+		if (usingShadow_ && !name_.empty())
+			RemoveFile(name_.c_str());
 		return;
+	}
 	LogVerbose("Closing {}", name_);
 
 	bool result = true;
@@ -193,6 +243,22 @@ MpqWriter::~MpqWriter()
 		LogVerbose("ResizeFile(\"{}\", {})", name_, size_);
 		result = ResizeFile(name_.c_str(), size_);
 	}
+
+	// The publish. Everything before this point happened to a file nobody reads; this one call is
+	// what makes the save real, and it either takes effect or it does not.
+	if (usingShadow_) {
+		if (result) {
+			result = ReplaceFileAtomically(name_.c_str(), target_.c_str());
+			if (!result)
+				LogError("Could not publish {} over {}", name_, target_);
+		}
+		if (!result) {
+			// The shadow is a save that will never be published. Removed so the next attempt
+			// starts from the archive that is actually good, and so a failed save costs no disk.
+			RemoveFile(name_.c_str());
+		}
+	}
+
 	if (!result) {
 		LogVerbose("Closing failed {}", name_);
 		// Found by the failure sweep (v1.9.57), and it is the last place a save could lie.
@@ -205,7 +271,7 @@ MpqWriter::~MpqWriter()
 		//
 		// Reported through the same seam every other write failure uses, so the player is told the
 		// save did not happen rather than discovering it next time they load.
-		oracool::NoteSaveWriteFailed(name_);
+		oracool::NoteSaveWriteFailed(target_);
 	}
 }
 
