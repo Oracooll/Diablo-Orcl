@@ -63,5 +63,14 @@ uint64_t AllClassSkillsBitmask();
  */
 uint64_t InnateSpellsBitmask(const Player &player);
 
+/**
+ * @brief Recomputes `_pAblSpells` and releases any button or hotkey now holding a lost skill.
+ *
+ * Call after anything that changes what the character HAS: a level, a refund, a point spent. The
+ * mask alone is not enough - a readied slot keeps its SpellID, so a skill refunded to zero would go
+ * on being drawn in the well and cast from it (user, 2026-08-27).
+ */
+void RefreshInnateSpells(Player &player);
+
 } // namespace oracool
 } // namespace devilution

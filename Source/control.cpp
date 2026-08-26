@@ -1297,6 +1297,33 @@ void ReleaseLvlBtn()
  * the game clock in the top-left, and got its own artwork instead of borrowing frame 1/2 of the
  * character sheet's "+" button. The label sits beneath the icon in gold.
  */
+/**
+ * @brief The numbered points frame - the delivered art with @p count painted into its well.
+ *
+ * Shared by BOTH pools since 2026-08-27 (user: "i like the icon that pops up when skill points are
+ * available. use it also for stat points instead of the + icon. Now it will show how many stat
+ * points are available for distribution"). The stat pool used to show the vanilla level-up plus,
+ * which said only THAT there was something to spend; this says how much.
+ *
+ * @return False if the art is missing, so the caller can draw its own fallback.
+ */
+bool DrawPointsFrame(const Surface &out, Rectangle frame, int count, bool lit)
+{
+	if (!oracool::DrawUnspentPointsIcon(out, frame.position, count, lit))
+		return false;
+	// Clamped at 99 because that is the number the user asked to see, and because three digits do
+	// not fit the well the art gives us.
+	const int shown = std::min<int>(count, 99);
+	// Red, outlined (user, 2026-08-20). The engine has no bold weight - the font ships as five
+	// fixed sizes and size IS the weight - so Outlined is what stands in for one: it thickens each
+	// glyph with a dark edge, which also stops red-on-near-black from sinking into the frame's own
+	// dark well. FontSize42 would be genuinely heavier and would clip a 39px band.
+	DrawString(out, StrCat(shown), oracool::SkillPointsNumberRect(frame.position),
+	    { UiFlags::ColorRed | UiFlags::Outlined | UiFlags::FontSize30 | UiFlags::AlignCenter
+	        | UiFlags::VerticalCenter });
+	return true;
+}
+
 void DrawUnspentPointsFrame(const Surface &out)
 {
 	// The unspent skill pool, above the RMB well (user, 2026-08-17: "Available skill point to go in
@@ -1327,18 +1354,8 @@ void DrawUnspentPointsFrame(const Surface &out)
 	// the numeral baked in, which could not have shown a hundredth point and had to be recut every
 	// time the cap moved. Clamped at 99 here because that is the number the user asked to see, and
 	// because three digits do not fit the well the art gives us.
-	if (oracool::DrawUnspentPointsIcon(out, frame.position, MyPlayer->_pUnspentSkillPoints,
-	        frame.contains(MousePosition))) {
-		const int shown = std::min<int>(MyPlayer->_pUnspentSkillPoints, 99);
-		// Red, outlined (user, 2026-08-20). The engine has no bold weight - the font ships as five
-		// fixed sizes and size IS the weight - so Outlined is what stands in for one: it thickens
-		// each glyph with a dark edge, which also stops red-on-near-black from sinking into the
-		// frame's own dark well. FontSize42 would be genuinely heavier and would clip a 39px band.
-		DrawString(out, StrCat(shown), oracool::SkillPointsNumberRect(frame.position),
-		    { UiFlags::ColorRed | UiFlags::Outlined | UiFlags::FontSize30 | UiFlags::AlignCenter
-		        | UiFlags::VerticalCenter });
+	if (DrawPointsFrame(out, frame, MyPlayer->_pUnspentSkillPoints, frame.contains(MousePosition)))
 		return;
-	}
 	// The pre-art placeholder, kept only as the fallback for a build whose strips are missing.
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
@@ -1362,6 +1379,15 @@ void DrawLevelUpIcon(const Surface &out)
 		state = 2;
 	else if (rect.contains(MousePosition))
 		state = 1;
+
+	// The same numbered frame the skill pool wears, carrying the STAT count (user, 2026-08-27). The
+	// vanilla plus said only that something was waiting; the number says how much, which is the
+	// difference between a reminder and an answer.
+	if (DrawPointsFrame(out, rect, MyPlayer->_pStatPts, state != 0))
+		return;
+
+	// The vanilla level-up art, demoted to the fallback for a build whose points frame is missing.
+	// Centred in the rect, which is now the frame's 64px rather than this art's own 60x61.
 	// No label. The icon carries the meaning on its own, and the words competed with the clock
 	// directly above them for the same small corner.
 	oracool::DrawLevelUpIconArt(out, state);

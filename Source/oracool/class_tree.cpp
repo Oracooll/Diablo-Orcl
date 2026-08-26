@@ -1,5 +1,7 @@
 #include "oracool/class_tree.h"
 
+#include "oracool/class_skills.h" // RefreshInnateSpells - a point spent or refunded changes what the character HAS
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -1112,6 +1114,11 @@ bool InvestClassTreePoint(Player &player, Skill skill)
 	} else {
 		player._pClassTreeInvestment[ClassTreeIconIndex(skill)]++;
 	}
+	// The other half of the refund's refresh: a row's FIRST point is what puts it into _pAblSpells,
+	// so without this a newly bought skill would not be selectable until the next load recomputed
+	// the mask.
+	RefreshInnateSpells(player);
+
 	if (&player == MyPlayer) {
 		LogEvent(fmt::format("{:s} raised to {:d}", std::string(_(GetClassTreeSkillData(skill).name)),
 		             ClassTreeInvestment(player, skill)),
@@ -1151,6 +1158,10 @@ bool RefundClassTreePoint(Player &player, Skill skill)
 		if (&player == MyPlayer)
 			SetAuraLoop(Skill::None);
 	}
+
+	// The mask and the buttons follow the points. A row refunded to zero is no longer something the
+	// character HAS, so it must leave _pAblSpells and let go of any slot holding it.
+	RefreshInnateSpells(player);
 
 	if (&player == MyPlayer) {
 		LogEvent(fmt::format("{:s} lowered to {:d}", std::string(_(GetClassTreeSkillData(skill).name)),

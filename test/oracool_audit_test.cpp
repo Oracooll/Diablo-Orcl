@@ -460,6 +460,15 @@ TEST(OracoolAudit, InnateMaskFollowsTheShield)
 	const uint64_t blessedShield = GetSpellBitmask(SpellID::BlessedShield);
 	const uint64_t zeal = GetSpellBitmask(SpellID::Zeal);
 
+	// A POINT IN EACH ROW, since 2026-08-27. The mask now asks the class tree for investment as well
+	// as asking the character for level and shield, so without this every assertion below would pass
+	// for the wrong reason - the skills would be absent because they are unbought, and the shield
+	// gate this test exists for would never be exercised at all.
+	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	player._pSkillInvestment[static_cast<size_t>(SpellID::ShieldBash)] = 1;
+	player._pSkillInvestment[static_cast<size_t>(SpellID::BlessedShield)] = 1;
+	player._pSkillInvestment[static_cast<size_t>(SpellID::Zeal)] = 1;
+
 	uint64_t mask = oracool::InnateSpellsBitmask(player);
 	EXPECT_EQ(mask & shieldBash, 0u) << "Shield Bash granted without a shield";
 	EXPECT_EQ(mask & blessedShield, 0u) << "Blessed Shield granted without a shield";
@@ -6889,4 +6898,80 @@ TEST(OracoolClassTree, EveryBorrowedPaladinSkillMatchesItsTreeTier)
 	ASSERT_FALSE(HasShieldEquipped(player));
 	EXPECT_FALSE(IsClassTreeSkillUnlocked(player, ClassTreeSkill::Smite))
 	    << "Smite no longer requires a shield - the level fix took the shield gate with it";
+}
+
+// Reported from play, 2026-08-27, after refunding the single point in Smite:
+//
+//   "the smite icons remains on rmb slot. it need to disappear and be replaced with something else"
+//   "there is a gold background next to TP spell icon? [...] It reads Shield Bash! Why?"
+//
+// One cause behind both. InnateSpellsBitmask granted a Paladin skill on level and shield alone and
+// had never known about the class tree, so a row with no points in it was still in _pAblSpells - and
+// that mask is what the quick list, the speedbook and the wells all read as "you have this". The
+// quick list skips a zero-point row in its SKILLS section and then found the same skill in the mask,
+// so it listed it again under SPELLS, where it drew with no icon because a tree skill has no vanilla
+// spell art to fall back on. Meanwhile the readied slot kept its SpellID and went on casting.
+//
+// Invisible until Smite moved to level 1 the day before, which put it in the mask from character
+// creation rather than from level 8.
+TEST(OracoolClassTree, RefundingTheLastPointTakesTheSkillOffTheButtons)
+{
+	using namespace devilution::oracool;
+
+	// Hellfire, and it is load-bearing rather than scenery: IsValidSpell refuses every SpellID past
+	// the Diablo range unless gbIsHellfire is set, and the Paladin skills all sit past it. Without
+	// this the clearing below is skipped for a reason that has nothing to do with what is being
+	// tested - and Oracool is built on Hellfire, so the game always has it set.
+	gbIsHellfire = true;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 25;
+	player._pMaxHP = 1000;
+	player._pHitPoints = 1000;
+	player._pUnspentSkillPoints = 5;
+
+	devilution::Item &shield = player.InvBody[INVLOC_HAND_RIGHT];
+	shield = {};
+	shield._itype = ItemType::Shield;
+	ASSERT_TRUE(HasShieldEquipped(player)) << "test setup: the shield is not registering";
+	ASSERT_TRUE(IsValidSpell(SpellID::ShieldBash)) << "test setup: Shield Bash is not a valid spell here";
+
+	const uint64_t shieldBash = GetSpellBitmask(SpellID::ShieldBash);
+
+	// Unbought: earned, spendable, and doing nothing. It must NOT be in the mask, or every list that
+	// reads the mask will offer it.
+	RefreshInnateSpells(player);
+	EXPECT_EQ(player._pAblSpells & shieldBash, 0u)
+	    << "a skill with no points in it was granted - this is what put Shield Bash in the spell list";
+
+	// Bought: now it exists, and the first point is what does that.
+	ASSERT_TRUE(InvestClassTreePoint(player, ClassTreeSkill::Smite));
+	EXPECT_NE(player._pAblSpells & shieldBash, 0u)
+	    << "a bought skill is not selectable until something else recomputes the mask";
+
+	// Ready it on both buttons and a hotkey, exactly as a player would.
+	player._pRSpell = SpellID::ShieldBash;
+	player._pRSplType = SpellType::Skill;
+	player._pLRSpell = SpellID::ShieldBash;
+	player._pLRSplType = SpellType::Skill;
+	player._pSplHotKey[0] = SpellID::ShieldBash;
+	player._pSplTHotKey[0] = SpellType::Skill;
+
+	// Refund the only point. The skill stops existing, so every slot holding it must let go.
+	ASSERT_TRUE(RefundClassTreePoint(player, ClassTreeSkill::Smite));
+	EXPECT_EQ(player._pAblSpells & shieldBash, 0u) << "the refunded skill is still granted";
+	EXPECT_EQ(player._pRSpell, SpellID::Invalid)
+	    << "the refunded skill is still on the right button - the well will draw it and a click will cast it";
+	EXPECT_EQ(player._pLRSpell, SpellID::Invalid) << "still on the left button";
+	EXPECT_EQ(player._pSplHotKey[0], SpellID::Invalid)
+	    << "still bound to an F-key - the same fault one keystroke further away";
+
+	// Invalid IS the basic attack on both buttons, which is what the request asked the well to fall
+	// back to - see attack_skills.h.
+	EXPECT_EQ(player._pRSplType, SpellType::Invalid);
+	EXPECT_EQ(player._pLRSplType, SpellType::Invalid);
 }

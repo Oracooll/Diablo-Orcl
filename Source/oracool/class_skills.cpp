@@ -1,6 +1,8 @@
 ﻿#include "oracool/class_skills.h"
 
+#include "oracool/class_tree.h"
 #include "oracool/paladin_skills.h"
+#include "panels/spell_book.hpp" // AbilityFKeyCount
 #include "player.h"
 #include "spells.h"
 
@@ -46,12 +48,66 @@ uint64_t InnateSpellsBitmask(const Player &player)
 	//
 	// Recomputed on every call, and the callers run at creation, on load AND on level-up, which is
 	// what makes each grant appear the moment its level is reached rather than on the next reload.
+	//
+	// UNLOCKED IS NOT ENOUGH: the tree row must also have a point in it (user, 2026-08-27, on
+	// finding Shield Bash still listed after refunding its only point - "there is a gold background
+	// next to TP spell icon [...] It reads Shield Bash! Why? Makes no sense").
+	//
+	// IsPaladinSkillUnlocked answers level and shield, which is what the CHARACTER can reach. It has
+	// never known about the class tree, so a skill was in this mask from the moment its level gate
+	// opened whether or not the player had spent anything on it - and the mask is what the speedbook,
+	// the quick list and the wells all read as "you have this".
+	//
+	// The symptom was invisible until two things changed on the same day: Smite moved to level 1
+	// (v1.9.65), so it entered the mask at character creation rather than at 8, and the quick list
+	// lists a masked skill under SPELLS when the tree section has skipped it for having no points.
+	// It then drew with no icon, because a tree skill has no vanilla spell art to fall back on.
+	//
+	// A zero-point row is exactly the state the Red plate already describes: "earned and spendable,
+	// but nothing invested yet - so the skill exists and does nothing". Being in this mask is the
+	// difference between existing and doing something.
 	for (size_t i = 0; i < PaladinSkillCount; i++) {
 		const auto skill = static_cast<PaladinSkill>(i);
-		if (IsPaladinSkillUnlocked(player, skill))
-			mask |= GetSpellBitmask(GetPaladinSkillData(skill).spellId);
+		if (!IsPaladinSkillUnlocked(player, skill))
+			continue;
+		const SpellID spellId = GetPaladinSkillData(skill).spellId;
+		// A skill with no tree row for this class keeps the old rule - the row is what carries the
+		// investment, so where there is none there is nothing extra to ask.
+		const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, spellId);
+		if (row != ClassTreeSkill::None && ClassTreeInvestment(player, row) <= 0)
+			continue;
+		mask |= GetSpellBitmask(spellId);
 	}
 	return mask;
+}
+
+void RefreshInnateSpells(Player &player)
+{
+	player._pAblSpells = InnateSpellsBitmask(player);
+
+	// A slot still holding a skill the character no longer has must be let go, or the well draws it
+	// and a click tries to cast it (user, 2026-08-27: "the smite icons remains on rmb slot. it need
+	// to disappear and be replaced with something else like regular/fist attack. to apply for all
+	// skill if their skill points are removed completely").
+	//
+	// Cleared to Invalid rather than to a named attack: Invalid IS the basic attack on both buttons -
+	// see attack_skills.h - so the well falls back to the fist or the sword by itself, and this does
+	// not have to know which of the two the player last chose.
+	const auto clearIfLost = [&player](SpellID &spell, SpellType &type) {
+		if (type == SpellType::Skill && IsValidSpell(spell)
+		    && (player._pAblSpells & GetSpellBitmask(spell)) == 0) {
+			spell = SpellID::Invalid;
+			type = SpellType::Invalid;
+		}
+	};
+	clearIfLost(player._pRSpell, player._pRSplType);
+	clearIfLost(player._pLRSpell, player._pLRSplType);
+	// The F-key bindings too. A hotkey pointing at a refunded skill is the same fault one keystroke
+	// further away, and it survives into the save.
+	for (size_t i = 0; i < AbilityFKeyCount; i++) {
+		clearIfLost(player._pSplHotKey[i], player._pSplTHotKey[i]);
+		clearIfLost(player._pSplLHotKey[i], player._pSplLTHotKey[i]);
+	}
 }
 
 } // namespace oracool

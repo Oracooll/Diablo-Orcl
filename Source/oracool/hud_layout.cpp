@@ -1,6 +1,7 @@
 ﻿#include "oracool/hud_layout.h"
 
 #include "oracool/game_clock.h"
+#include "oracool/hud_art.h" // PointsIconSize - the stat pool now wears the skill pool's frame
 
 #include <string>
 
@@ -276,11 +277,21 @@ Rectangle GetLevelUpIconRect()
 	//
 	// Lives here rather than beside the clock because control.cpp needs the rect for hit-testing as
 	// well as drawing - the two must never disagree.
+	//
+	// Sized and spaced as the SKILL point frame above the right well, since 2026-08-27, because it
+	// now draws the same picture: "i like the icon that pops up when skill points are available. use
+	// it also for stat points instead of the + icon." Two indicators flanking the belt that mean the
+	// same kind of thing - a pool waiting to be spent - should not be two different sizes at two
+	// different heights.
+	//
+	// The rect is the hit target as well as the frame, so this had to move rather than only the
+	// drawing: control.cpp tests GetLevelUpIconRect().contains(MousePosition) for the hover state
+	// and the click.
 	const Rectangle lmb = GetLmbSkillButtonRect();
-	constexpr int GapAboveButton = 4;
-	return { { lmb.position.x + (lmb.size.width - LevelUpIconSize.width) / 2,
-	             lmb.position.y - SkillWellBezelPx - GapAboveButton - LevelUpIconSize.height },
-		LevelUpIconSize };
+	constexpr int GapAboveButton = 6;
+	return { { lmb.position.x + (lmb.size.width - PointsIconSize.width) / 2,
+	             lmb.position.y - PointsIconSize.height - GapAboveButton },
+		PointsIconSize };
 }
 
 Rectangle GetBeltSlotRect(int visibleIndex)
