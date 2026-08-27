@@ -3572,6 +3572,9 @@ void InitStores()
 	premiumlevel = 1;
 
 	BuybackStock.clear();
+	// A hammer left armed by a shop the player has since left would repair the next thing they
+	// clicked and charge them for it.
+	DisarmShopRepairCursor();
 
 	for (auto &premiumitem : premiumitems)
 		premiumitem.clear();
@@ -4137,6 +4140,18 @@ bool ShopSellInventoryItem(int cii)
 	return true;
 }
 
+/**
+ * @brief Whether the hammer cursor is armed by the shop rather than by the Repair skill.
+ *
+ * The two share `CURSOR_REPAIR` and everything that hangs off it - the hammer graphic, the
+ * click-an-item targeting, the inventory/tab/stash routing in TryIconCurs - which is exactly what was
+ * asked for (user, 2026-08-27: "borrow the entire mechanic behind the vanilla Repair Item skill but
+ * produce 100% durability recovery"). What differs is what happens on the click: the skill repairs
+ * partially and free, the shop repairs fully and charges. This flag is the only thing that tells
+ * them apart.
+ */
+bool ShopRepairCursorArmed = false;
+
 bool ShopRepairHeldItem()
 {
 	Player &myPlayer = *MyPlayer;
@@ -4154,6 +4169,48 @@ bool ShopRepairHeldItem()
 	// A broken item left equipped is flagged as well as emptied - see SmithRepairItemAt, which
 	// clears the same flag for the same reason.
 	myPlayer.HoldItem._iOracoolBroken = false;
+	oracool::ScheduleAutoSaveForStoreTransaction();
+	return true;
+}
+
+void ArmShopRepairCursor()
+{
+	ShopRepairCursorArmed = true;
+	NewCursor(CURSOR_REPAIR);
+}
+
+bool IsShopRepairCursorArmed()
+{
+	return ShopRepairCursorArmed;
+}
+
+void DisarmShopRepairCursor()
+{
+	ShopRepairCursorArmed = false;
+}
+
+bool ShopRepairItemAt(Item &item)
+{
+	// Full durability, and charged for (user, 2026-08-27: "produce 100% durability recovery").
+	//
+	// RepairPriceFor returns 0 for anything with nothing to repair, which doubles as the "not a
+	// valid target" test: clicking an undamaged item costs nothing and does nothing, rather than
+	// taking gold for no work.
+	const int price = RepairPriceFor(item);
+	if (price == 0)
+		return false;
+	if (!PlayerCanAfford(price)) {
+		stextshold = stextflag;
+		stextlhold = stextup;
+		StartStore(TalkID::NoMoney);
+		return false;
+	}
+	TakePlrsMoney(price);
+	item._iDurability = item._iMaxDur;
+	// A broken item left equipped is flagged as well as emptied - see SmithRepairItemAt, which
+	// clears the same flag for the same reason.
+	item._iOracoolBroken = false;
+	PlaySFX(IS_GOLD);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 	return true;
 }

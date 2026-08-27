@@ -728,6 +728,12 @@ bool CheckShopGridClick(Point position, bool rightClick)
 			continue;
 		if (services[i] == ServiceButton::RepairAll)
 			ShopRepairAll();
+		else if (services[i] == ServiceButton::Repair)
+			// The hammer, not a drop target (user, 2026-08-27: "make it work as the vanilla Repair
+			// Item skill - summon a Hammer cursor instead of the regular cursor, then click on item
+			// i want repaired"). Dropping an item on the button still works and is unchanged; this
+			// is what the button does when your hand is empty.
+			ArmShopRepairCursor();
 		return true;
 	}
 

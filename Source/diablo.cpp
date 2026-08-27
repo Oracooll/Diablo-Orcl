@@ -3214,6 +3214,22 @@ bool TryIconCurs()
 	}
 
 	if (pcurs == CURSOR_REPAIR) {
+		// The SHOP's hammer borrows this whole mechanic - the cursor, the targeting, the routing
+		// below - and differs only in what the click does: full durability, and paid for. See
+		// ArmShopRepairCursor.
+		if (IsShopRepairCursorArmed()) {
+			if (pcursinvitem != -1 && !IsInspectingPlayer()) {
+				ShopRepairItemAt(GetActiveInvListItem(myPlayer, pcursinvitem - INVITEM_INV_FIRST));
+			} else if (pcursinvtabitem != -1 && !IsInspectingPlayer()) {
+				ShopRepairItemAt(myPlayer.InvTabList[pcursinvtabidx][pcursinvtabitem]);
+			} else if (pcursstashitem != StashStruct::EmptyCell) {
+				ShopRepairItemAt(Stash.stashList[pcursstashitem]);
+			}
+			DisarmShopRepairCursor();
+			CalcPlrInv(myPlayer, true);
+			NewCursor(CURSOR_HAND);
+			return true;
+		}
 		if (pcursinvitem != -1 && !IsInspectingPlayer())
 			DoRepair(myPlayer, pcursinvitem);
 		else if (pcursinvtabitem != -1 && !IsInspectingPlayer())

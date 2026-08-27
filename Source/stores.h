@@ -208,6 +208,20 @@ bool ShopSellInventoryItem(int cii);
 /** @brief Repairs the item in the player's hand, charging for it. False if there is nothing to do. */
 bool ShopRepairHeldItem();
 
+/**
+ * @brief Arms the hammer cursor for the SHOP - the vanilla Repair skill mechanic, paid and to full.
+ *
+ * The three below share CURSOR_REPAIR with the Repair skill, so the hammer, the targeting and
+ * TryIconCurs' inventory/tab/stash routing all come for free. IsShopRepairCursorArmed is what tells
+ * the two apart at the click.
+ */
+void ArmShopRepairCursor();
+bool IsShopRepairCursorArmed();
+void DisarmShopRepairCursor();
+
+/** @brief Repairs @p item to full and charges for it. False if it was not repaired. */
+bool ShopRepairItemAt(Item &item);
+
 /** @brief Recharges the item in the player's hand, charging for it. Same contract. */
 bool ShopRechargeHeldItem();
 
