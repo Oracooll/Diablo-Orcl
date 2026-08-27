@@ -760,7 +760,11 @@ StartUpOptions::StartUpOptions()
               // Once is missing, cause we want to hide it from UI-Settings.
               { StartUpIntro::On, N_("ON") },
           })
-    , splash("Splash", OptionEntryFlags::None, N_("Splash"), N_("Shown splash screen."), StartUpSplash::LogoAndTitleDialog,
+    // Oracool default: straight to the title dialog. Adopted from the user's own diablo.ini
+    // (2026-08-27, "make its setting the default in future releases") - this is a fork people
+    // relaunch constantly while testing, and a logo between them and the menu every time is a cost
+    // paid on every single run.
+    , splash("Splash", OptionEntryFlags::None, N_("Splash"), N_("Shown splash screen."), StartUpSplash::None,
           {
               { StartUpSplash::LogoAndTitleDialog, N_("Logo and Title Screen") },
               { StartUpSplash::TitleDialog, N_("Title Screen") },
@@ -1411,22 +1415,32 @@ std::vector<OptionEntryBase *> GameplayOptions::GetEntries()
 
 OracoolOptions::OracoolOptions()
     : OptionCategoryBase("Oracool Edition", N_("Oracool Edition"), N_("Optional single-player features for Diablo Oracool Edition."))
-    , uniqueItemDropMultiplier("Unique Item Drop Multiplier", OptionEntryFlags::None, N_("Unique Item Drop Multiplier"), N_("Multiplies the chance that an eligible item drop becomes unique."), 5, { 1, 2, 5, 10, 25, 50, 100 })
-    , monsterDensityPercent("Monster Density", OptionEntryFlags::CantChangeInGame, N_("Monster Density"), N_("Multiplies how many monsters a dungeon level scatters. 100 is vanilla."), 100, { 100, 150, 200, 250, 300 })
+    /*
+     * The tuned balance, adopted wholesale from the user's own diablo.ini (2026-08-27: "look at this
+     * ini file and make its setting the default in future releases").
+     *
+     * These five move together and are one decision rather than five, which is why they are noted
+     * here rather than one by one: THREE TIMES the monsters and champion packs, and special items
+     * an order of magnitude rarer than the previous defaults made them. Density supplies the kills;
+     * rarity is what keeps a kill worth having. The old defaults had both dials turned up, which is
+     * the combination that makes a Rare item ordinary within an hour.
+     */
+    , uniqueItemDropMultiplier("Unique Item Drop Multiplier", OptionEntryFlags::None, N_("Unique Item Drop Multiplier"), N_("Multiplies the chance that an eligible item drop becomes unique."), 1, { 1, 2, 5, 10, 25, 50, 100 })
+    , monsterDensityPercent("Monster Density", OptionEntryFlags::CantChangeInGame, N_("Monster Density"), N_("Multiplies how many monsters a dungeon level scatters. 100 is vanilla."), 300, { 100, 150, 200, 250, 300 })
     // "2-6 by difficulty", not "one": the base count stopped being a single pack at 1.6.1, when the
     // user asked for 2-3 packs on Normal rising to 5-6 on Torment. The text said "100 is one" for a
     // day longer than it was true (self-audit, 2026-08-15).
-    , lesserUniqueDensityPercent("Lesser Unique Density", OptionEntryFlags::CantChangeInGame, N_("Lesser Unique Density"), N_("Multiplies the champion packs a dungeon level hosts. 100 is the base 2-6 by difficulty."), 100, { 100, 150, 200, 250, 300 })
+    , lesserUniqueDensityPercent("Lesser Unique Density", OptionEntryFlags::CantChangeInGame, N_("Lesser Unique Density"), N_("Multiplies the champion packs a dungeon level hosts. 100 is the base 2-6 by difficulty."), 300, { 100, 150, 200, 250, 300 })
     , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), true)
-    , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), true)
+    , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), false)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)
     , resetStatsButton("Reset Stats Button", OptionEntryFlags::None, N_("Reset Stats Button"), N_("Adds a reset control to the character panel."), true)
     , autoPickupRange("Auto Pickup Range", OptionEntryFlags::None, N_("Auto Pickup Range"), N_("Search radius for enabled automatic-pickup categories."), 3, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
     , autoScrollPickup("Auto Pickup Scrolls", OptionEntryFlags::None, N_("Auto Pickup Scrolls"), N_("Scrolls of every kind are automatically collected when in close proximity to the player."), true)
     , autoRunePickup("Auto Pickup Runes", OptionEntryFlags::None, N_("Auto Pickup Runes"), N_("Runes are automatically collected when in close proximity to the player."), true)
     , autoGemPickup("Auto Pickup Gems", OptionEntryFlags::None, N_("Auto Pickup Gems"), N_("Gems are automatically collected when in close proximity to the player."), true)
-    , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 20, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
-    , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 5, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
+    , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 2, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
+    , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
     , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Percent chance an eligible drop becomes a Primal item, checked before Buffed Unique."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), true)
     , refreshUntilButton("Griswold Refresh Until Button", OptionEntryFlags::None, N_("Griswold Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), false)
@@ -1435,7 +1449,7 @@ OracoolOptions::OracoolOptions()
     , griswoldRestoreMana("Griswold Restore Mana", OptionEntryFlags::None, N_("Griswold Restore Mana"), N_("Silently restores mana when Griswold's menu opens."), true)
     , griswoldSellUniqueItems("Griswold Sell Unique Items", OptionEntryFlags::None, N_("Griswold Sell Unique Items"), N_("Adds a separate unique-item shop to Griswold."), false)
     , griswoldUniqueItemPriceMultiplier("Griswold Unique Item Price Multiplier", OptionEntryFlags::None, N_("Griswold Unique Item Price Multiplier"), N_("Multiplier applied to a unique item's normal sell value."), 20, { 1, 2, 3, 4, 5, 10, 15, 20 })
-    , griswoldSellRareItems("Griswold Sell Rare Items", OptionEntryFlags::None, N_("Griswold Sell Rare Items"), N_("Adds a separate rare-item shop to Griswold."), false)
+    , griswoldSellRareItems("Griswold Sell Rare Items", OptionEntryFlags::None, N_("Griswold Sell Rare Items"), N_("Adds a separate rare-item shop to Griswold."), true)
     , griswoldSellSetItems("Griswold Sell Set Items", OptionEntryFlags::None, N_("Griswold Sell Set Items"), N_("Adds a separate named-set-item shop to Griswold."), false)
     , shopStockRefresh("Shop Stock Refresh", OptionEntryFlags::None, N_("Shop Stock Refresh"), N_("Adds a free Refresh action to the Basic, Rare and Supplies shelves."), true)
     , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes regardless of their normal quality-level requirement."), false)

@@ -31,7 +31,8 @@
 #include "monstdat.h"
 #include "monster.h"
 #include "multi.h"
-#include "pack.h" // PlayerPack - the fixed struct the stat-point clamp test inspects
+#include "options.h" // a fresh Options, for the shipped-defaults test
+#include "pack.h"    // PlayerPack - the fixed struct the stat-point clamp test inspects
 #include "oracool/class_tree.h"
 #include "oracool/aura_field.h"
 #include "oracool/charms.h"
@@ -6974,4 +6975,36 @@ TEST(OracoolClassTree, RefundingTheLastPointTakesTheSkillOffTheButtons)
 	// back to - see attack_skills.h.
 	EXPECT_EQ(player._pRSplType, SpellType::Invalid);
 	EXPECT_EQ(player._pLRSplType, SpellType::Invalid);
+}
+
+/**
+ * @brief The shipped defaults must equal the reference diablo.ini.
+ *
+ * The user handed over their own tuned diablo.ini and asked for it to become what a fresh install
+ * carries (2026-08-27: "look at this ini file and make its setting the default in future
+ * releases"). A default is easy to adopt and easy to lose again - it is one literal in a
+ * constructor argument list two hundred entries long, and nothing else in the build refers to it.
+ *
+ * Only the settings that actually DIFFERED from the previous defaults are pinned here. The other
+ * hundred-odd in that file already matched and are covered by not having been touched; pinning them
+ * would be pinning DevilutionX's defaults, which is not this fork's business.
+ *
+ * These five move as one balance decision: three times the monsters and champion packs, with
+ * special items an order of magnitude rarer. If a future change wants to raise a drop rate, it
+ * should have to look at the density it is paired with.
+ */
+TEST(OracoolAudit, ShippedDefaultsMatchTheReferenceIni)
+{
+	Options fresh;
+
+	EXPECT_EQ(*fresh.StartUp.splash, StartUpSplash::None) << "Splash=0";
+
+	EXPECT_EQ(*fresh.Oracool.monsterDensityPercent, 300) << "Monster Density=300";
+	EXPECT_EQ(*fresh.Oracool.lesserUniqueDensityPercent, 300) << "Lesser Unique Density=300";
+	EXPECT_EQ(*fresh.Oracool.rareItemDropChance, 2) << "Rare Item Drop Chance=2";
+	EXPECT_EQ(*fresh.Oracool.buffedUniqueItemDropChance, 1) << "Buffed Unique Item Drop Chance=1";
+	EXPECT_EQ(*fresh.Oracool.uniqueItemDropMultiplier, 1) << "Unique Item Drop Multiplier=1";
+
+	EXPECT_FALSE(*fresh.Oracool.permanentInfravision) << "Permanent Infravision=0";
+	EXPECT_TRUE(*fresh.Oracool.griswoldSellRareItems) << "Griswold Sell Rare Items=1";
 }

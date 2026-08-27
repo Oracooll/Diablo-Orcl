@@ -25,7 +25,13 @@
     The build tree to package. Defaults to build\x64-Release.
 
 .PARAMETER OutDir
-    Where to write the zip. Defaults to the repository root's `dist` folder.
+    Where to write the zip. Defaults to the repository root, which is where .gitignore's existing
+    `DiabloOrcl-*-win64.zip` rule already expects to find it.
+
+    NOT `dist\`, and that is a trap worth naming: CMakeLists.txt line 16 treats the mere EXISTENCE of
+    a `dist` folder at the repository root as "this is a source distribution", sets SRC_DIST, and
+    add_subdirectory(dist)'s it. Writing packages there broke the CMake configure step outright - the
+    SRC_DIST branch reaches an install() for a devilutionx.mpq that is not built on this machine.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools\BuildReleasePackage.ps1
@@ -39,7 +45,7 @@
 [CmdletBinding()]
 param(
     [string]$BuildDir = 'build\x64-Release',
-    [string]$OutDir = 'dist'
+    [string]$OutDir = '.'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -144,10 +150,13 @@ foreach ($f in $requiredFiles) { Copy-Item (Join-Path $BuildDir $f) $target }
 foreach ($d in $requiredDirs) { Copy-Item (Join-Path $BuildDir $d) (Join-Path $target $d) -Recurse }
 
 # The README, with the version stamped in rather than typed in.
-# Beside this script rather than under Packaging\, because .gitignore's `[Rr]elease/` rule - meant
-# for build configurations - swallows any path with a `release` folder in it, and a template that is
-# silently not committed is the same class of failure this whole script exists to prevent.
-$templatePath = 'tools\release_README.template.txt'
+#
+# This is the SAME file CMakeLists.txt's install() step ships (line 583), not a second copy of it. I
+# added a duplicate under tools\ first, which was worse than no template at all: two READMEs, one
+# updated and one not, with no way to tell from either which the release had used. Its version line
+# was stale by fifty-seven versions when this was written, which is exactly what a hand-typed
+# version number does.
+$templatePath = 'Packaging\windows\RELEASE_README.txt'
 if (-not (Test-Path $templatePath)) { Fail "README template not found: $templatePath" }
 (Get-Content $templatePath -Raw).Replace('{{VERSION}}', $version) |
     Set-Content (Join-Path $target 'README.txt') -Encoding ascii -NoNewline

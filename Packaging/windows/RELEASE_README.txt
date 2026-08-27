@@ -1,4 +1,4 @@
-Diablo Orcl V1 — Oracool Edition v1.9.31
+Diablo Orcl V1 - Oracool Edition v{{VERSION}}
 Windows x64, Release build
 ========================================
 
@@ -56,6 +56,10 @@ HOW TO RUN
 Saves and settings go to %APPDATA%\diasurgical\devilution\ — not to this
 folder — so you can replace this build in place without losing a character.
 
+  *** SAVES: this is a development build and save compatibility is NOT being
+  maintained between versions. A character from an earlier release may fail to
+  load or may lose items. Do not get attached to a hero you care about. ***
+
 
 WHAT IS IN HERE
 
@@ -65,6 +69,7 @@ WHAT IS IN HERE
                    without diabdat.mpq or the Hellfire archives ever being
                    modified.
   assets\          Fonts and interface art (the loose form of devilutionx.mpq).
+                   REQUIRED — the game will not start without this folder.
   *.dll            SDL2 and the compression/format libraries the game links.
 
 All of it is either this fork's own work or open-source dependencies. Nothing
@@ -75,6 +80,6 @@ BUILT FROM
 
   Repository : github.com/Oracooll/Diablo-Orcl
   Branch     : oracool-v1-main
-  Version    : 1.9.31
+  Version    : {{VERSION}}
 
 Based on DevilutionX, which is itself a reimplementation of the Diablo engine.
