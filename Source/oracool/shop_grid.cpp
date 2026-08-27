@@ -50,8 +50,8 @@ constexpr int ShopGridTop = GridBottom - ShopGridRows * ShopCellPx;
 
 /** @brief Tab strip: rows of at most three, under the title band. */
 constexpr int ShopTabTop = 58;
-constexpr int ShopTabHeight = 20;
-constexpr int ShopTabRowGap = 2;
+constexpr int ShopTabHeight = 17;
+constexpr int ShopTabRowGap = 1;
 /**
  * @brief Three, not four.
  *
@@ -61,32 +61,52 @@ constexpr int ShopTabRowGap = 2;
  */
 constexpr int ShopTabsPerRow = 3;
 /**
- * @brief Rows reserved for the strip, whatever this vendor actually has.
+ * @brief Rows the tab strip occupies. Three since 2026-08-27, for seven tabs.
  *
- * Two, because five is the most tabs any vendor offers - Griswold's Basic, Magic, Unique, Supplies
- * and Sold, and the last two of those are already conditional. It was three while Repair and
- * Recharge were still tabs, and leaving it there after they became buttons would have left a blank
- * row of reserved space between the tabs and the controls.
+ * Griswold gains Rare and Set, which takes him to Basic, Magic, Rare, Unique, Set, Supplies and
+ * Sold. Four per row would have fitted those in two rows and freed a row for the new button rows -
+ * and was rejected: 308px across four is 77px a tab, and "Supplies" already overran exactly that at
+ * FontSize12 the first time this panel was drawn ("SUPPLIE"). Shrinking the one thing on the panel
+ * that has to be read at a glance, to buy space for buttons that are read once, is the wrong trade.
+ *
+ * The space comes out of the row HEIGHTS instead - see the budget below.
  *
  * Fixed rather than derived from the tab count, so the grid does not move when a vendor has fewer.
  * DrawShopTabRow asserts a vendor has not outgrown it.
  */
-constexpr int ShopTabRows = 2;
+constexpr int ShopTabRows = 3;
 constexpr int ShopTabStripLeft = 16;
 constexpr int ShopTabStripWidth = ShopPanelSize.width - 2 * ShopTabStripLeft;
 
-/** @brief Bulk actions and the gold readout, stacked between the tabs and the grid. */
-// The budget between the fixed title band and the pinned grid top is shared by everything here, so
-// these gaps are checked rather than chosen: the assert below is what says they fit. GridFrameWidth
-// is 6 - the carved stone bezel's, not the procedural bevel's 3 - and reserving the smaller number
-// is the mistake it exists to catch. It has already caught it once.
-constexpr int ShopActionTop = ShopTabTop + ShopTabRows * (ShopTabHeight + ShopTabRowGap) + 10;
-constexpr int ShopActionHeight = 20;
-constexpr int ShopGoldTop = ShopActionTop + ShopActionHeight + 8;
-constexpr int ShopGoldHeight = 15;
+/*
+ * The control stack, between the title band and the pinned grid.
+ *
+ * THE BUDGET IS FIXED AND SMALL, which is why every number here is chosen against it rather than for
+ * its own sake. The title band ends at 56 and the grid's top is pinned at GridBottom - 16 cells, so
+ * there are 106 pixels and no more. The user's instruction was explicit (2026-08-27): "you dont
+ * remove one grid row from shops. fit the necesary buttons somehow."
+ *
+ * Two rows had to be found for:
+ *   SERVICES - Repair | Repair All | Recharge, now text rather than icons, on a row of their own
+ *   BULK     - Refresh | Refresh Until, or Sell all
+ *
+ * They are two rows rather than three because they never coexist: Sell all belongs to the Sold tab
+ * and the refreshes belong to the stock tabs, so one row serves both and still reads as "a row of
+ * their own" from the player's side.
+ *
+ * 58 + 3*(17+1) tabs = 112, +16 services = 129, +16 bulk = 146, +14 gold = 160, against a ceiling of
+ * 164. Four pixels spare, and the static_assert is what keeps that true.
+ */
+constexpr int ShopServiceTop = ShopTabTop + ShopTabRows * (ShopTabHeight + ShopTabRowGap);
+constexpr int ShopServiceHeight = 16;
+constexpr int ShopActionTop = ShopServiceTop + ShopServiceHeight + 1;
+constexpr int ShopActionHeight = 16;
+constexpr int ShopGoldTop = ShopActionTop + ShopActionHeight + 1;
+constexpr int ShopGoldHeight = 14;
 
 static_assert(ShopGoldTop + ShopGoldHeight <= ShopGridTop - GridFrameWidth,
-    "the controls above the shop grid no longer clear it - drop a tab row or shorten the stack");
+    "the controls above the shop grid no longer clear it - shorten the stack, or ask before "
+    "taking a row off the grid");
 static_assert(ShopGridLeft >= 0, "the shop grid is wider than the panel");
 
 /** @brief Where one stock entry sits on the grid, and which stock entry it is. */
@@ -351,27 +371,27 @@ std::vector<ServiceButton> ServicesFor(TalkID id)
 }
 
 /** @brief The service buttons sit flush right on the control row; the text actions get what is left. */
+/**
+ * @brief A service button on the services row: equal shares of the full strip width.
+ *
+ * These were 20px icons crowded onto the right end of the bulk row. They are text on a row of their
+ * own now (user, 2026-08-27: "Repair, Repair all and Recharge to be TEXT buttons, not icons. To have
+ * a row of their own"), which is also what makes room for Repair All to say what it costs.
+ */
 Rectangle ServiceButtonRect(size_t index, size_t count)
 {
 	const Rectangle panel = GetShopPanelRect();
-	const int stripRight = panel.position.x + ShopTabStripLeft + ShopTabStripWidth;
-	const int blockWidth = static_cast<int>(count) * ServiceButtonSize + (static_cast<int>(count) - 1) * ServiceButtonGap;
-	const int left = stripRight - blockWidth + static_cast<int>(index) * (ServiceButtonSize + ServiceButtonGap);
-	return Rectangle { { left, panel.position.y + ShopActionTop }, { ServiceButtonSize, ServiceButtonSize } };
+	const int width = ShopTabStripWidth / static_cast<int>(std::max<size_t>(count, 1));
+	return Rectangle { { panel.position.x + ShopTabStripLeft + static_cast<int>(index) * width,
+	                       panel.position.y + ShopServiceTop },
+		{ width, ShopServiceHeight } };
 }
 
-/** @brief Bulk-action buttons share the control row with the service icons, to their left. */
+/** @brief A bulk action on its own row, below the services - the whole strip is its to share. */
 Rectangle ShopActionRect(size_t index, size_t count)
 {
 	const Rectangle panel = GetShopPanelRect();
-	const size_t services = ServicesFor(stextflag).size();
-	int available = ShopTabStripWidth;
-	if (services > 0) {
-		const int block = static_cast<int>(services) * ServiceButtonSize
-		    + (static_cast<int>(services) - 1) * ServiceButtonGap;
-		available -= block + ServiceButtonGap;
-	}
-	const int width = available / static_cast<int>(std::max<size_t>(count, 1));
+	const int width = ShopTabStripWidth / static_cast<int>(std::max<size_t>(count, 1));
 	return Rectangle { { panel.position.x + ShopTabStripLeft + static_cast<int>(index) * width,
 	                       panel.position.y + ShopActionTop },
 		{ width, ShopActionHeight } };
@@ -448,6 +468,28 @@ const char *ServiceHint(ServiceButton service)
 	return "";
 }
 
+/** @brief The word on a service button. Repair All says its price, when there is one to say. */
+std::string ServiceButtonLabel(ServiceButton service)
+{
+	switch (service) {
+	case ServiceButton::Repair:
+		return std::string(_("Repair"));
+	case ServiceButton::RepairAll: {
+		// The COST, on the button (user, 2026-08-27: "Repair All to show necesary amount of gold
+		// when hovered over"). Shown always rather than only on hover: the number is the entire
+		// decision, and a button that hides the only thing you need to know until you point at it
+		// is a button you have to interrogate.
+		const int price = ShopRepairAllPrice();
+		if (price <= 0)
+			return std::string(_("Repair All"));
+		return StrCat(_("Repair All"), " ", FormatInteger(price));
+	}
+	case ServiceButton::Recharge:
+		return std::string(_("Recharge"));
+	}
+	return {};
+}
+
 void DrawServiceButtons(const Surface &out)
 {
 	const std::vector<ServiceButton> services = ServicesFor(stextflag);
@@ -456,7 +498,9 @@ void DrawServiceButtons(const Surface &out)
 		const bool hovered = rect.contains(MousePosition);
 		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 		DrawOrnateBorder(out, rect);
-		DrawServiceIcon(out, services[i], rect, hovered ? PAL8_YELLOW + 2 : ThemeEdgeColor);
+		DrawString(out, ServiceButtonLabel(services[i]), rect,
+		    { (hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
+		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 }
 

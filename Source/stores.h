@@ -214,6 +214,9 @@ bool ShopRechargeHeldItem();
 /** @brief Repairs everything the player carries, dearest first, until the gold runs out. */
 void ShopRepairAll();
 
+/** @brief What Repair All would charge right now. 0 when there is nothing to repair. */
+int ShopRepairAllPrice();
+
 /** @brief Buys back entry @p index of the Sold tab, at the price the player was paid for it. */
 void ShopBuyBack(int index);
 

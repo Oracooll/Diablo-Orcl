@@ -4176,6 +4176,33 @@ bool ShopRechargeHeldItem()
 	return true;
 }
 
+int ShopRepairAllPrice()
+{
+	// What Repair All would cost, asked WITHOUT running it (user, 2026-08-27: "Repair All to show
+	// necesary amount of gold when hovered over").
+	//
+	// Walks the same containers StartSmithRepair does, with the same refusals, rather than calling
+	// it: StartSmithRepair rebuilds `storehold` and `storenumh`, which are the shop's live state, and
+	// a drawing path must not rewrite the thing it is drawing. The duplication is the price of that,
+	// and it is why this sits directly beside ShopRepairAll - if one grows a rule the other needs it.
+	const Player &myPlayer = *MyPlayer;
+	int total = 0;
+
+	for (int k = 0; k < NumRepairableBodySlots; k++) {
+		const Item &worn = myPlayer.InvBody[RepairableBodySlots[k]];
+		if (worn.isEmpty() || worn._iDurability == worn._iMaxDur)
+			continue;
+		if (worn._iOracoolEthereal)
+			continue;
+		total += RepairPriceFor(worn);
+	}
+	for (int i = 0; i < myPlayer._pNumInv; i++) {
+		if (SmithRepairOk(i))
+			total += RepairPriceFor(myPlayer.InvList[i]);
+	}
+	return total;
+}
+
 void ShopRepairAll()
 {
 	// Rebuild-and-repeat, exactly as SmithRepairAllItems does, but returning to the tab the button
