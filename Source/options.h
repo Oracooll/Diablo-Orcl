@@ -20,6 +20,19 @@
 
 namespace devilution {
 
+/**
+ * @brief Where a limestone side panel sits when the screen is taller than it is.
+ *
+ * Only matters above 720 tall - the panels are 720, so at 16:9 they fill the screen and both values
+ * look identical. See oracool::BottomDockedTop for the argument on each side.
+ */
+enum class PanelDocking : uint8_t {
+	/** Flush with the bottom, so the panel's grid stays aligned with the orbs. */
+	Bottom = 0,
+	/** Centred vertically - the slack split evenly above and below. */
+	Middle = 1,
+};
+
 enum class StartUpGameMode : uint8_t {
 	/** @brief If hellfire is present, asks the user what game they want to start. */
 	Ask = 0,
@@ -815,6 +828,7 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean griswoldPremiumIgnoreAffixLevelLimits;
 	OptionEntryBoolean griswoldPremiumIgnorePriceLimits;
 	OptionEntryBoolean griswoldSellIgnoresBelt;
+	OptionEntryEnum<PanelDocking> panelDocking;
 	OptionEntryBoolean autoSave;
 	OptionEntryInt<int> autoSaveIntervalMinutes;
 	OptionEntryBoolean autoSaveOnLevelChange;

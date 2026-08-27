@@ -4,7 +4,8 @@
 #include <string>
 
 #include "engine/render/primitive_render.hpp"
-#include "utils/ui_fwd.h" // gnScreenHeight - the line every limestone window now docks to
+#include "options.h"        // panelDocking - bottom or middle is the player's call
+#include "utils/ui_fwd.h"  // gnScreenHeight - the line the panels dock against
 #include "engine/render/text_render.hpp"
 
 namespace devilution::oracool {
@@ -230,7 +231,10 @@ void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, Ui
 
 int BottomDockedTop(int windowHeight)
 {
-	return std::max(0, static_cast<int>(gnScreenHeight) - windowHeight);
+	const int slack = static_cast<int>(gnScreenHeight) - windowHeight;
+	if (slack <= 0)
+		return 0;
+	return *sgOptions.Oracool.panelDocking == PanelDocking::Middle ? slack / 2 : slack;
 }
 
 } // namespace devilution::oracool

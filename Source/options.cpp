@@ -1431,6 +1431,11 @@ OracoolOptions::OracoolOptions()
     , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes regardless of their normal quality-level requirement."), false)
     , griswoldPremiumIgnorePriceLimits("Griswold Premium Ignore Price Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Price Limits"), N_("Prevents valid Premium items from being rejected by the normal price ceiling."), false)
     , griswoldSellIgnoresBelt("Griswold Sell Ignores Belt", OptionEntryFlags::None, N_("Griswold Sell Ignores Belt"), N_("Griswold's and Adria's sell lists skip belt items - only the backpack is offered."), true)
+    , panelDocking("Panel Docking", OptionEntryFlags::None, N_("Panel Docking"), N_("Where the inventory, character sheet and other side panels sit on a screen taller than they are."), PanelDocking::Middle,
+          {
+              { PanelDocking::Bottom, N_("Bottom") },
+              { PanelDocking::Middle, N_("Middle") },
+          })
     , autoSave("Auto Save", OptionEntryFlags::None, N_("Auto Save"), N_("Enables Oracool automatic saving in single-player."), true)
     , autoSaveIntervalMinutes("Auto Save Interval Minutes", OptionEntryFlags::None, N_("Auto Save Interval Minutes"), N_("Minutes between periodic automatic saves."), 5, { 1, 2, 3, 5, 10, 15, 30, 60 })
     , autoSaveOnLevelChange("Auto Save on Level Change", OptionEntryFlags::None, N_("Auto Save on Level Change"), N_("Saves after entering another dungeon level or returning to town."), true)
@@ -1501,6 +1506,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&griswoldPremiumIgnoreAffixLevelLimits,
 		&griswoldPremiumIgnorePriceLimits,
 		&griswoldSellIgnoresBelt,
+		&panelDocking,
 		&autoSave,
 		&autoSaveIntervalMinutes,
 		&autoSaveOnLevelChange,

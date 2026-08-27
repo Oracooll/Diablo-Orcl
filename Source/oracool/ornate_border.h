@@ -46,19 +46,26 @@ constexpr int PanelTitleTop = 18;
 constexpr int PanelTitleHeight = 38;
 
 /**
- * @brief Top edge for a limestone window @p windowHeight tall, docked flush to the screen's bottom.
+ * @brief Top edge for a limestone side panel @p windowHeight tall, per the docking preference.
  *
  * A game-wide rule (user, 2026-08-27: "All limestone windows to be docked flush with the bottom of
- * the screen instead of the top"), so it lives in one place and the windows ask rather than each
+ * the screen instead of the top"), so it lives in one place and the panels ask rather than each
  * choosing an anchor of its own - which is how they came to disagree: one sat a third of the way
  * down, one aligned with the mini-map, and one was pinned at y=0.
  *
- * Bottom is the right edge to share because it is the one the HUD already owns. The side panels end
- * on it, the belt and orbs sit against it, and a floating window that lines up with them reads as
- * part of the same furniture instead of hovering over the world at its own height.
+ * BOTTOM or MIDDLE, and it is a setting rather than a decision because the right answer depends on
+ * the screen. The panels are 720 tall, so at 16:9 they fill it and the question does not arise; on a
+ * 3:2 laptop there is real space left over, and the same rule that reads as "sitting on the HUD"
+ * there reads as "stranded at the bottom" (user, 2026-08-27: "i am now playing on surface laptop
+ * with its 3:2 aspect ratio and the bottom dock doesnt sit nice with me").
  *
- * Clamped at zero, so a window taller than the screen is cut off at the BOTTOM rather than having
- * its title band pushed off the top where the close button lives.
+ * Bottom has a genuine argument behind it: the panel's grid is laid out to end exactly where the
+ * mana orb begins, and the orbs are bottom-anchored, so bottom-docking is the only anchor that keeps
+ * that alignment on any screen. Middle breaks it and looks better while doing so. That is a taste
+ * call on a screen this code cannot see, which is why it is in the INI and not in this file.
+ *
+ * Clamped at zero either way, so a panel taller than the screen is cut off at the BOTTOM rather than
+ * having its title band pushed off the top where the close button lives.
  */
 int BottomDockedTop(int windowHeight);
 
