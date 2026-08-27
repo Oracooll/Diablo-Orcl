@@ -91,6 +91,22 @@ void ActivateShopGridSelection();
 void ResetShopGridSelection();
 
 /**
+ * @brief Discards stock on tab @p id that one page cannot show, so the shelf is FIXED.
+ *
+ * Called once when a vendor's stock is generated. Without it `PlaceStock` is only a view over an
+ * oversized array: buying a visible item frees cells, the next draw re-runs placement, and an item
+ * that was previously skipped appears with no refresh (external audit of v1.9.92, finding 5). The
+ * shop then advertises one page while holding a hidden reserve the player can mine by buying.
+ *
+ * The user's instruction was "keep available items up to 1 page worth of quantities", and this is
+ * what makes that true of the STOCK rather than only of the drawing.
+ *
+ * Only for tabs backed by their own vendor array - never SmithConsumables, whose first four entries
+ * are Pepin's infinite potions and are not the shop's to discard.
+ */
+void TrimShopStockToOnePage(TalkID id);
+
+/**
  * @brief Fills InfoString from the shop item under the cursor. True if it did.
  *
  * The stat block is a popup that follows the cursor (DrawCursorTooltip), not a readout at the far

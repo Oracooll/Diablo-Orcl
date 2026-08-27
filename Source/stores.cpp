@@ -1558,8 +1558,15 @@ void RecordSale(const Item &item, int price)
 	BuybackStock.insert(BuybackStock.begin(), { item, price, IsWitchShopScreen(stextflag) });
 }
 
-/** @brief Pays @p cost into the player's purse, wherever that is. Split out of StoreSellItemAt. */
-void CreditSaleProceeds(int cost)
+/**
+ * @brief Pays @p cost into the player's purse, wherever that is. Returns what would NOT go in.
+ *
+ * Returns rather than logs (external audit of v1.9.92, finding 4): "a function that can lose money
+ * must not have a void interface that callers cannot check". It could already tell that some of the
+ * proceeds had nowhere to go, and its only recourse was a red line in the event log after the item
+ * was already gone.
+ */
+int CreditSaleProceeds(int cost)
 {
 	// Oracool: sale proceeds go to the shared Stash pool, matching where a purchase's change and a
 	// ground pickup's gold already land (see GoldAutoPlace, inv.cpp).
@@ -1582,7 +1589,7 @@ void CreditSaleProceeds(int cost)
 			cost -= toStash;
 		}
 		if (cost == 0)
-			return;
+			return 0;
 	}
 
 	// AddGoldToInventory returns what it could NOT place, and that return was discarded while
@@ -1595,12 +1602,14 @@ void CreditSaleProceeds(int cost)
 	const int unplaced = AddGoldToInventory(myPlayer, cost);
 	myPlayer._pGold = CalculateGold(myPlayer);
 	if (unplaced > 0) {
-		// Reaching here means StoreGoldFit said the sale would fit and it did not. That gate is the
-		// thing to fix if this ever appears in a log - saying so is better than losing the gold in
-		// silence, which is what happened before.
+		// Reaching here means the caller's fit gate said the sale would fit and it did not. Every
+		// sale path checks StoreGoldFit before parting the player from the item now, so this should
+		// be unreachable - it is kept because "should be unreachable" and "is" are different, and a
+		// named remainder beats gold vanishing in silence.
 		oracool::LogEvent(StrCat("Sale proceeds could not be placed: ", unplaced, " gold lost"),
 		    UiFlags::ColorRed);
 	}
+	return unplaced;
 }
 
 /**
@@ -2458,6 +2467,10 @@ void SmithPremiumBuyEnter()
 			item.clear();
 		numpremium = 0;
 		SpawnPremium(*MyPlayer);
+		// Same one-page trim a fresh town gives it. The post-purchase SpawnPremium call is
+		// deliberately NOT trimmed: that one is the premium shelf restocking a sold slot, which is
+		// what a premium shelf has always done, rather than a hidden reserve surfacing.
+		oracool::TrimShopStockToOnePage(TalkID::SmithPremiumBuy);
 		StartStore(TalkID::SmithPremiumBuy);
 		stextsel = PremiumRefreshLine();
 		return;
@@ -2506,11 +2519,20 @@ void SmithPremiumBuyEnter()
 	StartStore(TalkID::Confirm);
 }
 
-bool StoreGoldFit(Item &item)
+/**
+ * @brief Whether every coin of @p item's sale price has somewhere to go.
+ *
+ * @param freesItemCells whether selling it VACATES its backpack cells, which can then hold gold.
+ *        True for an item sold out of the backpack; FALSE for one sold from the cursor, which was
+ *        never occupying a cell. Passing true for a held item claims room that does not exist -
+ *        exactly the over-count that would let a held-item sale be approved and then lose the
+ *        remainder (external audit of v1.9.92, finding 4).
+ */
+bool StoreGoldFit(const Item &item, bool freesItemCells)
 {
 	int cost = item._iIvalue;
 
-	Size itemSize = GetInventorySize(item);
+	Size itemSize = freesItemCells ? GetInventorySize(item) : Size { 0, 0 };
 	// 64-bit throughout. The cell product alone reaches 10 * 100,000,000 for the largest items, and
 	// adding RoomForGold's answer (up to 7,000,000,000 on an empty backpack) overflowed an int -
 	// so the gate that decides whether a sale FITS was itself computing undefined behaviour, on the
@@ -2590,7 +2612,7 @@ void SmithSellAllItems()
 		StartSmithSell();
 		if (storenumh == 0)
 			break;
-		if (!StoreGoldFit(storehold[0])) {
+		if (!StoreGoldFit(storehold[0], /*freesItemCells=*/true)) {
 			stextshold = TalkID::SmithSell;
 			stextlhold = SmithSellAllLine();
 			stextvhold = 0;
@@ -2633,7 +2655,7 @@ void SmithSellEnter()
 	if (idx < 0 || idx >= storenumh)
 		return;
 
-	if (!StoreGoldFit(storehold[idx])) {
+	if (!StoreGoldFit(storehold[idx], /*freesItemCells=*/true)) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -2884,7 +2906,7 @@ void WitchSellEnter()
 	if (idx < 0 || idx >= storenumh)
 		return;
 
-	if (!StoreGoldFit(storehold[idx])) {
+	if (!StoreGoldFit(storehold[idx], /*freesItemCells=*/true)) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -4048,6 +4070,21 @@ void SetupTownStores()
 	SpawnBoy(myPlayer._pLevel);
 	SpawnPremium(myPlayer);
 	SpawnCuratedShelves(myPlayer, l);
+
+	// The shelf is decided HERE, once, rather than recomputed from an oversized array after every
+	// purchase (external audit of v1.9.92, finding 5). Each generator deliberately over-supplies so
+	// the page comes out full; without this the surplus stayed in the array as a hidden reserve that
+	// surfaced whenever a visible item was bought and freed its cells.
+	//
+	// SmithConsumables is absent by design - it is a view over Adria's array plus Pepin's infinite
+	// potions, and trimming it would mean discarding through someone else's stock. Adria's own Buy
+	// tab is trimmed just below, which is where those items actually live.
+	oracool::TrimShopStockToOnePage(TalkID::SmithBuy);
+	oracool::TrimShopStockToOnePage(TalkID::WitchBuy);
+	oracool::TrimShopStockToOnePage(TalkID::HealerBuy);
+	oracool::TrimShopStockToOnePage(TalkID::SmithPremiumBuy);
+	for (int i = 0; i < static_cast<int>(CuratedShelf::Count); i++)
+		oracool::TrimShopStockToOnePage(TalkIdForCuratedShelf(static_cast<CuratedShelf>(i)));
 }
 
 void FreeStoreMem()
@@ -4478,9 +4515,22 @@ bool ShopSellHeldItem()
 	const Item sold = myPlayer.HoldItem;
 	const int price = GetItemSellValue(sold);
 
-	// No room check: in single-player the proceeds land in the Stash pool, which has no grid to
-	// fill. The multiplayer arm of CreditSaleProceeds still puts gold in the backpack, and V1 is
-	// single-player - if that ever changes this needs the StoreGoldFit probe the list path uses.
+	// The room check the list path has always made, which this used to skip (external audit of
+	// v1.9.92, finding 4). The old comment said the Stash "has no grid to fill", which is true and
+	// incomplete: Stash.gold is capped at INT_MAX, and once the pool has no headroom the remainder
+	// has to fit in finite backpack stacks. Without this the item was cleared unconditionally and
+	// whatever would not fit was logged as lost - and buyback is no remedy, since recovering it
+	// means paying again in the same saturated state.
+	//
+	// freesItemCells is FALSE: the item is on the cursor, not in the backpack, so selling it vacates
+	// nothing that could hold gold.
+	if (!StoreGoldFit(sold, /*freesItemCells=*/false)) {
+		stextshold = stextflag;
+		stextlhold = stextup;
+		StartStore(TalkID::NoRoom);
+		return false;
+	}
+
 	RecordSale(sold, price);
 	CreditSaleProceeds(price);
 
@@ -4549,6 +4599,16 @@ bool ShopSellInventoryItem(int cii)
 	// a quarter of THAT. Every round trip through the vendor divided the item by four, permanently.
 	const int price = GetItemSellValue(sold);
 	const Item pristine = sold;
+
+	// Checked BEFORE the item is removed - the same gate the list path uses, which this gesture also
+	// skipped (external audit of v1.9.92, finding 4). freesItemCells is true here: this one IS in the
+	// backpack, so its cells become available to hold the gold it fetches.
+	if (!StoreGoldFit(pristine, /*freesItemCells=*/true)) {
+		stextshold = stextflag;
+		stextlhold = stextup;
+		StartStore(TalkID::NoRoom);
+		return false;
+	}
 
 	RemoveActiveInvItem(myPlayer, index);
 	RecordSale(pristine, price);
@@ -4922,10 +4982,15 @@ void RefreshShopStock(TalkID id)
 		// knowing before pressing it: a Refresh here changes what is on Adria's own Buy tab too,
 		// because it is the same array.
 		SpawnWitch(lvl);
+		oracool::TrimShopStockToOnePage(TalkID::WitchBuy);
 		break;
 	default:
 		return;
 	}
+	// A Refresh regenerates, so the new stock needs the same one-page trim SetupTownStores applies -
+	// otherwise a refreshed shelf goes back to being a view over an oversized array, which is the
+	// hidden-reserve behaviour finding 5 is about.
+	oracool::TrimShopStockToOnePage(id);
 	StartStore(id);
 }
 

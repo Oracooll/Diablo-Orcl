@@ -54,21 +54,26 @@ if not exist "%PACKER%" (
   exit /b 1
 )
 
-REM A response file rather than a command line - 258 relative paths overrun cmd.exe's ~8191-character
-REM limit, which it reports as "The input line is too long" without naming a cause.
-set LIST=%TEMP%\devilutionx_mpq_files.txt
-if exist "%LIST%" del "%LIST%"
-pushd "%SRC%"
-for /r %%F in (*) do (
-  set "P=%%F"
-  set "P=!P:%CD%\=!"
-  echo(!P!>>"%LIST%"
+REM THE MANIFEST CMAKE GENERATED, not a walk of the build tree (external audit of v1.9.92, finding 6).
+REM
+REM This used to enumerate every file under %SRC% recursively. That directory is only ever ADDED to -
+REM CMake copies each current `devilutionx_assets` entry into it and never removes one that has left
+REM the list - so an asset deleted from the manifest stayed on disk and was packed into the next
+REM archive. A clean tree and an incremental tree could produce different archives from one commit.
+REM
+REM Note that an ordinary `cmake --build` now packs this archive itself, from the same list. This
+REM script remains for a manual repack and must not disagree with it.
+set LIST=%BUILD%\devilutionx_mpq_files.txt
+if not exist "%LIST%" (
+  echo ERROR: manifest not found: %LIST%
+  echo Configure/build once so CMake generates it:
+  echo     cmake --build %BUILD% --target oracool_devilutionx_mpq
+  exit /b 1
 )
-popd
 
 echo Packing...
+REM The manifest is CMake's, not a temporary this script owns - it is not deleted afterwards.
 "%PACKER%" "%SRC%" "%OUT%" "@%LIST%" || exit /b 1
-del "%LIST%"
 
 echo.
 echo devilutionx.mpq written to %OUT%

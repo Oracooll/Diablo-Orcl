@@ -709,6 +709,30 @@ Rectangle GetShopGridRect()
 		{ ShopGridWidth, ShopGridHeight } };
 }
 
+void TrimShopStockToOnePage(TalkID id)
+{
+	// SmithConsumables is refused outright rather than trusted not to be passed: its stock is Pepin's
+	// four infinite potions followed by Adria's array, and clearing through that view would empty
+	// the potions - which restock rather than sell out, and are not this function's to touch.
+	if (id == TalkID::SmithConsumables)
+		return;
+
+	const std::vector<ShopSlot> stock = GetShopStock(id);
+	if (stock.empty())
+		return;
+	const std::vector<PlacedSlot> placed = PlaceStock(stock);
+
+	std::vector<bool> onShelf(stock.size(), false);
+	for (const PlacedSlot &slot : placed) {
+		if (slot.stockIndex >= 0 && static_cast<size_t>(slot.stockIndex) < onShelf.size())
+			onShelf[static_cast<size_t>(slot.stockIndex)] = true;
+	}
+	for (size_t i = 0; i < stock.size(); i++) {
+		if (!onShelf[i])
+			stock[i].item->clear();
+	}
+}
+
 void ResetShopGridSelection()
 {
 	ShopGridSel = 0;

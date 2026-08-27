@@ -377,9 +377,42 @@ if(NOT UWP_LIB)
 # Oracool: packs Packaging/resources/oracool_assets/ into oracool.mpq, Oracool Edition's own asset
 # archive. Uses the engine's own MpqWriter (save files are MPQs, so the writer already exists)
 # rather than the external smpq that devilutionx.mpq needs and which is not installed here.
-# Not wired into the default build - run tools\build_oracool_mpq.cmd to rebuild the archive.
-add_executable(oracool_mpq_pack EXCLUDE_FROM_ALL tools/oracool_mpq_pack.cpp)
+add_executable(oracool_mpq_pack tools/oracool_mpq_pack.cpp)
 target_link_libraries(oracool_mpq_pack PRIVATE libdevilutionx)
+
+# ORACOOL ASSETS ARE PART OF THE BUILD GRAPH (external audit of v1.9.92, finding 3).
+#
+# They were not, and the consequence was exactly what you would expect: `cmake --build` rebuilt the
+# C++ cleanly while oracool.mpq stayed whatever a prior manual command had produced. The audit caught
+# a Debug tree whose executable said v1.9.92 and whose archive predated one of its own source assets
+# by nearly an hour - so "tested on v1.9.92 Debug" was not true of the art. This project has already
+# shipped two asset units that never reached the game for the same reason (v1.8.38, v1.8.40).
+#
+# The dependency runs libdevilutionx -> oracool_mpq_pack -> oracool.mpq -> the game binary. No cycle:
+# the packer and the game are both consumers of the library, and only the game waits on the archive.
+file(GLOB_RECURSE ORACOOL_ASSET_FILES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/Packaging/resources/oracool_assets/*")
+set(ORACOOL_MPQ "${CMAKE_CURRENT_BINARY_DIR}/oracool.mpq")
+# The response file exists because the asset count passed 400 and the accumulated command line hit
+# Windows' ~8191-character limit, which cmd.exe reports as "The input line is too long" with no cause.
+set(ORACOOL_MPQ_LIST "${CMAKE_CURRENT_BINARY_DIR}/oracool_mpq_files.txt")
+set(_oracool_rel_list "")
+foreach(_asset ${ORACOOL_ASSET_FILES})
+  file(RELATIVE_PATH _rel "${CMAKE_CURRENT_SOURCE_DIR}/Packaging/resources/oracool_assets" "${_asset}")
+  string(APPEND _oracool_rel_list "${_rel}\n")
+endforeach()
+file(GENERATE OUTPUT "${ORACOOL_MPQ_LIST}" CONTENT "${_oracool_rel_list}")
+add_custom_command(
+  COMMENT "Packing oracool.mpq"
+  OUTPUT "${ORACOOL_MPQ}"
+  COMMAND oracool_mpq_pack
+    "${CMAKE_CURRENT_SOURCE_DIR}/Packaging/resources/oracool_assets"
+    "${ORACOOL_MPQ}"
+    "@${ORACOOL_MPQ_LIST}"
+  DEPENDS oracool_mpq_pack ${ORACOOL_ASSET_FILES} "${ORACOOL_MPQ_LIST}"
+  VERBATIM)
+add_custom_target(oracool_mpq DEPENDS "${ORACOOL_MPQ}")
+add_dependencies(${BIN_TARGET} oracool_mpq)
 
 # Oracool: exports a class's player sprites out of the archives as PNG sheets. Also EXCLUDE_FROM_ALL -
 # it is an inspection tool, not part of the game. See the file header for how to run it.
@@ -393,6 +426,43 @@ endif()
 
 # Must be included after `BIN_TARGET` and `libdevilutionx` are defined.
 include(Assets)
+
+# DEVILUTIONX.MPQ FROM THE MANIFEST, not from whatever is lying in the build tree (external audit of
+# v1.9.92, finding 6).
+#
+# tools\build_devilutionx_mpq.cmd walked `build\...\assets` recursively. That directory is only ever
+# ADDED to - CMake copies each current manifest entry into it and never removes one that has left the
+# manifest - so an asset deleted from `devilutionx_assets` stayed on disk and was packed into the
+# next archive. A clean tree and an incremental tree could produce different archives from the same
+# commit, and the same removal I made earlier today (70 stray files) is exactly the shape that
+# resurrects. The audit measured it as latent rather than live: 188 expected, 188 present, no
+# difference - clean today, not hermetic.
+#
+# `devilutionx_assets` is the authority, so the archive is built from that list directly. Skipped
+# when BUILD_ASSETS_MPQ is on, which means smpq exists and upstream's own rule already owns this
+# file - two producers for one output is worse than either.
+if(NOT BUILD_ASSETS_MPQ AND NOT UWP_LIB AND NOT EMSCRIPTEN)
+  set(ORACOOL_DVLX_MPQ "${CMAKE_CURRENT_BINARY_DIR}/devilutionx.mpq")
+  set(ORACOOL_DVLX_LIST "${CMAKE_CURRENT_BINARY_DIR}/devilutionx_mpq_files.txt")
+  set(_dvlx_rel_list "")
+  set(_dvlx_inputs "")
+  foreach(_asset ${devilutionx_assets})
+    string(APPEND _dvlx_rel_list "${_asset}\n")
+    list(APPEND _dvlx_inputs "${DEVILUTIONX_ASSETS_OUTPUT_DIRECTORY}/${_asset}")
+  endforeach()
+  file(GENERATE OUTPUT "${ORACOOL_DVLX_LIST}" CONTENT "${_dvlx_rel_list}")
+  add_custom_command(
+    COMMENT "Packing devilutionx.mpq"
+    OUTPUT "${ORACOOL_DVLX_MPQ}"
+    COMMAND oracool_mpq_pack
+      "${DEVILUTIONX_ASSETS_OUTPUT_DIRECTORY}"
+      "${ORACOOL_DVLX_MPQ}"
+      "@${ORACOOL_DVLX_LIST}"
+    DEPENDS oracool_mpq_pack ${_dvlx_inputs} "${ORACOOL_DVLX_LIST}"
+    VERBATIM)
+  add_custom_target(oracool_devilutionx_mpq DEPENDS "${ORACOOL_DVLX_MPQ}")
+  add_dependencies(${BIN_TARGET} oracool_devilutionx_mpq)
+endif()
 
 if(EMSCRIPTEN)
   target_link_options(${BIN_TARGET} PRIVATE --preload-file assets)
