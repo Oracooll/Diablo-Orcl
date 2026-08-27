@@ -892,7 +892,8 @@ bool CreateRareVendorItem(const Player &player, Item &item, int lvl);
  * copies of the same gauntlets often enough to notice.
  */
 bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
-    tl::function_ref<bool(const oracool::SetItemDefinition &)> alreadyStocked);
+    tl::function_ref<bool(const oracool::SetItemDefinition &)> alreadyStocked,
+    const oracool::SetItemDefinition **chosenOut = nullptr);
 void ClearUniqueItemFlags();
 void InitItemGFX();
 void InitItems();

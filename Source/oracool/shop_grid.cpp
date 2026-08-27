@@ -399,9 +399,21 @@ Rectangle ShopControlRect(const std::vector<ControlButton> &buttons, size_t inde
 		{ width, height } };
 }
 
+/**
+ * @brief How many tabs the column has room for before it runs past the panel's foot.
+ *
+ * The three-row strip this replaced had an assert against its own capacity, and moving the tabs out
+ * of the panel dropped it. Restored, because the failure it guards is the silent kind: a vendor that
+ * grew an eighth tab would simply draw it further down the screen, over the world, and nothing would
+ * say so. The column has room for far more than seven, so this is a tripwire rather than a limit.
+ */
+constexpr int ShopTabColumnSlots = (ShopPanelSize.height - ShopTabColumnTop) / (ShopTabHeight + ShopTabGap);
+
 /** @brief One tab in the column beside the panel. */
 Rectangle ShopTabRect(size_t index)
 {
+	assert(index < static_cast<size_t>(ShopTabColumnSlots)
+	    && "a vendor has more tabs than the column has room for - the strip would run off the panel");
 	const Rectangle panel = GetShopPanelRect();
 	return Rectangle { { panel.position.x + panel.size.width + ShopTabColumnGap,
 	                       panel.position.y + ShopTabColumnTop + static_cast<int>(index) * (ShopTabHeight + ShopTabGap) },

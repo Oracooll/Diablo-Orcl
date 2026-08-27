@@ -1149,20 +1149,56 @@ bool LevelFileExists(SaveWriter &archive)
 	return archive.HasFile(szName);
 }
 
+/**
+ * @brief Reads the fully-stored item records over the seed-replayed ones from the packed hero.
+ *
+ * ## Single-player takes the stored record, full stop
+ *
+ * It used to take it only if the packed item had ALREADY been rebuilt into something with a matching
+ * seed - three `continue`s that each threw the stored record away and kept the reconstruction. That
+ * is backwards, and it made the packed path a GATEKEEPER for the authoritative one: an item whose
+ * index had become unavailable, or whose replay produced an empty slot, silently lost its complete
+ * record and left the slot empty. The item was on disk the whole time.
+ *
+ * The evidence that the gate was vestigial is next door: LoadInventoryTabs reads the extra backpack
+ * pages straight from storage with no seed check at all, so the same item loaded one way in tab 3
+ * and another way in the main backpack.
+ *
+ * That gate is also the reason "the droppable pool is the save format" has shaped so much of this
+ * fork - the pool walk is what a replay re-derives an index from, so touching the pool re-routed
+ * every seeded item. In single-player it no longer decides anything: the record on disk does.
+ * (User, 2026-08-27: "i dont care about preserving sdave. i care about robust coding.")
+ *
+ * MULTIPLAYER is untouched and still validates, because there the packed record is what arrived over
+ * the wire and the local file is the thing that has to be checked against it. V1 is single-player
+ * (oracool::MultiplayerEnabled), so that branch is dead code kept honest rather than a live path.
+ */
 void LoadMatchingItems(LoadHelper &file, const Player &player, const int n, Item *pItem)
 {
 	Item heroItem;
 
 	for (int i = 0; i < n; i++) {
 		Item &unpackedItem = pItem[i];
+		// Read unconditionally, before any skip: the record is fixed-size and positional, so a
+		// `continue` that skipped the READ would misalign every item after it.
 		LoadItemData(file, heroItem);
+
+		// An ear carries its owner's name in fields the item record has no room for, and UnPackItem
+		// rebuilds it from those. It is the one item the packed copy knows more about than the
+		// stored one, so the packed copy wins - in both modes.
+		if (heroItem.IDidx == IDI_EAR)
+			continue;
+
+		if (!gbIsMultiplayer) {
+			unpackedItem = heroItem;
+			continue;
+		}
+
 		if (unpackedItem.isEmpty() || heroItem.isEmpty())
 			continue;
 		if (unpackedItem._iSeed != heroItem._iSeed)
 			continue;
-		if (heroItem.IDidx == IDI_EAR)
-			continue;
-		if (gbIsMultiplayer) {
+		{
 			// Ensure that the unpacked item was regenerated using the appropriate
 			// game's item generation logic before attempting to use it for validation
 			if ((heroItem.dwBuff & CF_HELLFIRE) != (unpackedItem.dwBuff & CF_HELLFIRE)) {
@@ -1178,8 +1214,6 @@ void LoadMatchingItems(LoadHelper &file, const Player &player, const int n, Item
 				unpackedItem._iPLToHit = ClampToHit(unpackedItem, heroItem._iPLToHit); // Oil of Accuracy
 				unpackedItem._iMaxDam = ClampMaxDam(unpackedItem, heroItem._iMaxDam);  // Oil of Sharpness
 			}
-		} else {
-			unpackedItem = heroItem;
 		}
 	}
 }

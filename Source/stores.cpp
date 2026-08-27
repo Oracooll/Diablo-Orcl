@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <iterator>
 #include <array>
+#include <cassert>
 #include <cctype>
 #include <chrono>
 #include <cstdint>
@@ -104,7 +105,28 @@ CuratedShelfState CuratedShelves[static_cast<size_t>(CuratedShelf::Count)];
 
 Item *ShelfItems(CuratedShelf shelf)
 {
+	// Bounded, because the index comes from a TalkID mapping and a mapping can be wrong. Reading one
+	// shelf past the array would be a silent out-of-bounds walk over whatever statics follow it -
+	// the same shape as the premium-stock overrun this file already had once (see SortVendor).
+	assert(shelf < CuratedShelf::Count);
+	if (shelf >= CuratedShelf::Count)
+		return CuratedShelves[0].items;
 	return CuratedShelves[static_cast<size_t>(shelf)].items;
+}
+
+/**
+ * @brief The shelf @p id shows, for callers that already know it has one.
+ *
+ * Every call site is inside a `case TalkID::Smith{Unique,Rare,Set}Buy:` label, so the lookup cannot
+ * fail today - but it is safe by COINCIDENCE of those labels, and a fourth shelf added to one switch
+ * and not to CuratedShelfFor would turn seven unchecked `*optional` dereferences into undefined
+ * behaviour at once. This makes that failure a wrong shelf and a debug assert instead.
+ */
+CuratedShelf RequireCuratedShelf(TalkID id)
+{
+	const std::optional<CuratedShelf> shelf = CuratedShelfFor(id);
+	assert(shelf.has_value() && "a curated-shelf screen is missing from CuratedShelfFor");
+	return shelf.value_or(CuratedShelf::Unique);
 }
 
 /** @brief The wording on Griswold's menu row for @p shelf. */
@@ -693,7 +715,7 @@ void StartSmith()
 		case TalkID::SmithUniqueBuy:
 		case TalkID::SmithRareBuy:
 		case TalkID::SmithSetBuy:
-			AddSText(0, line, _(CuratedShelfMenuLabel(*CuratedShelfFor(entries[i]))),
+			AddSText(0, line, _(CuratedShelfMenuLabel(RequireCuratedShelf(entries[i]))),
 			    UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 			break;
 		case TalkID::SmithSell:
@@ -3099,7 +3121,7 @@ void ConfirmEnter(Item &item)
 		case TalkID::SmithUniqueBuy:
 		case TalkID::SmithRareBuy:
 		case TalkID::SmithSetBuy:
-			BuyCuratedShelfItem(*CuratedShelfFor(stextshold), item);
+			BuyCuratedShelfItem(RequireCuratedShelf(stextshold), item);
 			break;
 		default:
 			break;
@@ -3787,24 +3809,29 @@ void GenerateCuratedShelf(CuratedShelf shelf, const Player &player, int vendorLe
 		break;
 	}
 	case CuratedShelf::Set: {
+		// "Already on this shelf" is answered by DEFINITION IDENTITY - the address of the row in
+		// ItemSetItems, which is a static table.
+		//
+		// The first version compared the item's rendered name against the translated `def.name`, and
+		// that was wrong in three ways at once: it depended on the display string, which is
+		// translated and could collide or be reworded; on MakeSetItem continuing to write exactly
+		// that string into _iIName; and it re-derived an identity that the caller already had in its
+		// hand. Comparing what a thing IS beats comparing what it is called.
+		std::vector<const oracool::SetItemDefinition *> taken;
+		taken.reserve(CuratedShelfCapacity);
 		while (generatedCount < CuratedShelfCapacity) {
 			Item item;
-			// "Already on this shelf" is answered by NAME, because that is what identifies a set
-			// piece - MakeSetItem writes it, and two pieces built from the same definition are the
-			// same object however they were finished.
-			const int placed = generatedCount;
+			const oracool::SetItemDefinition *chosen = nullptr;
 			const bool made = CreateSetVendorItem(player, item, vendorLevel,
-			    [items, placed](const oracool::SetItemDefinition &def) {
-				    for (int i = 0; i < placed; i++) {
-					    if (string_view(items[i]._iIName) == string_view(_(def.name)))
-						    return true;
-				    }
-				    return false;
-			    });
+			    [&taken](const oracool::SetItemDefinition &def) {
+				    return std::find(taken.begin(), taken.end(), &def) != taken.end();
+			    },
+			    &chosen);
 			// False means the candidate list is exhausted - every piece this level has earned is
 			// already on the shelf - so the shelf is as long as it is going to get.
 			if (!made)
 				break;
+			taken.push_back(chosen);
 			items[generatedCount++] = std::move(item);
 		}
 		break;
@@ -4019,7 +4046,7 @@ void StartStore(TalkID s)
 	case TalkID::SmithUniqueBuy:
 	case TalkID::SmithRareBuy:
 	case TalkID::SmithSetBuy:
-		if (!StartCuratedShelfBuy(*CuratedShelfFor(s)))
+		if (!StartCuratedShelfBuy(RequireCuratedShelf(s)))
 			return;
 		break;
 	case TalkID::Witch:
@@ -4132,7 +4159,7 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 	case TalkID::SmithUniqueBuy:
 	case TalkID::SmithRareBuy:
 	case TalkID::SmithSetBuy: {
-		Item *items = ShelfItems(*CuratedShelfFor(id));
+		Item *items = ShelfItems(RequireCuratedShelf(id));
 		for (int i = 0; i < CuratedShelfCapacity; i++) {
 			if (!items[i].isEmpty())
 				stock.push_back({ &items[i], i, items[i]._iIvalue });
@@ -4214,7 +4241,7 @@ void ShopSelectIndex(TalkID id, int index)
 	case TalkID::SmithUniqueBuy:
 	case TalkID::SmithRareBuy:
 	case TalkID::SmithSetBuy:
-		CuratedShelfBuyEnter(*CuratedShelfFor(id));
+		CuratedShelfBuyEnter(RequireCuratedShelf(id));
 		break;
 	case TalkID::SmithConsumables:
 	case TalkID::WitchBuy:
@@ -4753,7 +4780,7 @@ void DrawSText(const Surface &out)
 		case TalkID::SmithUniqueBuy:
 		case TalkID::SmithRareBuy:
 		case TalkID::SmithSetBuy:
-			ScrollCuratedShelfBuy(*CuratedShelfFor(stextflag), stextsval);
+			ScrollCuratedShelfBuy(RequireCuratedShelf(stextflag), stextsval);
 			break;
 		default:
 			break;
@@ -5022,7 +5049,7 @@ void StoreEnter()
 	case TalkID::SmithUniqueBuy:
 	case TalkID::SmithRareBuy:
 	case TalkID::SmithSetBuy:
-		CuratedShelfBuyEnter(*CuratedShelfFor(stextflag));
+		CuratedShelfBuyEnter(RequireCuratedShelf(stextflag));
 		break;
 	case TalkID::SmithBuy:
 		SmithBuyEnter();

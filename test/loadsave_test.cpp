@@ -100,6 +100,54 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, RoundTripsFullyPopulatedTieredItem)
 	}
 }
 
+// CHARACTERISATION, not a regression test - and the distinction is the point of the comment.
+//
+// It pins the contract single-player now states outright: the stored item record wins, and the seed
+// replay in UnPackItem is a FALLBACK for when there is no stored record, not a gatekeeper for one.
+//
+// The item is the historically destructive combination on purpose: an Oracool index wearing a
+// CF_SMITH town stamp. That stamp sends a replay through RecreateTownItem, which re-derives the
+// item's INDEX by walking the droppable-item pool - a pool every Oracool item is excluded from - so
+// the replay cannot produce this charm and must produce something else.
+//
+// This test passes both before and after LoadMatchingItems was simplified, and that is the finding
+// rather than a weakness in the test: the guard it removed (`unpackedItem._iSeed != heroItem._iSeed`)
+// could never fire, because every Recreate* path copies the seed across verbatim. The replay's
+// result was already being overwritten for every non-empty item. Verified by reintroducing the
+// guard and watching this still pass.
+TEST_F(LoadSaveOracoolItemExtensionsTest, StoredRecordWinsOverAnUnreplayableItem)
+{
+	_uiheroinfo info {};
+	info.heroclass = HeroClass::Warrior;
+	ASSERT_TRUE(pfile_ui_save_create(&info));
+
+	Player &creator = Players[0];
+	MyPlayer = &creator;
+	ASSERT_GT(creator._pNumInv, 0);
+
+	Item &planted = creator.InvList[0];
+	InitializeItem(planted, IDI_ORACOOL_CHARM_VIGOR);
+	planted._iSeed = 0x5EEDF00D;
+	// The poisonous stamp: "a normal item bought from Griswold at level 5". The replay path obeys it
+	// and rebuilds the index from the pool, which cannot produce an Oracool charm.
+	planted._iCreateInfo = 5 | CF_SMITH;
+	planted._iIdentified = true;
+	planted._iStatFlag = true;
+
+	pfile_write_hero();
+
+	Player &loaded = Players[1];
+	pfile_read_player_from_save(0, loaded);
+
+	ASSERT_GT(loaded._pNumInv, 0);
+	bool found = false;
+	for (int i = 0; i < loaded._pNumInv; i++) {
+		if (loaded.InvList[i].IDidx == IDI_ORACOOL_CHARM_VIGOR)
+			found = true;
+	}
+	EXPECT_TRUE(found) << "the stored record was discarded and the seed replay's substitute kept";
+}
+
 // No item on the freshly created character carries an Oracool tier, so SaveOracoolItemExtensions
 // must skip writing "heroitemsext" entirely - exactly what an old, pre-feature save looks like.
 // Loading must leave every item at its default (untiered) state without error.

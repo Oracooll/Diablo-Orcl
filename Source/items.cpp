@@ -1603,11 +1603,17 @@ _item_indexes GetItemIndexForDroppableItem(bool considerDropRate, tl::function_r
 		if (item.iRnd == IDROP_NEVER)
 			continue;
 		// Oracool (2026-08-15): the set items are droppable (IDROP_REGULAR, so IsDungeonItemValid
-		// accepts them on the wire) but NOT through this pool - because this pool is part of the
-		// save format. UnPackItem recreates a dungeon item's INDEX by replaying its seed through
-		// this exact walk, so growing the list re-routes every seeded recreation: the first attempt
-		// put them here and pack_test watched a Jade Great Helm come back as Jade Leggings. Set
-		// items drop through their own hook instead - see TrySpawnOracoolSetItem.
+		// accepts them on the wire) but NOT through this pool. UnPackItem recreates an item's INDEX
+		// by replaying its seed through this exact walk, so growing the list re-routes every seeded
+		// recreation: the first attempt put them here and pack_test watched a Jade Great Helm come
+		// back as Jade Leggings. Set items drop through their own hook instead - see
+		// TrySpawnOracoolSetItem.
+		//
+		// Scope correction (2026-08-27): this used to be described as "the pool IS the save format",
+		// and that overstates it. LoadHeroItems reads a full stored record over everything the
+		// replay produced, so in single-player the walk decides nothing that survives a load - what
+		// it still decides is the multiplayer WIRE format and pack_test, which is why the exclusions
+		// stay. The practical rule is unchanged; the reason it is obeyed is narrower than it looked.
 		if (IsOracoolItemIdx(i))
 			continue;
 		// Phase 1: gems, charms and runes obey the same pool-is-save-format rule; own hooks drop them.
@@ -3390,7 +3396,9 @@ bool CreateRareVendorItem(const Player &player, Item &item, int lvl)
 	// separate item universe), and the pick goes through GetItemIndexForDroppableItem, which is the
 	// replay-safe walk.
 	item = {};
-	SetRndSeed(AdvanceRndSeed());
+	// Straight off the ambient stream. The first version reseeded it from itself
+	// (`SetRndSeed(AdvanceRndSeed())`) before this call, which is a no-op dressed up as
+	// determinism - the item's own generation is seeded separately, in the SetupAllItems call below.
 	const _item_indexes idx = RndSmithItem(player, lvl);
 	if (idx == IDI_GOLD)
 		return false;
@@ -3418,7 +3426,8 @@ bool CreateRareVendorItem(const Player &player, Item &item, int lvl)
 }
 
 bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
-    tl::function_ref<bool(const oracool::SetItemDefinition &)> alreadyStocked)
+    tl::function_ref<bool(const oracool::SetItemDefinition &)> alreadyStocked,
+    const oracool::SetItemDefinition **chosenOut)
 {
 	// Every piece the character has EARNED and that can actually be built, minus the ones already on
 	// the shelf. All three filters carry weight: the level gate is what makes the shelf grow with
@@ -3452,6 +3461,11 @@ bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
 	FinalizeSetPiece(item, std::max(lvl, def.requiredLevel), /*allowEtherealRoll=*/false);
 	item._iIdentified = true;
 	item._iStatFlag = player.CanUseItem(item);
+	// The caller needs to know WHICH definition was built, so its next call can exclude it. Handing
+	// back the row's address costs nothing and spares the caller from re-identifying the piece by
+	// its rendered name, which is a translated string and no kind of identity.
+	if (chosenOut != nullptr)
+		*chosenOut = &def;
 	return true;
 }
 
@@ -6417,23 +6431,31 @@ void StockSalvageCharms(Item *stock, int capacity, int lvl, uint16_t createInfoF
 	}
 }
 
+/** @brief The most Oracool gear bases a depth can offer - the whole contiguous run of them. */
+constexpr size_t OracoolGearBaseCount = IDI_ORACOOL_SPECTRAL_HELM - IDI_ORACOOL_SHOULDERS + 1;
+
 /**
- * @brief Every Oracool GEAR base this depth has opened, written into @p out. Returns how many.
+ * @brief Every Oracool GEAR base this depth has opened.
  *
- * Shared by the plain shelf and the affixed one below it, so the two cannot come to disagree about
- * which bases a depth offers - the gate is the same banded qlvl ladder the drop hook reads, and one
- * copy of it is the only way that stays true.
+ * Shared by the plain shelf and the affixed one, so the two cannot come to disagree about which
+ * bases a depth offers - the gate is the same banded qlvl ladder the drop hook reads, and one copy
+ * of it is the only way that stays true.
+ *
+ * Returns a sized container rather than filling a caller's raw pointer. The pointer version could
+ * not say how much room it needed and both callers were sizing their buffer at IDI_LAST + 1 "to be
+ * safe", which is the kind of safety that stops being safe the moment someone sizes one correctly.
  */
-int OracoolGearBasesFor(int lvl, _item_indexes *out)
+std::pair<std::array<_item_indexes, OracoolGearBaseCount>, size_t> OracoolGearBasesFor(int lvl)
 {
-	int count = 0;
+	std::array<_item_indexes, OracoolGearBaseCount> bases {};
+	size_t count = 0;
 	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_SPECTRAL_HELM; i++) {
 		if (!IsItemAvailable(i))
 			continue;
 		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= lvl)
-			out[count++] = static_cast<_item_indexes>(i);
+			bases[count++] = static_cast<_item_indexes>(i);
 	}
-	return count;
+	return { bases, count };
 }
 
 /**
@@ -6449,11 +6471,20 @@ int OracoolGearBasesFor(int lvl, _item_indexes *out)
  * a town item's index by replaying its seed through that exact walk, so adding to the list would
  * silently re-identify every item already bought and saved.
  *
- * So this is a hook beside the pool, the same shape TrySpawnOracoolSetItem uses for drops - and with
- * one difference that matters more here than it does there: the stamp must NOT be a town flag.
- * CF_TOWN is precisely the route that re-derives the index, so a vendor-sold Oracool item wearing
- * CF_SMITH would be replaced on the next load. It is stamped as a rolled dungeon item instead, which
- * keeps the index that was packed and replays the affixes from the seed.
+ * So this is a hook beside the pool, the same shape TrySpawnOracoolSetItem uses for drops.
+ *
+ * ## About the stamp - corrected 2026-08-27
+ *
+ * This comment used to say a CF_SMITH stamp here "would be replaced on the next load", because
+ * CF_TOWN is the route that re-derives an index by replaying the seed through the pool. That is
+ * still true of the replay, and it is NOT true of the load: LoadHeroItems reads a complete stored
+ * record over the replayed one, so in single-player the replay's output is discarded before anyone
+ * sees it. Measured, not assumed - see StoredRecordWinsOverAnUnreplayableItem, which plants exactly
+ * that combination and gets the charm back.
+ *
+ * The bare-level stamp stays, for two reasons that survive the correction: it is what the multiplayer
+ * wire format still replays from, and it is honest - the item was not rolled by Griswold's own
+ * generator, so claiming CF_SMITH would describe something that never happened.
  *
  * Depth-gated by the same banded qlvl ladder the drop hook reads, so a level-2 Griswold offers
  * leather and a level-50 one offers spectral, by data rather than by a table here.
@@ -6463,8 +6494,7 @@ int StockOracoolVendorItems(Item *stock, int capacity, int lvl, int want)
 	if (!oracool::IsSinglePlayer() || want <= 0)
 		return 0;
 
-	_item_indexes candidates[IDI_LAST + 1];
-	const int candidateCount = OracoolGearBasesFor(lvl, candidates);
+	const auto [candidates, candidateCount] = OracoolGearBasesFor(lvl);
 	if (candidateCount == 0)
 		return 0;
 
@@ -6472,7 +6502,7 @@ int StockOracoolVendorItems(Item *stock, int capacity, int lvl, int want)
 	for (int i = 0; i < capacity && placed < want; i++) {
 		if (!stock[i].isEmpty())
 			continue;
-		const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
+		const _item_indexes idx = candidates[GenerateRnd(static_cast<int>(candidateCount))];
 		// The same clamp the drop hook applies, for the same reason its comment gives.
 		const int itemLevel = std::clamp(lvl, 1, 30);
 		Item &item = stock[i];
@@ -6531,8 +6561,7 @@ int StockOracoolMagicItems(Item *stock, int capacity, int lvl, int want)
 	if (!oracool::IsSinglePlayer() || want <= 0)
 		return 0;
 
-	_item_indexes candidates[IDI_LAST + 1];
-	const int candidateCount = OracoolGearBasesFor(lvl, candidates);
+	const auto [candidates, candidateCount] = OracoolGearBasesFor(lvl);
 	if (candidateCount == 0)
 		return 0;
 
@@ -6540,7 +6569,7 @@ int StockOracoolMagicItems(Item *stock, int capacity, int lvl, int want)
 	for (int i = 0; i < capacity && placed < want; i++) {
 		if (!stock[i].isEmpty())
 			continue;
-		const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
+		const _item_indexes idx = candidates[GenerateRnd(static_cast<int>(candidateCount))];
 		const int itemLevel = std::clamp(lvl, 1, 30);
 		Item &item = stock[i];
 		item = {};
@@ -6718,6 +6747,17 @@ void SpawnPremium(const Player &player)
 			premiumitems[i].clear();
 	}
 	StockOracoolMagicItems(premiumitems, maxItems, premiumlevel, PremiumOracoolCount);
+
+	// COUNTED, not assumed. `numpremium = maxItems` above is the vanilla line, and it was already a
+	// claim rather than a fact; with a second stocking pass that can place fewer than it is asked
+	// for, the field would say thirty over a shelf holding twenty-four. Nothing iterates it today -
+	// it only gates the refill above and is decremented on a purchase - so this is not a live bug,
+	// which is exactly why it is worth closing now rather than after something starts trusting it.
+	numpremium = 0;
+	for (const Item &item : premiumitems) {
+		if (!item.isEmpty())
+			numpremium++;
+	}
 }
 
 void SpawnWitch(int lvl)
