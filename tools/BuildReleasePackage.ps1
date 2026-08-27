@@ -88,16 +88,15 @@ $requiredFiles = @(
 # DevilutionX's own fonts, interface art and level data. The game does not start without it, which
 # is exactly what shipping v1.9.88 without it demonstrated.
 #
-# It can arrive two ways and the game accepts either, so this accepts either too - FindAsset searches
-# the MPQ archives first and the loose `assets` directory after them (Source/engine/assets.cpp):
+# It must arrive as devilutionx.mpq. The game would also accept it loose in an `assets` folder -
+# FindAsset searches the MPQ archives first and that directory after them (Source/engine/assets.cpp) -
+# and this script briefly accepted either for that reason.
 #
-#   devilutionx.mpq   one file, built by tools\build_devilutionx_mpq.cmd. Preferred: a single archive
-#                     cannot be half-copied, and it is upstream's own convention.
-#   assets\           258 loose files. The fallback, and what shipped before 2026-08-27.
-#
-# Preferring the archive but accepting the folder is not indecision - it is the same rule the engine
-# follows, and a packager that was stricter than the thing it packages for would reject working
-# builds.
+# It does not any more. User, 2026-08-27: "i dont want any loose folders in my release." That is a
+# packaging decision rather than an engine one, and it is a reasonable one: a release is 12 files now,
+# every one of which is either the binary, a library, a README or an archive. A fallback that quietly
+# shipped 188 loose files instead would be the same silent substitution this whole script exists to
+# prevent, so an absent archive is an ERROR that names the command to build it.
 $engineAssetsMpq = 'devilutionx.mpq'
 $engineAssetsDir = 'assets'
 
@@ -115,22 +114,23 @@ Write-Host 'Checking the build tree...'
 foreach ($f in $requiredFiles) {
     if (-not (Test-Path (Join-Path $BuildDir $f))) { Fail "required file missing from the build tree: $f" }
 }
-$useEngineMpq = Test-Path (Join-Path $BuildDir $engineAssetsMpq)
-if ($useEngineMpq) {
-    Write-Host "  $engineAssetsMpq : present (engine assets as an archive)"
-} else {
-    $path = Join-Path $BuildDir $engineAssetsDir
-    if (-not (Test-Path $path)) {
-        Fail ("the engine's own assets are missing - the game will not start.`n" +
-              "    Build the archive:  tools\build_devilutionx_mpq.cmd $BuildDir`n" +
-              "    or ensure the loose '$engineAssetsDir' folder is in the build tree.")
-    }
-    $count = @(Get-ChildItem $path -Recurse -File).Count
-    # A sanity floor, not an exact count - the set grows. Zero or a handful means something copied
-    # an empty tree, which is the failure that looks like success.
-    if ($count -lt 50) { Fail "'$engineAssetsDir' holds only $count files - that is not a complete asset tree." }
-    Write-Host "  $engineAssetsDir : $count files (loose - consider build_devilutionx_mpq.cmd)"
+$engineMpqPath = Join-Path $BuildDir $engineAssetsMpq
+if (-not (Test-Path $engineMpqPath)) {
+    Fail ("$engineAssetsMpq is missing - the game will not start without the engine's own assets.`n" +
+          "    tools\build_devilutionx_mpq.cmd $BuildDir")
 }
+# The archive must be newer than the deployed assets it was built from, for the same reason
+# oracool.mpq must: neither is rebuilt by an ordinary build, so an asset added after the last pack
+# ships as though it had never been added.
+$engineSrc = Join-Path $BuildDir $engineAssetsDir
+if (Test-Path $engineSrc) {
+    $newestAsset = Get-ChildItem $engineSrc -Recurse -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+    if ($newestAsset -and $newestAsset.LastWriteTimeUtc -gt (Get-Item $engineMpqPath).LastWriteTimeUtc) {
+        Fail ("$engineAssetsMpq is older than '$($newestAsset.Name)'. Rebuild it:`n" +
+              "    tools\build_devilutionx_mpq.cmd $BuildDir")
+    }
+}
+Write-Host "  $engineAssetsMpq : current"
 
 # The binary must BE the version we are stamping on the box.
 $exePath = Join-Path $BuildDir 'DiabloOrcl.exe'
@@ -166,11 +166,7 @@ New-Item -ItemType Directory -Path $target -Force | Out-Null
 Write-Host ''
 Write-Host 'Staging...'
 foreach ($f in $requiredFiles) { Copy-Item (Join-Path $BuildDir $f) $target }
-if ($useEngineMpq) {
-    Copy-Item (Join-Path $BuildDir $engineAssetsMpq) $target
-} else {
-    Copy-Item (Join-Path $BuildDir $engineAssetsDir) (Join-Path $target $engineAssetsDir) -Recurse
-}
+Copy-Item $engineMpqPath $target
 
 # The README, with the version stamped in rather than typed in.
 #
@@ -200,18 +196,22 @@ foreach ($m in $forbidden) {
 }
 Write-Host "  no commercial game data ($($forbidden.Count) archives checked)"
 
-$mustBeStaged = @($requiredFiles + 'README.txt')
-if ($useEngineMpq) { $mustBeStaged += $engineAssetsMpq }
+$mustBeStaged = @($requiredFiles + 'README.txt' + $engineAssetsMpq)
 foreach ($f in $mustBeStaged) {
+    # Checked HERE as well as before staging, because "the copy ran" and "the files arrived" are
+    # different claims.
     if (-not (Test-Path (Join-Path $target $f))) { Fail "staged package is missing $f" }
 }
-# The engine's assets, whichever form they took - checked HERE too rather than trusting the copy
-# above to have worked, because "the copy ran" and "the files arrived" are different claims.
-if (-not $useEngineMpq) {
-    $staticCount = @(Get-ChildItem (Join-Path $target $engineAssetsDir) -Recurse -File -ErrorAction SilentlyContinue).Count
-    if ($staticCount -lt 50) { Fail "staged '$engineAssetsDir' holds only $staticCount files" }
+Write-Host "  all $($mustBeStaged.Count) files present"
+
+# NO LOOSE FOLDERS (user, 2026-08-27). Everything ships as a file at the top level, so any directory
+# in the staged tree is something that was not meant to be there - a stray copy, or an asset folder
+# that came along with one.
+$strayDirs = @(Get-ChildItem $target -Directory)
+if ($strayDirs.Count -gt 0) {
+    Fail "the package contains loose folders, which it must not: $($strayDirs.Name -join ', ')"
 }
-Write-Host "  all $($mustBeStaged.Count) top-level files present"
+Write-Host "  no loose folders"
 Write-Host "  $($staged.Count) files total"
 
 # --- Zip ---------------------------------------------------------------------------------------
