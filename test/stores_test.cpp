@@ -1,5 +1,6 @@
 ﻿#include <algorithm>
 #include <array>
+#include <limits>
 
 #include <gtest/gtest.h>
 
@@ -9,6 +10,7 @@
 #include "qol/stash.h"
 #include "storm/storm_net.hpp"
 #include "stores.h"
+#include "oracool/shop_grid.h"
 
 using namespace devilution;
 
@@ -706,5 +708,195 @@ TEST_F(StoresTest, StaleRechargeCursorIsConsumedRatherThanRunAsTheVanillaSkill)
 	EXPECT_FALSE(IsShopRechargeCursorArmed());
 	EXPECT_TRUE(ConsumeStaleShopServiceCursor());
 	EXPECT_FALSE(IsAnyShopServiceCursorArmed());
+}
+
+/**
+ * @brief Leaves the backpack with exactly @p headroom gold of space and the Stash pool full.
+ *
+ * Every cell holds gold: all but one at MaxGold, so they take nothing more, and one short by
+ * exactly @p headroom. With Stash.gold at its INT_MAX cap the single-player pool contributes
+ * nothing either, so the sale-fit gate has one number to compare against and the test controls it.
+ */
+void FillBackpackLeavingGoldHeadroom(int headroom)
+{
+	devilution::Player &player = *MyPlayer;
+	InitializeItem(player.InvList[0], IDI_GOLD);
+	player.InvList[0]._ivalue = MaxGold;
+	InitializeItem(player.InvList[1], IDI_GOLD);
+	player.InvList[1]._ivalue = MaxGold - headroom;
+	player._pNumInv = 2;
+	for (int8_t &cell : player.InvGrid)
+		cell = 1; // InvList[0], which is full
+	player.InvGrid[0] = 2;
+	Stash.gold = std::numeric_limits<int>::max();
+}
+
+/**
+ * @brief The sale-fit gate is fed the sale PRICE, not the item's value.
+ *
+ * External audit of v1.9.97, finding 3. StoreGoldFit used to read `item._iIvalue` itself, which is
+ * the sale price only on a storehold display copy and the item's full value everywhere else. For an
+ * ordinary item that made the gate four times too strict - annoying, never lossy. For a STACK it
+ * made it far too lax, because GetItemSellValue multiplies a stackable consumable by its count: a
+ * 99-potion stack was approved against one potion's value and then paid at ninety-nine quarters of
+ * it.
+ *
+ * The headroom below sits deliberately between the two numbers, so the gate must answer differently
+ * for each. Passing the wrong one is not a near miss here; it is the whole verdict.
+ */
+TEST_F(StoresTest, SaleFitGateAnswersOnThePriceNotTheItemValue)
+{
+	constexpr int Headroom = 50000;
+	FillBackpackLeavingGoldHeadroom(Headroom);
+
+	devilution::Item stack = {};
+	InitializeItem(stack, IDI_HEAL);
+	stack._ivalue = stack._iIvalue = 40000;
+	stack.setStackCount(99);
+
+	const int price = GetItemSellValue(stack);
+	ASSERT_GT(price, Headroom) << "the stack must not fit";
+	ASSERT_LE(stack._iIvalue, Headroom) << "the old number must fit, or the test proves nothing";
+
+	EXPECT_TRUE(StoreGoldFitForTest(stack._iIvalue, /*itemFreeingCells=*/nullptr))
+	    << "the value the gate used to read";
+	EXPECT_FALSE(StoreGoldFitForTest(price, /*itemFreeingCells=*/nullptr))
+	    << "the price the sale actually credits";
+}
+
+/** @brief The same discrepancy through the gesture that has it: selling the held stack. */
+TEST_F(StoresTest, SellingAHeldStackThatCannotBePaidForIsRefused)
+{
+	constexpr int Headroom = 50000;
+	FillBackpackLeavingGoldHeadroom(Headroom);
+
+	devilution::Player &player = *MyPlayer;
+	InitializeItem(player.HoldItem, IDI_HEAL);
+	player.HoldItem._ivalue = player.HoldItem._iIvalue = 40000;
+	player.HoldItem.setStackCount(99);
+	const devilution::Item held = player.HoldItem;
+
+	// Adria's Buy tab: a shop screen whose vendor takes Misc items, which is what a potion is.
+	stextflag = TalkID::WitchBuy;
+
+	EXPECT_FALSE(ShopSellHeldItem()) << "the sale was approved and could not be paid for";
+	EXPECT_FALSE(player.HoldItem.isEmpty()) << "the stack left the cursor anyway";
+	EXPECT_EQ(player.HoldItem.stackCount(), held.stackCount());
+	EXPECT_EQ(Stash.gold, std::numeric_limits<int>::max()) << "the pool was credited for a refused sale";
+}
+
+/**
+ * @brief Buying one premium item restocks one slot, and never resurrects a trimmed one.
+ *
+ * External audit of v1.9.97, finding 1. A purchase used to call SpawnPremium, whose refill branch
+ * fills EVERY empty vanilla slot whenever numpremium is below the array size - so the holes the
+ * one-page trim had deliberately made all came back at once, and the shelf grew past a page without
+ * the player pressing Refresh.
+ */
+TEST_F(StoresTest, RestockingOnePremiumSlotDoesNotRefillTheTrimmedOnes)
+{
+	// A real player and a live net provider, because the purchase below places the item into the
+	// backpack and that path sends a net command - the same setup
+	// SmithConsumablesBuy_AfterClearingSlotWithStaleMatchingData_ItemIsActuallyPlaced needs.
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	Players.resize(1);
+	CreatePlayer(Players[0], HeroClass::Warrior);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	for (int i = 0; i < InventoryGridCells; i++) {
+		MyPlayer->InvList[i].clear();
+		MyPlayer->InvGrid[i] = 0;
+	}
+	MyPlayer->_pNumInv = 0;
+
+	// A shelf of body armour - six cells each - so thirty of them cannot fit one page and
+	// the trim has real work to do.
+	for (devilution::Item &item : premiumitems) {
+		item = {};
+		InitializeItem(item, IDI_ORACOOL_LEATHER_ARMOR);
+		item._iCurs = ICURS_FULL_PLATE_MAIL; // 2x3 cells: thirty of these cannot fit a 10x16 page
+		item._iIdentified = true;
+		item._iStatFlag = true;
+	}
+	RecountPremiumStock();
+	ASSERT_EQ(numpremium, SMITH_PREMIUM_ITEMS);
+
+	oracool::TrimShopStockToOnePage(TalkID::SmithPremiumBuy);
+	RecountPremiumStock();
+	ASSERT_TRUE(oracool::ShopStockFitsOnePage(TalkID::SmithPremiumBuy));
+
+	std::array<bool, SMITH_PREMIUM_ITEMS> wasEmpty {};
+	int sold = -1;
+	int trimmed = 0;
+	for (int i = 0; i < SMITH_PREMIUM_ITEMS; i++) {
+		wasEmpty[i] = premiumitems[i].isEmpty();
+		if (wasEmpty[i])
+			trimmed++;
+		else if (sold < 0)
+			sold = i;
+	}
+	ASSERT_GT(trimmed, 0) << "nothing was trimmed, so there is no hole to resurrect";
+	ASSERT_GE(sold, 0) << "nothing survived the trim, so there is nothing to buy";
+
+	// Through the PURCHASE, not through the restock helper directly: the defect was in what the
+	// purchase called, so a test that calls the replacement helper itself would pass with the
+	// defect still in place.
+	MyPlayer->_pGold = std::numeric_limits<int>::max() / 2;
+	stextflag = TalkID::SmithPremiumBuy;
+	devilution::Item bought = premiumitems[sold];
+	SimulateSmithPremiumBuyForTest(/*visible index of the first surviving slot=*/0, bought);
+	ASSERT_TRUE(premiumitems[sold].isEmpty() || premiumitems[sold]._iSeed != bought._iSeed)
+	    << "the purchase did not go through, so nothing below is being tested";
+
+	for (int i = 0; i < SMITH_PREMIUM_ITEMS; i++) {
+		if (i == sold)
+			continue;
+		EXPECT_EQ(premiumitems[i].isEmpty(), wasEmpty[i])
+		    << "slot " << i << " changed occupancy, and only the sold slot may";
+	}
+}
+
+/**
+ * @brief Supplies is materialised, and Pepin's potions survive materialising it.
+ *
+ * External audit of v1.9.97, finding 2. Adria's array was trimmed against her OWN page, where it
+ * has the grid to itself; Supplies shows Pepin's four potions first, so her last few items fell off
+ * that shelf while staying alive in witchitem - a reserve that surfaced the moment a visible
+ * Supplies item was bought. The trim now runs against Supplies, the tighter of the two pages, and
+ * refuses to clear the protected potions while doing it.
+ */
+TEST_F(StoresTest, SuppliesHasNoHiddenReserveBehindPepinsPotions)
+{
+	// Adria's whole array full of body armour, which is far more than one page - so
+	// the trim has to discard, and the potions are in the way while it does.
+	for (devilution::Item &item : witchitem) {
+		item = {};
+		InitializeItem(item, IDI_ORACOOL_LEATHER_ARMOR);
+		item._iIdentified = true;
+		item._iStatFlag = true;
+	}
+	TrimWitchStockToOnePageForTest();
+
+	int potions = 0;
+	for (const oracool::ShopSlot &slot : GetShopStock(TalkID::SmithConsumables)) {
+		if (slot.neverTrim)
+			potions++;
+	}
+	EXPECT_GT(potions, 0) << "the protected prefix vanished";
+
+	EXPECT_TRUE(oracool::ShopStockFitsOnePage(TalkID::SmithConsumables))
+	    << "Supplies still holds stock it cannot show";
+	// Supplies is strictly the smaller page, so settling it settles Adria's own tab too.
+	EXPECT_TRUE(oracool::ShopStockFitsOnePage(TalkID::WitchBuy))
+	    << "Adria's own tab holds stock it cannot show";
+
+	// Trimming again must be a fixed point: it must not eat into the potions on a second pass.
+	TrimWitchStockToOnePageForTest();
+	int potionsAfter = 0;
+	for (const oracool::ShopSlot &slot : GetShopStock(TalkID::SmithConsumables)) {
+		if (slot.neverTrim)
+			potionsAfter++;
+	}
+	EXPECT_EQ(potionsAfter, potions) << "a second trim cleared Pepin's potions";
 }
 } // namespace

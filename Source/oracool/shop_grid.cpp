@@ -709,28 +709,48 @@ Rectangle GetShopGridRect()
 		{ ShopGridWidth, ShopGridHeight } };
 }
 
-void TrimShopStockToOnePage(TalkID id)
+/** @brief Which entries of @p stock a placement pass can actually fit on the page. */
+std::vector<bool> PlacedFlags(const std::vector<ShopSlot> &stock)
 {
-	// SmithConsumables is refused outright rather than trusted not to be passed: its stock is Pepin's
-	// four infinite potions followed by Adria's array, and clearing through that view would empty
-	// the potions - which restock rather than sell out, and are not this function's to touch.
-	if (id == TalkID::SmithConsumables)
-		return;
-
-	const std::vector<ShopSlot> stock = GetShopStock(id);
-	if (stock.empty())
-		return;
-	const std::vector<PlacedSlot> placed = PlaceStock(stock);
-
 	std::vector<bool> onShelf(stock.size(), false);
-	for (const PlacedSlot &slot : placed) {
+	for (const PlacedSlot &slot : PlaceStock(stock)) {
 		if (slot.stockIndex >= 0 && static_cast<size_t>(slot.stockIndex) < onShelf.size())
 			onShelf[static_cast<size_t>(slot.stockIndex)] = true;
 	}
+	return onShelf;
+}
+
+void TrimShopStockToOnePage(TalkID id)
+{
+	const std::vector<ShopSlot> stock = GetShopStock(id);
+	if (stock.empty())
+		return;
+	const std::vector<bool> onShelf = PlacedFlags(stock);
+
 	for (size_t i = 0; i < stock.size(); i++) {
-		if (!onShelf[i])
-			stock[i].item->clear();
+		// SmithConsumables used to be refused outright, because its stock is Pepin's four infinite
+		// potions followed by Adria's array and clearing through that view would empty the potions.
+		// That protected the potions and left the real problem standing: Adria's array was sized to
+		// fill a page ALONE, so prepending the potions pushed her last few items off the Supplies
+		// shelf while they stayed alive in witchitem - a hidden reserve that surfaced the moment
+		// one of the visible ones was bought (external audit of v1.9.97, finding 2).
+		//
+		// The refusal is now per-ENTRY instead of per-tab: a protected entry is placed and shown
+		// like any other but never cleared, so the combined shelf can be materialised without
+		// touching the fixtures on it.
+		if (onShelf[i] || stock[i].neverTrim)
+			continue;
+		stock[i].item->clear();
 	}
+}
+
+bool ShopStockFitsOnePage(TalkID id)
+{
+	const std::vector<ShopSlot> stock = GetShopStock(id);
+	if (stock.empty())
+		return true;
+	const std::vector<bool> onShelf = PlacedFlags(stock);
+	return std::find(onShelf.begin(), onShelf.end(), false) == onShelf.end();
 }
 
 void ResetShopGridSelection()

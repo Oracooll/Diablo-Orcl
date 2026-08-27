@@ -101,10 +101,20 @@ void ResetShopGridSelection();
  * The user's instruction was "keep available items up to 1 page worth of quantities", and this is
  * what makes that true of the STOCK rather than only of the drawing.
  *
- * Only for tabs backed by their own vendor array - never SmithConsumables, whose first four entries
- * are Pepin's infinite potions and are not the shop's to discard.
+ * Entries marked ShopSlot::neverTrim are placed and shown but never cleared - Pepin's four infinite
+ * potions on the Supplies tab, which are not the shop's to discard. Everything else on a mixed
+ * shelf is trimmed normally, which is what lets Supplies be materialised rather than exempted.
  */
 void TrimShopStockToOnePage(TalkID id);
+
+/**
+ * @brief Whether every entry of @p id's stock currently fits on one page.
+ *
+ * The question TrimShopStockToOnePage answers destructively, asked without clearing anything - so a
+ * caller that has just added one item can put it back rather than let the trim decide which of the
+ * shelf's other items pays for it.
+ */
+bool ShopStockFitsOnePage(TalkID id);
 
 /**
  * @brief Fills InfoString from the shop item under the cursor. True if it did.

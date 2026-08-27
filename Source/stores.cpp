@@ -423,8 +423,18 @@ std::vector<ConsumablesStockEntry> SmithConsumablesStock()
 {
 	std::vector<ConsumablesStockEntry> stock;
 	stock.reserve(SmithPepinPotionCount + WITCH_ITEMS);
-	for (size_t i = 0; i < SmithPepinPotionCount; ++i)
+	for (size_t i = 0; i < SmithPepinPotionCount; ++i) {
+		// EMPTY entries are filtered here rather than trusted to be "skipped by the draw", which is
+		// what InitializeSmithPepinPotions' comment claimed and this builder did not do (external
+		// audit of v1.9.97, finding 2, additional hardening). Two of the four types come from
+		// ItemMiscIdIdx, which can answer IDI_NONE; all four resolve in the current configuration,
+		// so the claim was true by luck rather than by construction. Filtering at the source keeps
+		// every consumer - the draw, the placement pass, the index-to-vendor mapping - agreeing on
+		// one list.
+		if (smithPepinPotions[i].isEmpty())
+			continue;
 		stock.push_back({ &smithPepinPotions[i], ConsumablesVendor::Pepin, static_cast<int>(i) });
+	}
 	for (int i = 0; i < WITCH_ITEMS; ++i) {
 		if (!witchitem[i].isEmpty())
 			stock.push_back({ &witchitem[i], ConsumablesVendor::Witch, i });
@@ -2313,8 +2323,20 @@ void SmithBuyPItemAt(Item &item, int idx)
 	StoreAutoPlace(item, true);
 
 	premiumitems[xx].clear();
-	numpremium--;
-	SpawnPremium(*MyPlayer);
+	// EXACTLY the sold slot, and only if the replacement still fits. SpawnPremium used to be called
+	// here, which refills every empty vanilla slot at once and so resurrected every hole the
+	// one-page trim had made (external audit of v1.9.97, finding 1).
+	//
+	// The fit test is asked before the shelf is allowed to keep the replacement, rather than left to
+	// the trim afterwards: premium items are not all the same size, so a larger replacement can push
+	// a DIFFERENT item off the page, and a trim run at that point would delete that item to pay for
+	// this one. Declining the replacement costs the shelf one slot until the next Refresh; the trim
+	// would have cost the player an item they had chosen not to buy yet.
+	RestockOnePremiumSlot(xx, *MyPlayer);
+	if (!oracool::ShopStockFitsOnePage(TalkID::SmithPremiumBuy)) {
+		premiumitems[xx].clear();
+		RecountPremiumStock();
+	}
 }
 
 /** @brief The text-store's caller: it still knows the index only as a scroll position. */
@@ -2414,6 +2436,14 @@ std::string RefreshPremiumUntilTarget()
 			item.clear();
 		numpremium = 0;
 		SpawnPremium(*MyPlayer);
+		// Trimmed BEFORE the scan, and therefore on every exit this loop has - found, timed out, or
+		// the safety limit. Without it the search answered about the backing array rather than about
+		// the shelf, so it could report "Found X" for an item PlaceStock cannot fit and the player
+		// would open the tab to no such item; and whichever generation happened to be current when
+		// the loop gave up was left untrimmed, which is the hidden reserve the one-page rule exists
+		// to prevent (external audit of v1.9.97, finding 1).
+		oracool::TrimShopStockToOnePage(TalkID::SmithPremiumBuy);
+		RecountPremiumStock();
 
 		for (const Item &item : premiumitems) {
 			if (item.isEmpty())
@@ -2467,10 +2497,11 @@ void SmithPremiumBuyEnter()
 			item.clear();
 		numpremium = 0;
 		SpawnPremium(*MyPlayer);
-		// Same one-page trim a fresh town gives it. The post-purchase SpawnPremium call is
-		// deliberately NOT trimmed: that one is the premium shelf restocking a sold slot, which is
-		// what a premium shelf has always done, rather than a hidden reserve surfacing.
+		// Same one-page trim a fresh town gives it. The post-purchase path needs none: it restocks
+		// exactly the sold slot and puts the replacement back if it does not fit (see
+		// RestockOnePremiumSlot and SmithBuyPItemAt).
 		oracool::TrimShopStockToOnePage(TalkID::SmithPremiumBuy);
+		RecountPremiumStock();
 		StartStore(TalkID::SmithPremiumBuy);
 		stextsel = PremiumRefreshLine();
 		return;
@@ -2520,19 +2551,43 @@ void SmithPremiumBuyEnter()
 }
 
 /**
- * @brief Whether every coin of @p item's sale price has somewhere to go.
+ * @brief The sale price of a storehold DISPLAY copy.
  *
- * @param freesItemCells whether selling it VACATES its backpack cells, which can then hold gold.
- *        True for an item sold out of the backpack; FALSE for one sold from the cursor, which was
- *        never occupying a cell. Passing true for a held item claims room that does not exist -
- *        exactly the over-count that would let a held-item sale be approved and then lose the
- *        remainder (external audit of v1.9.92, finding 4).
+ * NOT GetItemSellValue, which would quarter it a second time: the sell-list builder already
+ * overwrote this copy's `_ivalue`/`_iIvalue` with the price so the row could show one (see
+ * StartSmithSell). Named so that the three list-path gates read as "the price" rather than as a
+ * raw field access that happens to hold it.
  */
-bool StoreGoldFit(const Item &item, bool freesItemCells)
+int StoreHoldSalePrice(const Item &displayCopy)
 {
-	int cost = item._iIvalue;
+	return displayCopy._iIvalue;
+}
 
-	Size itemSize = freesItemCells ? GetInventorySize(item) : Size { 0, 0 };
+/**
+ * @brief Whether every coin of a sale at @p price has somewhere to go.
+ *
+ * @param price the EXACT amount that will be credited - the same number the caller passes to
+ *        CreditSaleProceeds. It is a parameter rather than something read back off the item
+ *        because the two disagreed (external audit of v1.9.97, finding 3): this used to take
+ *        `item._iIvalue`, which is the sale price only on a storehold DISPLAY copy (the list
+ *        builder overwrites it, see StartSmithSell) and is the item's full value everywhere
+ *        else. The two direct gestures pass a pristine item, so they gated on four times the
+ *        money for an ordinary item - harmlessly strict - and on a fraction of it for a stack,
+ *        because GetItemSellValue multiplies a stackable consumable by its count. A 99-potion
+ *        stack was approved against one potion's value and then paid at ninety-nine quarters of
+ *        it, and at a saturated Stash the difference is gold that does not exist anywhere.
+ *
+ * @param itemFreeingCells the item whose backpack cells the sale VACATES, which can then hold
+ *        gold, or nullptr when the sale frees nothing. An item sold from the cursor was never
+ *        occupying a cell, and claiming its cells is exactly the over-count that would let a
+ *        held-item sale be approved and then lose the remainder (external audit of v1.9.92,
+ *        finding 4).
+ */
+bool StoreGoldFit(int price, const Item *itemFreeingCells)
+{
+	int cost = price;
+
+	Size itemSize = itemFreeingCells != nullptr ? GetInventorySize(*itemFreeingCells) : Size { 0, 0 };
 	// 64-bit throughout. The cell product alone reaches 10 * 100,000,000 for the largest items, and
 	// adding RoomForGold's answer (up to 7,000,000,000 on an empty backpack) overflowed an int -
 	// so the gate that decides whether a sale FITS was itself computing undefined behaviour, on the
@@ -2584,7 +2639,7 @@ void StoreSellItemAt(int idx)
 
 	// Copied BEFORE the compaction below, which overwrites storehold[idx] with its successor.
 	const Item sold = storehold[idx];
-	int cost = sold._iIvalue;
+	int cost = StoreHoldSalePrice(sold);
 	storenumh--;
 	if (idx != storenumh) {
 		while (idx < storenumh) {
@@ -2612,7 +2667,7 @@ void SmithSellAllItems()
 		StartSmithSell();
 		if (storenumh == 0)
 			break;
-		if (!StoreGoldFit(storehold[0], /*freesItemCells=*/true)) {
+		if (!StoreGoldFit(StoreHoldSalePrice(storehold[0]), &storehold[0])) {
 			stextshold = TalkID::SmithSell;
 			stextlhold = SmithSellAllLine();
 			stextvhold = 0;
@@ -2655,7 +2710,7 @@ void SmithSellEnter()
 	if (idx < 0 || idx >= storenumh)
 		return;
 
-	if (!StoreGoldFit(storehold[idx], /*freesItemCells=*/true)) {
+	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), &storehold[idx])) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -2906,7 +2961,7 @@ void WitchSellEnter()
 	if (idx < 0 || idx >= storenumh)
 		return;
 
-	if (!StoreGoldFit(storehold[idx], /*freesItemCells=*/true)) {
+	if (!StoreGoldFit(StoreHoldSalePrice(storehold[idx]), &storehold[idx])) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
@@ -3874,6 +3929,11 @@ void UpdateSmithConsumablesStockAfterPurchaseForTest(size_t index)
 	UpdateSmithConsumablesStockAfterPurchase(entry);
 }
 
+bool StoreGoldFitForTest(int price, const Item *itemFreeingCells)
+{
+	return StoreGoldFit(price, itemFreeingCells);
+}
+
 void SimulateSmithPremiumBuyForTest(int selectedIndex, Item &item)
 {
 	// The held-selection encoding SmithBuyPItem re-derives its index from: with lhold == up the
@@ -4056,6 +4116,30 @@ void SpawnCuratedShelves(const Player &player, int vendorLevel)
 }
 
 
+/**
+ * @brief Trims Adria's array against the tighter of the two pages it appears on.
+ *
+ * `witchitem` is shown by two tabs: Adria's own Buy tab, where it has the page to itself, and
+ * Griswold's Supplies tab, where Pepin's four potions come first. Trimming it against its own tab
+ * left it fitting there and overflowing on Supplies, and the overflow stayed alive in the array -
+ * a hidden reserve that surfaced as soon as a visible Supplies item was bought (external audit of
+ * v1.9.97, finding 2).
+ *
+ * Trimming against Supplies instead settles both, because Supplies is strictly the smaller page:
+ * anything that fits beside the four potions fits without them. It costs Adria's own tab the few
+ * items that could not have been shown on Supplies anyway, which is the price of the two views
+ * agreeing about what is in stock.
+ */
+void TrimWitchStockToOnePage()
+{
+	oracool::TrimShopStockToOnePage(TalkID::SmithConsumables);
+}
+
+void TrimWitchStockToOnePageForTest()
+{
+	TrimWitchStockToOnePage();
+}
+
 void SetupTownStores()
 {
 	Player &myPlayer = *MyPlayer;
@@ -4076,13 +4160,11 @@ void SetupTownStores()
 	// the page comes out full; without this the surplus stayed in the array as a hidden reserve that
 	// surfaced whenever a visible item was bought and freed its cells.
 	//
-	// SmithConsumables is absent by design - it is a view over Adria's array plus Pepin's infinite
-	// potions, and trimming it would mean discarding through someone else's stock. Adria's own Buy
-	// tab is trimmed just below, which is where those items actually live.
 	oracool::TrimShopStockToOnePage(TalkID::SmithBuy);
-	oracool::TrimShopStockToOnePage(TalkID::WitchBuy);
+	TrimWitchStockToOnePage();
 	oracool::TrimShopStockToOnePage(TalkID::HealerBuy);
 	oracool::TrimShopStockToOnePage(TalkID::SmithPremiumBuy);
+	RecountPremiumStock();
 	for (int i = 0; i < static_cast<int>(CuratedShelf::Count); i++)
 		oracool::TrimShopStockToOnePage(TalkIdForCuratedShelf(static_cast<CuratedShelf>(i)));
 }
@@ -4378,8 +4460,12 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 	}
 	case TalkID::SmithConsumables: {
 		const std::vector<ConsumablesStockEntry> entries = SmithConsumablesStock();
-		for (size_t i = 0; i < entries.size(); i++)
-			stock.push_back({ entries[i].item, static_cast<int>(i), entries[i].item->_iIvalue });
+		for (size_t i = 0; i < entries.size(); i++) {
+			// Pepin's potions are marked protected: they are shown and placed like anything else,
+			// but the one-page trim must not clear them - see ShopSlot::neverTrim.
+			stock.push_back({ entries[i].item, static_cast<int>(i), entries[i].item->_iIvalue,
+			    /*neverTrim=*/entries[i].vendor == ConsumablesVendor::Pepin });
+		}
 		break;
 	}
 	case TalkID::WitchBuy:
@@ -4524,7 +4610,7 @@ bool ShopSellHeldItem()
 	//
 	// freesItemCells is FALSE: the item is on the cursor, not in the backpack, so selling it vacates
 	// nothing that could hold gold.
-	if (!StoreGoldFit(sold, /*freesItemCells=*/false)) {
+	if (!StoreGoldFit(price, /*itemFreeingCells=*/nullptr)) {
 		stextshold = stextflag;
 		stextlhold = stextup;
 		StartStore(TalkID::NoRoom);
@@ -4603,7 +4689,7 @@ bool ShopSellInventoryItem(int cii)
 	// Checked BEFORE the item is removed - the same gate the list path uses, which this gesture also
 	// skipped (external audit of v1.9.92, finding 4). freesItemCells is true here: this one IS in the
 	// backpack, so its cells become available to hold the gold it fetches.
-	if (!StoreGoldFit(pristine, /*freesItemCells=*/true)) {
+	if (!StoreGoldFit(price, &pristine)) {
 		stextshold = stextflag;
 		stextlhold = stextup;
 		StartStore(TalkID::NoRoom);
@@ -4982,15 +5068,21 @@ void RefreshShopStock(TalkID id)
 		// knowing before pressing it: a Refresh here changes what is on Adria's own Buy tab too,
 		// because it is the same array.
 		SpawnWitch(lvl);
-		oracool::TrimShopStockToOnePage(TalkID::WitchBuy);
 		break;
 	default:
 		return;
 	}
 	// A Refresh regenerates, so the new stock needs the same one-page trim SetupTownStores applies -
 	// otherwise a refreshed shelf goes back to being a view over an oversized array, which is the
-	// hidden-reserve behaviour finding 5 is about.
-	oracool::TrimShopStockToOnePage(id);
+	// hidden-reserve behaviour the v1.9.92 audit's finding 5 is about.
+	//
+	// Supplies goes through TrimWitchStockToOnePage for the same reason SetupTownStores does: it is
+	// the tighter of the two pages Adria's array appears on, and the trim has to be run against
+	// that one for both views to agree.
+	if (id == TalkID::SmithConsumables)
+		TrimWitchStockToOnePage();
+	else
+		oracool::TrimShopStockToOnePage(id);
 	StartStore(id);
 }
 

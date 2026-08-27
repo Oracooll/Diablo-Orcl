@@ -6834,11 +6834,39 @@ void SpawnPremium(const Player &player)
 	// for, the field would say thirty over a shelf holding twenty-four. Nothing iterates it today -
 	// it only gates the refill above and is decremented on a purchase - so this is not a live bug,
 	// which is exactly why it is worth closing now rather than after something starts trusting it.
+	RecountPremiumStock();
+}
+
+void RecountPremiumStock()
+{
 	numpremium = 0;
 	for (const Item &item : premiumitems) {
 		if (!item.isEmpty())
 			numpremium++;
 	}
+}
+
+void RestockOnePremiumSlot(int slot, const Player &player)
+{
+	constexpr int maxItems = SMITH_PREMIUM_ITEMS;
+	constexpr int vanillaItems = maxItems - PremiumOracoolCount;
+	if (slot < 0 || slot >= maxItems || !premiumitems[slot].isEmpty())
+		return;
+
+	// ONE slot, which is what a purchase actually frees. SpawnPremium used to be called instead,
+	// and its refill branch fills EVERY empty vanilla slot whenever numpremium < maxItems - so
+	// after the one-page trim had deliberately emptied the slots that would not fit, the first
+	// purchase refilled all of them at once and the shelf grew back past a page without the player
+	// pressing Refresh (external audit of v1.9.97, finding 1). The comment at the call site said
+	// "restocking a sold slot"; this is the function that does that.
+	if (slot < vanillaItems) {
+		SpawnOnePremium(premiumitems[slot], premiumlevel + PremiumLevelDelta(slot, vanillaItems), player);
+	} else {
+		// StockOracoolMagicItems fills the first `want` EMPTY entries of the range it is handed, so
+		// a range of exactly one entry restocks exactly this slot.
+		StockOracoolMagicItems(&premiumitems[slot], 1, premiumlevel, 1);
+	}
+	RecountPremiumStock();
 }
 
 void SpawnWitch(int lvl)

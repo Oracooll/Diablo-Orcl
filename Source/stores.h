@@ -126,6 +126,17 @@ bool SimulateSmithConsumablesPurchaseForTest(size_t combinedIndex);
  * clear nothing (self-audit, 2026-08-15). */
 void SimulateSmithPremiumBuyForTest(int selectedIndex, Item &item);
 
+/**
+ * @brief Test hook: the sale-fit gate, at the EXACT price a sale would credit.
+ *
+ * @param itemFreeingCells the item whose backpack cells the sale vacates, or nullptr for a sale
+ *        from the cursor, which vacates nothing.
+ */
+bool StoreGoldFitForTest(int price, const Item *itemFreeingCells);
+
+/** @brief Test hook: trims Adria's array against the tighter of the two pages it appears on. */
+void TrimWitchStockToOnePageForTest();
+
 /** Current level of the item sold by Wirt */
 extern int boylevel;
 /** Current item sold by Wirt */
@@ -214,6 +225,17 @@ struct ShopSlot {
 	Item *item;
 	int index;
 	int price;
+	/**
+	 * @brief This entry may be shown but never CLEARED by the one-page trim.
+	 *
+	 * Pepin's four potions on the Supplies tab. They restock rather than sell out, so they are not
+	 * stock in the sense the trim means - clearing one would delete a permanent fixture rather than
+	 * an overflowing item. It is a property of the entry rather than of the tab because Supplies is
+	 * the only mixed shelf there is: four protected potions followed by Adria's real array, and the
+	 * trim has to be able to tell them apart within one placement pass (external audit of v1.9.97,
+	 * finding 2).
+	 */
+	bool neverTrim = false;
 };
 
 /**

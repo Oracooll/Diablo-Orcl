@@ -1117,6 +1117,17 @@ bool UseItemOpensHive(const Item &item, Point position);
 bool UseItemOpensGrave(const Item &item, Point position);
 void SpawnSmith(int lvl);
 void SpawnPremium(const Player &player);
+
+/** @brief Sets numpremium to the number of non-empty premium slots. */
+void RecountPremiumStock();
+
+/**
+ * @brief Restocks exactly premium slot @p slot, which a purchase has just emptied.
+ *
+ * A no-op on an out-of-range slot or one that is not empty. See the definition for why a purchase
+ * must not go back through SpawnPremium.
+ */
+void RestockOnePremiumSlot(int slot, const Player &player);
 void SpawnWitch(int lvl);
 void SpawnBoy(int lvl);
 void SpawnHealer(int lvl);
