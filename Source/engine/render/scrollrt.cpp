@@ -818,8 +818,10 @@ std::vector<HiddenMonsterOutline> HiddenMonsterOutlineQueue;
 
 /**
  * @brief Oracool: draws the red outline for every monster queued this frame as hidden behind
- * architecture. Always called once per frame from DrawView so the queue never accumulates stale
- * entries, regardless of whether Monster Wall Outline is enabled.
+ * architecture. Called once per frame from DrawGame - unconditionally, so the queue never
+ * accumulates stale entries whether or not Monster Wall Outline is enabled - from INSIDE the
+ * pre-zoom render region, which is the coordinate space the queued positions are in. See the note
+ * at the call site: draining it after the scale is what produced the ghost double outline.
  */
 void DrawMonsterWallOutlines(const Surface &out)
 {
@@ -1331,6 +1333,24 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	// separately, so the two cannot disagree about where a tile is.
 	oracool::DrawAuraGround(out, position, Point {} + offset, rows, columns);
 	DrawTileContent(out, position, Point {} + offset, rows, columns);
+	// The deferred monster outlines, drained HERE - after the whole scene is composited, so they
+	// land on top of any wall that would otherwise hide the body, but still BEFORE ZoomScale, so
+	// they are scaled along with everything else.
+	//
+	// This used to run from DrawView, after DrawGame returned, and so after the scale (user,
+	// 2026-08-27: "the ghost double outline of mobs [...] triggers after a few minutes of gameplay
+	// for unknown reason"). The reason was the mouse wheel: a plain notch is one 0.1x zoom step
+	// (diablo.cpp's wheel handler), so an accidental scroll put the view at 1.1x and left it there.
+	// From that moment the first-pass outline was scaled up with the scene while the second pass
+	// painted the same sprite again, unscaled and at its pre-zoom position - a smaller outline
+	// sitting inside and offset from the real one. Exactly a ghost double outline, and permanent
+	// until the player zoomed back to 1.0x, which is why it looked like it appeared from nowhere.
+	//
+	// Position alone could not have been corrected the way qol/itemlabels.cpp corrects its own
+	// deferred queue (`position *= dungeonZoomLevel`): a label is text drawn at a point, but this
+	// is a SPRITE, and ClxDrawOutlineSkipColorZero has no scale. Drawing it inside the scaled
+	// region is the only way it can come out the right size.
+	DrawMonsterWallOutlines(out);
 
 	if (zoomFactor > 1.0f) {
 		ZoomScale(fullOut.subregionY(0, gnViewportHeight), zoomFactor);
@@ -1486,11 +1506,6 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawMonsterHealthBar(out);
 		DrawFloatingNumbers(out, startPosition, offset);
 	}
-	// Oracool: drawn after the whole scene above so the outline lands on top of any wall that
-	// would otherwise hide the monster's body; always called to drain the queue every frame -
-	// deliberately NOT gated by DebugClearUi, unlike the other overlays above.
-	DrawMonsterWallOutlines(out);
-
 	if (stextflag != TalkID::None && !qtextflag)
 		DrawSText(out);
 	if (invflag) {
