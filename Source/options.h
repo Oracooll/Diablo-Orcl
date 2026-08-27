@@ -811,7 +811,6 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean griswoldRestoreHealth;
 	OptionEntryBoolean griswoldRestoreMana;
 	OptionEntryBoolean griswoldSellUniqueItems;
-	OptionEntryInt<int> griswoldUniqueShopItems;
 	OptionEntryInt<int> griswoldUniqueItemPriceMultiplier;
 	OptionEntryBoolean griswoldPremiumIgnoreAffixLevelLimits;
 	OptionEntryBoolean griswoldPremiumIgnorePriceLimits;

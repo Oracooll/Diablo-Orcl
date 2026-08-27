@@ -72,7 +72,15 @@ int numpremium;
 int premiumlevel;
 Item premiumitems[SMITH_PREMIUM_ITEMS];
 
-constexpr int SmithUniqueItemsMaximum = 8;
+// A PAGE-FULL, not a hand-picked count (user, 2026-08-27: "Uniques items quantity to be a
+// page-full. Remove Number of Uniques items from INI file. Unique shop to be only ON/OFF settable
+// in the INI").
+//
+// Forty rather than a number derived from the grid, because the grid measures CELLS and uniques
+// vary from a 1x1 ring to a 2x3 breastplate - there is no single item count that fills 160 cells.
+// The shelf is defined by what fits (see PlaceStock), so this only has to be comfortably MORE than
+// a page can hold; the page decides where the stock actually ends.
+constexpr int SmithUniqueItemsMaximum = 40;
 Item smithUniqueItems[SmithUniqueItemsMaximum];
 bool smithUniqueItemsInitialized;
 
@@ -3588,7 +3596,9 @@ void SpawnSmithUniqueItems(const Player &player)
 			candidates.push_back(static_cast<_unique_items>(i));
 	}
 
-	const int requestedCount = std::clamp(*sgOptions.Oracool.griswoldUniqueShopItems, 1, SmithUniqueItemsMaximum);
+	// No count option any more - the shelf is as long as a page (user, 2026-08-27). The INI keeps
+	// only the on/off switch, which is HasSmithUniqueShop.
+	const int requestedCount = SmithUniqueItemsMaximum;
 	const int priceMultiplier = std::max(*sgOptions.Oracool.griswoldUniqueItemPriceMultiplier, 1);
 	int generatedCount = 0;
 	while (generatedCount < requestedCount && !candidates.empty()) {

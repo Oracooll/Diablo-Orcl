@@ -128,66 +128,70 @@ constexpr int ServiceButtonSize = 20;
 constexpr int ServiceButtonGap = 3;
 
 /**
- * @brief Row-major first-fit across as many pages as the stock needs.
+ * @brief Row-major first-fit into ONE page. Stock that will not fit is not stocked.
  *
- * Paged, not truncated. The grid is 160 cells and Griswold now carries up to forty-five items; at
- * the four-to-six cells a weapon or a breastplate occupies that is comfortably more than one page
- * holds, and the first version of this function silently dropped whatever did not fit. Silently
- * unbuyable stock is the worst of the available outcomes - worse than a second page, and much worse
- * than a smaller shop.
+ * This reverses a deliberate earlier decision, so the reasoning belongs here rather than in a commit
+ * nobody will read again.
  *
- * An item that will not fit on the current page starts the next one rather than being squeezed in
- * behind an earlier item's cells.
+ * It used to page. The argument was that silently unbuyable stock is worse than a second page, and
+ * on its own terms that was right - given a shop that has already generated forty-five items, hiding
+ * some of them is the worst way to fit them into a grid that holds about thirty.
+ *
+ * The premise was the problem. A vendor does not have to generate more than it can show (user,
+ * 2026-08-27: "BASIC items tab sometimes offers more than one tab worth of items and in those cases
+ * a next/prev tab arrow buttons appear. avoid this from hapenning. keep available items up to 1 page
+ * worth of quantities"). What the shop carries is now defined as WHAT FITS, so nothing is dropped
+ * from a stock list the player could otherwise have reached: the overflow was never on the shelf.
+ *
+ * That also makes "a full page worth of items" a thing the other tabs can simply BE, by generating
+ * generously and letting the page decide where the shelf ends - which is what the Rare, Set, Unique
+ * and Supplies tabs now rely on.
  */
 std::vector<PlacedSlot> PlaceStock(const std::vector<ShopSlot> &stock)
 {
 	std::vector<PlacedSlot> placed;
 	placed.reserve(stock.size());
 	bool taken[ShopGridRows][ShopGridColumns] = {};
-	int page = 0;
 
 	for (size_t i = 0; i < stock.size(); i++) {
 		const Size cells = GetInventorySize(*stock[i].item);
-		// An item wider or taller than the whole grid can never be placed on any page. Nothing in
-		// the game is, but the page-turn below would loop forever if one ever were.
+		// An item wider or taller than the whole grid can never be placed. Nothing in the game is.
 		if (cells.width > ShopGridColumns || cells.height > ShopGridRows)
 			continue;
 
 		bool done = false;
-		while (!done) {
-			for (int row = 0; row + cells.height <= ShopGridRows && !done; row++) {
-				for (int col = 0; col + cells.width <= ShopGridColumns && !done; col++) {
-					bool free = true;
-					for (int dy = 0; dy < cells.height && free; dy++) {
-						for (int dx = 0; dx < cells.width && free; dx++)
-							free = !taken[row + dy][col + dx];
-					}
-					if (!free)
-						continue;
-					for (int dy = 0; dy < cells.height; dy++) {
-						for (int dx = 0; dx < cells.width; dx++)
-							taken[row + dy][col + dx] = true;
-					}
-					placed.push_back({ static_cast<int>(i), { col, row }, cells, page });
-					done = true;
+		for (int row = 0; row + cells.height <= ShopGridRows && !done; row++) {
+			for (int col = 0; col + cells.width <= ShopGridColumns && !done; col++) {
+				bool free = true;
+				for (int dy = 0; dy < cells.height && free; dy++) {
+					for (int dx = 0; dx < cells.width && free; dx++)
+						free = !taken[row + dy][col + dx];
 				}
+				if (!free)
+					continue;
+				for (int dy = 0; dy < cells.height; dy++) {
+					for (int dx = 0; dx < cells.width; dx++)
+						taken[row + dy][col + dx] = true;
+				}
+				placed.push_back({ static_cast<int>(i), { col, row }, cells, 0 });
+				done = true;
 			}
-			if (done)
-				break;
-			page++;
-			std::memset(taken, 0, sizeof(taken));
 		}
+		// Not placed: the shelf is full. Keep going rather than stopping, because a SMALL item
+		// after a large one may still fit in a gap the large one could not use.
 	}
 	return placed;
 }
 
-/** @brief How many pages the stock spans. Always at least one, so "Page 1 of 1" is sayable. */
-int PageCount(const std::vector<PlacedSlot> &placed)
+/**
+ * @brief Always one. Kept as a function so the page-aware call sites read honestly.
+ *
+ * The grid is single-page since 2026-08-27 - see PlaceStock. This returning a constant is what makes
+ * the page arrows never appear.
+ */
+int PageCount(const std::vector<PlacedSlot> & /*placed*/)
 {
-	int pages = 1;
-	for (const PlacedSlot &slot : placed)
-		pages = std::max(pages, slot.page + 1);
-	return pages;
+	return 1;
 }
 
 Point CellOrigin(Point cell)

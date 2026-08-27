@@ -556,7 +556,6 @@ void OverrideOptions()
 	sgOptions.Oracool.griswoldRestoreHealth.SetValue(false);
 	sgOptions.Oracool.griswoldRestoreMana.SetValue(false);
 	sgOptions.Oracool.griswoldSellUniqueItems.SetValue(false);
-	sgOptions.Oracool.griswoldUniqueShopItems.SetValue(0);
 	sgOptions.Oracool.griswoldUniqueItemPriceMultiplier.SetValue(1);
 	sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits.SetValue(false);
 	sgOptions.Oracool.griswoldPremiumIgnorePriceLimits.SetValue(false);

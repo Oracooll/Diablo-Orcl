@@ -523,8 +523,6 @@ void SaveOptions()
 	    "; ----- GRISWOLD: UNIQUE SHOP --------------------------------------------------\n; Adds a separate identified unique-item shop. Stock avoids duplicates, remains\n; independent of Premium refreshes, and does not immediately replace purchases.");
 	setInteger("Griswold Unique Item Price Multiplier", *sgOptions.Oracool.griswoldUniqueItemPriceMultiplier,
 	    "; Purchase-price multiplier applied to each unique item's normal sell value.\n; Example: 5 means five times its normal sell price.");
-	setInteger("Griswold Unique Shop Items", *sgOptions.Oracool.griswoldUniqueShopItems,
-	    "; Number of unique items offered by Griswold. Valid configured values: 1-8.");
 
 	setBoolean("Auto Identify Drops", *sgOptions.Oracool.autoIdentifyDrops,
 	    "; ----- ITEMS AND PICKUP -------------------------------------------------------\n; Identifies newly generated world drops immediately. Items deliberately dropped\n; by the player retain their existing identification state.");
@@ -1429,7 +1427,6 @@ OracoolOptions::OracoolOptions()
     , griswoldRestoreHealth("Griswold Restore Health", OptionEntryFlags::None, N_("Griswold Restore Health"), N_("Silently restores health when Griswold's menu opens."), true)
     , griswoldRestoreMana("Griswold Restore Mana", OptionEntryFlags::None, N_("Griswold Restore Mana"), N_("Silently restores mana when Griswold's menu opens."), true)
     , griswoldSellUniqueItems("Griswold Sell Unique Items", OptionEntryFlags::None, N_("Griswold Sell Unique Items"), N_("Adds a separate unique-item shop to Griswold."), false)
-    , griswoldUniqueShopItems("Griswold Unique Shop Items", OptionEntryFlags::None, N_("Griswold Unique Shop Items"), N_("Number of unique items offered by Griswold."), 8, { 1, 2, 3, 4, 5, 6, 7, 8 })
     , griswoldUniqueItemPriceMultiplier("Griswold Unique Item Price Multiplier", OptionEntryFlags::None, N_("Griswold Unique Item Price Multiplier"), N_("Multiplier applied to a unique item's normal sell value."), 20, { 1, 2, 3, 4, 5, 10, 15, 20 })
     , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes regardless of their normal quality-level requirement."), false)
     , griswoldPremiumIgnorePriceLimits("Griswold Premium Ignore Price Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Price Limits"), N_("Prevents valid Premium items from being rejected by the normal price ceiling."), false)
@@ -1500,7 +1497,6 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&griswoldRestoreHealth,
 		&griswoldRestoreMana,
 		&griswoldSellUniqueItems,
-		&griswoldUniqueShopItems,
 		&griswoldUniqueItemPriceMultiplier,
 		&griswoldPremiumIgnoreAffixLevelLimits,
 		&griswoldPremiumIgnorePriceLimits,
