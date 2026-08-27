@@ -194,18 +194,24 @@ ArtAsset SkillPointsFrameArt { "ui\\skill_points.png" };
 ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
 ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
 /**
- * Oracool: Diablo II's Paladin skill tree - 29 icons, one 56x56 cell each, in
- * oracool::ClassTreeSkill order. Cut by tools/CutPaladinTree.ps1. Larger cells than the other
- * strips because the tree lays them out three to a row rather than one per list row.
+ * The six class-tree icon strips: 56x56 cells, one frame per skill, each in its own class's
+ * ClassTreeSkill order. `ClassTreeIconIndex` is the frame number - a skill's position within its
+ * class block - so a strip's ordering IS the table's ordering and the two cannot be read apart.
+ *
+ * Replaced wholesale on 2026-08-27 from colorful-skill-icons-complete-273. That set is generated
+ * against the skill table, and all 273 names were diffed against it in order before installing.
+ *
+ * The counts matter and were wrong before: Paladin 49, Barbarian 49, Sorceress 48, Rogue 49,
+ * Bard 39, Monk 39. The previous strips ran 30, 30, 30, 21 and 21 frames, against class blocks that
+ * had grown well past them - so every skill beyond the end of its strip drew NOTHING. Silently, for
+ * the reason ClassTreeStrips' own note gives: a missing frame is indistinguishable from a skill that
+ * has no icon. Only the Paladin's was current, having been rebuilt the day before.
  */
 ArtAsset PaladinTreeIconsArt { "ui\\paladin_tree_icons.png" };
-/** The other three class trees, same 56x56 cells, each in its own class's skill order. */
 ArtAsset BarbTreeIconsArt { "ui\\barb_tree_icons.png" };
 ArtAsset SorcTreeIconsArt { "ui\\sorc_tree_icons.png" };
 ArtAsset RogueTreeIconsArt { "ui\\rogue_tree_icons.png" };
-/** The Bard's is 21 cells, not 30 - seven songs per discipline. See oracool/class_tree.h. */
 ArtAsset BardTreeIconsArt { "ui\\bard_tree_icons.png" };
-/** The Monk's is 21 too, but as three seven-tier ladders. Built by tools/BuildMonkTreeStrip.ps1. */
 ArtAsset MonkTreeIconsArt { "ui\\monk_tree_icons.png" };
 
 /**
