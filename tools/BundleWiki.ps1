@@ -27,20 +27,25 @@ $wiki = Join-Path $root 'wiki'
 $outFile = Join-Path $wiki 'oracool-wiki-bundle.html'
 
 if ($Verify) {
+    # BOTH invariants are evaluated and reported before either decides the exit code (external audit
+    # of v1.9.97, finding 7). The bundle check used to `exit 1` where it stood, so a stale bundle
+    # hid the pages-versus-code answer entirely - one failed invariant masking the second, and the
+    # second is the one that says whether what the player reads describes the game they have.
     $fp = Get-WikiSourceFingerprint -WikiRoot $wiki
     $stamped = Get-StampedWikiFingerprint -BundlePath $outFile
+    $bundleOk = $true
     if ($null -eq $stamped) {
         Write-Host "wiki bundle: NO FINGERPRINT - built before this check existed, or by hand." -ForegroundColor Yellow
         Write-Host "             run tools\BundleWiki.ps1 to stamp it."
-        exit 1
-    }
-    if ($stamped -ne $fp.Hash) {
+        $bundleOk = $false
+    } elseif ($stamped -ne $fp.Hash) {
         Write-Host "wiki bundle: STALE - it does not match the pages under wiki/." -ForegroundColor Red
         Write-Host ("             pages now: {0}" -f $fp.Hash)
         Write-Host ("             bundle has: {0}" -f $stamped)
         Write-Host ("             {0} source files hashed. Run tools\BundleWiki.ps1." -f $fp.Count)
-        exit 1
+        $bundleOk = $false
     }
+
     # Second, separate question - and the one the 2026-08-20 audit found nobody was asking. The
     # fingerprint proves the bundle matches the PAGES. Nothing proved the pages matched the CODE,
     # and they had drifted 24 versions behind without a single check complaining: data.js said
@@ -64,8 +69,11 @@ if ($Verify) {
         Write-Host ("wiki pages:  generated at {0}, matching ORACOOL_VERSION" -f $built)
     }
 
-    Write-Host ("wiki bundle: current ({0} source files, {1})" -f $fp.Count, $fp.Hash.Substring(0, 12))
-    exit 0
+    if ($bundleOk) {
+        Write-Host ("wiki bundle: current ({0} source files, {1})" -f $fp.Count, $fp.Hash.Substring(0, 12))
+        exit 0
+    }
+    exit 1
 }
 
 # The page order is the sidebar's order, and it is stated here rather than parsed out of wiki.js so

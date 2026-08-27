@@ -73,7 +73,13 @@ if not exist "%LIST%" (
 
 echo Packing...
 REM The manifest is CMake's, not a temporary this script owns - it is not deleted afterwards.
-"%PACKER%" "%SRC%" "%OUT%" "@%LIST%" || exit /b 1
+REM The exit code is captured rather than flattened to 1, so a caller sees what the packer said.
+"%PACKER%" "%SRC%" "%OUT%" "@%LIST%"
+set PACKRC=%ERRORLEVEL%
+if not "%PACKRC%"=="0" (
+  echo ERROR: the packer failed with exit code %PACKRC%
+  exit /b %PACKRC%
+)
 
 echo.
 echo devilutionx.mpq written to %OUT%

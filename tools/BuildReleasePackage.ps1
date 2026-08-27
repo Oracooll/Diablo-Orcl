@@ -167,6 +167,52 @@ if (Test-Path $assetSrc) {
 }
 Write-Host "  oracool.mpq    : current"
 
+# --- Archive CONTENTS, not archive timestamps ----------------------------------------------------
+#
+# Everything above this line compares modification times, and a modification time proves when a file
+# was written and nothing about what is in it (external audit of v1.9.97, finding 5). A truncated,
+# corrupt or simply wrong archive passes every check so far by being recent.
+#
+# So both archives are opened and every manifest entry is read back out and compared byte for byte
+# with its source, using the packer's own --verify mode - the same code that validates a freshly
+# packed archive, so there is one definition of "this archive is correct" rather than two.
+#
+# Timestamps stay above as an incremental-build convenience. They are not evidence.
+$packer = Join-Path $BuildDir 'oracool_mpq_pack.exe'
+if (-not (Test-Path $packer)) {
+    Fail ("the archive verifier is missing: $packer`n" +
+          "    cmake --build $BuildDir --target oracool_mpq_pack")
+}
+
+function Verify-Archive([string]$label, [string]$archivePath, [string]$sourceDir, [string]$listFile) {
+    if (-not (Test-Path $listFile)) {
+        Fail ("no manifest to verify $label against: $listFile`n" +
+              "    Configure and build once so CMake generates it.")
+    }
+    & $packer '--verify' $sourceDir $archivePath "@$listFile" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Fail "$label does not match its sources - repack it. The verifier's output is above."
+    }
+    Write-Host "  $label : contents verified"
+}
+
+# The engine archive is packed from the BUILD TREE's assets using CMake's generated manifest.
+Verify-Archive $engineAssetsMpq $engineMpqPath $engineSrc (Join-Path $BuildDir 'devilutionx_mpq_files.txt')
+
+# oracool.mpq is packed from the source asset folder, and its file list is the folder walk
+# build_oracool_mpq.cmd does - rebuilt here so the verifier is checking every file that should be in
+# it rather than every file that happens to be.
+$oracoolList = Join-Path ([System.IO.Path]::GetTempPath()) ("oracool_verify_$runId.txt")
+$assetRoot = (Resolve-Path $assetSrc).Path
+(Get-ChildItem $assetRoot -Recurse -File | ForEach-Object {
+    $_.FullName.Substring($assetRoot.Length + 1)
+}) | Set-Content -Path $oracoolList -Encoding utf8
+try {
+    Verify-Archive 'oracool.mpq' $mpqPath $assetRoot $oracoolList
+} finally {
+    Remove-Item $oracoolList -Force -ErrorAction SilentlyContinue
+}
+
 # --- Stage -------------------------------------------------------------------------------------
 
 $name = "DiabloOrcl-v$version-win64"
@@ -241,8 +287,46 @@ $zip = Join-Path $OutDir "$name.zip"
 $zipTemp = Join-Path $OutDir "$name.$runId.partial"
 if (Test-Path $zipTemp) { Remove-Item $zipTemp -Force }
 Compress-Archive -Path $target -DestinationPath $zipTemp -Force
-if (Test-Path $zip) { Remove-Item $zip -Force }
-Move-Item $zipTemp $zip -Force
+
+# The finished zip is OPENED and its entry list compared with what was staged, before it is allowed
+# to become the published one. Compress-Archive reporting success is not the same claim (external
+# audit of v1.9.97, finding 5's reasoning, applied here).
+$zipEntries = $null
+try {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($zipTemp)
+    try { $zipEntries = @($archive.Entries | Where-Object { $_.Name -ne '' } | ForEach-Object { $_.FullName }) }
+    finally { $archive.Dispose() }
+} catch {
+    Remove-Item $zipTemp -Force -ErrorAction SilentlyContinue
+    Fail "the zip that was just written cannot be opened: $($_.Exception.Message)"
+}
+if ($zipEntries.Count -ne $staged.Count) {
+    Remove-Item $zipTemp -Force -ErrorAction SilentlyContinue
+    Fail "the zip holds $($zipEntries.Count) files but $($staged.Count) were staged"
+}
+
+# ATOMIC REPLACE, not delete-then-move. The old shape deleted the published zip and then moved the
+# partial onto its name, and the comment above called that "either the previous zip or a complete
+# new one" - which is false for the interval between the two, where there is NO zip at all
+# (external audit of v1.9.97, finding 6). A crash, a permission error, an antivirus lock or a
+# OneDrive race in that window loses the last known-good package.
+#
+# [System.IO.File]::Replace is a genuine same-volume replace primitive and keeps the old file as a
+# backup until it succeeds. It requires the destination to exist, so a first-ever publish still
+# takes the plain move - which is safe, because there is nothing there to lose.
+if (Test-Path $zip) {
+    $zipBackup = Join-Path $OutDir "$name.$runId.previous"
+    try {
+        [System.IO.File]::Replace((Resolve-Path $zipTemp).Path, (Resolve-Path $zip).Path, $zipBackup)
+    } catch {
+        Remove-Item $zipTemp -Force -ErrorAction SilentlyContinue
+        Fail "could not replace the published zip - the previous one is untouched: $($_.Exception.Message)"
+    }
+    Remove-Item $zipBackup -Force -ErrorAction SilentlyContinue
+} else {
+    Move-Item $zipTemp $zip
+}
 
 $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 Remove-Item $stage -Recurse -Force

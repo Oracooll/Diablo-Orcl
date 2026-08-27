@@ -20,13 +20,27 @@
  * line the .cmd builds hit Windows' ~8191-character limit - which surfaced as "The input line is
  * too long" from cmd.exe, before the packer was reached at all.
  *
- * Usage: oracool_mpq_pack <source_dir> <output.mpq> (<relative_file>... | @listfile)
+ * A `--verify` first argument checks an EXISTING archive against the same source tree and file list
+ * instead of writing one, reading every entry out and comparing it with the file on disk. Release
+ * packaging calls it, because a modification time proves when an archive was written and nothing at
+ * all about what is in it (external audit of v1.9.97, finding 5).
+ *
+ * Usage: oracool_mpq_pack [--verify] <source_dir> <output.mpq> (<relative_file>... | @listfile)
  */
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
+
+#ifdef _WIN32
+#include <process.h>
+#define ORACOOL_PACK_GETPID _getpid
+#else
+#include <unistd.h>
+#define ORACOOL_PACK_GETPID getpid
+#endif
 
 #include <SDL.h>
 
@@ -34,19 +48,105 @@
 #include "mpq/mpq_writer.hpp"
 #include "utils/file_util.h"
 
+namespace {
+
+/** @brief Reads a whole file, or nothing if it cannot be read in full. */
+std::optional<std::vector<devilution::byte>> ReadWholeFile(const std::string &path)
+{
+	SDL_RWops *rw = SDL_RWFromFile(path.c_str(), "rb");
+	if (rw == nullptr)
+		return std::nullopt;
+	const Sint64 size = SDL_RWsize(rw);
+	if (size < 0) {
+		SDL_RWclose(rw);
+		return std::nullopt;
+	}
+	std::vector<devilution::byte> data(static_cast<size_t>(size));
+	const size_t read = size == 0 ? 0 : SDL_RWread(rw, data.data(), 1, static_cast<size_t>(size));
+	SDL_RWclose(rw);
+	if (read != static_cast<size_t>(size))
+		return std::nullopt;
+	return data;
+}
+
+/**
+ * @brief Reads every named entry out of @p archivePath and compares it byte for byte with its source.
+ *
+ * The old check called HasFile and stopped there, which proves the NAME TABLE and nothing else: an
+ * archive whose entries are structurally listed and whose sector data is corrupt, truncated or
+ * simply from a different build passed it (external audit of v1.9.97, finding 5). Reading the bytes
+ * back is what makes "the archive is correct" a statement about contents.
+ *
+ * @param archiveNames the entry names, backslash-separated, as they were written.
+ * @param relPaths the matching source-relative paths, forward-slash separated.
+ */
+bool VerifyArchiveContents(const std::string &archivePath, const std::string &sourceDir,
+    const std::vector<std::string> &archiveNames, const std::vector<std::string> &relPaths)
+{
+	int32_t error = 0;
+	std::optional<devilution::MpqArchive> archive = devilution::MpqArchive::Open(archivePath.c_str(), error);
+	if (!archive) {
+		std::fprintf(stderr, "ERROR: %s cannot be opened as an MPQ (%d)\n", archivePath.c_str(), error);
+		return false;
+	}
+
+	for (size_t i = 0; i < archiveNames.size(); i++) {
+		const std::string &name = archiveNames[i];
+		if (!archive->HasFile(name.c_str())) {
+			std::fprintf(stderr, "ERROR: %s is missing from %s\n", name.c_str(), archivePath.c_str());
+			return false;
+		}
+		std::size_t packedSize = 0;
+		int32_t readError = 0;
+		std::unique_ptr<devilution::byte[]> packed = archive->ReadFile(name.c_str(), packedSize, readError);
+		if (packed == nullptr) {
+			std::fprintf(stderr, "ERROR: %s cannot be read back out of %s (%d)\n", name.c_str(),
+			    archivePath.c_str(), readError);
+			return false;
+		}
+		const std::optional<std::vector<devilution::byte>> source = ReadWholeFile(sourceDir + "/" + relPaths[i]);
+		if (!source) {
+			std::fprintf(stderr, "ERROR: cannot read the source of %s to compare against\n", name.c_str());
+			return false;
+		}
+		if (packedSize != source->size()) {
+			std::fprintf(stderr, "ERROR: %s is %zu bytes in the archive and %zu on disk\n", name.c_str(),
+			    packedSize, source->size());
+			return false;
+		}
+		if (packedSize != 0 && std::memcmp(packed.get(), source->data(), packedSize) != 0) {
+			std::fprintf(stderr, "ERROR: %s differs from its source\n", name.c_str());
+			return false;
+		}
+	}
+	return true;
+}
+
+} // namespace
+
 int main(int argc, char **argv)
 {
-	if (argc < 4) {
-		std::fprintf(stderr, "Usage: %s <source_dir> <output.mpq> <relative_file>...\n", argv[0]);
+	// --verify checks an existing archive instead of writing one. Same arguments after it, so a
+	// caller can verify exactly what it packed by repeating the command with the flag added.
+	int arg = 1;
+	bool verifyOnly = false;
+	if (argc > 1 && std::strcmp(argv[1], "--verify") == 0) {
+		verifyOnly = true;
+		arg = 2;
+	}
+
+	if (argc < arg + 3) {
+		std::fprintf(stderr, "Usage: %s [--verify] <source_dir> <output.mpq> <relative_file>...\n", argv[0]);
 		return 1;
 	}
-	const std::string sourceDir = argv[1];
-	const std::string outPath = argv[2];
+	const std::string sourceDir = argv[arg];
+	const std::string outPath = argv[arg + 1];
+	const int firstFileArg = arg + 2;
 
 	// The file list, from the command line or from a response file.
 	std::vector<std::string> relPaths;
-	if (argc == 4 && argv[3][0] == '@') {
-		const char *listPath = argv[3] + 1;
+	if (argc == firstFileArg + 1 && argv[firstFileArg][0] == '@') {
+		const char *listPath = argv[firstFileArg] + 1;
 		std::ifstream list(listPath);
 		if (!list) {
 			std::fprintf(stderr, "ERROR: cannot read list file %s\n", listPath);
@@ -66,8 +166,26 @@ int main(int argc, char **argv)
 			return 1;
 		}
 	} else {
-		for (int i = 3; i < argc; i++)
+		for (int i = firstFileArg; i < argc; i++)
 			relPaths.emplace_back(argv[i]);
+	}
+
+	// The archive-internal names: the same relative paths with '/' rewritten to '\\'.
+	std::vector<std::string> allArchiveNames;
+	allArchiveNames.reserve(relPaths.size());
+	for (const std::string &rel : relPaths) {
+		std::string name = rel;
+		for (char &ch : name)
+			if (ch == '/')
+				ch = '\\';
+		allArchiveNames.push_back(std::move(name));
+	}
+
+	if (verifyOnly) {
+		if (!VerifyArchiveContents(outPath, sourceDir, allArchiveNames, relPaths))
+			return 1;
+		std::printf("verified %zu file(s) in %s\n", relPaths.size(), outPath.c_str());
+		return 0;
 	}
 
 	// BUILD INTO A TEMPORARY, and do not touch the real archive until the temporary has been proved
@@ -86,15 +204,24 @@ int main(int argc, char **argv)
 	// So: a unique temporary, explicit Finish/Publish with their results checked, validation, and
 	// only then the replace. Every failure below discards the shadow and leaves the previous archive
 	// exactly as it was.
-	const std::string tempPath = outPath + ".building";
+	// UNIQUE PER PROCESS, not a fixed suffix (external audit of v1.9.97, finding 4). It used to be
+	// `outPath + ".building"`, which the comment above called a unique temporary and which is not
+	// one: two packers aimed at the same archive shared that path, shared the MpqWriter shadow
+	// derived from it, and shared cleanup that cannot tell whose file it is deleting. One could
+	// delete the other's work in progress, validate against the other's archive, or publish a
+	// generation built from the wrong response list. Ninja serialises one producer inside one build,
+	// but a manual repack beside a running build is an ordinary thing to do.
+	//
+	// The process id is what makes it exclusive: two live processes cannot share one. The
+	// performance counter distinguishes successive runs of the same pid after a crash left a shadow
+	// behind, so a stale temporary is never mistaken for this run's.
+	const std::string tempPath = outPath + "." + std::to_string(ORACOOL_PACK_GETPID()) + "."
+	    + std::to_string(SDL_GetPerformanceCounter()) + ".building";
 	devilution::RemoveFile(tempPath.c_str());
 
 	devilution::MpqWriter writer(tempPath.c_str());
 	size_t total = 0;
 	int packed = 0;
-	std::vector<std::string> archiveNames;
-	archiveNames.reserve(relPaths.size());
-
 	// Any early exit from here on must discard rather than let the destructor publish.
 	const auto fail = [&writer, &tempPath](const char *what) {
 		writer.DiscardShadow();
@@ -103,7 +230,8 @@ int main(int argc, char **argv)
 		return 1;
 	};
 
-	for (std::string rel : relPaths) {
+	for (size_t i = 0; i < relPaths.size(); i++) {
+		const std::string &rel = relPaths[i];
 		// The relative path is both the read location under sourceDir and the name inside the
 		// archive - it must actually BE relative and stay inside the source tree. A '..' segment
 		// or an absolute path would read files from anywhere on disk into the archive (external
@@ -114,31 +242,17 @@ int main(int argc, char **argv)
 			return fail(("refusing path outside the source dir: " + rel).c_str());
 		}
 		const std::string diskPath = sourceDir + "/" + rel;
-		for (char &ch : rel)
-			if (ch == '/')
-				ch = '\\';
+		const std::string &name = allArchiveNames[i];
 
-		SDL_RWops *rw = SDL_RWFromFile(diskPath.c_str(), "rb");
-		if (rw == nullptr)
+		const std::optional<std::vector<devilution::byte>> data = ReadWholeFile(diskPath);
+		if (!data)
 			return fail(("cannot read " + diskPath + ": " + SDL_GetError()).c_str());
-		const Sint64 size = SDL_RWsize(rw);
-		if (size < 0) {
-			SDL_RWclose(rw);
-			return fail(("cannot size " + diskPath).c_str());
-		}
-		std::vector<devilution::byte> data(static_cast<size_t>(size));
-		const size_t read = size == 0 ? 0 : SDL_RWread(rw, data.data(), 1, static_cast<size_t>(size));
-		SDL_RWclose(rw);
-		if (read != static_cast<size_t>(size))
-			return fail(("short read on " + diskPath).c_str());
 
-		if (!writer.WriteFile(rel.c_str(), data.data(), data.size()))
-			return fail(("failed to write " + rel + " into the archive").c_str());
-		std::printf("  %-52s %8zu bytes\n", rel.c_str(), data.size());
-		total += data.size();
+		if (!writer.WriteFile(name.c_str(), data->data(), data->size()))
+			return fail(("failed to write " + name + " into the archive").c_str());
+		std::printf("  %-52s %8zu bytes\n", name.c_str(), data->size());
+		total += data->size();
 		packed++;
-		// The archive-internal name, kept for the validation pass below.
-		archiveNames.push_back(rel);
 	}
 
 	// EXPLICIT commit, with both results checked. Leaving this to ~MpqWriter is what made a
@@ -149,22 +263,13 @@ int main(int argc, char **argv)
 		return fail("failed to publish the archive");
 
 	// VALIDATE the temporary before it is allowed to replace anything. A timestamp proves when a
-	// file was written, not what is in it.
-	{
-		int32_t error = 0;
-		std::optional<devilution::MpqArchive> check = devilution::MpqArchive::Open(tempPath.c_str(), error);
-		if (!check) {
-			devilution::RemoveFile(tempPath.c_str());
-			std::fprintf(stderr, "ERROR: the archive just written cannot be opened (%d)\n", error);
-			return 1;
-		}
-		for (const std::string &name : archiveNames) {
-			if (!check->HasFile(name.c_str())) {
-				devilution::RemoveFile(tempPath.c_str());
-				std::fprintf(stderr, "ERROR: %s is missing from the archive that was just written\n", name.c_str());
-				return 1;
-			}
-		}
+	// file was written, not what is in it - and neither does a name table, which is all this used to
+	// check (external audit of v1.9.97, finding 5). Every entry is now read back out and compared
+	// with its source.
+	if (!VerifyArchiveContents(tempPath, sourceDir, allArchiveNames, relPaths)) {
+		devilution::RemoveFile(tempPath.c_str());
+		std::fprintf(stderr, "ERROR: the archive just written does not match its sources\n");
+		return 1;
 	}
 
 	// Only now does the real archive change. ReplaceFileAtomically is the same primitive MpqWriter

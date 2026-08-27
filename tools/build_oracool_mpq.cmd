@@ -47,8 +47,25 @@ REM is too long" without naming a cause. A list file has no such ceiling.
 REM Scoped to this process, not a fixed name (external audit of v1.9.92, finding 9): two invocations
 REM on one machine shared %TEMP%\oracool_mpq_files.txt, so one could truncate the list the other was
 REM feeding the packer.
-set LIST=%TEMP%\oracool_mpq_files_%RANDOM%_%TIME:~9,2%.txt
-if exist "%LIST%" del "%LIST%"
+REM EXCLUSIVELY OWNED, not merely improbable. It used to be %RANDOM%_%TIME:~9,2% - 32,768 values and
+REM a clock in hundredths - so two invocations could share one list and one could truncate the list
+REM the other was feeding the packer (external audit of v1.9.97, finding 4).
+REM
+REM cmd.exe has no exclusive file create and no $$, but `mkdir` IS atomic and fails when the
+REM directory already exists, so a directory claimed that way is genuinely this run's. The retry
+REM loop is what turns "probably free" into "provably mine": whoever's mkdir succeeds owns it.
+set LISTDIR=
+for /l %%A in (1,1,20) do (
+  if not defined LISTDIR (
+    set "TRYDIR=%TEMP%\oracool_mpq_%RANDOM%%RANDOM%"
+    mkdir "!TRYDIR!" 2>nul && set "LISTDIR=!TRYDIR!"
+  )
+)
+if not defined LISTDIR (
+  echo ERROR: could not claim a temporary directory under %TEMP%
+  exit /b 1
+)
+set LIST=%LISTDIR%\files.txt
 pushd "%SRC%"
 for /r %%F in (*) do (
   set "P=%%F"
@@ -58,8 +75,17 @@ for /r %%F in (*) do (
 popd
 
 echo Packing...
-"%PACKER%" "%SRC%" "%OUT%" "@%LIST%" || exit /b 1
-del "%LIST%"
+REM The exit code is CAPTURED and the temporary is cleaned up on both paths. `|| exit /b 1` used to
+REM leave here directly on failure, so the response file and its directory survived every failed run
+REM (external audit of v1.9.97, finding 4) - and a failure reported 1 rather than what the packer
+REM actually returned.
+"%PACKER%" "%SRC%" "%OUT%" "@%LIST%"
+set PACKRC=%ERRORLEVEL%
+rmdir /s /q "%LISTDIR%" 2>nul
+if not "%PACKRC%"=="0" (
+  echo ERROR: the packer failed with exit code %PACKRC%
+  exit /b %PACKRC%
+)
 
 echo.
 echo oracool.mpq written to %OUT%
