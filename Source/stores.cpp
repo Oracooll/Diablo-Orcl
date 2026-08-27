@@ -1392,7 +1392,17 @@ bool WitchRechargeOk(int i)
  * is plausible. It is cleared with the rest of the stores in InitStores.
  */
 struct SoldItem {
+	/**
+	 * @brief The item EXACTLY as the player owned it. Its own values are never overwritten.
+	 *
+	 * They used to be. Selling wrote the quarter-price it fetched into `_ivalue` and `_iIvalue`
+	 * before recording, so buying back returned an item worth a quarter of the one sold - and
+	 * selling that fetched a quarter again. Every round trip divided the item by four, permanently
+	 * and invisibly (user, 2026-08-27: "it is like it is constantly changing and reducing").
+	 */
 	Item item;
+	/** @brief What the player was paid, and therefore what buying it back costs. */
+	int price;
 	/** @brief Which vendor bought it. Adria and Griswold do not share a shelf. */
 	bool witch;
 };
@@ -1423,15 +1433,18 @@ std::vector<size_t> BuybackIndicesFor(TalkID id)
 	return indices;
 }
 
-void RecordSale(const Item &item)
+void RecordSale(const Item &item, int price)
 {
 	if (item.isEmpty())
 		return;
-	// Newest first, and the oldest falls off the end. The price the player was paid is already in
-	// _iIvalue by the time anything calls this - that is what makes buyback "at sold price" free.
+	// Newest first, and the oldest falls off the end.
+	//
+	//  price is passed in rather than read out of the item, since 2026-08-27. It used to be taken
+	// from `_iIvalue`, which meant every caller had to overwrite the item with its own sale price
+	// first - and that overwritten copy was what the player got back. See SoldItem::item.
 	if (BuybackStock.size() >= MaxBuybackItems)
 		BuybackStock.pop_back();
-	BuybackStock.insert(BuybackStock.begin(), { item, IsWitchShopScreen(stextflag) });
+	BuybackStock.insert(BuybackStock.begin(), { item, price, IsWitchShopScreen(stextflag) });
 }
 
 /** @brief Pays @p cost into the player's purse, wherever that is. Split out of StoreSellItemAt. */
@@ -2353,6 +2366,19 @@ void StoreSellItemAt(int idx)
 {
 	Player &myPlayer = *MyPlayer;
 
+	// Taken BEFORE the removal, because the removal is what destroys it. storehold's copy is NOT
+	// this item: the list builder overwrote its `_ivalue` and `_iIvalue` with the sale price so the
+	// row could display one, and recording that copy is what sent a devalued item to the buyback
+	// shelf (user, 2026-08-27). The price is read from the display copy, where it belongs; the ITEM
+	// is read from the player, where it is still whole.
+	const Item pristine = [&myPlayer, idx]() -> Item {
+		if (storehTabIdx[idx] >= 0)
+			return myPlayer.InvTabList[storehTabIdx[idx]][storehidx[idx]];
+		if (storehidx[idx] >= 0)
+			return myPlayer.InvList[storehidx[idx]];
+		return myPlayer.SpdList[-(storehidx[idx] + 1)];
+	}();
+
 	if (storehTabIdx[idx] >= 0)
 		RemoveExtraTabItem(myPlayer, storehTabIdx[idx], storehidx[idx]);
 	else if (storehidx[idx] >= 0)
@@ -2373,7 +2399,7 @@ void StoreSellItemAt(int idx)
 		}
 	}
 
-	RecordSale(sold);
+	RecordSale(pristine, cost);
 	CreditSaleProceeds(cost);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
@@ -3914,7 +3940,9 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 			const std::vector<size_t> indices = BuybackIndicesFor(id);
 			for (size_t i = 0; i < indices.size(); i++) {
 				SoldItem &sold = BuybackStock[indices[i]];
-				stock.push_back({ &sold.item, static_cast<int>(i), sold.item._iIvalue });
+				// The stored price, not the item's own value: the item is pristine now, so its value is
+				// what it is WORTH, and what this row must show is what it costs to take back.
+				stock.push_back({ &sold.item, static_cast<int>(i), sold.price });
 			}
 		}
 		break;
@@ -4014,15 +4042,16 @@ bool ShopSellHeldItem()
 	if (!accepted)
 		return false;
 
-	Item sold = myPlayer.HoldItem;
-	sold._ivalue = GetItemSellValue(sold);
-	sold._iIvalue = sold._ivalue;
+	// Recorded UNCHANGED, with the price alongside - see SoldItem::item. Overwriting the item with
+	// its own sale price is what made a sold-and-rebought item lose three quarters of its value.
+	const Item sold = myPlayer.HoldItem;
+	const int price = GetItemSellValue(sold);
 
 	// No room check: in single-player the proceeds land in the Stash pool, which has no grid to
 	// fill. The multiplayer arm of CreditSaleProceeds still puts gold in the backpack, and V1 is
 	// single-player - if that ever changes this needs the StoreGoldFit probe the list path uses.
-	RecordSale(sold);
-	CreditSaleProceeds(sold._ivalue);
+	RecordSale(sold, price);
+	CreditSaleProceeds(price);
 
 	myPlayer.HoldItem.clear();
 	NewCursor(CURSOR_HAND);
@@ -4047,11 +4076,21 @@ bool ShopSellInventoryItem(int cii)
 	if (!myPlayer.HoldItem.isEmpty())
 		return false;
 
-	const int invListIndex = myPlayer.InvGrid[cii - INVITEM_INV_FIRST];
-	if (invListIndex == 0)
-		return false;
-	const int index = std::abs(invListIndex) - 1;
-	if (index < 0 || index >= myPlayer._pNumInv)
+	// A LIST index, not a grid cell. Reported from play, 2026-08-27: "i right click on items to buy
+	// them back and then to resell then over and over and something weird happend. random itrem get
+	// sold back."
+	//
+	// It did. The first version of this read `InvGrid[cii - INVITEM_INV_FIRST]`, treating the value
+	// as a cell coordinate and looking up whatever item occupied that cell - but `pcursinvitem` is
+	// built from GetActiveInvListItem (see CheckInvHLight), so the offset is already an index into
+	// the backpack list. The two numbering schemes agree only by coincidence, and the coincidence
+	// breaks the moment the list is compacted by a sale - which is why it took repeated selling to
+	// show itself.
+	//
+	// Tab-aware for the same reason UseInvItem is: the index belongs to whichever backpack page is
+	// displayed, and reading InvList directly silently used the wrong item on tabs 2-10.
+	const int index = cii - INVITEM_INV_FIRST;
+	if (index < 0 || index >= GetActiveNumInv(myPlayer))
 		return false;
 
 	// The vendor's own judgement of what they will take, exactly as the held-item path asks it -
@@ -4062,16 +4101,26 @@ bool ShopSellInventoryItem(int cii)
 	        TalkID::SmithConsumables, TalkID::SmithSell))
 		return false;
 
-	Item sold = myPlayer.InvList[index];
+	const Item &sold = GetActiveInvListItem(myPlayer, index);
+	if (sold.isEmpty())
+		return false;
 	if (!(witch ? WitchSellOk(sold) : SmithSellOk(sold)))
 		return false;
 
-	sold._ivalue = GetItemSellValue(sold);
-	sold._iIvalue = sold._ivalue;
+	// The item is recorded UNCHANGED and the price travels beside it. Reported from play,
+	// 2026-08-27: "something weird is happening with the sell/back back/resell, rebuyback price of
+	// items. it is like it is constantly changing and reducing."
+	//
+	// It was. Selling used to overwrite the item's own `_ivalue`/`_iIvalue` with the quarter-price
+	// it fetched, and that mutated copy was what went into the buyback list - so buying it back
+	// handed the player an item worth a quarter of what they had sold. Sell it again and it fetched
+	// a quarter of THAT. Every round trip through the vendor divided the item by four, permanently.
+	const int price = GetItemSellValue(sold);
+	const Item pristine = sold;
 
-	myPlayer.RemoveInvItem(index);
-	RecordSale(sold);
-	CreditSaleProceeds(sold._ivalue);
+	RemoveActiveInvItem(myPlayer, index);
+	RecordSale(pristine, price);
+	CreditSaleProceeds(price);
 	PlaySFX(IS_GOLD);
 	CalcPlrInv(myPlayer, true);
 	oracool::ScheduleAutoSaveForStoreTransaction();
@@ -4147,8 +4196,10 @@ void ShopBuyBack(int index)
 	if (index < 0 || index >= static_cast<int>(indices.size()))
 		return;
 	const size_t slot = indices[index];
+	// The item exactly as it was sold, and the price it fetched - stored side by side rather than
+	// the price being smuggled inside the item. See SoldItem.
 	Item item = BuybackStock[slot].item;
-	const int price = item._iIvalue;
+	const int price = BuybackStock[slot].price;
 
 	// Both refusal screens return to the tab through stextshold, so they have to be told which one
 	// that is before either can fire.
@@ -4166,6 +4217,10 @@ void ShopBuyBack(int index)
 	TakePlrsMoney(price);
 	StoreAutoPlace(item, true);
 	BuybackStock.erase(BuybackStock.begin() + static_cast<ptrdiff_t>(slot));
+	// Coins changing hands, same as every other vendor transaction (user, 2026-08-27: "when i buy
+	// back an item - play gold sound"). This path completes itself instead of going through
+	// ConfirmEnter, so it does not inherit the sound played there.
+	PlaySFX(IS_GOLD);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
