@@ -59,14 +59,14 @@ namespace devilution {
 TalkID stextflag;
 
 int storenumh;
-int8_t storehidx[48];
+int8_t storehidx[StoreHoldCapacity];
 /**
  * @brief Oracool Tabbed Inventory: -1 means storehidx[i] keeps its existing InvList/belt meaning;
  * 0-8 means the item at storehold[i] came from extra tab storehTabIdx[i] (displayed as tab
  * storehTabIdx[i]+2), at InvTabList position storehidx[i] within that tab.
  */
-int8_t storehTabIdx[48];
-Item storehold[48];
+int8_t storehTabIdx[StoreHoldCapacity];
+Item storehold[StoreHoldCapacity];
 
 Item smithitem[SMITH_ITEMS];
 int numpremium;
@@ -1015,7 +1015,7 @@ bool PopulateSellList(bool (*sellOk)(const Item &))
 	const Player &myPlayer = *MyPlayer;
 
 	auto addIfSellable = [&](const Item &item, int8_t idx, int8_t tabIdx) {
-		if (storenumh >= 48 || !sellOk(item))
+		if (storenumh >= StoreHoldCapacity || !sellOk(item))
 			return;
 		foundAny = true;
 		storehold[storenumh] = item;
@@ -1199,7 +1199,7 @@ void StartSmithRepair()
 	}
 
 	for (int i = 0; i < myPlayer._pNumInv; i++) {
-		if (storenumh >= 48)
+		if (storenumh >= StoreHoldCapacity)
 			break;
 		if (SmithRepairOk(i)) {
 			AddStoreHoldRepair(&myPlayer.InvList[i], i);
@@ -1632,6 +1632,12 @@ int RechargePriceFor(const Item &item)
 
 void AddStoreHoldRecharge(Item itm, int8_t i)
 {
+	// The bound belongs HERE, not only in the loop that calls this. Every caller had to remember it
+	// and one of them - the equipped weapon, added before the loop starts - never checked at all.
+	// It happens to be safe because storenumh is zero at that point, which is a fact about the
+	// caller rather than a property of this function.
+	if (storenumh >= StoreHoldCapacity)
+		return;
 	const int price = RechargePriceFor(itm);
 	if (price == 0)
 		return;
@@ -1662,7 +1668,7 @@ void StartWitchRecharge()
 	}
 
 	for (int i = 0; i < myPlayer._pNumInv; i++) {
-		if (storenumh >= 48)
+		if (storenumh >= StoreHoldCapacity)
 			break;
 		if (WitchRechargeOk(i)) {
 			rechargeok = true;
@@ -1965,7 +1971,7 @@ void StartStorytellerIdentify()
 	}
 
 	for (int i = 0; i < myPlayer._pNumInv; i++) {
-		if (storenumh >= 48)
+		if (storenumh >= StoreHoldCapacity)
 			break;
 		auto &item = myPlayer.InvList[i];
 		if (IdItemOk(&item)) {
@@ -3435,6 +3441,105 @@ bool HasSmithUniqueShop()
 }
 
 /**
+ * @brief Whose counter @p id is - the towner the player must be standing at to be using it.
+ *
+ * Derived from the SCREEN rather than read from `talker`, deliberately. `talker` is only written by
+ * the gossip paths, so it is stale for most of these screens and would name whoever was spoken to
+ * last - which is exactly the wrong thing to measure a distance against.
+ */
+_talker_id TownerForStoreDirect(TalkID id)
+{
+	switch (id) {
+	case TalkID::Smith:
+	case TalkID::SmithBuy:
+	case TalkID::SmithSell:
+	case TalkID::SmithRepair:
+	case TalkID::SmithPremiumBuy:
+	case TalkID::SmithUniqueBuy:
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
+	case TalkID::SmithConsumables:
+	case TalkID::SmithRecharge:
+		return TOWN_SMITH;
+	case TalkID::Witch:
+	case TalkID::WitchBuy:
+	case TalkID::WitchSell:
+	case TalkID::WitchRecharge:
+		return TOWN_WITCH;
+	case TalkID::Healer:
+	case TalkID::HealerBuy:
+		return TOWN_HEALER;
+	case TalkID::Boy:
+	case TalkID::BoyBuy:
+		return TOWN_PEGBOY;
+	case TalkID::Storyteller:
+	case TalkID::StorytellerIdentify:
+	case TalkID::StorytellerIdentifyShow:
+		return TOWN_STORY;
+	case TalkID::Tavern:
+		return TOWN_TAVERN;
+	case TalkID::Drunk:
+		return TOWN_DRUNK;
+	case TalkID::Barmaid:
+		return TOWN_BMAID;
+	default:
+		return NUM_TOWNER_TYPES;
+	}
+}
+
+/**
+ * @brief Whose counter @p id is, following a sub-screen back to the shop that raised it.
+ *
+ * Confirm, No money, No room and Gossip belong to whatever put them up, which `stextshold` still
+ * remembers - asking about the sub-screen alone would answer "no towner" and leave a confirmation
+ * dialog floating after its shop had closed.
+ *
+ * ONE step back, not a walk: a sub-screen's parent is always a real screen, and following the chain
+ * recursively would hang the game outright if the two ever pointed at each other.
+ */
+_talker_id TownerForStore(TalkID id)
+{
+	const _talker_id direct = TownerForStoreDirect(id);
+	if (direct != NUM_TOWNER_TYPES)
+		return direct;
+	return TownerForStoreDirect(stextshold);
+}
+
+void CloseStoreIfPlayerWalkedAway()
+{
+	if (stextflag == TalkID::None || leveltype != DTYPE_TOWN || MyPlayer == nullptr)
+		return;
+	// A screen with no towner behind it - nothing to measure a distance against, so it is left alone
+	// rather than guessed at.
+	const _talker_id owner = TownerForStore(stextflag);
+	if (owner == NUM_TOWNER_TYPES)
+		return;
+	const Towner *towner = GetTowner(owner);
+	if (towner == nullptr)
+		return;
+
+	// FIVE tiles, against the two TalkToTowner needs to open a shop. The gap is deliberate: the shop
+	// is a panel rather than a modal screen in this fork (so items can be dragged out of the
+	// inventory to sell), which means the player can walk while it is open, and a threshold equal to
+	// the opening one would slam the shop shut on a single step taken by accident. Five is far
+	// enough to be a decision.
+	constexpr int WalkAwayTiles = 5;
+	if (MyPlayer->position.tile.WalkingDistance(towner->position) <= WalkAwayTiles)
+		return;
+
+	// Straight to closed, not back to the vendor's dialog: the player has left the counter, and a
+	// dialog they did not ask for is no better than the shop they did not ask to keep.
+	//
+	// NOT via StoreESC. That walks a screen back to its parent and re-opens it, which is the wrong
+	// shape here and would need the result overriding anyway. The one piece of state it would have
+	// cleaned up is the service cursor, so that is cleaned up explicitly - a hammer left armed by a
+	// shop the player has walked away from would repair the next thing they clicked and charge them.
+	DisarmShopServiceCursor();
+	IsRefreshUntilPromptOpen = false;
+	stextflag = TalkID::None;
+}
+
+/**
  * @brief The player's whole spendable gold: carried plus the shared Stash pool.
  *
  * Outside the anonymous namespace, and declared in stores.h, so the character sheet and the
@@ -3720,6 +3825,10 @@ bool SimulateSmithConsumablesPurchaseForTest(size_t combinedIndex)
 
 void AddStoreHoldRepair(Item *itm, int8_t i)
 {
+	// Same reasoning as AddStoreHoldRecharge: the bound is this function's business, not its
+	// callers'.
+	if (storenumh >= StoreHoldCapacity)
+		return;
 	const int v = RepairPriceFor(*itm);
 	// Zero means "nothing to charge for", and this list is a list of things to pay for. The old
 	// shape wrote the item into storehold BEFORE this test and then returned without counting it,

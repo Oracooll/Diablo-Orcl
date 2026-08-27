@@ -25,7 +25,12 @@ namespace devilution {
 // that showed four rows at a time. At an average of four cells an item, filling the grid takes
 // roughly forty, so these are the counts the grid can actually hold rather than the counts the old
 // list could scroll through.
-#define WITCH_ITEMS 45
+// Adria's shelf is sized to FILL the grid rather than to a count that looked generous (user,
+// 2026-08-27: "adria shop to fill as much as it can the 10x16 grid"). The grid is 160 cells and her
+// wares are small - a potion or a rune is one cell, a book four, a staff six - so forty-five items
+// left most of it empty. Ninety over-supplies it on purpose: PlaceStock lays out what fits and the
+// remainder was never on the shelf (see its note), so the shelf ends where the page does.
+#define WITCH_ITEMS 90
 #define SMITH_ITEMS 45
 #define SMITH_PREMIUM_ITEMS 30
 #define STORE_LINES 104
@@ -65,12 +70,21 @@ enum class TalkID : uint8_t {
 /** Currently active store */
 extern DVL_API_FOR_TEST TalkID stextflag;
 
+/**
+ * @brief How many items the sell/repair/recharge screens can hold at once.
+ *
+ * Named because it was the literal 48 in five places - the two array bounds and three separate
+ * caller-side guards - and a bound that lives in the callers is a bound that a sixth caller does not
+ * have. See AddStoreHoldRecharge, which now checks it itself.
+ */
+constexpr int StoreHoldCapacity = 48;
+
 /** Current index into storehidx/storehold */
 extern DVL_API_FOR_TEST int storenumh;
 /** Map of inventory items being presented in the store */
-extern int8_t storehidx[48];
+extern int8_t storehidx[StoreHoldCapacity];
 /** Copies of the players items as presented in the store */
-extern DVL_API_FOR_TEST Item storehold[48];
+extern DVL_API_FOR_TEST Item storehold[StoreHoldCapacity];
 
 /** Simulates confirming "identify which item?" on storehold[index], exactly as the real UI would. */
 DVL_API_FOR_TEST void SimulateStorytellerIdentifyForTest(size_t index);
@@ -311,6 +325,16 @@ void TakePlrsMoney(int cost);
  * inventory's readout was written twice against the wrong field before this was noticed.
  */
 uint32_t TotalPlayerGold();
+
+/**
+ * @brief Closes the open store when the player has walked away from its counter.
+ *
+ * Called once a game tick in town. A shop is a PANEL in this fork rather than a modal screen - the
+ * inventory sits open beside it so items can be dragged across - which means the player can walk off
+ * with the shop still up, covering a third of the screen and swallowing clicks. Griswold does not
+ * follow them (user, 2026-08-27: "close griswold and all other vendor shops on walkaway").
+ */
+void CloseStoreIfPlayerWalkedAway();
 
 void StoreEnter();
 void CheckStoreBtn();

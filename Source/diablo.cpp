@@ -2036,6 +2036,8 @@ void GameLogic()
 		ProcessItems();
 		gGameLogicStep = GameLogicStep::ProcessMissilesTown;
 		ProcessMissiles();
+		// After the player has moved, so the distance it measures is this tick's.
+		CloseStoreIfPlayerWalkedAway();
 	}
 	gGameLogicStep = GameLogicStep::None;
 

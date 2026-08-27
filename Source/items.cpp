@@ -6586,6 +6586,65 @@ int StockOracoolMagicItems(Item *stock, int capacity, int lvl, int want)
 }
 
 /**
+ * @brief Fills up to @p want empty slots with items of one TYPE - Adria's books and staves.
+ *
+ * Adria's shelf was a random draw from everything she deals in, so how many books and how many
+ * staves it held was a dice roll, and on a bad one there were neither (user, 2026-08-27: "adria shop
+ * to fill as much as it can the 10x16 grid. add books and staves. including rare staves"). This
+ * guarantees a block of each instead of hoping for one.
+ *
+ * One function for all three blocks, because they differ only in what they ask for: books want no
+ * affixes (a book is its spell), plain staves take the ordinary roll, and rare staves force the
+ * tier. Three near-copies would be three places for the retry bound to drift.
+ *
+ * @param onlygood pins the affix level so a forced tier actually lands - see RetierOracoolItem.
+ * @param forcedTier when set, an item that does not come out at that tier is rerolled.
+ */
+int StockVendorTypedItems(Item *stock, int capacity, int lvl, int want, ItemType itemType, int miscId,
+    bool onlygood, std::optional<OracoolItemTier> forcedTier)
+{
+	if (want <= 0)
+		return 0;
+
+	// Bounded per slot. RndTypeItems draws from the shared pool and a forced tier can miss - a base
+	// that cannot carry tiered affixes is a legitimate miss - so an unbounded "keep trying until it
+	// works" would spin forever on a depth that offers no valid candidate.
+	constexpr int MaxAttemptsPerItem = 8;
+	int placed = 0;
+	for (int i = 0; i < capacity && placed < want; i++) {
+		if (!stock[i].isEmpty())
+			continue;
+		Item &item = stock[i];
+		bool made = false;
+		for (int attempt = 0; attempt < MaxAttemptsPerItem && !made; attempt++) {
+			item = {};
+			const _item_indexes idx = RndTypeItems(itemType, miscId, lvl);
+			// The pool can come back empty-handed, and when it does GetItemIndexForDroppableItem
+			// hands back whatever its static scratch array happened to hold. Checking the TYPE of
+			// what arrived is what turns that into "this depth has none of these" rather than a
+			// silently wrong item on the shelf.
+			if (AllItemsList[idx].itype != itemType)
+				break;
+			SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 1, onlygood,
+			    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/forcedTier.has_value(), forcedTier);
+			if (forcedTier.has_value() && item._iOracoolTier != *forcedTier)
+				continue;
+			made = true;
+		}
+		if (!made) {
+			// Leave the slot empty and stop: if this depth cannot produce one, it cannot produce
+			// the next either, and the remaining slots are better spent by whoever stocks after us.
+			item = {};
+			break;
+		}
+		item._iIdentified = true;
+		item._iStatFlag = MyPlayer->CanUseItem(item);
+		placed++;
+	}
+	return placed;
+}
+
+/**
  * @brief Stocks FIXED-IDENTITY Oracool goods - gems, runes, jewels, charms - that @p accepts picks.
  *
  * The sibling of StockOracoolVendorItems, and separate from it because these items are not rolled.
@@ -6641,7 +6700,21 @@ int StockOracoolFixedItems(Item *stock, int capacity, int lvl, int want,
  * shelf's composition is decided up front instead of by a dice roll.
  */
 constexpr int SmithOracoolCount = SMITH_ITEMS / 3;
-constexpr int WitchOracoolCount = WITCH_ITEMS / 4;
+/**
+ * @brief Adria's reserved blocks. A COUNT each, not a fraction of the array.
+ *
+ * They were fractions while the array was the shelf. It is not any more - the array over-supplies
+ * the grid on purpose and PlaceStock decides where the shelf ends - so a fraction would grow every
+ * block the next time the array does, which is not what "twelve gems" means.
+ *
+ * Books and staves are guaranteed rather than hoped for (user, 2026-08-27: "add books and staves.
+ * including rare staves"): they were reachable through her ordinary roll, so a bad draw left her
+ * with none of either.
+ */
+constexpr int WitchOracoolCount = 12;
+constexpr int WitchBookCount = 10;
+constexpr int WitchStaffCount = 8;
+constexpr int WitchRareStaffCount = 5;
 constexpr int HealerOracoolCount = 5;
 /** @brief Griswold's Magic shelf: a fifth of it, which is six of thirty. See SpawnPremium. */
 constexpr int PremiumOracoolCount = SMITH_PREMIUM_ITEMS / 5;
@@ -6770,9 +6843,10 @@ void SpawnWitch(int lvl)
 	int bookCount = 0;
 	const int pinnedBookCount = gbIsHellfire ? GenerateRnd(MaxPinnedBookCount) : 0;
 	// Oracool: same fill as the smith - derived from the array, three quarters full at worst, with
-	// the Charms of Salvaging still held back. Vanilla's `reservedItems` split existed to keep a
-	// 25-slot array from overfilling a four-row list; the grid has room for all of it.
-	const int maxItems = WITCH_ITEMS - oracool::SalvageTierCount - WitchOracoolCount;
+	// every reserved block held back. Vanilla's `reservedItems` split existed to keep a 25-slot
+	// array from overfilling a four-row list; the grid has room for all of it.
+	const int maxItems = WITCH_ITEMS - oracool::SalvageTierCount - WitchOracoolCount
+	    - WitchBookCount - WitchStaffCount - WitchRareStaffCount;
 	const int itemCount = GenerateRnd(maxItems - maxItems * 3 / 4 + 1) + maxItems * 3 / 4;
 	const int maxValue = gbIsHellfire ? MaxVendorValueHf : MaxVendorValue;
 
@@ -6841,6 +6915,19 @@ void SpawnWitch(int lvl)
 	    [](std::underlying_type_t<_item_indexes> i) {
 		    return IsOracoolGemIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i);
 	    });
+
+	// The two things a spellcaster comes to Adria for, guaranteed rather than rolled for.
+	//
+	// Books take no affixes - a book IS its spell - so they are stocked with the plain roll and
+	// `onlygood` would buy nothing. Staves take the ordinary one. The rare staves force the tier
+	// with `onlygood` set, which is what makes a forced tier actually land rather than silently
+	// not happen a large share of the time.
+	StockVendorTypedItems(witchitem, WITCH_ITEMS, lvl, WitchBookCount, ItemType::Misc, IMISC_BOOK,
+	    /*onlygood=*/false, std::nullopt);
+	StockVendorTypedItems(witchitem, WITCH_ITEMS, lvl, WitchStaffCount, ItemType::Staff, -1,
+	    /*onlygood=*/false, std::nullopt);
+	StockVendorTypedItems(witchitem, WITCH_ITEMS, lvl, WitchRareStaffCount, ItemType::Staff, -1,
+	    /*onlygood=*/true, OracoolItemTier::Rare);
 
 	SortVendor(witchitem + PinnedItemCount, WITCH_ITEMS - PinnedItemCount);
 }
