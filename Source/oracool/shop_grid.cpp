@@ -72,11 +72,23 @@ constexpr int ShopTabStripWidth = ShopPanelSize.width - 2 * ShopTabStripLeft;
  * be careful about, and it is handled in GetShopSurfaceRect: the click and hover routers ask for the
  * shop's whole footprint, not just the panel, so nothing behind the column can be clicked through it.
  */
-constexpr int ShopTabColumnGap = 4;
-constexpr int ShopTabColumnWidth = 104;
-constexpr int ShopTabHeight = 26;
+/*
+ * The tabs are VERTICAL buttons - tall and narrow, label reading down the tab - stacked one above
+ * the next and flush against the panel's right edge (user, 2026-08-27: "i wanted you to make the tab
+ * buttons vertical, not horizontal on top of each other. VERTICAL on top of each other. attached
+ * flush to the right border of the griswold limestone window").
+ *
+ * Book spines on a shelf, or the tabs on a filing cabinet. My first pass at this column made the
+ * BUTTONS horizontal and only their arrangement vertical, which is a different thing and a wider
+ * one: 104px of screen beside the panel per tab, against 26 here.
+ *
+ * FLUSH means gapless - x is the panel's right edge exactly, so the tabs read as part of the window
+ * rather than as a floating strip near it.
+ */
+constexpr int ShopTabColumnWidth = 26;
+constexpr int ShopTabHeight = 80;
 constexpr int ShopTabGap = 2;
-/** @brief Aligned with the first control row inside the panel, so the two read as one band. */
+/** @brief Below the title band, where the first control row also starts. */
 constexpr int ShopTabColumnTop = 58;
 
 /*
@@ -405,19 +417,75 @@ Rectangle ShopControlRect(const std::vector<ControlButton> &buttons, size_t inde
  * The three-row strip this replaced had an assert against its own capacity, and moving the tabs out
  * of the panel dropped it. Restored, because the failure it guards is the silent kind: a vendor that
  * grew an eighth tab would simply draw it further down the screen, over the world, and nothing would
- * say so. The column has room for far more than seven, so this is a tripwire rather than a limit.
+ * say so.
+ *
+ * Vertical tabs are TALL, so unlike the old horizontal column this is a real bound rather than a
+ * distant tripwire - hence the static_assert below, which fails the build rather than the run if a
+ * height or gap change squeezes out a tab Griswold already has.
  */
 constexpr int ShopTabColumnSlots = (ShopPanelSize.height - ShopTabColumnTop) / (ShopTabHeight + ShopTabGap);
 
-/** @brief One tab in the column beside the panel. */
+/** @brief Basic, Magic, Rare, Set, Unique, Supplies, Sold - Griswold with every shelf switched on. */
+constexpr int ShopMaxTabsPerVendor = 7;
+static_assert(ShopTabColumnSlots >= ShopMaxTabsPerVendor,
+    "the tab column no longer fits a fully-stocked Griswold - shorten ShopTabHeight");
+
+/** @brief One tab in the column, flush against the panel's right edge. */
 Rectangle ShopTabRect(size_t index)
 {
 	assert(index < static_cast<size_t>(ShopTabColumnSlots)
 	    && "a vendor has more tabs than the column has room for - the strip would run off the panel");
 	const Rectangle panel = GetShopPanelRect();
-	return Rectangle { { panel.position.x + panel.size.width + ShopTabColumnGap,
+	return Rectangle { { panel.position.x + panel.size.width,
 	                       panel.position.y + ShopTabColumnTop + static_cast<int>(index) * (ShopTabHeight + ShopTabGap) },
 		{ ShopTabColumnWidth, ShopTabHeight } };
+}
+
+/**
+ * @brief Draws @p text one character per line down @p rect - a vertical label.
+ *
+ * The engine has no rotated text, so a vertical label is a stack of glyphs. Uppercased first: caps
+ * have no descenders, which is what lets the pitch be tightened below the font's own line height
+ * without letters touching, and a stack of mixed-case letters reads worse than a stack of caps
+ * anyway.
+ *
+ * The PITCH comes from the label's length against the height available, and the FONT is then the
+ * largest that clears that pitch. A long label therefore shrinks rather than overflowing - which is
+ * the failure this panel has already had once, when "Supplies" rendered as "SUPPLIE" and the clip
+ * was silent. At the 80px tab height, an eight-letter label lands on FontSize10.
+ */
+void DrawVerticalLabel(const Surface &out, string_view text, Rectangle rect, UiFlags color)
+{
+	std::string glyphs;
+	glyphs.reserve(text.size());
+	for (const char ch : text)
+		glyphs.push_back(ch >= 'a' && ch <= 'z' ? static_cast<char>(ch - 'a' + 'A') : ch);
+	if (glyphs.empty())
+		return;
+
+	const int count = static_cast<int>(glyphs.size());
+	const int pitch = std::max(1, std::min(12, rect.size.height / count));
+	// The four small font sizes exist for exactly this squeeze. Below eight there is nothing
+	// smaller and the letters simply tighten by a pixel.
+	const UiFlags font = pitch >= 12 ? UiFlags::FontSize12
+	    : pitch >= 11                ? UiFlags::FontSize11
+	    : pitch >= 10                ? UiFlags::FontSize10
+	    : pitch >= 9                 ? UiFlags::FontSize9
+	                                 : UiFlags::FontSize8;
+	// Centred in whatever is left over, so a short label sits in the middle of the tab rather than
+	// hanging from its top edge.
+	int y = rect.position.y + (rect.size.height - count * pitch) / 2;
+	for (const char ch : glyphs) {
+		// A space is a gap, not a glyph - nothing in the tab names has one today, but a two-word
+		// tab would otherwise read as one run of letters.
+		if (ch != ' ') {
+			const char one[2] = { ch, '\0' };
+			DrawString(out, string_view(one, 1),
+			    Rectangle { { rect.position.x, y }, { rect.size.width, pitch } },
+			    { color | font | UiFlags::AlignCenter });
+		}
+		y += pitch;
+	}
 }
 
 constexpr int PageButtonWidth = 16;
@@ -542,9 +610,8 @@ void DrawShopTabColumn(const Surface &out)
 			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 		}
 		DrawOrnateBorder(out, rect);
-		DrawString(out, _(ShopTabName(tabs[i])), rect,
-		    { (active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
-		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		DrawVerticalLabel(out, _(ShopTabName(tabs[i])), rect,
+		    active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
 	}
 }
 
