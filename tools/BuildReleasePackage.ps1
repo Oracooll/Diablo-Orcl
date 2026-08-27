@@ -132,14 +132,26 @@ if (Test-Path $engineSrc) {
 }
 Write-Host "  $engineAssetsMpq : current"
 
-# The binary must BE the version we are stamping on the box.
+# The binary must BE the version we are stamping on the box - ASKED, not guessed at.
+#
+# This used to scan the executable's ASCII strings and accept it if the expected number appeared
+# anywhere (external audit of v1.9.92, finding 10). That proves only that those bytes occur
+# somewhere: a changelog line, a resource path or dead data would satisfy it just as well as the
+# real stamp, so a stale binary could pass. `--version` now prints ORACOOL_VERSION on its own line,
+# so the check is equality against what the binary says it is.
+# Read from the exe's VERSIONINFO resource, which CMake stamps from ORACOOL_VERSION. Not from
+# `--version`: printInConsole goes through WriteConsole, which writes nothing when stdout is a pipe,
+# so a script cannot capture it.
 $exePath = Join-Path $BuildDir 'DiabloOrcl.exe'
-$stamped = (Select-String -Path $exePath -Pattern '\d+\.\d+\.\d+' -Encoding Ascii -AllMatches).Matches.Value |
-    Sort-Object -Unique
-if ($stamped -notcontains $version) {
-    Fail "DiabloOrcl.exe does not carry version $version - it is a stale build. Rebuild the Release target."
+$exeVersion = (Get-Item $exePath).VersionInfo.ProductVersion
+if ([string]::IsNullOrWhiteSpace($exeVersion)) {
+    Fail ("$exePath carries no version resource. It predates the VERSIONINFO stamp - rebuild it, and`n" +
+          "    if it is still empty, check that Packaging\windows\oracool_version.rc.in is in the target.")
 }
-Write-Host "  DiabloOrcl.exe : v$version"
+if ($exeVersion.Trim() -ne $version) {
+    Fail "DiabloOrcl.exe reports v$($exeVersion.Trim()) but ORACOOL_VERSION is $version - it is a stale build. Rebuild the Release target."
+}
+Write-Host "  DiabloOrcl.exe : resource says v$exeVersion"
 
 # oracool.mpq must be newer than everything that feeds it. A normal build does NOT repack the
 # archive, so a source asset edited after the last pack ships as if it had never been added.
@@ -158,7 +170,12 @@ Write-Host "  oracool.mpq    : current"
 # --- Stage -------------------------------------------------------------------------------------
 
 $name = "DiabloOrcl-v$version-win64"
-$stage = Join-Path ([System.IO.Path]::GetTempPath()) "oracool-package-$version"
+# UNIQUE per run, not per version (external audit of v1.9.92, finding 9). A fixed
+# `oracool-package-$version` path is recursively deleted before staging, so two packaging jobs for
+# the same version - a CI run and a shell, or two shells - would delete each other's staging tree
+# mid-build. The run id also makes an interrupted run's leftovers identifiable rather than shared.
+$runId = [guid]::NewGuid().ToString('N').Substring(0, 12)
+$stage = Join-Path ([System.IO.Path]::GetTempPath()) "oracool-package-$version-$runId"
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 $target = Join-Path $stage $name
 New-Item -ItemType Directory -Path $target -Force | Out-Null
@@ -218,8 +235,14 @@ Write-Host "  $($staged.Count) files total"
 
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
 $zip = Join-Path $OutDir "$name.zip"
+# Built under a unique name and moved into place, so the requested output is either the previous
+# zip or a complete new one and never a half-written file wearing the right name. Same reasoning as
+# the packer's own temp-then-replace, and the same finding.
+$zipTemp = Join-Path $OutDir "$name.$runId.partial"
+if (Test-Path $zipTemp) { Remove-Item $zipTemp -Force }
+Compress-Archive -Path $target -DestinationPath $zipTemp -Force
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path $target -DestinationPath $zip -Force
+Move-Item $zipTemp $zip -Force
 
 $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 Remove-Item $stage -Recurse -Force

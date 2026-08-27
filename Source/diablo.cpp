@@ -1583,8 +1583,20 @@ void DiabloParseFlags(int argc, char **argv)
 		if (arg == "-h" || arg == "--help") {
 			PrintHelpAndExit();
 		} else if (arg == "--version") {
+			// ORACOOL_VERSION first, and on a line automation can parse exactly (external audit of
+			// v1.9.92, finding 10). This printed PROJECT_VERSION alone - the DevilutionX engine base,
+			// which does not move when this fork releases - so there was no authoritative way to ask
+			// a binary what it is. Packaging was reduced to scanning the exe's ASCII strings for the
+			// expected number, which proves only that those bytes occur SOMEWHERE: a changelog
+			// string or a dead resource path would satisfy it just as well as the real stamp.
+			//
+			// The engine base stays on its own line, because it is genuinely useful and dropping it
+			// would lose information the old output carried.
 			printInConsole(PROJECT_NAME);
-			printInConsole(" v");
+			printInConsole(" ");
+			printInConsole(ORACOOL_VERSION);
+			printNewlineInConsole();
+			printInConsole("engine ");
 			printInConsole(PROJECT_VERSION);
 			printNewlineInConsole();
 			diablo_quit(0);

@@ -44,7 +44,10 @@ REM
 REM Not onto the command line: the skill-sound library took the asset count past 300 and the
 REM accumulated string hit Windows' ~8191-character limit, which cmd.exe reports as "The input line
 REM is too long" without naming a cause. A list file has no such ceiling.
-set LIST=%TEMP%\oracool_mpq_files.txt
+REM Scoped to this process, not a fixed name (external audit of v1.9.92, finding 9): two invocations
+REM on one machine shared %TEMP%\oracool_mpq_files.txt, so one could truncate the list the other was
+REM feeding the packer.
+set LIST=%TEMP%\oracool_mpq_files_%RANDOM%_%TIME:~9,2%.txt
 if exist "%LIST%" del "%LIST%"
 pushd "%SRC%"
 for /r %%F in (*) do (

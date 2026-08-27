@@ -357,6 +357,16 @@ else()
     Packaging/windows/devilutionx.rc
     Packaging/apple/LaunchScreen.storyboard)
 
+  # The authoritative Windows version stamp, generated from ORACOOL_VERSION. See the template's own
+  # header for why packaging needs it and why --version could not serve.
+  if(WIN32)
+    configure_file(
+      "${PROJECT_SOURCE_DIR}/Packaging/windows/oracool_version.rc.in"
+      "${CMAKE_CURRENT_BINARY_DIR}/oracool_version.rc"
+      @ONLY)
+    target_sources(${BIN_TARGET} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/oracool_version.rc")
+  endif()
+
     if(CMAKE_STRIP AND NOT DEVILUTIONX_DISABLE_STRIP)
       add_custom_command(
         TARGET ${BIN_TARGET} POST_BUILD

@@ -432,15 +432,21 @@ TEST(OracoolAudit, ShieldCountsInEitherHand)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
-	player.InvBody[INVLOC_HAND_LEFT].clear();
-	player.InvBody[INVLOC_HAND_RIGHT].clear();
+	// `= {}`, not `.clear()`. Item::clear() resets _itype alone and deliberately leaves every other
+	// field as stale leftover data - so a preceding test that equipped a BROKEN item left
+	// _iOracoolBroken set, and HasShieldEquipped refuses a broken shield. This test then set _itype
+	// to Shield on top of that residue and failed on three iterations in twenty under
+	// `--gtest_shuffle --gtest_random_seed=92531` (external audit of v1.9.92, finding 7 - the same
+	// family, found while fixing it).
+	player.InvBody[INVLOC_HAND_LEFT] = {};
+	player.InvBody[INVLOC_HAND_RIGHT] = {};
 
 	EXPECT_FALSE(oracool::HasShieldEquipped(player));
 
 	player.InvBody[INVLOC_HAND_RIGHT]._itype = ItemType::Shield;
 	EXPECT_TRUE(oracool::HasShieldEquipped(player));
 
-	player.InvBody[INVLOC_HAND_RIGHT].clear();
+	player.InvBody[INVLOC_HAND_RIGHT] = {};
 	player.InvBody[INVLOC_HAND_LEFT]._itype = ItemType::Shield;
 	EXPECT_TRUE(oracool::HasShieldEquipped(player)) << "a shield in the left hand is not a shield - the v1.6.3 bug is back";
 }
@@ -1884,32 +1890,49 @@ TEST(OracoolGems, TirGrantsManaPerKillFromWornSockets)
 namespace {
 
 /** @brief A level-30 Paladin with an empty tree and a pool of points to spend. */
+/**
+ * @brief A COMPLETE fresh hero - the whole Player, not the handful of fields a test happens to read.
+ *
+ * External audit of v1.9.92, finding 7. These helpers used to set class, level, points and the two
+ * investment arrays and leave everything else as the previous test had left it. That is invisible
+ * under CTest, which runs each TEST as its own process, and it bites the moment the binary is run as
+ * one process:
+ *
+ *     oracool_audit_test.exe --gtest_shuffle --gtest_random_seed=92531 --gtest_repeat=20
+ *
+ * failed AuraNeedsAPointBeforeItCanBurn on iteration 1 - expected Might, got None. Not an aura bug:
+ * GetActiveClassAura deliberately suppresses an aura for `_pmode == PM_DEATH`, and for a player with
+ * positive maximum health and nonpositive current health. A preceding test had left a corpse, and
+ * "fresh Paladin" inherited it.
+ *
+ * So the object is reset outright and given an explicitly LIVING baseline. A test that means to
+ * examine a dead player must now say so, which is the right way round.
+ */
 devilution::Player &FreshHero(HeroClass heroClass, int unspent = 40)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
 	devilution::Player &player = Players[0];
+	player = {};
 	player._pClass = heroClass;
 	// Past the seventh tier's level 36, so nothing in any class's table is gated on level.
 	player._pLevel = 50;
 	player._pUnspentSkillPoints = static_cast<uint16_t>(unspent);
 	player._pOracoolActiveAura = 0xFF;
+	// ALIVE, and standing. Both halves matter - see the note above.
+	player._pmode = PM_STAND;
+	player._pMaxHP = player._pHitPoints = 100 << 6;
+	player._pMaxHPBase = player._pHPBase = 100 << 6;
 	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
 	std::memset(player._pClassTreeInvestment, 0, sizeof(player._pClassTreeInvestment));
 	return player;
 }
 
+/** @brief FreshHero as the Paladin, at the level its own tests were written against. */
 devilution::Player &FreshPaladin(int unspent = 40)
 {
-	Players.resize(1);
-	MyPlayer = &Players[0];
-	devilution::Player &player = Players[0];
-	player._pClass = HeroClass::Warrior;
+	devilution::Player &player = FreshHero(HeroClass::Warrior, unspent);
 	player._pLevel = 30;
-	player._pUnspentSkillPoints = static_cast<uint16_t>(unspent);
-	player._pOracoolActiveAura = 0xFF;
-	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
-	std::memset(player._pClassTreeInvestment, 0, sizeof(player._pClassTreeInvestment));
 	return player;
 }
 
@@ -2664,6 +2687,12 @@ TEST(OracoolSkillPoints, RetroGrantInvestRefundRoundTrip)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
+	// The WHOLE player, not the five fields this test reads. It reset skill investment and spell
+	// levels but not _pClassTreeInvestment, which RespecCost also prices - so a preceding test that
+	// spent tree points made the respec cost 1500 where this expects the 1000 floor. Failed on three
+	// iterations in twenty at seed 37473 (external audit of v1.9.92, finding 7).
+	player = {};
+	std::memset(player._pClassTreeInvestment, 0, sizeof(player._pClassTreeInvestment));
 	// Level 7, not 5. Firebolt sits in the level-6 band, and the Rule of Rangs wants 6 for its first
 	// rank and 7 for its second - so 5 is now a character who cannot invest in it at all, which is
 	// the rule working rather than the test failing (2026-08-19).

@@ -1,0 +1,42 @@
+// GENERATED from Packaging/windows/oracool_version.rc.in by CMake - edit the template, not the copy.
+//
+// An authoritative Windows VERSIONINFO stamped from ORACOOL_VERSION (external audit of v1.9.92,
+// finding 10). Packaging used to confirm a build's identity by scanning the executable's ASCII
+// strings for the expected number, which proves only that those bytes occur somewhere - a changelog
+// line or a dead resource path satisfies it as well as a real stamp, so a stale binary could pass.
+//
+// This is the field Windows itself considers the version: Explorer's Details tab reads it, and
+// PowerShell reads it as (Get-Item exe).VersionInfo.ProductVersion. `--version` cannot serve the
+// same purpose here - printInConsole goes through WriteConsole, which writes nothing at all when
+// stdout is a pipe, so a script cannot capture it.
+
+#include "winver.h"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION @ORACOOL_VERSION_MAJOR@,@ORACOOL_VERSION_MINOR@,@ORACOOL_VERSION_PATCH@,0
+ PRODUCTVERSION @ORACOOL_VERSION_MAJOR@,@ORACOOL_VERSION_MINOR@,@ORACOOL_VERSION_PATCH@,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Oracool"
+            VALUE "FileDescription", "Diablo Orcl V1 - Oracool Edition"
+            VALUE "FileVersion", "@ORACOOL_VERSION_STR@"
+            VALUE "InternalName", "DiabloOrcl"
+            VALUE "OriginalFilename", "DiabloOrcl.exe"
+            VALUE "ProductName", "Diablo Orcl V1"
+            VALUE "ProductVersion", "@ORACOOL_VERSION_STR@"
+            VALUE "Comments", "Based on DevilutionX"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
