@@ -1514,5 +1514,56 @@ TEST_F(NetPackTest, UnPackNetPlayer_invalid_monsterItemLevel)
 	ASSERT_TRUE(TestNetPackValidation());
 }
 
+// Bug found while adding Oracool items to the vendors, 2026-08-27, and it was already live: a Charm
+// of Salvaging bought from Griswold did not survive a reload.
+//
+// StockSalvageCharms stamped `lvl | CF_SMITH`, and CF_TOWN routing is the ONE path in RecreateItem
+// that ignores the packed index and re-derives it by replaying the seed through
+// GetItemIndexForDroppableItem - the pool every Oracool item is deliberately excluded from, because
+// that pool IS the save format. So the charm came back as whatever vanilla item the seed landed on.
+//
+// The stamp is 0 now, which rebuilds the item from the index that was actually stored. This test is
+// the general statement of that rule: an Oracool item must round-trip to itself, whatever it was
+// bought from.
+TEST_F(PackTest, OracoolItemsSurviveAPackRoundTrip)
+{
+	gbIsHellfire = true;
+	gbIsMultiplayer = false;
+	gbIsSpawn = false;
+
+	MyPlayer->_pMaxManaBase = 125 << 6;
+	MyPlayer->_pMaxHPBase = 125 << 6;
+
+	// One of each Oracool family that a vendor can put on a shelf.
+	const _item_indexes fixedIdentity[] = {
+		IDI_ORACOOL_CHARM_VIGOR,
+		IDI_ORACOOL_GEM_RUBY_CHIPPED,
+	};
+
+	for (const _item_indexes idx : fixedIdentity) {
+		if (!IsItemAvailable(idx))
+			continue;
+
+		Item original {};
+		InitializeItem(original, idx);
+		original._iSeed = 0x1234ABCD;
+		// The stamp the vendor stocking path now uses. The point of the test is that this survives;
+		// with `CF_SMITH` here instead it does not.
+		original._iCreateInfo = 0;
+		original._iIdentified = true;
+
+		ItemPack packed;
+		PackItem(packed, original, gbIsHellfire);
+
+		Item restored {};
+		UnPackItem(SwappedLE(packed), *MyPlayer, restored, gbIsHellfire);
+
+		EXPECT_EQ(restored.IDidx, original.IDidx)
+		    << "an Oracool item came back as a different item - the index was re-derived from the "
+		       "seed instead of read from the pack";
+		EXPECT_STREQ(restored._iName, original._iName);
+	}
+}
+
 } // namespace
 } // namespace devilution

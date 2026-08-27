@@ -6324,11 +6324,76 @@ void StockSalvageCharms(Item *stock, int capacity, int lvl, uint16_t createInfoF
 		item = {};
 		item._iSeed = AdvanceRndSeed();
 		GetItemAttrs(item, static_cast<_item_indexes>(oracool::SalvageCharmFor(static_cast<oracool::SalvageTier>(placed))), 1);
-		item._iCreateInfo = lvl | createInfoFlag;
+		// NOT a town stamp, and this was a real bug until 2026-08-27.
+		//
+		// `lvl | CF_SMITH` marks the item as vendor-sourced, and CF_TOWN routing is the one path in
+		// RecreateItem that IGNORES the packed index and re-derives it by replaying the seed through
+		// GetItemIndexForDroppableItem - the pool every Oracool item is deliberately excluded from.
+		// So a Charm of Salvaging bought from Griswold came back after a reload as whatever vanilla
+		// item that seed happened to land on. Bought, saved, and quietly replaced.
+		//
+		// Zero instead, which sends RecreateItem down its `icreateinfo == 0` branch and rebuilds the
+		// item from the index that was actually stored. A salvage charm has nothing else to
+		// reconstruct - no affixes, no level scaling - so the identity is the whole item.
+		(void)lvl;
+		(void)createInfoFlag;
+		item._iCreateInfo = 0;
 		item._iIdentified = true;
 		item._iStatFlag = true;
 		placed++;
 	}
+}
+
+/**
+ * @brief Fills up to @p want empty slots with Oracool gear of this depth.
+ *
+ * The shops carried nothing but vanilla stock (user, 2026-08-27: "all shops to also offer all of the
+ * new items we have introduced. i now only see vanilla items"), and the reason is structural rather
+ * than an oversight: every vendor rolls its stock through GetItemIndexForDroppableItem, and that
+ * pool explicitly refuses Oracool items because **the pool is the save format**. UnPackItem rebuilds
+ * a town item's index by replaying its seed through that exact walk, so adding to the list would
+ * silently re-identify every item already bought and saved.
+ *
+ * So this is a hook beside the pool, the same shape TrySpawnOracoolSetItem uses for drops - and with
+ * one difference that matters more here than it does there: the stamp must NOT be a town flag.
+ * CF_TOWN is precisely the route that re-derives the index, so a vendor-sold Oracool item wearing
+ * CF_SMITH would be replaced on the next load. It is stamped as a rolled dungeon item instead, which
+ * keeps the index that was packed and replays the affixes from the seed.
+ *
+ * Depth-gated by the same banded qlvl ladder the drop hook reads, so a level-2 Griswold offers
+ * leather and a level-50 one offers spectral, by data rather than by a table here.
+ */
+int StockOracoolVendorItems(Item *stock, int capacity, int lvl, int want)
+{
+	if (!oracool::IsSinglePlayer() || want <= 0)
+		return 0;
+
+	_item_indexes candidates[IDI_LAST + 1];
+	int candidateCount = 0;
+	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_SPECTRAL_HELM; i++) {
+		if (!IsItemAvailable(i))
+			continue;
+		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= lvl)
+			candidates[candidateCount++] = static_cast<_item_indexes>(i);
+	}
+	if (candidateCount == 0)
+		return 0;
+
+	int placed = 0;
+	for (int i = 0; i < capacity && placed < want; i++) {
+		if (!stock[i].isEmpty())
+			continue;
+		const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
+		// The same clamp the drop hook applies, for the same reason its comment gives.
+		const int itemLevel = std::clamp(lvl, 1, 30);
+		Item &item = stock[i];
+		item = {};
+		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), itemLevel, 1, /*onlygood=*/false,
+		    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true);
+		item._iIdentified = true;
+		placed++;
+	}
+	return placed;
 }
 
 void SpawnSmith(int lvl)
@@ -6367,6 +6432,11 @@ void SpawnSmith(int lvl)
 		smithitem[i].clear();
 
 	StockSalvageCharms(smithitem, SMITH_ITEMS, lvl, CF_SMITH);
+
+	// A third of the shelf, so the new gear is a real part of what Griswold sells rather than a
+	// curiosity that turns up occasionally. The count is what fits after the vanilla roll and the
+	// salvage charms have taken their slots - the page decides the rest (see PlaceStock).
+	StockOracoolVendorItems(smithitem, SMITH_ITEMS, lvl, SMITH_ITEMS / 3);
 
 	SortVendor(smithitem + PinnedItemCount, SMITH_ITEMS - PinnedItemCount);
 }
