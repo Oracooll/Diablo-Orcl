@@ -68,8 +68,11 @@ WHAT IS IN HERE
                    other archive, so it overrides the original game's assets
                    without diabdat.mpq or the Hellfire archives ever being
                    modified.
-  assets\          Fonts and interface art (the loose form of devilutionx.mpq).
-                   REQUIRED — the game will not start without this folder.
+  devilutionx.mpq  DevilutionX's own fonts, interface art and level data.
+                   REQUIRED — the game will not start without it. Some builds
+                   ship this same data loose in an assets\ folder instead; if
+                   you see that folder rather than this file, it belongs here
+                   just the same.
   *.dll            SDL2 and the compression/format libraries the game links.
 
 All of it is either this fork's own work or open-source dependencies. Nothing

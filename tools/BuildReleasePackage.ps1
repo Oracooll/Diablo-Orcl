@@ -85,9 +85,21 @@ $requiredFiles = @(
     'discord_game_sdk.dll'
 )
 
-# DevilutionX's own fonts, interface art and level data - the loose form of devilutionx.mpq. The
-# game does not start without it, which is exactly what shipping v1.9.88 without it demonstrated.
-$requiredDirs = @('assets')
+# DevilutionX's own fonts, interface art and level data. The game does not start without it, which
+# is exactly what shipping v1.9.88 without it demonstrated.
+#
+# It can arrive two ways and the game accepts either, so this accepts either too - FindAsset searches
+# the MPQ archives first and the loose `assets` directory after them (Source/engine/assets.cpp):
+#
+#   devilutionx.mpq   one file, built by tools\build_devilutionx_mpq.cmd. Preferred: a single archive
+#                     cannot be half-copied, and it is upstream's own convention.
+#   assets\           258 loose files. The fallback, and what shipped before 2026-08-27.
+#
+# Preferring the archive but accepting the folder is not indecision - it is the same rule the engine
+# follows, and a packager that was stricter than the thing it packages for would reject working
+# builds.
+$engineAssetsMpq = 'devilutionx.mpq'
+$engineAssetsDir = 'assets'
 
 # Never redistributable. Blizzard's commercial data, not ours to hand out.
 $forbidden = @(
@@ -103,14 +115,21 @@ Write-Host 'Checking the build tree...'
 foreach ($f in $requiredFiles) {
     if (-not (Test-Path (Join-Path $BuildDir $f))) { Fail "required file missing from the build tree: $f" }
 }
-foreach ($d in $requiredDirs) {
-    $path = Join-Path $BuildDir $d
-    if (-not (Test-Path $path)) { Fail "required folder missing from the build tree: $d" }
+$useEngineMpq = Test-Path (Join-Path $BuildDir $engineAssetsMpq)
+if ($useEngineMpq) {
+    Write-Host "  $engineAssetsMpq : present (engine assets as an archive)"
+} else {
+    $path = Join-Path $BuildDir $engineAssetsDir
+    if (-not (Test-Path $path)) {
+        Fail ("the engine's own assets are missing - the game will not start.`n" +
+              "    Build the archive:  tools\build_devilutionx_mpq.cmd $BuildDir`n" +
+              "    or ensure the loose '$engineAssetsDir' folder is in the build tree.")
+    }
     $count = @(Get-ChildItem $path -Recurse -File).Count
     # A sanity floor, not an exact count - the set grows. Zero or a handful means something copied
     # an empty tree, which is the failure that looks like success.
-    if ($count -lt 50) { Fail "'$d' holds only $count files - that is not a complete asset tree." }
-    Write-Host "  $d : $count files"
+    if ($count -lt 50) { Fail "'$engineAssetsDir' holds only $count files - that is not a complete asset tree." }
+    Write-Host "  $engineAssetsDir : $count files (loose - consider build_devilutionx_mpq.cmd)"
 }
 
 # The binary must BE the version we are stamping on the box.
@@ -147,7 +166,11 @@ New-Item -ItemType Directory -Path $target -Force | Out-Null
 Write-Host ''
 Write-Host 'Staging...'
 foreach ($f in $requiredFiles) { Copy-Item (Join-Path $BuildDir $f) $target }
-foreach ($d in $requiredDirs) { Copy-Item (Join-Path $BuildDir $d) (Join-Path $target $d) -Recurse }
+if ($useEngineMpq) {
+    Copy-Item (Join-Path $BuildDir $engineAssetsMpq) $target
+} else {
+    Copy-Item (Join-Path $BuildDir $engineAssetsDir) (Join-Path $target $engineAssetsDir) -Recurse
+}
 
 # The README, with the version stamped in rather than typed in.
 #
@@ -177,10 +200,18 @@ foreach ($m in $forbidden) {
 }
 Write-Host "  no commercial game data ($($forbidden.Count) archives checked)"
 
-foreach ($f in @($requiredFiles + 'README.txt')) {
+$mustBeStaged = @($requiredFiles + 'README.txt')
+if ($useEngineMpq) { $mustBeStaged += $engineAssetsMpq }
+foreach ($f in $mustBeStaged) {
     if (-not (Test-Path (Join-Path $target $f))) { Fail "staged package is missing $f" }
 }
-Write-Host "  all $($requiredFiles.Count + 1) top-level files present"
+# The engine's assets, whichever form they took - checked HERE too rather than trusting the copy
+# above to have worked, because "the copy ran" and "the files arrived" are different claims.
+if (-not $useEngineMpq) {
+    $staticCount = @(Get-ChildItem (Join-Path $target $engineAssetsDir) -Recurse -File -ErrorAction SilentlyContinue).Count
+    if ($staticCount -lt 50) { Fail "staged '$engineAssetsDir' holds only $staticCount files" }
+}
+Write-Host "  all $($mustBeStaged.Count) top-level files present"
 Write-Host "  $($staged.Count) files total"
 
 # --- Zip ---------------------------------------------------------------------------------------
