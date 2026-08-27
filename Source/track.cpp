@@ -11,6 +11,8 @@
 #include "controls/plrctrls.h"
 #include "cursor.h"
 #include "engine/point.hpp"
+#include "objects.h"
+#include "oracool/levski_roar.h"
 #include "player.h"
 #include "stores.h"
 
@@ -120,7 +122,20 @@ void RepeatMouseAction()
 			CheckPlrSpell(false, LastMouseButtonSpell, LastMouseButtonSpellType);
 		break;
 	case MouseActionType::OperateObject:
-		if (ObjectUnderCursor != nullptr && !ObjectUnderCursor->isDoor()) {
+		// Repeats the operate every frame the button is held. That is safe for the objects vanilla
+		// has here, because operating one CONSUMES it - a chest opens, a shrine spends itself, and
+		// the repeats after the first are no-ops. It is not safe for anything that TOGGLES, which is
+		// why doors were already excluded.
+		//
+		// Levski's Roar is a toggle too, and it was not excluded (user, 2026-08-27: "fix some
+		// flashing which occurs when i click on levski. if i am next to him, i need to click a few
+		// times until the window remains open, instead of blinking and closing"). Holding the button
+		// for a fifth of a second flipped the window open and shut several times over, so whether it
+		// ended up open came down to the parity of how long the click lasted. It only bit when the
+		// player was already ADJACENT: from further away the walk eats the hold, and the button is
+		// released before the operate ever fires.
+		if (ObjectUnderCursor != nullptr && !ObjectUnderCursor->isDoor()
+		    && !oracool::IsLevskiRoarObject(*ObjectUnderCursor)) {
 			NetSendCmdLoc(MyPlayerId, true, CMD_OPOBJXY, cursPosition);
 		}
 		break;

@@ -209,18 +209,33 @@ bool ShopSellInventoryItem(int cii);
 bool ShopRepairHeldItem();
 
 /**
- * @brief Arms the hammer cursor for the SHOP - the vanilla Repair skill mechanic, paid and to full.
+ * @brief Which shop service, if any, has borrowed the cursor.
  *
- * The three below share CURSOR_REPAIR with the Repair skill, so the hammer, the targeting and
- * TryIconCurs' inventory/tab/stash routing all come for free. IsShopRepairCursorArmed is what tells
- * the two apart at the click.
+ * The shop's Repair and Recharge buttons arm the vanilla Repair and Recharge SKILL cursors, so the
+ * hammer/lightning graphic, the click-an-item targeting and TryIconCurs' inventory/tab/stash routing
+ * all come for free. This is the one piece of state that tells the shop's version apart from the
+ * skill's at the click - the skill acts partially and free, the shop acts fully and charges.
+ *
+ * One enum rather than two flags: they are mutually exclusive by construction (one cursor), and two
+ * independent bools would let a stale Recharge outlive a Repair click.
  */
+enum class ShopServiceCursor : uint8_t {
+	None,
+	Repair,
+	Recharge,
+};
+
 void ArmShopRepairCursor();
+void ArmShopRechargeCursor();
 bool IsShopRepairCursorArmed();
-void DisarmShopRepairCursor();
+bool IsShopRechargeCursorArmed();
+void DisarmShopServiceCursor();
 
 /** @brief Repairs @p item to full and charges for it. False if it was not repaired. */
 bool ShopRepairItemAt(Item &item);
+
+/** @brief Recharges @p item to full and charges for it. False if it was not recharged. */
+bool ShopRechargeItemAt(Item &item);
 
 /** @brief Recharges the item in the player's hand, charging for it. Same contract. */
 bool ShopRechargeHeldItem();

@@ -3572,9 +3572,9 @@ void InitStores()
 	premiumlevel = 1;
 
 	BuybackStock.clear();
-	// A hammer left armed by a shop the player has since left would repair the next thing they
-	// clicked and charge them for it.
-	DisarmShopRepairCursor();
+	// A hammer (or a recharge cursor) left armed by a shop the player has since left would act on
+	// the next thing they clicked and charge them for it.
+	DisarmShopServiceCursor();
 
 	for (auto &premiumitem : premiumitems)
 		premiumitem.clear();
@@ -4150,7 +4150,7 @@ bool ShopSellInventoryItem(int cii)
  * partially and free, the shop repairs fully and charges. This flag is the only thing that tells
  * them apart.
  */
-bool ShopRepairCursorArmed = false;
+ShopServiceCursor ShopArmedServiceCursor = ShopServiceCursor::None;
 
 bool ShopRepairHeldItem()
 {
@@ -4175,18 +4175,35 @@ bool ShopRepairHeldItem()
 
 void ArmShopRepairCursor()
 {
-	ShopRepairCursorArmed = true;
+	ShopArmedServiceCursor = ShopServiceCursor::Repair;
 	NewCursor(CURSOR_REPAIR);
+}
+
+void ArmShopRechargeCursor()
+{
+	// Adria's twin of the above, and deliberately the same shape (user, 2026-08-27: "make recharge
+	// button work as repair button. use cursor from vanilla recharge skill"). CURSOR_RECHARGE is the
+	// Recharge skill's own cursor, so the graphic and TryIconCurs' inventory/tab/stash routing come
+	// with it; only the click differs - full charges, and paid for.
+	ShopArmedServiceCursor = ShopServiceCursor::Recharge;
+	NewCursor(CURSOR_RECHARGE);
 }
 
 bool IsShopRepairCursorArmed()
 {
-	return ShopRepairCursorArmed;
+	return ShopArmedServiceCursor == ShopServiceCursor::Repair;
 }
 
-void DisarmShopRepairCursor()
+bool IsShopRechargeCursorArmed()
 {
-	ShopRepairCursorArmed = false;
+	return ShopArmedServiceCursor == ShopServiceCursor::Recharge;
+}
+
+void DisarmShopServiceCursor()
+{
+	// One clear for both, because they are one piece of state. Two independent flags would let a
+	// stale Recharge survive a Repair click and charge for the next thing the player touched.
+	ShopArmedServiceCursor = ShopServiceCursor::None;
 }
 
 bool ShopRepairItemAt(Item &item)
@@ -4210,6 +4227,27 @@ bool ShopRepairItemAt(Item &item)
 	// A broken item left equipped is flagged as well as emptied - see SmithRepairItemAt, which
 	// clears the same flag for the same reason.
 	item._iOracoolBroken = false;
+	PlaySFX(IS_GOLD);
+	oracool::ScheduleAutoSaveForStoreTransaction();
+	return true;
+}
+
+bool ShopRechargeItemAt(Item &item)
+{
+	// RechargePriceFor returns 0 for anything with nothing to recharge - not a staff, no charge
+	// slots, already full - so it doubles as the "not a valid target" test, exactly as
+	// RepairPriceFor does for the hammer.
+	const int price = RechargePriceFor(item);
+	if (price == 0)
+		return false;
+	if (!PlayerCanAfford(price)) {
+		stextshold = stextflag;
+		stextlhold = stextup;
+		StartStore(TalkID::NoMoney);
+		return false;
+	}
+	TakePlrsMoney(price);
+	item._iCharges = item._iMaxCharges;
 	PlaySFX(IS_GOLD);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 	return true;

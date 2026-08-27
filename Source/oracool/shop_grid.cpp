@@ -454,18 +454,45 @@ void DrawServiceIcon(const Surface &out, ServiceButton service, Rectangle rect, 
 	}
 }
 
-/** @brief What a service button does when it is clicked, or dropped on. */
-const char *ServiceHint(ServiceButton service)
+/**
+ * @brief What a service button actually does, written out in full.
+ *
+ * Rewritten (user, 2026-08-27: "rewrite the hover tooltips of repair and recharge buttons to
+ * reflect the true mechanic of how they work"). The old one-liners said "drop an item here", which
+ * was the whole mechanic when they were written and is now half of it: both buttons also arm a
+ * cursor when your hand is empty. A hint that describes one of two gestures teaches the player that
+ * the other does not exist.
+ *
+ * Each line is its own string because the info box wraps per-string, not per-paragraph.
+ */
+void SetServiceHint(ServiceButton service)
 {
+	ClearPanelStrings();
 	switch (service) {
 	case ServiceButton::Repair:
-		return N_("Repair - drop an item here");
-	case ServiceButton::RepairAll:
-		return N_("Repair all");
-	case ServiceButton::Recharge:
-		return N_("Recharge - drop a staff here");
+		SetPanelString(_("Repair"), UiFlags::ColorWhitegold);
+		AddPanelString(_("Click for the hammer, then click any item to repair it."), UiFlags::ColorWhite);
+		AddPanelString(_("Or drop an item here."), UiFlags::ColorWhite);
+		AddPanelString(_("Restores full durability. Priced per item."), UiFlags::ColorWhite);
+		break;
+	case ServiceButton::RepairAll: {
+		SetPanelString(_("Repair All"), UiFlags::ColorWhitegold);
+		AddPanelString(_("Repairs everything you carry and wear, dearest first,"), UiFlags::ColorWhite);
+		AddPanelString(_("until your gold runs out."), UiFlags::ColorWhite);
+		const int price = ShopRepairAllPrice();
+		if (price > 0)
+			AddPanelString(StrCat(_("Cost"), ": ", FormatInteger(price)), UiFlags::ColorWhitegold);
+		else
+			AddPanelString(_("Nothing needs repairing."), UiFlags::ColorWhitegold);
+		break;
 	}
-	return "";
+	case ServiceButton::Recharge:
+		SetPanelString(_("Recharge"), UiFlags::ColorWhitegold);
+		AddPanelString(_("Click for the cursor, then click a staff to recharge it."), UiFlags::ColorWhite);
+		AddPanelString(_("Or drop a staff here."), UiFlags::ColorWhite);
+		AddPanelString(_("Restores full charges. Priced per staff."), UiFlags::ColorWhite);
+		break;
+	}
 }
 
 /**
@@ -734,6 +761,10 @@ bool CheckShopGridClick(Point position, bool rightClick)
 			// i want repaired"). Dropping an item on the button still works and is unchanged; this
 			// is what the button does when your hand is empty.
 			ArmShopRepairCursor();
+		else if (services[i] == ServiceButton::Recharge)
+			// The same gesture at Adria's (user, 2026-08-27: "make recharge button work as repair
+			// button").
+			ArmShopRechargeCursor();
 		return true;
 	}
 
@@ -815,8 +846,7 @@ bool SetShopHoverInfoString()
 		if (!ServiceButtonRect(i, services.size()).contains(MousePosition))
 			continue;
 		// The icons carry no text, so the hint is the only place their meaning is written down.
-		ClearPanelStrings();
-		SetPanelString(_(ServiceHint(services[i])), UiFlags::ColorWhitegold);
+		SetServiceHint(services[i]);
 		return true;
 	}
 

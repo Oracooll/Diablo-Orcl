@@ -6443,6 +6443,18 @@ int StockOracoolFixedItems(Item *stock, int capacity, int lvl, int want,
 	return placed;
 }
 
+/**
+ * @brief How many slots each vendor holds back for its Oracool line, out of its own stock array.
+ *
+ * These are RESERVATIONS, not requests. The stocking helpers below fill empty slots, so a count
+ * that is only asked for after the vanilla roll has run is a count the vanilla roll can take to
+ * zero - which is exactly what it was doing. Subtract these from the vanilla item count and the
+ * shelf's composition is decided up front instead of by a dice roll.
+ */
+constexpr int SmithOracoolCount = SMITH_ITEMS / 3;
+constexpr int WitchOracoolCount = WITCH_ITEMS / 4;
+constexpr int HealerOracoolCount = 5;
+
 void SpawnSmith(int lvl)
 {
 	constexpr int PinnedItemCount = 0;
@@ -6451,14 +6463,19 @@ void SpawnSmith(int lvl)
 	// Oracool: the stock fills the shop grid now, so the count is derived from the array rather
 	// than from vanilla's two hand-written numbers. The lower bound is three quarters of it, so a
 	// bad roll still leaves a full-looking shop instead of a third of one.
-	int maxItems = SMITH_ITEMS - oracool::SalvageTierCount;
+	int maxItems = SMITH_ITEMS - oracool::SalvageTierCount - SmithOracoolCount;
 	if (gbIsHellfire)
 		maxValue = MaxVendorValueHf;
 
 	const int minItems = maxItems * 3 / 4;
 	int iCnt = GenerateRnd(maxItems - minItems + 1) + minItems;
-	// Oracool: hold back seven slots for the Charms of Salvaging below.
-	iCnt = std::min(iCnt, SMITH_ITEMS - oracool::SalvageTierCount);
+	// Oracool: hold back the salvage charms' slots AND the rolled-gear slots below.
+	//
+	// Reserving only the first was a defect (user, 2026-08-27: "i still dont see oracool items in
+	// magic shop"). StockOracoolVendorItems fills EMPTY slots, so a maximum vanilla roll plus seven
+	// charms left it none, and the Oracool line vanished from the shelf entirely - not rarely, but
+	// on every high roll. The same arithmetic held at Adria's and Pepin's.
+	iCnt = std::min(iCnt, SMITH_ITEMS - oracool::SalvageTierCount - SmithOracoolCount);
 	for (int i = 0; i < iCnt; i++) {
 		Item &newItem = smithitem[i];
 
@@ -6483,7 +6500,7 @@ void SpawnSmith(int lvl)
 	// A third of the shelf, so the new gear is a real part of what Griswold sells rather than a
 	// curiosity that turns up occasionally. The count is what fits after the vanilla roll and the
 	// salvage charms have taken their slots - the page decides the rest (see PlaceStock).
-	StockOracoolVendorItems(smithitem, SMITH_ITEMS, lvl, SMITH_ITEMS / 3);
+	StockOracoolVendorItems(smithitem, SMITH_ITEMS, lvl, SmithOracoolCount);
 
 	SortVendor(smithitem + PinnedItemCount, SMITH_ITEMS - PinnedItemCount);
 }
@@ -6539,7 +6556,7 @@ void SpawnWitch(int lvl)
 	// Oracool: same fill as the smith - derived from the array, three quarters full at worst, with
 	// the Charms of Salvaging still held back. Vanilla's `reservedItems` split existed to keep a
 	// 25-slot array from overfilling a four-row list; the grid has room for all of it.
-	const int maxItems = WITCH_ITEMS - oracool::SalvageTierCount;
+	const int maxItems = WITCH_ITEMS - oracool::SalvageTierCount - WitchOracoolCount;
 	const int itemCount = GenerateRnd(maxItems - maxItems * 3 / 4 + 1) + maxItems * 3 / 4;
 	const int maxValue = gbIsHellfire ? MaxVendorValueHf : MaxVendorValue;
 
@@ -6604,7 +6621,7 @@ void SpawnWitch(int lvl)
 	// Adria deals in the magical, so she carries the SOCKETABLES rather than Griswold's gear (user,
 	// 2026-08-27). Gems, runes and jewels are what a spellcaster's shelf should have, and they were
 	// reachable only as drops before this.
-	StockOracoolFixedItems(witchitem, WITCH_ITEMS, lvl, WITCH_ITEMS / 4,
+	StockOracoolFixedItems(witchitem, WITCH_ITEMS, lvl, WitchOracoolCount,
 	    [](std::underlying_type_t<_item_indexes> i) {
 		    return IsOracoolGemIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i);
 	    });
@@ -6739,7 +6756,10 @@ void SpawnHealer(int lvl)
 {
 	constexpr int PinnedItemCount = 2;
 	constexpr std::array<_item_indexes, PinnedItemCount + 1> PinnedItemTypes = { IDI_HEAL, IDI_FULLHEAL, IDI_RESURRECT };
-	const int itemCount = GenerateRnd(gbIsHellfire ? 10 : 8) + 10;
+	// Oracool: the same reservation the smith and the witch make - Pepin's twenty slots have to
+	// leave room for HealerOracoolCount charms after the roll.
+	const int itemCount = std::min(GenerateRnd(gbIsHellfire ? 10 : 8) + 10,
+	    static_cast<int>(std::size(healitem)) - HealerOracoolCount);
 
 	for (int i = 0; i < 20; i++) {
 		Item &item = healitem[i];
@@ -6772,8 +6792,7 @@ void SpawnHealer(int lvl)
 
 	// Pepin keeps people standing up, so his Oracool line is the stat CHARMS - the same kind of
 	// steady, always-on help his potions give (user, 2026-08-27).
-	StockOracoolFixedItems(healitem, static_cast<int>(std::size(healitem)), lvl,
-	    static_cast<int>(std::size(healitem)) / 4,
+	StockOracoolFixedItems(healitem, static_cast<int>(std::size(healitem)), lvl, HealerOracoolCount,
 	    [](std::underlying_type_t<_item_indexes> i) { return IsOracoolCharmIdx(i); });
 
 	SortVendor(healitem + PinnedItemCount, static_cast<int>(std::size(healitem)) - PinnedItemCount);

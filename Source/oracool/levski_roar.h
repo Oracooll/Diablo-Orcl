@@ -32,6 +32,7 @@
 namespace devilution {
 struct Player;
 struct Item;
+struct Object;
 } // namespace devilution
 
 namespace devilution::oracool {
@@ -56,6 +57,15 @@ bool LevskiGridCanHold(const Item *items, int count);
 
 /** @brief Places the monument in town. Called on fresh town generation, like the stash chest. */
 void AddLevskiRoarObject();
+
+/**
+ * @brief Whether @p object is the town monument rather than a Caves rock stand.
+ *
+ * The same test the graphics swap and the operate path already make, given a name so the
+ * hold-to-repeat guard in track.cpp does not become a fourth copy of it. Town has exactly one
+ * OBJ_STAND and it is this one; the Caves' stands are on other levels.
+ */
+bool IsLevskiRoarObject(const Object &object);
 
 /** @brief Whether the monument's window is open. */
 bool IsLevskiRoarOpen();

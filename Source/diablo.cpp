@@ -3225,7 +3225,7 @@ bool TryIconCurs()
 			} else if (pcursstashitem != StashStruct::EmptyCell) {
 				ShopRepairItemAt(Stash.stashList[pcursstashitem]);
 			}
-			DisarmShopRepairCursor();
+			DisarmShopServiceCursor();
 			CalcPlrInv(myPlayer, true);
 			NewCursor(CURSOR_HAND);
 			return true;
@@ -3243,6 +3243,22 @@ bool TryIconCurs()
 	}
 
 	if (pcurs == CURSOR_RECHARGE) {
+		// Adria's Recharge button borrows this mechanic the same way the shop's hammer borrows
+		// Repair's - same cursor, same targeting, same routing; the click is what differs. See
+		// ArmShopRechargeCursor.
+		if (IsShopRechargeCursorArmed()) {
+			if (pcursinvitem != -1 && !IsInspectingPlayer()) {
+				ShopRechargeItemAt(GetActiveInvListItem(myPlayer, pcursinvitem - INVITEM_INV_FIRST));
+			} else if (pcursinvtabitem != -1 && !IsInspectingPlayer()) {
+				ShopRechargeItemAt(myPlayer.InvTabList[pcursinvtabidx][pcursinvtabitem]);
+			} else if (pcursstashitem != StashStruct::EmptyCell) {
+				ShopRechargeItemAt(Stash.stashList[pcursstashitem]);
+			}
+			DisarmShopServiceCursor();
+			CalcPlrInv(myPlayer, true);
+			NewCursor(CURSOR_HAND);
+			return true;
+		}
 		if (pcursinvitem != -1 && !IsInspectingPlayer())
 			DoRecharge(myPlayer, pcursinvitem);
 		else if (pcursinvtabitem != -1 && !IsInspectingPlayer())

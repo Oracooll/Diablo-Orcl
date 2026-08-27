@@ -15,6 +15,7 @@
 #include "engine/render/text_render.hpp"
 #include "inv.h"
 #include "items.h"
+#include "objects.h"
 
 #include "oracool/crafting.h"
 #include "oracool/event_log.h"
@@ -474,6 +475,11 @@ bool HandleLevskiRecipeBookScroll(int notches)
 bool IsLevskiRoarOpen() { return WindowOpen; }
 bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 
+bool IsLevskiRoarObject(const Object &object)
+{
+	return currlevel == 0 && !setlevel && object._otype == OBJ_STAND;
+}
+
 void ToggleLevskiRoar()
 {
 	if (WindowOpen) {
@@ -525,7 +531,20 @@ Rectangle GetLevskiRecipeBookRect()
 	// the wrapped text came to, which was fine for five recipes and stopped being fine at eighteen:
 	// the panel simply grew past the bottom of a 720-tall screen and the last recipes could not be
 	// read at all, let alone clicked.
-	const int height = std::min(Padding * 2 + HeaderHeight + textHeight, gnScreenHeight - SlotGap * 2);
+	// The band the book is allowed to occupy: the top of the screen down to a 100px reserve above
+	// the bottom (user, 2026-08-27: "Recipe book should be next to it, in the middle between top of
+	// screen and 100px row above the bottom"), and 620 tall at most (user, 2026-08-27: "recipe
+	// window of levski to be 620px high and scrollable").
+	//
+	// On the 720-tall screens this project targets those two numbers are the same number - 720 minus
+	// the reserve IS 620 - so the book fills the band exactly and starts at y=0. They are written as
+	// two rules anyway because they are two rules: the reserve is about the HUD, the 620 is a size,
+	// and a screen that is not 720 tall must honour both rather than whichever happened to be
+	// hardcoded.
+	constexpr int BottomReserve = 100;
+	constexpr int MaxBookHeight = 620;
+	const int band = std::max(0, static_cast<int>(gnScreenHeight) - BottomReserve);
+	const int height = std::min({ Padding * 2 + HeaderHeight + textHeight, MaxBookHeight, band });
 	// LEFT of the window by preference: opening right ran the book under the mini-map, which owns
 	// the top-right corner.
 	//
@@ -542,12 +561,8 @@ Rectangle GetLevskiRecipeBookRect()
 	// player had open. Sliding left until it touches x=0 costs at most a few pixels of overlap with
 	// Levski's own window - and the book is drawn after it, so the book stays readable.
 	const int x = std::max(0, window.position.x - bookWidth - SlotGap);
-	// Centred in the band from the top of the screen down to a 100px margin above the bottom (user,
-	// 2026-08-27: "Recipe book should be next to it, in the middle between top of screen and 100px
-	// row above the bottom"). That band is what is left once the HUD's bottom furniture is set aside,
-	// so the book centres in the space it can actually use rather than in the whole screen.
-	constexpr int BottomReserve = 100;
-	const int band = std::max(0, static_cast<int>(gnScreenHeight) - BottomReserve);
+	// Centred in that same band, so the book sits in the space it can actually use rather than in
+	// the whole screen.
 	const int y = std::max(0, (band - height) / 2);
 	return Rectangle { { x, y }, { bookWidth, height } };
 }
