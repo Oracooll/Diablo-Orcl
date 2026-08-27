@@ -224,6 +224,20 @@ int PulsePercent()
 }
 
 /**
+ * @brief How wide the ring is DRAWN, in tiles. Two, or three once the aura is well invested.
+ *
+ * Separate from AuraRadiusForPoints, which is what the aura actually reaches - see the note at the
+ * call site for why the two parted company. Points still change the ring, so investment is still
+ * visible; they change it by a tile rather than by five.
+ */
+int AuraVisualRadiusTiles(int points)
+{
+	if (points <= 0)
+		return 0;
+	return points >= 5 ? 3 : 2;
+}
+
+/**
  * @brief Blits the aura, scaled to @p radiusTiles, centred on @p centre.
  *
  * Nearest-neighbour sampled: the source is a soft gradient with no hard edges to alias, and the
@@ -304,7 +318,21 @@ void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPo
 	if (!IsClassTreeSkillUnlocked(player, aura))
 		return;
 	const int points = ClassTreeInvestment(player, aura);
-	const int radius = AuraRadiusForPoints(points);
+	if (AuraRadiusForPoints(points) <= 0)
+		return;
+	// The DRAWN radius, which is deliberately no longer the aura's reach (user, 2026-08-27: "shrink
+	// auras visual assets to 2-3 tile radius. now the aura graphics spans about 10 tile maybe").
+	//
+	// It did. The gameplay radius runs four to eight tiles, and the projection multiplies it by
+	// sqrt(2) to reach the diagonal, so even a single point drew an ellipse about eleven tiles
+	// across - a wash of colour under half the screen rather than a ring around the character.
+	//
+	// So the ring is now a MARK ON THE CHARACTER, not a map of the field. That is a real trade and
+	// worth stating: a player can no longer read the aura's reach off the floor. It was not readable
+	// before either - at eight tiles the ellipse covered everything already on screen, which is the
+	// note AuraRadiusForPoints itself makes about why it caps there - so what is lost is the
+	// appearance of information rather than information.
+	const int radius = AuraVisualRadiusTiles(points);
 	if (radius <= 0)
 		return;
 

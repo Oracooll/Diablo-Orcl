@@ -6396,6 +6396,53 @@ int StockOracoolVendorItems(Item *stock, int capacity, int lvl, int want)
 	return placed;
 }
 
+/**
+ * @brief Stocks FIXED-IDENTITY Oracool goods - gems, runes, jewels, charms - that @p accepts picks.
+ *
+ * The sibling of StockOracoolVendorItems, and separate from it because these items are not rolled.
+ * A gem has no affixes and no level scaling; it IS its index. So it is built with InitializeItem and
+ * stamped `_iCreateInfo = 0`, which is the branch of RecreateItem that rebuilds from the packed
+ * index rather than replaying a seed.
+ *
+ * That stamp is the whole reason this exists as its own function rather than a flag on the other
+ * one. Getting it wrong is not cosmetic: a town stamp sends the item through the pool that excludes
+ * Oracool indices entirely, and it comes back as something else - which is exactly what had been
+ * happening to Charms of Salvaging until 2026-08-27.
+ */
+int StockOracoolFixedItems(Item *stock, int capacity, int lvl, int want,
+    tl::function_ref<bool(std::underlying_type_t<_item_indexes>)> accepts)
+{
+	if (!oracool::IsSinglePlayer() || want <= 0)
+		return 0;
+
+	_item_indexes candidates[IDI_LAST + 1];
+	int candidateCount = 0;
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (!IsItemAvailable(i) || !accepts(i))
+			continue;
+		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) > lvl)
+			continue;
+		candidates[candidateCount++] = static_cast<_item_indexes>(i);
+	}
+	if (candidateCount == 0)
+		return 0;
+
+	int placed = 0;
+	for (int i = 0; i < capacity && placed < want; i++) {
+		if (!stock[i].isEmpty())
+			continue;
+		Item &item = stock[i];
+		item = {};
+		item._iSeed = AdvanceRndSeed();
+		GetItemAttrs(item, candidates[GenerateRnd(candidateCount)], 1);
+		item._iCreateInfo = 0;
+		item._iIdentified = true;
+		item._iStatFlag = true;
+		placed++;
+	}
+	return placed;
+}
+
 void SpawnSmith(int lvl)
 {
 	constexpr int PinnedItemCount = 0;
@@ -6553,6 +6600,14 @@ void SpawnWitch(int lvl)
 	}
 
 	StockSalvageCharms(witchitem, WITCH_ITEMS, lvl, CF_WITCH);
+
+	// Adria deals in the magical, so she carries the SOCKETABLES rather than Griswold's gear (user,
+	// 2026-08-27). Gems, runes and jewels are what a spellcaster's shelf should have, and they were
+	// reachable only as drops before this.
+	StockOracoolFixedItems(witchitem, WITCH_ITEMS, lvl, WITCH_ITEMS / 4,
+	    [](std::underlying_type_t<_item_indexes> i) {
+		    return IsOracoolGemIdx(i) || IsOracoolRuneIdx(i) || IsOracoolJewelIdx(i);
+	    });
 
 	SortVendor(witchitem + PinnedItemCount, WITCH_ITEMS - PinnedItemCount);
 }
@@ -6714,6 +6769,12 @@ void SpawnHealer(int lvl)
 		item._iCreateInfo = lvl | CF_HEALER;
 		item._iIdentified = true;
 	}
+
+	// Pepin keeps people standing up, so his Oracool line is the stat CHARMS - the same kind of
+	// steady, always-on help his potions give (user, 2026-08-27).
+	StockOracoolFixedItems(healitem, static_cast<int>(std::size(healitem)), lvl,
+	    static_cast<int>(std::size(healitem)) / 4,
+	    [](std::underlying_type_t<_item_indexes> i) { return IsOracoolCharmIdx(i); });
 
 	SortVendor(healitem + PinnedItemCount, static_cast<int>(std::size(healitem)) - PinnedItemCount);
 }
