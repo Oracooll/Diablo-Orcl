@@ -158,6 +158,17 @@ enum class CuratedShelf : uint8_t {
  */
 bool HasCuratedShelf(CuratedShelf shelf);
 
+/**
+ * @brief Whether @p shelf is switched on AND actually has something on it.
+ *
+ * The tab strip asks THIS, not HasCuratedShelf. A shelf can be enabled and empty - the set pieces
+ * start at required level 18, so a character below that has earned none of them - and a tab over an
+ * empty shelf does not open: the text-store's start returns false and drops the player back to
+ * Griswold's dialog. Reported the day the Set tab shipped (user, 2026-08-27: "SET button sends me
+ * back to dialog window of Griswold").
+ */
+bool CuratedShelfHasStock(CuratedShelf shelf);
+
 /** @brief Which shelf a shop screen shows, if it shows one at all. */
 std::optional<CuratedShelf> CuratedShelfFor(TalkID id);
 

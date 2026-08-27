@@ -92,11 +92,16 @@ std::vector<TalkID> ShopTabsFor(TalkID id)
 		std::vector<TalkID> tabs { TalkID::SmithBuy, TalkID::SmithPremiumBuy };
 		// The three curated shelves, each behind its own INI switch. In quality order after the two
 		// rolled shelves, so the strip reads as a ladder rather than as the order they were built.
-		if (HasCuratedShelf(CuratedShelf::Rare))
+		//
+		// CuratedShelfHasStock, not HasCuratedShelf: the switch says whether the shelf is WANTED,
+		// and this says whether there is anything on it. A tab over an empty shelf bounces the
+		// player back to Griswold's dialog, which is what the Set tab did for every character below
+		// level 18 on the day it shipped.
+		if (CuratedShelfHasStock(CuratedShelf::Rare))
 			tabs.push_back(TalkID::SmithRareBuy);
-		if (HasCuratedShelf(CuratedShelf::Set))
+		if (CuratedShelfHasStock(CuratedShelf::Set))
 			tabs.push_back(TalkID::SmithSetBuy);
-		if (HasCuratedShelf(CuratedShelf::Unique))
+		if (CuratedShelfHasStock(CuratedShelf::Unique))
 			tabs.push_back(TalkID::SmithUniqueBuy);
 		if (!gbIsMultiplayer)
 			tabs.push_back(TalkID::SmithConsumables);
