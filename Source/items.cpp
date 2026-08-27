@@ -6418,6 +6418,25 @@ void StockSalvageCharms(Item *stock, int capacity, int lvl, uint16_t createInfoF
 }
 
 /**
+ * @brief Every Oracool GEAR base this depth has opened, written into @p out. Returns how many.
+ *
+ * Shared by the plain shelf and the affixed one below it, so the two cannot come to disagree about
+ * which bases a depth offers - the gate is the same banded qlvl ladder the drop hook reads, and one
+ * copy of it is the only way that stays true.
+ */
+int OracoolGearBasesFor(int lvl, _item_indexes *out)
+{
+	int count = 0;
+	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_SPECTRAL_HELM; i++) {
+		if (!IsItemAvailable(i))
+			continue;
+		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= lvl)
+			out[count++] = static_cast<_item_indexes>(i);
+	}
+	return count;
+}
+
+/**
  * @brief Fills up to @p want empty slots with PLAIN Oracool gear of this depth.
  *
  * Plain since 2026-08-27 - see the note at the roll itself. Griswold's Basic tab promises unaffixed
@@ -6445,13 +6464,7 @@ int StockOracoolVendorItems(Item *stock, int capacity, int lvl, int want)
 		return 0;
 
 	_item_indexes candidates[IDI_LAST + 1];
-	int candidateCount = 0;
-	for (std::underlying_type_t<_item_indexes> i = IDI_ORACOOL_SHOULDERS; i <= IDI_ORACOOL_SPECTRAL_HELM; i++) {
-		if (!IsItemAvailable(i))
-			continue;
-		if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= lvl)
-			candidates[candidateCount++] = static_cast<_item_indexes>(i);
-	}
+	const int candidateCount = OracoolGearBasesFor(lvl, candidates);
 	if (candidateCount == 0)
 		return 0;
 
@@ -6486,6 +6499,55 @@ int StockOracoolVendorItems(Item *stock, int capacity, int lvl, int want)
 		    gbIsHellfire ? MaxVendorValueHf : MaxVendorValue);
 		// Still NOT a town stamp - see this function's header. A bare level is what a rolled dungeon
 		// item carries, and it is what keeps the packed index instead of re-deriving it.
+		item._iCreateInfo = std::min(itemLevel, 63);
+		item._iIdentified = true;
+		item._iStatFlag = MyPlayer->CanUseItem(item);
+		placed++;
+	}
+	return placed;
+}
+
+/**
+ * @brief Fills up to @p want empty slots with AFFIXED Oracool gear - Griswold's Magic tab.
+ *
+ * The gap left when the Basic tab's Oracool gear was made plain (user, 2026-08-27: "fill that gap -
+ * add affixed oracool bases to magic tab"). Until this, an Oracool base with affixes on it existed
+ * only as a monster drop: the premium shelf rolls its bases through RndPremiumItem, and that walks
+ * the droppable pool Oracool items are deliberately excluded from.
+ *
+ * A SECOND PASS over the premium array rather than a branch inside SpawnOnePremium, and the reason
+ * is the save format rather than tidiness. SpawnOnePremium's sequence is replayed verbatim by
+ * RecreatePremiumItem - `SetRndSeed(seed)` then `RndPremiumItem` - so a single extra GenerateRnd
+ * inserted between those two lines would make every recreated premium item differ from the one that
+ * was generated. This pass touches none of that stream.
+ *
+ * `onlygood` is TRUE, and load-bearing: without it GetItemBLevel has a random component that can
+ * decide an item rolls no affixes at all, and a shelf that is supposed to be magical would be part
+ * plain. `allowTieredRoll` is FALSE, so these come out as ordinary magic items - the Magic tab
+ * promises affixed gear, and Rare, Set and Unique each have a tab of their own to promise from.
+ */
+int StockOracoolMagicItems(Item *stock, int capacity, int lvl, int want)
+{
+	if (!oracool::IsSinglePlayer() || want <= 0)
+		return 0;
+
+	_item_indexes candidates[IDI_LAST + 1];
+	const int candidateCount = OracoolGearBasesFor(lvl, candidates);
+	if (candidateCount == 0)
+		return 0;
+
+	int placed = 0;
+	for (int i = 0; i < capacity && placed < want; i++) {
+		if (!stock[i].isEmpty())
+			continue;
+		const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
+		const int itemLevel = std::clamp(lvl, 1, 30);
+		Item &item = stock[i];
+		item = {};
+		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), itemLevel, 1, /*onlygood=*/true,
+		    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/false);
+		// A bare level, never CF_SMITHPREMIUM - see StockOracoolVendorItems' header for why a town
+		// stamp on an Oracool item comes back as something else after a reload.
 		item._iCreateInfo = std::min(itemLevel, 63);
 		item._iIdentified = true;
 		item._iStatFlag = MyPlayer->CanUseItem(item);
@@ -6552,6 +6614,8 @@ int StockOracoolFixedItems(Item *stock, int capacity, int lvl, int want,
 constexpr int SmithOracoolCount = SMITH_ITEMS / 3;
 constexpr int WitchOracoolCount = WITCH_ITEMS / 4;
 constexpr int HealerOracoolCount = 5;
+/** @brief Griswold's Magic shelf: a fifth of it, which is six of thirty. See SpawnPremium. */
+constexpr int PremiumOracoolCount = SMITH_PREMIUM_ITEMS / 5;
 
 void SpawnSmith(int lvl)
 {
@@ -6621,25 +6685,39 @@ void SpawnPremium(const Player &player)
 {
 	int8_t lvl = player._pLevel;
 	constexpr int maxItems = SMITH_PREMIUM_ITEMS;
+	// The TAIL of the array is the Oracool block; the vanilla roll and its rotation both work over
+	// the head. Splitting the array rather than interleaving keeps the rotation below exactly what
+	// it was - it shifts a contiguous run and refills its end, and an Oracool item caught in that
+	// run would be aged out by a rotation that has no way to replace it.
+	constexpr int vanillaItems = maxItems - PremiumOracoolCount;
 	if (numpremium < maxItems) {
-		for (int i = 0; i < maxItems; i++) {
+		for (int i = 0; i < vanillaItems; i++) {
 			if (premiumitems[i].isEmpty())
-				SpawnOnePremium(premiumitems[i], premiumlevel + PremiumLevelDelta(i, maxItems), player);
+				SpawnOnePremium(premiumitems[i], premiumlevel + PremiumLevelDelta(i, vanillaItems), player);
 		}
 		numpremium = maxItems;
 	}
+	const bool depthChanged = premiumlevel < lvl;
 	while (premiumlevel < lvl) {
 		premiumlevel++;
 		// One generalised rotation in place of vanilla's two hardcoded ones. Both of those discarded
 		// roughly the cheapest third of the list on every level and refilled the tail; this does the
 		// same thing without naming individual slots, which is what made them size-specific.
-		constexpr int discard = std::max(1, maxItems / 3);
-		std::move(&premiumitems[discard], &premiumitems[maxItems], &premiumitems[0]);
-		for (int i = maxItems - discard; i < maxItems; i++) {
+		constexpr int discard = std::max(1, vanillaItems / 3);
+		std::move(&premiumitems[discard], &premiumitems[vanillaItems], &premiumitems[0]);
+		for (int i = vanillaItems - discard; i < vanillaItems; i++) {
 			premiumitems[i].clear();
-			SpawnOnePremium(premiumitems[i], premiumlevel + PremiumLevelDelta(i, maxItems), player);
+			SpawnOnePremium(premiumitems[i], premiumlevel + PremiumLevelDelta(i, vanillaItems), player);
 		}
 	}
+	// The Oracool block is rebuilt when the shelf's depth moves, which is how it keeps pace with the
+	// character the way the rotation above does. It is NOT rebuilt on an ordinary visit, so an item
+	// left unbought is still there next time - the same promise the rest of the shelf makes.
+	if (depthChanged) {
+		for (int i = vanillaItems; i < maxItems; i++)
+			premiumitems[i].clear();
+	}
+	StockOracoolMagicItems(premiumitems, maxItems, premiumlevel, PremiumOracoolCount);
 }
 
 void SpawnWitch(int lvl)
