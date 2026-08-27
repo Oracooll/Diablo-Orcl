@@ -37,6 +37,8 @@ enum class TalkID : uint8_t {
 	SmithSell,
 	SmithRepair,
 	SmithUniqueBuy,
+	SmithRareBuy,
+	SmithSetBuy,
 	SmithConsumables,
 	SmithRecharge,
 	Witch,
@@ -132,12 +134,37 @@ void ClearSText(int s, int e);
 void StartStore(TalkID s);
 
 /**
- * @brief Whether Griswold offers his unique stock at all.
+ * @brief Griswold's CURATED shelves - the ones generated once per game rather than restocked.
  *
- * Exposed so the shop tab strip can ask rather than re-derive it. The rule is
- * "single-player, and the option is on", and a second copy of that in the tab code would be a
- * second opinion about whether a tab exists - which shows up as a tab that opens an empty screen.
+ * Unique came first; Rare and Set joined it on 2026-08-27. They share every behaviour that is not
+ * "how is one item made": the page-sized array, the buy-and-do-not-refill rule, the stale-row
+ * guards, the scroll arithmetic. Only the generator, the INI switch and the tab name differ, and
+ * each of those is one function keyed on this enum - which is what stopped the second and third
+ * shelves from being two more copies of the first.
  */
+enum class CuratedShelf : uint8_t {
+	Unique,
+	Rare,
+	Set,
+	Count,
+};
+
+/**
+ * @brief Whether Griswold offers @p shelf at all.
+ *
+ * Exposed so the shop tab strip can ask rather than re-derive it. The rule is "single-player, and
+ * the option is on", and a second copy of that in the tab code would be a second opinion about
+ * whether a tab exists - which shows up as a tab that opens an empty screen.
+ */
+bool HasCuratedShelf(CuratedShelf shelf);
+
+/** @brief Which shelf a shop screen shows, if it shows one at all. */
+std::optional<CuratedShelf> CuratedShelfFor(TalkID id);
+
+/** @brief The screen that shows @p shelf. */
+TalkID TalkIdForCuratedShelf(CuratedShelf shelf);
+
+/** @brief Kept as the unique shelf's own name, since the tab strip and the menu both still ask. */
 bool HasSmithUniqueShop();
 
 namespace oracool {

@@ -27,19 +27,17 @@ using Skill = ClassTreeSkill;
 constexpr int ArtWidth = 512;
 constexpr int ArtHeight = 256;
 
-/**
- * @brief sqrt(2) as a fraction, to five decimals.
- *
- * Needed because one tile step is (TILE_WIDTH/2, TILE_HEIGHT/2) on screen, not (TILE_WIDTH, 0): a
- * world-space circle of radius R tiles projects to an ellipse whose semi-axes are R*(TILE_WIDTH/2)
- * and R*(TILE_HEIGHT/2) scaled by sqrt(2), because the extreme point lies on the diagonal.
- *
- * The first cut of this file assumed 512px WAS the eight-tile radius and scaled by R/8. That draws
- * a ring of about 5.7 tiles when it claims eight - every ring 41% too small for the field it
- * stands for, which nothing but the eye can catch.
- */
-constexpr int Sqrt2Num = 181;
-constexpr int Sqrt2Den = 128;
+// The sqrt(2) projection factor that used to live here is gone, and its removal is the fix for
+// "shrink auras. they are not 2 tiles in diameter" (user, 2026-08-27).
+//
+// It was right for what this file used to do: a world-space CIRCLE of radius R tiles projects to an
+// ellipse whose extreme point lies on the diagonal, so the semi-axes want scaling by sqrt(2). That
+// was the correct conversion while the drawn ring was standing in for the aura's actual reach.
+//
+// It stopped being the aura's reach on 2026-08-27, when the ring became a mark on the character
+// instead of a map of the field. From that point the size is not derived from anything - it is
+// simply stated - and a leftover projection factor only made the stated number wrong by 41%: a "2
+// tile" ring measured 2.8 tiles across. The number asked for is now the number drawn.
 
 /**
  * @brief One aura's art, quantised once and kept.
@@ -224,33 +222,42 @@ int PulsePercent()
 }
 
 /**
- * @brief How wide the ring is DRAWN, in tiles. Two, or three once the aura is well invested.
+ * @brief How wide the ring is DRAWN, in HALF-tiles across. Two tiles, or three once well invested.
+ *
+ * DIAMETER, not radius, and in half-tiles so "three tiles across" is expressible without a fraction.
+ * The previous version of this returned a radius of 2-3 tiles, which is a 4-6 tile ring - twice what
+ * was wanted, and then half again as much once the projection factor had been applied to it (user,
+ * 2026-08-27: "shrink auras. they are not 2 tiles in diameter"). They were not; they were about
+ * five and a half.
  *
  * Separate from AuraRadiusForPoints, which is what the aura actually reaches - see the note at the
  * call site for why the two parted company. Points still change the ring, so investment is still
  * visible; they change it by a tile rather than by five.
  */
-int AuraVisualRadiusTiles(int points)
+int AuraVisualDiameterHalfTiles(int points)
 {
 	if (points <= 0)
 		return 0;
-	return points >= 5 ? 3 : 2;
+	return points >= 5 ? 6 : 4;
 }
 
 /**
- * @brief Blits the aura, scaled to @p radiusTiles, centred on @p centre.
+ * @brief Blits the aura @p diameterHalfTiles half-tiles across, centred on @p centre.
  *
  * Nearest-neighbour sampled: the source is a soft gradient with no hard edges to alias, and the
  * shrink is never more than half, so a filtered sample would cost more than it showed.
  */
-void BlitAura(const Surface &out, const AuraArt &art, Point centre, int radiusTiles, int pulsePercent)
+void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameterHalfTiles, int pulsePercent)
 {
-	// The screen ellipse the aura's world-space circle projects to. At the eight-tile cap this is
-	// 724x362, so the art is enlarged by up to sqrt(2) rather than only ever shrunk - acceptable on
-	// a source that is all soft gradient, and the dither is applied in destination space so it stays
-	// fine-grained however far the source is stretched.
-	const int dstW = 2 * radiusTiles * (TILE_WIDTH / 2) * Sqrt2Num / Sqrt2Den;
-	const int dstH = 2 * radiusTiles * (TILE_HEIGHT / 2) * Sqrt2Num / Sqrt2Den;
+	// The ellipse, stated directly. One tile step on screen is (TILE_WIDTH/2, TILE_HEIGHT/2), so a
+	// ring N tiles across is N*TILE_WIDTH wide and N*TILE_HEIGHT tall - and in half-tiles that is
+	// the same expression without the factor of two.
+	//
+	// A two-tile ring is 128x64, so the 512px source is shrunk to a quarter. That is well inside
+	// what nearest-neighbour handles on an all-gradient source, and the dither is applied in
+	// destination space so it stays fine-grained at any scale.
+	const int dstW = diameterHalfTiles * (TILE_WIDTH / 2);
+	const int dstH = diameterHalfTiles * (TILE_HEIGHT / 2);
 	if (dstW <= 0 || dstH <= 0)
 		return;
 
@@ -320,10 +327,10 @@ void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPo
 	const int points = ClassTreeInvestment(player, aura);
 	if (AuraRadiusForPoints(points) <= 0)
 		return;
-	// The DRAWN radius, which is deliberately no longer the aura's reach (user, 2026-08-27: "shrink
+	// The DRAWN size, which is deliberately no longer the aura's reach (user, 2026-08-27: "shrink
 	// auras visual assets to 2-3 tile radius. now the aura graphics spans about 10 tile maybe").
 	//
-	// It did. The gameplay radius runs four to eight tiles, and the projection multiplies it by
+	// It did. The gameplay radius runs four to eight tiles, and the projection multiplied it by
 	// sqrt(2) to reach the diagonal, so even a single point drew an ellipse about eleven tiles
 	// across - a wash of colour under half the screen rather than a ring around the character.
 	//
@@ -332,8 +339,12 @@ void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPo
 	// before either - at eight tiles the ellipse covered everything already on screen, which is the
 	// note AuraRadiusForPoints itself makes about why it caps there - so what is lost is the
 	// appearance of information rather than information.
-	const int radius = AuraVisualRadiusTiles(points);
-	if (radius <= 0)
+	//
+	// The first attempt at that shrink read "2-3 tile radius" as a radius and kept the projection
+	// factor, which together drew five and a half tiles across when two were asked for. It is a
+	// DIAMETER now, stated in half-tiles and blitted at exactly that size.
+	const int diameterHalfTiles = AuraVisualDiameterHalfTiles(points);
+	if (diameterHalfTiles <= 0)
 		return;
 
 	const int slot = IndexOfSkill(aura);
@@ -367,7 +378,7 @@ void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPo
 					const Displacement walk = GetOffsetForWalking(player.AnimInfo, player._pdir);
 					centre += walk;
 				}
-				BlitAura(out, Art[slot], centre, radius, PulsePercent());
+				BlitAura(out, Art[slot], centre, diameterHalfTiles, PulsePercent());
 				return;
 			}
 			tilePosition += Direction::East;

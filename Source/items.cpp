@@ -3382,6 +3382,79 @@ bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
 	return true;
 }
 
+bool CreateRareVendorItem(const Player &player, Item &item, int lvl)
+{
+	// The base comes from RndSmithItem - Griswold's own pool, at his own depth - rather than from a
+	// hand-written list. Two things follow from that and both matter: the tab offers the same kinds
+	// of gear the Basic tab does (so a Rare shelf is "the same shop, rolled hard" rather than a
+	// separate item universe), and the pick goes through GetItemIndexForDroppableItem, which is the
+	// replay-safe walk.
+	item = {};
+	SetRndSeed(AdvanceRndSeed());
+	const _item_indexes idx = RndSmithItem(player, lvl);
+	if (idx == IDI_GOLD)
+		return false;
+
+	// Stamped as a ROLLED item, not a town one. CF_TOWN is the route that re-derives an item's index
+	// by replaying its seed through the droppable pool, so a town stamp here would let the shelf's
+	// wares come back as something else after a reload - the exact bug StockOracoolVendorItems'
+	// comment records, and the exact bug that ate the Charms of Salvaging. SetupAllItems writes the
+	// createInfo itself, which is why nothing sets it after this call.
+	//
+	// onlygood TRUE with the forced tier, for the reason RetierOracoolItem spells out: without it
+	// GetItemBLevel has a random component that can decide the item rolls no affixes at all, and a
+	// forced tier would silently not happen a large share of the time.
+	SetupAllItems(player, item, idx, AdvanceRndSeed(), std::clamp(lvl, 1, 30), 1, /*onlygood=*/true,
+	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true,
+	    std::optional<OracoolItemTier>(OracoolItemTier::Rare));
+	// A base with no affix type - a potion, a scroll - cannot carry a tier, and the roller says so
+	// by leaving the tier unset rather than by failing. Reported as a miss so the caller rolls again
+	// instead of shelving a plain item on the Rare tab.
+	if (item._iOracoolTier != OracoolItemTier::Rare)
+		return false;
+	item._iIdentified = true;
+	item._iStatFlag = player.CanUseItem(item);
+	return true;
+}
+
+bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
+    tl::function_ref<bool(const oracool::SetItemDefinition &)> alreadyStocked)
+{
+	// Every piece the character has EARNED and that can actually be built, minus the ones already on
+	// the shelf. All three filters carry weight: the level gate is what makes the shelf grow with
+	// the character, the base check keeps the two slots this fork has not built (relic, cloak) from
+	// being picked and silently dropped, and the duplicate check is what stops a fifteen-set shelf
+	// from being four copies of the same gauntlets.
+	std::vector<const oracool::SetItemDefinition *> candidates;
+	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
+		for (int i = 0; i < set.itemCount; i++) {
+			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
+			if (def.requiredLevel > player._pLevel)
+				continue;
+			if (oracool::BaseItemForSetSlot(def.slot) < 0)
+				continue;
+			if (alreadyStocked(def))
+				continue;
+			candidates.push_back(&def);
+		}
+	}
+	if (candidates.empty())
+		return false;
+
+	const oracool::SetItemDefinition &def = *candidates[GenerateRnd(static_cast<int>(candidates.size()))];
+	item = {};
+	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetSlot(def.slot)));
+	oracool::MakeSetItem(item, def);
+	// The same finish every dropped set piece gets - seed, item level, base tier - so a bought piece
+	// and a found one are the same kind of object. No ethereal roll: that is drop-only, and a vendor
+	// handing over an ethereal piece the player did not ask for is the case FinalizeSetPiece's own
+	// comment declines.
+	FinalizeSetPiece(item, std::max(lvl, def.requiredLevel), /*allowEtherealRoll=*/false);
+	item._iIdentified = true;
+	item._iStatFlag = player.CanUseItem(item);
+	return true;
+}
+
 void ClearUniqueItemFlags()
 {
 	memset(UniqueItemFlags, 0, sizeof(UniqueItemFlags));

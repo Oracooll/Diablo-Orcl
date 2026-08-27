@@ -825,6 +825,25 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean griswoldRestoreMana;
 	OptionEntryBoolean griswoldSellUniqueItems;
 	OptionEntryInt<int> griswoldUniqueItemPriceMultiplier;
+	/**
+	 * @brief The two curated shelves that joined the unique one - Rare and Set.
+	 *
+	 * One switch each, in the same shape as griswoldSellUniqueItems, because they are the same kind
+	 * of thing: a tab that either exists or does not. Set was asked for with a toggle explicitly
+	 * (user, 2026-08-27: "SET items shop, full page, INI ON/OFF toggle"); Rare gets one for the
+	 * same reason, since a shop tab nobody wants is a tab in the way of the ones they do.
+	 */
+	OptionEntryBoolean griswoldSellRareItems;
+	OptionEntryBoolean griswoldSellSetItems;
+	/**
+	 * @brief The Refresh action on the Basic, Rare and Supplies tabs.
+	 *
+	 * Premium has had its own Refresh (griswoldPremiumRefresh) since long before this; this is the
+	 * same free reroll extended to the other three shelves that regenerate (user, 2026-08-27).
+	 * Deliberately NOT folded into the premium switch: someone who wants the premium reroll does not
+	 * necessarily want to be able to reroll the basic shelf until it holds what they want.
+	 */
+	OptionEntryBoolean shopStockRefresh;
 	OptionEntryBoolean griswoldPremiumIgnoreAffixLevelLimits;
 	OptionEntryBoolean griswoldPremiumIgnorePriceLimits;
 	OptionEntryBoolean griswoldSellIgnoresBelt;

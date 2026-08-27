@@ -264,6 +264,8 @@ const char *ShopTitle(TalkID id)
 	case TalkID::SmithBuy:
 	case TalkID::SmithPremiumBuy:
 	case TalkID::SmithUniqueBuy:
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
 	case TalkID::SmithConsumables:
 	case TalkID::SmithSell:
 	case TalkID::SmithRepair:
@@ -359,6 +361,8 @@ std::vector<ServiceButton> ServicesFor(TalkID id)
 	case TalkID::SmithBuy:
 	case TalkID::SmithPremiumBuy:
 	case TalkID::SmithUniqueBuy:
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
 	case TalkID::SmithConsumables:
 	case TalkID::SmithSell:
 		return { ServiceButton::Repair, ServiceButton::RepairAll, ServiceButton::Recharge };

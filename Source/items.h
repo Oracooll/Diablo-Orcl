@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <limits>
 
+#include <function_ref.hpp>
+
 #include "DiabloUI/ui_flags.hpp"
 #include "engine.h"
 #include "engine/animationinfo.h"
@@ -18,6 +20,10 @@
 #include "utils/attributes.h"
 #include "utils/stdcompat/optional.hpp"
 #include "utils/string_or_view.hpp"
+
+namespace devilution::oracool {
+struct SetItemDefinition;
+} // namespace devilution::oracool
 
 namespace devilution {
 
@@ -868,6 +874,25 @@ int GetItemSellValue(const Item &item);
 bool IsItemAvailable(int i);
 bool IsUniqueAvailable(int i);
 bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid);
+
+/**
+ * @brief Rolls one identified RARE-tier item of Griswold's kinds at @p lvl. False if it could not.
+ *
+ * The unique shelf's twin, and deliberately the same contract: build one item or say you did not,
+ * and leave the shelf's bookkeeping to the caller. False is ordinary here rather than exceptional -
+ * a base that cannot carry tiered affixes is a miss, not an error - so callers roll again.
+ */
+bool CreateRareVendorItem(const Player &player, Item &item, int lvl);
+
+/**
+ * @brief Builds one named SET piece the player's level has earned. False when none qualify.
+ *
+ * @p alreadyStocked is asked of every candidate, so the caller decides what "already on this shelf"
+ * means without this having to know how the shelf is stored. Without it a fifteen-set shelf is four
+ * copies of the same gauntlets often enough to notice.
+ */
+bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
+    tl::function_ref<bool(const oracool::SetItemDefinition &)> alreadyStocked);
 void ClearUniqueItemFlags();
 void InitItemGFX();
 void InitItems();

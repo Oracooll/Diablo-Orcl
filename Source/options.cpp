@@ -524,6 +524,13 @@ void SaveOptions()
 	setInteger("Griswold Unique Item Price Multiplier", *sgOptions.Oracool.griswoldUniqueItemPriceMultiplier,
 	    "; Purchase-price multiplier applied to each unique item's normal sell value.\n; Example: 5 means five times its normal sell price.");
 
+	setBoolean("Griswold Sell Rare Items", *sgOptions.Oracool.griswoldSellRareItems,
+	    "; ----- GRISWOLD: RARE AND SET SHOPS -------------------------------------------\n; Adds a separate identified Rare-tier shop. The stock is rolled at the vendor's\n; own depth and, like the unique shelf, does not refill a purchase immediately.");
+	setBoolean("Griswold Sell Set Items", *sgOptions.Oracool.griswoldSellSetItems,
+	    "; Adds a separate named-set-piece shop. Only pieces your character level has\n; earned are offered, and no piece appears twice on the same shelf.");
+	setBoolean("Shop Stock Refresh", *sgOptions.Oracool.shopStockRefresh,
+	    "; Adds a free Refresh action to the Basic, Rare and Supplies shelves, matching\n; the one Premium Items already has. Regenerates that shelf's complete stock.");
+
 	setBoolean("Auto Identify Drops", *sgOptions.Oracool.autoIdentifyDrops,
 	    "; ----- ITEMS AND PICKUP -------------------------------------------------------\n; Identifies newly generated world drops immediately. Items deliberately dropped\n; by the player retain their existing identification state.");
 	setInteger("Auto Pickup Range", *sgOptions.Oracool.autoPickupRange,
@@ -1428,6 +1435,9 @@ OracoolOptions::OracoolOptions()
     , griswoldRestoreMana("Griswold Restore Mana", OptionEntryFlags::None, N_("Griswold Restore Mana"), N_("Silently restores mana when Griswold's menu opens."), true)
     , griswoldSellUniqueItems("Griswold Sell Unique Items", OptionEntryFlags::None, N_("Griswold Sell Unique Items"), N_("Adds a separate unique-item shop to Griswold."), false)
     , griswoldUniqueItemPriceMultiplier("Griswold Unique Item Price Multiplier", OptionEntryFlags::None, N_("Griswold Unique Item Price Multiplier"), N_("Multiplier applied to a unique item's normal sell value."), 20, { 1, 2, 3, 4, 5, 10, 15, 20 })
+    , griswoldSellRareItems("Griswold Sell Rare Items", OptionEntryFlags::None, N_("Griswold Sell Rare Items"), N_("Adds a separate rare-item shop to Griswold."), false)
+    , griswoldSellSetItems("Griswold Sell Set Items", OptionEntryFlags::None, N_("Griswold Sell Set Items"), N_("Adds a separate named-set-item shop to Griswold."), false)
+    , shopStockRefresh("Shop Stock Refresh", OptionEntryFlags::None, N_("Shop Stock Refresh"), N_("Adds a free Refresh action to the Basic, Rare and Supplies shelves."), true)
     , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes regardless of their normal quality-level requirement."), false)
     , griswoldPremiumIgnorePriceLimits("Griswold Premium Ignore Price Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Price Limits"), N_("Prevents valid Premium items from being rejected by the normal price ceiling."), false)
     , griswoldSellIgnoresBelt("Griswold Sell Ignores Belt", OptionEntryFlags::None, N_("Griswold Sell Ignores Belt"), N_("Griswold's and Adria's sell lists skip belt items - only the backpack is offered."), true)
@@ -1503,6 +1513,9 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&griswoldRestoreMana,
 		&griswoldSellUniqueItems,
 		&griswoldUniqueItemPriceMultiplier,
+		&griswoldSellRareItems,
+		&griswoldSellSetItems,
+		&shopStockRefresh,
 		&griswoldPremiumIgnoreAffixLevelLimits,
 		&griswoldPremiumIgnorePriceLimits,
 		&griswoldSellIgnoresBelt,

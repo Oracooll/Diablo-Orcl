@@ -80,9 +80,69 @@ Item premiumitems[SMITH_PREMIUM_ITEMS];
 // vary from a 1x1 ring to a 2x3 breastplate - there is no single item count that fills 160 cells.
 // The shelf is defined by what fits (see PlaceStock), so this only has to be comfortably MORE than
 // a page can hold; the page decides where the stock actually ends.
-constexpr int SmithUniqueItemsMaximum = 40;
-Item smithUniqueItems[SmithUniqueItemsMaximum];
-bool smithUniqueItemsInitialized;
+constexpr int CuratedShelfCapacity = 40;
+
+/**
+ * @brief One curated shelf - a page of items generated once and not refilled as they are bought.
+ *
+ * The unique shelf was the first, and for a while the only one, so its array and its "has it been
+ * built yet" flag were two file-scope variables and its behaviour was about twenty `case
+ * TalkID::SmithUniqueBuy:` labels. Rare and Set were asked for next (user, 2026-08-27), and copying
+ * that twice would have meant sixty labels and three places for the same stale-row bug to be fixed
+ * in two of them.
+ *
+ * So the shelves are indexed instead. Everything that differs between them - the INI switch, the
+ * tab name, the generator - is a function OF the index; everything that does not differ is written
+ * once. Adding a fourth shelf is a row in each of those three functions.
+ */
+struct CuratedShelfState {
+	Item items[CuratedShelfCapacity];
+	bool initialized;
+};
+
+CuratedShelfState CuratedShelves[static_cast<size_t>(CuratedShelf::Count)];
+
+Item *ShelfItems(CuratedShelf shelf)
+{
+	return CuratedShelves[static_cast<size_t>(shelf)].items;
+}
+
+/** @brief The wording on Griswold's menu row for @p shelf. */
+const char *CuratedShelfMenuLabel(CuratedShelf shelf)
+{
+	switch (shelf) {
+	case CuratedShelf::Unique:
+		return N_("Buy unique items");
+	case CuratedShelf::Rare:
+		return N_("Buy rare items");
+	case CuratedShelf::Set:
+		return N_("Buy set items");
+	case CuratedShelf::Count:
+		break;
+	}
+	return "";
+}
+
+/**
+ * @brief The depth a vendor's stock is generated at: the deepest floor visited, clamped 6-16.
+ *
+ * Lifted out of SetupTownStores when the Refresh buttons needed it. A reroll has to regenerate a
+ * shelf at the SAME depth it was first built at, and the alternative - passing the level around, or
+ * recomputing the walk at each call site - is how two answers to one question come about.
+ */
+int VendorStockLevel()
+{
+	const Player &myPlayer = *MyPlayer;
+	int l = myPlayer._pLevel / 2;
+	if (!gbIsMultiplayer) {
+		l = 0;
+		for (int i = 0; i < NUMLEVELS; i++) {
+			if (myPlayer._pLvlVisited[i])
+				l = i;
+		}
+	}
+	return clamp(l + 2, 6, 16);
+}
 
 Item healitem[20];
 
@@ -631,7 +691,10 @@ void StartSmith()
 			AddSText(0, line, _("Buy premium items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 			break;
 		case TalkID::SmithUniqueBuy:
-			AddSText(0, line, _("Buy unique items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		case TalkID::SmithRareBuy:
+		case TalkID::SmithSetBuy:
+			AddSText(0, line, _(CuratedShelfMenuLabel(*CuratedShelfFor(entries[i]))),
+			    UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 			break;
 		case TalkID::SmithSell:
 			AddSText(0, line, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
@@ -796,37 +859,55 @@ bool StartSmithPremiumBuy()
 	return true;
 }
 
-void ScrollSmithUniqueBuy(int idx)
+/** @brief The heading over @p shelf's list, and the wording on Griswold's menu row. */
+const char *CuratedShelfHeading(CuratedShelf shelf)
 {
+	switch (shelf) {
+	case CuratedShelf::Unique:
+		return N_("I have these unique items for sale:");
+	case CuratedShelf::Rare:
+		return N_("I have these rare items for sale:");
+	case CuratedShelf::Set:
+		return N_("I have these set items for sale:");
+	case CuratedShelf::Count:
+		break;
+	}
+	return "";
+}
+
+void ScrollCuratedShelfBuy(CuratedShelf shelf, int idx)
+{
+	const Item *items = ShelfItems(shelf);
 	ClearSText(5, 21);
 	stextup = 5;
-	for (int l = 5; l < 20 && idx < SmithUniqueItemsMaximum; l += 4, ++idx) {
-		if (smithUniqueItems[idx].isEmpty()) {
+	for (int l = 5; l < 20 && idx < CuratedShelfCapacity; l += 4, ++idx) {
+		if (items[idx].isEmpty()) {
 			l -= 4;
 			continue;
 		}
-		const UiFlags itemColor = smithUniqueItems[idx].getTextColorWithStatCheck();
-		AddSText(20, l, smithUniqueItems[idx].getName(), itemColor, true, smithUniqueItems[idx]._iCurs, true);
-		AddSTextVal(l, smithUniqueItems[idx]._iIvalue);
-		PrintStoreItem(smithUniqueItems[idx], l + 1, itemColor, true);
+		const UiFlags itemColor = items[idx].getTextColorWithStatCheck();
+		AddSText(20, l, items[idx].getName(), itemColor, true, items[idx]._iCurs, true);
+		AddSTextVal(l, items[idx]._iIvalue);
+		PrintStoreItem(items[idx], l + 1, itemColor, true);
 		stextdown = l;
 	}
 	if (stextsel != -1 && !stext[stextsel].isSelectable() && stextsel != BackButtonLine())
 		stextsel = stextdown;
 }
 
-bool StartSmithUniqueBuy()
+bool StartCuratedShelfBuy(CuratedShelf shelf)
 {
+	Item *items = ShelfItems(shelf);
 	storenumh = 0;
-	for (Item &item : smithUniqueItems) {
-		if (item.isEmpty())
+	for (int i = 0; i < CuratedShelfCapacity; i++) {
+		if (items[i].isEmpty())
 			continue;
-		item._iStatFlag = MyPlayer->CanUseItem(item);
+		items[i]._iStatFlag = MyPlayer->CanUseItem(items[i]);
 		++storenumh;
 	}
 	if (storenumh == 0) {
 		StartStore(TalkID::Smith);
-		stextsel = SmithMenuLine(TalkID::SmithUniqueBuy);
+		stextsel = SmithMenuLine(TalkIdForCuratedShelf(shelf));
 		return false;
 	}
 
@@ -834,11 +915,11 @@ bool StartSmithUniqueBuy()
 	stextscrl = true;
 	stextsval = 0;
 	RenderGold = true;
-	AddSText(20, 1, _("I have these unique items for sale:"), UiFlags::ColorWhitegold, false);
+	AddSText(20, 1, _(CuratedShelfHeading(shelf)), UiFlags::ColorWhitegold, false);
 	AddSLine(3);
 	AddItemListBackButton();
 	stextsmax = std::max(storenumh - 4, 0);
-	ScrollSmithUniqueBuy(0);
+	ScrollCuratedShelfBuy(shelf, 0);
 	return true;
 }
 
@@ -1629,6 +1710,8 @@ void StoreConfirm(Item &item)
 	case TalkID::HealerBuy:
 	case TalkID::SmithPremiumBuy:
 	case TalkID::SmithUniqueBuy:
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
 	case TalkID::WitchBuy:
 	case TalkID::SmithConsumables:
 	case TalkID::SmithBuy:
@@ -2025,7 +2108,9 @@ void SmithEnter()
 		StartStore(TalkID::SmithPremiumBuy);
 		break;
 	case TalkID::SmithUniqueBuy:
-		StartStore(TalkID::SmithUniqueBuy);
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
+		StartStore(selected);
 		break;
 	case TalkID::SmithSell:
 		StartStore(TalkID::SmithSell);
@@ -2162,52 +2247,57 @@ void SmithBuyPItem(Item &item)
 	SmithBuyPItemAt(item, stextvhold + ((stextlhold - stextup) / 4));
 }
 
-void SmithBuyUniqueItemAt(Item &item, int idx)
+void BuyCuratedShelfItemAt(CuratedShelf shelf, Item &item, int idx)
 {
 	// Clamped before the shift loop below uses it as a write index (self-audit, 2026-08-15): a
 	// negative stale index would write before the array. Checked before the money, like
 	// SmithBuyPItem, so a stale row costs nothing rather than costing gold for no goods.
-	if (idx < 0 || idx >= SmithUniqueItemsMaximum)
+	if (idx < 0 || idx >= CuratedShelfCapacity)
 		return;
+	Item *items = ShelfItems(shelf);
 	TakePlrsMoney(item._iIvalue);
 	StoreAutoPlace(item, true);
-	for (; idx < SmithUniqueItemsMaximum - 1; ++idx)
-		smithUniqueItems[idx] = std::move(smithUniqueItems[idx + 1]);
-	smithUniqueItems[SmithUniqueItemsMaximum - 1].clear();
+	// The bought item is REMOVED and not replaced - that is what makes a shelf curated. The stock
+	// closes up behind it so the list stays dense, which is what the scroll arithmetic assumes.
+	for (; idx < CuratedShelfCapacity - 1; ++idx)
+		items[idx] = std::move(items[idx + 1]);
+	items[CuratedShelfCapacity - 1].clear();
 	CalcPlrInv(*MyPlayer, true);
 }
 
 /** @brief The text-store's caller: it still knows the index only as a scroll position. */
-void SmithBuyUniqueItem(Item &item)
+void BuyCuratedShelfItem(CuratedShelf shelf, Item &item)
 {
-	SmithBuyUniqueItemAt(item, stextvhold + ((stextlhold - stextup) / 4));
+	BuyCuratedShelfItemAt(shelf, item, stextvhold + ((stextlhold - stextup) / 4));
 }
 
-void SmithUniqueBuyEnter()
+void CuratedShelfBuyEnter(CuratedShelf shelf)
 {
+	const TalkID id = TalkIdForCuratedShelf(shelf);
 	if (stextsel == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		stextsel = SmithMenuLine(TalkID::SmithUniqueBuy);
+		stextsel = SmithMenuLine(id);
 		return;
 	}
 
-	stextshold = TalkID::SmithUniqueBuy;
+	Item *items = ShelfItems(shelf);
+	stextshold = id;
 	stextlhold = stextsel;
 	stextvhold = stextsval;
 	const int idx = stextsval + ((stextsel - stextup) / 4);
-	// Stale-row guard - see SmithSellEnter (self-audit, 2026-08-15). The unique stock shrinks on
+	// Stale-row guard - see SmithSellEnter (self-audit, 2026-08-15). A curated shelf shrinks on
 	// every purchase, and the completion's shift loop would start from this index raw.
-	if (idx < 0 || idx >= SmithUniqueItemsMaximum || smithUniqueItems[idx].isEmpty())
+	if (idx < 0 || idx >= CuratedShelfCapacity || items[idx].isEmpty())
 		return;
-	if (!PlayerCanAfford(smithUniqueItems[idx]._iIvalue)) {
+	if (!PlayerCanAfford(items[idx]._iIvalue)) {
 		StartStore(TalkID::NoMoney);
 		return;
 	}
-	if (!StoreAutoPlace(smithUniqueItems[idx], false)) {
+	if (!StoreAutoPlace(items[idx], false)) {
 		StartStore(TalkID::NoRoom);
 		return;
 	}
-	StoreItem = smithUniqueItems[idx];
+	StoreItem = items[idx];
 	StartStore(TalkID::Confirm);
 }
 
@@ -3007,7 +3097,9 @@ void ConfirmEnter(Item &item)
 			SmithBuyPItem(item);
 			break;
 		case TalkID::SmithUniqueBuy:
-			SmithBuyUniqueItem(item);
+		case TalkID::SmithRareBuy:
+		case TalkID::SmithSetBuy:
+			BuyCuratedShelfItem(*CuratedShelfFor(stextshold), item);
 			break;
 		default:
 			break;
@@ -3254,12 +3346,58 @@ void DrawSelector(const Surface &out, const Rectangle &rect, string_view text, U
 
 } // namespace
 
+bool HasCuratedShelf(CuratedShelf shelf)
+{
+	// Outside the anonymous namespace because the shop tab strip needs it. One rule, one place - the
+	// strip decides whether to OFFER a tab and StartCuratedShelfBuy decides whether there is
+	// anything behind it, and those two must not be able to disagree.
+	if (gbIsMultiplayer)
+		return false;
+	switch (shelf) {
+	case CuratedShelf::Unique:
+		return *sgOptions.Oracool.griswoldSellUniqueItems;
+	case CuratedShelf::Rare:
+		return *sgOptions.Oracool.griswoldSellRareItems;
+	case CuratedShelf::Set:
+		return *sgOptions.Oracool.griswoldSellSetItems;
+	case CuratedShelf::Count:
+		break;
+	}
+	return false;
+}
+
+std::optional<CuratedShelf> CuratedShelfFor(TalkID id)
+{
+	switch (id) {
+	case TalkID::SmithUniqueBuy:
+		return CuratedShelf::Unique;
+	case TalkID::SmithRareBuy:
+		return CuratedShelf::Rare;
+	case TalkID::SmithSetBuy:
+		return CuratedShelf::Set;
+	default:
+		return std::nullopt;
+	}
+}
+
+TalkID TalkIdForCuratedShelf(CuratedShelf shelf)
+{
+	switch (shelf) {
+	case CuratedShelf::Unique:
+		return TalkID::SmithUniqueBuy;
+	case CuratedShelf::Rare:
+		return TalkID::SmithRareBuy;
+	case CuratedShelf::Set:
+		return TalkID::SmithSetBuy;
+	case CuratedShelf::Count:
+		break;
+	}
+	return TalkID::None;
+}
+
 bool HasSmithUniqueShop()
 {
-	// Moved out of the anonymous namespace when the shop tab strip needed it. One rule, one place -
-	// the strip decides whether to OFFER the unique tab and StartSmithUniqueBuy decides whether
-	// there is anything behind it, and those two must not be able to disagree.
-	return !gbIsMultiplayer && *sgOptions.Oracool.griswoldSellUniqueItems;
+	return HasCuratedShelf(CuratedShelf::Unique);
 }
 
 /**
@@ -3578,67 +3716,121 @@ void InitStores()
 
 	for (auto &premiumitem : premiumitems)
 		premiumitem.clear();
-	for (Item &item : smithUniqueItems)
-		item.clear();
-	smithUniqueItemsInitialized = false;
+	for (CuratedShelfState &shelf : CuratedShelves) {
+		for (Item &item : shelf.items)
+			item.clear();
+		shelf.initialized = false;
+	}
 	InitializeSmithPepinPotions();
 
 	boyitem.clear();
 	boylevel = 0;
 }
 
-void SpawnSmithUniqueItems(const Player &player)
+/** @brief Fills @p shelf's array from empty. The one place a shelf's identity actually differs. */
+void GenerateCuratedShelf(CuratedShelf shelf, const Player &player, int vendorLevel)
 {
-	if (smithUniqueItemsInitialized || !HasSmithUniqueShop())
-		return;
-	smithUniqueItemsInitialized = true;
+	Item *items = ShelfItems(shelf);
+	for (int i = 0; i < CuratedShelfCapacity; i++)
+		items[i].clear();
 
-	std::vector<_unique_items> candidates;
-	for (int i = 0; UniqueItems[i].UIItemId != UITYPE_INVALID; ++i) {
-		if (IsUniqueAvailable(i) && UniqueItems[i].UIMinLvl <= player._pLevel)
-			candidates.push_back(static_cast<_unique_items>(i));
-	}
-
-	// No count option any more - the shelf is as long as a page (user, 2026-08-27). The INI keeps
-	// only the on/off switch, which is HasSmithUniqueShop.
-	const int requestedCount = SmithUniqueItemsMaximum;
-	const int priceMultiplier = std::max(*sgOptions.Oracool.griswoldUniqueItemPriceMultiplier, 1);
 	int generatedCount = 0;
-	while (generatedCount < requestedCount && !candidates.empty()) {
-		const size_t candidateIndex = static_cast<size_t>(GenerateRnd(candidates.size()));
-		const _unique_items uid = candidates[candidateIndex];
-		candidates.erase(candidates.begin() + candidateIndex);
-		Item item;
-		if (!CreateUniqueVendorItem(player, item, uid))
-			continue;
-		const int64_t price = static_cast<int64_t>(item._iIvalue) * priceMultiplier;
-		item._iIvalue = static_cast<int>(std::min<int64_t>(price, std::numeric_limits<int>::max()));
-		smithUniqueItems[generatedCount++] = std::move(item);
+	switch (shelf) {
+	case CuratedShelf::Unique: {
+		std::vector<_unique_items> candidates;
+		for (int i = 0; UniqueItems[i].UIItemId != UITYPE_INVALID; ++i) {
+			if (IsUniqueAvailable(i) && UniqueItems[i].UIMinLvl <= player._pLevel)
+				candidates.push_back(static_cast<_unique_items>(i));
+		}
+		// No count option any more - the shelf is as long as a page (user, 2026-08-27). The INI
+		// keeps only the on/off switch.
+		const int priceMultiplier = std::max(*sgOptions.Oracool.griswoldUniqueItemPriceMultiplier, 1);
+		while (generatedCount < CuratedShelfCapacity && !candidates.empty()) {
+			const size_t candidateIndex = static_cast<size_t>(GenerateRnd(candidates.size()));
+			const _unique_items uid = candidates[candidateIndex];
+			// Drawn WITHOUT replacement, which is what keeps the shelf free of duplicates.
+			candidates.erase(candidates.begin() + candidateIndex);
+			Item item;
+			if (!CreateUniqueVendorItem(player, item, uid))
+				continue;
+			const int64_t price = static_cast<int64_t>(item._iIvalue) * priceMultiplier;
+			item._iIvalue = static_cast<int>(std::min<int64_t>(price, std::numeric_limits<int>::max()));
+			items[generatedCount++] = std::move(item);
+		}
+		break;
+	}
+	case CuratedShelf::Rare: {
+		// Bounded by ATTEMPTS, not by successes. A rare roll can miss - a base that cannot carry
+		// tiered affixes is a legitimate miss, not an error - and a `while (generated < 40)` loop
+		// over a pool that happens to be all misses would not terminate. The unique and set shelves
+		// cannot hang the same way because both draw from a shrinking candidate list; this one
+		// draws with replacement, so it needs its own bound.
+		constexpr int MaxAttempts = CuratedShelfCapacity * 8;
+		for (int attempt = 0; attempt < MaxAttempts && generatedCount < CuratedShelfCapacity; attempt++) {
+			Item item;
+			if (!CreateRareVendorItem(player, item, vendorLevel))
+				continue;
+			items[generatedCount++] = std::move(item);
+		}
+		break;
+	}
+	case CuratedShelf::Set: {
+		while (generatedCount < CuratedShelfCapacity) {
+			Item item;
+			// "Already on this shelf" is answered by NAME, because that is what identifies a set
+			// piece - MakeSetItem writes it, and two pieces built from the same definition are the
+			// same object however they were finished.
+			const int placed = generatedCount;
+			const bool made = CreateSetVendorItem(player, item, vendorLevel,
+			    [items, placed](const oracool::SetItemDefinition &def) {
+				    for (int i = 0; i < placed; i++) {
+					    if (string_view(items[i]._iIName) == string_view(_(def.name)))
+						    return true;
+				    }
+				    return false;
+			    });
+			// False means the candidate list is exhausted - every piece this level has earned is
+			// already on the shelf - so the shelf is as long as it is going to get.
+			if (!made)
+				break;
+			items[generatedCount++] = std::move(item);
+		}
+		break;
+	}
+	case CuratedShelf::Count:
+		break;
 	}
 }
+
+void SpawnCuratedShelves(const Player &player, int vendorLevel)
+{
+	for (int i = 0; i < static_cast<int>(CuratedShelf::Count); i++) {
+		const auto shelf = static_cast<CuratedShelf>(i);
+		CuratedShelfState &state = CuratedShelves[i];
+		// Built ONCE per game, not once per town visit - that is the difference between a curated
+		// shelf and a restocking one, and it is why buying from it does not refill it.
+		if (state.initialized || !HasCuratedShelf(shelf))
+			continue;
+		state.initialized = true;
+		GenerateCuratedShelf(shelf, player, vendorLevel);
+	}
+}
+
 
 void SetupTownStores()
 {
 	Player &myPlayer = *MyPlayer;
 
-	int l = myPlayer._pLevel / 2;
-	if (!gbIsMultiplayer) {
-		l = 0;
-		for (int i = 0; i < NUMLEVELS; i++) {
-			if (myPlayer._pLvlVisited[i])
-				l = i;
-		}
-	} else {
+	if (gbIsMultiplayer)
 		SetRndSeed(glSeedTbl[currlevel] * SDL_GetTicks());
-	}
 
-	l = clamp(l + 2, 6, 16);
+	const int l = VendorStockLevel();
 	SpawnSmith(l);
 	SpawnWitch(l);
 	SpawnHealer(l);
 	SpawnBoy(myPlayer._pLevel);
 	SpawnPremium(myPlayer);
-	SpawnSmithUniqueItems(myPlayer);
+	SpawnCuratedShelves(myPlayer, l);
 }
 
 void FreeStoreMem()
@@ -3808,7 +4000,9 @@ void StartStore(TalkID s)
 		StartWitchRecharge();
 		break;
 	case TalkID::SmithUniqueBuy:
-		if (!StartSmithUniqueBuy())
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
+		if (!StartCuratedShelfBuy(*CuratedShelfFor(s)))
 			return;
 		break;
 	case TalkID::Witch:
@@ -3919,11 +4113,15 @@ std::vector<oracool::ShopSlot> GetShopStock(TalkID id)
 		break;
 	}
 	case TalkID::SmithUniqueBuy:
-		for (int i = 0; i < SmithUniqueItemsMaximum; i++) {
-			if (!smithUniqueItems[i].isEmpty())
-				stock.push_back({ &smithUniqueItems[i], i, smithUniqueItems[i]._iIvalue });
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy: {
+		Item *items = ShelfItems(*CuratedShelfFor(id));
+		for (int i = 0; i < CuratedShelfCapacity; i++) {
+			if (!items[i].isEmpty())
+				stock.push_back({ &items[i], i, items[i]._iIvalue });
 		}
 		break;
+	}
 	case TalkID::SmithConsumables: {
 		const std::vector<ConsumablesStockEntry> entries = SmithConsumablesStock();
 		for (size_t i = 0; i < entries.size(); i++)
@@ -3997,7 +4195,9 @@ void ShopSelectIndex(TalkID id, int index)
 		SmithPremiumBuyEnter();
 		break;
 	case TalkID::SmithUniqueBuy:
-		SmithUniqueBuyEnter();
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
+		CuratedShelfBuyEnter(*CuratedShelfFor(id));
 		break;
 	case TalkID::SmithConsumables:
 	case TalkID::WitchBuy:
@@ -4045,6 +4245,7 @@ bool ShopSellHeldItem()
 	// buys, at Griswold's prices, the moment an item was dropped on his panel.
 	const bool witch = IsWitchShopScreen(stextflag);
 	if (!witch && !IsAnyOf(stextflag, TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy,
+	        TalkID::SmithRareBuy, TalkID::SmithSetBuy,
 	        TalkID::SmithConsumables, TalkID::SmithSell))
 		return false;
 
@@ -4111,6 +4312,7 @@ bool ShopSellInventoryItem(int cii)
 	// because the item arrived by a different gesture.
 	const bool witch = IsWitchShopScreen(stextflag);
 	if (!witch && !IsAnyOf(stextflag, TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy,
+	        TalkID::SmithRareBuy, TalkID::SmithSetBuy,
 	        TalkID::SmithConsumables, TalkID::SmithSell))
 		return false;
 
@@ -4285,6 +4487,7 @@ int ShopSellOfferFor(const Item &item)
 		return 0;
 	const bool witch = IsWitchShopScreen(stextflag);
 	if (!witch && !IsAnyOf(stextflag, TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy,
+	        TalkID::SmithRareBuy, TalkID::SmithSetBuy,
 	        TalkID::SmithConsumables, TalkID::SmithSell))
 		return 0;
 	if (!(witch ? WitchSellOk(item) : SmithSellOk(item)))
@@ -4401,10 +4604,55 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id)
 		if (*sgOptions.Oracool.refreshUntilButton)
 			actions.push_back({ N_("Refresh until"), PremiumRefreshUntilLine() });
 		break;
+	// The other three shelves that REGENERATE (user, 2026-08-27: "Refresh on BASIC, RARE, SUPPLIES
+	// tabs"). Premium is not in this list because it has its own, older switch above.
+	//
+	// Unique and Set are deliberately absent, and that is a rule rather than an oversight: both are
+	// drawn WITHOUT replacement from a finite pool, so their shelf is already every item the pool
+	// can offer. A Refresh on either would reshuffle the same contents and read as broken.
+	case TalkID::SmithBuy:
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithConsumables:
+		if (*sgOptions.Oracool.shopStockRefresh)
+			actions.push_back({ N_("Refresh"), PremiumRefreshLine() });
+		break;
 	default:
 		break;
 	}
 	return actions;
+}
+
+/**
+ * @brief Rerolls the stock behind @p id, at the depth it was first generated at.
+ *
+ * The three shelves reroll differently because they are stocked differently, and each says so
+ * rather than pretending to a common shape it does not have.
+ */
+void RefreshShopStock(TalkID id)
+{
+	if (!*sgOptions.Oracool.shopStockRefresh || gbIsMultiplayer)
+		return;
+	const int lvl = VendorStockLevel();
+	switch (id) {
+	case TalkID::SmithBuy:
+		SpawnSmith(lvl);
+		break;
+	case TalkID::SmithRareBuy:
+		// Straight back through the generator, initialized flag untouched: the flag is about "has
+		// this game built the shelf yet", and a deliberate reroll is not the same question.
+		GenerateCuratedShelf(CuratedShelf::Rare, *MyPlayer, lvl);
+		break;
+	case TalkID::SmithConsumables:
+		// Supplies is Pepin's four fixed potions PLUS Adria's stock, and only the second half is
+		// generated - so this rerolls Adria and the potions stay exactly where they are. Worth
+		// knowing before pressing it: a Refresh here changes what is on Adria's own Buy tab too,
+		// because it is the same array.
+		SpawnWitch(lvl);
+		break;
+	default:
+		return;
+	}
+	StartStore(id);
 }
 
 void ShopActivateAction(TalkID id, int line)
@@ -4421,6 +4669,11 @@ void ShopActivateAction(TalkID id, int line)
 		break;
 	case TalkID::SmithPremiumBuy:
 		SmithPremiumBuyEnter();
+		break;
+	case TalkID::SmithBuy:
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithConsumables:
+		RefreshShopStock(id);
 		break;
 	default:
 		break;
@@ -4481,7 +4734,9 @@ void DrawSText(const Surface &out)
 			ScrollSmithPremiumBuy(stextsval);
 			break;
 		case TalkID::SmithUniqueBuy:
-			ScrollSmithUniqueBuy(stextsval);
+		case TalkID::SmithRareBuy:
+		case TalkID::SmithSetBuy:
+			ScrollCuratedShelfBuy(*CuratedShelfFor(stextflag), stextsval);
 			break;
 		default:
 			break;
@@ -4539,9 +4794,15 @@ void StoreESC()
 		stextsel = SmithMenuLine(TalkID::SmithPremiumBuy);
 		break;
 	case TalkID::SmithUniqueBuy:
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy: {
+		// Captured BEFORE StartStore, which assigns stextflag - reading it afterwards would ask
+		// which menu row to select for the screen we just left for, not the one we came from.
+		const TalkID from = stextflag;
 		StartStore(TalkID::Smith);
-		stextsel = SmithMenuLine(TalkID::SmithUniqueBuy);
+		stextsel = SmithMenuLine(from);
 		break;
+	}
 	case TalkID::SmithSell:
 		StartStore(TalkID::Smith);
 		stextsel = SmithMenuLine(TalkID::SmithSell);
@@ -4742,7 +5003,9 @@ void StoreEnter()
 		SmithPremiumBuyEnter();
 		break;
 	case TalkID::SmithUniqueBuy:
-		SmithUniqueBuyEnter();
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
+		CuratedShelfBuyEnter(*CuratedShelfFor(stextflag));
 		break;
 	case TalkID::SmithBuy:
 		SmithBuyEnter();

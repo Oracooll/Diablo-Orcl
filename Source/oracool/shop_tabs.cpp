@@ -21,6 +21,8 @@ ShopKind KindOf(TalkID id)
 	case TalkID::SmithBuy:
 	case TalkID::SmithPremiumBuy:
 	case TalkID::SmithUniqueBuy:
+	case TalkID::SmithRareBuy:
+	case TalkID::SmithSetBuy:
 	case TalkID::SmithConsumables:
 	case TalkID::SmithSell:
 	case TalkID::SmithRepair:
@@ -53,6 +55,10 @@ const char *ShopTabName(TalkID id)
 		return N_("Magic");
 	case TalkID::SmithUniqueBuy:
 		return N_("Unique");
+	case TalkID::SmithRareBuy:
+		return N_("Rare");
+	case TalkID::SmithSetBuy:
+		return N_("Set");
 	case TalkID::SmithConsumables:
 	case TalkID::WitchBuy:
 	case TalkID::HealerBuy:
@@ -84,7 +90,13 @@ std::vector<TalkID> ShopTabsFor(TalkID id)
 	switch (KindOf(id)) {
 	case ShopKind::Smith: {
 		std::vector<TalkID> tabs { TalkID::SmithBuy, TalkID::SmithPremiumBuy };
-		if (HasSmithUniqueShop())
+		// The three curated shelves, each behind its own INI switch. In quality order after the two
+		// rolled shelves, so the strip reads as a ladder rather than as the order they were built.
+		if (HasCuratedShelf(CuratedShelf::Rare))
+			tabs.push_back(TalkID::SmithRareBuy);
+		if (HasCuratedShelf(CuratedShelf::Set))
+			tabs.push_back(TalkID::SmithSetBuy);
+		if (HasCuratedShelf(CuratedShelf::Unique))
 			tabs.push_back(TalkID::SmithUniqueBuy);
 		if (!gbIsMultiplayer)
 			tabs.push_back(TalkID::SmithConsumables);
