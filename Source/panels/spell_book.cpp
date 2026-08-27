@@ -1184,9 +1184,11 @@ std::optional<oracool::ClassTreeSkill> TreeCellAt(int page, Point localPoint, bo
 
 Rectangle GetSpellBookPanelRect()
 {
-	// Flush to the top-right corner, mirroring the inventory - the two share the right-hand slot
-	// and are never open at once, so they should occupy exactly the same space.
-	return { { gnScreenWidth - AbilitiesPanelSize.width, 0 }, AbilitiesPanelSize };
+	// Flush to the BOTTOM-right, mirroring the inventory - the two share the right-hand slot and are
+	// never open at once, so they must occupy exactly the same space, including after the 2026-08-27
+	// docking change.
+	return { { gnScreenWidth - AbilitiesPanelSize.width, oracool::BottomDockedTop(AbilitiesPanelSize.height) },
+		AbilitiesPanelSize };
 }
 
 Rectangle GetSpellBookContentRect()

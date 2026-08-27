@@ -497,9 +497,10 @@ int WithdrawGold(Player &player, int amount)
 
 Rectangle GetStashPanelRect()
 {
-	// Flush to the top-left corner, like the character sheet, quest log and waypoint list - the
-	// stash shares the left-hand slot with them and opens with the inventory on the right.
-	return { { 0, 0 }, StashPanelSize };
+	// Flush to the BOTTOM-left, like the character sheet, quest log and waypoint list - the stash
+	// shares the left-hand slot with them and opens with the inventory on the right, so all four had
+	// to move together (user, 2026-08-27).
+	return { { 0, oracool::BottomDockedTop(StashPanelSize.height) }, StashPanelSize };
 }
 
 Point GetStashSlotCoord(Point slot)

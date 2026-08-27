@@ -740,7 +740,9 @@ void FreeCharPanel()
 
 Rectangle GetCharacterPanelRect()
 {
-	return { { 0, 0 }, CharPanelSize };
+	// BOTTOM-left, with the stash, quest log and waypoint list it shares the slot with
+	// (user, 2026-08-27: "inventory, hero stats, etc").
+	return { { 0, oracool::BottomDockedTop(CharPanelSize.height) }, CharPanelSize };
 }
 
 Point GetCharacterContentOrigin()

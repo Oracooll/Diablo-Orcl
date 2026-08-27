@@ -307,9 +307,11 @@ Rectangle GetRunewordBookRect()
 	// Flush with the mini-map's top border (user, 2026-08-20). The book is 944 wide against a 960
 	// screen, so it necessarily runs under the mini-map horizontally; lining their top edges up is
 	// what stops that reading as an accident.
-	// Bottom-docked with the rest (user, 2026-08-27). It used to align with the mini-map, which is a
-	// top-right anchor and put this window at a height nothing else shared.
-	return { { (gnScreenWidth - WindowSize.width) / 2, BottomDockedTop(WindowSize.height) }, WindowSize };
+	// Left where it was. It was moved to the bottom on 2026-08-27 and moved straight back: the
+	// bottom-docking rule was about the SIDE PANELS, and this window was never in scope (user:
+	// "runeword book was fine as it was. i didnt ask for it to be moved").
+	const int top = GetMiniMapScreenRect().position.y;
+	return { { (gnScreenWidth - WindowSize.width) / 2, top }, WindowSize };
 }
 
 void OpenRunewordBook()

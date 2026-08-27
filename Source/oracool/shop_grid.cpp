@@ -570,9 +570,9 @@ bool IsShopGridScreen(TalkID id)
 
 Rectangle GetShopPanelRect()
 {
-	// The top-left slot, shared with the stash, character sheet and quest log. Nothing else is open
-	// while a shop is, so the slot is free.
-	return Rectangle { { 0, 0 }, ShopPanelSize };
+	// The BOTTOM-left slot, shared with the stash, character sheet and quest log. Nothing else is
+	// open while a shop is, so the slot is free - and all four dock together (user, 2026-08-27).
+	return Rectangle { { 0, BottomDockedTop(ShopPanelSize.height) }, ShopPanelSize };
 }
 
 Rectangle GetShopGridRect()

@@ -504,9 +504,10 @@ Rectangle GetLevskiRoarRect()
 		return Rectangle { { 0, 0 }, { 0, 0 } };
 	// Centred on the play area, like the other operable-object windows.
 	const int x = (gnScreenWidth - WindowWidth) / 2;
-	// Flush to the bottom, like every other limestone window (user, 2026-08-27). It used to sit a
-	// third of the way down, which put it at no edge at all.
-	const int y = BottomDockedTop(WindowHeight);
+	// CENTRED vertically (user, 2026-08-27: "Levski's Roar should be middle of screen"). It sat a
+	// third of the way down before, and was briefly bottom-docked by a rule that was never meant for
+	// it - the docking rule is about the side panels.
+	const int y = std::max(0, (static_cast<int>(gnScreenHeight) - WindowHeight) / 2);
 	return Rectangle { { x, y }, { WindowWidth, WindowHeight } };
 }
 
@@ -541,10 +542,14 @@ Rectangle GetLevskiRecipeBookRect()
 	// player had open. Sliding left until it touches x=0 costs at most a few pixels of overlap with
 	// Levski's own window - and the book is drawn after it, so the book stays readable.
 	const int x = std::max(0, window.position.x - bookWidth - SlotGap);
-	// Bottom-docked in its own right rather than sharing the Roar window's top edge: the two are
-	// different heights, so matching tops left their bottoms ragged now that everything else ends on
-	// the screen's (user, 2026-08-27).
-	return Rectangle { { x, BottomDockedTop(height) }, { bookWidth, height } };
+	// Centred in the band from the top of the screen down to a 100px margin above the bottom (user,
+	// 2026-08-27: "Recipe book should be next to it, in the middle between top of screen and 100px
+	// row above the bottom"). That band is what is left once the HUD's bottom furniture is set aside,
+	// so the book centres in the space it can actually use rather than in the whole screen.
+	constexpr int BottomReserve = 100;
+	const int band = std::max(0, static_cast<int>(gnScreenHeight) - BottomReserve);
+	const int y = std::max(0, (band - height) / 2);
+	return Rectangle { { x, y }, { bookWidth, height } };
 }
 
 void DrawLevskiRoar(const Surface &out)
