@@ -1291,6 +1291,16 @@ void ResetHudArtCaches()
 		asset.frame.reset();
 		asset.sphereDim.reset();
 		asset.outline.reset();
+		// The per-frame crop cache, which this used to leave behind (external audit of v1.9.88,
+		// finding 4). StripCellInset only builds it when it is EMPTY and then indexes it with an
+		// index it has validated against the NEWLY loaded frame count - so reloading a strip that
+		// grew read past the end of a vector sized for the old one. That is not hypothetical here:
+		// v1.9.88 replaced five class strips and every one of them got longer (30 -> 49, 30 -> 49,
+		// 30 -> 48, 21 -> 39, 21 -> 39).
+		//
+		// Even at an unchanged frame count it was wrong, just quietly: the insets are measured from
+		// the art's transparent margins, so an edited strip kept the old crop and drew misaligned.
+		asset.cellInsets.clear();
 	};
 	reset(PlateArt);
 	reset(HealthOrbArt);
@@ -1447,7 +1457,12 @@ uint8_t StripCellInset(ArtAsset &asset, int index, int cell)
 	if (index < 0 || index >= cells)
 		return 0;
 
-	if (asset.cellInsets.empty()) {
+	// Rebuilt whenever it does not MATCH the strip in front of us, not merely when it is missing.
+	// "Empty" alone trusted every caller to have cleared it first, and the index below is validated
+	// against the strip's current frame count - so a cache built for a shorter strip was indexed
+	// past its end. ResetHudArtCaches now clears it too, but this is the check that does not depend
+	// on anyone remembering to.
+	if (asset.cellInsets.size() != static_cast<size_t>(cells)) {
 		asset.cellInsets.assign(static_cast<size_t>(cells), 0);
 		for (int c = 0; c < cells; c++) {
 			// Grow the ring outward while every pixel on it is transparent. Stops one short of

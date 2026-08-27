@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include <fmt/format.h>
@@ -20,6 +21,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/shop_tabs.h"
 #include "utils/format_int.hpp"
+#include "utils/utf8.hpp" // DecodeFirstUtf8CodePoint - vertical labels split by code point, not byte
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -456,10 +458,33 @@ Rectangle ShopTabRect(size_t index)
  */
 void DrawVerticalLabel(const Surface &out, string_view text, Rectangle rect, UiFlags color)
 {
-	std::string glyphs;
+	// Split into CODE POINTS, not bytes (external audit of v1.9.88, finding 5).
+	//
+	// The first version walked `char`s and handed each single byte to DrawString. That is fine for
+	// English and broken for every translation with a non-ASCII tab name - Bulgarian and Russian
+	// render "Magic" as "Магия", Simplified Chinese as "魔法", and each byte of those is invalid
+	// UTF-8 on its own. DrawString's loop stops at Utf8DecodeError, so the label came out blank or
+	// truncated. The pitch was wrong too, computed from a byte count that is two or three times the
+	// number of characters, so a translated label was squeezed to a fraction of its space.
+	//
+	// Uppercasing is ASCII-only and deliberately stays that way: it is a cosmetic touch that lets the
+	// pitch tighten (capitals have no descenders), and a Unicode-aware transform would need case
+	// tables this engine does not carry. A Cyrillic or CJK label simply keeps its own case, which is
+	// correct - CJK has none, and Cyrillic tab names are already capitalised by the translator.
+	std::vector<std::string> glyphs;
 	glyphs.reserve(text.size());
-	for (const char ch : text)
-		glyphs.push_back(ch >= 'a' && ch <= 'z' ? static_cast<char>(ch - 'a' + 'A') : ch);
+	string_view rest = text;
+	while (!rest.empty()) {
+		std::size_t len = 0;
+		const char32_t cp = DecodeFirstUtf8CodePoint(rest, &len);
+		if (len == 0)
+			break; // malformed tail - stop rather than loop forever on it
+		std::string one(rest.substr(0, len));
+		if (cp != Utf8DecodeError && one.size() == 1 && one[0] >= 'a' && one[0] <= 'z')
+			one[0] = static_cast<char>(one[0] - 'a' + 'A');
+		glyphs.push_back(std::move(one));
+		rest.remove_prefix(len);
+	}
 	if (glyphs.empty())
 		return;
 
@@ -475,12 +500,12 @@ void DrawVerticalLabel(const Surface &out, string_view text, Rectangle rect, UiF
 	// Centred in whatever is left over, so a short label sits in the middle of the tab rather than
 	// hanging from its top edge.
 	int y = rect.position.y + (rect.size.height - count * pitch) / 2;
-	for (const char ch : glyphs) {
+	for (const std::string &glyph : glyphs) {
 		// A space is a gap, not a glyph - nothing in the tab names has one today, but a two-word
 		// tab would otherwise read as one run of letters.
-		if (ch != ' ') {
-			const char one[2] = { ch, '\0' };
-			DrawString(out, string_view(one, 1),
+		if (glyph != " ") {
+			// The whole encoded code point, so DrawString gets valid UTF-8 rather than one byte of it.
+			DrawString(out, string_view(glyph),
 			    Rectangle { { rect.position.x, y }, { rect.size.width, pitch } },
 			    { color | font | UiFlags::AlignCenter });
 		}
@@ -732,8 +757,14 @@ void DrawShopGrid(const Surface &out)
 	const int hoveredPlaced = PlacedSlotAt(placed, MousePosition);
 	if (hoveredPlaced >= 0)
 		ShopGridSel = placed[hoveredPlaced].stockIndex;
-	if (ShopGridSel >= static_cast<int>(stock.size()))
-		ShopGridSel = stock.empty() ? 0 : static_cast<int>(stock.size()) - 1;
+	// Snapped to something ON THE SHELF, not merely in range. A stock index that no longer has a
+	// PlacedSlot - the shelf repacked after a purchase - would otherwise leave the outline drawn
+	// nowhere while the selection still pointed at a real, invisible item.
+	if (!placed.empty()
+	    && std::none_of(placed.begin(), placed.end(),
+	        [](const PlacedSlot &slot) { return slot.stockIndex == ShopGridSel; })) {
+		ShopGridSel = placed[0].stockIndex;
+	}
 
 	for (const PlacedSlot &slot : placed) {
 		if (slot.page != ShopGridPage)
@@ -882,23 +913,37 @@ bool CheckShopGridClick(Point position, bool rightClick)
 void MoveShopGridSelection(int columns, int rows)
 {
 	const std::vector<ShopSlot> stock = GetShopStock(stextflag);
-	if (stock.empty())
+	const std::vector<PlacedSlot> placed = PlaceStock(stock);
+	if (placed.empty())
 		return;
-	// Both axes move through the STOCK order rather than the grid: the grid is packed row-major, so
-	// "next" and "the item to the right" are the same step, and a row is one grid row's worth of
-	// single-cell items.
-	const int step = columns + rows * ShopGridColumns;
-	const int count = static_cast<int>(stock.size());
-	ShopGridSel = ((ShopGridSel + step) % count + count) % count;
 
-	// The page follows the cursor. Without this, arrowing off the end of page one moves an invisible
-	// selection and Enter buys something the player cannot see.
-	for (const PlacedSlot &slot : PlaceStock(stock)) {
-		if (slot.stockIndex == ShopGridSel) {
-			ShopGridPage = slot.page;
+	// Through the PLACED entries, not the whole stock vector (external audit of v1.9.88, finding 3).
+	//
+	// It used to step modulo `stock.size()`, and a shelf generates more than one page can hold - that
+	// is deliberate, and PlaceStock's own note explains why: what the shop CARRIES is defined as what
+	// fits, so the overflow was never on the shelf. But the keyboard did not know that. Arrowing far
+	// enough moved the selection onto an entry with no PlacedSlot, the outline vanished because
+	// nothing was drawn for it, and Enter bought an item the player could not see. Mouse hit-testing
+	// went through the placed list all along, which is why this only ever showed on keyboard and
+	// controller.
+	//
+	// Stock order is preserved, because PlaceStock appends in stock order - so "next" still means the
+	// next item along the shelf, which is what the row-major packing makes it look like.
+	const int step = columns + rows * ShopGridColumns;
+	const int count = static_cast<int>(placed.size());
+
+	int current = 0;
+	for (int i = 0; i < count; i++) {
+		if (placed[i].stockIndex == ShopGridSel) {
+			current = i;
 			break;
 		}
 	}
+	// A selection that is no longer placed - the shelf repacked under it after a purchase - lands on
+	// the first entry rather than nowhere.
+	const int next = ((current + step) % count + count) % count;
+	ShopGridSel = placed[next].stockIndex;
+	ShopGridPage = placed[next].page;
 }
 
 bool IsShopItemHovered()
@@ -958,6 +1003,16 @@ void ActivateShopGridSelection()
 {
 	const std::vector<ShopSlot> stock = GetShopStock(stextflag);
 	if (ShopGridSel < 0 || ShopGridSel >= static_cast<int>(stock.size()))
+		return;
+	// The selection must be ON THE SHELF, not merely in the stock vector (external audit of v1.9.88,
+	// finding 3). A range check against stock.size() is not the same question: the stock deliberately
+	// holds more than one page can show, and buying an entry that was never placed is buying
+	// something invisible. Belt and braces alongside the navigation fix above - that stops the
+	// selection getting there, and this refuses to act if it somehow does.
+	const std::vector<PlacedSlot> placed = PlaceStock(stock);
+	const bool onShelf = std::any_of(placed.begin(), placed.end(),
+	    [](const PlacedSlot &slot) { return slot.stockIndex == ShopGridSel; });
+	if (!onShelf)
 		return;
 	ShopSelectIndex(stextflag, stock[ShopGridSel].index);
 }

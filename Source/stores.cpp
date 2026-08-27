@@ -1564,10 +1564,25 @@ void CreditSaleProceeds(int cost)
 	// Oracool: sale proceeds go to the shared Stash pool, matching where a purchase's change and a
 	// ground pickup's gold already land (see GoldAutoPlace, inv.cpp).
 	Player &myPlayer = *MyPlayer;
-	if (oracool::IsSinglePlayer() && Stash.gold <= std::numeric_limits<int>::max() - cost) {
-		Stash.gold += cost;
-		Stash.dirty = true;
-		return;
+	if (oracool::IsSinglePlayer()) {
+		// As much as the pool will take, then the rest to the backpack (external audit of v1.9.88,
+		// finding 7). It used to be all-or-nothing: the whole sale went to the Stash only if the
+		// whole sale fitted, and otherwise the whole sale went to the backpack - so a stash with
+		// room for 100 gold contributed NOTHING to a 1,000 gold sale, and the backpack was asked to
+		// absorb an amount it may not have had cells for.
+		//
+		// Headroom in int64 because `INT_MAX - Stash.gold` is the one subtraction here that is safe
+		// only as long as Stash.gold cannot exceed INT_MAX - and the deposit guard that keeps it
+		// under the cap is exactly what this branch exists to work around.
+		const int64_t headroom = static_cast<int64_t>(std::numeric_limits<int>::max()) - Stash.gold;
+		const int toStash = static_cast<int>(std::min<int64_t>(cost, std::max<int64_t>(headroom, 0)));
+		if (toStash > 0) {
+			Stash.gold += toStash;
+			Stash.dirty = true;
+			cost -= toStash;
+		}
+		if (cost == 0)
+			return;
 	}
 
 	// AddGoldToInventory returns what it could NOT place, and that return was discarded while
@@ -2506,7 +2521,16 @@ bool StoreGoldFit(Item &item)
 		return true;
 	}
 
-	return cost <= itemRoomForGold + RoomForGold();
+	// The STASH counts too (external audit of v1.9.88, finding 7). This gate models the backpack
+	// alone, and in single-player the proceeds go to the Stash pool FIRST - so it was answering a
+	// question about somewhere the money mostly does not land. Two consequences, opposite in sign:
+	// a sale worth more than the backpack could hold was refused even with a near-empty pool waiting
+	// for it, and at the pool's INT_MAX cap the gate had nothing to say about the one case where the
+	// money really can be lost.
+	int64_t room = itemRoomForGold + RoomForGold();
+	if (oracool::IsSinglePlayer())
+		room += static_cast<int64_t>(std::numeric_limits<int>::max()) - Stash.gold;
+	return cost <= room;
 }
 
 /**
@@ -3570,7 +3594,12 @@ void UpdateStoreState()
 	// cleaned up is the service cursor, so that is cleaned up explicitly - a hammer left armed by a
 	// shop the player has walked away from would repair the next thing they clicked and charge them.
 	DisarmShopServiceCursor();
-	IsRefreshUntilPromptOpen = false;
+	// The prompt's own teardown, not just its flag (external audit of v1.9.88, finding 6). Clearing
+	// `IsRefreshUntilPromptOpen` directly makes CloseRefreshUntilPrompt a no-op ever after - it
+	// returns early on exactly that flag - so SDL_StopTextInput() never runs and the IME stays open
+	// with nothing on screen asking for text. The flag is the LAST thing that function clears, and
+	// setting it by hand is a way of skipping the other two.
+	CloseRefreshUntilPrompt();
 	stextflag = TalkID::None;
 }
 

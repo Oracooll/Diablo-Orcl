@@ -14,7 +14,50 @@ using namespace devilution;
 
 namespace {
 
-TEST(Stores, SmithConsumablesListsFourInfinitePepinPotionsBeforeWitchStock)
+/**
+ * @brief Resets every global a store test can touch, so test ORDER cannot change a result.
+ *
+ * External audit of v1.9.88, finding 9. Run shuffled (`--gtest_shuffle --gtest_repeat=3`),
+ * Sold_BuyBackChargesTheSalePriceNotTheItemValue failed on two iterations of three and passed on
+ * the third. It cleared InvList and SpdList but not the EXTRA INVENTORY TABS, and
+ * StorytellerIdentify_ListsAndIdentifiesItemStoredInExtraTab leaves an item in one - so the sell
+ * list held two items where the test asserted one.
+ *
+ * A fixture rather than a helper each test remembers to call, because "remembers to call" is exactly
+ * what failed: that test DID reset the containers its author had in mind. The ones it did not think
+ * of are the ones a fixture covers.
+ */
+class StoresTest : public ::testing::Test {
+public:
+	void SetUp() override
+	{
+		gbIsMultiplayer = false;
+		Players.resize(1);
+		MyPlayer = &Players[0];
+
+		// Every container a sell/repair list walks: the backpack and its grid, the belt, the worn
+		// slots, all nine extra tabs, and the item in hand.
+		for (int i = 0; i < InventoryGridCells; i++)
+			MyPlayer->InvList[i].clear();
+		for (int8_t &cell : MyPlayer->InvGrid)
+			cell = 0;
+		MyPlayer->_pNumInv = 0;
+		for (auto &beltItem : MyPlayer->SpdList)
+			beltItem.clear();
+		for (auto &worn : MyPlayer->InvBody)
+			worn.clear();
+		MyPlayer->InvTabList = {};
+		MyPlayer->InvTabGrid = {};
+		MyPlayer->_pNumInvTab = {};
+		MyPlayer->HoldItem.clear();
+
+		Stash = {};
+		// Clears the vendor arrays, the buyback shelf, the curated shelves and the service cursor.
+		InitStores();
+	}
+};
+
+TEST_F(StoresTest,SmithConsumablesListsFourInfinitePepinPotionsBeforeWitchStock)
 {
 	InitStores();
 	for (devilution::Item &item : witchitem)
@@ -60,7 +103,7 @@ TEST(Stores, SmithConsumablesListsFourInfinitePepinPotionsBeforeWitchStock)
 // stale-but-matching leftover data right after the player's last item of that type was
 // used up вЂ” CreatePlayer's starting belt item plus the explicit .clear() calls below
 // recreate exactly that condition.
-TEST(Stores, SmithConsumablesBuy_AfterClearingSlotWithStaleMatchingData_ItemIsActuallyPlaced)
+TEST_F(StoresTest,SmithConsumablesBuy_AfterClearingSlotWithStaleMatchingData_ItemIsActuallyPlaced)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
 	Players.resize(1);
@@ -106,7 +149,7 @@ TEST(Stores, SmithConsumablesBuy_AfterClearingSlotWithStaleMatchingData_ItemIsAc
 // Oracool Tabbed Inventory: Griswold's Sell Items list previously only ever scanned InvList and
 // the belt, so an item moved into one of the 9 extra tabs was invisible to him - it never
 // appeared in the sell list at all, even though it was a perfectly ordinary sellable item.
-TEST(Stores, SmithSell_ListsItemStoredInExtraTab)
+TEST_F(StoresTest,SmithSell_ListsItemStoredInExtraTab)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -142,7 +185,7 @@ TEST(Stores, SmithSell_ListsItemStoredInExtraTab)
 // extra-tab hovers - that path is covered by CheckIdentify's tabIdx parameter instead (items.cpp),
 // which has no test-friendly seam here but is exercised by the same ResolveInvOrTabItem helper
 // StorytellerIdentifyItem now shares the same storehTabIdx-driven resolution with.
-TEST(Stores, StorytellerIdentify_ListsAndIdentifiesItemStoredInExtraTab)
+TEST_F(StoresTest,StorytellerIdentify_ListsAndIdentifiesItemStoredInExtraTab)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -177,7 +220,7 @@ TEST(Stores, StorytellerIdentify_ListsAndIdentifiesItemStoredInExtraTab)
 	EXPECT_TRUE(MyPlayer->InvTabList[2][0]._iIdentified) << "identifying the listed entry should mark the real extra-tab item identified, not silently do nothing";
 }
 
-TEST(Stores, SmithSell_StackedConsumable_PricedByQuantity)
+TEST_F(StoresTest,SmithSell_StackedConsumable_PricedByQuantity)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -203,7 +246,7 @@ TEST(Stores, SmithSell_StackedConsumable_PricedByQuantity)
 
 // The Witch's sell list previously never sorted by price at all, unlike Griswold's - PopulateSellList
 // is now shared by both, so highest-price-first sorting always applies uniformly to each.
-TEST(Stores, WitchSell_SortsByPriceHighestFirst)
+TEST_F(StoresTest,WitchSell_SortsByPriceHighestFirst)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -232,7 +275,7 @@ TEST(Stores, WitchSell_SortsByPriceHighestFirst)
 // that to be true, and neither is visible from the transaction code alone: the sale has to REACH the
 // list whichever door it came in by, and the buyback has to charge exactly what was paid rather than
 // the item's worth - which for a magic item is several times higher.
-TEST(Stores, Sold_BuyBackChargesTheSalePriceNotTheItemValue)
+TEST_F(StoresTest,Sold_BuyBackChargesTheSalePriceNotTheItemValue)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -282,7 +325,7 @@ TEST(Stores, Sold_BuyBackChargesTheSalePriceNotTheItemValue)
 	    << "the sale price is not affordable with exactly the gold the sale paid";
 }
 
-TEST(Stores, AddStoreHoldRepair_magic)
+TEST_F(StoresTest,AddStoreHoldRepair_magic)
 {
 	devilution::Item *item;
 
@@ -315,7 +358,7 @@ TEST(Stores, AddStoreHoldRepair_magic)
 	EXPECT_EQ(500, item->_ivalue);
 }
 
-TEST(Stores, AddStoreHoldRepair_normal)
+TEST_F(StoresTest,AddStoreHoldRepair_normal)
 {
 	devilution::Item *item;
 
@@ -353,7 +396,7 @@ TEST(Stores, AddStoreHoldRepair_normal)
 // It should now sort by repair cost, descending - AddStoreHoldRepair already overwrites _iIvalue
 // with the computed cost before storing the entry, so sorting on that field ranks by "what you'd
 // pay to fix this," not the item's own value.
-TEST(Stores, SmithRepair_SortsByRepairCostDescending)
+TEST_F(StoresTest,SmithRepair_SortsByRepairCostDescending)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -395,7 +438,7 @@ TEST(Stores, SmithRepair_SortsByRepairCostDescending)
 // quest-item-range exclusion (meant for real quest deliverables like the Rock or Anvil) caught
 // the Cleaver too, even though it's an ordinary lootable/sellable unique. Fixed with an explicit
 // carve-out for IDI_CLEAVER.
-TEST(Stores, SmithSell_CleaverUniqueIsSellableDespiteQuestIdRange)
+TEST_F(StoresTest,SmithSell_CleaverUniqueIsSellableDespiteQuestIdRange)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -426,7 +469,7 @@ TEST(Stores, SmithSell_CleaverUniqueIsSellableDespiteQuestIdRange)
 // the Cleaver - several other genuine Unique items (Harlequin Crest among them) also happen to
 // use a base-item slot inside IDI_FIRSTQUEST..IDI_LASTQUEST, purely as an artifact of vanilla's
 // item table ordering, and were still being blocked despite Cleaver's own fix.
-TEST(Stores, SmithSell_OtherQuestRangeUniquesAreSellableToo)
+TEST_F(StoresTest,SmithSell_OtherQuestRangeUniquesAreSellableToo)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -459,7 +502,7 @@ TEST(Stores, SmithSell_OtherQuestRangeUniquesAreSellableToo)
 // resolves to StartStore(TalkID::Smith), leaving stextflag as TalkID::Smith rather than
 // TalkID::SmithBuy. StartSmithBuy() itself already renders correctly with zero items (just a
 // header line and a Back button), so the special case was unnecessary.
-TEST(Stores, SmithBuy_EmptyStock_StaysOnBuyScreenInsteadOfBouncingOut)
+TEST_F(StoresTest,SmithBuy_EmptyStock_StaysOnBuyScreenInsteadOfBouncingOut)
 {
 	for (devilution::Item &item : smithitem)
 		item.clear();
@@ -477,7 +520,7 @@ TEST(Stores, SmithBuy_EmptyStock_StaysOnBuyScreenInsteadOfBouncingOut)
 // hijacked the click before the Sell-All branch was ever consulted. Intermittent by list shape
 // (one to three items leave that line empty), which is why it kept coming back. Every redirect is
 // now gated on its own screen's stextflag; this test pins the four-item layout that armed the trap.
-TEST(Stores, SmithSell_FourItemPage_SellAllRowNotHijackedByPremiumRedirect)
+TEST_F(StoresTest,SmithSell_FourItemPage_SellAllRowNotHijackedByPremiumRedirect)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -570,7 +613,7 @@ TEST(Stores, SmithSell_FourItemPage_SellAllRowNotHijackedByPremiumRedirect)
 
 // User request: "Sort Stash" (Gillian's dialog) should sort by item category (Weapons, Armor,
 // Helms, Shields, Jewelry, then everything else), descending price within each category.
-TEST(Stores, SortStash_OrdersByCategoryThenDescendingPrice)
+TEST_F(StoresTest,SortStash_OrdersByCategoryThenDescendingPrice)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];

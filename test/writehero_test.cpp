@@ -19,6 +19,8 @@
 #include "utils/file_util.h"
 #include "utils/paths.h"
 
+#include "isolated_pref_path.hpp"
+
 namespace devilution {
 namespace {
 
@@ -389,8 +391,8 @@ bool LoadedHeroFound = false;
 // looking archive nobody could open, which is the way this change could have gone wrong silently.
 TEST(Writehero, HeroSurvivesAWriteAndReadsBack)
 {
-	const std::string savePath = paths::BasePath() + "multi_0.sv";
-	paths::SetPrefPath(paths::BasePath());
+	UseIsolatedPrefPath();
+	const std::string savePath = paths::PrefPath() + "multi_0.sv";
 	RemoveFile(savePath.c_str());
 
 	gbVanilla = true;
@@ -451,8 +453,8 @@ TEST(Writehero, HeroSurvivesAWriteAndReadsBack)
 // that has never seen a failure is a guess.
 TEST(Writehero, AFailedSaveLeavesThePreviousOneIntact)
 {
-	const std::string savePath = paths::BasePath() + "multi_0.sv";
-	paths::SetPrefPath(paths::BasePath());
+	UseIsolatedPrefPath();
+	const std::string savePath = paths::PrefPath() + "multi_0.sv";
 	RemoveFile(savePath.c_str());
 
 	gbVanilla = true;
@@ -522,7 +524,7 @@ TEST(Writehero, AFailedSaveLeavesThePreviousOneIntact)
 //   several records written together are swapped in TOGETHER, or none of them are.
 TEST(Writehero, ATransactionSwapsInEveryRecordOrNoneOfThem)
 {
-	const std::string archivePath = paths::BasePath() + "txn_test.sv";
+	const std::string archivePath = paths::PrefPath() + "txn_test.sv";
 	RemoveFile(archivePath.c_str());
 
 	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
@@ -595,8 +597,8 @@ TEST(Writehero, ATransactionSwapsInEveryRecordOrNoneOfThem)
 
 TEST(Writehero, pfile_write_hero)
 {
-	const std::string savePath = paths::BasePath() + "multi_0.sv";
-	paths::SetPrefPath(paths::BasePath());
+	UseIsolatedPrefPath();
+	const std::string savePath = paths::PrefPath() + "multi_0.sv";
 	RemoveFile(savePath.c_str());
 
 	gbVanilla = true;
@@ -766,7 +768,7 @@ TEST(Writehero, pfile_write_hero)
 // and asserts the ORIGINAL archive is still readable and still holds the original bytes.
 TEST(Writehero, AFailureWritingTheTablesLeavesThePreviousArchiveIntact)
 {
-	const std::string archivePath = paths::BasePath() + "tables_test.sv";
+	const std::string archivePath = paths::PrefPath() + "tables_test.sv";
 	RemoveFile(archivePath.c_str());
 	RemoveFile((archivePath + ".tmp").c_str());
 
@@ -858,8 +860,8 @@ TEST(Writehero, AFailureWritingTheTablesLeavesThePreviousArchiveIntact)
 // when the destination exists, which is the only case that matters here.
 TEST(Writehero, ReplaceFileAtomicallyOverwritesAndReportsBack)
 {
-	const std::string from = paths::BasePath() + "replace_from.bin";
-	const std::string to = paths::BasePath() + "replace_to.bin";
+	const std::string from = paths::PrefPath() + "replace_from.bin";
+	const std::string to = paths::PrefPath() + "replace_to.bin";
 	RemoveFile(from.c_str());
 	RemoveFile(to.c_str());
 
@@ -893,7 +895,7 @@ TEST(Writehero, ReplaceFileAtomicallyOverwritesAndReportsBack)
 // the paired save is built on.
 TEST(Writehero, AFinishedArchiveIsInvisibleUntilItIsPublished)
 {
-	const std::string archivePath = paths::BasePath() + "deferred_test.sv";
+	const std::string archivePath = paths::PrefPath() + "deferred_test.sv";
 	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
 	const auto readRecord = [&archivePath](const char *name) -> std::string {
 		int32_t error = 0;
@@ -985,7 +987,7 @@ TEST(Writehero, AFinishedArchiveIsInvisibleUntilItIsPublished)
 // archive already on disk is still the last save that fully succeeded.
 TEST(Writehero, EveryFailureInThePublishLeavesThePreviousSaveWhole)
 {
-	const std::string archivePath = paths::BasePath() + "seam_test.sv";
+	const std::string archivePath = paths::PrefPath() + "seam_test.sv";
 	const std::string shadowPath = archivePath + ".tmp";
 	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
 	const auto readRecord = [&archivePath]() -> std::string {
@@ -1111,7 +1113,7 @@ TEST(Writehero, EveryFailureInThePublishLeavesThePreviousSaveWhole)
 // moment the destructor started doing real work, and nothing said so.
 TEST(Writehero, MovingAWriterDoesNotCloseOrPublishTheOriginal)
 {
-	const std::string archivePath = paths::BasePath() + "move_test.sv";
+	const std::string archivePath = paths::PrefPath() + "move_test.sv";
 	const std::string shadowPath = archivePath + ".tmp";
 	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };
 	const auto readRecord = [&archivePath]() -> std::string {
@@ -1186,9 +1188,9 @@ TEST(Writehero, MovingAWriterDoesNotCloseOrPublishTheOriginal)
 // character and no save file on disk yet.
 TEST(Writehero, SaveHeroAndStashWritesBothForANewCharacterWithADirtyStash)
 {
-	paths::SetPrefPath(paths::BasePath());
-	const std::string heroPath = paths::BasePath() + "single_0.sv";
-	const std::string stashPath = paths::BasePath() + "stash.sv";
+	UseIsolatedPrefPath();
+	const std::string heroPath = paths::PrefPath() + "single_0.sv";
+	const std::string stashPath = paths::PrefPath() + "stash.sv";
 	RemoveFile(heroPath.c_str());
 	RemoveFile(stashPath.c_str());
 	RemoveFile((heroPath + ".tmp").c_str());

@@ -361,6 +361,14 @@ void ReleaseStoreBtn();
  * Until, entered in-game instead of hand-edited into diablo.ini) is currently open.
  */
 extern bool IsRefreshUntilPromptOpen;
+/**
+ * @brief The prompt's ONE teardown: stops SDL text input, clears the flag, drops the input state.
+ *
+ * Every exit must come through here. Clearing `IsRefreshUntilPromptOpen` by hand instead makes this
+ * a no-op ever after - it returns early on that flag - so the IME is left running with nothing on
+ * screen asking for text (external audit of v1.9.88, finding 6).
+ */
+void CloseRefreshUntilPrompt();
 void RefreshUntilPromptKeyPress(SDL_Keycode vkey);
 bool HandleRefreshUntilPromptTextInputEvent(const SDL_Event &event);
 void DrawRefreshUntilPrompt(const Surface &out);

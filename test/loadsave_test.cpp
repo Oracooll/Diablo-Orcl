@@ -14,6 +14,8 @@
 #include "utils/file_util.h"
 #include "utils/paths.h"
 
+#include "isolated_pref_path.hpp"
+
 namespace devilution {
 namespace {
 
@@ -21,7 +23,7 @@ class LoadSaveOracoolItemExtensionsTest : public ::testing::Test {
 public:
 	void SetUp() override
 	{
-		paths::SetPrefPath(paths::BasePath());
+		UseIsolatedPrefPath();
 		gbVanilla = false;
 		gbIsHellfire = false;
 		gbIsMultiplayer = false;
@@ -30,7 +32,7 @@ public:
 		giNumberOfLevels = 17;
 		gSaveNumber = 0;
 
-		RemoveFile((paths::BasePath() + "single_0.sv").c_str());
+		RemoveFile((paths::PrefPath() + "single_0.sv").c_str());
 
 		// CreatePlayer (called inside pfile_ui_save_create) has different, crash-prone
 		// side effects when &player == MyPlayer, so MyPlayer must not alias Players[0]
