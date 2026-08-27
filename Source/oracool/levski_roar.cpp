@@ -504,7 +504,9 @@ Rectangle GetLevskiRoarRect()
 		return Rectangle { { 0, 0 }, { 0, 0 } };
 	// Centred on the play area, like the other operable-object windows.
 	const int x = (gnScreenWidth - WindowWidth) / 2;
-	const int y = (gnScreenHeight - WindowHeight) / 3;
+	// Flush to the bottom, like every other limestone window (user, 2026-08-27). It used to sit a
+	// third of the way down, which put it at no edge at all.
+	const int y = BottomDockedTop(WindowHeight);
 	return Rectangle { { x, y }, { WindowWidth, WindowHeight } };
 }
 
@@ -539,7 +541,10 @@ Rectangle GetLevskiRecipeBookRect()
 	// player had open. Sliding left until it touches x=0 costs at most a few pixels of overlap with
 	// Levski's own window - and the book is drawn after it, so the book stays readable.
 	const int x = std::max(0, window.position.x - bookWidth - SlotGap);
-	return Rectangle { { x, window.position.y }, { bookWidth, height } };
+	// Bottom-docked in its own right rather than sharing the Roar window's top edge: the two are
+	// different heights, so matching tops left their bottoms ragged now that everything else ends on
+	// the screen's (user, 2026-08-27).
+	return Rectangle { { x, BottomDockedTop(height) }, { bookWidth, height } };
 }
 
 void DrawLevskiRoar(const Surface &out)

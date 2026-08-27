@@ -4,6 +4,7 @@
 #include <string>
 
 #include "engine/render/primitive_render.hpp"
+#include "utils/ui_fwd.h" // gnScreenHeight - the line every limestone window now docks to
 #include "engine/render/text_render.hpp"
 
 namespace devilution::oracool {
@@ -225,6 +226,11 @@ void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, Ui
 		DrawString(out, text, shifted, { layout | UiFlags::ColorBlack });
 	}
 	DrawString(out, text, area, { style });
+}
+
+int BottomDockedTop(int windowHeight)
+{
+	return std::max(0, static_cast<int>(gnScreenHeight) - windowHeight);
 }
 
 } // namespace devilution::oracool

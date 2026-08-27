@@ -46,6 +46,23 @@ constexpr int PanelTitleTop = 18;
 constexpr int PanelTitleHeight = 38;
 
 /**
+ * @brief Top edge for a limestone window @p windowHeight tall, docked flush to the screen's bottom.
+ *
+ * A game-wide rule (user, 2026-08-27: "All limestone windows to be docked flush with the bottom of
+ * the screen instead of the top"), so it lives in one place and the windows ask rather than each
+ * choosing an anchor of its own - which is how they came to disagree: one sat a third of the way
+ * down, one aligned with the mini-map, and one was pinned at y=0.
+ *
+ * Bottom is the right edge to share because it is the one the HUD already owns. The side panels end
+ * on it, the belt and orbs sit against it, and a floating window that lines up with them reads as
+ * part of the same furniture instead of hovering over the world at its own height.
+ *
+ * Clamped at zero, so a window taller than the screen is cut off at the BOTTOM rather than having
+ * its title band pushed off the top where the close button lives.
+ */
+int BottomDockedTop(int windowHeight);
+
+/**
  * @brief Screen y below which an orb draws over a side panel. Content must end above this.
  *
  * NOT the panel's own height minus a margin, which is what the character sheet and quest log used

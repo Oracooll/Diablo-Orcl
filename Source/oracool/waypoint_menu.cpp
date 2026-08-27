@@ -173,7 +173,9 @@ constexpr int ContentRightLimit = PanelSize.width - RightPad - ScrollbarWidth - 
  */
 Rectangle PanelRect()
 {
-	return { { 0, 0 }, PanelSize };
+	// Was pinned at the top-left corner. Bottom-docked with every other limestone window
+	// (user, 2026-08-27).
+	return { { 0, BottomDockedTop(PanelSize.height) }, PanelSize };
 }
 
 bool WaypointMenuOpen = false;
