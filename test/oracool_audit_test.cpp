@@ -7092,3 +7092,88 @@ TEST(OracoolAudit, BuyingFromAFullVendorArrayDoesNotRunOffTheEnd)
 	RemoveFromVendorStock(guard.data(), 4, 4);
 	EXPECT_FALSE(guard[0].isEmpty()) << "an out-of-range index disturbed the array";
 }
+
+/**
+ * @brief The runaway that drove worn gear past zero and kept going.
+ *
+ * Vanilla removed a broken item from its slot, so its seven copies of "decrement, then break at
+ * zero" could never run twice on the same item. This fork leaves it equipped and inert instead, and
+ * four of those seven copies tested `== 0` rather than `<= 0` - so once an item was sitting at
+ * zero, every further wear tick took it one step further negative and nothing ever caught it
+ * (user, 2026-08-27: "i have magic oracool items with negative durability").
+ *
+ * WearDurabilityPoint is now the only place that spends a point, and this pins both halves: it
+ * breaks AT zero, and it refuses to spend anything from an item that is already broken.
+ */
+TEST(OracoolDurability, WornGearStopsAtZeroInsteadOfRunningNegative)
+{
+	gbIsMultiplayer = false;
+	devilution::Player &player = FreshHero(HeroClass::Warrior);
+
+	for (const inv_body_loc slot : { INVLOC_CHEST, INVLOC_HAND_RIGHT, INVLOC_HAND_LEFT, INVLOC_HEAD }) {
+		devilution::Item &item = player.InvBody[slot];
+		item = {};
+		InitializeItem(item, IDI_ROGUE);
+		item._iMaxDur = 40;
+		item._iDurability = 2;
+		item._iOracoolBroken = false;
+
+		EXPECT_FALSE(WearDurabilityPoint(player, slot)) << "slot " << static_cast<int>(slot);
+		EXPECT_EQ(item._iDurability, 1);
+		EXPECT_TRUE(WearDurabilityPoint(player, slot)) << "the last point did not break it";
+		EXPECT_EQ(item._iDurability, 0);
+		EXPECT_TRUE(item._iOracoolBroken);
+
+		// The part the `== 0` copies got wrong: a hundred more ticks on gear that is already spent.
+		for (int i = 0; i < 100; ++i)
+			EXPECT_FALSE(WearDurabilityPoint(player, slot)) << "a broken item broke a second time";
+		EXPECT_EQ(item._iDurability, 0) << "durability ran past zero on slot " << static_cast<int>(slot);
+	}
+}
+
+/** @brief Indestructible is a sentinel, not a quantity - wear must not touch it. */
+TEST(OracoolDurability, IndestructibleGearNeverSpendsAPoint)
+{
+	gbIsMultiplayer = false;
+	devilution::Player &player = FreshHero(HeroClass::Warrior);
+
+	devilution::Item &item = player.InvBody[INVLOC_CHEST];
+	item = {};
+	InitializeItem(item, IDI_ROGUE);
+	item._iMaxDur = DUR_INDESTRUCTIBLE;
+	item._iDurability = DUR_INDESTRUCTIBLE;
+
+	for (int i = 0; i < 50; ++i)
+		EXPECT_FALSE(WearDurabilityPoint(player, INVLOC_CHEST));
+	EXPECT_EQ(item._iDurability, static_cast<int>(DUR_INDESTRUCTIBLE));
+	EXPECT_FALSE(item._iOracoolBroken);
+}
+
+/**
+ * @brief A base tier scales durability; it must not zero it.
+ *
+ * ApplyBaseTier used to route _iMaxDur - an int - through ScaleByte, whose parameter is a uint8_t.
+ * Anything already above 255 (which an item that has been through a durability affix can be) was
+ * truncated to its low eight bits on the way in, and exactly 256 arrived as a zero: a max
+ * durability of nothing, which is where the wear runaway above then started from.
+ */
+TEST(OracoolDurability, TieringAnItemWithHighDurabilityDoesNotZeroIt)
+{
+	for (const int maxDur : { 8, 100, 254, 256, 300, 512 }) {
+		for (const oracool::BaseItemTier tier : { oracool::BaseItemTier::Nightmare,
+		         oracool::BaseItemTier::Hell, oracool::BaseItemTier::Torment }) {
+			devilution::Item item = {};
+			InitializeItem(item, IDI_ROGUE);
+			item._iLoc = ILOC_ONEHAND;
+			item._iMaxDur = maxDur;
+			item._iDurability = maxDur;
+			oracool::ApplyBaseTier(item, tier);
+			const int scaledMaxDur = item._iMaxDur;
+			const int durability = item._iDurability;
+			EXPECT_GE(scaledMaxDur, 1) << "maxDur " << maxDur;
+			EXPECT_LT(scaledMaxDur, static_cast<int>(DUR_INDESTRUCTIBLE)) << "tiering minted an indestructible";
+			EXPECT_GE(durability, 0) << "maxDur " << maxDur;
+			EXPECT_LE(durability, scaledMaxDur);
+		}
+	}
+}

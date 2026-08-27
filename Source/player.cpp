@@ -583,12 +583,8 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 			return false;
 		}
 
-		player.InvBody[INVLOC_HAND_LEFT]._iDurability--;
-		if (player.InvBody[INVLOC_HAND_LEFT]._iDurability <= 0) {
-			BreakOrRemoveEquipment(player, INVLOC_HAND_LEFT, true);
-			CalcPlrInv(player, true);
+		if (WearDurabilityPoint(player, INVLOC_HAND_LEFT))
 			return true;
-		}
 	}
 
 	if (!player.InvBody[INVLOC_HAND_RIGHT].isEmpty() && player.InvBody[INVLOC_HAND_RIGHT]._iClass == ICLASS_WEAPON) {
@@ -596,12 +592,8 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 			return false;
 		}
 
-		player.InvBody[INVLOC_HAND_RIGHT]._iDurability--;
-		if (player.InvBody[INVLOC_HAND_RIGHT]._iDurability == 0) {
-			BreakOrRemoveEquipment(player, INVLOC_HAND_RIGHT, true);
-			CalcPlrInv(player, true);
+		if (WearDurabilityPoint(player, INVLOC_HAND_RIGHT))
 			return true;
-		}
 	}
 
 	if (player.InvBody[INVLOC_HAND_LEFT].isEmpty() && player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield) {
@@ -609,12 +601,8 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 			return false;
 		}
 
-		player.InvBody[INVLOC_HAND_RIGHT]._iDurability--;
-		if (player.InvBody[INVLOC_HAND_RIGHT]._iDurability == 0) {
-			BreakOrRemoveEquipment(player, INVLOC_HAND_RIGHT, true);
-			CalcPlrInv(player, true);
+		if (WearDurabilityPoint(player, INVLOC_HAND_RIGHT))
 			return true;
-		}
 	}
 
 	if (player.InvBody[INVLOC_HAND_RIGHT].isEmpty() && player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Shield) {
@@ -622,12 +610,8 @@ bool DamageWeapon(Player &player, unsigned damageFrequency)
 			return false;
 		}
 
-		player.InvBody[INVLOC_HAND_LEFT]._iDurability--;
-		if (player.InvBody[INVLOC_HAND_LEFT]._iDurability == 0) {
-			BreakOrRemoveEquipment(player, INVLOC_HAND_LEFT, true);
-			CalcPlrInv(player, true);
+		if (WearDurabilityPoint(player, INVLOC_HAND_LEFT))
 			return true;
-		}
 	}
 
 	return false;
@@ -1066,20 +1050,12 @@ void DamageParryItem(Player &player)
 			return;
 		}
 
-		player.InvBody[INVLOC_HAND_LEFT]._iDurability--;
-		if (player.InvBody[INVLOC_HAND_LEFT]._iDurability == 0) {
-			BreakOrRemoveEquipment(player, INVLOC_HAND_LEFT, true);
-			CalcPlrInv(player, true);
-		}
+		WearDurabilityPoint(player, INVLOC_HAND_LEFT);
 	}
 
 	if (player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Shield) {
 		if (player.InvBody[INVLOC_HAND_RIGHT]._iDurability != DUR_INDESTRUCTIBLE) {
-			player.InvBody[INVLOC_HAND_RIGHT]._iDurability--;
-			if (player.InvBody[INVLOC_HAND_RIGHT]._iDurability == 0) {
-				BreakOrRemoveEquipment(player, INVLOC_HAND_RIGHT, true);
-				CalcPlrInv(player, true);
-			}
+			WearDurabilityPoint(player, INVLOC_HAND_RIGHT);
 		}
 	}
 }
@@ -1120,7 +1096,9 @@ void DamageArmor(Player &player)
 	int wornCount = 0;
 	for (const inv_body_loc loc : ArmorWearSlots) {
 		const Item &item = player.InvBody[loc];
-		if (!item.isEmpty() && item._iDurability != DUR_INDESTRUCTIBLE)
+		// Broken pieces are excluded, not merely spared: leaving one in the pool would let it
+		// absorb wear ticks that should have landed on gear that still has durability to lose.
+		if (!item.isEmpty() && !item._iOracoolBroken && item._iDurability != DUR_INDESTRUCTIBLE)
 			worn[wornCount++] = loc;
 	}
 	if (wornCount == 0) {
@@ -1128,15 +1106,7 @@ void DamageArmor(Player &player)
 	}
 
 	const inv_body_loc target = worn[wornCount == 1 ? 0 : GenerateRnd(wornCount)];
-	Item &pi = player.InvBody[target];
-
-	pi._iDurability--;
-	if (pi._iDurability != 0) {
-		return;
-	}
-
-	BreakOrRemoveEquipment(player, target, true);
-	CalcPlrInv(player, true);
+	WearDurabilityPoint(player, target);
 }
 
 bool DoSpell(Player &player)
@@ -1689,6 +1659,39 @@ uint16_t GetPlayerSpriteWidth(HeroClass cls, player_graphic graphic, PlayerWeapo
 }
 
 } // namespace
+
+/**
+ * Vanilla could afford to write this out seven times, because breaking an item REMOVED it from the
+ * slot: the next wear tick found the slot empty and there was nothing left to decrement. This fork
+ * leaves a broken item equipped and inert instead (BreakOrRemoveEquipment, inv.cpp), which turned
+ * all seven copies into runaways - the item sits at zero and keeps being decremented - and four of
+ * the seven tested `== 0` rather than `<= 0`, so they sailed straight past the break they were
+ * meant to catch and drove durability negative for the rest of the character's life.
+ *
+ * User, 2026-08-27: "i have magic oracool items with negative durability."
+ */
+bool WearDurabilityPoint(Player &player, inv_body_loc slot)
+{
+	Item &item = player.InvBody[slot];
+	// A broken item has nothing left to spend. It is still worn, still drawn and still repairable
+	// at the smith - it just no longer takes wear.
+	if (item.isEmpty() || item._iOracoolBroken || item._iDurability == DUR_INDESTRUCTIBLE)
+		return false;
+
+	if (item._iDurability > 0)
+		item._iDurability--;
+
+	if (item._iDurability > 0)
+		return false;
+
+	// Clamped rather than left where it landed: a save written by a build that had the runaway can
+	// hand us a deeply negative number, and the repair cost, the durability bar and the smith's
+	// "Dur: x/y" line all read this field directly.
+	item._iDurability = 0;
+	BreakOrRemoveEquipment(player, slot, true);
+	CalcPlrInv(player, true);
+	return true;
+}
 
 void Player::CalcScrolls()
 {

@@ -5,6 +5,7 @@
  */
 #include "pack.h"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "DiabloUI/diabloui.h"
@@ -169,7 +170,10 @@ void PackItem(ItemPack &packedItem, const Item &item, bool isHellfire)
 				packedItem.bMDur = 254;
 			else
 				packedItem.bMDur = item._iMaxDur;
-			packedItem.bDur = std::min<int32_t>(item._iDurability, packedItem.bMDur);
+			// Clamped at BOTH ends: bDur is a byte, so a negative _iDurability - which a save from
+			// before WearDurabilityPoint can still hold - would wrap to a large positive on the way
+			// in and come back out as a nearly-full item.
+			packedItem.bDur = std::clamp<int32_t>(item._iDurability, 0, packedItem.bMDur);
 
 			packedItem.bCh = item._iCharges;
 			packedItem.bMCh = item._iMaxCharges;

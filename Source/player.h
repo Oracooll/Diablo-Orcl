@@ -1020,6 +1020,15 @@ void FixPlrWalkTags(const Player &player);
 void StartPlrHit(Player &player, int dam, bool forcehit);
 void StartPlayerKill(Player &player, DeathReason deathReason);
 /**
+ * @brief Spends one point of an equipped item's durability, breaking it if that was the last one.
+ *
+ * The single wear primitive behind DamageWeapon, DamageParryItem and DamageArmor. Declared here
+ * rather than kept file-local so the runaway it was written to end can be tested directly.
+ *
+ * @return true if this call BROKE the item.
+ */
+bool WearDurabilityPoint(Player &player, inv_body_loc slot);
+/**
  * @brief Strip the top off gold piles that are larger than MaxGold
  */
 void StripTopGold(Player &player);

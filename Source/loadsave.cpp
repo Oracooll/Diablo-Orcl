@@ -484,6 +484,18 @@ void LoadItemData(LoadHelper &file, Item &item)
 	// Clamped on read like every other extension field - a corrupted byte must cost the player an
 	// orb or two, never the ability to apply any at all.
 	item._iOracoolOrbCount = std::min<uint8_t>(file.NextLE<uint8_t>(), oracool::MaxOrbsPerItem);
+
+	// Self-healing for negative durability (user, 2026-08-27: "i have magic oracool items with
+	// negative durability"). Until WearDurabilityPoint landed, gear that broke while equipped kept
+	// being decremented every wear tick, so characters made on earlier builds are carrying items
+	// reading "Dur: -37/60". Nothing downstream expects a negative - the repair price, the
+	// durability bar and the smith's stock line all take the number at face value - and there is no
+	// information in how far past zero it went.
+	//
+	// HERE and not in LoadAndValidateItemData, because the worn slots do not go through that:
+	// LoadMatchingItems reads them with LoadItemData directly.
+	if (item._iDurability < 0)
+		item._iDurability = 0;
 }
 
 void LoadAndValidateItemData(LoadHelper &file, Item &item)

@@ -902,15 +902,23 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		break;
 	case IPL_DUR: {
 		int bonus = r * item._iMaxDur / 100;
-		item._iMaxDur += bonus;
-		item._iDurability += bonus;
+		// Capped just below DUR_INDESTRUCTIBLE. _iMaxDur is an int here but a BYTE in the packed
+		// item record (pack.cpp's bMDur), so a +200% affix on a hardy base could push it past 255
+		// and come back off the pack as a near-zero - and 255 itself is the "cannot break"
+		// sentinel, which a durability affix has no business granting.
+		item._iMaxDur = std::min(item._iMaxDur + bonus, DUR_INDESTRUCTIBLE - 1);
+		item._iDurability = std::min(item._iDurability + bonus, item._iMaxDur);
 	} break;
 	case IPL_CRYSTALLINE:
 		item._iPLDam += 140 + r * 2;
 		[[fallthrough]];
 	case IPL_DUR_CURSE:
 		item._iMaxDur -= r * item._iMaxDur / 100;
-		item._iMaxDur = std::max<uint8_t>(item._iMaxDur, 1);
+		// std::max<uint8_t> until 2026-08-27, which truncated the int field to its low eight bits
+		// before comparing: a curse harsher than 100% left _iMaxDur negative, and -60 came back as
+		// 196 - a durability CURSE that handed out durability, with the clamp-to-1 it was written
+		// for never reached.
+		item._iMaxDur = std::max(item._iMaxDur, 1);
 		item._iDurability = item._iMaxDur;
 		break;
 	case IPL_INDESTRUCTIBLE:

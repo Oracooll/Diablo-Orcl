@@ -268,8 +268,12 @@ void ApplyBaseTier(Item &item, BaseItemTier tier)
 	// Indestructible stays indestructible: 255 is a sentinel, not a quantity, and scaling it would
 	// turn the game's own "cannot break" into a very large but finite number.
 	if (item._iMaxDur != DUR_INDESTRUCTIBLE) {
-		item._iMaxDur = ScaleByte(item._iMaxDur, scale.durability);
-		item._iDurability = std::min(item._iDurability, item._iMaxDur);
+		// NOT ScaleByte: its parameter is a uint8_t and _iMaxDur is an int, so anything already
+		// above 255 - which an item that has been through a durability affix can be - was
+		// truncated to its low eight bits on the way in, and 256 arrived as a zero. Clamped below
+		// the sentinel, and never below 1, so scaling can shrink an item's lifespan but not end it.
+		item._iMaxDur = std::clamp(ScaleByPercent(item._iMaxDur, scale.durability), 1, DUR_INDESTRUCTIBLE - 1);
+		item._iDurability = std::clamp(item._iDurability, 0, item._iMaxDur);
 	}
 
 	item._ivalue = ScaleByPercent(item._ivalue, scale.value);
