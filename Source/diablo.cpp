@@ -3236,6 +3236,13 @@ bool TryIconCurs()
 			NewCursor(CURSOR_HAND);
 			return true;
 		}
+		// A hammer left over from a shop that has already closed - see
+		// ConsumeStaleShopServiceCursor. It must never fall through to the vanilla skill below,
+		// which repairs by permanently reducing maximum durability.
+		if (ConsumeStaleShopServiceCursor()) {
+			NewCursor(CURSOR_HAND);
+			return true;
+		}
 		if (pcursinvitem != -1 && !IsInspectingPlayer())
 			DoRepair(myPlayer, pcursinvitem);
 		else if (pcursinvtabitem != -1 && !IsInspectingPlayer())
@@ -3262,6 +3269,12 @@ bool TryIconCurs()
 			}
 			DisarmShopServiceCursor();
 			CalcPlrInv(myPlayer, true);
+			NewCursor(CURSOR_HAND);
+			return true;
+		}
+		// The Recharge twin of the hammer's guard above: the vanilla skill below recharges by
+		// permanently reducing maximum charges.
+		if (ConsumeStaleShopServiceCursor()) {
 			NewCursor(CURSOR_HAND);
 			return true;
 		}

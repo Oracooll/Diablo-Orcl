@@ -4621,6 +4621,32 @@ bool ShopServiceCursorLive(ShopServiceCursor kind)
 	return ShopArmedServiceCursor == kind && oracool::IsShopGridScreen(stextflag);
 }
 
+bool ConsumeStaleShopServiceCursor()
+{
+	// Called at the POINT OF USE, before either vanilla fallback in TryIconCurs.
+	//
+	// v1.9.92 fixed this the wrong way round (external audit of v1.9.92, finding 1). It made the paid
+	// predicate require an open shop - correct, and it does stop gold being taken outside one - and
+	// then reconciled the leftover cursor once a game-logic tick. I argued that reconciling beat a
+	// list of exit sites because a new exit cannot forget to join a condition. That is true of the
+	// BACKSTOP and was wrong as the whole answer: SDL drains an entire queued event batch before game
+	// logic runs, so a close and a click land in the same batch and the tick has not happened yet.
+	//
+	// In that window the paid predicate is already false while `pcurs` is still CURSOR_REPAIR, so the
+	// click fell through to the VANILLA Repair skill - which permanently reduces maximum durability.
+	// The exact destruction the whole fix existed to prevent, moved from "always" to "if you click
+	// fast enough". Two queued events are sufficient; no race is needed.
+	//
+	// So the question is asked where it cannot be raced: if any raw shop-service state exists, this
+	// cursor belongs to a shop, full stop. It is never reinterpreted as the class skill - it is
+	// cleared and the click is spent. A player who armed a paid repair and clicked after the shop
+	// closed gets nothing, which is the correct nothing.
+	if (!IsAnyShopServiceCursorArmed())
+		return false;
+	DisarmShopServiceCursor();
+	return true;
+}
+
 bool IsAnyShopServiceCursorArmed()
 {
 	// The FLAG alone, with no screen test - the opposite question to the two above. They ask "may

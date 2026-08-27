@@ -24,11 +24,13 @@
  */
 #include <cstdio>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include <SDL.h>
 
+#include "mpq/mpq_reader.hpp" // the validation pass reopens what was just written
 #include "mpq/mpq_writer.hpp"
 #include "utils/file_util.h"
 
@@ -68,13 +70,38 @@ int main(int argc, char **argv)
 			relPaths.emplace_back(argv[i]);
 	}
 
-	// Always start from scratch. MpqWriter opens an existing archive for editing, so leaving a
-	// stale file in place would silently keep assets that have since been removed from the source.
-	devilution::RemoveFile(outPath.c_str());
+	// BUILD INTO A TEMPORARY, and do not touch the real archive until the temporary has been proved
+	// complete (external audit of v1.9.92, finding 2).
+	//
+	// The old shape deleted the final archive FIRST and wrote straight to it, treating scope exit as
+	// a transaction boundary. It is not one: ~MpqWriter calls Publish() when Finish() was not called
+	// explicitly, so an early `return 1` partway through still unwound the stack, still published,
+	// and left a structurally valid archive holding the first N entries - over the top of the
+	// known-good one, which had already been deleted. The wrapper reported failure; the next
+	// packaging run saw a fresh, plausible file and accepted it.
+	//
+	// The success path had the mirror problem: `return 0` was decided before the destructor ran, so a
+	// failure inside the final table write or the atomic replace could not reach the exit code.
+	//
+	// So: a unique temporary, explicit Finish/Publish with their results checked, validation, and
+	// only then the replace. Every failure below discards the shadow and leaves the previous archive
+	// exactly as it was.
+	const std::string tempPath = outPath + ".building";
+	devilution::RemoveFile(tempPath.c_str());
 
-	devilution::MpqWriter writer(outPath.c_str());
+	devilution::MpqWriter writer(tempPath.c_str());
 	size_t total = 0;
 	int packed = 0;
+	std::vector<std::string> archiveNames;
+	archiveNames.reserve(relPaths.size());
+
+	// Any early exit from here on must discard rather than let the destructor publish.
+	const auto fail = [&writer, &tempPath](const char *what) {
+		writer.DiscardShadow();
+		devilution::RemoveFile(tempPath.c_str());
+		std::fprintf(stderr, "ERROR: %s - the previous archive is untouched\n", what);
+		return 1;
+	};
 
 	for (std::string rel : relPaths) {
 		// The relative path is both the read location under sourceDir and the name inside the
@@ -84,8 +111,7 @@ int main(int argc, char **argv)
 		// "..", which no asset has and which is the right side to err on for a guard.
 		if (rel.find("..") != std::string::npos || rel[0] == '/' || rel[0] == '\\'
 		    || (rel.size() > 1 && rel[1] == ':')) {
-			std::fprintf(stderr, "ERROR: refusing path outside the source dir: %s\n", rel.c_str());
-			return 1;
+			return fail(("refusing path outside the source dir: " + rel).c_str());
 		}
 		const std::string diskPath = sourceDir + "/" + rel;
 		for (char &ch : rel)
@@ -93,31 +119,60 @@ int main(int argc, char **argv)
 				ch = '\\';
 
 		SDL_RWops *rw = SDL_RWFromFile(diskPath.c_str(), "rb");
-		if (rw == nullptr) {
-			std::fprintf(stderr, "ERROR: cannot read %s: %s\n", diskPath.c_str(), SDL_GetError());
-			return 1;
-		}
+		if (rw == nullptr)
+			return fail(("cannot read " + diskPath + ": " + SDL_GetError()).c_str());
 		const Sint64 size = SDL_RWsize(rw);
 		if (size < 0) {
-			std::fprintf(stderr, "ERROR: cannot size %s\n", diskPath.c_str());
 			SDL_RWclose(rw);
-			return 1;
+			return fail(("cannot size " + diskPath).c_str());
 		}
 		std::vector<devilution::byte> data(static_cast<size_t>(size));
 		const size_t read = size == 0 ? 0 : SDL_RWread(rw, data.data(), 1, static_cast<size_t>(size));
 		SDL_RWclose(rw);
-		if (read != static_cast<size_t>(size)) {
-			std::fprintf(stderr, "ERROR: short read on %s\n", diskPath.c_str());
-			return 1;
-		}
+		if (read != static_cast<size_t>(size))
+			return fail(("short read on " + diskPath).c_str());
 
-		if (!writer.WriteFile(rel.c_str(), data.data(), data.size())) {
-			std::fprintf(stderr, "ERROR: failed to write %s into the archive\n", rel.c_str());
-			return 1;
-		}
+		if (!writer.WriteFile(rel.c_str(), data.data(), data.size()))
+			return fail(("failed to write " + rel + " into the archive").c_str());
 		std::printf("  %-52s %8zu bytes\n", rel.c_str(), data.size());
 		total += data.size();
 		packed++;
+		// The archive-internal name, kept for the validation pass below.
+		archiveNames.push_back(rel);
+	}
+
+	// EXPLICIT commit, with both results checked. Leaving this to ~MpqWriter is what made a
+	// finalisation failure invisible to the exit code.
+	if (!writer.Finish())
+		return fail("failed to finalise the archive");
+	if (!writer.Publish())
+		return fail("failed to publish the archive");
+
+	// VALIDATE the temporary before it is allowed to replace anything. A timestamp proves when a
+	// file was written, not what is in it.
+	{
+		int32_t error = 0;
+		std::optional<devilution::MpqArchive> check = devilution::MpqArchive::Open(tempPath.c_str(), error);
+		if (!check) {
+			devilution::RemoveFile(tempPath.c_str());
+			std::fprintf(stderr, "ERROR: the archive just written cannot be opened (%d)\n", error);
+			return 1;
+		}
+		for (const std::string &name : archiveNames) {
+			if (!check->HasFile(name.c_str())) {
+				devilution::RemoveFile(tempPath.c_str());
+				std::fprintf(stderr, "ERROR: %s is missing from the archive that was just written\n", name.c_str());
+				return 1;
+			}
+		}
+	}
+
+	// Only now does the real archive change. ReplaceFileAtomically is the same primitive MpqWriter
+	// publishes its own shadow with.
+	if (!devilution::ReplaceFileAtomically(tempPath.c_str(), outPath.c_str())) {
+		devilution::RemoveFile(tempPath.c_str());
+		std::fprintf(stderr, "ERROR: could not move the finished archive into place\n");
+		return 1;
 	}
 
 	std::printf("packed %d file(s), %zu bytes -> %s\n", packed, total, outPath.c_str());

@@ -660,4 +660,51 @@ TEST_F(StoresTest,SortStash_OrdersByCategoryThenDescendingPrice)
 				placedCount++;
 	EXPECT_GT(placedCount, 0);
 }
+
+// A paid service cursor left behind by a closed shop must NEVER become the vanilla class skill.
+//
+// External audit of v1.9.92, finding 1, against my own v1.9.92 fix. That fix made the paid predicate
+// require an open shop and then reconciled the leftover cursor once a game-logic tick. I argued that
+// reconciling beat a list of exit sites, and as a BACKSTOP it does - but SDL drains a whole queued
+// event batch before game logic runs, so a close and a click land together and the tick has not
+// happened yet. In that window `pcurs` is still CURSOR_REPAIR while the paid predicate is already
+// false, and TryIconCurs fell through to vanilla Repair - which reduces _iMaxDur permanently.
+//
+// This pins the decision the click path now makes BEFORE that fallback, with no tick in between.
+TEST_F(StoresTest, StaleServiceCursorIsConsumedRatherThanRunAsTheVanillaSkill)
+{
+	ArmShopRepairCursor();
+	ASSERT_TRUE(IsAnyShopServiceCursorArmed()) << "arming did not record the raw state";
+
+	// The shop closes. No UpdateStoreState() call - that is the whole point: this is the window
+	// between the close event and the next game-logic tick.
+	stextflag = TalkID::None;
+
+	EXPECT_FALSE(IsShopRepairCursorArmed())
+	    << "the PAID path must be dead the moment the shop is gone - it takes gold";
+	ASSERT_TRUE(IsAnyShopServiceCursorArmed())
+	    << "the raw state must survive, or the click path cannot tell a shop cursor from a skill one";
+
+	EXPECT_TRUE(ConsumeStaleShopServiceCursor())
+	    << "the click was not recognised as belonging to a closed shop, so it would reach vanilla Repair";
+	EXPECT_FALSE(IsAnyShopServiceCursorArmed()) << "consuming it must clear the state";
+
+	// A second click has nothing left to consume, so an ordinary Repair SKILL still works - the
+	// guard must not swallow legitimate skill use.
+	EXPECT_FALSE(ConsumeStaleShopServiceCursor())
+	    << "with no shop state armed this must stand aside and let the class skill run";
+}
+
+// The Recharge twin, against _iMaxCharges.
+TEST_F(StoresTest, StaleRechargeCursorIsConsumedRatherThanRunAsTheVanillaSkill)
+{
+	ArmShopRechargeCursor();
+	ASSERT_TRUE(IsAnyShopServiceCursorArmed());
+
+	stextflag = TalkID::None;
+
+	EXPECT_FALSE(IsShopRechargeCursorArmed());
+	EXPECT_TRUE(ConsumeStaleShopServiceCursor());
+	EXPECT_FALSE(IsAnyShopServiceCursorArmed());
+}
 } // namespace

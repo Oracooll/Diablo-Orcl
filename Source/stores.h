@@ -292,6 +292,15 @@ bool IsShopRepairCursorArmed();
 bool IsShopRechargeCursorArmed();
 /** @brief Whether any service cursor state is left to clean up, shop open or not. */
 bool IsAnyShopServiceCursorArmed();
+
+/**
+ * @brief Clears a service cursor left behind by a shop that has closed. True if it did.
+ *
+ * Call before either vanilla Repair/Recharge fallback. A true return means the click belonged to a
+ * closed shop and must be consumed, NOT reinterpreted as the class skill - the skill versions
+ * permanently reduce maximum durability and maximum charges.
+ */
+bool ConsumeStaleShopServiceCursor();
 /** @brief Clears the flag AND restores the hand cursor. See the definition - the second half matters. */
 void DisarmShopServiceCursor();
 
