@@ -52,43 +52,50 @@ constexpr int ShopTabStripLeft = 16;
 constexpr int ShopTabStripWidth = ShopPanelSize.width - 2 * ShopTabStripLeft;
 
 /*
- * ONE ROW OF TALL, NARROW BUTTONS, and this replaces a stack of five short wide ones.
+ * THE TABS LIVE OUTSIDE THE PANEL, in a column down its right-hand side.
  *
- * User, 2026-08-27: "Why are we using 4-5 rows of horizontal buttons? Cant we use one row of
- * vertical button tall as much as 4-5 rows, but narrow enough to fit 11-12 buttons?"
+ * User, 2026-08-27: "cant we just move basic, magic, rare, unique, set, supplies, sold to the right
+ * of the store window as vertical tabs one under the other?"
  *
- * That was the right question. The stack had grown to three rows of tabs plus a services row plus a
- * bulk row, and every one of them was a full-width row spent on labels of five to eight characters -
- * a layout paying for its width in the one dimension the panel has none of. Turned on its side the
- * same eleven controls cost ONE row: Basic, Magic, Rare, Set, Unique, Supplies, Sold, Repair,
- * Repair All, Recharge, Refresh.
+ * Yes, and it is the answer to a problem two previous layouts had both been solving the wrong way.
+ * The tabs were a three-row strip INSIDE the panel, which cost three of the 106 pixels between the
+ * title band and the pinned grid; turning every control on its side to save that space bought the
+ * room back at the price of vertical labels, which are slower to read. Both attempts were rationing
+ * the same scarce band.
  *
- * The budget is unchanged and still fixed: the title band ends at 56, the grid's top is pinned at
- * GridBottom - 16 cells, and the user's instruction on that has not moved ("you dont remove one grid
- * row from shops"). What changed is that the space is now spent once instead of five times.
+ * The band was never where the tabs had to be. The panel is 340 wide against a screen that is at
+ * least 640, and the column to its right is empty. Moving the tabs there costs the panel NOTHING and
+ * gives the tabs ordinary horizontal labels at a comfortable size - so the services and bulk rows go
+ * back to being plain wide rows inside the panel, with room to spare for the first time.
  *
- * The cost is real and worth stating: a vertical label is slower to read than a horizontal one. It
- * is a strip of seven to eleven buttons the player learns the positions of within a visit, which is
- * the case where that trade is cheapest.
+ * The tabs float over the play area rather than over a panel of their own. That is the one thing to
+ * be careful about, and it is handled in GetShopSurfaceRect: the click and hover routers ask for the
+ * shop's whole footprint, not just the panel, so nothing behind the column can be clicked through it.
  */
-constexpr int ShopStripTop = 58;
-constexpr int ShopStripHeight = 90;
-constexpr int ShopGoldTop = ShopStripTop + ShopStripHeight + 2;
-constexpr int ShopGoldHeight = 14;
+constexpr int ShopTabColumnGap = 4;
+constexpr int ShopTabColumnWidth = 104;
+constexpr int ShopTabHeight = 26;
+constexpr int ShopTabGap = 2;
+/** @brief Aligned with the first control row inside the panel, so the two read as one band. */
+constexpr int ShopTabColumnTop = 58;
 
-/**
- * @brief Slots the strip is divided into, whether or not a vendor fills them.
+/*
+ * The control rows, between the title band and the pinned grid. There are 106 pixels here (the title
+ * band ends at 56, the grid's top is pinned at GridBottom - 16 cells) and the user's instruction on
+ * that has not moved: "you dont remove one grid row from shops."
  *
- * TWELVE, so the widest vendor (Griswold with all three curated shelves on) fits and every button is
- * the same width at every vendor. Deriving the width from the tab COUNT instead would make Adria's
- * three buttons 100px wide each - a vertical label in a 100px-wide box reads as a mistake - so a
- * vendor with fewer gets the same narrow buttons, centred as a group.
+ * With the tabs gone the rows are no longer rationed - services, bulk and gold use 72 of the 106 and
+ * the rest is deliberate breathing room rather than a number squeezed to fit.
  */
-constexpr int ShopControlSlots = 12;
-constexpr int ShopControlWidth = ShopTabStripWidth / ShopControlSlots;
+constexpr int ShopServiceTop = 58;
+constexpr int ShopServiceHeight = 26;
+constexpr int ShopActionTop = ShopServiceTop + ShopServiceHeight + 2;
+constexpr int ShopActionHeight = 26;
+constexpr int ShopGoldTop = ShopActionTop + ShopActionHeight + 2;
+constexpr int ShopGoldHeight = 16;
 
 static_assert(ShopGoldTop + ShopGoldHeight <= ShopGridTop - GridFrameWidth,
-    "the controls above the shop grid no longer clear it - shorten the strip, or ask before "
+    "the controls above the shop grid no longer clear it - shorten the rows, or ask before "
     "taking a row off the grid");
 static_assert(ShopGridLeft >= 0, "the shop grid is wider than the panel");
 
@@ -347,11 +354,16 @@ struct ControlButton {
 	std::string label;
 };
 
+/**
+ * @brief The services and bulk actions, in draw order. NOT the tabs - those have their own column.
+ *
+ * Still one tagged list for the two that share the panel's rows, because their geometry, hit-testing
+ * and drawing are identical and only the click differs. Two lists would be two rect functions that
+ * have to agree about where a row starts, which is what the pre-2026-08-27 layout had.
+ */
 std::vector<ControlButton> ShopControlButtons(TalkID id)
 {
 	std::vector<ControlButton> buttons;
-	for (TalkID tab : ShopTabsFor(id))
-		buttons.push_back({ ControlKind::Tab, tab, ServiceButton::Repair, 0, std::string(_(ShopTabName(tab))) });
 	for (ServiceButton service : ServicesFor(id))
 		buttons.push_back({ ControlKind::Service, TalkID::None, service, 0, ServiceButtonLabel(service) });
 	for (const ShopAction &action : GetShopActions(id))
@@ -359,61 +371,41 @@ std::vector<ControlButton> ShopControlButtons(TalkID id)
 	return buttons;
 }
 
-Rectangle ShopControlRect(size_t index, size_t count)
+/**
+ * @brief Where one control sits. Services take the first row, bulk actions the second.
+ *
+ * Each row shares its full width between whatever is on it, so three services are 102px each and one
+ * bulk action is the whole row. They never fight for space because they are on different rows.
+ */
+Rectangle ShopControlRect(const std::vector<ControlButton> &buttons, size_t index)
 {
 	const Rectangle panel = GetShopPanelRect();
-	// Centred as a GROUP at a fixed width, rather than stretched to fill. See ShopControlSlots.
-	const int groupWidth = static_cast<int>(count) * ShopControlWidth;
-	const int left = panel.position.x + ShopTabStripLeft + (ShopTabStripWidth - groupWidth) / 2;
-	return Rectangle { { left + static_cast<int>(index) * ShopControlWidth, panel.position.y + ShopStripTop },
-		{ ShopControlWidth, ShopStripHeight } };
+	const ControlKind kind = buttons[index].kind;
+	// Position WITHIN the row, and how many share it - counted rather than assumed, so a vendor with
+	// no services still lays its bulk row out correctly.
+	int onRow = 0;
+	int before = 0;
+	for (size_t i = 0; i < buttons.size(); i++) {
+		if (buttons[i].kind != kind)
+			continue;
+		if (i < index)
+			before++;
+		onRow++;
+	}
+	const int top = kind == ControlKind::Service ? ShopServiceTop : ShopActionTop;
+	const int height = kind == ControlKind::Service ? ShopServiceHeight : ShopActionHeight;
+	const int width = ShopTabStripWidth / std::max(onRow, 1);
+	return Rectangle { { panel.position.x + ShopTabStripLeft + before * width, panel.position.y + top },
+		{ width, height } };
 }
 
-/**
- * @brief Draws @p text one character per line down @p rect.
- *
- * The engine has no rotated text, so a vertical label is a stack of glyphs. Uppercased first: caps
- * have no descenders, which is what lets the pitch be tightened below the font's own line height
- * without letters touching, and a stack of mixed-case letters reads worse than a stack of caps
- * anyway.
- *
- * The PITCH is computed from the label's length and the height available, and the FONT is then the
- * largest that fits that pitch. A long label therefore shrinks rather than overflowing - which is
- * the failure this panel has already had once, when "Supplies" rendered as "SUPPLIE" and the clip
- * was silent.
- */
-void DrawVerticalLabel(const Surface &out, string_view text, Rectangle rect, UiFlags color)
+/** @brief One tab in the column beside the panel. */
+Rectangle ShopTabRect(size_t index)
 {
-	std::string glyphs;
-	for (const char ch : text) {
-		// A space becomes a gap, not a glyph: "REPAIR ALL" is two words and reads as one column of
-		// letters without it.
-		glyphs.push_back(ch >= 'a' && ch <= 'z' ? static_cast<char>(ch - 'a' + 'A') : ch);
-	}
-	if (glyphs.empty())
-		return;
-
-	const int count = static_cast<int>(glyphs.size());
-	const int pitch = std::max(1, std::min(12, rect.size.height / count));
-	// Largest size whose glyphs clear the pitch. The four small fonts exist for exactly this kind of
-	// squeeze; below eight there is nothing smaller and the letters simply overlap by a pixel.
-	const UiFlags font = pitch >= 12 ? UiFlags::FontSize12
-	    : pitch >= 11                ? UiFlags::FontSize11
-	    : pitch >= 10                ? UiFlags::FontSize10
-	    : pitch >= 9                 ? UiFlags::FontSize9
-	                                 : UiFlags::FontSize8;
-	// Centred vertically in whatever is left over, so a short label sits in the middle of a tall
-	// button rather than hanging from its top edge.
-	int y = rect.position.y + (rect.size.height - count * pitch) / 2;
-	for (const char ch : glyphs) {
-		if (ch != ' ') {
-			const char one[2] = { ch, '\0' };
-			DrawString(out, string_view(one, 1),
-			    Rectangle { { rect.position.x, y }, { rect.size.width, pitch } },
-			    { color | font | UiFlags::AlignCenter });
-		}
-		y += pitch;
-	}
+	const Rectangle panel = GetShopPanelRect();
+	return Rectangle { { panel.position.x + panel.size.width + ShopTabColumnGap,
+	                       panel.position.y + ShopTabColumnTop + static_cast<int>(index) * (ShopTabHeight + ShopTabGap) },
+		{ ShopTabColumnWidth, ShopTabHeight } };
 }
 
 constexpr int PageButtonWidth = 16;
@@ -489,26 +481,15 @@ void DrawShopControls(const Surface &out, int pageCount)
 	const Rectangle panel = GetShopPanelRect();
 
 	const std::vector<ControlButton> buttons = ShopControlButtons(stextflag);
-	// A vendor that grows past the reserved slots would draw its last buttons off the panel,
-	// silently. The strip's width is fixed on purpose (see ShopControlSlots), so this is the only
-	// thing standing between a new control and a layout that quietly runs off the edge.
-	assert(buttons.size() <= static_cast<size_t>(ShopControlSlots)
-	    && "a vendor has more controls than the strip has slots - raise ShopControlSlots");
 	for (size_t i = 0; i < buttons.size(); i++) {
-		const Rectangle rect = ShopControlRect(i, buttons.size());
-		// The ACTIVE tab is the one filled solid; everything else, hovered or not, is the same
-		// half-transparent plate. A hover only changes the ink, so the strip does not shift under
-		// the pointer.
-		const bool active = buttons[i].kind == ControlKind::Tab && buttons[i].tab == stextflag;
+		const Rectangle rect = ShopControlRect(buttons, i);
+		// A hover changes the INK only, never the plate, so the row does not shift under the pointer.
 		const bool hovered = rect.contains(MousePosition);
-		if (active) {
-			DrawThemedFill(out, rect, 2);
-		} else {
-			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
-		}
+		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 		DrawOrnateBorder(out, rect);
-		DrawVerticalLabel(out, buttons[i].label, rect,
-		    active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
+		DrawString(out, buttons[i].label, rect,
+		    { (hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
+		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 
 	// The page arrows share the gold row rather than taking a row of their own: the space between
@@ -533,6 +514,45 @@ void DrawShopControls(const Surface &out, int pageCount)
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
 }
 
+/** @brief The tab column beside the panel, drawn after it so the tabs sit on top of nothing. */
+void DrawShopTabColumn(const Surface &out)
+{
+	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
+	for (size_t i = 0; i < tabs.size(); i++) {
+		const Rectangle rect = ShopTabRect(i);
+		const bool active = tabs[i] == stextflag;
+		const bool hovered = rect.contains(MousePosition);
+		// The active tab is filled solid so it reads as part of the panel; the rest are the same
+		// half-transparent plate every other floating control wears.
+		if (active) {
+			DrawThemedFill(out, rect, 3);
+		} else {
+			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+		}
+		DrawOrnateBorder(out, rect);
+		DrawString(out, _(ShopTabName(tabs[i])), rect,
+		    { (active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
+		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	}
+}
+
+/** @brief True if the click switched tabs, so the caller stops. */
+bool CheckShopTabColumnClick(Point position)
+{
+	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
+	for (size_t i = 0; i < tabs.size(); i++) {
+		if (!ShopTabRect(i).contains(position))
+			continue;
+		// The tab you are already on absorbs the click rather than restarting the screen.
+		if (tabs[i] != stextflag) {
+			StartStore(tabs[i]);
+			ResetShopGridSelection();
+		}
+		return true;
+	}
+	return false;
+}
+
 void DrawShopClose(const Surface &out)
 {
 	const Rectangle rect = ShopCloseRect();
@@ -553,6 +573,29 @@ Rectangle GetShopPanelRect()
 	// The BOTTOM-left slot, shared with the stash, character sheet and quest log. Nothing else is
 	// open while a shop is, so the slot is free - and all four dock together (user, 2026-08-27).
 	return Rectangle { { 0, BottomDockedTop(ShopPanelSize.height) }, ShopPanelSize };
+}
+
+bool IsPointOverShop(Point position)
+{
+	// The panel PLUS the tab column beside it, because the tabs float over the play area and every
+	// router that asks "is the pointer on the shop" has to count them.
+	//
+	// A PREDICATE, not a bounding rect, and the difference is the whole point: the column is a short
+	// stack partway down the panel's right side, so a rectangle enclosing both would also enclose
+	// the tall empty strip above and below it - swallowing clicks meant for the world in a band a
+	// hundred pixels wide. Asked in one place rather than at each of the five call sites, because a
+	// call site that had not been updated would let a click fall through the tabs to what is behind
+	// them, which is the exact bug this panel already had once when towners were named through it.
+	if (GetShopPanelRect().contains(position))
+		return true;
+	if (!IsShopGridScreen(stextflag))
+		return false;
+	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
+	for (size_t i = 0; i < tabs.size(); i++) {
+		if (ShopTabRect(i).contains(position))
+			return true;
+	}
+	return false;
 }
 
 Rectangle GetShopGridRect()
@@ -633,6 +676,7 @@ void DrawShopGrid(const Surface &out)
 	}
 
 	DrawShopControls(out, pageCount);
+	DrawShopTabColumn(out);
 	DrawShopClose(out);
 }
 
@@ -640,8 +684,13 @@ bool CheckShopGridClick(Point position, bool rightClick)
 {
 	if (!IsShopGridScreen(stextflag))
 		return false;
-	if (!GetShopPanelRect().contains(position))
+	if (!IsPointOverShop(position))
 		return false;
+	// The tabs first, and BEFORE the held-item branch below: dropping an item on a tab must switch
+	// tabs rather than sell the item, because the tabs are the shop's navigation and a mis-drop on
+	// one should not cost the player a sword.
+	if (CheckShopTabColumnClick(position))
+		return true;
 	if (ShopCloseRect().contains(position)) {
 		// Out of the shop entirely, not back to the vendor's dialog - the X on every other Oracool
 		// window closes the window, and the tabs are how you move between shop screens.
@@ -683,7 +732,7 @@ bool CheckShopGridClick(Point position, bool rightClick)
 		for (size_t i = 0; i < buttons.size(); i++) {
 			if (buttons[i].kind != ControlKind::Service)
 				continue;
-			if (!ShopControlRect(i, buttons.size()).contains(position))
+			if (!ShopControlRect(buttons, i).contains(position))
 				continue;
 			if (buttons[i].service == ServiceButton::Repair)
 				ShopRepairHeldItem();
@@ -700,15 +749,13 @@ bool CheckShopGridClick(Point position, bool rightClick)
 	}
 
 	for (size_t i = 0; i < buttons.size(); i++) {
-		if (!ShopControlRect(i, buttons.size()).contains(position))
+		if (!ShopControlRect(buttons, i).contains(position))
 			continue;
 		switch (buttons[i].kind) {
 		case ControlKind::Tab:
-			// The tab you are already on absorbs the click rather than restarting the screen.
-			if (buttons[i].tab != stextflag) {
-				StartStore(buttons[i].tab);
-				ResetShopGridSelection();
-			}
+			// Unreachable - the tabs are their own column now and CheckShopTabColumnClick answers
+			// them above. Kept so the switch stays exhaustive over the enum rather than needing a
+			// default that would swallow a kind added later.
 			break;
 		case ControlKind::Service:
 			if (buttons[i].service == ServiceButton::RepairAll)
@@ -789,7 +836,7 @@ bool SetShopHoverInfoString()
 	// Anything inside the panel is answered here, item or not. The panel covers the world, and the
 	// producers further down UpdateInfoString were naming towners standing behind it - the user
 	// hovered the Repair tab and got "Gillian the Barmaid".
-	if (!GetShopPanelRect().contains(MousePosition))
+	if (!IsPointOverShop(MousePosition))
 		return false;
 
 	const std::vector<ShopSlot> stock = GetShopStock(stextflag);
@@ -800,10 +847,10 @@ bool SetShopHoverInfoString()
 	for (size_t i = 0; i < buttons.size(); i++) {
 		if (buttons[i].kind != ControlKind::Service)
 			continue;
-		if (!ShopControlRect(i, buttons.size()).contains(MousePosition))
+		if (!ShopControlRect(buttons, i).contains(MousePosition))
 			continue;
-		// A vertical label says WHICH service; the hint is where what it does - and what Repair All
-		// costs - is written down.
+		// The button says WHICH service; the hint is where what it does - and what Repair All costs
+		// - is written down.
 		SetServiceHint(buttons[i].service);
 		return true;
 	}

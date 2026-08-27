@@ -6418,7 +6418,10 @@ void StockSalvageCharms(Item *stock, int capacity, int lvl, uint16_t createInfoF
 }
 
 /**
- * @brief Fills up to @p want empty slots with Oracool gear of this depth.
+ * @brief Fills up to @p want empty slots with PLAIN Oracool gear of this depth.
+ *
+ * Plain since 2026-08-27 - see the note at the roll itself. Griswold's Basic tab promises unaffixed
+ * gear and this was handing it magic items.
  *
  * The shops carried nothing but vanilla stock (user, 2026-08-27: "all shops to also offer all of the
  * new items we have introduced. i now only see vanilla items"), and the reason is structural rather
@@ -6461,9 +6464,31 @@ int StockOracoolVendorItems(Item *stock, int capacity, int lvl, int want)
 		const int itemLevel = std::clamp(lvl, 1, 30);
 		Item &item = stock[i];
 		item = {};
-		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), itemLevel, 1, /*onlygood=*/false,
-		    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true);
+		// PLAIN, and this is a fix rather than a preference (user, 2026-08-27: "why am i seeing
+		// magic oracool items in basic shop?").
+		//
+		// It went through SetupAllItems, which is the DROP path: it rolls affixes and can roll a
+		// quality tier on top of them. That is right for something falling out of a monster and
+		// wrong for this shelf, because Griswold's shop has a rule and the rule is legible - Basic
+		// sells plain gear, Magic sells affixed gear, and the tabs beyond those sell what their
+		// names say. An Oracool base arriving on Basic already magical broke the one promise the tab
+		// makes.
+		//
+		// So it is built exactly the way SpawnSmith builds its own basic stock: attributes from the
+		// base row, a vendor ilvl stamp, a chance of a base TIER - and no call to the affix roller
+		// at all. A base tier is not an affix; it is what the item IS, and Griswold's vanilla basics
+		// already roll for one.
+		item._iSeed = AdvanceRndSeed();
+		SetRndSeed(item._iSeed);
+		oracool::StampVendorItemLevel(item, itemLevel);
+		GetItemAttrs(item, idx, itemLevel);
+		oracool::ApplyVendorTier(item, lvl, item._iSeed,
+		    gbIsHellfire ? MaxVendorValueHf : MaxVendorValue);
+		// Still NOT a town stamp - see this function's header. A bare level is what a rolled dungeon
+		// item carries, and it is what keeps the packed index instead of re-deriving it.
+		item._iCreateInfo = std::min(itemLevel, 63);
 		item._iIdentified = true;
+		item._iStatFlag = MyPlayer->CanUseItem(item);
 		placed++;
 	}
 	return placed;

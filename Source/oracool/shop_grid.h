@@ -51,6 +51,17 @@ bool IsShopGridScreen(TalkID id);
 /** @brief The shop panel's screen rect. Valid whether or not a shop is open. */
 Rectangle GetShopPanelRect();
 
+/**
+ * @brief Whether @p position is on the shop at all - the panel OR its tab column.
+ *
+ * What every click and hover router should ask, rather than GetShopPanelRect().contains(): the tabs
+ * moved out of the panel and into a column beside it (user, 2026-08-27), so they float over the play
+ * area and a router testing the panel alone would let clicks fall straight through them.
+ *
+ * A predicate rather than a rect on purpose - see the note at the definition.
+ */
+bool IsPointOverShop(Point position);
+
 /** @brief The grid's screen rect, inside the panel. */
 Rectangle GetShopGridRect();
 

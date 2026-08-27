@@ -457,7 +457,7 @@ void LeftMouseDown(uint16_t modState)
 		// itself belong to the store - the rest fall through to the inventory routing below, which
 		// is what lets the player pick an item up in the first place. Every other store screen
 		// (the towner dialogs, Confirm, No money) still swallows the whole screen, as it always did.
-		if (!oracool::IsShopGridScreen(stextflag) || oracool::GetShopPanelRect().contains(MousePosition)) {
+		if (!oracool::IsShopGridScreen(stextflag) || oracool::IsPointOverShop(MousePosition)) {
 			CheckStoreBtn();
 			return;
 		}

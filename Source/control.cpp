@@ -226,7 +226,7 @@ bool IsOverAnyInterface(Point position)
 	// rect counts as interface - the rest of the screen stays clickable, which is what lets an item
 	// be dragged out of the inventory to sell it.
 	if (stextflag != TalkID::None && oracool::IsShopGridScreen(stextflag)
-	    && oracool::GetShopPanelRect().contains(position))
+	    && oracool::IsPointOverShop(position))
 		return true;
 	return false;
 }
