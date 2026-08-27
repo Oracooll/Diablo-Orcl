@@ -476,3 +476,6 @@ uwp-project/Assets/ui_art
 
 # Release packages
 DiabloOrcl-*-win64.zip
+
+# Release packages built by tools/BuildReleasePackage.ps1
+dist/
