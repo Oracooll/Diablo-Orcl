@@ -2175,20 +2175,44 @@ void SmithEnter()
  * the two apart is worth doing for its own sake: the transaction should not be able to disagree
  * with the display about what is being sold.
  */
+/**
+ * @brief Removes entry @p idx from a fixed vendor array and closes the gap behind it.
+ *
+ * The three vendors each had their own copy of this, and all three were the same bug (external
+ * audit, 2026-08-27). The shape was:
+ *
+ *     for (; !stock[idx + 1].isEmpty(); idx++) stock[idx] = std::move(stock[idx + 1]);
+ *
+ * which walks until it finds an EMPTY SLOT, and so reads `stock[capacity]` the moment the array has
+ * none - an out-of-bounds read, followed by a write of whatever it found into the last real slot.
+ * Each vendor had a special case for buying the very last entry, which is the one full-array
+ * purchase that happened not to trigger it.
+ *
+ * A full array was impossible when those loops were written and is ORDINARY now: the reserved blocks
+ * added on 2026-08-27 are sized to fill the shelf exactly. Adria is 48 rolled + 7 salvage + 12
+ * socketables + 10 books + 8 staves + 5 rare staves = 90 = WITCH_ITEMS. The empty sentinel those
+ * loops relied on is gone. SortVendor's own capacity bound was already evidence that a full array is
+ * an expected state rather than an impossible one - it was given that bound for the same reason, and
+ * these three were not looked at.
+ *
+ * Bounded by CAPACITY instead. The gap-closing is unchanged; what changed is that it can no longer
+ * run off the end when there is no hole to stop at.
+ */
+// Defined below the anonymous namespace, since stores.h exports it for the full-array regression
+// test. The declaration in the header is what lets the three purchase paths above reach it.
+
 void SmithBuyItemAt(Item &item, int idx)
 {
+	// The index is validated BEFORE the money moves. A stale or out-of-range row must cost nothing
+	// rather than charge for a purchase the removal below then declines to make - the same ordering
+	// SmithBuyPItemAt was given after the 2026-08-15 self-audit.
+	if (idx < 0 || idx >= SMITH_ITEMS)
+		return;
 	TakePlrsMoney(item._iIvalue);
 	if (item._iMagical == ITEM_QUALITY_NORMAL)
 		item._iIdentified = false;
 	StoreAutoPlace(item, true);
-	if (idx == SMITH_ITEMS - 1) {
-		smithitem[SMITH_ITEMS - 1].clear();
-	} else {
-		for (; !smithitem[idx + 1].isEmpty(); idx++) {
-			smithitem[idx] = std::move(smithitem[idx + 1]);
-		}
-		smithitem[idx].clear();
-	}
+	RemoveFromVendorStock(smithitem, SMITH_ITEMS, idx);
 	CalcPlrInv(*MyPlayer, true);
 }
 
@@ -2745,16 +2769,11 @@ void WitchEnter()
  */
 void RemoveWitchStockItem(int idx)
 {
+	// The first three are Adria's pinned potions and portal scroll - they restock rather than sell
+	// out, so they are never removed.
 	if (idx < 3)
 		return;
-	if (idx == WITCH_ITEMS - 1) {
-		witchitem[WITCH_ITEMS - 1].clear();
-	} else {
-		for (; !witchitem[idx + 1].isEmpty(); idx++) {
-			witchitem[idx] = std::move(witchitem[idx + 1]);
-		}
-		witchitem[idx].clear();
-	}
+	RemoveFromVendorStock(witchitem, WITCH_ITEMS, idx);
 }
 
 /**
@@ -2977,14 +2996,7 @@ void HealerBuyItemAt(Item &item, int idx)
 		if (idx < 3)
 			return;
 	}
-	if (idx == 19) {
-		healitem[19].clear();
-	} else {
-		for (; !healitem[idx + 1].isEmpty(); idx++) {
-			healitem[idx] = std::move(healitem[idx + 1]);
-		}
-		healitem[idx].clear();
-	}
+	RemoveFromVendorStock(healitem, static_cast<int>(std::size(healitem)), idx);
 	CalcPlrInv(*MyPlayer, true);
 }
 
@@ -3374,6 +3386,14 @@ void DrawSelector(const Surface &out, const Rectangle &rect, string_view text, U
 
 } // namespace
 
+void RemoveFromVendorStock(Item *stock, int capacity, int idx)
+{
+	if (idx < 0 || idx >= capacity)
+		return;
+	std::move(stock + idx + 1, stock + capacity, stock + idx);
+	stock[capacity - 1].clear();
+}
+
 bool HasCuratedShelf(CuratedShelf shelf)
 {
 	// Outside the anonymous namespace because the shop tab strip needs it. One rule, one place - the
@@ -3505,8 +3525,23 @@ _talker_id TownerForStore(TalkID id)
 	return TownerForStoreDirect(stextshold);
 }
 
-void CloseStoreIfPlayerWalkedAway()
+void UpdateStoreState()
 {
+	// ---- 1. A service cursor cannot outlive the shop that armed it ----
+	//
+	// The audit's remedy for finding 2 was "call a cancel function from every shop exit: X, ESC,
+	// walkaway, overlap closure, initialization, vendor transitions, and exceptional exits". That is
+	// the right behaviour and the wrong mechanism: `stextflag = TalkID::None` appears in this file a
+	// dozen times, the list has to stay complete forever, and the failure when it does not is a
+	// player permanently losing maximum durability on an item they meant to pay to repair.
+	//
+	// So the invariant is RECONCILED rather than maintained: once a tick, if a service cursor is
+	// armed and no shop screen is open, it is cancelled. A new exit path cannot forget to be added
+	// to this, because it is not a list of exits - it is the condition itself.
+	if (IsAnyShopServiceCursorArmed() && !oracool::IsShopGridScreen(stextflag))
+		DisarmShopServiceCursor();
+
+	// ---- 2. A shop does not follow the player away from its counter ----
 	if (stextflag == TalkID::None || leveltype != DTYPE_TOWN || MyPlayer == nullptr)
 		return;
 	// A screen with no towner behind it - nothing to measure a distance against, so it is left alone
@@ -4544,21 +4579,52 @@ void ArmShopRechargeCursor()
 	NewCursor(CURSOR_RECHARGE);
 }
 
+/**
+ * @brief Whether a shop service cursor is armed AND there is still a shop to charge for it.
+ *
+ * The screen test is not belt-and-braces (external audit of v1.9.88, finding 2). The flag alone was
+ * the whole authority to take gold, so any exit that cleared the screen but not the flag left a
+ * cursor that could still run a PAID transaction with no shop open. Requiring both means the
+ * authority expires with the thing that granted it.
+ */
+bool ShopServiceCursorLive(ShopServiceCursor kind)
+{
+	return ShopArmedServiceCursor == kind && oracool::IsShopGridScreen(stextflag);
+}
+
+bool IsAnyShopServiceCursorArmed()
+{
+	// The FLAG alone, with no screen test - the opposite question to the two above. They ask "may
+	// this charge gold", which must be false once the shop is gone; this asks "is there state left
+	// to clean up", which must stay true precisely then.
+	return ShopArmedServiceCursor != ShopServiceCursor::None;
+}
+
 bool IsShopRepairCursorArmed()
 {
-	return ShopArmedServiceCursor == ShopServiceCursor::Repair;
+	return ShopServiceCursorLive(ShopServiceCursor::Repair);
 }
 
 bool IsShopRechargeCursorArmed()
 {
-	return ShopArmedServiceCursor == ShopServiceCursor::Recharge;
+	return ShopServiceCursorLive(ShopServiceCursor::Recharge);
 }
 
 void DisarmShopServiceCursor()
 {
-	// One clear for both, because they are one piece of state. Two independent flags would let a
-	// stale Recharge survive a Repair click and charge for the next thing the player touched.
+	// Clears the FLAG and the CURSOR, and the second half is the fix (external audit of v1.9.88,
+	// finding 2). It used to clear the flag alone, and that is the more dangerous half to leave
+	// behind: `pcurs` stays CURSOR_REPAIR, TryIconCurs sees the paid flag gone, and falls through to
+	// the VANILLA Repair skill - which reduces _iMaxDur permanently. So a player who armed a paid
+	// repair and then walked away from the counter would, on their next click, silently take
+	// permanent maximum-durability damage off the item they meant to pay to fix. Recharge is the
+	// same shape against _iMaxCharges.
+	//
+	// One clear for both kinds, because they are one piece of state. Two independent flags would let
+	// a stale Recharge survive a Repair click and charge for the next thing the player touched.
 	ShopArmedServiceCursor = ShopServiceCursor::None;
+	if (pcurs == CURSOR_REPAIR || pcurs == CURSOR_RECHARGE)
+		NewCursor(CURSOR_HAND);
 }
 
 bool ShopRepairItemAt(Item &item)

@@ -131,6 +131,14 @@ extern int boylevel;
 /** Current item sold by Wirt */
 extern Item boyitem;
 
+/**
+ * @brief Removes entry @p idx from a fixed vendor array and closes the gap, bounded by @p capacity.
+ *
+ * Exported for the full-array regression test. All three vendors' purchase paths go through this, so
+ * testing it is testing all three - which is the point of there being one of it.
+ */
+void RemoveFromVendorStock(Item *stock, int capacity, int idx);
+
 void AddStoreHoldRepair(Item *itm, int8_t i);
 
 /** Clears premium items sold by Griswold and Wirt. */
@@ -279,8 +287,12 @@ enum class ShopServiceCursor : uint8_t {
 
 void ArmShopRepairCursor();
 void ArmShopRechargeCursor();
+/** @brief Whether the paid service may run - armed AND a shop still open to charge for it. */
 bool IsShopRepairCursorArmed();
 bool IsShopRechargeCursorArmed();
+/** @brief Whether any service cursor state is left to clean up, shop open or not. */
+bool IsAnyShopServiceCursorArmed();
+/** @brief Clears the flag AND restores the hand cursor. See the definition - the second half matters. */
 void DisarmShopServiceCursor();
 
 /** @brief Repairs @p item to full and charges for it. False if it was not repaired. */
@@ -327,14 +339,18 @@ void TakePlrsMoney(int cost);
 uint32_t TotalPlayerGold();
 
 /**
- * @brief Closes the open store when the player has walked away from its counter.
+ * @brief Keeps store state honest. Called once a game tick, on every level.
  *
- * Called once a game tick in town. A shop is a PANEL in this fork rather than a modal screen - the
- * inventory sits open beside it so items can be dragged across - which means the player can walk off
- * with the shop still up, covering a third of the screen and swallowing clicks. Griswold does not
- * follow them (user, 2026-08-27: "close griswold and all other vendor shops on walkaway").
+ * Two invariants, both RECONCILED rather than maintained at each exit - see the definition for why
+ * that distinction is the whole point:
+ *
+ *  - a Repair/Recharge service cursor never outlives the shop that armed it (external audit of
+ *    v1.9.88, finding 2: the vanilla fallback permanently reduces maximum durability);
+ *  - a shop closes when the player walks away from its counter (user, 2026-08-27: "close griswold
+ *    and all other vendor shops on walkaway"), because a shop is a PANEL in this fork rather than a
+ *    modal screen and the player can walk off with it still covering a third of the screen.
  */
-void CloseStoreIfPlayerWalkedAway();
+void UpdateStoreState();
 
 void StoreEnter();
 void CheckStoreBtn();

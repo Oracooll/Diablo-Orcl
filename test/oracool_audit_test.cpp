@@ -7008,3 +7008,58 @@ TEST(OracoolAudit, ShippedDefaultsMatchTheReferenceIni)
 	EXPECT_FALSE(*fresh.Oracool.permanentInfravision) << "Permanent Infravision=0";
 	EXPECT_TRUE(*fresh.Oracool.griswoldSellRareItems) << "Griswold Sell Rare Items=1";
 }
+
+/**
+ * @brief A purchase from a COMPLETELY FULL vendor array must not read past its end.
+ *
+ * External audit of v1.9.88, finding 1. Each of the three vendors closed the gap behind a bought
+ * item with a loop that stopped at the first EMPTY slot:
+ *
+ *     for (; !stock[idx + 1].isEmpty(); idx++) stock[idx] = std::move(stock[idx + 1]);
+ *
+ * On a full array there is no empty slot, so it reads `stock[capacity]` and then writes whatever it
+ * found into the last real entry. Each vendor had a special case for buying the LAST slot, which is
+ * the single full-array purchase that happened to avoid it.
+ *
+ * A full array was impossible when those loops were written. The reserved blocks added on 2026-08-27
+ * made it ordinary - Adria's shelf is 48 + 7 + 12 + 10 + 8 + 5 = 90 = WITCH_ITEMS exactly.
+ *
+ * HONEST LIMIT: reintroducing the old loop does not reliably turn this red, because what
+ * `stock[capacity]` reads is whatever happens to follow the array in memory. If it reads as empty
+ * the old loop stops and behaves correctly; if not, the last slot ends up holding foreign data and
+ * the final assertion fires. The test pins the CONTRACT - the bound, the compaction, the cleared
+ * tail - rather than reproducing undefined behaviour on demand. A sanitizer build is what would make
+ * the read itself fail every time.
+ */
+TEST(OracoolAudit, BuyingFromAFullVendorArrayDoesNotRunOffTheEnd)
+{
+	// Each of the three real capacities, because the bug was three copies of one loop and the fix is
+	// one function they now share.
+	for (const int capacity : { SMITH_ITEMS, WITCH_ITEMS, 20 }) {
+		std::vector<devilution::Item> stock(static_cast<size_t>(capacity));
+		for (int i = 0; i < capacity; i++) {
+			// Any non-empty item will do - the compaction moves whole entries and never inspects
+			// them. _iIvalue carries the slot number so the shift can be checked exactly.
+			InitializeItem(stock[i], IDI_GOLD);
+			stock[i]._iIvalue = i;
+		}
+		ASSERT_FALSE(stock[capacity - 1].isEmpty()) << "the array must be FULL for this to test anything";
+
+		constexpr int Removed = 4;
+		RemoveFromVendorStock(stock.data(), capacity, Removed);
+
+		for (int i = 0; i < Removed; i++)
+			EXPECT_EQ(stock[i]._iIvalue, i) << "entries before the removed one moved";
+		for (int i = Removed; i < capacity - 1; i++)
+			EXPECT_EQ(stock[i]._iIvalue, i + 1) << "the gap did not close at " << i;
+		EXPECT_TRUE(stock[capacity - 1].isEmpty())
+		    << "the tail slot holds something after a full-array removal - the loop read past the end";
+	}
+
+	// Out-of-range indices are refused rather than acted on: a stale row must cost nothing.
+	std::vector<devilution::Item> guard(4);
+	InitializeItem(guard[0], IDI_GOLD);
+	RemoveFromVendorStock(guard.data(), 4, -1);
+	RemoveFromVendorStock(guard.data(), 4, 4);
+	EXPECT_FALSE(guard[0].isEmpty()) << "an out-of-range index disturbed the array";
+}

@@ -2036,10 +2036,14 @@ void GameLogic()
 		ProcessItems();
 		gGameLogicStep = GameLogicStep::ProcessMissilesTown;
 		ProcessMissiles();
-		// After the player has moved, so the distance it measures is this tick's.
-		CloseStoreIfPlayerWalkedAway();
 	}
 	gGameLogicStep = GameLogicStep::None;
+
+	// After the player has moved, so the distance it measures is this tick's, and OUTSIDE the town
+	// branch: the walkaway half returns immediately anywhere else, but the service-cursor half must
+	// run everywhere. A cursor armed at Griswold's and carried down a portal is exactly the case a
+	// town-only check would miss.
+	UpdateStoreState();
 
 #ifdef _DEBUG
 	if (DebugScrollViewEnabled && (SDL_GetModState() & KMOD_SHIFT) != 0) {
