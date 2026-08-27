@@ -3341,6 +3341,20 @@ int8_t CheckInvHLight()
 		} else {
 			PrintItemDur(*pi);
 		}
+		// What the vendor would pay for it, while a vendor is open to ask (user, 2026-08-27: "When
+		// i am in a vendor shop hover pop-ups to show sell price of items i hover over").
+		//
+		// Appended to the hover the player is already reading rather than given a popup of its own:
+		// the question "what is this worth" is only ever asked about an item they are already
+		// looking at.
+		//
+		// Silent when the vendor will not take it. Adria does not buy armour and Griswold does not
+		// buy potions, and a price beside an item they will refuse is worse than no price - it is a
+		// promise the shop then breaks.
+		if (const int offer = ShopSellOfferFor(*pi); offer > 0) {
+			AddPanelString(fmt::format(fmt::runtime(_("Sells for {:s} gold")), FormatInteger(offer)),
+			    UiFlags::ColorWhitegold);
+		}
 	}
 
 	return rv;

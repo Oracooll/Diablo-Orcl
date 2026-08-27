@@ -468,17 +468,22 @@ const char *ServiceHint(ServiceButton service)
 	return "";
 }
 
-/** @brief The word on a service button. Repair All says its price, when there is one to say. */
-std::string ServiceButtonLabel(ServiceButton service)
+/**
+ * @brief The word on a service button. Repair All shows its price only while pointed at.
+ *
+ * I shipped it always-visible first, arguing the number is the whole decision. Overruled by the
+ * user (2026-08-27) - and their original request had said "when hovered over" plainly enough. Their
+ * panel, their call, and the row is quieter for it: three plain words at rest, the number only when
+ * it is being considered.
+ */
+std::string ServiceButtonLabel(ServiceButton service, bool hovered)
 {
 	switch (service) {
 	case ServiceButton::Repair:
 		return std::string(_("Repair"));
 	case ServiceButton::RepairAll: {
-		// The COST, on the button (user, 2026-08-27: "Repair All to show necesary amount of gold
-		// when hovered over"). Shown always rather than only on hover: the number is the entire
-		// decision, and a button that hides the only thing you need to know until you point at it
-		// is a button you have to interrogate.
+		if (!hovered)
+			return std::string(_("Repair All"));
 		const int price = ShopRepairAllPrice();
 		if (price <= 0)
 			return std::string(_("Repair All"));
@@ -498,7 +503,7 @@ void DrawServiceButtons(const Surface &out)
 		const bool hovered = rect.contains(MousePosition);
 		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 		DrawOrnateBorder(out, rect);
-		DrawString(out, ServiceButtonLabel(services[i]), rect,
+		DrawString(out, ServiceButtonLabel(services[i], hovered), rect,
 		    { (hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
 		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}

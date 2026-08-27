@@ -217,6 +217,13 @@ void ShopRepairAll();
 /** @brief What Repair All would charge right now. 0 when there is nothing to repair. */
 int ShopRepairAllPrice();
 
+/**
+ * @brief What the currently open vendor would pay for @p item. 0 if none is open, or they refuse it.
+ *
+ * For the inventory hover, so "what is this worth" is answered where the player is already looking.
+ */
+int ShopSellOfferFor(const Item &item);
+
 /** @brief Buys back entry @p index of the Sold tab, at the price the player was paid for it. */
 void ShopBuyBack(int index);
 

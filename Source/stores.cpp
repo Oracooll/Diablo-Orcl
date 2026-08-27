@@ -4176,6 +4176,27 @@ bool ShopRechargeHeldItem()
 	return true;
 }
 
+int ShopSellOfferFor(const Item &item)
+{
+	// What the OPEN vendor would pay, or 0 if there is no vendor or they will not take it.
+	//
+	// The same two judgements the sell paths make - IsWitchShopScreen decides whose rules apply and
+	// their own SellOk decides whether the item qualifies - so the price shown here and the gold
+	// actually paid cannot disagree. That mattering is not hypothetical: a quoted price the shop
+	// then refuses to honour is worse than quoting nothing.
+	if (!oracool::IsShopGridScreen(stextflag))
+		return 0;
+	if (item.isEmpty() || item._itype == ItemType::Gold)
+		return 0;
+	const bool witch = IsWitchShopScreen(stextflag);
+	if (!witch && !IsAnyOf(stextflag, TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy,
+	        TalkID::SmithConsumables, TalkID::SmithSell))
+		return 0;
+	if (!(witch ? WitchSellOk(item) : SmithSellOk(item)))
+		return 0;
+	return GetItemSellValue(item);
+}
+
 int ShopRepairAllPrice()
 {
 	// What Repair All would cost, asked WITHOUT running it (user, 2026-08-27: "Repair All to show
