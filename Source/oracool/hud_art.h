@@ -343,9 +343,10 @@ bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit
 /**
  * @brief Draws the points frame as the backing for a skill well, centred on @p well.
  *
- * The same 64x64 art the stat-point and skill-point counters wear. @p well is the well's OPENING
- * (GetLmbSkillButtonRect / GetRmbSkillButtonRect), which is smaller than the frame, so the frame
- * overhangs it evenly and the skill icon lands where a counter's numeral would.
+ * The same art the stat-point and skill-point counters wear, SCALED so its edge lands exactly on
+ * @p well's edge. @p well is the well's OPENING (GetLmbSkillButtonRect / GetRmbSkillButtonRect),
+ * which is smaller than the art's native 64x64 - drawn unscaled it overhangs and crowds the belt
+ * cells beside it.
  *
  * @return false when the art is unavailable, so a caller can tell "no backing" from "drawn".
  */
