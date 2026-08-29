@@ -869,6 +869,18 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryBoolean difficultyLevelGate;
 	OptionEntryTormentMultiplier tormentDifficultyMultiplier;
 	OptionEntryBoolean miniMapEnabled;
+	/**
+	 * @brief Whether the middle HUD PLATE is drawn behind the belt and the two skill wells.
+	 *
+	 * Off strips the plate art and nothing else: the belt items, the skill icons, the XP readout
+	 * and both orbs still draw, in the same places. What goes is the stone the plate paints and
+	 * everything baked INTO it - the belt cell frames, the two well rims, and the Menu and Portal
+	 * buttons' faces, which are part of the picture rather than separate sprites.
+	 *
+	 * A switch rather than a deletion because the user asked to SEE the UI without it
+	 * (2026-08-30), which is a comparison, not a decision.
+	 */
+	OptionEntryBoolean hudPlateArt;
 	OptionEntryBoolean eventLog;
 	OptionEntryBoolean balanceTelemetry;
 	/**

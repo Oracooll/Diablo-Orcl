@@ -470,6 +470,9 @@ void SaveOptions()
 	setBoolean("Mini-Map", *sgOptions.Oracool.miniMapEnabled,
 	    "; ----- MINI-MAP ----------------------------------------------------------------\n; Shows an always-on mini-map in the top-right corner during gameplay.\n; Independent of TAB, which still opens/closes the normal full-screen map exactly\n; as in vanilla; the mini-map simply hides while the full map is open and\n; reappears once it's closed. This is the only way to turn the mini-map off.");
 
+	setBoolean("HUD Plate Art", *sgOptions.Oracool.hudPlateArt,
+	    "; ----- HUD PLATE ------------------------------------------------------------------\n; Draws the stone plate behind the belt and the two skill wells. Turn it off to see\n; the HUD without it: the belt items, the skill icons, the XP readout and both orbs\n; stay exactly where they are, and what goes is the plate plus everything painted\n; into the picture rather than drawn separately - the belt cell frames, the two well\n; rims, and the Menu and Portal button faces.");
+
 	setBoolean("Event Log", *sgOptions.Oracool.eventLog,
 	    "; ----- EVENT LOG -----------------------------------------------------------------\n; Shows a small \"LOG\" button above the durability-warning icons that expands into a\n; timestamped log of noteworthy session events (game saves, boss kills, special item\n; drops, deaths). Session-only - not saved to disk.");
 
@@ -1480,6 +1483,7 @@ OracoolOptions::OracoolOptions()
     , difficultyLevelGate("Difficulty Level Gate", OptionEntryFlags::None, N_("Difficulty Level Gate"), N_("Requires a minimum character level to start a game on Nightmare, Hell, or Torment."), true)
     , tormentDifficultyMultiplier("Torment Difficulty Multiplier", OptionEntryFlags::None, N_("Torment Difficulty Multiplier"), N_("How much harder Torment is than Hell, applied on top of Hell's own monster and treasure scaling."), 20, { 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50 })
     , miniMapEnabled("Mini-Map", OptionEntryFlags::None, N_("Mini-Map"), N_("Shows an always-on mini-map in the top-right corner during gameplay. Independent of TAB, which still opens/closes the normal full map."), true)
+    , hudPlateArt("HUD Plate Art", OptionEntryFlags::None, N_("HUD Plate Art"), N_("Draws the stone plate behind the belt and the two skill wells. Off leaves the belt items, skill icons and both orbs in place and removes the plate and everything painted into it - the cell frames, the well rims and the Menu/Portal button faces."), false)
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
     , balanceTelemetry("Balance Telemetry", OptionEntryFlags::None, N_("Balance Telemetry"), N_("Appends kills, deaths and item pickups to balance_telemetry.csv beside your saves, as tuning data for balancing the mod. Local file only; nothing leaves your machine."), true)
     , vendorTieredStockChance("Vendor Tiered Stock Chance", OptionEntryFlags::None, N_("Vendor Tiered Stock Chance"), N_("Percent chance a vendor item is offered at a base tier above Normal. The tier follows the game difficulty."), 35, { 0, 5, 10, 15, 20, 25, 35, 50, 65, 80, 100 })
@@ -1554,6 +1558,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&difficultyLevelGate,
 		&tormentDifficultyMultiplier,
 		&miniMapEnabled,
+		&hudPlateArt,
 		&eventLog,
 		&vendorTieredStockChance,
 		&nakedHeroes,

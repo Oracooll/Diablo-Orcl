@@ -15,6 +15,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/paladin_skills.h"
+#include "options.h" // the HUD Plate Art switch
 #include "oracool/ornate_border.h" // ThemeEdgeColor
 #include "panels/spell_icons.hpp" // the vanilla plate behind every skill icon
 #include "player.h"
@@ -855,6 +856,12 @@ bool HasMiddleHudArt()
 
 void DrawMiddleHudArt(const Surface &out)
 {
+	// The switch is HERE rather than at the call site, so nothing else has to know about it: the
+	// belt, the wells, the XP readout and the orbs all draw from their own calls and are untouched.
+	// Turning this off removes the plate and only the plate (user, 2026-08-30: "remove the hud
+	// asset... dont remove the orbs").
+	if (!*sgOptions.Oracool.hudPlateArt)
+		return;
 	EnsureLoadedAll();
 	if (PlateArt.rgba.empty())
 		return;
