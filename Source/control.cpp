@@ -666,16 +666,22 @@ void RemoveStackSplit(Player &player, int cii, int amount)
 
 bool IsLevelUpButtonVisible()
 {
-	if (spselflag || chrflag || MyPlayer->_pStatPts == 0) {
+	// NOT hidden by an open window any more (user, 2026-08-28: "dont hide exp counter and hero stats
+	// button when windows are open. leave them on as you leave skill points button on").
+	//
+	// Vanilla hid it behind chrflag, the store, the stash and the quest log, because in vanilla it
+	// sat in the top-left corner where the character sheet and the quest log both open. It does not
+	// live there any more: GetLevelUpIconRect anchors it above the LMB skill button, in the middle of
+	// the main panel, which no window covers. The skill-point frame beside it (DrawUnspentPointsFrame)
+	// never had those gates and has never been in anyone's way, which is the evidence that the gates
+	// were about the old position rather than about the button.
+	//
+	// The two that remain are not about windows: the spell-select overlay draws over this exact
+	// spot, and the virtual gamepad has its own controls.
+	if (spselflag || MyPlayer->_pStatPts == 0) {
 		return false;
 	}
 	if (ControlMode == ControlTypes::VirtualGamepad) {
-		return false;
-	}
-	if (stextflag != TalkID::None || IsStashOpen) {
-		return false;
-	}
-	if (QuestLogIsOpen && GetLeftPanel().contains(GetMainPanel().position + Displacement { 0, -74 })) {
 		return false;
 	}
 
@@ -1185,6 +1191,18 @@ void CheckPanelInfo()
 				break;
 			}
 		}
+		// RETURN, exactly as the LMB well above does (user, 2026-08-28: "show a tooltip when
+		// hovering over rmb slot showing which is the skill loaded in that slot").
+		//
+		// The tooltip was already being built - every line of it, naming the aura, the skill, the
+		// spell and its level, the scroll count, the staff charges. It was then thrown away one
+		// statement later: the RMB well is inside GetMiddleHudRect, so the belt hover pass below
+		// ran over the same pixel, and CheckInvHLight opens by calling ClearPanelStrings. The LMB
+		// well returns and so keeps its tooltip; this one fell through and lost it every frame.
+		//
+		// Which is why the report reads as "there is no tooltip" rather than "the tooltip is wrong".
+		panelflag = true;
+		return;
 	}
 	if (oracool::GetMiddleHudRect().contains(MousePosition))
 		pcursinvitem = CheckInvHLight();

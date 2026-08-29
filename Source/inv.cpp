@@ -37,6 +37,7 @@
 #include "oracool/named_encounters.h"
 #include "oracool/signets.h"
 #include "oracool/inventory_layout.h"
+#include "oracool/levski_roar.h" // ctrl+click routes into the transmute grid
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
@@ -2603,6 +2604,47 @@ void TransferItemToStash(Player &player, int location)
 		oracool::ScheduleAutoSaveForStashChange();
 }
 
+/**
+ * @brief Ctrl+click with Levski's Roar open: moves the hovered backpack item into its grid.
+ *
+ * The mirror of TryTransferHoveredActiveTabItemToStash below, and it resolves the hovered cell the
+ * same way - through the ACTIVE tab, so the gesture works on all ten pages rather than the first.
+ * Unlike the stash version it does not exclude tab 0, because the grid has no legacy index encoding
+ * to protect.
+ *
+ * Lives here rather than in levski_roar.cpp because the resolution needs InvRect and the active-tab
+ * helpers, and that file cannot include the inventory layout header - its own GridWidth and
+ * CellSize collide with it. Only the placement crosses the boundary.
+ */
+bool TryMoveHoveredItemToLevskiGrid(Player &player)
+{
+	const Displacement panelOffset = Point { 0, 0 } - oracool::GetInventoryPanelRect().position;
+	int8_t r = SLOTXY_INV_FIRST;
+	for (; r <= SLOTXY_INV_LAST; r++) {
+		if (InvRect[r].contains(MousePosition + panelOffset))
+			break;
+	}
+	if (r > SLOTXY_INV_LAST)
+		return false;
+
+	const int itemId = abs(GetActiveInvGridCell(player, r - SLOTXY_INV_FIRST));
+	if (itemId == 0)
+		return false;
+	const int iv = itemId - 1;
+	Item &item = GetActiveInvListItem(player, iv);
+	if (item.isEmpty())
+		return false;
+
+	// Placed first, removed only if it landed - a refusal must leave the item in the backpack.
+	if (!oracool::PlaceItemInLevskiGrid(item)) {
+		player.SaySpecific(HeroSpeech::WhereWouldIPutThis);
+		return true; // consumed: the gesture was understood and refused, not ignored
+	}
+	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
+	RemoveActiveInvItem(player, iv);
+	return true;
+}
+
 bool TryTransferHoveredActiveTabItemToStash(Player &player)
 {
 	if (ActiveInventoryTab == 0)
@@ -2853,6 +2895,16 @@ void CheckInvItem(bool isShiftHeld, bool isCtrlHeld)
 	} else if (IsStashOpen && isCtrlHeld) {
 		if (!TryTransferHoveredActiveTabItemToStash(*MyPlayer))
 			TransferItemToStash(*MyPlayer, pcursinvitem);
+	} else if (oracool::IsLevskiRoarOpen() && isCtrlHeld
+	    && TryMoveHoveredItemToLevskiGrid(*MyPlayer)) {
+		// Ctrl means "send it to the other container" (user, 2026-08-28: "ctrl+click to send items
+		// to levskis grid and back to my inv grid, not drop them on the ground"). With the stash
+		// open it already did; with Levski's Roar open it fell through to CheckInvCut, whose ctrl
+		// arm is vanilla's DROP IT ON THE FLOOR - the one thing the gesture must not do beside an
+		// open crafting window.
+		//
+		// Tested after the stash so an open stash still wins, which is the order the player set by
+		// opening it.
 	} else {
 		CheckInvCut(*MyPlayer, MousePosition, isShiftHeld, isCtrlHeld);
 	}

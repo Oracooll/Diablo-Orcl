@@ -504,6 +504,13 @@ void CloseLevskiRoar()
 	RecipeBookOpen = false;
 }
 
+bool PlaceItemInLevskiGrid(const Item &item)
+{
+	// The grid is packed by FOOTPRINT, so "is a slot free" and "does this fit" are different
+	// questions and only PlaceInGrid answers the second. Callers must place before they remove.
+	return WindowOpen && PlaceInGrid(item, -1);
+}
+
 Rectangle GetLevskiRoarRect()
 {
 	if (!WindowOpen)
@@ -612,7 +619,17 @@ void DrawLevskiRoar(const Surface &out)
 		const ClxSprite sprite = GetInvItemSprite(GridItems[anchor]._iCurs + CURSOR_FIRSTITEM);
 		const int x = footprint.position.x + (footprint.size.width - sprite.width()) / 2;
 		const int y = footprint.position.y + (footprint.size.height + sprite.height()) / 2;
-		ClxDraw(out, { x, y }, sprite);
+		// DrawItem, not a bare ClxDraw (user, 2026-08-28: "placing consumables in levskis roar
+		// removes the badge indicating their amount").
+		//
+		// It did not remove anything - this grid was drawing the sprite itself and so never drew any
+		// of the three things the shared helper adds on top of it: the stack count in the corner,
+		// the red X over a broken item, and the greyscale tint on gear the character cannot use.
+		// A stack of five put into the transmute grid looked like a stack of one.
+		//
+		// The inventory, the belt and the worn slots all go through DrawItem for exactly this
+		// reason. This grid is a fourth place items are shown and had quietly opted out of it.
+		DrawItem(GridItems[anchor], out, { x, y }, sprite);
 	}
 
 	// The salvage column. Gold-bordered placeholder boxes, one per tier, lit when the backpack
@@ -712,7 +729,7 @@ void DrawLevskiRoar(const Surface &out)
 	(void)cursor;
 }
 
-bool CheckLevskiRoarClick(Point mousePosition)
+bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 {
 	if (!WindowOpen)
 		return false;
@@ -813,6 +830,20 @@ bool CheckLevskiRoarClick(Point mousePosition)
 			LogEvent("Levski's Roar: not enough room - nothing was transmuted");
 			return true;
 		}
+		// STAMP USABILITY on everything the transmute left behind (user, 2026-08-28: "picking up a
+		// crafted item the first time colors it in RED").
+		//
+		// It was red because _iStatFlag was false. Nothing in the crafting path ever set it - the
+		// recipes build items and hand them back, and the flag is normally written by CalcPlrInv,
+		// which walks the worn slots and the backpack and has no idea this grid exists. So a fresh
+		// item sat here with the flag clear, DrawItem read that as "the character cannot use this"
+		// and tinted it through the infravision TRN, which is red. It corrected itself the moment
+		// the item reached the backpack and CalcPlrInv ran over it, which is exactly why it was only
+		// ever seen once per item.
+		for (Item &item : GridItems) {
+			if (!item.isEmpty())
+				item._iStatFlag = MyPlayer->CanUseItem(item);
+		}
 		if (!result.empty())
 			LogEvent(StrCat("Levski's Roar: ", result));
 		return true;
@@ -823,6 +854,21 @@ bool CheckLevskiRoarClick(Point mousePosition)
 	Player &player = *MyPlayer;
 	const int cell = CellAt(window, mousePosition);
 	if (cell >= 0) {
+		// CTRL sends it straight back to the backpack instead of onto the cursor (user, 2026-08-28:
+		// "ctrl+click to send items to levskis grid and back to my inv grid, not drop them on the
+		// ground"). The same gesture the stash uses, in the same direction: ctrl means "move it to
+		// the other container", never "pick it up".
+		if (isCtrlHeld && player.HoldItem.isEmpty() && GridCells[cell] != 0) {
+			const int anchor = GridCells[cell] - 1;
+			if (!AutoPlaceItemInInventory(player, GridItems[anchor], true)) {
+				LogEvent(std::string(_("Your pack is full.")), UiFlags::ColorRed);
+				return true;
+			}
+			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(GridItems[anchor]._iCurs)]);
+			MarkCells(anchor, GetInventorySize(GridItems[anchor]), 0);
+			GridItems[anchor].clear();
+			return true;
+		}
 		if (!player.HoldItem.isEmpty()) {
 			// The clicked cell is the item's top-left, as in the backpack. If the footprint runs
 			// off the grid or over something, PlaceInGrid finds the first cell it does fit.

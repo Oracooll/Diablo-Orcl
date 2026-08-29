@@ -120,6 +120,32 @@ SalvageTier SalvageTierOf(const Item &item)
 	return SalvageTier::White;
 }
 
+/**
+ * @brief Whether @p item is what the @p tier button is asking for, protections included.
+ *
+ * One predicate for both the collect pass and the "is the button live" test. They used to spell the
+ * same condition out separately, which is two places for a protection to be added to only one of -
+ * and a button that lights up over stock it then refuses to take is worse than one that never lit.
+ */
+bool SalvageMatches(const Item &item, SalvageTier tier)
+{
+	if (!IsSalvageable(item) || SalvageTierOf(item) != tier)
+		return false;
+	// A SOCKETED WHITE IS NOT SCRAP (user, 2026-08-28: "charm of salvaging white to ignore socket
+	// whites. they are precious. we dont want them destroyed").
+	//
+	// It is the one thing a runeword can be built in, and the white charm is the button most likely
+	// to be pressed without looking - a backpack full of grey drops is exactly what it exists to
+	// clear, and the socketed base sitting among them is the single item in that pile worth more
+	// than the rest together.
+	//
+	// Scoped to White, as asked. The higher tiers are not swept blind in the same way, and an
+	// unasked-for protection on them would quietly change what those buttons do.
+	if (tier == SalvageTier::White && item._iSocketCount > 0)
+		return false;
+	return true;
+}
+
 int SalvageYield(const Item &item)
 {
 	return TierYield[static_cast<int>(SalvageTierOf(item))];
@@ -144,7 +170,7 @@ int SalvageAllInBackpack(Player &player, SalvageTier tier)
 
 	const auto collect = [&](int tab, const Item *list, int count) {
 		for (int i = 0; i < count; i++) {
-			if (!IsSalvageable(list[i]) || SalvageTierOf(list[i]) != tier)
+			if (!SalvageMatches(list[i], tier))
 				continue;
 			victims.push_back({ tab, i });
 			materials += SalvageYield(list[i]);
@@ -201,7 +227,7 @@ bool AnySalvageableInBackpack(const Player &player, SalvageTier tier)
 {
 	const auto anyIn = [&](const Item *list, int count) {
 		for (int i = 0; i < count; i++) {
-			if (IsSalvageable(list[i]) && SalvageTierOf(list[i]) == tier)
+			if (SalvageMatches(list[i], tier))
 				return true;
 		}
 		return false;

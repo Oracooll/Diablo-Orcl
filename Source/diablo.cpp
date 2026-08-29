@@ -503,7 +503,7 @@ void LeftMouseDown(uint16_t modState)
 	if (oracool::HandleRunewordBookClick(MousePosition))
 		return;
 
-	if (oracool::CheckLevskiRoarClick(MousePosition))
+	if (oracool::CheckLevskiRoarClick(MousePosition, isCtrlHeld))
 		return;
 
 
@@ -763,6 +763,20 @@ void RightMouseDown(bool isShiftHeld)
 		// backpack grid - ShopSellInventoryItem refuses a worn item, because selling the armour off
 		// your back to a mis-click is not a trade, it is an accident.
 		if (invflag && pcursinvitem != -1 && ShopSellInventoryItem(pcursinvitem))
+			return;
+		// TABS 2-10 reach the same sale by a different hover variable (user, 2026-08-28: "rightclick
+		// doesnt sell items in inv tabs 2-9").
+		//
+		// pcursinvitem is deliberately -1 for an extra tab - its encoding is a tab-1 list index that
+		// the legacy drag/drop code assumes, so CheckInvHLight refuses to hand out one for an item
+		// that is not in InvList, and publishes pcursinvtabidx/pcursinvtabitem instead. Every
+		// single-shot cursor action already goes through that pair; the sale did not, so it silently
+		// did nothing on nine tenths of the backpack.
+		//
+		// ShopSellInventoryItem itself needed no change: it resolves through GetActiveInvListItem,
+		// which reads whichever tab is displayed - and the hovered tab is always the displayed one.
+		if (invflag && ActiveTabItemHovered && pcursinvtabitem >= 0
+		    && ShopSellInventoryItem(pcursinvtabitem + INVITEM_INV_FIRST))
 			return;
 		return;
 	}

@@ -95,6 +95,18 @@ bool HandleLevskiRecipeBookScroll(int notches);
 void DrawLevskiRoar(const Surface &out);
 
 /** @brief Routes a click. True when the click was consumed by the window. */
-bool CheckLevskiRoarClick(Point mousePosition);
+bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld);
+
+/**
+ * @brief Copies @p item into the first grid slot its footprint fits. False if it does not fit.
+ *
+ * The inbound half of the ctrl+click gesture whose outbound half lives in CheckLevskiRoarClick.
+ * Only the placement lives here: the hovered-cell resolution belongs to inv.cpp, which owns InvRect
+ * and the active-tab helpers - and whose layout header cannot be included from this file without
+ * its GridWidth/CellSize colliding with this window's own.
+ *
+ * Place BEFORE removing from the source container. A refusal must leave the item where it was.
+ */
+bool PlaceItemInLevskiGrid(const Item &item);
 
 } // namespace devilution::oracool

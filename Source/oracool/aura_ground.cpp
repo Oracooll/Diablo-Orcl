@@ -360,7 +360,32 @@ void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPo
 	// DrawFloor's walk, repeated exactly - see this file's header for why it is repeated rather
 	// than solved. The moment it arrives at the player's tile it knows where on screen that tile
 	// is, which is the one thing this needs.
-	const Point playerTile = player.position.tile;
+	//
+	// THE TILE THE SPRITE IS DRAWN FROM, which is not always position.tile (user, 2026-08-28:
+	// "walking my hero to 3 and 9 oclock moves the auras ring a bit behind him").
+	//
+	// Three walk shapes, three different answers, and only one of them was being asked. The engine
+	// draws a player from the tile whose dPlayer entry is POSITIVE (see DrawDungeon), and the walk
+	// helpers in player.cpp disagree about which tile that is:
+	//
+	//   WalkSouthwards - reassigns position.tile to the destination and marks it positive.
+	//   WalkNorthwards - marks the DESTINATION negative, leaving position.tile positive.
+	//   WalkSideways   - marks position.tile NEGATIVE and position.future positive, and never
+	//                    reassigns position.tile.
+	//
+	// So for the two sideways directions - due East and due West, the 3 and 9 o'clock the report
+	// names - the sprite renders from position.future while this anchored at position.tile, one
+	// whole tile behind it. The other six directions were right by coincidence rather than by
+	// agreement, which is why this asked the wrong question for months without showing it.
+	//
+	// Asking dPlayer directly is asking the same question the renderer answers, so the ring cannot
+	// disagree with the sprite whatever a walk helper does next.
+	const auto positiveHere = [&player](Point tile) {
+		return InDungeonBounds(tile) && dPlayer[tile.x][tile.y] == static_cast<int8_t>(player.getId() + 1);
+	};
+	Point playerTile = player.position.tile;
+	if (player.isWalking() && !positiveHere(playerTile) && positiveHere(player.position.future))
+		playerTile = player.position.future;
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < columns; j++) {
 			if (tilePosition == playerTile) {

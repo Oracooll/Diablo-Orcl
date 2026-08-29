@@ -1435,8 +1435,6 @@ void DrawView(const Surface &out, Point startPosition)
 		oracool::DrawEventLogWindow(out);
 		oracool::DrawGameClock(out);
 		oracool::DrawGameSpeedReadout(out);
-		oracool::DrawXpGainIndicator(out);
-		oracool::DrawXpCounter(out);
 	}
 #ifdef _DEBUG
 	bool debugGridTextNeeded = IsDebugGridTextNeeded();
@@ -1569,6 +1567,20 @@ void DrawView(const Surface &out, Point startPosition)
 	}
 	DrawLevelUpIcon(out);
 	DrawUnspentPointsFrame(out);
+	// The XP readout and its per-kill flash, HERE rather than in the corner-HUD block above (user,
+	// 2026-08-28: "dont hide exp counter and hero stats button when windows are open. leave them on
+	// as you leave skill points button on").
+	//
+	// They were grouped with the mini-map, the clock and the log, which are all suppressed while a
+	// right-hand window occupies their corner. These two are not in that corner at all: they draw on
+	// the belt plate, dead centre of the main panel, which no window ever covers. They were only
+	// there because they were added at the same time as the rest of the corner instruments.
+	//
+	// Beside DrawUnspentPointsFrame deliberately - the skill-point count is the readout the user
+	// names as the one that behaves correctly, and these two are now drawn in the same place, at the
+	// same point in the frame, under the same rules.
+	oracool::DrawXpGainIndicator(out);
+	oracool::DrawXpCounter(out);
 	if (qtextflag) {
 		DrawQText(out);
 	}
