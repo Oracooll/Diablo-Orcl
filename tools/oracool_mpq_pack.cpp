@@ -50,6 +50,32 @@
 
 namespace {
 
+/**
+ * @brief Whether every byte of @p name is plain ASCII.
+ *
+ * A NAME WITH A HIGH BYTE CRASHES libmpq. `libmpq__file_number` - which is all MpqArchive::HasFile
+ * is - faults on any entry name containing a byte >= 0x80 rather than reporting "no such file"
+ * (reproduced 2026-08-28 against a valid archive: an ASCII name reports missing and exits 1, the
+ * same name with one high byte exits 0xC0000005). libmpq is a third-party dependency and not this
+ * repository's to patch, so the guard lives at the caller that can see the name.
+ *
+ * The first thing to feed it such a name was a UTF-8 BOM: Windows PowerShell 5.1's
+ * `Set-Content -Encoding utf8` writes one, so the release packager's generated file list began
+ * "\xEF\xBB\xBF" + the first path, and archive verification crashed instead of failing. The reader
+ * below strips the BOM, which fixes that case; this guard is what makes every OTHER route to a
+ * non-ASCII name an error message rather than a fault.
+ *
+ * No asset in this project has a non-ASCII name, so refusing them costs nothing.
+ */
+bool IsPlainAscii(const std::string &name)
+{
+	for (const char ch : name) {
+		if (static_cast<unsigned char>(ch) >= 0x80)
+			return false;
+	}
+	return true;
+}
+
 /** @brief Reads a whole file, or nothing if it cannot be read in full. */
 std::optional<std::vector<devilution::byte>> ReadWholeFile(const std::string &path)
 {
@@ -92,6 +118,12 @@ bool VerifyArchiveContents(const std::string &archivePath, const std::string &so
 
 	for (size_t i = 0; i < archiveNames.size(); i++) {
 		const std::string &name = archiveNames[i];
+		// Before HasFile, never after - see IsPlainAscii. HasFile does not return false for these,
+		// it faults.
+		if (!IsPlainAscii(name)) {
+			std::fprintf(stderr, "ERROR: entry name is not plain ASCII: %s\n", name.c_str());
+			return false;
+		}
 		if (!archive->HasFile(name.c_str())) {
 			std::fprintf(stderr, "ERROR: %s is missing from %s\n", name.c_str(), archivePath.c_str());
 			return false;
@@ -153,11 +185,22 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		std::string line;
+		bool firstLine = true;
 		while (std::getline(list, line)) {
 			// Tolerate CRLF and blank lines: the .cmd writes this file with `echo`, and a stray
 			// carriage return would become part of the archive path and make the asset unfindable.
 			while (!line.empty() && (line.back() == '\r' || line.back() == '\n' || line.back() == ' '))
 				line.pop_back();
+			// And tolerate a UTF-8 BOM on the first line, for the same reason and from the same
+			// class of writer: Windows PowerShell 5.1's `Set-Content -Encoding utf8` emits one, so
+			// a generated list began "\xEF\xBB\xBF" + the first path. Without this the first entry
+			// is a name no archive holds - and see IsPlainAscii for why that was a crash rather
+			// than a message.
+			if (firstLine && line.size() >= 3 && static_cast<unsigned char>(line[0]) == 0xEF
+			    && static_cast<unsigned char>(line[1]) == 0xBB && static_cast<unsigned char>(line[2]) == 0xBF) {
+				line.erase(0, 3);
+			}
+			firstLine = false;
 			if (!line.empty())
 				relPaths.push_back(line);
 		}

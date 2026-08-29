@@ -204,9 +204,12 @@ Verify-Archive $engineAssetsMpq $engineMpqPath $engineSrc (Join-Path $BuildDir '
 # it rather than every file that happens to be.
 $oracoolList = Join-Path ([System.IO.Path]::GetTempPath()) ("oracool_verify_$runId.txt")
 $assetRoot = (Resolve-Path $assetSrc).Path
-(Get-ChildItem $assetRoot -Recurse -File | ForEach-Object {
-    $_.FullName.Substring($assetRoot.Length + 1)
-}) | Set-Content -Path $oracoolList -Encoding utf8
+# WriteAllLines with a BOM-less encoder, not `Set-Content -Encoding utf8`: Windows PowerShell 5.1
+# writes a BOM, which becomes part of the first entry name in the list the verifier reads.
+$listBytes = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllLines($oracoolList, [string[]]@(
+    Get-ChildItem $assetRoot -Recurse -File | ForEach-Object { $_.FullName.Substring($assetRoot.Length + 1) }
+), $listBytes)
 try {
     Verify-Archive 'oracool.mpq' $mpqPath $assetRoot $oracoolList
 } finally {
