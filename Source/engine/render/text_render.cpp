@@ -319,8 +319,25 @@ private:
 	uint32_t currentUnicodeRow_ = 0;
 };
 
-void DrawFont(const Surface &out, Point position, ClxSprite glyph, text_color color, bool outline)
+/**
+ * @brief Maps every palette index to 0, so a glyph rendered through it comes out solid black.
+ *
+ * A CLX sprite's transparency lives in its run-length structure, not in a key colour, so this
+ * produces a silhouette of the glyph's exact shape rather than a black box. See UiFlags::Shadowed.
+ */
+const std::array<uint8_t, 256> &BlackTrn()
 {
+	static const std::array<uint8_t, 256> trn {}; // value-initialised: every entry 0
+	return trn;
+}
+
+void DrawFont(const Surface &out, Point position, ClxSprite glyph, text_color color, bool outline, bool shadow)
+{
+	// BEFORE the outline and the glyph, so both cover it where they overlap - a shadow that drew
+	// last would sit on top of the letter it belongs under.
+	if (shadow) {
+		RenderClxSpriteWithTRN(out, glyph, position + Displacement { 1, 1 }, BlackTrn().data());
+	}
 	if (outline) {
 		ClxDrawOutlineSkipColorZero(out, 0, { position.x, position.y + glyph.height() - 1 }, glyph);
 	}
@@ -491,7 +508,7 @@ int GetLineStartX(UiFlags flags, const Rectangle &rect, int lineWidth)
 }
 
 uint32_t DoDrawString(const Surface &out, string_view text, Rectangle rect, Point &characterPosition,
-    int lineWidth, int charactersInLine, int rightMargin, int bottomMargin, GameFontTables size, text_color color, bool outline,
+    int lineWidth, int charactersInLine, int rightMargin, int bottomMargin, GameFontTables size, text_color color, bool outline, bool shadow,
     TextRenderOptions &opts)
 {
 	CurrentFont currentFont;
@@ -515,7 +532,7 @@ uint32_t DoDrawString(const Surface &out, string_view text, Rectangle rect, Poin
 			if (GetAnimationFrame(2, 500) != 0) {
 				FontStack baseFont = LoadFont(size, color, 0);
 				if (baseFont.has_value()) {
-					DrawFont(out, position, baseFont.glyph('|'), color, outline);
+					DrawFont(out, position, baseFont.glyph('|'), color, outline, shadow);
 				}
 			}
 			if (opts.renderedCursorPositionOut != nullptr) {
@@ -574,7 +591,7 @@ uint32_t DoDrawString(const Surface &out, string_view text, Rectangle rect, Poin
 			    opts.highlightColor);
 		}
 
-		DrawFont(out, characterPosition, glyph, color, outline);
+		DrawFont(out, characterPosition, glyph, color, outline, shadow);
 		maybeDrawCursor();
 		characterPosition.x += width + curSpacing;
 	}
@@ -819,6 +836,7 @@ uint32_t DrawString(const Surface &out, string_view text, const Rectangle &rect,
 	characterPosition.y += BaseLineOffset[size];
 
 	const bool outlined = HasAnyOf(opts.flags, UiFlags::Outlined);
+	const bool shadowed = HasAnyOf(opts.flags, UiFlags::Shadowed);
 
 	const Surface clippedOut = ClipSurface(out, rect);
 
@@ -828,7 +846,7 @@ uint32_t DrawString(const Surface &out, string_view text, const Rectangle &rect,
 	}
 
 	const uint32_t bytesDrawn = DoDrawString(clippedOut, text, rect, characterPosition,
-	    lineWidth, charactersInLine, rightMargin, bottomMargin, size, color, outlined, opts);
+	    lineWidth, charactersInLine, rightMargin, bottomMargin, size, color, outlined, shadowed, opts);
 
 	if (HasAnyOf(opts.flags, UiFlags::PentaCursor)) {
 		const ClxSprite sprite = (*pSPentSpn2Cels)[PentSpn2Spin()];
@@ -866,6 +884,7 @@ void DrawStringWithColors(const Surface &out, string_view fmt, DrawStringFormatA
 	characterPosition.y += BaseLineOffset[size];
 
 	const bool outlined = HasAnyOf(opts.flags, UiFlags::Outlined);
+	const bool shadowed = HasAnyOf(opts.flags, UiFlags::Shadowed);
 
 	const Surface clippedOut = ClipSurface(out, rect);
 
@@ -961,7 +980,7 @@ void DrawStringWithColors(const Surface &out, string_view fmt, DrawStringFormatA
 				continue;
 		}
 
-		DrawFont(clippedOut, characterPosition, currentFont.glyph(frame), curColor, outlined);
+		DrawFont(clippedOut, characterPosition, currentFont.glyph(frame), curColor, outlined, shadowed);
 		characterPosition.x += width + opts.spacing;
 	}
 

@@ -514,6 +514,19 @@ constexpr int CharRightPad = 8;
 constexpr int CharButtonGap = 8;
 /** @brief Labels are measured and drawn with no extra letter spacing. */
 constexpr int CharLabelSpacing = 0;
+/**
+ * @brief Every string on this sheet casts a drop shadow (user, 2026-08-29: "put shadows under the
+ * fonts in hero stats screen. vanilla diablo has shadows under the texts in that window").
+ *
+ * Named once and applied at each of the four draws rather than spelled out four times, so a row
+ * added later cannot quietly be the one without a shadow. See UiFlags::Shadowed for how it is done:
+ * a black copy of the glyph one pixel down and right, NOT the four-sided Outlined ring - which is
+ * the difference between text sitting on the parchment and text stuck to it.
+ *
+ * The panel TITLE is deliberately not included: it goes through DrawOutlinedString, which already
+ * rings it, and stacking a shadow under an outline muddies both.
+ */
+constexpr UiFlags CharTextShadow = UiFlags::Shadowed;
 /** @brief Width of the scrollbar drawn in the panel's right margin. */
 constexpr int CharScrollbarWidth = oracool::OrnateBorderWidth;
 constexpr int CharScrollbarMinThumb = 24;
@@ -645,7 +658,8 @@ void DrawRow(const Surface &content, size_t index)
 	if (row.label[0] != '\0') {
 		DrawString(content, LanguageTranslate(row.label),
 		    { { CharLabelColumnX, top }, { CharLabelColumnWidth, CharRowHeight } },
-		    { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhitegold, CharLabelSpacing });
+		    { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhitegold | CharTextShadow,
+		        CharLabelSpacing });
 	}
 
 	// The points row has no second value but does have RESET sitting in the Base column, so it
@@ -656,13 +670,13 @@ void DrawRow(const Surface &content, size_t index)
 	const StyledText first = row.value();
 	DrawString(content, first.text,
 	    { { ValueColumnX, top }, { firstWidth, CharRowHeight } },
-	    { UiFlags::VerticalCenter | first.style, first.spacing });
+	    { UiFlags::VerticalCenter | first.style | CharTextShadow, first.spacing });
 
 	if (row.secondValue != nullptr) {
 		const StyledText second = row.secondValue();
 		DrawString(content, second.text,
 		    { { SecondValueColumnX, top }, { CharValueColumnWidth, CharRowHeight } },
-		    { UiFlags::VerticalCenter | second.style, second.spacing });
+		    { UiFlags::VerticalCenter | second.style | CharTextShadow, second.spacing });
 	}
 }
 
@@ -716,7 +730,7 @@ void DrawStatButtons(const Surface &content)
 		// Oracool: a circular-arrow glyph (Unicode U+21BA), then a plain "R", didn't read well
 		// against the game's actual bitmap font - now a gold "RESET" word label instead, turning
 		// white while pressed for visible click feedback.
-		DrawString(content, "RESET", { ResetButtonPosition, ResetStatsButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorWhite : UiFlags::ColorGold) });
+		DrawString(content, "RESET", { ResetButtonPosition, ResetStatsButtonSize }, { UiFlags::AlignCenter | UiFlags::VerticalCenter | (resetStatsButtonDown ? UiFlags::ColorWhite : UiFlags::ColorGold) | CharTextShadow });
 	}
 }
 

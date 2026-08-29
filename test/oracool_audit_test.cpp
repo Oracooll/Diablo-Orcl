@@ -7177,3 +7177,54 @@ TEST(OracoolDurability, TieringAnItemWithHighDurabilityDoesNotZeroIt)
 		}
 	}
 }
+
+/**
+ * @brief UiFlags::Shadowed actually puts pixels down, all the way through DrawString.
+ *
+ * The shadow is threaded from the flag through DoDrawString into DrawFont, and a break anywhere on
+ * that path is silent - the text still renders, just flat. So this draws the same string twice into
+ * identical canvases and compares them, which is the only assertion that covers the whole chain
+ * rather than the one function I edited.
+ *
+ * The first EXPECT is a VACUITY GUARD, not a formality: if the test binary cannot load fonts the
+ * plain render is blank, the two canvases match, and a naive "they differ" test would pass by
+ * drawing nothing twice. Requiring the plain render to have marked the canvas first makes that
+ * failure loud (user, 2026-08-29: shadows under the hero-stats fonts).
+ */
+TEST(OracoolTextShadow, ShadowedFlagAddsBlackPixelsUnderTheGlyphs)
+{
+	constexpr uint8_t Background = 77;
+	constexpr int W = 96;
+	constexpr int H = 24;
+	const auto render = [&](devilution::UiFlags extra) {
+		OwnedSurface canvas(W, H);
+		for (int y = 0; y < H; y++) {
+			uint8_t *row = &canvas[Point { 0, y }];
+			for (int x = 0; x < W; x++)
+				row[x] = Background;
+		}
+		DrawString(canvas, "Vitality", Rectangle { { 0, 0 }, { W, H } },
+		    { devilution::UiFlags::ColorWhite | extra });
+		int marked = 0;
+		int black = 0;
+		for (int y = 0; y < H; y++) {
+			const uint8_t *row = &canvas[Point { 0, y }];
+			for (int x = 0; x < W; x++) {
+				if (row[x] != Background)
+					marked++;
+				if (row[x] == 0)
+					black++;
+			}
+		}
+		return std::pair<int, int> { marked, black };
+	};
+
+	const auto plain = render(devilution::UiFlags::None);
+	ASSERT_GT(plain.first, 0)
+	    << "the plain render marked nothing - fonts are unavailable here, so this test cannot "
+	       "distinguish a working shadow from a missing one";
+
+	const auto shadowed = render(devilution::UiFlags::Shadowed);
+	EXPECT_GT(shadowed.first, plain.first) << "the shadow covered no new pixels";
+	EXPECT_GT(shadowed.second, plain.second) << "the shadow put down no BLACK pixels";
+}

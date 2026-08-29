@@ -82,7 +82,21 @@ enum class UiFlags : uint64_t {
 	FontSize9              = 1ULL << 37,
 	FontSize8              = 1ULL << 38,
 
-	// Bits 39+ are free for a future color or flag - see the widening note above. The entries above
+	/**
+	 * @brief Oracool: a DROP SHADOW under the glyphs - a black copy, one pixel down and right.
+	 *
+	 * Not the same thing as Outlined, which rings a glyph on all four sides with
+	 * ClxDrawOutlineSkipColorZero and reads as a hard sticker. This is vanilla Diablo's character
+	 * sheet look (user, 2026-08-29): the text sits ON the parchment and casts a shadow onto it.
+	 *
+	 * Implemented by rendering the glyph a second time through an all-zero TRN, which maps every
+	 * palette index to 0 - the palette's black. A CLX sprite carries its transparency in the
+	 * run-length structure rather than in a key colour, so remapping every index to black yields a
+	 * solid silhouette of exactly the glyph's shape, which is what a shadow is.
+	 */
+	Shadowed               = 1ULL << 39,
+
+	// Bits 40+ are free for a future color or flag - see the widening note above. The entries above
 	// were the first assigned: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)
 	// works by remapping a 16-shade ramp inside vanilla Diablo's own palette, and that
 	// palette's only named bright-color blocks (Source/engine/palette.h) are blue, red,
