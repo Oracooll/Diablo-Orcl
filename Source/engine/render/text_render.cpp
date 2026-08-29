@@ -331,12 +331,28 @@ const std::array<uint8_t, 256> &BlackTrn()
 	return trn;
 }
 
+/**
+ * @brief Where the drop shadow falls, relative to the glyph: two left, two down.
+ *
+ * NOT a guess and not a taste call - it is vanilla's own offset. DevilutionX 1.5.5, which this fork
+ * is built from, drew every character-sheet label twice:
+ *
+ *     DrawString(out, text, { labelPosition + Displacement { -2, 2 }, ... }, style | ColorBlack);
+ *     DrawString(out, text, { labelPosition,                          ... }, style | ColorWhite);
+ *
+ * Down-LEFT, by two. My first pass used +1,+1 - down-right by one - which is the conventional
+ * direction for a drop shadow and the wrong one for this game; the light in Diablo's panel art
+ * comes from the lower right, so the shadow has to fall the other way or the text stops agreeing
+ * with the stone it sits on.
+ */
+constexpr Displacement TextShadowOffset { -2, 2 };
+
 void DrawFont(const Surface &out, Point position, ClxSprite glyph, text_color color, bool outline, bool shadow)
 {
 	// BEFORE the outline and the glyph, so both cover it where they overlap - a shadow that drew
 	// last would sit on top of the letter it belongs under.
 	if (shadow) {
-		RenderClxSpriteWithTRN(out, glyph, position + Displacement { 1, 1 }, BlackTrn().data());
+		RenderClxSpriteWithTRN(out, glyph, position + TextShadowOffset, BlackTrn().data());
 	}
 	if (outline) {
 		ClxDrawOutlineSkipColorZero(out, 0, { position.x, position.y + glyph.height() - 1 }, glyph);

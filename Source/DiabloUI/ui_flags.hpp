@@ -83,16 +83,21 @@ enum class UiFlags : uint64_t {
 	FontSize8              = 1ULL << 38,
 
 	/**
-	 * @brief Oracool: a DROP SHADOW under the glyphs - a black copy, one pixel down and right.
+	 * @brief Oracool: a DROP SHADOW under the glyphs - a black copy, two pixels down and LEFT.
 	 *
 	 * Not the same thing as Outlined, which rings a glyph on all four sides with
 	 * ClxDrawOutlineSkipColorZero and reads as a hard sticker. This is vanilla Diablo's character
-	 * sheet look (user, 2026-08-29): the text sits ON the parchment and casts a shadow onto it.
+	 * sheet look (user, 2026-08-29): the text sits ON the stone and casts a shadow onto it.
 	 *
-	 * Implemented by rendering the glyph a second time through an all-zero TRN, which maps every
-	 * palette index to 0 - the palette's black. A CLX sprite carries its transparency in the
-	 * run-length structure rather than in a key colour, so remapping every index to black yields a
-	 * solid silhouette of exactly the glyph's shape, which is what a shadow is.
+	 * Vanilla got it by drawing the whole label string TWICE - black at an offset, then white on
+	 * top (see TextShadowOffset in text_render.cpp for the original two lines). This does the same
+	 * thing per GLYPH instead, which is one layout pass rather than two and identical on screen for
+	 * a horizontal string.
+	 *
+	 * The black copy is the glyph rendered through an all-zero TRN, which maps every palette index
+	 * to 0 - the palette's black. A CLX sprite carries its transparency in the run-length structure
+	 * rather than in a key colour, so remapping every index to black yields a solid silhouette of
+	 * exactly the glyph's shape, which is what a shadow is.
 	 */
 	Shadowed               = 1ULL << 39,
 
