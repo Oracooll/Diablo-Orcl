@@ -146,6 +146,11 @@ void DrawLmbSkillWell(const Surface &out)
 {
 	if (WellIconSize().width == 0)
 		return;
+	// The points frame behind the icon (user, 2026-08-30). BEFORE the icon, obviously, but also
+	// before the net rect is used: the backing is centred on the well's OPENING while the icon is
+	// placed by GetLmbSkillWellNetRect, which carries its own optical nudge - so the two are
+	// deliberately positioned by different rules and must not be made to share one.
+	DrawSkillWellBacking(out, GetLmbSkillButtonRect());
 	// Always "active": a well shows what its button does right now, so there is no inactive state for
 	// it to render. The dimmed variant belongs to the Abilities window's row pair, where it says
 	// which of the two attacks is the one in your hands.

@@ -101,6 +101,12 @@ void DrawSpell(const Surface &out)
 	if (talkflag)
 		return;
 
+	// The points frame behind whatever this well ends up holding (user, 2026-08-30). HERE rather
+	// than in either branch below, because this well has two of them - DrawRmbSkillWell for an
+	// empty slot or a lit aura, and the direct drawing further down for a readied spell - and a
+	// backing added to one of them only would appear and vanish as the player readies and clears.
+	oracool::DrawSkillWellBacking(out, oracool::GetRmbSkillButtonRect());
+
 	// A LIT AURA never reaches this function's own drawing, and does not need to: lighting one clears
 	// _pRSpell, so the no-spell-readied branch below runs and DrawRmbSkillWell paints the aura at
 	// full size. See ClearClassAuraForRightButton for why the two cannot both be here.

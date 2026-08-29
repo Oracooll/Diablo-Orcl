@@ -341,6 +341,17 @@ void DrawLevelUpIconArt(const Surface &out, int state);
 bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit);
 
 /**
+ * @brief Draws the points frame as the backing for a skill well, centred on @p well.
+ *
+ * The same 64x64 art the stat-point and skill-point counters wear. @p well is the well's OPENING
+ * (GetLmbSkillButtonRect / GetRmbSkillButtonRect), which is smaller than the frame, so the frame
+ * overhangs it evenly and the skill icon lands where a counter's numeral would.
+ *
+ * @return false when the art is unavailable, so a caller can tell "no backing" from "drawn".
+ */
+bool DrawSkillWellBacking(const Surface &out, Rectangle well);
+
+/**
  * @brief The 40x39 box dead centre of the frame at @p origin, where the count is drawn.
  *
  * The size is the user's (2026-08-20: "in its center area in 40x39px area dead center in the

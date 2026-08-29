@@ -1419,6 +1419,32 @@ bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit
 	return true;
 }
 
+bool DrawSkillWellBacking(const Surface &out, Rectangle well)
+{
+	// The same 64x64 frame the stat-point and skill-point counters wear, borrowed as the backing
+	// for the two skill wells (user, 2026-08-30: "use the stats/skills points backing behind the
+	// LMB/RMB skills. i wanna see how it fits there").
+	//
+	// CENTRED on the well rather than aligned to it, and the numbers say why: the well rects are
+	// the plate's OPENINGS - 50x51 after scaling - while the frame is 64x64, so it overhangs by
+	// seven pixels a side. Centring puts the skill icon exactly where the counter's numeral sits,
+	// which is what makes the two read as the same component.
+	//
+	// Same end-of-pipeline test as DrawUnspentPointsIcon: report whether a draw can HAPPEN, so a
+	// missing entry in any of hud_art's three hand-maintained asset lists degrades to "no backing"
+	// rather than to a silent blank where the caller thought it had drawn one.
+	ArtAsset &asset = SkillPointsFrameArt;
+	EnsureLoadedAll();
+	EnsureQuantized();
+	if (asset.rgba.empty() || !asset.bright)
+		return false;
+
+	const Point origin { well.position.x + (well.size.width - PointsIconSize.width) / 2,
+		well.position.y + (well.size.height - PointsIconSize.height) / 2 };
+	DrawStripIcon(out, asset, origin, /*index=*/0, /*unlocked=*/true);
+	return true;
+}
+
 // Defined further down, next to the other scaled drawing. Declared here because the Rectangle
 // overload of DrawClassTreeIcon below needs it, and moving the definitions up would separate them
 // from BlitStripCellScaled, which is the thing they are all about.
