@@ -18,14 +18,7 @@ using Skill = ClassTreeSkill;
 /** @brief How far Sanctuary drives an undead when it repels it. Matches the Fallen's own flight. */
 constexpr int RepelDistance = 4;
 
-/**
- * @brief Points of Conviction before it starts breaking immunities rather than just resistances.
- *
- * Five of a possible twenty, so a player who merely dabbles neutralises resistant monsters, and one
- * who commits to it can finally hurt the immune ones. That threshold is the reason to keep pouring
- * points in past the radius growing.
- */
-constexpr int ConvictionBreaksImmunityAt = 5;
+// ConvictionBreaksImmunityAt moved to the header - the class-tree tooltip quotes it now.
 
 /**
  * @brief How close a monster must stand to a champion to be part of its pack.

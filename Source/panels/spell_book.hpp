@@ -3,6 +3,9 @@
 #include "engine/clx_sprite.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
+#include "spelldat.h" // SpellID, for BuildSpellStatBlock
+
+#include <string>
 
 namespace devilution {
 
@@ -89,5 +92,14 @@ void DrawSpellBook(const Surface &out);
  * Safe to call on a frame where the window is closed: it simply has nothing pending.
  */
 void DrawAbilityHoverPanel(const Surface &out);
+
+/**
+ * @brief The spell's numbers as newline-separated lines: level, mana, damage, and next level's.
+ *
+ * Exported so the skill picker can show the same block the Abilities window does (user, 2026-08-28:
+ * "i want more information in the hover opoups of skills/spells/auras"). One builder rather than
+ * two, because the two would disagree about the next-level line the first time a formula changed.
+ */
+std::string BuildSpellStatBlock(SpellID sn);
 
 } // namespace devilution

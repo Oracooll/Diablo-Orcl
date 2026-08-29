@@ -51,6 +51,19 @@ namespace devilution::oracool {
 int AuraRadiusForPoints(int points);
 
 /**
+ * @brief Points of Conviction before it starts breaking immunities rather than just resistances.
+ *
+ * Five of a possible twenty, so a player who merely dabbles neutralises resistant monsters, and one
+ * who commits to it can finally hurt the immune ones. That threshold is the reason to keep pouring
+ * points in past the radius growing.
+ *
+ * In the header rather than beside ConvictionAdjusted because the class-tree tooltip quotes it: a
+ * threshold the player is told about is a threshold that can be aimed for, and a second copy of the
+ * number in the UI is a second copy to drift.
+ */
+constexpr int ConvictionBreaksImmunityAt = 5;
+
+/**
  * @brief Whether @p monster stands inside the local player's lit Conviction, and how deep.
  *
  * @return invested points, or 0 when Conviction is not lit, not unlocked, or @p monster is out of

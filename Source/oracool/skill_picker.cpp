@@ -9,6 +9,7 @@
 #include "engine/backbuffer_state.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
+#include "panels/spell_book.hpp" // BuildSpellStatBlock - the hover shows the same numbers the sheet does
 #include "panels/spell_icons.hpp"
 #include "player.h"
 #include "spells.h"
@@ -166,6 +167,27 @@ bool IsAssignableToLeft(const Entry &entry)
 }
 
 /** @brief What the hover popup calls @p entry. */
+/**
+ * @brief Adds a newline-separated block to the hover tooltip, one AddPanelString per line.
+ *
+ * The stat builders return a block because their own panels render one; the cursor tooltip takes a
+ * line at a time and colours each. Splitting here rather than making the builders return a vector
+ * keeps the sheets untouched.
+ */
+void AddPanelLines(const std::string &block)
+{
+	size_t start = 0;
+	while (start < block.size()) {
+		const size_t end = block.find('\n', start);
+		const std::string line = block.substr(start, end == std::string::npos ? std::string::npos : end - start);
+		if (!line.empty())
+			AddPanelString(line);
+		if (end == std::string::npos)
+			break;
+		start = end + 1;
+	}
+}
+
 std::string EntryName(const Entry &entry)
 {
 	switch (entry.kind) {
@@ -403,6 +425,20 @@ void DrawSkillPicker(const Surface &out)
 				SetPanelString(EntryName(entry), UiFlags::ColorWhite);
 				if (dimmed)
 					AddPanelString(_("Right button only - click to light it"));
+				// The NUMBERS, not just the name (user, 2026-08-28: "i want more information in the
+				// hover opoups of skills/spells/auras - include the benefits/bonuses current level
+				// is providing and the bonuses/benefits the next level will provide").
+				//
+				// Both blocks are the ones their own sheets already show, called rather than
+				// reimplemented: BuildSpellStatBlock for a spell (mana, damage now, damage at the
+				// next level) and ClassTreeEffectLine for a tree row (points, what the next point
+				// costs in character levels, an aura's radius now and next). A second copy of
+				// either would be a second place for the next formula change to be forgotten.
+				AddPanelLines(entry.spell != SpellID::Invalid
+				        ? BuildSpellStatBlock(entry.spell)
+				        : (entry.tree != ClassTreeSkill::None
+				                  ? ClassTreeEffectLine(*InspectPlayer, entry.tree)
+				                  : std::string {}));
 			}
 		}
 		y += RowsFor(count) * IconSize + (RowsFor(count) - 1) * CellGap + SectionGap;

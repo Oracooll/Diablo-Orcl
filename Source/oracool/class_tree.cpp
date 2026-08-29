@@ -1660,14 +1660,68 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill)
 		return out;
 	}
 	const int p = ClassTreeInvestment(player, skill);
-	std::string out = fmt::format(fmt::runtime(_("Points: {:d} of {:d}")), p, ClassTreeMaxRank(skill));
-	out += "\n" + fmt::format(fmt::runtime(_("Requires level {:d}")), ClassTreeTierMinLevel(data.tier));
+	const int maxRank = ClassTreeMaxRank(skill);
+	std::string out = fmt::format(fmt::runtime(_("Points: {:d} of {:d}")), p, maxRank);
+	// THE NEXT RANK'S requirement, which climbs with every point spent (user, 2026-08-28: "update
+	// lvl requrements everytime a skill point is added to reflect truthfully the req lvl bump with
+	// each skill lvl").
+	//
+	// This printed ClassTreeTierMinLevel - the tier's floor, a constant - while the gate that
+	// actually refuses the point is RankRequiredLevel(tierLevel, invested + 1), the Rule of Rangs
+	// (see CanInvestClassTreePoint). So a tier-1 skill with nine points in it still advertised
+	// "Requires level 1" while silently demanding level 10 for the tenth, and the button did nothing
+	// with no explanation anywhere on the tooltip.
+	//
+	// Phrased as the NEXT point's price rather than the current rank's, because that is the only
+	// number a player standing in front of the button can act on. At full rank there is no next
+	// point and the line would be a number for a purchase that cannot be made.
+	if (p >= maxRank) {
+		out += "\n" + std::string(_("Fully invested"));
+	} else {
+		const int nextLevel = RankRequiredLevel(ClassTreeTierMinLevel(data.tier), p + 1);
+		out += "\n" + fmt::format(fmt::runtime(_("Next point requires level {:d}")), nextLevel);
+	}
 	if (!data.implemented)
 		out += "\n" + std::string(_("No effect yet"));
 	else if (data.kind == Kind::Aura && p == 0)
 		out += "\n" + std::string(_("Invest a point to light it"));
 	else if (data.kind == Kind::Passive && p == 0)
 		out += "\n" + std::string(_("Invest a point to gain it"));
+
+	// WHAT THE POINTS BUY, at this rank and at the next (user, 2026-08-28: "i want more information
+	// in the hover opoups of skills/spells/auras - include the benefits/bonuses current level is
+	// providing and the bonuses/benefits the next level will provide").
+	//
+	// Only what is actually MODELLED gets a number. Two things are, and the honest scope of this
+	// line is those two:
+	//
+	//   - Every aura's radius, from AuraRadiusForPoints - the one quantity every aura in the tree
+	//     scales by, and the one the player can see on the floor.
+	//   - Conviction's immunity break, which is a threshold rather than a curve and so is stated as
+	//     the rank it happens at.
+	//
+	// The remaining rows have bespoke effects with no per-rank formula behind them - several are
+	// still `implemented == false` - and inventing a number for those would be worse than the
+	// silence: a tooltip that quotes a bonus the code does not apply is a bug that reads as a
+	// feature. Those rows keep their description, which is what states the effect today.
+	if (data.implemented && data.kind == Kind::Aura && p > 0) {
+		const int radius = AuraRadiusForPoints(p);
+		out += "\n" + fmt::format(fmt::runtime(_("Radius: {:d} tiles")), radius);
+		if (p < maxRank) {
+			const int nextRadius = AuraRadiusForPoints(p + 1);
+			// Silent when the next point does not move it - the radius steps every second point and
+			// caps at eight, so "Next point: 8 tiles" beside "Radius: 8 tiles" is noise that makes
+			// the player look twice for a difference that is not there.
+			if (nextRadius != radius)
+				out += "\n" + fmt::format(fmt::runtime(_("Next point: {:d} tiles")), nextRadius);
+		}
+	}
+	if (skill == Skill::Conviction && data.implemented) {
+		out += "\n"
+		    + (p >= ConvictionBreaksImmunityAt
+		            ? std::string(_("Breaks immunities"))
+		            : fmt::format(fmt::runtime(_("Breaks immunities at {:d} points")), ConvictionBreaksImmunityAt));
+	}
 	return out;
 }
 
