@@ -208,6 +208,25 @@ if(TSAN)
   set(ASAN OFF)
 endif()
 
+# Oracool: SMALLER DEBUG SYMBOLS (user, 2026-08-29: "can you reduce the size of Debug folder? It is
+# becoming too big to constantly sync over onedrive").
+#
+# The build tree lives inside OneDrive, so every rebuild is an upload. A full Debug link wrote a
+# 989 MB DiabloOrcl.pdb and a 732 MB libdevilutionx_so.pdb, plus 1.3 GB across the 35 test binaries -
+# 3.4 GB of symbols regenerated and re-synced on every build, which was two thirds of the whole tree.
+#
+# /DEBUG:FASTLINK makes the linker PDB REFERENCE the debug info already sitting in the .obj files
+# instead of copying it in. The trade is real and worth stating: the resulting PDB is only usable
+# while those .obj files are still present, so it cannot be shipped or archived on its own. That is
+# exactly the case here - these symbols are for debugging this tree in place, and the objects never
+# leave it. A Release build is untouched; it barely has symbols to shrink (175 MB against 3,433).
+#
+# Opt out with -DDEVILUTIONX_FULL_DEBUG_PDB=ON if a PDB ever has to travel.
+option(DEVILUTIONX_FULL_DEBUG_PDB "Write standalone (large) Debug PDBs instead of /DEBUG:FASTLINK" OFF)
+if(MSVC AND NOT DEVILUTIONX_FULL_DEBUG_PDB)
+  add_link_options("$<$<CONFIG:Debug>:/DEBUG:FASTLINK>")
+endif()
+
 if(MSVC AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT DISABLE_LTO)
   # Work around MSVC + CMake bug when LTO is enabled.
   # See https://github.com/diasurgical/devilutionX/issues/3778
