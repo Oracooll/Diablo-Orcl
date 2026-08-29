@@ -2021,7 +2021,15 @@ void DrawInvBelt(const Surface &out)
 		// Oracool: user tuning (2026-08-11) - item sprites carry their own internal padding, which
 		// is not symmetric, so geometric centring alone leaves them looking left of centre in the
 		// cell. This nudge is measured by eye against the art, not derived.
-		constexpr Displacement BeltItemNudge { 3, 0 };
+		//
+		// Which is exactly why it does not apply to the PLATELESS row: it was measured against the
+		// plate's cell, and that cell is gone. The plateless cell is sized so the backing's recess
+		// comes out at 28x28 - the sprite's own size - so the sprite fills it and there is nothing
+		// left to nudge. Keeping the +3 here would push every potion three pixels off the well it
+		// was sized to fit, which is the one thing the sizing was for (user, 2026-08-30).
+		const Displacement BeltItemNudge = *sgOptions.Oracool.hudPlateArt
+		    ? Displacement { 3, 0 }
+		    : Displacement { 0, 0 };
 		const Rectangle cell = oracool::GetBeltSlotRect(i);
 		const Point position = cell.position + BeltItemNudge
 		    + Displacement { (cell.size.width - InventorySlotSizeInPixels.width) / 2,

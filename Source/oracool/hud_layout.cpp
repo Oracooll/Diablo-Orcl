@@ -11,6 +11,7 @@
 #include "engine/backbuffer_state.hpp"
 #include "inv.h"
 #include "oracool/event_log.h"
+#include "options.h" // the HUD Plate Art switch picks which row layout applies
 #include "oracool/hud_menu.h"
 #include "oracool/levski_roar.h"
 #include "oracool/oracool.h"
@@ -67,6 +68,42 @@ constexpr Rectangle ScalePlateRect(Rectangle src)
 }
 
 constexpr Size PlateScreenSize { PlateScreenWidth, ScalePlate(PlateSrcSize.height) };
+
+/*
+ * THE PLATELESS ROW (user, 2026-08-30: "the backings need to be increased. no gaps between them.
+ * no gaps between them and lmb/rmb backings as well. make sure potions fit in the well area of the
+ * bcking. so make the well area 28x28px.")
+ *
+ * With the plate art switched off, the row is eight points frames in an unbroken strip: the LMB
+ * backing, six belt cells, the RMB backing. The plate's own cell positions cannot serve it - they
+ * are measured from the artwork and leave deliberate gaps between the cells and a wide margin
+ * either side of the wells, which is exactly what was asked to go.
+ *
+ * The 28x28 well is the binding constraint and everything else follows from it. The frame art is
+ * 64x64 with its recess occupying the middle 40x39, so a cell whose recess must be 28 wide is
+ * 28 * 64 / 40 = 44.8 -> 45 across, and 28 * 64 / 39 = 45.9 -> 46 tall. 28 is the inventory cell,
+ * which is what "potions fit" means: a belt sprite is drawn at InventorySlotSizeInPixels.
+ *
+ * Those numbers then fix the row: 6 * 45 belt plus two 64-wide backings is 398, against the plate's
+ * 356. So the two wells sit 21px further out than the plate would put them - which is free, because
+ * with the plate gone nothing else is anchored to that artwork. The row is centred on the same
+ * middle-HUD origin so it stays put as the screen resizes.
+ */
+constexpr Size PointsFrameWellSrc { 40, 39 };
+constexpr Size BeltBackingSize { 45, 46 };
+static_assert(BeltBackingSize.width * PointsFrameWellSrc.width / PointsIconSize.width == 28
+        && BeltBackingSize.height * PointsFrameWellSrc.height / PointsIconSize.height == 28,
+    "The belt backing no longer yields a 28x28 well - a potion sprite is 28px, so it would no "
+    "longer fit the recess it is drawn into");
+constexpr int PlatelessRowWidth = 2 * PointsIconSize.width + BeltVisibleSlotCount * BeltBackingSize.width;
+/** @brief Left edge of the plateless row, relative to the middle-HUD rect. Negative: it is wider. */
+constexpr int PlatelessRowLeft = (PlateScreenWidth - PlatelessRowWidth) / 2;
+
+/** @brief Whether the row is laid out for the plateless HUD rather than from the plate artwork. */
+bool UsePlatelessRow()
+{
+	return !*sgOptions.Oracool.hudPlateArt;
+}
 
 // Source-space rects measured from the PNG (plate-local coordinates, i.e. after the (16,337) crop
 // the prep script applies - that origin is the art's own alpha>=128 bounding box). The two skill
@@ -208,15 +245,37 @@ Rectangle GetMiddleHudRect()
 	return { { (gnScreenWidth - PlateScreenSize.width) / 2, gnScreenHeight - PlateScreenSize.height - PlateBottomMargin }, PlateScreenSize };
 }
 
+/**
+ * @brief The OPENING inside a 64x64 backing whose left edge is at @p backingLeft.
+ *
+ * The wells keep the opening size the plate gave them - the skill icon is cut to fit that, and
+ * changing it would mean recutting art for a layout experiment. Only where the opening SITS moves.
+ */
+Rectangle PlatelessWellRect(int backingLeft, Size opening)
+{
+	const Rectangle hud = GetMiddleHudRect();
+	return { { hud.position.x + backingLeft + (PointsIconSize.width - opening.width) / 2,
+		         hud.position.y + (PointsIconSize.height - opening.height) / 2 },
+		opening };
+}
+
 Rectangle GetLmbSkillButtonRect()
 {
 	const Rectangle scaled = ScalePlateRect(LmbWellSrc);
+	if (UsePlatelessRow())
+		return PlatelessWellRect(PlatelessRowLeft, scaled.size);
 	return { GetMiddleHudRect().position + Displacement { scaled.position.x, scaled.position.y }, scaled.size };
 }
 
 Rectangle GetRmbSkillButtonRect()
 {
 	const Rectangle scaled = ScalePlateRect(RmbWellSrc);
+	if (UsePlatelessRow()) {
+		// The far end of the strip: past the LMB backing and all six belt cells, with no gap.
+		return PlatelessWellRect(PlatelessRowLeft + PointsIconSize.width
+		        + BeltVisibleSlotCount * BeltBackingSize.width,
+		    scaled.size);
+	}
 	return { GetMiddleHudRect().position + Displacement { scaled.position.x, scaled.position.y }, scaled.size };
 }
 
@@ -296,6 +355,16 @@ Rectangle GetLevelUpIconRect()
 
 Rectangle GetBeltSlotRect(int visibleIndex)
 {
+	if (UsePlatelessRow()) {
+		// Butted against the LMB backing and against each other - the pitch IS the cell width, which
+		// is what "no gaps between them" means. Vertically centred on the row's 64px band, so the
+		// shorter belt cells sit level with the two wells rather than on their top edge.
+		const Rectangle hud = GetMiddleHudRect();
+		return { { hud.position.x + PlatelessRowLeft + PointsIconSize.width
+		               + visibleIndex * BeltBackingSize.width,
+			         hud.position.y + (PointsIconSize.height - BeltBackingSize.height) / 2 },
+			BeltBackingSize };
+	}
 	const Rectangle scaled = ScalePlateRect(Rectangle { Point { BeltCellSrcX[visibleIndex], BeltCellSrcY }, BeltCellSrcSize });
 	return { GetMiddleHudRect().position + Displacement { scaled.position.x, scaled.position.y }, scaled.size };
 }
