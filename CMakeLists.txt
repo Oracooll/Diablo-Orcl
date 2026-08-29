@@ -128,7 +128,23 @@ option(MACOSX_STANDALONE_APP_BUNDLE "Generate a portable app bundle to use on ot
 
 # Network options
 cmake_dependent_option(DISABLE_TCP "Disable TCP multiplayer option" OFF "NOT NONET" ON)
-cmake_dependent_option(DISABLE_ZERO_TIER "Disable ZeroTier multiplayer option" OFF "NOT NONET" ON)
+# Oracool: DEFAULTS TO ON, unlike upstream (user, 2026-08-29: "disable zero tier, we are single
+# player only").
+#
+# ZeroTier is the internet-multiplayer TRANSPORT, not the multiplayer screens - those stay exactly
+# as they are, per the standing rule not to delete them. What goes is a network stack this fork
+# cannot reach: V1 never enters a multiplayer game, and oracool::IsMultiplayerReachable() is a
+# compile-time statement of that.
+#
+# It is not free to keep. 3rdParty/libzt builds zt.lib (127 MB), zto_pic.lib (93 MB) and zt_pic.lib
+# (25 MB) into every build tree, plus its own source under _deps - and the build trees sit inside
+# OneDrive, so all of it is sync traffic for a mode the game will not enter.
+#
+# The default is changed here rather than pinned in each build cache so a fresh configure inherits
+# it. Five upstream platform files already force it ON for the same reason (n3ds, switch, gkd350h,
+# emscripten, macos_tiger), so this is a supported configuration rather than a new one, and the code
+# it removes is behind two #ifndef guards plus one connection-select entry.
+cmake_dependent_option(DISABLE_ZERO_TIER "Disable ZeroTier multiplayer option" ON "NOT NONET" ON)
 
 # Graphics options
 if(NOT USE_SDL1)
