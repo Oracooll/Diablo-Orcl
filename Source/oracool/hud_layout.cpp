@@ -211,18 +211,34 @@ constexpr int OrbGapFromPlate = 0;
 
 } // namespace
 
-Rectangle GetHealthOrbRect()
+/**
+ * @brief The HUD row's real outer footprint - what the orbs must sit clear of.
+ *
+ * The plate rect is 356 wide, but the plateless row is 398 and overhangs it by 21px a side. The
+ * orbs were positioned from the plate, so once the row grew they overlapped it by exactly that
+ * overhang (user, 2026-08-30: "move orb away to avoid overlap with hud"). Asking for the footprint
+ * rather than for the plate means the orbs follow whatever the row actually is.
+ */
+Rectangle GetHudRowRect()
 {
 	const Rectangle plate = GetMiddleHudRect();
-	const int bottom = plate.position.y + plate.size.height;
-	return { { plate.position.x - OrbGapFromPlate - HealthOrbScreenSize.width, bottom - HealthOrbScreenSize.height }, HealthOrbScreenSize };
+	if (!UsePlatelessRow())
+		return plate;
+	return { { plate.position.x + PlatelessRowLeft, plate.position.y }, { PlatelessRowWidth, plate.size.height } };
+}
+
+Rectangle GetHealthOrbRect()
+{
+	const Rectangle row = GetHudRowRect();
+	const int bottom = row.position.y + row.size.height;
+	return { { row.position.x - OrbGapFromPlate - HealthOrbScreenSize.width, bottom - HealthOrbScreenSize.height }, HealthOrbScreenSize };
 }
 
 Rectangle GetManaOrbRect()
 {
-	const Rectangle plate = GetMiddleHudRect();
-	const int bottom = plate.position.y + plate.size.height;
-	return { { plate.position.x + plate.size.width + OrbGapFromPlate, bottom - ManaOrbScreenSize.height }, ManaOrbScreenSize };
+	const Rectangle row = GetHudRowRect();
+	const int bottom = row.position.y + row.size.height;
+	return { { row.position.x + row.size.width + OrbGapFromPlate, bottom - ManaOrbScreenSize.height }, ManaOrbScreenSize };
 }
 
 Point GetHealthOrbSphereCenterLocal()
@@ -357,12 +373,17 @@ Rectangle GetBeltSlotRect(int visibleIndex)
 {
 	if (UsePlatelessRow()) {
 		// Butted against the LMB backing and against each other - the pitch IS the cell width, which
-		// is what "no gaps between them" means. Vertically centred on the row's 64px band, so the
-		// shorter belt cells sit level with the two wells rather than on their top edge.
+		// is what "no gaps between them" means.
+		//
+		// BOTTOM-aligned, not centred (user, 2026-08-30: "move the belt bottom edge flush with
+		// bottom of screen"). The middle-HUD rect is already flush with the screen bottom, so
+		// sitting the shorter belt cells on its bottom edge puts them on the screen's. Centring them
+		// in the 64px band - which is what this did - left a nine-pixel strip of nothing under the
+		// belt while the two wells beside it were already flush.
 		const Rectangle hud = GetMiddleHudRect();
 		return { { hud.position.x + PlatelessRowLeft + PointsIconSize.width
 		               + visibleIndex * BeltBackingSize.width,
-			         hud.position.y + (PointsIconSize.height - BeltBackingSize.height) / 2 },
+			         hud.position.y + PointsIconSize.height - BeltBackingSize.height },
 			BeltBackingSize };
 	}
 	const Rectangle scaled = ScalePlateRect(Rectangle { Point { BeltCellSrcX[visibleIndex], BeltCellSrcY }, BeltCellSrcSize });
@@ -413,7 +434,12 @@ bool IsPointOverHudChrome(Point mousePosition)
 	// The four things that actually absorb a click, and nothing else. GetMainPanel() appears only
 	// under talkflag because the chat box is still drawn against the vanilla panel rect; the rest of
 	// that 640x128 band is empty screen and must behave like it.
-	return GetMiddleHudRect().contains(mousePosition)
+	//
+	// GetHudRowRect, not GetMiddleHudRect: the plateless row is 42px wider than the plate, and
+	// asking for the plate would leave the outer 21px of each skill well - drawn, visible, and
+	// clickable-looking - routed to the world, so clicking the edge of a well walked the character
+	// instead of opening its quick list.
+	return GetHudRowRect().contains(mousePosition)
 	    || IsPointOverXpCounter(mousePosition)
 	    || IsPointOverHudMenu(mousePosition)
 	    || (talkflag && GetMainPanel().contains(mousePosition));

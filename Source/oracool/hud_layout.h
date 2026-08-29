@@ -79,6 +79,15 @@ Rectangle GetLevelUpIconRect();
  * path. */
 Rectangle GetMiddleHudRect();
 
+/**
+ * @brief The HUD row's real outer footprint, which is not always the plate's.
+ *
+ * Identical to GetMiddleHudRect while the plate art is on. With it off the row is laid out from the
+ * cells instead and comes out wider, so anything that needs to sit CLEAR of the HUD - the orbs -
+ * must ask for this rather than for the plate.
+ */
+Rectangle GetHudRowRect();
+
 /** @brief Absolute screen rect of the plate's LMB well. Currently only a hover/click dead zone -
  * the LMB assign-and-cast mechanic is a later phase; the art's empty well is its placeholder. */
 Rectangle GetLmbSkillButtonRect();
