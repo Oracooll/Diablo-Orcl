@@ -352,6 +352,18 @@ bool DrawUnspentPointsIcon(const Surface &out, Point origin, int count, bool lit
 bool DrawSkillWellBacking(const Surface &out, Rectangle well);
 
 /**
+ * @brief Draws the points frame, sized down, into each of the six belt cells.
+ *
+ * The row's own count (BeltVisibleSlotCount) - Menu, four item slots, Town Portal - so the frames
+ * run edge to edge rather than framing the potions and leaving the two buttons bare. Scaled to each
+ * cell, unlike DrawSkillWellBacking: a cell is roughly half the art's native size, so an unscaled
+ * frame would cover its neighbours.
+ *
+ * Call BEFORE DrawInvBelt - this is a backing, and the items go on top of it.
+ */
+void DrawBeltBacking(const Surface &out);
+
+/**
  * @brief The 40x39 box dead centre of the frame at @p origin, where the count is drawn.
  *
  * The size is the user's (2026-08-20: "in its center area in 40x39px area dead center in the

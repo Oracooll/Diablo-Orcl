@@ -147,6 +147,15 @@ Point GetRmbSkillIconOrigin(Size content);
  * constants for the inventory grid). */
 Rectangle GetBeltSlotRect(int visibleIndex);
 
+/**
+ * @brief How many belt cells the plate shows: Menu, four item slots, Town Portal.
+ *
+ * The count the ROW has, not the count of usable item slots - IsRealBeltItemSlot answers that and
+ * gives four. Anything drawing the row itself (a backing, a frame) wants this one; anything
+ * carrying items wants that one.
+ */
+inline constexpr int BeltVisibleSlotCount = 6;
+
 /** @brief Underlying Player::SpdList index repurposed as the belt's "Menu" button (opens
  * hud_menu.h's popup) - never holds a real item once MigrateHiddenBeltSlots has run once. */
 inline constexpr int BeltMenuSlotIndex = 0;

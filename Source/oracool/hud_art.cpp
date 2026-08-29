@@ -1453,6 +1453,34 @@ void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, 
 void DrawClassTreeIconScaledTo(const Surface &out, Rectangle dest, HeroClass heroClass, int skillIndex,
     bool unlocked = true);
 
+void DrawBeltBacking(const Surface &out)
+{
+	// The same frame the wells wear, sized down to a belt cell and repeated across the row (user,
+	// 2026-08-30: "scale this backing a bit in order to use it as a backing for the belt. we need 6
+	// sized-down pieces of it aligned next to each other").
+	//
+	// SIX cells, which is the row's own count - Menu, the four item slots, Town Portal - and not the
+	// four that can hold an item. The row is what is being decorated, so BeltVisibleSlotCount is the
+	// right question; using IsRealBeltItemSlot here would frame the potions and leave the two
+	// buttons at either end bare, which is the opposite of "aligned next to each other".
+	//
+	// Scaled, unlike the wells: a belt cell is about 33x35 against the art's native 64x64, so drawn
+	// unscaled each frame would cover its neighbours entirely. The wells kept their overhang because
+	// nothing sits beside them; these cannot.
+	//
+	// Positioned from GetBeltSlotRect, so the frames inherit the plate's own cell spacing and stay
+	// aligned with the items drawn into them by DrawInvBelt - which is the one thing that would look
+	// broken if this invented its own row geometry.
+	ArtAsset &asset = SkillPointsFrameArt;
+	EnsureLoadedAll();
+	EnsureQuantized();
+	if (asset.rgba.empty() || !asset.bright)
+		return;
+
+	for (int i = 0; i < BeltVisibleSlotCount; i++)
+		DrawStripIconScaledTo(out, asset, GetBeltSlotRect(i), /*index=*/0, /*unlocked=*/true);
+}
+
 void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint)
 {

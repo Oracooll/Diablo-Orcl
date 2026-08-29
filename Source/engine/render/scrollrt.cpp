@@ -2063,6 +2063,10 @@ void DrawAndBlit()
 			DrawSpell(out);
 		}
 		if (drawBelt) {
+			// The six cell backings, BEFORE the items that sit in them (user, 2026-08-30). Beside
+			// DrawInvBelt rather than up with DrawMiddleHudArt, because it belongs to the belt: the
+			// plate can be switched off and the row still needs its cells.
+			oracool::DrawBeltBacking(out);
 			DrawInvBelt(out);
 			// Oracool: click feedback for the Menu/Portal cells, whose frames and icons are baked
 			// into the plate art and so have no state of their own to react with.
