@@ -3,10 +3,15 @@
 **Date:** 2026-08-30
 **Version:** 1.9.123
 **Trigger:** four ChatGPT audit reports dropped into `chatgpt audits/`, targeting commit `2c3e8d1`.
-**Tests:** 580/582. Five new tests; the two standing baseline failures unchanged.
+**Tests:** 581/582. Five new tests; the timedemo failure root-caused and skipped with its reason, so
+one red remains — the level-3 dungeon golden.
 
-A good audit. Five of its twelve findings were real and are fixed; three are decisions rather than
-defects and are left for the user; one report referenced by the index is missing from the folder.
+A good audit. Eight of its twelve findings were real and are fixed; three are decisions rather than
+defects and are left for the user; one is an operational item deliberately not acted on.
+
+The fourth report, `BUILD_RELEASE_QA`, was absent when the first three were read and arrived a few
+minutes later — a sweep for it is what closed BR-01, BR-02 and QA-01. Nothing in this round was
+acted on from the index's one-line summaries alone.
 
 Every finding below was **reproduced here before being fixed** — the audit's arithmetic was not
 taken on trust — and every fix is pinned by a test that was checked against the defect.
@@ -159,19 +164,72 @@ end of a long session.
 Correct, and deliberately not acted on: the standing instruction is Debug only unless Release is
 asked for. Flagged rather than built.
 
-### BR-01, BR-02, QA-01 — the packaging report is missing
+### BR-01, BR-02 — answered (the fourth report arrived)
 
-`CHATGPT_MULTI_AUDIT_INDEX` lists `CHATGPT_AUDIT_BUILD_RELEASE_QA_v1.9.122_2026-08-30.md` in its
-report set, and that file is **not in the folder** — only the three others arrived. The index's
-one-line summaries are all there is to go on:
+`CHATGPT_AUDIT_BUILD_RELEASE_QA_v1.9.122_2026-08-30.md` was missing when the other three were first
+read; it landed a few minutes later and is now answered. Both findings were real.
 
-- **BR-01** — `BuildReleasePackage.ps1` builds its verifier temp filename before assigning `runId`,
-  restoring a cross-process temp-file race.
-- **BR-02** — the final ZIP verifier collects entry names but checks only the count, so a wrong
-  same-sized entry set passes.
+**BR-01.** The oracool verification list was named `oracool_verify_$runId.txt` **twenty-one lines
+before `$runId` was assigned**. PowerShell expands an unassigned variable to an empty string and the
+script had no strict mode, so every concurrent packaging job wrote, read and deleted one shared
+`%TEMP%\oracool_verify_.txt` — reintroducing precisely the race the run id had been added to end in
+v1.9.92. The run id is now established at the top of the script, before anything is named after it,
+and `Set-StrictMode -Version Latest` turns that class of mistake into an immediate error rather than
+a shared path.
 
-Both sound plausible and both are cheap to check, but acting on a one-line summary of a report I
-cannot read is guessing. If the file turns up, they are quick.
+**BR-02.** The zip was opened, every entry's `FullName` collected — and then only the **count**
+compared, while the comment above it has claimed since v1.9.97 that the entry list is compared with
+staging. It now compares the sets: missing, unexpected and duplicated names, each reported by name.
+
+Verified against real `Compress-Archive` output rather than by reasoning, which turned up something
+that matters: **Windows PowerShell 5.1 writes backslashes into a zip entry's `FullName`**, so
+normalising both sides is load-bearing rather than defensive. All three failure shapes the audit
+named were then checked against a real zip:
+
+| Case | Old count check | New set check |
+|---|---|---|
+| correct zip | passes | passes |
+| one entry renamed | **passes** | 1 missing, 1 unexpected |
+| one duplicated + one missing | **passes** | 1 missing, 1 duplicated |
+| wrong top-level prefix | **passes** | 3 missing, 3 unexpected |
+
+Strict mode was exercised by running the script for real: it reaches the version preflight and stops
+there, which is REL-01 doing its job — it correctly refuses to package a stale build.
+
+### QA-01, the timedemo — root-caused and skipped
+
+The audit asked for a root cause rather than another waiver. There is one, and it is definitive.
+
+`test/fixtures/timedemo/WarriorLevel1to2/spawn_0.sv` is **byte-identical to the 1.5.5 baseline**.
+`pfile.cpp`'s `ReadHero` accepts a hero blob only when `read >= sizeof(PlayerPack)` — and this fork
+has **grown** that struct: `pExperience` widened from `uint32_t` to `uint64_t` for the level-99
+curve, the four waypoint masks and the four spent-stat-point counters took over the reserved bytes
+and then some. A 1.5.5 hero is smaller than the struct that must be filled from it, `ReadHero`
+returns false, and `pfile_read_player_from_save` calls `app_fatal("Unable to load character")` —
+exactly the observed failure.
+
+`pack.h`'s own comment shows the growth was understood at the time: the readied-spell fields were
+deliberately *repurposed* from `pBattleNet` and `reserved` rather than appended, precisely because
+"growing this struct changes `sizeof(PlayerPack)` and ReadHero accepts only an exact size match".
+The experience widening and the waypoint masks grew it anyway, as a deliberate trade — the user's
+own position being "i dont care about preserving sdave. i care about robust coding."
+
+So this is not a defect. It is the accepted consequence of a decision already taken, and the fixture
+can never load again.
+
+The test is now **skipped with that reason printed on every run**, not deleted and not left red.
+Deleted, the fork silently loses the only end-to-end replay it has. Left red, a permanently failing
+suite teaches everyone to ignore a red run — which is how both real regressions found today came to
+ship in the first place.
+
+Re-enabling is *not* just regenerating the hero: the `.dmo` replays recorded input against gameplay
+this fork has changed deliberately and repeatedly, so a loadable hero would only move the failure
+from "cannot load" to "final state differs". Green means re-recording the whole demo against current
+gameplay, and again after each balance change. Regenerating the reference state to match whatever
+the code now does would produce a test that can never fail — worse than no test. Whether that is
+worth it is the user's call.
+
+The suite is **581/582** as a result, with one red left.
 
 ### QA-01 / the level-3 golden
 
