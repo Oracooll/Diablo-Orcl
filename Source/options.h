@@ -168,6 +168,15 @@ public:
 	}
 	[[nodiscard]] virtual string_view GetName() const;
 	[[nodiscard]] string_view GetDescription() const;
+	/**
+	 * @brief The INI key this entry reads and writes - its identity in the file, not its label.
+	 *
+	 * Oracool: added 2026-08-30 for SaveOptions' Oracool backstop, which has to ask whether the
+	 * hand-written canonical section already covered an entry before writing it. The symmetric
+	 * accessor on OptionCategoryBase has always been public; this one simply was not needed until
+	 * something wanted to enumerate entries by key.
+	 */
+	[[nodiscard]] string_view GetKey() const;
 	[[nodiscard]] virtual OptionEntryType GetType() const = 0;
 	[[nodiscard]] OptionEntryFlags GetFlags() const;
 

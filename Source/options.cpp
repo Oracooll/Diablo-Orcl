@@ -569,6 +569,26 @@ void SaveOptions()
 	setBoolean("Unlock All Town Entrances", *sgOptions.Oracool.unlockAllTownEntrances,
 	    "; Unlocks Catacombs, Caves, and Hell town entrances without normal level thresholds;\n; also Hive and Crypt in Hellfire. It does not complete quests or alter progress.");
 
+	// Backstop: every registered entry the hand-written block above did not cover.
+	//
+	// External audit PO-01 (2026-08-30) found six of them - Dungeon Zoom Level, Game Speed Readout,
+	// Panel Docking, Vendor Tiered Stock Chance and both Last Readied Spell slots. The section is
+	// DELETED and rebuilt on every launch, and SaveOptions runs at startup, so an option that is
+	// loaded but never rewritten is not merely unsaved: its key is destroyed on the next launch and
+	// the value silently reverts to the constructor default. The remembered LMB/RMB spells could
+	// therefore never survive a restart, which was the entire point of them.
+	//
+	// A loop rather than six more setBoolean lines. The hand-maintained list IS the defect - it has
+	// to be extended by hand every time an option is added, and nothing failed when it was not.
+	// Anything missed now lands here uncommented instead of being lost, and
+	// OracoolOptions.EveryRegisteredEntrySurvivesASaveRoundTrip pins that.
+	for (OptionEntryBase *pEntry : sgOptions.Oracool.GetEntries()) {
+		const std::string key { pEntry->GetKey() };
+		if (ini.GetValue(Section, key.c_str(), nullptr) != nullptr)
+			continue;
+		pEntry->SaveToIni(Section);
+	}
+
 	SaveIni();
 }
 
@@ -579,6 +599,10 @@ string_view OptionEntryBase::GetName() const
 string_view OptionEntryBase::GetDescription() const
 {
 	return _(description);
+}
+string_view OptionEntryBase::GetKey() const
+{
+	return key;
 }
 OptionEntryFlags OptionEntryBase::GetFlags() const
 {
@@ -1573,6 +1597,12 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&miniMapEnabled,
 		&hudPlateArt,
 		&eventLog,
+		// External audit PO-02, 2026-08-30: declared and consumed (oracool/telemetry.cpp) but never
+		// registered, so it was neither loaded nor saved nor listed in Settings - permanently stuck
+		// on at its default with no way to turn it off. Registering it is the whole fix; loading
+		// walks this list, and SaveOptions' backstop now writes anything the canonical section
+		// misses.
+		&balanceTelemetry,
 		&vendorTieredStockChance,
 		&nakedHeroes,
 		&gameClock,

@@ -14,10 +14,13 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <set>
 #include <cstring>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -37,7 +40,10 @@
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_layout.h"
+#include "oracool/xp_counter.h"
+#include "qol/xpbar.h"
 #include "utils/ui_fwd.h" // gnScreenWidth/Height - the log and the belt are both derived from them
+#include "utils/paths.h"  // SetConfigPath - the options round-trip writes to a temp dir, not diablo.ini
 #include "oracool/charms.h"
 #include "oracool/area_level.h"
 #include "oracool/inventory_layout.h"
@@ -7308,6 +7314,95 @@ TEST(OracoolAudit, TheEventLogDoesNotCoverTheBeltRow)
 
 	if (oracool::IsEventLogOpen())
 		oracool::ToggleEventLog();
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+}
+
+// External audit PO-01, 2026-08-30. The Oracool INI section is not written by the generic
+// serializer: SaveOptions skips the whole category, DELETES the section, and rebuilds it by hand so
+// it can be grouped and commented. Six registered entries were missing from that hand-written list -
+// including both Last Readied Spell slots, whose entire purpose is to survive a restart.
+//
+// The failure was silent and destructive rather than merely incomplete. SaveOptions runs at startup,
+// so a value loaded from the file was deleted moments later and reverted to its default on the next
+// launch.
+//
+// This runs the real SaveOptions against a redirected config path - never the user's own
+// diablo.ini - and asserts the file that comes out names every registered entry.
+TEST(OracoolOptions, EveryRegisteredEntrySurvivesASaveRoundTrip)
+{
+	const std::string savedConfig = paths::ConfigPath();
+	const std::string tmp = paths::BasePath() + "test_po01_tmp/";
+	std::error_code ec;
+	std::filesystem::create_directories(tmp, ec);
+	paths::SetConfigPath(tmp);
+
+	SaveOptions();
+
+	std::ifstream file(tmp + "diablo.ini", std::ios::binary);
+	const std::string ini { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+	file.close();
+
+	// Restore before asserting, so a failure cannot leave the process pointed at the temp path.
+	paths::SetConfigPath(savedConfig);
+	std::filesystem::remove_all(tmp, ec);
+
+	ASSERT_FALSE(ini.empty()) << "test setup: SaveOptions wrote nothing to the redirected path";
+
+	std::vector<std::string> missing;
+	for (OptionEntryBase *entry : sgOptions.Oracool.GetEntries()) {
+		const std::string key { entry->GetKey() };
+		// The key as it appears at the start of a line, which is how an INI names a value. Matching
+		// the bare key anywhere would let a mention inside a comment count as a saved value.
+		if (ini.find("\n" + key + " =") == std::string::npos
+		    && ini.find("\n" + key + "=") == std::string::npos)
+			missing.push_back(key);
+	}
+
+	std::string report;
+	for (const std::string &key : missing)
+		report += "\n  " + key;
+	EXPECT_TRUE(missing.empty())
+	    << missing.size() << " registered Oracool option(s) are never written, so the startup "
+	                         "rewrite deletes them and they revert to defaults next launch:"
+	    << report;
+}
+
+// External audit UI-01A, 2026-08-30. The revived XP bar (v1.9.119) is bottom-anchored between the
+// XP counter and the belt, and the audit's arithmetic says the DEFAULT HUD - plate art off - leaves
+// that band only 6px while the bar is 8px tall, so the bar paints over the top two rows of the belt
+// backing. The bar is drawn after the belt, so draw order does not hide it.
+//
+// Checked in both HUD modes, because the two have different belt geometry and only one of them is
+// the default. This is exactly the check that could not exist while the rect was file-local.
+TEST(OracoolAudit, TheXpBarFitsBetweenTheCounterAndTheBelt)
+{
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	const bool savedPlate = *sgOptions.Oracool.hudPlateArt;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+
+	for (const bool plateArt : { false, true }) {
+		sgOptions.Oracool.hudPlateArt.SetValue(plateArt);
+		const char *mode = plateArt ? "plate art ON" : "plate art OFF (the default)";
+
+		const Rectangle bar = GetXPBarRect();
+		const Rectangle counter = oracool::GetXpCounterDrawRect();
+		const Rectangle belt = oracool::GetBeltSlotRect(0);
+
+		ASSERT_GT(bar.size.width, 0) << mode << ": the bar reported an empty rect";
+		ASSERT_GT(bar.size.height, 0) << mode << ": the bar reported an empty rect";
+
+		EXPECT_LE(counter.position.y + counter.size.height, bar.position.y)
+		    << mode << ": the XP bar starts above the bottom of the XP counter, so it overpaints it";
+		EXPECT_LE(bar.position.y + bar.size.height, belt.position.y)
+		    << mode << ": the XP bar's bottom (" << bar.position.y + bar.size.height
+		    << ") is below the belt's top (" << belt.position.y
+		    << "), so it paints over the belt backing";
+	}
+
+	sgOptions.Oracool.hudPlateArt.SetValue(savedPlate);
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
 }

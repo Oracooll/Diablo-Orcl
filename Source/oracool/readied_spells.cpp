@@ -69,8 +69,25 @@ void RememberReadiedSpells(const Player &player)
 	// be a setting arriving from outside the game.
 	if (&player != MyPlayer || !IsSinglePlayer())
 		return;
-	sgOptions.Oracool.lastReadiedSpellLeft.SetValue(PackReadiedSpell(player._pLRSpell));
-	sgOptions.Oracool.lastReadiedSpellRight.SetValue(PackReadiedSpell(player._pRSpell));
+
+	const uint8_t left = PackReadiedSpell(player._pLRSpell);
+	const uint8_t right = PackReadiedSpell(player._pRSpell);
+	if (left == *sgOptions.Oracool.lastReadiedSpellLeft
+	    && right == *sgOptions.Oracool.lastReadiedSpellRight)
+		return;
+
+	sgOptions.Oracool.lastReadiedSpellLeft.SetValue(left);
+	sgOptions.Oracool.lastReadiedSpellRight.SetValue(right);
+
+	// Written to disk HERE, not left for whenever SaveOptions next happens to run (external audit
+	// PO-01, 2026-08-30). SaveOptions is called at startup, from the settings screens, and on a
+	// fullscreen toggle - never on a skill change and never on exit. So the remembered slot only
+	// ever reached the file if the player happened to open Settings before quitting, and the whole
+	// point of the feature is the next launch.
+	//
+	// Cheap because it is guarded above: this writes only when the pair actually changes, which is
+	// a handful of times in a session, not once per call.
+	SaveOptions();
 }
 
 void ApplyRememberedReadiedSpells(Player &player)

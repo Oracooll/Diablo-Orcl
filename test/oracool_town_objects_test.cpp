@@ -62,6 +62,17 @@ namespace {
 constexpr Point StashChestTile { 56, 67 }; // moved one tile toward 4-5 o'clock, v1.9.115
 constexpr Point LevskiRoarTile { 55, 66 };
 constexpr Point WaypointSigilTile { 61, 80 };
+/**
+ * @brief Where a new character is created - SetupLocalPositions' spawns[0] (multi.cpp), which
+ * CreateTown's ENTRY_MAIN ViewPosition also centres on.
+ *
+ * A literal like the three above, and for the same reason. This one exists because moving the chest
+ * to {56,67} in v1.9.115 put it exactly on the spawn, and a fresh character was created standing
+ * inside a solid object. Nothing said so: the furniture-collision test below only compared
+ * furniture with furniture, and the chest's own placement guard logs a collision and then places
+ * the chest regardless.
+ */
+constexpr Point NewGamePlayerSpawnTile { 55, 67 };
 
 /**
  * @brief Puts the world into "fresh town" and places the three Oracool town objects.
@@ -168,6 +179,23 @@ TEST_F(TownObjects, TownFurnitureDoesNotShareTiles)
 	EXPECT_NE(StashChestTile, LevskiRoarTile);
 	EXPECT_NE(StashChestTile, WaypointSigilTile);
 	EXPECT_NE(LevskiRoarTile, WaypointSigilTile);
+
+	// And none of them may stand on the tile a new character is created on. Every one of these
+	// three is solid - in this engine _oSolidFlag is really the activation-range switch, so an
+	// operable object always has it - and a character created inside one starts the game stuck in
+	// the furniture it is supposed to walk up to. The chest did exactly this from v1.9.115 to
+	// v1.9.123; external audit GP-01, 2026-08-30.
+	EXPECT_NE(StashChestTile, NewGamePlayerSpawnTile)
+	    << "the Stash Chest is on the new-game spawn tile";
+	EXPECT_NE(LevskiRoarTile, NewGamePlayerSpawnTile)
+	    << "Levski's Roar is on the new-game spawn tile";
+	EXPECT_NE(WaypointSigilTile, NewGamePlayerSpawnTile)
+	    << "the town sigil is on the new-game spawn tile";
+
+	// The spawn must also be free of ANY object, not just the three named above - the check that
+	// does not need updating when a fourth piece of furniture arrives.
+	EXPECT_EQ(FindObjectAtPosition(NewGamePlayerSpawnTile), nullptr)
+	    << "some object occupies the tile a new character is created on";
 
 	Object *chest = FindObjectAtPosition(StashChestTile);
 	Object *monument = FindObjectAtPosition(LevskiRoarTile);

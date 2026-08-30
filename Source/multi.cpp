@@ -372,9 +372,18 @@ void SetupLocalPositions()
 	leveltype = DTYPE_TOWN;
 	setlevel = false;
 
-	// Oracool: user request - moved the local player's new-game spawn point next to the Stash
-	// Chest (55, 67); the other 8 entries are multiplayer-only fallback offsets, unchanged.
-	const WorldTilePosition spawns[9] = { { 56, 67 }, { 77, 70 }, { 75, 70 }, { 77, 68 }, { 76, 69 }, { 75, 69 }, { 76, 68 }, { 77, 69 }, { 76, 70 } };
+	// Oracool: user request - the local player's new-game spawn sits NEXT TO the Stash Chest; the
+	// other 8 entries are multiplayer-only fallback offsets, unchanged.
+	//
+	// It follows the chest rather than being placed independently. The chest moved one tile toward
+	// 4-5 o'clock on 2026-08-30 (objects.cpp's StashChestPosition, now {56,67}) straight onto this
+	// spawn, so a fresh character was created standing inside a solid object - the chest's own
+	// placement guard logs that collision but places it anyway. The spawn takes the tile the chest
+	// just vacated, which keeps the two adjacent, keeps the intent ("next to the chest"), and is
+	// known to be clear floor because the chest stood on it until yesterday.
+	//
+	// Move one and the other must move: town.cpp's CreateTown centres ENTRY_MAIN on this same tile.
+	const WorldTilePosition spawns[9] = { { 55, 67 }, { 77, 70 }, { 75, 70 }, { 77, 68 }, { 76, 69 }, { 75, 69 }, { 76, 68 }, { 77, 69 }, { 76, 70 } };
 
 	Player &myPlayer = *MyPlayer;
 

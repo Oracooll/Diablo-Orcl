@@ -362,8 +362,10 @@ void CreateTown(lvl_entry entry)
 
 	if (entry == ENTRY_MAIN) { // New game
 		// Oracool: user request - matches SetupLocalPositions()'s local-player spawn tile
-		// (multi.cpp), so the camera starts centered on the player, not offset from them.
-		ViewPosition = { 56, 67 };
+		// (multi.cpp), so the camera starts centered on the player, not offset from them. Moved
+		// with that spawn on 2026-08-30 when the Stash Chest took {56,67}; these two must always
+		// name the same tile.
+		ViewPosition = { 55, 67 };
 	} else if (entry == ENTRY_PREV) { // Cathedral
 		ViewPosition = { 25, 31 };
 	} else if (entry == ENTRY_TWARPUP) {

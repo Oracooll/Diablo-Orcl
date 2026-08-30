@@ -17,6 +17,7 @@
 
 #include <algorithm>
 
+#include "control.h" // talkflag - the bar hides while chat is open
 #include "engine/palette.h"
 #include "engine/render/primitive_render.hpp"
 #include "options.h"
@@ -54,6 +55,8 @@ constexpr uint8_t EmptyColor = 204;
 /** @brief The edge, a shade darker than the groove, so the bar has an outline at both states. */
 constexpr uint8_t EdgeColor = 0;
 
+} // namespace
+
 /**
  * @brief The bar's screen rect: the belt's width, centred in the gap above it.
  *
@@ -75,11 +78,26 @@ Rectangle GetXPBarRect()
 	const int gapBottom = firstCell.position.y;
 	const int left = firstCell.position.x;
 	const int width = lastCell.position.x + lastCell.size.width - left;
-	// Centred in the gap, and clamped so a layout that leaves no gap at all pins the bar to the
-	// belt's top edge instead of drawing it above the counter.
-	const int top = std::max(gapTop, gapTop + (gapBottom - gapTop - BarHeight) / 2);
-	return Rectangle { { left, top }, { width, BarHeight } };
+
+	// The height is what the gap ALLOWS, never more (external audit UI-01A, 2026-08-30). The
+	// requested 8px is the maximum, not a guarantee: with plate art off - the default - the band
+	// between the counter and the belt is only 6px, and an 8px rectangle centred in it hung two
+	// pixels into the belt backing. The bar is drawn after the belt, so those two rows were painted
+	// over rather than hidden.
+	//
+	// The old comment here claimed the clamp "pins the bar to the belt's top edge" in that case. It
+	// could not: clamping the TOP of a fixed-height rect cannot shorten it, so the bottom simply
+	// went past the belt. Clamping the height is what actually holds the invariant, and
+	// OracoolAudit.TheXpBarFitsBetweenTheCounterAndTheBelt pins it in both HUD modes.
+	const int gap = gapBottom - gapTop;
+	if (gap <= 0)
+		return Rectangle { { left, gapTop }, { width, 0 } };
+	const int height = std::min(BarHeight, gap);
+	const int top = gapTop + (gap - height) / 2;
+	return Rectangle { { left, top }, { width, height } };
 }
+
+namespace {
 
 /** @brief How far along its current level the player is, as a fraction of the bar's width. */
 int FilledWidth(const Player &player, int barWidth)
@@ -98,7 +116,10 @@ int FilledWidth(const Player &player, int barWidth)
 /** @brief One row of the bar, inset at both ends by however much the rounding asks for. */
 void DrawBarRow(const Surface &out, Rectangle bar, int row, int filled)
 {
-	const int distanceFromEdge = std::min(row, BarHeight - 1 - row);
+	// Off the RECT's height, not the BarHeight constant - the two differ whenever the gap forced a
+	// shorter bar, and reading the constant here would round the corners of a bar that is not that
+	// tall (audit UI-01A).
+	const int distanceFromEdge = std::min(row, bar.size.height - 1 - row);
 	const int inset = distanceFromEdge < static_cast<int>(std::size(CornerInset))
 	    ? CornerInset[distanceFromEdge]
 	    : 0;
@@ -138,7 +159,7 @@ void DrawNotches(const Surface &out, Rectangle bar)
 			const int depth = NotchDepth - std::abs(i - NotchWidth / 2);
 			for (int d = 0; d < depth; d++) {
 				out.SetPixel({ x, bar.position.y + d }, EdgeColor);
-				out.SetPixel({ x, bar.position.y + BarHeight - 1 - d }, EdgeColor);
+				out.SetPixel({ x, bar.position.y + bar.size.height - 1 - d }, EdgeColor);
 			}
 		}
 	}
@@ -156,7 +177,10 @@ void FreeXPBar()
 
 void DrawXPBar(const Surface &out)
 {
-	if (!*sgOptions.Gameplay.experienceBar || MyPlayer == nullptr)
+	// talkflag restored 2026-08-30 (external audit UI-01B). The vanilla bar began with exactly this
+	// guard and the revival dropped it, so opening chat painted the gold strip over the chat panel -
+	// DrawTalkPan runs first and DrawXPBar second.
+	if (!*sgOptions.Gameplay.experienceBar || talkflag || MyPlayer == nullptr)
 		return;
 
 	const Rectangle bar = GetXPBarRect();
@@ -164,7 +188,7 @@ void DrawXPBar(const Surface &out)
 		return;
 
 	const int filled = FilledWidth(*MyPlayer, bar.size.width);
-	for (int row = 0; row < BarHeight; row++)
+	for (int row = 0; row < bar.size.height; row++)
 		DrawBarRow(out, bar, row, filled);
 	DrawNotches(out, bar);
 }
