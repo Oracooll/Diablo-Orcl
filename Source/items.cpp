@@ -1711,6 +1711,20 @@ _unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate, bool all
 	if (oracool::IsSinglePlayer()) {
 		const int multiplier = allowTieredRoll ? std::clamp(*sgOptions.Oracool.uniqueItemDropMultiplier, 1, 100) : 1;
 		uniqueRollUpperBound = std::min(99, (uper + 1) * multiplier - 1);
+		// And the NARROWING knob (user, 2026-08-30: "we need to nurf drop chances of unique
+		// monsters. they seem to drop uniques very generously").
+		//
+		// A separate percentage rather than a smaller `uper`, because uper is doing two jobs at
+		// once: it is this roll's window AND the high-quality marker - `uper == 15` sets CF_UPER15
+		// and pushes GetItemBLevel four levels up. Lowering it would quietly change affix levels
+		// and the stored createInfo, so every already-saved item would reconstruct differently.
+		// This touches only the roll.
+		//
+		// Pinned to 100 on the reconstruction path for exactly the reason the multiplier is pinned
+		// to 1 there: a narrower window than the one in force at generation time would turn an item
+		// that dropped as Unique into a Magic one on the next load.
+		const int percent = allowTieredRoll ? std::clamp(*sgOptions.Oracool.uniqueDropChancePercent, 1, 100) : 100;
+		uniqueRollUpperBound = (uniqueRollUpperBound + 1) * percent / 100 - 1;
 	}
 	if (GenerateRnd(100) > uniqueRollUpperBound)
 		return UITEM_INVALID;

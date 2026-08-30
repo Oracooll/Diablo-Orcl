@@ -1153,7 +1153,13 @@ void SpawnLoot(Monster &monster, bool sendmsg)
 		// another ticket in the lottery the fork already runs (Unique, then Primal, then Buffed
 		// Unique, then Rare, all in Oracool options). Two chances at that ladder is a materially
 		// better drop without inventing a rarity tier nobody has balanced.
-		if (monster.lesserAffix != LesserUniqueAffix::None)
+		// A CHANCE now, not a guarantee (user, 2026-08-30: "they seem to drop uniques very
+		// generously. two at a time even"). Two at a time was this line: a champion always took a
+		// second ticket in the same lottery, so every champion kill was two rolls at Unique, Primal,
+		// Buffed Unique and Rare. The reason it exists still holds - a champion should be worth
+		// fighting - so it is thinned rather than removed, and the percentage is an option.
+		if (monster.lesserAffix != LesserUniqueAffix::None
+		    && GenerateRnd(100) < std::clamp(*sgOptions.Oracool.championExtraDropChance, 0, 100))
 			SpawnItem(monster, monster.position.tile, sendmsg);
 		// Oracool: the set items' own drop roll, AFTER the vanilla spawns so the rndItemSeed-driven
 		// stream above stays byte-identical - see TrySpawnOracoolSetItem for why they cannot ride

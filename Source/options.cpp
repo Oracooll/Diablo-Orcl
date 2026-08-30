@@ -550,6 +550,11 @@ void SaveOptions()
 	    "; Percent chance that an item eligible for Magic quality becomes a Buffed Unique\n; instead, checked before Rare (right after failing its Unique roll). Zero disables\n; Buffed Uniques. Existing vanilla Unique items are never affected either way.");
 	setInteger("Primal Item Drop Chance", *sgOptions.Oracool.primalItemDropChance,
 	    "; Percent chance that an item eligible for Magic quality becomes a Primal item\n; instead, checked before Buffed Unique and Rare (right after failing its Unique\n; roll). Every affix on a Primal item is forced to its maximum roll. Zero disables Primals.");
+	setInteger("Unique Drop Chance Percent", *sgOptions.Oracool.uniqueDropChancePercent,
+	    "; Scales the chance an eligible drop becomes a unique item. 100 is vanilla's own window;\n; lower narrows it. This is the knob that NERFS - the multiplier below only ever widens.\n; Ignored while reconstructing a saved item, so lowering it cannot downgrade gear you\n; already own.");
+	setInteger("Champion Extra Drop Chance", *sgOptions.Oracool.championExtraDropChance,
+	    "; Percent chance a champion monster rolls a SECOND item when it dies. It used to be a\n; guaranteed second roll, which is why champions dropped two good items at a time.");
+
 	setInteger("Unique Item Drop Multiplier", *sgOptions.Oracool.uniqueItemDropMultiplier,
 	    "; Multiplies the chance that an eligible drop becomes unique. One is the normal\n; rate; higher values make uniques more common, with final probability capped.");
 
@@ -1443,6 +1448,8 @@ OracoolOptions::OracoolOptions()
     , autoRunePickup("Auto Pickup Runes", OptionEntryFlags::None, N_("Auto Pickup Runes"), N_("Runes are automatically collected when in close proximity to the player."), true)
     , autoGemPickup("Auto Pickup Gems", OptionEntryFlags::None, N_("Auto Pickup Gems"), N_("Gems are automatically collected when in close proximity to the player."), true)
     , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 2, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
+    , uniqueDropChancePercent("Unique Drop Chance Percent", OptionEntryFlags::None, N_("Unique Drop Chance Percent"), N_("Scales the chance an eligible drop becomes a unique item. 100 is vanilla; lower narrows it."), 50, { 10, 25, 50, 75, 100 })
+    , championExtraDropChance("Champion Extra Drop Chance", OptionEntryFlags::None, N_("Champion Extra Drop Chance"), N_("Percent chance a champion monster rolls a SECOND item on death. 100 is always, which is what it used to be."), 25, { 0, 10, 25, 50, 75, 100 })
     , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
     , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Percent chance an eligible drop becomes a Primal item, checked before Buffed Unique."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), true)
@@ -1522,6 +1529,8 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&autoRunePickup,
 		&autoGemPickup,
 		&rareItemDropChance,
+		&uniqueDropChancePercent,
+		&championExtraDropChance,
 		&buffedUniqueItemDropChance,
 		&primalItemDropChance,
 		&griswoldPremiumRefresh,

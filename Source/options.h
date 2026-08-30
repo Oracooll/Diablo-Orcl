@@ -815,6 +815,16 @@ struct OracoolOptions : OptionCategoryBase {
 	/** @brief Auto-pickup gems, on the same reasoning as runes. */
 	OptionEntryBoolean autoGemPickup;
 	OptionEntryInt<int> rareItemDropChance;
+	/**
+	 * @brief Scales the unique-item roll window, as a percentage. 100 is vanilla.
+	 *
+	 * Separate from uniqueItemDropMultiplier, which only ever widens it - this is the knob that
+	 * narrows. Applied at the same place and pinned to 100 on the reconstruction path for the same
+	 * reason the multiplier is pinned to 1 there.
+	 */
+	OptionEntryInt<int> uniqueDropChancePercent;
+	/** @brief Percent chance a champion (lesser-unique) monster rolls its SECOND drop. */
+	OptionEntryInt<int> championExtraDropChance;
 	OptionEntryInt<int> buffedUniqueItemDropChance;
 	OptionEntryInt<int> primalItemDropChance;
 	OptionEntryBoolean griswoldPremiumRefresh;
