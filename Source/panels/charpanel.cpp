@@ -13,7 +13,10 @@
 #include "engine/render/text_render.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
+#include "missiles.h" // GetDamageAmtAtLevel - the readied spell's own damage formula
+#include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
 #include "oracool/player_resistance.h"
+#include "spells.h" // IsValidSpell
 #include "playerdat.hpp"
 #include "options.h"
 #include "oracool/oracool.h"
@@ -85,6 +88,62 @@ std::pair<int, int> GetDamage()
 	int mindam = InspectPlayer->_pIMinDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMinDam / 100 + damageMod;
 	int maxdam = InspectPlayer->_pIMaxDam + InspectPlayer->_pIBonusDam * InspectPlayer->_pIMaxDam / 100 + damageMod;
 	return { mindam, maxdam };
+}
+
+/** @brief The weapon-damage reading, as the sheet has always drawn it. */
+StyledText WeaponDamageText()
+{
+	const std::pair<int, int> dmg = GetDamage();
+	// Tighter letter spacing once the numbers reach three digits, or the pair outgrows its column.
+	const int spacing = (dmg.first >= 100) ? -1 : 1;
+	return StyledText { GetValueColor(InspectPlayer->_pIBonusDam), StrCat(dmg.first, "-", dmg.second), spacing };
+}
+
+/**
+ * @brief What the given mouse button actually does for damage, whatever is sitting on it.
+ *
+ * Oracool: user request (2026-08-31) - "we need to introduce in the hero stats window a second dmg
+ * stat... that is the way D2 does it. it has two DMG text fields and they display the dmg lmb/rmb
+ * slots do regardles of it is spell, attack skill or something else assigned to these slotts."
+ *
+ * Three answers, in the order they are asked:
+ *
+ *   1. Nothing readied - the basic attack - is the weapon. So is a melee class skill: Zeal and
+ *      Hammer of Faith swing what you are holding, so quoting a formula for them would be quoting
+ *      the wrong number. Melee is read from the skill's own rangeTiles rather than a list kept
+ *      here, so a skill that changes reach changes this with it.
+ *   2. A spell with a damage formula answers with that formula, at the level this character has it.
+ *   3. Everything else - Town Portal, Identify, an aura, a heal - has no damage to report and says
+ *      so with a dash, the same mark DamageRange uses for a damage type the player does not have.
+ *
+ * A HEAL is deliberately a dash rather than its heal range: this row is labelled damage, and a
+ * number under the wrong label is worse than no number. The Abilities window quotes heals in full.
+ */
+StyledText GetReadiedSlotDamage(bool leftButton)
+{
+	const Player &player = *InspectPlayer;
+	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
+
+	if (!IsValidSpell(spell))
+		return WeaponDamageText();
+
+	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spell);
+	    skill.has_value()
+	    && oracool::GetPaladinSkillData(*skill).rangeTiles == oracool::MeleeSkillRangeTiles) {
+		return WeaponDamageText();
+	}
+
+	if (spell == SpellID::Healing || spell == SpellID::HealOther)
+		return StyledText { UiFlags::ColorWhite, "-" };
+
+	int minDam = -1;
+	int maxDam = -1;
+	// At least 1: several formulas take the level as a real term, and a spell readied from a staff
+	// the character has no book for reads back as level 0.
+	GetDamageAmtAtLevel(spell, std::max(player.GetSpellLevel(spell), 1), &minDam, &maxDam);
+	if (minDam == -1)
+		return StyledText { UiFlags::ColorWhite, "-" };
+	return StyledText { UiFlags::ColorWhite, StrCat(minDam, "-", maxDam), (minDam >= 100) ? -1 : 1 };
 }
 
 // Oracool V1: derived readings for stats the engine tracks but the sheet never showed. Each one
@@ -323,12 +382,13 @@ const CharRow CharRows[] = {
 	    nullptr, CharRowGroupGap },
 	{ N_("To hit"),
 	    []() { return StyledText { GetValueColor(InspectPlayer->_pIBonusToHit), StrCat(InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow ? InspectPlayer->GetRangedToHit() : InspectPlayer->GetMeleeToHit(), "%") }; } },
-	{ N_("Damage"),
-	    []() {
-	        std::pair<int, int> dmg = GetDamage();
-	        int spacing = ((dmg.first >= 100) ? -1 : 1);
-	        return StyledText { GetValueColor(InspectPlayer->_pIBonusDam), StrCat(dmg.first, "-", dmg.second), spacing };
-	    } },
+	// TWO damage rows, one per mouse button (user, 2026-08-31) - Diablo II's shape, and the right
+	// one here because either button can hold a weapon swing, an attack skill or a spell, and the
+	// single row could only ever describe the weapon.
+	{ N_("LMB damage"),
+	    []() { return GetReadiedSlotDamage(/*leftButton=*/true); } },
+	{ N_("RMB damage"),
+	    []() { return GetReadiedSlotDamage(/*leftButton=*/false); } },
 
 	{ N_("Resist magic"),
 	    []() { return GetResistInfo(InspectPlayer->_pMagResist); },
@@ -735,6 +795,11 @@ void DrawStatButtons(const Surface &content)
 }
 
 } // namespace
+
+std::string GetReadiedSlotDamageText(bool leftButton)
+{
+	return GetReadiedSlotDamage(leftButton).text;
+}
 
 void LoadCharPanel()
 {

@@ -84,6 +84,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
+#include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
 #include "player.h"
 #include "playerdat.hpp"
@@ -7684,4 +7685,62 @@ TEST(OracoolAudit, LevelChangeClearsTelemetryKillClocks)
 	EXPECT_FALSE(oracool::TelemetryHasRunningKillClock(monster))
 	    << "a kill clock survived the level change, so the next monster in this slot is credited "
 	       "with the previous one's elapsed time";
+}
+
+// User request, 2026-08-31: the hero sheet gets a second damage field, Diablo II style - one per
+// mouse button, "regardles of it is spell, attack skill or something else assigned to these
+// slotts". The interesting part is not the row, it is WHICH source each answer comes from, so that
+// is what this pins.
+TEST(OracoolCharPanel, EachMouseButtonReportsItsOwnDamageSource)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 50;
+
+	// A weapon the sheet can quote: the damage row reads the ITEM totals, not the base item.
+	player._pIMinDam = 10;
+	player._pIMaxDam = 20;
+	const std::string weapon = "10-20";
+
+	// 1. Nothing readied is the basic attack, which is the weapon.
+	player._pLRSpell = SpellID::Invalid;
+	player._pRSpell = SpellID::Invalid;
+	EXPECT_EQ(GetReadiedSlotDamageText(true), weapon) << "an empty left slot is the weapon swing";
+	EXPECT_EQ(GetReadiedSlotDamageText(false), weapon) << "and so is an empty right slot";
+
+	// 2. A melee class skill also swings the weapon - quoting a formula would be the wrong number.
+	player._pLRSpell = SpellID::Zeal;
+	EXPECT_EQ(GetReadiedSlotDamageText(true), weapon)
+	    << "Zeal swings what you are holding, so it reads as weapon damage";
+
+	// 3. A damaging spell answers with its own formula at the level this character has it. Asserted
+	//    against GetDamageAmtAtLevel rather than a hardcoded pair, so a balance change to Firebolt
+	//    moves the expectation with it instead of failing this test.
+	player._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 5;
+	player._pRSpell = SpellID::Firebolt;
+	int min = -1;
+	int max = -1;
+	GetDamageAmtAtLevel(SpellID::Firebolt, player.GetSpellLevel(SpellID::Firebolt), &min, &max);
+	ASSERT_NE(min, -1) << "test setup: Firebolt reports no damage formula";
+	EXPECT_EQ(GetReadiedSlotDamageText(false), std::to_string(min) + "-" + std::to_string(max))
+	    << "a readied spell reports its own damage, not the weapon's";
+	EXPECT_NE(GetReadiedSlotDamageText(false), weapon)
+	    << "test setup: the spell happens to equal the weapon, so this proves nothing - change the "
+	       "weapon damage above";
+
+	// 4. Everything with no damage says so, rather than borrowing the weapon's number.
+	player._pRSpell = SpellID::TownPortal;
+	EXPECT_EQ(GetReadiedSlotDamageText(false), "-") << "a utility spell has no damage to report";
+	player._pRSpell = SpellID::Healing;
+	EXPECT_EQ(GetReadiedSlotDamageText(false), "-")
+	    << "a heal is not damage - a number under this label would be the wrong number";
+
+	// The two slots are independent, which is the whole point of there being two rows.
+	player._pLRSpell = SpellID::Invalid;
+	EXPECT_EQ(GetReadiedSlotDamageText(true), weapon);
+	EXPECT_EQ(GetReadiedSlotDamageText(false), "-");
 }

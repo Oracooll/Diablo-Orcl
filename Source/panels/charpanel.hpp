@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "engine/clx_sprite.hpp"
 #include "engine/surface.hpp"
 
@@ -52,6 +54,15 @@ void ScrollCharacterSheet(int notches);
 
 /** @brief Returns the sheet to the top. Called when the panel is opened. */
 void ResetCharacterSheetScroll();
+
+/**
+ * @brief The damage text the sheet shows for one mouse button's slot, for @p leftButton.
+ *
+ * Exported for the test that pins WHICH source each answer comes from - the weapon, a spell's own
+ * formula, or a dash. That choice is four branches of live logic and the only other way to observe
+ * it is to read the panel off a screenshot.
+ */
+std::string GetReadiedSlotDamageText(bool leftButton);
 
 extern OptionalOwnedClxSpriteList pChrButtons;
 
