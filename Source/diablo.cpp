@@ -1285,6 +1285,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				// consumed - the recipe book is capped to the screen and scrolls inside the cap
 			} else if (oracool::HandleRunewordBookScroll(1)) {
 				// consumed
+			} else if (oracool::HandleCraftingMenuScroll(1)) {
+				// consumed
 			} else if (stextflag != TalkID::None) {
 				StoreUp();
 			} else if (QuestLogIsOpen) {
@@ -1333,6 +1335,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 			} else if (oracool::HandleLevskiRecipeBookScroll(-1)) {
 				// consumed - see the wheel-up branch above
 			} else if (oracool::HandleRunewordBookScroll(-1)) {
+				// consumed
+			} else if (oracool::HandleCraftingMenuScroll(-1)) {
 				// consumed
 			} else if (stextflag != TalkID::None) {
 				StoreDown();

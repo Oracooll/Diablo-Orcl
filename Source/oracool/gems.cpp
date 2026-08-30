@@ -670,9 +670,19 @@ std::string GemHostEffectLine(uint16_t gemIdx, SocketHost host)
 		return {};
 	// Framed by where it goes rather than by what it is: the item's own name is already the panel's
 	// first line, so repeating it on all three host lines would be noise.
+	// "In armor and jewelry", not "In armor" (user, 2026-08-30: "all socketable items dont describe
+	// what they do when socketed in jewelry. describe it or if it is the same as some of the other
+	// types of items, write it in the description").
+	//
+	// It IS the same, and that is the whole answer: SocketHostForItemType has three cases and
+	// jewelry is not one of them, so a ring or an amulet falls to the default and takes the ARMOR
+	// effect. Nothing was missing from the behaviour - only from the label, which named one of the
+	// host kinds in that group and quietly omitted the other eight. Naming both is the honest fix;
+	// inventing a separate jewelry effect would be a balance change wearing a wording change's
+	// clothes.
 	const char *where = host == SocketHost::Weapon ? N_("In weapons")
 	    : host == SocketHost::Shield               ? N_("In shields")
-	                                               : N_("In armor");
+	                                               : N_("In armor and jewelry");
 	return fmt::format(fmt::runtime(_("{:s}: {:s}")), _(where), parts);
 }
 

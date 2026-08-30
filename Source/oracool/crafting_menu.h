@@ -27,4 +27,12 @@ void DrawCraftingMenu(const Surface &out);
 /** @brief Left-click while open: crafting a rowable recipe runs it and logs the result. */
 void CheckCraftingMenuClick(Point mousePosition);
 
+/**
+ * @brief Wheel over the window: scrolls the recipe list. True when the notch was consumed.
+ *
+ * Consumed on any notch over the open window, even one that cannot move a list already at its end,
+ * so the wheel never falls through to the dungeon zoom behind it.
+ */
+bool HandleCraftingMenuScroll(int notches);
+
 } // namespace devilution::oracool
