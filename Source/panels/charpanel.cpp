@@ -90,13 +90,63 @@ std::pair<int, int> GetDamage()
 	return { mindam, maxdam };
 }
 
-/** @brief The weapon-damage reading, as the sheet has always drawn it. */
+/**
+ * @brief The colour a damage type is written in (user, 2026-08-31, after Diablo II).
+ *
+ * Their palette was white physical / blue cold / red fire / yellow lightning / green healing. Blue
+ * is MAGIC here, not cold: this engine has no cold damage at all. DamageType is Physical, Fire,
+ * Lightning, Magic and Acid, and blue for arcane is the closest honest reading of the same idea.
+ *
+ * Acid is monster-only - no player spell carries it - so it falls through to physical white rather
+ * than being given a colour nobody will ever see. Green belongs to healing, below.
+ */
+UiFlags DamageTypeColor(DamageType type)
+{
+	switch (type) {
+	case DamageType::Fire:
+		return UiFlags::ColorRed;
+	case DamageType::Lightning:
+		return UiFlags::ColorOracoolYellow;
+	case DamageType::Magic:
+		return UiFlags::ColorBlue;
+	case DamageType::Physical:
+	case DamageType::Acid:
+		break;
+	}
+	return UiFlags::ColorWhite;
+}
+
+/**
+ * @brief What kind of damage a readied spell deals, taken from the missile it actually throws.
+ *
+ * Derived, never tabulated. The engine already answers this - every missile carries its damage type
+ * in its own flags - and a second table here would be one more thing to disagree with the code the
+ * first time a spell's missile changed. A spell with no missile (Zeal, Charge and the other melee
+ * skills carry MissileID::Null in both slots) swings the weapon, which is physical.
+ */
+DamageType ReadiedSpellDamageType(SpellID spell)
+{
+	for (const MissileID missile : GetSpellData(spell).sMissiles) {
+		if (missile != MissileID::Null)
+			return GetMissileData(missile).damageType();
+	}
+	return DamageType::Physical;
+}
+
+/**
+ * @brief The weapon-damage reading. Physical, so white.
+ *
+ * It used to be coloured by GetValueColor(_pIBonusDam) - blue when an item added damage. That now
+ * has to go: with the two rows colour-coded BY DAMAGE TYPE, a blue weapon reading would say "cold"
+ * to anyone reading the other rows, and the type is the thing these rows exist to communicate. The
+ * item bonus is still legible on the item itself and in the "To hit"/AC rows beside this one.
+ */
 StyledText WeaponDamageText()
 {
 	const std::pair<int, int> dmg = GetDamage();
 	// Tighter letter spacing once the numbers reach three digits, or the pair outgrows its column.
 	const int spacing = (dmg.first >= 100) ? -1 : 1;
-	return StyledText { GetValueColor(InspectPlayer->_pIBonusDam), StrCat(dmg.first, "-", dmg.second), spacing };
+	return StyledText { UiFlags::ColorWhite, StrCat(dmg.first, "-", dmg.second), spacing };
 }
 
 /**
@@ -119,22 +169,40 @@ StyledText WeaponDamageText()
  * A HEAL is deliberately a dash rather than its heal range: this row is labelled damage, and a
  * number under the wrong label is worse than no number. The Abilities window quotes heals in full.
  */
+/** @brief Whether the button's swing is the weapon's - a basic attack, or a melee class skill. */
+bool ReadiedSlotSwingsTheWeapon(SpellID spell)
+{
+	if (!IsValidSpell(spell))
+		return true;
+	const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spell);
+	return skill.has_value()
+	    && oracool::GetPaladinSkillData(*skill).rangeTiles == oracool::MeleeSkillRangeTiles;
+}
+
+/**
+ * @brief The colour BOTH of a button's rows are written in - the name and the number together.
+ *
+ * One decision, asked once, so the pair can never disagree about what kind of damage it is. That
+ * pairing is the point of the colour: the name row is what tells you a red number is Firebolt's.
+ */
+UiFlags ReadiedSlotColor(bool leftButton)
+{
+	const Player &player = *InspectPlayer;
+	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
+	if (ReadiedSlotSwingsTheWeapon(spell))
+		return UiFlags::ColorWhite; // the weapon is physical
+	if (spell == SpellID::Healing || spell == SpellID::HealOther)
+		return UiFlags::ColorOracoolGreen;
+	return DamageTypeColor(ReadiedSpellDamageType(spell));
+}
+
 StyledText GetReadiedSlotDamage(bool leftButton)
 {
 	const Player &player = *InspectPlayer;
 	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
 
-	if (!IsValidSpell(spell))
+	if (ReadiedSlotSwingsTheWeapon(spell))
 		return WeaponDamageText();
-
-	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spell);
-	    skill.has_value()
-	    && oracool::GetPaladinSkillData(*skill).rangeTiles == oracool::MeleeSkillRangeTiles) {
-		return WeaponDamageText();
-	}
-
-	if (spell == SpellID::Healing || spell == SpellID::HealOther)
-		return StyledText { UiFlags::ColorWhite, "-" };
 
 	int minDam = -1;
 	int maxDam = -1;
@@ -143,7 +211,28 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	GetDamageAmtAtLevel(spell, std::max(player.GetSpellLevel(spell), 1), &minDam, &maxDam);
 	if (minDam == -1)
 		return StyledText { UiFlags::ColorWhite, "-" };
-	return StyledText { UiFlags::ColorWhite, StrCat(minDam, "-", maxDam), (minDam >= 100) ? -1 : 1 };
+
+	// A heal now reports its NUMBERS, in green. Yesterday this row could only be labelled "damage",
+	// so a heal had to answer with a dash; the colour is what makes the number legible as something
+	// other than damage, which is the whole reason the user asked for the palette.
+	return StyledText { ReadiedSlotColor(leftButton), StrCat(minDam, "-", maxDam),
+		(minDam >= 100) ? -1 : 1 };
+}
+
+/** @brief The name of whatever is on a button, for the row above its damage. */
+std::string GetReadiedSlotName(bool leftButton)
+{
+	const Player &player = *InspectPlayer;
+	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
+	const string_view button = leftButton
+	    ? _(/* TRANSLATORS: the left mouse button's readied skill, on the character sheet */ "Left")
+	    : _(/* TRANSLATORS: the right mouse button's readied skill, on the character sheet */ "Right");
+	// SpellID::Invalid IS the basic attack - see attack_skills.h - so it is named rather than left
+	// blank, or the row would read as an empty slot the player forgot to fill.
+	const string_view name = IsValidSpell(spell)
+	    ? _(GetSpellData(spell).sNameText)
+	    : _(/* TRANSLATORS: the plain weapon swing, when no skill is readied */ "Attack");
+	return StrCat(button, ": ", name);
 }
 
 // Oracool V1: derived readings for stats the engine tracks but the sheet never showed. Each one
@@ -279,6 +368,15 @@ enum class CharRowExtra : uint8_t {
 	StatDexterity,
 	StatVitality,
 	Points,
+	/**
+	 * @brief One line of text spanning the whole content width, with no label and no value column.
+	 *
+	 * For the readied-skill names above the two damage rows (user, 2026-08-31). They cannot use the
+	 * label column: it is a fixed 161px and the longest skill name in the game, "Master of the Long
+	 * Staff", measures wider than that - so a name sharing a line with its number would clip exactly
+	 * on the skills a player is most likely to be looking up.
+	 */
+	FullWidthText,
 };
 
 // EnsureLayout turns a Stat* value into a ChrBtnsRect index by subtracting StatStrength, so the
@@ -382,13 +480,18 @@ const CharRow CharRows[] = {
 	    nullptr, CharRowGroupGap },
 	{ N_("To hit"),
 	    []() { return StyledText { GetValueColor(InspectPlayer->_pIBonusToHit), StrCat(InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow ? InspectPlayer->GetRangedToHit() : InspectPlayer->GetMeleeToHit(), "%") }; } },
-	// TWO damage rows, one per mouse button (user, 2026-08-31) - Diablo II's shape, and the right
-	// one here because either button can hold a weapon swing, an attack skill or a spell, and the
-	// single row could only ever describe the weapon.
-	{ N_("LMB damage"),
-	    []() { return GetReadiedSlotDamage(/*leftButton=*/true); } },
-	{ N_("RMB damage"),
-	    []() { return GetReadiedSlotDamage(/*leftButton=*/false); } },
+	// TWO damage fields, one per mouse button, each TWO ROWS - the name of what is readied, then
+	// what it does (user, 2026-08-31, after Diablo II). Either button can hold a weapon swing, an
+	// attack skill or a spell, so the old single row could only ever describe the weapon; and the
+	// name needs its own full-width row because the label column cannot hold the longest skill
+	// names. Both rows of a pair are coloured by damage type, which is what lets the name explain
+	// the number.
+	{ "", []() { return StyledText { ReadiedSlotColor(true), GetReadiedSlotName(true) }; },
+	    nullptr, CharRowGroupGap, CharRowExtra::FullWidthText },
+	{ N_("Damage"), []() { return GetReadiedSlotDamage(/*leftButton=*/true); } },
+	{ "", []() { return StyledText { ReadiedSlotColor(false), GetReadiedSlotName(false) }; },
+	    nullptr, CharRowGroupGap, CharRowExtra::FullWidthText },
+	{ N_("Damage"), []() { return GetReadiedSlotDamage(/*leftButton=*/false); } },
 
 	{ N_("Resist magic"),
 	    []() { return GetResistInfo(InspectPlayer->_pMagResist); },
@@ -715,6 +818,16 @@ void DrawRow(const Surface &content, size_t index)
 	if (top + CharRowHeight <= 0 || top >= CharContentSize.height)
 		return; // entirely scrolled out - skip the work, the clip would have hidden it anyway
 
+	if (row.extra == CharRowExtra::FullWidthText) {
+		// Spans label column, value columns and button column - the one row shape that can hold any
+		// skill name without measuring it first.
+		const StyledText text = row.value();
+		DrawString(content, text.text,
+		    { { CharLabelColumnX, top }, { CharContentRightLimit - CharLabelColumnX, CharRowHeight } },
+		    { UiFlags::VerticalCenter | text.style | CharTextShadow, text.spacing });
+		return;
+	}
+
 	if (row.label[0] != '\0') {
 		DrawString(content, LanguageTranslate(row.label),
 		    { { CharLabelColumnX, top }, { CharLabelColumnWidth, CharRowHeight } },
@@ -799,6 +912,16 @@ void DrawStatButtons(const Surface &content)
 std::string GetReadiedSlotDamageText(bool leftButton)
 {
 	return GetReadiedSlotDamage(leftButton).text;
+}
+
+std::string GetReadiedSlotNameText(bool leftButton)
+{
+	return GetReadiedSlotName(leftButton);
+}
+
+UiFlags GetReadiedSlotColor(bool leftButton)
+{
+	return ReadiedSlotColor(leftButton);
 }
 
 void LoadCharPanel()

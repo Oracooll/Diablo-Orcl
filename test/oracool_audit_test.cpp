@@ -7735,12 +7735,76 @@ TEST(OracoolCharPanel, EachMouseButtonReportsItsOwnDamageSource)
 	// 4. Everything with no damage says so, rather than borrowing the weapon's number.
 	player._pRSpell = SpellID::TownPortal;
 	EXPECT_EQ(GetReadiedSlotDamageText(false), "-") << "a utility spell has no damage to report";
+	// A heal USED to be a dash here, because the row could only be labelled "damage" and a number
+	// under that label would have been the wrong number. The colour palette (2026-08-31) removed
+	// that constraint: green says "healing" on its own, so the numbers can be shown after all.
+	// Pinned in OracoolCharPanel.DamageFieldsAreColouredByDamageType.
+	player._pSplLvl[static_cast<size_t>(SpellID::Healing)] = 3;
 	player._pRSpell = SpellID::Healing;
-	EXPECT_EQ(GetReadiedSlotDamageText(false), "-")
-	    << "a heal is not damage - a number under this label would be the wrong number";
+	EXPECT_NE(GetReadiedSlotDamageText(false), "-") << "a heal reports its numbers, in green";
+	player._pRSpell = SpellID::TownPortal;
 
 	// The two slots are independent, which is the whole point of there being two rows.
 	player._pLRSpell = SpellID::Invalid;
 	EXPECT_EQ(GetReadiedSlotDamageText(true), weapon);
 	EXPECT_EQ(GetReadiedSlotDamageText(false), "-");
+}
+
+// User request, 2026-08-31: colour the damage fields by damage type so what a skill does is legible
+// at a glance - "White for Physical, Blue for Cold, Red for Fire, Yellow for Lightning, maybe Green
+// for Healing abilities."
+//
+// Blue is MAGIC here, not cold, because this engine has no cold damage: DamageType is Physical,
+// Fire, Lightning, Magic and Acid. The type itself is derived from the missile the spell throws
+// rather than tabulated in the panel, so this test pins the MAPPING with spells whose type is not
+// in doubt - Firebolt is Fire and Bone Spirit is Magic in misdat.cpp.
+TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 50;
+	player._pIMinDam = 10;
+	player._pIMaxDam = 20;
+
+	const struct {
+		SpellID spell;
+		UiFlags color;
+		const char *why;
+	} palette[] = {
+		{ SpellID::Invalid, UiFlags::ColorWhite, "the plain weapon swing is physical" },
+		{ SpellID::Zeal, UiFlags::ColorWhite, "a melee skill swings the weapon, so it is physical too" },
+		{ SpellID::Firebolt, UiFlags::ColorRed, "fire" },
+		{ SpellID::Lightning, UiFlags::ColorOracoolYellow, "lightning" },
+		{ SpellID::BoneSpirit, UiFlags::ColorBlue, "magic - which is what blue means here, there being no cold" },
+		{ SpellID::Healing, UiFlags::ColorOracoolGreen, "healing" },
+	};
+
+	for (const auto &entry : palette) {
+		player._pRSpell = entry.spell;
+		EXPECT_EQ(GetReadiedSlotColor(/*leftButton=*/false), entry.color) << entry.why;
+	}
+
+	// The name row names what is on the button, so the colour has something to explain.
+	player._pRSpell = SpellID::Firebolt;
+	EXPECT_NE(GetReadiedSlotNameText(false).find("Firebolt"), std::string::npos)
+	    << "the name row must name the readied spell: " << GetReadiedSlotNameText(false);
+	player._pRSpell = SpellID::Invalid;
+	EXPECT_NE(GetReadiedSlotNameText(false).find("Attack"), std::string::npos)
+	    << "an empty slot is the basic attack, and says so rather than reading as unset";
+
+	// Both rows of a pair share one colour, so the name always explains its own number.
+	player._pLRSpell = SpellID::Firebolt;
+	EXPECT_EQ(GetReadiedSlotColor(true), UiFlags::ColorRed);
+	EXPECT_EQ(GetReadiedSlotColor(false), UiFlags::ColorWhite)
+	    << "the two buttons are colored independently";
+
+	// And a heal now reports real numbers instead of the dash it had to show before the palette.
+	player._pSplLvl[static_cast<size_t>(SpellID::Healing)] = 3;
+	player._pRSpell = SpellID::Healing;
+	EXPECT_NE(GetReadiedSlotDamageText(false), "-")
+	    << "green makes a heal's numbers legible as healing, so it no longer has to hide them";
 }

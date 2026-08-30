@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "DiabloUI/ui_flags.hpp" // UiFlags - the readied-slot rows are coloured by damage type
 #include "engine/clx_sprite.hpp"
 #include "engine/surface.hpp"
 
@@ -63,6 +64,22 @@ void ResetCharacterSheetScroll();
  * it is to read the panel off a screenshot.
  */
 std::string GetReadiedSlotDamageText(bool leftButton);
+
+/**
+ * @brief The name row's text for one mouse button's slot - "Left: Firebolt".
+ *
+ * Exported alongside the damage text so the test can check the two rows describe the same thing.
+ */
+std::string GetReadiedSlotNameText(bool leftButton);
+
+/**
+ * @brief The colour BOTH of a button's rows are drawn in, keyed to the damage type.
+ *
+ * Exported for the test that pins the palette. The colour is the feature - it is what tells a
+ * player at a glance that a number is fire rather than physical - so it needs pinning like any
+ * other output, and a screenshot is the only other way to see it.
+ */
+UiFlags GetReadiedSlotColor(bool leftButton);
 
 extern OptionalOwnedClxSpriteList pChrButtons;
 
