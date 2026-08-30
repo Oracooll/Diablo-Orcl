@@ -49,6 +49,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Use-before-assignment is a silent empty string in PowerShell, and that is exactly how this script
+# lost its per-run isolation: the oracool verification list was named "oracool_verify_$runId.txt"
+# twenty-one lines BEFORE $runId was assigned, so every concurrent packaging job wrote and deleted
+# one shared %TEMP%\oracool_verify_.txt - reintroducing the very race the run id was added to end
+# (external audit BR-01, 2026-08-30). Strict mode turns that class of mistake into an immediate
+# error instead of a shared temp path.
+Set-StrictMode -Version Latest
+
+# ONE identity for the whole run, established before anything is named after it. UNIQUE per run
+# rather than per version (external audit of v1.9.92, finding 9): a fixed
+# `oracool-package-$version` path is recursively deleted before staging, so two packaging jobs for
+# the same version - a CI run and a shell, or two shells - would delete each other's staging tree
+# mid-build. The run id also makes an interrupted run's leftovers identifiable rather than shared.
+$runId = [guid]::NewGuid().ToString('N').Substring(0, 12)
 
 function Fail($message) {
     Write-Host ''
@@ -219,11 +233,6 @@ try {
 # --- Stage -------------------------------------------------------------------------------------
 
 $name = "DiabloOrcl-v$version-win64"
-# UNIQUE per run, not per version (external audit of v1.9.92, finding 9). A fixed
-# `oracool-package-$version` path is recursively deleted before staging, so two packaging jobs for
-# the same version - a CI run and a shell, or two shells - would delete each other's staging tree
-# mid-build. The run id also makes an interrupted run's leftovers identifiable rather than shared.
-$runId = [guid]::NewGuid().ToString('N').Substring(0, 12)
 $stage = Join-Path ([System.IO.Path]::GetTempPath()) "oracool-package-$version-$runId"
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 $target = Join-Path $stage $name
@@ -304,10 +313,36 @@ try {
     Remove-Item $zipTemp -Force -ErrorAction SilentlyContinue
     Fail "the zip that was just written cannot be opened: $($_.Exception.Message)"
 }
+# The NAMES, not just how many of them (external audit BR-02, 2026-08-30). The comment above has
+# claimed since v1.9.97 that the entry list is compared with staging; only the count ever was. A zip
+# missing one file and carrying one unexpected file has the right count and passed - so did a
+# duplicated entry paired with a missing one, and so did a wrong top-level prefix.
+#
+# Compress-Archive on a directory prefixes every entry with that directory's name, so the expected
+# FullName is "$name/<relative path>". Separators are normalised because the zip uses '/' and
+# Get-ChildItem reports '\'.
+$stagedEntries = @($staged | ForEach-Object {
+    ($name + '/' + $_.FullName.Substring($target.Length + 1)) -replace '\\', '/'
+})
+$zipNormalised = @($zipEntries | ForEach-Object { $_ -replace '\\', '/' })
+
+$missing = @($stagedEntries | Where-Object { $zipNormalised -notcontains $_ })
+$unexpected = @($zipNormalised | Where-Object { $stagedEntries -notcontains $_ })
+$duplicates = @($zipNormalised | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
+
+if ($missing.Count -gt 0 -or $unexpected.Count -gt 0 -or $duplicates.Count -gt 0) {
+    Remove-Item $zipTemp -Force -ErrorAction SilentlyContinue
+    $detail = ''
+    if ($missing.Count -gt 0) { $detail += "`n  missing ($($missing.Count)): " + (($missing | Select-Object -First 10) -join ', ') }
+    if ($unexpected.Count -gt 0) { $detail += "`n  unexpected ($($unexpected.Count)): " + (($unexpected | Select-Object -First 10) -join ', ') }
+    if ($duplicates.Count -gt 0) { $detail += "`n  duplicated ($($duplicates.Count)): " + (($duplicates | Select-Object -First 10) -join ', ') }
+    Fail "the zip's entries do not match what was staged:$detail"
+}
 if ($zipEntries.Count -ne $staged.Count) {
     Remove-Item $zipTemp -Force -ErrorAction SilentlyContinue
     Fail "the zip holds $($zipEntries.Count) files but $($staged.Count) were staged"
 }
+Write-Host "  zip entries match staging by name ($($stagedEntries.Count) files)"
 
 # ATOMIC REPLACE, not delete-then-move. The old shape deleted the published zip and then moved the
 # partial onto its name, and the comment above called that "either the previous zip or a complete
