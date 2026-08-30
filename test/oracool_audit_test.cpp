@@ -7611,3 +7611,36 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	EXPECT_FALSE(oracool::IsEventLogOpen())
 	    << "the log is still open at the start of the next game";
 }
+
+
+// Audit, 2026-08-30. Telemetry's time-to-kill clocks are keyed by monster SLOT, and slots are reused
+// by a different monster on every level. A monster wounded but never killed leaves its clock
+// running, so the next occupant of that slot was credited with the elapsed time as its fight length.
+//
+// A ten-minute sanity filter in TelemetryRecordKill has caught the worst of these since 2026-08-16.
+// Only the worst: a stale clock under ten minutes logs a wrong fight length that LOOKS plausible, so
+// it survives into the balance CSV rather than being discarded - and that file is the tuning data
+// this fork balances from, which makes a plausible wrong number the expensive kind.
+TEST(OracoolAudit, LevelChangeClearsTelemetryKillClocks)
+{
+	sgOptions.Oracool.balanceTelemetry.SetValue(true);
+
+	// Monsters is a fixed array, not a vector - slot 0 is enough, and getId() reads back as 0.
+	Monsters[0] = {};
+	Monster &monster = Monsters[0];
+
+	oracool::TelemetryResetLevelTimers();
+	ASSERT_FALSE(oracool::TelemetryHasRunningKillClock(monster))
+	    << "test setup: the reset left a clock running";
+
+	oracool::TelemetryRecordFirstHit(monster);
+	ASSERT_TRUE(oracool::TelemetryHasRunningKillClock(monster))
+	    << "test setup: no clock started, so the reset below would prove nothing";
+
+	// The level change.
+	oracool::TelemetryResetLevelTimers();
+
+	EXPECT_FALSE(oracool::TelemetryHasRunningKillClock(monster))
+	    << "a kill clock survived the level change, so the next monster in this slot is credited "
+	       "with the previous one's elapsed time";
+}

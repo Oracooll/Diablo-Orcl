@@ -1,5 +1,6 @@
 #include "oracool/telemetry.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <ctime>
 
@@ -107,6 +108,20 @@ std::string TelemetryEscapeCsvField(const std::string &field)
 	}
 	escaped += '"';
 	return escaped;
+}
+
+void TelemetryResetLevelTimers()
+{
+	// Unconditional - NOT gated on TelemetryEnabled(). A clock started while telemetry was on must
+	// not survive being switched off and back on, or the first kill after that logs a fight length
+	// measured from a different level.
+	std::fill(std::begin(FirstHitAtMs), std::end(FirstHitAtMs), 0U);
+}
+
+bool TelemetryHasRunningKillClock(const Monster &monster)
+{
+	const size_t id = static_cast<size_t>(monster.getId());
+	return id < MaxMonsters && FirstHitAtMs[id] != 0;
 }
 
 void TelemetryRecordFirstHit(const Monster &monster)

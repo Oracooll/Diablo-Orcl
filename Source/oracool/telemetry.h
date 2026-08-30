@@ -61,6 +61,24 @@ struct Item;
 namespace devilution::oracool {
 
 /** @brief Notes the first time @p monster takes player damage, starting its time-to-kill clock. */
+/**
+ * @brief Clears every running time-to-kill clock. Called when a level's monsters are rebuilt.
+ *
+ * The clocks are keyed by monster SLOT, and slots are reused by different monsters on every level.
+ * A monster wounded but never killed leaves its clock running, and the next occupant of that slot
+ * was then credited with the elapsed time as its fight length.
+ */
+void TelemetryResetLevelTimers();
+
+/**
+ * @brief Whether a time-to-kill clock is currently running for @p monster's slot.
+ *
+ * Exported so the reset above can be tested on what it actually does. Without it the only
+ * observable is a row in a CSV, and a test that cannot see the clock cannot tell a cleared one from
+ * one that merely has not been read yet.
+ */
+bool TelemetryHasRunningKillClock(const Monster &monster);
+
 void TelemetryRecordFirstHit(const Monster &monster);
 
 /** @brief Appends a kill row (and closes the monster's time-to-kill clock). */

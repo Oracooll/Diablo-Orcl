@@ -3535,6 +3535,15 @@ void InitLevelMonsters()
 	monstimgtot = 0;
 	// The scaled sheets are views onto sprite data that is about to be replaced, so they go first.
 	oracool::ClearMonsterScaleCache();
+	// So are the telemetry kill clocks, which are keyed by monster SLOT - and the slots are about to
+	// be handed to different monsters. A clock left running by a monster that was wounded and never
+	// killed would otherwise be read as the next occupant's time-to-kill.
+	//
+	// The ten-minute sanity filter in TelemetryRecordKill has caught the worst of these since
+	// 2026-08-16, but only the worst: a stale clock UNDER ten minutes still logs a wrong fight
+	// length, and it looks plausible, so it survives into the balance CSV instead of being thrown
+	// away (audit, 2026-08-30). Clearing them here removes the class rather than its tail.
+	oracool::TelemetryResetLevelTimers();
 
 	for (CMonster &levelMonsterType : LevelMonsterTypes) {
 		levelMonsterType.placeFlags = 0;
