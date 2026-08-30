@@ -145,9 +145,10 @@ $ws.Cells.Item(1,1).Font.Size = 13
 $ws.Cells.Item(2,1).Value2 = "Rank columns are live formulas - base + per-rank x (rank - 1), the Scaled() shape from class_tree.cpp. Edit Base or Per extra rank and they recalculate."
 $ws.Cells.Item(2,1).Font.Italic = $true
 
-$names  = @('Skill','Class','Kind','Tier','Unlocks at level','Effect channel','Base (rank 1)','Per extra rank')
-$widths = @(24,11,9,5,9,24,10,10)
+$names  = @('Skill','Class','Kind','Tier','Unlocks at level','Max rank','Reachable at level 99','Effect channel','Base (rank 1)','Per extra rank')
+$widths = @(24,11,9,5,9,8,10,24,10,10)
 foreach ($n in $RANKS) { $names += "Rank $n"; $widths += 8 }
+$names += 'At the reachable max'; $widths += 11
 $names += 'Aura radius (tiles)'; $widths += 30
 $names += 'Conditions and caveats'; $widths += 55
 Set-Header $ws 4 $names $widths
@@ -162,16 +163,26 @@ foreach ($sk in $W.skills) {
   # were a channel. Re-wrap when the first element is not itself an array.
   $chans = @($SCALED[$sk.name])
   if ($chans[0] -isnot [System.Array]) { $chans = @(, $chans) }
+  # The two ceilings, and they are different questions. maxRank is the skill's OWN cap - 98 unless
+  # the table declares otherwise, 5 for the Monk's rows, 1 for the Passive Skills pages. Reachable
+  # is what the Rule of Rangs actually permits at the level cap: rank R demands character level
+  # tierLevel + R - 1, so at level 99 R stops at 100 - tierLevel, and only a tier-1 skill can ever
+  # touch 98. Both are shown because a player planning a build needs the smaller of them.
+  $cap = [int]$sk.maxRank
+  $reach = [Math]::Min($cap, 100 - $TIER[$sk.tier])
   foreach ($ch in $chans) {
     $chan = $ch[0]; $base = [int]$ch[1]; $per = [int]$ch[2]; $cond = $ch[3]
     $flat = ($base -eq 0 -and $per -eq 0)
     $rowIdx = 5 + $rows.Count
-    $row = @($sk.name, $sk.class, $sk.kind, ($sk.tier + 1), $TIER[$sk.tier], $chan)
+    $row = @($sk.name, $sk.class, $sk.kind, ($sk.tier + 1), $TIER[$sk.tier], $cap, $reach, $chan)
     $row += if ($flat) { 'n/a' } else { $base }
     $row += if ($flat) { 'n/a' } else { $per }
     foreach ($n in $RANKS) {
-      $row += if ($flat) { '-' } else { "=`$G$rowIdx+`$H$rowIdx*($n-1)" }
+      # Blank past the ceiling. A "Rank 20" figure on a row capped at 5 is a number for a rank that
+      # cannot exist, and the old sheet printed one for every such row.
+      $row += if ($flat -or $n -gt $reach) { '-' } else { "=`$I$rowIdx+`$J$rowIdx*($n-1)" }
     }
+    $row += if ($flat) { '-' } else { "=`$I$rowIdx+`$J$rowIdx*(`$G$rowIdx-1)" }
     $row += if ($sk.kind -eq 'Aura') { '4 at 1 pt, +1 every 2 pts, caps at 8 (at 9 pts)' } else { '-' }
     $row += $cond
     $rows += ,$row
@@ -188,8 +199,8 @@ $ws2.Cells.Item(1,1).Font.Bold = $true
 $ws2.Cells.Item(1,1).Font.Size = 13
 $ws2.Cells.Item(2,1).Value2 = "Damage formulas are GetDamageAmtAtLevel (missiles.cpp) verbatim. 'does not scale with spell level' means extra levels cut the mana cost and nothing else."
 $ws2.Cells.Item(2,1).Font.Italic = $true
-$n2 = @('Spell','Role','Book level band','Magic required','Mana at level 1','Mana saved per level','Mana floor','Damage formula','Damage per spell level','Missiles')
-$w2 = @(22,13,9,9,10,10,8,48,28,22)
+$n2 = @('Spell','Role','Book level band','Max spell level','Reachable at level 99','Magic required','Mana at level 1','Mana saved per level','Mana floor','Damage formula','Damage per spell level','Missiles')
+$w2 = @(22,13,9,9,10,9,10,10,8,48,28,22)
 Set-Header $ws2 4 $n2 $w2
 
 $rows2 = @()
@@ -199,6 +210,12 @@ foreach ($sp in ($W.spells | Sort-Object @{e={$_.role -ne 'book spell'}}, @{e={i
     $(if ($sp.name) { $sp.name } else { $sp.id }),
     $sp.role,
     $(if ($sp.band) { $sp.band } else { '-' }),
+    98,
+    # Same Rule of Rangs the tree obeys, from the spell's BAND instead of a tier:
+    # SpellRankRequiredLevel = band + rank - 1, so rank stops at 100 - band at the level cap.
+    # Only a band-1 spell can reach the 98 ceiling. Blank for anything with no band - the class
+    # skills, the retired rows and Town Portal are not raised by books at all.
+    $(if ($sp.band) { [Math]::Min(98, 100 - $sp.band) } else { '-' }),
     $sp.minInt,
     $(if ($sp.mana -eq 255) { 'all mana' } else { $sp.mana }),
     $(if ($sp.manaAdj) { $sp.manaAdj } else { '-' }),
@@ -219,12 +236,13 @@ $ws3.Cells.Item(1,1).Font.Bold = $true
 $ws3.Cells.Item(1,1).Font.Size = 13
 $ws3.Cells.Item(2,1).Value2 = "'Built' is the implemented flag in class_tree.cpp. An unbuilt row is listed and described in game and takes no points - it is not a gap in this sheet."
 $ws3.Cells.Item(2,1).Font.Italic = $true
-$n3 = @('Skill','Class','Kind','Page','Tier','Unlocks at level','Built','Spell slot','Description')
-$w3 = @(26,11,9,5,5,9,7,18,90)
+$n3 = @('Skill','Class','Kind','Page','Tier','Unlocks at level','Max rank','Built','Spell slot','Description')
+$w3 = @(26,11,9,5,5,9,8,7,18,90)
 Set-Header $ws3 4 $n3 $w3
 $rows3 = @()
 foreach ($sk in ($W.skills | Sort-Object class, page, tier, column)) {
   $rows3 += ,@($sk.name, $sk.class, $sk.kind, ($sk.page + 1), ($sk.tier + 1), $TIER[$sk.tier],
+               [int]$sk.maxRank,
                $(if ($sk.implemented) { 'yes' } else { 'no' }),
                $(if ($sk.spell -eq 'Invalid') { '-' } else { $sk.spell }),
                $sk.description)
@@ -244,6 +262,12 @@ $notes = @(
   @('Where the numbers come from','Nothing here is estimated. The inventory is parsed out of class_tree.cpp and spelldat.cpp (via wiki/data.js, which tools/BuildWiki.ps1 generates). The per-rank effects are transcribed from ApplyAura, ApplyPassive and ProcessClassTreeTick in Source/oracool/class_tree.cpp. Spell damage is GetDamageAmtAtLevel in Source/missiles.cpp; mana is GetManaAmount in Source/spells.cpp; the aura radius is AuraRadiusForPoints in Source/oracool/aura_field.cpp.'),
   @('The rank formula','Scaled(points, base, perPoint) = base + perPoint x (points - 1). The FIRST point buys the base; each point after it adds perPoint. Nothing invested means the skill is inert.'),
   @('Aura radius','AuraRadiusForPoints(p) = min(4 + (p-1)/2, 8), integer division. Four tiles at one point, one more tile every SECOND point, capped at eight - which is reached at nine points. Every aura shares this; it is the only quantity all of them scale by.'),
+  @('The ceiling is 98, and you get 98 points',
+    'MaxSpellLevel and MaxTreeInvestment are both 98, and deliberately the same number: the level cap is 99 and you earn one skill point per level from 2 to 99, so 98 is EXACTLY the whole pool a character can ever earn. The cap says "everything you have" rather than imposing a limit of its own - which also means maxing one skill spends your entire lifetime allocation, and no character can have two skills at 98.'),
+  @('Two of the 273 rows have smaller caps',
+    'The Max rank column carries the skill''s own ceiling. 142 rows use the 98 default; the Monk''s 18 rows are capped at 5; and 113 rows are capped at 1 - those are the Passive Skills pages, which take no points at all and are chosen by SLOT rather than bought. A rank column past a row''s ceiling reads "-" rather than a figure for a rank that cannot exist.'),
+  @('What is actually reachable is lower',
+    'The Rule of Rangs means rank R demands character level tierLevel + R - 1, so at the level cap of 99 a skill stops at 100 - tierLevel whatever its own ceiling says. Tier 1 reaches 98; tier 2 stops at 94, tier 3 at 88, tier 4 at 82, tier 5 at 76, tier 6 at 70, and tier 7 at 64. ONLY a tier-1 skill can ever touch the 98 cap. Book spells obey the same rule from their band instead of a tier, so a band-30 spell reaches 70. The Reachable at level 99 column is the smaller of the two, which is the number a build actually has to plan against.'),
   @('The level requirement climbs','A skill''s tier sets its floor (tier 1 = level 1, then 6, 12, 18, 24, 30, 36). Each rank after the first costs one more character level: RankRequiredLevel(tierLevel, rank) = tierLevel + rank - 1. A tier-1 skill takes its tenth point at level 10, and a tier-7 skill takes its tenth at 45.'),
   @('Spell mana','Mana falls by the spell''s own manaAdj for every level above 1, down to the floor in the Mana floor column. Firebolt halves that saving. Rogue, Monk and Bard pay 25% less overall; a Hellfire Sorcerer pays half.'),
   @('ScaleSpellEffect','ScaleSpellEffect(base, sl) adds base/8 once per spell level - about +12.5% compounding, with integer truncation at every step. Only the spells whose formula shows Scale(...) grow with spell level at all.'),

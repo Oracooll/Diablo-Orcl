@@ -176,7 +176,11 @@ $tree = Read-SourceFile 'oracool/class_tree.cpp'
 $skills = New-Object System.Collections.ArrayList
 $classMap = @{ 'Pal' = 'Paladin'; 'Bar' = 'Barbarian'; 'Sor' = 'Sorcerer'; 'Rog' = 'Rogue'; 'Bar_' = 'Barbarian'; 'Brd' = 'Bard'; 'Mnk' = 'Monk' }
 $treeBody = $tree.Substring($tree.IndexOf('const ClassTreeSkillData Skills['))
-$rowPattern = '\{\s*N_\("([^"]*)"\),\s*N_\("([^"]*)"\),\s*(\w+),\s*(\d+),\s*(\d+),\s*(\d+),\s*Kind::(\w+),\s*SpellID::(\w+),\s*(true|false)'
+# The trailing maxRank is OPTIONAL and that is the table's own convention, not sloppiness: 142 of
+# the 273 rows omit it, which aggregate initialisation leaves at 0, and ClassTreeMaxRank reads 0 as
+# "the usual cap" (MaxTreeInvestment). So the group has to be optional here or those 142 rows stop
+# matching entirely and vanish from the wiki.
+$rowPattern = '\{\s*N_\("([^"]*)"\),\s*N_\("([^"]*)"\),\s*(\w+),\s*(\d+),\s*(\d+),\s*(\d+),\s*Kind::(\w+),\s*SpellID::(\w+),\s*(true|false)(?:\s*,\s*(\d+))?\s*\}'
 foreach ($m in [regex]::Matches($treeBody, $rowPattern)) {
     $cls = $m.Groups[3].Value
     $className = $cls
@@ -191,6 +195,10 @@ foreach ($m in [regex]::Matches($treeBody, $rowPattern)) {
             kind        = $m.Groups[7].Value
             spell       = $m.Groups[8].Value
             implemented = ($m.Groups[9].Value -eq 'true')
+            # The CAP, already resolved - a declared 0 means MaxTreeInvestment, so readers never
+            # have to know that convention. 1 marks the Passive Skills rows, which take no points
+            # at all and are chosen by slot; 5 is the Monk's.
+            maxRank     = $(if ($m.Groups[10].Success -and [int]$m.Groups[10].Value -gt 0) { [int]$m.Groups[10].Value } else { 98 })
         })
 }
 
