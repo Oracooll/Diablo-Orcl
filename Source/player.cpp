@@ -47,6 +47,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/class_tree.h"
+#include "oracool/readied_spells.h"
 #include "oracool/run_toggle.h"
 #include "oracool/skill_points.h"
 #include "oracool/skill_sounds.h"
@@ -2510,6 +2511,13 @@ void CreatePlayer(Player &player, HeroClass c)
 
 	// Initializing the hotkey bindings to no selection
 	std::fill(player._pSplHotKey, player._pSplHotKey + NumHotkeys, SpellID::Invalid);
+
+	// The last character's mouse buttons, where they still make sense on this one (user,
+	// 2026-08-30). AFTER the class defaults above, so a first-ever Sorcerer still starts on
+	// Firebolt and a remembered byte only overrides it when this character can actually use what it
+	// names - UnpackReadiedSpell leaves the slot alone otherwise, which is what saves this from
+	// needing a class check of its own.
+	oracool::ApplyRememberedReadiedSpells(player);
 
 	PlayerWeaponGraphic animWeaponId = PlayerWeaponGraphic::Unarmed;
 	switch (c) {

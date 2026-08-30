@@ -1,4 +1,5 @@
 #include "oracool/auto_save.h"
+#include "oracool/readied_spells.h"
 
 #include <string>
 #include <algorithm>
@@ -197,6 +198,16 @@ void ScheduleAutoSaveForSkillChange()
 	// threw away a build the player had just spent minutes arranging.
 	if (*sgOptions.Oracool.autoSaveOnSkillChange)
 		ScheduleAfterSeconds(0);
+	// The two mouse buttons are remembered for the NEXT character here rather than at each of the
+	// half-dozen places that can change them (user, 2026-08-30: "remember what skills/spells have
+	// been assigned to lmb/rmb and load them automatically on next new game"). Every one of those
+	// places already calls this - that is what makes it the one hook that cannot be forgotten by
+	// the next assignment path someone adds.
+	//
+	// Unconditional, unlike the save above: this is a preference, not a save, and a player with
+	// autosave-on-skill-change turned off has not asked to stop being remembered.
+	if (MyPlayer != nullptr)
+		RememberReadiedSpells(*MyPlayer);
 }
 
 void ScheduleAutoSaveForEquipmentChange()

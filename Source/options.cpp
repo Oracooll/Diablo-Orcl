@@ -1449,6 +1449,8 @@ OracoolOptions::OracoolOptions()
     , autoGemPickup("Auto Pickup Gems", OptionEntryFlags::None, N_("Auto Pickup Gems"), N_("Gems are automatically collected when in close proximity to the player."), true)
     , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 2, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
     , uniqueDropChancePercent("Unique Drop Chance Percent", OptionEntryFlags::None, N_("Unique Drop Chance Percent"), N_("Scales the chance an eligible drop becomes a unique item. 100 is vanilla; lower narrows it."), 50, { 10, 25, 50, 75, 100 })
+    , lastReadiedSpellLeft("Last Readied Spell Left", OptionEntryFlags::Invisible, "Last Readied Spell Left", "The left-button skill a new character starts with, remembered from the last one.", 0, { })
+    , lastReadiedSpellRight("Last Readied Spell Right", OptionEntryFlags::Invisible, "Last Readied Spell Right", "The right-button skill a new character starts with, remembered from the last one.", 0, { })
     , championExtraDropChance("Champion Extra Drop Chance", OptionEntryFlags::None, N_("Champion Extra Drop Chance"), N_("Percent chance a champion monster rolls a SECOND item on death. 100 is always, which is what it used to be."), 25, { 0, 10, 25, 50, 75, 100 })
     , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
     , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Percent chance an eligible drop becomes a Primal item, checked before Buffed Unique."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
@@ -1531,6 +1533,8 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&rareItemDropChance,
 		&uniqueDropChancePercent,
 		&championExtraDropChance,
+		&lastReadiedSpellLeft,
+		&lastReadiedSpellRight,
 		&buffedUniqueItemDropChance,
 		&primalItemDropChance,
 		&griswoldPremiumRefresh,

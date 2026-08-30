@@ -3,6 +3,9 @@
 #include "player.h"
 #include "spells.h"
 
+#include "options.h"
+#include "oracool/oracool.h"
+
 namespace devilution::oracool {
 
 namespace {
@@ -57,6 +60,31 @@ void UnpackReadiedSpell(const Player &player, uint8_t packed, SpellID &spell, Sp
 		return;
 	spell = stored;
 	type = derived;
+}
+
+void RememberReadiedSpells(const Player &player)
+{
+	// Only the local player's choice is worth remembering, and only in single player - the options
+	// are one machine's, not one character's, and a remembered slot from someone else's hero would
+	// be a setting arriving from outside the game.
+	if (&player != MyPlayer || !IsSinglePlayer())
+		return;
+	sgOptions.Oracool.lastReadiedSpellLeft.SetValue(PackReadiedSpell(player._pLRSpell));
+	sgOptions.Oracool.lastReadiedSpellRight.SetValue(PackReadiedSpell(player._pRSpell));
+}
+
+void ApplyRememberedReadiedSpells(Player &player)
+{
+	if (!IsSinglePlayer())
+		return;
+	// AFTER the class defaults, deliberately: the Sorcerer's starting Firebolt is set by
+	// CreatePlayer and should be what a first-ever character gets. A remembered byte overwrites it
+	// only when it decodes to something this character can actually use, which is exactly the
+	// condition UnpackReadiedSpell already enforces - it leaves the slot alone otherwise.
+	UnpackReadiedSpell(player, static_cast<uint8_t>(*sgOptions.Oracool.lastReadiedSpellLeft),
+	    player._pLRSpell, player._pLRSplType);
+	UnpackReadiedSpell(player, static_cast<uint8_t>(*sgOptions.Oracool.lastReadiedSpellRight),
+	    player._pRSpell, player._pRSplType);
 }
 
 } // namespace devilution::oracool

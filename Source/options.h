@@ -825,6 +825,16 @@ struct OracoolOptions : OptionCategoryBase {
 	OptionEntryInt<int> uniqueDropChancePercent;
 	/** @brief Percent chance a champion (lesser-unique) monster rolls its SECOND drop. */
 	OptionEntryInt<int> championExtraDropChance;
+	/**
+	 * @brief Last readied LEFT-button slot, packed as one byte, carried to the next new character.
+	 *
+	 * In the options rather than the save because V1 starts a new game rather than continuing one:
+	 * a per-character record of this is written and then never read, the hero it belongs to being
+	 * gone by the time it would matter.
+	 */
+	OptionEntryInt<int> lastReadiedSpellLeft;
+	/** @brief Its right-button twin. */
+	OptionEntryInt<int> lastReadiedSpellRight;
 	OptionEntryInt<int> buffedUniqueItemDropChance;
 	OptionEntryInt<int> primalItemDropChance;
 	OptionEntryBoolean griswoldPremiumRefresh;
