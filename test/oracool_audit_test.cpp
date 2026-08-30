@@ -7448,3 +7448,135 @@ TEST(OracoolAudit, ZealToHitLadder)
 	player._pSkillInvestment[zeal] = 0;
 	player._pClass = HeroClass::Warrior;
 }
+
+// Audit, 2026-08-30. A runeword must fill its host EXACTLY (runewords.h: "Word length equals the
+// host socket count"), and a host's socket ceiling is its footprint in 28x28 backpack cells
+// (MaxSocketsForItem). So a word longer than any real base item of that slot can carry is dead
+// content: it is listed in the runeword book, it teaches itself on every rune, and it can never be
+// made.
+//
+// Nothing checked that the generated table and the base-item footprints agreed. They are produced
+// by different things - GenRunewords.ps1 and AllItemsList - so agreement was an assumption.
+TEST(OracoolAudit, EveryRunewordIsFormableOnSomeRealBaseItem)
+{
+	// The deepest socket ceiling any base item of each host actually offers.
+	std::map<oracool::RunewordHost, int> capacity;
+	std::map<oracool::RunewordHost, std::string> deepestItem;
+	for (int i = 0; i <= IDI_LAST; i++) {
+		const ItemData &data = AllItemsList[i];
+		const oracool::RunewordHost host = oracool::RunewordHostForItemType(data.itype);
+		if (host == oracool::RunewordHost::None)
+			continue;
+		// MaxSocketsForItem reads only _iCurs, so a bare Item carrying the base's cursor answers
+		// the same number a fully rolled one would.
+		devilution::Item probe {};
+		probe._iCurs = static_cast<int>(data.iCurs);
+		const int cells = oracool::MaxSocketsForItem(probe);
+		if (cells > capacity[host]) {
+			capacity[host] = cells;
+			deepestItem[host] = data.iName != nullptr ? data.iName : "(unnamed)";
+		}
+	}
+
+	ASSERT_GT(oracool::RunewordCount(), 0u) << "test setup: the runeword table is empty";
+
+	for (size_t i = 0; i < oracool::RunewordCount(); i++) {
+		const oracool::RunewordDefinition *word = oracool::RunewordAt(i);
+		ASSERT_NE(word, nullptr);
+		const auto host = static_cast<oracool::RunewordHost>(word->host);
+		EXPECT_LE(static_cast<int>(word->runeCount), capacity[host])
+		    << "runeword \"" << word->name << "\" needs " << int(word->runeCount)
+		    << " sockets, but the roomiest base item of that slot (" << deepestItem[host]
+		    << ") holds only " << capacity[host] << " - the word can never be completed";
+	}
+}
+
+// External audit UI-01 also claimed the XP bar "allows world clicks through it". Checked rather
+// than assumed: the bar sits in the band between the XP counter and the belt, and if that band is
+// already inside the HUD chrome rect then clicks on it are absorbed and there is nothing to fix.
+TEST(OracoolAudit, TheXpBarDoesNotLetClicksReachTheWorld)
+{
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	const bool savedPlate = *sgOptions.Oracool.hudPlateArt;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+
+	for (const bool plateArt : { false, true }) {
+		sgOptions.Oracool.hudPlateArt.SetValue(plateArt);
+		const char *mode = plateArt ? "plate art ON" : "plate art OFF (the default)";
+		const Rectangle bar = GetXPBarRect();
+		ASSERT_GT(bar.size.width, 0) << mode << ": empty bar rect";
+		ASSERT_GT(bar.size.height, 0) << mode << ": empty bar rect";
+
+		// Every corner, not just the centre - the failure would be an edge row hanging outside.
+		const Point corners[] = {
+			bar.position,
+			{ bar.position.x + bar.size.width - 1, bar.position.y },
+			{ bar.position.x, bar.position.y + bar.size.height - 1 },
+			{ bar.position.x + bar.size.width - 1, bar.position.y + bar.size.height - 1 },
+		};
+		for (const Point &p : corners) {
+			EXPECT_TRUE(oracool::IsPointOverHudChrome(p))
+			    << mode << ": (" << p.x << "," << p.y << ") on the XP bar is not HUD chrome, so a "
+			    << "click there walks the character";
+		}
+	}
+
+	sgOptions.Oracool.hudPlateArt.SetValue(savedPlate);
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+}
+
+// Audit, 2026-08-30. Levski's Roar keeps its grid and its open flag in file-local statics, so both
+// outlive a GAME - they live as long as the process. Nothing on the way out of a game closes
+// windows: "Main Menu" and "Exit Game" both funnel through GamemenuNewGame, which saves and clears
+// gbRunGame, and CloseLevskiRoar is deliberately allowed to REFUSE while the backpack is full.
+//
+// So the window stayed open, and full, into the next character started in the same session - which
+// showed them the previous character's items and let them walk off with them. FreeGame now calls
+// ResetLevskiRoarForNewGame; this pins that it really empties both.
+TEST(OracoolAudit, LeavingAGameDoesNotLeakLevskisGridToTheNextCharacter)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	*MyPlayer = {};
+
+	oracool::ResetLevskiRoarForNewGame(); // a known-clean start, whatever ran before
+	ASSERT_FALSE(oracool::IsLevskiRoarOpen()) << "test setup: the reset left the window open";
+
+	// A 1x1 item, built by hand - only the cursor matters, since the grid packs by footprint.
+	devilution::Item ring {};
+	ring._iCurs = ICURS_RING;
+	ring._itype = ItemType::Ring;
+	ring._iClass = ICLASS_MISC;
+	ring._iIdentified = true;
+
+	oracool::ToggleLevskiRoar();
+	ASSERT_TRUE(oracool::IsLevskiRoarOpen()) << "test setup: the window would not open";
+	int placed = 0;
+	for (int i = 0; i < oracool::LevskiGridSlots; i++) {
+		if (oracool::PlaceItemInLevskiGrid(ring))
+			placed++;
+	}
+	ASSERT_GT(placed, 0) << "test setup: nothing could be put in the grid, so this proves nothing";
+
+	// Leaving the game.
+	oracool::ResetLevskiRoarForNewGame();
+
+	EXPECT_FALSE(oracool::IsLevskiRoarOpen())
+	    << "the monument's window is still open at the start of the next game";
+
+	// And the grid is genuinely empty, not merely hidden: it must take a full load again.
+	oracool::ToggleLevskiRoar();
+	int placedAgain = 0;
+	for (int i = 0; i < oracool::LevskiGridSlots; i++) {
+		if (oracool::PlaceItemInLevskiGrid(ring))
+			placedAgain++;
+	}
+	EXPECT_EQ(placedAgain, placed)
+	    << "the grid took " << placedAgain << " items where a clean one takes " << placed
+	    << " - the previous character's items are still in it";
+
+	oracool::ResetLevskiRoarForNewGame();
+}

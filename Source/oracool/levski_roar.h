@@ -74,6 +74,16 @@ void ToggleLevskiRoar();
 /** @brief Closes the window and returns everything in the grid to the backpack. */
 void CloseLevskiRoar();
 
+/**
+ * @brief Clears the window and its grid outright, for game teardown. Returns nothing to anyone.
+ *
+ * The grid and the open flag are file-local statics, so they outlive a GAME - they live as long as
+ * the process. Leaving to the main menu closes no windows, and CloseLevskiRoar may refuse while the
+ * pack is full, so without this the next character started in the same session found this window
+ * already open holding the previous character's items (audit, 2026-08-30).
+ */
+void ResetLevskiRoarForNewGame();
+
 /** @brief Whether the recipe book popup is showing. Toggled from the window's own button. */
 bool IsLevskiRecipeBookOpen();
 

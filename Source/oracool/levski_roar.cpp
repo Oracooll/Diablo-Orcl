@@ -490,6 +490,29 @@ void ToggleLevskiRoar()
 	RecipeBookOpen = false;
 }
 
+void ResetLevskiRoarForNewGame()
+{
+	// Unconditional, and it does NOT try to give anything back - by the time this runs the player is
+	// being torn down and has already been saved, so a return would go nowhere.
+	//
+	// Audit, 2026-08-30. GridItems and WindowOpen are file-local statics, so they live for the whole
+	// PROCESS, not the game. Leaving a game does not close this window: "Main Menu" and "Exit Game"
+	// both funnel through GamemenuNewGame, which saves the character and clears gbRunGame without
+	// closing anything, and CloseLevskiRoar is allowed to REFUSE while the pack is full. So the
+	// window stayed open and the grid stayed full into the next character started in the same
+	// session - which showed them someone else's items and let them take them out.
+	//
+	// CloseLevskiRoar is attempted before the save (see GamemenuNewGame), so anything that fits in
+	// the backpack is kept and persisted. This is the backstop for what did not fit.
+	for (Item &slot : GridItems)
+		slot.clear();
+	for (int8_t &cell : GridCells)
+		cell = 0;
+	WindowOpen = false;
+	RecipeBookOpen = false;
+	RecipeBookScroll = 0;
+}
+
 void CloseLevskiRoar()
 {
 	if (!WindowOpen)

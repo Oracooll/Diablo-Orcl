@@ -214,6 +214,11 @@ void FreeGame()
 	oracool::SilenceAuraLoopForTransition();
 	// And the set-completion baseline describes a character who is no longer here.
 	oracool::ResetSetCompletionBaseline();
+	// So does anything left in the monument's grid. Both it and the window's open flag are statics
+	// that outlive the GAME rather than the process, and nothing on the way out of a game closes
+	// windows - so without this the next character started in the same session opened onto this
+	// window, already up, holding the previous character's items (audit, 2026-08-30).
+	oracool::ResetLevskiRoarForNewGame();
 
 	FreeMonsterHealthBar();
 	FreeXPBar();

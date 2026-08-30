@@ -14,6 +14,7 @@
 #include "init.h"
 #include "options.h"
 #include "oracool/auto_save.h"
+#include "oracool/levski_roar.h" // the monument's grid is handed back before the exit save
 #include "player.h"
 #include "utils/language.h"
 
@@ -137,6 +138,15 @@ void GamemenuNewGame(bool /*bActivate*/)
 	// MyPlayerIsDead, and saving after that would persist a quitting player rather than the one
 	// who was just playing. SaveOnExit() is single-player-only; multiplayer keeps its existing
 	// exit-path save in diablo.cpp.
+	// BEFORE the save, and before the loop below: the monument's grid is not save state, so whatever
+	// is sitting in it when the player leaves is gone. Closing here hands back everything the
+	// backpack has room for, and THAT is then persisted by the save on the next line - so leaving
+	// the game no longer costs the player items they had merely staged (audit, 2026-08-30).
+	//
+	// It may still refuse when the pack is full; FreeGame's ResetLevskiRoarForNewGame is the
+	// backstop that stops the remainder leaking into the next character.
+	oracool::CloseLevskiRoar();
+
 	oracool::SaveOnExit();
 
 	for (Player &player : Players) {
