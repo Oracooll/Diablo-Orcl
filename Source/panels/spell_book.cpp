@@ -25,6 +25,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/oracool.h"
 #include "oracool/ornate_border.h"
+#include "oracool/skill_picker.h" // the quick lists bind F-keys too
 #include "panels/spell_icons.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -1288,15 +1289,47 @@ void ClearSpellFromHotkeys(Player &player, SpellID spell)
 	}
 }
 
+int GetAbilityFKeyNumber(SpellID spell, bool leftButton)
+{
+	return AssignedFKeyNumber(spell, leftButton);
+}
+
 bool HandleAbilityFKey(size_t slot, bool shift)
 {
 	if (slot >= AbilityFKeyCount)
 		return false;
 	Player &me = *MyPlayer;
 
-	// Which button this press is about. Bare key = right, LShift+key = left (user, 2026-08-18).
-	SpellID *keys = shift ? me._pSplLHotKey : me._pSplHotKey;
-	SpellType *types = shift ? me._pSplLTHotKey : me._pSplTHotKey;
+	// Which button this press is about. Bare key = right, LShift+key = left (user, 2026-08-18) -
+	// EXCEPT while a quick list is open, where the open list names the button and shift has nothing
+	// left to say (user, 2026-08-30: "assignes/deassignes F1-F8 to that respective skill/spell in
+	// that respective skill slot (lmb/rmb)"). Holding shift over the LMB list must not silently
+	// write the RIGHT button's array.
+	const bool forLeft = oracool::IsSkillPickerOpen() ? oracool::IsSkillPickerForLeftButton() : shift;
+	SpellID *keys = forLeft ? me._pSplLHotKey : me._pSplHotKey;
+	SpellType *types = forLeft ? me._pSplLTHotKey : me._pSplTHotKey;
+
+	// A quick list is open: the key EDITS that list's binding, exactly as it edits the Abilities
+	// window's. Consumed either way - a bind key that fell through to casting mid-edit would ready
+	// a skill on the very button the player is in the middle of assigning.
+	if (oracool::IsSkillPickerOpen()) {
+		const SpellID spell = oracool::GetSkillPickerHoveredSpell();
+		if (!IsValidSpell(spell))
+			return true; // over an attack, an aura, or no cell at all - nothing a hotkey can hold
+		if (keys[slot] == spell) {
+			keys[slot] = SpellID::Invalid;
+			types[slot] = SpellType::Invalid;
+		} else {
+			// One key, one skill, one button (2026-08-18) - the same rule the Abilities window
+			// enforces, and the reason this sweeps both arrays before writing.
+			ClearSpellFromHotkeys(me, spell);
+			keys[slot] = spell;
+			types[slot] = BindingTypeFor(me, spell);
+		}
+		oracool::ScheduleAutoSaveForSkillChange();
+		RedrawEverything();
+		return true;
+	}
 
 	// With the window open, an F-key EDITS bindings rather than using them. The key is consumed even
 	// when nothing is hovered - a bind key that fell through to casting mid-edit would be worse than

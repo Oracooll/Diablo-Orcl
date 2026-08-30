@@ -46,6 +46,15 @@ constexpr size_t AbilityFKeyCount = 8;
  */
 bool HandleAbilityFKey(size_t slot, bool shift);
 
+/**
+ * @brief Which F-key @p spell sits on for @p leftButton's side, 1-8, or 0 for none.
+ *
+ * Exported for the quick lists, which bind these keys too and so have to show what is already bound
+ * - a picker that let you press F3 without saying F3 was taken would be a picker that silently
+ * moves bindings.
+ */
+int GetAbilityFKeyNumber(SpellID spell, bool leftButton);
+
 /** @brief Scrolls the current sheet by @p notches wheel steps, positive down. Clamped to the list. */
 void ScrollSpellBook(int notches);
 

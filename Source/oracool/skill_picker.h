@@ -74,4 +74,17 @@ bool CheckSkillPickerClick(Point mousePosition);
 /** @brief Scrolls the list by @p notches, for the mouse wheel. Only matters when it overflows. */
 void ScrollSkillPicker(int notches);
 
+/** @brief Which button the open picker binds. Only meaningful while IsSkillPickerOpen(). */
+bool IsSkillPickerForLeftButton();
+
+/**
+ * @brief The spell under the cursor as of the last draw, or SpellID::Invalid over none.
+ *
+ * For the F-key binding path (user, 2026-08-30): hovering an entry in a quick list and pressing
+ * F1-F8 binds that key to that skill, on the button the open picker belongs to. Attacks and auras
+ * carry no SpellID and so answer Invalid, which is what makes them unbindable rather than a
+ * special case at the call site.
+ */
+SpellID GetSkillPickerHoveredSpell();
+
 } // namespace devilution::oracool

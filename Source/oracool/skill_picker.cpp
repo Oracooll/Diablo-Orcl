@@ -36,6 +36,8 @@ bool PickerOpen = false;
 bool PickerForLeft = false;
 /** Pixels the list is scrolled by; only ever non-zero when the content outgrows the screen. */
 int PickerScroll = 0;
+/** The spell under the cursor as of the last draw - what an F-key press binds. Invalid over none. */
+SpellID HoveredPickerSpell = SpellID::Invalid;
 
 /** What one cell stands for. Three kinds because three different things draw and bind differently. */
 enum class EntryKind : uint8_t {
@@ -273,12 +275,24 @@ void OpenSkillPicker(bool forLeftButton)
 	PickerOpen = true;
 	PickerForLeft = forLeftButton;
 	PickerScroll = 0;
+	HoveredPickerSpell = SpellID::Invalid;
 }
 
 void CloseSkillPicker()
 {
 	PickerOpen = false;
 	PickerScroll = 0;
+	HoveredPickerSpell = SpellID::Invalid;
+}
+
+bool IsSkillPickerForLeftButton()
+{
+	return PickerForLeft;
+}
+
+SpellID GetSkillPickerHoveredSpell()
+{
+	return PickerOpen ? HoveredPickerSpell : SpellID::Invalid;
 }
 
 Rectangle GetSkillPickerRect()
@@ -339,6 +353,10 @@ void DrawSkillPicker(const Surface &out)
 	size_t trees = 0;
 	BuildEntries(player, entries, attacks, trees);
 	const size_t skills = attacks + trees;
+
+	// Cleared every frame, so moving off a cell un-hovers it. Without this an F-key would keep
+	// binding whatever the cursor last touched, long after it left the window's cells.
+	HoveredPickerSpell = SpellID::Invalid;
 
 	const Rectangle window = GetSkillPickerRect();
 	// Opaque backing first. The concept mock drew icons straight onto the dungeon and the world read
@@ -416,8 +434,24 @@ void DrawSkillPicker(const Surface &out)
 				        | UiFlags::VerticalCenter });
 			}
 
+			// The F-key badge, top-right, for THIS list's button only - the Abilities window shows
+			// both buttons in its two corners, but a quick list binds one button and showing the
+			// other's key here would invite pressing it in the wrong window.
+			if (const int fkey = GetAbilityFKeyNumber(entry.spell, PickerForLeft); fkey != 0) {
+				DrawString(out, StrCat("F", fkey),
+				    { { cell.position.x, cell.position.y },
+				        { IconSize, LevelBandHeight } },
+				    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignRight });
+			}
+
 			if (cell.contains(MousePosition)) {
 				DrawHoverOutline(out, cell);
+				// What an F-key press binds while this window is open (user, 2026-08-30: "we are
+				// making F1-F8 hotkeys assignable from the quicklists, not from the abilities
+				// windows"). Read from the draw for the same reason the Abilities window reads its
+				// own hover from the draw: the cell rects are laid out here, and a second copy of
+				// that walk is a second place for the two to disagree.
+				HoveredPickerSpell = entry.spell;
 				// The hover popup rides the existing cursor tooltip, which renders InfoString after
 				// every window in the draw order - so naming the entry here is the whole feature.
 				// CheckCursMove leaves InfoString alone while the cursor is over a floating window,
