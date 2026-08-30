@@ -378,21 +378,27 @@ TEST(Player, Zeal_StrikeCountLadder)
 	std::memset(paladin._pSkillInvestment, 0, sizeof(paladin._pSkillInvestment));
 	const auto zeal = static_cast<size_t>(GetPaladinSkillData(PaladinSkill::Zeal).spellId);
 
+	paladin._pISplLvlAdd = 0;
+	std::memset(paladin._pSplLvl, 0, sizeof(paladin._pSplLvl));
+
 	paladin._pLevel = 5;
 	EXPECT_EQ(ZealStrikeCount(paladin), 0) << "below the gate: no Zeal at all";
 	paladin._pLevel = 6;
-	EXPECT_EQ(ZealStrikeCount(paladin), 2) << "the gate buys the base burst";
+	EXPECT_EQ(ZealStrikeCount(paladin), 0) << "past the gate, but no point spent yet";
 	paladin._pLevel = 50;
-	EXPECT_EQ(ZealStrikeCount(paladin), 2) << "level alone must not add strikes";
+	EXPECT_EQ(ZealStrikeCount(paladin), 0) << "level alone must not add strikes";
 
+	// Skill levels 1, 3 and 5 each add a strike, on a base of one (user, 2026-08-30). Because Zeal
+	// unlocks at character level 6 and rank R wants character level 6 + R - 1, those three rungs are
+	// character levels 6, 8 and 10 - which is how the same ladder was first described.
 	const struct {
-		int invested;
+		int skillLevel;
 		int expected;
-	} ladder[] = { { 0, 2 }, { 1, 3 }, { 2, 4 }, { 3, 4 }, { 4, 4 }, { 6, 4 }, { 20, 4 } };
+	} ladder[] = { { 0, 0 }, { 1, 2 }, { 2, 2 }, { 3, 3 }, { 4, 3 }, { 5, 4 }, { 6, 4 }, { 20, 4 } };
 	for (const auto &step : ladder) {
-		paladin._pSkillInvestment[zeal] = static_cast<uint8_t>(step.invested);
+		paladin._pSkillInvestment[zeal] = static_cast<uint8_t>(step.skillLevel);
 		EXPECT_EQ(ZealStrikeCount(paladin), step.expected)
-		    << "with " << step.invested << " points invested";
+		    << "at Zeal skill level " << step.skillLevel;
 	}
 	paladin._pSkillInvestment[zeal] = 0;
 }

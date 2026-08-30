@@ -118,11 +118,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 0, 1, Kind::Active, SpellID::ShieldBash, true },
 	{ N_("Holy Bolt"), N_("A bolt of holy energy that sears the undead. Withdrawn: it collided with this engine's own Holy Bolt spell."),
 	    Pal, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
-	// Left describing the PRE-nerf ladder until 2026-08-30 (external audit GP-02): the v1.9.116
-	// change made it one point per strike to a cap of four, and this row still said a pair of points
-	// up to five. Two windows describing the same skill differently is worse than either being
-	// wrong alone, so this now matches paladin_skills.cpp word for word on the numbers.
-	{ N_("Zeal"), N_("Strike several times in one furious burst. Each point adds a strike, up to four, and every point adds +1% chance to hit."),
+	// Matches paladin_skills.cpp word for word on the numbers, deliberately: two windows describing
+	// one skill differently is worse than either being wrong alone, and this row has drifted twice.
+	{ N_("Zeal"), N_("Strike several times in one furious burst. Skill levels 1, 3 and 5 each add a strike, and every skill level adds +1% chance to hit."),
 	    Pal, 0, 1, 0, Kind::Active, SpellID::Zeal, true },
 	{ N_("Charge"), N_("Rush an enemy and land a running blow."),
 	    Pal, 0, 1, 1, Kind::Active, SpellID::Charge, true },

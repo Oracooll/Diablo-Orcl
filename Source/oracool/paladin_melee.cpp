@@ -26,12 +26,55 @@ std::optional<PaladinSkill> ArmedSkill;
 // first place: everything arrived at once and nothing came after.
 constexpr int MaxZealStrikes = 4;
 
-/** @brief The character level at which Zeal's second strike arrives. Its unlock level, by design. */
+/** @brief The character level Zeal itself unlocks at. A GATE, not a source of power - see below. */
 constexpr int ZealFirstUpgradeLevel = 6;
-/** @brief One more strike per point now, so the cap of four is reached at two points invested. */
-constexpr int ZealLevelsPerStrike = 1;
-/** @brief And every point buys this much to-hit, forever - the reason to keep investing past four. */
-constexpr int ZealToHitPercentPerPoint = 1;
+
+/**
+ * @brief The ladder, in SKILL levels (user, 2026-08-30):
+ *
+ *     at lvl 1 - +1 hit, +1% cth        at lvl 4 - +1% cth
+ *     at lvl 2 - +1% cth                at lvl 5 - +1 hit, +1% cth
+ *     at lvl 3 - +1 hit, +1% cth        at lvl 6 and onwards - +1% cth
+ *
+ * The base is ONE strike - a plain swing - so the rungs at skill level 1, 3 and 5 build it to two,
+ * three and four. Accuracy is paid at EVERY skill level including those three, and keeps being paid
+ * after the strikes stop.
+ *
+ * This is the same ladder as the earlier "2 hits at lvl 6, 3@8, 4@10", stated the other way round.
+ * Zeal unlocks at character level 6 and the Rule of Rangs wants character level 6 + R - 1 for rank
+ * R, so skill level 1 IS character level 6, skill 3 is character 8, and skill 5 is character 10.
+ * The two readings meet because of the standing rule the user gave with them: "all benefits from
+ * skills come from skill levels, not hero levels. Hero levels are just a gate to reaching higher
+ * skill levels."
+ *
+ * Skill level, not points invested: Player::GetSpellLevel adds _pISplLvlAdd and _pSplLvl on top of
+ * the investment, so an item granting +spell levels deepens Zeal exactly as investing would. That
+ * is what the standing rule is for.
+ */
+constexpr int ZealFirstStrikeRungSkillLevel = 1;
+constexpr int ZealStrikeRungSpacing = 2;
+/** @brief The skill level the last strike arrives at. Accuracy carries on past it, alone. */
+constexpr int ZealLastStrikeRungSkillLevel = ZealFirstStrikeRungSkillLevel
+    + (MaxZealStrikes - 2) * ZealStrikeRungSpacing;
+/** @brief Paid at every skill level, from the first - not only after the strikes stop. */
+constexpr int ZealToHitPercentPerSkillLevel = 1;
+
+static_assert(ZealLastStrikeRungSkillLevel == 5,
+    "the user's ladder puts the extra hits at skill levels 1, 3 and 5 - equivalently character "
+    "levels 6, 8 and 10. If the cap or the spacing moves the rungs move with it, and that is a "
+    "balance change to re-agree rather than to absorb silently");
+
+/**
+ * @brief Zeal's skill level - the one number both halves of the ladder read.
+ *
+ * Player::GetSpellLevel, not the raw investment: it adds item +spell levels and any book levels on
+ * top, which is what "all benefits from skills come from skill levels" asks for. Asked in one place
+ * so the strike ladder and the accuracy ladder cannot end up reading different numbers.
+ */
+int ZealSkillLevel(const Player &player)
+{
+	return player.GetSpellLevel(GetPaladinSkillData(PaladinSkill::Zeal).spellId);
+}
 
 /** @brief Follow-up swings still owed by the current Zeal chain. */
 int ZealChainLeft = 0;
@@ -226,25 +269,37 @@ int ZealStrikeCount(const Player &player)
 {
 	if (player._pLevel < ZealFirstUpgradeLevel)
 		return 0;
-	// Phase 2.1: the frame ladder is point-driven now (megaplan: "Zeal's frame ladder becomes
-	// point-driven rather than purely character-level-driven"). Unlocking buys the 2-strike burst;
-	// every ZealLevelsPerStrike points INVESTED in Zeal buy one more, up to the cap. A character
-	// who spreads their points elsewhere keeps the base burst - which also answers the telemetry
-	// watch on 5-hit Zeal being too strong for free.
-	const auto zealSpell = static_cast<size_t>(GetPaladinSkillData(PaladinSkill::Zeal).spellId);
-	const int extra = player._pSkillInvestment[zealSpell] / ZealLevelsPerStrike;
-	return std::min(2 + extra, MaxZealStrikes);
+	const int skillLevel = ZealSkillLevel(player);
+	if (skillLevel <= 0)
+		return 0;
+	// One strike, plus one for each rung the skill level has reached. Written as the walk rather
+	// than as arithmetic because the ladder is the specification: rungs at 6, 8 and 10.
+	int strikes = 1;
+	for (int rung = ZealFirstStrikeRungSkillLevel;
+	     rung <= skillLevel && strikes < MaxZealStrikes;
+	     rung += ZealStrikeRungSpacing) {
+		strikes++;
+	}
+	return strikes;
 }
 
 int ZealToHitBonus(const Player &player)
 {
-	// Paid on every point, including the ones past the strike cap - see MaxZealStrikes. Gated on the
-	// skill being UNLOCKED rather than merely invested in, so it cannot be bought before the skill
-	// itself exists.
+	// Gated on the skill being UNLOCKED rather than merely invested in, so it cannot be bought
+	// before the skill itself exists.
 	if (player._pClass != HeroClass::Warrior || player._pLevel < ZealFirstUpgradeLevel)
 		return 0;
-	const auto zealSpell = static_cast<size_t>(GetPaladinSkillData(PaladinSkill::Zeal).spellId);
-	return player._pSkillInvestment[zealSpell] * ZealToHitPercentPerPoint;
+	// ZEAL'S OWN accuracy, not the Paladin's (user, 2026-08-30: "narrow it to Zeal"). It used to be
+	// added in PlrHitMonst for every Paladin melee hit without asking what the swing was thrown
+	// with, so an ordinary swing and every other melee skill quietly carried it too - while both
+	// descriptions called it Zeal's. The latch is the same one IsShieldBashSwing reads.
+	const std::optional<PaladinSkill> armed = ArmedMeleeSkill();
+	if (&player != MyPlayer || !armed.has_value() || *armed != PaladinSkill::Zeal)
+		return 0;
+	// One point per skill level, from the FIRST - the levels that also buy a strike pay it too, and
+	// it carries on alone once the strikes stop ("at lvl 6 and onwards - +1% cth"). At the 98-rank
+	// cap that is +98%, which is where the per-point version topped out as well.
+	return std::max(0, ZealSkillLevel(player)) * ZealToHitPercentPerSkillLevel;
 }
 
 void ResetZealChain()

@@ -511,19 +511,28 @@ TEST(OracoolAudit, ZealStrikeLadder)
 	const auto zeal = static_cast<size_t>(
 	    oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId);
 
+	player._pISplLvlAdd = 0;
+	std::memset(player._pSplLvl, 0, sizeof(player._pSplLvl));
+
 	player._pLevel = 5;
 	EXPECT_EQ(oracool::ZealStrikeCount(player), 0) << "below the gate";
 	player._pLevel = 50;
-	EXPECT_EQ(oracool::ZealStrikeCount(player), 2) << "level alone must not add strikes";
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 0)
+	    << "skill level 0 is not a weak Zeal, it is no Zeal - the tree wants a point before the "
+	       "skill exists, and character level buys no strikes by itself";
 
+	// The user's ladder, 2026-08-30: "+1 hit" at skill levels 1, 3 and 5 on a base of one, so two,
+	// three and four strikes. The EVEN levels between them buy accuracy only, which is what makes
+	// this table worth writing out rather than computing. The base of one is notional: skill level
+	// 0 means the skill was never taken, so the first row a player can actually be on is 1.
 	const struct {
-		int invested;
+		int skillLevel;
 		int strikes;
-	} ladder[] = { { 0, 2 }, { 1, 3 }, { 2, 4 }, { 4, 4 }, { 6, 4 }, { 20, 4 } };
+	} ladder[] = { { 0, 0 }, { 1, 2 }, { 2, 2 }, { 3, 3 }, { 4, 3 }, { 5, 4 }, { 6, 4 }, { 20, 4 } };
 	for (const auto &step : ladder) {
-		player._pSkillInvestment[zeal] = static_cast<uint8_t>(step.invested);
+		player._pSkillInvestment[zeal] = static_cast<uint8_t>(step.skillLevel);
 		EXPECT_EQ(oracool::ZealStrikeCount(player), step.strikes)
-		    << "with " << step.invested << " points invested";
+		    << "at Zeal skill level " << step.skillLevel;
 	}
 	player._pSkillInvestment[zeal] = 0;
 }
@@ -2810,23 +2819,36 @@ TEST(OracoolSkillPoints, StrandedBookSpellPointsAreRefundedIdempotently)
 	EXPECT_EQ(player._pUnspentSkillPoints, 11);
 }
 
-TEST(OracoolSkillPoints, ZealStrikesArePointDriven)
+TEST(OracoolSkillPoints, ZealStrikesAreSkillLevelDriven)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
 	player._pLevel = 20;
 	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	player._pISplLvlAdd = 0;
+	std::memset(player._pSplLvl, 0, sizeof(player._pSplLvl));
 
 	const auto zeal = static_cast<size_t>(oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId);
-	EXPECT_EQ(oracool::ZealStrikeCount(player), 2)
-	    << "an uninvested Zeal stays at the base burst whatever the character level";
-	player._pSkillInvestment[zeal] = 2;
-	EXPECT_EQ(oracool::ZealStrikeCount(player), 4) << "one strike per point, capped at four";
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 0)
+	    << "an uninvested Zeal is no Zeal, whatever the character level";
+	player._pSkillInvestment[zeal] = 5;
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 4) << "skill levels 1, 3 and 5 each add a strike";
 	player._pSkillInvestment[zeal] = 20;
 	EXPECT_EQ(oracool::ZealStrikeCount(player), 4) << "the cap holds";
 
+	// The other half of "all benefits come from SKILL levels": an item that grants +spell levels
+	// deepens Zeal exactly as investing does, because ZealSkillLevel asks GetSpellLevel.
+	player._pSkillInvestment[zeal] = 1;
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 2) << "one point, one rung";
+	player._pISplLvlAdd = 4;
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 4)
+	    << "+4 spell levels from gear reaches rung 5 as surely as four more points would";
+	player._pISplLvlAdd = 0;
+
 	player._pLevel = 1;
-	EXPECT_EQ(oracool::ZealStrikeCount(player), 0) << "the unlock gate is still character level";
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 0)
+	    << "the character level is still the GATE on the skill existing at all";
+	player._pSkillInvestment[zeal] = 0;
 }
 
 // Phase 1 charms: the active cap IS the pouch. These pin the cap and the reading order.
@@ -7418,10 +7440,17 @@ TEST(OracoolAudit, ZealToHitLadder)
 {
 	Players.resize(1);
 	devilution::Player &player = Players[0];
+	MyPlayer = &Players[0]; // the bonus is the LOCAL player's armed swing, so it must be them
 	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	std::memset(player._pSplLvl, 0, sizeof(player._pSplLvl));
+	player._pISplLvlAdd = 0;
 	player._pClass = HeroClass::Warrior; // the Paladin's slot in this fork
 	const auto zeal = static_cast<size_t>(
 	    oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId);
+
+	// Narrowed to Zeal (user, 2026-08-30): it is Zeal's accuracy, not the Paladin's, so the swing
+	// has to have been thrown with Zeal. This latch is what PlrHitMonst asks through.
+	oracool::ArmMeleeSkill(oracool::PaladinSkill::Zeal);
 
 	player._pLevel = 5;
 	player._pSkillInvestment[zeal] = 4;
@@ -7429,22 +7458,34 @@ TEST(OracoolAudit, ZealToHitLadder)
 	    << "below the unlock level the bonus cannot be bought early";
 
 	player._pLevel = 50;
-	// One percentage point per INVESTED point, from the first - not only past the strike cap. The
-	// strike ladder stops at four (see ZealStrikeLadder); this one does not stop.
+	// One point per SKILL level, from the first - the levels that also buy a strike pay it too, and
+	// it carries on alone once the strikes stop at rung 5.
 	const struct {
-		int invested;
+		int skillLevel;
 		int bonus;
-	} ladder[] = { { 0, 0 }, { 1, 1 }, { 2, 2 }, { 3, 3 }, { 10, 10 } };
+	} ladder[] = { { 0, 0 }, { 1, 1 }, { 2, 2 }, { 3, 3 }, { 5, 5 }, { 6, 6 }, { 10, 10 } };
 	for (const auto &step : ladder) {
-		player._pSkillInvestment[zeal] = static_cast<uint8_t>(step.invested);
+		player._pSkillInvestment[zeal] = static_cast<uint8_t>(step.skillLevel);
 		EXPECT_EQ(oracool::ZealToHitBonus(player), step.bonus)
-		    << "with " << step.invested << " points invested";
+		    << "at Zeal skill level " << step.skillLevel;
 	}
 
-	player._pClass = HeroClass::Sorcerer;
+	// The narrowing itself. Before 2026-08-30 this was added for EVERY Paladin melee hit without
+	// asking what the swing was thrown with, so an ordinary swing and every other melee skill
+	// quietly carried it while both descriptions called it Zeal's.
 	player._pSkillInvestment[zeal] = 10;
+	oracool::ArmMeleeSkill(oracool::PaladinSkill::HammerOfFaith);
+	EXPECT_EQ(oracool::ZealToHitBonus(player), 0)
+	    << "another melee skill's swing must not carry Zeal's accuracy";
+	oracool::ArmMeleeSkill(std::nullopt);
+	EXPECT_EQ(oracool::ZealToHitBonus(player), 0)
+	    << "an ordinary swing must not carry it either";
+
+	oracool::ArmMeleeSkill(oracool::PaladinSkill::Zeal);
+	player._pClass = HeroClass::Sorcerer;
 	EXPECT_EQ(oracool::ZealToHitBonus(player), 0) << "a non-Paladin must never receive it";
 
+	oracool::ArmMeleeSkill(std::nullopt);
 	player._pSkillInvestment[zeal] = 0;
 	player._pClass = HeroClass::Warrior;
 }
