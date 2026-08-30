@@ -284,6 +284,21 @@ void ReleaseLvlBtn();
 void DrawLevelUpIcon(const Surface &out);
 /** @brief Oracool: the unspent skill pool in a LevelUpIconSize placeholder frame above the RMB well. Hidden at zero. */
 void DrawUnspentPointsFrame(const Surface &out);
+
+/** @brief Whether the unspent skill-point frame is being drawn at all (nonzero pool, own player). */
+bool IsUnspentPointsFrameVisible();
+
+/** @brief Screen rect of that frame - shared by the draw and the click so they cannot drift apart. */
+Rectangle GetUnspentPointsFrameRect();
+
+/**
+ * @brief Routes a click on the skill-point pool: opens the Abilities window. True when consumed.
+ *
+ * The frame sits ABOVE the HUD plate rather than on it, so - like the burger menu's icon row - it
+ * is in neither the HUD branch nor the world branch of LeftMouseDown and has to be tested ahead of
+ * both, or it renders, highlights and does nothing.
+ */
+bool CheckUnspentPointsFrameClick(Point position);
 void CheckChrBtns();
 void ReleaseChrBtns(bool addAllStatPoints);
 void DrawDurIcon(const Surface &out);

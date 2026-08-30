@@ -388,7 +388,7 @@ TEST(Player, Zeal_StrikeCountLadder)
 	const struct {
 		int invested;
 		int expected;
-	} ladder[] = { { 0, 2 }, { 1, 2 }, { 2, 3 }, { 3, 3 }, { 4, 4 }, { 6, 5 }, { 20, 5 } };
+	} ladder[] = { { 0, 2 }, { 1, 3 }, { 2, 4 }, { 3, 4 }, { 4, 4 }, { 6, 4 }, { 20, 4 } };
 	for (const auto &step : ladder) {
 		paladin._pSkillInvestment[zeal] = static_cast<uint8_t>(step.invested);
 		EXPECT_EQ(ZealStrikeCount(paladin), step.expected)

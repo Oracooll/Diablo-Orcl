@@ -72,7 +72,7 @@ namespace {
 // teleport rather than as a charge.
 constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
 	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, false, 6, 10 },
-	{ N_("Zeal"), N_("Strikes up to five times in the time of one swing, spread across nearby enemies."),
+	{ N_("Zeal"), N_("Strikes up to four times in the time of one swing, spread across nearby enemies. Each point adds a strike up to that cap, and +1% chance to hit thereafter."),
 	    SpellID::Zeal, MeleeSkillRangeTiles, false, 6, 1 },
 	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith,
 	    MeleeSkillRangeTiles, false, 12, 5 },

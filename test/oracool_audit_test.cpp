@@ -510,7 +510,7 @@ TEST(OracoolAudit, ZealStrikeLadder)
 	const struct {
 		int invested;
 		int strikes;
-	} ladder[] = { { 0, 2 }, { 1, 2 }, { 2, 3 }, { 4, 4 }, { 6, 5 }, { 20, 5 } };
+	} ladder[] = { { 0, 2 }, { 1, 3 }, { 2, 4 }, { 4, 4 }, { 6, 4 }, { 20, 4 } };
 	for (const auto &step : ladder) {
 		player._pSkillInvestment[zeal] = static_cast<uint8_t>(step.invested);
 		EXPECT_EQ(oracool::ZealStrikeCount(player), step.strikes)
@@ -2812,9 +2812,9 @@ TEST(OracoolSkillPoints, ZealStrikesArePointDriven)
 	EXPECT_EQ(oracool::ZealStrikeCount(player), 2)
 	    << "an uninvested Zeal stays at the base burst whatever the character level";
 	player._pSkillInvestment[zeal] = 2;
-	EXPECT_EQ(oracool::ZealStrikeCount(player), 3);
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 4) << "one strike per point, capped at four";
 	player._pSkillInvestment[zeal] = 20;
-	EXPECT_EQ(oracool::ZealStrikeCount(player), 5) << "the cap holds";
+	EXPECT_EQ(oracool::ZealStrikeCount(player), 4) << "the cap holds";
 
 	player._pLevel = 1;
 	EXPECT_EQ(oracool::ZealStrikeCount(player), 0) << "the unlock gate is still character level";

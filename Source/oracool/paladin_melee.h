@@ -90,6 +90,15 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 int ZealStrikeCount(const Player &player);
 
 /**
+ * @brief Zeal's to-hit bonus, in percentage points - one per invested point.
+ *
+ * Paid on every point including those past the four-strike cap, which is what keeps a deep Zeal
+ * worth buying now that the strikes stop at four (user, 2026-08-30). Zero for anyone who is not a
+ * Paladin, or has not reached Zeal's unlock level.
+ */
+int ZealToHitBonus(const Player &player);
+
+/**
  * @brief Advances any Zeal burst in flight. Called once per tick, per player.
  *
  * The strikes are spread over time rather than landed all at once, because the skill is "up to 5

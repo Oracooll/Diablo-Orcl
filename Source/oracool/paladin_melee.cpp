@@ -17,12 +17,21 @@ std::optional<PaladinSkill> ArmedSkill;
 /**
  * @brief Zeal's ceiling - "to hit up to 5 times", whatever the level.
  */
-constexpr int MaxZealStrikes = 5;
+// FOUR, down from five (user, 2026-08-30: "we need to nurf zeal to a maximum of 4 strikes per
+// hit. so make it every level of zeal add up to 4 strikes per hot, but also add +1% chance to hit").
+//
+// The cut is real - a fifth strike is a fifth of the burst's whole damage - and the to-hit is what
+// keeps the levels past the fourth strike worth buying. Without it a Zeal at 2 points and a Zeal at
+// 40 would be identical, which is the shape that made the five-strike version worth nerfing in the
+// first place: everything arrived at once and nothing came after.
+constexpr int MaxZealStrikes = 4;
 
 /** @brief The character level at which Zeal's second strike arrives. Its unlock level, by design. */
 constexpr int ZealFirstUpgradeLevel = 6;
-/** @brief And one more strike every this many levels after it: 8, 10, 12. */
-constexpr int ZealLevelsPerStrike = 2;
+/** @brief One more strike per point now, so the cap of four is reached at two points invested. */
+constexpr int ZealLevelsPerStrike = 1;
+/** @brief And every point buys this much to-hit, forever - the reason to keep investing past four. */
+constexpr int ZealToHitPercentPerPoint = 1;
 
 /** @brief Follow-up swings still owed by the current Zeal chain. */
 int ZealChainLeft = 0;
@@ -225,6 +234,17 @@ int ZealStrikeCount(const Player &player)
 	const auto zealSpell = static_cast<size_t>(GetPaladinSkillData(PaladinSkill::Zeal).spellId);
 	const int extra = player._pSkillInvestment[zealSpell] / ZealLevelsPerStrike;
 	return std::min(2 + extra, MaxZealStrikes);
+}
+
+int ZealToHitBonus(const Player &player)
+{
+	// Paid on every point, including the ones past the strike cap - see MaxZealStrikes. Gated on the
+	// skill being UNLOCKED rather than merely invested in, so it cannot be bought before the skill
+	// itself exists.
+	if (player._pClass != HeroClass::Warrior || player._pLevel < ZealFirstUpgradeLevel)
+		return 0;
+	const auto zealSpell = static_cast<size_t>(GetPaladinSkillData(PaladinSkill::Zeal).spellId);
+	return player._pSkillInvestment[zealSpell] * ZealToHitPercentPerPoint;
 }
 
 void ResetZealChain()

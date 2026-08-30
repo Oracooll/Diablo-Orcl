@@ -1342,6 +1342,36 @@ bool DrawPointsFrame(const Surface &out, Rectangle frame, int count, bool lit)
 	return true;
 }
 
+bool IsUnspentPointsFrameVisible()
+{
+	return !IsInspectingPlayer() && MyPlayer->_pUnspentSkillPoints > 0;
+}
+
+Rectangle GetUnspentPointsFrameRect()
+{
+	const Rectangle rmb = oracool::GetRmbSkillButtonRect();
+	constexpr int GapAboveWell = 6;
+	// The numbered icons' own 64px canvas - the same canvas the user's level-up art sits on, which
+	// is what "as big as the level up icon" means in practice (LevelUpIconSize's 60x61 is that art
+	// minus the canvas's edge padding).
+	return { { rmb.position.x + (rmb.size.width - oracool::PointsIconSize.width) / 2,
+		         rmb.position.y - oracool::PointsIconSize.height - GapAboveWell },
+		oracool::PointsIconSize };
+}
+
+bool CheckUnspentPointsFrameClick(Point position)
+{
+	// Clicking the pool opens the window where the points are spent (user, 2026-08-30: "clicking
+	// skill points button to open abilities screen"). It was a readout with no click at all.
+	//
+	// The rect is shared with the draw rather than restated, which is what stops the hit box from
+	// drifting off the picture the way the burger menu's once did.
+	if (!IsUnspentPointsFrameVisible() || !GetUnspentPointsFrameRect().contains(position))
+		return false;
+	ToggleAbilitiesWindow();
+	return true;
+}
+
 void DrawUnspentPointsFrame(const Surface &out)
 {
 	// The unspent skill pool, above the RMB well (user, 2026-08-17: "Available skill point to go in
@@ -1352,18 +1382,9 @@ void DrawUnspentPointsFrame(const Surface &out)
 	// PLACEHOLDER until the art arrives: a themed fill and border with the count in it, sized
 	// exactly as the promised picture (LevelUpIconSize) so the swap is a draw-call change and no
 	// geometry moves.
-	if (IsInspectingPlayer() || MyPlayer->_pUnspentSkillPoints <= 0)
+	if (!IsUnspentPointsFrameVisible())
 		return;
-	const Rectangle rmb = oracool::GetRmbSkillButtonRect();
-	constexpr int GapAboveWell = 6;
-	// The numbered icons' own 64px canvas - the same canvas the user's level-up art sits on, which
-	// is what "as big as the level up icon" means in practice (LevelUpIconSize's 60x61 is that art
-	// minus the canvas's edge padding).
-	const Rectangle frame {
-		{ rmb.position.x + (rmb.size.width - oracool::PointsIconSize.width) / 2,
-		    rmb.position.y - oracool::PointsIconSize.height - GapAboveWell },
-		oracool::PointsIconSize
-	};
+	const Rectangle frame = GetUnspentPointsFrameRect();
 	// The delivered frame, with the count drawn into its well (user, 2026-08-20: "replace the
 	// current skill point indicator above rmb... in its center area in 40x39px area dead center in
 	// the icon i want you to draw with your own font the number of skill point available up to 99").

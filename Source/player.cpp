@@ -637,6 +637,10 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	}
 
 	hper += player.GetMeleePiercingToHit() - player.CalculateArmorPierce(oracool::PackAdjustedArmor(monster), true);
+	// Zeal's own accuracy, one point per level invested (user, 2026-08-30). Added before the clamp
+	// so it competes with armour on the same terms as every other to-hit source rather than being
+	// applied to an already-decided number.
+	hper += oracool::ZealToHitBonus(player);
 	hper = clamp(hper, 5, 95);
 
 	if (monster.tryLiftGargoyle())

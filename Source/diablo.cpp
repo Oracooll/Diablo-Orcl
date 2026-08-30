@@ -479,6 +479,13 @@ void LeftMouseDown(uint16_t modState)
 		return;
 	}
 
+	// The skill-point pool, tested here for exactly the reason the burger menu above is: it is
+	// drawn above the plate rather than on it, so IsPointOverHudChrome says no and the world branch
+	// would walk the character instead (user, 2026-08-30: "clicking skill points button to open
+	// abilities screen").
+	if (CheckUnspentPointsFrameClick(MousePosition))
+		return;
+
 	const bool isShiftHeld = (modState & KMOD_SHIFT) != 0;
 	const bool isCtrlHeld = (modState & KMOD_CTRL) != 0;
 

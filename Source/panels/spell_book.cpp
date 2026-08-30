@@ -226,7 +226,14 @@ constexpr int SpendBoxSize = 13;
  */
 constexpr uint8_t EligibleForPointColor = PAL16_YELLOW + 2;
 
-/** @brief A spell or skill row: the icon square with a little air above and below it. */
+/**
+ * @brief A spell or skill row: the icon square with a little air above and below it.
+ *
+ * Also has to hold THREE text lines since v1.9.116 - name, mana, damage (user, 2026-08-30) - so it
+ * is the taller of the two demands rather than the icon's alone. At 56 + 8 the icon already wins
+ * (64 against 54), which is why no row got taller and nothing else in this file had to move; the
+ * max is here so that a smaller icon later cannot silently clip the third line.
+ */
 constexpr int SpellRowHeight = SheetIconSize + 8;
 /**
  * @brief How many wrapped lines a described row gives its description.
@@ -241,6 +248,11 @@ constexpr int SpellRowHeight = SheetIconSize + 8;
 constexpr int DescribedRowDescLines = 3;
 /** @brief Height of one text line inside a row. */
 constexpr int AbilitiesLineHeight = 18;
+// A spell row carries THREE lines since v1.9.116 - name, mana, damage (user, 2026-08-30). The icon
+// is the taller demand at 64 against 54, so no row grew and nothing else in this file moved; this
+// asserts that stays true, because a smaller icon later would clip the damage line silently.
+static_assert(SpellRowHeight >= 3 * AbilitiesLineHeight,
+    "A spell row can no longer fit its three text lines - raise SpellRowHeight");
 /** @brief Air above the name line, and the same below the last description line. */
 constexpr int DescribedRowPadding = 6;
 /** @brief A described row (aura, Barbarian skill): a name line plus the wrapped description. */
@@ -685,26 +697,47 @@ std::string GetSpellDetail(SpellID sn, bool known)
 		break;
 	}
 
-	const int lvl = player.GetSpellLevel(sn);
-	if (lvl == 0)
-		return std::string(_("Unusable"));
+	// "Unusable" is gone. A level-0 spell still has a cost and a damage range - the ones it would
+	// have at level 1 - and showing them is the whole point of the third row (user, 2026-08-30:
+	// "Damage Range at current level (level 1 if not learned yet)"). Saying only "Unusable" told the
+	// player what they already knew from the greyed-out name.
+	return fmt::format(fmt::runtime(pgettext("spellbook", "Mana: {:d}")), GetManaAmount(player, sn) >> 6);
+}
 
-	const int mana = GetManaAmount(player, sn) >> 6;
+/**
+ * @brief The THIRD row: what the spell does, at the level it is actually at.
+ *
+ * Split out of GetSpellDetail so the row can be Name / Mana / Damage rather than a name and one
+ * crowded line (user, 2026-08-30). Empty for a utility spell, which is what tells the caller to
+ * draw nothing rather than an empty label.
+ *
+ * An UNLEARNED spell is quoted at level 1 - the numbers it would have the moment a book is read.
+ * GetDamageAmt reads the player's current level for this spell, which is 0, and several formulas
+ * take that as a real term; GetDamageAmtAtLevel takes the level as an argument, so it can be asked
+ * about a level the character does not have yet.
+ */
+std::string GetSpellDamageLine(SpellID sn, bool known)
+{
+	const Player &player = *InspectPlayer;
+	switch (GetSBookTrans(sn, false)) {
+	case SpellType::Skill:
+	case SpellType::Charges:
+		return {}; // their own line already says what they are
+	default:
+		break;
+	}
 	if (sn == SpellID::BoneSpirit)
-		return fmt::format(fmt::runtime(pgettext("spellbook", "Mana: {:d}")), mana) + "   "
-		    + std::string(_(/* TRANSLATORS: UI constraints, keep short please.*/ "Dmg: 1/3 target hp"));
+		return std::string(_(/* TRANSLATORS: UI constraints, keep short please.*/ "Dmg: 1/3 target hp"));
 
-	// Initialised even though GetDamageAmt now always writes both - this is the call site that
-	// printed 0xCCCCCCCC when it did not.
+	const int level = std::max(known ? player.GetSpellLevel(sn) : 1, 1);
 	int min = -1;
 	int max = -1;
-	GetDamageAmt(sn, &min, &max);
-	std::string cost = fmt::format(fmt::runtime(pgettext("spellbook", "Mana: {:d}")), mana);
+	GetDamageAmtAtLevel(sn, level, &min, &max);
 	if (min == -1)
-		return cost;
+		return {}; // a utility spell - it has no damage to report, so it says nothing
 	if (sn == SpellID::Healing || sn == SpellID::HealOther)
-		return cost + "   " + fmt::format(fmt::runtime(_("Heals: {:d} - {:d}")), min, max);
-	return cost + "   " + fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), min, max);
+		return fmt::format(fmt::runtime(_("Heals: {:d} - {:d}")), min, max);
+	return fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), min, max);
 }
 
 /** @brief The theme's scrollbar: a recessed groove in the right margin with a bevelled thumb. */
@@ -883,13 +916,23 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 
 	const UiFlags nameColor = known ? UiFlags::ColorWhitegold : UiFlags::ColorUiSilverDark;
 	const UiFlags detailColor = known ? UiFlags::ColorWhite : UiFlags::ColorUiSilverDark;
-	const int textTop = top + (SpellRowHeight - 2 * AbilitiesLineHeight) / 2;
+	// THREE lines now - name, mana, damage (user, 2026-08-30). The damage line is empty for a
+	// utility spell, a skill or a staff, and those rows centre their two lines exactly as before
+	// rather than leaving a gap where a third would have gone.
+	const std::string damage = GetSpellDamageLine(sn, known);
+	const int lines = damage.empty() ? 2 : 3;
+	const int textTop = top + (SpellRowHeight - lines * AbilitiesLineHeight) / 2;
 	DrawString(content, oracool::GetSpellDisplayName(sn),
 	    { { textX, textTop }, { textWidth, AbilitiesLineHeight } },
 	    { nameColor | UiFlags::VerticalCenter });
 	DrawString(content, GetSpellDetail(sn, known),
 	    { { textX, textTop + AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
 	    { detailColor | UiFlags::VerticalCenter });
+	if (!damage.empty()) {
+		DrawString(content, damage,
+		    { { textX, textTop + 2 * AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
+		    { detailColor | UiFlags::VerticalCenter });
+	}
 
 	// The spend controls live ON the icon now, exactly as they do on a tree cell (user, 2026-08-19):
 	// green plus bottom-right, red minus bottom-left, the invested level between them on the bottom
