@@ -460,6 +460,11 @@ bool IsPointOverFloatingWindow(Point mousePosition)
 	// the four, and so the one where hovering through would be most obvious.
 	if (IsSkillPickerOpen() && GetSkillPickerRect().contains(mousePosition))
 		return true;
+	// The event log, added 2026-08-30 by audit. It fills the entire column under the mini-map and
+	// was in none of the rejection lists - the largest hole of the set, and the least obvious,
+	// because a click on it walks the character rather than doing nothing visible.
+	if (GetEventLogWindowRect().contains(mousePosition))
+		return true;
 	return false;
 }
 

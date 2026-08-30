@@ -14,7 +14,6 @@
 #include "oracool/crafting.h"
 #include "oracool/event_log.h"
 #include "oracool/ornate_border.h"
-#include "oracool/window_close.h"
 #include "utils/language.h"
 #include "utils/ui_fwd.h"
 
@@ -110,7 +109,10 @@ void DrawCraftingMenu(const Surface &out)
 	const Rectangle window = GetCraftingMenuRect();
 	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
 	DrawOrnateBorder(out, window);
-	DrawWindowCloseButton(out, window);
+	// No close button drawn here. This is a left-panel content, and scrollrt draws the X for
+	// whichever content is open from GetLeftPanelContentRect() - which IS this rect. Drawing one
+	// here too stacked a second X exactly on top of the first, which is the failure the central
+	// call exists to prevent.
 
 	DrawString(out, _("Crafting"),
 	    Rectangle { window.position + Displacement { WindowPadding, WindowPadding },
@@ -148,12 +150,9 @@ void DrawCraftingMenu(const Surface &out)
 
 void CheckCraftingMenuClick(Point mousePosition)
 {
-	const Rectangle window = GetCraftingMenuRect();
-	if (GetWindowCloseButtonRect(window).contains(mousePosition)) {
-		CloseCraftingMenu();
-		return;
-	}
-
+	// The close button is not tested here either: diablo.cpp's LeftMouseDown asks
+	// CheckWindowCloseButtonClick(GetLeftPanelContentRect()) before it reaches this router, so a
+	// click on the X never arrives. A second test here was dead code that read like the live one.
 	const Rectangle content = CraftingContentRect();
 	if (!content.contains(mousePosition))
 		return; // title bar and padding are absorbed by the window, not acted on

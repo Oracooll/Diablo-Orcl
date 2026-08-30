@@ -13,6 +13,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "engine/point.hpp"
+#include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
 
 namespace devilution::oracool {
@@ -30,6 +31,15 @@ void ToggleEventLog();
 
 /** @brief True when the Event Log option is on and the window is currently open. */
 bool IsEventLogOpen();
+
+/**
+ * @brief The window's screen rect, empty when closed - for click-through rejection.
+ *
+ * The log fills the whole column under the mini-map, and until 2026-08-30 it was in none of the
+ * rejection lists: a click on it walked the character and a hover through it highlighted whatever
+ * stood behind.
+ */
+Rectangle GetEventLogWindowRect();
 
 /** @brief Scrolls toward the newest entries. No-op if already at the top. Mouse-wheel-up. */
 void ScrollEventLogUp();

@@ -35,6 +35,9 @@
 #include "pack.h"    // PlayerPack - the fixed struct the stat-point clamp test inspects
 #include "oracool/class_tree.h"
 #include "oracool/aura_field.h"
+#include "oracool/event_log.h"
+#include "oracool/hud_layout.h"
+#include "utils/ui_fwd.h" // gnScreenWidth/Height - the log and the belt are both derived from them
 #include "oracool/charms.h"
 #include "oracool/area_level.h"
 #include "oracool/inventory_layout.h"
@@ -7227,4 +7230,84 @@ TEST(OracoolTextShadow, ShadowedFlagAddsBlackPixelsUnderTheGlyphs)
 	const auto shadowed = render(devilution::UiFlags::Shadowed);
 	EXPECT_GT(shadowed.first, plain.first) << "the shadow covered no new pixels";
 	EXPECT_GT(shadowed.second, plain.second) << "the shadow put down no BLACK pixels";
+}
+
+// Audit, 2026-08-30. The quick lists learned to bind F1-F8 (v1.9.121) and drew, on each cell, the
+// F-key that cell already sits on. An UNBOUND hotkey slot holds SpellID::Invalid - and so does every
+// picker entry that is not a spell: the two basic attacks, and every aura. AssignedFKeyNumber
+// compared them to each other, matched, and returned the first empty slot's number, so both attack
+// icons in the right-button list wore an "F1" badge nothing had put there.
+//
+// Pinned on the exported wrapper rather than on the picker's draw, because the draw needs fonts and
+// a surface and this is the whole of the defect.
+TEST(OracoolAudit, AnUnbindableEntryReportsNoHotkey)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	*MyPlayer = {};
+
+	// The state a fresh character is actually in: every slot empty, on both buttons.
+	std::fill(MyPlayer->_pSplHotKey, MyPlayer->_pSplHotKey + NumHotkeys, SpellID::Invalid);
+	std::fill(MyPlayer->_pSplLHotKey, MyPlayer->_pSplLHotKey + NumHotkeys, SpellID::Invalid);
+
+	EXPECT_EQ(GetAbilityFKeyNumber(SpellID::Invalid, /*leftButton=*/false), 0)
+	    << "an attack or aura carries no SpellID and must report no key - it matched an empty slot";
+	EXPECT_EQ(GetAbilityFKeyNumber(SpellID::Invalid, /*leftButton=*/true), 0)
+	    << "same on the left button";
+	EXPECT_EQ(GetAbilityFKeyNumber(SpellID::Null, /*leftButton=*/false), 0)
+	    << "Null is the value-initialised state of the array and is not a spell either";
+
+	// And the feature itself still works: a real binding reports its own key, on its own button.
+	MyPlayer->_pSplHotKey[2] = SpellID::Firebolt;
+	EXPECT_EQ(GetAbilityFKeyNumber(SpellID::Firebolt, /*leftButton=*/false), 3)
+	    << "slot 2 is F3";
+	EXPECT_EQ(GetAbilityFKeyNumber(SpellID::Firebolt, /*leftButton=*/true), 0)
+	    << "the right button's binding must not show on the left button's list";
+}
+
+// Audit, 2026-08-30. The event log was added to IsPointOverFloatingWindow so that clicking it stops
+// walking the character. It fills the whole column under the mini-map, down to a bottom margin
+// matching the mini-map's top one - which puts its lower end at the same height as the belt row.
+//
+// If the two rects overlap, the fix trades one bug for a worse one: the belt cells under the log
+// would stop responding whenever the log is open, and unlike a stray walk that failure is silent.
+// Pinned at the resolution the game is actually played at.
+TEST(OracoolAudit, TheEventLogDoesNotCoverTheBeltRow)
+{
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+
+	// The log answers an empty rect while closed, so it has to be opened for this to mean anything.
+	sgOptions.Oracool.eventLog.SetValue(true);
+	if (!oracool::IsEventLogOpen())
+		oracool::ToggleEventLog();
+	ASSERT_TRUE(oracool::IsEventLogOpen()) << "test setup: the log would not open";
+
+	const Rectangle log = oracool::GetEventLogWindowRect();
+	const Rectangle hud = oracool::GetHudRowRect();
+
+	// Both rects must be real, or "they do not overlap" is true for the wrong reason and this test
+	// would keep passing after the log stopped answering a rect at all.
+	ASSERT_GT(log.size.width, 0) << "test setup: the log reported an empty rect while open";
+	ASSERT_GT(log.size.height, 0) << "test setup: the log reported an empty rect while open";
+	ASSERT_GT(hud.size.width, 0) << "test setup: the HUD row reported an empty rect";
+	ASSERT_GT(hud.size.height, 0) << "test setup: the HUD row reported an empty rect";
+
+	const bool overlapsHorizontally = log.position.x < hud.position.x + hud.size.width
+	    && hud.position.x < log.position.x + log.size.width;
+	const bool overlapsVertically = log.position.y < hud.position.y + hud.size.height
+	    && hud.position.y < log.position.y + log.size.height;
+
+	EXPECT_FALSE(overlapsHorizontally && overlapsVertically)
+	    << "the log (" << log.position.x << "," << log.position.y << " " << log.size.width << "x"
+	    << log.size.height << ") overlaps the HUD row (" << hud.position.x << "," << hud.position.y
+	    << " " << hud.size.width << "x" << hud.size.height << ") - belt cells under it are dead "
+	       "while the log is open";
+
+	if (oracool::IsEventLogOpen())
+		oracool::ToggleEventLog();
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
 }

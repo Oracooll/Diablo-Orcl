@@ -132,6 +132,15 @@ bool IsEventLogOpen()
 	return *sgOptions.Oracool.eventLog && WindowOpen;
 }
 
+Rectangle GetEventLogWindowRect()
+{
+	if (!IsEventLogOpen())
+		return Rectangle { { 0, 0 }, { 0, 0 } };
+	// The same three helpers the draw uses, so the rect that rejects a click and the rect that gets
+	// painted cannot drift apart - the failure GetLeftPanelContentRect was written to end.
+	return Rectangle { WindowPosition(), { WindowWidth(), WindowHeight() } };
+}
+
 void ScrollEventLogUp()
 {
 	if (ScrollOffset > 0)

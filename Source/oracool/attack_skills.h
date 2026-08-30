@@ -92,42 +92,15 @@ const char *AttackIconDetail(AttackIcon icon, bool active);
  */
 void DrawLmbSkillWell(const Surface &out);
 
-/**
- * @brief The basic-attack quick list - the horizontal icon strip that pops above a skill well.
- *
- * Oracool: user request (2026-08-18) - "bring back the vanilla quick skill/quick spell lists which
- * appear as horizontal icon list when i click on LMB/RMB. That was D2 legacy behaviour. BUT we put
- * in this list only Fist/Regular attacks."
- *
- * It carries the two attacks and nothing else. Everything with a rank, a level gate or an icon of
- * its own is chosen in the Abilities window; this strip exists for the one ability that is never
- * listed there because it is never earned - the swing you always have. It is also the ONLY way back
- * to a plain attack now that an unbuilt tree cell no longer hands one out (1.7.89).
- *
- * Both entries select the same state. SpellID::Invalid with SpellType::Invalid IS the basic attack -
- * that is precisely the state in which a click swings rather than casts - and whether the well then
- * shows a fist or crossed swords is decided by what is in the player's hand, not by which entry was
- * picked. They are shown as a pair because that is what the player sees on the two wells, not
- * because they are two different choices.
- */
-void OpenAttackQuickList(bool forLeftButton);
-
-/** @brief Whether the quick list is showing. While it is, the wells do not answer clicks. */
-bool IsAttackQuickListOpen();
-
-/** @brief Shuts it, without selecting anything. */
-void CloseAttackQuickList();
-
-/** @brief Draws the strip. No-op when closed. */
-void DrawAttackQuickList(const Surface &out);
-
-/**
- * @brief Handles a click while the strip is open. True if the click was the strip's.
- *
- * A click on an entry readies the basic attack on whichever button opened the list; a click
- * anywhere else just closes it, which is how every other popup in this fork behaves.
- */
-bool CheckAttackQuickListClick();
+// The basic-attack quick list - Open/Close/IsOpen/Draw/CheckClick, and the strip geometry behind
+// them - lived here until 2026-08-30 and is gone. It was the two-icon popup from 2026-08-18, and
+// the skill picker (oracool/skill_picker.h) superseded it on 2026-08-20: the two attacks are simply
+// that window's first two entries now, and clicking one still means the same thing it meant here,
+// SpellID::Invalid with SpellType::Invalid.
+//
+// Removed by audit rather than left parked. Nothing had called any of it since the picker shipped,
+// but it kept its own open/close state and its own click router, so a single stray call would have
+// put a second, unreachable popup on screen over the live one.
 
 /**
  * @brief The RMB well's counterpart, drawn when no spell is readied - which IS the basic attack.

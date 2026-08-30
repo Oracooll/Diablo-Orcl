@@ -964,6 +964,13 @@ SpellID HoveredAbilitySpell = SpellID::Invalid;
 /** @brief Which F-key @p sn is bound to on @p leftButton's side (1-8), or 0. Lowest slot wins. */
 int AssignedFKeyNumber(SpellID sn, bool leftButton)
 {
+	// An UNBOUND slot holds SpellID::Invalid, and so does any entry that is not a spell at all - a
+	// basic attack, an aura. Without this guard the two match each other and an unbindable icon
+	// reports the first empty slot as its own key: every attack in the right-button quick list wore
+	// an "F1" badge that nothing had put there. Guarded here rather than at the call sites because
+	// there are now two of them and the next one would make the same assumption.
+	if (!IsValidSpell(sn))
+		return 0;
 	const SpellID *keys = leftButton ? MyPlayer->_pSplLHotKey : MyPlayer->_pSplHotKey;
 	for (size_t i = 0; i < AbilityFKeyCount; i++) {
 		if (keys[i] == sn)

@@ -1295,7 +1295,13 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				HelpScrollUp();
 			} else if (ChatLogFlag) {
 				ChatLogScrollUp();
-			} else if (oracool::IsEventLogOpen()) {
+			} else if (oracool::GetEventLogWindowRect().contains(MousePosition)) {
+				// Gated on the cursor being over the log (audit, 2026-08-30), like the waypoint
+				// list, the character sheet and the spell book below. It used to be ungated, and
+				// sat above all three - so with the log open, scrolling the character sheet
+				// scrolled the LOG, and the dungeon zoom was dead everywhere on screen. The log is
+				// the one window a player leaves open for a whole session, which is what made an
+				// ungated branch cost the most here.
 				oracool::ScrollEventLogUp();
 			} else if (oracool::IsWaypointMenuOpen() && oracool::GetWaypointMenuRect().contains(MousePosition)) {
 				// Oracool V1: the travel list is 25 rows against a 595px viewport once Hellfire's
@@ -1346,7 +1352,8 @@ void GameEventHandler(const SDL_Event &event, uint16_t modState)
 				HelpScrollDown();
 			} else if (ChatLogFlag) {
 				ChatLogScrollDown();
-			} else if (oracool::IsEventLogOpen()) {
+			} else if (oracool::GetEventLogWindowRect().contains(MousePosition)) {
+				// Gated on the cursor - see the wheel-up branch above.
 				oracool::ScrollEventLogDown();
 			} else if (oracool::IsWaypointMenuOpen() && oracool::GetWaypointMenuRect().contains(MousePosition)) {
 				// Oracool V1: travel list scrolling - see the wheel-up branch above.
