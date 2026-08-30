@@ -7406,3 +7406,45 @@ TEST(OracoolAudit, TheXpBarFitsBetweenTheCounterAndTheBelt)
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
 }
+
+// External audit GP-02, 2026-08-30: "No test mentions ZealToHitBonus. Existing Zeal tests pin only
+// the strike-count ladder." Correct - the v1.9.116 nerf shipped its accuracy half untested, and the
+// two player-facing descriptions of it disagreed with the code AND with each other (one said the
+// bonus starts only after the strike cap; the other still described the pre-nerf ladder).
+//
+// This pins the ladder the code actually implements, so the next description change has something
+// to be checked against.
+TEST(OracoolAudit, ZealToHitLadder)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	std::memset(player._pSkillInvestment, 0, sizeof(player._pSkillInvestment));
+	player._pClass = HeroClass::Warrior; // the Paladin's slot in this fork
+	const auto zeal = static_cast<size_t>(
+	    oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId);
+
+	player._pLevel = 5;
+	player._pSkillInvestment[zeal] = 4;
+	EXPECT_EQ(oracool::ZealToHitBonus(player), 0)
+	    << "below the unlock level the bonus cannot be bought early";
+
+	player._pLevel = 50;
+	// One percentage point per INVESTED point, from the first - not only past the strike cap. The
+	// strike ladder stops at four (see ZealStrikeLadder); this one does not stop.
+	const struct {
+		int invested;
+		int bonus;
+	} ladder[] = { { 0, 0 }, { 1, 1 }, { 2, 2 }, { 3, 3 }, { 10, 10 } };
+	for (const auto &step : ladder) {
+		player._pSkillInvestment[zeal] = static_cast<uint8_t>(step.invested);
+		EXPECT_EQ(oracool::ZealToHitBonus(player), step.bonus)
+		    << "with " << step.invested << " points invested";
+	}
+
+	player._pClass = HeroClass::Sorcerer;
+	player._pSkillInvestment[zeal] = 10;
+	EXPECT_EQ(oracool::ZealToHitBonus(player), 0) << "a non-Paladin must never receive it";
+
+	player._pSkillInvestment[zeal] = 0;
+	player._pClass = HeroClass::Warrior;
+}

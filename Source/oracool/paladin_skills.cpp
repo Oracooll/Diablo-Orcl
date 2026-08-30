@@ -72,7 +72,10 @@ namespace {
 // teleport rather than as a charge.
 constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
 	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, false, 6, 10 },
-	{ N_("Zeal"), N_("Strikes up to four times in the time of one swing, spread across nearby enemies. Each point adds a strike up to that cap, and +1% chance to hit thereafter."),
+	// "thereafter" was wrong (external audit GP-02, 2026-08-30): ZealToHitBonus pays on EVERY
+	// invested point, starting with the first, not only on the points past the strike cap. Two
+	// strikes at unlock, one more per point to a cap of four, and +1% to hit per point throughout.
+	{ N_("Zeal"), N_("Strikes up to four times in the time of one swing, spread across nearby enemies. Each point adds a strike up to that cap, and every point adds +1% chance to hit."),
 	    SpellID::Zeal, MeleeSkillRangeTiles, false, 6, 1 },
 	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith,
 	    MeleeSkillRangeTiles, false, 12, 5 },
