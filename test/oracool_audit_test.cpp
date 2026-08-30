@@ -7580,3 +7580,34 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakLevskisGridToTheNextCharacter)
 
 	oracool::ResetLevskiRoarForNewGame();
 }
+
+
+// Audit, 2026-08-30, same family as the Levski leak: the event log's entries live in a file-local
+// deque, so they outlive a GAME rather than the process. Nothing cleared them, so the next
+// character started in the same session opened the log onto the previous one's history - their
+// kills, their crafts, the death that ended them.
+//
+// Asserted on the ENTRY COUNT, not on the window flag. A test that only checked the flag would keep
+// passing while the entries survived, which is the whole defect.
+TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
+{
+	sgOptions.Oracool.eventLog.SetValue(true);
+	oracool::ClearEventLogForNewGame();
+	ASSERT_EQ(oracool::EventLogEntryCount(), 0u) << "test setup: the log did not start empty";
+
+	oracool::LogEvent("a thing the previous character did");
+	oracool::LogEvent("and another");
+	ASSERT_EQ(oracool::EventLogEntryCount(), 2u)
+	    << "test setup: entries are not being recorded, so this proves nothing";
+	if (!oracool::IsEventLogOpen())
+		oracool::ToggleEventLog();
+	ASSERT_TRUE(oracool::IsEventLogOpen()) << "test setup: the log would not open";
+
+	// Leaving the game.
+	oracool::ClearEventLogForNewGame();
+
+	EXPECT_EQ(oracool::EventLogEntryCount(), 0u)
+	    << "the previous character's log entries are still there for the next one to read";
+	EXPECT_FALSE(oracool::IsEventLogOpen())
+	    << "the log is still open at the start of the next game";
+}

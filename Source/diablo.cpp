@@ -219,6 +219,15 @@ void FreeGame()
 	// windows - so without this the next character started in the same session opened onto this
 	// window, already up, holding the previous character's items (audit, 2026-08-30).
 	oracool::ResetLevskiRoarForNewGame();
+	// The log is the same shape of problem without the item duplication: its entries are a
+	// file-local deque, so the next character opened it onto the previous one's kills and crafts.
+	oracool::ClearEventLogForNewGame();
+	// And Zeal's burst holds raw Monster POINTERS into the monster array this teardown is about to
+	// invalidate. StartStand already resets the chain on every interruption a game can produce, and
+	// a new game reaches it long before the player can swing - so this is hardening rather than a
+	// reported fault. It costs one call to make a dangling-pointer class impossible by construction
+	// instead of merely unreachable.
+	oracool::ResetZealChain();
 
 	FreeMonsterHealthBar();
 	FreeXPBar();

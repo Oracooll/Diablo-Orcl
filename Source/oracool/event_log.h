@@ -33,6 +33,24 @@ void ToggleEventLog();
 bool IsEventLogOpen();
 
 /**
+ * @brief Empties the log and closes it, for game teardown.
+ *
+ * The entries live in a file-local deque, so they outlive a GAME rather than the process. Without
+ * this the next character started in the same session opened the log onto the previous one's
+ * history (audit, 2026-08-30).
+ */
+void ClearEventLogForNewGame();
+
+/**
+ * @brief How many entries the log currently holds.
+ *
+ * Exported so the teardown above can be tested on what it actually does rather than on the window
+ * flag, which would go on passing if the entries survived - the exact shape of test this audit was
+ * looking for.
+ */
+size_t EventLogEntryCount();
+
+/**
  * @brief The window's screen rect, empty when closed - for click-through rejection.
  *
  * The log fills the whole column under the mini-map, and until 2026-08-30 it was in none of the

@@ -132,6 +132,25 @@ bool IsEventLogOpen()
 	return *sgOptions.Oracool.eventLog && WindowOpen;
 }
 
+void ClearEventLogForNewGame()
+{
+	// Audit, 2026-08-30. Entries is a file-local deque, so it outlives a GAME rather than the
+	// process, and nothing cleared it. The next character started in the same session opened the
+	// log onto the previous one's history - their kills, their crafts, the death that ended them.
+	//
+	// PendingDeathSource goes too: it is a half-finished sentence about someone else's death, and
+	// left set it would be attached to the first death of the new character.
+	Entries.clear();
+	PendingDeathSource.clear();
+	ScrollOffset = 0;
+	WindowOpen = false;
+}
+
+size_t EventLogEntryCount()
+{
+	return Entries.size();
+}
+
 Rectangle GetEventLogWindowRect()
 {
 	if (!IsEventLogOpen())
