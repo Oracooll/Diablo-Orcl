@@ -143,6 +143,27 @@ static_assert(InnerPanel.position.y + InnerPanel.size.height == oracool::SidePan
     "Quest log list no longer ends at the orb clearance line");
 static_assert(InnerPanel.size.height > 0, "Quest log list has no room left");
 
+/**
+ * @brief The panel's top-left on screen. Vertically centred (user, 2026-08-30).
+ *
+ * The window used to be flush at the origin, which on a 720-tall screen is also centred and so cost
+ * nothing - but on anything taller it hung from the top edge with all the slack below it. Centring
+ * is one expression, and every other rect in this file is expressed relative to the panel, so they
+ * all follow from QuestListRect below rather than each carrying its own offset.
+ *
+ * x stays 0: this is a left-docked window and only the vertical was asked about.
+ */
+Point QuestPanelOrigin()
+{
+	return { 0, std::max(0, (static_cast<int>(gnScreenHeight) - QuestPanelSize.height) / 2) };
+}
+
+/** @brief InnerPanel moved to where the panel actually is. The rows and the hit-test share it. */
+Rectangle QuestListRect()
+{
+	return { InnerPanel.position + Displacement { QuestPanelOrigin().x, QuestPanelOrigin().y }, InnerPanel.size };
+}
+
 constexpr int LineHeight = 12;
 constexpr int MaxSpacing = LineHeight * 2;
 int ListYOffset;
@@ -259,9 +280,9 @@ int QuestLogMouseToEntry()
 {
 	// InnerPanel is already in screen coordinates - the window is flush at the origin, so there is
 	// no GetLeftPanel() offset to add any more.
-	if (!InnerPanel.contains(MousePosition) || (EncounteredQuestCount == 0))
+	if (!QuestListRect().contains(MousePosition) || (EncounteredQuestCount == 0))
 		return -1;
-	int y = MousePosition.y - InnerPanel.position.y;
+	int y = MousePosition.y - QuestListRect().position.y;
 	for (int i = 0; i < FirstFinishedQuest; i++) {
 		if ((y >= ListYOffset + i * LineSpacing)
 		    && (y < ListYOffset + i * LineSpacing + LineHeight)) {
@@ -282,7 +303,7 @@ void PrintQLString(const Surface &out, int x, int y, string_view str, bool marke
 	if (marked) {
 		ClxDraw(out, Point { x - 20, y + 13 }, (*pSPentSpn2Cels)[PentSpn2Spin()]);
 	}
-	DrawString(out, str, { Point { x, y }, { listWidth, 0 } }, { disabled ? UiFlags::ColorWhitegold : UiFlags::ColorWhite });
+	DrawString(out, str, { Point { x, y }, { listWidth, 0 } }, { (disabled ? UiFlags::ColorWhitegold : UiFlags::ColorWhite) | UiFlags::Shadowed });
 	if (marked) {
 		ClxDraw(out, Point { x + width + 7, y + 13 }, (*pSPentSpn2Cels)[PentSpn2Spin()]);
 	}
@@ -914,7 +935,7 @@ void ResyncQuests()
 
 Rectangle GetQuestLogPanelRect()
 {
-	return { { 0, 0 }, QuestPanelSize };
+	return { QuestPanelOrigin(), QuestPanelSize };
 }
 
 void DrawQuestLog(const Surface &out)
@@ -923,7 +944,7 @@ void DrawQuestLog(const Surface &out)
 	if (l >= 0) {
 		SelectedQuest = l;
 	}
-	const auto x = InnerPanel.position.x;
+	const auto x = QuestListRect().position.x;
 
 	// Oracool V1: same chrome as the waypoint list and the event log. The parchment CEL (pQLogCel)
 	// it used to draw here is still loaded - minitext and the waypoint list's fallback both want it
@@ -934,7 +955,7 @@ void DrawQuestLog(const Surface &out)
 	//
 	// The rule under the title went with it: the background brings its own header framing, so the
 	// separator was a second line drawn across the first.
-	const Rectangle panel { { 0, 0 }, QuestPanelSize };
+	const Rectangle panel { QuestPanelOrigin(), QuestPanelSize };
 	if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, panel.position);
 		oracool::DrawSidePanelBackdrop(out, panel.position);
@@ -943,12 +964,12 @@ void DrawQuestLog(const Surface &out)
 		oracool::DrawOrnateBorder(out, panel);
 	}
 
-	const Rectangle labelArea { { QuestPanelMargin, oracool::PanelTitleTop },
+	const Rectangle labelArea { panel.position + Displacement { QuestPanelMargin, oracool::PanelTitleTop },
 		{ QuestPanelSize.width - 2 * QuestPanelMargin, oracool::PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, _("QUESTS"), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
-	int y = InnerPanel.position.y + ListYOffset;
+	int y = QuestListRect().position.y + ListYOffset;
 	for (int i = 0; i < EncounteredQuestCount; i++) {
 		if (i == FirstFinishedQuest) {
 			y += FinishedQuestOffset;

@@ -3061,6 +3061,94 @@ string_view GetOracoolTierPanelLabel(OracoolItemTier tier)
 }
 
 /**
+ * @brief Just the quality word, without the noun the panel now supplies itself.
+ *
+ * Split out of GetOracoolTierPanelLabel rather than replacing it: that one is still what the label
+ * reads as a whole phrase, and the panel line needs the halves separately so it can put the item's
+ * real type where "item" used to be (user, 2026-08-30). Buffed Unique still says "unique", which is
+ * the whole point of that tier - it is meant to read as a real Unique.
+ */
+string_view GetOracoolTierQualityWord(OracoolItemTier tier)
+{
+	switch (tier) {
+	case OracoolItemTier::Rare:
+		return _("rare");
+	case OracoolItemTier::BuffedUnique:
+		return _("unique");
+	case OracoolItemTier::Primal:
+		return _("primal");
+	case OracoolItemTier::Set:
+		return _("set");
+	case OracoolItemTier::None:
+		break;
+	}
+	return {};
+}
+
+/**
+ * @brief What the item IS, for the quality line - "ring", "boots", "sword" (user, 2026-08-30).
+ *
+ * Row two used to end in the word "item" for everything: "unique item", "basic item". The quality
+ * was doing all the work and the noun none, which is a wasted line on a panel where every line is
+ * scarce. It now names the actual kind, so the row reads "unique ring" or "basic pants".
+ *
+ * The EQUIP SLOT answers first, because that is what the player is shopping for - a helm is a helm
+ * whether its ItemType says LightArmor or Helm. ItemType only decides the weapons, where the slot
+ * says no more than "one hand" and the difference between a sword and a bow is the whole point.
+ *
+ * Never empty for anything this line is printed for: the caller has already excluded ILOC_NONE,
+ * ILOC_UNEQUIPABLE and ILOC_BELT, and every remaining slot has a case. The fallback exists for a
+ * slot added later, and deliberately returns the old wording rather than nothing.
+ */
+string_view GetItemTypeNoun(const Item &item)
+{
+	switch (item._iLoc) {
+	case ILOC_HELM:
+		return _("helm");
+	case ILOC_ARMOR:
+		return _("armor");
+	case ILOC_RING:
+		return _("ring");
+	case ILOC_AMULET:
+		return _("amulet");
+	case ILOC_SHOULDERS:
+		return _("shoulders");
+	case ILOC_BRACERS:
+		return _("bracers");
+	case ILOC_GLOVES:
+		return _("gloves");
+	case ILOC_WAIST:
+		return _("belt");
+	case ILOC_LEGS:
+		return _("pants");
+	case ILOC_BOOTS:
+		return _("boots");
+	case ILOC_ONEHAND:
+	case ILOC_TWOHAND:
+		break; // the slot cannot tell a sword from a bow - ItemType below can
+	default:
+		return _("item");
+	}
+
+	switch (item._itype) {
+	case ItemType::Sword:
+		return _("sword");
+	case ItemType::Axe:
+		return _("axe");
+	case ItemType::Bow:
+		return _("bow");
+	case ItemType::Mace:
+		return _("mace");
+	case ItemType::Staff:
+		return _("staff");
+	case ItemType::Shield:
+		return _("shield");
+	default:
+		return _("weapon");
+	}
+}
+
+/**
  * @brief Generates an Oracool-tiered item's affixes: forces exactly minAffixesPerSlot prefixes
  * and minAffixesPerSlot suffixes (the tier's minimum identity requirement - "Always at least..."
  * per the roadmap, an unconditional guarantee, not a common case), then independently a further
@@ -5966,14 +6054,21 @@ void PrintItemDetails(const Item &item)
 	// (anything with a worn slot) - a potion calling itself a basic item would be noise, not
 	// information.
 	if (item._iLoc != ILOC_NONE && item._iLoc != ILOC_UNEQUIPABLE && item._iLoc != ILOC_BELT) {
+		// The quality, then WHAT IT IS (user, 2026-08-30: "replace the word ITEM with the ACTUAL
+		// TYPE OF ITEM"). The tiered labels used to carry the noun themselves - "rare item" - so
+		// the quality word is taken from them and the noun supplied here, which is what stops the
+		// two halves being written in two places.
+		const string_view noun = GetItemTypeNoun(item);
+		string_view quality;
 		if (item.hasOracoolTier())
-			AddPanelString(GetOracoolTierPanelLabel(item._iOracoolTier), item.getTextColor());
+			quality = GetOracoolTierQualityWord(item._iOracoolTier);
 		else if (item._iMagical == ITEM_QUALITY_UNIQUE)
-			AddPanelString(_("unique item"), item.getTextColor());
+			quality = _("unique");
 		else if (item._iMagical == ITEM_QUALITY_MAGIC)
-			AddPanelString(_("magic item"), item.getTextColor());
+			quality = _("magic");
 		else
-			AddPanelString(_("basic item"), item.getTextColor());
+			quality = _("basic");
+		AddPanelString(fmt::format(fmt::runtime(_("{0} {1}")), quality, noun), item.getTextColor());
 	}
 
 	// The BASE TIER, in its own colour (user, 2026-08-19: white / blue / yellow / gold). Above the

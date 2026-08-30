@@ -236,9 +236,22 @@ int PulsePercent()
  */
 int AuraVisualDiameterHalfTiles(int points)
 {
+	// ONE SIZE, and the smallest that still reads as a ring (user, 2026-08-30: "i dont want aura
+	// assets to grow in size with level bumps. keep the circle assets as small as possible. even
+	// now i find it too large. lets try to shrink it even more, if possible").
+	//
+	// Both halves of that are deliberate reversals of what this function was doing. It returned 4
+	// half-tiles below five points and 6 at or above - so investment grew the ring, which was the
+	// last trace of the old "the circle shows the aura's reach" idea. That idea is already gone
+	// (see the call site): the ring is a MARK ON THE CHARACTER, and a mark that changes size as you
+	// spend points is just a mark that is sometimes wrong about a reach it no longer shows.
+	//
+	// Three half-tiles is one and a half tiles across - narrower than the character's own sprite, so
+	// it reads as standing IN a circle rather than under a wash. Two would be a smudge under the
+	// feet; this is the floor.
 	if (points <= 0)
 		return 0;
-	return points >= 5 ? 6 : 4;
+	return 3;
 }
 
 /**

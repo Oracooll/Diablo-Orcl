@@ -293,6 +293,21 @@ bool TrySalvageOnPickup(Player &player, const Item &item)
 	const SalvageTier tier = SalvageTierOf(item);
 	if (!armed[static_cast<int>(tier)])
 		return false;
+	// THE SAME PROTECTIONS THE BUTTONS OBEY (user, 2026-08-30: "again - make whites with sockets
+	// immune to turning them into white scales automatically. i think i told you to do it already").
+	//
+	// They had. v1.9.101 put the socketed-white rule into SalvageMatches and pointed the Levski
+	// buttons at it - both of them, the collect pass and the is-the-button-live test - and stopped
+	// there. This path never went through it: it asks IsSalvageable and SalvageTierOf itself, so it
+	// kept its own older idea of what counts, and it is the path that fires WITHOUT the player
+	// pressing anything. So the protection worked exactly where it was visible and failed where it
+	// mattered most.
+	//
+	// Asked here rather than by widening IsSalvageable, because "is this gear at all" and "may this
+	// button take it" are different questions - the first is about the item, the second about the
+	// rule the player bought.
+	if (!SalvageMatches(item, tier))
+		return false;
 
 	// The name is read BEFORE anything is destroyed, because the log line is the only trace the
 	// player gets - they never see the item itself.

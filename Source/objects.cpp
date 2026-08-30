@@ -2047,7 +2047,15 @@ void OperateWaypoint(Object &waypoint)
 // placement (AddStashChestObject, further down this file) and OperateObject()'s OBJ_CHEST3 case,
 // which needs to recognize this one specific chest instance among all the other, ordinary
 // OBJ_CHEST3 loot chests placed throughout the dungeon.
-constexpr Point StashChestPosition { 55, 67 };
+// Moved one tile toward 4-5 o'clock (user, 2026-08-30: "move STASH chest 1 tile in SW direction
+// (around 4-5 oclock)").
+//
+// The two halves of that request point opposite ways and the clock won. On this projection
+// Direction::SouthWest is {0,1}, which lands at about half past seven - down and to the LEFT -
+// while 4-5 o'clock is Direction::SouthEast, {1,0}. The clock reading is what the player is looking
+// at on screen, and it was written as the clarification, so it is the one followed. One character
+// to flip if that reads wrong in game: {56, 67} becomes {55, 68}.
+constexpr Point StashChestPosition { 56, 67 };
 
 /**
  * @brief Oracool: user request - a physical Stash Chest in town. Plays the same open animation as

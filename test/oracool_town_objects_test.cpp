@@ -59,7 +59,7 @@ using namespace devilution;
 namespace {
 
 /** @brief The town tiles this fork pins furniture to. Deliberately literals - see the file header. */
-constexpr Point StashChestTile { 55, 67 };
+constexpr Point StashChestTile { 56, 67 }; // moved one tile toward 4-5 o'clock, v1.9.115
 constexpr Point LevskiRoarTile { 55, 66 };
 constexpr Point WaypointSigilTile { 61, 80 };
 
