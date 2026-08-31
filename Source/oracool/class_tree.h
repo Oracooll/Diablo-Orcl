@@ -476,9 +476,11 @@ constexpr size_t MaxSkillsPerClass = 64;
 /** @brief Tiers a page can have. Seven since the Monk; Diablo II's five classes use the first six. */
 constexpr int ClassTreeTierCount = 7;
 /** @brief Points a single tree skill accepts, matching the spell-investment cap. */
-// 98, up from D2s 20 (user, 2026-08-19): the cap is the whole pool a character can earn, and the
-// Rule of Rangs - one character level per rank past the first - is what paces depth instead.
-constexpr int MaxTreeInvestment = 98;
+// THIRTY (user, 2026-08-31), down from 98. 98 was the whole pool a character can earn, so it never
+// bound anything - and against an exponential damage curve that made one-skill builds dominant by
+// six orders of magnitude. See MaxSkillInvestment in oracool/skill_points.h for the full reasoning;
+// these two must stay equal, which the static_assert there enforces.
+constexpr int MaxTreeInvestment = 30;
 /**
  * @brief Pages in a class's tree. Four since Passive Skills (user, 2026-08-25).
  *

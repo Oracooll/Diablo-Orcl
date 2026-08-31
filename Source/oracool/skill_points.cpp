@@ -13,11 +13,45 @@
 
 namespace devilution::oracool {
 
+// The three caps are ONE number wearing three names, and they live in three headers that cannot
+// include each other. Asserted here, the one place that already sees all of them, because they only
+// mean anything together: MaxSpellLevel bounds what books teach, MaxSkillInvestment what points buy,
+// and MaxTreeInvestment what a tree row accepts. Let them drift and a skill's depth would depend on
+// which door it came through (user, 2026-08-31).
+static_assert(MaxSkillInvestment == MaxTreeInvestment,
+    "a tree row must accept exactly as many points as the skill-point cap allows");
+static_assert(MaxSkillInvestment == static_cast<int>(MaxSpellLevel),
+    "books and points share one ceiling - see MaxSpellLevel's comment in player.h");
+
 bool SpellHasBook(SpellID spell)
 {
 	if (spell == SpellID::Invalid || static_cast<size_t>(spell) >= MAX_SPELLS)
 		return false;
 	return GetSpellData(spell).sBookLvl >= 0;
+}
+
+int RefundInvestmentOverTheCap(Player &player)
+{
+	// The cap dropped from 98 to 30 on 2026-08-31, so a hero saved before that can be holding more
+	// points in a skill than the skill now accepts. Left alone they would be stranded: nothing
+	// spends them, nothing refunds them, and the skill would sit permanently above a ceiling every
+	// other character obeys.
+	//
+	// Idempotent, and self-gating for the same reason RefundBookSpellInvestment is - once the excess
+	// is handed back there is nothing over the cap to find, so no version stamp is needed.
+	int refunded = 0;
+	for (size_t i = 0; i < MAX_SPELLS; i++) {
+		const int invested = player._pSkillInvestment[i];
+		if (invested <= MaxSkillInvestment)
+			continue;
+		refunded += invested - MaxSkillInvestment;
+		player._pSkillInvestment[i] = static_cast<uint8_t>(MaxSkillInvestment);
+	}
+	if (refunded > 0) {
+		player._pUnspentSkillPoints = static_cast<uint16_t>(
+		    std::min<int>(player._pUnspentSkillPoints + refunded, UINT16_MAX));
+	}
+	return refunded;
 }
 
 int RefundBookSpellInvestment(Player &player)

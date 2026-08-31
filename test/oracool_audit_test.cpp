@@ -7847,3 +7847,72 @@ TEST(OracoolAudit, SpellDamageFormulasSurviveLevelsPastTheCap)
 		}
 	}
 }
+
+// User decision, 2026-08-31: the per-skill cap drops from 98 to 30.
+//
+// 98 was not a cap. A character earns one skill point per level from 2 to 99, so 98 WAS the whole
+// lifetime budget - the number said "everything you have" rather than bounding anything, and no
+// build was ever stopped by it before it ran out of points.
+//
+// That is fatal beside an exponential curve: ScaleSpellEffect multiplies by 9/8 per level, so 98
+// points in one skill is x9,770,000 while the same 98 spread over five is five things at x10.8.
+// Concentration won by six orders of magnitude and a tree of 161 skills had one correct build.
+//
+// What this pins is the PROPERTY that matters, not the number 30: the cap must bind strictly before
+// the budget, or the choice disappears again. A future rebalance may move 30; it must not move it
+// back to (or past) the point total.
+TEST(OracoolSkillPoints, ThePerSkillCapBindsBeforeTheLifetimeBudget)
+{
+	// One point per level from 2 to MaxCharacterLevel - the whole pool a character can ever earn.
+	const int lifetimeBudget = (MaxCharacterLevel - 1) * oracool::SkillPointsPerLevel;
+	EXPECT_EQ(lifetimeBudget, 98) << "test setup: the point economy changed, so re-read the sums below";
+
+	EXPECT_LT(oracool::MaxSkillInvestment, lifetimeBudget)
+	    << "the per-skill cap (" << oracool::MaxSkillInvestment << ") does not bind before the "
+	    << lifetimeBudget << " points a character earns, so it is a restatement of the budget "
+	       "rather than a ceiling - and with an exponential damage curve that makes one-skill "
+	       "builds the only correct ones";
+
+	// It must also leave room for a build to be a build: more than one maxed skill, but not so many
+	// that the choice is free.
+	const int maxedSkills = lifetimeBudget / oracool::MaxSkillInvestment;
+	EXPECT_GE(maxedSkills, 2) << "a character cannot max even two skills, so there is no build to choose";
+	EXPECT_LE(maxedSkills, 8) << "a character can max so many skills that specialising costs nothing";
+
+	// And the three names for this one number must agree - a skill's depth cannot depend on whether
+	// it was taught by points or by books.
+	EXPECT_EQ(oracool::MaxSkillInvestment, oracool::MaxTreeInvestment);
+	EXPECT_EQ(oracool::MaxSkillInvestment, static_cast<int>(MaxSpellLevel));
+}
+
+// The migration for the same change: a hero saved while the cap was 98 can hold more in a skill
+// than the skill now accepts. Those points would otherwise be stranded - nothing spends them and
+// nothing refunds them - and the skill would sit permanently above a ceiling everyone else obeys.
+TEST(OracoolSkillPoints, PointsAboveTheNewCapAreHandedBack)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	const auto zeal = static_cast<size_t>(oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId);
+
+	// A pre-2026-08-31 hero: 50 points in one skill, back when the cap was the whole budget.
+	player._pSkillInvestment[zeal] = 50;
+	player._pUnspentSkillPoints = 4;
+
+	const int refunded = oracool::RefundInvestmentOverTheCap(player);
+
+	EXPECT_EQ(refunded, 50 - oracool::MaxSkillInvestment) << "the excess above the cap comes back";
+	EXPECT_EQ(player._pSkillInvestment[zeal], oracool::MaxSkillInvestment)
+	    << "the skill is trimmed to the cap, not emptied - the points that still fit are still spent";
+	EXPECT_EQ(player._pUnspentSkillPoints, 4 + refunded) << "and the excess is spendable again";
+
+	// Idempotent, which is what lets it run on every load with no version stamp.
+	EXPECT_EQ(oracool::RefundInvestmentOverTheCap(player), 0) << "a second pass finds nothing to do";
+	EXPECT_EQ(player._pSkillInvestment[zeal], oracool::MaxSkillInvestment);
+
+	// A skill already inside the cap is left completely alone.
+	player._pSkillInvestment[zeal] = 3;
+	EXPECT_EQ(oracool::RefundInvestmentOverTheCap(player), 0);
+	EXPECT_EQ(player._pSkillInvestment[zeal], 3);
+	player._pSkillInvestment[zeal] = 0;
+}

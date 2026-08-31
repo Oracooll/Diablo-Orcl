@@ -566,6 +566,15 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		             refunded, refunded == 1 ? "" : "s"),
 		    UiFlags::ColorWhitegold);
 	}
+
+	// And the same shape of migration for the cap drop from 98 to 30 (2026-08-31). AFTER the book
+	// refund, so a book spell's points are handed back whole by that one rather than trimmed to 30
+	// by this one first.
+	if (const int refunded = RefundInvestmentOverTheCap(player); refunded > 0 && &player == MyPlayer) {
+		LogEvent(fmt::format("Skills cap at {:d} now - {:d} skill point{:s} returned",
+		             MaxSkillInvestment, refunded, refunded == 1 ? "" : "s"),
+		    UiFlags::ColorWhitegold);
+	}
 }
 
 } // namespace devilution::oracool

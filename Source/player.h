@@ -44,11 +44,16 @@ constexpr int MaxBeltItems = 8;
 constexpr int MaxResistance = 75;
 /** @brief Oracool: raised from vanilla's 50 to allow post-Hell/Torment progression. */
 constexpr int MaxCharacterLevel = 99;
-// 98, up from 15 (user, 2026-08-19: "skills/spells have no level ceiling. a player can invest all 98
-// possible points they can acquire in one skill/spell"). 98 is exactly the pool a character can earn
-// - one point per level from 2 to 99 - so the cap says "everything you have", not a number of its own.
-// _pSplLvl is a uint8, so this still fits with room to spare.
-constexpr uint8_t MaxSpellLevel = 98;
+// THIRTY (user, 2026-08-31), down from 98 and up from vanilla's 15.
+//
+// 98 was exactly the pool a character can earn, so it said "everything you have" rather than being a
+// ceiling - and ScaleSpellEffect grows by 9/8 PER LEVEL, so a spell at 98 dealt around ten million
+// damage against monsters with hit points in the thousands. The curve was written for vanilla's 15.
+//
+// Books share the cap with invested points (user's call, same day): one number governs how deep any
+// one ability goes, whoever taught it. Books past the cap are vendor trash, which is the ordinary
+// shape of this genre and is what keeps the curve bounded. See oracool/skill_points.h.
+constexpr uint8_t MaxSpellLevel = 30;
 constexpr int PlayerNameLength = 32;
 
 constexpr size_t NumHotkeys = 12;

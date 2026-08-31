@@ -28,15 +28,26 @@ namespace devilution::oracool {
 constexpr int SkillPointsPerLevel = 1;
 
 /**
- * @brief Hard cap per skill: the WHOLE pool a character can ever earn (user, 2026-08-19: "a player
- * can invest all 98 possible points they can acquire in one skill/spell").
+ * @brief Hard cap per skill. THIRTY (user, 2026-08-31), down from 98.
  *
- * 98 is one point per level from 2 to 99, so this says "everything you have" rather than a number of
- * its own - and _pSkillInvestment is a u8, which it still fits. D2s flat 20 is gone; what actually
- * paces depth now is the Rule of Rangs (oracool/spell_ranks.h), where each rank past the first costs
- * a character level.
+ * 98 was "the whole pool a character can ever earn" - one point per level from 2 to 99 - so it was
+ * not a cap at all, just a restatement of the budget. Nothing stopped a build before it ran out of
+ * points, which meant the tree offered no choice: every point was spendable on one skill.
+ *
+ * That was fatal next to an exponential damage curve. ScaleSpellEffect multiplies by 9/8 per level,
+ * so 98 points in one skill is x9,770,000 while the same 98 spread over five is five things at
+ * x10.8. Concentration did not merely win, it won by six orders of magnitude, and a tree of 161
+ * skills had exactly one correct build.
+ *
+ * A cap that binds BEFORE the budget is what turns the tree into choices: 98 points at 30 apiece is
+ * about three maxed skills and change. The Rule of Rangs (oracool/spell_ranks.h) still paces WHEN
+ * those ranks arrive - one character level per rank past the first - so 30 is a mid-game ceiling
+ * per skill, and the levels after it buy breadth.
+ *
+ * Kept equal to MaxSpellLevel deliberately: one number governs how deep any one ability goes,
+ * whether it was earned with points or with books.
  */
-constexpr int MaxSkillInvestment = 98;
+constexpr int MaxSkillInvestment = 30;
 
 /**
  * @brief Whether @p spell is a BOOK SPELL - something a Book of it could teach.
@@ -74,6 +85,18 @@ bool IsSkillInvestable(const Player &player, SpellID spell);
  * Returns the number of points handed back.
  */
 int RefundBookSpellInvestment(Player &player);
+
+/**
+ * @brief Hands back points sitting above MaxSkillInvestment. Returns how many.
+ *
+ * The cap dropped from 98 to 30 on 2026-08-31, so a hero saved before that can hold more in a skill
+ * than the skill now accepts. Those points are otherwise stranded - nothing spends them and nothing
+ * refunds them - and the skill would sit above a ceiling every other character obeys.
+ *
+ * Idempotent and self-gating, like the book refund beside it: once the excess is back there is
+ * nothing over the cap to find, so it needs no version stamp.
+ */
+int RefundInvestmentOverTheCap(Player &player);
 
 /** @brief Whether an invest click would succeed: investable, a point unspent, cap not reached. */
 bool CanInvestSkillPoint(const Player &player, SpellID spell);
