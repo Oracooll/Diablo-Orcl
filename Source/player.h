@@ -460,6 +460,23 @@ struct Player {
 	 */
 	uint16_t _pOracoolActiveAura = 0xFFFF;
 	/**
+	 * @brief F1-F8 bound to AURAS, as absolute oracool::ClassTreeSkill ordinals. 0xFFFF for none.
+	 *
+	 * A separate array because an aura cannot live in the two SpellID hotkey arrays: aura rows carry
+	 * SpellID::Invalid by construction - an aura is a toggle, not a cast, and has no spell slot to
+	 * be named by. That is why F-keys refused them (user, 2026-08-31: "i cant set them on auras").
+	 *
+	 * Same width and same sentinel as _pOracoolActiveAura above, and absolute for the same reason
+	 * and with the same weakness: the ordinal shifts if a class earlier in the enum gains rows. The
+	 * readers guard it the way GetActiveClassAura does, by checking the row belongs to this
+	 * character's class before honouring it.
+	 *
+	 * Persisted by HeroChunkAuraHotkeys. NumHotkeys, not AbilityFKeyCount, so the array matches its
+	 * two SpellID siblings and the extra slots exist if the reserved keys ever widen again.
+	 */
+	uint16_t _pAuraHotKey[NumHotkeys] = { 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF,
+		0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF };
+	/**
 	 * @brief Points sunk into each class-tree skill that has no spell slot - every aura, every
 	 * passive, and the actives whose mechanics are not built yet - indexed by the skill's position
 	 * within its own class (oracool::ClassTreeIconIndex). The tree's castable skills store their

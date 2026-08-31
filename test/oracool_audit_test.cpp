@@ -8037,3 +8037,85 @@ TEST(OracoolAudit, AClassSkillOnTheLeftButtonSurvivesTheChunkOrdering)
 	gbIsHellfire = savedHellfire;
 }
 
+
+// User report, 2026-08-31: "i can only set hot keys on skills. i cant set them on auras."
+//
+// An aura row carries SpellID::Invalid by construction - it is a toggle, not a cast, and has no
+// spell slot to be named by - so it could never live in the two SpellID hotkey arrays, and the
+// binding path rejected it. It gets its own store, _pAuraHotKey, keyed by tree row.
+//
+// Pinned through the CHUNK, because a binding that does not survive the save is not a binding.
+TEST(OracoolAudit, AnAuraCanHoldAHotkeyAndSurvivesTheSave)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior; // the Paladin's slot in this fork
+	player._pLevel = 30;
+
+	const auto might = oracool::ClassTreeSkill::Might;
+	ASSERT_EQ(oracool::GetClassTreeSkillData(might).kind, oracool::ClassTreeKind::Aura)
+	    << "test setup: Might is not an aura any more, so pick another row";
+	ASSERT_EQ(oracool::ClassTreeSpellId(might), SpellID::Invalid)
+	    << "test setup: this aura has a SpellID, which is the thing that made auras a special case";
+
+	// Bound to F3.
+	player._pAuraHotKey[2] = static_cast<uint16_t>(might);
+	EXPECT_EQ(GetAuraFKeyNumber(might), 3) << "the picker's badge cannot see the binding";
+
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(player);
+
+	devilution::Player &loaded = Players[0];
+	loaded = {};
+	loaded._pClass = HeroClass::Warrior;
+	loaded._pLevel = 30;
+	oracool::ApplyHeroChunks(loaded, tail.data(), tail.size());
+
+	EXPECT_EQ(loaded._pAuraHotKey[2], static_cast<uint16_t>(might))
+	    << "the aura binding did not survive the save";
+	EXPECT_EQ(loaded._pAuraHotKey[0], 0xFFFF) << "an unbound slot came back bound";
+
+	// A row belonging to another class is dropped rather than trusted - the ordinal is absolute, so
+	// it can be reinterpreted by a later enum, exactly as the active-aura chunk guards against.
+	devilution::Player &wrongClass = Players[0];
+	wrongClass = {};
+	wrongClass._pClass = HeroClass::Sorcerer;
+	wrongClass._pLevel = 30;
+	oracool::ApplyHeroChunks(wrongClass, tail.data(), tail.size());
+	EXPECT_EQ(wrongClass._pAuraHotKey[2], 0xFFFF)
+	    << "a Paladin's aura was restored onto a Sorcerer";
+}
+
+// The other half of the same report: "hotkeys only actually assign skill in the rmb slot if used on
+// rmb speedbook." Binding moved into the quick lists on 2026-08-30, so the list a key was bound in
+// says which button it belongs to - but USING it still required shift for the left button, a rule
+// from 2026-08-18 when the Abilities window bound both and the modifier was the only way to tell
+// them apart. A left binding therefore looked like it had silently failed.
+TEST(OracoolAudit, APlainPressUsesALeftHandBinding)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+	player._pMemSpells |= GetSpellBitmask(SpellID::Firebolt);
+	player._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 3;
+
+	// F1 bound on the LEFT only, as binding from the left quick list leaves it.
+	player._pSplLHotKey[0] = SpellID::Firebolt;
+	player._pSplLTHotKey[0] = SpellType::Spell;
+	player._pLRSpell = SpellID::Invalid;
+	player._pLRSplType = SpellType::Invalid;
+
+	// A PLAIN press - no shift. This is the gesture that did nothing.
+	HandleAbilityFKey(0, /*shift=*/false);
+
+	EXPECT_EQ(player._pLRSpell, SpellID::Firebolt)
+	    << "a plain press did not use the left-hand binding, so the key looks dead";
+	EXPECT_EQ(player._pLRSplType, SpellType::Spell);
+
+	player._pSplLHotKey[0] = SpellID::Invalid;
+	player._pSplLTHotKey[0] = SpellType::Invalid;
+}

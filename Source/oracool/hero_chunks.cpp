@@ -338,6 +338,17 @@ std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
 		EndChunk(out, at);
 	}
 
+	// The aura bindings, which cannot ride either array above: an aura row carries SpellID::Invalid,
+	// so there is no spell to pack (user, 2026-08-31 - F-keys refused auras entirely until then).
+	// Two bytes each, because the tree passed 255 rows in 2026-08-25.
+	{
+		const size_t at = BeginChunk(out, HeroChunkAuraHotkeys);
+		out.push_back(static_cast<uint8_t>(AbilityFKeyCount));
+		for (size_t i = 0; i < AbilityFKeyCount; i++)
+			PutU16(out, player._pAuraHotKey[i]);
+		EndChunk(out, at);
+	}
+
 	// D2MXL-to-ORCL Phase 2. Both ride the tail rather than growing PlayerPack, which is what the
 	// tail was built for - a fixed struct's growth invalidates every existing hero file, and this
 	// costs nothing.
@@ -494,6 +505,27 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 				// to be trusted just because we wrote them.
 				const uint32_t points = GetU32(payload);
 				player._pStatPts = static_cast<int>(std::min<uint32_t>(points, std::numeric_limits<int>::max()));
+			}
+			break;
+		case HeroChunkAuraHotkeys:
+			if (chunkLen >= 1) {
+				// Two bytes per slot, so the payload bound is (chunkLen - 1) / 2.
+				const size_t count = std::min<size_t>({ payload[0], (chunkLen - 1) / 2, AbilityFKeyCount });
+				for (size_t i = 0; i < count; i++) {
+					const uint16_t stored = GetU16(payload + 1 + i * 2);
+					if (stored == 0xFFFF)
+						continue; // an unbound slot, left exactly as it was
+					// VALIDATED, not trusted: the ordinal is absolute, so a row belonging to another
+					// class - or to no row at all - is dropped rather than honoured. Same guard
+					// GetActiveClassAura applies to _pOracoolActiveAura, and for the same reason.
+					if (stored > static_cast<uint16_t>(ClassTreeSkill::LAST))
+						continue;
+					const auto skill = static_cast<ClassTreeSkill>(stored);
+					const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+					if (data.heroClass != player._pClass || data.kind != ClassTreeKind::Aura)
+						continue;
+					player._pAuraHotKey[i] = stored;
+				}
 			}
 			break;
 		case HeroChunkSpellHotkeysLeft:

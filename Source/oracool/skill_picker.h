@@ -38,6 +38,7 @@
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
+#include "oracool/class_tree.h" // ClassTreeSkill - an aura is named by its row, not by a SpellID
 #include "spelldat.h"
 
 namespace devilution {
@@ -86,5 +87,15 @@ bool IsSkillPickerForLeftButton();
  * special case at the call site.
  */
 SpellID GetSkillPickerHoveredSpell();
+
+/**
+ * @brief The AURA under the cursor, or ClassTreeSkill::None.
+ *
+ * Separate from the spell above because an aura row carries SpellID::Invalid - it is a toggle, not
+ * a cast, and has no spell slot to be named by. Binding one to an F-key therefore cannot go through
+ * the SpellID hotkey arrays at all; it uses Player::_pAuraHotKey (user, 2026-08-31: "i cant set
+ * them on auras").
+ */
+ClassTreeSkill GetSkillPickerHoveredAura();
 
 } // namespace devilution::oracool

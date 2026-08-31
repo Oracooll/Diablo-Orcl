@@ -1282,6 +1282,15 @@ SpellType BindingTypeFor(const Player &player, SpellID spell)
  * Both arrays are swept, not just the one being written, so a skill cannot sit on F3-left and
  * F5-right at once and leave the player guessing which badge is authoritative.
  */
+/** @brief The aura twin of ClearSpellFromHotkeys - one key, one thing, auras included. */
+void ClearAuraFromHotkeys(Player &player, oracool::ClassTreeSkill aura)
+{
+	for (size_t i = 0; i < AbilityFKeyCount; i++) {
+		if (player._pAuraHotKey[i] == static_cast<uint16_t>(aura))
+			player._pAuraHotKey[i] = 0xFFFF;
+	}
+}
+
 void ClearSpellFromHotkeys(Player &player, SpellID spell)
 {
 	for (size_t i = 0; i < AbilityFKeyCount; i++) {
@@ -1299,6 +1308,20 @@ void ClearSpellFromHotkeys(Player &player, SpellID spell)
 int GetAbilityFKeyNumber(SpellID spell, bool leftButton)
 {
 	return AssignedFKeyNumber(spell, leftButton);
+}
+
+int GetAuraFKeyNumber(oracool::ClassTreeSkill aura)
+{
+	// No leftButton parameter, deliberately: an aura is the right button's occupant whichever list
+	// it was bound from - see the aura/right-button rule in class_tree.h - so it has one binding,
+	// not one per side.
+	if (aura == oracool::ClassTreeSkill::None || MyPlayer == nullptr)
+		return 0;
+	for (size_t i = 0; i < AbilityFKeyCount; i++) {
+		if (MyPlayer->_pAuraHotKey[i] == static_cast<uint16_t>(aura))
+			return static_cast<int>(i) + 1;
+	}
+	return 0;
 }
 
 bool HandleAbilityFKey(size_t slot, bool shift)
@@ -1320,9 +1343,34 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 	// window's. Consumed either way - a bind key that fell through to casting mid-edit would ready
 	// a skill on the very button the player is in the middle of assigning.
 	if (oracool::IsSkillPickerOpen()) {
+		// AURAS FIRST, and they take a different road entirely (user, 2026-08-31: "i cant set them
+		// on auras"). An aura row carries SpellID::Invalid - it is a toggle, not a cast - so it can
+		// never live in the two SpellID arrays, and the check below would reject it forever. It goes
+		// in _pAuraHotKey instead, named by its tree row.
+		if (const oracool::ClassTreeSkill aura = oracool::GetSkillPickerHoveredAura();
+		    aura != oracool::ClassTreeSkill::None) {
+			if (me._pAuraHotKey[slot] == static_cast<uint16_t>(aura)) {
+				me._pAuraHotKey[slot] = 0xFFFF; // the same key on the same aura takes it back off
+			} else {
+				// One key, one thing: an aura landing on a key clears whatever spell was there, on
+				// EITHER button, exactly as a spell would.
+				ClearSpellFromHotkeys(me, me._pSplHotKey[slot]);
+				ClearSpellFromHotkeys(me, me._pSplLHotKey[slot]);
+				me._pSplHotKey[slot] = SpellID::Invalid;
+				me._pSplTHotKey[slot] = SpellType::Invalid;
+				me._pSplLHotKey[slot] = SpellID::Invalid;
+				me._pSplLTHotKey[slot] = SpellType::Invalid;
+				ClearAuraFromHotkeys(me, aura);
+				me._pAuraHotKey[slot] = static_cast<uint16_t>(aura);
+			}
+			oracool::ScheduleAutoSaveForSkillChange();
+			RedrawEverything();
+			return true;
+		}
+
 		const SpellID spell = oracool::GetSkillPickerHoveredSpell();
 		if (!IsValidSpell(spell))
-			return true; // over an attack, an aura, or no cell at all - nothing a hotkey can hold
+			return true; // over an attack or no cell at all - nothing a hotkey can hold
 		if (keys[slot] == spell) {
 			keys[slot] = SpellID::Invalid;
 			types[slot] = SpellType::Invalid;
@@ -1367,21 +1415,54 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 		return true;
 	}
 
-	// In play. The bare key is the vanilla quick-spell path, which readies the bound ability on the
-	// right button (or casts outright under quickCast). LShift+key is its left-hand twin, and has to
-	// be written out rather than reusing ToggleSpell, which only ever knew about the right one.
-	if (!shift) {
-		ToggleSpell(slot);
+	// In play. WHICH BUTTON a press acts on is decided by where the binding actually is, not by
+	// shift (user, 2026-08-31: "hotkeys only actually assign skill in the rmb slot if used on rmb
+	// speedbook").
+	//
+	// Shift-for-left dates from 2026-08-18, when both bindings were made in the Abilities window and
+	// the modifier was the only thing that could tell them apart. Binding moved into the quick lists
+	// on 2026-08-30, and the list itself now says which button a key belongs to - so a key bound in
+	// the LEFT list is a left-button key, and the player who put it there expects a plain press to
+	// use it. Requiring shift as well meant a left binding looked like it had silently failed.
+	//
+	// Shift is kept as the TIEBREAK, because one key can still hold one skill per button: "one key,
+	// one skill, one button" sweeps a SPELL off both arrays, and does not stop F3-left and F3-right
+	// naming two different skills.
+	// An aura on this key toggles it, and takes precedence: nothing else can be on the same key,
+	// because binding one clears both spell arrays for that slot.
+	if (me._pAuraHotKey[slot] != 0xFFFF) {
+		const auto aura = static_cast<oracool::ClassTreeSkill>(me._pAuraHotKey[slot]);
+		// Re-validated at USE time, not just at load: a refund can take the aura away between the
+		// binding and the press, and RefreshInnateSpells cannot clear this array because an aura
+		// is not in _pAblSpells to begin with.
+		if (oracool::ClassTreeInvestment(me, aura) > 0) {
+			oracool::ToggleClassAura(me, aura);
+			CalcPlrInv(me, false);
+			oracool::ScheduleAutoSaveForSkillChange();
+			RedrawEverything();
+		}
 		return true;
 	}
-	if (IsValidSpell(keys[slot])) {
-		me._pLRSpell = keys[slot];
-		me._pLRSplType = types[slot];
+
+	const bool rightBound = IsValidSpell(me._pSplHotKey[slot]);
+	const bool leftBound = IsValidSpell(me._pSplLHotKey[slot]);
+	const bool useLeft = shift ? leftBound : (leftBound && !rightBound);
+
+	if (useLeft) {
+		me._pLRSpell = me._pSplLHotKey[slot];
+		me._pLRSplType = me._pSplLTHotKey[slot];
 		// The left-hand twin of ToggleSpell, and it had to be written out rather than reused - so
 		// it also missed the save the right-hand path schedules (audit, 2026-08-26).
 		oracool::ScheduleAutoSaveForSkillChange();
 		RedrawEverything();
+		return true;
 	}
+	if (shift && !leftBound)
+		return true; // shift asked for a left binding that is not there; the right one is not it
+
+	// The vanilla quick-spell path: readies the bound ability on the right button, or casts outright
+	// under quickCast. Also the no-binding case, where it correctly does nothing.
+	ToggleSpell(slot);
 	return true;
 }
 

@@ -154,6 +154,18 @@ enum HeroChunkTag : uint16_t {
 	 * been reinterpreted by a later enum.
 	 */
 	HeroChunkActiveAuraRelative = 13,
+	/**
+	 * @brief F1-F8 bound to AURAS - Player::_pAuraHotKey (user, 2026-08-31).
+	 *
+	 * u8 count, then that many little-endian u16 ClassTreeSkill ordinals, 0xFFFF for an unbound
+	 * slot. Count-prefixed like HeroChunkClassTree so NumHotkeys can grow without a new tag, and
+	 * two bytes per entry because the tree passed 255 rows in 2026-08-25 - the same widening
+	 * HeroChunkActiveAura had to make.
+	 *
+	 * Absolute ordinals, like the aura chunks above, and guarded on read the same way: a row that
+	 * does not belong to this character's class is dropped rather than trusted.
+	 */
+	HeroChunkAuraHotkeys = 14,
 };
 
 /** @brief Serializes every chunk the current player state wants persisted. */

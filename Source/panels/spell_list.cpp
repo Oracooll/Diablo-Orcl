@@ -81,6 +81,27 @@ std::optional<string_view> GetHotkeyName(SpellID spellId, SpellType spellType, b
 	for (size_t t = 0; t < NumHotkeys; t++) {
 		if (myPlayer._pSplHotKey[t] != spellId || myPlayer._pSplTHotKey[t] != spellType)
 			continue;
+
+		// The first eight slots ARE F1-F8, and this says so directly instead of asking the keymapper
+		// (user, 2026-08-31: "i have set F1-F4 skills in rmb but when actualy loading the skills
+		// with the hotkeys the icons in rmb show F5-F8 as a badge").
+		//
+		// Those keys are intercepted in PressKey BEFORE sgOptions.Keymapper ever sees them, and the
+		// QuickSpell actions were made default-unbound in 2026-08-17 for exactly that reason. But a
+		// SETTLED diablo.ini still carries the old QuickSpell1..4 = F5..F8 rows, and this function
+		// was reading them - so the badge reported a binding that does nothing while hiding the key
+		// that actually fires. Off by four, which is precisely the gap between the two.
+		//
+		// Asking the keymapper here could never have been right once the keys became reserved: the
+		// mapping is a constant of the code now, not a setting.
+		if (t < AbilityFKeyCount) {
+			static char reservedName[4];
+			*BufCopy(reservedName, "F", t + 1) = '\0';
+			return string_view(reservedName);
+		}
+
+		// Slots past the reserved eight are still ordinary keymapper actions, and there the ini is
+		// the truth.
 		auto quickSpellActionKey = StrCat("QuickSpell", t + 1);
 		if (ControlMode == ControlTypes::Gamepad)
 			return sgOptions.Padmapper.InputNameForAction(quickSpellActionKey, useShortName);

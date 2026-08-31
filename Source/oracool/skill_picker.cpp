@@ -38,6 +38,14 @@ bool PickerForLeft = false;
 int PickerScroll = 0;
 /** The spell under the cursor as of the last draw - what an F-key press binds. Invalid over none. */
 SpellID HoveredPickerSpell = SpellID::Invalid;
+/**
+ * @brief The AURA under the cursor, or ClassTreeSkill::None.
+ *
+ * Tracked separately from the spell because an aura has no SpellID to be named by - its row carries
+ * SpellID::Invalid by construction, an aura being a toggle rather than a cast. That is precisely why
+ * F-keys refused auras until 2026-08-31 ("i cant set them on auras").
+ */
+ClassTreeSkill HoveredPickerAura = ClassTreeSkill::None;
 
 /** What one cell stands for. Three kinds because three different things draw and bind differently. */
 enum class EntryKind : uint8_t {
@@ -276,6 +284,7 @@ void OpenSkillPicker(bool forLeftButton)
 	PickerForLeft = forLeftButton;
 	PickerScroll = 0;
 	HoveredPickerSpell = SpellID::Invalid;
+	HoveredPickerAura = ClassTreeSkill::None;
 }
 
 void CloseSkillPicker()
@@ -283,6 +292,7 @@ void CloseSkillPicker()
 	PickerOpen = false;
 	PickerScroll = 0;
 	HoveredPickerSpell = SpellID::Invalid;
+	HoveredPickerAura = ClassTreeSkill::None;
 }
 
 bool IsSkillPickerForLeftButton()
@@ -293,6 +303,11 @@ bool IsSkillPickerForLeftButton()
 SpellID GetSkillPickerHoveredSpell()
 {
 	return PickerOpen ? HoveredPickerSpell : SpellID::Invalid;
+}
+
+ClassTreeSkill GetSkillPickerHoveredAura()
+{
+	return PickerOpen ? HoveredPickerAura : ClassTreeSkill::None;
 }
 
 Rectangle GetSkillPickerRect()
@@ -357,6 +372,7 @@ void DrawSkillPicker(const Surface &out)
 	// Cleared every frame, so moving off a cell un-hovers it. Without this an F-key would keep
 	// binding whatever the cursor last touched, long after it left the window's cells.
 	HoveredPickerSpell = SpellID::Invalid;
+	HoveredPickerAura = ClassTreeSkill::None;
 
 	const Rectangle window = GetSkillPickerRect();
 	// Opaque backing first. The concept mock drew icons straight onto the dungeon and the world read
@@ -437,7 +453,12 @@ void DrawSkillPicker(const Surface &out)
 			// The F-key badge, top-right, for THIS list's button only - the Abilities window shows
 			// both buttons in its two corners, but a quick list binds one button and showing the
 			// other's key here would invite pressing it in the wrong window.
-			if (const int fkey = GetAbilityFKeyNumber(entry.spell, PickerForLeft); fkey != 0) {
+			const int auraKey = entry.kind == EntryKind::Tree
+			        && GetClassTreeSkillData(entry.tree).kind == ClassTreeKind::Aura
+			    ? GetAuraFKeyNumber(entry.tree)
+			    : 0;
+			if (const int fkey = auraKey != 0 ? auraKey : GetAbilityFKeyNumber(entry.spell, PickerForLeft);
+			    fkey != 0) {
 				DrawString(out, StrCat("F", fkey),
 				    { { cell.position.x, cell.position.y },
 				        { IconSize, LevelBandHeight } },
@@ -452,6 +473,11 @@ void DrawSkillPicker(const Surface &out)
 				// own hover from the draw: the cell rects are laid out here, and a second copy of
 				// that walk is a second place for the two to disagree.
 				HoveredPickerSpell = entry.spell;
+				// And the aura, which has no SpellID to be carried by the line above.
+				if (entry.kind == EntryKind::Tree
+				    && GetClassTreeSkillData(entry.tree).kind == ClassTreeKind::Aura) {
+					HoveredPickerAura = entry.tree;
+				}
 				// The hover popup rides the existing cursor tooltip, which renders InfoString after
 				// every window in the draw order - so naming the entry here is the whole feature.
 				// CheckCursMove leaves InfoString alone while the cursor is over a floating window,

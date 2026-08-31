@@ -9,6 +9,14 @@
 
 namespace devilution {
 
+// Forward-declared rather than including oracool/class_tree.h: that header pulls in a great deal,
+// and oracool/skill_picker.h already includes BOTH it and this one - a full include here would make
+// that a cycle. The underlying type has to match class_tree.h's declaration exactly.
+namespace oracool {
+enum class ClassTreeSkill : uint16_t;
+} // namespace oracool
+
+
 /**
  * @brief Screen rect of the spell book: 340x720, flush to the top-right corner.
  *
@@ -54,6 +62,15 @@ bool HandleAbilityFKey(size_t slot, bool shift);
  * moves bindings.
  */
 int GetAbilityFKeyNumber(SpellID spell, bool leftButton);
+
+/**
+ * @brief Which F-key @p aura sits on, 1-8, or 0 for none.
+ *
+ * No button parameter: an aura occupies the right button whichever list it was bound from, so it
+ * has one binding rather than one per side.
+ */
+int GetAuraFKeyNumber(oracool::ClassTreeSkill aura);
+
 
 /** @brief Scrolls the current sheet by @p notches wheel steps, positive down. Clamped to the list. */
 void ScrollSpellBook(int notches);

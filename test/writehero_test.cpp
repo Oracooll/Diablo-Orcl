@@ -747,10 +747,20 @@ TEST(Writehero, pfile_write_hero)
 	//      shifted every Bard and Monk aura and those characters lost whatever was burning. The
 	//      relative form cannot be reinterpreted that way, because growth only ever appends to a
 	//      class block - so when both tags are present, this one wins.
+	// 1.9.138: HeroChunkAuraHotkeys (tag 14) joined the tail - a u8 count then eight little-endian
+	//      u16 ClassTreeSkill ordinals, 0xFFFF for an unbound slot. Another real format addition.
+	//
+	//      An aura could not be bound to F1-F8 at all before this (user: "i cant set them on
+	//      auras"), and the reason was structural rather than an oversight: the two hotkey arrays
+	//      hold SpellIDs, and an aura row carries SpellID::Invalid because it is a toggle rather
+	//      than a cast. There was nowhere to put it. Hence its own array and its own chunk.
+	//
+	//      Two bytes per slot, not one, for the reason HeroChunkActiveAura had to widen in
+	//      2026-08-25: the Passive Skills page took the tree past 255 rows.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "3467d8143a7a608c050da4911610722986f1ac28ce573e0e5be335dd90ae987d");
+	    "55acf4c1b698b4e089bc05ccb412c73682a93d7efd6059471f7b93dea1c3f138");
 }
 
 } // namespace
