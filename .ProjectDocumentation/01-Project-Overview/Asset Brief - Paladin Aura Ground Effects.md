@@ -2,7 +2,7 @@
 
 **For:** an image-generation model, or a human artist.
 **Deliverable:** 20 ground-glow images, one per Paladin aura.
-**Project:** Diablo Orcl V1 (Oracool Edition) — a single-player Diablo fork built on DevilutionX.
+**Project:** Diablo Orcl (Oracool Edition) — a single-player Diablo fork built on DevilutionX.
 **Written:** 2026-08-25.
 
 ---

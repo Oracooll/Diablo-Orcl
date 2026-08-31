@@ -5,7 +5,7 @@ tags: [moc, home]
 
 # Diablo Oracool Edition V1 — Project Documentation
 
-This is the documentation vault for **Diablo Orcl V1**, the 960×720 UI-overhaul line of Diablo Oracool Edition. It is a fork of Diablo Oracool Edition V0 (which continues on its own vanilla-faithful, quality-of-life-only path) — see [[V0 to V1 Fork]] for the full story.
+This is the documentation vault for **Diablo Orcl**, the 960×720 UI-overhaul line of Diablo Oracool Edition. It is a fork of Diablo Oracool Edition V0 (which continues on its own vanilla-faithful, quality-of-life-only path) — see [[V0 to V1 Fork]] for the full story.
 
 Open this folder (`.ProjectDocumentation/`) as an Obsidian vault to get backlinks, the graph view, and clickable `[[wikilinks]]` between notes.
 

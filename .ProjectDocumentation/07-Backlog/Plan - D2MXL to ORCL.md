@@ -1,6 +1,6 @@
 # Plan — D2MXL to ORCL
 
-Adopting Median XL's content mechanisms into Diablo Orcl V1.
+Adopting Median XL's content mechanisms into Diablo Orcl.
 
 **Written:** 2026-08-22, at v1.9.18
 **Status:** Phase 1 planned to implementation level; Phases 2–4 scoped.

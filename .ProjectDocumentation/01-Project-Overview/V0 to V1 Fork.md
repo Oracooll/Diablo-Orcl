@@ -11,7 +11,7 @@ summary: Why Diablo Oracool Edition split into a vanilla-faithful V0 line and a 
 Diablo Oracool Edition was originally one project (`Diablo Ocrl V0`), a DevilutionX-based quality-of-life mod that stayed faithful to vanilla Diablo's look and behavior. On 2026-08-08, the project split into two independently versioned lines:
 
 - **V0** (`Diablo Ocrl V0`, `0.x.xxx`) — stays vanilla-faithful. QoL and bugfix features only; no departure from vanilla's UI, resolution behavior, or visual identity.
-- **V1** (`Diablo Orcl V1`, `1.x.xxx`, this repository) — where deliberately vanilla-*departing* work lives, starting with a 960×720-floor UI overhaul.
+- **V1** (`Diablo Orcl`, `1.x.xxx`, this repository - the folder dropped its "V1" suffix on 2026-08-31) — where deliberately vanilla-*departing* work lives, starting with a 960×720-floor UI overhaul.
 
 ## How the fork happened
 

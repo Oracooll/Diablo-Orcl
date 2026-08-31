@@ -1,4 +1,4 @@
-# Builds the Diablo Orcl V1 skills/spells/auras reference workbook via Excel COM.
+# Builds the Diablo Orcl skills/spells/auras reference workbook via Excel COM.
 #
 # Every number is TRANSCRIBED FROM SOURCE, never estimated:
 #   inventory        - wiki/data.js, which tools/BuildWiki.ps1 parses from class_tree.cpp and spelldat.cpp
@@ -9,8 +9,10 @@
 # Where the code has no per-rank formula, the sheet says so rather than inventing one.
 
 $ErrorActionPreference = 'Stop'
-$repo = 'C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Diablo Orcl V1'
-$out  = Join-Path $repo 'Diablo Orcl V1 - Skills, Spells and Auras.xlsx'
+# From the script's own location: an absolute path here carried the repo's folder name and would
+# have gone stale the moment the project was renamed (V1 dropped 2026-08-31).
+$repo = Split-Path -Parent $PSScriptRoot
+$out  = Join-Path $repo 'Diablo Orcl - Skills, Spells and Auras.xlsx'
 
 $txt = [System.IO.File]::ReadAllText((Join-Path $repo 'wiki\data.js'))
 $s = $txt.IndexOf('{'); $e = $txt.LastIndexOf('}')
@@ -139,7 +141,7 @@ function Write-Block($ws, $top, $rows, $cols) {
 # ============================================================ Sheet 1: Skills and Auras
 $ws = $wb.Sheets.Item(1)
 $ws.Name = 'Skills and Auras'
-$ws.Cells.Item(1,1).Value2 = "Diablo Orcl V1 v$version - class-tree skills and auras that are BUILT, one row per effect channel"
+$ws.Cells.Item(1,1).Value2 = "Diablo Orcl v$version - class-tree skills and auras that are BUILT, one row per effect channel"
 $ws.Cells.Item(1,1).Font.Bold = $true
 $ws.Cells.Item(1,1).Font.Size = 13
 $ws.Cells.Item(2,1).Value2 = "Rank columns are live formulas - base + per-rank x (rank - 1), the Scaled() shape from class_tree.cpp. Edit Base or Per extra rank and they recalculate."
@@ -194,7 +196,7 @@ $skillRows = $rows.Count
 # ==================================================================== Sheet 2: Spells
 $ws2 = $wb.Sheets.Add([System.Reflection.Missing]::Value, $wb.Sheets.Item($wb.Sheets.Count))
 $ws2.Name = 'Spells'
-$ws2.Cells.Item(1,1).Value2 = "Diablo Orcl V1 v$version - every spell in spelldat.cpp, and what a spell level actually changes"
+$ws2.Cells.Item(1,1).Value2 = "Diablo Orcl v$version - every spell in spelldat.cpp, and what a spell level actually changes"
 $ws2.Cells.Item(1,1).Font.Bold = $true
 $ws2.Cells.Item(1,1).Font.Size = 13
 $ws2.Cells.Item(2,1).Value2 = "Damage formulas are GetDamageAmtAtLevel (missiles.cpp) verbatim. 'does not scale with spell level' means extra levels cut the mana cost and nothing else."

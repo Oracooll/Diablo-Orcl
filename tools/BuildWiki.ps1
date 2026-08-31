@@ -1,4 +1,4 @@
-# BuildWiki.ps1 - generates the Diablo Orcl V1 wiki from the game's own source data.
+# BuildWiki.ps1 - generates the Diablo Orcl wiki from the game's own source data.
 #
 # Run it after any change to the data tables and the wiki is current again:
 #
@@ -20,6 +20,14 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $src = Join-Path $root 'Source'
 $out = Join-Path $root 'wiki'
+# The documentation vault. It lives INSIDE the repo as .ProjectDocumentation; the two readers below
+# (dev reports, backlog pipeline) looked for it beside the repo under the project's old folder name,
+# so both silently found nothing and the wiki shipped an empty history table and an empty pipeline
+# for as long as that was true. Named once here so a move breaks one line, and checked out loud.
+$vault = Join-Path $root '.ProjectDocumentation'
+if (-not (Test-Path $vault)) {
+    Write-Warning "documentation vault not found at $vault - history and pipeline pages will be empty"
+}
 
 function Read-SourceFile([string]$relative) {
     return Get-Content (Join-Path $src $relative) -Raw -Encoding UTF8
@@ -602,7 +610,17 @@ foreach ($m in [regex]::Matches($optionsCpp, '\n\s*,\s*(\w+)\("([^"]+)",\s*Optio
 # ---------------------------------------------------------------------------------------------
 Add-Type -AssemblyName System.Drawing
 $assets = New-Object System.Collections.ArrayList
-$assetRoot = Join-Path $root 'Packaging\resources\assets'
+# oracool_assets, NOT assets. `assets` is DevilutionX's stock resource folder and holds five PNGs
+# (ui_art buttons); this fork's own art - the 100-odd files this page exists to show - lives in
+# `oracool_assets`, which is what CMake packs into oracool.mpq (see the pack rule in CMakeLists).
+# Pointed at the stock folder, the gallery listed five vanilla buttons and called them the art
+# assets, while wiki/sprites/ui kept a frozen copy of the real ones from before the path changed -
+# stale images nothing on any page referenced, still being inlined into the published bundle.
+$assetRoot = Join-Path $root 'Packaging\resources\oracool_assets'
+# Cleared first, so an asset deleted from the game also leaves the wiki. Copying over a directory
+# that is never emptied is how the stale set above survived every rebuild.
+$spriteRootOut = Join-Path $out 'sprites'
+if (Test-Path $spriteRootOut) { Remove-Item $spriteRootOut -Recurse -Force }
 if (Test-Path $assetRoot) {
     foreach ($file in (Get-ChildItem $assetRoot -Recurse -Include *.png -ErrorAction SilentlyContinue)) {
         $w = 0; $h = 0
@@ -634,7 +652,7 @@ if (Test-Path $assetRoot) {
 # Dev reports - the project's own history
 # ---------------------------------------------------------------------------------------------
 $reports = New-Object System.Collections.ArrayList
-$reportDir = Join-Path $root 'Diablo Orcl V1\02-Development-Reports'
+$reportDir = Join-Path $vault '02-Development-Reports'
 if (Test-Path $reportDir) {
     foreach ($file in (Get-ChildItem $reportDir -Filter *.md | Sort-Object Name -Descending)) {
         $text = Get-Content $file.FullName -Raw -Encoding UTF8
@@ -1075,13 +1093,13 @@ foreach ($m in [regex]::Matches($runewordsInc, $pattern)) {
 }
 
 # ---------------------------------------------------------------------------------------------
-# Pipeline - the vault's own backlog table (Diablo Orcl V1/07-Backlog/Pipeline.md)
+# Pipeline - the vault's own backlog table (Diablo Orcl/07-Backlog/Pipeline.md)
 # ---------------------------------------------------------------------------------------------
 # Parsed rather than retyped, and the vault file is the source: the user edits it in Obsidian and
 # the page follows. The old Idea-Backlog.md is NOT read - a dozen of its "not started" entries had
 # shipped without being moved, which is exactly the staleness this page exists to avoid.
 $pipeline = New-Object System.Collections.ArrayList
-$pipelinePath = Join-Path $root 'Diablo Orcl V1\07-Backlog\Pipeline.md'
+$pipelinePath = Join-Path $vault '07-Backlog\Pipeline.md'
 if (Test-Path $pipelinePath) {
     foreach ($line in (Get-Content $pipelinePath -Encoding UTF8)) {
         if ($line -notmatch '^\|') { continue }

@@ -1,4 +1,4 @@
-# Diablo Orcl V1 wiki
+# Diablo Orcl wiki
 
 A generated reference for the whole game: items, spells, skills, monsters, the loot mechanics, the
 interface, every INI option, and the shipped sprites.

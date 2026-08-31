@@ -37,7 +37,7 @@ const NAV = [
 
 function buildNav() {
 	const here = location.pathname.split('/').pop() || 'index.html';
-	let html = '<div class="brand"><b>Diablo Orcl V1</b><span>v' + WIKI.version + ' &middot; ' + WIKI.generated + '</span></div>';
+	let html = '<div class="brand"><b>Diablo Orcl</b><span>v' + WIKI.version + ' &middot; ' + WIKI.generated + '</span></div>';
 	for (const entry of NAV) {
 		if (entry.heading) {
 			html += '<h4>' + entry.heading + '</h4>';

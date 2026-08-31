@@ -1,5 +1,9 @@
 param([int]$Port = 8777)
-$root = "C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Diablo Orcl V1\wiki"
+# Derived from the script's own location, not hard-coded. The absolute path that used to sit here
+# carried the repo's folder name, so renaming the project (V1 dropped 2026-08-31) would have left
+# this serving a folder that no longer exists - and it would have failed at request time, not at
+# start-up, which is the worst place to learn it.
+$root = Join-Path (Split-Path -Parent $PSScriptRoot) 'wiki'
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:$Port/")
 $listener.Start()

@@ -5,7 +5,7 @@ tags: [moc, meta]
 
 # About This Documentation
 
-This vault exists to make the development history of Diablo Orcl V1 legible to anyone who wasn't in the room when the work happened — including a future version of the people who were.
+This vault exists to make the development history of Diablo Orcl legible to anyone who wasn't in the room when the work happened — including a future version of the people who were.
 
 ## Structure
 

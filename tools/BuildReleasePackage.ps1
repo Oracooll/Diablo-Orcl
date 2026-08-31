@@ -77,7 +77,7 @@ if (-not (Test-Path 'ORACOOL_VERSION')) { Fail 'ORACOOL_VERSION not found - run 
 $version = (Get-Content 'ORACOOL_VERSION' -Raw).Trim()
 if ($version -notmatch '^\d+\.\d+\.\d+$') { Fail "ORACOOL_VERSION is not a version number: '$version'" }
 
-Write-Host "Packaging Diablo Orcl V1 - Oracool Edition v$version" -ForegroundColor Cyan
+Write-Host "Packaging Diablo Orcl - Oracool Edition v$version" -ForegroundColor Cyan
 Write-Host "  build tree: $BuildDir"
 
 if (-not (Test-Path $BuildDir)) { Fail "build directory not found: $BuildDir" }

@@ -195,7 +195,7 @@ $css
 </style>
 <div class="shell">
 <nav class="side">
-<div class="brand"><b>Diablo Orcl V1</b><span id="brandver"></span></div>
+<div class="brand"><b>Diablo Orcl</b><span id="brandver"></span></div>
 $($navHtml.ToString())
 </nav>
 <main>

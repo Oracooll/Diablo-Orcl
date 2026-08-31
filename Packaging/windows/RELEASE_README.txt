@@ -1,4 +1,4 @@
-Diablo Orcl V1 - Oracool Edition v{{VERSION}}
+Diablo Orcl - Oracool Edition v{{VERSION}}
 Windows x64, Release build
 ========================================
 
