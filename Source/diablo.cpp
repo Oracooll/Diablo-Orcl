@@ -223,6 +223,15 @@ void FreeGame()
 	// The log is the same shape of problem without the item duplication: its entries are a
 	// file-local deque, so the next character opened it onto the previous one's kills and crafts.
 	oracool::ClearEventLogForNewGame();
+	// And the rest of the fork's windows, swept for the same fault (audit, 2026-08-31). Their open
+	// flags are file-local statics too, and nothing on the way out of a game closes them - so the
+	// next character in the same session started with whatever the last one left up. Cosmetic for
+	// three of them; the waypoint menu also carries an unconsumed spawn request, which would move
+	// the next character onto a waypoint on their first level load.
+	oracool::ResetWaypointMenuForNewGame();
+	oracool::CloseCraftingMenu();
+	oracool::CloseHudMenu();
+	oracool::CloseSkillPicker();
 	// And Zeal's burst holds raw Monster POINTERS into the monster array this teardown is about to
 	// invalidate. StartStand already resets the chain on every interruption a game can produce, and
 	// a new game reaches it long before the player can swing - so this is hardening rather than a

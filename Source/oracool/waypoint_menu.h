@@ -96,4 +96,27 @@ void UnlockWaypoint(int index);
  */
 bool ConsumeWaypointSpawnRequest();
 
+/**
+ * @brief Clears the menu and any unconsumed spawn request, for game teardown.
+ *
+ * The open flag, the scroll offset and the spawn request are file-local statics, so they outlive a
+ * GAME - they live as long as the process. The request is normally set and consumed inside one level
+ * transition, but nothing guarantees the transition finishes: quit between the warp and the
+ * destination's sigil being placed and the flag is still true when the NEXT character loads their
+ * first level, which would teleport them onto that level's waypoint.
+ *
+ * The same shape as ResetLevskiRoarForNewGame and ClearEventLogForNewGame (audit, 2026-08-30); this
+ * is the sweep for their siblings.
+ */
+void ResetWaypointMenuForNewGame();
+
+/**
+ * @brief Raises the spawn request without warping anywhere. For tests only.
+ *
+ * The real setter sits inside the menu's click handler, one line before a StartNewLvl that a
+ * headless test cannot survive. Without this hook the teardown test could only assert that a flag
+ * nothing set is still unset, which proves nothing at all.
+ */
+void SetWaypointSpawnRequestForTest();
+
 } // namespace devilution::oracool

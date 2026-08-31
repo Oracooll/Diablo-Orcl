@@ -444,4 +444,18 @@ bool ConsumeWaypointSpawnRequest()
 	return true;
 }
 
+void SetWaypointSpawnRequestForTest()
+{
+	WaypointSpawnRequested = true;
+}
+
+void ResetWaypointMenuForNewGame()
+{
+	WaypointMenuOpen = false;
+	ScrollOffset = 0;
+	// The one that is not merely cosmetic: an unconsumed request survives into the next character's
+	// first level load and moves them onto its waypoint. See the header for how it is left unconsumed.
+	WaypointSpawnRequested = false;
+}
+
 } // namespace devilution::oracool

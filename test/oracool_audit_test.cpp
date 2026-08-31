@@ -55,6 +55,7 @@
 #include "oracool/item_set_stats.h"
 #include "oracool/item_tiers.h"
 #include "oracool/levski_roar.h"
+#include "oracool/waypoint_menu.h"
 #include "oracool/item_sets.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/readied_spells.h"
@@ -7605,6 +7606,33 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the previous character's log entries are still there for the next one to read";
 	EXPECT_FALSE(oracool::IsEventLogOpen())
 	    << "the log is still open at the start of the next game";
+}
+
+// Audit, 2026-08-31 - the sweep for the siblings of the two above. The waypoint menu's spawn request
+// is the one with teeth: it is normally set and consumed inside a single level transition, so the
+// only way to see it survive is to leave the game between the two halves - and then the NEXT
+// character's first level load consumes it and drops them on that level's waypoint.
+//
+// Asserted through ConsumeWaypointSpawnRequest, which is the function the level loader itself calls;
+// checking a flag some other way would prove something the game never asks.
+TEST(OracoolAudit, LeavingAGameDoesNotLeakAWaypointSpawnRequestToTheNextCharacter)
+{
+	oracool::ResetWaypointMenuForNewGame();
+	ASSERT_FALSE(oracool::ConsumeWaypointSpawnRequest()) << "test setup: a request was already pending";
+
+	// Standing in for RequestSpawnAtWaypoint, whose own body warps the player. What is being pinned
+	// is the teardown, not the request path.
+	oracool::SetWaypointSpawnRequestForTest();
+	ASSERT_TRUE(oracool::ConsumeWaypointSpawnRequest()) << "test setup: the request was not recorded";
+	oracool::SetWaypointSpawnRequestForTest();
+
+	// Leaving the game before the destination level placed its sigil.
+	oracool::ResetWaypointMenuForNewGame();
+
+	EXPECT_FALSE(oracool::ConsumeWaypointSpawnRequest())
+	    << "the next character's first level load would move them onto a waypoint";
+	EXPECT_FALSE(oracool::IsWaypointMenuOpen())
+	    << "the waypoint menu is still open at the start of the next game";
 }
 
 
