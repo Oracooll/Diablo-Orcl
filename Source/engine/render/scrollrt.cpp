@@ -1399,7 +1399,13 @@ void DrawView(const Surface &out, Point startPosition)
 	// later window that takes the right-hand slot - the rule is about the space being occupied, not
 	// about which window occupies it. The left-hand windows do not need this: they sit at x 0..340
 	// and the corner HUD is entirely to the right of them.
-	const bool cornerHudHidden = IsRightPanelOpen();
+	// ...and while the chat console is open (user, 2026-08-31, with a screenshot: "you need to hide
+	// all ui elements around when i have hit enter to open the text input console"). Typing is a
+	// mode, not an overlay: the instruments around the edges are things to read while playing, and
+	// none of them is worth reading mid-sentence. Folded into this flag rather than tested
+	// separately at each site so the corner behaves as one thing, which is what the rule above
+	// already says it is.
+	const bool cornerHudHidden = IsRightPanelOpen() || talkflag;
 
 	if (AutomapActive) {
 		DrawAutomap(out.subregionY(0, gnViewportHeight));
@@ -1565,8 +1571,11 @@ void DrawView(const Surface &out, Point startPosition)
 	if (oracool::IsHudMenuOpen()) {
 		oracool::DrawHudMenu(out);
 	}
-	DrawLevelUpIcon(out);
-	DrawUnspentPointsFrame(out);
+	// Same rule as the XP pair below: kept through open windows, taken away by chat.
+	if (!talkflag) {
+		DrawLevelUpIcon(out);
+		DrawUnspentPointsFrame(out);
+	}
 	// The XP readout and its per-kill flash, HERE rather than in the corner-HUD block above (user,
 	// 2026-08-28: "dont hide exp counter and hero stats button when windows are open. leave them on
 	// as you leave skill points button on").
@@ -1579,8 +1588,14 @@ void DrawView(const Surface &out, Point startPosition)
 	// Beside DrawUnspentPointsFrame deliberately - the skill-point count is the readout the user
 	// names as the one that behaves correctly, and these two are now drawn in the same place, at the
 	// same point in the frame, under the same rules.
-	oracool::DrawXpGainIndicator(out);
-	oracool::DrawXpCounter(out);
+	// Both hidden while the chat console is open (user, 2026-08-31). The exemption above is about
+	// WINDOWS - these two sit on the belt plate, which no window covers, so a window must not take
+	// them away. Chat is the one thing that does cover that spot, and it is also the one mode where
+	// nothing on the HUD is worth reading.
+	if (!talkflag) {
+		oracool::DrawXpGainIndicator(out);
+		oracool::DrawXpCounter(out);
+	}
 	if (qtextflag) {
 		DrawQText(out);
 	}
@@ -1626,9 +1641,12 @@ void DrawView(const Surface &out, Point startPosition)
 	DrawInventoryFooter(out);
 
 	// Oracool: HUD art pass - the corner orb compositions (with their sphere drain effect) replace
-	// the vanilla flask pair entirely.
-	oracool::DrawHealthOrb(out);
-	oracool::DrawManaOrb(out);
+	// the vanilla flask pair entirely. Hidden while the chat console is open (user, 2026-08-31) -
+	// they are the last two things left standing around an otherwise empty screen otherwise.
+	if (!talkflag) {
+		oracool::DrawHealthOrb(out);
+		oracool::DrawManaOrb(out);
+	}
 }
 
 /**
@@ -2059,10 +2077,16 @@ void DrawAndBlit()
 			// attacks, whatever the RMB well happens to be holding.
 			oracool::DrawLmbSkillWell(out);
 		}
-		if (drawMana) {
+		if (drawMana && !talkflag) {
 			DrawSpell(out);
 		}
-		if (drawBelt) {
+		// `&& !talkflag` on the whole block (user, 2026-08-31, with a screenshot showing six empty
+		// cells floating over the chat bar). DrawInvBelt carries its own talkflag gate and the plate
+		// above carries one too, but DrawBeltBacking - added 2026-08-30 - did not, so the backings
+		// drew with nothing in them and nothing behind them. Gating the block rather than adding a
+		// third private check keeps the row one thing: plate, cells and items appear and disappear
+		// together, and the next piece added to it inherits that.
+		if (drawBelt && !talkflag) {
 			// The six cell backings, BEFORE the items that sit in them (user, 2026-08-30). Beside
 			// DrawInvBelt rather than up with DrawMiddleHudArt, because it belongs to the belt: the
 			// plate can be switched off and the row still needs its cells.
@@ -2077,11 +2101,13 @@ void DrawAndBlit()
 			DrawTalkPan(out);
 		}
 		DrawXPBar(out);
-		if (*sgOptions.Gameplay.showHealthValues) {
+		// The orbs themselves are hidden during chat (DrawView's tail), so their value text has to
+		// go with them or the numbers hang in the dark where the orbs were.
+		if (*sgOptions.Gameplay.showHealthValues && !talkflag) {
 			const Rectangle orbRect = oracool::GetHealthOrbRect();
 			DrawFlaskValues(out, orbRect.position + Displacement { oracool::GetHealthOrbSphereCenterLocal().x, oracool::GetHealthOrbSphereCenterLocal().y }, MyPlayer->_pHitPoints >> 6, MyPlayer->_pMaxHP >> 6);
 		}
-		if (*sgOptions.Gameplay.showManaValues) {
+		if (*sgOptions.Gameplay.showManaValues && !talkflag) {
 			const Rectangle orbRect = oracool::GetManaOrbRect();
 			DrawFlaskValues(out, orbRect.position + Displacement { oracool::GetManaOrbSphereCenterLocal().x, oracool::GetManaOrbSphereCenterLocal().y }, MyPlayer->_pMana >> 6, MyPlayer->_pMaxMana >> 6);
 		}

@@ -829,10 +829,15 @@ void DrawRow(const Surface &content, size_t index)
 	if (row.extra == CharRowExtra::FullWidthText) {
 		// Spans label column, value columns and button column - the one row shape that can hold any
 		// skill name without measuring it first.
+		//
+		// CENTRED (user, 2026-08-31, with a screenshot). Left-aligned it started at the panel's own
+		// edge while every other label on the sheet is right-aligned against the column divider, so
+		// the name and the damage row under it read as two broken rows rather than one heading and
+		// its number. Centred, it is plainly a heading for the row beneath - which is what it is.
 		const StyledText text = row.value();
 		DrawString(content, text.text,
 		    { { CharLabelColumnX, top }, { CharContentRightLimit - CharLabelColumnX, CharRowHeight } },
-		    { UiFlags::VerticalCenter | text.style | CharTextShadow, text.spacing });
+		    { UiFlags::AlignCenter | UiFlags::VerticalCenter | text.style | CharTextShadow, text.spacing });
 		return;
 	}
 
