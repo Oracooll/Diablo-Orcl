@@ -11,7 +11,8 @@
 <nav class="side"></nav>
 <main>
 <h1>Debug console</h1>
-<p class="lede">Every command the Debug build accepts, parsed straight out of the command table.
+<p class="lede">Every command the Debug build accepts, parsed straight out of the command table, and
+for the ones that take a fixed set of words, the words themselves - see the <b>Accepts</b> column.
 This is the fastest way to put a specific item, monster or dungeon level in front of you without
 playing for it.</p>
 
@@ -25,6 +26,17 @@ into the chat box (<b>Enter</b>) and send it. <code>help</code> on its own lists
 
 <h2>The ones worth knowing</h2>
 <div class="cards">
+	<div class="card"><b>tiledata {name}</b><span>Writes one piece of per-tile data onto every tile.
+		<code>tiledata coords</code> is the tile-coordinate overlay; <code>tiledata cursorcoords</code>
+		labels only the tile under the cursor. <code>tiledata clear</code> turns it off - and note
+		<code>clear</code> is <i>not</i> in the Accepts column above, because the command handles it
+		before it looks at the list. Pairs with <code>grid</code>, which draws the tile edges the
+		numbers sit in.</span></div>
+	<div class="card"><b>grid</b><span>Draws the tile grid. On its own it shows the shape of the
+		floor; with <code>tiledata</code> it gives every cell a label.</span></div>
+	<div class="card"><b>hideui / clearui</b><span>Strip the HUD for a clean screenshot -
+		<code>hideui</code> takes the panel, orbs, belt and XP bar; <code>clearui</code> takes
+		everything including the mini-map, overlays and cursor.</span></div>
 	<div class="card"><b>drop {name}</b><span>Generates any base item, gem, rune or charm by name -
 		<code>drop ruby</code>, <code>drop tir rune</code>, <code>drop charm</code>.</span></div>
 	<div class="card"><b>giverare / giveunique / giveprimal</b><span>One item of that quality,
@@ -82,6 +94,16 @@ makeTable(document.getElementById('cmds'), WIKI.debugCmds, [
 	{ key: 'command', label: 'Command', render: function (v) { return '<code>' + v + '</code>'; } },
 	{ key: 'args', label: 'Arguments', render: function (v) { return v ? '<code>' + v + '</code>' : ''; } },
 	{ key: 'summary', label: 'Does' },
+	// The vocabulary a command will actually ACCEPT. Several commands take a {name} or {tier} whose
+	// permitted values live only in code - tiledata's twenty-one overlays worst of all, since its
+	// summary just says "leave name empty to see a list" and that list only ever appeared inside the
+	// running game. BuildWiki parses each one from its own source; see the note there.
+	{
+		key: 'options', label: 'Accepts', render: function (v) {
+			if (!v || v.length === 0) return '';
+			return v.map(function (o) { return '<code>' + o + '</code>'; }).join(' ');
+		}
+	},
 ], { sort: 'command', placeholder: 'Search commands...' });
 </script>
 </body>

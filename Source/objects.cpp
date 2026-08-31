@@ -2055,7 +2055,12 @@ void OperateWaypoint(Object &waypoint)
 // while 4-5 o'clock is Direction::SouthEast, {1,0}. The clock reading is what the player is looking
 // at on screen, and it was written as the clarification, so it is the one followed. One character
 // to flip if that reads wrong in game: {56, 67} becomes {55, 68}.
-constexpr Point StashChestPosition { 56, 67 };
+// {55,68} on the user's call, 2026-08-31 - which is exactly the alternative the note above named.
+// The clock reading won the first time and it read wrong in game, so the compass reading stands:
+// Direction::SouthWest is {0,+1}. Still adjacent to the new-game spawn at {55,67}, which is what
+// keeps that spawn's "next to the Stash Chest" intent true - see SetupLocalPositions in multi.cpp,
+// and the test that pins no object standing ON the spawn tile.
+constexpr Point StashChestPosition { 55, 68 };
 
 /**
  * @brief Oracool: user request - a physical Stash Chest in town. Plays the same open animation as

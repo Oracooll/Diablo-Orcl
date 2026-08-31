@@ -1903,6 +1903,17 @@ void DiabloSplash()
 
 void DiabloDeinit()
 {
+	// Armed HERE rather than at a call site, because there are two of them and the first attempt
+	// (v1.9.137) armed the wrong one. It went into DiabloMain's game-quit path; the ordinary way out
+	// is mainmenu_loop() returning and main() calling this directly, which is the path a player
+	// actually takes - quit to the menu, then exit. So a v1.9.138 build, watchdog and all, still
+	// left a windowless process behind at 08:26 on 2026-08-31.
+	//
+	// One arming inside the function every exit funnels through cannot be bypassed by adding a
+	// third. See oracool/shutdown_watchdog.h for why bounding this is the honest fix rather than
+	// guessing at the deadlock.
+	oracool::ArmShutdownWatchdog();
+
 	FreeItemGFX();
 
 	if (gbSndInited)
@@ -3186,16 +3197,8 @@ void diablo_quit(int exitStatus)
 	FreeGameMem();
 	music_stop();
 
-	// Armed BEFORE teardown, because teardown is where it hangs (user, 2026-08-31: "debug version
-	// regularly leave diabloorcl.exe proces runing after exit"). A leftover process was caught with
-	// no window and 0.00s of CPU over four seconds - stopped, not busy - still holding oracool.mpq,
-	// which is what fails the next build's archive pack with error code 5.
-	//
-	// The blocking call has not been identified and this does not claim to fix it; it bounds it. By
-	// this line SaveOnExit has already run and the archives are read-only, so nothing after here is
-	// worth waiting on. See oracool/shutdown_watchdog.h.
-	oracool::ArmShutdownWatchdog();
-
+	// The watchdog is armed inside DiabloDeinit itself, not here - see the note there. Arming it at
+	// this call site only was the v1.9.137 mistake: it is the path a player does NOT take.
 	DiabloDeinit();
 	exit(exitStatus);
 }

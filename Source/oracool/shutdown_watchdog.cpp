@@ -29,6 +29,14 @@ int SDLCALL WatchdogThread(void * /*unused*/)
 
 void ArmShutdownWatchdog(uint32_t timeoutMs)
 {
+	// Idempotent, because it is armed inside DiabloDeinit and nothing guarantees that runs once. A
+	// second thread would be harmless but would also be a second timer racing the first, which is
+	// the sort of thing that makes a shutdown bug hard to read later.
+	static bool armed = false;
+	if (armed)
+		return;
+	armed = true;
+
 	WatchdogTimeoutMs = timeoutMs;
 
 	// Raw SDL_CreateThread and DETACHED rather than the SdlThread wrapper: that wrapper's deleter

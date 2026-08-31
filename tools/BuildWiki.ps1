@@ -1112,6 +1112,63 @@ if ($debugCpp -match '(?s)std::vector<DebugCmdItem> DebugCmdList = \{(.*?)\n\};'
 }
 
 # ---------------------------------------------------------------------------------------------
+# What each debug command will ACCEPT (user, 2026-08-31)
+# ---------------------------------------------------------------------------------------------
+#
+# The wiki listed every command and every command's summary, and that was not enough to use them:
+# `tiledata` says "leave name empty to see a list", and that list existed only inside the running
+# game. The user went looking for the tile-coordinate overlay, tried four spellings, and got the
+# argument list printed at them instead - which is the wiki failing at the one thing this page is
+# for.
+#
+# Three sources, all PARSED. Nothing below is typed out here, so an option added to any of them
+# reaches the wiki without anyone remembering to come back.
+$tileDataOptions = @()
+if ($debugCpp -match '(?s)std::string DebugCmdShowTileData\(const string_view parameter\)\s*\{\s*std::string paramList\[\] = \{(.*?)\};') {
+    $tileDataOptions = @([regex]::Matches($matches[1], '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+}
+if ($tileDataOptions.Count -eq 0) { throw "BuildWiki: could not read DebugCmdShowTileData's paramList - the wiki will not list options it cannot derive" }
+
+# The towner short names `visit` answers to - the map's keys ARE the vocabulary.
+$townerNames = @()
+if ($debugCpp -match '(?s)TownerShortNameToTownerId = \{(.*?)\n\};') {
+    $townerNames = @([regex]::Matches($matches[1], '\{\s*"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+}
+
+# `arrow`'s four effects, from the handler's own comparisons rather than from its summary.
+$arrowEffects = @()
+if ($debugCpp -match '(?s)std::string DebugCmdArrow\(const string_view parameter\)(.*?)\n\}') {
+    $arrowEffects = @([regex]::Matches($matches[1], '"([a-z]+)"') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+}
+
+# And the lists that some summaries spell out in parentheses while their SIBLINGS do not. givebset
+# names all nine materials; givemset, giverset, giveuset, givepset and giveeset take the same
+# {tier} and say only "optionally of material {tier}". Rather than copy the list five times here,
+# the placeholder is the key: a list found on any command that documents it is offered to every
+# command that takes the same placeholder. That is why this is a map keyed by "{tier}" and "{q}".
+$optionsByPlaceholder = @{}
+foreach ($c in $debugCmds) {
+    if ($c.summary -match '\{(\w+)\}[^(]*\(([a-z]+(?:/[a-z]+)+)\)') {
+        $optionsByPlaceholder['{' + $matches[1] + '}'] = @($matches[2] -split '/')
+    }
+}
+
+foreach ($c in $debugCmds) {
+    $opts = @()
+    $source = ''
+    if ($c.command -eq 'tiledata') { $opts = $tileDataOptions; $source = 'DebugCmdShowTileData' }
+    elseif ($c.command -eq 'visit') { $opts = $townerNames; $source = 'TownerShortNameToTownerId' }
+    elseif ($c.command -eq 'arrow') { $opts = $arrowEffects; $source = 'DebugCmdArrow' }
+    else {
+        foreach ($ph in $optionsByPlaceholder.Keys) {
+            if ($c.args -like "*$ph*") { $opts = $optionsByPlaceholder[$ph]; $source = 'the command table'; break }
+        }
+    }
+    $c.options = @($opts)
+    $c.optionSource = $source
+}
+
+# ---------------------------------------------------------------------------------------------
 # Autosave triggers - the declarations in Source/oracool/auto_save.h are the list
 # ---------------------------------------------------------------------------------------------
 $autoSaveH = Read-SourceFile 'oracool/auto_save.h'
