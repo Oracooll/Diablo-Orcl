@@ -1410,6 +1410,11 @@ void DrawView(const Surface &out, Point startPosition)
 	if (AutomapActive) {
 		DrawAutomap(out.subregionY(0, gnViewportHeight));
 	} else if (*sgOptions.Oracool.miniMapEnabled && !cornerHudHidden && !oracool::IsRunewordBookOpen()
+	    // The Crafting book is the runeword book's twin - same 944x616 window, centred, top flush
+	    // with the mini-map's own top border - so it covers the mini-map's corner just as completely
+	    // and gets the same suppression. Nothing is saved or restored: the mini-map is an option-
+	    // driven overlay rather than a toggled state, so it simply resumes the frame the book closes.
+	    && !oracool::IsCraftingMenuOpen()
 #ifdef _DEBUG
 	    && !DebugClearUi
 #endif
