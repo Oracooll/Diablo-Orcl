@@ -7964,3 +7964,4 @@ TEST(OracoolHeroSelect, TheStatsColumnClearsTheFigureAndTheList)
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
 }
+

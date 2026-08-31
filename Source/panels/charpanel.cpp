@@ -221,6 +221,21 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 		(minDam >= 100) ? -1 : 1 };
 }
 
+/**
+ * @brief What the number under a button's name IS - damage, or healing.
+ *
+ * A heal read "Damage 29-139" until 2026-08-31, which the green it is written in flatly
+ * contradicted. The colour was carrying the correction on its own; now the word does.
+ */
+std::string ReadiedSlotAmountLabel(bool leftButton)
+{
+	const Player &player = *InspectPlayer;
+	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
+	if (spell == SpellID::Healing || spell == SpellID::HealOther)
+		return std::string(_("Healing"));
+	return std::string(_("Damage"));
+}
+
 /** @brief The name of whatever is on a button, for the row above its damage. */
 std::string GetReadiedSlotName(bool leftButton)
 {
@@ -366,6 +381,8 @@ StyledText GetResistInfo(int8_t resist)
 
 /** @brief One row's value producer. Captureless lambdas convert to this. */
 using ValueFunc = StyledText (*)();
+/** @brief A per-frame label. Returns an already-translated string - see CharRow::dynamicLabel. */
+using LabelFunc = std::string (*)();
 
 /** @brief Rows that own a widget in the right-hand button column. `None` must stay the zero value
  * so rows can omit the field. */
@@ -404,6 +421,18 @@ struct CharRow {
 	/** Extra pixels above this row, used to separate groups. */
 	int gapAbove = 0;
 	CharRowExtra extra = CharRowExtra::None;
+	/**
+	 * @brief A label computed per frame, overriding `label` when set.
+	 *
+	 * LAST in the struct on purpose: every other row is built with positional initialisers that end
+	 * at `extra`, and a field inserted before that point silently shifts all of them.
+	 *
+	 * One row needs it - the readied-slot amount row, which has to say "Healing" rather than
+	 * "Damage" when a heal is on that button (user screenshot, 2026-08-31: a heal read "Damage
+	 * 29-139", which the green the number is written in flatly contradicted). Every other label is
+	 * a property of the row rather than of the character, and keeps its const char *.
+	 */
+	LabelFunc dynamicLabel = nullptr;
 };
 
 /** @brief Vertical space one row occupies, before its gapAbove. */
@@ -496,10 +525,12 @@ const CharRow CharRows[] = {
 	// the number.
 	{ "", []() { return StyledText { ReadiedSlotColor(true), GetReadiedSlotName(true) }; },
 	    nullptr, CharRowGroupGap, CharRowExtra::FullWidthText },
-	{ N_("Damage"), []() { return GetReadiedSlotDamage(/*leftButton=*/true); } },
+	{ "", []() { return GetReadiedSlotDamage(/*leftButton=*/true); }, nullptr, 0,
+	    CharRowExtra::None, []() { return ReadiedSlotAmountLabel(/*leftButton=*/true); } },
 	{ "", []() { return StyledText { ReadiedSlotColor(false), GetReadiedSlotName(false) }; },
 	    nullptr, CharRowGroupGap, CharRowExtra::FullWidthText },
-	{ N_("Damage"), []() { return GetReadiedSlotDamage(/*leftButton=*/false); } },
+	{ "", []() { return GetReadiedSlotDamage(/*leftButton=*/false); }, nullptr, 0,
+	    CharRowExtra::None, []() { return ReadiedSlotAmountLabel(/*leftButton=*/false); } },
 
 	{ N_("Resist magic"),
 	    []() { return GetResistInfo(InspectPlayer->_pMagResist); },
@@ -790,6 +821,13 @@ void EnsureLayout()
 		assert(GetLineWidth(LanguageTranslate(row.label), GameFont12, CharLabelSpacing) <= CharLabelColumnWidth
 		    && "character sheet label is wider than the fixed label column - shorten it or widen CharLabelColumnWidth");
 	}
+	// The two dynamic labels are not in any row's static text, so the loop above cannot see them.
+	// Measured by name rather than by calling the function: this runs at layout time, where there is
+	// no character to ask, and these are the only two strings it can ever return.
+	assert(GetLineWidth(_("Damage"), GameFont12, CharLabelSpacing) <= CharLabelColumnWidth
+	    && "the readied-slot amount label does not fit the label column");
+	assert(GetLineWidth(_("Healing"), GameFont12, CharLabelSpacing) <= CharLabelColumnWidth
+	    && "the readied-slot amount label does not fit the label column");
 	// The size lives on ChrBtnsRect, which owns it; this code only ever writes positions. Checked
 	// rather than assumed, because StatButtonColumnX above was derived against a literal.
 	assert(StatButtonColumnX + ChrBtnsRect[0].size.width <= CharContentRightLimit
@@ -841,7 +879,14 @@ void DrawRow(const Surface &content, size_t index)
 		return;
 	}
 
-	if (row.label[0] != '\0') {
+	if (row.dynamicLabel != nullptr) {
+		// Already translated by the function - it chooses between whole words rather than
+		// assembling one, so there is nothing left for LanguageTranslate to do.
+		DrawString(content, row.dynamicLabel(),
+		    { { CharLabelColumnX, top }, { CharLabelColumnWidth, CharRowHeight } },
+		    { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhitegold | CharTextShadow,
+		        CharLabelSpacing });
+	} else if (row.label[0] != '\0') {
 		DrawString(content, LanguageTranslate(row.label),
 		    { { CharLabelColumnX, top }, { CharLabelColumnWidth, CharRowHeight } },
 		    { UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::ColorWhitegold | CharTextShadow,
