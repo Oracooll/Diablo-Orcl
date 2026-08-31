@@ -31,6 +31,8 @@ constexpr Size WindowSize { 944, 616 };
 constexpr int RowHeight = 56;
 constexpr int WindowPadding = 12;
 constexpr int HeaderHeight = 28;
+/** @brief The line under the title saying where crafting happens. Reserved whether or not it wraps. */
+constexpr int SubtitleHeight = 20;
 
 /** @brief Pixels scrolled off the top of the row list. Clamped in DrawCraftingMenu. */
 int ScrollOffset = 0;
@@ -94,7 +96,7 @@ namespace {
 Rectangle CraftingContentRect()
 {
 	const Rectangle window = GetCraftingMenuRect();
-	const int top = window.position.y + WindowPadding + HeaderHeight;
+	const int top = window.position.y + WindowPadding + HeaderHeight + SubtitleHeight;
 	return Rectangle { { window.position.x + WindowPadding, top },
 		{ window.size.width - WindowPadding * 2,
 		    window.position.y + window.size.height - WindowPadding - top } };
@@ -127,6 +129,14 @@ void DrawCraftingMenu(const Surface &out)
 	        { window.size.width - WindowPadding * 2, HeaderHeight } },
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter });
 
+	// Said once, under the title, rather than once per row. It was a per-row column for one version;
+	// with the monument the only place a recipe can produce anything, every row said the same three
+	// words and the column was seventeen repetitions of a single fact.
+	DrawString(out, _("Every recipe is crafted at Levski's Roar, the monument in town."),
+	    Rectangle { window.position + Displacement { WindowPadding, WindowPadding + HeaderHeight },
+	        { window.size.width - WindowPadding * 2, SubtitleHeight } },
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter });
+
 	const Rectangle content = CraftingContentRect();
 	ScrollOffset = std::clamp(ScrollOffset, 0, MaxScrollOffset());
 
@@ -135,26 +145,19 @@ void DrawCraftingMenu(const Surface &out)
 	const Surface view = out.subregion(content.position.x, content.position.y,
 	    content.size.width, content.size.height);
 
-	// Every recipe is listed, the monument's fourteen included. They have no backpack path - they
-	// transform an item in place, so CanCraft answers false for them forever - and rather than being
-	// hidden for it they carry their venue on the right of the name line. That note is the whole
-	// point of listing them: "Free the Sockets" spent its first weeks in this window as a
-	// permanently grey row with nothing saying it lived on Levski's Roar instead.
+	// Every recipe is listed, and every row reads the same. There is no live/dim split any more:
+	// this window cannot craft, so "you have the materials" would be a promise it has no way to
+	// keep - and the materials that matter are the ones you carry TO the monument, not the ones the
+	// backpack happens to hold while you read.
 	int top = -ScrollOffset;
 	for (const int i : ListedRecipes()) {
 		if (top + RowHeight >= 0 && top <= content.size.height) {
-			const bool craftable = CanCraft(*MyPlayer, i);
-			// A craftable recipe reads live (gold name, white formula); one missing its materials is
-			// dimmed but still listed - the recipes teaching themselves is half their value.
 			DrawString(view, _(CraftingRecipeName(i)),
 			    Rectangle { { 0, top }, { content.size.width, RowHeight / 2 } },
-			    { (craftable ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 });
-			DrawString(view, _(CraftingRecipeVenue(i)),
-			    Rectangle { { 0, top }, { content.size.width, RowHeight / 2 } },
-			    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignRight });
+			    { UiFlags::ColorGold | UiFlags::FontSize12 });
 			DrawString(view, _(CraftingRecipeInputs(i)),
 			    Rectangle { { 0, top + RowHeight / 2 - 4 }, { content.size.width, RowHeight / 2 } },
-			    { (craftable ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | UiFlags::FontSize12 });
+			    { UiFlags::ColorWhite | UiFlags::FontSize12 });
 		}
 		top += RowHeight;
 	}
@@ -176,23 +179,11 @@ void CheckCraftingMenuClick(Point mousePosition)
 	if (row < 0 || row >= static_cast<int>(rows.size()))
 		return;
 
-	// Mapped through the same list the draw walked, so a click lands on the row the player pointed
-	// at even if the listing ever stops being a plain 0..CraftingRecipeCount walk.
-	const int recipe = rows[row];
-
-	// A monument recipe cannot run from here - there is no grid to run it over. Say so rather than
-	// doing nothing: a row that answers a click with silence reads as a broken button, and the
-	// venue note on the row is easy to miss on a list this long.
-	if (CraftingRecipeUsesGrid(recipe)) {
-		LogEvent(fmt::format(fmt::runtime(_("{:s} is crafted at Levski's Roar, the monument in town")),
-		    _(CraftingRecipeName(recipe))));
-		return;
-	}
-
-	const std::string crafted = Craft(*MyPlayer, recipe);
-	if (crafted.empty())
-		return; // missing materials or no room; the dimmed row already says which
-	LogEvent(fmt::format("Crafted: {:s}", crafted));
+	// A row is a thing to read, not a button. Nothing here can produce an item - the monument is the
+	// only place that can (user, 2026-08-31) - so the click is absorbed and named in the log, which
+	// is the difference between a window that ignores you and a window that has told you where to go.
+	LogEvent(fmt::format(fmt::runtime(_("{:s} is crafted at Levski's Roar, the monument in town")),
+	    _(CraftingRecipeName(rows[row]))));
 }
 
 bool HandleCraftingMenuScroll(int notches)

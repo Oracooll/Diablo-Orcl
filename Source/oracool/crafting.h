@@ -2,19 +2,21 @@
  * @file oracool/crafting.h
  *
  * Oracool: Megaplan Phase 1 - crafting, the recipe half of the Horadric Cube with none of the
- * cube: it is a WINDOW (opened from the belt's burger menu), not an item taking up a slot.
+ * cube: no item takes up a backpack slot to be one.
  *
- * Three launch recipes, all pure material transmutes over the MAIN backpack (tab 1 - the pages
- * you can see are the pages the forge reads):
+ * SEVENTEEN recipes, and exactly ONE place they run: Levski's Roar, the monument in town (user,
+ * 2026-08-31 - "i want levski to be the only place recipies can produce an item. no crafting in
+ * hero backpack"). The belt's burger menu still opens a Crafting book, but it is a READING window -
+ * it lists the recipes and nothing there can mint an item.
  *
- *   1. Refine Gems:     three identical gems          -> one of the next quality
- *   2. Ascend Runes:    two identical runes         -> the next rune up (El->Tir->Ral->Ort->Sol)
- *   3. Rework Charms:   two charms of any kind      -> a random charm
+ * The backpack transmute path that ran the first three recipes was DELETED in v1.9.142 rather than
+ * merely unhooked from its button. A one-place rule that a second code path can still quietly break
+ * is not a rule; the only walks left are the grid ones, below TransmuteLevskiGrid.
  *
- * Together they close the socket economy's loop: surplus gems become runes (the chase), doubled
- * runes climb the ladder (Ancient's Pledge needs Ral, four ascensions from El), and dud charms
- * reroll. Materials are only consumed when the craft fully succeeds - the output's backpack slot
- * is the FIRST check, not the last.
+ * The recipes close the socket economy's loop: surplus gems become runes (the chase), doubled runes
+ * climb the ladder (Ancient's Pledge needs Ral, four ascensions from El), dud charms reroll, and the
+ * salvage materials buy the item transforms. Materials are only consumed when the craft fully
+ * succeeds - room for the output is the FIRST check, not the last.
  */
 #pragma once
 
@@ -29,31 +31,10 @@ namespace devilution::oracool {
 
 constexpr int CraftingRecipeCount = 17;
 
-/**
- * @brief Whether recipe @p index needs the MONUMENT rather than the backpack.
- *
- * The first three recipes turn N small things into one small thing, which the backpack's Craft path
- * handles generically. Everything after them TRANSFORMS an item in place - frees its sockets,
- * rerolls it, ennobles it - and there is no generic "one in, one changed" shape to hang that on, so
- * they live on the grid where the caller can see every slot at once.
- *
- * The burger Crafting window used to ask this and SKIP the ones that answer true, which split the
- * recipes into two lists that never appeared together - the monument's book held all seventeen, the
- * burger book held three, and nothing anywhere said the other fourteen existed. Since v1.9.140 both
- * books list all seventeen and this only decides how a row READS: a grid-only row is dimmed and
- * wears CraftingRecipeVenue's note instead of vanishing.
- */
-bool CraftingRecipeUsesGrid(int index);
-
-/**
- * @brief Where recipe @p index can actually be run, as a short display line.
- *
- * One vocabulary for both books, so the merged list reads identically wherever it is opened. The
- * monument runs every recipe - its Transmute path has a case for all seventeen - while the backpack
- * only has the generic N-into-one path, so it runs the first three and points at the monument for
- * the rest.
- */
-const char *CraftingRecipeVenue(int index);
+// CraftingRecipeUsesGrid and CraftingRecipeVenue stood here for one version. Both existed to say
+// which of two venues a recipe belonged to, and there is only one venue now - every recipe uses the
+// grid, so the predicate answered true for all seventeen and the venue line said the same words on
+// every row. Removed with the backpack path they described.
 
 /** @brief How many of its reagent recipe @p index charges, or 0 if it takes none. */
 int CraftingRecipeReagentCount(int index);
@@ -95,15 +76,5 @@ const char *CraftingRecipeName(int index);
 
 /** @brief The inputs line, e.g. "3 gems of one kind". Untranslated. */
 const char *CraftingRecipeInputs(int index);
-
-/** @brief Whether @p player's main backpack currently holds recipe @p index's materials. */
-bool CanCraft(const Player &player, int index);
-
-/**
- * @brief Executes recipe @p index: verifies materials AND output room first, then consumes and
- * produces. Returns the crafted item's display name on success, empty on refusal (missing
- * materials or a full backpack - never a partial consume).
- */
-std::string Craft(Player &player, int index);
 
 } // namespace devilution::oracool

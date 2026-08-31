@@ -205,13 +205,12 @@ window so you can read while you work.</p>
 <p><b>You choose a recipe by what you put in.</b> The monument runs the one that uses the most of
 what is in front of it, so putting in only what a recipe needs is how you pick it - which is how
 the Horadric Cube always worked.</p>
-<p><b>There is one recipe list, and both books show all of it.</b> The monument's book and the belt's
-burger-menu Crafting window list every recipe in the same order, each row saying where it can be run
-- the monument runs all of them, while the backpack has only the generic several-into-one path and
-runs the first three. Clicking a monument recipe in the burger window says where it lives rather than
-doing nothing.</p>
+<p><b>The monument is the only place a recipe produces anything.</b> There is no backpack crafting:
+the belt's burger-menu Crafting window lists all seventeen recipes in the same order the monument's
+own book does, but it is a book - a row there is something to read, and clicking one says where to
+go. Everything is made at Levski's Roar.</p>
 <div class="tablewrap"><table id="recipes">
-<thead><tr><th>Recipe</th><th>Formula</th><th>Where</th></tr></thead>
+<thead><tr><th>Recipe</th><th>Formula</th></tr></thead>
 <tbody></tbody></table></div>
 <div class="note"><b>What you put in the grid is never saved.</b> Closing the window hands
 everything back to your backpack - which is why a full backpack <b>refuses the close</b> and says
@@ -414,7 +413,7 @@ document.getElementById('tcuniq').textContent = WIKI.treasureBonuses.unique + 'x
 
 document.getElementById('gridsize').textContent = R.levskiGridColumns + 'x' + R.levskiGridRows;
 document.querySelector('#recipes tbody').innerHTML = R.recipes.map(function (r) {
-	return '<tr><td><b>' + r.name + '</b></td><td>' + r.formula + '</td><td>' + r.where + '</td></tr>';
+	return '<tr><td><b>' + r.name + '</b></td><td>' + r.formula + '</td></tr>';
 }).join('');
 </script>
 </body>

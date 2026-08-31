@@ -21,49 +21,12 @@ namespace devilution::oracool {
 
 namespace {
 
-/** @brief Indices (into InvList) of every main-backpack item satisfying @p matches. */
-std::vector<int> FindMaterials(const Player &player, bool (*matches)(int idx))
-{
-	std::vector<int> found;
-	for (int i = 0; i < player._pNumInv; i++) {
-		if (!player.InvList[i].isEmpty() && matches(player.InvList[i].IDidx))
-			found.push_back(i);
-	}
-	return found;
-}
-
-/**
- * @brief @p groupSize UNITS of one kind, or empty if no kind can supply that many.
- *
- * Recipes 0, 1 and 4 each need "N of one KIND", not "N of the family".
- *
- * The returned vector holds an inventory index per unit to be spent, so a slot appearing twice is a
- * slot giving up two. That representation is what makes the consumption in TransmuteBackpack able to
- * take part of a stack, and it keeps `materials[0]` meaning "the kind", which is all OutputFor wants.
- *
- * It counted SLOTS before, which was wrong in both directions once gems, runes and jewels started
- * stacking (external audit, 2026-08-25): a single slot holding three identical gems did not satisfy
- * a three-gem recipe at all, and when three separate slots did satisfy it, all three whole stacks
- * were destroyed to make one gem.
- */
-std::vector<int> SameKindUnits(const Player &player, const std::vector<int> &indices, size_t groupSize)
-{
-	for (const int anchor : indices) {
-		std::vector<int> group;
-		for (const int candidate : indices) {
-			if (player.InvList[candidate].IDidx != player.InvList[anchor].IDidx)
-				continue;
-			// stackCount() floors at 1 for anything unstacked, so a non-stacking material still
-			// contributes exactly itself.
-			const int units = std::max(1, player.InvList[candidate].stackCount());
-			for (int u = 0; u < units && group.size() < groupSize; u++)
-				group.push_back(candidate);
-			if (group.size() >= groupSize)
-				return group;
-		}
-	}
-	return {};
-}
+// The backpack walk (FindMaterials / SameKindUnits / MaterialsFor / OutputFor) lived here until
+// v1.9.142, when the monument became the ONLY place a recipe can produce an item (user request).
+// Deleted rather than left unreferenced: a second, silent path that can still mint items is exactly
+// what "Levski's is the only place" has to mean in the code, not just in the UI. The grid's own
+// walks are further down and were always separate - they answer to the twelve slots, which have
+// neither InvList's compaction rules nor its footprint grid.
 
 bool IsGem(int idx) { return IsOracoolGemIdx(idx); }
 bool IsRune(int idx) { return IsOracoolRuneIdx(idx); }
@@ -99,64 +62,6 @@ bool IsCharm(int idx)
 	    || idx == IDI_ORACOOL_CHARM_LUCK || idx == IDI_ORACOOL_CHARM_GREED;
 }
 
-/** @brief The materials a recipe would consume right now, empty when it cannot run. */
-std::vector<int> MaterialsFor(const Player &player, int index)
-{
-	switch (index) {
-	case 0: { // three identical gems - same type AND quality, perfect excluded
-		std::vector<int> gems = FindMaterials(player, IsGem);
-		gems.erase(std::remove_if(gems.begin(), gems.end(),
-		                [&](int i) { return IsPerfectGem(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
-		    gems.end());
-		return SameKindUnits(player, gems, 3);
-	}
-	case 1: { // two identical runes, Zod excluded (it is the top of the ladder)
-		std::vector<int> runes = FindMaterials(player, IsRune);
-		runes.erase(std::remove_if(runes.begin(), runes.end(),
-		                [&](int i) { return IsTopRune(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
-		    runes.end());
-		return SameKindUnits(player, runes, 2);
-	}
-	case 2: { // two charms of any kind
-		std::vector<int> charms = FindMaterials(player, IsCharm);
-		if (charms.size() < 2)
-			return {};
-		charms.resize(2);
-		return charms;
-	}
-	case 4: { // three identical jewels - same family AND grade, Radiant excluded
-		std::vector<int> jewels = FindMaterials(player, IsJewel);
-		jewels.erase(std::remove_if(jewels.begin(), jewels.end(),
-		                 [&](int i) { return IsTopJewel(static_cast<uint16_t>(player.InvList[i].IDidx)); }),
-		    jewels.end());
-		return SameKindUnits(player, jewels, 3);
-	}
-	default:
-		return {};
-	}
-}
-
-/** @brief What recipe @p index produces, given the materials it will consume. */
-_item_indexes OutputFor(const Player &player, int index, const std::vector<int> &materials)
-{
-	switch (index) {
-	case 0: // the same gem, one quality better - Diablo II's own gem recipe
-		return static_cast<_item_indexes>(NextGemQuality(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
-	case 1: // the next rune up from the consumed pair, by the LADDER - not by index
-		return static_cast<_item_indexes>(NextRune(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
-	case 4: // the same jewel, one grade better
-		return static_cast<_item_indexes>(NextJewelGrade(static_cast<uint16_t>(player.InvList[materials[0]].IDidx)));
-	case 2: { // a random charm - the enum's two islands make this a pick-from-list
-		constexpr _item_indexes CharmPool[] = {
-			IDI_ORACOOL_CHARM_VIGOR, IDI_ORACOOL_CHARM_EMBERS, IDI_ORACOOL_CHARM_STORMS,
-			IDI_ORACOOL_CHARM_FORTUNE, IDI_ORACOOL_CHARM_LUCK, IDI_ORACOOL_CHARM_GREED
-		};
-		return CharmPool[GenerateRnd(6)];
-	}
-	default:
-		return IDI_NONE;
-	}
-}
 
 } // namespace
 
@@ -202,20 +107,6 @@ const char *CraftingRecipeName(int index)
 	}
 }
 
-bool CraftingRecipeUsesGrid(int index)
-{
-	// 0-2 are the N-small-things-into-one-small-thing recipes the backpack path handles. Everything
-	// from 3 up transforms an item in place.
-	return index >= 3;
-}
-
-const char *CraftingRecipeVenue(int index)
-{
-	// Deliberately short: the monument's book is as narrow as 220px, so this has to fit beside a
-	// recipe name there as well as in the 944-wide burger book.
-	return CraftingRecipeUsesGrid(index) ? N_("Levski's Roar") : N_("Backpack or Levski's Roar");
-}
-
 const char *CraftingRecipeInputs(int index)
 {
 	switch (index) {
@@ -258,69 +149,14 @@ const char *CraftingRecipeInputs(int index)
 	}
 }
 
-bool CanCraft(const Player &player, int index)
-{
-	return !MaterialsFor(player, index).empty();
-}
-
-std::string Craft(Player &player, int index)
-{
-	if (!IsSinglePlayer())
-		return {};
-	const std::vector<int> materials = MaterialsFor(player, index);
-	if (materials.empty())
-		return {};
-
-	// The output is built and placed BEFORE anything is consumed: a full backpack refuses the
-	// craft outright rather than eating materials it cannot pay for. (Consuming first would also
-	// free a slot, but a craft that needs its own inputs' space to fit its output is a craft the
-	// player can retry after making room - never one that half-executes.)
-	Item crafted {};
-	InitializeItem(crafted, OutputFor(player, index, materials));
-	GenerateNewSeed(crafted);
-	crafted._iIdentified = true;
-	if (!AutoPlaceItemInInventory(player, crafted, /*persistItem=*/true))
-		return {};
-
-	// Consume by UNIT, not by slot. `materials` holds one entry per unit (see SameKindUnits), so a
-	// slot listed twice gives up two and a slot with more than the recipe asked for keeps the rest.
-	// This removed the whole slot per entry, which destroyed every surplus unit in it - a stack of
-	// twelve chipped rubies paid for one flawed ruby and lost the other nine.
-	//
-	// Still highest index down: RemoveInvItem compacts the list by moving the last item into the
-	// vacated slot, so ascending-order removal would invalidate the later indices. Decrementing a
-	// stack does not compact, so mixing the two in descending order stays safe.
-	std::vector<int> draws = materials;
-	std::sort(draws.begin(), draws.end(), std::greater<int>());
-	for (size_t i = 0; i < draws.size();) {
-		const int invIndex = draws[i];
-		size_t j = i;
-		while (j < draws.size() && draws[j] == invIndex)
-			j++;
-		const int take = static_cast<int>(j - i);
-		Item &material = player.InvList[invIndex];
-		if (material.stackCount() > take)
-			material.setStackCount(material.stackCount() - take);
-		else
-			player.RemoveInvItem(invIndex);
-		i = j;
-	}
-
-	// loadgfx false: crafting moves backpack contents (which the charm provider reads), never the
-	// worn weapon whose sprites loadgfx would reload - and true would crash a headless caller.
-	CalcPlrInv(player, false);
-	return std::string(crafted.getName());
-}
-
-
 // ---------------------------------------------------------------------------------------------
-// Levski's Roar - the same recipes, run against the monument's 3x3 grid instead of the backpack.
+// Levski's Roar - every recipe, run against the monument's grid. The ONLY place items are made.
 // ---------------------------------------------------------------------------------------------
 //
-// A separate set of walks rather than a shared one parameterised over "where the materials are":
-// the backpack versions have to respect InvList's compaction rules and its grid, and the nine
-// slots have neither. Trying to serve both from one function is how the compaction rule ends up
-// being applied to an array that does not compact.
+// These walks were always separate from the backpack ones that used to sit above: they answer to
+// twelve fixed slots, which have neither InvList's compaction rules nor its footprint grid, and
+// trying to serve both from one function is how a compaction rule ends up being applied to an array
+// that does not compact. Since v1.9.142 they are the only walks there are.
 
 namespace {
 

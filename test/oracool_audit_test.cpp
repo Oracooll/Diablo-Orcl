@@ -3121,41 +3121,34 @@ TEST(OracoolAudit2, LevelSpanIsSafeAtTheCap)
 // consumes, and the ladder ascending exactly one rung.
 TEST(OracoolCrafting, AscendRunesConsumesPairAndProducesNextRung)
 {
-	// The crafted player is deliberately NOT MyPlayer: the engine's placement/removal helpers
-	// send network messages for the local player, and those layers are not spun up headlessly.
-	// The crafting logic itself is player-agnostic, which is exactly what this proves.
-	Players.resize(2);
-	MyPlayer = &Players[1];
-	devilution::Player &player = Players[0];
-	player = {};
-	player._pClass = HeroClass::Warrior;
+	// Against the GRID, because the grid is the only place a recipe runs (v1.9.142). This was the
+	// backpack path's test until then; the assertion it carries is about the rune LADDER, not about
+	// where the runes were standing, so it moved rather than being deleted with the path.
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
 
+	devilution::Item grid[oracool::LevskiGridSlots] = {};
 	for (int i = 0; i < 2; i++) {
-		player.InvList[i] = {};
-		InitializeItem(player.InvList[i], IDI_ORACOOL_RUNE_EL);
-		player.InvList[i]._itype = ItemType::Misc;
+		InitializeItem(grid[i], IDI_ORACOOL_RUNE_EL);
+		grid[i]._itype = ItemType::Misc;
 	}
-	player._pNumInv = 2;
-	// Give the grid a real free cell for the output.
-	for (int8_t &cell : player.InvGrid)
-		cell = 0;
-	player.InvGrid[0] = 1;
-	player.InvGrid[1] = 2;
 
-	ASSERT_TRUE(oracool::CanCraft(player, 1));
-	const std::string crafted = oracool::Craft(player, 1);
-	EXPECT_FALSE(crafted.empty());
+	ASSERT_TRUE(oracool::CanCraftFromLevskiGrid(grid, 1));
+	EXPECT_FALSE(oracool::TransmuteLevskiGridWith(grid, 1).empty());
 
 	int nextCount = 0;
 	int elCount = 0;
-	for (int i = 0; i < player._pNumInv; i++) {
+	for (const devilution::Item &cell : grid) {
+		if (cell.isEmpty())
+			continue;
 		// Diablo II's ladder puts ELD above El, not Tir. The old expectation here encoded the bug
 		// this test now guards against: crafting used to walk the ENUM (index + 1), which skips
 		// Eld entirely because the five v1.7.8 runes and the 28 appended ones are separate islands.
-		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_ELD)
-			nextCount++;
-		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_EL)
-			elCount++;
+		if (cell.IDidx == IDI_ORACOOL_RUNE_ELD)
+			nextCount += std::max(1, cell.stackCount());
+		if (cell.IDidx == IDI_ORACOOL_RUNE_EL)
+			elCount += std::max(1, cell.stackCount());
 	}
 	EXPECT_EQ(nextCount, 1) << "two El runes should have become one Eld";
 	EXPECT_EQ(elCount, 0) << "the consumed pair survived";
@@ -3214,61 +3207,6 @@ TEST(OracoolCrafting, MonumentRefine_SurplusUnitsSurviveTheCraft)
 	EXPECT_EQ(surviving, 8) << "the craft destroyed surplus runes it did not charge for";
 }
 
-TEST(OracoolCrafting, AscendRunes_OneStackSatisfiesThePair)
-{
-	Players.resize(2);
-	MyPlayer = &Players[1];
-	devilution::Player &player = Players[0];
-	player = {};
-	player._pClass = HeroClass::Warrior;
-
-	// TWO El runes, in ONE slot. The recipe needs two; slot-counting saw one and refused.
-	player.InvList[0] = {};
-	InitializeItem(player.InvList[0], IDI_ORACOOL_RUNE_EL);
-	player.InvList[0]._itype = ItemType::Misc;
-	player.InvList[0].setStackCount(2);
-	player._pNumInv = 1;
-	for (int8_t &cell : player.InvGrid)
-		cell = 0;
-	player.InvGrid[0] = 1;
-
-	EXPECT_TRUE(oracool::CanCraft(player, 1)) << "a stack of two runes is still two runes";
-	EXPECT_FALSE(oracool::Craft(player, 1).empty());
-}
-
-TEST(OracoolCrafting, AscendRunes_SurplusUnitsSurviveTheCraft)
-{
-	Players.resize(2);
-	MyPlayer = &Players[1];
-	devilution::Player &player = Players[0];
-	player = {};
-	player._pClass = HeroClass::Warrior;
-
-	// Ten El runes. The recipe spends two; the other eight must still be there afterwards.
-	player.InvList[0] = {};
-	InitializeItem(player.InvList[0], IDI_ORACOOL_RUNE_EL);
-	player.InvList[0]._itype = ItemType::Misc;
-	player.InvList[0].setStackCount(10);
-	player._pNumInv = 1;
-	for (int8_t &cell : player.InvGrid)
-		cell = 0;
-	player.InvGrid[0] = 1;
-
-	ASSERT_TRUE(oracool::CanCraft(player, 1));
-	ASSERT_FALSE(oracool::Craft(player, 1).empty());
-
-	int el = 0;
-	int eld = 0;
-	for (int i = 0; i < player._pNumInv; i++) {
-		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_EL)
-			el += player.InvList[i].stackCount();
-		if (player.InvList[i].IDidx == IDI_ORACOOL_RUNE_ELD)
-			eld += player.InvList[i].stackCount();
-	}
-	EXPECT_EQ(eld, 1) << "the craft did not produce its output";
-	EXPECT_EQ(el, 8) << "the craft destroyed surplus units of the stack it drew from";
-}
-
 // Gems and runes became stackable at v1.7.30, and stacking asks a question potions never had to
 // answer: what counts as "the same item". canStackWith compares _iMiscId, which is correct for
 // potions (the item table carries duplicate indices for several) and catastrophic here - every gem
@@ -3310,30 +3248,41 @@ TEST(OracoolCrafting, MaterialsStackOnlyWithTheirOwnKind)
 TEST(OracoolCrafting, MixedGemsDoNotSatisfyThreeOfAKind)
 {
 	Players.resize(1);
-	devilution::Player &player = Players[0];
-	player = {};
+	MyPlayer = &Players[0];
+	Players[0] = {};
+
+	// On the grid, like everything else since v1.9.142. What is being pinned is the KIND rule and
+	// the top of the rune ladder, neither of which was ever about the backpack.
+	devilution::Item grid[oracool::LevskiGridSlots] = {};
 	const int gems[3] = { IDI_ORACOOL_GEM_RUBY, IDI_ORACOOL_GEM_SAPPHIRE, IDI_ORACOOL_GEM_TOPAZ };
 	for (int i = 0; i < 3; i++) {
-		player.InvList[i] = {};
-		player.InvList[i]._itype = ItemType::Misc;
-		player.InvList[i].IDidx = static_cast<_item_indexes>(gems[i]);
+		InitializeItem(grid[i], static_cast<_item_indexes>(gems[i]));
+		grid[i]._itype = ItemType::Misc;
 	}
-	player._pNumInv = 3;
-	EXPECT_FALSE(oracool::CanCraft(player, 0)) << "three DIFFERENT gems satisfied 'three of one kind'";
+	EXPECT_FALSE(oracool::CanCraftFromLevskiGrid(grid, 0)) << "three DIFFERENT gems satisfied 'three of one kind'";
 
-	player.InvList[1].IDidx = IDI_ORACOOL_GEM_RUBY;
-	player.InvList[2].IDidx = IDI_ORACOOL_GEM_RUBY;
-	EXPECT_TRUE(oracool::CanCraft(player, 0));
+	InitializeItem(grid[1], IDI_ORACOOL_GEM_RUBY);
+	InitializeItem(grid[2], IDI_ORACOOL_GEM_RUBY);
+	grid[1]._itype = ItemType::Misc;
+	grid[2]._itype = ItemType::Misc;
+	EXPECT_TRUE(oracool::CanCraftFromLevskiGrid(grid, 0));
+
 	// Zod pairs must never ascend - Zod is the top of the 33-rune ladder. This used to say Sol,
 	// which was only the top while five of the thirty-three existed.
-	player.InvList[0].IDidx = IDI_ORACOOL_RUNE_ZOD;
-	player.InvList[1].IDidx = IDI_ORACOOL_RUNE_ZOD;
-	player._pNumInv = 2;
-	EXPECT_FALSE(oracool::CanCraft(player, 1)) << "a Zod pair offered an ascension past the ladder's top";
+	for (devilution::Item &cell : grid)
+		cell = {};
+	for (int i = 0; i < 2; i++) {
+		InitializeItem(grid[i], IDI_ORACOOL_RUNE_ZOD);
+		grid[i]._itype = ItemType::Misc;
+	}
+	EXPECT_FALSE(oracool::CanCraftFromLevskiGrid(grid, 1)) << "a Zod pair offered an ascension past the ladder's top";
+
 	// ...and a pair below the top still does ascend.
-	player.InvList[0].IDidx = IDI_ORACOOL_RUNE_SOL;
-	player.InvList[1].IDidx = IDI_ORACOOL_RUNE_SOL;
-	EXPECT_TRUE(oracool::CanCraft(player, 1)) << "Sol is no longer the top and must ascend";
+	for (int i = 0; i < 2; i++) {
+		InitializeItem(grid[i], IDI_ORACOOL_RUNE_SOL);
+		grid[i]._itype = ItemType::Misc;
+	}
+	EXPECT_TRUE(oracool::CanCraftFromLevskiGrid(grid, 1)) << "Sol is no longer the top and must ascend";
 }
 
 // Every 340x720 side panel draws over the same painted background, whose interior ends at
@@ -5684,12 +5633,14 @@ TEST(OracoolAudit, CubeRecipesChargeTheirReagentAndTransformInPlace)
 		EXPECT_TRUE(names.insert(CraftingRecipeName(i)).second) << "two recipes share a name";
 	}
 
-	// The four new ones are grid-only, and so is Free the Sockets - which is what finally takes it
-	// out of the burger window, where it sat permanently greyed out with no backpack case at all.
-	for (int i = 0; i <= 2; i++)
-		EXPECT_FALSE(CraftingRecipeUsesGrid(i)) << "recipe " << i << " left the backpack window";
-	for (int i = 3; i < CraftingRecipeCount; i++)
-		EXPECT_TRUE(CraftingRecipeUsesGrid(i)) << "recipe " << i << " claims a backpack path it does not have";
+	// Every recipe is grid-only now - CraftingRecipeUsesGrid and its two-venue vocabulary went with
+	// the backpack path in v1.9.142. What replaces that assertion is below: the grid must be able to
+	// answer for every recipe in the table, since it is the only thing that answers at all.
+	for (int i = 0; i < CraftingRecipeCount; i++) {
+		devilution::Item empty[LevskiGridSlots] = {};
+		EXPECT_FALSE(CanCraftFromLevskiGrid(empty, i))
+		    << "recipe " << i << " claims an empty grid can run it";
+	}
 
 	Players.resize(1);
 	MyPlayer = &Players[0];
@@ -5833,21 +5784,6 @@ TEST(OracoolAudit, TheTierLadderClimbsRerollsAndMakesEthereal)
 		EXPECT_FALSE(std::string(CraftingRecipeName(i)).empty()) << "recipe " << i << " is a blank row";
 		EXPECT_FALSE(std::string(CraftingRecipeInputs(i)).empty()) << "recipe " << i << " has no formula";
 		EXPECT_TRUE(names.insert(CraftingRecipeName(i)).second) << "two recipes share a name";
-	}
-
-	// The merged list (v1.9.140): both books walk 0..CraftingRecipeCount, so every recipe must carry
-	// a venue note, and the two venues must differ - a single string for both would put "Levski's
-	// Roar" beside the three the belt can actually run.
-	{
-		std::set<std::string> venues;
-		for (int i = 0; i < CraftingRecipeCount; i++) {
-			const std::string venue = CraftingRecipeVenue(i);
-			EXPECT_FALSE(venue.empty()) << "recipe " << i << " lists with no venue";
-			venues.insert(venue);
-		}
-		EXPECT_EQ(venues.size(), 2U) << "the backpack and monument recipes read the same in the book";
-		EXPECT_NE(std::string(CraftingRecipeVenue(0)), std::string(CraftingRecipeVenue(3)))
-		    << "a backpack recipe and a monument recipe claim the same venue";
 	}
 
 	const auto placeReagent = [](devilution::Item *grid, int slot, _item_indexes material, int count) {
