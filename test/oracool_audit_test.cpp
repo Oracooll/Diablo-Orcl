@@ -84,6 +84,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
+#include "DiabloUI/hero/hero_layout.h" // the character-select column geometry
 #include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
 #include "player.h"
@@ -7915,4 +7916,51 @@ TEST(OracoolSkillPoints, PointsAboveTheNewCapAreHandedBack)
 	EXPECT_EQ(oracool::RefundInvestmentOverTheCap(player), 0);
 	EXPECT_EQ(player._pSkillInvestment[zeal], 3);
 	player._pSkillInvestment[zeal] = 0;
+}
+
+// User request, 2026-08-31: hero stats on the character-select screen. They went in the button row's
+// FIRST zone, mirroring the character list in the fourth, with the animated figure between them.
+//
+// Three things can go wrong with that and none of them is visible from the code: the column can
+// collide with the figure, it can collide with the list, or it can run out of the band it was given
+// and through the button row underneath. This pins all three at the resolution the game is played
+// at, since none of them can be checked without a screenshot otherwise.
+TEST(OracoolHeroSelect, TheStatsColumnClearsTheFigureAndTheList)
+{
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+
+	const SDL_Rect stats = HeroStatsColumnRect();
+	const SDL_Rect list = { static_cast<Sint16>(HeroListX()), 0, static_cast<Uint16>(HeroListWidth()), 0 };
+	const Rectangle figure = HeroPreviewRect();
+
+	ASSERT_GT(stats.w, 0) << "test setup: the stats column has no width";
+	ASSERT_GT(stats.h, 0) << "test setup: the stats column has no height";
+
+	EXPECT_EQ(stats.w, list.w) << "the two columns are meant to be a matched pair";
+
+	EXPECT_LE(stats.x + stats.w, figure.position.x)
+	    << "the stats column (ends at " << stats.x + stats.w << ") runs into the figure (starts at "
+	    << figure.position.x << ")";
+	EXPECT_LE(figure.position.x + figure.size.width, list.x)
+	    << "the figure runs into the character list";
+
+	// And the block it draws must fit the band it was handed, or the tail lands on the button row.
+	// These are the drawing's own numbers; a change to either has to be reflected here on purpose.
+	constexpr int RowHeight = 30;
+	constexpr int GroupGap = 14;
+	constexpr int RowCount = 10;
+	constexpr int GroupCount = 2;
+	const int blockHeight = RowCount * RowHeight + GroupCount * GroupGap;
+	EXPECT_LE(blockHeight, stats.h)
+	    << "the stats block (" << blockHeight << "px) is taller than its column (" << stats.h
+	    << "px) at 960x720, so it would be silently trimmed on the screen this game is played on";
+
+	EXPECT_LE(stats.y + stats.h, HeroButtonRowTop())
+	    << "the column overlaps the button row";
+
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
 }

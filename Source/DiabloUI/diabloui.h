@@ -86,6 +86,21 @@ struct _uiheroinfo {
 	 * was simply never copied out.
 	 */
 	uint8_t gfxnum;
+	/**
+	 * @brief Combat readings for the character-select stats column (user, 2026-08-31).
+	 *
+	 * Free to provide, on exactly the terms gfxnum above is: pfile_ui_set_hero_infos unpacks the
+	 * save and runs CalcPlrInv before calling Game2UiPlayer, so these are already computed and were
+	 * simply never copied out. Nothing here reads a file a second time.
+	 *
+	 * Life and mana are the DISPLAY values, shifted down out of the engine's 1/64 fixed point, so
+	 * the column can print them without knowing that detail.
+	 */
+	uint16_t life;
+	uint16_t mana;
+	uint16_t armourClass;
+	uint16_t minDamage;
+	uint16_t maxDamage;
 	bool hassaved;
 	bool spawned;
 };

@@ -185,6 +185,56 @@ inline int HeroContentBottom()
  * So they share one centred column in the same band the character list uses, at the same font. Four
  * screens that were four layouts are one layout with different contents in it.
  */
+/**
+ * @brief The character list's column - zone FOUR, list plus gap plus scrollbar.
+ *
+ * Moved here from selhero.cpp on 2026-08-31, when the stats column opposite needed the same width
+ * and a test needed to prove the two cannot collide. It was file-local because nothing outside that
+ * screen asked; two things do now, and this header is where the screen's geometry lives.
+ *
+ * The reasoning behind the zone anchor is unchanged and worth keeping: pinned to the WINDOW's right
+ * edge the column drifts away from the button row at any width past 960, because the row is capped
+ * to a centred 960 band. Tied to zone four's own rect it goes where the row goes.
+ */
+constexpr int HeroScrollbarWidth = 12;
+constexpr int HeroScrollbarGap = 4;
+
+inline int HeroListWidth()
+{
+	const SDL_Rect zone = HeroButtonRect(DeleteButtonIndex);
+	return std::max(0, zone.w - HeroScrollbarGap - HeroScrollbarWidth);
+}
+
+inline int HeroListX()
+{
+	return HeroButtonRect(DeleteButtonIndex).x;
+}
+
+/**
+ * @brief The stats column - zone ONE, mirroring the character list in zone four.
+ *
+ * Oracool: user request (2026-08-31), "a hero stats somewhere befitting". The list sits in the
+ * button row's fourth zone and the figure stands in the middle, which left the whole left band of
+ * this screen empty; putting the stats opposite the list makes the screen a pair of columns with
+ * the character between them instead of a right-heavy one.
+ *
+ * NOT where the old class portrait and its five stat rows were - that space is the animated figure
+ * now, by the same user's earlier call, and this is meant to sit beside it rather than displace it
+ * again.
+ *
+ * Tied to zone one's own rect for the reason the list is tied to zone four's (see HeroListWidth's
+ * note): anything anchored to the window edge instead drifts away from the button row the moment
+ * the row is capped to a centred 960 band. Width matches the list's exactly so the two columns are
+ * a matched pair, and the vertical band is the same HeroContentTop..HeroContentBottom.
+ */
+inline SDL_Rect HeroStatsColumnRect()
+{
+	const SDL_Rect zone = HeroButtonRect(NewHeroButtonIndex);
+	const int top = HeroContentTop();
+	return MakeSdlRect(static_cast<Sint16>(zone.x), static_cast<Sint16>(top),
+	    static_cast<Uint16>(HeroListWidth()), static_cast<Uint16>(std::max(0, HeroContentBottom() - top)));
+}
+
 constexpr int HeroFormWidth = 400;
 constexpr int HeroFormCaptionHeight = 42;
 constexpr int HeroFormCaptionGap = 16;

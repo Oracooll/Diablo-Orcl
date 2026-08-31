@@ -196,6 +196,16 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	heroinfo->dexterity = player._pDexterity;
 	heroinfo->vitality = player._pVitality;
 	heroinfo->gfxnum = player._pgfxnum;
+	// The stats column's combat half (user, 2026-08-31). CalcPlrInv has already run by the time this
+	// is called, so every one of these is a copy rather than a computation - the same free ride
+	// gfxnum takes. Life and mana are shifted out of the engine's 1/64 fixed point here, so the
+	// column never has to know about it. The character sheet's own Armor row adds the level bonus
+	// the same way, which is why that term is repeated rather than just GetArmor().
+	heroinfo->life = static_cast<uint16_t>(std::max(0, player._pMaxHP >> 6));
+	heroinfo->mana = static_cast<uint16_t>(std::max(0, player._pMaxMana >> 6));
+	heroinfo->armourClass = static_cast<uint16_t>(std::max(0, player.GetArmor() + player._pLevel * 2));
+	heroinfo->minDamage = static_cast<uint16_t>(std::max(0, player._pIMinDam));
+	heroinfo->maxDamage = static_cast<uint16_t>(std::max(0, player._pIMaxDam));
 	heroinfo->hassaved = bHasSaveFile;
 	heroinfo->herorank = player.pDiabloKillLevel;
 	heroinfo->spawned = gbIsSpawn;

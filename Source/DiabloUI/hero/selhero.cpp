@@ -20,6 +20,7 @@
 #include "menu.h"
 #include "options.h"
 #include "oracool/hero_preview.h"
+#include "oracool/hero_stats_column.h"
 #include "oracool/ui_backgrounds.h"
 #include "pfile.h"
 #include "utils/language.h"
@@ -100,61 +101,14 @@ void SelheroUiFocusNavigationYesNo()
 		UiFocusNavigationYesNo();
 }
 
-/** @brief The character list's geometry. At file scope because the preview area is defined against it. */
-/**
- * @brief The list column is the button row's FOURTH ZONE - see HeroListX and HeroListWidth.
- *
- * A function rather than the constant 320 it used to be, because the zone's width is what decides it
- * now and that is derived from the window.
- */
-int HeroListWidth();
 constexpr int HeroListItemHeight = 52;
-/**
- * @brief The scrollbar's column - a rect for the mouse, not for the bar.
- *
- * The themed bar is 3px wide and drawn centred in this (see Render(const UiScrollbar &)); the rest is
- * grab room. 25px of vanilla art became 12px of hand.
- */
-constexpr int HeroScrollbarWidth = 12;
-constexpr int HeroScrollbarGap = 4;
 /** @brief Clearance between the figure and the list column, now that nothing sits between them. */
 constexpr int HeroPreviewGap = 8;
 
-/**
- * @brief The list column IS the button row's fourth zone - list, gap and scrollbar all inside it.
- *
- * Oracool: user request - "keep existing heros list and new hero class select list within the 4th
- * column within the 960 boundary."
- *
- * This column has been anchored three ways now, and the reason it kept moving is worth recording.
- * First it was centred over the Cancel button; then, when the zone rule made a zone 240px against
- * this column's 320, the relationship could not hold and it was pinned to the WINDOW's right edge
- * instead. That was fine while the button row also ran to the window's edges - and stopped being
- * fine the moment the row was capped to a centred 960 band, because the list then drifted away from
- * the buttons at any width past 960.
- *
- * So it is tied to the row again, this time to something that can actually contain it: zone 4's own
- * rect. At 960 that is x 720..960, and the column fills it exactly - 224 of list, a 4px gap, then the
- * 12px scrollbar. At 1280 the zone is at 880..1120 and the column goes with it, which is the whole
- * point.
- *
- * The cost, stated because it is real: the list is 224 wide where it was 320, and the two pentagrams
- * take 28px each of that (see LabelRect in diabloui.cpp), leaving a 168px column for the name. This
- * did bite, exactly as predicted here - the fix was not the size down this note originally guessed
- * at, because MEASURING the glyphs showed no available face makes an arbitrary fifteen-character name
- * fit: even FontSize12 needs 179px for fifteen capital Ms. It was the name cap instead, cut 15 -> 10
- * on the user's call (see the UiEdit below), with FitToWidth's ellipsis as the backstop.
- */
-int HeroListWidth()
-{
-	const SDL_Rect zone = HeroButtonRect(DeleteButtonIndex);
-	return std::max(0, zone.w - HeroScrollbarGap - HeroScrollbarWidth);
-}
-
-int HeroListX()
-{
-	return HeroButtonRect(DeleteButtonIndex).x;
-}
+// HeroListWidth, HeroListX, HeroScrollbarWidth and HeroScrollbarGap moved to hero_layout.h on
+// 2026-08-31. They were file-local because nothing outside this screen asked for them; the stats
+// column opposite needs the same width, and a test needs both to prove the two cannot collide. The
+// long note explaining why the column is tied to zone four's rect went with them.
 
 /** Tall enough that the FontSize30 line inside cannot be clipped - the character list's row height. */
 constexpr int HeroFormBoxHeight = HeroListItemHeight;
@@ -816,6 +770,14 @@ static void UiSelHeroDialog(
 			// After the background and before UiPollAndRender's list pass, so the figure sits over
 			// the painting and under nothing it could collide with - the list is on the far side.
 			oracool::DrawHeroPreview(Surface(DiabloUiSurface()), HeroPreviewRect());
+			// The stats column, opposite the list (user, 2026-08-31). Gated on there being a saved
+			// character focused: with an empty list SelheroListFocus has cleared the preview, and a
+			// column of zeroes beside an empty dais would be describing nobody.
+			if (selhero_isSavegame) {
+				const SDL_Rect column = HeroStatsColumnRect();
+				oracool::DrawHeroStatsColumn(Surface(DiabloUiSurface()),
+				    Rectangle { { column.x, column.y }, { column.w, column.h } }, selhero_heroInfo);
+			}
 			RenderDifficultyIndicators();
 			// No event handler of its own any more: the action row's keys went into the shared focus
 			// rule, and the pentagrams on a focused button are drawn by that rule's own render pass.
