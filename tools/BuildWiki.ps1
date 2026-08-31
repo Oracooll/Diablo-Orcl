@@ -1012,9 +1012,24 @@ if ($craftingCpp -match '(?s)const char \*CraftingRecipeInputs\(int index\)(.*?)
         $recipeInputs[[int]$m.Groups[1].Value] = $m.Groups[2].Value
     }
 }
+# Where each recipe runs, from the same two places the game reads: the grid threshold in
+# CraftingRecipeUsesGrid and the two venue strings in CraftingRecipeVenue. Both books list all
+# seventeen recipes since v1.9.140, so the wiki's list is now the same list, with the venue as its
+# own column rather than a split into two tables.
+$gridFrom = 3
+if ($craftingCpp -match '(?s)bool CraftingRecipeUsesGrid\(int index\).*?return index >= (\d+);') {
+    $gridFrom = [int]$matches[1]
+}
+$venueGrid = "Levski's Roar"
+$venueBoth = "Backpack or Levski's Roar"
+if ($craftingCpp -match '(?s)const char \*CraftingRecipeVenue\(int index\).*?N_\("([^"]+)"\)\s*:\s*N_\("([^"]+)"\)') {
+    $venueGrid = $matches[1]
+    $venueBoth = $matches[2]
+}
 $recipeRows = New-Object System.Collections.ArrayList
 foreach ($key in ($recipeNames.Keys | Sort-Object)) {
-    [void]$recipeRows.Add([ordered]@{ name = $recipeNames[$key]; formula = $recipeInputs[$key] })
+    $where = if ($key -ge $gridFrom) { $venueGrid } else { $venueBoth }
+    [void]$recipeRows.Add([ordered]@{ name = $recipeNames[$key]; formula = $recipeInputs[$key]; where = $where })
 }
 $socketRules.recipes = $recipeRows
 

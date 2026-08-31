@@ -268,7 +268,7 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	// every save. IsOracoolCharmIdx covers both islands.
 	IDI_ORACOOL_CHARM_LUCK,
 	IDI_ORACOOL_CHARM_GREED,
-	// The gem quality ladder (Gems.png, 2026-08-16): Diablo II's seven types in five qualities.
+	// The gem quality ladder (item-gems-v2.png, 2026-08-16): Diablo II's seven types in five qualities.
 	// The five above are the NORMAL quality of their type and keep their indices - these are the
 	// thirty that complete the set, appended for the same positional-save-format reason as every
 	// other block here. oracool/gems.h owns the (type, quality) -> index table; nothing outside it
@@ -828,19 +828,19 @@ enum item_cursor_graphic : uint16_t {
 	ICURS_ORACOOL_SPECTRAL_ARMOR              = 369,
 	ICURS_ORACOOL_SPECTRAL_SHIELD             = 370,
 	ICURS_ORACOOL_SPECTRAL_HELM               = 371,
-	// The gem icons, cut from the user's own gem sheet (Oracool.MPQ\item-gems-v1.png).
+	// The gem icons, cut from the user's own gem sheet (Oracool.MPQ\02-source-art\items\item-gems-v1.png).
 	ICURS_ORACOOL_GEM_RUBY                    = 372,
 	ICURS_ORACOOL_GEM_SAPPHIRE                = 373,
 	ICURS_ORACOOL_GEM_TOPAZ                   = 374,
 	ICURS_ORACOOL_GEM_EMERALD                 = 375,
 	ICURS_ORACOOL_GEM_SKULL                   = 376,
-	// The rune icons, cut from the user's 33-rune D2 sheet (Oracool.MPQ\item-runes-v1.png).
+	// The rune icons, cut from the user's 33-rune D2 sheet (Oracool.MPQ\02-source-art\items\item-runes-v1.png).
 	ICURS_ORACOOL_RUNE_EL                     = 377,
 	ICURS_ORACOOL_RUNE_TIR                    = 378,
 	ICURS_ORACOOL_RUNE_RAL                    = 379,
 	ICURS_ORACOOL_RUNE_ORT                    = 380,
 	ICURS_ORACOOL_RUNE_SOL                    = 381,
-	// The gem quality ladder (Gems.png). The five above (372-376) keep their numbers and are
+	// The gem quality ladder (item-gems-v2.png). The five above (372-376) keep their numbers and are
 	// re-cut from this same sheet's normal-quality row, so an item already in a save still points
 	// at the right picture - _iCurs is stored per item, which is why these append rather than
 	// renumbering the block.

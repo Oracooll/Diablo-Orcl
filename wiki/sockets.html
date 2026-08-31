@@ -194,7 +194,7 @@ everyone, so a zone that was <i>the</i> orb zone would be the only zone worth fa
 <h2>Where the salvage materials go</h2>
 <p>Salvaging gear yields one of seven materials, graded by what you broke down: White Scales from
 plain items, Rare Fibres from rares, Unique Encrustments from uniques, Set Engravings from set
-pieces, and so on. <b>The last four recipes below spend them</b>, and which material pays for what
+pieces, and so on. <b>Several of the recipes below spend them</b>, and which material pays for what
 is deliberate - you salvage uniques to reforge, rares to ennoble, set pieces to recast. Each recipe
 is funded by the kind of item it operates on, so the loop closes on itself.</p>
 
@@ -204,10 +204,14 @@ the Horadric Cube's twelve slots - with a Transmute button and a recipe book tha
 window so you can read while you work.</p>
 <p><b>You choose a recipe by what you put in.</b> The monument runs the one that uses the most of
 what is in front of it, so putting in only what a recipe needs is how you pick it - which is how
-the Horadric Cube always worked. The first three recipes also run from the backpack through the
-burger menu; the rest transform an item in place and need the grid.</p>
+the Horadric Cube always worked.</p>
+<p><b>There is one recipe list, and both books show all of it.</b> The monument's book and the belt's
+burger-menu Crafting window list every recipe in the same order, each row saying where it can be run
+- the monument runs all of them, while the backpack has only the generic several-into-one path and
+runs the first three. Clicking a monument recipe in the burger window says where it lives rather than
+doing nothing.</p>
 <div class="tablewrap"><table id="recipes">
-<thead><tr><th>Recipe</th><th>Formula</th></tr></thead>
+<thead><tr><th>Recipe</th><th>Formula</th><th>Where</th></tr></thead>
 <tbody></tbody></table></div>
 <div class="note"><b>What you put in the grid is never saved.</b> Closing the window hands
 everything back to your backpack - which is why a full backpack <b>refuses the close</b> and says
@@ -410,7 +414,7 @@ document.getElementById('tcuniq').textContent = WIKI.treasureBonuses.unique + 'x
 
 document.getElementById('gridsize').textContent = R.levskiGridColumns + 'x' + R.levskiGridRows;
 document.querySelector('#recipes tbody').innerHTML = R.recipes.map(function (r) {
-	return '<tr><td><b>' + r.name + '</b></td><td>' + r.formula + '</td></tr>';
+	return '<tr><td><b>' + r.name + '</b></td><td>' + r.formula + '</td><td>' + r.where + '</td></tr>';
 }).join('');
 </script>
 </body>

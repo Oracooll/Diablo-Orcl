@@ -5835,6 +5835,21 @@ TEST(OracoolAudit, TheTierLadderClimbsRerollsAndMakesEthereal)
 		EXPECT_TRUE(names.insert(CraftingRecipeName(i)).second) << "two recipes share a name";
 	}
 
+	// The merged list (v1.9.140): both books walk 0..CraftingRecipeCount, so every recipe must carry
+	// a venue note, and the two venues must differ - a single string for both would put "Levski's
+	// Roar" beside the three the belt can actually run.
+	{
+		std::set<std::string> venues;
+		for (int i = 0; i < CraftingRecipeCount; i++) {
+			const std::string venue = CraftingRecipeVenue(i);
+			EXPECT_FALSE(venue.empty()) << "recipe " << i << " lists with no venue";
+			venues.insert(venue);
+		}
+		EXPECT_EQ(venues.size(), 2U) << "the backpack and monument recipes read the same in the book";
+		EXPECT_NE(std::string(CraftingRecipeVenue(0)), std::string(CraftingRecipeVenue(3)))
+		    << "a backpack recipe and a monument recipe claim the same venue";
+	}
+
 	const auto placeReagent = [](devilution::Item *grid, int slot, _item_indexes material, int count) {
 		InitializeItem(grid[slot], material);
 		grid[slot].setStackCount(count);

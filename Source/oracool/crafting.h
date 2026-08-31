@@ -37,11 +37,23 @@ constexpr int CraftingRecipeCount = 17;
  * rerolls it, ennobles it - and there is no generic "one in, one changed" shape to hang that on, so
  * they live on the grid where the caller can see every slot at once.
  *
- * The burger Crafting window asks this and skips the ones that answer true. Before it did,
- * "Free the Sockets" sat in that window permanently greyed out with nothing saying where it
- * actually lived - it had no backpack case at all, and CanCraft therefore always answered false.
+ * The burger Crafting window used to ask this and SKIP the ones that answer true, which split the
+ * recipes into two lists that never appeared together - the monument's book held all seventeen, the
+ * burger book held three, and nothing anywhere said the other fourteen existed. Since v1.9.140 both
+ * books list all seventeen and this only decides how a row READS: a grid-only row is dimmed and
+ * wears CraftingRecipeVenue's note instead of vanishing.
  */
 bool CraftingRecipeUsesGrid(int index);
+
+/**
+ * @brief Where recipe @p index can actually be run, as a short display line.
+ *
+ * One vocabulary for both books, so the merged list reads identically wherever it is opened. The
+ * monument runs every recipe - its Transmute path has a case for all seventeen - while the backpack
+ * only has the generic N-into-one path, so it runs the first three and points at the monument for
+ * the rest.
+ */
+const char *CraftingRecipeVenue(int index);
 
 /** @brief How many of its reagent recipe @p index charges, or 0 if it takes none. */
 int CraftingRecipeReagentCount(int index);

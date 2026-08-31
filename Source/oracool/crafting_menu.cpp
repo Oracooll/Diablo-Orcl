@@ -55,14 +55,22 @@ void CloseCraftingMenu()
 
 namespace {
 
-/** @brief The recipes this window lists, in order. Grid-only ones are not among them. */
-std::vector<int> BackpackRecipes()
+/**
+ * @brief The recipes this window lists, in order - ALL of them, monument-only ones included.
+ *
+ * Was a filtered list until v1.9.140, and that filter is what made the game hold two recipe lists
+ * instead of one: the monument's book showed seventeen, this one showed three, and a player who
+ * only ever opened the belt's burger menu had no way to learn the other fourteen existed. The
+ * filter solved a real problem in the wrong place - "Free the Sockets" sat here permanently grey
+ * with nothing saying where it lived - and the fix is to SAY where it lives, per row, rather than
+ * to hide it.
+ */
+std::vector<int> ListedRecipes()
 {
 	std::vector<int> rows;
-	for (int i = 0; i < CraftingRecipeCount; i++) {
-		if (!CraftingRecipeUsesGrid(i))
-			rows.push_back(i);
-	}
+	rows.reserve(CraftingRecipeCount);
+	for (int i = 0; i < CraftingRecipeCount; i++)
+		rows.push_back(i);
 	return rows;
 }
 
@@ -95,7 +103,7 @@ Rectangle CraftingContentRect()
 /** @brief How far the list may scroll, in pixels. Zero when every row already fits. */
 int MaxScrollOffset()
 {
-	const int totalHeight = static_cast<int>(BackpackRecipes().size()) * RowHeight;
+	const int totalHeight = static_cast<int>(ListedRecipes().size()) * RowHeight;
 	return std::max(0, totalHeight - CraftingContentRect().size.height);
 }
 
@@ -127,12 +135,13 @@ void DrawCraftingMenu(const Surface &out)
 	const Surface view = out.subregion(content.position.x, content.position.y,
 	    content.size.width, content.size.height);
 
-	// The monument's own recipes are not listed here. They transform an item in place and have no
-	// backpack path at all, so CanCraft answers false for them forever - which is exactly what
-	// "Free the Sockets" did in this window from the day it shipped: a permanently grey row with
-	// nothing saying it lived on Levski's Roar instead.
+	// Every recipe is listed, the monument's fourteen included. They have no backpack path - they
+	// transform an item in place, so CanCraft answers false for them forever - and rather than being
+	// hidden for it they carry their venue on the right of the name line. That note is the whole
+	// point of listing them: "Free the Sockets" spent its first weeks in this window as a
+	// permanently grey row with nothing saying it lived on Levski's Roar instead.
 	int top = -ScrollOffset;
-	for (const int i : BackpackRecipes()) {
+	for (const int i : ListedRecipes()) {
 		if (top + RowHeight >= 0 && top <= content.size.height) {
 			const bool craftable = CanCraft(*MyPlayer, i);
 			// A craftable recipe reads live (gold name, white formula); one missing its materials is
@@ -140,6 +149,9 @@ void DrawCraftingMenu(const Surface &out)
 			DrawString(view, _(CraftingRecipeName(i)),
 			    Rectangle { { 0, top }, { content.size.width, RowHeight / 2 } },
 			    { (craftable ? UiFlags::ColorGold : UiFlags::ColorWhitegold) | UiFlags::FontSize12 });
+			DrawString(view, _(CraftingRecipeVenue(i)),
+			    Rectangle { { 0, top }, { content.size.width, RowHeight / 2 } },
+			    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignRight });
 			DrawString(view, _(CraftingRecipeInputs(i)),
 			    Rectangle { { 0, top + RowHeight / 2 - 4 }, { content.size.width, RowHeight / 2 } },
 			    { (craftable ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | UiFlags::FontSize12 });
@@ -160,14 +172,24 @@ void CheckCraftingMenuClick(Point mousePosition)
 	// The scroll offset has to come back out of the hit test, or every click below the fold lands on
 	// the recipe that USED to be at that height.
 	const int row = (mousePosition.y - content.position.y + ScrollOffset) / RowHeight;
-	const std::vector<int> rows = BackpackRecipes();
+	const std::vector<int> rows = ListedRecipes();
 	if (row < 0 || row >= static_cast<int>(rows.size()))
 		return;
 
-	// The clicked ROW is not the recipe INDEX any more - the grid-only recipes are filtered out of
-	// the list, so row 3 is whatever the fourth listed recipe happens to be. Mapping through the
-	// same list the draw walked is what keeps a click landing on the row the player pointed at.
-	const std::string crafted = Craft(*MyPlayer, rows[row]);
+	// Mapped through the same list the draw walked, so a click lands on the row the player pointed
+	// at even if the listing ever stops being a plain 0..CraftingRecipeCount walk.
+	const int recipe = rows[row];
+
+	// A monument recipe cannot run from here - there is no grid to run it over. Say so rather than
+	// doing nothing: a row that answers a click with silence reads as a broken button, and the
+	// venue note on the row is easy to miss on a list this long.
+	if (CraftingRecipeUsesGrid(recipe)) {
+		LogEvent(fmt::format(fmt::runtime(_("{:s} is crafted at Levski's Roar, the monument in town")),
+		    _(CraftingRecipeName(recipe))));
+		return;
+	}
+
+	const std::string crafted = Craft(*MyPlayer, recipe);
 	if (crafted.empty())
 		return; // missing materials or no room; the dimmed row already says which
 	LogEvent(fmt::format("Crafted: {:s}", crafted));

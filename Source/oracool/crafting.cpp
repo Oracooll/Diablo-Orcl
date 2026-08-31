@@ -209,6 +209,13 @@ bool CraftingRecipeUsesGrid(int index)
 	return index >= 3;
 }
 
+const char *CraftingRecipeVenue(int index)
+{
+	// Deliberately short: the monument's book is as narrow as 220px, so this has to fit beside a
+	// recipe name there as well as in the 944-wide burger book.
+	return CraftingRecipeUsesGrid(index) ? N_("Levski's Roar") : N_("Backpack or Levski's Roar");
+}
+
 const char *CraftingRecipeInputs(int index)
 {
 	switch (index) {

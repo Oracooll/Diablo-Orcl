@@ -1,14 +1,15 @@
 @echo off
 REM Builds objects\orclroar.cel - Levski's Roar, the town monument - from the green-keyed painting
-REM the user dropped in Oracool.MPQ's root on 2026-08-20, and installs it into both asset channels.
+REM the user dropped on 2026-08-20 and filed 2026-08-31 into 02-source-art\world, and
+REM installs it into both asset channels.
 REM
 REM Until now the monument borrowed OFILE_ROCKSTAN, the Anvil of Fury's rock stand, as an explicit
 REM placeholder. This gives it its own art and its own object_graphic_id.
 REM
-REM The source is found by GLOB rather than by name: the drop-zone files arrive with generated names
-REM containing a Cyrillic abbreviation, and a literal path in an earlier cut script did not survive
-REM that script's own encoding - it failed looking for a file whose name it had already corrupted.
-REM The timestamp is the stable part.
+REM The painting arrived in the drop zone under a generated name carrying a Cyrillic abbreviation,
+REM so this script used to find it by GLOB on the timestamp - a literal path in an earlier cut
+REM script did not survive that script's own encoding. The file was swept into 02-source-art\world
+REM on 2026-08-31 under an ASCII name, so it is referenced by name again.
 REM
 REM 96 must equal OracoolLevskiRoarAnimWidth in Source/objdat.h. CEL stores
 REM no width, so a mismatch splits every RLE scanline at the wrong point and renders the monument as
@@ -19,14 +20,14 @@ REM Run from the repository root.
 
 setlocal
 set ART=
-for %%F in ("..\Oracool.MPQ\*00_54_48*.png") do set ART=%%~fF
+set ART=..\Oracool.MPQ\02-source-art\world\vasil-levski-monument-greenscreen.png
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclroar.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set EXE=%TEMP%\MonumentCel.exe
 
-if "%ART%"=="" (
-  echo ERROR: no monument painting matching *00_54_48*.png in ..\Oracool.MPQ
+if not exist "%ART%" (
+  echo ERROR: monument painting not found: %ART%
   exit /b 1
 )
 echo Source: %ART%

@@ -200,6 +200,10 @@ std::string RecipeBookText(int width)
 		page += '\n';
 		page += WordWrapString(_(CraftingRecipeInputs(i)), width - Padding * 2, GameFont12);
 		page += '\n';
+		// The venue line, same vocabulary as the burger book - the two lists are one list now, so
+		// they have to measure as well as read the same.
+		page += _(CraftingRecipeVenue(i));
+		page += '\n';
 	}
 	return page;
 }
@@ -226,7 +230,10 @@ std::vector<RecipeRow> RecipeBookRows(const Rectangle &page)
 		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
 		const std::string formula = WordWrapString(_(CraftingRecipeInputs(i)), textWidth, GameFont12);
 		const int formulaLines = static_cast<int>(std::count(formula.begin(), formula.end(), '\n')) + 1;
-		const int height = lineHeight + lineHeight * formulaLines + 6;
+		// +1 line for the venue note. Counted here and nowhere else: this is the geometry the draw,
+		// the click and the scroll bound all read, so a line drawn without being counted here is a
+		// row whose foot the click handler cannot see.
+		const int height = lineHeight + lineHeight * (formulaLines + 1) + 6;
 		rows.push_back({ y, height });
 		y += height;
 	}
@@ -748,6 +755,12 @@ void DrawLevskiRoar(const Surface &out)
 		const int formulaLines = static_cast<int>(std::count(formula.begin(), formula.end(), '\n')) + 1;
 		DrawString(out, formula, Rectangle { rowCursor, { textWidth, lineHeight * formulaLines } },
 		    { UiFlags::ColorWhite | UiFlags::FontSize12 });
+		rowCursor.y += lineHeight * formulaLines;
+
+		// The venue, dimmer than the formula. Every recipe runs HERE, so on this side the line is
+		// telling the player which three they can also do from the belt without walking to town.
+		DrawString(out, _(CraftingRecipeVenue(i)), Rectangle { rowCursor, { textWidth, lineHeight } },
+		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 });
 	}
 	(void)cursor;
 }
