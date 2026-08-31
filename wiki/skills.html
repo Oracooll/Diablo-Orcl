@@ -52,6 +52,42 @@ by its level and has no per-element channel, so mastery reads as command of the 
 The other thirteen are inert for reasons that will not change soon - <b>ten are the cold page, and
 this engine has no cold damage type at all</b>, so there is nothing to scale, resist or pierce.</div>
 
+<h2>What each level buys</h2>
+<p class="lede">Every skill, spell and aura caps at <b id="capnum"></b>. Three formulas govern what a
+rank is worth, and all three are read out of the source that defines them.</p>
+
+<div class="note"><b>Why the cap is <span id="capnum2"></span> and not 98.</b> A character earns one
+skill point per level from 2 to <span id="clvlmax"></span> - <b><span id="lifetime"></span> points in
+a lifetime</b>. The cap used to be 98, which <i>was</i> that budget, so it never bound a build; it
+only restated how much there was to spend. Against a curve that multiplies by
+<code>1 + 1/<span id="divisor"></span></code> every rank, that made concentration win by six orders
+of magnitude - 98 points in one skill was about x9,770,000, while the same 98 spread over five was
+five things at x10.8. A cap that binds <i>before</i> the budget is what makes the tree a set of
+choices: <span id="maxedskills"></span> maxed skills and change.</div>
+
+<h3>The three ladders</h3>
+<ul>
+	<li><b>Spell power</b> - <code>ScaleSpellEffect</code> adds an eighth of the running value per
+		rank, so it compounds. The table shows a base of <b><span id="sample"></span></b> carried up
+		the ladder with the game's own integer arithmetic, which truncates at every step; a floating
+		power would be slightly wrong at every row.</li>
+	<li><b>Aura radius</b> - <span id="auratext"></span></li>
+	<li><b>Character level</b> - the Rule of Rangs. The last column is how far above a skill's own
+		tier you must be to hold that rank, so a tier-1 skill reaches rank 30 at character level 30
+		and a tier-7 skill at 36.</li>
+</ul>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Rank</th><th>Spell power (base <span id="sample2"></span>)</th><th>Multiplier</th>
+	<th>Aura radius</th><th>Character levels above tier</th></tr></thead>
+<tbody id="progrows"></tbody></table></div>
+
+<div class="note"><b>Not every skill uses every ladder.</b> A spell's damage runs through the power
+column. An aura's reach is the radius column. A melee skill like Zeal has its own written ladder -
+Zeal buys a strike at ranks 1, 3 and 5 and accuracy at every rank - and reads none of these. The
+per-skill effect is on each row of <a href="#table">Every skill</a>; this table is the shape of the
+curves behind them.</div>
+
 <h2>By class</h2>
 <div class="cards" id="classcards"></div>
 
@@ -82,6 +118,35 @@ document.getElementById('stats').innerHTML =
 	'<div class="stat"><b>' + new Set(rows.map(function (r) { return r.class; })).size + '</b><span>classes</span></div>';
 
 document.getElementById('tiers').textContent = TIER_LEVELS.slice(0, 6).join(', ');
+
+// What each level buys. Every number here comes from WIKI.mechanics.skillProgression, which
+// BuildWiki.ps1 parses out of missiles.cpp, aura_field.cpp and spell_ranks.h - nothing on this page
+// restates a formula, for the same reason the rest of the wiki does not.
+(function () {
+	const p = WIKI.mechanics.skillProgression;
+	const set = function (id, text) {
+		const el = document.getElementById(id);
+		if (el) el.textContent = text;
+	};
+	set('capnum', p.cap);
+	set('capnum2', p.cap);
+	set('clvlmax', WIKI.mechanics.maxCharacterLevel);
+	set('lifetime', p.lifetimePoints);
+	set('divisor', p.powerDivisor);
+	set('sample', p.powerSample);
+	set('sample2', p.powerSample);
+	set('maxedskills', Math.floor(p.lifetimePoints / p.cap));
+	set('auratext', p.auraBase + ' tiles at one point, one more every ' + p.auraStep
+		+ ' points, capped at ' + p.auraCap + '. It reaches that cap well before the rank cap does,'
+		+ ' so deep aura investment buys effect rather than reach.');
+
+	document.getElementById('progrows').innerHTML = p.rows.map(function (r) {
+		// The rows where something actually changes are worth the eye: a new aura tile, or the
+		// doubling points of the power curve.
+		return '<tr><td>' + r.rank + '</td><td>' + r.power + '</td><td>x' + r.powerTimes.toFixed(2)
+			+ '</td><td>' + r.auraRadius + '</td><td>+' + r.levelsAbove + '</td></tr>';
+	}).join('');
+})();
 
 const classes = {};
 rows.forEach(function (r) {

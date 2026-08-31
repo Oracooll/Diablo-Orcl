@@ -485,6 +485,68 @@ if ($resistH -match 'ResistancePenaltyPerDifficulty\[\]\s*=\s*\{([^}]*)\}') {
     $mechanics.resistance.penalties = @($matches[1] -split ',' | ForEach-Object { [int]$_.Trim() })
 }
 
+# ---------------------------------------------------------------------------------------------
+# What each skill level actually BUYS - rank 1 to the cap (user, 2026-08-31)
+# ---------------------------------------------------------------------------------------------
+#
+# Three formulas govern every rank in the game, and all three are PARSED here rather than re-typed,
+# exactly like the resistance curve above. Re-implementing them in this script is the one thing that
+# would make this table worse than useless: it would be a second copy of the game's maths, free to
+# drift, in the document people consult precisely because they do not want to read the code.
+#
+#   power   Source/missiles.cpp   ScaleSpellEffect - `value += value / N` once per level. This is
+#                                 the exponential the 2026-08-31 cap change was about.
+#   aura    Source/oracool/aura_field.cpp  AuraRadiusForPoints - a base, a step every N points, a cap.
+#   rank    Source/oracool/spell_ranks.h   RankRequiredLevel - the Rule of Rangs, +1 character level
+#                                 per rank past the first.
+$missilesCpp = Read-SourceFile 'missiles.cpp'
+$auraCpp = Read-SourceFile 'oracool/aura_field.cpp'
+
+$powerDivisor = 0
+if ($missilesCpp -match 'int ScaleSpellEffect\([^)]*\)\s*\{(?:[^}]*?)value \+= value / (\d+);') {
+    $powerDivisor = [int]$matches[1]
+}
+if ($powerDivisor -le 0) { throw "BuildWiki: could not read ScaleSpellEffect's divisor from missiles.cpp - the wiki will not state a growth curve it cannot derive" }
+
+$auraBase = 0; $auraStep = 0; $auraCap = 0
+if ($auraCpp -match 'return std::min\((\d+) \+ \(points - 1\) / (\d+), (\d+)\);') {
+    $auraBase = [int]$matches[1]; $auraStep = [int]$matches[2]; $auraCap = [int]$matches[3]
+}
+if ($auraBase -le 0) { throw "BuildWiki: could not read AuraRadiusForPoints from aura_field.cpp" }
+
+$rankStep = 0
+if ($ranksH -match 'return baseLevel \+ \(rank > 1 \? rank - 1 : 0\);') { $rankStep = 1 }
+if ($rankStep -le 0) { throw "BuildWiki: the Rule of Rangs in spell_ranks.h is not the shape this table assumes" }
+
+# A worked example rather than a bare multiplier: the growth is INTEGER - `value += value / 8`
+# truncates every step - so a float power would be subtly wrong at every rank. Running the real loop
+# on a round base of 100 is both exact and easier to read than 1.125^n.
+$powerSample = 100
+$progressionRows = @()
+$powerValue = $powerSample
+for ($rank = 1; $rank -le $mechanics.maxInvestment; $rank++) {
+    $powerValue = $powerValue + [math]::Floor($powerValue / $powerDivisor)
+    $radius = [math]::Min($auraBase + [math]::Floor(($rank - 1) / $auraStep), $auraCap)
+    $progressionRows += , [ordered]@{
+        rank        = $rank
+        power       = [int]$powerValue
+        powerTimes  = [math]::Round($powerValue / $powerSample, 2)
+        auraRadius  = [int]$radius
+        levelsAbove = ($rank - 1) * $rankStep
+    }
+}
+
+$mechanics.skillProgression = [ordered]@{
+    cap           = $mechanics.maxInvestment
+    powerDivisor  = $powerDivisor
+    powerSample   = $powerSample
+    auraBase      = $auraBase
+    auraStep      = $auraStep
+    auraCap       = $auraCap
+    lifetimePoints = ($mechanics.maxCharacterLevel - 1)
+    rows          = $progressionRows
+}
+
 foreach ($m in [regex]::Matches($tiersCpp, '\{\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\},\s*//\s*(\w+)')) {
     $mechanics.tierScales += , [ordered]@{
         tier       = $m.Groups[5].Value
