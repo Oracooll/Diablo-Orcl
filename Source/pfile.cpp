@@ -19,7 +19,9 @@
 #include "loadsave.h"
 #include "menu.h"
 #include "mpq/mpq_common.hpp"
+#include "oracool/class_skills.h"   // RefreshInnateSpells - the chunks decide what the character HAS
 #include "oracool/hero_chunks.h"
+#include "oracool/readied_spells.h" // UnpackReadiedSpell - re-decoded once the chunks have landed
 #include "oracool/save_status.h"
 #include "pack.h"
 #include "playerdat.hpp"
@@ -1002,6 +1004,27 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 	// AFTER unpack: the chunks widen or add to what the fixed struct decoded (skill points, the
 	// 64-bit waypoint masks). A pre-tail hero has an empty vector here and this is a no-op.
 	oracool::ApplyHeroChunks(player, chunkTail.data(), chunkTail.size());
+
+	// The readied pair is decoded a SECOND time here, and for a class skill this is the decode that
+	// counts (user, 2026-08-31: "lmb skills still dont load on new game and are set to regular
+	// attack instead").
+	//
+	// UnPackPlayer decodes it against _pAblSpells as that stood BEFORE the chunk tail - and the tail
+	// is what carries _pSkillInvestment, which is the only thing that grants a tree skill. So Zeal
+	// on the left button was validated against a character who did not know Zeal yet,
+	// UnpackReadiedSpell correctly refused it, and the button fell back to the basic attack. Nothing
+	// downstream could recover it: InitPlayer rebuilds _pAblSpells later, but by then the slot is
+	// already Invalid and there is no record of what it held.
+	//
+	// A spell survived the same trip because _pMemSpells rides in the FIXED pack, which is why this
+	// read as "left button broken, right button fine" rather than as a save fault.
+	//
+	// RefreshInnateSpells first, so the validation below is asked of the character the chunks just
+	// finished describing rather than the one the fixed struct alone could describe.
+	oracool::RefreshInnateSpells(player);
+	oracool::UnpackReadiedSpell(player, pkplr.pReadiedSpellRight, player._pRSpell, player._pRSplType);
+	oracool::UnpackReadiedSpell(player, pkplr.pReadiedSpellLeft, player._pLRSpell, player._pLRSplType);
+
 	LoadHeroItems(player, saveNum);
 	if (!gbIsMultiplayer) {
 		LoadInventoryTabs(player, saveNum);

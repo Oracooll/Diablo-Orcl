@@ -108,7 +108,19 @@ UiFlags DamageTypeColor(DamageType type)
 	case DamageType::Fire:
 		return UiFlags::ColorRed;
 	case DamageType::Lightning:
-		return UiFlags::ColorOracoolYellow;
+		// ColorYellow, NOT ColorOracoolYellow (user, 2026-08-31: "Charged Bolt renders indeed dark
+		// blue, instead of yellow").
+		//
+		// The two are not interchangeable and the difference is the PALETTE. oracool_yellow.trn was
+		// generated against ui_art\diablo.pal for the front end's focus glow - see
+		// tools/MakeYellowFontTrn.ps1, which says so - and it maps the font's ink onto indices
+		// 128-135 because those are a yellow ramp IN THAT PALETTE. The character sheet draws in the
+		// level palette, where the same indices are something else entirely, and what came out was
+		// dark blue.
+		//
+		// ColorYellow is the in-game yellow: it is what a rare item's name is written in, which is
+		// the one the user asked to be "bright YELLOW" in the first place.
+		return UiFlags::ColorYellow;
 	case DamageType::Magic:
 		return UiFlags::ColorBlue;
 	case DamageType::Physical:

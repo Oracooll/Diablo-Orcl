@@ -82,6 +82,7 @@ set(libdevilutionx_SRCS
   oracool/ornate_border.cpp
   oracool/hero_preview.cpp
   oracool/hero_stats_column.cpp
+  oracool/shutdown_watchdog.cpp
   oracool/hud_art.cpp
   oracool/item_tiers.cpp
   oracool/hud_layout.cpp

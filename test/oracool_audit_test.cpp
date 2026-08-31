@@ -57,6 +57,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/item_sets.h"
 #include "oracool/hero_chunks.h"
+#include "oracool/readied_spells.h"
 #include "oracool/lesser_uniques.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/player_resistance.h"
@@ -7779,7 +7780,11 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 		{ SpellID::Invalid, UiFlags::ColorWhite, "the plain weapon swing is physical" },
 		{ SpellID::Zeal, UiFlags::ColorWhite, "a melee skill swings the weapon, so it is physical too" },
 		{ SpellID::Firebolt, UiFlags::ColorRed, "fire" },
-		{ SpellID::Lightning, UiFlags::ColorOracoolYellow, "lightning" },
+		// ColorYellow, the IN-GAME yellow (a rare item's name). ColorOracoolYellow is the front
+		// end's focus colour, whose .trn is generated against the UI palette - it renders dark blue
+		// on an in-game panel, which is what the user saw on Charged Bolt.
+		{ SpellID::Lightning, UiFlags::ColorYellow, "lightning" },
+		{ SpellID::ChargedBolt, UiFlags::ColorYellow, "lightning, and the spell that caught this" },
 		{ SpellID::BoneSpirit, UiFlags::ColorBlue, "magic - which is what blue means here, there being no cold" },
 		{ SpellID::Healing, UiFlags::ColorOracoolGreen, "healing" },
 	};
@@ -7963,5 +7968,72 @@ TEST(OracoolHeroSelect, TheStatsColumnClearsTheFigureAndTheList)
 
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
+}
+
+
+// User report, 2026-08-31: "lmb skills still dont load on new game and are set to regular attack
+// instead." A class skill on the left button was lost on every load; a spell on the right survived.
+//
+// The cause sat BETWEEN two correct steps, which is why neither looked wrong on its own.
+// UnPackPlayer decodes the readied pair, and UnpackReadiedSpell rightly refuses a skill the
+// character does not have - but it was asked before ApplyHeroChunks restored _pSkillInvestment,
+// which is the only thing that grants a tree skill. So the answer was "you do not know Zeal", and
+// nothing downstream could recover the slot afterwards.
+//
+// A spell survived the same trip because _pMemSpells rides in the FIXED pack rather than the tail.
+// That asymmetry is what this test reproduces: both buttons, one of each kind.
+TEST(OracoolAudit, AClassSkillOnTheLeftButtonSurvivesTheChunkOrdering)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior; // the Paladin's slot in this fork
+	player._pLevel = 30;
+
+	// Hellfire, and not incidentally: IsValidSpell gates every SpellID above LastDiablo on this
+	// flag, and ALL SEVEN of this fork's own skills sit above it. With it false, PackReadiedSpell
+	// refuses Zeal outright and stores a zero, so the load has nothing to restore and this test
+	// would "reproduce" a different bug than the one being fixed. The shipping game runs Hellfire.
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+
+	const auto zeal = static_cast<size_t>(oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId);
+	player._pSkillInvestment[zeal] = 3;
+	oracool::RefreshInnateSpells(player);
+	ASSERT_NE(player._pAblSpells & GetSpellBitmask(SpellID::Zeal), 0u)
+	    << "test setup: three points did not grant Zeal, so this proves nothing";
+
+	// A tree skill on the left, a book spell on the right - the exact pairing the report describes.
+	player._pMemSpells |= GetSpellBitmask(SpellID::Firebolt);
+	player._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 4;
+	player._pLRSpell = SpellID::Zeal;
+	player._pLRSplType = SpellType::Skill;
+	player._pRSpell = SpellID::Firebolt;
+	player._pRSplType = SpellType::Spell;
+
+	// The load, in the order pfile_read_player_from_save runs it: the fixed struct decodes first,
+	// and the chunk tail - which carries the investment - lands only afterwards.
+	PlayerPack packed = {};
+	PackPlayer(packed, player);
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(player);
+
+	devilution::Player &loaded = Players[0];
+	loaded = {};
+	loaded._pClass = HeroClass::Warrior;
+	UnPackPlayer(packed, loaded);
+	oracool::ApplyHeroChunks(loaded, tail.data(), tail.size());
+	// What pfile does next, and the whole of the fix.
+	oracool::RefreshInnateSpells(loaded);
+	oracool::UnpackReadiedSpell(loaded, packed.pReadiedSpellRight, loaded._pRSpell, loaded._pRSplType);
+	oracool::UnpackReadiedSpell(loaded, packed.pReadiedSpellLeft, loaded._pLRSpell, loaded._pLRSplType);
+
+	EXPECT_EQ(loaded._pLRSpell, SpellID::Zeal)
+	    << "the left button fell back to the basic attack - a class skill is granted by the CHUNK "
+	       "tail, so it cannot be validated before the tail is applied";
+	EXPECT_EQ(loaded._pRSpell, SpellID::Firebolt) << "the right button lost its spell too";
+
+	player._pSkillInvestment[zeal] = 0;
+	gbIsHellfire = savedHellfire;
 }
 

@@ -61,6 +61,7 @@
 #include "nthread.h"
 #include "objects.h"
 #include "oracool/attack_skills.h"
+#include "oracool/shutdown_watchdog.h"
 #include "oracool/skill_picker.h"
 #include "oracool/auto_save.h"
 #include "oracool/gradual_healing.h"
@@ -3184,6 +3185,17 @@ void diablo_quit(int exitStatus)
 
 	FreeGameMem();
 	music_stop();
+
+	// Armed BEFORE teardown, because teardown is where it hangs (user, 2026-08-31: "debug version
+	// regularly leave diabloorcl.exe proces runing after exit"). A leftover process was caught with
+	// no window and 0.00s of CPU over four seconds - stopped, not busy - still holding oracool.mpq,
+	// which is what fails the next build's archive pack with error code 5.
+	//
+	// The blocking call has not been identified and this does not claim to fix it; it bounds it. By
+	// this line SaveOnExit has already run and the archives are read-only, so nothing after here is
+	// worth waiting on. See oracool/shutdown_watchdog.h.
+	oracool::ArmShutdownWatchdog();
+
 	DiabloDeinit();
 	exit(exitStatus);
 }
