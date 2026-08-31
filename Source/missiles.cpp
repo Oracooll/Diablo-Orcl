@@ -8,6 +8,7 @@
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <limits> // ScaleSpellEffect saturates rather than wrapping
 
 #include "control.h"
 #include "controls/plrctrls.h"
@@ -81,13 +82,37 @@ constexpr int BlessedHammerTicks = 60;
 constexpr float BlessedHammerPixelsPerTick = 2.2F;
 constexpr float BlessedHammerRadiansPerTick = 0.35F;
 
+/**
+ * @brief Grows @p base by an eighth per spell level. SATURATING - see below.
+ *
+ * This is EXPONENTIAL: it multiplies by 9/8 for every level, so it doubles roughly every six. That
+ * was safe in vanilla, where a spell level could not exceed 15 - a base of 99 comes out at 558.
+ *
+ * This fork raised the ceiling to 98 (MaxSpellLevel), and Player::GetSpellLevel sums three stores -
+ * books, invested points and item +spell levels - while clamping none of them, so the effective
+ * level can pass even that. At 98 this returns nearly ten million; by 135, that times Flash's own
+ * x3 passes INT_MAX and wraps NEGATIVE. Signed overflow is undefined behaviour, not just a silly
+ * number, and it surfaced as Flash reporting negative damage (audit, 2026-08-31).
+ *
+ * The ceiling is INT_MAX/8, chosen to leave headroom for the largest multiplier any caller applies
+ * to the result afterwards (x5, in the Elemental case). It sits far above every value a legitimate
+ * spell level produces, so nothing reachable today changes - this only stops the wrap.
+ *
+ * It does NOT address how large these numbers get before that: ~10 million damage at spell level 98
+ * is a balance question about an exponential curve meeting a raised cap, and that is the user's
+ * call, not an overflow fix's.
+ */
 int ScaleSpellEffect(int base, int spellLevel)
 {
+	constexpr int64_t Ceiling = std::numeric_limits<int>::max() / 8;
+	int64_t value = base;
 	for (int i = 0; i < spellLevel; i++) {
-		base += base / 8;
+		value += value / 8;
+		if (value >= Ceiling)
+			return static_cast<int>(Ceiling);
 	}
 
-	return base;
+	return static_cast<int>(value);
 }
 
 int GenerateRndSum(int range, int iterations)

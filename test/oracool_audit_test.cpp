@@ -7808,3 +7808,42 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 	EXPECT_NE(GetReadiedSlotDamageText(false), "-")
 	    << "green makes a heal's numbers legible as healing, so it no longer has to hide them";
 }
+
+// Audit, 2026-08-31. Player::GetSpellLevel is _pISplLvlAdd + _pSplLvl + _pSkillInvestment, and the
+// SUM is never clamped - every MaxSpellLevel check in the game guards _pSplLvl alone. So gear
+// granting +spell levels pushes the effective level past 98, which is a normal enough ARPG idea,
+// but it means the damage formulas are asked about levels no designer picked.
+//
+// This walks every spell across a range well past the cap and asserts the formulas stay sane. It is
+// looking for signed overflow, which shows up as a negative bound or an inverted range - the
+// formulas are mostly `level * something`, and several multiply before they add.
+TEST(OracoolAudit, SpellDamageFormulasSurviveLevelsPastTheCap)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	*MyPlayer = {};
+	MyPlayer->_pLevel = MaxCharacterLevel;
+
+	// Past MaxSpellLevel (98) on purpose: the cap does not bind the sum, so the reachable ceiling is
+	// the cap plus whatever gear adds.
+	constexpr int HighestLevelWorthAsking = 250;
+
+	for (int s = static_cast<int>(SpellID::FIRST); s <= static_cast<int>(SpellID::LAST); s++) {
+		const auto spell = static_cast<SpellID>(s);
+		for (int level = 1; level <= HighestLevelWorthAsking; level++) {
+			int minDam = -1;
+			int maxDam = -1;
+			GetDamageAmtAtLevel(spell, level, &minDam, &maxDam);
+			if (minDam == -1)
+				continue; // no damage formula - the documented "nothing to report" answer
+
+			ASSERT_GE(minDam, 0) << "spell " << s << " at level " << level
+			                     << " reports NEGATIVE minimum damage - the formula overflowed";
+			ASSERT_GE(maxDam, 0) << "spell " << s << " at level " << level
+			                     << " reports negative maximum damage";
+			ASSERT_LE(minDam, maxDam) << "spell " << s << " at level " << level
+			                          << " reports an inverted range (" << minDam << ".." << maxDam
+			                          << "), which is what a wrapped multiply looks like";
+		}
+	}
+}

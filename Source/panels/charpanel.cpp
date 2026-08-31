@@ -7,6 +7,8 @@
 #include <iterator>
 #include <string>
 
+#include <fmt/format.h>
+
 #include "control.h"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/clx_render.hpp"
@@ -224,15 +226,21 @@ std::string GetReadiedSlotName(bool leftButton)
 {
 	const Player &player = *InspectPlayer;
 	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
-	const string_view button = leftButton
-	    ? _(/* TRANSLATORS: the left mouse button's readied skill, on the character sheet */ "Left")
-	    : _(/* TRANSLATORS: the right mouse button's readied skill, on the character sheet */ "Right");
 	// SpellID::Invalid IS the basic attack - see attack_skills.h - so it is named rather than left
 	// blank, or the row would read as an empty slot the player forgot to fill.
+	//
+	// pgettext("spell", ...), NOT _(): spelldat marks every name P_("spell", "Zeal"), so the
+	// catalogue key carries that context and a plain _() looks up a key that is not there. The
+	// failure is silent - every name falls back to English - which is why every other display site
+	// in the game (items.cpp, objects.cpp) spells out the same pgettext.
 	const string_view name = IsValidSpell(spell)
-	    ? _(GetSpellData(spell).sNameText)
+	    ? pgettext("spell", GetSpellData(spell).sNameText)
 	    : _(/* TRANSLATORS: the plain weapon swing, when no skill is readied */ "Attack");
-	return StrCat(button, ": ", name);
+	// One format string per button rather than a translated word plus a colon: "Left" alone is
+	// ambiguous to translate and several languages need the parts in the other order.
+	return leftButton
+	    ? fmt::format(fmt::runtime(_(/* TRANSLATORS: {:s} is a skill or spell name */ "Left button: {:s}")), name)
+	    : fmt::format(fmt::runtime(_(/* TRANSLATORS: {:s} is a skill or spell name */ "Right button: {:s}")), name);
 }
 
 // Oracool V1: derived readings for stats the engine tracks but the sheet never showed. Each one
