@@ -473,6 +473,37 @@ constexpr size_t ClassTreeSkillCount = 273;
  * indexes. The two are grown together - see the note beside that array.
  */
 constexpr size_t MaxSkillsPerClass = 64;
+
+/**
+ * @brief Every class's row count is inside the array that stores its investments.
+ *
+ * Audit, 2026-08-31. The READS of Player::_pClassTreeInvestment are bounds-checked
+ * (GetClassTreeInvestment, ClassTreeSkillAtIndex); the two WRITES were not - InvestClassTreePoint
+ * and its refund index straight off ClassTreeIconIndex. The array is a member of Player, in the
+ * middle of the struct the save format is built from, so an index past the end would not crash: it
+ * would quietly write into whatever field follows and then persist it.
+ *
+ * Nothing can reach that today - the largest class is 49 of 64 - but the pipeline has two rows that
+ * add tree skills per class (the 110 passives, and the Sorcerer's thin tree), so the headroom is
+ * fifteen rows in front of work that is planned. This turns "someone will remember to grow the
+ * array" into a build failure that names the class that outgrew it.
+ *
+ * Asserted on the ENUM SPANS rather than by counting Skills[], because that table is `const` and not
+ * `constexpr` - and the spans are what ClassTreeIconIndex actually subtracts, so this is the same
+ * arithmetic the write performs.
+ */
+static_assert(static_cast<size_t>(ClassTreeSkill::BARBARIAN_FIRST) - static_cast<size_t>(ClassTreeSkill::PALADIN_FIRST) <= MaxSkillsPerClass,
+    "the Paladin has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
+static_assert(static_cast<size_t>(ClassTreeSkill::SORCERER_FIRST) - static_cast<size_t>(ClassTreeSkill::BARBARIAN_FIRST) <= MaxSkillsPerClass,
+    "the Barbarian has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
+static_assert(static_cast<size_t>(ClassTreeSkill::ROGUE_FIRST) - static_cast<size_t>(ClassTreeSkill::SORCERER_FIRST) <= MaxSkillsPerClass,
+    "the Sorcerer has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
+static_assert(static_cast<size_t>(ClassTreeSkill::BARD_FIRST) - static_cast<size_t>(ClassTreeSkill::ROGUE_FIRST) <= MaxSkillsPerClass,
+    "the Rogue has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
+static_assert(static_cast<size_t>(ClassTreeSkill::MONK_FIRST) - static_cast<size_t>(ClassTreeSkill::BARD_FIRST) <= MaxSkillsPerClass,
+    "the Bard has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
+static_assert(static_cast<size_t>(ClassTreeSkill::MONK_LAST) - static_cast<size_t>(ClassTreeSkill::MONK_FIRST) < MaxSkillsPerClass,
+    "the Monk has more tree rows than _pClassTreeInvestment can hold - grow MaxSkillsPerClass AND that array together");
 /** @brief Tiers a page can have. Seven since the Monk; Diablo II's five classes use the first six. */
 constexpr int ClassTreeTierCount = 7;
 /** @brief Points a single tree skill accepts, matching the spell-investment cap. */

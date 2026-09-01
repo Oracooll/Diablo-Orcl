@@ -1003,7 +1003,19 @@ int ClassTreeIconIndex(Skill skill)
 	if (skill > Skill::LAST)
 		return 0;
 	const Skill first = FirstSkillOf(GetClassTreeSkillData(skill).heroClass);
-	return static_cast<int>(skill) - static_cast<int>(first);
+	const int index = static_cast<int>(skill) - static_cast<int>(first);
+	// Clamped at the source rather than at each caller (audit, 2026-08-31). The two callers that
+	// WRITE - InvestClassTreePoint and RefundClassTreePoint - indexed _pClassTreeInvestment with
+	// this result unchecked, while every reader guarded it. That array sits mid-struct in Player, so
+	// an out-of-range index would not fault; it would write into the next field and then save it.
+	//
+	// class_tree.h's static_asserts make this unreachable by construction - no class can outgrow
+	// MaxSkillsPerClass without failing the build - so this is the belt to that pair of braces, and
+	// it returns 0 the same way the LAST guard above does rather than inventing a second failure
+	// mode for callers to handle.
+	if (index < 0 || index >= static_cast<int>(MaxSkillsPerClass))
+		return 0;
+	return index;
 }
 
 std::optional<ClassTreeSkill> ClassTreeSkillAtIndex(HeroClass heroClass, int index)
