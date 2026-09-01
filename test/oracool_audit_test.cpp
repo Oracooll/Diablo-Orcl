@@ -59,6 +59,7 @@
 #include "oracool/runeword_book.h"
 #include "oracool/hud_menu.h"
 #include "oracool/shop_grid.h"
+#include "oracool/shop_toast.h"
 #include "oracool/window_close.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/item_tiers.h"
@@ -7615,6 +7616,43 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the previous character's log entries are still there for the next one to read";
 	EXPECT_FALSE(oracool::IsEventLogOpen())
 	    << "the log is still open at the start of the next game";
+}
+
+// User, 2026-08-31: "replace the vanilla 'not enogh gold' during purchase with something more in
+// line with the new shops design. try a pop up message which doesnt require confirmation from my
+// side."
+//
+// The two properties that make it a toast rather than a screen: it goes away by itself, and it does
+// not cover what the player was looking at. The second is the one that would rot silently - the
+// shop's layout moves, and a banner positioned by a literal would end up over the goods.
+TEST(OracoolAudit, TheShopToastExpiresOnItsOwnAndDoesNotCoverTheGoods)
+{
+	using namespace devilution::oracool;
+
+	ResetShopToastForNewGame();
+	EXPECT_FALSE(IsShopToastVisible()) << "a toast survived the reset";
+
+	ShowShopToast("You do not have enough gold");
+	EXPECT_TRUE(IsShopToastVisible()) << "the toast did not come up";
+
+	// Cleared on game teardown, like the other timed statics swept on 2026-08-31 - a message keyed
+	// to SDL_GetTicks outlives the game it was shown in.
+	ResetShopToastForNewGame();
+	EXPECT_FALSE(IsShopToastVisible()) << "the toast outlived its game";
+
+	// Never over the grid. The banner lives in the band between the panel's top and the grid's, so
+	// the item that was just refused stays visible while the refusal is on screen.
+	const Rectangle panel = GetShopPanelRect();
+	const Rectangle grid = GetShopGridRect();
+	const Rectangle toast = GetShopToastRect();
+	ASSERT_GT(grid.position.y, panel.position.y) << "test setup: the grid is not below the panel top";
+
+	EXPECT_LE(toast.position.y + toast.size.height, grid.position.y)
+	    << "the toast runs over the shop grid - it would hide the item it is refusing";
+	EXPECT_GE(toast.position.y, panel.position.y) << "the toast starts above the shop panel";
+	EXPECT_GE(toast.position.x, panel.position.x) << "the toast runs off the panel's left edge";
+	EXPECT_LE(toast.position.x + toast.size.width, panel.position.x + panel.size.width)
+	    << "the toast runs off the panel's right edge";
 }
 
 // User report, 2026-08-31: "if hero stats screen is on and i open the stash the stash window is not

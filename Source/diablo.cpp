@@ -66,6 +66,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/furious_charge.h"
+#include "oracool/shop_toast.h"
 #include "oracool/game_speed.h"
 #include "oracool/event_log.h"
 #include "oracool/skill_sounds.h"
@@ -234,6 +235,7 @@ void FreeGame()
 	// three seconds after a charge and the next character's icon starts half-filled and refuses the
 	// skill. Bounded by its own timer rather than permanent, so this is hardening (audit, 2026-08-31).
 	oracool::ResetFuriousChargeForNewGame();
+	oracool::ResetShopToastForNewGame();
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
 	oracool::CloseSkillPicker();

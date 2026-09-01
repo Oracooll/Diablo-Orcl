@@ -41,6 +41,7 @@
 #include "oracool/crafting_menu.h"
 #include "oracool/runeword_book.h"
 #include "oracool/shop_grid.h"
+#include "oracool/shop_toast.h"
 #include "oracool/shop_tabs.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/skill_points.h"
@@ -4275,6 +4276,23 @@ void ClearSText(int s, int e)
 
 void StartStore(TalkID s)
 {
+	// "You do not have enough gold" is a BANNER on the grid shop, not a screen (user, 2026-08-31:
+	// "try a pop up message which doesnt require confirmation from my side"). Vanilla replaces the
+	// whole store with one sentence the player then has to dismiss - which, on a screen where the
+	// goods, the gold and the tabs are all visible at once, answers "can I afford this" by hiding
+	// everything they were comparing.
+	//
+	// Intercepted here rather than at the twenty-odd StartStore(TalkID::NoMoney) call sites: they
+	// all mean the same thing, and every one of them already returns straight after.
+	//
+	// Gated on the CURRENT screen being a grid shop, not on stextshold. That is what makes the early
+	// return safe: the screen we decline to leave is a real shop screen, so nothing is left sitting
+	// on a confirmation dialog with its own exit skipped. The classic stores keep vanilla's screen.
+	if (s == TalkID::NoMoney && oracool::IsShopGridScreen(stextflag)) {
+		oracool::ShowShopToast(std::string(_("You do not have enough gold")));
+		return;
+	}
+
 	// Only on the way IN to a shop. StartStore is also how a shop screen rebuilds itself after every
 	// purchase, and resetting there would throw the cursor back to the first item each time.
 	if (oracool::IsShopGridScreen(s) && !oracool::IsShopGridScreen(stextflag))
@@ -5131,6 +5149,9 @@ void DrawSText(const Surface &out)
 			return;
 		}
 		oracool::DrawShopGrid(out);
+		// After the panel, so the banner reads on top of it rather than under the grid bezel. It
+		// draws nothing when no message is up, and clears itself the first frame after one lapses.
+		oracool::DrawShopToast(out);
 		return;
 	}
 
