@@ -4,6 +4,7 @@
 
 #include "monster.h"
 #include "multi.h"
+#include "options.h"
 #include "oracool/lesser_uniques.h"
 
 namespace devilution::oracool {
@@ -23,6 +24,16 @@ namespace {
  * monsters are recoloured has made the recolour the default and the ordinary monster the surprise.
  */
 constexpr int VariantPercent = 15;
+
+/**
+ * @brief The ceiling the INI dial cannot push past.
+ *
+ * The Torment rung, which is where the ladder deliberately stops. A dial that could take a floor to
+ * 84% recoloured would not be a stronger version of this feature - it would be a different one, in
+ * which the ordinary monster is the surprise. Stated as its own constant so the ladder and its
+ * ceiling cannot drift apart.
+ */
+constexpr int MaxVariantPercent = 28;
 
 /** @brief Life and damage adjustments, as percentages, for the two that trade one for the other. */
 constexpr int HollowLifePercent = 135;
@@ -128,7 +139,8 @@ Roster RosterFor(dungeon_type dungeon)
 	return { nullptr, 0 };
 }
 
-int VariantPercentFor(_difficulty difficulty)
+/** @brief The ladder before the INI dial is applied. */
+int BaseVariantPercentFor(_difficulty difficulty)
 {
 	// Normal keeps the shipped 15. The climb is modest for the reason recorded on VariantPercent:
 	// past about a third the recolour becomes the default and the ordinary monster the surprise.
@@ -142,6 +154,17 @@ int VariantPercentFor(_difficulty difficulty)
 	default:
 		return VariantPercent;
 	}
+}
+
+int VariantPercentFor(_difficulty difficulty)
+{
+	// Monster Variant Chance (INI, 2026-08-31) scales the LADDER rather than replacing it, so the
+	// per-difficulty shape above survives the dial - see the option's own comment in options.h.
+	const int scaled = BaseVariantPercentFor(difficulty) * *sgOptions.Oracool.monsterVariantChancePercent / 100;
+	// Clamped at the Torment ladder's own ceiling. Without this, 300 puts Torment at 84% and the
+	// recolour stops meaning anything - which is the exact failure the header warns about, and the
+	// reason the ladder stops at 28 rather than climbing further on its own.
+	return std::clamp(scaled, 0, MaxVariantPercent);
 }
 
 int VariantRosterSize(dungeon_type dungeon)

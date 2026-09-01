@@ -18,6 +18,8 @@
 #include "missiles.h" // GetDamageAmtAtLevel - the readied spell's own damage formula
 #include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
 #include "oracool/player_resistance.h"
+#include "oracool/class_tree.h"
+#include "oracool/signets.h"
 #include "spells.h" // IsValidSpell
 #include "playerdat.hpp"
 #include "options.h"
@@ -523,6 +525,16 @@ const CharRow CharRows[] = {
 	        return StyledText { UiFlags::ColorRed, (InspectPlayer->_pStatPts > 0 ? StrCat(InspectPlayer->_pStatPts) : "") };
 	    },
 	    nullptr, 0, CharRowExtra::Points },
+	// Skill points, directly under the stat points, because a player looking for "what do I have
+	// left to spend" is looking for both and the sheet only ever answered half the question. The
+	// number is drawn on the HUD's points frame (control.cpp) but appeared nowhere on the sheet, so
+	// "Level-up Points: 0" read as nothing left to spend while five skill points sat unspent
+	// (audit, 2026-08-31).
+	{ N_("Skill Points"),
+	    []() {
+	        return StyledText { UiFlags::ColorRed,
+	            (InspectPlayer->_pUnspentSkillPoints > 0 ? StrCat(InspectPlayer->_pUnspentSkillPoints) : "") };
+	    } },
 
 	{ N_("Armor class"),
 	    []() { return StyledText { GetValueColor(InspectPlayer->_pIBonusAC), StrCat(InspectPlayer->GetArmor() + InspectPlayer->_pLevel * 2) }; },
@@ -551,6 +563,26 @@ const CharRow CharRows[] = {
 	    []() { return GetResistInfo(InspectPlayer->_pFireResist); } },
 	{ N_("Resist lightning"),
 	    []() { return GetResistInfo(InspectPlayer->_pLghtResist); } },
+	// The two rows that make the three above readable (audit, 2026-08-31). Until now the sheet
+	// printed the FINAL resistance and nothing else, so a player on Torment saw "Resist fire: 45"
+	// with no way to learn that the difficulty had already taken 60 points off the raw total, that
+	// returns diminish above 75, or that the ceiling is 90 rather than vanilla's 75. Three rules
+	// this fork invented, all invisible on the one screen that exists to explain the character.
+	//
+	// The penalty is shown as the negative it is, and only when there is one - a "-0" on Normal
+	// would be a row that teaches nothing four times out of five.
+	{ N_("Resist penalty"),
+	    []() {
+	        const int penalty = oracool::ResistancePenaltyFor(sgGameInitInfo.nDifficulty);
+	        return StyledText { penalty > 0 ? UiFlags::ColorRed : UiFlags::ColorWhite,
+	            penalty > 0 ? StrCat("-", penalty) : "-" };
+	    } },
+	// The ceiling. A bare number, because the value column is 44px - four digits and a sign - and
+	// EnsureLayout asserts anything wider in the Debug build. The soft cap above 75 and its 3-for-1
+	// cost are the wiki's job to explain; what the sheet has to say is that the road does not end at
+	// 75 the way every Diablo before it did.
+	{ N_("Max resist"),
+	    []() { return StyledText { UiFlags::ColorWhitegold, StrCat(oracool::ResistanceHardCap) }; } },
 
 	// Life and mana share the attributes' column meaning rather than vanilla's reading order:
 	// current on the left with Now, maximum on the right with Base. Reversing these two while
@@ -667,6 +699,42 @@ const CharRow CharRows[] = {
 	    []() { return StyledText { UiFlags::ColorWhite, StrCat(InspectPlayer->_pDexterity / 5) }; } },
 	{ N_("AC from level"),
 	    []() { return StyledText { UiFlags::ColorWhite, StrCat(InspectPlayer->_pLevel * 2) }; } },
+
+	// ---------------------------------------------------------------------------------------
+	// The fork's own per-character state, which had no readout anywhere on this sheet until the
+	// 2026-08-31 audit. Last, because these are the newest and least expected: a reader looking
+	// for a vanilla number should not have to pass them to reach it.
+	// ---------------------------------------------------------------------------------------
+
+	// Signets are the one PERMANENT, irreversible choice a character makes - twenty for a lifetime,
+	// spent and gone - and nothing in the game said how many were left. Shown as spent/cap rather
+	// than as remaining, because the cap is the part a player needs to learn once.
+	{ N_("Signets used"),
+	    []() {
+	        const int used = oracool::SignetsUsed(*InspectPlayer);
+	        return StyledText { used >= oracool::SignetLifetimeCap ? UiFlags::ColorRed : UiFlags::ColorWhite,
+	            StrCat(used, "/", oracool::SignetLifetimeCap) };
+	    },
+	    nullptr, CharRowGroupGap },
+	// The active aura, by name. It is a class-tree investment that changes what every fight looks
+	// like, and the only place it was visible was the icon it is readied on.
+	//
+	// A FULL-WIDTH row, like the readied-slot names above and for the same reason: the value column
+	// is 44px and an aura is called "Blessed Aim" or "Holy Shock". A name in that column would clip,
+	// and clipping is the failure mode that looks like a rendering fault rather than a layout
+	// mistake. Full width means the row carries its own label, so it reads "Aura: Blessed Aim".
+	{ "",
+	    []() {
+	        // GetActiveClassAura, not the raw _pOracoolActiveAura field: it is the one that answers
+	        // None for a skill that has stopped being an aura, and for a dead player. Reading the
+	        // field would have the sheet name an aura the game is not running.
+	        const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(*InspectPlayer);
+	        if (aura == oracool::ClassTreeSkill::None)
+	            return StyledText { UiFlags::ColorWhite, std::string(_("Aura: none")) };
+	        return StyledText { UiFlags::ColorBlue,
+	            fmt::format(fmt::runtime(_("Aura: {:s}")), _(oracool::GetClassTreeSkillData(aura).name)) };
+	    },
+	    nullptr, 0, CharRowExtra::FullWidthText },
 };
 
 constexpr size_t CharRowCount = std::size(CharRows);

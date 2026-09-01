@@ -812,6 +812,23 @@ struct OracoolOptions : OptionCategoryBase {
 	 * Same 100..300 steps as monsterDensityPercent, and stored the same way and for the same reasons.
 	 */
 	OptionEntryInt<int> lesserUniqueDensityPercent;
+	/**
+	 * @brief How often an ordinary monster is a recoloured variant, as a PERCENTAGE of the base rate.
+	 *
+	 * The third dial in the same family, added 2026-08-31 after the toggle audit found the variant
+	 * rate was the one monster-population number with no INI entry beside it.
+	 *
+	 * A percentage of the BASE rather than an absolute rate, deliberately: the base is a per-difficulty
+	 * ladder (15/19/23/28, see VariantPercentFor), and an absolute setting would flatten that ladder
+	 * into one number and quietly discard the reasoning behind it. Scaling keeps the shape and moves
+	 * the whole curve.
+	 *
+	 * Same 100..300 steps as its two siblings, and 0 as well - a variant is a cosmetic-plus-one-trait
+	 * layer, and unlike density it is coherent to want none at all. The result is clamped so 300 on
+	 * Torment cannot put the roster past the point its own header warns about, where the recolour
+	 * becomes the default and the ordinary monster the surprise.
+	 */
+	OptionEntryInt<int> monsterVariantChancePercent;
 	OptionEntryBoolean unlockAllTownEntrances;
 	OptionEntryBoolean permanentInfravision;
 	OptionEntryBoolean autoIdentifyDrops;

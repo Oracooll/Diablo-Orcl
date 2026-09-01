@@ -561,6 +561,9 @@ void SaveOptions()
 	setInteger("Monster Density", *sgOptions.Oracool.monsterDensityPercent,
 	    "; How many monsters a dungeon level scatters, as a percentage of the vanilla count.\n; 100 is vanilla; 150, 200, 250 and 300 are one and a half to three times as many.\n; Quest monsters and the named uniques are placed by their own rules and ignore this.\n; The engine's own ceiling on live monsters still applies, so the densest levels\n; approach it rather than exceeding it.");
 
+	setInteger("Monster Variant Chance", *sgOptions.Oracool.monsterVariantChancePercent,
+	    "; How often an ordinary monster is a recoloured variant - a different palette, a different\n; name and one trait that changes the fight - as a percentage of the base rate. The base is\n; a ladder by difficulty: 15% on Normal rising to 28% on Torment, so 100 keeps that shape and\n; 200 doubles the whole curve. 0 turns variants off entirely. The result is capped, because a\n; floor where a third of the monsters are recoloured has made the recolour the default.");
+
 	setInteger("Lesser Unique Density", *sgOptions.Oracool.lesserUniqueDensityPercent,
 	    "; How many champion packs - underpowered versions of the game's named uniques, each with\n; minions - a dungeon level hosts. 100 is one pack; 300 is three. Each is drawn from the\n; champions written for monsters that ALREADY appear on that level, and its stats are\n; scaled to the floor rather than to the level the champion was originally written for.");
 
@@ -1463,6 +1466,10 @@ OracoolOptions::OracoolOptions()
     // user asked for 2-3 packs on Normal rising to 5-6 on Torment. The text said "100 is one" for a
     // day longer than it was true (self-audit, 2026-08-15).
     , lesserUniqueDensityPercent("Lesser Unique Density", OptionEntryFlags::CantChangeInGame, N_("Lesser Unique Density"), N_("Multiplies the champion packs a dungeon level hosts. 100 is the base 2-6 by difficulty."), 300, { 100, 150, 200, 250, 300 })
+    // Not CantChangeInGame, unlike its two siblings: they decide what a level is BUILT with and so
+    // cannot move once it exists, while the variant is derived per monster from a seed the level
+    // already carries. Changing this mid-game simply changes what the next monster rolls.
+    , monsterVariantChancePercent("Monster Variant Chance", OptionEntryFlags::None, N_("Monster Variant Chance"), N_("Multiplies how often a monster is a recoloured variant. 100 is the base 15-28% by difficulty; 0 turns them off."), 100, { 0, 100, 150, 200, 250, 300 })
     , unlockAllTownEntrances("Unlock All Town Entrances", OptionEntryFlags::CantChangeInGame, N_("Unlock All Town Entrances"), N_("Unlocks later dungeon entrances in town without level requirements."), true)
     , permanentInfravision("Permanent Infravision", OptionEntryFlags::None, N_("Permanent Infravision"), N_("Continuously reveals nearby monsters through walls."), false)
     , autoIdentifyDrops("Auto Identify Drops", OptionEntryFlags::None, N_("Auto Identify Drops"), N_("Automatically identifies newly generated item drops."), true)
@@ -1546,6 +1553,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		&uniqueItemDropMultiplier,
 		&monsterDensityPercent,
 		&lesserUniqueDensityPercent,
+		&monsterVariantChancePercent,
 		&unlockAllTownEntrances,
 		&permanentInfravision,
 		&autoIdentifyDrops,
