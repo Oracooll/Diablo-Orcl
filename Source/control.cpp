@@ -203,6 +203,41 @@ void CloseLeftPanelContent()
 		break;
 	}
 }
+void TakeLeftPanelSlot(LeftPanelContent content)
+{
+	// User report, 2026-08-31: "if hero stats screen is on and i open the stash the stash window is
+	// not display or it is but under the hero stats."
+	//
+	// Five windows share one slot and GetLeftPanelContent picks ONE of them by a fixed precedence,
+	// with Character first. Opening a window therefore does not make it the visible one - taking the
+	// slot does, and taking the slot means closing whatever else holds it. Four of the five openers
+	// were doing that by hand and getting it wrong in different ways: OpenStash and StartQuestlog
+	// closed nothing at all, OpenCharPanel closed three of the four siblings, and the waypoint menu
+	// closed the two ABOVE it in precedence but not the stash, which is also above it.
+	//
+	// Every miss has the same symptom and it is a confusing one: the window you just opened is
+	// invisible, its clicks route to the window covering it, and it appears later when that one is
+	// closed - as if it had been waiting behind it. Which it had.
+	//
+	// So the openers stop listing siblings. This closes everything that is not @p content, which
+	// cannot fall behind as contents are added: a new LeftPanelContent enumerator makes this switch
+	// fail to compile until it is handled.
+	if (content != LeftPanelContent::Character)
+		CloseCharPanel();
+	if (content != LeftPanelContent::QuestLog)
+		QuestLogIsOpen = false;
+	if (content != LeftPanelContent::Stash) {
+		// CloseStash(), not IsStashOpen = false, for the reason CloseLeftPanelContent gives: it also
+		// returns a held item and releases the chest object.
+		CloseGoldWithdraw();
+		CloseStash();
+	}
+	if (content != LeftPanelContent::WaypointMenu)
+		oracool::CloseWaypointMenu();
+	if (content != LeftPanelContent::Crafting)
+		oracool::CloseCraftingMenu();
+}
+
 bool IsModalPromptOpen()
 {
 	// The same three ReleaseKey already treats as modal (diablo.cpp), asked in one place so the
@@ -765,9 +800,10 @@ void OpenCharPanel()
 	// The sheet is roughly twice its window's height now, so opening it should always show the top
 	// rather than wherever it was left last time.
 	ResetCharacterSheetScroll();
-	QuestLogIsOpen = false;
-	CloseGoldWithdraw();
-	CloseStash();
+	// Was three hand-listed closes, which missed the waypoint menu and the crafting book. They are
+	// below the sheet in precedence so the sheet still won, but they stayed open behind it and
+	// reappeared when it closed.
+	TakeLeftPanelSlot(LeftPanelContent::Character);
 	chrflag = true;
 }
 

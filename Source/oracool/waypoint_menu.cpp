@@ -255,14 +255,16 @@ void OpenWaypointMenu(Point sigilPosition)
 	// leave them stacked on top of the travel list, since both live on the left of the screen. The
 	// list now takes the screen for itself, like every other window in this build.
 	//
-	// NOT ClosePanels() (diablo.cpp), for two reasons: it sits in that file's anonymous namespace so
-	// it cannot be called from here at all, and it closes the waypoint menu as well - so even if it
-	// were reachable it would have to run strictly before the open below rather than after. These
-	// are its closes minus that one, which is why they are spelled out.
+	// The left-panel siblings come from TakeLeftPanelSlot rather than a hand-written list. The list
+	// that used to be here closed the two windows ABOVE this one in precedence but not the stash,
+	// which is also above it - so clicking a sigil with the stash open opened this menu invisibly
+	// behind it (audit, 2026-08-31, alongside the reported stash-behind-character-sheet case).
+	//
+	// It deliberately does not take the whole screen the way ClosePanels would: the inventory and
+	// spellbook are the RIGHT panel, not this slot, and closing them is this window's own choice.
+	TakeLeftPanelSlot(LeftPanelContent::WaypointMenu);
 	CloseInventory();
-	CloseCharPanel();
 	sbookflag = false;
-	QuestLogIsOpen = false;
 	CloseHudMenu();
 
 	WaypointMenuOpen = true;

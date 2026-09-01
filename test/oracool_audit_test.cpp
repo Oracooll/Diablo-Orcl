@@ -100,6 +100,7 @@
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
+#include "quests.h"
 #include "spells.h"
 #include "stores.h"
 #include "utils/surface_to_clx.hpp"
@@ -7614,6 +7615,68 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the previous character's log entries are still there for the next one to read";
 	EXPECT_FALSE(oracool::IsEventLogOpen())
 	    << "the log is still open at the start of the next game";
+}
+
+// User report, 2026-08-31: "if hero stats screen is on and i open the stash the stash window is not
+// display or it is but under the hero stats."
+//
+// Five windows share the left-panel slot and GetLeftPanelContent picks ONE by a fixed precedence,
+// Character first. So raising a flag is not the same as becoming visible: with the sheet open, the
+// stash was open, invisible, and routing its clicks to the sheet - then appeared when the sheet was
+// closed, as if it had been queued behind it.
+//
+// Asserted through GetLeftPanelContent, which is the single authority both the draw chain and the
+// click router read. Checking the individual flags would pass while the window stayed invisible,
+// because the flag was never the thing that was wrong.
+TEST(OracoolAudit, OpeningALeftPanelWindowMakesItTheVisibleOne)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	const auto clearSlot = []() {
+		TakeLeftPanelSlot(LeftPanelContent::None);
+		ASSERT_EQ(GetLeftPanelContent(), LeftPanelContent::None) << "test setup: the slot would not clear";
+	};
+
+	// The reported case, in the order the user hit it.
+	clearSlot();
+	OpenCharPanel();
+	ASSERT_EQ(GetLeftPanelContent(), LeftPanelContent::Character) << "test setup: the sheet did not open";
+	OpenStash();
+	EXPECT_EQ(GetLeftPanelContent(), LeftPanelContent::Stash)
+	    << "the stash opened underneath the character sheet";
+
+	// The same fault the other openers had, each against the highest-precedence sibling that could
+	// hide it. Character hides everything, so it is the one to open first every time.
+	clearSlot();
+	OpenCharPanel();
+	StartQuestlog();
+	EXPECT_EQ(GetLeftPanelContent(), LeftPanelContent::QuestLog)
+	    << "the quest log opened underneath the character sheet";
+
+	// The waypoint menu's old hand-written list closed the sheet and the log but NOT the stash,
+	// which also outranks it.
+	clearSlot();
+	OpenStash();
+	ASSERT_EQ(GetLeftPanelContent(), LeftPanelContent::Stash) << "test setup: the stash did not open";
+	oracool::OpenWaypointMenu({ 0, 0 });
+	EXPECT_EQ(GetLeftPanelContent(), LeftPanelContent::WaypointMenu)
+	    << "the waypoint menu opened underneath the stash";
+
+	clearSlot();
+	OpenCharPanel();
+	oracool::OpenCraftingMenu();
+	EXPECT_EQ(GetLeftPanelContent(), LeftPanelContent::Crafting)
+	    << "the crafting book opened underneath the character sheet";
+
+	// And re-opening the window that already holds the slot must not tear it down - CloseStash
+	// returns a held item, so a blunt close-everything here would have a cost.
+	clearSlot();
+	OpenStash();
+	OpenStash();
+	EXPECT_EQ(GetLeftPanelContent(), LeftPanelContent::Stash) << "re-opening the stash closed it";
+
+	clearSlot();
 }
 
 // Audit, 2026-08-31 (user: "check the position of each X button we introduced. make sure they match

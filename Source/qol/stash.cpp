@@ -1,4 +1,4 @@
-﻿#include "qol/stash.h"
+#include "qol/stash.h"
 
 #include <cstdint>
 #include <utility>
@@ -521,6 +521,10 @@ void InitStash()
 
 void OpenStash()
 {
+	// The reported bug (user, 2026-08-31): with the character sheet open, this set the flag and
+	// nothing else, so GetLeftPanelContent kept answering Character and the stash was open,
+	// invisible, and unclickable until the sheet was closed.
+	TakeLeftPanelSlot(LeftPanelContent::Stash);
 	IsStashOpen = true;
 	Stash.RefreshItemStatFlags();
 	invflag = true;

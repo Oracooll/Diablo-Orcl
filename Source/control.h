@@ -149,6 +149,20 @@ bool IsModalPromptOpen();
  * click chains once did. A window added to that switch must be added here too.
  */
 void CloseLeftPanelContent();
+
+/**
+ * @brief Closes every left-panel window except @p content, so opening it actually shows it.
+ *
+ * Call from an opener BEFORE it raises its own flag. Five windows share the slot and
+ * GetLeftPanelContent picks one by a fixed precedence, so setting a flag is not the same as becoming
+ * visible: with the character sheet up, opening the stash used to leave the stash "open" and
+ * invisible, its clicks routed to the sheet, and it appeared only when the sheet was closed (user
+ * report, 2026-08-31).
+ *
+ * Passing the content being opened rather than "close everything" keeps a re-open from tearing down
+ * the window that is already there - CloseStash in particular returns a held item.
+ */
+void TakeLeftPanelSlot(LeftPanelContent content);
 extern std::optional<OwnedSurface> pBtmBuff;
 extern OptionalOwnedClxSpriteList pGBoxBuff;
 
