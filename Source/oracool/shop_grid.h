@@ -52,6 +52,16 @@ bool IsShopGridScreen(TalkID id);
 Rectangle GetShopPanelRect();
 
 /**
+ * @brief Where the shop's close button sits.
+ *
+ * Exported for the audit test that pins every window's X to the shared corner. The shop is the one
+ * window that computed its own - at right-34 / top+14, 20x20, against the helper's right-21 / top+3,
+ * 18x18 - so it is also the one where "the button is where the helper says" needs asserting against
+ * the window's OWN answer rather than against the helper twice.
+ */
+Rectangle GetShopCloseButtonRect();
+
+/**
  * @brief Whether @p position is on the shop at all - the panel OR its tab column.
  *
  * What every click and hover router should ask, rather than GetShopPanelRect().contains(): the tabs

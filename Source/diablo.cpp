@@ -564,6 +564,13 @@ void LeftMouseDown(uint16_t modState)
 				CloseInventory();
 			} else if (sbookflag && oracool::CheckWindowCloseButtonClick(GetSpellBookPanelRect(), MousePosition)) {
 				sbookflag = false;
+			} else if (oracool::IsEventLogOpen()
+			    && oracool::CheckWindowCloseButtonClick(oracool::GetEventLogWindowRect(), MousePosition)) {
+				// The log got its X in v1.9.147 (audit). It is a floating window the player opens, so
+				// the close-button rule covers it - it had been closable only by pressing its key
+				// again. Routed here with the other three rather than in a handler of its own,
+				// because this block is where the X is deliberately tested ahead of everything else.
+				oracool::ToggleEventLog();
 			} else if (IsOverLeftPanel(MousePosition)) {
 				switch (GetLeftPanelContent()) {
 				case LeftPanelContent::Character:

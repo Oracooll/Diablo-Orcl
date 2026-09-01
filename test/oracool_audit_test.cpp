@@ -58,6 +58,9 @@
 #include "oracool/crafting_menu.h"
 #include "oracool/runeword_book.h"
 #include "oracool/hud_menu.h"
+#include "oracool/shop_grid.h"
+#include "oracool/window_close.h"
+#include "oracool/inventory_layout.h"
 #include "oracool/item_tiers.h"
 #include "oracool/levski_roar.h"
 #include "oracool/waypoint_menu.h"
@@ -7611,6 +7614,61 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the previous character's log entries are still there for the next one to read";
 	EXPECT_FALSE(oracool::IsEventLogOpen())
 	    << "the log is still open at the start of the next game";
+}
+
+// Audit, 2026-08-31 (user: "check the position of each X button we introduced. make sure they match
+// locations in similar windows").
+//
+// Two did not. The shop rolled its own at right-34 / top+14, 20x20, drawn as a red text glyph in an
+// ornate border - 13px left and 11px lower than every other window's, and a different control to
+// look at, on a panel that is the same 340x720 as the stash and character sheet in the same slot.
+// The event log had no close button at all.
+//
+// This asserts the POSITION RULE rather than a list of literals: whatever GetWindowCloseButtonRect
+// says for a window is where that window's button is. A window that computes its own can only pass
+// by agreeing exactly, which is the point.
+TEST(OracoolAudit, EveryWindowsCloseButtonSitsWhereTheSharedHelperPutsIt)
+{
+	using namespace devilution::oracool;
+
+	const auto expectSharedCorner = [](const char *what, Rectangle window, Rectangle button) {
+		const Rectangle shared = GetWindowCloseButtonRect(window);
+		EXPECT_EQ(button.position.x, shared.position.x) << what << "'s X is at a different x";
+		EXPECT_EQ(button.position.y, shared.position.y) << what << "'s X is at a different y";
+		EXPECT_EQ(button.size.width, shared.size.width) << what << "'s X is a different size";
+		EXPECT_EQ(button.size.height, shared.size.height) << what << "'s X is a different size";
+		// Inside the frame, not on it - the property the helper's inset exists for.
+		EXPECT_GE(button.position.x, window.position.x);
+		EXPECT_GE(button.position.y, window.position.y);
+		EXPECT_LE(button.position.x + button.size.width, window.position.x + window.size.width);
+		EXPECT_LE(button.position.y + button.size.height, window.position.y + window.size.height);
+	};
+
+	// The shop, whose rect is the one that was wrong.
+	expectSharedCorner("the shop", GetShopPanelRect(), GetShopCloseButtonRect());
+
+	// And the windows that already shared it, so a change to the helper cannot quietly move some of
+	// them and not others.
+	expectSharedCorner("the inventory", GetInventoryPanelRect(),
+	    GetWindowCloseButtonRect(GetInventoryPanelRect()));
+	expectSharedCorner("the runeword book", GetRunewordBookRect(),
+	    GetWindowCloseButtonRect(GetRunewordBookRect()));
+	expectSharedCorner("the crafting book", GetCraftingMenuRect(),
+	    GetWindowCloseButtonRect(GetCraftingMenuRect()));
+
+	// The event log, which had no button at all until v1.9.147. Its rect is empty while closed, so
+	// it has to be open for the question to mean anything.
+	sgOptions.Oracool.eventLog.SetValue(true);
+	if (!IsEventLogOpen())
+		ToggleEventLog();
+	ASSERT_TRUE(IsEventLogOpen()) << "test setup: the log would not open";
+	const Rectangle logWindow = GetEventLogWindowRect();
+	ASSERT_GT(logWindow.size.width, 0) << "test setup: the log reports an empty rect while open";
+	expectSharedCorner("the event log", logWindow, GetWindowCloseButtonRect(logWindow));
+	// And the button must be reachable by the router that rejects clicks over this window.
+	EXPECT_TRUE(CheckWindowCloseButtonClick(logWindow, GetWindowCloseButtonRect(logWindow).position))
+	    << "the log's own close button does not hit-test";
+	ToggleEventLog();
 }
 
 // Audit, 2026-08-31. The Crafting book was resized to the runeword book's exact geometry on

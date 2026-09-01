@@ -18,6 +18,8 @@
 #include "options.h"
 #include "oracool/ornate_border.h"
 #include "oracool/telemetry.h"
+#include "oracool/window_close.h"
+#include "utils/language.h"
 
 namespace devilution::oracool {
 
@@ -183,17 +185,26 @@ void DrawEventLogWindow(const Surface &out)
 	DrawHalfTransparentRectTo(out, windowPosition.x, windowPosition.y, windowWidth, windowHeight);
 	// Oracool: user request - the same textbox_frame00 bevel the mini-map now wears, so the two
 	// stacked windows in the top-right corner read as one set (see oracool/ornate_border.h).
-	DrawOrnateBorder(out, Rectangle { windowPosition, { windowWidth, windowHeight } });
+	const Rectangle window { windowPosition, { windowWidth, windowHeight } };
+	DrawOrnateBorder(out, window);
+	// The close button (audit, 2026-08-31). This window had none - it is a floating window the
+	// player opens, and the fork's standing rule is that every one of those carries the shared red X
+	// in its own top-right corner. It was reachable only by pressing its key again, which is exactly
+	// the "a rule enforced by remembering is not a rule" case oracool/window_close.h was written for.
+	DrawWindowCloseButton(out, window);
 
 	Point linePosition = windowPosition + Displacement { WindowPadding, WindowPadding };
+	// The title's own line stops short of the button, so a long title cannot run under it. The rows
+	// below keep the full width - they start under the button, not beside it.
 	const int contentWidth = windowWidth - WindowPadding * 2;
 	const Size lineSize { contentWidth, LineHeight };
+	const Size titleSize { contentWidth - WindowCloseButtonSize, LineHeight };
 
-	DrawString(out, "Event Log", Rectangle { linePosition, lineSize }, { UiFlags::ColorGold | UiFlags::FontSize12 });
+	DrawString(out, _("Event Log"), Rectangle { linePosition, titleSize }, { UiFlags::ColorGold | UiFlags::FontSize12 });
 	linePosition.y += LineHeight;
 
 	if (Entries.empty()) {
-		DrawString(out, "No events yet.", Rectangle { linePosition, lineSize }, { UiFlags::ColorGold | UiFlags::FontSize12 });
+		DrawString(out, _("No events yet."), Rectangle { linePosition, lineSize }, { UiFlags::ColorGold | UiFlags::FontSize12 });
 		return;
 	}
 

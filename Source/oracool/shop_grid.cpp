@@ -20,6 +20,7 @@
 #include "oracool/inventory_layout.h" // GridBottom - the line the stash's grid also ends on
 #include "oracool/ornate_border.h"
 #include "oracool/shop_tabs.h"
+#include "oracool/window_close.h"
 #include "utils/format_int.hpp"
 #include "utils/utf8.hpp" // DecodeFirstUtf8CodePoint - vertical labels split by code point, not byte
 #include "utils/language.h"
@@ -528,8 +529,15 @@ Rectangle ShopPageButtonRect(int index)
 /** @brief The red X, top-right, same as every other Oracool window's. */
 Rectangle ShopCloseRect()
 {
-	const Rectangle panel = GetShopPanelRect();
-	return Rectangle { { panel.position.x + panel.size.width - 34, panel.position.y + 14 }, { 20, 20 } };
+	// The SHARED rect (audit, 2026-08-31). This was hand-rolled at right-34 / top+14, 20x20, and so
+	// the shop's X sat 13px left and 11px lower than the one on every other window - including the
+	// stash, character sheet and quest log, which are the same 340x720 panel in the same
+	// bottom-left slot. It was also drawn as a text glyph in an ornate border rather than the
+	// shared red plate, so it did not even look like the same control.
+	//
+	// The shared position is already proven to coexist with a PanelTitleTop title band, because
+	// every one of those panels has one.
+	return GetWindowCloseButtonRect(GetShopPanelRect());
 }
 
 
@@ -659,10 +667,9 @@ bool CheckShopTabColumnClick(Point position)
 
 void DrawShopClose(const Surface &out)
 {
-	const Rectangle rect = ShopCloseRect();
-	DrawOrnateBorder(out, rect);
-	DrawString(out, "X", rect,
-	    { UiFlags::ColorRed | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	// The shared drawing too, not just the shared rect - a button in the right place that still
+	// looks like a different control has only half-joined the convention.
+	DrawWindowCloseButton(out, GetShopPanelRect());
 }
 
 } // namespace
@@ -677,6 +684,11 @@ Rectangle GetShopPanelRect()
 	// The BOTTOM-left slot, shared with the stash, character sheet and quest log. Nothing else is
 	// open while a shop is, so the slot is free - and all four dock together (user, 2026-08-27).
 	return Rectangle { { 0, BottomDockedTop(ShopPanelSize.height) }, ShopPanelSize };
+}
+
+Rectangle GetShopCloseButtonRect()
+{
+	return ShopCloseRect();
 }
 
 bool IsPointOverShop(Point position)
