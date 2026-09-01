@@ -750,11 +750,18 @@ $encCpp = Read-SourceFile 'oracool/named_encounters.cpp'
 $encTable = Get-Content (Join-Path $src 'oracool\encounter_items_table.inc') -Raw -Encoding UTF8
 $encPlaces = @()
 if ($encCpp -match '(?s)constexpr EncounterPlace Places\[\] = \{(.*?)\n\};') {
-    foreach ($m in [regex]::Matches($matches[1], '\{\s*SL_(\w+),\s*DTYPE_(\w+),\s*MT_(\w+),\s*"([^"]+)"\s*\}')) {
+    # The `floor` between MT_ and the name arrived at v1.9.49, and this pattern did not follow it:
+    # it required the name straight after the monster, matched nothing from that day on, and the
+    # loop below breaks on an empty $encPlaces - so the encounters table published blank for a week
+    # without a word. Caught by the empty-collection guard at the end of this script on its first
+    # run. The floor is captured rather than skipped, because it is the answer to "how deep does
+    # this arena count as", which is exactly what a reader of that table wants to know.
+    foreach ($m in [regex]::Matches($matches[1], '\{\s*SL_(\w+),\s*DTYPE_(\w+),\s*MT_(\w+),\s*(\d+),\s*"([^"]+)"\s*\}')) {
         $encPlaces += [ordered]@{
             arena   = (Get-Culture).TextInfo.ToTitleCase(($m.Groups[1].Value -replace '_', ' ').ToLower())
             dungeon = (Get-Culture).TextInfo.ToTitleCase($m.Groups[2].Value.ToLower())
-            name    = $m.Groups[4].Value
+            floor   = [int]$m.Groups[4].Value
+            name    = $m.Groups[5].Value
         }
     }
 }
@@ -769,6 +776,7 @@ foreach ($m in [regex]::Matches($encTable, 'NamedEncounter::(\w+),\s*(IDI_\w+),\
         name    = $encPlaces[$encIdx].name
         arena   = $encPlaces[$encIdx].arena
         dungeon = $encPlaces[$encIdx].dungeon
+        floor   = $encPlaces[$encIdx].floor
         map     = if ($null -ne $mapItem) { $mapItem.name } else { $m.Groups[2].Value }
         reward  = if ($null -ne $rewardItem) { $rewardItem.name } else { $m.Groups[3].Value }
     }
@@ -1241,6 +1249,37 @@ $data = [ordered]@{
     autoSaveTriggers = $autoSaveTriggers
     assets    = $assets
     reports   = $reports
+}
+
+# -------------------------------------------------------------------------------------------------
+# The empty-collection guard.
+#
+# Every reader in this file is a regex or a directory walk over something that lives somewhere else,
+# and the failure mode they share is that finding NOTHING looks exactly like finding nothing to find:
+# the loop runs zero times, the table renders empty, the page publishes, and no line of output says
+# so. Three of them had been doing that for a long time before the 2026-08-31 audit - dev reports and
+# the backlog pipeline were looking for the vault beside the repo under the project's old folder
+# name, and the art gallery was measuring DevilutionX's stock resources instead of this fork's.
+#
+# So: anything that comes back empty is named, loudly, at the point where it can still be noticed.
+# Not fatal - a genuinely empty collection is legal (there may one day be no open pipeline entries) -
+# but never silent again. A key listed here that SHOULD sometimes be empty belongs in $mayBeEmpty
+# with a reason, which is a smaller and more honest thing to write than a comment explaining why the
+# warning is ignored.
+$mayBeEmpty = @('pipeline') # the backlog can legitimately be cleared
+$emptyCollections = @()
+foreach ($key in $data.Keys) {
+    $value = $data[$key]
+    if ($null -eq $value) { $emptyCollections += $key; continue }
+    # Hashtables carry sub-tables (socketRules) rather than rows; counting their keys is the wrong
+    # question, so only real collections are checked.
+    if ($value -is [System.Collections.IDictionary]) { continue }
+    if ($value -is [string]) { continue }
+    if ($value -is [System.Collections.ICollection] -and $value.Count -eq 0) { $emptyCollections += $key }
+}
+$emptyCollections = @($emptyCollections | Where-Object { $mayBeEmpty -notcontains $_ })
+if ($emptyCollections.Count -gt 0) {
+    Write-Warning ("PARSED NOTHING: {0} - a reader found no rows. Its page will publish blank." -f ($emptyCollections -join ', '))
 }
 
 $json = $data | ConvertTo-Json -Depth 8 -Compress

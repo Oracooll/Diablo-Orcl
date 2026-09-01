@@ -108,4 +108,13 @@ float GetFuriousChargeCooldownProgress()
 	return static_cast<float>(elapsed) / static_cast<float>(CooldownDurationMs);
 }
 
+void ResetFuriousChargeForNewGame()
+{
+	DashActive = false;
+	CooldownActive = false;
+	// The start times are left alone deliberately: both readers gate on their Active flag first, so
+	// a stale timestamp behind a cleared flag is unreachable, and zeroing them would make the next
+	// SDL_GetTicks() subtraction look like an enormous elapsed time to anyone reading in a debugger.
+}
+
 } // namespace devilution::oracool

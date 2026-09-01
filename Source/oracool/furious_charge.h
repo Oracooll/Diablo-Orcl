@@ -86,4 +86,18 @@ bool IsFuriousChargeOnCooldown();
  */
 float GetFuriousChargeCooldownProgress();
 
+/**
+ * @brief Clears the dash and the cooldown, for game teardown.
+ *
+ * Both are file-local statics keyed to SDL_GetTicks, so they outlive a GAME rather than the process.
+ * Quit mid-charge, or inside the three seconds after one, and the next character in the same session
+ * inherits it: a dash that is already running, or a Furious Charge that reports itself on cooldown
+ * with the icon half-filled before they have swung at anything.
+ *
+ * Both self-expire on their own timers, so the leak is bounded by CooldownDurationMs rather than
+ * permanent - this is hardening in the same spirit as ResetZealChain, not a reported fault. It costs
+ * two assignments to make the window zero instead of three seconds.
+ */
+void ResetFuriousChargeForNewGame();
+
 } // namespace devilution::oracool

@@ -106,7 +106,7 @@ from a Dread boss; using it in town opens its encounter and <b>consumes the map<
 you can run one is bounded by drops rather than by a timer. The floor holds one Dread boss and its
 escort and nothing else — the encounter is the fight.</p>
 <div class="tablewrap"><table>
-<thead><tr><th>Encounter</th><th>Where</th><th>Opened by</th><th>Guaranteed reward</th></tr></thead>
+<thead><tr><th>Encounter</th><th>Where</th><th class="num">Counts as floor</th><th>Opened by</th><th>Guaranteed reward</th></tr></thead>
 <tbody id="encounters"></tbody></table></div>
 <p>The reward is guaranteed, not rolled — the map says what its guardian carries, and a roll would
 make that a lie. Each is a <b>charm</b>, so it competes for the three-charm active cap: carrying one
@@ -199,7 +199,7 @@ document.getElementById('maxclvl').textContent = WIKI.mechanics.maxCharacterLeve
 
 	document.getElementById('encounters').innerHTML = WIKI.encounters.map(function (e) {
 		return '<tr><td><b>' + e.name + '</b></td><td>' + e.dungeon + '</td>'
-			+ '<td>' + e.map + '</td><td>' + e.reward + '</td></tr>';
+			+ '<td class="num">' + e.floor + '</td><td>' + e.map + '</td><td>' + e.reward + '</td></tr>';
 	}).join('');
 }());
 </script>

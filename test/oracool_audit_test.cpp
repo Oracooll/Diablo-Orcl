@@ -53,6 +53,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/gems.h"
 #include "oracool/item_set_stats.h"
+#include "oracool/unique_affixes.h"
 #include "oracool/item_tiers.h"
 #include "oracool/levski_roar.h"
 #include "oracool/waypoint_menu.h"
@@ -7606,6 +7607,59 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the previous character's log entries are still there for the next one to read";
 	EXPECT_FALSE(oracool::IsEventLogOpen())
 	    << "the log is still open at the start of the next game";
+}
+
+// Audit, 2026-08-31. unique_affixes.cpp says of its table: "ALPHABETICAL, and the test enforces it."
+// There was no such test - the table had no coverage at all, on the one file the project's own rule
+// ("audit every delivered stat token against SaveItemPower, never trust the package's IPL column")
+// exists because of. A comment claiming a guard is worse than no comment: it is why nobody looked.
+//
+// This also gives IsUniqueAffixLive its first caller. It was written as the diagnostic for "does the
+// wearer actually feel this", exported, and then called by nothing - neither the game nor a test.
+TEST(OracoolAudit, TheUniqueAffixTableHoldsItsOwnRules)
+{
+	using namespace devilution::oracool;
+
+	std::set<std::string> tokens;
+	for (size_t i = 0; i < UniqueAffixMappingCount; i++) {
+		const UniqueAffixMapping &row = UniqueAffixMappings[i];
+		ASSERT_NE(row.token, nullptr) << "row " << i << " has no token";
+		const std::string token = row.token;
+		EXPECT_FALSE(token.empty()) << "row " << i << " has an empty token";
+		EXPECT_TRUE(tokens.insert(token).second)
+		    << "two rows claim the token '" << token << "' - FindUniqueAffix returns the first, so the second is dead";
+
+		// Alphabetical, as the file says. Checked against the PREVIOUS row rather than by sorting a
+		// copy, so the failure message names the pair that is out of order.
+		if (i > 0) {
+			EXPECT_LT(std::string(UniqueAffixMappings[i - 1].token), token)
+			    << "the table is not alphabetical at row " << i;
+		}
+
+		switch (row.fidelity) {
+		case UniqueAffixFidelity::Inert:
+			// An inert row that names a power is the dangerous shape: it reads as implemented and
+			// compiles to something the wearer would feel, which is the opposite of what it says.
+			EXPECT_EQ(row.power, IPL_INVALID) << "'" << token << "' is marked inert but names a power";
+			EXPECT_NE(row.note, nullptr) << "'" << token << "' is inert with no note saying what it would need";
+			break;
+		case UniqueAffixFidelity::Approx:
+			EXPECT_NE(row.power, IPL_INVALID) << "'" << token << "' is an approximation of nothing";
+			EXPECT_NE(row.note, nullptr) << "'" << token << "' is approximate with no note saying what was traded away";
+			break;
+		case UniqueAffixFidelity::Power:
+			EXPECT_NE(row.power, IPL_INVALID) << "'" << token << "' claims the engine does what it says, but names no power";
+			break;
+		}
+
+		// The lookup and the diagnostic must agree with the row they came from.
+		EXPECT_EQ(FindUniqueAffix(token), &row) << "'" << token << "' does not look up to its own row";
+		EXPECT_EQ(IsUniqueAffixLive(token), row.fidelity != UniqueAffixFidelity::Inert)
+		    << "IsUniqueAffixLive disagrees with the fidelity column for '" << token << "'";
+	}
+
+	EXPECT_EQ(FindUniqueAffix("no_such_token_exists"), nullptr) << "an unknown token resolved to a row";
+	EXPECT_FALSE(IsUniqueAffixLive("no_such_token_exists")) << "an unknown token was reported live";
 }
 
 // Audit, 2026-08-31 - the sweep for the siblings of the two above. The waypoint menu's spawn request
