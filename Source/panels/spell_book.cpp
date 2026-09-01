@@ -16,6 +16,7 @@
 #include "init.h"
 #include "inv.h" // CloseInventory
 #include "missiles.h"
+#include "oracool/badge.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_tree.h"
 #include "oracool/skill_points.h"
@@ -988,21 +989,17 @@ int AssignedFKeyNumber(SpellID sn, bool leftButton)
  * right hand and F5 for the left, and the two corners say so without either having to be a compound
  * label.
  *
- * The colours are the rings' too: red for the left button, yellow for the right.
+ * Both are WHITE on a dark plate since v1.9.154 (user: "put a dark, transparent backing on the
+ * badge, and use white font"). They used to be the assignment rings' own colours - red for the left
+ * button, yellow for the right - and that distinction now rests entirely on which corner the badge
+ * sits in, which is what the corners were for in the first place. The rings keep their colours.
  */
 void DrawFKeyBadge(const Surface &out, Rectangle iconRect, SpellID sn)
 {
-	if (const int right = AssignedFKeyNumber(sn, /*leftButton=*/false); right != 0) {
-		const Rectangle box { { iconRect.position.x + iconRect.size.width - SpendBoxSize, iconRect.position.y },
-			{ SpendBoxSize, SpendBoxSize } };
-		DrawString(out, fmt::format("F{:d}", right), box,
-		    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
-	if (const int left = AssignedFKeyNumber(sn, /*leftButton=*/true); left != 0) {
-		const Rectangle box { iconRect.position, { SpendBoxSize, SpendBoxSize } };
-		DrawString(out, fmt::format("F{:d}", left), box,
-		    { UiFlags::ColorRed | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
+	if (const int right = AssignedFKeyNumber(sn, /*leftButton=*/false); right != 0)
+		oracool::DrawBadge(out, iconRect, oracool::BadgeCorner::TopRight, fmt::format("F{:d}", right));
+	if (const int left = AssignedFKeyNumber(sn, /*leftButton=*/true); left != 0)
+		oracool::DrawBadge(out, iconRect, oracool::BadgeCorner::TopLeft, fmt::format("F{:d}", left));
 }
 
 /**

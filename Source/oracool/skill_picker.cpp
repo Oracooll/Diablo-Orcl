@@ -18,6 +18,7 @@
 #include "utils/ui_fwd.h"
 
 #include "oracool/attack_skills.h"
+#include "oracool/badge.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_tree.h"
 #include "oracool/furious_charge.h" // GetSpellDisplayName
@@ -442,13 +443,8 @@ void DrawSkillPicker(const Surface &out)
 
 			// The rank, bottom-centre (user, 2026-08-20). Drawn over the icon's own art rather than
 			// beside it, because the cell is 38px and a band outside it would cost a row.
-			if (const int level = EntryLevel(player, entry); level > 0) {
-				DrawString(out, StrCat(level),
-				    { { cell.position.x, cell.position.y + IconSize - LevelBandHeight },
-				        { IconSize, LevelBandHeight } },
-				    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter
-				        | UiFlags::VerticalCenter });
-			}
+			if (const int level = EntryLevel(player, entry); level > 0)
+				DrawBadge(out, cell, BadgeCorner::BottomCentre, StrCat(level));
 
 			// The F-key badge, top-right, for THIS list's button only - the Abilities window shows
 			// both buttons in its two corners, but a quick list binds one button and showing the
@@ -459,10 +455,7 @@ void DrawSkillPicker(const Surface &out)
 			    : 0;
 			if (const int fkey = auraKey != 0 ? auraKey : GetAbilityFKeyNumber(entry.spell, PickerForLeft);
 			    fkey != 0) {
-				DrawString(out, StrCat("F", fkey),
-				    { { cell.position.x, cell.position.y },
-				        { IconSize, LevelBandHeight } },
-				    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignRight });
+				DrawBadge(out, cell, BadgeCorner::TopRight, StrCat("F", fkey));
 			}
 
 			if (cell.contains(MousePosition)) {

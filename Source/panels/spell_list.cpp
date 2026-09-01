@@ -14,6 +14,7 @@
 #include "engine/render/text_render.hpp"
 #include "inv_iterators.hpp"
 #include "options.h"
+#include "oracool/badge.h"
 #include "oracool/attack_skills.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
@@ -49,11 +50,14 @@ void PrintSBookSpellType(const Surface &out, Point position, string_view text, u
 
 void PrintSBookHotkey(const Surface &out, Point position, const string_view text)
 {
-	// Align the hot key text with the top-right corner of the spell icon
-	position += Displacement { SPLICONLENGTH - (GetLineWidth(text.data()) + 5), 5 - SPLICONLENGTH };
-
-	// Then draw the text over the top
-	DrawString(out, text, position, { UiFlags::ColorWhite | UiFlags::Outlined });
+	// The badge template (user, 2026-08-31), not the one-pixel outline this used to wear. An outline
+	// keeps white text legible against a dark sprite and loses to a bright one; the dark plate wins
+	// against both. See oracool/badge.h.
+	//
+	// `position` is the icon's BOTTOM-left, which is where the speedbook's own draw calls are
+	// anchored, so the icon rect is built back from it rather than passed in.
+	const Rectangle icon { { position.x, position.y - SPLICONLENGTH }, { SPLICONLENGTH, SPLICONLENGTH } };
+	oracool::DrawBadge(out, icon, oracool::BadgeCorner::TopRight, text);
 }
 
 bool GetSpellListSelection(SpellID &pSpell, SpellType &pSplType)
@@ -214,11 +218,10 @@ void DrawSpell(const Surface &out)
 
 	std::optional<string_view> hotkeyName = GetHotkeyName(spl, myPlayer._pRSplType, true);
 	if (hotkeyName) {
-		// PrintSBookHotkey aligns against the 56px large icon; this slot draws into the net rect, so
-		// align to that rect's top-right corner directly.
-		const Point hotkeyPosition = net.position
-		    + Displacement { net.size.width - (GetLineWidth(hotkeyName->data()) + 4), 4 };
-		DrawString(out, *hotkeyName, hotkeyPosition, { UiFlags::ColorWhite | UiFlags::Outlined });
+		// The HUD well, which is the badge that most needed the plate: it sits over whatever skill
+		// art is readied, and the well's own art is light. PrintSBookHotkey aligns against the 56px
+		// large icon; this slot is the net rect, so the badge takes that rect directly.
+		oracool::DrawBadge(out, net, oracool::BadgeCorner::TopRight, *hotkeyName);
 	}
 }
 

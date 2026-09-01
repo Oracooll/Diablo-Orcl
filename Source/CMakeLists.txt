@@ -105,6 +105,7 @@ set(libdevilutionx_SRCS
   oracool/ui_backgrounds.cpp
   oracool/save_indicator.cpp
   oracool/shop_toast.cpp
+  oracool/badge.cpp
   oracool/paladin_melee.cpp
   oracool/paladin_ranged.cpp
   oracool/waypoint_menu.cpp
