@@ -28,6 +28,7 @@
 #include "engine/render/text_render.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
+#include "control.h"
 #include "cursor.h"
 #include "inv.h"
 #include "items.h"
@@ -54,6 +55,9 @@
 #include "oracool/gems.h"
 #include "oracool/item_set_stats.h"
 #include "oracool/unique_affixes.h"
+#include "oracool/crafting_menu.h"
+#include "oracool/runeword_book.h"
+#include "oracool/hud_menu.h"
 #include "oracool/item_tiers.h"
 #include "oracool/levski_roar.h"
 #include "oracool/waypoint_menu.h"
@@ -7607,6 +7611,52 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the previous character's log entries are still there for the next one to read";
 	EXPECT_FALSE(oracool::IsEventLogOpen())
 	    << "the log is still open at the start of the next game";
+}
+
+// Audit, 2026-08-31. The Crafting book was resized to the runeword book's exact geometry on
+// 2026-08-30 (user: "make CRAFTING book window as big as RUNEWORD book") - 944x616, centred, top
+// flush with the mini-map. The runeword book's own opener argues from that geometry: at 944 wide on
+// a 960 screen "it is not a window that shares the screen with anything - it IS the screen while it
+// is up", and so it calls CloseAllWindows before opening.
+//
+// The Crafting book kept the opener it had when it was a 340-wide side panel: it closes its four
+// left-panel siblings and nothing else. So the inventory, the spellbook and the event log stayed up
+// underneath a window that covers the screen.
+//
+// The first assertion is the one that stops this drifting again: the two windows must be the same
+// rect, because every argument above is about the rect.
+TEST(OracoolAudit, TheCraftingBookClosesWhatItCovers)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	oracool::CloseCraftingMenu();
+	oracool::CloseRunewordBook();
+	// Field by field: Rectangle has no operator==, and a comparison written as one silently
+	// compiles into something else entirely.
+	const Rectangle craftRect = oracool::GetCraftingMenuRect();
+	const Rectangle bookRect = oracool::GetRunewordBookRect();
+	ASSERT_EQ(craftRect.position.x, bookRect.position.x) << "the two books no longer share a rect";
+	ASSERT_EQ(craftRect.position.y, bookRect.position.y) << "the two books no longer share a rect";
+	ASSERT_EQ(craftRect.size.width, bookRect.size.width) << "the two books no longer share a rect";
+	ASSERT_EQ(craftRect.size.height, bookRect.size.height) << "the two books no longer share a rect";
+
+	invflag = true;
+	sbookflag = true;
+	if (!oracool::IsEventLogOpen())
+		oracool::ToggleEventLog();
+	ASSERT_TRUE(oracool::IsEventLogOpen()) << "test setup: the log would not open";
+
+	oracool::OpenCraftingMenu();
+
+	EXPECT_TRUE(oracool::IsCraftingMenuOpen()) << "the book did not open";
+	EXPECT_FALSE(invflag) << "the inventory is still open under a window that covers the screen";
+	EXPECT_FALSE(sbookflag) << "the spellbook is still open under a window that covers the screen";
+	EXPECT_FALSE(oracool::IsEventLogOpen()) << "the event log is still open under the book";
+	EXPECT_FALSE(oracool::IsHudMenuOpen())
+	    << "the burger row overlaps the book's bottom strip and is routed before it, so it would eat those clicks";
+
+	oracool::CloseCraftingMenu();
 }
 
 // Audit, 2026-08-31. unique_affixes.cpp says of its table: "ALPHABETICAL, and the test enforces it."

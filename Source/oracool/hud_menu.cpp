@@ -102,11 +102,10 @@ void DoCrafting()
 		CloseCraftingMenu();
 		return;
 	}
-	CloseCharPanel();
-	QuestLogIsOpen = false;
-	CloseGoldWithdraw();
-	CloseStash();
-	CloseWaypointMenu();
+	// The four hand-written sibling closes that used to sit here are gone (v1.9.146):
+	// OpenCraftingMenu now calls CloseAllWindows itself, which is a superset of them and cannot fall
+	// behind as windows are added. Listing a subset here as well was the shape that let the window
+	// grow to 944 wide while its opener still only knew about the left panel.
 	OpenCraftingMenu();
 }
 bool IsCraftingOpen() { return IsCraftingMenuOpen(); }

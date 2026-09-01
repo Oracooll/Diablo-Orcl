@@ -12,7 +12,9 @@
 #include "engine/render/text_render.hpp"
 #include "player.h"
 #include "oracool/crafting.h"
+#include "diablo.h" // CloseAllWindows
 #include "oracool/event_log.h"
+#include "oracool/hud_menu.h"
 #include "oracool/ornate_border.h"
 #include "utils/language.h"
 #include "utils/ui_fwd.h"
@@ -46,6 +48,22 @@ bool IsCraftingMenuOpen()
 
 void OpenCraftingMenu()
 {
+	// This window is the runeword book's twin - 944x616 on a 960 screen, centred, top flush with the
+	// mini-map - and that geometry is the whole argument: it does not share the screen with anything,
+	// it IS the screen while it is up. It kept the opener it had as a 340-wide side panel until
+	// v1.9.146, which closed its four left-panel siblings and nothing else, so the inventory, the
+	// spellbook and the event log stayed up underneath it (audit, 2026-08-31).
+	//
+	// CloseAllWindows is the master closer the fork's own rule points every new window at, so this
+	// cannot fall behind as windows are added. Called BEFORE MenuOpen goes true, because it closes
+	// this window too.
+	devilution::CloseAllWindows();
+	// The burger row is deliberately not in CloseAllWindows - space leaves it up so several panels
+	// can be toggled in one go. That argument does not survive this rect either: the row sits just
+	// above the HUD plate, this window reaches into that strip, and diablo.cpp routes
+	// IsPointOverHudMenu BEFORE the crafting click handler - so the row would draw over the book and
+	// eat every click in its bottom strip. The runeword book closes it for the same reason.
+	CloseHudMenu();
 	MenuOpen = true;
 	ScrollOffset = 0; // a window always opens at the top of its list
 }
