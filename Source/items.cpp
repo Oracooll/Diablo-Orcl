@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file items.cpp
  *
  * Implementation of item functionality.
@@ -2682,14 +2682,28 @@ void CreateMagicItem(Point position, int lvl, ItemType itemType, int imid, int i
 	auto &item = Items[ii];
 	_item_indexes idx = RndTypeItems(itemType, imid, lvl);
 
-	while (true) {
+	// BOUNDED, for the reason CreateSpellBook's twin loop is (user report, 2026-09-02). This one's
+	// target is still reachable - the drop pool excludes the fork's own item indices, so it rolls the
+	// same vanilla bases it always did - but the shape is the hazard: roll until it matches, with
+	// nothing to say what happens when it cannot. The Slain Hero proved what that costs.
+	bool matched = false;
+	for (int attempt = 0; attempt < 10000; attempt++) {
 		item = {};
 		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * lvl, 1, true, false, delta,
 		    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
-		if (item._iCurs == icurs)
+		if (item._iCurs == icurs) {
+			matched = true;
 			break;
+		}
 
 		idx = RndTypeItems(itemType, imid, lvl);
+	}
+	if (!matched) {
+		LogError("CreateMagicItem: no roll produced cursor {} for type {} at lvl {} - dropping nothing rather than hanging",
+		    icurs, static_cast<int>(itemType), lvl);
+		Items[ii] = {};
+		ActiveItemCount--;
+		return;
 	}
 	GetSuperItemSpace(position, ii);
 
@@ -7265,16 +7279,38 @@ int ItemNoFlippy()
 	return r;
 }
 
+int SpellBookDropLevel(SpellID ispell)
+{
+	if (!gbIsHellfire)
+		return currlevel;
+
+	const int vanilla = GetSpellBookLevel(ispell) + 1;
+	if (vanilla < 1)
+		return vanilla; // no book for this spell at all - the caller drops nothing
+
+	// AND deep enough for the fork's own band gate (user report, 2026-09-02: "i clicked on a Slain
+	// Hero on level 9 and game crashed" - it hung, in CreateSpellBook's roll loop).
+	//
+	// GetBookSpell refuses a spell whose oracool::SpellBookItemLevel is above the item's ilvl, and
+	// vanilla's sBookLvl - which is all this used to ask - is an unrelated number. The Slain Hero
+	// wants Lightning: sBookLvl 4, so ilvl 5, against a band of 6. Six is greater than five, so every
+	// roll refused it and the loop spun for as long as the process lived. Na-Krul's Apocalypse was
+	// worse and had never been reported: ilvl 20 against a band of 52.
+	//
+	// The ilvl is RAISED rather than the gate lowered, because the band is the deliberate design - it
+	// is what stops a shallow book teaching a deep spell. What was wrong was asking for the book at a
+	// depth the band forbids.
+	//
+	// Its own function so the audit test can ask what CreateSpellBook will actually roll at, instead
+	// of keeping a second copy of this arithmetic that would agree with it only until one changed.
+	return std::max(vanilla, oracool::SpellBookItemLevel(ispell));
+}
+
 void CreateSpellBook(Point position, SpellID ispell, bool sendmsg, bool delta)
 {
-	int lvl = currlevel;
-
-	if (gbIsHellfire) {
-		lvl = GetSpellBookLevel(ispell) + 1;
-		if (lvl < 1) {
-			return;
-		}
-	}
+	const int lvl = SpellBookDropLevel(ispell);
+	if (lvl < 1)
+		return;
 
 	_item_indexes idx = RndTypeItems(ItemType::Misc, IMISC_BOOK, lvl);
 	if (ActiveItemCount >= MAXITEMS)
@@ -7283,12 +7319,27 @@ void CreateSpellBook(Point position, SpellID ispell, bool sendmsg, bool delta)
 	int ii = AllocateItem();
 	auto &item = Items[ii];
 
-	while (true) {
+	// BOUNDED. The loop above was `while (true)`, and an unbounded roll-until-it-matches is a hang
+	// waiting for the day its target becomes unrollable - which is exactly what happened. The level
+	// fix makes the target reachable again; this makes the next such mismatch a dropped item and a
+	// log line instead of a frozen game. Generous enough that a legitimate roll never reaches it:
+	// the book pool is small and the target is in it, so a match arrives in a handful of draws.
+	bool rolled = false;
+	for (int attempt = 0; attempt < 10000; attempt++) {
 		item = {};
 		SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * lvl, 1, true, false, delta,
 		    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
-		if (item._iMiscId == IMISC_BOOK && item._iSpell == ispell)
+		if (item._iMiscId == IMISC_BOOK && item._iSpell == ispell) {
+			rolled = true;
 			break;
+		}
+	}
+	if (!rolled) {
+		LogError("CreateSpellBook: no roll produced spell {} at ilvl {} - dropping nothing rather than hanging",
+		    static_cast<int>(ispell), lvl);
+		Items[ii] = {};
+		ActiveItemCount--;
+		return;
 	}
 	GetSuperItemSpace(position, ii);
 

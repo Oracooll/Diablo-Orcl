@@ -7618,6 +7618,59 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the log is still open at the start of the next game";
 }
 
+// User report, 2026-09-02: "i clicked on a Slain Hero on level 9 and game crashed."
+//
+// It did not crash - it hung, in a spin loop, which is indistinguishable from the outside and worse
+// from the inside. CreateSpellBook rolls books until it gets the one it was asked for:
+//
+//     while (true) { SetupAllItems(...); if (item._iSpell == ispell) break; }
+//
+// and the fork added a gate in GetBookSpell that can make the answer impossible. A book's spell is
+// refused when oracool::SpellBookItemLevel(spell) > the item's ilvl, while CreateSpellBook sets that
+// ilvl from vanilla's own sBookLvl + 1. The two numbers are unrelated: the Slain Hero asks for
+// Lightning, whose sBookLvl is 4 (so ilvl 5) and whose fork band is 6. Six is greater than five, so
+// Lightning is excluded from every roll, and the loop spins for as long as the process lives.
+//
+// The invariant is what is pinned here rather than the loop, because the loop cannot be tested
+// directly without hanging the suite: every spell the game asks CreateSpellBook to produce must be
+// reachable at the ilvl CreateSpellBook uses for it.
+TEST(OracoolAudit, EverySpellBookTheGameAsksForCanActuallyBeRolled)
+{
+	// The two call sites, with the spell each one names. A third would belong here too - the point of
+	// the list is that it is the same list CreateSpellBook's callers form.
+	const struct {
+		SpellID spell;
+		const char *who;
+	} requests[] = {
+		{ SpellID::Lightning, "the Slain Hero on level 9" },
+		{ SpellID::Apocalypse, "Na-Krul's drop" },
+	};
+
+	// Hellfire, because this fork always is - and because GetSpellBookLevel answers -1 for Apocalypse
+	// without it, which would make this test pass by asking the wrong question. The same trap caught
+	// the readied-spell test on 2026-08-31.
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+
+	for (const auto &request : requests) {
+		const int bookLevel = GetSpellBookLevel(request.spell);
+		ASSERT_GE(bookLevel, 0) << request.who << " asks for a spell that has no book at all";
+
+		// Asked of the game's own function rather than recomputed here: a second copy of the
+		// arithmetic would agree with CreateSpellBook only until one of them changed, and this test
+		// exists because two numbers that looked related were not.
+		const int ilvl = SpellBookDropLevel(request.spell);
+		const int band = oracool::SpellBookItemLevel(request.spell);
+
+		EXPECT_LE(band, ilvl)
+		    << request.who << " asks for a book GetBookSpell will never produce: the spell's band is "
+		    << band << " and CreateSpellBook rolls at ilvl " << ilvl
+		    << ", so its while(true) loop cannot terminate";
+	}
+
+	gbIsHellfire = wasHellfire;
+}
+
 // User, 2026-08-31: "work on the skills/spells/auras descriptions. compare yours to D2. D2 is more
 // informative."
 //

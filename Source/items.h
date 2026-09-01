@@ -1133,6 +1133,15 @@ void SpawnBoy(int lvl);
 void SpawnHealer(int lvl);
 void MakeGoldStack(Item &goldItem, int value);
 int ItemNoFlippy();
+/**
+ * @brief The ilvl CreateSpellBook rolls @p ispell's book at. Negative when the spell has no book.
+ *
+ * Exported for the audit test that pins the property the Slain Hero hang broke: the roll's ilvl must
+ * reach oracool::SpellBookItemLevel(ispell), or GetBookSpell refuses that spell on every draw and
+ * the roll loop can never find it.
+ */
+int SpellBookDropLevel(SpellID ispell);
+
 void CreateSpellBook(Point position, SpellID ispell, bool sendmsg, bool delta);
 void CreateMagicArmor(Point position, ItemType itemType, int icurs, bool sendmsg, bool delta);
 void CreateAmulet(Point position, int lvl, bool sendmsg, bool delta, bool spawn = false);
