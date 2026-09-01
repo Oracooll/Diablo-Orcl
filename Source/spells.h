@@ -23,6 +23,15 @@ bool IsValidSpellFrom(int spellFrom);
 bool IsWallSpell(SpellID spl);
 bool TargetsMonster(SpellID id);
 int GetManaAmount(const Player &player, SpellID sn);
+
+/**
+ * @brief What @p sn would cost @p player at @p spellLevel, rather than at the level they have.
+ *
+ * Oracool: GetManaAmount is this with the player's own level, so the two cannot disagree. It exists
+ * because mana FALLS as a spell levels - the adjustment is subtracted - and the Abilities panel
+ * quotes the next level's cost beside the current one, the way Diablo II does.
+ */
+int GetManaAmountAtLevel(const Player &player, SpellID sn, int spellLevel);
 void ConsumeSpell(Player &player, SpellID sn);
 SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool manaonly);
 

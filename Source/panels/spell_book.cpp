@@ -1571,7 +1571,18 @@ std::string BuildSpellStatBlock(SpellID sn)
 	if (player._pMagic < required)
 		line(fmt::format(fmt::runtime(_("Requires {:d} Magic")), required));
 
-	line(fmt::format(fmt::runtime(_("Mana: {:d}")), GetManaAmount(player, sn) >> 6));
+	const int mana = GetManaAmount(player, sn) >> 6;
+	line(fmt::format(fmt::runtime(_("Mana: {:d}")), mana));
+	// What the next level would cost, when it differs (user, 2026-08-31: "compare yours to D2. D2 is
+	// more informative"). Mana FALLS as a spell levels here - the adjustment is subtracted - so this
+	// is a reason to spend a point rather than a price for it, and D2 quotes it for the same reason.
+	// Silent when the two match, which is most spells at most levels: sManaAdj is zero for many, and
+	// sMinMana floors the rest long before the cap.
+	if (level > 0) {
+		const int nextMana = GetManaAmountAtLevel(player, sn, level + 1) >> 6;
+		if (nextMana != mana)
+			line(fmt::format(fmt::runtime(_("Mana next level: {:d}")), nextMana));
+	}
 
 	if (sn == SpellID::BoneSpirit) {
 		line(std::string(_("Damage: 1/3 of target's health")));
@@ -1629,9 +1640,11 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	int rowHeight = 0;
 	bool found = false;
 
-	// A spell's panel is its prose and then its numbers, separated by a blank line. The other sheets
-	// pass through unchanged: an aura or Barbarian skill has no numbers yet, and a Paladin skill
-	// already carries its price and gate on the row itself.
+	// A spell's panel is its prose and then its numbers, separated by a blank line. The tree pages
+	// build their own block through ClassTreeEffectLine, which since v1.9.153 also quotes what the
+	// current rank grants and what the next one would - so "an aura has no numbers yet", which stood
+	// here until then, is no longer true of either sheet. A Paladin skill still carries its price
+	// and gate on the row itself.
 	const auto spellInfo = [](SpellID spell) {
 		// Explicit construction: _() hands back a string_view, and that conversion is explicit.
 		std::string text { _(oracool::GetSpellDescription(spell)) };

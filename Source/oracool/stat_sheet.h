@@ -25,6 +25,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "itemdat.h"
 
@@ -99,5 +100,21 @@ struct BonusProvider {
 
 /** @brief Runs every registered provider whose condition holds, in table order. */
 void AccumulateBonuses(const BonusContext &ctx, ItemBonusTotals &totals);
+
+/**
+ * @brief Every non-zero field of @p totals, in player-facing words, joined by @p separator.
+ *
+ * Written so a tooltip can say what something GIVES without a second table to say it with. The
+ * caller zeroes a totals, runs the same apply function the game runs, and hands the result here -
+ * so what is printed is what is applied, by construction, and the two cannot drift. That is the
+ * whole reason this exists rather than a per-skill description string: this codebase has been
+ * bitten three times by a table that described an effect the code did not have (see
+ * oracool/unique_affixes.h), and a tooltip is the worst place to be wrong, because the player will
+ * believe it.
+ *
+ * Empty when nothing moved, which is the honest answer for a skill whose effect this struct cannot
+ * carry - the flags, the procs, the bespoke behaviour. Those keep their authored sentence.
+ */
+std::string DescribeBonusTotals(const ItemBonusTotals &totals, const char *separator = ", ");
 
 } // namespace devilution::oracool

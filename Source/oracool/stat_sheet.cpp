@@ -1,5 +1,9 @@
 #include "oracool/stat_sheet.h"
 
+#include <string>
+
+#include <fmt/format.h>
+
 #include "items.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
@@ -8,7 +12,9 @@
 #include "oracool/runewords.h"
 #include "player.h"
 #include "spells.h"
+#include "utils/language.h"
 #include "utils/math.h"
+#include "utils/str_cat.hpp"
 
 namespace devilution::oracool {
 
@@ -194,6 +200,71 @@ void AccumulateBonuses(const BonusContext &ctx, ItemBonusTotals &totals)
 			continue;
 		provider.apply(ctx, totals);
 	}
+}
+
+std::string DescribeBonusTotals(const ItemBonusTotals &totals, const char *separator)
+{
+	std::string out;
+	const auto add = [&out, separator](std::string piece) {
+		if (!out.empty())
+			out.append(separator);
+		out.append(std::move(piece));
+	};
+	// A signed value prints its own sign, so a penalty reads as one. Several of these fields are
+	// reduced by real effects - getHit especially, where NEGATIVE is the good direction.
+	const auto signedNumber = [](int v) { return v > 0 ? StrCat("+", v) : StrCat(v); };
+
+	// Order is the order a player cares about, not the struct's: what it does to your attacks, then
+	// to your defence, then to your body, then the odds and ends.
+	if (totals.minDamage != 0 || totals.maxDamage != 0)
+		add(fmt::format(fmt::runtime(_("{:s}-{:d} damage")), signedNumber(totals.minDamage), totals.maxDamage));
+	if (totals.bonusDamage != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% damage")), signedNumber(totals.bonusDamage)));
+	if (totals.damageMod != 0)
+		add(fmt::format(fmt::runtime(_("{:s} damage")), signedNumber(totals.damageMod)));
+	if (totals.bonusToHit != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% to hit")), signedNumber(totals.bonusToHit)));
+	if (totals.enhancedAccuracy != 0)
+		add(fmt::format(fmt::runtime(_("{:s} armour pierce")), signedNumber(totals.enhancedAccuracy)));
+	if (totals.fireMin != 0 || totals.fireMax != 0)
+		add(fmt::format(fmt::runtime(_("+{:d}-{:d} fire damage")), totals.fireMin, totals.fireMax));
+	if (totals.lightningMin != 0 || totals.lightningMax != 0)
+		add(fmt::format(fmt::runtime(_("+{:d}-{:d} lightning damage")), totals.lightningMin, totals.lightningMax));
+
+	if (totals.armor != 0 || totals.bonusArmor != 0)
+		add(fmt::format(fmt::runtime(_("{:s} armour")), signedNumber(totals.armor + totals.bonusArmor)));
+	if (totals.getHit != 0)
+		add(fmt::format(fmt::runtime(_("{:s} damage taken")), signedNumber(totals.getHit)));
+	if (totals.fireResist != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% fire resist")), signedNumber(totals.fireResist)));
+	if (totals.lightningResist != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% lightning resist")), signedNumber(totals.lightningResist)));
+	if (totals.magicResist != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% magic resist")), signedNumber(totals.magicResist)));
+
+	if (totals.strength != 0)
+		add(fmt::format(fmt::runtime(_("{:s} strength")), signedNumber(totals.strength)));
+	if (totals.magic != 0)
+		add(fmt::format(fmt::runtime(_("{:s} magic")), signedNumber(totals.magic)));
+	if (totals.dexterity != 0)
+		add(fmt::format(fmt::runtime(_("{:s} dexterity")), signedNumber(totals.dexterity)));
+	if (totals.vitality != 0)
+		add(fmt::format(fmt::runtime(_("{:s} vitality")), signedNumber(totals.vitality)));
+	if (totals.hitPoints != 0)
+		add(fmt::format(fmt::runtime(_("{:s} life")), signedNumber(totals.hitPoints)));
+	if (totals.mana != 0)
+		add(fmt::format(fmt::runtime(_("{:s} mana")), signedNumber(totals.mana)));
+
+	if (totals.spellLevelAdd != 0)
+		add(fmt::format(fmt::runtime(_("{:s} to spell levels")), signedNumber(totals.spellLevelAdd)));
+	if (totals.lightRadius != 0)
+		add(fmt::format(fmt::runtime(_("{:s} light radius")), signedNumber(totals.lightRadius)));
+	if (totals.magicFind != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% magic find")), signedNumber(totals.magicFind)));
+	if (totals.goldFind != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% gold find")), signedNumber(totals.goldFind)));
+
+	return out;
 }
 
 } // namespace devilution::oracool

@@ -1706,28 +1706,55 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill)
 	// in the hover opoups of skills/spells/auras - include the benefits/bonuses current level is
 	// providing and the bonuses/benefits the next level will provide").
 	//
-	// Only what is actually MODELLED gets a number. Two things are, and the honest scope of this
-	// line is those two:
+	// WHAT THIS RANK GIVES, AND WHAT THE NEXT ONE WOULD (user, 2026-08-31: "work on the
+	// skills/spells/auras descriptions. compare yours to D2. D2 is more informative").
 	//
-	//   - Every aura's radius, from AuraRadiusForPoints - the one quantity every aura in the tree
-	//     scales by, and the one the player can see on the floor.
-	//   - Conviction's immunity break, which is a threshold rather than a curve and so is stated as
-	//     the rank it happens at.
+	// D2's tooltip is a sentence and then the NUMBERS - what you have now, and what the next point
+	// buys - and the numbers are what a player actually reads. This block used to quote only the
+	// aura radius and Conviction's threshold, on the stated grounds that nothing else was modelled.
+	// That was wrong: ApplyAura and ApplyPassive compute a real per-rank magnitude for every
+	// implemented row, through one `Scaled(points, base, perPoint)` shape. The numbers were there
+	// the whole time; the tooltip simply was not asking for them.
 	//
-	// The remaining rows have bespoke effects with no per-rank formula behind them - several are
-	// still `implemented == false` - and inventing a number for those would be worse than the
-	// silence: a tooltip that quotes a bonus the code does not apply is a bug that reads as a
-	// feature. Those rows keep their description, which is what states the effect today.
-	if (data.implemented && data.kind == Kind::Aura && p > 0) {
-		const int radius = AuraRadiusForPoints(p);
-		out += "\n" + fmt::format(fmt::runtime(_("Radius: {:d} tiles")), radius);
+	// DERIVED BY RUNNING THE EFFECT, never by a second table. A zeroed ItemBonusTotals goes through
+	// the same function the game runs, and DescribeBonusTotals names every field that moved - so a
+	// tooltip cannot promise a bonus the code does not apply. That failure has happened three times
+	// in this project (see oracool/unique_affixes.h) and a tooltip is the worst place for it,
+	// because the player has no way to check.
+	//
+	// Rows this struct cannot carry - flags, procs, bespoke behaviour - produce an empty string and
+	// print nothing extra, keeping their authored sentence. Silence stays the honest answer; it is
+	// just no longer the answer for rows that do have a number.
+	if (data.implemented && p > 0) {
+		// The radius joins the magnitudes on the SAME line rather than trailing after them. It is
+		// part of what a rank grants, and read as its own line after "Next point: +50% damage" it
+		// looked like a property of the next point rather than of the aura.
+		const auto describeRank = [&](int points) {
+			ItemBonusTotals totals {};
+			if (data.kind == Kind::Aura)
+				ApplyAura(skill, points, totals);
+			else
+				ApplyPassive(player, skill, points, totals);
+			std::string text = DescribeBonusTotals(totals);
+			if (data.kind == Kind::Aura) {
+				if (!text.empty())
+					text += ", ";
+				text += fmt::format(fmt::runtime(_("{:d} tile radius")), AuraRadiusForPoints(points));
+			}
+			return text;
+		};
+
+		const std::string nowLine = describeRank(p);
+		if (!nowLine.empty())
+			out += "\n" + fmt::format(fmt::runtime(_("Now: {:s}")), nowLine);
+
 		if (p < maxRank) {
-			const int nextRadius = AuraRadiusForPoints(p + 1);
-			// Silent when the next point does not move it - the radius steps every second point and
-			// caps at eight, so "Next point: 8 tiles" beside "Radius: 8 tiles" is noise that makes
-			// the player look twice for a difference that is not there.
-			if (nextRadius != radius)
-				out += "\n" + fmt::format(fmt::runtime(_("Next point: {:d} tiles")), nextRadius);
+			const std::string nextLine = describeRank(p + 1);
+			// Only when it actually differs. Several effects step every second point, and "Next
+			// point: +20% damage" under "Now: +20% damage" makes the player look twice for a
+			// difference that is not there.
+			if (!nextLine.empty() && nextLine != nowLine)
+				out += "\n" + fmt::format(fmt::runtime(_("Next point: {:s}")), nextLine);
 		}
 	}
 	if (skill == Skill::Conviction && data.implemented) {

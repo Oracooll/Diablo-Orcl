@@ -103,7 +103,7 @@ bool TargetsMonster(SpellID id)
 	    || id == SpellID::FlameWave;
 }
 
-int GetManaAmount(const Player &player, SpellID sn)
+int GetManaAmountAtLevel(const Player &player, SpellID sn, int spellLevel)
 {
 	if (sn == SpellID::TownPortal && !gbIsMultiplayer)
 		return 0;
@@ -114,7 +114,14 @@ int GetManaAmount(const Player &player, SpellID sn)
 	int adj = 0;
 
 	// spell level
-	int sl = std::max(player.GetSpellLevel(sn) - 1, 0);
+	// Oracool: the LEVEL IS A PARAMETER (2026-08-31). This body is vanilla's, unchanged, except that
+	// it took the level from player.GetSpellLevel(sn) itself - which made "what would this cost one
+	// level from now" unaskable. The Abilities panel asks it, because mana FALLS as a spell levels
+	// and a player deciding where to put a point should be able to see that.
+	//
+	// GetManaAmount below passes the player's own level, so every existing caller is bit-for-bit
+	// unchanged.
+	int sl = std::max(spellLevel - 1, 0);
 
 	if (sl > 0) {
 		adj = sl * GetSpellData(sn).sManaAdj;
@@ -148,6 +155,11 @@ int GetManaAmount(const Player &player, SpellID sn)
 	}
 
 	return ma;
+}
+
+int GetManaAmount(const Player &player, SpellID sn)
+{
+	return GetManaAmountAtLevel(player, sn, player.GetSpellLevel(sn));
 }
 
 void ConsumeSpell(Player &player, SpellID sn)

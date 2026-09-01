@@ -7618,6 +7618,84 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the log is still open at the start of the next game";
 }
 
+// User, 2026-08-31: "work on the skills/spells/auras descriptions. compare yours to D2. D2 is more
+// informative."
+//
+// D2's tooltip is a sentence and then the numbers - what this rank gives, and what the next one
+// would. The tree's tooltip used to quote only an aura's radius, on the stated grounds that nothing
+// else was modelled; ApplyAura had a real per-rank magnitude for every implemented row the whole
+// time.
+//
+// What is pinned here is the property that makes the new lines trustworthy: the text is DERIVED by
+// running the same effect the game runs, so it cannot describe a bonus the code does not apply.
+// Asserted against ApplyAura's own arithmetic - Might is Scaled(p, 20, 10), so one point is +20% and
+// two is +30% - rather than against a copy of the expected string, which would only prove the test
+// agrees with itself.
+TEST(OracoolAudit, TheSkillTooltipReportsWhatTheGameActuallyApplies)
+{
+	using namespace devilution::oracool;
+
+	// An empty effect describes as nothing, which is what keeps a flags-only or unimplemented row
+	// from growing a blank "Now:" line.
+	ItemBonusTotals empty {};
+	EXPECT_EQ(DescribeBonusTotals(empty), "") << "a totals that moved nothing produced text";
+
+	// Through ClassTreeEffectLine, the function the hover panel actually calls - ApplyAura is
+	// file-local, and testing the describer alone would prove the formatter works while saying
+	// nothing about whether the tooltip asks it anything.
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior; // the Paladin's slot in this fork
+	player._pLevel = 60;                 // past every rank gate, so the lines are about the effect
+
+	const auto investAndDescribe = [&player](ClassTreeSkill skill, int points) {
+		player._pClassTreeInvestment[ClassTreeIconIndex(skill)] = static_cast<uint8_t>(points);
+		return ClassTreeEffectLine(player, skill);
+	};
+
+	// Might: bonusDamage, Scaled(p, 20, 10) - so one point is +20% and two is +30%.
+	const std::string oneLine = investAndDescribe(ClassTreeSkill::Might, 1);
+	EXPECT_NE(oneLine.find("20"), std::string::npos)
+	    << "Might at one point applies +20% damage but the tooltip says:\n" << oneLine;
+	// Looked for INSIDE the "Next point:" line, not anywhere in the tooltip. A bare find("30")
+	// passes on the unchanged tooltip, because "Points: 1 of 30" contains it - which the mutation
+	// check caught: with the whole feature removed, this assertion still went green.
+	const size_t nextAt = oneLine.find("Next point:");
+	ASSERT_NE(nextAt, std::string::npos) << "the tooltip has no next-point line:\n" << oneLine;
+	EXPECT_NE(oneLine.find("30", nextAt), std::string::npos)
+	    << "the next point buys +30% damage and the tooltip does not say so:\n" << oneLine;
+
+	const std::string twoLine = investAndDescribe(ClassTreeSkill::Might, 2);
+	EXPECT_NE(twoLine.find("30"), std::string::npos)
+	    << "Might at two points applies +30% damage but the tooltip says:\n" << twoLine;
+
+	// Multi-field auras name every field they move. Salvation touches all three resists, and a
+	// describer that stopped at the first would have looked correct on every single-field aura.
+	const std::string salvationLine = investAndDescribe(ClassTreeSkill::Salvation, 1);
+	EXPECT_NE(salvationLine.find("fire"), std::string::npos) << salvationLine;
+	EXPECT_NE(salvationLine.find("lightning"), std::string::npos) << salvationLine;
+	EXPECT_NE(salvationLine.find("magic"), std::string::npos) << salvationLine;
+
+	// And the sweep that would have caught the original gap: most implemented auras should now quote
+	// a number. Auras that only raise flags (Thorns, Song of Swiftness) legitimately quote none, so
+	// this is a floor rather than a total.
+	int described = 0;
+	for (size_t i = 0; i < ClassTreeSkillCount; i++) {
+		const auto skill = static_cast<ClassTreeSkill>(i);
+		const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+		if (!data.implemented || data.kind != ClassTreeKind::Aura)
+			continue;
+		if (data.heroClass != HeroClass::Warrior)
+			continue; // this player is a Paladin; another class's rows are not its to invest in
+		if (investAndDescribe(skill, 1).find("Now:") != std::string::npos)
+			described++;
+	}
+	EXPECT_GT(described, 8)
+	    << "only " << described << " implemented Paladin auras report a number - the tooltip has gone quiet again";
+}
+
 // User, 2026-08-31: "replace the vanilla 'not enogh gold' during purchase with something more in
 // line with the new shops design. try a pop up message which doesnt require confirmation from my
 // side."
@@ -8361,3 +8439,4 @@ TEST(OracoolAudit, APlainPressUsesALeftHandBinding)
 	player._pSplLHotKey[0] = SpellID::Invalid;
 	player._pSplLTHotKey[0] = SpellType::Invalid;
 }
+
