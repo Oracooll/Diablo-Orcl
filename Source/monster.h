@@ -462,13 +462,13 @@ struct Monster { // note: missing field _mAFNum
 	[[nodiscard]] MonsterMode getVisualMonsterMode() const;
 };
 
-extern size_t LevelMonsterTypeCount;
+extern DVL_API_FOR_TEST size_t LevelMonsterTypeCount;
 // DVL_API_FOR_TEST because Monster::getId() is the offset from &Monsters[0] - a monster built on the
 // stack reports a garbage slot, so any test about per-slot state has to use the real array. Same
 // reason setlevel and dPlayer carry it.
 extern DVL_API_FOR_TEST Monster Monsters[MaxMonsters];
 extern int ActiveMonsters[MaxMonsters];
-extern size_t ActiveMonsterCount;
+extern DVL_API_FOR_TEST size_t ActiveMonsterCount;
 extern int MonsterKillCounts[NUM_MTYPES];
 extern bool sgbSaveSoundOn;
 

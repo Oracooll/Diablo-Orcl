@@ -30,6 +30,7 @@
 #include "engine/surface.hpp"
 #include "control.h"
 #include "cursor.h"
+#include "dead.h"
 #include "inv.h"
 #include "items.h"
 #include "monstdat.h"
@@ -7616,6 +7617,51 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the previous character's log entries are still there for the next one to read";
 	EXPECT_FALSE(oracool::IsEventLogOpen())
 	    << "the log is still open at the start of the next game";
+}
+
+// User crash, 2026-09-02: "i just entered my town portal to go back to level 9 and my game crashed
+// again." The dump named it: an access violation in ClxSpriteList::numSprites, reached from
+// DrawDungeon's corpse branch, reading a plausible-looking but freed pointer.
+//
+// Corpses is a file-scope array that InitCorpses only ever fills from the FRONT. Entries past this
+// level's count kept the previous level's `sprites` - views into monster sprite data FreeMonsters
+// has since released - while dCorpse, the per-tile corpse id, is saved with the level and restored
+// on return. A revisit rebuilds the table from what is alive now, so a level whose champions have
+// been killed yields fewer entries than when its corpses were laid, and a stored id addresses a
+// stale one. The draw's `if (!sprites) return;` cannot catch that: a dangling view is not an empty
+// one.
+//
+// Asserted on the invariant rather than by staging a level change: after InitCorpses, no entry may
+// carry sprites it did not just receive. Every slot is either filled by this call or empty.
+TEST(OracoolAudit, InitCorpsesLeavesNoStaleSpritesBehind)
+{
+	// A corpse table dirtied the way a previous level would leave it - every slot holding something.
+	// The sprites themselves do not have to be real: what is being pinned is that InitCorpses does
+	// not LEAVE them, and an optional that was set and is still set proves that on its own.
+	for (Corpse &corpse : Corpses) {
+		corpse.frame = 7;
+		corpse.width = 96;
+		corpse.translationPaletteIndex = 9;
+	}
+
+	// No monster types and no active monsters: the smallest possible level, so InitCorpses fills the
+	// fewest slots and leaves the most behind. That is the worst case for this fault and the easiest
+	// to reason about.
+	LevelMonsterTypeCount = 0;
+	ActiveMonsterCount = 0;
+	InitCorpses();
+
+	for (size_t i = 0; i < MaxCorpses; i++) {
+		const Corpse &corpse = Corpses[i];
+		// stonendx is written deliberately by InitCorpses and is the one entry expected to carry
+		// content it was just given.
+		if (static_cast<int8_t>(i) == stonendx - 1)
+			continue;
+		EXPECT_FALSE(corpse.sprites.has_value())
+		    << "corpse slot " << i << " still holds sprites from a previous level";
+		EXPECT_EQ(corpse.translationPaletteIndex, 0)
+		    << "corpse slot " << i << " still points at a previous level's monster";
+	}
 }
 
 // User report, 2026-09-02: "i clicked on a Slain Hero on level 9 and game crashed."

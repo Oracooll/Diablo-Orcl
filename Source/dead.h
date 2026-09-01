@@ -11,6 +11,7 @@
 #include "engine.h"
 #include "engine/clx_sprite.hpp"
 #include "engine/point.hpp"
+#include "utils/attributes.h"
 
 namespace devilution {
 
@@ -43,10 +44,10 @@ struct Corpse {
 	}
 };
 
-extern Corpse Corpses[MaxCorpses];
-extern int8_t stonendx;
+extern DVL_API_FOR_TEST Corpse Corpses[MaxCorpses];
+extern DVL_API_FOR_TEST int8_t stonendx;
 
-void InitCorpses();
+DVL_API_FOR_TEST void InitCorpses();
 void AddCorpse(Point tilePosition, int8_t dv, Direction ddir);
 void MoveLightsToCorpses();
 
