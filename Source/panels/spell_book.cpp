@@ -23,6 +23,7 @@
 #include "oracool/spell_ranks.h"
 #include "oracool/spell_descriptions.h"
 #include "oracool/furious_charge.h"
+#include "oracool/grid_bezel.h"
 #include "oracool/hud_art.h"
 #include "oracool/oracool.h"
 #include "oracool/ornate_border.h"
@@ -870,6 +871,16 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// the art, so background and symbol scale together and there is nothing to draw underneath -
 	// unlike a tree cell, where the plate is a separate sprite behind a strip icon.
 	const Rectangle iconRect = SpellRowIconRect(top);
+	// The carved 2x2 slot frame behind the icon (user, 2026-09-02: "use the item.slot.2x2 frames
+	// behind all icons in the abilities window"). It fits without a single number changing: this
+	// window's icons are 56px, the equipment slots are 2x28, and the bezel family is keyed by exactly
+	// that content size - so DrawGridBezel finds the 2x2 plate and lands its interior on the icon.
+	//
+	// Rows are 8px apart and the frame reaches 6px past the icon, so consecutive frames overlap by
+	// four pixels and read as a shared rail rather than as separate plates. That is the same look the
+	// backpack's own bezel has between its cells, so it is left alone rather than paid for in row
+	// height - a taller row costs the page its last entry.
+	oracool::DrawGridBezel(content, iconRect);
 	// Oracool: user request - the book must show the same borrowed icon Furious Charge uses
 	// everywhere else, not the vanilla Item Repair icon.
 	DrawSmallSpellIconFittedTo(content, iconRect,
@@ -1039,6 +1050,9 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	    ? oracool::SkillPlateTint::Grey
 	    : ((isPassiveRow ? slotted : invested > 0) ? oracool::SkillPlateTint::Green
 	                                               : oracool::SkillPlateTint::Red);
+	// The slot frame first, then the tinted plate inside it - see DrawSpellRow for the fit. The tint
+	// still carries "can I use this"; the frame is the furniture around it, not a second state.
+	oracool::DrawGridBezel(content, icon);
 	oracool::DrawClassTreeIcon(content, icon, player._pClass, oracool::ClassTreeIconIndex(skill),
 	    usable, tint);
 
@@ -1122,6 +1136,11 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 		const oracool::SkillPlateTint tint = !open
 		    ? oracool::SkillPlateTint::Grey
 		    : (filled ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Red);
+		// The slot frame, on the band as on the grid - these ARE slots, and they are the four cells
+		// in this window that most want to look like sockets. The band's pitch is 63 to the icon's
+		// 56, so neighbouring frames overlap by five pixels, the same shared-rail reading the sheet
+		// rows have.
+		oracool::DrawGridBezel(content, rect);
 		if (filled) {
 			oracool::DrawClassTreeIcon(content, rect, player._pClass,
 			    oracool::ClassTreeIconIndex(held), /*unlocked=*/true, tint);
