@@ -406,8 +406,13 @@ void DrawWaypointMenu(const Surface &out)
 		// 12 and 24 are the only other faces small enough for a 43px row (LineHeights: 26px at 24
 		// against a 43px row) and 12 is half the size, so 24 is the choice. It only fits because the
 		// names lost their ordinal prefix at the same time - see WaypointNames and PanelSize.
+		// Shadowed (user, 2026-09-03), which is what the blue and red of the day before actually
+		// needed to work: a DARK colour on mid-grey stone loses its edges rather than its brightness,
+		// and a black offset copy under it is what gives the glyph a boundary again. The outline this
+		// row used to wear was dropped for thickening the letters; a shadow sits under them instead
+		// of around them, so it buys the contrast without the weight.
 		DrawString(content, WaypointNames[i], textArea,
-		    { color | UiFlags::FontSize24 | UiFlags::VerticalCenter });
+		    { color | UiFlags::FontSize24 | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 }
 

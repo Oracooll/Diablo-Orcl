@@ -785,7 +785,7 @@ void DrawStash(const Surface &out)
 	// reads as a heading over the nav buttons rather than as another value in the row.
 	DrawString(out, fmt::format(fmt::runtime(_("Page {:d} / {:d}")), Stash.GetPage() + 1, CountStashPages),
 	    { position + Displacement { StashPageLabelRect.position.x, StashPageLabelRect.position.y }, StashPageLabelRect.size },
-	    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorGold });
+	    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::ColorGold | UiFlags::Shadowed });
 
 	// Gold in the theme's own gold, matching the inventory's readout, rather than the plain white
 	// the vanilla panel used.
