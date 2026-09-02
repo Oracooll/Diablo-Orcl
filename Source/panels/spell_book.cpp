@@ -202,6 +202,27 @@ static_assert(AbilitiesContentTop >= oracool::PanelTitleTop + oracool::PanelTitl
 static_assert(AbilitiesContentSize.height > 0, "the nav row has eaten the whole list");
 
 /**
+ * @brief Air at the top of every sheet, so the first row's carved frame is inside the viewport.
+ *
+ * User, 2026-09-03: "top row in abilities windows wont show top border of 2x2 slot icon. fix it.
+ * increase the rendering area or move all row down a bit."
+ *
+ * The frames arrived the day before and they are drawn OUTSIDE the icon - GridBezelInset past it on
+ * every side, which is what makes a 56px icon wear a 68px plate. The list's first row sits at y=0,
+ * so its plate wanted to be drawn at y=-6, and the content is a subregion: everything above zero is
+ * simply not in the surface. Every other row had the previous row's air to sit in; the top one had
+ * the panel.
+ *
+ * Moving the rows down was chosen over growing the viewport upward because the six pixels above this
+ * list are not free - the nav row with the page arrows is there, and a frame drawn into it would
+ * exchange a clipped border for an overlapped one.
+ *
+ * It is exactly GridBezelInset rather than a hand-picked number, so it is the same six the frame
+ * itself uses. If the bezel art is ever recut with a wider surround, both move together.
+ */
+constexpr int AbilitiesListTop = oracool::GridBezelInset;
+
+/**
  * @brief The icon square every sheet in this window draws, list rows and tree cells alike.
  *
  * ONE number (user, 2026-08-19: "make spell list use 56x56(57)px icons and backgrounds and put on
@@ -500,7 +521,7 @@ constexpr int TreeBarGap = 4;
  */
 constexpr int TreeRowGap = 6;
 constexpr int TreeRowPitch = TreeIconSize + TreeBarGap + TreeBarHeight + TreeRowGap;
-static_assert(6 * TreeRowPitch <= AbilitiesContentSize.height,
+static_assert(AbilitiesListTop + 6 * TreeRowPitch <= AbilitiesContentSize.height,
     "a six-tier tree page no longer fits the list unscrolled - tighten TreeRowGap or the nav row");
 
 // ---------------------------------------------------------------------------------------------
@@ -529,7 +550,7 @@ static_assert(PassiveSlotX0 >= AbilitiesInteriorLeft
 
 /** One line under the slots, which is where the gesture explains itself. */
 constexpr int PassiveHintHeight = 18;
-constexpr int PassiveHintTop = PassiveSlotSize + 4;
+constexpr int PassiveHintTop = AbilitiesListTop + PassiveSlotSize + 4;
 /** The grid begins below the band. */
 constexpr int PassiveGridTop = PassiveHintTop + PassiveHintHeight + 4;
 /** No counter row, so a passive row is its icon plus air. */
@@ -549,7 +570,8 @@ Rectangle TreeIconRect(int page, int column, int tier)
 		return { { TreeColX0 + column * TreeColPitch, PassiveGridTop + tier * PassiveRowPitch },
 			{ TreeIconSize, TreeIconSize } };
 	}
-	return { { TreeColX0 + column * TreeColPitch, tier * TreeRowPitch }, { TreeIconSize, TreeIconSize } };
+	return { { TreeColX0 + column * TreeColPitch, AbilitiesListTop + tier * TreeRowPitch },
+		{ TreeIconSize, TreeIconSize } };
 }
 
 Rectangle TreeBarRect(int page, int column, int tier)
@@ -559,7 +581,7 @@ Rectangle TreeBarRect(int page, int column, int tier)
 	// draw without either of them having to know about the other.
 	if (IsPassivePage(page))
 		return { { 0, 0 }, { 0, 0 } };
-	return { { TreeColX0 + column * TreeColPitch, tier * TreeRowPitch + TreeIconSize + TreeBarGap },
+	return { { TreeColX0 + column * TreeColPitch, AbilitiesListTop + tier * TreeRowPitch + TreeIconSize + TreeBarGap },
 		{ TreeIconSize, TreeBarHeight } };
 }
 
@@ -567,7 +589,7 @@ Rectangle TreeBarRect(int page, int column, int tier)
 int PassiveSlotAt(Point localPoint)
 {
 	for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++) {
-		const Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, 0 },
+		const Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, AbilitiesListTop },
 			{ PassiveSlotSize, PassiveSlotSize } };
 		if (rect.contains(localPoint))
 			return slot;
@@ -622,10 +644,11 @@ int TotalListHeight(AbilitySheet sheet)
 			deepest = std::max(deepest, oracool::GetClassTreeSkillData(skills[i]).tier);
 		if (IsPassivePage(*page))
 			return PassiveGridTop + (deepest + 1) * PassiveRowPitch;
-		return (deepest + 1) * TreeRowPitch;
+		// AbilitiesListTop is already inside PassiveGridTop, which is why only this branch adds it.
+		return AbilitiesListTop + (deepest + 1) * TreeRowPitch;
 	}
 	// Spells is the only list sheet left, and it is a uniform stride.
-	return static_cast<int>(GetRowCount(sheet)) * RowHeightFor(sheet);
+	return AbilitiesListTop + static_cast<int>(GetRowCount(sheet)) * RowHeightFor(sheet);
 }
 
 /** @brief Recomputes the scroll extent for the current sheet and re-clamps its offset. */
@@ -1127,7 +1150,7 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 {
 	const Player &player = *InspectPlayer;
 	for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++) {
-		Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, -scroll },
+		Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, AbilitiesListTop - scroll },
 			{ PassiveSlotSize, PassiveSlotSize } };
 		const bool open = player._pLevel >= oracool::PassiveSlotRequiredLevel(slot);
 		const oracool::ClassTreeSkill held = oracool::PassiveInSlot(player, slot);
@@ -1644,7 +1667,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		// tint, and nothing anywhere tells you which four you are running.
 		if (IsPassivePage(*page)) {
 			if (const int slot = PassiveSlotAt(local); slot >= 0) {
-				const Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, 0 },
+				const Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, AbilitiesListTop },
 					{ PassiveSlotSize, PassiveSlotSize } };
 				const oracool::ClassTreeSkill held = oracool::PassiveInSlot(*InspectPlayer, slot);
 				const bool open = InspectPlayer->_pLevel >= oracool::PassiveSlotRequiredLevel(slot);
@@ -1699,11 +1722,16 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	// Everything past the tree is the Spells list, a uniform stride.
 	{
 		const int height = RowHeightFor(CurrentSheet);
-		const size_t index = static_cast<size_t>(y / height);
+		// The list starts AbilitiesListTop pixels down, so the band above the first row belongs to
+		// no row at all - without the guard a negative y divides to index 0 and the first row would
+		// answer for the air above it.
+		if (y < AbilitiesListTop)
+			return;
+		const size_t index = static_cast<size_t>((y - AbilitiesListTop) / height);
 		SpellID rows[MaxSpellRows];
 		const size_t rowCount = BuildSpellRows(rows);
 		if (index < rowCount) {
-			rowTop = static_cast<int>(index) * height;
+			rowTop = AbilitiesListTop + static_cast<int>(index) * height;
 			rowHeight = height;
 			found = true;
 			if (IsSpellKnown(rows[index]))
@@ -1815,7 +1843,7 @@ void DrawSpellBook(const Surface &out)
 	SpellID rows[MaxSpellRows];
 	const size_t rowCount = BuildSpellRows(rows);
 	for (size_t i = 0; i < rowCount; i++) {
-		const int top = static_cast<int>(i) * rowHeight - scroll;
+		const int top = AbilitiesListTop + static_cast<int>(i) * rowHeight - scroll;
 		if (top + rowHeight <= 0 || top >= AbilitiesContentSize.height)
 			continue;
 		DrawSpellRow(content, i, rows[i], top);
@@ -1980,7 +2008,11 @@ void CheckSBook(bool assignToRightButton)
 	{
 		SpellID rows[MaxSpellRows];
 		const size_t rowCount = BuildSpellRows(rows);
-		const size_t rowIndex = static_cast<size_t>(y / RowHeightFor(CurrentSheet));
+		// The same guard the hover walk carries, and for the same reason: the strip above the first
+		// row is not row zero.
+		if (y < AbilitiesListTop)
+			return;
+		const size_t rowIndex = static_cast<size_t>((y - AbilitiesListTop) / RowHeightFor(CurrentSheet));
 		if (rowIndex >= rowCount)
 			return;
 		sn = rows[rowIndex];
