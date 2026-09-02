@@ -450,10 +450,25 @@ struct CharRow {
 	LabelFunc dynamicLabel = nullptr;
 };
 
-/** @brief Vertical space one row occupies, before its gapAbove. */
-constexpr int CharRowHeight = 28;
-/** @brief The blank band inserted between groups of related rows. */
-constexpr int CharRowGroupGap = 7;
+/**
+ * @brief Vertical space one row occupies, before its gapAbove.
+ *
+ * 24, from 28 (user, 2026-09-03: "reduce the gaps between rows in hero stats window by half"). The
+ * air is what shrinks: a row's text is 13px tall, so the blank around it goes from 15 to 11.
+ *
+ * NOT the 20 that would have halved it exactly, and the floor is not a matter of taste. Four of
+ * these rows carry a + button (IncrementAttributeButtonSize, 22 tall) and one carries RESET
+ * (ResetStatsButtonSize, 24), each centred in its row by PlaceWidgets. At a 20px pitch the four
+ * stat buttons - which sit on four CONSECUTIVE rows - would overlap each other by two pixels, and a
+ * click near a boundary would land on the wrong attribute. 24 is the largest widget on the sheet, so
+ * it is the smallest pitch that keeps every hit target its own. Halving properly would mean shrinking
+ * the buttons, which is a different change to a different asset.
+ */
+constexpr int CharRowHeight = 24;
+static_assert(CharRowHeight >= ResetStatsButtonSize.height,
+    "a row is now shorter than the widget centred in it - consecutive rows' buttons would overlap");
+/** @brief The blank band inserted between groups of related rows. Halved with the rows, 7 -> 4. */
+constexpr int CharRowGroupGap = 4;
 
 const CharRow CharRows[] = {
 	{ N_("Name"),
