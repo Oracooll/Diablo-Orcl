@@ -294,10 +294,25 @@ void PlaceGroup(size_t typeIndex, unsigned num, Monster *leader = nullptr, bool 
 			xp = position.x;
 			yp = position.y;
 		} else {
-			do {
+			// BOUNDED (audit, 2026-09-02). This was `do { ... } while (!CanPlaceMonster(...))` - an
+			// unbounded hunt for a free tile, which spins forever on a level that has none.
+			//
+			// Vanilla could rely on never getting there because it placed a vanilla number of
+			// monsters. Monster Density defaults to 300% and champion packs land five bodies at a
+			// time on top of that, so "the level is full" is a state this fork actually approaches -
+			// and the same shape cost two sessions this week already (CreateSpellBook, and the
+			// corpse table). A crowded level should drop a group, not hang.
+			bool found = false;
+			for (int spot = 0; spot < 500; spot++) {
 				xp = GenerateRnd(80) + 16;
 				yp = GenerateRnd(80) + 16;
-			} while (!CanPlaceMonster({ xp, yp }));
+				if (CanPlaceMonster({ xp, yp })) {
+					found = true;
+					break;
+				}
+			}
+			if (!found)
+				return; // nowhere left on this floor - the caller's own bound stops it asking again
 		}
 		int x1 = xp;
 		int y1 = yp;
@@ -3870,7 +3885,12 @@ void InitMonsters()
 				numscattypes++;
 			}
 		}
-		while (ActiveMonsterCount < totalmonsters) {
+		// numscattypes CAN be zero - a level whose types all lack PLACE_SCATTER - and
+		// GenerateRnd(0) returns 0, so the old code would then read scattertypes[0] uninitialised
+		// and index LevelMonsterTypes with whatever was on the stack. Nothing to scatter is a
+		// legitimate state; scattering garbage is not.
+		while (numscattypes > 0 && ActiveMonsterCount < totalmonsters) {
+			const size_t before = ActiveMonsterCount;
 			const size_t typeIndex = scattertypes[GenerateRnd(numscattypes)];
 			if (currlevel == 1 || FlipCoin())
 				na = 1;
@@ -3879,6 +3899,11 @@ void InitMonsters()
 			else
 				na = GenerateRnd(3) + 3;
 			PlaceGroup(typeIndex, na);
+			// PlaceGroup gives up when the floor has no room left (see its own bound). Without this
+			// the loop would ask it again forever, having moved the spin one level up rather than
+			// removing it - the level simply ends up less full than the density dial asked for.
+			if (ActiveMonsterCount == before)
+				break;
 		}
 	}
 	for (int i = 0; i < nt; i++) {

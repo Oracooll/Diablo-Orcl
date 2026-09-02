@@ -358,6 +358,13 @@ void PlaceThemeMonsts(int t, int f)
 			numscattypes++;
 		}
 	}
+	// Nothing to scatter is a legitimate state - a level whose monster types all lack PLACE_SCATTER -
+	// and it has to be checked, because GenerateRnd(0) returns 0 and scattertypes[0] is then read
+	// uninitialised. `mtype` indexes LevelMonsterTypes in AddMonster below, so the value would be
+	// whatever was on the stack. The twin of this read in monster.cpp's own scatter loop was found by
+	// the same audit (2026-09-02).
+	if (numscattypes == 0)
+		return;
 	int mtype = scattertypes[GenerateRnd(numscattypes)];
 	for (int yp = 0; yp < MAXDUNY; yp++) {
 		for (int xp = 0; xp < MAXDUNX; xp++) {
