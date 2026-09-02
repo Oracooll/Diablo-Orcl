@@ -41,6 +41,14 @@ namespace devilution::oracool {
  * @param timeoutMs how long teardown is allowed to take. Generous on purpose: a healthy shutdown is
  *                  well under a second, so anything approaching this is already wrong.
  */
+/**
+ * @brief Starts the timer. The FIRST call wins - its timeout is the one that governs.
+ *
+ * Called from two places, and the order matters. diablo_quit arms it at the very top with a longer
+ * timeout, because the stall observed in practice happens before DiabloDeinit is ever reached (see
+ * the note at that call site). DiabloDeinit arms it too, which is what covers main()'s own exit path
+ * where diablo_quit is not involved; on the diablo_quit path that second call is a no-op.
+ */
 void ArmShutdownWatchdog(uint32_t timeoutMs = 5000);
 
 } // namespace devilution::oracool

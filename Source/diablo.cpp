@@ -3205,6 +3205,27 @@ bool StartGame(bool bNewGame, bool bSinglePlayer)
 
 void diablo_quit(int exitStatus)
 {
+	// ARMED HERE, at the top of the exit path, and not only inside DiabloDeinit (user, 2026-09-02:
+	// three more windowless processes, and it is now most sessions).
+	//
+	// What the evidence says. A zombie still holds oracool.mpq open, which means init_cleanup() -
+	// inside DiabloDeinit - never ran. And the watchdog never fired, which means it was never armed,
+	// because arming is DiabloDeinit's first statement. Both are true only if the process stalls
+	// BEFORE DiabloDeinit is called at all: in SaveOnExit, FreeGameMem or music_stop, the three
+	// things this function does first. Its CPU is frozen rather than spinning, so it is blocked on
+	// something, not looping.
+	//
+	// SaveOnExit is the one that touches the disk, and this tree is OneDrive-synced - a sync worker
+	// holding a save file has already cost three failed archive writes this week. That is the
+	// leading suspect and it is NOT proven, which is exactly why the fix is a bound rather than a
+	// change to SaveOnExit: whatever stalls on the way out, the process now leaves.
+	//
+	// TWENTY seconds, not the usual five. This arming happens before the character is written, and a
+	// watchdog that killed a legitimately slow save would trade a stuck process for a lost hero. The
+	// hero file is under a megabyte; twenty seconds is far beyond any honest write and still bounded.
+	// First arming wins, so this timeout governs and DiabloDeinit's own call becomes a no-op.
+	oracool::ArmShutdownWatchdog(20000);
+
 	// Oracool (audit, 2026-08-26): closing the window is a way of leaving the game, and it used to
 	// be the one way that saved nothing. SDL_WINDOWEVENT_CLOSE lands here and this function went
 	// straight to exit(), so a single-player character who clicked the X lost everything since the
