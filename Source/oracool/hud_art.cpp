@@ -924,26 +924,15 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
 }
 
-void DrawSidePanelBackdrop(const Surface &out, Point origin)
-{
-	// The three numbers, together, because they were arrived at together against the artwork - see
-	// the header. Not derived from SidePanelArt's dimensions: the opening is a property of what the
-	// frame LOOKS like, not of the bitmap's size, and a measured constant that says so is honester
-	// than an expression that pretends the frame width is computable.
-	// Re-measured against the panel delivered on 2026-09-02, whose frame is HALF the old one's: the
-	// gold band ends at x=10 rather than x=20, and the stone starts at y=18. Left as they were, the
-	// old numbers left a ten-pixel strip of undimmed stone down each side of every window - the
-	// exact failure the header warns about, so the warning gets honoured rather than quoted.
-	//
-	// The bottom stop is NOT re-measured and is deliberately still 90px short. That number was
-	// chosen by eye against what the windows draw down there, not against the frame, so it is the
-	// one of the three that the recut does not speak to.
-	constexpr Size BackdropSize { 320, 612 };
-	constexpr Point BackdropOffset { 10, 18 };
-
-	DrawHalfTransparentRectTo(out, origin.x + BackdropOffset.x, origin.y + BackdropOffset.y,
-	    BackdropSize.width, BackdropSize.height, 0);
-}
+// DrawSidePanelBackdrop is gone (user, 2026-09-02: "remove the dark transparent rectangle from all
+// canvases, which we used with the limestone background"). It dimmed the inner opening on all six
+// windows, and it existed because the OLD limestone was light enough to fight the text laid over it.
+// The stone delivered on 2026-09-02 is dark already, so the screen was subtracting from art that no
+// longer needs it.
+//
+// Deleted rather than left parked: it dimmed a rect measured against one particular frame, so a
+// future caller would be drawing a retired artwork's opening onto whatever panel is current. It had
+// already been re-measured once, hours earlier, for exactly that reason.
 
 bool HasSidePanelArt()
 {

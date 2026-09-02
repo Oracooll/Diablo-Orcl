@@ -1749,7 +1749,6 @@ void DrawSpellBook(const Surface &out)
 	// header framing, so the separator was a second line drawn across the first.
 	if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, panel.position);
-		oracool::DrawSidePanelBackdrop(out, panel.position);
 	} else {
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);

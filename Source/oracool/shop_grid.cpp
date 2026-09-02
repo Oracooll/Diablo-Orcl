@@ -779,7 +779,6 @@ void DrawShopGrid(const Surface &out)
 	const Rectangle panel = GetShopPanelRect();
 	if (HasSidePanelArt()) {
 		DrawSidePanelArt(out, panel.position);
-		DrawSidePanelBackdrop(out, panel.position);
 	} else {
 		DrawThemedFill(out, panel);
 		DrawOrnateBorder(out, panel);

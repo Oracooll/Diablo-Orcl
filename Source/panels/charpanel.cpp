@@ -1160,11 +1160,6 @@ void DrawChr(const Surface &out)
 		oracool::DrawOrnateBorder(out, panel);
 	}
 
-	// The shared limestone backdrop. Started here as an experiment and moved into hud_art when the
-	// user asked for it on every panel - the three numbers live there now, once, beside the artwork
-	// they were measured against.
-	oracool::DrawSidePanelBackdrop(out, panel.position);
-
 	const Rectangle labelArea { { panel.position.x + CharPanelMargin, panel.position.y + oracool::PanelTitleTop },
 		{ panel.size.width - 2 * CharPanelMargin, oracool::PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, _("CHARACTER"), labelArea,

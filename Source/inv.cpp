@@ -1802,7 +1802,6 @@ void DrawInv(const Surface &out)
 	// stays as the middle rung rather than being deleted.
 	if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, invPanel.position);
-		oracool::DrawSidePanelBackdrop(out, invPanel.position);
 	} else if (oracool::HasInventoryPanelArt()) {
 		oracool::DrawInventoryPanelArt(out);
 	} else {

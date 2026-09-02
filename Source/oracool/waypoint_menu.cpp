@@ -309,7 +309,6 @@ void DrawWaypointMenu(const Surface &out)
 	// The half-transparent fill and bevel stay as the fallback, so the art is droppable.
 	if (HasSidePanelArt()) {
 		DrawSidePanelArt(out, panel.position);
-		DrawSidePanelBackdrop(out, panel.position);
 	} else {
 		DrawHalfTransparentRectTo(out, panel.position.x, panel.position.y, panel.size.width, panel.size.height);
 		DrawOrnateBorder(out, panel);
