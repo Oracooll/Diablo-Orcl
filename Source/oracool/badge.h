@@ -31,8 +31,12 @@
 
 namespace devilution::oracool {
 
-/** @brief Where on the host rect a badge sits. The corners are the hotkey positions; BottomCentre
- * is the rank band the skill picker uses. */
+/** @brief Where on the host rect a badge sits.
+ *
+ * The two TOP corners are the hotkey positions - left for the left button, right for the right -
+ * and BottomRight is the rank, everywhere a rank is shown (user, 2026-09-02: "move skell level
+ * badges to botom right corner of icons"). BottomLeft and BottomCentre are unused as of that change;
+ * BottomCentre is where the rank sat between 2026-08-20 and then. */
 enum class BadgeCorner : uint8_t {
 	TopLeft,
 	TopRight,

@@ -377,5 +377,55 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, StashRoundTripsTieredItem)
 	ASSERT_EQ(Stash.stashList[0]._iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot);
 }
 
+/**
+ * The hotkey chunk is a FALLBACK, not the truth (user, 2026-09-02: "make hotkeys remembered over
+ * games. i dont want to set hotkeys every new game. this is PER CHARACTER setting.").
+ *
+ * It lives in the game save, which V1 never continues from, so what it holds is whichever session
+ * last wrote it. The bindings themselves ride the hero file - HeroChunkSpellHotkeys and friends -
+ * and ApplyHeroChunks has already put them in the player by the time LoadHotkeys runs. Vanilla's
+ * version cleared the array before reading, which threw those away and refilled from the stale
+ * chunk; every new game the F-keys came back as some older set.
+ *
+ * Both halves of the new rule are asserted, because dropping the second would look like a fix and
+ * would silently retire the chunk instead: a slot the hero file filled keeps what it has, and a slot
+ * it left empty still takes what the chunk offers.
+ */
+TEST_F(LoadSaveOracoolItemExtensionsTest, LoadHotkeysFillsEmptySlotsWithoutOverwritingTheHeroFiles)
+{
+	_uiheroinfo info {};
+	info.heroclass = HeroClass::Warrior;
+	ASSERT_TRUE(pfile_ui_save_create(&info));
+
+	Player &player = Players[0];
+	MyPlayer = &player;
+
+	// An earlier session's game save: two bindings, written exactly as SaveGame writes them.
+	std::fill(player._pSplHotKey, player._pSplHotKey + NumHotkeys, SpellID::Invalid);
+	std::fill(player._pSplTHotKey, player._pSplTHotKey + NumHotkeys, SpellType::Invalid);
+	player._pSplHotKey[0] = SpellID::Firebolt;
+	player._pSplTHotKey[0] = SpellType::Spell;
+	player._pSplHotKey[1] = SpellID::Healing;
+	player._pSplTHotKey[1] = SpellType::Spell;
+	{
+		SaveWriter writer(paths::PrefPath() + "single_0.sv");
+		SaveHotkeys(writer, player);
+	}
+
+	// This session, after the hero file has been applied: slot 0 is bound to something else, slot 1
+	// is empty.
+	player._pSplHotKey[0] = SpellID::Flash;
+	player._pSplTHotKey[0] = SpellType::Spell;
+	player._pSplHotKey[1] = SpellID::Invalid;
+	player._pSplTHotKey[1] = SpellType::Invalid;
+
+	LoadHotkeys();
+
+	EXPECT_EQ(player._pSplHotKey[0], SpellID::Flash)
+	    << "the game save overwrote a binding the hero file had already restored - the reported bug";
+	EXPECT_EQ(player._pSplHotKey[1], SpellID::Healing)
+	    << "an empty slot did not take the game save's binding, so the chunk is being ignored rather than used as a fallback";
+}
+
 } // namespace
 } // namespace devilution

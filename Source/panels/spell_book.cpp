@@ -36,6 +36,7 @@
 #include "utils/display.h"
 #include "utils/language.h"
 #include "utils/stdcompat/optional.hpp"
+#include "utils/str_cat.hpp"
 
 namespace devilution {
 
@@ -831,52 +832,14 @@ int RowTextX()
 	return AbilitiesIconX + RowIconColumnWidth() + AbilitiesTextGap;
 }
 
-/**
- * @brief The colour-coded ring saying which mouse button an ability is readied on.
- *
- * Oracool: user request (2026-08-15) - "We need RED outline on a skill/spell when it is used in LMB,
- * just like we need the existing YELLOW outline to inform us a skill/spell is assigned to RMB. These
- * color code outlines to work across all ability sheets."
- *
- * Both rings are the SAME rect and the same weight - the icon's own edge (user request,
- * 2026-08-15: "make RED outline of skills same size as Yellow outline"). The first version nested
- * them, red inside yellow, which made the left button's marker visibly the lesser of the two when
- * the buttons are equals.
- *
- * That leaves the case where one ability is readied on both buttons, and one rect cannot be two
- * colours. It is split by EDGE instead: "If both outlines end up on the same skill/spell - RED take
- * left and top edges, YELLOW take right and bottom edges." One square, read as two halves.
- *
- * @p iconRect is the icon's own top-left rect, which is why this takes a rect rather than a row: the
- * three row kinds anchor their icons differently and only they know where theirs ended up.
- */
-void DrawAssignmentRings(const Surface &content, Rectangle iconRect, SpellID sn, SpellType st)
-{
-	if (IsInspectingPlayer())
-		return;
-	const Player &player = *InspectPlayer;
-
-	// The gold the readied-spell border has used since the spellbook had one, and its counterpart on
-	// the red ramp - PAL8_RED sits beside PAL8_YELLOW in the palette, so the two read as a pair.
-	constexpr uint8_t RightButtonColor = PAL8_YELLOW + 2;
-	constexpr uint8_t LeftButtonColor = PAL8_RED + 2;
-	// 2px: thick enough to read against a busy icon, and the weight the single yellow border had
-	// before there were two of them.
-	constexpr int RingWeight = 2;
-
-	const bool right = sn == player._pRSpell && st == player._pRSplType;
-	const bool left = sn == player._pLRSpell && st == player._pLRSplType;
-	if (!right && !left)
-		return;
-
-	// When only one button holds it, both halves get that button's colour and the result is a plain
-	// square - so a single assignment looks the same whichever button it is on, which is the whole
-	// point of the two markers being the same size now.
-	oracool::DrawSplitOutline(content, iconRect,
-	    left ? LeftButtonColor : RightButtonColor,
-	    right ? RightButtonColor : LeftButtonColor,
-	    RingWeight);
-}
+// The assignment rings are GONE (user, 2026-09-02: "remove red and yellow outlines from abilities
+// windows"). They were the 2026-08-15 request - a red ring for the left button, yellow for the
+// right, split by edge when one ability wore both - and they have been redundant since the badges
+// took over that job: the F-key badge already says which button holds an ability, in the corner
+// convention the rings themselves established (top-left for the left button, top-right for the
+// right). Two markers saying one thing, and the louder of the two was the one that fought the art.
+//
+// oracool::DrawSplitOutline stays: the stash still draws its weighted edge with it.
 
 // The spend controls are gone entirely (user, 2026-08-20). First the right-edge "+N" group
 // went (2026-08-19), then the corner glyphs that replaced it: left click invests and right
@@ -912,7 +875,6 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	DrawSmallSpellIconFittedTo(content, iconRect,
 	    oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
 	if (known) {
-		DrawAssignmentRings(content, iconRect, sn, GetSBookTrans(sn, true));
 		DrawFKeyBadge(content, iconRect, sn);
 	}
 
@@ -944,12 +906,14 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 		return;
 	const Player &me = *MyPlayer;
 	const int invested = me._pSkillInvestment[static_cast<size_t>(sn)];
-	if (invested > 0) {
-		DrawString(content, fmt::format("{:d}", invested),
-		    { { iconRect.position.x + SpendBoxSize, iconRect.position.y + SheetIconSize - SpendBoxSize },
-		        { SheetIconSize - 2 * SpendBoxSize, SpendBoxSize } },
-		    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
+	// The rank badge, bottom-RIGHT and on a plate (user, 2026-09-02: "move skell level badges to
+	// botom right corner of icons and put a dark semi-transparent backing behind them everywhere
+	// badges exist, including abilities window"). It was bare whitegold text laid across the icon's
+	// bottom edge - the last badge in the game still solving legibility its own way, and the one
+	// most often over a bright plate. The corner keeps it clear of the F-key badges, which own the
+	// two top ones. See oracool/badge.h.
+	if (invested > 0)
+		oracool::DrawBadge(content, iconRect, oracool::BadgeCorner::BottomRight, StrCat(invested));
 	// No spend controls of any kind on this sheet. A spell's level comes from its books and its
 	// items; there has been nothing to spend here since the 2026-08-20 rule, so there is nothing to
 	// draw either.
@@ -1092,13 +1056,13 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		if (oracool::GetActiveClassAura(player) == skill)
 			oracool::DrawHoverOutline(content, icon);
 	} else if (const SpellID slot = oracool::ClassTreeSpellId(skill); IsValidSpell(slot)) {
-		DrawAssignmentRings(content, icon, slot, GetSBookTrans(slot, true));
 		DrawFKeyBadge(content, icon, slot);
 	}
 
-	// The rank counter stays where it is (user, 2026-08-20: "We leave the skill level indicator
-	// where it is for now") - the icon's bottom edge, between where the two spend glyphs used to
-	// sit.
+	// The rank badge, bottom-right on a dark plate (user, 2026-09-02), where it used to be bare
+	// whitegold text along the icon's bottom edge, in the gap the two spend glyphs left behind when
+	// they went in 2026-08-20. Same badge, same corner, same plate as the quick lists, the wells and
+	// the sheet rows - which is the whole of the request.
 	if (IsInspectingPlayer())
 		return;
 	const Player &me = *MyPlayer;
@@ -1107,10 +1071,12 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		// LOCKED cell precisely because the tier no longer answers that question - three cells share
 		// a row and open two levels apart.
 		if (!unlocked) {
-			DrawString(content, fmt::format("{:d}", oracool::PassiveSkillRequiredLevel(skill)),
-			    { { icon.position.x, icon.position.y + TreeIconSize - SpendBoxSize },
-			        { TreeIconSize, SpendBoxSize } },
-			    { UiFlags::ColorRed | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+			// On the plate like every other number stuck to an icon, and it gives up its red to get
+			// there - the badge template is white on dark, always (oracool/badge.h). Nothing is lost:
+			// a locked cell is already drawn grey and struck through where it applies, so the red was
+			// restating the state rather than carrying it.
+			oracool::DrawBadge(content, icon, oracool::BadgeCorner::BottomRight,
+			    StrCat(oracool::PassiveSkillRequiredLevel(skill)));
 		} else if (ArmedPassiveSlot >= 0) {
 			// A slot is waiting: light every passive that could go into it, so the second half of
 			// the gesture has somewhere obvious to land.
@@ -1119,12 +1085,8 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 		}
 		return;
 	}
-	if (invested > 0) {
-		DrawString(content, fmt::format("{:d}", invested),
-		    { { icon.position.x + SpendBoxSize, icon.position.y + TreeIconSize - SpendBoxSize },
-		        { TreeIconSize - 2 * SpendBoxSize, SpendBoxSize } },
-		    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
+	if (invested > 0)
+		oracool::DrawBadge(content, icon, oracool::BadgeCorner::BottomRight, StrCat(invested));
 	// The green plus and red minus are GONE (user, 2026-08-20: "We remover the + and - symbols.
 	// Skills eligible for bump just lit brighter than the rest").
 	//

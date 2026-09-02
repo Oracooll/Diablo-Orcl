@@ -2560,9 +2560,21 @@ void LoadHotkeys()
 	Player &myPlayer = *MyPlayer;
 	size_t nHotkeys = 4; // Defaults to old save format number
 
-	// Refill the spell arrays with no selection
-	std::fill(myPlayer._pSplHotKey, myPlayer._pSplHotKey + NumHotkeys, SpellID::Invalid);
-	std::fill(myPlayer._pSplTHotKey, myPlayer._pSplTHotKey + NumHotkeys, SpellType::Invalid);
+	// THE FILL IS GONE (user, 2026-09-02: "make hotkeys remembered over games. i dont want to set
+	// hotkeys every new game. this is PER CHARACTER setting.").
+	//
+	// It is vanilla's, and vanilla is right about it: there, this chunk is the only record of the
+	// bindings, so clearing the array before reading it is just how you load an array. This fork
+	// carries them in the HERO file instead - HeroChunkSpellHotkeys, its Left counterpart and
+	// HeroChunkAuraHotkeys, all three applied by ApplyHeroChunks before this function runs - and
+	// against that the fill is destructive: it wiped the bindings the hero file had just supplied
+	// and then refilled them from the GAME save, which V1 never continues from and which therefore
+	// holds whichever session last happened to write it. Every new game the F-keys came back as some
+	// older set, or as nothing.
+	//
+	// So this chunk is now a FALLBACK rather than the truth, exactly like the readied pair below: it
+	// fills slots the hero file left empty and overwrites none that it filled. Same reasoning, same
+	// session, same bug - see the note on the readied spell further down.
 
 	// Checking if the save file has the old format with only 4 hotkeys and no header
 	if (file.IsValid(HotkeysSize(nHotkeys))) {
@@ -2570,11 +2582,18 @@ void LoadHotkeys()
 		nHotkeys = file.NextLE<uint8_t>();
 	}
 
-	// Read all hotkeys in the file
+	// Read all hotkeys in the file. Buffered rather than written straight into the player, because
+	// the spells and their types arrive in two separate runs and a slot has to be judged on the pair:
+	// applying the spell in the first loop would commit to a binding whose type has not been read
+	// yet, and the second loop would then have to remember which slots the first one took.
+	SpellID savedSpell[NumHotkeys];
+	SpellType savedType[NumHotkeys];
+	std::fill(std::begin(savedSpell), std::end(savedSpell), SpellID::Invalid);
+	std::fill(std::begin(savedType), std::end(savedType), SpellType::Invalid);
 	for (size_t i = 0; i < nHotkeys; i++) {
 		// Do not load hotkeys past the size of the spell types array, discard the rest
 		if (i < NumHotkeys) {
-			myPlayer._pSplHotKey[i] = static_cast<SpellID>(file.NextLE<int32_t>());
+			savedSpell[i] = static_cast<SpellID>(file.NextLE<int32_t>());
 		} else {
 			file.Skip<int32_t>();
 		}
@@ -2582,10 +2601,17 @@ void LoadHotkeys()
 	for (size_t i = 0; i < nHotkeys; i++) {
 		// Do not load hotkeys past the size of the spells array, discard the rest
 		if (i < NumHotkeys) {
-			myPlayer._pSplTHotKey[i] = static_cast<SpellType>(file.NextLE<uint8_t>());
+			savedType[i] = static_cast<SpellType>(file.NextLE<uint8_t>());
 		} else {
 			file.Skip<uint8_t>();
 		}
+	}
+	for (size_t i = 0; i < NumHotkeys; i++) {
+		// An empty slot takes the offer; a bound one keeps what the hero file gave it.
+		if (IsValidSpell(myPlayer._pSplHotKey[i]) || !IsValidSpell(savedSpell[i]))
+			continue;
+		myPlayer._pSplHotKey[i] = savedSpell[i];
+		myPlayer._pSplTHotKey[i] = savedType[i];
 	}
 
 	// Load the selected spell last.

@@ -441,10 +441,11 @@ void DrawSkillPicker(const Surface &out)
 				break;
 			}
 
-			// The rank, bottom-centre (user, 2026-08-20). Drawn over the icon's own art rather than
-			// beside it, because the cell is 38px and a band outside it would cost a row.
+			// The rank, bottom-RIGHT since 2026-09-02 (it was bottom-centre from 2026-08-20). Drawn
+			// over the icon's own art rather than beside it, because the cell is 38px and a band
+			// outside it would cost a row.
 			if (const int level = EntryLevel(player, entry); level > 0)
-				DrawBadge(out, cell, BadgeCorner::BottomCentre, StrCat(level));
+				DrawBadge(out, cell, BadgeCorner::BottomRight, StrCat(level));
 
 			// The F-key badge, top-right, for THIS list's button only - the Abilities window shows
 			// both buttons in its two corners, but a quick list binds one button and showing the

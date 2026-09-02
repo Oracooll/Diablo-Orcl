@@ -107,7 +107,7 @@ void DrawWellBadges(const Surface &out, Rectangle net, SpellID spell, bool leftB
     string_view hotkeyFallback)
 {
 	if (const int rank = WellRank(*MyPlayer, spell); rank > 0)
-		DrawBadge(out, net, BadgeCorner::BottomCentre, StrCat(rank));
+		DrawBadge(out, net, BadgeCorner::BottomRight, StrCat(rank));
 
 	// F1-F8 first, from the arrays those keys actually read, and only then the caller's name for the
 	// keymapper rows past them. Not the other way round: the reserved keys are a constant of the code
@@ -221,7 +221,7 @@ void DrawRmbSkillWell(const Surface &out)
 		// toggle, not a cast - so neither the rank lookup nor the F-key lookup there can find it.
 		// It has one binding whichever list lit it, hence GetAuraFKeyNumber's missing side argument.
 		if (const int rank = ClassTreeInvestment(*MyPlayer, aura); rank > 0)
-			DrawBadge(out, net, BadgeCorner::BottomCentre, StrCat(rank));
+			DrawBadge(out, net, BadgeCorner::BottomRight, StrCat(rank));
 		if (const int fkey = GetAuraFKeyNumber(aura); fkey != 0)
 			DrawBadge(out, net, BadgeCorner::TopRight, StrCat("F", fkey));
 		return;
