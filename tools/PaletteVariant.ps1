@@ -10,6 +10,22 @@
   variant palette never fights LoadPalette's in-game green injection, and skips index 0 (unused /
   transparency by convention).
 
+.NOTES
+  ITS OUTPUT IS A DERIVATIVE OF BLIZZARD'S DATA, so it must not be committed into
+  Packaging/resources/oracool_assets - everything in that folder is packed into oracool.mpq and
+  shipped. The input is a palette out of the user's own diabdat.mpq; a recolour of it is still made
+  from it, however many bytes changed.
+
+  This bit once: sunless_1.pal, the Sunless Vault's palette, was committed there at v1.7.27 and
+  shipped in every archive built afterwards. It was removed at v1.9.159, having never been loaded -
+  the zone that would have declared it was never added, so every ZoneDefinition's paletteOverride is
+  still nullptr. Regenerate it when that zone is actually built:
+
+    .\PaletteVariant.ps1 -In <your diabdat l1_1.pal> -Out sunless_1.pal `
+        -TintR 110 -TintG 140 -TintB 190 -Strength 42 -Brightness 88
+
+  and keep the result out of the shipping tree until the licensing question is answered.
+
 .EXAMPLE
   # A frost variant of the Cathedral's first palette: pull every colour 45% toward steel blue.
   .\PaletteVariant.ps1 -In l1_1.pal -Out l1_frost.pal -TintR 110 -TintG 140 -TintB 190 -Strength 45
