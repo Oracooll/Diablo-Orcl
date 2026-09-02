@@ -8663,3 +8663,90 @@ TEST(OracoolAudit, APlainPressUsesALeftHandBinding)
 	player._pSplLTHotKey[0] = SpellType::Invalid;
 }
 
+
+// User, 2026-09-02: "hotkeys remembered now only on rmb. lmb still forgets hotkeys."
+//
+// Diagnostic first, regression test second. Both arrays are written and read by the same chunk code,
+// one tag apart, so if the LEFT one does not survive a round trip the fault is in that code; if it
+// does, the fault is downstream and this test says so by passing.
+TEST(OracoolAudit, ALeftHandHotkeySurvivesTheChunkRoundTrip)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+	player._pMemSpells |= GetSpellBitmask(SpellID::Firebolt);
+	player._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 3;
+
+	player._pSplLHotKey[1] = SpellID::Firebolt;
+	player._pSplLTHotKey[1] = SpellType::Spell;
+	player._pSplHotKey[2] = SpellID::Firebolt;
+	player._pSplTHotKey[2] = SpellType::Spell;
+
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(player);
+
+	devilution::Player &loaded = Players[0];
+	loaded = {};
+	loaded._pClass = HeroClass::Warrior;
+	loaded._pLevel = 30;
+	loaded._pMemSpells |= GetSpellBitmask(SpellID::Firebolt);
+	loaded._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 3;
+	oracool::ApplyHeroChunks(loaded, tail.data(), tail.size());
+
+	EXPECT_EQ(loaded._pSplHotKey[2], SpellID::Firebolt) << "the right button's binding did not survive";
+	EXPECT_EQ(loaded._pSplLHotKey[1], SpellID::Firebolt) << "the left button's binding did not survive";
+	EXPECT_EQ(loaded._pSplLTHotKey[1], SpellType::Spell) << "the left binding came back with no type";
+}
+
+// The half the test above does not reach, and the actual defect behind "hotkeys remembered now only
+// on rmb. lmb still forgets hotkeys" (user, 2026-09-02).
+//
+// A binding on a CLASS-TREE skill is validated on the way in - UnpackReadiedSpell asks
+// ReadiedSpellType, which asks _pAblSpells - and inside ApplyHeroChunks that mask is still the one
+// UnPackPlayer computed, from before the tree investments arrived in the tail. So the skill is not
+// yet known, the binding is refused, and both buttons lose it. The right button did not LOOK broken
+// only because LoadHotkeys re-supplies its array from the game save, unvalidated; the left button has
+// no such second source, which is the whole of the asymmetry.
+TEST(OracoolAudit, AHotkeyOnATreeSkillSurvivesTheChunkRoundTrip)
+{
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true; // the fork's own SpellIDs sit above LastDiablo - see IsValidSpell
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior; // the Paladin's slot in this fork
+	player._pLevel = 30;
+
+	const auto zeal = static_cast<size_t>(SpellID::Zeal);
+	player._pSkillInvestment[zeal] = 5;
+	oracool::RefreshInnateSpells(player);
+	ASSERT_NE(player._pAblSpells & GetSpellBitmask(SpellID::Zeal), 0u)
+	    << "test setup: this character does not know Zeal, so nothing below is about hotkeys";
+
+	player._pSplLHotKey[1] = SpellID::Zeal;
+	player._pSplLTHotKey[1] = SpellType::Skill;
+	player._pSplHotKey[2] = SpellID::Zeal;
+	player._pSplTHotKey[2] = SpellType::Skill;
+
+	const std::vector<uint8_t> tail = oracool::BuildHeroChunkTail(player);
+
+	// Loaded the way pfile_read_player_from_save loads: the fixed struct first, which knows nothing
+	// of the tree, and then the tail. _pAblSpells is deliberately left empty here, because that is
+	// exactly the state UnPackPlayer leaves it in.
+	devilution::Player &loaded = Players[0];
+	loaded = {};
+	loaded._pClass = HeroClass::Warrior;
+	loaded._pLevel = 30;
+	oracool::ApplyHeroChunks(loaded, tail.data(), tail.size());
+
+	EXPECT_EQ(loaded._pSplLHotKey[1], SpellID::Zeal)
+	    << "the left button's binding on a tree skill was dropped by the load - the reported bug";
+	EXPECT_EQ(loaded._pSplHotKey[2], SpellID::Zeal)
+	    << "the right button's binding was dropped too; it only looked intact because the game save put it back";
+
+	gbIsHellfire = savedHellfire;
+}

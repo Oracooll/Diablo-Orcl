@@ -1,5 +1,6 @@
 #include "oracool/hero_chunks.h"
 
+#include "oracool/class_skills.h" // RefreshInnateSpells - the tail is what makes a tree skill known
 #include "oracool/class_tree.h"
 #include "oracool/signets.h"
 
@@ -250,6 +251,32 @@ void ApplyWaypoints64(Player &player, const uint8_t *payload, size_t len)
 	}
 }
 
+/**
+ * @brief One button's F-key bindings, from a chunk payload already lifted out of the tail.
+ *
+ * Takes the arrays rather than a "left" flag: the two buttons differ in nothing but which pair of
+ * arrays they write, and a flag would be a second place to get that pairing wrong.
+ *
+ * UnpackReadiedSpell leaves both outputs untouched on an empty byte, so an unbound slot stays exactly
+ * as the fixed struct left it, and it drops a binding the character cannot cast - which is only the
+ * right answer if the caller has established what the character CAN cast first. See the call site.
+ */
+void ApplyPackedHotkeys(Player &player, const std::vector<uint8_t> &packed, SpellID *keys, SpellType *types)
+{
+	if (packed.empty())
+		return;
+	const size_t count = std::min<size_t>({ packed[0], packed.size() - 1, AbilityFKeyCount });
+	for (size_t i = 0; i < count; i++) {
+		SpellID spell = SpellID::Invalid;
+		SpellType type = SpellType::Invalid;
+		UnpackReadiedSpell(player, packed[1 + i], spell, type);
+		if (IsValidSpell(spell)) {
+			keys[i] = spell;
+			types[i] = type;
+		}
+	}
+}
+
 } // namespace
 
 std::vector<uint8_t> BuildHeroChunkTail(const Player &player)
@@ -421,6 +448,11 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 		offset += size_t { 6 } + chunkLen;
 	}
 
+	// The F-key bindings are settled after the walk too, and for a sharper reason than the aura's -
+	// see the decode below.
+	std::vector<uint8_t> packedRightHotkeys;
+	std::vector<uint8_t> packedLeftHotkeys;
+
 	// The aura is settled after the walk, not during it - see HeroChunkActiveAura below.
 	uint16_t legacyAura = 0;
 	bool sawLegacyAura = false;
@@ -528,36 +560,13 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 				}
 			}
 			break;
+		// Both hotkey chunks are only COPIED here and decoded after the walk. See the note at the
+		// decode for why, and what it cost.
 		case HeroChunkSpellHotkeysLeft:
-			if (chunkLen >= 1) {
-				const size_t count = std::min<size_t>({ payload[0], chunkLen - 1, AbilityFKeyCount });
-				for (size_t i = 0; i < count; i++) {
-					SpellID spell = SpellID::Invalid;
-					SpellType type = SpellType::Invalid;
-					UnpackReadiedSpell(player, payload[1 + i], spell, type);
-					if (IsValidSpell(spell)) {
-						player._pSplLHotKey[i] = spell;
-						player._pSplLTHotKey[i] = type;
-					}
-				}
-			}
+			packedLeftHotkeys.assign(payload, payload + chunkLen);
 			break;
 		case HeroChunkSpellHotkeys:
-			if (chunkLen >= 1) {
-				const size_t count = std::min<size_t>({ payload[0], chunkLen - 1, AbilityFKeyCount });
-				for (size_t i = 0; i < count; i++) {
-					// UnpackReadiedSpell leaves both outputs untouched on an empty byte, so an
-					// unbound slot stays exactly as the fixed struct left it. The TYPE is re-derived
-					// from the spell masks, which ApplyHeroChunks' caller has already loaded.
-					SpellID spell = SpellID::Invalid;
-					SpellType type = SpellType::Invalid;
-					UnpackReadiedSpell(player, payload[1 + i], spell, type);
-					if (IsValidSpell(spell)) {
-						player._pSplHotKey[i] = spell;
-						player._pSplTHotKey[i] = type;
-					}
-				}
-			}
+			packedRightHotkeys.assign(payload, payload + chunkLen);
 			break;
 		default:
 			// An unknown tag is a chunk from a newer build - skipped, by design.
@@ -579,6 +588,32 @@ void ApplyHeroChunks(Player &player, const uint8_t *data, size_t len)
 			// or to no row at all, is dropped exactly as the other two paths drop it.
 			ApplyCurrentAbsoluteAura(player, currentAura);
 		}
+	}
+
+	// THE F-KEY BINDINGS, decoded last (user, 2026-09-02: "hotkeys remembered now only on rmb. lmb
+	// still forgets hotkeys").
+	//
+	// A binding is stored as a spell id and validated on the way back in: UnpackReadiedSpell asks
+	// ReadiedSpellType, which asks _pAblSpells, and drops a binding on a spell the character does not
+	// have - which is right, because the alternative is a key that fires nothing. But decoded inside
+	// the walk, that mask is still the one UnPackPlayer computed, from BEFORE the tail arrived, and
+	// the tail is what carries the tree investments. So every hotkey on a class-tree skill was
+	// refused: the character did not know Zeal yet at the moment its Zeal binding was being read.
+	//
+	// It looked like a left-button bug because only the right button had a second source. LoadHotkeys
+	// re-supplies _pSplHotKey from the game save without validating anything, so the right button's
+	// bindings reappeared and the left button's - which have no such fallback - did not.
+	//
+	// RefreshInnateSpells first, then decode. Deliberately not "move the decode after the ClassTree
+	// case", which would work only for as long as the tail's chunk ORDER holds; buffering makes the
+	// two independent, and the tags may be written in any order by design.
+	//
+	// This is the same fault the readied pair had at pfile.cpp, fixed there the same way on
+	// 2026-08-31. Two stores, one mask, one ordering mistake, found twice.
+	if (!packedRightHotkeys.empty() || !packedLeftHotkeys.empty()) {
+		RefreshInnateSpells(player);
+		ApplyPackedHotkeys(player, packedRightHotkeys, player._pSplHotKey, player._pSplTHotKey);
+		ApplyPackedHotkeys(player, packedLeftHotkeys, player._pSplLHotKey, player._pSplLTHotKey);
 	}
 
 	// AFTER every chunk, because it reads _pSkillInvestment and _pUnspentSkillPoints, and the
