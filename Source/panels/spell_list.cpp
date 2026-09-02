@@ -216,13 +216,17 @@ void DrawSpell(const Surface &out)
 		DrawSmallSpellIconFittedTo(out, net, spl);
 	}
 
-	std::optional<string_view> hotkeyName = GetHotkeyName(spl, myPlayer._pRSplType, true);
-	if (hotkeyName) {
-		// The HUD well, which is the badge that most needed the plate: it sits over whatever skill
-		// art is readied, and the well's own art is light. PrintSBookHotkey aligns against the 56px
-		// large icon; this slot is the net rect, so the badge takes that rect directly.
-		oracool::DrawBadge(out, net, oracool::BadgeCorner::TopRight, *hotkeyName);
-	}
+	// The HUD well's badges: the rank bottom-centre and the F-key top-right, the same pair the quick
+	// lists and the Abilities window put on the same icon (user, 2026-09-02). This path draws the
+	// right button's well ITSELF whenever a spell is readied - DrawRmbSkillWell only gets the empty
+	// and aura cases - so the shared helper has to be called here too, or the badges would appear on
+	// a lit aura and vanish the moment a skill was readied over it.
+	//
+	// GetHotkeyName goes in as the fallback: it also reads the vanilla QuickSpell9-12 slots, which
+	// have keymapper names rather than fixed F-numbers and which DrawWellBadges cannot name.
+	const std::optional<string_view> hotkeyName = GetHotkeyName(spl, myPlayer._pRSplType, true);
+	oracool::DrawWellBadges(out, net, spl, /*leftButton=*/false,
+	    hotkeyName ? *hotkeyName : string_view {});
 }
 
 // DrawRmbAuraBadge is gone (user, 2026-08-19: "whenever an aura lands on RMB a letter appears on top

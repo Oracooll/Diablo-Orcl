@@ -9,11 +9,14 @@
 #include "levels/gendung.h"
 #include "engine/backbuffer_state.hpp" // RedrawEverything
 #include "oracool/class_tree.h" // the lit aura takes the RMB well when nothing is readied
+#include "oracool/badge.h"
 #include "oracool/hud_art.h"
 #include "oracool/ornate_border.h" // DrawHoverOutline
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
+#include "panels/spell_book.hpp" // GetAbilityFKeyNumber, GetAuraFKeyNumber
 #include "utils/language.h"
+#include "utils/str_cat.hpp"
 
 namespace devilution::oracool {
 
@@ -79,7 +82,43 @@ Size WellIconSize()
 	return GetSmallSpellIconSize();
 }
 
+/**
+ * @brief What @p spell is worth to @p player, for the rank badge. Zero when it has no rank to show.
+ *
+ * Two stores, one question. A tree row's rank is the investment recorded against the row - which is
+ * why this asks ClassTreeSkillForSpell FIRST: a tree skill also has a Player::_pSplLvl entry, and it
+ * is not the number the tree pages, the quick lists or the tooltips report. Reading the wrong one
+ * would put a different rank on the well than on every other surface showing the same icon.
+ */
+int WellRank(const Player &player, SpellID spell)
+{
+	if (!IsValidSpell(spell))
+		return 0; // the basic attack, which has no rank - see the header on why it is Invalid
+	if (const ClassTreeSkill row = ClassTreeSkillForSpell(player._pClass, spell);
+	    row != ClassTreeSkill::None) {
+		return ClassTreeInvestment(player, row);
+	}
+	return player.GetSpellLevel(spell);
+}
+
 } // namespace
+
+void DrawWellBadges(const Surface &out, Rectangle net, SpellID spell, bool leftButton,
+    string_view hotkeyFallback)
+{
+	if (const int rank = WellRank(*MyPlayer, spell); rank > 0)
+		DrawBadge(out, net, BadgeCorner::BottomCentre, StrCat(rank));
+
+	// F1-F8 first, from the arrays those keys actually read, and only then the caller's name for the
+	// keymapper rows past them. Not the other way round: the reserved keys are a constant of the code
+	// now (they are intercepted before the keymapper ever sees them), so a settled ini carrying a
+	// stale QuickSpell row must never be able to overwrite the key that really fires.
+	if (const int fkey = GetAbilityFKeyNumber(spell, leftButton); fkey != 0) {
+		DrawBadge(out, net, BadgeCorner::TopRight, StrCat("F", fkey));
+	} else if (!hotkeyFallback.empty()) {
+		DrawBadge(out, net, BadgeCorner::TopRight, hotkeyFallback);
+	}
+}
 
 /**
  * @brief Draws @p spell's own icon in a well, or the basic-attack icon when nothing is assigned.
@@ -154,7 +193,12 @@ void DrawLmbSkillWell(const Surface &out)
 	// Always "active": a well shows what its button does right now, so there is no inactive state for
 	// it to render. The dimmed variant belongs to the Abilities window's row pair, where it says
 	// which of the two attacks is the one in your hands.
-	DrawWellIcon(out, GetLmbSkillWellNetRect(), MyPlayer->_pLRSpell, MyPlayer->_pLRSplType);
+	const Rectangle net = GetLmbSkillWellNetRect();
+	DrawWellIcon(out, net, MyPlayer->_pLRSpell, MyPlayer->_pLRSplType);
+	// The LEFT button's bindings, which live in their own array (user, 2026-09-02). No fallback name:
+	// only the RMB well inherited the vanilla QuickSpell9-12 rows, and those write the right button's
+	// hotkey array, so there is nothing here for a fallback to find.
+	DrawWellBadges(out, net, MyPlayer->_pLRSpell, /*leftButton=*/true);
 }
 
 // The quick-list strip and its state were removed here on 2026-08-30 - see the note in the header.
@@ -170,12 +214,22 @@ void DrawRmbSkillWell(const Surface &out)
 	//
 	// No coexistence to arbitrate: lighting an aura clears the readied skill and readying a skill
 	// puts the aura out, so at most one of them is ever here. See ClearClassAuraForRightButton.
+	const Rectangle net = GetRmbSkillWellNetRect();
 	if (const ClassTreeSkill aura = GetActiveClassAura(*MyPlayer); aura != ClassTreeSkill::None) {
-		DrawClassTreeSkillInWell(out, GetRmbSkillWellNetRect(), MyPlayer->_pClass,
-		    ClassTreeIconIndex(aura));
+		DrawClassTreeSkillInWell(out, net, MyPlayer->_pClass, ClassTreeIconIndex(aura));
+		// Badged by hand rather than through DrawWellBadges: an aura carries no SpellID - it is a
+		// toggle, not a cast - so neither the rank lookup nor the F-key lookup there can find it.
+		// It has one binding whichever list lit it, hence GetAuraFKeyNumber's missing side argument.
+		if (const int rank = ClassTreeInvestment(*MyPlayer, aura); rank > 0)
+			DrawBadge(out, net, BadgeCorner::BottomCentre, StrCat(rank));
+		if (const int fkey = GetAuraFKeyNumber(aura); fkey != 0)
+			DrawBadge(out, net, BadgeCorner::TopRight, StrCat("F", fkey));
 		return;
 	}
-	DrawWellIcon(out, GetRmbSkillWellNetRect(), MyPlayer->_pRSpell, MyPlayer->_pRSplType);
+	// Nothing readied is the basic attack, and the badges know it: DrawWellBadges finds no rank and
+	// no binding for SpellID::Invalid, so this draws the icon alone, exactly as it did before.
+	DrawWellIcon(out, net, MyPlayer->_pRSpell, MyPlayer->_pRSplType);
+	DrawWellBadges(out, net, MyPlayer->_pRSpell, /*leftButton=*/false);
 }
 
 } // namespace devilution::oracool

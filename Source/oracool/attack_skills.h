@@ -25,6 +25,7 @@
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
 #include "player.h"
+#include "utils/stdcompat/string_view.hpp"
 
 namespace devilution::oracool {
 
@@ -101,6 +102,30 @@ void DrawLmbSkillWell(const Surface &out);
 // Removed by audit rather than left parked. Nothing had called any of it since the picker shipped,
 // but it kept its own open/close state and its own click router, so a single stray call would have
 // put a second, unreachable popup on screen over the live one.
+
+/**
+ * @brief The two badges a well's occupant wears: its rank bottom-centre, its F-key top-right.
+ *
+ * User request (2026-09-02): "i want you to show skill badges also on well icons." The quick lists,
+ * the Abilities window and the speedbook all label an icon with what it is worth and what fires it;
+ * the wells - the two icons the player actually looks at while fighting - carried at most the F-key,
+ * and the LMB well carried nothing at all. Same corners, same plate, same font as everywhere else:
+ * see oracool/badge.h. The picker's cells are 38px like these wells, so the two match pixel for
+ * pixel and an icon does not change size or labelling as it moves from the list into the well.
+ *
+ * The RANK is the tree investment when the spell came from a tree row and the spell's own level
+ * otherwise - the same either/or the picker's EntryLevel makes, for the same reason: those are two
+ * separate stores and only one of them holds a number for any given icon.
+ *
+ * @param leftButton which button's bindings to search. The two have separate hotkey arrays, and
+ * asking the wrong one labels a well with a key that fires the other one.
+ * @param hotkeyFallback drawn top-right when the occupant holds none of F1-F8. A well can also be
+ * bound to the vanilla QuickSpell9-12 keymapper rows, which are named by the ini rather than by
+ * their slot number; the caller that already knows those names passes one here rather than this
+ * file learning to read the keymapper.
+ */
+void DrawWellBadges(const Surface &out, Rectangle net, SpellID spell, bool leftButton,
+    string_view hotkeyFallback = {});
 
 /**
  * @brief The RMB well's counterpart, drawn when no spell is readied - which IS the basic attack.
