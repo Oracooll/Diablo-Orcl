@@ -549,11 +549,15 @@ const CharRow CharRows[] = {
 	        // never shown, which is indistinguishable from not working when the sheet is how you
 	        // check.
 	        //
-	        // Read from ZealToHitBonus itself rather than recomputed here, so it carries that
-	        // function's own conditions with it: Paladin, past the unlock level, and Zeal actually
-	        // armed on a button. A sheet that showed it while the player had something else readied
-	        // would be a different lie.
-	        const int zeal = bow ? 0 : oracool::ZealToHitBonus(*InspectPlayer);
+	        // IsZealReadied, not ZealToHitBonus. The latter asks ArmedMeleeSkill(), a latch that
+	        // describes the swing currently being resolved - and standing in the character sheet
+	        // there is no swing, so it always answered zero and this row still showed nothing (user,
+	        // 2026-09-02, after the first attempt). What a sheet can honestly report is whether Zeal
+	        // is on a button; the magnitude then comes from ZealToHitBonusAtRank, which is the same
+	        // number the hit roll uses.
+	        const int zeal = (!bow && oracool::IsZealReadied(*InspectPlayer))
+	            ? oracool::ZealToHitBonusAtRank(*InspectPlayer)
+	            : 0;
 	        const int toHit = (bow ? InspectPlayer->GetRangedToHit() : InspectPlayer->GetMeleeToHit()) + zeal;
 	        return StyledText { zeal > 0 ? UiFlags::ColorBlue : GetValueColor(InspectPlayer->_pIBonusToHit),
 	            StrCat(toHit, "%") };

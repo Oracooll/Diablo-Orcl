@@ -7619,6 +7619,67 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the log is still open at the start of the next game";
 }
 
+// User, 2026-09-02, reported TWICE: "zeal still doesnt increase cth data in hero stats screen".
+//
+// The first fix was wrong, and wrong in an instructive way. It made the sheet call ZealToHitBonus,
+// which is the function the hit roll uses - and that function asks ArmedMeleeSkill(), a LATCH that
+// describes the swing currently being resolved. Standing in the character sheet there is no swing,
+// so it answered zero every time and the row was unchanged. The right question for a panel is
+// whether Zeal is on a mouse button, which is a different question with a different answer.
+//
+// So this pins the distinction rather than the number: the readied check must be true where the
+// combat check is false.
+TEST(OracoolAudit, ZealsAccuracyIsVisibleToThePanelWhenNoSwingIsInFlight)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior; // the Paladin's slot in this fork
+	player._pLevel = 30;                 // past ZealFirstUpgradeLevel
+
+	// Hellfire, because this fork always is - and because IsValidSpell gates every SpellID above
+	// LastDiablo on it, which is where all seven of the fork's skills live. Zeal simply does not
+	// exist without this, and the test would fail on its own setup. Third time this trap has caught
+	// a test in this file.
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+
+	const SpellID zealSpell = oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId;
+	ASSERT_TRUE(IsValidSpell(zealSpell)) << "test setup: Zeal has no spell id";
+	player._pSkillInvestment[static_cast<size_t>(zealSpell)] = 7;
+	const int rank = player.GetSpellLevel(zealSpell);
+	ASSERT_GT(rank, 0) << "test setup: Zeal has no rank to pay a bonus for";
+
+	// Nothing readied: the panel has nothing to report, and neither does combat.
+	player._pRSpell = SpellID::Invalid;
+	player._pLRSpell = SpellID::Invalid;
+	EXPECT_FALSE(oracool::IsZealReadied(player)) << "Zeal reported readied with both buttons empty";
+
+	// Zeal on the RIGHT button, and NO swing in flight - which is exactly the state the character
+	// sheet is read in, and exactly where the first fix returned zero.
+	player._pRSpell = zealSpell;
+	oracool::ArmMeleeSkill(std::nullopt);
+	EXPECT_TRUE(oracool::IsZealReadied(player))
+	    << "the sheet cannot see Zeal on the right button while no swing is in flight";
+	EXPECT_EQ(oracool::ZealToHitBonusAtRank(player), rank)
+	    << "the magnitude must be one point of accuracy per rank";
+	EXPECT_EQ(oracool::ZealToHitBonus(player), 0)
+	    << "the COMBAT reading should still be zero here - no swing is armed. If this ever passes as "
+	       "non-zero the two questions have been merged, which is the bug this test exists for";
+
+	// And on the LEFT button, since either can throw the swing.
+	player._pRSpell = SpellID::Invalid;
+	player._pLRSpell = zealSpell;
+	EXPECT_TRUE(oracool::IsZealReadied(player)) << "the sheet cannot see Zeal on the left button";
+
+	// A different Paladin skill readied is not Zeal, and must not borrow its accuracy.
+	player._pLRSpell = oracool::GetPaladinSkillData(oracool::PaladinSkill::BlessedHammer).spellId;
+	EXPECT_FALSE(oracool::IsZealReadied(player)) << "another skill on the button reported as Zeal";
+
+	gbIsHellfire = wasHellfire;
+}
+
 // User crash, 2026-09-02: "i just entered my town portal to go back to level 9 and my game crashed
 // again." The dump named it: an access violation in ClxSpriteList::numSprites, reached from
 // DrawDungeon's corpse branch, reading a plausible-looking but freed pointer.

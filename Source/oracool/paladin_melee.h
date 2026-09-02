@@ -99,6 +99,23 @@ int ZealStrikeCount(const Player &player);
 int ZealToHitBonus(const Player &player);
 
 /**
+ * @brief Zeal's accuracy at @p player's current rank, WITHOUT asking whether a swing is in flight.
+ *
+ * The magnitude only. ZealToHitBonus is this plus the combat condition, so the number a hit roll
+ * uses and the number a panel prints come from one place and cannot drift.
+ */
+int ZealToHitBonusAtRank(const Player &player);
+
+/**
+ * @brief Whether Zeal is sitting on a mouse button - what the character sheet should ask.
+ *
+ * Not the same question as ArmedMeleeSkill(), which is a latch describing the swing currently being
+ * resolved and is empty whenever the player is standing in a menu. Asking the latch from the sheet
+ * is why the sheet showed no Zeal bonus at all.
+ */
+bool IsZealReadied(const Player &player);
+
+/**
  * @brief Advances any Zeal burst in flight. Called once per tick, per player.
  *
  * The strikes are spread over time rather than landed all at once, because the skill is "up to 5

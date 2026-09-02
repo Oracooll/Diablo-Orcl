@@ -7,6 +7,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/oracool.h"
 #include "player.h"
+#include "spells.h" // IsValidSpell - a readied slot may hold Invalid
 
 namespace devilution::oracool {
 
@@ -283,10 +284,20 @@ int ZealStrikeCount(const Player &player)
 	return strikes;
 }
 
-int ZealToHitBonus(const Player &player)
+int ZealToHitBonusAtRank(const Player &player)
 {
 	// Gated on the skill being UNLOCKED rather than merely invested in, so it cannot be bought
 	// before the skill itself exists.
+	if (player._pClass != HeroClass::Warrior || player._pLevel < ZealFirstUpgradeLevel)
+		return 0;
+	// One point per skill level, from the FIRST - the levels that also buy a strike pay it too, and
+	// it carries on alone once the strikes stop ("at lvl 6 and onwards - +1% cth"). At the rank cap
+	// that is +30%, which is where the per-point version topped out as well.
+	return std::max(0, ZealSkillLevel(player)) * ZealToHitPercentPerSkillLevel;
+}
+
+int ZealToHitBonus(const Player &player)
+{
 	if (player._pClass != HeroClass::Warrior || player._pLevel < ZealFirstUpgradeLevel)
 		return 0;
 	// ZEAL'S OWN accuracy, not the Paladin's (user, 2026-08-30: "narrow it to Zeal"). It used to be
@@ -296,10 +307,26 @@ int ZealToHitBonus(const Player &player)
 	const std::optional<PaladinSkill> armed = ArmedMeleeSkill();
 	if (&player != MyPlayer || !armed.has_value() || *armed != PaladinSkill::Zeal)
 		return 0;
-	// One point per skill level, from the FIRST - the levels that also buy a strike pay it too, and
-	// it carries on alone once the strikes stop ("at lvl 6 and onwards - +1% cth"). At the 98-rank
-	// cap that is +98%, which is where the per-point version topped out as well.
-	return std::max(0, ZealSkillLevel(player)) * ZealToHitPercentPerSkillLevel;
+	return ZealToHitBonusAtRank(player);
+}
+
+bool IsZealReadied(const Player &player)
+{
+	if (player._pClass != HeroClass::Warrior || player._pLevel < ZealFirstUpgradeLevel)
+		return false;
+	// The BUTTONS, not the latch. ArmedMeleeSkill above answers "is a Zeal swing in flight right
+	// now", which is the right question for a hit roll and the wrong one for the character sheet:
+	// standing in a menu, nothing is in flight, so the sheet reported no bonus and looked broken
+	// (user, 2026-09-02, twice). What a sheet can honestly say is whether Zeal is the thing a mouse
+	// button would swing.
+	for (const SpellID readied : { player._pRSpell, player._pLRSpell }) {
+		if (!IsValidSpell(readied))
+			continue;
+		if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(readied);
+		    skill.has_value() && *skill == PaladinSkill::Zeal)
+			return true;
+	}
+	return false;
 }
 
 void ResetZealChain()
