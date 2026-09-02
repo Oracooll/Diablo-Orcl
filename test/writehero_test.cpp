@@ -1,4 +1,4 @@
-﻿#include "player_test.h"
+#include "player_test.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -391,7 +391,7 @@ bool LoadedHeroFound = false;
 // looking archive nobody could open, which is the way this change could have gone wrong silently.
 TEST(Writehero, HeroSurvivesAWriteAndReadsBack)
 {
-	UseIsolatedPrefPath();
+	const IsolatedPrefPathGuard isolatedSaves;
 	const std::string savePath = paths::PrefPath() + "multi_0.sv";
 	RemoveFile(savePath.c_str());
 
@@ -453,7 +453,7 @@ TEST(Writehero, HeroSurvivesAWriteAndReadsBack)
 // that has never seen a failure is a guess.
 TEST(Writehero, AFailedSaveLeavesThePreviousOneIntact)
 {
-	UseIsolatedPrefPath();
+	const IsolatedPrefPathGuard isolatedSaves;
 	const std::string savePath = paths::PrefPath() + "multi_0.sv";
 	RemoveFile(savePath.c_str());
 
@@ -597,7 +597,7 @@ TEST(Writehero, ATransactionSwapsInEveryRecordOrNoneOfThem)
 
 TEST(Writehero, pfile_write_hero)
 {
-	UseIsolatedPrefPath();
+	const IsolatedPrefPathGuard isolatedSaves;
 	const std::string savePath = paths::PrefPath() + "multi_0.sv";
 	RemoveFile(savePath.c_str());
 
@@ -1198,7 +1198,7 @@ TEST(Writehero, MovingAWriterDoesNotCloseOrPublishTheOriginal)
 // character and no save file on disk yet.
 TEST(Writehero, SaveHeroAndStashWritesBothForANewCharacterWithADirtyStash)
 {
-	UseIsolatedPrefPath();
+	const IsolatedPrefPathGuard isolatedSaves;
 	const std::string heroPath = paths::PrefPath() + "single_0.sv";
 	const std::string stashPath = paths::PrefPath() + "stash.sv";
 	RemoveFile(heroPath.c_str());

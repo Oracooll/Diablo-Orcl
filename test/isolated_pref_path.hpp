@@ -14,8 +14,14 @@
  * meant anything, and a genuine regression hiding among the noise would have been easy to wave away.
  *
  * Each CTest case is a separate PROCESS, so the process id is enough to separate them. The directory
- * is created under the build root and left behind deliberately: a test that fails is easier to
- * diagnose with its archive still on disk, and the whole tree is disposable.
+ * is created under the build root, and a test that FAILS leaves its archive behind deliberately -
+ * that archive is the evidence, and the whole tree is disposable anyway.
+ *
+ * A test that PASSES now removes its own directory (DropIsolatedPrefPath, 2026-09-02). The original
+ * rule was "always leave it", which was right about the failing case and wrong about the rest: six
+ * days of runs had left 413 of these folders holding 33.7 MB, one per test process, and nothing
+ * anywhere removed them. Inside a OneDrive-synced tree that is 413 directories of sync traffic for
+ * evidence about runs that went green and nobody will ever read.
  *
  * This is the audit's preferred remedy rather than its containment one. RESOURCE_LOCK or RUN_SERIAL
  * would stop the collisions and keep the shared directory, which leaves the pollution in place and
@@ -23,7 +29,11 @@
  */
 #pragma once
 
+#include <filesystem>
 #include <string>
+#include <system_error>
+
+#include <gtest/gtest.h>
 
 #include "utils/file_util.h"
 #include "utils/paths.h"
@@ -50,5 +60,40 @@ inline std::string UseIsolatedPrefPath()
 	paths::SetPrefPath(path);
 	return path;
 }
+
+/**
+ * @brief Removes this process's isolated directory, unless the test failed.
+ *
+ * Call from a fixture's TearDown. A FAILING test keeps its archive - that is the whole reason these
+ * directories are per-process and on disk at all - so the evidence survives exactly when it is worth
+ * having, and a green run leaves nothing behind.
+ *
+ * Errors are swallowed: this is housekeeping, and a test that passed must not be turned red by a
+ * file that would not delete. The worst case is one leftover folder, which is where this started.
+ */
+inline void DropIsolatedPrefPath()
+{
+	if (::testing::Test::HasFailure())
+		return;
+	const std::string path = paths::PrefPath();
+	if (path.find("test-saves-") == std::string::npos)
+		return; // not ours - never delete a directory this helper did not create
+	std::error_code ec;
+	std::filesystem::remove_all(std::filesystem::path(path), ec);
+}
+
+/**
+ * @brief Scope guard: an isolated save directory for as long as it is alive.
+ *
+ * For the tests written as free TEST() bodies rather than fixtures - most of writehero_test - which
+ * have no TearDown to hang the cleanup on. One line replaces the bare UseIsolatedPrefPath() call and
+ * the directory goes when the test does.
+ */
+struct IsolatedPrefPathGuard {
+	IsolatedPrefPathGuard() { UseIsolatedPrefPath(); }
+	~IsolatedPrefPathGuard() { DropIsolatedPrefPath(); }
+	IsolatedPrefPathGuard(const IsolatedPrefPathGuard &) = delete;
+	IsolatedPrefPathGuard &operator=(const IsolatedPrefPathGuard &) = delete;
+};
 
 } // namespace devilution

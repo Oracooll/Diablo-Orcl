@@ -21,6 +21,12 @@ namespace {
 
 class LoadSaveOracoolItemExtensionsTest : public ::testing::Test {
 public:
+	void TearDown() override
+	{
+		// A passing test takes its directory with it; a failing one keeps the archive to be read.
+		DropIsolatedPrefPath();
+	}
+
 	void SetUp() override
 	{
 		UseIsolatedPrefPath();
