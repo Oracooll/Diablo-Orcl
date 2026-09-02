@@ -2588,9 +2588,19 @@ void LoadHotkeys()
 		}
 	}
 
-	// Load the selected spell last
-	myPlayer._pRSpell = static_cast<SpellID>(file.NextLE<int32_t>());
-	myPlayer._pRSplType = static_cast<SpellType>(file.NextLE<uint8_t>());
+	// Load the selected spell last.
+	//
+	// Applied only when the slot is not ALREADY holding a real spell (2026-09-02). This chunk belongs
+	// to the GAME save, and V1 always starts a new game - so what it holds is the readied pair of
+	// some previous session, while the hero file's pair has just been decoded into these fields by
+	// pfile_read_player_from_save. Overwriting the second with the first is how the newer answer got
+	// replaced by the older one. A genuinely empty slot still takes whatever this chunk offers.
+	const SpellID savedRight = static_cast<SpellID>(file.NextLE<int32_t>());
+	const auto savedRightType = static_cast<SpellType>(file.NextLE<uint8_t>());
+	if (!IsValidSpell(myPlayer._pRSpell)) {
+		myPlayer._pRSpell = savedRight;
+		myPlayer._pRSplType = savedRightType;
+	}
 
 	// AND THE LEFT BUTTON'S (user, 2026-09-02: "lmb still doesnt remember the skill i assigned to
 	// it"). This chunk is vanilla's, and vanilla has exactly one readied spell - the right button's,
@@ -2605,8 +2615,12 @@ void LoadHotkeys()
 	// Guarded on the chunk actually being long enough, so a hero saved before this reads cleanly and
 	// simply keeps whatever the pack path established.
 	if (file.IsValid(HotkeysSizeWithLeft(nHotkeys))) {
-		myPlayer._pLRSpell = static_cast<SpellID>(file.NextLE<int32_t>());
-		myPlayer._pLRSplType = static_cast<SpellType>(file.NextLE<uint8_t>());
+		const SpellID savedLeft = static_cast<SpellID>(file.NextLE<int32_t>());
+		const auto savedLeftType = static_cast<SpellType>(file.NextLE<uint8_t>());
+		if (!IsValidSpell(myPlayer._pLRSpell)) {
+			myPlayer._pLRSpell = savedLeft;
+			myPlayer._pLRSplType = savedLeftType;
+		}
 	}
 }
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file player.cpp
  *
  * Implementation of player functionality, leveling, actions, creation, loading, etc.
@@ -2711,12 +2711,29 @@ void AddPlrMonstExper(int lvl, int exp, char pmask)
 void InitPlayer(Player &player, bool firstTime)
 {
 	if (firstTime) {
-		player._pRSplType = SpellType::Invalid;
-		player._pRSpell = SpellID::Invalid;
-		// The left button's pair needs the same reset: value-initialising a Player leaves it at
-		// SpellID::Null, not Invalid, and only Invalid means "left click swings" everywhere else.
-		player._pLRSplType = SpellType::Invalid;
-		player._pLRSpell = SpellID::Invalid;
+		// NORMALISED, not cleared (user, 2026-09-02: "forgetting lmb skill isnt [fixed]. fix it.").
+		//
+		// This reset exists for one narrow reason, recorded when the left pair was added: value-
+		// initialising a Player leaves these at SpellID::Null, and only SpellID::Invalid means "this
+		// button swings" everywhere else. It was written as an unconditional wipe, which does that
+		// job and also destroys a pair that was deliberately set.
+		//
+		// And by the time this runs, one has been. LoadGameLevel calls InitPlayer(firstflag) when
+		// the game starts, which is AFTER pfile_read_player_from_save has decoded both readied slots
+		// out of the hero file - so the correct answer was computed, stored, and then overwritten a
+		// moment later. LoadHotkeys below could only ever put back what the GAME save holds, and V1
+		// always starts a new game, so for the left button there was nothing to put back at all.
+		//
+		// A slot holding a valid spell is therefore left exactly as it is. Only Null - the value
+		// nothing ever sets on purpose - is turned into Invalid.
+		if (!IsValidSpell(player._pRSpell)) {
+			player._pRSplType = SpellType::Invalid;
+			player._pRSpell = SpellID::Invalid;
+		}
+		if (!IsValidSpell(player._pLRSpell)) {
+			player._pLRSplType = SpellType::Invalid;
+			player._pLRSpell = SpellID::Invalid;
+		}
 		if (&player == MyPlayer)
 			LoadHotkeys();
 		player._pSBkSpell = SpellID::Invalid;

@@ -7619,6 +7619,69 @@ TEST(OracoolAudit, LeavingAGameDoesNotLeakTheEventLogToTheNextCharacter)
 	    << "the log is still open at the start of the next game";
 }
 
+// User, 2026-09-02, after two failed attempts: "forgetting lmb skill isnt [fixed]. fix it."
+//
+// The hero file was never the problem and neither was the packing - pfile_read_player_from_save
+// decodes BOTH readied slots, after RefreshInnateSpells, and gets the right answer. What destroyed
+// it was what ran next: LoadGameLevel calls InitPlayer(firstflag) when the game starts, and that
+// unconditionally reset both slots to Invalid. The correct value was computed, stored, and wiped a
+// moment later.
+//
+// The reset had a real job - a value-initialised Player holds SpellID::Null, and only Invalid means
+// "this button swings" - so it is now a NORMALISATION: Null becomes Invalid, a real spell is left
+// alone. This test is that sentence.
+TEST(OracoolAudit, InitPlayerKeepsAReadiedSkillItDidNotChoose)
+{
+	// Hellfire: the fork's own skills sit above LastDiablo and IsValidSpell gates them on it.
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+
+	const SpellID zeal = oracool::GetPaladinSkillData(oracool::PaladinSkill::Zeal).spellId;
+	ASSERT_TRUE(IsValidSpell(zeal)) << "test setup: Zeal has no spell id";
+
+	// The character must actually KNOW Zeal. InitPlayer ends by rebuilding _pAblSpells and clearing
+	// any readied SKILL that is not in it - correctly, since a button pointing at a skill you do not
+	// own would draw and cast something that is not yours. A first version of this test skipped the
+	// investment and was duly punished: the slot was cleared, and it was the test that was wrong.
+	player._pSkillInvestment[static_cast<size_t>(zeal)] = 5;
+	oracool::RefreshInnateSpells(player);
+	ASSERT_NE(player._pAblSpells & GetSpellBitmask(zeal), 0U)
+	    << "test setup: the character does not know Zeal, so clearing the button would be correct";
+
+	// What the hero load establishes: a skill on the LEFT button and a spell on the right.
+	player._pLRSpell = zeal;
+	player._pLRSplType = SpellType::Skill;
+	player._pMemSpells = GetSpellBitmask(SpellID::Firebolt);
+	player._pRSpell = SpellID::Firebolt;
+	player._pRSplType = SpellType::Spell;
+
+	// What the game start does next.
+	InitPlayer(player, /*firstTime=*/true);
+
+	EXPECT_EQ(player._pLRSpell, zeal)
+	    << "the left button's skill was wiped by InitPlayer - the exact reported bug";
+	EXPECT_EQ(player._pLRSplType, SpellType::Skill) << "the left button kept its spell but lost its type";
+	EXPECT_EQ(player._pRSpell, SpellID::Firebolt) << "the right button's spell was wiped by InitPlayer";
+
+	// And the job the reset actually exists for: a value-initialised Player holds Null, which is not
+	// Invalid, and everything downstream tests for Invalid. Same player rather than a local one -
+	// InitPlayer reaches for level and light state that only a Player inside Players has.
+	player._pLRSpell = SpellID::Null;
+	player._pLRSplType = SpellType::Invalid;
+	InitPlayer(player, /*firstTime=*/true);
+	EXPECT_EQ(player._pLRSpell, SpellID::Invalid)
+	    << "Null was left in place - a button in this state is neither armed nor a plain swing";
+
+	gbIsHellfire = wasHellfire;
+}
+
 // User, 2026-09-02, reported TWICE: "zeal still doesnt increase cth data in hero stats screen".
 //
 // The first fix was wrong, and wrong in an instructive way. It made the sheet call ZealToHitBonus,
