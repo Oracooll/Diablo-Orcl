@@ -8750,3 +8750,64 @@ TEST(OracoolAudit, AHotkeyOnATreeSkillSurvivesTheChunkRoundTrip)
 
 	gbIsHellfire = savedHellfire;
 }
+
+/**
+ * @brief A shadow never eats a pixel of the text it sits under.
+ *
+ * User report with a screenshot of the hero sheet (2026-09-03): "it seem as if the shadows of
+ * certain letters are overlaping the left adjacent white letters. white text should always be on top
+ * of shadow text."
+ *
+ * The cause was the ORDER rather than the offset. Each character used to lay its own shadow and then
+ * its own face; the shadow falls two pixels LEFT, into the character before it, which by then was
+ * already drawn. So the fix is one walk for every shadow and a second for every face.
+ *
+ * Asserted as a COUNT of surviving face pixels rather than by comparing images, because the two
+ * renders are not supposed to be identical - the shadowed one has black where the background was.
+ * What must not change is how much of the letter itself is left: if a shadow lands on a face pixel
+ * it turns that pixel black, and the count drops. Black pixels are excluded from BOTH counts, so a
+ * glyph that legitimately contains index 0 cannot skew the comparison.
+ *
+ * "W" is chosen for having ink hard against both of its edges at this size, which is what makes the
+ * two-pixel overlap reachable at all; a string of thin letters would pass either way.
+ */
+TEST(OracoolTextShadow, TheShadowNeverCoversTheLetterBeforeIt)
+{
+	constexpr uint8_t Background = 77;
+	constexpr int W = 120;
+	constexpr int H = 24;
+	const auto faceAndShadowPixels = [&](devilution::UiFlags extra) {
+		OwnedSurface canvas(W, H);
+		for (int y = 0; y < H; y++) {
+			uint8_t *row = &canvas[Point { 0, y }];
+			for (int x = 0; x < W; x++)
+				row[x] = Background;
+		}
+		DrawString(canvas, "WWWWWW", Rectangle { { 0, 0 }, { W, H } },
+		    { devilution::UiFlags::ColorWhite | extra });
+		int face = 0;
+		int black = 0;
+		for (int y = 0; y < H; y++) {
+			const uint8_t *row = &canvas[Point { 0, y }];
+			for (int x = 0; x < W; x++) {
+				if (row[x] == 0)
+					black++;
+				else if (row[x] != Background)
+					face++;
+			}
+		}
+		return std::pair<int, int> { face, black };
+	};
+
+	const auto plain = faceAndShadowPixels(devilution::UiFlags::None);
+	ASSERT_GT(plain.first, 0)
+	    << "the plain render marked nothing - fonts are unavailable here, so this test cannot "
+	       "distinguish a preserved letter from an absent one";
+
+	const auto shadowed = faceAndShadowPixels(devilution::UiFlags::Shadowed);
+	ASSERT_GT(shadowed.second, plain.second) << "nothing was shadowed, so there is nothing to check";
+	EXPECT_EQ(shadowed.first, plain.first)
+	    << "the shadow blacked out " << (plain.first - shadowed.first)
+	    << " pixels of the letters themselves - it is being drawn over text already on the canvas, "
+	       "which is the reported smearing";
+}

@@ -347,13 +347,46 @@ const std::array<uint8_t, 256> &BlackTrn()
  */
 constexpr Displacement TextShadowOffset { -2, 2 };
 
-void DrawFont(const Surface &out, Point position, ClxSprite glyph, text_color color, bool outline, bool shadow)
+/**
+ * @brief Which half of a shadowed string a walk is drawing.
+ *
+ * User report with screenshot (2026-09-03): "it seem as if the shadows of certain letters are
+ * overlaping the left adjacent white letters. white text should always be on top of shadow text."
+ *
+ * Exactly right, and the cause is the ORDER, not the offset. A shadowed string used to be drawn
+ * glyph by glyph, each character laying its own shadow and then its own face. The shadow falls two
+ * pixels LEFT, so it lands in the character BEFORE it - which by then has already been drawn. Every
+ * letter therefore had its right side smeared by its neighbour's shadow, and the wider the letter to
+ * its right, the worse it looked.
+ *
+ * Per-character was fine while the shadow fell down-RIGHT, into ground no glyph had covered yet. It
+ * stopped being fine when the offset was corrected to vanilla's down-left on 2026-08-29, and nobody
+ * noticed for five days because it only shows on close inspection of dense rows.
+ *
+ * So the string is walked twice: every shadow first, then every face over the top. Two passes rather
+ * than a right-to-left walk, which would also work and would be far harder to prove correct with
+ * wrapping, alignment and kerning in the mix.
+ */
+enum class TextPass : uint8_t {
+	/** The black silhouettes only. */
+	Shadow,
+	/** Outline and face only - the shadow pass has already run. */
+	Glyph,
+	/** One walk that draws both, for text with no shadow to sequence. */
+	Both,
+};
+
+void DrawFont(const Surface &out, Point position, ClxSprite glyph, text_color color, bool outline, bool shadow,
+    TextPass pass = TextPass::Both)
 {
 	// BEFORE the outline and the glyph, so both cover it where they overlap - a shadow that drew
-	// last would sit on top of the letter it belongs under.
-	if (shadow) {
+	// last would sit on top of the letter it belongs under. Within one character that ordering was
+	// always right; see TextPass for why it was not enough across a whole string.
+	if (shadow && pass != TextPass::Glyph) {
 		RenderClxSpriteWithTRN(out, glyph, position + TextShadowOffset, BlackTrn().data());
 	}
+	if (pass == TextPass::Shadow)
+		return;
 	if (outline) {
 		ClxDrawOutlineSkipColorZero(out, 0, { position.x, position.y + glyph.height() - 1 }, glyph);
 	}
@@ -525,7 +558,7 @@ int GetLineStartX(UiFlags flags, const Rectangle &rect, int lineWidth)
 
 uint32_t DoDrawString(const Surface &out, string_view text, Rectangle rect, Point &characterPosition,
     int lineWidth, int charactersInLine, int rightMargin, int bottomMargin, GameFontTables size, text_color color, bool outline, bool shadow,
-    TextRenderOptions &opts)
+    TextRenderOptions &opts, TextPass pass = TextPass::Both)
 {
 	CurrentFont currentFont;
 	int curSpacing = opts.spacing;
@@ -548,7 +581,7 @@ uint32_t DoDrawString(const Surface &out, string_view text, Rectangle rect, Poin
 			if (GetAnimationFrame(2, 500) != 0) {
 				FontStack baseFont = LoadFont(size, color, 0);
 				if (baseFont.has_value()) {
-					DrawFont(out, position, baseFont.glyph('|'), color, outline, shadow);
+					DrawFont(out, position, baseFont.glyph('|'), color, outline, shadow, pass);
 				}
 			}
 			if (opts.renderedCursorPositionOut != nullptr) {
@@ -599,15 +632,18 @@ uint32_t DoDrawString(const Surface &out, string_view text, Rectangle rect, Poin
 		const ClxSprite glyph = currentFont.glyph(frame);
 		const auto byteIndex = static_cast<int>(text.size() - remaining.size());
 
-		// Draw highlight
-		if (byteIndex >= opts.highlightRange.begin && byteIndex < opts.highlightRange.end) {
+		// Draw highlight. Skipped on the shadow pass, and it MUST be: the highlight is an opaque
+		// fill, so a second one drawn between the shadows and the faces would bury the shadows it is
+		// meant to sit behind.
+		if (pass != TextPass::Shadow
+		    && byteIndex >= opts.highlightRange.begin && byteIndex < opts.highlightRange.end) {
 			const bool lastInRange = static_cast<int>(byteIndex + cpLen) == opts.highlightRange.end;
 			FillRect(out, characterPosition.x, characterPosition.y,
 			    glyph.width() + (lastInRange ? 0 : curSpacing), glyph.height(),
 			    opts.highlightColor);
 		}
 
-		DrawFont(out, characterPosition, glyph, color, outline, shadow);
+		DrawFont(out, characterPosition, glyph, color, outline, shadow, pass);
 		maybeDrawCursor();
 		characterPosition.x += width + curSpacing;
 	}
@@ -861,8 +897,22 @@ uint32_t DrawString(const Surface &out, string_view text, const Rectangle &rect,
 		opts.cursorPosition = -1;
 	}
 
+	// SHADOWS FIRST, as a whole string, then the faces over them - see TextPass. The two walks are
+	// the same walk: DoDrawString derives every position from its arguments and the font metrics, so
+	// given the same inputs it lays the second pass exactly over the first. Only `characterPosition`
+	// is carried across calls by reference, so the shadow pass gets a copy and the real pass starts
+	// where it would have started anyway.
+	//
+	// Unshadowed text still takes ONE walk, which is nearly all text in the game.
+	if (shadowed) {
+		Point shadowPosition = characterPosition;
+		DoDrawString(clippedOut, text, rect, shadowPosition,
+		    lineWidth, charactersInLine, rightMargin, bottomMargin, size, color, outlined, shadowed, opts,
+		    TextPass::Shadow);
+	}
 	const uint32_t bytesDrawn = DoDrawString(clippedOut, text, rect, characterPosition,
-	    lineWidth, charactersInLine, rightMargin, bottomMargin, size, color, outlined, shadowed, opts);
+	    lineWidth, charactersInLine, rightMargin, bottomMargin, size, color, outlined, shadowed, opts,
+	    shadowed ? TextPass::Glyph : TextPass::Both);
 
 	if (HasAnyOf(opts.flags, UiFlags::PentaCursor)) {
 		const ClxSprite sprite = (*pSPentSpn2Cels)[PentSpn2Spin()];
@@ -900,6 +950,12 @@ void DrawStringWithColors(const Surface &out, string_view fmt, DrawStringFormatA
 	characterPosition.y += BaseLineOffset[size];
 
 	const bool outlined = HasAnyOf(opts.flags, UiFlags::Outlined);
+	// STILL PER-CHARACTER here, unlike DrawString - see TextPass. This walk interleaves format
+	// arguments and switches colour mid-string, so it cannot simply be run twice without splitting
+	// that state out first, and no caller passes Shadowed to it today (only diabloui's list and the
+	// chat log use this entry point). A shadowed string drawn through here would show the smearing
+	// the 2026-09-03 report describes; whoever needs one should lift the walk into DoDrawString's
+	// two-pass shape rather than add a second special case.
 	const bool shadowed = HasAnyOf(opts.flags, UiFlags::Shadowed);
 
 	const Surface clippedOut = ClipSurface(out, rect);
