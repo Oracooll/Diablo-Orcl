@@ -53,7 +53,39 @@ extern UiFlags InfoColor;
 extern bool talkflag;
 extern DVL_API_FOR_TEST bool sbookflag;
 extern bool chrflag;
-extern DVL_API_FOR_TEST StringOrView InfoString;
+/**
+ * @brief The hover panel's text, with a plain assignment made SAFE.
+ *
+ * Oracool: crash fix (2026-09-03, user screenshot - the assert in cursor_tooltip.cpp fired while
+ * moving an unsocketed ring back to the inventory). This was a bare StringOrView and the third
+ * outing of one bug: assigning to it replaces the text while InfoStringLineColors keeps the PREVIOUS
+ * hover's per-line colours, so a short string inherits a long string's colour list and the tooltip's
+ * size check - which exists to catch exactly this - fires. It was fixed at the shrine call site in
+ * August, at the gold one in August, and it came back here from a third.
+ *
+ * So the type carries the rule now instead of every caller remembering it: assignment clears the
+ * colour list, which puts the text on the single-colour path with the live InfoColor - precisely
+ * what a bare assignment has always meant. AddPanelString and SetPanelString keep the arrays in step
+ * themselves and assign through AssignKeepingLineColors.
+ *
+ * Deliberately NOT recording InfoColor at assignment time: several callers set InfoColor after the
+ * text (the player hover sets it before, the trigger strings never touch it), and a colour captured
+ * here would be the one from before their change. An empty list defers that question to the draw,
+ * which is where it was always answered.
+ */
+struct PanelInfoText {
+	StringOrView text;
+
+	PanelInfoText &operator=(StringOrView str);
+
+	/** @brief Assigns without touching the colour arrays - for the two functions that own them. */
+	void AssignKeepingLineColors(StringOrView str) { text = std::move(str); }
+
+	[[nodiscard]] string_view str() const { return text.str(); }
+	[[nodiscard]] bool empty() const { return text.empty(); }
+};
+
+extern DVL_API_FOR_TEST PanelInfoText InfoString;
 extern bool panelflag;
 extern bool spselflag;
 const Rectangle &GetMainPanel();
@@ -220,7 +252,7 @@ void ClearPanelStrings();
  * InfoColor otherwise: not every producer of InfoString goes through AddPanelString, so the two can
  * legitimately be out of step.
  */
-extern std::vector<UiFlags> InfoStringLineColors;
+extern DVL_API_FOR_TEST std::vector<UiFlags> InfoStringLineColors;
 
 /**
  * @brief Where a line's WHITE tail starts, per line, or 0 for "the whole line is one colour".
@@ -233,7 +265,7 @@ extern std::vector<UiFlags> InfoStringLineColors;
  * white tail. A line whose entry is 0 draws exactly as before, so every other producer is untouched.
  * Parallel to InfoStringLineColors and subject to the same size check.
  */
-extern std::vector<uint16_t> InfoStringLineTailStart;
+extern DVL_API_FOR_TEST std::vector<uint16_t> InfoStringLineTailStart;
 
 /**
  * @brief Appends a line drawn in two colours: @p str up to @p tailStart in @p color, the rest white.

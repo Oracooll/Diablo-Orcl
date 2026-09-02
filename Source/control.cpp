@@ -99,7 +99,17 @@ std::vector<uint16_t> InfoStringLineTailStart;
 bool talkflag;
 bool sbookflag;
 bool chrflag;
-StringOrView InfoString;
+PanelInfoText InfoString;
+
+PanelInfoText &PanelInfoText::operator=(StringOrView str)
+{
+	// The whole point of the type - see control.h. A bare assignment means "one hover, one colour",
+	// and leaving the previous hover's per-line colours behind is what made that a crash.
+	text = std::move(str);
+	InfoStringLineColors.clear();
+	InfoStringLineTailStart.clear();
+	return *this;
+}
 bool panelflag;
 bool spselflag;
 Rectangle MainPanel;
@@ -891,9 +901,9 @@ void AddPanelString(string_view str, UiFlags color)
 {
 	BackfillLineColors();
 	if (InfoString.empty())
-		InfoString = str;
+		InfoString.AssignKeepingLineColors(str);
 	else
-		InfoString = StrCat(InfoString, "\n", str);
+		InfoString.AssignKeepingLineColors(StrCat(InfoString.str(), "\n", str));
 	PushLineColors(str, color);
 }
 
@@ -902,9 +912,9 @@ void AddPanelString(std::string &&str, UiFlags color)
 	BackfillLineColors();
 	PushLineColors(str, color);
 	if (InfoString.empty())
-		InfoString = std::move(str);
+		InfoString.AssignKeepingLineColors(std::move(str));
 	else
-		InfoString = StrCat(InfoString, "\n", str);
+		InfoString.AssignKeepingLineColors(StrCat(InfoString.str(), "\n", str));
 }
 
 void AddPanelStringSplit(std::string &&str, UiFlags color, size_t tailStart)
@@ -921,7 +931,7 @@ void AddPanelStringSplit(std::string &&str, UiFlags color, size_t tailStart)
 
 void SetPanelString(StringOrView str, UiFlags color)
 {
-	InfoString = std::move(str);
+	InfoString.AssignKeepingLineColors(std::move(str));
 	InfoColor = color;
 	InfoStringLineColors.clear();
 	InfoStringLineTailStart.clear();
@@ -930,7 +940,7 @@ void SetPanelString(StringOrView str, UiFlags color)
 
 void ClearPanelStrings()
 {
-	InfoString = {};
+	InfoString.AssignKeepingLineColors(StringOrView {});
 	InfoStringLineColors.clear();
 	InfoStringLineTailStart.clear();
 }
@@ -1277,11 +1287,20 @@ void UpdateInfoString()
 	if (spselflag || trigflag) {
 		InfoColor = UiFlags::ColorWhite;
 	} else if (!myPlayer.HoldItem.isEmpty()) {
+		// All three through SetPanelString (user, 2026-09-03: the assert fired while carrying an
+		// unsocketed ring back to the inventory). The held-item branch runs while the cursor is over
+		// an inventory or stash slot, which is exactly when the block above does NOT clear - so these
+		// two one-liners were inheriting the colour list of whatever multi-line item the player had
+		// been hovering a moment earlier.
+		//
+		// The assignment operator now clears that list by itself, so these are no longer load-bearing
+		// - but they are what the rule says to write, and the third repeat of this bug is a poor
+		// argument for leaving two more examples of the pattern that caused it.
 		if (myPlayer.HoldItem._itype == ItemType::Gold) {
 			int nGold = myPlayer.HoldItem._ivalue;
-			InfoString = fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold));
+			SetPanelString(fmt::format(fmt::runtime(ngettext("{:s} gold piece", "{:s} gold pieces", nGold)), FormatInteger(nGold)), UiFlags::ColorWhite);
 		} else if (!myPlayer.CanUseItem(myPlayer.HoldItem)) {
-			InfoString = _("Requirements not met");
+			SetPanelString(_("Requirements not met"), UiFlags::ColorRed);
 		} else {
 			// One line, so the colour list is trivially in step - but through SetPanelString
 			// anyway, so that "an item's name is set this way" holds without exception.

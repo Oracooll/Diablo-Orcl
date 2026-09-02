@@ -8811,3 +8811,38 @@ TEST(OracoolTextShadow, TheShadowNeverCoversTheLetterBeforeIt)
 	    << " pixels of the letters themselves - it is being drawn over text already on the canvas, "
 	       "which is the reported smearing";
 }
+
+/**
+ * @brief Assigning the hover text drops the previous hover's per-line colours.
+ *
+ * User screenshot (2026-09-03): the cursor_tooltip assert fired while moving an unsocketed ring back
+ * to the inventory. Third outing of one bug - the shrine hover in August, gold in August, the
+ * held-item lines now. Assigning InfoString replaced the TEXT while InfoStringLineColors kept the
+ * colours of the longer block before it, and the tooltip's size check, which exists to catch exactly
+ * that, fired.
+ *
+ * Pinned on the type rather than on any call site, because fixing call sites is what failed twice.
+ */
+TEST(OracoolAudit, AssigningHoverTextClearsThePreviousLineColours)
+{
+	SetPanelString(devilution::string_view("Ring of the Heavens"), devilution::UiFlags::ColorWhitegold);
+	AddPanelString(devilution::string_view("magic ring"), devilution::UiFlags::ColorBlue);
+	AddPanelString(devilution::string_view("Item Level: 30"), devilution::UiFlags::ColorWhite);
+	ASSERT_EQ(InfoStringLineColors.size(), 3u) << "test setup: the block did not record three lines";
+
+	// The pattern the crash came from: one line, assigned bare, over a three-line colour list.
+	InfoString = devilution::string_view("Requirements not met");
+
+	EXPECT_TRUE(InfoStringLineColors.empty())
+	    << "a one-line assignment kept " << InfoStringLineColors.size()
+	    << " stale line colours - this is the mismatch the tooltip asserts on";
+	EXPECT_TRUE(InfoStringLineTailStart.empty())
+	    << "the tail array must move with the colour array or they index differently";
+
+	// And the arrays still work afterwards: an append re-establishes them for the new text.
+	AddPanelString(devilution::string_view("Requires Strength: 60"), devilution::UiFlags::ColorRed);
+	EXPECT_EQ(InfoStringLineColors.size(), 2u)
+	    << "after the assignment the panel holds two lines, so it must hold two colours";
+
+	ClearPanelStrings();
+}
