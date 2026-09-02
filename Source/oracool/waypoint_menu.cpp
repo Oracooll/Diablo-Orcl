@@ -379,7 +379,16 @@ void DrawWaypointMenu(const Surface &out)
 		// hovering over the WPs"). Swapping the pair made the hovered row report the OTHER state's
 		// colour, so a moment's glance at a hovered row read it backwards. The gold rectangle drawn
 		// around the row is the hover cue, and it is unambiguous.
-		const UiFlags color = unlocked ? UiFlags::ColorWhite : UiFlags::ColorWhitegold;
+		// BLUE and RED since 2026-09-02 (user: "use dark blue and red fonts for waypoints. the ones
+		// used now are hard to see with the new canvas"). White and whitegold were chosen against the
+		// old light limestone; the stone delivered that day is mid-grey, and two pale colours on it
+		// are two versions of the same low contrast - which is also why they had become hard to tell
+		// apart from each other, not just hard to read.
+		//
+		// The pairing keeps the meaning the gold/white pair carried: the row you CAN use reads as
+		// available, the one you have not reached reads as closed. Flipping the two is one edit here
+		// if it reads the other way round on the screen.
+		const UiFlags color = unlocked ? UiFlags::ColorBlue : UiFlags::ColorRed;
 
 		// No outline on the rows - it was there to hold contrast against the stone panel, and that
 		// panel is gone; over the half-transparent fill it only thickened the glyphs. The title

@@ -685,10 +685,20 @@ void DrawStash(const Surface &out)
 		// DrawSplitOutline with one colour on both halves is the theme's only weighted outline;
 		// DrawColoredOutline is 1px only. Passing the same colour twice collapses the split and
 		// leaves a plain uniform border - see its own comment for why the two-colour form exists.
+		// A dark face inside that frame (user, 2026-09-02: "plase dark backing in the tab browsing
+		// buttons in the stash to see the arrows easier"). These four are the only text buttons in
+		// the game drawn straight onto the panel's stone, and gold glyphs on mid-grey are the pairing
+		// this window is weakest at - a border alone said "button" without making the arrow legible.
+		//
+		// BEFORE the outline, so the 2px gold frame stays the button's own edge rather than being
+		// dimmed by its filling; and half-transparent rather than a flat colour, so it darkens
+		// whatever stone is behind it and survives the next recut of the panel.
+		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 		oracool::DrawSplitOutline(out, rect, oracool::ThemeEdgeColor, oracool::ThemeEdgeColor, 2);
 		DrawString(out, StashNavLabel[i], rect,
 		    { UiFlags::AlignCenter | UiFlags::VerticalCenter
-		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold) });
+		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold)
+		        | UiFlags::Shadowed });
 	}
 
 	// One bevelled recess around the whole grid, the way the inventory frames its own.
@@ -782,14 +792,20 @@ void DrawStash(const Surface &out)
 	// Right-aligned, so the total is FLUSH with column 10's right edge however long it gets - a
 	// left-aligned string in a right-anchored box would leave a ragged gap that grows as the player
 	// gets richer, which is the opposite of what "flush with the right border" asks for.
+	// Shadowed, like the inventory's pair and the character sheet's every string (user, 2026-09-02:
+	// "also apply this type of shadows in the stash SORT and GOLD"). The same two words in the same
+	// two roles in the neighbouring window - if one of them casts a shadow they both must, or the
+	// pairing the 2026-08-16 layout was built on comes apart on the one detail nobody would think to
+	// check.
 	DrawString(out, StrCat(_("GOLD: "), FormatInteger(Stash.gold)),
 	    { position + Displacement { GoldDisplayRect.position.x, GoldDisplayRect.position.y }, GoldDisplayRect.size },
-	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
+	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::Shadowed });
 
 	// Left-aligned for the mirror reason: the word starts on column 1's left edge.
 	DrawString(out, _("SORT"),
 	    { position + Displacement { StashSortButtonRect.position.x, StashSortButtonRect.position.y }, StashSortButtonRect.size },
-	    { UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) });
+	    { UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold)
+	        | UiFlags::Shadowed });
 }
 
 void CheckStashItem(Point mousePosition, bool isShiftHeld, bool isCtrlHeld)

@@ -1751,32 +1751,15 @@ void DrawInventoryFooter(const Surface &out)
 		return Rectangle { panel.position + Displacement { r.position.x, r.position.y }, r.size };
 	};
 
-	// A dark plate under each of the two labels (user, 2026-09-02: "put shadows behind SORT and GOLD
-	// AMOUNT in Inventory window"). This band sits on bare stone with no window furniture of its own,
-	// and gold-on-grey is the weakest contrast pairing in the panel.
+	// Both rows are Shadowed (user, 2026-09-02: "the shadows of SORT and GOLD in inventory were
+	// supposed to be black font offset a bit and draw behind. like in the hero stats windows").
 	//
-	// Sized to the TEXT rather than to the row rect, and aligned the way the text is - SORT is
-	// left-aligned on tab 1's border, the figure right-aligned on tab 10's - because the two rects
-	// together span the whole footer, and plating them whole would draw a bar across the window
-	// rather than a shadow behind two words. The figure's width changes with the player's money, so
-	// its plate is measured every frame from the string actually being drawn.
-	//
-	// Half-transparent, like every other plate in this fork (see oracool/badge.h): it darkens the
-	// stone under the glyphs instead of painting a colour over it, so it works on any art the panel
-	// is next recut from.
-	const auto plate = [&out](Rectangle row, string_view text, bool alignRight) {
-		constexpr int PadX = 4;
-		constexpr int PadY = 1;
-		const int width = std::min(GetLineWidth(text) + 2 * PadX, row.size.width);
-		const int height = std::min(GetLineHeight(text, GameFont12) + 2 * PadY, row.size.height);
-		const int x = alignRight ? row.position.x + row.size.width - width : row.position.x;
-		const int y = row.position.y + (row.size.height - height) / 2;
-		DrawHalfTransparentRectTo(out, x, y, width, height);
-	};
-
-	const std::string goldText = FormatInteger(TotalPlayerGold());
-	plate(toScreen(oracool::GetSortButtonRect()), _("SORT"), /*alignRight=*/false);
-	plate(toScreen(oracool::GetGoldRowRect()), goldText, /*alignRight=*/true);
+	// The first attempt, hours earlier, put a half-transparent PLATE behind each word. That is the
+	// badge treatment - right for a label stuck on an icon, wrong here, where the two words sit on
+	// open stone and a plate reads as a box someone forgot to finish drawing. UiFlags::Shadowed is
+	// what the character sheet uses (see CharTextShadow there) and what vanilla does throughout: the
+	// same glyphs in black, one pixel down and right, under the real ones. It costs no rectangle and
+	// works whatever the word's own colour is.
 
 	// Gold, and white for the moment after a click - the same treatment and the same word the stash's
 	// own Sort button uses, so the two read as one control in two windows.
@@ -1787,7 +1770,7 @@ void DrawInventoryFooter(const Surface &out)
 	// this is a deletion rather than a substitution.
 	DrawString(out, _("SORT"), toScreen(oracool::GetSortButtonRect()),
 	    { (InventorySortFlashActive() ? UiFlags::ColorWhite : UiFlags::ColorGold)
-	        | UiFlags::VerticalCenter });
+	        | UiFlags::VerticalCenter | UiFlags::Shadowed });
 
 	// TotalPlayerGold(), the same call the store screen uses and the same sum the character sheet
 	// shows. Gold reads 0 from the player alone in this project: picked-up and sold gold goes to
@@ -1799,8 +1782,8 @@ void DrawInventoryFooter(const Surface &out)
 	// only the digits. Their a information enough."). The label was carrying no information the
 	// figure does not - it sits in the gold colour, on the money row, in a window whose only number
 	// is money - and dropping it also drops the one part of this readout that needed translating.
-	DrawString(out, goldText, toScreen(oracool::GetGoldRowRect()),
-	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter });
+	DrawString(out, FormatInteger(TotalPlayerGold()), toScreen(oracool::GetGoldRowRect()),
+	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::Shadowed });
 }
 
 bool inventorySortButtonDown;
