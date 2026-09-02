@@ -52,12 +52,11 @@ std::optional<NumberInputState> GoldWithdrawInputState;
 
 // Oracool V1: the shared theme and geometry - the same 340x720 window, title band and separator as
 // the inventory, character sheet, quest log, waypoint list and Abilities window.
-//   0..24      top margin
-//   24..74     label band, "STASH"
-//   74..77     separator rule
-//   79..105    page label, "Page N / M"
-//   107..133   nav row: << <          > >>
-//   135..161   gold row: SORT on the left, the total on the right
+//   18..56     title band, "STASH" (oracool::PanelTitleTop/Height)
+//   61..87     page label, "Page N / M"
+//   92..118    nav row: << <          > >>
+//   123..149   gold row: SORT on the left, the total on the right
+//   155..161   the grid's carved frame
 //   161..654   the item grid
 //   654..720   clear - below y=660 the central HUD begins
 constexpr Size StashPanelSize { 340, 720 };
@@ -118,21 +117,36 @@ constexpr int StashColumnX(int column)
 constexpr int StashControlLineHeight = 26; // FontSize24's line height
 
 /**
- * @brief The three stacked bands above the grid, and the whole reason they are written as a stack.
+ * @brief One gap, used everywhere in the stack above the grid.
  *
- * There are 84 pixels between the title's separator rule (77) and the grid (161), and three bands of
- * 26 leave exactly six for air. So each row is now placed from the one above it rather than from
- * StashContentTop, and the gold row's own assert against StashGridTop is what proves the stack still
- * lands: at GameFont12 there was slack to be careless with, and there is not any more.
+ * User, 2026-09-03: "leave an equal gap between stash title, page indicator, buttons, sort/gold
+ * row." So it is a single constant that every band is placed by, rather than four numbers that
+ * happen to agree today: the request is about the RHYTHM, and a rhythm written as separate literals
+ * is one edit away from not being one.
+ *
+ * Five, and the arithmetic is fixed at both ends. The title band ends at PanelTitleTop +
+ * PanelTitleHeight (56) and the grid's carved frame begins six pixels above StashGridTop (155), so
+ * the stack has 99 pixels for three 26px bands - 21 to spend. Three gaps of five leaves six above
+ * the grid, which reads as the section break it is rather than as a fourth gap that got the
+ * remainder.
  */
-constexpr int StashPageLabelY = StashContentTop - 22;                               // the "Page N / M" line
-constexpr int StashPageRowY = StashPageLabelY + StashControlLineHeight + 2;         // the four nav buttons
+constexpr int StashControlGap = 5;
+
+/**
+ * @brief The three stacked bands above the grid, each placed from the one above it.
+ *
+ * Measured from the TITLE now rather than from StashContentTop. StashContentTop is margin + label +
+ * border + margin, an expression whose value happened to be the old first row - it says nothing
+ * about where the title actually ends, and the equal-gap rule is a statement about exactly that.
+ */
+constexpr int StashPageLabelY = oracool::PanelTitleTop + oracool::PanelTitleHeight + StashControlGap;
+constexpr int StashPageRowY = StashPageLabelY + StashControlLineHeight + StashControlGap;
 constexpr int StashPageRowHeight = StashControlLineHeight;
 constexpr Size ButtonSize { 40, StashControlLineHeight };
 /** The buttons fill their row now, so this is the row's own y. */
 constexpr int StashButtonY = StashPageRowY + (StashPageRowHeight - ButtonSize.height) / 2;
 
-constexpr int StashGoldRowY = StashPageRowY + StashPageRowHeight + 2;
+constexpr int StashGoldRowY = StashPageRowY + StashPageRowHeight + StashControlGap;
 constexpr int StashGoldRowHeight = StashControlLineHeight;
 
 /**
@@ -237,8 +251,12 @@ constexpr PointsInRectangleRange<int> StashGridRange { { { 0, 0 }, StashGridSize
 // whatever moves oracool::GridBottom moves this with it. The gold row above keeps its own spacing,
 // which simply has more air under it now.
 constexpr int StashGridTop = oracool::GridBottom - StashGridRows * StashCellPx;
-static_assert(StashGridTop >= StashGoldRowY + StashGoldRowHeight,
-    "the stash grid now starts inside the gold readout above it");
+// Against the grid's FRAME, not its first cell (2026-09-03). The carved bezel is drawn OUTSIDE the
+// cells and reaches GridFrameWidth above StashGridTop, so the old form passed while the gold row sat
+// on the stone frame above the grid - which is exactly where the previous version's row ended up,
+// flush at 161, with the bezel occupying its last six pixels.
+static_assert(StashGridTop - oracool::GridFrameWidth >= StashGoldRowY + StashGoldRowHeight,
+    "the stash grid's carved frame now starts inside the gold readout above it");
 constexpr int StashGridBottom = StashGridTop + StashGridRows * StashCellPx;
 
 /**
