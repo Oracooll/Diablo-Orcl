@@ -2537,6 +2537,20 @@ size_t HotkeysSize(size_t nHotkeys = NumHotkeys)
 	return sizeof(uint8_t) + (nHotkeys * sizeof(int32_t)) + (nHotkeys * sizeof(uint8_t)) + sizeof(int32_t) + sizeof(uint8_t);
 }
 
+/**
+ * @brief The size of a hotkeys chunk that also carries the LEFT button's readied spell.
+ *
+ * Vanilla has one readied spell - the right button's - so its chunk ends there. This fork has two,
+ * and the left one was never written, which is the whole of the bug below.
+ *
+ * Appended AFTER vanilla's trailer rather than woven in, so a file written before this still reads:
+ * LoadHotkeys checks for the extra pair and simply does not find it.
+ */
+size_t HotkeysSizeWithLeft(size_t nHotkeys = NumHotkeys)
+{
+	return HotkeysSize(nHotkeys) + sizeof(int32_t) + sizeof(uint8_t);
+}
+
 void LoadHotkeys()
 {
 	LoadHelper file(OpenSaveArchive(gSaveNumber), "hotkeys");
@@ -2577,11 +2591,28 @@ void LoadHotkeys()
 	// Load the selected spell last
 	myPlayer._pRSpell = static_cast<SpellID>(file.NextLE<int32_t>());
 	myPlayer._pRSplType = static_cast<SpellType>(file.NextLE<uint8_t>());
+
+	// AND THE LEFT BUTTON'S (user, 2026-09-02: "lmb still doesnt remember the skill i assigned to
+	// it"). This chunk is vanilla's, and vanilla has exactly one readied spell - the right button's,
+	// read directly above. The fork added a second button and never extended this.
+	//
+	// That alone would have been harmless, because pack.cpp restores BOTH readied slots from the
+	// hero file. What made it a bug is the order: InitPlayer(firstTime) clears both slots, and then
+	// this function runs and puts only the right one back. So the left button's skill was loaded
+	// correctly, wiped, and never restored - which is exactly the asymmetry that was reported, the
+	// right button remembering and the left forgetting.
+	//
+	// Guarded on the chunk actually being long enough, so a hero saved before this reads cleanly and
+	// simply keeps whatever the pack path established.
+	if (file.IsValid(HotkeysSizeWithLeft(nHotkeys))) {
+		myPlayer._pLRSpell = static_cast<SpellID>(file.NextLE<int32_t>());
+		myPlayer._pLRSplType = static_cast<SpellType>(file.NextLE<uint8_t>());
+	}
 }
 
 void SaveHotkeys(SaveWriter &saveWriter, const Player &player)
 {
-	SaveHelper file(saveWriter, "hotkeys", HotkeysSize());
+	SaveHelper file(saveWriter, "hotkeys", HotkeysSizeWithLeft());
 
 	// Write the number of spell hotkeys
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(NumHotkeys));
@@ -2597,6 +2628,12 @@ void SaveHotkeys(SaveWriter &saveWriter, const Player &player)
 	// Write the selected spell last
 	file.WriteLE<int32_t>(static_cast<int8_t>(player._pRSpell));
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pRSplType));
+
+	// The left button's, appended after vanilla's trailer - see HotkeysSizeWithLeft. Without this
+	// pair the load path above has nothing to restore, and InitPlayer's reset is the last word on
+	// what the left button holds.
+	file.WriteLE<int32_t>(static_cast<int8_t>(player._pLRSpell));
+	file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pLRSplType));
 }
 
 void LoadHeroItems(Player &player, uint32_t saveNumber)

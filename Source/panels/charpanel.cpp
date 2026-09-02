@@ -16,6 +16,7 @@
 #include "panels/ui_panels.hpp"
 #include "player.h"
 #include "missiles.h" // GetDamageAmtAtLevel - the readied spell's own damage formula
+#include "oracool/paladin_melee.h" // ZealToHitBonus - the sheet must quote what PlayerCanHitMonster uses
 #include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
 #include "oracool/player_resistance.h"
 #include "oracool/class_tree.h"
@@ -540,7 +541,23 @@ const CharRow CharRows[] = {
 	    []() { return StyledText { GetValueColor(InspectPlayer->_pIBonusAC), StrCat(InspectPlayer->GetArmor() + InspectPlayer->_pLevel * 2) }; },
 	    nullptr, CharRowGroupGap },
 	{ N_("To hit"),
-	    []() { return StyledText { GetValueColor(InspectPlayer->_pIBonusToHit), StrCat(InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow ? InspectPlayer->GetRangedToHit() : InspectPlayer->GetMeleeToHit(), "%") }; } },
+	    []() {
+	        const bool bow = InspectPlayer->InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Bow;
+	        // Zeal's accuracy is added in PlayerCanHitMonster, not folded into GetMeleeToHit, so this
+	        // row was reporting a number the game does not use (user, 2026-09-02: "zeal doesnt seem
+	        // to increased my cth according to the hero stats screen"). It was being applied - just
+	        // never shown, which is indistinguishable from not working when the sheet is how you
+	        // check.
+	        //
+	        // Read from ZealToHitBonus itself rather than recomputed here, so it carries that
+	        // function's own conditions with it: Paladin, past the unlock level, and Zeal actually
+	        // armed on a button. A sheet that showed it while the player had something else readied
+	        // would be a different lie.
+	        const int zeal = bow ? 0 : oracool::ZealToHitBonus(*InspectPlayer);
+	        const int toHit = (bow ? InspectPlayer->GetRangedToHit() : InspectPlayer->GetMeleeToHit()) + zeal;
+	        return StyledText { zeal > 0 ? UiFlags::ColorBlue : GetValueColor(InspectPlayer->_pIBonusToHit),
+	            StrCat(toHit, "%") };
+	    } },
 	// TWO damage fields, one per mouse button, each TWO ROWS - the name of what is readied, then
 	// what it does (user, 2026-08-31, after Diablo II). Either button can hold a weapon swing, an
 	// attack skill or a spell, so the old single row could only ever describe the weapon; and the
