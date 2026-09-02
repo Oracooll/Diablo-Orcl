@@ -930,8 +930,16 @@ void DrawSidePanelBackdrop(const Surface &out, Point origin)
 	// the header. Not derived from SidePanelArt's dimensions: the opening is a property of what the
 	// frame LOOKS like, not of the bitmap's size, and a measured constant that says so is honester
 	// than an expression that pretends the frame width is computable.
-	constexpr Size BackdropSize { 299, 609 };
-	constexpr Point BackdropOffset { 20, 21 };
+	// Re-measured against the panel delivered on 2026-09-02, whose frame is HALF the old one's: the
+	// gold band ends at x=10 rather than x=20, and the stone starts at y=18. Left as they were, the
+	// old numbers left a ten-pixel strip of undimmed stone down each side of every window - the
+	// exact failure the header warns about, so the warning gets honoured rather than quoted.
+	//
+	// The bottom stop is NOT re-measured and is deliberately still 90px short. That number was
+	// chosen by eye against what the windows draw down there, not against the frame, so it is the
+	// one of the three that the recut does not speak to.
+	constexpr Size BackdropSize { 320, 612 };
+	constexpr Point BackdropOffset { 10, 18 };
 
 	DrawHalfTransparentRectTo(out, origin.x + BackdropOffset.x, origin.y + BackdropOffset.y,
 	    BackdropSize.width, BackdropSize.height, 0);
