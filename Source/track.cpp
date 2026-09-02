@@ -82,18 +82,25 @@ void RepeatMouseAction()
 	if (!myPlayer.CanChangeAction())
 		return;
 
+	// Nothing is attacked in town, and holding the button must not keep asking (user, 2026-09-02).
+	// StartAttack refuses the swing itself - see the town guard there for why the hero blinks
+	// without it - but a repeat that keeps sending the command would keep reaching that refusal,
+	// once per frame, for as long as the button is down. Refused before the send, so the answer is
+	// given once.
+	const bool inTown = leveltype == DTYPE_TOWN;
+
 	bool rangedAttack = myPlayer.UsesRangedWeapon();
 	switch (LastMouseButtonAction) {
 	case MouseActionType::Attack:
-		if (InDungeonBounds(cursPosition))
+		if (!inTown && InDungeonBounds(cursPosition))
 			NetSendCmdLoc(MyPlayerId, true, rangedAttack ? CMD_RATTACKXY : CMD_SATTACKXY, cursPosition);
 		break;
 	case MouseActionType::AttackMonsterTarget:
-		if (pcursmonst != -1)
+		if (!inTown && pcursmonst != -1)
 			NetSendCmdParam1(true, rangedAttack ? CMD_RATTACKID : CMD_ATTACKID, pcursmonst);
 		break;
 	case MouseActionType::AttackPlayerTarget:
-		if (pcursplr != -1 && !myPlayer.friendlyMode)
+		if (!inTown && pcursplr != -1 && !myPlayer.friendlyMode)
 			NetSendCmdParam1(true, rangedAttack ? CMD_RATTACKPID : CMD_ATTACKPID, pcursplr);
 		break;
 	// All three repeat the spell the last click ACTUALLY cast, not CheckPlrSpell's default

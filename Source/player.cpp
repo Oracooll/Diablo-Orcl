@@ -226,6 +226,34 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 		return;
 	}
 
+	// TOWN HAS NO SWING, and says so out loud (user, 2026-09-02: "either allow shift+click attacks
+	// in town or when i try it play the hero sound saying he cant do it and dont attempt any hero
+	// animations. right now when i shiftclick hero blinks").
+	//
+	// The blink is not a graphical glitch, it is this function running where its animation does not
+	// exist. LoadPlrGFX RETURNS for player_graphic::Attack in town - the town sheets are idle and
+	// walk only, there is no "at" file to load - so NewPlrAnim binds AnimInfo to an EMPTY sprite
+	// list, and for as long as PM_ATTACK lasts the hero has nothing to draw. He vanishes and comes
+	// back. Allowing the attack instead would mean shipping town attack sheets for every class,
+	// armour and weapon combination, which is why Blizzard did not allow it either.
+	//
+	// Refused HERE rather than at each click, because there are five ways to reach this function -
+	// two shift branches, the monster-target path, the barrel-break path, and the hold-to-repeat -
+	// and a rule enforced at four of them is a rule that a sixth caller will break. Same argument as
+	// the LoadPlrGFX death-sheet fix above: ask the single authority, do not make every caller
+	// remember.
+	//
+	// SaySpecific, not Say: it declines while that line is already playing, so holding the button
+	// down refuses once rather than sixty times a second.
+	if (leveltype == DTYPE_TOWN) {
+		player.destAction = ACTION_NONE;
+		if (&player == MyPlayer) {
+			LastMouseButtonAction = MouseActionType::None;
+			player.SaySpecific(HeroSpeech::ICantDoThat);
+		}
+		return;
+	}
+
 	// Oracool: a furious-charge dash resolves into this swing - end the dash and start the
 	// cooldown here so it fires regardless of whether the target was already adjacent (no walk
 	// needed) or reached after several walk steps.
