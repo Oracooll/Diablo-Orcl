@@ -2798,6 +2798,10 @@ void InitPlayer(Player &player, bool firstTime)
 		// A new game starts with no armour of ice on (Oracool, Round 2). The state is a static in
 		// cold.cpp and would otherwise carry from the last character to this one.
 		oracool::ClearColdArmour(player);
+		// ...and no cry still ringing, no passive clock still running (Rounds 5 and 6): same statics,
+		// same carry-over, same cure.
+		oracool::ClearWarcryBuffs(player);
+		oracool::ClearPassiveClocks(player);
 		player._pSBkSpell = SpellID::Invalid;
 		player.queuedSpell.spellId = player._pRSpell;
 		player.queuedSpell.spellType = player._pRSplType;

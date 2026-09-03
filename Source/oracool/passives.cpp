@@ -270,4 +270,9 @@ void ClearPassiveState()
 	ClocksOf.fill(Clocks {});
 }
 
+void ClearPassiveClocks(Player &player)
+{
+	ClocksFor(player) = Clocks {};
+}
+
 } // namespace devilution::oracool

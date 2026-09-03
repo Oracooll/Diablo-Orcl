@@ -2685,8 +2685,9 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 	oracool::ApplyClassTreeToTotals(cold, coldTotals);
 	EXPECT_GT(coldTotals.magicResist, 0);
 
-	// The auras whose mechanics this engine has no channel for must contribute NOTHING, so a
-	// player cannot be told a point bought something it did not.
+	// The auras that do their work OFF the sheet - Holy Freeze chills, Sanctuary and Redemption push
+	// and consume, Conviction is asked at the point of use, Cleansing is inert - must contribute
+	// NOTHING to the totals, so the tooltip cannot claim a number the point did not buy.
 	for (const oracool::ClassTreeSkill inert : { oracool::ClassTreeSkill::HolyFreeze,
 	         oracool::ClassTreeSkill::Sanctuary, oracool::ClassTreeSkill::Conviction,
 	         oracool::ClassTreeSkill::Cleansing, oracool::ClassTreeSkill::Redemption }) {
@@ -9443,6 +9444,39 @@ TEST(OracoolWarcries, BuffsFeedTheSheetAndDebuffsNeedAnEar)
 	EXPECT_EQ(oracool::MonsterDebuffDamagePercent(monster), -25);
 	EXPECT_EQ(oracool::EffectiveMonsterArmor(monster), before - before * 25 / 100);
 
+	// The two clears are two clears: the level's (debuffs, wards) leaves the caster's buffs alone, and
+	// the caster's (a new game) takes them.
 	oracool::ClearWarcries();
+	EXPECT_EQ(oracool::MonsterDebuffArmorPercent(monster), 0);
+	EXPECT_GT(oracool::WarcryBuffTicks(barbarian, SpellID::Shout), 0) << "a level change wiped the caster's buffs";
+	oracool::ClearWarcryBuffs(barbarian);
 	EXPECT_EQ(oracool::WarcryBuffTicks(barbarian, SpellID::Shout), 0);
+}
+
+/**
+ * @brief Audit, 2026-09-03: a tree row with a SpellID becomes SELECTABLE when it has a point in it -
+ * for every class, not only the Paladin. Before this the innate mask granted the Paladin's seven and
+ * nothing else, so ninety-odd rows from the inert-skill plan could be bought and read but never
+ * readied.
+ */
+TEST(OracoolClassSkills, AnInvestedTreeRowIsInnateForEveryClass)
+{
+	devilution::Player &barbarian = FreshHero(HeroClass::Barbarian);
+	oracool::RefreshInnateSpells(barbarian);
+	EXPECT_EQ(barbarian._pAblSpells & GetSpellBitmask(SpellID::Bash), 0ULL) << "Bash is innate before a point is in it";
+	ASSERT_TRUE(oracool::InvestClassTreePoint(barbarian, oracool::ClassTreeSkill::Bash));
+	EXPECT_NE(barbarian._pAblSpells & GetSpellBitmask(SpellID::Bash), 0ULL) << "a point in Bash did not make it selectable";
+	EXPECT_EQ(barbarian._pAblSpells & GetSpellBitmask(SpellID::IceBolt), 0ULL) << "another class's row leaked in";
+
+	devilution::Player &sorceress = FreshHero(HeroClass::Sorcerer);
+	ASSERT_TRUE(oracool::InvestClassTreePoint(sorceress, oracool::ClassTreeSkill::IceBolt));
+	EXPECT_NE(sorceress._pAblSpells & GetSpellBitmask(SpellID::IceBolt), 0ULL) << "Ice Bolt, id 59, is not selectable";
+	// Past the 64th id, which the old speedbook walk could never reach.
+	ASSERT_TRUE(oracool::InvestClassTreePoint(sorceress, oracool::ClassTreeSkill::FrozenOrb));
+	EXPECT_NE(sorceress._pAblSpells & GetSpellBitmask(SpellID::FrozenOrb), 0ULL) << "Frozen Orb, past id 64, is not selectable";
+
+	// A row that rides a book spell stays a book spell.
+	devilution::Player &bard = FreshHero(HeroClass::Bard);
+	oracool::RefreshInnateSpells(bard);
+	EXPECT_EQ(bard._pAblSpells & GetSpellBitmask(SpellID::Berserk), 0ULL) << "Charm made Berserk innate";
 }

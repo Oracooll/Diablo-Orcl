@@ -355,9 +355,12 @@ std::vector<SpellListItem> GetSpellListItems()
 		default:
 			continue;
 		}
-		int8_t j = static_cast<int8_t>(SpellID::Firebolt);
-		for (uint64_t spl = 1; j < MAX_SPELLS; spl <<= 1, j++) {
-			if ((mask & spl) == 0)
+		// Oracool audit (2026-09-03): this walked a uint64 bit, `spl <<= 1`, which is zero from the
+		// 65th spell on - so no spell with an id past 64 (the cold page, the melee and bow pages, the
+		// cries) could ever appear in this list or be given an F-key from it. The masks widened to
+		// 128 bits in Round 2; the walk now asks them the way everything else does.
+		for (int j = static_cast<int>(SpellID::Firebolt); j < MAX_SPELLS; j++) {
+			if ((mask & GetSpellBitmask(static_cast<SpellID>(j))) == 0)
 				continue;
 			// Oracool: Town Portal is a built-in ability cast from the HUD's Portal button, not a
 			// SpeedBook entry - see oracool::IsBuiltInPortalAbility. Filtering it here also keeps

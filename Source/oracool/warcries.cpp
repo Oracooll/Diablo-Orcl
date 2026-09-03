@@ -602,10 +602,24 @@ void ProcessWarcriesTick(Player &player)
 
 void ClearWarcries()
 {
-	for (auto &perPlayer : Buffs)
-		perPlayer.fill(Buff {});
+	// The monsters' side only: debuffs, conversions and wards belong to the level that is ending. The
+	// caster's buffs are the caster's, and walk down the stairs with him - see ClearWarcryBuffs.
 	Debuffs.fill(Debuff {});
 	Wards.fill(Ward {});
+}
+
+void ClearWarcryBuffs(Player &player)
+{
+	bool sheetMoved = false;
+	for (Buff &buff : Buffs[player.getId()]) {
+		if (buff.ticksLeft > 0 && IsSheetBuff(buff.spell))
+			sheetMoved = true;
+		buff = {};
+	}
+	// A wiped sheet buff has to take its numbers with it, or the last character's Shout would
+	// stay baked into this one's armour until something else recomputed the sheet.
+	if (sheetMoved)
+		CalcPlrInv(player, false);
 }
 
 const char *WarcryDescription(SpellID spell)

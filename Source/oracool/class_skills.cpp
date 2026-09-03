@@ -78,6 +78,30 @@ SpellMask InnateSpellsBitmask(const Player &player)
 			continue;
 		mask |= GetSpellBitmask(spellId);
 	}
+
+	// Oracool audit (2026-09-03): AND EVERY OTHER CASTABLE TREE ROW, by the same rule. The nine
+	// rounds of the inert-skill plan gave the Sorceress, Rogue, Barbarian, Bard and Monk some
+	// ninety rows with a SpellID - the cold page, the bow and melee pages, the cries, the javelins -
+	// and every one of them was selectable only if it sat in a mask, and nothing put it in one.
+	// The Paladin's seven were granted above because they came first; the rule was never widened.
+	// So a Barbarian could invest in Bash, read its sentence in the Abilities window, and never
+	// ready it: the picker, the speedbook and the wells all list what the masks say.
+	//
+	// The same three conditions as the Paladin's: the row is this class's, is unlocked, and has a
+	// point in it. Plus one: a row that rides a BOOK spell (Charm on Berserk, Sonic Barrier on Mana
+	// Shield) is retired from investment and learned from the book instead, so it is not innate.
+	for (size_t i = 0; i < ClassTreeSkillCount; i++) {
+		const auto row = static_cast<ClassTreeSkill>(i);
+		const ClassTreeSkillData &data = GetClassTreeSkillData(row);
+		if (data.heroClass != player._pClass || !data.implemented || data.kind != ClassTreeKind::Active)
+			continue;
+		const SpellID spellId = ClassTreeSpellId(row); // the accessor, which also answers for borrowed rows
+		if (spellId == SpellID::Invalid || IsClassTreeRowRetiredAsSpell(row))
+			continue;
+		if (!IsClassTreeSkillUnlocked(player, row) || ClassTreeInvestment(player, row) <= 0)
+			continue;
+		mask |= GetSpellBitmask(spellId);
+	}
 	return mask;
 }
 

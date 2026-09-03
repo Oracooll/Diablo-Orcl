@@ -86,8 +86,11 @@ int EffectiveMonsterArmor(const Monster &monster);
 /** @brief One game tick: buffs run down, the held auras and Tranquility do their per-tick work. */
 void ProcessWarcriesTick(Player &player);
 
-/** @brief Empties every buff and debuff. Called where the chill table is cleared. */
+/** @brief Empties the monsters' side - debuffs, conversions, wards. Called where the chill table is cleared, once per level. */
 void ClearWarcries();
+
+/** @brief Empties @p player's own buffs, recomputing the sheet if one was on it. Called where a new game clears the cold armour. */
+void ClearWarcryBuffs(Player &player);
 
 /** @brief One sentence for the Abilities window, untranslated. "" for a spell that is not a cry. */
 const char *WarcryDescription(SpellID spell);

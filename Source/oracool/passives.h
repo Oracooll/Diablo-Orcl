@@ -88,4 +88,7 @@ void ProcessPassivesTick(Player &player);
 /** @brief Empties every clock and stack. Called where the chill table is cleared. */
 void ClearPassiveState();
 
+/** @brief Empties one player's clocks - the save's cooldown among them. Called where a new game clears the cold armour, so a cooldown cannot carry from the last character to this one. */
+void ClearPassiveClocks(Player &player);
+
 } // namespace devilution::oracool

@@ -185,4 +185,10 @@ const SpellData SpellsData[] = {
 	// clang-format on
 };
 
+// Oracool: SpellsData is indexed by SpellID positionally, and every round of the inert-skill plan
+// appended rows by hand. One row short or one over and every spell past it wears the wrong name,
+// price and missile, with no error at the point it is caused. Pinned here.
+static_assert(sizeof(SpellsData) / sizeof(SpellsData[0]) == MAX_SPELLS,
+    "SpellsData needs a row for every SpellID, in the enum's order - add the row where you added the id");
+
 } // namespace devilution
