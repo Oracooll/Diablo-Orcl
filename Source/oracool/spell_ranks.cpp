@@ -100,6 +100,23 @@ constexpr int SpellBand[] = {
 	0,  // Strafe
 	0,  // Immolation Arrow
 	0,  // Freezing Arrow
+	0,  // Bash - the melee skills, Barbarian then Monk, all earned on the tree (Round 4)
+	0,  // Leap
+	0,  // Double Swing
+	0,  // Stun
+	0,  // Leap Attack
+	0,  // Concentrate
+	0,  // Frenzy
+	0,  // Whirlwind
+	0,  // Berserk
+	0,  // Sweeping Reed
+	0,  // Breaking Current
+	0,  // Vaulting Strike
+	0,  // Wheel of Heaven
+	0,  // Seven Reeds
+	0,  // Open Palm
+	0,  // Hundred Fists
+	0,  // Radiant Palm
 };
 static_assert(sizeof(SpellBand) / sizeof(SpellBand[0]) == MAX_SPELLS,
     "every SpellID needs a band - this table is indexed by the enum");

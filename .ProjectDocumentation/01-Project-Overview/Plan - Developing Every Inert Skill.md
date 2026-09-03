@@ -109,7 +109,7 @@ The Rogue's whole first page is "an arrow, but". One hook where a fired arrow's 
 are chosen, and ten rows become data: Magic, Fire, Cold, Ice, Exploding, Immolation, Freezing,
 Guided, Multiple Shot, Strafe. The same shape as the melee latch the Paladin already uses.
 
-### Round 4 — melee attack modifiers · ~19 rows
+### Round 4 — melee attack modifiers ✔ DONE (v1.9.186)
 
 `oracool::ArmMeleeSkill` already exists and already carries a skill into `DoAttack`. It was written
 for the Paladin's three and it is the mechanism the Barbarian's ten actives and the Monk's nine
@@ -118,6 +118,22 @@ strikes need. Round 4 generalises it: a per-swing effect with a cost, a conditio
 Unlocks: Bash, Stun, Double Swing, Concentrate, Frenzy, Whirlwind, Berserk, Leap, Leap Attack,
 Double Throw; Sweeping Reed, Breaking Current, Vaulting Strike, Wheel of Heaven, Seven Reeds, Open
 Palm, Hundred Fists, Radiant Palm, Purifying Breath.
+
+**Shipped:** seventeen of the nineteen, in `oracool/melee_skills.{h,cpp}` — a second latch beside
+the Paladin's rather than a rewrite of it. Every skill is a profile (damage bonus and per-rank, extra
+blows and their share) plus at most one reaction: knockback (Bash, Open Palm), stagger through
+`StunMonster` with uniques exempt (Stun, Breaking Current), all-around strike at a share (Whirlwind,
+Wheel of Heaven), the two tiles beside the target at full (Sweeping Reed), a kill that splashes its
+blow onto every neighbour (Radiant Palm). Double Swing, Frenzy, Seven Reeds and Hundred Fists are
+extra blows; Concentrate and Berserk are pure multipliers. The three leaps go through the engine's
+own `MissileID::Teleport`, clamped to four tiles (+1 every three ranks); Leap Attack and Vaulting
+Strike swing with their bonus when the target is adjacent and leap when it is not. Mana is paid
+once per swing and only when the skill did something; an unaffordable skill is a plain swing.
+The Barbarian's Berserk is `SpellID::BerserkBlow` because `SpellID::Berserk` is the vanilla spell
+the Bard's row already uses. **Held back:** Double Throw and Purifying Breath — the first is a
+thrown-weapon skill with no throwing weapons in the game, the second a breath cone that belongs
+with Round 6's timed effects. Not built by design: Concentrate's uninterruptibility, Berserk's
+defence penalty, Frenzy's speed, Whirlwind's travel.
 
 ### Round 5 — passives that are already possible · ~35 rows · CHEAPEST
 

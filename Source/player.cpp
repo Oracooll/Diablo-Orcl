@@ -44,6 +44,7 @@
 #include "oracool/event_log.h"
 #include "oracool/class_skills.h"
 #include "oracool/cold.h"
+#include "oracool/melee_skills.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
@@ -693,6 +694,10 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	int dam = GenerateRnd(maxd - mind + 1) + mind;
 	dam += dam * player._pIBonusDam / 100;
 	dam += player._pIBonusDamMod;
+	// Oracool, Round 4: the armed melee skill's bonus, on every blow of the swing - the extra blows
+	// a skill adds come back through this function, so they carry it too. Zero when nothing is
+	// armed or the skill cannot be paid for, which is what makes an unaffordable skill a plain swing.
+	dam += dam * oracool::ClassMeleeSkillDamagePercent(player) / 100;
 	int dam2 = dam << 6;
 	dam += player._pDamageMod;
 	if (player._pClass == HeroClass::Warrior || player._pClass == HeroClass::Barbarian) {
@@ -941,6 +946,10 @@ bool DoAttack(Player &player)
 			// oracool/paladin_melee.h.
 			if (didhit)
 				oracool::ApplyMeleeSkillOnHit(player, *monster, hitDamage);
+			// And the Barbarian's and Monk's (Round 4), which want the swing whether or not it
+			// landed - Whirlwind spins through an empty front tile as readily as a full one.
+			if (oracool::ApplyClassMeleeSkillOnSwing(player, monster, didhit, hitDamage))
+				didhit = true;
 		} else if (PlayerAtPosition(position) != nullptr && !player.friendlyMode) {
 			didhit = PlrHitPlr(player, *PlayerAtPosition(position));
 		} else {
@@ -948,6 +957,8 @@ bool DoAttack(Player &player)
 			if (object != nullptr) {
 				didhit = PlrHitObj(player, *object);
 			}
+			if (oracool::ApplyClassMeleeSkillOnSwing(player, nullptr, false, 0))
+				didhit = true;
 		}
 		if ((player._pClass == HeroClass::Monk
 		        && (player.InvBody[INVLOC_HAND_LEFT]._itype == ItemType::Staff || player.InvBody[INVLOC_HAND_RIGHT]._itype == ItemType::Staff))
@@ -3620,6 +3631,46 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			LastMouseButtonAction = MouseActionType::Attack;
 			NetSendCmdLoc(MyPlayerId, true, CMD_RATTACKXY, cursPosition);
 		}
+		return;
+	}
+
+	// Oracool, Round 4: a Barbarian's or Monk's MELEE skill is swung, not cast - the same latch
+	// shape as the Paladin branch below and the bow branch above. Adjacent target: a swing with the
+	// skill armed. Distant target and a leaping skill: the leap. Distant target otherwise: walk, as
+	// the Paladin's skills do. Shift: swing in place, armed.
+	if (const std::optional<oracool::ClassMeleeSkill> skill = oracool::ClassMeleeSkillForSpell(spellID); skill.has_value()) {
+		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
+			myPlayer.Say(HeroSpeech::NotEnoughMana);
+			return;
+		}
+		const bool adjacent = pcursmonst != -1
+		    && myPlayer.position.tile.WalkingDistance(Monsters[pcursmonst].position.tile) <= 1;
+
+		if (isShiftHeld) {
+			oracool::ArmClassMeleeSkill(*skill);
+			LastMouseButtonAction = MouseActionType::Attack;
+			NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, cursPosition);
+			return;
+		}
+		if (oracool::IsLeapSkill(*skill) && !adjacent) {
+			// Plain Leap always leaps; the two striking leaps leap when the target is out of reach.
+			oracool::ArmClassMeleeSkill(std::nullopt);
+			if (oracool::LeapToward(myPlayer, *skill, cursPosition)) {
+				LastMouseButtonAction = MouseActionType::None;
+				return;
+			}
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
+		if (pcursmonst == -1) {
+			oracool::ArmClassMeleeSkill(std::nullopt);
+			LastMouseButtonAction = MouseActionType::Walk;
+			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
+			return;
+		}
+		oracool::ArmClassMeleeSkill(*skill);
+		LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+		NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
 		return;
 	}
 

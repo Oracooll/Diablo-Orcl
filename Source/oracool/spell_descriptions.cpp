@@ -5,6 +5,7 @@
 
 #include "oracool/cold.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/melee_skills.h"
 #include "oracool/rogue_arrows.h"
 #include "utils/language.h"
 
@@ -107,6 +108,9 @@ const char *GetSpellDescription(SpellID spell)
 	// And the Rogue's bow page - oracool/rogue_arrows.cpp.
 	if (RogueArrowForSpell(spell).has_value())
 		return RogueArrowDescription(spell);
+	// And the Barbarian's and Monk's melee skills - oracool/melee_skills.cpp.
+	if (ClassMeleeSkillForSpell(spell).has_value())
+		return ClassMeleeSkillDescription(spell);
 
 	const auto index = static_cast<int>(spell);
 	if (index < 0 || static_cast<size_t>(index) >= Descriptions.size())

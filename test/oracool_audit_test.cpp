@@ -99,6 +99,7 @@
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/ornate_border.h"
+#include "oracool/melee_skills.h"
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
 #include "DiabloUI/hero/hero_layout.h" // the character-select column geometry
@@ -9229,6 +9230,70 @@ TEST(OracoolRogueArrows, EveryBowSkillMapsBothWaysAndIsPriced)
 	EXPECT_EQ(*oracool::ArmedArrowSkill(), oracool::RogueArrow::Strafe);
 	oracool::ArmArrowSkill(std::nullopt);
 	EXPECT_FALSE(oracool::ArmedArrowSkill().has_value());
+
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * @brief Round 4's melee skills: the mapping is total and round-trips, every row is priced, the
+ * damage bonus answers only for an armed, affordable skill, and the latch holds what it is given.
+ *
+ * The vanilla Berserk spell (the Bard's) must NOT be a melee skill - the Barbarian's Berserk is
+ * SpellID::BerserkBlow precisely because the two collided the first time this was built.
+ */
+TEST(OracoolMeleeSkills, EverySkillMapsBothWaysAndTheBonusAnswersOnlyWhenArmed)
+{
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Barbarian;
+	player._pLevel = 10;
+
+	const SpellID meleeSpells[] = {
+		SpellID::Bash, SpellID::Leap, SpellID::DoubleSwing, SpellID::Stun, SpellID::LeapAttack,
+		SpellID::Concentrate, SpellID::Frenzy, SpellID::Whirlwind, SpellID::BerserkBlow,
+		SpellID::SweepingReed, SpellID::BreakingCurrent, SpellID::VaultingStrike, SpellID::WheelOfHeaven,
+		SpellID::SevenReeds, SpellID::OpenPalm, SpellID::HundredFists, SpellID::RadiantPalm
+	};
+	for (const SpellID spell : meleeSpells) {
+		const std::optional<oracool::ClassMeleeSkill> skill = oracool::ClassMeleeSkillForSpell(spell);
+		ASSERT_TRUE(skill.has_value()) << "spell " << static_cast<int>(spell) << " is not a melee skill";
+		EXPECT_EQ(oracool::ClassMeleeSkillSpell(*skill), spell) << "the mapping does not round-trip";
+		EXPECT_GT(GetManaAmount(player, spell), 0) << "a melee skill with no price";
+		EXPECT_STRNE(oracool::ClassMeleeSkillDescription(spell), "") << "a melee skill with no sentence";
+	}
+	EXPECT_FALSE(oracool::ClassMeleeSkillForSpell(SpellID::Berserk).has_value()) << "the Bard's Berserk became a swing";
+	EXPECT_FALSE(oracool::ClassMeleeSkillForSpell(SpellID::Zeal).has_value()) << "a Paladin skill has two latches";
+	EXPECT_STREQ(oracool::ClassMeleeSkillDescription(SpellID::Firebolt), "");
+
+	// The leaps are the leaps; the rest are not.
+	EXPECT_TRUE(oracool::IsLeapSkill(oracool::ClassMeleeSkill::Leap));
+	EXPECT_TRUE(oracool::IsLeapSkill(oracool::ClassMeleeSkill::VaultingStrike));
+	EXPECT_FALSE(oracool::IsLeapSkill(oracool::ClassMeleeSkill::Bash));
+	EXPECT_EQ(oracool::LeapRangeTiles(player, oracool::ClassMeleeSkill::Leap), 4);
+
+	// Nothing armed: no bonus. Armed and affordable: the row's number. Armed and broke: a plain swing.
+	oracool::ArmClassMeleeSkill(std::nullopt);
+	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 0);
+	player._pSkillInvestment[static_cast<size_t>(SpellID::Concentrate)] = 1;
+	player._pMana = GetManaAmount(player, SpellID::Concentrate);
+	oracool::ArmClassMeleeSkill(oracool::ClassMeleeSkill::Concentrate);
+	ASSERT_TRUE(oracool::ArmedClassMeleeSkill().has_value());
+	EXPECT_EQ(*oracool::ArmedClassMeleeSkill(), oracool::ClassMeleeSkill::Concentrate);
+	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 50);
+	player._pMana = 0;
+	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 0) << "an unaffordable skill still boosted the swing";
+	player._pMana = GetManaAmount(player, SpellID::BerserkBlow);
+	oracool::ArmClassMeleeSkill(oracool::ClassMeleeSkill::Berserk);
+	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 100);
+	oracool::ArmClassMeleeSkill(std::nullopt);
+	EXPECT_FALSE(oracool::ArmedClassMeleeSkill().has_value());
+
+	// A swing with nothing armed does nothing and says so.
+	EXPECT_FALSE(oracool::ApplyClassMeleeSkillOnSwing(player, nullptr, false, 0));
 
 	gbIsHellfire = savedHellfire;
 }
