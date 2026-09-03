@@ -67,6 +67,22 @@ void DrawOrnateBorder(const Surface &out, Rectangle rect)
 	DrawRing(out, Inset(rect, 2), InnerColor, InnerColor);
 }
 
+void DrawLegacyTextBox(const Surface &out, Rectangle rect, uint8_t fill)
+{
+	if (rect.size.width <= 2 * LegacyTextBoxBevel || rect.size.height <= 2 * LegacyTextBoxBevel)
+		return;
+	// See the header for where these four come from. The field first, then the three rings over
+	// its edge, so a fill that is not the default still sits inside the stripe.
+	const Rectangle field = Inset(rect, LegacyTextBoxBevel);
+	FillRect(out, field.position.x, field.position.y, field.size.width, field.size.height, fill);
+	constexpr uint8_t Rail = 204;
+	constexpr uint8_t StripeTopLeft = 194;
+	constexpr uint8_t StripeBottomRight = 195;
+	DrawRing(out, rect, Rail, Rail);
+	DrawRing(out, Inset(rect, 1), StripeTopLeft, StripeBottomRight);
+	DrawRing(out, Inset(rect, 2), Rail, Rail);
+}
+
 void DrawOrnateSeparator(const Surface &out, Point from, int width)
 {
 	// The bevel's own vertical cross-section, top to bottom: the shadow it puts on a top edge, the

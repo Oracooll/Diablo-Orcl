@@ -756,11 +756,9 @@ void DrawLevskiRoar(const Surface &out)
 		// The pressed flash, under the border so the frame stays crisp. Fired on mouse-down and
 		// held as an expiry, exactly like the inventory SORT button - these buttons run instantly
 		// and nothing here polls a mouse-up, so a bool would either linger or need a second owner.
-		if (ButtonFlashActive(i)) {
-			FillRect(out, rect.position.x + 1, rect.position.y + 1,
-			    rect.size.width - 2, rect.size.height - 2, ButtonFlashColor);
-		}
-		DrawOrnateBorder(out, rect);
+		// The legacy text box (user, 2026-09-04) - the pressed flash is its field lit, not a fill under a
+		// separate frame.
+		DrawLegacyTextBox(out, rect, ButtonFlashActive(i) ? ButtonFlashColor : LegacyTextBoxFill);
 		// EVERY page, matching what the button will actually consume. This read the displayed tab
 		// only, so a button could sit dark while page 3 was full of rares.
 		const bool any = AnySalvageableInBackpack(*MyPlayer, tier);
@@ -771,22 +769,14 @@ void DrawLevskiRoar(const Surface &out)
 
 	const Rectangle transmute = TransmuteButtonRect(window);
 	const int ready = FirstReadyLevskiRecipe(GridItems);
-	if (ButtonFlashActive(ButtonFlashTransmute)) {
-		FillRect(out, transmute.position.x + 1, transmute.position.y + 1,
-		    transmute.size.width - 2, transmute.size.height - 2, ButtonFlashColor);
-	}
-	DrawOrnateBorder(out, transmute);
+	DrawLegacyTextBox(out, transmute, ButtonFlashActive(ButtonFlashTransmute) ? ButtonFlashColor : LegacyTextBoxFill);
 	DrawString(out, _("Transmute"), transmute,
 	    { (ButtonFlashActive(ButtonFlashTransmute) ? UiFlags::ColorWhite
 	                                               : (ready >= 0 ? UiFlags::ColorGold : UiFlags::ColorWhitegold))
 	        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 
 	const Rectangle book = RecipeButtonRect(window);
-	if (ButtonFlashActive(ButtonFlashRecipes)) {
-		FillRect(out, book.position.x + 1, book.position.y + 1,
-		    book.size.width - 2, book.size.height - 2, ButtonFlashColor);
-	}
-	DrawOrnateBorder(out, book);
+	DrawLegacyTextBox(out, book, ButtonFlashActive(ButtonFlashRecipes) ? ButtonFlashColor : LegacyTextBoxFill);
 	DrawString(out, RecipeBookOpen ? _("Close recipes") : _("Recipes"), book,
 	    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 

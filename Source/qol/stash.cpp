@@ -146,7 +146,7 @@ constexpr int StashPageRowHeight = StashControlLineHeight;
 // borders for stash nav buttons"), so the button grew by the bevel on every side and the face the
 // glyph sits on is the same 40x26 it was. The 3px it overhangs the row either way is inside the
 // 5px StashControlGap.
-constexpr Size ButtonSize { 40 + 2 * oracool::OrnateBorderWidth, StashControlLineHeight + 2 * oracool::OrnateBorderWidth };
+constexpr Size ButtonSize { 40 + 2 * oracool::LegacyTextBoxBevel, StashControlLineHeight + 2 * oracool::LegacyTextBoxBevel };
 /** The buttons fill their row now, so this is the row's own y. */
 constexpr int StashButtonY = StashPageRowY + (StashPageRowHeight - ButtonSize.height) / 2;
 
@@ -760,12 +760,12 @@ void DrawStash(const Surface &out)
 		// resting state as the art changes, it is simply more of it. That also gives these buttons the
 		// hover feedback they never had: pressed turned the glyph white, and nothing at all happened
 		// on the way to pressing.
-		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
-		if (rect.contains(MousePosition))
-			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
-		// The legacy text-box bevel in place of the 2px gold box (user, 2026-09-04) - the same frame
-		// Levski's buttons and the Abilities arrows wear now, so the three sets of nav buttons agree.
-		oracool::DrawOrnateBorder(out, rect);
+		// THE legacy text box (user, 2026-09-04, with a screenshot of the gold-amount box: "this is the
+		// legacy textbox border i was talking about") - not the wide ornate bevel that stood here for
+		// a day. The field is part of it, so the two half-transparent backings are gone with the gold
+		// box they were painted under; the hover lift is the field's own second colour.
+		oracool::DrawLegacyTextBox(out, rect,
+		    rect.contains(MousePosition) ? oracool::LegacyTextBoxHoverFill : oracool::LegacyTextBoxFill);
 		DrawString(out, StashNavLabel[i], rect,
 		    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize24
 		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold)

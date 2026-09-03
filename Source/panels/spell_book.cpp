@@ -811,13 +811,11 @@ void DrawArrow(const Surface &out, int direction)
 {
 	const Rectangle hit = GetArrowRect(direction);
 	const Point centre { hit.position.x + hit.size.width / 2, hit.position.y + hit.size.height / 2 };
-	// A button under the glyph (user, 2026-09-04: "apply legacy text box borders for [...] abilities
-	// windows nav buttons"): the stash nav buttons' dark face, doubled under the cursor, inside the
-	// legacy text-box bevel. The triangle is 11x16 in a 28px cell, so the 3px bevel clears it.
-	DrawHalfTransparentRectTo(out, hit.position.x, hit.position.y, hit.size.width, hit.size.height);
-	if (hit.contains(MousePosition))
-		DrawHalfTransparentRectTo(out, hit.position.x, hit.position.y, hit.size.width, hit.size.height);
-	oracool::DrawOrnateBorder(out, hit);
+	// A button under the glyph (user, 2026-09-04): the legacy text box - the gold-amount box's sunken
+	// gold pinstripe and black field - with the field lifted a shade under the cursor. The triangle
+	// is 11x16 in a 28px cell, so the 3px stripe clears it.
+	oracool::DrawLegacyTextBox(out, hit,
+	    hit.contains(MousePosition) ? oracool::LegacyTextBoxHoverFill : oracool::LegacyTextBoxFill);
 	// Idle went +13 -> +6 (user, 2026-08-19: "arrow keys of abilities window are too dark"), and the
 	// cause is worth recording because it was not a change to this file.
 	//

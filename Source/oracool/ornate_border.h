@@ -141,6 +141,35 @@ constexpr int OrnateBorderWidthHalf = OrnateBorderWidth / 2;
 void DrawOrnateBorder(const Surface &out, Rectangle rect);
 
 /**
+ * @brief The legacy text box: the sunken gold-pinstriped field the original game's gold-amount box
+ * is drawn in (user, 2026-09-04, with a screenshot of it: "this is the legacy textbox border i was
+ * talking about").
+ *
+ * NOT the same thing as DrawOrnateBorder above, which is textbox_frame00's OUTER bevel - the wide
+ * stone-and-gold frame of the big dialog. What the user pointed at is the frame's INNER ring, the
+ * one that actually touches the black field: a three-pixel gold pinstripe, dark-bright-dark, lit
+ * from above so the top run is a shade brighter than the bottom. Sampled from
+ * golddrop_frame00 (the same ring, y 22..24 and 111..113), and every index is in the shared upper
+ * half of the palette, so it is the same gold on every tileset:
+ *
+ *   204  (57,49,29)   the dark rails either side of the stripe
+ *   194  (221,196,126) the bright stripe, top and left
+ *   195  (204,183,117) the bright stripe, bottom and right
+ *   223  (15,5,0)     the field
+ *
+ * The field is filled too, because the box IS the black inside it - a pinstripe alone on a stone
+ * panel reads as a line, not a control. @p fill lets a caller light the field: a hovered button, a
+ * pressed flash.
+ *
+ * Draws INSIDE @p rect, like DrawOrnateBorder, so a button keeps its hit rect and its face shrinks
+ * by LegacyTextBoxBevel on every side.
+ */
+constexpr int LegacyTextBoxBevel = 3;
+constexpr uint8_t LegacyTextBoxFill = 223;
+constexpr uint8_t LegacyTextBoxHoverFill = 252; // (46,46,46) - the field lifts a shade under the cursor
+void DrawLegacyTextBox(const Surface &out, Rectangle rect, uint8_t fill = LegacyTextBoxFill);
+
+/**
  * @brief Draws a horizontal rule OrnateBorderWidth tall, in the bevel's own colours.
  *
  * For dividing a panel into sections - a title band from a list, say - so the divider belongs to
