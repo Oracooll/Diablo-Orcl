@@ -51,7 +51,7 @@ bool IsClassSkill(SpellID spell);
  * Replaces the single-skill mask both CreatePlayer and InitPlayer used to build. Computed rather
  * than written as a literal so adding a seventh here needs nothing else changed.
  */
-uint64_t AllClassSkillsBitmask();
+SpellMask AllClassSkillsBitmask();
 
 /**
  * @brief Everything @p player has WITHOUT learning it: the six class skills, plus Charge once its
@@ -61,7 +61,7 @@ uint64_t AllClassSkillsBitmask();
  * it has to live in a mask to be selectable at all - the speedbook and the skill wells list what the
  * masks contain - so it is folded in here rather than becoming a third mechanism.
  */
-uint64_t InnateSpellsBitmask(const Player &player);
+SpellMask InnateSpellsBitmask(const Player &player);
 
 /**
  * @brief Recomputes `_pAblSpells` and releases any button or hotkey now holding a lost skill.

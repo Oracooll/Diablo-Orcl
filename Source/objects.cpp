@@ -2707,13 +2707,13 @@ void OperateShrineEnchanted(Player &player)
 		return;
 
 	int cnt = 0;
-	uint64_t spell = 1;
 	uint8_t maxSpells = gbIsHellfire ? MAX_ITEM_SPELLS : 37;
-	uint64_t spells = player._pMemSpells;
+	SpellMask spells = player._pMemSpells;
 	for (uint16_t j = 0; j < maxSpells; j++) {
-		if ((spell & spells) != 0)
+		// Bit j is spell id j+1 - the doubling accumulator this used to walk was the same thing,
+		// spelled as arithmetic on a word that is now two words. See SpellMask.
+		if ((spells & GetSpellBitmask(static_cast<SpellID>(j + 1))) != 0)
 			cnt++;
-		spell *= 2;
 	}
 	if (cnt > 1) {
 		int spellToReduce;
@@ -2721,14 +2721,12 @@ void OperateShrineEnchanted(Player &player)
 			spellToReduce = GenerateRnd(maxSpells) + 1;
 		} while ((player._pMemSpells & GetSpellBitmask(static_cast<SpellID>(spellToReduce))) == 0);
 
-		spell = 1;
 		for (uint8_t j = static_cast<uint8_t>(SpellID::Firebolt); j < maxSpells; j++) {
-			if ((player._pMemSpells & spell) != 0 && player._pSplLvl[j] < MaxSpellLevel && j != spellToReduce) {
+			if ((player._pMemSpells & GetSpellBitmask(static_cast<SpellID>(j))) != 0 && player._pSplLvl[j] < MaxSpellLevel && j != spellToReduce) {
 				uint8_t newSpellLevel = static_cast<uint8_t>(player._pSplLvl[j] + 1);
 				player._pSplLvl[j] = newSpellLevel;
 				NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, j, newSpellLevel);
 			}
-			spell *= 2;
 		}
 
 		if (player._pSplLvl[spellToReduce] > 0) {

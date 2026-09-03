@@ -1476,9 +1476,12 @@ void SavePlayer(SaveHelper &file, const Player &player)
 		file.WriteLE<uint8_t>(spellLevel);
 
 	file.Skip(7); // Alignment
-	file.WriteLE<uint64_t>(player._pMemSpells);
-	file.WriteLE<uint64_t>(player._pAblSpells);
-	file.WriteLE<uint64_t>(player._pScrlSpells);
+	// The LOW word only, on all four - the layout is vanilla's and it stays. The high word is never
+	// persisted and does not need to be: book spells all sit below 64, and innate, item and scroll
+	// spells are rebuilt from investment and inventory on load. See SpellMask.
+	file.WriteLE<uint64_t>(player._pMemSpells.low);
+	file.WriteLE<uint64_t>(player._pAblSpells.low);
+	file.WriteLE<uint64_t>(player._pScrlSpells.low);
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(player._pSpellFlags));
 	file.Skip(3); // Alignment
 
@@ -1609,7 +1612,7 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	file.WriteLE<int32_t>(player._pIBonusDamMod);
 	file.Skip(4); // Alignment
 
-	file.WriteLE<uint64_t>(player._pISpells);
+	file.WriteLE<uint64_t>(player._pISpells.low);
 	file.WriteLE<int32_t>(static_cast<int32_t>(player._pIFlags));
 	file.WriteLE<int32_t>(player._pIGetHit);
 

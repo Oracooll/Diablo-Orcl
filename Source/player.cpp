@@ -1596,7 +1596,7 @@ void ValidatePlayer()
 		myPlayer._pSplLvl[portal] = std::max<uint8_t>(myPlayer._pSplLvl[portal], 1);
 	}
 
-	uint64_t msk = 0;
+	SpellMask msk;
 	for (int b = static_cast<int8_t>(SpellID::Firebolt); b < MAX_SPELLS; b++) {
 		if (GetSpellBookLevel((SpellID)b) != -1) {
 			msk |= GetSpellBitmask(static_cast<SpellID>(b));

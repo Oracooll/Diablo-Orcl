@@ -53,7 +53,7 @@ struct ItemBonusTotals {
 	int magic = 0;
 	int dexterity = 0;
 	int vitality = 0;
-	uint64_t spells = 0;
+	SpellMask spells;
 	int fireResist = 0;
 	int lightningResist = 0;
 	int magicResist = 0;

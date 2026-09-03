@@ -157,19 +157,79 @@ enum class SpellID : int8_t {
 };
 
 /**
- * @brief The hard ceiling on spell ids, and it is nearer than it looks.
+ * @brief A set of spells: 128 bits, one per SpellID.
  *
- * Oracool, 2026-09-03. A character's known, innate, item and scroll spells are each a uint64 bitmask
- * and GetSpellBitmask (spells.h) is `1ULL << (id - 1)`, so id 64 is the last one that can exist.
- * Beyond it the shift is undefined and, on this compiler, silently wraps - a new spell would share an
- * old spell's bit and the two would be learned, forgotten and readied together.
+ * Oracool, Round 2 of the inert-skill plan (2026-09-03). The four sets a character carries - known,
+ * innate, item and scroll spells - were each a bare uint64, and GetSpellBitmask was
+ * `1ULL << (id - 1)`, so id 64 was the last spell that could exist at all. Ice Bolt took id 59 and
+ * the rest of the cold line wanted eleven more; the first of them would have shared a bit with
+ * Firebolt and the two would have been learned, forgotten and readied together.
  *
- * Asserted here rather than trusted, because the failure has no symptom at the point it is caused.
- * When this fires, the fix is not a bigger number here: it is widening those four masks, which the
- * hero chunk tail exists to make possible without breaking a single existing save.
+ * Two words rather than a std::bitset, and the reason is the save. The fixed hero struct and the
+ * level save both store the LOW word as the uint64 they always have (see low()), so every existing
+ * file reads unchanged; the high word is never persisted, and does not need to be: the only set that
+ * is saved is _pMemSpells - book spells, all of which sit below 64 - while innate, item and scroll
+ * spells are rebuilt from investment and inventory on every load. A tree skill above 64 therefore
+ * comes back through the investment chunk, which is count-prefixed for exactly this growth.
+ *
+ * The operators are the ones the 130-odd existing sites already use, so `(mask & bit) != 0` and
+ * `mask |= bit` read exactly as before - the 0 in that idiom converts through the uint64 constructor
+ * into an empty mask. Mind that the same constructor makes `mask == 5` compile and mean "is this
+ * mask exactly spells 1 and 3"; nothing writes that, and nothing should.
  */
-static_assert(static_cast<int>(SpellID::LAST) <= 64,
-    "spell ids past 64 do not fit the uint64 spell masks - widen _pMemSpells and friends first");
+struct SpellMask {
+	uint64_t low = 0;
+	uint64_t high = 0;
+
+	constexpr SpellMask() = default;
+	/** @brief From a saved or literal uint64: the low word, as every existing site means it. */
+	constexpr SpellMask(uint64_t lowWord) // NOLINT(google-explicit-constructor) - the save reads through this
+	    : low(lowWord)
+	{
+	}
+	constexpr SpellMask(uint64_t lowWord, uint64_t highWord)
+	    : low(lowWord)
+	    , high(highWord)
+	{
+	}
+
+	[[nodiscard]] constexpr bool any() const { return (low | high) != 0; }
+	[[nodiscard]] constexpr bool none() const { return !any(); }
+
+	constexpr SpellMask operator&(SpellMask other) const { return { low & other.low, high & other.high }; }
+	constexpr SpellMask operator|(SpellMask other) const { return { low | other.low, high | other.high }; }
+	constexpr SpellMask operator~() const { return { ~low, ~high }; }
+	constexpr SpellMask &operator&=(SpellMask other)
+	{
+		low &= other.low;
+		high &= other.high;
+		return *this;
+	}
+	constexpr SpellMask &operator|=(SpellMask other)
+	{
+		low |= other.low;
+		high |= other.high;
+		return *this;
+	}
+	constexpr bool operator==(SpellMask other) const { return low == other.low && high == other.high; }
+	constexpr bool operator!=(SpellMask other) const { return !(*this == other); }
+};
+
+// The `(mask & bit) != 0` idiom needs nothing beyond the members above: the 0 converts through the
+// uint64 constructor into an empty mask and the member operator!= does the rest. A first draft added
+// int and unsigned overloads for it, and they made `EXPECT_EQ(mask, 0ULL)` AMBIGUOUS - two narrowing
+// candidates of equal rank - which is a worse outcome than the idiom taking one implicit conversion.
+
+/**
+ * @brief The hard ceiling on spell ids - 128 since the masks widened, from the 64 that Ice Bolt
+ * came within five of.
+ *
+ * Asserted rather than trusted, because the failure has no symptom at the point it is caused: a
+ * shift past the word is undefined and on this compiler silently wraps, so the new spell would
+ * quietly share an old one's bit.
+ */
+static_assert(static_cast<int>(SpellID::LAST) <= 128,
+    "spell ids past 128 do not fit SpellMask - add a third word, and check what saves it");
 
 enum class MagicType : uint8_t {
 	Fire,

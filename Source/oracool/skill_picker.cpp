@@ -90,7 +90,7 @@ constexpr int WindowWidth = GridWidth + 2 * Padding;
 /** @brief Whether @p player knows @p spell well enough for it to be worth offering. */
 bool IsSpellKnownTo(const Player &player, SpellID spell)
 {
-	const uint64_t known = player._pMemSpells | player._pISpells | player._pAblSpells;
+	const SpellMask known = player._pMemSpells | player._pISpells | player._pAblSpells;
 	return (known & GetSpellBitmask(spell)) != 0;
 }
 
@@ -104,7 +104,7 @@ bool IsSpellKnownTo(const Player &player, SpellID spell)
  */
 SpellType SpellTypeFor(const Player &player, SpellID spell)
 {
-	const uint64_t mask = GetSpellBitmask(spell);
+	const SpellMask mask = GetSpellBitmask(spell);
 	if ((player._pAblSpells & mask) != 0)
 		return SpellType::Skill;
 	if ((player._pISpells & mask) != 0)
@@ -131,7 +131,7 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackC
 
 	// Deduplicated against the spell list below: a Paladin's Zeal is both a tree row and an ability,
 	// and listing it twice would make the same click land in two places.
-	uint64_t listedSpells = 0;
+	SpellMask listedSpells;
 	for (size_t i = 0; i < ClassTreeSkillCount; i++) {
 		const auto skill = static_cast<ClassTreeSkill>(i);
 		const ClassTreeSkillData &data = GetClassTreeSkillData(skill);

@@ -696,7 +696,7 @@ SpellType GetSBookTrans(SpellID ii, bool townok)
 bool IsSpellKnown(SpellID sn)
 {
 	const Player &player = *InspectPlayer;
-	const uint64_t known = player._pMemSpells | player._pISpells | player._pAblSpells;
+	const SpellMask known = player._pMemSpells | player._pISpells | player._pAblSpells;
 	return (known & GetSpellBitmask(sn)) != 0;
 }
 
@@ -1261,7 +1261,7 @@ Rectangle GetSpellBookContentRect()
  */
 SpellType BindingTypeFor(const Player &player, SpellID spell)
 {
-	const uint64_t bit = GetSpellBitmask(spell);
+	const SpellMask bit = GetSpellBitmask(spell);
 	if ((player._pAblSpells & bit) != 0)
 		return SpellType::Skill;
 	if ((player._pMemSpells & bit) != 0)

@@ -508,13 +508,13 @@ struct Player {
 	int _pMagicFind = 0;
 	int _pGoldFind = 0;
 	/** @brief Bitmask of staff spell */
-	uint64_t _pISpells;
+	SpellMask _pISpells;
 	/** @brief Bitmask of learned spells */
-	uint64_t _pMemSpells;
+	SpellMask _pMemSpells;
 	/** @brief Bitmask of abilities */
-	uint64_t _pAblSpells;
+	SpellMask _pAblSpells;
 	/** @brief Bitmask of spells available via scrolls */
-	uint64_t _pScrlSpells;
+	SpellMask _pScrlSpells;
 	SpellFlag _pSpellFlags;
 	SpellID _pSplHotKey[NumHotkeys];
 	SpellType _pSplTHotKey[NumHotkeys];

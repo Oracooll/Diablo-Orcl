@@ -26,7 +26,7 @@ namespace {
  */
 SpellType ReadiedSpellType(const Player &player, SpellID spell)
 {
-	const uint64_t bit = GetSpellBitmask(spell);
+	const SpellMask bit = GetSpellBitmask(spell);
 	if ((player._pAblSpells & bit) != 0)
 		return SpellType::Skill;
 	if ((player._pMemSpells & bit) != 0)

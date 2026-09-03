@@ -3682,7 +3682,7 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	int madd = totals.magic;
 	int dadd = totals.dexterity;
 	int vadd = totals.vitality;
-	uint64_t spl = totals.spells;
+	SpellMask spl = totals.spells;
 	int fr = totals.fireResist;
 	int lr = totals.lightningResist;
 	int mr = totals.magicResist;

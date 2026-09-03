@@ -490,9 +490,9 @@ TEST(OracoolAudit, InnateMaskFollowsTheShield)
 	player.InvBody[INVLOC_HAND_LEFT].clear();
 	player.InvBody[INVLOC_HAND_RIGHT].clear();
 
-	const uint64_t shieldBash = GetSpellBitmask(SpellID::ShieldBash);
-	const uint64_t blessedShield = GetSpellBitmask(SpellID::BlessedShield);
-	const uint64_t zeal = GetSpellBitmask(SpellID::Zeal);
+	const SpellMask shieldBash = GetSpellBitmask(SpellID::ShieldBash);
+	const SpellMask blessedShield = GetSpellBitmask(SpellID::BlessedShield);
+	const SpellMask zeal = GetSpellBitmask(SpellID::Zeal);
 
 	// A POINT IN EACH ROW, since 2026-08-27. The mask now asks the class tree for investment as well
 	// as asking the character for level and shield, so without this every assertion below would pass
@@ -503,7 +503,7 @@ TEST(OracoolAudit, InnateMaskFollowsTheShield)
 	player._pSkillInvestment[static_cast<size_t>(SpellID::BlessedShield)] = 1;
 	player._pSkillInvestment[static_cast<size_t>(SpellID::Zeal)] = 1;
 
-	uint64_t mask = oracool::InnateSpellsBitmask(player);
+	SpellMask mask = oracool::InnateSpellsBitmask(player);
 	EXPECT_EQ(mask & shieldBash, 0u) << "Shield Bash granted without a shield";
 	EXPECT_EQ(mask & blessedShield, 0u) << "Blessed Shield granted without a shield";
 	EXPECT_NE(mask & zeal, 0u) << "Zeal should not be shield-gated";
@@ -6970,7 +6970,7 @@ TEST(OracoolClassTree, RefundingTheLastPointTakesTheSkillOffTheButtons)
 	ASSERT_TRUE(HasShieldEquipped(player)) << "test setup: the shield is not registering";
 	ASSERT_TRUE(IsValidSpell(SpellID::ShieldBash)) << "test setup: Shield Bash is not a valid spell here";
 
-	const uint64_t shieldBash = GetSpellBitmask(SpellID::ShieldBash);
+	const SpellMask shieldBash = GetSpellBitmask(SpellID::ShieldBash);
 
 	// Unbought: earned, spendable, and doing nothing. It must NOT be in the mask, or every list that
 	// reads the mask will offer it.
@@ -9034,4 +9034,39 @@ TEST(OracoolChill, HalvesTheTicksAndThenLetsGo)
 	EXPECT_EQ(remaining, 10) << "a shorter second chill shortened the first, or the two stacked";
 
 	oracool::ClearChills();
+}
+
+/**
+ * @brief The spell masks hold 128 ids, and the low 64 mean exactly what they did.
+ *
+ * Round 2 of the inert-skill plan (2026-09-03) opened by widening the four uint64 spell sets into
+ * SpellMask, because Ice Bolt took id 59 and the rest of the cold line wanted eleven more - the first
+ * past 64 would have wrapped onto Firebolt's bit. Two things are pinned: an id past 64 gets a bit of
+ * its own that no low id shares, and the LOW word is untouched by it, since that word is what the
+ * hero file and the level save persist and every existing save must keep its meaning.
+ */
+TEST(OracoolSpellMask, IdsPast64GetTheirOwnBitsAndLeaveTheSavedWordAlone)
+{
+	const SpellMask firebolt = GetSpellBitmask(SpellID::Firebolt);
+	EXPECT_EQ(firebolt.low, 1ULL) << "id 1 is bit 0 of the low word, as it always was";
+	EXPECT_EQ(firebolt.high, 0ULL);
+
+	const SpellMask id64 = GetSpellBitmask(static_cast<SpellID>(64));
+	EXPECT_EQ(id64.low, 1ULL << 63) << "id 64 is the last bit of the low word";
+	EXPECT_EQ(id64.high, 0ULL);
+
+	const SpellMask id65 = GetSpellBitmask(static_cast<SpellID>(65));
+	EXPECT_EQ(id65.low, 0ULL) << "id 65 must not touch the saved word";
+	EXPECT_EQ(id65.high, 1ULL) << "id 65 is bit 0 of the high word";
+
+	// The idiom every site uses, across the boundary.
+	SpellMask known;
+	known |= firebolt;
+	known |= id65;
+	EXPECT_TRUE((known & firebolt) != 0);
+	EXPECT_TRUE((known & id65) != 0);
+	EXPECT_TRUE((known & id64) == 0) << "a bit nothing set reads as set";
+	known &= ~id65;
+	EXPECT_TRUE((known & id65) == 0) << "clearing a high bit did not clear it";
+	EXPECT_TRUE((known & firebolt) != 0) << "clearing a high bit cleared a low one";
 }

@@ -224,7 +224,7 @@ void PackPlayer(PlayerPack &packed, const Player &player)
 	packed.pMaxHPBase = SDL_SwapLE32(player._pMaxHPBase);
 	packed.pManaBase = SDL_SwapLE32(player._pManaBase);
 	packed.pMaxManaBase = SDL_SwapLE32(player._pMaxManaBase);
-	packed.pMemSpells = SDL_SwapLE64(player._pMemSpells);
+	packed.pMemSpells = SDL_SwapLE64(player._pMemSpells.low); // the low word - see SpellMask for why that is whole
 
 	for (int i = 0; i < 37; i++) // Should be MAX_SPELLS but set to 37 to make save games compatible
 		packed.pSplLvl[i] = player._pSplLvl[i];
@@ -288,7 +288,7 @@ void PackNetPlayer(PlayerNetPack &packed, const Player &player)
 	packed.pMaxHPBase = SDL_SwapLE32(player._pMaxHPBase);
 	packed.pManaBase = SDL_SwapLE32(player._pManaBase);
 	packed.pMaxManaBase = SDL_SwapLE32(player._pMaxManaBase);
-	packed.pMemSpells = SDL_SwapLE64(player._pMemSpells);
+	packed.pMemSpells = SDL_SwapLE64(player._pMemSpells.low); // the low word - see SpellMask for why that is whole
 
 	for (int i = 0; i < MAX_SPELLS; i++)
 		packed.pSplLvl[i] = player._pSplLvl[i];

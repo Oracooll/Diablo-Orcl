@@ -69,9 +69,14 @@ int GetSpellStaffLevel(SpellID s);
  * @param spellId The id of the spell to get a bitmask for.
  * @return A 64bit bitmask representation for the specified spell.
  */
-constexpr uint64_t GetSpellBitmask(SpellID spellId)
+constexpr SpellMask GetSpellBitmask(SpellID spellId)
 {
-	return 1ULL << (static_cast<int8_t>(spellId) - 1);
+	// Oracool, Round 2 (2026-09-03): two words now - see SpellMask. Id 1 is bit 0 of the low word,
+	// exactly as it always was, so every saved mask keeps its meaning; id 65 is bit 0 of the high.
+	const int index = static_cast<int8_t>(spellId) - 1;
+	if (index < 64)
+		return SpellMask { 1ULL << index, 0 };
+	return SpellMask { 0, 1ULL << (index - 64) };
 }
 
 } // namespace devilution

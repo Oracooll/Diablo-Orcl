@@ -331,7 +331,7 @@ std::vector<SpellListItem> GetSpellListItems()
 {
 	std::vector<SpellListItem> spellListItems;
 
-	uint64_t mask;
+	SpellMask mask;
 	const Point mainPanelPosition = GetMainPanel().position;
 
 	int x = mainPanelPosition.x + 12 + SPLICONLENGTH * SPLROWICONLS;
@@ -434,7 +434,7 @@ void SetSpeedSpell(size_t slot)
 
 void ToggleSpell(size_t slot)
 {
-	uint64_t spells;
+	SpellMask spells;
 
 	Player &myPlayer = *MyPlayer;
 
