@@ -41,6 +41,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/passives.h"
+#include "oracool/warcries.h"
 #include "oracool/monster_variants.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/monster_scale.h"
@@ -1449,6 +1450,14 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		return;
 	if (monster.position.tile.WalkingDistance(player.position.tile) >= 2)
 		return;
+
+	// Oracool, Round 6: what a cry or a song has done to this monster - Battle Cry and Dirge of Dread
+	// blunt the blow, Weaken the aim.
+	if (const int weakened = oracool::MonsterDebuffDamagePercent(monster); weakened != 0) {
+		minDam += minDam * weakened / 100;
+		maxDam = std::max(maxDam + maxDam * weakened / 100, minDam);
+	}
+	hit -= oracool::MonsterDebuffToHit(monster);
 
 	int hper = GenerateRnd(100);
 #ifdef _DEBUG
@@ -3844,6 +3853,7 @@ void InitMonsters()
 	// here, on entering a level, because that is the one event no path can skip.
 	oracool::ClearChills();
 	oracool::ClearPassiveState();
+	oracool::ClearWarcries();
 
 	if (!gbIsSpawn && !setlevel && currlevel == 16)
 		LoadDiabMonsts();

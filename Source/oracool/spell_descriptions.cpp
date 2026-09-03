@@ -7,6 +7,7 @@
 #include "oracool/paladin_skills.h"
 #include "oracool/melee_skills.h"
 #include "oracool/rogue_arrows.h"
+#include "oracool/warcries.h"
 #include "utils/language.h"
 
 namespace devilution {
@@ -111,6 +112,9 @@ const char *GetSpellDescription(SpellID spell)
 	// And the Barbarian's and Monk's melee skills - oracool/melee_skills.cpp.
 	if (ClassMeleeSkillForSpell(spell).has_value())
 		return ClassMeleeSkillDescription(spell);
+	// And the cries - oracool/warcries.cpp.
+	if (IsWarcry(spell))
+		return WarcryDescription(spell);
 
 	const auto index = static_cast<int>(spell);
 	if (index < 0 || static_cast<size_t>(index) >= Descriptions.size())

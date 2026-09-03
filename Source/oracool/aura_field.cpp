@@ -77,6 +77,14 @@ int ConvictionPointsOn(const Monster &monster)
 	return WithinAura(monster, points) ? points : 0;
 }
 
+int AuraPointsOn(const Monster &monster, Skill aura)
+{
+	const int points = LitAuraPoints(aura);
+	if (points <= 0)
+		return 0;
+	return WithinAura(monster, points) ? points : 0;
+}
+
 uint16_t ConvictionAdjusted(uint16_t resistances, int points)
 {
 	if (points <= 0)

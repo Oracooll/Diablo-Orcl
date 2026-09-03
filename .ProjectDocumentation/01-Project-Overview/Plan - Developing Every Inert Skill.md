@@ -165,10 +165,28 @@ counting, a block report, or an attack-speed number the engine has no channel fo
 Skills page rows, plus the Bard's two masteries and Throwing/Spear Mastery and Increased Stamina,
 which are inert by engine and say so.
 
-### Round 6 — timed shouts and songs · ~18 rows
+### Round 6 — timed shouts and songs ✔ DONE (v1.9.188)
 
 A buff with a duration, a radius and a stack rule. The Barbarian's nine cries and the Bard's songs
 and auras are one mechanism with two vocabularies.
+
+**Shipped:** twenty-one rows, in `oracool/warcries.{h,cpp}`. A cry is cast like a spell — it has a
+SpellID, a mana price, the cast animation and sound — and its one shared missile
+(`MissileID::Warcry`) calls `CastWarcry` and is gone. What the cry then does is one of three
+things: a timed buff on the caster kept in a per-player table that feeds the sheet through the
+existing aura provider and forces a recompute when it starts and ends (Shout, Battle Orders,
+Battle Command, Purifying Breath, Vengeance; Slow Missiles and Tranquility are timed but not on
+the sheet); a timed debuff on the monsters that heard it, asked about at the point of use
+(Battle Cry, Inner Sight — every player to-hit roll now reads `EffectiveMonsterArmor`, and
+`MonsterAttackPlayer` reads the damage and aim debuffs); or an immediate reaction — Howl and
+Daze on Sanctuary's own retreat channel, Taunt waking and turning everything in earshot, War Cry,
+Lullaby, the Bard's Shout, Sound Shock and Temple Bell staggering through `StunMonster`. The
+Bard's three song-auras and the Paladin's Holy Freeze are the same vocabulary held rather than
+shouted: lit through the existing aura toggle, asked through a new `AuraPointsOn` beside
+Conviction's query — Discord strips armour, Weaken blunts aim and chills, Dirge of Dread weakens
+and repels, Holy Freeze chills. Uniques hold their ground against every repel and stagger.
+**Held back:** Find Potion, Find Item, Grim Ward, Ode to Glory (corpses — Round 9), Decoy (an
+entity), Cleansing and Redemption (no durations or corpses to work on).
 
 ### Round 7 — javelins and throwing · 7 rows
 

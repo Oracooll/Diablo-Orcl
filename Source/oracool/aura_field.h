@@ -32,6 +32,7 @@
 
 #include <cstdint>
 
+#include "oracool/class_tree.h"
 #include "engine/point.hpp"
 
 namespace devilution {
@@ -70,6 +71,12 @@ constexpr int ConvictionBreaksImmunityAt = 5;
  * range. Zero is the "no field here" answer, so callers can use it as a plain boolean too.
  */
 int ConvictionPointsOn(const Monster &monster);
+
+/**
+ * @brief The same question for any aura: points of @p aura lit on the local player with @p monster
+ * inside it, or 0. Round 6's song-auras and Holy Freeze are asked through this.
+ */
+int AuraPointsOn(const Monster &monster, ClassTreeSkill aura);
 
 /**
  * @brief @p resistances as Conviction of @p points leaves them. Pure, so it is testable alone.

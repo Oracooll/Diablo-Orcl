@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 95
+#define MAX_SPELLS 112
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -204,8 +204,28 @@ enum class SpellID : int8_t {
 	OpenPalm,
 	HundredFists,
 	RadiantPalm,
+	// Oracool, Round 6 (2026-09-03): the timed shouts and songs - oracool/warcries.h. All cast as
+	// MissileID::Warcry, untargeted; the Barbarian's seven, the Bard's four, the Monk's three, the
+	// Rogue's two, the Paladin's Vengeance.
+	Howl,
+	Taunt,
+	Shout,
+	BattleCry,
+	BattleOrders,
+	WarCry,
+	BattleCommand,
+	Lullaby,
+	SoundShock,
+	BardShout,
+	Daze,
+	TempleBell,
+	PurifyingBreath,
+	Tranquility,
+	InnerSight,
+	SlowMissiles,
+	Vengeance,
 
-	LAST = RadiantPalm,
+	LAST = Vengeance,
 	Invalid = -1,
 };
 
@@ -446,6 +466,8 @@ enum class MissileID : int8_t {
 	FrostArrow,
 	GuidedArrow,
 	FreezingBurst,
+	/** Oracool, Round 6: every cry is cast as this. Calls CastWarcry and is gone - oracool/warcries.h. */
+	Warcry,
 	Null = -1,
 	// clang-format on
 };

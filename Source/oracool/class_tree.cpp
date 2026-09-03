@@ -20,6 +20,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/spell_ranks.h" // the Rule of Rangs
 #include "oracool/stat_sheet.h"
+#include "oracool/warcries.h"
 #include "player.h"
 #include "utils/language.h"
 
@@ -125,8 +126,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 1, 0, Kind::Active, SpellID::Zeal, true },
 	{ N_("Charge"), N_("Rush an enemy and land a running blow."),
 	    Pal, 0, 1, 1, Kind::Active, SpellID::Charge, true },
-	{ N_("Vengeance"), N_("Adds fire, lightning and cold damage to your attack. Not yet built; this engine also has no cold."),
-	    Pal, 0, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Vengeance"), N_("Your blows burn and crackle for thirty seconds, five more a rank: fire and lightning on every hit. Cold has no place on the weapon sheet, so it is not added."),
+	    Pal, 0, 2, 0, Kind::Active, SpellID::Vengeance, true },
 	{ N_("Blessed Hammer"), N_("Looses a spinning hammer that wheels outward through anything in its path."),
 	    Pal, 0, 3, 2, Kind::Active, SpellID::BlessedHammer, true },
 	// Corrected 2026-08-16: this row used to claim "no charmed-monster state exists", which was
@@ -146,8 +147,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 1, 2, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Concentration"), N_("Raises damage and steadies you against interruption."),
 	    Pal, 1, 3, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Holy Freeze"), N_("Chills nearby enemies and adds cold damage. Inert: this engine has no cold and no slow."),
-	    Pal, 1, 3, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Holy Freeze"), N_("A cold that chills everything standing in it, slowing its step and its swing."),
+	    Pal, 1, 3, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Holy Shock"), N_("Charges your weapon, adding lightning damage to every blow."),
 	    Pal, 1, 4, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Sanctuary"), N_("Hallows the ground you stand on: nearby undead break and flee from you. Champions are too proud to run."),
@@ -252,16 +253,16 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Increased Speed"), N_("You run rather than walk, wherever you are."), Bar, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Natural Resistance"), N_("Hardens you against fire, lightning and magic alike."), Bar, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
 	// --- Warcries ---
-	{ N_("Howl"), N_("Sends nearby enemies fleeing. Inert: it needs the monster-facing pass."), Bar, 2, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Howl"), N_("A howl that sends everything in earshot running, four tiles and a tile more a rank. Uniques hold their ground."), Bar, 2, 0, 0, Kind::Active, SpellID::Howl, true },
 	{ N_("Find Potion"), N_("Searches a corpse for a potion. Inert: it needs the corpse-handling pass."), Bar, 2, 0, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Taunt"), N_("Goads an enemy into charging you. Inert: it needs the monster-facing pass."), Bar, 2, 1, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Shout"), N_("A bellow that hardens you. Inert: buffs with a duration have no home here yet."), Bar, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Taunt"), N_("A goad that wakes everything in earshot and turns it on you."), Bar, 2, 1, 0, Kind::Active, SpellID::Taunt, true },
+	{ N_("Shout"), N_("A bellow that hardens you: half again your armour, a tenth more a rank, for forty seconds and five more a rank."), Bar, 2, 1, 1, Kind::Active, SpellID::Shout, true },
 	{ N_("Find Item"), N_("Searches a corpse for loot. Inert: it needs the corpse-handling pass."), Bar, 2, 2, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Battle Cry"), N_("A cry that weakens what hears it. Inert: it needs the monster-facing pass."), Bar, 2, 3, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Battle Orders"), N_("A shout that swells life and mana. Inert: buffs with a duration have no home here yet."), Bar, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Battle Cry"), N_("A cry that leaves what hears it a quarter weaker in blow and in armour for twenty-four seconds."), Bar, 2, 3, 0, Kind::Active, SpellID::BattleCry, true },
+	{ N_("Battle Orders"), N_("A shout that swells your life and mana by twenty, ten more a rank, for forty seconds and five more a rank."), Bar, 2, 4, 0, Kind::Active, SpellID::BattleOrders, true },
 	{ N_("Grim Ward"), N_("Raises a corpse as a totem of terror. Inert: it needs the corpse-handling pass."), Bar, 2, 4, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("War Cry"), N_("A shout that stuns everything near. Inert: it needs the monster-facing pass."), Bar, 2, 5, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Battle Command"), N_("A command that deepens every other skill. Inert: buffs with a duration have no home here yet."), Bar, 2, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("War Cry"), N_("A shout that strikes everything in earshot for four to eight a rank and leaves it reeling for two seconds. Uniques shrug off the reeling."), Bar, 2, 5, 0, Kind::Active, SpellID::WarCry, true },
+	{ N_("Battle Command"), N_("A command that deepens every skill you have by a rank for thirty seconds, five more a rank."), Bar, 2, 5, 1, Kind::Active, SpellID::BattleCommand, true },
 
 	// ---- Passive Skills (page 3) ----
 	{ N_("Pound of Flesh"), N_("Healing taken from the fallen leaves you mending and quickened, and it stacks. Not yet built."),
@@ -390,11 +391,11 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Immolation Arrow"), N_("A fire arrow that leaves a wall of flame burning where it stops."), Rog, 0, 4, 1, Kind::Active, SpellID::ImmolationArrow, true },
 	{ N_("Freezing Arrow"), N_("A frost arrow that freezes everything around where it stops."), Rog, 0, 5, 0, Kind::Active, SpellID::FreezingArrow, true },
 	// --- Passive & Magic ---
-	{ N_("Inner Sight"), N_("Lights nearby enemies and strips their defence. Inert: it needs the monster-facing pass."), Rog, 1, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Inner Sight"), N_("Reveals the weak points of everything in earshot: a third of its armour gone, two percent more a rank, for twenty seconds."), Rog, 1, 0, 0, Kind::Active, SpellID::InnerSight, true },
 	{ N_("Critical Strike"), N_("A chance to strike for double. This engine has no critical roll, so it raises your damage instead."),
 	    Rog, 1, 0, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Dodge"), N_("A chance to slip a blow while standing: a tenth, a twenty-fifth more a rank, two fifths at most."), Rog, 1, 1, 0, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Slow Missiles"), N_("Slows what is thrown at you. Inert: it needs the monster-facing pass."), Rog, 1, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Slow Missiles"), N_("For twenty seconds, four more a rank, half the arrows aimed at you turn aside, a twentieth more a rank."), Rog, 1, 2, 0, Kind::Active, SpellID::SlowMissiles, true },
 	{ N_("Avoid"), N_("A chance to slip an arrow: a tenth, a twenty-fifth more a rank, two fifths at most."), Rog, 1, 2, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Penetrate"), N_("Sharpens your aim with anything you wield."), Rog, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Decoy"), N_("A double of yourself to draw fire. Not yet built."), Rog, 1, 3, 1, Kind::Active, SpellID::Invalid, false },
@@ -465,17 +466,17 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Song of Swiftness"), N_("A song that quickens your strikes and your stride - you run rather than walk."),
 	    Bard, 0, 1, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Song of Fortitude"), N_("A song that hardens your guard and your wards."), Bard, 0, 1, 1, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Dirge of Dread"), N_("Weakens enemies and sends them fleeing. Inert: it needs the monster-facing pass."),
-	    Bard, 0, 2, 0, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Lullaby"), N_("Puts enemies to sleep. Inert: this engine has no sleep state."), Bard, 0, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Dirge of Dread"), N_("A dirge that leaves what hears it fifteen percent weaker, two more a point, and sends all but the uniques fleeing."),
+	    Bard, 0, 2, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Lullaby"), N_("A song that leaves everything in earshot asleep on its feet for four seconds, half a second more a rank, until it is struck. Uniques do not sleep."), Bard, 0, 2, 1, Kind::Active, SpellID::Lullaby, true },
 	{ N_("Epic Solo"), N_("Mastery that empowers every Melody song. Inert: there is no per-page channel here."),
 	    Bard, 0, 5, 1, Kind::Passive, SpellID::Invalid, false },
 	// --- Harmony ---
-	{ N_("Sound Shock"), N_("A burst of sonic force in front of you. Not yet built."), Bard, 1, 0, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Shout"), N_("A shout that stuns. Inert: it needs the monster-facing pass."), Bard, 1, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Sound Shock"), N_("A burst of sound through the three tiles ahead, for four to ten and two to four more a rank, that staggers what it strikes."), Bard, 1, 0, 0, Kind::Active, SpellID::SoundShock, true },
+	{ N_("Shout"), N_("A shout that leaves everything within three tiles reeling for a second, a fifth more a rank. Uniques shrug it off."), Bard, 1, 0, 1, Kind::Active, SpellID::BardShout, true },
 	{ N_("Sonic Barrier"), N_("A barrier that drinks the damage meant for you. Points raise this engine's Mana Shield."),
 	    Bard, 1, 1, 0, Kind::Active, SpellID::ManaShield, true },
-	{ N_("Discord"), N_("Strips enemy defence. Inert: it needs the monster-facing pass."), Bard, 1, 1, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Discord"), N_("A discord that strips a fifth of the armour from what hears it, two percent more a point."), Bard, 1, 1, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Resonance"), N_("Your blows amplify your next song. Inert: no such carry-over exists here."),
 	    Bard, 1, 2, 0, Kind::Passive, SpellID::Invalid, false },
 	{ N_("Echoing Song"), N_("Your songs reach further and last longer. Inert: songs here have neither range nor duration."),
@@ -483,14 +484,14 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Perfect Harmony"), N_("Mastery that empowers every Harmony skill. Inert: there is no per-page channel here."),
 	    Bard, 1, 5, 1, Kind::Passive, SpellID::Invalid, false },
 	// --- Poetry ---
-	{ N_("Daze"), N_("Sets an enemy wandering and striking at random. Inert: it needs the monster-facing pass."),
-	    Bard, 2, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Daze"), N_("A verse that sends everything in earshot stumbling off in a direction of its own. Uniques keep their feet."),
+	    Bard, 2, 0, 0, Kind::Active, SpellID::Daze, true },
 	{ N_("Charm"), N_("Turns a monster to your side. Rides this engine's Berserk, which does exactly that."),
 	    Bard, 2, 0, 1, Kind::Active, SpellID::Berserk, true },
 	{ N_("Inspiration"), N_("A verse that returns your mana as it plays."), Bard, 2, 1, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Tale of Heroes"), N_("A verse that lends you a hero's strength and grace."), Bard, 2, 1, 1, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Weaken"), N_("Blunts enemy aim and slows their step. Inert: it needs the monster-facing pass."),
-	    Bard, 2, 2, 0, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Weaken"), N_("A drone that blunts the aim of what hears it by twenty, two more a point, and slows its step."),
+	    Bard, 2, 2, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Ode to Glory"), N_("Raises a fallen ally to fight on. Inert: it needs the corpse-handling pass."),
 	    Bard, 2, 2, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Legendary Ballad"), N_("Mastery that empowers every Poetry skill. Inert: there is no per-page channel here."),
@@ -564,8 +565,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 1, 2, 1, Kind::Passive, SpellID::Invalid, true, 5 },
 	{ N_("Counterstroke"), N_("A block empowers your next blow. Inert: nothing here reports a block to build on."),
 	    Monk, 1, 3, 1, Kind::Passive, SpellID::Invalid, false, 5 },
-	{ N_("Purifying Breath"), N_("Centre yourself against the elements. Inert: the cleansing half needs status effects this engine has not got."),
-	    Monk, 1, 4, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Purifying Breath"), N_("Centre yourself: twenty to every resistance, five more a rank, for thirty seconds and five more a rank."),
+	    Monk, 1, 4, 1, Kind::Active, SpellID::PurifyingBreath, true, 5 },
 	{ N_("Hundred Fists"), N_("Four blows in one swing, one more every two ranks up to seven, each at half."),
 	    Monk, 1, 5, 1, Kind::Active, SpellID::HundredFists, true, 5 },
 	{ N_("Perfect Vessel"), N_("Your mastery of the body empowers every Way of the Body skill: a tenth more life, and you shake off hits faster."),
@@ -575,14 +576,14 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 2, 0, 1, Kind::Active, SpellID::Search, true, 5 },
 	{ N_("Healing Mantra"), N_("Restore life to yourself over time. Held like an aura rather than cast, so it mends you for as long as it plays."),
 	    Monk, 2, 1, 1, Kind::Aura, SpellID::Invalid, true, 5 },
-	{ N_("Temple Bell"), N_("A tone that staggers and repels the undead. Inert: it needs the monster-facing pass."),
-	    Monk, 2, 2, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Temple Bell"), N_("A tone that strikes every undead in earshot for three to six a rank, staggers it and drives it back."),
+	    Monk, 2, 2, 1, Kind::Active, SpellID::TempleBell, true, 5 },
 	{ N_("Spirit Ward"), N_("Surround yourself with a barrier against magic. Rides this engine's Mana Shield, which drinks the blow into your mana; every point makes it drink deeper."),
 	    Monk, 2, 3, 1, Kind::Active, SpellID::ManaShield, true, 5 },
 	{ N_("Radiant Palm"), N_("A strike a fifth harder, a tenth more a rank; an enemy it kills erupts, dealing the blow again to everything beside it."),
 	    Monk, 2, 4, 1, Kind::Active, SpellID::RadiantPalm, true, 5 },
-	{ N_("Tranquility"), N_("A sanctuary that slows enemies and restores allies. Inert: it needs a ground-effect pass."),
-	    Monk, 2, 5, 1, Kind::Active, SpellID::Invalid, false, 5 },
+	{ N_("Tranquility"), N_("A sanctuary about you for twelve seconds and one more a rank: what stands beside you is slowed, and a fiftieth of your life returns each second."),
+	    Monk, 2, 5, 1, Kind::Active, SpellID::Tranquility, true, 5 },
 	{ N_("Enlightenment"), N_("Your mastery of spirit empowers every Way of the Spirit skill: a tenth more mana, and ten points of every resistance."),
 	    Monk, 2, 6, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ---- Passive Skills (page 3) ----
@@ -1617,6 +1618,7 @@ void ProcessClassTreeTick(Player &player)
 	// query cannot go stale. See oracool/aura_field.h.
 	ProcessOutwardAura(player);
 	ProcessPassivesTick(player);
+	ProcessWarcriesTick(player);
 
 	// The Sorceress's Warmth is a passive, so it needs no activation - the points alone. But a
 	// corpse regenerates nothing (audit, 2026-08-26): the aura guard in GetActiveClassAura does not

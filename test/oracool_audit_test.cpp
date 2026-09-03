@@ -101,6 +101,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
+#include "oracool/warcries.h"
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
 #include "DiabloUI/hero/hero_layout.h" // the character-select column geometry
@@ -9373,4 +9374,66 @@ TEST(OracoolPassives, SheetRowsMoveTheSheetAndRuleRowsAnswerTheirHooks)
 	}
 
 	oracool::ClearPassiveState();
+}
+
+/**
+ * @brief Round 6's cries: every cry maps to its row and has a sentence; a buff cry starts a buff
+ * that feeds the sheet and refuses a pointless recast; a debuff cry needs someone in earshot and
+ * then strips exactly what its row says.
+ */
+TEST(OracoolWarcries, BuffsFeedTheSheetAndDebuffsNeedAnEar)
+{
+	oracool::ClearWarcries();
+	const SpellID cries[] = {
+		SpellID::Howl, SpellID::Taunt, SpellID::Shout, SpellID::BattleCry, SpellID::BattleOrders,
+		SpellID::WarCry, SpellID::BattleCommand, SpellID::Lullaby, SpellID::SoundShock, SpellID::BardShout,
+		SpellID::Daze, SpellID::TempleBell, SpellID::PurifyingBreath, SpellID::Tranquility,
+		SpellID::InnerSight, SpellID::SlowMissiles, SpellID::Vengeance
+	};
+	for (const SpellID spell : cries) {
+		EXPECT_TRUE(oracool::IsWarcry(spell)) << static_cast<int>(spell);
+		EXPECT_NE(oracool::WarcrySkill(spell), oracool::ClassTreeSkill::None) << static_cast<int>(spell);
+		EXPECT_STRNE(oracool::WarcryDescription(spell), "") << static_cast<int>(spell);
+	}
+	EXPECT_FALSE(oracool::IsWarcry(SpellID::Firebolt));
+	EXPECT_FALSE(oracool::IsWarcry(SpellID::Bash));
+
+	devilution::Player &barbarian = FreshHero(HeroClass::Barbarian);
+	MyPlayer = &barbarian;
+	barbarian.position.tile = { 30, 30 };
+	ASSERT_TRUE(oracool::InvestClassTreePoint(barbarian, oracool::ClassTreeSkill::Shout));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(barbarian, oracool::ClassTreeSkill::BattleCry));
+
+	// Nobody in earshot: a Battle Cry has nothing to do, and says so.
+	EXPECT_FALSE(oracool::CastWarcry(barbarian, SpellID::BattleCry));
+
+	// Shout: a buff, half again the armour, and a recast on a fresh buff is refused.
+	EXPECT_EQ(oracool::WarcryBuffTicks(barbarian, SpellID::Shout), 0);
+	EXPECT_TRUE(oracool::CastWarcry(barbarian, SpellID::Shout));
+	EXPECT_GT(oracool::WarcryBuffTicks(barbarian, SpellID::Shout), 0);
+	oracool::ItemBonusTotals totals;
+	oracool::ApplyWarcryBuffsToTotals(barbarian, totals);
+	EXPECT_EQ(totals.bonusArmor, 50);
+	EXPECT_FALSE(oracool::CastWarcry(barbarian, SpellID::Shout)) << "a fresh buff was paid for again";
+
+	// Battle Cry with a monster beside the Barbarian: a quarter off its armour, seen through the
+	// accessor every player to-hit roll now reads.
+	Monster &monster = Monsters[0];
+	monster = {};
+	monster.position.tile = { 31, 30 };
+	monster.hitPoints = 100 << 6;
+	monster.maxHitPoints = 100 << 6;
+	monster.armorClass = 40;
+	monster.mode = MonsterMode::Stand;
+	const int before = oracool::EffectiveMonsterArmor(monster);
+	EXPECT_EQ(oracool::MonsterDebuffArmorPercent(monster), 0);
+	// The map globals are not linked into this binary, so the cry's own ear cannot be tested here;
+	// the debuff it lays is, through the seam it lays it with.
+	oracool::DebuffMonster(monster, 100, -25, -25);
+	EXPECT_EQ(oracool::MonsterDebuffArmorPercent(monster), -25);
+	EXPECT_EQ(oracool::MonsterDebuffDamagePercent(monster), -25);
+	EXPECT_EQ(oracool::EffectiveMonsterArmor(monster), before - before * 25 / 100);
+
+	oracool::ClearWarcries();
+	EXPECT_EQ(oracool::WarcryBuffTicks(barbarian, SpellID::Shout), 0);
 }

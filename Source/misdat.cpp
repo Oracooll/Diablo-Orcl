@@ -11,6 +11,7 @@
 #include "engine/load_clx.hpp"
 #include "missiles.h"
 #include "oracool/sprite_import.h"
+#include "oracool/warcries.h"
 #include "mpq/mpq_common.hpp"
 #include "utils/file_name_generator.hpp"
 #include "utils/str_cat.hpp"
@@ -184,6 +185,7 @@ const MissileData MissilesData[] = {
 /*FrostArrow*/           { &AddRogueArrow,          &ProcessRogueArrow,           SFX_NONE,    SFX_NONE,    MissileGraphicID::FrostArrow,           Cold | Arrow,          MissileMovementDistribution::Blockable   },
 /*GuidedArrow*/          { &AddRogueArrow,          &ProcessRogueArrow,           SFX_NONE,    SFX_NONE,    MissileGraphicID::Arrow,                Physical | Arrow,      MissileMovementDistribution::Blockable   },
 /*FreezingBurst*/        { &AddMissileExplosion,    &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::FreezingBurst,        Cold,                  MissileMovementDistribution::Disabled    },
+/*Warcry*/               { &oracool::AddWarcry,     nullptr,                      SFX_NONE,    SFX_NONE,    MissileGraphicID::None,                 Physical | Invisible,  MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 

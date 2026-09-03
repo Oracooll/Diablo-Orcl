@@ -8,6 +8,7 @@
 #include "oracool/charms.h"
 #include "oracool/gems.h"
 #include "oracool/class_tree.h"
+#include "oracool/warcries.h"
 #include "oracool/item_sets.h"
 #include "oracool/runewords.h"
 #include "player.h"
@@ -163,6 +164,8 @@ bool AuraIsRelevant(const BonusContext &ctx)
 void ApplyAura(const BonusContext &ctx, ItemBonusTotals &totals)
 {
 	ApplyClassTreeToTotals(*ctx.owner, totals);
+	// ...and the timed cries the character is carrying (Round 6) - Shout, Battle Orders and the rest.
+	ApplyWarcryBuffsToTotals(*ctx.owner, totals);
 }
 
 /**

@@ -126,6 +126,8 @@ const uint8_t SpellITbl[] = {
 	// The seventeen Round 4 melee skills - barb_tree_icons.png and monk_tree_icons.png.
 	26, 26, 26, 26, 26, 26, 26, 26, 26,
 	26, 26, 26, 26, 26, 26, 26, 26,
+	// The seventeen Round 6 cries.
+	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
 };
 static_assert(sizeof(SpellITbl) / sizeof(SpellITbl[0]) == MAX_SPELLS,
     "every SpellID needs an icon frame - this table is indexed by the enum");

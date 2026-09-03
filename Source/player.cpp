@@ -46,6 +46,7 @@
 #include "oracool/cold.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
+#include "oracool/warcries.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
@@ -669,7 +670,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 		hit = 0;
 	}
 
-	hper += player.GetMeleePiercingToHit() - player.CalculateArmorPierce(oracool::PackAdjustedArmor(monster), true);
+	hper += player.GetMeleePiercingToHit() - player.CalculateArmorPierce(oracool::EffectiveMonsterArmor(monster), true);
 	// Zeal's own accuracy, one point per level invested (user, 2026-08-30). Added before the clamp
 	// so it competes with armour on the same terms as every other to-hit source rather than being
 	// applied to an already-decided number.

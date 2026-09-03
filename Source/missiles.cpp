@@ -31,6 +31,7 @@
 #include "oracool/cold.h"
 #include "oracool/passives.h"
 #include "oracool/rogue_arrows.h"
+#include "oracool/warcries.h"
 #include "engine/path.h"
 #include "oracool/event_log.h"
 #include "oracool/divine_trn.h"
@@ -276,7 +277,7 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	const MissileData &missileData = GetMissileData(t);
 	if (missileData.isArrow()) {
 		hper = player.GetRangedPiercingToHit();
-		hper -= player.CalculateArmorPierce(oracool::PackAdjustedArmor(monster), false);
+		hper -= player.CalculateArmorPierce(oracool::EffectiveMonsterArmor(monster), false);
 		hper -= (dist * dist) / 2;
 	} else {
 		hper = player.GetMagicToHit() - (monster.level(sgGameInitInfo.nDifficulty) * 2) - dist;
@@ -1098,7 +1099,7 @@ bool MonsterTrapHit(int monsterId, int mindam, int maxdam, int dist, MissileID t
 		return false;
 
 	int hit = GenerateRnd(100);
-	int hper = 90 - oracool::PackAdjustedArmor(monster) - dist;
+	int hper = 90 - oracool::EffectiveMonsterArmor(monster) - dist;
 	hper = clamp(hper, 5, 95);
 	if (monster.tryLiftGargoyle())
 		return true;
@@ -1180,7 +1181,7 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	hper = std::max(hper, minhit);
 
 	// Oracool, Round 5: Avoid - an arrow that would have landed slips instead.
-	if (missileData.isArrow() && oracool::PassiveEvadesMissile(player))
+	if (missileData.isArrow() && (oracool::PassiveEvadesMissile(player) || oracool::SlowMissilesTurnsAside(player)))
 		return false;
 	int blk = 100;
 	if ((player._pmode == PM_STAND || player._pmode == PM_ATTACK) && player._pBlockFlag) {
