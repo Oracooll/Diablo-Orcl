@@ -106,6 +106,8 @@
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
 #include "DiabloUI/hero/hero_layout.h" // the character-select column geometry
+#include "DiabloUI/hero/selhero.h"
+#include "DiabloUI/multi/selgame.h"
 #include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
 #include "player.h"
@@ -9479,4 +9481,67 @@ TEST(OracoolClassSkills, AnInvestedTreeRowIsInnateForEveryClass)
 	devilution::Player &bard = FreshHero(HeroClass::Bard);
 	oracool::RefreshInnateSpells(bard);
 	EXPECT_EQ(bard._pAblSpells & GetSpellBitmask(SpellID::Berserk), 0ULL) << "Charm made Berserk innate";
+}
+
+/**
+ * @brief User report, 2026-09-03: "the level gate to higher difficulties has a hero levelcheck
+ * problem [...] i can get around it when i select different level heroes a few times."
+ *
+ * The gate measured a level found by scanning the save list for gSaveNumber, and in single-player
+ * gSaveNumber is not written until the character dialog RETURNS - which is after the difficulty
+ * screen has been shown and chosen. So it measured the previously played character, and cycling
+ * between a high-level hero and a low-level one carried the high one's unlocks onto the low one.
+ *
+ * The character screen now hands its level forward at the moment of selection. This pins that
+ * contract: the gate answers for the level it was HANDED, and for nothing else.
+ */
+TEST(OracoolDifficultyGate, TheGateMeasuresTheLevelItWasHanded)
+{
+	const bool savedMultiPlayer = selhero_isMultiPlayer;
+	const bool savedGate = *sgOptions.Oracool.difficultyLevelGate;
+	selhero_isMultiPlayer = false;
+	sgOptions.Oracool.difficultyLevelGate.SetValue(true);
+
+	// The single-player thresholds, in one place so a change to them fails here rather than in play.
+	EXPECT_EQ(DifficultyLevelRequirement(0), 0) << "Normal is gated";
+	EXPECT_EQ(DifficultyLevelRequirement(1), 15);
+	EXPECT_EQ(DifficultyLevelRequirement(2), 30);
+	EXPECT_EQ(DifficultyLevelRequirement(3), 40);
+
+	// A level 45 character opens everything.
+	selgame_SetHeroLevel(45);
+	for (int difficulty = 0; difficulty <= 3; difficulty++)
+		EXPECT_TRUE(IsDifficultyUnlocked(difficulty)) << "level 45 was refused difficulty " << difficulty;
+
+	// Then a level 3 character is chosen. THIS is the report: it used to keep the 45.
+	selgame_SetHeroLevel(3);
+	EXPECT_TRUE(IsDifficultyUnlocked(0)) << "Normal was refused";
+	EXPECT_FALSE(IsDifficultyUnlocked(1)) << "a level 3 hero was offered Nightmare";
+	EXPECT_FALSE(IsDifficultyUnlocked(2)) << "a level 3 hero was offered Hell";
+	EXPECT_FALSE(IsDifficultyUnlocked(3)) << "a level 3 hero was offered Torment";
+
+	// The boundaries themselves, since the report is about a comparison.
+	selgame_SetHeroLevel(14);
+	EXPECT_FALSE(IsDifficultyUnlocked(1));
+	selgame_SetHeroLevel(15);
+	EXPECT_TRUE(IsDifficultyUnlocked(1)) << "the threshold is exclusive when it should be inclusive";
+	selgame_SetHeroLevel(39);
+	EXPECT_FALSE(IsDifficultyUnlocked(3));
+	selgame_SetHeroLevel(40);
+	EXPECT_TRUE(IsDifficultyUnlocked(3));
+
+	// Level 0 is what a save-list scan that matched nothing now leaves behind. It must lock
+	// everything but Normal - the safe way to be wrong.
+	selgame_SetHeroLevel(0);
+	EXPECT_TRUE(IsDifficultyUnlocked(0));
+	EXPECT_FALSE(IsDifficultyUnlocked(1));
+
+	// With the toggle off there is no gate at all, whatever the level.
+	sgOptions.Oracool.difficultyLevelGate.SetValue(false);
+	selgame_SetHeroLevel(1);
+	for (int difficulty = 0; difficulty <= 3; difficulty++)
+		EXPECT_TRUE(IsDifficultyUnlocked(difficulty)) << "the gate is on with its toggle off";
+
+	sgOptions.Oracool.difficultyLevelGate.SetValue(savedGate);
+	selhero_isMultiPlayer = savedMultiPlayer;
 }

@@ -35,6 +35,20 @@ bool selgame_endMenu;
 int *gdwPlayerId;
 _difficulty nDifficulty;
 int nTickRate;
+/**
+ * @brief The level the difficulty gate measures against: the level of the character that was JUST
+ * chosen, and nothing else.
+ *
+ * Oracool, user report (2026-09-03): "the level gate to higher difficulties has a hero levelcheck
+ * problem [...] i can get around it when i select different level heroes a few times."
+ *
+ * It was found by scanning the save list for gSaveNumber - and in single-player gSaveNumber is not
+ * written until the character dialog RETURNS, which happens after this screen has been shown and
+ * chosen. So the gate measured the PREVIOUSLY played character: pick a level 45 hero, back out, pick
+ * a level 3 hero, and the level 3 hero was offered Torment. The character screen now hands its level
+ * forward the moment a character is picked or created - see selgame_SetHeroLevel and its caller in
+ * SelheroLoadSelect.
+ */
 int heroLevel;
 
 static GameData *m_game_data;
@@ -306,6 +320,23 @@ bool UpdateHeroLevel(_uiheroinfo *pInfo)
 	return true;
 }
 
+/**
+ * @brief heroLevel from the save list, for gSaveNumber's character. Zero if there is no such save.
+ *
+ * Zeroed BEFORE the scan, which is the other half of the report above: a scan that matched nothing -
+ * a character just created, a save just deleted - used to leave whatever the previous scan found, so
+ * a stale level survived even where the scan was the right question. Zero locks everything but
+ * Normal, which is the safe way to be wrong.
+ *
+ * Multiplayer's path only: there gSaveNumber IS the chosen character by the time a difficulty is
+ * picked, because that character dialog has already returned.
+ */
+void RefreshHeroLevelFromSaves()
+{
+	heroLevel = 0;
+	gfnHeroInfo(UpdateHeroLevel);
+}
+
 // Defined further down, beside the level gates they share their thresholds with.
 void selgame_Difficulty_Init();
 string_view DifficultyName(int value);
@@ -317,7 +348,16 @@ void selgame_GameSelection_Select(int value)
 	selgame_enteringGame = true;
 	selgame_selectedGame = value;
 
-	gfnHeroInfo(UpdateHeroLevel);
+	// THE LEVEL CHECK'S INPUT - see heroLevel for why this is not a scan in single-player. The
+	// character screen has already handed its level forward through selgame_SetHeroLevel, and
+	// gSaveNumber is still the previously played character until that dialog returns. Multiplayer
+	// reaches here with gSaveNumber current, so it asks the saves.
+	//
+	// Deliberately not a one-shot handoff: a click on a locked row comes back through this function
+	// (see selgame_Diff_Select), and re-reading the wrong save at that point would hand the gate the
+	// wrong level on the second try - which is the shape of the bug being fixed.
+	if (selhero_isMultiPlayer)
+		RefreshHeroLevelFromSaves();
 
 	selgame_FreeVectors();
 
@@ -571,6 +611,11 @@ const char *DifficultyDescription(int value)
  * which needs the answer WITHOUT the popup those two raise, to know which rows to grey out.
  * Multiplayer keeps its own (lower) pair; single-player's is behind its own toggle.
  */
+void selgame_SetHeroLevel(int level)
+{
+	heroLevel = level;
+}
+
 int DifficultyLevelRequirement(int value)
 {
 	if (selhero_isMultiPlayer) {
@@ -693,7 +738,7 @@ void selgame_Diff_Esc()
 
 void selgame_GameSpeedSelection()
 {
-	gfnHeroInfo(UpdateHeroLevel);
+	RefreshHeroLevelFromSaves();
 
 	selgame_FreeVectors();
 

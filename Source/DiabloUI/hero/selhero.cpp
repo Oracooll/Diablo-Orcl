@@ -541,6 +541,15 @@ void SelheroLoadSelect(int choice)
 		// Set this to false so that we do not attempt to render difficulty indicators.
 		selhero_isSavegame = false;
 
+		// THE LEVEL CHECK, and the reason it is HERE: this is the last line of step one - a character
+		// has just been picked from the list, or just been created - and the next lines build step
+		// two, the difficulty screen. selhero_heroInfo is the character that was chosen in both
+		// cases: SelheroListFocus copies the saved one into it, and SelheroSetStats writes level 1
+		// into it for a new one. The gate used to look the level up from gSaveNumber instead, which
+		// is still the PREVIOUSLY PLAYED character at this point, so cycling between characters
+		// carried one hero's unlocks onto another (user report, 2026-09-03).
+		selgame_SetHeroLevel(selhero_heroInfo.level);
+
 		SelheroFree();
 		LoadBackgroundArt("ui_art\\selgame");
 		selgame_GameSelection_Select(0);
