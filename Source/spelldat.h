@@ -324,6 +324,13 @@ struct SpellMask {
  */
 static_assert(static_cast<int>(SpellID::LAST) <= 128,
     "spell ids past 128 do not fit SpellMask - add a third word, and check what saves it");
+// ...and the ENUM's own storage, which is a separate and lower ceiling. SpellID is int8_t, so id 128
+// would wrap to -128 exactly as MissileID::Warcry did in Round 6 - and every table indexed by this
+// enum would then be read from before its first row. The assert above cannot catch that: 128 passes
+// it. Nine rounds of appending took this from 52 to 125.
+static_assert(static_cast<int>(SpellID::LAST) <= 127,
+    "SpellID is int8_t - one more spell wraps the enum negative. Widen it to int16_t first, and "
+    "check every static_cast<int8_t> and every byte that stores a spell id.");
 
 /**
  * @brief Whether @p spell shipped with Diablo or Hellfire, rather than being one this fork added.
@@ -356,7 +363,19 @@ enum class MagicType : uint8_t {
 	Cold,
 };
 
-enum class MissileID : int8_t {
+/**
+ * @brief The missile kinds. int16_t, NOT int8_t.
+ *
+ * Round 6's MissileID::Warcry was the 129th entry, and at int8_t its value 128 wrapped to -128 -
+ * so GetMissileData indexed MissilesData at -128 for every cry in the game. The compiler said so
+ * (C4340, C4369) and the audit that followed grepped the build for "error" and never read a
+ * warning, which is the whole lesson: a wrapped enumerator is not an error, it is a table read a
+ * hundred and twenty-eight rows before the table.
+ *
+ * Widening is free here. The save writes this as int32_t and reads it back as int32_t; the
+ * hardcoded int8_t casts in objects.cpp are all for ids below ten.
+ */
+enum class MissileID : int16_t {
 	// clang-format off
 	Arrow,
 	Firebolt,

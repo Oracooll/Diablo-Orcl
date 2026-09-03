@@ -1783,7 +1783,7 @@ void SaveMonster(SaveHelper *file, Monster &monster, MonsterConversionData *mons
 
 void SaveMissile(SaveHelper *file, const Missile &missile)
 {
-	file->WriteLE<int32_t>(static_cast<int8_t>(missile._mitype));
+	file->WriteLE<int32_t>(static_cast<int16_t>(missile._mitype));
 	file->WriteLE<int32_t>(missile.position.tile.x);
 	file->WriteLE<int32_t>(missile.position.tile.y);
 	file->WriteLE<int32_t>(missile.position.offset.deltaX);

@@ -189,6 +189,13 @@ const MissileData MissilesData[] = {
 	// clang-format on
 };
 
+// Oracool: MissilesData is indexed by MissileID positionally, so a row missing or a row too many
+// silently shifts every missile past it onto another's behaviour. Pinned after Round 6 appended
+// MissileID::Warcry - which, at the enum's old int8_t, wrapped to -128 and read this table from
+// before its first row. See MissileID in spelldat.h for that story.
+static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::Warcry) + 1,
+    "MissilesData needs a row for every MissileID, in the enum's order");
+
 namespace {
 
 constexpr std::array<uint8_t, 16> Repeat(uint8_t v) // NOLINT(readability-identifier-length)
