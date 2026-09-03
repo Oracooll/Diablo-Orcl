@@ -445,14 +445,6 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 	if (!CanUsePaladinSkill(player, *ArmedSkill))
 		return;
 
-	// Oracool: the impact cue for skills that never make a missile. A swing lands here and nowhere
-	// else, and it lands ONCE per connected blow, so this needs no latch of its own - unlike the
-	// missile path, which has to ignore a piercing bolt's later victims.
-	if (&player == MyPlayer) {
-		PlaySkillSound(ClassTreeSkillForSpell(player._pClass, GetPaladinSkillData(*ArmedSkill).spellId),
-		    SkillSoundEvent::Impact);
-	}
-
 	switch (*ArmedSkill) {
 	case PaladinSkill::Zeal:
 		ApplyZeal(player, primaryTarget);

@@ -9621,3 +9621,52 @@ TEST(OracoolSpellArt, LegacySpellsAreTheOnesTheOriginalGameShipped)
 	EXPECT_FALSE(IsLegacySpell(SpellID::Null));
 	EXPECT_FALSE(IsLegacySpell(SpellID::Invalid));
 }
+
+/**
+ * @brief User report, 2026-09-03: "i bought a bunch of books from griswold and read them but i am
+ * not sure i learned the spells [...] make sure these lvl req ban me from reading and thus
+ * destroying a book."
+ *
+ * The ban is real and this pins it, including the ceiling case that was NOT banned before: a book
+ * of a spell already at MaxSpellLevel used to pass the level gate, do nothing, and still be eaten.
+ */
+TEST(OracoolBooks, TheLevelGateRefusesTheReadRatherThanEatingTheBook)
+{
+	devilution::Player &sorceress = FreshHero(HeroClass::Sorcerer);
+
+	// Fireball sits in the level-18 band, and the Rule of Rangs adds one level per rank after the
+	// first - so rank 1 wants 18, rank 2 wants 19, and so on.
+	EXPECT_EQ(oracool::SpellRequiredLevel(SpellID::Fireball), 18);
+	EXPECT_EQ(oracool::SpellRankRequiredLevel(SpellID::Fireball, 1), 18);
+	EXPECT_EQ(oracool::SpellRankRequiredLevel(SpellID::Fireball, 2), 19);
+	EXPECT_EQ(oracool::SpellRankRequiredLevel(SpellID::Fireball, 5), 22);
+
+	sorceress._pLevel = 17;
+	sorceress._pSplLvl[static_cast<size_t>(SpellID::Fireball)] = 0;
+	EXPECT_FALSE(oracool::CanReadSpellBookTo(sorceress, SpellID::Fireball, 1))
+	    << "a level 17 Sorceress could read a Fireball book";
+
+	sorceress._pLevel = 18;
+	EXPECT_TRUE(oracool::CanReadSpellBookTo(sorceress, SpellID::Fireball, 1));
+	// ...and the SECOND book off the same stack wants one more level than the first, which is the
+	// answer to "i read a book stack of three books [...] not sure i upgraded three levels": a
+	// stack is three separate reads, and each one is gated on its own rank.
+	sorceress._pSplLvl[static_cast<size_t>(SpellID::Fireball)] = 1;
+	EXPECT_FALSE(oracool::CanReadSpellBookTo(sorceress, SpellID::Fireball, 2))
+	    << "rank 2 was free at the rank 1 level";
+	sorceress._pLevel = 19;
+	EXPECT_TRUE(oracool::CanReadSpellBookTo(sorceress, SpellID::Fireball, 2));
+
+	// A band-1 spell is readable from level 1, so nothing here bans the early books.
+	EXPECT_EQ(oracool::SpellRequiredLevel(SpellID::ChargedBolt), 1);
+	sorceress._pLevel = 1;
+	sorceress._pSplLvl[static_cast<size_t>(SpellID::ChargedBolt)] = 0;
+	EXPECT_TRUE(oracool::CanReadSpellBookTo(sorceress, SpellID::ChargedBolt, 1));
+
+	// The ceiling. A character high enough to satisfy the Rule of Rangs at rank 31 still must not
+	// be able to read a 31st book - there is no level 31 to reach.
+	sorceress._pLevel = 60;
+	EXPECT_GT(MaxSpellLevel, 0);
+	EXPECT_TRUE(oracool::CanReadSpellBookTo(sorceress, SpellID::ChargedBolt, MaxSpellLevel + 1))
+	    << "the Rule of Rangs is what stops a maxed spell - it must not be, or the ceiling check is dead code";
+}

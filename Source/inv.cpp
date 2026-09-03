@@ -3749,11 +3749,33 @@ bool UseInvItem(int cii)
 	// The spell bands and the Rule of Rangs (user, 2026-08-19: "apply lvl req rule to books as
 	// well"). Checked HERE rather than inside UseItem, because the book is consumed by this function
 	// AFTER UseItem returns - refusing any later would eat the book and teach nothing.
-	if (item->_iMiscId == IMISC_BOOK
-	    && !oracool::CanReadSpellBookTo(player, item->_iSpell,
-	        player._pSplLvl[static_cast<size_t>(item->_iSpell)] + 1)) {
-		player.Say(HeroSpeech::ICantUseThisYet);
-		return true;
+	if (item->_iMiscId == IMISC_BOOK) {
+		const SpellID bookSpell = item->_iSpell;
+		const int nextLevel = player._pSplLvl[static_cast<size_t>(bookSpell)] + 1;
+		// AND the ceiling, which used to be checked only inside UseItem - and only to skip the
+		// level change, not to refuse the read. So a book of a spell already at MaxSpellLevel was
+		// eaten for nothing (user, 2026-09-03: "make sure these lvl req ban me from reading and
+		// thus destroying a book"). Refused here, where refusing still saves the book.
+		if (nextLevel > MaxSpellLevel) {
+			player.Say(HeroSpeech::ICantUseThisYet);
+			if (&player == MyPlayer)
+				EventPlrMsg(fmt::format(fmt::runtime(_("{:s} is already at its highest level.")),
+				                pgettext("spell", GetSpellData(bookSpell).sNameText)),
+				    UiFlags::ColorRed);
+			return true;
+		}
+		if (!oracool::CanReadSpellBookTo(player, bookSpell, nextLevel)) {
+			player.Say(HeroSpeech::ICantUseThisYet);
+			// SAYS THE NUMBER. The voice line alone left the player unable to tell a refusal from a
+			// read that did nothing - "i am not sure i learned the spells" (user, 2026-09-03). The
+			// book is intact either way; this is what makes that visible.
+			if (&player == MyPlayer)
+				EventPlrMsg(fmt::format(fmt::runtime(_("{:s} needs level {:d} to reach level {:d}. The book is unread.")),
+				                pgettext("spell", GetSpellData(bookSpell).sNameText),
+				                oracool::SpellRankRequiredLevel(bookSpell, nextLevel), nextLevel),
+				    UiFlags::ColorRed);
+			return true;
+		}
 	}
 
 	// The signet's lifetime cap, checked HERE for exactly the reason the book gate above is here:

@@ -65,6 +65,7 @@
 #include "stores.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
+#include "plrmsg.h"
 #include "utils/log.hpp"
 #include "utils/math.h"
 #include "utils/stdcompat/algorithm.hpp"
@@ -6424,6 +6425,18 @@ void UseItem(size_t pnum, item_misc_id mid, SpellID spellID, int spellFrom)
 		if (newSpellLevel <= MaxSpellLevel) {
 			player._pSplLvl[static_cast<int8_t>(spellID)] = newSpellLevel;
 			NetSendCmdParam2(true, CMD_CHANGE_SPELL_LEVEL, static_cast<uint16_t>(spellID), newSpellLevel);
+			// SAYS WHAT WAS LEARNED. A read used to be a page-turn sound and nothing else, so a
+			// player who had just spent a thousand gold could not tell whether anything had
+			// happened - "i am not sure i upgraded a single or let alone three levels" (user,
+			// 2026-09-03). One line, naming the spell and the level it now stands at.
+			if (&player == MyPlayer) {
+				EventPlrMsg(newSpellLevel == 1
+				        ? fmt::format(fmt::runtime(_("You have learned {:s}.")),
+				            pgettext("spell", GetSpellData(spellID).sNameText))
+				        : fmt::format(fmt::runtime(_("{:s} is now level {:d}.")),
+				            pgettext("spell", GetSpellData(spellID).sNameText), newSpellLevel),
+				    UiFlags::ColorWhitegold);
+			}
 		}
 		if (HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
 			player._pMana += GetSpellData(spellID).sManaCost << 6;

@@ -392,19 +392,14 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 		animationFlags = static_cast<AnimationDistributionFlags>(animationFlags | AnimationDistributionFlags::RepeatedAction);
 	NewPlrAnim(player, GetPlayerGraphicForSpell(player.queuedSpell.spellId), d, animationFlags, 0, player._pSFNum);
 
-	// Oracool: the class tree's own cast cue, where the row has one. StartSpell is the accepted-
-	// activation point for every spell and skill in the game - queued, re-validated, animation
-	// started - so it is the ONE place a cast is true for all six trees at once, rather than a hook
-	// per skill in six implementations. 92 of the 163 tree rows carry a cast cue.
+	// The spell's OWN sound, and only that (user, 2026-09-03: "there is some unnecessary chatgpt
+	// sound played every time i cast same spells. remove it. spells have their own sounds").
 	//
-	// The vanilla sSFX stays the fallback rather than being replaced: a row without a cue must keep
-	// making its old noise, not go silent. Local player only - PlaySkillSound is non-spatial by
-	// design (see its header), so it would be wrong for anyone else's cast.
-	const oracool::ClassTreeSkill castSkill = &player == MyPlayer
-	    ? oracool::ClassTreeSkillForSpell(player._pClass, player.queuedSpell.spellId)
-	    : oracool::ClassTreeSkill::None;
-	if (!oracool::PlaySkillSound(castSkill, oracool::SkillSoundEvent::Cast))
-		PlaySfxLoc(GetSpellData(player.queuedSpell.spellId).sSFX, player.position.tile);
+	// The class-tree sound package used to layer a cast cue on top of this for 92 of the 163 rows,
+	// so a spell with a perfectly good vanilla noise made two. The package's aura loops stay - an
+	// aura has no engine sound at all, so those are its only voice, not a second one - and so does
+	// the Learn click in the Abilities window, which is UI feedback rather than a spell.
+	PlaySfxLoc(GetSpellData(player.queuedSpell.spellId).sSFX, player.position.tile);
 
 	player._pmode = PM_SPELL;
 
