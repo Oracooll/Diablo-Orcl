@@ -12,6 +12,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/palette.h"
 #include "oracool/class_tree.h" // ClassTreeSkillForSpell - the wells draw the tree's own icons
+#include "oracool/badge.h"
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/paladin_skills.h"
@@ -20,6 +21,8 @@
 #include "panels/spell_icons.hpp" // the vanilla plate behind every skill icon
 #include "player.h"
 #include "spelldat.h"
+#include "spells.h"
+#include "utils/str_cat.hpp"
 #include "utils/log.hpp"
 #include "utils/png.h"
 #include "utils/sdl_geometry.h"
@@ -1646,6 +1649,55 @@ void DrawLegacySpellIconInCell(const Surface &out, Rectangle cell, SpellID spell
 {
 	ApplyPlateTint(tint);
 	DrawSmallSpellIconFittedTo(out, cell, spell);
+}
+
+void DrawRedCross(const Surface &out, Rectangle icon)
+{
+	constexpr int Thickness = 3;
+	// Bright end of the red ramp: this has to be unmistakable against a grey plate and a full-colour
+	// icon, and it is deliberately the loudest thing on the sheet.
+	constexpr uint8_t CrossColor = PAL16_RED + 1;
+
+	const int w = icon.size.width;
+	const int h = icon.size.height;
+	if (w <= 0 || h <= 0)
+		return;
+
+	for (int y = 0; y < h; y++) {
+		// Both diagonals from the same row index, so the two strokes always meet in the middle
+		// however the icon is proportioned.
+		const int down = y * (w - Thickness) / std::max(1, h - 1);
+		const int up = (w - Thickness) - down;
+		DrawHorizontalLine(out, { icon.position.x + down, icon.position.y + y }, Thickness, CrossColor);
+		DrawHorizontalLine(out, { icon.position.x + up, icon.position.y + y }, Thickness, CrossColor);
+	}
+}
+
+int StaffChargesFor(const Player &player, SpellID spell)
+{
+	const Item &staff = player.InvBody[INVLOC_HAND_LEFT];
+	if (staff.isEmpty() || staff._itype != ItemType::Staff)
+		return -1;
+	if (!IsValidSpell(spell) || staff._iSpell != spell)
+		return -1;
+	return staff._iCharges;
+}
+
+void DrawStaffChargeBadge(const Surface &out, Rectangle host, const Player &player, SpellID spell)
+{
+	const int charges = StaffChargesFor(player, spell);
+	if (charges < 0)
+		return;
+	// A spent staff is struck out, the same mark a broken item wears (user, 2026-09-03). BEFORE the
+	// badge, so the number stays legible on top of the stroke rather than under it - the same
+	// ordering the Abilities window uses for its unbuilt rows.
+	if (charges == 0)
+		DrawRedCross(out, host);
+	// Red is the warning, not a category - see badge.h. Ten is the user's own line, and it is drawn
+	// at zero too: a staff with nothing left still says so, which is the moment the number matters
+	// most.
+	DrawBadge(out, host, BadgeCorner::BottomLeft, StrCat(charges),
+	    charges < 10 ? UiFlags::ColorRed : UiFlags::ColorWhite);
 }
 
 bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell, SkillPlateTint tint)

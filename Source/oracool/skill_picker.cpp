@@ -483,6 +483,11 @@ void DrawSkillPicker(const Surface &out)
 				break;
 			}
 
+			// The staff's remaining charges, bottom-left, wherever a spell icon is drawn (user,
+			// 2026-09-03). Draws nothing for a cell that is not a staff holding.
+			if (entry.kind == EntryKind::Staff)
+				DrawStaffChargeBadge(out, cell, player, entry.spell);
+
 			// The rank, bottom-RIGHT since 2026-09-02 (it was bottom-centre from 2026-08-20). Drawn
 			// over the icon's own art rather than beside it, because the cell is 38px and a band
 			// outside it would cost a row.

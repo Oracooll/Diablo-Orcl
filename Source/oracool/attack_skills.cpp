@@ -174,6 +174,7 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	if (type == SpellType::Charges) {
 		SetSpellTrans(usable ? SpellType::Charges : SpellType::Scroll);
 		DrawSmallSpellIconFittedTo(out, net, spell);
+		DrawStaffChargeBadge(out, net, *MyPlayer, spell);
 		return;
 	}
 	// Any skill carrying its own tree art, now that the answer to "can I cast it" is in hand - the

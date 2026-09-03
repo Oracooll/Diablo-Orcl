@@ -911,6 +911,8 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	if (known) {
 		DrawFKeyBadge(content, iconRect, sn);
 	}
+	// ...and the staff's charges under it, on the row for a spell held that way (user, 2026-09-03).
+	oracool::DrawStaffChargeBadge(content, iconRect, player, sn);
 
 	const UiFlags nameColor = known ? UiFlags::ColorWhitegold : UiFlags::ColorUiSilverDark;
 	const UiFlags detailColor = known ? UiFlags::ColorWhite : UiFlags::ColorUiSilverDark;
@@ -1017,31 +1019,12 @@ void DrawFKeyBadge(const Surface &out, Rectangle iconRect, SpellID sn)
  * from a merely locked skill was the tooltip's "Not yet built." - the plate went grey either way, so
  * an empty tree page and an unfinished one looked identical.
  *
- * Drawn as horizontal runs rather than through a line primitive because the engine has only
- * axis-aligned ones. Each row of the icon gets a short run on each diagonal, `Thickness` wide, which
- * is both simpler than a Bresenham walk and gives the stroke a constant horizontal width - the
- * chunky look a marked-out icon wants.
+ * The stroke itself moved to oracool/hud_art.h on 2026-09-03, when a spent staff wanted the same
+ * mark. This stays as the name the window calls it by.
  */
 void DrawUnbuiltCross(const Surface &out, Rectangle icon)
 {
-	constexpr int Thickness = 3;
-	// Bright end of the red ramp: this has to be unmistakable against a grey plate and a full-colour
-	// icon, and it is deliberately the loudest thing on the sheet.
-	constexpr uint8_t CrossColor = PAL16_RED + 1;
-
-	const int w = icon.size.width;
-	const int h = icon.size.height;
-	if (w <= 0 || h <= 0)
-		return;
-
-	for (int y = 0; y < h; y++) {
-		// Both diagonals from the same row index, so the two strokes always meet in the middle
-		// however the icon is proportioned.
-		const int down = y * (w - Thickness) / std::max(1, h - 1);
-		const int up = (w - Thickness) - down;
-		DrawHorizontalLine(out, { icon.position.x + down, icon.position.y + y }, Thickness, CrossColor);
-		DrawHorizontalLine(out, { icon.position.x + up, icon.position.y + y }, Thickness, CrossColor);
-	}
+	oracool::DrawRedCross(out, icon);
 }
 
 void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scroll)

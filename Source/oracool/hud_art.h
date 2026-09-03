@@ -214,6 +214,43 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell,
  */
 void DrawLegacySpellIconInCell(const Surface &out, Rectangle cell, SpellID spell, SkillPlateTint tint);
 
+/**
+ * @brief Charges left on the staff @p player has equipped, if it casts @p spell; -1 when it does not.
+ *
+ * ONE source for the number, because the badge below has to appear in four places and a second copy
+ * of "which staff, which spell" is a second place for them to disagree. The staff is always the
+ * left-hand slot - that is where _pISpells is built from (see CalcPlrItemVals).
+ */
+/**
+ * @brief A thick red X across @p icon - the mark for "this cannot be used".
+ *
+ * Lived in spell_book.cpp as DrawUnbuiltCross from 2026-08-18, where it meant one thing: a tree row
+ * that is listed but not built. It has a second meaning now - a staff with no charges left (user,
+ * 2026-09-03: "when charges reach 0, put the red X over the icon, like we do with broken items") -
+ * and two callers in two files is the moment it stops being one window's private helper.
+ *
+ * Drawn as horizontal runs rather than through a line primitive because the engine has only
+ * axis-aligned ones. Each row of the icon gets a short run on each diagonal, Thickness wide, which
+ * is both simpler than a Bresenham walk and gives the stroke a constant horizontal width - the
+ * chunky look a marked-out icon wants.
+ */
+void DrawRedCross(const Surface &out, Rectangle icon);
+
+int StaffChargesFor(const Player &player, SpellID spell);
+
+/**
+ * @brief The staff-charge badge, bottom-left of @p host. Draws nothing unless @p player holds a
+ * staff of @p spell.
+ *
+ * Its own function rather than four copies of the call, because the request was that the badge
+ * "travel with skill/spell icon everywhere they appear" (user, 2026-09-03) - which is a rule about
+ * every draw site at once, and a rule like that survives only if there is one thing to call.
+ *
+ * Red below ten charges, white at ten and above, and bottom-LEFT because the other three corners
+ * are taken: the two top ones are the hotkey badges and bottom-right is the rank.
+ */
+void DrawStaffChargeBadge(const Surface &out, Rectangle host, const Player &player, SpellID spell);
+
 bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell,
     SkillPlateTint tint = SkillPlateTint::Green);
 

@@ -18,12 +18,17 @@
  * place. The same argument as oracool/window_close.h, and the same shape: a helper every caller uses
  * rather than a convention every caller remembers.
  *
- * THE COLOUR IS ALWAYS WHITE. The Abilities window used red for the left button and yellow for the
- * right; that distinction now lives entirely in which CORNER the badge sits in, and in the
+ * THE COLOUR IS ALMOST ALWAYS WHITE. The Abilities window used red for the left button and yellow
+ * for the right; that distinction now lives entirely in which CORNER the badge sits in, and in the
  * assignment rings, which keep their colours. One badge colour is what lets the plate be one colour.
+ *
+ * The one exception, and it is a WARNING rather than a category: a staff's remaining charges go red
+ * below ten (user, 2026-09-03: "0-9 charges to use red font. 10 and over - regular white font").
+ * That is the badge telling you the thing it labels is about to run out, which no corner can say.
  */
 #pragma once
 
+#include "DiabloUI/ui_flags.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/surface.hpp"
@@ -61,6 +66,7 @@ Size BadgeSize(string_view text);
  * Clamped INTO @p host: a badge wider than its host is pinned to the host's edge rather than hanging
  * off it, because the thing it is labelling is what the player is looking at.
  */
-Rectangle DrawBadge(const Surface &out, Rectangle host, BadgeCorner corner, string_view text);
+Rectangle DrawBadge(const Surface &out, Rectangle host, BadgeCorner corner, string_view text,
+    UiFlags color = UiFlags::ColorWhite);
 
 } // namespace devilution::oracool

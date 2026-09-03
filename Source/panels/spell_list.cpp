@@ -265,6 +265,14 @@ void DrawSpellList(const Surface &out)
 			DrawLargeSpellIcon(out, spellListItem.location, oracool::IsFuriousChargeSpell(spellId) ? oracool::FuriousChargeIcon : spellId);
 		}
 
+		// The staff's charges, bottom-left of the large plate (user, 2026-09-03).
+		if (spellListItem.type == SpellType::Charges) {
+			oracool::DrawStaffChargeBadge(out,
+			    Rectangle { Point { spellListItem.location.x, spellListItem.location.y - SPLICONLENGTH + 1 },
+			        Size { SPLICONLENGTH, SPLICONLENGTH } },
+			    myPlayer, spellId);
+		}
+
 		std::optional<string_view> shortHotkeyName = GetHotkeyName(spellId, spellListItem.type, true);
 
 		if (shortHotkeyName)
