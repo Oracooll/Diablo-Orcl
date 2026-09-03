@@ -35,6 +35,7 @@
 #include "movie.h"
 #include "options.h"
 #include "oracool/chill.h"
+#include "oracool/cold.h"
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
 #include "oracool/aura_field.h"
@@ -1534,6 +1535,12 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		else
 			M_StartHit(monster, player, mdam);
 	}
+
+	// The cold armours' answer to a blow that landed (Oracool, Round 2): Frozen freezes, Shiver
+	// chills and cuts, Chilling chills and shoots back. After Thorns and under the same guard,
+	// because Thorns can have killed the attacker a line ago.
+	if (monster.mode != MonsterMode::Death)
+		oracool::OnColdArmourStruckInMelee(player, monster);
 
 	if ((monster.flags & MFLAG_NOLIFESTEAL) == 0 && monster.type().type == MT_SKING && gbIsMultiplayer)
 		monster.hitPoints += dam;
@@ -4488,7 +4495,11 @@ void ProcessMonsters()
 		//
 		// The animation below is skipped with it, deliberately: half the AI ticks with a full-speed
 		// walk cycle is a monster that moonwalks.
-		if (oracool::ChillTakesThisTick(monster))
+		//
+		// Not while dying or already stone (Round 2, when freeze arrived): a frozen corpse would
+		// hold its death animation forever, and stone already stops everything this would.
+		if (monster.mode != MonsterMode::Death && monster.mode != MonsterMode::Petrified
+		    && oracool::ChillTakesThisTick(monster))
 			continue;
 
 		while (true) {
@@ -5094,7 +5105,8 @@ bool Monster::isResistant(MissileID missileType, DamageType missileElement) cons
 	const uint16_t effective = oracool::EffectiveResistances(*this);
 	if (((effective & RESIST_MAGIC) != 0 && missileElement == DamageType::Magic)
 	    || ((effective & RESIST_FIRE) != 0 && missileElement == DamageType::Fire)
-	    || ((effective & RESIST_LIGHTNING) != 0 && missileElement == DamageType::Lightning))
+	    || ((effective & RESIST_LIGHTNING) != 0 && missileElement == DamageType::Lightning)
+	    || ((effective & RESIST_COLD) != 0 && missileElement == DamageType::Cold))
 		return true;
 	if (gbIsHellfire && missileType == MissileID::HolyBolt && IsAnyOf(type().type, MT_DIABLO, MT_BONEDEMN))
 		return true;

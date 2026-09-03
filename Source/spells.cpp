@@ -5,6 +5,7 @@
  */
 #include "spells.h"
 #include "oracool/class_tree.h"
+#include "oracool/paladin_skills.h"
 #include "oracool/skill_sounds.h"
 
 #include "control.h"
@@ -23,6 +24,19 @@
 namespace devilution {
 
 namespace {
+
+/**
+ * @brief Whether a SpellType::Skill cast of @p spell costs its listed mana.
+ *
+ * Oracool, Round 2. Three kinds of thing are SpellType::Skill: vanilla's class skills, priced at
+ * zero; the Paladin's seven, which pay through SpendPaladinSkillMana on their own path and never
+ * reach CastSpell; and the tree rows this fork adds, which have a price in SpellsData and, until
+ * this, nobody to collect it. So: a price, and not a Paladin skill.
+ */
+bool SkillPaysMana(SpellID spell)
+{
+	return GetSpellData(spell).sManaCost > 0 && !oracool::PaladinSkillForSpell(spell).has_value();
+}
 
 /**
  * @brief Gets a value indicating whether the player's current readied spell is a valid spell. Readied spells can be
@@ -166,6 +180,15 @@ void ConsumeSpell(Player &player, SpellID sn)
 {
 	switch (player.executedSpell.spellType) {
 	case SpellType::Skill:
+		// The tree skills' price - see CheckSpell. Same subtraction as the Spell case below, kept
+		// apart from it so vanilla's free skills stay free without a second condition down there.
+		if (SkillPaysMana(sn)) {
+			const int ma = GetManaAmount(player, sn);
+			player._pMana -= ma;
+			player._pManaBase -= ma;
+			RedrawComponent(PanelDrawComponent::Mana);
+		}
+		break;
 	case SpellType::Invalid:
 		break;
 	case SpellType::Scroll:
@@ -212,6 +235,13 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 	}
 
 	if (st == SpellType::Skill) {
+		// Oracool, Round 2 (2026-09-03): a TREE skill with a mana price pays it. Vanilla's skills
+		// (Repair, Identify...) cost nothing and this branch was written for them; the fork's tree
+		// rows are SpellType::Skill because they are earned rather than read from a book, and until
+		// this line Ice Bolt was free. The Paladin's seven pay their own way in CheckPlrSpell, and are
+		// left to it - see SkillPaysMana.
+		if (SkillPaysMana(sn) && player._pMana < GetManaAmount(player, sn))
+			return SpellCheckResult::Fail_NoMana;
 		return SpellCheckResult::Success;
 	}
 

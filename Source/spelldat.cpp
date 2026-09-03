@@ -101,6 +101,18 @@ const SpellData SpellsData[] = {
 // every seed (see MAX_ITEM_SPELLS's note). minInt 0 for the same reason - the tree's own gate is
 // what says who may cast it.
 /*SpellID::IceBolt*/          { P_("spell", "Ice Bolt"),           IS_CAST2,           0,            0,          6, Cold | Targeted,              -1,         -1,       0, { MissileID::IceBolt,              MissileID::Null,    },         1,         3,          0,          0 },
+// Oracool, Round 2: the rest of the cold page. Same rules as Ice Bolt - earned on the tree, never
+// found, so -1/-1 and minInt 0. Mana costs climb the page the way the fire line's do (Firebolt 6,
+// Fireball 16, Flame Wave 35); the armours are priced like Mana Shield's neighbours, one cast for a
+// long effect. The three armours are NOT Targeted: they land on the caster wherever the cursor is.
+/*SpellID::IceBlast*/         { P_("spell", "Ice Blast"),          IS_CAST2,           0,            0,         10, Cold | Targeted,              -1,         -1,       0, { MissileID::IceBlast,             MissileID::Null,    },         1,         5,          0,          0 },
+/*SpellID::GlacialSpike*/     { P_("spell", "Glacial Spike"),      IS_CAST2,           0,            0,         16, Cold | Targeted,              -1,         -1,       0, { MissileID::GlacialSpike,         MissileID::Null,    },         1,         8,          0,          0 },
+/*SpellID::FrostNova*/        { P_("spell", "Frost Nova"),         IS_CAST2,           0,            0,         14, Cold,                         -1,         -1,       0, { MissileID::FrostNova,            MissileID::Null,    },         1,         7,          0,          0 },
+/*SpellID::Blizzard*/         { P_("spell", "Blizzard"),           IS_CAST2,           0,            0,         28, Cold | Targeted,              -1,         -1,       0, { MissileID::Blizzard,             MissileID::Null,    },         1,        14,          0,          0 },
+/*SpellID::FrozenOrb*/        { P_("spell", "Frozen Orb"),         IS_CAST2,           0,            0,         30, Cold | Targeted,              -1,         -1,       0, { MissileID::FrozenOrb,            MissileID::Null,    },         1,        15,          0,          0 },
+/*SpellID::FrozenArmor*/      { P_("spell", "Frozen Armor"),       IS_CAST2,           0,            0,         12, Cold | AllowedInTown,         -1,         -1,       0, { MissileID::ColdArmor,            MissileID::Null,    },         0,        12,          0,          0 },
+/*SpellID::ShiverArmor*/      { P_("spell", "Shiver Armor"),       IS_CAST2,           0,            0,         14, Cold | AllowedInTown,         -1,         -1,       0, { MissileID::ColdArmor,            MissileID::Null,    },         0,        14,          0,          0 },
+/*SpellID::ChillingArmor*/    { P_("spell", "Chilling Armor"),     IS_CAST2,           0,            0,         16, Cold | AllowedInTown,         -1,         -1,       0, { MissileID::ColdArmor,            MissileID::Null,    },         0,        16,          0,          0 },
 	// clang-format on
 };
 

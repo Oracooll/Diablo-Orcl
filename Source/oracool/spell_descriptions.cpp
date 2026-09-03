@@ -3,6 +3,7 @@
 #include <array>
 #include <optional>
 
+#include "oracool/cold.h"
 #include "oracool/paladin_skills.h"
 #include "utils/language.h"
 
@@ -99,6 +100,9 @@ const char *GetSpellDescription(SpellID spell)
 	// mana prices, rather than having those sentences copied here where the two could disagree.
 	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value())
 		return GetPaladinSkillData(*skill).description;
+	// The cold line, likewise beside the numbers it describes - oracool/cold.cpp.
+	if (IsColdSpell(spell))
+		return ColdSpellDescription(spell);
 
 	const auto index = static_cast<int>(spell);
 	if (index < 0 || static_cast<size_t>(index) >= Descriptions.size())

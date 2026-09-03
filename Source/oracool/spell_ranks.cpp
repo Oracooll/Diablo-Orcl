@@ -82,6 +82,14 @@ constexpr int SpellBand[] = {
 	0,  // Shield Bash
 	0,  // Blessed Hammer
 	0,  // Ice Bolt - earned on the Sorceress's tree, so the tree's own tier gate is its requirement
+	0,  // Ice Blast - the same, and the seven after it
+	0,  // Glacial Spike
+	0,  // Frost Nova
+	0,  // Blizzard
+	0,  // Frozen Orb
+	0,  // Frozen Armor
+	0,  // Shiver Armor
+	0,  // Chilling Armor
 };
 static_assert(sizeof(SpellBand) / sizeof(SpellBand[0]) == MAX_SPELLS,
     "every SpellID needs a band - this table is indexed by the enum");

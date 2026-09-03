@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 60
+#define MAX_SPELLS 68
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -152,7 +152,21 @@ enum class SpellID : int8_t {
 	 */
 	IceBolt,
 
-	LAST = IceBolt,
+	/**
+	 * Oracool, Round 2 (2026-09-03): the rest of the Sorceress's cold page. Ids 60-67 - the first
+	 * of them was the reason the spell masks widened, and the assert below is what would have
+	 * stopped it otherwise. Cold Mastery is a passive and has no id; the three arrows are Round 3's.
+	 */
+	IceBlast,
+	GlacialSpike,
+	FrostNova,
+	Blizzard,
+	FrozenOrb,
+	FrozenArmor,
+	ShiverArmor,
+	ChillingArmor,
+
+	LAST = ChillingArmor,
 	Invalid = -1,
 };
 
@@ -370,8 +384,18 @@ enum class MissileID : int8_t {
 	 * so only the bolt needed to get smaller, and the art for that already shipped.
 	 */
 	MiniNovaBall,
-	/** Oracool, Round 1: the Sorceress.s Ice Bolt. Firebolt.s behaviour, cold damage, its own art. */
+	/** Oracool, Round 1: the Sorceress's Ice Bolt. Firebolt's behaviour, cold damage, its own art. */
 	IceBolt,
+	/** Oracool, Round 2. Each is described at its Add function in missiles.cpp. */
+	IceImpact,
+	IceBlast,
+	GlacialSpike,
+	GlacialShatter,
+	FrostNova,
+	Blizzard,
+	BlizzardShard,
+	FrozenOrb,
+	ColdArmor,
 	Null = -1,
 	// clang-format on
 };

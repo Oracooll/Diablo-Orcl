@@ -766,10 +766,13 @@ TEST(Writehero, pfile_write_hero)
 	//      Hellfire ten, hard numbers that predate the fork, so spell levels above 46 have never been
 	//      persisted and Ice Bolt joins Charge and the Paladin's six in not having one. Its rank
 	//      lives in _pSkillInvestment, which is the chunk that did grow.
+	// 1.9.184: EIGHT BYTES, same chunk, same reason - MAX_SPELLS 60 -> 68 for the rest of the cold
+	//      line (Round 2). The spell masks widened to 128 bits in the same round and moved NOTHING
+	//      here: only the low word is persisted, and every saved spell sits in it.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "6209cf150d5efb4fefc7f900db84c7d93f6ba38be46b08521049eac6f0469ac5");
+	    "4978bd3f3e31d53e4b14f7262d84397a223ce90dc3393c4f7e587ebb89c3b48c");
 }
 
 } // namespace

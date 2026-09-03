@@ -69,6 +69,13 @@ enum monster_resistance : uint8_t {
 	IMMUNE_MAGIC     = 1 << 3,
 	IMMUNE_FIRE      = 1 << 4,
 	IMMUNE_LIGHTNING = 1 << 5,
+	/**
+	 * Oracool, Round 2 (2026-09-03): the one free bit in this byte, and cold gets it. A cold
+	 * IMMUNITY has no seat here - the data field is eight bits and this is the last - so cold has
+	 * resistance only until that field widens. Granted to the undead by
+	 * oracool::MonsterResistancesFor rather than by the monster tables, which predate cold.
+	 */
+	RESIST_COLD      = 1 << 6,
 	IMMUNE_ACID      = 1 << 7,
 	// clang-format on
 };

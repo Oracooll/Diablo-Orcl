@@ -47,7 +47,32 @@ Thirteen sheets audited and ingested; `MissileFileData::LoadGFX` learned to read
 them yet. This round exists in the list because the next one depends on it and because it is the
 proof the art pipeline works end to end.
 
-### Round 1 — Cold damage · unlocks 13 rows · art READY
+### Round 1 — Cold damage ✔ DONE (v1.9.182)
+
+`DamageType::Cold`, the chill (a monster loses every other tick), and Ice Bolt end to end. Found the
+spell-id ceiling on the way: the four spell masks were uint64, so id 64 was the last spell that could
+exist, and Ice Bolt was 59.
+
+### Round 2 — the rest of the cold page ✔ DONE (v1.9.184)
+
+Opened with the mechanism the ceiling demanded: `SpellMask`, 128 bits, low word persisted exactly as
+before. Then nine rows: Ice Blast and Glacial Spike (freeze), Frost Nova, Blizzard, Frozen Orb, the
+three armours (a shell the caster wears, and a reaction to whatever hits them), and Cold Mastery
+(+6% cold damage a rank; pierces resistance from rank 3, ignores it from rank 6). The undead resist
+cold on every difficulty, so Mastery has something to master from the first cathedral level.
+
+Also found and fixed: a `SpellType::Skill` cast paid no mana at all, so Ice Bolt had been free for a
+day. Tree skills with a price now pay it; vanilla's free skills stay free.
+
+**Deferred to Round 3, deliberately:** Cold, Ice and Freezing Arrow. They are Rogue rows and they
+are arrow *modifiers* — Round 3's mechanism — and building that mechanism for three rows now and
+seven more later would be building it twice.
+
+Not done, and worth knowing: the armours give no armour-class bonus yet (they react; they do not
+harden), `ice_ground.png` and `ice_armor_break.png` are in the archive but nothing draws them, and
+cold has monster *resistance* but no *immunity* — the data byte has no bit left for one.
+
+### (Round 1 as planned) — Cold damage · unlocks 13 rows · art READY
 
 The engine has four damage types and none of them is cold. Everything the Sorceress's first page
 promises, and three of the Rogue's arrows, is waiting on the same missing noun.

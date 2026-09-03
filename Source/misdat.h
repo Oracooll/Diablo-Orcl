@@ -113,6 +113,17 @@ enum class MissileGraphicID : uint8_t {
 	 */
 	IceBolt,
 	IceImpact,
+	// Round 2: the rest of the pack. ice_ground.png and freezing_burst.png are in the archive but
+	// not here yet - the ground patch has no spell to leave it, and the burst is Freezing Arrow's,
+	// which is Round 3's.
+	IceBlast,
+	GlacialSpike,
+	GlacialShatter,
+	FrostNova,
+	BlizzardShard,
+	FrozenOrb,
+	IceArmorShell,
+	IceArmorBreak,
 	None,
 };
 

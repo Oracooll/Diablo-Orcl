@@ -54,22 +54,27 @@ uint16_t PromoteResistancesToImmunities(uint16_t resistances)
 
 uint16_t MonsterResistancesFor(const MonsterData &data, _difficulty difficulty)
 {
+	// COLD (Round 2, 2026-09-03). The monster tables predate the element, so the resistance is
+	// derived rather than authored: the undead resist it, every difficulty, which is the game this
+	// line comes from and gives Cold Mastery something to master from the first cathedral level. The
+	// base tables stay untouched - ORed in on the way out, on every difficulty branch below.
+	const uint16_t cold = data.monsterClass == MonsterClass::Undead ? RESIST_COLD : 0;
 	switch (difficulty) {
 	case DIFF_NIGHTMARE:
 		// Everything Normal already had, plus Hell's extra walls arriving as resistances first.
 		// Unioned rather than replaced, so a monster can never LOSE a resistance by the difficulty
 		// going up - `resistanceHell` is authored as a replacement set, not a superset.
-		return static_cast<uint16_t>(data.resistance) | DemoteImmunitiesToResistances(data.resistanceHell);
+		return cold | static_cast<uint16_t>(data.resistance) | DemoteImmunitiesToResistances(data.resistanceHell);
 	case DIFF_HELL:
-		return data.resistanceHell;
+		return cold | data.resistanceHell;
 	case DIFF_TORMENT:
 		// Torment was byte-identical to Hell, so the fourth difficulty asked nothing the third had
 		// not already asked (Pipeline: "make it difficulty-aware so Hell and Torment demand real
 		// resistance gear"). Hell's resistances harden into immunities here - the same step
 		// Nightmare-to-Hell makes, taken once more.
-		return PromoteResistancesToImmunities(data.resistanceHell);
+		return cold | PromoteResistancesToImmunities(data.resistanceHell);
 	default:
-		return data.resistance;
+		return cold | data.resistance;
 	}
 }
 

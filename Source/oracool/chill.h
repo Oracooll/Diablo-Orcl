@@ -47,6 +47,18 @@ void ChillMonster(const Monster &monster, int ticks);
 bool IsMonsterChilled(const Monster &monster);
 
 /**
+ * @brief Freezes @p monster solid for @p ticks: EVERY tick is the ice's, not every other one.
+ *
+ * Round 2 (2026-09-03), for Ice Blast, Glacial Spike and Frozen Armor. Extends rather than stacks,
+ * like the chill, and for the same reason. A freeze is drawn in the cold tint and stops the monster
+ * outright; callers decide who may be frozen at all - oracool/cold.h downgrades uniques to a chill.
+ */
+void FreezeMonster(const Monster &monster, int ticks);
+
+/** @brief Whether @p monster is frozen solid right now. Implies chilled. */
+bool IsMonsterFrozen(const Monster &monster);
+
+/**
  * @brief Whether the ice owns @p monster's turn this tick. Ages the chill by one tick as it answers.
  *
  * Called once per monster per tick from ProcessMonsters, and it is the whole mechanic: true means

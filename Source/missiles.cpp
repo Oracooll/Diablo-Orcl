@@ -28,6 +28,8 @@
 #include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
+#include "oracool/cold.h"
+#include "engine/path.h"
 #include "oracool/event_log.h"
 #include "oracool/divine_trn.h"
 #include "oracool/skill_sounds.h"
@@ -259,7 +261,7 @@ int ProjectileTrapDamage(Missile &missile)
 	return currlevel + GenerateRnd(2 * currlevel);
 }
 
-bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift)
+bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, MissileID t, DamageType damageType, bool shift, int spellLevel)
 {
 	auto &monster = Monsters[monsterId];
 
@@ -312,21 +314,25 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	bool resist = monster.isResistant(t, damageType);
 	if (!shift)
 		dam <<= 6;
-	if (resist)
-		dam >>= 2;
+	if (resist) {
+		// A quarter, as it always was - except for cold, where Cold Mastery decides how much of the
+		// penalty the monster keeps (Round 2). The divisor is 4 with no mastery, so the two branches
+		// agree for a Sorceress who has not bought it and for every other class.
+		dam /= damageType == DamageType::Cold ? oracool::ColdResistanceDivisor(player) : 4;
+	}
 
 	if (&player == MyPlayer)
 		ApplyMonsterDamage(damageType, monster, dam);
 
-	// COLD CHILLS (Oracool, Round 1). Every cold missile does it, rather than Ice Bolt doing it -
-	// the slow is what the damage type MEANS, and hanging it on the element is what lets the next
-	// twelve cold rows inherit it without a line each.
+	// COLD CHILLS (Oracool, Round 1) - and from Round 2, freezes, depending on the missile. Every
+	// cold missile does it, rather than Ice Bolt doing it: the slow is what the damage type MEANS,
+	// and hanging it on the element is what lets each new cold row inherit it without a line.
 	//
 	// After the damage and before the death check, so a killing blow does not chill a corpse: the
 	// branch below either kills the monster or starts its hit reaction, and a chill applied past that
 	// point would sit in the table until the level ended.
 	if (damageType == DamageType::Cold && monster.hitPoints >> 6 > 0)
-		oracool::ChillMonster(monster, oracool::IceBoltChillTicks);
+		oracool::ApplyColdHit(t, spellLevel, monster);
 
 	if (monster.hitPoints >> 6 <= 0) {
 		M_StartKill(monster, player);
@@ -497,7 +503,7 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			// then the missile can potentially hit this target
 			isMonsterHit = MonsterTrapHit(mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted);
 		} else if (IsAnyOf(missile._micaster, TARGET_BOTH, TARGET_MONSTERS)) {
-			isMonsterHit = MonsterMHit(missile._misource, mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted);
+			isMonsterHit = MonsterMHit(missile._misource, mid, minDamage, maxDamage, missile._midist, missile._mitype, damageType, isDamageShifted, missile._mispllvl);
 		}
 	}
 
@@ -525,6 +531,10 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 			} else {
 				Monster &monster = Monsters[missile._misource];
 				isPlayerHit = PlayerMHit(pid - 1, &monster, missile._midist, minDamage, maxDamage, missile._mitype, damageType, isDamageShifted, DeathReason::MonsterOrTrap, &blocked);
+				// Chilling Armor answers a RANGED hit; the other two armours do not, which is the
+				// difference between them (Oracool, Round 2). A blocked shot is not a hit.
+				if (isPlayerHit && !blocked)
+					oracool::OnColdArmourStruckAtRange(Players[pid - 1], monster);
 			}
 		} else {
 			DeathReason deathReason = missile.sourceType() == MissileSource::Player ? DeathReason::Player : DeathReason::MonsterOrTrap;
@@ -902,6 +912,14 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 	// because they all already test for -1.
 	*mind = -1;
 	*maxd = -1;
+
+	// Oracool: the cold line's numbers come from the one function its missiles read (see
+	// oracool/cold.h), so the sheet and the hit cannot disagree. Before the switch, so a cold spell
+	// never falls into a vanilla case by accident.
+	if (oracool::IsColdSpell(i)) {
+		oracool::ColdSpellDamage(myPlayer, i, sl, *mind, *maxd);
+		return;
+	}
 
 	switch (i) {
 	case SpellID::Firebolt:
@@ -1957,6 +1975,288 @@ void AddFirebolt(Missile &missile, AddMissileParameter &parameter)
 			missile._midam = ProjectileTrapDamage(missile);
 			break;
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// Oracool, Round 2 of the inert-skill plan (2026-09-03): the Sorceress's cold line.
+//
+// The damage of every one of these comes from oracool::ColdSpellDamage, which the Abilities window
+// reads for its tooltip, so the number on the sheet IS the number that lands. What the hit does to
+// the monster - chill, freeze, shatter - is oracool::ApplyColdHit, called by MonsterMHit for every
+// cold missile, so it is not repeated here.
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+
+/** @brief Rolls @p spell's damage at the missile's own level into _midam, for a player's cast. */
+void RollColdDamage(Missile &missile, SpellID spell)
+{
+	if (missile.sourceType() != MissileSource::Player) {
+		missile._midam = ProjectileMonsterDamage(missile);
+		return;
+	}
+	int minDamage;
+	int maxDamage;
+	oracool::ColdSpellDamage(*missile.sourcePlayer(), spell, missile._mispllvl, minDamage, maxDamage);
+	missile._midam = minDamage + GenerateRnd(maxDamage - minDamage + 1);
+}
+
+/** @brief Firebolt's launch - aim, speed, light - for a cold projectile of speed @p speed. */
+void LaunchColdProjectile(Missile &missile, AddMissileParameter &parameter, int speed)
+{
+	Point dst = parameter.dst;
+	if (missile.position.start == dst)
+		dst += parameter.midir;
+	UpdateMissileVelocity(missile, dst, speed);
+	SetMissDir(missile, GetDirection16(missile.position.start, dst));
+	missile._mirange = 256;
+	missile.var1 = missile.position.start.x;
+	missile.var2 = missile.position.start.y;
+	missile._mlid = AddLight(missile.position.start, 8);
+}
+
+} // namespace
+
+/**
+ * @brief Ice Blast: heavier and a little slower than Ice Bolt, and it FREEZES what it hits.
+ *
+ * The freeze is ApplyColdHit's answer to MissileID::IceBlast; here it is only a bolt with a bigger
+ * number. Speed 14 to Ice Bolt's 16-plus-level, so the two read as different weights in flight.
+ */
+void AddIceBlast(Missile &missile, AddMissileParameter &parameter)
+{
+	LaunchColdProjectile(missile, parameter, 14 + std::min(missile._mispllvl, 12));
+	RollColdDamage(missile, SpellID::IceBlast);
+}
+
+/**
+ * @brief Glacial Spike: the heaviest single projectile in the set. Freezes its target and, when it
+ * ends, shatters (AddGlacialShatter) to chill everything beside where it broke.
+ */
+void AddGlacialSpike(Missile &missile, AddMissileParameter &parameter)
+{
+	LaunchColdProjectile(missile, parameter, 12 + std::min(missile._mispllvl, 10));
+	RollColdDamage(missile, SpellID::GlacialSpike);
+}
+
+/**
+ * @brief The spike breaking apart: the explosion sprite where it stopped, and a chill on every
+ * monster in the eight tiles around it. The direct target was already frozen by the hit.
+ */
+void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter)
+{
+	AddMissileExplosion(missile, parameter);
+	const Point centre = missile.position.tile;
+	for (int dy = -1; dy <= 1; dy++) {
+		for (int dx = -1; dx <= 1; dx++) {
+			const Point tile = centre + Displacement { dx, dy };
+			if (!InDungeonBounds(tile))
+				continue;
+			const int mid = dMonster[tile.x][tile.y];
+			if (mid == 0)
+				continue;
+			Monster &monster = Monsters[abs(mid) - 1];
+			if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion())
+				continue;
+			oracool::ApplyColdHit(MissileID::FrostNova, missile._mispllvl, monster);
+		}
+	}
+}
+
+/**
+ * @brief Frost Nova: a ring around the caster. Everything within three tiles is hit at once and the
+ * 160px burst plays where the caster stands for as long as its nineteen frames last.
+ *
+ * One hit each rather than a ring of NovaBall projectiles: the art is a single expanding ellipse,
+ * and sixteen bolts under it would have been sixteen impact sounds for one effect.
+ */
+void AddFrostNova(Missile &missile, AddMissileParameter & /*parameter*/)
+{
+	missile._mirange = std::max<int>(missile._miAnimLen, 1);
+	if (missile.sourceType() != MissileSource::Player)
+		return;
+	const Player &player = *missile.sourcePlayer();
+	int minDamage;
+	int maxDamage;
+	oracool::ColdSpellDamage(player, SpellID::FrostNova, missile._mispllvl, minDamage, maxDamage);
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		const int id = ActiveMonsters[i];
+		Monster &monster = Monsters[id];
+		if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion())
+			continue;
+		if (monster.position.tile.WalkingDistance(missile.position.tile) > 3)
+			continue;
+		MonsterMHit(missile._misource, id, minDamage, maxDamage, 0, MissileID::FrostNova, DamageType::Cold, false, missile._mispllvl);
+	}
+}
+
+void ProcessFrostNova(Missile &missile)
+{
+	missile._mirange--;
+	if (missile._mirange <= 0)
+		missile._miDelFlag = true;
+	PutMissile(missile);
+}
+
+/**
+ * @brief Blizzard: an invisible controller parked over the target tile for a few seconds, dropping
+ * one shard (AddBlizzardShard) every four ticks somewhere within two tiles of it.
+ *
+ * The damage is rolled per shard, from a range this controller carries in var3/var4 so every shard
+ * asks the same table once. Three seconds plus a fifth a rank.
+ */
+void AddBlizzard(Missile &missile, AddMissileParameter &parameter)
+{
+	missile.position.tile = parameter.dst;
+	missile.var1 = parameter.dst.x;
+	missile.var2 = parameter.dst.y;
+	missile._mirange = std::min(60 + missile._mispllvl * 4, 140);
+	if (missile.sourceType() == MissileSource::Player) {
+		int minDamage;
+		int maxDamage;
+		oracool::ColdSpellDamage(*missile.sourcePlayer(), SpellID::Blizzard, missile._mispllvl, minDamage, maxDamage);
+		missile.var3 = minDamage;
+		missile.var4 = maxDamage;
+	} else {
+		missile.var3 = missile.var4 = ProjectileMonsterDamage(missile);
+	}
+}
+
+void ProcessBlizzard(Missile &missile)
+{
+	missile._mirange--;
+	if (missile._mirange <= 0) {
+		missile._miDelFlag = true;
+		return;
+	}
+	if (missile._mirange % 4 != 0)
+		return;
+	const Point centre { missile.var1, missile.var2 };
+	// Somewhere in the five-by-five, on a tile a shard can land on. A few tries rather than a
+	// search: a storm that misses a tick because every roll hit a wall is still a storm.
+	for (int attempt = 0; attempt < 4; attempt++) {
+		const Point tile = centre + Displacement { GenerateRnd(5) - 2, GenerateRnd(5) - 2 };
+		if (!InDungeonBounds(tile) || !IsTileNotSolid(tile))
+			continue;
+		AddMissile(tile, tile, Direction::South, MissileID::BlizzardShard, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);
+		break;
+	}
+}
+
+/**
+ * @brief One falling shard: enters at the top of its frame, strikes at frame nine, breaks. The
+ * strike is the one tick it collides on; the rest is picture.
+ */
+void AddBlizzardShard(Missile &missile, AddMissileParameter &parameter)
+{
+	missile._mirange = std::max<int>(missile._miAnimLen, 1);
+	if (parameter.pParent != nullptr) {
+		missile.var3 = parameter.pParent->var3;
+		missile.var4 = parameter.pParent->var4;
+	} else {
+		missile.var3 = missile.var4 = 1;
+	}
+}
+
+void ProcessBlizzardShard(Missile &missile)
+{
+	missile._mirange--;
+	// Frame nine of thirteen is the strike - four ticks before the end at one frame a tick.
+	if (missile._mirange == 4)
+		CheckMissileCol(missile, DamageType::Cold, missile.var3, missile.var4, false, missile.position.tile, true);
+	if (missile._mirange <= 0)
+		missile._miDelFlag = true;
+	PutMissile(missile);
+}
+
+/**
+ * @brief Frozen Orb: drifts toward its mark at half a bolt's speed, sheds an Ice Bolt every third
+ * tick in a turning direction, and bursts into eight when it ends. The bolts do the damage - each
+ * one is a real Ice Bolt at the orb's own rank - which is why the orb itself deals none.
+ */
+void AddFrozenOrb(Missile &missile, AddMissileParameter &parameter)
+{
+	Point dst = parameter.dst;
+	if (missile.position.start == dst)
+		dst += parameter.midir;
+	UpdateMissileVelocity(missile, dst, 8);
+	SetMissDir(missile, GetDirection16(missile.position.start, dst));
+	missile._mirange = 40;
+	missile.var1 = 0; // which way the next bolt goes
+	missile._mlid = AddLight(missile.position.start, 8);
+	missile._midam = 0;
+}
+
+void ProcessFrozenOrb(Missile &missile)
+{
+	missile._mirange--;
+	// The orb stops at a wall rather than passing through it; MoveMissile says so by returning false.
+	if (!MoveMissile(missile, [](Point tile) { return IsTileNotSolid(tile); }, true))
+		missile._mirange = 0;
+	ChangeLight(missile._mlid, missile.position.tile, 8);
+
+	const auto shed = [&missile](Direction direction) {
+		const Point dst = missile.position.tile + direction;
+		AddMissile(missile.position.tile, dst, direction, MissileID::IceBolt, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);
+	};
+
+	if (missile._mirange > 0) {
+		if (missile._mirange % 3 == 0) {
+			shed(static_cast<Direction>(missile.var1 % 8));
+			missile.var1 += 3; // three of eight a step, so successive bolts fan rather than sweep
+		}
+		PutMissile(missile);
+		return;
+	}
+
+	for (int i = 0; i < 8; i++)
+		shed(static_cast<Direction>(i));
+	missile._miDelFlag = true;
+	AddUnLight(missile._mlid);
+}
+
+/**
+ * @brief The armours: one missile that wears the state for as long as it lasts. Which of the three
+ * it is comes from the spell the caster executed - MissileID::ColdArmor serves all three.
+ *
+ * The state itself is oracool/cold.cpp's; this missile only ages it once a tick and stops when a
+ * newer cast has replaced it (the serial), so recasting never double-ticks the same armour.
+ */
+void AddColdArmor(Missile &missile, AddMissileParameter & /*parameter*/)
+{
+	missile._miDelFlag = true;
+	if (missile.sourceType() != MissileSource::Player)
+		return;
+	Player &player = *missile.sourcePlayer();
+	SpellID spell = player.executedSpell.spellId;
+	if (!oracool::IsColdArmourSpell(spell))
+		spell = SpellID::FrozenArmor;
+	// Twenty seconds plus four a rank.
+	const int ticks = 400 + 80 * missile._mispllvl;
+	oracool::CastColdArmour(player, spell, missile._mispllvl, ticks);
+	missile.var1 = oracool::ColdArmourCastSerial(player);
+	missile._mirange = ticks;
+	missile._miDelFlag = false;
+	RedrawEverything();
+}
+
+void ProcessColdArmor(Missile &missile)
+{
+	if (missile.sourceType() != MissileSource::Player) {
+		missile._miDelFlag = true;
+		return;
+	}
+	Player &player = *missile.sourcePlayer();
+	if (missile.var1 != oracool::ColdArmourCastSerial(player)) {
+		missile._miDelFlag = true; // a newer cast owns the armour now
+		return;
+	}
+	oracool::TickColdArmour(player);
+	missile._mirange--;
+	if (missile._mirange <= 0 || oracool::ActiveColdArmour(player) == SpellID::Invalid) {
+		missile._miDelFlag = true;
+		RedrawEverything();
 	}
 }
 
@@ -3193,6 +3493,15 @@ void ProcessGenericProjectile(Missile &missile)
 		case MissileID::Firebolt:
 		case MissileID::MagmaBall:
 			AddMissile(missile.position.tile, dst, dir, MissileID::MagmaBallExplosion, missile._micaster, missile._misource, 0, 0, &missile);
+			break;
+		// Oracool: the cold impacts. Ice Bolt fell through to `default` in Round 1 and landed with no
+		// burst at all; the brief's ice_impact sheet is what it was always meant to land with.
+		case MissileID::IceBolt:
+		case MissileID::IceBlast:
+			AddMissile(missile.position.tile, dst, dir, MissileID::IceImpact, missile._micaster, missile._misource, 0, 0, &missile);
+			break;
+		case MissileID::GlacialSpike:
+			AddMissile(missile.position.tile, dst, dir, MissileID::GlacialShatter, missile._micaster, missile._misource, 0, missile._mispllvl, &missile);
 			break;
 		case MissileID::BloodStar:
 			AddMissile(missile.position.tile, dst, dir, MissileID::BloodStarExplosion, missile._micaster, missile._misource, 0, 0, &missile);

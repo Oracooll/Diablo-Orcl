@@ -277,6 +277,21 @@ struct AddMissileParameter {
 	bool spellFizzled;
 };
 
+// Oracool, Round 2: the cold line. Each is described where it is defined.
+void AddIceBlast(Missile &missile, AddMissileParameter &parameter);
+void AddGlacialSpike(Missile &missile, AddMissileParameter &parameter);
+void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter);
+void AddFrostNova(Missile &missile, AddMissileParameter &parameter);
+void ProcessFrostNova(Missile &missile);
+void AddBlizzard(Missile &missile, AddMissileParameter &parameter);
+void ProcessBlizzard(Missile &missile);
+void AddBlizzardShard(Missile &missile, AddMissileParameter &parameter);
+void ProcessBlizzardShard(Missile &missile);
+void AddFrozenOrb(Missile &missile, AddMissileParameter &parameter);
+void ProcessFrozenOrb(Missile &missile);
+void AddColdArmor(Missile &missile, AddMissileParameter &parameter);
+void ProcessColdArmor(Missile &missile);
+
 void AddOpenNest(Missile &missile, AddMissileParameter &parameter);
 void AddRuneOfFire(Missile &missile, AddMissileParameter &parameter);
 void AddRuneOfLight(Missile &missile, AddMissileParameter &parameter);

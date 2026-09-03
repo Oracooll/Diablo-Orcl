@@ -16,6 +16,8 @@ namespace {
  * survive a level change does not belong in the level save.
  */
 std::array<uint16_t, MaxMonsters> ChillTicks {};
+/** Ticks of solid freeze remaining, indexed the same way. A freeze sits ON TOP of a chill. */
+std::array<uint16_t, MaxMonsters> FreezeTicks {};
 
 } // namespace
 
@@ -36,10 +38,38 @@ bool IsMonsterChilled(const Monster &monster)
 	return id < ChillTicks.size() && ChillTicks[id] > 0;
 }
 
+void FreezeMonster(const Monster &monster, int ticks)
+{
+	if (ticks <= 0)
+		return;
+	const size_t id = monster.getId();
+	if (id >= FreezeTicks.size())
+		return;
+	FreezeTicks[id] = static_cast<uint16_t>(std::max<int>(FreezeTicks[id], ticks));
+}
+
+bool IsMonsterFrozen(const Monster &monster)
+{
+	const size_t id = monster.getId();
+	return id < FreezeTicks.size() && FreezeTicks[id] > 0;
+}
+
 bool ChillTakesThisTick(const Monster &monster)
 {
 	const size_t id = monster.getId();
-	if (id >= ChillTicks.size() || ChillTicks[id] == 0)
+	if (id >= ChillTicks.size())
+		return false;
+
+	// FROZEN: every tick is the ice's. The chill underneath still ages, so a frozen monster that
+	// thaws is exactly as chilled as one that was never frozen - the two effects do not add.
+	if (FreezeTicks[id] > 0) {
+		FreezeTicks[id]--;
+		if (ChillTicks[id] > 0)
+			ChillTicks[id]--;
+		return true;
+	}
+
+	if (ChillTicks[id] == 0)
 		return false;
 
 	// The chill ages on EVERY tick, including the ones it takes. Counting only the ticks the monster
@@ -56,6 +86,7 @@ bool ChillTakesThisTick(const Monster &monster)
 void ClearChills()
 {
 	ChillTicks.fill(0);
+	FreezeTicks.fill(0);
 }
 
 } // namespace devilution::oracool

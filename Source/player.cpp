@@ -43,6 +43,7 @@
 #include "oracool/auto_save.h"
 #include "oracool/event_log.h"
 #include "oracool/class_skills.h"
+#include "oracool/cold.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
@@ -2764,6 +2765,9 @@ void InitPlayer(Player &player, bool firstTime)
 		}
 		if (&player == MyPlayer)
 			LoadHotkeys();
+		// A new game starts with no armour of ice on (Oracool, Round 2). The state is a static in
+		// cold.cpp and would otherwise carry from the last character to this one.
+		oracool::ClearColdArmour(player);
 		player._pSBkSpell = SpellID::Invalid;
 		player.queuedSpell.spellId = player._pRSpell;
 		player.queuedSpell.spellType = player._pRSplType;

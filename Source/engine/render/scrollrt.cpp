@@ -36,6 +36,8 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/chill.h"
+#include "oracool/cold.h"
 #include "oracool/aura_ground.h"
 #include "oracool/skill_picker.h"
 #include "oracool/cursor_tooltip.h"
@@ -409,6 +411,10 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 	// (oracool/monster_variants.h) build a translation for ordinary monsters, and would have been
 	// invisible behind the old test. Behaviour for uniques is unchanged - they still have theirs.
 	uint8_t *trn = monster.uniqueMonsterTRN.get();
+	// Frozen solid: drawn in ice (Oracool, Round 2). Between the unique's own colours, which it
+	// replaces, and stone, which wins - a petrified monster is stone whatever else it is.
+	if (oracool::IsMonsterFrozen(monster))
+		trn = oracool::ColdTRN();
 	if (monster.mode == MonsterMode::Petrified)
 		trn = GetStoneTRN();
 	if (MyPlayer->_pInfraFlag && LightTableIndex > 8)
@@ -422,11 +428,19 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 /**
  * @brief Helper for rendering a specific player icon (Mana Shield or Reflect)
  */
-void DrawPlayerIconHelper(const Surface &out, MissileGraphicID missileGraphicId, Point position, bool lighting, bool infraVision)
+void DrawPlayerIconHelper(const Surface &out, MissileGraphicID missileGraphicId, Point position, bool lighting, bool infraVision, int frame = 0)
 {
 	position.x -= GetMissileSpriteData(missileGraphicId).animWidth2;
 
-	const ClxSprite sprite = (*GetMissileSpriteData(missileGraphicId).sprites).list()[0];
+	// Oracool: the sheet may not be loaded - the cold pack's shell is a PNG the archive can lack -
+	// and a missing icon is a missing icon, not a crash.
+	const MissileFileData &data = GetMissileSpriteData(missileGraphicId);
+	if (!data.sprites)
+		return;
+	const ClxSpriteList list = data.sprites->list();
+	if (frame < 0 || static_cast<size_t>(frame) >= list.numSprites())
+		frame = 0;
+	const ClxSprite sprite = list[static_cast<size_t>(frame)];
 
 	if (!lighting) {
 		ClxDraw(out, position, sprite);
@@ -454,6 +468,10 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
 		DrawPlayerIconHelper(out, MissileGraphicID::ManaShield, position, &player != MyPlayer, infraVision);
 	if (player.wReflections > 0)
 		DrawPlayerIconHelper(out, MissileGraphicID::Reflect, position + Displacement { 0, 16 }, &player != MyPlayer, infraVision);
+	// The cold armours' shell (Oracool, Round 2): the brief's eight-frame shimmer at the body's
+	// outline, one sheet for all three, worn for as long as the armour lasts.
+	if (const int frame = oracool::ColdArmourShellFrame(player); frame >= 0)
+		DrawPlayerIconHelper(out, MissileGraphicID::IceArmorShell, position, &player != MyPlayer, infraVision, frame);
 }
 
 /**

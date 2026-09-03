@@ -103,6 +103,15 @@ const uint8_t SpellITbl[] = {
 	// draw site forgets to ask. A bare plate says "unfinished"; another spell's symbol would say
 	// something false.
 	26,
+	// The eight Round 2 cold spells, same argument.
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
 };
 static_assert(sizeof(SpellITbl) / sizeof(SpellITbl[0]) == MAX_SPELLS,
     "every SpellID needs an icon frame - this table is indexed by the enum");

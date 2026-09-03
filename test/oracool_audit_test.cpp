@@ -92,6 +92,7 @@
 #include "oracool/salvage.h"
 #include "oracool/skill_points.h"
 #include "oracool/chill.h"
+#include "oracool/cold.h"
 #include "oracool/sprite_import.h"
 #include "oracool/spell_ranks.h"
 #include "oracool/sprite_scale.h"
@@ -314,6 +315,10 @@ TEST(OracoolAudit, AChampionIsNeverSofterThanItsOwnRankAndFile)
 TEST(OracoolAudit, NightmareDemotesHellImmunitiesToResistances)
 {
 	MonsterData data {};
+	// A demon, said out loud: MonsterClass::Undead is 0, so a value-initialised MonsterData is
+	// undead by accident, and the undead resist cold on every difficulty (Round 2). This test is
+	// about the difficulty ladder, not cold, and it wants a monster the ladder starts at zero for.
+	data.monsterClass = MonsterClass::Demon;
 	data.resistance = 0;
 	data.resistanceHell = IMMUNE_FIRE | RESIST_MAGIC;
 
@@ -1979,6 +1984,7 @@ devilution::Player &FreshPaladin(int unspent = 40)
 TEST(OracoolAudit, TormentHardensHellResistancesIntoImmunities)
 {
 	MonsterData data {};
+	data.monsterClass = MonsterClass::Demon; // not undead by default - see the Nightmare test
 	data.resistanceHell = IMMUNE_FIRE | RESIST_MAGIC;
 
 	const uint16_t torment = oracool::MonsterResistancesFor(data, DIFF_TORMENT);
@@ -9069,4 +9075,88 @@ TEST(OracoolSpellMask, IdsPast64GetTheirOwnBitsAndLeaveTheSavedWordAlone)
 	known &= ~id65;
 	EXPECT_TRUE((known & id65) == 0) << "clearing a high bit did not clear it";
 	EXPECT_TRUE((known & firebolt) != 0) << "clearing a high bit cleared a low one";
+}
+
+/**
+ * @brief Round 2's three contracts, pinned where they were most likely to be broken.
+ *
+ * ONE: the number on the sheet is the number that lands. Ice Bolt fires through AddFirebolt, whose
+ * damage is `GenerateRnd(10) + magic/8 + level + 1`; ColdSpellDamage must describe exactly that
+ * range, or the Abilities window reports a number the game does not use - which this project has
+ * been bitten by three times.
+ *
+ * TWO: a freeze takes every tick, a chill every other, and a freeze does not extend a chill - the
+ * two do not add.
+ *
+ * THREE: a tree skill with a mana price pays it. Ice Bolt was free for a day; CheckSpell answered
+ * Success for every SpellType::Skill without looking at the mana.
+ */
+TEST(OracoolCold, TheSheetTheHitAndTheMana)
+{
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Sorcerer;
+	player._pLevel = 10;
+	player._pMagic = 40;
+
+	// ONE. AddFirebolt: GenerateRnd(10) is 0..9, so min is magic/8 + level + 1 and max is min + 9.
+	int minDamage;
+	int maxDamage;
+	oracool::ColdSpellDamage(player, SpellID::IceBolt, 3, minDamage, maxDamage);
+	EXPECT_EQ(minDamage, 40 / 8 + 3 + 1) << "the sheet's Ice Bolt minimum is not AddFirebolt's";
+	EXPECT_EQ(maxDamage, minDamage + 9) << "the sheet's Ice Bolt maximum is not AddFirebolt's";
+	// And the tooltip path reaches the same function.
+	int mind;
+	int maxd;
+	GetDamageAmtAtLevel(SpellID::IceBolt, 3, &mind, &maxd);
+	EXPECT_EQ(mind, minDamage);
+	EXPECT_EQ(maxd, maxDamage);
+	// Every rank helps, on every offensive cold spell.
+	for (const SpellID spell : { SpellID::IceBolt, SpellID::IceBlast, SpellID::GlacialSpike, SpellID::FrostNova, SpellID::Blizzard }) {
+		int lowMin, lowMax, highMin, highMax;
+		oracool::ColdSpellDamage(player, spell, 1, lowMin, lowMax);
+		oracool::ColdSpellDamage(player, spell, 5, highMin, highMax);
+		EXPECT_GT(highMin, lowMin) << "rank 5 is no better than rank 1 for spell " << static_cast<int>(spell);
+		EXPECT_GT(lowMin, 0);
+	}
+	// The armours do no direct damage and say so.
+	oracool::ColdSpellDamage(player, SpellID::FrozenArmor, 3, minDamage, maxDamage);
+	EXPECT_EQ(minDamage, -1);
+
+	// TWO.
+	Monsters[0] = {};
+	Monster &monster = Monsters[0];
+	oracool::ClearChills();
+	oracool::FreezeMonster(monster, 10);
+	int taken = 0;
+	for (int i = 0; i < 10; i++)
+		if (oracool::ChillTakesThisTick(monster))
+			taken++;
+	EXPECT_EQ(taken, 10) << "a freeze must take every tick";
+	EXPECT_FALSE(oracool::IsMonsterFrozen(monster)) << "the freeze outlived its duration";
+	EXPECT_FALSE(oracool::IsMonsterChilled(monster)) << "a freeze left a chill behind that nobody applied";
+	oracool::ClearChills();
+
+	// THREE. Asked of GetManaAmount rather than written as 6: a Hellfire Sorcerer pays half, and a
+	// test that hard-codes the list price would pass or fail on the class discount rather than on
+	// the thing it is testing.
+	player._pSkillInvestment[static_cast<size_t>(SpellID::IceBolt)] = 1;
+	const int price = GetManaAmount(player, SpellID::IceBolt);
+	ASSERT_GT(price, 0) << "test setup: Ice Bolt has no price to pay";
+	player._pMana = price - 1;
+	// manaonly: skip the cursor check, which is UI state this test does not set up.
+	EXPECT_EQ(CheckSpell(player, SpellID::IceBolt, SpellType::Skill, /*manaonly=*/true), SpellCheckResult::Fail_NoMana)
+	    << "a tree skill with a mana price was castable on an empty pool - this is what made Ice Bolt free";
+	player._pMana = price;
+	EXPECT_EQ(CheckSpell(player, SpellID::IceBolt, SpellType::Skill, /*manaonly=*/true), SpellCheckResult::Success);
+	// And vanilla's free skills stay free: Item Repair has no price and no pool to pay from.
+	player._pMana = 0;
+	EXPECT_EQ(CheckSpell(player, SpellID::ItemRepair, SpellType::Skill, /*manaonly=*/true), SpellCheckResult::Success)
+	    << "a zero-priced vanilla skill started charging";
+
+	gbIsHellfire = savedHellfire;
 }

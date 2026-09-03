@@ -166,6 +166,16 @@ const MissileData MissilesData[] = {
 // LS_FBOLT1 / LS_FIRIMP2 are Firebolt's sounds, borrowed deliberately: this fork has no cold sounds
 // yet, and silence reads as a bug where a wrong-element whoosh reads as a placeholder.
 /*IceBolt*/              { &AddFirebolt,            &ProcessGenericProjectile,    LS_FBOLT1,   LS_FIRIMP2,  MissileGraphicID::IceBolt,              Cold,                  MissileMovementDistribution::Blockable   },
+// Oracool, Round 2. Every one of these is described at its Add function.
+/*IceImpact*/            { &AddMissileExplosion,    &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::IceImpact,            Cold,                  MissileMovementDistribution::Disabled    },
+/*IceBlast*/             { &AddIceBlast,            &ProcessGenericProjectile,    LS_FBOLT1,   LS_FIRIMP2,  MissileGraphicID::IceBlast,             Cold,                  MissileMovementDistribution::Blockable   },
+/*GlacialSpike*/         { &AddGlacialSpike,        &ProcessGenericProjectile,    LS_FBOLT1,   LS_FIRIMP2,  MissileGraphicID::GlacialSpike,         Cold,                  MissileMovementDistribution::Blockable   },
+/*GlacialShatter*/       { &AddGlacialShatter,      &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::GlacialShatter,       Cold,                  MissileMovementDistribution::Disabled    },
+/*FrostNova*/            { &AddFrostNova,           &ProcessFrostNova,            LS_NOVA,     SFX_NONE,    MissileGraphicID::FrostNova,            Cold,                  MissileMovementDistribution::Disabled    },
+/*Blizzard*/             { &AddBlizzard,            &ProcessBlizzard,             LS_NOVA,     SFX_NONE,    MissileGraphicID::BlizzardShard,        Cold | Invisible,      MissileMovementDistribution::Disabled    },
+/*BlizzardShard*/        { &AddBlizzardShard,       &ProcessBlizzardShard,        SFX_NONE,    LS_FIRIMP2,  MissileGraphicID::BlizzardShard,        Cold,                  MissileMovementDistribution::Disabled    },
+/*FrozenOrb*/            { &AddFrozenOrb,           &ProcessFrozenOrb,            LS_FBOLT1,   SFX_NONE,    MissileGraphicID::FrozenOrb,            Cold,                  MissileMovementDistribution::Unblockable },
+/*ColdArmor*/            { &AddColdArmor,           &ProcessColdArmor,            LS_MSHIELD,  SFX_NONE,    MissileGraphicID::IceArmorShell,        Cold | Invisible,      MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 
@@ -304,6 +314,16 @@ MissileFileData MissileSpriteData[] = {
 // Fireball's 96/16 pair is.
 /*IceBolt*/                  { {},               96,          16, "ice_bolt",        16, MissileGraphicsFlags::None,                     0, AnimLen_16      },
 /*IceImpact*/                { {},               96,          16, "ice_impact",       1, MissileGraphicsFlags::None,                     1, AnimLen_10      },
+// Round 2. Widths are the brief's; animWidth2 is (frame - 64) / 2, the same rule as Fireball's
+// 96/16 and Fire Wall's 128/32, so a sprite sits on its tile whatever its frame size.
+/*IceBlast*/                 { {},               96,          16, "ice_blast",       16, MissileGraphicsFlags::None,                     0, AnimLen_16      },
+/*GlacialSpike*/             { {},              128,          32, "glacial_spike",   16, MissileGraphicsFlags::None,                     0, AnimLen_16      },
+/*GlacialShatter*/           { {},              128,          32, "glacial_shatter",  1, MissileGraphicsFlags::None,                     1, AnimLen_12      },
+/*FrostNova*/                { {},              160,          48, "frost_nova",       1, MissileGraphicsFlags::None,                     0, AnimLen_19      },
+/*BlizzardShard*/            { {},              128,          32, "blizzard_shard",   1, MissileGraphicsFlags::None,                     1, AnimLen_13      },
+/*FrozenOrb*/                { {},              128,          32, "frozen_orb",      16, MissileGraphicsFlags::None,                     1, AnimLen_16      },
+/*IceArmorShell*/            { {},               96,          16, "ice_armor_shell",  1, MissileGraphicsFlags::None,                     1, AnimLen_8       },
+/*IceArmorBreak*/            { {},               96,          16, "ice_armor_break",  1, MissileGraphicsFlags::None,                     1, AnimLen_10      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };
