@@ -54,8 +54,19 @@ enum class EntryKind : uint8_t {
 	Attack,
 	/** A class-tree row: an invested active, or an aura. Auras toggle instead of binding. */
 	Tree,
-	/** A known spell. */
+	/** A known spell - memorised from a book, or innate. Cast from mana. */
 	Spell,
+	/**
+	 * The same spell as held by an equipped STAFF, which is a different thing to ready: it casts
+	 * from the staff's charges rather than from mana, and it is gone when the staff is unequipped.
+	 *
+	 * Its own kind rather than a flag on Spell, because a character can hold a spell BOTH ways and
+	 * the two must be separately bindable (user, 2026-09-03: "staff spells and learned spells
+	 * should not overlap in one icon as they do now. they need to coexist with respective backing
+	 * color"). They used to collapse into one cell, typed Charges, so a Sorceress who had read
+	 * Fire Ball and picked up a Staff of Fire Ball lost the ability to bind the learned one.
+	 */
+	Staff,
 };
 
 struct Entry {
@@ -87,28 +98,36 @@ constexpr uint8_t PanelFillColor = 204;
 constexpr int GridWidth = Columns * IconSize + (Columns - 1) * CellGap;
 constexpr int WindowWidth = GridWidth + 2 * Padding;
 
-/** @brief Whether @p player knows @p spell well enough for it to be worth offering. */
+/** @brief Whether @p player knows @p spell from a book or by nature - NOT from a staff. */
 bool IsSpellKnownTo(const Player &player, SpellID spell)
 {
-	const SpellMask known = player._pMemSpells | player._pISpells | player._pAblSpells;
+	// _pISpells is deliberately absent: a staff spell gets its own section and its own cells now,
+	// so counting it here would list it twice in the same list under two different rules.
+	const SpellMask known = player._pMemSpells | player._pAblSpells;
 	return (known & GetSpellBitmask(spell)) != 0;
 }
 
-/**
- * @brief How @p player holds @p spell - which decides both its icon's palette and what the button
- * ends up storing.
- *
- * Computed here rather than borrowed from the Abilities window's GetSBookTrans, which is file-local
- * there. The order matters and matches the engine's: an innate ability outranks a staff charge,
- * which outranks a memorised spell, because that is the cheapest way to cast it.
- */
-SpellType SpellTypeFor(const Player &player, SpellID spell)
+/** @brief Whether @p player has @p spell on an equipped staff right now. */
+bool IsStaffSpellOf(const Player &player, SpellID spell)
 {
-	const SpellMask mask = GetSpellBitmask(spell);
-	if ((player._pAblSpells & mask) != 0)
-		return SpellType::Skill;
-	if ((player._pISpells & mask) != 0)
+	return (player._pISpells & GetSpellBitmask(spell)) != 0;
+}
+
+/**
+ * @brief How @p player holds the spell in @p entry - which decides both its icon's palette and what
+ * the button ends up storing.
+ *
+ * A Staff entry is Charges by construction; that is what the cell means. For everything else an
+ * innate ability outranks a memorised spell, because that is the cheapest way to cast it. Charges
+ * no longer appear in this answer at all - they cannot, or a spell held both ways would bind to the
+ * staff from the cell that says "learned".
+ */
+SpellType SpellTypeFor(const Player &player, SpellID spell, bool fromStaff = false)
+{
+	if (fromStaff)
 		return SpellType::Charges;
+	if ((player._pAblSpells & GetSpellBitmask(spell)) != 0)
+		return SpellType::Skill;
 	return SpellType::Spell;
 }
 
@@ -121,7 +140,8 @@ SpellType SpellTypeFor(const Player &player, SpellID spell)
  * uses to decide whether a cell is live - and passives never qualify at all, because a passive
  * cannot be readied and an entry that does nothing when clicked is worse than an absent one.
  */
-void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackCount, size_t &treeCount)
+void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackCount, size_t &treeCount,
+    size_t &spellCount)
 {
 	out.clear();
 
@@ -157,6 +177,15 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackC
 		if ((listedSpells & GetSpellBitmask(spell)) != 0)
 			continue;
 		out.push_back({ EntryKind::Spell, 0, ClassTreeSkill::None, spell });
+	}
+	spellCount = out.size() - attackCount - treeCount;
+
+	// THE STAFF, last and undeduplicated. Not filtered against anything above: a spell held both
+	// ways is two cells on purpose, and the staff cell is the one that spends charges.
+	for (size_t i = 1; i < MAX_SPELLS; i++) {
+		const auto spell = static_cast<SpellID>(i);
+		if (IsStaffSpellOf(player, spell))
+			out.push_back({ EntryKind::Staff, 0, ClassTreeSkill::None, spell });
 	}
 }
 
@@ -207,6 +236,7 @@ std::string EntryName(const Entry &entry)
 	case EntryKind::Tree:
 		return std::string(_(GetClassTreeSkillData(entry.tree).name));
 	case EntryKind::Spell:
+	case EntryKind::Staff:
 		return std::string(GetSpellDisplayName(entry.spell));
 	}
 	return {};
@@ -227,6 +257,7 @@ int EntryLevel(const Player &player, const Entry &entry)
 	case EntryKind::Tree:
 		return ClassTreeInvestment(player, entry.tree);
 	case EntryKind::Spell:
+	case EntryKind::Staff:
 		return player.GetSpellLevel(entry.spell);
 	}
 	return 0;
@@ -262,11 +293,11 @@ bool IsCellVisible(const Rectangle &window, const Rectangle &cell)
 	return cell.position.y >= clipTop && cell.position.y + IconSize <= clipBottom;
 }
 
-int ContentHeight(size_t attacks, size_t trees, size_t spells)
+int ContentHeight(size_t attacks, size_t trees, size_t spells, size_t staves)
 {
 	int h = TitleHeight;
 	int sections = 0;
-	for (const size_t n : { attacks + trees, spells }) {
+	for (const size_t n : { attacks + trees, spells, staves }) {
 		if (n == 0)
 			continue;
 		h += SectionHeight(n);
@@ -319,10 +350,11 @@ Rectangle GetSkillPickerRect()
 	std::vector<Entry> entries;
 	size_t attacks = 0;
 	size_t trees = 0;
-	BuildEntries(*MyPlayer, entries, attacks, trees);
-	const size_t spells = entries.size() - attacks - trees;
+	size_t spells = 0;
+	BuildEntries(*MyPlayer, entries, attacks, trees, spells);
+	const size_t staves = entries.size() - attacks - trees - spells;
 
-	const int needed = ContentHeight(attacks, trees, spells) + 2 * Padding;
+	const int needed = ContentHeight(attacks, trees, spells, staves) + 2 * Padding;
 	// Anchored to the plate, growing UPWARD, because that is the direction the button it belongs to
 	// is in. Clamped at the top so a long list is shortened rather than run off the screen; the
 	// wheel reaches whatever the clamp cut off.
@@ -349,8 +381,9 @@ void ScrollSkillPicker(int notches)
 	std::vector<Entry> entries;
 	size_t attacks = 0;
 	size_t trees = 0;
-	BuildEntries(*MyPlayer, entries, attacks, trees);
-	const int content = ContentHeight(attacks, trees, entries.size() - attacks - trees);
+	size_t spells = 0;
+	BuildEntries(*MyPlayer, entries, attacks, trees, spells);
+	const int content = ContentHeight(attacks, trees, spells, entries.size() - attacks - trees - spells);
 	const Rectangle window = GetSkillPickerRect();
 	const int visible = window.size.height - 2 * Padding - TitleHeight;
 	const int maxScroll = std::max(0, content - TitleHeight - visible);
@@ -367,7 +400,8 @@ void DrawSkillPicker(const Surface &out)
 	std::vector<Entry> entries;
 	size_t attacks = 0;
 	size_t trees = 0;
-	BuildEntries(player, entries, attacks, trees);
+	size_t spells = 0;
+	BuildEntries(player, entries, attacks, trees, spells);
 	const size_t skills = attacks + trees;
 
 	// Cleared every frame, so moving off a cell un-hovers it. Without this an F-key would keep
@@ -437,6 +471,14 @@ void DrawSkillPicker(const Surface &out)
 				break;
 			case EntryKind::Spell:
 				SetSpellTrans(SpellTypeFor(player, entry.spell));
+				DrawSmallSpellIconFittedTo(out, cell, entry.spell);
+				break;
+			case EntryKind::Staff:
+				// The engine's own orange charge ramp (user, 2026-09-03: "staff spells to use
+				// legacy orange backing"). Asked for explicitly rather than derived, because the
+				// whole point of this cell is that it means the staff even when the same spell is
+				// also learned two sections above.
+				SetSpellTrans(SpellType::Charges);
 				DrawSmallSpellIconFittedTo(out, cell, entry.spell);
 				break;
 			}
@@ -511,7 +553,10 @@ void DrawSkillPicker(const Surface &out)
 		ClearPanelStrings();
 
 	drawSection(N_("Skills"), 0, skills);
-	drawSection(N_("Spells"), skills, entries.size() - skills);
+	drawSection(N_("Spells"), skills, spells);
+	// Its own heading, shown only when a staff with a spell is actually equipped - the section is
+	// empty otherwise and SectionHeight collapses it to nothing (user, 2026-09-03).
+	drawSection(N_("Staff spells"), skills + spells, entries.size() - skills - spells);
 }
 
 bool CheckSkillPickerClick(Point mousePosition)
@@ -554,15 +599,18 @@ bool CheckSkillPickerClick(Point mousePosition)
 	std::vector<Entry> entries;
 	size_t attacks = 0;
 	size_t trees = 0;
-	BuildEntries(player, entries, attacks, trees);
+	size_t spells = 0;
+	BuildEntries(player, entries, attacks, trees, spells);
 	const size_t skills = attacks + trees;
 
 	// The same walk the draw does, in the same order - one geometry, asked twice, so a cell cannot
 	// be drawn in one place and clicked in another.
 	int y = window.position.y + Padding + TitleHeight - PickerScroll;
-	for (int section = 0; section < 2; section++) {
-		const size_t first = section == 0 ? 0 : skills;
-		const size_t count = section == 0 ? skills : entries.size() - skills;
+	const size_t sectionFirst[3] = { 0, skills, skills + spells };
+	const size_t sectionCount[3] = { skills, spells, entries.size() - skills - spells };
+	for (int section = 0; section < 3; section++) {
+		const size_t first = sectionFirst[section];
+		const size_t count = sectionCount[section];
 		if (count == 0)
 			continue;
 		y += HeaderHeight;
@@ -605,10 +653,13 @@ bool CheckSkillPickerClick(Point mousePosition)
 					break;
 				}
 				[[fallthrough]];
+			case EntryKind::Staff:
 			case EntryKind::Spell: {
 				if (!IsValidSpell(entry.spell))
 					break;
-				const SpellType type = SpellTypeFor(player, entry.spell);
+				// A Staff cell binds as Charges; the Spell cell beside it binds as mana. That is the
+				// whole of "they need to coexist".
+				const SpellType type = SpellTypeFor(player, entry.spell, entry.kind == EntryKind::Staff);
 				if (PickerForLeft) {
 					player._pLRSpell = entry.spell;
 					player._pLRSplType = type;

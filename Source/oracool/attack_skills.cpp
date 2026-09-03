@@ -166,6 +166,16 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	}
 	if (leveltype == DTYPE_TOWN && !GetSpellData(spell).isAllowedInTown())
 		usable = false;
+	// A STAFF cast keeps the engine's orange charge plate, and skips the tree-art path entirely
+	// (user, 2026-09-03: "staff spells to use legacy orange backing"). Without this a staff spell
+	// that also has a tree row - which, since the Sorceress's book rows came back, is most of her
+	// arsenal - was drawn on the green skill plate, so the well disagreed with the picker cell that
+	// bound it about where the cast is coming from.
+	if (type == SpellType::Charges) {
+		SetSpellTrans(usable ? SpellType::Charges : SpellType::Scroll);
+		DrawSmallSpellIconFittedTo(out, net, spell);
+		return;
+	}
 	// Any skill carrying its own tree art, now that the answer to "can I cast it" is in hand - the
 	// tree rows are the wells' usual content, and this is what makes them fill the net rect rather
 	// than sitting at their natural 56px over the bezel.

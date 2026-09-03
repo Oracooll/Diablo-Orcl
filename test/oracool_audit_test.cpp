@@ -9670,3 +9670,44 @@ TEST(OracoolBooks, TheLevelGateRefusesTheReadRatherThanEatingTheBook)
 	EXPECT_TRUE(oracool::CanReadSpellBookTo(sorceress, SpellID::ChargedBolt, MaxSpellLevel + 1))
 	    << "the Rule of Rangs is what stops a maxed spell - it must not be, or the ceiling check is dead code";
 }
+
+/**
+ * @brief User request, 2026-09-03: "lmb/rmb pop-ups should introduce STAFF SPELL category and
+ * display that category when a staff with spell is equipped [...] staff spells and learned spells
+ * should not overlap in one icon as they do now."
+ *
+ * The picker's own list is file-local, so what is pinned here is the rule the split rests on: the
+ * three spell stores are asked separately, and a spell held two ways answers yes twice. Before this
+ * the picker OR-ed all three into one "known" question and then typed the single cell it produced
+ * by precedence, so the staff always won and the learned spell became unbindable.
+ */
+TEST(OracoolSkillPicker, AStaffSpellAndALearnedSpellAreTwoDifferentHoldings)
+{
+	devilution::Player &sorceress = FreshHero(HeroClass::Sorcerer);
+	sorceress._pMemSpells = 0;
+	sorceress._pISpells = 0;
+	sorceress._pAblSpells = 0;
+
+	const SpellMask fireball = GetSpellBitmask(SpellID::Fireball);
+	const SpellMask lightning = GetSpellBitmask(SpellID::Lightning);
+
+	// Learned from a book, and no staff.
+	sorceress._pMemSpells |= fireball;
+	EXPECT_NE(sorceress._pMemSpells & fireball, 0ULL);
+	EXPECT_EQ(sorceress._pISpells & fireball, 0ULL) << "a book taught a staff charge";
+
+	// A staff of a DIFFERENT spell: one of each, and neither store knows the other's.
+	sorceress._pISpells |= lightning;
+	EXPECT_EQ(sorceress._pMemSpells & lightning, 0ULL);
+	EXPECT_NE(sorceress._pISpells & lightning, 0ULL);
+
+	// And the case the report is about: the same spell held BOTH ways answers yes to both
+	// questions, which is what makes it two cells rather than one.
+	sorceress._pISpells |= fireball;
+	EXPECT_NE(sorceress._pMemSpells & fireball, 0ULL) << "the staff swallowed the learned spell";
+	EXPECT_NE(sorceress._pISpells & fireball, 0ULL);
+
+	// The orange plate is the engine's own charge ramp, and it must stay distinct from the blue a
+	// learned spell wears - the two cells are told apart by colour alone.
+	EXPECT_NE(static_cast<int>(SpellType::Charges), static_cast<int>(SpellType::Spell));
+}
