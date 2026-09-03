@@ -31,6 +31,17 @@ enum class DamageType : uint8_t {
 	Lightning,
 	Magic,
 	Acid,
+	/**
+	 * Oracool, Round 1 of the inert-skill plan (2026-09-03): the fifth element.
+	 *
+	 * APPENDED, not inserted, and that is load-bearing twice over. MissileDataFlags packs a
+	 * DamageType into its low three bits, so every existing missile's flags value has to keep its
+	 * number; and DamageType::Acid is 4, so Cold is 5 and the mask (0b111) still holds it.
+	 *
+	 * Thirteen inert skill rows were waiting on this one missing noun - ten of the Sorceress's and
+	 * three of the Rogue's arrows - which is why it is the first round rather than the tidiest.
+	 */
+	Cold,
 };
 
 enum class MissileGraphicID : uint8_t {
@@ -93,6 +104,15 @@ enum class MissileGraphicID : uint8_t {
 	BlueFlare2,
 	OrangeFlareExplosion,
 	BlueFlareExplosion2,
+	/**
+	 * Oracool, the Cold pack (2026-09-03). Appended before None, because MissileSpriteData is indexed
+	 * by this enum positionally and every existing value has to keep its number.
+	 *
+	 * The art is missiles\ice_bolt.png and missiles\ice_impact.png - PNG sheets rather than CL2s,
+	 * which MissileFileData::LoadGFX learned to read in v1.9.181.
+	 */
+	IceBolt,
+	IceImpact,
 	None,
 };
 
@@ -124,6 +144,7 @@ enum class MissileDataFlags : uint8_t {
 	Lightning = static_cast<uint8_t>(DamageType::Lightning),
 	Magic = static_cast<uint8_t>(DamageType::Magic),
 	Acid = static_cast<uint8_t>(DamageType::Acid),
+	Cold = static_cast<uint8_t>(DamageType::Cold),
 	Arrow = 1 << 4,
 	Invisible = 1 << 5,
 };
@@ -166,7 +187,16 @@ struct MissileFileData {
 	OptionalOwnedClxSpriteListOrSheet sprites;
 	uint16_t animWidth;
 	int8_t animWidth2;
-	char name[9];
+	/**
+	 * The art's file name, without extension.
+	 *
+	 * NINE bytes until 2026-09-03, which is 8.3 - every original missile is a DOS-era CL2 called
+	 * "fireba" or "magblos". The Cold pack's sheets are named for what they are ("ice_impact",
+	 * "glacial_shatter"), and there is no reason for art this fork ships to obey a filename limit
+	 * from 1996. Twenty holds the longest of the thirteen with room, and costs eleven bytes a row in
+	 * a table of about a hundred.
+	 */
+	char name[20];
 	uint8_t animFAmt;
 	MissileGraphicsFlags flags;
 	uint8_t animDelayIdx;

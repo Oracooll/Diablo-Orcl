@@ -757,10 +757,19 @@ TEST(Writehero, pfile_write_hero)
 	//
 	//      Two bytes per slot, not one, for the reason HeroChunkActiveAura had to widen in
 	//      2026-08-25: the Passive Skills page took the tree past 255 rows.
+	// 1.9.182: ONE BYTE, and no new tag - MAX_SPELLS went 59 -> 60 for SpellID::IceBolt, and the
+	//      skill-investment chunk is a count byte followed by one byte per spell id. It grew with the
+	//      enum exactly as its header says it was built to ("count-prefixed so MAX_SPELLS can grow
+	//      without a new tag"), which is why this is a re-baseline rather than a bug.
+	//
+	//      Worth knowing that the FIXED struct did not move: PlayerPack's pSplLvl is 37 plus a
+	//      Hellfire ten, hard numbers that predate the fork, so spell levels above 46 have never been
+	//      persisted and Ice Bolt joins Charge and the Paladin's six in not having one. Its rank
+	//      lives in _pSkillInvestment, which is the chunk that did grow.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "55acf4c1b698b4e089bc05ccb412c73682a93d7efd6059471f7b93dea1c3f138");
+	    "6209cf150d5efb4fefc7f900db84c7d93f6ba38be46b08521049eac6f0469ac5");
 }
 
 } // namespace

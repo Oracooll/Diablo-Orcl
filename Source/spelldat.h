@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 59
+#define MAX_SPELLS 60
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -140,15 +140,46 @@ enum class SpellID : int8_t {
 	FistOfTheHeavens,
 	ShieldBash,
 	BlessedHammer,
+	/**
+	 * Oracool, Round 1 of the inert-skill plan (2026-09-03): the Sorceress's Ice Bolt, and the first
+	 * spell in this game that deals cold.
+	 *
+	 * ID 59, and worth knowing what that number is close to. GetSpellBitmask is `1ULL << (id - 1)`
+	 * over a uint64, so id 64 is the last one that can exist at all - five seats left after this. The
+	 * cold line alone wants eleven more, so Round 2 opens by widening those masks rather than by
+	 * writing spells; see the plan. The static_assert below is what makes running out a compile
+	 * error rather than a spell that silently shares another's bit.
+	 */
+	IceBolt,
 
-	LAST = BlessedHammer,
+	LAST = IceBolt,
 	Invalid = -1,
 };
+
+/**
+ * @brief The hard ceiling on spell ids, and it is nearer than it looks.
+ *
+ * Oracool, 2026-09-03. A character's known, innate, item and scroll spells are each a uint64 bitmask
+ * and GetSpellBitmask (spells.h) is `1ULL << (id - 1)`, so id 64 is the last one that can exist.
+ * Beyond it the shift is undefined and, on this compiler, silently wraps - a new spell would share an
+ * old spell's bit and the two would be learned, forgotten and readied together.
+ *
+ * Asserted here rather than trusted, because the failure has no symptom at the point it is caused.
+ * When this fires, the fix is not a bigger number here: it is widening those four masks, which the
+ * hero chunk tail exists to make possible without breaking a single existing save.
+ */
+static_assert(static_cast<int>(SpellID::LAST) <= 64,
+    "spell ids past 64 do not fit the uint64 spell masks - widen _pMemSpells and friends first");
 
 enum class MagicType : uint8_t {
 	Fire,
 	Lightning,
 	Magic,
+	/**
+	 * Oracool, Round 1 (2026-09-03). Three, and three is the last one that fits: SpellData::type()
+	 * masks the flags with 0b11, so this enum has exactly four seats and cold takes the empty one.
+	 */
+	Cold,
 };
 
 enum class MissileID : int8_t {
@@ -279,6 +310,8 @@ enum class MissileID : int8_t {
 	 * so only the bolt needed to get smaller, and the art for that already shipped.
 	 */
 	MiniNovaBall,
+	/** Oracool, Round 1: the Sorceress.s Ice Bolt. Firebolt.s behaviour, cold damage, its own art. */
+	IceBolt,
 	Null = -1,
 	// clang-format on
 };
@@ -288,6 +321,7 @@ enum class SpellDataFlags : uint8_t {
 	Fire = static_cast<uint8_t>(MagicType::Fire),
 	Lightning = static_cast<uint8_t>(MagicType::Lightning),
 	Magic = static_cast<uint8_t>(MagicType::Magic),
+	Cold = static_cast<uint8_t>(MagicType::Cold),
 	Targeted = 1U << 2,
 	AllowedInTown = 1U << 3,
 };

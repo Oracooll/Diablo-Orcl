@@ -88,6 +88,12 @@ void UpdateFloatingData(FloatingNumber &num)
 	case DamageType::Acid:
 		num.style |= UiFlags::ColorYellow;
 		break;
+	case DamageType::Cold:
+		// White, not blue. Blue is lightning on this readout, and the Cold brief is explicit that ice
+		// in this palette is white with blue in its shadows - a blue number over a blue-white bolt
+		// would say "lightning" twice and "cold" not at all.
+		num.style |= UiFlags::ColorWhite;
+		break;
 	}
 }
 

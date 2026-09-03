@@ -27,6 +27,7 @@
 #include "lighting.h"
 #include "monster.h"
 #include "oracool/aura_field.h"
+#include "oracool/chill.h"
 #include "oracool/event_log.h"
 #include "oracool/divine_trn.h"
 #include "oracool/skill_sounds.h"
@@ -316,6 +317,16 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 
 	if (&player == MyPlayer)
 		ApplyMonsterDamage(damageType, monster, dam);
+
+	// COLD CHILLS (Oracool, Round 1). Every cold missile does it, rather than Ice Bolt doing it -
+	// the slow is what the damage type MEANS, and hanging it on the element is what lets the next
+	// twelve cold rows inherit it without a line each.
+	//
+	// After the damage and before the death check, so a killing blow does not chill a corpse: the
+	// branch below either kills the monster or starts its hit reaction, and a chill applied past that
+	// point would sit in the table until the level ended.
+	if (damageType == DamageType::Cold && monster.hitPoints >> 6 > 0)
+		oracool::ChillMonster(monster, oracool::IceBoltChillTicks);
 
 	if (monster.hitPoints >> 6 <= 0) {
 		M_StartKill(monster, player);

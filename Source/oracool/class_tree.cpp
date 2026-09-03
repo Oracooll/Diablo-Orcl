@@ -304,7 +304,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// ======================= SORCERESS =======================
 	// --- Cold Spells: inert as a page. This engine has no cold damage channel and no chill, so
 	//     every one of these would have to be invented rather than adapted. Listed and described.
-	{ N_("Ice Bolt"), N_("A shard of ice that chills what it hits. Inert: this engine has no cold damage."), Sor, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
+	// LIVE since 2026-09-03, Round 1 of the inert-skill plan. The description no longer has to
+	// apologise: the engine has cold damage now, and the chill is the point of it.
+	{ N_("Ice Bolt"), N_("A shard of ice that damages and chills what it hits, halving its speed for two seconds."), Sor, 0, 0, 0, Kind::Active, SpellID::IceBolt, true },
 	{ N_("Frozen Armor"), N_("Armour of ice that freezes attackers. Inert: no cold, no freeze."), Sor, 0, 0, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Frost Nova"), N_("A ring of ice bursting outward. Inert: no cold damage."), Sor, 0, 1, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Ice Blast"), N_("A shard that freezes its target solid. Inert: no cold, no freeze."), Sor, 0, 1, 1, Kind::Active, SpellID::Invalid, false },

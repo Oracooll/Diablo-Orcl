@@ -98,6 +98,11 @@ const uint8_t SpellITbl[] = {
 	26,
 	26,
 	26,
+	// Ice Bolt, and the same argument as the seven above it: the Sorceress's tree draws its own art
+	// (sorc_tree_icons.png, through TryDrawSkillSpellIcon), so this entry is only what shows if a new
+	// draw site forgets to ask. A bare plate says "unfinished"; another spell's symbol would say
+	// something false.
+	26,
 };
 static_assert(sizeof(SpellITbl) / sizeof(SpellITbl[0]) == MAX_SPELLS,
     "every SpellID needs an icon frame - this table is indexed by the enum");

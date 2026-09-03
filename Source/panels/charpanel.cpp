@@ -128,6 +128,10 @@ UiFlags DamageTypeColor(DamageType type)
 		return UiFlags::ColorBlue;
 	case DamageType::Physical:
 	case DamageType::Acid:
+	case DamageType::Cold:
+		// Cold falls through to white deliberately, and it is the only element that WANTS the
+		// default: white is cold's own colour in this palette (see the Cold brief - ice is white with
+		// blue in its shadows), and blue is already spoken for by magic on this very line.
 		break;
 	}
 	return UiFlags::ColorWhite;

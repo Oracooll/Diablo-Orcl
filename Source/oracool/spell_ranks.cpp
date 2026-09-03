@@ -81,6 +81,7 @@ constexpr int SpellBand[] = {
 	0,  // Fist of the Heavens
 	0,  // Shield Bash
 	0,  // Blessed Hammer
+	0,  // Ice Bolt - earned on the Sorceress's tree, so the tree's own tier gate is its requirement
 };
 static_assert(sizeof(SpellBand) / sizeof(SpellBand[0]) == MAX_SPELLS,
     "every SpellID needs a band - this table is indexed by the enum");

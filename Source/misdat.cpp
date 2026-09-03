@@ -23,6 +23,7 @@ constexpr auto Fire = MissileDataFlags::Fire;
 constexpr auto Lightning = MissileDataFlags::Lightning;
 constexpr auto Magic = MissileDataFlags::Magic;
 constexpr auto Acid = MissileDataFlags::Acid;
+constexpr auto Cold = MissileDataFlags::Cold;
 constexpr auto Arrow = MissileDataFlags::Arrow;
 constexpr auto Invisible = MissileDataFlags::Invisible;
 } // namespace
@@ -158,6 +159,13 @@ const MissileData MissilesData[] = {
 // Oracool: Fist of the Heavens' mini-Nova bolt - NovaBall's own add and process functions with
 // ChargedBolt's smaller sprite. See the note at MissileID::MiniNovaBall.
 /*MiniNovaBall*/         { &AddNovaBall,            &ProcessNovaBall,             SFX_NONE,    SFX_NONE,    MissileGraphicID::ChargedBolt,          Lightning,             MissileMovementDistribution::Unblockable },
+// Oracool, Round 1: the first cold missile, and the first user of DamageType::Cold. Firebolt's own
+// add and process functions - a bolt that flies at a target and bursts is a bolt whatever it is made
+// of, and the difference between the two is entirely in the flags, the art and what the hit does.
+//
+// LS_FBOLT1 / LS_FIRIMP2 are Firebolt's sounds, borrowed deliberately: this fork has no cold sounds
+// yet, and silence reads as a bug where a wrong-element whoosh reads as a placeholder.
+/*IceBolt*/              { &AddFirebolt,            &ProcessGenericProjectile,    LS_FBOLT1,   LS_FIRIMP2,  MissileGraphicID::IceBolt,              Cold,                  MissileMovementDistribution::Blockable   },
 	// clang-format on
 };
 
@@ -287,6 +295,15 @@ MissileFileData MissileSpriteData[] = {
 /*BlueFlare2*/               { {},               96,           8, "ms_blb",          16, MissileGraphicsFlags::MonsterOwned,             0, AnimLen_15      },
 /*OrangeFlareExplosion*/     { {},               96,         -12, "ex_ora1",          1, MissileGraphicsFlags::MonsterOwned,             0, AnimLen_13      },
 /*BlueFlareExplosion2*/      { {},              292,         114, "ex_blu3",          1, MissileGraphicsFlags::MonsterOwned,             0, AnimLen_7       },
+// Oracool, the Cold pack. The names are the PNG sheets' own (missiles\ice_bolt.png), so LoadGFX's
+// import finds them by the same name it would have used for a .cl2 - see oracool/sprite_import.h.
+//
+// animFAmt is the DIRECTION count, not the frame count: 16 for the bolt because it is drawn once per
+// facing, 1 for the impact because a burst of frost looks the same from every side. animWidth2 is
+// the horizontal draw offset, half the frame width less the 32px tile half-width, exactly as
+// Fireball's 96/16 pair is.
+/*IceBolt*/                  { {},               96,          16, "ice_bolt",        16, MissileGraphicsFlags::None,                     0, AnimLen_16      },
+/*IceImpact*/                { {},               96,          16, "ice_impact",       1, MissileGraphicsFlags::None,                     1, AnimLen_10      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

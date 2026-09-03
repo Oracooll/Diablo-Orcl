@@ -91,6 +91,7 @@
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
 #include "oracool/skill_points.h"
+#include "oracool/chill.h"
 #include "oracool/sprite_import.h"
 #include "oracool/spell_ranks.h"
 #include "oracool/sprite_scale.h"
@@ -8982,4 +8983,55 @@ TEST(OracoolColdPack, EveryDeliveredSheetLoadsAtItsSpecifiedShape)
 			                     "sliced against the wrong row height";
 		}
 	}
+}
+
+/**
+ * @brief Chill takes every other tick, ages on all of them, and expires.
+ *
+ * Round 1 of the inert-skill plan (2026-09-03). Cold damage on its own is a fifth colour of number;
+ * the slow is what makes cold read as cold, and it is the part with arithmetic in it.
+ *
+ * Two things are pinned here and both have already been got wrong once in this file's own history:
+ * the chill must age on EVERY tick rather than only the ones it takes - otherwise a two-second chill
+ * lasts four seconds and every duration in the module quietly means double - and it must eventually
+ * stop, because a status effect stored in a side table that never reaches zero is a monster that is
+ * slow for the rest of the level.
+ */
+TEST(OracoolChill, HalvesTheTicksAndThenLetsGo)
+{
+	Monsters[0] = {};
+	Monster &monster = Monsters[0];
+
+	oracool::ClearChills();
+	EXPECT_FALSE(oracool::IsMonsterChilled(monster)) << "a cleared table reported a chill";
+	EXPECT_FALSE(oracool::ChillTakesThisTick(monster)) << "an unchilled monster lost a tick";
+
+	constexpr int Ticks = 40;
+	oracool::ChillMonster(monster, Ticks);
+	ASSERT_TRUE(oracool::IsMonsterChilled(monster));
+
+	int taken = 0;
+	for (int i = 0; i < Ticks; i++) {
+		if (oracool::ChillTakesThisTick(monster))
+			taken++;
+	}
+	EXPECT_EQ(taken, Ticks / 2)
+	    << "the ice took " << taken << " of " << Ticks
+	    << " ticks - half is the whole mechanic, and anything else is a different slow";
+	EXPECT_FALSE(oracool::IsMonsterChilled(monster))
+	    << "the chill outlived its duration - it ages on ticks it takes as well as ticks it gives";
+
+	// A second hit EXTENDS rather than stacks: continuous fire keeps a monster slow, but a few
+	// seconds of casting must not freeze it for a minute.
+	oracool::ChillMonster(monster, 10);
+	oracool::ChillMonster(monster, 4);
+	int remaining = 0;
+	while (oracool::IsMonsterChilled(monster)) {
+		oracool::ChillTakesThisTick(monster);
+		remaining++;
+		ASSERT_LT(remaining, 100) << "the chill never ended";
+	}
+	EXPECT_EQ(remaining, 10) << "a shorter second chill shortened the first, or the two stacked";
+
+	oracool::ClearChills();
 }

@@ -12,6 +12,7 @@ namespace {
 const auto Fire = SpellDataFlags::Fire;
 const auto Lightning = SpellDataFlags::Lightning;
 const auto Magic = SpellDataFlags::Magic;
+const auto Cold = SpellDataFlags::Cold;
 const auto Targeted = SpellDataFlags::Targeted;
 const auto AllowedInTown = SpellDataFlags::AllowedInTown;
 } // namespace
@@ -91,6 +92,15 @@ const SpellData SpellsData[] = {
 /*SpellID::FistOfTheHeavens*/ { P_("spell", "Fist of the Heavens"), IS_CAST2,          0,            0,         15, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        15,          0,          0 },
 /*SpellID::ShieldBash*/       { P_("spell", "Shield Bash"),        IS_CAST2,           0,            0,          3, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         3,          0,          0 },
 /*SpellID::BlessedHammer*/    { P_("spell", "Blessed Hammer"),     IS_CAST2,           0,            0,          8, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         8,          0,          0 },
+// Oracool, Round 1: Ice Bolt. Firebolt's numbers almost exactly - it is the cold twin of the spell
+// you cast a thousand times, and the brief says so in as many words - with two deliberate
+// differences.
+//
+// sBookLvl and sStaffLvl are BOTH -1, like every tree skill this fork has added: cold is earned on
+// the Sorceress's page, not found in a book, and a droppable id would also move the loot tables for
+// every seed (see MAX_ITEM_SPELLS's note). minInt 0 for the same reason - the tree's own gate is
+// what says who may cast it.
+/*SpellID::IceBolt*/          { P_("spell", "Ice Bolt"),           IS_CAST2,           0,            0,          6, Cold | Targeted,              -1,         -1,       0, { MissileID::IceBolt,              MissileID::Null,    },         1,         3,          0,          0 },
 	// clang-format on
 };
 

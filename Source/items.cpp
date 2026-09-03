@@ -714,6 +714,14 @@ void GetBookSpell(Item &item, int lvl)
 	case MagicType::Magic:
 		item._iCurs = ICURS_BOOK_GREY;
 		break;
+	case MagicType::Cold:
+		// The blue book, as Lightning uses. Oracool: cold has no book art of its own, and blue at
+		// least names the half of the palette the spell inside is drawn from - grey means "neither
+		// fire nor lightning", which is less true than blue is. Nothing rolls a cold book today
+		// (every cold row's sBookLvl is -1), so this branch is what keeps the switch total rather
+		// than a decision anybody will see.
+		item._iCurs = ICURS_BOOK_BLUE;
+		break;
 	}
 }
 

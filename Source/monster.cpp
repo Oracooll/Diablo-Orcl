@@ -34,6 +34,7 @@
 #include "missiles.h"
 #include "movie.h"
 #include "options.h"
+#include "oracool/chill.h"
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
 #include "oracool/aura_field.h"
@@ -3827,6 +3828,11 @@ void InitGolems()
 
 void InitMonsters()
 {
+	// Every chill forgotten. That table is a file-local static and therefore outlives the game, so
+	// this is what stops one character's frost from landing on another's monsters - and it belongs
+	// here, on entering a level, because that is the one event no path can skip.
+	oracool::ClearChills();
+
 	if (!gbIsSpawn && !setlevel && currlevel == 16)
 		LoadDiabMonsts();
 
@@ -4474,6 +4480,17 @@ void ProcessMonsters()
 				monster.activeForTicks--;
 			}
 		}
+		// CHILL: the ice takes every other tick from a chilled monster (Oracool, Round 1). Placed
+		// here, after the enemy and the target position have been updated and before the AI runs, so
+		// a chilled monster still SEES - it knows where the player went, it is just slower to answer.
+		// Skipping the whole iteration instead would freeze its knowledge as well as its feet, and it
+		// would then lurch toward a stale position when the chill ended.
+		//
+		// The animation below is skipped with it, deliberately: half the AI ticks with a full-speed
+		// walk cycle is a monster that moonwalks.
+		if (oracool::ChillTakesThisTick(monster))
+			continue;
+
 		while (true) {
 			if ((monster.flags & MFLAG_SEARCH) == 0 || !AiPlanPath(monster)) {
 				AiProc[static_cast<int8_t>(monster.ai)](monster);
