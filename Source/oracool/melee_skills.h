@@ -76,6 +76,8 @@ enum class ClassMeleeSkill : uint8_t {
 	ChargedStrike,
 	Fend,
 	LightningStrike,
+	// Round 8: the Paladin's Sacrifice - a heavy blow that wounds the striker.
+	Sacrifice,
 };
 
 /** @brief The melee skill @p spell is, if it is one. */

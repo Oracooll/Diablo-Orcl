@@ -774,10 +774,11 @@ TEST(Writehero, pfile_write_hero)
 	//      melee pages (Round 4).
 	// 1.9.188: SEVENTEEN BYTES again - MAX_SPELLS 95 -> 112 for the cries and songs (Round 6).
 	// 1.9.189: EIGHT BYTES - MAX_SPELLS 112 -> 120 for the Rogue's javelin page (Round 7).
+	// 1.9.190: THREE BYTES - MAX_SPELLS 120 -> 123 for the Paladin's last three (Round 8).
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "8500a7cb2cfad794d00ea7de553720ef800050c101ceef575ded8211ac9ff6af");
+	    "947bd0b8b41a2d42faddbc21f0b308005ac2de5219a63ffcca65e3118b26c30a");
 }
 
 } // namespace

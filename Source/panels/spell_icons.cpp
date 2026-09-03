@@ -130,6 +130,8 @@ const uint8_t SpellITbl[] = {
 	26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
 	// The eight Round 7 javelin rows.
 	26, 26, 26, 26, 26, 26, 26, 26,
+	// The Paladin's three Round 8 rows.
+	26, 26, 26,
 };
 static_assert(sizeof(SpellITbl) / sizeof(SpellITbl[0]) == MAX_SPELLS,
     "every SpellID needs an icon frame - this table is indexed by the enum");

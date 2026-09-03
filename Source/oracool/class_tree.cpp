@@ -114,12 +114,12 @@ constexpr int TierLevels[] = { 1, 6, 12, 18, 24, 30, 36 };
 const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// ======================= PALADIN =======================
 	// --- Combat Skills ---
-	{ N_("Sacrifice"), N_("Strike for heavy bonus damage and wound yourself for a share of it. Not yet built."),
-	    Pal, 0, 0, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Sacrifice"), N_("A blow two and a half times as hard, a fifth more a rank, that costs you a twelfth of what it dealt. It cannot take your last point of life."),
+	    Pal, 0, 0, 0, Kind::Active, SpellID::Sacrifice, true },
 	{ N_("Smite"), N_("Bash with your shield: it always connects and briefly stuns. A shield is mandatory."),
 	    Pal, 0, 0, 1, Kind::Active, SpellID::ShieldBash, true },
-	{ N_("Holy Bolt"), N_("A bolt of holy energy that sears the undead. Withdrawn: it collided with this engine's own Holy Bolt spell."),
-	    Pal, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Holy Bolt"), N_("A bolt of holy energy that sears the undead, at the rank. The tree's own bolt, beside the book's."),
+	    Pal, 0, 0, 2, Kind::Active, SpellID::HolyBoltSkill, true },
 	// Matches paladin_skills.cpp word for word on the numbers, deliberately: two windows describing
 	// one skill differently is worse than either being wrong alone, and this row has drifted twice.
 	{ N_("Zeal"), N_("Strike several times in one furious burst. Skill levels 1, 3 and 5 each add a strike, and every skill level adds +1% chance to hit."),
@@ -133,8 +133,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// Corrected 2026-08-16: this row used to claim "no charmed-monster state exists", which was
 	// simply wrong - this engine's Berserk sets MFLAG_GOLEM on the target, making it fight for the
 	// player, which IS conversion. Found while wiring the Bard's Charm onto the same spell.
-	{ N_("Conversion"), N_("Turns an enemy to your side. Withdrawn pending design work: its Berserk behaviour was wrong."),
-	    Pal, 0, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Conversion"), N_("Turns one enemy near the cursor to your side for twenty seconds, two more a rank. Uniques and the magic-immune refuse."),
+	    Pal, 0, 4, 1, Kind::Active, SpellID::Conversion, true },
 	{ N_("Fist of the Heavens"), N_("Calls down a bolt from the sky, which bursts into holy energy where it lands."),
 	    Pal, 0, 5, 2, Kind::Active, SpellID::FistOfTheHeavens, true },
 	// --- Offensive Auras ---

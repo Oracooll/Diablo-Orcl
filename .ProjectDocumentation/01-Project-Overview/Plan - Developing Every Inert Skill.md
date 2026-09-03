@@ -207,10 +207,20 @@ and Nova at the rank, and their sentences say the bolt carries itself because no
 **Held back:** Poison Javelin and Plague Javelin (no poison), and the Barbarian's Double Throw (no
 thrown weapons); all three rows say why.
 
-### Round 8 — the Paladin's remaining seven · 7 rows
+### Round 8 — the Paladin's remaining seven ✔ DONE (v1.9.190)
 
 Sacrifice, Holy Bolt, Vengeance, Conversion, Holy Freeze, Cleansing, Redemption. Small, and Holy
 Freeze wants Round 1's chill, so it cannot be earlier than it looks.
+
+**Shipped:** three rows; Vengeance and Holy Freeze had already gone live in Round 6. Sacrifice is
+a melee-latch thrust (Round 4's shape): two and a half times the blow, a fifth more a rank, and a
+twelfth of what it dealt taken from the Paladin's own life, never the last point. Holy Bolt is the
+tree's OWN bolt — `SpellID::HolyBoltSkill` riding `MissileID::HolyBolt` at the rank — under a
+SpellID of its own, so it cannot collide with the book spell again, which is what withdrew it in
+August. Conversion is a targeted cry through Round 6's missile: one enemy near the cursor takes
+the engine's Berserk flags for twenty seconds, two more a rank, and gives them back when the clock
+runs out — the clock being what the first attempt lacked. **Held back:** Cleansing (nothing on a
+player here has a duration to shorten) and Redemption (corpses); both rows still say why.
 
 ### Round 9 — the one-offs
 

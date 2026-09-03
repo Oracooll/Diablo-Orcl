@@ -81,6 +81,7 @@ struct Debuff {
 	int ticksLeft = 0;
 	int damagePercent = 0; // negative
 	int armorPercent = 0;  // negative
+	int convertTicks = 0;  // Conversion: ticks left on the Paladin's side
 };
 
 std::array<Debuff, MaxMonsters> Debuffs;
@@ -227,12 +228,19 @@ Skill WarcrySkill(SpellID spell)
 		return Skill::SlowMissiles;
 	case SpellID::Vengeance:
 		return Skill::Vengeance;
+	case SpellID::Conversion:
+		return Skill::Conversion;
 	default:
 		return Skill::None;
 	}
 }
 
 bool CastWarcry(Player &player, SpellID spell)
+{
+	return CastWarcry(player, spell, player.position.tile);
+}
+
+bool CastWarcry(Player &player, SpellID spell, Point target)
 {
 	if (!IsWarcry(spell))
 		return false;
@@ -323,6 +331,26 @@ bool CastWarcry(Player &player, SpellID spell)
 	// --- the Paladin's ---
 	case SpellID::Vengeance:
 		return StartBuff(player, spell, rank, (30 + 5 * (rank - 1)) * seconds);
+	case SpellID::Conversion: {
+		// One enemy near the cursor turns to the Paladin's side for a while - the same flags the
+		// engine's Berserk sets, and the same exemptions, but with a clock, which is what the first
+		// attempt lacked and why it was withdrawn. Its own strength is left as it is.
+		Monster *turned = nullptr;
+		ForEachInEarshot(target, 2, [&](Monster &m) {
+			if (turned != nullptr || ShrugsOff(m) || m.ai == MonsterAIID::Diablo)
+				return;
+			if ((m.flags & MFLAG_BERSERK) != 0 || (m.resistance & IMMUNE_MAGIC) != 0)
+				return;
+			if (IsAnyOf(m.mode, MonsterMode::FadeIn, MonsterMode::FadeOut, MonsterMode::Charge, MonsterMode::Petrified))
+				return;
+			turned = &m;
+		});
+		if (turned == nullptr)
+			return false;
+		turned->flags |= MFLAG_BERSERK | MFLAG_GOLEM;
+		DebuffOf(*turned).convertTicks = (20 + 2 * (rank - 1)) * seconds;
+		return true;
+	}
 	default:
 		return false;
 	}
@@ -425,10 +453,16 @@ void ProcessWarcriesTick(Player &player)
 	if (&player != MyPlayer || player._pHitPoints <= 0)
 		return;
 
-	// The monsters' debuffs run down too - once, from the local player's tick.
-	for (Debuff &debuff : Debuffs) {
-		if (debuff.ticksLeft > 0 && --debuff.ticksLeft == 0)
-			debuff = {};
+	// The monsters' debuffs run down too - once, from the local player's tick - and a converted
+	// monster goes back to its own side when its clock runs out.
+	for (size_t i = 0; i < Debuffs.size(); i++) {
+		Debuff &debuff = Debuffs[i];
+		if (debuff.ticksLeft > 0 && --debuff.ticksLeft == 0) {
+			debuff.damagePercent = 0;
+			debuff.armorPercent = 0;
+		}
+		if (debuff.convertTicks > 0 && --debuff.convertTicks == 0)
+			Monsters[i].flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
 	}
 
 	// Tranquility: the ground around the Monk is a sanctuary - what stands beside him is slowed,
@@ -504,6 +538,8 @@ const char *WarcryDescription(SpellID spell)
 		return N_("For twenty seconds, four more a rank, half the arrows aimed at you turn aside - a twentieth more a rank.");
 	case SpellID::Vengeance:
 		return N_("Your blows burn and crackle for thirty seconds, five more a rank: fire and lightning on every hit, more with rank. Cold has no place on the weapon sheet, so it is not added.");
+	case SpellID::Conversion:
+		return N_("Turns one enemy near the cursor to your side for twenty seconds, two more a rank. Uniques and the magic-immune refuse.");
 	default:
 		return "";
 	}
@@ -515,7 +551,7 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 	Player &player = Players[missile._misource];
 	// Which cry: the spell the cast was launched with, which the player carries through the
 	// animation. One missile for all seventeen rather than seventeen missiles.
-	if (!CastWarcry(player, player.executedSpell.spellId))
+	if (!CastWarcry(player, player.executedSpell.spellId, parameter.dst))
 		parameter.spellFizzled = true;
 }
 

@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 120
+#define MAX_SPELLS 123
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -235,8 +235,14 @@ enum class SpellID : int8_t {
 	LightningStrike,
 	LightningBoltSkill,
 	LightningFury,
+	// Oracool, Round 8 (2026-09-03): the Paladin's last three. Sacrifice is a melee-latch thrust;
+	// Holy Bolt is the tree's OWN bolt, riding MissileID::HolyBolt under a SpellID of its own so it
+	// cannot collide with the book spell again; Conversion is a targeted cry (oracool/warcries.h).
+	Sacrifice,
+	HolyBoltSkill,
+	Conversion,
 
-	LAST = LightningFury,
+	LAST = Conversion,
 	Invalid = -1,
 };
 

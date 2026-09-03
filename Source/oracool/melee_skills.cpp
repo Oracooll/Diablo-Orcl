@@ -65,6 +65,8 @@ Profile ProfileOf(ClassMeleeSkill skill)
 		return { 30, 5, 0, 0, 1, 0, 0 };
 	case ClassMeleeSkill::Impale:
 		return { 100, 20, 0, 0, 1, 0, 0 };
+	case ClassMeleeSkill::Sacrifice:
+		return { 150, 20, 0, 0, 1, 0, 0 };
 	case ClassMeleeSkill::ChargedStrike:
 	case ClassMeleeSkill::LightningStrike:
 		return { 20, 5, 0, 0, 1, 0, 0 };
@@ -192,6 +194,8 @@ std::optional<ClassMeleeSkill> ClassMeleeSkillForSpell(SpellID spell)
 		return ClassMeleeSkill::Fend;
 	case SpellID::LightningStrike:
 		return ClassMeleeSkill::LightningStrike;
+	case SpellID::Sacrifice:
+		return ClassMeleeSkill::Sacrifice;
 	default:
 		return std::nullopt;
 	}
@@ -246,6 +250,8 @@ SpellID ClassMeleeSkillSpell(ClassMeleeSkill skill)
 		return SpellID::Fend;
 	case ClassMeleeSkill::LightningStrike:
 		return SpellID::LightningStrike;
+	case ClassMeleeSkill::Sacrifice:
+		return SpellID::Sacrifice;
 	}
 	return SpellID::Invalid;
 }
@@ -398,6 +404,15 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			struck = true;
 		}
 		break;
+	case ClassMeleeSkill::Sacrifice:
+		// The price: a twelfth of what the blow dealt, from the striker's own life. Never the last
+		// point of it - a Sacrifice cannot kill the one making it.
+		if (front != nullptr && frontHit && frontDamage > 0) {
+			const int wound = frontDamage / 12;
+			ApplyPlrDamage(DamageType::Physical, player, wound >> 6, /*minHP=*/1, wound & 63);
+			struck = true;
+		}
+		break;
 	default:
 		break;
 	}
@@ -482,6 +497,8 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 		return N_("Every swing also strikes everything around you, at four fifths, a twentieth more a rank.");
 	case SpellID::LightningStrike:
 		return N_("A thrust a fifth harder whose lightning leaps on from the target to the next enemy, and the next.");
+	case SpellID::Sacrifice:
+		return N_("A blow two and a half times as hard, a fifth more a rank, that costs you a twelfth of what it dealt. It cannot take your last point of life.");
 	default:
 		return "";
 	}

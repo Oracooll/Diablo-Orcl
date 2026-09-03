@@ -28,6 +28,7 @@
  */
 #pragma once
 
+#include "engine/point.hpp"
 #include "oracool/class_tree.h"
 #include "spelldat.h"
 
@@ -54,6 +55,9 @@ ClassTreeSkill WarcrySkill(SpellID spell);
  * cast fizzles and costs nothing.
  */
 bool CastWarcry(Player &player, SpellID spell);
+
+/** @brief The same, aimed: Conversion wants the tile under the cursor. The rest ignore @p target. */
+bool CastWarcry(Player &player, SpellID spell, Point target);
 
 /** @brief Ticks left on @p player's @p spell buff; 0 when not carried. */
 int WarcryBuffTicks(const Player &player, SpellID spell);

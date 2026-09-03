@@ -174,6 +174,10 @@ const SpellData SpellsData[] = {
 /*SpellID::LightningStrike*/  { P_("spell", "Lightning Strike"),    IS_CAST2,           0,            0,          6, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                MissileID::Null,    },         0,         2,          0,          0 },
 /*SpellID::LightningBoltSkill*/ { P_("spell", "Lightning Bolt"),      IS_CAST2,           0,            0,          5, Lightning | Targeted,         -1,         -1,       0, { MissileID::LightningControl,    MissileID::Null,    },         0,         2,          0,          0 },
 /*SpellID::LightningFury*/    { P_("spell", "Lightning Fury"),      IS_CAST2,           0,            0,          9, Lightning,                    -1,         -1,       0, { MissileID::Nova,                MissileID::Null,    },         0,         2,          0,          0 },
+	// Oracool, Round 8: the Paladin's last three.
+/*SpellID::Sacrifice*/        { P_("spell", "Sacrifice"),           IS_CAST2,           0,            0,          4, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::HolyBoltSkill*/    { P_("spell", "Holy Bolt"),           IS_CAST2,           0,            0,          5, Magic | Targeted,             -1,         -1,       0, { MissileID::HolyBolt,            MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::Conversion*/       { P_("spell", "Conversion"),          IS_CAST2,           0,            0,          8, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,              MissileID::Null,    },         0,         2,          0,          0 },
 	// clang-format on
 };
 
