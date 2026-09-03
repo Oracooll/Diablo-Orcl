@@ -40,6 +40,7 @@
 #include "oracool/gems.h"
 #include "oracool/aura_field.h"
 #include "oracool/monster_difficulty.h"
+#include "oracool/passives.h"
 #include "oracool/monster_variants.h"
 #include "oracool/endgame_boss.h"
 #include "oracool/monster_scale.h"
@@ -1471,6 +1472,9 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	int blk = player.GetBlockChance() - (monster.level(sgGameInitInfo.nDifficulty) * 2);
 	blk = clamp(blk, 0, 100);
 	if (hper >= hit)
+		return;
+	// Oracool, Round 5: Dodge standing, Evade moving - a blow that would have landed slips instead.
+	if (oracool::PassiveEvadesMelee(player))
 		return;
 	if (blkper < blk) {
 		Direction dir = GetDirection(player.position.tile, monster.position.tile);
@@ -3839,6 +3843,7 @@ void InitMonsters()
 	// this is what stops one character's frost from landing on another's monsters - and it belongs
 	// here, on entering a level, because that is the one event no path can skip.
 	oracool::ClearChills();
+	oracool::ClearPassiveState();
 
 	if (!gbIsSpawn && !setlevel && currlevel == 16)
 		LoadDiabMonsts();
@@ -4199,6 +4204,9 @@ void MonsterDeath(Monster &monster, Direction md, bool sendmsg)
 void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg)
 {
 	monster.tag(player);
+	// Oracool, Round 5: Rampage and Requiem hear the kill.
+	if (&player == MyPlayer && monster.hitPoints >> 6 <= 0)
+		oracool::OnPassiveMonsterKilled(*MyPlayer, monster);
 	Direction md = GetDirection(monster.position.tile, player.position.tile);
 	MonsterDeath(monster, md, sendmsg);
 }

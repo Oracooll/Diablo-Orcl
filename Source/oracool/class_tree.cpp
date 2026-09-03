@@ -15,6 +15,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/passives.h"
 #include "oracool/skill_points.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/spell_ranks.h" // the Rule of Rangs
@@ -192,24 +193,24 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// ---- Passive Skills (page 3) ----
 	{ N_("Heavenly Strength"), N_("Bear a two-handed weapon in your main hand and a shield in the other. Not yet built."),
 	    Pal, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Fervor"), N_("One-handed weapons swing faster and your cooldowns come round sooner. Not yet built."),
-	    Pal, 3, 0, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Vigilant"), N_("Your wounds close faster and every blow that is not steel hurts less. Not yet built."),
-	    Pal, 3, 0, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Fervor"), N_("With a one-handed weapon in hand you swing faster."),
+	    Pal, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Vigilant"), N_("Every blow that is not steel - fire, lightning, magic - hurts a fifth less."),
+	    Pal, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Righteousness"), N_("Your opening strikes build wrath faster, and you hold more of it. Not yet built."),
 	    Pal, 3, 1, 0, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Insurmountable"), N_("Every blow you turn aside feeds your wrath. Not yet built."),
 	    Pal, 3, 1, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Fanaticism"), N_("Your simplest attacks land faster than a measured swing would. Not yet built."),
-	    Pal, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Indestructible"), N_("Once a minute a killing blow leaves you standing, stronger and drinking life. Not yet built."),
-	    Pal, 3, 2, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Holy Cause"), N_("Your weapon bites deeper, and holy damage mends you as it burns. Not yet built."),
-	    Pal, 3, 2, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Fanaticism"), N_("Your simplest attacks swing faster."),
+	    Pal, 3, 1, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Indestructible"), N_("Once a minute a killing blow leaves you standing at a third of your life instead."),
+	    Pal, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Holy Cause"), N_("Your weapon bites a tenth deeper."),
+	    Pal, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Wrathful"), N_("Spent wrath returns to you as life. Not yet built."),
 	    Pal, 3, 2, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Divine Fortress"), N_("The shield you hide behind becomes armour you wear. Not yet built."),
-	    Pal, 3, 3, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Divine Fortress"), N_("Behind a shield your armour is a quarter greater."),
+	    Pal, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Lord Commander"), N_("Your mount, your bombardment and your phalanx all answer sooner and hit harder. Not yet built."),
 	    Pal, 3, 3, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Hold Your Ground"), N_("You no longer dodge at all, and block far more. Not yet built."),
@@ -265,30 +266,30 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// ---- Passive Skills (page 3) ----
 	{ N_("Pound of Flesh"), N_("Healing taken from the fallen leaves you mending and quickened, and it stacks. Not yet built."),
 	    Bar, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Ruthless"), N_("You fall far harder on the wounded. Not yet built."),
-	    Bar, 3, 0, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Nerves of Steel"), N_("A killing blow leaves you barely standing but briefly untouchable. Not yet built."),
-	    Bar, 3, 0, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Ruthless"), N_("You fall two fifths harder on anything below a third of its life."),
+	    Bar, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Nerves of Steel"), N_("Once a minute a killing blow leaves you standing at a third of your life instead."),
+	    Bar, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Weapons Master"), N_("Each family of weapon lends its own gift - damage, precision, speed or fury. Not yet built."),
 	    Bar, 3, 1, 0, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Inspiring Presence"), N_("Your shouts hold twice as long and leave everyone near you mending. Not yet built."),
 	    Bar, 3, 1, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Berserker Rage"), N_("Near the height of your fury you strike far harder. Not yet built."),
 	    Bar, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Bloodthirst"), N_("Every point of fury you spend is paid back in life. Not yet built."),
-	    Bar, 3, 2, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Animosity"), N_("Fury comes faster and you can hold more of it. Not yet built."),
-	    Bar, 3, 2, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Superstition"), N_("Magic and missiles hurt less, and being struck by them stokes your fury. Not yet built."),
-	    Bar, 3, 2, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Tough as Nails"), N_("Your armour and the harm you return are both greatly increased. Not yet built."),
-	    Bar, 3, 3, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Bloodthirst"), N_("Half of every point of mana you spend returns as life."),
+	    Bar, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Animosity"), N_("You hold twenty more mana."),
+	    Bar, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Superstition"), N_("Fire, lightning and magic all find you a tenth harder to harm."),
+	    Bar, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Tough as Nails"), N_("Your armour is a quarter greater."),
+	    Bar, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("No Escape"), N_("What you throw and what you hurl lands harder on the distant. Not yet built."),
 	    Bar, 3, 3, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Relentless"), N_("Badly wounded, your skills cost half, your healing doubles and blows land softer. Not yet built."),
-	    Bar, 3, 3, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Brawler"), N_("Surrounded by three or more, everything you do hurts more. Not yet built."),
-	    Bar, 3, 4, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Relentless"), N_("Below a third of your life, every blow lands a quarter softer."),
+	    Bar, 3, 3, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Brawler"), N_("With three or more enemies pressing close, everything you do hurts a fifth more."),
+	    Bar, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Juggernaut"), N_("What would hold you fast holds you half as long, and may give you back your life. Not yet built."),
 	    Bar, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Unforgiving"), N_("Your fury no longer ebbs when the fighting stops - it rises. Not yet built."),
@@ -297,10 +298,10 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Earthen Might"), N_("Splitting the ground fills you with fury. Not yet built."),
 	    Bar, 3, 5, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Sword and Board"), N_("Behind a shield you take far less harm and spend far less fury. Not yet built."),
-	    Bar, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Rampage"), N_("Every kill lends you strength, and it stacks high. Not yet built."),
-	    Bar, 3, 6, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Sword and Board"), N_("Behind a shield you take three tenths less harm."),
+	    Bar, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Rampage"), N_("Every kill lends a twentieth more damage for five seconds, stacking five high."),
+	    Bar, 3, 6, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ======================= SORCERESS =======================
 	// --- Cold Spells: inert as a page. This engine has no cold damage channel and no chill, so
 	//     every one of these would have to be invented rather than adapted. Listed and described.
@@ -340,22 +341,22 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Hydra"), N_("Sets a fire-breathing head to guard a spot. Mapped onto this engine's Guardian, which is the same idea."), Sor, 2, 5, 0, Kind::Active, SpellID::Guardian, true },
 
 	// ---- Passive Skills (page 3) ----
-	{ N_("Power Hungry"), N_("You deal far more harm to what is far away. Not yet built."),
-	    Sor, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Blur"), N_("Everything that strikes you strikes softer. Not yet built."),
-	    Sor, 3, 0, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Power Hungry"), N_("You deal a fifth more harm to anything five tiles away or further."),
+	    Sor, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Blur"), N_("Everything that strikes you strikes a sixth softer."),
+	    Sor, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Evocation"), N_("Every cooldown you carry comes round sooner. Not yet built."),
 	    Sor, 3, 0, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Glass Cannon"), N_("You hit much harder and are much easier to hit back. Not yet built."),
-	    Sor, 3, 1, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Glass Cannon"), N_("You hit fifteen percent harder and wear a tenth less armour."),
+	    Sor, 3, 1, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Prodigy"), N_("Your simplest spells give back arcane power as you cast them. Not yet built."),
 	    Sor, 3, 1, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Astral Presence"), N_("You hold more arcane power and recover it faster. Not yet built."),
-	    Sor, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Astral Presence"), N_("You hold twenty more mana."),
+	    Sor, 3, 1, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Illusionist"), N_("A heavy blow resets your escapes and speeds your step. Not yet built."),
 	    Sor, 3, 2, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Cold Blooded"), N_("What you have chilled takes more harm from every source. Not yet built."),
-	    Sor, 3, 2, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Cold Blooded"), N_("Anything chilled or frozen takes a tenth more harm from you."),
+	    Sor, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Conflagration"), N_("What you set alight becomes easier to strike truly. Not yet built."),
 	    Sor, 3, 2, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Paralysis"), N_("Your lightning may stun everything it touches. Not yet built."),
@@ -370,10 +371,10 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Unstable Anomaly"), N_("A killing blow throws up a vast ward and scatters what stands near. Not yet built."),
 	    Sor, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Unwavering Will"), N_("Stand still a moment and your armour, your wards and your damage all rise. Not yet built."),
-	    Sor, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Audacity"), N_("You deal far more harm to whatever is close enough to touch. Not yet built."),
-	    Sor, 3, 5, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Unwavering Will"), N_("Stand still a moment and blows land a fifth softer on you while yours land a tenth harder."),
+	    Sor, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Audacity"), N_("You deal fifteen percent more harm to anything within two tiles."),
+	    Sor, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Elemental Exposure"), N_("Striking with a new element leaves the target more open to all of them. Not yet built."),
 	    Sor, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	// ======================= ROGUE =======================
@@ -392,15 +393,15 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Inner Sight"), N_("Lights nearby enemies and strips their defence. Inert: it needs the monster-facing pass."), Rog, 1, 0, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Critical Strike"), N_("A chance to strike for double. This engine has no critical roll, so it raises your damage instead."),
 	    Rog, 1, 0, 1, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Dodge"), N_("A chance to slip a blow while standing. Inert: no avoidance roll exists here."), Rog, 1, 1, 0, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Dodge"), N_("A chance to slip a blow while standing: a tenth, a twenty-fifth more a rank, two fifths at most."), Rog, 1, 1, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Slow Missiles"), N_("Slows what is thrown at you. Inert: it needs the monster-facing pass."), Rog, 1, 2, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Avoid"), N_("A chance to slip a missile. Inert: no avoidance roll exists here."), Rog, 1, 2, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Avoid"), N_("A chance to slip an arrow: a tenth, a twenty-fifth more a rank, two fifths at most."), Rog, 1, 2, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Penetrate"), N_("Sharpens your aim with anything you wield."), Rog, 1, 3, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Decoy"), N_("A double of yourself to draw fire. Not yet built."), Rog, 1, 3, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Evade"), N_("A chance to slip a blow while moving. Inert: no avoidance roll exists here."), Rog, 1, 4, 0, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Evade"), N_("A chance to slip a blow while moving: a tenth, a twenty-fifth more a rank, two fifths at most."), Rog, 1, 4, 0, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Valkyrie"), N_("Calls a warrior to fight beside you. Mapped onto this engine's Golem, which is the same idea."),
 	    Rog, 1, 5, 0, Kind::Active, SpellID::Golem, true },
-	{ N_("Pierce"), N_("Your missiles carry on through. Not yet built."), Rog, 1, 5, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Pierce"), N_("Your arrows may carry on through what they strike: fifteen percent, a twentieth more a rank, three fifths at most."), Rog, 1, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	// --- Javelin & Spear ---
 	{ N_("Jab"), N_("A rapid flurry of thrusts. Not yet built."), Rog, 2, 0, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Power Strike"), N_("A thrust charged with lightning. Not yet built."), Rog, 2, 1, 0, Kind::Active, SpellID::Invalid, false },
@@ -420,22 +421,22 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Rog, 3, 0, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Blood Vengeance"), N_("You hold more hatred, and the fallen restore both hatred and discipline. Not yet built."),
 	    Rog, 3, 0, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Steady Aim"), N_("With nothing close to you, everything you do hurts more. Not yet built."),
-	    Rog, 3, 1, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Cull the Weak"), N_("You fall harder on anything already slowed. Not yet built."),
-	    Rog, 3, 1, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Steady Aim"), N_("With nothing within three tiles of you, everything you do hurts a fifth more."),
+	    Rog, 3, 1, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Cull the Weak"), N_("You fall a fifth harder on anything chilled or frozen."),
+	    Rog, 3, 1, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Night Stalker"), N_("Your opening shots build hatred faster. Not yet built."),
 	    Rog, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Brooding"), N_("Stand still and your wounds close faster and faster. Not yet built."),
-	    Rog, 3, 2, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Brooding"), N_("Stand still a moment and your wounds close, a hundredth of your life a second."),
+	    Rog, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Hot Pursuit"), N_("Landing a blow leaves you moving faster. Not yet built."),
 	    Rog, 3, 2, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Archery"), N_("Each kind of bow lends its own gift - damage, precision or hatred. Not yet built."),
 	    Rog, 3, 2, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Numbing Traps"), N_("Anything you have slowed strikes back far weaker. Not yet built."),
 	    Rog, 3, 3, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Perfectionist"), N_("Your discipline goes further and your armour and wards are stronger. Not yet built."),
-	    Rog, 3, 3, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Perfectionist"), N_("Your armour is a tenth greater and every resistance ten points higher."),
+	    Rog, 3, 3, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Custom Engineering"), N_("Your traps and sentries last twice as long and you may set more. Not yet built."),
 	    Rog, 3, 3, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Grenadier"), N_("Your grenades hit harder, burst wider, and one falls when you do. Not yet built."),
@@ -444,14 +445,14 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Rog, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Ballistics"), N_("Your rockets hit twice as hard and sometimes seek their mark. Not yet built."),
 	    Rog, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Leech"), N_("Every blow you land returns life. Not yet built."),
-	    Rog, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Ambush"), N_("You fall far harder on the unwounded. Not yet built."),
-	    Rog, 3, 5, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Awareness"), N_("Once a minute a killing blow makes you vanish and mends you instead. Not yet built."),
-	    Rog, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Single Out"), N_("Anything that has strayed from its fellows is far easier to strike truly. Not yet built."),
-	    Rog, 3, 6, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Leech"), N_("Every blow you land returns three hundredths of its damage as life."),
+	    Rog, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Ambush"), N_("You fall two fifths harder on anything above three quarters of its life."),
+	    Rog, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Awareness"), N_("Once a minute a killing blow leaves you standing at a third of your life instead."),
+	    Rog, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Single Out"), N_("Anything with no fellow within two tiles takes a quarter more harm from you."),
+	    Rog, 3, 6, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ======================= BARD =======================
 	// The user's own design rather than Diablo II's: seven songs per discipline, described on the
 	// sheet itself. The working songs are AURAS, which is both what they are - a bard plays one
@@ -510,8 +511,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bard, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Encore"), N_("Falling silent leaves the last song ringing a while longer. Not yet built."),
 	    Bard, 3, 2, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Cadence"), N_("Every third blow lands on the beat and hits far harder. Not yet built."),
-	    Bard, 3, 2, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Cadence"), N_("Every third blow lands on the beat, half again as hard."),
+	    Bard, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Timbre"), N_("Your songs reach far further from you. Not yet built."),
 	    Bard, 3, 2, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Virtuoso"), N_("Your songs cost far less to hold. Not yet built."),
@@ -528,8 +529,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bard, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Stagecraft"), N_("Being struck while playing does not break the song. Not yet built."),
 	    Bard, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Requiem"), N_("Each enemy that falls near you mends you a little. Not yet built."),
-	    Bard, 3, 5, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Requiem"), N_("Each enemy that falls within four tiles mends a fiftieth of your life."),
+	    Bard, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Magnum Opus"), N_("Hold one song long enough and it becomes something greater. Not yet built."),
 	    Bard, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	// ======================= MONK =======================
@@ -587,34 +588,34 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// ---- Passive Skills (page 3) ----
 	{ N_("Resolve"), N_("What you strike strikes back weaker for a while. Not yet built."),
 	    Monk, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Fleet Footed"), N_("You move faster at all times. Not yet built."),
-	    Monk, 3, 0, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Exalted Soul"), N_("You hold more spirit and recover it faster. Not yet built."),
-	    Monk, 3, 0, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Transcendence"), N_("Every point of spirit you spend returns as life. Not yet built."),
-	    Monk, 3, 1, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Fleet Footed"), N_("You run at all times."),
+	    Monk, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Exalted Soul"), N_("You hold twenty more mana."),
+	    Monk, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Transcendence"), N_("Half of every point of mana you spend returns as life."),
+	    Monk, 3, 1, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Chant of Resonance"), N_("Your mantras cost far less to invoke. Not yet built."),
 	    Monk, 3, 1, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Seize the Initiative"), N_("Striking the unwounded quickens your hand. Not yet built."),
 	    Monk, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("The Guardian's Path"), N_("Two weapons lend you evasion; one great staff lends you spirit. Not yet built."),
 	    Monk, 3, 2, 0, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Sixth Sense"), N_("Everything that is not steel hurts you far less. Not yet built."),
-	    Monk, 3, 2, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Determination"), N_("Every enemy pressing close makes you hit harder. Not yet built."),
-	    Monk, 3, 2, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Relentless Assault"), N_("You fall harder on anything blinded, frozen or reeling. Not yet built."),
-	    Monk, 3, 3, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Sixth Sense"), N_("Everything that is not steel - fire, lightning, magic - hurts a quarter less."),
+	    Monk, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Determination"), N_("Every enemy pressing close makes you hit a twentieth harder, to a fifth."),
+	    Monk, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	{ N_("Relentless Assault"), N_("You fall three tenths harder on anything frozen or reeling."),
+	    Monk, 3, 3, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Beacon of Ytar"), N_("Every cooldown you carry comes round sooner. Not yet built."),
 	    Monk, 3, 3, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Alacrity"), N_("Your spirit-building strikes come faster. Not yet built."),
 	    Monk, 3, 3, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Harmony"), N_("A ward against one element becomes a lesser ward against all of them. Not yet built."),
-	    Monk, 3, 4, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Harmony"), N_("Every resistance fifteen points higher."),
+	    Monk, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Combination Strike"), N_("Rotating your strikes makes each of them stronger. Not yet built."),
 	    Monk, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Near Death Experience"), N_("Once a minute a killing blow restores your life and spirit instead. Not yet built."),
-	    Monk, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	{ N_("Near Death Experience"), N_("Once a minute a killing blow restores a third of your life and mana instead."),
+	    Monk, 3, 4, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Unity"), N_("Every ally under your mantra lends you strength. Not yet built."),
 	    Monk, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Momentum"), N_("Cover enough ground and your next blows land far harder. Not yet built."),
@@ -693,6 +694,57 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		if (WieldingType(player, ItemType::Staff)) {
 			totals.bonusToHit += Scaled(points, 10, 5);
 			totals.bonusDamage += Scaled(points, 10, 6);
+		}
+		break;
+	// --- Round 5 (2026-09-03): the passives that are a NUMBER on the sheet. The ones that are a
+	//     rule - a chance, a condition read at the moment of a blow - live in oracool/passives.cpp.
+	//     Passive Skills page rows are one rank, so no Scaled(): the number is the number.
+	case Skill::DivineFortress:
+		if (WieldingType(player, ItemType::Shield))
+			totals.bonusArmor += 25;
+		break;
+	case Skill::ToughAsNails:
+		totals.bonusArmor += 25;
+		break;
+	case Skill::Perfectionist:
+		totals.bonusArmor += 10;
+		totals.fireResist += 10;
+		totals.lightningResist += 10;
+		totals.magicResist += 10;
+		break;
+	case Skill::MonkHarmony:
+		totals.fireResist += 15;
+		totals.lightningResist += 15;
+		totals.magicResist += 15;
+		break;
+	case Skill::Superstition:
+		totals.fireResist += 10;
+		totals.lightningResist += 10;
+		totals.magicResist += 10;
+		break;
+	case Skill::GlassCannon:
+		totals.bonusDamage += 15;
+		totals.bonusArmor -= 10;
+		break;
+	case Skill::HolyCause:
+		totals.bonusDamage += 10;
+		break;
+	case Skill::Animosity:
+	case Skill::AstralPresence:
+	case Skill::ExaltedSoul:
+		// The engine's mana IS this fork's fury, arcane power and spirit; twenty points of it.
+		totals.mana += 20;
+		break;
+	case Skill::CrusaderFanaticism:
+		totals.flags |= ItemSpecialEffect::FastAttack;
+		break;
+	case Skill::Fervor:
+		// One-handed: a weapon in hand that is not a two-hander.
+		for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
+			if (!item.isEmpty() && item._iStatFlag && item._iClass == ICLASS_WEAPON && item._iLoc == ILOC_ONEHAND) {
+				totals.flags |= ItemSpecialEffect::QuickAttack;
+				break;
+			}
 		}
 		break;
 	case Skill::IronSkin:
@@ -1513,7 +1565,8 @@ bool IsClassTreeRunActive(const Player &player)
 		// points alone carry it. Its other half - a chance to evade a blow outright - is the part
 		// this engine has no roll for, and the row says so.
 		return ClassTreeInvestment(player, Skill::FlowingStep) > 0
-		    && IsClassTreeSkillUnlocked(player, Skill::FlowingStep);
+		    && IsClassTreeSkillUnlocked(player, Skill::FlowingStep)
+		    || PassiveRunActive(player);
 	}
 	return false;
 }
@@ -1563,6 +1616,7 @@ void ProcessClassTreeTick(Player &player)
 	// can simply be ASKED about (Conviction) are answered at the point of use instead, because a
 	// query cannot go stale. See oracool/aura_field.h.
 	ProcessOutwardAura(player);
+	ProcessPassivesTick(player);
 
 	// The Sorceress's Warmth is a passive, so it needs no activation - the points alone. But a
 	// corpse regenerates nothing (audit, 2026-08-26): the aura guard in GetActiveClassAura does not

@@ -29,6 +29,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
+#include "oracool/passives.h"
 #include "oracool/rogue_arrows.h"
 #include "engine/path.h"
 #include "oracool/event_log.h"
@@ -325,9 +326,14 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 		// agree for a Sorceress who has not bought it and for every other class.
 		dam /= damageType == DamageType::Cold ? oracool::ColdResistanceDivisor(player) : 4;
 	}
+	// Oracool, Round 5: the passives that read the situation - Steady Aim, Power Hungry, Cull the
+	// Weak and the rest - on every missile a player lands.
+	dam += dam * oracool::PassiveDamageDealtPercent(player, monster, false) / 100;
 
 	if (&player == MyPlayer)
 		ApplyMonsterDamage(damageType, monster, dam);
+	if (&player == MyPlayer && missileData.isArrow())
+		oracool::OnPassiveHit(*MyPlayer, monster, dam, false);
 
 	// COLD CHILLS (Oracool, Round 1) - and from Round 2, freezes, depending on the missile. Every
 	// cold missile does it, rather than Ice Bolt doing it: the slow is what the damage type MEANS,
@@ -520,7 +526,8 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 		// drop collapses into the single sound the player hears.
 		if (!missile._miHitFlag)
 			oracool::PlaySkillSound(static_cast<oracool::ClassTreeSkill>(missile.oracoolSkill), oracool::SkillSoundEvent::Impact);
-		if (!dontDeleteOnCollision)
+		// ...unless it is a Rogue's arrow and Pierce says it carries on (Round 5).
+		if (!dontDeleteOnCollision && !oracool::ArrowPierces(missile))
 			missile._mirange = 0;
 		missile._miHitFlag = true;
 	}
@@ -1172,6 +1179,9 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		minhit = 30;
 	hper = std::max(hper, minhit);
 
+	// Oracool, Round 5: Avoid - an arrow that would have landed slips instead.
+	if (missileData.isArrow() && oracool::PassiveEvadesMissile(player))
+		return false;
 	int blk = 100;
 	if ((player._pmode == PM_STAND || player._pmode == PM_ATTACK) && player._pBlockFlag) {
 		blk = GenerateRnd(100);

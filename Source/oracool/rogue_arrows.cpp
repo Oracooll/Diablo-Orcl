@@ -9,6 +9,7 @@
 #include "engine/random.hpp"
 #include "missiles.h"
 #include "monster.h"
+#include "oracool/passives.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -168,6 +169,7 @@ void FireArrowSkill(Player &player, RogueArrow arrow, Point target)
 	}
 	player._pMana -= cost;
 	player._pManaBase -= cost;
+	oracool::OnPassiveManaSpent(player, cost);
 	RedrawComponent(PanelDrawComponent::Mana);
 
 	switch (arrow) {

@@ -7,6 +7,7 @@
 #include "monster.h"
 #include "oracool/oracool.h"
 #include "missiles.h"
+#include "oracool/passives.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -230,6 +231,7 @@ bool SpendPaladinSkillMana(Player &player, PaladinSkill skill)
 	// next time anything recalculated the character's stats.
 	player._pMana -= cost;
 	player._pManaBase -= cost;
+	oracool::OnPassiveManaSpent(player, cost);
 	RedrawComponent(PanelDrawComponent::Mana);
 	return true;
 }

@@ -7,6 +7,7 @@
 #include "engine/random.hpp"
 #include "missiles.h"
 #include "monster.h"
+#include "oracool/passives.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -93,6 +94,7 @@ void Pay(Player &player, ClassMeleeSkill skill)
 	const int cost = GetManaAmount(player, ClassMeleeSkillSpell(skill));
 	player._pMana -= cost;
 	player._pManaBase -= cost;
+	oracool::OnPassiveManaSpent(player, cost);
 	RedrawComponent(PanelDrawComponent::Mana);
 }
 

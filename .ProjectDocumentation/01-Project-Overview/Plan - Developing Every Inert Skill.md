@@ -135,7 +135,7 @@ thrown-weapon skill with no throwing weapons in the game, the second a breath co
 with Round 6's timed effects. Not built by design: Concentrate's uninterruptibility, Berserk's
 defence penalty, Frenzy's speed, Whirlwind's travel.
 
-### Round 5 — passives that are already possible · ~35 rows · CHEAPEST
+### Round 5 — passives that are already possible ✔ DONE (v1.9.187)
 
 `oracool/stat_sheet.h`'s `BonusProvider` already sums bonuses from items, auras and investment. Most
 inert passives are one line of that: Dodge, Avoid, Evade, Pierce, the three masteries, Increased
@@ -145,6 +145,25 @@ Deliberately NOT first, despite being cheapest per row. A passive is invisible -
 on a sheet - and thirty-five invisible rows going live in one round is thirty-five things that can be
 subtly wrong with nothing on screen to show it. It goes after the rounds that produce something a
 player can see, so the sheet can be read against effects that are known good.
+
+**Shipped:** forty-five rows, in two homes. The sheet rows went where every sheet passive already
+lives, `ApplyPassive` in class_tree.cpp: Divine Fortress, Tough as Nails, Perfectionist, Harmony,
+Superstition, Glass Cannon, Holy Cause, Animosity, Astral Presence, Exalted Soul, Fanaticism, Fervor.
+The rule rows - a chance, a condition read at the moment of a blow - went into a new
+`oracool/passives.{h,cpp}` with seven hooks, each asked from one engine site: damage taken
+(ApplyPlrDamage: Blur, Sixth Sense, Vigilant, Sword and Board, Relentless, Unwavering Will), damage
+dealt (PlrHitMonst and MonsterMHit: Ruthless, Ambush, Brawler, Determination, Steady Aim, Audacity,
+Power Hungry, Cold Blooded, Cull the Weak, Relentless Assault, Single Out, Rampage, Cadence), the
+slips (MonsterAttackPlayer and PlayerMHit: Dodge, Evade, Avoid), Pierce (CheckMissileCol), the
+once-a-minute saves (ApplyPlrDamage: Indestructible, Nerves of Steel, Awareness, Near Death
+Experience), the returns (Leech on hit, Bloodthirst and Transcendence on mana spent, Requiem on a
+kill nearby), and the tick (stillness for Unwavering Will and Brooding, Rampage's stacks, the save's
+cooldown). Fleet Footed is one more reason IsClassTreeRunActive says yes. Every row's sentence now
+states its number. **Held back**, and the rows still say "Not yet built": everything that needs
+fury, wrath, hatred, spirit, cooldowns, songs, traps, grenades, rockets, mounts, laws, gems-in-gear
+counting, a block report, or an attack-speed number the engine has no channel for - 36 Passive
+Skills page rows, plus the Bard's two masteries and Throwing/Spear Mastery and Increased Stamina,
+which are inert by engine and say so.
 
 ### Round 6 — timed shouts and songs · ~18 rows
 

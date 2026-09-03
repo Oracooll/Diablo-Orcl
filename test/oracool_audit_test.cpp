@@ -100,6 +100,7 @@
 #include "oracool/stat_sheet.h"
 #include "oracool/ornate_border.h"
 #include "oracool/melee_skills.h"
+#include "oracool/passives.h"
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
 #include "DiabloUI/hero/hero_layout.h" // the character-select column geometry
@@ -2125,6 +2126,7 @@ TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 TEST(OracoolClassTree, EveryClassHasAPassiveSkillsPageAndEveryRowOnItIsAnInertSingleRankPassive)
 {
 	constexpr int PassivePage = 3;
+	size_t built = 0;
 	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
 	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Barbarian,
 	         HeroClass::Sorcerer, HeroClass::Rogue, HeroClass::Bard, HeroClass::Monk }) {
@@ -2137,12 +2139,16 @@ TEST(OracoolClassTree, EveryClassHasAPassiveSkillsPageAndEveryRowOnItIsAnInertSi
 			// One rank, which is what a D3 passive is: you have it or you do not. The tree's
 			// default of 0 would mean MaxTreeInvestment, i.e. 98 ranks of nothing.
 			EXPECT_EQ(oracool::ClassTreeMaxRank(skills[i]), 1) << data.name;
-			// Inert on purpose - these are placeholders. If one of them is ever built this
-			// assertion is the reminder to take it off the list rather than silently widen it.
-			EXPECT_FALSE(data.implemented) << data.name << " claims to be built";
+			// Round 5 (2026-09-03) built forty-five of them. A built row states its number and drops
+			// the placeholder sentence; an inert row keeps it. Either way the two must agree.
+			const bool placeholder = std::string(data.description).find("Not yet built") != std::string::npos;
+			EXPECT_NE(data.implemented, placeholder) << data.name << " says one thing and does another";
+			if (data.implemented)
+				built++;
 			EXPECT_EQ(data.spellId, SpellID::Invalid) << data.name;
 		}
 	}
+	EXPECT_EQ(built, 41u) << "Round 5 built forty-one Passive Skills page rows (plus the Rogue's four Passive & Magic rows, which are not on this page)";
 }
 
 TEST(OracoolClassTree, AddingThePassivePagesMovedNoExistingSkillsSaveSlot)
@@ -9296,4 +9302,75 @@ TEST(OracoolMeleeSkills, EverySkillMapsBothWaysAndTheBonusAnswersOnlyWhenArmed)
 	EXPECT_FALSE(oracool::ApplyClassMeleeSkillOnSwing(player, nullptr, false, 0));
 
 	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * @brief Round 5's passives: a sheet row moves the sheet, a rule row answers its hook, a
+ * conditional row answers only under its condition, and the once-a-minute save saves once.
+ */
+TEST(OracoolPassives, SheetRowsMoveTheSheetAndRuleRowsAnswerTheirHooks)
+{
+	oracool::ClearPassiveState();
+
+	// A sheet row: Tough as Nails is a quarter more armour, through the same totals every other
+	// passive feeds.
+	{
+		devilution::Player &barbarian = FreshHero(HeroClass::Barbarian);
+		ASSERT_TRUE(oracool::SetPassiveSlot(barbarian, 0, oracool::ClassTreeSkill::ToughAsNails));
+		EXPECT_TRUE(oracool::PassiveActive(barbarian, oracool::ClassTreeSkill::ToughAsNails));
+		oracool::ItemBonusTotals totals;
+		oracool::ApplyClassTreeToTotals(barbarian, totals);
+		EXPECT_EQ(totals.bonusArmor, 25);
+		EXPECT_FALSE(oracool::PassiveActive(barbarian, oracool::ClassTreeSkill::Rampage)) << "an unslotted passive is on";
+
+		// The save: a killing blow leaves the Barbarian at a third, and the next one within the
+		// minute does not.
+		ASSERT_TRUE(oracool::SetPassiveSlot(barbarian, 1, oracool::ClassTreeSkill::NervesOfSteel));
+		barbarian._pHitPoints = 0;
+		EXPECT_TRUE(oracool::PassiveCheatsDeath(barbarian));
+		EXPECT_EQ(barbarian._pHitPoints, barbarian._pMaxHP / 3);
+		barbarian._pHitPoints = 0;
+		EXPECT_FALSE(oracool::PassiveCheatsDeath(barbarian)) << "the save has no cooldown";
+	}
+
+	// A rule row, unconditional: Blur is a sixth off every blow taken. Vigilant is a fifth off
+	// only what is not steel.
+	{
+		devilution::Player &sorceress = FreshHero(HeroClass::Sorcerer);
+		EXPECT_EQ(oracool::PassiveDamageTakenPercent(sorceress, DamageType::Physical), 0);
+		ASSERT_TRUE(oracool::SetPassiveSlot(sorceress, 0, oracool::ClassTreeSkill::Blur));
+		EXPECT_EQ(oracool::PassiveDamageTakenPercent(sorceress, DamageType::Physical), -17);
+		EXPECT_EQ(oracool::PassiveDamageTakenPercent(sorceress, DamageType::Fire), -17);
+
+		devilution::Player &paladin = FreshHero(HeroClass::Warrior);
+		ASSERT_TRUE(oracool::SetPassiveSlot(paladin, 0, oracool::ClassTreeSkill::Vigilant));
+		EXPECT_EQ(oracool::PassiveDamageTakenPercent(paladin, DamageType::Physical), 0);
+		EXPECT_EQ(oracool::PassiveDamageTakenPercent(paladin, DamageType::Lightning), -20);
+	}
+
+	// A conditional row: Ambush reads the target's life, Steady Aim the emptiness around the
+	// shooter. With no monsters active, Steady Aim's condition holds by construction.
+	{
+		devilution::Player &rogue = FreshHero(HeroClass::Rogue);
+		rogue.position.tile = { 20, 20 };
+		Monster target {};
+		target.position.tile = { 26, 20 };
+		target.maxHitPoints = 100 << 6;
+		target.hitPoints = 100 << 6;
+		target.mode = MonsterMode::Stand;
+		EXPECT_EQ(oracool::PassiveDamageDealtPercent(rogue, target, false), 0);
+		ASSERT_TRUE(oracool::SetPassiveSlot(rogue, 0, oracool::ClassTreeSkill::SteadyAim));
+		EXPECT_EQ(oracool::PassiveDamageDealtPercent(rogue, target, false), 20);
+		ASSERT_TRUE(oracool::SetPassiveSlot(rogue, 1, oracool::ClassTreeSkill::Ambush));
+		EXPECT_EQ(oracool::PassiveDamageDealtPercent(rogue, target, false), 60) << "Ambush ignores a full-life target";
+		target.hitPoints = 20 << 6;
+		EXPECT_EQ(oracool::PassiveDamageDealtPercent(rogue, target, false), 20) << "Ambush fired on a wounded target";
+
+		// The Rogue's slips are Diablo II passives: bought with points, and priced by them.
+		EXPECT_FALSE(oracool::PassiveActive(rogue, oracool::ClassTreeSkill::Dodge));
+		ASSERT_TRUE(oracool::InvestClassTreePoint(rogue, oracool::ClassTreeSkill::Dodge));
+		EXPECT_TRUE(oracool::PassiveActive(rogue, oracool::ClassTreeSkill::Dodge));
+	}
+
+	oracool::ClearPassiveState();
 }

@@ -45,6 +45,7 @@
 #include "oracool/class_skills.h"
 #include "oracool/cold.h"
 #include "oracool/melee_skills.h"
+#include "oracool/passives.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
@@ -698,6 +699,8 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// a skill adds come back through this function, so they carry it too. Zero when nothing is
 	// armed or the skill cannot be paid for, which is what makes an unaffordable skill a plain swing.
 	dam += dam * oracool::ClassMeleeSkillDamagePercent(player) / 100;
+	// And the passives that read the situation - Ruthless, Brawler, Steady Aim and the rest (Round 5).
+	dam += dam * oracool::PassiveDamageDealtPercent(player, monster, true) / 100;
 	int dam2 = dam << 6;
 	dam += player._pDamageMod;
 	if (player._pClass == HeroClass::Warrior || player._pClass == HeroClass::Barbarian) {
@@ -946,6 +949,8 @@ bool DoAttack(Player &player)
 			// oracool/paladin_melee.h.
 			if (didhit)
 				oracool::ApplyMeleeSkillOnHit(player, *monster, hitDamage);
+			if (didhit)
+				oracool::OnPassiveHit(player, *monster, hitDamage, true);
 			// And the Barbarian's and Monk's (Round 4), which want the swing whether or not it
 			// landed - Whirlwind spins through an empty front tile as readily as a full one.
 			if (oracool::ApplyClassMeleeSkillOnSwing(player, monster, didhit, hitDamage))
@@ -3153,6 +3158,10 @@ void StripTopGold(Player &player)
 void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*= 0*/, int frac /*= 0*/, DeathReason deathReason /*= DeathReason::MonsterOrTrap*/)
 {
 	int totalDamage = (dam << 6) + frac;
+	// Oracool, Round 5: the passives that soften a blow - Blur, Sixth Sense, Sword and Board and the
+	// rest - answer here, before the number is shown, so what floats up is what was taken.
+	if (totalDamage > 0)
+		totalDamage += totalDamage * oracool::PassiveDamageTakenPercent(player, damageType) / 100;
 	if (&player == MyPlayer && player._pHitPoints > 0) {
 		AddFloatingNumber(damageType, player, totalDamage);
 	}
@@ -3195,6 +3204,10 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	if (player._pHitPoints < minHitPoints) {
 		SetPlayerHitPoints(player, minHitPoints);
 	}
+	// And the once-a-minute saves (Round 5): a killing blow that a passive stands the character back
+	// up from is not a death.
+	if (player._pHitPoints >> 6 <= 0 && oracool::PassiveCheatsDeath(player))
+		return;
 	if (player._pHitPoints >> 6 <= 0) {
 		SyncPlrKill(player, deathReason);
 	}

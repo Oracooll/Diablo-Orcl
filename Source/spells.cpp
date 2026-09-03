@@ -6,6 +6,7 @@
 #include "spells.h"
 #include "oracool/class_tree.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/passives.h"
 #include "oracool/skill_sounds.h"
 
 #include "control.h"
@@ -186,6 +187,7 @@ void ConsumeSpell(Player &player, SpellID sn)
 			const int ma = GetManaAmount(player, sn);
 			player._pMana -= ma;
 			player._pManaBase -= ma;
+			oracool::OnPassiveManaSpent(player, ma);
 			RedrawComponent(PanelDrawComponent::Mana);
 		}
 		break;
@@ -205,6 +207,7 @@ void ConsumeSpell(Player &player, SpellID sn)
 		int ma = GetManaAmount(player, sn);
 		player._pMana -= ma;
 		player._pManaBase -= ma;
+		oracool::OnPassiveManaSpent(player, ma);
 		RedrawComponent(PanelDrawComponent::Mana);
 		break;
 	}
