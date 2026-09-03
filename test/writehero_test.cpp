@@ -773,10 +773,11 @@ TEST(Writehero, pfile_write_hero)
 	// 1.9.186: SEVENTEEN BYTES, same chunk again - MAX_SPELLS 78 -> 95 for the Barbarian and Monk
 	//      melee pages (Round 4).
 	// 1.9.188: SEVENTEEN BYTES again - MAX_SPELLS 95 -> 112 for the cries and songs (Round 6).
+	// 1.9.189: EIGHT BYTES - MAX_SPELLS 112 -> 120 for the Rogue's javelin page (Round 7).
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "037dc236f171cb177cd15642febb0eaebb5bcd6376ced80b1ff754db52bb13dc");
+	    "8500a7cb2cfad794d00ea7de553720ef800050c101ceef575ded8211ac9ff6af");
 }
 
 } // namespace

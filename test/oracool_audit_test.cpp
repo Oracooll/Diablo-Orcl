@@ -101,6 +101,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
+#include "oracool/spell_descriptions.h"
 #include "oracool/warcries.h"
 #include "oracool/telemetry.h"
 #include "oracool/xp_counter.h"
@@ -9263,7 +9264,9 @@ TEST(OracoolMeleeSkills, EverySkillMapsBothWaysAndTheBonusAnswersOnlyWhenArmed)
 		SpellID::Bash, SpellID::Leap, SpellID::DoubleSwing, SpellID::Stun, SpellID::LeapAttack,
 		SpellID::Concentrate, SpellID::Frenzy, SpellID::Whirlwind, SpellID::BerserkBlow,
 		SpellID::SweepingReed, SpellID::BreakingCurrent, SpellID::VaultingStrike, SpellID::WheelOfHeaven,
-		SpellID::SevenReeds, SpellID::OpenPalm, SpellID::HundredFists, SpellID::RadiantPalm
+		SpellID::SevenReeds, SpellID::OpenPalm, SpellID::HundredFists, SpellID::RadiantPalm,
+		// Round 7: the Rogue's thrusts ride the same latch.
+		SpellID::Jab, SpellID::PowerStrike, SpellID::Impale, SpellID::ChargedStrike, SpellID::Fend, SpellID::LightningStrike
 	};
 	for (const SpellID spell : meleeSpells) {
 		const std::optional<oracool::ClassMeleeSkill> skill = oracool::ClassMeleeSkillForSpell(spell);
@@ -9275,6 +9278,12 @@ TEST(OracoolMeleeSkills, EverySkillMapsBothWaysAndTheBonusAnswersOnlyWhenArmed)
 	EXPECT_FALSE(oracool::ClassMeleeSkillForSpell(SpellID::Berserk).has_value()) << "the Bard's Berserk became a swing";
 	EXPECT_FALSE(oracool::ClassMeleeSkillForSpell(SpellID::Zeal).has_value()) << "a Paladin skill has two latches";
 	EXPECT_STREQ(oracool::ClassMeleeSkillDescription(SpellID::Firebolt), "");
+	// The two THROWN javelin rows are spells riding Lightning and Nova, not thrusts - priced, described, not latched.
+	for (const SpellID thrown : { SpellID::LightningBoltSkill, SpellID::LightningFury }) {
+		EXPECT_FALSE(oracool::ClassMeleeSkillForSpell(thrown).has_value());
+		EXPECT_GT(GetManaAmount(player, thrown), 0);
+		EXPECT_STRNE(oracool::GetSpellDescription(thrown), "");
+	}
 
 	// The leaps are the leaps; the rest are not.
 	EXPECT_TRUE(oracool::IsLeapSkill(oracool::ClassMeleeSkill::Leap));

@@ -59,6 +59,16 @@ Profile ProfileOf(ClassMeleeSkill skill)
 		return { 20, 10, 0, 0, 1, 0, 0 };
 	case ClassMeleeSkill::HundredFists:
 		return { 0, 0, 3, 2, 7, 50, 0 };
+	case ClassMeleeSkill::Jab:
+		return { 0, 0, 2, 0, 3, 50, 5 };
+	case ClassMeleeSkill::PowerStrike:
+		return { 30, 5, 0, 0, 1, 0, 0 };
+	case ClassMeleeSkill::Impale:
+		return { 100, 20, 0, 0, 1, 0, 0 };
+	case ClassMeleeSkill::ChargedStrike:
+	case ClassMeleeSkill::LightningStrike:
+		return { 20, 5, 0, 0, 1, 0, 0 };
+	case ClassMeleeSkill::Fend:
 	case ClassMeleeSkill::Whirlwind:
 	case ClassMeleeSkill::WheelOfHeaven:
 	case ClassMeleeSkill::SweepingReed:
@@ -170,6 +180,18 @@ std::optional<ClassMeleeSkill> ClassMeleeSkillForSpell(SpellID spell)
 		return ClassMeleeSkill::HundredFists;
 	case SpellID::RadiantPalm:
 		return ClassMeleeSkill::RadiantPalm;
+	case SpellID::Jab:
+		return ClassMeleeSkill::Jab;
+	case SpellID::PowerStrike:
+		return ClassMeleeSkill::PowerStrike;
+	case SpellID::Impale:
+		return ClassMeleeSkill::Impale;
+	case SpellID::ChargedStrike:
+		return ClassMeleeSkill::ChargedStrike;
+	case SpellID::Fend:
+		return ClassMeleeSkill::Fend;
+	case SpellID::LightningStrike:
+		return ClassMeleeSkill::LightningStrike;
 	default:
 		return std::nullopt;
 	}
@@ -212,6 +234,18 @@ SpellID ClassMeleeSkillSpell(ClassMeleeSkill skill)
 		return SpellID::HundredFists;
 	case ClassMeleeSkill::RadiantPalm:
 		return SpellID::RadiantPalm;
+	case ClassMeleeSkill::Jab:
+		return SpellID::Jab;
+	case ClassMeleeSkill::PowerStrike:
+		return SpellID::PowerStrike;
+	case ClassMeleeSkill::Impale:
+		return SpellID::Impale;
+	case ClassMeleeSkill::ChargedStrike:
+		return SpellID::ChargedStrike;
+	case ClassMeleeSkill::Fend:
+		return SpellID::Fend;
+	case ClassMeleeSkill::LightningStrike:
+		return SpellID::LightningStrike;
 	}
 	return SpellID::Invalid;
 }
@@ -292,13 +326,15 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 		}
 		break;
 	case ClassMeleeSkill::Whirlwind:
-	case ClassMeleeSkill::WheelOfHeaven: {
+	case ClassMeleeSkill::WheelOfHeaven:
+	case ClassMeleeSkill::Fend: {
 		// Everything around the PLAYER, at a share of a normal blow - rolled from the bow of the
 		// weapon rather than from the front hit, because the front tile may have been empty and the
 		// spin still has to mean something. The front target, if it was hit, was hit already.
 		Monster *targets[8] = {};
 		const int found = GatherAround(player.position.tile, frontHit ? front : nullptr, targets, 8);
-		const int share = 66 + 5 * (rank - 1);
+		// Fend is the Rogue's spin, and a wider one: four fifths rather than two thirds.
+		const int share = (skill == ClassMeleeSkill::Fend ? 80 : 66) + 5 * (rank - 1);
 		for (int i = 0; i < found; i++) {
 			const int blow = (player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1)) << 6;
 			Strike(player, *targets[i], blow * share / 100);
@@ -328,6 +364,38 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 				Strike(player, *targets[i], frontDamage);
 				struck = true;
 			}
+		}
+		break;
+	case ClassMeleeSkill::PowerStrike:
+		// The charge: lightning on top of the blow, one to four a rank, in its own colour.
+		if (front != nullptr && frontHit && front->hitPoints >> 6 > 0) {
+			const int bolt = (1 + GenerateRnd(4 * rank)) << 6;
+			ApplyMonsterDamage(DamageType::Lightning, *front, bolt);
+			if (front->hitPoints >> 6 <= 0)
+				M_StartKill(*front, player);
+			struck = true;
+		}
+		break;
+	case ClassMeleeSkill::ChargedStrike:
+		// The blow throws off charged bolts - two, one more every two ranks - from the Rogue toward
+		// the target, at the rank. The engine's own Charged Bolt, so they wander as it wanders.
+		if (front != nullptr && frontHit) {
+			const Direction dir = GetDirection(player.position.tile, front->position.tile);
+			for (int i = 0; i < 2 + (rank - 1) / 2; i++) {
+				AddMissile(player.position.tile, front->position.tile, dir, MissileID::ChargedBolt, TARGET_MONSTERS,
+				    static_cast<int>(player.getId()), 0, rank);
+			}
+			struck = true;
+		}
+		break;
+	case ClassMeleeSkill::LightningStrike:
+		// The lightning leaps onward: the engine's Chain Lightning, launched from the Rogue through
+		// the target, at the rank.
+		if (front != nullptr && frontHit) {
+			const Direction dir = GetDirection(player.position.tile, front->position.tile);
+			AddMissile(player.position.tile, front->position.tile, dir, MissileID::ChainLightning, TARGET_MONSTERS,
+			    static_cast<int>(player.getId()), 0, rank);
+			struck = true;
 		}
 		break;
 	default:
@@ -402,6 +470,18 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 		return N_("Four blows in one swing, one more every two ranks up to seven, each at half.");
 	case SpellID::RadiantPalm:
 		return N_("A strike a fifth harder, a tenth more a rank; an enemy it kills erupts, dealing the blow again to everything beside it.");
+	case SpellID::Jab:
+		return N_("Three quick thrusts in one motion, the second and third at half, a twentieth more a rank.");
+	case SpellID::PowerStrike:
+		return N_("A thrust a third again as hard, a twentieth more a rank, with one to four lightning a rank on top of it.");
+	case SpellID::Impale:
+		return N_("A savage thrust twice as hard, a fifth more a rank.");
+	case SpellID::ChargedStrike:
+		return N_("A thrust a fifth harder that throws off two charged bolts toward the target, one more every two ranks.");
+	case SpellID::Fend:
+		return N_("Every swing also strikes everything around you, at four fifths, a twentieth more a rank.");
+	case SpellID::LightningStrike:
+		return N_("A thrust a fifth harder whose lightning leaps on from the target to the next enemy, and the next.");
 	default:
 		return "";
 	}

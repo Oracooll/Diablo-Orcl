@@ -188,12 +188,24 @@ and repels, Holy Freeze chills. Uniques hold their ground against every repel an
 **Held back:** Find Potion, Find Item, Grim Ward, Ode to Glory (corpses — Round 9), Decoy (an
 entity), Cleansing and Redemption (no durations or corpses to work on).
 
-### Round 7 — javelins and throwing · 7 rows
+### Round 7 — javelins and throwing ✔ DONE (v1.9.189)
 
 The Rogue's third page. A thrown weapon that consumes ammunition and can carry a charge: Jab, Power
 Strike, Poison Javelin, Impale, Charged Strike, Lightning Bolt, Plague Javelin, Fend, Lightning
 Strike, Lightning Fury. Needs poison, which nothing else in the list needs - which is exactly why it
 is late.
+
+**Shipped:** eight of the ten. This engine has no javelin and no spear, and no poison, and the
+round was built on what it does have. The six THRUSTS — Jab, Power Strike, Impale, Charged
+Strike, Fend, Lightning Strike — are melee skills on Round 4's latch: a thrust is a swing with a
+rule on it, and every one of them is a profile plus at most one reaction in
+`oracool/melee_skills.cpp` (Jab three blows, Impale a double blow, Fend the Rogue's spin at four
+fifths, Power Strike a lightning charge on the blow, Charged Strike the engine's own Charged Bolts
+thrown off toward the target, Lightning Strike the engine's Chain Lightning launched through it).
+The two THROWN rows — Lightning Bolt and Lightning Fury — are spells riding the engine's Lightning
+and Nova at the rank, and their sentences say the bolt carries itself because nothing else would.
+**Held back:** Poison Javelin and Plague Javelin (no poison), and the Barbarian's Double Throw (no
+thrown weapons); all three rows say why.
 
 ### Round 8 — the Paladin's remaining seven · 7 rows
 

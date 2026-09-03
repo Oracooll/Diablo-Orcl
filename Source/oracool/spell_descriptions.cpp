@@ -115,6 +115,11 @@ const char *GetSpellDescription(SpellID spell)
 	// And the cries - oracool/warcries.cpp.
 	if (IsWarcry(spell))
 		return WarcryDescription(spell);
+	// And the Rogue's two thrown bolts (Round 7), which ride Lightning and Nova and have no module.
+	if (spell == SpellID::LightningBoltSkill)
+		return N_("Hurl a bolt of lightning that races along the ground toward the target, at the rank. A javelin would carry it; here the bolt carries itself.");
+	if (spell == SpellID::LightningFury)
+		return N_("Hurl lightning that bursts outward in every direction at once, at the rank.");
 
 	const auto index = static_cast<int>(spell);
 	if (index < 0 || static_cast<size_t>(index) >= Descriptions.size())

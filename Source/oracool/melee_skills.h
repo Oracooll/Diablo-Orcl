@@ -68,6 +68,14 @@ enum class ClassMeleeSkill : uint8_t {
 	OpenPalm,
 	HundredFists,
 	RadiantPalm,
+	// Round 7: the Rogue's thrusts. No javelin or spear exists here, so they are what a thrust IS -
+	// a swing with a rule on it - and Lightning Bolt and Lightning Fury, the thrown ones, are spells.
+	Jab,
+	PowerStrike,
+	Impale,
+	ChargedStrike,
+	Fend,
+	LightningStrike,
 };
 
 /** @brief The melee skill @p spell is, if it is one. */

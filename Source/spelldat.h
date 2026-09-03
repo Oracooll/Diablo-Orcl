@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 112
+#define MAX_SPELLS 120
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -224,8 +224,19 @@ enum class SpellID : int8_t {
 	InnerSight,
 	SlowMissiles,
 	Vengeance,
+	// Oracool, Round 7 (2026-09-03): the Rogue's Javelin & Spear page. This engine has no javelin
+	// and no spear, so the thrusts are melee skills on Round 4's latch (oracool/melee_skills.h) and
+	// the two thrown bolts ride the engine's own Lightning and Nova at the rank.
+	Jab,
+	PowerStrike,
+	Impale,
+	ChargedStrike,
+	Fend,
+	LightningStrike,
+	LightningBoltSkill,
+	LightningFury,
 
-	LAST = Vengeance,
+	LAST = LightningFury,
 	Invalid = -1,
 };
 
