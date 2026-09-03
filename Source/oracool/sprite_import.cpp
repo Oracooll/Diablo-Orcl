@@ -97,6 +97,69 @@ OwnedClxSpriteSheet CombineListsIntoSheet(std::vector<OwnedClxSpriteList> &lists
 	return OwnedClxSpriteSheet { std::move(data), static_cast<uint16_t>(lists.size()) };
 }
 
+/**
+ * @brief One sprite list per ROW of @p surface, quantized into the shared palette half.
+ *
+ * Split out of SpriteSheetFromSurface on 2026-09-03, when the missile art arrived: a player
+ * animation is eight rows and a directional missile is sixteen, so the row count stopped being a
+ * constant of this file. Nothing else about the conversion differs between the two, which is the
+ * argument for one function rather than two that drift apart.
+ *
+ * Returns an EMPTY vector when the sheet is not a whole number of @p frameWidth columns by @p rows
+ * rows - every caller falls back to whatever it was going to draw anyway, so a bad sheet is a
+ * no-import rather than an error.
+ */
+std::vector<OwnedClxSpriteList> SplitSurfaceIntoRows(SDL_Surface *surface, uint16_t frameWidth, int rows)
+{
+	std::vector<OwnedClxSpriteList> lists;
+	if (surface == nullptr || frameWidth == 0 || rows <= 0 || !EnsurePalette())
+		return lists;
+
+	SDLSurfaceUniquePtr rgba { SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_ABGR8888, 0) };
+	if (rgba == nullptr) {
+		LogWarn("Oracool sprite import: surface could not be converted to RGBA");
+		return lists;
+	}
+
+	const int sheetWidth = rgba->w;
+	const int sheetHeight = rgba->h;
+	if (sheetWidth % frameWidth != 0 || sheetHeight % rows != 0) {
+		LogWarn("Oracool sprite import: a {:d}x{:d} sheet is not a whole number of {:d}px columns by "
+		        "{:d} rows - ignoring it",
+		    sheetWidth, sheetHeight, frameWidth, rows);
+		return lists;
+	}
+	const int frames = sheetWidth / frameWidth;
+	const int cellHeight = sheetHeight / rows;
+	if (frames == 0 || cellHeight == 0)
+		return lists;
+
+	const auto *pixels = static_cast<const uint8_t *>(rgba->pixels);
+
+	lists.reserve(rows);
+	for (int row = 0; row < rows; row++) {
+		// SurfaceToClx wants the frames stacked VERTICALLY; the sheet has them side by side. This
+		// transposes one row of the sheet into that column as it quantizes.
+		OwnedSurface column(frameWidth, cellHeight * frames);
+		for (int frame = 0; frame < frames; frame++) {
+			for (int y = 0; y < cellHeight; y++) {
+				uint8_t *dst = &column[Point { 0, frame * cellHeight + y }];
+				const uint8_t *src = pixels + static_cast<size_t>(row * cellHeight + y) * rgba->pitch
+				    + static_cast<size_t>(frame) * frameWidth * 4;
+				for (int x = 0; x < frameWidth; x++) {
+					// Binary transparency, like everything else in this renderer: there is no alpha
+					// channel to carry a half-transparent pixel into.
+					dst[x] = src[x * 4 + 3] < 128
+					    ? TransparentIndex
+					    : NearestSharedIndex(src[x * 4], src[x * 4 + 1], src[x * 4 + 2]);
+				}
+			}
+		}
+		lists.push_back(SurfaceToClx(column, static_cast<unsigned>(frames), TransparentIndex));
+	}
+	return lists;
+}
+
 } // namespace
 
 const char *ClassSpriteFolder(HeroClass heroClass)
@@ -130,54 +193,34 @@ OptionalOwnedClxSpriteSheet LoadPngSpriteSheet(const char *path, uint16_t frameW
 
 OptionalOwnedClxSpriteSheet SpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth)
 {
-	if (surface == nullptr || frameWidth == 0 || !EnsurePalette())
+	std::vector<OwnedClxSpriteList> lists = SplitSurfaceIntoRows(surface, frameWidth, Facings);
+	if (lists.empty())
 		return std::nullopt;
-
-	SDLSurfaceUniquePtr rgba { SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_ABGR8888, 0) };
-	if (rgba == nullptr) {
-		LogWarn("Oracool sprite import: surface could not be converted to RGBA");
-		return std::nullopt;
-	}
-
-	const int sheetWidth = rgba->w;
-	const int sheetHeight = rgba->h;
-	if (sheetWidth % frameWidth != 0 || sheetHeight % Facings != 0) {
-		LogWarn("Oracool sprite import: a {:d}x{:d} sheet is not a whole number of {:d}px columns by "
-		        "{:d} facing rows - ignoring it",
-		    sheetWidth, sheetHeight, frameWidth, Facings);
-		return std::nullopt;
-	}
-	const int frames = sheetWidth / frameWidth;
-	const int cellHeight = sheetHeight / Facings;
-	if (frames == 0 || cellHeight == 0)
-		return std::nullopt;
-
-	const auto *pixels = static_cast<const uint8_t *>(rgba->pixels);
-
-	std::vector<OwnedClxSpriteList> lists;
-	lists.reserve(Facings);
-	for (int facing = 0; facing < Facings; facing++) {
-		// SurfaceToClx wants the frames stacked VERTICALLY; the sheet has them side by side. This
-		// transposes one row of the sheet into that column as it quantizes.
-		OwnedSurface column(frameWidth, cellHeight * frames);
-		for (int frame = 0; frame < frames; frame++) {
-			for (int y = 0; y < cellHeight; y++) {
-				uint8_t *dst = &column[Point { 0, frame * cellHeight + y }];
-				const uint8_t *src = pixels + static_cast<size_t>(facing * cellHeight + y) * rgba->pitch
-				    + static_cast<size_t>(frame) * frameWidth * 4;
-				for (int x = 0; x < frameWidth; x++) {
-					// Binary transparency, like everything else in this renderer: there is no alpha
-					// channel to carry a half-transparent pixel into.
-					dst[x] = src[x * 4 + 3] < 128
-					    ? TransparentIndex
-					    : NearestSharedIndex(src[x * 4], src[x * 4 + 1], src[x * 4 + 2]);
-				}
-			}
-		}
-		lists.push_back(SurfaceToClx(column, static_cast<unsigned>(frames), TransparentIndex));
-	}
-
 	return CombineListsIntoSheet(lists);
+}
+
+std::optional<OwnedClxSpriteListOrSheet> LoadPngMissileSheet(const char *name, uint16_t frameWidth, int rows)
+{
+	// The archive path missiles already use, with a .png on the end - the same "drop it beside the
+	// CL2 it replaces" rule the player sheets follow. See the header.
+	char path[MaxMpqPathSize];
+	*BufCopy(path, "missiles\\", name, ".png") = '\0';
+
+	SDLSurfaceUniquePtr png { LoadPNG(path) };
+	if (png == nullptr)
+		return std::nullopt; // no import for this missile; the caller falls back to the CL2
+
+	std::vector<OwnedClxSpriteList> lists = SplitSurfaceIntoRows(png.get(), frameWidth, rows);
+	if (lists.empty())
+		return std::nullopt;
+
+	// A LIST for a missile drawn one way, a SHEET for one drawn sixteen, and that is not a
+	// formality: the engine asks a non-directional missile for its frames directly and a directional
+	// one for a facing first. A one-row sheet answers the second question with row zero every time,
+	// which on screen is a missile that flies south whichever way it was thrown.
+	if (rows == 1)
+		return OwnedClxSpriteListOrSheet { std::move(lists[0]) };
+	return OwnedClxSpriteListOrSheet { CombineListsIntoSheet(lists) };
 }
 
 } // namespace devilution::oracool

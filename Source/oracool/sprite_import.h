@@ -57,4 +57,21 @@ OptionalOwnedClxSpriteSheet LoadPngSpriteSheet(const char *path, uint16_t frameW
  */
 OptionalOwnedClxSpriteSheet SpriteSheetFromSurface(SDL_Surface *surface, uint16_t frameWidth);
 
+/**
+ * @brief The same import for a MISSILE: `missiles\<name>.png`, or nullopt to fall back to the CL2.
+ *
+ * Oracool: the Cold pack, 2026-09-03. Thirteen sheets arrived as 32-bit PNGs and the engine had no
+ * route from a PNG into missile graphics - MissileFileData::LoadGFX reads .cl2 only - which is the
+ * same gap sprite_import was written to close for player bodies, one directory over.
+ *
+ * @p rows is 16 for a projectile, which is drawn once per facing, and 1 for an impact, a ground
+ * effect or an armour shell, which look the same from every side. It is the missile's own animFAmt:
+ * the engine already uses that field to decide whether it is loading one sheet or sixteen, so a
+ * caller cannot get the two answers out of step.
+ *
+ * @p frameWidth is the missile's animWidth, and it is what tells the loader where the columns are -
+ * a sheet whose width is not a whole number of frames is refused rather than sliced wrongly.
+ */
+std::optional<OwnedClxSpriteListOrSheet> LoadPngMissileSheet(const char *name, uint16_t frameWidth, int rows);
+
 } // namespace devilution::oracool

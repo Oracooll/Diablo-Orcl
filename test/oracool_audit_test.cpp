@@ -30,6 +30,7 @@
 #include "engine/surface.hpp"
 #include "control.h"
 #include "cursor.h"
+#include "init.h"
 #include "dead.h"
 #include "inv.h"
 #include "items.h"
@@ -90,6 +91,7 @@
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
 #include "oracool/skill_points.h"
+#include "oracool/sprite_import.h"
 #include "oracool/spell_ranks.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
@@ -8908,4 +8910,76 @@ TEST(OracoolAudit, AnItemInLevskisGridFillsTheHoverPanel)
 	MousePosition = savedMouse;
 	ClearPanelStrings();
 	oracool::ResetLevskiRoarForNewGame();
+}
+
+/**
+ * @brief The Cold pack loads: thirteen PNG sheets, sliced the way the brief specified them.
+ *
+ * The 2026-09-03 delivery is the first art this game reads as MISSILE graphics from a PNG - the
+ * engine's own path is .cl2 only, and MissileFileData::LoadGFX now tries an import first. This is the
+ * seam that fix turns on, so it is the seam worth pinning: the archive really holds the file, the
+ * palette quantiser really produces frames, and a directional sheet really comes back as sixteen
+ * facings rather than one row repeated.
+ *
+ * The frame counts are the brief's, and asserting them here is what makes a REGENERATED sheet with a
+ * frame added or lost fail at the test rather than in play, where a missile with the wrong frame
+ * count animates at the wrong speed and nothing says why.
+ */
+TEST(OracoolColdPack, EveryDeliveredSheetLoadsAtItsSpecifiedShape)
+{
+	// The archives are not mounted by default in this binary - only the timedemo does it - and the
+	// import reads through the asset system. Without this every sheet reports as missing, and the
+	// test would then be measuring an empty search path rather than the art.
+	LoadCoreArchives();
+
+	struct Sheet {
+		const char *name;
+		uint16_t frameWidth;
+		int rows;   // 16 for a projectile, 1 for anything drawn the same from every side
+		int frames; // the brief's own count, which is the engine's animation length
+	};
+	// The thirteen, in the brief's order.
+	const Sheet sheets[] = {
+		{ "ice_bolt", 96, 16, 16 },
+		{ "ice_blast", 96, 16, 16 },
+		{ "glacial_spike", 128, 16, 16 },
+		{ "frost_arrow", 96, 16, 4 },
+		{ "frozen_orb", 128, 16, 16 },
+		{ "ice_impact", 96, 1, 10 },
+		{ "glacial_shatter", 128, 1, 12 },
+		{ "freezing_burst", 128, 1, 12 },
+		{ "frost_nova", 160, 1, 19 },
+		{ "blizzard_shard", 128, 1, 13 },
+		{ "ice_ground", 128, 1, 2 },
+		{ "ice_armor_shell", 96, 1, 8 },
+		{ "ice_armor_break", 96, 1, 10 },
+	};
+
+	for (const Sheet &sheet : sheets) {
+		std::optional<OwnedClxSpriteListOrSheet> loaded
+		    = oracool::LoadPngMissileSheet(sheet.name, sheet.frameWidth, sheet.rows);
+		ASSERT_TRUE(loaded.has_value())
+		    << sheet.name << " did not load - it is missing from oracool.mpq, or its dimensions are "
+		                     "not a whole number of "
+		    << sheet.frameWidth << "px columns by " << sheet.rows << " rows";
+
+		if (sheet.rows == 1) {
+			EXPECT_FALSE(loaded->isSheet())
+			    << sheet.name << " came back as a facing sheet; a non-directional missile needs a list";
+			EXPECT_EQ(loaded->list().numSprites(), static_cast<size_t>(sheet.frames))
+			    << sheet.name << " has the wrong number of frames";
+		} else {
+			ASSERT_TRUE(loaded->isSheet())
+			    << sheet.name << " came back as a single list - every facing but south would draw the "
+			                     "south sprite";
+			const ClxSpriteSheet facings = loaded->sheet();
+			EXPECT_EQ(facings.numLists(), static_cast<size_t>(sheet.rows))
+			    << sheet.name << " has the wrong number of facings";
+			EXPECT_EQ(facings[0].numSprites(), static_cast<size_t>(sheet.frames))
+			    << sheet.name << " has the wrong number of frames in its first facing";
+			EXPECT_EQ(facings[static_cast<size_t>(sheet.rows) - 1].numSprites(), static_cast<size_t>(sheet.frames))
+			    << sheet.name << " has the wrong number of frames in its LAST facing - the sheet was "
+			                     "sliced against the wrong row height";
+		}
+	}
 }

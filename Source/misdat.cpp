@@ -10,6 +10,7 @@
 #include "engine/load_cl2.hpp"
 #include "engine/load_clx.hpp"
 #include "missiles.h"
+#include "oracool/sprite_import.h"
 #include "mpq/mpq_common.hpp"
 #include "utils/file_name_generator.hpp"
 #include "utils/str_cat.hpp"
@@ -307,6 +308,18 @@ void MissileFileData::LoadGFX()
 
 	if (name[0] == '\0')
 		return;
+
+	// Oracool: a PNG sheet supplied for this missile wins over the CL2 (2026-09-03, the Cold pack).
+	// Same rule and same reasoning as the player bodies' import - drop the art beside the file it
+	// replaces, and anything not supplied loads exactly as before, so the set can grow one missile at
+	// a time. animFAmt IS the direction count, so it decides the sheet's shape here as well as below;
+	// asking it once for both is what keeps a sixteen-facing sheet from being read as one row.
+	if (std::optional<OwnedClxSpriteListOrSheet> png
+	    = oracool::LoadPngMissileSheet(name, animWidth, animFAmt == 1 ? 1 : 16);
+	    png.has_value()) {
+		sprites.emplace(std::move(*png));
+		return;
+	}
 
 #ifdef UNPACKED_MPQS
 	char path[MaxMpqPathSize];
