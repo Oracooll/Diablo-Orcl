@@ -24,6 +24,7 @@
 #include "oracool/socket_overlay.h"
 #include "oracool/window_close.h"
 #include "player.h"
+#include "quests.h" // pQLogCel - the quest-log frame this window borrows
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -96,9 +97,6 @@ constexpr int HeaderHeight = 30;
 constexpr int ButtonHeight = 26;
 constexpr int GridWidth = LevskiGridColumns * CellSize;
 constexpr int GridHeight = LevskiGridRows * CellSize;
-/** A 3-wide grid is only 84px across - narrower than the word "Transmute". The window is the wider
- * of the grid and what its own buttons need to read, with the grid centred in it. */
-constexpr int ContentWidth = GridWidth > 150 ? GridWidth : 150;
 
 /**
  * @brief The salvage column: seven "salvage all X" buttons, stacked down the right of the grid.
@@ -118,15 +116,46 @@ constexpr int SalvageButtonHeight = 24;
 constexpr int SalvageButtonGap = 4;
 constexpr int SalvageColumnGap = 10;
 
-/** The window grew by exactly the column plus its gap - the grid and the buttons under it are
- * untouched, so nothing that was already placed had to move. */
-constexpr int WindowWidth = ContentWidth + SalvageColumnGap + SalvageColumnWidth + Padding * 2;
+/**
+ * @brief The window IS the original game's quest-log frame (user, 2026-09-04: "take quest_frame00.png
+ * and use it as Levskis Roar UI background").
+ *
+ * Not a new asset: data\quest is already loaded for the quest log (pQLogCel, control.cpp) and has
+ * been idle since that window moved onto the limestone panel. So the frame comes from the player's
+ * own game data at runtime, which is also the only way it can - quest_frame00.png in the art
+ * folder is an extraction from DIABDAT.MPQ and must never be shipped.
+ *
+ * Measured off that extraction: 320x352, with the black interior running x 22..297 and y 25..326.
+ * The bevel around it is ~22px, so the window is a fixed size now and the content is laid out
+ * INSIDE the interior rather than the window being sized from the content.
+ */
+constexpr Size FrameSize { 320, 352 };
+constexpr Point FrameInset { 22, 25 };
+constexpr Size FrameInterior { 276, 302 };
+
+/** The left column: the grid, centred, with the two buttons under it. Whatever the salvage column
+ * leaves of the interior. */
+constexpr int ContentWidth = FrameInterior.width - SalvageColumnGap - SalvageColumnWidth;
+static_assert(ContentWidth >= GridWidth, "the salvage column has squeezed the grid out of the frame");
+
 /** Tall enough for whichever side is taller: the grid and its two buttons, or the seven. */
 constexpr int GridSideHeight = HeaderHeight + GridHeight + SlotGap + ButtonHeight * 2 + SlotGap;
 constexpr int SalvageSideHeight = HeaderHeight + SalvageTierCount * SalvageButtonHeight
     + (SalvageTierCount - 1) * SalvageButtonGap;
-constexpr int WindowHeight = Padding * 2
-    + (GridSideHeight > SalvageSideHeight ? GridSideHeight : SalvageSideHeight);
+static_assert(GridSideHeight <= FrameInterior.height && SalvageSideHeight <= FrameInterior.height,
+    "the content no longer fits inside the quest frame's interior");
+
+/** @brief Where the content starts: the frame's interior corner. Every rect in the window hangs off this. */
+Point ContentOrigin(const Rectangle &window)
+{
+	return window.position + Displacement { FrameInset.x, FrameInset.y };
+}
+
+/** @brief The interior the frame surrounds - what the close button and the fill are measured against. */
+Rectangle FrameInteriorRect(const Rectangle &window)
+{
+	return Rectangle { ContentOrigin(window), FrameInterior };
+}
 
 /**  How wide the book may be: all the room left of the window, capped, never overlapping it.
  *
@@ -255,7 +284,7 @@ int RecipeBookMaxScroll(const Rectangle &page)
 Point GridOrigin(const Rectangle &window)
 {
 	// Centred: the grid is narrower than the window's own buttons.
-	return window.position + Displacement { Padding + (ContentWidth - GridWidth) / 2, Padding + HeaderHeight };
+	return ContentOrigin(window) + Displacement { (ContentWidth - GridWidth) / 2, HeaderHeight };
 }
 
 Rectangle CellRect(const Rectangle &window, int cell)
@@ -393,8 +422,8 @@ bool RebuildGridOccupancy()
 
 Rectangle TransmuteButtonRect(const Rectangle &window)
 {
-	const int y = window.position.y + Padding + HeaderHeight + GridHeight + SlotGap;
-	return Rectangle { { window.position.x + Padding, y }, { ContentWidth, ButtonHeight } };
+	const Point origin = ContentOrigin(window);
+	return Rectangle { { origin.x, origin.y + HeaderHeight + GridHeight + SlotGap }, { ContentWidth, ButtonHeight } };
 }
 
 Rectangle RecipeButtonRect(const Rectangle &window)
@@ -407,8 +436,8 @@ Rectangle RecipeButtonRect(const Rectangle &window)
 /** @brief Salvage button @p index, counting down the column from the top. */
 Rectangle SalvageButtonRect(const Rectangle &window, int index)
 {
-	const int x = window.position.x + Padding + ContentWidth + SalvageColumnGap;
-	const int y = window.position.y + Padding + HeaderHeight
+	const int x = ContentOrigin(window).x + ContentWidth + SalvageColumnGap;
+	const int y = ContentOrigin(window).y + HeaderHeight
 	    + index * (SalvageButtonHeight + SalvageButtonGap);
 	return Rectangle { { x, y }, { SalvageColumnWidth, SalvageButtonHeight } };
 }
@@ -577,12 +606,12 @@ Rectangle GetLevskiRoarRect()
 	if (!WindowOpen)
 		return Rectangle { { 0, 0 }, { 0, 0 } };
 	// Centred on the play area, like the other operable-object windows.
-	const int x = (gnScreenWidth - WindowWidth) / 2;
+	const int x = (gnScreenWidth - FrameSize.width) / 2;
 	// CENTRED vertically (user, 2026-08-27: "Levski's Roar should be middle of screen"). It sat a
 	// third of the way down before, and was briefly bottom-docked by a rule that was never meant for
 	// it - the docking rule is about the side panels.
-	const int y = std::max(0, (static_cast<int>(gnScreenHeight) - WindowHeight) / 2);
-	return Rectangle { { x, y }, { WindowWidth, WindowHeight } };
+	const int y = std::max(0, (static_cast<int>(gnScreenHeight) - FrameSize.height) / 2);
+	return Rectangle { { x, y }, FrameSize };
 }
 
 Rectangle GetLevskiRecipeBookRect()
@@ -619,7 +648,7 @@ Rectangle GetLevskiRecipeBookRect()
 	// But NOT unconditionally, and the previous comment here - "there is always room on the left,
 	// the window is centred" - was simply false, which a screenshot caught (user, 2026-08-19: the
 	// book's title read "IPES" and every line lost its first characters off the left edge). The
-	// window is centred in gnScreenWidth, so the room to its left is (gnScreenWidth - WindowWidth)/2,
+	// window is centred in gnScreenWidth, so the room to its left is (gnScreenWidth - FrameSize.width)/2,
 	// and at 1024 wide that is 408 against a book needing 426. Centring guarantees symmetry, not
 	// space.
 	//
@@ -641,8 +670,17 @@ void DrawLevskiRoar(const Surface &out)
 		return;
 
 	const Rectangle window = GetLevskiRoarRect();
-	DrawPanelGround(out, window);
-	DrawWindowCloseButton(out, window);
+	const Rectangle interior = FrameInteriorRect(window);
+	// The original quest-log frame, drawn from the game's own data - see FrameSize. The interior is
+	// filled first, so if the CEL's black is ever transparent the world does not show through the
+	// cube; if it is opaque, as the extraction says, the fill is simply painted over.
+	FillRect(out, interior.position.x, interior.position.y, interior.size.width, interior.size.height, PanelFillColor);
+	if (pQLogCel) {
+		ClxDraw(out, { window.position.x, window.position.y + FrameSize.height - 1 }, (*pQLogCel)[0]);
+	} else {
+		DrawOrnateBorder(out, window); // headless, or the CEL failed to load: the old chrome, so the window still reads
+	}
+	DrawWindowCloseButton(out, interior);
 
 	// The largest size the whole name fits in, rather than a fixed one (user, 2026-08-19: "Reduce
 	// the font of the title to fit the name"). At FontSize24 "Levski's Roar" overran a window sized
@@ -655,7 +693,7 @@ void DrawLevskiRoar(const Surface &out)
 	    ? UiFlags::FontSize24
 	    : UiFlags::FontSize12;
 	DrawString(out, title,
-	    Rectangle { window.position + Displacement { Padding, Padding }, { ContentWidth, HeaderHeight } },
+	    Rectangle { ContentOrigin(window), { ContentWidth, HeaderHeight } },
 	    { UiFlags::ColorGold | titleSize | UiFlags::VerticalCenter });
 
 	// The empty grid first, as one recessed well with cell lines drawn on it - the cells are 28px
@@ -848,7 +886,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 
 	// Before every other control: the X is the one click that must always work, and this window
 	// absorbs everything else that lands on it.
-	if (CheckWindowCloseButtonClick(window, mousePosition)) {
+	if (CheckWindowCloseButtonClick(FrameInteriorRect(window), mousePosition)) {
 		CloseLevskiRoar();
 		return true;
 	}
