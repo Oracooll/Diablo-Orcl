@@ -49,6 +49,7 @@
 #include "oracool/inventory_layout.h"
 #include "engine/render/primitive_render.hpp"
 #include "oracool/ornate_border.h"
+#include "oracool/levski_roar.h"
 #include "oracool/shop_grid.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/waypoint_menu.h"
@@ -1277,6 +1278,12 @@ void UpdateInfoString()
 	// The shop grid answers first and stops. Its panel covers the world, so every other producer
 	// below is describing something the player cannot see or reach while it is open.
 	if (oracool::SetShopHoverInfoString())
+		return;
+
+	// Levski's grid, on the same terms and for the same reason (user, 2026-09-03). Its window floats
+	// over the world, so while the cursor is on one of its items nothing behind it is hoverable -
+	// and the producers below would otherwise describe whatever is under the window.
+	if (oracool::SetLevskiHoverInfoString())
 		return;
 
 	if (!panelflag && !trigflag && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && !ActiveTabItemHovered && !spselflag) {

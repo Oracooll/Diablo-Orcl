@@ -69,6 +69,18 @@ bool IsLevskiRoarObject(const Object &object);
 
 /** @brief Whether the monument's window is open. */
 bool IsLevskiRoarOpen();
+
+/**
+ * @brief Fills InfoString from the grid item under the cursor. True if it did.
+ *
+ * User, 2026-09-03: "when i moved my socketed ring in levski's grid hovering over it show no pop-up
+ * of the item socketed in it [...] Make sure levski's grid works as stash or inv grid."
+ *
+ * Called from UpdateInfoString beside the shop grid's equivalent, for the same reason that one is
+ * called there rather than from the draw: the panel text is rebuilt once per frame by that pass, and
+ * a producer that runs anywhere else is either overwritten by it or overwrites it.
+ */
+bool SetLevskiHoverInfoString();
 /** @brief Opens the window; closes it if already open. Called from the object's operate path. */
 void ToggleLevskiRoar();
 /** @brief Closes the window and returns everything in the grid to the backpack. */

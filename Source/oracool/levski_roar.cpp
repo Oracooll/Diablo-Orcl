@@ -21,6 +21,7 @@
 #include "oracool/event_log.h"
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
+#include "oracool/socket_overlay.h"
 #include "oracool/window_close.h"
 #include "player.h"
 #include "utils/language.h"
@@ -274,6 +275,24 @@ int CellAt(const Rectangle &window, Point position)
 	return -1;
 }
 
+/**
+ * @brief The ANCHOR of the item under the cursor, or -1. The grid's answer to pcursinvitem.
+ *
+ * Anchor rather than cell, because that is what identifies an ITEM here: a 2x3 armour occupies six
+ * cells and GridCells[c] holds its anchor + 1 in every one of them, so hovering any part of it has
+ * to name the same item. Both the draw and the tooltip ask this, which is what keeps the outlined
+ * item and the described item from ever being two different items.
+ */
+int HoveredAnchor()
+{
+	if (!WindowOpen)
+		return -1;
+	const int cell = CellAt(GetLevskiRoarRect(), MousePosition);
+	if (cell < 0 || GridCells[cell] == 0)
+		return -1;
+	return GridCells[cell] - 1;
+}
+
 /** @brief Whether an item of @p size can sit with its top-left at @p anchor. */
 bool FitsAt(int anchor, Size size)
 {
@@ -472,6 +491,25 @@ bool HandleLevskiRecipeBookScroll(int notches)
 	return true;
 }
 
+bool SetLevskiHoverInfoString()
+{
+	const int anchor = HoveredAnchor();
+	if (anchor < 0)
+		return false;
+
+	// The stash's own three lines, and deliberately those exact three (see CheckStashHLight): the
+	// name through SetPanelString so the tier colour is recorded as line 0's, then the full block for
+	// an identified item and the durability line for one that is not. Written the same way so an item
+	// reads identically wherever the player is looking at it - which is the whole of the request.
+	const Item &item = GridItems[anchor];
+	SetPanelString(item.getName(), item.getTextColor());
+	if (item._iIdentified)
+		PrintItemDetails(item);
+	else
+		PrintItemDur(item);
+	return true;
+}
+
 bool IsLevskiRoarOpen() { return WindowOpen; }
 bool IsLevskiRecipeBookOpen() { return WindowOpen && RecipeBookOpen; }
 
@@ -629,6 +667,7 @@ void DrawLevskiRoar(const Surface &out)
 	for (int row = 1; row < LevskiGridRows; row++)
 		DrawHorizontalLine(out, { gridOrigin.x, gridOrigin.y + row * CellSize }, GridWidth, PanelFillColor);
 
+	const int hoveredAnchor = HoveredAnchor();
 	for (int anchor = 0; anchor < LevskiGridSlots; anchor++) {
 		if (GridItems[anchor].isEmpty())
 			continue;
@@ -642,6 +681,18 @@ void DrawLevskiRoar(const Surface &out)
 		const ClxSprite sprite = GetInvItemSprite(GridItems[anchor]._iCurs + CURSOR_FIRSTITEM);
 		const int x = footprint.position.x + (footprint.size.width - sprite.width()) / 2;
 		const int y = footprint.position.y + (footprint.size.height + sprite.height()) / 2;
+		// The hover treatment every other grid gives an item (user, 2026-09-03: "Make sure items in
+		// levski's grid respond the way they do when in any other grid in the game - pop-ups and so
+		// on... Make sure levski's grid works as stash or inv grid").
+		//
+		// This grid was built as a transmute tray and only ever drew the sprite, so it had none of
+		// the three things a grid does with the item under the cursor: the quality-coloured outline,
+		// the socket overlay, and the panel text. The report is about the last one - a socketed ring
+		// here said nothing about its gem - but all three are the same omission and the other two are
+		// the same two lines the stash and the backpack already write.
+		const bool hovered = anchor == hoveredAnchor;
+		if (hovered)
+			ClxDrawOutline(out, GetOutlineColor(GridItems[anchor], true), { x, y }, sprite);
 		// DrawItem, not a bare ClxDraw (user, 2026-08-28: "placing consumables in levskis roar
 		// removes the badge indicating their amount").
 		//
@@ -653,6 +704,9 @@ void DrawLevskiRoar(const Surface &out)
 		// The inventory, the belt and the worn slots all go through DrawItem for exactly this
 		// reason. This grid is a fourth place items are shown and had quietly opted out of it.
 		DrawItem(GridItems[anchor], out, { x, y }, sprite);
+		// Over the sprite, hover-only - the same overlay the backpack and the stash draw.
+		if (hovered)
+			DrawSocketOverlay(out, GridItems[anchor], { x, y }, size);
 	}
 
 	// The salvage column. Gold-bordered placeholder boxes, one per tier, lit when the backpack

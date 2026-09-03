@@ -8846,3 +8846,66 @@ TEST(OracoolAudit, AssigningHoverTextClearsThePreviousLineColours)
 
 	ClearPanelStrings();
 }
+
+/**
+ * @brief An item in Levski's grid answers the hover, like an item in any other grid.
+ *
+ * User, 2026-09-03: "when i moved my socketed ring in levski's grid hovering over it show no pop-up
+ * of the item socketed in it [...] Make sure levski's grid works as stash or inv grid."
+ *
+ * The grid was built as a transmute tray and drew the sprite and nothing else - no panel text, no
+ * outline, no socket overlay. This pins the text, which is the half that is testable without a
+ * screen: the other two are two lines in the draw loop beside it.
+ *
+ * The cursor is SWEPT across the window rather than placed on a computed cell. CellRect is
+ * file-local, and a test that re-derived the geometry would be asserting its own copy of the layout
+ * - it would keep passing if the grid moved and the hover stopped following it.
+ */
+TEST(OracoolAudit, AnItemInLevskisGridFillsTheHoverPanel)
+{
+	oracool::ResetLevskiRoarForNewGame(); // a clean grid, whatever an earlier test left
+	oracool::ToggleLevskiRoar();
+	ASSERT_TRUE(oracool::IsLevskiRoarOpen()) << "test setup: the window did not open";
+
+	devilution::Item ring {};
+	ring._itype = ItemType::Ring;
+	ring._iCurs = ICURS_RING;
+	// Magic and identified so getName() returns _iIName: a NORMAL item is named from its base type
+	// table, and the test would then be asserting on a name it did not choose.
+	ring._iMagical = ITEM_QUALITY_MAGIC;
+	ring._iIdentified = true;
+	ring._iCreateInfo = 1;
+	CopyUtf8(ring._iName, devilution::string_view("Levski Test Ring"), sizeof(ring._iName));
+	CopyUtf8(ring._iIName, devilution::string_view("Levski Test Ring"), sizeof(ring._iIName));
+	ASSERT_TRUE(oracool::PlaceItemInLevskiGrid(ring)) << "test setup: the ring did not fit an empty grid";
+
+	const Rectangle window = oracool::GetLevskiRoarRect();
+	const Point savedMouse = MousePosition;
+	bool found = false;
+	for (int y = window.position.y; y < window.position.y + window.size.height && !found; y += 2) {
+		for (int x = window.position.x; x < window.position.x + window.size.width && !found; x += 2) {
+			ClearPanelStrings();
+			MousePosition = { x, y };
+			if (!oracool::SetLevskiHoverInfoString())
+				continue;
+			found = true;
+			EXPECT_NE(InfoString.str().find("Levski Test Ring"), devilution::string_view::npos)
+			    << "the hover reported something other than the item under the cursor";
+			// The invariant DrawCursorTooltip asserts on, checked here where a failure names its
+			// cause rather than popping a dialog mid-play.
+			size_t lines = 1;
+			for (const char c : InfoString.str()) {
+				if (c == '\n')
+					lines++;
+			}
+			EXPECT_TRUE(InfoStringLineColors.empty() || InfoStringLineColors.size() == lines)
+			    << "the grid built " << lines << " lines but recorded " << InfoStringLineColors.size()
+			    << " colours - this is what pops the tooltip assert";
+		}
+	}
+	EXPECT_TRUE(found) << "no point over the open window hovered the item in it";
+
+	MousePosition = savedMouse;
+	ClearPanelStrings();
+	oracool::ResetLevskiRoarForNewGame();
+}
