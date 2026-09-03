@@ -113,6 +113,20 @@ const SpellData SpellsData[] = {
 /*SpellID::FrozenArmor*/      { P_("spell", "Frozen Armor"),       IS_CAST2,           0,            0,         12, Cold | AllowedInTown,         -1,         -1,       0, { MissileID::ColdArmor,            MissileID::Null,    },         0,        12,          0,          0 },
 /*SpellID::ShiverArmor*/      { P_("spell", "Shiver Armor"),       IS_CAST2,           0,            0,         14, Cold | AllowedInTown,         -1,         -1,       0, { MissileID::ColdArmor,            MissileID::Null,    },         0,        14,          0,          0 },
 /*SpellID::ChillingArmor*/    { P_("spell", "Chilling Armor"),     IS_CAST2,           0,            0,         16, Cold | AllowedInTown,         -1,         -1,       0, { MissileID::ColdArmor,            MissileID::Null,    },         0,        16,          0,          0 },
+// Oracool, Round 3: the bow skills. MissileID::Null in both slots on purpose - these are SHOT, not
+// cast (oracool/rogue_arrows.h), exactly as Zeal is swung. The MagicType names the element for the
+// book colour and the cast animation, which a bow skill never plays; mana climbs the page. Targeted,
+// so the well and the cursor treat them as something aimed. No book, no staff, no minInt - earned.
+/*SpellID::MagicArrow*/       { P_("spell", "Magic Arrow"),        IS_CAST2,           0,            0,          2, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         1,          0,          0 },
+/*SpellID::FireArrow*/        { P_("spell", "Fire Arrow"),         IS_CAST2,           0,            0,          3, Fire | Targeted,              -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::ColdArrow*/        { P_("spell", "Cold Arrow"),         IS_CAST2,           0,            0,          3, Cold | Targeted,              -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::MultipleShot*/     { P_("spell", "Multiple Shot"),      IS_CAST2,           0,            0,          4, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         3,          0,          0 },
+/*SpellID::ExplodingArrow*/   { P_("spell", "Exploding Arrow"),    IS_CAST2,           0,            0,          5, Fire | Targeted,              -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         3,          0,          0 },
+/*SpellID::IceArrow*/         { P_("spell", "Ice Arrow"),          IS_CAST2,           0,            0,          5, Cold | Targeted,              -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         3,          0,          0 },
+/*SpellID::GuidedArrow*/      { P_("spell", "Guided Arrow"),       IS_CAST2,           0,            0,          6, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         4,          0,          0 },
+/*SpellID::Strafe*/           { P_("spell", "Strafe"),             IS_CAST2,           0,            0,          8, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         5,          0,          0 },
+/*SpellID::ImmolationArrow*/  { P_("spell", "Immolation Arrow"),   IS_CAST2,           0,            0,          8, Fire | Targeted,              -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         5,          0,          0 },
+/*SpellID::FreezingArrow*/    { P_("spell", "Freezing Arrow"),     IS_CAST2,           0,            0,          9, Cold | Targeted,              -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         6,          0,          0 },
 	// clang-format on
 };
 

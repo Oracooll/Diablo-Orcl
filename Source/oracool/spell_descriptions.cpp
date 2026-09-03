@@ -5,6 +5,7 @@
 
 #include "oracool/cold.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/rogue_arrows.h"
 #include "utils/language.h"
 
 namespace devilution {
@@ -103,6 +104,9 @@ const char *GetSpellDescription(SpellID spell)
 	// The cold line, likewise beside the numbers it describes - oracool/cold.cpp.
 	if (IsColdSpell(spell))
 		return ColdSpellDescription(spell);
+	// And the Rogue's bow page - oracool/rogue_arrows.cpp.
+	if (RogueArrowForSpell(spell).has_value())
+		return RogueArrowDescription(spell);
 
 	const auto index = static_cast<int>(spell);
 	if (index < 0 || static_cast<size_t>(index) >= Descriptions.size())

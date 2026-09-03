@@ -93,6 +93,7 @@
 #include "oracool/skill_points.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
+#include "oracool/rogue_arrows.h"
 #include "oracool/sprite_import.h"
 #include "oracool/spell_ranks.h"
 #include "oracool/sprite_scale.h"
@@ -9157,6 +9158,77 @@ TEST(OracoolCold, TheSheetTheHitAndTheMana)
 	player._pMana = 0;
 	EXPECT_EQ(CheckSpell(player, SpellID::ItemRepair, SpellType::Skill, /*manaonly=*/true), SpellCheckResult::Success)
 	    << "a zero-priced vanilla skill started charging";
+
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * @brief Round 3's bow skills: the mapping is total, the sheet's numbers are the bow's plus the
+ * rank, and a bow skill with a price refuses an empty pool.
+ *
+ * The mapping matters more than it looks: FireArrowSkill converts a RogueArrow back to its SpellID
+ * to price it and to level it, and a row that mapped one way but not the other would be free and
+ * rank-zero forever, silently.
+ */
+TEST(OracoolRogueArrows, EveryBowSkillMapsBothWaysAndIsPriced)
+{
+	const bool savedHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Rogue;
+	player._pLevel = 10;
+	player._pIMinDam = 5;
+	player._pIMaxDam = 12;
+
+	const SpellID bowSpells[] = {
+		SpellID::MagicArrow, SpellID::FireArrow, SpellID::ColdArrow, SpellID::MultipleShot,
+		SpellID::ExplodingArrow, SpellID::IceArrow, SpellID::GuidedArrow, SpellID::Strafe,
+		SpellID::ImmolationArrow, SpellID::FreezingArrow
+	};
+	for (const SpellID spell : bowSpells) {
+		const std::optional<oracool::RogueArrow> arrow = oracool::RogueArrowForSpell(spell);
+		ASSERT_TRUE(arrow.has_value()) << "spell " << static_cast<int>(spell) << " is not a bow skill";
+		EXPECT_EQ(oracool::RogueArrowSpell(*arrow), spell) << "the mapping does not round-trip";
+		// Priced: asked through GetManaAmount rather than SpellsData, which this binary does not
+		// link. Zero here would mean a free skill - the fault Round 2 found in Ice Bolt.
+		EXPECT_GT(GetManaAmount(player, spell), 0) << "a bow skill with no price";
+	}
+	EXPECT_FALSE(oracool::RogueArrowForSpell(SpellID::Firebolt).has_value());
+	EXPECT_FALSE(oracool::RogueArrowForSpell(SpellID::IceBolt).has_value());
+
+	// The sheet: a physical bow skill reports the bow; an elemental one adds its bonus, more with rank.
+	int minDamage;
+	int maxDamage;
+	oracool::RogueArrowDamage(player, SpellID::MultipleShot, 3, minDamage, maxDamage);
+	EXPECT_EQ(minDamage, 5);
+	EXPECT_EQ(maxDamage, 12);
+	int lowMin, lowMax, highMin, highMax;
+	oracool::RogueArrowDamage(player, SpellID::FireArrow, 1, lowMin, lowMax);
+	oracool::RogueArrowDamage(player, SpellID::FireArrow, 5, highMin, highMax);
+	EXPECT_GT(lowMin, 5) << "an elemental arrow adds nothing to the bow";
+	EXPECT_GT(highMin, lowMin) << "rank buys nothing";
+	// Through the tooltip's own door.
+	int mind, maxd;
+	GetDamageAmtAtLevel(SpellID::FireArrow, 1, &mind, &maxd);
+	EXPECT_EQ(mind, lowMin);
+
+	// The price is asked at the click - through CheckSpell's Skill branch, the same one the cold
+	// spells pay through - so a click with an empty pool is refused before the bow is drawn.
+	player._pSkillInvestment[static_cast<size_t>(SpellID::ColdArrow)] = 1;
+	player._pMana = 0;
+	EXPECT_EQ(CheckSpell(player, SpellID::ColdArrow, SpellType::Skill, /*manaonly=*/true), SpellCheckResult::Fail_NoMana);
+	player._pMana = GetManaAmount(player, SpellID::ColdArrow);
+	EXPECT_EQ(CheckSpell(player, SpellID::ColdArrow, SpellType::Skill, /*manaonly=*/true), SpellCheckResult::Success);
+
+	// The latch holds what it is given and nothing else.
+	oracool::ArmArrowSkill(oracool::RogueArrow::Strafe);
+	ASSERT_TRUE(oracool::ArmedArrowSkill().has_value());
+	EXPECT_EQ(*oracool::ArmedArrowSkill(), oracool::RogueArrow::Strafe);
+	oracool::ArmArrowSkill(std::nullopt);
+	EXPECT_FALSE(oracool::ArmedArrowSkill().has_value());
 
 	gbIsHellfire = savedHellfire;
 }

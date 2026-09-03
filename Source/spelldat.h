@@ -18,7 +18,7 @@ namespace devilution {
 // `gbIsHellfire ? MAX_SPELLS : 37` looking for droppable spells, so a new id is a candidate for books
 // and staves unless its sBookLvl and sStaffLvl are both -1. All seven skills' are, deliberately -
 // they are earned by level, not found. MAX_ITEM_SPELLS below is the belt-and-braces on that.
-#define MAX_SPELLS 68
+#define MAX_SPELLS 78
 
 /**
  * @brief Upper bound for the spell ids ITEM GENERATION may roll - books, staves, scrolls.
@@ -166,7 +166,22 @@ enum class SpellID : int8_t {
 	ShiverArmor,
 	ChillingArmor,
 
-	LAST = ChillingArmor,
+	/**
+	 * Oracool, Round 3 (2026-09-03): the Rogue's bow page. Ids 68-77. None is cast - each is SHOT,
+	 * through the latch in oracool/rogue_arrows.h - so every one carries MissileID::Null, like Zeal.
+	 */
+	MagicArrow,
+	FireArrow,
+	ColdArrow,
+	MultipleShot,
+	ExplodingArrow,
+	IceArrow,
+	GuidedArrow,
+	Strafe,
+	ImmolationArrow,
+	FreezingArrow,
+
+	LAST = FreezingArrow,
 	Invalid = -1,
 };
 
@@ -396,6 +411,17 @@ enum class MissileID : int8_t {
 	BlizzardShard,
 	FrozenOrb,
 	ColdArmor,
+	/**
+	 * Oracool, Round 3: the bow skills' arrows. One family, four elements; which SKILL an arrow
+	 * belongs to rides in its var5, and decides what it does when it stops. FreezingBurst is
+	 * Freezing Arrow's landing.
+	 */
+	SkillArrow,
+	MagicArrow,
+	FlameArrow,
+	FrostArrow,
+	GuidedArrow,
+	FreezingBurst,
 	Null = -1,
 	// clang-format on
 };

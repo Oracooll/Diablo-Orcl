@@ -124,6 +124,9 @@ enum class MissileGraphicID : uint8_t {
 	FrozenOrb,
 	IceArmorShell,
 	IceArmorBreak,
+	// Round 3: the Rogue's cold arrow and Freezing Arrow's landing. Last two of the thirteen.
+	FrostArrow,
+	FreezingBurst,
 	None,
 };
 

@@ -72,6 +72,7 @@ set(libdevilutionx_SRCS
   oracool/spell_ranks.cpp
   oracool/chill.cpp
   oracool/cold.cpp
+  oracool/rogue_arrows.cpp
   oracool/class_skills.cpp
   oracool/furious_charge.cpp
   oracool/game_speed.cpp

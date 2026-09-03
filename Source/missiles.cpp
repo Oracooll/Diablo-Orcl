@@ -29,6 +29,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
+#include "oracool/rogue_arrows.h"
 #include "engine/path.h"
 #include "oracool/event_log.h"
 #include "oracool/divine_trn.h"
@@ -283,6 +284,10 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	hper = clamp(hper, 5, 95);
 
 	if (monster.mode == MonsterMode::Petrified)
+		hit = 0;
+	// Guided Arrow cannot miss (Oracool, Round 3): the whole of the skill, and the stone-curse line
+	// above is the precedent for a roll that is not rolled.
+	if (t == MissileID::GuidedArrow)
 		hit = 0;
 
 	if (monster.tryLiftGargoyle())
@@ -918,6 +923,12 @@ void GetDamageAmtAtLevel(SpellID i, int sl, int *mind, int *maxd)
 	// never falls into a vanilla case by accident.
 	if (oracool::IsColdSpell(i)) {
 		oracool::ColdSpellDamage(myPlayer, i, sl, *mind, *maxd);
+		return;
+	}
+	// The bow skills' numbers too (Round 3): the bow's range plus the rank bonus, from the function
+	// the arrows are rolled from.
+	if (oracool::RogueArrowForSpell(i).has_value()) {
+		oracool::RogueArrowDamage(myPlayer, i, sl, *mind, *maxd);
 		return;
 	}
 
@@ -2258,6 +2269,110 @@ void ProcessColdArmor(Missile &missile)
 		missile._miDelFlag = true;
 		RedrawEverything();
 	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// Oracool, Round 3 of the inert-skill plan (2026-09-03): the Rogue's bow skills.
+//
+// One family of missiles. The ELEMENT is the missile type's (SkillArrow, MagicArrow, FlameArrow,
+// FrostArrow, GuidedArrow); the SKILL - which decides the rank bonus and what happens when the arrow
+// stops - rides in var5 as a RogueArrow, put there by oracool::FireArrowSkill. The hit itself is the
+// ordinary arrow hit: MonsterMHit sees the Arrow flag and rolls ranged to-hit and armour pierce
+// exactly as for a plain shot, and for a cold arrow applies the chill through the same seam every
+// cold missile uses.
+// ---------------------------------------------------------------------------------------------
+
+void AddRogueArrow(Missile &missile, AddMissileParameter &parameter)
+{
+	// Aim and speed are the plain arrow's. The engine's arrow sheet is NOT animated - its sixteen
+	// frames are the sixteen facings, chosen by _miAnimFrame - while Fire Arrow's sheet and the
+	// frost arrow's are sixteen facings of four frames each, chosen by SetMissDir. AddArrow and
+	// AddElementalArrow each know one of those, so the family asks the right one for its sheet.
+	if (missile._miAnimType == MissileGraphicID::Arrow)
+		AddArrow(missile, parameter);
+	else
+		AddElementalArrow(missile, parameter);
+	missile.var5 = static_cast<int>(oracool::RogueArrow::MagicArrow); // overwritten by the shooter; a safe default
+}
+
+void ProcessRogueArrow(Missile &missile)
+{
+	missile._mirange--;
+	missile._midist++;
+
+	const auto arrow = static_cast<oracool::RogueArrow>(missile.var5);
+	const int level = missile._mispllvl;
+
+	int mind = 1;
+	int maxd = 1;
+	if (missile.sourceType() == MissileSource::Player) {
+		// The bow's own range, plus the rank bonus for an elemental arrow - the same sum
+		// RogueArrowDamage shows on the sheet, asked of the spell the skill is.
+		const Player &player = *missile.sourcePlayer();
+		int sheetMin;
+		int sheetMax;
+		oracool::RogueArrowDamage(player, oracool::RogueArrowSpell(arrow), level, sheetMin, sheetMax);
+		mind = std::max(sheetMin, 1);
+		maxd = std::max(sheetMax, mind);
+	}
+
+	const DamageType damageType = GetMissileData(missile._mitype).damageType();
+	MoveMissileAndCheckMissileCol(missile, damageType, mind, maxd, true, false);
+
+	if (missile._mirange == 0) {
+		const Point at = missile.position.tile;
+		const Direction dir = static_cast<Direction>(missile._mimfnum);
+		switch (arrow) {
+		case oracool::RogueArrow::ExplodingArrow:
+			// The burst: fire damage across the eight tiles around the stop, and the magma-ball
+			// explosion drawn over it. The stop tile itself was already hit by the arrow.
+			for (int dy = -1; dy <= 1; dy++) {
+				for (int dx = -1; dx <= 1; dx++) {
+					if (dx == 0 && dy == 0)
+						continue;
+					CheckMissileCol(missile, DamageType::Fire, mind, maxd, false, at + Displacement { dx, dy }, true);
+				}
+			}
+			AddMissile(at, at, dir, MissileID::MagmaBallExplosion, missile._micaster, missile._misource, 0, 0, &missile);
+			break;
+		case oracool::RogueArrow::ImmolationArrow:
+			// A fire wall where it stopped, at the skill's own rank - which is what Fire Wall's own
+			// duration and damage scale on.
+			AddMissile(at, at, dir, MissileID::FireWall, missile._micaster, missile._misource, 0, level, &missile);
+			break;
+		case oracool::RogueArrow::IceArrow:
+			// The freeze on whatever the arrow stopped in. A chill already landed through the hit.
+			if (const int mid = dMonster[at.x][at.y]; mid != 0) {
+				Monster &monster = Monsters[abs(mid) - 1];
+				if (monster.hitPoints >> 6 > 0)
+					oracool::ApplyColdHit(MissileID::IceBlast, level, monster);
+			}
+			break;
+		case oracool::RogueArrow::FreezingArrow:
+			// Everything around the stop is frozen, and the freezing_burst sheet plays over it.
+			for (int dy = -1; dy <= 1; dy++) {
+				for (int dx = -1; dx <= 1; dx++) {
+					const Point tile = at + Displacement { dx, dy };
+					if (!InDungeonBounds(tile))
+						continue;
+					const int mid = dMonster[tile.x][tile.y];
+					if (mid == 0)
+						continue;
+					Monster &monster = Monsters[abs(mid) - 1];
+					if (monster.hitPoints >> 6 <= 0 || monster.isPlayerMinion())
+						continue;
+					oracool::ApplyColdHit(MissileID::IceBlast, level, monster);
+				}
+			}
+			AddMissile(at, at, dir, MissileID::FreezingBurst, missile._micaster, missile._misource, 0, level, &missile);
+			break;
+		default:
+			break;
+		}
+		missile._miDelFlag = true;
+		AddUnLight(missile._mlid);
+	}
+	PutMissile(missile);
 }
 
 void AddMagmaBall(Missile &missile, AddMissileParameter &parameter)

@@ -112,6 +112,17 @@ const uint8_t SpellITbl[] = {
 	26,
 	26,
 	26,
+	// The ten Round 3 bow skills, same argument - the Rogue's tree art is rogue_tree_icons.png.
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
+	26,
 };
 static_assert(sizeof(SpellITbl) / sizeof(SpellITbl[0]) == MAX_SPELLS,
     "every SpellID needs an icon frame - this table is indexed by the enum");

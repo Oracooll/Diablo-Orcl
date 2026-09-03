@@ -769,10 +769,11 @@ TEST(Writehero, pfile_write_hero)
 	// 1.9.184: EIGHT BYTES, same chunk, same reason - MAX_SPELLS 60 -> 68 for the rest of the cold
 	//      line (Round 2). The spell masks widened to 128 bits in the same round and moved NOTHING
 	//      here: only the low word is persisted, and every saved spell sits in it.
+	// 1.9.185: TEN BYTES, same chunk again - MAX_SPELLS 68 -> 78 for the Rogue's bow page (Round 3).
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "4978bd3f3e31d53e4b14f7262d84397a223ce90dc3393c4f7e587ebb89c3b48c");
+	    "29b9863adc0dc45e3a7ad744fd7121367016bec6e53c3faca1d963785be8029b");
 }
 
 } // namespace

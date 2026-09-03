@@ -291,6 +291,9 @@ void AddFrozenOrb(Missile &missile, AddMissileParameter &parameter);
 void ProcessFrozenOrb(Missile &missile);
 void AddColdArmor(Missile &missile, AddMissileParameter &parameter);
 void ProcessColdArmor(Missile &missile);
+// Oracool, Round 3: the bow skills' arrow family - see oracool/rogue_arrows.h.
+void AddRogueArrow(Missile &missile, AddMissileParameter &parameter);
+void ProcessRogueArrow(Missile &missile);
 
 void AddOpenNest(Missile &missile, AddMissileParameter &parameter);
 void AddRuneOfFire(Missile &missile, AddMissileParameter &parameter);

@@ -72,6 +72,19 @@ Not done, and worth knowing: the armours give no armour-class bonus yet (they re
 harden), `ice_ground.png` and `ice_armor_break.png` are in the archive but nothing draws them, and
 cold has monster *resistance* but no *immunity* — the data byte has no bit left for one.
 
+### Round 3 — arrow modifiers ✔ DONE (v1.9.185)
+
+The mechanism is the Paladin's latch, for a bow: a readied bow skill is *shot*, not cast — the
+click becomes the ordinary ranged attack with a latch naming the skill, and `DoRangeAttack` looses
+the skill's arrow(s) in place of the plain one. One missile family, five elements, the skill riding
+in `var5` deciding what the arrow does when it stops. Ten rows: Magic, Fire, Cold, Multiple Shot,
+Exploding, Ice, Guided (cannot miss), Strafe (nearest enemies in view), Immolation (leaves a fire
+wall), Freezing (freezes the 3×3 where it stops). The last two Cold-pack sheets — `frost_arrow` and
+`freezing_burst` — are in use, so all thirteen are.
+
+Not done: no ammunition in this engine, so "costs no ammunition" is every arrow's; Guided does not
+turn in flight, it simply cannot miss; Strafe fires its volley at once rather than in a sequence.
+
 ### (Round 1 as planned) — Cold damage · unlocks 13 rows · art READY
 
 The engine has four damage types and none of them is cold. Everything the Sorceress's first page

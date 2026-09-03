@@ -78,6 +78,7 @@
 #include "oracool/run_toggle.h"
 #include "oracool/shop_grid.h"
 #include "oracool/paladin_melee.h"
+#include "oracool/rogue_arrows.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/oracool.h"
 #include "oracool/waypoint_menu.h"
@@ -329,6 +330,7 @@ void LeftMouseCmd(bool bShift)
 	// means "no skill"; the controller and hold-to-attack repeat paths deliberately leave the latch
 	// alone, since you are still holding the same button. See oracool/paladin_melee.h.
 	oracool::ArmMeleeSkill(std::nullopt);
+	oracool::ArmArrowSkill(std::nullopt); // and the bow latch, for the same reason - see rogue_arrows.h
 
 	// Oracool: bug postmortem (2026-08-11) - this used to assert that the click was outside
 	// GetMainPanel(), which held while the old 640x128 panel swallowed every click inside its rect.
@@ -734,6 +736,7 @@ void RightMouseBasicAttack(bool isShiftHeld)
 {
 	// The plain swing, so no earlier click's skill may ride it - the same rule LeftMouseCmd applies.
 	oracool::ArmMeleeSkill(std::nullopt);
+	oracool::ArmArrowSkill(std::nullopt); // and the bow latch, for the same reason - see rogue_arrows.h
 
 	Player &myPlayer = *MyPlayer;
 	if (leveltype == DTYPE_TOWN) {

@@ -44,6 +44,7 @@
 #include "oracool/event_log.h"
 #include "oracool/class_skills.h"
 #include "oracool/cold.h"
+#include "oracool/rogue_arrows.h"
 #include "oracool/furious_charge.h"
 #include "oracool/hud_layout.h"
 #include "oracool/paladin_skills.h"
@@ -1031,31 +1032,43 @@ bool DoRangeAttack(Player &player)
 				xoff = y < 0 ? -angle : angle;
 		}
 
-		int dmg = 4;
-		MissileID mistype = MissileID::Arrow;
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireArrows)) {
-			mistype = MissileID::FireArrow;
-		}
-		if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningArrows)) {
-			mistype = MissileID::LightningArrow;
-		}
-		if (HasAllOf(player._pIFlags, ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows)) {
-			dmg = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
-			mistype = MissileID::SpectralArrow;
-		}
+		// Oracool, Round 3: a bow skill on the button looses ITS arrow(s) in place of the plain one
+		// (oracool/rogue_arrows.h). The latch is only ever armed for the local player, and the
+		// skill decides its own count, so the multiple-arrows item flag's second shot is not fired
+		// on top of it - one skill, one volley.
+		if (const std::optional<oracool::RogueArrow> skill = oracool::ArmedArrowSkill();
+		    skill.has_value() && &player == MyPlayer) {
+			if (arrow == 0) {
+				oracool::FireArrowSkill(player, *skill, player.position.temp);
+				PlaySfxLoc(PS_BFIRE, player.position.tile);
+			}
+		} else {
+			int dmg = 4;
+			MissileID mistype = MissileID::Arrow;
+			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireArrows)) {
+				mistype = MissileID::FireArrow;
+			}
+			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningArrows)) {
+				mistype = MissileID::LightningArrow;
+			}
+			if (HasAllOf(player._pIFlags, ItemSpecialEffect::FireArrows | ItemSpecialEffect::LightningArrows)) {
+				dmg = player._pIFMinDam + GenerateRnd(player._pIFMaxDam - player._pIFMinDam);
+				mistype = MissileID::SpectralArrow;
+			}
 
-		AddMissile(
-		    player.position.tile,
-		    player.position.temp + Displacement { xoff, yoff },
-		    player._pdir,
-		    mistype,
-		    TARGET_MONSTERS,
-		    player.getId(),
-		    dmg,
-		    0);
+			AddMissile(
+			    player.position.tile,
+			    player.position.temp + Displacement { xoff, yoff },
+			    player._pdir,
+			    mistype,
+			    TARGET_MONSTERS,
+			    player.getId(),
+			    dmg,
+			    0);
 
-		if (arrow == 0 && mistype != MissileID::SpectralArrow) {
-			PlaySfxLoc(arrows != 1 ? IS_STING1 : PS_BFIRE, player.position.tile);
+			if (arrow == 0 && mistype != MissileID::SpectralArrow) {
+				PlaySfxLoc(arrows != 1 ? IS_STING1 : PS_BFIRE, player.position.tile);
+			}
 		}
 
 		if (DamageWeapon(player, 40)) {
@@ -3581,6 +3594,35 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// Reaching CastSpell would be wrong for all seven for a second reason: none of them is cast
 	// through the missile system, so it would find MissileID::Null in both slots, spawn nothing, and
 	// then call ConsumeSpell - charging mana for no effect.
+	// Oracool, Round 3: a BOW skill is shot, not cast. The click becomes the ordinary ranged attack
+	// - bow animation, arrow sound, weapon wear - with the latch in oracool/rogue_arrows.h saying
+	// which skill threw it, and DoRangeAttack looses the skill's arrow instead of a plain one. The
+	// same shape as the Paladin branch below, for the same reason: by the time the animation fires,
+	// which button acted is gone.
+	//
+	// Needs a bow in hand - a skill that promises an arrow cannot be swung - and the mana up front,
+	// so the refusal is heard at the click rather than discovered at the release. Shift keeps its
+	// meaning: shoot at the cursor's tile, monster or not.
+	if (const std::optional<oracool::RogueArrow> arrow = oracool::RogueArrowForSpell(spellID); arrow.has_value()) {
+		if (!myPlayer.UsesRangedWeapon()) {
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
+		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
+			myPlayer.Say(HeroSpeech::NotEnoughMana);
+			return;
+		}
+		oracool::ArmArrowSkill(*arrow);
+		if (pcursmonst != -1 && !isShiftHeld) {
+			LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+			NetSendCmdParam1(true, CMD_RATTACKID, pcursmonst);
+		} else {
+			LastMouseButtonAction = MouseActionType::Attack;
+			NetSendCmdLoc(MyPlayerId, true, CMD_RATTACKXY, cursPosition);
+		}
+		return;
+	}
+
 	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spellID); skill.has_value()) {
 		// Oracool: user correction (2026-08-15) - "LMB/RMB Clicks + Shift - as designed by Blizzard -
 		// to always cast spell/skill, no matter what as long as we are not breaking other hard

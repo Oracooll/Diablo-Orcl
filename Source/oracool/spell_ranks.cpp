@@ -90,6 +90,16 @@ constexpr int SpellBand[] = {
 	0,  // Frozen Armor
 	0,  // Shiver Armor
 	0,  // Chilling Armor
+	0,  // Magic Arrow - the Rogue's bow page, all earned on the tree (Round 3)
+	0,  // Fire Arrow
+	0,  // Cold Arrow
+	0,  // Multiple Shot
+	0,  // Exploding Arrow
+	0,  // Ice Arrow
+	0,  // Guided Arrow
+	0,  // Strafe
+	0,  // Immolation Arrow
+	0,  // Freezing Arrow
 };
 static_assert(sizeof(SpellBand) / sizeof(SpellBand[0]) == MAX_SPELLS,
     "every SpellID needs a band - this table is indexed by the enum");

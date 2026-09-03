@@ -176,6 +176,14 @@ const MissileData MissilesData[] = {
 /*BlizzardShard*/        { &AddBlizzardShard,       &ProcessBlizzardShard,        SFX_NONE,    LS_FIRIMP2,  MissileGraphicID::BlizzardShard,        Cold,                  MissileMovementDistribution::Disabled    },
 /*FrozenOrb*/            { &AddFrozenOrb,           &ProcessFrozenOrb,            LS_FBOLT1,   SFX_NONE,    MissileGraphicID::FrozenOrb,            Cold,                  MissileMovementDistribution::Unblockable },
 /*ColdArmor*/            { &AddColdArmor,           &ProcessColdArmor,            LS_MSHIELD,  SFX_NONE,    MissileGraphicID::IceArmorShell,        Cold | Invisible,      MissileMovementDistribution::Disabled    },
+// Oracool, Round 3: the bow skills' arrows. One Add and one Process for the family; see them. The
+// Arrow flag is what makes these ARROWS to the hit roll - ranged to-hit, armour pierce, knockback.
+/*SkillArrow*/           { &AddRogueArrow,          &ProcessRogueArrow,           SFX_NONE,    SFX_NONE,    MissileGraphicID::Arrow,                Physical | Arrow,      MissileMovementDistribution::Blockable   },
+/*MagicArrow*/           { &AddRogueArrow,          &ProcessRogueArrow,           SFX_NONE,    SFX_NONE,    MissileGraphicID::Arrow,                Magic | Arrow,         MissileMovementDistribution::Blockable   },
+/*FlameArrow*/           { &AddRogueArrow,          &ProcessRogueArrow,           SFX_NONE,    SFX_NONE,    MissileGraphicID::FireArrow,            Fire | Arrow,          MissileMovementDistribution::Blockable   },
+/*FrostArrow*/           { &AddRogueArrow,          &ProcessRogueArrow,           SFX_NONE,    SFX_NONE,    MissileGraphicID::FrostArrow,           Cold | Arrow,          MissileMovementDistribution::Blockable   },
+/*GuidedArrow*/          { &AddRogueArrow,          &ProcessRogueArrow,           SFX_NONE,    SFX_NONE,    MissileGraphicID::Arrow,                Physical | Arrow,      MissileMovementDistribution::Blockable   },
+/*FreezingBurst*/        { &AddMissileExplosion,    &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::FreezingBurst,        Cold,                  MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 
@@ -324,6 +332,9 @@ MissileFileData MissileSpriteData[] = {
 /*FrozenOrb*/                { {},              128,          32, "frozen_orb",      16, MissileGraphicsFlags::None,                     1, AnimLen_16      },
 /*IceArmorShell*/            { {},               96,          16, "ice_armor_shell",  1, MissileGraphicsFlags::None,                     1, AnimLen_8       },
 /*IceArmorBreak*/            { {},               96,          16, "ice_armor_break",  1, MissileGraphicsFlags::None,                     1, AnimLen_10      },
+// Round 3. The frost arrow is cut like Fire Arrow's "farrow" - sixteen facings, four frames each.
+/*FrostArrow*/               { {},               96,          16, "frost_arrow",     16, MissileGraphicsFlags::None,                     0, AnimLen_4       },
+/*FreezingBurst*/            { {},              128,          32, "freezing_burst",   1, MissileGraphicsFlags::None,                     1, AnimLen_12      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };
