@@ -1,7 +1,8 @@
 # Asset Brief — UI Chrome Overhaul
 
 Everything below the line is written to be pasted into ChatGPT as a standalone request. Attach the
-340x720 stone-panel reference image alongside it.
+340x720 stone-panel reference image alongside it. It is filed at
+`Oracool.MPQ/02-source-art/delivered-packs/new-ui-assets-2026-09-02/new-ui-assets-2026-09-02/canvas-340x720.png`.
 
 **Scope, set by the user on 2026-09-03:** windows, the HUD, the two points buttons, the inventory
 and stash grids, the vendor windows, the inventory item slots, and the buttons that go with those
