@@ -325,6 +325,26 @@ struct SpellMask {
 static_assert(static_cast<int>(SpellID::LAST) <= 128,
     "spell ids past 128 do not fit SpellMask - add a third word, and check what saves it");
 
+/**
+ * @brief Whether @p spell shipped with Diablo or Hellfire, rather than being one this fork added.
+ *
+ * THE BOUNDARY IS THE ENUM, which is why this lives beside it: every id below SpellID::Charge is a
+ * spell the original game had, and Charge is the first thing Oracool appended. Nothing has ever been
+ * inserted in the middle - the tables below are indexed positionally and every round of the
+ * inert-skill plan appended - so the split is a single comparison and stays true as long as that
+ * rule holds.
+ *
+ * ART, not behaviour, is what asks: "please use legacy icons for legacy spells everywhere. use new
+ * icon assets only for spells we introduce into the game" (user, 2026-09-03). A legacy spell that
+ * also has a class-tree row - Fire Bolt, Lightning, Nova, Teleport and the rest of the Sorceress's
+ * pages - was being drawn from the tree's own icon strip, so the same spell wore one picture in the
+ * speedbook and another in the well it was readied into.
+ */
+constexpr bool IsLegacySpell(SpellID spell)
+{
+	return spell >= SpellID::Firebolt && spell < SpellID::Charge;
+}
+
 enum class MagicType : uint8_t {
 	Fire,
 	Lightning,

@@ -1068,16 +1068,27 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	// goes on, because the EFFECT genuinely does not.
 	const bool isPassiveRow = oracool::IsPassiveSkillRow(skill);
 	const bool slotted = isPassiveRow && oracool::PassiveSlotOf(player, skill) >= 0;
-	const bool usable = unlocked && (isPassiveRow || data.implemented);
+	// A BOOK row (the Sorceress's Fire and Lightning pages, and a few elsewhere) is listed but takes
+	// no points - see BuildClassTreePage. Its state is not "how much have you spent" but "do you
+	// have this spell", so it is read off the memorised set rather than off the investment array.
+	const bool bookRow = oracool::IsClassTreeRowRetiredAsSpell(skill);
+	const SpellID rowSpell = oracool::ClassTreeSpellId(skill);
+	const bool bookKnown = bookRow && IsValidSpell(rowSpell)
+	    && (player._pMemSpells & GetSpellBitmask(rowSpell)) != 0;
+	const bool usable = bookRow ? bookKnown : (unlocked && (isPassiveRow || data.implemented));
 	const oracool::SkillPlateTint tint = !usable
 	    ? oracool::SkillPlateTint::Grey
-	    : ((isPassiveRow ? slotted : invested > 0) ? oracool::SkillPlateTint::Green
-	                                               : oracool::SkillPlateTint::Red);
-	// The slot frame first, then the tinted plate inside it - see DrawSpellRow for the fit. The tint
-	// still carries "can I use this"; the frame is the furniture around it, not a second state.
+	    : ((bookRow || (isPassiveRow ? slotted : invested > 0)) ? oracool::SkillPlateTint::Green
+	                                                           : oracool::SkillPlateTint::Red);
 	oracool::DrawGridBezel(content, icon);
-	oracool::DrawClassTreeIcon(content, icon, player._pClass, oracool::ClassTreeIconIndex(skill),
-	    usable, tint);
+	// A LEGACY spell keeps its own icon here too, not the class strip's (user, 2026-09-03) - the
+	// same rule the wells and the speedbook now follow.
+	if (IsValidSpell(rowSpell) && IsLegacySpell(rowSpell)) {
+		oracool::DrawLegacySpellIconInCell(content, icon, rowSpell, tint);
+	} else {
+		oracool::DrawClassTreeIcon(content, icon, player._pClass, oracool::ClassTreeIconIndex(skill),
+		    usable, tint);
+	}
 
 	// Struck out if the row is listed but not built. AFTER the icon so it reads as a mark made ON the
 	// skill, and before the assignment rings and badges so those stay legible on top of it.
@@ -1120,6 +1131,14 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 			if (!slotted)
 				oracool::DrawColoredOutline(content, icon, EligibleForPointColor);
 		}
+		return;
+	}
+	if (bookRow) {
+		// The book's own level, in the same corner every other number lives in. Nothing when the
+		// spell is not learned - the grey plate already says that, and a "0" would read as a rank.
+		if (bookKnown)
+			oracool::DrawBadge(content, icon, oracool::BadgeCorner::BottomRight,
+			    StrCat(player.GetSpellLevel(rowSpell)));
 		return;
 	}
 	if (invested > 0)
@@ -1982,6 +2001,15 @@ void CheckSBook(bool assignToRightButton)
 		// already says it is not a control.
 		if (!data.implemented)
 			return;
+		// A BOOK row is listed for reference and binding, not for spending (user rule, 2026-08-20).
+		// Silence here would look like a dead cell, which is the complaint that put these rows back
+		// on the page in the first place.
+		if (oracool::IsClassTreeRowRetiredAsSpell(*hit)) {
+			EventPlrMsg(fmt::format(fmt::runtime(_("{:s} is raised by books, not by skill points.")),
+			                _(data.name)),
+			    UiFlags::ColorRed);
+			return;
+		}
 
 		const bool changed = assignToRightButton
 		    ? oracool::RefundClassTreePoint(*MyPlayer, *hit)

@@ -2110,17 +2110,18 @@ TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 		}
 	}
 	}
-	// Every row is on exactly one page, EXCEPT the ones retired as book spells (2026-08-20) - those
-	// are on none by design. Counting the retired rows here rather than hardcoding the remainder is
-	// what keeps this assertion meaningful: it still catches a row that fell off a page for any
-	// other reason.
+	// EVERY row is on exactly one page, with no exceptions any more. The book-spell rows used to be
+	// on none - filtered out of BuildClassTreePage by the 2026-08-20 "spells are raised by books"
+	// rule - which left the Sorceress's Lightning and Fire pages nearly empty. The user called that
+	// orphaned (2026-09-03) and asked for the legacy spells back on those screens; they are listed
+	// again and still take no points, so the rule is intact and the page is whole.
 	size_t retired = 0;
 	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
 		if (oracool::IsClassTreeRowRetiredAsSpell(static_cast<oracool::ClassTreeSkill>(i)))
 			retired++;
 	}
-	EXPECT_GT(retired, 0u) << "the book-spell retirement matched nothing - has the rule been lost?";
-	EXPECT_EQ(total + retired, oracool::ClassTreeSkillCount) << "a skill is on no page, or on two";
+	EXPECT_GT(retired, 0u) << "the book-spell rule matched nothing - has it been lost?";
+	EXPECT_EQ(total, oracool::ClassTreeSkillCount) << "a skill is on no page, or on two";
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -9544,4 +9545,79 @@ TEST(OracoolDifficultyGate, TheGateMeasuresTheLevelItWasHanded)
 
 	sgOptions.Oracool.difficultyLevelGate.SetValue(savedGate);
 	selhero_isMultiPlayer = savedMultiPlayer;
+}
+
+/**
+ * @brief User report, 2026-09-03: "the sorcerer - his lightning and fire spells abilities screen
+ * seem orphaned. can you duplicate coresponding legacy spells also throughout these screens?"
+ *
+ * They were orphaned literally: thirteen of the Sorceress's rows are book spells, and the
+ * 2026-08-20 "spells are raised by books, not points" rule filtered book rows out of the page
+ * entirely, leaving her Lightning and Fire pages with a handful of masteries and empty cells.
+ * They are listed again and still take no points.
+ */
+TEST(OracoolClassTree, TheSorceressBookRowsAreListedAndStillTakeNoPoints)
+{
+	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+
+	// Her Lightning page (1) and Fire page (2) carry a full arsenal again, not two masteries.
+	for (const int page : { 1, 2 }) {
+		const size_t count = oracool::BuildClassTreePage(HeroClass::Sorcerer, page, skills);
+		EXPECT_GE(count, 8u) << "the Sorceress's page " << page << " is still nearly empty";
+		bool sawBookRow = false;
+		for (size_t i = 0; i < count; i++) {
+			if (oracool::IsClassTreeRowRetiredAsSpell(skills[i]))
+				sawBookRow = true;
+		}
+		EXPECT_TRUE(sawBookRow) << "no book spell is listed on page " << page;
+	}
+
+	// Named rows, so a silent re-filtering of one page cannot pass on the other's count.
+	for (const oracool::ClassTreeSkill row : { oracool::ClassTreeSkill::FireBoltSkill,
+	         oracool::ClassTreeSkill::LightningSkill, oracool::ClassTreeSkill::NovaSkill }) {
+		const size_t page = static_cast<size_t>(oracool::GetClassTreeSkillData(row).page);
+		const size_t count = oracool::BuildClassTreePage(HeroClass::Sorcerer, static_cast<int>(page), skills);
+		bool listed = false;
+		for (size_t i = 0; i < count; i++) {
+			if (skills[i] == row)
+				listed = true;
+		}
+		EXPECT_TRUE(listed) << _(oracool::GetClassTreeSkillData(row).name) << " is not on its own page";
+	}
+
+	// The 2026-08-20 rule is intact: listed is not investable.
+	devilution::Player &sorceress = FreshHero(HeroClass::Sorcerer);
+	EXPECT_FALSE(oracool::CanInvestClassTreePoint(sorceress, oracool::ClassTreeSkill::FireBoltSkill))
+	    << "a book spell took a skill point";
+	EXPECT_FALSE(oracool::InvestClassTreePoint(sorceress, oracool::ClassTreeSkill::FireBoltSkill));
+	EXPECT_EQ(oracool::ClassTreeInvestment(sorceress, oracool::ClassTreeSkill::FireBoltSkill), 0);
+
+	// And a cold row, which is this fork's own spell, still does take one.
+	EXPECT_TRUE(oracool::InvestClassTreePoint(sorceress, oracool::ClassTreeSkill::IceBolt));
+}
+
+/**
+ * @brief User request, 2026-09-03: "please use legacy icons for legacy spells everywhere. use new
+ * icon assets only for spells we introduce into the game."
+ *
+ * The split is a single comparison against the first id this fork appended, so what this pins is
+ * that the comparison still names the right spells on both sides of it.
+ */
+TEST(OracoolSpellArt, LegacySpellsAreTheOnesTheOriginalGameShipped)
+{
+	for (const SpellID legacy : { SpellID::Firebolt, SpellID::Lightning, SpellID::Nova,
+	         SpellID::Fireball, SpellID::Teleport, SpellID::Guardian, SpellID::ManaShield,
+	         SpellID::ChargedBolt, SpellID::Telekinesis, SpellID::FlameWave, SpellID::Inferno,
+	         SpellID::FireWall, SpellID::Berserk, SpellID::Golem, SpellID::Search,
+	         SpellID::RuneOfStone })
+		EXPECT_TRUE(IsLegacySpell(legacy)) << "spell " << static_cast<int>(legacy) << " is not legacy";
+
+	// Everything this fork added, from the Paladin's Charge through the last round's corpse cries.
+	for (const SpellID added : { SpellID::Charge, SpellID::Zeal, SpellID::IceBolt, SpellID::FrozenOrb,
+	         SpellID::MagicArrow, SpellID::Bash, SpellID::RadiantPalm, SpellID::Howl,
+	         SpellID::Vengeance, SpellID::Jab, SpellID::Sacrifice, SpellID::GrimWard })
+		EXPECT_FALSE(IsLegacySpell(added)) << "spell " << static_cast<int>(added) << " is not ours";
+
+	EXPECT_FALSE(IsLegacySpell(SpellID::Null));
+	EXPECT_FALSE(IsLegacySpell(SpellID::Invalid));
 }

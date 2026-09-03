@@ -319,23 +319,23 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Frozen Orb"), N_("An orb that drifts toward its mark shedding ice bolts, then bursts into a ring of them."), Sor, 0, 5, 0, Kind::Active, SpellID::FrozenOrb, true },
 	{ N_("Cold Mastery"), N_("Every rank adds 6% to all cold damage. From rank 3 a resisting monster keeps only half its protection; from rank 6, none."), Sor, 0, 5, 2, Kind::Passive, SpellID::Invalid, true },
 	// --- Lightning Spells: most of this page is a wiring job - the engine already has the spells.
-	{ N_("Charged Bolt"), N_("Looses a spray of erratic bolts. Points raise this engine's Charged Bolt."), Sor, 1, 0, 0, Kind::Active, SpellID::ChargedBolt, true },
+	{ N_("Charged Bolt"), N_("Looses a spray of erratic bolts. This engine's Charged Bolt, raised by its books rather than by skill points."), Sor, 1, 0, 0, Kind::Active, SpellID::ChargedBolt, true },
 	{ N_("Static Field"), N_("Strips a share of the life from everything near. Inert: no analogue exists here."), Sor, 1, 1, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Telekinesis"), N_("Works objects and gathers items at a distance. Points raise this engine's Telekinesis."), Sor, 1, 1, 1, Kind::Active, SpellID::Telekinesis, true },
-	{ N_("Nova"), N_("A ring of lightning bursting outward. Points raise this engine's Nova."), Sor, 1, 2, 0, Kind::Active, SpellID::Nova, true },
-	{ N_("Lightning"), N_("A bolt that strikes in a line. Points raise this engine's Lightning."), Sor, 1, 2, 1, Kind::Active, SpellID::Lightning, true },
-	{ N_("Chain Lightning"), N_("A bolt that leaps between enemies. Points raise this engine's Chain Lightning."), Sor, 1, 3, 0, Kind::Active, SpellID::ChainLightning, true },
-	{ N_("Teleport"), N_("Step instantly to a place you can see. Points raise this engine's Teleport."), Sor, 1, 3, 1, Kind::Active, SpellID::Teleport, true },
+	{ N_("Telekinesis"), N_("Works objects and gathers items at a distance. This engine's Telekinesis, raised by its books rather than by skill points."), Sor, 1, 1, 1, Kind::Active, SpellID::Telekinesis, true },
+	{ N_("Nova"), N_("A ring of lightning bursting outward. This engine's Nova, raised by its books rather than by skill points."), Sor, 1, 2, 0, Kind::Active, SpellID::Nova, true },
+	{ N_("Lightning"), N_("A bolt that strikes in a line. This engine's Lightning, raised by its books rather than by skill points."), Sor, 1, 2, 1, Kind::Active, SpellID::Lightning, true },
+	{ N_("Chain Lightning"), N_("A bolt that leaps between enemies. This engine's Chain Lightning, raised by its books rather than by skill points."), Sor, 1, 3, 0, Kind::Active, SpellID::ChainLightning, true },
+	{ N_("Teleport"), N_("Step instantly to a place you can see. This engine's Teleport, raised by its books rather than by skill points."), Sor, 1, 3, 1, Kind::Active, SpellID::Teleport, true },
 	{ N_("Thunder Storm"), N_("A storm that strikes on its own as you fight. Inert: no analogue exists here."), Sor, 1, 4, 0, Kind::Active, SpellID::Invalid, false },
-	{ N_("Energy Shield"), N_("Mana takes the damage your life would. Points raise this engine's Mana Shield."), Sor, 1, 4, 1, Kind::Active, SpellID::ManaShield, true },
+	{ N_("Energy Shield"), N_("Mana takes the damage your life would. This engine's Mana Shield, raised by its books rather than by skill points."), Sor, 1, 4, 1, Kind::Active, SpellID::ManaShield, true },
 	{ N_("Lightning Mastery"), N_("Your blows carry lightning, and lightning troubles you less. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 1, 5, 2, Kind::Passive, SpellID::Invalid, true },
 	// --- Fire Spells ---
-	{ N_("Fire Bolt"), N_("A bolt of flame. Points raise this engine's Fire Bolt."), Sor, 2, 0, 0, Kind::Active, SpellID::Firebolt, true },
+	{ N_("Fire Bolt"), N_("A bolt of flame. This engine's Fire Bolt, raised by its books rather than by skill points."), Sor, 2, 0, 0, Kind::Active, SpellID::Firebolt, true },
 	{ N_("Warmth"), N_("Your mana returns of its own accord."), Sor, 2, 0, 1, Kind::Passive, SpellID::Invalid, true },
-	{ N_("Inferno"), N_("A gout of flame from your hands. Points raise this engine's Inferno."), Sor, 2, 1, 0, Kind::Active, SpellID::Inferno, true },
+	{ N_("Inferno"), N_("A gout of flame from your hands. This engine's Inferno, raised by its books rather than by skill points."), Sor, 2, 1, 0, Kind::Active, SpellID::Inferno, true },
 	{ N_("Blaze"), N_("Leaves fire in your wake. Mapped onto this engine's Flame Wave, the nearest rolling fire it has."), Sor, 2, 2, 0, Kind::Active, SpellID::FlameWave, true },
-	{ N_("Fire Ball"), N_("A bursting ball of flame. Points raise this engine's Fireball."), Sor, 2, 2, 1, Kind::Active, SpellID::Fireball, true },
-	{ N_("Fire Wall"), N_("A wall of flame across the ground. Points raise this engine's Fire Wall."), Sor, 2, 3, 0, Kind::Active, SpellID::FireWall, true },
+	{ N_("Fire Ball"), N_("A bursting ball of flame. This engine's Fireball, raised by its books rather than by skill points."), Sor, 2, 2, 1, Kind::Active, SpellID::Fireball, true },
+	{ N_("Fire Wall"), N_("A wall of flame across the ground. This engine's Fire Wall, raised by its books rather than by skill points."), Sor, 2, 3, 0, Kind::Active, SpellID::FireWall, true },
 	{ N_("Enchant"), N_("Your weapon burns: every blow carries fire. A passive rather than a cast buff, since a tree skill with no spell slot has no way to be cast."), Sor, 2, 3, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Meteor"), N_("Calls a burning rock down from the sky. Inert: no analogue exists here."), Sor, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
 	{ N_("Fire Mastery"), N_("Fire burns for you and less against you. Not D2's spell scaling: this engine deepens a spell by its LEVEL, and has no per-element channel to raise."), Sor, 2, 5, 2, Kind::Passive, SpellID::Invalid, true },
@@ -474,7 +474,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// --- Harmony ---
 	{ N_("Sound Shock"), N_("A burst of sound through the three tiles ahead, for four to ten and two to four more a rank, that staggers what it strikes."), Bard, 1, 0, 0, Kind::Active, SpellID::SoundShock, true },
 	{ N_("Shout"), N_("A shout that leaves everything within three tiles reeling for a second, a fifth more a rank. Uniques shrug it off."), Bard, 1, 0, 1, Kind::Active, SpellID::BardShout, true },
-	{ N_("Sonic Barrier"), N_("A barrier that drinks the damage meant for you. Points raise this engine's Mana Shield."),
+	{ N_("Sonic Barrier"), N_("A barrier that drinks the damage meant for you. This engine's Mana Shield, raised by its books rather than by skill points."),
 	    Bard, 1, 1, 0, Kind::Active, SpellID::ManaShield, true },
 	{ N_("Discord"), N_("A discord that strips a fifth of the armour from what hears it, two percent more a point."), Bard, 1, 1, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Resonance"), N_("Your blows amplify your next song. Inert: no such carry-over exists here."),
@@ -1652,15 +1652,18 @@ size_t BuildClassTreePage(HeroClass heroClass, int page, Skill *out)
 				const ClassTreeSkillData &data = Skills[index];
 				if (data.heroClass != heroClass)
 					break;
-				// A row whose slot is a BOOK spell is not a tree skill any more (user rule,
-				// 2026-08-20: "Spells cant be affected by skill points, only by books"). It is
-				// filtered out here rather than deleted from the table, because
-				// ClassTreeIconIndex is simultaneously the icon-strip position AND the
-				// _pClassTreeInvestment index - deleting rows would drift the art and misalign
-				// every existing save. The grid is addressed by page/tier/column, so a filtered
-				// row simply leaves its cell empty and shifts nothing.
-				if (IsClassTreeRowRetiredAsSpell(static_cast<Skill>(index)))
-					continue;
+				// A row whose slot is a BOOK spell takes no points (user rule, 2026-08-20:
+				// "Spells cant be affected by skill points, only by books"), and it used to be
+				// filtered out here entirely - which left the Sorceress's Lightning and Fire
+				// pages nearly empty, since thirteen of her rows are book spells. The user's
+				// word for the result was "orphaned" (2026-09-03), and the ask was to
+				// "duplicate coresponding legacy spells also throughout these screens".
+				//
+				// So they are LISTED again, and still take no points: the page shows the whole
+				// arsenal, says which of it you have learned and at what level, and lets you
+				// bind it to a button, while the book stays the only thing that raises it. See
+				// DrawTreeCell for the state those cells draw and the click handler for what a
+				// click on one says.
 				if (data.page == page && data.tier == tier && data.column == column)
 					out[count++] = static_cast<Skill>(index);
 			}
@@ -1729,6 +1732,17 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill)
 			out += "\n" + std::string(_("Inactive - not in a slot"));
 		if (!data.implemented)
 			out += "\n" + std::string(_("No effect yet"));
+		return out;
+	}
+	// A BOOK row reports the book's level, not a point count. "Points: 0 of 20" on Fire Bolt would
+	// invite a click that is always refused and describe a store this row does not use.
+	if (IsClassTreeRowRetiredAsSpell(skill)) {
+		const SpellID spell = ClassTreeSpellId(skill);
+		const int level = player.GetSpellLevel(spell);
+		std::string out = level > 0
+		    ? fmt::format(fmt::runtime(_("Spell level {:d}")), level)
+		    : std::string(_("Not learned"));
+		out += "\n" + std::string(_("Raised by books, not by skill points"));
 		return out;
 	}
 	const int p = ClassTreeInvestment(player, skill);

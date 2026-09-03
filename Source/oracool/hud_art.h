@@ -206,6 +206,14 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell,
  * so the speedbook drew seven blank plates (user bug report, 2026-08-15) - this draws the large
  * plate in the Skills-sheet pink and centres the 38px strip icon on it.
  */
+/**
+ * @brief A legacy spell's OWN icon, fitted to @p cell through @p tint's ramp.
+ *
+ * The Abilities page's twin of the legacy branch in TryDrawSkillSpellIcon, so the tree cell and the
+ * well a skill is dragged into cannot disagree about a spell's picture (user, 2026-09-03).
+ */
+void DrawLegacySpellIconInCell(const Surface &out, Rectangle cell, SpellID spell, SkillPlateTint tint);
+
 bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell,
     SkillPlateTint tint = SkillPlateTint::Green);
 

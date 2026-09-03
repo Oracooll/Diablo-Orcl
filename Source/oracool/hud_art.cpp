@@ -1611,6 +1611,17 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 	const ClassTreeSkill treeSkill = ClassTreeSkillForSpell(InspectPlayer->_pClass, spell);
 	if (treeSkill != ClassTreeSkill::None) {
 		ApplyPlateTint(tint);
+		// ...unless the spell is a LEGACY one that merely also has a tree row - Fire Bolt, Lightning,
+		// Nova, Teleport and the rest of the Sorceress's two pages (user, 2026-09-03: "please use
+		// legacy icons for legacy spells everywhere. use new icon assets only for spells we introduce
+		// into the game"). Those wore the tree strip's picture here and the engine's own in the
+		// speedbook, which is the same spell with two faces. The strip is for what this fork added.
+		//
+		// Still through the tint's ramp, so a readied legacy spell keeps the well's state colour.
+		if (IsLegacySpell(spell)) {
+			DrawSmallSpellIconFittedTo(out, well, spell);
+			return true;
+		}
 		DrawSmallSpellIconFittedTo(out, well);
 		DrawClassTreeIconScaledTo(out, well, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill));
 		return true;
@@ -1631,6 +1642,12 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 	return true;
 }
 
+void DrawLegacySpellIconInCell(const Surface &out, Rectangle cell, SpellID spell, SkillPlateTint tint)
+{
+	ApplyPlateTint(tint);
+	DrawSmallSpellIconFittedTo(out, cell, spell);
+}
+
 bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell, SkillPlateTint tint)
 {
 	// Tree icon first, exactly as the small well does - the two must not disagree about what a
@@ -1638,6 +1655,11 @@ bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID sp
 	const ClassTreeSkill treeSkill = ClassTreeSkillForSpell(InspectPlayer->_pClass, spell);
 	const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell);
 	if (treeSkill == ClassTreeSkill::None && !skill.has_value())
+		return false;
+	// A legacy spell with a tree row keeps the engine's own large frame - see the small well for the
+	// request. Returning false hands it back to the caller's ordinary DrawLargeSpellIcon path, which
+	// is exactly the drawing that was wanted, with the caller's own ramp.
+	if (IsLegacySpell(spell))
 		return false;
 
 	// The large empty plate through the tint's ramp - the same square the speedbook draws for every
