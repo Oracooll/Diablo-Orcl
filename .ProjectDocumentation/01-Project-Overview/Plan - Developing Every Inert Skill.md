@@ -222,10 +222,24 @@ the engine's Berserk flags for twenty seconds, two more a rank, and gives them b
 runs out — the clock being what the first attempt lacked. **Held back:** Cleansing (nothing on a
 player here has a duration to shorten) and Redemption (corpses); both rows still say why.
 
-### Round 9 — the one-offs
+### Round 9 — the one-offs ✔ DONE (v1.9.191)
 
 Decoy, Grim Ward, Find Item, Find Potion, Inner Sight, Slow Missiles, Taunt. Each is its own
 mechanism serving one row, which is the definition of last.
+
+**Shipped:** the corpse pass, four rows, in `oracool/warcries.cpp`. Inner Sight, Slow Missiles and
+Taunt had already gone live in Round 6. A corpse is what the engine already keeps — `dCorpse` on
+the tile map — and consuming one is clearing that cell. Find Potion and Find Item search the
+nearest corpse within two tiles of the cursor and use it up: a potion half the time (a twentieth
+more a rank, rarely a full one), an item a quarter of the time (a twentieth more a rank), through
+`CreateTypeItem` and `CreateRndItem`. Grim Ward raises the corpse as a totem: one per player, its
+reach the rank's earshot, twenty seconds and two more a rank, repelling everything but the uniques
+that comes near on Sanctuary's retreat channel each tick. Redemption is the held form: once a
+second the nearest corpse in the aura is consumed for a fiftieth of life and mana, a hundredth
+more a point. **Held back, and now for good:** Decoy (an entity — a second player-shaped thing
+that monsters target — which nothing in this fork has), and Ode to Glory (raises an ally; V1 is
+single-player and there is no ally to raise). Cleansing stays with them. The plan is closed:
+181 rows, 114 inert at the start, 8 left with a stated reason each.
 
 ## 4. What every round owes
 

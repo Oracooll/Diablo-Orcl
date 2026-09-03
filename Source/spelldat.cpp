@@ -178,6 +178,10 @@ const SpellData SpellsData[] = {
 /*SpellID::Sacrifice*/        { P_("spell", "Sacrifice"),           IS_CAST2,           0,            0,          4, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                MissileID::Null,    },         0,         2,          0,          0 },
 /*SpellID::HolyBoltSkill*/    { P_("spell", "Holy Bolt"),           IS_CAST2,           0,            0,          5, Magic | Targeted,             -1,         -1,       0, { MissileID::HolyBolt,            MissileID::Null,    },         0,         2,          0,          0 },
 /*SpellID::Conversion*/       { P_("spell", "Conversion"),          IS_CAST2,           0,            0,          8, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,              MissileID::Null,    },         0,         2,          0,          0 },
+	// Oracool, Round 9: the corpse cries.
+/*SpellID::FindPotion*/       { P_("spell", "Find Potion"),         IS_CAST2,           0,            0,          2, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,              MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::FindItem*/         { P_("spell", "Find Item"),           IS_CAST2,           0,            0,          3, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,              MissileID::Null,    },         0,         2,          0,          0 },
+/*SpellID::GrimWard*/         { P_("spell", "Grim Ward"),           IS_CAST2,           0,            0,          5, Magic | Targeted,             -1,         -1,       0, { MissileID::Warcry,              MissileID::Null,    },         0,         2,          0,          0 },
 	// clang-format on
 };
 

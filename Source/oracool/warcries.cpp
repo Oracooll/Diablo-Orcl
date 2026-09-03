@@ -3,11 +3,13 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <optional>
 
 #include "engine/backbuffer_state.hpp"
 #include "engine/points_in_rectangle_range.hpp"
 #include "engine/random.hpp"
 #include "levels/gendung.h"
+#include "dead.h"
 #include "items.h"
 #include "missiles.h"
 #include "monster.h"
@@ -184,6 +186,43 @@ int Roll(int min, int max)
 	return (min + GenerateRnd(std::max(max - min, 0) + 1)) << 6;
 }
 
+// ---- corpses (Round 9) ------------------------------------------------------------------------
+
+/** @brief The nearest corpse within @p radius of @p centre, if any. */
+std::optional<Point> CorpseNear(Point centre, int radius)
+{
+	std::optional<Point> best;
+	int bestDistance = radius + 1;
+	for (int y = centre.y - radius; y <= centre.y + radius; y++) {
+		for (int x = centre.x - radius; x <= centre.x + radius; x++) {
+			const Point tile { x, y };
+			if (!InDungeonBounds(tile) || dCorpse[x][y] == 0)
+				continue;
+			const int distance = centre.WalkingDistance(tile);
+			if (distance < bestDistance) {
+				bestDistance = distance;
+				best = tile;
+			}
+		}
+	}
+	return best;
+}
+
+/** @brief The corpse at @p tile is used up: it leaves the map, and nothing can find it again. */
+void ConsumeCorpse(Point tile)
+{
+	dCorpse[tile.x][tile.y] = 0;
+}
+
+/** @brief Grim Ward: one totem per player - where it stands, how far it reaches, how long it lasts. */
+struct Ward {
+	Point position;
+	int radius = 0;
+	int ticksLeft = 0;
+};
+
+std::array<Ward, MAX_PLRS> Wards;
+
 } // namespace
 
 bool IsWarcry(SpellID spell)
@@ -230,6 +269,12 @@ Skill WarcrySkill(SpellID spell)
 		return Skill::Vengeance;
 	case SpellID::Conversion:
 		return Skill::Conversion;
+	case SpellID::FindPotion:
+		return Skill::FindPotion;
+	case SpellID::FindItem:
+		return Skill::FindItem;
+	case SpellID::GrimWard:
+		return Skill::GrimWard;
 	default:
 		return Skill::None;
 	}
@@ -331,6 +376,41 @@ bool CastWarcry(Player &player, SpellID spell, Point target)
 	// --- the Paladin's ---
 	case SpellID::Vengeance:
 		return StartBuff(player, spell, rank, (30 + 5 * (rank - 1)) * seconds);
+	// --- the corpse cries (Round 9) ---
+	case SpellID::FindPotion: {
+		// A corpse near the cursor is searched and used up. A potion, more often with rank; a full
+		// one rarely. Nothing found is still a search - the corpse is gone either way.
+		const std::optional<Point> corpse = CorpseNear(target, 2);
+		if (!corpse)
+			return false;
+		ConsumeCorpse(*corpse);
+		if (GenerateRnd(100) < std::min(50 + 5 * (rank - 1), 90)) {
+			const bool full = GenerateRnd(100) < 5 + 2 * (rank - 1);
+			const bool mana = FlipCoin();
+			const int kind = full ? (mana ? IMISC_FULLMANA : IMISC_FULLHEAL) : (mana ? IMISC_MANA : IMISC_HEAL);
+			CreateTypeItem(*corpse, false, ItemType::Misc, kind, true, false);
+		}
+		return true;
+	}
+	case SpellID::FindItem: {
+		const std::optional<Point> corpse = CorpseNear(target, 2);
+		if (!corpse)
+			return false;
+		ConsumeCorpse(*corpse);
+		if (GenerateRnd(100) < std::min(25 + 5 * (rank - 1), 60))
+			CreateRndItem(*corpse, false, true, false);
+		return true;
+	}
+	case SpellID::GrimWard: {
+		// The corpse becomes a totem of terror: for a while, everything but the uniques that comes
+		// within its reach turns and runs. One ward at a time; a second replaces the first.
+		const std::optional<Point> corpse = CorpseNear(target, 2);
+		if (!corpse)
+			return false;
+		ConsumeCorpse(*corpse);
+		Wards[player.getId()] = { *corpse, earshot, (20 + 2 * (rank - 1)) * seconds };
+		return true;
+	}
 	case SpellID::Conversion: {
 		// One enemy near the cursor turns to the Paladin's side for a while - the same flags the
 		// engine's Berserk sets, and the same exemptions, but with a clock, which is what the first
@@ -465,6 +545,12 @@ void ProcessWarcriesTick(Player &player)
 			Monsters[i].flags &= ~(MFLAG_BERSERK | MFLAG_GOLEM);
 	}
 
+	// Grim Ward: the totem repels while it stands.
+	if (Ward &ward = Wards[player.getId()]; ward.ticksLeft > 0) {
+		ward.ticksLeft--;
+		ForEachInEarshot(ward.position, ward.radius, [&](Monster &m) { Repel(m, ward.position, 4); });
+	}
+
 	// Tranquility: the ground around the Monk is a sanctuary - what stands beside him is slowed,
 	// and every second a fiftieth of his life returns.
 	if (const Buff *tranquility = FindBuff(player, SpellID::Tranquility); tranquility != nullptr) {
@@ -491,6 +577,26 @@ void ProcessWarcriesTick(Player &player)
 		ForEachInEarshot(player.position.tile, radius, [&](Monster &m) { ChillMonster(m, 3); });
 	} else if (aura == Skill::DirgeOfDread) {
 		ForEachInEarshot(player.position.tile, radius, [&](Monster &m) { Repel(m, player.position.tile, 4); });
+	} else if (aura == Skill::Redemption) {
+		// Once a second, the nearest corpse in the field is consumed for life and mana: a fiftieth
+		// of each, and a hundredth more a point.
+		static int redemptionClock = 0;
+		if (++redemptionClock % TicksPerSecond == 0) {
+			if (const std::optional<Point> corpse = CorpseNear(player.position.tile, radius); corpse) {
+				ConsumeCorpse(*corpse);
+				const int share = 2 + points;
+				const int heal = player._pMaxHP * share / 100;
+				const int gain = player._pMaxMana * share / 100;
+				player._pHitPoints = std::min(player._pHitPoints + heal, player._pMaxHP);
+				player._pHPBase = std::min(player._pHPBase + heal, player._pMaxHPBase);
+				if (HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+					player._pMana = std::min(player._pMana + gain, player._pMaxMana);
+					player._pManaBase = std::min(player._pManaBase + gain, player._pMaxManaBase);
+				}
+				RedrawComponent(PanelDrawComponent::Health);
+				RedrawComponent(PanelDrawComponent::Mana);
+			}
+		}
 	}
 }
 
@@ -499,6 +605,7 @@ void ClearWarcries()
 	for (auto &perPlayer : Buffs)
 		perPlayer.fill(Buff {});
 	Debuffs.fill(Debuff {});
+	Wards.fill(Ward {});
 }
 
 const char *WarcryDescription(SpellID spell)
@@ -540,6 +647,12 @@ const char *WarcryDescription(SpellID spell)
 		return N_("Your blows burn and crackle for thirty seconds, five more a rank: fire and lightning on every hit, more with rank. Cold has no place on the weapon sheet, so it is not added.");
 	case SpellID::Conversion:
 		return N_("Turns one enemy near the cursor to your side for twenty seconds, two more a rank. Uniques and the magic-immune refuse.");
+	case SpellID::FindPotion:
+		return N_("Search a corpse near the cursor. Half the time, a twentieth more a rank, it yields a potion - rarely a full one. The corpse is used up.");
+	case SpellID::FindItem:
+		return N_("Search a corpse near the cursor. A quarter of the time, a twentieth more a rank, it yields an item. The corpse is used up.");
+	case SpellID::GrimWard:
+		return N_("Raise a corpse near the cursor as a totem of terror: for twenty seconds, two more a rank, everything but the uniques that comes near it runs.");
 	default:
 		return "";
 	}

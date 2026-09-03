@@ -169,8 +169,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Vigor"), N_("Quickens your stride: you run instead of walking, wherever you are."),
 	    Pal, 2, 3, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Meditation"), N_("Restores your mana steadily as you walk."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Redemption"), N_("Consumes the fallen for life and mana. Inert: it needs the corpse-handling pass."),
-	    Pal, 2, 5, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Redemption"), N_("Once a second the nearest corpse in the field is consumed for a fiftieth of your life and mana, a hundredth more a point."),
+	    Pal, 2, 5, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Salvation"), N_("Wards you against fire, lightning and magic alike."),
 	    Pal, 2, 5, 2, Kind::Aura, SpellID::Invalid, true },
 	// --- Combat Skills, appended out of page order (2026-08-16) ---
@@ -254,13 +254,13 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Natural Resistance"), N_("Hardens you against fire, lightning and magic alike."), Bar, 1, 5, 0, Kind::Passive, SpellID::Invalid, true },
 	// --- Warcries ---
 	{ N_("Howl"), N_("A howl that sends everything in earshot running, four tiles and a tile more a rank. Uniques hold their ground."), Bar, 2, 0, 0, Kind::Active, SpellID::Howl, true },
-	{ N_("Find Potion"), N_("Searches a corpse for a potion. Inert: it needs the corpse-handling pass."), Bar, 2, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Find Potion"), N_("Search a corpse near the cursor. Half the time, a twentieth more a rank, it yields a potion - rarely a full one. The corpse is used up."), Bar, 2, 0, 1, Kind::Active, SpellID::FindPotion, true },
 	{ N_("Taunt"), N_("A goad that wakes everything in earshot and turns it on you."), Bar, 2, 1, 0, Kind::Active, SpellID::Taunt, true },
 	{ N_("Shout"), N_("A bellow that hardens you: half again your armour, a tenth more a rank, for forty seconds and five more a rank."), Bar, 2, 1, 1, Kind::Active, SpellID::Shout, true },
-	{ N_("Find Item"), N_("Searches a corpse for loot. Inert: it needs the corpse-handling pass."), Bar, 2, 2, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Find Item"), N_("Search a corpse near the cursor. A quarter of the time, a twentieth more a rank, it yields an item. The corpse is used up."), Bar, 2, 2, 0, Kind::Active, SpellID::FindItem, true },
 	{ N_("Battle Cry"), N_("A cry that leaves what hears it a quarter weaker in blow and in armour for twenty-four seconds."), Bar, 2, 3, 0, Kind::Active, SpellID::BattleCry, true },
 	{ N_("Battle Orders"), N_("A shout that swells your life and mana by twenty, ten more a rank, for forty seconds and five more a rank."), Bar, 2, 4, 0, Kind::Active, SpellID::BattleOrders, true },
-	{ N_("Grim Ward"), N_("Raises a corpse as a totem of terror. Inert: it needs the corpse-handling pass."), Bar, 2, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Grim Ward"), N_("Raise a corpse near the cursor as a totem of terror: for twenty seconds, two more a rank, everything but the uniques that comes near it runs."), Bar, 2, 4, 1, Kind::Active, SpellID::GrimWard, true },
 	{ N_("War Cry"), N_("A shout that strikes everything in earshot for four to eight a rank and leaves it reeling for two seconds. Uniques shrug off the reeling."), Bar, 2, 5, 0, Kind::Active, SpellID::WarCry, true },
 	{ N_("Battle Command"), N_("A command that deepens every skill you have by a rank for thirty seconds, five more a rank."), Bar, 2, 5, 1, Kind::Active, SpellID::BattleCommand, true },
 
