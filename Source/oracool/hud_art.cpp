@@ -4,7 +4,9 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include <SDL.h>
@@ -652,10 +654,14 @@ bool NeedsQuantize()
 	return false;
 }
 
+/** @brief Bumped every time EnsureQuantized actually requantises - the loose-PNG cache keys off it. */
+uint32_t QuantizeGeneration = 0;
+
 void EnsureQuantized()
 {
 	if (!NeedsQuantize())
 		return;
+	QuantizeGeneration++;
 
 	// Oracool: user request - "now that our UI theme is predominantly goldish I say we apply
 	// goldish tint on the main HUD", then the burger menu with it. Half strength, not full: these
@@ -925,6 +931,59 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 
 	out.BlitFromSkipColorIndexZero(*SidePanelArt.bright,
 	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
+}
+
+namespace {
+
+/** A ui\ PNG looked up by path rather than declared above - see DrawLoosePng in the header. */
+struct LoosePng {
+	ArtAsset asset;
+	uint32_t generation = 0;
+};
+
+std::map<std::string, LoosePng> LoosePngs;
+
+LoosePng &LoosePngFor(const char *assetPath)
+{
+	auto it = LoosePngs.find(assetPath);
+	if (it == LoosePngs.end()) {
+		it = LoosePngs.emplace(std::string(assetPath), LoosePng {}).first;
+		// The asset keeps a pointer to its path; the map node's key is the one string that lives
+		// exactly as long as the entry does.
+		it->second.asset.assetPath = it->first.c_str();
+	}
+	LoosePng &entry = it->second;
+	if (!entry.asset.loadAttempted)
+		LoadPixels(entry.asset);
+	// The declared set first, so the palette snapshot and the generation are current, then this
+	// one against the generation - the same "requantise when the palette moved" rule, kept in one
+	// counter rather than one more `if` in NeedsQuantize per file.
+	EnsureLoadedAll();
+	EnsureQuantized();
+	if (!entry.asset.rgba.empty() && (!entry.asset.bright || entry.generation != QuantizeGeneration)) {
+		QuantizeAsset(entry.asset, std::nullopt);
+		entry.generation = QuantizeGeneration;
+	}
+	return entry;
+}
+
+} // namespace
+
+Size GetLoosePngSize(const char *assetPath)
+{
+	const LoosePng &entry = LoosePngFor(assetPath);
+	if (entry.asset.rgba.empty())
+		return { 0, 0 };
+	return { entry.asset.width, entry.asset.height };
+}
+
+void DrawLoosePng(const Surface &out, const char *assetPath, Point origin)
+{
+	const LoosePng &entry = LoosePngFor(assetPath);
+	if (entry.asset.rgba.empty() || !entry.asset.bright)
+		return;
+	out.BlitFromSkipColorIndexZero(*entry.asset.bright,
+	    MakeSdlRect(0, 0, entry.asset.width, entry.asset.height), origin);
 }
 
 // DrawSidePanelBackdrop is gone (user, 2026-09-02: "remove the dark transparent rectangle from all

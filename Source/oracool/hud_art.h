@@ -78,6 +78,20 @@ bool HasInventoryPanelArt();
  *
  * Nothing is drawn if the art is missing; every caller keeps a procedural fill as its fallback.
  */
+/**
+ * @brief Draws a whole ui\ PNG at @p origin, 1:1, through the same load-quantise-blit path every
+ * other asset here takes - but looked up by PATH, from a cache, rather than declared in this file.
+ *
+ * For art that arrives as a SET of loose files a window owns - Levski's Roar's painted skin is a
+ * background and twenty button states (2026-09-04) - and that would otherwise mean twenty-one
+ * ArtAsset globals threaded through EnsureLoadedAll and NeedsQuantize by hand. A missing file
+ * draws nothing and warns once, like every other asset.
+ */
+void DrawLoosePng(const Surface &out, const char *assetPath, Point origin);
+
+/** @brief The size of a loose PNG, or 0x0 if it is missing. Loads it if it has not been. */
+Size GetLoosePngSize(const char *assetPath);
+
 void DrawSidePanelArt(const Surface &out, Point origin);
 
 // DrawSidePanelBackdrop was declared here and is gone (user, 2026-09-02: "remove the dark

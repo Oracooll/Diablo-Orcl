@@ -10,21 +10,25 @@
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
 #include "cursor.h"
+#include "engine/trn.hpp" // GetInfravisionTRN - the unusable-item grey, at 3x
 #include "engine/render/clx_render.hpp"
+#include "engine/surface.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "inv.h"
 #include "items.h"
 #include "objects.h"
 
+#include "oracool/badge.h"
 #include "oracool/crafting.h"
 #include "oracool/event_log.h"
+#include "oracool/hud_art.h" // DrawLoosePng, DrawRedCross - the painted skin and its states
+#include "oracool/levski_roar_skin.h"
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
 #include "oracool/window_close.h"
 #include "player.h"
-#include "quests.h" // pQLogCel - the quest-log frame this window borrows
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -90,7 +94,13 @@ int8_t GridCells[LevskiGridSlots];
 // The cell is the INVENTORY's cell, exactly - not a size of this window's choosing. Item sprites
 // are cut to a whole number of 28px cells, so any other size would either crop them or leave them
 // swimming, and the drag the player already knows from the stash would stop lining up.
-constexpr int CellSize = InventorySlotSizeInPixels.width;
+// THE PAINTED SKIN's cell, not the inventory's (user, 2026-09-04: "Place it as Levski's Interface").
+// The painting's grid cells are ~185px, three of the game's 28px cells, so the window is drawn at the
+// scale that makes them exactly 84 and items are drawn at ItemScale - see levski_roar_skin.h. The
+// footprint rules are untouched: a 2x3 armour still covers 2x3 cells, they are just bigger cells.
+constexpr int CellSize = levski_skin::CellSize;
+constexpr int ItemScale = CellSize / InventorySlotSizeInPixels.width;
+static_assert(ItemScale * InventorySlotSizeInPixels.width == CellSize, "the skin's cell is not a whole multiple of the item cell");
 constexpr int SlotGap = 6;
 constexpr int Padding = 14;
 constexpr int HeaderHeight = 30;
@@ -117,44 +127,27 @@ constexpr int SalvageButtonGap = 4;
 constexpr int SalvageColumnGap = 10;
 
 /**
- * @brief The window IS the original game's quest-log frame (user, 2026-09-04: "take quest_frame00.png
- * and use it as Levskis Roar UI background").
+ * @brief The window is the painted skin, at the size the cutter chose - see levski_roar_skin.h,
+ * which tools/CutLevskiRoarSkin.ps1 generates from the same pass that writes the art.
  *
- * Not a new asset: data\quest is already loaded for the quest log (pQLogCel, control.cpp) and has
- * been idle since that window moved onto the limestone panel. So the frame comes from the player's
- * own game data at runtime, which is also the only way it can - quest_frame00.png in the art
- * folder is an extraction from DIABDAT.MPQ and must never be shipped.
- *
- * Measured off that extraction: 320x352, with the black interior running x 22..297 and y 25..326.
- * The bevel around it is ~22px, so the window is a fixed size now and the content is laid out
- * INSIDE the interior rather than the window being sized from the content.
+ * Nothing here is measured by hand any more. The quest-log frame this window wore for a day
+ * (v1.9.201) and the sized-from-content window before it are both gone: the painting carries the
+ * frame, the title, the grid well and every button plate with its label, so the code draws STATE
+ * on top of it and nothing else.
  */
-constexpr Size FrameSize { 320, 352 };
-constexpr Point FrameInset { 22, 25 };
-constexpr Size FrameInterior { 276, 302 };
+constexpr Size FrameSize = levski_skin::WindowSize;
+constexpr const char *LevskiBackgroundAsset = "ui\\levski_bg.png";
 
-/** The left column: the grid, centred, with the two buttons under it. Whatever the salvage column
- * leaves of the interior. */
-constexpr int ContentWidth = FrameInterior.width - SalvageColumnGap - SalvageColumnWidth;
-static_assert(ContentWidth >= GridWidth, "the salvage column has squeezed the grid out of the frame");
-
-/** Tall enough for whichever side is taller: the grid and its two buttons, or the seven. */
-constexpr int GridSideHeight = HeaderHeight + GridHeight + SlotGap + ButtonHeight * 2 + SlotGap;
-constexpr int SalvageSideHeight = HeaderHeight + SalvageTierCount * SalvageButtonHeight
-    + (SalvageTierCount - 1) * SalvageButtonGap;
-static_assert(GridSideHeight <= FrameInterior.height && SalvageSideHeight <= FrameInterior.height,
-    "the content no longer fits inside the quest frame's interior");
-
-/** @brief Where the content starts: the frame's interior corner. Every rect in the window hangs off this. */
-Point ContentOrigin(const Rectangle &window)
+/** @brief One of the ten painted plates, in window space. */
+Rectangle ButtonRect(const Rectangle &window, int index)
 {
-	return window.position + Displacement { FrameInset.x, FrameInset.y };
+	const Rectangle &r = levski_skin::ButtonRects[index];
+	return Rectangle { window.position + Displacement { r.position.x, r.position.y }, r.size };
 }
 
-/** @brief The interior the frame surrounds - what the close button and the fill are measured against. */
-Rectangle FrameInteriorRect(const Rectangle &window)
+Rectangle CloseButtonRect(const Rectangle &window)
 {
-	return Rectangle { ContentOrigin(window), FrameInterior };
+	return ButtonRect(window, levski_skin::Close);
 }
 
 /**  How wide the book may be: all the room left of the window, capped, never overlapping it.
@@ -284,7 +277,7 @@ int RecipeBookMaxScroll(const Rectangle &page)
 Point GridOrigin(const Rectangle &window)
 {
 	// Centred: the grid is narrower than the window's own buttons.
-	return ContentOrigin(window) + Displacement { (ContentWidth - GridWidth) / 2, HeaderHeight };
+	return window.position + Displacement { levski_skin::GridOrigin.x, levski_skin::GridOrigin.y };
 }
 
 Rectangle CellRect(const Rectangle &window, int cell)
@@ -422,24 +415,18 @@ bool RebuildGridOccupancy()
 
 Rectangle TransmuteButtonRect(const Rectangle &window)
 {
-	const Point origin = ContentOrigin(window);
-	return Rectangle { { origin.x, origin.y + HeaderHeight + GridHeight + SlotGap }, { ContentWidth, ButtonHeight } };
+	return ButtonRect(window, levski_skin::Transmute);
 }
 
 Rectangle RecipeButtonRect(const Rectangle &window)
 {
-	const Rectangle transmute = TransmuteButtonRect(window);
-	return Rectangle { { transmute.position.x, transmute.position.y + ButtonHeight + SlotGap },
-		{ ContentWidth, ButtonHeight } };
+	return ButtonRect(window, levski_skin::Recipes);
 }
 
 /** @brief Salvage button @p index, counting down the column from the top. */
 Rectangle SalvageButtonRect(const Rectangle &window, int index)
 {
-	const int x = ContentOrigin(window).x + ContentWidth + SalvageColumnGap;
-	const int y = ContentOrigin(window).y + HeaderHeight
-	    + index * (SalvageButtonHeight + SalvageButtonGap);
-	return Rectangle { { x, y }, { SalvageColumnWidth, SalvageButtonHeight } };
+	return ButtonRect(window, levski_skin::SalvageFirst + index);
 }
 
 /**
@@ -664,121 +651,131 @@ Rectangle GetLevskiRecipeBookRect()
 	return Rectangle { { x, y }, { bookWidth, height } };
 }
 
+namespace {
+
+/** @brief The press-flash slot a painted button maps to, or -1 for the close button, which has none. */
+int FlashIndexForButton(int button)
+{
+	if (button == levski_skin::Transmute)
+		return ButtonFlashTransmute;
+	if (button == levski_skin::Recipes)
+		return ButtonFlashRecipes;
+	if (button >= levski_skin::SalvageFirst)
+		return button - levski_skin::SalvageFirst;
+	return -1;
+}
+
+/**
+ * @brief Nearest-neighbour blit of @p sprite at @p scale, top-left at @p topLeft, through @p trn if given.
+ *
+ * Through a scratch surface rather than a scaled CLX: the grid holds at most twelve items and is a
+ * window, so the per-frame cost is nothing, and a scaled list per cursor id would be a cache to
+ * invalidate. Index 0 is treated as transparent - the item art's baked shadows drop at 3x, which is
+ * a smaller wrong than a black halo three pixels wide.
+ */
+void DrawSpriteScaled(const Surface &out, Point topLeft, ClxSprite sprite, int scale, const uint8_t *trn)
+{
+	const int w = static_cast<int>(sprite.width());
+	const int h = static_cast<int>(sprite.height());
+	if (w <= 0 || h <= 0)
+		return;
+	OwnedSurface scratch(w, h);
+	SDL_FillRect(scratch.surface, nullptr, 0);
+	ClxDraw(scratch, { 0, h - 1 }, sprite);
+	for (int y = 0; y < h; y++) {
+		for (int x = 0; x < w; x++) {
+			uint8_t index = *scratch.at(x, y);
+			if (index == 0)
+				continue;
+			if (trn != nullptr)
+				index = trn[index];
+			for (int yy = 0; yy < scale; yy++) {
+				const int dy = topLeft.y + y * scale + yy;
+				if (dy < 0 || dy >= out.h())
+					continue;
+				for (int xx = 0; xx < scale; xx++) {
+					const int dx = topLeft.x + x * scale + xx;
+					if (dx < 0 || dx >= out.w())
+						continue;
+					*out.at(dx, dy) = index;
+				}
+			}
+		}
+	}
+}
+
+} // namespace
+
 void DrawLevskiRoar(const Surface &out)
 {
 	if (!WindowOpen)
 		return;
 
 	const Rectangle window = GetLevskiRoarRect();
-	const Rectangle interior = FrameInteriorRect(window);
-	// The original quest-log frame, drawn from the game's own data - see FrameSize. The interior is
-	// filled first, so if the CEL's black is ever transparent the world does not show through the
-	// cube; if it is opaque, as the extraction says, the fill is simply painted over.
-	FillRect(out, interior.position.x, interior.position.y, interior.size.width, interior.size.height, PanelFillColor);
-	if (pQLogCel) {
-		ClxDraw(out, { window.position.x, window.position.y + FrameSize.height - 1 }, (*pQLogCel)[0]);
-	} else {
-		DrawOrnateBorder(out, window); // headless, or the CEL failed to load: the old chrome, so the window still reads
-	}
-	DrawWindowCloseButton(out, interior);
-
-	// The largest size the whole name fits in, rather than a fixed one (user, 2026-08-19: "Reduce
-	// the font of the title to fit the name"). At FontSize24 "Levski's Roar" overran a window sized
-	// to three 28px cells and rendered as "LEVSKI'S" - the clip was silent, which is how it shipped.
-	//
-	// Measured rather than chosen, so it stays right if either the name or the window changes: a
-	// longer name drops a size on its own, and a wider window lets the name grow back.
-	const string_view title = _("Levski's Roar");
-	const UiFlags titleSize = GetLineWidth(title, GameFont24) <= ContentWidth
-	    ? UiFlags::FontSize24
-	    : UiFlags::FontSize12;
-	DrawString(out, title,
-	    Rectangle { ContentOrigin(window), { ContentWidth, HeaderHeight } },
-	    { UiFlags::ColorGold | titleSize | UiFlags::VerticalCenter });
-
-	// The empty grid first, as one recessed well with cell lines drawn on it - the cells are 28px
-	// now, and twelve individually bordered 28px boxes read as noise rather than as a container.
-	const Point gridOrigin = GridOrigin(window);
-	DrawPanelGround(out, Rectangle { gridOrigin, { GridWidth, GridHeight } }, SlotFillColor);
-	for (int column = 1; column < LevskiGridColumns; column++)
-		DrawVerticalLine(out, { gridOrigin.x + column * CellSize, gridOrigin.y }, GridHeight, PanelFillColor);
-	for (int row = 1; row < LevskiGridRows; row++)
-		DrawHorizontalLine(out, { gridOrigin.x, gridOrigin.y + row * CellSize }, GridWidth, PanelFillColor);
+	// The painted skin. Everything the old window drew itself - frame, title, grid well, plates and
+	// labels - is in the painting; what is drawn here is STATE: items in the grid, a plate under the
+	// cursor or mid-press, and a plate dimmed because pressing it would do nothing.
+	if (GetLoosePngSize(LevskiBackgroundAsset).width == 0)
+		DrawPanelGround(out, window); // the skin did not load: the flat ground, so the window still exists
+	DrawLoosePng(out, LevskiBackgroundAsset, window.position);
 
 	const int hoveredAnchor = HoveredAnchor();
 	for (int anchor = 0; anchor < LevskiGridSlots; anchor++) {
 		if (GridItems[anchor].isEmpty())
 			continue;
-		// Centred in the item's OWN footprint, not in one cell: a 2x3 armour occupies 56x84 and
-		// must be drawn across all of it, which is the whole point of the rebuild.
-		const Size size = GetInventorySize(GridItems[anchor]);
+		const Item &item = GridItems[anchor];
+		const Size size = GetInventorySize(item);
 		const Rectangle footprint {
 			CellRect(window, anchor).position,
 			{ size.width * CellSize, size.height * CellSize }
 		};
-		const ClxSprite sprite = GetInvItemSprite(GridItems[anchor]._iCurs + CURSOR_FIRSTITEM);
-		const int x = footprint.position.x + (footprint.size.width - sprite.width()) / 2;
-		const int y = footprint.position.y + (footprint.size.height + sprite.height()) / 2;
-		// The hover treatment every other grid gives an item (user, 2026-09-03: "Make sure items in
-		// levski's grid respond the way they do when in any other grid in the game - pop-ups and so
-		// on... Make sure levski's grid works as stash or inv grid").
-		//
-		// This grid was built as a transmute tray and only ever drew the sprite, so it had none of
-		// the three things a grid does with the item under the cursor: the quality-coloured outline,
-		// the socket overlay, and the panel text. The report is about the last one - a socketed ring
-		// here said nothing about its gem - but all three are the same omission and the other two are
-		// the same two lines the stash and the backpack already write.
-		const bool hovered = anchor == hoveredAnchor;
-		if (hovered)
-			ClxDrawOutline(out, GetOutlineColor(GridItems[anchor], true), { x, y }, sprite);
-		// DrawItem, not a bare ClxDraw (user, 2026-08-28: "placing consumables in levskis roar
-		// removes the badge indicating their amount").
-		//
-		// It did not remove anything - this grid was drawing the sprite itself and so never drew any
-		// of the three things the shared helper adds on top of it: the stack count in the corner,
-		// the red X over a broken item, and the greyscale tint on gear the character cannot use.
-		// A stack of five put into the transmute grid looked like a stack of one.
-		//
-		// The inventory, the belt and the worn slots all go through DrawItem for exactly this
-		// reason. This grid is a fourth place items are shown and had quietly opted out of it.
-		DrawItem(GridItems[anchor], out, { x, y }, sprite);
-		// Over the sprite, hover-only - the same overlay the backpack and the stash draw.
-		if (hovered)
-			DrawSocketOverlay(out, GridItems[anchor], { x, y }, size);
+		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+		// Centred in the footprint at ItemScale - the sprite is cut to 28px cells and these are 84.
+		const Point topLeft {
+			footprint.position.x + (footprint.size.width - sprite.width() * ItemScale) / 2,
+			footprint.position.y + (footprint.size.height - sprite.height() * ItemScale) / 2
+		};
+		// What DrawItem does at 1x, done here at 3x: the grey for gear the character cannot use, the
+		// red X for a broken item, the stack count in the corner. The socket overlay is NOT drawn -
+		// its dots are placed for a 1x sprite - but the hover panel still names the gems, which is
+		// what the user asked for when this grid learned to hover (2026-09-03).
+		const bool usable = !IsInspectingPlayer() ? item._iStatFlag : InspectPlayer->CanUseItem(item);
+		DrawSpriteScaled(out, topLeft, sprite, ItemScale, usable ? nullptr : GetInfravisionTRN());
+		if (item._iOracoolBroken)
+			DrawRedCross(out, footprint);
+		if (item.isStackableConsumable() && item.stackCount() > 1)
+			DrawBadge(out, footprint, BadgeCorner::BottomRight, StrCat(item.stackCount()));
+		if (anchor == hoveredAnchor)
+			DrawColoredOutline(out, footprint, GetOutlineColor(item, true));
 	}
 
-	// The salvage column. Gold-bordered placeholder boxes, one per tier, lit when the backpack
-	// actually holds something that button would consume - so the column doubles as a readout of
-	// what is worth pressing rather than seven identical boxes.
-	for (int i = 0; i < SalvageTierCount; i++) {
-		const auto tier = static_cast<SalvageTier>(i);
-		const Rectangle rect = SalvageButtonRect(window, i);
-		// The pressed flash, under the border so the frame stays crisp. Fired on mouse-down and
-		// held as an expiry, exactly like the inventory SORT button - these buttons run instantly
-		// and nothing here polls a mouse-up, so a bool would either linger or need a second owner.
-		// The legacy text box (user, 2026-09-04) - the pressed flash is its field lit, not a fill under a
-		// separate frame.
-		DrawLegacyTextBox(out, rect, ButtonFlashActive(i) ? ButtonFlashColor : LegacyTextBoxFill);
-		// EVERY page, matching what the button will actually consume. This read the displayed tab
-		// only, so a button could sit dark while page 3 was full of rares.
-		const bool any = AnySalvageableInBackpack(*MyPlayer, tier);
-		DrawString(out, _(SalvageTierName(tier)), rect,
-		    { (ButtonFlashActive(i) ? UiFlags::ColorWhite : (any ? UiFlags::ColorGold : UiFlags::ColorWhitegold))
-		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	}
-
-	const Rectangle transmute = TransmuteButtonRect(window);
+	// The buttons. The painting carries every plate at rest; a state file is laid over it only while
+	// the cursor is on it or the press flash is running. LEFT plate of the sheet is hover, RIGHT is
+	// pressed (the user's delivery, 2026-09-04); where the lit plate was cut off in delivery the file
+	// is the plain plate and the hover is marked with the theme's outline instead.
 	const int ready = FirstReadyLevskiRecipe(GridItems);
-	DrawLegacyTextBox(out, transmute, ButtonFlashActive(ButtonFlashTransmute) ? ButtonFlashColor : LegacyTextBoxFill);
-	DrawString(out, _("Transmute"), transmute,
-	    { (ButtonFlashActive(ButtonFlashTransmute) ? UiFlags::ColorWhite
-	                                               : (ready >= 0 ? UiFlags::ColorGold : UiFlags::ColorWhitegold))
-	        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-
-	const Rectangle book = RecipeButtonRect(window);
-	DrawLegacyTextBox(out, book, ButtonFlashActive(ButtonFlashRecipes) ? ButtonFlashColor : LegacyTextBoxFill);
-	DrawString(out, RecipeBookOpen ? _("Close recipes") : _("Recipes"), book,
-	    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	for (int i = 0; i < levski_skin::ButtonCount; i++) {
+		const Rectangle rect = ButtonRect(window, i);
+		const bool hovered = rect.contains(MousePosition);
+		const int flash = FlashIndexForButton(i);
+		const bool pressed = flash >= 0 && ButtonFlashActive(flash);
+		if (pressed || hovered) {
+			const std::string state = StrCat("ui\\levski_", levski_skin::ButtonStems[i], pressed ? "_pressed.png" : "_hover.png");
+			DrawLoosePng(out, state.c_str(), rect.position);
+			if (hovered && !pressed && levski_skin::HoverIsPlain[i])
+				DrawHoverOutline(out, rect);
+			continue;
+		}
+		// The readout the old gold-vs-whitegold label carried: a plate that would do nothing right
+		// now sits under a shade, so the column still says what is worth pressing.
+		bool idle = false;
+		if (i == levski_skin::Transmute)
+			idle = ready < 0;
+		else if (i >= levski_skin::SalvageFirst)
+			idle = !AnySalvageableInBackpack(*MyPlayer, static_cast<SalvageTier>(i - levski_skin::SalvageFirst));
+		if (idle)
+			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+	}
 
 	if (!RecipeBookOpen)
 		return;
@@ -876,7 +873,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 
 	// Before every other control: the X is the one click that must always work, and this window
 	// absorbs everything else that lands on it.
-	if (CheckWindowCloseButtonClick(FrameInteriorRect(window), mousePosition)) {
+	if (CloseButtonRect(window).contains(mousePosition)) {
 		CloseLevskiRoar();
 		return true;
 	}
