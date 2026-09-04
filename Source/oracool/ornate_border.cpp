@@ -159,10 +159,9 @@ void DrawHoverOutline(const Surface &out, Rectangle rect)
 
 void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth)
 {
-	// The character sheet's text shadow ANGLE - left and down - at six pixels (user, 2026-09-05:
-	// "increase px count to 6"; the first cut used the text's own two, which the six-pixel grid
-	// bezel painted around every slot covered completely, so nothing showed).
-	constexpr Displacement ShadowOffset { -6, 6 };
+	// The character sheet's text shadow ANGLE - left and down - at three pixels (user, 2026-09-05:
+	// 2 was under the bezel, 6 was "increase px count to 6", then "i really meant making it 3px").
+	constexpr Displacement ShadowOffset { -3, 3 };
 	const Rectangle footprint { rect.position - Displacement { bezelWidth, bezelWidth },
 		{ rect.size.width + 2 * bezelWidth, rect.size.height + 2 * bezelWidth } };
 	const Rectangle shadow { footprint.position + ShadowOffset, footprint.size };

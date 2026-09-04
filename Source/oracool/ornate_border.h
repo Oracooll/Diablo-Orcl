@@ -228,9 +228,9 @@ void DrawHoverOutline(const Surface &out, Rectangle rect);
  * Pilot (user, 2026-09-05: "cast same angle shadow as texts in hero stats window to all
  * skills/spells/auras slots in abilities windows as a pilot test"). The text shadow is vanilla's
  * own angle - left and down (text_render.cpp, UiFlags::Shadowed) - so the slot's is the same
- * angle at six pixels (the text's two vanished under the bezel): the slot's FULL footprint - @p rect
+ * angle at three pixels (the text's two vanished under the bezel): the slot's FULL footprint - @p rect
  * grown by @p bezelWidth on every side, since the grid bezel is painted outside the rect it is
- * given - shifted (-6, +6) and darkened, drawn BEFORE the slot so the slot covers all of it but
+ * given - shifted (-3, +3) and darkened, drawn BEFORE the slot so the slot covers all of it but
  * the strip down its left and along its bottom. One half-transparent pass ("reduce the shadow by
  * half", 2026-09-05); it was two.
  */
