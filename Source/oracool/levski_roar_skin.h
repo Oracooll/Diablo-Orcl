@@ -5,8 +5,8 @@
  * that script and re-run it; the art it writes and these numbers come from the same pass.
  *
  * The painted Levski's Roar window (Oracool.MPQ/02-source-art/delivered-packs/
- * oracool-levski-roar-skin), resampled to 509x637 - the scale at which its ~185px
- * painted grid cells become 3x the game's 28px item cell. Every rect below is in WINDOW pixels.
+ * oracool-levski-roar-skin), resampled to 170x212 - the scale at which its ~185px
+ * painted grid cells become the game's 28px item cell. Every rect below is in WINDOW pixels.
  *
  * State sheets whose lit plate was cut off in delivery, and so wear the plain plate for hover too:
  * transmute, basic, ethereal.
@@ -19,9 +19,9 @@
 
 namespace devilution::oracool::levski_skin {
 
-constexpr Size WindowSize { 509, 637 };
-constexpr int CellSize = 84;
-constexpr Point GridOrigin { 51, 195 };
+constexpr Size WindowSize { 170, 212 };
+constexpr int CellSize = 28;
+constexpr Point GridOrigin { 17, 65 };
 
 /** The ten plates, in ButtonIndex order. */
 enum ButtonIndex : int {
@@ -33,16 +33,16 @@ enum ButtonIndex : int {
 constexpr int ButtonCount = 10;
 
 constexpr Rectangle ButtonRects[ButtonCount] = {
-	{ { 443, 52 }, { 33, 31 } }, // close
-	{ { 54, 532 }, { 232, 54 } }, // transmute
-	{ { 308, 535 }, { 160, 50 } }, // recipes
-	{ { 338, 213 }, { 128, 36 } }, // basic
-	{ { 338, 255 }, { 128, 36 } }, // magic
-	{ { 338, 296 }, { 128, 36 } }, // rare
-	{ { 338, 338 }, { 128, 36 } }, // unique
-	{ { 338, 380 }, { 128, 36 } }, // set
-	{ { 338, 422 }, { 128, 36 } }, // primal
-	{ { 338, 464 }, { 128, 36 } }, // ethereal
+	{ { 148, 17 }, { 11, 10 } }, // close
+	{ { 18, 177 }, { 77, 18 } }, // transmute
+	{ { 103, 178 }, { 53, 17 } }, // recipes
+	{ { 113, 71 }, { 43, 12 } }, // basic
+	{ { 113, 85 }, { 43, 12 } }, // magic
+	{ { 113, 99 }, { 43, 12 } }, // rare
+	{ { 113, 113 }, { 43, 12 } }, // unique
+	{ { 113, 127 }, { 43, 12 } }, // set
+	{ { 113, 141 }, { 43, 12 } }, // primal
+	{ { 113, 155 }, { 43, 12 } }, // ethereal
 };
 
 /** ui\ asset stem per button - levski_<stem>_hover.png and levski_<stem>_pressed.png. */

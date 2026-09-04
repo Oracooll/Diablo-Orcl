@@ -61,3 +61,13 @@ plate serves both states and the game marks hover with the theme's outline inste
 Open Levski's Roar. Hover each plate: nine light up, three (Basic, Transmute, Ethereal) get the
 gold outline instead. Click: the plain plate flashes. Put a ring and an armour in: 3x, with the
 quality outline on hover and the stack count in the corner. Is the window too big at 509x637?
+
+## Addendum, v1.9.204 - regular game size
+
+The user, on seeing it: "scale the whole thing down so the grid slots are regular game size - 3x4 28x28px."
+
+One number in the cutter (`$gameCell` 84 → 28) and a re-run: the window is now **170x212** (scale 28/185), the grid 3x4 of 28px cells at (17,65), and every plate rect followed - close 11x10, transmute 77x18, recipes 53x17, the seven salvage plates 43x12 each.
+
+In `levski_roar.cpp` `ItemScale` became 1 by itself, and at 1 the grid now takes the ordinary path - `DrawItem` (shadows, grey, red X, stack count as the backpack draws them), `ClxDrawOutline` and the socket overlay on the hovered item - instead of the nearest-neighbour blit, which stays behind `if constexpr` for any future scale other than 1.
+
+Known at this size: the plates' painted lettering is 3-4 pixels tall and not readable. The hover text still names each button, and the hover/pressed plates still lay over it. If that reads as too small the number to move is `$gameCell` in `tools/CutLevskiRoarSkin.ps1` - 56 would give 2x cells and a 340x424 window.

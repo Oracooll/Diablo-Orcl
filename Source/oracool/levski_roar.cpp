@@ -95,9 +95,10 @@ int8_t GridCells[LevskiGridSlots];
 // are cut to a whole number of 28px cells, so any other size would either crop them or leave them
 // swimming, and the drag the player already knows from the stash would stop lining up.
 // THE PAINTED SKIN's cell, not the inventory's (user, 2026-09-04: "Place it as Levski's Interface").
-// The painting's grid cells are ~185px, three of the game's 28px cells, so the window is drawn at the
-// scale that makes them exactly 84 and items are drawn at ItemScale - see levski_roar_skin.h. The
-// footprint rules are untouched: a 2x3 armour still covers 2x3 cells, they are just bigger cells.
+// The painting's grid cells are ~185px; the window is drawn at the scale that makes them CellSize
+// (28 since 2026-09-04 - "regular game size"; 84 for the day before) and items at ItemScale, which is
+// 1 now and sends the grid through the ordinary DrawItem path - see levski_roar_skin.h. The
+// footprint rules are untouched: a 2x3 armour still covers 2x3 cells, and at 1x they are the same cells.
 constexpr int CellSize = levski_skin::CellSize;
 constexpr int ItemScale = CellSize / InventorySlotSizeInPixels.width;
 static_assert(ItemScale * InventorySlotSizeInPixels.width == CellSize, "the skin's cell is not a whole multiple of the item cell");
@@ -730,16 +731,28 @@ void DrawLevskiRoar(const Surface &out)
 			{ size.width * CellSize, size.height * CellSize }
 		};
 		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
-		// Centred in the footprint at ItemScale - the sprite is cut to 28px cells and these are 84.
+		// Centred in the footprint at ItemScale - the sprite is cut to 28px cells.
 		const Point topLeft {
 			footprint.position.x + (footprint.size.width - sprite.width() * ItemScale) / 2,
 			footprint.position.y + (footprint.size.height - sprite.height() * ItemScale) / 2
 		};
-		// What DrawItem does at 1x, done here at 3x: the grey for gear the character cannot use, the
+		// At any other scale, what DrawItem does at 1x done by hand: the grey for gear the character cannot use, the
 		// red X for a broken item, the stack count in the corner. The socket overlay is NOT drawn -
 		// its dots are placed for a 1x sprite - but the hover panel still names the gems, which is
 		// what the user asked for when this grid learned to hover (2026-09-03).
 		const bool usable = !IsInspectingPlayer() ? item._iStatFlag : InspectPlayer->CanUseItem(item);
+		if constexpr (ItemScale == 1) {
+			// Regular game size (user, 2026-09-04): the ordinary item draw, with everything it
+			// carries - shadows, the grey, the red X, the stack count - and the socket overlay and
+			// outline the backpack gives an item under the cursor. Nothing here is a copy of it.
+			const Point bottomLeft { topLeft.x, topLeft.y + sprite.height() - 1 };
+			if (anchor == hoveredAnchor)
+				ClxDrawOutline(out, GetOutlineColor(item, true), bottomLeft, sprite);
+			DrawItem(item, out, bottomLeft, sprite);
+			if (anchor == hoveredAnchor)
+				DrawSocketOverlay(out, item, bottomLeft, size);
+			continue;
+		}
 		DrawSpriteScaled(out, topLeft, sprite, ItemScale, usable ? nullptr : GetInfravisionTRN());
 		if (item._iOracoolBroken)
 			DrawRedCross(out, footprint);

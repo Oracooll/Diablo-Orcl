@@ -9,7 +9,9 @@
 # the only way the two cannot drift: change the source rects below, re-run, rebuild.
 #
 # THE SCALE. The painting's grid cells are ~185px; the game's item cell is 28px and item sprites are
-# cut to it. Items in this grid are drawn at 3x (84px cells), so the whole window is drawn at 84/185.
+# cut to it. Items in this grid are drawn at 1x (28px cells, the user's call of 2026-09-04 after a day at
+# 3x), so the whole window is drawn at 28/185 - 170x212. The plates' lettering is a few pixels tall at
+# that scale; the game's hover text names each one.
 #
 # THE STATE SHEETS. Each is two plates on a gradient: LEFT lit (hover), RIGHT plain (pressed). The
 # plate is found as the bounding box of "not gradient" pixels - dark, or saturated (gold, gems, the
@@ -28,7 +30,7 @@ $header = Join-Path $root 'Source\oracool\levski_roar_skin.h'
 $srcW = 1122; $srcH = 1402
 $cellPitch = 185                       # centre-to-centre of the painted 3x4 grid
 $gridOrigin = @{ X = 113; Y = 430 }    # top-left of the first cell's interior
-$gameCell = 84                         # 3 x the 28px inventory cell
+$gameCell = 28                         # the inventory cell itself (user, 2026-09-04: "scale the whole thing down so the grid slots are regular game size")
 $scale = $gameCell / $cellPitch
 
 # name, source rect (x y w h), sheet file
@@ -146,7 +148,7 @@ $h = @"
  *
  * The painted Levski's Roar window (Oracool.MPQ/02-source-art/delivered-packs/
  * oracool-levski-roar-skin), resampled to $($winW)x$($winH) - the scale at which its ~$($cellPitch)px
- * painted grid cells become 3x the game's 28px item cell. Every rect below is in WINDOW pixels.
+ * painted grid cells become the game's 28px item cell. Every rect below is in WINDOW pixels.
  *
  * State sheets whose lit plate was cut off in delivery, and so wear the plain plate for hover too:
  * $croppedList.
