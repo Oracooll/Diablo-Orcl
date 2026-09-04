@@ -27,3 +27,13 @@
 ## Look at
 
 The belt holes are 25px against 28px potion sprites; the flask art is narrower than its cell so it should sit inside, but that is a screenshot call. Well openings are 49x48 around the 46px net. The orbs are r 33, down from 44.
+
+## Addendum, v1.9.214 - the liquid
+
+"use the transparent orbs version and draw the liquid in code."
+
+The cutter now reads `transparent-orbs/03-transparent-belt-and-orbs.png`: the same design with the sphere interiors at alpha 0 and their colour still in the RGB. A resampler works premultiplied and would discard that colour, so the cutter lifts it FIRST - alpha forced to 255 inside each sphere's circle, 0 elsewhere - resamples that on its own and cuts it to the orb pieces as `ui\health_orb_liquid.png` / `ui\mana_orb_liquid.png` (opaque sphere, nothing else). The hole finder is restricted to the plate's span, since the empty spheres are alpha-0 runs too.
+
+`DrawOrb` takes the liquid asset: if present and the same size as the cradle, it blits the liquid from the fill line down and the cradle over it; the world shows through the empty glass above the line. Without a liquid file the painted-sphere path (frame / dimmed sphere / bright) still runs. Two new assets in `hud_art.cpp`'s load, requantise, quantize and reset lists.
+
+A mock at 100/55/15% is in the session's scratchpad (`orb_liquid_mock.png`); the in-game look is the user's screenshot.

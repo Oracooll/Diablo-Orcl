@@ -110,6 +110,19 @@ constexpr int SilhouetteLuminancePercent = 55;
 ArtAsset PlateArt { "ui\\middle_hud.png" };
 ArtAsset HealthOrbArt { "ui\\health_orb.png" };
 ArtAsset ManaOrbArt { "ui\\mana_orb.png" };
+/**
+ * The LIQUID (user, 2026-09-05: "use the transparent orbs version and draw the liquid in code").
+ *
+ * The fifth HUD's orb cradles come from a master whose sphere interiors are transparent - the glass
+ * is empty and the world shows through it - with the liquid's colour kept in the RGB under that
+ * alpha. tools\CutHudPlate.ps1 lifts that colour into these two files, opaque inside the sphere and
+ * transparent everywhere else, and DrawOrb draws them UNDER the cradle from the fill line down. So
+ * the orb no longer dims a painted sphere: it is empty glass with liquid rising in it.
+ *
+ * Optional. An orb whose liquid file is missing falls back to the painted-sphere path.
+ */
+ArtAsset HealthOrbLiquidArt { "ui\\health_orb_liquid.png" };
+ArtAsset ManaOrbLiquidArt { "ui\\mana_orb_liquid.png" };
 ArtAsset MenuIconsArt { "ui\\menu_icons.png" };
 /**
  * Oracool V1 inventory window. The panel is one flat composition (background, paladin
@@ -563,6 +576,10 @@ void EnsureLoadedAll()
 		LoadPixels(HealthOrbArt);
 	if (!ManaOrbArt.loadAttempted)
 		LoadPixels(ManaOrbArt);
+	if (!HealthOrbLiquidArt.loadAttempted)
+		LoadPixels(HealthOrbLiquidArt);
+	if (!ManaOrbLiquidArt.loadAttempted)
+		LoadPixels(ManaOrbLiquidArt);
 	if (!MenuIconsArt.loadAttempted)
 		LoadPixels(MenuIconsArt);
 	if (!InventoryPanelArt.loadAttempted)
@@ -630,6 +647,10 @@ bool NeedsQuantize()
 	if (!PlateArt.rgba.empty() && !PlateArt.bright)
 		return true;
 	if (!HealthOrbArt.rgba.empty() && !HealthOrbArt.bright)
+		return true;
+	if (!HealthOrbLiquidArt.rgba.empty() && !HealthOrbLiquidArt.bright)
+		return true;
+	if (!ManaOrbLiquidArt.rgba.empty() && !ManaOrbLiquidArt.bright)
 		return true;
 	if (!ManaOrbArt.rgba.empty() && !ManaOrbArt.bright)
 		return true;
@@ -699,6 +720,9 @@ void EnsureQuantized()
 	QuantizeAsset(PlateArt, std::nullopt);
 	QuantizeAsset(HealthOrbArt, Rectangle { GetHealthOrbSphereCenterLocal(), Size { GetOrbSphereRadius(), 0 } });
 	QuantizeAsset(ManaOrbArt, Rectangle { GetManaOrbSphereCenterLocal(), Size { GetOrbSphereRadius(), 0 } });
+	// The liquid is plain art: opaque inside the sphere, nothing outside. No split, no dim.
+	QuantizeAsset(HealthOrbLiquidArt, std::nullopt);
+	QuantizeAsset(ManaOrbLiquidArt, std::nullopt);
 	// Same 50% gold as the plate, so the menu the burger button opens matches the HUD it sits on.
 	//
 	// This sheet is the one place where chrome and content share pixels: each cell is a frame with
@@ -840,7 +864,7 @@ void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCel
 	}
 }
 
-void DrawOrb(const Surface &out, ArtAsset &asset, Point position, Point sphereCenterLocal, int currValue, int maxValue)
+void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point position, Point sphereCenterLocal, int currValue, int maxValue)
 {
 	EnsureLoadedAll();
 	if (asset.rgba.empty())
@@ -854,6 +878,21 @@ void DrawOrb(const Surface &out, ArtAsset &asset, Point position, Point sphereCe
 	const int64_t curr = std::clamp<int64_t>(currValue, 0, maxValue > 0 ? maxValue : 0);
 	const int filledRows = (maxValue > 0) ? static_cast<int>(span * curr / maxValue) : 0;
 	const int revealTop = std::clamp(sphereCenterLocal.y + radius - filledRows, 0, asset.height);
+
+	// THE LIQUID (2026-09-05). With the fifth HUD's transparent glass the cradle art has nothing
+	// inside its sphere, so the three-layer painted-sphere routine below has nothing to dim or
+	// reveal. Instead: the liquid, opaque, from the fill line down - then the whole cradle over it,
+	// whose empty glass lets the world show above the line and whose rim sits on the liquid's edge.
+	// Two blits, and the fill is a real level rather than a lit part of a painting.
+	if (liquid.bright && liquid.width == asset.width && liquid.height == asset.height) {
+		if (revealTop < asset.height) {
+			out.BlitFromSkipColorIndexZero(*liquid.bright,
+			    MakeSdlRect(0, revealTop, liquid.width, liquid.height - revealTop),
+			    position + Displacement { 0, revealTop });
+		}
+		out.BlitFromSkipColorIndexZero(*asset.bright, MakeSdlRect(0, 0, asset.width, asset.height), position);
+		return;
+	}
 
 	// 1. The composition around the glass - ornament, rim, mount - always fully opaque. Drawn from
 	//    its own surface rather than from the whole image, so step 2 cannot touch it.
@@ -1407,6 +1446,8 @@ void ResetHudArtCaches()
 	reset(PlateArt);
 	reset(HealthOrbArt);
 	reset(ManaOrbArt);
+	reset(HealthOrbLiquidArt);
+	reset(ManaOrbLiquidArt);
 	reset(MenuIconsArt);
 	reset(InventoryPanelArt);
 	reset(SidePanelArt);
@@ -1901,14 +1942,14 @@ Size GetWaypointIconSize()
 void DrawHealthOrb(const Surface &out, int yOffset)
 {
 	const Player &player = *MyPlayer;
-	DrawOrb(out, HealthOrbArt, GetHealthOrbRect().position + Displacement { 0, yOffset }, GetHealthOrbSphereCenterLocal(),
+	DrawOrb(out, HealthOrbArt, HealthOrbLiquidArt, GetHealthOrbRect().position + Displacement { 0, yOffset }, GetHealthOrbSphereCenterLocal(),
 	    player._pHitPoints >> 6, player._pMaxHP >> 6);
 }
 
 void DrawManaOrb(const Surface &out, int yOffset)
 {
 	const Player &player = *MyPlayer;
-	DrawOrb(out, ManaOrbArt, GetManaOrbRect().position + Displacement { 0, yOffset }, GetManaOrbSphereCenterLocal(),
+	DrawOrb(out, ManaOrbArt, ManaOrbLiquidArt, GetManaOrbRect().position + Displacement { 0, yOffset }, GetManaOrbSphereCenterLocal(),
 	    player._pMana >> 6, player._pMaxMana >> 6);
 }
 

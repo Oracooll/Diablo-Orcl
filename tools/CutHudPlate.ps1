@@ -8,8 +8,9 @@
 # The GPT pack in Oracool.MPQ\02-source-art\delivered-packs\diablo-bottom-hud-v1. The file the user
 # named is a 24-bit VISUAL DRAFT with a checkerboard painted in - no alpha channel at all - so the cut
 # reads its sibling 04-raised-stone-wells-true-alpha-belt.png: the same design, same pixels, with the
-# transparency real. (transparent-orbs\03-transparent-belt-and-orbs.png is that again with the sphere
-# interiors at alpha 0; the game fills orbs by dimming a PAINTED sphere, so the painted one is used.)
+# transparency real - and since the same evening transparent-orbs\03-transparent-belt-and-orbs.png, that
+# again with the sphere interiors at alpha 0 and their colour kept in RGB: the LIQUID, which the game
+# draws itself (user: "use the transparent orbs version and draw the liquid in code").
 #
 # One master, three files. The health cradle, the plate and the mana cradle are cut from a single
 # resampled band at screen scale, at vertical lines, so the three rects the layout butts together
@@ -29,7 +30,7 @@ Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
 $pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\diablo-bottom-hud-v1\designs'
-$source = Join-Path $pack '04-raised-stone-wells-true-alpha-belt.png'
+$source = Join-Path $pack (Join-Path "transparent-orbs" "03-transparent-belt-and-orbs.png")
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $header = Join-Path $root 'Source\oracool\hud_plate_skin.h'
 if (-not (Test-Path $source)) { throw "missing master: $source" }
@@ -73,7 +74,9 @@ Write-Host ("composite {0}x{1}  scale {2}" -f $W, $Hh, $scale)
 $midY = [int]((461 + 556) / 2 - $bandY) * $scale
 $runs=@(); $in=$false
 for($x=0;$x -lt $W;$x++){ $o = $s.GetPixel($x,[int]$midY).A -ge 128; if(-not $o -and -not $in){$start=$x;$in=$true}; if($o -and $in){$runs += @{ X=$start; W=$x-$start };$in=$false} }
-$holes = @($runs | Where-Object { $_.W -gt 10 -and $_.W -lt 60 })
+$xlPlate = [int][math]::Round($cutLeft * $scale); $xrPlate = [int][math]::Round($cutRight * $scale)
+# Only the plate's span: with the transparent-orb master the empty spheres are runs of alpha 0 too.
+$holes = @($runs | Where-Object { $_.W -gt 10 -and $_.W -lt 60 -and $_.X -ge $xlPlate -and ($_.X + $_.W) -le $xrPlate })
 if ($holes.Count -ne 6) { throw "found $($holes.Count) belt holes, expected 6" }
 $cx = [int]($holes[0].X + $holes[0].W / 2)
 $vr=@(); $in=$false
@@ -93,6 +96,34 @@ function Piece($x0, $x1, $name) {
 Piece 0 $xl 'health_orb.png'
 Piece $xl $xr 'middle_hud.png'
 Piece $xr $W 'mana_orb.png'
+# ---- the liquid (2026-09-05, user: "use the transparent orbs version and draw the liquid in code") -
+# In this master the sphere interiors are alpha 0 with their colour kept in RGB. A resampler works
+# premultiplied and would throw that colour away, so the liquid is lifted BEFORE resampling: a copy
+# of the master with alpha forced to 255 inside each sphere's circle and 0 everywhere else, resampled
+# on its own and cut to the orb piece. The game draws it under the frame from the fill line down.
+$liq = New-Object System.Drawing.Bitmap $img.Width, $img.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+$rr = ($sphereRadius + 3) * ($sphereRadius + 3)
+for ($y=0;$y -lt $img.Height;$y++){ for($x=0;$x -lt $img.Width;$x++){
+  $c = $img.GetPixel($x,$y); $bx = $x - $bandX; $by = $y - $bandY
+  $dh = ($bx-$healthCentre[0])*($bx-$healthCentre[0]) + ($by-$healthCentre[1])*($by-$healthCentre[1])
+  $dm = ($bx-$manaCentre[0])*($bx-$manaCentre[0]) + ($by-$manaCentre[1])*($by-$manaCentre[1])
+  if (($dh -le $rr -or $dm -le $rr) -and $c.A -lt 128) { $liq.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(255,$c.R,$c.G,$c.B)) }
+  else { $liq.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(0,0,0,0)) } } }
+$ls = New-Object System.Drawing.Bitmap $W, $Hh, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+$g = [System.Drawing.Graphics]::FromImage($ls)
+$g.InterpolationMode = 'HighQualityBicubic'; $g.PixelOffsetMode = 'HighQuality'; $g.CompositingMode = 'SourceCopy'
+$g.DrawImage($liq, (New-Object System.Drawing.Rectangle -ArgumentList 0, 0, $W, $Hh), (New-Object System.Drawing.Rectangle -ArgumentList $bandX, $bandY, $bandW, $bandH), 'Pixel')
+$g.Dispose(); $liq.Dispose()
+for ($y=0;$y -lt $Hh;$y++){ for($x=0;$x -lt $W;$x++){ $c=$ls.GetPixel($x,$y); if ($c.A -lt 128) { $ls.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(0,0,0,0)) } else { $ls.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(255,$c.R,$c.G,$c.B)) } } }
+function LiquidPiece($x0, $x1, $name) {
+  $p = $ls.Clone((New-Object System.Drawing.Rectangle -ArgumentList $x0, 0, ($x1 - $x0), $Hh), $ls.PixelFormat)
+  $p.Save((Join-Path $outDir $name), [System.Drawing.Imaging.ImageFormat]::Png); $p.Dispose()
+  Write-Host ("{0,-22} x {1}..{2}" -f $name, $x0, $x1)
+}
+LiquidPiece 0 $xl 'health_orb_liquid.png'
+LiquidPiece $xr $W 'mana_orb_liquid.png'
+$ls.Dispose()
+
 $s.Dispose(); $img.Dispose()
 
 # ---- the header -------------------------------------------------------------------------------
