@@ -59,3 +59,7 @@ The spheres are painted, so each is split: the interior inside r-1 is made trans
 "use 02-raised-stone-slot-design.png as hud."
 
 Same layout, same 24-bit checkerboard, but the belt cells are painted raised stone, not holes - so the alpha finds nothing there. The cutter now carries the six cell openings as hand-measured band-local rects (design 03's holes, which share the layout; verified on the overlay against 02's painted rims) and falls back to them when it finds no holes; a count of anything but six or none still throws. Everything else - keying, spheres, cut lines - unchanged, and the generated header came out identical to v1.9.216's.
+
+## Addendum, v1.9.218 - ten percent bigger
+
+"scale the hud up 10%." Cutter scale 0.288 → 0.3168: HUD 613x121 (plate 387, cradles 112 and 114), belt cells 28x30 - a potion sprite now fills its cell exactly - wells 54x53, spheres r 39. The side-panel clip line stays at 624, and the spheres' crowns now rise 12px above it: with a side panel open, the orb beside it is cut flat across the top until the panel closes. Noted to the user as the cost of the size.

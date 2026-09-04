@@ -45,7 +45,7 @@ New-Item -ItemType Directory -Force $scratch | Out-Null
 
 # ---- measured off the 1942x809 master (2026-09-05) --------------------------------------------
 $expectBand = @(3, 214, 1934, 382)          # the silhouette's bounding box after keying, +-3 (the true-alpha sibling's is 4,215 1931x380: keying keeps 1-3px of anti-aliased edge)
-$scale = 0.288
+$scale = 0.3168   # 0.288 x 1.10 (user, 2026-09-05: "scale the hud up 10%")
 $cutLeft = 352; $cutRight = 1576            # MASTER-space x where the cradles hand over to the plate
 # BAND-LOCAL master pixels, the dark stone inside each well's rim (checked on the overlay this
 # script writes to %TEMP%\CutHudPlate\overlay.png):

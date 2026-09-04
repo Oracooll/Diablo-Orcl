@@ -5,7 +5,7 @@
  * script and re-run it; the five PNGs it writes and these numbers come from the same pass.
  *
  * The fifth bottom HUD (Oracool.MPQ/02-source-art/delivered-packs/diablo-bottom-hud-v1, cut from
- * 02-raised-stone-slot-design.png with its checkerboard keyed out, at scale 0.288). Every
+ * 02-raised-stone-slot-design.png with its checkerboard keyed out, at scale 0.3168). Every
  * number is in SCREEN pixels; the plate's rects are PLATE-local, the orbs' are local to their own
  * piece. The three pieces share one bottom edge and butt together left to right: health cradle,
  * plate, mana cradle. The sphere centre and radius are measured from the painting's own spheres,
@@ -19,21 +19,21 @@
 
 namespace devilution::oracool::hud_skin {
 
-constexpr Size PlateSize { 353, 110 };
+constexpr Size PlateSize { 387, 121 };
 
 /** The wells' openings - the flat stone inside the rim - plate-local. */
-constexpr Rectangle LmbWell { { 10, 52 }, { 49, 48 } };
-constexpr Rectangle RmbWell { { 299, 53 }, { 50, 48 } };
+constexpr Rectangle LmbWell { { 10, 58 }, { 54, 53 } };
+constexpr Rectangle RmbWell { { 328, 59 }, { 54, 53 } };
 
 /** The six belt cells: the painting's holes by alpha where it has them, its painted openings by hand where not. */
-constexpr int BeltCellX[6] = { 69, 108, 146, 184, 222, 260 };
-constexpr int BeltCellY = 71;
-constexpr Size BeltCellSize { 25, 28 };
+constexpr int BeltCellX[6] = { 75, 117, 159, 201, 243, 286 };
+constexpr int BeltCellY = 78;
+constexpr Size BeltCellSize { 28, 30 };
 
-constexpr Size HealthOrbSize { 101, 110 };
-constexpr Size ManaOrbSize { 103, 110 };
-constexpr Point HealthSphereCenter { 59, 48 };
-constexpr Point ManaSphereCenter { 45, 48 };
-constexpr int SphereRadius = 35;
+constexpr Size HealthOrbSize { 112, 121 };
+constexpr Size ManaOrbSize { 114, 121 };
+constexpr Point HealthSphereCenter { 65, 52 };
+constexpr Point ManaSphereCenter { 50, 53 };
+constexpr int SphereRadius = 39;
 
 } // namespace devilution::oracool::hud_skin
