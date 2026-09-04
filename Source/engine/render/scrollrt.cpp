@@ -1668,14 +1668,18 @@ void DrawView(const Surface &out, Point startPosition)
 	// the vanilla flask pair entirely. Hidden while the chat console is open (user, 2026-08-31) -
 	// they are the last two things left standing around an otherwise empty screen otherwise.
 	if (!talkflag) {
-		// The fifth HUD's cradles (2026-09-05) are 109 tall and their gargoyle arches rise above
-		// oracool::SidePanelContentBottom, the line every side panel's content stops at; the
-		// spheres themselves do not. So while a side panel is open the orbs are clipped to that
-		// line: the panel's last row stays readable and the sphere is whole, and what goes is the
-		// tip of an arch for as long as the panel is up. Clipped, not drawn under - the panels are
-		// full-height canvases and would swallow the orbs entirely.
+		// The fifth HUD's cradles (2026-09-05) rise above oracool::SidePanelContentBottom, the line
+		// every side panel's content stops at. So while a side panel is open the orbs are clipped
+		// to that line, so the panel's last row stays readable. Clipped, not drawn under - the
+		// panels are full-height canvases and would swallow the orbs entirely.
+		//
+		// Only at 4:3, though (user, 2026-09-05, with screenshots at 1280x720: "i dont really like
+		// the cropping of the hud when windows are opened. use this method only in 4:3 resolutions.
+		// others are wide enough to skip this action"). At 960x720 the 340px panels reach the orbs;
+		// at 16:9 and wider they do not, and the clip only ever cost the sphere its crown.
 		const bool sidePanelOpen = invflag || sbookflag || chrflag || QuestLogIsOpen || IsStashOpen;
-		if (sidePanelOpen && oracool::SidePanelContentBottom < out.h()) {
+		const bool fourByThree = gnScreenWidth * 3 <= gnScreenHeight * 4 + 8;
+		if (sidePanelOpen && fourByThree && oracool::SidePanelContentBottom < out.h()) {
 			const Surface below = out.subregionY(oracool::SidePanelContentBottom, out.h() - oracool::SidePanelContentBottom);
 			oracool::DrawHealthOrb(below, -oracool::SidePanelContentBottom);
 			oracool::DrawManaOrb(below, -oracool::SidePanelContentBottom);

@@ -150,14 +150,38 @@ Point GetLmbSkillIconOrigin(Size content);
 /** @brief GetLmbSkillIconOrigin's twin for the RMB well. */
 Point GetRmbSkillIconOrigin(Size content);
 
-/** @brief Absolute screen rect of belt cell `visibleIndex` (0 = Menu, 1-4 = items, 5 = Town
- * Portal) on the plate art. Replaces the old InvRect-plus-panel-offset math for every belt draw
- * call and hit-test - InvRect itself stays untouched (its values are save/hit-test-shared
- * constants for the inventory grid). */
-Rectangle GetBeltSlotRect(int visibleIndex);
+/**
+ * @brief Absolute screen rect of the belt SLOT `slot` - a Player::SpdList index, 0..5.
+ *
+ * The slot and the cell it is drawn in are different numberings since 2026-09-05 (user: "move
+ * burger menu to slot 6, portal to slot 5, and potions to 1-4"): the item slots 1-4 sit in cells
+ * 0-3, the Town Portal slot (5) in cell 4 and the Menu slot (0) in the last cell. SpdList's
+ * numbering is saved data and the BeltItem1-4 keys, so it does not move; what moves is where each
+ * slot is painted, and BeltCellOfSlot is that one mapping. Every belt draw call and hit-test goes
+ * through here - InvRect itself stays untouched (its values are save/hit-test-shared constants for
+ * the inventory grid).
+ */
+Rectangle GetBeltSlotRect(int slot);
+
+/** @brief The cell (left to right, 0..5) slot `slot` is drawn in - see GetBeltSlotRect. */
+inline constexpr int BeltCellOfSlot(int slot)
+{
+	if (slot >= 1 && slot <= 4)
+		return slot - 1;
+	return slot == 5 ? 4 : 5;
+}
+
+/** @brief Absolute screen rect of belt CELL `cell`, left to right 0..5 - the row's own geometry,
+ * for things that span the row (the XP bar) rather than address a slot. */
+Rectangle GetBeltCellRect(int cell);
+
+/** @brief Screen y of the top edge of the belt's run - the plate's painted belt bar where there is
+ * one, the cells' top on the plateless row. What sits "just above the belt" measures from here. */
+int GetBeltRunTop();
 
 /**
- * @brief How many belt cells the plate shows: Menu, four item slots, Town Portal.
+ * @brief How many belt cells the plate shows: four item slots, Town Portal, Menu (in that order on
+ * screen since 2026-09-05 - see BeltCellOfSlot; the SLOT numbering below is older and unchanged).
  *
  * The count the ROW has, not the count of usable item slots - IsRealBeltItemSlot answers that and
  * gives four. Anything drawing the row itself (a backing, a frame) wants this one; anything

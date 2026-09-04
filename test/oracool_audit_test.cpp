@@ -7405,17 +7405,24 @@ TEST(OracoolAudit, TheXpBarFitsBetweenTheCounterAndTheBelt)
 
 		const Rectangle bar = GetXPBarRect();
 		const Rectangle counter = oracool::GetXpCounterDrawRect();
-		const Rectangle belt = oracool::GetBeltSlotRect(0);
+		// The belt RUN's top - the plate's painted belt bar, or the cells on the plateless row - not
+		// a slot's cell: since 2026-09-05 the bar hangs from that line and the counter sits above
+		// the bar, so the order the test pins is counter, bar, belt run.
+		const int beltRunTop = oracool::GetBeltRunTop();
 
 		ASSERT_GT(bar.size.width, 0) << mode << ": the bar reported an empty rect";
 		ASSERT_GT(bar.size.height, 0) << mode << ": the bar reported an empty rect";
 
 		EXPECT_LE(counter.position.y + counter.size.height, bar.position.y)
 		    << mode << ": the XP bar starts above the bottom of the XP counter, so it overpaints it";
-		EXPECT_LE(bar.position.y + bar.size.height, belt.position.y)
+		EXPECT_LE(bar.position.y + bar.size.height, beltRunTop)
 		    << mode << ": the XP bar's bottom (" << bar.position.y + bar.size.height
-		    << ") is below the belt's top (" << belt.position.y
-		    << "), so it paints over the belt backing";
+		    << ") is below the belt run's top (" << beltRunTop
+		    << "), so it paints over the belt";
+		// And the cells in their new order: potions first, the portal fifth, the menu last.
+		EXPECT_EQ(oracool::GetBeltSlotRect(1).position.x, oracool::GetBeltCellRect(0).position.x) << mode << ": slot 1 is not the first cell";
+		EXPECT_EQ(oracool::GetBeltSlotRect(oracool::BeltTownPortalSlotIndex).position.x, oracool::GetBeltCellRect(4).position.x) << mode << ": the portal is not the fifth cell";
+		EXPECT_EQ(oracool::GetBeltSlotRect(oracool::BeltMenuSlotIndex).position.x, oracool::GetBeltCellRect(5).position.x) << mode << ": the menu is not the last cell";
 	}
 
 	sgOptions.Oracool.hudPlateArt.SetValue(savedPlate);

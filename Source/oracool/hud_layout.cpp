@@ -383,7 +383,19 @@ Rectangle GetLevelUpIconRect()
 		PointsIconSize };
 }
 
-Rectangle GetBeltSlotRect(int visibleIndex)
+Rectangle GetBeltSlotRect(int slot)
+{
+	return GetBeltCellRect(BeltCellOfSlot(slot));
+}
+
+int GetBeltRunTop()
+{
+	if (UsePlatelessRow())
+		return GetBeltCellRect(0).position.y;
+	return GetMiddleHudRect().position.y + ScalePlate(hud_skin::BeltBarTop);
+}
+
+Rectangle GetBeltCellRect(int visibleIndex)
 {
 	if (UsePlatelessRow()) {
 		// Butted against the LMB backing and against each other - the pitch IS the cell width, which

@@ -29,6 +29,8 @@ constexpr Rectangle RmbWell { { 328, 59 }, { 54, 53 } };
 constexpr int BeltCellX[6] = { 75, 117, 159, 201, 243, 286 };
 constexpr int BeltCellY = 78;
 constexpr Size BeltCellSize { 28, 30 };
+/** Plate-local y of the belt bar's top edge - what the XP bar sits above. */
+constexpr int BeltBarTop = 67;
 
 constexpr Size HealthOrbSize { 112, 121 };
 constexpr Size ManaOrbSize { 114, 121 };

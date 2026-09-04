@@ -6,6 +6,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "automap.h"
+#include "diablo.h" // MousePosition - the counter shows only under the cursor
 #include "engine/rectangle.hpp"
 #include "engine/render/text_render.hpp"
 #include "monster.h"
@@ -13,6 +14,7 @@
 #include "options.h"
 #include "oracool/hud_layout.h"
 #include "oracool/oracool.h"
+#include "qol/xpbar.h" // GetXPBarRect - the bar is the counter's hit target and its anchor
 #include "player.h"
 #include "playerdat.hpp"
 #include "utils/format_int.hpp"
@@ -24,11 +26,6 @@ namespace {
 
 constexpr int CounterHeight = 20;
 
-// Oracool: user request (2026-08-11) - moved from the row under the mini-map to sit just above the
-// belt's numbered cells (1-4), whose "1".."4" labels are baked into the plate art. The offset is
-// measured DOWN from the plate's top edge, so a larger value sits lower; tuned by eye in play
-// (started 14px higher, at -2).
-constexpr int CounterOffsetBelowPlateTop = 12;
 
 // Oracool: user request - press and hold the XP Counter to see this instead of the normal
 // remaining-to-next-level readout. Cleared unconditionally on mouse-up (see
@@ -44,15 +41,13 @@ bool IsHeld = false;
  */
 Rectangle GetCounterRect()
 {
-	// Belt cells 1..4 are visible indices 1-4; span from the left edge of the first to the right
-	// edge of the last so the readout is centred over the numbered run specifically, not the whole
-	// plate (which also carries the Menu and Portal buttons).
-	const Rectangle first = GetBeltSlotRect(1);
-	const Rectangle last = GetBeltSlotRect(4);
-	const int left = first.position.x;
-	const int width = last.position.x + last.size.width - left;
-	const int bottom = GetMiddleHudRect().position.y + CounterOffsetBelowPlateTop;
-	return Rectangle { { left, bottom - CounterHeight }, { width, CounterHeight } };
+	// Since 2026-09-05 the click target IS the XP bar (user: "hide the xp counter. show it when
+	// hovering over xp bar and when clicking on xp bar show dungeon exp pool"), padded two pixels
+	// above and below so an 8px strip is not a test of aim. The counter's text is drawn ABOVE the
+	// bar - see GetCounterDrawRect - and only while the cursor is here or the button is held.
+	const Rectangle bar = GetXPBarRect();
+	constexpr int Pad = 2;
+	return Rectangle { { bar.position.x, bar.position.y - Pad }, { bar.size.width, bar.size.height + 2 * Pad } };
 }
 
 /**
@@ -69,7 +64,11 @@ Rectangle GetCounterRect()
  */
 Rectangle GetCounterDrawRect()
 {
-	const Rectangle clickRect = GetCounterRect();
+	// Directly above the bar, which is the click target now; the plate's width so a ten-digit
+	// remainder is not clipped. Nothing else is drawn in this strip since the bar moved down to the
+	// belt, so the text has the air above the belt run to itself.
+	const Rectangle bar = GetXPBarRect();
+	const Rectangle clickRect { { bar.position.x, bar.position.y - 2 - CounterHeight }, { bar.size.width, CounterHeight } };
 	const Rectangle plate = GetMiddleHudRect();
 	return Rectangle { { plate.position.x, clickRect.position.y }, { plate.size.width, clickRect.size.height } };
 }
@@ -126,6 +125,12 @@ void DrawXpCounter(const Surface &out)
 
 	const Player &player = *MyPlayer;
 	if (player._pLevel >= MaxCharacterLevel)
+		return;
+
+	// Hidden unless asked for (user, 2026-09-05: "hide the xp counter. show it when hovering over xp
+	// bar and when clicking on xp bar show dungeon exp pool"). Hover shows the ordinary readout;
+	// holding the bar down swaps it for the monsters' pool, as the counter itself used to.
+	if (!IsHeld && !GetCounterRect().contains(MousePosition))
 		return;
 
 	// Oracool: user request (2026-08-11) - both readouts carry a percentage, expressed against the

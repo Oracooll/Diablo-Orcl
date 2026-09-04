@@ -160,7 +160,9 @@ ArtAsset InventoryTabsArt { "ui\\inventory_tabs_chest.png" };
 ArtAsset InventorySortArt { "ui\\inventory_sort.png" };
 /** The belt's Town Portal button. Drawn over the portal ring painted into the plate art. */
 ArtAsset TownPortalIconArt { "ui\\town_portal_icon.png" };
-constexpr Size TownPortalIconSize { 27, 29 };
+// 28x28 since 2026-09-05: GPT's town-portal-states-runtime-84x28.png (delivered-packs/diablo-bottom-
+// hud-v1/icons), three cells - default, hover, click - which is the 0/1/2 DrawTownPortalIcon asks for.
+constexpr Size TownPortalIconSize { 28, 28 };
 /** The belt's burger-menu button. Same treatment as the Portal cell. */
 ArtAsset BurgerMenuButtonArt { "ui\\burger_menu_button.png" };
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
@@ -329,7 +331,10 @@ ArtAsset *SilhouetteForClass(HeroClass heroClass)
  *   state 0  dim   - idle, and idle under the cursor (hud_menu's overlay does the hover)
  *   state 1  lit   - the popup is open
  */
-constexpr Size BurgerMenuButtonSize { 26, 26 };
+// 28x28 and THREE states since 2026-09-05: GPT's burger-menu-states-runtime-84x28.png (delivered-
+// packs/diablo-bottom-hud-v1/icons) - default, hover, click. The 26px two-state cut it replaces is
+// in the pack's history; hud_menu.cpp maps its hover/open/blink onto the three cells.
+constexpr Size BurgerMenuButtonSize { 28, 28 };
 
 // Bug postmortem (2026-08-10): the first quantization attempt matched against logical_palette on
 // the first drawn frame - but at that moment logical_palette still holds the *loading screen's*
@@ -1137,8 +1142,8 @@ void DrawTownPortalIcon(const Surface &out, int state)
 
 void DrawBurgerMenuButton(const Surface &out, int state)
 {
-	// Two cells in the strip now, so 2 is out of range rather than the pressed state it used to be.
-	if (state < 0 || state > 1)
+	// Three cells again since the 2026-09-05 sheet: 0 default, 1 hover, 2 click.
+	if (state < 0 || state > 2)
 		return;
 
 	EnsureLoadedAll();
@@ -1157,7 +1162,10 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	// simply a pixel low, because the cell rect includes the plate's label strip along its top edge -
 	// the same asymmetry the old BurgerMenuButtonRise was compensating for in the other direction
 	// when the art was 27x29.
-	constexpr Displacement BurgerMenuNudge { 1, 1 };
+	//
+	// Zeroed 2026-09-05: the fifth HUD's cells are 28 wide and the new icon is 28, so there is no
+	// odd leftover to split and +1 would hang a column over the rim.
+	constexpr Displacement BurgerMenuNudge { 0, 0 };
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
 	const Point position = Point {
 		cell.position.x + (cell.size.width - BurgerMenuButtonSize.width) / 2,

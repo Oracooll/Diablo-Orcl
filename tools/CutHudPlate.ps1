@@ -59,6 +59,10 @@ $healthSphere = @(205, 165); $manaSphere = @(1732, 168); $sphereRadiusMaster = 1
 # than cut through: measured as the holes of design 03, which shares the layout (x 594-682 ... y
 # 461-556 in master space). Used only when the alpha finds no holes.
 $beltCellsMaster = @( @(591, 247, 88, 96), @(724, 247, 88, 96), @(856, 247, 88, 96), @(989, 247, 88, 96), @(1121, 247, 88, 96), @(1255, 247, 88, 96) )
+# The top edge of the painted belt bar (band-local master y): the silhouette rises from the cells' run
+# to the wells at x 580..1360, and its top row there is 425 in master space. The XP bar sits just
+# above this line.
+$beltBarTopMaster = 211
 
 # ---- pixel work in C#: keying, despeckling, sphere finding ------------------------------------
 $cs = @"
@@ -313,6 +317,8 @@ constexpr Rectangle RmbWell { { $((Scl $rmbWell[0]) - $xl), $(Scl $rmbWell[1]) }
 constexpr int BeltCellX[6] = { $cells };
 constexpr int BeltCellY = $($hole.Y);
 constexpr Size BeltCellSize { $cellW, $($hole.H) };
+/** Plate-local y of the belt bar's top edge - what the XP bar sits above. */
+constexpr int BeltBarTop = $(Scl $beltBarTopMaster);
 
 constexpr Size HealthOrbSize { $xl, $Hh };
 constexpr Size ManaOrbSize { $($W - $xr), $Hh };

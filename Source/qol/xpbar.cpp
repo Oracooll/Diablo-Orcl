@@ -70,31 +70,18 @@ constexpr uint8_t EdgeColor = 0;
  */
 Rectangle GetXPBarRect()
 {
-	const Rectangle counter = oracool::GetXpCounterDrawRect();
-	const Rectangle firstCell = oracool::GetBeltSlotRect(0);
-	const Rectangle lastCell = oracool::GetBeltSlotRect(oracool::BeltVisibleSlotCount - 1);
-
-	const int gapTop = counter.position.y + counter.size.height;
-	const int gapBottom = firstCell.position.y;
+	// Since 2026-09-05 (user: "align xp bar closer to belt") the bar hangs from the belt run's top
+	// edge - the painted belt bar on the plate, the cells on the plateless row - with one pixel of
+	// air, and no longer from the counter, which is hidden now and drawn above the bar when it
+	// shows (xp_counter.cpp). CELLS, not slots: the run is the row's geometry, whichever slot is
+	// drawn where.
+	const Rectangle firstCell = oracool::GetBeltCellRect(0);
+	const Rectangle lastCell = oracool::GetBeltCellRect(oracool::BeltVisibleSlotCount - 1);
 	const int left = firstCell.position.x;
 	const int width = lastCell.position.x + lastCell.size.width - left;
-
-	// The height is what the gap ALLOWS, never more (external audit UI-01A, 2026-08-30). The
-	// requested 8px is the maximum, not a guarantee: with plate art off - the default - the band
-	// between the counter and the belt is only 6px, and an 8px rectangle centred in it hung two
-	// pixels into the belt backing. The bar is drawn after the belt, so those two rows were painted
-	// over rather than hidden.
-	//
-	// The old comment here claimed the clamp "pins the bar to the belt's top edge" in that case. It
-	// could not: clamping the TOP of a fixed-height rect cannot shorten it, so the bottom simply
-	// went past the belt. Clamping the height is what actually holds the invariant, and
-	// OracoolAudit.TheXpBarFitsBetweenTheCounterAndTheBelt pins it in both HUD modes.
-	const int gap = gapBottom - gapTop;
-	if (gap <= 0)
-		return Rectangle { { left, gapTop }, { width, 0 } };
-	const int height = std::min(BarHeight, gap);
-	const int top = gapTop + (gap - height) / 2;
-	return Rectangle { { left, top }, { width, height } };
+	constexpr int GapAboveBelt = 1;
+	const int top = oracool::GetBeltRunTop() - GapAboveBelt - BarHeight;
+	return Rectangle { { left, top }, { width, BarHeight } };
 }
 
 namespace {

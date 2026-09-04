@@ -361,8 +361,11 @@ void DrawBeltButtonFeedback(const Surface &out)
 	int menuState = menuHot ? 1 : 0;
 	if (FlashingCell == BeltMenuSlotIndex) {
 		const uint32_t elapsed = SDL_GetTicks() - FlashStartedAtMs;
+		// With the three-state sheet (2026-09-05) the blink alternates hover and CLICK rather than
+		// unlit and lit, so the pressed picture is what flashes and the button never goes dark
+		// under a cursor that is still on it.
 		if (elapsed < ButtonFlashDurationMs)
-			menuState = ((elapsed / MenuBlinkPhaseMs) % 2 == 0) ? 0 : 1;
+			menuState = ((elapsed / MenuBlinkPhaseMs) % 2 == 0) ? 1 : 2;
 	}
 	DrawBurgerMenuButton(out, menuState);
 
