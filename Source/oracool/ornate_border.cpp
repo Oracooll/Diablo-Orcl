@@ -166,7 +166,7 @@ void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth)
 	const Rectangle footprint { rect.position - Displacement { bezelWidth, bezelWidth },
 		{ rect.size.width + 2 * bezelWidth, rect.size.height + 2 * bezelWidth } };
 	const Rectangle shadow { footprint.position + ShadowOffset, footprint.size };
-	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
+	// One pass, not two (user, 2026-09-05: "reduce the shadow by half") - half the darkening.
 	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
 }
 

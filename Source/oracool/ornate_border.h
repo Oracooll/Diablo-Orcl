@@ -231,8 +231,8 @@ void DrawHoverOutline(const Surface &out, Rectangle rect);
  * angle at six pixels (the text's two vanished under the bezel): the slot's FULL footprint - @p rect
  * grown by @p bezelWidth on every side, since the grid bezel is painted outside the rect it is
  * given - shifted (-6, +6) and darkened, drawn BEFORE the slot so the slot covers all of it but
- * the strip down its left and along its bottom. Darkened twice, because these slots sit on a
- * half-transparent panel where one pass barely reads.
+ * the strip down its left and along its bottom. One half-transparent pass ("reduce the shadow by
+ * half", 2026-09-05); it was two.
  */
 void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth = 0);
 
