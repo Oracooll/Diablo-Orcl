@@ -943,6 +943,15 @@ struct OracoolOptions : OptionCategoryBase {
 	 * one at all. A shop is repeatable in a way the dungeon is not, so this stays well below certain.
 	 */
 	OptionEntryInt<int> vendorTieredStockChance;
+	/**
+	 * @brief Gamma applied to the shared 340x720 side-panel canvas when it loads, in hundredths.
+	 *
+	 * 100 is the dark-stone master as painted; lower lifts the midtones (65 = gamma 0.65) with the
+	 * blacks and highlights left where they are. A setting rather than a baked file because the
+	 * user was tuning it by eye across builds (2026-09-04: "make the gamma 0.65. i wanna test it.
+	 * or put it in the ini as a setting i can change"). Read once, when the canvas is first drawn.
+	 */
+	OptionEntryInt<int> panelGamma;
 	OptionEntryBoolean nakedHeroes;
 	OptionEntryBoolean gameClock;
 	OptionEntryBoolean gameClock12HourFormat;

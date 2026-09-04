@@ -14,7 +14,7 @@
 # the texture keeps its contrast where a multiply would flatten it and blow the highlights. 0.85
 # lifts a mid-grey of 60 to about 74, a quarter brighter; 1.0 is the master unchanged.
 
-param([double] $Gamma = 0.75) # 0.85 shipped in v1.9.210; "a notch brighter again" the same evening
+param([double] $Gamma = 1.0) # SINCE v1.9.212 THE LIFT IS THE "Panel Gamma" INI SETTING, applied in hud_art.cpp at load; the shipped file is the master. 0.85 shipped in v1.9.210, 0.75 in v1.9.211.
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing

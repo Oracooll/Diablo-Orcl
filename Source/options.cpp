@@ -473,6 +473,9 @@ void SaveOptions()
 	setBoolean("HUD Plate Art", *sgOptions.Oracool.hudPlateArt,
 	    "; ----- HUD PLATE ------------------------------------------------------------------\n; Draws the stone plate behind the belt and the two skill wells. Turn it off to see\n; the HUD without it: the belt items, the skill icons, the XP readout and both orbs\n; stay exactly where they are, and what goes is the plate plus everything painted\n; into the picture rather than drawn separately - the belt cell frames, the two well\n; rims, and the Menu and Portal button faces.");
 
+	setInteger("Panel Gamma", *sgOptions.Oracool.panelGamma,
+	    "; ----- SIDE PANELS ---------------------------------------------------------------\n; Brightness of the 340x720 stone canvas every side panel (inventory, stash, character,\n; abilities...) is drawn on, as GAMMA in hundredths. 100 is the stone exactly as painted;\n; lower is lighter (65 = gamma 0.65 lifts the midtones about a third, blacks and\n; highlights stay put); 110-120 is darker. Values: 40-100 in steps of 5, 110, 120.\n; Read once, when the panel is first drawn - restart after changing it.");
+
 	setBoolean("Event Log", *sgOptions.Oracool.eventLog,
 	    "; ----- EVENT LOG -----------------------------------------------------------------\n; Shows a small \"LOG\" button above the durability-warning icons that expands into a\n; timestamped log of noteworthy session events (game saves, boss kills, special item\n; drops, deaths). Session-only - not saved to disk.");
 
@@ -1527,6 +1530,7 @@ OracoolOptions::OracoolOptions()
     , eventLog("Event Log", OptionEntryFlags::None, N_("Event Log"), N_("Shows a toggleable button above the durability-warning icons that opens a timestamped log of noteworthy session events."), true)
     , balanceTelemetry("Balance Telemetry", OptionEntryFlags::None, N_("Balance Telemetry"), N_("Appends kills, deaths and item pickups to balance_telemetry.csv beside your saves, as tuning data for balancing the mod. Local file only; nothing leaves your machine."), true)
     , vendorTieredStockChance("Vendor Tiered Stock Chance", OptionEntryFlags::None, N_("Vendor Tiered Stock Chance"), N_("Percent chance a vendor item is offered at a base tier above Normal. The tier follows the game difficulty."), 35, { 0, 5, 10, 15, 20, 25, 35, 50, 65, 80, 100 })
+    , panelGamma("Panel Gamma", OptionEntryFlags::None, N_("Panel Gamma"), N_("Brightness of the shared side-panel canvas, as gamma in hundredths: 100 is the stone as painted, lower is lighter."), 65, { 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 110, 120 })
     , nakedHeroes("Naked Heroes", OptionEntryFlags::None, N_("Naked Heroes"), N_("New heroes start with no equipment, no potions and no gold. Read once, when the character is created."), true)
     , gameClock("Game Clock", OptionEntryFlags::None, N_("Game Clock"), N_("Shows the current real-world time just below the mini-map's left edge."), true)
     , gameClock12HourFormat("Game Clock 12 Hour Format", OptionEntryFlags::None, N_("Game Clock 12 Hour Format"), N_("Shows the Game Clock in 12-hour format with an AM/PM suffix instead of 24-hour format."), false)
@@ -1612,6 +1616,7 @@ std::vector<OptionEntryBase *> OracoolOptions::GetEntries()
 		// misses.
 		&balanceTelemetry,
 		&vendorTieredStockChance,
+		&panelGamma,
 		&nakedHeroes,
 		&gameClock,
 		&gameClock12HourFormat,

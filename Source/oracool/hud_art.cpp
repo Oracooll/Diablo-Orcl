@@ -1,6 +1,7 @@
 ﻿#include "oracool/hud_art.h"
 
 #include <algorithm>
+#include <cmath> // std::pow - the Panel Gamma lift
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -566,8 +567,25 @@ void EnsureLoadedAll()
 		LoadPixels(MenuIconsArt);
 	if (!InventoryPanelArt.loadAttempted)
 		LoadPixels(InventoryPanelArt);
-	if (!SidePanelArt.loadAttempted)
+	if (!SidePanelArt.loadAttempted) {
 		LoadPixels(SidePanelArt);
+		// The Panel Gamma setting (user, 2026-09-04: "put it in the ini as a setting i can change").
+		// Applied ONCE, here, to the loaded pixels rather than in QuantizeAsset, which re-runs on
+		// every palette change and would compound the lift each time. The file ships as the
+		// dark-stone master; tools\BrightenPanelBg.ps1 can still bake a lift if the setting goes.
+		const int hundredths = *sgOptions.Oracool.panelGamma;
+		if (!SidePanelArt.rgba.empty() && hundredths > 0 && hundredths != 100) {
+			const double gamma = hundredths / 100.0;
+			uint8_t lut[256];
+			for (int i = 0; i < 256; i++)
+				lut[i] = static_cast<uint8_t>(std::lround(255.0 * std::pow(i / 255.0, gamma)));
+			for (size_t i = 0; i + 3 < SidePanelArt.rgba.size(); i += 4) {
+				SidePanelArt.rgba[i] = lut[SidePanelArt.rgba[i]];
+				SidePanelArt.rgba[i + 1] = lut[SidePanelArt.rgba[i + 1]];
+				SidePanelArt.rgba[i + 2] = lut[SidePanelArt.rgba[i + 2]];
+			}
+		}
+	}
 	if (!InventoryTabsArt.loadAttempted)
 		LoadPixels(InventoryTabsArt);
 	if (!InventorySortArt.loadAttempted)
