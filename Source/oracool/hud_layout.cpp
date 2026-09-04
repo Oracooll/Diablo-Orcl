@@ -35,12 +35,21 @@ namespace {
 // old one read as cramped. That gives ~33px belt cells and ~49px skill wells; the RMB readied-spell
 // indicator therefore uses the engine's SMALL (37x38) spell icon rather than the 56px large one
 // (see GetRmbSkillButtonDrawPosition and DrawSpell).
-// The art's own 1505x274 band in hud-plate-v3.png - see tools\CutHudPlate.ps1, which asserts the
-// crop against the master before cutting. The height went 272 -> 274 with v3 and moves NOTHING:
-// ScalePlate divides by width only, so no source rect shifts, and 272 and 274 both scale to a
-// 64-pixel PlateScreenSize.height. The width is the load-bearing number and it did not change,
-// which is exactly why v3 was a drop-in where the limestone package was not.
-constexpr Size PlateSrcSize { 1505, 274 };
+//
+// THE FOURTH PLATE (user, 2026-09-04: "there is a new hud.png file in oracool.mpq. can you use it
+// to replace current hud?"). hud-plate-v4-947x263.png in 01-in-use\bottom-hud: two square wells
+// flanking ONE long bar, in the gold pinstripe of the second Levski painting. Nothing is baked into
+// it - no labels, no cell frames, no icons - so the six belt cells are laid across the bar by the
+// code, the points-frame backing draws each cell's frame (DrawBeltBacking) and the burger and
+// portal icons draw into the end cells as they already did. Its opaque band is 897x195 at (22,30),
+// which tools\CutHudPlate.ps1 asserts before cutting; every source rect below is measured inside
+// that band (scratchpad hudprof.ps1 + hudoverlay.ps1, rects drawn over the art and checked by eye).
+//
+// The screen width stays 356. That makes the wells' openings ~63px (up from 49 - the NET 46x46
+// square the content is centred in is unchanged, so icons do not move relative to each other), the
+// bar 182x31, and the belt cells ~30x31, which a 28px potion sprite fits. The plate is 77 tall now
+// instead of 64, and everything that hangs off GetMiddleHudRect follows.
+constexpr Size PlateSrcSize { 897, 195 };
 constexpr int PlateScreenWidth = 356;
 constexpr int PlateBottomMargin = 0; // user: "flush with the bottom"
 
@@ -105,10 +114,10 @@ bool UsePlatelessRow()
 	return !*sgOptions.Oracool.hudPlateArt;
 }
 
-// Source-space rects measured from the PNG (plate-local coordinates, i.e. after the (16,337) crop
-// the prep script applies - that origin is the art's own alpha>=128 bounding box). The two skill
-// wells are both taller and wider than the belt cells, and sit higher up the plate.
-constexpr Rectangle LmbWellSrc { { 25, 26 }, { 208, 217 } };
+// Source-space rects measured from the PNG (plate-local coordinates, i.e. after the (22,30) crop
+// the cutter applies - that origin is the art's own alpha>=128 bounding box). The wells are the
+// stone INSIDE the gold pinstripe; the pinstripe and the carved frame around it are the bezel.
+constexpr Rectangle LmbWellSrc { { 24, 20 }, { 160, 155 } };
 /**
  * @brief Thickness of the metal bezel drawn around a skill well's opening, in screen pixels.
  *
@@ -118,14 +127,13 @@ constexpr Rectangle LmbWellSrc { { 25, 26 }, { 208, 217 } };
  */
 constexpr int SkillWellBezelPx = 5;
 
-// The level-up icon is cut to the LMB button's full footprint. LevelUpIconSize has to be a literal
-// in the header (hud_art blits the PNG unscaled, so the art is cut to exactly that size), so tie it
-// to the real geometry here instead of trusting two numbers to stay in step by hand.
-static_assert(LevelUpIconSize.width == ScalePlateRect(LmbWellSrc).size.width + 2 * SkillWellBezelPx
-        && LevelUpIconSize.height == ScalePlateRect(LmbWellSrc).size.height + 2 * SkillWellBezelPx,
-    "Level-up icon size no longer matches the LMB well plus its bezel - recut the art and update "
-    "LevelUpIconSize in hud_layout.h");
-constexpr Rectangle RmbWellSrc { { 1271, 26 }, { 207, 217 } };
+// The level-up icon (ui\level_up_icon.png, 60x61 a state) was cut to the THIRD plate's LMB button
+// - its 50x51 opening plus this bezel - and a static_assert here held the two together. With the
+// fourth plate the well is ~63px and that art no longer matches anything; but it has been the
+// FALLBACK since 2026-08-27 (control.cpp's DrawLevelUpIcon draws the 64px points frame first and
+// reaches for it only in a build whose frame is missing), so the tie is gone rather than the art
+// recut for a picture nobody sees. LevelUpIconSize stays what the strip is cut at.
+constexpr Rectangle RmbWellSrc { { 723, 20 }, { 159, 155 } };
 
 /** @brief Integer division rounding to nearest. @p denominator must be positive. */
 constexpr int RoundedDiv(int numerator, int denominator)
@@ -175,15 +183,20 @@ static_assert(SkillWellIconSize.width <= ScalePlateRect(RmbWellSrc).size.width
     "smaller (tools/CutAttackIcons.ps1) or fix the plate geometry");
 // The centring maths pinned to hand-computed values, so a change to the plate scale cannot quietly
 // shift both icons. Derived in the doc comment above.
-static_assert(CentreInWell(LmbWellSrc, SkillWellIconSize).x == 12
-        && CentreInWell(LmbWellSrc, SkillWellIconSize).y == 13
-        && CentreInWell(RmbWellSrc, SkillWellIconSize).x == 306
-        && CentreInWell(RmbWellSrc, SkillWellIconSize).y == 13,
+// Re-derived for the fourth plate (2026-09-04): LMB (2*24+160)*356 - 38*897 = 39962 over 1794 ->
+// 22, y (2*20+155)*356 - 34086 = 35334 -> 20; RMB (2*723+159)*356 - 34086 = 537294 -> 299.
+static_assert(CentreInWell(LmbWellSrc, SkillWellIconSize).x == 22
+        && CentreInWell(LmbWellSrc, SkillWellIconSize).y == 20
+        && CentreInWell(RmbWellSrc, SkillWellIconSize).x == 299
+        && CentreInWell(RmbWellSrc, SkillWellIconSize).y == 20,
     "Skill-well icon centring moved - re-derive it against the plate art before accepting this");
 
-constexpr int BeltCellSrcX[6] = { 263, 434, 599, 766, 931, 1099 };
-constexpr int BeltCellSrcY = 91;
-constexpr Size BeltCellSrcSize { 139, 150 };
+// The bar's opening is x 219..677, y 96..175 of the band, and it is ONE opening: the fourth plate
+// paints no cell frames, so the six cells are the bar divided in six (458/6 = 76.33) and the
+// points-frame backing drawn scaled to each is what separates them on screen.
+constexpr int BeltCellSrcX[6] = { 219, 295, 372, 448, 524, 601 };
+constexpr int BeltCellSrcY = 96;
+constexpr Size BeltCellSrcSize { 76, 79 };
 
 // Oracool: HUD art pass, orb v2 (2026-08-11) - the user's second orb designs, replacing the first
 // pair whose gargoyle/angel read as too large against their spheres. Now the sphere dominates and
@@ -318,7 +331,9 @@ namespace {
  * correction here rather than at each drawing site, so every well's content - plate, tree icon,
  * attack icon, spell icon - moves together and stays aligned with the others.
  */
-constexpr Displacement NetRectNudge { 1, 3 };
+// Zeroed with the fourth plate (2026-09-04): that nudge corrected the THIRD plate's bezel, and the
+// new wells are measured from their pinstripe directly. Re-tune against a screenshot if needed.
+constexpr Displacement NetRectNudge { 0, 0 };
 
 Rectangle NetRectIn(Rectangle well)
 {
