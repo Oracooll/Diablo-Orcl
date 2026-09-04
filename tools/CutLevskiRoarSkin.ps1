@@ -1,53 +1,57 @@
 # CutLevskiRoarSkin.ps1 - cuts the painted Levski's Roar skin into shipped assets and a geometry header.
 #
-# Reads  Oracool.MPQ/02-source-art/delivered-packs/oracool-levski-roar-skin/
-# Writes Packaging/resources/oracool_assets/ui/levski_bg.png and twenty levski_<button>_<state>.png
+# Reads  Oracool.MPQ/02-source-art/delivered-packs/oracool-levski-roar-skin/levski-roar-v2-447x559.png
+# Writes Packaging/resources/oracool_assets/ui/levski_bg.png
 #        Source/oracool/levski_roar_skin.h  (window size, grid, ten rects - GENERATED, do not edit)
 #
 # WHY A HEADER. The window's hit rects and the art's plates have to agree to the pixel, and the art
-# is resampled from a 1122x1402 painting. Measuring the painting here and emitting the numbers is
-# the only way the two cannot drift: change the source rects below, re-run, rebuild.
+# is resampled from the painting. Measuring the painting here and emitting the numbers is the only
+# way the two cannot drift: change the source rects below, re-run, rebuild.
 #
-# THE SCALE. The painting's grid cells are ~185px; the game's item cell is 28px and item sprites are
-# cut to it. Items in this grid are drawn at 1x (28px cells, the user's call of 2026-09-04 after a day at
-# 3x), so the whole window is drawn at 28/185 - 170x212. The plates' lettering is a few pixels tall at
-# that scale; the game's hover text names each one.
+# THE SECOND PAINTING (2026-09-04, "there is a newer version of levskis roar in oracool.mpq"). 447x559,
+# an 8x10 grid, and painted very nearly at game size: its cells are 29.4 x 28.1 px. The two axes are
+# scaled SEPARATELY so both land on the game's 28px cell - a 5% squeeze across, none down - which
+# no eye picks up on stonework and which is what lets the game's 28px items sit in the painted cells.
+# It came without state sheets, so no levski_<button>_<state>.png is written; the game marks hover and
+# press with an outline and a shade when a state file is missing (levski_roar.cpp).
 #
-# THE STATE SHEETS. Each is two plates on a gradient: LEFT lit (hover), RIGHT plain (pressed). The
-# plate is found as the bounding box of "not gradient" pixels - dark, or saturated (gold, gems, the
-# red Transmute) - and the gradient inside that box is keyed out. Three sheets have the left plate
-# cut off at x=0; those use the right plate for both states, and the game marks hover otherwise.
+# The first painting (1122x1402, 3x4 grid, ten state sheets) is still in the pack folder; this
+# script's history has the cut for it (v1.9.203-204).
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
 $pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-levski-roar-skin'
+$source = Join-Path $pack 'levski-roar-v2-447x559.png'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $header = Join-Path $root 'Source\oracool\levski_roar_skin.h'
 
-# ---- measured off levski-roar-background.png (2026-09-04) ------------------------------------
-$srcW = 1122; $srcH = 1402
-$cellPitch = 185                       # centre-to-centre of the painted 3x4 grid
-$gridOrigin = @{ X = 113; Y = 430 }    # top-left of the first cell's interior
-$gameCell = 28                         # the inventory cell itself (user, 2026-09-04: "scale the whole thing down so the grid slots are regular game size")
-$scale = $gameCell / $cellPitch
+# ---- measured off levski-roar-v2-447x559.png (2026-09-04, luma profiles + a 2x overlay check) -----
+$srcW = 447; $srcH = 559
+$gridColumns = 8; $gridRows = 10
+$pitchX = 29.4; $pitchY = 28.1           # centre-to-centre of the painted grid, per axis
+$gridOrigin = @{ X = 39.5; Y = 167 }     # top-left of the first cell's interior
+$gameCell = 28                           # the inventory cell (user, 2026-09-04: "regular game size")
+$scaleX = $gameCell / $pitchX
+$scaleY = $gameCell / $pitchY
 
-# name, source rect (x y w h), sheet file
+# name, source rect (x y w h) - the plate's outer gold edge
 $buttons = @(
-  @{ Name = 'close';      Rect = @(975, 115,  72,  68); Sheet = 'button-close-states.png' },
-  @{ Name = 'transmute';  Rect = @(118, 1172, 512, 118); Sheet = 'button-transmute-states.png' },
-  @{ Name = 'recipes';    Rect = @(678, 1178, 352, 110); Sheet = 'button-recipe-book-states.png' },
-  @{ Name = 'basic';      Rect = @(745, 469,  282,  80); Sheet = 'button-basic-states.png' },
-  @{ Name = 'magic';      Rect = @(745, 561,  282,  80); Sheet = 'button-magic-states.png' },
-  @{ Name = 'rare';       Rect = @(745, 653,  282,  80); Sheet = 'button-rare-states.png' },
-  @{ Name = 'unique';     Rect = @(745, 745,  282,  80); Sheet = 'button-unique-states.png' },
-  @{ Name = 'set';        Rect = @(745, 837,  282,  80); Sheet = 'button-set-states.png' },
-  @{ Name = 'primal';     Rect = @(745, 929,  282,  80); Sheet = 'button-primal-states.png' },
-  @{ Name = 'ethereal';   Rect = @(745, 1021, 282,  80); Sheet = 'button-ethereal-states.png' }
+  @{ Name = 'close';      Rect = @(386, 46,  27, 28) },
+  @{ Name = 'transmute';  Rect = @(50,  474, 196, 38) },
+  @{ Name = 'recipes';    Rect = @(270, 473, 140, 38) },
+  @{ Name = 'basic';      Rect = @(301, 188, 106, 31) },
+  @{ Name = 'magic';      Rect = @(301, 224, 106, 31) },
+  @{ Name = 'rare';       Rect = @(301, 260, 106, 31) },
+  @{ Name = 'unique';     Rect = @(301, 296, 106, 31) },
+  @{ Name = 'set';        Rect = @(301, 332, 106, 31) },
+  @{ Name = 'primal';     Rect = @(301, 368, 106, 31) },
+  @{ Name = 'ethereal';   Rect = @(301, 404, 106, 31) }
 )
 
-function Scaled($v) { return [int][math]::Round($v * $scale) }
+function ScaledX($v) { return [int][math]::Round($v * $scaleX) }
+function ScaledY($v) { return [int][math]::Round($v * $scaleY) }
 
 function Resample([System.Drawing.Image]$src, [System.Drawing.Rectangle]$crop, [int]$w, [int]$h) {
   $bmp = New-Object System.Drawing.Bitmap $w, $h, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -62,83 +66,31 @@ function Resample([System.Drawing.Image]$src, [System.Drawing.Rectangle]$crop, [
   return $bmp
 }
 
-function IsPlatePixel([System.Drawing.Color]$c) {
-  $l = 0.299 * $c.R + 0.587 * $c.G + 0.114 * $c.B
-  $sat = [math]::Max($c.R, [math]::Max($c.G, $c.B)) - [math]::Min($c.R, [math]::Min($c.G, $c.B))
-  return ($l -lt 95) -or ($sat -gt 70)
-}
-
-# The plate's GOLD - its border, ornaments and lettering. The gradient behind the plates runs from
-# warm beige to near-black and matches a luma test on its dark half, so the box is found from the
-# gold alone, which nothing in the gradient is; the dark interior sits inside that border anyway.
-function IsGoldPixel([System.Drawing.Color]$c) {
-  return ($c.R -gt 110) -and (($c.R - $c.B) -gt 55) -and ($c.G -ge $c.B)
-}
-
-# The plate inside one half of a sheet: bounding box of its gold, with a small margin.
-function PlateBox([System.Drawing.Bitmap]$b, [int]$x0, [int]$x1) {
-  $minX = $x1; $maxX = $x0; $minY = $b.Height; $maxY = 0
-  for ($y = 0; $y -lt $b.Height; $y += 2) {
-    for ($x = $x0; $x -lt $x1; $x += 2) {
-      if (IsGoldPixel $b.GetPixel($x, $y)) {
-        if ($x -lt $minX) { $minX = $x }; if ($x -gt $maxX) { $maxX = $x }
-        if ($y -lt $minY) { $minY = $y }; if ($y -gt $maxY) { $maxY = $y }
-      }
-    }
-  }
-  $m = 4
-  $minX = [math]::Max($x0, $minX - $m); $maxX = [math]::Min($x1 - 1, $maxX + $m)
-  $minY = [math]::Max(0, $minY - $m);   $maxY = [math]::Min($b.Height - 1, $maxY + $m)
-  return New-Object System.Drawing.Rectangle $minX, $minY, ($maxX - $minX + 1), ($maxY - $minY + 1)
-}
-
-# Key the gradient out of a cut plate: light, unsaturated pixels become transparent.
-function KeyOutGradient([System.Drawing.Bitmap]$b) {
-  for ($y = 0; $y -lt $b.Height; $y++) {
-    for ($x = 0; $x -lt $b.Width; $x++) {
-      $c = $b.GetPixel($x, $y)
-      if (-not (IsPlatePixel $c)) { $b.SetPixel($x, $y, [System.Drawing.Color]::FromArgb(0, 0, 0, 0)) }
-    }
-  }
-}
-
-$winW = Scaled $srcW; $winH = Scaled $srcH
-Write-Host ("window {0}x{1}  scale {2:N4}" -f $winW, $winH, $scale)
+$winW = ScaledX $srcW; $winH = ScaledY $srcH
+Write-Host ("window {0}x{1}  scale {2:N4} x {3:N4}" -f $winW, $winH, $scaleX, $scaleY)
 
 # ---- the background --------------------------------------------------------------------------
-$bg = [System.Drawing.Image]::FromFile((Join-Path $pack 'levski-roar-background.png'))
+$bg = [System.Drawing.Image]::FromFile($source)
+if ($bg.Width -ne $srcW -or $bg.Height -ne $srcH) { throw "expected ${srcW}x${srcH}, got $($bg.Width)x$($bg.Height)" }
 $bgOut = Resample $bg (New-Object System.Drawing.Rectangle 0, 0, $srcW, $srcH) $winW $winH
 $bgOut.Save((Join-Path $outDir 'levski_bg.png'), [System.Drawing.Imaging.ImageFormat]::Png)
 $bgOut.Dispose(); $bg.Dispose()
 Write-Host "levski_bg.png"
 
+# Stale state files from the first painting must not lie over the new plates.
+Get-ChildItem $outDir -Filter 'levski_*_hover.png' | Remove-Item
+Get-ChildItem $outDir -Filter 'levski_*_pressed.png' | Remove-Item
+
 # ---- the buttons -----------------------------------------------------------------------------
 $lines = @()
-$cropped = @()
 foreach ($btn in $buttons) {
   $r = $btn.Rect
-  $gx = Scaled $r[0]; $gy = Scaled $r[1]; $gw = Scaled $r[2]; $gh = Scaled $r[3]
+  $gx = ScaledX $r[0]; $gy = ScaledY $r[1]; $gw = ScaledX $r[2]; $gh = ScaledY $r[3]
   $lines += ("`t{{ {{ {0}, {1} }}, {{ {2}, {3} }} }}, // {4}" -f $gx, $gy, $gw, $gh, $btn.Name)
-
-  $sheet = New-Object System.Drawing.Bitmap (Join-Path $pack $btn.Sheet)
-  $half = [int]($sheet.Width / 2)
-  $left = PlateBox $sheet 0 $half
-  $right = PlateBox $sheet $half $sheet.Width
-  $leftCut = $left.X -le 3
-  if ($leftCut) { $cropped += $btn.Name }
-  $states = @{ hover = $(if ($leftCut) { $right } else { $left }); pressed = $right }
-  foreach ($state in $states.Keys) {
-    $plate = Resample $sheet $states[$state] $gw $gh
-    KeyOutGradient $plate
-    $plate.Save((Join-Path $outDir ("levski_{0}_{1}.png" -f $btn.Name, $state)), [System.Drawing.Imaging.ImageFormat]::Png)
-    $plate.Dispose()
-  }
-  $sheet.Dispose()
-  Write-Host ("{0,-10} game rect {1},{2} {3}x{4}  left plate {5}  right plate {6}{7}" -f $btn.Name, $gx, $gy, $gw, $gh, $left, $right, $(if ($leftCut) { '  [left CUT OFF - right used for hover]' } else { '' }))
+  Write-Host ("{0,-10} game rect {1},{2} {3}x{4}" -f $btn.Name, $gx, $gy, $gw, $gh)
 }
 
 # ---- the header ------------------------------------------------------------------------------
-$croppedList = if ($cropped.Count -gt 0) { ($cropped -join ', ') } else { 'none' }
 $h = @"
 /**
  * @file oracool/levski_roar_skin.h
@@ -147,11 +99,12 @@ $h = @"
  * that script and re-run it; the art it writes and these numbers come from the same pass.
  *
  * The painted Levski's Roar window (Oracool.MPQ/02-source-art/delivered-packs/
- * oracool-levski-roar-skin), resampled to $($winW)x$($winH) - the scale at which its ~$($cellPitch)px
- * painted grid cells become the game's 28px item cell. Every rect below is in WINDOW pixels.
+ * oracool-levski-roar-skin/levski-roar-v2-447x559.png), resampled to $($winW)x$($winH) - the scale at
+ * which its painted grid cells ($($pitchX) x $($pitchY) px) become the game's 28px item cell. Every rect
+ * below is in WINDOW pixels.
  *
- * State sheets whose lit plate was cut off in delivery, and so wear the plain plate for hover too:
- * $croppedList.
+ * This painting came without hover/pressed sheets: no levski_<stem>_<state>.png exists, and the
+ * game marks state with an outline and a shade instead (HoverIsPlain is true throughout).
  */
 #pragma once
 
@@ -163,7 +116,9 @@ namespace devilution::oracool::levski_skin {
 
 constexpr Size WindowSize { $winW, $winH };
 constexpr int CellSize = $gameCell;
-constexpr Point GridOrigin { $(Scaled $gridOrigin.X), $(Scaled $gridOrigin.Y) };
+constexpr int GridColumns = $gridColumns;
+constexpr int GridRows = $gridRows;
+constexpr Point GridOrigin { $(ScaledX $gridOrigin.X), $(ScaledY $gridOrigin.Y) };
 
 /** The ten plates, in ButtonIndex order. */
 enum ButtonIndex : int {
@@ -178,15 +133,14 @@ constexpr Rectangle ButtonRects[ButtonCount] = {
 $($lines -join "`n")
 };
 
-/** ui\ asset stem per button - levski_<stem>_hover.png and levski_<stem>_pressed.png. */
+/** ui\ asset stem per button - levski_<stem>_hover.png and levski_<stem>_pressed.png, if they exist. */
 constexpr const char *ButtonStems[ButtonCount] = {
 $(($buttons | ForEach-Object { "`t`"$($_.Name)`"," }) -join "`n")
 };
 
-/** True where the hover file is the PLAIN plate (the lit one was cut off in delivery), so the game
- * has to mark hover some other way. */
+/** True where the hover file, if any, is the PLAIN plate, so the game has to mark hover itself. */
 constexpr bool HoverIsPlain[ButtonCount] = {
-$(($buttons | ForEach-Object { if ($cropped -contains $_.Name) { "`ttrue, // $($_.Name)" } else { "`tfalse, // $($_.Name)" } }) -join "`n")
+$(($buttons | ForEach-Object { "`ttrue, // $($_.Name)" }) -join "`n")
 };
 
 } // namespace devilution::oracool::levski_skin

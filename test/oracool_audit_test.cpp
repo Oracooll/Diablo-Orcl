@@ -4880,26 +4880,31 @@ TEST(OracoolAudit, LevskiGridMeasuresRoomInCellsAndLosesNothing)
 	ASSERT_EQ(GetInventorySize(stone).width, 1);
 	ASSERT_EQ(GetInventorySize(stone).height, 1);
 
-	// Exactly twelve cells: 2x3 plus six singles. This must fit, or a six-socket item can never be
-	// emptied at all.
-	std::vector<devilution::Item> exact { big, stone, stone, stone, stone, stone, stone };
+	// Exactly the grid's cells: the 2x3 plus enough singles to fill the rest. This must fit, or a
+	// six-socket item can never be emptied at all. (Twelve cells when the grid was 3x4; eighty
+	// since the 8x10 painted well of 2026-09-04 - the count comes from the grid, not from here.)
+	constexpr int Cells = LevskiGridSlots;
+	std::vector<devilution::Item> exact { big };
+	while (static_cast<int>(exact.size()) < Cells - 5)
+		exact.push_back(stone);
 	EXPECT_TRUE(LevskiGridCanHold(exact.data(), static_cast<int>(exact.size())))
-	    << "a 2x3 host and its six freed stones do not fit - the worst case is unrunnable";
+	    << "a 2x3 host and the stones that fill the rest do not fit - the worst case is unrunnable";
 
-	// One cell past it. Seven array entries became eight, but the point is that it is THIRTEEN
-	// cells: a slot count would still say there is room.
+	// One cell past it. The point is that it is Cells + 1 CELLS while the array count is still
+	// under the slot count: a slot count would still say there is room.
 	std::vector<devilution::Item> overfull = exact;
 	overfull.push_back(stone);
 	EXPECT_FALSE(LevskiGridCanHold(overfull.data(), static_cast<int>(overfull.size())))
-	    << "thirteen cells fit in a twelve-cell grid - the check is still counting slots";
+	    << "one cell more than the grid has fit - the check is still counting slots";
 
 	// And the recipe itself refuses rather than freeing stones it cannot place. Six sockets filled,
-	// plus one loose stone already in the grid: eight array entries, thirteen cells.
+	// plus loose stones already in the grid such that freeing the six is one cell too many.
 	devilution::Item grid[LevskiGridSlots];
 	grid[0] = big;
 	for (uint16_t &socketed : grid[0]._iSocketed)
 		socketed = static_cast<uint16_t>(IDI_ORACOOL_JEWEL_FERVOR_FLAWED);
-	grid[1] = stone;
+	for (int i = 1; i <= Cells - 6 - 5; i++)
+		grid[i] = stone;
 	ASSERT_EQ(grid[0].socketedCount(), devilution::Item::MaxItemSockets);
 
 	const std::string refusal = TransmuteLevskiGrid(grid);

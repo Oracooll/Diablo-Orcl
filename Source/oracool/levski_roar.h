@@ -28,6 +28,7 @@
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
+#include "oracool/levski_roar_skin.h"
 
 namespace devilution {
 struct Player;
@@ -37,9 +38,11 @@ struct Object;
 
 namespace devilution::oracool {
 
-/** @brief The transmute grid, in cells - 3x4, the Horadric Cube's twelve slots. */
-constexpr int LevskiGridColumns = 3;
-constexpr int LevskiGridRows = 4;
+/** @brief The transmute grid, in cells. 3x4 - the Horadric Cube's twelve - until the second painted
+ * skin (2026-09-04), which is an 8x10 well; the grid IS the painting's grid, so the size comes from
+ * the generated skin header. Not saved: the grid empties with the game, like the cube did. */
+constexpr int LevskiGridColumns = levski_skin::GridColumns;
+constexpr int LevskiGridRows = levski_skin::GridRows;
 constexpr int LevskiGridSlots = LevskiGridColumns * LevskiGridRows;
 
 /**

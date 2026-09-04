@@ -5,11 +5,12 @@
  * that script and re-run it; the art it writes and these numbers come from the same pass.
  *
  * The painted Levski's Roar window (Oracool.MPQ/02-source-art/delivered-packs/
- * oracool-levski-roar-skin), resampled to 170x212 - the scale at which its ~185px
- * painted grid cells become the game's 28px item cell. Every rect below is in WINDOW pixels.
+ * oracool-levski-roar-skin/levski-roar-v2-447x559.png), resampled to 426x557 - the scale at
+ * which its painted grid cells (29.4 x 28.1 px) become the game's 28px item cell. Every rect
+ * below is in WINDOW pixels.
  *
- * State sheets whose lit plate was cut off in delivery, and so wear the plain plate for hover too:
- * transmute, basic, ethereal.
+ * This painting came without hover/pressed sheets: no levski_<stem>_<state>.png exists, and the
+ * game marks state with an outline and a shade instead (HoverIsPlain is true throughout).
  */
 #pragma once
 
@@ -19,9 +20,11 @@
 
 namespace devilution::oracool::levski_skin {
 
-constexpr Size WindowSize { 170, 212 };
+constexpr Size WindowSize { 426, 557 };
 constexpr int CellSize = 28;
-constexpr Point GridOrigin { 17, 65 };
+constexpr int GridColumns = 8;
+constexpr int GridRows = 10;
+constexpr Point GridOrigin { 38, 166 };
 
 /** The ten plates, in ButtonIndex order. */
 enum ButtonIndex : int {
@@ -33,19 +36,19 @@ enum ButtonIndex : int {
 constexpr int ButtonCount = 10;
 
 constexpr Rectangle ButtonRects[ButtonCount] = {
-	{ { 148, 17 }, { 11, 10 } }, // close
-	{ { 18, 177 }, { 77, 18 } }, // transmute
-	{ { 103, 178 }, { 53, 17 } }, // recipes
-	{ { 113, 71 }, { 43, 12 } }, // basic
-	{ { 113, 85 }, { 43, 12 } }, // magic
-	{ { 113, 99 }, { 43, 12 } }, // rare
-	{ { 113, 113 }, { 43, 12 } }, // unique
-	{ { 113, 127 }, { 43, 12 } }, // set
-	{ { 113, 141 }, { 43, 12 } }, // primal
-	{ { 113, 155 }, { 43, 12 } }, // ethereal
+	{ { 368, 46 }, { 26, 28 } }, // close
+	{ { 48, 472 }, { 187, 38 } }, // transmute
+	{ { 257, 471 }, { 133, 38 } }, // recipes
+	{ { 287, 187 }, { 101, 31 } }, // basic
+	{ { 287, 223 }, { 101, 31 } }, // magic
+	{ { 287, 259 }, { 101, 31 } }, // rare
+	{ { 287, 295 }, { 101, 31 } }, // unique
+	{ { 287, 331 }, { 101, 31 } }, // set
+	{ { 287, 367 }, { 101, 31 } }, // primal
+	{ { 287, 403 }, { 101, 31 } }, // ethereal
 };
 
-/** ui\ asset stem per button - levski_<stem>_hover.png and levski_<stem>_pressed.png. */
+/** ui\ asset stem per button - levski_<stem>_hover.png and levski_<stem>_pressed.png, if they exist. */
 constexpr const char *ButtonStems[ButtonCount] = {
 	"close",
 	"transmute",
@@ -59,18 +62,17 @@ constexpr const char *ButtonStems[ButtonCount] = {
 	"ethereal",
 };
 
-/** True where the hover file is the PLAIN plate (the lit one was cut off in delivery), so the game
- * has to mark hover some other way. */
+/** True where the hover file, if any, is the PLAIN plate, so the game has to mark hover itself. */
 constexpr bool HoverIsPlain[ButtonCount] = {
-	false, // close
+	true, // close
 	true, // transmute
-	false, // recipes
+	true, // recipes
 	true, // basic
-	false, // magic
-	false, // rare
-	false, // unique
-	false, // set
-	false, // primal
+	true, // magic
+	true, // rare
+	true, // unique
+	true, // set
+	true, // primal
 	true, // ethereal
 };
 
