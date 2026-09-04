@@ -157,11 +157,15 @@ void DrawHoverOutline(const Surface &out, Rectangle rect)
 	DrawColoredOutline(out, rect, MidHighlightColor);
 }
 
-void DrawDropShadow(const Surface &out, Rectangle rect)
+void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth)
 {
-	// The character sheet's text shadow offset, exactly: two left, two down. See the header.
-	constexpr Displacement ShadowOffset { -2, 2 };
-	const Rectangle shadow { rect.position + ShadowOffset, rect.size };
+	// The character sheet's text shadow ANGLE - left and down - at six pixels (user, 2026-09-05:
+	// "increase px count to 6"; the first cut used the text's own two, which the six-pixel grid
+	// bezel painted around every slot covered completely, so nothing showed).
+	constexpr Displacement ShadowOffset { -6, 6 };
+	const Rectangle footprint { rect.position - Displacement { bezelWidth, bezelWidth },
+		{ rect.size.width + 2 * bezelWidth, rect.size.height + 2 * bezelWidth } };
+	const Rectangle shadow { footprint.position + ShadowOffset, footprint.size };
 	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
 	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
 }
