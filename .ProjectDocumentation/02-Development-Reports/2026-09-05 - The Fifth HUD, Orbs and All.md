@@ -37,3 +37,11 @@ The cutter now reads `transparent-orbs/03-transparent-belt-and-orbs.png`: the sa
 `DrawOrb` takes the liquid asset: if present and the same size as the cradle, it blits the liquid from the fill line down and the cradle over it; the world shows through the empty glass above the line. Without a liquid file the painted-sphere path (frame / dimmed sphere / bright) still runs. Two new assets in `hud_art.cpp`'s load, requantise, quantize and reset lists.
 
 A mock at 100/55/15% is in the session's scratchpad (`orb_liquid_mock.png`); the in-game look is the user's screenshot.
+
+## Addendum, v1.9.215 - the whole sphere
+
+"you are not filing the entire orbs. cant you see? there are unfilled areas in the bottom half."
+
+The first lift used a hand-measured circle (r 116 in the master) and the sphere is r 137, so its edge was never lifted. The cutter now finds the sphere itself, in two passes over the master: first the bounding box of the SATURATED pixels under alpha 0 (the master keeps a grey ghost of the cradle under its alpha too, and the anti-aliased fringe is partial alpha with colour - the liquid is the only hued thing at alpha exactly 0), which gives centre and radius; then every alpha-0 pixel inside that circle plus two, whatever its colour, since the rim's darkest red fails any saturation test and lifting by hue alone left a ragged edge. Centre and radius go into the header from the same measurement (60,50 / 42,50, r 39 on screen), so the game's fill line covers exactly what was lifted.
+
+The sphere's crown now sits 2px above `SidePanelContentBottom`; while a side panel is open those two rows are clipped with the arch tips.

@@ -30,8 +30,8 @@ constexpr Size BeltCellSize { 25, 27 };
 
 constexpr Size HealthOrbSize { 101, 109 };
 constexpr Size ManaOrbSize { 102, 109 };
-constexpr Point HealthSphereCenter { 63, 47 };
-constexpr Point ManaSphereCenter { 42, 47 };
-constexpr int SphereRadius = 33;
+constexpr Point HealthSphereCenter { 60, 50 };
+constexpr Point ManaSphereCenter { 42, 50 };
+constexpr int SphereRadius = 39;
 
 } // namespace devilution::oracool::hud_skin

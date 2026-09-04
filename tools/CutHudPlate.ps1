@@ -49,7 +49,7 @@ $cutLeft = 352; $cutRight = 1576
 # BAND-LOCAL master pixels (subtract the band origin from a master coordinate), scaled below:
 $lmbWell = @(384, 181, 169, 166)      # x y w h - the dark stone inside the left well's rim
 $rmbWell = @(1388, 184, 172, 166)
-$healthCentre = @(219, 162); $manaCentre = @(1722, 162); $sphereRadius = 116
+# The spheres are measured from the liquid mask further down, not by hand.
 
 $img = New-Object System.Drawing.Bitmap $source
 if ($img.Width -ne 1942 -or $img.Height -ne 809) { throw "master is $($img.Width)x$($img.Height), expected 1942x809" }
@@ -97,18 +97,41 @@ Piece 0 $xl 'health_orb.png'
 Piece $xl $xr 'middle_hud.png'
 Piece $xr $W 'mana_orb.png'
 # ---- the liquid (2026-09-05, user: "use the transparent orbs version and draw the liquid in code") -
-# In this master the sphere interiors are alpha 0 with their colour kept in RGB. A resampler works
-# premultiplied and would throw that colour away, so the liquid is lifted BEFORE resampling: a copy
-# of the master with alpha forced to 255 inside each sphere's circle and 0 everywhere else, resampled
-# on its own and cut to the orb piece. The game draws it under the frame from the fill line down.
+# In this master the sphere interiors are alpha 0 with their colour kept in RGB, and the genuinely
+# empty ground is (0,0,0,0). A resampler works premultiplied and would throw the colour away, so
+# the liquid is lifted BEFORE resampling: every pixel under alpha 128 that has any colour becomes
+# opaque, in the orb spans only (the belt holes are black under their alpha). No hand-drawn circle:
+# the first cut used one and it missed the sphere's edge (user: "there are unfilled areas in the
+# bottom half"). The sphere's centre and radius come from the mask's bounding box, so the fill line
+# the game computes from them covers exactly what was lifted.
 $liq = New-Object System.Drawing.Bitmap $img.Width, $img.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-$rr = ($sphereRadius + 3) * ($sphereRadius + 3)
+$hb = @(999999, 999999, -1, -1); $mb = @(999999, 999999, -1, -1)
+# Pass 1 - WHERE the spheres are: the bounding box of the saturated pixels under alpha 0. The master
+# keeps a grey ghost of the cradle under its alpha too, and the fringe is partial alpha; the liquid
+# is the only thing under alpha 0 with a hue. The box alone is not the liquid, though - the rim's
+# darkest red fails any saturation test, and lifting by hue left the disc's edge ragged.
+for ($y=$bandY;$y -lt $bandY + $bandH;$y++){ for($x=$bandX;$x -lt $bandX + $bandW;$x++){
+  $c = $img.GetPixel($x,$y); if ($c.A -ne 0) { continue }
+  $bx = $x - $bandX
+  if ($bx -ge $cutLeft -and $bx -lt $cutRight) { continue }
+  $sat = [math]::Max($c.R, [math]::Max($c.G, $c.B)) - [math]::Min($c.R, [math]::Min($c.G, $c.B))
+  if ($sat -le 40) { continue }
+  if ($bx -lt $cutLeft) { if ($x -lt $hb[0]) { $hb[0] = $x }; if ($y -lt $hb[1]) { $hb[1] = $y }; if ($x -gt $hb[2]) { $hb[2] = $x }; if ($y -gt $hb[3]) { $hb[3] = $y } }
+  else { if ($x -lt $mb[0]) { $mb[0] = $x }; if ($y -lt $mb[1]) { $mb[1] = $y }; if ($x -gt $mb[2]) { $mb[2] = $x }; if ($y -gt $mb[3]) { $mb[3] = $y } } } }
+$hc = @((($hb[0] + $hb[2]) / 2), (($hb[1] + $hb[3]) / 2)); $mc = @((($mb[0] + $mb[2]) / 2), (($mb[1] + $mb[3]) / 2))
+$sphereRadius = [math]::Max([math]::Max($hb[2] - $hb[0], $hb[3] - $hb[1]), [math]::Max($mb[2] - $mb[0], $mb[3] - $mb[1])) / 2
+# Pass 2 - WHAT the liquid is: every pixel under alpha 0 inside that circle (plus a hair, for the
+# anti-aliased rim), whatever its colour. Outside the circle nothing is lifted.
+$rr = ($sphereRadius + 2) * ($sphereRadius + 2)
 for ($y=0;$y -lt $img.Height;$y++){ for($x=0;$x -lt $img.Width;$x++){
-  $c = $img.GetPixel($x,$y); $bx = $x - $bandX; $by = $y - $bandY
-  $dh = ($bx-$healthCentre[0])*($bx-$healthCentre[0]) + ($by-$healthCentre[1])*($by-$healthCentre[1])
-  $dm = ($bx-$manaCentre[0])*($bx-$manaCentre[0]) + ($by-$manaCentre[1])*($by-$manaCentre[1])
-  if (($dh -le $rr -or $dm -le $rr) -and $c.A -lt 128) { $liq.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(255,$c.R,$c.G,$c.B)) }
+  $c = $img.GetPixel($x,$y)
+  $dh = ($x-$hc[0])*($x-$hc[0]) + ($y-$hc[1])*($y-$hc[1]); $dm = ($x-$mc[0])*($x-$mc[0]) + ($y-$mc[1])*($y-$mc[1])
+  if ($c.A -eq 0 -and ($dh -le $rr -or $dm -le $rr)) { $liq.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(255,$c.R,$c.G,$c.B)) }
   else { $liq.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(0,0,0,0)) } } }
+# band-local centre of each sphere
+$healthCentre = @( ($hc[0] - $bandX), ($hc[1] - $bandY) )
+$manaCentre = @( ($mc[0] - $bandX), ($mc[1] - $bandY) )
+Write-Host ("liquid: health sphere centre {0},{1}  mana {2},{3}  radius {4}" -f $healthCentre[0], $healthCentre[1], $manaCentre[0], $manaCentre[1], $sphereRadius)
 $ls = New-Object System.Drawing.Bitmap $W, $Hh, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
 $g = [System.Drawing.Graphics]::FromImage($ls)
 $g.InterpolationMode = 'HighQualityBicubic'; $g.PixelOffsetMode = 'HighQuality'; $g.CompositingMode = 'SourceCopy'
