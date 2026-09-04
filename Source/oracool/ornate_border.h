@@ -81,6 +81,12 @@ int BottomDockedTop(int windowHeight);
  * call GetHealthOrbRect(); safe because every resolution this project targets is 720 tall. The
  * stash and the inventory grid already measured against this line - it just had no shared name.
  */
+// Since the fifth HUD (2026-09-05) the orb CRADLES are 109 tall and rise 13px above this line -
+// which the stash (17 saved rows) and both Abilities pages cannot give up. The cutter's scale was
+// chosen so the SPHERES still sit below it (crown at 625), and scrollrt.cpp clips the orbs to this
+// line while a side panel is open: the arches' tips go for as long as the panel is up, nothing
+// else. So this stays at the 96 the old orbs were, and is now the clip line as well as the
+// content line.
 constexpr int SidePanelContentBottom = 720 - 96;
 
 /**

@@ -1898,17 +1898,17 @@ Size GetWaypointIconSize()
 	return { WaypointIconsArt.width / 2, WaypointIconsArt.height };
 }
 
-void DrawHealthOrb(const Surface &out)
+void DrawHealthOrb(const Surface &out, int yOffset)
 {
 	const Player &player = *MyPlayer;
-	DrawOrb(out, HealthOrbArt, GetHealthOrbRect().position, GetHealthOrbSphereCenterLocal(),
+	DrawOrb(out, HealthOrbArt, GetHealthOrbRect().position + Displacement { 0, yOffset }, GetHealthOrbSphereCenterLocal(),
 	    player._pHitPoints >> 6, player._pMaxHP >> 6);
 }
 
-void DrawManaOrb(const Surface &out)
+void DrawManaOrb(const Surface &out, int yOffset)
 {
 	const Player &player = *MyPlayer;
-	DrawOrb(out, ManaOrbArt, GetManaOrbRect().position, GetManaOrbSphereCenterLocal(),
+	DrawOrb(out, ManaOrbArt, GetManaOrbRect().position + Displacement { 0, yOffset }, GetManaOrbSphereCenterLocal(),
 	    player._pMana >> 6, player._pMaxMana >> 6);
 }
 

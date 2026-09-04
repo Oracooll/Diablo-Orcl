@@ -2036,9 +2036,12 @@ void DrawInvBelt(const Surface &out)
 		// comes out at 28x28 - the sprite's own size - so the sprite fills it and there is nothing
 		// left to nudge. Keeping the +3 here would push every potion three pixels off the well it
 		// was sized to fit, which is the one thing the sizing was for (user, 2026-08-30).
-		const Displacement BeltItemNudge = *sgOptions.Oracool.hudPlateArt
-		    ? Displacement { 3, 0 }
-		    : Displacement { 0, 0 };
+		//
+		// And it does not apply to the FIFTH HUD either (2026-09-05): its belt cells are the
+		// painting's own holes, 28 wide like the sprite, so as on the plateless row there is nothing
+		// to nudge into and +3 would hang the potion over the rim. The +3 was the third plate's and
+		// is kept in the history with it.
+		const Displacement BeltItemNudge { 0, 0 };
 		const Rectangle cell = oracool::GetBeltSlotRect(i);
 		const Point position = cell.position + BeltItemNudge
 		    + Displacement { (cell.size.width - InventorySlotSizeInPixels.width) / 2,

@@ -40,10 +40,10 @@ bool HasMiddleHudArt();
 
 /** @brief Draws the Health orb composition at hud_layout's GetHealthOrbRect(), with the sphere
  * filled proportionally to the player's current hit points. No-op if the asset is missing. */
-void DrawHealthOrb(const Surface &out);
+void DrawHealthOrb(const Surface &out, int yOffset = 0); // yOffset: the caller drew into a sub-surface starting yOffset rows down (scrollrt.cpp's side-panel clip)
 
 /** @brief Mana counterpart of DrawHealthOrb (GetManaOrbRect(), current mana). */
-void DrawManaOrb(const Surface &out);
+void DrawManaOrb(const Surface &out, int yOffset = 0);
 
 /**
  * @brief Draws one burger-menu icon at `position`. `iconIndex` selects the sprite sheet row (see
