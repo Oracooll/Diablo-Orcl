@@ -17,3 +17,11 @@ The sweep found `diablo-bottom-hud-2400x384-v1/icons/` back in the drop-zone roo
 ## The XP bar and counter
 
 The cutter emits `BeltBarTop` (the painted belt bar's top edge, plate-local 67) and `GetBeltRunTop()` returns it on screen (the cells' top on the plateless row). `GetXPBarRect` hangs 1px above that line; it no longer derives from the counter. The counter is drawn only while the cursor is over the bar (padded 2px) or the bar is held, directly above the bar; holding shows the remaining-monster pool as the counter's own click used to. `IsPointOverXpCounter` and the click test both use the bar now.
+
+## Addendum, v1.9.220 - the bar halved, the hover text gone, a shadow pilot
+
+"make xp bar half as thick. remove the bottom half to increase gap between belt. remove the 10% indents. Remove the pop-up message when hovering." And: "can you cast shadows beneath UI assets ... cast same angle shadow as texts in hero stats window to all skills/spells/auras slots in abilities windows as a pilot test."
+
+- `xpbar.cpp`: `BarHeight` 8 → 4, `GapAboveBelt` 1 → 5 so the top edge stays put and the freed rows become gap. The ten notches and their constants are gone.
+- `control.cpp`: the "Experience Meter / Click for more." info text no longer sets on hover; the hover still ends the search there.
+- Shadows: `oracool::DrawDropShadow(out, rect)` in ornate_border - the rect's footprint at (-2, +2), the character sheet's own text-shadow offset (vanilla's, in text_render.cpp), darkened by two half-transparent passes, drawn before the slot so only the strip down the left and along the bottom shows. Called at the three slot sites in `spell_book.cpp`: the class sheet rows, the tree cells, the passive slot band. Yes, the same can go under the inventory and stash cells - `DrawGridBezel` sites - once the pilot is judged.

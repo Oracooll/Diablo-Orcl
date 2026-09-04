@@ -157,6 +157,15 @@ void DrawHoverOutline(const Surface &out, Rectangle rect)
 	DrawColoredOutline(out, rect, MidHighlightColor);
 }
 
+void DrawDropShadow(const Surface &out, Rectangle rect)
+{
+	// The character sheet's text shadow offset, exactly: two left, two down. See the header.
+	constexpr Displacement ShadowOffset { -2, 2 };
+	const Rectangle shadow { rect.position + ShadowOffset, rect.size };
+	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
+	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
+}
+
 void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor)
 {
 	if (title.empty() && text.empty())

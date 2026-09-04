@@ -1157,13 +1157,11 @@ void CheckPanelInfo()
 		panelflag = true;
 		return;
 	}
-	if (oracool::IsPointOverXpCounter(MousePosition)) {
-		SetPanelString(_("Experience Meter"), UiFlags::ColorWhite);
-		AddPanelString(_("Click for more."));
-		InfoColor = UiFlags::ColorWhite;
-		panelflag = true;
+	// The XP bar's hover text ("Experience Meter / Click for more.") is gone (user, 2026-09-05:
+	// "remove the pop-up message when hovering"). The bar still ends the search here, so nothing
+	// under it names itself; the counter it reveals is its own explanation.
+	if (oracool::IsPointOverXpCounter(MousePosition))
 		return;
-	}
 
 	// Oracool: the LMB well now holds the basic attack rather than nothing, so it has something to
 	// say. It is also the plate's other opener for the Abilities window (diablo.cpp's LeftMouseDown),

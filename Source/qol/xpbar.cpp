@@ -31,8 +31,10 @@ namespace devilution {
 
 namespace {
 
-/** @brief The user's number: "make it 8px thick". */
-constexpr int BarHeight = 8;
+/** @brief The user's number: "make it 8px thick" (2026-08-30), then "make xp bar half as thick"
+ * (2026-09-05). The top edge stayed where it was and the bottom half went, which is what "remove
+ * the bottom half to increase gap between belt" asks - see GapAboveBelt. */
+constexpr int BarHeight = 4;
 /**
  * @brief How far each end row is pulled in, giving the rounded corners.
  *
@@ -42,11 +44,8 @@ constexpr int BarHeight = 8;
  */
 constexpr int CornerInset[] = { 2, 1 };
 
-/** @brief A tenth of the bar gets a notch, so the bar reads as ten segments. */
-constexpr int SegmentCount = 10;
-/** @brief Each notch is this wide, and bitten this deep into the top and bottom edges. */
-constexpr int NotchWidth = 3;
-constexpr int NotchDepth = 2;
+// The ten-segment notches went with the halving (user, 2026-09-05: "remove the 10% indents") - a
+// 2px bite out of a 4px bar would have cut it in two.
 
 /** @brief Gold, from the palette's own yellow ramp - the colour the HUD's other gold text uses. */
 constexpr uint8_t FilledColor = PAL16_YELLOW + 4;
@@ -79,7 +78,9 @@ Rectangle GetXPBarRect()
 	const Rectangle lastCell = oracool::GetBeltCellRect(oracool::BeltVisibleSlotCount - 1);
 	const int left = firstCell.position.x;
 	const int width = lastCell.position.x + lastCell.size.width - left;
-	constexpr int GapAboveBelt = 1;
+	// 5 = the old 1px of air plus the four rows the bar lost when it was halved (2026-09-05): the
+	// bar's TOP is where it was, and the gap to the belt grew by exactly the removed half.
+	constexpr int GapAboveBelt = 5;
 	const int top = oracool::GetBeltRunTop() - GapAboveBelt - BarHeight;
 	return Rectangle { { left, top }, { width, BarHeight } };
 }
@@ -126,32 +127,6 @@ void DrawBarRow(const Surface &out, Rectangle bar, int row, int filled)
 		DrawHorizontalLine(out, { x + filledHere, y }, width - filledHere, EmptyColor);
 }
 
-/**
- * @brief Bites a rounded notch out of the top and bottom edges at each tenth.
- *
- * Drawn AFTER the fill rather than as a gap in it, because a notch is a hole in the bar rather than
- * a hole in the progress - it has to read the same whether the segment behind it is full or empty.
- * The depth tapers by one pixel at each end of the notch, which is what makes it read as round
- * rather than as a rectangular bite.
- */
-void DrawNotches(const Surface &out, Rectangle bar)
-{
-	for (int segment = 1; segment < SegmentCount; segment++) {
-		const int centre = bar.position.x + bar.size.width * segment / SegmentCount;
-		for (int i = 0; i < NotchWidth; i++) {
-			const int x = centre - NotchWidth / 2 + i;
-			if (x < bar.position.x || x >= bar.position.x + bar.size.width)
-				continue;
-			// Deepest in the middle of the notch, one shallower at each edge.
-			const int depth = NotchDepth - std::abs(i - NotchWidth / 2);
-			for (int d = 0; d < depth; d++) {
-				out.SetPixel({ x, bar.position.y + d }, EdgeColor);
-				out.SetPixel({ x, bar.position.y + bar.size.height - 1 - d }, EdgeColor);
-			}
-		}
-	}
-}
-
 } // namespace
 
 void InitXPBar()
@@ -177,7 +152,6 @@ void DrawXPBar(const Surface &out)
 	const int filled = FilledWidth(*MyPlayer, bar.size.width);
 	for (int row = 0; row < bar.size.height; row++)
 		DrawBarRow(out, bar, row, filled);
-	DrawNotches(out, bar);
 }
 
 bool CheckXPBarInfo()
