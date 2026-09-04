@@ -1,82 +1,235 @@
-# Oracool asset pipeline: cuts the bottom HUD - ui\middle_hud.png, ui\health_orb.png, ui\mana_orb.png -
-# from ONE painted master, and writes the geometry header the layout is built from.
+# Oracool asset pipeline: cuts the bottom HUD - ui\middle_hud.png, ui\health_orb.png, ui\mana_orb.png
+# and the two ui\*_orb_liquid.png - from ONE painted master, and writes the geometry header the layout
+# is built from.
 #
 #     powershell -ExecutionPolicy Bypass -File tools\CutHudPlate.ps1
 #
-# ## The fifth HUD (2026-09-05, user: "sweep oracool.mpq. take and use 03-transparent-slot-visual-draft")
+# ## The fifth HUD, from the visual draft (2026-09-05, user: "use 03-transparent-slot-visual-draft.png as hud")
 #
-# The GPT pack in Oracool.MPQ\02-source-art\delivered-packs\diablo-bottom-hud-v1. The file the user
-# named is a 24-bit VISUAL DRAFT with a checkerboard painted in - no alpha channel at all - so the cut
-# reads its sibling 04-raised-stone-wells-true-alpha-belt.png: the same design, same pixels, with the
-# transparency real - and since the same evening transparent-orbs\03-transparent-belt-and-orbs.png, that
-# again with the sphere interiors at alpha 0 and their colour kept in RGB: the LIQUID, which the game
-# draws itself (user: "use the transparent orbs version and draw the liquid in code").
+# The GPT pack in Oracool.MPQ\02-source-art\delivered-packs\diablo-bottom-hud-v1. The master is the
+# file the user chose: 03-transparent-slot-visual-draft.png, a 24-bit render with a CHECKERBOARD
+# painted where transparency would be, and a different render from its true-alpha siblings (45% of
+# their shared pixels differ by more than 30). So the transparency is recovered here: near-white and
+# light-grey NEUTRAL pixels forming large connected regions are keyed out (the ground, the six belt
+# holes), while small bright neutral specks - the highlights on glass and gold - are kept.
 #
-# One master, three files. The health cradle, the plate and the mana cradle are cut from a single
+# The orbs are PAINTED in this master. The game draws its own liquid (v1.9.214), so each sphere is
+# split: its interior goes to a liquid file, opaque and alone, and is made transparent in the cradle
+# file, whose rim then sits on the liquid's edge. Above the fill line the glass is empty.
+#
+# One master, five files. The health cradle, the plate and the mana cradle are cut from a single
 # resampled band at screen scale, at vertical lines, so the three rects the layout butts together
-# reassemble to the painting exactly: the cradles' gold arches cross the cut lines and meet again on
-# screen because every piece shares the one bottom edge and the one scale.
+# reassemble to the painting exactly.
 #
-# THE SCALE is set by the belt: the six holes in the painting are ~87px, and a potion sprite is 28px,
-# so 0.32 makes the holes 28 wide and the item fills its cell. Everything else follows: the band comes
-# out 618x121, the wells' openings ~54px, the spheres radius 37.
-#
-# The belt cells are the HOLES - the painting's transparent openings - found by alpha here, so they
-# cannot drift from the art. The wells' openings and the spheres are measured by hand (scratchpad
-# hud5overlay.ps1, rects drawn over a 3x zoom) and written below.
+# THE SCALE. 0.32 would make the belt holes exactly a 28px potion sprite - and cradles whose spheres
+# rise above the line the side panels' content stops at (ornate_border.h's SidePanelContentBottom,
+# 624), which the stash's seventeen saved rows and both Abilities pages cannot yield. At 0.288 the
+# spheres all but clear it and only the arches' tips cross - scrollrt.cpp clips those while a side
+# panel is open - and the plate comes out ~352 wide, where the old 356 was. The holes are 25px; a
+# potion's own art is narrower than its 28px cell.
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
 $pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\diablo-bottom-hud-v1\designs'
-$source = Join-Path $pack (Join-Path "transparent-orbs" "03-transparent-belt-and-orbs.png")
+$source = Join-Path $pack '03-transparent-slot-visual-draft.png'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $header = Join-Path $root 'Source\oracool\hud_plate_skin.h'
+$scratch = Join-Path $env:TEMP 'CutHudPlate'
 if (-not (Test-Path $source)) { throw "missing master: $source" }
+New-Item -ItemType Directory -Force $scratch | Out-Null
 
 # ---- measured off the 1942x809 master (2026-09-05) --------------------------------------------
-$bandX = 4; $bandY = 215; $bandW = 1931; $bandH = 380   # the alpha>=128 bounding box
-# THE SCALE. 0.32 would make the belt holes exactly a 28px potion sprite - and 122px-tall cradles,
-# whose spheres' crowns then sit 11px above the line the side panels' content stops at (the stash's
-# seventeen saved rows, both Abilities pages; ornate_border.h's SidePanelContentBottom = 624). At
-# 0.288 the crowns clear that line and only the arches' tips cross it - scrollrt.cpp clips those
-# while a side panel is open - and the plate comes out 352 wide, where the old 356 was. The holes
-# are 25px: a potion sprite's own art is narrower than its 28px cell, so it still sits inside.
+$expectBand = @(3, 214, 1934, 382)          # the silhouette's bounding box after keying, +-3 (the true-alpha sibling's is 4,215 1931x380: keying keeps 1-3px of anti-aliased edge)
 $scale = 0.288
-# Vertical cut lines in MASTER space: where the cradles hand over to the plate.
-$cutLeft = 352; $cutRight = 1576
-# BAND-LOCAL master pixels (subtract the band origin from a master coordinate), scaled below:
-$lmbWell = @(384, 181, 169, 166)      # x y w h - the dark stone inside the left well's rim
-$rmbWell = @(1388, 184, 172, 166)
-# The spheres are measured from the liquid mask further down, not by hand.
+$cutLeft = 352; $cutRight = 1576            # MASTER-space x where the cradles hand over to the plate
+# BAND-LOCAL master pixels, the dark stone inside each well's rim (checked on the overlay this
+# script writes to %TEMP%\CutHudPlate\overlay.png):
+$lmbWell = @(385, 182, 169, 166)
+$rmbWell = @(1389, 185, 172, 166)
+# The spheres, BAND-LOCAL master pixels: centre x, centre y, and one radius for both. Measured on
+# the overlay (the painted spheres' edges at 3x), not detected: a hue detector was tried twice and
+# took the sphere's reflection on the stone, then the arch's blue highlights, for the sphere.
+$healthSphere = @(205, 165); $manaSphere = @(1732, 168); $sphereRadiusMaster = 123
 
+# ---- pixel work in C#: keying, despeckling, sphere finding ------------------------------------
+$cs = @"
+using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Collections.Generic;
+public static class HudKey {
+  public static int[] Load(Bitmap b) {
+    var d = b.LockBits(new Rectangle(0,0,b.Width,b.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+    var px = new int[b.Width*b.Height]; System.Runtime.InteropServices.Marshal.Copy(d.Scan0, px, 0, px.Length); b.UnlockBits(d); return px;
+  }
+  public static Bitmap Store(int[] px, int w, int h) {
+    var b = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+    var d = b.LockBits(new Rectangle(0,0,w,h), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+    System.Runtime.InteropServices.Marshal.Copy(px, 0, d.Scan0, px.Length); b.UnlockBits(d); return b;
+  }
+  // Near-white / light-grey neutral pixels in connected regions of at least minArea become alpha 0.
+  public static int[] Key(int[] px, int w, int h, int minArea) {
+    var cand = new bool[px.Length];
+    for (int i = 0; i < px.Length; i++) {
+      int r = (px[i] >> 16) & 255, g = (px[i] >> 8) & 255, b = px[i] & 255;
+      int mx = Math.Max(r, Math.Max(g, b)), mn = Math.Min(r, Math.Min(g, b));
+      cand[i] = (mx - mn) <= 6 && mn >= 222;
+    }
+    var label = new int[px.Length]; int next = 0; var stack = new Stack<int>();
+    var outPx = new int[px.Length];
+    for (int i = 0; i < px.Length; i++) outPx[i] = px[i] | unchecked((int)0xFF000000);
+    for (int i = 0; i < px.Length; i++) {
+      if (!cand[i] || label[i] != 0) continue;
+      next++; var members = new List<int>(); stack.Push(i); label[i] = next;
+      while (stack.Count > 0) {
+        int p = stack.Pop(); members.Add(p); int x = p % w, y = p / w;
+        if (x > 0 && cand[p-1] && label[p-1] == 0) { label[p-1] = next; stack.Push(p-1); }
+        if (x < w-1 && cand[p+1] && label[p+1] == 0) { label[p+1] = next; stack.Push(p+1); }
+        if (y > 0 && cand[p-w] && label[p-w] == 0) { label[p-w] = next; stack.Push(p-w); }
+        if (y < h-1 && cand[p+w] && label[p+w] == 0) { label[p+w] = next; stack.Push(p+w); }
+      }
+      if (members.Count >= minArea) foreach (int m in members) outPx[m] = 0;
+    }
+    return outPx;
+  }
+  // Opaque pixels with fewer than three opaque 8-neighbours become transparent: the checker's
+  // anti-aliased seams leave single stray pixels that would otherwise set the bounding box.
+  public static int[] Despeckle(int[] px, int w, int h) {
+    var o = (int[])px.Clone();
+    for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+      int i = y*w + x; if (((px[i] >> 24) & 255) < 128) continue;
+      int n = 0;
+      for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+        if (dx == 0 && dy == 0) continue; int xx = x+dx, yy = y+dy;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        if (((px[yy*w+xx] >> 24) & 255) >= 128) n++;
+      }
+      if (n < 3) o[i] = 0;
+    }
+    return o;
+  }
+  // Opaque connected components smaller than minArea become transparent: fragments of the checker's
+  // anti-aliased seams that survived keying inside the holes. The glass highlights are safe - they
+  // touch the sphere and so belong to a large component.
+  public static int[] DropIslands(int[] px, int w, int h, int minArea) {
+    var o = (int[])px.Clone(); var label = new int[px.Length]; int next = 0; var stack = new Stack<int>();
+    for (int i = 0; i < px.Length; i++) {
+      if (((px[i] >> 24) & 255) < 128 || label[i] != 0) continue;
+      next++; var members = new List<int>(); stack.Push(i); label[i] = next;
+      while (stack.Count > 0) {
+        int p = stack.Pop(); members.Add(p); int x = p % w, y = p / w;
+        if (x > 0 && ((px[p-1] >> 24) & 255) >= 128 && label[p-1] == 0) { label[p-1] = next; stack.Push(p-1); }
+        if (x < w-1 && ((px[p+1] >> 24) & 255) >= 128 && label[p+1] == 0) { label[p+1] = next; stack.Push(p+1); }
+        if (y > 0 && ((px[p-w] >> 24) & 255) >= 128 && label[p-w] == 0) { label[p-w] = next; stack.Push(p-w); }
+        if (y < h-1 && ((px[p+w] >> 24) & 255) >= 128 && label[p+w] == 0) { label[p+w] = next; stack.Push(p+w); }
+      }
+      if (members.Count < minArea) foreach (int m in members) o[m] = 0;
+    }
+    return o;
+  }
+  // Bright neutral pixels that touch transparency are the checker's seams clinging to the frame's
+  // edge (they survived keying by being connected to nothing large). Two passes eat them.
+  public static int[] EatSeams(int[] px, int w, int h) {
+    var o = (int[])px.Clone();
+    for (int pass = 0; pass < 2; pass++) {
+      var src = (int[])o.Clone();
+      for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+        int i = y*w + x; int p = src[i]; if (((p >> 24) & 255) < 128) continue;
+        int r = (p >> 16) & 255, g = (p >> 8) & 255, b = p & 255;
+        int mx = Math.Max(r, Math.Max(g, b)), mn = Math.Min(r, Math.Min(g, b));
+        if ((mx - mn) > 10 || mn < 200) continue;
+        bool touches = false;
+        for (int dy = -1; dy <= 1 && !touches; dy++) for (int dx = -1; dx <= 1; dx++) {
+          int xx = x+dx, yy = y+dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+          if (((src[yy*w+xx] >> 24) & 255) < 128) { touches = true; break; } }
+        if (touches) o[i] = 0;
+      }
+    }
+    return o;
+  }
+  public static int[] Bbox(int[] px, int w, int h) {
+    int minX = w, minY = h, maxX = -1, maxY = -1;
+    for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) if (((px[y*w+x] >> 24) & 255) >= 128) {
+      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    return new int[] { minX, minY, maxX, maxY };
+  }
+  // Bounding box of strongly red (hue 0) or strongly blue (hue 1) opaque pixels inside a search box.
+  public static int[] SphereBox(int[] px, int w, int h, int hue, int x0, int y0, int x1, int y1) {
+    int minX = w, minY = h, maxX = -1, maxY = -1;
+    for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
+      int p = px[y*w+x]; if (((p >> 24) & 255) < 128) continue;
+      int r = (p >> 16) & 255, g = (p >> 8) & 255, b = p & 255;
+      bool hit = hue == 0 ? (r > 60 && r > 2*g && r > 2*b) : (b > 60 && b > 2*r && b*2 > 3*g);
+      if (!hit) continue;
+      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    return new int[] { minX, minY, maxX, maxY };
+  }
+  // Splits px into (cradle with the two sphere interiors transparent, liquid = those interiors alone).
+  public static int[][] SplitSpheres(int[] px, int w, int h, double hx, double hy, double mx, double my, double r) {
+    var frame = (int[])px.Clone(); var liquid = new int[px.Length];
+    double rIn = (r - 1) * (r - 1), rOut = (r + 2) * (r + 2);
+    for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+      int i = y*w + x; if (((px[i] >> 24) & 255) < 128) continue;
+      double dh = (x-hx)*(x-hx) + (y-hy)*(y-hy), dm = (x-mx)*(x-mx) + (y-my)*(y-my);
+      double d = Math.Min(dh, dm);
+      if (d <= rOut) liquid[i] = px[i] | unchecked((int)0xFF000000);
+      if (d <= rIn) frame[i] = 0;
+    }
+    return new int[][] { frame, liquid };
+  }
+}
+"@
+Add-Type -TypeDefinition $cs -ReferencedAssemblies System.Drawing
+
+function Resample([int[]]$px, [int]$w, [int]$h, [System.Drawing.Rectangle]$crop, [int]$ow, [int]$oh) {
+  $srcBmp = [HudKey]::Store($px, $w, $h)
+  $bmp = New-Object System.Drawing.Bitmap $ow, $oh, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.InterpolationMode = 'HighQualityBicubic'; $g.PixelOffsetMode = 'HighQuality'; $g.CompositingMode = 'SourceCopy'
+  $g.DrawImage($srcBmp, (New-Object System.Drawing.Rectangle -ArgumentList 0, 0, $ow, $oh), $crop, 'Pixel')
+  $g.Dispose(); $srcBmp.Dispose()
+  # binary alpha: the game keys on >=128, and a feathered edge would carry premultiplied fringe colour
+  for ($y=0;$y -lt $oh;$y++){ for($x=0;$x -lt $ow;$x++){ $c=$bmp.GetPixel($x,$y); if ($c.A -lt 128) { $bmp.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(0,0,0,0)) } elseif ($c.A -lt 255) { $bmp.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(255,$c.R,$c.G,$c.B)) } } }
+  return $bmp
+}
+function Scl($v) { return [int][math]::Round($v * $scale) }
+
+# ---- the master: key, despeckle, assert the band ----------------------------------------------
 $img = New-Object System.Drawing.Bitmap $source
 if ($img.Width -ne 1942 -or $img.Height -ne 809) { throw "master is $($img.Width)x$($img.Height), expected 1942x809" }
-# assert the band
-$minX=$img.Width;$maxX=-1;$minY=$img.Height;$maxY=-1
-for ($y=0;$y -lt $img.Height;$y+=1){ for($x=0;$x -lt $img.Width;$x+=1){ if($img.GetPixel($x,$y).A -ge 128){ if($x -lt $minX){$minX=$x}; if($x -gt $maxX){$maxX=$x}; if($y -lt $minY){$minY=$y}; if($y -gt $maxY){$maxY=$y} } } }
-if ($minX -ne $bandX -or $minY -ne $bandY -or ($maxX-$minX+1) -ne $bandW -or ($maxY-$minY+1) -ne $bandH) {
-  throw "alpha band is $($maxX-$minX+1)x$($maxY-$minY+1) at ($minX,$minY), expected ${bandW}x${bandH} at ($bandX,$bandY) - re-measure before cutting"
-}
+$mw = $img.Width; $mh = $img.Height
+$px = [HudKey]::Load($img); $img.Dispose()
+$px = [HudKey]::Key($px, $mw, $mh, 1500)
+$px = [HudKey]::Despeckle($px, $mw, $mh)
+$px = [HudKey]::DropIslands($px, $mw, $mh, 200)
+$px = [HudKey]::EatSeams($px, $mw, $mh)
+$bb = [HudKey]::Bbox($px, $mw, $mh)
+$bandX = $bb[0]; $bandY = $bb[1]; $bandW = $bb[2] - $bb[0] + 1; $bandH = $bb[3] - $bb[1] + 1
+Write-Host ("band {0}x{1} at ({2},{3})" -f $bandW, $bandH, $bandX, $bandY)
+foreach ($i in 0..3) { $got = @($bandX, $bandY, $bandW, $bandH)[$i]; if ([math]::Abs($got - $expectBand[$i]) -gt 3) { throw "band moved: got $bandX,$bandY ${bandW}x${bandH}, expected $($expectBand -join ' ') (+-3) - re-measure the wells and cut lines before cutting" } }
 
-$W = [int][math]::Round($bandW * $scale); $Hh = [int][math]::Round($bandH * $scale)
-$s = New-Object System.Drawing.Bitmap $W, $Hh, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-$g = [System.Drawing.Graphics]::FromImage($s)
-$g.InterpolationMode = 'HighQualityBicubic'; $g.PixelOffsetMode = 'HighQuality'; $g.CompositingMode = 'SourceCopy'
-$g.DrawImage($img, (New-Object System.Drawing.Rectangle -ArgumentList 0, 0, $W, $Hh), (New-Object System.Drawing.Rectangle -ArgumentList $bandX, $bandY, $bandW, $bandH), 'Pixel')
-$g.Dispose()
-# Resampling feathers the edges; anything under alpha 8 is noise, and the game keys on >=128 anyway.
-for ($y=0;$y -lt $Hh;$y++){ for($x=0;$x -lt $W;$x++){ $c=$s.GetPixel($x,$y); if ($c.A -lt 8) { $s.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(0,0,0,0)) } } }
+# ---- the spheres ------------------------------------------------------------------------------
+$hc = @( ($healthSphere[0] + $bandX), ($healthSphere[1] + $bandY) ); $mc = @( ($manaSphere[0] + $bandX), ($manaSphere[1] + $bandY) )
+$sphereRadius = $sphereRadiusMaster
+Write-Host ("spheres: health centre {0},{1}  mana {2},{3}  radius {4}  (master px)" -f $hc[0], $hc[1], $mc[0], $mc[1], $sphereRadius)
+$split = [HudKey]::SplitSpheres($px, $mw, $mh, $hc[0], $hc[1], $mc[0], $mc[1], $sphereRadius)
+$framePx = $split[0]; $liquidPx = $split[1]
+
+# ---- resample both layers to screen scale -------------------------------------------------------
+$W = Scl $bandW; $Hh = Scl $bandH
+$crop = New-Object System.Drawing.Rectangle -ArgumentList $bandX, $bandY, $bandW, $bandH
+$s = Resample $framePx $mw $mh $crop $W $Hh
+$ls = Resample $liquidPx $mw $mh $crop $W $Hh
 Write-Host ("composite {0}x{1}  scale {2}" -f $W, $Hh, $scale)
 
-# ---- the belt holes, by alpha ---------------------------------------------------------------
-$midY = [int]((461 + 556) / 2 - $bandY) * $scale
+# ---- the belt holes, by alpha, in the plate's span --------------------------------------------
+$xl = Scl $cutLeft; $xr = Scl $cutRight
+$midY = Scl (508 - $bandY)
 $runs=@(); $in=$false
-for($x=0;$x -lt $W;$x++){ $o = $s.GetPixel($x,[int]$midY).A -ge 128; if(-not $o -and -not $in){$start=$x;$in=$true}; if($o -and $in){$runs += @{ X=$start; W=$x-$start };$in=$false} }
-$xlPlate = [int][math]::Round($cutLeft * $scale); $xrPlate = [int][math]::Round($cutRight * $scale)
-# Only the plate's span: with the transparent-orb master the empty spheres are runs of alpha 0 too.
-$holes = @($runs | Where-Object { $_.W -gt 10 -and $_.W -lt 60 -and $_.X -ge $xlPlate -and ($_.X + $_.W) -le $xrPlate })
+for($x=0;$x -lt $W;$x++){ $o = $s.GetPixel($x,$midY).A -ge 128; if(-not $o -and -not $in){$start=$x;$in=$true}; if($o -and $in){$runs += @{ X=$start; W=$x-$start };$in=$false} }
+$holes = @($runs | Where-Object { $_.W -gt 10 -and $_.W -lt 60 -and $_.X -ge $xl -and ($_.X + $_.W) -le $xr })
 if ($holes.Count -ne 6) { throw "found $($holes.Count) belt holes, expected 6" }
 $cx = [int]($holes[0].X + $holes[0].W / 2)
 $vr=@(); $in=$false
@@ -85,69 +238,32 @@ $hole = @($vr | Where-Object { $_.H -gt 10 -and $_.H -lt 60 })[0]
 $cellW = ($holes | ForEach-Object { $_.W } | Measure-Object -Minimum).Minimum
 Write-Host ("belt holes y {0} h {1}: {2}" -f $hole.Y, $hole.H, (($holes | ForEach-Object { "x$($_.X) w$($_.W)" }) -join ' '))
 
-# ---- the three pieces -------------------------------------------------------------------------
-$xl = [int][math]::Round($cutLeft * $scale); $xr = [int][math]::Round($cutRight * $scale)
-function Scl($v) { return [int][math]::Round($v * $scale) }
-function Piece($x0, $x1, $name) {
-  $p = $s.Clone((New-Object System.Drawing.Rectangle -ArgumentList $x0, 0, ($x1 - $x0), $Hh), $s.PixelFormat)
+# ---- the five pieces --------------------------------------------------------------------------
+function Piece([System.Drawing.Bitmap]$from, $x0, $x1, $name) {
+  $p = $from.Clone((New-Object System.Drawing.Rectangle -ArgumentList $x0, 0, ($x1 - $x0), $Hh), $from.PixelFormat)
   $p.Save((Join-Path $outDir $name), [System.Drawing.Imaging.ImageFormat]::Png); $p.Dispose()
-  Write-Host ("{0,-16} x {1}..{2}  {3}x{4}" -f $name, $x0, $x1, ($x1 - $x0), $Hh)
+  Write-Host ("{0,-22} x {1}..{2}  {3}x{4}" -f $name, $x0, $x1, ($x1 - $x0), $Hh)
 }
-Piece 0 $xl 'health_orb.png'
-Piece $xl $xr 'middle_hud.png'
-Piece $xr $W 'mana_orb.png'
-# ---- the liquid (2026-09-05, user: "use the transparent orbs version and draw the liquid in code") -
-# In this master the sphere interiors are alpha 0 with their colour kept in RGB, and the genuinely
-# empty ground is (0,0,0,0). A resampler works premultiplied and would throw the colour away, so
-# the liquid is lifted BEFORE resampling: every pixel under alpha 128 that has any colour becomes
-# opaque, in the orb spans only (the belt holes are black under their alpha). No hand-drawn circle:
-# the first cut used one and it missed the sphere's edge (user: "there are unfilled areas in the
-# bottom half"). The sphere's centre and radius come from the mask's bounding box, so the fill line
-# the game computes from them covers exactly what was lifted.
-$liq = New-Object System.Drawing.Bitmap $img.Width, $img.Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-$hb = @(999999, 999999, -1, -1); $mb = @(999999, 999999, -1, -1)
-# Pass 1 - WHERE the spheres are: the bounding box of the saturated pixels under alpha 0. The master
-# keeps a grey ghost of the cradle under its alpha too, and the fringe is partial alpha; the liquid
-# is the only thing under alpha 0 with a hue. The box alone is not the liquid, though - the rim's
-# darkest red fails any saturation test, and lifting by hue left the disc's edge ragged.
-for ($y=$bandY;$y -lt $bandY + $bandH;$y++){ for($x=$bandX;$x -lt $bandX + $bandW;$x++){
-  $c = $img.GetPixel($x,$y); if ($c.A -ne 0) { continue }
-  $bx = $x - $bandX
-  if ($bx -ge $cutLeft -and $bx -lt $cutRight) { continue }
-  $sat = [math]::Max($c.R, [math]::Max($c.G, $c.B)) - [math]::Min($c.R, [math]::Min($c.G, $c.B))
-  if ($sat -le 40) { continue }
-  if ($bx -lt $cutLeft) { if ($x -lt $hb[0]) { $hb[0] = $x }; if ($y -lt $hb[1]) { $hb[1] = $y }; if ($x -gt $hb[2]) { $hb[2] = $x }; if ($y -gt $hb[3]) { $hb[3] = $y } }
-  else { if ($x -lt $mb[0]) { $mb[0] = $x }; if ($y -lt $mb[1]) { $mb[1] = $y }; if ($x -gt $mb[2]) { $mb[2] = $x }; if ($y -gt $mb[3]) { $mb[3] = $y } } } }
-$hc = @((($hb[0] + $hb[2]) / 2), (($hb[1] + $hb[3]) / 2)); $mc = @((($mb[0] + $mb[2]) / 2), (($mb[1] + $mb[3]) / 2))
-$sphereRadius = [math]::Max([math]::Max($hb[2] - $hb[0], $hb[3] - $hb[1]), [math]::Max($mb[2] - $mb[0], $mb[3] - $mb[1])) / 2
-# Pass 2 - WHAT the liquid is: every pixel under alpha 0 inside that circle (plus a hair, for the
-# anti-aliased rim), whatever its colour. Outside the circle nothing is lifted.
-$rr = ($sphereRadius + 2) * ($sphereRadius + 2)
-for ($y=0;$y -lt $img.Height;$y++){ for($x=0;$x -lt $img.Width;$x++){
-  $c = $img.GetPixel($x,$y)
-  $dh = ($x-$hc[0])*($x-$hc[0]) + ($y-$hc[1])*($y-$hc[1]); $dm = ($x-$mc[0])*($x-$mc[0]) + ($y-$mc[1])*($y-$mc[1])
-  if ($c.A -eq 0 -and ($dh -le $rr -or $dm -le $rr)) { $liq.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(255,$c.R,$c.G,$c.B)) }
-  else { $liq.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(0,0,0,0)) } } }
-# band-local centre of each sphere
-$healthCentre = @( ($hc[0] - $bandX), ($hc[1] - $bandY) )
-$manaCentre = @( ($mc[0] - $bandX), ($mc[1] - $bandY) )
-Write-Host ("liquid: health sphere centre {0},{1}  mana {2},{3}  radius {4}" -f $healthCentre[0], $healthCentre[1], $manaCentre[0], $manaCentre[1], $sphereRadius)
-$ls = New-Object System.Drawing.Bitmap $W, $Hh, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-$g = [System.Drawing.Graphics]::FromImage($ls)
-$g.InterpolationMode = 'HighQualityBicubic'; $g.PixelOffsetMode = 'HighQuality'; $g.CompositingMode = 'SourceCopy'
-$g.DrawImage($liq, (New-Object System.Drawing.Rectangle -ArgumentList 0, 0, $W, $Hh), (New-Object System.Drawing.Rectangle -ArgumentList $bandX, $bandY, $bandW, $bandH), 'Pixel')
-$g.Dispose(); $liq.Dispose()
-for ($y=0;$y -lt $Hh;$y++){ for($x=0;$x -lt $W;$x++){ $c=$ls.GetPixel($x,$y); if ($c.A -lt 128) { $ls.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(0,0,0,0)) } else { $ls.SetPixel($x,$y,[System.Drawing.Color]::FromArgb(255,$c.R,$c.G,$c.B)) } } }
-function LiquidPiece($x0, $x1, $name) {
-  $p = $ls.Clone((New-Object System.Drawing.Rectangle -ArgumentList $x0, 0, ($x1 - $x0), $Hh), $ls.PixelFormat)
-  $p.Save((Join-Path $outDir $name), [System.Drawing.Imaging.ImageFormat]::Png); $p.Dispose()
-  Write-Host ("{0,-22} x {1}..{2}" -f $name, $x0, $x1)
-}
-LiquidPiece 0 $xl 'health_orb_liquid.png'
-LiquidPiece $xr $W 'mana_orb_liquid.png'
-$ls.Dispose()
+Piece $s 0 $xl 'health_orb.png'
+Piece $s $xl $xr 'middle_hud.png'
+Piece $s $xr $W 'mana_orb.png'
+Piece $ls 0 $xl 'health_orb_liquid.png'
+Piece $ls $xr $W 'mana_orb_liquid.png'
 
-$s.Dispose(); $img.Dispose()
+# ---- the overlay, for checking the hand-measured wells ----------------------------------------
+$z = 3
+$ov = New-Object System.Drawing.Bitmap ($W*$z), ($Hh*$z)
+$g = [System.Drawing.Graphics]::FromImage($ov); $g.Clear([System.Drawing.Color]::FromArgb(255,40,120,40)); $g.InterpolationMode='NearestNeighbor'; $g.PixelOffsetMode='Half'
+$g.DrawImage($ls, 0, 0, $W*$z, $Hh*$z); $g.DrawImage($s, 0, 0, $W*$z, $Hh*$z)
+$lime = New-Object System.Drawing.Pen ([System.Drawing.Color]::Lime), 1; $cyan = New-Object System.Drawing.Pen ([System.Drawing.Color]::Cyan), 1; $yel = New-Object System.Drawing.Pen ([System.Drawing.Color]::Yellow), 1
+foreach ($hole2 in $holes) { $g.DrawRectangle($cyan, $hole2.X*$z, $hole.Y*$z, $hole2.W*$z, $hole.H*$z) }
+$g.DrawRectangle($lime, (Scl $lmbWell[0])*$z, (Scl $lmbWell[1])*$z, (Scl $lmbWell[2])*$z, (Scl $lmbWell[3])*$z)
+$g.DrawRectangle($lime, (Scl $rmbWell[0])*$z, (Scl $rmbWell[1])*$z, (Scl $rmbWell[2])*$z, (Scl $rmbWell[3])*$z)
+$hcs = @((Scl ($hc[0] - $bandX)), (Scl ($hc[1] - $bandY))); $mcs = @((Scl ($mc[0] - $bandX)), (Scl ($mc[1] - $bandY))); $rs = Scl $sphereRadius
+$g.DrawEllipse($yel, ($hcs[0]-$rs)*$z, ($hcs[1]-$rs)*$z, 2*$rs*$z, 2*$rs*$z); $g.DrawEllipse($yel, ($mcs[0]-$rs)*$z, ($mcs[1]-$rs)*$z, 2*$rs*$z, 2*$rs*$z)
+$g.DrawLine($yel, $xl*$z, 0, $xl*$z, $Hh*$z); $g.DrawLine($yel, $xr*$z, 0, $xr*$z, $Hh*$z)
+$g.Dispose(); $ov.Save((Join-Path $scratch 'overlay.png')); $ov.Dispose()
+$s.Dispose(); $ls.Dispose()
 
 # ---- the header -------------------------------------------------------------------------------
 $plateW = $xr - $xl
@@ -157,12 +273,14 @@ $h = @"
  * @file oracool/hud_plate_skin.h
  *
  * GENERATED by tools/CutHudPlate.ps1 - do not edit. Change the measurements at the top of that
- * script and re-run it; the three PNGs it writes and these numbers come from the same pass.
+ * script and re-run it; the five PNGs it writes and these numbers come from the same pass.
  *
  * The fifth bottom HUD (Oracool.MPQ/02-source-art/delivered-packs/diablo-bottom-hud-v1, cut from
- * 04-raised-stone-wells-true-alpha-belt.png at scale $scale). Every number is in SCREEN pixels; the
- * plate's rects are PLATE-local, the orbs' are local to their own piece. The three pieces share one
- * bottom edge and butt together left to right: health cradle, plate, mana cradle.
+ * 03-transparent-slot-visual-draft.png with its checkerboard keyed out, at scale $scale). Every
+ * number is in SCREEN pixels; the plate's rects are PLATE-local, the orbs' are local to their own
+ * piece. The three pieces share one bottom edge and butt together left to right: health cradle,
+ * plate, mana cradle. The sphere centre and radius are measured from the painting's own spheres,
+ * whose interiors are cut out of the cradles and shipped as the liquid files.
  */
 #pragma once
 
@@ -185,11 +303,12 @@ constexpr Size BeltCellSize { $cellW, $($hole.H) };
 
 constexpr Size HealthOrbSize { $xl, $Hh };
 constexpr Size ManaOrbSize { $($W - $xr), $Hh };
-constexpr Point HealthSphereCenter { $(Scl $healthCentre[0]), $(Scl $healthCentre[1]) };
-constexpr Point ManaSphereCenter { $((Scl $manaCentre[0]) - $xr), $(Scl $manaCentre[1]) };
-constexpr int SphereRadius = $(Scl $sphereRadius);
+constexpr Point HealthSphereCenter { $($hcs[0]), $($hcs[1]) };
+constexpr Point ManaSphereCenter { $($mcs[0] - $xr), $($mcs[1]) };
+constexpr int SphereRadius = $rs;
 
 } // namespace devilution::oracool::hud_skin
 "@
 [System.IO.File]::WriteAllText($header, $h.Replace("`r`n", "`n"), (New-Object System.Text.UTF8Encoding $false))
 Write-Host "wrote $header"
+Write-Host "overlay: $(Join-Path $scratch 'overlay.png')"

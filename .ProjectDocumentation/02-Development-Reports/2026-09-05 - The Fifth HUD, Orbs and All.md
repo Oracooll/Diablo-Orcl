@@ -45,3 +45,11 @@ A mock at 100/55/15% is in the session's scratchpad (`orb_liquid_mock.png`); the
 The first lift used a hand-measured circle (r 116 in the master) and the sphere is r 137, so its edge was never lifted. The cutter now finds the sphere itself, in two passes over the master: first the bounding box of the SATURATED pixels under alpha 0 (the master keeps a grey ghost of the cradle under its alpha too, and the anti-aliased fringe is partial alpha with colour - the liquid is the only hued thing at alpha exactly 0), which gives centre and radius; then every alpha-0 pixel inside that circle plus two, whatever its colour, since the rim's darkest red fails any saturation test and lifting by hue alone left a ragged edge. Centre and radius go into the header from the same measurement (60,50 / 42,50, r 39 on screen), so the game's fill line covers exactly what was lifted.
 
 The sphere's crown now sits 2px above `SidePanelContentBottom`; while a side panel is open those two rows are clipped with the arch tips.
+
+## Addendum, v1.9.216 - the visual draft itself
+
+"use 03-transparent-slot-visual-draft.png as hud."
+
+It is not the same render as the true-alpha files (45% of shared pixels differ by more than 30), so the choice is real. It has no alpha, so `CutHudPlate.ps1` now recovers it, in C# inside the script: near-white and light-grey neutral pixels in connected regions of 1500+ px are keyed out (the ground, the six holes); single stray pixels are despeckled; opaque islands under 200 px (checker fragments inside the holes) are dropped; and bright neutral pixels touching transparency (the seams clinging to the frame) are eaten in two passes. Band 1934x382 at (3,214) - 1-3px larger than the alpha sibling's, the kept anti-aliased edge.
+
+The spheres are painted, so each is split: the interior inside r-1 is made transparent in the cradle and everything inside r+2 goes to the liquid file, then both layers are resampled and cut with the same lines. The circles are hand-measured on the script's own 3x overlay (`%TEMP%\CutHudPlate\overlay.png`) after two detectors failed - one took the sphere's reflection on the stone for the sphere, the next the arch's blue highlights. Radius 35 on screen, centres (59,48) and (45,48).
