@@ -863,6 +863,24 @@ bool HasMiddleHudArt()
 	return PlateArt.bright.has_value();
 }
 
+/**
+ * @brief Whether the plate is actually on screen: the switch is on AND the art loaded.
+ *
+ * The backings below ask this rather than the option alone, because with the option on and the
+ * art missing the row would otherwise have neither plate nor frames - the plateless look is the
+ * right fallback for a plate that failed to load, not a bare belt.
+ */
+bool PlateIsDrawn()
+{
+	if (!*sgOptions.Oracool.hudPlateArt)
+		return false;
+	EnsureLoadedAll();
+	if (PlateArt.rgba.empty())
+		return false;
+	EnsureQuantized();
+	return PlateArt.bright.has_value();
+}
+
 void DrawMiddleHudArt(const Surface &out)
 {
 	// The switch is HERE rather than at the call site, so nothing else has to know about it: the
@@ -1492,6 +1510,13 @@ bool DrawSkillWellBacking(const Surface &out, Rectangle well)
 	// Same end-of-pipeline test as DrawUnspentPointsIcon: report whether a draw can HAPPEN, so a
 	// missing entry in any of hud_art's three hand-maintained asset lists degrades to "no backing"
 	// rather than to a silent blank where the caller thought it had drawn one.
+	//
+	// NOT while the plate is drawn (user, 2026-09-04, on seeing the fourth plate: "i also see the old
+	// one overlapping. hide the old one"). The frame was the plateless row's bezel; the plate paints
+	// its own around each well, and the two together were the overlap. Reported as "drawn" so the
+	// callers that fall back to a procedural backing when this returns false do not add a third.
+	if (PlateIsDrawn())
+		return true;
 	ArtAsset &asset = SkillPointsFrameArt;
 	EnsureLoadedAll();
 	EnsureQuantized();
@@ -1530,6 +1555,11 @@ void DrawBeltBacking(const Surface &out)
 	// Positioned from GetBeltSlotRect, so the frames inherit the plate's own cell spacing and stay
 	// aligned with the items drawn into them by DrawInvBelt - which is the one thing that would look
 	// broken if this invented its own row geometry.
+	//
+	// Not over the plate (user, 2026-09-04: "hide the old one") - see DrawSkillWellBacking. The
+	// fourth plate's bar is one open well with no cell frames, and that is how it was painted.
+	if (PlateIsDrawn())
+		return;
 	ArtAsset &asset = SkillPointsFrameArt;
 	EnsureLoadedAll();
 	EnsureQuantized();

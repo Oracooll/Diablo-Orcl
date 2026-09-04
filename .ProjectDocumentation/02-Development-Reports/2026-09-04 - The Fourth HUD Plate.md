@@ -15,3 +15,9 @@
 ## Look at
 
 The wells are ~63px openings now with the same 46px content square inside, so there is more stone around each icon than before. The belt backings scale to 30x31 cells (they were 33x35). Both are screenshot calls; the numbers to move are `PlateScreenWidth` and `SkillWellNetSize`.
+
+## Addenda
+
+**v1.9.207** - the plate switch (`HUD Plate Art`) was off in the Debug ini and defaulted off, so the first build showed the plateless row unchanged. Default flipped to on; the ini flipped. The archive was verified against the source tree with the packer's `--verify` first - it was right all along.
+
+**v1.9.208** - "i also see the old one overlapping. hide the old one." The points-frame backings - the 64x64 frame behind each well and the six scaled copies across the belt - were the plateless row's bezels and kept drawing over the plate. `PlateIsDrawn()` (switch on and art loaded) now short-circuits `DrawSkillWellBacking` and `DrawBeltBacking`; with the plate off or missing, the frames return, so the plateless look is still the fallback.
