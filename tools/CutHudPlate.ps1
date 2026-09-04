@@ -4,14 +4,17 @@
 #
 #     powershell -ExecutionPolicy Bypass -File tools\CutHudPlate.ps1
 #
-# ## The fifth HUD, from the visual draft (2026-09-05, user: "use 03-transparent-slot-visual-draft.png as hud")
+# ## The fifth HUD (2026-09-05: "use 03-transparent-slot-visual-draft.png as hud", then, the same
+# ## night, "use 02-raised-stone-slot-design.png as hud")
 #
 # The GPT pack in Oracool.MPQ\02-source-art\delivered-packs\diablo-bottom-hud-v1. The master is the
-# file the user chose: 03-transparent-slot-visual-draft.png, a 24-bit render with a CHECKERBOARD
-# painted where transparency would be, and a different render from its true-alpha siblings (45% of
-# their shared pixels differ by more than 30). So the transparency is recovered here: near-white and
-# light-grey NEUTRAL pixels forming large connected regions are keyed out (the ground, the six belt
-# holes), while small bright neutral specks - the highlights on glass and gold - are kept.
+# file the user chose: 02-raised-stone-slot-design.png, a 24-bit render with a CHECKERBOARD painted
+# where transparency would be, and belt cells that are PAINTED raised stone rather than holes. So the
+# transparency is recovered here: near-white and light-grey NEUTRAL pixels forming large connected
+# regions are keyed out (the ground), while small bright neutral specks - the highlights on glass and
+# gold - are kept. The belt cells cannot be found by alpha on this master; they are the hand-measured
+# rects below, which the script falls back to when it finds no holes. (Design 03, the same layout with
+# holes for cells, was the HUD for v1.9.216, and its holes measured the same.)
 #
 # The orbs are PAINTED in this master. The game draws its own liquid (v1.9.214), so each sphere is
 # split: its interior goes to a liquid file, opaque and alone, and is made transparent in the cradle
@@ -33,7 +36,7 @@ Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
 $pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\diablo-bottom-hud-v1\designs'
-$source = Join-Path $pack '03-transparent-slot-visual-draft.png'
+$source = Join-Path $pack '02-raised-stone-slot-design.png'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $header = Join-Path $root 'Source\oracool\hud_plate_skin.h'
 $scratch = Join-Path $env:TEMP 'CutHudPlate'
@@ -52,6 +55,10 @@ $rmbWell = @(1389, 185, 172, 166)
 # the overlay (the painted spheres' edges at 3x), not detected: a hue detector was tried twice and
 # took the sphere's reflection on the stone, then the arch's blue highlights, for the sphere.
 $healthSphere = @(205, 165); $manaSphere = @(1732, 168); $sphereRadiusMaster = 123
+# The six belt cells' openings, BAND-LOCAL master pixels, for a master whose cells are painted rather
+# than cut through: measured as the holes of design 03, which shares the layout (x 594-682 ... y
+# 461-556 in master space). Used only when the alpha finds no holes.
+$beltCellsMaster = @( @(591, 247, 88, 96), @(724, 247, 88, 96), @(856, 247, 88, 96), @(989, 247, 88, 96), @(1121, 247, 88, 96), @(1255, 247, 88, 96) )
 
 # ---- pixel work in C#: keying, despeckling, sphere finding ------------------------------------
 $cs = @"
@@ -230,13 +237,19 @@ $midY = Scl (508 - $bandY)
 $runs=@(); $in=$false
 for($x=0;$x -lt $W;$x++){ $o = $s.GetPixel($x,$midY).A -ge 128; if(-not $o -and -not $in){$start=$x;$in=$true}; if($o -and $in){$runs += @{ X=$start; W=$x-$start };$in=$false} }
 $holes = @($runs | Where-Object { $_.W -gt 10 -and $_.W -lt 60 -and $_.X -ge $xl -and ($_.X + $_.W) -le $xr })
-if ($holes.Count -ne 6) { throw "found $($holes.Count) belt holes, expected 6" }
-$cx = [int]($holes[0].X + $holes[0].W / 2)
-$vr=@(); $in=$false
-for($y=0;$y -lt $Hh;$y++){ $o = $s.GetPixel($cx,$y).A -ge 128; if(-not $o -and -not $in){$start=$y;$in=$true}; if($o -and $in){$vr += @{ Y=$start; H=$y-$start };$in=$false} }
-$hole = @($vr | Where-Object { $_.H -gt 10 -and $_.H -lt 60 })[0]
-$cellW = ($holes | ForEach-Object { $_.W } | Measure-Object -Minimum).Minimum
-Write-Host ("belt holes y {0} h {1}: {2}" -f $hole.Y, $hole.H, (($holes | ForEach-Object { "x$($_.X) w$($_.W)" }) -join ' '))
+if ($holes.Count -eq 6) {
+  $cx = [int]($holes[0].X + $holes[0].W / 2)
+  $vr=@(); $in=$false
+  for($y=0;$y -lt $Hh;$y++){ $o = $s.GetPixel($cx,$y).A -ge 128; if(-not $o -and -not $in){$start=$y;$in=$true}; if($o -and $in){$vr += @{ Y=$start; H=$y-$start };$in=$false} }
+  $hole = @($vr | Where-Object { $_.H -gt 10 -and $_.H -lt 60 })[0]
+  $cellW = ($holes | ForEach-Object { $_.W } | Measure-Object -Minimum).Minimum
+  Write-Host ("belt holes by alpha, y {0} h {1}: {2}" -f $hole.Y, $hole.H, (($holes | ForEach-Object { "x$($_.X) w$($_.W)" }) -join ' '))
+} elseif ($holes.Count -eq 0) {
+  $holes = @($beltCellsMaster | ForEach-Object { @{ X = (Scl $_[0]); W = (Scl $_[2]) } })
+  $hole = @{ Y = (Scl $beltCellsMaster[0][1]); H = (Scl $beltCellsMaster[0][3]) }
+  $cellW = ($holes | ForEach-Object { $_.W } | Measure-Object -Minimum).Minimum
+  Write-Host ("belt cells painted - hand rects, y {0} h {1}: {2}" -f $hole.Y, $hole.H, (($holes | ForEach-Object { "x$($_.X) w$($_.W)" }) -join ' '))
+} else { throw "found $($holes.Count) belt holes, expected 6 or none" }
 
 # ---- the five pieces --------------------------------------------------------------------------
 function Piece([System.Drawing.Bitmap]$from, $x0, $x1, $name) {
@@ -276,7 +289,7 @@ $h = @"
  * script and re-run it; the five PNGs it writes and these numbers come from the same pass.
  *
  * The fifth bottom HUD (Oracool.MPQ/02-source-art/delivered-packs/diablo-bottom-hud-v1, cut from
- * 03-transparent-slot-visual-draft.png with its checkerboard keyed out, at scale $scale). Every
+ * 02-raised-stone-slot-design.png with its checkerboard keyed out, at scale $scale). Every
  * number is in SCREEN pixels; the plate's rects are PLATE-local, the orbs' are local to their own
  * piece. The three pieces share one bottom edge and butt together left to right: health cradle,
  * plate, mana cradle. The sphere centre and radius are measured from the painting's own spheres,
@@ -296,7 +309,7 @@ constexpr Size PlateSize { $plateW, $Hh };
 constexpr Rectangle LmbWell { { $((Scl $lmbWell[0]) - $xl), $(Scl $lmbWell[1]) }, { $(Scl $lmbWell[2]), $(Scl $lmbWell[3]) } };
 constexpr Rectangle RmbWell { { $((Scl $rmbWell[0]) - $xl), $(Scl $rmbWell[1]) }, { $(Scl $rmbWell[2]), $(Scl $rmbWell[3]) } };
 
-/** The six belt cells are the painting's transparent holes, found by alpha. */
+/** The six belt cells: the painting's holes by alpha where it has them, its painted openings by hand where not. */
 constexpr int BeltCellX[6] = { $cells };
 constexpr int BeltCellY = $($hole.Y);
 constexpr Size BeltCellSize { $cellW, $($hole.H) };

@@ -53,3 +53,9 @@ The sphere's crown now sits 2px above `SidePanelContentBottom`; while a side pan
 It is not the same render as the true-alpha files (45% of shared pixels differ by more than 30), so the choice is real. It has no alpha, so `CutHudPlate.ps1` now recovers it, in C# inside the script: near-white and light-grey neutral pixels in connected regions of 1500+ px are keyed out (the ground, the six holes); single stray pixels are despeckled; opaque islands under 200 px (checker fragments inside the holes) are dropped; and bright neutral pixels touching transparency (the seams clinging to the frame) are eaten in two passes. Band 1934x382 at (3,214) - 1-3px larger than the alpha sibling's, the kept anti-aliased edge.
 
 The spheres are painted, so each is split: the interior inside r-1 is made transparent in the cradle and everything inside r+2 goes to the liquid file, then both layers are resampled and cut with the same lines. The circles are hand-measured on the script's own 3x overlay (`%TEMP%\CutHudPlate\overlay.png`) after two detectors failed - one took the sphere's reflection on the stone for the sphere, the next the arch's blue highlights. Radius 35 on screen, centres (59,48) and (45,48).
+
+## Addendum, v1.9.217 - design 02, raised stone slots
+
+"use 02-raised-stone-slot-design.png as hud."
+
+Same layout, same 24-bit checkerboard, but the belt cells are painted raised stone, not holes - so the alpha finds nothing there. The cutter now carries the six cell openings as hand-measured band-local rects (design 03's holes, which share the layout; verified on the overlay against 02's painted rims) and falls back to them when it finds no holes; a count of anything but six or none still throws. Everything else - keying, spheres, cut lines - unchanged, and the generated header came out identical to v1.9.216's.
