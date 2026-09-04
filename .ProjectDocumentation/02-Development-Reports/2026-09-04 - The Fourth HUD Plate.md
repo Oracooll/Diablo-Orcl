@@ -21,3 +21,5 @@ The wells are ~63px openings now with the same 46px content square inside, so th
 **v1.9.207** - the plate switch (`HUD Plate Art`) was off in the Debug ini and defaulted off, so the first build showed the plateless row unchanged. Default flipped to on; the ini flipped. The archive was verified against the source tree with the packer's `--verify` first - it was right all along.
 
 **v1.9.208** - "i also see the old one overlapping. hide the old one." The points-frame backings - the 64x64 frame behind each well and the six scaled copies across the belt - were the plateless row's bezels and kept drawing over the plate. `PlateIsDrawn()` (switch on and art loaded) now short-circuits `DrawSkillWellBacking` and `DrawBeltBacking`; with the plate off or missing, the frames return, so the plateless look is still the fallback.
+
+**v1.9.209** - "revert back to the old hud." The old HUD was the plateless row, so the revert is the switch: `HUD Plate Art` back to off by default and off in the Debug ini. The fourth plate, its cutter and the layout for it all stay; turning the switch on brings it back exactly as v1.9.208 showed it.
