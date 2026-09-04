@@ -14,7 +14,7 @@
 # the texture keeps its contrast where a multiply would flatten it and blow the highlights. 0.85
 # lifts a mid-grey of 60 to about 74, a quarter brighter; 1.0 is the master unchanged.
 
-param([double] $Gamma = 0.85)
+param([double] $Gamma = 0.75) # 0.85 shipped in v1.9.210; "a notch brighter again" the same evening
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
