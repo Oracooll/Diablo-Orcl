@@ -101,3 +101,5 @@ Not an asset: the vanilla icon sheet is original game art and a re-cut of it can
 **v1.9.244** - "you mistakingly also removed the shadows behind the skills SLOTS." The three slot shadows in the Abilities window are back (Spells rows, tree cells, passive band). v1.9.242 read "remove shadows from abilities screen" as these; the ring the user meant was the 56px sheet's black border, fixed in v1.9.243.
 
 **v1.9.245** - "burger menu blink too many times when i click it. reduce it to one blink." `MenuBlinkPhaseMs` is half the 140ms flash instead of a quarter, and the sequence is pressed then back: one blink, where four phases gave two.
+
+**v1.9.246** - "move the burger menu down to about 5-6px above the xp counter." The icon row hangs 6px above the XP counter's strip (`GetXpCounterDrawRect`) instead of 12px above the plate's top - since the bar moved to the belt, that left it a counter's height too high.

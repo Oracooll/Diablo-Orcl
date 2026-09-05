@@ -25,6 +25,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
 #include "oracool/waypoint_menu.h"
+#include "oracool/xp_counter.h" // GetXpCounterDrawRect - the icon row hangs above it
 #include "oracool/oracool.h"
 #include "oracool/runeword_book.h"
 #include "panels/spell_book.hpp"
@@ -136,8 +137,8 @@ constexpr std::array<HudMenuEntry, MenuIconCount> MenuEntries { {
 // Packed with no gap. At 2px the eight icons spanned 254px and the centred row began at plate+51,
 // while the level-up indicator occupies plate+0..60 - a 9px overlap on the leftmost icon.
 constexpr int IconGap = 0;
-// Clears the XP counter, which sits just above the plate's top edge.
-constexpr int RowGapAbovePlate = 12;
+/** @brief Air between the icon row and the XP counter's strip beneath it (user: "about 5-6px"). */
+constexpr int RowGapAboveCounter = 6;
 /** @brief Kept between the level-up indicator and the first icon when the two would collide. */
 constexpr int LevelUpClearance = 4;
 
@@ -166,8 +167,14 @@ Rectangle IconRowRect()
 	const int centred = plate.position.x + (plate.size.width - width) / 2;
 	const Rectangle levelUp = GetLevelUpIconRect();
 	const int clearOfLevelUp = levelUp.position.x + levelUp.size.width + LevelUpClearance;
+	// Hung from the XP COUNTER's strip, not the plate's top (user, 2026-09-05: "move the burger
+	// menu down to about 5-6px above the xp counter. now it appears too high up"). The counter sits
+	// just above the XP bar since the bar moved down to the belt, so measuring from the plate left
+	// the row stranded a counter's height above where the eye expects it. The counter's rect is
+	// there whether or not the counter is showing, so the row does not jump when it appears.
+	const Rectangle counter = GetXpCounterDrawRect();
 	return { { std::max(centred, clearOfLevelUp),
-	             plate.position.y - RowGapAbovePlate - MenuIconSize.height },
+	             counter.position.y - RowGapAboveCounter - MenuIconSize.height },
 		{ width, MenuIconSize.height } };
 }
 
