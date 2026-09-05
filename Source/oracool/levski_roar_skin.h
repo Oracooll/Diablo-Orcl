@@ -24,6 +24,8 @@ constexpr int CellSize = 28;
 constexpr int GridColumns = 3;
 constexpr int GridRows = 4;
 constexpr Point GridOrigin { 34, 89 };
+/** The SALVAGE title's band over the 3x3 block: gold, 24px, shadowed, centred (levski_roar.cpp). */
+constexpr Rectangle SalvageTitleRect { { 130, 78 }, { 102, 22 } };
 
 /** The ten controls, in ButtonIndex order. */
 enum ButtonIndex : int {
@@ -36,15 +38,15 @@ constexpr int ButtonCount = 10;
 
 constexpr Rectangle ButtonRects[ButtonCount] = {
 	{ { 231, 32 }, { 18, 18 } }, // close
-	{ { 165, 164 }, { 32, 32 } }, // transmute
-	{ { 200, 164 }, { 32, 32 } }, // recipes
-	{ { 130, 94 }, { 32, 32 } }, // white
-	{ { 165, 94 }, { 32, 32 } }, // magic
-	{ { 200, 94 }, { 32, 32 } }, // rare
-	{ { 130, 129 }, { 32, 32 } }, // unique
-	{ { 165, 129 }, { 32, 32 } }, // primal
-	{ { 200, 129 }, { 32, 32 } }, // set
-	{ { 130, 164 }, { 32, 32 } }, // ethereal
+	{ { 165, 174 }, { 32, 32 } }, // transmute
+	{ { 200, 174 }, { 32, 32 } }, // recipes
+	{ { 130, 102 }, { 32, 32 } }, // white
+	{ { 165, 102 }, { 32, 32 } }, // magic
+	{ { 200, 102 }, { 32, 32 } }, // rare
+	{ { 130, 138 }, { 32, 32 } }, // unique
+	{ { 165, 138 }, { 32, 32 } }, // primal
+	{ { 200, 138 }, { 32, 32 } }, // set
+	{ { 130, 174 }, { 32, 32 } }, // ethereal
 };
 
 /** ui\ asset stem per button - levski_<stem>_default.png, _hover.png and _pressed.png. The close button has none. */

@@ -785,6 +785,14 @@ void DrawLevskiRoar(const Surface &out)
 	// it, and its frame's corner is not the rect's corner - see the cutter).
 	DrawWindowCloseButtonAt(out, CloseButtonRect(window));
 
+	// The SALVAGE title over the block (user, 2026-09-05: "Gold, with text shadow. Appropriate font
+	// size"): 24px, the window title's own gold, and the same shadow the hero sheet's text wears.
+	{
+		const Rectangle &t = levski_skin::SalvageTitleRect;
+		DrawString(out, _("SALVAGE"), Rectangle { window.position + Displacement { t.position.x, t.position.y }, t.size },
+		    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	}
+
 	// The nine controls (2026-09-05, "3 rows of 3 icons"): GPT's 32px icon plates, three states each.
 	// The painting carries NO plates for them, so the DEFAULT frame goes down at rest and the hover
 	// or pressed frame replaces it while the cursor is on it or the press flash is running. Where a

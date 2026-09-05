@@ -30,3 +30,7 @@ Block reading, row-major: Whites, Magic, Rare; Uniques, Primal, Set; Ethereal, T
 ## Verification
 
 Debug build clean; 624/625 with the standing `Drlg_l1` failure. A 2x mock with the game's cell rects overlaid shows the 28px cells landing on the painted interiors and the block clear of the field's edges. In the game: open the stand in town, hover each icon for its line, click a tier with nothing to salvage and see the shade, put a 2x3 armour in and see it fill six cells.
+
+## v1.9.255: the SALVAGE title, rows spread
+
+"Add a nice SALVAGE title above the icon. Gold, with text shadow. Appropriate font size. Also spread the rows vertically as you see fit." A 22px band at the top of the field carries SALVAGE in the 24px gold font with the hero sheet's text shadow, centred over the block; the three rows below it sit at a 36px pitch (was 35), which is what the 135px field affords with a 4px margin at the bottom. Rows now at y 102, 138, 174. The tooltips were already there since v1.9.253: the hover line goes through the cursor-following tooltip panel.

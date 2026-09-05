@@ -51,6 +51,7 @@ $scale = $gameCell / $pitch
 $gridOrigin = @{ X = $gridInterior.X - 1; Y = $gridInterior.Y - 1 }
 # The empty field right of the grid, in painting pixels: x 134..241, y 79..219 (the inner opening).
 $fieldX0 = 134; $fieldX1 = 241
+$fieldY0 = 79; $fieldY1 = 219
 $frameTop = 30                           # the frame's top edge at the sides (rows 0..29 are transparent there)
 
 function Scaled($v) { return [int][math]::Round($v * $scale) }
@@ -82,11 +83,20 @@ Write-Host "levski_bg.png"
 # ---- the nine controls: a 3x3 block in the field, centred on the grid's height ----------------------
 $icon = 32; $iconPitch = 35
 $blockW = $iconPitch * 2 + $icon
-$gridTop = Scaled $gridOrigin.Y; $gridH = $gridRows * $gameCell
 $fieldLeft = Scaled $fieldX0; $fieldRight = Scaled $fieldX1
+$fieldTop = Scaled $fieldY0; $fieldBottom = Scaled $fieldY1
 $blockX = $fieldLeft + [int](($fieldRight - $fieldLeft - $blockW) / 2)
-$blockY = $gridTop + [int](($gridH - $blockW) / 2)
+# The SALVAGE title (user, 2026-09-05: "a nice SALVAGE title above the icon. Gold, with text shadow")
+# in the field's top band, 24px font, and the three rows spread below it with what height is left:
+# the rows' pitch grows from the icons' 35 to fill the field down to a margin above its bottom.
+$titleH = 22; $titleGap = 2; $bottomMargin = 4   # 22+2 leaves the three rows a 36px pitch in the 135px field
+$titleY = $fieldTop + 2
+$blockY = $titleY + $titleH + $titleGap
+$rowPitch = [int][math]::Floor(($fieldBottom - $bottomMargin - $icon - $blockY) / 2)
+if ($rowPitch -lt $iconPitch) { throw "the field is too short for the title and three rows" }
 if ($blockX + $blockW -gt $fieldRight) { throw "the 3x3 block does not fit the field" }
+$titleRect = @($blockX, $titleY, $blockW, $titleH)
+Write-Host ("title {0},{1} {2}x{3}  rows at pitch {4}" -f $titleRect[0], $titleRect[1], $titleRect[2], $titleRect[3], $rowPitch)
 
 # Stem, pack id, tooltip - in ButtonIndex order after Close: Transmute, Recipes, then the seven
 # salvage tiers in SalvageTier order (White, Magic, Rare, Unique, Primal, Set, Ethereal), which is
@@ -116,7 +126,7 @@ $closeSize = 18; $inset = 3
 $buttons += @{ Name = 'close'; Rect = @(($winW - $inset - $closeSize), ((Scaled $frameTop) + $inset), $closeSize, $closeSize); Plain = $false }
 foreach ($c in $controls) {
   $col = $c.Cell % 3; $row = [math]::Floor($c.Cell / 3)
-  $buttons += @{ Name = $c.Name; Rect = @(($blockX + $col * $iconPitch), ($blockY + $row * $iconPitch), $icon, $icon); Plain = $false }
+  $buttons += @{ Name = $c.Name; Rect = @(($blockX + $col * $iconPitch), ($blockY + $row * $rowPitch), $icon, $icon); Plain = $false }
   foreach ($s in $states.Keys) {
     $src = Join-Path $iconPack ("{0}-{1}.png" -f $c.Id, $s)
     if (-not (Test-Path $src)) { throw "missing icon: $src" }
@@ -162,6 +172,8 @@ constexpr int CellSize = $gameCell;
 constexpr int GridColumns = $gridColumns;
 constexpr int GridRows = $gridRows;
 constexpr Point GridOrigin { $(Scaled $gridOrigin.X), $(Scaled $gridOrigin.Y) };
+/** The SALVAGE title's band over the 3x3 block: gold, 24px, shadowed, centred (levski_roar.cpp). */
+constexpr Rectangle SalvageTitleRect { { $($titleRect[0]), $($titleRect[1]) }, { $($titleRect[2]), $($titleRect[3]) } };
 
 /** The ten controls, in ButtonIndex order. */
 enum ButtonIndex : int {
