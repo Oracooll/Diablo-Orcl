@@ -1,0 +1,142 @@
+Paladin	COMBAT SKILLS	Sacrifice	1	Damage: +150% | Costs 8% of the damage dealt in life
+Paladin	COMBAT SKILLS	Sacrifice	2	Damage: +170% | Costs 8% of the damage dealt in life
+Paladin	COMBAT SKILLS	Smite	1	Range: melee | Requires a shield | Always hits | Stun: 2.0 s
+Paladin	COMBAT SKILLS	Smite	2	Range: melee | Requires a shield | Always hits | Stun: 2.0 s
+Paladin	COMBAT SKILLS	Zeal	1	Range: melee | Strikes: 2 in one swing | To hit: +1%
+Paladin	COMBAT SKILLS	Zeal	2	Range: melee | Strikes: 2 in one swing | To hit: +2%
+Paladin	COMBAT SKILLS	Charge	1	Range: 8 tiles | Dash: up to 2.0 s | Cooldown: 3.0 s
+Paladin	COMBAT SKILLS	Charge	2	Range: 8 tiles | Dash: up to 2.0 s | Cooldown: 3.0 s
+Paladin	COMBAT SKILLS	Vengeance	1	Duration: 30 s | Fire: +3 - 8 | Lightning: +2 - 10
+Paladin	COMBAT SKILLS	Vengeance	2	Duration: 35 s | Fire: +4 - 10 | Lightning: +3 - 12
+Paladin	COMBAT SKILLS	Blessed Hammer	1	Range: 10 tiles | Damage: 60% per hit
+Paladin	COMBAT SKILLS	Blessed Hammer	2	Range: 10 tiles | Damage: 60% per hit
+Paladin	COMBAT SKILLS	Conversion	1	Radius: 2 tiles | Duration: 20 s
+Paladin	COMBAT SKILLS	Conversion	2	Radius: 2 tiles | Duration: 22 s
+Paladin	COMBAT SKILLS	Fist of the Heavens	1	Range: 10 tiles | Damage: 150% at the centre, 60% around it
+Paladin	COMBAT SKILLS	Fist of the Heavens	2	Range: 10 tiles | Damage: 150% at the centre, 60% around it
+Paladin	COMBAT SKILLS	Hammer of Faith	1	Range: melee | Splash: 50% to everything around the target
+Paladin	COMBAT SKILLS	Hammer of Faith	2	Range: melee | Splash: 50% to everything around the target
+Paladin	COMBAT SKILLS	Blessed Shield	1	Range: 10 tiles | Requires a shield | Damage: 125% per target
+Paladin	COMBAT SKILLS	Blessed Shield	2	Range: 10 tiles | Requires a shield | Damage: 125% per target
+Barbarian	COMBAT SKILLS	Bash	1	Damage: +30% | Knocks the target back
+Barbarian	COMBAT SKILLS	Bash	2	Damage: +40% | Knocks the target back
+Barbarian	COMBAT SKILLS	Leap	1	Range: 4 tiles
+Barbarian	COMBAT SKILLS	Leap	2	Range: 4 tiles
+Barbarian	COMBAT SKILLS	Double Swing	1	Strikes: 2 in one swing | Extra strikes at 75% damage
+Barbarian	COMBAT SKILLS	Double Swing	2	Strikes: 2 in one swing | Extra strikes at 80% damage
+Barbarian	COMBAT SKILLS	Stun	1	Stun: 1.5 s
+Barbarian	COMBAT SKILLS	Stun	2	Stun: 1.7 s
+Barbarian	COMBAT SKILLS	Leap Attack	1	Damage: +50% | Range: 4 tiles
+Barbarian	COMBAT SKILLS	Leap Attack	2	Damage: +60% | Range: 4 tiles
+Barbarian	COMBAT SKILLS	Concentrate	1	Damage: +50%
+Barbarian	COMBAT SKILLS	Concentrate	2	Damage: +60%
+Barbarian	COMBAT SKILLS	Frenzy	1	Strikes: 2 in one swing | Extra strikes at 100% damage
+Barbarian	COMBAT SKILLS	Frenzy	2	Damage: +10% | Strikes: 2 in one swing | Extra strikes at 100% damage
+Barbarian	COMBAT SKILLS	Whirlwind	1	Hits everything around you at 66% damage
+Barbarian	COMBAT SKILLS	Whirlwind	2	Hits everything around you at 71% damage
+Barbarian	COMBAT SKILLS	Berserk	1	Damage: +100%
+Barbarian	COMBAT SKILLS	Berserk	2	Damage: +120%
+Barbarian	WARCRIES	Howl	1	Radius: 4 tiles | Repels 5 tiles
+Barbarian	WARCRIES	Howl	2	Radius: 4 tiles | Repels 6 tiles
+Barbarian	WARCRIES	Find Potion	1	Chance: 50% | Full potion: 5%
+Barbarian	WARCRIES	Find Potion	2	Chance: 55% | Full potion: 7%
+Barbarian	WARCRIES	Taunt	1	Radius: 4 tiles
+Barbarian	WARCRIES	Taunt	2	Radius: 4 tiles
+Barbarian	WARCRIES	Shout	1	Duration: 40 s | Armour: +50%
+Barbarian	WARCRIES	Shout	2	Duration: 45 s | Armour: +60%
+Barbarian	WARCRIES	Find Item	1	Chance: 25%
+Barbarian	WARCRIES	Find Item	2	Chance: 30%
+Barbarian	WARCRIES	Battle Cry	1	Radius: 4 tiles | Duration: 24 s | Enemy damage and armour: -25%
+Barbarian	WARCRIES	Battle Cry	2	Radius: 4 tiles | Duration: 26 s | Enemy damage and armour: -27%
+Barbarian	WARCRIES	Battle Orders	1	Duration: 40 s | Life and mana: +20
+Barbarian	WARCRIES	Battle Orders	2	Duration: 45 s | Life and mana: +30
+Barbarian	WARCRIES	Grim Ward	1	Radius: 4 tiles | Duration: 20 s
+Barbarian	WARCRIES	Grim Ward	2	Radius: 4 tiles | Duration: 22 s
+Barbarian	WARCRIES	War Cry	1	Radius: 4 tiles | Damage: 4 - 8 | Stun: 2.0 s
+Barbarian	WARCRIES	War Cry	2	Radius: 4 tiles | Damage: 8 - 16 | Stun: 2.2 s
+Barbarian	WARCRIES	Battle Command	1	Duration: 30 s | All skill levels: +1
+Barbarian	WARCRIES	Battle Command	2	Duration: 35 s | All skill levels: +1
+Sorceress	COLD SPELLS	Ice Bolt	1	Chill: 2.0 s
+Sorceress	COLD SPELLS	Ice Bolt	2	Chill: 2.0 s
+Sorceress	COLD SPELLS	Frozen Armor	1	Duration: 24 s | Chill on being struck: 2.1 s
+Sorceress	COLD SPELLS	Frozen Armor	2	Duration: 28 s | Chill on being struck: 2.2 s
+Sorceress	COLD SPELLS	Frost Nova	1	Chill: 3.1 s
+Sorceress	COLD SPELLS	Frost Nova	2	Chill: 3.2 s
+Sorceress	COLD SPELLS	Ice Blast	1	Freeze: 1.8 s (uniques are chilled instead)
+Sorceress	COLD SPELLS	Ice Blast	2	Freeze: 2.0 s (uniques are chilled instead)
+Sorceress	COLD SPELLS	Shiver Armor	1	Duration: 24 s | Chill on being struck: 2.1 s
+Sorceress	COLD SPELLS	Shiver Armor	2	Duration: 28 s | Chill on being struck: 2.2 s
+Sorceress	COLD SPELLS	Glacial Spike	1	Freeze: 1.8 s (uniques are chilled instead)
+Sorceress	COLD SPELLS	Glacial Spike	2	Freeze: 2.0 s (uniques are chilled instead)
+Sorceress	COLD SPELLS	Blizzard	1	Chill: 3.1 s
+Sorceress	COLD SPELLS	Blizzard	2	Chill: 3.2 s
+Sorceress	COLD SPELLS	Chilling Armor	1	Duration: 24 s | Chill on being struck: 2.1 s
+Sorceress	COLD SPELLS	Chilling Armor	2	Duration: 28 s | Chill on being struck: 2.2 s
+Sorceress	COLD SPELLS	Frozen Orb	1	Chill: 2.0 s
+Sorceress	COLD SPELLS	Frozen Orb	2	Chill: 2.0 s
+Rogue	BOW & CROSSBOW	Magic Arrow	1	Elemental damage: +4
+Rogue	BOW & CROSSBOW	Magic Arrow	2	Elemental damage: +6
+Rogue	BOW & CROSSBOW	Fire Arrow	1	Elemental damage: +4
+Rogue	BOW & CROSSBOW	Fire Arrow	2	Elemental damage: +6
+Rogue	BOW & CROSSBOW	Cold Arrow	1	Elemental damage: +4 | Chill: 2.1 s
+Rogue	BOW & CROSSBOW	Cold Arrow	2	Elemental damage: +6 | Chill: 2.2 s
+Rogue	BOW & CROSSBOW	Multiple Shot	1	Arrows: 2
+Rogue	BOW & CROSSBOW	Multiple Shot	2	Arrows: 3
+Rogue	BOW & CROSSBOW	Exploding Arrow	1	Elemental damage: +4
+Rogue	BOW & CROSSBOW	Exploding Arrow	2	Elemental damage: +6
+Rogue	BOW & CROSSBOW	Ice Arrow	1	Elemental damage: +4 | Freeze: 1.7 s
+Rogue	BOW & CROSSBOW	Ice Arrow	2	Elemental damage: +6 | Freeze: 2.0 s
+Rogue	BOW & CROSSBOW	Guided Arrow	1	Cannot miss
+Rogue	BOW & CROSSBOW	Guided Arrow	2	Cannot miss
+Rogue	BOW & CROSSBOW	Strafe	1	Arrows: 3, nearest first, within 8 tiles
+Rogue	BOW & CROSSBOW	Strafe	2	Arrows: 4, nearest first, within 8 tiles
+Rogue	BOW & CROSSBOW	Immolation Arrow	1	Elemental damage: +4
+Rogue	BOW & CROSSBOW	Immolation Arrow	2	Elemental damage: +6
+Rogue	BOW & CROSSBOW	Freezing Arrow	1	Elemental damage: +4 | Freeze: 1.7 s
+Rogue	BOW & CROSSBOW	Freezing Arrow	2	Elemental damage: +6 | Freeze: 2.0 s
+Rogue	PASSIVE & MAGIC	Inner Sight	1	Radius: 6 tiles | Duration: 20 s | Enemy armour: -30%
+Rogue	PASSIVE & MAGIC	Inner Sight	2	Radius: 6 tiles | Duration: 22 s | Enemy armour: -32%
+Rogue	PASSIVE & MAGIC	Slow Missiles	1	Duration: 20 s | Arrows turned aside: 50%
+Rogue	PASSIVE & MAGIC	Slow Missiles	2	Duration: 24 s | Arrows turned aside: 55%
+Rogue	JAVELIN & SPEAR	Jab	1	Strikes: 3 in one swing | Extra strikes at 50% damage
+Rogue	JAVELIN & SPEAR	Jab	2	Strikes: 3 in one swing | Extra strikes at 55% damage
+Rogue	JAVELIN & SPEAR	Power Strike	1	Damage: +30% | Lightning: 1 - 4
+Rogue	JAVELIN & SPEAR	Power Strike	2	Damage: +35% | Lightning: 1 - 8
+Rogue	JAVELIN & SPEAR	Impale	1	Damage: +100%
+Rogue	JAVELIN & SPEAR	Impale	2	Damage: +120%
+Rogue	JAVELIN & SPEAR	Charged Strike	1	Damage: +20% | Charged bolts: 2
+Rogue	JAVELIN & SPEAR	Charged Strike	2	Damage: +25% | Charged bolts: 2
+Rogue	JAVELIN & SPEAR	Fend	1	Also hits everything around you at 80% damage
+Rogue	JAVELIN & SPEAR	Fend	2	Also hits everything around you at 85% damage
+Rogue	JAVELIN & SPEAR	Lightning Strike	1	Damage: +20% | Chain lightning at level 1
+Rogue	JAVELIN & SPEAR	Lightning Strike	2	Damage: +25% | Chain lightning at level 2
+Bard	MELODY	Lullaby	1	Radius: 4 tiles | Sleep: 4.0 s
+Bard	MELODY	Lullaby	2	Radius: 4 tiles | Sleep: 4.5 s
+Bard	HARMONY	Sound Shock	1	Radius: 4 tiles | Damage: 6 - 14
+Bard	HARMONY	Sound Shock	2	Radius: 4 tiles | Damage: 8 - 18
+Bard	HARMONY	Shout	1	Radius: 3 tiles | Stun: 1.0 s
+Bard	HARMONY	Shout	2	Radius: 3 tiles | Stun: 1.2 s
+Bard	POETRY	Daze	1	Radius: 4 tiles
+Bard	POETRY	Daze	2	Radius: 4 tiles
+Monk	WAY OF THE STAFF	Sweeping Reed	1	Also hits everything ahead of you at 100% damage
+Monk	WAY OF THE STAFF	Sweeping Reed	2	Also hits everything ahead of you at 100% damage
+Monk	WAY OF THE STAFF	Breaking Current	1	Damage: +33% | Stun: 1.0 s
+Monk	WAY OF THE STAFF	Breaking Current	2	Damage: +33% | Stun: 1.0 s
+Monk	WAY OF THE STAFF	Vaulting Strike	1	Damage: +50% | Range: 4 tiles
+Monk	WAY OF THE STAFF	Vaulting Strike	2	Damage: +60% | Range: 4 tiles
+Monk	WAY OF THE STAFF	Wheel of Heaven	1	Hits everything around you at 66% damage
+Monk	WAY OF THE STAFF	Wheel of Heaven	2	Hits everything around you at 71% damage
+Monk	WAY OF THE STAFF	Seven Reeds	1	Strikes: 3 in one swing | Extra strikes at 60% damage
+Monk	WAY OF THE STAFF	Seven Reeds	2	Strikes: 3 in one swing | Extra strikes at 60% damage
+Monk	WAY OF THE BODY	Open Palm	1	Damage: +20% | Knocks the target back
+Monk	WAY OF THE BODY	Open Palm	2	Damage: +30% | Knocks the target back
+Monk	WAY OF THE BODY	Purifying Breath	1	Duration: 30 s | Fire, lightning and magic resistance: +20
+Monk	WAY OF THE BODY	Purifying Breath	2	Duration: 35 s | Fire, lightning and magic resistance: +25
+Monk	WAY OF THE BODY	Hundred Fists	1	Strikes: 4 in one swing | Extra strikes at 50% damage
+Monk	WAY OF THE BODY	Hundred Fists	2	Strikes: 4 in one swing | Extra strikes at 50% damage
+Monk	WAY OF THE SPIRIT	Temple Bell	1	Radius: 4 tiles | Damage to undead: 3 - 6 | Stun: 1.5 s, repels 3 tiles
+Monk	WAY OF THE SPIRIT	Temple Bell	2	Radius: 4 tiles | Damage to undead: 6 - 12 | Stun: 1.5 s, repels 3 tiles
+Monk	WAY OF THE SPIRIT	Radiant Palm	1	Damage: +20% | A kill deals the blow again to everything beside it
+Monk	WAY OF THE SPIRIT	Radiant Palm	2	Damage: +30% | A kill deals the blow again to everything beside it
+Monk	WAY OF THE SPIRIT	Tranquility	1	Duration: 13 s
+Monk	WAY OF THE SPIRIT	Tranquility	2	Duration: 14 s

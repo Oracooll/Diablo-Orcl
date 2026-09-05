@@ -63,6 +63,10 @@
 #include "oracool/attack_skills.h"
 #include "oracool/shutdown_watchdog.h"
 #include "oracool/skill_picker.h"
+#include <fstream> // --skill-facts
+#include "oracool/class_tree.h"  // --skill-facts
+#include "oracool/skill_facts.h" // --skill-facts
+#include "utils/str_cat.hpp"
 #include "oracool/auto_save.h"
 #include "oracool/gradual_healing.h"
 #include "oracool/furious_charge.h"
@@ -1675,6 +1679,38 @@ void DiabloParseFlags(int argc, char **argv)
 			printInConsole("engine ");
 			printInConsole(PROJECT_VERSION);
 			printNewlineInConsole();
+			diablo_quit(0);
+		} else if (arg == "--skill-facts") {
+			// Oracool: writes every tree skill's tooltip facts (oracool/skill_facts) at ranks 1 and 2
+			// to the file named next, tab-separated - class, page, name, rank, lines joined by " | " -
+			// for tools/GenerateHoverMatrix.pl, so the published matrix quotes what the modules roll
+			// rather than a template. A FILE, because printInConsole only reaches an attached
+			// terminal on Windows and a redirect gets nothing. Needs no assets: the facts are formulas.
+			if (i + 1 == argc) {
+				PrintFlagsRequiresArgument("--skill-facts");
+				diablo_quit(64);
+			}
+			std::ofstream dump(argv[++i], std::ios::binary);
+			gbIsHellfire = true; // the Oracool spells sit past LastDiablo, which IsValidSpell gates on
+			const char *classNames[] = { "Paladin", "Rogue", "Sorceress", "Monk", "Bard", "Barbarian" };
+			for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+				const auto skill = static_cast<oracool::ClassTreeSkill>(i);
+				const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
+				const SpellID spell = oracool::ClassTreeSpellId(skill);
+				if (!IsValidSpell(spell))
+					continue;
+				for (int rank = 1; rank <= 2; rank++) {
+					std::string facts = oracool::SkillFactsAt(spell, rank);
+					if (facts.empty())
+						continue;
+					for (size_t at = facts.find('\n'); at != std::string::npos; at = facts.find('\n', at + 3))
+						facts.replace(at, 1, " | ");
+					dump << classNames[static_cast<size_t>(data.heroClass)] << '\t'
+					     << oracool::GetClassTreePageName(data.heroClass, data.page) << '\t'
+					     << data.name << '\t' << rank << '\t' << facts << '\n';
+				}
+			}
+			dump.close();
 			diablo_quit(0);
 		} else if (arg == "--data-dir") {
 			if (i + 1 == argc) {

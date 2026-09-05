@@ -250,7 +250,10 @@ std::string PaladinSkillFactsAt(PaladinSkill skill, int rank)
 			out += '\n';
 		out += s;
 	};
-	line(fmt::format(fmt::runtime(_("Range: {:d} tiles")), data.rangeTiles));
+	if (data.rangeTiles <= 1)
+		line(std::string(_("Range: melee")));
+	else
+		line(fmt::format(fmt::runtime(_("Range: {:d} tiles")), data.rangeTiles));
 	if (data.requiresShield)
 		line(std::string(_("Requires a shield")));
 	const std::string melee = PaladinMeleeFactsAt(skill, rank);

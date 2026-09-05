@@ -4,6 +4,12 @@
 use strict; use warnings;
 my $root = '.';
 my $outPath = shift @ARGV or die "out path";
+my $factsPath = shift @ARGV; # optional: DiabloOrcl.exe --skill-facts <file>
+my %facts;
+if ($factsPath && -f $factsPath) {
+  open my $fh, '<:encoding(UTF-8)', $factsPath or die; while (<$fh>) { chomp; my ($c, $p, $n, $r, $l) = split /	/; next unless defined $l; $facts{"$c|$p|$n|$r"} = [ split / | /, $l ]; } close $fh;
+}
+sub factsFor { my ($r, $rank) = @_; my $k = join('|', $className{$r->{cls}}, uc($pages{$r->{cls}}[$r->{page}]), $r->{name}, $rank); return $facts{$k} ? map { esc($_) } @{ $facts{$k} } : (); }
 
 sub slurp { my $f = shift; open my $h, '<', $f or die "$f: $!"; local $/; my $s = <$h>; close $h; $s }
 
@@ -63,7 +69,9 @@ sub abilitiesCell {
   }
   my @rank = $r->{kind} eq 'Active' ? ($r->{spell} ne 'Invalid' ? activeLines($r->{spell}) : ()) : $r->{kind} eq 'Aura' ? auraLines() : passiveLines();
   @rank = () unless $r->{impl} || $r->{kind} eq 'Active';
-  push @l, $curTree, @rank, '', $nextTree, @rank, rt('(or: Fully invested)');
+  my @now = ($r->{kind} eq 'Active') ? (@rank, factsFor($r, 1)) : @rank;
+  my @next = ($r->{kind} eq 'Active') ? (@rank, factsFor($r, 2)) : @rank;
+  push @l, gold('Current Skill Level: 1'), @now, '', gold('Next Level'), 'Requires level ' . rt('{L}'), @next, rt('(or: Fully invested)');
   push @l, 'No effect yet' unless $r->{impl};
   push @l, 'Breaks immunities at ' . rt('{N}') . ' points' if $r->{name} eq 'Conviction';
   pop_(\@l);
@@ -73,7 +81,7 @@ sub pickerCell {
   return none() if $r->{page} == 3 || $r->{kind} eq 'Passive';
   my @l = (gold($r->{name}), rt('Right button only - click to light it') . '  ' . rt('(only while dimmed)'));
   if ($r->{kind} eq 'Active' && $r->{spell} ne 'Invalid') {
-    push @l, 'Mana Cost: ' . rt('{mana}'), 'Damage: ' . rt('{min}') . ' - ' . rt('{max}') . '  ' . rt('(if reported)');
+    push @l, gold('Current Skill Level: 1'), 'Mana Cost: ' . rt('{mana}'), 'Damage: ' . rt('{min}') . ' - ' . rt('{max}') . '  ' . rt('(if reported)'), factsFor($r, 1);
   } else {
     push @l, $curTree, auraLines();
     push @l, 'No effect yet' unless $r->{impl};
@@ -127,7 +135,7 @@ my $html = <<'HEAD';
 </style>
 <header>
   <h1>Skill Hover Matrix</h1>
-  <p>Every skill, aura, passive and book spell in Diablo Orcl, and what the hover popup prints in each of the four places it can be hovered. Generated from the source tables at v1.9.259: the class tree table, the spell book pages, the spell names and the spell descriptions.</p>
+  <p>Every skill, aura, passive and book spell in Diablo Orcl, and what the hover popup prints in each of the four places it can be hovered. Generated from the source tables at v1.9.262 - the class tree table, the spell book pages, the spell names and the spell descriptions - and from the engine itself: the fact lines under an active skill are what <code>DiabloOrcl.exe --skill-facts</code> printed for ranks 1 and 2, the modules' own numbers.</p>
   <div class="legend"><span>Gold lines are drawn gold in the game.</span><span><i>{braces}</i> are filled in at runtime from the character.</span></div>
 HEAD
 
