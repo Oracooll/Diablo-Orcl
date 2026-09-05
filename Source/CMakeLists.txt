@@ -53,7 +53,7 @@ set(libdevilutionx_SRCS
   oracool/skill_points.cpp
   oracool/hero_chunks.cpp
   oracool/rng_streams.cpp
-  oracool/oil_tint.cpp
+  oracool/item_tint.cpp
   oracool/runewords.cpp
   oracool/sprite_scale.cpp
   oracool/aura_field.cpp

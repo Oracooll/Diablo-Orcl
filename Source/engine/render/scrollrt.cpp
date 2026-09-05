@@ -39,7 +39,7 @@
 #include "oracool/attack_skills.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
-#include "oracool/oil_tint.h"
+#include "oracool/item_tint.h"
 #include "oracool/aura_ground.h"
 #include "oracool/skill_picker.h"
 #include "oracool/cursor_tooltip.h"
@@ -812,7 +812,7 @@ void DrawItem(const Surface &out, Point tilePosition, Point targetBufferPosition
 	}
 	// Oracool: an oil on the floor keeps its colour - the tint composed with the tile's light
 	// table, since ClxDrawTRN takes one table (2026-09-05).
-	if (const uint8_t *tint = oracool::OilTRN(item); tint != nullptr) {
+	if (const uint8_t *tint = oracool::ItemTRN(item); tint != nullptr) {
 		std::array<uint8_t, 256> lit;
 		for (int i = 0; i < 256; i++)
 			lit[static_cast<size_t>(i)] = LightTableIndex != 0 ? LightTables[LightTableIndex][tint[i]] : tint[i];

@@ -99,7 +99,7 @@
 #include "oracool/spell_ranks.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
-#include "oracool/oil_tint.h"
+#include "oracool/item_tint.h"
 #include "oracool/ornate_border.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
@@ -9841,7 +9841,7 @@ TEST(OracoolOilTint, TheTenOilsRecolourTheFlaskTenDifferentWays)
 		IMISC_OILBSMTH, IMISC_OILFORT, IMISC_OILPERM, IMISC_OILHARD, IMISC_OILIMP };
 	std::vector<const uint8_t *> tables;
 	for (const item_misc_id oil : oils) {
-		const uint8_t *trn = oracool::OilTRN(oil);
+		const uint8_t *trn = oracool::ItemTRN(oil);
 		ASSERT_NE(trn, nullptr) << static_cast<int>(oil);
 		EXPECT_EQ(trn[0], 0) << "the transparent key moved";
 		for (int i = 166; i <= 173; i++)
@@ -9855,8 +9855,8 @@ TEST(OracoolOilTint, TheTenOilsRecolourTheFlaskTenDifferentWays)
 	for (size_t a = 0; a < tables.size(); a++)
 		for (size_t b = a + 1; b < tables.size(); b++)
 			EXPECT_NE(tables[a][251], tables[b][251]) << "oils " << a << " and " << b << " share a colour";
-	EXPECT_EQ(oracool::OilTRN(IMISC_OILOF), nullptr) << "the placeholder oil is not one of the ten";
-	EXPECT_EQ(oracool::OilTRN(IMISC_HEAL), nullptr);
+	EXPECT_EQ(oracool::ItemTRN(IMISC_OILOF), nullptr) << "the placeholder oil is not one of the ten";
+	EXPECT_EQ(oracool::ItemTRN(IMISC_HEAL), nullptr);
 
 	// The sprite: glass on the grey ramp, stopper on 166..173, nothing else.
 	LoadCoreArchives();
@@ -9880,5 +9880,64 @@ TEST(OracoolOilTint, TheTenOilsRecolourTheFlaskTenDifferentWays)
 		}
 	}
 	EXPECT_GT(glass, 100) << "the flask is mostly glass";
+	FreeCursor();
+}
+
+/**
+ * @brief The Hellfire runes leave their earth tones for the vivid mini ramps, each on its own.
+ *
+ * Probed 2026-09-05: Fire paints on orange, Greater Fire on dusty rose, Lightning on steel blue,
+ * Greater Lightning on gold, Stone on grey. Fire keeps its ramp; the other four move, and the
+ * test re-reads each sprite from the archive so a re-sheeted rune painted on another ramp fails
+ * here rather than as a tablet that quietly stays brown.
+ */
+TEST(OracoolItemTint, TheHellfireRunesLandOnFourVividRamps)
+{
+	struct Rune {
+		item_misc_id id;
+		int curs;
+		int fromBase;
+		int toBase;
+	};
+	const Rune runes[] = {
+		{ IMISC_GR_RUNEF, ICURS_GREATER_RUNE_OF_FIRE, 160, 136 },
+		{ IMISC_RUNEL, ICURS_RUNE_OF_LIGHTNING, 176, 128 },
+		{ IMISC_GR_RUNEL, ICURS_GREATER_RUNE_OF_LIGHTNING, 192, 144 },
+		{ IMISC_RUNES, ICURS_RUNE_OF_STONE, 240, 152 },
+	};
+	EXPECT_EQ(oracool::ItemTRN(IMISC_RUNEF), nullptr) << "Fire keeps its orange";
+
+	LoadCoreArchives();
+	LoadGameArchives();
+	InitCursor();
+	for (const Rune &rune : runes) {
+		const uint8_t *trn = oracool::ItemTRN(rune.id);
+		ASSERT_NE(trn, nullptr) << static_cast<int>(rune.id);
+		EXPECT_EQ(trn[0], 0);
+		for (int i = rune.fromBase; i < rune.fromBase + 15; i++) {
+			EXPECT_GE(trn[i], rune.toBase) << "rune " << rune.curs << " index " << i;
+			EXPECT_LT(trn[i], rune.toBase + 8) << "rune " << rune.curs << " index " << i;
+		}
+		// The sprite really paints on the ramp the table moves - at least a third of its pixels
+		// (Lightning is 289 of 597: a steel-blue body inside a gold bevel with grey runes, and the
+		// bevel stays gold on purpose).
+		const ClxSprite sprite = GetInvItemSprite(static_cast<int>(CURSOR_FIRSTITEM) + rune.curs);
+		OwnedSurface surf { static_cast<int>(sprite.width()), static_cast<int>(sprite.height()) };
+		SDL_FillRect(surf.surface, nullptr, 0);
+		ClxDraw(surf, { 0, static_cast<int>(sprite.height()) }, sprite);
+		int painted = 0;
+		int moved = 0;
+		for (int y = 0; y < surf.h(); y++) {
+			for (int x = 0; x < surf.w(); x++) {
+				const uint8_t c = *surf.at(x, y);
+				if (c == 0)
+					continue;
+				painted++;
+				if (trn[c] != c)
+					moved++;
+			}
+		}
+		EXPECT_GT(moved * 3, painted) << "rune " << rune.curs << " mostly paints off the ramp the table moves";
+	}
 	FreeCursor();
 }

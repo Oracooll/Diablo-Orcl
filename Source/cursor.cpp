@@ -13,7 +13,7 @@
 #include "control.h"
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
-#include "oracool/oil_tint.h"
+#include "oracool/item_tint.h"
 #include "oracool/shop_grid.h"
 #include "controls/plrctrls.h"
 #include "doom.h"
@@ -729,7 +729,7 @@ void DrawItem(const Item &item, const Surface &out, Point position, ClxSprite cl
 	if (usable) {
 		// Oracool: each of the ten oils in its own colour - the shared flask through a palette
 		// translation (2026-09-05).
-		if (const uint8_t *tint = oracool::OilTRN(item); tint != nullptr)
+		if (const uint8_t *tint = oracool::ItemTRN(item); tint != nullptr)
 			ClxDrawTRN(out, position, clx, tint);
 		else
 			ClxDraw(out, position, clx);
