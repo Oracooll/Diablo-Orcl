@@ -188,6 +188,16 @@ ArtAsset TownPortalIconArt { "ui\\town_portal_icon.png" };
 constexpr Size TownPortalIconSize { 31, 31 }; // 31 with the large-belt HUD (2026-09-05): 34px cells at a 35px pitch, so the 31 the user asked for fits again without touching the dividers
 /** The belt's burger-menu button. Same treatment as the Portal cell. */
 ArtAsset BurgerMenuButtonArt { "ui\\burger_menu_button.png" };
+
+/**
+ * THE GLYPH STRIPS for the two belt buttons (oracool-belt-glyphs-v1, 2026-09-06, cut by
+ * tools/CutBeltGlyphs.ps1): 90x30 each, idle / hover / pressed left to right, in the skill glyphs'
+ * two-colour format, so IsGlyphFrame knows them and they draw 1:1 on the belt plate. The pressed
+ * frame is the idle mask shifted (+1,+1) with no shadow - by the pack's design, and the reason no
+ * state is recentred by its bounds here. When a strip is missing the text stand-in draws instead.
+ */
+ArtAsset TownPortalGlyphsArt { "ui\\belt_glyphs_tp.png" };
+ArtAsset BurgerMenuGlyphsArt { "ui\\belt_glyphs_menu.png" };
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
 ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
 /**
@@ -705,6 +715,10 @@ void EnsureLoadedAll()
 		LoadPixels(TownPortalIconArt);
 	if (!BurgerMenuButtonArt.loadAttempted)
 		LoadPixels(BurgerMenuButtonArt);
+	if (!TownPortalGlyphsArt.loadAttempted)
+		LoadPixels(TownPortalGlyphsArt);
+	if (!BurgerMenuGlyphsArt.loadAttempted)
+		LoadPixels(BurgerMenuGlyphsArt);
 	if (!LevelUpIconArt.loadAttempted)
 		LoadPixels(LevelUpIconArt);
 	for (GridBezelEntry &entry : GridBezels) {
@@ -761,6 +775,10 @@ bool NeedsQuantize()
 	if (!TownPortalIconArt.rgba.empty() && !TownPortalIconArt.bright)
 		return true;
 	if (!BurgerMenuButtonArt.rgba.empty() && !BurgerMenuButtonArt.bright)
+		return true;
+	if (!TownPortalGlyphsArt.rgba.empty() && !TownPortalGlyphsArt.bright)
+		return true;
+	if (!BurgerMenuGlyphsArt.rgba.empty() && !BurgerMenuGlyphsArt.bright)
 		return true;
 	if (!LevelUpIconArt.rgba.empty() && !LevelUpIconArt.bright)
 		return true;
@@ -837,6 +855,8 @@ void EnsureQuantized()
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
 	QuantizeAsset(BurgerMenuButtonArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	RepaintOntoBlueInverted(BurgerMenuButtonArt); // the portal ring's blue, bright where the bars are dark (2026-09-06)
+	QuantizeAsset(TownPortalGlyphsArt, std::nullopt);
+	QuantizeAsset(BurgerMenuGlyphsArt, std::nullopt);
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
 	// No tint: the bezels arrived already quantised against town.pal (their stone reads as exact
 	// palette entries - 30,30,30 and 61,61,61 off the grey ramp), so tinting would move art that is
@@ -1242,6 +1262,32 @@ void DrawBeltButtonText(const Surface &out, Rectangle cell, const char *text, Ui
 	    { color | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 }
 
+// Both defined further down this file, in this namespace.
+void DrawStripIcon(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked);
+bool IsGlyphFrame(ArtAsset &asset, int index, int cell);
+
+/**
+ * @brief Frame @p state of a belt button's glyph strip, 1:1 and centred in @p cell.
+ * @return false when the strip is absent or the frame is not a glyph, so the caller can fall back.
+ */
+bool TryDrawBeltGlyph(const Surface &out, ArtAsset &strip, Rectangle cell, int state)
+{
+	EnsureLoadedAll();
+	if (strip.rgba.empty())
+		return false;
+	const int frame = strip.height;
+	if (!IsGlyphFrame(strip, state, frame))
+		return false;
+	EnsureQuantized();
+	if (!strip.bright)
+		return false;
+	DrawStripIcon(out, strip,
+	    { cell.position.x + (cell.size.width - frame) / 2, cell.position.y + (cell.size.height - frame) / 2 },
+	    state, /*unlocked=*/true);
+	return true;
+}
+
+
 void DrawTownPortalIcon(const Surface &out, int state)
 {
 	if (state < 0 || state > 2)
@@ -1254,7 +1300,8 @@ void DrawTownPortalIcon(const Surface &out, int state)
 	// down, the same cast as the belt items' (DrawBeltItemShadow).
 	const Rectangle cell = GetBeltSlotRect(BeltTownPortalSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
-	DrawBeltButtonText(out, cell, "TP", UiFlags::ColorBlue, state);
+	if (!TryDrawBeltGlyph(out, TownPortalGlyphsArt, cell, state))
+		DrawBeltButtonText(out, cell, "TP", UiFlags::ColorBlue, state);
 }
 
 void DrawBurgerMenuButton(const Surface &out, int state)
@@ -1268,7 +1315,8 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	// the history at v1.9.288.
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
-	DrawBeltButtonText(out, cell, "M", UiFlags::ColorGold, state);
+	if (!TryDrawBeltGlyph(out, BurgerMenuGlyphsArt, cell, state))
+		DrawBeltButtonText(out, cell, "M", UiFlags::ColorGold, state);
 }
 
 void DrawLevelUpIconArt(const Surface &out, int state)
@@ -1558,6 +1606,8 @@ void ResetHudArtCaches()
 	reset(InventorySortArt);
 	reset(TownPortalIconArt);
 	reset(BurgerMenuButtonArt);
+	reset(TownPortalGlyphsArt);
+	reset(BurgerMenuGlyphsArt);
 	reset(LevelUpIconArt);
 	for (GridBezelEntry &entry : GridBezels)
 		reset(entry.art);

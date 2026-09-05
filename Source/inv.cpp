@@ -1660,8 +1660,8 @@ void DrawInventoryTabs(const Surface &out)
 	// for inactive, gold for active. gold to be again bigger to stand out from inactive"). Each tab
 	// is the vanilla spell plate shrunk to its 28x28 cell: light grey (Unspent) when closed, GOLD
 	// (Ready) and grown to GetActiveTabRect - two out each side, three up, bottom pinned - when
-	// open. Hover is the Abilities window's deeper shadow under the plate, so the two colours keep
-	// their one meaning each.
+	// open. Hover turns the numeral gold (user, 2026-09-06: "shadows of inv grid tabs is too much.
+	// dont use it here. hover efect to be turning the number from white to gold").
 	//
 	// The reliquary-chest atlas (oracool-stash-tab-button-pack, 2026-08-16) is no longer drawn and
 	// stays filed; the code-drawn bevelled strip that preceded it is in the history at v1.9.289.
@@ -1669,11 +1669,10 @@ void DrawInventoryTabs(const Surface &out)
 	// lands the numeral stands in, white with the text shadow, like the belt's TP and M.
 	const auto drawTab = [&](int tab, Rectangle panelRect, oracool::SkillPlateTint tint) {
 		const Rectangle screenRect { panel.position + Displacement { panelRect.position.x, panelRect.position.y }, panelRect.size };
-		if (screenRect.contains(MousePosition))
-			oracool::DrawHoverShadow(out, screenRect);
 		oracool::DrawPlateIn(out, screenRect, tint);
+		const bool hovered = screenRect.contains(MousePosition);
 		DrawString(out, oracool::TabLabel(tab), screenRect,
-		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		    { (hovered ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	};
 	// Every other tab first, the open one last: it stands proud of its neighbours by two pixels
 	// each side, so drawing in index order would let tab N+1 paint over its edge.

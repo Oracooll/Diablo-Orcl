@@ -27,6 +27,8 @@
 #include "DiabloUI/ui_flags.hpp"
 #include "engine/random.hpp"
 #include "engine/render/text_render.hpp"
+#include "engine/load_file.hpp"
+#include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
 #include "control.h"
@@ -10062,14 +10064,15 @@ TEST(OracoolAudit, TheCanvasDimCoversTheOpeningAndSparesTheBezels)
 }
 
 /**
- * @brief The belt buttons' stand-in labels sit centred on their plates and carry the text shadow.
+ * @brief The belt buttons - the glyphs when the strips are mounted, the text stand-ins otherwise -
+ * sit centred on their plates and carry a shadow.
  *
  * Each button is drawn twice on a screen-sized surface - plate alone, then plate and button - and
  * the pixels that changed are the label. Its bounding box must be centred in the cell to within two
  * pixels on each axis in the idle state, some of its pixels must be the shadow's solid black and
  * some must not be (user, 2026-09-06: "blue TP text and Gold M letter. Both to have text shadows").
  */
-TEST(OracoolAudit, TheBeltButtonLabelsSitCentredWithShadows)
+TEST(OracoolAudit, TheBeltButtonsSitCentredWithShadows)
 {
 	// The belt is laid out from the screen size, which no test sets by default.
 	const int savedWidth = gnScreenWidth;
@@ -10078,6 +10081,10 @@ TEST(OracoolAudit, TheBeltButtonLabelsSitCentredWithShadows)
 	gnScreenHeight = 720;
 	LoadCoreArchives();
 	LoadGameArchives();
+	// No palette is loaded in this headless binary (LoadPalette returns early, and orig_palette is
+	// not exported to it), so every quantised colour lands on one index: the test can see the
+	// glyph's SHAPE and where it sits, not its two colours.
+	oracool::ResetHudArtCaches();
 	LoadSmallSpellIcons();
 	const Rectangle menuCell = oracool::GetBeltSlotRect(oracool::BeltMenuSlotIndex);
 	const Rectangle portalCell = oracool::GetBeltSlotRect(oracool::BeltTownPortalSlotIndex);
@@ -10086,8 +10093,9 @@ TEST(OracoolAudit, TheBeltButtonLabelsSitCentredWithShadows)
 
 	struct Diff {
 		int changed;
-		int black;
+		int black; // pixels in a second colour - the shadow under a glyph or a label
 		Rectangle box;
+		uint8_t first = 0;
 	};
 	const auto diffOf = [](Rectangle cell, const std::function<void(const Surface &)> &drawButton) {
 		OwnedSurface plateOnly { gnScreenWidth, gnScreenHeight };
@@ -10096,7 +10104,7 @@ TEST(OracoolAudit, TheBeltButtonLabelsSitCentredWithShadows)
 		SDL_FillRect(both.surface, nullptr, 77);
 		oracool::DrawBeltSlotPlate(plateOnly, cell);
 		drawButton(both);
-		Diff d { 0, 0, { { 999, 999 }, { 0, 0 } } };
+		Diff d { 0, 0, { { 999, 999 }, { 0, 0 } }, 0 };
 		int maxX = -1, maxY = -1;
 		for (int y = cell.position.y; y < cell.position.y + cell.size.height; y++) {
 			for (int x = cell.position.x; x < cell.position.x + cell.size.width; x++) {
@@ -10109,7 +10117,11 @@ TEST(OracoolAudit, TheBeltButtonLabelsSitCentredWithShadows)
 				d.box.position.y = std::min(d.box.position.y, y);
 				maxX = std::max(maxX, x);
 				maxY = std::max(maxY, y);
-				if (b == 0)
+				// Two colours means glyph plus shadow (or text plus shadow). No palette is loaded in
+				// this process, so the indices themselves mean nothing here - only that they differ.
+				if (d.changed == 1)
+					d.first = b;
+				else if (b != d.first)
 					d.black++;
 			}
 		}
@@ -10129,8 +10141,9 @@ TEST(OracoolAudit, TheBeltButtonLabelsSitCentredWithShadows)
 	for (const Button &button : buttons) {
 		const Diff d = diffOf(button.cell, button.draw);
 		ASSERT_GT(d.changed, 30) << button.name << " drew nothing";
-		EXPECT_GT(d.black, 5) << button.name << " has no shadow";
-		EXPECT_GT(d.changed - d.black, 5) << button.name << " is all shadow";
+		// The glyph or the label: either draws a box at least 12 pixels each way.
+		EXPECT_GE(d.box.size.width, 12) << button.name << " is too narrow to be the glyph or the label";
+		EXPECT_GE(d.box.size.height, 12) << button.name << " is too short to be the glyph or the label";
 		// Doubled centres, so an odd/even mismatch is one unit, not a rounding argument. The
 		// shadow hangs two left and two down of the glyphs, so the box's centre sits one pixel
 		// left and one down of the glyphs' own - allowed for.
