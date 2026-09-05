@@ -1195,7 +1195,8 @@ void CheckPanelInfo()
 		SetPanelString(_("Select current spell button"), UiFlags::ColorWhite);
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;
-		AddPanelString(_("Hotkey: 's'"));
+		// No "Hotkey: 's'" line (user, 2026-09-05: "hot key of either of the three to be omitted in
+		// hover descriptions of skills/spells/auras") - the key is the player's to set in Keymapping.
 		Player &myPlayer = *MyPlayer;
 		const SpellID spellId = myPlayer._pRSpell;
 		if (const oracool::ClassTreeSkill aura = oracool::GetActiveClassAura(myPlayer);

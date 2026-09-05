@@ -34,3 +34,7 @@ Debug build clean; 624/625 with the standing `Drlg_l1` failure. The tooltip audi
 ## v1.9.257: percentages, not fractions
 
 "use percentages in description of skills when comparing things/stats. dont use Two and a half times. Use +150%." 80 sentences across `class_tree.cpp`, `melee_skills.cpp` and `warcries.cpp` (104 occurrences, the three files repeat some) rewritten from fraction words to signed percentages: "a blow two and a half times as hard, a fifth more a rank" is "a blow at +150% damage, +20% per rank"; "hurts a sixth softer" is "deals -17% damage" (the coded value, `PassiveDamageTakenPercent`); "a tenth harder to harm" for Superstition is "+10 to fire, lightning and magic resistance", which is what the code adds. Durations went to digits as well ("40 seconds, +5 per rank"). Descriptions with no comparative number were left alone.
+
+## v1.9.259: the three skill keys
+
+"left skill picker hot key - A. Right skill picker hot key - S. Abilities window hotkey - D. Settable in game's main menu->options->keymapping." Two new keymapper actions, `LeftSkillPicker` (A) and `RightSkillPicker` (S), each a toggle of its quick list; `DisplaySpells` (the Abilities window) moved from S to D. All three show in Options > Keymapping. The dev ini in build\x64-Debug had `DisplaySpells=S` stored, which would have kept S and collided with the right list, so it was moved to D there too. "hot key of either of the three to be omitted in hover descriptions": the RMB well's "Hotkey: 's'" line is gone; nothing else named a key.

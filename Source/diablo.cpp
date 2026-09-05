@@ -2481,11 +2481,40 @@ void InitKeymapActions()
 	    [] { oracool::ToggleRunewordBook(); },
 	    nullptr,
 	    CanPlayerTakeAction);
+	// The three skill keys (user, 2026-09-05): A for the left quick list, S for the right one, D
+	// for the Abilities window - all three in Options > Keymapping like every other binding. The
+	// pickers had no key at all before this; the Abilities window sat on S.
+	sgOptions.Keymapper.AddAction(
+	    "LeftSkillPicker",
+	    N_("Left skill list"),
+	    N_("Open the quick list for the left mouse button."),
+	    'A',
+	    [] {
+		    if (oracool::IsSkillPickerOpen() && oracool::IsSkillPickerForLeftButton())
+			    oracool::CloseSkillPicker();
+		    else
+			    oracool::OpenSkillPicker(/*forLeftButton=*/true);
+	    },
+	    nullptr,
+	    CanPlayerTakeAction);
+	sgOptions.Keymapper.AddAction(
+	    "RightSkillPicker",
+	    N_("Right skill list"),
+	    N_("Open the quick list for the right mouse button."),
+	    'S',
+	    [] {
+		    if (oracool::IsSkillPickerOpen() && !oracool::IsSkillPickerForLeftButton())
+			    oracool::CloseSkillPicker();
+		    else
+			    oracool::OpenSkillPicker(/*forLeftButton=*/false);
+	    },
+	    nullptr,
+	    CanPlayerTakeAction);
 	sgOptions.Keymapper.AddAction(
 	    "DisplaySpells",
 	    N_("Abilities"),
 	    N_("Open the Abilities window."),
-	    'S',
+	    'D',
 	    DisplaySpellsKeyPressed,
 	    nullptr,
 	    CanPlayerTakeAction);
