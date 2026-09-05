@@ -22,3 +22,7 @@ Debug build clean (multi.cpp's five standing C4267 warnings only); 624/625 with 
 ## v1.9.252: no plate in the wells
 
 "remove the plate from the RMB well when a glyph is readied." `TryDrawGlyphBareInWell` serves both well paths (a readied tree skill with a SpellID in `TryDrawSkillSpellIcon`, and an aura in `DrawClassTreeSkillInWell`): where the well plate rect is the glyph's own 56, the glyph is drawn 1:1 with no plate under it. The picker's 38px cells keep plate, tint and the scaled draw. A glyph in a well therefore shows no state colour; that was the request.
+
+## v1.9.254: reverted
+
+User: "it makes no sense to me. revert it." A glyph readied into a well sits 1:1 on the tinted plate again, as in v1.9.251. The helper stayed (as `TryDrawGlyphInWell`) because the 1:1 placement is still the right draw for a 56px opening.

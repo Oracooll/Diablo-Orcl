@@ -1883,22 +1883,25 @@ Size GetClassTreeIconSize(HeroClass heroClass)
 }
 
 /**
- * @brief A GLYPH readied into a well: the glyph alone, 1:1, and NO plate (user, 2026-09-05: "remove
- * the plate from the RMB well when a glyph is readied").
+ * @brief A GLYPH readied into a well: the tinted plate, and the glyph 1:1 on it.
  *
  * Only where the well's plate rect is the glyph's own size - the 56px openings. The picker's 38px
- * cells go through the same two callers and keep their plate and their scaled draw, so a picker row
- * still reads its state colour; the well says nothing about state for a glyph, by request.
+ * cells go through the same two callers and take the scaled draw. The caller has already applied
+ * the tint, so the plate here says the well's state exactly as it does for every other icon.
+ *
+ * (v1.9.252 drew the glyph BARE here at the user's request; reverted the same night - "it makes no
+ * sense to me".)
  *
  * @return true if it drew, in which case the caller must draw neither plate nor icon.
  */
-bool TryDrawGlyphBareInWell(const Surface &out, Rectangle well, HeroClass heroClass, int skillIndex)
+bool TryDrawGlyphInWell(const Surface &out, Rectangle well, HeroClass heroClass, int skillIndex)
 {
 	ArtAsset &strip = TreeStripFor(heroClass);
 	const int frame = StripIconSize(strip).width;
 	const Rectangle plate = SkillWellPlateRect(well);
 	if (!IsGlyphFrame(strip, skillIndex, frame) || plate.size.width < frame || plate.size.height < frame)
 		return false;
+	DrawSpellIconFittedTo(out, plate);
 	DrawStripIcon(out, strip,
 	    { plate.position.x + (plate.size.width - frame) / 2, plate.position.y + (plate.size.height - frame) / 2 },
 	    skillIndex, /*unlocked=*/true);
@@ -1935,7 +1938,7 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 			DrawSpellIconFittedTo(out, SkillWellPlateRect(well), spell); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
 			return true;
 		}
-		if (TryDrawGlyphBareInWell(out, well, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill)))
+		if (TryDrawGlyphInWell(out, well, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill)))
 			return true;
 		DrawSpellIconFittedTo(out, SkillWellPlateRect(well)); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
 		DrawClassTreeIconScaledTo(out, well, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill));
@@ -2088,9 +2091,9 @@ void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, b
 void DrawClassTreeSkillInWell(const Surface &out, Rectangle well, HeroClass heroClass, int skillIndex,
     SkillPlateTint tint)
 {
-	if (TryDrawGlyphBareInWell(out, well, heroClass, skillIndex))
-		return;
 	ApplyPlateTint(tint);
+	if (TryDrawGlyphInWell(out, well, heroClass, skillIndex))
+		return;
 	DrawSpellIconFittedTo(out, SkillWellPlateRect(well)); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
 	DrawClassTreeIconScaledTo(out, well, heroClass, skillIndex);
 }
