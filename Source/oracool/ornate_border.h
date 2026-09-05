@@ -39,7 +39,7 @@ constexpr int OrnateBorderWidth = 3;
  * the waypoint list all need the same two numbers, and they were already sharing this module's
  * bevel and separator.
  */
-constexpr int PanelTitleTop = 18;
+constexpr int PanelTitleTop = 28; // 28 since 2026-09-05: the user's new canvas's top bezel ends at y=24, and the title sits 3px below it ("move all canvas titles 3 pixels below edge bezel"); was 18
 // 18, not 8 - user request (2026-08-18): "titles of UI windows to move 10px down". One number moves
 // all six windows and the Abilities window's page arrows with them, since GetArrowRect centres on
 // this same band. The limestone panel's own top framing is what the extra ten pixels clear.

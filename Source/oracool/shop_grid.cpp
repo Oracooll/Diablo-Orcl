@@ -53,6 +53,16 @@ constexpr int ShopGridTop = GridBottom - ShopGridRows * ShopCellPx;
 
 constexpr int ShopTabStripLeft = 16;
 constexpr int ShopTabStripWidth = ShopPanelSize.width - 2 * ShopTabStripLeft;
+/**
+ * The service and bulk-action controls' row: 6px in from the new canvas's bezels (user, 2026-09-05:
+ * "reduce width of your coded buttons in griswold. make the total width of them to fit within 6px
+ * away from edge bezels of new canvases"). The canvas's inner bezel edges are x=21 and x=318
+ * (measured, 2026-09-05), so the row runs 28..312.
+ */
+constexpr int ShopCanvasBezelInner = 22;
+constexpr int ShopControlsInset = 6;
+constexpr int ShopControlsLeft = ShopCanvasBezelInner + ShopControlsInset;
+constexpr int ShopControlsWidth = ShopPanelSize.width - 2 * ShopControlsLeft;
 
 /*
  * THE TABS LIVE OUTSIDE THE PANEL, in a column down its right-hand side.
@@ -409,8 +419,8 @@ Rectangle ShopControlRect(const std::vector<ControlButton> &buttons, size_t inde
 	}
 	const int top = kind == ControlKind::Service ? ShopServiceTop : ShopActionTop;
 	const int height = kind == ControlKind::Service ? ShopServiceHeight : ShopActionHeight;
-	const int width = ShopTabStripWidth / std::max(onRow, 1);
-	return Rectangle { { panel.position.x + ShopTabStripLeft + before * width, panel.position.y + top },
+	const int width = ShopControlsWidth / std::max(onRow, 1);
+	return Rectangle { { panel.position.x + ShopControlsLeft + before * width, panel.position.y + top },
 		{ width, height } };
 }
 
@@ -596,22 +606,28 @@ void DrawShopControls(const Surface &out, int pageCount)
 	const std::vector<ControlButton> buttons = ShopControlButtons(stextflag);
 	for (size_t i = 0; i < buttons.size(); i++) {
 		const Rectangle rect = ShopControlRect(buttons, i);
-		// A hover changes the INK only, never the plate, so the row does not shift under the pointer.
+		// A hover changes the ink and deepens the plate with a SECOND translucent pass (user,
+		// 2026-09-05: "when hovering over them add a second dark transparent backing"); the rect
+		// itself never moves, so the row does not shift under the pointer.
 		const bool hovered = rect.contains(MousePosition);
 		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+		if (hovered)
+			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 		DrawOrnateBorder(out, rect);
 		DrawString(out, buttons[i].label, rect,
 		    { (hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
-		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 
 	// The page arrows share the gold row rather than taking a row of their own: the space between
 	// the title band and the grid's pinned top is fully spoken for (see the static_assert above),
 	// and the gold readout is one centred line with both ends going spare.
-	const Rectangle goldLine { { panel.position.x + ShopTabStripLeft, panel.position.y + ShopGoldTop },
-		{ ShopTabStripWidth, ShopGoldHeight } };
+	const Rectangle goldLine { { panel.position.x + ShopControlsLeft, panel.position.y + ShopGoldTop },
+		{ ShopControlsWidth, ShopGoldHeight } };
+	// Shadowed (user, 2026-09-05: "add text shadow to texts in vendors where needed, like behind
+	// the GOLD amount available") - it sits on the canvas, not on a plate.
 	DrawString(out, fmt::format(fmt::runtime(_("Your gold: {:s}")), FormatInteger(TotalPlayerGold())), goldLine,
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 
 	if (pageCount <= 1)
 		return;

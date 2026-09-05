@@ -436,10 +436,11 @@ void DrawSkillPicker(const Surface &out)
 	HoveredPickerAura = ClassTreeSkill::None;
 
 	const Rectangle window = GetSkillPickerRect();
-	// Opaque backing first. The concept mock drew icons straight onto the dungeon and the world read
-	// through them as noise; every other window in this fork gets a fill and the ornate frame.
-	FillRect(out, window.position.x, window.position.y, window.size.width, window.size.height,
-	    PanelFillColor);
+	// The dark translucent backing the item tooltip and the books use (user, 2026-09-05: "background
+	// of skill picker to be the transparent dark one, not the solid gold it is now"): two half
+	// passes, so the icons read while the world still shows through. Was an opaque stone fill.
+	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
+	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
 	DrawOrnateBorder(out, window);
 	DrawWindowCloseButton(out, window);
 

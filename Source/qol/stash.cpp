@@ -146,7 +146,8 @@ constexpr int StashPageRowHeight = StashControlLineHeight;
 // borders for stash nav buttons"), so the button grew by the bevel on every side and the face the
 // glyph sits on is the same 40x26 it was. The 3px it overhangs the row either way is inside the
 // 5px StashControlGap.
-constexpr Size ButtonSize { 40 + 2 * oracool::LegacyTextBoxBevel, StashControlLineHeight + 2 * oracool::LegacyTextBoxBevel };
+// 28x18 faces since 2026-09-05 (user: "reduce size of NAV buttons"), with the 12px glyphs; were 40x26 under the 24px face.
+constexpr Size ButtonSize { 28 + 2 * oracool::LegacyTextBoxBevel, 18 + 2 * oracool::LegacyTextBoxBevel };
 /** The buttons fill their row now, so this is the row's own y. */
 constexpr int StashButtonY = StashPageRowY + (StashPageRowHeight - ButtonSize.height) / 2;
 
@@ -767,7 +768,7 @@ void DrawStash(const Surface &out)
 		oracool::DrawLegacyTextBox(out, rect,
 		    rect.contains(MousePosition) ? oracool::LegacyTextBoxHoverFill : oracool::LegacyTextBoxFill);
 		DrawString(out, StashNavLabel[i], rect,
-		    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize24
+		    { UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::FontSize12 // 12 with the smaller buttons (user, 2026-09-05: "reduce size of NAV buttons")
 		        | (StashButtonPressed == i ? UiFlags::ColorWhite : UiFlags::ColorGold)
 		        | UiFlags::Shadowed });
 	}
@@ -871,12 +872,13 @@ void DrawStash(const Surface &out)
 	// check.
 	DrawString(out, StrCat(_("GOLD: "), FormatInteger(Stash.gold)),
 	    { position + Displacement { GoldDisplayRect.position.x, GoldDisplayRect.position.y }, GoldDisplayRect.size },
-	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::FontSize24 | UiFlags::Shadowed });
+	    // The 12px face for both (user, 2026-09-05: "reduce font size in stash of SORT, GOLD").
+	    { UiFlags::ColorWhitegold | UiFlags::AlignRight | UiFlags::VerticalCenter | UiFlags::FontSize12 | UiFlags::Shadowed });
 
 	// Left-aligned for the mirror reason: the word starts on column 1's left edge.
 	DrawString(out, _("SORT"),
 	    { position + Displacement { StashSortButtonRect.position.x, StashSortButtonRect.position.y }, StashSortButtonRect.size },
-	    { UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) | UiFlags::FontSize24
+	    { UiFlags::VerticalCenter | (StashSortPressed ? UiFlags::ColorWhite : UiFlags::ColorGold) | UiFlags::FontSize12
 	        | UiFlags::Shadowed });
 }
 
