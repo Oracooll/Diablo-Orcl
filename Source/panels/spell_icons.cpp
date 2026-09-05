@@ -415,6 +415,65 @@ void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spel
 	ClxDrawTRN(out, { centred.x, centred.y + static_cast<int>(plate.height()) - 1 }, plate, SplTransTbl);
 }
 
+void DrawSmallSpellSymbolFittedTo(const Surface &out, Rectangle cell, SpellID spell)
+{
+	// THE MASKED CUT (user, 2026-09-05: "remove backing from legacy spell icons too - do the masked
+	// cut"). The vanilla icon sheet bakes the bevelled plate into every icon, and the plate is
+	// original game art that cannot ship re-cut. So the cut happens here, against the sheet's own
+	// blank plate (SpellID::Null, the empty frame the Abilities window used to draw under skills):
+	// both are drawn through the same translation table into scratch, and only the pixels where the
+	// icon DIFFERS from the blank are the symbol. Every pixel the two share is plate and stays out.
+	//
+	// What it costs: a symbol pixel that happens to land on the same palette index the plate has at
+	// that spot - a black shadow over the plate's black interior - is taken for plate. That is a
+	// pixel or two of shading per icon, and it is what a hand cut would lose too.
+	if (!SmallSpellIcons)
+		return;
+	const Size natural = GetSmallSpellIconSize();
+	if (natural.width <= 0 || natural.height <= 0)
+		return;
+
+	const int percent = std::min(cell.size.width * 100 / natural.width,
+	    cell.size.height * 100 / natural.height);
+	const int clamped = std::clamp(percent, 100, 400);
+	static OptionalOwnedClxSpriteList fitted;
+	static int fittedPercent = 0;
+	if (clamped > 100 && (!fitted || fittedPercent != clamped)) {
+		fitted = oracool::ScaleClxList(ClxSpriteList { *SmallSpellIcons }, static_cast<unsigned>(clamped));
+		fittedPercent = clamped;
+	}
+	const ClxSpriteList list = clamped > 100 ? ClxSpriteList { *fitted } : ClxSpriteList { *SmallSpellIcons };
+	const ClxSprite icon = list[SpellITbl[static_cast<int8_t>(spell)]];
+	const ClxSprite blank = list[SpellITbl[static_cast<int8_t>(SpellID::Null)]];
+	const int w = static_cast<int>(icon.width());
+	const int h = static_cast<int>(icon.height());
+	if (w <= 0 || h <= 0 || blank.width() != icon.width() || blank.height() != icon.height())
+		return;
+
+	OwnedSurface iconScratch(w, h);
+	OwnedSurface blankScratch(w, h);
+	SDL_FillRect(iconScratch.surface, nullptr, 0);
+	SDL_FillRect(blankScratch.surface, nullptr, 0);
+	ClxDrawTRN(iconScratch, { 0, h - 1 }, icon, SplTransTbl);
+	ClxDrawTRN(blankScratch, { 0, h - 1 }, blank, SplTransTbl);
+
+	const Point centred { cell.position.x + (cell.size.width - w) / 2, cell.position.y + (cell.size.height - h) / 2 };
+	for (int y = 0; y < h; y++) {
+		const int dy = centred.y + y;
+		if (dy < 0 || dy >= out.h())
+			continue;
+		for (int x = 0; x < w; x++) {
+			const int dx = centred.x + x;
+			if (dx < 0 || dx >= out.w())
+				continue;
+			const uint8_t index = *iconScratch.at(x, y);
+			if (index == 0 || index == *blankScratch.at(x, y))
+				continue;
+			*out.at(dx, dy) = index;
+		}
+	}
+}
+
 void SetSpellTransRed()
 {
 	// Oracool: user request (2026-08-17) - "Unlocked skills with 0 points in them are unavailable

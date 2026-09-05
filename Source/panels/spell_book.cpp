@@ -930,7 +930,9 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	oracool::DrawGridBezel(content, iconRect);
 	// Oracool: user request - the book must show the same borrowed icon Furious Charge uses
 	// everywhere else, not the vanilla Item Repair icon.
-	DrawSmallSpellIconFittedTo(content, iconRect,
+	// The SYMBOL alone since 2026-09-05 ("remove backing from legacy spell icons too - do the masked
+	// cut"): the icon's baked plate is masked out against the sheet's blank plate at draw time.
+	DrawSmallSpellSymbolFittedTo(content, iconRect,
 	    oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
 	if (known) {
 		DrawFKeyBadge(content, iconRect, sn);

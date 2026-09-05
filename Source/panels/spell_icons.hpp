@@ -83,6 +83,12 @@ void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell);
  */
 void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell = SpellID::Null);
 
+/**
+ * @brief As DrawSmallSpellIconFittedTo, but the SYMBOL alone - the icon's baked plate masked out
+ * against the sheet's blank plate at draw time. See the definition for the cut and its cost.
+ */
+void DrawSmallSpellSymbolFittedTo(const Surface &out, Rectangle cell, SpellID spell);
+
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();
 

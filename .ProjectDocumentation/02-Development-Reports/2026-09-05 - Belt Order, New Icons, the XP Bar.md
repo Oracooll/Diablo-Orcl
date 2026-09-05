@@ -73,3 +73,9 @@ The cutter emits `BeltBarTop` (the painted belt bar's top edge, plate-local 67) 
 - The HUD's wells keep their plates.
 
 **v1.9.231** - "remove backing and outlines altogether. leave only icons themselves. void of any backing." The ring lasted one build: `DrawClassTreeIconOutlined` now draws the strip icon and nothing else; `DrawSkillTintOutline` stays as a function for the one-line return. The tint is still computed by the callers and ignored. Legacy spell icons: unchanged, for the reason in v1.9.230 - the square is the icon art.
+
+## Addendum, v1.9.232 - the masked cut
+
+"remove backing from legacy spell icons too - do the masked cut."
+
+Not an asset: the vanilla icon sheet is original game art and a re-cut of it cannot ship. `DrawSmallSpellSymbolFittedTo` (spell_icons.cpp) does the cut at draw time instead - the icon and the sheet's own blank plate (SpellID::Null) are drawn through the same translation table into scratch, and only the pixels where the icon differs from the blank are blitted. The plate, identical in both, stays out; the tint still colours the symbol. Cost: a symbol pixel that lands on the plate's own index at that spot (black shading over the black interior) is taken for plate. Used by the Spells sheet and by the tree pages' legacy rows (`DrawLegacySpellIconInCell`). The HUD's wells still draw the full icon.
