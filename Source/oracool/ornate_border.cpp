@@ -227,14 +227,16 @@ void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rec
 	DrawThemedFill(out, panel, 2);
 	DrawOrnateBorder(out, panel);
 	const int innerWidth = panelWidth - 2 * Padding;
+	// Shadowed, title and text (user, 2026-09-05: "apply the same text shadow to abilities tree skill
+	// names") - this panel is the Abilities window's hover, and the skill's name is its title.
 	if (!title.empty()) {
 		DrawString(out, title, { { px + Padding, py + Padding }, { innerWidth, lineHeight } },
-		    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter });
+		    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 	if (!wrapped.empty()) {
 		DrawString(out, wrapped,
 		    { { px + Padding, py + Padding + titleHeight }, { innerWidth, lines * lineHeight } },
-		    { UiFlags::ColorWhite, 1, lineHeight });
+		    { UiFlags::ColorWhite | UiFlags::Shadowed, 1, lineHeight });
 	}
 }
 

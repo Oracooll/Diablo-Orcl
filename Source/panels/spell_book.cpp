@@ -561,11 +561,14 @@ static_assert(PassiveSlotX0 - oracool::GridBezelInset >= AbilitiesMargin
             <= AbilitiesPanelSize.width - AbilitiesMargin,
     "the four passive slots and their frames no longer fit inside the panel margin");
 
-/** One line under the slots, which is where the gesture explains itself. */
+/** The hint line ("Click a slot, then a passive") is drawn on the PANEL above the list since
+ * 2026-09-05 (user: "move Click to select slot text above passive skill slot 1-4. at least 6 px
+ * above the slots" and "there is enough room under the title, so dont move down") - see
+ * DrawPassiveHintAboveList. The band stays at the top of the list, where it was. */
 constexpr int PassiveHintHeight = 18;
-constexpr int PassiveHintTop = AbilitiesListTop + PassiveSlotSize + 4;
-/** The grid begins below the band. */
-constexpr int PassiveGridTop = PassiveHintTop + PassiveHintHeight + 4;
+constexpr int PassiveSlotBandTop = AbilitiesListTop;
+/** The grid begins below the band - two frames and six of air, like every other gap here. */
+constexpr int PassiveGridTop = PassiveSlotBandTop + PassiveSlotSize + 2 * oracool::GridBezelInset + 6;
 /** No counter row, so a passive row is its icon plus air. */
 // 18, from 4 (user, 2026-09-05: "introduce 6px gaps between all skills in passive skills"): twelve of
 // frame and six of air between rows. Seven tiers at this pitch are 606px against a 523px list, so
@@ -1179,7 +1182,7 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 {
 	const Player &player = *InspectPlayer;
 	for (int slot = 0; slot < static_cast<int>(oracool::PassiveSlotCount); slot++) {
-		Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, AbilitiesListTop - scroll },
+		Rectangle rect { { PassiveSlotX0 + slot * PassiveSlotPitch, PassiveSlotBandTop - scroll },
 			{ PassiveSlotSize, PassiveSlotSize } };
 		const bool open = player._pLevel >= oracool::PassiveSlotRequiredLevel(slot);
 		const oracool::ClassTreeSkill held = oracool::PassiveInSlot(player, slot);
@@ -1214,6 +1217,18 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 		}
 	}
 
+}
+
+/**
+ * @brief The passive page's one line of instruction, above the slots and outside the list.
+ *
+ * On the panel surface rather than the list's subregion, in the band between the title and the
+ * arch's foot (y 56..101 of the panel), which the user pointed at as room enough. It ends six pixels
+ * above the slots' frames - the frame is GridBezelInset above the slot, and the slot is
+ * AbilitiesListTop below the content top - so the list itself did not have to move.
+ */
+void DrawPassiveHintAboveList(const Surface &out, const Rectangle &panel)
+{
 	if (IsInspectingPlayer())
 		return;
 	const string_view hint = ArmedPassiveSlot >= 0
@@ -1223,10 +1238,12 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 	    // tooltip, where there is room for it.
 	    ? _("Now pick a passive")
 	    : _("Click a slot, then a passive");
-	DrawString(content, hint,
-	    { { AbilitiesInteriorLeft, PassiveHintTop - scroll },
+	const int frameTop = panel.position.y + AbilitiesContentTop + PassiveSlotBandTop - oracool::GridBezelInset;
+	const int bottom = frameTop - 6;
+	DrawString(out, hint,
+	    { { panel.position.x + AbilitiesInteriorLeft, bottom - PassiveHintHeight },
 	        { AbilitiesInteriorRight - AbilitiesInteriorLeft, PassiveHintHeight } },
-	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	    { UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 }
 
 /** @brief Draws a whole tree page. */
@@ -1836,6 +1853,10 @@ void DrawSpellBook(const Surface &out)
 		{ panel.size.width - 2 * AbilitiesMargin, oracool::PanelTitleHeight } };
 	oracool::DrawOutlinedString(out, GetSheetTitle(CurrentSheet), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+
+	// The passive page's instruction line, between the title and the list (2026-09-05).
+	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value() && IsPassivePage(*page))
+		DrawPassiveHintAboveList(out, panel);
 
 	// No nav row and no "Points:" readout here any more (2026-08-17): the arrows live at the ends of
 	// the title band above, and the unspent pool is a HUD element now - the frame above the RMB well,

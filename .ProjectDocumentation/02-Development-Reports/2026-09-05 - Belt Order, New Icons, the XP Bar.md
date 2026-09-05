@@ -54,3 +54,10 @@ The cutter emits `BeltBarTop` (the painted belt bar's top edge, plate-local 67) 
 
 - Spells sheet: the detail and damage lines carry `UiFlags::Shadowed` - the character sheet's vanilla two-left-two-down text shadow. The name line is left clean.
 - Passive band: pitch 74 (56 + two frames + 6 of air), centred on the panel's 340 rather than the 246 interior, so the outer frames sit 21px onto the bezel ornament either side - the user's choice over the interior rule of 2026-08-17, and the one place in the window that crosses it. The static_assert now checks the panel margin rather than the interior.
+
+## Addendum, v1.9.228 - shadowed hover names, the passive hint above the slots
+
+"apply the same text shadow to abilities tree skill names. also - move Click to select slot text above passive skill slot 1-4. at least 6 px above the slots. apply text shadow." Then: "there is enough room under the title, so dont move down."
+
+- Tree pages draw no names on the cells; the skill's name is the hover panel's title. `DrawHoverPanel` (ornate_border.cpp, one caller - the Abilities window) now shadows its title and text.
+- The passive hint is drawn on the PANEL by `DrawPassiveHintAboveList`, in the band between the title and the arch's foot, ending six pixels above the slots' frames, shadowed. The band and grid stayed where they were - the first cut pushed them down to make room and the user said not to.
