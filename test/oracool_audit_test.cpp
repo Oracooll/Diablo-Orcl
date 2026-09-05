@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <functional>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -9981,13 +9982,14 @@ TEST(OracoolAudit, TheBeltSlotPlateIsBlackThenGreyThenGold)
 }
 
 /**
- * @brief A belt item's shadow is its own silhouette, darkened, two pixels down and right.
+ * @brief A belt item's shadow is its own silhouette, solid black, two pixels left and two down.
  *
- * The flask sprite on a white surface: where the flask is opaque, the pixel two to the right and
- * two down is no longer white; where it is transparent, the pixel stays white - a filled square
- * or a shadow of the wrong shape both fail (user, 2026-09-06).
+ * The flask sprite drawn two pixels in from the left of a white surface: where the flask is opaque,
+ * the pixel two to the left and two down is BLACK; where it is transparent, the pixel stays white -
+ * a filled square, a blend or a shadow of the wrong shape all fail (user, 2026-09-06: "same cast
+ * as text shadows - a bit to the left, a bit downwards, pitchblack").
  */
-TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteOffsetTwo)
+TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteTwoLeftTwoDown)
 {
 	LoadCoreArchives();
 	LoadGameArchives();
@@ -10005,14 +10007,14 @@ TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteOffsetTwo)
 	constexpr uint8_t White = 255;
 	OwnedSurface surf { w + 4, h + 4 };
 	SDL_FillRect(surf.surface, nullptr, White);
-	oracool::DrawBeltItemShadow(surf, { 0, h }, sprite);
+	oracool::DrawBeltItemShadow(surf, { 2, h }, sprite); // the sprite would sit at x=2; its shadow at x=0
 	int shadowed = 0;
 	for (int y = 0; y < h; y++) {
 		for (int x = 0; x < w; x++) {
 			const bool opaque = *mask.at(x, y) != Sentinel;
-			const uint8_t c = *surf.at(x + 2, y + 2);
+			const uint8_t c = *surf.at(x, y + 2);
 			if (opaque) {
-				EXPECT_NE(c, White) << "no shadow under " << x << "," << y;
+				EXPECT_EQ(c, 0) << "no solid black shadow under " << x << "," << y;
 				shadowed++;
 			} else {
 				EXPECT_EQ(c, White) << "shadow where the sprite is transparent at " << x << "," << y;
@@ -10020,10 +10022,11 @@ TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteOffsetTwo)
 		}
 	}
 	EXPECT_GT(shadowed, 100);
-	// Nothing lands in the first two rows and columns - the offset is the whole point.
+	// Nothing lands in the first two rows or the last two columns - the offset is the whole point.
 	for (int i = 0; i < w + 4; i++) {
 		EXPECT_EQ(*surf.at(i, 0), White);
-		EXPECT_EQ(*surf.at(0, std::min(i, h + 3)), White);
+		EXPECT_EQ(*surf.at(i, 1), White);
+		EXPECT_EQ(*surf.at(w + 3, std::min(i, h + 3)), White);
 	}
 	FreeCursor();
 }
@@ -10056,4 +10059,82 @@ TEST(OracoolAudit, TheCanvasDimCoversTheOpeningAndSparesTheBezels)
 				EXPECT_EQ(c, White) << "dimmed on the bezel at " << x << "," << y;
 		}
 	}
+}
+
+/**
+ * @brief The burger button paints only blue over its plate, and the portal ring sits centred.
+ *
+ * Both buttons draw over the belt plate, so each is drawn twice on a screen-sized surface - plate
+ * alone, then plate and button - and the pixels that changed are the button. For the burger every
+ * such pixel must be on the blue mini ramp (user, 2026-09-06: "stand out more from the
+ * background"); for the portal the changed pixels' bounding box must be centred in the cell to
+ * within a pixel on each axis, in every state ("align TP icon better").
+ */
+TEST(OracoolAudit, TheBeltButtonsAreBlueAndTheRingIsCentred)
+{
+	// The belt is laid out from the screen size, which no test sets by default.
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+	LoadCoreArchives();
+	LoadGameArchives();
+	LoadSmallSpellIcons();
+	const Rectangle menuCell = oracool::GetBeltSlotRect(oracool::BeltMenuSlotIndex);
+	const Rectangle portalCell = oracool::GetBeltSlotRect(oracool::BeltTownPortalSlotIndex);
+	ASSERT_EQ(menuCell.size.width, 34);
+	ASSERT_EQ(portalCell.size.width, 34);
+
+	struct Diff {
+		int changed;
+		int offBlue;
+		Rectangle box;
+	};
+	const auto diffOf = [](Rectangle cell, const std::function<void(const Surface &)> &drawButton) {
+		OwnedSurface plateOnly { gnScreenWidth, gnScreenHeight };
+		OwnedSurface both { gnScreenWidth, gnScreenHeight };
+		SDL_FillRect(plateOnly.surface, nullptr, 77);
+		SDL_FillRect(both.surface, nullptr, 77);
+		oracool::DrawBeltSlotPlate(plateOnly, cell);
+		drawButton(both);
+		Diff d { 0, 0, { { 999, 999 }, { 0, 0 } } };
+		int maxX = -1, maxY = -1;
+		for (int y = cell.position.y; y < cell.position.y + cell.size.height; y++) {
+			for (int x = cell.position.x; x < cell.position.x + cell.size.width; x++) {
+				const uint8_t a = *plateOnly.at(x, y);
+				const uint8_t b = *both.at(x, y);
+				if (a == b)
+					continue;
+				d.changed++;
+				d.box.position.x = std::min(d.box.position.x, x);
+				d.box.position.y = std::min(d.box.position.y, y);
+				maxX = std::max(maxX, x);
+				maxY = std::max(maxY, y);
+				if (b < PAL8_BLUE || b >= PAL8_BLUE + 8)
+					d.offBlue++;
+			}
+		}
+		d.box.size = { maxX - d.box.position.x + 1, maxY - d.box.position.y + 1 };
+		return d;
+	};
+
+	const Diff menu = diffOf(menuCell, [](const Surface &out) { oracool::DrawBurgerMenuButton(out, 0); });
+	if (menu.changed == 0)
+		GTEST_SKIP() << "burger art not mounted";
+	EXPECT_EQ(menu.offBlue, 0) << "burger pixels off the blue ramp";
+	EXPECT_GT(menu.changed, 100);
+
+	for (int state = 0; state < 3; state++) {
+		const Diff ring = diffOf(portalCell, [state](const Surface &out) { oracool::DrawTownPortalIcon(out, state); });
+		ASSERT_GT(ring.changed, 100) << "state " << state;
+		// Doubled centres, so an odd/even mismatch is one unit, not a rounding argument.
+		const int cellCx = portalCell.position.x * 2 + portalCell.size.width - 1;
+		const int cellCy = portalCell.position.y * 2 + portalCell.size.height - 1;
+		const int boxCx = ring.box.position.x * 2 + ring.box.size.width - 1;
+		const int boxCy = ring.box.position.y * 2 + ring.box.size.height - 1;
+		EXPECT_LE(std::abs(cellCx - boxCx), 2) << "state " << state << " ring off centre horizontally";
+		EXPECT_LE(std::abs(cellCy - boxCy), 2) << "state " << state << " ring off centre vertically";
+	}
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
 }

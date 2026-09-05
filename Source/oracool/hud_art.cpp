@@ -492,6 +492,62 @@ bool IsOpaqueAt(const ArtAsset &asset, int x, int y)
 }
 
 /**
+ * @brief The opaque bounding box of one cell of a strip, in the cell's own coordinates - what the
+ * eye centres, as opposed to the cell (user, 2026-09-06, on the portal ring: "align TP icon better").
+ * A cell with nothing opaque returns the whole cell, so a blank state still lands where it did.
+ */
+Rectangle CellOpaqueBounds(const ArtAsset &asset, int cellX, Size cellSize)
+{
+	int minX = cellSize.width, minY = cellSize.height, maxX = -1, maxY = -1;
+	for (int y = 0; y < cellSize.height; y++) {
+		for (int x = 0; x < cellSize.width; x++) {
+			if (!IsOpaqueAt(asset, cellX + x, y))
+				continue;
+			minX = std::min(minX, x);
+			maxX = std::max(maxX, x);
+			minY = std::min(minY, y);
+			maxY = std::max(maxY, y);
+		}
+	}
+	if (maxX < 0)
+		return { { 0, 0 }, cellSize };
+	return { { minX, minY }, { maxX - minX + 1, maxY - minY + 1 } };
+}
+
+/** @brief Where to blit a cell so that its opaque bounds sit centred in @p cell. */
+Point CentreOpaqueIn(const ArtAsset &asset, int cellX, Size cellSize, Rectangle cell)
+{
+	const Rectangle bounds = CellOpaqueBounds(asset, cellX, cellSize);
+	return { cell.position.x + (cell.size.width - bounds.size.width) / 2 - bounds.position.x,
+		cell.position.y + (cell.size.height - bounds.size.height) / 2 - bounds.position.y };
+}
+
+/**
+ * @brief Repaints an asset's opaque pixels onto the blue mini ramp, DARK SOURCE = BRIGHT BLUE.
+ *
+ * The burger bars are dark in the PNG (mean luminance 55 of 255) and were then pulled halfway
+ * toward the yellow ramp, which on the gold plate made them a slightly darker gold - "recolor the
+ * burger menu icon to stand out more from the background" (user, 2026-09-06). Inverted onto the
+ * portal ring's own blue (PAL8_BLUE + 1 is the ring's 5757ff), the two buttons read as a pair and
+ * neither is the colour of the plate. The bars' bevel highlights come out as the darker blues.
+ */
+void RepaintOntoBlueInverted(ArtAsset &asset)
+{
+	if (asset.rgba.empty() || !asset.bright)
+		return;
+	for (int y = 0; y < asset.height; y++) {
+		const uint8_t *srcRow = &asset.rgba[static_cast<size_t>(y) * asset.width * 4];
+		uint8_t *brightRow = &(*asset.bright)[Point { 0, y }];
+		for (int x = 0; x < asset.width; x++) {
+			if (brightRow[x] == 0)
+				continue;
+			const int luminance = (299 * srcRow[x * 4] + 587 * srcRow[x * 4 + 1] + 114 * srcRow[x * 4 + 2]) / 1000;
+			brightRow[x] = static_cast<uint8_t>(PAL8_BLUE + std::min(7, luminance * 8 / 256));
+		}
+	}
+}
+
+/**
  * @brief Fills @p asset.outline with a 1px band hugging the OUTSIDE of the figure's edge.
  *
  * Outside rather than inside so the silhouette keeps its full shape - an inner outline would eat a
@@ -779,6 +835,7 @@ void EnsureQuantized()
 	QuantizeAsset(InventorySortArt, std::nullopt);
 	QuantizeAsset(TownPortalIconArt, std::nullopt);
 	QuantizeAsset(BurgerMenuButtonArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
+	RepaintOntoBlueInverted(BurgerMenuButtonArt); // the portal ring's blue, bright where the bars are dark (2026-09-06)
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
 	// No tint: the bezels arrived already quantised against town.pal (their stone reads as exact
 	// palette entries - 30,30,30 and 61,61,61 off the grey ramp), so tinting would move art that is
@@ -1185,10 +1242,10 @@ void DrawTownPortalIcon(const Surface &out, int state)
 	// cell's own carved bevel from the plate art, deliberately left showing.
 	const Rectangle cell = GetBeltSlotRect(BeltTownPortalSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
-	const Point position {
-		cell.position.x + (cell.size.width - TownPortalIconSize.width) / 2,
-		cell.position.y + (cell.size.height - TownPortalIconSize.height) / 2
-	};
+	// Centred by the ring's own opaque bounds, per state - the idle ring sits 1.5px right of its
+	// frame's centre and the hover and click rings are drawn larger, so centring the FRAME put the
+	// ring off by a pixel or two (user, 2026-09-06: "align TP icon better").
+	const Point position = CentreOpaqueIn(TownPortalIconArt, state * TownPortalIconSize.width, TownPortalIconSize, cell);
 	out.BlitFromSkipColorIndexZero(*TownPortalIconArt.bright,
 	    MakeSdlRect(state * TownPortalIconSize.width, 0, TownPortalIconSize.width, TownPortalIconSize.height),
 	    position);
@@ -1222,10 +1279,8 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	constexpr Displacement BurgerMenuNudge { 0, 0 };
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
-	const Point position = Point {
-		cell.position.x + (cell.size.width - BurgerMenuButtonSize.width) / 2,
-		cell.position.y + (cell.size.height - BurgerMenuButtonSize.height) / 2
-	} + BurgerMenuNudge;
+	// By opaque bounds, like the portal (2026-09-06); the nudge stays in the history above.
+	const Point position = CentreOpaqueIn(BurgerMenuButtonArt, state * BurgerMenuButtonSize.width, BurgerMenuButtonSize, cell) + BurgerMenuNudge;
 	out.BlitFromSkipColorIndexZero(*BurgerMenuButtonArt.bright,
 	    MakeSdlRect(state * BurgerMenuButtonSize.width, 0, BurgerMenuButtonSize.width, BurgerMenuButtonSize.height),
 	    position);
@@ -1708,11 +1763,14 @@ void DrawBeltSlotPlate(const Surface &out, Rectangle cell)
 
 void DrawBeltItemShadow(const Surface &out, Point position, ClxSprite sprite)
 {
-	// Every colour to black; the blend does the rest. Transparent runs are skipped by the sprite's
-	// own encoding, so the table need not spare index 0.
+	// Every colour to black, drawn SOLID, two left and two down - the cast the text shadows and the
+	// ornate borders use (user, 2026-09-06: "same cast as text shadows - a bit to the left, a bit
+	// downwards, pitchblack"). It began the same day as a half-transparent blend two right and two
+	// down. Transparent runs are skipped by the sprite's own encoding, so the table need not spare
+	// index 0.
 	static const std::array<uint8_t, 256> black {};
-	constexpr Displacement ShadowOffset { 2, 2 };
-	ClxDrawBlendedTRN(out, position + ShadowOffset, sprite, black.data());
+	constexpr Displacement ShadowOffset { -2, 2 };
+	ClxDrawTRN(out, position + ShadowOffset, sprite, black.data());
 }
 
 void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
