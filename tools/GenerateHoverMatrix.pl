@@ -39,6 +39,11 @@ my %spellDesc;
 while ($descs =~ m{/\*\s*(\w+)\s*\*/\s*N_\("((?:[^"\\]|\\.)*)"\)}g) { $spellDesc{$1} = $2; }
 
 my $factsPath = shift @ARGV; # optional: DiabloOrcl.exe --skill-facts <file>
+my $runewordPath = shift @ARGV; # optional: DiabloOrcl.exe --runeword-lines <file>
+my @runewords;
+if ($runewordPath && -f $runewordPath) {
+  open my $rh, '<:encoding(UTF-8)', $runewordPath or die; while (<$rh>) { chomp; my ($n, $h, $r, $b, $u) = split /\t/; next unless defined $r; push @runewords, { name => $n, host => $h, recipe => $r, bonus => [ grep { length } split / \| /, ($b // '') ], runes => [ grep { length } split / \| /, ($u // '') ] }; } close $rh;
+}
 my %facts;
 if ($factsPath && -f $factsPath) {
   open my $fh, '<:encoding(UTF-8)', $factsPath or die; while (<$fh>) { chomp; my ($c, $p, $n, $r, $l) = split /	/; next unless defined $l; $facts{"$c|$p|$n|$r"} = [ split / \| /, $l ]; } close $fh;
@@ -141,7 +146,7 @@ my $html = <<'HEAD';
 HEAD
 
 my @classes = qw(Pal Bar Sor Rog Bard Monk);
-$html .= '<nav>' . join('', map { '<a href="#c-' . $_ . '">' . $className{$_} . '</a>' } @classes) . '<a href="#spells">Book spells</a></nav></header>';
+$html .= '<nav>' . join('', map { '<a href="#c-' . $_ . '">' . $className{$_} . '</a>' } @classes) . '<a href="#spells">Book spells</a><a href="#runewords">Runewords</a></nav></header>';
 
 my $thead = '<thead><tr><th>Row</th><th>1 · Abilities window<small>the tree page cell, hover panel</small></th><th>2 · Skill picker<small>quick list above LMB/RMB, cursor tooltip</small></th><th>3 · LMB well<small>readied on the left button</small></th><th>4 · RMB well<small>readied or burning on the right</small></th></tr></thead>';
 my $cols = '<colgroup><col><col class="col-w"><col class="col-n"><col class="col-s"><col class="col-s"></colgroup>';
@@ -177,6 +182,20 @@ for my $id (@bookIds) {
   $html .= '<tr><th>' . esc($name) . '<small>book spell</small></th><td class="c1">' . $c1 . '</td><td>' . $c2 . '</td><td>' . $c3 . '</td><td>' . $c4 . '</td></tr>';
 }
 $html .= '</tbody></table></div>';
+
+# runewords: the book's entry and the item panel's block, as the engine prints them
+if (@runewords) {
+  my @hostNames = ('Weapon', 'Shield', 'Body armor', 'Helm', 'Shoulders', 'Bracers', 'Gloves', 'Belt', 'Legs', 'Boots');
+  $html .= '<h2 id="runewords">Runewords</h2><h3>The Runeword book and the item panel · ' . scalar(@runewords) . ' words</h3><p class="note">Each word as the book lists it and as a finished item\'s panel prints it: the word\'s own bonus lines, then what each rune in the recipe does when set in that host. From <code>DiabloOrcl.exe --runeword-lines</code>.</p><div class="wrap"><table><colgroup><col><col class="col-w"><col class="col-w"></colgroup>'
+    . '<thead><tr><th>Word</th><th>The word\'s own bonuses<small>gold-named line in the panel, white in the book</small></th><th>The runes\' socket effects<small>one line per rune, in the runes\' orange</small></th></tr></thead><tbody>';
+  for my $w (sort { ($a->{host} <=> $b->{host}) || ($a->{name} cmp $b->{name}) } @runewords) {
+    my $host = $hostNames[$w->{host}] // $w->{host};
+    $html .= '<tr><th>' . esc($w->{name}) . '<small>' . esc($host) . ' · ' . esc($w->{recipe}) . '</small></th>'
+      . '<td class="c1">' . pop_([ map { esc($_) } @{ $w->{bonus} } ]) . '</td>'
+      . '<td class="c1">' . pop_([ map { esc($_) } @{ $w->{runes} } ]) . '</td></tr>';
+  }
+  $html .= '</tbody></table></div>';
+}
 
 $html .= <<'FOOT';
 <footer>

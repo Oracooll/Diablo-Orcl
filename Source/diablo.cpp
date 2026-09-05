@@ -66,6 +66,7 @@
 #include <fstream> // --skill-facts
 #include "oracool/class_tree.h"  // --skill-facts
 #include "oracool/skill_facts.h" // --skill-facts
+#include "oracool/runewords.h"   // --runeword-lines
 #include "utils/str_cat.hpp"
 #include "oracool/auto_save.h"
 #include "oracool/gradual_healing.h"
@@ -1607,6 +1608,7 @@ void PrintHelpOption(string_view flags, string_view description)
 	PrintHelpOption("-h, --help", _(/* TRANSLATORS: Commandline Option */ "Print this message and exit"));
 	PrintHelpOption("--version", _(/* TRANSLATORS: Commandline Option */ "Print the version and exit"));
 	PrintHelpOption("--skill-facts <file>", _(/* TRANSLATORS: Commandline Option */ "Write every skill's tooltip facts at ranks 1 and 2 to <file> and exit"));
+	PrintHelpOption("--runeword-lines <file>", _(/* TRANSLATORS: Commandline Option */ "Write every runeword's bonus and rune lines to <file> and exit"));
 	PrintHelpOption("--data-dir", _(/* TRANSLATORS: Commandline Option */ "Specify the folder of diabdat.mpq"));
 	PrintHelpOption("--save-dir", _(/* TRANSLATORS: Commandline Option */ "Specify the folder of save files"));
 	PrintHelpOption("--config-dir", _(/* TRANSLATORS: Commandline Option */ "Specify the location of diablo.ini"));
@@ -1710,6 +1712,40 @@ void DiabloParseFlags(int argc, char **argv)
 					     << oracool::GetClassTreePageName(data.heroClass, data.page) << '\t'
 					     << data.name << '\t' << rank << '\t' << facts << '\n';
 				}
+			}
+			dump.close();
+			diablo_quit(0);
+		} else if (arg == "--runeword-lines") {
+			// Oracool: every runeword as the book and the item panel print it - name, host, recipe,
+			// the word's own bonus lines and each rune's socket line, tab-separated with the line
+			// lists joined by " | " - for tools/GenerateHoverMatrix.pl's Runewords section.
+			if (i + 1 == argc) {
+				PrintFlagsRequiresArgument("--runeword-lines");
+				diablo_quit(64);
+			}
+			std::ofstream dump(argv[++i], std::ios::binary);
+			const auto joined = [](const std::vector<std::string> &lines) {
+				std::string out;
+				for (const std::string &line : lines) {
+					if (!out.empty())
+						out += " | ";
+					out += line;
+				}
+				return out;
+			};
+			for (size_t w = 0; w < oracool::RunewordCount(); w++) {
+				const oracool::RunewordDefinition &word = *oracool::RunewordAt(w);
+				const oracool::SocketHost host = oracool::RunewordSocketHost(static_cast<oracool::RunewordHost>(word.host));
+				std::string recipe;
+				std::vector<std::string> runeLines;
+				for (int r = 0; r < word.runeCount; r++) {
+					if (!recipe.empty())
+						recipe += ' ';
+					recipe += _(AllItemsList[word.runes[r]].iName);
+					runeLines.push_back(oracool::GemSocketLine(word.runes[r], host));
+				}
+				dump << _(word.name) << '\t' << static_cast<int>(word.host) << '\t' << recipe << '\t'
+				     << joined(oracool::RunewordBonusLines(word)) << '\t' << joined(runeLines) << '\n';
 			}
 			dump.close();
 			diablo_quit(0);

@@ -34,3 +34,7 @@ On legality: a word's name and its recipe are game facts and this table already 
 ## Verification
 
 Debug build clean; 625/626 with the standing `Drlg_l1` failure. `tools/GenRunewords.ps1` regenerated the table (370 words). In the book, Steel reads "Damage +3%, Damage +1, To Hit +2%, Light Radius +1, Faster attack" and then "Tir: ..., El: ..." underneath.
+
+## v1.9.277: the matrix carries the words
+
+"update the hover matrix artifact with the new runeword lines." `DiabloOrcl.exe --runeword-lines <file>` writes every word's name, host, recipe, bonus lines and rune lines as the book and the item panel print them (the same `RunewordBonusLines` and `GemSocketLine`); `tools/GenerateHoverMatrix.pl` takes it as its third argument and adds a Runewords section, 370 rows by host. The dump is kept at `.ProjectDocumentation/01-Project-Overview/runeword-lines.tsv`.
