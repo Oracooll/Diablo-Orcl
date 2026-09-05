@@ -33,3 +33,9 @@ Three things, one cause. The 56px sheet's frames carry a heavier black border th
 
 - Every plate and legacy icon draw is back on the small sheet fitted to its rect: the Abilities window (Spells sheet, tree legacy rows), the wells, the picker.
 - `SkillWellPlateRect` (hud_layout.h): a rect that IS the 50px net is grown by the 3px shadow to the 56px opening; anything else passes through. The wells' plate and a readied legacy icon are drawn at that rect, so the frame's shadow lands on the plate; the class icon stays in the net. The picker's 38px cells and the Abilities' 56px cells are untouched by it.
+
+## Addendum, v1.9.247 - the compact belt-shadow revision
+
+"find this new hud and apply it" (with GPT's screenshot: "2px belt outline, 1px dividers, and 2px inward shadows around each 28x28 slot"). The newest pack in the drop zone was `oracool-hud-v6-belt-shadow`, GPT's fourth iteration that night (after angel-mana, joined-belt and the carved base). Its COMPACT layout: 540x108, the right well and mana cradle 73px further in, the belt one joined strip - six 28x28 holes at a 29px pitch, each with a 2px inward alpha shadow of its own, a 2px outline - and the mana angel replacing the second gargoyle.
+
+Cutter: the compact numbers from its manifest (plate x 116..429, wells at 6 and 251, cells at 70 + 29i, y 78, `BeltBarTop` 76, mana sphere at (47,53)); the shadow shaping that served the wells now covers the six belt holes too, so each hole's 2px shadow ships as one black pixel and one half pixel. The burger and portal icons are recut at 28 - at a 29px pitch the 31s overlapped the dividers.

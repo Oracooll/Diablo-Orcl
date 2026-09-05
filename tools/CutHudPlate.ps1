@@ -31,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-hud-v6-carved'   # the CARVED treatment (2026-09-05, the user's pick over oracool-hud-v6-sunken-wells: same geometry family, richer stone)
+$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-hud-v6-belt-shadow'   # the COMPACT belt-shadow revision (2026-09-05, "find this new hud and apply it"): 540 wide, the belt a joined 6-cell strip with 2px inset shadows, the mana angel
 $source = Join-Path $pack 'hud-v6.png'
 $liquidSource = Join-Path $pack 'hud-v6-liquid.png'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
@@ -39,13 +39,13 @@ $header = Join-Path $root 'Source\oracool\hud_plate_skin.h'
 foreach ($f in @($source, $liquidSource)) { if (-not (Test-Path $f)) { throw "missing: $f" } }
 
 # ---- the manifest, in master pixels ----------------------------------------------------------
-$masterW = 1839; $masterH = 324
+$masterW = 1620; $masterH = 324                      # the COMPACT layout in the pack's manifest (540x108 native)
 $scaleDiv = 3                                       # master / 3 = screen, exactly
-$plateCrop = @(348, 120, 1158, 204)                # x y w h - the plate's band; the cradles are what is left either side
-$wells = @( @(366, 138, 168, 168), @(1320, 138, 168, 168) )
-$beltX = @(564, 690, 816, 942, 1068, 1194); $beltY = 228; $beltW = 84; $beltH = 84   # the carved belt cells are HOLES, 28x28 on screen, in 36px frames
-$beltBarTop = 216                                  # the belt frames' top edge
-$orbs = @( @(195, 156, 102), @(1647, 159, 102) )   # cx cy r
+$plateCrop = @(348, 120, 939, 204)                 # x y w h - the carved pack's band, 219 narrower: the right cradle moved in by that much
+$wells = @( @(366, 138, 168, 168), @(1101, 138, 168, 168) )
+$beltX = @(558, 645, 732, 819, 906, 993); $beltY = 234; $beltW = 84; $beltH = 84   # 28x28 holes at a 29px pitch, each with a 2px inward alpha shadow
+$beltBarTop = 228                                  # the belt strip's top edge
+$orbs = @( @(195, 156, 102), @(1428, 159, 102) )   # cx cy r
 
 function Scl($v) { return [int][math]::Round($v / $scaleDiv) }
 
@@ -67,9 +67,10 @@ function Resample([string]$path) {
 $s = Resample $source
 $ls = Resample $liquidSource
 
-# the wells' openings on screen, for the shadow shaping
+# the openings on screen - the two wells and the six belt holes - for the shadow shaping
 $wellsScreen = $wells | ForEach-Object { ,@((Scl $_[0]), (Scl $_[1]), (Scl $_[2]), (Scl $_[3])) }
-function InWell($x, $y) { foreach ($w in $wellsScreen) { if ($x -ge $w[0] -and $x -lt $w[0] + $w[2] -and $y -ge $w[1] -and $y -lt $w[1] + $w[3]) { return $true } }; return $false }
+$openings = @($wellsScreen) + @($beltX | ForEach-Object { ,@((Scl $_), (Scl $beltY), (Scl $beltW), (Scl $beltH)) })
+function InWell($x, $y) { foreach ($w in $openings) { if ($x -ge $w[0] -and $x -lt $w[0] + $w[2] -and $y -ge $w[1] -and $y -lt $w[1] + $w[3]) { return $true } }; return $false }
 
 for ($y = 0; $y -lt $Hh; $y++) { for ($x = 0; $x -lt $W; $x++) {
   $c = $s.GetPixel($x, $y)

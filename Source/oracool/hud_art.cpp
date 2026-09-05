@@ -174,7 +174,7 @@ ArtAsset TownPortalIconArt { "ui\\town_portal_icon.png" };
 // hud-v1/icons), three cells - default, hover, click - which is the 0/1/2 DrawTownPortalIcon asks for.
 // 31 since the same night ("scale them 10%"): tools\CutBeltButtonIcons.ps1 cuts both strips from the
 // 112px sources at 31, with the default and hover states lifted ("too dim").
-constexpr Size TownPortalIconSize { 31, 31 };
+constexpr Size TownPortalIconSize { 28, 28 }; // 28 again with the compact belt (2026-09-05): its cells are 28 at a 29px pitch, and 31 overlapped the dividers
 /** The belt's burger-menu button. Same treatment as the Portal cell. */
 ArtAsset BurgerMenuButtonArt { "ui\\burger_menu_button.png" };
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
@@ -346,7 +346,7 @@ ArtAsset *SilhouetteForClass(HeroClass heroClass)
 // 28x28 and THREE states since 2026-09-05: GPT's burger-menu-states-runtime-84x28.png (delivered-
 // packs/diablo-bottom-hud-v1/icons) - default, hover, click. The 26px two-state cut it replaces is
 // in the pack's history; hud_menu.cpp maps its hover/open/blink onto the three cells.
-constexpr Size BurgerMenuButtonSize { 31, 31 }; // 31 since "scale them 10%" - see TownPortalIconSize
+constexpr Size BurgerMenuButtonSize { 28, 28 }; // 28 again with the compact belt - see TownPortalIconSize
 
 // Bug postmortem (2026-08-10): the first quantization attempt matched against logical_palette on
 // the first drawn frame - but at that moment logical_palette still holds the *loading screen's*

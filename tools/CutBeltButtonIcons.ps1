@@ -17,7 +17,7 @@
 # takes, so the midtones come up and the highlights stay put. Hover takes the SAME lift, so it
 # still reads brighter than default as delivered - lifting default alone inverted the cue. Click is as delivered.
 
-param([double] $DefaultGamma = 0.7, [double] $HoverGamma = 0.7, [int] $Cell = 31)
+param([double] $DefaultGamma = 0.7, [double] $HoverGamma = 0.7, [int] $Cell = 28)   # 28 since the compact belt (29px pitch); 31 for the carved HUD's wider cells
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
