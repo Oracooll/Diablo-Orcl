@@ -926,8 +926,7 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// four pixels and read as a shared rail rather than as separate plates. That is the same look the
 	// backpack's own bezel has between its cells, so it is left alone rather than paid for in row
 	// height - a taller row costs the page its last entry.
-	// No slot shadow here since 2026-09-05 ("remove shadows from abilities screen"); the pilot of that
-	// morning ran in this window first and stays on the inventory and stash.
+	oracool::DrawDropShadow(content, iconRect, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 	oracool::DrawGridBezel(content, iconRect);
 	// Oracool: user request - the book must show the same borrowed icon Furious Charge uses
 	// everywhere else, not the vanilla Item Repair icon.
@@ -1095,6 +1094,7 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	    ? oracool::SkillPlateTint::Grey
 	    : ((bookRow || (isPassiveRow ? slotted : invested > 0)) ? oracool::SkillPlateTint::Green
 	                                                           : oracool::SkillPlateTint::Red);
+	oracool::DrawDropShadow(content, icon, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 	oracool::DrawGridBezel(content, icon);
 	// A LEGACY spell keeps its own icon here too, not the class strip's (user, 2026-09-03) - the
 	// same rule the wells and the speedbook now follow.
@@ -1197,6 +1197,7 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 		// in this window that most want to look like sockets. The band's pitch is 63 to the icon's
 		// 56, so neighbouring frames overlap by five pixels, the same shared-rail reading the sheet
 		// rows have.
+		oracool::DrawDropShadow(content, rect, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 		oracool::DrawGridBezel(content, rect);
 		if (filled) {
 			oracool::DrawClassTreeIconOutlined(content, rect, player._pClass,
