@@ -13,6 +13,11 @@
 #include "oracool/ornate_border.h" // ThemeEdgeColor
 #include "oracool/shop_grid.h"
 #include "qol/stash.h"
+#include "items.h"
+#include "player.h"
+#include "utils/language.h"
+#include <string>
+#include <vector>
 #include "utils/ui_fwd.h"
 
 namespace devilution::oracool {
@@ -91,22 +96,32 @@ Rectangle GetPrevCursorTooltipRect()
 	return PrevTooltipRect;
 }
 
-void DrawCursorTooltip(const Surface &out)
-{
-	PrevTooltipRect = {};
+namespace {
 
-	if (talkflag || InfoString.empty())
-		return;
+/** @brief One tooltip block as text plus its per-line colours and two-run tail starts. */
+struct TooltipBlock {
+	std::string text;
+	std::vector<UiFlags> colors;
+	std::vector<uint16_t> tails;
+};
 
-	// Sized to the text itself rather than a fixed box, so "centred on the cursor" actually
-	// centres the glyphs and short labels don't sit adrift inside a wide invisible rectangle.
+/** @brief Widest line, line count and line height of a block, and the box it needs. */
+struct BlockMetrics {
 	int maxWidth = 0;
 	int lineCount = 0;
-	MeasureText(InfoString.str(), maxWidth, lineCount);
-	const int lineHeight = GetLineHeight(InfoString.str(), GameFont12);
+	int lineHeight = 0;
+	int lineStride = 0;
+	Size textSize;
+	Size boxSize;
+	int padX = 0;
+	int padY = 0;
+};
 
-	const bool asPanel = IsHoveringItem();
-
+BlockMetrics MeasureBlock(string_view text, bool asPanel)
+{
+	BlockMetrics m;
+	MeasureText(text, m.maxWidth, m.lineCount);
+	m.lineHeight = GetLineHeight(text, GameFont12);
 	// Oracool: user request - an item's stat block reads cramped at the font's own line height, so
 	// the panel opens the rows up. Only the panel: a one-line hover has no rows to space out.
 	//
@@ -114,30 +129,23 @@ void DrawCursorTooltip(const Surface &out)
 	// Adding it to every row instead would leave a trailing gap under the last line, making the
 	// panel's bottom padding visibly deeper than its top.
 	const int lineGap = asPanel ? PanelLineGap : 0;
-	const int lineStride = lineHeight + lineGap;
-	const Size textSize { maxWidth, lineCount * lineHeight + (lineCount - 1) * lineGap };
+	m.lineStride = m.lineHeight + lineGap;
+	m.textSize = { m.maxWidth, m.lineCount * m.lineHeight + (m.lineCount - 1) * lineGap };
+	m.padX = asPanel ? PanelPaddingX + PanelBorderWidth : 0;
+	m.padY = asPanel ? PanelPaddingY + PanelBorderWidth : 0;
+	m.boxSize = { m.textSize.width + 2 * m.padX, m.textSize.height + 2 * m.padY };
+	return m;
+}
 
-	const int padX = asPanel ? PanelPaddingX + PanelBorderWidth : 0;
-	const int padY = asPanel ? PanelPaddingY + PanelBorderWidth : 0;
-	const Size boxSize { textSize.width + 2 * padX, textSize.height + 2 * padY };
-
-	// The upper bounds are floored at 0 rather than used raw: std::clamp is undefined when hi < lo,
-	// which is what a box wider or taller than the screen would produce. Unlikely with a 12pt font
-	// on a 960-wide canvas, but the item panel made it reachable in a way the one-line tooltip
-	// never was, and UnsafeDrawBorder2px below does no clipping of its own.
-	const int maxX = std::max(0, static_cast<int>(gnScreenWidth) - boxSize.width);
-	const int maxY = std::max(0, static_cast<int>(gnScreenHeight) - boxSize.height);
-
-	Point origin { MousePosition.x - boxSize.width / 2, MousePosition.y - boxSize.height - GapAboveCursor };
-	origin.x = std::clamp(origin.x, 0, maxX);
-	// Near the top of the screen there is no room above the cursor, so fall below it instead of
-	// letting the text sit on top of what is being hovered. A tall item panel hits this often.
-	if (origin.y < 0)
-		origin.y = std::min(MousePosition.y + GapAboveCursor, maxY);
-	origin.y = std::clamp(origin.y, 0, maxY);
-
-	const Rectangle box { origin, boxSize };
-	const bool boxFitsOnScreen = boxSize.width <= static_cast<int>(gnScreenWidth) && boxSize.height <= static_cast<int>(gnScreenHeight);
+/**
+ * @brief Draws one block into @p box: the darkened plate and gold border when @p asPanel, then the
+ * lines - per line in their own colours when a colour list of the right length is given, else the
+ * whole text in @p singleColor.
+ */
+void DrawBlock(const Surface &out, const Rectangle &box, const BlockMetrics &m, string_view text,
+    const std::vector<UiFlags> &colors, const std::vector<uint16_t> &tails, UiFlags singleColor, bool asPanel)
+{
+	const bool boxFitsOnScreen = box.size.width <= static_cast<int>(gnScreenWidth) && box.size.height <= static_cast<int>(gnScreenHeight);
 	if (asPanel && boxFitsOnScreen) {
 		// Twice, for ~75% darkening: one pass leaves the floor tiles reading straight through the
 		// stat lines, which is the readability problem this panel exists to solve.
@@ -146,7 +154,7 @@ void DrawCursorTooltip(const Surface &out)
 		UnsafeDrawBorder2px(out, box, PanelBorderColor);
 	}
 
-	const Rectangle textArea { origin + Displacement { padX, padY }, textSize };
+	const Rectangle textArea { box.position + Displacement { m.padX, m.padY }, m.textSize };
 	const UiFlags sharedFlags = UiFlags::AlignCenter | UiFlags::KerningFitSpacing
 	    | (asPanel ? UiFlags::None : UiFlags::Outlined);
 	// The same flags WITHOUT centring, for the lines drawn in two runs. Those are positioned by hand
@@ -168,75 +176,248 @@ void DrawCursorTooltip(const Surface &out)
 	// held-item hovers each set the name with a bare assignment, leaving the list one short of the
 	// block PrintItemDetails then built, and this check quietly refused all of it. Silence is what
 	// made it hard to see, so it asserts now.
-	string_view text = InfoString.str();
-	const bool perLineColors = InfoStringLineColors.size() == static_cast<size_t>(lineCount);
-	assert((InfoStringLineColors.empty() || perLineColors)
+	const bool perLineColors = colors.size() == static_cast<size_t>(m.lineCount);
+	assert((colors.empty() || perLineColors)
 	    && "InfoString gained lines whose colours were never recorded - use SetPanelString/AddPanelString");
 	if (!perLineColors) {
 		// lineStride, not lineHeight: DrawString's lineHeight option IS the row-to-row step, so
 		// this is where the gap gets applied on the single-colour path.
-		DrawString(out, text, textArea, { InfoColor | sharedFlags, 1, lineStride });
-	} else {
-		size_t start = 0;
-		for (int i = 0; i < lineCount; i++) {
-			const size_t newline = text.find('\n', start);
-			const string_view line = (newline == string_view::npos)
-			    ? text.substr(start)
-			    : text.substr(start, newline - start);
-			// Stepped by the stride, but each row's box is one line tall - the gap is the space
-			// between boxes, not part of them.
-			const Rectangle lineArea { textArea.position + Displacement { 0, i * lineStride },
-				{ textArea.size.width, lineHeight } };
-			// A line may be drawn in TWO runs: the head in its own colour and a white tail from
-			// InfoStringLineTailStart. The set panel's item list needs it - each piece's name is
-			// green or red while its slot "(helm)" is white (user request, 2026-08-16) - and one
-			// colour per line cannot say that. Zero, the value every other producer records, takes
-			// the single-run path below unchanged.
-			const size_t tailStart = i < static_cast<int>(InfoStringLineTailStart.size())
-			    ? InfoStringLineTailStart[i]
-			    : 0;
-			if (tailStart > 0 && tailStart < line.size()) {
-				const string_view head = line.substr(0, tailStart);
-				const string_view tail = line.substr(tailStart);
-				// Bug (fixed 2026-08-17, user: "white letters overlap the green one, when there is
-				// obviously enough space to avoid it"). Both runs were drawn with the shared
-				// AlignCenter flag: the head centred inside the FULL line box, the tail centred
-				// inside whatever was left of it to the right. Two independent centrings, so the
-				// white slot label landed on top of the green item name every time - and the space
-				// the user could see going spare was the gap those two centrings left at the edges.
-				//
-				// The pair is centred as ONE line now, then laid out left to right from that
-				// origin. Centred by the whole LINE's width rather than by the sum of the two runs',
-				// so this agrees with how MeasureText sized the panel and puts the text exactly
-				// where a plain centred DrawString would have put it.
-				const int left = lineArea.position.x
-				    + std::max(0, (lineArea.size.width - GetLineWidth(line)) / 2);
-				// Measured rather than assumed: the head is a translated item name, so its width is
-				// only knowable from the font that will actually draw it.
-				const int headWidth = GetLineWidth(head);
-				const Rectangle headArea { { left, lineArea.position.y }, { headWidth, lineHeight } };
-				const Rectangle tailArea { { left + headWidth, lineArea.position.y },
-					{ GetLineWidth(tail), lineHeight } };
-				DrawString(out, head, headArea, { InfoStringLineColors[i] | runFlags, 1, lineHeight });
-				DrawString(out, tail, tailArea, { UiFlags::ColorWhite | runFlags, 1, lineHeight });
-				if (newline == string_view::npos)
-					break;
-				start = newline + 1;
-				continue;
-			}
-			DrawString(out, line, lineArea,
-			    { InfoStringLineColors[i] | sharedFlags, 1, lineHeight });
-			if (newline == string_view::npos)
-				break;
-			start = newline + 1;
-		}
+		DrawString(out, text, textArea, { singleColor | sharedFlags, 1, m.lineStride });
+		return;
 	}
+	size_t start = 0;
+	for (int i = 0; i < m.lineCount; i++) {
+		const size_t newline = text.find('\n', start);
+		const string_view line = (newline == string_view::npos)
+		    ? text.substr(start)
+		    : text.substr(start, newline - start);
+		// Stepped by the stride, but each row's box is one line tall - the gap is the space
+		// between boxes, not part of them.
+		const Rectangle lineArea { textArea.position + Displacement { 0, i * m.lineStride },
+			{ textArea.size.width, m.lineHeight } };
+		// A line may be drawn in TWO runs: the head in its own colour and a white tail from
+		// InfoStringLineTailStart. The set panel's item list needs it - each piece's name is
+		// green or red while its slot "(helm)" is white (user request, 2026-08-16) - and one
+		// colour per line cannot say that. Zero, the value every other producer records, takes
+		// the single-run path below unchanged.
+		const size_t tailStart = i < static_cast<int>(tails.size()) ? tails[i] : 0;
+		if (tailStart > 0 && tailStart < line.size()) {
+			const string_view head = line.substr(0, tailStart);
+			const string_view tail = line.substr(tailStart);
+			// Bug (fixed 2026-08-17, user: "white letters overlap the green one, when there is
+			// obviously enough space to avoid it"). Both runs were drawn with the shared
+			// AlignCenter flag: the head centred inside the FULL line box, the tail centred
+			// inside whatever was left of it to the right. Two independent centrings, so the
+			// white slot label landed on top of the green item name every time.
+			//
+			// The pair is centred as ONE line now, then laid out left to right from that origin.
+			const int left = lineArea.position.x
+			    + std::max(0, (lineArea.size.width - GetLineWidth(line)) / 2);
+			const int headWidth = GetLineWidth(head);
+			const Rectangle headArea { { left, lineArea.position.y }, { headWidth, m.lineHeight } };
+			const Rectangle tailArea { { left + headWidth, lineArea.position.y },
+				{ GetLineWidth(tail), m.lineHeight } };
+			DrawString(out, head, headArea, { colors[i] | runFlags, 1, m.lineHeight });
+			DrawString(out, tail, tailArea, { UiFlags::ColorWhite | runFlags, 1, m.lineHeight });
+		} else {
+			DrawString(out, line, lineArea, { colors[i] | sharedFlags, 1, m.lineHeight });
+		}
+		if (newline == string_view::npos)
+			break;
+		start = newline + 1;
+	}
+}
+
+/**
+ * @brief The item under the cursor in a CONTAINER - the backpack grid (any tab) or the stash - or
+ * nullptr. Equipped slots and the belt are deliberately not containers here: comparing a worn
+ * helm to itself says nothing, and a potion has no slot to compare against.
+ */
+const Item *HoveredContainerItem()
+{
+	if (pcursstashitem != StashStruct::EmptyCell)
+		return &Stash.stashList[pcursstashitem];
+	Player &player = *InspectPlayer;
+	if (ActiveTabItemHovered && pcursinvtabitem >= 0)
+		return &GetActiveInvListItem(player, pcursinvtabitem);
+	if (pcursinvitem >= INVITEM_INV_FIRST && pcursinvitem <= INVITEM_INV_LAST)
+		return &player.InvList[pcursinvitem - INVITEM_INV_FIRST];
+	return nullptr;
+}
+
+/**
+ * @brief The worn slots @p item would take, whose occupants are worth comparing it with.
+ *
+ * Both ring fingers for a ring; for a one-hander the weapon hand, or the shield hand for a shield;
+ * for a two-hander both hands, since equipping it displaces both. The six Oracool slots map one to
+ * one. Only slots that actually hold something come back.
+ */
+std::vector<inv_body_loc> EquippedCounterparts(const Player &player, const Item &item)
+{
+	std::vector<inv_body_loc> slots;
+	const auto add = [&](inv_body_loc loc) {
+		if (!player.InvBody[loc].isEmpty())
+			slots.push_back(loc);
+	};
+	switch (player.GetItemLocation(item)) {
+	case ILOC_HELM:
+		add(INVLOC_HEAD);
+		break;
+	case ILOC_ARMOR:
+		add(INVLOC_CHEST);
+		break;
+	case ILOC_AMULET:
+		add(INVLOC_AMULET);
+		break;
+	case ILOC_RING:
+		add(INVLOC_RING_LEFT);
+		add(INVLOC_RING_RIGHT);
+		break;
+	case ILOC_ONEHAND:
+		if (item._itype == ItemType::Shield) {
+			// A shield goes in the off hand - unless a two-hander fills both, which it displaces.
+			const Item &left = player.InvBody[INVLOC_HAND_LEFT];
+			if (!left.isEmpty() && player.GetItemLocation(left) == ILOC_TWOHAND)
+				add(INVLOC_HAND_LEFT);
+			else
+				add(INVLOC_HAND_RIGHT);
+		} else {
+			add(INVLOC_HAND_LEFT);
+		}
+		break;
+	case ILOC_TWOHAND:
+		add(INVLOC_HAND_LEFT);
+		add(INVLOC_HAND_RIGHT);
+		break;
+	case ILOC_SHOULDERS:
+		add(INVLOC_SHOULDERS);
+		break;
+	case ILOC_BRACERS:
+		add(INVLOC_BRACERS);
+		break;
+	case ILOC_GLOVES:
+		add(INVLOC_GLOVES);
+		break;
+	case ILOC_WAIST:
+		add(INVLOC_WAIST);
+		break;
+	case ILOC_LEGS:
+		add(INVLOC_LEGS);
+		break;
+	case ILOC_BOOTS:
+		add(INVLOC_BOOTS);
+		break;
+	default:
+		break;
+	}
+	return slots;
+}
+
+/**
+ * @brief @p item's tooltip block, exactly as hovering it would print it - the same three lines the
+ * stash and the backpack use (name in its tier colour, then PrintItemDetails or PrintItemDur) -
+ * captured out of the panel-string store and the store put back as it was.
+ *
+ * Through the store rather than a second describer, so the comparison can never disagree with the
+ * hover it sits beside: there is one item printer, and this borrows it.
+ */
+TooltipBlock CaptureItemBlock(const Item &item)
+{
+	const std::string savedText { InfoString.str() };
+	const std::vector<UiFlags> savedColors = InfoStringLineColors;
+	const std::vector<uint16_t> savedTails = InfoStringLineTailStart;
+
+	ClearPanelStrings();
+	SetPanelString(item.getName(), item.getTextColor());
+	if (item._iIdentified)
+		PrintItemDetails(item);
+	else
+		PrintItemDur(item);
+
+	TooltipBlock block { std::string(InfoString.str()), InfoStringLineColors, InfoStringLineTailStart };
+
+	InfoString.AssignKeepingLineColors(std::string(savedText));
+	InfoStringLineColors = savedColors;
+	InfoStringLineTailStart = savedTails;
+	return block;
+}
+
+} // namespace
+
+void DrawCursorTooltip(const Surface &out)
+{
+	PrevTooltipRect = {};
+
+	if (talkflag || InfoString.empty())
+		return;
+
+	const bool asPanel = IsHoveringItem();
+	const BlockMetrics m = MeasureBlock(InfoString.str(), asPanel);
+	const Size boxSize = m.boxSize;
+
+	// The upper bounds are floored at 0 rather than used raw: std::clamp is undefined when hi < lo,
+	// which is what a box wider or taller than the screen would produce. Unlikely with a 12pt font
+	// on a 960-wide canvas, but the item panel made it reachable in a way the one-line tooltip
+	// never was, and UnsafeDrawBorder2px below does no clipping of its own.
+	const int maxX = std::max(0, static_cast<int>(gnScreenWidth) - boxSize.width);
+	const int maxY = std::max(0, static_cast<int>(gnScreenHeight) - boxSize.height);
+
+	Point origin { MousePosition.x - boxSize.width / 2, MousePosition.y - boxSize.height - GapAboveCursor };
+	origin.x = std::clamp(origin.x, 0, maxX);
+	// Near the top of the screen there is no room above the cursor, so fall below it instead of
+	// letting the text sit on top of what is being hovered. A tall item panel hits this often.
+	if (origin.y < 0)
+		origin.y = std::min(MousePosition.y + GapAboveCursor, maxY);
+	origin.y = std::clamp(origin.y, 0, maxY);
+
+	const Rectangle box { origin, boxSize };
+	DrawBlock(out, box, m, InfoString.str(), InfoStringLineColors, InfoStringLineTailStart, InfoColor, asPanel);
 
 	// The outline bleeds a pixel past the glyphs, so the region the dirty-rect path has to erase
 	// is slightly larger than the text box itself. The panel's border is already inside `box`.
 	const int bleed = asPanel ? 0 : 2;
 	PrevTooltipRect = { { origin.x - bleed, origin.y - bleed },
 		{ boxSize.width + bleed * 2, boxSize.height + bleed * 2 } };
+
+	// THE COMPARISON (user, 2026-09-05: "add comparison tool tip (showing stats of equipped item)
+	// when hovering over items in stash/inv grid for easy comparison to equipped item of same item
+	// slot. equipped item tooltip to show title EQUIPPED ITEM somewhere (bottom or top of
+	// description in GREEN font)"). Beside the hovered item's panel - right of it, left when the
+	// right has no room - one panel per worn counterpart (two for a ring or a two-hander), each
+	// headed EQUIPPED ITEM in green and otherwise printed by the same item printer as the hover.
+	if (!asPanel)
+		return;
+	const Item *hovered = HoveredContainerItem();
+	if (hovered == nullptr || hovered->isEmpty())
+		return;
+	const Player &player = *InspectPlayer;
+	constexpr int SideGap = 6;
+	int nextRight = box.position.x + box.size.width + SideGap;
+	int nextLeft = box.position.x - SideGap;
+	for (const inv_body_loc loc : EquippedCounterparts(player, *hovered)) {
+		TooltipBlock block = CaptureItemBlock(player.InvBody[loc]);
+		block.text = std::string(_("EQUIPPED ITEM")) + "\n" + block.text;
+		block.colors.insert(block.colors.begin(), UiFlags::ColorOracoolGreen);
+		block.tails.insert(block.tails.begin(), 0);
+		const BlockMetrics cm = MeasureBlock(block.text, /*asPanel=*/true);
+		int cx;
+		if (nextRight + cm.boxSize.width <= static_cast<int>(gnScreenWidth)) {
+			cx = nextRight;
+			nextRight += cm.boxSize.width + SideGap;
+		} else {
+			cx = std::max(0, nextLeft - cm.boxSize.width);
+			nextLeft = cx - SideGap;
+		}
+		const int cy = std::clamp(box.position.y, 0, std::max(0, static_cast<int>(gnScreenHeight) - cm.boxSize.height));
+		const Rectangle cbox { { cx, cy }, cm.boxSize };
+		DrawBlock(out, cbox, cm, block.text, block.colors, block.tails, UiFlags::ColorWhite, /*asPanel=*/true);
+		// One dirty rect for the lot, so the erase pass covers every panel drawn this frame.
+		const int right = std::max(PrevTooltipRect.position.x + PrevTooltipRect.size.width, cbox.position.x + cbox.size.width);
+		const int bottom = std::max(PrevTooltipRect.position.y + PrevTooltipRect.size.height, cbox.position.y + cbox.size.height);
+		PrevTooltipRect.position.x = std::min(PrevTooltipRect.position.x, cbox.position.x);
+		PrevTooltipRect.position.y = std::min(PrevTooltipRect.position.y, cbox.position.y);
+		PrevTooltipRect.size = { right - PrevTooltipRect.position.x, bottom - PrevTooltipRect.position.y };
+	}
 }
 
 } // namespace devilution::oracool

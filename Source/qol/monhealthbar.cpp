@@ -16,6 +16,7 @@
 #include "engine/load_clx.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
+#include "multi.h" // sgGameInitInfo.nDifficulty - the XP a kill pays here
 #include "options.h"
 #include "oracool/aura_field.h"
 #include "oracool/lesser_uniques.h"
@@ -192,6 +193,38 @@ void DrawMonsterHealthBar(const Surface &out)
 	    { UiFlags::ColorBlack | UiFlags::AlignRight });
 	DrawString(out, monsterLevelText, monsterLevelRect,
 	    { UiFlags::ColorUiSilverDark | UiFlags::AlignRight });
+
+	// THE READOUT (user, 2026-09-05: "monsters Class/Hit Points/DMG/XP to be displayed under their
+	// healthbar. Font White/RED/White/Gold"). Four lines down the left under the bar, each with the
+	// same black offset the name and the mlvl wear, since this is drawn over the dungeon floor.
+	// Hit points in whole points (the engine keeps them in 64ths), damage as the melee range the
+	// monster rolls, XP as this difficulty pays for the kill - the same call the kill itself makes.
+	{
+		const auto className = [](MonsterClass monsterClass) -> string_view {
+			switch (monsterClass) {
+			case MonsterClass::Undead:
+				return _("Undead");
+			case MonsterClass::Demon:
+				return _("Demon");
+			case MonsterClass::Animal:
+				return _("Animal");
+			}
+			return "";
+		};
+		const std::string lines[] = {
+			fmt::format(fmt::runtime(_("Class: {:s}")), className(monster.data().monsterClass)),
+			fmt::format(fmt::runtime(_("Hit Points: {:d} / {:d}")), monster.hitPoints >> 6, monster.maxHitPoints >> 6),
+			fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), monster.minDamage, monster.maxDamage),
+			fmt::format(fmt::runtime(_("XP: {:d}")), monster.exp(sgGameInitInfo.nDifficulty)),
+		};
+		const UiFlags colors[] = { UiFlags::ColorWhite, UiFlags::ColorRed, UiFlags::ColorWhite, UiFlags::ColorGold };
+		constexpr int ReadoutLineHeight = 12;
+		for (int i = 0; i < 4; i++) {
+			const Rectangle line { position + Displacement { 5, height + 1 + i * ReadoutLineHeight }, { width - 10, ReadoutLineHeight } };
+			DrawString(out, lines[i], { line.position + Displacement { -1, 1 }, line.size }, { UiFlags::ColorBlack });
+			DrawString(out, lines[i], line, { colors[i] });
+		}
+	}
 	if (monster.isUnique() || MonsterKillCounts[monster.type().type] >= 15) {
 		monster_resistance immunes[] = { IMMUNE_MAGIC, IMMUNE_FIRE, IMMUNE_LIGHTNING };
 		monster_resistance resists[] = { RESIST_MAGIC, RESIST_FIRE, RESIST_LIGHTNING };
