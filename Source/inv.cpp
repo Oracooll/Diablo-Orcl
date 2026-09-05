@@ -2027,6 +2027,8 @@ void DrawInvBelt(const Surface &out)
 	// buttons - nothing to draw for them here. The old hotkey-number overlay is gone too: the
 	// art's baked-in 1-4 labels replace it.
 	for (int i = 1; i <= 4; i++) {
+		// Oracool: the gold plate under every item slot, filled or not (user, 2026-09-06).
+		oracool::DrawBeltSlotPlate(out, oracool::GetBeltSlotRect(i));
 		if (myPlayer.SpdList[i].isEmpty()) {
 			continue;
 		}

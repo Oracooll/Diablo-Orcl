@@ -1673,6 +1673,20 @@ void DrawBeltBacking(const Surface &out)
 		DrawStripIconScaledTo(out, asset, GetBeltSlotRect(i), /*index=*/0, /*unlocked=*/true);
 }
 
+void DrawBeltSlotPlate(const Surface &out, Rectangle cell)
+{
+	// The user's spec (2026-09-06): "34x34 [...] with a 2px outline within these 34x34px. outer
+	// pixel outline to be black. inner 1px outline to be gray. the net 30x30 to be the rest of the
+	// 34x34 backing." The rings are drawn as two filled squares, the plate covers what is left.
+	constexpr uint8_t Black = 0;
+	constexpr uint8_t Grey = PAL16_GRAY + 8;
+	FillRect(out, cell.position.x, cell.position.y, cell.size.width, cell.size.height, Black);
+	FillRect(out, cell.position.x + 1, cell.position.y + 1, cell.size.width - 2, cell.size.height - 2, Grey);
+	const Rectangle core { cell.position + Displacement { 2, 2 }, { cell.size.width - 4, cell.size.height - 4 } };
+	ApplyPlateTint(SkillPlateTint::Ready);
+	DrawSmallSpellIconCoveringClipped(out, core);
+}
+
 void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint)
 {

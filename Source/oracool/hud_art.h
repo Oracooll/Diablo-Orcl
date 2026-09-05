@@ -433,6 +433,13 @@ bool DrawSkillWellBacking(const Surface &out, Rectangle well);
 void DrawBeltBacking(const Surface &out);
 
 /**
+ * @brief The gold skill plate as a belt slot's backing (user, 2026-09-06): the whole @p cell, a
+ * one-pixel black ring at its edge, a one-pixel grey ring inside that, and the plate shrunk to cover
+ * the core between them. Drawn under the item, whether or not there is one.
+ */
+void DrawBeltSlotPlate(const Surface &out, Rectangle cell);
+
+/**
  * @brief The 40x39 box dead centre of the frame at @p origin, where the count is drawn.
  *
  * The size is the user's (2026-08-20: "in its center area in 40x39px area dead center in the

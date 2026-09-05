@@ -99,6 +99,7 @@
 #include "oracool/spell_ranks.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
+#include "oracool/hud_art.h"
 #include "oracool/item_tint.h"
 #include "oracool/ornate_border.h"
 #include "oracool/melee_skills.h"
@@ -112,6 +113,7 @@
 #include "DiabloUI/multi/selgame.h"
 #include "panels/charpanel.hpp"
 #include "panels/spell_book.hpp"
+#include "panels/spell_icons.hpp"
 #include "player.h"
 #include "playerdat.hpp"
 #include "qol/stash.h"
@@ -9940,4 +9942,40 @@ TEST(OracoolItemTint, TheHellfireRunesLandOnFourVividRamps)
 		EXPECT_GT(moved * 3, painted) << "rune " << rune.curs << " mostly paints off the ramp the table moves";
 	}
 	FreeCursor();
+}
+
+/**
+ * @brief A belt slot's plate is the user's rings: black at the edge, grey inside it, gold within.
+ *
+ * Drawn onto a blank surface the size of a belt cell and read back pixel by pixel - the plate is
+ * shrunk and clipped, and the one thing that would go wrong silently is a scaled plate a pixel
+ * short, which would show the fill under it as a third ring (user, 2026-09-06).
+ */
+TEST(OracoolAudit, TheBeltSlotPlateIsBlackThenGreyThenGold)
+{
+	LoadCoreArchives();
+	LoadGameArchives();
+	LoadSmallSpellIcons();
+	constexpr int Cell = 34;
+	OwnedSurface surf { Cell, Cell };
+	SDL_FillRect(surf.surface, nullptr, 77); // a colour none of the rings use
+	oracool::DrawBeltSlotPlate(surf, { { 0, 0 }, { Cell, Cell } });
+	int gold = 0;
+	for (int y = 0; y < Cell; y++) {
+		for (int x = 0; x < Cell; x++) {
+			const uint8_t c = *surf.at(x, y);
+			const int edge = std::min({ x, y, Cell - 1 - x, Cell - 1 - y });
+			if (edge == 0) {
+				EXPECT_EQ(c, 0) << "outer ring at " << x << "," << y;
+			} else if (edge == 1) {
+				EXPECT_EQ(c, PAL16_GRAY + 8) << "inner ring at " << x << "," << y;
+			} else {
+				EXPECT_NE(c, 77) << "the plate left the fill showing at " << x << "," << y;
+				EXPECT_NE(c, PAL16_GRAY + 8) << "the plate left the grey showing at " << x << "," << y;
+				if (c >= PAL16_YELLOW && c < PAL16_YELLOW + 16)
+					gold++;
+			}
+		}
+	}
+	EXPECT_GT(gold, 30 * 30 / 4) << "the core is not gold";
 }

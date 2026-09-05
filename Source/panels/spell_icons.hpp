@@ -84,6 +84,12 @@ void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell);
 void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell = SpellID::Null);
 
 /**
+ * @brief The blank plate scaled to COVER @p cell and clipped to it - the shrinking twin of the two
+ * above, for cells smaller than the plate (the belt). Uses the current translation table.
+ */
+void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell);
+
+/**
  * @brief The 56px sheet's frame centred in @p cell with no resampling - for the Abilities window,
  * whose cells are the sheet's own size.
  */

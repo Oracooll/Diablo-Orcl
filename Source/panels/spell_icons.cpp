@@ -474,4 +474,37 @@ void SetSpellTransRed()
 	SplTransTbl[PAL16_ORANGE + 15] = 0;
 }
 
+
+void DrawSmallSpellIconCoveringClipped(const Surface &out, Rectangle cell)
+{
+	if (!SmallSpellIcons)
+		return;
+	const Size natural = GetSmallSpellIconSize();
+	if (natural.width <= 0 || natural.height <= 0)
+		return;
+
+	// The plate SHRUNK to a cell smaller than itself, for the belt (user, 2026-09-06: "the gold
+	// backing to be 34x34 [...] the net 30x30 to be the rest"). The scaler truncates, so no one
+	// percentage lands a 37x38 plate on a square: 81 gives 29x30, 82 gives 30x31. Rounded UP so the
+	// plate covers the cell, then CLIPPED to it, so the extra row lands nowhere - a pixel short
+	// would show the black under it as a third ring.
+	const int percent = std::clamp(std::max((cell.size.width * 100 + natural.width - 1) / natural.width,
+	                                   (cell.size.height * 100 + natural.height - 1) / natural.height),
+	    25, 100);
+
+	static OptionalOwnedClxSpriteList shrunk;
+	static int shrunkPercent = 0;
+	if (!shrunk || shrunkPercent != percent) {
+		shrunk = oracool::ScaleClxList(ClxSpriteList { *SmallSpellIcons }, static_cast<unsigned>(percent));
+		shrunkPercent = percent;
+	}
+
+	const ClxSprite plate = (*shrunk)[SpellITbl[static_cast<int8_t>(SpellID::Null)]];
+	const Surface clipped = out.subregion(cell.position.x, cell.position.y, cell.size.width, cell.size.height);
+	// Centred on the overhang, which is at most one pixel per axis.
+	const Point centred { (cell.size.width - static_cast<int>(plate.width())) / 2,
+		(cell.size.height - static_cast<int>(plate.height())) / 2 };
+	ClxDrawTRN(clipped, { centred.x, centred.y + static_cast<int>(plate.height()) - 1 }, plate, SplTransTbl);
+}
+
 } // namespace devilution
