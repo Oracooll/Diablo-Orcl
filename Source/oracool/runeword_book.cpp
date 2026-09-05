@@ -145,25 +145,30 @@ bool PassesFilters(const RunewordDefinition &word)
 /** @brief The word's stat lines - every non-zero field the definition carries. */
 std::vector<std::string> StatLines(const RunewordDefinition &word)
 {
+	// The word's own bonuses, from the one describer the item panel uses (2026-09-05).
+	return RunewordBonusLines(word);
+}
+
+/**
+ * @brief What each of the word's runes does when set in the word's host, one line per rune
+ * (user, 2026-09-05: "show each rune's socket effect under the word in the book") - the other half
+ * of a finished word, which the book never showed.
+ */
+std::vector<std::string> RuneLines(const RunewordDefinition &word)
+{
 	std::vector<std::string> lines;
-	const auto add = [&lines](const char *label, int value, const char *suffix = "") {
-		if (value != 0)
-			lines.push_back(StrCat(label, " ", value > 0 ? "+" : "", value, suffix));
-	};
-	add("Damage", word.bonusDamagePercent, "%");
-	add("Damage", word.damageMod);
-	add("To Hit", word.toHit);
-	add("All Resist", word.allResists, "%");
-	add("Armor", word.bonusAc);
-	add("Spell Levels", word.spellLevels);
-	add("Mana", word.mana);
-	add("Life", word.hitPoints);
+	const SocketHost host = RunewordSocketHost(static_cast<RunewordHost>(word.host));
+	for (int i = 0; i < word.runeCount; i++) {
+		std::string line = GemSocketLine(word.runes[i], host);
+		if (!line.empty())
+			lines.push_back(std::move(line));
+	}
 	return lines;
 }
 
 int EntryHeight(const RunewordDefinition &word)
 {
-	return EntryHeaderHeight + static_cast<int>(StatLines(word).size()) * LineHeight;
+	return EntryHeaderHeight + static_cast<int>(StatLines(word).size() + RuneLines(word).size()) * LineHeight;
 }
 
 std::vector<const RunewordDefinition *> VisibleWords()
@@ -322,6 +327,13 @@ void DrawEntry(const Surface &out, const RunewordDefinition &word, Rectangle rec
 	for (const std::string &line : StatLines(word)) {
 		DrawString(out, line, Rectangle { { rect.position.x, y }, { rect.size.width, LineHeight } },
 		    { UiFlags::ColorWhite | UiFlags::FontSize12 });
+		y += LineHeight;
+	}
+	// Then the runes' own socket effects, in the tier colour the runes wear on their plates, so the
+	// two halves read as two halves.
+	for (const std::string &line : RuneLines(word)) {
+		DrawString(out, line, Rectangle { { rect.position.x, y }, { rect.size.width, LineHeight } },
+		    { UiFlags::ColorOrange | UiFlags::FontSize12 });
 		y += LineHeight;
 	}
 }

@@ -14,8 +14,11 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "itemdat.h"
+#include "items.h"        // ItemSpecialEffect - a word's flag bonuses
+#include "oracool/gems.h" // SocketHost - what a word's runes do in its host
 
 namespace devilution {
 struct Item;
@@ -68,7 +71,33 @@ struct RunewordDefinition {
 	int spellLevels;
 	int mana; // whole points
 	int hitPoints; // whole points
+	// THE SECOND HALF (2026-09-05, user: "all runewords provide only 3 additional affixes. is that
+	// it?" - it was). The engine's own channels, so a word can carry what Diablo II's words carried
+	// in spirit: speed, steal, knockback and thorns as flags; the four attributes; the find chances;
+	// flat damage reduction; light; a single resistance where a word favours one element.
+	ItemSpecialEffect flags;
+	int strength;
+	int dexterity;
+	int magic;
+	int vitality;
+	int magicFind; // percent
+	int goldFind;  // percent
+	int damageReduction; // flat, off every hit taken
+	int lightRadius;
+	int fireResist;
+	int lightningResist;
+	int magicResist;
 };
+
+/**
+ * @brief Every bonus the word grants on its own, one line each, in the item panel's voice:
+ * "Damage +12%", "Faster attack", "Strength +10". Feeds the item panel and the runeword book, so
+ * the two cannot describe one word two ways.
+ */
+std::vector<std::string> RunewordBonusLines(const RunewordDefinition &word);
+
+/** @brief The socket-effect group a word's host uses - what its runes do when set in that host. */
+SocketHost RunewordSocketHost(RunewordHost host);
 
 /** @brief How many words the table holds - the wiki and the tests both ask. */
 size_t RunewordCount();

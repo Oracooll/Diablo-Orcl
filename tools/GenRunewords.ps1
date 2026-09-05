@@ -154,6 +154,96 @@ function Get-Name([int]$seed) {
 
 # How many words each (host, length) pair gets. Short words are the common early finds, so there
 # are more of them; a six-rune word is an endgame chase and there are few.
+# THE SECOND HALF (2026-09-05, user: "all runewords provide only 3 additional affixes. is that it?").
+# Two sources. Diablo II's own words get their SIGNATURE, translated into this engine's channels with
+# this fork's own numbers (the D2 lines are Blizzard's; what a word is FOR is the homage): Steel's
+# attack speed, Malice's open wounds as flat damage, Rhyme's gold and magic find, Enigma's running
+# and life, Grief's damage, and so on. Every other word draws two extras from a pool keyed by its
+# host family and its deepest rune, so no two neighbours on the ladder carry the same pair.
+#
+# Channels: flags (FasterAttack, FastAttack, StealLife5, StealMana5, Knockback, Thorns,
+# TripleDemonDamage, FastBlock, FasterHitRecovery), str/dex/mag/vit, mf/gf (percent), dr (flat
+# damage reduction), light, fire/light/magic (single resistances), and the first half's spell
+# levels where D2 gave "+N to all skills".
+$signature = @{
+    'Steel'              = @{ flags = 'FasterAttack'; light = 1 }
+    'Nadir'              = @{ str = 5; dr = 3; gf = -33 }
+    'Malice'             = @{ dmgModPlus = 9; drainLife = $true }
+    'Stealth'            = @{ dex = 6; flags = 'FasterHitRecovery'; magic = 3 }
+    'Leaf'               = @{ spell = 1; fire = 15; mag = 5 }
+    'Zephyr'             = @{ flags = 'FasterAttack'; light = 25; lightRes = 20 }
+    "Ancient's Pledge"   = @{ fire = 10; lightRes = 10; magicRes = 10 }
+    "King's Grace"       = @{ flags = 'StealLife5, TripleDemonDamage'; fire = 10 }
+    'Edge'               = @{ flags = 'Thorns, FasterAttack'; gf = 50 }
+    'Radiance'           = @{ mag = 10; vit = 10; dr = 7; light = 5 }
+    'Lore'               = @{ spell = 1; mag = 10; dr = 7; light = 2; lightRes = 30 }
+    'Rhyme'              = @{ flags = 'FastBlock'; gf = 50; mf = 25 }
+    'Peace'              = @{ spell = 1; flags = 'FasterHitRecovery'; dex = 5 }
+    'Myth'               = @{ spell = 1; flags = 'FasterHitRecovery'; str = 5; gf = 30 }
+    'Black'              = @{ flags = 'Knockback, FasterAttack'; vit = 10; dr = 2 }
+    'White'              = @{ spell = 2; vit = 10; dr = 4; mana = 13 }
+    'Smoke'              = @{ flags = 'FasterHitRecovery'; mag = 10; dr = 5; light = -1 }
+    'Splendor'           = @{ spell = 1; flags = 'FastBlock'; mf = 20; light = 3 }
+    'Lionheart'          = @{ str = 25; mag = 10; vit = 20; dex = 15 }
+    'Melody'             = @{ flags = 'FasterAttack, Knockback'; dex = 10; spell = 1 }
+    'Lawbringer'         = @{ flags = 'Knockback, StealLife5'; fire = 15; lightRes = 15 }
+    'Duress'             = @{ flags = 'FasterHitRecovery'; dmgModPlus = 15; fire = 15 }
+    'Gloom'              = @{ flags = 'FasterHitRecovery'; str = 10; dr = 8; light = -3 }
+    'Prudence'           = @{ flags = 'FasterHitRecovery'; dr = 10; mag = 5; light = 2 }
+    'Wealth'             = @{ gf = 150; mf = 50; dex = 10 }
+    'Bramble'            = @{ flags = 'Thorns, FasterHitRecovery'; magicRes = 25; vit = 10 }
+    'Enigma'             = @{ spell = 2; str = 10; vit = 15; mf = 40; dr = 8 }
+    'Principle'          = @{ spell = 2; vit = 10; magicRes = 20; light = 2 }
+    'Passion'            = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 20 }
+    'Chaos'              = @{ flags = 'FasterAttack'; str = 10; dmgModPlus = 30; lightRes = 20 }
+    'Delirium'           = @{ spell = 2; gf = 50; mf = 30; dr = 5 }
+    'Fury'               = @{ flags = 'FasterAttack, StealLife5, Knockback'; dmgModPlus = 25 }
+    'Kingslayer'         = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 30; str = 10 }
+    'Rift'               = @{ flags = 'StealMana5'; fire = 20; lightRes = 20; mag = 10 }
+    'Oath'               = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 40; magicRes = 15 }
+    'Spirit'             = @{ spell = 2; flags = 'FastBlock, FasterHitRecovery'; vit = 22; mag = 15; mf = 20 }
+    'Beast'              = @{ flags = 'FasterAttack, StealLife5'; str = 25; dmgModPlus = 40 }
+    'Enlightenment'      = @{ spell = 2; mag = 20; fire = 20; light = 3 }
+    'Obedience'          = @{ flags = 'FasterAttack'; dmgModPlus = 40; fire = 20; lightRes = 20; magicRes = 20 }
+    'Venom'              = @{ flags = 'StealMana5, Knockback'; dmgModPlus = 35 }
+    'Wrath'              = @{ flags = 'TripleDemonDamage, StealLife5'; dmgModPlus = 40; magicRes = 15 }
+    'Exile'              = @{ flags = 'FastBlock, StealLife5, Thorns'; vit = 15; dr = 10 }
+    'Famine'             = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 50; fire = 15; lightRes = 15 }
+    'Gospel'             = @{ spell = 1; mag = 10; vit = 10; gf = 100 }
+    'Hand of Justice'    = @{ flags = 'FasterAttack, StealLife5'; fire = 20; dmgModPlus = 45 }
+    'Heart of the Oak'   = @{ spell = 3; mag = 20; vit = 15; fire = 20; lightRes = 20; magicRes = 20 }
+    'Pride'              = @{ flags = 'TripleDemonDamage'; dmgModPlus = 50; str = 15; light = 3 }
+    'Dragon'             = @{ fire = 30; str = 10; vit = 10; dr = 10 }
+    'Dream'              = @{ spell = 2; lightRes = 30; mag = 15; mf = 25; flags = 'FasterHitRecovery' }
+    'Insight'            = @{ spell = 2; mag = 25; mana = 40; flags = 'FasterAttack' }
+    'Harmony'            = @{ flags = 'FasterAttack, Knockback'; dex = 15; fire = 10; lightRes = 10 }
+    'Ice'                = @{ flags = 'FasterAttack, Knockback'; dmgModPlus = 40; magicRes = 25 }
+    'Faith'              = @{ flags = 'FasterAttack, StealLife5'; dex = 20; spell = 1; dmgModPlus = 35 }
+    'Destruction'        = @{ flags = 'FasterAttack, StealLife5, Knockback'; dmgModPlus = 60; fire = 20 }
+    'Doom'               = @{ spell = 2; flags = 'FasterAttack, StealLife5'; dmgModPlus = 60; magicRes = 20 }
+    'Call to Arms'       = @{ spell = 2; flags = 'FasterAttack, StealLife5'; vit = 20; mana = 30 }
+    'Brand'              = @{ flags = 'FasterAttack, TripleDemonDamage, Knockback'; dmgModPlus = 50 }
+    'Death'              = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 70; lightRes = 25 }
+    'Grief'              = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 90; dr = 5 }
+    'Fortitude'          = @{ spell = 1; vit = 20; fire = 20; lightRes = 20; magicRes = 20; dr = 10 }
+    'Breath of the Dying' = @{ flags = 'FasterAttack, StealLife5, StealMana5'; str = 30; dex = 30; dmgModPlus = 100 }
+}
+# The pools for every other word, by host family. Each entry is a hashtable of extras; the numeric
+# ones scale with the word's unit so a deep word's extras are deeper.
+$weaponPool = @(
+    @{ flags = 'FasterAttack' }, @{ flags = 'StealLife5' }, @{ flags = 'StealMana5' }, @{ flags = 'Knockback' },
+    @{ flags = 'TripleDemonDamage' }, @{ strScaled = 2 }, @{ dexScaled = 2 }, @{ light = 2 }, @{ flags = 'FastAttack' },
+    @{ dmgScaled = 3 }, @{ mfScaled = 3 }
+)
+$shieldPool = @(
+    @{ flags = 'FastBlock' }, @{ flags = 'Thorns' }, @{ drScaled = 1 }, @{ fireScaled = 3 }, @{ lightResScaled = 3 },
+    @{ magicResScaled = 3 }, @{ vitScaled = 2 }, @{ flags = 'FasterHitRecovery' }, @{ light = 1 }, @{ gfScaled = 6 }
+)
+$armorPool = @(
+    @{ flags = 'FasterHitRecovery' }, @{ flags = 'Thorns' }, @{ vitScaled = 2 }, @{ magScaled = 2 }, @{ drScaled = 1 },
+    @{ mfScaled = 4 }, @{ gfScaled = 8 }, @{ fireScaled = 3 }, @{ lightResScaled = 3 }, @{ magicResScaled = 3 },
+    @{ light = 1 }, @{ strScaled = 2 }, @{ dexScaled = 2 }
+)
 $countsByLength = @{ 2 = 12; 3 = 10; 4 = 9; 5 = 5; 6 = 4 }
 
 $rows = New-Object System.Collections.ArrayList
@@ -168,7 +258,6 @@ function New-Row($name, $hostId, $positions) {
     $runeList = @($positions | ForEach-Object { "IDI_ORACOOL_RUNE_$($script:ladder[$_].ToUpper())" })
     $len = $runeList.Count
     while ($runeList.Count -lt 6) { $runeList += '0' }
-
     $unit = [Math]::Max(1, [int][Math]::Round($depth / 4.0))
     $dmgPct = 0; $dmgMod = 0; $toHit = 0; $res = 0; $ac = 0; $spell = 0; $mana = 0; $life = 0
     switch ($hostId) {
@@ -183,8 +272,47 @@ function New-Row($name, $hostId, $positions) {
         'Legs' { $ac = $unit * 3; $life = $unit * 2 }
         'Boots' { $ac = $unit * 2; $life = $unit; $res = [Math]::Min(25, [int]($unit * 0.6)) }
     }
-    return ("`t{{ N_(`"{0}`"), static_cast<uint8_t>(RunewordHost::{1}), {2}, {{ {3} }}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11} }}, // deepest {12}" -f `
-            $name, $hostId, $len, ($runeList -join ', '), $dmgPct, $dmgMod, $toHit, $res, $ac, $spell, $mana, $life, $script:ladder[$deepest])
+    # The second half.
+    $x = @{ flags = @(); str = 0; dex = 0; mag = 0; vit = 0; mf = 0; gf = 0; dr = 0; light = 0; fire = 0; lightRes = 0; magicRes = 0 }
+    $apply = {
+        param($extra)
+        foreach ($k in $extra.Keys) {
+            $v = $extra[$k]
+            switch ($k) {
+                'flags' { $x.flags += ($v -split ',\s*') }
+                'str' { $x.str += $v } 'dex' { $x.dex += $v } 'mag' { $x.mag += $v } 'vit' { $x.vit += $v }
+                'mf' { $x.mf += $v } 'gf' { $x.gf += $v } 'dr' { $x.dr += $v } 'light' { $x.light += $v }
+                'fire' { $x.fire += $v } 'lightRes' { $x.lightRes += $v } 'magicRes' { $x.magicRes += $v }
+                'spell' { $script:spellExtra += $v }
+                'mana' { $script:manaExtra += $v }
+                'dmgModPlus' { $script:dmgModExtra += $v }
+                'magic' { $x.mag += $v }
+                'drainLife' { }
+                'strScaled' { $x.str += $v * $unit } 'dexScaled' { $x.dex += $v * $unit } 'magScaled' { $x.mag += $v * $unit }
+                'vitScaled' { $x.vit += $v * $unit } 'mfScaled' { $x.mf += $v * $unit } 'gfScaled' { $x.gf += $v * $unit }
+                'drScaled' { $x.dr += $v * $unit } 'fireScaled' { $x.fire += [Math]::Min(40, $v * $unit) }
+                'lightResScaled' { $x.lightRes += [Math]::Min(40, $v * $unit) } 'magicResScaled' { $x.magicRes += [Math]::Min(40, $v * $unit) }
+                'dmgScaled' { $script:dmgModExtra += $v * $unit }
+            }
+        }
+    }
+    $script:spellExtra = 0; $script:manaExtra = 0; $script:dmgModExtra = 0
+    if ($signature.ContainsKey($name)) {
+        & $apply $signature[$name]
+    } else {
+        $pool = switch ($hostId) { 'Weapon' { $weaponPool } 'Shield' { $shieldPool } default { $armorPool } }
+        $a = ($deepest * 7 + $len) % $pool.Count
+        $b = ($depth * 3 + 5) % $pool.Count
+        if ($b -eq $a) { $b = ($b + 1) % $pool.Count }
+        & $apply $pool[$a]
+        & $apply $pool[$b]
+    }
+    $spell += $script:spellExtra; $mana += $script:manaExtra; $dmgMod += $script:dmgModExtra
+    $flagList = @($x.flags | Select-Object -Unique)
+    $flagText = if ($flagList.Count -eq 0) { 'ItemSpecialEffect::None' } else { ($flagList | ForEach-Object { "ItemSpecialEffect::$_" }) -join ' | ' }
+    return ("`t{{ N_(`"{0}`"), static_cast<uint8_t>(RunewordHost::{1}), {2}, {{ {3} }}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17}, {18}, {19}, {20}, {21}, {22}, {23} }}, // deepest {24}" -f `
+            $name, $hostId, $len, ($runeList -join ', '), $dmgPct, $dmgMod, $toHit, $res, $ac, $spell, $mana, $life, `
+            $flagText, $x.str, $x.dex, $x.mag, $x.vit, $x.mf, $x.gf, $x.dr, $x.light, $x.fire, $x.lightRes, $x.magicRes, $script:ladder[$deepest])
 }
 
 function Get-SequenceKey($hostId, $positions) { return "$hostId|" + ($positions -join ',') }

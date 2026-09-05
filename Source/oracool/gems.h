@@ -93,6 +93,9 @@ enum class SocketHost : uint8_t {
 /** @brief Which effect group @p hostType's sockets use. */
 SocketHost SocketHostForItemType(ItemType hostType);
 
+/** @brief The item-panel words for a set of special-effect flags ("faster attack, life steal"); empty for none. */
+std::string FlagText(ItemSpecialEffect flags);
+
 /**
  * @brief Whether @p item may receive sockets at drop time.
  *

@@ -6224,19 +6224,11 @@ void PrintItemDetails(const Item &item)
 	//
 	// Formatted from the definition's own fields rather than from a second table, so a word whose
 	// numbers are retuned cannot end up describing its old ones.
+	// One describer for the panel and the runeword book (RunewordBonusLines), since 2026-09-05
+	// when the words grew their second half - flags, attributes, finds, reduction, light.
 	if (const oracool::RunewordDefinition *word = oracool::GetActiveRuneword(item); word != nullptr) {
-		const auto line = [&item](const char *label, int value, const char *suffix = "") {
-			if (value != 0)
-				AddPanelString(fmt::format(fmt::runtime(_("{:s} {:s}{:d}{:s}")), _(label), value > 0 ? "+" : "", value, suffix), ItemAffixColor);
-		};
-		line(N_("Damage"), word->bonusDamagePercent, "%");
-		line(N_("Damage"), word->damageMod);
-		line(N_("To Hit"), word->toHit, "%");
-		line(N_("All Resistances"), word->allResists, "%");
-		line(N_("Armor"), word->bonusAc);
-		line(N_("Spell Levels"), word->spellLevels);
-		line(N_("Mana"), word->mana);
-		line(N_("Life"), word->hitPoints);
+		for (const std::string &line : oracool::RunewordBonusLines(*word))
+			AddPanelString(line, ItemAffixColor);
 	}
 	// Phase 1 sockets: the socket line and one line per set gem, each in the gem economy's own
 	// voice. The empty-socket count is the item's pitch - "Sockets: 1/3" is an invitation.

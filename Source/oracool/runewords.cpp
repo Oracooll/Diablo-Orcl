@@ -1,5 +1,6 @@
 #include "oracool/runewords.h"
 
+#include <cctype>
 #include <cstring>
 
 #include <fmt/format.h>
@@ -132,6 +133,19 @@ void ApplyRunewordToTotals(const RunewordDefinition &word, ItemBonusTotals &tota
 	totals.spellLevelAdd += word.spellLevels;
 	totals.mana += word.mana << 6;
 	totals.hitPoints += word.hitPoints << 6;
+	// The second half (2026-09-05), through the same channels the runes' socket effects use.
+	totals.flags |= word.flags;
+	totals.strength += word.strength;
+	totals.dexterity += word.dexterity;
+	totals.magic += word.magic;
+	totals.vitality += word.vitality;
+	totals.magicFind += word.magicFind;
+	totals.goldFind += word.goldFind;
+	totals.getHit -= word.damageReduction;
+	totals.lightRadius += word.lightRadius;
+	totals.fireResist += word.fireResist;
+	totals.lightningResist += word.lightningResist;
+	totals.magicResist += word.magicResist;
 }
 
 std::string RuneTeachingLines(uint16_t runeIdx)
@@ -190,6 +204,55 @@ bool TryCompleteRuneword(Item &item)
 	CopyUtf8(item._iIName, std::string(_(word->name)), sizeof(item._iIName));
 	item._iIdentified = true;
 	return true;
+}
+
+std::vector<std::string> RunewordBonusLines(const RunewordDefinition &word)
+{
+	std::vector<std::string> lines;
+	const auto line = [&lines](const char *label, int value, const char *suffix = "") {
+		if (value != 0)
+			lines.push_back(fmt::format(fmt::runtime(_("{:s} {:s}{:d}{:s}")), _(label), value > 0 ? "+" : "", value, suffix));
+	};
+	line(N_("Damage"), word.bonusDamagePercent, "%");
+	line(N_("Damage"), word.damageMod);
+	line(N_("To Hit"), word.toHit, "%");
+	line(N_("All Resistances"), word.allResists, "%");
+	line(N_("Fire Resistance"), word.fireResist, "%");
+	line(N_("Lightning Resistance"), word.lightningResist, "%");
+	line(N_("Magic Resistance"), word.magicResist, "%");
+	line(N_("Armor"), word.bonusAc);
+	line(N_("Spell Levels"), word.spellLevels);
+	line(N_("Mana"), word.mana);
+	line(N_("Life"), word.hitPoints);
+	line(N_("Strength"), word.strength);
+	line(N_("Dexterity"), word.dexterity);
+	line(N_("Magic"), word.magic);
+	line(N_("Vitality"), word.vitality);
+	line(N_("Magic Find"), word.magicFind, "%");
+	line(N_("Gold Find"), word.goldFind, "%");
+	line(N_("Damage Reduced"), word.damageReduction);
+	line(N_("Light Radius"), word.lightRadius);
+	// The flags in the socket effects' own words ("faster attack, life steal"), capitalised as a line.
+	if (word.flags != ItemSpecialEffect::None) {
+		std::string text = FlagText(word.flags);
+		if (!text.empty()) {
+			text[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(text[0])));
+			lines.push_back(std::move(text));
+		}
+	}
+	return lines;
+}
+
+SocketHost RunewordSocketHost(RunewordHost host)
+{
+	switch (host) {
+	case RunewordHost::Weapon:
+		return SocketHost::Weapon;
+	case RunewordHost::Shield:
+		return SocketHost::Shield;
+	default:
+		return SocketHost::Armor;
+	}
 }
 
 } // namespace devilution::oracool
