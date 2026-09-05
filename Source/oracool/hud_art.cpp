@@ -1894,17 +1894,36 @@ Size GetClassTreeIconSize(HeroClass heroClass)
  *
  * @return true if it drew, in which case the caller must draw neither plate nor icon.
  */
+/** @brief A glyph's size on the picker's 37x38 backing (user, 2026-09-05): 32, so the plate's edge shows around it. */
+constexpr Size GlyphPickerSize { 32, 32 };
+
+/** @brief GlyphPickerSize centred in @p cell. */
+Rectangle GlyphPickerRect(Rectangle cell)
+{
+	return { { cell.position.x + (cell.size.width - GlyphPickerSize.width) / 2,
+		         cell.position.y + (cell.size.height - GlyphPickerSize.height) / 2 },
+		GlyphPickerSize };
+}
+
 bool TryDrawGlyphInWell(const Surface &out, Rectangle well, HeroClass heroClass, int skillIndex)
 {
 	ArtAsset &strip = TreeStripFor(heroClass);
 	const int frame = StripIconSize(strip).width;
 	const Rectangle plate = SkillWellPlateRect(well);
-	if (!IsGlyphFrame(strip, skillIndex, frame) || plate.size.width < frame || plate.size.height < frame)
+	if (!IsGlyphFrame(strip, skillIndex, frame))
 		return false;
 	DrawSpellIconFittedTo(out, plate);
-	DrawStripIcon(out, strip,
-	    { plate.position.x + (plate.size.width - frame) / 2, plate.position.y + (plate.size.height - frame) / 2 },
-	    skillIndex, /*unlocked=*/true);
+	if (plate.size.width >= frame && plate.size.height >= frame) {
+		DrawStripIcon(out, strip,
+		    { plate.position.x + (plate.size.width - frame) / 2, plate.position.y + (plate.size.height - frame) / 2 },
+		    skillIndex, /*unlocked=*/true);
+		return true;
+	}
+	// The picker's 37x38 backing: the glyph at GlyphPickerSize, centred (user, 2026-09-05: "scale
+	// the white skill icons further down to about 32x32px when they are displayed on the 37x38
+	// backing in the skill pickers"). DrawStripIconScaledTo fits the glyph's own 40px bbox to the
+	// rect, so 32 here is the glyph's size, not the frame's.
+	DrawStripIconScaledTo(out, strip, GlyphPickerRect(well), skillIndex, /*unlocked=*/true);
 	return true;
 }
 
@@ -2090,10 +2109,14 @@ void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, b
 	{
 		const int frame = StripIconSize(AttackIconsArt).width;
 		const Rectangle plate = SkillWellPlateRect(well);
-		if (IsGlyphFrame(AttackIconsArt, iconIndex, frame) && plate.size.width >= frame && plate.size.height >= frame) {
-			DrawStripIcon(out, AttackIconsArt,
-			    { plate.position.x + (plate.size.width - frame) / 2, plate.position.y + (plate.size.height - frame) / 2 },
-			    iconIndex, /*unlocked=*/true);
+		if (IsGlyphFrame(AttackIconsArt, iconIndex, frame)) {
+			if (plate.size.width >= frame && plate.size.height >= frame) {
+				DrawStripIcon(out, AttackIconsArt,
+				    { plate.position.x + (plate.size.width - frame) / 2, plate.position.y + (plate.size.height - frame) / 2 },
+				    iconIndex, /*unlocked=*/true);
+			} else {
+				DrawStripIconScaledTo(out, AttackIconsArt, GlyphPickerRect(well), iconIndex); // the picker's 32 - see TryDrawGlyphInWell
+			}
 			return;
 		}
 	}
