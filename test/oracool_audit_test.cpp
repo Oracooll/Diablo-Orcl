@@ -3423,15 +3423,19 @@ TEST(OracoolAudit2, StashAutoPlaceReachesEveryRowOfThePage)
 	Stash.stashGrids.clear();
 	Stash.SetPage(0);
 
-	devilution::Item potion {};
-	InitializeItem(potion, IDI_HEAL);
-	ASSERT_EQ(GetInventorySize(potion), (Size { 1, 1 })) << "test assumes a one-cell item";
+	// A ring, not a potion: since 2026-09-05 the stash MERGES stackable kinds on deposit, so a
+	// hundred potions would become one stack of 99 and a single, and the page would rightly stay
+	// empty. This test is about the placement scan, so it needs a one-cell item that cannot stack.
+	devilution::Item ring {};
+	InitializeItem(ring, IDI_TRING);
+	ASSERT_EQ(GetInventorySize(ring), (Size { 1, 1 })) << "test assumes a one-cell item";
+	ASSERT_FALSE(ring.isStackableConsumable()) << "test assumes an item that cannot stack";
 
 	// Exactly one page's worth. Under the bug only 100 of these fit before the scan gave up and
 	// wrapped to page 1.
 	constexpr int CellsPerPage = StashGridColumns * StashGridRows;
 	for (int i = 0; i < CellsPerPage; i++)
-		ASSERT_TRUE(AutoPlaceItemInStash(player, potion, true)) << "placement failed at item " << i;
+		ASSERT_TRUE(AutoPlaceItemInStash(player, ring, true)) << "placement failed at item " << i;
 
 	EXPECT_EQ(Stash.stashGrids.size(), 1u) << "a full page's worth of items spilled onto a second page";
 	for (int y = 0; y < StashGridRows; y++) {
@@ -9763,4 +9767,60 @@ TEST(OracoolAudit, TheSkillFactsQuoteWhatTheModulesRoll)
 	EXPECT_NE(SkillFactsAt(SpellID::FrozenArmor, 1).find("Duration:"), std::string::npos);
 	// A spell no module describes says nothing rather than something made up.
 	EXPECT_TRUE(SkillFactsAt(SpellID::Firebolt, 1).empty());
+}
+
+// User, 2026-09-05: "too many items in the stash dont seem to stack." The stash never merged: paste
+// swapped, auto-place took a fresh cell, and SORT merged only the materials. Pins all three, and
+// the consumables page SORT lays out ("find appropriate spot on consumables dedicated stash tab").
+TEST(OracoolAudit2, StashMergesStackablesOnDepositAndSort)
+{
+	Players.resize(2);
+	MyPlayer = &Players[1];
+	devilution::Player &player = Players[0];
+	player = {};
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	devilution::Item potion {};
+	InitializeItem(potion, IDI_HEAL);
+	ASSERT_TRUE(potion.isStackableConsumable());
+	potion.setStackCount(1);
+
+	// A hundred deposits: one stack of 99 and a single, on one page.
+	for (int i = 0; i < 100; i++)
+		ASSERT_TRUE(AutoPlaceItemInStash(player, potion, true)) << "deposit " << i;
+	ASSERT_EQ(Stash.stashList.size(), 2u) << "deposits did not merge";
+	EXPECT_EQ(Stash.stashList[0].stackCount(), 99);
+	EXPECT_EQ(Stash.stashList[1].stackCount(), 1);
+
+	// A ring beside them, so SORT has an ordinary item to keep on page 0.
+	devilution::Item ring {};
+	InitializeItem(ring, IDI_TRING);
+	ASSERT_TRUE(AutoPlaceItemInStash(player, ring, true));
+
+	// SORT: the potions merged (they already were) and moved to their own page, the ring alone on 0.
+	SortStash(player);
+	int onPageZero = 0;
+	int potionsElsewhere = 0;
+	for (size_t i = 0; i < Stash.stashList.size(); i++) {
+		const devilution::Item &item = Stash.stashList[i];
+		bool onZero = false;
+		for (const auto &column : Stash.stashGrids[0]) {
+			for (const StashStruct::StashCell cell : column) {
+				if (cell == i + 1)
+					onZero = true;
+			}
+		}
+		if (onZero)
+			onPageZero++;
+		else if (item.isStackableConsumable())
+			potionsElsewhere++;
+	}
+	EXPECT_EQ(onPageZero, 1) << "only the ring should stay on page 0";
+	EXPECT_EQ(potionsElsewhere, 2) << "the two potion stacks should be on the consumables page";
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
 }

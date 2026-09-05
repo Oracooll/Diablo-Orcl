@@ -436,6 +436,27 @@ void CheckStashPaste(Point cursorPosition)
 
 	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(player.HoldItem._iCurs)]);
 
+	// MERGE before swap (user, 2026-09-05: "too many items in the stash dont seem to stack"): a
+	// potion dropped on a potion of its kind joins the stack, up to 99, exactly as the backpack
+	// and the belt do. The stash used to swap the two, which is how a page filled with singles.
+	if (stashIndex != StashStruct::EmptyCell && player.HoldItem.canStackWith(Stash.stashList[stashIndex])) {
+		Item &target = Stash.stashList[stashIndex];
+		const int room = Item::MaxStackCount - target.stackCount();
+		const int moved = std::min(room, player.HoldItem.stackCount());
+		if (moved > 0) {
+			target.setStackCount(target.stackCount() + moved);
+			const int remainder = player.HoldItem.stackCount() - moved;
+			if (remainder <= 0)
+				player.HoldItem.clear();
+			else
+				player.HoldItem.setStackCount(remainder);
+			Stash.dirty = true;
+			oracool::ScheduleAutoSaveForStashChange();
+			NewCursor(player.HoldItem);
+			return;
+		}
+	}
+
 	// Need to set the item anchor position to the bottom left so drawing code functions correctly.
 	player.HoldItem.position = firstSlot + Displacement { 0, itemSize.height - 1 };
 
@@ -1208,7 +1229,30 @@ bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
 		return true;
 	}
 
-	Size itemSize = GetInventorySize(item);
+	// MERGE first (user, 2026-09-05): a stackable kind joins stacks of itself that have room, on
+	// any page, before a free cell is looked for - the backpack's rule. Only what does not fit in
+	// an existing stack goes on to the scan. Without this every ctrl-click deposit took a cell.
+	Item remaining = item;
+	if (remaining.isStackableConsumable()) {
+		for (Item &existing : Stash.stashList) {
+			if (!existing.canStackWith(remaining))
+				continue;
+			const int room = Item::MaxStackCount - existing.stackCount();
+			if (room <= 0)
+				continue;
+			const int moved = std::min(room, remaining.stackCount());
+			if (persistItem) {
+				existing.setStackCount(existing.stackCount() + moved);
+				Stash.dirty = true;
+			}
+			const int left = remaining.stackCount() - moved;
+			if (left <= 0)
+				return true;
+			remaining.setStackCount(left);
+		}
+	}
+
+	Size itemSize = GetInventorySize(remaining);
 
 	// Try to add the item to the current active page and if it's not possible move forward
 	for (unsigned pageCounter = 0; pageCounter < CountStashPages; pageCounter++) {
@@ -1241,7 +1285,7 @@ bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
 			if (!isSpaceFree)
 				continue;
 			if (persistItem) {
-				Stash.stashList.push_back(item);
+				Stash.stashList.push_back(remaining); // what the stacks above did not absorb
 				uint16_t stashIndex = static_cast<uint16_t>(Stash.stashList.size() - 1);
 				Stash.stashList[stashIndex].position = stashPosition + Displacement { 0, itemSize.height - 1 };
 				AddItemToStashGrid(pageIndex, stashPosition, stashIndex, itemSize);
@@ -1292,6 +1336,36 @@ unsigned FirstEmptyStashPage()
 	return CountStashPages;
 }
 
+namespace {
+
+/**
+ * @brief Folds every stack in @p items into the first stack of its kind that has room, up to 99;
+ * the emptied stacks are removed. Every stackable kind - potions, scrolls, materials alike.
+ */
+void MergeStacks(std::vector<Item> &items)
+{
+	for (size_t i = 0; i < items.size(); i++) {
+		if (items[i].isEmpty() || !items[i].isStackableConsumable())
+			continue;
+		for (size_t j = i + 1; j < items.size(); j++) {
+			if (items[j].isEmpty() || !items[i].canStackWith(items[j]))
+				continue;
+			const int room = Item::MaxStackCount - items[i].stackCount();
+			if (room <= 0)
+				break;
+			const int moved = std::min(room, items[j].stackCount());
+			items[i].setStackCount(items[i].stackCount() + moved);
+			if (moved == items[j].stackCount())
+				items[j].clear();
+			else
+				items[j].setStackCount(items[j].stackCount() - moved);
+		}
+	}
+	items.erase(std::remove_if(items.begin(), items.end(), [](const Item &item) { return item.isEmpty(); }), items.end());
+}
+
+} // namespace
+
 void SortStash(Player &player)
 {
 	struct SortEntry {
@@ -1301,15 +1375,26 @@ void SortStash(Player &player)
 	};
 	std::vector<SortEntry> entries;
 	std::vector<Item> materials;
+	std::vector<Item> consumables; // potions, elixirs, scrolls - their own page on SORT (2026-09-05)
 	entries.reserve(Stash.stashList.size());
+
+	// SORT merges EVERY stackable kind first (user, 2026-09-05: "make sure they will stack when i
+	// hit sort"). It only merged the materials before, on their own page, so a stash full of single
+	// potions sorted into a stash full of single potions.
+	std::vector<Item> pool(Stash.stashList.begin(), Stash.stashList.end());
+	MergeStacks(pool);
 
 	// Oracool: user request (2026-08-20) - "Move and sort Runes and Gems in their own tab. The
 	// first one unoccupied by items." Materials are pulled out of the ordinary sort entirely; what
 	// is left packs as it always did, which is also what decides which page comes up empty.
-	for (const Item &item : Stash.stashList) {
+	for (const Item &item : pool) {
 		if (IsOracoolRuneIdx(item.IDidx) || IsOracoolGemIdx(item.IDidx) || IsOracoolSalvageIdx(item.IDidx)
 		    || IsOracoolJewelIdx(item.IDidx)) {
 			materials.push_back(item);
+			continue;
+		}
+		if (item.isStackableConsumable()) {
+			consumables.push_back(item);
 			continue;
 		}
 		entries.push_back({ item, StashSortCategoryRank(item), GetItemSellValue(item) });
@@ -1484,6 +1569,40 @@ void SortStash(Player &player)
 	Stash.dirty = true;
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
+
+	// THE CONSUMABLES PAGE (user, 2026-09-05: "find appropriate spot on consumables dedicated stash
+	// tab to put them there on sorting"). The next empty page after the materials', so the two
+	// stores sit side by side. Laid out kind by kind - potions in the belt's own order, then
+	// elixirs, then scrolls by spell - one cell per stack, filling rows from the top-left. Already
+	// merged to stacks of 99 above, so a kind takes as few cells as it can. What the page cannot
+	// hold falls to the ordinary first-fit placement.
+	if (!consumables.empty()) {
+		const auto kindKey = [](const Item &item) {
+			// Potions and elixirs by misc id (heal, full heal, mana, full mana, rejuvenation...),
+			// scrolls after them by spell - so the belt's order reads across the page.
+			if (item.isScroll())
+				return 1000 + static_cast<int>(item._iSpell);
+			return static_cast<int>(item._iMiscId);
+		};
+		std::stable_sort(consumables.begin(), consumables.end(), [&kindKey](const Item &a, const Item &b) {
+			return kindKey(a) < kindKey(b);
+		});
+		const unsigned page = FirstEmptyStashPage();
+		if (page >= CountStashPages) {
+			for (const Item &item : consumables)
+				AutoPlaceItemInStash(player, item, true);
+		} else {
+			int cell = 0;
+			for (const Item &item : consumables) {
+				if (cell >= StashGridColumns * StashGridRows) {
+					AutoPlaceItemInStash(player, item, true);
+					continue;
+				}
+				PlaceMaterialAt(page, { cell % StashGridColumns, cell / StashGridColumns }, item);
+				cell++;
+			}
+		}
+	}
 }
 
 } // namespace devilution
