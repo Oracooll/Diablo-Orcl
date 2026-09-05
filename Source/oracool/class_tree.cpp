@@ -21,6 +21,8 @@
 #include "oracool/spell_ranks.h" // the Rule of Rangs
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
+#include "missiles.h" // GetDamageAmtAtLevel - an active's rank is its spell level
+#include "spells.h"   // GetManaAmountAtLevel
 #include "player.h"
 #include "utils/language.h"
 
@@ -1715,7 +1717,7 @@ std::string ClassTreeLockReason(const Player &player, Skill skill)
 	return {};
 }
 
-std::string ClassTreeEffectLine(const Player &player, Skill skill)
+std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext)
 {
 	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
 	// A Passive Skills row has no points and no rank, so the usual two lines would both be lies -
@@ -1747,93 +1749,97 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill)
 	}
 	const int p = ClassTreeInvestment(player, skill);
 	const int maxRank = ClassTreeMaxRank(skill);
-	std::string out = fmt::format(fmt::runtime(_("Points: {:d} of {:d}")), p, maxRank);
-	// THE NEXT RANK'S requirement, which climbs with every point spent (user, 2026-08-28: "update
-	// lvl requrements everytime a skill point is added to reflect truthfully the req lvl bump with
-	// each skill lvl").
-	//
-	// This printed ClassTreeTierMinLevel - the tier's floor, a constant - while the gate that
-	// actually refuses the point is RankRequiredLevel(tierLevel, invested + 1), the Rule of Rangs
-	// (see CanInvestClassTreePoint). So a tier-1 skill with nine points in it still advertised
-	// "Requires level 1" while silently demanding level 10 for the tenth, and the button did nothing
-	// with no explanation anywhere on the tooltip.
-	//
-	// Phrased as the NEXT point's price rather than the current rank's, because that is the only
-	// number a player standing in front of the button can act on. At full rank there is no next
-	// point and the line would be a number for a purchase that cannot be made.
-	if (p >= maxRank) {
-		out += "\n" + std::string(_("Fully invested"));
-	} else {
-		const int nextLevel = RankRequiredLevel(ClassTreeTierMinLevel(data.tier), p + 1);
-		out += "\n" + fmt::format(fmt::runtime(_("Next point requires level {:d}")), nextLevel);
-	}
-	if (!data.implemented)
-		out += "\n" + std::string(_("No effect yet"));
-	else if (data.kind == Kind::Aura && p == 0)
-		out += "\n" + std::string(_("Invest a point to light it"));
-	else if (data.kind == Kind::Passive && p == 0)
-		out += "\n" + std::string(_("Invest a point to gain it"));
 
-	// WHAT THE POINTS BUY, at this rank and at the next (user, 2026-08-28: "i want more information
-	// in the hover opoups of skills/spells/auras - include the benefits/bonuses current level is
-	// providing and the bonuses/benefits the next level will provide").
+	// THE DIABLO II SHAPE (user, 2026-09-05: "look at diablo 2 description theme. we want same theme
+	// when hovering over a skill in the abilities windows"): a "Current Skill Level: N" heading with
+	// this rank's numbers under it, a gap, then "Next Level" with the next rank's numbers - the same
+	// lines, so the eye compares them row for row. Before this the block was "Points: 1 of 20 / Next
+	// point requires level 12 / Now: ... / Next point: ...", which said the same things in a shape
+	// no player had seen before.
 	//
-	// WHAT THIS RANK GIVES, AND WHAT THE NEXT ONE WOULD (user, 2026-08-31: "work on the
-	// skills/spells/auras descriptions. compare yours to D2. D2 is more informative").
+	// WHAT A RANK GRANTS, derived by RUNNING the effect, never by a second table (user, 2026-08-31:
+	// "compare yours to D2. D2 is more informative"). An aura or passive goes through the same
+	// ApplyAura / ApplyPassive the game runs, and DescribeBonusTotals names every field that moved -
+	// so the tooltip cannot promise a bonus the code does not apply. That failure has happened three
+	// times in this project (see oracool/unique_affixes.h) and a tooltip is the worst place for it.
+	// An ACTIVE carries a SpellID, and its rank is its spell level (Player::GetSpellLevel folds the
+	// investment in), so its numbers are the spell side's: damage and mana at that level, from the
+	// same two functions the Spells sheet quotes.
 	//
-	// D2's tooltip is a sentence and then the NUMBERS - what you have now, and what the next point
-	// buys - and the numbers are what a player actually reads. This block used to quote only the
-	// aura radius and Conviction's threshold, on the stated grounds that nothing else was modelled.
-	// That was wrong: ApplyAura and ApplyPassive compute a real per-rank magnitude for every
-	// implemented row, through one `Scaled(points, base, perPoint)` shape. The numbers were there
-	// the whole time; the tooltip simply was not asking for them.
-	//
-	// DERIVED BY RUNNING THE EFFECT, never by a second table. A zeroed ItemBonusTotals goes through
-	// the same function the game runs, and DescribeBonusTotals names every field that moved - so a
-	// tooltip cannot promise a bonus the code does not apply. That failure has happened three times
-	// in this project (see oracool/unique_affixes.h) and a tooltip is the worst place for it,
-	// because the player has no way to check.
-	//
-	// Rows this struct cannot carry - flags, procs, bespoke behaviour - produce an empty string and
-	// print nothing extra, keeping their authored sentence. Silence stays the honest answer; it is
-	// just no longer the answer for rows that do have a number.
-	if (data.implemented && p > 0) {
-		// The radius joins the magnitudes on the SAME line rather than trailing after them. It is
-		// part of what a rank grants, and read as its own line after "Next point: +50% damage" it
-		// looked like a property of the next point rather than of the aura.
-		const auto describeRank = [&](int points) {
-			ItemBonusTotals totals {};
-			if (data.kind == Kind::Aura)
-				ApplyAura(skill, points, totals);
-			else
-				ApplyPassive(player, skill, points, totals);
-			std::string text = DescribeBonusTotals(totals);
-			if (data.kind == Kind::Aura) {
-				if (!text.empty())
-					text += ", ";
-				text += fmt::format(fmt::runtime(_("{:d} tile radius")), AuraRadiusForPoints(points));
+	// Rows whose effect the struct cannot carry - flags, procs, bespoke behaviour - produce no lines
+	// and keep their authored sentence. Silence stays the honest answer.
+	const auto rankLines = [&](int points) {
+		std::string text;
+		const auto line = [&text](const std::string &s) {
+			if (!text.empty())
+				text += '\n';
+			text += s;
+		};
+		if (data.kind == Kind::Active) {
+			const SpellID spell = ClassTreeSpellId(skill);
+			if (IsValidSpell(spell)) {
+				const int at = std::max(points, 1);
+				int min = -1;
+				int max = -1;
+				GetDamageAmtAtLevel(spell, at, &min, &max);
+				if (min != -1)
+					line(fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), min, max));
+				line(fmt::format(fmt::runtime(_("Mana Cost: {:d}")), GetManaAmountAtLevel(player, spell, at) >> 6));
 			}
 			return text;
-		};
+		}
+		if (!data.implemented)
+			return text;
+		ItemBonusTotals totals {};
+		if (data.kind == Kind::Aura)
+			ApplyAura(skill, points, totals);
+		else
+			ApplyPassive(player, skill, points, totals);
+		const std::string bonuses = DescribeBonusTotals(totals, "\n");
+		if (!bonuses.empty())
+			line(bonuses);
+		if (data.kind == Kind::Aura)
+			line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), AuraRadiusForPoints(points)));
+		return text;
+	};
 
-		const std::string nowLine = describeRank(p);
-		if (!nowLine.empty())
-			out += "\n" + fmt::format(fmt::runtime(_("Now: {:s}")), nowLine);
-
-		if (p < maxRank) {
-			const std::string nextLine = describeRank(p + 1);
-			// Only when it actually differs. Several effects step every second point, and "Next
-			// point: +20% damage" under "Now: +20% damage" makes the player look twice for a
-			// difference that is not there.
-			if (!nextLine.empty() && nextLine != nowLine)
-				out += "\n" + fmt::format(fmt::runtime(_("Next point: {:s}")), nextLine);
+	std::string out;
+	const auto add = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	if (p > 0) {
+		add(fmt::format(fmt::runtime(_("Current Skill Level: {:d}")), p));
+		const std::string now = rankLines(p);
+		if (!now.empty())
+			add(now);
+	} else {
+		add(std::string(_("Not learned")));
+	}
+	// The next rank, when asked for (the Abilities window asks; the picker shows the current rank
+	// only - user, 2026-09-05: "the other places can be truncated to Name or Name, Current Level
+	// Stats"). Its level requirement is the NEXT point's, which climbs with every point spent - the
+	// Rule of Rangs (see CanInvestClassTreePoint) - so it is the one number a player standing in
+	// front of the button can act on.
+	if (withNext) {
+		if (p >= maxRank) {
+			add(std::string(_("Fully invested")));
+		} else {
+			out += "\n"; // the gap D2 leaves between the two blocks
+			add(std::string(p == 0 ? _("First Level") : _("Next Level")));
+			add(fmt::format(fmt::runtime(_("Requires level {:d}")), RankRequiredLevel(ClassTreeTierMinLevel(data.tier), p + 1)));
+			const std::string next = rankLines(p + 1);
+			if (!next.empty())
+				add(next);
 		}
 	}
+	if (!data.implemented)
+		add(std::string(_("No effect yet")));
 	if (skill == Skill::Conviction && data.implemented) {
-		out += "\n"
-		    + (p >= ConvictionBreaksImmunityAt
-		            ? std::string(_("Breaks immunities"))
-		            : fmt::format(fmt::runtime(_("Breaks immunities at {:d} points")), ConvictionBreaksImmunityAt));
+		add(p >= ConvictionBreaksImmunityAt
+		        ? std::string(_("Breaks immunities"))
+		        : fmt::format(fmt::runtime(_("Breaks immunities at {:d} points")), ConvictionBreaksImmunityAt));
 	}
 	return out;
 }

@@ -1600,7 +1600,7 @@ void FreeSpellBook()
  *     level 1's numbers being reachable) and when the numbers do not actually change, which is true
  *     of several spells whose damage scales on character level alone.
  */
-std::string BuildSpellStatBlock(SpellID sn)
+std::string BuildSpellStatBlock(SpellID sn, bool withNext)
 {
 	const Player &player = *InspectPlayer;
 	std::string out;
@@ -1612,50 +1612,55 @@ std::string BuildSpellStatBlock(SpellID sn)
 
 	const int required = GetSpellData(sn).minInt;
 	const int level = player.GetSpellLevel(sn);
+	const bool isSpell = GetSBookTrans(sn, false) == SpellType::Spell;
+	const bool heals = sn == SpellID::Healing || sn == SpellID::HealOther;
 
-	if (GetSBookTrans(sn, false) == SpellType::Spell) {
-		line(level == 0
-		        ? std::string(_("Spell Level 0 - Unusable"))
-		        : fmt::format(fmt::runtime(_("Spell Level {:d}")), level));
-	}
 	if (player._pMagic < required)
 		line(fmt::format(fmt::runtime(_("Requires {:d} Magic")), required));
 
-	const int mana = GetManaAmount(player, sn) >> 6;
-	line(fmt::format(fmt::runtime(_("Mana: {:d}")), mana));
-	// What the next level would cost, when it differs (user, 2026-08-31: "compare yours to D2. D2 is
-	// more informative"). Mana FALLS as a spell levels here - the adjustment is subtracted - so this
-	// is a reason to spend a point rather than a price for it, and D2 quotes it for the same reason.
-	// Silent when the two match, which is most spells at most levels: sManaAdj is zero for many, and
-	// sMinMana floors the rest long before the cap.
-	if (level > 0) {
-		const int nextMana = GetManaAmountAtLevel(player, sn, level + 1) >> 6;
-		if (nextMana != mana)
-			line(fmt::format(fmt::runtime(_("Mana next level: {:d}")), nextMana));
-	}
-
-	if (sn == SpellID::BoneSpirit) {
-		line(std::string(_("Damage: 1/3 of target's health")));
-		return out;
-	}
-
-	int min = -1;
-	int max = -1;
-	GetDamageAmt(sn, &min, &max);
-	if (min == -1)
-		return out; // a utility spell - it has no damage to report, so it says nothing
-
-	const bool heals = sn == SpellID::Healing || sn == SpellID::HealOther;
-	line(fmt::format(fmt::runtime(heals ? _("Heals: {:d} - {:d}") : _("Damage: {:d} - {:d}")), min, max));
-
-	if (level > 0) {
-		int nextMin = -1;
-		int nextMax = -1;
-		GetDamageAmtAtLevel(sn, level + 1, &nextMin, &nextMax);
-		if (nextMin != -1 && (nextMin != min || nextMax != max)) {
-			line(fmt::format(fmt::runtime(heals ? _("Next level: {:d} - {:d}") : _("Next level: {:d} - {:d}")),
-			    nextMin, nextMax));
+	// The numbers at one level: mana, then damage where the spell has any. Both from the AtLevel
+	// functions the game itself runs, so the sheet and the cast cannot disagree. Mana FALLS as a
+	// spell levels here - the adjustment is subtracted - so the next block's mana is a reason to
+	// spend a point rather than a price for it, and D2 quotes it for the same reason.
+	const auto levelLines = [&](int at) {
+		std::string text;
+		const auto add = [&text](const std::string &s) {
+			if (!text.empty())
+				text += '\n';
+			text += s;
+		};
+		add(fmt::format(fmt::runtime(_("Mana Cost: {:d}")), GetManaAmountAtLevel(player, sn, at) >> 6));
+		if (sn == SpellID::BoneSpirit) {
+			add(std::string(_("Damage: 1/3 of target's health")));
+			return text;
 		}
+		int min = -1;
+		int max = -1;
+		GetDamageAmtAtLevel(sn, at, &min, &max);
+		if (min != -1)
+			add(fmt::format(fmt::runtime(heals ? _("Heals: {:d} - {:d}") : _("Damage: {:d} - {:d}")), min, max));
+		return text;
+	};
+
+	// THE DIABLO II SHAPE (user, 2026-09-05): "Current Spell Level: N" over this level's numbers, a
+	// gap, "Next Level" over the next's. An UNLEARNED spell says so and quotes its first level - the
+	// numbers it would have the moment a book is read (user, 2026-08-30: "Damage Range at current
+	// level (level 1 if not learned yet)"). Skills, scrolls and staves have no level ladder of their
+	// own, so they quote the numbers as they are with no heading.
+	if (isSpell) {
+		if (level > 0) {
+			line(fmt::format(fmt::runtime(_("Current Spell Level: {:d}")), level));
+			line(levelLines(level));
+		} else {
+			line(std::string(_("Not learned")));
+		}
+	} else {
+		line(levelLines(std::max(level, 1)));
+	}
+	if (withNext && (isSpell || level > 0)) {
+		out += "\n";
+		line(std::string(level == 0 ? _("First Level") : _("Next Level")));
+		line(levelLines(level + 1));
 	}
 	return out;
 }
@@ -1831,7 +1836,9 @@ void DrawAbilityHoverPanel(const Surface &out)
 	// it is ever called on a frame where the window closed after setting it, the panel must not
 	// survive into the next one.
 	HasPendingHover = false;
-	oracool::DrawHoverPanel(out, PendingHoverTitle, PendingHoverText, PendingHoverAnchor);
+	// Beside the WINDOW, 8px off its edge, never over it (user, 2026-09-05). Drawn from the frame's
+	// above-everything slot, so over the bottom HUD it goes when a low row needs the room.
+	oracool::DrawHoverPanel(out, PendingHoverTitle, PendingHoverText, PendingHoverAnchor, GetSpellBookPanelRect());
 }
 
 void DrawSpellBook(const Surface &out)

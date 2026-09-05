@@ -237,9 +237,12 @@ void AddPanelLines(const std::string &block)
 	size_t start = 0;
 	while (start < block.size()) {
 		const size_t end = block.find('\n', start);
-		const std::string line = block.substr(start, end == std::string::npos ? std::string::npos : end - start);
-		if (!line.empty())
-			AddPanelString(line);
+		std::string line = block.substr(start, end == std::string::npos ? std::string::npos : end - start);
+		// The block's headings in gold, as the Abilities window draws them (user, 2026-09-05).
+		if (!line.empty()) {
+			const UiFlags color = IsHoverHeadingLine(line) ? UiFlags::ColorGold : UiFlags::ColorWhite;
+			AddPanelString(std::move(line), color);
+		}
 		if (end == std::string::npos)
 			break;
 		start = end + 1;
@@ -563,10 +566,12 @@ void DrawSkillPicker(const Surface &out)
 				// next level) and ClassTreeEffectLine for a tree row (points, what the next point
 				// costs in character levels, an aura's radius now and next). A second copy of
 				// either would be a second place for the next formula change to be forgotten.
+				// The CURRENT rank only (user, 2026-09-05: "the other places can be truncated to
+				// Name or Name, Current Level Stats") - the next rank is the Abilities window's.
 				AddPanelLines(entry.spell != SpellID::Invalid
-				        ? BuildSpellStatBlock(entry.spell)
+				        ? BuildSpellStatBlock(entry.spell, /*withNext=*/false)
 				        : (entry.tree != ClassTreeSkill::None
-				                  ? ClassTreeEffectLine(*InspectPlayer, entry.tree)
+				                  ? ClassTreeEffectLine(*InspectPlayer, entry.tree, /*withNext=*/false)
 				                  : std::string {}));
 			}
 		}

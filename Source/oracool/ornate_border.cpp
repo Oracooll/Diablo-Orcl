@@ -1,5 +1,7 @@
+#include "utils/language.h"
 #include "oracool/ornate_border.h"
 
+#include <vector>
 #include <algorithm>
 #include <string>
 
@@ -193,7 +195,26 @@ void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth)
 	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
 }
 
+bool IsHoverHeadingLine(string_view line)
+{
+	// The headings the two block builders emit (ClassTreeEffectLine, BuildSpellStatBlock), matched
+	// on their translated prefix so the panel and the builders cannot disagree about a language.
+	const string_view headings[] = {
+		_("Current Skill Level"), _("Current Spell Level"), _("Next Level"), _("First Level")
+	};
+	for (const string_view heading : headings) {
+		if (line.size() >= heading.size() && line.substr(0, heading.size()) == heading)
+			return true;
+	}
+	return false;
+}
+
 void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor)
+{
+	DrawHoverPanel(out, title, text, anchor, Rectangle { { 0, 0 }, { 0, 0 } });
+}
+
+void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor, Rectangle avoid)
 {
 	if (title.empty() && text.empty())
 		return;
@@ -202,45 +223,57 @@ void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rec
 	// 340px window rather than across the view.
 	constexpr int MaxTextWidth = 240;
 	constexpr int Padding = 10;
-	constexpr int Gap = 8; // between the row being described and the panel
+	constexpr int Gap = 8; // between the row (or the window it is in) and the panel
 
 	const std::string wrapped = WordWrapString(text, MaxTextWidth, GameFont12, 1);
 	const int lineHeight = 18;
-	int lines = 1;
-	for (const char c : wrapped) {
-		if (c == '\n')
-			lines++;
+
+	// The lines, kept as lines: each is drawn on its own so a heading can wear its own colour
+	// (user, 2026-09-05: "Name - in Gold. Current Level: X - in gold. Next Level - in gold").
+	std::vector<string_view> lines;
+	{
+		size_t start = 0;
+		const string_view all = wrapped;
+		while (start <= all.size()) {
+			const size_t end = all.find('\n', start);
+			lines.push_back(all.substr(start, end == std::string::npos ? std::string::npos : end - start));
+			if (end == std::string::npos)
+				break;
+			start = end + 1;
+		}
 	}
 
 	// Measured from the WRAPPED text, so a short description gets a short panel instead of always
 	// reserving the full MaxTextWidth.
 	int textWidth = 0;
-	size_t start = 0;
-	while (start <= wrapped.size()) {
-		const size_t end = wrapped.find('\n', start);
-		const string_view line = string_view(wrapped).substr(start, end == std::string::npos ? std::string::npos : end - start);
+	for (const string_view line : lines)
 		textWidth = std::max(textWidth, GetLineWidth(line, GameFont12, 1));
-		if (end == std::string::npos)
-			break;
-		start = end + 1;
-	}
 
 	// Oracool: user request (2026-08-15) - "Put Skill name with Gold letters in the pop-up window."
 	// The name moved here because the rows themselves lost their text, so this is now the ONLY place
-	// a skill says what it is called. Gold rather than the body's white to keep the two apart at a
-	// glance, and measured into the panel's width so a long name widens the box rather than wrapping
-	// under the description.
+	// a skill says what it is called. Measured into the panel's width so a long name widens the box
+	// rather than wrapping under the description.
 	const int titleWidth = title.empty() ? 0 : GetLineWidth(title, GameFont12, 1);
 	const int titleHeight = title.empty() ? 0 : lineHeight;
 
 	const int panelWidth = std::max(textWidth, titleWidth) + 2 * Padding;
-	const int panelHeight = titleHeight + lines * lineHeight + 2 * Padding;
+	const int panelHeight = titleHeight + static_cast<int>(lines.size()) * lineHeight + 2 * Padding;
 
-	// To the right of the row by default; flipped to its left when there is no room, so the panel
-	// never leaves the screen and never covers the thing it is describing.
-	int px = anchor.position.x + anchor.size.width + Gap;
-	if (px + panelWidth > out.w())
-		px = anchor.position.x - Gap - panelWidth;
+	// BESIDE THE WINDOW, never on it (user, 2026-09-05: "to not overlap abilities window. to be
+	// adjacent to it - 8px apart"). When a rect to avoid is given the panel hangs off ITS edge -
+	// left of it by preference, right of it when the left has no room - rather than off the row's,
+	// whose left edge is the window's interior and left the panel across the frame. Without one,
+	// the old rule: right of the row, flipped left when there is no room.
+	int px;
+	if (avoid.size.width > 0) {
+		px = avoid.position.x - Gap - panelWidth;
+		if (px < 0)
+			px = avoid.position.x + avoid.size.width + Gap;
+	} else {
+		px = anchor.position.x + anchor.size.width + Gap;
+		if (px + panelWidth > out.w())
+			px = anchor.position.x - Gap - panelWidth;
+	}
 	px = std::clamp(px, 0, std::max(0, out.w() - panelWidth));
 	// Vertically centred on the row, then pulled back inside the screen.
 	int py = anchor.position.y + (anchor.size.height - panelHeight) / 2;
@@ -249,18 +282,28 @@ void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rec
 	const Rectangle panel { { px, py }, { panelWidth, panelHeight } };
 	// Two passes: one is too sheer to read text over when the dungeon behind it is bright.
 	DrawThemedFill(out, panel, 2);
+	// A GOLD frame (user, 2026-09-05: "Tooltip window to have golden border"): two rings off the
+	// yellow ramp, the darker outside, over the theme's brown tracery which stays as the outer line.
 	DrawOrnateBorder(out, panel);
+	DrawRing(out, Inset(panel, 1), PAL16_YELLOW + 9, PAL16_YELLOW + 9);
+	DrawRing(out, Inset(panel, 2), PAL16_YELLOW + 4, PAL16_YELLOW + 4);
 	const int innerWidth = panelWidth - 2 * Padding;
-	// Shadowed, title and text (user, 2026-09-05: "apply the same text shadow to abilities tree skill
-	// names") - this panel is the Abilities window's hover, and the skill's name is its title.
+	// Centred, as D2 sets its skill tooltips (user, 2026-09-05: "look at diablo 2 description
+	// theme"). Shadowed, title and text (user, 2026-09-05: "apply the same text shadow to abilities
+	// tree skill names") - this panel is the Abilities window's hover, and the skill's name is its
+	// title.
 	if (!title.empty()) {
 		DrawString(out, title, { { px + Padding, py + Padding }, { innerWidth, lineHeight } },
-		    { UiFlags::ColorWhitegold | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		    { UiFlags::ColorGold | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
-	if (!wrapped.empty()) {
-		DrawString(out, wrapped,
-		    { { px + Padding, py + Padding + titleHeight }, { innerWidth, lines * lineHeight } },
-		    { UiFlags::ColorWhite | UiFlags::Shadowed, 1, lineHeight });
+	int y = py + Padding + titleHeight;
+	for (const string_view line : lines) {
+		if (!line.empty()) {
+			const UiFlags color = IsHoverHeadingLine(line) ? UiFlags::ColorGold : UiFlags::ColorWhite;
+			DrawString(out, line, { { px + Padding, y }, { innerWidth, lineHeight } },
+			    { color | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		}
+		y += lineHeight;
 	}
 }
 

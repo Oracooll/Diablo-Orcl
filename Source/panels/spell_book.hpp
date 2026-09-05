@@ -126,6 +126,6 @@ void DrawAbilityHoverPanel(const Surface &out);
  * "i want more information in the hover opoups of skills/spells/auras"). One builder rather than
  * two, because the two would disagree about the next-level line the first time a formula changed.
  */
-std::string BuildSpellStatBlock(SpellID sn);
+std::string BuildSpellStatBlock(SpellID sn, bool withNext = true);
 
 } // namespace devilution

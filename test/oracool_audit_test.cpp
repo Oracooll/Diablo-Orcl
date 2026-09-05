@@ -7917,10 +7917,11 @@ TEST(OracoolAudit, TheSkillTooltipReportsWhatTheGameActuallyApplies)
 	const std::string oneLine = investAndDescribe(ClassTreeSkill::Might, 1);
 	EXPECT_NE(oneLine.find("20"), std::string::npos)
 	    << "Might at one point applies +20% damage but the tooltip says:\n" << oneLine;
-	// Looked for INSIDE the "Next point:" line, not anywhere in the tooltip. A bare find("30")
-	// passes on the unchanged tooltip, because "Points: 1 of 30" contains it - which the mutation
-	// check caught: with the whole feature removed, this assertion still went green.
-	const size_t nextAt = oneLine.find("Next point:");
+	// Looked for INSIDE the "Next Level" block, not anywhere in the tooltip. A bare find("30")
+	// passed on the unchanged tooltip once, because "Points: 1 of 30" contained it - which the
+	// mutation check caught: with the whole feature removed, this assertion still went green.
+	// ("Next Level" since v1.9.256, the Diablo II shape; it was "Next point:" before.)
+	const size_t nextAt = oneLine.find("Next Level");
 	ASSERT_NE(nextAt, std::string::npos) << "the tooltip has no next-point line:\n" << oneLine;
 	EXPECT_NE(oneLine.find("30", nextAt), std::string::npos)
 	    << "the next point buys +30% damage and the tooltip does not say so:\n" << oneLine;
@@ -7947,7 +7948,17 @@ TEST(OracoolAudit, TheSkillTooltipReportsWhatTheGameActuallyApplies)
 			continue;
 		if (data.heroClass != HeroClass::Warrior)
 			continue; // this player is a Paladin; another class's rows are not its to invest in
-		if (investAndDescribe(skill, 1).find("Now:") != std::string::npos)
+		// A quoted magnitude is a SIGNED number ("+20% damage", "-5 to be hit") in the current
+		// block - the part before "Next Level". The heading and the radius line are always there,
+		// so their digits do not count; this looks for what DescribeBonusTotals wrote.
+		const std::string block = investAndDescribe(skill, 1);
+		const std::string current = block.substr(0, block.find("Next Level"));
+		bool quotesANumber = false;
+		for (size_t at = 0; at + 1 < current.size(); at++) {
+			if ((current[at] == '+' || current[at] == '-') && std::isdigit(static_cast<unsigned char>(current[at + 1])) != 0)
+				quotesANumber = true;
+		}
+		if (quotesANumber)
 			described++;
 	}
 	EXPECT_GT(described, 8)

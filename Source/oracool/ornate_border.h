@@ -293,5 +293,13 @@ void DrawSplitOutline(const Surface &out, Rectangle rect, uint8_t leftTopColor, 
  * anchor rather than running off the edge.
  */
 void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor);
+/**
+ * @brief As above, but the panel hangs off @p avoid's edge - left of it, or right when the left has
+ * no room - and never overlaps it (user, 2026-09-05: "to not overlap abilities window. to be
+ * adjacent to it - 8px apart"). @p anchor still sets the vertical placement.
+ */
+void DrawHoverPanel(const Surface &out, string_view title, string_view text, Rectangle anchor, Rectangle avoid);
+/** @brief Whether @p line is one of the block builders' headings ("Current Skill Level: 3", "Next Level"), drawn gold. */
+bool IsHoverHeadingLine(string_view line);
 
 } // namespace devilution::oracool

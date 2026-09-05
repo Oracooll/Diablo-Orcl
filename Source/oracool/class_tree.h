@@ -757,8 +757,12 @@ void ProcessClassTreeTick(Player &player);
  */
 size_t BuildClassTreePage(HeroClass heroClass, int page, ClassTreeSkill *out);
 
-/** @brief The line the hover panel puts under the description: what the points bought. */
-std::string ClassTreeEffectLine(const Player &player, ClassTreeSkill skill);
+/**
+ * @brief The block the hover panel puts under the description, in Diablo II's shape: "Current Skill
+ * Level: N" over this rank's numbers, then (when @p withNext) "Next Level" over the next rank's.
+ * The picker passes false - it shows the name and the current rank only.
+ */
+std::string ClassTreeEffectLine(const Player &player, ClassTreeSkill skill, bool withNext = true);
 
 /**
  * @brief Why @p skill cannot be readied yet, or an empty string if it can.
