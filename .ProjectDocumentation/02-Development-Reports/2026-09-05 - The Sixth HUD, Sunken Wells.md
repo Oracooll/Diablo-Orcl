@@ -24,3 +24,12 @@ The wells: a spell plate sitting in a recess with a dark inner edge, the icon in
 ## Addendum, v1.9.241 - the carved treatment
 
 The user pointed at `oracool-hud-v6-carved.zip`. Same geometry family as the sunken-wells delivery, richer stone, and two differences the manifest carries: the well openings sit 6px higher (y 46), and the belt cells are true 28x28 HOLES in 36px frames at x 72..282 (pitch 42), y 76 - potions draw over the world through them. Plate crop x 116..502 (386 wide), cradles 116 and 111. The cutter's five numbers changed and nothing else; the header regenerated, the code unchanged. Filed under delivered-packs with its archive; the sunken-wells pack stays as the alternative.
+
+## Addendum, v1.9.243 - back to the small sheet, the plate fills the opening
+
+Screenshot: "there are shadows around the icons in abilities window and in the wells. also skill pickers are using now 56x56px backings."
+
+Three things, one cause. The 56px sheet's frames carry a heavier black border than the 37px sheet's, and drawn edge to edge inside a bezel that border read as a shadow ring. `TryDrawSkillSpellIcon` is shared by the wells, the picker and nothing else, so when it went to the 56px plate for the wells, the picker's 38px cells got a 56px plate too. And in the wells, with the plate drawn at the 50px net, the three pixels between plate and frame showed the dungeon under the frame's shadow - a second ring.
+
+- Every plate and legacy icon draw is back on the small sheet fitted to its rect: the Abilities window (Spells sheet, tree legacy rows), the wells, the picker.
+- `SkillWellPlateRect` (hud_layout.h): a rect that IS the 50px net is grown by the 3px shadow to the 56px opening; anything else passes through. The wells' plate and a readied legacy icon are drawn at that rect, so the frame's shadow lands on the plate; the class icon stays in the net. The picker's 38px cells and the Abilities' 56px cells are untouched by it.

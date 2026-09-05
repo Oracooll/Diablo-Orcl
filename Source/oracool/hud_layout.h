@@ -115,6 +115,27 @@ Rectangle GetRmbSkillButtonRect();
  */
 constexpr Size SkillWellNetSize { 50, 50 };
 
+/** @brief The sixth HUD's well OPENING: the net plus the 3px inward shadow on every side. */
+constexpr int SkillWellShadowPx = 3;
+
+/**
+ * @brief Where a well's PLATE is drawn, given the rect the well's content is drawn in.
+ *
+ * A well's content sits in its 50px net; the vanilla plate under it fills the 56px opening, so the
+ * frame's inward shadow lands on the plate and not on the world (2026-09-05, from the screenshot
+ * with "shadows around the icons ... in the wells": with the plate drawn at the net, the three
+ * pixels between it and the frame showed the dungeon, darkened - a ring). Only a rect that IS a
+ * net is grown; the skill picker's cells and the Abilities window's cells pass through unchanged,
+ * which is what keeps this one function serving every plate draw.
+ */
+constexpr Rectangle SkillWellPlateRect(Rectangle contentRect)
+{
+	if (contentRect.size.width != SkillWellNetSize.width || contentRect.size.height != SkillWellNetSize.height)
+		return contentRect;
+	return { { contentRect.position.x - SkillWellShadowPx, contentRect.position.y - SkillWellShadowPx },
+		{ contentRect.size.width + 2 * SkillWellShadowPx, contentRect.size.height + 2 * SkillWellShadowPx } };
+}
+
 /** @brief The net square of the LEFT well, centred in its opening. */
 Rectangle GetLmbSkillWellNetRect();
 
