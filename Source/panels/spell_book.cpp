@@ -1091,9 +1091,9 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	    && (player._pMemSpells & GetSpellBitmask(rowSpell)) != 0;
 	const bool usable = bookRow ? bookKnown : (unlocked && (isPassiveRow || data.implemented));
 	const oracool::SkillPlateTint tint = !usable
-	    ? oracool::SkillPlateTint::Grey
-	    : ((bookRow || (isPassiveRow ? slotted : invested > 0)) ? oracool::SkillPlateTint::Green
-	                                                           : oracool::SkillPlateTint::Red);
+	    ? oracool::SkillPlateTint::Locked
+	    : ((bookRow || (isPassiveRow ? slotted : invested > 0)) ? oracool::SkillPlateTint::Ready
+	                                                           : oracool::SkillPlateTint::Unspent);
 	oracool::DrawDropShadow(content, icon, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 	oracool::DrawGridBezel(content, icon);
 	// A LEGACY spell keeps its own icon here too, not the class strip's (user, 2026-09-03) - the
@@ -1191,8 +1191,8 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 		const bool filled = held != oracool::ClassTreeSkill::None;
 
 		const oracool::SkillPlateTint tint = !open
-		    ? oracool::SkillPlateTint::Grey
-		    : (filled ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Red);
+		    ? oracool::SkillPlateTint::Locked
+		    : (filled ? oracool::SkillPlateTint::Ready : oracool::SkillPlateTint::Unspent);
 		// The slot frame, on the band as on the grid - these ARE slots, and they are the four cells
 		// in this window that most want to look like sockets. The band's pitch is 63 to the icon's
 		// 56, so neighbouring frames overlap by five pixels, the same shared-rail reading the sheet

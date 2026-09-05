@@ -1424,27 +1424,24 @@ Size GetSkillIconPlateSize()
 void ApplyPlateTint(SkillPlateTint tint)
 {
 	switch (tint) {
-	case SkillPlateTint::Green:
-		// The injected PAL8_GREEN ramp (see LoadPalette), which replaced the pink the user never
-		// warmed to - "i dont like the pink" (2026-08-15). Belzebub's green was the proof the
-		// palette could be taught a colour it never shipped.
-		SetSpellTransGreen();
+	// THE 2026-09-05 CODING (user: "lets make some changes"). Light grey is ready; the plate as
+	// painted - GOLD - is unlocked but unspent; red is locked or otherwise off, and stands in for
+	// "blocked right now" as well, since the beige that used to mean that is a scroll's colour now.
+	case SkillPlateTint::Ready:
+		// SpellType::Invalid's table: the PALE grey, PAL16_GRAY 1:1. Light grey, per the user.
+		SetSpellTrans(SpellType::Invalid);
 		break;
-	case SkillPlateTint::Grey:
-		// The DARKER grey, not SpellType::Invalid's pale one - "make the inactive skill background
-		// darker gray" (user, 2026-08-15). Invalid's table maps ramps 1:1 onto grey, which read as
-		// merely faded next to the pink plates; this one shifts four shades down the ramp.
-		SetSpellTransDarkGrey();
+	case SkillPlateTint::Unspent:
+		// The identity: the plate exactly as vanilla painted it. "GOLD".
+		SetSpellTrans(SpellType::Skill);
 		break;
-	case SkillPlateTint::Pink:
-		// "Unable to perform right now" (user, 2026-08-16). SpellType::Scroll's table is the engine's
-		// own mapping onto PAL16_BEIGE - the ramp the user calls pink - so no new table is needed.
-		SetSpellTrans(SpellType::Scroll);
-		break;
-	case SkillPlateTint::Red:
-		// "Unlocked but unspent" (user, 2026-08-17). PAL16_RED is one of the game's own ramps, so
-		// unlike the green this needs no palette injection.
+	case SkillPlateTint::Locked:
+	case SkillPlateTint::Blocked:
 		SetSpellTransRed();
+		break;
+	case SkillPlateTint::Scroll:
+		// The engine's own beige mapping, which is what a scroll-cast spell has always worn.
+		SetSpellTrans(SpellType::Scroll);
 		break;
 	case SkillPlateTint::Yellow:
 		SetSpellTrans(SpellType::Skill);
@@ -1526,7 +1523,7 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint)
 // the basic attack on yellow - the sheets all pass a tint explicitly, so a default only ever fires
 // on a well path, and the wells are Skills-sheet content).
 void DrawIconOnPlate(const Surface &out, ArtAsset &asset, Point origin, int index, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Green)
+    SkillPlateTint tint = SkillPlateTint::Ready)
 {
 	DrawSkillIconPlate(out, origin, tint);
 	DrawStripIcon(out, asset, origin, index, unlocked);
@@ -1695,18 +1692,17 @@ void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tin
 	// (palette.cpp) runs the same way over its eight shades.
 	uint8_t color = PAL16_YELLOW + 4;
 	switch (tint) {
-	case SkillPlateTint::Green:
-		color = PAL8_GREEN + 2;
+	case SkillPlateTint::Ready:
+		color = PAL16_GRAY + 3;
 		break;
-	case SkillPlateTint::Grey:
-		color = PAL16_GRAY + 8;
-		break;
-	case SkillPlateTint::Pink:
-		color = PAL16_BEIGE + 4;
-		break;
-	case SkillPlateTint::Red:
+	case SkillPlateTint::Locked:
+	case SkillPlateTint::Blocked:
 		color = PAL16_RED + 4;
 		break;
+	case SkillPlateTint::Scroll:
+		color = PAL16_BEIGE + 4;
+		break;
+	case SkillPlateTint::Unspent:
 	case SkillPlateTint::Yellow:
 		break;
 	}

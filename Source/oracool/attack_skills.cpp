@@ -150,8 +150,8 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// engine spell answers below by going pink.
 	if (const std::optional<PaladinSkill> skill = PaladinSkillForSpell(spell); skill.has_value()) {
 		const SkillPlateTint tint = CanUsePaladinSkill(*MyPlayer, *skill)
-		    ? SkillPlateTint::Green
-		    : SkillPlateTint::Pink;
+		    ? SkillPlateTint::Ready
+		    : SkillPlateTint::Blocked;
 		if (TryDrawSkillSpellIcon(out, net, spell, tint))
 			return;
 	}
@@ -181,12 +181,15 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// tree rows are the wells' usual content, and this is what makes them fill the net rect rather
 	// than sitting at their natural 56px over the bezel.
 	if (TryDrawSkillSpellIcon(out, net, spell,
-	        usable ? SkillPlateTint::Green : SkillPlateTint::Pink))
+	        usable ? SkillPlateTint::Ready : SkillPlateTint::Blocked))
 		return;
-	// Pink, not SpellType::Invalid's grey (user request, 2026-08-16): grey already means "not learned"
-	// on the Abilities window, and one colour meaning two things is how the confusion started. The
-	// Scroll table is the engine's own beige/pink mapping.
-	SetSpellTrans(usable ? type : SpellType::Scroll);
+	// RED when it cannot be cast right now (2026-09-05 coding): the beige that said so before is a
+	// scroll's own colour now. A castable spell wears its type's colour - blue, a scroll's beige,
+	// a staff's orange.
+	if (usable)
+		SetSpellTrans(type);
+	else
+		SetSpellTransRed();
 	// Scaled into the net rect like everything else, so a readied SPELL sits exactly where a readied
 	// skill would (user, 2026-08-19).
 	DrawSpellIconFittedTo(out, SkillWellPlateRect(net), spell); // the 56px frame at the 56px opening (2026-09-05)

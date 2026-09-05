@@ -130,42 +130,45 @@ Size GetWaypointIconSize();
  * found a way. so should we", 2026-08-15): LoadPalette injects a GREEN ramp over the barely-used
  * PAL8_YELLOW mini-ramp, and the sheets wear that instead.
  */
+/*
+ * THE CODING, as of 2026-09-05 (user: "lets make some changes"). Named by MEANING, and the colour
+ * each means is in ApplyPlateTint, because the colours have moved twice now and the names had
+ * started to lie (Green meant grey, Red meant gold):
+ *
+ *   Ready     light grey   invested, slotted, or usable now      (was the injected green)
+ *   Unspent   GOLD         unlocked but no points spent          (was red) - the plate as painted
+ *   Locked    red          not earned, not learned, or off       (was the dark grey)
+ *   Blocked   red          cannot be performed right now         (was the beige "pink")
+ *   Scroll    beige        a spell cast from a scroll            (new - its own tier in the picker)
+ *   Yellow    the plate as painted, where no state applies
+ */
 enum class SkillPlateTint : uint8_t {
-	/** The vanilla yellow - Class Skills and the HUD's wells. */
+	/** The plate as vanilla painted it, where no state applies. */
 	Yellow,
-	/** Every ability sheet drawn on plates: Skills, Auras and Barbarian - the injected green ramp. */
-	Green,
+	/** Ready and yours: invested, slotted, or usable now. Light grey. */
+	Ready,
 	/**
-	 * Cannot be performed RIGHT NOW - out of mana, missing shield, wrong place - as opposed to Grey's
-	 * "not earned yet". User request (2026-08-16): "skills unable to perform due to whatever reason to
-	 * have their background turned into pink until able to perform again." The PAL16_BEIGE ramp - the
-	 * colour the user has always called pink - which stopped being any sheet's resting colour when the
-	 * plates went green, freeing it to mean exactly this.
+	 * Cannot be performed RIGHT NOW - out of mana, missing shield, wrong place - as opposed to
+	 * Locked's "not earned yet" (user request, 2026-08-16). Red since the 2026-09-05 coding; it was
+	 * the beige the user called pink, which is a scroll's colour now.
 	 */
-	Pink,
+	Blocked,
 	/**
 	 * Earned and spendable, but nothing invested yet - so the skill exists and does nothing (user
-	 * request, 2026-08-17: "Unlocked skills with 0 points in them are unavailable and inactive, ergo
-	 * need to have red background, not green").
-	 *
-	 * The third of three "you cannot use this" colours, and the only one the player can clear by
-	 * spending a point: Grey is not earned, Pink is earned but blocked right now, Red is earned and
-	 * empty.
+	 * request, 2026-08-17). GOLD since the 2026-09-05 coding: the plate exactly as painted. The one
+	 * "you cannot use this" the player clears by spending a point.
 	 */
-	Red,
+	Unspent,
 	/**
-	 * Not earned yet (user request, 2026-08-15: "not yet learned skills to have gray background").
-	 *
-	 * The same grey the Spells sheet has always given an unlearned spell - SpellType::Invalid's ramp,
-	 * PAL16_GRAY - so "you cannot use this" looks identical whether it is a spell you have not read
-	 * or a skill you have not levelled into. The dimmed ICON already said so; the plate was still
-	 * being drawn at full strength underneath it, which undercut that at a glance.
+	 * Not earned yet, or not learned (user request, 2026-08-15). Red since the 2026-09-05 coding.
 	 *
 	 * Chosen per ROW rather than derived inside the plate drawing, because "locked" is not the only
 	 * reason an icon is dimmed: the two basic attacks blend the one NOT in your hand, and neither of
-	 * them is ever unlearned. Their rows keep the Green plate deliberately.
+	 * them is ever unlearned. Their rows keep the Ready plate deliberately.
 	 */
-	Grey,
+	Locked,
+	/** A spell held as a SCROLL - the engine's own beige for scroll casts, and the picker's own tier. */
+	Scroll,
 };
 
 /**
@@ -177,7 +180,7 @@ enum class SkillPlateTint : uint8_t {
  * to remap onto grey.
  */
 void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, int skillIndex,
-    bool unlocked, SkillPlateTint tint = SkillPlateTint::Green);
+    bool unlocked, SkillPlateTint tint = SkillPlateTint::Ready);
 /**
  * @brief A tree icon drawn into a CELL, with the plate scaled to fill it.
  *
@@ -186,7 +189,7 @@ void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, in
  * tree sheets; see the definition.
  */
 void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
-    bool unlocked, SkillPlateTint tint = SkillPlateTint::Green);
+    bool unlocked, SkillPlateTint tint = SkillPlateTint::Ready);
 
 /**
  * @brief The tint as a 3px OUTLINE just inside @p cell instead of a plate under it.
@@ -205,7 +208,7 @@ void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tin
  * window's tree cells and passive slots use this; the HUD's wells keep their plates.
  */
 void DrawClassTreeIconOutlined(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
-    bool unlocked, SkillPlateTint tint = SkillPlateTint::Green);
+    bool unlocked, SkillPlateTint tint = SkillPlateTint::Ready);
 
 /** @brief On-screen size of one tree icon, or {0,0} if that class's strip is missing. */
 Size GetClassTreeIconSize(HeroClass heroClass);
@@ -213,7 +216,7 @@ Size GetClassTreeIconSize(HeroClass heroClass);
 /** @brief Draws Paladin skill icon @p skillIndex (oracool::PaladinSkill order - 0 Charge, 1 Zeal).
  * Same locked treatment as DrawAuraIcon; same shared strip implementation. */
 void DrawPaladinSkillIcon(const Surface &out, Point origin, int skillIndex, bool unlocked,
-    SkillPlateTint tint = SkillPlateTint::Green);
+    SkillPlateTint tint = SkillPlateTint::Ready);
 
 /** @brief On-screen size of one Paladin skill icon, or {0,0} if the asset is missing. */
 Size GetPaladinSkillIconSize();
@@ -231,7 +234,7 @@ Size GetPaladinSkillIconSize();
  * the strip icons rather than the engine's bottom-left spell icons.
  */
 bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell,
-    SkillPlateTint tint = SkillPlateTint::Green);
+    SkillPlateTint tint = SkillPlateTint::Ready);
 
 /**
  * @brief TryDrawSkillSpellIcon for the speedbook's 56px LARGE plate; @p bottomLeft matches
@@ -285,7 +288,7 @@ int StaffChargesFor(const Player &player, SpellID spell);
 void DrawStaffChargeBadge(const Surface &out, Rectangle host, const Player &player, SpellID spell);
 
 bool TryDrawSkillSpellIconLarge(const Surface &out, Point bottomLeft, SpellID spell,
-    SkillPlateTint tint = SkillPlateTint::Green);
+    SkillPlateTint tint = SkillPlateTint::Ready);
 
 /**
  * @brief The vanilla empty spell-icon plate every skill icon is drawn on, 37x38.
@@ -309,7 +312,7 @@ void DrawSkillIconPlate(const Surface &out, Point origin, SkillPlateTint tint = 
  * doing, and blending the other is how the pair says which. See oracool/attack_skills.h.
  */
 void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active,
-    SkillPlateTint tint = SkillPlateTint::Green);
+    SkillPlateTint tint = SkillPlateTint::Ready);
 
 /**
  * @brief DrawAttackIcon scaled to FILL @p well, plate and icon both.
@@ -319,7 +322,7 @@ void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active
  * don't use the 46x46px size").
  */
 void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, bool active,
-    SkillPlateTint tint = SkillPlateTint::Green);
+    SkillPlateTint tint = SkillPlateTint::Ready);
 
 /**
  * @brief Draws a class-tree skill's own icon, scaled to fill @p well - for skills with no SpellID.
@@ -328,7 +331,7 @@ void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, b
  * a readied spell and TryDrawSkillSpellIcon can never find them.
  */
 void DrawClassTreeSkillInWell(const Surface &out, Rectangle well, HeroClass heroClass, int skillIndex,
-    SkillPlateTint tint = SkillPlateTint::Green);
+    SkillPlateTint tint = SkillPlateTint::Ready);
 
 /** @brief On-screen size of one basic-attack icon, or {0,0} if the asset is missing. */
 Size GetAttackIconSize();

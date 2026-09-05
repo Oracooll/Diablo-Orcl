@@ -67,6 +67,13 @@ enum class EntryKind : uint8_t {
 	 * Fire Ball and picked up a Staff of Fire Ball lost the ability to bind the learned one.
 	 */
 	Staff,
+	/**
+	 * A spell the player holds a SCROLL of, castable from the scroll (user, 2026-09-05: "scrolls
+	 * based spells. to have their own tier in the picker menu"). Its own kind for the same reason
+	 * Staff is: the same spell can be known, on a staff and on a scroll at once, and each is a
+	 * different thing to ready. Wears the engine's beige, the scroll's own colour.
+	 */
+	Scroll,
 };
 
 struct Entry {
@@ -122,10 +129,12 @@ bool IsStaffSpellOf(const Player &player, SpellID spell)
  * no longer appear in this answer at all - they cannot, or a spell held both ways would bind to the
  * staff from the cell that says "learned".
  */
-SpellType SpellTypeFor(const Player &player, SpellID spell, bool fromStaff = false)
+SpellType SpellTypeFor(const Player &player, SpellID spell, bool fromStaff = false, bool fromScroll = false)
 {
 	if (fromStaff)
 		return SpellType::Charges;
+	if (fromScroll)
+		return SpellType::Scroll;
 	if ((player._pAblSpells & GetSpellBitmask(spell)) != 0)
 		return SpellType::Skill;
 	return SpellType::Spell;
@@ -141,7 +150,7 @@ SpellType SpellTypeFor(const Player &player, SpellID spell, bool fromStaff = fal
  * cannot be readied and an entry that does nothing when clicked is worse than an absent one.
  */
 void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackCount, size_t &treeCount,
-    size_t &spellCount)
+    size_t &spellCount, size_t &scrollCount)
 {
 	out.clear();
 
@@ -179,6 +188,15 @@ void BuildEntries(const Player &player, std::vector<Entry> &out, size_t &attackC
 		out.push_back({ EntryKind::Spell, 0, ClassTreeSkill::None, spell });
 	}
 	spellCount = out.size() - attackCount - treeCount;
+
+	// THE SCROLLS, their own section (user, 2026-09-05). Undeduplicated like the staff: a spell held
+	// as a scroll is a different thing to ready from the same spell known, and the two coexist.
+	for (size_t i = 1; i < MAX_SPELLS; i++) {
+		const auto spell = static_cast<SpellID>(i);
+		if ((player._pScrlSpells & GetSpellBitmask(spell)) != 0)
+			out.push_back({ EntryKind::Scroll, 0, ClassTreeSkill::None, spell });
+	}
+	scrollCount = out.size() - attackCount - treeCount - spellCount;
 
 	// THE STAFF, last and undeduplicated. Not filtered against anything above: a spell held both
 	// ways is two cells on purpose, and the staff cell is the one that spends charges.
@@ -237,6 +255,7 @@ std::string EntryName(const Entry &entry)
 		return std::string(_(GetClassTreeSkillData(entry.tree).name));
 	case EntryKind::Spell:
 	case EntryKind::Staff:
+	case EntryKind::Scroll:
 		return std::string(GetSpellDisplayName(entry.spell));
 	}
 	return {};
@@ -258,6 +277,7 @@ int EntryLevel(const Player &player, const Entry &entry)
 		return ClassTreeInvestment(player, entry.tree);
 	case EntryKind::Spell:
 	case EntryKind::Staff:
+	case EntryKind::Scroll:
 		return player.GetSpellLevel(entry.spell);
 	}
 	return 0;
@@ -293,11 +313,11 @@ bool IsCellVisible(const Rectangle &window, const Rectangle &cell)
 	return cell.position.y >= clipTop && cell.position.y + IconSize <= clipBottom;
 }
 
-int ContentHeight(size_t attacks, size_t trees, size_t spells, size_t staves)
+int ContentHeight(size_t attacks, size_t trees, size_t spells, size_t scrolls, size_t staves)
 {
 	int h = TitleHeight;
 	int sections = 0;
-	for (const size_t n : { attacks + trees, spells, staves }) {
+	for (const size_t n : { attacks + trees, spells, scrolls, staves }) {
 		if (n == 0)
 			continue;
 		h += SectionHeight(n);
@@ -351,10 +371,11 @@ Rectangle GetSkillPickerRect()
 	size_t attacks = 0;
 	size_t trees = 0;
 	size_t spells = 0;
-	BuildEntries(*MyPlayer, entries, attacks, trees, spells);
-	const size_t staves = entries.size() - attacks - trees - spells;
+	size_t scrolls = 0;
+	BuildEntries(*MyPlayer, entries, attacks, trees, spells, scrolls);
+	const size_t staves = entries.size() - attacks - trees - spells - scrolls;
 
-	const int needed = ContentHeight(attacks, trees, spells, staves) + 2 * Padding;
+	const int needed = ContentHeight(attacks, trees, spells, scrolls, staves) + 2 * Padding;
 	// Anchored to the plate, growing UPWARD, because that is the direction the button it belongs to
 	// is in. Clamped at the top so a long list is shortened rather than run off the screen; the
 	// wheel reaches whatever the clamp cut off.
@@ -382,8 +403,9 @@ void ScrollSkillPicker(int notches)
 	size_t attacks = 0;
 	size_t trees = 0;
 	size_t spells = 0;
-	BuildEntries(*MyPlayer, entries, attacks, trees, spells);
-	const int content = ContentHeight(attacks, trees, spells, entries.size() - attacks - trees - spells);
+	size_t scrolls = 0;
+	BuildEntries(*MyPlayer, entries, attacks, trees, spells, scrolls);
+	const int content = ContentHeight(attacks, trees, spells, scrolls, entries.size() - attacks - trees - spells - scrolls);
 	const Rectangle window = GetSkillPickerRect();
 	const int visible = window.size.height - 2 * Padding - TitleHeight;
 	const int maxScroll = std::max(0, content - TitleHeight - visible);
@@ -401,7 +423,8 @@ void DrawSkillPicker(const Surface &out)
 	size_t attacks = 0;
 	size_t trees = 0;
 	size_t spells = 0;
-	BuildEntries(player, entries, attacks, trees, spells);
+	size_t scrolls = 0;
+	BuildEntries(player, entries, attacks, trees, spells, scrolls);
 	const size_t skills = attacks + trees;
 
 	// Cleared every frame, so moving off a cell un-hovers it. Without this an F-key would keep
@@ -453,7 +476,7 @@ void DrawSkillPicker(const Surface &out)
 			// needs no new vocabulary. Clicking one still works: it toggles the aura, which lands on
 			// the right button, and saving that trip is the whole reason they are listed here.
 			const bool dimmed = PickerForLeft && !IsAssignableToLeft(entry);
-			const SkillPlateTint tint = dimmed ? SkillPlateTint::Grey : SkillPlateTint::Green;
+			const SkillPlateTint tint = dimmed ? SkillPlateTint::Locked : SkillPlateTint::Ready;
 			switch (entry.kind) {
 			case EntryKind::Attack:
 				DrawAttackIconScaledTo(out, cell, entry.attackIcon,
@@ -479,6 +502,11 @@ void DrawSkillPicker(const Surface &out)
 				// whole point of this cell is that it means the staff even when the same spell is
 				// also learned two sections above.
 				SetSpellTrans(SpellType::Charges);
+				DrawSmallSpellIconFittedTo(out, cell, entry.spell);
+				break;
+			case EntryKind::Scroll:
+				// The engine's beige, a scroll's own colour (2026-09-05 coding).
+				SetSpellTrans(SpellType::Scroll);
 				DrawSmallSpellIconFittedTo(out, cell, entry.spell);
 				break;
 			}
@@ -559,9 +587,10 @@ void DrawSkillPicker(const Surface &out)
 
 	drawSection(N_("Skills"), 0, skills);
 	drawSection(N_("Spells"), skills, spells);
+	drawSection(N_("Scrolls"), skills + spells, scrolls);
 	// Its own heading, shown only when a staff with a spell is actually equipped - the section is
 	// empty otherwise and SectionHeight collapses it to nothing (user, 2026-09-03).
-	drawSection(N_("Staff spells"), skills + spells, entries.size() - skills - spells);
+	drawSection(N_("Staff spells"), skills + spells + scrolls, entries.size() - skills - spells - scrolls);
 }
 
 bool CheckSkillPickerClick(Point mousePosition)
@@ -605,15 +634,16 @@ bool CheckSkillPickerClick(Point mousePosition)
 	size_t attacks = 0;
 	size_t trees = 0;
 	size_t spells = 0;
-	BuildEntries(player, entries, attacks, trees, spells);
+	size_t scrolls = 0;
+	BuildEntries(player, entries, attacks, trees, spells, scrolls);
 	const size_t skills = attacks + trees;
 
 	// The same walk the draw does, in the same order - one geometry, asked twice, so a cell cannot
 	// be drawn in one place and clicked in another.
 	int y = window.position.y + Padding + TitleHeight - PickerScroll;
-	const size_t sectionFirst[3] = { 0, skills, skills + spells };
-	const size_t sectionCount[3] = { skills, spells, entries.size() - skills - spells };
-	for (int section = 0; section < 3; section++) {
+	const size_t sectionFirst[4] = { 0, skills, skills + spells, skills + spells + scrolls };
+	const size_t sectionCount[4] = { skills, spells, scrolls, entries.size() - skills - spells - scrolls };
+	for (int section = 0; section < 4; section++) {
 		const size_t first = sectionFirst[section];
 		const size_t count = sectionCount[section];
 		if (count == 0)
@@ -659,12 +689,13 @@ bool CheckSkillPickerClick(Point mousePosition)
 				}
 				[[fallthrough]];
 			case EntryKind::Staff:
+			case EntryKind::Scroll:
 			case EntryKind::Spell: {
 				if (!IsValidSpell(entry.spell))
 					break;
 				// A Staff cell binds as Charges; the Spell cell beside it binds as mana. That is the
 				// whole of "they need to coexist".
-				const SpellType type = SpellTypeFor(player, entry.spell, entry.kind == EntryKind::Staff);
+				const SpellType type = SpellTypeFor(player, entry.spell, entry.kind == EntryKind::Staff, entry.kind == EntryKind::Scroll);
 				if (PickerForLeft) {
 					player._pLRSpell = entry.spell;
 					player._pLRSplType = type;

@@ -189,10 +189,10 @@ void DrawSpell(const Surface &out)
 	// comes from its own gate (mana, shield, level); for an engine spell it is the st that the checks
 	// above already downgraded to Invalid. Pink rather than Invalid's grey, because grey already means
 	// "not learned" on the Abilities window.
-	oracool::SkillPlateTint wellTint = oracool::SkillPlateTint::Green;
+	oracool::SkillPlateTint wellTint = oracool::SkillPlateTint::Ready;
 	if (const std::optional<oracool::PaladinSkill> paladinSkill = oracool::PaladinSkillForSpell(spl);
 	    paladinSkill.has_value() && !oracool::CanUsePaladinSkill(myPlayer, *paladinSkill))
-		wellTint = oracool::SkillPlateTint::Pink;
+		wellTint = oracool::SkillPlateTint::Blocked;
 
 	if (oracool::IsFuriousChargeSpell(spl)) {
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
@@ -210,9 +210,12 @@ void DrawSpell(const Surface &out)
 				    net.size.height - cooled);
 		}
 	} else if (!oracool::TryDrawSkillSpellIcon(out, net, spl, wellTint)) {
-		// The engine-spell equivalent of the pink plate: st has already been downgraded to Invalid by
-		// the checks above when the spell cannot be cast, and the Scroll table is the beige/pink ramp.
-		SetSpellTrans(st == SpellType::Invalid ? SpellType::Scroll : st);
+		// The engine-spell equivalent of the red plate (2026-09-05 coding): st has already been
+		// downgraded to Invalid by the checks above when the spell cannot be cast.
+		if (st == SpellType::Invalid)
+			SetSpellTransRed();
+		else
+			SetSpellTrans(st);
 		DrawSpellIconFittedTo(out, oracool::SkillWellPlateRect(net), spl); // the 56px frame at the 56px opening (2026-09-05)
 	}
 
