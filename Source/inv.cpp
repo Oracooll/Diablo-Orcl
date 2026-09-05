@@ -2056,6 +2056,9 @@ void DrawInvBelt(const Surface &out)
 
 		const ClxSprite sprite = GetInvItemSprite(cursId);
 
+		// Oracool: the item's own shadow on the plate, before the outline and the item (2026-09-06).
+		oracool::DrawBeltItemShadow(out, position, sprite);
+
 		if (pcursinvitem == i + INVITEM_BELT_FIRST) {
 			if (ControlMode == ControlTypes::KeyboardAndMouse || invflag) {
 				ClxDrawOutline(out, GetOutlineColor(myPlayer.SpdList[i], true), position, sprite);

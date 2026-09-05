@@ -12,6 +12,7 @@
 
 #include <SDL.h>
 
+#include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/palette.h"
 #include "oracool/class_tree.h" // ClassTreeSkillForSpell - the wells draw the tree's own icons
@@ -1167,6 +1168,7 @@ void DrawTownPortalIcon(const Surface &out, int state)
 	// Centred in the belt cell, which is slightly larger than the icon - that margin is the
 	// cell's own carved bevel from the plate art, deliberately left showing.
 	const Rectangle cell = GetBeltSlotRect(BeltTownPortalSlotIndex);
+	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
 	const Point position {
 		cell.position.x + (cell.size.width - TownPortalIconSize.width) / 2,
 		cell.position.y + (cell.size.height - TownPortalIconSize.height) / 2
@@ -1203,6 +1205,7 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	// odd leftover to split and +1 would hang a column over the rim.
 	constexpr Displacement BurgerMenuNudge { 0, 0 };
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
+	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
 	const Point position = Point {
 		cell.position.x + (cell.size.width - BurgerMenuButtonSize.width) / 2,
 		cell.position.y + (cell.size.height - BurgerMenuButtonSize.height) / 2
@@ -1685,6 +1688,15 @@ void DrawBeltSlotPlate(const Surface &out, Rectangle cell)
 	const Rectangle core { cell.position + Displacement { 2, 2 }, { cell.size.width - 4, cell.size.height - 4 } };
 	ApplyPlateTint(SkillPlateTint::Ready);
 	DrawSmallSpellIconCoveringClipped(out, core);
+}
+
+void DrawBeltItemShadow(const Surface &out, Point position, ClxSprite sprite)
+{
+	// Every colour to black; the blend does the rest. Transparent runs are skipped by the sprite's
+	// own encoding, so the table need not spare index 0.
+	static const std::array<uint8_t, 256> black {};
+	constexpr Displacement ShadowOffset { 2, 2 };
+	ClxDrawBlendedTRN(out, position + ShadowOffset, sprite, black.data());
 }
 
 void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,

@@ -440,6 +440,13 @@ void DrawBeltBacking(const Surface &out);
 void DrawBeltSlotPlate(const Surface &out, Rectangle cell);
 
 /**
+ * @brief A belt item's drop shadow: the sprite's own silhouette, half-transparent black, two pixels
+ * down and right of @p position (a BOTTOM-left origin, as DrawItem takes). Drawn before the item so
+ * it lifts off the plate (user, 2026-09-06: "render shadows behind potions [...] to feel more 3D").
+ */
+void DrawBeltItemShadow(const Surface &out, Point position, ClxSprite sprite);
+
+/**
  * @brief The 40x39 box dead centre of the frame at @p origin, where the count is drawn.
  *
  * The size is the user's (2026-08-20: "in its center area in 40x39px area dead center in the

@@ -9979,3 +9979,51 @@ TEST(OracoolAudit, TheBeltSlotPlateIsBlackThenGreyThenGold)
 	}
 	EXPECT_GT(gold, 30 * 30 / 4) << "the core is not gold";
 }
+
+/**
+ * @brief A belt item's shadow is its own silhouette, darkened, two pixels down and right.
+ *
+ * The flask sprite on a white surface: where the flask is opaque, the pixel two to the right and
+ * two down is no longer white; where it is transparent, the pixel stays white - a filled square
+ * or a shadow of the wrong shape both fail (user, 2026-09-06).
+ */
+TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteOffsetTwo)
+{
+	LoadCoreArchives();
+	LoadGameArchives();
+	InitCursor();
+	const ClxSprite sprite = GetInvItemSprite(static_cast<int>(CURSOR_FIRSTITEM) + ICURS_OIL);
+	const int w = static_cast<int>(sprite.width());
+	const int h = static_cast<int>(sprite.height());
+	// The flask paints a few pixels as literal colour 0 - opaque, not transparent - so the mask is
+	// filled with a sentinel rather than 0.
+	constexpr uint8_t Sentinel = 77;
+	OwnedSurface mask { w, h };
+	SDL_FillRect(mask.surface, nullptr, Sentinel);
+	ClxDraw(mask, { 0, h }, sprite);
+
+	constexpr uint8_t White = 255;
+	OwnedSurface surf { w + 4, h + 4 };
+	SDL_FillRect(surf.surface, nullptr, White);
+	oracool::DrawBeltItemShadow(surf, { 0, h }, sprite);
+	int shadowed = 0;
+	for (int y = 0; y < h; y++) {
+		for (int x = 0; x < w; x++) {
+			const bool opaque = *mask.at(x, y) != Sentinel;
+			const uint8_t c = *surf.at(x + 2, y + 2);
+			if (opaque) {
+				EXPECT_NE(c, White) << "no shadow under " << x << "," << y;
+				shadowed++;
+			} else {
+				EXPECT_EQ(c, White) << "shadow where the sprite is transparent at " << x << "," << y;
+			}
+		}
+	}
+	EXPECT_GT(shadowed, 100);
+	// Nothing lands in the first two rows and columns - the offset is the whole point.
+	for (int i = 0; i < w + 4; i++) {
+		EXPECT_EQ(*surf.at(i, 0), White);
+		EXPECT_EQ(*surf.at(0, std::min(i, h + 3)), White);
+	}
+	FreeCursor();
+}
