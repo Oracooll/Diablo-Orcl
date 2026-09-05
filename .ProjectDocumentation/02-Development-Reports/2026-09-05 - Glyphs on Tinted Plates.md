@@ -18,3 +18,7 @@ So the Combat page now carries the coding: gold for ready, light grey for unlock
 ## Verification
 
 Debug build clean (multi.cpp's five standing C4267 warnings only); 624/625 with the standing `Drlg_l1` failure. Pixel counts still match `pixel-checks.json` for all eleven. Look at the Combat Skills page with one skill invested and one not, and at the RMB well with a combat skill readied.
+
+## v1.9.252: no plate in the wells
+
+"remove the plate from the RMB well when a glyph is readied." `TryDrawGlyphBareInWell` serves both well paths (a readied tree skill with a SpellID in `TryDrawSkillSpellIcon`, and an aura in `DrawClassTreeSkillInWell`): where the well plate rect is the glyph's own 56, the glyph is drawn 1:1 with no plate under it. The picker's 38px cells keep plate, tint and the scaled draw. A glyph in a well therefore shows no state colour; that was the request.
