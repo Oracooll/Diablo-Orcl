@@ -19,3 +19,12 @@ Not item level: `canStackWith` compares the misc id and the spell for potions an
 ## Tests
 
 `StashAutoPlaceReachesEveryRowOfThePage` placed a hundred potions and expected a hundred cells; under the new rule that is one stack of 99 and a single, so it places rings now, which is what it was testing anyway. New `StashMergesStackablesOnDepositAndSort` pins the 99+1 merge on deposit and the potions leaving page 0 for their own page on SORT. 626/627 with the standing `Drlg_l1` failure.
+
+## v1.9.279: on the materials page, and the Hellfire runes
+
+"i hit sort but potions and scrolls moved to a brand new tab. i wanted you to find a unallocated slot on the runes/gems dedicated tab and we keep all of them there. also - why aren't you stacking the hellfire runes?"
+
+- SORT now puts the consumables into the FREE cells of the materials page - the rune, salvage, jewel and gem blocks leave rows and columns unallotted, and the consumables take those in row order, potions first, then scrolls, then the runes and oils. Only when there is no materials page do they take the next empty one. The materials page index is remembered from the materials pass rather than looked up again, so the two cannot land on different pages.
+- Hellfire's trap runes (Rune of Fire / Lightning / Nova / Stone) and the oils are stackable consumables now: `isStackableConsumable` admits the two misc-id ranges, the kind test keeps different runes and different oils apart, and a use already goes through the decrement-or-remove path a scroll uses. `IsStackableConsumable_ExcludesRunesAndEquipment` became `_IncludesRunesExcludesEquipment`.
+
+626/627 with the standing `Drlg_l1` failure.

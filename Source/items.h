@@ -558,6 +558,14 @@ struct Item {
 			return true; // potions and elixirs, including the Special Elixir's siblings
 		if (isScroll())
 			return true;
+		// Oracool (2026-09-05, user: "why aren't you stacking the hellfire runes"): Hellfire's trap
+		// runes and the oils are one-use things exactly as scrolls are - a use goes through
+		// DecrementOrRemoveInvItem, which takes one off a stack - and the kind test below keeps
+		// a Rune of Fire apart from a Rune of Stone and an Oil of Sharpness from an Oil of Death.
+		if (_iMiscId > IMISC_RUNEFIRST && _iMiscId < IMISC_RUNELAST)
+			return true;
+		if (_iMiscId > IMISC_OILFIRST && _iMiscId < IMISC_OILLAST)
+			return true;
 		if (_iMiscId == IMISC_BOOK)
 			return true;
 		if (_iMiscId == IMISC_SPECELIX)

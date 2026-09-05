@@ -119,9 +119,13 @@ TEST(Item, IsStackableConsumable_ExcludesArenaPotion)
 	EXPECT_FALSE(MakeItem(ICLASS_MISC, IMISC_ARENAPOT, IDI_ARENAPOT).isStackableConsumable());
 }
 
-TEST(Item, IsStackableConsumable_ExcludesRunesAndEquipment)
+// Hellfire's trap runes STACK since 2026-09-05 (user: "why aren't you stacking the hellfire runes") -
+// a use takes one off the stack like a scroll's does - and different runes stay apart. Equipment
+// never stacks.
+TEST(Item, IsStackableConsumable_IncludesRunesExcludesEquipment)
 {
-	EXPECT_FALSE(MakeItem(ICLASS_MISC, IMISC_RUNEF, IDI_RUNEOFSTONE).isStackableConsumable());
+	EXPECT_TRUE(MakeItem(ICLASS_MISC, IMISC_RUNEF, IDI_RUNEOFSTONE).isStackableConsumable());
+	EXPECT_FALSE(MakeItem(ICLASS_MISC, IMISC_RUNEF, IDI_RUNEOFSTONE).canStackWith(MakeItem(ICLASS_MISC, IMISC_RUNEL, IDI_RUNEOFSTONE)));
 	EXPECT_FALSE(MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Sword).isStackableConsumable());
 }
 

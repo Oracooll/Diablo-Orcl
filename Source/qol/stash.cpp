@@ -1464,8 +1464,10 @@ void SortStash(Player &player)
 	                    [](const Item &item) { return item.isEmpty(); }),
 	    materials.end());
 
+	unsigned materialsPage = CountStashPages; // the page the materials took, for the consumables to share
 	if (!materials.empty()) {
 		const unsigned page = FirstEmptyStashPage();
+		materialsPage = page;
 		if (page >= CountStashPages) {
 			// No empty page. Fall back to the ordinary scan so nothing is lost.
 			for (const Item &item : materials)
@@ -1570,11 +1572,13 @@ void SortStash(Player &player)
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
 
-	// THE CONSUMABLES PAGE (user, 2026-09-05: "find appropriate spot on consumables dedicated stash
-	// tab to put them there on sorting"). The next empty page after the materials', so the two
-	// stores sit side by side. Laid out kind by kind - potions in the belt's own order, then
-	// elixirs, then scrolls by spell - one cell per stack, filling rows from the top-left. Already
-	// merged to stacks of 99 above, so a kind takes as few cells as it can. What the page cannot
+	// THE CONSUMABLES on the MATERIALS page (user, 2026-09-05: "find a unallocated slot on the
+	// runes/gems dedicated tab and we keep all of them there"). The materials' layout allots its
+	// blocks - runes, salvage, jewels, gems - and leaves cells free between and beside them; the
+	// consumables take those free cells in row order, kind by kind - potions and elixirs in the
+	// belt's own order, then scrolls by spell, then the runes and oils - one cell per stack.
+	// Already merged to stacks of 99 above, so a kind takes as few cells as it can. If there is no
+	// materials page (nothing to sort there) they take the next empty page; what the page cannot
 	// hold falls to the ordinary first-fit placement.
 	if (!consumables.empty()) {
 		const auto kindKey = [](const Item &item) {
@@ -1587,13 +1591,20 @@ void SortStash(Player &player)
 		std::stable_sort(consumables.begin(), consumables.end(), [&kindKey](const Item &a, const Item &b) {
 			return kindKey(a) < kindKey(b);
 		});
-		const unsigned page = FirstEmptyStashPage();
+		const unsigned page = materialsPage < CountStashPages ? materialsPage : FirstEmptyStashPage();
 		if (page >= CountStashPages) {
 			for (const Item &item : consumables)
 				AutoPlaceItemInStash(player, item, true);
 		} else {
+			// Free cells in row order. The page's grid may not exist yet when nothing was placed
+			// on it; then every cell is free.
+			const auto cellFree = [page](int x, int y) {
+				return page >= Stash.stashGrids.size() || Stash.stashGrids[page][x][y] == 0;
+			};
 			int cell = 0;
 			for (const Item &item : consumables) {
+				while (cell < StashGridColumns * StashGridRows && !cellFree(cell % StashGridColumns, cell / StashGridColumns))
+					cell++;
 				if (cell >= StashGridColumns * StashGridRows) {
 					AutoPlaceItemInStash(player, item, true);
 					continue;
