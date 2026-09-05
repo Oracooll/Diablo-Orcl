@@ -945,15 +945,15 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// rather than leaving a gap where a third would have gone.
 	// The description lines cast the character sheet's drop shadow (user, 2026-09-05: "introduce text
 	// shadows under description of spells in spells abilities window for easier reading") - the
-	// small grey text on the stone was the hardest read in the window. The name line keeps its
-	// colour clean; it is the description that was hard.
+	// small grey text on the stone was the hardest read in the window. The name line followed the
+	// same night ("add text shadows also under spell names").
 	constexpr UiFlags SpellDescriptionShadow = UiFlags::Shadowed;
 	const std::string damage = GetSpellDamageLine(sn, known);
 	const int lines = damage.empty() ? 2 : 3;
 	const int textTop = top + (SpellRowHeight - lines * AbilitiesLineHeight) / 2;
 	DrawString(content, oracool::GetSpellDisplayName(sn),
 	    { { textX, textTop }, { textWidth, AbilitiesLineHeight } },
-	    { nameColor | UiFlags::VerticalCenter });
+	    { nameColor | UiFlags::VerticalCenter | SpellDescriptionShadow });
 	DrawString(content, GetSpellDetail(sn, known),
 	    { { textX, textTop + AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
 	    { detailColor | UiFlags::VerticalCenter | SpellDescriptionShadow });

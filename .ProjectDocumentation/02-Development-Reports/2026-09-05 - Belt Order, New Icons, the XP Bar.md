@@ -61,3 +61,5 @@ The cutter emits `BeltBarTop` (the painted belt bar's top edge, plate-local 67) 
 
 - Tree pages draw no names on the cells; the skill's name is the hover panel's title. `DrawHoverPanel` (ornate_border.cpp, one caller - the Abilities window) now shadows its title and text.
 - The passive hint is drawn on the PANEL by `DrawPassiveHintAboveList`, in the band between the title and the arch's foot, ending six pixels above the slots' frames, shadowed. The band and grid stayed where they were - the first cut pushed them down to make room and the user said not to.
+
+**v1.9.229** - "add text shadows also under spell names": the Spells sheet's name line takes the same shadow as its description lines.
