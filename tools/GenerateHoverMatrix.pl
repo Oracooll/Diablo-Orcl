@@ -41,7 +41,7 @@ while ($descs =~ m{/\*\s*(\w+)\s*\*/\s*N_\("((?:[^"\\]|\\.)*)"\)}g) { $spellDesc
 my $factsPath = shift @ARGV; # optional: DiabloOrcl.exe --skill-facts <file>
 my %facts;
 if ($factsPath && -f $factsPath) {
-  open my $fh, '<:encoding(UTF-8)', $factsPath or die; while (<$fh>) { chomp; my ($c, $p, $n, $r, $l) = split /	/; next unless defined $l; $facts{"$c|$p|$n|$r"} = [ split / | /, $l ]; } close $fh;
+  open my $fh, '<:encoding(UTF-8)', $factsPath or die; while (<$fh>) { chomp; my ($c, $p, $n, $r, $l) = split /	/; next unless defined $l; $facts{"$c|$p|$n|$r"} = [ split / \| /, $l ]; } close $fh;
 }
 sub factsFor { my ($r, $rank) = @_; my $k = join('|', $className{$r->{cls}}, uc($pages{$r->{cls}}[$r->{page}]), $r->{name}, $rank); return $facts{$k} ? map { esc($_) } @{ $facts{$k} } : (); }
 
@@ -185,5 +185,5 @@ $html .= <<'FOOT';
 </footer>
 FOOT
 
-open my $o, '>:encoding(UTF-8)', $outPath or die $!; print $o $html; close $o;
+open my $o, '>', $outPath or die $!; binmode $o; print $o $html; close $o; # bytes in, bytes out: the sources and the TSV are UTF-8 already
 printf "rows %d, book spells %d, names %d, descs %d -> %s\n", scalar(@rows), scalar(@bookIds), scalar(keys %spellName), scalar(keys %spellDesc), $outPath;
