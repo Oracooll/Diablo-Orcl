@@ -10202,3 +10202,43 @@ TEST(OracoolAudit, TheMenuWindowSpansTheBeltAndSitsOnThePlate)
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
 }
+
+/**
+ * @brief Every menu entry and every inventory tab has a glyph that the strip recognises and draws.
+ *
+ * oracool-hud-glyphs-v1 (2026-09-06): eight 37x38 menu glyphs and ten 28x28 numerals, cut into
+ * strips by tools/CutHudGlyphs.ps1. If a re-cut strip loses a frame or a frame stops being the
+ * two-colour glyph format, the window silently falls back to the text stand-in - so this is where
+ * that shows. The hover (gold) draw of a tab is exercised too: it is a separate pixel loop.
+ */
+TEST(OracoolAudit, EveryMenuEntryAndTabHasAGlyph)
+{
+	LoadCoreArchives();
+	oracool::ResetHudArtCaches();
+	OwnedSurface surf { 64, 64 };
+	const auto drawn = [&](const std::function<bool(const Surface &)> &draw) {
+		SDL_FillRect(surf.surface, nullptr, 77);
+		if (!draw(surf))
+			return -1;
+		int changed = 0;
+		for (int y = 0; y < 64; y++)
+			for (int x = 0; x < 64; x++)
+				if (*surf.at(x, y) != 77)
+					changed++;
+		return changed;
+	};
+	const Rectangle menuCell { { 10, 10 }, { 37, 38 } };
+	for (int i = 0; i < oracool::MenuIconCount; i++) {
+		const int changed = drawn([i, menuCell](const Surface &out) { return oracool::DrawMenuGlyph(out, menuCell, i); });
+		if (i == 0 && changed < 0)
+			GTEST_SKIP() << "menu glyph strip not mounted";
+		EXPECT_GT(changed, 100) << "menu entry " << i << " has no glyph";
+	}
+	const Rectangle tabCell { { 10, 10 }, { 28, 28 } };
+	for (int tab = 0; tab < oracool::TabCount; tab++) {
+		const int white = drawn([tab, tabCell](const Surface &out) { return oracool::DrawTabGlyph(out, tabCell, tab, false); });
+		const int gold = drawn([tab, tabCell](const Surface &out) { return oracool::DrawTabGlyph(out, tabCell, tab, true); });
+		EXPECT_GT(white, 30) << "tab " << tab + 1 << " has no numeral glyph";
+		EXPECT_EQ(white, gold) << "tab " << tab + 1 << ": the gold draw covers different pixels from the white one";
+	}
+}

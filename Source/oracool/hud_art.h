@@ -462,6 +462,15 @@ void DrawBeltSlotPlate(const Surface &out, Rectangle cell);
 void DrawPlateIn(const Surface &out, Rectangle cell, SkillPlateTint tint);
 
 /**
+ * @brief Menu entry @p index's glyph (MenuEntries order), 1:1 and centred in @p cell, over whatever
+ * plate the caller drew. False when the strip is missing, so the caller can draw its stand-in.
+ */
+bool DrawMenuGlyph(const Surface &out, Rectangle cell, int index);
+
+/** @brief Inventory tab @p index's numeral glyph, white, or GOLD when @p gold (the hover). False when missing. */
+bool DrawTabGlyph(const Surface &out, Rectangle cell, int index, bool gold);
+
+/**
  * @brief A belt item's drop shadow: the sprite's own silhouette in solid black, two pixels
  * down and LEFT of @p position (a BOTTOM-left origin, as DrawItem takes). Drawn before the item so
  * it lifts off the plate (user, 2026-09-06: "render shadows behind potions [...] to feel more 3D").

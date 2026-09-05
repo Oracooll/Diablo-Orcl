@@ -1671,8 +1671,12 @@ void DrawInventoryTabs(const Surface &out)
 		const Rectangle screenRect { panel.position + Displacement { panelRect.position.x, panelRect.position.y }, panelRect.size };
 		oracool::DrawPlateIn(out, screenRect, tint);
 		const bool hovered = screenRect.contains(MousePosition);
-		DrawString(out, oracool::TabLabel(tab), screenRect,
-		    { (hovered ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		// The numeral glyph (oracool-hud-glyphs-v1, in since v1.9.292), gold under the cursor; the
+		// font's numeral stands in when the strip is missing.
+		if (!oracool::DrawTabGlyph(out, screenRect, tab, hovered)) {
+			DrawString(out, oracool::TabLabel(tab), screenRect,
+			    { (hovered ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		}
 	};
 	// Every other tab first, the open one last: it stands proud of its neighbours by two pixels
 	// each side, so drawing in index order would let tab N+1 paint over its edge.

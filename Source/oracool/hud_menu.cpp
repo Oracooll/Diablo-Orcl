@@ -263,12 +263,13 @@ void DrawHudMenu(const Surface &out)
 		if (rect.contains(MousePosition))
 			DrawHoverShadow(out, rect);
 		DrawPlateIn(out, rect, lit ? SkillPlateTint::Ready : SkillPlateTint::Unspent);
-		// STAND-IN until the glyph pack for these eight arrives (brief in
-		// .ProjectDocumentation/06-Reference): the entry's initial, white, with the text shadow -
-		// the same stand-in the belt's TP and M wear.
-		const char initial[2] = { MenuEntries[i].label[0], '\0' };
-		DrawString(out, initial, rect,
-		    { UiFlags::ColorWhite | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		// The entry's glyph (oracool-hud-glyphs-v1, in since v1.9.292); the initial, white with the
+		// text shadow, stands in when the strip is missing.
+		if (!DrawMenuGlyph(out, rect, i)) {
+			const char initial[2] = { MenuEntries[i].label[0], '\0' };
+			DrawString(out, initial, rect,
+			    { UiFlags::ColorWhite | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		}
 
 		// The click flash, over the plate rather than by recolouring it: a pressed button.
 		if (i == flashingIcon) {

@@ -198,6 +198,16 @@ ArtAsset BurgerMenuButtonArt { "ui\\burger_menu_button.png" };
  */
 ArtAsset TownPortalGlyphsArt { "ui\\belt_glyphs_tp.png" };
 ArtAsset BurgerMenuGlyphsArt { "ui\\belt_glyphs_menu.png" };
+
+/**
+ * The menu window's eight entries and the inventory's ten tabs as glyphs (oracool-hud-glyphs-v1,
+ * 2026-09-06, cut by tools/CutHudGlyphs.ps1). menu_glyphs.png is eight 38x38 cells - the 37-wide
+ * glyph at x=0 of each, since DrawStripIcon takes square cells - in MenuEntries order;
+ * tab_glyphs.png is ten 28x28 numerals. Both draw 1:1 on the plate; the text stand-ins remain the
+ * fallback when a strip is missing.
+ */
+ArtAsset MenuGlyphsArt { "ui\\menu_glyphs.png" };
+ArtAsset TabGlyphsArt { "ui\\tab_glyphs.png" };
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
 ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
 /**
@@ -719,6 +729,10 @@ void EnsureLoadedAll()
 		LoadPixels(TownPortalGlyphsArt);
 	if (!BurgerMenuGlyphsArt.loadAttempted)
 		LoadPixels(BurgerMenuGlyphsArt);
+	if (!MenuGlyphsArt.loadAttempted)
+		LoadPixels(MenuGlyphsArt);
+	if (!TabGlyphsArt.loadAttempted)
+		LoadPixels(TabGlyphsArt);
 	if (!LevelUpIconArt.loadAttempted)
 		LoadPixels(LevelUpIconArt);
 	for (GridBezelEntry &entry : GridBezels) {
@@ -779,6 +793,10 @@ bool NeedsQuantize()
 	if (!TownPortalGlyphsArt.rgba.empty() && !TownPortalGlyphsArt.bright)
 		return true;
 	if (!BurgerMenuGlyphsArt.rgba.empty() && !BurgerMenuGlyphsArt.bright)
+		return true;
+	if (!MenuGlyphsArt.rgba.empty() && !MenuGlyphsArt.bright)
+		return true;
+	if (!TabGlyphsArt.rgba.empty() && !TabGlyphsArt.bright)
 		return true;
 	if (!LevelUpIconArt.rgba.empty() && !LevelUpIconArt.bright)
 		return true;
@@ -857,6 +875,8 @@ void EnsureQuantized()
 	RepaintOntoBlueInverted(BurgerMenuButtonArt); // the portal ring's blue, bright where the bars are dark (2026-09-06)
 	QuantizeAsset(TownPortalGlyphsArt, std::nullopt);
 	QuantizeAsset(BurgerMenuGlyphsArt, std::nullopt);
+	QuantizeAsset(MenuGlyphsArt, std::nullopt);
+	QuantizeAsset(TabGlyphsArt, std::nullopt);
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
 	// No tint: the bezels arrived already quantised against town.pal (their stone reads as exact
 	// palette entries - 30,30,30 and 61,61,61 off the grey ramp), so tinting would move art that is
@@ -1288,6 +1308,44 @@ bool TryDrawBeltGlyph(const Surface &out, ArtAsset &strip, Rectangle cell, int s
 }
 
 
+bool DrawMenuGlyph(const Surface &out, Rectangle cell, int index)
+{
+	return TryDrawBeltGlyph(out, MenuGlyphsArt, cell, index);
+}
+
+bool DrawTabGlyph(const Surface &out, Rectangle cell, int index, bool gold)
+{
+	if (!gold)
+		return TryDrawBeltGlyph(out, TabGlyphsArt, cell, index);
+	// The hover: the numeral GOLD, white otherwise (user, 2026-09-06). A glyph strip has one
+	// quantised surface, white on the grey ramp's light end, so the gold one is the same cell
+	// copied through a table that moves the white to the gold ramp and leaves the shadow alone.
+	EnsureLoadedAll();
+	if (TabGlyphsArt.rgba.empty())
+		return false;
+	const int frame = TabGlyphsArt.height;
+	if (!IsGlyphFrame(TabGlyphsArt, index, frame))
+		return false;
+	EnsureQuantized();
+	if (!TabGlyphsArt.bright)
+		return false;
+	const Point origin { cell.position.x + (cell.size.width - frame) / 2, cell.position.y + (cell.size.height - frame) / 2 };
+	for (int y = 0; y < frame; y++) {
+		for (int x = 0; x < frame; x++) {
+			const uint8_t c = (*TabGlyphsArt.bright)[Point { index * frame + x, y }];
+			if (c == 0)
+				continue;
+			const Point at = origin + Displacement { x, y };
+			if (!out.InBounds(at))
+				continue;
+			// White is the grey ramp's top three entries after quantising; anything darker is shadow.
+			*out.at(at.x, at.y) = (c >= PAL16_GRAY && c < PAL16_GRAY + 3) ? static_cast<uint8_t>(PAL16_YELLOW + 1) : c;
+		}
+	}
+	return true;
+}
+
+
 void DrawTownPortalIcon(const Surface &out, int state)
 {
 	if (state < 0 || state > 2)
@@ -1608,6 +1666,8 @@ void ResetHudArtCaches()
 	reset(BurgerMenuButtonArt);
 	reset(TownPortalGlyphsArt);
 	reset(BurgerMenuGlyphsArt);
+	reset(MenuGlyphsArt);
+	reset(TabGlyphsArt);
 	reset(LevelUpIconArt);
 	for (GridBezelEntry &entry : GridBezels)
 		reset(entry.art);
