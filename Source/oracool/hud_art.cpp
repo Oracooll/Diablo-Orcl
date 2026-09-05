@@ -59,6 +59,15 @@ struct ArtAsset {
 	 * border, never reshape what is drawn. For edge-to-edge art N is 0 and nothing changes at all.
 	 */
 	std::vector<uint8_t> cellInsets;
+	/**
+	 * Strips only. Per cell, whether it is a vanilla-style GLYPH: flat white (243) with the hard
+	 * (12,7,7) shadow and nothing else, on transparency - the language of the 2026-09-05 skill-glyph
+	 * brief. A glyph frame is drawn 1:1 on a tinted vanilla plate, exactly as the engine's own spell
+	 * icons are; any other frame is the coloured set, scaled to its cell with no plate. Measured off
+	 * the art rather than listed in code, so each glyph batch that lands changes nothing here.
+	 * 0 = not measured yet, 1 = no, 2 = yes.
+	 */
+	std::vector<uint8_t> glyphFrames;
 	std::optional<OwnedSurface> bright;
 	/**
 	 * The HALF-transparent pixels: every source pixel with alpha in [HalfAlphaFloor, 128), quantised
@@ -1476,6 +1485,7 @@ void ResetHudArtCaches()
 		// Even at an unchanged frame count it was wrong, just quietly: the insets are measured from
 		// the art's transparent margins, so an edited strip kept the old crop and drew misaligned.
 		asset.cellInsets.clear();
+		asset.glyphFrames.clear();
 	};
 	reset(PlateArt);
 	reset(HealthOrbArt);
@@ -1712,15 +1722,73 @@ void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tin
 	DrawSplitOutline(out, cell, color, color, 3);
 }
 
+/**
+ * @brief Whether cell @p index of @p asset is a vanilla-style glyph. See ArtAsset::glyphFrames.
+ *
+ * Read from the loaded RGBA like StripCellInset, and for the same reason: the quantiser has already
+ * collapsed alpha by the time anything draws. A frame with no opaque pixel at all is not a glyph -
+ * an empty frame is "no icon", and gets no plate.
+ */
+bool IsGlyphFrame(ArtAsset &asset, int index, int cell)
+{
+	if (cell <= 0 || asset.rgba.empty())
+		return false;
+	const int cells = asset.width / cell;
+	if (index < 0 || index >= cells)
+		return false;
+	if (asset.glyphFrames.size() != static_cast<size_t>(cells))
+		asset.glyphFrames.assign(static_cast<size_t>(cells), 0);
+	uint8_t &known = asset.glyphFrames[static_cast<size_t>(index)];
+	if (known == 0) {
+		bool anyOpaque = false;
+		bool allGlyph = true;
+		for (int y = 0; y < asset.height && allGlyph; y++) {
+			for (int x = 0; x < cell; x++) {
+				const size_t px = (static_cast<size_t>(y) * asset.width + static_cast<size_t>(index * cell + x)) * 4;
+				if (px + 3 >= asset.rgba.size())
+					break;
+				const uint8_t a = asset.rgba[px + 3];
+				if (a == 0)
+					continue;
+				const uint8_t r = asset.rgba[px];
+				const uint8_t g = asset.rgba[px + 1];
+				const uint8_t b = asset.rgba[px + 2];
+				const bool white = r == 243 && g == 243 && b == 243;
+				const bool shadow = r == 12 && g == 7 && b == 7;
+				if (a != 255 || !(white || shadow)) {
+					allGlyph = false;
+					break;
+				}
+				anyOpaque = true;
+			}
+		}
+		known = (anyOpaque && allGlyph) ? 2 : 1;
+	}
+	return known == 2;
+}
+
 void DrawClassTreeIconOutlined(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint)
 {
-	// The icon alone since the same night (user: "remove backing and outlines altogether. leave only
-	// icons themselves. void of any backing"). The ring lasted one build; the tint is unused here now
-	// and stays in the signature so the callers, which still compute it, need not change - and so
-	// it is one line to bring the ring back.
-	(void)tint;
-	DrawStripIconScaledTo(out, TreeStripFor(heroClass), cell, skillIndex, unlocked);
+	ArtAsset &strip = TreeStripFor(heroClass);
+	const int frame = StripIconSize(strip).width;
+	if (IsGlyphFrame(strip, skillIndex, frame)) {
+		// A GLYPH (2026-09-05, "do it"): the tinted vanilla plate under it, and the glyph itself 1:1
+		// in the middle - it was drawn for that plate at that size, with its own 8px clear border, so
+		// scaling it to the cell the way the coloured set is scaled would throw the design away.
+		// This is what puts the plate colour coding on the new icons: the plate is the engine's, the
+		// tint is ApplyPlateTint's, and the glyph is white on whatever the tint says.
+		ApplyPlateTint(tint);
+		DrawSpellIconFittedTo(out, cell, SpellID::Null);
+		DrawStripIcon(out, strip,
+		    { cell.position.x + (cell.size.width - frame) / 2, cell.position.y + (cell.size.height - frame) / 2 },
+		    skillIndex, unlocked);
+		return;
+	}
+	// The coloured set: the icon alone since 2026-09-05 (user: "remove backing and outlines
+	// altogether. leave only icons themselves. void of any backing"). The ring lasted one build; the
+	// tint is unused for these until they are redrawn as glyphs.
+	DrawStripIconScaledTo(out, strip, cell, skillIndex, unlocked);
 }
 
 /**
@@ -1996,7 +2064,18 @@ void DrawClassTreeSkillInWell(const Surface &out, Rectangle well, HeroClass hero
     SkillPlateTint tint)
 {
 	ApplyPlateTint(tint);
-	DrawSpellIconFittedTo(out, SkillWellPlateRect(well)); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
+	const Rectangle plate = SkillWellPlateRect(well);
+	DrawSpellIconFittedTo(out, plate); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
+	ArtAsset &strip = TreeStripFor(heroClass);
+	const int frame = StripIconSize(strip).width;
+	if (IsGlyphFrame(strip, skillIndex, frame) && plate.size.width >= frame && plate.size.height >= frame) {
+		// A glyph on a plate its own size sits 1:1 - see DrawClassTreeIconOutlined. In the picker's
+		// 38px cell it takes the scaled path below like everything else.
+		DrawStripIcon(out, strip,
+		    { plate.position.x + (plate.size.width - frame) / 2, plate.position.y + (plate.size.height - frame) / 2 },
+		    skillIndex, /*unlocked=*/true);
+		return;
+	}
 	DrawClassTreeIconScaledTo(out, well, heroClass, skillIndex);
 }
 
