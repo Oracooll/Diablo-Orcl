@@ -630,9 +630,9 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::Taunt:
 		return N_("A goad that wakes everything in earshot and turns it on you.");
 	case SpellID::Shout:
-		return N_("A bellow that hardens you: half again your armour, a tenth more a rank, for forty seconds and five more a rank.");
+		return N_("A bellow that hardens you: +50% armour, +10% per rank, for 40 seconds, +5 per rank.");
 	case SpellID::BattleCry:
-		return N_("A cry that leaves what hears it a quarter weaker in blow and in armour, for twenty-four seconds.");
+		return N_("A cry that leaves what hears it at -25% damage and -25% armour, for 24 seconds.");
 	case SpellID::BattleOrders:
 		return N_("A shout that swells your life and mana by twenty, ten more a rank, for forty seconds and five more a rank.");
 	case SpellID::WarCry:
@@ -640,11 +640,11 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::BattleCommand:
 		return N_("A command that deepens every skill you have by a rank, for thirty seconds and five more a rank.");
 	case SpellID::Lullaby:
-		return N_("A song that leaves everything in earshot standing asleep for four seconds, half a second more a rank, until it is struck. Uniques do not sleep.");
+		return N_("A song that leaves everything in earshot standing asleep for 4 seconds, +0.5 per rank, until it is struck. Uniques do not sleep.");
 	case SpellID::SoundShock:
 		return N_("A burst of sound through the three tiles ahead, for four to ten and two to four more a rank, that staggers what it strikes.");
 	case SpellID::BardShout:
-		return N_("A shout that leaves everything within three tiles reeling for a second, a fifth more a rank. Uniques shrug it off.");
+		return N_("A shout that leaves everything within three tiles reeling for 1 second, +20% per rank. Uniques shrug it off.");
 	case SpellID::Daze:
 		return N_("A verse that sends everything in earshot stumbling off in a direction of its own. Uniques keep their feet.");
 	case SpellID::TempleBell:
@@ -654,17 +654,17 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::Tranquility:
 		return N_("A sanctuary about you for twelve seconds and one more a rank: what stands beside you is slowed, and a fiftieth of your life returns each second.");
 	case SpellID::InnerSight:
-		return N_("Reveals the weak points of everything in earshot: a third of its armour gone, two percent more a rank, for twenty seconds.");
+		return N_("Reveals the weak points of everything in earshot: -33% armour, -2% more per rank, for 20 seconds.");
 	case SpellID::SlowMissiles:
-		return N_("For twenty seconds, four more a rank, half the arrows aimed at you turn aside - a twentieth more a rank.");
+		return N_("For 20 seconds, +4 per rank, 50% of the arrows aimed at you turn aside, +5% per rank.");
 	case SpellID::Vengeance:
 		return N_("Your blows burn and crackle for thirty seconds, five more a rank: fire and lightning on every hit, more with rank. Cold has no place on the weapon sheet, so it is not added.");
 	case SpellID::Conversion:
 		return N_("Turns one enemy near the cursor to your side for twenty seconds, two more a rank. Uniques and the magic-immune refuse.");
 	case SpellID::FindPotion:
-		return N_("Search a corpse near the cursor. Half the time, a twentieth more a rank, it yields a potion - rarely a full one. The corpse is used up.");
+		return N_("Search a corpse near the cursor. 50% of the time, +5% per rank, it yields a potion - rarely a full one. The corpse is used up.");
 	case SpellID::FindItem:
-		return N_("Search a corpse near the cursor. A quarter of the time, a twentieth more a rank, it yields an item. The corpse is used up.");
+		return N_("Search a corpse near the cursor. 25% of the time, +5% per rank, it yields an item. The corpse is used up.");
 	case SpellID::GrimWard:
 		return N_("Raise a corpse near the cursor as a totem of terror: for twenty seconds, two more a rank, everything but the uniques that comes near it runs.");
 	default:

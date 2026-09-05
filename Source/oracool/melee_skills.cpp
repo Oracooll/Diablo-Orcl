@@ -452,53 +452,53 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 {
 	switch (spell) {
 	case SpellID::Bash:
-		return N_("A heavy blow: a third again as hard, a tenth more a rank, and it knocks the target back.");
+		return N_("A heavy blow at +33% damage, +10% per rank, that knocks the target back.");
 	case SpellID::Leap:
 		return N_("Vault to the spot under the cursor, over anything in the way - four tiles, a tile further every three ranks.");
 	case SpellID::DoubleSwing:
-		return N_("Two blows in one swing, the second at three quarters, a twentieth more a rank.");
+		return N_("Two blows in one swing, the second at 75% damage, +5% per rank.");
 	case SpellID::Stun:
-		return N_("A blow that leaves the target reeling for a second and a half, a fifth longer a rank. Uniques shrug it off.");
+		return N_("A blow that leaves the target reeling for 1.5 seconds, +20% longer per rank. Uniques shrug it off.");
 	case SpellID::LeapAttack:
-		return N_("Leap onto a distant enemy; the blow you land there is half again as hard, a tenth more a rank.");
+		return N_("Leap onto a distant enemy; the blow you land there is at +50% damage, +10% per rank.");
 	case SpellID::Concentrate:
-		return N_("A focused blow half again as hard, a tenth more a rank.");
+		return N_("A focused blow at +50% damage, +10% per rank.");
 	case SpellID::Frenzy:
-		return N_("Two blows in one swing, both at full force, a tenth more a rank.");
+		return N_("Two blows in one swing, both at 100% damage, +10% per rank.");
 	case SpellID::Whirlwind:
-		return N_("Every swing strikes everything around you, at two thirds, a twentieth more a rank.");
+		return N_("Every swing strikes everything around you at 67% damage, +5% per rank.");
 	case SpellID::BerserkBlow:
-		return N_("A blow twice as hard, a fifth more a rank.");
+		return N_("A blow at +100% damage, +20% per rank.");
 	case SpellID::SweepingReed:
 		return N_("Sweep your staff through the three tiles ahead - the target and both beside it - at full force.");
 	case SpellID::BreakingCurrent:
-		return N_("A focused strike a third again as hard that leaves the target reeling for a second.");
+		return N_("A focused strike at +33% damage that leaves the target reeling for 1 second.");
 	case SpellID::VaultingStrike:
-		return N_("Vault onto a distant foe; the blow you land there is half again as hard, a tenth more a rank.");
+		return N_("Vault onto a distant foe; the blow you land there is at +50% damage, +10% per rank.");
 	case SpellID::WheelOfHeaven:
-		return N_("Every swing strikes everything around you, at two thirds, a twentieth more a rank.");
+		return N_("Every swing strikes everything around you at 67% damage, +5% per rank.");
 	case SpellID::SevenReeds:
-		return N_("Three blows in one swing, one more every three ranks up to seven, each at three fifths.");
+		return N_("Three blows in one swing, one more every three ranks up to seven, each at 60% damage.");
 	case SpellID::OpenPalm:
-		return N_("An open-hand strike a fifth harder, a tenth more a rank, that drives the enemy back a tile.");
+		return N_("An open-hand strike at +20% damage, +10% per rank, that drives the enemy back a tile.");
 	case SpellID::HundredFists:
-		return N_("Four blows in one swing, one more every two ranks up to seven, each at half.");
+		return N_("Four blows in one swing, one more every two ranks up to seven, each at 50% damage.");
 	case SpellID::RadiantPalm:
-		return N_("A strike a fifth harder, a tenth more a rank; an enemy it kills erupts, dealing the blow again to everything beside it.");
+		return N_("A strike at +20% damage, +10% per rank; an enemy it kills erupts, dealing the blow again to everything beside it.");
 	case SpellID::Jab:
-		return N_("Three quick thrusts in one motion, the second and third at half, a twentieth more a rank.");
+		return N_("Three quick thrusts in one motion, the second and third at 50% damage, +5% per rank.");
 	case SpellID::PowerStrike:
-		return N_("A thrust a third again as hard, a twentieth more a rank, with one to four lightning a rank on top of it.");
+		return N_("A thrust at +33% damage, +5% per rank, with 1-4 lightning damage per rank on top of it.");
 	case SpellID::Impale:
-		return N_("A savage thrust twice as hard, a fifth more a rank.");
+		return N_("A savage thrust at +100% damage, +20% per rank.");
 	case SpellID::ChargedStrike:
-		return N_("A thrust a fifth harder that throws off two charged bolts toward the target, one more every two ranks.");
+		return N_("A thrust at +20% damage that throws off two charged bolts toward the target, one more every two ranks.");
 	case SpellID::Fend:
-		return N_("Every swing also strikes everything around you, at four fifths, a twentieth more a rank.");
+		return N_("Every swing also strikes everything around you at 80% damage, +5% per rank.");
 	case SpellID::LightningStrike:
-		return N_("A thrust a fifth harder whose lightning leaps on from the target to the next enemy, and the next.");
+		return N_("A thrust at +20% damage whose lightning leaps on from the target to the next enemy, and the next.");
 	case SpellID::Sacrifice:
-		return N_("A blow two and a half times as hard, a fifth more a rank, that costs you a twelfth of what it dealt. It cannot take your last point of life.");
+		return N_("A blow at +150% damage, +20% per rank, that costs you 8% of the damage it dealt in life. It cannot take your last point of life.");
 	default:
 		return "";
 	}
