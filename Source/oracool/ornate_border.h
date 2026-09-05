@@ -223,6 +223,16 @@ void DrawThemedFill(const Surface &out, Rectangle rect, int passes = 1);
 void DrawHoverOutline(const Surface &out, Rectangle rect);
 
 /**
+ * @brief The Abilities window's hover rectangle: DrawHoverOutline's gold at three pixels, casting a
+ * two-pixel shadow (user, 2026-09-05: "make it 3px thick. and let it cast shadow 2px").
+ *
+ * The shadow is the same ring shifted two left and two down - the angle every shadow in this
+ * project casts, the character sheet's text included - in the near-black of the grey ramp, drawn
+ * first so the gold sits on it. Inside the rect, like DrawSplitOutline.
+ */
+void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect);
+
+/**
  * @brief A drop shadow under a slot, cast at the angle the character sheet's text casts its own.
  *
  * Pilot (user, 2026-09-05: "cast same angle shadow as texts in hero stats window to all

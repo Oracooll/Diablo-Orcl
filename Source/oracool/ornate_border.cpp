@@ -157,6 +157,15 @@ void DrawHoverOutline(const Surface &out, Rectangle rect)
 	DrawColoredOutline(out, rect, MidHighlightColor);
 }
 
+void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect)
+{
+	constexpr int Weight = 3;
+	constexpr Displacement ShadowOffset { -2, 2 };
+	const Rectangle shadow { rect.position + ShadowOffset, rect.size };
+	DrawSplitOutline(out, shadow, PAL16_GRAY + 15, PAL16_GRAY + 15, Weight);
+	DrawSplitOutline(out, rect, MidHighlightColor, MidHighlightColor, Weight);
+}
+
 void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth)
 {
 	// The character sheet's text shadow ANGLE - left and down - at three pixels (user, 2026-09-05:

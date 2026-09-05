@@ -1736,7 +1736,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 					                       contentRect.position.y + rect.position.y - scroll },
 					{ AbilitiesContentRightLimit, rect.size.height } };
 				HasPendingHover = true;
-				oracool::DrawHoverOutline(content, { { rect.position.x, rect.position.y - scroll },
+				oracool::DrawHoverOutlineHeavy(content, { { rect.position.x, rect.position.y - scroll },
 				                                       rect.size });
 				return;
 			}
@@ -1764,7 +1764,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		PendingHoverAnchor = { { contentRect.position.x, contentRect.position.y + cell.position.y - scroll },
 			{ AbilitiesContentRightLimit, cell.size.height } };
 		HasPendingHover = true;
-		oracool::DrawHoverOutline(content, { { cell.position.x, cell.position.y - scroll }, cell.size });
+		oracool::DrawHoverOutlineHeavy(content, { { cell.position.x, cell.position.y - scroll }, cell.size });
 		return;
 	}
 
@@ -1796,7 +1796,7 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	// Local to the content subregion, which is what clips it to the scrolling area.
 	// From the interior's left edge, not the panel's - an outline spanning from x=0 drew its left
 	// side across the bezel, which is the exact thing the interior bounds exist to prevent.
-	oracool::DrawHoverOutline(content, { { AbilitiesInteriorLeft, rowTop - scroll },
+	oracool::DrawHoverOutlineHeavy(content, { { AbilitiesInteriorLeft, rowTop - scroll },
 	    { AbilitiesInteriorRight - AbilitiesInteriorLeft, rowHeight } });
 
 	// DEFERRED, not drawn here. Oracool: user request (2026-08-15) - "pop-up windows to be rendered
