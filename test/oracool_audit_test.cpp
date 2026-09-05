@@ -10062,15 +10062,14 @@ TEST(OracoolAudit, TheCanvasDimCoversTheOpeningAndSparesTheBezels)
 }
 
 /**
- * @brief The burger button paints only blue over its plate, and the portal ring sits centred.
+ * @brief The belt buttons' stand-in labels sit centred on their plates and carry the text shadow.
  *
- * Both buttons draw over the belt plate, so each is drawn twice on a screen-sized surface - plate
- * alone, then plate and button - and the pixels that changed are the button. For the burger every
- * such pixel must be on the blue mini ramp (user, 2026-09-06: "stand out more from the
- * background"); for the portal the changed pixels' bounding box must be centred in the cell to
- * within a pixel on each axis, in every state ("align TP icon better").
+ * Each button is drawn twice on a screen-sized surface - plate alone, then plate and button - and
+ * the pixels that changed are the label. Its bounding box must be centred in the cell to within two
+ * pixels on each axis in the idle state, some of its pixels must be the shadow's solid black and
+ * some must not be (user, 2026-09-06: "blue TP text and Gold M letter. Both to have text shadows").
  */
-TEST(OracoolAudit, TheBeltButtonsAreBlueAndTheRingIsCentred)
+TEST(OracoolAudit, TheBeltButtonLabelsSitCentredWithShadows)
 {
 	// The belt is laid out from the screen size, which no test sets by default.
 	const int savedWidth = gnScreenWidth;
@@ -10087,7 +10086,7 @@ TEST(OracoolAudit, TheBeltButtonsAreBlueAndTheRingIsCentred)
 
 	struct Diff {
 		int changed;
-		int offBlue;
+		int black;
 		Rectangle box;
 	};
 	const auto diffOf = [](Rectangle cell, const std::function<void(const Surface &)> &drawButton) {
@@ -10110,30 +10109,37 @@ TEST(OracoolAudit, TheBeltButtonsAreBlueAndTheRingIsCentred)
 				d.box.position.y = std::min(d.box.position.y, y);
 				maxX = std::max(maxX, x);
 				maxY = std::max(maxY, y);
-				if (b < PAL8_BLUE || b >= PAL8_BLUE + 8)
-					d.offBlue++;
+				if (b == 0)
+					d.black++;
 			}
 		}
 		d.box.size = { maxX - d.box.position.x + 1, maxY - d.box.position.y + 1 };
 		return d;
 	};
 
-	const Diff menu = diffOf(menuCell, [](const Surface &out) { oracool::DrawBurgerMenuButton(out, 0); });
-	if (menu.changed == 0)
-		GTEST_SKIP() << "burger art not mounted";
-	EXPECT_EQ(menu.offBlue, 0) << "burger pixels off the blue ramp";
-	EXPECT_GT(menu.changed, 100);
-
-	for (int state = 0; state < 3; state++) {
-		const Diff ring = diffOf(portalCell, [state](const Surface &out) { oracool::DrawTownPortalIcon(out, state); });
-		ASSERT_GT(ring.changed, 100) << "state " << state;
-		// Doubled centres, so an odd/even mismatch is one unit, not a rounding argument.
-		const int cellCx = portalCell.position.x * 2 + portalCell.size.width - 1;
-		const int cellCy = portalCell.position.y * 2 + portalCell.size.height - 1;
-		const int boxCx = ring.box.position.x * 2 + ring.box.size.width - 1;
-		const int boxCy = ring.box.position.y * 2 + ring.box.size.height - 1;
-		EXPECT_LE(std::abs(cellCx - boxCx), 2) << "state " << state << " ring off centre horizontally";
-		EXPECT_LE(std::abs(cellCy - boxCy), 2) << "state " << state << " ring off centre vertically";
+	struct Button {
+		const char *name;
+		Rectangle cell;
+		std::function<void(const Surface &)> draw;
+	};
+	const Button buttons[] = {
+		{ "TP", portalCell, [](const Surface &out) { oracool::DrawTownPortalIcon(out, 0); } },
+		{ "M", menuCell, [](const Surface &out) { oracool::DrawBurgerMenuButton(out, 0); } },
+	};
+	for (const Button &button : buttons) {
+		const Diff d = diffOf(button.cell, button.draw);
+		ASSERT_GT(d.changed, 30) << button.name << " drew nothing";
+		EXPECT_GT(d.black, 5) << button.name << " has no shadow";
+		EXPECT_GT(d.changed - d.black, 5) << button.name << " is all shadow";
+		// Doubled centres, so an odd/even mismatch is one unit, not a rounding argument. The
+		// shadow hangs two left and two down of the glyphs, so the box's centre sits one pixel
+		// left and one down of the glyphs' own - allowed for.
+		const int cellCx = button.cell.position.x * 2 + button.cell.size.width - 1;
+		const int cellCy = button.cell.position.y * 2 + button.cell.size.height - 1;
+		const int boxCx = d.box.position.x * 2 + d.box.size.width - 1;
+		const int boxCy = d.box.position.y * 2 + d.box.size.height - 1;
+		EXPECT_LE(std::abs(cellCx - boxCx), 4) << button.name << " off centre horizontally";
+		EXPECT_LE(std::abs(cellCy - boxCy), 4) << button.name << " off centre vertically";
 	}
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;

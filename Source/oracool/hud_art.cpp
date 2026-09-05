@@ -14,6 +14,7 @@
 
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
+#include "engine/render/text_render.hpp"
 #include "engine/palette.h"
 #include "oracool/class_tree.h" // ClassTreeSkillForSpell - the wells draw the tree's own icons
 #include "oracool/badge.h"
@@ -1226,64 +1227,48 @@ bool HasInventoryTabArt()
 	return !InventoryTabsArt.rgba.empty();
 }
 
+/**
+ * @brief A belt button's stand-in label: @p text centred in @p cell with the game's text shadow.
+ *
+ * The three states are told apart without changing the colour the user chose: hover lifts the
+ * label a pixel up and right (off its shadow, so the shadow reads deeper), click sets it a pixel
+ * down and left onto the shadow, so it reads pressed.
+ */
+void DrawBeltButtonText(const Surface &out, Rectangle cell, const char *text, UiFlags color, int state)
+{
+	constexpr Displacement StateNudge[] = { { 0, 0 }, { 1, -1 }, { -1, 1 } };
+	const Rectangle label { cell.position + StateNudge[state], cell.size };
+	DrawString(out, text, label,
+	    { color | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+}
+
 void DrawTownPortalIcon(const Surface &out, int state)
 {
 	if (state < 0 || state > 2)
 		return;
 
-	EnsureLoadedAll();
-	if (TownPortalIconArt.rgba.empty())
-		return;
-	EnsureQuantized();
-	if (!TownPortalIconArt.bright)
-		return;
-
-	// Centred in the belt cell, which is slightly larger than the icon - that margin is the
-	// cell's own carved bevel from the plate art, deliberately left showing.
+	// TEXT for now (user, 2026-09-06: "replace for now these icon with blue TP text and Gold M
+	// letter. Both to have text shadows"), until the glyph-style pack for the two buttons arrives.
+	// The painted rings are still loaded and quantised (TownPortalIconArt) and CentreOpaqueIn is
+	// still here for them. Shadowed is the game's own text shadow - solid black, two left and two
+	// down, the same cast as the belt items' (DrawBeltItemShadow).
 	const Rectangle cell = GetBeltSlotRect(BeltTownPortalSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
-	// Centred by the ring's own opaque bounds, per state - the idle ring sits 1.5px right of its
-	// frame's centre and the hover and click rings are drawn larger, so centring the FRAME put the
-	// ring off by a pixel or two (user, 2026-09-06: "align TP icon better").
-	const Point position = CentreOpaqueIn(TownPortalIconArt, state * TownPortalIconSize.width, TownPortalIconSize, cell);
-	out.BlitFromSkipColorIndexZero(*TownPortalIconArt.bright,
-	    MakeSdlRect(state * TownPortalIconSize.width, 0, TownPortalIconSize.width, TownPortalIconSize.height),
-	    position);
+	DrawBeltButtonText(out, cell, "TP", UiFlags::ColorBlue, state);
 }
 
 void DrawBurgerMenuButton(const Surface &out, int state)
 {
-	// Three cells again since the 2026-09-05 sheet: 0 default, 1 hover, 2 click.
+	// Three states: 0 default, 1 hover, 2 click.
 	if (state < 0 || state > 2)
 		return;
 
-	EnsureLoadedAll();
-	if (BurgerMenuButtonArt.rgba.empty())
-		return;
-	EnsureQuantized();
-	if (!BurgerMenuButtonArt.bright)
-		return;
-
-	// Centred, then nudged one pixel right and one down - user, 2026-08-19, looking at it in place.
-	//
-	// The nudge is not arbitrary and it is not fighting the centring. The cell is 33x36 and the icon
-	// 26x26, so the horizontal leftover is 7: an odd number, and floor put the spare pixel on the
-	// right, leaving the icon a pixel left of true centre. +1 lands it on the other side of that
-	// half-pixel, which is as centred as an odd gap allows. Vertically the gap is even and this is
-	// simply a pixel low, because the cell rect includes the plate's label strip along its top edge -
-	// the same asymmetry the old BurgerMenuButtonRise was compensating for in the other direction
-	// when the art was 27x29.
-	//
-	// Zeroed 2026-09-05: the fifth HUD's cells are 28 wide and the new icon is 28, so there is no
-	// odd leftover to split and +1 would hang a column over the rim.
-	constexpr Displacement BurgerMenuNudge { 0, 0 };
+	// TEXT for now - see DrawTownPortalIcon. The painted bars (BurgerMenuButtonArt, repainted
+	// blue at quantise time) and the nudge history went with the 2026-09-06 change; both are in
+	// the history at v1.9.288.
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
-	// By opaque bounds, like the portal (2026-09-06); the nudge stays in the history above.
-	const Point position = CentreOpaqueIn(BurgerMenuButtonArt, state * BurgerMenuButtonSize.width, BurgerMenuButtonSize, cell) + BurgerMenuNudge;
-	out.BlitFromSkipColorIndexZero(*BurgerMenuButtonArt.bright,
-	    MakeSdlRect(state * BurgerMenuButtonSize.width, 0, BurgerMenuButtonSize.width, BurgerMenuButtonSize.height),
-	    position);
+	DrawBeltButtonText(out, cell, "M", UiFlags::ColorGold, state);
 }
 
 void DrawLevelUpIconArt(const Surface &out, int state)
