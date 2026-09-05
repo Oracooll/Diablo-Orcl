@@ -1846,10 +1846,12 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 void DrawLegacySpellIconInCell(const Surface &out, Rectangle cell, SpellID spell, SkillPlateTint tint)
 {
 	// The symbol alone since 2026-09-05 ("remove backing from legacy spell icons too - do the
-	// masked cut"): the plate is masked out at draw time against the sheet's blank plate. The tint
-	// still colours the symbol, through the same table it coloured the plate with.
+	// masked cut"), and from the 56px sheet since the same day ("switch the abilities window to the
+	// 56px sheet") - this is the tree pages' legacy row, a 56px cell. The plate is masked out at
+	// draw time against the sheet's blank frame; the tint still colours the symbol, through the
+	// same table it coloured the plate with.
 	ApplyPlateTint(tint);
-	DrawSmallSpellSymbolFittedTo(out, cell, spell);
+	DrawLargeSpellSymbolCentredIn(out, cell, spell);
 }
 
 void DrawRedCross(const Surface &out, Rectangle icon)

@@ -474,6 +474,48 @@ void DrawSmallSpellSymbolFittedTo(const Surface &out, Rectangle cell, SpellID sp
 	}
 }
 
+void DrawLargeSpellSymbolCentredIn(const Surface &out, Rectangle cell, SpellID spell)
+{
+	// The 56px sheet's twin of DrawSmallSpellSymbolFittedTo (user, 2026-09-05: "switch the abilities
+	// window to the 56px sheet"). The Abilities window's cells are 56, the sheet's frames are 56, so
+	// nothing is resampled: the frame is centred in the cell as it is. The Spells sheet had drawn
+	// the 37px icon stretched by half again since its cells grew on 2026-08-19 - a leftover of which
+	// draw call the growth landed on, not a choice. Same mask as the small cut: the sheet's own
+	// blank plate (frame 26, SpellID::Null) through the same translation table, and only what
+	// differs from it is the symbol.
+	if (!LargeSpellIcons)
+		return;
+	const ClxSprite icon = (*LargeSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]];
+	const ClxSprite blank = (*LargeSpellIcons)[SpellITbl[static_cast<int8_t>(SpellID::Null)]];
+	const int w = static_cast<int>(icon.width());
+	const int h = static_cast<int>(icon.height());
+	if (w <= 0 || h <= 0 || blank.width() != icon.width() || blank.height() != icon.height())
+		return;
+
+	OwnedSurface iconScratch(w, h);
+	OwnedSurface blankScratch(w, h);
+	SDL_FillRect(iconScratch.surface, nullptr, 0);
+	SDL_FillRect(blankScratch.surface, nullptr, 0);
+	ClxDrawTRN(iconScratch, { 0, h - 1 }, icon, SplTransTbl);
+	ClxDrawTRN(blankScratch, { 0, h - 1 }, blank, SplTransTbl);
+
+	const Point centred { cell.position.x + (cell.size.width - w) / 2, cell.position.y + (cell.size.height - h) / 2 };
+	for (int y = 0; y < h; y++) {
+		const int dy = centred.y + y;
+		if (dy < 0 || dy >= out.h())
+			continue;
+		for (int x = 0; x < w; x++) {
+			const int dx = centred.x + x;
+			if (dx < 0 || dx >= out.w())
+				continue;
+			const uint8_t index = *iconScratch.at(x, y);
+			if (index == 0 || index == *blankScratch.at(x, y))
+				continue;
+			*out.at(dx, dy) = index;
+		}
+	}
+}
+
 void SetSpellTransRed()
 {
 	// Oracool: user request (2026-08-17) - "Unlocked skills with 0 points in them are unavailable

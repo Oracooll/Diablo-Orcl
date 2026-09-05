@@ -89,6 +89,12 @@ void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spel
  */
 void DrawSmallSpellSymbolFittedTo(const Surface &out, Rectangle cell, SpellID spell);
 
+/**
+ * @brief The 56px sheet's symbol alone, centred in @p cell with no resampling - for the Abilities
+ * window, whose cells are the sheet's own size. Masked against its blank frame like the small one.
+ */
+void DrawLargeSpellSymbolCentredIn(const Surface &out, Rectangle cell, SpellID spell);
+
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();
 
