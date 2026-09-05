@@ -186,6 +186,8 @@ enum class SkillPlateTint : uint8_t {
 	Locked,
 	/** A spell held as a SCROLL - the engine's own beige for scroll casts, and the picker's own tier. */
 	Scroll,
+	/** Under the cursor (user, 2026-09-06): the grey plate lifted to white. The burger menu's hover. */
+	White,
 };
 
 /**
@@ -467,8 +469,8 @@ void DrawPlateIn(const Surface &out, Rectangle cell, SkillPlateTint tint);
  */
 bool DrawMenuGlyph(const Surface &out, Rectangle cell, int index);
 
-/** @brief Inventory tab @p index's numeral glyph, white, or GOLD when @p gold (the hover). False when missing. */
-bool DrawTabGlyph(const Surface &out, Rectangle cell, int index, bool gold);
+/** @brief An inventory tab's chest glyph - lid down, or raised when @p open - white, or GOLD when @p gold (the hover). False when missing. */
+bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold);
 
 /**
  * @brief A belt item's drop shadow: the sprite's own silhouette in solid black, two pixels

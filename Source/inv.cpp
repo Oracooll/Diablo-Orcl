@@ -1670,10 +1670,12 @@ void DrawInventoryTabs(const Surface &out)
 	const auto drawTab = [&](int tab, Rectangle panelRect, oracool::SkillPlateTint tint) {
 		const Rectangle screenRect { panel.position + Displacement { panelRect.position.x, panelRect.position.y }, panelRect.size };
 		oracool::DrawPlateIn(out, screenRect, tint);
-		const bool hovered = screenRect.contains(MousePosition);
-		// The numeral glyph (oracool-hud-glyphs-v1, in since v1.9.292), gold under the cursor; the
+		const bool open = tab == ActiveInventoryTab;
+		const bool hovered = !open && screenRect.contains(MousePosition);
+		// The chest glyph (oracool-tab-chest-glyphs-v1, in since v1.9.293): lid down on a closed tab,
+		// raised on the open one, gold under the cursor. The numerals (v1.9.292) were not liked; the
 		// font's numeral stands in when the strip is missing.
-		if (!oracool::DrawTabGlyph(out, screenRect, tab, hovered)) {
+		if (!oracool::DrawTabGlyph(out, screenRect, open, hovered)) {
 			DrawString(out, oracool::TabLabel(tab), screenRect,
 			    { (hovered ? UiFlags::ColorGold : UiFlags::ColorWhite) | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 		}

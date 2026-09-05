@@ -207,7 +207,7 @@ ArtAsset BurgerMenuGlyphsArt { "ui\\belt_glyphs_menu.png" };
  * fallback when a strip is missing.
  */
 ArtAsset MenuGlyphsArt { "ui\\menu_glyphs.png" };
-ArtAsset TabGlyphsArt { "ui\\tab_glyphs.png" };
+ArtAsset TabGlyphsArt { "ui\\tab_glyphs.png" }; // two frames since v1.9.293: chest closed, chest open (oracool-tab-chest-glyphs-v1)
 /** The level-up indicator that appears under the clock when attribute points are unspent. */
 ArtAsset LevelUpIconArt { "ui\\level_up_icon.png" };
 /**
@@ -1313,11 +1313,14 @@ bool DrawMenuGlyph(const Surface &out, Rectangle cell, int index)
 	return TryDrawBeltGlyph(out, MenuGlyphsArt, cell, index);
 }
 
-bool DrawTabGlyph(const Surface &out, Rectangle cell, int index, bool gold)
+bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold)
 {
+	// The chest (user, 2026-09-06: "i dont like the numbers in the tabs in inv grid. i preffer chest
+	// icon. closed/open states"): frame 0 closed, frame 1 open, one shared body so nothing jumps.
+	const int index = open ? 1 : 0;
 	if (!gold)
 		return TryDrawBeltGlyph(out, TabGlyphsArt, cell, index);
-	// The hover: the numeral GOLD, white otherwise (user, 2026-09-06). A glyph strip has one
+	// The hover: the glyph GOLD, white otherwise (user, 2026-09-06). A glyph strip has one
 	// quantised surface, white on the grey ramp's light end, so the gold one is the same cell
 	// copied through a table that moves the white to the gold ramp and leaves the shadow alone.
 	EnsureLoadedAll();
@@ -1621,6 +1624,9 @@ void ApplyPlateTint(SkillPlateTint tint)
 	case SkillPlateTint::Yellow:
 		SetSpellTrans(SpellType::Skill);
 		break;
+	case SkillPlateTint::White:
+		SetSpellTransWhite();
+		break;
 	}
 }
 
@@ -1916,6 +1922,7 @@ void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tin
 		break;
 	case SkillPlateTint::Unspent:
 	case SkillPlateTint::Yellow:
+	case SkillPlateTint::White:
 		break;
 	}
 	// Inside the cell, three deep - the carved bezel is outside it, so the ring sits between the

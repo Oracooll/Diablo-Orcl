@@ -150,9 +150,6 @@ constexpr Size MenuPlateSize { 37, 38 }; // the vanilla small spell plate, GetSk
 constexpr int MenuCellGap = 6;
 constexpr int MenuPadding = 14;
 constexpr int MenuTitleHeight = 18;
-constexpr int MenuFlashInset = 4;
-/** @brief The click flash's colour. PAL16 ramps run light to dark, so a low offset is bright. */
-constexpr uint8_t IconFlashColor = PAL16_ORANGE + 4;
 
 bool HudMenuOpen = false;
 
@@ -239,8 +236,8 @@ void CloseHudMenu()
 
 void DrawHudMenu(const Surface &out)
 {
-	const bool flashing = FlashingCell >= MenuFlashBase
-	    && (SDL_GetTicks() - FlashStartedAtMs) < ButtonFlashDurationMs;
+	const uint32_t elapsed = SDL_GetTicks() - FlashStartedAtMs;
+	const bool flashing = FlashingCell >= MenuFlashBase && elapsed < ButtonFlashDurationMs;
 	const int flashingIcon = flashing ? FlashingCell - MenuFlashBase : -1;
 
 	const Rectangle window = MenuWindowRect();
@@ -256,13 +253,18 @@ void DrawHudMenu(const Surface &out)
 
 	for (int i = 0; i < MenuIconCount; i++) {
 		const Rectangle rect = IconRect(i);
-		// The plate says what is open: GOLD (Ready) for an entry whose window is showing, light
-		// grey (Unspent) otherwise - the same coding the skill pages use. Hover is the Abilities
-		// window's deeper shadow under the plate, not a colour.
+		// The plate's colour IS the state (user, 2026-09-06: "hovering over the burger menu items to
+		// color the backing from gray to white and to blink once and hold gold on click"): light
+		// grey at rest, WHITE under the cursor, and on a click one blink - gold for the first half of
+		// the flash, grey for the second - then GOLD held for as long as the entry's window is
+		// showing. An entry that opens nothing lasting (Game Menu) blinks and returns to grey.
 		const bool lit = MenuEntries[i].isOn != nullptr && MenuEntries[i].isOn();
-		if (rect.contains(MousePosition))
-			DrawHoverShadow(out, rect);
-		DrawPlateIn(out, rect, lit ? SkillPlateTint::Ready : SkillPlateTint::Unspent);
+		SkillPlateTint tint = lit ? SkillPlateTint::Ready : SkillPlateTint::Unspent;
+		if (i == flashingIcon)
+			tint = (elapsed / MenuBlinkPhaseMs) % 2 == 0 ? SkillPlateTint::Ready : SkillPlateTint::Unspent;
+		else if (!lit && rect.contains(MousePosition))
+			tint = SkillPlateTint::White;
+		DrawPlateIn(out, rect, tint);
 		// The entry's glyph (oracool-hud-glyphs-v1, in since v1.9.292); the initial, white with the
 		// text shadow, stands in when the strip is missing.
 		if (!DrawMenuGlyph(out, rect, i)) {
@@ -271,12 +273,6 @@ void DrawHudMenu(const Surface &out)
 			    { UiFlags::ColorWhite | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 		}
 
-		// The click flash, over the plate rather than by recolouring it: a pressed button.
-		if (i == flashingIcon) {
-			const Rectangle inner = rect.inset({ MenuFlashInset, MenuFlashInset });
-			DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y,
-			    inner.size.width, inner.size.height, IconFlashColor);
-		}
 	}
 }
 

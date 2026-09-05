@@ -338,6 +338,31 @@ void SetSpellTransDarkGrey()
 	SplTransTbl[PAL16_ORANGE + 15] = 0;
 }
 
+void SetSpellTransWhite()
+{
+	// Oracool: the HOVER plate (user, 2026-09-06: "hovering over the burger menu items to color the
+	// backing from gray to white"). SetSpellTrans(Invalid)'s table lifted three shades toward the
+	// light end of the grey ramp, the mirror of SetSpellTransDarkGrey's four shades down.
+	for (int i = 0; i < 256; i++)
+		SplTransTbl[i] = static_cast<uint8_t>(i);
+	SplTransTbl[255] = 0;
+
+	constexpr int Lift = 3;
+	SplTransTbl[PAL8_YELLOW] = PAL16_GRAY;
+	SplTransTbl[PAL8_YELLOW + 1] = PAL16_GRAY;
+	SplTransTbl[PAL8_YELLOW + 2] = PAL16_GRAY + 2;
+	for (int within = 0; within < 15; within++) {
+		const auto light = static_cast<uint8_t>(PAL16_GRAY + std::max(within - Lift, 0));
+		SplTransTbl[PAL16_BEIGE + within] = light;
+		SplTransTbl[PAL16_YELLOW + within] = light;
+		SplTransTbl[PAL16_ORANGE + within] = light;
+		SplTransTbl[PAL16_GRAY + within] = light;
+	}
+	SplTransTbl[PAL16_BEIGE + 15] = 0;
+	SplTransTbl[PAL16_YELLOW + 15] = 0;
+	SplTransTbl[PAL16_ORANGE + 15] = 0;
+}
+
 void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell)
 {
 	if (!SmallSpellIcons) {

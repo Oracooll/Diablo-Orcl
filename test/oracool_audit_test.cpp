@@ -10235,10 +10235,15 @@ TEST(OracoolAudit, EveryMenuEntryAndTabHasAGlyph)
 		EXPECT_GT(changed, 100) << "menu entry " << i << " has no glyph";
 	}
 	const Rectangle tabCell { { 10, 10 }, { 28, 28 } };
-	for (int tab = 0; tab < oracool::TabCount; tab++) {
-		const int white = drawn([tab, tabCell](const Surface &out) { return oracool::DrawTabGlyph(out, tabCell, tab, false); });
-		const int gold = drawn([tab, tabCell](const Surface &out) { return oracool::DrawTabGlyph(out, tabCell, tab, true); });
-		EXPECT_GT(white, 30) << "tab " << tab + 1 << " has no numeral glyph";
-		EXPECT_EQ(white, gold) << "tab " << tab + 1 << ": the gold draw covers different pixels from the white one";
+	// The chest, lid down and lid raised (oracool-tab-chest-glyphs-v1): the open one paints more,
+	// since the raised lid adds rows above the shared body.
+	int painted[2] = {};
+	for (int open = 0; open < 2; open++) {
+		const int white = drawn([open, tabCell](const Surface &out) { return oracool::DrawTabGlyph(out, tabCell, open == 1, false); });
+		const int gold = drawn([open, tabCell](const Surface &out) { return oracool::DrawTabGlyph(out, tabCell, open == 1, true); });
+		EXPECT_GT(white, 30) << (open == 1 ? "open" : "closed") << " chest has no glyph";
+		EXPECT_EQ(white, gold) << "the gold draw covers different pixels from the white one";
+		painted[open] = white;
 	}
+	EXPECT_GT(painted[1], painted[0]) << "the open chest should paint more than the closed one";
 }

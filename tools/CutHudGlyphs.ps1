@@ -49,5 +49,8 @@ function BuildStrip([string[]]$files, [int]$cell, [int]$srcW, [int]$srcH, [strin
 
 $menu = @('character', 'quests', 'runewords', 'game_menu', 'inventory', 'spellbook', 'crafting', 'event_log') | ForEach-Object { Join-Path $pack "menu\$_.png" }
 BuildStrip $menu 38 37 38 'menu_glyphs.png'
-$tabs = 1..10 | ForEach-Object { Join-Path $pack "tabs\$_.png" }
+# The tabs: the chest pair from oracool-tab-chest-glyphs-v1 (closed, open). The ten numerals of
+# oracool-hud-glyphs-v1 were cut here for one build (v1.9.292) and stay in that pack.
+$chestPack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-tab-chest-glyphs-v1\glyphs\tabs'
+$tabs = @('chest_closed', 'chest_open') | ForEach-Object { Join-Path $chestPack "$_.png" }
 BuildStrip $tabs 28 28 28 'tab_glyphs.png'

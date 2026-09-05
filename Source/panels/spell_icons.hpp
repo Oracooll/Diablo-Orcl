@@ -62,6 +62,8 @@ void DrawSmallSpellIconBorder(const Surface &out, Point position);
 void SetSpellTrans(SpellType t);
 /** @brief Oracool: the darker locked-plate grey - SetSpellTrans(Invalid) shifted four shades down the ramp. See the .cpp. */
 void SetSpellTransDarkGrey();
+/** @brief Oracool: the HOVER plate - SetSpellTrans(Invalid) lifted three shades toward white. See the .cpp. */
+void SetSpellTransWhite();
 /** @brief Oracool: the Skills-sheet green - plate ramps mapped onto the injected PAL8_GREEN ramp. */
 void SetSpellTransGreen();
 /** @brief Oracool: unlocked but UNSPENT - the plate ramps mapped onto the game's own PAL16_RED. */
