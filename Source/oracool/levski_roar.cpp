@@ -24,6 +24,7 @@
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h" // DrawLoosePng, DrawRedCross - the painted skin and its states
 #include "oracool/levski_roar_skin.h"
+#include "oracool/book_frame.h" // the painted tall frame the recipe book wears
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
@@ -158,7 +159,17 @@ Rectangle CloseButtonRect(const Rectangle &window)
  * left of a centred window is what it is; the book has to fit that, not assume it. */
 int RecipeBookWidthFor(const Rectangle &window)
 {
-	return std::clamp(window.position.x - SlotGap * 2, 220, 420);
+	// The painted tall frame's width (2026-09-05): a painting cannot be narrower for a narrow
+	// screen, so the book is its frame's size and slides to x=0 when the room left of the window
+	// runs out - the clamp GetLevskiRecipeBookRect already does.
+	(void)window;
+	return BookFrameSize(BookFrame::Tall).width;
+}
+
+/** @brief The frame's clear core: where the book's title, rows and clips live (the bezel is outside it). */
+Rectangle RecipeBookInner(const Rectangle &page)
+{
+	return BookFrameCore(BookFrame::Tall, page);
 }
 /**
  * The panel's ground, opaque.
@@ -242,10 +253,11 @@ struct RecipeRow {
 
 std::vector<RecipeRow> RecipeBookRows(const Rectangle &page)
 {
+	const Rectangle inner = RecipeBookInner(page);
 	std::vector<RecipeRow> rows;
 	rows.reserve(CraftingRecipeCount);
-	const int textWidth = page.size.width - Padding * 2;
-	int y = page.position.y + Padding + HeaderHeight - RecipeBookScroll;
+	const int textWidth = inner.size.width - Padding * 2;
+	int y = inner.position.y + Padding + HeaderHeight - RecipeBookScroll;
 	for (int i = 0; i < CraftingRecipeCount; i++) {
 		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
 		const std::string formula = WordWrapString(_(CraftingRecipeInputs(i)), textWidth, GameFont12);
@@ -260,7 +272,8 @@ std::vector<RecipeRow> RecipeBookRows(const Rectangle &page)
 /** @brief How far the book can scroll before the last recipe's foot reaches the panel's. */
 int RecipeBookMaxScroll(const Rectangle &page)
 {
-	if (page.size.height <= 0)
+	const Rectangle inner = RecipeBookInner(page);
+	if (inner.size.height <= 0)
 		return 0;
 	// Measured from the UNSCROLLED layout, so the answer does not depend on where the book already
 	// is - a max that moved with the offset is how a scroll runs away from its own bound.
@@ -271,7 +284,7 @@ int RecipeBookMaxScroll(const Rectangle &page)
 	if (rows.empty())
 		return 0;
 	const int contentBottom = rows.back().top + rows.back().height;
-	const int visibleBottom = page.position.y + page.size.height - Padding;
+	const int visibleBottom = inner.position.y + inner.size.height - Padding;
 	return std::max(0, contentBottom - visibleBottom);
 }
 
@@ -544,7 +557,8 @@ bool HandleLevskiRecipeBookScroll(int notches)
 	if (!WindowOpen || !RecipeBookOpen)
 		return false;
 	const Rectangle book = GetLevskiRecipeBookRect();
-	if (book.size.height <= 0)
+	const Rectangle bookInner = RecipeBookInner(book);
+	if (bookInner.size.height <= 0)
 		return false;
 	// A wheel notch moves about one recipe's worth. Bounded at BOTH ends, for the reason recorded
 	// on the skill picker's own scroll: without the upper bound the wheel pushes the list past its
@@ -700,7 +714,11 @@ Rectangle GetLevskiRecipeBookRect()
 	constexpr int BottomReserve = 100;
 	constexpr int MaxBookHeight = 620;
 	const int band = std::max(0, static_cast<int>(gnScreenHeight) - BottomReserve);
-	const int height = std::min({ Padding * 2 + HeaderHeight + textHeight, MaxBookHeight, band });
+	// The painted frame's height (2026-09-05), not the text's: a painting is one size. The band
+	// still caps it on a screen shorter than the frame; the text scrolls inside whatever is left.
+	(void)textHeight;
+	(void)MaxBookHeight;
+	const int height = std::min(BookFrameSize(BookFrame::Tall).height, band);
 	// LEFT of the window by preference: opening right ran the book under the mini-map, which owns
 	// the top-right corner.
 	//
@@ -880,10 +898,13 @@ void DrawLevskiRoar(const Surface &out)
 		return;
 
 	const Rectangle page = GetLevskiRecipeBookRect();
-	DrawPanelGround(out, page);
+	// The painted tall frame (user, 2026-09-05): dark backing in its core, the bezel over it, the
+	// red X at the frame's top-right.
+	DrawBookFrame(out, BookFrame::Tall, page);
 	DrawWindowCloseButton(out, page);
-	Point cursor = page.position + Displacement { Padding, Padding };
-	const int textWidth = page.size.width - Padding * 2;
+	const Rectangle inner = RecipeBookInner(page);
+	Point cursor = inner.position + Displacement { Padding, Padding };
+	const int textWidth = inner.size.width - Padding * 2;
 	DrawString(out, _("Recipes"), Rectangle { cursor, { textWidth, HeaderHeight } },
 	    { UiFlags::ColorGold | UiFlags::FontSize24 });
 	cursor.y += HeaderHeight;
@@ -896,8 +917,8 @@ void DrawLevskiRoar(const Surface &out)
 	// it was set can be past the end by the time it is drawn.
 	RecipeBookScroll = std::clamp(RecipeBookScroll, 0, RecipeBookMaxScroll(page));
 
-	const int clipTop = page.position.y + Padding + HeaderHeight;
-	const int clipBottom = page.position.y + page.size.height - Padding;
+	const int clipTop = inner.position.y + Padding + HeaderHeight;
+	const int clipBottom = inner.position.y + inner.size.height - Padding;
 	const std::vector<RecipeRow> rows = RecipeBookRows(page);
 	for (int i = 0; i < CraftingRecipeCount; i++) {
 		const RecipeRow &row = rows[i];
@@ -912,11 +933,11 @@ void DrawLevskiRoar(const Surface &out)
 		if (selected) {
 			// The selection is a filled band behind the block, because the name's colour is
 			// already carrying "can this run right now" and one text colour cannot say two things.
-			FillRect(out, page.position.x + Padding - 2, row.top - 2,
+			FillRect(out, inner.position.x + Padding - 2, row.top - 2,
 			    textWidth + 4, row.height - 2, ButtonFlashColor);
 		}
 
-		Point rowCursor { page.position.x + Padding, row.top };
+		Point rowCursor { inner.position.x + Padding, row.top };
 		const int lineHeight = GetLineHeight(_(CraftingRecipeName(i)), GameFont12);
 		DrawString(out, _(CraftingRecipeName(i)), Rectangle { rowCursor, { textWidth, lineHeight } },
 		    { (selected ? UiFlags::ColorWhite : (ready ? UiFlags::ColorGold : UiFlags::ColorWhitegold)) | UiFlags::FontSize12 });
@@ -937,6 +958,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 
 	const Rectangle window = GetLevskiRoarRect();
 	const Rectangle book = GetLevskiRecipeBookRect();
+	const Rectangle bookInner = RecipeBookInner(book); // the rows and clips are laid out from the frame's core
 	const bool inWindow = window.contains(mousePosition);
 	const bool inBook = RecipeBookOpen && book.contains(mousePosition);
 	if (!inWindow && !inBook)
@@ -956,8 +978,8 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 		// Walked through the same RecipeBookRows the draw used, so a click lands on the row that
 		// was actually under the pointer even though the rows are not a fixed height.
 		const std::vector<RecipeRow> rows = RecipeBookRows(book);
-		const int clipTop = book.position.y + Padding + HeaderHeight;
-		const int clipBottom = book.position.y + book.size.height - Padding;
+		const int clipTop = bookInner.position.y + Padding + HeaderHeight;
+		const int clipBottom = bookInner.position.y + bookInner.size.height - Padding;
 		for (int i = 0; i < CraftingRecipeCount; i++) {
 			const RecipeRow &row = rows[i];
 			if (row.top < clipTop || row.top + row.height > clipBottom)

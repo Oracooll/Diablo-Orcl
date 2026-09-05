@@ -1,5 +1,7 @@
 #include "oracool/crafting_menu.h"
 
+#include "oracool/book_frame.h" // the painted wide frame
+
 #include <algorithm>
 
 #include <fmt/format.h>
@@ -31,7 +33,7 @@ bool MenuOpen = false;
 // mean a change to one silently resizing the other.
 constexpr Size WindowSize { 944, 616 };
 constexpr int RowHeight = 56;
-constexpr int WindowPadding = 12;
+constexpr int WindowPadding = 30; // the painted frame's bezel is 21-24 deep on every side (book_frame.cpp); was 12 inside the drawn border
 constexpr int HeaderHeight = 28;
 /** @brief The line under the title saying where crafting happens. Reserved whether or not it wraps. */
 constexpr int SubtitleHeight = 20;
@@ -135,8 +137,9 @@ void DrawCraftingMenu(const Surface &out)
 		return;
 
 	const Rectangle window = GetCraftingMenuRect();
-	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
-	DrawOrnateBorder(out, window);
+	// The painted wide frame (user, 2026-09-05), shared with the Runeword book: dark backing in
+	// its core, the bezel over it.
+	DrawBookFrame(out, BookFrame::Wide, window);
 	// No close button drawn here. This is a left-panel content, and scrollrt draws the X for
 	// whichever content is open from GetLeftPanelContentRect() - which IS this rect. Drawing one
 	// here too stacked a second X exactly on top of the first, which is the failure the central

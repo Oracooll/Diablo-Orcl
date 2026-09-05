@@ -76,6 +76,7 @@ set(libdevilutionx_SRCS
   oracool/melee_skills.cpp
   oracool/passives.cpp
   oracool/skill_facts.cpp
+  oracool/book_frame.cpp
   oracool/warcries.cpp
   oracool/class_skills.cpp
   oracool/furious_charge.cpp
