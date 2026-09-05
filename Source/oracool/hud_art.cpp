@@ -1318,8 +1318,12 @@ bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold)
 	// The chest (user, 2026-09-06: "i dont like the numbers in the tabs in inv grid. i preffer chest
 	// icon. closed/open states"): frame 0 closed, frame 1 open, one shared body so nothing jumps.
 	const int index = open ? 1 : 0;
+	// The closed chest sits 1px left and 3px up of the cell's centre (user, 2026-09-06: "move chest
+	// icons in inactive only tabs in inv grid 3px up and 1px left. leave open chest icon alone").
+	constexpr Displacement ClosedChestNudge { -1, -3 };
+	const Rectangle at = open ? cell : Rectangle { cell.position + ClosedChestNudge, cell.size };
 	if (!gold)
-		return TryDrawBeltGlyph(out, TabGlyphsArt, cell, index);
+		return TryDrawBeltGlyph(out, TabGlyphsArt, at, index);
 	// The hover: the glyph GOLD, white otherwise (user, 2026-09-06). A glyph strip has one
 	// quantised surface, white on the grey ramp's light end, so the gold one is the same cell
 	// copied through a table that moves the white to the gold ramp and leaves the shadow alone.
@@ -1332,7 +1336,7 @@ bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold)
 	EnsureQuantized();
 	if (!TabGlyphsArt.bright)
 		return false;
-	const Point origin { cell.position.x + (cell.size.width - frame) / 2, cell.position.y + (cell.size.height - frame) / 2 };
+	const Point origin { at.position.x + (at.size.width - frame) / 2, at.position.y + (at.size.height - frame) / 2 };
 	for (int y = 0; y < frame; y++) {
 		for (int x = 0; x < frame; x++) {
 			const uint8_t c = (*TabGlyphsArt.bright)[Point { index * frame + x, y }];
