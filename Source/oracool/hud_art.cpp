@@ -1692,10 +1692,12 @@ void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tin
 void DrawClassTreeIconOutlined(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint)
 {
-	// The strip icon first, the ring over its edge: the icons run edge to edge in most batches, and
-	// a ring under them would be hidden by exactly the pixels it is meant to frame.
+	// The icon alone since the same night (user: "remove backing and outlines altogether. leave only
+	// icons themselves. void of any backing"). The ring lasted one build; the tint is unused here now
+	// and stays in the signature so the callers, which still compute it, need not change - and so
+	// it is one line to bring the ring back.
+	(void)tint;
 	DrawStripIconScaledTo(out, TreeStripFor(heroClass), cell, skillIndex, unlocked);
-	DrawSkillTintOutline(out, cell, tint);
 }
 
 /**

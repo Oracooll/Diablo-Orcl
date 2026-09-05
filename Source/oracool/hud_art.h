@@ -200,9 +200,9 @@ void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, 
 void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tint);
 
 /**
- * @brief DrawClassTreeIcon without the plate: the class strip's icon scaled to the cell, and the
- * tint as DrawSkillTintOutline. The Abilities window's tree cells and passive slots use this; the
- * HUD's wells keep their plates.
+ * @brief DrawClassTreeIcon without the plate: the class strip's icon scaled to the cell and nothing
+ * else (user, 2026-09-05: "void of any backing"; a tint ring was tried for one build). The Abilities
+ * window's tree cells and passive slots use this; the HUD's wells keep their plates.
  */
 void DrawClassTreeIconOutlined(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint = SkillPlateTint::Green);
