@@ -10029,12 +10029,12 @@ TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteOffsetTwo)
 }
 
 /**
- * @brief The character sheet's dark layer covers the canvas's opening and stops at its bezels.
+ * @brief The canvas dim covers the opening and stops at its bezels - one pass, every window.
  *
  * Drawn on a white surface the size of the panel: inside the opening every pixel is darker than
  * white, on the bezel band outside it nothing changed (user, 2026-09-06).
  */
-TEST(OracoolAudit, TheCharacterSheetDimCoversTheOpeningAndSparesTheBezels)
+TEST(OracoolAudit, TheCanvasDimCoversTheOpeningAndSparesTheBezels)
 {
 	constexpr uint8_t White = 255;
 	OwnedSurface surf { 340, 720 };

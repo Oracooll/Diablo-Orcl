@@ -1048,13 +1048,17 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 
 	out.BlitFromSkipColorIndexZero(*SidePanelArt.bright,
 	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
+	// Every canvas wears the dim now (user, 2026-09-06), so it lives with the art rather than in
+	// seven draw functions.
+	DrawSidePanelDim(out, origin);
 }
 
 void DrawSidePanelDim(const Surface &out, Point origin)
 {
 	const Rectangle inner { origin + Displacement { SidePanelCanvasInner.position.x, SidePanelCanvasInner.position.y },
 		SidePanelCanvasInner.size };
-	DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y, inner.size.width, inner.size.height);
+	// ONE pass - a 50% blend with black through the palette table (user, 2026-09-06: "reduce it to
+	// one pass and apply to all canvases"); it was two, the books' ~75%, for one build.
 	DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y, inner.size.width, inner.size.height);
 }
 

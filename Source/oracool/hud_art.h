@@ -111,12 +111,12 @@ bool HasSidePanelArt();
 constexpr Rectangle SidePanelCanvasInner { { 22, 25 }, { 296, 670 } };
 
 /**
- * @brief Darkens the canvas's inner opening - two half-transparent passes, the books' ~75%.
+ * @brief Darkens the canvas's inner opening - one half-transparent pass, a 50% blend with black.
  *
- * The backdrop's return, for ONE window: the character sheet (user, 2026-09-06, with a cutout of
- * the sheet: "the entire area [...] to be covered by dark transparent layer to increase readability
- * of hero stats screen"). The 2026-09-02 removal note above stands for the other five; this is
- * called from DrawChr alone. Sized from SidePanelCanvasInner, so it moves with the canvas.
+ * The backdrop's return. It came back for the character sheet first (user, 2026-09-06, with a
+ * cutout: "to increase readability of hero stats screen"), then for every canvas the same day
+ * ("reduce it to one pass and apply to all canvases"), which is why DrawSidePanelArt calls it
+ * itself. Sized from SidePanelCanvasInner, so it moves with the canvas.
  */
 void DrawSidePanelDim(const Surface &out, Point origin);
 

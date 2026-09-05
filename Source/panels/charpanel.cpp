@@ -1173,10 +1173,7 @@ void DrawChr(const Surface &out)
 	// The rule under the title went with it; the art brings its own header framing.
 	const Rectangle panel = GetCharacterPanelRect();
 	if (oracool::HasSidePanelArt()) {
-		oracool::DrawSidePanelArt(out, panel.position);
-		// The dark layer over the stone, title included, for THIS sheet (user, 2026-09-06: "to
-		// increase readability of hero stats screen"). See DrawSidePanelDim for the history.
-		oracool::DrawSidePanelDim(out, panel.position);
+		oracool::DrawSidePanelArt(out, panel.position); // dims its opening too - see DrawSidePanelDim
 	} else {
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);
