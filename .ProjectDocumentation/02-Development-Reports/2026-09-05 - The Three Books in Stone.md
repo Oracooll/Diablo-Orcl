@@ -15,3 +15,7 @@ Two of the user's paintings, shipped 1:1: `book_frame_wide.png` (944x616, clear 
 ## Verification
 
 Debug build clean; 625/626 with the standing `Drlg_l1` failure. In the game: the Runeword book (W), the Crafting book from the burger menu, and Levski's Recipes; the world should read dimly through each core, and no text should touch the bezel.
+
+## v1.9.271: the title in the game's font; the new canvas
+
+"remove the runeword book title png from chatgpt and use same font as the rest. also - i made a new 340x720 canvas. apply everywhere." The Runeword book's title is `DrawString` in the 24px face like the other two; the plate file is gone from the shipped assets (the pack stays filed). `Oracool.MPQ\340x720 Canvas.png` replaced `ui\panel_bg.png`, the one ground all six side panels share. `Panel Gamma` moved from 65 to 100 (default and the dev ini) so the new painting shows as painted; the setting still works if it wants lightening.

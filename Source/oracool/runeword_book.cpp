@@ -1,7 +1,6 @@
 #include "oracool/runeword_book.h"
 
 #include "oracool/book_frame.h" // the painted wide frame
-#include "oracool/hud_art.h"    // DrawLoosePng - the engraved title plate
 
 #include <algorithm>
 #include <array>
@@ -367,17 +366,11 @@ void DrawRunewordBook(const Surface &out)
 	DrawBookFrame(out, BookFrame::Wide, window);
 	DrawWindowCloseButton(out, window);
 
-	// The title is GPT's engraved limestone plate (oracool-runeword-book-stone-plate-v1, 128x28),
-	// centred in the title band - the same stone the fourth Levski painting carries its SALVAGE on.
-	// The text stands in only if the plate is missing.
-	const Rectangle titleBand { window.position + Displacement { Padding, Padding }, { window.size.width - Padding * 2, TitleHeight } };
-	if (const Size plate = GetLoosePngSize("ui\\runeword_book_title.png"); plate.width > 0) {
-		DrawLoosePng(out, "ui\\runeword_book_title.png",
-		    { titleBand.position.x + (titleBand.size.width - plate.width) / 2, titleBand.position.y + (titleBand.size.height - plate.height) / 2 });
-	} else {
-		DrawString(out, _("Runeword Book"), titleBand,
-		    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter });
-	}
+	// The title in the game's own font, like the other books (user, 2026-09-05: "remove the runeword
+	// book title png from chatgpt and use same font as the rest"); the engraved plate lasted one build.
+	DrawString(out, _("Runeword Book"),
+	    Rectangle { window.position + Displacement { Padding, Padding }, { window.size.width - Padding * 2, TitleHeight } },
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter });
 
 	// The Possible-Runewords toggle: a yellow X, lit while it is what selected the rune row.
 	const Rectangle possible = PossibleFilterRect();
