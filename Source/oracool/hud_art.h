@@ -111,7 +111,7 @@ bool HasSidePanelArt();
 constexpr Rectangle SidePanelCanvasInner { { 22, 25 }, { 296, 670 } };
 
 /**
- * @brief Darkens the canvas's inner opening - one half-transparent pass, a 50% blend with black.
+ * @brief Darkens the canvas's inner opening - one half-transparent pass, blended with dark grey.
  *
  * The backdrop's return. It came back for the character sheet first (user, 2026-09-06, with a
  * cutout: "to increase readability of hero stats screen"), then for every canvas the same day
