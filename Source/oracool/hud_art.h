@@ -135,8 +135,9 @@ Size GetWaypointIconSize();
  * each means is in ApplyPlateTint, because the colours have moved twice now and the names had
  * started to lie (Green meant grey, Red meant gold):
  *
- *   Ready     light grey   invested, slotted, or usable now      (was the injected green)
- *   Unspent   GOLD         unlocked but no points spent          (was red) - the plate as painted
+ *   Ready     GOLD         invested, slotted, or usable now      (was the injected green) - the plate as painted
+ *   Unspent   light grey   unlocked but no points spent          (was red)
+ *   (Ready and Unspent were the other way round for one build; swapped the same night, "switch these two colors".)
  *   Locked    red          not earned, not learned, or off       (was the dark grey)
  *   Blocked   red          cannot be performed right now         (was the beige "pink")
  *   Scroll    beige        a spell cast from a scroll            (new - its own tier in the picker)
@@ -145,7 +146,7 @@ Size GetWaypointIconSize();
 enum class SkillPlateTint : uint8_t {
 	/** The plate as vanilla painted it, where no state applies. */
 	Yellow,
-	/** Ready and yours: invested, slotted, or usable now. Light grey. */
+	/** Ready and yours: invested, slotted, or usable now. GOLD - the plate as painted. */
 	Ready,
 	/**
 	 * Cannot be performed RIGHT NOW - out of mana, missing shield, wrong place - as opposed to
@@ -155,8 +156,8 @@ enum class SkillPlateTint : uint8_t {
 	Blocked,
 	/**
 	 * Earned and spendable, but nothing invested yet - so the skill exists and does nothing (user
-	 * request, 2026-08-17). GOLD since the 2026-09-05 coding: the plate exactly as painted. The one
-	 * "you cannot use this" the player clears by spending a point.
+	 * request, 2026-08-17). Light grey since the 2026-09-05 coding (gold for one build, then swapped
+	 * with Ready). The one "you cannot use this" the player clears by spending a point.
 	 */
 	Unspent,
 	/**

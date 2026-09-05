@@ -31,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-hud-v6-belt-shadow'   # the COMPACT belt-shadow revision (2026-09-05, "find this new hud and apply it"): 540 wide, the belt a joined 6-cell strip with 2px inset shadows, the mana angel
+$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-hud-v6-matched-belt'   # the LARGE-BELT compact revision (2026-09-05, "apply these" / "apply this when done"): 580 wide, six 34px belt holes at a 35px pitch behind a 4px outline that repeats the wells' carved border; `-large-belt` is the same geometry with the plain outline
 $source = Join-Path $pack 'hud-v6.png'
 $liquidSource = Join-Path $pack 'hud-v6-liquid.png'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
@@ -39,13 +39,13 @@ $header = Join-Path $root 'Source\oracool\hud_plate_skin.h'
 foreach ($f in @($source, $liquidSource)) { if (-not (Test-Path $f)) { throw "missing: $f" } }
 
 # ---- the manifest, in master pixels ----------------------------------------------------------
-$masterW = 1620; $masterH = 324                      # the COMPACT layout in the pack's manifest (540x108 native)
+$masterW = 1740; $masterH = 324                      # the COMPACT layout in the pack's manifest (580x108 native)
 $scaleDiv = 3                                       # master / 3 = screen, exactly
-$plateCrop = @(348, 120, 939, 204)                 # x y w h - the carved pack's band, 219 narrower: the right cradle moved in by that much
-$wells = @( @(366, 138, 168, 168), @(1101, 138, 168, 168) )
-$beltX = @(558, 645, 732, 819, 906, 993); $beltY = 234; $beltW = 84; $beltH = 84   # 28x28 holes at a 29px pitch, each with a 2px inward alpha shadow
-$beltBarTop = 228                                  # the belt strip's top edge
-$orbs = @( @(195, 156, 102), @(1428, 159, 102) )   # cx cy r
+$plateCrop = @(348, 120, 1059, 204)                # x y w h - belt-shadow's band plus the 120 master px (40 native) the belt grew
+$wells = @( @(366, 138, 168, 168), @(1221, 138, 168, 168) )
+$beltX = @(564, 669, 774, 879, 984, 1089); $beltY = 210; $beltW = 102; $beltH = 102   # 34x34 holes at a 35px pitch, each with a 2px inward alpha shadow
+$beltBarTop = 198                                  # the belt strip's top edge
+$orbs = @( @(195, 156, 102), @(1548, 159, 102) )   # cx cy r
 
 function Scl($v) { return [int][math]::Round($v / $scaleDiv) }
 

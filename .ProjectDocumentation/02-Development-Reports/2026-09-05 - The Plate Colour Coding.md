@@ -8,8 +8,8 @@
 
 | Tint | Colour | Meaning |
 |---|---|---|
-| Ready | light grey (`SpellType::Invalid`'s pale ramp) | invested, slotted, or usable now |
-| Unspent | GOLD - the plate as painted (`Skill`, the identity) | unlocked, nothing spent |
+| Ready | light grey (`SpellType::Invalid`'s pale ramp) - **swapped to GOLD in v1.9.250** | invested, slotted, or usable now |
+| Unspent | GOLD - the plate as painted (`Skill`, the identity) - **swapped to light grey in v1.9.250** | unlocked, nothing spent |
 | Locked | red | not earned, not learned, off |
 | Blocked | red | cannot be performed right now (the beige it was is a scroll's now) |
 | Scroll | beige (`SpellType::Scroll`) | a spell cast from a scroll |
