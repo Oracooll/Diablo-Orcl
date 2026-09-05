@@ -16,3 +16,7 @@ On "align horizontally the title with nav arrows (in abilities)": both already c
 ## Verification
 
 Debug build clean; 625/626 with the standing `Drlg_l1` failure. In the game: the picker over either well (world showing through), the stash's control row, Griswold's Buy tab (controls within the bezels, hover darkens), any side panel's title against the bezel.
+
+## v1.9.274: the hover is a shadow, not a ring
+
+"instead of gold boxes, when i hover over items in abilities windows draw 2 times bigger shadow under them. if it is 3 px, make it 6px and darker. draw it under the icons, not under the texts." `DrawHoverShadow` is the slot's resting shadow at six pixels down-left and two passes; the three Abilities hover sites (tree cells, passive slots, Spells-sheet rows) call it instead of the gold ring, with the same bezel inset the resting shadow uses. On the Spells sheet it is the row's ICON rect, not the row's width, so the name and detail lines stay clear. Drawn before the icons, as the resting shadow is, so it lies under the slot. `DrawHoverOutlineHeavy` stays for the waypoint list.

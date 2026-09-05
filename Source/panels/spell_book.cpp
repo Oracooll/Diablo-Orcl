@@ -1745,8 +1745,9 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 					                       contentRect.position.y + rect.position.y - scroll },
 					{ AbilitiesContentRightLimit, rect.size.height } };
 				HasPendingHover = true;
-				oracool::DrawHoverOutlineHeavy(content, { { rect.position.x, rect.position.y - scroll },
-				                                       rect.size });
+				// The hover is a deeper shadow under the slot, not a ring (user, 2026-09-05).
+				oracool::DrawHoverShadow(content, { { rect.position.x, rect.position.y - scroll }, rect.size },
+				    oracool::GridBezelInset);
 				return;
 			}
 		}
@@ -1773,7 +1774,8 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 		PendingHoverAnchor = { { contentRect.position.x, contentRect.position.y + cell.position.y - scroll },
 			{ AbilitiesContentRightLimit, cell.size.height } };
 		HasPendingHover = true;
-		oracool::DrawHoverOutlineHeavy(content, { { cell.position.x, cell.position.y - scroll }, cell.size });
+		oracool::DrawHoverShadow(content, { { cell.position.x, cell.position.y - scroll }, cell.size },
+		    oracool::GridBezelInset); // a deeper shadow under the cell, not a ring (user, 2026-09-05)
 		return;
 	}
 
@@ -1808,9 +1810,10 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	// The row's width but the ICON's height (2026-09-05): the ring is measured outward from a slot,
 	// and the slot here is the row's icon - ringing the whole 74px row put the ring twelve pixels
 	// onto the rows above and below ("no overlapping with adjacent spells").
+	// Under the ICON only (user, 2026-09-05: "draw it under the icons, not under the texts"): the
+	// deeper hover shadow on the row's icon rect, never across the name and detail lines.
 	const Rectangle iconOfRow = SpellRowIconRect(rowTop - scroll);
-	oracool::DrawHoverOutlineHeavy(content, { { AbilitiesInteriorLeft, iconOfRow.position.y },
-	    { AbilitiesInteriorRight - AbilitiesInteriorLeft, iconOfRow.size.height } });
+	oracool::DrawHoverShadow(content, iconOfRow, oracool::GridBezelInset);
 
 	// DEFERRED, not drawn here. Oracool: user request (2026-08-15) - "pop-up windows to be rendered
 	// on top of all including bottom hud, to be readable." The Abilities window is drawn early in the

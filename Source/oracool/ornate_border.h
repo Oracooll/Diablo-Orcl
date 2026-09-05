@@ -260,6 +260,8 @@ void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect,
  * half", 2026-09-05); it was two.
  */
 void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth = 0);
+/** @brief The HOVER shadow: DrawDropShadow twice as far (6px) and twice as dark. Under the slot, before the icon. */
+void DrawHoverShadow(const Surface &out, Rectangle rect, int bezelWidth = 0);
 
 /**
  * @brief The same one-pixel rectangle in a caller-chosen palette index.

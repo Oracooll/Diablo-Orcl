@@ -195,6 +195,20 @@ void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth)
 	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
 }
 
+void DrawHoverShadow(const Surface &out, Rectangle rect, int bezelWidth)
+{
+	// The slot's own shadow, doubled: six pixels down-left and two passes (user, 2026-09-05:
+	// "instead of gold boxes, when i hover over items in abilities windows draw 2 times bigger
+	// shadow under them. if it is 3 px, make it 6px and darker"). Drawn BEFORE the icon like the
+	// resting shadow, so it lies under the slot, never over its text.
+	constexpr Displacement ShadowOffset { -6, 6 };
+	const Rectangle footprint { rect.position - Displacement { bezelWidth, bezelWidth },
+		{ rect.size.width + 2 * bezelWidth, rect.size.height + 2 * bezelWidth } };
+	const Rectangle shadow { footprint.position + ShadowOffset, footprint.size };
+	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
+	DrawHalfTransparentRectTo(out, shadow.position.x, shadow.position.y, shadow.size.width, shadow.size.height);
+}
+
 bool IsHoverHeadingLine(string_view line)
 {
 	// The headings the two block builders emit (ClassTreeEffectLine, BuildSpellStatBlock), matched
