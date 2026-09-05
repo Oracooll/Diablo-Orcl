@@ -18,6 +18,7 @@
 #include "oracool/grid_bezel.h"
 #include "oracool/hud_art.h"
 #include "oracool/inventory_layout.h" // GridBottom - the line the stash's grid also ends on
+#include "oracool/oil_tint.h"
 #include "oracool/ornate_border.h"
 #include "oracool/shop_tabs.h"
 #include "oracool/window_close.h"
@@ -853,7 +854,10 @@ void DrawShopGrid(const Surface &out)
 		const Point position = SpriteAnchor(slot);
 		if (slot.stockIndex == ShopGridSel)
 			ClxDrawOutline(out, GetOutlineColor(item, true), position, sprite);
-		ClxDraw(out, position, sprite);
+		if (const uint8_t *tint = oracool::OilTRN(item); tint != nullptr)
+			ClxDrawTRN(out, position, sprite, tint);
+		else
+			ClxDraw(out, position, sprite);
 	}
 
 	DrawShopControls(out, pageCount);

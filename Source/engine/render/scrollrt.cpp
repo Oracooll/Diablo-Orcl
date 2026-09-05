@@ -6,6 +6,7 @@
 #include "engine/render/scrollrt.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -38,6 +39,7 @@
 #include "oracool/attack_skills.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
+#include "oracool/oil_tint.h"
 #include "oracool/aura_ground.h"
 #include "oracool/skill_picker.h"
 #include "oracool/cursor_tooltip.h"
@@ -808,7 +810,16 @@ void DrawItem(const Surface &out, Point tilePosition, Point targetBufferPosition
 	if (stextflag == TalkID::None && (bItem - 1 == pcursitem || AutoMapShowItems)) {
 		ClxDrawOutlineSkipColorZero(out, GetOutlineColor(item, false), position, sprite);
 	}
-	ClxDrawLight(out, position, sprite, LightTableIndex);
+	// Oracool: an oil on the floor keeps its colour - the tint composed with the tile's light
+	// table, since ClxDrawTRN takes one table (2026-09-05).
+	if (const uint8_t *tint = oracool::OilTRN(item); tint != nullptr) {
+		std::array<uint8_t, 256> lit;
+		for (int i = 0; i < 256; i++)
+			lit[static_cast<size_t>(i)] = LightTableIndex != 0 ? LightTables[LightTableIndex][tint[i]] : tint[i];
+		ClxDrawTRN(out, position, sprite, lit.data());
+	} else {
+		ClxDrawLight(out, position, sprite, LightTableIndex);
+	}
 	// Oracool: a broken (0 durability) item dropped on the ground (e.g. from a player death) also
 	// gets the red X - this is a completely separate rendering path from cursor.cpp's DrawItem
 	// (used only for UI panels: inventory/belt/equipped/tabs), so it needed its own call to the

@@ -99,6 +99,7 @@
 #include "oracool/spell_ranks.h"
 #include "oracool/sprite_scale.h"
 #include "oracool/stat_sheet.h"
+#include "oracool/oil_tint.h"
 #include "oracool/ornate_border.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
@@ -9823,4 +9824,61 @@ TEST(OracoolAudit2, StashMergesStackablesOnDepositAndSort)
 	Stash.stashList.clear();
 	Stash.stashGrids.clear();
 	Stash.SetPage(0);
+}
+
+/**
+ * @brief Every named oil gets its own colour; the flask's own pixels are what get moved.
+ *
+ * The ten oils share ICURS_OIL, whose glass sits on the grey ramp (240..254) and whose stopper sits
+ * on 166..173. The tint table must move the glass, must not touch the stopper or the transparent
+ * key, and must land ten DIFFERENT places - the point of the whole thing is that no two oils look
+ * alike (user, 2026-09-05). The sprite itself is checked against the archive so a re-sheeted
+ * objcurs.cel that paints the flask on another ramp fails here rather than in a stash grid.
+ */
+TEST(OracoolOilTint, TheTenOilsRecolourTheFlaskTenDifferentWays)
+{
+	const item_misc_id oils[] = { IMISC_OILACC, IMISC_OILMAST, IMISC_OILSHARP, IMISC_OILDEATH, IMISC_OILSKILL,
+		IMISC_OILBSMTH, IMISC_OILFORT, IMISC_OILPERM, IMISC_OILHARD, IMISC_OILIMP };
+	std::vector<const uint8_t *> tables;
+	for (const item_misc_id oil : oils) {
+		const uint8_t *trn = oracool::OilTRN(oil);
+		ASSERT_NE(trn, nullptr) << static_cast<int>(oil);
+		EXPECT_EQ(trn[0], 0) << "the transparent key moved";
+		for (int i = 166; i <= 173; i++)
+			EXPECT_EQ(trn[i], i) << "the stopper moved";
+		EXPECT_EQ(trn[255], 255) << "pure white moved";
+		for (int i = 243; i <= 254; i++)
+			EXPECT_GE(trn[i], 128) << "glass index " << i << " left the shared half";
+		tables.push_back(trn);
+	}
+	// Pairwise distinct on the flask's commonest glass index.
+	for (size_t a = 0; a < tables.size(); a++)
+		for (size_t b = a + 1; b < tables.size(); b++)
+			EXPECT_NE(tables[a][251], tables[b][251]) << "oils " << a << " and " << b << " share a colour";
+	EXPECT_EQ(oracool::OilTRN(IMISC_OILOF), nullptr) << "the placeholder oil is not one of the ten";
+	EXPECT_EQ(oracool::OilTRN(IMISC_HEAL), nullptr);
+
+	// The sprite: glass on the grey ramp, stopper on 166..173, nothing else.
+	LoadCoreArchives();
+	LoadGameArchives();
+	InitCursor();
+	const ClxSprite sprite = GetInvItemSprite(static_cast<int>(CURSOR_FIRSTITEM) + ICURS_OIL);
+	OwnedSurface surf { static_cast<int>(sprite.width()), static_cast<int>(sprite.height()) };
+	SDL_FillRect(surf.surface, nullptr, 0);
+	ClxDraw(surf, { 0, static_cast<int>(sprite.height()) }, sprite);
+	int glass = 0;
+	for (int y = 0; y < surf.h(); y++) {
+		for (int x = 0; x < surf.w(); x++) {
+			const uint8_t c = *surf.at(x, y);
+			if (c == 0)
+				continue;
+			const bool onGrey = c >= 240 && c <= 254;
+			const bool onStopper = c >= 166 && c <= 173;
+			EXPECT_TRUE(onGrey || onStopper) << "flask pixel on index " << static_cast<int>(c) << " which no tint moves";
+			if (onGrey)
+				glass++;
+		}
+	}
+	EXPECT_GT(glass, 100) << "the flask is mostly glass";
+	FreeCursor();
 }
