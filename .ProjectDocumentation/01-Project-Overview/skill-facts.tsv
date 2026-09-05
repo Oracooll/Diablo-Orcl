@@ -58,20 +58,20 @@ Barbarian	WARCRIES	Battle Command	1	Duration: 30 s | All skill levels: +1
 Barbarian	WARCRIES	Battle Command	2	Duration: 35 s | All skill levels: +1
 Sorceress	COLD SPELLS	Ice Bolt	1	Chill: 2.0 s
 Sorceress	COLD SPELLS	Ice Bolt	2	Chill: 2.0 s
-Sorceress	COLD SPELLS	Frozen Armor	1	Duration: 24 s | Chill on being struck: 2.1 s
-Sorceress	COLD SPELLS	Frozen Armor	2	Duration: 28 s | Chill on being struck: 2.2 s
+Sorceress	COLD SPELLS	Frozen Armor	1	Duration: 24 s | Freeze on being struck: 1.8 s (uniques are chilled)
+Sorceress	COLD SPELLS	Frozen Armor	2	Duration: 28 s | Freeze on being struck: 2.0 s (uniques are chilled)
 Sorceress	COLD SPELLS	Frost Nova	1	Chill: 3.1 s
 Sorceress	COLD SPELLS	Frost Nova	2	Chill: 3.2 s
 Sorceress	COLD SPELLS	Ice Blast	1	Freeze: 1.8 s (uniques are chilled instead)
 Sorceress	COLD SPELLS	Ice Blast	2	Freeze: 2.0 s (uniques are chilled instead)
-Sorceress	COLD SPELLS	Shiver Armor	1	Duration: 24 s | Chill on being struck: 2.1 s
-Sorceress	COLD SPELLS	Shiver Armor	2	Duration: 28 s | Chill on being struck: 2.2 s
+Sorceress	COLD SPELLS	Shiver Armor	1	Duration: 24 s | Chill on being struck: 2.1 s, plus an Ice Bolt's damage
+Sorceress	COLD SPELLS	Shiver Armor	2	Duration: 28 s | Chill on being struck: 2.2 s, plus an Ice Bolt's damage
 Sorceress	COLD SPELLS	Glacial Spike	1	Freeze: 1.8 s (uniques are chilled instead)
 Sorceress	COLD SPELLS	Glacial Spike	2	Freeze: 2.0 s (uniques are chilled instead)
 Sorceress	COLD SPELLS	Blizzard	1	Chill: 3.1 s
 Sorceress	COLD SPELLS	Blizzard	2	Chill: 3.2 s
-Sorceress	COLD SPELLS	Chilling Armor	1	Duration: 24 s | Chill on being struck: 2.1 s
-Sorceress	COLD SPELLS	Chilling Armor	2	Duration: 28 s | Chill on being struck: 2.2 s
+Sorceress	COLD SPELLS	Chilling Armor	1	Duration: 24 s | Chill on being struck: 2.1 s, near or far
+Sorceress	COLD SPELLS	Chilling Armor	2	Duration: 28 s | Chill on being struck: 2.2 s, near or far
 Sorceress	COLD SPELLS	Frozen Orb	1	Chill: 2.0 s
 Sorceress	COLD SPELLS	Frozen Orb	2	Chill: 2.0 s
 Rogue	BOW & CROSSBOW	Magic Arrow	1	Elemental damage: +4

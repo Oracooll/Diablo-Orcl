@@ -1606,6 +1606,7 @@ void PrintHelpOption(string_view flags, string_view description)
 	printNewlineInConsole();
 	PrintHelpOption("-h, --help", _(/* TRANSLATORS: Commandline Option */ "Print this message and exit"));
 	PrintHelpOption("--version", _(/* TRANSLATORS: Commandline Option */ "Print the version and exit"));
+	PrintHelpOption("--skill-facts <file>", _(/* TRANSLATORS: Commandline Option */ "Write every skill's tooltip facts at ranks 1 and 2 to <file> and exit"));
 	PrintHelpOption("--data-dir", _(/* TRANSLATORS: Commandline Option */ "Specify the folder of diabdat.mpq"));
 	PrintHelpOption("--save-dir", _(/* TRANSLATORS: Commandline Option */ "Specify the folder of save files"));
 	PrintHelpOption("--config-dir", _(/* TRANSLATORS: Commandline Option */ "Specify the location of diablo.ini"));

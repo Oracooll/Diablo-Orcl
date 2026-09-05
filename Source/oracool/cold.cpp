@@ -320,11 +320,11 @@ const char *ColdSpellDescription(SpellID spell)
 	case SpellID::FrozenOrb:
 		return N_("An orb that drifts toward its mark shedding ice bolts, then bursts into a ring of them.");
 	case SpellID::FrozenArmor:
-		return N_("Armour of ice: for a while, anything that strikes you in melee is frozen in place.");
+		return N_("Armour of ice for 24 seconds, +4 per rank: anything that strikes you in melee is frozen in place.");
 	case SpellID::ShiverArmor:
-		return N_("Armour of ice: for a while, anything that strikes you in melee is chilled and cut by cold.");
+		return N_("Armour of ice for 24 seconds, +4 per rank: anything that strikes you in melee is chilled and cut by cold.");
 	case SpellID::ChillingArmor:
-		return N_("Armour of ice: for a while, anything that hits you - near or far - is chilled and answered with an ice bolt.");
+		return N_("Armour of ice for 24 seconds, +4 per rank: anything that hits you - near or far - is chilled and answered with an ice bolt.");
 	default:
 		return "";
 	}
@@ -357,10 +357,16 @@ std::string ColdSpellFactsAt(SpellID spell, int spellLevel)
 		line(fmt::format(fmt::runtime(_("Chill: {:.1f} s")), IceBoltChillTicks / 20.0));
 		break;
 	case SpellID::FrozenArmor:
-	case SpellID::ShiverArmor:
-	case SpellID::ChillingArmor:
 		line(fmt::format(fmt::runtime(_("Duration: {:d} s")), (400 + 80 * level) / 20)); // AddColdArmor's ticks
-		line(fmt::format(fmt::runtime(_("Chill on being struck: {:.1f} s")), ChillTicksFor(level) / 20.0));
+		line(fmt::format(fmt::runtime(_("Freeze on being struck: {:.1f} s (uniques are chilled)")), FreezeTicksFor(level) / 20.0));
+		break;
+	case SpellID::ShiverArmor:
+		line(fmt::format(fmt::runtime(_("Duration: {:d} s")), (400 + 80 * level) / 20));
+		line(fmt::format(fmt::runtime(_("Chill on being struck: {:.1f} s, plus an Ice Bolt's damage")), ChillTicksFor(level) / 20.0));
+		break;
+	case SpellID::ChillingArmor:
+		line(fmt::format(fmt::runtime(_("Duration: {:d} s")), (400 + 80 * level) / 20));
+		line(fmt::format(fmt::runtime(_("Chill on being struck: {:.1f} s, near or far")), ChillTicksFor(level) / 20.0));
 		break;
 	default:
 		break;

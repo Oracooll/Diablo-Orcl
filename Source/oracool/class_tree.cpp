@@ -129,14 +129,14 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 1, 0, Kind::Active, SpellID::Zeal, true },
 	{ N_("Charge"), N_("Rush an enemy and land a running blow."),
 	    Pal, 0, 1, 1, Kind::Active, SpellID::Charge, true },
-	{ N_("Vengeance"), N_("Your blows burn and crackle for thirty seconds, five more a rank: fire and lightning on every hit. Cold has no place on the weapon sheet, so it is not added."),
+	{ N_("Vengeance"), N_("Your blows burn and crackle for 30 seconds, +5 per rank: fire and lightning on every hit. Cold has no place on the weapon sheet, so it is not added."),
 	    Pal, 0, 2, 0, Kind::Active, SpellID::Vengeance, true },
 	{ N_("Blessed Hammer"), N_("Looses a spinning hammer that wheels outward through anything in its path."),
 	    Pal, 0, 3, 2, Kind::Active, SpellID::BlessedHammer, true },
 	// Corrected 2026-08-16: this row used to claim "no charmed-monster state exists", which was
 	// simply wrong - this engine's Berserk sets MFLAG_GOLEM on the target, making it fight for the
 	// player, which IS conversion. Found while wiring the Bard's Charm onto the same spell.
-	{ N_("Conversion"), N_("Turns one enemy near the cursor to your side for twenty seconds, two more a rank. Uniques and the magic-immune refuse."),
+	{ N_("Conversion"), N_("Turns one enemy near the cursor to your side for 20 seconds, +2 per rank. Uniques and the magic-immune refuse."),
 	    Pal, 0, 4, 1, Kind::Active, SpellID::Conversion, true },
 	{ N_("Fist of the Heavens"), N_("Calls down a bolt from the sky, which bursts into holy energy where it lands."),
 	    Pal, 0, 5, 2, Kind::Active, SpellID::FistOfTheHeavens, true },
@@ -233,7 +233,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	// ======================= BARBARIAN =======================
 	// --- Combat Skills ---
-	{ N_("Bash"), N_("A heavy blow at +33% damage, +10% per rank, that knocks the target back."), Bar, 0, 0, 0, Kind::Active, SpellID::Bash, true },
+	{ N_("Bash"), N_("A heavy blow at +30% damage, +10% per rank, that knocks the target back."), Bar, 0, 0, 0, Kind::Active, SpellID::Bash, true },
 	{ N_("Leap"), N_("Vault to the spot under the cursor, over anything in the way - four tiles, a tile further every three ranks."), Bar, 0, 1, 0, Kind::Active, SpellID::Leap, true },
 	{ N_("Double Swing"), N_("Two blows in one swing, the second at 75% damage, +5% per rank."), Bar, 0, 1, 1, Kind::Active, SpellID::DoubleSwing, true },
 	{ N_("Stun"), N_("A blow that leaves the target reeling for 1.5 seconds, +20% longer per rank. Uniques shrug it off."), Bar, 0, 2, 0, Kind::Active, SpellID::Stun, true },
@@ -241,7 +241,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Leap Attack"), N_("Leap onto a distant enemy; the blow you land there is at +50% damage, +10% per rank."), Bar, 0, 3, 0, Kind::Active, SpellID::LeapAttack, true },
 	{ N_("Concentrate"), N_("A focused blow at +50% damage, +10% per rank. The steadiness half is not built yet."), Bar, 0, 3, 1, Kind::Active, SpellID::Concentrate, true },
 	{ N_("Frenzy"), N_("Two blows in one swing, both at 100% damage, +10% per rank."), Bar, 0, 4, 0, Kind::Active, SpellID::Frenzy, true },
-	{ N_("Whirlwind"), N_("Every swing strikes everything around you at 67% damage, +5% per rank. You stand your ground rather than travelling."), Bar, 0, 5, 0, Kind::Active, SpellID::Whirlwind, true },
+	{ N_("Whirlwind"), N_("Every swing strikes everything around you at 66% damage, +5% per rank. You stand your ground rather than travelling."), Bar, 0, 5, 0, Kind::Active, SpellID::Whirlwind, true },
 	{ N_("Berserk"), N_("A blow at +100% damage, +20% per rank. The defence you would trade for it is not taken yet."), Bar, 0, 5, 1, Kind::Active, SpellID::BerserkBlow, true },
 	// --- Combat Masteries ---
 	{ N_("Sword Mastery"), N_("Sharpens your aim and your blow with any sword held."), Bar, 1, 0, 0, Kind::Passive, SpellID::Invalid, true },
@@ -262,10 +262,10 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Shout"), N_("A bellow that hardens you: +50% armour, +10% per rank, for 40 seconds, +5 per rank."), Bar, 2, 1, 1, Kind::Active, SpellID::Shout, true },
 	{ N_("Find Item"), N_("Search a corpse near the cursor. 25% of the time, +5% per rank, it yields an item. The corpse is used up."), Bar, 2, 2, 0, Kind::Active, SpellID::FindItem, true },
 	{ N_("Battle Cry"), N_("A cry that leaves what hears it at -25% damage and -25% armour for 24 seconds."), Bar, 2, 3, 0, Kind::Active, SpellID::BattleCry, true },
-	{ N_("Battle Orders"), N_("A shout that swells your life and mana by twenty, ten more a rank, for forty seconds and five more a rank."), Bar, 2, 4, 0, Kind::Active, SpellID::BattleOrders, true },
-	{ N_("Grim Ward"), N_("Raise a corpse near the cursor as a totem of terror: for twenty seconds, two more a rank, everything but the uniques that comes near it runs."), Bar, 2, 4, 1, Kind::Active, SpellID::GrimWard, true },
+	{ N_("Battle Orders"), N_("A shout that swells your life and mana by +20, +10 per rank, for 40 seconds, +5 per rank."), Bar, 2, 4, 0, Kind::Active, SpellID::BattleOrders, true },
+	{ N_("Grim Ward"), N_("Raise a corpse near the cursor as a totem of terror: for 20 seconds, +2 per rank, everything but the uniques that comes near it runs."), Bar, 2, 4, 1, Kind::Active, SpellID::GrimWard, true },
 	{ N_("War Cry"), N_("A shout that strikes everything in earshot for four to eight a rank and leaves it reeling for two seconds. Uniques shrug off the reeling."), Bar, 2, 5, 0, Kind::Active, SpellID::WarCry, true },
-	{ N_("Battle Command"), N_("A command that deepens every skill you have by a rank for thirty seconds, five more a rank."), Bar, 2, 5, 1, Kind::Active, SpellID::BattleCommand, true },
+	{ N_("Battle Command"), N_("A command that deepens every skill you have by a rank for 30 seconds, +5 per rank."), Bar, 2, 5, 1, Kind::Active, SpellID::BattleCommand, true },
 
 	// ---- Passive Skills (page 3) ----
 	{ N_("Pound of Flesh"), N_("Healing taken from the fallen leaves you mending and quickened, and it stacks. Not yet built."),
@@ -312,13 +312,13 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// LIVE since 2026-09-03, Round 1 of the inert-skill plan. The description no longer has to
 	// apologise: the engine has cold damage now, and the chill is the point of it.
 	{ N_("Ice Bolt"), N_("A shard of ice that damages and chills what it hits, halving its speed for two seconds."), Sor, 0, 0, 0, Kind::Active, SpellID::IceBolt, true },
-	{ N_("Frozen Armor"), N_("Armour of ice: for a while, whatever strikes you in melee is frozen in place."), Sor, 0, 0, 1, Kind::Active, SpellID::FrozenArmor, true },
+	{ N_("Frozen Armor"), N_("Armour of ice for 24 seconds, +4 per rank: whatever strikes you in melee is frozen in place."), Sor, 0, 0, 1, Kind::Active, SpellID::FrozenArmor, true },
 	{ N_("Frost Nova"), N_("A ring of ice bursting out from you, chilling and damaging everything near."), Sor, 0, 1, 0, Kind::Active, SpellID::FrostNova, true },
 	{ N_("Ice Blast"), N_("A heavier shard that freezes its target solid for a moment. Uniques are chilled instead."), Sor, 0, 1, 1, Kind::Active, SpellID::IceBlast, true },
-	{ N_("Shiver Armor"), N_("Armour of ice: for a while, whatever strikes you in melee is chilled and cut by cold."), Sor, 0, 2, 1, Kind::Active, SpellID::ShiverArmor, true },
+	{ N_("Shiver Armor"), N_("Armour of ice for 24 seconds, +4 per rank: whatever strikes you in melee is chilled and cut by cold."), Sor, 0, 2, 1, Kind::Active, SpellID::ShiverArmor, true },
 	{ N_("Glacial Spike"), N_("A spear of ice that freezes what it strikes and shatters, chilling everything beside it."), Sor, 0, 3, 0, Kind::Active, SpellID::GlacialSpike, true },
 	{ N_("Blizzard"), N_("Ice falls over an area for a few seconds, chilling and damaging whatever stands in it."), Sor, 0, 4, 0, Kind::Active, SpellID::Blizzard, true },
-	{ N_("Chilling Armor"), N_("Armour of ice: for a while, whatever hits you - near or far - is chilled and answered with an ice bolt."), Sor, 0, 4, 1, Kind::Active, SpellID::ChillingArmor, true },
+	{ N_("Chilling Armor"), N_("Armour of ice for 24 seconds, +4 per rank: whatever hits you - near or far - is chilled and answered with an ice bolt."), Sor, 0, 4, 1, Kind::Active, SpellID::ChillingArmor, true },
 	{ N_("Frozen Orb"), N_("An orb that drifts toward its mark shedding ice bolts, then bursts into a ring of them."), Sor, 0, 5, 0, Kind::Active, SpellID::FrozenOrb, true },
 	{ N_("Cold Mastery"), N_("Every rank adds 6% to all cold damage. From rank 3 a resisting monster keeps only 50% of its protection; from rank 6, none."), Sor, 0, 5, 2, Kind::Passive, SpellID::Invalid, true },
 	// --- Lightning Spells: most of this page is a wiring job - the engine already has the spells.
@@ -408,14 +408,14 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Pierce"), N_("Your arrows may carry on through what they strike: 15%, +5% per rank, 60% at most."), Rog, 1, 5, 1, Kind::Passive, SpellID::Invalid, true },
 	// --- Javelin & Spear ---
 	{ N_("Jab"), N_("Three quick thrusts in one motion, the second and third at 50% damage, +5% per rank."), Rog, 2, 0, 0, Kind::Active, SpellID::Jab, true },
-	{ N_("Power Strike"), N_("A thrust at +33% damage, +5% per rank, with 1-4 lightning damage per rank on top of it."), Rog, 2, 1, 0, Kind::Active, SpellID::PowerStrike, true },
+	{ N_("Power Strike"), N_("A thrust at +30% damage, +5% per rank, with 1-4 lightning damage per rank on top of it."), Rog, 2, 1, 0, Kind::Active, SpellID::PowerStrike, true },
 	{ N_("Poison Javelin"), N_("A javelin trailing venom. Inert: this engine has no poison."), Rog, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Impale"), N_("A savage thrust at +100% damage, +20% per rank."), Rog, 2, 2, 0, Kind::Active, SpellID::Impale, true },
-	{ N_("Charged Strike"), N_("A thrust at +20% damage that throws off two charged bolts toward the target, one more every two ranks."), Rog, 2, 2, 1, Kind::Active, SpellID::ChargedStrike, true },
+	{ N_("Charged Strike"), N_("A thrust at +20% damage, +5% per rank, that throws off two charged bolts toward the target, one more every two ranks."), Rog, 2, 2, 1, Kind::Active, SpellID::ChargedStrike, true },
 	{ N_("Lightning Bolt"), N_("Hurl a bolt of lightning that races along the ground toward the target, at the rank. No javelin exists here; the bolt carries itself."), Rog, 2, 3, 0, Kind::Active, SpellID::LightningBoltSkill, true },
 	{ N_("Plague Javelin"), N_("A javelin trailing a cloud of pestilence. Inert: this engine has no poison."), Rog, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Fend"), N_("Every swing also strikes everything around you at 80% damage, +5% per rank."), Rog, 2, 4, 0, Kind::Active, SpellID::Fend, true },
-	{ N_("Lightning Strike"), N_("A thrust at +20% damage whose lightning leaps on from the target to the next enemy, and the next."), Rog, 2, 5, 0, Kind::Active, SpellID::LightningStrike, true },
+	{ N_("Lightning Strike"), N_("A thrust at +20% damage, +5% per rank, whose lightning leaps on from the target to the next enemy, and the next."), Rog, 2, 5, 0, Kind::Active, SpellID::LightningStrike, true },
 	{ N_("Lightning Fury"), N_("Hurl lightning that bursts outward in every direction at once, at the rank."), Rog, 2, 5, 1, Kind::Active, SpellID::LightningFury, true },
 
 	// ---- Passive Skills (page 3) ----
@@ -553,7 +553,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 0, 2, 1, Kind::Passive, SpellID::Invalid, false, 5 },
 	{ N_("Vaulting Strike"), N_("Vault onto a distant foe; the blow you land there is at +50% damage, +10% per rank."),
 	    Monk, 0, 3, 1, Kind::Active, SpellID::VaultingStrike, true, 5 },
-	{ N_("Wheel of Heaven"), N_("Every swing strikes everything around you at 67% damage, +5% per rank."),
+	{ N_("Wheel of Heaven"), N_("Every swing strikes everything around you at 66% damage, +5% per rank."),
 	    Monk, 0, 4, 1, Kind::Active, SpellID::WheelOfHeaven, true, 5 },
 	{ N_("Seven Reeds"), N_("Three blows in one swing, one more every three ranks up to seven, each at 60% damage."),
 	    Monk, 0, 5, 1, Kind::Active, SpellID::SevenReeds, true, 5 },
@@ -568,7 +568,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 1, 2, 1, Kind::Passive, SpellID::Invalid, true, 5 },
 	{ N_("Counterstroke"), N_("A block empowers your next blow. Inert: nothing here reports a block to build on."),
 	    Monk, 1, 3, 1, Kind::Passive, SpellID::Invalid, false, 5 },
-	{ N_("Purifying Breath"), N_("Centre yourself: twenty to every resistance, five more a rank, for thirty seconds and five more a rank."),
+	{ N_("Purifying Breath"), N_("Centre yourself: +20 to every resistance, +5 per rank, for 30 seconds, +5 per rank."),
 	    Monk, 1, 4, 1, Kind::Active, SpellID::PurifyingBreath, true, 5 },
 	{ N_("Hundred Fists"), N_("Four blows in one swing, one more every two ranks up to seven, each at 50% damage."),
 	    Monk, 1, 5, 1, Kind::Active, SpellID::HundredFists, true, 5 },
@@ -585,7 +585,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 2, 3, 1, Kind::Active, SpellID::ManaShield, true, 5 },
 	{ N_("Radiant Palm"), N_("A strike at +20% damage, +10% per rank; an enemy it kills erupts, dealing the blow again to everything beside it."),
 	    Monk, 2, 4, 1, Kind::Active, SpellID::RadiantPalm, true, 5 },
-	{ N_("Tranquility"), N_("A sanctuary about you for twelve seconds and one more a rank: what stands beside you is slowed, and a fiftieth of your life returns each second."),
+	{ N_("Tranquility"), N_("A sanctuary about you for 13 seconds, +1 per rank: what stands beside you is slowed, and 2% of your life returns each second."),
 	    Monk, 2, 5, 1, Kind::Active, SpellID::Tranquility, true, 5 },
 	{ N_("Enlightenment"), N_("Your mastery of spirit empowers every Way of the Spirit skill: +10% mana, and +10 to every resistance."),
 	    Monk, 2, 6, 1, Kind::Passive, SpellID::Invalid, true, 1 },

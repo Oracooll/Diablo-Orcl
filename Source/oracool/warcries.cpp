@@ -635,7 +635,7 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::BattleCry:
 		return N_("A cry that leaves what hears it at -25% damage and -25% armour, for 24 seconds.");
 	case SpellID::BattleOrders:
-		return N_("A shout that swells your life and mana by twenty, ten more a rank, for forty seconds and five more a rank.");
+		return N_("A shout that swells your life and mana by +20, +10 per rank, for 40 seconds, +5 per rank.");
 	case SpellID::WarCry:
 		return N_("A shout that strikes everything in earshot for four to eight a rank and leaves it reeling for two seconds. Uniques shrug off the reeling.");
 	case SpellID::BattleCommand:
@@ -651,9 +651,9 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::TempleBell:
 		return N_("A tone that strikes every undead in earshot for three to six a rank, staggers it and drives it back.");
 	case SpellID::PurifyingBreath:
-		return N_("Centre yourself: twenty to every resistance, five more a rank, for thirty seconds and five more a rank.");
+		return N_("Centre yourself: +20 to every resistance, +5 per rank, for 30 seconds, +5 per rank.");
 	case SpellID::Tranquility:
-		return N_("A sanctuary about you for twelve seconds and one more a rank: what stands beside you is slowed, and a fiftieth of your life returns each second.");
+		return N_("A sanctuary about you for 13 seconds, +1 per rank: what stands beside you is slowed, and 2% of your life returns each second.");
 	case SpellID::InnerSight:
 		return N_("Reveals the weak points of everything in earshot: -33% armour, -2% more per rank, for 20 seconds.");
 	case SpellID::SlowMissiles:
@@ -661,13 +661,13 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::Vengeance:
 		return N_("Your blows burn and crackle for thirty seconds, five more a rank: fire and lightning on every hit, more with rank. Cold has no place on the weapon sheet, so it is not added.");
 	case SpellID::Conversion:
-		return N_("Turns one enemy near the cursor to your side for twenty seconds, two more a rank. Uniques and the magic-immune refuse.");
+		return N_("Turns one enemy near the cursor to your side for 20 seconds, +2 per rank. Uniques and the magic-immune refuse.");
 	case SpellID::FindPotion:
 		return N_("Search a corpse near the cursor. 50% of the time, +5% per rank, it yields a potion - rarely a full one. The corpse is used up.");
 	case SpellID::FindItem:
 		return N_("Search a corpse near the cursor. 25% of the time, +5% per rank, it yields an item. The corpse is used up.");
 	case SpellID::GrimWard:
-		return N_("Raise a corpse near the cursor as a totem of terror: for twenty seconds, two more a rank, everything but the uniques that comes near it runs.");
+		return N_("Raise a corpse near the cursor as a totem of terror: for 20 seconds, +2 per rank, everything but the uniques that comes near it runs.");
 	default:
 		return "";
 	}

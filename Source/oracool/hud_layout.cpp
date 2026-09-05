@@ -176,8 +176,8 @@ constexpr Point CentreInWell(Rectangle srcWell, Size content)
 // readied, not to the well. Filling the opening would mean the slot changed size with its state.
 static_assert(SkillWellIconSize.width <= ScalePlateRect(RmbWellSrc).size.width
         && SkillWellIconSize.height <= ScalePlateRect(RmbWellSrc).size.height,
-    "The skill-well icon no longer fits the RMB well's opening - recut ui\\attack_icons.png "
-    "smaller (tools/CutAttackIcons.ps1) or fix the plate geometry");
+    "The skill-well icon no longer fits the RMB well's opening - the glyph strips are 56 "
+    "(tools/BuildGlyphStrips.ps1); fix the plate geometry or SkillWellIconSize");
 // The centring maths pinned to hand-computed values, so a change to the plate scale cannot quietly
 // shift both icons. Derived in the doc comment above.
 // The pin to hand-computed values went with the fifth HUD: the geometry is generated, and at scale
