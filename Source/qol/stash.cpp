@@ -780,6 +780,7 @@ void DrawStash(const Surface &out)
 	// its grid already had margin on every side, and it absorbed the carved bezel's extra three
 	// pixels without losing a row - see the StashGridBottom assert.
 	if (oracool::HasGridBezel(gridRect.size)) {
+		oracool::DrawDropShadow(out, gridRect, oracool::GridBezelInset); // the slot shadow (2026-09-05)
 		oracool::DrawGridBezel(out, gridRect);
 	} else {
 		oracool::DrawOrnateBorderOutside(out, gridRect);

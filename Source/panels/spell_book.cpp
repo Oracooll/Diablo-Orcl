@@ -259,7 +259,9 @@ constexpr uint8_t EligibleForPointColor = PAL16_YELLOW + 2;
  * (64 against 54), which is why no row got taller and nothing else in this file had to move; the
  * max is here so that a smaller icon later cannot silently clip the third line.
  */
-constexpr int SpellRowHeight = SheetIconSize + 8;
+// + 18, not + 8 (user, 2026-09-05: "introduce 6px gaps between spells in spells windows"): the bezel
+// is six outside the icon on every side, so a row is the icon, twelve of bezel and six of air.
+constexpr int SpellRowHeight = SheetIconSize + 2 * oracool::GridBezelInset + 6;
 /**
  * @brief How many wrapped lines a described row gives its description.
  *
@@ -509,7 +511,9 @@ static_assert(TreeColX0 >= AbilitiesInteriorLeft
         && TreeColX0 + (TreeColumns - 1) * TreeColPitch + TreeIconSize <= AbilitiesInteriorRight,
     "the tree grid no longer fits the painted interior - tighten TreeColPitch");
 /** The point counter under each icon, which doubles as the invest button. */
-constexpr int TreeBarHeight = 16;
+// 14, from 16 (2026-09-05): the two pixels paid for the six-pixel gap below, so a six-tier page still
+// fits the list unscrolled - the static_assert under TreeRowPitch is the real statement.
+constexpr int TreeBarHeight = 14;
 constexpr int TreeBarGap = 4;
 /**
  * @brief Air between one tier's counter and the next tier's icon.
@@ -519,7 +523,9 @@ constexpr int TreeBarGap = 4;
  * of them grew a scrollbar for the sake of their last row's counter. The static_assert below is the
  * real statement: a six-tier page must fit without scrolling.
  */
-constexpr int TreeRowGap = 6;
+// 12 (user, 2026-09-05: "introduce 6px gaps between spells"): the frame reaches six below the icon,
+// under the counter bar, so six of AIR between the bar and the next frame is a gap of twelve here.
+constexpr int TreeRowGap = 12;
 constexpr int TreeRowPitch = TreeIconSize + TreeBarGap + TreeBarHeight + TreeRowGap;
 static_assert(AbilitiesListTop + 6 * TreeRowPitch <= AbilitiesContentSize.height,
     "a six-tier tree page no longer fits the list unscrolled - tighten TreeRowGap or the nav row");
@@ -554,10 +560,12 @@ constexpr int PassiveHintTop = AbilitiesListTop + PassiveSlotSize + 4;
 /** The grid begins below the band. */
 constexpr int PassiveGridTop = PassiveHintTop + PassiveHintHeight + 4;
 /** No counter row, so a passive row is its icon plus air. */
-constexpr int PassiveRowGap = 4;
+// 18, from 4 (user, 2026-09-05: "introduce 6px gaps between all skills in passive skills"): twelve of
+// frame and six of air between rows. Seven tiers at this pitch are 606px against a 523px list, so
+// the passive page SCROLLS now, band and all - the "fits unscrolled" rule of 2026-08-25 gave way to
+// the gap. The band is 56px at the top, so it is off the screen only for the last tier's rows.
+constexpr int PassiveRowGap = 2 * oracool::GridBezelInset + 6;
 constexpr int PassiveRowPitch = TreeIconSize + PassiveRowGap;
-static_assert(PassiveGridTop + oracool::ClassTreeTierCount * PassiveRowPitch <= AbilitiesContentSize.height,
-    "the passive page no longer fits unscrolled - the slot band must stay on screen with the grid");
 
 bool IsPassivePage(int page)
 {

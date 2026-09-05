@@ -29,3 +29,13 @@ The cutter emits `BeltBarTop` (the painted belt bar's top edge, plate-local 67) 
 **v1.9.221** - "i dont really see the shadow ... double check if it renders." It rendered and was invisible: `DrawGridBezel` paints its frame 6px OUTSIDE the rect it is given, so a 2px shadow of the rect sat entirely under the bezel. `DrawDropShadow` now takes the bezel width, shadows the slot's full footprint, and the offset is the user's six pixels.
 
 **v1.9.222-223** - the shadow: one half-transparent pass instead of two ("reduce the shadow by half" - read as darkness), then the offset to 3px ("i really meant making it 3px. but keep the current transparent pass"). Now: full bezel footprint, (-3, +3), one pass.
+
+## Addendum, v1.9.224 - shadows on the grids, gaps in the Abilities window
+
+"apply the same shadow to inventory and stash slots. also - introduce 6px gaps between spells in spells windows / between skill slots in passive skills / between all skills in passive skills."
+
+- Shadow under the inventory's equipment slots, the inventory grid and the stash grid, at the bezel sites (`inv.cpp`, `stash.cpp`).
+- Spells list: `SpellRowHeight` 64 → 74 (icon + 12 of bezel + 6 of air).
+- Tree pages: `TreeRowGap` 6 → 12 - the bezel reaches six below the icon under the counter bar, so six of air between the bar and the next frame is twelve; `TreeBarHeight` 16 → 14 pays for it, so six tiers still fit the 523px list unscrolled (6 + 6 × 86 = 522).
+- Passive page: `PassiveRowGap` 4 → 18 (pitch 74). Seven tiers are 606px, so the page scrolls now; the 2026-08-25 "fits unscrolled" assert was dropped. The slot band scrolls with it and is off the top only for the last tier.
+- NOT done: 6px gaps between the four passive SLOTS. Four 56px slots with their 6px frames and 6px gaps are 290px; the painted interior between the bezel ornaments is 246 (`AbilitiesInteriorLeft/Right`), which is why the band's pitch is 63 and the frames overlap by five. Either the band overhangs the frame by 22px a side - the thing the user asked to avoid on 2026-08-17 - or the band needs a smaller slot with its own bezel cut. Left for the user to choose.

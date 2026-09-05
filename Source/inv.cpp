@@ -1862,6 +1862,9 @@ void DrawInv(const Surface &out)
 		// Note the two frames sit differently: the bezel is OUTSIDE the slot, so the slot keeps all
 		// 28 pixels of each cell, where DrawOrnateBorder drew inside and took three from every edge.
 		if (oracool::HasGridBezel(screenRect.size)) {
+			// The Abilities window's slot shadow, here too (user, 2026-09-05: "apply the same shadow
+			// to inventory and stash slots"): the bezel's footprint, three left and three down.
+			oracool::DrawDropShadow(out, screenRect, oracool::GridBezelInset);
 			oracool::DrawGridBezel(out, screenRect);
 		} else {
 			oracool::DrawOrnateBorder(out, screenRect);
@@ -1895,6 +1898,7 @@ void DrawInv(const Surface &out)
 	// frame's width to pay for it - see GridOrigin, which subtracts it from the mana orb's
 	// clearance line rather than sitting flush against it.
 	if (gridHasBezel) {
+		oracool::DrawDropShadow(out, gridRect, oracool::GridBezelInset); // the slot shadow (2026-09-05)
 		oracool::DrawGridBezel(out, gridRect);
 	} else {
 		oracool::DrawOrnateBorderOutside(out, gridRect);
