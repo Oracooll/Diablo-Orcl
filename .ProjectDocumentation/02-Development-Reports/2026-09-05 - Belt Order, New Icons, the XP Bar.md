@@ -41,3 +41,9 @@ The cutter emits `BeltBarTop` (the painted belt bar's top edge, plate-local 67) 
 - NOT done: 6px gaps between the four passive SLOTS. Four 56px slots with their 6px frames and 6px gaps are 290px; the painted interior between the bezel ornaments is 246 (`AbilitiesInteriorLeft/Right`), which is why the band's pitch is 63 and the frames overlap by five. Either the band overhangs the frame by 22px a side - the thing the user asked to avoid on 2026-08-17 - or the band needs a smaller slot with its own bezel cut. Left for the user to choose.
 
 **v1.9.225** - "make burger default icon and portal default icon brighter... also scale them 10%." `tools/CutBeltButtonIcons.ps1` cuts both strips from GPT's 112px sources at 31px (28 x 1.1), three states each; default and hover take a gamma of 0.7 (lifting default alone put it above hover and inverted the cue), click as delivered. Sizes in hud_art.cpp follow.
+
+## Addendum, v1.9.226 - six pixels of air between the inventory's slots
+
+"introduce a mandatory minimum gap of 6px between items slots in inventory window. that way shadows will be visible. rearrange as necessary."
+
+`inventory_layout.h`: `SlotAir` 6 and `SlotGap` 18 (air plus a frame on each side), and every equipment row is now derived from the one above it by that gap: helm 30, chest 104, belt/rings 206, legs 252, boots 326 in the centre column; shoulders 48, amulet 60, gloves/bracers 122, weapon/shield 262 at the sides. Two static_asserts pin the air for every vertically adjacent pair in each column and for the three column gaps. The centre column uses the whole height above the tab row (boots' frame ends at 388 = TabRowY); the columns already had 9-30px of air. `InvRect` is built from these rects, so hit-testing moved with the art.

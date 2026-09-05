@@ -295,15 +295,37 @@ constexpr int ShouldersX = EquipColCentre - HeadFlankGap - 2 * CellPx;
 constexpr int AmuletX = EquipColCentre + 2 * CellPx + HeadFlankGap;
 
 /**
+ * @brief THE RULE the rows are laid out by (user, 2026-09-05: "introduce a mandatory minimum gap of
+ * 6px between items slots in inventory window. that way shadows will be visible. rearrange as
+ * necessary."): six pixels of AIR between neighbouring slots' carved frames. The frame is drawn
+ * GridFrameWidth outside its slot on every side, so two slots' rects must be 6 + 6 + 6 apart.
+ *
+ * Every row below is derived from the one above it by this gap, top down, and the centre column -
+ * helm, chest, belt, legs, boots - uses the whole height between the panel margin and the tab row
+ * doing it: 30 + 56 + 18 + 84 + 18 + 28 + 18 + 56 + 18 + 56 = 382, against TabRowY's 388. That is
+ * the six the boots' frame needs and nothing over, which is why there is no slack to hand out.
+ */
+constexpr int SlotAir = 6;
+constexpr int SlotGap = 2 * GridFrameWidth + SlotAir;
+
+/** @brief The helm's top: the panel margin plus the frame it wears. */
+constexpr int HelmRowY = PanelMargin + GridFrameWidth;
+/** @brief Shoulders sit 18 below the helm's top, the amulet 12 below that - the flanking stagger the
+ * block has always had, kept as it was. */
+constexpr int ShouldersRowY = HelmRowY + 18;
+constexpr int AmuletRowY = ShouldersRowY + 12;
+constexpr int ChestRowY = HelmRowY + 2 * CellPx + SlotGap;
+constexpr int GlovesRowY = ShouldersRowY + 2 * CellPx + SlotGap;
+
+/**
  * @brief The rings share the belt's row - all three are one cell tall, so they line up exactly.
  */
-// Every equipment row shifted down by EquipRowShift when the panel grew 660 -> 720: the block used
-// to span 18..340 in a 320x660 panel and now sits centred in the 24..TabRowY space above the tabs.
-constexpr int EquipRowShift = 33;
-constexpr int BeltAndRingRowY = 182 + EquipRowShift;
+constexpr int BeltAndRingRowY = ChestRowY + 3 * CellPx + SlotGap;
 
 /** @brief Bottom edge of the gloves/bracers row, which the ring row is spaced beneath. */
-constexpr int GlovesRowBottom = 104 + EquipRowShift + 2 * CellPx;
+constexpr int GlovesRowBottom = GlovesRowY + 2 * CellPx;
+constexpr int LegsRowY = BeltAndRingRowY + CellPx + SlotGap;
+constexpr int BootsRowY = LegsRowY + 2 * CellPx + SlotGap;
 
 /**
  * @brief Vertical gap above the ring row. Weapon and shield then sit the same distance below
@@ -325,19 +347,19 @@ constexpr Rectangle EquipRect1x1(int columnX, int y)
 }
 
 constexpr EquipSlotLayout EquipSlots[EquipSlotCount] = {
-	{ EquipSlot::Helm, EquipRect(EquipColCentre, 18 + EquipRowShift, 2, 2) },
-	{ EquipSlot::Shoulders, EquipRect(ShouldersX, 36 + EquipRowShift, 2, 2) },
-	{ EquipSlot::Amulet, EquipRect(AmuletX, 48 + EquipRowShift, 1, 1) },
-	{ EquipSlot::Chest, EquipRect(EquipColCentre, 88 + EquipRowShift, 2, 3) },
-	{ EquipSlot::Gloves, EquipRect(EquipColLeft, 104 + EquipRowShift, 2, 2) },
-	{ EquipSlot::Bracers, EquipRect(EquipColRight, 104 + EquipRowShift, 2, 2) },
+	{ EquipSlot::Helm, EquipRect(EquipColCentre, HelmRowY, 2, 2) },
+	{ EquipSlot::Shoulders, EquipRect(ShouldersX, ShouldersRowY, 2, 2) },
+	{ EquipSlot::Amulet, EquipRect(AmuletX, AmuletRowY, 1, 1) },
+	{ EquipSlot::Chest, EquipRect(EquipColCentre, ChestRowY, 2, 3) },
+	{ EquipSlot::Gloves, EquipRect(EquipColLeft, GlovesRowY, 2, 2) },
+	{ EquipSlot::Bracers, EquipRect(EquipColRight, GlovesRowY, 2, 2) },
 	{ EquipSlot::RingLeft, EquipRect1x1(EquipColLeft, BeltAndRingRowY) },
 	{ EquipSlot::RingRight, EquipRect1x1(EquipColRight, BeltAndRingRowY) },
 	{ EquipSlot::Belt, EquipRect(EquipColCentre, BeltAndRingRowY, 2, 1) },
 	{ EquipSlot::Weapon, EquipRect(EquipColLeft, WeaponRowY, 2, 3) },
 	{ EquipSlot::Shield, EquipRect(EquipColRight, WeaponRowY, 2, 3) },
-	{ EquipSlot::Legs, EquipRect(EquipColCentre, 220 + EquipRowShift, 2, 2) },
-	{ EquipSlot::Boots, EquipRect(EquipColCentre, 284 + EquipRowShift, 2, 2) },
+	{ EquipSlot::Legs, EquipRect(EquipColCentre, LegsRowY, 2, 2) },
+	{ EquipSlot::Boots, EquipRect(EquipColCentre, BootsRowY, 2, 2) },
 };
 
 
@@ -359,6 +381,29 @@ static_assert(GetEquipSlotRect(EquipSlot::Boots).position.y
 static_assert(GetEquipSlotRect(EquipSlot::RingLeft).position.y == GetEquipSlotRect(EquipSlot::Belt).position.y
         && GetEquipSlotRect(EquipSlot::RingRight).position.y == GetEquipSlotRect(EquipSlot::Belt).position.y,
     "Ring slots are no longer aligned with the belt row");
+
+// Six pixels of air between every pair of frames that meet, top to bottom in each column.
+constexpr int AirBelow(EquipSlot upper, EquipSlot lower)
+{
+	const Rectangle a = GetEquipSlotRect(upper);
+	const Rectangle b = GetEquipSlotRect(lower);
+	return b.position.y - (a.position.y + a.size.height) - 2 * GridFrameWidth;
+}
+static_assert(AirBelow(EquipSlot::Helm, EquipSlot::Chest) >= SlotAir
+        && AirBelow(EquipSlot::Chest, EquipSlot::Belt) >= SlotAir
+        && AirBelow(EquipSlot::Belt, EquipSlot::Legs) >= SlotAir
+        && AirBelow(EquipSlot::Legs, EquipSlot::Boots) >= SlotAir
+        && AirBelow(EquipSlot::Shoulders, EquipSlot::Gloves) >= SlotAir
+        && AirBelow(EquipSlot::Amulet, EquipSlot::Bracers) >= SlotAir
+        && AirBelow(EquipSlot::Gloves, EquipSlot::RingLeft) >= SlotAir
+        && AirBelow(EquipSlot::RingLeft, EquipSlot::Weapon) >= SlotAir
+        && AirBelow(EquipSlot::Bracers, EquipSlot::RingRight) >= SlotAir
+        && AirBelow(EquipSlot::RingRight, EquipSlot::Shield) >= SlotAir,
+    "Two equipment slots' frames are closer than the six pixels of air the shadow needs");
+static_assert(EquipColCentre - (ShouldersX + 2 * CellPx) - 2 * GridFrameWidth >= SlotAir
+        && AmuletX - (EquipColCentre + 2 * CellPx) - 2 * GridFrameWidth >= SlotAir
+        && EquipColCentre - (EquipColLeft + 2 * CellPx) - 2 * GridFrameWidth >= SlotAir,
+    "Two equipment columns' frames are closer than the six pixels of air the shadow needs");
 
 // The ring row is evenly spaced between the gloves above it and the weapon below it.
 static_assert(BeltAndRingRowY - GlovesRowBottom == WeaponRowY - (BeltAndRingRowY + CellPx),
