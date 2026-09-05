@@ -541,18 +541,25 @@ static_assert(AbilitiesListTop + 6 * TreeRowPitch <= AbilitiesContentSize.height
 // slot you are aiming at must never be scrolled off the top while you reach for the grid.
 // ---------------------------------------------------------------------------------------------
 
-/** The four slots sit in a row across the interior, above everything else. */
+/**
+ * The four slots sit in a row above everything else - across the PANEL, since 2026-09-05, not the
+ * painted interior. User: "spread passive slots 1-4 wider to introduce a mandatory 6px gap between
+ * their vertical borders." Four 56px slots in their 6px frames with six of air between them are
+ * 290 wide; the interior between the bezel ornaments is 246, which is why the band was at pitch 63
+ * with the frames overlapping. So the band is centred on the panel's 340 instead and its outer
+ * frames sit 21px onto the ornament either side - the one place in this window that does, and by
+ * the user's own choice against the interior rule of 2026-08-17.
+ */
 constexpr int PassiveSlotSize = SheetIconSize;
-constexpr int PassiveSlotPitch = 63;
-constexpr int PassiveSlotX0 = AbilitiesInteriorLeft
-    + (AbilitiesInteriorRight - AbilitiesInteriorLeft
-        - (static_cast<int>(oracool::PassiveSlotCount) - 1) * PassiveSlotPitch - PassiveSlotSize)
-        / 2;
-static_assert(PassiveSlotX0 >= AbilitiesInteriorLeft
+constexpr int PassiveSlotPitch = PassiveSlotSize + 2 * oracool::GridBezelInset + 6;
+constexpr int PassiveSlotX0 = (AbilitiesPanelSize.width
+                                  - (static_cast<int>(oracool::PassiveSlotCount) - 1) * PassiveSlotPitch - PassiveSlotSize)
+    / 2;
+static_assert(PassiveSlotX0 - oracool::GridBezelInset >= AbilitiesMargin
         && PassiveSlotX0 + (static_cast<int>(oracool::PassiveSlotCount) - 1) * PassiveSlotPitch
-                + PassiveSlotSize
-            <= AbilitiesInteriorRight,
-    "the four passive slots no longer fit the painted interior - tighten PassiveSlotPitch");
+                + PassiveSlotSize + oracool::GridBezelInset
+            <= AbilitiesPanelSize.width - AbilitiesMargin,
+    "the four passive slots and their frames no longer fit inside the panel margin");
 
 /** One line under the slots, which is where the gesture explains itself. */
 constexpr int PassiveHintHeight = 18;
@@ -933,6 +940,11 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// THREE lines now - name, mana, damage (user, 2026-08-30). The damage line is empty for a
 	// utility spell, a skill or a staff, and those rows centre their two lines exactly as before
 	// rather than leaving a gap where a third would have gone.
+	// The description lines cast the character sheet's drop shadow (user, 2026-09-05: "introduce text
+	// shadows under description of spells in spells abilities window for easier reading") - the
+	// small grey text on the stone was the hardest read in the window. The name line keeps its
+	// colour clean; it is the description that was hard.
+	constexpr UiFlags SpellDescriptionShadow = UiFlags::Shadowed;
 	const std::string damage = GetSpellDamageLine(sn, known);
 	const int lines = damage.empty() ? 2 : 3;
 	const int textTop = top + (SpellRowHeight - lines * AbilitiesLineHeight) / 2;
@@ -941,11 +953,11 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	    { nameColor | UiFlags::VerticalCenter });
 	DrawString(content, GetSpellDetail(sn, known),
 	    { { textX, textTop + AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
-	    { detailColor | UiFlags::VerticalCenter });
+	    { detailColor | UiFlags::VerticalCenter | SpellDescriptionShadow });
 	if (!damage.empty()) {
 		DrawString(content, damage,
 		    { { textX, textTop + 2 * AbilitiesLineHeight }, { textWidth, AbilitiesLineHeight } },
-		    { detailColor | UiFlags::VerticalCenter });
+		    { detailColor | UiFlags::VerticalCenter | SpellDescriptionShadow });
 	}
 
 	// The spend controls live ON the icon now, exactly as they do on a tree cell (user, 2026-08-19):

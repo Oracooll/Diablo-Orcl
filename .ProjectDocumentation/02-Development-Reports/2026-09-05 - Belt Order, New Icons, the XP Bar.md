@@ -47,3 +47,10 @@ The cutter emits `BeltBarTop` (the painted belt bar's top edge, plate-local 67) 
 "introduce a mandatory minimum gap of 6px between items slots in inventory window. that way shadows will be visible. rearrange as necessary."
 
 `inventory_layout.h`: `SlotAir` 6 and `SlotGap` 18 (air plus a frame on each side), and every equipment row is now derived from the one above it by that gap: helm 30, chest 104, belt/rings 206, legs 252, boots 326 in the centre column; shoulders 48, amulet 60, gloves/bracers 122, weapon/shield 262 at the sides. Two static_asserts pin the air for every vertically adjacent pair in each column and for the three column gaps. The centre column uses the whole height above the tab row (boots' frame ends at 388 = TabRowY); the columns already had 9-30px of air. `InvRect` is built from these rects, so hit-testing moved with the art.
+
+## Addendum, v1.9.227 - description shadows, the passive band spread
+
+"introduce text shadows under description of spells in spells abilities window for easier reading. also - spread passive slots 1-4 wider to introduce a mandatory 6px gap between their vertical borders."
+
+- Spells sheet: the detail and damage lines carry `UiFlags::Shadowed` - the character sheet's vanilla two-left-two-down text shadow. The name line is left clean.
+- Passive band: pitch 74 (56 + two frames + 6 of air), centred on the panel's 340 rather than the 246 interior, so the outer frames sit 21px onto the bezel ornament either side - the user's choice over the interior rule of 2026-08-17, and the one place in the window that crosses it. The static_assert now checks the panel margin rather than the interior.
