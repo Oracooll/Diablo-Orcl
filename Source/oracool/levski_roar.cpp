@@ -283,8 +283,11 @@ Point GridOrigin(const Rectangle &window)
 
 Rectangle CellRect(const Rectangle &window, int cell)
 {
+	// Stepped by the PAINTED pitch, sized as the item cell (2026-09-05, the 1:1 painting): the
+	// grid is painted at 29 and the item sprite is 28, so the cell sits inside its painted square
+	// with the rule around it rather than the painting being squeezed to make the two agree.
 	const Point origin = GridOrigin(window);
-	return Rectangle { { origin.x + (cell % LevskiGridColumns) * CellSize, origin.y + (cell / LevskiGridColumns) * CellSize },
+	return Rectangle { { origin.x + (cell % LevskiGridColumns) * levski_skin::GridPitch, origin.y + (cell / LevskiGridColumns) * levski_skin::GridPitch },
 		{ CellSize, CellSize } };
 }
 
@@ -787,8 +790,9 @@ void DrawLevskiRoar(const Surface &out)
 
 	// The SALVAGE title over the block (user, 2026-09-05: "Gold, with text shadow. Appropriate font
 	// size"): 24px, the window title's own gold, and the same shadow the hero sheet's text wears.
-	{
-		const Rectangle &t = levski_skin::SalvageTitleRect;
+	// Skipped when the skin gives it no room: the 2026-09-05 painting carries SALVAGE on its own
+	// stone plate, and a second SALVAGE drawn over it would be the one thing worse than none.
+	if (const Rectangle &t = levski_skin::SalvageTitleRect; t.size.height > 0) {
 		DrawString(out, _("SALVAGE"), Rectangle { window.position + Displacement { t.position.x, t.position.y }, t.size },
 		    { UiFlags::ColorGold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
@@ -803,10 +807,11 @@ void DrawLevskiRoar(const Surface &out)
 		const bool hovered = rect.contains(MousePosition);
 		const int flash = FlashIndexForButton(i);
 		const bool pressed = flash >= 0 && ButtonFlashActive(flash);
-		const char *suffix = pressed ? "_pressed.png" : (hovered ? "_hover.png" : "_default.png");
-		const std::string state = StrCat("ui\\levski_", levski_skin::ButtonStems[i], suffix);
-		DrawLoosePng(out, state.c_str(), rect.position);
+		// At rest the painting is the control (the 2026-09-05 skin paints every plate in); only a
+		// HOVER or PRESSED overlay is ever drawn, cut to the painted plate's own size.
 		if (pressed || hovered) {
+			const std::string state = StrCat("ui\\levski_", levski_skin::ButtonStems[i], pressed ? "_pressed.png" : "_hover.png");
+			DrawLoosePng(out, state.c_str(), rect.position);
 			if (hovered && !pressed && levski_skin::HoverIsPlain[i])
 				DrawHoverOutline(out, rect);
 			continue;
