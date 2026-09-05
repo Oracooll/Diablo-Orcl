@@ -61,6 +61,16 @@ struct ArtAsset {
 	std::vector<uint8_t> cellInsets;
 	std::optional<OwnedSurface> bright;
 	/**
+	 * The HALF-transparent pixels: every source pixel with alpha in [HalfAlphaFloor, 128), quantised
+	 * to its own colour, everything else 0. Drawn after `bright` through the palette's 50% blend
+	 * table, so a PNG's partial alpha reaches the screen as a real blend rather than being keyed
+	 * away at 128. The sixth HUD's wells (2026-09-05) are what asked for it: their frames cast a
+	 * three-pixel shadow INWARD as an alpha gradient onto the spell plate the game draws beneath
+	 * them, and a binary key made that a black ring or nothing. One blend level is what an 8-bit
+	 * palette affords; the cutter shapes the gradient to it (tools/CutHudPlate.ps1).
+	 */
+	std::optional<OwnedSurface> half;
+	/**
 	 * Orbs only. The composition MINUS the sphere: everything outside the glass circle, with the
 	 * circle itself left transparent. Drawn first and opaquely, so the ornament and the rim are
 	 * never affected by whatever happens inside the glass.
@@ -511,19 +521,24 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
 		return;
 
 	asset.bright.emplace(asset.width, asset.height);
+	asset.half.emplace(asset.width, asset.height);
 	if (dimCircle) {
 		asset.frame.emplace(asset.width, asset.height);
 		asset.sphereDim.emplace(asset.width, asset.height);
 	}
 
 	std::vector<uint8_t> cache(1 << 15, 0);
+	// Below this a pixel is nothing; from here to 127 it is the half layer. See ArtAsset::half.
+	constexpr int HalfAlphaFloor = 40;
 
 	for (int y = 0; y < asset.height; y++) {
 		const uint8_t *srcRow = &asset.rgba[static_cast<size_t>(y) * asset.width * 4];
 		uint8_t *brightRow = &(*asset.bright)[Point { 0, y }];
+		uint8_t *halfRow = &(*asset.half)[Point { 0, y }];
 		uint8_t *frameRow = dimCircle ? &(*asset.frame)[Point { 0, y }] : nullptr;
 		uint8_t *sphereRow = dimCircle ? &(*asset.sphereDim)[Point { 0, y }] : nullptr;
 		for (int x = 0; x < asset.width; x++) {
+			halfRow[x] = 0;
 			// Scaled before anything reads them, so the ramp lookup, the tint blend and the cache
 			// key all see the same value. Scaling after the match would quantize the bright colour
 			// and then darken the RESULT, which walks off the ramp the tint just put it on.
@@ -537,6 +552,11 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
 
 			if (a < 128) {
 				brightRow[x] = 0;
+				if (a >= HalfAlphaFloor) {
+					halfRow[x] = tintRampBase
+					    ? TintedPaletteIndex(*tintRampBase, tintStrengthPercent, r, g, b, cache)
+					    : NearestGlobalPaletteIndex(r, g, b, cache);
+				}
 				if (frameRow != nullptr) {
 					frameRow[x] = 0;
 					sphereRow[x] = 0;
@@ -962,6 +982,11 @@ void DrawMiddleHudArt(const Surface &out)
 
 	const Point position = GetMiddleHudRect().position;
 	out.BlitFromSkipColorIndexZero(*PlateArt.bright, MakeSdlRect(0, 0, PlateArt.width, PlateArt.height), position);
+	// The plate's partial alpha, blended at 50% over whatever is under it - the wells' inward
+	// shadow onto the spell plates the game drew there first (see scrollrt.cpp's order). See
+	// ArtAsset::half.
+	if (PlateArt.half)
+		BlitHalfTransparentSkipZero(out, *PlateArt.half, position, 0, PlateArt.height);
 }
 
 void DrawMenuIcon(const Surface &out, int iconIndex, int state, Point position)
@@ -1439,6 +1464,7 @@ void ResetHudArtCaches()
 		asset.height = 0;
 		asset.loadAttempted = false;
 		asset.bright.reset();
+		asset.half.reset();
 		asset.frame.reset();
 		asset.sphereDim.reset();
 		asset.outline.reset();
@@ -1818,10 +1844,10 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 		//
 		// Still through the tint's ramp, so a readied legacy spell keeps the well's state colour.
 		if (IsLegacySpell(spell)) {
-			DrawSmallSpellIconFittedTo(out, well, spell);
+			DrawLargeSpellIconCentredIn(out, well, spell); // the 56px frame, in the sixth HUD's 56px opening (2026-09-05)
 			return true;
 		}
-		DrawSmallSpellIconFittedTo(out, well);
+		DrawLargeSpellIconCentredIn(out, well, SpellID::Null); // the vanilla 56px plate under the sixth HUD's opening (2026-09-05)
 		DrawClassTreeIconScaledTo(out, well, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill));
 		return true;
 	}
@@ -1836,7 +1862,7 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 	// the player has it. The dimmed variant belongs to the Abilities window's own rows, where it says
 	// what has not been earned yet.
 	ApplyPlateTint(tint);
-	DrawSmallSpellIconFittedTo(out, well);
+	DrawLargeSpellIconCentredIn(out, well, SpellID::Null); // the vanilla 56px plate under the sixth HUD's opening (2026-09-05)
 	DrawStripIconScaledTo(out, PaladinSkillIconsArt, well, GetPaladinSkillIconIndex(*skill));
 	return true;
 }
@@ -1956,7 +1982,7 @@ void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active
 void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, bool active, SkillPlateTint tint)
 {
 	ApplyPlateTint(tint);
-	DrawSmallSpellIconFittedTo(out, well);
+	DrawLargeSpellIconCentredIn(out, well, SpellID::Null); // the vanilla 56px plate under the sixth HUD's opening (2026-09-05)
 	// The dim pass the Point overload gets from DrawStripIcon has no scaled twin, and the wells never
 	// need one: a well shows what its button does right now, and that is always the active state.
 	if (!active) {
@@ -1973,7 +1999,7 @@ void DrawClassTreeSkillInWell(const Surface &out, Rectangle well, HeroClass hero
     SkillPlateTint tint)
 {
 	ApplyPlateTint(tint);
-	DrawSmallSpellIconFittedTo(out, well);
+	DrawLargeSpellIconCentredIn(out, well, SpellID::Null); // the vanilla 56px plate under the sixth HUD's opening (2026-09-05)
 	DrawClassTreeIconScaledTo(out, well, heroClass, skillIndex);
 }
 

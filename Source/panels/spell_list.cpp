@@ -198,7 +198,7 @@ void DrawSpell(const Surface &out)
 		const float progress = oracool::GetFuriousChargeCooldownProgress();
 		SetSpellTrans(st);
 		if (!oracool::TryDrawSkillSpellIcon(out, net, spl, wellTint))
-			DrawSmallSpellIconFittedTo(out, net, oracool::FuriousChargeIcon);
+			DrawLargeSpellIconCentredIn(out, net, oracool::FuriousChargeIcon); // 56px frame on the 50px net (2026-09-05)
 		if (progress < 1.0f) {
 			// The cooldown still reads as a fill rising from the bottom, but as a DARKENED band over
 			// the part not yet cooled rather than as two differently-tinted copies of the sprite. The
@@ -213,7 +213,7 @@ void DrawSpell(const Surface &out)
 		// The engine-spell equivalent of the pink plate: st has already been downgraded to Invalid by
 		// the checks above when the spell cannot be cast, and the Scroll table is the beige/pink ramp.
 		SetSpellTrans(st == SpellType::Invalid ? SpellType::Scroll : st);
-		DrawSmallSpellIconFittedTo(out, net, spl);
+		DrawLargeSpellIconCentredIn(out, net, spl); // 56px frame on the 50px net (2026-09-05)
 	}
 
 	// The HUD well's badges: the rank bottom-centre and the F-key top-right, the same pair the quick

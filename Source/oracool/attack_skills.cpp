@@ -173,7 +173,7 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// bound it about where the cast is coming from.
 	if (type == SpellType::Charges) {
 		SetSpellTrans(usable ? SpellType::Charges : SpellType::Scroll);
-		DrawSmallSpellIconFittedTo(out, net, spell);
+		DrawLargeSpellIconCentredIn(out, net, spell); // the 56px frame centred on the 50px net fills the sixth HUD's opening (2026-09-05)
 		DrawStaffChargeBadge(out, net, *MyPlayer, spell);
 		return;
 	}
@@ -189,7 +189,7 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	SetSpellTrans(usable ? type : SpellType::Scroll);
 	// Scaled into the net rect like everything else, so a readied SPELL sits exactly where a readied
 	// skill would (user, 2026-08-19).
-	DrawSmallSpellIconFittedTo(out, net, spell);
+	DrawLargeSpellIconCentredIn(out, net, spell); // 56px frame on the 50px net (2026-09-05)
 }
 
 void DrawLmbSkillWell(const Surface &out)

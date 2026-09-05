@@ -2111,16 +2111,18 @@ void DrawAndBlit()
 		// (drawMana branch) and the belt items. Hidden while chat input covers the same area,
 		// matching DrawInvBelt's own talkflag gate. The corner orbs draw in DrawView's always-on
 		// tail (see DrawHealthOrb/DrawManaOrb there); only their value text renders here.
-		if (drawBelt && !talkflag) {
-			oracool::DrawMiddleHudArt(out);
-			// Oracool: the LMB well's content. Part of the plate rather than of the readied-spell
-			// state, so it draws here rather than under drawMana with DrawSpell - left click always
-			// attacks, whatever the RMB well happens to be holding.
+		// THE WELLS BEFORE THE PLATE since the sixth HUD (2026-09-05, user: "backing and icons need
+		// to be rendered under the shadow of the hud"). Its wells are true openings whose frame casts
+		// a three-pixel shadow inward as alpha, so the vanilla plate and the icon go down first and
+		// the plate's half-transparent layer falls on them - see DrawMiddleHudArt. The LMB well is
+		// part of the plate rather than of the readied-spell state (left click always attacks,
+		// whatever the RMB well holds); DrawSpell is the RMB well's content.
+		if (drawBelt && !talkflag)
 			oracool::DrawLmbSkillWell(out);
-		}
-		if (drawMana && !talkflag) {
+		if (drawMana && !talkflag)
 			DrawSpell(out);
-		}
+		if (drawBelt && !talkflag)
+			oracool::DrawMiddleHudArt(out);
 		// `&& !talkflag` on the whole block (user, 2026-08-31, with a screenshot showing six empty
 		// cells floating over the chat bar). DrawInvBelt carries its own talkflag gate and the plate
 		// above carries one too, but DrawBeltBacking - added 2026-08-30 - did not, so the backings

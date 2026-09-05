@@ -108,8 +108,12 @@ Rectangle GetRmbSkillButtonRect();
  * the plate art scales to: that rect is the opening including the moulding that rings it, and art
  * centred in it still laps onto the bezel. Everything a well draws - the tinted plate behind a skill
  * and the icon on top of it - is centred in this instead.
+ *
+ * 50 since the sixth HUD (2026-09-05): its wells are true 56x56 openings whose frame casts a 3px
+ * shadow inward on every side, and the net is what that shadow leaves - "so we will have 50x50px
+ * net area". The 46 was the third plate's measurement.
  */
-constexpr Size SkillWellNetSize { 46, 46 };
+constexpr Size SkillWellNetSize { 50, 50 };
 
 /** @brief The net square of the LEFT well, centred in its opening. */
 Rectangle GetLmbSkillWellNetRect();
