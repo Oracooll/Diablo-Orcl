@@ -80,6 +80,14 @@ int ScrollOffsetPx = 0;
 
 std::array<bool, SlotFilterCount> SlotSelected {};
 std::vector<bool> RuneSelected;
+/**
+ * Which of the two rune-filter meanings is in force (user, 2026-09-05). POSSIBLE, lit by the yellow
+ * toggle, means "buildable from the runes I hold": every rune of the word must be held. A manual
+ * rune selection means "requires these": the word must contain every SELECTED rune, and may need
+ * more - "it is not to be mistaken as an exact match". The two are different questions, so the
+ * toggle records which one the selection answers.
+ */
+bool PossibleMode = false;
 std::vector<uint16_t> RuneIndices;
 
 void EnsureRuneList()
@@ -105,17 +113,30 @@ bool PassesFilters(const RunewordDefinition &word)
 		return false;
 
 	if (AnyRuneSelected()) {
-		// Every rune of the word must be selected, not merely one of them. With the Possible-
-		// Runewords toggle lighting exactly what the player owns, "any" would list words needing
-		// five runes because one is in the stash - the opposite of what the button promises.
-		for (int k = 0; k < word.runeCount; k++) {
-			bool held = false;
-			for (size_t r = 0; r < RuneIndices.size() && !held; r++) {
-				if (RuneSelected[r] && RuneIndices[r] == word.runes[k])
-					held = true;
+		if (PossibleMode) {
+			// Buildable: every rune the word needs is among the selected (held) ones.
+			for (int k = 0; k < word.runeCount; k++) {
+				bool held = false;
+				for (size_t r = 0; r < RuneIndices.size() && !held; r++) {
+					if (RuneSelected[r] && RuneIndices[r] == word.runes[k])
+						held = true;
+				}
+				if (!held)
+					return false;
 			}
-			if (!held)
-				return false;
+		} else {
+			// Requires: every SELECTED rune is among the word's - the word may need others too.
+			for (size_t r = 0; r < RuneIndices.size(); r++) {
+				if (!RuneSelected[r])
+					continue;
+				bool inWord = false;
+				for (int k = 0; k < word.runeCount && !inWord; k++) {
+					if (word.runes[k] == RuneIndices[r])
+						inWord = true;
+				}
+				if (!inWord)
+					return false;
+			}
 		}
 	}
 	return true;
@@ -189,9 +210,12 @@ Rectangle RuneKeyRect(size_t index)
 /** @brief The Possible-Runewords toggle, in the window's top-LEFT corner. */
 Rectangle PossibleFilterRect()
 {
+	// The red X's mirror image across the window (user, 2026-09-05: "replace the gold cross in the
+	// top left with clone of the RED X CLOSE button, but painted in YELLOW and mirrored across the
+	// window"): the same size, the same inset, the left corner.
 	const Rectangle window = GetRunewordBookRect();
-	return { { window.position.x + OrnateBorderWidth + 2, window.position.y + OrnateBorderWidth + 2 },
-		{ PossibleFilterSize, PossibleFilterSize } };
+	const Rectangle close = GetWindowCloseButtonRect(window);
+	return { { window.position.x + (window.position.x + window.size.width - (close.position.x + close.size.width)), close.position.y }, close.size };
 }
 
 Rectangle ContentRect()
@@ -208,13 +232,39 @@ Rectangle ContentRect()
  * Item sprites are drawn from their bottom-left in this engine. Taking a rect rather than a point is
  * the whole fix for the overlap: a caller cannot get the anchor convention wrong from here.
  */
-void DrawRuneIcon(const Surface &out, uint16_t runeIdx, Rectangle box)
+/**
+ * @brief A palette table that lifts every colour a few steps up its ramp - the "brighter" a rune
+ * key shows under the cursor (user, 2026-09-05: "when i hover over rune filter make runes brighter").
+ *
+ * The palette is sixteen-entry ramps, light to dark, except 128..159, which are four eight-entry
+ * mini-ramps; each index moves toward its ramp's light end without leaving the ramp. Index 0 is
+ * the sprites' transparent key and stays 0.
+ */
+const uint8_t *BrightenTRN()
+{
+	static std::array<uint8_t, 256> table = [] {
+		std::array<uint8_t, 256> t {};
+		for (int i = 1; i < 256; i++) {
+			const bool mini = i >= 128 && i < 160;
+			const int rampLength = mini ? 8 : 16;
+			const int base = mini ? 128 + ((i - 128) / 8) * 8 : (i / 16) * 16;
+			t[static_cast<size_t>(i)] = static_cast<uint8_t>(std::max(base, i - rampLength / 5));
+		}
+		return t;
+	}();
+	return table.data();
+}
+
+void DrawRuneIcon(const Surface &out, uint16_t runeIdx, Rectangle box, const uint8_t *trn = nullptr)
 {
 	const int cursId = AllItemsList[runeIdx].iCurs + CURSOR_FIRSTITEM;
 	const ClxSprite sprite = GetInvItemSprite(cursId);
 	const Point position { box.position.x + (box.size.width - static_cast<int>(sprite.width())) / 2,
 		box.position.y + box.size.height };
-	ClxDraw(out, position, sprite);
+	if (trn != nullptr)
+		ClxDrawTRN(out, position, sprite, trn);
+	else
+		ClxDraw(out, position, sprite);
 }
 
 /** @brief Every rune index the player is carrying, in the backpack, on the belt, or in the stash. */
@@ -373,10 +423,13 @@ void DrawRunewordBook(const Surface &out)
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter });
 
 	// The Possible-Runewords toggle: a yellow X, lit while it is what selected the rune row.
+	// The Possible-Runewords toggle: the red X's yellow twin at the top-left, lit while it is what
+	// selected the rune row, brighter still under the cursor.
 	const Rectangle possible = PossibleFilterRect();
-	DrawString(out, "X", possible,
-	    { UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-	if (possible.contains(MousePosition)) {
+	const bool possibleHovered = possible.contains(MousePosition);
+	const uint8_t possibleGlyph = (PossibleMode || possibleHovered) ? PAL16_YELLOW + 1 : PAL16_YELLOW + 5;
+	DrawWindowCloseButtonStyled(out, possible, possibleGlyph, PAL16_YELLOW + 13);
+	if (possibleHovered) {
 		// The hover label, drawn just under the glyph so it cannot cover the title.
 		const Rectangle tip { { possible.position.x, possible.position.y + possible.size.height + 2 }, { 120, LineHeight } };
 		DrawHalfTransparentRectTo(out, tip.position.x, tip.position.y, tip.size.width, tip.size.height);
@@ -387,7 +440,7 @@ void DrawRunewordBook(const Surface &out)
 		const Rectangle key = SlotKeyRect(i);
 		DrawOrnateBorder(out, key);
 		DrawString(out, _(SlotFilterNames[i]), key,
-		    { (SlotSelected[i] ? UiFlags::ColorWhitegold : UiFlags::ColorBlue)
+		    { (key.contains(MousePosition) ? UiFlags::ColorWhite : (SlotSelected[i] ? UiFlags::ColorWhitegold : UiFlags::ColorBlue)) // white under the cursor (user, 2026-09-05)
 		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 	}
 
@@ -396,7 +449,8 @@ void DrawRunewordBook(const Surface &out)
 		if (RuneSelected[i])
 			UnsafeDrawBorder2px(out, key, KeyLitColor);
 		DrawRuneIcon(out, RuneIndices[i],
-		    Rectangle { { key.position.x, key.position.y + 2 }, { key.size.width, RuneIconSize } });
+		    Rectangle { { key.position.x, key.position.y + 2 }, { key.size.width, RuneIconSize } },
+		    key.contains(MousePosition) ? BrightenTRN() : nullptr); // brighter under the cursor (user, 2026-09-05)
 	}
 
 	const std::vector<const RunewordDefinition *> words = VisibleWords();
@@ -447,12 +501,13 @@ bool HandleRunewordBookClick(Point position)
 	}
 
 	if (PossibleFilterRect().contains(position)) {
-		// A toggle like every other key here: lit selections come from the player's runes, and
-		// clicking again clears the whole row rather than leaving a selection nobody chose by hand.
-		if (AnyRuneSelected())
+		if (PossibleMode) {
 			RuneSelected.assign(RuneIndices.size(), false);
-		else
+			PossibleMode = false;
+		} else {
 			ApplyPossibleFilter();
+			PossibleMode = true;
+		}
 		ScrollOffsetPx = 0;
 		return true;
 	}
@@ -468,6 +523,7 @@ bool HandleRunewordBookClick(Point position)
 	for (size_t i = 0; i < RuneIndices.size(); i++) {
 		if (RuneKeyRect(i).contains(position)) {
 			RuneSelected[i] = !RuneSelected[i];
+			PossibleMode = false; // a hand-picked rune asks "requires", whatever the toggle had selected
 			ScrollOffsetPx = 0;
 			return true;
 		}

@@ -37,6 +37,11 @@ void DrawWindowCloseButton(const Surface &out, const Rectangle &window);
  * button goes (Levski's Roar, whose painted frame's corner is not the rect's corner).
  */
 void DrawWindowCloseButtonAt(const Surface &out, const Rectangle &button);
+/**
+ * @brief The close button's plate-and-X shape in any two colours - for a control that should read
+ * as the X's twin (the Runeword book's yellow "possible runewords" toggle, mirrored to the top-left).
+ */
+void DrawWindowCloseButtonStyled(const Surface &out, const Rectangle &button, uint8_t glyphColor, uint8_t plateColor);
 
 /** @brief True when @p mousePosition is on @p window's close button. The caller closes itself -
  * this helper deliberately does not know how, so it works for every window regardless of what
