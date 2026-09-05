@@ -1816,9 +1816,11 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 		// into the game"). Those wore the tree strip's picture here and the engine's own in the
 		// speedbook, which is the same spell with two faces. The strip is for what this fork added.
 		//
-		// Still through the tint's ramp, so a readied legacy spell keeps the well's state colour.
+		// Still through the tint's ramp, so a readied legacy spell keeps the well's state colour - on
+		// the SYMBOL, since 2026-09-05 ("apply the masked cut to the lmb/rmb wells too"): the plate is
+		// masked out and the well's stone shows around the glyph.
 		if (IsLegacySpell(spell)) {
-			DrawSmallSpellIconFittedTo(out, well, spell);
+			DrawSmallSpellSymbolFittedTo(out, well, spell);
 			return true;
 		}
 		DrawSmallSpellIconFittedTo(out, well);
