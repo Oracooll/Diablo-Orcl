@@ -1322,11 +1322,15 @@ bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold)
 	// icons in inactive only tabs in inv grid 3px up and 1px left. leave open chest icon alone").
 	constexpr Displacement ClosedChestNudge { -1, -3 };
 	const Rectangle at = open ? cell : Rectangle { cell.position + ClosedChestNudge, cell.size };
-	if (!gold)
+	// The open chest draws as it is - white. A CLOSED chest is toned down (user, 2026-09-06: "this
+	// bright white is hitting my eyes too much [...] grey-ish, but not too dark. a bit brighter than
+	// its background"): its white goes to the grey ramp two steps below white, a shade above the
+	// light-grey plate's face; under the cursor it goes GOLD instead.
+	if (open && !gold)
 		return TryDrawBeltGlyph(out, TabGlyphsArt, at, index);
-	// The hover: the glyph GOLD, white otherwise (user, 2026-09-06). A glyph strip has one
-	// quantised surface, white on the grey ramp's light end, so the gold one is the same cell
-	// copied through a table that moves the white to the gold ramp and leaves the shadow alone.
+	// A glyph strip has one quantised surface, white on the grey ramp's light end, so a recoloured
+	// draw is the same cell copied through a table that moves the white and leaves the shadow alone.
+	const uint8_t whiteTo = gold ? static_cast<uint8_t>(PAL16_YELLOW + 1) : static_cast<uint8_t>(PAL16_GRAY + 2);
 	EnsureLoadedAll();
 	if (TabGlyphsArt.rgba.empty())
 		return false;
@@ -1346,7 +1350,7 @@ bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold)
 			if (!out.InBounds(at))
 				continue;
 			// White is the grey ramp's top three entries after quantising; anything darker is shadow.
-			*out.at(at.x, at.y) = (c >= PAL16_GRAY && c < PAL16_GRAY + 3) ? static_cast<uint8_t>(PAL16_YELLOW + 1) : c;
+			*out.at(at.x, at.y) = (c >= PAL16_GRAY && c < PAL16_GRAY + 3) ? whiteTo : c;
 		}
 	}
 	return true;
