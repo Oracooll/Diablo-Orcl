@@ -160,10 +160,26 @@ void DrawHoverOutline(const Surface &out, Rectangle rect)
 void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect)
 {
 	constexpr int Weight = 3;
+	// Twelve outside the slot's rect (user, 2026-09-05: "the rectangle left border to be 3px to the
+	// left from the cast shadow from the spell slots"): the carved bezel is six outside the rect,
+	// its shadow three beyond that, and three of air after the shadow. Symmetric, so it is a
+	// rectangle and not a bracket - on the top and right, where nothing is cast, that is six of air
+	// past the bezel.
+	constexpr int Clearance = 2 * 3 + 3 + 3;
+	const Rectangle outer { rect.position - Displacement { Clearance, Clearance },
+		{ rect.size.width + 2 * Clearance, rect.size.height + 2 * Clearance } };
+
+	// The shadow: the same ring two left and two down, as a half-transparent darkening - "black/
+	// semi-transparent, like the skill slots" - not a solid colour. Four bands that do not overlap,
+	// so no corner is darkened twice.
 	constexpr Displacement ShadowOffset { -2, 2 };
-	const Rectangle shadow { rect.position + ShadowOffset, rect.size };
-	DrawSplitOutline(out, shadow, PAL16_GRAY + 15, PAL16_GRAY + 15, Weight);
-	DrawSplitOutline(out, rect, MidHighlightColor, MidHighlightColor, Weight);
+	const Rectangle s { outer.position + ShadowOffset, outer.size };
+	DrawHalfTransparentRectTo(out, s.position.x, s.position.y, s.size.width, Weight);
+	DrawHalfTransparentRectTo(out, s.position.x, s.position.y + s.size.height - Weight, s.size.width, Weight);
+	DrawHalfTransparentRectTo(out, s.position.x, s.position.y + Weight, Weight, s.size.height - 2 * Weight);
+	DrawHalfTransparentRectTo(out, s.position.x + s.size.width - Weight, s.position.y + Weight, Weight, s.size.height - 2 * Weight);
+
+	DrawSplitOutline(out, outer, MidHighlightColor, MidHighlightColor, Weight);
 }
 
 void DrawDropShadow(const Surface &out, Rectangle rect, int bezelWidth)

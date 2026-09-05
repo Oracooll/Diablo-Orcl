@@ -226,9 +226,13 @@ void DrawHoverOutline(const Surface &out, Rectangle rect);
  * @brief The Abilities window's hover rectangle: DrawHoverOutline's gold at three pixels, casting a
  * two-pixel shadow (user, 2026-09-05: "make it 3px thick. and let it cast shadow 2px").
  *
- * The shadow is the same ring shifted two left and two down - the angle every shadow in this
- * project casts, the character sheet's text included - in the near-black of the grey ramp, drawn
- * first so the gold sits on it. Inside the rect, like DrawSplitOutline.
+ * Drawn twelve pixels OUTSIDE @p rect (the slot's own rect): past the six of carved bezel, the
+ * three the slot's shadow is cast, and three of air - "the rectangle left border to be 3px to the
+ * left from the cast shadow from the spell slots". Its shadow is the same ring two left and two
+ * down as a half-transparent darkening, "like the skill slots", drawn first so the gold sits on it.
+ *
+ * Eighty pixels across for a 56px slot, which is more than the passive band's and the Spells
+ * sheet's 74px pitch: on those two the ring reaches three pixels onto the neighbours' frames.
  */
 void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect);
 
