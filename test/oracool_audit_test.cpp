@@ -10027,3 +10027,33 @@ TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteOffsetTwo)
 	}
 	FreeCursor();
 }
+
+/**
+ * @brief The character sheet's dark layer covers the canvas's opening and stops at its bezels.
+ *
+ * Drawn on a white surface the size of the panel: inside the opening every pixel is darker than
+ * white, on the bezel band outside it nothing changed (user, 2026-09-06).
+ */
+TEST(OracoolAudit, TheCharacterSheetDimCoversTheOpeningAndSparesTheBezels)
+{
+	constexpr uint8_t White = 255;
+	OwnedSurface surf { 340, 720 };
+	SDL_FillRect(surf.surface, nullptr, White);
+	oracool::DrawSidePanelDim(surf, { 0, 0 });
+	const Rectangle inner = oracool::SidePanelCanvasInner;
+	EXPECT_EQ(inner.position.x, 22);
+	EXPECT_EQ(inner.position.x + inner.size.width, 318);
+	EXPECT_EQ(inner.position.y, 25);
+	EXPECT_EQ(inner.position.y + inner.size.height, 695);
+	for (int y = 0; y < 720; y++) {
+		for (int x = 0; x < 340; x++) {
+			const bool insideX = x >= inner.position.x && x < inner.position.x + inner.size.width;
+			const bool insideY = y >= inner.position.y && y < inner.position.y + inner.size.height;
+			const uint8_t c = *surf.at(x, y);
+			if (insideX && insideY)
+				EXPECT_NE(c, White) << "not dimmed at " << x << "," << y;
+			else
+				EXPECT_EQ(c, White) << "dimmed on the bezel at " << x << "," << y;
+		}
+	}
+}

@@ -104,6 +104,22 @@ void DrawSidePanelArt(const Surface &out, Point origin);
 /** @brief Whether the background loaded, so callers can fall back to the shared theme. */
 bool HasSidePanelArt();
 
+/**
+ * @brief The canvas's inner opening, panel-relative: the 340x720 canvas's bezels end at x=21 and
+ * x=318, y=24 and y=695 (measured 2026-09-05), so this is what shows between them.
+ */
+constexpr Rectangle SidePanelCanvasInner { { 22, 25 }, { 296, 670 } };
+
+/**
+ * @brief Darkens the canvas's inner opening - two half-transparent passes, the books' ~75%.
+ *
+ * The backdrop's return, for ONE window: the character sheet (user, 2026-09-06, with a cutout of
+ * the sheet: "the entire area [...] to be covered by dark transparent layer to increase readability
+ * of hero stats screen"). The 2026-09-02 removal note above stands for the other five; this is
+ * called from DrawChr alone. Sized from SidePanelCanvasInner, so it moves with the canvas.
+ */
+void DrawSidePanelDim(const Surface &out, Point origin);
+
 /** @brief Draws the 340x660 waypoint list panel with its top-left corner at @p origin. */
 void DrawWaypointPanelArt(const Surface &out, Point origin);
 

@@ -1050,6 +1050,14 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
 }
 
+void DrawSidePanelDim(const Surface &out, Point origin)
+{
+	const Rectangle inner { origin + Displacement { SidePanelCanvasInner.position.x, SidePanelCanvasInner.position.y },
+		SidePanelCanvasInner.size };
+	DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y, inner.size.width, inner.size.height);
+	DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y, inner.size.width, inner.size.height);
+}
+
 namespace {
 
 /** A ui\ PNG looked up by path rather than declared above - see DrawLoosePng in the header. */
