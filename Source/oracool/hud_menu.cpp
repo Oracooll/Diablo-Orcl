@@ -24,6 +24,8 @@
 #include "oracool/event_log.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
+#include "oracool/ornate_border.h"
+#include "oracool/window_close.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h" // GetXpCounterDrawRect - the icon row hangs above it
 #include "oracool/oracool.h"
@@ -134,54 +136,61 @@ constexpr std::array<HudMenuEntry, MenuIconCount> MenuEntries { {
     // because IconRowRect() derives its width from MenuIconCount.
 } };
 
-// Packed with no gap. At 2px the eight icons spanned 254px and the centred row began at plate+51,
-// while the level-up indicator occupies plate+0..60 - a 9px overlap on the leftmost icon.
-constexpr int IconGap = 0;
-/** @brief Air between the icon row and the XP counter's strip beneath it (user: "about 5-6px"). */
-constexpr int RowGapAboveCounter = 6;
-/** @brief Kept between the level-up indicator and the first icon when the two would collide. */
-constexpr int LevelUpClearance = 4;
-
-/**
- * @brief Inset from an icon cell to the area INSIDE its drawn frame.
- *
- * Measured off menu_icons.png: a cell is 30x33 and its content runs x 2..26, so four pixels clears
- * the frame on every side. Used to keep the click flash on the icon rather than over its frame.
- */
-constexpr int IconFrameInset = 4;
+// THE MENU WINDOW (user, 2026-09-06: "i want burger menu to popup a window same as skill pickers.
+// width equal belt width. bottom flush with top border of lmb/rmb slots. all icons in it to
+// utilize 37x38px backing"). It replaced a bare row of framed icons hung above the XP counter; that
+// row's geometry (IconRowRect, the level-up clearance, RowGapAboveCounter) is in the history at
+// v1.9.289.
+//
+// The window is the skill picker's: the dark translucent backing, the ornate border, the red X, a
+// title band, and cells of the vanilla 37x38 plate at native size. Its width is the belt's - from
+// the first cell's left edge to the last cell's right edge - and its bottom sits ON the plate's top
+// edge, which is the top border of the LMB/RMB wells.
+constexpr Size MenuPlateSize { 37, 38 }; // the vanilla small spell plate, GetSkillIconPlateSize
+constexpr int MenuCellGap = 6;
+constexpr int MenuPadding = 14;
+constexpr int MenuTitleHeight = 18;
+constexpr int MenuFlashInset = 4;
 /** @brief The click flash's colour. PAL16 ramps run light to dark, so a low offset is bright. */
 constexpr uint8_t IconFlashColor = PAL16_ORANGE + 4;
 
 bool HudMenuOpen = false;
 
-/** @brief The icon row: centred on the plate, sitting just above it. */
-Rectangle IconRowRect()
+/** @brief The belt's span: first cell's left edge to last cell's right edge. */
+int BeltSpanLeft() { return GetBeltCellRect(0).position.x; }
+int BeltSpanWidth()
 {
-	const int width = MenuIconCount * MenuIconSize.width + (MenuIconCount - 1) * IconGap;
-	const Rectangle plate = GetMiddleHudRect();
+	const Rectangle last = GetBeltCellRect(BeltVisibleSlotCount - 1);
+	return last.position.x + last.size.width - BeltSpanLeft();
+}
 
-	// Centred on the plate, then pushed right if that would put the first icon under the level-up
-	// indicator - which shares this strip of screen above the plate. Expressed as "do not overlap"
-	// rather than as a fixed nudge so it stays correct if either widget is resized. The level-up
-	// rect does not change with its visibility, so the row never jumps when the player levels.
-	const int centred = plate.position.x + (plate.size.width - width) / 2;
-	const Rectangle levelUp = GetLevelUpIconRect();
-	const int clearOfLevelUp = levelUp.position.x + levelUp.size.width + LevelUpClearance;
-	// Hung from the XP COUNTER's strip, not the plate's top (user, 2026-09-05: "move the burger
-	// menu down to about 5-6px above the xp counter. now it appears too high up"). The counter sits
-	// just above the XP bar since the bar moved down to the belt, so measuring from the plate left
-	// the row stranded a counter's height above where the eye expects it. The counter's rect is
-	// there whether or not the counter is showing, so the row does not jump when it appears.
-	const Rectangle counter = GetXpCounterDrawRect();
-	return { { std::max(centred, clearOfLevelUp),
-	             counter.position.y - RowGapAboveCounter - MenuIconSize.height },
-		{ width, MenuIconSize.height } };
+/** @brief How many plates fit across the window, and how many rows that makes of the entries. */
+int MenuColumns()
+{
+	return std::max(1, (BeltSpanWidth() - 2 * MenuPadding + MenuCellGap) / (MenuPlateSize.width + MenuCellGap));
+}
+int MenuRows() { return (MenuIconCount + MenuColumns() - 1) / MenuColumns(); }
+
+Rectangle MenuWindowRect()
+{
+	const int width = BeltSpanWidth();
+	const int height = 2 * MenuPadding + MenuTitleHeight
+	    + MenuRows() * MenuPlateSize.height + (MenuRows() - 1) * MenuCellGap;
+	// Flush: the window's bottom edge IS the plate's top edge.
+	const int bottom = GetMiddleHudRect().position.y;
+	return { { BeltSpanLeft(), bottom - height }, { width, height } };
 }
 
 Rectangle IconRect(int index)
 {
-	const Rectangle row = IconRowRect();
-	return { { row.position.x + index * (MenuIconSize.width + IconGap), row.position.y }, MenuIconSize };
+	const Rectangle window = MenuWindowRect();
+	const int columns = MenuColumns();
+	const int gridWidth = columns * MenuPlateSize.width + (columns - 1) * MenuCellGap;
+	const int left = window.position.x + (window.size.width - gridWidth) / 2;
+	const int top = window.position.y + MenuPadding + MenuTitleHeight;
+	return { { left + (index % columns) * (MenuPlateSize.width + MenuCellGap),
+		         top + (index / columns) * (MenuPlateSize.height + MenuCellGap) },
+		MenuPlateSize };
 }
 
 // Oracool: user request - click feedback for the two baked-into-the-art button cells. Held in
@@ -234,24 +243,36 @@ void DrawHudMenu(const Surface &out)
 	    && (SDL_GetTicks() - FlashStartedAtMs) < ButtonFlashDurationMs;
 	const int flashingIcon = flashing ? FlashingCell - MenuFlashBase : -1;
 
+	const Rectangle window = MenuWindowRect();
+	// The skill picker's backing: two half passes, the border, the X, the title band.
+	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
+	DrawHalfTransparentRectTo(out, window.position.x, window.position.y, window.size.width, window.size.height);
+	DrawOrnateBorder(out, window);
+	DrawWindowCloseButton(out, window);
+	DrawString(out, _("Menu"),
+	    { { window.position.x + MenuPadding, window.position.y + MenuPadding },
+	        { window.size.width - 2 * MenuPadding - WindowCloseButtonSize, MenuTitleHeight } },
+	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::VerticalCenter });
+
 	for (int i = 0; i < MenuIconCount; i++) {
 		const Rectangle rect = IconRect(i);
-		// Lit whenever the thing this entry opens is showing, so the row doubles as a status
-		// readout; momentary actions borrow the same lit frame briefly when clicked.
-		int state = 0;
-		if (MenuEntries[i].isOn != nullptr && MenuEntries[i].isOn())
-			state = 2;
-		else if (rect.contains(MousePosition))
-			state = 1;
-		DrawMenuIcon(out, i, state, rect.position);
+		// The plate says what is open: GOLD (Ready) for an entry whose window is showing, light
+		// grey (Unspent) otherwise - the same coding the skill pages use. Hover is the Abilities
+		// window's deeper shadow under the plate, not a colour.
+		const bool lit = MenuEntries[i].isOn != nullptr && MenuEntries[i].isOn();
+		if (rect.contains(MousePosition))
+			DrawHoverShadow(out, rect);
+		DrawPlateIn(out, rect, lit ? SkillPlateTint::Ready : SkillPlateTint::Unspent);
+		// STAND-IN until the glyph pack for these eight arrives (brief in
+		// .ProjectDocumentation/06-Reference): the entry's initial, white, with the text shadow -
+		// the same stand-in the belt's TP and M wear.
+		const char initial[2] = { MenuEntries[i].label[0], '\0' };
+		DrawString(out, initial, rect,
+		    { UiFlags::ColorWhite | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 
-		// The click flash is drawn OVER the icon rather than by swapping to the art's lit state.
-		// The lit state tints the whole cell, frame included; blending inside the frame keeps the
-		// flash on the icon itself, which is what a pressed button looks like. The persistent
-		// "this panel is open" indication above still uses the art's own lit state - that one is a
-		// status readout, not a press.
+		// The click flash, over the plate rather than by recolouring it: a pressed button.
 		if (i == flashingIcon) {
-			const Rectangle inner = rect.inset({ IconFrameInset, IconFrameInset });
+			const Rectangle inner = rect.inset({ MenuFlashInset, MenuFlashInset });
 			DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y,
 			    inner.size.width, inner.size.height, IconFlashColor);
 		}
@@ -278,11 +299,23 @@ string_view GetHudMenuEntryLabel(int index)
 
 bool IsPointOverHudMenu(Point mousePosition)
 {
-	return HudMenuOpen && IconRowRect().contains(mousePosition);
+	return HudMenuOpen && MenuWindowRect().contains(mousePosition);
+}
+
+Rectangle GetHudMenuWindowRect()
+{
+	return MenuWindowRect();
+}
+
+Rectangle GetHudMenuCellRect(int index)
+{
+	return IconRect(index);
 }
 
 void CheckHudMenuClick(Point mousePosition)
 {
+	// The X closes; so does a click anywhere in the window that is not a cell, and anywhere
+	// outside it - the old row closed on any miss too.
 	const int index = HitTestHudMenuIcon(mousePosition);
 	if (index < 0) {
 		CloseHudMenu();

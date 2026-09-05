@@ -1656,74 +1656,32 @@ void DrawInventoryTabs(const Surface &out)
 	// otherwise be painted over by whichever neighbour drew next.
 	const Rectangle panel = oracool::GetInventoryPanelRect();
 
-	// Oracool (2026-08-16): real artwork, from oracool-stash-tab-button-pack - a reliquary chest in
-	// three states. It replaces the numerals AND the code-drawn chrome: the art carries its own
-	// frame per tab, so the row bevel and the rules between tabs go with it.
+	// PLATES (user, 2026-09-06: "tab icons above inv grid - to utilize 28x28px vanilla backing - grey
+	// for inactive, gold for active. gold to be again bigger to stand out from inactive"). Each tab
+	// is the vanilla spell plate shrunk to its 28x28 cell: light grey (Unspent) when closed, GOLD
+	// (Ready) and grown to GetActiveTabRect - two out each side, three up, bottom pinned - when
+	// open. Hover is the Abilities window's deeper shadow under the plate, so the two colours keep
+	// their one meaning each.
 	//
-	// Ten identical chests, told apart by position and by which one is lit. That is the pack's
-	// design and it is the same bargain Diablo II's stash tabs make - the open page stands proud
-	// and glows red, which reads faster across a dark panel than a small numeral does.
-	if (oracool::HasInventoryTabArt()) {
-		// Every other tab first, the open one last: its lip overhangs both neighbours by 3px, so
-		// drawing in index order would let tab N+1 paint over tab N's raised edge.
-		for (int tab = 0; tab < oracool::TabCount; tab++) {
-			if (tab == ActiveInventoryTab)
-				continue;
-			const Rectangle hit { panel.position + Displacement { oracool::GetTabRect(tab).position.x, oracool::GetTabRect(tab).position.y },
-				oracool::GetTabRect(tab).size };
-			// Hover is tested against the LOGICAL rect, never the overhang - a tab must not answer
-			// to the mouse in a strip of pixels that visually belongs to its neighbour.
-			const bool hovered = hit.contains(MousePosition);
-			oracool::DrawInventoryTab(out, tab,
-			    hovered ? oracool::InventoryTabState::Hover : oracool::InventoryTabState::Inactive);
-		}
-		oracool::DrawInventoryTab(out, ActiveInventoryTab, oracool::InventoryTabState::Active);
-		return;
-	}
-
-	// The row is bevelled as ONE strip with plain rules between the tabs, exactly like the grid
-	// below it - not as ten individually bevelled boxes.
-	//
-	// That was the bug: ten boxes put tab N's right ring at 28N+25..27 and tab N+1's left ring at
-	// 28N+28..30, so the visual join between two tabs sat ~1.5px left of the grid's separator at
-	// the same column boundary. Drawing the row the way the grid is drawn makes the two share their
-	// geometry outright, so they cannot drift.
-	const Rectangle rowRect { panel.position + Displacement { oracool::TabRowX, oracool::TabRowY },
-		{ oracool::TabCount * oracool::TabSize.width, oracool::TabSize.height } };
-	// Rules are CENTRED on the cell boundary, not started at it. A 3px rule drawn at the boundary
-	// puts all three pixels inside the cell to its right, so that cell's visible interior runs
-	// x+3..x+28 while its rect is x..x+28 - and anything centred in the rect, the label and the
-	// selected tab's fill alike, lands ~1.5px left of where the cell looks like it is. Offsetting
-	// by half the rule's width makes rect centre and visual centre the same point.
-	constexpr int RuleOffset = oracool::OrnateBorderWidthHalf;
-	for (int c = 1; c < oracool::TabCount; c++)
-		oracool::DrawOrnateSeparatorVertical(out,
-		    { rowRect.position.x + c * oracool::TabSize.width - RuleOffset, rowRect.position.y }, rowRect.size.height);
-	oracool::DrawOrnateBorder(out, rowRect);
-
-	// All ten positions are storage tabs now - SORT moved to the footer (user request), which is what
-	// made the tenth page reachable at all. See oracool::TabLabel.
-	for (int tab = 0; tab < oracool::TabCount; tab++) {
-		const bool lit = tab == ActiveInventoryTab;
-
-		Rectangle screenRect;
-		if (lit) {
-			// Grown 30x30 with the bottom edge pinned, and filled - drawn over the row's own bevel,
-			// which is why it comes after the strip above rather than in a first pass.
-			const Rectangle r = oracool::GetActiveTabRect(tab);
-			screenRect = { panel.position + Displacement { r.position.x, r.position.y }, r.size };
-			oracool::DrawThemedFill(out, screenRect, 2);
-			oracool::DrawOrnateBorder(out, screenRect);
-		} else {
-			const Rectangle r = oracool::GetTabRect(tab);
-			screenRect = { panel.position + Displacement { r.position.x, r.position.y }, r.size };
-		}
-
-		// White while lit, gold otherwise.
+	// The reliquary-chest atlas (oracool-stash-tab-button-pack, 2026-08-16) is no longer drawn and
+	// stays filed; the code-drawn bevelled strip that preceded it is in the history at v1.9.289.
+	// The tab's glyph is a ChatGPT commission (brief in .ProjectDocumentation/06-Reference); until it
+	// lands the numeral stands in, white with the text shadow, like the belt's TP and M.
+	const auto drawTab = [&](int tab, Rectangle panelRect, oracool::SkillPlateTint tint) {
+		const Rectangle screenRect { panel.position + Displacement { panelRect.position.x, panelRect.position.y }, panelRect.size };
+		if (screenRect.contains(MousePosition))
+			oracool::DrawHoverShadow(out, screenRect);
+		oracool::DrawPlateIn(out, screenRect, tint);
 		DrawString(out, oracool::TabLabel(tab), screenRect,
-		    { (lit ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
-		        | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		    { UiFlags::ColorWhite | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	};
+	// Every other tab first, the open one last: it stands proud of its neighbours by two pixels
+	// each side, so drawing in index order would let tab N+1 paint over its edge.
+	for (int tab = 0; tab < oracool::TabCount; tab++) {
+		if (tab != ActiveInventoryTab)
+			drawTab(tab, oracool::GetTabRect(tab), oracool::SkillPlateTint::Unspent);
 	}
+	drawTab(ActiveInventoryTab, oracool::GetActiveTabRect(ActiveInventoryTab), oracool::SkillPlateTint::Ready);
 }
 
 /**

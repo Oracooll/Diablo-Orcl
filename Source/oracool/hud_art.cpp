@@ -1732,6 +1732,12 @@ void DrawBeltBacking(const Surface &out)
 		DrawStripIconScaledTo(out, asset, GetBeltSlotRect(i), /*index=*/0, /*unlocked=*/true);
 }
 
+void DrawPlateIn(const Surface &out, Rectangle cell, SkillPlateTint tint)
+{
+	ApplyPlateTint(tint);
+	DrawSmallSpellIconCoveringClipped(out, cell);
+}
+
 void DrawBeltSlotPlate(const Surface &out, Rectangle cell)
 {
 	// The user's spec (2026-09-06): "34x34 [...] with a 2px outline within these 34x34px. outer

@@ -456,6 +456,12 @@ void DrawBeltBacking(const Surface &out);
 void DrawBeltSlotPlate(const Surface &out, Rectangle cell);
 
 /**
+ * @brief The vanilla plate through @p tint, covering @p cell and clipped to it - native where the
+ * cell is the plate's own 37x38, shrunk where it is smaller (the belt, the inventory tabs).
+ */
+void DrawPlateIn(const Surface &out, Rectangle cell, SkillPlateTint tint);
+
+/**
  * @brief A belt item's drop shadow: the sprite's own silhouette in solid black, two pixels
  * down and LEFT of @p position (a BOTTOM-left origin, as DrawItem takes). Drawn before the item so
  * it lifts off the plate (user, 2026-09-06: "render shadows behind potions [...] to feel more 3D").

@@ -20,6 +20,7 @@
 #pragma once
 
 #include "engine/point.hpp"
+#include "engine/rectangle.hpp"
 #include "engine/surface.hpp"
 #include "utils/stdcompat/string_view.hpp"
 
@@ -40,6 +41,11 @@ string_view GetHudMenuEntryLabel(int index);
 /** @brief Whether `mousePosition` falls on the open icon row - so clicks there count as UI rather
  * than falling through to the world. See diablo.cpp's LeftMouseDown. */
 bool IsPointOverHudMenu(Point mousePosition);
+
+/** @brief The menu window, for tests and for anything that must not draw over it. Empty when closed is NOT implied - it is the geometry regardless. */
+Rectangle GetHudMenuWindowRect();
+/** @brief Cell @p index of the window: a 37x38 plate. */
+Rectangle GetHudMenuCellRect(int index);
 
 /**
  * @brief Handles a left-click while the menu is open. Dispatches to whichever of the 10 entries

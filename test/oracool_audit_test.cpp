@@ -10144,3 +10144,48 @@ TEST(OracoolAudit, TheBeltButtonLabelsSitCentredWithShadows)
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
 }
+
+/**
+ * @brief The burger menu window spans the belt, sits on the plate's top edge, and holds eight
+ * 37x38 plates inside it.
+ *
+ * User, 2026-09-06: "width equal belt width. bottom flush with top border of lmb/rmb slots. all
+ * icons in it to utilize 37x38px backing." The window's geometry is what those words pin, so it is
+ * what the test pins; the picker-style dressing on top of it is looked at, not measured.
+ */
+TEST(OracoolAudit, TheMenuWindowSpansTheBeltAndSitsOnThePlate)
+{
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+
+	const Rectangle window = oracool::GetHudMenuWindowRect();
+	const Rectangle first = oracool::GetBeltCellRect(0);
+	const Rectangle last = oracool::GetBeltCellRect(oracool::BeltVisibleSlotCount - 1);
+	EXPECT_EQ(window.position.x, first.position.x) << "left edge is not the belt's";
+	EXPECT_EQ(window.position.x + window.size.width, last.position.x + last.size.width) << "right edge is not the belt's";
+	EXPECT_EQ(window.position.y + window.size.height, oracool::GetMiddleHudRect().position.y) << "bottom is not flush with the plate's top";
+	EXPECT_GE(window.position.y, 0);
+
+	for (int i = 0; i < oracool::MenuIconCount; i++) {
+		const Rectangle cell = oracool::GetHudMenuCellRect(i);
+		EXPECT_EQ(cell.size.width, 37) << "cell " << i;
+		EXPECT_EQ(cell.size.height, 38) << "cell " << i;
+		EXPECT_GE(cell.position.x, window.position.x) << "cell " << i << " hangs off the left";
+		EXPECT_LE(cell.position.x + cell.size.width, window.position.x + window.size.width) << "cell " << i << " hangs off the right";
+		EXPECT_GE(cell.position.y, window.position.y) << "cell " << i << " is above the window";
+		EXPECT_LE(cell.position.y + cell.size.height, window.position.y + window.size.height) << "cell " << i << " is below the window";
+		for (int j = 0; j < i; j++) {
+			const Rectangle other = oracool::GetHudMenuCellRect(j);
+			const bool apart = cell.position.x >= other.position.x + other.size.width
+			    || other.position.x >= cell.position.x + cell.size.width
+			    || cell.position.y >= other.position.y + other.size.height
+			    || other.position.y >= cell.position.y + cell.size.height;
+			EXPECT_TRUE(apart) << "cells " << i << " and " << j << " overlap";
+		}
+	}
+
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+}
