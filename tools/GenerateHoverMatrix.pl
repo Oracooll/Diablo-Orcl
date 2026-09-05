@@ -4,12 +4,6 @@
 use strict; use warnings;
 my $root = '.';
 my $outPath = shift @ARGV or die "out path";
-my $factsPath = shift @ARGV; # optional: DiabloOrcl.exe --skill-facts <file>
-my %facts;
-if ($factsPath && -f $factsPath) {
-  open my $fh, '<:encoding(UTF-8)', $factsPath or die; while (<$fh>) { chomp; my ($c, $p, $n, $r, $l) = split /	/; next unless defined $l; $facts{"$c|$p|$n|$r"} = [ split / | /, $l ]; } close $fh;
-}
-sub factsFor { my ($r, $rank) = @_; my $k = join('|', $className{$r->{cls}}, uc($pages{$r->{cls}}[$r->{page}]), $r->{name}, $rank); return $facts{$k} ? map { esc($_) } @{ $facts{$k} } : (); }
 
 sub slurp { my $f = shift; open my $h, '<', $f or die "$f: $!"; local $/; my $s = <$h>; close $h; $s }
 
@@ -43,6 +37,13 @@ while ($dat =~ m{/\*SpellID::(\w+)\*/\s*\{\s*P_\("spell",\s*"([^"]*)"\)}g) { $sp
 my $descs = slurp("$root/Source/oracool/spell_descriptions.cpp");
 my %spellDesc;
 while ($descs =~ m{/\*\s*(\w+)\s*\*/\s*N_\("((?:[^"\\]|\\.)*)"\)}g) { $spellDesc{$1} = $2; }
+
+my $factsPath = shift @ARGV; # optional: DiabloOrcl.exe --skill-facts <file>
+my %facts;
+if ($factsPath && -f $factsPath) {
+  open my $fh, '<:encoding(UTF-8)', $factsPath or die; while (<$fh>) { chomp; my ($c, $p, $n, $r, $l) = split /	/; next unless defined $l; $facts{"$c|$p|$n|$r"} = [ split / | /, $l ]; } close $fh;
+}
+sub factsFor { my ($r, $rank) = @_; my $k = join('|', $className{$r->{cls}}, uc($pages{$r->{cls}}[$r->{page}]), $r->{name}, $rank); return $facts{$k} ? map { esc($_) } @{ $facts{$k} } : (); }
 
 # ---- html helpers ----------------------------------------------------------------------------
 sub esc { my $s = shift; $s =~ s/&/&amp;/g; $s =~ s/</&lt;/g; $s =~ s/>/&gt;/g; $s }
