@@ -1796,8 +1796,12 @@ void DrawHoverFeedback(const Surface &out, const Surface &content, Rectangle con
 	// Local to the content subregion, which is what clips it to the scrolling area.
 	// From the interior's left edge, not the panel's - an outline spanning from x=0 drew its left
 	// side across the bezel, which is the exact thing the interior bounds exist to prevent.
-	oracool::DrawHoverOutlineHeavy(content, { { AbilitiesInteriorLeft, rowTop - scroll },
-	    { AbilitiesInteriorRight - AbilitiesInteriorLeft, rowHeight } });
+	// The row's width but the ICON's height (2026-09-05): the ring is measured outward from a slot,
+	// and the slot here is the row's icon - ringing the whole 74px row put the ring twelve pixels
+	// onto the rows above and below ("no overlapping with adjacent spells").
+	const Rectangle iconOfRow = SpellRowIconRect(rowTop - scroll);
+	oracool::DrawHoverOutlineHeavy(content, { { AbilitiesInteriorLeft, iconOfRow.position.y },
+	    { AbilitiesInteriorRight - AbilitiesInteriorLeft, iconOfRow.size.height } });
 
 	// DEFERRED, not drawn here. Oracool: user request (2026-08-15) - "pop-up windows to be rendered
 	// on top of all including bottom hud, to be readable." The Abilities window is drawn early in the

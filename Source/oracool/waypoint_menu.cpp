@@ -358,7 +358,7 @@ void DrawWaypointMenu(const Surface &out)
 		// frames them rather than striking through. Spans the row's clickable width, stopping short
 		// of the scrollbar, so what lights up is exactly what a click would take.
 		if (isHovered)
-			DrawHoverOutlineHeavy(content, { { PanelMargin, rowTop }, { ContentRightLimit - PanelMargin, RowHeight } }, /*clearance=*/0);
+			DrawHoverOutlineHeavy(content, { { PanelMargin, rowTop }, { ContentRightLimit - PanelMargin, RowHeight } }, /*clearanceX=*/0, /*clearanceY=*/0);
 
 		// The pad is the waypoint's own art: lit for a waypoint the player has reached, dormant
 		// otherwise - the same two states the in-world sigil uses. It is cut to the row's exact

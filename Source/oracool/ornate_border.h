@@ -231,14 +231,21 @@ void DrawHoverOutline(const Surface &out, Rectangle rect);
  * left from the cast shadow from the spell slots". Its shadow is the same ring two left and two
  * down as a half-transparent darkening, "like the skill slots", drawn first so the gold sits on it.
  *
- * Eighty pixels across for a 56px slot, which is more than the passive band's and the Spells
- * sheet's 74px pitch: on those two the ring reaches three pixels onto the neighbours' frames.
+ * VERTICALLY it clears less: nine, the bezel plus three. Rows and bands sit at a 74px pitch with
+ * six of air between neighbouring frames, and the ring with its shadow must live in that air
+ * (user, 2026-09-05: "it need to fit its upper border in the area between selected and upper and
+ * lower spells. no overlapping with adjacent spells") - three of ring and two of shadow are five,
+ * inside the six. Twelve there would have put the ring on the neighbours.
  *
- * @param clearance How far outside @p rect the ring sits. The slot default is the twelve above; a
- * row with no bezel and no shadow - the waypoint list's - passes 0 and wears the ring on its rect.
+ * @param clearanceX How far outside @p rect the ring sits, left and right. The slot default is
+ * the twelve above.
+ * @param clearanceY The same, above and below; nine for a slot. A row with no bezel and no shadow
+ * - the waypoint list's - passes 0 for both and wears the ring on its rect.
  */
-constexpr int HoverOutlineSlotClearance = 2 * 3 + 3 + 3;
-void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect, int clearance = HoverOutlineSlotClearance);
+constexpr int HoverOutlineSlotClearanceX = 2 * 3 + 3 + 3;
+constexpr int HoverOutlineSlotClearanceY = 2 * 3 + 3;
+void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect,
+    int clearanceX = HoverOutlineSlotClearanceX, int clearanceY = HoverOutlineSlotClearanceY);
 
 /**
  * @brief A drop shadow under a slot, cast at the angle the character sheet's text casts its own.
