@@ -2085,6 +2085,18 @@ void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, b
 		    iconIndex, /*unlocked=*/false);
 		return;
 	}
+	// A GLYPH attack icon (the vanilla-style set, 2026-09-05) sits 1:1 on the 56px plate like every
+	// other glyph - see TryDrawGlyphInWell; scaling it would eat the 8px clear border it was drawn with.
+	{
+		const int frame = StripIconSize(AttackIconsArt).width;
+		const Rectangle plate = SkillWellPlateRect(well);
+		if (IsGlyphFrame(AttackIconsArt, iconIndex, frame) && plate.size.width >= frame && plate.size.height >= frame) {
+			DrawStripIcon(out, AttackIconsArt,
+			    { plate.position.x + (plate.size.width - frame) / 2, plate.position.y + (plate.size.height - frame) / 2 },
+			    iconIndex, /*unlocked=*/true);
+			return;
+		}
+	}
 	DrawStripIconScaledTo(out, AttackIconsArt, well, iconIndex);
 }
 

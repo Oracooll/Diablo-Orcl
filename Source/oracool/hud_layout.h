@@ -161,7 +161,7 @@ Rectangle GetRmbSkillWellNetRect();
  * produces; attack_skills.cpp asserts the loaded art actually matches it. Between them, nothing here
  * can drift without something failing.
  */
-inline constexpr Size SkillWellIconSize { 38, 38 };
+inline constexpr Size SkillWellIconSize { 56, 56 }; // the glyph strips' cell (2026-09-05, tools/BuildGlyphStrips.ps1); was 38, the small spell icon's
 
 /**
  * @brief Top-left origin that puts a @p content-sized sprite dead centre in the LMB well.
