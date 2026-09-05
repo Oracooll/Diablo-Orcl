@@ -1330,7 +1330,7 @@ bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold)
 		return TryDrawBeltGlyph(out, TabGlyphsArt, at, index);
 	// A glyph strip has one quantised surface, white on the grey ramp's light end, so a recoloured
 	// draw is the same cell copied through a table that moves the white and leaves the shadow alone.
-	const uint8_t whiteTo = gold ? static_cast<uint8_t>(PAL16_YELLOW + 1) : static_cast<uint8_t>(PAL16_GRAY + 2);
+	const uint8_t whiteTo = gold ? static_cast<uint8_t>(PAL16_YELLOW + 1) : static_cast<uint8_t>(PAL16_GRAY + 3); // 243 (user, 2026-09-06: "one more step down"; was 242)
 	EnsureLoadedAll();
 	if (TabGlyphsArt.rgba.empty())
 		return false;
