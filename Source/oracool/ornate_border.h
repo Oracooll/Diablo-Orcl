@@ -233,8 +233,12 @@ void DrawHoverOutline(const Surface &out, Rectangle rect);
  *
  * Eighty pixels across for a 56px slot, which is more than the passive band's and the Spells
  * sheet's 74px pitch: on those two the ring reaches three pixels onto the neighbours' frames.
+ *
+ * @param clearance How far outside @p rect the ring sits. The slot default is the twelve above; a
+ * row with no bezel and no shadow - the waypoint list's - passes 0 and wears the ring on its rect.
  */
-void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect);
+constexpr int HoverOutlineSlotClearance = 2 * 3 + 3 + 3;
+void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect, int clearance = HoverOutlineSlotClearance);
 
 /**
  * @brief A drop shadow under a slot, cast at the angle the character sheet's text casts its own.

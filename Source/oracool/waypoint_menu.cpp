@@ -351,12 +351,14 @@ void DrawWaypointMenu(const Surface &out)
 		const bool unlocked = IsWaypointUnlocked(static_cast<int>(i));
 		const bool isHovered = (hovered == static_cast<int>(i));
 
-		// Oracool: user request (2026-08-15) - the same subtle gold outline the Abilities window
-		// marks its hovered row with. Before the icon and the name, so it frames them rather than
-		// striking through. Spans the row's clickable width, stopping short of the scrollbar, so what
-		// lights up is exactly what a click would take.
+		// Oracool: user request (2026-08-15) - the same gold outline the Abilities window marks its
+		// hovered row with; since 2026-09-05 the heavy one ("apply same hover rectangle theme in
+		// Waypoints list"): three pixels with a half-transparent shadow, on the row's own rect, since
+		// a row here wears no bezel and casts no shadow to clear. Before the icon and the name, so it
+		// frames them rather than striking through. Spans the row's clickable width, stopping short
+		// of the scrollbar, so what lights up is exactly what a click would take.
 		if (isHovered)
-			DrawHoverOutline(content, { { PanelMargin, rowTop }, { ContentRightLimit - PanelMargin, RowHeight } });
+			DrawHoverOutlineHeavy(content, { { PanelMargin, rowTop }, { ContentRightLimit - PanelMargin, RowHeight } }, /*clearance=*/0);
 
 		// The pad is the waypoint's own art: lit for a waypoint the player has reached, dormant
 		// otherwise - the same two states the in-world sigil uses. It is cut to the row's exact

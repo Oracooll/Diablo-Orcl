@@ -157,17 +157,16 @@ void DrawHoverOutline(const Surface &out, Rectangle rect)
 	DrawColoredOutline(out, rect, MidHighlightColor);
 }
 
-void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect)
+void DrawHoverOutlineHeavy(const Surface &out, Rectangle rect, int clearance)
 {
 	constexpr int Weight = 3;
-	// Twelve outside the slot's rect (user, 2026-09-05: "the rectangle left border to be 3px to the
+	// Twelve outside a slot's rect (user, 2026-09-05: "the rectangle left border to be 3px to the
 	// left from the cast shadow from the spell slots"): the carved bezel is six outside the rect,
 	// its shadow three beyond that, and three of air after the shadow. Symmetric, so it is a
 	// rectangle and not a bracket - on the top and right, where nothing is cast, that is six of air
-	// past the bezel.
-	constexpr int Clearance = 2 * 3 + 3 + 3;
-	const Rectangle outer { rect.position - Displacement { Clearance, Clearance },
-		{ rect.size.width + 2 * Clearance, rect.size.height + 2 * Clearance } };
+	// past the bezel. A caller whose rect has neither bezel nor shadow passes 0.
+	const Rectangle outer { rect.position - Displacement { clearance, clearance },
+		{ rect.size.width + 2 * clearance, rect.size.height + 2 * clearance } };
 
 	// The shadow: the same ring two left and two down, as a half-transparent darkening - "black/
 	// semi-transparent, like the skill slots" - not a solid colour. Four bands that do not overlap,
