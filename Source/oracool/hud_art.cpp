@@ -1904,7 +1904,7 @@ constexpr Size GlyphPickerSize { 32, 32 };
  * to the left"): a glyph's shadow sits two pixels LEFT of its white, so the bbox being centred
  * puts the white right of centre, and the plate's own bevel is heavier on the right.
  */
-constexpr Displacement GlyphPickerNudge { -1, 0 };
+constexpr Displacement GlyphPickerNudge { -2, 0 }; // -1 read as still right-heavy (user: "move them 1 more px to the left")
 Rectangle GlyphPickerRect(Rectangle cell)
 {
 	return { Point { cell.position.x + (cell.size.width - GlyphPickerSize.width) / 2,
