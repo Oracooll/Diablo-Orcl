@@ -173,9 +173,7 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// bound it about where the cast is coming from.
 	if (type == SpellType::Charges) {
 		SetSpellTrans(usable ? SpellType::Charges : SpellType::Scroll);
-		// The symbol alone since 2026-09-05 ("apply the masked cut to the lmb/rmb wells too"): the
-		// orange now lives on the glyph rather than on a plate behind it.
-		DrawSmallSpellSymbolFittedTo(out, net, spell);
+		DrawSmallSpellIconFittedTo(out, net, spell);
 		DrawStaffChargeBadge(out, net, *MyPlayer, spell);
 		return;
 	}
@@ -190,8 +188,8 @@ void DrawWellIcon(const Surface &out, Rectangle net, SpellID spell, SpellType ty
 	// Scroll table is the engine's own beige/pink mapping.
 	SetSpellTrans(usable ? type : SpellType::Scroll);
 	// Scaled into the net rect like everything else, so a readied SPELL sits exactly where a readied
-	// skill would (user, 2026-08-19). Symbol only since 2026-09-05 - the masked cut.
-	DrawSmallSpellSymbolFittedTo(out, net, spell);
+	// skill would (user, 2026-08-19).
+	DrawSmallSpellIconFittedTo(out, net, spell);
 }
 
 void DrawLmbSkillWell(const Surface &out)

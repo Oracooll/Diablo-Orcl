@@ -1816,11 +1816,9 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 		// into the game"). Those wore the tree strip's picture here and the engine's own in the
 		// speedbook, which is the same spell with two faces. The strip is for what this fork added.
 		//
-		// Still through the tint's ramp, so a readied legacy spell keeps the well's state colour - on
-		// the SYMBOL, since 2026-09-05 ("apply the masked cut to the lmb/rmb wells too"): the plate is
-		// masked out and the well's stone shows around the glyph.
+		// Still through the tint's ramp, so a readied legacy spell keeps the well's state colour.
 		if (IsLegacySpell(spell)) {
-			DrawSmallSpellSymbolFittedTo(out, well, spell);
+			DrawSmallSpellIconFittedTo(out, well, spell);
 			return true;
 		}
 		DrawSmallSpellIconFittedTo(out, well);
@@ -1845,13 +1843,11 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 
 void DrawLegacySpellIconInCell(const Surface &out, Rectangle cell, SpellID spell, SkillPlateTint tint)
 {
-	// The symbol alone since 2026-09-05 ("remove backing from legacy spell icons too - do the
-	// masked cut"), and from the 56px sheet since the same day ("switch the abilities window to the
-	// 56px sheet") - this is the tree pages' legacy row, a 56px cell. The plate is masked out at
-	// draw time against the sheet's blank frame; the tint still colours the symbol, through the
-	// same table it coloured the plate with.
+	// From the 56px sheet since 2026-09-05 ("switch the abilities window to the 56px sheet") - this
+	// is the tree pages' legacy row, a 56px cell. Plate and all: a masked cut ran for three builds
+	// and went at "let the vanilla backing stay".
 	ApplyPlateTint(tint);
-	DrawLargeSpellSymbolCentredIn(out, cell, spell);
+	DrawLargeSpellIconCentredIn(out, cell, spell);
 }
 
 void DrawRedCross(const Surface &out, Rectangle icon)

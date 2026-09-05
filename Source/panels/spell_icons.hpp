@@ -84,16 +84,10 @@ void DrawSmallSpellIconScaledTo(const Surface &out, Rectangle cell);
 void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell = SpellID::Null);
 
 /**
- * @brief As DrawSmallSpellIconFittedTo, but the SYMBOL alone - the icon's baked plate masked out
- * against the sheet's blank plate at draw time. See the definition for the cut and its cost.
+ * @brief The 56px sheet's frame centred in @p cell with no resampling - for the Abilities window,
+ * whose cells are the sheet's own size.
  */
-void DrawSmallSpellSymbolFittedTo(const Surface &out, Rectangle cell, SpellID spell);
-
-/**
- * @brief The 56px sheet's symbol alone, centred in @p cell with no resampling - for the Abilities
- * window, whose cells are the sheet's own size. Masked against its blank frame like the small one.
- */
-void DrawLargeSpellSymbolCentredIn(const Surface &out, Rectangle cell, SpellID spell);
+void DrawLargeSpellIconCentredIn(const Surface &out, Rectangle cell, SpellID spell);
 
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();
