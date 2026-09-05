@@ -1662,6 +1662,42 @@ void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, 
 	DrawStripIconScaledTo(out, TreeStripFor(heroClass), cell, skillIndex, unlocked);
 }
 
+void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tint)
+{
+	// One index off each tint's own ramp, mid-light, so the ring reads as the plate's colour rather
+	// than a new one. PAL16 ramps run light to dark as the offset grows; the injected green ramp
+	// (palette.cpp) runs the same way over its eight shades.
+	uint8_t color = PAL16_YELLOW + 4;
+	switch (tint) {
+	case SkillPlateTint::Green:
+		color = PAL8_GREEN + 2;
+		break;
+	case SkillPlateTint::Grey:
+		color = PAL16_GRAY + 8;
+		break;
+	case SkillPlateTint::Pink:
+		color = PAL16_BEIGE + 4;
+		break;
+	case SkillPlateTint::Red:
+		color = PAL16_RED + 4;
+		break;
+	case SkillPlateTint::Yellow:
+		break;
+	}
+	// Inside the cell, three deep - the carved bezel is outside it, so the ring sits between the
+	// frame and the icon, which is where the plate's edge used to show.
+	DrawSplitOutline(out, cell, color, color, 3);
+}
+
+void DrawClassTreeIconOutlined(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
+    bool unlocked, SkillPlateTint tint)
+{
+	// The strip icon first, the ring over its edge: the icons run edge to edge in most batches, and
+	// a ring under them would be hidden by exactly the pixels it is meant to frame.
+	DrawStripIconScaledTo(out, TreeStripFor(heroClass), cell, skillIndex, unlocked);
+	DrawSkillTintOutline(out, cell, tint);
+}
+
 /**
  * @brief The uniform transparent border around cell @p index, measured once and remembered.
  *

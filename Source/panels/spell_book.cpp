@@ -1099,7 +1099,7 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	if (IsValidSpell(rowSpell) && IsLegacySpell(rowSpell)) {
 		oracool::DrawLegacySpellIconInCell(content, icon, rowSpell, tint);
 	} else {
-		oracool::DrawClassTreeIcon(content, icon, player._pClass, oracool::ClassTreeIconIndex(skill),
+		oracool::DrawClassTreeIconOutlined(content, icon, player._pClass, oracool::ClassTreeIconIndex(skill),
 		    usable, tint);
 	}
 
@@ -1198,12 +1198,12 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 		oracool::DrawDropShadow(content, rect, oracool::GridBezelInset); // the pilot shadow (2026-09-05)
 		oracool::DrawGridBezel(content, rect);
 		if (filled) {
-			oracool::DrawClassTreeIcon(content, rect, player._pClass,
+			oracool::DrawClassTreeIconOutlined(content, rect, player._pClass,
 			    oracool::ClassTreeIconIndex(held), /*unlocked=*/true, tint);
 		} else {
 			// An empty slot is the plate alone - the same empty plate a passive with no art yet
 			// draws, which is the window being consistent rather than a shortcut.
-			oracool::DrawClassTreeIcon(content, rect, player._pClass,
+			oracool::DrawClassTreeIconOutlined(content, rect, player._pClass,
 			    /*skillIndex=*/-1, open, tint);
 		}
 		if (!open) {

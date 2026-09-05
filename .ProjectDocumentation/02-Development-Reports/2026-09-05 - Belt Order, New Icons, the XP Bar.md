@@ -63,3 +63,11 @@ The cutter emits `BeltBarTop` (the painted belt bar's top edge, plate-local 67) 
 - The passive hint is drawn on the PANEL by `DrawPassiveHintAboveList`, in the band between the title and the arch's foot, ending six pixels above the slots' frames, shadowed. The band and grid stayed where they were - the first cut pushed them down to make room and the user said not to.
 
 **v1.9.229** - "add text shadows also under spell names": the Spells sheet's name line takes the same shadow as its description lines.
+
+## Addendum, v1.9.230 - the plate becomes a ring
+
+"remove legacy backing from legacy spell icons and skills in the abilities windows. Replace it with 3px outline of same color."
+
+- Tree cells and the four passive slots: `DrawClassTreeIconOutlined` draws the class strip's icon and a 3px ring just inside the cell (`DrawSkillTintOutline`) in one index off the tint's own ramp - green PAL8_GREEN+2, red PAL16_RED+4, grey PAL16_GRAY+8, pink PAL16_BEIGE+4 - instead of the tinted vanilla plate under it. An empty passive slot is the ring alone.
+- NOT done for the legacy spell icons: their "backing" is the vanilla 37x38 icon art's own bevelled square, which the tint recolours through a translation table. There is nothing separate to remove; taking it out means keying the plate ramps out of the icon, and the symbols use the same gold ramps the plate does. Left as is, with the tint on the plate, on both the Spells sheet and the tree pages' legacy rows.
+- The HUD's wells keep their plates.

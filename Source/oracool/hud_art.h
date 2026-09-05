@@ -188,6 +188,25 @@ void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, in
 void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint = SkillPlateTint::Green);
 
+/**
+ * @brief The tint as a 3px OUTLINE just inside @p cell instead of a plate under it.
+ *
+ * User, 2026-09-05: "remove legacy backing from legacy spell icons and skills in the abilities
+ * windows. Replace it with 3px outline of same color." The plate was the vanilla spell icon's own
+ * bevelled square, recoloured through the tint's translation table; this is one colour from the
+ * same ramp, drawn as a ring, so the meaning (green invested, red unspent, grey locked, pink
+ * unusable) survives without the backing.
+ */
+void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tint);
+
+/**
+ * @brief DrawClassTreeIcon without the plate: the class strip's icon scaled to the cell, and the
+ * tint as DrawSkillTintOutline. The Abilities window's tree cells and passive slots use this; the
+ * HUD's wells keep their plates.
+ */
+void DrawClassTreeIconOutlined(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex,
+    bool unlocked, SkillPlateTint tint = SkillPlateTint::Green);
+
 /** @brief On-screen size of one tree icon, or {0,0} if that class's strip is missing. */
 Size GetClassTreeIconSize(HeroClass heroClass);
 
