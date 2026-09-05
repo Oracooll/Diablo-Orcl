@@ -1059,10 +1059,10 @@ void DrawSidePanelDim(const Surface &out, Point origin)
 		SidePanelCanvasInner.size };
 	// ONE pass, blended with DARK GREY rather than black (user, 2026-09-06: "reduce it to one pass
 	// and apply to all canvases", then "blend it with dark grey instead of black"). Each pixel becomes
-	// the average of itself and grey ramp entry 11 (0x3d3d3d), snapped to the palette - a little
+	// the average of itself and a grey ramp entry, snapped to the palette - a little
 	// lighter than the black blend, which halves every channel outright. Two black passes, the
 	// books' ~75%, lasted one build.
-	constexpr uint8_t DimBlend = PAL16_GRAY + 11;
+	constexpr uint8_t DimBlend = PAL16_GRAY + 9; // 249, 0x595959 (user, 2026-09-06: "make it 249 instead"; was 251)
 	DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y, inner.size.width, inner.size.height, DimBlend);
 }
 
