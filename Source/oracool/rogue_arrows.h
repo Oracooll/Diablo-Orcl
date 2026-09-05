@@ -81,4 +81,7 @@ void RogueArrowDamage(const Player &player, SpellID spell, int spellLevel, int &
 /** @brief One sentence for the Abilities window, untranslated. "" for a spell that is not a bow skill. */
 const char *RogueArrowDescription(SpellID spell);
 
+/** @brief What @p arrow does at @p spellLevel beyond its damage: arrows loosed, chill, freeze. For the tooltip. */
+std::string RogueArrowFactsAt(RogueArrow arrow, int spellLevel);
+
 } // namespace devilution::oracool

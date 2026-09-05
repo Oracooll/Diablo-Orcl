@@ -7,6 +7,7 @@
 #include "oracool/paladin_skills.h"
 #include "player.h"
 #include "utils/language.h"
+#include <fmt/format.h>
 
 namespace devilution::oracool {
 
@@ -115,6 +116,19 @@ void ResetFuriousChargeForNewGame()
 	// The start times are left alone deliberately: both readers gate on their Active flag first, so
 	// a stale timestamp behind a cleared flag is unreachable, and zeroing them would make the next
 	// SDL_GetTicks() subtraction look like an enormous elapsed time to anyone reading in a debugger.
+}
+
+std::string FuriousChargeFacts()
+{
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	line(fmt::format(fmt::runtime(_("Dash: up to {:.1f} s")), MaxDashDurationMs / 1000.0));
+	line(fmt::format(fmt::runtime(_("Cooldown: {:.1f} s")), CooldownDurationMs / 1000.0));
+	return out;
 }
 
 } // namespace devilution::oracool

@@ -5,6 +5,8 @@
 #include "monster.h"
 #include "oracool/paladin_melee.h" // HasShieldEquipped
 #include "player.h"
+#include <fmt/format.h>
+#include "utils/language.h"
 
 namespace devilution::oracool {
 
@@ -196,6 +198,31 @@ bool CastRangedPaladinSkill(Player &player, PaladinSkill skill, Point target)
 		break;
 	}
 	return false;
+}
+
+std::string PaladinRangedFactsAt(PaladinSkill skill, int rank)
+{
+	(void)rank; // these scale off the weapon, not the rank - see the top of the file
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	switch (skill) {
+	case PaladinSkill::FistOfTheHeavens:
+		line(fmt::format(fmt::runtime(_("Damage: {:d}% at the centre, {:d}% around it")), FistCentrePercent, FistNovaPercent));
+		break;
+	case PaladinSkill::BlessedShield:
+		line(fmt::format(fmt::runtime(_("Damage: {:d}% per target")), BlessedShieldPercent));
+		break;
+	case PaladinSkill::BlessedHammer:
+		line(fmt::format(fmt::runtime(_("Damage: {:d}% per hit")), BlessedHammerPercent));
+		break;
+	default:
+		break;
+	}
+	return out;
 }
 
 } // namespace devilution::oracool

@@ -8,6 +8,8 @@
 #include "oracool/oracool.h"
 #include "player.h"
 #include "spells.h" // IsValidSpell - a readied slot may hold Invalid
+#include <fmt/format.h>
+#include "utils/language.h"
 
 namespace devilution::oracool {
 
@@ -463,6 +465,38 @@ void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)
 	case PaladinSkill::BlessedHammer:
 		break;
 	}
+}
+
+std::string PaladinMeleeFactsAt(PaladinSkill skill, int rank)
+{
+	rank = std::max(rank, 1);
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	switch (skill) {
+	case PaladinSkill::Zeal: {
+		// The ladder ZealStrikeCount walks, at the rank asked for: rungs at skill levels 1, 3, 5.
+		int strikes = 1;
+		for (int rung = ZealFirstStrikeRungSkillLevel; rung <= rank && strikes < MaxZealStrikes; rung += ZealStrikeRungSpacing)
+			strikes++;
+		line(fmt::format(fmt::runtime(_("Strikes: {:d} in one swing")), strikes));
+		line(fmt::format(fmt::runtime(_("To hit: +{:d}%")), rank * ZealToHitPercentPerSkillLevel));
+		break;
+	}
+	case PaladinSkill::ShieldBash:
+		line(std::string(_("Always hits")));
+		line(fmt::format(fmt::runtime(_("Stun: {:.1f} s")), ShieldBashStunTicks / 20.0));
+		break;
+	case PaladinSkill::HammerOfFaith:
+		line(fmt::format(fmt::runtime(_("Splash: {:d}% to everything around the target")), HammerOfFaithSplashPercent));
+		break;
+	default:
+		break;
+	}
+	return out;
 }
 
 } // namespace devilution::oracool

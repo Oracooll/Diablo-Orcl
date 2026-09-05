@@ -14,6 +14,7 @@
 #include "oracool/class_tree.h"
 #include "player.h"
 #include "utils/language.h"
+#include <fmt/format.h>
 
 namespace devilution::oracool {
 
@@ -327,6 +328,44 @@ const char *ColdSpellDescription(SpellID spell)
 	default:
 		return "";
 	}
+}
+
+int FreezeSecondsTenths(int spellLevel) { return FreezeTicksFor(spellLevel) / 2; }
+int ChillSecondsTenths(int spellLevel) { return ChillTicksFor(spellLevel) / 2; }
+
+std::string ColdSpellFactsAt(SpellID spell, int spellLevel)
+{
+	// The facts, from the same freeze/chill clocks ApplyColdHit and the armours run.
+	const int level = std::max(spellLevel, 0);
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	switch (spell) {
+	case SpellID::IceBlast:
+	case SpellID::GlacialSpike:
+		line(fmt::format(fmt::runtime(_("Freeze: {:.1f} s (uniques are chilled instead)")), FreezeTicksFor(level) / 20.0));
+		break;
+	case SpellID::FrostNova:
+	case SpellID::Blizzard:
+		line(fmt::format(fmt::runtime(_("Chill: {:.1f} s")), (ChillTicksFor(level) + 20) / 20.0));
+		break;
+	case SpellID::IceBolt:
+	case SpellID::FrozenOrb:
+		line(fmt::format(fmt::runtime(_("Chill: {:.1f} s")), IceBoltChillTicks / 20.0));
+		break;
+	case SpellID::FrozenArmor:
+	case SpellID::ShiverArmor:
+	case SpellID::ChillingArmor:
+		line(fmt::format(fmt::runtime(_("Duration: {:d} s")), (400 + 80 * level) / 20)); // AddColdArmor's ticks
+		line(fmt::format(fmt::runtime(_("Chill on being struck: {:.1f} s")), ChillTicksFor(level) / 20.0));
+		break;
+	default:
+		break;
+	}
+	return out;
 }
 
 } // namespace devilution::oracool

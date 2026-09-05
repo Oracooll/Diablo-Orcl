@@ -129,4 +129,7 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target);
 /** @brief One sentence for the Abilities window, untranslated. "" for a spell that is not a melee skill. */
 const char *ClassMeleeSkillDescription(SpellID spell);
 
+/** @brief What @p skill does at @p rank, one fact per line: damage bonus, strikes, stun, range, sweep. For the tooltip. */
+std::string MeleeSkillFactsAt(ClassMeleeSkill skill, int rank);
+
 } // namespace devilution::oracool

@@ -13,6 +13,8 @@
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
+#include <fmt/format.h>
+#include "oracool/cold.h"
 
 namespace devilution::oracool {
 
@@ -267,6 +269,51 @@ const char *RogueArrowDescription(SpellID spell)
 	default:
 		return "";
 	}
+}
+
+std::string RogueArrowFactsAt(RogueArrow arrow, int spellLevel)
+{
+	const int level = std::max(spellLevel, 0);
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	switch (arrow) {
+	case RogueArrow::MagicArrow:
+	case RogueArrow::FireArrow:
+	case RogueArrow::ExplodingArrow:
+	case RogueArrow::ImmolationArrow:
+	case RogueArrow::ColdArrow:
+	case RogueArrow::IceArrow:
+	case RogueArrow::FreezingArrow:
+		line(fmt::format(fmt::runtime(_("Elemental damage: +{:d}")), ElementalBonus(level)));
+		break;
+	default:
+		break;
+	}
+	switch (arrow) {
+	case RogueArrow::MultipleShot:
+		line(fmt::format(fmt::runtime(_("Arrows: {:d}")), MultipleShotCount(level)));
+		break;
+	case RogueArrow::Strafe:
+		line(fmt::format(fmt::runtime(_("Arrows: {:d}, nearest first, within 8 tiles")), StrafeCount(level)));
+		break;
+	case RogueArrow::GuidedArrow:
+		line(std::string(_("Cannot miss")));
+		break;
+	case RogueArrow::ColdArrow:
+		line(fmt::format(fmt::runtime(_("Chill: {:.1f} s")), ChillSecondsTenths(level) / 10.0));
+		break;
+	case RogueArrow::IceArrow:
+	case RogueArrow::FreezingArrow:
+		line(fmt::format(fmt::runtime(_("Freeze: {:.1f} s")), FreezeSecondsTenths(level) / 10.0));
+		break;
+	default:
+		break;
+	}
+	return out;
 }
 
 } // namespace devilution::oracool

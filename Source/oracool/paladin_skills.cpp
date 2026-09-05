@@ -11,6 +11,10 @@
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
+#include <fmt/format.h>
+#include "oracool/paladin_melee.h"
+#include "oracool/paladin_ranged.h"
+#include "oracool/furious_charge.h"
 
 namespace devilution {
 namespace oracool {
@@ -234,6 +238,30 @@ bool SpendPaladinSkillMana(Player &player, PaladinSkill skill)
 	oracool::OnPassiveManaSpent(player, cost);
 	RedrawComponent(PanelDrawComponent::Mana);
 	return true;
+}
+
+std::string PaladinSkillFactsAt(PaladinSkill skill, int rank)
+{
+	// Range and the shield gate from this table; what the blow does from the module that lands it.
+	const PaladinSkillData &data = GetPaladinSkillData(skill);
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	line(fmt::format(fmt::runtime(_("Range: {:d} tiles")), data.rangeTiles));
+	if (data.requiresShield)
+		line(std::string(_("Requires a shield")));
+	const std::string melee = PaladinMeleeFactsAt(skill, rank);
+	if (!melee.empty())
+		line(melee);
+	const std::string ranged = PaladinRangedFactsAt(skill, rank);
+	if (!ranged.empty())
+		line(ranged);
+	if (skill == PaladinSkill::Charge)
+		line(FuriousChargeFacts());
+	return out;
 }
 
 } // namespace oracool

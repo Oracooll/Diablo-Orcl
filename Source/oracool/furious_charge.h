@@ -100,4 +100,7 @@ float GetFuriousChargeCooldownProgress();
  */
 void ResetFuriousChargeForNewGame();
 
+/** @brief Charge's dash and cooldown, one per line. For the tooltip. */
+std::string FuriousChargeFacts();
+
 } // namespace devilution::oracool

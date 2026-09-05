@@ -11,6 +11,7 @@
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
+#include <fmt/format.h>
 
 namespace devilution::oracool {
 
@@ -502,6 +503,79 @@ const char *ClassMeleeSkillDescription(SpellID spell)
 	default:
 		return "";
 	}
+}
+
+std::string MeleeSkillFactsAt(ClassMeleeSkill skill, int rank)
+{
+	// THE FACTS (user, 2026-09-05: "they are missing essential information about a skill's effect
+	// like SPEED/RANGE/DMG/ETC.... all the stuff that happen in the back of the engine during
+	// triggering - let them be known"). Read off the same Profile and the same constants
+	// ApplyClassMeleeSkillOnSwing uses, at the rank asked for, so the tooltip cannot promise a
+	// number the swing does not roll.
+	rank = std::max(rank, 1);
+	const Profile p = ProfileOf(skill);
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	const int bonus = p.bonusPercent + p.bonusPerRank * (rank - 1);
+	if (bonus != 0)
+		line(fmt::format(fmt::runtime(_("Damage: +{:d}%")), bonus));
+	int strikes = 1 + p.extraStrikes;
+	if (p.extraStrikesPerRank > 0)
+		strikes += (rank - 1) / p.extraStrikesPerRank;
+	strikes = std::min(strikes, p.extraStrikesCap);
+	if (strikes > 1) {
+		line(fmt::format(fmt::runtime(_("Strikes: {:d} in one swing")), strikes));
+		line(fmt::format(fmt::runtime(_("Extra strikes at {:d}% damage")), p.extraSharePercent + p.extraSharePerRank * (rank - 1)));
+	}
+	switch (skill) {
+	case ClassMeleeSkill::Bash:
+	case ClassMeleeSkill::OpenPalm:
+		line(std::string(_("Knocks the target back")));
+		break;
+	case ClassMeleeSkill::Stun:
+		line(fmt::format(fmt::runtime(_("Stun: {:.1f} s")), (30 + 4 * (rank - 1)) / 20.0));
+		break;
+	case ClassMeleeSkill::BreakingCurrent:
+		line(std::string(_("Stun: 1.0 s")));
+		break;
+	case ClassMeleeSkill::Whirlwind:
+	case ClassMeleeSkill::WheelOfHeaven:
+		line(fmt::format(fmt::runtime(_("Hits everything around you at {:d}% damage")), 66 + 5 * (rank - 1)));
+		break;
+	case ClassMeleeSkill::Fend:
+		line(fmt::format(fmt::runtime(_("Also hits everything around you at {:d}% damage")), 80 + 5 * (rank - 1)));
+		break;
+	case ClassMeleeSkill::SweepingReed:
+		line(std::string(_("Also hits everything ahead of you at 100% damage")));
+		break;
+	case ClassMeleeSkill::RadiantPalm:
+		line(std::string(_("A kill deals the blow again to everything beside it")));
+		break;
+	case ClassMeleeSkill::PowerStrike:
+		line(fmt::format(fmt::runtime(_("Lightning: 1 - {:d}")), 4 * rank));
+		break;
+	case ClassMeleeSkill::ChargedStrike:
+		line(fmt::format(fmt::runtime(_("Charged bolts: {:d}")), 2 + (rank - 1) / 2));
+		break;
+	case ClassMeleeSkill::LightningStrike:
+		line(fmt::format(fmt::runtime(_("Chain lightning at level {:d}")), rank));
+		break;
+	case ClassMeleeSkill::Leap:
+	case ClassMeleeSkill::LeapAttack:
+	case ClassMeleeSkill::VaultingStrike:
+		line(fmt::format(fmt::runtime(_("Range: {:d} tiles")), std::min(4 + (rank - 1) / 3, 8)));
+		break;
+	case ClassMeleeSkill::Sacrifice:
+		line(std::string(_("Costs 8% of the damage dealt in life")));
+		break;
+	default:
+		break;
+	}
+	return out;
 }
 
 } // namespace devilution::oracool

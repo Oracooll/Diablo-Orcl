@@ -16,6 +16,7 @@
 #include "init.h"
 #include "inv.h" // CloseInventory
 #include "missiles.h"
+#include "oracool/skill_facts.h"
 #include "oracool/badge.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_tree.h"
@@ -1639,6 +1640,9 @@ std::string BuildSpellStatBlock(SpellID sn, bool withNext)
 		GetDamageAmtAtLevel(sn, at, &min, &max);
 		if (min != -1)
 			add(fmt::format(fmt::runtime(heals ? _("Heals: {:d} - {:d}") : _("Damage: {:d} - {:d}")), min, max));
+		const std::string facts = oracool::SkillFactsAt(sn, at); // a cold spell's freeze or chill, an arrow's count
+		if (!facts.empty())
+			add(facts);
 		return text;
 	};
 

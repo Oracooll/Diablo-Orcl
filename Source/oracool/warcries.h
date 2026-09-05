@@ -98,4 +98,7 @@ const char *WarcryDescription(SpellID spell);
 /** @brief The missile every cry is cast as: calls CastWarcry and is gone. */
 void AddWarcry(Missile &missile, AddMissileParameter &parameter);
 
+/** @brief What @p spell does at @p rank, one fact per line: radius, duration, magnitude, chance. For the tooltip. */
+std::string WarcryFactsAt(SpellID spell, int rank);
+
 } // namespace devilution::oracool

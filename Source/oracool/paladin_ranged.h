@@ -42,5 +42,8 @@ bool CastRangedPaladinSkill(Player &player, PaladinSkill skill, Point target);
  */
 void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellLevel);
 
+/** @brief Fist of the Heavens', Blessed Shield's and Blessed Hammer's facts, one per line. For the tooltip. */
+std::string PaladinRangedFactsAt(PaladinSkill skill, int rank);
+
 } // namespace oracool
 } // namespace devilution

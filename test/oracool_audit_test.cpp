@@ -39,6 +39,7 @@
 #include "multi.h"
 #include "options.h" // a fresh Options, for the shipped-defaults test
 #include "pack.h"    // PlayerPack - the fixed struct the stat-point clamp test inspects
+#include "oracool/skill_facts.h"
 #include "oracool/class_tree.h"
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
@@ -9733,4 +9734,33 @@ TEST(OracoolSkillPicker, AStaffSpellAndALearnedSpellAreTwoDifferentHoldings)
 	// The orange plate is the engine's own charge ramp, and it must stay distinct from the blue a
 	// learned spell wears - the two cells are told apart by colour alone.
 	EXPECT_NE(static_cast<int>(SpellType::Charges), static_cast<int>(SpellType::Spell));
+}
+
+// User, 2026-09-05: "they are missing essential information about a skill's effect like
+// SPEED/RANGE/DMG/ETC.... all the stuff that happen in the back of the engine during triggering -
+// let them be known." Each module answers for its own skills; this pins that the router reaches
+// every module and that the numbers move with the rank.
+TEST(OracoolAudit, TheSkillFactsQuoteWhatTheModulesRoll)
+{
+	using namespace devilution;
+	using namespace devilution::oracool;
+	gbIsHellfire = true; // the Oracool spells sit past LastDiablo, which IsValidSpell gates on Hellfire
+	// Paladin: Zeal's ladder - two strikes at rank 1, four at rank 5 - and its range.
+	const std::string zeal1 = SkillFactsAt(SpellID::Zeal, 1);
+	EXPECT_NE(zeal1.find("Strikes: 2"), std::string::npos) << zeal1;
+	EXPECT_NE(zeal1.find("Range:"), std::string::npos) << zeal1;
+	EXPECT_NE(SkillFactsAt(SpellID::Zeal, 5).find("Strikes: 4"), std::string::npos);
+	// Melee: Sacrifice's +150% at rank 1, +170% at rank 2.
+	EXPECT_NE(SkillFactsAt(SpellID::Sacrifice, 1).find("+150%"), std::string::npos);
+	EXPECT_NE(SkillFactsAt(SpellID::Sacrifice, 2).find("+170%"), std::string::npos);
+	// Warcry: Shout's duration climbs five seconds a rank.
+	EXPECT_NE(SkillFactsAt(SpellID::Shout, 1).find("Duration: 40 s"), std::string::npos);
+	EXPECT_NE(SkillFactsAt(SpellID::Shout, 3).find("Duration: 50 s"), std::string::npos);
+	// Arrows: Multiple Shot's fan - two at level 1, three at level 2.
+	EXPECT_NE(SkillFactsAt(SpellID::MultipleShot, 1).find("Arrows: 2"), std::string::npos);
+	EXPECT_NE(SkillFactsAt(SpellID::MultipleShot, 2).find("Arrows: 3"), std::string::npos);
+	// Cold: an armour quotes its duration.
+	EXPECT_NE(SkillFactsAt(SpellID::FrozenArmor, 1).find("Duration:"), std::string::npos);
+	// A spell no module describes says nothing rather than something made up.
+	EXPECT_TRUE(SkillFactsAt(SpellID::Firebolt, 1).empty());
 }

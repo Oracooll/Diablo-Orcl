@@ -18,6 +18,7 @@
 #include "oracool/stat_sheet.h"
 #include "player.h"
 #include "utils/language.h"
+#include <fmt/format.h>
 
 namespace devilution::oracool {
 
@@ -680,6 +681,110 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 	// animation. One missile for all seventeen rather than seventeen missiles.
 	if (!CastWarcry(player, player.executedSpell.spellId, parameter.dst))
 		parameter.spellFizzled = true;
+}
+
+std::string WarcryFactsAt(SpellID spell, int rank)
+{
+	// The facts, from the same formulas CastWarcry and ApplyWarcryBuffsToTotals run - kept in step
+	// by being written beside them (user, 2026-09-05: "let them be known").
+	rank = std::max(rank, 1);
+	const int earshot = EarshotFor(rank);
+	std::string out;
+	const auto line = [&out](const std::string &s) {
+		if (!out.empty())
+			out += '\n';
+		out += s;
+	};
+	const auto radius = [&](int tiles) { line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), tiles)); };
+	const auto duration = [&](int seconds) { line(fmt::format(fmt::runtime(_("Duration: {:d} s")), seconds)); };
+	switch (spell) {
+	case SpellID::Howl:
+		radius(earshot);
+		line(fmt::format(fmt::runtime(_("Repels {:d} tiles")), 4 + rank));
+		break;
+	case SpellID::Taunt:
+	case SpellID::Daze:
+		radius(earshot);
+		break;
+	case SpellID::Shout:
+		duration(40 + 5 * (rank - 1));
+		line(fmt::format(fmt::runtime(_("Armour: +{:d}%")), 50 + 10 * (rank - 1)));
+		break;
+	case SpellID::BattleCry:
+		radius(earshot);
+		duration(24 + 2 * (rank - 1));
+		line(fmt::format(fmt::runtime(_("Enemy damage and armour: -{:d}%")), 25 + 2 * (rank - 1)));
+		break;
+	case SpellID::BattleOrders:
+		duration(40 + 5 * (rank - 1));
+		line(fmt::format(fmt::runtime(_("Life and mana: +{:d}")), 20 + 10 * (rank - 1)));
+		break;
+	case SpellID::WarCry:
+		radius(earshot);
+		line(fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), 4 * rank, 8 * rank));
+		line(fmt::format(fmt::runtime(_("Stun: {:.1f} s")), 2.0 + 0.2 * (rank - 1)));
+		break;
+	case SpellID::BattleCommand:
+		duration(30 + 5 * (rank - 1));
+		line(std::string(_("All skill levels: +1")));
+		break;
+	case SpellID::Lullaby:
+		radius(earshot);
+		line(fmt::format(fmt::runtime(_("Sleep: {:.1f} s")), 4.0 + 0.5 * (rank - 1)));
+		break;
+	case SpellID::SoundShock:
+		radius(earshot);
+		line(fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), 4 + 2 * rank, 10 + 4 * rank));
+		break;
+	case SpellID::BardShout:
+		radius(3);
+		line(fmt::format(fmt::runtime(_("Stun: {:.1f} s")), 1.0 + 0.2 * (rank - 1)));
+		break;
+	case SpellID::TempleBell:
+		radius(earshot);
+		line(fmt::format(fmt::runtime(_("Damage to undead: {:d} - {:d}")), 3 * rank, 6 * rank));
+		line(std::string(_("Stun: 1.5 s, repels 3 tiles")));
+		break;
+	case SpellID::PurifyingBreath:
+		duration(30 + 5 * (rank - 1));
+		line(fmt::format(fmt::runtime(_("Fire, lightning and magic resistance: +{:d}")), 20 + 5 * (rank - 1)));
+		break;
+	case SpellID::Tranquility:
+		duration(12 + rank);
+		break;
+	case SpellID::InnerSight:
+		radius(earshot + 2);
+		duration(20 + 2 * (rank - 1));
+		line(fmt::format(fmt::runtime(_("Enemy armour: -{:d}%")), 30 + 2 * (rank - 1)));
+		break;
+	case SpellID::SlowMissiles:
+		duration(20 + 4 * (rank - 1));
+		line(fmt::format(fmt::runtime(_("Arrows turned aside: {:d}%")), std::min(50 + 5 * (rank - 1), 80)));
+		break;
+	case SpellID::Vengeance:
+		duration(30 + 5 * (rank - 1));
+		line(fmt::format(fmt::runtime(_("Fire: +{:d} - {:d}")), 2 + rank, 6 + 2 * rank));
+		line(fmt::format(fmt::runtime(_("Lightning: +{:d} - {:d}")), 1 + rank, 8 + 2 * rank));
+		break;
+	case SpellID::FindPotion:
+		line(fmt::format(fmt::runtime(_("Chance: {:d}%")), std::min(50 + 5 * (rank - 1), 90)));
+		line(fmt::format(fmt::runtime(_("Full potion: {:d}%")), 5 + 2 * (rank - 1)));
+		break;
+	case SpellID::FindItem:
+		line(fmt::format(fmt::runtime(_("Chance: {:d}%")), std::min(25 + 5 * (rank - 1), 60)));
+		break;
+	case SpellID::GrimWard:
+		radius(earshot);
+		duration(20 + 2 * (rank - 1));
+		break;
+	case SpellID::Conversion:
+		radius(2);
+		duration(20 + 2 * (rank - 1));
+		break;
+	default:
+		break;
+	}
+	return out;
 }
 
 } // namespace devilution::oracool

@@ -16,6 +16,7 @@
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
+#include "oracool/skill_facts.h"
 #include "oracool/skill_points.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/spell_ranks.h" // the Rule of Rangs
@@ -1785,6 +1786,9 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 				if (min != -1)
 					line(fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), min, max));
 				line(fmt::format(fmt::runtime(_("Mana Cost: {:d}")), GetManaAmountAtLevel(player, spell, at) >> 6));
+				const std::string facts = SkillFactsAt(spell, at); // strikes, range, duration, stun, chance - the module's own numbers
+				if (!facts.empty())
+					line(facts);
 			}
 			return text;
 		}

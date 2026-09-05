@@ -201,5 +201,8 @@ inline int GetPaladinSkillIconIndex(PaladinSkill skill)
 	return static_cast<int>(skill);
 }
 
+/** @brief What @p skill does at @p rank, one fact per line: range, shield, strikes, splash, dash. For the tooltip. */
+std::string PaladinSkillFactsAt(PaladinSkill skill, int rank);
+
 } // namespace oracool
 } // namespace devilution

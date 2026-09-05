@@ -149,5 +149,8 @@ void ResetZealChain();
  */
 int ZealSwingSkipFrames(const Player &player);
 
+/** @brief Zeal's, Smite's and Hammer of Faith's facts at @p rank, one per line. For the tooltip. */
+std::string PaladinMeleeFactsAt(PaladinSkill skill, int rank);
+
 } // namespace oracool
 } // namespace devilution

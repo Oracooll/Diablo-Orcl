@@ -125,4 +125,10 @@ int ColdArmourShellFrame(const Player &player);
 /** @brief One sentence per cold spell for the Abilities window, untranslated. "" for a spell that is not cold. */
 const char *ColdSpellDescription(SpellID spell);
 
+/** @brief Freeze / chill seconds in tenths at @p spellLevel, for modules quoting the cold clocks. */
+int FreezeSecondsTenths(int spellLevel);
+int ChillSecondsTenths(int spellLevel);
+/** @brief What a cold spell does at @p spellLevel beyond its damage: freeze, chill, armour duration. For the tooltip. */
+std::string ColdSpellFactsAt(SpellID spell, int spellLevel);
+
 } // namespace devilution::oracool
