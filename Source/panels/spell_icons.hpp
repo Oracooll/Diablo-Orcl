@@ -89,6 +89,17 @@ void DrawSmallSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spel
  */
 void DrawLargeSpellIconCentredIn(const Surface &out, Rectangle cell, SpellID spell);
 
+/**
+ * @brief The right sheet for @p cell: the 56px frame, as it is, wherever the cell is at least 56;
+ * the small sheet fitted where it is not.
+ *
+ * User, 2026-09-05: "always use the 56x56 icons of spells/skills everywhere in the user interface.
+ * they are much more detailed. make sure you are using them wherever slots/wells are big enough.
+ * only use the small ones in the skill pickers above lmb/rmb." The Abilities window's cells and the
+ * wells' openings are 56; the picker's cells are 38 - so the size of the rect is the whole rule.
+ */
+void DrawSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell = SpellID::Null);
+
 void LoadLargeSpellIcons();
 void FreeLargeSpellIcons();
 

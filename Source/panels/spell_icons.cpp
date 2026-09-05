@@ -431,6 +431,17 @@ void DrawLargeSpellIconCentredIn(const Surface &out, Rectangle cell, SpellID spe
 	ClxDrawTRN(out, { centred.x, centred.y + h - 1 }, icon, SplTransTbl);
 }
 
+void DrawSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell)
+{
+	// See the header. 56 is the large sheet's own frame size, so "at least 56" is "the frame fits
+	// without resampling".
+	if (LargeSpellIcons && cell.size.width >= (*LargeSpellIcons)[0].width() && cell.size.height >= (*LargeSpellIcons)[0].height()) {
+		DrawLargeSpellIconCentredIn(out, cell, spell);
+		return;
+	}
+	DrawSmallSpellIconFittedTo(out, cell, spell);
+}
+
 void SetSpellTransRed()
 {
 	// Oracool: user request (2026-08-17) - "Unlocked skills with 0 points in them are unavailable

@@ -1844,10 +1844,10 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 		//
 		// Still through the tint's ramp, so a readied legacy spell keeps the well's state colour.
 		if (IsLegacySpell(spell)) {
-			DrawSmallSpellIconFittedTo(out, SkillWellPlateRect(well), spell); // the small sheet fitted to the OPENING, under the frame's shadow (2026-09-05)
+			DrawSpellIconFittedTo(out, SkillWellPlateRect(well), spell); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
 			return true;
 		}
-		DrawSmallSpellIconFittedTo(out, SkillWellPlateRect(well)); // the vanilla plate fitted to the OPENING, under the frame's shadow (2026-09-05)
+		DrawSpellIconFittedTo(out, SkillWellPlateRect(well)); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
 		DrawClassTreeIconScaledTo(out, well, InspectPlayer->_pClass, ClassTreeIconIndex(treeSkill));
 		return true;
 	}
@@ -1862,18 +1862,18 @@ bool TryDrawSkillSpellIcon(const Surface &out, Rectangle well, SpellID spell, Sk
 	// the player has it. The dimmed variant belongs to the Abilities window's own rows, where it says
 	// what has not been earned yet.
 	ApplyPlateTint(tint);
-	DrawSmallSpellIconFittedTo(out, SkillWellPlateRect(well)); // the vanilla plate fitted to the OPENING, under the frame's shadow (2026-09-05)
+	DrawSpellIconFittedTo(out, SkillWellPlateRect(well)); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
 	DrawStripIconScaledTo(out, PaladinSkillIconsArt, well, GetPaladinSkillIconIndex(*skill));
 	return true;
 }
 
 void DrawLegacySpellIconInCell(const Surface &out, Rectangle cell, SpellID spell, SkillPlateTint tint)
 {
-	// The SMALL sheet fitted to the cell, since the evening of 2026-09-05 (screenshot: "shadows
-	// around the icons in abilities window"): the 56px sheet's frames carry a heavier black border
-	// that read as a shadow ring inside the bezel. The 56px sheet was tried for six builds.
+	// The 56px sheet, as it is, since 2026-09-05 ("always use the 56x56 icons ... wherever slots/wells
+	// are big enough"): a tree cell is 56. The heavier border the large frames carry was taken for a
+	// shadow once that day and then accepted for the detail.
 	ApplyPlateTint(tint);
-	DrawSmallSpellIconFittedTo(out, cell, spell);
+	DrawSpellIconFittedTo(out, cell, spell);
 }
 
 void DrawRedCross(const Surface &out, Rectangle icon)
@@ -1982,7 +1982,7 @@ void DrawAttackIcon(const Surface &out, Point origin, int iconIndex, bool active
 void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, bool active, SkillPlateTint tint)
 {
 	ApplyPlateTint(tint);
-	DrawSmallSpellIconFittedTo(out, SkillWellPlateRect(well)); // the vanilla plate fitted to the OPENING, under the frame's shadow (2026-09-05)
+	DrawSpellIconFittedTo(out, SkillWellPlateRect(well)); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
 	// The dim pass the Point overload gets from DrawStripIcon has no scaled twin, and the wells never
 	// need one: a well shows what its button does right now, and that is always the active state.
 	if (!active) {
@@ -1999,7 +1999,7 @@ void DrawClassTreeSkillInWell(const Surface &out, Rectangle well, HeroClass hero
     SkillPlateTint tint)
 {
 	ApplyPlateTint(tint);
-	DrawSmallSpellIconFittedTo(out, SkillWellPlateRect(well)); // the vanilla plate fitted to the OPENING, under the frame's shadow (2026-09-05)
+	DrawSpellIconFittedTo(out, SkillWellPlateRect(well)); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
 	DrawClassTreeIconScaledTo(out, well, heroClass, skillIndex);
 }
 

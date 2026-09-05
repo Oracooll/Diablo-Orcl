@@ -930,9 +930,9 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	oracool::DrawGridBezel(content, iconRect);
 	// Oracool: user request - the book must show the same borrowed icon Furious Charge uses
 	// everywhere else, not the vanilla Item Repair icon.
-	// The SMALL sheet fitted to the cell again (evening of 2026-09-05): the 56px sheet's heavier black
-	// border read as a shadow ring inside the bezel.
-	DrawSmallSpellIconFittedTo(content, iconRect,
+	// The 56px sheet as it is (user, 2026-09-05: "always use the 56x56 icons ... they are much more
+	// detailed"): the cell is 56, so the frame lands without resampling.
+	DrawSpellIconFittedTo(content, iconRect,
 	    oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
 	if (known) {
 		DrawFKeyBadge(content, iconRect, sn);

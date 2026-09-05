@@ -39,3 +39,9 @@ Three things, one cause. The 56px sheet's frames carry a heavier black border th
 "find this new hud and apply it" (with GPT's screenshot: "2px belt outline, 1px dividers, and 2px inward shadows around each 28x28 slot"). The newest pack in the drop zone was `oracool-hud-v6-belt-shadow`, GPT's fourth iteration that night (after angel-mana, joined-belt and the carved base). Its COMPACT layout: 540x108, the right well and mana cradle 73px further in, the belt one joined strip - six 28x28 holes at a 29px pitch, each with a 2px inward alpha shadow of its own, a 2px outline - and the mana angel replacing the second gargoyle.
 
 Cutter: the compact numbers from its manifest (plate x 116..429, wells at 6 and 251, cells at 70 + 29i, y 78, `BeltBarTop` 76, mana sphere at (47,53)); the shadow shaping that served the wells now covers the six belt holes too, so each hole's 2px shadow ships as one black pixel and one half pixel. The burger and portal icons are recut at 28 - at a 29px pitch the 31s overlapped the dividers.
+
+## Addendum, v1.9.248 - the 56px sheet wherever it fits
+
+"always use the 56x56 icons of spells/skills everywhere in the user interface. they are much more detailed. make sure you are using them wherever slots/wells are big enough. only use the small ones in the skill pickers above lmb/rmb."
+
+`DrawSpellIconFittedTo` (spell_icons.cpp): the 56px frame as it is where the rect is at least 56, the small sheet fitted where it is not. Every plate and legacy-icon draw goes through it: the Abilities window's Spells sheet and tree legacy rows (56 cells → large), the wells' plates and readied legacy spells (the 56 opening via `SkillWellPlateRect` → large), and the picker (38 cells → small). The speedbook was on the large sheet already. The size of the rect is the whole rule, so a future window gets the right sheet by being the size it is.
