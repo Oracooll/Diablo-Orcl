@@ -99,3 +99,5 @@ Not an asset: the vanilla icon sheet is original game art and a re-cut of it can
 **v1.9.242** - "remove shadows from abilities screen and picker screens." The three slot shadows in the Abilities window (Spells rows, tree cells, passive band) are gone; the inventory and stash keep theirs. The picker never had one from this pass. The hover rectangle's 2px shadow stays - asked for as part of the hover theme. A lingering DiabloOrcl.exe (started 5:42, no window, 54s CPU) held oracool.mpq and failed the pack; stopped at the user's word.
 
 **v1.9.244** - "you mistakingly also removed the shadows behind the skills SLOTS." The three slot shadows in the Abilities window are back (Spells rows, tree cells, passive band). v1.9.242 read "remove shadows from abilities screen" as these; the ring the user meant was the 56px sheet's black border, fixed in v1.9.243.
+
+**v1.9.245** - "burger menu blink too many times when i click it. reduce it to one blink." `MenuBlinkPhaseMs` is half the 140ms flash instead of a quarter, and the sequence is pressed then back: one blink, where four phases gave two.

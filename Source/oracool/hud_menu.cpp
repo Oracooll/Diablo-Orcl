@@ -193,7 +193,7 @@ constexpr uint32_t ButtonFlashDurationMs = 140;
  * 144fps. A frame counter would make the blink twice as long on a slow machine, which is the sort
  * of thing that gets reported as "the menu button feels sluggish" and traced to the wrong place.
  */
-constexpr uint32_t MenuBlinkPhaseMs = ButtonFlashDurationMs / 4;
+constexpr uint32_t MenuBlinkPhaseMs = ButtonFlashDurationMs / 2; // ONE blink (user, 2026-09-05: "reduce it to one blink"): pressed for the first half, back for the second; it was four phases, two blinks
 constexpr uint8_t ButtonHighlightColor = PAL16_YELLOW + 6;
 // Belt cells use their own index; menu icons are offset past them so one variable tracks both.
 constexpr int MenuFlashBase = 100;
@@ -365,7 +365,7 @@ void DrawBeltButtonFeedback(const Surface &out)
 		// unlit and lit, so the pressed picture is what flashes and the button never goes dark
 		// under a cursor that is still on it.
 		if (elapsed < ButtonFlashDurationMs)
-			menuState = ((elapsed / MenuBlinkPhaseMs) % 2 == 0) ? 1 : 2;
+			menuState = ((elapsed / MenuBlinkPhaseMs) % 2 == 0) ? 2 : 1; // pressed first, then back: one blink
 	}
 	DrawBurgerMenuButton(out, menuState);
 
