@@ -84,6 +84,12 @@ bool IsLevskiRoarOpen();
  * a producer that runs anywhere else is either overwritten by it or overwrites it.
  */
 bool SetLevskiHoverInfoString();
+/**
+ * @brief The grid item under the cursor, or nullptr - for the cursor tooltip, which gives it the
+ * backpack's plate (user, 2026-09-05: "golden outline, transparent dark backing") and the
+ * EQUIPPED ITEM comparison beside it.
+ */
+const Item *HoveredLevskiGridItem();
 /** @brief Opens the window; closes it if already open. Called from the object's operate path. */
 void ToggleLevskiRoar();
 /** @brief Closes the window and returns everything in the grid to the backpack. */

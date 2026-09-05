@@ -291,14 +291,57 @@ Rectangle CellRect(const Rectangle &window, int cell)
 		{ CellSize, CellSize } };
 }
 
+/**
+ * @brief The cell's whole painted square - the 29px pitch, rules included - for hit-testing.
+ *
+ * CellRect is the 28px ITEM cell, which leaves a one-pixel seam between neighbours where a click
+ * landed on nothing (user, 2026-09-05: "i am having some difficulty placing my items exactly where
+ * i want them"). The seam belongs to the cell it borders, so the hit rect is the pitch square.
+ */
+Rectangle CellHitRect(const Rectangle &window, int cell)
+{
+	const Point origin = GridOrigin(window);
+	return Rectangle { { origin.x + (cell % LevskiGridColumns) * levski_skin::GridPitch, origin.y + (cell / LevskiGridColumns) * levski_skin::GridPitch },
+		{ levski_skin::GridPitch, levski_skin::GridPitch } };
+}
+
 /** @brief The cell under @p position, or -1. */
 int CellAt(const Rectangle &window, Point position)
 {
 	for (int cell = 0; cell < LevskiGridSlots; cell++) {
-		if (CellRect(window, cell).contains(position))
+		if (CellHitRect(window, cell).contains(position))
 			return cell;
 	}
 	return -1;
+}
+
+/**
+ * @brief Where a HELD item of @p size lands when dropped at @p position: its top-left cell.
+ *
+ * The backpack's rule, exactly (inv.cpp FindTargetSlotUnderItemCursor): the cursor carries the
+ * item by its CENTRE, so the cell under the cursor is the item's middle cell, not its corner. This
+ * grid used to take the clicked cell as the top-left, which put a 2x3 armour one cell right and
+ * one down from where it was drawn under the cursor - the difficulty the user reported. An even
+ * size has no middle cell, so the half the cursor is in decides, with the same 14px probe. Clamped
+ * to the grid, so dropping near an edge slides the item in rather than refusing.
+ */
+int TargetAnchorUnderItemCursor(const Rectangle &window, Point position, Size size)
+{
+	const int hot = CellAt(window, position);
+	if (hot < 0)
+		return -1;
+	if (size.width <= 1 && size.height <= 1)
+		return hot;
+	constexpr int HalfCell = levski_skin::CellSize / 2;
+	Displacement offset { (size.width - 1) / 2, (size.height - 1) / 2 };
+	const Rectangle hotRect = CellHitRect(window, hot);
+	if (size.width % 2 == 0 && hotRect.contains(position + Displacement { HalfCell, 0 }))
+		offset.deltaX++;
+	if (size.height % 2 == 0 && hotRect.contains(position + Displacement { 0, HalfCell }))
+		offset.deltaY++;
+	const int row = std::clamp(hot / LevskiGridColumns - offset.deltaY, 0, LevskiGridRows - size.height);
+	const int column = std::clamp(hot % LevskiGridColumns - offset.deltaX, 0, LevskiGridColumns - size.width);
+	return row * LevskiGridColumns + column;
 }
 
 /**
@@ -509,6 +552,12 @@ bool HandleLevskiRecipeBookScroll(int notches)
 	constexpr int PixelsPerNotch = 40;
 	RecipeBookScroll = std::clamp(RecipeBookScroll - notches * PixelsPerNotch, 0, RecipeBookMaxScroll(book));
 	return true;
+}
+
+const Item *HoveredLevskiGridItem()
+{
+	const int anchor = HoveredAnchor();
+	return anchor < 0 ? nullptr : &GridItems[anchor];
 }
 
 bool SetLevskiHoverInfoString()
@@ -1022,9 +1071,11 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			return true;
 		}
 		if (!player.HoldItem.isEmpty()) {
-			// The clicked cell is the item's top-left, as in the backpack. If the footprint runs
-			// off the grid or over something, PlaceInGrid finds the first cell it does fit.
-			if (PlaceInGrid(player.HoldItem, cell)) {
+			// The item lands where it is DRAWN under the cursor - its centre on the clicked cell,
+			// as in the backpack (TargetAnchorUnderItemCursor). If that footprint is over something,
+			// PlaceInGrid finds the first cell it does fit.
+			const int anchor = TargetAnchorUnderItemCursor(window, mousePosition, GetInventorySize(player.HoldItem));
+			if (PlaceInGrid(player.HoldItem, anchor)) {
 				player.HoldItem.clear();
 				NewCursor(CURSOR_HAND);
 			}

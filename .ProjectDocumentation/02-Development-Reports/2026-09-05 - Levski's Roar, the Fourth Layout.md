@@ -22,3 +22,14 @@ Six new GPT packs from the root: the limestone TRANSMUTE / RECIPE BOOK plates, t
 ## Verification
 
 Debug build clean; 625/626 with the standing `Drlg_l1` failure. In the game: open the stand, hover each gem and the transmute plate for the overlay, click for the pressed frame, put a 2x3 armour in the grid.
+
+## v1.9.269: placing items where they are drawn, and the item plate
+
+"i am having some difficulty placing my items exactly where i want them in levski grid. look into it from code perspective. check all 12 squares clicking area and so on. also when i place an item there i want its pop-up stats window to be the same as in inventory - golden outline, transparent dark backing."
+
+Two faults found, both fixed:
+
+1. **The clicked cell was taken as the item's top-left.** The cursor carries an item by its CENTRE, so a 2x3 armour landed one cell right and one down from where it was drawn under the cursor. `TargetAnchorUnderItemCursor` now applies the backpack's own rule (inv.cpp's `FindTargetSlotUnderItemCursor`): the cell under the cursor is the item's middle cell, an even size resolves by which half of the cell the cursor is in with the same 14px probe, and the result is clamped into the grid so an edge drop slides in rather than refusing.
+2. **A one-pixel seam between cells hit nothing.** The hit rect was the 28px item cell inside the 29px painted pitch. `CellHitRect` is the whole pitch square now; all twelve tile the grid with no dead pixels.
+
+The popup: the cursor tooltip only gave the plate treatment (dark backing, gold border) to hovers it recognised - backpack, stash, tabs, shop - and Levski's grid was not among them, so its items drew as bare outlined text. `HoveredLevskiGridItem` is on the list now, and as a container its items also get the EQUIPPED ITEM comparison beside them.

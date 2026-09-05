@@ -11,6 +11,7 @@
 #include "engine/render/text_render.hpp"
 #include "inv.h"
 #include "oracool/ornate_border.h" // ThemeEdgeColor
+#include "oracool/levski_roar.h" // HoveredLevskiGridItem
 #include "oracool/shop_grid.h"
 #include "qol/stash.h"
 #include "items.h"
@@ -86,7 +87,9 @@ bool IsHoveringItem()
 	    // The shop grid has no pcurs global of its own - its items are the vendor's, not the
 	    // player's, so none of the four above ever describe one. It records its hover instead, on
 	    // the same once-per-frame pass that clears and repopulates these.
-	    || IsShopItemHovered();
+	    || IsShopItemHovered()
+	    // And Levski's grid (user, 2026-09-05: its items' popup drew as bare outlined text).
+	    || HoveredLevskiGridItem() != nullptr;
 }
 
 } // namespace
@@ -240,6 +243,8 @@ const Item *HoveredContainerItem()
 	// counterpart that IS the hovered item, so a helm is never compared with itself.
 	if (const Item *ware = HoveredShopItem(); ware != nullptr)
 		return ware;
+	if (const Item *cube = HoveredLevskiGridItem(); cube != nullptr)
+		return cube; // Levski's grid is a container like the stash: its items compare with what is worn
 	if (pcursstashitem != StashStruct::EmptyCell)
 		return &Stash.stashList[pcursstashitem];
 	Player &player = *InspectPlayer;
