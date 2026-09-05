@@ -268,9 +268,17 @@ int GetOrbSphereRadius()
 	return OrbSphereRadiusPx;
 }
 
+/**
+ * The plate's horizontal nudge. Centred by arithmetic the painting sat 3px left of centre on the
+ * screen: 7px to the left canvas and 13px to the right one, measured by the user at 960x720 full
+ * screen on a 1080p laptop (2026-09-06: "move the whole HUD 3px to the right"). Everything on the
+ * row - wells, belt cells, buttons, the menu window - derives from this rect, so it moves as one.
+ */
+constexpr int PlateNudgeX = 3;
+
 Rectangle GetMiddleHudRect()
 {
-	return { { (gnScreenWidth - PlateScreenSize.width) / 2, gnScreenHeight - PlateScreenSize.height - PlateBottomMargin }, PlateScreenSize };
+	return { { (gnScreenWidth - PlateScreenSize.width) / 2 + PlateNudgeX, gnScreenHeight - PlateScreenSize.height - PlateBottomMargin }, PlateScreenSize };
 }
 
 /**
