@@ -147,5 +147,7 @@ bool SetShopHoverInfoString();
  * outlined text over the grid, which is what the first playtest of the panel showed.
  */
 bool IsShopItemHovered();
+/** @brief The shop item under the cursor, or nullptr - for the comparison panel (user, 2026-09-05). */
+const Item *HoveredShopItem();
 
 } // namespace devilution::oracool

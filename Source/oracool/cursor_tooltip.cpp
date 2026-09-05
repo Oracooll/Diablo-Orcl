@@ -235,6 +235,11 @@ void DrawBlock(const Surface &out, const Rectangle &box, const BlockMetrics &m, 
  */
 const Item *HoveredContainerItem()
 {
+	// A SHOP's wares too (user, 2026-09-05: "add comparison tooltip for shop items too"). On the
+	// Repair and Recharge tabs the "ware" is the player's own worn piece; the caller skips the
+	// counterpart that IS the hovered item, so a helm is never compared with itself.
+	if (const Item *ware = HoveredShopItem(); ware != nullptr)
+		return ware;
 	if (pcursstashitem != StashStruct::EmptyCell)
 		return &Stash.stashList[pcursstashitem];
 	Player &player = *InspectPlayer;
@@ -395,6 +400,8 @@ void DrawCursorTooltip(const Surface &out)
 	int nextRight = box.position.x + box.size.width + SideGap;
 	int nextLeft = box.position.x - SideGap;
 	for (const inv_body_loc loc : EquippedCounterparts(player, *hovered)) {
+		if (&player.InvBody[loc] == hovered)
+			continue; // a worn piece on the Repair or Recharge tab: nothing to compare it with but itself
 		TooltipBlock block = CaptureItemBlock(player.InvBody[loc]);
 		block.text = std::string(_("EQUIPPED ITEM")) + "\n" + block.text;
 		block.colors.insert(block.colors.begin(), UiFlags::ColorOracoolGreen);

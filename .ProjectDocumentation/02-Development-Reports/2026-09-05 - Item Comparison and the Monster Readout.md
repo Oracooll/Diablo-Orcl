@@ -26,3 +26,7 @@ The mlvl stays right-aligned on the first line.
 ## Verification
 
 Debug build clean; 624/625 with the standing `Drlg_l1` failure. In the game: hover a helm in the backpack while wearing one; hover a ring while wearing two; hover a shield with a two-hander equipped. Target a monster for the four lines.
+
+## v1.9.264: shop wares compare too
+
+"add comparison tooltip for shop items too." The shop grid now records the item under the cursor (`HoveredShopItem`, cleared with its hover flag each pass), and the tooltip's container lookup asks it first. Buy tabs compare the ware with what is worn; on Repair and Recharge the ware is the player's own piece, so the counterpart that IS the hovered item is skipped and a worn helm is never set beside itself. The Sell tab's backpack items compare as the backpack does.

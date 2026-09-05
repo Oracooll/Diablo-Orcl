@@ -1006,9 +1006,19 @@ bool IsShopItemHovered()
 	return ShopHoverActive;
 }
 
+/** The item under the cursor on the last hover pass, for the comparison panel. Points into the
+ * vendor's or the player's own item storage, which outlives the frame; cleared with the flag. */
+const Item *ShopHoverItem = nullptr;
+
+const Item *HoveredShopItem()
+{
+	return ShopHoverActive ? ShopHoverItem : nullptr;
+}
+
 bool SetShopHoverInfoString()
 {
 	ShopHoverActive = false;
+	ShopHoverItem = nullptr;
 	if (!IsShopGridScreen(stextflag))
 		return false;
 
@@ -1042,6 +1052,7 @@ bool SetShopHoverInfoString()
 	ShopHoverActive = true;
 
 	const ShopSlot &slot = stock[placed[hovered].stockIndex];
+	ShopHoverItem = slot.item;
 	// The same two calls the inventory's own hover makes, in the same order: the name sets the
 	// string and its colour, the details append to it. Then the price, which is the one line a shop
 	// adds - and it says what the number is FOR, because on Repair and Recharge the player is not
