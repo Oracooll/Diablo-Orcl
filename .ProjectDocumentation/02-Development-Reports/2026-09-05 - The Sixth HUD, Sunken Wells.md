@@ -20,3 +20,7 @@
 ## Look at
 
 The wells: a spell plate sitting in a recess with a dark inner edge, the icon inside the 50. The half layer is a real blend, so the shadow's second and third pixels should read as darkened plate, not black. And the orbs' crowns are at 630 now, below the side panels' content line - the 4:3 clip only ever takes the arch tips.
+
+## Addendum, v1.9.241 - the carved treatment
+
+The user pointed at `oracool-hud-v6-carved.zip`. Same geometry family as the sunken-wells delivery, richer stone, and two differences the manifest carries: the well openings sit 6px higher (y 46), and the belt cells are true 28x28 HOLES in 36px frames at x 72..282 (pitch 42), y 76 - potions draw over the world through them. Plate crop x 116..502 (386 wide), cradles 116 and 111. The cutter's five numbers changed and nothing else; the header regenerated, the code unchanged. Filed under delivered-packs with its archive; the sunken-wells pack stays as the alternative.

@@ -31,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-hud-v6-sunken-wells'
+$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-hud-v6-carved'   # the CARVED treatment (2026-09-05, the user's pick over oracool-hud-v6-sunken-wells: same geometry family, richer stone)
 $source = Join-Path $pack 'hud-v6.png'
 $liquidSource = Join-Path $pack 'hud-v6-liquid.png'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
@@ -41,10 +41,10 @@ foreach ($f in @($source, $liquidSource)) { if (-not (Test-Path $f)) { throw "mi
 # ---- the manifest, in master pixels ----------------------------------------------------------
 $masterW = 1839; $masterH = 324
 $scaleDiv = 3                                       # master / 3 = screen, exactly
-$plateCrop = @(336, 39, 1161, 285)                  # x y w h - the plate's band; the cradles are what is left either side
-$wells = @( @(366, 156, 168, 168), @(1320, 156, 168, 168) )
-$beltX = @(561, 687, 813, 939, 1065, 1191); $beltY = 234; $beltW = 84; $beltH = 90
-$beltBarTop = 201
+$plateCrop = @(348, 120, 1158, 204)                # x y w h - the plate's band; the cradles are what is left either side
+$wells = @( @(366, 138, 168, 168), @(1320, 138, 168, 168) )
+$beltX = @(564, 690, 816, 942, 1068, 1194); $beltY = 228; $beltW = 84; $beltH = 84   # the carved belt cells are HOLES, 28x28 on screen, in 36px frames
+$beltBarTop = 216                                  # the belt frames' top edge
 $orbs = @( @(195, 156, 102), @(1647, 159, 102) )   # cx cy r
 
 function Scl($v) { return [int][math]::Round($v / $scaleDiv) }

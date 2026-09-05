@@ -20,23 +20,23 @@
 
 namespace devilution::oracool::hud_skin {
 
-constexpr Size PlateSize { 387, 108 };
+constexpr Size PlateSize { 386, 108 };
 
 /** The wells' openings - transparent, the spell plate drawn beneath - plate-local. */
-constexpr Rectangle LmbWell { { 10, 52 }, { 56, 56 } };
-constexpr Rectangle RmbWell { { 328, 52 }, { 56, 56 } };
+constexpr Rectangle LmbWell { { 6, 46 }, { 56, 56 } };
+constexpr Rectangle RmbWell { { 324, 46 }, { 56, 56 } };
 
 /** The six belt cells: the painted raised floors, from the pack's manifest. */
-constexpr int BeltCellX[6] = { 75, 117, 159, 201, 243, 285 };
-constexpr int BeltCellY = 78;
-constexpr Size BeltCellSize { 28, 30 };
+constexpr int BeltCellX[6] = { 72, 114, 156, 198, 240, 282 };
+constexpr int BeltCellY = 76;
+constexpr Size BeltCellSize { 28, 28 };
 /** Plate-local y of the belt bar's top edge - what the XP bar sits above. */
-constexpr int BeltBarTop = 67;
+constexpr int BeltBarTop = 72;
 
-constexpr Size HealthOrbSize { 112, 108 };
-constexpr Size ManaOrbSize { 114, 108 };
+constexpr Size HealthOrbSize { 116, 108 };
+constexpr Size ManaOrbSize { 111, 108 };
 constexpr Point HealthSphereCenter { 65, 52 };
-constexpr Point ManaSphereCenter { 50, 53 };
+constexpr Point ManaSphereCenter { 47, 53 };
 constexpr int SphereRadius = 34;
 
 } // namespace devilution::oracool::hud_skin
