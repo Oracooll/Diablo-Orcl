@@ -1897,11 +1897,19 @@ Size GetClassTreeIconSize(HeroClass heroClass)
 /** @brief A glyph's size on the picker's 37x38 backing (user, 2026-09-05): 32, so the plate's edge shows around it. */
 constexpr Size GlyphPickerSize { 32, 32 };
 
-/** @brief GlyphPickerSize centred in @p cell. */
+/**
+ * @brief GlyphPickerSize centred in @p cell, one pixel left of centre.
+ *
+ * The nudge is optical (user, 2026-09-05: "they need to be aligned better. maybe move them 1-2px
+ * to the left"): a glyph's shadow sits two pixels LEFT of its white, so the bbox being centred
+ * puts the white right of centre, and the plate's own bevel is heavier on the right.
+ */
+constexpr Displacement GlyphPickerNudge { -1, 0 };
 Rectangle GlyphPickerRect(Rectangle cell)
 {
-	return { { cell.position.x + (cell.size.width - GlyphPickerSize.width) / 2,
-		         cell.position.y + (cell.size.height - GlyphPickerSize.height) / 2 },
+	return { Point { cell.position.x + (cell.size.width - GlyphPickerSize.width) / 2,
+		           cell.position.y + (cell.size.height - GlyphPickerSize.height) / 2 }
+		    + GlyphPickerNudge,
 		GlyphPickerSize };
 }
 
@@ -2095,17 +2103,12 @@ void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, b
 {
 	ApplyPlateTint(tint);
 	DrawSpellIconFittedTo(out, SkillWellPlateRect(well)); // the 56px frame at a 56px opening, the small sheet in the picker's 38px cell (2026-09-05)
-	// The dim pass the Point overload gets from DrawStripIcon has no scaled twin, and the wells never
-	// need one: a well shows what its button does right now, and that is always the active state.
-	if (!active) {
-		DrawStripIcon(out, AttackIconsArt,
-		    { well.position.x + (well.size.width - StripIconSize(AttackIconsArt).width) / 2,
-		        well.position.y + (well.size.height - StripIconSize(AttackIconsArt).height) / 2 },
-		    iconIndex, /*unlocked=*/false);
-		return;
-	}
 	// A GLYPH attack icon (the vanilla-style set, 2026-09-05) sits 1:1 on the 56px plate like every
-	// other glyph - see TryDrawGlyphInWell; scaling it would eat the 8px clear border it was drawn with.
+	// other glyph - see TryDrawGlyphInWell; scaling it would eat the 8px clear border it was drawn
+	// with. On the picker's small plate it is the 32px glyph, ACTIVE OR NOT: the inactive one used
+	// to take a 1:1 draw whatever the cell, which put the whole 56px frame over a 38px plate (user,
+	// 2026-09-05: "fist attack icon needs scaling down to fit better in the backing"). The dim pass
+	// rides `unlocked` on both draws.
 	{
 		const int frame = StripIconSize(AttackIconsArt).width;
 		const Rectangle plate = SkillWellPlateRect(well);
@@ -2113,12 +2116,19 @@ void DrawAttackIconScaledTo(const Surface &out, Rectangle well, int iconIndex, b
 			if (plate.size.width >= frame && plate.size.height >= frame) {
 				DrawStripIcon(out, AttackIconsArt,
 				    { plate.position.x + (plate.size.width - frame) / 2, plate.position.y + (plate.size.height - frame) / 2 },
-				    iconIndex, /*unlocked=*/true);
+				    iconIndex, /*unlocked=*/active);
 			} else {
-				DrawStripIconScaledTo(out, AttackIconsArt, GlyphPickerRect(well), iconIndex); // the picker's 32 - see TryDrawGlyphInWell
+				DrawStripIconScaledTo(out, AttackIconsArt, GlyphPickerRect(well), iconIndex, /*unlocked=*/active);
 			}
 			return;
 		}
+	}
+	if (!active) {
+		DrawStripIcon(out, AttackIconsArt,
+		    { well.position.x + (well.size.width - StripIconSize(AttackIconsArt).width) / 2,
+		        well.position.y + (well.size.height - StripIconSize(AttackIconsArt).height) / 2 },
+		    iconIndex, /*unlocked=*/false);
+		return;
 	}
 	DrawStripIconScaledTo(out, AttackIconsArt, well, iconIndex);
 }
