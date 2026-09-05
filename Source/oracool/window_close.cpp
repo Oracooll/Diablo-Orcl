@@ -36,7 +36,11 @@ Rectangle GetWindowCloseButtonRect(const Rectangle &window)
 
 void DrawWindowCloseButton(const Surface &out, const Rectangle &window)
 {
-	const Rectangle button = GetWindowCloseButtonRect(window);
+	DrawWindowCloseButtonAt(out, GetWindowCloseButtonRect(window));
+}
+
+void DrawWindowCloseButtonAt(const Surface &out, const Rectangle &button)
+{
 
 	// Plate first: a dark red square with a lighter outline, so the control reads as a button and
 	// not as a decoration painted into whatever art is behind it.

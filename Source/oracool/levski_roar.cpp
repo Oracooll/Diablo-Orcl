@@ -510,6 +510,25 @@ bool HandleLevskiRecipeBookScroll(int notches)
 
 bool SetLevskiHoverInfoString()
 {
+	// The controls first (2026-09-05): icon plates carry no label, so the info panel says what each
+	// one does while the cursor is on it. The salvage line names the BACKPACK, because that is what
+	// SalvageAllInBackpack acts on - not the grid the cursor is next to.
+	if (WindowOpen) {
+		const Rectangle window = GetLevskiRoarRect();
+		for (int i = levski_skin::Close + 1; i < levski_skin::ButtonCount; i++) {
+			if (!ButtonRect(window, i).contains(MousePosition))
+				continue;
+			if (i == levski_skin::Transmute)
+				SetPanelString(_("Transmute"), UiFlags::ColorWhitegold);
+			else if (i == levski_skin::Recipes)
+				SetPanelString(_("Recipes"), UiFlags::ColorWhitegold);
+			else
+				SetPanelString(StrCat("Salvage all ", _(SalvageTierName(static_cast<SalvageTier>(i - levski_skin::SalvageFirst))), " in backpack"),
+				    UiFlags::ColorWhitegold);
+			return true;
+		}
+	}
+
 	const int anchor = HoveredAnchor();
 	if (anchor < 0)
 		return false;
@@ -762,19 +781,24 @@ void DrawLevskiRoar(const Surface &out)
 			DrawColoredOutline(out, footprint, GetOutlineColor(item, true));
 	}
 
-	// The buttons. The painting carries every plate at rest; a state file is laid over it only while
-	// the cursor is on it or the press flash is running. LEFT plate of the sheet is hover, RIGHT is
-	// pressed (the user's delivery, 2026-09-04); where the lit plate was cut off in delivery the file
-	// is the plain plate and the hover is marked with the theme's outline instead.
+	// The close button: the game's own red X, where the skin puts it (the painting has no plate for
+	// it, and its frame's corner is not the rect's corner - see the cutter).
+	DrawWindowCloseButtonAt(out, CloseButtonRect(window));
+
+	// The nine controls (2026-09-05, "3 rows of 3 icons"): GPT's 32px icon plates, three states each.
+	// The painting carries NO plates for them, so the DEFAULT frame goes down at rest and the hover
+	// or pressed frame replaces it while the cursor is on it or the press flash is running. Where a
+	// hover file is the plain plate (HoverIsPlain), the hover is marked with the theme's outline.
 	const int ready = FirstReadyLevskiRecipe(GridItems);
-	for (int i = 0; i < levski_skin::ButtonCount; i++) {
+	for (int i = levski_skin::Close + 1; i < levski_skin::ButtonCount; i++) {
 		const Rectangle rect = ButtonRect(window, i);
 		const bool hovered = rect.contains(MousePosition);
 		const int flash = FlashIndexForButton(i);
 		const bool pressed = flash >= 0 && ButtonFlashActive(flash);
+		const char *suffix = pressed ? "_pressed.png" : (hovered ? "_hover.png" : "_default.png");
+		const std::string state = StrCat("ui\\levski_", levski_skin::ButtonStems[i], suffix);
+		DrawLoosePng(out, state.c_str(), rect.position);
 		if (pressed || hovered) {
-			const std::string state = StrCat("ui\\levski_", levski_skin::ButtonStems[i], pressed ? "_pressed.png" : "_hover.png");
-			DrawLoosePng(out, state.c_str(), rect.position);
 			if (hovered && !pressed && levski_skin::HoverIsPlain[i])
 				DrawHoverOutline(out, rect);
 			continue;

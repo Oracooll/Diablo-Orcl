@@ -32,6 +32,11 @@ Rectangle GetWindowCloseButtonRect(const Rectangle &window);
 /** @brief Draws the red X in @p window's top-right corner. Call from the window's own draw, after
  * its background and border so the button reads on top of them. */
 void DrawWindowCloseButton(const Surface &out, const Rectangle &window);
+/**
+ * @brief The same red X drawn at @p button itself - for a window whose skin says where its close
+ * button goes (Levski's Roar, whose painted frame's corner is not the rect's corner).
+ */
+void DrawWindowCloseButtonAt(const Surface &out, const Rectangle &button);
 
 /** @brief True when @p mousePosition is on @p window's close button. The caller closes itself -
  * this helper deliberately does not know how, so it works for every window regardless of what
