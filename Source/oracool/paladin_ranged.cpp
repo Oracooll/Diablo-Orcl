@@ -51,7 +51,7 @@ void DropBlast(const Player &player, Point tile, int damage, int spellLevel)
 	if (!InDungeonBounds(tile))
 		return;
 	AddMissile(tile, tile, Direction::South, MissileID::ApocalypseBoom, TARGET_MONSTERS,
-	    player.getId(), damage, spellLevel);
+	    static_cast<int>(player.getId()), damage, spellLevel);
 }
 
 /** @brief Fist of the Heavens' blast on the target's own tile, as a percentage of weapon damage. */
@@ -88,7 +88,7 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 		return false;
 
 	AddMissile(target, target, player._pdir, MissileID::FallingMace, TARGET_MONSTERS,
-	    player.getId(), std::max(damage, 1), spellLevel);
+	    static_cast<int>(player.getId()), std::max(damage, 1), spellLevel);
 	return true;
 }
 
@@ -117,7 +117,7 @@ bool CastBlessedShield(Player &player, Point target, int spellLevel)
 		return false;
 
 	AddMissile(player.position.tile, target, player._pdir, MissileID::BlessedShieldThrow,
-	    TARGET_MONSTERS, player.getId(), std::max(damage, 1), spellLevel);
+	    TARGET_MONSTERS, static_cast<int>(player.getId()), std::max(damage, 1), spellLevel);
 	return true;
 }
 
@@ -146,7 +146,7 @@ bool CastBlessedHammer(Player &player, int spellLevel)
 		return false;
 
 	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::BlessedHammer,
-	    TARGET_MONSTERS, player.getId(), std::max(damage, 1), spellLevel);
+	    TARGET_MONSTERS, static_cast<int>(player.getId()), std::max(damage, 1), spellLevel);
 	return true;
 }
 
@@ -172,7 +172,7 @@ void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellL
 		};
 		for (WorldTileDisplacement offset : offsets) {
 			AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
-			    TARGET_MONSTERS, player.getId(), boltDamage, spellLevel);
+			    TARGET_MONSTERS, static_cast<int>(player.getId()), boltDamage, spellLevel);
 		}
 	}
 }
