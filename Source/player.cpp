@@ -3734,10 +3734,34 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		}
 
 		if (!oracool::IsPaladinSkillTargetInRange(myPlayer, *skill)) {
+			// REACH AND HIT (user, 2026-09-07: "i hold left click over a monster and many times my
+			// hero reaches the mob but doesn't start attacking"). This branch sent a plain walk to the
+			// monster's TILE and recorded the hold as a Walk, so the held button repeated a walk: the
+			// hero arrived beside the monster, RepeatWalk saw the walk's target already reached, and
+			// nothing ever asked the skill again. The "else - move command" rule (2026-08-15) meant
+			// the hero should go there, not that the click should forget what it was for.
+			//
+			// A MELEE skill on a monster takes the engine's own walk-then-swing (CMD_ATTACKID, the
+			// path re-laid to the monster every tick, the swing at arrival) with the skill armed -
+			// exactly what the Barbarian's and Monk's melee skills already do. A RANGED skill still
+			// walks, but the hold is recorded as a cast on this monster, so a held button asks again
+			// every step and the skill fires the moment the range is met.
+			if (pcursmonst != -1 && oracool::GetPaladinSkillData(*skill).rangeTiles == oracool::MeleeSkillRangeTiles) {
+				oracool::ArmMeleeSkill(*skill);
+				LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+				NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
+				return;
+			}
 			// Disarmed: nothing is being swung, and leaving the latch set would let the NEXT swing -
 			// however it was thrown - inherit this skill.
 			oracool::ArmMeleeSkill(std::nullopt);
-			LastMouseButtonAction = MouseActionType::Walk;
+			if (pcursmonst != -1) {
+				LastMouseButtonSpell = spellID;
+				LastMouseButtonSpellType = spellType;
+				LastMouseButtonAction = MouseActionType::SpellMonsterTarget;
+			} else {
+				LastMouseButtonAction = MouseActionType::Walk;
+			}
 			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
 			return;
 		}
