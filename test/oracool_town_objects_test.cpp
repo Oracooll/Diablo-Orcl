@@ -72,7 +72,7 @@ constexpr Point WaypointSigilTile { 61, 80 };
  * furniture with furniture, and the chest's own placement guard logs a collision and then places
  * the chest regardless.
  */
-constexpr Point NewGamePlayerSpawnTile { 55, 67 };
+constexpr Point NewGamePlayerSpawnTile { 57, 67 }; // 2026-09-06: the user's "57,67"
 
 /**
  * @brief Puts the world into "fresh town" and places the three Oracool town objects.

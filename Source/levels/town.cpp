@@ -365,7 +365,7 @@ void CreateTown(lvl_entry entry)
 		// (multi.cpp), so the camera starts centered on the player, not offset from them. Moved
 		// with that spawn on 2026-08-30 when the Stash Chest took {56,67}; these two must always
 		// name the same tile.
-		ViewPosition = { 55, 67 };
+		ViewPosition = { 57, 67 }; // 57 since 2026-09-06 (user: "make hero spawn coords - 57,67"); was 55
 	} else if (entry == ENTRY_PREV) { // Cathedral
 		ViewPosition = { 25, 31 };
 	} else if (entry == ENTRY_TWARPUP) {

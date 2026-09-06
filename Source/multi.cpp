@@ -383,7 +383,7 @@ void SetupLocalPositions()
 	// known to be clear floor because the chest stood on it until yesterday.
 	//
 	// Move one and the other must move: town.cpp's CreateTown centres ENTRY_MAIN on this same tile.
-	const WorldTilePosition spawns[9] = { { 55, 67 }, { 77, 70 }, { 75, 70 }, { 77, 68 }, { 76, 69 }, { 75, 69 }, { 76, 68 }, { 77, 69 }, { 76, 70 } };
+	const WorldTilePosition spawns[9] = { { 57, 67 } /* 57,67 since 2026-09-06 (user: "make hero spawn coords - 57,67"); one tile east of the chest at {56,67} */, { 77, 70 }, { 75, 70 }, { 77, 68 }, { 76, 69 }, { 75, 69 }, { 76, 68 }, { 77, 69 }, { 76, 70 } };
 
 	Player &myPlayer = *MyPlayer;
 
