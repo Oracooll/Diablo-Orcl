@@ -97,7 +97,6 @@ enum class ClassTreeSkill : uint16_t {
 	FIRST = Sacrifice,
 	PALADIN_FIRST = Sacrifice,
 	Smite,
-	HolyBolt,
 	Zeal,
 	Charge,
 	Vengeance,
@@ -462,7 +461,7 @@ enum class ClassTreeSkill : uint16_t {
 	None = 0xFFFF,
 };
 
-constexpr size_t ClassTreeSkillCount = 273;
+constexpr size_t ClassTreeSkillCount = 272; // 272 since 2026-09-06: the Paladin's Holy Bolt row removed (user: "There is a spell like this already in the game"); was 273
 /**
  * @brief The most skills any one class has - the size of the per-character investment array.
  *

@@ -145,8 +145,6 @@ const SkillSound SkillSounds[] = {
 	{ Skill::Fanaticism, SkillSoundEvent::Stop, "sfx\\skills\\paladin\\offensive-auras\\fanaticism-stop.wav" },
 	{ Skill::FistOfTheHeavens, SkillSoundEvent::Cast, "sfx\\skills\\paladin\\combat-skills\\fist-of-the-heavens-cast.wav" },
 	{ Skill::FistOfTheHeavens, SkillSoundEvent::Impact, "sfx\\skills\\paladin\\combat-skills\\fist-of-the-heavens-impact.wav" },
-	{ Skill::HolyBolt, SkillSoundEvent::Cast, "sfx\\skills\\paladin\\combat-skills\\holy-bolt-cast.wav" },
-	{ Skill::HolyBolt, SkillSoundEvent::Impact, "sfx\\skills\\paladin\\combat-skills\\holy-bolt-impact.wav" },
 	{ Skill::HolyFire, SkillSoundEvent::Loop, "sfx\\skills\\paladin\\offensive-auras\\holy-fire-loop.wav" },
 	{ Skill::HolyFire, SkillSoundEvent::Start, "sfx\\skills\\paladin\\offensive-auras\\holy-fire-start.wav" },
 	{ Skill::HolyFire, SkillSoundEvent::Stop, "sfx\\skills\\paladin\\offensive-auras\\holy-fire-stop.wav" },

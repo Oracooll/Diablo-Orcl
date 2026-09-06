@@ -1077,10 +1077,10 @@ TEST(OracoolHeroChunks, TheBurningAuraSurvivesTheEnumMovingUnderIt)
 
 	// The property that matters: the stored form is the RELATIVE one, so a reader that resolves it
 	// against the class gets the same skill however the enum has grown. Might is the Paladin's
-	// tenth row, and that stays true no matter what is appended to any class.
-	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might), 9);
+	// ninth row (tenth until Holy Bolt was removed on 2026-09-06), and that stays true no matter what is appended to any class.
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might), 8);
 	const std::optional<oracool::ClassTreeSkill> resolved =
-	    oracool::ClassTreeSkillAtIndex(HeroClass::Warrior, 9);
+	    oracool::ClassTreeSkillAtIndex(HeroClass::Warrior, 8);
 	ASSERT_TRUE(resolved.has_value());
 	EXPECT_EQ(*resolved, oracool::ClassTreeSkill::Might);
 
@@ -2173,14 +2173,18 @@ TEST(OracoolClassTree, AddingThePassivePagesMovedNoExistingSkillsSaveSlot)
 	// Spot-pinned at the boundaries that would actually move: the first and last of the Paladin's
 	// two aura pages, the appended pair that came before the passives, and the first row of each
 	// other class.
-	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might), 9);
-	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Conviction), 18);
-	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Prayer), 19);
-	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Salvation), 28);
-	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::HammerOfFaith), 29);
-	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::BlessedShield), 30);
+	//
+	// The Paladin block is one shorter since 2026-09-06 - Holy Bolt was removed (user: "There is a spell
+	// like this already in the game") - so every Paladin ordinal below dropped by one. A deliberate
+	// save-slot change, accepted because V1 is always New Game (no Continue); the pins moved with it.
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might), 8);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Conviction), 17);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Prayer), 18);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Salvation), 27);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::HammerOfFaith), 28);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::BlessedShield), 29);
 	// ...and the passives start immediately after, at the first free slot.
-	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::HeavenlyStrength), 31);
+	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::HeavenlyStrength), 30);
 
 	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Bash), 0);
 	EXPECT_EQ(oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::IceBolt), 0);
@@ -2491,11 +2495,11 @@ TEST(OracoolClassTree, CastableSkillsInvestThroughTheSpellLevelSeam)
 	    << "a castable tree skill's points did not reach GetSpellLevel";
 
 	// An aura has no slot, so its points land in the tree's own array instead - indexed by the
-	// skill's position within its class, which for Might is 9 (the nine combat skills precede it).
+	// skill's position within its class, which for Might is 8 (the eight combat skills precede it, since Holy Bolt went on 2026-09-06).
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Might));
 	EXPECT_EQ(oracool::ClassTreeInvestment(player, oracool::ClassTreeSkill::Might), 1);
 	const int mightSlot = oracool::ClassTreeIconIndex(oracool::ClassTreeSkill::Might);
-	EXPECT_EQ(mightSlot, 9);
+	EXPECT_EQ(mightSlot, 8);
 	EXPECT_EQ(player._pClassTreeInvestment[mightSlot], 1);
 }
 

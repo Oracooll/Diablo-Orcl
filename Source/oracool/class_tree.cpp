@@ -121,8 +121,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 0, 0, Kind::Active, SpellID::Sacrifice, true },
 	{ N_("Smite"), N_("Bash with your shield: it always connects and briefly stuns. A shield is mandatory."),
 	    Pal, 0, 0, 1, Kind::Active, SpellID::ShieldBash, true },
-	{ N_("Holy Bolt"), N_("A bolt of holy energy that sears the undead, at the rank. The tree's own bolt, beside the book's."),
-	    Pal, 0, 0, 2, Kind::Active, SpellID::HolyBoltSkill, true },
+	// Holy Bolt stood here at column 2 until 2026-09-06 (user: "remove paladin Holy Bolt skill. There is a
+	// spell like this already in the game" - the book's). Its SpellID::HolyBoltSkill row in spelldat stays, unreferenced.
 	// Matches paladin_skills.cpp word for word on the numbers, deliberately: two windows describing
 	// one skill differently is worse than either being wrong alone, and this row has drifted twice.
 	{ N_("Zeal"), N_("Strike several times in one furious burst. Skill levels 1, 3 and 5 each add a strike, and every skill level adds +1% chance to hit."),
