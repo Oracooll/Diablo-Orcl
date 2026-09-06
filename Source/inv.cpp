@@ -1802,9 +1802,12 @@ void DrawInv(const Surface &out)
 	{
 		// User request (2026-08-16): 12px from the top, matching the stash. The band is exactly one
 		// FontSize30 line rather than stretching to the helm slot, so VerticalCenter has no slack
-		// to drift in - the title's top edge IS PanelTitleTop.
+		// to drift in - the title's top edge IS PanelTitleTop... for every other window. The INVENTORY
+		// title alone sits 617px lower (user, 2026-09-06: "move inventory title 617px lower. just the
+		// inventory. leave other canvas windows alone"): a band at y 645..683 of the 720px canvas.
+		constexpr int InventoryTitleDrop = 617;
 		const Rectangle titleArea {
-			invPanel.position + Displacement { oracool::PanelMargin, oracool::PanelTitleTop },
+			invPanel.position + Displacement { oracool::PanelMargin, oracool::PanelTitleTop + InventoryTitleDrop },
 			{ oracool::InventoryPanelSize.width - 2 * oracool::PanelMargin, oracool::PanelTitleHeight }
 		};
 		oracool::DrawOutlinedString(out, _("INVENTORY"), titleArea,
