@@ -25,7 +25,9 @@ REM that forgets the folder is a package that cannot start. v1.9.88 shipped exac
 
 setlocal enabledelayedexpansion
 set BUILD=%~1
-if "%BUILD%"=="" set BUILD=build\x64-Debug
+REM The Debug tree lives OUTSIDE OneDrive since 2026-09-06 - see build_oracool_mpq.cmd.
+if "%BUILD%"=="" if exist "build\x64-Debug\CMakeCache.txt" set BUILD=build\x64-Debug
+if "%BUILD%"=="" set BUILD=C:\Diablo Orcl\x64-Debug
 REM The BUILD TREE's assets folder, not Packaging\resources\assets.
 REM
 REM Those are different sets and the difference is not small: the source folder holds 258 files and

@@ -20,7 +20,10 @@ REM existed - shipped whatever happened to be sitting in the Debug folder, howev
 setlocal enabledelayedexpansion
 set SRC=Packaging\resources\oracool_assets
 set BUILD=%~1
-if "%BUILD%"=="" set BUILD=build\x64-Debug
+REM The Debug tree lives OUTSIDE OneDrive since 2026-09-06 (user: "move only the x64-Debug folder
+REM out of OneDrive"); an in-tree Debug folder, if someone still builds one, is preferred.
+if "%BUILD%"=="" if exist "build\x64-Debug\CMakeCache.txt" set BUILD=build\x64-Debug
+if "%BUILD%"=="" set BUILD=C:\Diablo Orcl\x64-Debug
 set PACKER=%BUILD%\oracool_mpq_pack.exe
 set OUT=%BUILD%\oracool.mpq
 
