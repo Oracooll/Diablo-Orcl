@@ -16,6 +16,6 @@ The user: "do a bunch of audits. i am going to bed. you can do a few hours of au
 | Reconfigure recipe | manual, and it bit once (MSVC 14.51) | CMakeUserPresets.json, gitignored (v1.9.304) |
 | Disabled tests, TODO/FIXME | none disabled; one explanatory TODO comment | none needed |
 
-Not touched, for the user to decide: the standing `Drlg_l1.CreateL5Dungeon_diablo_3_844660068` failure is a fixture mismatch at tile 1,0 (22 vs 4) in vanilla dungeon generation - it has failed every run this month and predates this work. The `stores.cpp` product list still colours a whole requirement line, not the unmet stat, because the shop draws its own lines outside the tooltip's run mechanism.
+The standing `Drlg_l1.CreateL5Dungeon_diablo_3_844660068` failure was fixed in v1.9.313: the fork ships Randomize Quests OFF, so level 3 grew the Skeleton King set piece the upstream golden never had; the harness now pins the upstream value. The `stores.cpp` product list still colours a whole requirement line, not the unmet stat, because the shop draws its own lines outside the tooltip's run mechanism.
 
 Every batch built in `C:\Diablo Orcl\x64-Debug`, passed the suite at 635/636, and is committed.
