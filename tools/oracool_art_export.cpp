@@ -653,10 +653,13 @@ void ExportLevels(const fs::path &root)
 				if (!block.hasValue())
 					continue;
 				any = true;
-				// Blocks pair up left/right, from the piece's floor upward; RenderTile draws from
 				// the block's bottom-left, like every other sprite.
 				const int x = static_cast<int>((b % 2) * 32);
-				const int y = 32 * rowsOfBlocks - static_cast<int>((b / 2) * 32);
+				// Blocks pair up left/right from the piece's floor upward. Measured, not assumed: with
+				// the floor pair given the canvas's last row the pieces came out with the floor at the
+				// TOP (2026-09-07, "vertically flipped"), so the row a pair is handed is its height from
+				// the bottom - RenderTile's y runs the other way from ClxDraw's.
+				const int y = static_cast<int>((b / 2 + 1) * 32);
 				RenderTile(surf, { x, y }, block, MaskType::Solid, LightTables[0].data());
 			}
 			if (!any)
