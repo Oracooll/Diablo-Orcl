@@ -95,8 +95,11 @@ $requiredFiles = @(
     'fmt.dll',
     'libpng16.dll',
     'libsodium.dll',
-    'zlib1.dll',
-    'discord_game_sdk.dll'
+    'zlib1.dll'
+    # discord_game_sdk.dll left this list on 2026-09-07: DISCORD_INTEGRATION is OFF in every tree,
+    # neither binary imports it (checked by string), and the v1.10.001 Release tree had none - it was a
+    # leftover of an older configuration that the first manifest froze in. The exe's own imports are
+    # the seven above.
 )
 
 # DevilutionX's own fonts, interface art and level data. The game does not start without it, which
@@ -296,7 +299,9 @@ $zip = Join-Path $OutDir "$name.zip"
 # Built under a unique name and moved into place, so the requested output is either the previous
 # zip or a complete new one and never a half-written file wearing the right name. Same reasoning as
 # the packer's own temp-then-replace, and the same finding.
-$zipTemp = Join-Path $OutDir "$name.$runId.partial"
+# Windows PowerShell's Compress-Archive refuses any extension but .zip (found the first time this ran
+# under 5.1, 2026-09-07), so the temporary name keeps the extension and carries the run id before it.
+$zipTemp = Join-Path $OutDir "$name.$runId.partial.zip"
 if (Test-Path $zipTemp) { Remove-Item $zipTemp -Force }
 Compress-Archive -Path $target -DestinationPath $zipTemp -Force
 
