@@ -89,6 +89,17 @@ void ProcessWarcriesTick(Player &player);
 /** @brief Empties the monsters' side - debuffs, conversions, wards. Called where the chill table is cleared, once per level. */
 void ClearWarcries();
 
+/**
+ * @brief Forgets everything the cries knew about @p monster's SLOT.
+ *
+ * The debuff table is keyed by monster index and nothing else, and the engine reuses an index the
+ * moment its monster is deleted - skeletons, golems, doppelgangers. Without this a monster raised
+ * into a dead one's slot inherited its remaining Battle Cry, and an expiring Conversion cleared
+ * MFLAG_BERSERK | MFLAG_GOLEM on whoever stood there by then (external audit, 2026-09-06: WCR-01).
+ * Called from InitMonster, which every creation path goes through, and from DeleteMonster.
+ */
+void ClearWarcryStateForMonster(const Monster &monster);
+
 /** @brief Empties @p player's own buffs, recomputing the sheet if one was on it. Called where a new game clears the cold armour. */
 void ClearWarcryBuffs(Player &player);
 

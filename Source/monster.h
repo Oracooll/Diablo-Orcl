@@ -467,7 +467,7 @@ extern DVL_API_FOR_TEST size_t LevelMonsterTypeCount;
 // stack reports a garbage slot, so any test about per-slot state has to use the real array. Same
 // reason setlevel and dPlayer carry it.
 extern DVL_API_FOR_TEST Monster Monsters[MaxMonsters];
-extern int ActiveMonsters[MaxMonsters];
+extern DVL_API_FOR_TEST int ActiveMonsters[MaxMonsters]; // exported for the warcry slot-reuse test
 extern DVL_API_FOR_TEST size_t ActiveMonsterCount;
 extern int MonsterKillCounts[NUM_MTYPES];
 extern bool sgbSaveSoundOn;

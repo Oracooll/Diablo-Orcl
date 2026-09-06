@@ -39,6 +39,7 @@
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
 #include "oracool/aura_field.h"
+#include "oracool/warcries.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/passives.h"
 #include "oracool/warcries.h"
@@ -69,7 +70,7 @@ namespace devilution {
 CMonster LevelMonsterTypes[MaxLvlMTypes];
 size_t LevelMonsterTypeCount;
 Monster Monsters[MaxMonsters];
-int ActiveMonsters[MaxMonsters];
+DVL_API_FOR_TEST int ActiveMonsters[MaxMonsters];
 size_t ActiveMonsterCount;
 /** Tracks the total number of monsters killed per monster_id. */
 int MonsterKillCounts[NUM_MTYPES];
@@ -136,6 +137,8 @@ void InitMonsterTRN(CMonster &monst)
 
 void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point position)
 {
+	// Oracool: a slot being (re)used starts with no cry on it - see ClearWarcryStateForMonster.
+	oracool::ClearWarcryStateForMonster(monster);
 	monster.direction = rd;
 	monster.position.tile = position;
 	monster.position.future = position;
@@ -848,6 +851,9 @@ void DeleteMonster(size_t activeIndex)
 	if ((monster.flags & MFLAG_BERSERK) != 0) {
 		AddUnLight(monster.lightId);
 	}
+
+	// Oracool: the slot's cry state goes with the monster, so nothing waits there for the next one.
+	oracool::ClearWarcryStateForMonster(monster);
 
 	ActiveMonsterCount--;
 	std::swap(ActiveMonsters[activeIndex], ActiveMonsters[ActiveMonsterCount]); // This ensures alive monsters are before ActiveMonsterCount in the array and any deleted monster after

@@ -601,6 +601,13 @@ void ProcessWarcriesTick(Player &player)
 	}
 }
 
+void ClearWarcryStateForMonster(const Monster &monster)
+{
+	const size_t id = monster.getId();
+	if (id < Debuffs.size())
+		Debuffs[id] = Debuff {};
+}
+
 void ClearWarcries()
 {
 	// The monsters' side only: debuffs, conversions and wards belong to the level that is ending. The

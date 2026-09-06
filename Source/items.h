@@ -747,6 +747,22 @@ struct Item {
 	 */
 	bool _iOracoolEthereal = false;
 
+	/**
+	 * @brief Clamps the socket count and empties every entry at or past it.
+	 *
+	 * Every reader scans all six entries, so a record with count 1 and six stones granted six
+	 * effects, completed words from data outside the declared range, and gave up six stones on
+	 * extraction (external audit, 2026-09-06: SAV-01). The loader calls this after validating the
+	 * contents; what a save says is there is what is there.
+	 */
+	void normalizeSockets()
+	{
+		if (_iSocketCount > MaxItemSockets)
+			_iSocketCount = MaxItemSockets;
+		for (uint8_t i = _iSocketCount; i < MaxItemSockets; i++)
+			_iSocketed[i] = EmptySocket;
+	}
+
 	/** @brief Filled-socket count, derived. */
 	[[nodiscard]] int socketedCount() const
 	{

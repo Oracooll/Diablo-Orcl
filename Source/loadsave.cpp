@@ -469,6 +469,9 @@ void LoadItemData(LoadHelper &file, Item &item)
 		    || IsOracoolJewelIdx(stored);
 		socket = (stored == Item::EmptySocket || socketable) ? stored : Item::EmptySocket;
 	}
+	// And nothing past the declared count: a valid stone in slot 5 of a 1-socket item is not a
+	// stone the item has (external audit, 2026-09-06: SAV-01).
+	item.normalizeSockets();
 	// Version 4: the ethereal flag.
 	item._iOracoolEthereal = file.NextLE<uint8_t>() != 0;
 	// Version 5: ilvl (oracool/area_level.h). 0 on anything generated before it existed, which prints

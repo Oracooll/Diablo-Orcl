@@ -10354,3 +10354,77 @@ TEST(OracoolAudit, SpellBitmaskIsEmptyForNonSpells)
 	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(MAX_SPELLS - 1)).high, 1ULL << (MAX_SPELLS - 2 - 64));
 }
 
+
+// External audit, 2026-09-06 (WCR-01): the warcry debuff table is keyed by monster SLOT and the
+// engine reuses a slot the moment its monster is deleted, so a monster raised into a dead one's
+// slot inherited its Battle Cry. The slot is wiped on deletion and on (re)initialisation.
+TEST(OracoolAudit, WarcryDebuffDoesNotSurviveTheMonsterSlot)
+{
+	oracool::ClearWarcries();
+	Monsters[10].flags = 0;
+	Monsters[11].flags = 0;
+	oracool::DebuffMonster(Monsters[10], 100, -20, -10);
+	oracool::DebuffMonster(Monsters[11], 100, -5, -5);
+	ASSERT_EQ(oracool::MonsterDebuffDamagePercent(Monsters[10]), -20);
+
+	// Through the public sweep: slots below MAX_PLRS are golems (the sweep resets, not deletes, those), so the monster sits above them.
+	ActiveMonsters[MAX_PLRS] = 10;
+	ActiveMonsterCount = MAX_PLRS + 1;
+	Monsters[10].isInvalid = true;
+	DeleteMonsterList();
+	Monsters[10].isInvalid = false;
+	EXPECT_EQ(oracool::MonsterDebuffDamagePercent(Monsters[10]), 0) << "the deleted monster's debuff waited in its slot";
+	EXPECT_EQ(oracool::MonsterDebuffArmorPercent(Monsters[10]), 0);
+	EXPECT_EQ(oracool::MonsterDebuffDamagePercent(Monsters[11]), -5) << "the neighbouring slot was cleared too";
+
+	// The creation side: what InitMonster calls first.
+	oracool::DebuffMonster(Monsters[10], 100, -20, -10);
+	oracool::ClearWarcryStateForMonster(Monsters[10]);
+	EXPECT_EQ(oracool::MonsterDebuffDamagePercent(Monsters[10]), 0);
+	oracool::ClearWarcries();
+	ActiveMonsterCount = 0;
+}
+
+// External audit, 2026-09-06 (SAV-01): a record with count 1 and six valid stones granted all six.
+TEST(OracoolAudit, SocketEntriesBeyondTheCountAreEmptied)
+{
+	devilution::Item item {};
+	item._iSocketCount = 1;
+	for (uint16_t &socket : item._iSocketed)
+		socket = IDI_ORACOOL_RUNE_TIR;
+	item.normalizeSockets();
+	EXPECT_EQ(item._iSocketCount, 1);
+	EXPECT_EQ(item.socketedCount(), 1) << "stones past the declared count survived";
+	EXPECT_EQ(item._iSocketed[0], IDI_ORACOOL_RUNE_TIR);
+	EXPECT_EQ(item._iSocketed[1], devilution::Item::EmptySocket);
+
+	item._iSocketCount = 255;
+	for (uint16_t &socket : item._iSocketed)
+		socket = IDI_ORACOOL_RUNE_TIR;
+	item.normalizeSockets();
+	EXPECT_EQ(item._iSocketCount, devilution::Item::MaxItemSockets);
+	EXPECT_EQ(item.socketedCount(), devilution::Item::MaxItemSockets);
+}
+
+// External audit, 2026-09-06 (RW-01): the header says a word forms only on a plain normal, untiered
+// host; the derivation did not check. Now it does, and the base tier stays out of it.
+TEST(OracoolRunewords, OnlyPlainNormalHostsActivate)
+{
+	devilution::Item sword {};
+	sword._itype = ItemType::Sword;
+	sword._iMagical = ITEM_QUALITY_NORMAL;
+	sword._iSocketCount = 2;
+	sword._iSocketed[0] = IDI_ORACOOL_RUNE_TIR;
+	sword._iSocketed[1] = IDI_ORACOOL_RUNE_EL;
+	ASSERT_NE(oracool::GetActiveRuneword(sword), nullptr) << "test setup: Tir+El in a plain sword should be Steel";
+
+	devilution::Item magic = sword;
+	magic._iMagical = ITEM_QUALITY_MAGIC;
+	EXPECT_EQ(oracool::GetActiveRuneword(magic), nullptr) << "a magic host completed a word";
+	devilution::Item unique = sword;
+	unique._iMagical = ITEM_QUALITY_UNIQUE;
+	EXPECT_EQ(oracool::GetActiveRuneword(unique), nullptr) << "a unique host completed a word";
+	devilution::Item tiered = sword;
+	tiered._iOracoolTier = static_cast<OracoolItemTier>(1);
+	EXPECT_EQ(oracool::GetActiveRuneword(tiered), nullptr) << "a quality-tiered host completed a word";
+}

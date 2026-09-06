@@ -98,6 +98,12 @@ const RunewordDefinition *GetActiveRuneword(const Item &item)
 {
 	if (item.isEmpty() || item._iSocketCount == 0)
 		return nullptr;
+	// The header's contract, enforced here where the truth is derived: a word forms only on a
+	// plain NORMAL, untiered host. Magic, rare, set and unique hosts and the quality tiers never
+	// complete a word however their sockets are filled; the base tier (Normal/Nightmare/Hell/
+	// Torment bases) is a different axis and stays eligible (external audit, 2026-09-06: RW-01).
+	if (item._iMagical != ITEM_QUALITY_NORMAL || item._iOracoolTier != OracoolItemTier::None)
+		return nullptr;
 	// Sockets v2: the host is the SLOT, not the three-way gem category - a belt word and a helm
 	// word are different things even though both are "armour" to a gem.
 	const RunewordHost host = RunewordHostForItemType(item._itype);
