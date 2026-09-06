@@ -2,7 +2,7 @@
 #
 #     powershell -ExecutionPolicy Bypass -File tools\CutBurgerMenuIcon.ps1
 #
-# Source: Oracool.MPQ\01-in-use\bottom-hud\burger menu.png - a 428x220 RGBA sheet holding the two
+# Source: Oracool.MPQ\02-source-art\bottom-hud\burger menu.png - a 428x220 RGBA sheet holding the two
 # states side by side, dim and lit.
 #
 # Output is 52x26: two 26x26 cells in one row, indexed state * 26 by DrawBurgerMenuButton.
@@ -36,7 +36,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$master = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\01-in-use\bottom-hud\burger menu.png'
+$master = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\bottom-hud\burger menu.png'
 if (-not (Test-Path $master)) { throw "missing master: $master" }
 
 $cell = 26

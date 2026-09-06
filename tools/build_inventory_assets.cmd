@@ -10,7 +10,7 @@ REM Run from the repository root.
 
 setlocal
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
-set SRC=..\Oracool.MPQ\01-in-use\inventory-panel
+set SRC=..\Oracool.MPQ\02-source-art\inventory-panel
 set OUT=Packaging\resources\assets\ui
 
 if not exist "%CSC%" (

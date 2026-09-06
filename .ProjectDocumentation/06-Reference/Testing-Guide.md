@@ -402,3 +402,7 @@ For every toggleable feature, test both enabled and disabled states after restar
 - At a high level (70+) with a large lifetime experience total, open the character panel and confirm the Experience/Next Level numbers display fully and legibly, without any digits getting clipped or the text overlapping other panel elements.
 - Grind on Torment for a while at a high level and confirm experience gains feel meaningfully fast relative to the new curve - this is a subjective/pacing check, not a pass/fail one; flag it if leveling above 50 feels unreasonably slow or fast at the default 2.0x Torment multiplier.
 - Do not try to load a pre-this-release save. The widened experience field shifts every byte that follows it in the save format, so an old save will not fail cleanly - it will silently misread every subsequent player field (armor class, resistances, etc.) as garbage. This is expected and matches how this project has handled prior save-breaking changes (start a fresh character), but is worth confirming isn't mistaken for a crash bug if it comes up.
+
+## The shuffle lane (2026-09-07)
+
+CTest also runs every test binary whole, shuffled, three times (label `shuffle`, from `test/CMakeLists.txt`): `ctest --test-dir "C:Diablo Orcld-Debug" -L shuffle`. It catches state that leaks between cases in one executable, which the per-case discovery hides. On a failure gtest prints the seed; rerun the binary with `--gtest_shuffle --gtest_random_seed=<seed>`.

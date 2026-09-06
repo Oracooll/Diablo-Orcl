@@ -52,6 +52,13 @@ include(Fixtures.cmake)
 foreach(test_target ${tests})
   add_executable(${test_target} "${test_target}.cpp")
   gtest_discover_tests(${test_target})
+  # Oracool: the whole-binary SHUFFLE lane (external audit, 2026-09-06). gtest_discover_tests runs
+  # every case in its own process, which hides state that leaks between cases in one executable -
+  # 17 crashes and four wrong answers were hiding that way. This runs each binary whole, in a random
+  # order, three times; gtest prints the seed, so a failure is reproducible with
+  # --gtest_random_seed. Select it alone with: ctest -L shuffle
+  add_test(NAME ${test_target}_shuffled COMMAND ${test_target} --gtest_shuffle --gtest_repeat=3 --gtest_brief=1)
+  set_tests_properties(${test_target}_shuffled PROPERTIES LABELS "shuffle" TIMEOUT 600)
   target_link_libraries(${test_target} PRIVATE test_main)
   set_target_properties(${test_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
   if(GPERF)

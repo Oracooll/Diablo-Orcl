@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
+
 #include "engine/path.h"
 
 // The following headers are included to access globals used in functions that have not been isolated yet.
@@ -10,7 +12,29 @@ namespace devilution {
 
 extern int TestPathGetHeuristicCost(Point startPosition, Point destinationPosition);
 
-TEST(PathTest, Heuristics)
+/**
+ * @brief Every case starts from the grids a fresh process has: all zero.
+ *
+ * The solidity and walkability cases write dPiece and dObject and never put them back, and FindPath
+ * consults the corner rule through dPiece even with a permissive callback - so under a whole-binary
+ * shuffle the long-path cases found different paths (the shuffle lane, 2026-09-07). The clean state
+ * is the zeroed one the expectations were written against.
+ */
+class PathTest : public ::testing::Test {
+public:
+	void SetUp() override
+	{
+		std::memset(dPiece, 0, sizeof(dPiece));
+		std::memset(dObject, 0, sizeof(dObject));
+		std::memset(dPlayer, 0, sizeof(dPlayer));
+		// The Walkable case's other two: the tile-property table it flips for piece 0, and the object
+		// it turns into a door.
+		SOLData.fill(TileProperties::None);
+		Objects[0] = {};
+	}
+};
+
+TEST_F(PathTest, Heuristics)
 {
 	constexpr Point source { 25, 32 };
 	Point destination = source;
@@ -42,7 +66,7 @@ TEST(PathTest, Heuristics)
 	EXPECT_EQ(TestPathGetHeuristicCost(source, destination), 4) << "Wrong cost for travelling to a { 2, 0 } offset";
 }
 
-TEST(PathTest, Solid)
+TEST_F(PathTest, Solid)
 {
 	dPiece[5][5] = 0;
 	SOLData[0] = TileProperties::Solid;
@@ -58,7 +82,7 @@ TEST(PathTest, Solid)
 	EXPECT_FALSE(IsTileNotSolid({ -1, 1 })) << "Out of bounds tiles are also not not solid";
 }
 
-TEST(PathTest, SolidPieces)
+TEST_F(PathTest, SolidPieces)
 {
 	dPiece[0][0] = 0;
 	dPiece[0][1] = 0;
@@ -121,7 +145,7 @@ void CheckPath(Point startPosition, Point destinationPosition, std::vector<int8_
 	// EXPECT_EQ(startPosition, destinationPosition) << "Path doesn't lead to destination";
 }
 
-TEST(PathTest, FindPath)
+TEST_F(PathTest, FindPath)
 {
 	CheckPath({ 8, 8 }, { 8, 8 }, {});
 
@@ -137,7 +161,7 @@ TEST(PathTest, FindPath)
 	CheckPath({ 8, 8 }, { 12, 20 }, { 7, 7, 7, 7, 4, 4, 4, 4, 4, 4, 4, 4 });
 }
 
-TEST(PathTest, LongPaths)
+TEST_F(PathTest, LongPaths)
 {
 	// Starting from the middle of the world and trying to path to a border exceeds the maximum path size
 	CheckPath({ 56, 56 }, { 0, 0 }, {});
@@ -150,7 +174,7 @@ TEST(PathTest, LongPaths)
 	CheckPath(startingPosition, startingPosition + Displacement { 25, 25 }, {});
 }
 
-TEST(PathTest, Walkable)
+TEST_F(PathTest, Walkable)
 {
 	dPiece[5][5] = 0;
 	SOLData[0] = TileProperties::Solid; // Doing this manually to save running through the code in gendung.cpp
@@ -179,7 +203,7 @@ TEST(PathTest, Walkable)
 	EXPECT_TRUE(IsTileWalkable({ 5, 5 }, true)) << "Solid tiles occupied by an open door become walkable when ignoring doors";
 }
 
-TEST(PathTest, FindClosest)
+TEST_F(PathTest, FindClosest)
 {
 	{
 		std::array<std::array<int, 101>, 101> searchedTiles {};

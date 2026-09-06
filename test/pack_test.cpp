@@ -415,6 +415,12 @@ public:
 	{
 		Players.resize(1);
 		MyPlayer = &Players[0];
+		// The game-mode flags, reset per case: several cases set gbIsSpawn or gbIsHellfire for
+		// themselves and did not put them back, and under a whole-binary shuffle the next case's
+		// item validation ran in the wrong mode (the shuffle lane, 2026-09-07).
+		gbIsHellfire = false;
+		gbIsSpawn = false;
+		gbIsMultiplayer = false;
 	}
 };
 
@@ -968,6 +974,8 @@ public:
 		Players.resize(2);
 		MyPlayer = &Players[0];
 		gbIsMultiplayer = true;
+		gbIsHellfire = false; // see PackTest::SetUp
+		gbIsSpawn = false;
 
 		PlayerPack testPack {
 			0, 0, -1, 9, 0, 2, 61, 24, 0, 0, "MP-Warrior", 0, 120, 25, 60, 60, 37, 0, 85670061, 3921, 13568, 13568, 3904, 3904,
