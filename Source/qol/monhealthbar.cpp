@@ -234,15 +234,25 @@ void DrawMonsterHealthBar(const Surface &out)
 		// broken. EffectiveResistances is the authority the damage path uses; the bar must agree
 		// with it, or the aura's whole payoff is invisible.
 		const uint16_t shown = oracool::EffectiveResistances(monster);
-		int resOffset = 5;
-		for (size_t i = 0; i < 3; i++) {
-			if ((shown & immunes[i]) != 0) {
-				RenderClxSprite(out, (*resistance)[i * 2 + 1], position + Displacement { resOffset, height - 6 });
-				resOffset += (*resistance)[0].width() + 2;
-			} else if ((shown & resists[i]) != 0) {
-				RenderClxSprite(out, (*resistance)[i * 2], position + Displacement { resOffset, height - 6 });
-				resOffset += (*resistance)[0].width() + 2;
-			}
+		// LEFT of the frame, not under its left corner (user, 2026-09-07: "move the shields left of
+		// frame"). They hung from height-6 into the readout that arrived on 2026-09-05, across the
+		// Class and Hit Points lines. Now they run leftward from a 5px gap at the frame's left edge,
+		// vertically centred on it, still magic-fire-lightning left to right - which means laying
+		// them from the right, lightning first.
+		const int iconWidth = (*resistance)[0].width();
+		const int iconY = (height - (*resistance)[0].height()) / 2;
+		int resX = position.x - 5;
+		for (size_t i = 3; i-- > 0;) {
+			OptionalClxSprite icon;
+			if ((shown & immunes[i]) != 0)
+				icon = (*resistance)[i * 2 + 1];
+			else if ((shown & resists[i]) != 0)
+				icon = (*resistance)[i * 2];
+			if (!icon)
+				continue;
+			resX -= iconWidth;
+			RenderClxSprite(out, *icon, { resX, position.y + iconY });
+			resX -= 2;
 		}
 	}
 

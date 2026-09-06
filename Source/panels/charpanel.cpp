@@ -190,6 +190,24 @@ StyledText WeaponDamageText()
  * A HEAL is deliberately a dash rather than its heal range: this row is labelled damage, and a
  * number under the wrong label is worse than no number. The Abilities window quotes heals in full.
  */
+/**
+ * @brief The aura burning on the RIGHT button, or None.
+ *
+ * An aura and the readied right-button skill are one slot (class_tree.h, ClearClassAuraForRightButton):
+ * lighting Vigor empties _pRSpell, so every reader of that field alone saw the basic attack - the sheet
+ * said "Right button: Attack" over the weapon's damage while the well showed Vigor (user, 2026-09-07:
+ * "when assigning vigor to rmb, hero stats right button says ATTACK and shows DMG. this is incorrect").
+ * The HUD's hover already checked the aura first (control.cpp); the four sheet readers below now ask
+ * this before anything else. The audit found no other state that empties a button: the aura is the
+ * only toggle in the game that lives on a mouse button without a SpellID.
+ */
+oracool::ClassTreeSkill AuraOnButton(bool leftButton)
+{
+	if (leftButton)
+		return oracool::ClassTreeSkill::None;
+	return oracool::GetActiveClassAura(*InspectPlayer);
+}
+
 /** @brief Whether the button's swing is the weapon's - a basic attack, or a melee class skill. */
 bool ReadiedSlotSwingsTheWeapon(SpellID spell)
 {
@@ -210,6 +228,8 @@ UiFlags ReadiedSlotColor(bool leftButton)
 {
 	const Player &player = *InspectPlayer;
 	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
+	if (AuraOnButton(leftButton) != oracool::ClassTreeSkill::None)
+		return UiFlags::ColorBlue; // the "Aura:" row's colour, so the two rows agree
 	if (ReadiedSlotSwingsTheWeapon(spell))
 		return UiFlags::ColorWhite; // the weapon is physical
 	if (spell == SpellID::Healing || spell == SpellID::HealOther)
@@ -222,6 +242,9 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 	const Player &player = *InspectPlayer;
 	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
 
+	// An aura has no number to report; the row says it is burning, under an "Aura" label.
+	if (AuraOnButton(leftButton) != oracool::ClassTreeSkill::None)
+		return StyledText { UiFlags::ColorBlue, std::string(_("On")) };
 	if (ReadiedSlotSwingsTheWeapon(spell))
 		return WeaponDamageText();
 
@@ -250,6 +273,8 @@ std::string ReadiedSlotAmountLabel(bool leftButton)
 {
 	const Player &player = *InspectPlayer;
 	const SpellID spell = leftButton ? player._pLRSpell : player._pRSpell;
+	if (AuraOnButton(leftButton) != oracool::ClassTreeSkill::None)
+		return std::string(_("Aura"));
 	if (spell == SpellID::Healing || spell == SpellID::HealOther)
 		return std::string(_("Healing"));
 	return std::string(_("Damage"));
@@ -267,7 +292,10 @@ std::string GetReadiedSlotName(bool leftButton)
 	// catalogue key carries that context and a plain _() looks up a key that is not there. The
 	// failure is silent - every name falls back to English - which is why every other display site
 	// in the game (items.cpp, objects.cpp) spells out the same pgettext.
-	const string_view name = IsValidSpell(spell)
+	const oracool::ClassTreeSkill aura = AuraOnButton(leftButton);
+	const string_view name = aura != oracool::ClassTreeSkill::None
+	    ? _(oracool::GetClassTreeSkillData(aura).name)
+	    : IsValidSpell(spell)
 	    ? pgettext("spell", GetSpellData(spell).sNameText)
 	    : _(/* TRANSLATORS: the plain weapon swing, when no skill is readied */ "Attack");
 	// One format string per button rather than a translated word plus a colon: "Left" alone is
@@ -958,6 +986,8 @@ void EnsureLayout()
 	assert(GetLineWidth(_("Damage"), GameFont12, CharLabelSpacing) <= CharLabelColumnWidth
 	    && "the readied-slot amount label does not fit the label column");
 	assert(GetLineWidth(_("Healing"), GameFont12, CharLabelSpacing) <= CharLabelColumnWidth
+	    && "the readied-slot amount label does not fit the label column");
+	assert(GetLineWidth(_("Aura"), GameFont12, CharLabelSpacing) <= CharLabelColumnWidth
 	    && "the readied-slot amount label does not fit the label column");
 	// The size lives on ChrBtnsRect, which owns it; this code only ever writes positions. Checked
 	// rather than assumed, because StatButtonColumnX above was derived against a literal.

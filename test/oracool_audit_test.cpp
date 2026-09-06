@@ -10743,3 +10743,32 @@ TEST(OracoolAudit, MovementSpeedCurseRollsAndReadsBelowTheWalk)
 	EXPECT_LE(oracool::WalkFrameSkipFor(player), -3) << "a curse of 10 or more is a step under the walk";
 	player.InvBody[INVLOC_RING_LEFT].clear();
 }
+
+// A burning aura is the right button's setting (user, 2026-09-07: "when assigning vigor to rmb, hero
+// stats right button says ATTACK and shows DMG. this is incorrect"). Lighting it empties _pRSpell, so
+// the sheet must ask for the aura before it reads the field.
+TEST(OracoolCharPanel, ABurningAuraNamesTheRightButton)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior; // the Paladin is the Warrior slot
+	player._pLevel = 50;
+	player._pIMinDam = 10;
+	player._pIMaxDam = 20;
+	player._pRSpell = SpellID::Invalid;
+	player._pOracoolActiveAura = static_cast<uint16_t>(oracool::ClassTreeSkill::Vigor);
+
+	EXPECT_NE(GetReadiedSlotNameText(false).find("Vigor"), std::string::npos) << GetReadiedSlotNameText(false);
+	EXPECT_EQ(GetReadiedSlotNameText(false).find("Attack"), std::string::npos) << "an aura is not the basic attack";
+	EXPECT_NE(GetReadiedSlotDamageText(false), "10-20") << "an aura has no weapon damage to quote";
+	EXPECT_EQ(GetReadiedSlotColor(false), UiFlags::ColorBlue);
+	// The left button is untouched by it.
+	EXPECT_NE(GetReadiedSlotNameText(true).find("Attack"), std::string::npos);
+	EXPECT_EQ(GetReadiedSlotDamageText(true), "10-20");
+
+	player._pOracoolActiveAura = 0xFFFF;
+	EXPECT_NE(GetReadiedSlotNameText(false).find("Attack"), std::string::npos) << "put out, the button is the attack again";
+}
