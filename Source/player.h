@@ -786,15 +786,20 @@ struct Player {
 	 */
 	int GetSpellLevel(SpellID spell) const
 	{
-		if (spell == SpellID::Invalid || static_cast<std::size_t>(spell) >= sizeof(_pSplLvl)) {
+		// Two stores with two extents: the legacy BOOK levels are 64 wide (a save-format fact), the
+		// tree investment is MAX_SPELLS wide. The bound used to be the book array's, so every skill
+		// with an id of 64 or more - Frozen Orb, the cold armours, the Rogue's arrows, the class
+		// melee skills, the warcries and songs - reported rank 0 to every mechanic while the tree
+		// showed the points spent (external audit, 2026-09-06, P1: SKL-01).
+		const std::size_t index = static_cast<std::size_t>(spell);
+		if (spell == SpellID::Invalid || index >= MAX_SPELLS) {
 			return 0;
 		}
+		const int bookLevel = index < std::size(_pSplLvl) ? _pSplLvl[index] : 0;
 
 		// Oracool Phase 2.1: invested skill points deepen every ladder through this one seam -
 		// anything that already scales with spell level scales with investment automatically.
-		return std::max<int>(_pISplLvlAdd + _pSplLvl[static_cast<std::size_t>(spell)]
-		        + _pSkillInvestment[static_cast<std::size_t>(spell)],
-		    0);
+		return std::max<int>(_pISplLvlAdd + bookLevel + _pSkillInvestment[index], 0);
 	}
 
 	/**

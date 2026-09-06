@@ -1626,7 +1626,9 @@ void ValidatePlayer()
 	for (int b = static_cast<int8_t>(SpellID::Firebolt); b < MAX_SPELLS; b++) {
 		if (GetSpellBookLevel((SpellID)b) != -1) {
 			msk |= GetSpellBitmask(static_cast<SpellID>(b));
-			if (myPlayer._pSplLvl[b] > MaxSpellLevel)
+			// The book-level store is 64 wide; a book spell with a higher id would have indexed
+			// past it here every tick (external audit, 2026-09-06: SKL-02). None exists yet.
+			if (static_cast<size_t>(b) < std::size(myPlayer._pSplLvl) && myPlayer._pSplLvl[b] > MaxSpellLevel)
 				myPlayer._pSplLvl[b] = MaxSpellLevel;
 		}
 	}

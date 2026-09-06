@@ -1565,5 +1565,32 @@ TEST_F(PackTest, OracoolItemsSurviveAPackRoundTrip)
 	}
 }
 
+// External audit, 2026-09-06 (NET-01): the network pack copied MAX_SPELLS (126) bytes through the
+// player's 64-byte book-level store, reading past it on pack and writing past it on unpack. The
+// fields after _pSplLvl must survive a round trip untouched.
+TEST_F(NetPackTest, UnPackNetPlayer_doesNotSpillPastTheBookLevels)
+{
+	for (size_t i = 0; i < std::size(MyPlayer->_pSplLvl); i++)
+		MyPlayer->_pSplLvl[i] = static_cast<uint8_t>(i % 3);
+
+	// Canaries on the target: the fields that follow the book levels in Player.
+	Player &target = Players[1];
+	target._pUnspentSkillPoints = 7;
+	for (size_t i = 0; i < MAX_SPELLS; i++)
+		target._pSkillInvestment[i] = static_cast<uint8_t>(i % 5);
+
+	PlayerNetPack packed;
+	PackNetPlayer(packed, *MyPlayer);
+	for (size_t i = std::size(MyPlayer->_pSplLvl); i < MAX_SPELLS; i++)
+		EXPECT_EQ(packed.pSplLvl[i], 0) << "the packet's tail past the book store must be zero, not memory after the array";
+	ASSERT_TRUE(UnPackNetPlayer(packed, target));
+
+	for (size_t i = 0; i < std::size(MyPlayer->_pSplLvl); i++)
+		EXPECT_EQ(target._pSplLvl[i], MyPlayer->_pSplLvl[i]) << "book level " << i;
+	EXPECT_EQ(target._pUnspentSkillPoints, 7) << "the field after the book levels was overwritten";
+	for (size_t i = 0; i < MAX_SPELLS; i++)
+		EXPECT_EQ(target._pSkillInvestment[i], static_cast<uint8_t>(i % 5)) << "investment " << i << " was overwritten";
+}
+
 } // namespace
 } // namespace devilution

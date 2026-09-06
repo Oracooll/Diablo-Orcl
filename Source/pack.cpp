@@ -290,8 +290,12 @@ void PackNetPlayer(PlayerNetPack &packed, const Player &player)
 	packed.pMaxManaBase = SDL_SwapLE32(player._pMaxManaBase);
 	packed.pMemSpells = SDL_SwapLE64(player._pMemSpells.low); // the low word - see SpellMask for why that is whole
 
-	for (int i = 0; i < MAX_SPELLS; i++)
-		packed.pSplLvl[i] = player._pSplLvl[i];
+	// The packet field is MAX_SPELLS wide, the player's book-level store 64: copying MAX_SPELLS
+	// read 62 bytes past the array (external audit, 2026-09-06: NET-01). The tail is zero on the
+	// wire; the packet layout is unchanged.
+	static_assert(std::size(player._pSplLvl) <= std::size(packed.pSplLvl));
+	for (size_t i = 0; i < std::size(packed.pSplLvl); i++)
+		packed.pSplLvl[i] = i < std::size(player._pSplLvl) ? player._pSplLvl[i] : 0;
 
 	for (int i = 0; i < NUM_INVLOC; i++)
 		PackNetItem(player.InvBody[i], packed.InvBody[i]);
@@ -605,7 +609,9 @@ bool UnPackNetPlayer(const PlayerNetPack &packed, Player &player)
 	player.pManaShield = packed.pManaShield != 0;
 	player.friendlyMode = packed.friendlyMode != 0;
 
-	for (int i = 0; i < MAX_SPELLS; i++)
+	// Only the 64 the player actually has: the old loop wrote the packet's 62 extra bytes over
+	// whatever followed _pSplLvl in Player (external audit, 2026-09-06: NET-01).
+	for (size_t i = 0; i < std::size(player._pSplLvl); i++)
 		player._pSplLvl[i] = packed.pSplLvl[i];
 
 	for (int i = 0; i < NUM_INVLOC; i++) {

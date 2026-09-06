@@ -10305,3 +10305,52 @@ TEST(OracoolAudit, UnmetRequirementIsRedAndMetOnesAreNot)
 	ClearPanelStrings();
 	HeadlessMode = savedHeadless;
 }
+
+// External audit, 2026-09-06 (SKL-01, P1): Player::GetSpellLevel bounded its lookup by the 64-wide
+// BOOK-level array, so every skill with a spell id of 64 or more had effective rank 0 at the
+// mechanics however many points the tree showed. The boundary is pinned on both sides.
+TEST(OracoolAudit, GetSpellLevelReachesEveryTreeSkillAboveTheBookStore)
+{
+	devilution::Player player {};
+	constexpr SpellID FirstBeyondBooks = static_cast<SpellID>(64);
+	constexpr SpellID LastId = static_cast<SpellID>(MAX_SPELLS - 1);
+	constexpr SpellID LastBook = static_cast<SpellID>(63);
+	static_assert(std::size(player._pSplLvl) == 64, "the book store's width is what this test is about");
+
+	EXPECT_EQ(player.GetSpellLevel(FirstBeyondBooks), 0);
+	player._pSkillInvestment[64] = 1;
+	EXPECT_EQ(player.GetSpellLevel(FirstBeyondBooks), 1) << "one point in id 64 must be rank 1, not 0";
+	player._pSkillInvestment[MAX_SPELLS - 1] = 3;
+	EXPECT_EQ(player.GetSpellLevel(LastId), 3) << "the last id must reach its investment";
+	player._pSplLvl[63] = 2;
+	player._pSkillInvestment[63] = 1;
+	EXPECT_EQ(player.GetSpellLevel(LastBook), 3) << "the last book id still adds book level and investment";
+	player._pISplLvlAdd = 2;
+	EXPECT_EQ(player.GetSpellLevel(FirstBeyondBooks), 3) << "+skill levels from items apply above the book store too";
+	EXPECT_EQ(player.GetSpellLevel(SpellID::Invalid), 0);
+	EXPECT_EQ(player.GetSpellLevel(static_cast<SpellID>(MAX_SPELLS)), 0) << "one past the end is not a spell";
+
+	// Every ACTIVE class-tree row with a real spell id must be reachable after one point.
+	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+		const oracool::ClassTreeSkillData &row = oracool::GetClassTreeSkillData(static_cast<oracool::ClassTreeSkill>(i));
+		if (row.kind != oracool::ClassTreeKind::Active || row.spellId == SpellID::Invalid)
+			continue;
+		devilution::Player fresh {};
+		fresh._pSkillInvestment[static_cast<size_t>(row.spellId)] = 1;
+		EXPECT_EQ(fresh.GetSpellLevel(row.spellId), 1) << row.name << " (spell id " << static_cast<int>(row.spellId) << ")";
+	}
+}
+
+// External audit, 2026-09-06 (SAV-02): GetSpellBitmask shifted by a negative count for Null and
+// Invalid. It is total now: an empty mask for anything that is not a spell.
+TEST(OracoolAudit, SpellBitmaskIsEmptyForNonSpells)
+{
+	EXPECT_EQ(GetSpellBitmask(SpellID::Null).low, 0u);
+	EXPECT_EQ(GetSpellBitmask(SpellID::Null).high, 0u);
+	EXPECT_EQ(GetSpellBitmask(SpellID::Invalid).low, 0u);
+	EXPECT_EQ(GetSpellBitmask(SpellID::Invalid).high, 0u);
+	EXPECT_EQ(GetSpellBitmask(SpellID::Firebolt).low, 1u);
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(65)).high, 1u) << "id 65 is bit 0 of the high word";
+	EXPECT_EQ(GetSpellBitmask(static_cast<SpellID>(MAX_SPELLS - 1)).high, 1ULL << (MAX_SPELLS - 2 - 64));
+}
+
