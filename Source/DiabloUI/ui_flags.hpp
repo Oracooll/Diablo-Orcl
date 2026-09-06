@@ -110,6 +110,17 @@ enum class UiFlags : uint64_t {
 	ColorBeige2            = 1ULL << 41,
 	/** @brief Oracool: YL-3 of the legend, the bright yellow minis three in - Rare items (user, 2026-09-07). */
 	ColorYellow3           = 1ULL << 42,
+	// Five more from the legend (user, 2026-09-07): the item KINDS that read as one colour each.
+	/** @brief BR-3: health potions. */
+	ColorBrightRed3        = 1ULL << 43,
+	/** @brief BB-3: mana potions. */
+	ColorBrightBlue3       = 1ULL << 44,
+	/** @brief GD-6: books. */
+	ColorGold6             = 1ULL << 45,
+	/** @brief OR-7: runes. */
+	ColorOrange7           = 1ULL << 46,
+	/** @brief GR-7: ethereal items, and the Ethereal row. Beats the socketed gray on the floor. */
+	ColorGray7             = 1ULL << 47,
 
 	// Bits 40+ are free for a future color or flag - see the widening note above. The entries above
 	// were the first assigned: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)

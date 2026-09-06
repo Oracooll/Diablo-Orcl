@@ -57,8 +57,17 @@ bool DoPickup(Item item)
 	// a rune added later is picked up without this line being touched.
 	//
 	// Backpack only, no belt: a rune in a belt slot would be a hotkey that does nothing.
-	if (IsOracoolRuneIdx(item.IDidx))
+	// A rune waits for a STEP (user, 2026-09-07: "i never see El-Zod runes drop. They appear straight
+	// into my backpack. Make them drop and only auto-pickup after i move a tile"). The pickup runs at
+	// the end of every step within a ten-tile radius, so a rune that landed while the player was
+	// fighting in place - or mid-step - was gone at the first footfall. RespawnItem stamps the tile
+	// the player was on or heading to; the rune stays on the floor until the player stands somewhere
+	// else. Runes only: gold, potions and gems keep their instant pickup.
+	if (IsOracoolRuneIdx(item.IDidx)) {
+		if (item._iOracoolLandedNear == Point { MyPlayer->position.tile.x, MyPlayer->position.tile.y })
+			return false;
 		return *sgOptions.Oracool.autoRunePickup && AutoPlaceItemInInventory(*MyPlayer, item, false);
+	}
 	if (IsOracoolGemIdx(item.IDidx))
 		return *sgOptions.Oracool.autoGemPickup && AutoPlaceItemInInventory(*MyPlayer, item, false);
 	// Jewels ride the gem toggle rather than getting a fourth option of their own. They are the

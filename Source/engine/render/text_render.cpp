@@ -83,7 +83,7 @@ constexpr std::array<int, 10> LineHeights = { 12, 26, 38, 42, 50, 22, 11, 10, 9,
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 10> BaseLineOffset = { -3, -2, -3, -6, -7, 3, -3, -3, -2, -2 };
 
-std::array<const char *, 25> ColorTranslations = {
+std::array<const char *, 30> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -122,9 +122,14 @@ std::array<const char *, 25> ColorTranslations = {
 	"fonts\\oracool_gray5.trn",
 	"fonts\\oracool_beige2.trn",
 	"fonts\\oracool_yellow3.trn",
+	"fonts\\oracool_brightred3.trn",
+	"fonts\\oracool_brightblue3.trn",
+	"fonts\\oracool_gold6.trn",
+	"fonts\\oracool_orange7.trn",
+	"fonts\\oracool_gray7.trn",
 };
 
-std::array<std::optional<std::array<uint8_t, 256>>, 25> ColorTranslationsData;
+std::array<std::optional<std::array<uint8_t, 256>>, 30> ColorTranslationsData;
 
 text_color GetColorFromFlags(UiFlags flags)
 {
@@ -175,6 +180,16 @@ text_color GetColorFromFlags(UiFlags flags)
 		return ColorBeige2;
 	if (HasAnyOf(flags, UiFlags::ColorYellow3))
 		return ColorYellow3;
+	if (HasAnyOf(flags, UiFlags::ColorBrightRed3))
+		return ColorBrightRed3;
+	if (HasAnyOf(flags, UiFlags::ColorBrightBlue3))
+		return ColorBrightBlue3;
+	if (HasAnyOf(flags, UiFlags::ColorGold6))
+		return ColorGold6;
+	if (HasAnyOf(flags, UiFlags::ColorOrange7))
+		return ColorOrange7;
+	if (HasAnyOf(flags, UiFlags::ColorGray7))
+		return ColorGray7;
 
 	// Last, and only for the sake of being written down: ColorWhitegold is also what this returns for
 	// no recognised colour at all, which is how every existing caller of that flag has been getting it.

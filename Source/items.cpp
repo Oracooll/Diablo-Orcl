@@ -4945,6 +4945,10 @@ void RespawnItem(Item &item, bool flipFlag)
 	int it = GetItemDropAnimIndex(item._iCurs);
 	item.setNewAnimation(flipFlag);
 	item._iRequest = false;
+	// Where the player is, or is about to be: a rune landing mid-step is stamped with the tile the
+	// step ends on, so finishing that step does not count as the move that earns the pickup.
+	if (MyPlayer != nullptr)
+		item._iOracoolLandedNear = Point { MyPlayer->position.future.x, MyPlayer->position.future.y };
 
 	if (IsAnyOf(item._iCurs, ICURS_MAGIC_ROCK, ICURS_TAVERN_SIGN, ICURS_ANVIL_OF_FURY))
 		item._iSelFlag = 1;
@@ -6248,7 +6252,7 @@ void PrintItemDetails(const Item &item)
 	// Phase 1 ethereal: the whole bargain in one line, directly under the tier - the buffed stats
 	// already show in the numbers above, so what the line carries is the PRICE.
 	if (item._iOracoolEthereal)
-		AddPanelString(_("Ethereal (cannot be repaired)"), ItemBaseStatColor);
+		AddPanelString(_("Ethereal (cannot be repaired)"), UiFlags::ColorGray7); // GR-7, the ethereal colour (2026-09-07)
 	// Movement Speed +X% from the drop tail's own record (2026-09-07). A tiered item prints its records
 	// with the other affixes above, so this line is the plain and magic items'.
 	if (item._iIdentified && item._iPLMoveSpeed != 0 && !item.hasOracoolTier())

@@ -78,6 +78,12 @@ enum text_color : uint8_t {
 	ColorBeige2,
 	/** Oracool: YL-3 - Rare items (2026-09-07). */
 	ColorYellow3,
+	/** Oracool: BR-3 health potions, BB-3 mana potions, GD-6 books, OR-7 runes, GR-7 ethereal (2026-09-07). */
+	ColorBrightRed3,
+	ColorBrightBlue3,
+	ColorGold6,
+	ColorOrange7,
+	ColorGray7,
 };
 
 constexpr GameFontTables GetFontSizeFromUiFlags(UiFlags flags)

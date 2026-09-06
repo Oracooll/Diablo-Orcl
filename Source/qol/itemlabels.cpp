@@ -238,7 +238,9 @@ void DrawItemNameLabels(const Surface &out)
 		// floor. Quality still wins: a magic, rare, unique or set item keeps its own colour for the
 		// name, since that colour is what tells the qualities apart, and only its socket count goes
 		// gray. A plain socketed item is gray through and through.
-		const bool plainSocketed = !label.socketSuffix.empty() && item._iMagical == ITEM_QUALITY_NORMAL && !item.hasOracoolTier();
+		// Ethereal supersedes it (user, 2026-09-07): an ethereal plain item is GR-7, which
+		// getTextColor answers, so the gray here yields to it.
+		const bool plainSocketed = !label.socketSuffix.empty() && item._iMagical == ITEM_QUALITY_NORMAL && !item.hasOracoolTier() && !item._iOracoolEthereal;
 		DrawString(clippedOut, label.text, { { label.pos.x + MarginX, label.pos.y + labelMarginTop }, { label.width, labelHeight } },
 		    { plainSocketed ? UiFlags::ColorGray5 : item.getTextColor() });
 		// The socket count, in its own colour - GR-5 since 2026-09-07 (was red) so the suffix and

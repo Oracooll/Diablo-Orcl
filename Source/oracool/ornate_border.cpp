@@ -332,7 +332,8 @@ void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, Ui
 	    | UiFlags::ColorWhite | UiFlags::ColorWhitegold | UiFlags::ColorRed | UiFlags::ColorBlue
 	    | UiFlags::ColorOrange | UiFlags::ColorButtonface | UiFlags::ColorButtonpushed
 	    | UiFlags::ColorOracoolYellow | UiFlags::ColorOracoolYellowDark | UiFlags::ColorOracoolGreen
-	    | UiFlags::ColorGray5 | UiFlags::ColorBeige2 | UiFlags::ColorYellow3; // the legend colours (2026-09-07)
+	    | UiFlags::ColorGray5 | UiFlags::ColorBeige2 | UiFlags::ColorYellow3 // the legend colours (2026-09-07)
+	    | UiFlags::ColorBrightRed3 | UiFlags::ColorBrightBlue3 | UiFlags::ColorGold6 | UiFlags::ColorOrange7 | UiFlags::ColorGray7;
 	const UiFlags layout = style & ~ColorMask;
 	for (const Displacement &d : Offsets) {
 		Rectangle shifted = area;

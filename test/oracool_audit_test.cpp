@@ -10820,3 +10820,33 @@ TEST(OracoolAudit, AHotkeyBelongsToOneSkillOnOneButton)
 	BindAbilityHotkey(player, 2, SpellID::Firebolt, /*leftButton=*/false);
 	EXPECT_EQ(player._pSplHotKey[2], SpellID::Invalid);
 }
+
+// The kinds, by legend ID (user, 2026-09-07): health potions BR-3, mana BB-3, rejuvenation YL-3,
+// books GD-6, runes OR-7, ethereal GR-7. Read at getTextColor so every name site follows.
+TEST(OracoolAudit, PlainItemKindsCarryTheirLegendColours)
+{
+	devilution::Item item {};
+	item._iMagical = ITEM_QUALITY_NORMAL;
+	item._iMiscId = IMISC_HEAL;
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorBrightRed3);
+	item._iMiscId = IMISC_FULLMANA;
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorBrightBlue3);
+	item._iMiscId = IMISC_REJUV;
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorYellow3);
+	item._iMiscId = IMISC_BOOK;
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorGold6);
+	item._iMiscId = IMISC_NONE;
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorWhite) << "a plain item with no kind stays white";
+	item._iOracoolEthereal = true;
+	item._iSocketCount = 2;
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorGray7) << "ethereal beats the socketed gray";
+	item._iOracoolEthereal = false;
+	item._iMagical = ITEM_QUALITY_MAGIC;
+	item._iMiscId = IMISC_HEAL;
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorBlue) << "quality wins over kind";
+	// A rune: identified by its index, not a misc id.
+	devilution::Item rune {};
+	rune._iMagical = ITEM_QUALITY_NORMAL;
+	InitializeItem(rune, static_cast<_item_indexes>(IDI_ORACOOL_RUNE_EL));
+	EXPECT_EQ(rune.getTextColor(), UiFlags::ColorOrange7);
+}

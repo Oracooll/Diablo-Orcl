@@ -308,6 +308,12 @@ struct Item {
 	int16_t _iPLLight = 0;
 	int8_t _iSplLvlAdd = 0;
 	bool _iRequest = false;
+	/**
+	 * @brief Oracool: the tile the player stood on (or was walking to) when this item landed, so the
+	 * auto-pickup can wait for one step (user, 2026-09-07: runes "appear straight into my backpack.
+	 * Make them drop and only auto-pickup after i move a tile"). Stamped by RespawnItem; not saved.
+	 */
+	Point _iOracoolLandedNear = { -1, -1 };
 	/** Unique item ID, used as an index into UniqueItemList */
 	int _iUid = 0;
 	int16_t _iFMinDam = 0;
@@ -836,6 +842,31 @@ struct Item {
 			case OracoolItemTier::None:
 				break;
 			}
+		}
+		// The KINDS (user, 2026-09-07, by legend ID): a plain item whose kind carries its own colour.
+		// Quality still wins above - a magic or tiered item says what it is - so these are for the
+		// plain-quality things the floor is covered in. Ethereal first: it supersedes the socketed
+		// gray the floor label applies (itemlabels.cpp), and it is read here so the tooltip agrees.
+		if (_iMagical == ITEM_QUALITY_NORMAL) {
+			if (_iOracoolEthereal)
+				return UiFlags::ColorGray7;
+			switch (_iMiscId) {
+			case IMISC_HEAL:
+			case IMISC_FULLHEAL:
+				return UiFlags::ColorBrightRed3;
+			case IMISC_MANA:
+			case IMISC_FULLMANA:
+				return UiFlags::ColorBrightBlue3;
+			case IMISC_REJUV:
+			case IMISC_FULLREJUV:
+				return UiFlags::ColorYellow3;
+			case IMISC_BOOK:
+				return UiFlags::ColorGold6;
+			default:
+				break;
+			}
+			if (IsOracoolRuneIdx(IDidx))
+				return UiFlags::ColorOrange7;
 		}
 		switch (_iMagical) {
 		case ITEM_QUALITY_MAGIC:
