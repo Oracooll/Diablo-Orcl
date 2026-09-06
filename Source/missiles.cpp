@@ -28,6 +28,7 @@
 #include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
+#include "oracool/class_tree.h" // SlowPlayer - a cold hit's chill on the stride
 #include "oracool/cold.h"
 #include "oracool/passives.h"
 #include "oracool/rogue_arrows.h"
@@ -1201,6 +1202,7 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		break;
 	case DamageType::Magic:
 	case DamageType::Acid:
+	case DamageType::Cold: // a player has no cold resistance of their own; magic stands in, as it does for acid
 		resper = player._pMagResist;
 		break;
 	default:
@@ -1246,6 +1248,13 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	if (&player == MyPlayer) {
 		oracool::NotePendingDeathSource(monster != nullptr ? std::string(monster->name()) : std::string("a trap"));
 	}
+
+	// Cold slows (user, 2026-09-07: "curses and cold spells decrease it"): a cold hit that LANDS - past
+	// the to-hit and the block above - puts a chill on the stride, a quarter off for three seconds.
+	// The sheet's Move speed row turns red for it. Every cold missile that reaches a player comes
+	// through here, so whatever casts cold at players from now on slows them without another line.
+	if (damageType == DamageType::Cold)
+		oracool::SlowPlayer(player, 3 * 20, 25);
 
 	if (resper > 0) {
 		dam -= dam * resper / 100;
@@ -3150,6 +3159,12 @@ void ProcessBlessedShieldThrow(Missile &missile)
 
 void AddBlessedHammer(Missile &missile, AddMissileParameter & /*parameter*/)
 {
+	// The mace tumble, painted gold (user, 2026-09-07: "Use asset of a mace instead of this fireball
+	// you are using. Tint the mace GOLD."). Same borrowed item-drop animation Fist of the Heavens
+	// falls with; it loops in ProcessMissiles, so the mace keeps turning for the whole spiral.
+	// UseItemDropAnimation paints it divine; this one is gold, and the gold table wins.
+	UseItemDropAnimation(missile, MaceDropAnimIndex);
+	missile.oracoolTrn = oracool::GetGoldTrn();
 	missile._mirange = BlessedHammerTicks;
 	missile.var1 = 0;
 	missile.var2 = missile.position.start.x;

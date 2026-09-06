@@ -750,7 +750,7 @@ bool IsClassTreeRunActive(const Player &player);
 /** @brief Movement Speed +X% per rank of the Paladin's Vigor (2026-09-07). Five ranks reach the run cap. */
 constexpr int VigorMoveSpeedPerRank = 15;
 
-/** @brief The character's Movement Speed bonus in percent: worn affixes plus the burning Vigor. Never negative. */
+/** @brief The character's Movement Speed bonus in percent: worn affixes (a curse counts against) plus the burning Vigor. */
 int MovementSpeedBonusPercent(const Player &player);
 
 /** @brief The slow on @p player right now, in percent (0 when none). Cold and curses land here. */

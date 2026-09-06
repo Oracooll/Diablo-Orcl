@@ -1120,6 +1120,9 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 	case IPL_MOVESPEED:
 		item._iPLMoveSpeed += r;
 		break;
+	case IPL_MOVESPEED_CURSE:
+		item._iPLMoveSpeed -= r;
+		break;
 	default:
 		break;
 	}
@@ -4653,6 +4656,14 @@ void TryAddMovementSpeedToDrop(Item &item)
 	// One drop in twelve: rarer than a socket, commoner than ethereal - a find, not a fixture.
 	if (GenerateRnd(100) >= 8)
 		return;
+	// One roll in four is the CURSE - a leaden -10..-20% - so the affix is a thing to read, not
+	// only a thing to want (user, 2026-09-07: "curses ... decrease it"). Same record, the other sign.
+	if (GenerateRnd(100) < 25) {
+		const int curse = 10 + GenerateRnd(11);
+		item._iOracoolSuffixes[item._iOracoolSuffixCount++] = OracoolAffix { IPL_MOVESPEED_CURSE, curse, 0 };
+		item._iPLMoveSpeed -= curse;
+		return;
+	}
 	// 10..30, with the item's own level pulling the floor up: a deep find outpaces a shallow one.
 	const int floor = std::clamp(10 + static_cast<int>(item._iCreateInfo & CF_LEVEL) / 2, 10, 20);
 	const int value = floor + GenerateRnd(30 - floor + 1);
@@ -5834,6 +5845,8 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		return fmt::format(fmt::runtime(_("{:+d}% gold from monsters")), affix.param1);
 	case IPL_MOVESPEED:
 		return fmt::format(fmt::runtime(_("{:+d}% movement speed")), affix.param1);
+	case IPL_MOVESPEED_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d}% movement speed")), -affix.param1);
 	case IPL_MAGICFIND:
 		// Worded to match the Charm of Luck's line, for the reason the gold one above records: the
 		// two stack, and a player comparing them should not have to work out whether they mean the
@@ -5892,6 +5905,8 @@ std::string PrintSetBonusPower(const ItemPower &power)
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% gold from monsters")), power.param1);
 	case IPL_MOVESPEED:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% movement speed")), power.param1);
+	case IPL_MOVESPEED_CURSE:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% movement speed")), -power.param1);
 	case IPL_MAGICFIND:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% better chance of magic items")), power.param1);
 	case IPL_FIRERES:

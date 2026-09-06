@@ -317,7 +317,7 @@ bool IsOracoolAffixTypeValid(item_effect_type type)
 {
 	// The bound moves with every appended power, and forgetting it is how a new power would load
 	// back as IPL_INVALID on every existing item - silently, and only after a save/load round trip.
-	return type == IPL_INVALID || (type >= 0 && type <= IPL_MOVESPEED);
+	return type == IPL_INVALID || (type >= 0 && type <= IPL_MOVESPEED_CURSE);
 }
 
 void LoadItemData(LoadHelper &file, Item &item)
@@ -457,10 +457,14 @@ void LoadItemData(LoadHelper &file, Item &item)
 	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
 		if (affix.type == IPL_MOVESPEED)
 			item._iPLMoveSpeed += affix.param1;
+		else if (affix.type == IPL_MOVESPEED_CURSE)
+			item._iPLMoveSpeed -= affix.param1;
 	}
 	for (const OracoolAffix &affix : item._iOracoolSuffixes) {
 		if (affix.type == IPL_MOVESPEED)
 			item._iPLMoveSpeed += affix.param1;
+		else if (affix.type == IPL_MOVESPEED_CURSE)
+			item._iPLMoveSpeed -= affix.param1;
 	}
 
 	// Megaplan Phase 1 sockets (OracoolItemFormatVersion 3+): count plus one gem/rune base-item

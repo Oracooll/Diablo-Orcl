@@ -1274,6 +1274,8 @@ enum item_effect_type : int8_t {
 	 * walk-animation frame skip in steps - see oracool::WalkFrameSkipFor.
 	 */
 	IPL_MOVESPEED,
+	/** The curse: Movement Speed -X%. Same drop tail, same record, the other sign (2026-09-07). */
+	IPL_MOVESPEED_CURSE,
 	IPL_INVALID = -1,
 };
 

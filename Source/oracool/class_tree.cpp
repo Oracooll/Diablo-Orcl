@@ -1566,7 +1566,9 @@ std::array<MovementSlow, MAX_PLRS> MovementSlows;
 
 int MovementSpeedBonusPercent(const Player &player)
 {
-	return std::max(player._pIMoveSpeed, 0);
+	// Signed since the curse (2026-09-07): a cursed ring's -15 is a bonus of -15, and the sheet
+	// shows 85%.
+	return player._pIMoveSpeed;
 }
 
 int PlayerSlowPercent(const Player &player)

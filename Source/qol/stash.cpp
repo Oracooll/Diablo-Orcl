@@ -350,7 +350,13 @@ int StashSortCategoryRank(const Item &item)
 	case ItemType::Amulet:
 		return 5; // Jewelry
 	default:
-		return 6; // Others
+		// Books ahead of the rest of the miscellany (user, 2026-09-07: "books get weirdly placed in the
+		// stash after SORT"): they were Others with everything else, sorted by value among 1x1 trinkets,
+		// and the first-fit scan then dropped each book into whatever gap the trinkets before it had
+		// left. A band of their own, and SortStash's size-first order within a band, keeps them together.
+		if (item._iMiscId == IMISC_BOOK)
+			return 6; // Books
+		return 7; // Others
 	}
 }
 
@@ -1409,6 +1415,15 @@ void SortStash(Player &player)
 	std::stable_sort(entries.begin(), entries.end(), [](const SortEntry &a, const SortEntry &b) {
 		if (a.categoryRank != b.categoryRank)
 			return a.categoryRank < b.categoryRank;
+		// Bigger footprints first within a band (2026-09-07): the first-fit scan packs a run of 2x2s
+		// cleanly and the 1x1s fill the remainder, whereas value order interleaved them and left the
+		// big ones scattered into gaps - which is how the books looked "weirdly placed".
+		const Size sa = GetInventorySize(a.item);
+		const Size sb = GetInventorySize(b.item);
+		if (sa.height * sa.width != sb.height * sb.width)
+			return sa.height * sa.width > sb.height * sb.width;
+		if (sa.height != sb.height)
+			return sa.height > sb.height;
 		return a.value > b.value;
 	});
 

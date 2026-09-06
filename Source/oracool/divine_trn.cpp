@@ -1,5 +1,6 @@
 #include "oracool/divine_trn.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -31,6 +32,10 @@ constexpr int BlueBias = 125;
 std::array<uint8_t, 256> DivineTrn;
 std::array<SDL_Color, 256> BuiltAgainst;
 bool Built = false;
+
+std::array<uint8_t, 256> GoldTrn;
+std::array<SDL_Color, 256> GoldBuiltAgainst;
+bool GoldBuilt = false;
 
 uint8_t Brighten(uint8_t channel, int bias)
 {
@@ -82,6 +87,25 @@ const uint8_t *GetDivineTrn()
 		Built = true;
 	}
 	return DivineTrn.data();
+}
+
+const uint8_t *GetGoldTrn()
+{
+	if (!GoldBuilt || std::memcmp(GoldBuiltAgainst.data(), orig_palette.data(), sizeof(GoldBuiltAgainst)) != 0) {
+		GoldTrn[0] = 0; // transparent stays transparent - see GetDivineTrn
+		for (int i = 1; i < 256; i++) {
+			const SDL_Color &source = orig_palette[i];
+			// Luminance only - the mace's greys and browns all land on one ramp, so it reads as one
+			// gold object and not a steel one with a yellow cast. The ramp runs dark bronze to a pale
+			// highlight: red leads, green follows at four fifths, blue stays near zero.
+			const int luminance = (source.r * 30 + source.g * 59 + source.b * 11) / 100;
+			const int lifted = std::min(luminance * 5 / 4 + 24, 255);
+			GoldTrn[i] = NearestGlobalIndex(lifted, lifted * 4 / 5, lifted / 5);
+		}
+		GoldBuiltAgainst = orig_palette;
+		GoldBuilt = true;
+	}
+	return GoldTrn.data();
 }
 
 } // namespace devilution::oracool

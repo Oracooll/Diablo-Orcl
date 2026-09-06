@@ -10665,6 +10665,8 @@ TEST(OracoolAudit, MovementSpeedRollsOnTheDropTailIntoTheItemsOwnRecord)
 	gbIsMultiplayer = false;
 	int rolled = 0;
 	int lastValue = 0;
+	// The first BONUS roll (one in four of the rolls is the curse since 2026-09-07; that side has
+	// its own test below).
 	for (int attempt = 0; attempt < 400 && rolled == 0; attempt++) {
 		devilution::Item ring {};
 		InitializeItem(ring, IDI_TRING);
@@ -10673,6 +10675,11 @@ TEST(OracoolAudit, MovementSpeedRollsOnTheDropTailIntoTheItemsOwnRecord)
 		TryAddMovementSpeedToDrop(ring);
 		if (ring._iPLMoveSpeed == 0) {
 			EXPECT_EQ(ring._iOracoolSuffixCount, 0);
+			continue;
+		}
+		if (ring._iPLMoveSpeed < 0) {
+			ASSERT_EQ(ring._iOracoolSuffixCount, 1);
+			EXPECT_EQ(ring._iOracoolSuffixes[0].type, IPL_MOVESPEED_CURSE);
 			continue;
 		}
 		rolled++;
@@ -10693,4 +10700,46 @@ TEST(OracoolAudit, MovementSpeedRollsOnTheDropTailIntoTheItemsOwnRecord)
 		TryAddMovementSpeedToDrop(ring);
 		ASSERT_EQ(ring._iPLMoveSpeed, 0) << "a unique took the drop-tail affix";
 	}
+}
+
+// The curse side of the movement affix (2026-09-07): one roll in four is -10..-20%, in the same
+// record with the other sign, and a worn cursed ring reads below 100 on the sheet.
+TEST(OracoolAudit, MovementSpeedCurseRollsAndReadsBelowTheWalk)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = MyPlayer;
+	gbIsMultiplayer = false;
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+
+	devilution::Item cursed {};
+	bool found = false;
+	for (int attempt = 0; attempt < 2000 && !found; attempt++) {
+		devilution::Item ring {};
+		InitializeItem(ring, IDI_TRING);
+		ring._iMagical = ITEM_QUALITY_MAGIC;
+		TryAddMovementSpeedToDrop(ring);
+		if (ring._iPLMoveSpeed < 0) {
+			ASSERT_EQ(ring._iOracoolSuffixCount, 1);
+			EXPECT_EQ(ring._iOracoolSuffixes[0].type, IPL_MOVESPEED_CURSE);
+			EXPECT_EQ(ring._iOracoolSuffixes[0].param1, -ring._iPLMoveSpeed) << "the record holds the magnitude, the field the sign";
+			EXPECT_GE(ring._iPLMoveSpeed, -20);
+			EXPECT_LE(ring._iPLMoveSpeed, -10);
+			cursed = ring;
+			found = true;
+		}
+	}
+	ASSERT_TRUE(found) << "one roll in four should be a curse within 2000 tries";
+
+	cursed._iIdentified = true;
+	cursed._iStatFlag = true;
+	player.InvBody[INVLOC_RING_LEFT] = cursed;
+	CalcPlrItemVals(player, false);
+	EXPECT_LT(oracool::MovementSpeedPercent(player), 100) << "a cursed ring did not slow the sheet";
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + cursed._iPLMoveSpeed);
+	EXPECT_LE(oracool::WalkFrameSkipFor(player), -3) << "a curse of 10 or more is a step under the walk";
+	player.InvBody[INVLOC_RING_LEFT].clear();
 }

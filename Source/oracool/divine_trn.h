@@ -27,4 +27,14 @@ namespace devilution::oracool {
  */
 const uint8_t *GetDivineTrn();
 
+/**
+ * @brief The GOLD recolour: every colour becomes a gold of its own brightness.
+ *
+ * Blessed Hammer's mace (user, 2026-09-07: "Use asset of a mace instead of this fireball you are
+ * using. Tint the mace GOLD."). A repaint rather than a shine - the steel has to stop being steel -
+ * so the table keeps only each colour's luminance and paints it along a gold ramp. Same lifetime and
+ * rebuild rules as GetDivineTrn.
+ */
+const uint8_t *GetGoldTrn();
+
 } // namespace devilution::oracool

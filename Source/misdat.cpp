@@ -143,8 +143,8 @@ const MissileData MissilesData[] = {
 /*OrangeExplosion*/      { &AddMissileExplosion,    &ProcessMissileExplosion,     LS_FIRIMP2,  SFX_NONE,    MissileGraphicID::OrangeFlareExplosion, Physical,              MissileMovementDistribution::Disabled    },
 // Oracool: the Paladin's Blessed Hammer. Movement Disabled because it does NOT travel on a velocity
 // vector - ProcessBlessedHammer writes position.traveled itself each tick from an angle and a radius,
-// which is the one thing no other missile in this table does. Fireball's sprite is a placeholder for
-// the user's own art (their "reuse now, swap later"); Physical because it is a hammer.
+// which is the one thing no other missile in this table does. Fireball's sprite is only the fallback -
+// AddBlessedHammer swaps in items\mace.cel painted gold (2026-09-07); Physical because it is a hammer.
 /*BlessedHammer*/        { &AddBlessedHammer,       &ProcessBlessedHammer,        IS_CAST2,    SFX_NONE,    MissileGraphicID::Fireball,             Physical,              MissileMovementDistribution::Disabled    },
 // Oracool: Blessed Shield's throw. HolyBolt's sprite is a placeholder - the game ships no shield
 // missile art at all, and the one shield the user asked for lives in the ITEM cursor sheet as a
