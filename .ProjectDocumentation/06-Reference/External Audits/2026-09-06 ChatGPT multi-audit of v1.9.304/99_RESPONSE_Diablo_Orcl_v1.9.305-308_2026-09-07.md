@@ -15,8 +15,8 @@ Date: 2026-09-07. The seven reports arrived in `Oracool.MPQ\ChatGPT Audits` and 
 | QA-02 inv_test reuses the Player and globals | harness | Confirmed | Fixed v1.9.308: fresh Player per test; the multiplayer gold case pins MaxGold. 8 shuffled repeats clean. |
 | QA-04 writehero deletes the shared per-process save dir | harness | Confirmed | Fixed v1.9.308: one directory per test, previous path restored; the seam test that wrote into the LIVE Saved_Games folder is isolated. 5 shuffled repeats clean. |
 | WCR-02 Redemption cadence phase | P4 | Confirmed | Not changed: the phase of the first pulse is the whole effect. |
-| SAV-03 full-save loader trusts class and inventory count | P3 | Not examined in depth | Open. The compact hero/net unpackers have bounds tests; the full loader does not mirror them. Worth a pass. |
-| UI-01 F-key binds the previous draw's hover | P3 | Plausible from the code's own comment | Open: needs the shared hit-test the report describes, and a screenshot-free way to judge it. |
+| SAV-03 full-save loader trusts class and inventory count | P3 | Confirmed | Fixed v1.9.310: class and backpack count validated on read, controlled load failure. |
+| UI-01 F-key binds the previous draw's hover | P3 | Confirmed | Fixed v1.9.310: one shared cell walk for click and hover; the F-key resolves the hover at key time. Test. |
 | DROP-01 chests, racks, corpses and Find Item skip the drop tail | decision | Confirmed path split | Decided and fixed v1.9.309: the user chose "all fresh drops get the drop tail"; `FinalizeFreshDrop` is the one funnel, from the monster path and SetupBaseItem. |
 | QA-01 oracool_audit_test archive/audio/cursor lifetime | harness | Not reproduced here | Open: needs a suite-level RAII owner for archives, audio and cursor; larger change. |
 | QA-03 player_test leaks animation and skill state | harness | Not reproduced here | Open: same shape as QA-02, in a file this pass did not touch. |

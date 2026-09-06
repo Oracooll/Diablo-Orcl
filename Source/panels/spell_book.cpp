@@ -1394,6 +1394,8 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 	// window's. Consumed either way - a bind key that fell through to casting mid-edit would ready
 	// a skill on the very button the player is in the middle of assigning.
 	if (oracool::IsSkillPickerOpen()) {
+		// The hover as of THIS key press, not of the last draw (external audit, 2026-09-06: UI-01).
+		oracool::RefreshSkillPickerHover();
 		// AURAS FIRST, and they take a different road entirely (user, 2026-08-31: "i cant set them
 		// on auras"). An aura row carries SpellID::Invalid - it is a toggle, not a cast - so it can
 		// never live in the two SpellID arrays, and the check below would reject it forever. It goes

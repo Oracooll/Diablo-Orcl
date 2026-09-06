@@ -1,6 +1,7 @@
 #include "oracool/skill_picker.h"
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -599,6 +600,107 @@ void DrawSkillPicker(const Surface &out)
 	drawSection(N_("Staff spells"), skills + spells + scrolls, entries.size() - skills - spells - scrolls);
 }
 
+namespace {
+
+/**
+ * @brief Walks every VISIBLE cell of the open picker in draw order, calling @p visit(index, cell)
+ * until it returns true. One geometry for the click, the F-key hover and the test.
+ */
+template <typename Visit>
+void ForEachPickerCell(const Rectangle &window, const std::vector<Entry> &entries, size_t skills, size_t spells,
+    size_t scrolls, Visit &&visit)
+{
+	int y = window.position.y + Padding + TitleHeight - PickerScroll;
+	const size_t sectionFirst[4] = { 0, skills, skills + spells, skills + spells + scrolls };
+	const size_t sectionCount[4] = { skills, spells, scrolls, entries.size() - skills - spells - scrolls };
+	for (int section = 0; section < 4; section++) {
+		const size_t first = sectionFirst[section];
+		const size_t count = sectionCount[section];
+		if (count == 0)
+			continue;
+		y += HeaderHeight;
+		for (size_t i = 0; i < count; i++) {
+			const int row = static_cast<int>(i) / Columns;
+			const int column = static_cast<int>(i) % Columns;
+			const Rectangle cell {
+				{ window.position.x + Padding + column * (IconSize + CellGap),
+				    y + row * (IconSize + CellGap) },
+				{ IconSize, IconSize }
+			};
+			// A cell scrolled out of the viewport is not there to be hit, however much its
+			// coordinates still say it is - see IsCellVisible.
+			if (!IsCellVisible(window, cell))
+				continue;
+			if (visit(first + i, cell))
+				return;
+		}
+		y += RowsFor(count) * IconSize + (RowsFor(count) - 1) * CellGap + SectionGap;
+	}
+}
+
+/** @brief The entry under @p point in the open picker, or nullopt. */
+std::optional<size_t> PickerEntryAt(Point point, const Rectangle &window, const std::vector<Entry> &entries,
+    size_t skills, size_t spells, size_t scrolls)
+{
+	std::optional<size_t> hit;
+	ForEachPickerCell(window, entries, skills, spells, scrolls, [&](size_t index, const Rectangle &cell) {
+		if (!cell.contains(point))
+			return false;
+		hit = index;
+		return true;
+	});
+	return hit;
+}
+
+} // namespace
+
+void RefreshSkillPickerHover()
+{
+	// The draw records the hovered cell as of the LAST frame. A key event between two draws - move
+	// from A to B and press F1 before the next frame - bound A (external audit, 2026-09-06: UI-01).
+	// This asks the same geometry the click asks, at the moment the key is pressed.
+	HoveredPickerSpell = SpellID::Invalid;
+	HoveredPickerAura = ClassTreeSkill::None;
+	if (!PickerOpen || MyPlayer == nullptr)
+		return;
+	std::vector<Entry> entries;
+	size_t attacks = 0;
+	size_t trees = 0;
+	size_t spells = 0;
+	size_t scrolls = 0;
+	BuildEntries(*MyPlayer, entries, attacks, trees, spells, scrolls);
+	const Rectangle window = GetSkillPickerRect();
+	if (!window.contains(MousePosition))
+		return;
+	const std::optional<size_t> hit = PickerEntryAt(MousePosition, window, entries, attacks + trees, spells, scrolls);
+	if (!hit.has_value())
+		return;
+	const Entry &entry = entries[*hit];
+	HoveredPickerSpell = entry.spell;
+	if (entry.kind == EntryKind::Tree && GetClassTreeSkillData(entry.tree).kind == ClassTreeKind::Aura)
+		HoveredPickerAura = entry.tree;
+}
+
+Point GetSkillPickerCellCenter(size_t entryIndex)
+{
+	Point center { -1, -1 };
+	if (!PickerOpen || MyPlayer == nullptr)
+		return center;
+	std::vector<Entry> entries;
+	size_t attacks = 0;
+	size_t trees = 0;
+	size_t spells = 0;
+	size_t scrolls = 0;
+	BuildEntries(*MyPlayer, entries, attacks, trees, spells, scrolls);
+	ForEachPickerCell(GetSkillPickerRect(), entries, attacks + trees, spells, scrolls, [&](size_t index, const Rectangle &cell) {
+		if (index != entryIndex)
+			return false;
+		center = cell.position + Displacement { cell.size.width / 2, cell.size.height / 2 };
+		return true;
+	});
+	return center;
+}
+
 bool CheckSkillPickerClick(Point mousePosition)
 {
 	if (!PickerOpen)
@@ -644,30 +746,12 @@ bool CheckSkillPickerClick(Point mousePosition)
 	BuildEntries(player, entries, attacks, trees, spells, scrolls);
 	const size_t skills = attacks + trees;
 
-	// The same walk the draw does, in the same order - one geometry, asked twice, so a cell cannot
-	// be drawn in one place and clicked in another.
-	int y = window.position.y + Padding + TitleHeight - PickerScroll;
-	const size_t sectionFirst[4] = { 0, skills, skills + spells, skills + spells + scrolls };
-	const size_t sectionCount[4] = { skills, spells, scrolls, entries.size() - skills - spells - scrolls };
-	for (int section = 0; section < 4; section++) {
-		const size_t first = sectionFirst[section];
-		const size_t count = sectionCount[section];
-		if (count == 0)
-			continue;
-		y += HeaderHeight;
-		for (size_t i = 0; i < count; i++) {
-			const int row = static_cast<int>(i) / Columns;
-			const int column = static_cast<int>(i) % Columns;
-			const Rectangle cell {
-				{ window.position.x + Padding + column * (IconSize + CellGap),
-				    y + row * (IconSize + CellGap) },
-				{ IconSize, IconSize }
-			};
-			// A cell scrolled out of the viewport is not there to be clicked, however much its
-			// coordinates still say it is - see IsCellVisible.
-			if (!IsCellVisible(window, cell) || !cell.contains(mousePosition))
-				continue;
-			const Entry &entry = entries[first + i];
+	// The same walk the draw does, in the same order, through PickerEntryAt - one geometry, so a
+	// cell cannot be drawn in one place and clicked in another (or hovered in a third: the F-key
+	// hover asks the same function, see RefreshSkillPickerHover).
+	if (const std::optional<size_t> hit = PickerEntryAt(mousePosition, window, entries, skills, spells, scrolls); hit.has_value()) {
+		{
+			const Entry &entry = entries[*hit];
 			switch (entry.kind) {
 			case EntryKind::Attack:
 				// Readying the basic attack IS clearing the readied spell - see attack_skills.h.
@@ -720,7 +804,6 @@ bool CheckSkillPickerClick(Point mousePosition)
 			RedrawEverything();
 			return true;
 		}
-		y += RowsFor(count) * IconSize + (RowsFor(count) - 1) * CellGap + SectionGap;
 	}
 
 	// Inside the window but on no cell: absorbed, deliberately. A click that lands on the frame or

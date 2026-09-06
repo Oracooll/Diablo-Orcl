@@ -98,4 +98,16 @@ SpellID GetSkillPickerHoveredSpell();
  */
 ClassTreeSkill GetSkillPickerHoveredAura();
 
+/**
+ * @brief Recomputes the hovered spell and aura from the CURRENT MousePosition, without a draw.
+ *
+ * The draw records the hover as of the last frame; an F-key pressed between two frames after the
+ * cursor moved bound the previous cell (external audit, 2026-09-06: UI-01). The key handler calls
+ * this first. No-op with the picker closed.
+ */
+void RefreshSkillPickerHover();
+
+/** @brief The centre of the open picker's cell for entry @p entryIndex in draw order, or {-1,-1}. For tests. */
+Point GetSkillPickerCellCenter(size_t entryIndex);
+
 } // namespace devilution::oracool

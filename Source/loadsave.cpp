@@ -598,6 +598,12 @@ void LoadPlayer(LoadHelper &file, Player &player)
 
 	file.NextBytes(player._pName, PlayerNameLength);
 	player._pClass = static_cast<HeroClass>(file.NextLE<int8_t>());
+	// Validated before anything indexes by it: PlayersData and every class table are subscripted
+	// with this byte a few lines down, and a damaged or edited save reached them unchecked
+	// (external audit, 2026-09-06: SAV-03). A controlled failure, not a clamp - a wrong class is
+	// not a character to repair.
+	if (static_cast<uint8_t>(player._pClass) > static_cast<uint8_t>(HeroClass::LAST))
+		app_fatal(_("This save names a character class the game does not have and cannot be loaded."));
 	file.Skip(3); // Alignment
 	player._pStrength = file.NextLE<int32_t>();
 	player._pBaseStr = file.NextLE<int32_t>();
@@ -693,6 +699,9 @@ void LoadPlayer(LoadHelper &file, Player &player)
 		LoadAndValidateItemData(file, item);
 
 	player._pNumInv = file.NextLE<int32_t>();
+	// The backpack count bounds every later loop over InvList (external audit, 2026-09-06: SAV-03).
+	if (player._pNumInv < 0 || player._pNumInv > InventoryGridCells)
+		app_fatal(_("This save's backpack count is out of range and cannot be loaded."));
 
 	for (int8_t &cell : player.InvGrid)
 		cell = file.NextLE<int8_t>();

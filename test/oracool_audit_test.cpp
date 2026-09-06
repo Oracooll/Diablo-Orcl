@@ -43,6 +43,7 @@
 #include "options.h" // a fresh Options, for the shipped-defaults test
 #include "pack.h"    // PlayerPack - the fixed struct the stat-point clamp test inspects
 #include "oracool/skill_facts.h"
+#include "oracool/skill_picker.h"
 #include "oracool/class_tree.h"
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
@@ -10488,4 +10489,56 @@ TEST(OracoolFindStats, TheFreshDropFunnelAppliesTheTail)
 	FinalizeFreshDrop(gold, 5);
 	EXPECT_EQ(gold._ivalue, 150) << "the funnel did not apply Gold Find";
 	player._pGoldFind = 0;
+}
+
+// External audit, 2026-09-06 (UI-01): the F-key handler read the hover the LAST DRAW recorded, so
+// moving from A to B and pressing before the next frame bound A. The handler now resolves the
+// hover at key time from the current mouse position, through the same walk the click uses.
+TEST(OracoolAudit, SkillPickerHoverIsResolvedAtKeyTimeNotAtTheLastDraw)
+{
+	const Uint16 savedWidth = gnScreenWidth;
+	const Uint16 savedHeight = gnScreenHeight;
+	const Point savedMouse = MousePosition;
+	gnScreenWidth = 960;
+	gnScreenHeight = 720;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = MyPlayer;
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Sorcerer;
+	player._pMemSpells = GetSpellBitmask(SpellID::Firebolt);
+	player._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 1;
+
+	oracool::OpenSkillPicker(false);
+	// Find Firebolt's cell without drawing anything: walk the cells until the hover names it.
+	std::optional<Point> fireboltCell;
+	for (size_t index = 0; index < 16; index++) {
+		const Point center = oracool::GetSkillPickerCellCenter(index);
+		if (center.x < 0)
+			break;
+		MousePosition = center;
+		oracool::RefreshSkillPickerHover();
+		if (oracool::GetSkillPickerHoveredSpell() == SpellID::Firebolt) {
+			fireboltCell = center;
+			break;
+		}
+	}
+	ASSERT_TRUE(fireboltCell.has_value()) << "the picker never offered Firebolt for a Sorcerer who knows it";
+
+	// The last "draw" had Firebolt hovered. Move to cell 0 (the basic attack) and resolve: no draw.
+	MousePosition = oracool::GetSkillPickerCellCenter(0);
+	oracool::RefreshSkillPickerHover();
+	EXPECT_NE(oracool::GetSkillPickerHoveredSpell(), SpellID::Firebolt) << "the key would have bound the previous cell";
+
+	// Off every cell: nothing to bind.
+	MousePosition = { 0, 0 };
+	oracool::RefreshSkillPickerHover();
+	EXPECT_EQ(oracool::GetSkillPickerHoveredSpell(), SpellID::Invalid);
+	EXPECT_EQ(oracool::GetSkillPickerHoveredAura(), oracool::ClassTreeSkill::None);
+
+	oracool::CloseSkillPicker();
+	MousePosition = savedMouse;
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
 }
