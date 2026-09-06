@@ -2691,18 +2691,10 @@ void NextPlrLevel(Player &player)
 	CalcPlrInv(player, true);
 }
 
-void AddPlrExperience(Player &player, int lvl, int exp)
+uint64_t KillExperienceFor(const Player &player, int monsterLevel, int monsterExp)
 {
-	if (&player != MyPlayer || player._pHitPoints <= 0)
-		return;
-
-	if (player._pLevel >= MaxCharacterLevel) {
-		player._pLevel = MaxCharacterLevel;
-		return;
-	}
-
 	// Adjust xp based on difference in level between player and monster
-	uint64_t clampedExp = std::max(static_cast<int>(exp * (1 + (lvl - player._pLevel) / 10.0)), 0);
+	uint64_t clampedExp = std::max(static_cast<int>(monsterExp * (1 + (monsterLevel - player._pLevel) / 10.0)), 0);
 
 	// Prevent power leveling
 	if (gbIsMultiplayer) {
@@ -2715,6 +2707,20 @@ void AddPlrExperience(Player &player, int lvl, int exp)
 		// overload requires every element to deduce to the exact same type.
 		clampedExp = std::min({ clampedExp, /* level 0-5: */ ExpLvlsTbl[clampedPlayerLevel] / 20U, /* level 6-99: */ UINT64_C(200) * clampedPlayerLevel });
 	}
+	return clampedExp;
+}
+
+void AddPlrExperience(Player &player, int lvl, int exp)
+{
+	if (&player != MyPlayer || player._pHitPoints <= 0)
+		return;
+
+	if (player._pLevel >= MaxCharacterLevel) {
+		player._pLevel = MaxCharacterLevel;
+		return;
+	}
+
+	const uint64_t clampedExp = KillExperienceFor(player, lvl, exp);
 
 	const uint64_t MaxExperience = ExpLvlsTbl[MaxCharacterLevel - 1];
 

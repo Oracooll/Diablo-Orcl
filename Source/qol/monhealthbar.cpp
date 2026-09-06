@@ -20,6 +20,7 @@
 #include "options.h"
 #include "oracool/aura_field.h"
 #include "oracool/lesser_uniques.h"
+#include "player.h" // KillExperienceFor
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 
@@ -199,6 +200,15 @@ void DrawMonsterHealthBar(const Surface &out)
 	// same black offset the name and the mlvl wear, since this is drawn over the dungeon floor.
 	// Hit points in whole points (the engine keeps them in 64ths), damage as the melee range the
 	// monster rolls, XP as this difficulty pays for the kill - the same call the kill itself makes.
+	//
+	// AUDITED 2026-09-07 (user: "make sure monster stats are correct ... not some basic stats that
+	// are wrong in uniques, minions and lesser uniques cases"). Hit points and damage are the
+	// monster's OWN fields, which every tier writes at spawn: PrepareUniqueMonst (uniques, from
+	// their own table), the minion scaling, the lesser-unique stat line, Hollow/Feral, and the
+	// difficulty multipliers. Two things were NOT in the fields and are read here now: a champion's
+	// Might, which MonsterAttack adds at swing time (PackAdjustedDamage), and the XP clamp, which
+	// runs on the monster's LEVEL against the player's - a unique's level is double its table
+	// level, so the raw table XP was not what the kill paid.
 	{
 		const auto className = [](MonsterClass monsterClass) -> string_view {
 			switch (monsterClass) {
@@ -214,8 +224,8 @@ void DrawMonsterHealthBar(const Surface &out)
 		const std::string lines[] = {
 			fmt::format(fmt::runtime(_("Class: {:s}")), className(monster.data().monsterClass)),
 			fmt::format(fmt::runtime(_("Hit Points: {:d} / {:d}")), monster.hitPoints >> 6, monster.maxHitPoints >> 6),
-			fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), monster.minDamage, monster.maxDamage),
-			fmt::format(fmt::runtime(_("XP: {:d}")), monster.exp(sgGameInitInfo.nDifficulty)),
+			fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), oracool::PackAdjustedDamage(monster, monster.minDamage), oracool::PackAdjustedDamage(monster, monster.maxDamage)),
+			fmt::format(fmt::runtime(_("XP: {:d}")), KillExperienceFor(*MyPlayer, static_cast<int>(monster.level(sgGameInitInfo.nDifficulty)), static_cast<int>(monster.exp(sgGameInitInfo.nDifficulty)))),
 		};
 		const UiFlags colors[] = { UiFlags::ColorWhite, UiFlags::ColorRed, UiFlags::ColorWhite, UiFlags::ColorGold };
 		constexpr int ReadoutLineHeight = 12;

@@ -90,10 +90,9 @@ uint64_t CalcRemainingMonsterXp(const Player &player)
 		if (monster.hitPoints <= 0 || monster.isPlayerMinion())
 			continue;
 
-		const int monsterLevel = static_cast<int>(monster.level(sgGameInitInfo.nDifficulty));
-		const int monsterExp = static_cast<int>(monster.exp(sgGameInitInfo.nDifficulty));
-		const int64_t clampedExp = static_cast<int64_t>(monsterExp * (1 + (monsterLevel - player._pLevel) / 10.0));
-		total += static_cast<uint64_t>(std::max<int64_t>(clampedExp, 0));
+		// The kill's own formula (2026-09-07), so the counter and the health bar quote one number.
+		total += KillExperienceFor(player, static_cast<int>(monster.level(sgGameInitInfo.nDifficulty)),
+		    static_cast<int>(monster.exp(sgGameInitInfo.nDifficulty)));
 	}
 	return total;
 }

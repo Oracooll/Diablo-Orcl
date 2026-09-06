@@ -1035,6 +1035,17 @@ int CalcStatDiff(Player &player);
 void NextPlrLevel(Player &player);
 #endif
 void AddPlrExperience(Player &player, int lvl, int exp);
+
+/**
+ * @brief Oracool: the experience @p player would actually receive for a kill of a monster of level
+ * @p monsterLevel worth @p monsterExp - the level-difference clamp and, in multiplayer, the
+ * power-levelling cap, exactly as AddPlrExperience applies them. Factored out on 2026-09-07 so the
+ * monster health bar's "XP" line and the XP counter quote the number the kill pays, not the raw
+ * table value (user: "make sure monster stats are correct ... not some basic stats that are wrong
+ * in uniques, minions and lesser uniques cases" - a unique's level is not its kind's, and the clamp
+ * runs on the level).
+ */
+uint64_t KillExperienceFor(const Player &player, int monsterLevel, int monsterExp);
 void AddPlrMonstExper(int lvl, int exp, char pmask);
 void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP = 0, int frac = 0, DeathReason deathReason = DeathReason::MonsterOrTrap);
 void InitPlayer(Player &player, bool FirstTime);

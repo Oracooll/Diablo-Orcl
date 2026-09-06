@@ -10850,3 +10850,21 @@ TEST(OracoolAudit, PlainItemKindsCarryTheirLegendColours)
 	InitializeItem(rune, static_cast<_item_indexes>(IDI_ORACOOL_RUNE_EL));
 	EXPECT_EQ(rune.getTextColor(), UiFlags::ColorOrange7);
 }
+
+// The health bar's XP line must quote what the kill pays (user, 2026-09-07: "make sure monster stats
+// are correct ... not some basic stats that are wrong in uniques"). The clamp runs on the monster's
+// level against the player's; a unique's level is double its table level.
+TEST(OracoolAudit, KillExperienceIsTheClampedNumberTheKillPays)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pLevel = 20;
+	gbIsMultiplayer = false;
+
+	EXPECT_EQ(KillExperienceFor(player, 20, 1000), 1000u) << "same level: the table value";
+	EXPECT_EQ(KillExperienceFor(player, 30, 1000), 2000u) << "ten levels up pays double";
+	EXPECT_EQ(KillExperienceFor(player, 15, 1000), 500u) << "five levels down pays half";
+	EXPECT_EQ(KillExperienceFor(player, 5, 1000), 0u) << "fifteen levels down pays nothing";
+}
