@@ -72,6 +72,12 @@ enum text_color : uint8_t {
 	ColorOracoolYellowDark,
 	/** Oracool: the injected green ramp - set items (2026-08-15). */
 	ColorOracoolGreen,
+	/** Oracool: GR-5 of the font colour legend - socketed items (2026-09-07). */
+	ColorGray5,
+	/** Oracool: BE-2 - Primal items (2026-09-07). */
+	ColorBeige2,
+	/** Oracool: YL-3 - Rare items (2026-09-07). */
+	ColorYellow3,
 };
 
 constexpr GameFontTables GetFontSizeFromUiFlags(UiFlags flags)

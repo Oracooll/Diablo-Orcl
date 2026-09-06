@@ -6318,7 +6318,8 @@ void PrintItemDetails(const Item &item)
 	// Phase 1 sockets: the socket line and one line per set gem, each in the gem economy's own
 	// voice. The empty-socket count is the item's pitch - "Sockets: 1/3" is an invitation.
 	if (item._iSocketCount > 0) {
-		AddPanelString(fmt::format(fmt::runtime(_("Sockets: {:d}/{:d}")), item.socketedCount(), item._iSocketCount), ItemBaseStatColor);
+		// GR-5 (user, 2026-09-07: "also use this color for the specs row Sockets X in its description").
+		AddPanelString(fmt::format(fmt::runtime(_("Sockets: {:d}/{:d}")), item.socketedCount(), item._iSocketCount), UiFlags::ColorGray5);
 		const oracool::SocketHost host = oracool::SocketHostForItemType(item._itype);
 		for (const uint16_t gemIdx : item._iSocketed) {
 			if (gemIdx != Item::EmptySocket)

@@ -812,7 +812,9 @@ struct Item {
 		if (hasOracoolTier()) {
 			switch (_iOracoolTier) {
 			case OracoolItemTier::Rare:
-				return UiFlags::ColorYellow;
+				// YL-3 of the font colour legend (user, 2026-09-07: "Make YL-3 default Rare items color");
+				// was ColorYellow, which is YL-1.
+				return UiFlags::ColorYellow3;
 			case OracoolItemTier::BuffedUnique:
 				return UiFlags::ColorWhitegold;
 			case OracoolItemTier::Primal:
@@ -820,7 +822,11 @@ struct Item {
 				// no free bit, and no cyan font asset (.trn) exists in the game's data files.
 				// Orange was chosen instead - it's distinct from every other item quality and
 				// happens to match Diablo 3's own convention for Primal Ancient items.
-				return UiFlags::ColorOrange;
+				//
+				// BE-2 of the font colour legend since 2026-09-07 (user: "Make BE-2 - primal items font
+				// color. Use it game-wide"). The note above is history: the flags are 64-bit now and a
+				// .trn is one script away, so the orange placeholder retires.
+				return UiFlags::ColorBeige2;
 			case OracoolItemTier::Set:
 				// The green the note above reserved for "the REAL set system... which is not built
 				// yet". It is built now. Without this case a set item fell through to the _iMagical

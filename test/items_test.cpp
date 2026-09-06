@@ -339,7 +339,7 @@ TEST_F(RareItemTest, GetRareItemAffixes_TagsItemAsRare)
 	EXPECT_TRUE(item.hasOracoolTier());
 	EXPECT_EQ(item._iOracoolTier, OracoolItemTier::Rare);
 	EXPECT_EQ(item._iMagical, ITEM_QUALITY_MAGIC);
-	EXPECT_EQ(item.getTextColor(), UiFlags::ColorYellow);
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorYellow3); // YL-3 since 2026-09-07
 	// DebugSpawnItem (the "drop {name}" debug console command) finds items purely by a
 	// lowercased substring match against _iIName, so this is also what guarantees "drop rare"
 	// actually works - ASCII lowercasing preserves substring containment, so proving the
@@ -552,7 +552,7 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_TagsItemAsPrimalWithPerfectRollAndOr
 	EXPECT_EQ(item._iOracoolTier, OracoolItemTier::Primal);
 	EXPECT_TRUE(item._iOracoolPerfectRoll);
 	EXPECT_EQ(item._iMagical, ITEM_QUALITY_MAGIC);
-	EXPECT_EQ(item.getTextColor(), UiFlags::ColorOrange);
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorBeige2); // BE-2 since 2026-09-07
 	EXPECT_NE(std::string(item._iIName).find("Primal"), std::string::npos);
 }
 
@@ -745,7 +745,7 @@ TEST(Item, GetTextColor_RareTierIsYellowRegardlessOfMagicalQuality)
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Sword);
 	item._iMagical = ITEM_QUALITY_MAGIC;
 	item._iOracoolTier = OracoolItemTier::Rare;
-	EXPECT_EQ(item.getTextColor(), UiFlags::ColorYellow);
+	EXPECT_EQ(item.getTextColor(), UiFlags::ColorYellow3); // YL-3 since 2026-09-07
 }
 
 TEST(Item, HasOracoolTier_FalseByDefault)

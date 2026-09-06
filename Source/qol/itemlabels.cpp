@@ -233,15 +233,20 @@ void DrawItemNameLabels(const Surface &out)
 			FillRect(clippedOut, label.pos.x, label.pos.y, label.width, labelHeight, PAL8_BLUE + 6);
 		else
 			DrawHalfTransparentRectTo(clippedOut, label.pos.x, label.pos.y, label.width, labelHeight);
+		// A socketed drop is GRAY (user, 2026-09-07: "use GR-5 as font color when socketed item drops
+		// on the ground") - the Diablo II convention, where a socketed plain item reads gray on the
+		// floor. Quality still wins: a magic, rare, unique or set item keeps its own colour for the
+		// name, since that colour is what tells the qualities apart, and only its socket count goes
+		// gray. A plain socketed item is gray through and through.
+		const bool plainSocketed = !label.socketSuffix.empty() && item._iMagical == ITEM_QUALITY_NORMAL && !item.hasOracoolTier();
 		DrawString(clippedOut, label.text, { { label.pos.x + MarginX, label.pos.y + labelMarginTop }, { label.width, labelHeight } },
-		    { item.getTextColor() });
-		// The socket count, in its own colour. Deliberately NOT item.getTextColor(): the point of
-		// the suffix is that it is legible at a glance across a floor of drops, so it stays red on
-		// a unique's gold and on a rare's yellow alike.
+		    { plainSocketed ? UiFlags::ColorGray5 : item.getTextColor() });
+		// The socket count, in its own colour - GR-5 since 2026-09-07 (was red) so the suffix and
+		// the socket row in the description say "sockets" in one voice.
 		if (!label.socketSuffix.empty()) {
 			DrawString(clippedOut, label.socketSuffix,
 			    { { label.pos.x + MarginX + label.nameWidth, label.pos.y + labelMarginTop }, { label.width, labelHeight } },
-			    { UiFlags::ColorRed });
+			    { UiFlags::ColorGray5 });
 		}
 	}
 	labelQueue.clear();

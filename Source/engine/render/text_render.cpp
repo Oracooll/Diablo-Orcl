@@ -83,7 +83,7 @@ constexpr std::array<int, 10> LineHeights = { 12, 26, 38, 42, 50, 22, 11, 10, 9,
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 10> BaseLineOffset = { -3, -2, -3, -6, -7, 3, -3, -3, -2, -2 };
 
-std::array<const char *, 22> ColorTranslations = {
+std::array<const char *, 25> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -118,9 +118,13 @@ std::array<const char *, 22> ColorTranslations = {
 	// IS the green, unhealed. ColorYellow itself gets healed onto the PAL16_YELLOW ramp at load
 	// (see the remap below), which is what keeps rare items yellow.
 	"fonts\\yellow.trn",
+	// Oracool: GR-5 (2026-09-07). Built from the legend's recipe by the script that added it.
+	"fonts\\oracool_gray5.trn",
+	"fonts\\oracool_beige2.trn",
+	"fonts\\oracool_yellow3.trn",
 };
 
-std::array<std::optional<std::array<uint8_t, 256>>, 22> ColorTranslationsData;
+std::array<std::optional<std::array<uint8_t, 256>>, 25> ColorTranslationsData;
 
 text_color GetColorFromFlags(UiFlags flags)
 {
@@ -165,6 +169,12 @@ text_color GetColorFromFlags(UiFlags flags)
 	// Oracool: set-item green (2026-08-15) - see ColorTranslations' last entry.
 	if (HasAnyOf(flags, UiFlags::ColorOracoolGreen))
 		return ColorOracoolGreen;
+	if (HasAnyOf(flags, UiFlags::ColorGray5))
+		return ColorGray5;
+	if (HasAnyOf(flags, UiFlags::ColorBeige2))
+		return ColorBeige2;
+	if (HasAnyOf(flags, UiFlags::ColorYellow3))
+		return ColorYellow3;
 
 	// Last, and only for the sake of being written down: ColorWhitegold is also what this returns for
 	// no recognised colour at all, which is how every existing caller of that flag has been getting it.

@@ -10740,7 +10740,9 @@ TEST(OracoolAudit, MovementSpeedCurseRollsAndReadsBelowTheWalk)
 	CalcPlrItemVals(player, false);
 	EXPECT_LT(oracool::MovementSpeedPercent(player), 100) << "a cursed ring did not slow the sheet";
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + cursed._iPLMoveSpeed);
-	EXPECT_LE(oracool::WalkFrameSkipFor(player), -3) << "a curse of 10 or more is a step under the walk";
+	// The thresholds are 90 and 80: a curse of exactly 10 reads 90 and stays on the walk stride; 11 or
+	// more is a step under it. (The shuffle lane rolled a 10.)
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), cursed._iPLMoveSpeed <= -11 ? -3 : -2) << "curse " << cursed._iPLMoveSpeed;
 	player.InvBody[INVLOC_RING_LEFT].clear();
 }
 

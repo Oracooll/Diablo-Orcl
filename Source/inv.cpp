@@ -1509,7 +1509,9 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::BuffedUnique) {
 		colorBlock = PAL16_YELLOW;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Primal) {
-		colorBlock = PAL16_ORANGE;
+		// The beige ramp since 2026-09-07, the ramp BE-2 (the Primal font colour) lives on, so the
+		// backing and the name agree (user: "Use it game-wide where necessary"). Was PAL16_ORANGE.
+		colorBlock = PAL16_BEIGE;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Set) {
 		// The green this fork injected over PAL8_ORANGE, which is why Primal was moved off it
 		// (user, 2026-08-16: "Green is for future Set Items"). An EIGHT-shade mini-ramp like Rare's,

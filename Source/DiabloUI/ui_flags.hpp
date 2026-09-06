@@ -100,6 +100,16 @@ enum class UiFlags : uint64_t {
 	 * exactly the glyph's shape, which is what a shadow is.
 	 */
 	Shadowed               = 1ULL << 39,
+	/**
+	 * @brief Oracool: GR-5 of the font colour legend (06-Reference/Font-Colour-Legend.html) - the
+	 * gray ramp five entries in. Socketed drops on the ground and the "Sockets: x/y" row (user,
+	 * 2026-09-07). The .trn is oracool_assets/fonts/oracool_gray5.trn; identity except 192-207.
+	 */
+	ColorGray5             = 1ULL << 40,
+	/** @brief Oracool: BE-2 of the legend, the beige ramp two in - Primal items, game-wide (user, 2026-09-07). */
+	ColorBeige2            = 1ULL << 41,
+	/** @brief Oracool: YL-3 of the legend, the bright yellow minis three in - Rare items (user, 2026-09-07). */
+	ColorYellow3           = 1ULL << 42,
 
 	// Bits 40+ are free for a future color or flag - see the widening note above. The entries above
 	// were the first assigned: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)
