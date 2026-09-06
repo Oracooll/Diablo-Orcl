@@ -10428,3 +10428,45 @@ TEST(OracoolRunewords, OnlyPlainNormalHostsActivate)
 	tiered._iOracoolTier = static_cast<OracoolItemTier>(1);
 	EXPECT_EQ(oracool::GetActiveRuneword(tiered), nullptr) << "a quality-tiered host completed a word";
 }
+
+// External audit, 2026-09-06 (INV-01): the stash's half. A full stash with four units of headroom in
+// a matching stack: the deposit topped the stack up, found no cell for the rest, returned false -
+// and the source stayed in the hand. A false return leaves the stash untouched now.
+TEST(OracoolAudit2, StashDepositIsAllOrNothing)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	devilution::Item held {};
+	InitializeItem(held, IDI_HEAL);
+	ASSERT_TRUE(held.isStackableConsumable());
+	held.setStackCount(devilution::Item::MaxStackCount - 4);
+	held.position = { 0, 0 };
+	Stash.stashList.push_back(held);
+	// Every cell of every page taken.
+	constexpr unsigned StashPages = 100; // stash.cpp's CountStashPages, which the header does not expose
+	for (unsigned page = 0; page < StashPages; page++)
+		for (auto &column : Stash.stashGrids[page])
+			for (auto &cell : column)
+				cell = 1;
+
+	devilution::Item incoming {};
+	InitializeItem(incoming, IDI_HEAL);
+	incoming.setStackCount(20);
+	EXPECT_FALSE(AutoPlaceItemInStash(player, incoming, true));
+	ASSERT_EQ(Stash.stashList.size(), 1u);
+	EXPECT_EQ(Stash.stashList[0].stackCount(), devilution::Item::MaxStackCount - 4) << "a failed deposit still merged into the stack";
+
+	// Free one cell and the same deposit is whole: 4 merge, 16 take the cell.
+	Stash.stashGrids[0][0][0] = 0;
+	EXPECT_TRUE(AutoPlaceItemInStash(player, incoming, true));
+	ASSERT_EQ(Stash.stashList.size(), 2u);
+	EXPECT_EQ(Stash.stashList[0].stackCount(), devilution::Item::MaxStackCount);
+	EXPECT_EQ(Stash.stashList[1].stackCount(), 16);
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+}

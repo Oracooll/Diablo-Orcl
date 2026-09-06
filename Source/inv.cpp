@@ -2108,6 +2108,15 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem)
 		return false;
 	}
 
+	// All-or-nothing (external audit, 2026-09-06: INV-01). The merge below WROTE into partial
+	// stacks before it was known whether the remainder had a slot, so a false return had already
+	// changed the belt while the caller, told "not placed", kept the whole source - the merged
+	// units existed twice. A commit is now preceded by a full probe of the same decisions, and
+	// nothing is written unless all of it fits. The probe and the commit walk the same slots in
+	// the same order, and merging does not change which slots are empty, so they agree.
+	if (persistItem && !AutoPlaceItemInBelt(player, item, /*persistItem=*/false))
+		return false;
+
 	// Merge what fits, then put the REMAINDER in an empty slot - see AutoPlaceItemInInventory for
 	// why returning true on a partial merge destroyed the rest.
 	Item remainder = item;
@@ -2238,6 +2247,13 @@ bool AutoPlaceItemInInventory(Player &player, const Item &item, bool persistItem
 	//
 	// `remainder` is a local copy, so decrementing it is safe on the probe path too - nothing the
 	// caller owns is touched until persistItem says so.
+	//
+	// And nothing is touched at all unless the WHOLE item fits (external audit, 2026-09-06:
+	// INV-01): the merge used to be committed before the remainder's cell was looked for, so a
+	// false return had already topped up stacks the caller then kept the source of. The probe
+	// below makes every decision the commit will make, without writing.
+	if (persistItem && !AutoPlaceItemInInventory(player, item, /*persistItem=*/false))
+		return false;
 	Item remainder = item;
 	if (oracool::IsSinglePlayer() && item.isStackableConsumable()) {
 		const int merged = MergeStackableItemIntoInventory(player, remainder, persistItem);
@@ -2286,8 +2302,12 @@ bool AutoPlaceItemInInventory(Player &player, const Item &item, bool persistItem
 	// auto ground pickup, Stash withdrawal, auto-equip's displacement shuffling - should see the
 	// extra tabs as real usable space once tab 1 has no room, not just the store purchase path
 	// this was first added for.
+	//
+	// The REMAINDER, not the item: the fallback was handed the original stack after part of it
+	// had already merged, so an extra tab received units the backpack had also kept (external
+	// audit, 2026-09-06: INV-01).
 	if (!placed && TabbedInventoryEnabled())
-		placed = AutoPlaceItemInExtraTabs(player, item, persistItem);
+		placed = AutoPlaceItemInExtraTabs(player, remainder, persistItem);
 
 	return placed;
 }

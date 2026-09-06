@@ -1229,6 +1229,12 @@ bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
 		return true;
 	}
 
+	// All-or-nothing, like the backpack (external audit, 2026-09-06: INV-01): the merge below
+	// wrote into partial stacks before the scan knew there was a cell for the rest, so a full
+	// stash returned false with the stacks already topped up and the source still in the hand.
+	if (persistItem && !AutoPlaceItemInStash(player, item, /*persistItem=*/false))
+		return false;
+
 	// MERGE first (user, 2026-09-05): a stackable kind joins stacks of itself that have room, on
 	// any page, before a free cell is looked for - the backpack's rule. Only what does not fit in
 	// an existing stack goes on to the scan. Without this every ctrl-click deposit took a cell.

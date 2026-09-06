@@ -433,6 +433,85 @@ TEST_F(InvTest, MergeStackable_OverflowSpillsInsteadOfVanishing)
 	EXPECT_EQ(MyPlayer->InvList[0].stackCount(), Item::MaxStackCount);
 }
 
+// External audit, 2026-09-06 (INV-01, P1): a 95-stack in a FULL backpack and 20 arriving, with room
+// in an extra tab. The merge topped the stack up to 99 and then the fallback was handed the whole
+// 20 again - 119 units from 115. The remainder, and only the remainder, goes to the tab.
+TEST_F(InvTest, MergeStackable_RemainderNotOriginalGoesToTheExtraTab)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	clear_inventory();
+	gbIsMultiplayer = false;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	MyPlayer->InvList[0] = MakeStackablePotion(IDI_HEAL, true, Item::MaxStackCount - 4);
+	MyPlayer->_pNumInv = 1;
+	for (int8_t &cell : MyPlayer->InvGrid)
+		cell = 1; // every backpack cell taken - the stack is item 1 and the rest may as well be too
+
+	Item incoming = MakeStackablePotion(IDI_HEAL, true, 20);
+	EXPECT_TRUE(AutoPlaceItemInInventory(*MyPlayer, incoming, true));
+	EXPECT_EQ(MyPlayer->InvList[0].stackCount(), Item::MaxStackCount);
+	ASSERT_EQ(MyPlayer->_pNumInvTab[0], 1) << "the remainder should have landed in the first extra tab";
+	EXPECT_EQ(MyPlayer->InvTabList[0][0].stackCount(), 16) << "the tab received the ORIGINAL 20, not the 16 left after merging";
+	EXPECT_EQ(TotalUnitsOf(*MyPlayer, incoming) + MyPlayer->InvTabList[0][0].stackCount(), Item::MaxStackCount - 4 + 20)
+	    << "units were created";
+}
+
+// External audit, 2026-09-06 (INV-01): the same 95 + 20 with EVERY destination full. The merge used
+// to commit 4 units and then return false, and the caller kept the 20-stack: 4 units from nothing.
+// A false return must leave every container exactly as it was.
+TEST_F(InvTest, MergeStackable_FailedPlacementChangesNothing)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	clear_inventory();
+	gbIsMultiplayer = false;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+
+	MyPlayer->InvList[0] = MakeStackablePotion(IDI_HEAL, true, Item::MaxStackCount - 4);
+	MyPlayer->_pNumInv = 1;
+	for (int8_t &cell : MyPlayer->InvGrid)
+		cell = 1;
+	for (auto &tab : MyPlayer->InvTabGrid)
+		for (int8_t &cell : tab)
+			cell = 1;
+
+	Item incoming = MakeStackablePotion(IDI_HEAL, true, 20);
+	EXPECT_FALSE(AutoPlaceItemInInventory(*MyPlayer, incoming, true));
+	EXPECT_EQ(MyPlayer->InvList[0].stackCount(), Item::MaxStackCount - 4) << "a failed placement still merged into the stack";
+	EXPECT_EQ(MyPlayer->_pNumInvTab[0], 0);
+	EXPECT_EQ(MyPlayer->_pNumInv, 1);
+}
+
+// External audit, 2026-09-06 (INV-01): the belt's half. A 95-stack in slot 1, the other three real
+// slots full of something else, 20 arriving: the merge committed 4 and then found no slot for the
+// 16 - false, with the belt already changed and the caller about to put all 20 in the backpack.
+TEST_F(InvTest, MergeStackable_FailedBeltPlacementChangesNothing)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	clear_inventory();
+	gbIsMultiplayer = false;
+	for (auto &beltItem : MyPlayer->SpdList)
+		beltItem.clear();
+	MyPlayer->SpdList[1] = MakeStackablePotion(IDI_HEAL, true, Item::MaxStackCount - 4);
+	MyPlayer->SpdList[2] = MakeStackablePotion(IDI_MANA, true, Item::MaxStackCount);
+	MyPlayer->SpdList[3] = MakeStackablePotion(IDI_MANA, true, Item::MaxStackCount);
+	MyPlayer->SpdList[4] = MakeStackablePotion(IDI_MANA, true, Item::MaxStackCount);
+
+	Item incoming = MakeStackablePotion(IDI_HEAL, true, 20);
+	EXPECT_FALSE(AutoPlaceItemInBelt(*MyPlayer, incoming, true));
+	EXPECT_EQ(MyPlayer->SpdList[1].stackCount(), Item::MaxStackCount - 4) << "a failed belt placement still merged into the stack";
+	for (int i = 2; i <= 4; i++)
+		EXPECT_EQ(MyPlayer->SpdList[i].stackCount(), Item::MaxStackCount);
+
+	// And with a slot free it is all-or-nothing the other way: 4 merge, 16 take the slot.
+	MyPlayer->SpdList[4].clear();
+	EXPECT_TRUE(AutoPlaceItemInBelt(*MyPlayer, incoming, true));
+	EXPECT_EQ(MyPlayer->SpdList[1].stackCount(), Item::MaxStackCount);
+	EXPECT_EQ(MyPlayer->SpdList[4].stackCount(), 16);
+}
+
 TEST_F(InvTest, MergeStackableItemIntoBelt_mergesIntoExistingStack)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
