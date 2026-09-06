@@ -1120,6 +1120,21 @@ void TryMakeDroppedItemEthereal(Item &item);
 /** @brief Phase 1: Magic/Gold Find consumption - scales dropped gold by _pGoldFind and gives
  * plain equipment a _pMagicFind% chance to upgrade to a Rare-tier roll. Drop tail only. */
 void ApplyMagicAndGoldFindToDrop(Item &item, int mLevel);
+
+/**
+ * @brief The drop tail, for EVERY fresh drop: Magic/Gold Find, then the socket roll, then the
+ * ethereal roll, then the noteworthy-drop log. Unseeded, after setup - see TryAddSocketsToDroppedItem.
+ *
+ * Monster drops always had it; chests, sarcophagi, corpses, barrels, armour stands, weapon racks,
+ * bookcases, theme rooms and the Find Item cry went through SetupBaseItem and skipped it, so a
+ * rack's plate could never roll sockets and a chest's gold ignored Gold Find (external audit,
+ * 2026-09-06: DROP-01; the user, 2026-09-07: "all fresh drops get the drop tail"). Replays and
+ * network recreations do not come here - they rebuild an item that already rolled.
+ *
+ * @param level The level the item was generated at - the monster's for a monster drop, the
+ * dungeon's item level otherwise - which the Magic Find upgrade re-rolls at.
+ */
+void FinalizeFreshDrop(Item &item, int level);
 /**
  * @brief tabIdx selects an Oracool Tabbed Inventory extra tab (0-8) instead of the vanilla
  * InvBody/InvList encoding cii would otherwise resolve through - pass -1 (the default) for the

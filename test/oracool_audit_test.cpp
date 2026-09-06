@@ -10470,3 +10470,22 @@ TEST(OracoolAudit2, StashDepositIsAllOrNothing)
 	Stash.stashList.clear();
 	Stash.stashGrids.clear();
 }
+
+// DROP-01 (external audit 2026-09-06; the user, 2026-09-07: "all fresh drops get the drop tail").
+// One funnel for every fresh drop, so a chest's gold sees Gold Find and a rack's plate can roll
+// sockets. This pins the funnel's first stage; the socket and ethereal stages have their own tests.
+TEST(OracoolFindStats, TheFreshDropFunnelAppliesTheTail)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pGoldFind = 50;
+
+	devilution::Item gold {};
+	InitializeItem(gold, IDI_GOLD);
+	gold._ivalue = 100;
+	FinalizeFreshDrop(gold, 5);
+	EXPECT_EQ(gold._ivalue, 150) << "the funnel did not apply Gold Find";
+	player._pGoldFind = 0;
+}

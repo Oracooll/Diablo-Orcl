@@ -1980,6 +1980,9 @@ void SetupBaseItem(Point position, _item_indexes idx, bool onlygood, bool sendms
 
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), 2 * curlv, 1, onlygood, false, delta,
 	    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/curlv);
+	// The same tail a monster drop gets, at the level this item was generated at: chests, racks,
+	// corpses, barrels, theme rooms and Find Item are fresh drops too (DROP-01, 2026-09-07).
+	FinalizeFreshDrop(item, 2 * curlv);
 
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_DROPITEM, item.position, item);
@@ -4609,18 +4612,23 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		mLevel -= 15;
 
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
-	// Phase 1: the drop tail - Magic/Gold Find first (an upgraded item then correctly skips the
-	// socket roll), then sockets, then ethereal. All AFTER setup and outside the seed replay -
-	// see TryAddSocketsToDroppedItem's comment for why none of this may move into SetupAllItems.
-	ApplyMagicAndGoldFindToDrop(item, mLevel);
-	TryAddSocketsToDroppedItem(item);
-	TryMakeDroppedItemEthereal(item);
-	LogNoteworthyItemDrop(item);
+	FinalizeFreshDrop(item, mLevel);
 
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_DROPITEM, item.position, item);
 	if (spawn)
 		NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
+}
+
+void FinalizeFreshDrop(Item &item, int level)
+{
+	// Phase 1: the drop tail - Magic/Gold Find first (an upgraded item then correctly skips the
+	// socket roll), then sockets, then ethereal. All AFTER setup and outside the seed replay -
+	// see TryAddSocketsToDroppedItem's comment for why none of this may move into SetupAllItems.
+	ApplyMagicAndGoldFindToDrop(item, level);
+	TryAddSocketsToDroppedItem(item);
+	TryMakeDroppedItemEthereal(item);
+	LogNoteworthyItemDrop(item);
 }
 
 void CreateRndItem(Point position, bool onlygood, bool sendmsg, bool delta)
