@@ -338,14 +338,16 @@ ArtAsset SilhouetteArt[] = {
 	{ "ui\\silhouette_archer.png" },
 	{ "ui\\silhouette_sorcerer.png" },
 	{ "ui\\silhouette_barbarian.png" },
+	{ "ui\\silhouette_monk.png" },     // oracool-monk-silhouette-v1 (2026-09-07), GPT to that day's brief
+	{ "ui\\silhouette_bard.png" },     // cut from class-bard-greenscreen.png by tools\MakeClassSilhouette.ps1 (2026-09-07)
 };
 
 /**
  * @brief The silhouette for @p heroClass, or nullptr if that class has no figure on the sheet.
  *
- * Monk has no figure at all. Bard shares the Rogue's, matching the sprite set it already borrows
- * (playerdat.cpp gives both "rogue"). A null return simply draws no silhouette, which is what the
- * inventory did for every class before this.
+ * Every class has a figure since 2026-09-07: the Monk's arrived as a delivered pack, the Bard's is cut
+ * from her own class figure (she shared the Rogue's until then). A null return simply draws no
+ * silhouette, which is what the inventory did for every class before this.
  */
 ArtAsset *SilhouetteForClass(HeroClass heroClass)
 {
@@ -353,14 +355,15 @@ ArtAsset *SilhouetteForClass(HeroClass heroClass)
 	case HeroClass::Warrior:
 		return &SilhouetteArt[0];
 	case HeroClass::Rogue:
-	case HeroClass::Bard:
 		return &SilhouetteArt[1];
+	case HeroClass::Bard:
+		return &SilhouetteArt[5];
 	case HeroClass::Sorcerer:
 		return &SilhouetteArt[2];
 	case HeroClass::Barbarian:
 		return &SilhouetteArt[3];
 	case HeroClass::Monk:
-		break;
+		return &SilhouetteArt[4];
 	}
 	return nullptr;
 }
