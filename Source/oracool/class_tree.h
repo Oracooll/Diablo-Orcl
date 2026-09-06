@@ -618,8 +618,9 @@ struct ClassTreeSkillData {
  * whose SpellID a Book could teach is a spell, not a skill, so it leaves the tree - it is still
  * castable, still readiable, still raised by books, just no longer a place to spend points.
  *
- * Costs the Sorceress thirteen rows (her whole castable set) and one row each from the Rogue
- * (Golem), Bard (Berserk) and Monk (Search). Costs the Paladin nothing: his seven actives carry
+ * Costs the Sorceress thirteen rows (her whole castable set), one row each from the Rogue
+ * (Golem), Bard (Berserk) and Monk (Search), and the two Mana Shield rows (the Bard's Sonic
+ * Barrier, the Monk's Spirit Ward - audit, 2026-09-07). Costs the Paladin nothing: his seven actives carry
  * sBookLvl -1 deliberately, so this predicate never sees them.
  *
  * The row stays in the table. ClassTreeIconIndex is both the icon-strip position and the

@@ -1918,6 +1918,13 @@ void DrawInv(const Surface &out)
 			}
 
 			DrawItem(myPlayer.InvBody[slot], out, position, sprite);
+			// The WORN item's sockets (user, 2026-09-07: "i dont see the gold rings over the asset of a
+			// six socket staff. bug?" - it was equipped). The backpack, the stash and Levski's grid all
+			// drew the overlay on hover; the body slots never did, so a socketed weapon lost its rings
+			// the moment it was wielded. Same call, same hover rule. `position` is the sprite's
+			// bottom-left after the centring above, which is where the footprint's cells start.
+			if (pcursinvitem == slot)
+				oracool::DrawSocketOverlay(out, myPlayer.InvBody[slot], position, GetInventorySize(myPlayer.InvBody[slot]));
 
 			if (slot == INVLOC_HAND_LEFT) {
 				if (myPlayer.GetItemLocation(myPlayer.InvBody[slot]) == ILOC_TWOHAND) {
