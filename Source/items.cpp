@@ -3623,6 +3623,11 @@ void ClearUniqueItemFlags()
 	memset(UniqueItemFlags, 0, sizeof(UniqueItemFlags));
 }
 
+const char *GetItemDropName(int index)
+{
+	return ItemDropNames[index];
+}
+
 void InitItemGFX()
 {
 	char arglist[64];

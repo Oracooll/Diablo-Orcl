@@ -920,6 +920,8 @@ bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
     const oracool::SetItemDefinition **chosenOut = nullptr);
 void ClearUniqueItemFlags();
 void InitItemGFX();
+/** @brief Oracool: the drop-animation CEL name for item type @p index (items\<name>.cel). For the art export. */
+const char *GetItemDropName(int index);
 void InitItems();
 void CalcPlrItemVals(Player &player, bool Loadgfx);
 void CalcPlrInv(Player &player, bool Loadgfx);

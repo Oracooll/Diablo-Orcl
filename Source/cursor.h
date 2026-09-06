@@ -88,6 +88,9 @@ void DrawBrokenItemMarker(const Surface &out, Point topLeft, int width, int heig
 /** Returns the sprite for the given inventory index. */
 ClxSprite GetInvItemSprite(int cursId);
 
+/** @brief Oracool: how many sprites the original item-cursor sheets hold - 1 = objcurs.cel, 2 = objcurs2.cel. For the art export. */
+size_t GetNumInvItemsInSheet(int sheet);
+
 ClxSprite GetHalfSizeItemSprite(int cursId);
 ClxSprite GetHalfSizeItemSpriteRed(int cursId);
 void CreateHalfSizeItemSprites();

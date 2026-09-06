@@ -558,7 +558,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Seven Reeds"), N_("Three blows in one swing, one more every three ranks up to seven, each at 60% damage."),
 	    Monk, 0, 5, 0, Kind::Active, SpellID::SevenReeds, true, 5 },
 	{ N_("Master of the Long Staff"), N_("Your mastery of the staff empowers every Way of the Staff skill. With a staff in hand: +10% damage and a sharper aim."),
-	    Monk, 0, 6, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Monk, 0, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// --- Way of the Body ---
 	{ N_("Open Palm"), N_("An open-hand strike at +20% damage, +10% per rank, that drives the enemy back a tile."),
 	    Monk, 1, 0, 0, Kind::Active, SpellID::OpenPalm, true, 5 },
@@ -573,7 +573,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Hundred Fists"), N_("Four blows in one swing, one more every two ranks up to seven, each at 50% damage."),
 	    Monk, 1, 5, 0, Kind::Active, SpellID::HundredFists, true, 5 },
 	{ N_("Perfect Vessel"), N_("Your mastery of the body empowers every Way of the Body skill: +10% life, and you shake off hits faster."),
-	    Monk, 1, 6, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Monk, 1, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// --- Way of the Spirit ---
 	{ N_("Inner Sight"), N_("Reveal nearby objects, traps and treasure. Deepens the Monk's own Search: every point holds the sight longer."),
 	    Monk, 2, 0, 0, Kind::Active, SpellID::Search, true, 5 },
@@ -588,7 +588,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Tranquility"), N_("A sanctuary about you for 13 seconds, +1 per rank: what stands beside you is slowed, and 2% of your life returns each second."),
 	    Monk, 2, 5, 0, Kind::Active, SpellID::Tranquility, true, 5 },
 	{ N_("Enlightenment"), N_("Your mastery of spirit empowers every Way of the Spirit skill: +10% mana, and +10 to every resistance."),
-	    Monk, 2, 6, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Monk, 2, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ---- Passive Skills (page 3) ----
 	{ N_("Resolve"), N_("What you strike strikes back weaker for a while. Not yet built."),
 	    Monk, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },

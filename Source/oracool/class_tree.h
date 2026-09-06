@@ -403,8 +403,10 @@ enum class ClassTreeSkill : uint16_t {
 	BARD_LAST = MagnumOpus,
 
 	// ---------------- Monk: Way of the Staff ----------------
-	// Also the user's own design, and the most fully specified of the six: seven sequential skills
-	// per branch, one per tier, each requiring the one below it. The page is a ladder, not a grid;
+	// Also the user's own design, and the most fully specified of the six: six sequential skills per
+	// branch, one per tier, each requiring the one below it, and the branch's mastery beside the
+	// sixth (it was a seventh rung at level 36 until 2026-09-07; the user capped the ability pages at
+	// level 30). The page is a ladder, not a grid;
 	// it sat in the MIDDLE column until 2026-09-07, when the user set one rule for every tree
 	// ("fill column 1 first, then column two, then column 3"), so the ladder stands in column 0 now.
 	SweepingReed,

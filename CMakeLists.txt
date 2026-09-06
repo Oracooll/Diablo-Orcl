@@ -425,6 +425,11 @@ if(NOT UWP_LIB)
 add_executable(oracool_mpq_pack tools/oracool_mpq_pack.cpp)
 target_link_libraries(oracool_mpq_pack PRIVATE libdevilutionx)
 
+# Oracool: the original-art exporter (tools/oracool_art_export.cpp) - runs from the build directory,
+# where the archives are, and writes PNGs through the engine's own loaders. Not part of ALL.
+add_executable(oracool_art_export EXCLUDE_FROM_ALL tools/oracool_art_export.cpp)
+target_link_libraries(oracool_art_export PRIVATE libdevilutionx)
+
 # ORACOOL ASSETS ARE PART OF THE BUILD GRAPH (external audit of v1.9.92, finding 3).
 #
 # They were not, and the consequence was exactly what you would expect: `cmake --build` rebuilt the

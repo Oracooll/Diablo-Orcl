@@ -615,6 +615,11 @@ size_t GetNumInvItems()
 	return InvItems1Size + InvItems2Size + InvItems3Size;
 }
 
+size_t GetNumInvItemsInSheet(int sheet)
+{
+	return sheet == 1 ? InvItems1Size : sheet == 2 ? InvItems2Size : InvItems3Size;
+}
+
 Size GetInvItemSize(int cursId)
 {
 	const int i = cursId - 1;

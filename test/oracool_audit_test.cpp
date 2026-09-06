@@ -2497,11 +2497,13 @@ TEST(OracoolClassTree, PerSkillRankCapsApplyAndZeroStillMeansTheUsualCap)
 	EXPECT_FALSE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::PerfectVessel))
 	    << "a capstone took a second point";
 
-	// The seventh tier is the other thing the Monk introduced; a level-35 character must not reach it.
-	player._pLevel = 35;
+	// The masteries were the Monk's seventh tier (level 36) until 2026-09-07, when the user set the
+	// ability pages' ceiling at level 30 ("only passive skills go as far as lvl 36"); they sit in the
+	// level-30 row beside each Way's capstone now, and a level-29 character must not reach them.
+	player._pLevel = 29;
 	EXPECT_FALSE(oracool::IsClassTreeSkillUnlocked(player, oracool::ClassTreeSkill::MasterOfTheLongStaff))
-	    << "tier 7 opened before level 36";
-	player._pLevel = 36;
+	    << "the mastery opened before level 30";
+	player._pLevel = 30;
 	EXPECT_TRUE(oracool::IsClassTreeSkillUnlocked(player, oracool::ClassTreeSkill::MasterOfTheLongStaff));
 }
 
