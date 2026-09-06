@@ -84,6 +84,11 @@ TSnd *LoadCached(std::unique_ptr<TSnd> &slot, const char *path)
 
 bool PlaySkillSound(Skill skill, SkillSoundEvent event)
 {
+	// No audio device, no sound - the same gate PlaySFX has. Without it a mounted archive and an
+	// uninitialised mixer met in a divide by zero (external audit, 2026-09-06: QA-01, the class
+	// tree tests after any test that mounted the archives).
+	if (!gbSndInited)
+		return false;
 	const size_t index = FindSound(skill, event);
 	if (index == SkillSoundCount)
 		return false; // no cue for this pair; normal, and never an error
@@ -107,6 +112,8 @@ void StartClassAuraLoop(Skill skill)
 void ResumeClassAuraLoop(Skill skill)
 {
 	SilenceClassAuraLoop();
+	if (!gbSndInited)
+		return; // see PlaySkillSound
 
 	const size_t index = FindSound(skill, SkillSoundEvent::Loop);
 	if (index == SkillSoundCount)

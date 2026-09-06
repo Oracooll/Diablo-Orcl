@@ -92,6 +92,10 @@ BlockTestCase BlockData[] = {
 TEST(Player, PM_DoGotHit)
 {
 	Players.resize(1);
+	// A FRESH player: resize keeps an existing element, and the recovery frame depends on state
+	// other tests leave behind - a shuffled run of this binary saw frame 1 where 3-8 was expected
+	// (external audit, 2026-09-06: QA-03).
+	Players[0] = devilution::Player {};
 	MyPlayer = &Players[0];
 	for (size_t i = 0; i < sizeof(BlockData) / sizeof(*BlockData); i++) {
 		EXPECT_EQ(BlockData[i].expectedRecoveryFrame, RunBlockTest(BlockData[i].maxRecoveryFrame, BlockData[i].itemFlags));
@@ -279,6 +283,12 @@ TEST(Player, FuriousCharge_Disabled_UntilSkillsSystemExists)
 {
 	using namespace devilution::oracool;
 
+	// The gate reads MyPlayer's level: a fresh level-0 player, whatever the last test left
+	// (external audit, 2026-09-06: QA-03).
+	Players.resize(1);
+	Players[0] = devilution::Player {};
+	MyPlayer = &Players[0];
+	ResetFuriousChargeForNewGame();
 	gbIsMultiplayer = false;
 	EXPECT_FALSE(IsFuriousChargeEnabled()) << "not yet acquirable - the gate must stay closed";
 	EXPECT_FALSE(IsFuriousChargeSpell(SpellID::ItemRepair)) << "the Paladin's free slot must remain vanilla Item Repair";

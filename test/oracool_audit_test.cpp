@@ -143,6 +143,35 @@ void GiveIdentityTrn(Monster &monster)
 // Bug (v1.6.4): the name was derived from aiSeed, which MonsterSeeds() rewrites from the game-loop
 // counter on every tick - "his name was constantly changing." The name must come from
 // lesserNameSeed alone and hold still whatever aiSeed does.
+// Archives and the cursor sprites are process-wide resources, mounted ONCE (external audit,
+// 2026-09-06: QA-01). Every test that called LoadCoreArchives itself crashed the binary when it was
+// not the first to do so, and FreeCursor at the end of one test left the next one drawing from
+// sprites that were gone - invisible under CTest, which runs each case in its own process, and
+// fatal under a whole-binary shuffle. The process end frees them.
+namespace {
+void MountTestArchives(bool gameArchivesToo = false)
+{
+	static bool core = false;
+	static bool game = false;
+	if (!core) {
+		LoadCoreArchives();
+		core = true;
+	}
+	if (gameArchivesToo && !game) {
+		LoadGameArchives();
+		game = true;
+	}
+}
+void EnsureCursorSpritesLoaded()
+{
+	static bool loaded = false;
+	if (!loaded) {
+		InitCursor();
+		loaded = true;
+	}
+}
+} // namespace
+
 TEST(OracoolAudit, LesserUniqueNameIgnoresAiSeed)
 {
 	Monster monster {};
@@ -8992,7 +9021,7 @@ TEST(OracoolColdPack, EveryDeliveredSheetLoadsAtItsSpecifiedShape)
 	// The archives are not mounted by default in this binary - only the timedemo does it - and the
 	// import reads through the asset system. Without this every sheet reports as missing, and the
 	// test would then be measuring an empty search path rather than the art.
-	LoadCoreArchives();
+	MountTestArchives();
 
 	struct Sheet {
 		const char *name;
@@ -9871,9 +9900,8 @@ TEST(OracoolOilTint, TheTenOilsRecolourTheFlaskTenDifferentWays)
 	EXPECT_EQ(oracool::ItemTRN(IMISC_HEAL), nullptr);
 
 	// The sprite: glass on the grey ramp, stopper on 166..173, nothing else.
-	LoadCoreArchives();
-	LoadGameArchives();
-	InitCursor();
+	MountTestArchives(/*gameArchivesToo=*/true);
+	EnsureCursorSpritesLoaded();
 	const ClxSprite sprite = GetInvItemSprite(static_cast<int>(CURSOR_FIRSTITEM) + ICURS_OIL);
 	OwnedSurface surf { static_cast<int>(sprite.width()), static_cast<int>(sprite.height()) };
 	SDL_FillRect(surf.surface, nullptr, 0);
@@ -9892,7 +9920,6 @@ TEST(OracoolOilTint, TheTenOilsRecolourTheFlaskTenDifferentWays)
 		}
 	}
 	EXPECT_GT(glass, 100) << "the flask is mostly glass";
-	FreeCursor();
 }
 
 /**
@@ -9919,9 +9946,8 @@ TEST(OracoolItemTint, TheHellfireRunesLandOnFourVividRamps)
 	};
 	EXPECT_EQ(oracool::ItemTRN(IMISC_RUNEF), nullptr) << "Fire keeps its orange";
 
-	LoadCoreArchives();
-	LoadGameArchives();
-	InitCursor();
+	MountTestArchives(/*gameArchivesToo=*/true);
+	EnsureCursorSpritesLoaded();
 	for (const Rune &rune : runes) {
 		const uint8_t *trn = oracool::ItemTRN(rune.id);
 		ASSERT_NE(trn, nullptr) << static_cast<int>(rune.id);
@@ -9951,7 +9977,6 @@ TEST(OracoolItemTint, TheHellfireRunesLandOnFourVividRamps)
 		}
 		EXPECT_GT(moved * 3, painted) << "rune " << rune.curs << " mostly paints off the ramp the table moves";
 	}
-	FreeCursor();
 }
 
 /**
@@ -9963,8 +9988,7 @@ TEST(OracoolItemTint, TheHellfireRunesLandOnFourVividRamps)
  */
 TEST(OracoolAudit, TheBeltSlotPlateIsBlackThenGreyThenGold)
 {
-	LoadCoreArchives();
-	LoadGameArchives();
+	MountTestArchives(/*gameArchivesToo=*/true);
 	LoadSmallSpellIcons();
 	constexpr int Cell = 34;
 	OwnedSurface surf { Cell, Cell };
@@ -10000,9 +10024,8 @@ TEST(OracoolAudit, TheBeltSlotPlateIsBlackThenGreyThenGold)
  */
 TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteTwoLeftTwoDown)
 {
-	LoadCoreArchives();
-	LoadGameArchives();
-	InitCursor();
+	MountTestArchives(/*gameArchivesToo=*/true);
+	EnsureCursorSpritesLoaded();
 	const ClxSprite sprite = GetInvItemSprite(static_cast<int>(CURSOR_FIRSTITEM) + ICURS_OIL);
 	const int w = static_cast<int>(sprite.width());
 	const int h = static_cast<int>(sprite.height());
@@ -10037,7 +10060,6 @@ TEST(OracoolAudit, TheBeltItemShadowIsTheSpriteSilhouetteTwoLeftTwoDown)
 		EXPECT_EQ(*surf.at(i, 1), White);
 		EXPECT_EQ(*surf.at(w + 3, std::min(i, h + 3)), White);
 	}
-	FreeCursor();
 }
 
 /**
@@ -10086,8 +10108,7 @@ TEST(OracoolAudit, TheBeltButtonsSitCentredWithShadows)
 	const int savedHeight = gnScreenHeight;
 	gnScreenWidth = 960;
 	gnScreenHeight = 720;
-	LoadCoreArchives();
-	LoadGameArchives();
+	MountTestArchives(/*gameArchivesToo=*/true);
 	// No palette is loaded in this headless binary (LoadPalette returns early, and orig_palette is
 	// not exported to it), so every quantised colour lands on one index: the test can see the
 	// glyph's SHAPE and where it sits, not its two colours.
@@ -10220,7 +10241,7 @@ TEST(OracoolAudit, TheMenuWindowSpansTheBeltAndSitsOnThePlate)
  */
 TEST(OracoolAudit, EveryMenuEntryAndTabHasAGlyph)
 {
-	LoadCoreArchives();
+	MountTestArchives();
 	oracool::ResetHudArtCaches();
 	OwnedSurface surf { 64, 64 };
 	const auto drawn = [&](const std::function<bool(const Surface &)> &draw) {

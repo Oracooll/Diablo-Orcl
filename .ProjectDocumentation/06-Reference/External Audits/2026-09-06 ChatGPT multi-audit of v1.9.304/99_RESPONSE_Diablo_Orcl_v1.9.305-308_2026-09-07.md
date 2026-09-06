@@ -18,8 +18,8 @@ Date: 2026-09-07. The seven reports arrived in `Oracool.MPQ\ChatGPT Audits` and 
 | SAV-03 full-save loader trusts class and inventory count | P3 | Confirmed | Fixed v1.9.310: class and backpack count validated on read, controlled load failure. |
 | UI-01 F-key binds the previous draw's hover | P3 | Confirmed | Fixed v1.9.310: one shared cell walk for click and hover; the F-key resolves the hover at key time. Test. |
 | DROP-01 chests, racks, corpses and Find Item skip the drop tail | decision | Confirmed path split | Decided and fixed v1.9.309: the user chose "all fresh drops get the drop tail"; `FinalizeFreshDrop` is the one funnel, from the monster path and SetupBaseItem. |
-| QA-01 oracool_audit_test archive/audio/cursor lifetime | harness | Not reproduced here | Open: needs a suite-level RAII owner for archives, audio and cursor; larger change. |
-| QA-03 player_test leaks animation and skill state | harness | Not reproduced here | Open: same shape as QA-02, in a file this pass did not touch. |
+| QA-01 oracool_audit_test archive/audio/cursor lifetime | harness | Reproduced (17 crashes, seed 22062) | Fixed v1.9.311: skill sounds gate on gbSndInited; archives and cursor mounted once per process, never freed mid-run. 248/248 shuffled on three seeds. |
+| QA-03 player_test leaks animation and skill state | harness | Reproduced | Fixed v1.9.311: a fresh Player and a charge reset in the two tests. 8 shuffled repeats clean. |
 
 Not adopted: the report's suggested CI lane for whole-binary shuffle/repeat runs is sound and cheap; it is a build-system change the user should choose to add.
 
