@@ -1016,6 +1016,9 @@ TEST(Writehero, AFinishedArchiveIsInvisibleUntilItIsPublished)
 // archive already on disk is still the last save that fully succeeded.
 TEST(Writehero, EveryFailureInThePublishLeavesThePreviousSaveWhole)
 {
+	// Isolated, not the live Saved_Games folder: under a whole-binary shuffle this wrote seam_test.sv
+	// beside the player's real saves (external audit, 2026-09-06: QA-04).
+	IsolatedPrefPathGuard guard;
 	const std::string archivePath = paths::PrefPath() + "seam_test.sv";
 	const std::string shadowPath = archivePath + ".tmp";
 	const auto bytes = [](const char *s) { return reinterpret_cast<const byte *>(s); };

@@ -22,6 +22,10 @@ public:
 	void SetUp() override
 	{
 		Players.resize(1);
+		// A FRESH player, not whatever the previous test left in the vector: resize keeps an
+		// existing element, so belt, gold and grids leaked between cases and a shuffled run of
+		// this binary failed on inherited state (external audit, 2026-09-06: QA-02).
+		Players[0] = Player {};
 		MyPlayer = &Players[0];
 		InspectPlayer = MyPlayer; // otherwise IsInspectingPlayer() is true and every inventory click is refused
 		ActiveInventoryTab = 0;
@@ -197,6 +201,10 @@ TEST_F(InvTest, GoldAutoPlace_MultiplayerStillUsesInventory)
 {
 	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
 	gbIsMultiplayer = true;
+	// MaxGold is a global the single-player tests raise to 100,000,000 through CalcPlrInv; under a
+	// shuffled run it leaked into this multiplayer case and the pile absorbed everything
+	// (external audit, 2026-09-06: QA-02). Multiplayer's cap, explicitly.
+	MaxGold = GOLD_MAX_LIMIT;
 	clear_inventory();
 
 	// Put gold into the inventory:

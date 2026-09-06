@@ -29,6 +29,7 @@
  */
 #pragma once
 
+#include <cctype>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -55,7 +56,20 @@ namespace devilution {
  */
 inline std::string UseIsolatedPrefPath()
 {
-	std::string path = paths::BasePath() + "test-saves-" + std::to_string(DVL_TEST_GETPID()) + "/";
+	// Per PROCESS was not enough (external audit, 2026-09-06: QA-04): every test in one executable
+	// shares a pid, so the first guard to finish deleted the directory the next test was still
+	// pointed at, and a whole-binary shuffle run failed on a missing path. The current test's name
+	// makes the directory per test; the guard below restores the previous path on the way out.
+	std::string path = paths::BasePath() + "test-saves-" + std::to_string(DVL_TEST_GETPID());
+	if (const ::testing::TestInfo *info = ::testing::UnitTest::GetInstance()->current_test_info(); info != nullptr) {
+		std::string name = std::string(info->test_suite_name()) + "-" + info->name();
+		for (char &c : name) {
+			if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_')
+				c = '_';
+		}
+		path += "-" + name;
+	}
+	path += "/";
 	RecursivelyCreateDir(path.c_str());
 	paths::SetPrefPath(path);
 	return path;
@@ -90,8 +104,17 @@ inline void DropIsolatedPrefPath()
  * the directory goes when the test does.
  */
 struct IsolatedPrefPathGuard {
-	IsolatedPrefPathGuard() { UseIsolatedPrefPath(); }
-	~IsolatedPrefPathGuard() { DropIsolatedPrefPath(); }
+	IsolatedPrefPathGuard()
+	    : previous(paths::PrefPath())
+	{
+		UseIsolatedPrefPath();
+	}
+	~IsolatedPrefPathGuard()
+	{
+		DropIsolatedPrefPath();
+		paths::SetPrefPath(previous); // the next test starts where this one found things, not in a deleted folder
+	}
+	std::string previous;
 	IsolatedPrefPathGuard(const IsolatedPrefPathGuard &) = delete;
 	IsolatedPrefPathGuard &operator=(const IsolatedPrefPathGuard &) = delete;
 };
