@@ -243,6 +243,7 @@ void FreeGame()
 	// skill. Bounded by its own timer rather than permanent, so this is hardening (audit, 2026-08-31).
 	oracool::ResetFuriousChargeForNewGame();
 	oracool::ResetShopToastForNewGame();
+	oracool::ClearMovementSlows(); // a slow is a game's state, not a session's
 	oracool::CloseCraftingMenu();
 	oracool::CloseHudMenu();
 	oracool::CloseSkillPicker();

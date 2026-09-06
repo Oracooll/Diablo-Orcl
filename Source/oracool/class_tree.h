@@ -747,6 +747,42 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals);
  */
 bool IsClassTreeRunActive(const Player &player);
 
+/** @brief Movement Speed +X% per rank of the Paladin's Vigor (2026-09-07). Five ranks reach the run cap. */
+constexpr int VigorMoveSpeedPerRank = 15;
+
+/** @brief The character's Movement Speed bonus in percent: worn affixes plus the burning Vigor. Never negative. */
+int MovementSpeedBonusPercent(const Player &player);
+
+/** @brief The slow on @p player right now, in percent (0 when none). Cold and curses land here. */
+int PlayerSlowPercent(const Player &player);
+
+/**
+ * @brief Slows @p player by @p percent for @p ticks. Overlapping slows keep the deeper and the longer,
+ * never add. The channel every cold or cursing effect that targets a PLAYER uses (2026-09-07: "curses
+ * and cold spells decrease it"); nothing in the engine slows a player yet, so it waits for its first caller.
+ */
+void SlowPlayer(const Player &player, int ticks, int percent);
+
+/** @brief One tick of the slow's clock; called from the class tree's per-player tick. */
+void TickMovementSlow(const Player &player);
+
+/** @brief Forgets every slow - the new-game reset. */
+void ClearMovementSlows();
+
+/**
+ * @brief Movement Speed as the sheet shows it: 100 is a plain walk, abilities and items above, slows
+ * below. What the feet do with it is WalkFrameSkipFor's business.
+ */
+int MovementSpeedPercent(const Player &player);
+
+/**
+ * @brief The walk-animation frame skip the percentage earns: -4 (two slows deep) through -2 (a plain
+ * walk) up to 2 (the run), one step per threshold - 80, 90, 110, 125, 140, 160 percent.
+ * StartWalkAnimation takes the larger of this and the binary run sources (Run In Town, the R toggle,
+ * the dash, the other classes' run rows).
+ */
+int8_t WalkFrameSkipFor(const Player &player);
+
 /**
  * @brief Per-tick work: the Paladin's Prayer and Meditation auras, and the Sorceress's Warmth.
  * Called once per game logic tick for the local player.

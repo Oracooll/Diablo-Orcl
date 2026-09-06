@@ -623,6 +623,17 @@ const CharRow CharRows[] = {
 	// 75 the way every Diablo before it did.
 	{ N_("Max resist"),
 	    []() { return StyledText { UiFlags::ColorWhitegold, StrCat(oracool::ResistanceHardCap) }; } },
+	// Movement Speed (user, 2026-09-07: "i dont see my movement speed when i use Vigor" / "movement
+	// speed stats to be listed in percentage. abilities and items increase it. curses and cold spells
+	// decrease it"): 100% is a plain walk; the worn affixes and the burning Vigor raise it, a slow
+	// lowers it. Blue above the walk, red below, white at it. The feet take it in steps
+	// (oracool::WalkFrameSkipFor); the number here is what the sources add up to.
+	{ N_("Move speed"),
+	    []() {
+	        const int percent = oracool::MovementSpeedPercent(*InspectPlayer);
+	        const UiFlags color = percent > 100 ? UiFlags::ColorBlue : percent < 100 ? UiFlags::ColorRed : UiFlags::ColorWhite;
+	        return StyledText { color, StrCat(percent, "%") };
+	    } },
 
 	// Life and mana share the attributes' column meaning rather than vanilla's reading order:
 	// current on the left with Now, maximum on the right with Base. Reversing these two while

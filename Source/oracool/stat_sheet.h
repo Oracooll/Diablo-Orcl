@@ -73,6 +73,8 @@ struct ItemBonusTotals {
 	int magicFind = 0;
 	/** @brief Phase 1: Gold Find - % increase on dropped gold piles. Same unseeded consumption. */
 	int goldFind = 0;
+	/** @brief Movement Speed +X%: the items' IPL_MOVESPEED affixes plus the Paladin's Vigor by rank (2026-09-07). */
+	int moveSpeed = 0;
 
 	/**
 	 * @brief Accumulates one item with the vanilla loop's exact semantics: nothing from an empty

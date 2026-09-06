@@ -507,6 +507,8 @@ struct Player {
 	 * (charms carry them today), never saved. Consumed by the drop tail in items.cpp. */
 	int _pMagicFind = 0;
 	int _pGoldFind = 0;
+	/** @brief Oracool: Movement Speed +X%, derived by CalcPlrItemVals from the worn affixes and the burning aura (2026-09-07). */
+	int _pIMoveSpeed = 0;
 	/** @brief Bitmask of staff spell */
 	SpellMask _pISpells;
 	/** @brief Bitmask of learned spells */

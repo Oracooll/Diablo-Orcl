@@ -169,7 +169,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Cleansing"), N_("Shortens poison and curses. Inert: this engine tracks no duration for either."),
 	    Pal, 2, 2, 1, Kind::Aura, SpellID::Invalid, false },
 	{ N_("Resist Lightning"), N_("Hardens you against lightning."), Pal, 2, 2, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Vigor"), N_("Quickens your stride: you run instead of walking, wherever you are."),
+	{ N_("Vigor"), N_("Quickens your stride: +15% movement speed per rank, anywhere. At rank 5 you run everywhere; items with +movement speed stack with it."),
 	    Pal, 2, 3, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Meditation"), N_("Restores your mana steadily as you walk."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Redemption"), N_("Once a second the nearest corpse in the field is consumed for a fiftieth of your life and mana, a hundredth more a point."),
@@ -906,6 +906,13 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		totals.bonusToHit += Scaled(p, 12, 6);
 		totals.bonusDamage += Scaled(p, 12, 6);
 		break;
+	case Skill::Vigor:
+		// A percentage per rank since 2026-09-07 (user: "vigor should make it clear in the description how
+		// many % it increases movement with each level"). It rode the binary run frame skip before; now
+		// it is a number on the sheet that item affixes add to, and WalkFrameSkipFor turns the total
+		// into strides. Five ranks reach the run cap.
+		totals.moveSpeed += p * VigorMoveSpeedPerRank;
+		break;
 	case Skill::SongOfSwiftness:
 		// The stride half is the run frame skip - see IsClassTreeRunActive.
 		totals.flags |= ItemSpecialEffect::FastAttack;
@@ -1546,15 +1553,85 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 	}
 }
 
+namespace {
+
+/** A slow on a player: the deeper of two overlapping ones wins, and it runs down by the tick. */
+struct MovementSlow {
+	int ticksLeft = 0;
+	int percent = 0;
+};
+std::array<MovementSlow, MAX_PLRS> MovementSlows;
+
+} // namespace
+
+int MovementSpeedBonusPercent(const Player &player)
+{
+	return std::max(player._pIMoveSpeed, 0);
+}
+
+int PlayerSlowPercent(const Player &player)
+{
+	const MovementSlow &slow = MovementSlows[player.getId()];
+	return slow.ticksLeft > 0 ? slow.percent : 0;
+}
+
+void SlowPlayer(const Player &player, int ticks, int percent)
+{
+	MovementSlow &slow = MovementSlows[player.getId()];
+	slow.ticksLeft = std::max(slow.ticksLeft, ticks);
+	slow.percent = std::max(slow.percent, std::clamp(percent, 0, 90));
+}
+
+void TickMovementSlow(const Player &player)
+{
+	MovementSlow &slow = MovementSlows[player.getId()];
+	if (slow.ticksLeft > 0 && --slow.ticksLeft == 0)
+		slow.percent = 0;
+}
+
+void ClearMovementSlows()
+{
+	MovementSlows.fill(MovementSlow {});
+}
+
+int MovementSpeedPercent(const Player &player)
+{
+	// 100 is a plain walk. Abilities and items add to it; a slow (cold, a curse) takes from it.
+	// Floored at 10 so a stack of slows never reads as standing still - the feet floor separately.
+	return std::max(100 + MovementSpeedBonusPercent(player) - PlayerSlowPercent(player), 10);
+}
+
+int8_t WalkFrameSkipFor(const Player &player)
+{
+	// The walk animation runs its 8 frames over 10 ticks (StartWalkAnimation's -2); the run frame
+	// skip of 2 makes that 6 - the only speed knob this engine has. Each skipped frame is one tick
+	// off the stride, so the ladder above a walk is 111%, 125%, 143%, 167% (the run), and below it
+	// 91%, 83% (two extra ticks; the animation does not stretch further without stuttering). The
+	// percentage is mapped onto those steps by threshold: +10 is the first stride, 160 or more is the
+	// run, and a slow of 10 or 20 points takes a step away. The sheet shows the percentage the
+	// sources add up to; this is what the feet do with it.
+	const int percent = MovementSpeedPercent(player);
+	if (percent >= 160)
+		return 2;
+	if (percent >= 140)
+		return 1;
+	if (percent >= 125)
+		return 0;
+	if (percent >= 110)
+		return -1;
+	if (percent >= 90)
+		return -2;
+	if (percent >= 80)
+		return -3;
+	return -4;
+}
+
 bool IsClassTreeRunActive(const Player &player)
 {
 	if (!ClassHasTree(player._pClass))
 		return false;
-	if (player._pClass == HeroClass::Warrior) {
-		const Skill aura = GetActiveClassAura(player);
-		return aura == Skill::Vigor && ClassTreeInvestment(player, aura) > 0
-		    && IsClassTreeSkillUnlocked(player, aura);
-	}
+	// The Paladin's Vigor left this list on 2026-09-07: it is a movement-speed PERCENTAGE now, in the
+	// aura totals, and WalkFrameSkipFor reads it with the items' affixes.
 	if (player._pClass == HeroClass::Barbarian) {
 		return ClassTreeInvestment(player, Skill::IncreasedSpeed) > 0
 		    && IsClassTreeSkillUnlocked(player, Skill::IncreasedSpeed);
@@ -1622,6 +1699,7 @@ void ProcessClassTreeTick(Player &player)
 	ProcessOutwardAura(player);
 	ProcessPassivesTick(player);
 	ProcessWarcriesTick(player);
+	TickMovementSlow(player);
 
 	// The Sorceress's Warmth is a passive, so it needs no activation - the points alone. But a
 	// corpse regenerates nothing (audit, 2026-08-26): the aura guard in GetActiveClassAura does not

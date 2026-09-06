@@ -66,6 +66,7 @@ void ItemBonusTotals::AddItem(const Item &item)
 	// what lets a worn item, a set rung or a unique contribute the same way.
 	goldFind += item._iPLGoldFind;
 	magicFind += item._iPLMagicFind;
+	moveSpeed += item._iPLMoveSpeed;
 	enhancedAccuracy += item._iPLEnAc;
 	fireMin += item._iFMinDam;
 	fireMax += item._iFMaxDam;
@@ -266,6 +267,8 @@ std::string DescribeBonusTotals(const ItemBonusTotals &totals, const char *separ
 		add(fmt::format(fmt::runtime(_("{:s}% magic find")), signedNumber(totals.magicFind)));
 	if (totals.goldFind != 0)
 		add(fmt::format(fmt::runtime(_("{:s}% gold find")), signedNumber(totals.goldFind)));
+	if (totals.moveSpeed != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% movement speed")), signedNumber(totals.moveSpeed)));
 
 	return out;
 }

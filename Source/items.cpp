@@ -1117,6 +1117,9 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 		// figure and the drop tail reads the total as one percentage.
 		item._iPLMagicFind += r;
 		break;
+	case IPL_MOVESPEED:
+		item._iPLMoveSpeed += r;
+		break;
 	default:
 		break;
 	}
@@ -3887,6 +3890,8 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	// Phase 1: Magic/Gold Find, derived like everything else on the sheet.
 	player._pMagicFind = totals.magicFind;
 	player._pGoldFind = totals.goldFind;
+	// Movement Speed: the items' affixes and the burning aura, one percentage (2026-09-07).
+	player._pIMoveSpeed = totals.moveSpeed;
 
 	player._pInfraFlag = oracool::IsSinglePlayer() && *sgOptions.Oracool.permanentInfravision;
 
@@ -4340,6 +4345,7 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	item._iPLEnAc = 0;
 	item._iPLMagicFind = 0;
 	item._iPLGoldFind = 0;
+	item._iPLMoveSpeed = 0;
 	// The rest of what a roll writes, and each one is a real bug of its own if left behind: fire
 	// and lightning damage ranges, charges, spell level, value multipliers, the special-effect
 	// flag words, and the two Oracool flags. _iOracoolEthereal and _iOracoolBroken in particular
@@ -4625,6 +4631,35 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
 }
 
+void TryAddMovementSpeedToDrop(Item &item)
+{
+	// Movement Speed +X% (user, 2026-09-07: "introduce Movement Speed +X% affix on items so other
+	// classes have a chance at such abilities, not just the Paladin"). Rolled HERE, on the drop
+	// tail, for the reason sockets and ethereal are: the vanilla prefix/suffix tables are what the
+	// seed replay walks, and a row added to them re-rolls every seeded item in every save (the
+	// pack fixtures proved it: a Helm of harmony became a Great Helm of haste). The roll lives in
+	// the item's own affix record instead - persisted with the item, re-derived on load, printed
+	// by the tooltip - and touches no seeded stream.
+	//
+	// Single-player only, like the rest of the tail; on body armour, helms, rings and amulets of
+	// normal or magic quality (uniques and sets say what they are); one slot of the record.
+	if (!oracool::IsSinglePlayer() || item.isEmpty())
+		return;
+	const bool wearable = item._iClass == ICLASS_ARMOR || item._itype == ItemType::Ring || item._itype == ItemType::Amulet;
+	if (!wearable || item._iMagical == ITEM_QUALITY_UNIQUE || item.hasOracoolTier())
+		return;
+	if (item._iOracoolSuffixCount >= Item::MaxOracoolAffixesPerSlot)
+		return;
+	// One drop in twelve: rarer than a socket, commoner than ethereal - a find, not a fixture.
+	if (GenerateRnd(100) >= 8)
+		return;
+	// 10..30, with the item's own level pulling the floor up: a deep find outpaces a shallow one.
+	const int floor = std::clamp(10 + static_cast<int>(item._iCreateInfo & CF_LEVEL) / 2, 10, 20);
+	const int value = floor + GenerateRnd(30 - floor + 1);
+	item._iOracoolSuffixes[item._iOracoolSuffixCount++] = OracoolAffix { IPL_MOVESPEED, value, 0 };
+	item._iPLMoveSpeed += value;
+}
+
 void FinalizeFreshDrop(Item &item, int level)
 {
 	// Phase 1: the drop tail - Magic/Gold Find first (an upgraded item then correctly skips the
@@ -4633,6 +4668,7 @@ void FinalizeFreshDrop(Item &item, int level)
 	ApplyMagicAndGoldFindToDrop(item, level);
 	TryAddSocketsToDroppedItem(item);
 	TryMakeDroppedItemEthereal(item);
+	TryAddMovementSpeedToDrop(item);
 	LogNoteworthyItemDrop(item);
 }
 
@@ -5796,6 +5832,8 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		// Worded to match the Charm of Greed's line, since the two stack and a player comparing them
 		// should not have to work out whether they mean the same thing.
 		return fmt::format(fmt::runtime(_("{:+d}% gold from monsters")), affix.param1);
+	case IPL_MOVESPEED:
+		return fmt::format(fmt::runtime(_("{:+d}% movement speed")), affix.param1);
 	case IPL_MAGICFIND:
 		// Worded to match the Charm of Luck's line, for the reason the gold one above records: the
 		// two stack, and a player comparing them should not have to work out whether they mean the
@@ -5852,6 +5890,8 @@ std::string PrintSetBonusPower(const ItemPower &power)
 		// Worded to match the Charm of Greed's own line, since the two stack and a player comparing
 		// them should not have to work out whether they mean the same thing.
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% gold from monsters")), power.param1);
+	case IPL_MOVESPEED:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% movement speed")), power.param1);
 	case IPL_MAGICFIND:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% better chance of magic items")), power.param1);
 	case IPL_FIRERES:
@@ -6194,6 +6234,10 @@ void PrintItemDetails(const Item &item)
 	// already show in the numbers above, so what the line carries is the PRICE.
 	if (item._iOracoolEthereal)
 		AddPanelString(_("Ethereal (cannot be repaired)"), ItemBaseStatColor);
+	// Movement Speed +X% from the drop tail's own record (2026-09-07). A tiered item prints its records
+	// with the other affixes above, so this line is the plain and magic items'.
+	if (item._iIdentified && item._iPLMoveSpeed != 0 && !item.hasOracoolTier())
+		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% movement speed")), item._iPLMoveSpeed), ItemAffixColor);
 	// Phase 1 Mystic Orbs: how many this item has taken and how many it can. The player needs to
 	// know what is left BEFORE they spend one, because applying an orb cannot be undone - an item
 	// silently at its cap is exactly what this line exists to prevent.

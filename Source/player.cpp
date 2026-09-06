@@ -198,6 +198,8 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 	if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || oracool::IsFuriousChargeDashing()
 	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player))
 		skippedFrames = 2;
+	else
+		skippedFrames = std::max(skippedFrames, oracool::WalkFrameSkipFor(player)); // Movement Speed %: items and Vigor, in steps
 	if (pmWillBeCalled)
 		skippedFrames += 1;
 	NewPlrAnim(player, player_graphic::Walk, dir, AnimationDistributionFlags::ProcessAnimationPending, skippedFrames);

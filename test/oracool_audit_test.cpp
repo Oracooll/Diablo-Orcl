@@ -2748,17 +2748,34 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 	}
 }
 
+// Vigor is a movement-speed PERCENTAGE since 2026-09-07 (user: "vigor should make it clear in the
+// description how many % it increases movement with each level") - +15 a rank on the sheet, in
+// stride steps at the feet, the run itself at rank 5 - and no longer one of the binary run rows.
 TEST(OracoolClassTree, VigorRunsAndOnlyWhenPaidFor)
 {
 	devilution::Player &player = FreshPaladin();
 	EXPECT_FALSE(oracool::IsClassTreeRunActive(player));
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100);
 
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
 	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
-	EXPECT_TRUE(oracool::IsClassTreeRunActive(player));
+	CalcPlrItemVals(player, false);
+	EXPECT_FALSE(oracool::IsClassTreeRunActive(player)) << "Vigor is a percentage now, not a run row";
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + oracool::VigorMoveSpeedPerRank);
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -1) << "rank 1 is the first stride step";
 
 	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
-	EXPECT_FALSE(oracool::IsClassTreeRunActive(player)) << "Vigor kept running after it was put out";
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100) << "Vigor kept its stride after it was put out";
+
+	// Rank 5 is the run: four more points (the test player has them), the aura lit again.
+	for (int i = 0; i < 4; i++)
+		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor)) << "point " << i + 2;
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + 5 * oracool::VigorMoveSpeedPerRank);
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 2) << "five ranks reach the run";
 }
 
 TEST(OracoolClassTree, AuraStateRoundTripsThroughTheChunkTail)
@@ -10564,4 +10581,116 @@ TEST(OracoolAudit, SkillPickerHoverIsResolvedAtKeyTimeNotAtTheLastDraw)
 	MousePosition = savedMouse;
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
+}
+
+// Movement Speed (user, 2026-09-07): a percentage on the sheet from items and Vigor, turned into the
+// walk animation's frame skip in steps. Vigor's per-rank number is what its description promises.
+TEST(OracoolAudit, MovementSpeedIsAPercentageFromItemsAndVigorInSteps)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = MyPlayer;
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+	player._pUnspentSkillPoints = 3;
+
+	// A ring of swiftness: the affix lands on the item and the sheet.
+	devilution::Item ring {};
+	InitializeItem(ring, IDI_TRING);
+	ring._iMagical = ITEM_QUALITY_MAGIC;
+	ring._iIdentified = true;
+	ring._iStatFlag = true;
+	ring._iPLMoveSpeed = 15; // what SaveItemPower(IPL_MOVESPEED) writes; the function itself is file-local to items.cpp
+	player.InvBody[INVLOC_RING_LEFT] = ring;
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(oracool::MovementSpeedBonusPercent(player), 15) << "the worn affix did not reach the sheet";
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -1) << "+15% is the first stride step";
+
+	// Vigor at rank 3 on top: 15 + 45 = 60, the run cap.
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(oracool::MovementSpeedBonusPercent(player), 15 + 3 * oracool::VigorMoveSpeedPerRank);
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 2) << "+60% is the run";
+
+	// Off again: the ring alone.
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(oracool::MovementSpeedBonusPercent(player), 15);
+
+	// The thresholds, on a bare sheet: 100 is the walk.
+	player.InvBody[INVLOC_RING_LEFT].clear();
+	for (const auto [bonus, skip] : { std::pair { 0, -2 }, std::pair { 9, -2 }, std::pair { 10, -1 }, std::pair { 25, 0 }, std::pair { 40, 1 }, std::pair { 60, 2 }, std::pair { 100, 2 } }) {
+		player._pIMoveSpeed = bonus;
+		EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + bonus);
+		EXPECT_EQ(oracool::WalkFrameSkipFor(player), skip) << "+" << bonus << "%";
+	}
+	player._pIMoveSpeed = 0;
+
+	// The slow side: a cold or a curse takes from the same percentage, steps below the walk, and
+	// runs out by the tick. Two overlapping slows keep the deeper, never add.
+	oracool::ClearMovementSlows();
+	EXPECT_EQ(oracool::PlayerSlowPercent(player), 0);
+	oracool::SlowPlayer(player, 3, 15);
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 85);
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -3) << "a 15-point slow is one step under the walk";
+	oracool::SlowPlayer(player, 2, 30);
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 70) << "the deeper slow wins";
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -4);
+	oracool::TickMovementSlow(player);
+	oracool::TickMovementSlow(player);
+	EXPECT_EQ(oracool::PlayerSlowPercent(player), 30) << "the longer clock holds the slow";
+	oracool::TickMovementSlow(player);
+	EXPECT_EQ(oracool::PlayerSlowPercent(player), 0) << "the slow did not run out";
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100);
+	// A ring of swiftness with a slow on: both sides in one number.
+	player._pIMoveSpeed = 20;
+	oracool::SlowPlayer(player, 5, 30);
+	EXPECT_EQ(oracool::MovementSpeedPercent(player), 90);
+	oracool::ClearMovementSlows();
+	player._pIMoveSpeed = 0;
+
+}
+
+// The drop tail's Movement Speed roll (2026-09-07): into the item's own affix record, never the
+// vanilla tables (a row there re-rolled every seeded item - the pack fixtures caught it).
+TEST(OracoolAudit, MovementSpeedRollsOnTheDropTailIntoTheItemsOwnRecord)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	int rolled = 0;
+	int lastValue = 0;
+	for (int attempt = 0; attempt < 400 && rolled == 0; attempt++) {
+		devilution::Item ring {};
+		InitializeItem(ring, IDI_TRING);
+		ring._iMagical = ITEM_QUALITY_MAGIC;
+		ring._iOracoolTier = OracoolItemTier::None;
+		TryAddMovementSpeedToDrop(ring);
+		if (ring._iPLMoveSpeed == 0) {
+			EXPECT_EQ(ring._iOracoolSuffixCount, 0);
+			continue;
+		}
+		rolled++;
+		lastValue = ring._iPLMoveSpeed;
+		ASSERT_EQ(ring._iOracoolSuffixCount, 1) << "the roll must live in the record";
+		EXPECT_EQ(ring._iOracoolSuffixes[0].type, IPL_MOVESPEED);
+		EXPECT_EQ(ring._iOracoolSuffixes[0].param1, ring._iPLMoveSpeed) << "the record and the field must agree";
+	}
+	EXPECT_EQ(rolled, 1) << "one drop in twelve should have rolled it within 400 tries";
+	EXPECT_GE(lastValue, 10);
+	EXPECT_LE(lastValue, 30);
+
+	// Never on a unique: it says what it is.
+	for (int attempt = 0; attempt < 200; attempt++) {
+		devilution::Item ring {};
+		InitializeItem(ring, IDI_TRING);
+		ring._iMagical = ITEM_QUALITY_UNIQUE;
+		TryAddMovementSpeedToDrop(ring);
+		ASSERT_EQ(ring._iPLMoveSpeed, 0) << "a unique took the drop-tail affix";
+	}
 }

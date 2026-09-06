@@ -1267,6 +1267,13 @@ enum item_effect_type : int8_t {
 	 * would otherwise load this as invalid, and the item format version for the field it writes.
 	 */
 	IPL_MAGICFIND,
+	/**
+	 * Movement Speed +X% (user, 2026-09-07: "introduce Movement Speed +X% affix on items so other classes
+	 * have a chance at such abilities, not just the Paladin"). Appended like the two above, and the same
+	 * two bounds move with it. The percentage is a stat on the sheet; the engine turns the total into a
+	 * walk-animation frame skip in steps - see oracool::WalkFrameSkipFor.
+	 */
+	IPL_MOVESPEED,
 	IPL_INVALID = -1,
 };
 
