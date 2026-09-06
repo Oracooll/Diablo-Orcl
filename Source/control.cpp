@@ -97,6 +97,7 @@ bool resetStatsButtonDown;
 UiFlags InfoColor;
 std::vector<UiFlags> InfoStringLineColors;
 std::vector<uint16_t> InfoStringLineTailStart;
+std::vector<std::vector<PanelLineRun>> InfoStringLineRuns;
 bool talkflag;
 bool sbookflag;
 bool chrflag;
@@ -109,6 +110,7 @@ PanelInfoText &PanelInfoText::operator=(StringOrView str)
 	text = std::move(str);
 	InfoStringLineColors.clear();
 	InfoStringLineTailStart.clear();
+	InfoStringLineRuns.clear();
 	return *this;
 }
 bool panelflag;
@@ -858,6 +860,7 @@ void PushLineColors(string_view str, UiFlags color)
 	// consumer can index either with the same line number. 0 = no tail, the state every existing
 	// caller wants.
 	InfoStringLineTailStart.insert(InfoStringLineTailStart.end(), lines, 0);
+	InfoStringLineRuns.insert(InfoStringLineRuns.end(), lines, {});
 }
 
 /**
@@ -884,6 +887,8 @@ void BackfillLineColors()
 		InfoStringLineColors.insert(InfoStringLineColors.end(), lines - InfoStringLineColors.size(), InfoColor);
 	if (InfoStringLineTailStart.size() < lines)
 		InfoStringLineTailStart.insert(InfoStringLineTailStart.end(), lines - InfoStringLineTailStart.size(), 0);
+	if (InfoStringLineRuns.size() < lines)
+		InfoStringLineRuns.insert(InfoStringLineRuns.end(), lines - InfoStringLineRuns.size(), {});
 }
 
 } // namespace
@@ -930,12 +935,29 @@ void AddPanelStringSplit(std::string &&str, UiFlags color, size_t tailStart)
 		InfoStringLineTailStart.back() = static_cast<uint16_t>(clamped);
 }
 
+void AddPanelStringRuns(std::string &&str, UiFlags color, std::vector<PanelLineRun> runs)
+{
+	// One line only, like the split; runs past the end are dropped rather than asserted, for the
+	// same translation reason.
+	const size_t size = str.size();
+	AddPanelString(std::move(str), color);
+	if (InfoStringLineRuns.empty())
+		return;
+	std::vector<PanelLineRun> kept;
+	for (const PanelLineRun &run : runs) {
+		if (run.start < size)
+			kept.push_back(run);
+	}
+	InfoStringLineRuns.back() = std::move(kept);
+}
+
 void SetPanelString(StringOrView str, UiFlags color)
 {
 	InfoString.AssignKeepingLineColors(std::move(str));
 	InfoColor = color;
 	InfoStringLineColors.clear();
 	InfoStringLineTailStart.clear();
+	InfoStringLineRuns.clear();
 	PushLineColors(InfoString.str(), color);
 }
 
@@ -944,6 +966,7 @@ void ClearPanelStrings()
 	InfoString.AssignKeepingLineColors(StringOrView {});
 	InfoStringLineColors.clear();
 	InfoStringLineTailStart.clear();
+	InfoStringLineRuns.clear();
 }
 
 Point GetPanelPosition(UiPanels panel, Point offset)

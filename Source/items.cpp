@@ -2349,15 +2349,28 @@ void PrintItemInfo(const Item &item)
 	uint8_t mag = static_cast<uint8_t>(oracool::EffectiveRequirement(item, item._iMinMag));
 	if (str != 0 || mag != 0 || dex != 0) {
 		std::string text = std::string(_("Required:"));
-		if (str != 0)
-			text.append(fmt::format(fmt::runtime(_(" {:d} Str")), str));
-		if (mag != 0)
-			text.append(fmt::format(fmt::runtime(_(" {:d} Mag")), mag));
-		if (dex != 0)
-			text.append(fmt::format(fmt::runtime(_(" {:d} Dex")), dex));
+		// Each requirement the character does not meet is RED, the rest white (user, 2026-09-06:
+		// "if i cant equipt an item due to a stats requrement nt fulfilled, in the description of
+		// that item use red font for that stat requirement, so it is easier to spot it"). The same
+		// comparison as Player::CanUseItem, against the character being inspected.
+		std::vector<PanelLineRun> runs;
+		const Player *who = InspectPlayer != nullptr ? InspectPlayer : MyPlayer;
+		auto append = [&](uint8_t need, int have, const char *format) {
+			if (need == 0)
+				return;
+			const bool unmet = who != nullptr && have < need;
+			if (unmet)
+				runs.push_back({ static_cast<uint16_t>(text.size()), UiFlags::ColorRed });
+			text.append(fmt::format(fmt::runtime(_(format)), need));
+			if (unmet)
+				runs.push_back({ static_cast<uint16_t>(text.size()), ItemBaseStatColor });
+		};
+		append(str, who != nullptr ? who->_pStrength : 0, " {:d} Str");
+		append(mag, who != nullptr ? who->_pMagic : 0, " {:d} Mag");
+		append(dex, who != nullptr ? who->_pDexterity : 0, " {:d} Dex");
 		// Oracool: requirements are base information about the item, so white - see the colour
 		// scheme note in PrintItemDetails.
-		AddPanelString(std::move(text), ItemBaseStatColor);
+		AddPanelStringRuns(std::move(text), ItemBaseStatColor, std::move(runs));
 	}
 }
 

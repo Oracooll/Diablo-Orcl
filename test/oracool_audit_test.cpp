@@ -8895,6 +8895,8 @@ TEST(OracoolAudit, AssigningHoverTextClearsThePreviousLineColours)
 	    << " stale line colours - this is the mismatch the tooltip asserts on";
 	EXPECT_TRUE(InfoStringLineTailStart.empty())
 	    << "the tail array must move with the colour array or they index differently";
+	EXPECT_TRUE(InfoStringLineRuns.empty())
+	    << "the run array must move with the colour array or they index differently";
 
 	// And the arrays still work afterwards: an append re-establishes them for the new text.
 	AddPanelString(devilution::string_view("Requires Strength: 60"), devilution::UiFlags::ColorRed);
@@ -10246,4 +10248,56 @@ TEST(OracoolAudit, EveryMenuEntryAndTabHasAGlyph)
 		painted[open] = white;
 	}
 	EXPECT_GT(painted[1], painted[0]) << "the open chest should paint more than the closed one";
+}
+
+// User request (2026-09-06): "if i cant equipt an item due to a stats requrement nt fulfilled, in
+// the description of that item use red font for that stat requirement". The requirement line is
+// one line in three colours at most; this pins that exactly the UNMET stat is red, and only it.
+TEST(OracoolAudit, UnmetRequirementIsRedAndMetOnesAreNot)
+{
+	// PrintItemDetails is a no-op headless; the printers build strings only, so this is safe here.
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = MyPlayer;
+	devilution::Player &player = Players[0];
+	player._pStrength = 30;
+	player._pMagic = 100;
+	player._pDexterity = 100;
+
+	devilution::Item item;
+	InitializeItem(item, IDI_WARRIOR); // the short sword: equippable, so PrintItemDetails prints its requirements
+	item._iIdentified = true;
+	item._iMinStr = 60;
+	item._iMinMag = 20;
+	item._iMinDex = 25;
+
+	ClearPanelStrings();
+	PrintItemDetails(item);
+
+	const std::string text(InfoString.str());
+	const size_t reqPos = text.find("Required:");
+	ASSERT_NE(reqPos, std::string::npos) << "the block has no requirement line:\n" << text;
+	size_t lineIndex = 0;
+	for (size_t i = 0; i < reqPos; i++)
+		if (text[i] == '\n')
+			lineIndex++;
+	const size_t lineEnd = text.find('\n', reqPos);
+	const std::string line = text.substr(reqPos, lineEnd == std::string::npos ? std::string::npos : lineEnd - reqPos);
+	ASSERT_LT(lineIndex, InfoStringLineRuns.size());
+	const std::vector<devilution::PanelLineRun> &runs = InfoStringLineRuns[lineIndex];
+	ASSERT_EQ(runs.size(), 2u) << "one unmet stat should produce one red run and one return to white on: " << line;
+	EXPECT_EQ(runs[0].color, devilution::UiFlags::ColorRed);
+	EXPECT_EQ(runs[1].color, devilution::UiFlags::ColorWhite);
+	const std::string red = line.substr(runs[0].start, runs[1].start - runs[0].start);
+	EXPECT_EQ(red, " 60 Str") << "the red run should be exactly the unmet Strength requirement on: " << line;
+
+	// Meet it, and nothing is red.
+	player._pStrength = 60;
+	ClearPanelStrings();
+	PrintItemDetails(item);
+	EXPECT_TRUE(InfoStringLineRuns[lineIndex].empty()) << "with every requirement met the line should be one colour";
+	ClearPanelStrings();
+	HeadlessMode = savedHeadless;
 }

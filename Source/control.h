@@ -268,11 +268,39 @@ extern DVL_API_FOR_TEST std::vector<UiFlags> InfoStringLineColors;
 extern DVL_API_FOR_TEST std::vector<uint16_t> InfoStringLineTailStart;
 
 /**
+ * @brief A colour change INSIDE a line: from byte @p start on, the line is drawn in @p color.
+ *
+ * The general form of the tail above, for the one line that needs more than a head and a tail: an
+ * item's "Required: 60 Str 20 Mag 25 Dex", where the user asked (2026-09-06) for each requirement
+ * the character does not meet to be RED, "so it is easier to spot it" - and the unmet one can be
+ * any of the three, or two of them, with met ones in between.
+ */
+struct PanelLineRun {
+	uint16_t start;
+	UiFlags color;
+};
+
+/**
+ * @brief Per line, the colour runs after its opening colour, or an empty list for "no runs".
+ *
+ * Parallel to InfoStringLineColors and InfoStringLineTailStart, kept in step by the same functions,
+ * subject to the same size check. A line with runs ignores its tail entry. Runs are in ascending
+ * order of `start`; the text before the first run is drawn in the line's own colour.
+ */
+extern DVL_API_FOR_TEST std::vector<std::vector<PanelLineRun>> InfoStringLineRuns;
+
+/**
  * @brief Appends a line drawn in two colours: @p str up to @p tailStart in @p color, the rest white.
  *
  * @p tailStart is a byte offset into @p str. Passing 0 is the same as the plain overload.
  */
 void AddPanelStringSplit(std::string &&str, UiFlags color, size_t tailStart);
+
+/**
+ * @brief Appends ONE line drawn in @p color up to the first run, then in each run's colour from
+ * its start. Runs must be in ascending order of start; an empty list is the plain overload.
+ */
+void AddPanelStringRuns(std::string &&str, UiFlags color, std::vector<PanelLineRun> runs);
 void DrawPanelBox(const Surface &out, SDL_Rect srcRect, Point targetPosition);
 Point GetPanelPosition(UiPanels panel, Point offset = { 0, 0 });
 

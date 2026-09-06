@@ -106,6 +106,7 @@ struct TooltipBlock {
 	std::string text;
 	std::vector<UiFlags> colors;
 	std::vector<uint16_t> tails;
+	std::vector<std::vector<PanelLineRun>> runs;
 };
 
 /** @brief Widest line, line count and line height of a block, and the box it needs. */
@@ -146,7 +147,8 @@ BlockMetrics MeasureBlock(string_view text, bool asPanel)
  * whole text in @p singleColor.
  */
 void DrawBlock(const Surface &out, const Rectangle &box, const BlockMetrics &m, string_view text,
-    const std::vector<UiFlags> &colors, const std::vector<uint16_t> &tails, UiFlags singleColor, bool asPanel)
+    const std::vector<UiFlags> &colors, const std::vector<uint16_t> &tails,
+    const std::vector<std::vector<PanelLineRun>> &runs, UiFlags singleColor, bool asPanel)
 {
 	const bool boxFitsOnScreen = box.size.width <= static_cast<int>(gnScreenWidth) && box.size.height <= static_cast<int>(gnScreenHeight);
 	if (asPanel && boxFitsOnScreen) {
@@ -204,7 +206,30 @@ void DrawBlock(const Surface &out, const Rectangle &box, const BlockMetrics &m, 
 		// colour per line cannot say that. Zero, the value every other producer records, takes
 		// the single-run path below unchanged.
 		const size_t tailStart = i < static_cast<int>(tails.size()) ? tails[i] : 0;
-		if (tailStart > 0 && tailStart < line.size()) {
+		// Or in SEVERAL runs (control.h's InfoStringLineRuns): the requirement line paints each
+		// unmet stat red (user, 2026-09-06). Centred as one line, then laid out left to right, the
+		// same way as the two-run case below.
+		const bool hasRuns = i < static_cast<int>(runs.size()) && !runs[i].empty();
+		if (hasRuns) {
+			int x = lineArea.position.x + std::max(0, (lineArea.size.width - GetLineWidth(line)) / 2);
+			size_t segStart = 0;
+			UiFlags segColor = colors[i];
+			auto drawSegment = [&](size_t end) {
+				if (end <= segStart)
+					return;
+				const string_view seg = line.substr(segStart, end - segStart);
+				const int w = GetLineWidth(seg);
+				DrawString(out, seg, Rectangle { { x, lineArea.position.y }, { w, m.lineHeight } }, { segColor | runFlags, 1, m.lineHeight });
+				x += w;
+			};
+			for (const PanelLineRun &run : runs[i]) {
+				const size_t start = std::min<size_t>(run.start, line.size());
+				drawSegment(start);
+				segStart = start;
+				segColor = run.color;
+			}
+			drawSegment(line.size());
+		} else if (tailStart > 0 && tailStart < line.size()) {
 			const string_view head = line.substr(0, tailStart);
 			const string_view tail = line.substr(tailStart);
 			// Bug (fixed 2026-08-17, user: "white letters overlap the green one, when there is
@@ -336,6 +361,7 @@ TooltipBlock CaptureItemBlock(const Item &item)
 	const std::string savedText { InfoString.str() };
 	const std::vector<UiFlags> savedColors = InfoStringLineColors;
 	const std::vector<uint16_t> savedTails = InfoStringLineTailStart;
+	const std::vector<std::vector<PanelLineRun>> savedRuns = InfoStringLineRuns;
 
 	ClearPanelStrings();
 	SetPanelString(item.getName(), item.getTextColor());
@@ -344,11 +370,12 @@ TooltipBlock CaptureItemBlock(const Item &item)
 	else
 		PrintItemDur(item);
 
-	TooltipBlock block { std::string(InfoString.str()), InfoStringLineColors, InfoStringLineTailStart };
+	TooltipBlock block { std::string(InfoString.str()), InfoStringLineColors, InfoStringLineTailStart, InfoStringLineRuns };
 
 	InfoString.AssignKeepingLineColors(std::string(savedText));
 	InfoStringLineColors = savedColors;
 	InfoStringLineTailStart = savedTails;
+	InfoStringLineRuns = savedRuns;
 	return block;
 }
 
@@ -381,7 +408,7 @@ void DrawCursorTooltip(const Surface &out)
 	origin.y = std::clamp(origin.y, 0, maxY);
 
 	const Rectangle box { origin, boxSize };
-	DrawBlock(out, box, m, InfoString.str(), InfoStringLineColors, InfoStringLineTailStart, InfoColor, asPanel);
+	DrawBlock(out, box, m, InfoString.str(), InfoStringLineColors, InfoStringLineTailStart, InfoStringLineRuns, InfoColor, asPanel);
 
 	// The outline bleeds a pixel past the glyphs, so the region the dirty-rect path has to erase
 	// is slightly larger than the text box itself. The panel's border is already inside `box`.
@@ -411,6 +438,7 @@ void DrawCursorTooltip(const Surface &out)
 		block.text = std::string(_("EQUIPPED ITEM")) + "\n" + block.text;
 		block.colors.insert(block.colors.begin(), UiFlags::ColorOracoolGreen);
 		block.tails.insert(block.tails.begin(), 0);
+		block.runs.insert(block.runs.begin(), {});
 		const BlockMetrics cm = MeasureBlock(block.text, /*asPanel=*/true);
 		int cx;
 		if (nextRight + cm.boxSize.width <= static_cast<int>(gnScreenWidth)) {
@@ -422,7 +450,7 @@ void DrawCursorTooltip(const Surface &out)
 		}
 		const int cy = std::clamp(box.position.y, 0, std::max(0, static_cast<int>(gnScreenHeight) - cm.boxSize.height));
 		const Rectangle cbox { { cx, cy }, cm.boxSize };
-		DrawBlock(out, cbox, cm, block.text, block.colors, block.tails, UiFlags::ColorWhite, /*asPanel=*/true);
+		DrawBlock(out, cbox, cm, block.text, block.colors, block.tails, block.runs, UiFlags::ColorWhite, /*asPanel=*/true);
 		// One dirty rect for the lot, so the erase pass covers every panel drawn this frame.
 		const int right = std::max(PrevTooltipRect.position.x + PrevTooltipRect.size.width, cbox.position.x + cbox.size.width);
 		const int bottom = std::max(PrevTooltipRect.position.y + PrevTooltipRect.size.height, cbox.position.y + cbox.size.height);
