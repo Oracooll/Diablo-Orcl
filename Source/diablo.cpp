@@ -1875,7 +1875,7 @@ void SetApplicationVersions()
 	// multi.cpp - because the wire structs no longer match the base engine's.)
 	*BufCopy(gszProductName, PROJECT_NAME, " v", ORACOOL_VERSION, " - Based on DevilutionX ", PROJECT_VERSION) = '\0';
 	*BufCopy(gszVersionNumber, "version ", PROJECT_VERSION) = '\0';
-	*BufCopy(gszMainMenuVersionText, "DevilutionX ", PROJECT_VERSION, "\nOracool Edition v", ORACOOL_VERSION) = '\0';
+	*BufCopy(gszMainMenuVersionText, "DevilutionX ", PROJECT_VERSION, "\nDiablo Orcl v", ORACOOL_VERSION) = '\0';
 }
 
 void CheckArchivesUpToDate()

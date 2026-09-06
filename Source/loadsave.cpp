@@ -2695,7 +2695,7 @@ void LoadHeroItems(Player &player, uint32_t saveNumber)
 		// The fixed-size item record grew when Oracool tier/affix data was folded directly
 		// into it; reading an older, shorter record with today's field layout would silently
 		// misalign every item after this point rather than failing cleanly.
-		app_fatal(_("This save is from an incompatible version of Diablo Oracool Edition and cannot be loaded. Please start a new character."));
+		app_fatal(_("This save is from an incompatible version of Diablo Orcl and cannot be loaded. Please start a new character."));
 	}
 
 	LoadMatchingItems(file, player, NUM_INVLOC, player.InvBody);
@@ -2752,13 +2752,13 @@ void LoadStash()
 
 	auto version = file.NextLE<uint8_t>();
 	if (version != StashVersion && version != 5) {
-		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Oracool Edition and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
+		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
 	// Version 6 carries the item schema its records were written with; version 5 is the current
 	// build's own pre-audit output, parsed with today's format. See the StashVersion note.
 	if (version == StashVersion && file.NextLE<uint8_t>() != OracoolItemFormatVersion) {
-		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Oracool Edition and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
+		EventPlrMsg(_("This save's Stash is from an incompatible version of Diablo Orcl and cannot be loaded. Items already in the Stash could not be recovered; new items placed in the Stash will be saved correctly from now on."), UiFlags::ColorRed);
 		return;
 	}
 

@@ -1452,7 +1452,7 @@ std::vector<OptionEntryBase *> GameplayOptions::GetEntries()
 }
 
 OracoolOptions::OracoolOptions()
-    : OptionCategoryBase("Oracool Edition", N_("Oracool Edition"), N_("Optional single-player features for Diablo Oracool Edition."))
+    : OptionCategoryBase("Oracool Edition", N_("Diablo Orcl"), N_("Optional single-player features for Diablo Orcl."))
     /*
      * The tuned balance, adopted wholesale from the user's own diablo.ini (2026-08-27: "look at this
      * ini file and make its setting the default in future releases").
@@ -1506,7 +1506,7 @@ OracoolOptions::OracoolOptions()
               { PanelDocking::Bottom, N_("Bottom") },
               { PanelDocking::Middle, N_("Middle") },
           })
-    , autoSave("Auto Save", OptionEntryFlags::None, N_("Auto Save"), N_("Enables Oracool automatic saving in single-player."), true)
+    , autoSave("Auto Save", OptionEntryFlags::None, N_("Auto Save"), N_("Enables automatic saving in single-player."), true)
     , autoSaveIntervalMinutes("Auto Save Interval Minutes", OptionEntryFlags::None, N_("Auto Save Interval Minutes"), N_("Minutes between periodic automatic saves."), 5, { 1, 2, 3, 5, 10, 15, 30, 60 })
     , autoSaveOnLevelChange("Auto Save on Level Change", OptionEntryFlags::None, N_("Auto Save on Level Change"), N_("Saves after entering another dungeon level or returning to town."), true)
     , autoSaveOnItemPickup("Auto Save on Item Pickup", OptionEntryFlags::None, N_("Auto Save on Item Pickup"), N_("Schedules a save after an item or gold enters inventory."), true)

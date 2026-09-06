@@ -81,7 +81,7 @@ bool InitMultiPlayerMenu()
 	// false would end the outer loop and quit the game.
 	if (!oracool::MultiplayerEnabled()) {
 		UiErrorOkDialog(_("Single-player only"),
-		    _("Diablo Oracool Edition does not support multiplayer.\n\nIts characters carry item and skill data that the network protocol cannot describe, so a hero shared over a network would arrive as something other than what it is."));
+		    _("Diablo Orcl does not support multiplayer.\n\nIts characters carry item and skill data that the network protocol cannot describe, so a hero shared over a network would arrive as something other than what it is."));
 		return true;
 	}
 

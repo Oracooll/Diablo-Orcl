@@ -479,3 +479,6 @@ DiabloOrcl-*-win64.zip
 
 # Release packages built by tools/BuildReleasePackage.ps1
 dist/
+
+# Machine-local CMake presets (the Debug tree outside OneDrive, compiler pinned) - see project_debug_build_outside_onedrive
+CMakeUserPresets.json

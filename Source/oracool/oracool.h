@@ -5,7 +5,7 @@
 
 namespace devilution::oracool {
 
-inline constexpr char EditionName[] = "Diablo Oracool Edition";
+inline constexpr char EditionName[] = "Diablo Orcl";
 
 inline bool IsSinglePlayer()
 {
