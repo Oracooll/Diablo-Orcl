@@ -13,6 +13,7 @@
 #include "engine/trn.hpp" // GetInfravisionTRN - the unusable-item grey, at 3x
 #include "engine/render/clx_render.hpp"
 #include "engine/surface.hpp"
+#include "engine/palette.h"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "inv.h"
@@ -36,6 +37,31 @@
 namespace devilution::oracool {
 
 namespace {
+
+/**
+ * @brief Darkens @p rect by a QUARTER: each pixel blended half-and-half with its own half-black.
+ *
+ * DrawHalfTransparentRectTo is one pass through the black-blend table, about 50%, and the idle
+ * plates under it read too dark (user, 2026-09-07: "reduce the darkening by half"). No table gives
+ * 25% directly, but two the engine already has compose to it: paletteTransparencyLookup[0][c] is
+ * c at half brightness, and paletteTransparencyLookup[c][that] is the midpoint between c and it -
+ * three quarters of c. Exact for the palette's own arithmetic, no dither.
+ */
+void DrawQuarterDarkenRect(const Surface &out, const Rectangle &rect)
+{
+	for (int y = 0; y < rect.size.height; y++) {
+		const int sy = rect.position.y + y;
+		if (sy < 0 || sy >= out.h())
+			continue;
+		for (int x = 0; x < rect.size.width; x++) {
+			const int sx = rect.position.x + x;
+			if (sx < 0 || sx >= out.w())
+				continue;
+			uint8_t &p = *out.at(sx, sy);
+			p = paletteTransparencyLookup[p][paletteTransparencyLookup[0][p]];
+		}
+	}
+}
 
 bool WindowOpen = false;
 bool RecipeBookOpen = false;
@@ -891,7 +917,7 @@ void DrawLevskiRoar(const Surface &out)
 		else if (i >= levski_skin::SalvageFirst)
 			idle = !AnySalvageableInBackpack(*MyPlayer, static_cast<SalvageTier>(i - levski_skin::SalvageFirst));
 		if (idle)
-			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+			DrawQuarterDarkenRect(out, rect); // a quarter, not a half, since 2026-09-07 - see the helper
 	}
 
 	if (!RecipeBookOpen)
