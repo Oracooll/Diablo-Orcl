@@ -10774,3 +10774,49 @@ TEST(OracoolCharPanel, ABurningAuraNamesTheRightButton)
 	player._pOracoolActiveAura = 0xFFFF;
 	EXPECT_NE(GetReadiedSlotNameText(false).find("Attack"), std::string::npos) << "put out, the button is the attack again";
 }
+
+// User, 2026-09-07: "i assigned F2 to a skill in lmb picker but that didnt remove it from the skill
+// who used to use it in rmb picker. fix this. a hot key can only be assigned to a single skill on a
+// single picker. hard rule."
+TEST(OracoolAudit, AHotkeyBelongsToOneSkillOnOneButton)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+	player._pMemSpells |= GetSpellBitmask(SpellID::Firebolt) | GetSpellBitmask(SpellID::Healing);
+	player._pSplLvl[static_cast<size_t>(SpellID::Firebolt)] = 3;
+	player._pSplLvl[static_cast<size_t>(SpellID::Healing)] = 3;
+	for (size_t i = 0; i < NumHotkeys; i++) {
+		player._pSplHotKey[i] = SpellID::Invalid;
+		player._pSplLHotKey[i] = SpellID::Invalid;
+	}
+
+	// F2 on Firebolt in the RIGHT list.
+	BindAbilityHotkey(player, 1, SpellID::Firebolt, /*leftButton=*/false);
+	ASSERT_EQ(player._pSplHotKey[1], SpellID::Firebolt);
+
+	// F2 on Healing in the LEFT list: the right side must let go of the key.
+	BindAbilityHotkey(player, 1, SpellID::Healing, /*leftButton=*/true);
+	EXPECT_EQ(player._pSplLHotKey[1], SpellID::Healing);
+	EXPECT_EQ(player._pSplHotKey[1], SpellID::Invalid) << "F2 stayed on Firebolt on the right button";
+	EXPECT_EQ(player._pSplTHotKey[1], SpellType::Invalid);
+
+	// The skill side of the rule still holds: moving Healing to F3-left empties F2-left.
+	BindAbilityHotkey(player, 2, SpellID::Healing, /*leftButton=*/true);
+	EXPECT_EQ(player._pSplLHotKey[2], SpellID::Healing);
+	EXPECT_EQ(player._pSplLHotKey[1], SpellID::Invalid);
+
+	// An aura on F3 evicts the spell, and a spell on F3 evicts the aura.
+	player._pAuraHotKey[2] = static_cast<uint16_t>(oracool::ClassTreeSkill::Might);
+	BindAbilityHotkey(player, 2, SpellID::Firebolt, /*leftButton=*/false);
+	EXPECT_EQ(player._pAuraHotKey[2], 0xFFFF) << "the aura kept F3 beside a spell";
+	EXPECT_EQ(player._pSplLHotKey[2], SpellID::Invalid) << "Healing kept F3-left beside Firebolt-right";
+	EXPECT_EQ(player._pSplHotKey[2], SpellID::Firebolt);
+
+	// Same key, same skill, same button: off again.
+	BindAbilityHotkey(player, 2, SpellID::Firebolt, /*leftButton=*/false);
+	EXPECT_EQ(player._pSplHotKey[2], SpellID::Invalid);
+}

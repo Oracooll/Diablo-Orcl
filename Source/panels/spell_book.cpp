@@ -1356,6 +1356,24 @@ void ClearSpellFromHotkeys(Player &player, SpellID spell)
 	}
 }
 
+/**
+ * @brief Empties F-key @p slot on the right button, the left button and the aura array.
+ *
+ * User, 2026-09-07: "i assigned F2 to a skill in lmb picker but that didnt remove it from the skill
+ * who used to use it in rmb picker. fix this. a hot key can only be assigned to a single skill on a
+ * single picker. hard rule." Until now a bind swept the SKILL off every key (ClearSpellFromHotkeys)
+ * but left the KEY's other side alone, so F2-left and F2-right could name two skills. This is the
+ * other half of the sweep: one key, one thing, one button.
+ */
+void ClearHotkeySlotOnBothButtons(Player &player, size_t slot)
+{
+	player._pSplHotKey[slot] = SpellID::Invalid;
+	player._pSplTHotKey[slot] = SpellType::Invalid;
+	player._pSplLHotKey[slot] = SpellID::Invalid;
+	player._pSplLTHotKey[slot] = SpellType::Invalid;
+	player._pAuraHotKey[slot] = 0xFFFF;
+}
+
 int GetAbilityFKeyNumber(SpellID spell, bool leftButton)
 {
 	return AssignedFKeyNumber(spell, leftButton);
@@ -1375,6 +1393,26 @@ int GetAuraFKeyNumber(oracool::ClassTreeSkill aura)
 	return 0;
 }
 
+void BindAbilityHotkey(Player &player, size_t slot, SpellID spell, bool leftButton)
+{
+	if (slot >= AbilityFKeyCount || !IsValidSpell(spell))
+		return;
+	SpellID *keys = leftButton ? player._pSplLHotKey : player._pSplHotKey;
+	SpellType *types = leftButton ? player._pSplLTHotKey : player._pSplTHotKey;
+	if (keys[slot] == spell) {
+		// The same key on the same skill takes it back off.
+		keys[slot] = SpellID::Invalid;
+		types[slot] = SpellType::Invalid;
+		return;
+	}
+	// The hard rule, both halves: this KEY forgets whatever it held on either button (and any aura),
+	// and this SKILL leaves every other key it sat on. Then the one binding is written.
+	ClearHotkeySlotOnBothButtons(player, slot);
+	ClearSpellFromHotkeys(player, spell);
+	keys[slot] = spell;
+	types[slot] = BindingTypeFor(player, spell);
+}
+
 bool HandleAbilityFKey(size_t slot, bool shift)
 {
 	if (slot >= AbilityFKeyCount)
@@ -1387,8 +1425,6 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 	// that respective skill slot (lmb/rmb)"). Holding shift over the LMB list must not silently
 	// write the RIGHT button's array.
 	const bool forLeft = oracool::IsSkillPickerOpen() ? oracool::IsSkillPickerForLeftButton() : shift;
-	SpellID *keys = forLeft ? me._pSplLHotKey : me._pSplHotKey;
-	SpellType *types = forLeft ? me._pSplLTHotKey : me._pSplTHotKey;
 
 	// A quick list is open: the key EDITS that list's binding, exactly as it edits the Abilities
 	// window's. Consumed either way - a bind key that fell through to casting mid-edit would ready
@@ -1405,14 +1441,9 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 			if (me._pAuraHotKey[slot] == static_cast<uint16_t>(aura)) {
 				me._pAuraHotKey[slot] = 0xFFFF; // the same key on the same aura takes it back off
 			} else {
-				// One key, one thing: an aura landing on a key clears whatever spell was there, on
-				// EITHER button, exactly as a spell would.
-				ClearSpellFromHotkeys(me, me._pSplHotKey[slot]);
-				ClearSpellFromHotkeys(me, me._pSplLHotKey[slot]);
-				me._pSplHotKey[slot] = SpellID::Invalid;
-				me._pSplTHotKey[slot] = SpellType::Invalid;
-				me._pSplLHotKey[slot] = SpellID::Invalid;
-				me._pSplLTHotKey[slot] = SpellType::Invalid;
+				// One key, one thing: an aura landing on a key clears whatever was there, on EITHER
+				// button, exactly as a spell would.
+				ClearHotkeySlotOnBothButtons(me, slot);
 				ClearAuraFromHotkeys(me, aura);
 				me._pAuraHotKey[slot] = static_cast<uint16_t>(aura);
 			}
@@ -1424,16 +1455,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 		const SpellID spell = oracool::GetSkillPickerHoveredSpell();
 		if (!IsValidSpell(spell))
 			return true; // over an attack or no cell at all - nothing a hotkey can hold
-		if (keys[slot] == spell) {
-			keys[slot] = SpellID::Invalid;
-			types[slot] = SpellType::Invalid;
-		} else {
-			// One key, one skill, one button (2026-08-18) - the same rule the Abilities window
-			// enforces, and the reason this sweeps both arrays before writing.
-			ClearSpellFromHotkeys(me, spell);
-			keys[slot] = spell;
-			types[slot] = BindingTypeFor(me, spell);
-		}
+		BindAbilityHotkey(me, slot, spell, forLeft);
 		oracool::ScheduleAutoSaveForSkillChange();
 		RedrawEverything();
 		return true;
@@ -1446,23 +1468,10 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 		const SpellID spell = HoveredAbilitySpell;
 		if (!IsValidSpell(spell))
 			return true;
-		if (keys[slot] == spell) {
-			// The same key on the same skill takes it back off - assign and remove are one gesture
-			// per button (user, 2026-08-18: "press hotkey again when mouse hovering over").
-			keys[slot] = SpellID::Invalid;
-			types[slot] = SpellType::Invalid;
-			// Audit finding, 2026-08-26. The BINDINGS were the last readied-skill state with no
-			// trigger: they persist in the hotkeys record like everything else, and arranging a
-			// full set of F-keys is several minutes of deliberate work to lose to a crash.
-			oracool::ScheduleAutoSaveForSkillChange();
-			RedrawEverything();
-			return true;
-		}
-		// One key, one skill, one button: drop this skill wherever else it sits before writing it
-		// here, on either button.
-		ClearSpellFromHotkeys(me, spell);
-		keys[slot] = spell;
-		types[slot] = BindingTypeFor(me, spell);
+		// Assign and remove are one gesture per button (user, 2026-08-18: "press hotkey again when
+		// mouse hovering over"); BindAbilityHotkey does both. Audit finding, 2026-08-26: the BINDINGS
+		// were the last readied-skill state with no save trigger, hence the schedule below.
+		BindAbilityHotkey(me, slot, spell, forLeft);
 		oracool::ScheduleAutoSaveForSkillChange();
 		RedrawEverything();
 		return true;
@@ -1478,9 +1487,9 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 	// the LEFT list is a left-button key, and the player who put it there expects a plain press to
 	// use it. Requiring shift as well meant a left binding looked like it had silently failed.
 	//
-	// Shift is kept as the TIEBREAK, because one key can still hold one skill per button: "one key,
-	// one skill, one button" sweeps a SPELL off both arrays, and does not stop F3-left and F3-right
-	// naming two different skills.
+	// Shift stays as a tiebreak for saves from before 2026-09-07, when F3-left and F3-right could
+	// still name two different skills. A bind now empties the key on both buttons first
+	// (ClearHotkeySlotOnBothButtons), so a fresh binding never has two sides to choose between.
 	// An aura on this key toggles it, and takes precedence: nothing else can be on the same key,
 	// because binding one clears both spell arrays for that slot.
 	if (me._pAuraHotKey[slot] != 0xFFFF) {

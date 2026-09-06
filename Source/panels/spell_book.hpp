@@ -9,6 +9,8 @@
 
 namespace devilution {
 
+struct Player; // BindAbilityHotkey takes one; player.h is heavy and this header is widely included
+
 // Forward-declared rather than including oracool/class_tree.h: that header pulls in a great deal,
 // and oracool/skill_picker.h already includes BOTH it and this one - a full include here would make
 // that a cycle. The underlying type has to match class_tree.h's declaration exactly.
@@ -53,6 +55,14 @@ constexpr size_t AbilityFKeyCount = 8;
  * quick-spell path. Returns false only for a slot out of range.
  */
 bool HandleAbilityFKey(size_t slot, bool shift);
+
+/**
+ * @brief Binds F-key @p slot to @p spell on @p leftButton's side, or unbinds it if it is already
+ * there. THE hard rule (user, 2026-09-07): "a hot key can only be assigned to a single skill on a
+ * single picker" - so the key is first emptied on BOTH buttons and the aura array, and the spell is
+ * swept off every other key. Exported so the rule can be tested without a window open.
+ */
+void BindAbilityHotkey(Player &player, size_t slot, SpellID spell, bool leftButton);
 
 /**
  * @brief Which F-key @p spell sits on for @p leftButton's side, 1-8, or 0 for none.

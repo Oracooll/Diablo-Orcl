@@ -78,6 +78,12 @@ string(REPLACE "." ";" ORACOOL_VERSION_PARTS "${ORACOOL_VERSION_STR}")
 list(GET ORACOOL_VERSION_PARTS 0 ORACOOL_VERSION_MAJOR)
 list(GET ORACOOL_VERSION_PARTS 1 ORACOOL_VERSION_MINOR)
 list(GET ORACOOL_VERSION_PARTS 2 ORACOOL_VERSION_PATCH)
+# Oracool (2026-09-07): the patch is written with three digits ("008"), and a C++ literal with a
+# leading zero is OCTAL - 008 does not compile (multi.cpp, selgame.cpp). Strip the zeros before
+# the numbers reach the compiler; 007 happened to be a valid octal 7, which is why it never showed.
+foreach(part MAJOR MINOR PATCH)
+  string(REGEX REPLACE "^0+([0-9])" "\\1" ORACOOL_VERSION_${part} "${ORACOOL_VERSION_${part}}")
+endforeach()
 
 if(NOT VERSION_SUFFIX)
   # For versions with a suffix, e.g. "1.5.0-dev", include
