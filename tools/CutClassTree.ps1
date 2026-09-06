@@ -76,7 +76,7 @@ $sheets = @{
 }
 
 $def = $sheets[$Class]
-$path = Join-Path "..\Oracool.MPQ" $def.File
+$path = Join-Path "..\Resources" $def.File
 if (-not (Test-Path $path)) { throw "sheet not found: $path" }
 $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $path))
 Write-Host ("sheet {0}: {1}x{2}" -f $def.File, $src.Width, $src.Height)

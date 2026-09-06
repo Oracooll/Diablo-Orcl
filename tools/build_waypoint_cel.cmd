@@ -11,7 +11,7 @@ REM Usage:  tools\build_waypoint_cel.cmd
 REM Run from the repository root.
 
 setlocal
-set ART=..\Oracool.MPQ\02-source-art\world\waypoint-2-states.png
+set ART=..\Resources\02-source-art\world\waypoint-2-states.png
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclwayp.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

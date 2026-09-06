@@ -49,7 +49,7 @@ REM Usage:  tools\build_item_icons.cmd
 REM Run from the repository root.
 
 setlocal enabledelayedexpansion
-set ART=..\Oracool.MPQ\02-source-art\items
+set ART=..\Resources\02-source-art\items
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\data\inv\oracool_items.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

@@ -25,7 +25,7 @@ Add-Type -AssemblyName System.Drawing
 
 # In the art vault beside the icons cut from it, not in Downloads - see the note in
 # CutBarbSkills.ps1 about why reading source art out of a staging folder does not survive.
-$sheet = "..\Oracool.MPQ\02-source-art\auras\paladin-auras-sheet-6x4-greenscreen.png"
+$sheet = "..\Resources\02-source-art\auras\paladin-auras-sheet-6x4-greenscreen.png"
 if (-not (Test-Path $sheet)) { throw "aura sheet not found: $sheet" }
 
 $COLS = 6; $ROWS = 4; $COUNT = $COLS * $ROWS
@@ -196,7 +196,7 @@ for ($i = 0; $i -lt $COUNT; $i++) {
     if ($opaque -lt 40) { throw "aura $i is blank after scaling ($opaque opaque samples)" }
 }
 
-$srcDir = "..\Oracool.MPQ\02-source-art\auras"
+$srcDir = "..\Resources\02-source-art\auras"
 New-Item -ItemType Directory -Force -Path $srcDir | Out-Null
 $strip.Save((Join-Path (Resolve-Path $srcDir) "aura_icons.png"), [System.Drawing.Imaging.ImageFormat]::Png)
 foreach ($d in @("Packaging\resources\oracool_assets\ui", "Packaging\resources\assets\ui", "build\x64-Debug\assets\ui")) {

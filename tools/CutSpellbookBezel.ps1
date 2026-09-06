@@ -44,9 +44,9 @@ $TOP_Y = 118; $BAND_H = 23
 $H_START = $PANEL_X + 115; $H_LEN = 12
 
 # Audit 2026-09-07: nothing in the game reads spellbezel_*.png any more, so the parts no longer
-# ship in the MPQ; the source copy under Oracool.MPQ\02-source-art\borders is still written.
+# ship in the MPQ; the source copy under Resources\02-source-art\borders is still written.
 $outDirs = @((Join-Path $env:TEMP "oracool-spellbezel"))
-$srcDir = "..\Oracool.MPQ\02-source-art\borders"
+$srcDir = "..\Resources\02-source-art\borders"
 New-Item -ItemType Directory -Force -Path $srcDir | Out-Null
 foreach ($d in $outDirs) { if (Test-Path (Split-Path $d -Parent)) { New-Item -ItemType Directory -Force -Path $d | Out-Null } }
 

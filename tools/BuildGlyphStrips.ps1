@@ -1,7 +1,7 @@
 # Oracool asset pipeline: rebuilds the six class-tree icon strips (ui\<class>_tree_icons.png) and
 # the attack strip (ui\attack_icons.png) from GPT's vanilla-style skill glyphs.
 #
-# Source: Oracool.MPQ\02-source-art\delivered-packs\oracool-skill-glyphs-vanilla-v1 (2026-09-05):
+# Source: Resources\02-source-art\delivered-packs\oracool-skill-glyphs-vanilla-v1 (2026-09-05):
 # 257 glyphs, 56x56 RGBA, nothing but white (243,243,243) and shadow (12,7,7) on transparency,
 # each in glyphs\<class>\<page>\<slug>.png and listed in manifest.json with its class, PAGE name and
 # skill NAME. That triple is the join: the strip's frame order IS the ClassTreeSkill order, which
@@ -20,7 +20,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-skill-glyphs-vanilla-v1'
+$pack = Join-Path (Split-Path -Parent $root) 'Resources\02-source-art\delivered-packs\oracool-skill-glyphs-vanilla-v1'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $ICON = 56
 

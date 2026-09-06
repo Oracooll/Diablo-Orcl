@@ -24,7 +24,7 @@ REM /target:winexe suppresses the console window.
 REM Put the town palette beside the exe so it loads with no setup. Its global half (entries
 REM 128-255) is what HUD and UI art is quantized against, and that half is identical across town
 REM and every dungeon type - so this one file is correct for all of them.
-set PAL=..\Oracool.MPQ\00-original-game-art\raw\levels\towndata\town.pal
+set PAL=..\Resources\00-original-game-art\raw\levels\towndata\town.pal
 if exist "%PAL%" (
   copy /y "%PAL%" tools\town.pal >nul
   echo Palette staged: tools\town.pal

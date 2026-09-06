@@ -1,6 +1,6 @@
 # CutBeltGlyphs.ps1 - builds the two belt-button glyph strips from the oracool-belt-glyphs-v1 pack.
 #
-# Source: Oracool.MPQ\02-source-art\delivered-packs\oracool-belt-glyphs-v1 (2026-09-06): six 30x30
+# Source: Resources\02-source-art\delivered-packs\oracool-belt-glyphs-v1 (2026-09-06): six 30x30
 # RGBA glyphs, white (243,243,243) and shadow (12,7,7) on transparency, three states per button:
 # idle, hover, pressed. The pressed state is the idle mask shifted (+1,+1) with no shadow, BY DESIGN
 # - the pack's README says not to recentre any state by its bounds, and the game does not.
@@ -13,7 +13,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File tools\CutBeltGlyphs.ps1
 Add-Type -AssemblyName System.Drawing
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-belt-glyphs-v1\glyphs\belt'
+$pack = Join-Path (Split-Path -Parent $root) 'Resources\02-source-art\delivered-packs\oracool-belt-glyphs-v1\glyphs\belt'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $ICON = 30
 $states = @('idle', 'hover', 'pressed')

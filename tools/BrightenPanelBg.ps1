@@ -6,7 +6,7 @@
 # User, 2026-09-04: "the common 340x720 canvas seem a bit dark. can you brighten it up a bit?"
 #
 # The master is the canvas exactly as it shipped from v1.8.x to v1.9.209 (filed that day as
-# Oracool.MPQ\02-source-art\inventory-panel\panel-bg-340x720-dark-stone-master.png). This script never
+# Resources\02-source-art\inventory-panel\panel-bg-340x720-dark-stone-master.png). This script never
 # reads the shipped file, so it can be re-run with a different gamma without compounding lifts.
 #
 # A GAMMA lift rather than a multiply: out = 255 * (in/255)^gamma. Gamma below 1 raises the midtones
@@ -20,7 +20,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$master = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\inventory-panel\panel-bg-340x720-dark-stone-master.png'
+$master = Join-Path (Split-Path -Parent $root) 'Resources\02-source-art\inventory-panel\panel-bg-340x720-dark-stone-master.png'
 $out = Join-Path $root 'Packaging\resources\oracool_assets\ui\panel_bg.png'
 if (-not (Test-Path $master)) { throw "missing master: $master" }
 

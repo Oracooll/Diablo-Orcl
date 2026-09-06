@@ -8,7 +8,7 @@
 .PARAMETER Path
     The folder whose *.png files are flipped. Not recursive unless -Recurse is given.
 .EXAMPLE
-    .\tools\FlipPngsVertically.ps1 -Path "..\Oracool.MPQ\00-original-game-art\duricons"
+    .\tools\FlipPngsVertically.ps1 -Path "..\Resources\00-original-game-art\duricons"
 #>
 param(
     [Parameter(Mandatory = $true)] [string]$Path,

@@ -2,7 +2,7 @@
 #
 #     powershell -ExecutionPolicy Bypass -File tools\CutHudStateIcons.ps1
 #
-# MPQ Unit B, the icon refreshes. The packages arrived in Oracool.MPQ's root, each shipping its
+# MPQ Unit B, the icon refreshes. The packages arrived in Resources's root, each shipping its
 # states as separate 1254x1254 masters. The burger menu was one of them until 2026-08-19 - see the
 # note above $packs for why it is no longer here:
 #
@@ -48,7 +48,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$dropZone = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ'
+$dropZone = Join-Path (Split-Path -Parent $root) 'Resources'
 $staging = Join-Path $env:TEMP 'oracool-unit-b'
 
 # Both asset trees are kept byte-identical; writing one and copying is what every other cut script

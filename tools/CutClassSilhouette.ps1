@@ -20,7 +20,7 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
-$sheet = "..\Oracool.MPQ\04-references\class-layouts\class-silhouette-reference-sheet-v2.png"
+$sheet = "..\Resources\04-references\class-layouts\class-silhouette-reference-sheet-v2.png"
 if (-not (Test-Path $sheet)) { throw "silhouette sheet not found: $sheet" }
 $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $sheet))
 

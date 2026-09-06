@@ -24,7 +24,7 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $out = Join-Path $root 'Source\oracool'
-$art = 'C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Oracool.MPQ\02-source-art\items\item-runes-v1.png'
+$art = 'C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Resources\02-source-art\items\item-runes-v1.png'
 
 # The sheet's grid, MEASURED (non-green runs) rather than guessed - 11 columns x 3 rows, D2's own
 # rune order reading left to right, top to bottom.

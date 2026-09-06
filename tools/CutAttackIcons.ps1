@@ -28,8 +28,8 @@ $ErrorActionPreference = "Stop"
 $layout = @("Regular Attack", "Fist Attack")
 
 & "$PSScriptRoot\CutLabelledIconSheet.ps1" `
-    -Source "..\Oracool.MPQ\02-source-art\attack-skills\Fist and Regular Attacks.png" `
+    -Source "..\Resources\02-source-art\attack-skills\Fist and Regular Attacks.png" `
     -Layout $layout `
     -Columns 2 -Rows 1 `
     -OutName "attack_icons.png" `
-    -VaultDir "..\Oracool.MPQ\02-source-art\attack-skills"
+    -VaultDir "..\Resources\02-source-art\attack-skills"

@@ -20,7 +20,7 @@ REM Run from the repository root.
 
 setlocal
 set ART=
-set ART=..\Oracool.MPQ\02-source-art\world\vasil-levski-monument-greenscreen.png
+set ART=..\Resources\02-source-art\world\vasil-levski-monument-greenscreen.png
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\objects\orclroar.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

@@ -1,5 +1,5 @@
 // Oracool asset pipeline: builds objects\orclroar.cel - Levski's Roar, the town monument - from the
-// single green-keyed painting the user dropped in Oracool.MPQ's root on 2026-08-20.
+// single green-keyed painting the user dropped in Resources's root on 2026-08-20.
 //
 // A sibling of tools/ReliquaryCel.cs and tools/WaypointCel.cs; the CEL encoder is the same one, and
 // WaypointCel's header documents the format in full. Three things are specific to this asset.

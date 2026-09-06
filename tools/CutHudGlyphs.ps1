@@ -1,6 +1,6 @@
 # CutHudGlyphs.ps1 - builds the burger-menu and inventory-tab glyph strips from oracool-hud-glyphs-v1.
 #
-# Source: Oracool.MPQ\02-source-art\delivered-packs\oracool-hud-glyphs-v1 (2026-09-06): eight 37x38
+# Source: Resources\02-source-art\delivered-packs\oracool-hud-glyphs-v1 (2026-09-06): eight 37x38
 # menu glyphs (character, quests, runewords, game_menu, inventory, spellbook, crafting, event_log -
 # the order of hud_menu.cpp's MenuEntries) and ten 28x28 tab numerals, white (243,243,243) and
 # shadow (12,7,7) on transparency.
@@ -15,7 +15,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File tools\CutHudGlyphs.ps1
 Add-Type -AssemblyName System.Drawing
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-hud-glyphs-v1\glyphs'
+$pack = Join-Path (Split-Path -Parent $root) 'Resources\02-source-art\delivered-packs\oracool-hud-glyphs-v1\glyphs'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 
 function IsGlyphPixel([System.Drawing.Color]$c) {
@@ -51,6 +51,6 @@ $menu = @('character', 'quests', 'runewords', 'game_menu', 'inventory', 'spellbo
 BuildStrip $menu 38 37 38 'menu_glyphs.png'
 # The tabs: the chest pair from oracool-tab-chest-glyphs-v1 (closed, open). The ten numerals of
 # oracool-hud-glyphs-v1 were cut here for one build (v1.9.292) and stay in that pack.
-$chestPack = Join-Path (Split-Path -Parent $root) 'Oracool.MPQ\02-source-art\delivered-packs\oracool-tab-chest-glyphs-v1\glyphs\tabs'
+$chestPack = Join-Path (Split-Path -Parent $root) 'Resources\02-source-art\delivered-packs\oracool-tab-chest-glyphs-v1\glyphs\tabs'
 $tabs = @('chest_closed', 'chest_open') | ForEach-Object { Join-Path $chestPack "$_.png" }
 BuildStrip $tabs 28 28 28 'tab_glyphs.png'

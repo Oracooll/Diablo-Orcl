@@ -28,8 +28,8 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
-$art  = "..\Oracool.MPQ\02-source-art"
-$inUse = "..\Oracool.MPQ\02-source-art" # 01-in-use was folded into 02-source-art on 2026-09-07
+$art  = "..\Resources\02-source-art"
+$inUse = "..\Resources\02-source-art" # 01-in-use was folded into 02-source-art on 2026-09-07
 $dirs = @("Packaging\resources\oracool_assets\ui","Packaging\resources\assets\ui","build\x64-Debug\assets\ui")
 foreach ($d in $dirs) { if (Test-Path (Split-Path $d -Parent)) { New-Item -ItemType Directory -Force -Path $d | Out-Null } }
 function Save-All([System.Drawing.Bitmap]$bmp, [string]$name) {

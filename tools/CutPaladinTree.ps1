@@ -19,7 +19,7 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
-$sheet = "..\Oracool.MPQ\02-source-art\class-trees\Paladin Skill Tree.png"
+$sheet = "..\Resources\02-source-art\class-trees\Paladin Skill Tree.png"
 if (-not (Test-Path $sheet)) { throw "skill tree sheet not found: $sheet" }
 
 # 56px: the tree lays out three columns inside the Abilities window's ~300px content width, so the
