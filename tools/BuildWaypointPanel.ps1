@@ -1,6 +1,7 @@
 # Oracool asset pipeline. Does four things, all from the 2026-08-13 art drop:
-#   1. ships the seven stone textures  -> ui\texture_stone_v1..v7.png
-#   2. ships the segmented border kit  -> ui\border2_*.png
+#   1. crops the seven stone textures  -> %TEMP%\oracool-waypoint-parts\texture_stone_v1..v7.png
+#   2. cuts the segmented border kit   -> %TEMP%\oracool-waypoint-parts\border2_*.png
+#      (parts only: nothing in the game reads them, so they stopped shipping in the MPQ - audit 2026-09-07)
 #   3. cuts the waypoint pad icons     -> ui\waypoint_icons.png  (dormant | active)
 #   4. assembles the waypoint panel    -> ui\waypoint_panel.png  (340x660)
 #
@@ -34,6 +35,13 @@ foreach ($d in $dirs) { if (Test-Path (Split-Path $d -Parent)) { New-Item -ItemT
 function Save-All([System.Drawing.Bitmap]$bmp, [string]$name) {
     foreach ($d in $dirs) { if (Test-Path $d) { $bmp.Save((Join-Path (Resolve-Path $d) $name), [System.Drawing.Imaging.ImageFormat]::Png) } }
 }
+# Intermediate parts (textures, border pieces) go to a scratch folder, not the shipped tree
+# (audit 2026-09-07: 4.9 MB of the MPQ was parts nothing reads).
+$partDir = Join-Path $env:TEMP "oracool-waypoint-parts"
+New-Item -ItemType Directory -Force -Path $partDir | Out-Null
+function Save-Part([System.Drawing.Bitmap]$bmp, [string]$name) {
+    $bmp.Save((Join-Path $partDir $name), [System.Drawing.Imaging.ImageFormat]::Png)
+}
 function Test-Green([System.Drawing.Color]$c) { return (($c.G - [Math]::Max($c.R, $c.B)) -ge 25) }
 
 # Green-keys a rect out of a sheet at source resolution, before any scaling.
@@ -63,7 +71,7 @@ foreach ($t in $texNames) {
     if ($src.Width -lt $TEX_W -or $src.Height -lt $TEX_H) { throw "$t is $($src.Width)x$($src.Height), too small to crop ${TEX_W}x${TEX_H}" }
     $crop = $src.Clone((New-Object System.Drawing.Rectangle ([int](($src.Width-$TEX_W)/2)),([int](($src.Height-$TEX_H)/2)),$TEX_W,$TEX_H),
                        [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-    Save-All $crop ("texture_stone_" + $t.Split('-')[0] + ".png")
+    Save-Part $crop ("texture_stone_" + $t.Split('-')[0] + ".png")
     $crop.Dispose(); $src.Dispose()
 }
 Write-Host "  textures: $($texNames.Count) shipped as ${TEX_W}x${TEX_H} crops"
@@ -86,10 +94,10 @@ $kitParts = [ordered]@{
 }
 foreach ($k in $kitParts.Keys) {
     $img = Get-Keyed $kit $kitParts[$k]
-    Save-All $img "$k.png"
+    Save-Part $img "$k.png"
     $img.Dispose()
 }
-Write-Host "  border kit: $($kitParts.Count) elements shipped"
+Write-Host "  border kit: $($kitParts.Count) elements cut to $partDir"
 
 # ---- 3. waypoint sigil icons ---------------------------------------------------------------
 # Split at the midpoint - left dormant, right active - the same convention WaypointCel.cs uses for

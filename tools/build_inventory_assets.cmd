@@ -54,7 +54,8 @@ if not exist "%MPQ_OUT%" mkdir "%MPQ_OUT%"
 copy /y "%OUT%\inventory_panel.png" "%MPQ_OUT%\" >nul
 copy /y "%OUT%\inventory_tabs.png"  "%MPQ_OUT%\" >nul
 copy /y "%OUT%\inventory_sort.png"  "%MPQ_OUT%\" >nul
-copy /y "%OUT%\inventory_sygil.png" "%MPQ_OUT%\" >nul
+REM inventory_sygil.png is an INPUT to InvCompose (baked into inventory_panel.png) and nothing in the
+REM game loads it on its own, so it no longer ships in the MPQ (audit 2026-09-07).
 echo Mirrored into %MPQ_OUT% - run tools\build_oracool_mpq.cmd next to pick this up.
 
 echo Preview written to %TEMP%\inventory_preview.png

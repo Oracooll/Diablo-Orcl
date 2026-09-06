@@ -54,7 +54,10 @@ $elements = @(
     @{ n="panel_frame_cross_2";  x=908; y=439; w=65;  h=72  }
 )
 
-$dirs = @("Packaging\resources\oracool_assets\ui", "Packaging\resources\assets\ui", "build\x64-Debug\assets\ui")
+# Audit 2026-09-07: nothing in the game reads the kit (the canvas replaced the framed panels), so
+# it no longer ships in the MPQ - the cut goes to a scratch folder for inspection.
+$dirs = @((Join-Path $env:TEMP "oracool-panel-frame-kit"))
+foreach ($d in $dirs) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
 foreach ($d in $dirs) { if (Test-Path (Split-Path $d -Parent)) { New-Item -ItemType Directory -Force -Path $d | Out-Null } }
 
 $written = 0

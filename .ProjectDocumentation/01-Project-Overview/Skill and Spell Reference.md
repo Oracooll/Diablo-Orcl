@@ -12,7 +12,7 @@ drawing these. This file is the CONTENT: what each icon has to depict.
 it is listed and described in-game, drawn with a red X over it.
 
 
-## Paladin — `ui\paladin_tree_icons.png`, 49 frames
+## Paladin — `ui\paladin_tree_icons.png`, 48 frames
 
 Pages: 0 Combat Skills · 1 Offensive Auras · 2 Defensive Auras · 3 Passive Skills
 
@@ -20,53 +20,52 @@ Pages: 0 Combat Skills · 1 Offensive Auras · 2 Defensive Auras · 3 Passive Sk
 |---:|---|---:|---|---|---|---|
 | 0 | Combat Skills | 0 | Active | — | **Sacrifice** | Strike for heavy bonus damage and wound yourself for a share of it. Not yet built. |
 | 1 | Combat Skills | 0 | Active | yes | **Smite** | Bash with your shield: it always connects and briefly stuns. A shield is mandatory. |
-| 2 | Combat Skills | 0 | Active | — | **Holy Bolt** | A bolt of holy energy that sears the undead. Withdrawn: it collided with this engine's own Holy Bolt spell. |
-| 3 | Combat Skills | 1 | Active | yes | **Zeal** | Strike several times in one furious burst. Each invested pair of points adds a strike, up to five. |
-| 4 | Combat Skills | 1 | Active | yes | **Charge** | Rush an enemy and land a running blow. |
-| 5 | Combat Skills | 2 | Active | — | **Vengeance** | Adds fire, lightning and cold damage to your attack. Not yet built; this engine also has no cold. |
-| 6 | Combat Skills | 3 | Active | yes | **Blessed Hammer** | Looses a spinning hammer that wheels outward through anything in its path. |
-| 7 | Combat Skills | 4 | Active | — | **Conversion** | Turns an enemy to your side. Withdrawn pending design work: its Berserk behaviour was wrong. |
-| 8 | Combat Skills | 5 | Active | yes | **Fist of the Heavens** | Calls down a bolt from the sky, which bursts into holy energy where it lands. |
-| 9 | Offensive Auras | 0 | Aura | yes | **Might** | Increases the damage you deal. |
-| 10 | Offensive Auras | 1 | Aura | yes | **Holy Fire** | Wreathes your weapon in flame, adding fire damage to every blow. |
-| 11 | Offensive Auras | 1 | Aura | yes | **Thorns** | Returns damage to whatever strikes you. This engine's thorns is a flat return, so points light it rather than growing it. |
-| 12 | Offensive Auras | 2 | Aura | yes | **Blessed Aim** | Steadies your hand, raising your chance to hit. |
-| 13 | Offensive Auras | 3 | Aura | yes | **Concentration** | Raises damage and steadies you against interruption. |
-| 14 | Offensive Auras | 3 | Aura | — | **Holy Freeze** | Chills nearby enemies and adds cold damage. Inert: this engine has no cold and no slow. |
-| 15 | Offensive Auras | 4 | Aura | yes | **Holy Shock** | Charges your weapon, adding lightning damage to every blow. |
-| 16 | Offensive Auras | 4 | Aura | yes | **Sanctuary** | Hallows the ground you stand on: nearby undead break and flee from you. Champions are too proud to run. |
-| 17 | Offensive Auras | 5 | Aura | yes | **Fanaticism** | Drives you to strike faster, harder and truer. |
-| 18 | Offensive Auras | 5 | Aura | yes | **Conviction** | Strips the resistances of every enemy near you, and at five points begins to break their immunities down into mere resistances. |
-| 19 | Defensive Auras | 0 | Aura | yes | **Prayer** | Mends your wounds steadily as you walk. |
-| 20 | Defensive Auras | 0 | Aura | yes | **Resist Fire** | Hardens you against fire. |
-| 21 | Defensive Auras | 1 | Aura | yes | **Defiance** | Raises your armour class. |
-| 22 | Defensive Auras | 1 | Aura | yes | **Resist Cold** | Hardens you against cold. No cold exists here, so it wards against magic instead. |
-| 23 | Defensive Auras | 2 | Aura | — | **Cleansing** | Shortens poison and curses. Inert: this engine tracks no duration for either. |
-| 24 | Defensive Auras | 2 | Aura | yes | **Resist Lightning** | Hardens you against lightning. |
-| 25 | Defensive Auras | 3 | Aura | yes | **Vigor** | Quickens your stride: you run instead of walking, wherever you are. |
-| 26 | Defensive Auras | 4 | Aura | yes | **Meditation** | Restores your mana steadily as you walk. |
-| 27 | Defensive Auras | 5 | Aura | — | **Redemption** | Consumes the fallen for life and mana. Inert: it needs the corpse-handling pass. |
-| 28 | Defensive Auras | 5 | Aura | yes | **Salvation** | Wards you against fire, lightning and magic alike. |
-| 29 | Combat Skills | 2 | Active | yes | **Hammer of Faith** | A heavy swing whose force splashes over everything around your target. |
-| 30 | Combat Skills | 3 | Active | yes | **Blessed Shield** | Hurls your shield at a crowd, striking several of them before it returns. A shield is mandatory. |
-| 31 | Passive Skills | 0 | Passive | — | **Heavenly Strength** | Bear a two-handed weapon in your main hand and a shield in the other. Not yet built. |
-| 32 | Passive Skills | 0 | Passive | — | **Fervor** | One-handed weapons swing faster and your cooldowns come round sooner. Not yet built. |
-| 33 | Passive Skills | 0 | Passive | — | **Vigilant** | Your wounds close faster and every blow that is not steel hurts less. Not yet built. |
-| 34 | Passive Skills | 1 | Passive | — | **Righteousness** | Your opening strikes build wrath faster, and you hold more of it. Not yet built. |
-| 35 | Passive Skills | 1 | Passive | — | **Insurmountable** | Every blow you turn aside feeds your wrath. Not yet built. |
-| 36 | Passive Skills | 1 | Passive | — | **Fanaticism** | Your simplest attacks land faster than a measured swing would. Not yet built. |
-| 37 | Passive Skills | 2 | Passive | — | **Indestructible** | Once a minute a killing blow leaves you standing, stronger and drinking life. Not yet built. |
-| 38 | Passive Skills | 2 | Passive | — | **Holy Cause** | Your weapon bites deeper, and holy damage mends you as it burns. Not yet built. |
-| 39 | Passive Skills | 2 | Passive | — | **Wrathful** | Spent wrath returns to you as life. Not yet built. |
-| 40 | Passive Skills | 3 | Passive | — | **Divine Fortress** | The shield you hide behind becomes armour you wear. Not yet built. |
-| 41 | Passive Skills | 3 | Passive | — | **Lord Commander** | Your mount, your bombardment and your phalanx all answer sooner and hit harder. Not yet built. |
-| 42 | Passive Skills | 3 | Passive | — | **Hold Your Ground** | You no longer dodge at all, and block far more. Not yet built. |
-| 43 | Passive Skills | 4 | Passive | — | **Long Arm of the Law** | Every law you declare holds its power longer. Not yet built. |
-| 44 | Passive Skills | 4 | Passive | — | **Iron Maiden** | What strikes you is returned with far greater interest. Not yet built. |
-| 45 | Passive Skills | 4 | Passive | — | **Renewal** | Each blow turned aside returns a measure of life. Not yet built. |
-| 46 | Passive Skills | 5 | Passive | — | **Finery** | Every gem set into your gear lends you strength. Not yet built. |
-| 47 | Passive Skills | 5 | Passive | — | **Blunt** | Justice and the blessed hammer fall heavier. Not yet built. |
-| 48 | Passive Skills | 5 | Passive | — | **Towering Shield** | Every skill worked through your shield strikes harder and readies sooner. Not yet built. |
+| 2 | Combat Skills | 1 | Active | yes | **Zeal** | Strike several times in one furious burst. Each invested pair of points adds a strike, up to five. |
+| 3 | Combat Skills | 1 | Active | yes | **Charge** | Rush an enemy and land a running blow. |
+| 4 | Combat Skills | 2 | Active | — | **Vengeance** | Adds fire, lightning and cold damage to your attack. Not yet built; this engine also has no cold. |
+| 5 | Combat Skills | 3 | Active | yes | **Blessed Hammer** | Looses a spinning hammer that wheels outward through anything in its path. |
+| 6 | Combat Skills | 4 | Active | — | **Conversion** | Turns an enemy to your side. Withdrawn pending design work: its Berserk behaviour was wrong. |
+| 7 | Combat Skills | 5 | Active | yes | **Fist of the Heavens** | Calls down a bolt from the sky, which bursts into holy energy where it lands. |
+| 8 | Offensive Auras | 0 | Aura | yes | **Might** | Increases the damage you deal. |
+| 9 | Offensive Auras | 1 | Aura | yes | **Holy Fire** | Wreathes your weapon in flame, adding fire damage to every blow. |
+| 10 | Offensive Auras | 1 | Aura | yes | **Thorns** | Returns damage to whatever strikes you. This engine's thorns is a flat return, so points light it rather than growing it. |
+| 11 | Offensive Auras | 2 | Aura | yes | **Blessed Aim** | Steadies your hand, raising your chance to hit. |
+| 12 | Offensive Auras | 3 | Aura | yes | **Concentration** | Raises damage and steadies you against interruption. |
+| 13 | Offensive Auras | 3 | Aura | — | **Holy Freeze** | Chills nearby enemies and adds cold damage. Inert: this engine has no cold and no slow. |
+| 14 | Offensive Auras | 4 | Aura | yes | **Holy Shock** | Charges your weapon, adding lightning damage to every blow. |
+| 15 | Offensive Auras | 4 | Aura | yes | **Sanctuary** | Hallows the ground you stand on: nearby undead break and flee from you. Champions are too proud to run. |
+| 16 | Offensive Auras | 5 | Aura | yes | **Fanaticism** | Drives you to strike faster, harder and truer. |
+| 17 | Offensive Auras | 5 | Aura | yes | **Conviction** | Strips the resistances of every enemy near you, and at five points begins to break their immunities down into mere resistances. |
+| 18 | Defensive Auras | 0 | Aura | yes | **Prayer** | Mends your wounds steadily as you walk. |
+| 19 | Defensive Auras | 0 | Aura | yes | **Resist Fire** | Hardens you against fire. |
+| 20 | Defensive Auras | 1 | Aura | yes | **Defiance** | Raises your armour class. |
+| 21 | Defensive Auras | 1 | Aura | yes | **Resist Cold** | Hardens you against cold. No cold exists here, so it wards against magic instead. |
+| 22 | Defensive Auras | 2 | Aura | — | **Cleansing** | Shortens poison and curses. Inert: this engine tracks no duration for either. |
+| 23 | Defensive Auras | 2 | Aura | yes | **Resist Lightning** | Hardens you against lightning. |
+| 24 | Defensive Auras | 3 | Aura | yes | **Vigor** | Quickens your stride: you run instead of walking, wherever you are. |
+| 25 | Defensive Auras | 4 | Aura | yes | **Meditation** | Restores your mana steadily as you walk. |
+| 26 | Defensive Auras | 5 | Aura | — | **Redemption** | Consumes the fallen for life and mana. Inert: it needs the corpse-handling pass. |
+| 27 | Defensive Auras | 5 | Aura | yes | **Salvation** | Wards you against fire, lightning and magic alike. |
+| 28 | Combat Skills | 2 | Active | yes | **Hammer of Faith** | A heavy swing whose force splashes over everything around your target. |
+| 29 | Combat Skills | 3 | Active | yes | **Blessed Shield** | Hurls your shield at a crowd, striking several of them before it returns. A shield is mandatory. |
+| 30 | Passive Skills | 0 | Passive | — | **Heavenly Strength** | Bear a two-handed weapon in your main hand and a shield in the other. Not yet built. |
+| 31 | Passive Skills | 0 | Passive | — | **Fervor** | One-handed weapons swing faster and your cooldowns come round sooner. Not yet built. |
+| 32 | Passive Skills | 0 | Passive | — | **Vigilant** | Your wounds close faster and every blow that is not steel hurts less. Not yet built. |
+| 33 | Passive Skills | 1 | Passive | — | **Righteousness** | Your opening strikes build wrath faster, and you hold more of it. Not yet built. |
+| 34 | Passive Skills | 1 | Passive | — | **Insurmountable** | Every blow you turn aside feeds your wrath. Not yet built. |
+| 35 | Passive Skills | 1 | Passive | — | **Fanaticism** | Your simplest attacks land faster than a measured swing would. Not yet built. |
+| 36 | Passive Skills | 2 | Passive | — | **Indestructible** | Once a minute a killing blow leaves you standing, stronger and drinking life. Not yet built. |
+| 37 | Passive Skills | 2 | Passive | — | **Holy Cause** | Your weapon bites deeper, and holy damage mends you as it burns. Not yet built. |
+| 38 | Passive Skills | 2 | Passive | — | **Wrathful** | Spent wrath returns to you as life. Not yet built. |
+| 39 | Passive Skills | 3 | Passive | — | **Divine Fortress** | The shield you hide behind becomes armour you wear. Not yet built. |
+| 40 | Passive Skills | 3 | Passive | — | **Lord Commander** | Your mount, your bombardment and your phalanx all answer sooner and hit harder. Not yet built. |
+| 41 | Passive Skills | 3 | Passive | — | **Hold Your Ground** | You no longer dodge at all, and block far more. Not yet built. |
+| 42 | Passive Skills | 4 | Passive | — | **Long Arm of the Law** | Every law you declare holds its power longer. Not yet built. |
+| 43 | Passive Skills | 4 | Passive | — | **Iron Maiden** | What strikes you is returned with far greater interest. Not yet built. |
+| 44 | Passive Skills | 4 | Passive | — | **Renewal** | Each blow turned aside returns a measure of life. Not yet built. |
+| 45 | Passive Skills | 5 | Passive | — | **Finery** | Every gem set into your gear lends you strength. Not yet built. |
+| 46 | Passive Skills | 5 | Passive | — | **Blunt** | Justice and the blessed hammer fall heavier. Not yet built. |
+| 47 | Passive Skills | 5 | Passive | — | **Towering Shield** | Every skill worked through your shield strikes harder and readies sooner. Not yet built. |
 
 ## Barbarian — `ui\barb_tree_icons.png`, 49 frames
 
