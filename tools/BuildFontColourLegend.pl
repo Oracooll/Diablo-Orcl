@@ -80,6 +80,15 @@ my %today = (
 	'Gray:0' => '(pure white 255 is one step lighter than this ramp)',
 );
 
+# The file a pool ID already has - a vanilla file where one lands exactly on the pass, an Orcl file
+# where one was made - or the name it would get (user, 2026-09-07: "put a file column in The Pool").
+my %fileFor = (
+	'BL-0' => 'fonts\blue.trn', 'YL-1' => 'fonts\yellow.trn', 'OR-1' => 'fonts\orange.trn (after the load-time heal)',
+	'GD-3' => 'none - the raw glyph (ColorGold)', 'GN-1' => 'fonts\yellow.trn, shifted at load (ColorOracoolGreen)',
+	'GR-5' => 'fonts\oracool_gray5.trn', 'BE-2' => 'fonts\oracool_beige2.trn', 'YL-3' => 'fonts\oracool_yellow3.trn',
+	'BR-3' => 'fonts\oracool_brightred3.trn', 'BB-3' => 'fonts\oracool_brightblue3.trn', 'GD-6' => 'fonts\oracool_gold6.trn',
+	'OR-7' => 'fonts\oracool_orange7.trn', 'GR-7' => 'fonts\oracool_gray7.trn',
+);
 my $blocks = '';
 for my $r (@ramps) {
 	my ($name, $base, $len, $usable, $note, $code) = @$r;
@@ -93,14 +102,17 @@ for my $r (@ramps) {
 		my $recipe = join ' ', @win;
 		my $used = $today{"$name:$k"} // '';
 		my $usedHtml = $used ? qq{<span class="today">$used</span>} : '';
-		$rows .= qq{<tr><td class="id">$code-$k</td><td class="sample"><img src="$uri" alt="Color$name$k"></td><td class="name">Color$name$k$usedHtml</td><td class="idx">$lo-$hi <span class="sw">$sw</span></td><td class="recipe">$recipe</td></tr>\n};
+		my $fileHtml = exists $fileFor{"$code-$k"}
+		    ? $fileFor{"$code-$k"}
+		    : qq{<i>oracool_@{[lc $name]}$k.trn</i> <span class="notyet">not made yet</span>};
+		$rows .= qq{<tr><td class="id">$code-$k</td><td class="sample"><img src="$uri" alt="Color$name$k"></td><td class="name">Color$name$k$usedHtml</td><td class="file">$fileHtml</td><td class="idx">$lo-$hi <span class="sw">$sw</span></td><td class="recipe">$recipe</td></tr>\n};
 	}
 	my $full = join '', map { qq{<i style="background:@{[hex6($base + $_)]}"></i>} } 0 .. $len - 1;
 	$blocks .= <<"X";
 <section class="ramp">
 <header><h2>$name</h2><span class="meta">palette $base-@{[$base+$len-1]} · $note · $usable usable of @{[$len>=15?$len-3:8]}</span><span class="sw full">$full</span></header>
 <div class="scroll"><table>
-<thead><tr><th>ID</th><th>Sample (Font 12, 2x)</th><th>Name in code</th><th>Glyph lands on</th><th>.trn band 192-207 →</th></tr></thead>
+<thead><tr><th>ID</th><th>Sample (Font 12, 2x)</th><th>Name in code</th><th>File</th><th>Glyph lands on</th><th>.trn band 192-207 →</th></tr></thead>
 <tbody>$rows</tbody></table></div>
 </section>
 X
@@ -196,6 +208,7 @@ td.recipe{font-family:"JetBrains Mono",Consolas,monospace;font-size:11px;color:v
 td.used{white-space:nowrap}
 span.used{color:#8fbf6a;font-weight:600}
 span.unused{color:#b06a4a;font-weight:600}
+span.notyet{font-family:"Source Sans 3",sans-serif;font-size:11px;color:var(--muted);margin-left:6px}
 .sw i{display:inline-block;width:10px;height:14px;vertical-align:middle;border-right:1px solid #000}
 .sw.full i{width:12px}
 .steps{max-width:70ch}
