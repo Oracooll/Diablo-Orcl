@@ -19,6 +19,7 @@
 #include "engine/load_pcx.hpp"
 #include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "hwcursor.hpp"
 #include "init.h"
 #include "loadsave.h"
@@ -27,6 +28,7 @@
 #include "pfile.h"
 #include "plrmsg.h"
 #include "utils/sdl_geometry.h"
+#include "utils/sdl_wrap.h"
 #include "utils/stdcompat/optional.hpp"
 
 namespace devilution {
@@ -47,6 +49,58 @@ const uint8_t BarColor[3] = { 138, 43, 254 };
 const int BarPos[3][2] = { { 53, 37 }, { 53, 421 }, { 53, 37 } };
 
 OptionalOwnedClxSpriteList ArtCutsceneWidescreen;
+
+/**
+ * Oracool (user, 2026-09-07: "make loading screen use these images, fit to height, respecting aspect
+ * ratio"): the cutscene painting drawn in TRUE COLOUR straight onto the 32-bit screen (v1.11), scaled
+ * to the screen's height with the aspect kept, black bars either side. The first art in the game
+ * that never passes through a palette lookup at draw time.
+ *
+ * Built at load from the ORIGINAL CEL and its palette in the player's own diabdat.mpq - never from
+ * a copy this project ships. The paintings are Blizzard's; a PNG of them in oracool.mpq would have
+ * been a redistribution (user, 2026-09-07: "are we allowed to pack them in my mpq file [...] they
+ * are intelectual property of blizzard"). The same pixels reach the screen either way.
+ */
+SDLSurfaceUniquePtr CutsceneRgb;
+/** @brief Where the scaled painting sits on the screen; the progress bar is placed by the same numbers. */
+SDL_Rect CutsceneRgbRect { 0, 0, 0, 0 };
+/** @brief The painting's own size, so BarPos (authored at 640x480) scales with it. */
+int CutsceneRgbSourceWidth = 640;
+int CutsceneRgbSourceHeight = 480;
+
+/** @brief Decodes the loaded CEL through the loaded palette into an XRGB8888 surface. Call after LoadPalette. */
+void BuildCutsceneRgb()
+{
+	CutsceneRgb = nullptr;
+	if (!sgpBackCel)
+		return;
+	const ClxSprite sprite = (*sgpBackCel)[0];
+	const int width = sprite.width();
+	const int height = sprite.height();
+	OwnedSurface indexed(width, height);
+	SDL_FillRect(indexed.surface, nullptr, 0);
+	ClxDraw(indexed, { 0, height - 1 }, sprite);
+	SDLSurfaceUniquePtr rgb = SDLWrap::CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_RGB888);
+	for (int y = 0; y < height; y++) {
+		const uint8_t *src = indexed.at<uint8_t>(0, y);
+		auto *dst = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(rgb->pixels) + static_cast<ptrdiff_t>(y) * rgb->pitch);
+		for (int x = 0; x < width; x++) {
+			const SDL_Color &c = orig_palette[src[x]];
+			dst[x] = (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
+		}
+	}
+	CutsceneRgb = std::move(rgb);
+	CutsceneRgbSourceWidth = width;
+	CutsceneRgbSourceHeight = height;
+}
+
+/** @brief Fit to height, aspect kept, centred: the rect the painting scales into. */
+SDL_Rect FitToHeight(int srcWidth, int srcHeight, int screenWidth, int screenHeight)
+{
+	const int height = screenHeight;
+	const int width = srcWidth * screenHeight / srcHeight;
+	return MakeSdlRect((screenWidth - width) / 2, 0, width, height);
+}
 
 uint32_t CustomEventsBegin = SDL_USEREVENT;
 constexpr uint32_t NumCustomEvents = WM_LAST - WM_FIRST + 1;
@@ -188,6 +242,7 @@ void LoadCutsceneBackground(interface_mode uMsg)
 	assert(!sgpBackCel);
 	sgpBackCel = LoadCel(celPath, 640);
 	LoadPalette(palPath);
+	BuildCutsceneRgb(); // after the palette: the conversion reads it
 
 	sgdwProgress = 0;
 }
@@ -196,6 +251,7 @@ void FreeCutsceneBackground()
 {
 	sgpBackCel = std::nullopt;
 	ArtCutsceneWidescreen = std::nullopt;
+	CutsceneRgb = nullptr;
 }
 
 void DrawCutsceneBackground()
@@ -203,6 +259,15 @@ void DrawCutsceneBackground()
 	const Rectangle &uiRectangle = GetUIRectangle();
 	const Surface &out = GlobalBackBuffer();
 	SDL_FillRect(out.surface, nullptr, 0x000000);
+	if (CutsceneRgb != nullptr && !out.isIndexed()) {
+		CutsceneRgbRect = FitToHeight(CutsceneRgb->w, CutsceneRgb->h, out.w(), out.h());
+		SDL_Rect dst = CutsceneRgbRect;
+		dst.x += out.region.x;
+		dst.y += out.region.y;
+		if (SDL_BlitScaled(CutsceneRgb.get(), nullptr, out.surface, &dst) < 0)
+			LogWarn("Cutscene: could not scale the painting: {:s}", SDL_GetError());
+		return;
+	}
 	if (ArtCutsceneWidescreen) {
 		const ClxSprite sprite = (*ArtCutsceneWidescreen)[0];
 		RenderClxSprite(out, sprite, { uiRectangle.position.x - (sprite.width() - uiRectangle.size.width) / 2, uiRectangle.position.y });
@@ -215,12 +280,25 @@ void DrawCutsceneForeground()
 	const Rectangle &uiRectangle = GetUIRectangle();
 	const Surface &out = GlobalBackBuffer();
 	constexpr int ProgressHeight = 22;
-	SDL_Rect rect = MakeSdlRect(
-	    out.region.x + BarPos[progress_id][0] + uiRectangle.position.x,
-	    out.region.y + BarPos[progress_id][1] + uiRectangle.position.y,
-	    sgdwProgress,
-	    ProgressHeight);
-	SDL_FillRect(out.surface, &rect, BarColor[progress_id]);
+	SDL_Rect rect;
+	if (CutsceneRgb != nullptr && !out.isIndexed()) {
+		// The bar rides the scaled painting: BarPos and the bar's size were authored for 640x480.
+		const int scaledHeight = CutsceneRgbRect.h;
+		rect = MakeSdlRect(
+		    out.region.x + CutsceneRgbRect.x + BarPos[progress_id][0] * scaledHeight / CutsceneRgbSourceHeight,
+		    out.region.y + CutsceneRgbRect.y + BarPos[progress_id][1] * scaledHeight / CutsceneRgbSourceHeight,
+		    static_cast<int>(sgdwProgress) * scaledHeight / CutsceneRgbSourceHeight,
+		    ProgressHeight * scaledHeight / CutsceneRgbSourceHeight);
+	} else {
+		rect = MakeSdlRect(
+		    out.region.x + BarPos[progress_id][0] + uiRectangle.position.x,
+		    out.region.y + BarPos[progress_id][1] + uiRectangle.position.y,
+		    sgdwProgress,
+		    ProgressHeight);
+	}
+	// A palette index through the surface's own fill (v1.11): SDL_FillRect with an index on a 32-bit
+	// surface wrote the index as a colour - the blue bar in the first-look screenshot.
+	FillRect(out, rect.x - out.region.x, rect.y - out.region.y, rect.w, rect.h, BarColor[progress_id]);
 
 	if (DiabloUiSurface() == PalSurface)
 		BltFast(&rect, &rect);

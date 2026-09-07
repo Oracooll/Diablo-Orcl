@@ -19,6 +19,7 @@
 #include "engine/load_pcx.hpp" // LoadPcxSpriteList - the masthead is ui_art\smlogo, not a CEL
 #include "engine/palette.h"    // orig_palette - what the masthead's TRN is matched against
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "options.h"
 #include "stores.h"
@@ -184,7 +185,7 @@ void GmenuDrawMenuItem(const Surface &out, TMenuItem *pItem, int y)
 		const uint16_t steps = std::max<uint16_t>(pItem->sliderSteps(), 2);
 		const uint16_t pos = SliderFillMin + step * (SliderFillMax - SliderFillMin) / steps;
 		SDL_Rect rect = MakeSdlRect(SliderValueLeft + uiPositionX, y + SliderValuePaddingTop, pos, SliderValueHeight);
-		SDL_FillRect(out.surface, &rect, 205);
+		FillRect(out, rect.x, rect.y, rect.w, rect.h, 205); // an index through the surface's fill, not SDL's (v1.11)
 		ClxDraw(out, { SliderValueLeft + pos - SliderMarkerWidth / 2 + uiPositionX, y + SliderValuePaddingTop + SliderValueHeight - 1 }, (*option_cel)[0]);
 	}
 
