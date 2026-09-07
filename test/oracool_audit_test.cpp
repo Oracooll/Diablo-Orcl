@@ -10944,3 +10944,40 @@ TEST(OracoolAudit, StashSortKeepsBooksOnRowsOfTheirOwn)
 	Stash.stashList.clear();
 	Stash.stashGrids.clear();
 }
+
+// The colour FIELD (2026-09-07, engine improvement): a colour is a 12-bit index in UiFlags, not a
+// bit. The names compose with the layout bits as before, every colour is distinct, and the field
+// clears and swaps as a whole.
+TEST(OracoolAudit, UiFlagsCarryColourAsATwelveBitField)
+{
+	const UiFlags all[] = {
+		UiFlags::ColorUiGold, UiFlags::ColorUiSilver, UiFlags::ColorUiGoldDark, UiFlags::ColorUiSilverDark,
+		UiFlags::ColorDialogWhite, UiFlags::ColorDialogYellow, UiFlags::ColorDialogRed, UiFlags::ColorYellow,
+		UiFlags::ColorGold, UiFlags::ColorBlack, UiFlags::ColorWhite, UiFlags::ColorWhitegold, UiFlags::ColorRed,
+		UiFlags::ColorBlue, UiFlags::ColorOrange, UiFlags::ColorButtonface, UiFlags::ColorButtonpushed,
+		UiFlags::ColorOracoolYellow, UiFlags::ColorOracoolYellowDark, UiFlags::ColorOracoolGreen, UiFlags::ColorGray5,
+		UiFlags::ColorBeige2, UiFlags::ColorYellow3, UiFlags::ColorBrightRed3, UiFlags::ColorBrightBlue3,
+		UiFlags::ColorGold6, UiFlags::ColorOrange7, UiFlags::ColorGray7
+	};
+	std::set<unsigned> seen;
+	for (const UiFlags color : all) {
+		const unsigned index = UiFlagsColorIndex(color);
+		EXPECT_NE(index, 0u) << "a colour with index 0 would read as 'none'";
+		EXPECT_LT(index, 4096u);
+		EXPECT_TRUE(seen.insert(index).second) << "two colours share index " << index;
+		EXPECT_EQ(WithoutColor(color), UiFlags::None) << "a bare colour carries nothing but its field";
+	}
+	EXPECT_EQ(seen.size(), std::size(all));
+
+	// Composition with layout bits, the way every caller writes it.
+	const UiFlags style = UiFlags::ColorRed | UiFlags::AlignCenter | UiFlags::FontSize12;
+	EXPECT_TRUE(HasColor(style, UiFlags::ColorRed));
+	EXPECT_FALSE(HasColor(style, UiFlags::ColorWhite));
+	EXPECT_TRUE(HasAnyOf(style, UiFlags::AlignCenter));
+	EXPECT_EQ(WithoutColor(style), UiFlags::AlignCenter | UiFlags::FontSize12);
+	EXPECT_EQ(WithColor(style, UiFlags::ColorBlue), UiFlags::ColorBlue | UiFlags::AlignCenter | UiFlags::FontSize12);
+	EXPECT_EQ(UiFlagsColorIndex(UiFlags::AlignCenter | UiFlags::Outlined), 0u) << "layout bits leak into the field";
+	// The field is where it says it is, and clear of every other bit in use.
+	EXPECT_EQ(static_cast<uint64_t>(UiFlags::ColorMask), 0xFFFULL << 48);
+	EXPECT_EQ(static_cast<uint64_t>(UiFlags::Shadowed) & static_cast<uint64_t>(UiFlags::ColorMask), 0u);
+}

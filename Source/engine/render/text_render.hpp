@@ -40,7 +40,8 @@ enum GameFontTables : uint8_t {
 	GameFont8,
 };
 
-enum text_color : uint8_t {
+// 16 bits since 2026-09-07, with UiFlags' 12-bit colour field: a byte would have capped the field at 256.
+enum text_color : uint16_t {
 	ColorUiGold,
 	ColorUiSilver,
 	ColorUiGoldDark,

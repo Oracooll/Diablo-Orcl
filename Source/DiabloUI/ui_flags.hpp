@@ -11,6 +11,9 @@ namespace devilution {
 // any save/network struct, so this is a purely additive change. Bits 32+ must use the ULL
 // suffix (1ULL << N), not the plain 1 used below 32 - a bare `1 << 32` is undefined behavior
 // on a 32-bit int regardless of what it gets assigned into.
+/** @brief Where the 12-bit colour field sits in UiFlags - see ColorMask. */
+constexpr unsigned UiFlagsColorShift = 48;
+
 enum class UiFlags : uint64_t {
 	// clang-format off
 	None               = 0,
@@ -22,23 +25,36 @@ enum class UiFlags : uint64_t {
 	FontSize46         = 1 << 4,
 	FontSizeDialog     = 1 << 5,
 
-	ColorUiGold        = 1 << 6,
-	ColorUiSilver      = 1 << 7,
-	ColorUiGoldDark    = 1 << 8,
-	ColorUiSilverDark  = 1 << 9,
-	ColorDialogWhite   = 1 << 10,
-	ColorDialogYellow  = 1 << 11,
-	ColorDialogRed     = 1 << 12,
-	ColorYellow        = 1 << 13,
-	ColorGold          = 1 << 14,
-	ColorBlack         = 1 << 15,
-	ColorWhite         = 1 << 16,
-	ColorWhitegold     = 1 << 17,
-	ColorRed           = 1 << 18,
-	ColorBlue          = 1 << 19,
-	ColorOrange        = 1 << 20,
-	ColorButtonface    = 1 << 21,
-	ColorButtonpushed  = 1 << 22,
+	/**
+	 * THE COLOUR FIELD (2026-09-07). A colour used to be one BIT each, which is why the word ran to
+	 * 64 bits and still had only 16 to spare after the legend's first eight. It is a 12-bit NUMBER
+	 * now, bits 48-59: the value is the colour's index, 0 meaning "none" (drawn as Whitegold, the
+	 * fallback every unrecognised flag always got). 4096 colours fit; the palette offers 66.
+	 *
+	 * The names below are unchanged and still compose with the layout bits - ColorWhite | AlignCenter
+	 * is what it always was. Two things are different: two colours must never be ORed together (the
+	 * indices would add up to a third colour; the bit scheme used to pick one by precedence), and a
+	 * colour is TESTED with HasColor or read with UiFlagsColorIndex, never with HasAnyOf. Cleared as
+	 * a whole with WithoutColor (ColorMask), so the outline pass never again needs a list of bits.
+	 */
+	ColorMask          = 0xFFFULL << UiFlagsColorShift,
+	ColorUiGold        = 1ULL << UiFlagsColorShift,
+	ColorUiSilver      = 2ULL << UiFlagsColorShift,
+	ColorUiGoldDark    = 3ULL << UiFlagsColorShift,
+	ColorUiSilverDark  = 4ULL << UiFlagsColorShift,
+	ColorDialogWhite   = 5ULL << UiFlagsColorShift,
+	ColorDialogYellow  = 6ULL << UiFlagsColorShift,
+	ColorDialogRed     = 7ULL << UiFlagsColorShift,
+	ColorYellow        = 8ULL << UiFlagsColorShift,
+	ColorGold          = 9ULL << UiFlagsColorShift,
+	ColorBlack         = 10ULL << UiFlagsColorShift,
+	ColorWhite         = 11ULL << UiFlagsColorShift,
+	ColorWhitegold     = 12ULL << UiFlagsColorShift,
+	ColorRed           = 13ULL << UiFlagsColorShift,
+	ColorBlue          = 14ULL << UiFlagsColorShift,
+	ColorOrange        = 15ULL << UiFlagsColorShift,
+	ColorButtonface    = 16ULL << UiFlagsColorShift,
+	ColorButtonpushed  = 17ULL << UiFlagsColorShift,
 
 	AlignCenter        = 1 << 23,
 	AlignRight         = 1 << 24,
@@ -64,10 +80,10 @@ enum class UiFlags : uint64_t {
 	 * and pink in ui_art\diablo.pal. These two point at 128-135 instead; see
 	 * tools/MakeYellowFontTrn.ps1 for the ramp and why each entry is doubled.
 	 */
-	ColorOracoolYellow     = 1ULL << 32,
-	ColorOracoolYellowDark = 1ULL << 33,
+	ColorOracoolYellow     = 18ULL << UiFlagsColorShift,
+	ColorOracoolYellowDark = 19ULL << UiFlagsColorShift,
 	/** @brief Oracool: green text on the injected PAL8_GREEN ramp - set items, Belzebub-style (2026-08-15). */
-	ColorOracoolGreen      = 1ULL << 34,
+	ColorOracoolGreen      = 20ULL << UiFlagsColorShift,
 
 	/**
 	 * @brief The four small fonts, derived from Font 12 (see the notice in docs/THIRD_PARTY.md).
@@ -105,34 +121,51 @@ enum class UiFlags : uint64_t {
 	 * gray ramp five entries in. Socketed drops on the ground and the "Sockets: x/y" row (user,
 	 * 2026-09-07). The .trn is oracool_assets/fonts/oracool_gray5.trn; identity except 192-207.
 	 */
-	ColorGray5             = 1ULL << 40,
+	ColorGray5             = 21ULL << UiFlagsColorShift,
 	/** @brief Oracool: BE-2 of the legend, the beige ramp two in - Primal items, game-wide (user, 2026-09-07). */
-	ColorBeige2            = 1ULL << 41,
+	ColorBeige2            = 22ULL << UiFlagsColorShift,
 	/** @brief Oracool: YL-3 of the legend, the bright yellow minis three in - Rare items (user, 2026-09-07). */
-	ColorYellow3           = 1ULL << 42,
+	ColorYellow3           = 23ULL << UiFlagsColorShift,
 	// Five more from the legend (user, 2026-09-07): the item KINDS that read as one colour each.
 	/** @brief BR-3: health potions. */
-	ColorBrightRed3        = 1ULL << 43,
+	ColorBrightRed3        = 24ULL << UiFlagsColorShift,
 	/** @brief BB-3: mana potions. */
-	ColorBrightBlue3       = 1ULL << 44,
+	ColorBrightBlue3       = 25ULL << UiFlagsColorShift,
 	/** @brief GD-6: books. */
-	ColorGold6             = 1ULL << 45,
+	ColorGold6             = 26ULL << UiFlagsColorShift,
 	/** @brief OR-7: runes. */
-	ColorOrange7           = 1ULL << 46,
+	ColorOrange7           = 27ULL << UiFlagsColorShift,
 	/** @brief GR-7: ethereal items, and the Ethereal row. Beats the socketed gray on the floor. */
-	ColorGray7             = 1ULL << 47,
+	ColorGray7             = 28ULL << UiFlagsColorShift,
 
-	// Bits 40+ are free for a future color or flag - see the widening note above. The entries above
-	// were the first assigned: every existing font-color .trn (Packaging/resources/assets/fonts/*.trn)
-	// works by remapping a 16-shade ramp inside vanilla Diablo's own palette, and that
-	// palette's only named bright-color blocks (Source/engine/palette.h) are blue, red,
-	// yellow, orange, beige, and gray - there is no green/cyan/purple block to remap into.
-	// A genuinely new hue needs a palette edit (out of scope here, and riskier than this
-	// pass warrants since the palette is shared by every other rendering path), not just an
-	// available bit; this widening only removes the bit-count ceiling for whenever that
-	// happens.
+	// Bits 40-47 fell free on 2026-09-07 when the colours moved into the field at 48-59; 60-63 are
+	// free too. A NEW COLOUR is a new index in the field, not a bit - see ColorMask.
 	// clang-format on
 };
 use_enum_as_flags(UiFlags);
+
+/** @brief The colour index carried by @p flags: 0 for none, else the index behind a UiFlags::Color name. */
+constexpr unsigned UiFlagsColorIndex(UiFlags flags)
+{
+	return static_cast<unsigned>((static_cast<uint64_t>(flags) >> UiFlagsColorShift) & 0xFFFULL);
+}
+
+/** @brief Whether @p flags carries exactly @p color. The replacement for HasAnyOf(flags, UiFlags::ColorX). */
+constexpr bool HasColor(UiFlags flags, UiFlags color)
+{
+	return UiFlagsColorIndex(flags) == UiFlagsColorIndex(color);
+}
+
+/** @brief @p flags with its colour cleared - the layout and size bits alone. */
+constexpr UiFlags WithoutColor(UiFlags flags)
+{
+	return static_cast<UiFlags>(static_cast<uint64_t>(flags) & ~(0xFFFULL << UiFlagsColorShift));
+}
+
+/** @brief @p flags with its colour replaced by @p color - the safe way to change a colour a style already has. */
+constexpr UiFlags WithColor(UiFlags flags, UiFlags color)
+{
+	return static_cast<UiFlags>(static_cast<uint64_t>(WithoutColor(flags)) | (static_cast<uint64_t>(color) & (0xFFFULL << UiFlagsColorShift)));
+}
 
 } // namespace devilution

@@ -4207,7 +4207,7 @@ void PrintSString(const Surface &out, int margin, int line, string_view text, Ui
 	if (*sgOptions.Gameplay.showItemGraphicsInStores && cursId >= 0) {
 		const Size size = GetInvItemSize(static_cast<int>(CURSOR_FIRSTITEM) + cursId);
 		const bool useHalfSize = size.width > INV_SLOT_SIZE_PX || size.height > INV_SLOT_SIZE_PX;
-		const bool useRed = HasAnyOf(flags, UiFlags::ColorRed);
+		const bool useRed = HasColor(flags, UiFlags::ColorRed); // a colour is a field, not a bit (2026-09-07)
 		const ClxSprite sprite = useHalfSize
 		    ? (useRed ? GetHalfSizeItemSpriteRed(cursId) : GetHalfSizeItemSprite(cursId))
 		    : GetInvItemSprite(static_cast<int>(CURSOR_FIRSTITEM) + cursId);

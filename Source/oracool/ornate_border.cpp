@@ -326,15 +326,9 @@ void DrawOutlinedString(const Surface &out, string_view text, Rectangle area, Ui
 	constexpr Displacement Offsets[] = { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
 	// Strip the caller's colour from the outline pass, keeping its size and alignment, so the
 	// black sits exactly under the glyphs rather than at a different size or offset.
-	constexpr UiFlags ColorMask = UiFlags::ColorUiGold | UiFlags::ColorUiSilver | UiFlags::ColorUiGoldDark
-	    | UiFlags::ColorUiSilverDark | UiFlags::ColorDialogWhite | UiFlags::ColorDialogYellow
-	    | UiFlags::ColorDialogRed | UiFlags::ColorYellow | UiFlags::ColorGold | UiFlags::ColorBlack
-	    | UiFlags::ColorWhite | UiFlags::ColorWhitegold | UiFlags::ColorRed | UiFlags::ColorBlue
-	    | UiFlags::ColorOrange | UiFlags::ColorButtonface | UiFlags::ColorButtonpushed
-	    | UiFlags::ColorOracoolYellow | UiFlags::ColorOracoolYellowDark | UiFlags::ColorOracoolGreen
-	    | UiFlags::ColorGray5 | UiFlags::ColorBeige2 | UiFlags::ColorYellow3 // the legend colours (2026-09-07)
-	    | UiFlags::ColorBrightRed3 | UiFlags::ColorBrightBlue3 | UiFlags::ColorGold6 | UiFlags::ColorOrange7 | UiFlags::ColorGray7;
-	const UiFlags layout = style & ~ColorMask;
+	// WithoutColor clears the whole colour field (2026-09-07). This was a hand-kept list of every
+	// colour bit, which every new colour had to be added to or the outline came out in colour.
+	const UiFlags layout = WithoutColor(style);
 	for (const Displacement &d : Offsets) {
 		Rectangle shifted = area;
 		shifted.position += d;

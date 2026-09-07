@@ -133,73 +133,68 @@ std::array<std::optional<std::array<uint8_t, 256>>, 30> ColorTranslationsData;
 
 text_color GetColorFromFlags(UiFlags flags)
 {
-	if (HasAnyOf(flags, UiFlags::ColorWhite))
+	// One field read since 2026-09-07 (it was a 28-way chain of bit tests with a precedence order).
+	// The index is the one behind the UiFlags::Color name - see UiFlagsColorShift - and 0, "no
+	// colour", is Whitegold, the fallback every unrecognised flag has always drawn in.
+	switch (UiFlagsColorIndex(flags)) {
+	case UiFlagsColorIndex(UiFlags::ColorWhite):
 		return ColorWhite;
-	if (HasAnyOf(flags, UiFlags::ColorBlue))
+	case UiFlagsColorIndex(UiFlags::ColorBlue):
 		return ColorBlue;
-	if (HasAnyOf(flags, UiFlags::ColorOrange))
+	case UiFlagsColorIndex(UiFlags::ColorOrange):
 		return ColorOrange;
-	if (HasAnyOf(flags, UiFlags::ColorRed))
+	case UiFlagsColorIndex(UiFlags::ColorRed):
 		return ColorRed;
-	if (HasAnyOf(flags, UiFlags::ColorBlack))
+	case UiFlagsColorIndex(UiFlags::ColorBlack):
 		return ColorBlack;
-	if (HasAnyOf(flags, UiFlags::ColorGold))
+	case UiFlagsColorIndex(UiFlags::ColorGold):
 		return ColorGold;
-	if (HasAnyOf(flags, UiFlags::ColorUiGold))
+	case UiFlagsColorIndex(UiFlags::ColorUiGold):
 		return ColorUiGold;
-	if (HasAnyOf(flags, UiFlags::ColorUiSilver))
+	case UiFlagsColorIndex(UiFlags::ColorUiSilver):
 		return ColorUiSilver;
-	if (HasAnyOf(flags, UiFlags::ColorUiGoldDark))
+	case UiFlagsColorIndex(UiFlags::ColorUiGoldDark):
 		return ColorUiGoldDark;
-	if (HasAnyOf(flags, UiFlags::ColorUiSilverDark))
+	case UiFlagsColorIndex(UiFlags::ColorUiSilverDark):
 		return ColorUiSilverDark;
-	if (HasAnyOf(flags, UiFlags::ColorDialogWhite))
+	case UiFlagsColorIndex(UiFlags::ColorDialogWhite):
 		return gbRunGame ? ColorInGameDialogWhite : ColorDialogWhite;
-	if (HasAnyOf(flags, UiFlags::ColorDialogYellow))
+	case UiFlagsColorIndex(UiFlags::ColorDialogYellow):
 		return ColorInGameDialogYellow;
-	if (HasAnyOf(flags, UiFlags::ColorDialogRed))
+	case UiFlagsColorIndex(UiFlags::ColorDialogRed):
 		return ColorInGameDialogRed;
-	if (HasAnyOf(flags, UiFlags::ColorYellow))
+	case UiFlagsColorIndex(UiFlags::ColorYellow):
 		return ColorYellow;
-	if (HasAnyOf(flags, UiFlags::ColorButtonface))
+	case UiFlagsColorIndex(UiFlags::ColorButtonface):
 		return ColorButtonface;
-	if (HasAnyOf(flags, UiFlags::ColorButtonpushed))
+	case UiFlagsColorIndex(UiFlags::ColorButtonpushed):
 		return ColorButtonpushed;
-	// Oracool: the focus glow's pair. Above the Whitegold fallback below so a caller that asks for
-	// them gets them, and nowhere near the top so no existing caller's path changes.
-	if (HasAnyOf(flags, UiFlags::ColorOracoolYellow))
+	case UiFlagsColorIndex(UiFlags::ColorOracoolYellow):
 		return ColorOracoolYellow;
-	if (HasAnyOf(flags, UiFlags::ColorOracoolYellowDark))
+	case UiFlagsColorIndex(UiFlags::ColorOracoolYellowDark):
 		return ColorOracoolYellowDark;
-	// Oracool: set-item green (2026-08-15) - see ColorTranslations' last entry.
-	if (HasAnyOf(flags, UiFlags::ColorOracoolGreen))
+	case UiFlagsColorIndex(UiFlags::ColorOracoolGreen):
 		return ColorOracoolGreen;
-	if (HasAnyOf(flags, UiFlags::ColorGray5))
+	case UiFlagsColorIndex(UiFlags::ColorGray5):
 		return ColorGray5;
-	if (HasAnyOf(flags, UiFlags::ColorBeige2))
+	case UiFlagsColorIndex(UiFlags::ColorBeige2):
 		return ColorBeige2;
-	if (HasAnyOf(flags, UiFlags::ColorYellow3))
+	case UiFlagsColorIndex(UiFlags::ColorYellow3):
 		return ColorYellow3;
-	if (HasAnyOf(flags, UiFlags::ColorBrightRed3))
+	case UiFlagsColorIndex(UiFlags::ColorBrightRed3):
 		return ColorBrightRed3;
-	if (HasAnyOf(flags, UiFlags::ColorBrightBlue3))
+	case UiFlagsColorIndex(UiFlags::ColorBrightBlue3):
 		return ColorBrightBlue3;
-	if (HasAnyOf(flags, UiFlags::ColorGold6))
+	case UiFlagsColorIndex(UiFlags::ColorGold6):
 		return ColorGold6;
-	if (HasAnyOf(flags, UiFlags::ColorOrange7))
+	case UiFlagsColorIndex(UiFlags::ColorOrange7):
 		return ColorOrange7;
-	if (HasAnyOf(flags, UiFlags::ColorGray7))
+	case UiFlagsColorIndex(UiFlags::ColorGray7):
 		return ColorGray7;
-
-	// Last, and only for the sake of being written down: ColorWhitegold is also what this returns for
-	// no recognised colour at all, which is how every existing caller of that flag has been getting it.
-	// Placing the check here rather than up with the others keeps every one of them on exactly the path
-	// it was already taking, while letting a caller that clears the colour bits and sets this one
-	// (see WithTextColor) mean it deliberately.
-	if (HasAnyOf(flags, UiFlags::ColorWhitegold))
+	case UiFlagsColorIndex(UiFlags::ColorWhitegold):
+	default:
 		return ColorWhitegold;
-
-	return ColorWhitegold;
+	}
 }
 
 uint16_t GetUnicodeRow(char32_t codePoint)
