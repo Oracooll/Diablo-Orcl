@@ -111,10 +111,14 @@ inline uint32_t CompositeArgbOver(uint32_t src, uint32_t dst, int alphaPercent)
 		return dst;
 	if (a >= 255)
 		return src & 0x00FFFFFF;
+	// Per channel. The packed two-channels-at-once form overflowed 32 bits and let the division
+	// borrow across channels, which turned every half-transparent draw blue (silhouette, aura
+	// ring, orb glass - user screenshots, 2026-09-07).
 	const int ia = 255 - a;
-	const uint32_t rb = ((((src & 0x00FF00FF) * a) + ((dst & 0x00FF00FF) * ia)) / 255) & 0x00FF00FF;
-	const uint32_t g = ((((src & 0x0000FF00) * a) + ((dst & 0x0000FF00) * ia)) / 255) & 0x0000FF00;
-	return rb | g;
+	const uint32_t r = ((((src >> 16) & 0xFF) * a) + (((dst >> 16) & 0xFF) * ia)) / 255;
+	const uint32_t g = ((((src >> 8) & 0xFF) * a) + (((dst >> 8) & 0xFF) * ia)) / 255;
+	const uint32_t b = (((src & 0xFF) * a) + ((dst & 0xFF) * ia)) / 255;
+	return (r << 16) | (g << 8) | b;
 }
 
 } // namespace devilution

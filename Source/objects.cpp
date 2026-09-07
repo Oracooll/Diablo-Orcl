@@ -4163,7 +4163,17 @@ void EnsureObjectGraphicsLoaded(object_graphic_id ofile, uint16_t animWidth)
 	// Oracool (IP audit, 2026-09-07): the mod's own object art lives in the PRIVATE archive, which a
 	// public build does not have. The waypoint and the monument then wear a vanilla sprite instead of
 	// aborting on a missing file - LoadCel is fatal - so the game runs on original art alone.
-	if (!FindAsset(filestr).ok()) {
+	// With the extension: LoadCel appends it, FindAsset does not, and without it the check never
+	// found the art and Tristram wore the vanilla sprites even with the archive mounted (user,
+	// 2026-09-07: "bring back my assets into Tristram").
+	char probe[40];
+	*BufCopy(probe, filestr, ".cel") = '\0';
+	bool present = FindAsset(probe).ok();
+	if (!present) {
+		*BufCopy(probe, filestr, ".clx") = '\0';
+		present = FindAsset(probe).ok();
+	}
+	if (!present) {
 		const object_graphic_id fallback = ofile == OFILE_ORCLWAYP ? OFILE_MCIRL : ofile == OFILE_ORCLROAR ? OFILE_BOOK2 : ofile;
 		if (fallback != ofile) {
 			for (const ObjectData &objectData : AllObjects) {

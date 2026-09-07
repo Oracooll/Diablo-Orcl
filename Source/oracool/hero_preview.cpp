@@ -131,6 +131,10 @@ bool EnsureTrn()
 		}
 		LevelToUiTrn[i] = static_cast<uint8_t>(best);
 	}
+	// The sprite's own index 0 is its transparent colour and its shadow's; mapped to the nearest
+	// black it drew an opaque blob under the figure (user screenshot, 2026-09-07). 0 stays 0, which
+	// the blit skips.
+	LevelToUiTrn[0] = 0;
 
 	std::memcpy(TrnBuiltFor.data(), orig_palette.data(), sizeof(TrnBuiltFor));
 	TrnBuilt = true;

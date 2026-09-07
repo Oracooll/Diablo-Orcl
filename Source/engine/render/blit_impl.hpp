@@ -147,7 +147,10 @@ struct BlitWithRgbMap {
 	}
 	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, uint32_t *DVL_RESTRICT dst) const
 	{
-		BlitFillDirect(dst, length, rgbMap[color]);
+		// NOT BlitFillDirect: its 32-bit overload takes an INDEX and looks the palette up, and a
+		// colour value truncated to a byte is how every wide letter's solid run came out blue
+		// (user screenshots, 2026-09-07).
+		std::fill_n(dst, length, rgbMap[color]);
 	}
 	DVL_ALWAYS_INLINE void operator()(unsigned /*length*/, uint8_t /*color*/, uint8_t * /*dst*/) const
 	{
