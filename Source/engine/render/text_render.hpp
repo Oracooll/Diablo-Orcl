@@ -101,6 +101,23 @@ enum text_color : uint16_t {
 	ColorInGameUiYellowDark,
 };
 
+/**
+ * Renderer stage 3 (v1.11): a text colour as a VALUE. Defines @p color as the 0xRRGGBB given, shaded
+ * across the glyph band the way the font's own ramp is; no .trn is involved and none is needed. On
+ * an indexed target the colour's file, if it has one, still applies.
+ */
+void DefineTextColorRgb(text_color color, uint32_t rgb);
+
+/** @brief Undoes DefineTextColorRgb: the colour is its file again. */
+void ClearTextColorRgb(text_color color);
+
+/**
+ * @brief The 256-entry table of colour values @p color draws through on the 32-bit screen, baked
+ * against the loaded palette (exactly what the .trn produced through it, or the value given to
+ * DefineTextColorRgb). nullptr for a colour with neither, which draws the glyph as painted.
+ */
+DVL_API_FOR_TEST const uint32_t *TextColorRgbTable(text_color color);
+
 constexpr GameFontTables GetFontSizeFromUiFlags(UiFlags flags)
 {
 	if (HasAnyOf(flags, UiFlags::FontSize24))

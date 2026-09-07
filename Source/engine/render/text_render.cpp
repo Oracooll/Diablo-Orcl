@@ -148,6 +148,93 @@ std::array<const char *, 36> ColorTranslations = {
 
 std::array<std::optional<std::array<uint8_t, 256>>, 36> ColorTranslationsData;
 
+/**
+ * Renderer stage 3 (v1.11): text colours as VALUES.
+ *
+ * On the 32-bit screen a glyph is drawn through a 256-entry table of colour values instead of a
+ * .trn and the palette. For a colour that has a file, the table is what that file gave through the
+ * loaded palette - baked once per palette and identical to the old draw, pixel for pixel. For a
+ * colour defined by DefineTextColorRgb, the table carries the value itself, shaded across the
+ * glyph band (192-207, the gold ramp the fonts were painted on) the way that ramp shades, so a
+ * new colour needs no file and no palette entry. The bake keys on PaletteRgbGeneration, so a
+ * palette load or a gamma change rebuilds it.
+ */
+constexpr int GlyphBandFirst = 192;
+constexpr int GlyphBandSize = 16;
+struct RgbBake {
+	std::array<uint32_t, 256> table {};
+	uint32_t generation = 0;
+};
+std::array<RgbBake, ColorTranslations.size()> ColorRgbBakes;
+/** 0 = the colour is its file; else bit 31 set and the value in the low 24 bits. */
+std::array<uint32_t, ColorTranslations.size()> ColorRgbValues {};
+
+uint32_t PackRgb(const SDL_Color &c)
+{
+	return (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
+}
+
+int Luminance(const SDL_Color &c)
+{
+	return (299 * c.r + 587 * c.g + 114 * c.b) / 1000;
+}
+
+void BakeRgbTable(text_color color, RgbBake &bake)
+{
+	const std::array<SDL_Color, 256> &pal = logical_palette; // gamma applied, fades not: a fade is a present-time transform
+	for (int i = 0; i < 256; i++)
+		bake.table[i] = PackRgb(pal[i]);
+	if (ColorRgbValues[color] != 0) {
+		const uint32_t base = ColorRgbValues[color];
+		const int r = (base >> 16) & 0xFF, g = (base >> 8) & 0xFF, b = base & 0xFF;
+		const int top = std::max(1, Luminance(pal[GlyphBandFirst]));
+		for (int j = 0; j < GlyphBandSize; j++) {
+			const int lum = std::min(top, Luminance(pal[GlyphBandFirst + j]));
+			bake.table[GlyphBandFirst + j] = (static_cast<uint32_t>(r * lum / top) << 16) | (static_cast<uint32_t>(g * lum / top) << 8) | static_cast<uint32_t>(b * lum / top);
+		}
+		return;
+	}
+	if (ColorTranslationsData[color]) {
+		const std::array<uint8_t, 256> &trn = *ColorTranslationsData[color];
+		for (int i = 0; i < 256; i++)
+			bake.table[i] = PackRgb(pal[trn[i]]);
+	}
+}
+
+} // namespace
+
+void DefineTextColorRgb(text_color color, uint32_t rgb)
+{
+	if (color >= ColorRgbValues.size())
+		return;
+	ColorRgbValues[color] = 0x80000000u | (rgb & 0x00FFFFFFu);
+	ColorRgbBakes[color].generation = 0;
+}
+
+void ClearTextColorRgb(text_color color)
+{
+	if (color >= ColorRgbValues.size())
+		return;
+	ColorRgbValues[color] = 0;
+	ColorRgbBakes[color].generation = 0;
+}
+
+const uint32_t *TextColorRgbTable(text_color color)
+{
+	if (color >= ColorRgbValues.size())
+		return nullptr;
+	if (ColorRgbValues[color] == 0 && !ColorTranslationsData[color])
+		return nullptr;
+	RgbBake &bake = ColorRgbBakes[color];
+	if (bake.generation != PaletteRgbGeneration) {
+		BakeRgbTable(color, bake);
+		bake.generation = PaletteRgbGeneration;
+	}
+	return bake.table.data();
+}
+
+namespace {
+
 text_color GetColorFromFlags(UiFlags flags)
 {
 	// One field read since 2026-09-07 (it was a 28-way chain of bit tests with a precedence order).
@@ -408,6 +495,14 @@ void DrawFont(const Surface &out, Point position, ClxSprite glyph, text_color co
 		return;
 	if (outline) {
 		ClxDrawOutlineSkipColorZero(out, 0, { position.x, position.y + glyph.height() - 1 }, glyph);
+	}
+	// Stage 3 (v1.11): on the screen, through the colour's table of values; the .trn only serves
+	// an indexed surface now.
+	if (!out.isIndexed()) {
+		if (const uint32_t *rgb = TextColorRgbTable(color); rgb != nullptr) {
+			RenderClxSpriteWithRgbMap(out, glyph, position, rgb);
+			return;
+		}
 	}
 	if (ColorTranslationsData[color]) {
 		RenderClxSpriteWithTRN(out, glyph, position, ColorTranslationsData[color]->data());

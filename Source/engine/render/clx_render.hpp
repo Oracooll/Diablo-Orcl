@@ -77,6 +77,19 @@ inline void RenderClxSpriteWithTRN(const Surface &out, ClxSprite clx, Point posi
 	ClxDrawTRN(out, { position.x, position.y + static_cast<int>(clx.height()) - 1 }, clx, trn);
 }
 
+/**
+ * @brief Renderer stage 3 (v1.11): draws the sprite with every index resolved through @p rgbMap,
+ * a 256-entry table of colour VALUES (XRGB8888). Only for a 32-bit target; an indexed one is left
+ * untouched, so callers keep a TRN for offscreen surfaces and the golden tests.
+ */
+void ClxDrawRgbMap(const Surface &out, Point position, ClxSprite clx, const uint32_t *rgbMap);
+
+/** @brief Same as ClxDrawRgbMap but position.y is the top of the sprite instead of the bottom. */
+inline void RenderClxSpriteWithRgbMap(const Surface &out, ClxSprite clx, Point position, const uint32_t *rgbMap)
+{
+	ClxDrawRgbMap(out, { position.x, position.y + static_cast<int>(clx.height()) - 1 }, clx, rgbMap);
+}
+
 void ClxDrawBlendedTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn);
 
 /**

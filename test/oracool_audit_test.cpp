@@ -11115,3 +11115,47 @@ TEST(OracoolRenderer, TrueColourArtCompositesWithItsOwnAlpha)
 	EXPECT_EQ(*wide.at<uint32_t>(1, 0), 0x00C80000u);
 	EXPECT_NEAR(static_cast<int>((*wide.at<uint32_t>(3, 0) >> 8) & 0xFF), 100, 2);
 }
+
+TEST(OracoolRenderer, ATextColourCanBeAValueWithNoFile)
+{
+	// Renderer stage 3 (v1.11): a text colour is a table of colour values on the 32-bit screen.
+	// A palette whose glyph band (192-207) darkens by ten per step, so the shading is checkable.
+	for (int i = 0; i < 256; i++)
+		logical_palette[static_cast<size_t>(i)] = SDL_Color { static_cast<Uint8>(i), static_cast<Uint8>(i), static_cast<Uint8>(i), 255 };
+	for (int j = 0; j < 16; j++) {
+		const Uint8 v = static_cast<Uint8>(250 - j * 10);
+		logical_palette[static_cast<size_t>(192 + j)] = SDL_Color { v, v, v, 255 };
+	}
+	PaletteRgbGeneration++;
+
+	DefineTextColorRgb(ColorGray7, 0x4080C0);
+	const uint32_t *table = TextColorRgbTable(ColorGray7);
+	ASSERT_NE(table, nullptr);
+	EXPECT_EQ(table[192], 0x4080C0u) << "the band's top is the value itself";
+	const uint32_t shaded = ((0x40u * 240 / 250) << 16) | ((0x80u * 240 / 250) << 8) | (0xC0u * 240 / 250);
+	EXPECT_EQ(table[193], shaded) << "shaded like the ramp";
+	EXPECT_EQ(table[10], 0x0A0A0Au) << "outside the band an index is its own colour";
+
+	// Drawn: a 2x1 sprite of band indices 192 and 193 lands the values on the screen, and does
+	// nothing to an indexed surface.
+	OwnedSurface art(2, 1);
+	(art[Point { 0, 0 }]) = 192;
+	art[Point { 1, 0 }] = 193;
+	const OwnedClxSpriteList clx = SurfaceToClx(art, 1, /*transparentColor=*/0);
+	OwnedSurface screen = OwnedSurface::Rgb(2, 1);
+	ClxDrawRgbMap(screen, { 0, 0 }, clx[0], table);
+	EXPECT_EQ(*screen.at<uint32_t>(0, 0), 0x4080C0u);
+	EXPECT_EQ(*screen.at<uint32_t>(1, 0), table[193]);
+	OwnedSurface indexed(2, 1);
+	indexed[Point { 0, 0 }] = 7;
+	ClxDrawRgbMap(indexed, { 0, 0 }, clx[0], table);
+	EXPECT_EQ((indexed[Point { 0, 0 }]), 7);
+
+	// A palette change rebakes; clearing the value gives the colour back to its file (none loaded
+	// here, so no table).
+	logical_palette[192] = SDL_Color { 1, 2, 3, 255 };
+	PaletteRgbGeneration++;
+	EXPECT_EQ(TextColorRgbTable(ColorGray7)[192], 0x4080C0u) << "the value does not move with the palette";
+	ClearTextColorRgb(ColorGray7);
+	EXPECT_EQ(TextColorRgbTable(ColorGray7), nullptr);
+}

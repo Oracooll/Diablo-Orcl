@@ -152,6 +152,7 @@ void CycleColorsReverse(int from, int to)
 } // namespace
 
 std::array<uint32_t, 256> PaletteRGB {};
+uint32_t PaletteRgbGeneration = 1;
 int FadeLevel = 256;
 bool PresentRedFlash = false;
 
@@ -163,6 +164,7 @@ void RebuildPaletteRgb(const std::array<SDL_Color, 256> &source, int first, int 
 		const SDL_Color &c = source[i];
 		PaletteRGB[i] = (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
 	}
+	PaletteRgbGeneration++;
 }
 
 } // namespace

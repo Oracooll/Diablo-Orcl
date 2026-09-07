@@ -49,7 +49,7 @@ namespace devilution {
 #define PAL16_RED 224
 #define PAL16_GRAY 240
 
-extern std::array<SDL_Color, 256> logical_palette;
+extern DVL_API_FOR_TEST std::array<SDL_Color, 256> logical_palette;
 extern std::array<SDL_Color, 256> system_palette;
 extern std::array<SDL_Color, 256> orig_palette;
 
@@ -85,6 +85,8 @@ void palette_update(int first = 0, int ncolor = 256);
  * the frame by FadeLevel on its way to the screen. The screenshot's red flash is the same idea.
  */
 extern DVL_API_FOR_TEST std::array<uint32_t, 256> PaletteRGB;
+/** @brief Bumped every time PaletteRGB is rebuilt, so a table derived from the palette knows when it is stale. */
+extern DVL_API_FOR_TEST uint32_t PaletteRgbGeneration;
 /** @brief 256 = no fade; 0 = black. Set by SetFadeLevel, applied by Blit. */
 extern DVL_API_FOR_TEST int FadeLevel;
 /** @brief The screenshot flash: green and blue dropped at present time. Set by RedPalette, cleared by palette_update. */

@@ -607,6 +607,13 @@ void ClxDrawTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t
 	DoRenderBackwardsDispatch(out, position, clx, BlitWithMap { trn });
 }
 
+void ClxDrawRgbMap(const Surface &out, Point position, ClxSprite clx, const uint32_t *rgbMap)
+{
+	if (out.isIndexed())
+		return;
+	DoRenderBackwardsDispatch(out, position, clx, BlitWithRgbMap { rgbMap });
+}
+
 void ClxDrawBlended(const Surface &out, Point position, ClxSprite clx)
 {
 	DoRenderBackwardsDispatch(out, position, clx, BlitBlended {});

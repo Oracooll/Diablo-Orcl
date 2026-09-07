@@ -119,6 +119,41 @@ struct BlitWithMap {
 	}
 };
 
+// ---------------------------------------------------------------- through an RGB map (a text colour as values, v1.11 stage 3)
+
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsWithRgbMap(uint32_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length, const uint32_t *DVL_RESTRICT rgbMap)
+{
+	DVL_ASSUME(length != 0);
+	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, [rgbMap](uint8_t srcColor) { return rgbMap[srcColor]; });
+}
+
+/** @brief An 8-bit target has no way to hold a colour value; the caller keeps its TRN for those. */
+DVL_ALWAYS_INLINE void BlitPixelsWithRgbMap(uint8_t * /*dst*/, const uint8_t * /*src*/, unsigned /*length*/, const uint32_t * /*rgbMap*/)
+{
+}
+
+/**
+ * @brief Renderer stage 3 (v1.11): every source index goes to the colour VALUE the map holds for
+ * it. Text drawn this way has no palette between the glyph and the screen, so a text colour can be
+ * any RGB the map says - the .trn was a detour through the 256 entries and is no longer needed.
+ */
+struct BlitWithRgbMap {
+	const uint32_t *DVL_RESTRICT rgbMap;
+
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, Pixel *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
+	{
+		BlitPixelsWithRgbMap(dst, src, length, rgbMap);
+	}
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, uint32_t *DVL_RESTRICT dst) const
+	{
+		BlitFillDirect(dst, length, rgbMap[color]);
+	}
+	DVL_ALWAYS_INLINE void operator()(unsigned /*length*/, uint8_t /*color*/, uint8_t * /*dst*/) const
+	{
+	}
+};
+
 // ---------------------------------------------------------------- half-transparent
 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlended(uint8_t *dst, unsigned length, uint8_t color)
