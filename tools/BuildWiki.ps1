@@ -1016,8 +1016,10 @@ $socketRules = [ordered]@{
     etherealPercent   = [int](Get-Constant $itemsCpp2 '(?s)void TryMakeDroppedItemEthereal.*?GenerateRnd\(100\) >= (\d+)')
     etherealBonusPct  = 135
     charmActiveCap    = $charmCap
-    levskiGridColumns = [int](Get-Constant (Read-SourceFile 'oracool/levski_roar.h') 'LevskiGridColumns = (\d+)')
-    levskiGridRows    = [int](Get-Constant (Read-SourceFile 'oracool/levski_roar.h') 'LevskiGridRows = (\d+)')
+    # The grid's size moved into the skin header (levski_roar.h now forwards to levski_skin::GridColumns
+    # and GridRows), so it is read from there - found 2026-09-07 when the build stopped on a '?'.
+    levskiGridColumns = [int](Get-Constant (Read-SourceFile 'oracool/levski_roar_skin.h') 'constexpr int GridColumns = (\d+)')
+    levskiGridRows    = [int](Get-Constant (Read-SourceFile 'oracool/levski_roar_skin.h') 'constexpr int GridRows = (\d+)')
     recipes           = @()
 }
 

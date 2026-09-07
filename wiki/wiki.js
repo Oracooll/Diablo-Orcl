@@ -28,6 +28,7 @@ const NAV = [
 	{ href: 'ui.html', label: 'HUD and windows' },
 	{ href: 'controls.html', label: 'Controls' },
 	{ href: 'options.html', label: 'INI options' },
+	{ href: 'colours.html', label: 'Text colours' },
 	{ heading: 'Project' },
 	{ href: 'assets.html', label: 'Art assets' },
 	{ href: 'debug.html', label: 'Debug console' },

@@ -103,6 +103,7 @@ $pages = @(
     @{ file = 'ui.html'; id = 'ui'; label = 'HUD and windows'; group = 'Interface' },
     @{ file = 'controls.html'; id = 'controls'; label = 'Controls'; group = 'Interface' },
     @{ file = 'options.html'; id = 'options'; label = 'INI options'; group = 'Interface' },
+    @{ file = 'colours.html'; id = 'colours'; label = 'Text colours'; group = 'Interface' },
     @{ file = 'assets.html'; id = 'assets'; label = 'Art assets'; group = 'Project' },
     @{ file = 'debug.html'; id = 'debug'; label = 'Debug console'; group = 'Project' },
     @{ file = 'history.html'; id = 'history'; label = 'Version history'; group = 'Project' },
