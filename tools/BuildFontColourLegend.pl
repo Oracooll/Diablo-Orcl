@@ -106,33 +106,66 @@ for my $r (@ramps) {
 X
 }
 
-# ---- the working set: what item text uses today, one row each, in the real files
-my @today = (
-	['ColorWhite', 'white.trn', '≈ GR-2', 'plain items, most panel text'],
-	['ColorWhitegold', 'whitegold.trn', '≈ GD-2', 'unique items; the fallback for an unrecognised flag'],
-	['ColorGold', 'gamedialogyellow.trn', 'GD-3', 'labels, the raw glyph; same look as the six dialog names'],
-	['ColorYellow3', 'oracool_yellow3.trn', 'YL-3', 'rare items and rejuvenation potions (was ColorYellow, YL-1, until 2026-09-07)'],
-	['ColorRed', 'red.trn', '≈ RD-3', 'unmet requirements, fire damage, a slow on the sheet'],
-	['ColorBlue', 'blue.trn', 'BL-0', 'magic items, magic damage, a bonus on the sheet'],
-	['ColorBeige2', 'oracool_beige2.trn', 'BE-2', 'Primal items, name and slot backing (was ColorOrange, OR-1)'],
-	['ColorGray5', 'oracool_gray5.trn', 'GR-5', 'socketed plain drops on the floor, the socket count on any drop, the Sockets row'],
-	['ColorGray7', 'oracool_gray7.trn', 'GR-7', 'ethereal plain items and the Ethereal row; beats the socketed gray'],
-	['ColorBrightRed3', 'oracool_brightred3.trn', 'BR-3', 'health potions'],
-	['ColorBrightBlue3', 'oracool_brightblue3.trn', 'BB-3', 'mana potions'],
-	['ColorGold6', 'oracool_gold6.trn', 'GD-6', 'books'],
-	['ColorOrange7', 'oracool_orange7.trn', 'OR-7', 'runes'],
-	['ColorOracoolGreen', 'yellow.trn', 'GN-1', 'set items, healing (yellow.trn shifted onto the green minis at load)'],
-	['ColorBlack', 'black.trn', 'BK', 'the shadow under HUD text'],
+# ---- every .trn the game ships, in two inventories: the 16 vanilla files and the 10 Orcl ones
+# (user, 2026-09-07: "put all of them in the artifact/wiki. make a column to state used/not-used.
+# put them in two separate categories - Vanilla Colours, Orcl Colors"). "Used" is whether any live
+# code asks for the colour; the counts were taken from a grep of UiFlags::Color* on 2026-09-07.
+# A file with no enum reader is still loaded into the translation table and costs nothing else.
+my @vanilla = (
+	['white.trn', 'ColorWhite', '≈ GR-2', 1, 'plain items, most panel and HUD text'],
+	['whitegold.trn', 'ColorWhitegold', '≈ GD-2', 1, 'unique items; the fallback for an unrecognised flag'],
+	['yellow.trn', 'ColorYellow', 'YL-1', 1, 'lightning damage on the sheet and the floating numbers (rare items until 2026-09-07); also, shifted at load, the green below'],
+	['red.trn', 'ColorRed', '≈ RD-3', 1, 'unmet requirements, fire damage, a slow on the sheet'],
+	['blue.trn', 'ColorBlue', 'BL-0', 1, 'magic items, magic damage, a bonus on the sheet'],
+	['orange.trn', 'ColorOrange', 'OR-1', 1, 'the runeword book\'s rune lines, floating magic damage (healed onto the orange ramp at load; Primal until 2026-09-07)'],
+	['black.trn', 'ColorBlack', 'BK', 1, 'the shadow under HUD text'],
+	['goldui.trn', 'ColorUiGold', 'BL ramp in play', 1, 'front-end text (gold on the menu palette, steel blue in a level)'],
+	['golduis.trn', 'ColorUiGoldDark', 'BL ramp in play', 1, 'front-end text, dark'],
+	['grayui.trn', 'ColorUiSilver', 'RD ramp in play', 1, 'front-end text (gray on the menu palette, red in a level); floating fire damage'],
+	['grayuis.trn', 'ColorUiSilverDark', 'RD ramp in play', 1, 'the mlvl line under a monster bar - which is why it reads red-brown there'],
+	['gamedialogwhite.trn', 'ColorDialogWhite', 'GD-3', 1, 'in-game dialog text; identity on the glyph band, so the raw gold glyph'],
+	['gamedialogyellow.trn', 'ColorDialogYellow', 'GD-3', 0, 'vanilla dialog yellow; no caller since the dialogs were rebuilt'],
+	['gamedialogred.trn', 'ColorDialogRed', 'GD-3', 0, 'vanilla dialog red; no caller'],
+	['buttonface.trn', 'ColorButtonface', 'gray/gold mix', 0, 'vanilla menu buttons; no caller'],
+	['buttonpushed.trn', 'ColorButtonpushed', 'gray/gold mix', 0, 'vanilla menu buttons, pressed; no caller'],
+	['', 'ColorGold', 'GD-3', 1, 'NO FILE: an empty table slot draws the raw glyph. Labels, the readied-slot rows, the gold text everywhere'],
 );
-my $work = '';
-for my $t (@today) {
-	my ($name, $file, $id, $use) = @$t;
-	my $trn = trnfile($file);
-	if ($name eq 'ColorOracoolGreen') { $_ = ($_ >= 144 && $_ < 152) ? $_ - 144 + 152 : $_ for @$trn; }
-	if ($name eq 'ColorOrange') { $_ = ($_ >= 152 && $_ < 160) ? $_ - 152 + 208 : $_ for @$trn; }
-	my $uri = render("This is $name", $trn);
-	$work .= qq{<tr><td class="id">$id</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="file">fonts\\$file</td><td>$use</td></tr>\n};
+my @orcl = (
+	['oracool_yellow.trn', 'ColorOracoolYellow', 'menu palette only', 1, 'the front-end focus glow (2026-08-15); points at 128-135, which is bright blue in a level, so never on items'],
+	['oracool_yellows.trn', 'ColorOracoolYellowDark', 'menu palette only', 0, 'the glow\'s dark twin; no caller'],
+	['', 'ColorOracoolGreen', 'GN-1', 1, 'NO FILE OF ITS OWN: yellow.trn shifted onto the injected green minis at load. Set items, healing'],
+	['oracool_gray5.trn', 'ColorGray5', 'GR-5', 1, 'socketed plain drops on the floor, the socket count on any drop, the Sockets row'],
+	['oracool_beige2.trn', 'ColorBeige2', 'BE-2', 1, 'Primal items, name and slot backing'],
+	['oracool_yellow3.trn', 'ColorYellow3', 'YL-3', 1, 'rare items, rejuvenation potions'],
+	['oracool_brightred3.trn', 'ColorBrightRed3', 'BR-3', 1, 'health potions'],
+	['oracool_brightblue3.trn', 'ColorBrightBlue3', 'BB-3', 1, 'mana potions'],
+	['oracool_gold6.trn', 'ColorGold6', 'GD-6', 1, 'books'],
+	['oracool_orange7.trn', 'ColorOrange7', 'OR-7', 1, 'runes'],
+	['oracool_gray7.trn', 'ColorGray7', 'GR-7', 1, 'ethereal plain items and the Ethereal row; beats the socketed gray'],
+);
+sub inventory {
+	my @rows;
+	for my $t (@_) {
+		my ($file, $name, $id, $used, $use) = @$t;
+		my $trn;
+		if ($file eq '') {
+			$trn = [0 .. 255];
+			if ($name eq 'ColorOracoolGreen') { $trn = trnfile('yellow.trn'); $_ = ($_ >= 144 && $_ < 152) ? $_ - 144 + 152 : $_ for @$trn; }
+		} else {
+			$trn = trnfile($file);
+			if ($name eq 'ColorOrange') { $_ = ($_ >= 152 && $_ < 160) ? $_ - 152 + 208 : $_ for @$trn; }
+		}
+		my $uri = render("This is $name", $trn);
+		my $fileHtml = $file eq '' ? '<i>none</i>' : "fonts\\$file";
+		my $usedHtml = $used ? '<span class="used">used</span>' : '<span class="unused">not used</span>';
+		push @rows, qq{<tr><td class="id">$id</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="file">$fileHtml</td><td class="used">$usedHtml</td><td>$use</td></tr>\n};
+	}
+	return join '', @rows;
 }
+my $vanillaRows = inventory(@vanilla);
+my $orclRows = inventory(@orcl);
+my $vanillaUsed = scalar(grep { $_->[3] } @vanilla);
+my $orclUsed = scalar(grep { $_->[3] } @orcl);
 
 my $page = <<"X";
 <title>Orcl Font Colour Legend</title>
@@ -160,6 +193,9 @@ td.file{font-family:"JetBrains Mono",Consolas,monospace;font-size:12px;color:var
 td.idx{font-family:"JetBrains Mono",Consolas,monospace;font-size:12px}
 td.recipe{font-family:"JetBrains Mono",Consolas,monospace;font-size:11px;color:var(--muted)}
 .today{display:block;font-family:"Source Sans 3",sans-serif;font-size:12px;color:var(--hot)}
+td.used{white-space:nowrap}
+span.used{color:#8fbf6a;font-weight:600}
+span.unused{color:#b06a4a;font-weight:600}
 .sw i{display:inline-block;width:10px;height:14px;vertical-align:middle;border-right:1px solid #000}
 .sw.full i{width:12px}
 .steps{max-width:70ch}
@@ -169,13 +205,17 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 .warn{border-left:3px solid var(--hot);padding:6px 12px;color:var(--ink);max-width:70ch;margin:10px 0 0}
 </style>
 <h1>Orcl Font Colour Legend</h1>
-<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. <b>Part 1</b> is the nine colours item text uses today. <b>Part 2</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
+<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
 
-<section class="panel"><header><h2>1 · In use today</h2><span class="meta">nine looks behind 22 enum names; the file is what matters</span></header>
-<div class="scroll"><table><thead><tr><th>ID</th><th>Sample</th><th>Name in code</th><th>File</th><th>Used for</th></tr></thead><tbody>$work</tbody></table></div>
+<section class="panel"><header><h2>1 · Vanilla Colours</h2><span class="meta">the 16 .trn files DevilutionX ships, plus ColorGold which has none · @{[$vanillaUsed - 1]} of 16 files used</span></header>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Sample (as drawn in play)</th><th>Name in code</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$vanillaRows</tbody></table></div>
 </section>
 
-<section class="panel"><header><h2>2 · The pool</h2><span class="meta">66 usable shades; a swatch shows the entries the glyph's 13 levels land on, the band column is the .trn's entries 192-207</span></header>
+<section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 10 .trn files this fork added, plus the green which borrows yellow.trn · @{[$orclUsed - 1]} of 10 files used</span></header>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Sample</th><th>Name in code</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$orclRows</tbody></table></div>
+</section>
+
+<section class="panel"><header><h2>3 · The pool</h2><span class="meta">66 usable shades; a swatch shows the entries the glyph's 13 levels land on, the band column is the .trn's entries 192-207</span></header>
 $blocks
 </section>
 
