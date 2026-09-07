@@ -104,6 +104,7 @@ $pages = @(
     @{ file = 'controls.html'; id = 'controls'; label = 'Controls'; group = 'Interface' },
     @{ file = 'options.html'; id = 'options'; label = 'INI options'; group = 'Interface' },
     @{ file = 'colours.html'; id = 'colours'; label = 'Text colours'; group = 'Interface' },
+    @{ file = 'palettes.html'; id = 'palettes'; label = 'Palettes'; group = 'Interface' },
     @{ file = 'engine.html'; id = 'engine'; label = 'Engine improvements'; group = 'Project' },
     @{ file = 'assets.html'; id = 'assets'; label = 'Art assets'; group = 'Project' },
     @{ file = 'debug.html'; id = 'debug'; label = 'Debug console'; group = 'Project' },
