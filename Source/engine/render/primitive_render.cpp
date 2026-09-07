@@ -309,6 +309,18 @@ void UnsafeDrawBorder2px(const Surface &out, Rectangle rect, uint8_t color)
 	UnsafeDrawHorizontalLine(out, { p.x, p.y + height - 1 }, width, color);
 }
 
+void FillRectRgb(const Surface &out, int x, int y, int width, int height, uint32_t rgb, uint8_t fallbackIndex)
+{
+	if (out.isIndexed()) {
+		FillRect(out, x, y, width, height, fallbackIndex);
+		return;
+	}
+	const int x0 = std::max(x, 0), y0 = std::max(y, 0);
+	const int x1 = std::min(x + width, out.w()), y1 = std::min(y + height, out.h());
+	for (int row = y0; row < y1; row++)
+		std::fill_n(out.at<uint32_t>(x0, row), std::max(0, x1 - x0), rgb & 0x00FFFFFF);
+}
+
 bool BlitArgb(const Surface &out, const uint32_t *pixels, int srcPitch, SDL_Rect srcRect, Point position, int alphaPercent)
 {
 	if (out.isIndexed())

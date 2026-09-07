@@ -15,6 +15,12 @@ namespace devilution {
 void FillRect(const Surface &out, int x, int y, int width, int height, uint8_t colorIndex);
 
 /**
+ * @brief FillRect with a colour VALUE (0xRRGGBB) on the 32-bit screen; on an indexed surface
+ * @p fallbackIndex is used instead, so the call is safe on either.
+ */
+void FillRectRgb(const Surface &out, int x, int y, int width, int height, uint32_t rgb, uint8_t fallbackIndex);
+
+/**
  * @brief Draw a horizontal line segment in the target buffer (left to right)
  * @param out Target buffer
  * @param from Start of the line segment

@@ -45,8 +45,10 @@ bool IsProgress;
 uint32_t sgdwProgress;
 int progress_id;
 
-/** The color used for the progress bar as an index into the palette. */
+/** The color used for the progress bar as an index into the palette (the indexed fallback only, since 2026-09-08). */
 const uint8_t BarColor[3] = { 138, 43, 254 };
+/** The bar's colour on the 32-bit screen: RGB204.183.117, the legend's gold (user, 2026-09-08). One colour for every screen. */
+constexpr uint32_t BarColorRgb = 0xCCB775;
 /** The screen position of the top left corner of the progress bar. */
 const int BarPos[3][2] = { { 53, 37 }, { 53, 421 }, { 53, 37 } };
 
@@ -326,7 +328,7 @@ void DrawCutsceneForeground()
 	}
 	// A palette index through the surface's own fill (v1.11): SDL_FillRect with an index on a 32-bit
 	// surface wrote the index as a colour - the blue bar in the first-look screenshot.
-	FillRect(out, rect.x - out.region.x, rect.y - out.region.y, rect.w, rect.h, BarColor[progress_id]);
+	FillRectRgb(out, rect.x - out.region.x, rect.y - out.region.y, rect.w, rect.h, BarColorRgb, BarColor[progress_id]);
 
 	if (DiabloUiSurface() == PalSurface)
 		BltFast(&rect, &rect);
