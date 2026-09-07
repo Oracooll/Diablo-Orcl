@@ -10901,26 +10901,46 @@ TEST(OracoolAudit, StashSortKeepsBooksOnRowsOfTheirOwn)
 
 	SortStash(player);
 
-	int bookRow = -1;
-	int potionRowMax = -1;
+	// Every item owns exactly its footprint on the grid: no overlap, no unclaimed cells (the 2x2
+	// books were registered as one cell and drawn over their neighbours - user, 2026-09-07:
+	// "overlapping adjacent books").
+	ASSERT_EQ(Stash.stashGrids.size(), 1u);
+	const auto &grid = Stash.stashGrids.begin()->second;
+	int bookBottom = -1; // the lowest row any book covers
+	int bookTop = StashGridRows;
 	int books = 0;
-	for (const devilution::Item &item : Stash.stashList) {
+	for (size_t i = 0; i < Stash.stashList.size(); i++) {
+		const devilution::Item &item = Stash.stashList[i];
+		const Size size = GetInventorySize(item);
+		const Point topLeft { item.position.x, item.position.y - size.height + 1 };
+		int owned = 0;
+		for (int x = 0; x < StashGridColumns; x++) {
+			for (int y = 0; y < StashGridRows; y++) {
+				if (grid[x][y] == i + 1)
+					owned++;
+			}
+		}
+		EXPECT_EQ(owned, size.width * size.height) << "item " << i << " does not own exactly its footprint";
+		for (int x = topLeft.x; x < topLeft.x + size.width; x++) {
+			for (int y = topLeft.y; y < topLeft.y + size.height; y++) {
+				EXPECT_EQ(grid[x][y], i + 1) << "cell " << x << "," << y << " under item " << i << " belongs to something else";
+			}
+		}
 		if (item._iMiscId == IMISC_BOOK) {
 			books++;
-			if (bookRow == -1)
-				bookRow = item.position.y;
-			EXPECT_EQ(item.position.y, bookRow) << "the books are not on one row";
-		} else {
-			potionRowMax = std::max(potionRowMax, item.position.y);
+			EXPECT_EQ(size, (Size { 2, 2 })) << "a book is a 2x2 in this test's premise";
+			bookTop = std::min(bookTop, topLeft.y);
+			bookBottom = std::max(bookBottom, item.position.y);
 		}
 	}
 	EXPECT_EQ(books, 3);
-	EXPECT_GT(bookRow, potionRowMax) << "the books did not start on a row of their own after the potions";
-	// And nothing but books shares that row.
+	// The books form one block below the potions, and nothing else sits on the block's rows.
 	for (const devilution::Item &item : Stash.stashList) {
-		if (item.position.y == bookRow)
-			EXPECT_EQ(item._iMiscId, IMISC_BOOK) << "a potion shares the books' row";
+		if (item._iMiscId == IMISC_BOOK)
+			continue;
+		EXPECT_LT(item.position.y, bookTop) << "a potion is on or below the books' block";
 	}
+	EXPECT_EQ(bookBottom - bookTop + 1, 2) << "three 2x2 books fit one row of the block";
 	Stash.stashList.clear();
 	Stash.stashGrids.clear();
 }

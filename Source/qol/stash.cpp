@@ -1317,12 +1317,27 @@ bool AutoPlaceItemInStash(Player &player, const Item &item, bool persistItem)
  * which is precisely what a fixed layout must not do. Every material is 1x1, so there is no
  * footprint to fit and the cell either holds it or the page is malformed.
  */
-void PlaceMaterialAt(unsigned page, Point cell, const Item &item)
+/**
+ * @brief Puts @p item on @p page with its top-left cell at @p topLeft, claiming its whole footprint.
+ *
+ * The item's recorded position is its BOTTOM-left cell, as AutoPlaceItemInStash records it and as
+ * the stash draws it (sprites anchor at their bottom-left). PlaceMaterialAt below recorded the top
+ * cell and claimed one grid cell whatever the item's size, which was right for the 1x1 materials it
+ * was written for and wrong for the 2x2 books the consumables layout later sent through it: the
+ * book's sprite spilled over the cells above and beside it, and its unclaimed cells were handed to
+ * the next stack (user, 2026-09-07: "overlapping adjacent books").
+ */
+void PlaceStashItemAt(unsigned page, Point topLeft, const Item &item, Size size)
 {
 	Stash.stashList.emplace_back(item);
 	const auto index = static_cast<uint16_t>(Stash.stashList.size() - 1);
-	Stash.stashList[index].position = cell;
-	AddItemToStashGrid(page, cell, index, { 1, 1 });
+	Stash.stashList[index].position = topLeft + Displacement { 0, size.height - 1 };
+	AddItemToStashGrid(page, topLeft, index, size);
+}
+
+void PlaceMaterialAt(unsigned page, Point cell, const Item &item)
+{
+	PlaceStashItemAt(page, cell, item, { 1, 1 });
 }
 
 /** @brief The first page with nothing on it, searching upward from 0. */
@@ -1650,29 +1665,49 @@ void SortStash(Player &player)
 			for (const Item &item : consumables)
 				AutoPlaceItemInStash(player, item, true);
 		} else {
-			// Free cells in row order. The page's grid may not exist yet when nothing was placed
-			// on it; then every cell is free.
-			const auto cellFree = [page](int x, int y) {
-				return page >= Stash.stashGrids.size() || Stash.stashGrids[page][x][y] == 0;
+			// Redone 2026-09-07 (user: "redo the logic again to avoid current issues. overlapping
+			// adjacent books and when second row of adjacent family occurs"). The first cut walked
+			// CELLS and put every stack on one cell, so a 2x2 book overlapped its neighbours and
+			// the family after it started on the row its bottom half occupied. This one walks
+			// FOOTPRINTS: each item takes the first free rectangle its size, scanning row by row
+			// from the family's top row, and a family's top row is the first row below everything
+			// the previous family placed. So a family is a block, and the next block starts under
+			// the whole of it, books included.
+			//
+			// The grid is a map, so asking for the page creates it; every cell of a fresh page reads
+			// free, and the materials laid out above have already claimed theirs.
+			const StashStruct::StashGrid &grid = Stash.stashGrids[page];
+			const auto fits = [&grid](Point topLeft, Size size) {
+				if (topLeft.x + size.width > StashGridColumns || topLeft.y + size.height > StashGridRows)
+					return false;
+				for (Point p : PointsInRectangle(Rectangle { topLeft, size })) {
+					if (grid[p.x][p.y] != 0)
+						return false;
+				}
+				return true;
 			};
-			int cell = 0;
+			int familyTop = 0;    // the row the current family's scan starts on
+			int familyBottom = 0; // one past the lowest row the current family has used
 			int lastFamily = -1;
 			for (const Item &item : consumables) {
-				// A new family starts on a fresh row, so each block is a block and not a run that
-				// wraps into the next one mid-row.
 				if (family(item) != lastFamily) {
-					if (lastFamily != -1 && cell % StashGridColumns != 0)
-						cell += StashGridColumns - cell % StashGridColumns;
+					familyTop = familyBottom;
 					lastFamily = family(item);
 				}
-				while (cell < StashGridColumns * StashGridRows && !cellFree(cell % StashGridColumns, cell / StashGridColumns))
-					cell++;
-				if (cell >= StashGridColumns * StashGridRows) {
-					AutoPlaceItemInStash(player, item, true);
-					continue;
+				const Size size = GetInventorySize(item);
+				bool placed = false;
+				for (int y = familyTop; y < StashGridRows && !placed; y++) {
+					for (int x = 0; x < StashGridColumns; x++) {
+						if (!fits({ x, y }, size))
+							continue;
+						PlaceStashItemAt(page, { x, y }, item, size);
+						familyBottom = std::max(familyBottom, y + size.height);
+						placed = true;
+						break;
+					}
 				}
-				PlaceMaterialAt(page, { cell % StashGridColumns, cell / StashGridColumns }, item);
-				cell++;
+				if (!placed)
+					AutoPlaceItemInStash(player, item, true); // the page is full: anywhere it fits
 			}
 		}
 	}
