@@ -470,6 +470,39 @@ add_custom_command(
 add_custom_target(oracool_mpq DEPENDS "${ORACOOL_MPQ}")
 add_dependencies(${BIN_TARGET} oracool_mpq)
 
+# Oracool (IP audit, 2026-09-07): the PRIVATE archive. Art the user made from reworked Blizzard
+# textures stays part of the mod on this machine and is never distributed: it lives OUTSIDE the
+# repository, in the Resources folder, and is packed into oracool_private.mpq beside the game
+# binary, which the engine mounts ahead of oracool.mpq. A clone without that folder builds without
+# it, and the release packager's fixed manifest never includes it.
+set(ORACOOL_PRIVATE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Resources/03-private-assets/oracool_private_assets"
+  CACHE PATH "Folder packed into oracool_private.mpq (local art that must not be distributed); skipped when absent")
+if(IS_DIRECTORY "${ORACOOL_PRIVATE_ASSETS_DIR}")
+  file(GLOB_RECURSE ORACOOL_PRIVATE_ASSET_FILES CONFIGURE_DEPENDS "${ORACOOL_PRIVATE_ASSETS_DIR}/*")
+  set(ORACOOL_PRIVATE_MPQ "${CMAKE_CURRENT_BINARY_DIR}/oracool_private.mpq")
+  set(ORACOOL_PRIVATE_MPQ_LIST "${CMAKE_CURRENT_BINARY_DIR}/oracool_private_mpq_files.txt")
+  set(_oracool_private_rel_list "")
+  foreach(_asset ${ORACOOL_PRIVATE_ASSET_FILES})
+    file(RELATIVE_PATH _rel "${ORACOOL_PRIVATE_ASSETS_DIR}" "${_asset}")
+    string(APPEND _oracool_private_rel_list "${_rel}\n")
+  endforeach()
+  file(GENERATE OUTPUT "${ORACOOL_PRIVATE_MPQ_LIST}" CONTENT "${_oracool_private_rel_list}")
+  add_custom_command(
+    COMMENT "Packing oracool_private.mpq (local only, never distributed)"
+    OUTPUT "${ORACOOL_PRIVATE_MPQ}"
+    COMMAND oracool_mpq_pack
+      "${ORACOOL_PRIVATE_ASSETS_DIR}"
+      "${ORACOOL_PRIVATE_MPQ}"
+      "@${ORACOOL_PRIVATE_MPQ_LIST}"
+    DEPENDS oracool_mpq_pack ${ORACOOL_PRIVATE_ASSET_FILES} "${ORACOOL_PRIVATE_MPQ_LIST}"
+    VERBATIM)
+  add_custom_target(oracool_private_mpq DEPENDS "${ORACOOL_PRIVATE_MPQ}")
+  add_dependencies(${BIN_TARGET} oracool_private_mpq)
+  message(STATUS "oracool_private.mpq: packing ${ORACOOL_PRIVATE_ASSETS_DIR} (local only)")
+else()
+  message(STATUS "oracool_private.mpq: no private asset folder at ${ORACOOL_PRIVATE_ASSETS_DIR} - public build")
+endif()
+
 # Oracool: exports a class's player sprites out of the archives as PNG sheets. Also EXCLUDE_FROM_ALL -
 # it is an inspection tool, not part of the game. See the file header for how to run it.
 add_executable(oracool_sprite_export EXCLUDE_FROM_ALL tools/oracool_sprite_export.cpp)

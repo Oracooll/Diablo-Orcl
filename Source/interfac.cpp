@@ -27,8 +27,10 @@
 #include "oracool/oracool.h"
 #include "pfile.h"
 #include "plrmsg.h"
+#include "utils/png.h"
 #include "utils/sdl_geometry.h"
 #include "utils/sdl_wrap.h"
+#include "utils/str_cat.hpp"
 #include "utils/stdcompat/optional.hpp"
 
 namespace devilution {
@@ -68,10 +70,33 @@ SDL_Rect CutsceneRgbRect { 0, 0, 0, 0 };
 int CutsceneRgbSourceWidth = 640;
 int CutsceneRgbSourceHeight = 480;
 
+/**
+ * @brief The user's own 16:9 redo of a painting, from the PRIVATE archive (user, 2026-09-07: "i have
+ * redone original blizzard cutscene files to fit 720p 16:9. Use them in the game, but keep them with
+ * other blizzard IP"). gendata\<name>.png, 1280x720; absent in a public build, where the CEL below
+ * takes over. The painting's 4:3 core is assumed centred, which is where the progress bar sits.
+ */
+bool LoadCutscenePng(const char *celPath)
+{
+	const std::string pngPath = StrCat(celPath, ".png");
+	SDL_Surface *png = LoadPNG(pngPath.c_str());
+	if (png == nullptr)
+		return false;
+	CutsceneRgb = SDLSurfaceUniquePtr { SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_RGB888, 0) };
+	SDL_FreeSurface(png);
+	if (CutsceneRgb == nullptr)
+		return false;
+	CutsceneRgbSourceWidth = CutsceneRgb->w;
+	CutsceneRgbSourceHeight = CutsceneRgb->h;
+	return true;
+}
+
 /** @brief Decodes the loaded CEL through the loaded palette into an XRGB8888 surface. Call after LoadPalette. */
-void BuildCutsceneRgb()
+void BuildCutsceneRgb(const char *celPath)
 {
 	CutsceneRgb = nullptr;
+	if (LoadCutscenePng(celPath))
+		return;
 	if (!sgpBackCel)
 		return;
 	const ClxSprite sprite = (*sgpBackCel)[0];
@@ -242,7 +267,7 @@ void LoadCutsceneBackground(interface_mode uMsg)
 	assert(!sgpBackCel);
 	sgpBackCel = LoadCel(celPath, 640);
 	LoadPalette(palPath);
-	BuildCutsceneRgb(); // after the palette: the conversion reads it
+	BuildCutsceneRgb(celPath); // after the palette: the CEL conversion reads it
 
 	sgdwProgress = 0;
 }
@@ -282,13 +307,16 @@ void DrawCutsceneForeground()
 	constexpr int ProgressHeight = 22;
 	SDL_Rect rect;
 	if (CutsceneRgb != nullptr && !out.isIndexed()) {
-		// The bar rides the scaled painting: BarPos and the bar's size were authored for 640x480.
+		// The bar rides the scaled painting: BarPos and the bar's size were authored for 640x480. A wider
+		// painting (the 16:9 redo) keeps that 4:3 picture centred, so the bar is offset by the margin.
 		const int scaledHeight = CutsceneRgbRect.h;
+		const int coreWidth = CutsceneRgbSourceHeight * 4 / 3;
+		const int coreLeft = (CutsceneRgbSourceWidth - coreWidth) / 2;
 		rect = MakeSdlRect(
-		    out.region.x + CutsceneRgbRect.x + BarPos[progress_id][0] * scaledHeight / CutsceneRgbSourceHeight,
-		    out.region.y + CutsceneRgbRect.y + BarPos[progress_id][1] * scaledHeight / CutsceneRgbSourceHeight,
-		    static_cast<int>(sgdwProgress) * scaledHeight / CutsceneRgbSourceHeight,
-		    ProgressHeight * scaledHeight / CutsceneRgbSourceHeight);
+		    out.region.x + CutsceneRgbRect.x + (coreLeft + BarPos[progress_id][0] * CutsceneRgbSourceHeight / 480) * scaledHeight / CutsceneRgbSourceHeight,
+		    out.region.y + CutsceneRgbRect.y + BarPos[progress_id][1] * scaledHeight / 480,
+		    static_cast<int>(sgdwProgress) * scaledHeight / 480,
+		    ProgressHeight * scaledHeight / 480);
 	} else {
 		rect = MakeSdlRect(
 		    out.region.x + BarPos[progress_id][0] + uiRectangle.position.x,

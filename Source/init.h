@@ -54,6 +54,13 @@ extern std::optional<MpqArchive> devilutionx_mpq;
  * is absent, falling back to whatever the other archives provide.
  */
 extern std::optional<MpqArchive> oracool_mpq;
+/**
+ * Oracool (IP audit, 2026-09-07): the PRIVATE archive - art the user made from reworked Blizzard
+ * textures, which stays part of the mod on his machine and is never distributed. Packed from a
+ * folder outside the repository; absent in a public build, where every lookup falls through to
+ * oracool.mpq and the game's own art.
+ */
+extern std::optional<MpqArchive> oracool_private_mpq;
 #endif
 
 inline bool HaveSpawn()

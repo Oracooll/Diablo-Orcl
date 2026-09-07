@@ -62,6 +62,7 @@ std::optional<std::string> font_data_path;
 std::optional<std::string> lang_data_path;
 #else
 std::optional<MpqArchive> oracool_mpq;
+std::optional<MpqArchive> oracool_private_mpq;
 std::optional<MpqArchive> spawn_mpq;
 std::optional<MpqArchive> diabdat_mpq;
 std::optional<MpqArchive> hellfire_mpq;
@@ -229,6 +230,8 @@ void init_cleanup()
 	diabdat_data_path = std::nullopt;
 	spawn_data_path = std::nullopt;
 #else
+	oracool_private_mpq = std::nullopt;
+	oracool_mpq = std::nullopt;
 	spawn_mpq = std::nullopt;
 	diabdat_mpq = std::nullopt;
 	hellfire_mpq = std::nullopt;
@@ -260,6 +263,8 @@ void LoadCoreArchives()
 	// Oracool Edition's own archive. Optional - absent is a normal, silent state; LoadMPQ returns
 	// nullopt and every lookup simply falls through to the archives below it.
 	oracool_mpq = LoadMPQ(paths, "oracool.mpq");
+	// The private archive, searched ahead of it - see init.h. Absent is the public build's normal state.
+	oracool_private_mpq = LoadMPQ(paths, "oracool_private.mpq");
 #endif
 }
 

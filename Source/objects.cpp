@@ -20,6 +20,7 @@
 #include "debug.h"
 #endif
 #include "engine/backbuffer_state.hpp"
+#include "engine/assets.hpp"
 #include "engine/load_cel.hpp"
 #include "engine/load_file.hpp"
 #include "engine/points_in_rectangle_range.hpp"
@@ -4159,6 +4160,22 @@ void EnsureObjectGraphicsLoaded(object_graphic_id ofile, uint16_t animWidth)
 	ObjFileList[numobjfiles] = ofile;
 	char filestr[32];
 	*BufCopy(filestr, "objects\\", ObjMasterLoadList[ofile]) = '\0';
+	// Oracool (IP audit, 2026-09-07): the mod's own object art lives in the PRIVATE archive, which a
+	// public build does not have. The waypoint and the monument then wear a vanilla sprite instead of
+	// aborting on a missing file - LoadCel is fatal - so the game runs on original art alone.
+	if (!FindAsset(filestr).ok()) {
+		const object_graphic_id fallback = ofile == OFILE_ORCLWAYP ? OFILE_MCIRL : ofile == OFILE_ORCLROAR ? OFILE_BOOK2 : ofile;
+		if (fallback != ofile) {
+			for (const ObjectData &objectData : AllObjects) {
+				if (objectData.ofindex == fallback) {
+					animWidth = objectData.animWidth;
+					break;
+				}
+			}
+			*BufCopy(filestr, "objects\\", ObjMasterLoadList[fallback]) = '\0';
+			LogWarn("Object art {} is not in any archive (no oracool_private.mpq?) - using {}", ObjMasterLoadList[ofile], ObjMasterLoadList[fallback]);
+		}
+	}
 	pObjCels[numobjfiles] = LoadCel(filestr, animWidth);
 	numobjfiles++;
 }

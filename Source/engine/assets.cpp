@@ -78,7 +78,7 @@ bool FindMpqFile(const char *filename, MpqArchive **archive, uint32_t *fileNumbe
 	//
 	// Appended AFTER the Hellfire group rather than lifted out of it, so that in a real Hellfire game
 	// the archive precedence is exactly what it was.
-	return at(oracool_mpq)
+	return at(oracool_private_mpq) || at(oracool_mpq)
 	    || at(font_mpq) || at(lang_mpq) || at(devilutionx_mpq)
 	    || (gbIsHellfire && (at(hfvoice_mpq) || at(hfmusic_mpq) || at(hfbarb_mpq) || at(hfbard_mpq) || at(hfmonk_mpq) || at(hellfire_mpq)))
 	    || at(hfmonk_mpq)
