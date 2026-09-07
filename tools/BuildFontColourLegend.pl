@@ -137,15 +137,15 @@ my @vanilla = (
 	['yellow.trn', 'ColorYellow', 'YL-1', 1, 'lightning damage on the sheet and the floating numbers (rare items until 2026-09-07)'],
 	['red.trn', 'ColorRed', '≈ RD-3', 1, 'unmet requirements, fire damage, a slow on the sheet'],
 	['blue.trn', 'ColorBlue', 'BL-0', 1, 'magic items, magic damage, a bonus on the sheet'],
-	['orange.trn', '(none)', 'OR-1 on the menu palette', 0, 'vanilla orange, which points at the minis the green ramp took; the in-game orange is oracool_orange1.trn now'],
+	['orange.trn', 'ColorOrange (vanilla source)', 'OR-1', 0, 'vanilla orange; the minis it points at were taken by the green ramp, so in play ColorOrange draws oracool_orange1.trn, its twin, which is how it is drawn here'],
 	['black.trn', 'ColorBlack', 'BK', 1, 'the shadow under HUD text'],
-	['goldui.trn', 'ColorUiGold', 'BL ramp in play', 1, 'front-end text (gold on the menu palette, steel blue in a level)'],
-	['golduis.trn', 'ColorUiGoldDark', 'BL ramp in play', 1, 'front-end text, dark'],
-	['grayui.trn', 'ColorUiSilver', 'RD ramp in play', 1, 'front-end text (gray on the menu palette, red in a level); floating fire damage'],
-	['grayuis.trn', 'ColorUiSilverDark', 'RD ramp in play', 1, 'the mlvl line under a monster bar - which is why it reads red-brown there'],
-	['gamedialogwhite.trn', 'ColorDialogWhite', 'GD-3', 1, 'in-game dialog text; identity on the glyph band, so the raw gold glyph'],
-	['gamedialogyellow.trn', 'ColorDialogYellow', 'GD-3', 0, 'vanilla dialog yellow; no caller since the dialogs were rebuilt'],
-	['gamedialogred.trn', 'ColorDialogRed', 'GD-3', 0, 'vanilla dialog red; no caller'],
+	['goldui.trn', 'ColorUiGold', 'GD-3 (menus)', 1, 'front-end text on the menu palette; in play the name draws oracool_uigold.trn (Part 2)'],
+	['golduis.trn', 'ColorUiGoldDark', 'GD-5 (menus)', 1, 'front-end text, dark; in play oracool_uigolddark.trn'],
+	['grayui.trn', 'ColorUiSilver', 'GR-3 (menus)', 1, 'front-end text on the menu palette; in play oracool_uisilver.trn'],
+	['grayuis.trn', 'ColorUiSilverDark', 'GR-5 (menus)', 1, 'front-end text, dark; in play oracool_uisilverdark.trn'],
+	['gamedialogwhite.trn', '(none)', 'GD-3', 0, 'vanilla; identity on the glyph band, so it drew the raw gold. The in-game dialog white is oracool_dialogwhite.trn'],
+	['gamedialogyellow.trn', '(none)', 'GD-3', 0, 'vanilla; identity too. The in-game dialog yellow is oracool_dialogyellow.trn'],
+	['gamedialogred.trn', '(none)', 'GD-3', 0, 'vanilla; identity too. The in-game dialog red is oracool_dialogred.trn'],
 	['buttonface.trn', 'ColorButtonface', 'gray/gold mix', 0, 'vanilla menu buttons; no caller'],
 	['buttonpushed.trn', 'ColorButtonpushed', 'gray/gold mix', 0, 'vanilla menu buttons, pressed; no caller'],
 	['', 'ColorGold', 'GD-3', 1, 'NO FILE, by rule the only one: an empty table slot draws the raw gold glyph. Labels, the readied-slot rows, the gold text everywhere'],
@@ -163,6 +163,13 @@ my @orcl = (
 	['oracool_gold6.trn', 'ColorGold6', 'GD-6', 1, 'books'],
 	['oracool_orange7.trn', 'ColorOrange7', 'OR-7', 1, 'runes'],
 	['oracool_gray7.trn', 'ColorGray7', 'GR-7', 1, 'ethereal plain items and the Ethereal row; beats the socketed gray'],
+	['oracool_uigold.trn', 'ColorUiGold (in play)', 'GD-3', 1, 'what ColorUiGold draws in a level: goldui.trn shifted up the 16 the level palette sits above the menu one'],
+	['oracool_uigolddark.trn', 'ColorUiGoldDark (in play)', 'GD-5', 1, 'what ColorUiGoldDark draws in a level'],
+	['oracool_uisilver.trn', 'ColorUiSilver (in play)', 'GR-3', 1, 'what ColorUiSilver draws in a level; floating fire damage'],
+	['oracool_uisilverdark.trn', 'ColorUiSilverDark (in play)', 'GR-5', 1, 'what ColorUiSilverDark draws in a level; the mlvl line under a monster bar, silver at last'],
+	['oracool_dialogwhite.trn', 'ColorDialogWhite (in play)', '≈ GR-2', 1, 'in-game dialog text, white as its name says (white.trn\'s band)'],
+	['oracool_dialogyellow.trn', 'ColorDialogYellow (in play)', 'YL-1', 0, 'in-game dialog yellow; no caller yet'],
+	['oracool_dialogred.trn', 'ColorDialogRed (in play)', '≈ RD-3', 0, 'in-game dialog red; no caller yet'],
 );
 sub inventory {
 	my @rows;
@@ -172,7 +179,10 @@ sub inventory {
 		if ($file eq '') {
 			$trn = [0 .. 255];
 		} else {
-			$trn = trnfile($file);
+			my %menuTwin = ('goldui.trn' => 'oracool_uigold.trn', 'golduis.trn' => 'oracool_uigolddark.trn', 'grayui.trn' => 'oracool_uisilver.trn', 'grayuis.trn' => 'oracool_uisilverdark.trn', 'orange.trn' => 'oracool_orange1.trn');
+			# a menu file is drawn as it looks in a menu: through its level-palette twin, which is the same
+			# hue on this page's palette (the menu palette sits 16 below the level one)
+			$trn = trnfile($menuTwin{$file} // $file);
 		}
 		my $uri = render("This is $name", $trn);
 		my $fileHtml = $file eq '' ? '<i>none</i>' : "fonts\\$file";
@@ -228,11 +238,11 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 <h1>Orcl Font Colour Legend</h1>
 <p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. In the engine a colour is a 12-bit field index in the draw flags (v1.10.014), shown beside each name below. <b>The rule (2026-09-07):</b> every colour has its own .trn file, named for its legend ID; nothing is borrowed or edited after loading; only the raw gold, ColorGold, has no file. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
 
-<section class="panel"><header><h2>1 · Vanilla Colours</h2><span class="meta">the 16 .trn files DevilutionX ships, plus ColorGold which has none · @{[$vanillaUsed - 1]} of 16 files used</span></header>
+<section class="panel"><header><h2>1 · Vanilla Colours</h2><span class="meta">the 16 .trn files DevilutionX ships, plus ColorGold which has none · @{[$vanillaUsed - 1]} of 16 files used · samples drawn on the level palette, which is where every name below now says what it means</span></header>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample (as drawn in play)</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$vanillaRows</tbody></table></div>
 </section>
 
-<section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 12 .trn files this fork added · @{[$orclUsed]} of 12 used</span></header>
+<section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 19 .trn files this fork added · @{[$orclUsed]} of 19 used</span></header>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$orclRows</tbody></table></div>
 </section>
 

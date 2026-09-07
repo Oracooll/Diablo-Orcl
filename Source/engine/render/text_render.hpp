@@ -85,6 +85,17 @@ enum text_color : uint16_t {
 	ColorGold6,
 	ColorOrange7,
 	ColorGray7,
+	/**
+	 * Oracool (2026-09-07, user rule: "colors to match their trn file names"). The four front-end
+	 * colours are drawn from files made for the MENU palette, whose ramps sit 16 below the level
+	 * palette's - so goldui.trn is gold in a menu and steel blue in a level, grayui.trn gray in a
+	 * menu and red in a level. These are their in-play counterparts, chosen by GetColorFromFlags
+	 * when the game is running, exactly as ColorInGameDialogWhite already was.
+	 */
+	ColorInGameUiGold,
+	ColorInGameUiGoldDark,
+	ColorInGameUiSilver,
+	ColorInGameUiSilverDark,
 };
 
 constexpr GameFontTables GetFontSizeFromUiFlags(UiFlags flags)

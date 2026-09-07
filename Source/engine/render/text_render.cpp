@@ -83,7 +83,7 @@ constexpr std::array<int, 10> LineHeights = { 12, 26, 38, 42, 50, 22, 11, 10, 9,
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 10> BaseLineOffset = { -3, -2, -3, -6, -7, 3, -3, -3, -2, -2 };
 
-std::array<const char *, 30> ColorTranslations = {
+std::array<const char *, 34> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -107,9 +107,12 @@ std::array<const char *, 30> ColorTranslations = {
 
 	"fonts\\buttonface.trn",
 	"fonts\\buttonpushed.trn",
-	"fonts\\gamedialogwhite.trn",
-	"fonts\\gamedialogyellow.trn",
-	"fonts\\gamedialogred.trn",
+	// The in-game dialog three are Orcl files since 2026-09-07 (user rule: "colors to match their trn
+	// file names"): vanilla's gamedialog*.trn are identity on the glyph band, so all three drew the raw
+	// gold. These say white, yellow and red - the in-play white, yellow and red bands.
+	"fonts\\oracool_dialogwhite.trn",
+	"fonts\\oracool_dialogyellow.trn",
+	"fonts\\oracool_dialogred.trn",
 
 	// Oracool: generated, not authored - see tools/MakeYellowFontTrn.ps1.
 	"fonts\\oracool_yellow.trn",
@@ -132,9 +135,14 @@ std::array<const char *, 30> ColorTranslations = {
 	"fonts\\oracool_gold6.trn",
 	"fonts\\oracool_orange7.trn",
 	"fonts\\oracool_gray7.trn",
+	// The four front-end colours as they read in a LEVEL palette - see text_color's note.
+	"fonts\\oracool_uigold.trn",
+	"fonts\\oracool_uigolddark.trn",
+	"fonts\\oracool_uisilver.trn",
+	"fonts\\oracool_uisilverdark.trn",
 };
 
-std::array<std::optional<std::array<uint8_t, 256>>, 30> ColorTranslationsData;
+std::array<std::optional<std::array<uint8_t, 256>>, 34> ColorTranslationsData;
 
 text_color GetColorFromFlags(UiFlags flags)
 {
@@ -154,14 +162,15 @@ text_color GetColorFromFlags(UiFlags flags)
 		return ColorBlack;
 	case UiFlagsColorIndex(UiFlags::ColorGold):
 		return ColorGold;
+	// The menu files on the menu palette, their in-play counterparts on a level's (2026-09-07).
 	case UiFlagsColorIndex(UiFlags::ColorUiGold):
-		return ColorUiGold;
+		return gbRunGame ? ColorInGameUiGold : ColorUiGold;
 	case UiFlagsColorIndex(UiFlags::ColorUiSilver):
-		return ColorUiSilver;
+		return gbRunGame ? ColorInGameUiSilver : ColorUiSilver;
 	case UiFlagsColorIndex(UiFlags::ColorUiGoldDark):
-		return ColorUiGoldDark;
+		return gbRunGame ? ColorInGameUiGoldDark : ColorUiGoldDark;
 	case UiFlagsColorIndex(UiFlags::ColorUiSilverDark):
-		return ColorUiSilverDark;
+		return gbRunGame ? ColorInGameUiSilverDark : ColorUiSilverDark;
 	case UiFlagsColorIndex(UiFlags::ColorDialogWhite):
 		return gbRunGame ? ColorInGameDialogWhite : ColorDialogWhite;
 	case UiFlagsColorIndex(UiFlags::ColorDialogYellow):
