@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include "levels/gendung.h"
+#include "utils/attributes.h"
 
 namespace devilution {
 
@@ -71,6 +72,28 @@ extern uint16_t paletteTransparencyLookupBlack16[65536];
 #endif
 
 void palette_update(int first = 0, int ncolor = 256);
+
+/**
+ * Oracool, the 32-bit compositing renderer (v1.11, stage 1). The screen holds colours, so every
+ * drawing kernel resolves a palette index through this table as it writes - XRGB8888, rebuilt by
+ * palette_update from whatever the palette is at the time. Colour cycling (water, lava) works as it
+ * always did because the world is redrawn every frame and this table follows the cycle.
+ *
+ * A FADE is different: vanilla faded by repainting the palette under a frame that was NOT redrawn,
+ * which colours in a buffer cannot follow. So a fade is a present-time transform instead: this
+ * table is built from the UNFADED palette while FadeLevel is below 256, and Blit (dx.cpp) scales
+ * the frame by FadeLevel on its way to the screen. The screenshot's red flash is the same idea.
+ */
+extern DVL_API_FOR_TEST std::array<uint32_t, 256> PaletteRGB;
+/** @brief 256 = no fade; 0 = black. Set by SetFadeLevel, applied by Blit. */
+extern DVL_API_FOR_TEST int FadeLevel;
+/** @brief The screenshot flash: green and blue dropped at present time. Set by RedPalette, cleared by palette_update. */
+extern bool PresentRedFlash;
+/** @brief An index to the colour PaletteRGB currently holds for it. */
+inline uint32_t PaletteIndexToRgb(uint8_t index)
+{
+	return PaletteRGB[index];
+}
 void palette_init();
 void LoadPalette(const char *pszFileName, bool blend = true);
 void LoadRndLvlPal(dungeon_type l);

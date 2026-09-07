@@ -65,6 +65,9 @@ void DrawHalfTransparentRectTo(const Surface &out, int sx, int sy, int width, in
  */
 void SetHalfTransparentPixel(const Surface &out, Point position, uint8_t color);
 
+/** @brief SetHalfTransparentPixel without the bounds test - for callers that clipped already. Format-aware (v1.11). */
+void SetHalfTransparentPixelUnchecked(const Surface &out, Point position, uint8_t color);
+
 /**
  * Draws a 2px inset border.
  *

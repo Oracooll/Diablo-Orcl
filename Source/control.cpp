@@ -1639,6 +1639,23 @@ void DrawDurIcon(const Surface &out)
 
 void RedBack(const Surface &out)
 {
+	if (!out.isIndexed()) {
+		// v1.11: the pause tint on a frame of colours. pause.trn is an index map; its effect - the
+		// scene drained toward a dim red-grey - is done here in RGB: luminance, three quarters
+		// strength, the red kept a little ahead. Hell's lava exemption (indices below 32) has no
+		// colour equivalent and is not reproduced.
+		for (int y = 0; y < gnViewportHeight; y++) {
+			uint32_t *row = out.at<uint32_t>(0, y);
+			for (int x = 0; x < gnScreenWidth; x++) {
+				const uint32_t c = row[x];
+				const uint32_t lum = (((c >> 16) & 0xFF) * 77 + ((c >> 8) & 0xFF) * 150 + (c & 0xFF) * 29) >> 8;
+				const uint32_t r = std::min<uint32_t>(lum * 3 / 4 + lum / 8, 255);
+				const uint32_t g = lum / 2;
+				row[x] = (r << 16) | (g << 8) | g;
+			}
+		}
+		return;
+	}
 	uint8_t *dst = out.begin();
 	uint8_t *tbl = GetPauseTRN();
 	for (int h = gnViewportHeight; h != 0; h--, dst += out.pitch() - gnScreenWidth) {

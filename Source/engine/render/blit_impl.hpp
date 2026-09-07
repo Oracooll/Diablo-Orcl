@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
@@ -24,10 +25,38 @@ namespace devilution {
 #define DEVILUTIONX_BLIT_EXECUTION_POLICY
 #endif
 
+/*
+ * Oracool, the 32-bit compositing renderer (v1.11, stage 1).
+ *
+ * Every blitter below exists twice: for a `uint8_t *dst` it writes palette INDICES, exactly as
+ * vanilla did, and for a `uint32_t *dst` it writes COLOURS, resolving each index through PaletteRGB
+ * as it goes. The drawing kernels are templated on the destination pixel type and pick the overload
+ * by the pointer they hold, so the 8-bit offscreen surfaces and the 32-bit screen share one body.
+ *
+ * A blend on an 8-bit surface is vanilla's lookup, `paletteTransparencyLookup[a][b]`, which is the
+ * NEAREST INDEX to the average of two colours. On a 32-bit surface it is the average itself,
+ * exact per channel - the one place the 32-bit picture differs from the 8-bit one, and for the
+ * better.
+ */
+
+/** @brief The exact per-channel average of two XRGB8888 colours, rounding down. */
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT uint32_t AverageRgb(uint32_t a, uint32_t b)
+{
+	return (((a ^ b) & 0xFEFEFEFEu) >> 1) + (a & b);
+}
+
+// ---------------------------------------------------------------- fill and copy, unmapped
+
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillDirect(uint8_t *dst, unsigned length, uint8_t color)
 {
 	DVL_ASSUME(length != 0);
 	std::memset(dst, color, length);
+}
+
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillDirect(uint32_t *dst, unsigned length, uint8_t color)
+{
+	DVL_ASSUME(length != 0);
+	std::fill_n(dst, length, PaletteRGB[color]);
 }
 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsDirect(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length)
@@ -36,21 +65,31 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsDirect(uint8_t *DVL_RESTRICT 
 	std::memcpy(dst, src, length);
 }
 
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsDirect(uint32_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length)
+{
+	DVL_ASSUME(length != 0);
+	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, [pal = PaletteRGB.data()](uint8_t srcColor) { return pal[srcColor]; });
+}
+
 struct BlitDirect {
-	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, Pixel *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
 	{
 		BlitPixelsDirect(dst, src, length);
 	}
-	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, uint8_t *DVL_RESTRICT dst) const
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, Pixel *DVL_RESTRICT dst) const
 	{
 		BlitFillDirect(dst, length, color);
 	}
 };
 
-DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillWithMap(uint8_t *dst, unsigned length, uint8_t color, const uint8_t *DVL_RESTRICT colorMap)
+// ---------------------------------------------------------------- through a colour map (a TRN or a light table)
+
+template <typename Pixel>
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillWithMap(Pixel *dst, unsigned length, uint8_t color, const uint8_t *DVL_RESTRICT colorMap)
 {
-	DVL_ASSUME(length != 0);
-	std::memset(dst, colorMap[color], length);
+	BlitFillDirect(dst, length, colorMap[color]);
 }
 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsWithMap(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length, const uint8_t *DVL_RESTRICT colorMap)
@@ -59,24 +98,42 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsWithMap(uint8_t *DVL_RESTRICT
 	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, [colorMap](uint8_t srcColor) { return colorMap[srcColor]; });
 }
 
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsWithMap(uint32_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length, const uint8_t *DVL_RESTRICT colorMap)
+{
+	DVL_ASSUME(length != 0);
+	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, [colorMap, pal = PaletteRGB.data()](uint8_t srcColor) { return pal[colorMap[srcColor]]; });
+}
+
 struct BlitWithMap {
 	const uint8_t *DVL_RESTRICT colorMap;
 
-	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, Pixel *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
 	{
 		BlitPixelsWithMap(dst, src, length, colorMap);
 	}
-	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, uint8_t *DVL_RESTRICT dst) const
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, Pixel *DVL_RESTRICT dst) const
 	{
 		BlitFillWithMap(dst, length, color, colorMap);
 	}
 };
+
+// ---------------------------------------------------------------- half-transparent
 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlended(uint8_t *dst, unsigned length, uint8_t color)
 {
 	DVL_ASSUME(length != 0);
 	std::for_each(DEVILUTIONX_BLIT_EXECUTION_POLICY dst, dst + length, [tbl = paletteTransparencyLookup[color]](uint8_t &dstColor) {
 		dstColor = tbl[dstColor];
+	});
+}
+
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlended(uint32_t *dst, unsigned length, uint8_t color)
+{
+	DVL_ASSUME(length != 0);
+	std::for_each(DEVILUTIONX_BLIT_EXECUTION_POLICY dst, dst + length, [rgb = PaletteRGB[color]](uint32_t &dstColor) {
+		dstColor = AverageRgb(dstColor, rgb);
 	});
 }
 
@@ -88,12 +145,22 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlended(uint8_t *DVL_RESTRICT
 	});
 }
 
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlended(uint32_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length)
+{
+	DVL_ASSUME(length != 0);
+	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, dst, [pal = PaletteRGB.data()](uint8_t srcColor, uint32_t dstColor) {
+		return AverageRgb(dstColor, pal[srcColor]);
+	});
+}
+
 struct BlitBlended {
-	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, Pixel *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
 	{
 		BlitPixelsBlended(dst, src, length);
 	}
-	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, uint8_t *DVL_RESTRICT dst) const
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, Pixel *DVL_RESTRICT dst) const
 	{
 		BlitFillBlended(dst, length, color);
 	}
@@ -107,14 +174,24 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlendedWithMap(uint8_t *DVL_R
 	});
 }
 
+DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlendedWithMap(uint32_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length, const uint8_t *DVL_RESTRICT colorMap)
+{
+	DVL_ASSUME(length != 0);
+	std::transform(DEVILUTIONX_BLIT_EXECUTION_POLICY src, src + length, dst, dst, [colorMap, pal = PaletteRGB.data()](uint8_t srcColor, uint32_t dstColor) {
+		return AverageRgb(dstColor, pal[colorMap[srcColor]]);
+	});
+}
+
 struct BlitBlendedWithMap {
 	const uint8_t *DVL_RESTRICT colorMap;
 
-	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, Pixel *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src) const
 	{
 		BlitPixelsBlendedWithMap(dst, src, length, colorMap);
 	}
-	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, uint8_t *DVL_RESTRICT dst) const
+	template <typename Pixel>
+	DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void operator()(unsigned length, uint8_t color, Pixel *DVL_RESTRICT dst) const
 	{
 		BlitFillBlended(dst, length, colorMap[color]);
 	}

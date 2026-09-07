@@ -950,14 +950,13 @@ void BlitHalfTransparentSkipZero(const Surface &out, const Surface &src, Point p
 		if (dstY < 0 || dstY >= out.h())
 			continue;
 		const uint8_t *srcRow = &src[Point { 0, y }];
-		uint8_t *dstRow = &out[Point { 0, dstY }];
 		for (int x = 0; x < width; x++) {
 			if (srcRow[srcLeft + x] == 0)
 				continue;
 			const int dstX = position.x + x;
 			if (dstX < 0 || dstX >= out.w())
 				continue;
-			dstRow[dstX] = paletteTransparencyLookup[dstRow[dstX]][srcRow[srcLeft + x]];
+			SetHalfTransparentPixelUnchecked(out, { dstX, dstY }, srcRow[srcLeft + x]); // format-aware (v1.11)
 		}
 	}
 }
@@ -985,7 +984,6 @@ void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCel
 			continue;
 		const int sy = srcCell.y + y * srcCell.h / dest.size.height;
 		const uint8_t *srcRow = &src[Point { 0, sy }];
-		uint8_t *dstRow = &out[Point { 0, dstY }];
 		for (int x = 0; x < dest.size.width; x++) {
 			const uint8_t value = srcRow[srcCell.x + x * srcCell.w / dest.size.width];
 			if (value == 0)
@@ -997,7 +995,10 @@ void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCel
 			// scaled path is a drop-in for the native one - see the Rectangle overload of
 			// DrawClassTreeIcon. Without it, scaling an Abilities row would have quietly made every
 			// unearned skill look earned.
-			dstRow[dstX] = halfTransparent ? paletteTransparencyLookup[dstRow[dstX]][value] : value;
+			if (halfTransparent)
+				SetHalfTransparentPixelUnchecked(out, { dstX, dstY }, value);
+			else
+				out.SetPixelUnchecked({ dstX, dstY }, value);
 		}
 	}
 }

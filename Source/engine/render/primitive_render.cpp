@@ -1,32 +1,73 @@
 #include "engine/render/primitive_render.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
 
 #include "engine/palette.h"
 #include "engine/point.hpp"
+#include "engine/render/blit_impl.hpp"
 #include "engine/size.hpp"
 #include "engine/surface.hpp"
 
 namespace devilution {
 namespace {
 
+/*
+ * Oracool, the 32-bit compositing renderer (v1.11, stage 1): every primitive below has an 8-bit
+ * body (indices, vanilla's) and a 32-bit body (colours through PaletteRGB, blends as exact
+ * averages), chosen by the surface's format. The aligned-32 black-blend trick, which packs four
+ * INDICES into one word and runs them through a 64 KB table, is meaningful only on an indexed
+ * surface and is kept for that case alone.
+ */
+
+/** @brief A 32-bit pixel at half brightness: the exact average with black. */
+DVL_ALWAYS_INLINE uint32_t HalfRgb(uint32_t c)
+{
+	return (c >> 1) & 0x7F7F7F7Fu;
+}
+
 void DrawHalfTransparentUnalignedBlendedRectTo(const Surface &out, unsigned sx, unsigned sy, unsigned width, unsigned height, uint8_t color)
 {
-	uint8_t *pix = out.at(static_cast<int>(sx), static_cast<int>(sy));
-	const uint8_t *const lookupTable = paletteTransparencyLookup[color];
-	const unsigned skipX = out.pitch() - width;
+	if (out.isIndexed()) {
+		uint8_t *pix = out.at<uint8_t>(static_cast<int>(sx), static_cast<int>(sy));
+		const uint8_t *const lookupTable = paletteTransparencyLookup[color];
+		const unsigned skipX = out.pixelPitch() - width;
+		for (unsigned y = 0; y < height; ++y) {
+			for (unsigned x = 0; x < width; ++x, ++pix) {
+				*pix = lookupTable[*pix];
+			}
+			pix += skipX;
+		}
+		return;
+	}
+	uint32_t *pix = out.at<uint32_t>(static_cast<int>(sx), static_cast<int>(sy));
+	const uint32_t rgb = PaletteRGB[color];
+	const unsigned skipX = out.pixelPitch() - width;
 	for (unsigned y = 0; y < height; ++y) {
 		for (unsigned x = 0; x < width; ++x, ++pix) {
-			*pix = lookupTable[*pix];
+			*pix = AverageRgb(*pix, rgb);
+		}
+		pix += skipX;
+	}
+}
+
+/** @brief The black blend on a 32-bit surface: every pixel halved, no table. */
+void DrawHalfTransparentBlackRectToRgb(const Surface &out, unsigned sx, unsigned sy, unsigned width, unsigned height)
+{
+	uint32_t *pix = out.at<uint32_t>(static_cast<int>(sx), static_cast<int>(sy));
+	const unsigned skipX = out.pixelPitch() - width;
+	for (unsigned y = 0; y < height; ++y) {
+		for (unsigned x = 0; x < width; ++x, ++pix) {
+			*pix = HalfRgb(*pix);
 		}
 		pix += skipX;
 	}
 }
 
 #if DEVILUTIONX_PALETTE_TRANSPARENCY_BLACK_16_LUT
-// Expects everything to be 4-byte aligned.
+// Expects everything to be 4-byte aligned. 8-bit surfaces only.
 void DrawHalfTransparentAligned32BlendedRectTo(const Surface &out, unsigned sx, unsigned sy, unsigned width, unsigned height)
 {
 	assert(out.pitch() % 4 == 0);
@@ -49,6 +90,11 @@ void DrawHalfTransparentAligned32BlendedRectTo(const Surface &out, unsigned sx, 
 
 void DrawHalfTransparentBlendedRectTo(const Surface &out, unsigned sx, unsigned sy, unsigned width, unsigned height)
 {
+	if (!out.isIndexed()) {
+		DrawHalfTransparentBlackRectToRgb(out, sx, sy, width, height);
+		return;
+	}
+
 	// All SDL surfaces are 4-byte aligned and divisible by 4.
 	// However, our coordinates and widths may not be.
 
@@ -74,7 +120,14 @@ void DrawHalfTransparentBlendedRectTo(const Surface &out, unsigned sx, unsigned 
 	DrawHalfTransparentAligned32BlendedRectTo(out, sx, sy, width, height);
 }
 #else
-#define DrawHalfTransparentBlendedRectTo DrawHalfTransparentUnalignedBlendedRectTo
+void DrawHalfTransparentBlendedRectTo(const Surface &out, unsigned sx, unsigned sy, unsigned width, unsigned height)
+{
+	if (!out.isIndexed()) {
+		DrawHalfTransparentBlackRectToRgb(out, sx, sy, width, height);
+		return;
+	}
+	DrawHalfTransparentUnalignedBlendedRectTo(out, sx, sy, width, height, 0);
+}
 #endif
 
 } // namespace
@@ -101,7 +154,10 @@ void DrawHorizontalLine(const Surface &out, Point from, int width, std::uint8_t 
 
 void UnsafeDrawHorizontalLine(const Surface &out, Point from, int width, std::uint8_t colorIndex)
 {
-	std::memset(&out[from], colorIndex, width);
+	if (out.isIndexed())
+		BlitFillDirect(out.at<uint8_t>(from), width, colorIndex);
+	else
+		BlitFillDirect(out.at<uint32_t>(from), width, colorIndex);
 }
 
 void DrawVerticalLine(const Surface &out, Point from, int height, std::uint8_t colorIndex)
@@ -119,10 +175,19 @@ void DrawVerticalLine(const Surface &out, Point from, int height, std::uint8_t c
 
 void UnsafeDrawVerticalLine(const Surface &out, Point from, int height, std::uint8_t colorIndex)
 {
-	auto *dst = &out[from];
-	const auto pitch = out.pitch();
+	const auto pitch = out.pixelPitch();
+	if (out.isIndexed()) {
+		uint8_t *dst = out.at<uint8_t>(from);
+		while (height-- > 0) {
+			*dst = colorIndex;
+			dst += pitch;
+		}
+		return;
+	}
+	uint32_t *dst = out.at<uint32_t>(from);
+	const uint32_t rgb = PaletteRGB[colorIndex];
 	while (height-- > 0) {
-		*dst = colorIndex;
+		*dst = rgb;
 		dst += pitch;
 	}
 }
@@ -212,32 +277,36 @@ void DrawHalfTransparentRectTo(const Surface &out, int sx, int sy, int width, in
 	DrawHalfTransparentUnalignedBlendedRectTo(out, sx, sy, width, height, color);
 }
 
+void SetHalfTransparentPixelUnchecked(const Surface &out, Point position, uint8_t color)
+{
+	if (out.isIndexed()) {
+		uint8_t *pix = out.at<uint8_t>(position);
+		*pix = paletteTransparencyLookup[color][*pix];
+		return;
+	}
+	uint32_t *pix = out.at<uint32_t>(position);
+	*pix = AverageRgb(*pix, PaletteRGB[color]);
+}
+
 void SetHalfTransparentPixel(const Surface &out, Point position, uint8_t color)
 {
-	if (out.InBounds(position)) {
-		uint8_t *pix = out.at(position.x, position.y);
-		const auto &lookupTable = paletteTransparencyLookup[color];
-		*pix = lookupTable[*pix];
-	}
+	if (out.InBounds(position))
+		SetHalfTransparentPixelUnchecked(out, position, color);
 }
 
 void UnsafeDrawBorder2px(const Surface &out, Rectangle rect, uint8_t color)
 {
-	const size_t width = rect.size.width;
-	const size_t height = rect.size.height;
-	uint8_t *buf = &out[rect.position];
-	std::memset(buf, color, width);
-	buf += out.pitch();
-	std::memset(buf, color, width);
-	buf += out.pitch();
-	for (size_t i = 4; i < height; ++i) {
-		buf[0] = buf[1] = color;
-		buf[width - 2] = buf[width - 1] = color;
-		buf += out.pitch();
+	const int width = rect.size.width;
+	const int height = rect.size.height;
+	const Point p = rect.position;
+	UnsafeDrawHorizontalLine(out, p, width, color);
+	UnsafeDrawHorizontalLine(out, { p.x, p.y + 1 }, width, color);
+	for (int i = 2; i < height - 2; ++i) {
+		UnsafeDrawHorizontalLine(out, { p.x, p.y + i }, 2, color);
+		UnsafeDrawHorizontalLine(out, { p.x + width - 2, p.y + i }, 2, color);
 	}
-	std::memset(buf, color, width);
-	buf += out.pitch();
-	std::memset(buf, color, width);
+	UnsafeDrawHorizontalLine(out, { p.x, p.y + height - 2 }, width, color);
+	UnsafeDrawHorizontalLine(out, { p.x, p.y + height - 1 }, width, color);
 }
 
 } // namespace devilution

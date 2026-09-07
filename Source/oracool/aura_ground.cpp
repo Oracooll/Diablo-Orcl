@@ -12,6 +12,7 @@
 
 #include "engine.h"
 #include "engine/palette.h"
+#include "engine/render/primitive_render.hpp" // SetHalfTransparentPixelUnchecked (v1.11)
 #include "oracool/aura_field.h"
 #include "oracool/class_tree.h"
 #include "player.h"
@@ -291,7 +292,6 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 	for (int dy = dyFrom; dy < dyTo; dy++) {
 		const int y = top + dy;
 		const int sy = dy * ArtHeight / dstH;
-		uint8_t *dstRow = out.at(0, y);
 		for (int dx = dxFrom; dx < dxTo; dx++) {
 			const int x = left + dx;
 			const int sx = dx * ArtWidth / dstW;
@@ -314,11 +314,10 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 			if (blends <= 0)
 				continue;
 
-			uint8_t &dst = dstRow[x];
 			const uint8_t src = art.index[at];
-			dst = paletteTransparencyLookup[dst][src];
+			SetHalfTransparentPixelUnchecked(out, { x, y }, src); // format-aware (v1.11)
 			if (blends > 1)
-				dst = paletteTransparencyLookup[dst][src];
+				SetHalfTransparentPixelUnchecked(out, { x, y }, src);
 		}
 	}
 }

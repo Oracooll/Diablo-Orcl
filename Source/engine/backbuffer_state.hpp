@@ -19,7 +19,7 @@ enum class PanelDrawComponent {
 
 struct DrawnCursor {
 	Rectangle rect;
-	uint8_t behindBuffer[8192];
+	uint8_t behindBuffer[8192 * 4]; // v1.11: four bytes a pixel on the 32-bit screen
 };
 
 void InitBackbufferState();

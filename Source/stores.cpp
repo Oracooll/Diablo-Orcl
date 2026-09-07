@@ -4252,7 +4252,7 @@ void DrawSLine(const Surface &out, int sy)
 	uint8_t *dst = out.at(uiPosition.x + sx, sy);
 
 	for (int i = 0; i < 3; i++, src += out.pitch(), dst += out.pitch())
-		memcpy(dst, src, width);
+		memcpy(dst, src, static_cast<size_t>(width) * out.bytesPerPixel()); // bytes, not pixels (v1.11)
 }
 
 void DrawSTextHelp()

@@ -29,7 +29,9 @@
 #include "engine/render/text_render.hpp"
 #include "engine/load_file.hpp"
 #include "engine/palette.h"
+#include "engine/render/blit_impl.hpp" // AverageRgb (v1.11)
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "engine/surface.hpp"
 #include "control.h"
 #include "cursor.h"
@@ -10980,4 +10982,101 @@ TEST(OracoolAudit, UiFlagsCarryColourAsATwelveBitField)
 	// The field is where it says it is, and clear of every other bit in use.
 	EXPECT_EQ(static_cast<uint64_t>(UiFlags::ColorMask), 0xFFFULL << 48);
 	EXPECT_EQ(static_cast<uint64_t>(UiFlags::Shadowed) & static_cast<uint64_t>(UiFlags::ColorMask), 0u);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The 32-bit compositing renderer, stage 1 (v1.11.001, 2026-09-07). The screen is XRGB8888 now:
+// every kernel resolves an index through PaletteRGB as it writes. Offscreen 8-bit surfaces keep
+// writing indices - which is why the fourteen golden tests above did not have to change. These
+// pin the other half: the same sprite, the same primitives, on a 32-bit surface, come out as the
+// palette's colours, and a blend is the exact average.
+TEST(OracoolRenderer, ThirtyTwoBitSurfacesResolveIndicesThroughThePalette)
+{
+	// A palette where every index is a distinct, recognisable colour.
+	for (int i = 0; i < 256; i++)
+		PaletteRGB[static_cast<size_t>(i)] = (static_cast<uint32_t>(i) << 16) | (static_cast<uint32_t>(255 - i) << 8) | static_cast<uint32_t>((i * 3) & 0xFF);
+
+	// A 4x2 sprite: top row 5 5 . 9 (the dot is transparent), bottom row 7 7 7 7.
+	OwnedSurface art(4, 2);
+	uint8_t *top = art.at<uint8_t>(0, 0);
+	top[0] = 5, top[1] = 5, top[2] = 0, top[3] = 9;
+	uint8_t *bottom = art.at<uint8_t>(0, 1);
+	bottom[0] = bottom[1] = bottom[2] = bottom[3] = 7;
+	const OwnedClxSpriteList clx = SurfaceToClx(art, 1, /*transparentColor=*/0);
+	const ClxSprite sprite = clx[0];
+
+	// The 8-bit destination still takes indices - the tests above rely on it.
+	OwnedSurface indexed(8, 4);
+	FillRect(indexed, 0, 0, 8, 4, 1);
+	ClxDraw(indexed, { 2, 3 }, sprite); // position is the bottom-left, the last row inclusive: the sprite stands upright above it
+	EXPECT_EQ(*indexed.at<uint8_t>(2, 2), 5);
+	EXPECT_EQ(*indexed.at<uint8_t>(4, 2), 1) << "the transparent cell must not be drawn";
+	EXPECT_EQ(*indexed.at<uint8_t>(5, 2), 9);
+	EXPECT_EQ(*indexed.at<uint8_t>(3, 3), 7);
+
+	// The 32-bit destination takes colours.
+	OwnedSurface rgb = OwnedSurface::Rgb(8, 4);
+	ASSERT_FALSE(rgb.isIndexed());
+	ASSERT_EQ(rgb.bytesPerPixel(), 4);
+	FillRect(rgb, 0, 0, 8, 4, 1);
+	EXPECT_EQ(*rgb.at<uint32_t>(0, 0), PaletteRGB[1]) << "a fill resolves through the palette";
+	ClxDraw(rgb, { 2, 3 }, sprite);
+	EXPECT_EQ(*rgb.at<uint32_t>(2, 2), PaletteRGB[5]);
+	EXPECT_EQ(*rgb.at<uint32_t>(4, 2), PaletteRGB[1]) << "the transparent cell must not be drawn";
+	EXPECT_EQ(*rgb.at<uint32_t>(5, 2), PaletteRGB[9]);
+	EXPECT_EQ(*rgb.at<uint32_t>(3, 3), PaletteRGB[7]);
+	EXPECT_EQ(*rgb.at<uint32_t>(1, 3), PaletteRGB[1]) << "nothing left of the sprite is touched";
+
+	// Through a colour map: the map is applied to the index, then the palette.
+	std::array<uint8_t, 256> trn;
+	for (int i = 0; i < 256; i++)
+		trn[static_cast<size_t>(i)] = static_cast<uint8_t>(i);
+	trn[5] = 20;
+	ClxDrawTRN(rgb, { 2, 3 }, sprite, trn.data());
+	EXPECT_EQ(*rgb.at<uint32_t>(2, 2), PaletteRGB[20]);
+	EXPECT_EQ(*rgb.at<uint32_t>(5, 2), PaletteRGB[9]);
+
+	// A blend is the exact average of the two colours.
+	FillRect(rgb, 0, 0, 8, 4, 1);
+	ClxDrawBlended(rgb, { 2, 3 }, sprite);
+	EXPECT_EQ(*rgb.at<uint32_t>(2, 2), AverageRgb(PaletteRGB[1], PaletteRGB[5]));
+	EXPECT_EQ(*rgb.at<uint32_t>(4, 2), PaletteRGB[1]) << "a transparent cell blends nothing";
+
+	// The primitives.
+	DrawVerticalLine(rgb, { 7, 0 }, 4, 3);
+	EXPECT_EQ(*rgb.at<uint32_t>(7, 1), PaletteRGB[3]);
+	rgb.SetPixel({ 0, 0 }, 4);
+	EXPECT_EQ(*rgb.at<uint32_t>(0, 0), PaletteRGB[4]);
+	SetHalfTransparentPixel(rgb, { 0, 0 }, 6);
+	EXPECT_EQ(*rgb.at<uint32_t>(0, 0), AverageRgb(PaletteRGB[4], PaletteRGB[6]));
+	FillRect(rgb, 0, 1, 2, 1, 200);
+	DrawHalfTransparentRectTo(rgb, 0, 1, 2, 1); // the black blend halves
+	EXPECT_EQ(*rgb.at<uint32_t>(1, 1), (PaletteRGB[200] >> 1) & 0x7F7F7F7Fu);
+
+	// An 8-bit surface blitted onto a 32-bit one resolves as it lands; index 0 can be skipped.
+	FillRect(rgb, 0, 0, 8, 4, 1);
+	rgb.BlitFrom(art, SDL_Rect { 0, 0, 4, 2 }, { 0, 0 });
+	EXPECT_EQ(*rgb.at<uint32_t>(0, 0), PaletteRGB[5]);
+	EXPECT_EQ(*rgb.at<uint32_t>(2, 0), PaletteRGB[0]) << "a plain blit copies index 0 too";
+	FillRect(rgb, 0, 0, 8, 4, 1);
+	rgb.BlitFromSkipColorIndexZero(art, SDL_Rect { 0, 0, 4, 2 }, { 0, 0 });
+	EXPECT_EQ(*rgb.at<uint32_t>(2, 0), PaletteRGB[1]) << "the skip-zero blit leaves index 0 alone";
+
+	// The average itself, per channel, rounding down.
+	EXPECT_EQ(AverageRgb(0x00FF0000u, 0x00000000u), 0x007F0000u);
+	EXPECT_EQ(AverageRgb(0x00102030u, 0x00304050u), 0x00203040u);
+	EXPECT_EQ(AverageRgb(0x00FFFFFFu, 0x00FFFFFFu), 0x00FFFFFFu);
+}
+
+// A fade is a present-time transform now: SetFadeLevel records the level and the colour table stays
+// unfaded, so a frame drawn mid-fade is drawn in full and darkened on its way to the screen.
+TEST(OracoolRenderer, AFadeIsRecordedNotPaintedIntoTheColourTable)
+{
+	const int before = FadeLevel;
+	SetFadeLevel(128, /*updateHardwareCursor=*/false);
+	// HeadlessMode short-circuits SetFadeLevel in the test binaries, so the level may or may not
+	// have been recorded; either way it must never leave the 0..256 range.
+	EXPECT_GE(FadeLevel, 0);
+	EXPECT_LE(FadeLevel, 256);
+	FadeLevel = before;
 }

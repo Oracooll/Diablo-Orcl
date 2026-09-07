@@ -238,7 +238,9 @@ void BlitCursor(uint8_t *dst, uint32_t dstPitch, uint8_t *src, uint32_t srcPitch
 void UndrawCursor(const Surface &out)
 {
 	DrawnCursor &cursor = GetDrawnCursor();
-	BlitCursor(&out[cursor.rect.position], out.pitch(), cursor.behindBuffer, cursor.rect.size.width, cursor.rect.size.width, cursor.rect.size.height);
+	// Widths in BYTES (v1.11): the buffer is four bytes a pixel.
+	const uint32_t rowBytes = static_cast<uint32_t>(cursor.rect.size.width) * out.bytesPerPixel();
+	BlitCursor(out.at(cursor.rect.position.x, cursor.rect.position.y), out.pitch(), cursor.behindBuffer, rowBytes, rowBytes, cursor.rect.size.height);
 	PrevCursorRect = cursor.rect;
 }
 
@@ -338,7 +340,8 @@ void DrawCursor(const Surface &out)
 	if (rect.size.width == 0 || rect.size.height == 0)
 		return;
 
-	BlitCursor(cursor.behindBuffer, rect.size.width, &out[rect.position], out.pitch(), rect.size.width, rect.size.height);
+	const uint32_t rowBytes = static_cast<uint32_t>(rect.size.width) * out.bytesPerPixel();
+	BlitCursor(cursor.behindBuffer, rowBytes, out.at(rect.position.x, rect.position.y), out.pitch(), rowBytes, rect.size.height);
 	DrawSoftwareCursor(out, cursPosition + Displacement { 0, cursSize.height - 1 }, pcurs);
 }
 
@@ -1221,7 +1224,9 @@ void ZoomScale(const Surface &out, float zoomFactor)
 	const int srcWidth = std::clamp(ScaledDimension(viewportWidth, zoomFactor), 1, viewportWidth);
 	const int srcHeight = std::clamp(ScaledDimension(dstHeight, zoomFactor), 1, dstHeight);
 
-	const size_t rowBytes = static_cast<size_t>(viewportWidth);
+	// v1.11: generic over the pixel size - the screen is 32-bit, the tests' surfaces 8-bit.
+	const int bpp = out.bytesPerPixel();
+	const size_t rowBytes = static_cast<size_t>(viewportWidth) * bpp;
 	if (zoomScaleScratchRow.size() < rowBytes)
 		zoomScaleScratchRow.resize(rowBytes);
 	uint8_t *scaledRow = zoomScaleScratchRow.data();
@@ -1235,11 +1240,22 @@ void ZoomScale(const Surface &out, float zoomFactor)
 			srcY = srcHeight - 1;
 		const uint8_t *srcRow = base + static_cast<ptrdiff_t>(srcY) * pitch;
 
-		for (int dstX = 0; dstX < viewportWidth; dstX++) {
-			int srcX = (dstX * srcWidth) / viewportWidth;
-			if (srcX >= srcWidth)
-				srcX = srcWidth - 1;
-			scaledRow[dstX] = srcRow[srcX];
+		if (bpp == 4) {
+			const auto *srcPx = reinterpret_cast<const uint32_t *>(srcRow);
+			auto *dstPx = reinterpret_cast<uint32_t *>(scaledRow);
+			for (int dstX = 0; dstX < viewportWidth; dstX++) {
+				int srcX = (dstX * srcWidth) / viewportWidth;
+				if (srcX >= srcWidth)
+					srcX = srcWidth - 1;
+				dstPx[dstX] = srcPx[srcX];
+			}
+		} else {
+			for (int dstX = 0; dstX < viewportWidth; dstX++) {
+				int srcX = (dstX * srcWidth) / viewportWidth;
+				if (srcX >= srcWidth)
+					srcX = srcWidth - 1;
+				scaledRow[dstX] = srcRow[srcX];
+			}
 		}
 
 		memcpy(base + static_cast<ptrdiff_t>(dstY) * pitch, scaledRow, rowBytes);

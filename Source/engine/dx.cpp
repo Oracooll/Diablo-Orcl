@@ -38,7 +38,7 @@ unsigned int pal_surface_palette_version = 0;
 /** 24-bit renderer texture surface */
 SDLSurfaceUniquePtr RendererTextureSurface;
 
-/** 8-bit surface that we render to */
+/** The surface we render to: 32-bit XRGB8888 since v1.11 (it was 8-bit; the name stays for its 200 callers). */
 SDL_Surface *PalSurface;
 namespace {
 SDLSurfaceUniquePtr PinnedPalSurface;
@@ -127,19 +127,20 @@ void CreateBackBuffer()
 		PalSurface = GetOutputSurface();
 		RenderDirectlyToOutputSurface = true;
 	} else {
+		// Oracool, the 32-bit compositing renderer (v1.11): the back buffer holds COLOURS. Every
+		// kernel resolves its indices through PaletteRGB as it draws, so no palette is bound here.
 		PinnedPalSurface = SDLWrap::CreateRGBSurfaceWithFormat(
 		    /*flags=*/0,
 		    /*width=*/gnScreenWidth,
 		    /*height=*/gnScreenHeight,
-		    /*depth=*/8,
-		    SDL_PIXELFORMAT_INDEX8);
+		    /*depth=*/32,
+		    SDL_PIXELFORMAT_RGB888);
 		PalSurface = PinnedPalSurface.get();
 	}
 
 #ifndef USE_SDL1
-	// In SDL2, `PalSurface` points to the global `palette`.
-	if (SDL_SetSurfacePalette(PalSurface, Palette.get()) < 0)
-		ErrSdl();
+	// No surface palette: the buffer is 32-bit. The global `Palette` object is still kept current
+	// by palette_update for the hardware cursor and the 8-bit offscreen surfaces.
 #else
 	// In SDL1, `PalSurface` owns its palette and we must update it every
 	// time the global `palette` is changed. No need to do anything here as
@@ -159,6 +160,43 @@ void BltFast(SDL_Rect *srcRect, SDL_Rect *dstRect)
 	Blit(PalSurface, srcRect, dstRect);
 }
 
+namespace {
+
+SDLSurfaceUniquePtr PresentScratch;
+
+/**
+ * @brief The present-time transforms (v1.11): a fade scales the whole frame, the screenshot flash
+ * drops green and blue. Applied into a scratch copy of the same format, which is then blitted, so
+ * the back buffer itself keeps the unfaded frame for the next redraw.
+ */
+SDL_Surface *ApplyPresentTransforms(SDL_Surface *src)
+{
+	if (FadeLevel == 256 && !PresentRedFlash)
+		return src;
+	if (PresentScratch == nullptr || PresentScratch->w != src->w || PresentScratch->h != src->h)
+		PresentScratch = SDLWrap::CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, src->format->format);
+	const uint32_t fade = static_cast<uint32_t>(std::clamp(FadeLevel, 0, 256));
+	const uint32_t gbMask = PresentRedFlash ? 0x00FF0000u : 0x00FFFFFFu;
+	for (int y = 0; y < src->h; y++) {
+		const auto *s = reinterpret_cast<const uint32_t *>(static_cast<const uint8_t *>(src->pixels) + y * src->pitch);
+		auto *d = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(PresentScratch->pixels) + y * PresentScratch->pitch);
+		for (int x = 0; x < src->w; x++) {
+			const uint32_t c = s[x] & gbMask;
+			if (fade == 256) {
+				d[x] = c;
+			} else {
+				const uint32_t r = ((c >> 16) & 0xFF) * fade / 256;
+				const uint32_t g = ((c >> 8) & 0xFF) * fade / 256;
+				const uint32_t b = (c & 0xFF) * fade / 256;
+				d[x] = (r << 16) | (g << 8) | b;
+			}
+		}
+	}
+	return PresentScratch.get();
+}
+
+} // namespace
+
 void Blit(SDL_Surface *src, SDL_Rect *srcRect, SDL_Rect *dstRect)
 {
 	if (HeadlessMode)
@@ -166,7 +204,7 @@ void Blit(SDL_Surface *src, SDL_Rect *srcRect, SDL_Rect *dstRect)
 
 	SDL_Surface *dst = GetOutputSurface();
 #ifndef USE_SDL1
-	if (SDL_BlitSurface(src, srcRect, dst, dstRect) < 0)
+	if (SDL_BlitSurface(ApplyPresentTransforms(src), srcRect, dst, dstRect) < 0)
 		ErrSdl();
 #else
 	if (!OutputRequiresScaling()) {

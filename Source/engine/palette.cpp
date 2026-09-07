@@ -151,15 +151,29 @@ void CycleColorsReverse(int from, int to)
 
 } // namespace
 
+std::array<uint32_t, 256> PaletteRGB {};
+int FadeLevel = 256;
+bool PresentRedFlash = false;
+
 void palette_update(int first, int ncolor)
 {
 	if (HeadlessMode)
 		return;
 
 	assert(Palette);
-	if (SDLC_SetSurfaceAndPaletteColors(PalSurface, Palette.get(), system_palette.data(), first, ncolor) < 0) {
+	// The SDL palette object still carries the displayed colours: the hardware cursor and every
+	// 8-bit offscreen surface that binds it read from there. The back buffer itself is 32-bit since
+	// v1.11 and takes no palette; it takes PaletteRGB, below.
+	if (SDL_SetPaletteColors(Palette.get(), system_palette.data(), first, ncolor) < 0) {
 		ErrSdl();
 	}
+	// From the UNFADED palette while a fade is running - see PaletteRGB's note in palette.h.
+	const std::array<SDL_Color, 256> &source = FadeLevel != 256 ? logical_palette : system_palette;
+	for (int i = first; i < first + ncolor; i++) {
+		const SDL_Color &c = source[i];
+		PaletteRGB[i] = (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
+	}
+	PresentRedFlash = false;
 	pal_surface_palette_version++;
 }
 
@@ -327,6 +341,7 @@ void SetFadeLevel(int fadeval, bool updateHardwareCursor)
 	if (HeadlessMode)
 		return;
 
+	FadeLevel = std::clamp(fadeval, 0, 256); // applied at present time - see PaletteRGB's note
 	for (int i = 0; i < 256; i++) {
 		system_palette[i].r = (fadeval * logical_palette[i].r) / 256;
 		system_palette[i].g = (fadeval * logical_palette[i].g) / 256;

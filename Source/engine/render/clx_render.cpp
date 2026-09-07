@@ -99,7 +99,7 @@ DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT int_fast16_t SkipLinesForRenderBackwardsWith
 	return skipSize.xOffset;
 }
 
-template <typename BlitFn>
+template <typename Pixel, typename BlitFn>
 void DoRenderBackwardsClipY(
     const Surface &out, Point position, RenderSrc src, BlitFn &&blitFn)
 {
@@ -108,9 +108,11 @@ void DoRenderBackwardsClipY(
 	if (src.begin >= src.end)
 		return;
 
-	auto *dst = &out[position];
-	const auto *dstBegin = out.begin();
-	const int dstPitch = out.pitch();
+	// v1.11: typed on the destination - indices on an 8-bit surface, colours on the 32-bit screen -
+	// so every `dst +=` below steps whole pixels whatever their size.
+	Pixel *dst = out.at<Pixel>(position);
+	const Pixel *dstBegin = out.at<Pixel>(0, 0);
+	const int dstPitch = out.pixelPitch();
 	while (src.begin != src.end && dst >= dstBegin) {
 		auto remainingWidth = static_cast<int_fast16_t>(src.width) - xOffset;
 		dst += xOffset;
@@ -137,7 +139,7 @@ void DoRenderBackwardsClipY(
 	}
 }
 
-template <typename BlitFn>
+template <typename Pixel, typename BlitFn>
 void DoRenderBackwardsClipXY(
     const Surface &out, Point position, RenderSrc src, ClipX clipX, BlitFn &&blitFn)
 {
@@ -147,9 +149,11 @@ void DoRenderBackwardsClipXY(
 		return;
 
 	position.x += static_cast<int>(clipX.left);
-	auto *dst = &out[position];
-	const auto *dstBegin = out.begin();
-	const int dstPitch = out.pitch();
+	// v1.11: typed on the destination - indices on an 8-bit surface, colours on the 32-bit screen -
+	// so every `dst +=` below steps whole pixels whatever their size.
+	Pixel *dst = out.at<Pixel>(position);
+	const Pixel *dstBegin = out.at<Pixel>(0, 0);
+	const int dstPitch = out.pixelPitch();
 
 	while (src.begin != src.end && dst >= dstBegin) {
 		// Skip initial src if clipping on the left.
@@ -214,7 +218,7 @@ void DoRenderBackwardsClipXY(
 	}
 }
 
-template <typename BlitFn>
+template <typename Pixel, typename BlitFn>
 void DoRenderBackwards(
     const Surface &out, Point position, const uint8_t *src, size_t srcSize,
     unsigned srcWidth, unsigned srcHeight, BlitFn &&blitFn)
@@ -226,10 +230,10 @@ void DoRenderBackwards(
 		return;
 	const RenderSrc srcForBackwards { src, src + srcSize, static_cast<uint_fast16_t>(srcWidth) };
 	if (static_cast<std::size_t>(clipX.width) == srcWidth) {
-		DoRenderBackwardsClipY(
+		DoRenderBackwardsClipY<Pixel>(
 		    out, position, srcForBackwards, std::forward<BlitFn>(blitFn));
 	} else {
-		DoRenderBackwardsClipXY(
+		DoRenderBackwardsClipXY<Pixel>(
 		    out, position, srcForBackwards, clipX, std::forward<BlitFn>(blitFn));
 	}
 }
@@ -411,7 +415,7 @@ void RenderClxOutline(const Surface &out, Point position, ClxSprite sprite, uint
 	if (position.x >= 0 && position.x + sprite.width() + 2 < out.w()
 	    && position.y >= 0 && position.y + sprite.height() + 2 < out.h()) {
 		for (const auto &[x, y] : OutlinePixelsCache.outlinePixels) {
-			*out.at(position.x + x, position.y + y) = color;
+			out.SetPixelUnchecked({ position.x + x, position.y + y }, color);
 		}
 	} else {
 		for (const auto &[x, y] : OutlinePixelsCache.outlinePixels) {
@@ -579,24 +583,38 @@ std::string ClxDescribe(ClxSprite clx)
 }
 #endif // DEBUG_CLX
 
+namespace {
+
+/** @brief One dispatch on the surface's format for all four draw entry points (v1.11). */
+template <typename BlitFn>
+void DoRenderBackwardsDispatch(const Surface &out, Point position, ClxSprite clx, BlitFn &&blitFn)
+{
+	if (out.isIndexed())
+		DoRenderBackwards<uint8_t>(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), std::forward<BlitFn>(blitFn));
+	else
+		DoRenderBackwards<uint32_t>(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), std::forward<BlitFn>(blitFn));
+}
+
+} // namespace
+
 void ClxDraw(const Surface &out, Point position, ClxSprite clx)
 {
-	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitDirect {});
+	DoRenderBackwardsDispatch(out, position, clx, BlitDirect {});
 }
 
 void ClxDrawTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn)
 {
-	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitWithMap { trn });
+	DoRenderBackwardsDispatch(out, position, clx, BlitWithMap { trn });
 }
 
 void ClxDrawBlended(const Surface &out, Point position, ClxSprite clx)
 {
-	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitBlended {});
+	DoRenderBackwardsDispatch(out, position, clx, BlitBlended {});
 }
 
 void ClxDrawBlendedTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn)
 {
-	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitBlendedWithMap { trn });
+	DoRenderBackwardsDispatch(out, position, clx, BlitBlendedWithMap { trn });
 }
 
 void ClxDrawOutline(const Surface &out, uint8_t col, Point position, ClxSprite clx)

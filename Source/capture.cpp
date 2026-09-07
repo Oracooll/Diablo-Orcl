@@ -81,6 +81,24 @@ std::string CaptureFilePath()
  */
 bool CaptureImage(const std::string &path, const Surface &buf, SDL_Color *palette)
 {
+	// v1.11: the back buffer holds colours, so the screenshot is a copy of it in its own format and
+	// the palette (still captured for the flash's restore) is not embedded. An 8-bit buffer - the
+	// tests' offscreen surfaces - still takes the palette path below.
+	if (!buf.isIndexed()) {
+		SDLSurfaceUniquePtr rgb { SDL_CreateRGBSurfaceWithFormat(0, buf.w(), buf.h(), 32, buf.surface->format->format) };
+		if (rgb == nullptr) {
+			Log("Screenshot: could not allocate surface: {}", SDL_GetError());
+			return false;
+		}
+		const size_t rowBytes = static_cast<size_t>(buf.w()) * buf.bytesPerPixel();
+		for (int y = 0; y < buf.h(); y++)
+			std::memcpy(static_cast<uint8_t *>(rgb->pixels) + static_cast<ptrdiff_t>(y) * rgb->pitch, buf.at(0, y), rowBytes);
+		if (IMG_SavePNG(rgb.get(), path.c_str()) < 0) {
+			Log("Screenshot: could not write {}: {}", path, SDL_GetError());
+			return false;
+		}
+		return true;
+	}
 	SDLSurfaceUniquePtr surface { SDL_CreateRGBSurfaceWithFormat(0, buf.w(), buf.h(), 8, SDL_PIXELFORMAT_INDEX8) };
 	if (surface == nullptr) {
 		Log("Screenshot: could not allocate surface: {}", SDL_GetError());
@@ -131,6 +149,7 @@ void RedPalette()
 		system_palette[i].b = 0;
 	}
 	palette_update();
+	PresentRedFlash = true; // v1.11: the frame is already colours; the flash is applied at present
 	BltFast(nullptr, nullptr);
 	RenderPresent();
 }

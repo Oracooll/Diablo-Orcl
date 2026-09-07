@@ -9,6 +9,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
+#include "engine/render/blit_impl.hpp" // AverageRgb (v1.11)
 #include "cursor.h"
 #include "engine/trn.hpp" // GetInfravisionTRN - the unusable-item grey, at 3x
 #include "engine/render/clx_render.hpp"
@@ -57,8 +58,15 @@ void DrawQuarterDarkenRect(const Surface &out, const Rectangle &rect)
 			const int sx = rect.position.x + x;
 			if (sx < 0 || sx >= out.w())
 				continue;
-			uint8_t &p = *out.at(sx, sy);
-			p = paletteTransparencyLookup[p][paletteTransparencyLookup[0][p]];
+			// A quarter darker: the pixel averaged with its own half. Exact on the 32-bit screen
+			// (v1.11), the nearest-index approximation on an 8-bit surface.
+			if (out.isIndexed()) {
+				uint8_t &p = *out.at<uint8_t>(sx, sy);
+				p = paletteTransparencyLookup[p][paletteTransparencyLookup[0][p]];
+			} else {
+				uint32_t &c = *out.at<uint32_t>(sx, sy);
+				c = AverageRgb(c, (c >> 1) & 0x7F7F7F7Fu);
+			}
 		}
 	}
 }
