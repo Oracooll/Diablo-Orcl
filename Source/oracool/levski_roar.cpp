@@ -908,15 +908,24 @@ void DrawLevskiRoar(const Surface &out)
 		const bool hovered = rect.contains(MousePosition);
 		const int flash = FlashIndexForButton(i);
 		const bool pressed = flash >= 0 && ButtonFlashActive(flash);
-		// At rest the painting is the control (the 2026-09-05 skin paints every plate in); only a
-		// HOVER or PRESSED overlay is ever drawn, cut to the painted plate's own size.
-		if (pressed || hovered) {
-			const std::string state = StrCat("ui\\levski_", levski_skin::ButtonStems[i], pressed ? "_pressed.png" : "_hover.png");
-			DrawLoosePng(out, state.c_str(), rect.position);
-			if (hovered && !pressed && levski_skin::HoverIsPlain[i])
-				DrawHoverOutline(out, rect);
+		// TRANSMUTE is engraved in the painting (user, 2026-09-08: "it is integrated in the asset
+		// in idle and hover state. click to blink once"): nothing at rest, the gold-lit crop of the
+		// hover painting under the cursor, and a click shows the OTHER state for the flash - lit
+		// when it was not, dark when it was - which is one blink either way.
+		if (i == levski_skin::Transmute) {
+			if (hovered != pressed)
+				DrawLoosePng(out, "ui\\levski_transmute_lit.png", window.position + Displacement { levski_skin::TransmuteLitOrigin.x, levski_skin::TransmuteLitOrigin.y });
 			continue;
 		}
+		// The eight carved cells are EMPTY in the painting, so the icon is drawn in every state:
+		// the bright frame at rest, the pushed frame while the press flash runs, and the theme's
+		// outline to mark the cell under the cursor.
+		const std::string state = StrCat("ui\\levski_", levski_skin::ButtonStems[i], pressed ? "_pressed.png" : "_hover.png");
+		DrawLoosePng(out, state.c_str(), rect.position);
+		if (hovered && !pressed)
+			DrawHoverOutline(out, rect);
+		if (pressed || hovered)
+			continue;
 		// The readout the old gold-vs-whitegold label carried: a plate that would do nothing right
 		// now sits under a shade, so the column still says what is worth pressing.
 		bool idle = false;

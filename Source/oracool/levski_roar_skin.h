@@ -18,13 +18,13 @@
 
 namespace devilution::oracool::levski_skin {
 
-constexpr Size WindowSize { 320, 352 };
+constexpr Size WindowSize { 385, 280 }; // the carved stone popup (user, 2026-09-08: lpopup-levskis-roar-buttons)
 constexpr int CellSize = 28;
 /** The painted grid's centre-to-centre pitch; the item cell sits inside it. */
-constexpr int GridPitch = 29;
+constexpr int GridPitch = 28; // contiguous cells, the seams inside the pitch
 constexpr int GridColumns = 3;
 constexpr int GridRows = 4;
-constexpr Point GridOrigin { 45, 111 };
+constexpr Point GridOrigin { 26, 106 };
 /** No code-drawn title: SALVAGE is painted on its stone plate. Zero-sized, and the window skips it. */
 constexpr Rectangle SalvageTitleRect { { 0, 0 }, { 0, 0 } };
 
@@ -37,18 +37,26 @@ enum ButtonIndex : int {
 };
 constexpr int ButtonCount = 10;
 
+/**
+ * The 2026-09-08 popup: a 3x4 item grid on the left, a 4x2 block of carved cells on the right
+ * (origin 174,106, 36px pitch) and the word TRANSMUTE engraved beneath it. The order across the
+ * block is the user's: top row basic, magic, rare, unique; bottom row set, primal, ethereal, recipe
+ * book. TRANSMUTE's rect is its hit rect; the lit engraving (levski_transmute_lit.png) is drawn at
+ * TransmuteLitOrigin, the crop's own place in the painting.
+ */
 constexpr Rectangle ButtonRects[ButtonCount] = {
-	{ { 299, 3 }, { 18, 18 } }, // close
-	{ { 57, 251 }, { 60, 60 } }, // transmute
-	{ { 229, 258 }, { 36, 36 } }, // recipes
-	{ { 170, 138 }, { 36, 36 } }, // white
-	{ { 229, 138 }, { 36, 36 } }, // magic
-	{ { 170, 178 }, { 36, 36 } }, // rare
-	{ { 229, 178 }, { 36, 36 } }, // unique
-	{ { 170, 218 }, { 36, 36 } }, // primal
-	{ { 229, 218 }, { 36, 36 } }, // set
-	{ { 170, 258 }, { 36, 36 } }, // ethereal
+	{ { 364, 3 }, { 18, 18 } }, // close: the game's red X in the border's top-right corner
+	{ { 175, 196 }, { 142, 26 } }, // transmute: the engraved word
+	{ { 282, 142 }, { 36, 36 } }, // recipes: bottom row, fourth
+	{ { 174, 106 }, { 36, 36 } }, // white: top row, first
+	{ { 210, 106 }, { 36, 36 } }, // magic
+	{ { 246, 106 }, { 36, 36 } }, // rare
+	{ { 282, 106 }, { 36, 36 } }, // unique
+	{ { 210, 142 }, { 36, 36 } }, // primal: bottom row, second
+	{ { 174, 142 }, { 36, 36 } }, // set: bottom row, first
+	{ { 246, 142 }, { 36, 36 } }, // ethereal: bottom row, third
 };
+constexpr Point TransmuteLitOrigin { 176, 198 };
 
 /** ui\ asset stem per button - levski_<stem>_hover.png and _pressed.png. The close button has none. */
 constexpr const char *ButtonStems[ButtonCount] = {
