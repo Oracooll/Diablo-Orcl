@@ -1602,12 +1602,45 @@ void SortStash(Player &player)
 	// materials page (nothing to sort there) they take the next empty page; what the page cannot
 	// hold falls to the ordinary first-fit placement.
 	if (!consumables.empty()) {
-		const auto kindKey = [](const Item &item) {
-			// Potions and elixirs by misc id (heal, full heal, mana, full mana, rejuvenation...),
-			// scrolls after them by spell - so the belt's order reads across the page.
+		// FAMILIES, each starting on a fresh row (user, 2026-09-07: "still issues with books sorting
+		// in stash" - the books, being one more misc id in the sequence, were sorted into the middle
+		// of the potion run by their enum number and then wrapped across rows with everything else,
+		// so a page read as potions, a book, more potions, a book). A family is a visual block now:
+		// potions, elixirs, scrolls by spell, BOOKS by spell, oils, the Hellfire trap runes, and
+		// anything else last. Within a family the order is the belt's (misc id) or the spell's.
+		const auto family = [](const Item &item) {
 			if (item.isScroll())
-				return 1000 + static_cast<int>(item._iSpell);
-			return static_cast<int>(item._iMiscId);
+				return 2;
+			if (item._iMiscId == IMISC_BOOK)
+				return 3;
+			switch (item._iMiscId) {
+			case IMISC_HEAL:
+			case IMISC_FULLHEAL:
+			case IMISC_MANA:
+			case IMISC_FULLMANA:
+			case IMISC_REJUV:
+			case IMISC_FULLREJUV:
+				return 0;
+			case IMISC_ELIXSTR:
+			case IMISC_ELIXMAG:
+			case IMISC_ELIXDEX:
+			case IMISC_ELIXVIT:
+			case IMISC_SPECELIX:
+				return 1;
+			default:
+				break;
+			}
+			if (item._iMiscId > IMISC_OILFIRST && item._iMiscId < IMISC_OILLAST)
+				return 4;
+			if (item._iMiscId > IMISC_RUNEFIRST && item._iMiscId < IMISC_RUNELAST)
+				return 5;
+			return 6;
+		};
+		const auto kindKey = [&family](const Item &item) {
+			const int f = family(item);
+			if (f == 2 || f == 3)
+				return f * 1000 + static_cast<int>(item._iSpell);
+			return f * 1000 + static_cast<int>(item._iMiscId);
 		};
 		std::stable_sort(consumables.begin(), consumables.end(), [&kindKey](const Item &a, const Item &b) {
 			return kindKey(a) < kindKey(b);
@@ -1623,7 +1656,15 @@ void SortStash(Player &player)
 				return page >= Stash.stashGrids.size() || Stash.stashGrids[page][x][y] == 0;
 			};
 			int cell = 0;
+			int lastFamily = -1;
 			for (const Item &item : consumables) {
+				// A new family starts on a fresh row, so each block is a block and not a run that
+				// wraps into the next one mid-row.
+				if (family(item) != lastFamily) {
+					if (lastFamily != -1 && cell % StashGridColumns != 0)
+						cell += StashGridColumns - cell % StashGridColumns;
+					lastFamily = family(item);
+				}
 				while (cell < StashGridColumns * StashGridRows && !cellFree(cell % StashGridColumns, cell / StashGridColumns))
 					cell++;
 				if (cell >= StashGridColumns * StashGridRows) {

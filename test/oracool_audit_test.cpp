@@ -10868,3 +10868,59 @@ TEST(OracoolAudit, KillExperienceIsTheClampedNumberTheKillPays)
 	EXPECT_EQ(KillExperienceFor(player, 15, 1000), 500u) << "five levels down pays half";
 	EXPECT_EQ(KillExperienceFor(player, 5, 1000), 0u) << "fifteen levels down pays nothing";
 }
+
+// SORT lays the consumables out by FAMILY, each family on rows of its own (user, 2026-09-07: "still
+// issues with books sorting in stash"). Books had been sorted into the potion run by their misc id.
+TEST(OracoolAudit, StashSortKeepsBooksOnRowsOfTheirOwn)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+	gbIsMultiplayer = false;
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	const auto deposit = [&](_item_indexes idx, SpellID spell) {
+		devilution::Item item {};
+		InitializeItem(item, idx);
+		if (spell != SpellID::Null)
+			item._iSpell = spell;
+		item._iIdentified = true;
+		ASSERT_TRUE(AutoPlaceItemInStash(player, item, true));
+	};
+	// Deposited in a deliberately mixed order.
+	deposit(IDI_BOOK1, SpellID::Firebolt);
+	deposit(IDI_HEAL, SpellID::Null);
+	deposit(IDI_BOOK1, SpellID::Healing);
+	deposit(IDI_MANA, SpellID::Null);
+	deposit(IDI_HEAL, SpellID::Null);
+	deposit(IDI_BOOK1, SpellID::ChargedBolt);
+
+	SortStash(player);
+
+	int bookRow = -1;
+	int potionRowMax = -1;
+	int books = 0;
+	for (const devilution::Item &item : Stash.stashList) {
+		if (item._iMiscId == IMISC_BOOK) {
+			books++;
+			if (bookRow == -1)
+				bookRow = item.position.y;
+			EXPECT_EQ(item.position.y, bookRow) << "the books are not on one row";
+		} else {
+			potionRowMax = std::max(potionRowMax, item.position.y);
+		}
+	}
+	EXPECT_EQ(books, 3);
+	EXPECT_GT(bookRow, potionRowMax) << "the books did not start on a row of their own after the potions";
+	// And nothing but books shares that row.
+	for (const devilution::Item &item : Stash.stashList) {
+		if (item.position.y == bookRow)
+			EXPECT_EQ(item._iMiscId, IMISC_BOOK) << "a potion shares the books' row";
+	}
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+}
