@@ -30,6 +30,7 @@ const NAV = [
 	{ href: 'options.html', label: 'INI options' },
 	{ href: 'colours.html', label: 'Text colours' },
 	{ heading: 'Project' },
+	{ href: 'engine.html', label: 'Engine improvements' },
 	{ href: 'assets.html', label: 'Art assets' },
 	{ href: 'debug.html', label: 'Debug console' },
 	{ href: 'history.html', label: 'Version history' },

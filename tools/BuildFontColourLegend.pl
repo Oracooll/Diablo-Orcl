@@ -85,6 +85,7 @@ my %today = (
 my %fileFor = (
 	'BL-0' => 'fonts\blue.trn', 'YL-1' => 'fonts\yellow.trn', 'OR-1' => 'fonts\orange.trn (after the load-time heal)',
 	'GD-3' => 'none - the raw glyph (ColorGold)', 'GN-1' => 'fonts\yellow.trn, shifted at load (ColorOracoolGreen)',
+	'GR-2' => '≈ fonts\white.trn (hand-tuned, not a clean pass)', 'GD-2' => '≈ fonts\whitegold.trn (hand-tuned)', 'RD-3' => '≈ fonts\red.trn (hand-tuned)',
 	'GR-5' => 'fonts\oracool_gray5.trn', 'BE-2' => 'fonts\oracool_beige2.trn', 'YL-3' => 'fonts\oracool_yellow3.trn',
 	'BR-3' => 'fonts\oracool_brightred3.trn', 'BB-3' => 'fonts\oracool_brightblue3.trn', 'GD-6' => 'fonts\oracool_gold6.trn',
 	'OR-7' => 'fonts\oracool_orange7.trn', 'GR-7' => 'fonts\oracool_gray7.trn',
@@ -123,6 +124,13 @@ X
 # put them in two separate categories - Vanilla Colours, Orcl Colors"). "Used" is whether any live
 # code asks for the colour; the counts were taken from a grep of UiFlags::Color* on 2026-09-07.
 # A file with no enum reader is still loaded into the translation table and costs nothing else.
+my %fieldIndex = (
+	ColorUiGold => 1, ColorUiSilver => 2, ColorUiGoldDark => 3, ColorUiSilverDark => 4, ColorDialogWhite => 5,
+	ColorDialogYellow => 6, ColorDialogRed => 7, ColorYellow => 8, ColorGold => 9, ColorBlack => 10, ColorWhite => 11,
+	ColorWhitegold => 12, ColorRed => 13, ColorBlue => 14, ColorOrange => 15, ColorButtonface => 16, ColorButtonpushed => 17,
+	ColorOracoolYellow => 18, ColorOracoolYellowDark => 19, ColorOracoolGreen => 20, ColorGray5 => 21, ColorBeige2 => 22,
+	ColorYellow3 => 23, ColorBrightRed3 => 24, ColorBrightBlue3 => 25, ColorGold6 => 26, ColorOrange7 => 27, ColorGray7 => 28,
+);
 my @vanilla = (
 	['white.trn', 'ColorWhite', '≈ GR-2', 1, 'plain items, most panel and HUD text'],
 	['whitegold.trn', 'ColorWhitegold', '≈ GD-2', 1, 'unique items; the fallback for an unrecognised flag'],
@@ -170,7 +178,8 @@ sub inventory {
 		my $uri = render("This is $name", $trn);
 		my $fileHtml = $file eq '' ? '<i>none</i>' : "fonts\\$file";
 		my $usedHtml = $used ? '<span class="used">used</span>' : '<span class="unused">not used</span>';
-		push @rows, qq{<tr><td class="id">$id</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="file">$fileHtml</td><td class="used">$usedHtml</td><td>$use</td></tr>\n};
+		my $fi = $fieldIndex{$name} // '-';
+		push @rows, qq{<tr><td class="id">$id</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="idx">$fi</td><td class="file">$fileHtml</td><td class="used">$usedHtml</td><td>$use</td></tr>\n};
 	}
 	return join '', @rows;
 }
@@ -218,14 +227,14 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 .warn{border-left:3px solid var(--hot);padding:6px 12px;color:var(--ink);max-width:70ch;margin:10px 0 0}
 </style>
 <h1>Orcl Font Colour Legend</h1>
-<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
+<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. In the engine a colour is a 12-bit field index in the draw flags (v1.10.014), shown beside each name below. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
 
 <section class="panel"><header><h2>1 · Vanilla Colours</h2><span class="meta">the 16 .trn files DevilutionX ships, plus ColorGold which has none · @{[$vanillaUsed - 1]} of 16 files used</span></header>
-<div class="scroll"><table><thead><tr><th>ID</th><th>Sample (as drawn in play)</th><th>Name in code</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$vanillaRows</tbody></table></div>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Sample (as drawn in play)</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$vanillaRows</tbody></table></div>
 </section>
 
 <section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 10 .trn files this fork added, plus the green which borrows yellow.trn · @{[$orclUsed - 1]} of 10 files used</span></header>
-<div class="scroll"><table><thead><tr><th>ID</th><th>Sample</th><th>Name in code</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$orclRows</tbody></table></div>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Sample</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$orclRows</tbody></table></div>
 </section>
 
 <section class="panel"><header><h2>3 · The pool</h2><span class="meta">66 usable shades; a swatch shows the entries the glyph's 13 levels land on, the band column is the .trn's entries 192-207</span></header>
@@ -236,7 +245,7 @@ $blocks
 <ol>
 <li>Write the 256-byte .trn: identity everywhere except entries 192-207, which take the band column above. <code>tools/MakeYellowFontTrn.ps1</code> is the pattern. Put it in <code>Packaging/resources/oracool_assets/fonts</code>.</li>
 <li>Add the name to <code>text_color</code> in <code>engine/render/text_render.hpp</code> (append; the enum indexes <code>ColorTranslations</code> positionally) and the file to <code>ColorTranslations</code> in <code>text_render.cpp</code>, growing both array sizes.</li>
-<li>Add a <code>UiFlags::Color…</code> bit in <code>DiabloUI/ui_flags.hpp</code> (the widened 64-bit range) and a line in <code>GetColorFromFlags</code>, above the Whitegold fallback.</li>
+<li>Add a <code>UiFlags::Color…</code> name in <code>DiabloUI/ui_flags.hpp</code> with the next free <b>field index</b> (<code>29ULL &lt;&lt; UiFlagsColorShift</code> and so on; the field is 12 bits, 4096 values, since v1.10.014) and a <code>case</code> for it in <code>GetColorFromFlags</code>. Nothing else: the outline pass clears the whole field, so there is no mask to extend.</li>
 <li>Repack: <code>tools\\build_oracool_mpq.cmd</code>. A normal build does not rebuild the MPQ.</li>
 </ol>
 <p class="warn">Front-end screens run on a different palette. Entries 128-135 are blue in play and yellow in the menus; 176-191 are steel blue in play and gold in the menus; 224-239 are red in play and gray in the menus. A colour picked here is for in-game text. Check it on a menu separately before reusing the name there.</p>
