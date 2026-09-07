@@ -72,6 +72,10 @@ internal static class MonumentCel
 		string outPath = args[2];
 		int targetWidth = int.Parse(args[3]);
 		string previewDir = args.Length > 4 && args[4] != "-" ? args[4] : null;
+		// How far each pixel is pulled toward its own grey before the palette match, in percent
+		// (user, 2026-09-08: "too yellowish. make it more grey-ish to look more like stone"). The
+		// painting's warm cast otherwise lands on the gold and orange ramps.
+		DesaturatePercent = args.Length > 5 ? int.Parse(args[5]) : 0;
 
 		if (pal.Length != 768) {
 			Console.Error.WriteLine("Palette must be exactly 768 bytes (256 RGB triples), got " + pal.Length);
@@ -230,6 +234,8 @@ internal static class MonumentCel
 	 * Index 0 is safe as the transparency marker precisely because the output is restricted to
 	 * 128-255 - no real pixel can ever land on it.
 	 */
+	private static int DesaturatePercent = 0;
+
 	private static byte[] Quantise(Bitmap bmp, byte[] pal)
 	{
 		int w = bmp.Width, h = bmp.Height;
@@ -246,6 +252,12 @@ internal static class MonumentCel
 						int bch = row[x * 4 + 0], gch = row[x * 4 + 1], rch = row[x * 4 + 2], ach = row[x * 4 + 3];
 						if (ach < AlphaCut)
 							continue;
+						if (DesaturatePercent > 0) {
+							int luma = (299 * rch + 587 * gch + 114 * bch) / 1000;
+							rch += (luma - rch) * DesaturatePercent / 100;
+							gch += (luma - gch) * DesaturatePercent / 100;
+							bch += (luma - bch) * DesaturatePercent / 100;
+						}
 						int key = (rch << 16) | (gch << 8) | bch;
 						byte idx;
 						if (!cache.TryGetValue(key, out idx)) {

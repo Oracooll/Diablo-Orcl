@@ -22,7 +22,11 @@ setlocal
 set ART=
 set ART=..\Resources\02-source-art\world\vasil-levski-monument-greenscreen.png
 set PAL=tools\town.pal
-set OUT=Packaging\resources\oracool_assets\objects\orclroar.cel
+REM The PRIVATE archive's folder since the IP split (2026-09-07): the painting is the user's own
+REM but the sprite is quantised to a Blizzard palette, so it ships in release zips only.
+set OUT=..\Resources\03-private-assets\oracool_private_assets\objects\orclroar.cel
+REM Desaturation before the palette match, percent (user, 2026-09-08: a stone monument, not a gold one).
+set DESAT=75
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set EXE=%TEMP%\MonumentCel.exe
 
@@ -33,17 +37,8 @@ if not exist "%ART%" (
 echo Source: %ART%
 
 "%CSC%" /nologo /unsafe /optimize /target:exe /out:"%EXE%" /r:System.Drawing.dll tools\MonumentCel.cs || exit /b 1
-"%EXE%" "%ART%" "%PAL%" "%OUT%" 96 "%TEMP%\levski_roar_preview" || exit /b 1
-
-REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet
-REM still finds the sprite instead of dying on a missing file.
-if not exist "Packaging\resources\assets\objects" mkdir "Packaging\resources\assets\objects"
-copy /y "%OUT%" "Packaging\resources\assets\objects\orclroar.cel" >nul
-if exist "build\x64-Debug\assets" (
-  if not exist "build\x64-Debug\assets\objects" mkdir "build\x64-Debug\assets\objects"
-  copy /y "%OUT%" "build\x64-Debug\assets\objects\orclroar.cel" >nul
-)
+"%EXE%" "%ART%" "%PAL%" "%OUT%" 96 "%TEMP%\levski_roar_preview" %DESAT% || exit /b 1
 
 echo.
-echo orclroar.cel installed. Now run tools\build_oracool_mpq.cmd to repack the archive.
+echo orclroar.cel installed in the private asset folder. Now run tools\build_oracool_mpq.cmd to repack.
 endlocal
