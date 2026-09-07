@@ -33,9 +33,9 @@ On the 32-bit screen a glyph is drawn through a 256-entry table of RGB values (`
 - Consequence for the Font Colour Legend: it stops being a menu of what the palette allows (ramps and passes) and becomes a registry of the colours the game actually uses: ID, hex value, where it appears. Shades are then chosen by eye, not by palette pass. (User, 2026-09-07: "the legend now only needs to include colors we actually use.")
 - Gate: every existing legend colour reproduces its current RGB exactly, so nothing in play changes on the day it lands; new colours come after.
 
-### Stage 4 - cleanup (optional, later)
+### Stage 4 - cleanup (LANDED, v1.11.010)
 
-Retire the 8-bit offscreen surfaces where nothing needs them, drop the per-colour .trn files for the fork's own fonts, and regenerate the legend and wiki from the colour table.
+The 21 .trn files the fork had made are gone: each became a line in `RgbDefinedColors` (text_render.cpp) carrying the sixteen band colours and any out-of-band remaps, baked exactly from the file through its palette (the town palette; the menu palette for the two menu colours), so nothing in play moved. The MPQ ships no fonts folder of its own; the vanilla .trn files stay for the vanilla colours. The legend generator reads the definitions out of the source. The 8-bit offscreen paths STAY: the golden tests draw HUD art into indexed surfaces, and the fallback costs nothing in play. tools/MakeYellowFontTrn.ps1 is retired.
 
 ## Order and gates
 

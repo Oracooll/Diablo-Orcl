@@ -117,7 +117,27 @@ my @rows = (
 	['ColorOrange7', 'OR-7', 27, 'oracool_orange7.trn', undef, 'runes'],
 	['ColorGray7', 'GR-7', 28, 'oracool_gray7.trn', undef, 'ethereal plain items and the Ethereal row; beats the socketed gray'],
 );
-# Colours defined by VALUE (text_render.cpp, RgbDefinedColors): flag name -> 0xRRGGBB. None yet.
+# Colours defined by VALUE, read out of text_render.cpp's RgbDefinedColors (stage 4: every Orcl
+# .trn became one). Keyed by the file each entry says it was, so a row above finds its definition
+# by the name it always had; the table is band + out-of-band extras, exactly as the engine bakes it.
+my %valueByFile;
+{
+	my $src = slurp("$repo/Source/engine/render/text_render.cpp");
+	while ($src =~ /\{\s*(Color\w+),\s*\{\s*([^}]*?)\s*\}(?:\s*,\s*\{\s*\{\s*(.*?)\s*\}\s*\})?\s*\},\s*\/\/ was fonts\\\\(\S+)/gs) {
+		my ($enum, $band, $extra, $file) = ($1, $2, $3, $4);
+		my @band = map { hex } $band =~ /0x([0-9A-Fa-f]{6})/g;
+		my %extra;
+		if (defined $extra) { while ($extra =~ /\{\s*(\d+),\s*0x([0-9A-Fa-f]{6})\s*\}/g) { $extra{$1} = hex $2; } }
+		$valueByFile{$file} = { enum => $enum, band => \@band, extra => \%extra };
+	}
+}
+sub table_from_definition {
+	my $d = shift;
+	my @t = map { $pal[$_] } 0 .. 255;
+	for my $j (0 .. 15) { my $v = $d->{band}[$j]; $t[192 + $j] = [($v >> 16) & 255, ($v >> 8) & 255, $v & 255]; }
+	for my $i (keys %{ $d->{extra} }) { my $v = $d->{extra}{$i}; $t[$i] = [($v >> 16) & 255, ($v >> 8) & 255, $v & 255]; }
+	return \@t;
+}
 my %valueOf = ();
 
 my $body = '';
@@ -127,22 +147,28 @@ for my $r (@rows) {
 	my $count = $uses{$name} // 0;
 	next if $count == 0 && $name ne 'ColorGold';
 	$inUse++;
-	my $table = exists $valueOf{$name} ? table_from_value($valueOf{$name}) : $file eq '' ? table_from_trn([0 .. 255]) : table_from_trn(trnfile($file));
+	my $table = exists $valueOf{$name} ? table_from_value($valueOf{$name})
+	    : exists $valueByFile{$file} ? table_from_definition($valueByFile{$file})
+	    : $file eq '' ? table_from_trn([0 .. 255]) : table_from_trn(trnfile($file));
 	my $uri = render("This is $name", $table);
 	# the value: what the glyph's brightest level lands on, and the shades its bevel walks through
 	my $top = hex6($table->[192]);
 	my %seen; my @shades = grep { !$seen{$_}++ } map { hex6($table->[$_]) } 195 .. 207;
 	my $sw = join '', map { qq{<i style="background:$_" title="$_"></i>} } @shades;
-	my $src = exists $valueOf{$name} ? sprintf('value 0x%06X', $valueOf{$name}) : $file eq '' ? '<i>none, the raw glyph</i>' : "fonts\\$file";
-	$src .= qq{<br><span class="menu">menus: fonts\\$menuFile</span>} if $menuFile;
+	my $src = exists $valueOf{$name} ? sprintf('value 0x%06X', $valueOf{$name})
+	    : exists $valueByFile{$file} ? qq{value in code <span class="menu">(was $file)</span>}
+	    : $file eq '' ? '<i>none, the raw glyph</i>' : "fonts\\$file";
+	if ($menuFile) {
+		$src .= exists $valueByFile{$menuFile} ? qq{<br><span class="menu">menus: value in code (was $menuFile)</span>} : qq{<br><span class="menu">menus: fonts\\$menuFile</span>};
+	}
 	$body .= qq{<tr><td class="id">$id</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="idx">$field</td><td class="hex">$top <span class="sw">$sw</span></td><td class="file">$src</td><td class="idx">$count</td><td>$use</td></tr>\n};
 }
 
 # ---- shipped and not drawn: the files with no caller, so nobody wonders where they went
 my @parked = (
-	['ColorDialogYellow', 'oracool_dialogyellow.trn', 'in-game dialog yellow; no caller yet'],
-	['ColorDialogRed', 'oracool_dialogred.trn', 'in-game dialog red; no caller yet'],
-	['ColorUiYellowDark', 'oracool_uiyellowdark.trn (oracool_menuyellowdark.trn in menus)', 'the focus glow\'s dark twin; no caller'],
+	['ColorDialogYellow', 'value in code (was oracool_dialogyellow.trn)', 'in-game dialog yellow; no caller yet'],
+	['ColorDialogRed', 'value in code (was oracool_dialogred.trn)', 'in-game dialog red; no caller yet'],
+	['ColorUiYellowDark', 'value in code (was oracool_uiyellowdark.trn and oracool_menuyellowdark.trn)', 'the focus glow\'s dark twin; no caller'],
 	['ColorButtonface', 'buttonface.trn', 'vanilla menu buttons; no caller'],
 	['ColorButtonpushed', 'buttonpushed.trn', 'vanilla menu buttons, pressed; no caller'],
 	['(none)', 'orange.trn, gamedialogwhite.trn, gamedialogyellow.trn, gamedialogred.trn', 'vanilla files the fork no longer reads (each has an Orcl file of its own)'],
@@ -183,7 +209,7 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 .warn{border-left:3px solid var(--hot);padding:6px 12px;color:var(--ink);max-width:70ch;margin:10px 0 0}
 </style>
 <h1>Orcl Font Colour Legend</h1>
-<p class="lede">The colours the game draws text in, one row each, rendered with the game's own Font 12 glyphs. <b>Since renderer stage 3 (v1.11.009)</b> a text colour is a value: on the 32-bit screen a glyph is drawn through a table of RGB values, not through a .trn and the 256-entry palette. The files still exist and still define the colours in use, baked exactly, so nothing in play moved; but a new colour needs no file and no palette entry, and the old pool of ramps and passes is gone from this page because every colour is now possible. Refer to a colour by its <b>ID</b> (the ramp-and-pass name it kept) or by its <b>hex</b>. The <b>field index</b> is its number in the 12-bit colour field of the draw flags.</p>
+<p class="lede">The colours the game draws text in, one row each, rendered with the game's own Font 12 glyphs. <b>Since renderer stage 3 (v1.11.009)</b> a text colour is a value: on the 32-bit screen a glyph is drawn through a table of RGB values, not through a .trn and the 256-entry palette. <b>Since stage 4 (v1.11.010)</b> the fork ships no .trn of its own: each of its 21 colours is sixteen values in code, baked exactly from the file it was, so nothing in play moved. The vanilla files remain for the vanilla colours. A new colour needs no file and no palette entry, and the old pool of ramps and passes is gone from this page because every colour is now possible. Refer to a colour by its <b>ID</b> (the ramp-and-pass name it kept) or by its <b>hex</b>. The <b>field index</b> is its number in the 12-bit colour field of the draw flags.</p>
 
 <section class="panel"><header><h2>Colours in use</h2><span class="meta">$inUse names live code draws with · samples on the level palette · the hex is where the glyph's brightest level lands, the swatches are the shades its bevel walks through · "callers" counts UiFlags::Color… in Source</span></header>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample (Font 12, 2x)</th><th>Name in code</th><th>Field</th><th>Hex</th><th>Defined by</th><th>Callers</th><th>Used for</th></tr></thead><tbody>$body</tbody></table></div>
@@ -193,10 +219,10 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 <div class="scroll"><table><thead><tr><th>Name in code</th><th>File</th><th>Note</th></tr></thead><tbody>$parkedRows</tbody></table></div>
 </section>
 
-<section class="panel steps"><header><h2>Adding a colour</h2><span class="meta">no .trn since stage 3</span></header>
+<section class="panel steps"><header><h2>Adding a colour</h2><span class="meta">no .trn since stage 3; the fork ships none since stage 4</span></header>
 <ol>
 <li>Append the name to <code>text_color</code> in <code>engine/render/text_render.hpp</code> and a <code>nullptr</code> to <code>ColorTranslations</code> in <code>text_render.cpp</code> (the enum indexes it positionally; grow both array sizes).</li>
-<li>Add <code>{ ColorName, 0xRRGGBB }</code> to <code>RgbDefinedColors</code> in <code>text_render.cpp</code>. That is the colour. Its bevel shades follow the font's own ramp automatically.</li>
+<li>Add <code>{ ColorName, { sixteen 0xRRGGBB values, brightest first } }</code> to <code>RgbDefinedColors</code> in <code>text_render.cpp</code>: the glyph band, top to bottom. Copy a neighbour's row and shift the hues, or start from one value with <code>DefineTextColorRgb</code> to see it in play first.</li>
 <li>Add a <code>UiFlags::Color…</code> name in <code>DiabloUI/ui_flags.hpp</code> with the next free field index and a <code>case</code> for it in <code>GetColorFromFlags</code>.</li>
 <li>Add the row here (<code>tools/BuildFontColourLegend.pl</code>, <code>\@rows</code> and <code>%valueOf</code>) and rebuild the legend and the wiki. No MPQ repack: there is no file.</li>
 </ol>

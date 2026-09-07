@@ -11128,8 +11128,8 @@ TEST(OracoolRenderer, ATextColourCanBeAValueWithNoFile)
 	}
 	PaletteRgbGeneration++;
 
-	DefineTextColorRgb(ColorGray7, 0x4080C0);
-	const uint32_t *table = TextColorRgbTable(ColorGray7);
+	DefineTextColorRgb(ColorButtonpushed, 0x4080C0);
+	const uint32_t *table = TextColorRgbTable(ColorButtonpushed);
 	ASSERT_NE(table, nullptr);
 	EXPECT_EQ(table[192], 0x4080C0u) << "the band's top is the value itself";
 	const uint32_t shaded = ((0x40u * 240 / 250) << 16) | ((0x80u * 240 / 250) << 8) | (0xC0u * 240 / 250);
@@ -11155,7 +11155,7 @@ TEST(OracoolRenderer, ATextColourCanBeAValueWithNoFile)
 	// here, so no table).
 	logical_palette[192] = SDL_Color { 1, 2, 3, 255 };
 	PaletteRgbGeneration++;
-	EXPECT_EQ(TextColorRgbTable(ColorGray7)[192], 0x4080C0u) << "the value does not move with the palette";
-	ClearTextColorRgb(ColorGray7);
-	EXPECT_EQ(TextColorRgbTable(ColorGray7), nullptr);
+	EXPECT_EQ(TextColorRgbTable(ColorButtonpushed)[192], 0x4080C0u) << "the value does not move with the palette";
+	ClearTextColorRgb(ColorButtonpushed);
+	EXPECT_EQ(TextColorRgbTable(ColorButtonpushed), nullptr);
 }

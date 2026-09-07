@@ -103,22 +103,22 @@ std::array<const char *, 36> ColorTranslations = {
 	// OR-1 as a file of its own (2026-09-07, the rule: every colour has its own .trn, only the raw
 	// gold has none). This is vanilla orange.trn with its band moved onto PAL16_ORANGE, which LoadFont
 	// used to do in memory after the fork's green ramp overwrote the orange minis the file pointed at.
-	"fonts\\oracool_orange1.trn",
+	nullptr, // oracool_orange1: a value in RgbDefinedColors since stage 4 (v1.11.010)
 
 	"fonts\\buttonface.trn",
 	"fonts\\buttonpushed.trn",
 	// The in-game dialog three are Orcl files since 2026-09-07 (user rule: "colors to match their trn
 	// file names"): vanilla's gamedialog*.trn are identity on the glyph band, so all three drew the raw
 	// gold. These say white, yellow and red - the in-play white, yellow and red bands.
-	"fonts\\oracool_dialogwhite.trn",
-	"fonts\\oracool_dialogyellow.trn",
-	"fonts\\oracool_dialogred.trn",
+	nullptr, // oracool_dialogwhite: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_dialogyellow: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_dialogred: a value in RgbDefinedColors since stage 4 (v1.11.010)
 
 	// Oracool: generated, not authored - see tools/MakeYellowFontTrn.ps1.
 	// The focus-glow pair, renamed 2026-09-07 to say what they are: MENU-palette files (the ramp at
 	// 128-135 is yellow only there). Their in-play twins are at the end of the table.
-	"fonts\\oracool_menuyellow.trn",
-	"fonts\\oracool_menuyellowdark.trn",
+	nullptr, // oracool_menuyellow: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_menuyellowdark: a value in RgbDefinedColors since stage 4 (v1.11.010)
 
 	// Oracool: GREEN text (user, 2026-08-15 - "Set Green items as in belzebub"). Deliberately the
 	// same file as ColorYellow: yellow.trn has always pointed its glyphs at indices 144-151, and
@@ -127,26 +127,29 @@ std::array<const char *, 36> ColorTranslations = {
 	// (see the remap below), which is what keeps rare items yellow.
 	// GN-1 as a file of its own (2026-09-07, the same rule): yellow.trn with its band moved onto the
 	// injected green minis, which LoadFont used to do in memory.
-	"fonts\\oracool_green1.trn",
+	nullptr, // oracool_green1: a value in RgbDefinedColors since stage 4 (v1.11.010)
 	// Oracool: GR-5 (2026-09-07). Built from the legend's recipe by the script that added it.
-	"fonts\\oracool_gray5.trn",
-	"fonts\\oracool_beige2.trn",
-	"fonts\\oracool_yellow3.trn",
-	"fonts\\oracool_brightred3.trn",
-	"fonts\\oracool_brightblue3.trn",
-	"fonts\\oracool_gold6.trn",
-	"fonts\\oracool_orange7.trn",
-	"fonts\\oracool_gray7.trn",
+	nullptr, // oracool_gray5: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_beige2: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_yellow3: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_brightred3: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_brightblue3: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_gold6: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_orange7: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_gray7: a value in RgbDefinedColors since stage 4 (v1.11.010)
 	// The four front-end colours as they read in a LEVEL palette - see text_color's note.
-	"fonts\\oracool_uigold.trn",
-	"fonts\\oracool_uigolddark.trn",
-	"fonts\\oracool_uisilver.trn",
-	"fonts\\oracool_uisilverdark.trn",
-	"fonts\\oracool_uiyellow.trn",
-	"fonts\\oracool_uiyellowdark.trn",
+	nullptr, // oracool_uigold: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_uigolddark: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_uisilver: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_uisilverdark: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_uiyellow: a value in RgbDefinedColors since stage 4 (v1.11.010)
+	nullptr, // oracool_uiyellowdark: a value in RgbDefinedColors since stage 4 (v1.11.010)
 };
 
 std::array<std::optional<std::array<uint8_t, 256>>, 36> ColorTranslationsData;
+
+constexpr int GlyphBandFirst = 192;
+constexpr int GlyphBandSize = 16;
 
 /**
  * Renderer stage 3 (v1.11): text colours as VALUES.
@@ -159,8 +162,6 @@ std::array<std::optional<std::array<uint8_t, 256>>, 36> ColorTranslationsData;
  * new colour needs no file and no palette entry. The bake keys on PaletteRgbGeneration, so a
  * palette load or a gamma change rebuilds it.
  */
-constexpr int GlyphBandFirst = 192;
-constexpr int GlyphBandSize = 16;
 struct RgbBake {
 	std::array<uint32_t, 256> table {};
 	uint32_t generation = 0;
@@ -169,19 +170,76 @@ std::array<RgbBake, ColorTranslations.size()> ColorRgbBakes;
 /** 0 = the colour is its file; else bit 31 set and the value in the low 24 bits. */
 std::array<uint32_t, ColorTranslations.size()> ColorRgbValues {};
 
+/** One palette index outside the band that a colour also recolours (index 0 = unused slot). */
+struct IndexColor {
+	uint8_t index;
+	uint32_t rgb;
+};
+
 /**
- * The colours defined by VALUE. A new text colour is one line here and no file: {name, 0xRRGGBB}.
- * Applied before the first table is asked for; DefineTextColorRgb at runtime overrides.
+ * The colours defined by VALUE: the 16 colours of the glyph band (192-207, brightest first), as
+ * values. Stage 4 (v1.11.010): every .trn this fork had made became one of these lines, each
+ * entry the exact colour that file produced through its palette (the level palette; the menu
+ * palette for the two menu colours), so nothing in play moved and the files are gone. A NEW
+ * colour is one line here with no file: sixteen values; or DefineTextColorRgb(colour, 0xRRGGBB)
+ * at runtime, which shades one value across the band the way the font's own ramp does.
  */
 struct RgbDefinedColor {
 	text_color color;
-	uint32_t rgb;
+	std::array<uint32_t, GlyphBandSize> band;
+	/** The few out-of-band remaps some files carried (the yellow minis for the green, one red for a gray); most have none. */
+	std::array<IndexColor, 16> extra {};
 };
 constexpr RgbDefinedColor RgbDefinedColors[] = {
-	// none yet - every colour in use today is its .trn, baked exactly. The next one starts here.
-	{ ColorGray7, 0 }, // placeholder so the array is not empty; 0 means "leave it to its file"
+	{ ColorInGameUiGold,
+	    { 0xFFE3A4, 0xEED18C, 0xDDC47E, 0xCCB775, 0xBCA86C, 0xAB9A63, 0x988B5D, 0x877E54, 0x786F49, 0x69603F, 0x5B5134, 0x484027, 0x39311D, 0x312816, 0x1A1408, 0x140B00 } }, // was fonts\\oracool_uigold.trn
+	{ ColorInGameUiGoldDark,
+	    { 0xDDC47E, 0xCCB775, 0xDDC47E, 0xBCA86C, 0xAB9A63, 0x988B5D, 0x877E54, 0x786F49, 0x5B5134, 0x484027, 0x39311D, 0x312816, 0x1A1408, 0x1A1408, 0x1A1408, 0x1A1408 } }, // was fonts\\oracool_uigolddark.trn
+	{ ColorInGameUiSilver,
+	    { 0xF3F3F3, 0xDEDEDE, 0xCCCCCC, 0xB8B8B8, 0xA3A3A3, 0x949494, 0x858585, 0x737373, 0x666666, 0x595959, 0x4C4C4C, 0x3D3D3D, 0x2E2E2E, 0x1E1E1E, 0x111111, 0x111111 } }, // was fonts\\oracool_uisilver.trn
+	{ ColorInGameUiSilverDark,
+	    { 0xCCCCCC, 0xB8B8B8, 0xA3A3A3, 0x949494, 0x858585, 0x737373, 0x666666, 0x4C4C4C, 0x3D3D3D, 0x2E2E2E, 0x1E1E1E, 0x111111, 0x111111, 0x111111, 0x111111, 0x111111 } }, // was fonts\\oracool_uisilverdark.trn
+	{ ColorInGameUiYellow,
+	    { 0xFFFD9F, 0xFFFD9F, 0xFFFC57, 0xFFFC57, 0xFEFB24, 0xFEFB24, 0xF0EC00, 0xF0EC00, 0xC3C300, 0xC3C300, 0x868600, 0x868600, 0x575500, 0x575500, 0x191900, 0x191900 } }, // was fonts\\oracool_uiyellow.trn
+	{ ColorInGameUiYellowDark,
+	    { 0xFEFB24, 0xFEFB24, 0xF0EC00, 0xF0EC00, 0xC3C300, 0xC3C300, 0x868600, 0x868600, 0x575500, 0x575500, 0x191900, 0x191900, 0x191900, 0x191900, 0x191900, 0x191900 } }, // was fonts\\oracool_uiyellowdark.trn
+	{ ColorUiYellow,
+	    { 0xFFFD9F, 0xFFFD9F, 0xFFFC57, 0xFFFC57, 0xFEFB24, 0xFEFB24, 0xF0EC00, 0xF0EC00, 0xC3C300, 0xC3C300, 0x868600, 0x868600, 0x575500, 0x575500, 0x191900, 0x191900 } }, // was fonts\\oracool_menuyellow.trn (menu palette)
+	{ ColorUiYellowDark,
+	    { 0xFEFB24, 0xFEFB24, 0xF0EC00, 0xF0EC00, 0xC3C300, 0xC3C300, 0x868600, 0x868600, 0x575500, 0x575500, 0x191900, 0x191900, 0x191900, 0x191900, 0x191900, 0x191900 } }, // was fonts\\oracool_menuyellowdark.trn (menu palette)
+	{ ColorInGameDialogWhite,
+	    { 0xCCCCCC, 0xCCCCCC, 0xCCCCCC, 0xCCCCCC, 0xCCCCCC, 0xCCCCCC, 0xA3A3A3, 0xA3A3A3, 0xB8B8B8, 0xA3A3A3, 0x858585, 0x595959, 0x3D3D3D, 0x2E2E2E, 0x2E2E2E, 0x111111 } }, // was fonts\\oracool_dialogwhite.trn
+	{ ColorInGameDialogYellow,
+	    { 0xFFFD9F, 0xFFFD9F, 0xFFFC57, 0xFFFC57, 0xFEFB24, 0xFEFB24, 0xF0EC00, 0xF0EC00, 0xC3C300, 0xC3C300, 0x868600, 0x868600, 0x575500, 0x575500, 0x191900, 0x191900 },
+	    { { { 224, 0x3D3D3D } } } }, // was fonts\\oracool_dialogyellow.trn
+	{ ColorInGameDialogRed,
+	    { 0xE06C6C, 0xE06C6C, 0xE06C6C, 0xE06C6C, 0xE06C6C, 0xE06C6C, 0xD85B5B, 0xCF4949, 0xC73838, 0xBF2727, 0xA92222, 0x7C1919, 0x661515, 0x4F1111, 0x390D0D, 0x230909 } }, // was fonts\\oracool_dialogred.trn
+	{ ColorOracoolGreen,
+	    { 0x8CBE8C, 0x8CBE8C, 0x64A064, 0x64A064, 0x3E823E, 0x3E823E, 0x226E22, 0x226E22, 0x185A18, 0x185A18, 0x104610, 0x104610, 0x0A320A, 0x0A320A, 0x041C04, 0x041C04 },
+	    { { { 144, 0x8CBE8C }, { 145, 0x64A064 }, { 146, 0x3E823E }, { 147, 0x226E22 }, { 148, 0x185A18 }, { 149, 0x104610 }, { 150, 0x0A320A }, { 151, 0x041C04 }, { 224, 0x3D3D3D } } } }, // was fonts\\oracool_green1.trn
+	{ ColorOrange,
+	    { 0xFFE2B3, 0xFFE2B3, 0xF4C996, 0xF4C996, 0xE7B37E, 0xE7B37E, 0xDC9F70, 0xDC9F70, 0xD08C62, 0xD08C62, 0xC77B52, 0xC77B52, 0xCC6133, 0xCC6133, 0xC74B1F, 0xC74B1F },
+	    { { { 152, 0xFFE2B3 }, { 153, 0xF4C996 }, { 154, 0xE7B37E }, { 155, 0xDC9F70 }, { 156, 0xD08C62 }, { 157, 0xC77B52 }, { 158, 0xCC6133 }, { 159, 0xC74B1F } } } }, // was fonts\\oracool_orange1.trn
+	{ ColorGray5,
+	    { 0xCCCCCC, 0xB8B8B8, 0xA3A3A3, 0x949494, 0x858585, 0x737373, 0x666666, 0x595959, 0x4C4C4C, 0x3D3D3D, 0x2E2E2E, 0x1E1E1E, 0x111111, 0x111111, 0x111111, 0x111111 } }, // was fonts\\oracool_gray5.trn
+	{ ColorBeige2,
+	    { 0xE8CACA, 0xE8CACA, 0xD7B2B2, 0xCA9E9E, 0xBD8F8F, 0xB38080, 0xA87171, 0xA55A5A, 0x9C4949, 0x8B4141, 0x793939, 0x683131, 0x562929, 0x442121, 0x331919, 0x1B0E0E } }, // was fonts\\oracool_beige2.trn
+	{ ColorYellow3,
+	    { 0xFEFB24, 0xFEFB24, 0xF0EC00, 0xF0EC00, 0xC3C300, 0xC3C300, 0x868600, 0x868600, 0x575500, 0x575500, 0x191900, 0x191900, 0x191900, 0x191900, 0x191900, 0x191900 } }, // was fonts\\oracool_yellow3.trn
+	{ ColorBrightRed3,
+	    { 0xFE2424, 0xFE2424, 0xF00000, 0xF00000, 0xBD0000, 0xBD0000, 0x910000, 0x910000, 0x5A0000, 0x5A0000, 0x230000, 0x230000, 0x230000, 0x230000, 0x230000, 0x230000 } }, // was fonts\\oracool_brightred3.trn
+	{ ColorBrightBlue3,
+	    { 0x2424FE, 0x2424FE, 0x0101EF, 0x0101EF, 0x0000BD, 0x0000BD, 0x00008A, 0x00008A, 0x000057, 0x000057, 0x000019, 0x000019, 0x000019, 0x000019, 0x000019, 0x000019 } }, // was fonts\\oracool_brightblue3.trn
+	{ ColorGold6,
+	    { 0xCCB775, 0xBCA86C, 0xAB9A63, 0x988B5D, 0x877E54, 0x786F49, 0x69603F, 0x5B5134, 0x484027, 0x39311D, 0x312816, 0x1A1408, 0x140B00, 0x140B00, 0x140B00, 0x140B00 } }, // was fonts\\oracool_gold6.trn
+	{ ColorOrange7,
+	    { 0xD08C62, 0xC77B52, 0xCC6133, 0xC74B1F, 0xB1431B, 0x9B3B18, 0x853213, 0x6F2910, 0x5A220C, 0x3F1708, 0x250E03, 0x0F0500, 0x0F0500, 0x0F0500, 0x0F0500, 0x0F0500 } }, // was fonts\\oracool_orange7.trn
+	{ ColorGray7,
+	    { 0xA3A3A3, 0x949494, 0x858585, 0x737373, 0x666666, 0x595959, 0x4C4C4C, 0x3D3D3D, 0x2E2E2E, 0x1E1E1E, 0x111111, 0x111111, 0x111111, 0x111111, 0x111111, 0x111111 } }, // was fonts\\oracool_gray7.trn
 };
 bool RgbDefaultsApplied = false;
+/** The definition applied from RgbDefinedColors; a hex from DefineTextColorRgb wins over it while set. */
+std::array<std::optional<RgbDefinedColor>, ColorTranslations.size()> ColorRgbBands;
 
 uint32_t PackRgb(const SDL_Color &c)
 {
@@ -198,6 +256,15 @@ void BakeRgbTable(text_color color, RgbBake &bake)
 	const std::array<SDL_Color, 256> &pal = logical_palette; // gamma applied, fades not: a fade is a present-time transform
 	for (int i = 0; i < 256; i++)
 		bake.table[i] = PackRgb(pal[i]);
+	if (ColorRgbValues[color] == 0 && ColorRgbBands[color]) {
+		for (int j = 0; j < GlyphBandSize; j++)
+			bake.table[GlyphBandFirst + j] = ColorRgbBands[color]->band[j];
+		for (const IndexColor &e : ColorRgbBands[color]->extra) {
+			if (e.index != 0)
+				bake.table[e.index] = e.rgb;
+		}
+		return;
+	}
 	if (ColorRgbValues[color] != 0) {
 		const uint32_t base = ColorRgbValues[color];
 		const int r = (base >> 16) & 0xFF, g = (base >> 8) & 0xFF, b = base & 0xFF;
@@ -240,11 +307,11 @@ const uint32_t *TextColorRgbTable(text_color color)
 	if (!RgbDefaultsApplied) {
 		RgbDefaultsApplied = true;
 		for (const RgbDefinedColor &d : RgbDefinedColors) {
-			if (d.rgb != 0)
-				DefineTextColorRgb(d.color, d.rgb);
+			if (d.color < ColorRgbBands.size())
+				ColorRgbBands[d.color] = d;
 		}
 	}
-	if (ColorRgbValues[color] == 0 && !ColorTranslationsData[color])
+	if (ColorRgbValues[color] == 0 && !ColorRgbBands[color] && !ColorTranslationsData[color])
 		return nullptr;
 	RgbBake &bake = ColorRgbBakes[color];
 	if (bake.generation != PaletteRgbGeneration) {
