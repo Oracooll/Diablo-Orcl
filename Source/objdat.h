@@ -157,7 +157,7 @@ constexpr int NumObjectGraphicFiles = OFILE_ORCLROAR + 1;
  * and this width is the unshadowed one. The tool prints the width it produced; if its output ever
  * changes, this constant changes with it, in the same commit.
  */
-constexpr uint16_t OracoolStashChestAnimWidth = 76;
+constexpr uint16_t OracoolStashChestAnimWidth = 128; // the sarcophagus sheet's frame (2026-09-08); was the reliquary's 76
 
 /**
  * @brief Oracool: orclroar.cel's frame width. Same contract as the constant above - CEL stores no

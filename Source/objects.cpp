@@ -2064,6 +2064,42 @@ void OperateWaypoint(Object &waypoint)
 constexpr Point StashChestPosition { 55, 68 };
 
 /**
+ * The sarcophagus animation (user, 2026-09-08: "opening animation and reverse for closing"). The
+ * sprite is five frames, 1 closed to 5 open; the object's own animation fields cannot run
+ * backwards, so the direction and the tick count live here and ProcessObjects steps the frame.
+ * The stash stands in exactly one place, so one set of state is enough.
+ */
+constexpr int StashChestClosedFrame = 1;
+constexpr int StashChestOpenFrame = 5;
+constexpr int StashChestFrameTicks = 3; // game ticks per frame: about a third of a second lid to lid
+int StashChestAnimDirection = 0;        // +1 opening, -1 closing, 0 at rest
+int StashChestAnimCount = 0;
+
+/** @brief Whether the chest wears the five-frame sarcophagus rather than chest3.cel (a public build without the private archive). */
+bool StashChestHasOwnArt(const Object &chest)
+{
+	return chest._oAnimData && chest._oAnimData->numSprites() == StashChestOpenFrame;
+}
+
+/** @brief One game tick of the lid: called from ProcessObjects for the stash chest only. */
+void UpdateStashChestAnimation(Object &chest)
+{
+	if (StashChestAnimDirection == 0 || !StashChestHasOwnArt(chest))
+		return;
+	if (++StashChestAnimCount < StashChestFrameTicks)
+		return;
+	StashChestAnimCount = 0;
+	chest._oAnimFrame += StashChestAnimDirection;
+	if (chest._oAnimFrame >= StashChestOpenFrame) {
+		chest._oAnimFrame = StashChestOpenFrame;
+		StashChestAnimDirection = 0;
+	} else if (chest._oAnimFrame <= StashChestClosedFrame) {
+		chest._oAnimFrame = StashChestClosedFrame;
+		StashChestAnimDirection = 0;
+	}
+}
+
+/**
  * @brief Oracool: user request - a physical Stash Chest in town. Plays the same open animation as
  * a regular chest the first time it's used, then stays open and can be re-opened indefinitely
  * (unlike OperateChest, which is a one-time loot pop and disables itself via _oSelFlag = 0).
@@ -2074,7 +2110,15 @@ void OperateStashChest(Object &chest)
 		return;
 	}
 
-	if (chest._oAnimFrame == 4) {
+	if (StashChestHasOwnArt(chest)) {
+		// The sarcophagus (2026-09-08): the lid rises frame by frame, 1 to 5, with the crypt's own
+		// sarcophagus sound (user: "use sound for opening sarcophaguses to open and close").
+		if (chest._oAnimFrame < StashChestOpenFrame && StashChestAnimDirection <= 0) {
+			PlaySfxLoc(IS_SARC, chest.position);
+			StashChestAnimDirection = 1;
+			StashChestAnimCount = 0;
+		}
+	} else if (chest._oAnimFrame == 4) {
 		// Oracool: 4 is chest3.cel's second closed-chest visual variant (AddChest() normally picks
 		// between frame 1 and frame 4 on a coin flip for random dungeon chests; the Stash Chest
 		// pins it to 4 deterministically - see AddStashChestObject). +2 matches vanilla
@@ -4174,7 +4218,7 @@ void EnsureObjectGraphicsLoaded(object_graphic_id ofile, uint16_t animWidth)
 		present = FindAsset(probe).ok();
 	}
 	if (!present) {
-		const object_graphic_id fallback = ofile == OFILE_ORCLWAYP ? OFILE_MCIRL : ofile == OFILE_ORCLROAR ? OFILE_BOOK2 : ofile;
+		const object_graphic_id fallback = ofile == OFILE_ORCLWAYP ? OFILE_MCIRL : ofile == OFILE_ORCLROAR ? OFILE_BOOK2 : ofile == OFILE_ORCLSTASH ? OFILE_CHEST3 : ofile;
 		if (fallback != ofile) {
 			for (const ObjectData &objectData : AllObjects) {
 				if (objectData.ofindex == fallback) {
@@ -4238,7 +4282,11 @@ void ApplyStashChestGraphics(Object &chest)
 			chest._oAnimData.emplace(*pObjCels[i]);
 			// Only ever read back by the save file (loadsave.cpp writes it and its derived
 			// _oAnimWidth2); DrawObject measures the sprite itself. Kept honest anyway.
-			chest._oAnimWidth = OracoolStashChestAnimWidth;
+			chest._oAnimWidth = chest._oAnimData->numSprites() == StashChestOpenFrame ? OracoolStashChestAnimWidth : AllObjects[OBJ_CHEST3].animWidth;
+			// Closed, whichever sprite it got: the stash window never survives a load, and a frame
+			// number from the other sprite's convention (chest3's 4/6) would land mid-lid.
+			chest._oAnimFrame = StashChestHasOwnArt(chest) ? StashChestClosedFrame : 4;
+			StashChestAnimDirection = 0;
 		}
 		return;
 	}
@@ -4290,7 +4338,12 @@ void AddStashChestObject()
 	// pack is uncommenting two lines rather than redoing the work. They must move TOGETHER: miss
 	// the SyncObjectAnim one and the chest wears its art until the first return to town and vanilla
 	// chest3.cel forever after.
-	// ApplyStashChestGraphics(*chest);
+	//
+	// Back on, 2026-09-08: the sarcophagus (objects\orclstash.cel from the private archive, five
+	// frames, one size in every state - the size wobble was the reliquary pack's, not the
+	// mechanism's). Without the archive the fallback in EnsureObjectGraphicsLoaded hands the swap
+	// chest3.cel itself, and the chest is exactly what it was.
+	ApplyStashChestGraphics(*chest);
 }
 
 /**
@@ -4391,7 +4444,13 @@ void CloseStashChestObject()
 	if (chest == nullptr)
 		return;
 
-	if (chest->_oAnimFrame == 6) {
+	if (StashChestHasOwnArt(*chest)) {
+		if (chest->_oAnimFrame > StashChestClosedFrame && StashChestAnimDirection >= 0) {
+			PlaySfxLoc(IS_SARC, chest->position); // the same sound both ways (user, 2026-09-08)
+			StashChestAnimDirection = -1;
+			StashChestAnimCount = 0;
+		}
+	} else if (chest->_oAnimFrame == 6) {
 		// Oracool: no distinct chest-closing sound exists in the game's asset set (only IS_CHEST,
 		// a single generic "chest" sound used for opening) and this engine has no facility for
 		// playing a sound in reverse, so this reuses IS_CHEST rather than adding a new asset or a
@@ -5154,6 +5213,10 @@ void ProcessObjects()
 		default:
 			break;
 		}
+		// Oracool: the stash chest's lid (see UpdateStashChestAnimation) - the one object whose
+		// animation runs both ways.
+		if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
+			UpdateStashChestAnimation(object);
 		if (!object._oAnimFlag)
 			continue;
 
@@ -5681,10 +5744,9 @@ void SyncObjectAnim(Object &object)
 		// position test the two OperateObject / SyncOpObject sites already use to tell this chest
 		// from an ordinary one.
 		//
-		// Parked with its twin in AddStashChestObject - see the note there. The two must return
-		// together.
-		// if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
-		// 	oracool::ApplyStashChestGraphics(object);
+		// Back on with its twin in AddStashChestObject (2026-09-08, the sarcophagus).
+		if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
+			oracool::ApplyStashChestGraphics(object);
 
 		// Oracool: the same rebuild, for Levski's Roar. Matched on TYPE rather than on a position
 		// constant, because unlike the chest the monument has a fallback placement (see
