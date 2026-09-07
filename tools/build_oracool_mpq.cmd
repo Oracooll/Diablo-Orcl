@@ -94,7 +94,7 @@ echo.
 echo oracool.mpq written to %OUT%
 
 REM Oracool (IP audit, 2026-09-07): the PRIVATE archive - art made from reworked Blizzard textures,
-REM kept outside the repository and never distributed. Packed when its folder exists, skipped otherwise.
+REM kept outside the repository; ships in release zips as fan work, never on GitHub. Packed when its folder exists, skipped otherwise.
 set PRIVSRC=%~dp0..\..\Resources\03-private-assets\oracool_private_assets
 if not exist "%PRIVSRC%" (
   echo oracool_private.mpq: no private asset folder - public build
@@ -118,5 +118,5 @@ if not "%PRIVRC%"=="0" (
   echo ERROR: the packer failed on the private archive with exit code %PRIVRC%
   exit /b %PRIVRC%
 )
-echo oracool_private.mpq written to %PRIVOUT% (local only, never distributed)
+echo oracool_private.mpq written to %PRIVOUT% (ships in release zips, never in the repository)
 endlocal

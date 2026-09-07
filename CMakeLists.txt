@@ -471,12 +471,12 @@ add_custom_target(oracool_mpq DEPENDS "${ORACOOL_MPQ}")
 add_dependencies(${BIN_TARGET} oracool_mpq)
 
 # Oracool (IP audit, 2026-09-07): the PRIVATE archive. Art the user made from reworked Blizzard
-# textures stays part of the mod on this machine and is never distributed: it lives OUTSIDE the
+# textures. It lives OUTSIDE the
 # repository, in the Resources folder, and is packed into oracool_private.mpq beside the game
 # binary, which the engine mounts ahead of oracool.mpq. A clone without that folder builds without
 # it, and the release packager's fixed manifest never includes it.
 set(ORACOOL_PRIVATE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Resources/03-private-assets/oracool_private_assets"
-  CACHE PATH "Folder packed into oracool_private.mpq (local art that must not be distributed); skipped when absent")
+  CACHE PATH "Folder packed into oracool_private.mpq (derivative art kept out of the repository); skipped when absent")
 if(IS_DIRECTORY "${ORACOOL_PRIVATE_ASSETS_DIR}")
   file(GLOB_RECURSE ORACOOL_PRIVATE_ASSET_FILES CONFIGURE_DEPENDS "${ORACOOL_PRIVATE_ASSETS_DIR}/*")
   set(ORACOOL_PRIVATE_MPQ "${CMAKE_CURRENT_BINARY_DIR}/oracool_private.mpq")
@@ -488,7 +488,7 @@ if(IS_DIRECTORY "${ORACOOL_PRIVATE_ASSETS_DIR}")
   endforeach()
   file(GENERATE OUTPUT "${ORACOOL_PRIVATE_MPQ_LIST}" CONTENT "${_oracool_private_rel_list}")
   add_custom_command(
-    COMMENT "Packing oracool_private.mpq (local only, never distributed)"
+    COMMENT "Packing oracool_private.mpq (outside the repository; ships in release zips)"
     OUTPUT "${ORACOOL_PRIVATE_MPQ}"
     COMMAND oracool_mpq_pack
       "${ORACOOL_PRIVATE_ASSETS_DIR}"
