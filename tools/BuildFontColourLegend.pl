@@ -83,8 +83,8 @@ my %today = (
 # The file a pool ID already has - a vanilla file where one lands exactly on the pass, an Orcl file
 # where one was made - or the name it would get (user, 2026-09-07: "put a file column in The Pool").
 my %fileFor = (
-	'BL-0' => 'fonts\blue.trn', 'YL-1' => 'fonts\yellow.trn', 'OR-1' => 'fonts\orange.trn (after the load-time heal)',
-	'GD-3' => 'none - the raw glyph (ColorGold)', 'GN-1' => 'fonts\yellow.trn, shifted at load (ColorOracoolGreen)',
+	'BL-0' => 'fonts\blue.trn', 'YL-1' => 'fonts\yellow.trn', 'OR-1' => 'fonts\oracool_orange1.trn',
+	'GD-3' => 'none - the raw glyph (ColorGold)', 'GN-1' => 'fonts\oracool_green1.trn',
 	'GR-2' => '≈ fonts\white.trn (hand-tuned, not a clean pass)', 'GD-2' => '≈ fonts\whitegold.trn (hand-tuned)', 'RD-3' => '≈ fonts\red.trn (hand-tuned)',
 	'GR-5' => 'fonts\oracool_gray5.trn', 'BE-2' => 'fonts\oracool_beige2.trn', 'YL-3' => 'fonts\oracool_yellow3.trn',
 	'BR-3' => 'fonts\oracool_brightred3.trn', 'BB-3' => 'fonts\oracool_brightblue3.trn', 'GD-6' => 'fonts\oracool_gold6.trn',
@@ -134,10 +134,10 @@ my %fieldIndex = (
 my @vanilla = (
 	['white.trn', 'ColorWhite', '≈ GR-2', 1, 'plain items, most panel and HUD text'],
 	['whitegold.trn', 'ColorWhitegold', '≈ GD-2', 1, 'unique items; the fallback for an unrecognised flag'],
-	['yellow.trn', 'ColorYellow', 'YL-1', 1, 'lightning damage on the sheet and the floating numbers (rare items until 2026-09-07); also, shifted at load, the green below'],
+	['yellow.trn', 'ColorYellow', 'YL-1', 1, 'lightning damage on the sheet and the floating numbers (rare items until 2026-09-07)'],
 	['red.trn', 'ColorRed', '≈ RD-3', 1, 'unmet requirements, fire damage, a slow on the sheet'],
 	['blue.trn', 'ColorBlue', 'BL-0', 1, 'magic items, magic damage, a bonus on the sheet'],
-	['orange.trn', 'ColorOrange', 'OR-1', 1, 'the runeword book\'s rune lines, floating magic damage (healed onto the orange ramp at load; Primal until 2026-09-07)'],
+	['orange.trn', '(none)', 'OR-1 on the menu palette', 0, 'vanilla orange, which points at the minis the green ramp took; the in-game orange is oracool_orange1.trn now'],
 	['black.trn', 'ColorBlack', 'BK', 1, 'the shadow under HUD text'],
 	['goldui.trn', 'ColorUiGold', 'BL ramp in play', 1, 'front-end text (gold on the menu palette, steel blue in a level)'],
 	['golduis.trn', 'ColorUiGoldDark', 'BL ramp in play', 1, 'front-end text, dark'],
@@ -148,12 +148,13 @@ my @vanilla = (
 	['gamedialogred.trn', 'ColorDialogRed', 'GD-3', 0, 'vanilla dialog red; no caller'],
 	['buttonface.trn', 'ColorButtonface', 'gray/gold mix', 0, 'vanilla menu buttons; no caller'],
 	['buttonpushed.trn', 'ColorButtonpushed', 'gray/gold mix', 0, 'vanilla menu buttons, pressed; no caller'],
-	['', 'ColorGold', 'GD-3', 1, 'NO FILE: an empty table slot draws the raw glyph. Labels, the readied-slot rows, the gold text everywhere'],
+	['', 'ColorGold', 'GD-3', 1, 'NO FILE, by rule the only one: an empty table slot draws the raw gold glyph. Labels, the readied-slot rows, the gold text everywhere'],
 );
 my @orcl = (
 	['oracool_yellow.trn', 'ColorOracoolYellow', 'menu palette only', 1, 'the front-end focus glow (2026-08-15); points at 128-135, which is bright blue in a level, so never on items'],
 	['oracool_yellows.trn', 'ColorOracoolYellowDark', 'menu palette only', 0, 'the glow\'s dark twin; no caller'],
-	['', 'ColorOracoolGreen', 'GN-1', 1, 'NO FILE OF ITS OWN: yellow.trn shifted onto the injected green minis at load. Set items, healing'],
+	['oracool_green1.trn', 'ColorOracoolGreen', 'GN-1', 1, 'set items, healing (was yellow.trn shifted in memory until 2026-09-07)'],
+	['oracool_orange1.trn', 'ColorOrange', 'OR-1', 1, 'the runeword book\'s rune lines, floating magic damage (was vanilla orange.trn re-pointed in memory)'],
 	['oracool_gray5.trn', 'ColorGray5', 'GR-5', 1, 'socketed plain drops on the floor, the socket count on any drop, the Sockets row'],
 	['oracool_beige2.trn', 'ColorBeige2', 'BE-2', 1, 'Primal items, name and slot backing'],
 	['oracool_yellow3.trn', 'ColorYellow3', 'YL-3', 1, 'rare items, rejuvenation potions'],
@@ -170,10 +171,8 @@ sub inventory {
 		my $trn;
 		if ($file eq '') {
 			$trn = [0 .. 255];
-			if ($name eq 'ColorOracoolGreen') { $trn = trnfile('yellow.trn'); $_ = ($_ >= 144 && $_ < 152) ? $_ - 144 + 152 : $_ for @$trn; }
 		} else {
 			$trn = trnfile($file);
-			if ($name eq 'ColorOrange') { $_ = ($_ >= 152 && $_ < 160) ? $_ - 152 + 208 : $_ for @$trn; }
 		}
 		my $uri = render("This is $name", $trn);
 		my $fileHtml = $file eq '' ? '<i>none</i>' : "fonts\\$file";
@@ -227,13 +226,13 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 .warn{border-left:3px solid var(--hot);padding:6px 12px;color:var(--ink);max-width:70ch;margin:10px 0 0}
 </style>
 <h1>Orcl Font Colour Legend</h1>
-<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. In the engine a colour is a 12-bit field index in the draw flags (v1.10.014), shown beside each name below. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
+<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. In the engine a colour is a 12-bit field index in the draw flags (v1.10.014), shown beside each name below. <b>The rule (2026-09-07):</b> every colour has its own .trn file, named for its legend ID; nothing is borrowed or edited after loading; only the raw gold, ColorGold, has no file. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
 
 <section class="panel"><header><h2>1 · Vanilla Colours</h2><span class="meta">the 16 .trn files DevilutionX ships, plus ColorGold which has none · @{[$vanillaUsed - 1]} of 16 files used</span></header>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample (as drawn in play)</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$vanillaRows</tbody></table></div>
 </section>
 
-<section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 10 .trn files this fork added, plus the green which borrows yellow.trn · @{[$orclUsed - 1]} of 10 files used</span></header>
+<section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 12 .trn files this fork added · @{[$orclUsed]} of 12 used</span></header>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$orclRows</tbody></table></div>
 </section>
 

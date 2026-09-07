@@ -100,7 +100,10 @@ std::array<const char *, 30> ColorTranslations = {
 	"fonts\\whitegold.trn",
 	"fonts\\red.trn",
 	"fonts\\blue.trn",
-	"fonts\\orange.trn",
+	// OR-1 as a file of its own (2026-09-07, the rule: every colour has its own .trn, only the raw
+	// gold has none). This is vanilla orange.trn with its band moved onto PAL16_ORANGE, which LoadFont
+	// used to do in memory after the fork's green ramp overwrote the orange minis the file pointed at.
+	"fonts\\oracool_orange1.trn",
 
 	"fonts\\buttonface.trn",
 	"fonts\\buttonpushed.trn",
@@ -117,7 +120,9 @@ std::array<const char *, 30> ColorTranslations = {
 	// LoadPalette now injects the green ramp exactly there - so the file that used to mean yellow
 	// IS the green, unhealed. ColorYellow itself gets healed onto the PAL16_YELLOW ramp at load
 	// (see the remap below), which is what keeps rare items yellow.
-	"fonts\\yellow.trn",
+	// GN-1 as a file of its own (2026-09-07, the same rule): yellow.trn with its band moved onto the
+	// injected green minis, which LoadFont used to do in memory.
+	"fonts\\oracool_green1.trn",
 	// Oracool: GR-5 (2026-09-07). Built from the legend's recipe by the script that added it.
 	"fonts\\oracool_gray5.trn",
 	"fonts\\oracool_beige2.trn",
@@ -237,32 +242,13 @@ FontStack LoadFont(GameFontTables size, text_color color, uint16_t row)
 	if (ColorTranslations[color] != nullptr && !ColorTranslationsData[color]) {
 		ColorTranslationsData[color].emplace();
 		LoadFileInMem(ColorTranslations[color], *ColorTranslationsData[color]);
-		// Oracool (2026-08-15): ColorOracoolGreen loads yellow.trn - the only shipped font with a
-		// full bright mini-ramp mapping - and shifts it onto the injected green ramp, which lives
-		// on the old PAL8_ORANGE minis. Every other colour loads untouched; in particular
-		// ColorYellow keeps its true bright yellow, which is the rare items' colour ("Rare items
-		// color to be bright YELLOW").
-		if (color == ColorOracoolGreen) {
-			for (uint8_t &entry : *ColorTranslationsData[color]) {
-				if (entry >= PAL8_YELLOW && entry < PAL8_YELLOW + PAL8_GREEN_SHADES)
-					entry = static_cast<uint8_t>(entry - PAL8_YELLOW + PAL8_GREEN);
-			}
-		}
-		// Oracool bug fix (2026-08-16, user report "Primals ... are now Green"). The font glyphs are
-		// authored in the PAL16_YELLOW band (192-207) - every .trn remaps that band and nothing else
-		// - and vanilla's orange.trn remaps it onto 152-159, the PAL8_ORANGE mini-ramp. This fork
-		// OVERWROTE those eight slots with its injected green ramp (see engine/palette.h), so the
-		// one colour that pointed at them turned green, and Primal is that colour's only user.
-		//
-		// Re-pointed onto PAL16_ORANGE (208+), which is real saturated orange and untouched. The
-		// mini-ramp runs light-to-dark like the PAL16 ramps do, so index order carries over
-		// directly and the glyph keeps its shading.
-		if (color == ColorOrange) {
-			for (uint8_t &entry : *ColorTranslationsData[color]) {
-				if (entry >= PAL8_GREEN && entry < PAL8_GREEN + PAL8_GREEN_SHADES)
-					entry = static_cast<uint8_t>(entry - PAL8_GREEN + PAL16_ORANGE);
-			}
-		}
+		// No edits after loading, since 2026-09-07. Two colours used to be made here in memory -
+		// the set green was yellow.trn shifted onto the injected green minis (2026-08-15), and orange
+		// was vanilla orange.trn re-pointed from those same minis onto PAL16_ORANGE after the green
+		// ramp took them (2026-08-16, "Primals are now Green"). Both are files of their own now,
+		// oracool_green1.trn and oracool_orange1.trn, by the rule that every colour has its own
+		// .trn and only the raw gold (ColorGold, an empty slot) has none. What a file says is what
+		// is drawn.
 	}
 
 	const uint32_t fontId = GetFontId(size, row);
