@@ -1284,10 +1284,10 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 
 	BlitLayer(out, SidePanelArt, Layer::Bright,
 	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
-	// Every canvas wore the dim from 2026-09-06 (so it lived with the art rather than in seven draw
-	// functions). OFF since 2026-09-08 with the second canvas painting (user: "remove the transparent
-	// layers on top of them for now"): the painting carries its own tone. DrawSidePanelDim stays,
-	// one call away.
+	// Every canvas wears the dim (user, 2026-09-06), so it lives with the art rather than in seven
+	// draw functions. Off for one build on 2026-09-08 with the second canvas painting, then back
+	// the same night (user: "bring back the dim").
+	DrawSidePanelDim(out, origin);
 }
 
 void DrawSidePanelDim(const Surface &out, Point origin)

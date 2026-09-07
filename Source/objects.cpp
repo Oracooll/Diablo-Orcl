@@ -4435,6 +4435,21 @@ void AddLevskiRoarObject()
 	LogEvent("Levski's Roar found no free tile beside the stash", UiFlags::ColorRed);
 }
 
+/**
+ *  Oracool: one game tick of the stash chest's lid. Called from the TOWN branch of game
+ * logic, because ProcessObjects - where every other object animates - never runs in town, which
+ * is why the first build of the sarcophagus never moved (user, 2026-09-08: "it doesn't play
+ * animation now when i click on it").
+ */
+void ProcessTownStashChest()
+{
+	if (currlevel != 0 || setlevel || StashChestAnimDirection == 0)
+		return;
+	Object *chest = FindObjectAtPosition(StashChestPosition);
+	if (chest != nullptr)
+		UpdateStashChestAnimation(*chest);
+}
+
 void CloseStashChestObject()
 {
 	if (currlevel != 0)
@@ -5213,10 +5228,7 @@ void ProcessObjects()
 		default:
 			break;
 		}
-		// Oracool: the stash chest's lid (see UpdateStashChestAnimation) - the one object whose
-		// animation runs both ways.
-		if (currlevel == 0 && !setlevel && object._otype == OBJ_CHEST3 && object.position == StashChestPosition)
-			UpdateStashChestAnimation(object);
+
 		if (!object._oAnimFlag)
 			continue;
 

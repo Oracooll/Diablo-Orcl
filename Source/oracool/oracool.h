@@ -101,6 +101,8 @@ void AddStashChestObject();
  * chest can't be found (not in town, or somehow not placed yet).
  */
 void CloseStashChestObject();
+/**  Oracool: ticks the stash chest's lid animation; town game logic calls it every tick. */
+void ProcessTownStashChest();
 
 /**
  * @brief Oracool: user request - Waypoints, restart, step 1: places a pure visual placeholder

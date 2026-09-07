@@ -2205,6 +2205,7 @@ void GameLogic()
 	} else {
 		gGameLogicStep = GameLogicStep::ProcessTowners;
 		ProcessTowners();
+		oracool::ProcessTownStashChest(); // the stash chest's lid - ProcessObjects does not run in town
 		gGameLogicStep = GameLogicStep::ProcessItemsTown;
 		ProcessItems();
 		gGameLogicStep = GameLogicStep::ProcessMissilesTown;

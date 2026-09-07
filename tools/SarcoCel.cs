@@ -14,7 +14,8 @@
 //
 // The encoder is the one in tools/WaypointCel.cs, which documents the CEL format.
 //
-// Usage: SarcoCel.exe <sheet.png> <town.pal> <out.cel> [previewDir]
+// Usage: SarcoCel.exe <sheet.png> <town.pal> <out.cel> [previewDir] [scalePercent]
+//   scalePercent: the frame drawn at this size (user, 2026-09-08: "reduce stash size by 30%" - 70).
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -23,9 +24,11 @@ using System.IO;
 
 internal static class SarcoCel
 {
-	private const int FrameWidth = 128;
-	private const int FrameHeight = 96;
+	private const int SheetFrameWidth = 128;
+	private const int SheetFrameHeight = 96;
 	private const int FrameCount = 5;
+	private static int FrameWidth = SheetFrameWidth;
+	private static int FrameHeight = SheetFrameHeight;
 
 	private static int Main(string[] args)
 	{
@@ -37,6 +40,9 @@ internal static class SarcoCel
 		byte[] pal = File.ReadAllBytes(args[1]);
 		string outPath = args[2];
 		string previewDir = args.Length > 3 && args[3] != "-" ? args[3] : null;
+		int scalePercent = args.Length > 4 ? int.Parse(args[4]) : 100;
+		FrameWidth = (SheetFrameWidth * scalePercent + 50) / 100;
+		FrameHeight = (SheetFrameHeight * scalePercent + 50) / 100;
 		if (pal.Length != 768) {
 			Console.Error.WriteLine("Palette must be exactly 768 bytes, got " + pal.Length);
 			return 2;
@@ -45,17 +51,25 @@ internal static class SarcoCel
 		byte[][] frames = new byte[FrameCount][];
 		using (Bitmap sheet = new Bitmap(sheetPath)) {
 			Console.WriteLine("sheet {0}x{1} {2}", sheet.Width, sheet.Height, sheet.PixelFormat);
-			if (sheet.Width != FrameWidth * FrameCount || sheet.Height != FrameHeight) {
-				Console.Error.WriteLine("Expected a {0}x{1} sheet", FrameWidth * FrameCount, FrameHeight);
+			if (sheet.Width != SheetFrameWidth * FrameCount || sheet.Height != SheetFrameHeight) {
+				Console.Error.WriteLine("Expected a {0}x{1} sheet", SheetFrameWidth * FrameCount, SheetFrameHeight);
 				return 2;
 			}
+
 			// GDI+ promotes an indexed PNG with a tRNS chunk to 32-bit ARGB on load, so the sheet is
 			// read as colours with alpha: the transparent index arrives as alpha 0.
-			byte[] rgba = new byte[sheet.Width * sheet.Height * 4];
-			using (Bitmap argb = new Bitmap(sheet.Width, sheet.Height, PixelFormat.Format32bppArgb)) {
+			// Scaled here, in full colour, before the palette match - a resample of palette indices
+			// would average numbers that are not colours. Each frame is resampled on its own so the
+			// seams between frames cannot bleed into a neighbour.
+			int sheetW = FrameWidth * FrameCount, sheetH = FrameHeight;
+			byte[] rgba = new byte[sheetW * sheetH * 4];
+			using (Bitmap argb = new Bitmap(sheetW, sheetH, PixelFormat.Format32bppArgb)) {
 				using (Graphics g = Graphics.FromImage(argb)) {
 					g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
-					g.DrawImage(sheet, 0, 0, sheet.Width, sheet.Height);
+					g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+					g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+					for (int f = 0; f < FrameCount; f++)
+						g.DrawImage(sheet, new Rectangle(f * FrameWidth, 0, FrameWidth, FrameHeight), new Rectangle(f * SheetFrameWidth, 0, SheetFrameWidth, SheetFrameHeight), GraphicsUnit.Pixel);
 				}
 				BitmapData data = argb.LockBits(new Rectangle(0, 0, argb.Width, argb.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
 				try {
@@ -72,7 +86,7 @@ internal static class SarcoCel
 				int opaque = 0;
 				for (int y = 0; y < FrameHeight; y++) {
 					for (int x = 0; x < FrameWidth; x++) {
-						int at = ((y * sheet.Width) + f * FrameWidth + x) * 4;
+						int at = ((y * sheetW) + f * FrameWidth + x) * 4;
 						if (rgba[at + 3] < 128)
 							continue; // the sheet's transparent index, kept as the CEL's 0
 						int src = (rgba[at + 2] << 16) | (rgba[at + 1] << 8) | rgba[at];

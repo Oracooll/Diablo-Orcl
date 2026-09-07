@@ -5,7 +5,7 @@ REM opening animation and reverse for closing"). The sheet is Hellfire's l5sarco
 REM sprite goes to the PRIVATE asset folder and ships in release zips only.
 REM
 REM Frames 1..5, closed to open; the engine plays them forward on opening and backward on closing.
-REM 128 must equal OracoolStashChestAnimWidth in Source/objdat.h.
+REM The frame width the tool prints must equal OracoolStashChestAnimWidth in Source/objdat.h (90 at 70%).
 REM
 REM Usage:  tools\build_stash_cel.cmd
 REM Run from the repository root.
@@ -27,7 +27,9 @@ if not exist "%PAL%" (
 )
 
 "%CSC%" /nologo /optimize /target:exe /out:"%EXE%" /r:System.Drawing.dll tools\SarcoCel.cs || exit /b 1
-"%EXE%" "%ART%" "%PAL%" "%OUT%" "%TEMP%\stash_preview" || exit /b 1
+REM 70: the sheet's 128x96 frame drawn at 90x67 (user, 2026-09-08: "reduce stash size by 30%").
+set SCALE=70
+"%EXE%" "%ART%" "%PAL%" "%OUT%" "%TEMP%\stash_preview" %SCALE% || exit /b 1
 
 echo.
 echo orclstash.cel installed in the private asset folder. Now run tools\build_oracool_mpq.cmd to repack.
