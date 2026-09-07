@@ -821,7 +821,7 @@ void DrawSpriteScaled(const Surface &out, Point topLeft, ClxSprite sprite, int s
 					const int dx = topLeft.x + x * scale + xx;
 					if (dx < 0 || dx >= out.w())
 						continue;
-					*out.at(dx, dy) = index;
+					out.SetPixelUnchecked({ dx, dy }, index); // an index, resolved by the surface (v1.11)
 				}
 			}
 		}

@@ -155,6 +155,18 @@ std::array<uint32_t, 256> PaletteRGB {};
 int FadeLevel = 256;
 bool PresentRedFlash = false;
 
+namespace {
+
+void RebuildPaletteRgb(const std::array<SDL_Color, 256> &source, int first, int ncolor)
+{
+	for (int i = first; i < first + ncolor; i++) {
+		const SDL_Color &c = source[i];
+		PaletteRGB[i] = (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
+	}
+}
+
+} // namespace
+
 void palette_update(int first, int ncolor)
 {
 	if (HeadlessMode)
@@ -168,11 +180,7 @@ void palette_update(int first, int ncolor)
 		ErrSdl();
 	}
 	// From the UNFADED palette while a fade is running - see PaletteRGB's note in palette.h.
-	const std::array<SDL_Color, 256> &source = FadeLevel != 256 ? logical_palette : system_palette;
-	for (int i = first; i < first + ncolor; i++) {
-		const SDL_Color &c = source[i];
-		PaletteRGB[i] = (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
-	}
+	RebuildPaletteRgb(FadeLevel != 256 ? logical_palette : system_palette, first, ncolor);
 	PresentRedFlash = false;
 	pal_surface_palette_version++;
 }
@@ -268,6 +276,16 @@ void LoadPalette(const char *pszFileName, bool blend /*= true*/)
 			GenerateBlendedLookupTable(orig_palette, -1, -1);
 		}
 	}
+
+	// v1.11: the colour table follows the new palette AT ONCE. Vanilla could wait for the fade-in's
+	// first palette_update, because an 8-bit frame drawn meanwhile was recoloured by that update;
+	// a 32-bit frame is not. Without this the loading screen and the first frame of every level
+	// were drawn through the previous palette and revealed as such by the fade (user, 2026-09-07:
+	// "loading screens are the ones with issues", "for a fraction of a second it looks incorrectly
+	// colored"). Gamma applied as PaletteFadeIn will apply it, so the first frame and the faded
+	// ones agree.
+	ApplyGamma(logical_palette, orig_palette, 256);
+	RebuildPaletteRgb(logical_palette, 0, 256);
 }
 
 void LoadRndLvlPal(dungeon_type l)

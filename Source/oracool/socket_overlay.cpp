@@ -50,7 +50,7 @@ void DrawRing(const Surface &out, Rectangle box, uint8_t color)
 			// surfaces, and a socket cell can sit right on the edge of one.
 			if (p.x < 0 || p.y < 0 || p.x >= out.w() || p.y >= out.h())
 				continue;
-			out[p] = color;
+			out.SetPixelUnchecked(p, color); // an index, resolved by the surface (v1.11)
 		}
 	}
 }

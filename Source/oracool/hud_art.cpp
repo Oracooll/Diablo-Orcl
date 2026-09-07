@@ -1354,7 +1354,7 @@ bool DrawTabGlyph(const Surface &out, Rectangle cell, bool open, bool gold)
 			if (!out.InBounds(at))
 				continue;
 			// White is the grey ramp's top three entries after quantising; anything darker is shadow.
-			*out.at(at.x, at.y) = (c >= PAL16_GRAY && c < PAL16_GRAY + 3) ? whiteTo : c;
+			out.SetPixelUnchecked(at, (c >= PAL16_GRAY && c < PAL16_GRAY + 3) ? whiteTo : c); // an index, resolved by the surface (v1.11)
 		}
 	}
 	return true;
