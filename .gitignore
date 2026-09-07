@@ -482,3 +482,6 @@ dist/
 
 # Machine-local CMake presets (the Debug tree outside OneDrive, compiler pinned) - see project_debug_build_outside_onedrive
 CMakeUserPresets.json
+
+# Blizzard palette staged locally by tools/build_asset_studio.cmd from the extracted art; never committed (IP audit, 2026-09-07)
+tools/town.pal
