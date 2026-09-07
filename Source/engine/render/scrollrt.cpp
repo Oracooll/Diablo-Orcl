@@ -425,6 +425,13 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		trn = GetStoneTRN();
 	if (MyPlayer->_pInfraFlag && LightTableIndex > 8)
 		trn = GetInfravisionTRN();
+	// On the 32-bit screen a frozen monster is drawn through colour values (stage 3's machinery),
+	// lit and shaded as it stands, under frost - see FrozenRgbTable. Stone and infravision still
+	// win, exactly as above.
+	if (trn == oracool::ColdTRN() && !out.isIndexed()) {
+		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::FrozenRgbTable(LightTableIndex));
+		return;
+	}
 	if (trn != nullptr)
 		ClxDrawTRN(out, targetBufferPosition, sprite, trn);
 	else

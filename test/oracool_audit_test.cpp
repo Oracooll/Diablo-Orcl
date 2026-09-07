@@ -100,6 +100,7 @@
 #include "oracool/skill_points.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
+#include "lighting.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/sprite_import.h"
 #include "oracool/spell_ranks.h"
@@ -11158,4 +11159,27 @@ TEST(OracoolRenderer, ATextColourCanBeAValueWithNoFile)
 	EXPECT_EQ(TextColorRgbTable(ColorButtonpushed)[192], 0x4080C0u) << "the value does not move with the palette";
 	ClearTextColorRgb(ColorButtonpushed);
 	EXPECT_EQ(TextColorRgbTable(ColorButtonpushed), nullptr);
+}
+
+TEST(OracoolRenderer, AFrozenMonsterKeepsItsLightingUnderFrost)
+{
+	// The frozen look on the 32-bit screen (2026-09-08): colour values, not a palette ramp. Two
+	// palette entries, one bright and one dark, both under the unlit light table, come out as two
+	// cold greys that keep their order - and the dark one darker than the bright one.
+	for (int i = 0; i < 256; i++)
+		PaletteRGB[static_cast<size_t>(i)] = (static_cast<uint32_t>(i) << 16) | (static_cast<uint32_t>(i / 2) << 8) | static_cast<uint32_t>(i / 4); // warm, brighter with i
+	for (int i = 0; i < 256; i++)
+		LightTables[0][static_cast<size_t>(i)] = static_cast<uint8_t>(i);
+	PaletteRgbGeneration++;
+	const uint32_t *table = oracool::FrozenRgbTable(0);
+	const uint32_t bright = table[240], dark = table[40];
+	const auto red = [](uint32_t c) { return static_cast<int>((c >> 16) & 0xFF); };
+	const auto blue = [](uint32_t c) { return static_cast<int>(c & 0xFF); };
+	EXPECT_GT(red(bright), red(dark)) << "shading survives";
+	EXPECT_GT(blue(bright), red(bright) - 30) << "the warm source is cold now: blue no longer far behind red";
+	EXPECT_LT(red(dark), 80) << "a dark pixel stays dark - no white speckle";
+	// A dimmer light table gives a dimmer result.
+	for (int i = 0; i < 256; i++)
+		LightTables[1][static_cast<size_t>(i)] = static_cast<uint8_t>(i / 2);
+	EXPECT_LT(red(oracool::FrozenRgbTable(1)[240]), red(bright));
 }

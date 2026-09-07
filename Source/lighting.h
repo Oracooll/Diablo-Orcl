@@ -48,7 +48,7 @@ extern Light Lights[MAXLIGHTS];
 extern std::array<uint8_t, MAXLIGHTS> ActiveLights;
 extern int ActiveLightCount;
 constexpr char LightsMax = 15;
-extern std::array<std::array<uint8_t, 256>, NumLightingLevels> LightTables;
+extern DVL_API_FOR_TEST std::array<std::array<uint8_t, 256>, NumLightingLevels> LightTables;
 extern std::array<uint8_t, 256> InfravisionTable;
 extern std::array<uint8_t, 256> StoneTable;
 extern std::array<uint8_t, 256> PauseTable;

@@ -72,6 +72,14 @@ int ColdArmourCastSerial(const Player &player);
 uint8_t *ColdTRN();
 
 /**
+ * @brief The frozen look for the 32-bit screen (2026-09-08): a table of colour VALUES that keeps the
+ * monster's own shading AND the tile's lighting, desaturated and pushed toward pale blue, so a
+ * frozen monster reads as the monster under frost rather than as a bright blue-grey cut-out. The
+ * palette-ramp ColdTRN stays for indexed surfaces. Cached per light level; rebuilt with the palette.
+ */
+const uint32_t *FrozenRgbTable(int lightTableIndex);
+
+/**
  * @brief Cold Mastery's whole effect: how much of the resistance penalty a cold hit keeps.
  *
  * A resisted hit is normally quartered (`dam >>= 2`). Mastery hands back part of that: the return
