@@ -119,6 +119,25 @@ for my $r (@ramps) {
 X
 }
 
+# ---- FUNDAMENTAL colours (user, 2026-09-07): pass 0 of every ramp - the lightest, fullest shade
+# each ramp can give, the one every other pass on the ramp is a darkening of - and black.
+my $fundamentals = '';
+for my $r (@ramps) {
+	my ($name, $base, $len, $usable, $note, $code) = @$r;
+	my $trn = passmap($base, $len, 0);
+	my $uri = render("This is Color${name}0", $trn);
+	my ($lo, $hi) = ($trn->[195], $trn->[207]);
+	my $sw = join '', map { qq{<i style="background:@{[hex6($_)]}"></i>} } $lo .. $hi;
+	my $recipe = join ' ', map { $trn->[192 + $_] } 0 .. 15;
+	my $file = exists $fileFor{"$code-0"} ? $fileFor{"$code-0"} : qq{<i>oracool_@{[lc $name]}0.trn</i> <span class="notyet">not made yet</span>};
+	$fundamentals .= qq{<tr><td class="id">$code-0</td><td class="sample"><img src="$uri" alt="Color${name}0"></td><td class="name">Color${name}0</td><td class="file">$file</td><td class="idx">$lo-$hi <span class="sw">$sw</span></td><td class="recipe">$recipe</td></tr>\n};
+}
+{
+	my $trn = trnfile('black.trn');
+	my $uri = render("This is ColorBlack", $trn);
+	$fundamentals .= qq{<tr><td class="id">BK</td><td class="sample"><img src="$uri" alt="ColorBlack"></td><td class="name">ColorBlack</td><td class="file">fonts\black.trn</td><td class="idx">0 <span class="sw"><i style="background:#000"></i></span></td><td class="recipe">every entry 0</td></tr>\n};
+}
+
 # ---- every .trn the game ships, in two inventories: the 16 vanilla files and the 10 Orcl ones
 # (user, 2026-09-07: "put all of them in the artifact/wiki. make a column to state used/not-used.
 # put them in two separate categories - Vanilla Colours, Orcl Colors"). "Used" is whether any live
@@ -238,7 +257,11 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 .warn{border-left:3px solid var(--hot);padding:6px 12px;color:var(--ink);max-width:70ch;margin:10px 0 0}
 </style>
 <h1>Orcl Font Colour Legend</h1>
-<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. In the engine a colour is a 12-bit field index in the draw flags (v1.10.014), shown beside each name below. <b>The rule (2026-09-07):</b> every colour has its own .trn file, named for its legend ID; nothing is borrowed or edited after loading; only the raw gold, ColorGold, has no file. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
+<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. In the engine a colour is a 12-bit field index in the draw flags (v1.10.014), shown beside each name below. <b>The rule (2026-09-07):</b> every colour has its own .trn file, named for its legend ID; nothing is borrowed or edited after loading; only the raw gold, ColorGold, has no file. <b>Part 0</b> is the fundamentals, the lightest pass of every ramp and black. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
+
+<section class="panel"><header><h2>0 · Fundamental Colours</h2><span class="meta">pass 0 of each of the ten ramps, and black: the eleven colours every other shade is a darkening of</span></header>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Sample (Font 12, 2x)</th><th>Name in code</th><th>File</th><th>Glyph lands on</th><th>.trn band 192-207 →</th></tr></thead><tbody>$fundamentals</tbody></table></div>
+</section>
 
 <section class="panel"><header><h2>1 · Vanilla Colours</h2><span class="meta">the 16 .trn files DevilutionX ships, plus ColorGold which has none · @{[$vanillaUsed - 1]} of 16 files used · samples drawn on the level palette, which is where every name below now says what it means</span></header>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample (as drawn in play)</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$vanillaRows</tbody></table></div>
