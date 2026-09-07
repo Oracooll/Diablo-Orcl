@@ -22,6 +22,7 @@ enum class UiType : uint8_t {
 	ArtTextButton,
 	ImageClx,
 	ImageAnimatedClx,
+	ImageRgb, // Oracool, renderer stage 2: a true-colour picture on the 32-bit screen
 	Button,
 	List,
 	Scrollbar,
@@ -116,6 +117,32 @@ public:
 
 private:
 	ClxSprite sprite_;
+};
+
+//=============================================================================
+/**
+ * Oracool, renderer stage 2 (v1.11): a screen-sized true-colour picture (ARGB8888 pixels owned by
+ * whoever built them, alive for as long as the dialog is). The front-end paintings, drawn as
+ * painted instead of quantised into the menu palette.
+ */
+class UiImageRgb : public UiItemBase {
+public:
+	UiImageRgb(const uint32_t *pixels, int width, int height, SDL_Rect rect, UiFlags flags = UiFlags::None)
+	    : UiItemBase(UiType::ImageRgb, rect, flags)
+	    , pixels_(pixels)
+	    , width_(width)
+	    , height_(height)
+	{
+	}
+
+	[[nodiscard]] const uint32_t *pixels() const { return pixels_; }
+	[[nodiscard]] int width() const { return width_; }
+	[[nodiscard]] int height() const { return height_; }
+
+private:
+	const uint32_t *pixels_;
+	int width_;
+	int height_;
 };
 
 //=============================================================================

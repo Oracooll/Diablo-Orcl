@@ -1234,6 +1234,12 @@ void Render(const UiImageClx &uiImage)
 	RenderClxSprite(Surface(DiabloUiSurface()), sprite, { x, uiImage.m_rect.y });
 }
 
+void Render(const UiImageRgb &uiImage)
+{
+	BlitArgb(Surface(DiabloUiSurface()), uiImage.pixels(), uiImage.width(),
+	    MakeSdlRect(0, 0, uiImage.width(), uiImage.height()), { uiImage.m_rect.x, uiImage.m_rect.y });
+}
+
 void Render(const UiImageAnimatedClx &uiImage)
 {
 	ClxSprite sprite = uiImage.sprite(GetAnimationFrame(uiImage.numFrames()));
@@ -1558,6 +1564,9 @@ void UiRenderItem(const UiItemBase &item)
 		break;
 	case UiType::ImageAnimatedClx:
 		Render(static_cast<const UiImageAnimatedClx &>(item));
+		break;
+	case UiType::ImageRgb:
+		Render(static_cast<const UiImageRgb &>(item));
 		break;
 	case UiType::ArtTextButton:
 		Render(static_cast<const UiArtTextButton &>(item));

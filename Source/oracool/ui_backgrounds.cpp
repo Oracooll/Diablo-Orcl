@@ -19,6 +19,8 @@
 #include "utils/png.h"
 #include "utils/sdl_geometry.h"
 #include "utils/surface_to_clx.hpp"
+#include "DiabloUI/diabloui.h" // DiabloUiSurface: which format the front end draws into
+#include "engine/render/primitive_render.hpp" // PackArgb
 
 namespace devilution::oracool {
 
@@ -29,6 +31,8 @@ struct BackgroundSlot {
 	const char *assetPath;
 	/** The prepared, screen-sized sprite. Kept across visits - see the header. */
 	OptionalOwnedClxSpriteList sprite;
+	/** Renderer stage 2 (v1.11): the same painting as ARGB pixels, built instead of `sprite` on the 32-bit screen. */
+	std::vector<uint32_t> argb;
 	/** What `sprite` was built for, so a resolution change rebuilds it. */
 	Size builtForScreen { 0, 0 };
 	/** Ditto for the palette: each screen's own is stable, but a different screen's would invalidate this. */
@@ -162,7 +166,8 @@ Rectangle CropForScreen(const SourceImage &image, Size screen)
 bool Build(BackgroundSlot &slot)
 {
 	const Size screen { gnScreenWidth, gnScreenHeight };
-	if (slot.sprite && slot.builtForScreen == screen
+	const bool trueColour = !Surface(DiabloUiSurface()).isIndexed();
+	if ((trueColour ? !slot.argb.empty() : slot.sprite.has_value()) && slot.builtForScreen == screen
 	    && std::memcmp(slot.builtForPalette.data(), orig_palette.data(), sizeof(slot.builtForPalette)) == 0) {
 		return true;
 	}
@@ -176,6 +181,30 @@ bool Build(BackgroundSlot &slot)
 	}
 
 	const Rectangle crop = CropForScreen(image, screen);
+
+	if (trueColour) {
+		// Stage 2: the painting itself, resampled to the screen and nothing else - no nearest
+		// palette entry, no menu-palette cache key that matters.
+		slot.sprite = std::nullopt;
+		slot.argb.assign(static_cast<size_t>(screen.width) * screen.height, 0);
+		for (int y = 0; y < screen.height; y++) {
+			const double sy = crop.position.y + (y + 0.5) * crop.size.height / screen.height - 0.5;
+			uint32_t *row = &slot.argb[static_cast<size_t>(y) * screen.width];
+			for (int x = 0; x < screen.width; x++) {
+				const double sx = crop.position.x + (x + 0.5) * crop.size.width / screen.width - 0.5;
+				uint8_t r;
+				uint8_t g;
+				uint8_t b;
+				SampleBilinear(image, crop, sx, sy, r, g, b);
+				row[x] = PackArgb(255, r, g, b);
+			}
+		}
+		slot.builtForScreen = screen;
+		std::memcpy(slot.builtForPalette.data(), orig_palette.data(), sizeof(slot.builtForPalette));
+		return true;
+	}
+
+	slot.argb.clear();
 	OwnedSurface surface(screen.width, screen.height);
 	std::vector<int16_t> cache(1 << 15, -1);
 
@@ -256,7 +285,11 @@ bool AddUiBackground(std::vector<std::unique_ptr<UiItemBase>> *vecDialog, UiBack
 	// Anchored at the screen's own origin and not centred, unlike UiAddBackground: that one places a
 	// 640x480 plate inside the 640x480 UI rect, which sits inset in the screen. This sprite IS the
 	// screen, so both of those adjustments would move it off by the size of the inset.
-	auto item = std::make_unique<UiImageClx>((*slot.sprite)[0], MakeSdlRect(0, 0, 0, 0));
+	std::unique_ptr<UiItemBase> item;
+	if (!slot.argb.empty())
+		item = std::make_unique<UiImageRgb>(slot.argb.data(), slot.builtForScreen.width, slot.builtForScreen.height, MakeSdlRect(0, 0, 0, 0));
+	else
+		item = std::make_unique<UiImageClx>((*slot.sprite)[0], MakeSdlRect(0, 0, 0, 0));
 	if (atFront)
 		vecDialog->insert(vecDialog->begin(), std::move(item));
 	else

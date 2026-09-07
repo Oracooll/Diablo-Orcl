@@ -50,6 +50,8 @@ constexpr int ArtHeight = 256;
 struct AuraArt {
 	std::vector<uint8_t> index;
 	std::vector<uint8_t> alpha;
+	/** Renderer stage 2 (v1.11): the ring's own colours, XRGB, for the 32-bit screen; `alpha` is shared. */
+	std::vector<uint32_t> rgb;
 	bool loadAttempted = false;
 	bool usable = false;
 };
@@ -166,6 +168,7 @@ void LoadAura(int slot)
 
 	art.index.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
 	art.alpha.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
+	art.rgb.assign(static_cast<size_t>(ArtWidth) * ArtHeight, 0);
 	std::vector<uint8_t> cache(1 << 15, 0);
 	const auto *pixels = static_cast<const uint8_t *>(rgba->pixels);
 	for (int y = 0; y < ArtHeight; y++) {
@@ -177,6 +180,7 @@ void LoadAura(int slot)
 				continue;
 			art.index[at] = NearestSharedPaletteIndex(row[x * 4 + 0], row[x * 4 + 1], row[x * 4 + 2], cache);
 			art.alpha[at] = a;
+			art.rgb[at] = PackArgb(0, row[x * 4 + 0], row[x * 4 + 1], row[x * 4 + 2]);
 		}
 	}
 	SDL_FreeSurface(rgba);
@@ -190,6 +194,7 @@ void DropQuantisationIfPaletteMoved()
 	for (AuraArt &art : Art) {
 		art.index.clear();
 		art.alpha.clear();
+		art.rgb.clear();
 		art.loadAttempted = false;
 		art.usable = false;
 	}
@@ -288,6 +293,27 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 	const int dxTo = std::min(dstW, out.w() - left);
 	if (dyFrom >= dyTo || dxFrom >= dxTo)
 		return;
+
+	// Renderer stage 2 (v1.11): on the 32-bit screen the ring is composited with its real alpha in
+	// its own colours - no palette match, no dither. The 75% ceiling is the one the two-blend path
+	// below has always had, so the ring sits on the floor at the same weight it did.
+	if (!out.isIndexed() && !art.rgb.empty()) {
+		for (int dy = dyFrom; dy < dyTo; dy++) {
+			const int y = top + dy;
+			const int sy = dy * ArtHeight / dstH;
+			uint32_t *dstRow = out.at<uint32_t>(0, y);
+			for (int dx = dxFrom; dx < dxTo; dx++) {
+				const int x = left + dx;
+				const int sx = dx * ArtWidth / dstW;
+				const size_t at = static_cast<size_t>(sy) * ArtWidth + sx;
+				const int coverage = std::min(255, art.alpha[at] * pulsePercent / 100);
+				if (coverage == 0)
+					continue;
+				dstRow[x] = CompositeArgbOver(art.rgb[at] | (static_cast<uint32_t>(coverage) << 24), dstRow[x], 75);
+			}
+		}
+		return;
+	}
 
 	for (int dy = dyFrom; dy < dyTo; dy++) {
 		const int y = top + dy;
