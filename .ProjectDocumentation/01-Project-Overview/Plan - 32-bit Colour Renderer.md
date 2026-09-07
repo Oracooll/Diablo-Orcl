@@ -25,9 +25,9 @@ The fork's PNG art was never CLX: it was loaded at runtime as RGBA and quantised
 - Cost: a palette per asset in the MPQ (768 bytes each), the pack tool quantises, the sprite loader learns to attach a palette to a CLX, and the lighting kernels get an RGB path.
 - Gate: golden tests stay green for every asset that keeps the level palette; a new golden per converted asset.
 
-### Stage 3 - RGB text (after stage 2)
+### Stage 3 - text colours as values (LANDED, v1.11.009)
 
-A text colour becomes an RGB value instead of a .trn remap of the font sprite. The font glyphs are drawn through a colour, not a translation table. The .trn machinery stays for the original fonts and for anything that still wants a palette look.
+On the 32-bit screen a glyph is drawn through a 256-entry table of RGB values (`ClxDrawRgbMap`, `BlitWithRgbMap`), not through a .trn and the palette. For every colour with a file the table is baked from that file and the loaded palette, keyed on `PaletteRgbGeneration`, so the draw is pixel-identical to before. A new colour is one line in `RgbDefinedColors` in text_render.cpp: `{ ColorName, 0xRRGGBB }`, shaded across the glyph band the way the font's own gold ramp shades. No file, no palette entry, no MPQ repack. Indexed targets (offscreen surfaces, the golden tests) keep the .trn. The Font Colour Legend was rebuilt as a registry of the 23 colours in use (ID, hex, field index, callers) and the pool of ramps and passes was dropped from it.
 
 - What it buys: any colour for any text, no file per colour, no "borrowing", no ramp/pass arithmetic. The 12-bit colour field in UiFlags stays as the index into a colour table that now holds RGB values.
 - Consequence for the Font Colour Legend: it stops being a menu of what the palette allows (ramps and passes) and becomes a registry of the colours the game actually uses: ID, hex value, where it appears. Shades are then chosen by eye, not by palette pass. (User, 2026-09-07: "the legend now only needs to include colors we actually use.")

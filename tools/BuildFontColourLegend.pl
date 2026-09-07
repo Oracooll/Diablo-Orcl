@@ -1,4 +1,17 @@
 use strict; use warnings;
+# BuildFontColourLegend.pl - the Font Colour Legend as a REGISTRY of the colours in use.
+#
+# Rewritten for renderer stage 3 (v1.11.009, 2026-09-07). Until then the legend was a menu of what
+# the 256-entry palette allowed: ten ramps, their passes, a pool of 66 shades to pick from. With
+# text drawn through RGB tables on a 32-bit screen a colour is a value, so the pool is every colour
+# there is and listing it is pointless (user: "the legend now only needs to include colors we
+# actually use"). What remains worth keeping is the register: which colours the game draws, what
+# each is called in code, the hex it lands on, where it is used. The samples are still the game's
+# own Font 12 glyphs on the level palette, so a row shows exactly what play shows.
+#
+#   perl tools/BuildFontColourLegend.pl
+# writes .ProjectDocumentation/06-Reference/Font-Colour-Legend.html; tools/BuildWikiColoursPage.pl
+# folds it into the wiki.
 use Compress::Zlib;
 use MIME::Base64;
 my $repo = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Diablo Orcl';
@@ -8,7 +21,7 @@ my $ofonts = "$repo/Packaging/resources/oracool_assets/fonts";
 sub slurp { my $f = shift; open my $F, '<:raw', $f or die "$f: $!"; local $/; my $d = <$F>; close $F; return $d; }
 my $pal = slurp($palf);
 my @pal = map { [unpack('C3', substr($pal, $_ * 3, 3))] } 0 .. 255;
-sub hex6 { sprintf('#%02x%02x%02x', @{ $pal[$_[0]] }) }
+sub hex6 { sprintf('#%02x%02x%02x', @{ $_[0] }) }
 
 my $sheet = slurp("$fonts/12-00.clx");
 my $nframes = unpack('V', $sheet);
@@ -33,8 +46,25 @@ sub glyph {
 }
 sub crc { pack('N', crc32($_[0])) }
 sub chunk { my ($t, $s) = @_; pack('N', length $s) . $t . $s . crc($t . $s) }
+
+# A colour is a TABLE: index -> [r,g,b], exactly what the engine's TextColorRgbTable holds.
+# From a file: the palette through the .trn. From a value: the band shaded like the gold ramp
+# (text_render.cpp, BakeRgbTable), everything else its own palette colour.
+sub lum { my $c = shift; int((299 * $c->[0] + 587 * $c->[1] + 114 * $c->[2]) / 1000) }
+sub table_from_trn { my $trn = shift; return [map { $pal[$trn->[$_]] } 0 .. 255]; }
+sub table_from_value {
+	my $rgb = shift;
+	my @t = map { $pal[$_] } 0 .. 255;
+	my ($r, $g, $b) = (($rgb >> 16) & 255, ($rgb >> 8) & 255, $rgb & 255);
+	my $top = lum($pal[192]) || 1;
+	for my $j (0 .. 15) {
+		my $l = lum($pal[192 + $j]); $l = $top if $l > $top;
+		$t[192 + $j] = [int($r * $l / $top), int($g * $l / $top), int($b * $l / $top)];
+	}
+	return \@t;
+}
 sub render {
-	my ($text, $trn) = @_;
+	my ($text, $table) = @_;
 	my @gl = map { glyph(ord $_) } split //, $text;
 	my $w = 0; $w += $_->{w} + 1 for @gl; $w -= 1;
 	my $h = 20;
@@ -45,178 +75,79 @@ sub render {
 		$x += $g->{w} + 1;
 	}
 	my $raw = '';
-	for my $row (@canvas) { $raw .= "\0"; for my $ix (@$row) { if (!$ix) { $raw .= "\0\0\0\0"; next; } $raw .= pack('C4', @{ $pal[$trn->[$ix]] }, 255); } }
+	for my $row (@canvas) { $raw .= "\0"; for my $ix (@$row) { if (!$ix) { $raw .= "\0\0\0\0"; next; } $raw .= pack('C4', @{ $table->[$ix] }, 255); } }
 	my $png = "\x89PNG\r\n\x1a\n" . chunk('IHDR', pack('NNCCCCC', $w, $h, 8, 6, 0, 0, 0)) . chunk('IDAT', compress($raw)) . chunk('IEND', '');
 	return "data:image/png;base64," . encode_base64($png, '');
 }
 sub trnfile { my $d = slurp($_[0] =~ /^oracool_/ ? "$ofonts/$_[0]" : "$fonts/$_[0]"); return [map { ord substr($d, $_, 1) } 0 .. 255]; }
 
-# ---- the pass -> band map, shared with the earlier survey
-sub passmap {
-	my ($base, $len, $k) = @_;
-	my $trn = [0 .. 255];
-	for my $j (0 .. 15) {
-		my $v = $len >= 15 ? $j - 3 + $k : int($j / 2) - 1 + $k;
-		$v = 0 if $v < 0; $v = $len - 1 if $v > $len - 1;
-		$trn->[192 + $j] = $base + $v;
-	}
-	return $trn;
-}
-
-# ---- the ramps and their usable passes
-my @ramps = (
-	['Gold', 192, 16, 8, 'gold ramp', 'GD'], ['Gray', 240, 15, 8, 'gray ramp (240-254; 255 is pure white and stays out)', 'GR'], ['Red', 224, 16, 8, 'red ramp', 'RD'], ['Orange', 208, 16, 8, 'orange ramp', 'OR'],
-	['Blue', 176, 16, 8, 'steel-blue ramp', 'BL'], ['Beige', 160, 16, 8, 'beige ramp; rose in most level palettes', 'BE'],
-	['Yellow', 144, 8, 4, 'bright yellow minis', 'YL'], ['Green', 152, 8, 4, 'green minis, injected by the fork over the orange minis', 'GN'],
-	['BrightRed', 136, 8, 4, 'bright red minis', 'BR'], ['BrightBlue', 128, 8, 4, 'bright blue minis', 'BB'],
-);
-# where the named colours in use today sit (nearest pass, by the band's third entry)
-my %today = (
-	'Gold:3' => 'ColorGold (and the six dialog names)', 'Gold:2' => 'ColorWhitegold - unique items, the default',
-	'Gray:2' => 'ColorWhite - plain item text', 'Red:3' => 'ColorRed - unmet requirements, fire',
-	'Blue:0' => 'ColorBlue - magic items', 'Orange:1' => 'ColorOrange - Primal items',
-	'Yellow:1' => 'ColorYellow - lightning on the sheet (rare items until 2026-09-07)', 'Yellow:3' => 'ColorYellow3 - rare items, rejuvenation potions', 'Beige:2' => 'ColorBeige2 - Primal items', 'Gray:5' => 'ColorGray5 - socketed drops and the Sockets row', 'Gray:7' => 'ColorGray7 - ethereal items and the Ethereal row', 'BrightRed:3' => 'ColorBrightRed3 - health potions', 'BrightBlue:3' => 'ColorBrightBlue3 - mana potions', 'Gold:6' => 'ColorGold6 - books', 'Orange:7' => 'ColorOrange7 - runes', 'Green:1' => 'ColorOracoolGreen - set items',
-	'Blue:0 ' => '', 'Red:2' => 'ColorUiSilver (front-end name; red in play)', 'Blue:0  ' => '',
-	'Gray:0' => '(pure white 255 is one step lighter than this ramp)',
-);
-
-# The file a pool ID already has - a vanilla file where one lands exactly on the pass, an Orcl file
-# where one was made - or the name it would get (user, 2026-09-07: "put a file column in The Pool").
-my %fileFor = (
-	'BL-0' => 'fonts\blue.trn', 'YL-1' => 'fonts\yellow.trn', 'OR-1' => 'fonts\oracool_orange1.trn',
-	'GD-3' => 'none - the raw glyph (ColorGold)', 'GN-1' => 'fonts\oracool_green1.trn',
-	'GR-2' => '≈ fonts\white.trn (hand-tuned, not a clean pass)', 'GD-2' => '≈ fonts\whitegold.trn (hand-tuned)', 'RD-3' => '≈ fonts\red.trn (hand-tuned)',
-	'GR-5' => 'fonts\oracool_gray5.trn', 'BE-2' => 'fonts\oracool_beige2.trn', 'YL-3' => 'fonts\oracool_yellow3.trn',
-	'BR-3' => 'fonts\oracool_brightred3.trn', 'BB-3' => 'fonts\oracool_brightblue3.trn', 'GD-6' => 'fonts\oracool_gold6.trn',
-	'OR-7' => 'fonts\oracool_orange7.trn', 'GR-7' => 'fonts\oracool_gray7.trn',
-);
-my $blocks = '';
-for my $r (@ramps) {
-	my ($name, $base, $len, $usable, $note, $code) = @$r;
-	my $rows = '';
-	for my $k (0 .. $usable - 1) {
-		my $trn = passmap($base, $len, $k);
-		my $uri = render("This is Color$name$k", $trn);
-		my @win = map { $trn->[192 + $_] } 0 .. 15;
-		my ($lo, $hi) = ($trn->[195], $trn->[207]);
-		my $sw = join '', map { qq{<i style="background:@{[hex6($_)]}"></i>} } $lo .. $hi;
-		my $recipe = join ' ', @win;
-		my $used = $today{"$name:$k"} // '';
-		my $usedHtml = $used ? qq{<span class="today">$used</span>} : '';
-		my $fileHtml = exists $fileFor{"$code-$k"}
-		    ? $fileFor{"$code-$k"}
-		    : qq{<i>oracool_@{[lc $name]}$k.trn</i> <span class="notyet">not made yet</span>};
-		$rows .= qq{<tr><td class="id">$code-$k</td><td class="sample"><img src="$uri" alt="Color$name$k"></td><td class="name">Color$name$k$usedHtml</td><td class="file">$fileHtml</td><td class="idx">$lo-$hi <span class="sw">$sw</span></td><td class="recipe">$recipe</td></tr>\n};
-	}
-	my $full = join '', map { qq{<i style="background:@{[hex6($base + $_)]}"></i>} } 0 .. $len - 1;
-	$blocks .= <<"X";
-<section class="ramp">
-<header><h2>$name</h2><span class="meta">palette $base-@{[$base+$len-1]} · $note · $usable usable of @{[$len>=15?$len-3:8]}</span><span class="sw full">$full</span></header>
-<div class="scroll"><table>
-<thead><tr><th>ID</th><th>Sample (Font 12, 2x)</th><th>Name in code</th><th>File</th><th>Glyph lands on</th><th>.trn band 192-207 →</th></tr></thead>
-<tbody>$rows</tbody></table></div>
-</section>
-X
-}
-
-# ---- FUNDAMENTAL colours (user, 2026-09-07): pass 0 of every ramp - the lightest, fullest shade
-# each ramp can give, the one every other pass on the ramp is a darkening of - and black.
-my $fundamentals = '';
-for my $r (@ramps) {
-	my ($name, $base, $len, $usable, $note, $code) = @$r;
-	my $trn = passmap($base, $len, 0);
-	my $uri = render("This is Color${name}0", $trn);
-	my ($lo, $hi) = ($trn->[195], $trn->[207]);
-	my $sw = join '', map { qq{<i style="background:@{[hex6($_)]}"></i>} } $lo .. $hi;
-	my $recipe = join ' ', map { $trn->[192 + $_] } 0 .. 15;
-	my $file = exists $fileFor{"$code-0"} ? $fileFor{"$code-0"} : qq{<i>oracool_@{[lc $name]}0.trn</i> <span class="notyet">not made yet</span>};
-	$fundamentals .= qq{<tr><td class="id">$code-0</td><td class="sample"><img src="$uri" alt="Color${name}0"></td><td class="name">Color${name}0</td><td class="file">$file</td><td class="idx">$lo-$hi <span class="sw">$sw</span></td><td class="recipe">$recipe</td></tr>\n};
-}
+# ---- how often live code asks for each colour flag (everything but the two files that define them)
+my %uses;
 {
-	my $trn = trnfile('black.trn');
-	my $uri = render("This is ColorBlack", $trn);
-	$fundamentals .= qq{<tr><td class="id">BK</td><td class="sample"><img src="$uri" alt="ColorBlack"></td><td class="name">ColorBlack</td><td class="file">fonts\black.trn</td><td class="idx">0 <span class="sw"><i style="background:#000"></i></span></td><td class="recipe">every entry 0</td></tr>\n};
+	my @files;
+	my $walk; $walk = sub { my $d = shift; opendir my $D, $d or return; for my $e (readdir $D) { next if $e =~ /^\./; my $p = "$d/$e"; if (-d $p) { $walk->($p) } elsif ($p =~ /\.(cpp|h|hpp)$/ && $p !~ /ui_flags\.hpp$|text_render\.cpp$/) { push @files, $p } } closedir $D; };
+	$walk->("$repo/Source");
+	for my $f (@files) { my $s = slurp($f); $uses{$1}++ while $s =~ /UiFlags::(Color\w+)/g; }
 }
 
-# ---- every .trn the game ships, in two inventories: the 16 vanilla files and the 10 Orcl ones
-# (user, 2026-09-07: "put all of them in the artifact/wiki. make a column to state used/not-used.
-# put them in two separate categories - Vanilla Colours, Orcl Colors"). "Used" is whether any live
-# code asks for the colour; the counts were taken from a grep of UiFlags::Color* on 2026-09-07.
-# A file with no enum reader is still loaded into the translation table and costs nothing else.
-my %fieldIndex = (
-	ColorUiGold => 1, ColorUiSilver => 2, ColorUiGoldDark => 3, ColorUiSilverDark => 4, ColorDialogWhite => 5,
-	ColorDialogYellow => 6, ColorDialogRed => 7, ColorYellow => 8, ColorGold => 9, ColorBlack => 10, ColorWhite => 11,
-	ColorWhitegold => 12, ColorRed => 13, ColorBlue => 14, ColorOrange => 15, ColorButtonface => 16, ColorButtonpushed => 17,
-	ColorUiYellow => 18, ColorUiYellowDark => 19, ColorOracoolGreen => 20, ColorGray5 => 21, ColorBeige2 => 22,
-	ColorYellow3 => 23, ColorBrightRed3 => 24, ColorBrightBlue3 => 25, ColorGold6 => 26, ColorOrange7 => 27, ColorGray7 => 28,
+# ---- the register. One row per name in code that live code draws with, in field-index order.
+# [flag name, legend ID, field index, file drawn in play, file drawn in menus (if different), used for]
+my @rows = (
+	['ColorWhitegold', 'GD-2', 0, 'whitegold.trn', undef, 'unique items; the fallback for an unrecognised flag'],
+	['ColorUiGold', 'GD-3', 1, 'oracool_uigold.trn', 'goldui.trn', 'front-end text; in play the panel labels'],
+	['ColorUiSilver', 'GR-3', 2, 'oracool_uisilver.trn', 'grayui.trn', 'front-end text; in play floating fire damage'],
+	['ColorUiGoldDark', 'GD-5', 3, 'oracool_uigolddark.trn', 'golduis.trn', 'front-end text, dark'],
+	['ColorUiSilverDark', 'GR-5', 4, 'oracool_uisilverdark.trn', 'grayuis.trn', 'front-end text, dark; the mlvl line under a monster bar'],
+	['ColorDialogWhite', '≈ GR-2', 5, 'oracool_dialogwhite.trn', 'white.trn', 'dialog text'],
+	['ColorYellow', 'YL-1', 8, 'yellow.trn', undef, 'lightning damage on the sheet and the floating numbers'],
+	['ColorGold', 'GD-3', 9, '', undef, 'the raw glyph, no file: labels, the readied-slot rows, gold text everywhere'],
+	['ColorBlack', 'BK', 10, 'black.trn', undef, 'the shadow under HUD text'],
+	['ColorWhite', '≈ GR-2', 11, 'white.trn', undef, 'plain items, most panel and HUD text'],
+	['ColorRed', '≈ RD-3', 13, 'red.trn', undef, 'unmet requirements, fire damage, a slow on the sheet'],
+	['ColorBlue', 'BL-0', 14, 'blue.trn', undef, 'magic items, magic damage, a bonus on the sheet'],
+	['ColorOrange', 'OR-1', 15, 'oracool_orange1.trn', undef, 'the runeword book\'s rune lines, floating magic damage'],
+	['ColorUiYellow', 'YL-1', 18, 'oracool_uiyellow.trn', 'oracool_menuyellow.trn', 'the front-end focus glow'],
+	['ColorOracoolGreen', 'GN-1', 20, 'oracool_green1.trn', undef, 'set items, healing'],
+	['ColorGray5', 'GR-5', 21, 'oracool_gray5.trn', undef, 'socketed plain drops on the floor, the socket count on any drop, the Sockets row'],
+	['ColorBeige2', 'BE-2', 22, 'oracool_beige2.trn', undef, 'Primal items, name and slot backing'],
+	['ColorYellow3', 'YL-3', 23, 'oracool_yellow3.trn', undef, 'rare items, rejuvenation potions'],
+	['ColorBrightRed3', 'BR-3', 24, 'oracool_brightred3.trn', undef, 'health potions'],
+	['ColorBrightBlue3', 'BB-3', 25, 'oracool_brightblue3.trn', undef, 'mana potions'],
+	['ColorGold6', 'GD-6', 26, 'oracool_gold6.trn', undef, 'books'],
+	['ColorOrange7', 'OR-7', 27, 'oracool_orange7.trn', undef, 'runes'],
+	['ColorGray7', 'GR-7', 28, 'oracool_gray7.trn', undef, 'ethereal plain items and the Ethereal row; beats the socketed gray'],
 );
-my @vanilla = (
-	['white.trn', 'ColorWhite', '≈ GR-2', 1, 'plain items, most panel and HUD text'],
-	['whitegold.trn', 'ColorWhitegold', '≈ GD-2', 1, 'unique items; the fallback for an unrecognised flag'],
-	['yellow.trn', 'ColorYellow', 'YL-1', 1, 'lightning damage on the sheet and the floating numbers (rare items until 2026-09-07)'],
-	['red.trn', 'ColorRed', '≈ RD-3', 1, 'unmet requirements, fire damage, a slow on the sheet'],
-	['blue.trn', 'ColorBlue', 'BL-0', 1, 'magic items, magic damage, a bonus on the sheet'],
-	['orange.trn', 'ColorOrange (vanilla source)', 'OR-1', 0, 'vanilla orange; the minis it points at were taken by the green ramp, so in play ColorOrange draws oracool_orange1.trn, its twin, which is how it is drawn here'],
-	['black.trn', 'ColorBlack', 'BK', 1, 'the shadow under HUD text'],
-	['goldui.trn', 'ColorUiGold', 'GD-3 (menus)', 1, 'front-end text on the menu palette; in play the name draws oracool_uigold.trn (Part 2)'],
-	['golduis.trn', 'ColorUiGoldDark', 'GD-5 (menus)', 1, 'front-end text, dark; in play oracool_uigolddark.trn'],
-	['grayui.trn', 'ColorUiSilver', 'GR-3 (menus)', 1, 'front-end text on the menu palette; in play oracool_uisilver.trn'],
-	['grayuis.trn', 'ColorUiSilverDark', 'GR-5 (menus)', 1, 'front-end text, dark; in play oracool_uisilverdark.trn'],
-	['gamedialogwhite.trn', '(none)', 'GD-3', 0, 'vanilla; identity on the glyph band, so it drew the raw gold. The in-game dialog white is oracool_dialogwhite.trn'],
-	['gamedialogyellow.trn', '(none)', 'GD-3', 0, 'vanilla; identity too. The in-game dialog yellow is oracool_dialogyellow.trn'],
-	['gamedialogred.trn', '(none)', 'GD-3', 0, 'vanilla; identity too. The in-game dialog red is oracool_dialogred.trn'],
-	['buttonface.trn', 'ColorButtonface', 'gray/gold mix', 0, 'vanilla menu buttons; no caller'],
-	['buttonpushed.trn', 'ColorButtonpushed', 'gray/gold mix', 0, 'vanilla menu buttons, pressed; no caller'],
-	['', 'ColorGold', 'GD-3', 1, 'NO FILE, by rule the only one: an empty table slot draws the raw gold glyph. Labels, the readied-slot rows, the gold text everywhere'],
-);
-my @orcl = (
-	['oracool_menuyellow.trn', 'ColorUiYellow', 'YL-1 (menus)', 1, 'the front-end focus glow, on the menu palette (was oracool_yellow.trn until 2026-09-07); in play the name draws oracool_uiyellow.trn'],
-	['oracool_menuyellowdark.trn', 'ColorUiYellowDark', 'YL-2 (menus)', 0, 'the glow\'s dark twin, on the menu palette; no caller'],
-	['oracool_uiyellow.trn', 'ColorUiYellow (in play)', 'YL-1', 1, 'what ColorUiYellow draws in a level: the menu file shifted up 16 onto the bright yellow minis'],
-	['oracool_uiyellowdark.trn', 'ColorUiYellowDark (in play)', 'YL-2', 0, 'what ColorUiYellowDark draws in a level; no caller'],
-	['oracool_green1.trn', 'ColorOracoolGreen', 'GN-1', 1, 'set items, healing (was yellow.trn shifted in memory until 2026-09-07)'],
-	['oracool_orange1.trn', 'ColorOrange', 'OR-1', 1, 'the runeword book\'s rune lines, floating magic damage (was vanilla orange.trn re-pointed in memory)'],
-	['oracool_gray5.trn', 'ColorGray5', 'GR-5', 1, 'socketed plain drops on the floor, the socket count on any drop, the Sockets row'],
-	['oracool_beige2.trn', 'ColorBeige2', 'BE-2', 1, 'Primal items, name and slot backing'],
-	['oracool_yellow3.trn', 'ColorYellow3', 'YL-3', 1, 'rare items, rejuvenation potions'],
-	['oracool_brightred3.trn', 'ColorBrightRed3', 'BR-3', 1, 'health potions'],
-	['oracool_brightblue3.trn', 'ColorBrightBlue3', 'BB-3', 1, 'mana potions'],
-	['oracool_gold6.trn', 'ColorGold6', 'GD-6', 1, 'books'],
-	['oracool_orange7.trn', 'ColorOrange7', 'OR-7', 1, 'runes'],
-	['oracool_gray7.trn', 'ColorGray7', 'GR-7', 1, 'ethereal plain items and the Ethereal row; beats the socketed gray'],
-	['oracool_uigold.trn', 'ColorUiGold (in play)', 'GD-3', 1, 'what ColorUiGold draws in a level: goldui.trn shifted up the 16 the level palette sits above the menu one'],
-	['oracool_uigolddark.trn', 'ColorUiGoldDark (in play)', 'GD-5', 1, 'what ColorUiGoldDark draws in a level'],
-	['oracool_uisilver.trn', 'ColorUiSilver (in play)', 'GR-3', 1, 'what ColorUiSilver draws in a level; floating fire damage'],
-	['oracool_uisilverdark.trn', 'ColorUiSilverDark (in play)', 'GR-5', 1, 'what ColorUiSilverDark draws in a level; the mlvl line under a monster bar, silver at last'],
-	['oracool_dialogwhite.trn', 'ColorDialogWhite (in play)', '≈ GR-2', 1, 'in-game dialog text, white as its name says (white.trn\'s band)'],
-	['oracool_dialogyellow.trn', 'ColorDialogYellow (in play)', 'YL-1', 0, 'in-game dialog yellow; no caller yet'],
-	['oracool_dialogred.trn', 'ColorDialogRed (in play)', '≈ RD-3', 0, 'in-game dialog red; no caller yet'],
-);
-sub inventory {
-	my @rows;
-	for my $t (@_) {
-		my ($file, $name, $id, $used, $use) = @$t;
-		my $trn;
-		if ($file eq '') {
-			$trn = [0 .. 255];
-		} else {
-			my %menuTwin = ('goldui.trn' => 'oracool_uigold.trn', 'golduis.trn' => 'oracool_uigolddark.trn', 'grayui.trn' => 'oracool_uisilver.trn', 'grayuis.trn' => 'oracool_uisilverdark.trn', 'orange.trn' => 'oracool_orange1.trn', 'oracool_menuyellow.trn' => 'oracool_uiyellow.trn', 'oracool_menuyellowdark.trn' => 'oracool_uiyellowdark.trn');
-			# a menu file is drawn as it looks in a menu: through its level-palette twin, which is the same
-			# hue on this page's palette (the menu palette sits 16 below the level one)
-			$trn = trnfile($menuTwin{$file} // $file);
-		}
-		my $uri = render("This is $name", $trn);
-		my $fileHtml = $file eq '' ? '<i>none</i>' : "fonts\\$file";
-		my $usedHtml = $used ? '<span class="used">used</span>' : '<span class="unused">not used</span>';
-		my $fi = $fieldIndex{$name} // '-';
-		push @rows, qq{<tr><td class="id">$id</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="idx">$fi</td><td class="file">$fileHtml</td><td class="used">$usedHtml</td><td>$use</td></tr>\n};
-	}
-	return join '', @rows;
+# Colours defined by VALUE (text_render.cpp, RgbDefinedColors): flag name -> 0xRRGGBB. None yet.
+my %valueOf = ();
+
+my $body = '';
+my $inUse = 0;
+for my $r (@rows) {
+	my ($name, $id, $field, $file, $menuFile, $use) = @$r;
+	my $count = $uses{$name} // 0;
+	next if $count == 0 && $name ne 'ColorGold';
+	$inUse++;
+	my $table = exists $valueOf{$name} ? table_from_value($valueOf{$name}) : $file eq '' ? table_from_trn([0 .. 255]) : table_from_trn(trnfile($file));
+	my $uri = render("This is $name", $table);
+	# the value: what the glyph's brightest level lands on, and the shades its bevel walks through
+	my $top = hex6($table->[192]);
+	my %seen; my @shades = grep { !$seen{$_}++ } map { hex6($table->[$_]) } 195 .. 207;
+	my $sw = join '', map { qq{<i style="background:$_" title="$_"></i>} } @shades;
+	my $src = exists $valueOf{$name} ? sprintf('value 0x%06X', $valueOf{$name}) : $file eq '' ? '<i>none, the raw glyph</i>' : "fonts\\$file";
+	$src .= qq{<br><span class="menu">menus: fonts\\$menuFile</span>} if $menuFile;
+	$body .= qq{<tr><td class="id">$id</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="idx">$field</td><td class="hex">$top <span class="sw">$sw</span></td><td class="file">$src</td><td class="idx">$count</td><td>$use</td></tr>\n};
 }
-my $vanillaRows = inventory(@vanilla);
-my $orclRows = inventory(@orcl);
-my $vanillaUsed = scalar(grep { $_->[3] } @vanilla);
-my $orclUsed = scalar(grep { $_->[3] } @orcl);
+
+# ---- shipped and not drawn: the files with no caller, so nobody wonders where they went
+my @parked = (
+	['ColorDialogYellow', 'oracool_dialogyellow.trn', 'in-game dialog yellow; no caller yet'],
+	['ColorDialogRed', 'oracool_dialogred.trn', 'in-game dialog red; no caller yet'],
+	['ColorUiYellowDark', 'oracool_uiyellowdark.trn (oracool_menuyellowdark.trn in menus)', 'the focus glow\'s dark twin; no caller'],
+	['ColorButtonface', 'buttonface.trn', 'vanilla menu buttons; no caller'],
+	['ColorButtonpushed', 'buttonpushed.trn', 'vanilla menu buttons, pressed; no caller'],
+	['(none)', 'orange.trn, gamedialogwhite.trn, gamedialogyellow.trn, gamedialogred.trn', 'vanilla files the fork no longer reads (each has an Orcl file of its own)'],
+);
+my $parkedRows = join '', map { qq{<tr><td class="name">$_->[0]</td><td class="file">$_->[1]</td><td>$_->[2]</td></tr>\n} } @parked;
 
 my $page = <<"X";
 <title>Orcl Font Colour Legend</title>
@@ -241,15 +172,10 @@ td.sample img{image-rendering:pixelated;height:40px;display:block}
 td.id{font-family:"JetBrains Mono",Consolas,monospace;font-size:14px;color:var(--gold);font-weight:600;width:56px}
 td.name{font-family:"JetBrains Mono",Consolas,monospace;font-size:13px;color:var(--ink)}
 td.file{font-family:"JetBrains Mono",Consolas,monospace;font-size:12px;color:var(--muted)}
+td.file .menu{color:#6f6558}
 td.idx{font-family:"JetBrains Mono",Consolas,monospace;font-size:12px}
-td.recipe{font-family:"JetBrains Mono",Consolas,monospace;font-size:11px;color:var(--muted)}
-.today{display:block;font-family:"Source Sans 3",sans-serif;font-size:12px;color:var(--hot)}
-td.used{white-space:nowrap}
-span.used{color:#8fbf6a;font-weight:600}
-span.unused{color:#b06a4a;font-weight:600}
-span.notyet{font-family:"Source Sans 3",sans-serif;font-size:11px;color:var(--muted);margin-left:6px}
+td.hex{font-family:"JetBrains Mono",Consolas,monospace;font-size:12px;color:var(--ink)}
 .sw i{display:inline-block;width:10px;height:14px;vertical-align:middle;border-right:1px solid #000}
-.sw.full i{width:12px}
 .steps{max-width:70ch}
 .steps ol{padding-left:22px;margin:6px 0}
 .steps li{margin:4px 0}
@@ -257,34 +183,26 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 .warn{border-left:3px solid var(--hot);padding:6px 12px;color:var(--ink);max-width:70ch;margin:10px 0 0}
 </style>
 <h1>Orcl Font Colour Legend</h1>
-<p class="lede">Every colour a string can be drawn in during play, rendered with the game's own Font 12 glyphs on the runtime palette. In the engine a colour is a 12-bit field index in the draw flags (v1.10.014), shown beside each name below. <b>The rule (2026-09-07):</b> every colour has its own .trn file, named for its legend ID; nothing is borrowed or edited after loading; only the raw gold, ColorGold, has no file. <b>Part 0</b> is the fundamentals, the lightest pass of every ramp and black. <b>Parts 1 and 2</b> are every colour file the game ships, vanilla and Orcl, with whether live code still asks for it. <b>Part 3</b> is the full pool: ten palette ramps, keeping only the passes where the glyph still has its bevel. Every shade has an <b>ID</b>: two letters for the ramp, a number for the pass, GD-3 or YL-1. Refer to a colour by its ID; a name in Part 2 is only a proposal for what it would be called in code once added, and the .trn recipe beside it is the whole file. BK is black, the one colour with no ramp.</p>
+<p class="lede">The colours the game draws text in, one row each, rendered with the game's own Font 12 glyphs. <b>Since renderer stage 3 (v1.11.009)</b> a text colour is a value: on the 32-bit screen a glyph is drawn through a table of RGB values, not through a .trn and the 256-entry palette. The files still exist and still define the colours in use, baked exactly, so nothing in play moved; but a new colour needs no file and no palette entry, and the old pool of ramps and passes is gone from this page because every colour is now possible. Refer to a colour by its <b>ID</b> (the ramp-and-pass name it kept) or by its <b>hex</b>. The <b>field index</b> is its number in the 12-bit colour field of the draw flags.</p>
 
-<section class="panel"><header><h2>0 · Fundamental Colours</h2><span class="meta">pass 0 of each of the ten ramps, and black: the eleven colours every other shade is a darkening of</span></header>
-<div class="scroll"><table><thead><tr><th>ID</th><th>Sample (Font 12, 2x)</th><th>Name in code</th><th>File</th><th>Glyph lands on</th><th>.trn band 192-207 →</th></tr></thead><tbody>$fundamentals</tbody></table></div>
+<section class="panel"><header><h2>Colours in use</h2><span class="meta">$inUse names live code draws with · samples on the level palette · the hex is where the glyph's brightest level lands, the swatches are the shades its bevel walks through · "callers" counts UiFlags::Color… in Source</span></header>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Sample (Font 12, 2x)</th><th>Name in code</th><th>Field</th><th>Hex</th><th>Defined by</th><th>Callers</th><th>Used for</th></tr></thead><tbody>$body</tbody></table></div>
 </section>
 
-<section class="panel"><header><h2>1 · Vanilla Colours</h2><span class="meta">the 16 .trn files DevilutionX ships, plus ColorGold which has none · @{[$vanillaUsed - 1]} of 16 files used · samples drawn on the level palette, which is where every name below now says what it means</span></header>
-<div class="scroll"><table><thead><tr><th>ID</th><th>Sample (as drawn in play)</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$vanillaRows</tbody></table></div>
+<section class="panel"><header><h2>Shipped, not drawn</h2><span class="meta">names and files with no caller; loaded, cost nothing, kept for the day something asks</span></header>
+<div class="scroll"><table><thead><tr><th>Name in code</th><th>File</th><th>Note</th></tr></thead><tbody>$parkedRows</tbody></table></div>
 </section>
 
-<section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 21 .trn files this fork added · @{[$orclUsed]} of 21 used</span></header>
-<div class="scroll"><table><thead><tr><th>ID</th><th>Sample</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$orclRows</tbody></table></div>
-</section>
-
-<section class="panel"><header><h2>3 · The pool</h2><span class="meta">66 usable shades; a swatch shows the entries the glyph's 13 levels land on, the band column is the .trn's entries 192-207</span></header>
-$blocks
-</section>
-
-<section class="panel steps"><header><h2>Adding a colour</h2></header>
+<section class="panel steps"><header><h2>Adding a colour</h2><span class="meta">no .trn since stage 3</span></header>
 <ol>
-<li>Write the 256-byte .trn: identity everywhere except entries 192-207, which take the band column above. <code>tools/MakeYellowFontTrn.ps1</code> is the pattern. Put it in <code>Packaging/resources/oracool_assets/fonts</code>.</li>
-<li>Add the name to <code>text_color</code> in <code>engine/render/text_render.hpp</code> (append; the enum indexes <code>ColorTranslations</code> positionally) and the file to <code>ColorTranslations</code> in <code>text_render.cpp</code>, growing both array sizes.</li>
-<li>Add a <code>UiFlags::Color…</code> name in <code>DiabloUI/ui_flags.hpp</code> with the next free <b>field index</b> (<code>29ULL &lt;&lt; UiFlagsColorShift</code> and so on; the field is 12 bits, 4096 values, since v1.10.014) and a <code>case</code> for it in <code>GetColorFromFlags</code>. Nothing else: the outline pass clears the whole field, so there is no mask to extend.</li>
-<li>Repack: <code>tools\\build_oracool_mpq.cmd</code>. A normal build does not rebuild the MPQ.</li>
+<li>Append the name to <code>text_color</code> in <code>engine/render/text_render.hpp</code> and a <code>nullptr</code> to <code>ColorTranslations</code> in <code>text_render.cpp</code> (the enum indexes it positionally; grow both array sizes).</li>
+<li>Add <code>{ ColorName, 0xRRGGBB }</code> to <code>RgbDefinedColors</code> in <code>text_render.cpp</code>. That is the colour. Its bevel shades follow the font's own ramp automatically.</li>
+<li>Add a <code>UiFlags::Color…</code> name in <code>DiabloUI/ui_flags.hpp</code> with the next free field index and a <code>case</code> for it in <code>GetColorFromFlags</code>.</li>
+<li>Add the row here (<code>tools/BuildFontColourLegend.pl</code>, <code>\@rows</code> and <code>%valueOf</code>) and rebuild the legend and the wiki. No MPQ repack: there is no file.</li>
 </ol>
-<p class="warn">Front-end screens run on a different palette. Entries 128-135 are blue in play and yellow in the menus; 176-191 are steel blue in play and gold in the menus; 224-239 are red in play and gray in the menus. A colour picked here is for in-game text. Check it on a menu separately before reusing the name there.</p>
+<p class="warn">Offscreen 8-bit surfaces and the golden tests still draw through the .trn, so a colour defined only by value has no look there; that is by design, nothing in play draws to one.</p>
 </section>
 X
 my $out = "$repo/.ProjectDocumentation/06-Reference/Font-Colour-Legend.html";
 open my $O, '>', $out or die; print $O $page; close $O;
-print "ok ", length($page), "\n";
+print "ok ", length($page), " bytes, $inUse colours in use\n";

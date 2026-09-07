@@ -169,6 +169,20 @@ std::array<RgbBake, ColorTranslations.size()> ColorRgbBakes;
 /** 0 = the colour is its file; else bit 31 set and the value in the low 24 bits. */
 std::array<uint32_t, ColorTranslations.size()> ColorRgbValues {};
 
+/**
+ * The colours defined by VALUE. A new text colour is one line here and no file: {name, 0xRRGGBB}.
+ * Applied before the first table is asked for; DefineTextColorRgb at runtime overrides.
+ */
+struct RgbDefinedColor {
+	text_color color;
+	uint32_t rgb;
+};
+constexpr RgbDefinedColor RgbDefinedColors[] = {
+	// none yet - every colour in use today is its .trn, baked exactly. The next one starts here.
+	{ ColorGray7, 0 }, // placeholder so the array is not empty; 0 means "leave it to its file"
+};
+bool RgbDefaultsApplied = false;
+
 uint32_t PackRgb(const SDL_Color &c)
 {
 	return (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
@@ -223,6 +237,13 @@ const uint32_t *TextColorRgbTable(text_color color)
 {
 	if (color >= ColorRgbValues.size())
 		return nullptr;
+	if (!RgbDefaultsApplied) {
+		RgbDefaultsApplied = true;
+		for (const RgbDefinedColor &d : RgbDefinedColors) {
+			if (d.rgb != 0)
+				DefineTextColorRgb(d.color, d.rgb);
+		}
+	}
 	if (ColorRgbValues[color] == 0 && !ColorTranslationsData[color])
 		return nullptr;
 	RgbBake &bake = ColorRgbBakes[color];
