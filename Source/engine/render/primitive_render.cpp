@@ -309,4 +309,64 @@ void UnsafeDrawBorder2px(const Surface &out, Rectangle rect, uint8_t color)
 	UnsafeDrawHorizontalLine(out, { p.x, p.y + height - 1 }, width, color);
 }
 
+bool BlitArgb(const Surface &out, const uint32_t *pixels, int srcPitch, SDL_Rect srcRect, Point position, int alphaPercent)
+{
+	if (out.isIndexed())
+		return false;
+	// Clip the source rectangle to the destination.
+	int sx = srcRect.x, sy = srcRect.y, w = srcRect.w, h = srcRect.h;
+	int dx = position.x, dy = position.y;
+	if (dx < 0) {
+		sx -= dx;
+		w += dx;
+		dx = 0;
+	}
+	if (dy < 0) {
+		sy -= dy;
+		h += dy;
+		dy = 0;
+	}
+	w = std::min(w, out.w() - dx);
+	h = std::min(h, out.h() - dy);
+	if (w <= 0 || h <= 0)
+		return true;
+	for (int y = 0; y < h; y++) {
+		const uint32_t *src = pixels + static_cast<ptrdiff_t>(sy + y) * srcPitch + sx;
+		uint32_t *dst = out.at<uint32_t>(dx, dy + y);
+		for (int x = 0; x < w; x++) {
+			const uint32_t s = src[x];
+			if ((s >> 24) == 0)
+				continue;
+			dst[x] = CompositeArgbOver(s, dst[x], alphaPercent);
+		}
+	}
+	return true;
+}
+
+bool BlitArgbScaled(const Surface &out, const uint32_t *pixels, int srcPitch, SDL_Rect srcRect, Rectangle dest, int alphaPercent)
+{
+	if (out.isIndexed())
+		return false;
+	if (dest.size.width <= 0 || dest.size.height <= 0 || srcRect.w <= 0 || srcRect.h <= 0)
+		return true;
+	for (int y = 0; y < dest.size.height; y++) {
+		const int dstY = dest.position.y + y;
+		if (dstY < 0 || dstY >= out.h())
+			continue;
+		const int sy = srcRect.y + y * srcRect.h / dest.size.height;
+		const uint32_t *src = pixels + static_cast<ptrdiff_t>(sy) * srcPitch;
+		for (int x = 0; x < dest.size.width; x++) {
+			const int dstX = dest.position.x + x;
+			if (dstX < 0 || dstX >= out.w())
+				continue;
+			const uint32_t s = src[srcRect.x + x * srcRect.w / dest.size.width];
+			if ((s >> 24) == 0)
+				continue;
+			uint32_t *dst = out.at<uint32_t>(dstX, dstY);
+			*dst = CompositeArgbOver(s, *dst, alphaPercent);
+		}
+	}
+	return true;
+}
+
 } // namespace devilution

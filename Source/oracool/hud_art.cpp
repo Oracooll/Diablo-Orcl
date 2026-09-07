@@ -99,6 +99,16 @@ struct ArtAsset {
 	 * definition at all.
 	 */
 	std::optional<OwnedSurface> outline;
+	/**
+	 * Renderer stage 2 (v1.11): the same art in TRUE COLOUR - ARGB8888, straight alpha, with the
+	 * luminance and tint the quantiser applied done in RGB instead. Every draw in this file takes
+	 * this copy when the target is the 32-bit screen and the 8-bit layers above when it is an
+	 * indexed surface (offscreen work, the golden tests). Built by QuantizeAsset beside them, so the
+	 * two can never disagree about which pixels exist.
+	 */
+	std::vector<uint32_t> argb;
+	/** Orbs only: the sphere circle QuantizeAsset split `frame`/`sphereDim` along, for the true-colour draw. */
+	std::optional<Rectangle> dimCircle;
 };
 
 /**
@@ -507,6 +517,18 @@ uint8_t TintedPaletteIndex(uint8_t rampBase, int strengthPercent, uint8_t r, uin
 	return NearestGlobalPaletteIndex(mix(r, target.r), mix(g, target.g), mix(b, target.b), cache);
 }
 
+/** @brief TintedPaletteIndex in RGB: the colour itself rather than the nearest palette entry to it. */
+SDL_Color TintedRgb(uint8_t rampBase, int strengthPercent, uint8_t r, uint8_t g, uint8_t b)
+{
+	const SDL_Color &target = orig_palette[RampIndexFromLuminance(rampBase, r, g, b)];
+	if (strengthPercent >= 100)
+		return target;
+	const auto mix = [strengthPercent](uint8_t src, uint8_t dst) {
+		return static_cast<uint8_t>((src * (100 - strengthPercent) + dst * strengthPercent) / 100);
+	};
+	return SDL_Color { mix(r, target.r), mix(g, target.g), mix(b, target.b), 255 };
+}
+
 /** @brief Whether the source pixel at (@p x, @p y) is opaque. Out of bounds counts as transparent. */
 bool IsOpaqueAt(const ArtAsset &asset, int x, int y)
 {
@@ -567,6 +589,11 @@ void RepaintOntoBlueInverted(ArtAsset &asset)
 				continue;
 			const int luminance = (299 * srcRow[x * 4] + 587 * srcRow[x * 4 + 1] + 114 * srcRow[x * 4 + 2]) / 1000;
 			brightRow[x] = static_cast<uint8_t>(PAL8_BLUE + std::min(7, luminance * 8 / 256));
+			if (!asset.argb.empty()) {
+				const SDL_Color &c = orig_palette[brightRow[x]];
+				uint32_t &px = asset.argb[static_cast<size_t>(y) * asset.width + x];
+				px = PackArgb(static_cast<uint8_t>(px >> 24), c.r, c.g, c.b);
+			}
 		}
 	}
 }
@@ -612,6 +639,8 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
 
 	asset.bright.emplace(asset.width, asset.height);
 	asset.half.emplace(asset.width, asset.height);
+	asset.argb.assign(static_cast<size_t>(asset.width) * asset.height, 0);
+	asset.dimCircle = dimCircle;
 	if (dimCircle) {
 		asset.frame.emplace(asset.width, asset.height);
 		asset.sphereDim.emplace(asset.width, asset.height);
@@ -639,6 +668,13 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
 			const uint8_t g = scale(srcRow[x * 4 + 1]);
 			const uint8_t b = scale(srcRow[x * 4 + 2]);
 			const uint8_t a = srcRow[x * 4 + 3];
+
+			// The true-colour pixel (stage 2): tint and luminance in RGB, the PNG's own alpha kept,
+			// so a gradient edge is a gradient and not one blend level.
+			{
+				const SDL_Color t = tintRampBase ? TintedRgb(*tintRampBase, tintStrengthPercent, r, g, b) : SDL_Color { r, g, b, 255 };
+				asset.argb[static_cast<size_t>(y) * asset.width + x] = PackArgb(a, t.r, t.g, t.b);
+			}
 
 			if (a < 128) {
 				brightRow[x] = 0;
@@ -1003,6 +1039,104 @@ void BlitStripCellScaled(const Surface &out, const Surface &src, SDL_Rect srcCel
 	}
 }
 
+/** @brief Which of an ArtAsset's layers a draw wants; the true-colour path derives each from `argb`. */
+enum class Layer : uint8_t {
+	Bright,    // the opaque pixels (alpha >= 128); in true colour: every pixel, with its real alpha
+	Half,      // the half-transparent pixels; in true colour: nothing, Bright already carried them
+	Frame,     // orbs: outside the sphere circle
+	SphereDim, // orbs: inside the circle, dimmed
+};
+
+/**
+ * @brief A layer drawn in true colour onto the 32-bit screen. Returns false on an indexed target,
+ * where the caller keeps the 8-bit blit it always had.
+ */
+bool BlitLayerTrueColour(const Surface &out, const ArtAsset &asset, Layer layer, SDL_Rect src, Point position, int alphaPercent)
+{
+	if (out.isIndexed() || asset.argb.empty())
+		return false;
+	switch (layer) {
+	case Layer::Half:
+		return true;
+	case Layer::Bright:
+		return BlitArgb(out, asset.argb.data(), asset.width, src, position, alphaPercent);
+	case Layer::Frame:
+	case Layer::SphereDim: {
+		if (!asset.dimCircle)
+			return BlitArgb(out, asset.argb.data(), asset.width, src, position, alphaPercent);
+		const bool inside = layer == Layer::SphereDim;
+		const int cx = asset.dimCircle->position.x, cy = asset.dimCircle->position.y;
+		const int radius = asset.dimCircle->size.width;
+		for (int y = 0; y < src.h; y++) {
+			const int sy = src.y + y;
+			const int dstY = position.y + y;
+			if (sy < 0 || sy >= asset.height || dstY < 0 || dstY >= out.h())
+				continue;
+			for (int x = 0; x < src.w; x++) {
+				const int sx = src.x + x;
+				const int dstX = position.x + x;
+				if (sx < 0 || sx >= asset.width || dstX < 0 || dstX >= out.w())
+					continue;
+				const int dx = sx - cx, dy = sy - cy;
+				if ((dx * dx + dy * dy <= radius * radius) != inside)
+					continue;
+				uint32_t px = asset.argb[static_cast<size_t>(sy) * asset.width + sx];
+				if ((px >> 24) < 128)
+					continue; // the 8-bit orb layers key at 128, and the sphere must stay a clean disc
+				if (inside)
+					px = (px & 0xFF000000) | (((px & 0x00FF00FF) * 2 / 5) & 0x00FF00FF) | (((px & 0x0000FF00) * 2 / 5) & 0x0000FF00);
+				uint32_t *dst = out.at<uint32_t>(dstX, dstY);
+				*dst = CompositeArgbOver(px, *dst, alphaPercent);
+			}
+		}
+		return true;
+	}
+	}
+	return false;
+}
+
+const Surface &IndexedLayer(const ArtAsset &asset, Layer layer)
+{
+	switch (layer) {
+	case Layer::Half:
+		return *asset.half;
+	case Layer::Frame:
+		return *asset.frame;
+	case Layer::SphereDim:
+		return *asset.sphereDim;
+	default:
+		return *asset.bright;
+	}
+}
+
+/** @brief An opaque layer draw: true colour on the screen, the 8-bit blit on an indexed surface. */
+void BlitLayer(const Surface &out, const ArtAsset &asset, Layer layer, SDL_Rect src, Point position)
+{
+	if (BlitLayerTrueColour(out, asset, layer, src, position, 100))
+		return;
+	out.BlitFromSkipColorIndexZero(IndexedLayer(asset, layer), src, position);
+}
+
+/** @brief The half-transparent layer draw, same choice of path. Arguments as BlitHalfTransparentSkipZero. */
+void BlitLayerHalf(const Surface &out, const ArtAsset &asset, Layer layer, Point position, int srcTop, int srcBottom,
+    int srcLeft = 0, int srcWidth = -1)
+{
+	const int width = srcWidth < 0 ? asset.width : srcWidth;
+	if (BlitLayerTrueColour(out, asset, layer, MakeSdlRect(srcLeft, srcTop, width, srcBottom - srcTop), position + Displacement { 0, srcTop }, 50))
+		return;
+	BlitHalfTransparentSkipZero(out, IndexedLayer(asset, layer), position, srcTop, srcBottom, srcLeft, srcWidth);
+}
+
+/** @brief The scaled strip-cell draw, same choice of path. */
+void BlitLayerScaled(const Surface &out, const ArtAsset &asset, SDL_Rect srcCell, Rectangle dest, bool halfTransparent)
+{
+	if (!out.isIndexed() && !asset.argb.empty()) {
+		BlitArgbScaled(out, asset.argb.data(), asset.width, srcCell, dest, halfTransparent ? 50 : 100);
+		return;
+	}
+	BlitLayerScaled(out, asset, srcCell, dest, halfTransparent);
+}
+
 void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point position, Point sphereCenterLocal, int currValue, int maxValue)
 {
 	EnsureLoadedAll();
@@ -1025,29 +1159,29 @@ void DrawOrb(const Surface &out, ArtAsset &asset, ArtAsset &liquid, Point positi
 	// Two blits, and the fill is a real level rather than a lit part of a painting.
 	if (liquid.bright && liquid.width == asset.width && liquid.height == asset.height) {
 		if (revealTop < asset.height) {
-			out.BlitFromSkipColorIndexZero(*liquid.bright,
+			BlitLayer(out, liquid, Layer::Bright,
 			    MakeSdlRect(0, revealTop, liquid.width, liquid.height - revealTop),
 			    position + Displacement { 0, revealTop });
 		}
-		out.BlitFromSkipColorIndexZero(*asset.bright, MakeSdlRect(0, 0, asset.width, asset.height), position);
+		BlitLayer(out, asset, Layer::Bright, MakeSdlRect(0, 0, asset.width, asset.height), position);
 		return;
 	}
 
 	// 1. The composition around the glass - ornament, rim, mount - always fully opaque. Drawn from
 	//    its own surface rather than from the whole image, so step 2 cannot touch it.
-	out.BlitFromSkipColorIndexZero(*asset.frame, MakeSdlRect(0, 0, asset.width, asset.height), position);
+	BlitLayer(out, asset, Layer::Frame, MakeSdlRect(0, 0, asset.width, asset.height), position);
 
 	// 2. The empty part of the glass, blended into whatever the world drew behind it. This is the
 	//    change the user asked for: the orb used to paint an opaque dimmed sphere here, so a
 	//    near-dead character still had a solid black ball in the corner of the screen. Now the
 	//    glass genuinely empties.
-	BlitHalfTransparentSkipZero(out, *asset.sphereDim, position, 0, revealTop);
+	BlitLayerHalf(out, asset, Layer::SphereDim, position, 0, revealTop);
 
 	// 3. The filled part, opaque, bottom-up. Full rows: outside the sphere these pixels are
 	//    identical to what step 1 already drew, so overwriting them is invisible.
 	if (revealTop >= asset.height)
 		return;
-	out.BlitFromSkipColorIndexZero(*asset.bright,
+	BlitLayer(out, asset, Layer::Bright,
 	    MakeSdlRect(0, revealTop, asset.width, asset.height - revealTop),
 	    position + Displacement { 0, revealTop });
 }
@@ -1093,12 +1227,12 @@ void DrawMiddleHudArt(const Surface &out)
 		return;
 
 	const Point position = GetMiddleHudRect().position;
-	out.BlitFromSkipColorIndexZero(*PlateArt.bright, MakeSdlRect(0, 0, PlateArt.width, PlateArt.height), position);
+	BlitLayer(out, PlateArt, Layer::Bright, MakeSdlRect(0, 0, PlateArt.width, PlateArt.height), position);
 	// The plate's partial alpha, blended at 50% over whatever is under it - the wells' inward
 	// shadow onto the spell plates the game drew there first (see scrollrt.cpp's order). See
 	// ArtAsset::half.
 	if (PlateArt.half)
-		BlitHalfTransparentSkipZero(out, *PlateArt.half, position, 0, PlateArt.height);
+		BlitLayerHalf(out, PlateArt, Layer::Half, position, 0, PlateArt.height);
 }
 
 void DrawMenuIcon(const Surface &out, int iconIndex, int state, Point position)
@@ -1114,7 +1248,7 @@ void DrawMenuIcon(const Surface &out, int iconIndex, int state, Point position)
 		return;
 
 	// The sheet is a plain grid: column = state, row = entry.
-	out.BlitFromSkipColorIndexZero(*MenuIconsArt.bright,
+	BlitLayer(out, MenuIconsArt, Layer::Bright,
 	    MakeSdlRect(state * MenuIconSize.width, iconIndex * MenuIconSize.height, MenuIconSize.width, MenuIconSize.height),
 	    position);
 }
@@ -1128,7 +1262,7 @@ void DrawInventoryPanelArt(const Surface &out)
 	if (!InventoryPanelArt.bright)
 		return;
 
-	out.BlitFromSkipColorIndexZero(*InventoryPanelArt.bright,
+	BlitLayer(out, InventoryPanelArt, Layer::Bright,
 	    MakeSdlRect(0, 0, InventoryPanelArt.width, InventoryPanelArt.height),
 	    GetInventoryPanelRect().position);
 }
@@ -1148,7 +1282,7 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 	if (!SidePanelArt.bright)
 		return;
 
-	out.BlitFromSkipColorIndexZero(*SidePanelArt.bright,
+	BlitLayer(out, SidePanelArt, Layer::Bright,
 	    MakeSdlRect(0, 0, SidePanelArt.width, SidePanelArt.height), origin);
 	// Every canvas wears the dim now (user, 2026-09-06), so it lives with the art rather than in
 	// seven draw functions.
@@ -1217,7 +1351,7 @@ void DrawLoosePng(const Surface &out, const char *assetPath, Point origin)
 	const LoosePng &entry = LoosePngFor(assetPath);
 	if (entry.asset.rgba.empty() || !entry.asset.bright)
 		return;
-	out.BlitFromSkipColorIndexZero(*entry.asset.bright,
+	BlitLayer(out, entry.asset, Layer::Bright,
 	    MakeSdlRect(0, 0, entry.asset.width, entry.asset.height), origin);
 }
 
@@ -1260,7 +1394,7 @@ void DrawInventoryTab(const Surface &out, int index, InventoryTabState state)
 	const Rectangle logical = GetTabRect(index);
 	const Point origin = GetInventoryPanelRect().position
 	    + Displacement { logical.position.x + TabCellOffset.deltaX, logical.position.y + TabCellOffset.deltaY };
-	out.BlitFromSkipColorIndexZero(*InventoryTabsArt.bright,
+	BlitLayer(out, InventoryTabsArt, Layer::Bright,
 	    MakeSdlRect(static_cast<int>(state) * TabCellSize.width, 0, TabCellSize.width, TabCellSize.height),
 	    origin);
 }
@@ -1405,7 +1539,7 @@ void DrawLevelUpIconArt(const Surface &out, int state)
 		return;
 
 	const Rectangle rect = GetLevelUpIconRect();
-	out.BlitFromSkipColorIndexZero(*LevelUpIconArt.bright,
+	BlitLayer(out, LevelUpIconArt, Layer::Bright,
 	    MakeSdlRect(state * LevelUpIconSize.width, 0, LevelUpIconSize.width, LevelUpIconSize.height),
 	    rect.position);
 }
@@ -1451,12 +1585,12 @@ void DrawGridBezel(const Surface &out, Rectangle contentRect)
 
 	// Top and bottom run the full width; the sides fill in between them, so the corners belong to
 	// the horizontal bands and no pixel is drawn twice.
-	out.BlitFromSkipColorIndexZero(*entry->art.bright, MakeSdlRect(0, 0, w, inset), outer);
-	out.BlitFromSkipColorIndexZero(*entry->art.bright, MakeSdlRect(0, h - inset, w, inset),
+	BlitLayer(out, entry->art, Layer::Bright, MakeSdlRect(0, 0, w, inset), outer);
+	BlitLayer(out, entry->art, Layer::Bright, MakeSdlRect(0, h - inset, w, inset),
 	    Point { outer.x, contentRect.position.y + contentRect.size.height });
-	out.BlitFromSkipColorIndexZero(*entry->art.bright, MakeSdlRect(0, inset, inset, h - 2 * inset),
+	BlitLayer(out, entry->art, Layer::Bright, MakeSdlRect(0, inset, inset, h - 2 * inset),
 	    Point { outer.x, contentRect.position.y });
-	out.BlitFromSkipColorIndexZero(*entry->art.bright, MakeSdlRect(w - inset, inset, inset, h - 2 * inset),
+	BlitLayer(out, entry->art, Layer::Bright, MakeSdlRect(w - inset, inset, inset, h - 2 * inset),
 	    Point { contentRect.position.x + contentRect.size.width, contentRect.position.y });
 }
 
@@ -1469,7 +1603,7 @@ void DrawWaypointPanelArt(const Surface &out, Point origin)
 	if (!WaypointPanelArt.bright)
 		return;
 
-	out.BlitFromSkipColorIndexZero(*WaypointPanelArt.bright,
+	BlitLayer(out, WaypointPanelArt, Layer::Bright,
 	    MakeSdlRect(0, 0, WaypointPanelArt.width, WaypointPanelArt.height), origin);
 }
 
@@ -1491,7 +1625,7 @@ void DrawWaypointIcon(const Surface &out, Point origin, bool active)
 	// Two equal cells side by side: column 0 dormant, column 1 active. Derived from the sheet's own
 	// width rather than a hardcoded 30 so a recut at a different icon size still lines up.
 	const int cell = WaypointIconsArt.width / 2;
-	out.BlitFromSkipColorIndexZero(*WaypointIconsArt.bright,
+	BlitLayer(out, WaypointIconsArt, Layer::Bright,
 	    MakeSdlRect(active ? cell : 0, 0, cell, WaypointIconsArt.height), origin);
 }
 
@@ -1525,7 +1659,7 @@ void DrawClassSilhouette(const Surface &out, Point panelOrigin, int areaWidth, i
 	// survive the blend proportionally instead of being washed halfway out. Still not opaque: the
 	// figure has to read as a shadow behind the slots, not as a picture in front of them.
 	for (int pass = 0; pass < 2; pass++)
-		BlitHalfTransparentSkipZero(out, *silhouette->bright, origin, 0, silhouette->height);
+		BlitLayerHalf(out, *silhouette, Layer::Bright, origin, 0, silhouette->height);
 
 	// No outline. It was a gold edge added when the body was a single washed-out pass and the shape
 	// had nothing else to define it; at two passes the figure defines its own edge, and the gold read
@@ -1561,10 +1695,10 @@ void DrawStripIcon(const Surface &out, ArtAsset &asset, Point origin, int index,
 
 	const SDL_Rect src = MakeSdlRect(index * cell, 0, cell, cell);
 	if (unlocked) {
-		out.BlitFromSkipColorIndexZero(*asset.bright, src, origin);
+		BlitLayer(out, asset, Layer::Bright, src, origin);
 		return;
 	}
-	BlitHalfTransparentSkipZero(out, *asset.bright, origin, 0, cell, src.x, src.w);
+	BlitLayerHalf(out, asset, Layer::Bright, origin, 0, cell, src.x, src.w);
 }
 
 Size StripIconSize(ArtAsset &asset)
@@ -1658,6 +1792,9 @@ void ResetHudArtCaches()
 		asset.frame.reset();
 		asset.sphereDim.reset();
 		asset.outline.reset();
+		asset.argb.clear();
+		asset.argb.shrink_to_fit();
+		asset.dimCircle.reset();
 		// The per-frame crop cache, which this used to leave behind (external audit of v1.9.88,
 		// finding 4). StripCellInset only builds it when it is EMPTY and then indexes it with an
 		// index it has validated against the NEWLY loaded frame count - so reloading a strip that
@@ -2087,7 +2224,7 @@ void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, 
 	const int src = cell - 2 * inset;
 	if (src <= 0)
 		return;
-	BlitStripCellScaled(out, *asset.bright, MakeSdlRect(index * cell + inset, inset, src, src), dest,
+	BlitLayerScaled(out, asset, MakeSdlRect(index * cell + inset, inset, src, src), dest,
 	    !unlocked);
 }
 

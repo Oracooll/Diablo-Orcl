@@ -77,4 +77,44 @@ void SetHalfTransparentPixelUnchecked(const Surface &out, Point position, uint8_
  */
 void UnsafeDrawBorder2px(const Surface &out, Rectangle rect, uint8_t color);
 
+/**
+ * @brief Packs a straight-alpha colour as ARGB8888, the pixel format BlitArgb takes.
+ */
+constexpr uint32_t PackArgb(uint8_t a, uint8_t r, uint8_t g, uint8_t b)
+{
+	return (static_cast<uint32_t>(a) << 24) | (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | b;
+}
+
+/**
+ * @brief Composites straight-alpha ARGB8888 pixels onto the 32-bit screen (source over), clipped
+ * to @p out. The renderer's stage 2 (v1.11): the fork's own PNG art drawn as it was painted,
+ * with its real alpha, instead of quantised to the level palette and keyed at 128.
+ *
+ * @param pixels The source image, @p srcPitch pixels per row.
+ * @param srcRect The part of it to draw.
+ * @param alphaPercent Scales every source alpha; 50 is the old half-transparent blit.
+ * @return false when @p out is an 8-bit surface (nothing drawn): the caller keeps its palette path
+ *         for offscreen surfaces and the golden tests.
+ */
+bool BlitArgb(const Surface &out, const uint32_t *pixels, int srcPitch, SDL_Rect srcRect, Point position, int alphaPercent = 100);
+
+/**
+ * @brief BlitArgb with the source rectangle scaled (nearest neighbour) onto @p dest.
+ */
+bool BlitArgbScaled(const Surface &out, const uint32_t *pixels, int srcPitch, SDL_Rect srcRect, Rectangle dest, int alphaPercent = 100);
+
+/** @brief One ARGB pixel over one XRGB screen pixel. Exposed for the scaled and masked variants. */
+inline uint32_t CompositeArgbOver(uint32_t src, uint32_t dst, int alphaPercent)
+{
+	const int a = static_cast<int>(src >> 24) * alphaPercent / 100;
+	if (a <= 0)
+		return dst;
+	if (a >= 255)
+		return src & 0x00FFFFFF;
+	const int ia = 255 - a;
+	const uint32_t rb = ((((src & 0x00FF00FF) * a) + ((dst & 0x00FF00FF) * ia)) / 255) & 0x00FF00FF;
+	const uint32_t g = ((((src & 0x0000FF00) * a) + ((dst & 0x0000FF00) * ia)) / 255) & 0x0000FF00;
+	return rb | g;
+}
+
 } // namespace devilution

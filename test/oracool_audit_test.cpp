@@ -11080,3 +11080,38 @@ TEST(OracoolRenderer, AFadeIsRecordedNotPaintedIntoTheColourTable)
 	EXPECT_LE(FadeLevel, 256);
 	FadeLevel = before;
 }
+
+TEST(OracoolRenderer, TrueColourArtCompositesWithItsOwnAlpha)
+{
+	// Renderer stage 2 (v1.11): the fork's PNG art is drawn as painted, alpha and all, onto the
+	// 32-bit screen - never quantised to the level palette there. A 2x1 source: an opaque red
+	// pixel and a half-transparent green one.
+	const uint32_t art[2] = { PackArgb(255, 200, 0, 0), PackArgb(128, 0, 200, 0) };
+
+	OwnedSurface screen = OwnedSurface::Rgb(3, 1);
+	for (int x = 0; x < 3; x++)
+		*screen.at<uint32_t>(x, 0) = 0x000000FF; // blue underneath
+	EXPECT_TRUE(BlitArgb(screen, art, 2, MakeSdlRect(0, 0, 2, 1), Point { 0, 0 }));
+	EXPECT_EQ(*screen.at<uint32_t>(0, 0), 0x00C80000u) << "opaque replaces";
+	const uint32_t blended = *screen.at<uint32_t>(1, 0);
+	EXPECT_NEAR(static_cast<int>((blended >> 8) & 0xFF), 100, 2) << "half alpha: half the green";
+	EXPECT_NEAR(static_cast<int>(blended & 0xFF), 127, 2) << "half alpha: half the blue below";
+	EXPECT_EQ(*screen.at<uint32_t>(2, 0), 0x000000FFu) << "outside the source rect untouched";
+
+	// Half strength on top of the alpha: the old half-transparent blit, now a percentage.
+	*screen.at<uint32_t>(0, 0) = 0;
+	BlitArgb(screen, art, 2, MakeSdlRect(0, 0, 1, 1), Point { 0, 0 }, 50);
+	EXPECT_NEAR(static_cast<int>((*screen.at<uint32_t>(0, 0) >> 16) & 0xFF), 100, 2);
+
+	// An indexed target is refused, so callers keep their palette path for the golden tests.
+	OwnedSurface indexed(3, 1);
+	EXPECT_FALSE(BlitArgb(indexed, art, 2, MakeSdlRect(0, 0, 2, 1), Point { 0, 0 }));
+
+	// Scaled: the two source pixels across four screen pixels, nearest neighbour.
+	OwnedSurface wide = OwnedSurface::Rgb(4, 1);
+	std::fill_n(wide.at<uint32_t>(0, 0), 4, 0u);
+	EXPECT_TRUE(BlitArgbScaled(wide, art, 2, MakeSdlRect(0, 0, 2, 1), Rectangle { { 0, 0 }, { 4, 1 } }));
+	EXPECT_EQ(*wide.at<uint32_t>(0, 0), 0x00C80000u);
+	EXPECT_EQ(*wide.at<uint32_t>(1, 0), 0x00C80000u);
+	EXPECT_NEAR(static_cast<int>((*wide.at<uint32_t>(3, 0) >> 8) & 0xFF), 100, 2);
+}
