@@ -152,7 +152,10 @@ for my $r (@rows) {
 	    : $file eq '' ? table_from_trn([0 .. 255]) : table_from_trn(trnfile($file));
 	my $uri = render("This is $name", $table);
 	# the value: what the glyph's brightest level lands on, and the shades its bevel walks through
-	my $top = hex6($table->[192]);
+	my $top = hex6($table->[195]); # 195: the brightest band entry a glyph actually uses (192-194 never appear in the fonts)
+	# The ID is the colour itself (user, 2026-09-07: "change Id of colors to RGBXXX.XXX.XXX"): the top of
+	# the band in decimal channels. The ramp-and-pass name it had is kept as a tooltip for the transition.
+	my $rgbId = sprintf("RGB%d.%d.%d", @{ $table->[195] });
 	my %seen; my @shades = grep { !$seen{$_}++ } map { hex6($table->[$_]) } 195 .. 207;
 	my $sw = join '', map { qq{<i style="background:$_" title="$_"></i>} } @shades;
 	my $src = exists $valueOf{$name} ? sprintf('value 0x%06X', $valueOf{$name})
@@ -161,7 +164,7 @@ for my $r (@rows) {
 	if ($menuFile) {
 		$src .= exists $valueByFile{$menuFile} ? qq{<br><span class="menu">menus: value in code (was $menuFile)</span>} : qq{<br><span class="menu">menus: fonts\\$menuFile</span>};
 	}
-	$body .= qq{<tr><td class="id">$id</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="idx">$field</td><td class="hex">$top <span class="sw">$sw</span></td><td class="file">$src</td><td class="idx">$count</td><td>$use</td></tr>\n};
+	$body .= qq{<tr><td class="id" title="was $id">$rgbId</td><td class="sample"><img src="$uri" alt="$name"></td><td class="name">$name</td><td class="idx">$field</td><td class="hex">$top <span class="sw">$sw</span></td><td class="file">$src</td><td class="idx">$count</td><td>$use</td></tr>\n};
 }
 
 # ---- shipped and not drawn: the files with no caller, so nobody wonders where they went
@@ -195,7 +198,7 @@ th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
 td{padding:5px 12px 5px 0;border-bottom:1px solid #221d18;vertical-align:middle;white-space:nowrap}
 td.sample{background:#000;padding:4px 10px;width:330px}
 td.sample img{image-rendering:pixelated;height:40px;display:block}
-td.id{font-family:"JetBrains Mono",Consolas,monospace;font-size:14px;color:var(--gold);font-weight:600;width:56px}
+td.id{font-family:"JetBrains Mono",Consolas,monospace;font-size:13px;color:var(--gold);font-weight:600;width:130px}
 td.name{font-family:"JetBrains Mono",Consolas,monospace;font-size:13px;color:var(--ink)}
 td.file{font-family:"JetBrains Mono",Consolas,monospace;font-size:12px;color:var(--muted)}
 td.file .menu{color:#6f6558}
@@ -209,7 +212,7 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 .warn{border-left:3px solid var(--hot);padding:6px 12px;color:var(--ink);max-width:70ch;margin:10px 0 0}
 </style>
 <h1>Orcl Font Colour Legend</h1>
-<p class="lede">The colours the game draws text in, one row each, rendered with the game's own Font 12 glyphs. <b>Since renderer stage 3 (v1.11.009)</b> a text colour is a value: on the 32-bit screen a glyph is drawn through a table of RGB values, not through a .trn and the 256-entry palette. <b>Since stage 4 (v1.11.010)</b> the fork ships no .trn of its own: each of its 21 colours is sixteen values in code, baked exactly from the file it was, so nothing in play moved. The vanilla files remain for the vanilla colours. A new colour needs no file and no palette entry, and the old pool of ramps and passes is gone from this page because every colour is now possible. Refer to a colour by its <b>ID</b> (the ramp-and-pass name it kept) or by its <b>hex</b>. The <b>field index</b> is its number in the 12-bit colour field of the draw flags.</p>
+<p class="lede">The colours the game draws text in, one row each, rendered with the game's own Font 12 glyphs. <b>Since renderer stage 3 (v1.11.009)</b> a text colour is a value: on the 32-bit screen a glyph is drawn through a table of RGB values, not through a .trn and the 256-entry palette. <b>Since stage 4 (v1.11.010)</b> the fork ships no .trn of its own: each of its 21 colours is sixteen values in code, baked exactly from the file it was, so nothing in play moved. The vanilla files remain for the vanilla colours. A new colour needs no file and no palette entry, and the old pool of ramps and passes is gone from this page because every colour is now possible. Refer to a colour by its <b>ID</b>: <b>RGB</b> and its three channels in decimal, the colour itself, so the name says what it is (the old ramp-and-pass name survives as a tooltip on the ID). The <b>field index</b> is its number in the 12-bit colour field of the draw flags.</p>
 
 <section class="panel"><header><h2>Colours in use</h2><span class="meta">$inUse names live code draws with · samples on the level palette · the hex is where the glyph's brightest level lands, the swatches are the shades its bevel walks through · "callers" counts UiFlags::Color… in Source</span></header>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample (Font 12, 2x)</th><th>Name in code</th><th>Field</th><th>Hex</th><th>Defined by</th><th>Callers</th><th>Used for</th></tr></thead><tbody>$body</tbody></table></div>
