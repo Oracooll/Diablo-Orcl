@@ -128,7 +128,7 @@ my %fieldIndex = (
 	ColorUiGold => 1, ColorUiSilver => 2, ColorUiGoldDark => 3, ColorUiSilverDark => 4, ColorDialogWhite => 5,
 	ColorDialogYellow => 6, ColorDialogRed => 7, ColorYellow => 8, ColorGold => 9, ColorBlack => 10, ColorWhite => 11,
 	ColorWhitegold => 12, ColorRed => 13, ColorBlue => 14, ColorOrange => 15, ColorButtonface => 16, ColorButtonpushed => 17,
-	ColorOracoolYellow => 18, ColorOracoolYellowDark => 19, ColorOracoolGreen => 20, ColorGray5 => 21, ColorBeige2 => 22,
+	ColorUiYellow => 18, ColorUiYellowDark => 19, ColorOracoolGreen => 20, ColorGray5 => 21, ColorBeige2 => 22,
 	ColorYellow3 => 23, ColorBrightRed3 => 24, ColorBrightBlue3 => 25, ColorGold6 => 26, ColorOrange7 => 27, ColorGray7 => 28,
 );
 my @vanilla = (
@@ -151,8 +151,10 @@ my @vanilla = (
 	['', 'ColorGold', 'GD-3', 1, 'NO FILE, by rule the only one: an empty table slot draws the raw gold glyph. Labels, the readied-slot rows, the gold text everywhere'],
 );
 my @orcl = (
-	['oracool_yellow.trn', 'ColorOracoolYellow', 'menu palette only', 1, 'the front-end focus glow (2026-08-15); points at 128-135, which is bright blue in a level, so never on items'],
-	['oracool_yellows.trn', 'ColorOracoolYellowDark', 'menu palette only', 0, 'the glow\'s dark twin; no caller'],
+	['oracool_menuyellow.trn', 'ColorUiYellow', 'YL-1 (menus)', 1, 'the front-end focus glow, on the menu palette (was oracool_yellow.trn until 2026-09-07); in play the name draws oracool_uiyellow.trn'],
+	['oracool_menuyellowdark.trn', 'ColorUiYellowDark', 'YL-2 (menus)', 0, 'the glow\'s dark twin, on the menu palette; no caller'],
+	['oracool_uiyellow.trn', 'ColorUiYellow (in play)', 'YL-1', 1, 'what ColorUiYellow draws in a level: the menu file shifted up 16 onto the bright yellow minis'],
+	['oracool_uiyellowdark.trn', 'ColorUiYellowDark (in play)', 'YL-2', 0, 'what ColorUiYellowDark draws in a level; no caller'],
 	['oracool_green1.trn', 'ColorOracoolGreen', 'GN-1', 1, 'set items, healing (was yellow.trn shifted in memory until 2026-09-07)'],
 	['oracool_orange1.trn', 'ColorOrange', 'OR-1', 1, 'the runeword book\'s rune lines, floating magic damage (was vanilla orange.trn re-pointed in memory)'],
 	['oracool_gray5.trn', 'ColorGray5', 'GR-5', 1, 'socketed plain drops on the floor, the socket count on any drop, the Sockets row'],
@@ -179,7 +181,7 @@ sub inventory {
 		if ($file eq '') {
 			$trn = [0 .. 255];
 		} else {
-			my %menuTwin = ('goldui.trn' => 'oracool_uigold.trn', 'golduis.trn' => 'oracool_uigolddark.trn', 'grayui.trn' => 'oracool_uisilver.trn', 'grayuis.trn' => 'oracool_uisilverdark.trn', 'orange.trn' => 'oracool_orange1.trn');
+			my %menuTwin = ('goldui.trn' => 'oracool_uigold.trn', 'golduis.trn' => 'oracool_uigolddark.trn', 'grayui.trn' => 'oracool_uisilver.trn', 'grayuis.trn' => 'oracool_uisilverdark.trn', 'orange.trn' => 'oracool_orange1.trn', 'oracool_menuyellow.trn' => 'oracool_uiyellow.trn', 'oracool_menuyellowdark.trn' => 'oracool_uiyellowdark.trn');
 			# a menu file is drawn as it looks in a menu: through its level-palette twin, which is the same
 			# hue on this page's palette (the menu palette sits 16 below the level one)
 			$trn = trnfile($menuTwin{$file} // $file);
@@ -242,7 +244,7 @@ code{font-family:"JetBrains Mono",Consolas,monospace;font-size:12.5px;color:var(
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample (as drawn in play)</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$vanillaRows</tbody></table></div>
 </section>
 
-<section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 19 .trn files this fork added · @{[$orclUsed]} of 19 used</span></header>
+<section class="panel"><header><h2>2 · Orcl Colours</h2><span class="meta">the 21 .trn files this fork added · @{[$orclUsed]} of 21 used</span></header>
 <div class="scroll"><table><thead><tr><th>ID</th><th>Sample</th><th>Name in code</th><th>Field index</th><th>File</th><th>Used</th><th>Used for</th></tr></thead><tbody>$orclRows</tbody></table></div>
 </section>
 

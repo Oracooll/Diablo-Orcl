@@ -1827,7 +1827,7 @@ TEST(OracoolFonts, SmallSizeFlagsMapToTheirFontsAndTheOldOnesAreUnmoved)
 
 	// The new flags must not collide with the colour bits this fork added above them.
 	EXPECT_EQ(static_cast<uint64_t>(UiFlags::FontSize11) & static_cast<uint64_t>(UiFlags::ColorOracoolGreen), 0u);
-	EXPECT_EQ(static_cast<uint64_t>(UiFlags::FontSize8) & static_cast<uint64_t>(UiFlags::ColorOracoolYellow), 0u);
+	EXPECT_EQ(static_cast<uint64_t>(UiFlags::FontSize8) & static_cast<uint64_t>(UiFlags::ColorUiYellow), 0u);
 }
 
 // The gem quality ladder (Gems.png): seven types, five qualities, one effect row per type scaled
@@ -8433,7 +8433,7 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 		{ SpellID::Invalid, UiFlags::ColorWhite, "the plain weapon swing is physical" },
 		{ SpellID::Zeal, UiFlags::ColorWhite, "a melee skill swings the weapon, so it is physical too" },
 		{ SpellID::Firebolt, UiFlags::ColorRed, "fire" },
-		// ColorYellow, the IN-GAME yellow (a rare item's name). ColorOracoolYellow is the front
+		// ColorYellow, the IN-GAME yellow (a rare item's name). ColorUiYellow is the front
 		// end's focus colour, whose .trn is generated against the UI palette - it renders dark blue
 		// on an in-game panel, which is what the user saw on Charged Bolt.
 		{ SpellID::Lightning, UiFlags::ColorYellow, "lightning" },
@@ -10955,7 +10955,7 @@ TEST(OracoolAudit, UiFlagsCarryColourAsATwelveBitField)
 		UiFlags::ColorDialogWhite, UiFlags::ColorDialogYellow, UiFlags::ColorDialogRed, UiFlags::ColorYellow,
 		UiFlags::ColorGold, UiFlags::ColorBlack, UiFlags::ColorWhite, UiFlags::ColorWhitegold, UiFlags::ColorRed,
 		UiFlags::ColorBlue, UiFlags::ColorOrange, UiFlags::ColorButtonface, UiFlags::ColorButtonpushed,
-		UiFlags::ColorOracoolYellow, UiFlags::ColorOracoolYellowDark, UiFlags::ColorOracoolGreen, UiFlags::ColorGray5,
+		UiFlags::ColorUiYellow, UiFlags::ColorUiYellowDark, UiFlags::ColorOracoolGreen, UiFlags::ColorGray5,
 		UiFlags::ColorBeige2, UiFlags::ColorYellow3, UiFlags::ColorBrightRed3, UiFlags::ColorBrightBlue3,
 		UiFlags::ColorGold6, UiFlags::ColorOrange7, UiFlags::ColorGray7
 	};

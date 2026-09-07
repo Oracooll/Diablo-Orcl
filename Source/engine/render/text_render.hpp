@@ -69,8 +69,8 @@ enum text_color : uint16_t {
 
 	// Oracool: the focus glow's yellow pair, on the palette's 128-135 ramp. Appended so no existing
 	// value moves - these index ColorTranslations positionally.
-	ColorOracoolYellow,
-	ColorOracoolYellowDark,
+	ColorUiYellow,
+	ColorUiYellowDark,
 	/** Oracool: the injected green ramp - set items (2026-08-15). */
 	ColorOracoolGreen,
 	/** Oracool: GR-5 of the font colour legend - socketed items (2026-09-07). */
@@ -96,6 +96,9 @@ enum text_color : uint16_t {
 	ColorInGameUiGoldDark,
 	ColorInGameUiSilver,
 	ColorInGameUiSilverDark,
+	/** The focus-glow pair, ColorUiYellow / ColorUiYellowDark, as they read in a level (2026-09-07). */
+	ColorInGameUiYellow,
+	ColorInGameUiYellowDark,
 };
 
 constexpr GameFontTables GetFontSizeFromUiFlags(UiFlags flags)

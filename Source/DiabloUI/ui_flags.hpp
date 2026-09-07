@@ -80,8 +80,8 @@ enum class UiFlags : uint64_t {
 	 * and pink in ui_art\diablo.pal. These two point at 128-135 instead; see
 	 * tools/MakeYellowFontTrn.ps1 for the ramp and why each entry is doubled.
 	 */
-	ColorOracoolYellow     = 18ULL << UiFlagsColorShift,
-	ColorOracoolYellowDark = 19ULL << UiFlagsColorShift,
+	ColorUiYellow     = 18ULL << UiFlagsColorShift,
+	ColorUiYellowDark = 19ULL << UiFlagsColorShift,
 	/** @brief Oracool: green text on the injected PAL8_GREEN ramp - set items, Belzebub-style (2026-08-15). */
 	ColorOracoolGreen      = 20ULL << UiFlagsColorShift,
 

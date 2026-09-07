@@ -83,7 +83,7 @@ constexpr std::array<int, 10> LineHeights = { 12, 26, 38, 42, 50, 22, 11, 10, 9,
 constexpr int SmallFontTallLineHeight = 16;
 std::array<int, 10> BaseLineOffset = { -3, -2, -3, -6, -7, 3, -3, -3, -2, -2 };
 
-std::array<const char *, 34> ColorTranslations = {
+std::array<const char *, 36> ColorTranslations = {
 	"fonts\\goldui.trn",
 	"fonts\\grayui.trn",
 	"fonts\\golduis.trn",
@@ -115,8 +115,10 @@ std::array<const char *, 34> ColorTranslations = {
 	"fonts\\oracool_dialogred.trn",
 
 	// Oracool: generated, not authored - see tools/MakeYellowFontTrn.ps1.
-	"fonts\\oracool_yellow.trn",
-	"fonts\\oracool_yellows.trn",
+	// The focus-glow pair, renamed 2026-09-07 to say what they are: MENU-palette files (the ramp at
+	// 128-135 is yellow only there). Their in-play twins are at the end of the table.
+	"fonts\\oracool_menuyellow.trn",
+	"fonts\\oracool_menuyellowdark.trn",
 
 	// Oracool: GREEN text (user, 2026-08-15 - "Set Green items as in belzebub"). Deliberately the
 	// same file as ColorYellow: yellow.trn has always pointed its glyphs at indices 144-151, and
@@ -140,9 +142,11 @@ std::array<const char *, 34> ColorTranslations = {
 	"fonts\\oracool_uigolddark.trn",
 	"fonts\\oracool_uisilver.trn",
 	"fonts\\oracool_uisilverdark.trn",
+	"fonts\\oracool_uiyellow.trn",
+	"fonts\\oracool_uiyellowdark.trn",
 };
 
-std::array<std::optional<std::array<uint8_t, 256>>, 34> ColorTranslationsData;
+std::array<std::optional<std::array<uint8_t, 256>>, 36> ColorTranslationsData;
 
 text_color GetColorFromFlags(UiFlags flags)
 {
@@ -183,10 +187,10 @@ text_color GetColorFromFlags(UiFlags flags)
 		return ColorButtonface;
 	case UiFlagsColorIndex(UiFlags::ColorButtonpushed):
 		return ColorButtonpushed;
-	case UiFlagsColorIndex(UiFlags::ColorOracoolYellow):
-		return ColorOracoolYellow;
-	case UiFlagsColorIndex(UiFlags::ColorOracoolYellowDark):
-		return ColorOracoolYellowDark;
+	case UiFlagsColorIndex(UiFlags::ColorUiYellow):
+		return gbRunGame ? ColorInGameUiYellow : ColorUiYellow;
+	case UiFlagsColorIndex(UiFlags::ColorUiYellowDark):
+		return gbRunGame ? ColorInGameUiYellowDark : ColorUiYellowDark;
 	case UiFlagsColorIndex(UiFlags::ColorOracoolGreen):
 		return ColorOracoolGreen;
 	case UiFlagsColorIndex(UiFlags::ColorGray5):

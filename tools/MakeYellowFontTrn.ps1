@@ -1,7 +1,7 @@
 # MakeYellowFontTrn.ps1
 #
-# Oracool: generates the two font translation tables behind UiFlags::ColorOracoolYellow and
-# ColorOracoolYellowDark - the focus glow's colour.
+# Oracool: generates the two font translation tables behind UiFlags::ColorUiYellow and
+# ColorUiYellowDark - the focus glow's colour.
 #
 # User request (2026-08-14): the selector should be a bright yellow GLOW, not a box. A glow works by
 # redrawing the text in a colour, and a text colour here is a .trn: a 256-byte table remapping the
@@ -28,8 +28,8 @@
 #
 # Two tables, because the glow needs a bright ring and a dim companion, exactly as goldui.trn pairs
 # with golduis.trn:
-#   oracool_yellow.trn   - the full ramp, 128 at the top: the inner ring and the lit text.
-#   oracool_yellows.trn  - the same ramp entered two steps down and bottomed out early, so the outer
+#   oracool_menuyellow.trn   - the full ramp, 128 at the top: the inner ring and the lit text.
+#   oracool_menuyellowdark.trn  - the same ramp entered two steps down and bottomed out early, so the outer
 #                          rings top out below the inner one and fade into the background.
 #
 # Everything outside 192-207 is identity, so the table cannot disturb anything that is not font ink.
@@ -64,12 +64,12 @@ function Write-Trn([string]$name, [int[]]$ramp) {
     Write-Host ("wrote {0} ({1} bytes)" -f $path, $bytes.Length)
 }
 
-Write-Trn 'oracool_yellow.trn'  $brightRamp
-Write-Trn 'oracool_yellows.trn' $darkRamp
+Write-Trn 'oracool_menuyellow.trn'  $brightRamp
+Write-Trn 'oracool_menuyellowdark.trn' $darkRamp
 
 # Show what the two actually resolve to, so the ramp is verified against the palette rather than assumed.
 $pal = [System.IO.File]::ReadAllBytes((Join-Path $repoRoot 'Packaging\resources\assets\ui_art\diablo.pal'))
-foreach ($pair in @(@('oracool_yellow.trn', $brightRamp), @('oracool_yellows.trn', $darkRamp))) {
+foreach ($pair in @(@('oracool_menuyellow.trn', $brightRamp), @('oracool_menuyellowdark.trn', $darkRamp))) {
     $line = ""
     foreach ($idx in ($pair[1] | Select-Object -Unique)) {
         $line += ("{0}=({1},{2},{3}) " -f $idx, $pal[$idx*3], $pal[$idx*3+1], $pal[$idx*3+2])

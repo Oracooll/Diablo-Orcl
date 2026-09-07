@@ -1068,7 +1068,7 @@ void DrawSelector(const SDL_Rect &rect, bool dimmed = false)
 // above. With it went AllTextColorFlags, WithTextColor and RecolorArgs, which existed only to swap a
 // widget's colour for a halo colour and had no other caller.
 //
-// Two things it leaves behind on purpose. UiFlags::ColorOracoolYellow and its dark companion, with
+// Two things it leaves behind on purpose. UiFlags::ColorUiYellow and its dark companion, with
 // fonts\oracool_yellow.trn and oracool_yellows.trn, are still wired through text_render: they are the
 // palette's 128-135 yellow ramp, whose top (255,253,159) at luminance 243 is the brightest text this
 // front end can draw, and finding that was the expensive part rather than using it. Any future

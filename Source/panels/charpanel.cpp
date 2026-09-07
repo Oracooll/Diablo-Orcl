@@ -111,7 +111,7 @@ UiFlags DamageTypeColor(DamageType type)
 	case DamageType::Fire:
 		return UiFlags::ColorRed;
 	case DamageType::Lightning:
-		// ColorYellow, NOT ColorOracoolYellow (user, 2026-08-31: "Charged Bolt renders indeed dark
+		// ColorYellow, NOT ColorUiYellow (user, 2026-08-31: "Charged Bolt renders indeed dark
 		// blue, instead of yellow").
 		//
 		// The two are not interchangeable and the difference is the PALETTE. oracool_yellow.trn was
