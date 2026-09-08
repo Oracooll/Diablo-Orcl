@@ -35,6 +35,8 @@ On the 32-bit screen a glyph is drawn through a 256-entry table of RGB values (`
 
 ### Stage 4 - cleanup (LANDED, v1.11.010)
 
+Gamma became a present-time transform at v1.11.022 (a 256-entry lookup per channel in dx.cpp's ApplyPresentTransforms, applied before the fade); the palettes stay linear, so palette art and everything drawn as values follow the slider together.
+
 The 21 .trn files the fork had made are gone: each became a line in `RgbDefinedColors` (text_render.cpp) carrying the sixteen band colours and any out-of-band remaps, baked exactly from the file through its palette (the town palette; the menu palette for the two menu colours), so nothing in play moved. The MPQ ships no fonts folder of its own; the vanilla .trn files stay for the vanilla colours. The legend generator reads the definitions out of the source. The 8-bit offscreen paths STAY: the golden tests draw HUD art into indexed surfaces, and the fallback costs nothing in play. tools/MakeYellowFontTrn.ps1 is retired.
 
 ## Order and gates
