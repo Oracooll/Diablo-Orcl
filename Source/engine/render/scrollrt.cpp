@@ -432,11 +432,26 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 		ClxDrawRgbMap(out, targetBufferPosition, sprite, oracool::FrozenRgbTable(LightTableIndex));
 		return;
 	}
+	// A recoloured VARIANT is an ordinary monster and is lit like one (2026-09-08). Drawn through its
+	// translation alone it was as bright as a unique, which vanilla does on purpose for uniques (they
+	// glow) and which for a near-black sprite like the Blood Knight, with up to a quarter of a floor
+	// wearing a variant, meant a hall of white steel highlights on invisible bodies (user screenshots,
+	// with Vigor, not a cold aura). The light table is applied AFTER the recolour, which is the order
+	// the palette expects: recolour picks the entry, light darkens it.
+	if (trn != nullptr && trn == monster.uniqueMonsterTRN.get() && !monster.isUnique()) {
+		const std::array<uint8_t, 256> &light = LightTables[LightTableIndex];
+		std::array<uint8_t, 256> lit;
+		for (int i = 0; i < 256; i++)
+			lit[static_cast<size_t>(i)] = light[trn[i]];
+		ClxDrawTRN(out, targetBufferPosition, sprite, lit.data());
+		return;
+	}
 	if (trn != nullptr)
 		ClxDrawTRN(out, targetBufferPosition, sprite, trn);
 	else
 		ClxDrawLight(out, targetBufferPosition, sprite, LightTableIndex);
 }
+
 
 /**
  * @brief Helper for rendering a specific player icon (Mana Shield or Reflect)
