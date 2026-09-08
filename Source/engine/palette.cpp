@@ -198,13 +198,12 @@ void palette_update(int first, int ncolor)
 
 void ApplyGamma(std::array<SDL_Color, 256> &dst, const std::array<SDL_Color, 256> &src, int n)
 {
-	double g = *sgOptions.Graphics.gammaCorrection / 100.0;
-
-	for (int i = 0; i < n; i++) {
-		dst[i].r = static_cast<Uint8>(pow(src[i].r / 256.0, g) * 256.0);
-		dst[i].g = static_cast<Uint8>(pow(src[i].g / 256.0, g) * 256.0);
-		dst[i].b = static_cast<Uint8>(pow(src[i].b / 256.0, g) * 256.0);
-	}
+	// Gamma is a PRESENT-TIME transform since v1.11.022 (audit, 2026-09-08): the curve is applied
+	// to every screen pixel as it is shown (dx.cpp, ApplyPresentTransforms), so the palette world
+	// and everything drawn as colour values - text, HUD art, the paintings - follow the slider
+	// together. The palettes therefore stay linear; this keeps its name and its callers and copies.
+	for (int i = 0; i < n; i++)
+		dst[i] = src[i];
 	RedrawEverything();
 }
 

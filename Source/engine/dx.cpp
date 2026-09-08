@@ -6,6 +6,8 @@
 #include "engine/dx.h"
 
 #include <SDL.h>
+#include <array>
+#include <cmath>
 #include <cstdint>
 
 #include "controls/plrctrls.h"
@@ -169,10 +171,27 @@ SDLSurfaceUniquePtr PresentScratch;
  * drops green and blue. Applied into a scratch copy of the same format, which is then blitted, so
  * the back buffer itself keeps the unfaded frame for the next redraw.
  */
+/** The gamma curve as a lookup, rebuilt when the slider moves. 100 is identity and costs nothing. */
+const uint8_t *GammaLut()
+{
+	static std::array<uint8_t, 256> lut;
+	static int builtFor = -1;
+	const int gamma = *sgOptions.Graphics.gammaCorrection;
+	if (gamma == builtFor)
+		return lut.data();
+	const double g = gamma / 100.0;
+	for (int v = 0; v < 256; v++)
+		lut[static_cast<size_t>(v)] = static_cast<uint8_t>(std::pow(v / 256.0, g) * 256.0);
+	builtFor = gamma;
+	return lut.data();
+}
+
 SDL_Surface *ApplyPresentTransforms(SDL_Surface *src)
 {
-	if (FadeLevel == 256 && !PresentRedFlash)
+	const bool gammaOn = *sgOptions.Graphics.gammaCorrection != 100;
+	if (FadeLevel == 256 && !PresentRedFlash && !gammaOn)
 		return src;
+	const uint8_t *lut = GammaLut();
 	if (PresentScratch == nullptr || PresentScratch->w != src->w || PresentScratch->h != src->h)
 		PresentScratch = SDLWrap::CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, src->format->format);
 	const uint32_t fade = static_cast<uint32_t>(std::clamp(FadeLevel, 0, 256));
@@ -182,14 +201,14 @@ SDL_Surface *ApplyPresentTransforms(SDL_Surface *src)
 		auto *d = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(PresentScratch->pixels) + y * PresentScratch->pitch);
 		for (int x = 0; x < src->w; x++) {
 			const uint32_t c = s[x] & gbMask;
-			if (fade == 256) {
-				d[x] = c;
-			} else {
-				const uint32_t r = ((c >> 16) & 0xFF) * fade / 256;
-				const uint32_t g = ((c >> 8) & 0xFF) * fade / 256;
-				const uint32_t b = (c & 0xFF) * fade / 256;
-				d[x] = (r << 16) | (g << 8) | b;
+			// Gamma first (the curve belongs to the colour), then the fade (a dimming of what is shown).
+			uint32_t r = lut[(c >> 16) & 0xFF], g = lut[(c >> 8) & 0xFF], b = lut[c & 0xFF];
+			if (fade != 256) {
+				r = r * fade / 256;
+				g = g * fade / 256;
+				b = b * fade / 256;
 			}
+			d[x] = (r << 16) | (g << 8) | b;
 		}
 	}
 	return PresentScratch.get();
