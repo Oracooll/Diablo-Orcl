@@ -201,6 +201,12 @@ int ColdArmourCastSerial(const Player &player)
 uint8_t *ColdTRN()
 {
 	static std::array<uint8_t, 256> table;
+	// Cached on the palette generation (audit, 2026-09-08): this was rebuilt - a 256x16 search - for
+	// every monster drawn, every frame, because DrawMonster compares against the pointer.
+	static uint32_t builtFor = 0;
+	if (builtFor == PaletteRgbGeneration && builtFor != 0)
+		return table.data();
+	builtFor = PaletteRgbGeneration;
 	// The brief's own ramp: 176-191 is the cool blue-grey stone, sixteen steps bright to dark. Each
 	// source colour lands on the step nearest its brightness, so a frozen monster keeps its shading
 	// and loses its colour - which is what ice over something looks like.

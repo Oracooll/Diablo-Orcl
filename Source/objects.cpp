@@ -2114,7 +2114,10 @@ void OperateStashChest(Object &chest)
 		// The sarcophagus (2026-09-08): the lid rises frame by frame, 1 to 5, with the crypt's own
 		// sarcophagus sound (user: "use sound for opening sarcophaguses to open and close").
 		if (chest._oAnimFrame < StashChestOpenFrame && StashChestAnimDirection <= 0) {
-			PlaySfxLoc(IS_SARC, chest.position);
+			// A click on the open chest closes the stash first (diablo.cpp) and then reaches here: the
+			// lid was already on its way down with its sound, so it turns round quietly (audit, 2026-09-08).
+			if (StashChestAnimDirection == 0)
+				PlaySfxLoc(IS_SARC, chest.position);
 			StashChestAnimDirection = 1;
 			StashChestAnimCount = 0;
 		}
@@ -4285,7 +4288,9 @@ void ApplyStashChestGraphics(Object &chest)
 			chest._oAnimWidth = chest._oAnimData->numSprites() == StashChestOpenFrame ? OracoolStashChestAnimWidth : AllObjects[OBJ_CHEST3].animWidth;
 			// Closed, whichever sprite it got: the stash window never survives a load, and a frame
 			// number from the other sprite's convention (chest3's 4/6) would land mid-lid.
-			chest._oAnimFrame = StashChestHasOwnArt(chest) ? StashChestClosedFrame : 4;
+			// chest3's closed frame is 4 of six; any other sheet that is not the sarcophagus stays on
+			// frame 1 and never animates, rather than indexing past its end (audit, 2026-09-08).
+			chest._oAnimFrame = StashChestHasOwnArt(chest) ? StashChestClosedFrame : (chest._oAnimData->numSprites() >= 6 ? 4 : 1);
 			StashChestAnimDirection = 0;
 		}
 		return;

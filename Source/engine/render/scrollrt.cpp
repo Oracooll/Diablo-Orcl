@@ -438,7 +438,9 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 	// wearing a variant, meant a hall of white steel highlights on invisible bodies (user screenshots,
 	// with Vigor, not a cold aura). The light table is applied AFTER the recolour, which is the order
 	// the palette expects: recolour picks the entry, light darkens it.
-	if (trn != nullptr && trn == monster.uniqueMonsterTRN.get() && !monster.isUnique()) {
+	if (trn != nullptr && trn == monster.uniqueMonsterTRN.get() && !monster.isUnique() && LightTableIndex != 0) {
+		// (Level 0 falls through to the plain draw below: ClxDrawLight skips the table there too, and
+		// table 0's one non-identity entry sends white to black.)
 		const std::array<uint8_t, 256> &light = LightTables[LightTableIndex];
 		std::array<uint8_t, 256> lit;
 		for (int i = 0; i < 256; i++)

@@ -1083,8 +1083,11 @@ bool BlitLayerTrueColour(const Surface &out, const ArtAsset &asset, Layer layer,
 				uint32_t px = asset.argb[static_cast<size_t>(sy) * asset.width + sx];
 				if ((px >> 24) < 128)
 					continue; // the 8-bit orb layers key at 128, and the sphere must stay a clean disc
-				if (inside)
-					px = (px & 0xFF000000) | (((px & 0x00FF00FF) * 2 / 5) & 0x00FF00FF) | (((px & 0x0000FF00) * 2 / 5) & 0x0000FF00);
+				if (inside) {
+					// Per channel (audit, 2026-09-08): the packed form let red borrow into blue.
+					const uint32_t r = ((px >> 16) & 0xFF) * 2 / 5, g = ((px >> 8) & 0xFF) * 2 / 5, b = (px & 0xFF) * 2 / 5;
+					px = (px & 0xFF000000) | (r << 16) | (g << 8) | b;
+				}
 				uint32_t *dst = out.at<uint32_t>(dstX, dstY);
 				*dst = CompositeArgbOver(px, *dst, alphaPercent);
 			}

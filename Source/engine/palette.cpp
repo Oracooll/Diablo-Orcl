@@ -160,11 +160,20 @@ namespace {
 
 void RebuildPaletteRgb(const std::array<SDL_Color, 256> &source, int first, int ncolor)
 {
+	// The generation moves only when an entry at or above 32 changed (audit, 2026-09-08): the
+	// colour-cycling levels rewrite 1-31 every frame and a fade rebuilds an unchanged palette, and
+	// each bump made every text colour and frost table rebake. Nothing derived from the palette
+	// reads the cycling band.
+	bool changed = false;
 	for (int i = first; i < first + ncolor; i++) {
 		const SDL_Color &c = source[i];
-		PaletteRGB[i] = (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
+		const uint32_t rgb = (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
+		if (i >= 32 && PaletteRGB[i] != rgb)
+			changed = true;
+		PaletteRGB[i] = rgb;
 	}
-	PaletteRgbGeneration++;
+	if (changed)
+		PaletteRgbGeneration++;
 }
 
 } // namespace

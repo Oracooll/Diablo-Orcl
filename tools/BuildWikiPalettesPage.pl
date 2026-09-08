@@ -12,10 +12,16 @@ sub grid {
 	my ($p, $mark) = @_;
 	my $h = '<div class="pal">';
 	for my $i (0 .. 255) {
-		my ($r, $g, $b) = @{ $p->[$i] };
+		# The VALUES are Blizzard's (IP audit, 2026-09-08: a page carrying all 256 RGB entries of each
+		# .pal is the file in another encoding). Only the fork's own eight injected entries are drawn
+		# in colour; every other cell shows its index and the half it belongs to.
 		my $cls = ($i >= 128) ? ' s' : '';
-		$cls .= ' g' if $mark && $i >= 152 && $i < 160;
-		$h .= sprintf('<i class="c%s" style="background:#%02x%02x%02x" title="%d: #%02x%02x%02x"></i>', $cls, $r, $g, $b, $i, $r, $g, $b);
+		if ($mark && $i >= 152 && $i < 160) {
+			my ($r, $g, $b) = @{ $p->[$i] };
+			$h .= sprintf('<i class="c%s g" style="background:#%02x%02x%02x" title="%d: #%02x%02x%02x (the fork\'s green)"></i>', $cls, $r, $g, $b, $i, $r, $g, $b);
+		} else {
+			$h .= sprintf('<i class="c%s" style="background:%s" title="%d"></i>', $cls, $i >= 128 ? '#3a3631' : '#1e1b18', $i);
+		}
 	}
 	return $h . '</div>';
 }
@@ -67,11 +73,12 @@ figure.shot figcaption{margin-bottom:6px}
 </style>
 <h1>Palettes</h1>
 <p class="lede">Every palette the game can have active, as it looks once LoadPalette has finished with it.
-Each grid is the 256 entries of one .pal file, index 0 top-left and reading across, so row 9 begins at
-index 128. The top half, 0-127, is the level's own scenery colours and differs from file to file. The
+Each grid is the LAYOUT of one .pal file, index 0 top-left and reading across, so row 9 begins at
+index 128. The colour values themselves are Blizzard's and are not reproduced here; the cells show
+their index and which half they belong to. The top half, 0-127, is the level's own scenery colours and differs from file to file. The
 bottom half, 128-255, is the shared half: identical in every in-game palette, laid out as ramps of one
 hue running light to dark, and the only half that monsters, items, cursors and text may use. Hover a
-cell for its index and value.</p>
+cell for its index.</p>
 <div class="note"><b>The fork's one change.</b> On every in-game palette the eight entries at 152-159,
 vanilla's orange minis, are rewritten as a forest-green ramp at load. The cells with a white inset ring
 are those eight. No .pal file was edited; the green exists only in memory. The current zone table names

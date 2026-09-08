@@ -712,8 +712,16 @@ Rectangle GetLevskiRoarRect()
 {
 	if (!WindowOpen)
 		return Rectangle { { 0, 0 }, { 0, 0 } };
-	// Centred on the play area, like the other operable-object windows.
-	const int x = (gnScreenWidth - FrameSize.width) / 2;
+	// Centred on the play area, like the other operable-object windows - unless the recipe book is
+	// open and the room to the left is short of it (audit, 2026-09-08: at 960 wide the centred window
+	// leaves 287px and the 420px book clamped to x=0 covered the whole item grid). Then the window
+	// slides right exactly as far as the book needs, and no further than the screen allows.
+	int x = (gnScreenWidth - FrameSize.width) / 2;
+	if (RecipeBookOpen) {
+		const int needed = BookFrameSize(BookFrame::Tall).width + SlotGap;
+		if (x < needed)
+			x = std::min(needed, std::max(0, static_cast<int>(gnScreenWidth) - FrameSize.width));
+	}
 	// CENTRED vertically (user, 2026-08-27: "Levski's Roar should be middle of screen"). It sat a
 	// third of the way down before, and was briefly bottom-docked by a rule that was never meant for
 	// it - the docking rule is about the side panels.
