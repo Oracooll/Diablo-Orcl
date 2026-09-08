@@ -37,3 +37,11 @@ The user classified the list: everything except the front-end paintings and the 
 Distribution, decided as the "community norm" ("i am not profiting out of this product on behalf of blizzard ip"): the private archive ships inside release zips as one extra file, described in the README as non-commercial fan work for owners of Diablo, and never enters the source repository or GitHub. Verbatim Blizzard files (the extracted PNGs, `tools/town.pal`) stay out of both. The remaining exposure is pushed history (town.pal from v1.7.8, the derivative sprites until v1.11.003), which only a history rewrite and force push remove; that is deferred to the user's next push request.
 
 **Correction (user, later the same day):** the eighteen Levski button states (`levski_*_hover.png`, `levski_*_pressed.png`) and `waypoint_icons.png` are ChatGPT-generated from prompts, not reworked Blizzard pixels. They returned to the public tree (`Packaging/resources/oracool_assets/ui`) at v1.11.006. The private archive keeps: panel_bg, inventory_panel, levski_bg, both book frames, waypoint_panel, the two object sprites and the nine cutscene paintings.
+
+## Second sweep (2026-09-08, four parallel audits)
+
+MD5 of every tracked file in Packaging/, wiki/sprites, tools/hud_source and the vault against the 8,059 extracted originals: zero byte-identical matches. Every public PNG traces through a tools/ script to the user's own paintings or a delivered ChatGPT pack; the 60 small-font CLX files are DevilutionX's own Font 12 derived, licence in docs/THIRD_PARTY.md. Build and packager clean.
+
+Found and fixed the same day (v1.11.021): `wiki/palettes.html` and the bundle carried all 256 RGB values of 22 Blizzard palettes (the .pal in another encoding) - the page now shows layout and the fork's eight injected green entries only; `.ProjectDocumentation/01-Project-Overview/sunless-palette-compare.png` rendered l1_1.pal as swatches - deleted.
+
+Still in PUSHED history (a rewrite and force push at the user's next push request): `tools/town.pal` (from a093995), `oracool_assets/levels/l1data/sunless_1.pal` (5b32ce7-361a94c), the derivative sprites and canvases up to a98eba4, and the palette page from cd0521a (the current tip of origin/oracool-v1-main). Noted, not decided: the 21 text-colour bands in text_render.cpp are 16-value excerpts of Blizzard palettes.
