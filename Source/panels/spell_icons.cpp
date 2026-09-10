@@ -1,6 +1,7 @@
 #include "panels/spell_icons.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 
 #include "engine.h"
@@ -26,6 +27,34 @@ OptionalOwnedClxSpriteList SmallSpellIcons;
 OptionalOwnedClxSpriteList LargeSpellIcons;
 
 uint8_t SplTransTbl[256];
+
+/**
+ * Oracool (2026-09-10): the GREEN plate as colour values. The palette carries no green any more
+ * (the injected ramp went back to being the fire's orange), so on the 32-bit screen the green
+ * plate is drawn through a table of values: every entry SetSpellTransGreen sent to the green ramp
+ * carries its green here, everything else the palette colour of what SplTransTbl says. On an
+ * indexed surface the same plate comes out orange - the one look the palette can give.
+ */
+std::array<uint32_t, 256> SplGreenOverride {}; // 0 = no override
+bool SplGreenActive = false;
+constexpr uint32_t GreenRampRgb[8] = { 0x8CBE8C, 0x64A064, 0x3E823E, 0x226E22, 0x185A18, 0x104610, 0x0A320A, 0x041C04 };
+
+const uint32_t *SpellRgbTable()
+{
+	static std::array<uint32_t, 256> table;
+	for (int i = 0; i < 256; i++)
+		table[static_cast<size_t>(i)] = SplGreenOverride[static_cast<size_t>(i)] != 0 ? SplGreenOverride[static_cast<size_t>(i)] : PaletteRGB[SplTransTbl[i]];
+	return table.data();
+}
+
+void DrawSpellSprite(const Surface &out, Point position, ClxSprite sprite)
+{
+	if (SplGreenActive && !out.isIndexed()) {
+		ClxDrawRgbMap(out, position, sprite, SpellRgbTable());
+		return;
+	}
+	ClxDrawTRN(out, position, sprite, SplTransTbl);
+}
 
 /** Maps from SpellID to spelicon.cel frame number. */
 const uint8_t SpellITbl[] = {
@@ -189,9 +218,9 @@ void FreeSmallSpellIcons()
 void DrawLargeSpellIcon(const Surface &out, Point position, SpellID spell)
 {
 #ifdef UNPACKED_MPQS
-	ClxDrawTRN(out, position, (*LargeSpellIconsBackground)[0], SplTransTbl);
+	DrawSpellSprite(out, position, (*LargeSpellIconsBackground)[0]);
 #endif
-	ClxDrawTRN(out, position, (*LargeSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]], SplTransTbl);
+	DrawSpellSprite(out, position, (*LargeSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]]);
 }
 
 void DrawSmallSpellIcon(const Surface &out, Point position, SpellID spell)
@@ -202,9 +231,9 @@ void DrawSmallSpellIcon(const Surface &out, Point position, SpellID spell)
 	if (!SmallSpellIcons)
 		return;
 #ifdef UNPACKED_MPQS
-	ClxDrawTRN(out, position, (*SmallSpellIconsBackground)[0], SplTransTbl);
+	DrawSpellSprite(out, position, (*SmallSpellIconsBackground)[0]);
 #endif
-	ClxDrawTRN(out, position, (*SmallSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]], SplTransTbl);
+	DrawSpellSprite(out, position, (*SmallSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]]);
 }
 
 Size GetSmallSpellIconSize()
@@ -225,11 +254,22 @@ void DrawSmallSpellIconBorder(const Surface &out, Point position)
 {
 	const int width = (*SmallSpellIcons)[0].width();
 	const int height = (*SmallSpellIcons)[0].height();
-	UnsafeDrawBorder2px(out, Rectangle { Point { position.x, position.y - height + 1 }, Size { width, height } }, SplTransTbl[PAL8_YELLOW + 2]);
+	const Rectangle rect { Point { position.x, position.y - height + 1 }, Size { width, height } };
+	if (SplGreenActive && !out.isIndexed()) {
+		// The green border as a value, two pixels wide, like UnsafeDrawBorder2px.
+		const uint32_t green = SplGreenOverride[PAL8_YELLOW + 2];
+		FillRectRgb(out, rect.position.x, rect.position.y, rect.size.width, 2, green, 0);
+		FillRectRgb(out, rect.position.x, rect.position.y + rect.size.height - 2, rect.size.width, 2, green, 0);
+		FillRectRgb(out, rect.position.x, rect.position.y, 2, rect.size.height, green, 0);
+		FillRectRgb(out, rect.position.x + rect.size.width - 2, rect.position.y, 2, rect.size.height, green, 0);
+		return;
+	}
+	UnsafeDrawBorder2px(out, rect, SplTransTbl[PAL8_YELLOW + 2]);
 }
 
 void SetSpellTrans(SpellType t)
 {
+	SplGreenActive = false;
 	if (t == SpellType::Skill) {
 		for (int i = 0; i < 128; i++)
 			SplTransTbl[i] = i;
@@ -294,15 +334,24 @@ void SetSpellTransGreen()
 	for (int i = 0; i < 256; i++)
 		SplTransTbl[i] = static_cast<uint8_t>(i);
 	SplTransTbl[255] = 0;
+	SplGreenOverride.fill(0);
+	SplGreenActive = true;
 
 	SplTransTbl[PAL8_YELLOW] = PAL8_GREEN + 1;
 	SplTransTbl[PAL8_YELLOW + 1] = PAL8_GREEN + 2;
 	SplTransTbl[PAL8_YELLOW + 2] = PAL8_GREEN + 3;
+	SplGreenOverride[PAL8_YELLOW] = GreenRampRgb[1];
+	SplGreenOverride[PAL8_YELLOW + 1] = GreenRampRgb[2];
+	SplGreenOverride[PAL8_YELLOW + 2] = GreenRampRgb[3];
 	for (int i = 0; i < 16; i++) {
-		const auto green = static_cast<uint8_t>(PAL8_GREEN + std::min(i / 2, PAL8_GREEN_SHADES - 1));
+		const int shade = std::min(i / 2, PAL8_GREEN_SHADES - 1);
+		const auto green = static_cast<uint8_t>(PAL8_GREEN + shade);
 		SplTransTbl[PAL16_BEIGE + i] = green;
 		SplTransTbl[PAL16_YELLOW + i] = green;
 		SplTransTbl[PAL16_ORANGE + i] = green;
+		SplGreenOverride[PAL16_BEIGE + i] = GreenRampRgb[shade];
+		SplGreenOverride[PAL16_YELLOW + i] = GreenRampRgb[shade];
+		SplGreenOverride[PAL16_ORANGE + i] = GreenRampRgb[shade];
 	}
 	// The ramp-end entries follow SetSpellTrans(Invalid)'s convention - transparent, not solid.
 	SplTransTbl[PAL16_BEIGE + 15] = 0;
@@ -312,6 +361,7 @@ void SetSpellTransGreen()
 
 void SetSpellTransDarkGrey()
 {
+	SplGreenActive = false;
 	// Oracool: user request (2026-08-15) - "make the inactive skill background darker gray". The
 	// SpellType::Invalid table above maps each ramp onto PAL16_GRAY at the SAME within-ramp index,
 	// which reads pale next to the pink plates around it. This maps four shades further down the

@@ -30,6 +30,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/spell_ranks.h"
 #include "oracool/hud_menu.h"
+#include "engine/palette.h" // PaletteRGB, the grey socket border as a value
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo, for item slot backings
 #include "oracool/event_log.h"
 #include "oracool/gems.h"
@@ -1478,6 +1479,9 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		// low offset is its bright end. White is the top of the grey ramp, which is the whitest index
 		// the shared palette has; there is no PAL16_WHITE.
 		const uint8_t border = isRuneword ? static_cast<uint8_t>(PAL8_GREEN + 1) : static_cast<uint8_t>(PAL16_GRAY);
+		// The green as a VALUE on the 32-bit screen (2026-09-10): the palette's green ramp went back to
+		// being the fire's orange. The index above is the indexed fallback and is orange there.
+		const uint32_t borderRgb = isRuneword ? 0x64A064u : PaletteRGB[PAL16_GRAY];
 		const Rectangle socketBacking { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
 		FillRect(out, socketBacking.position.x, socketBacking.position.y,
 		    socketBacking.size.width, socketBacking.size.height, SocketBackingInterior);
@@ -1488,10 +1492,10 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 			const int h = socketBacking.size.height - 2 * i;
 			if (w <= 0 || h <= 0)
 				break;
-			DrawHorizontalLine(out, { x, y }, w, border);
-			DrawHorizontalLine(out, { x, y + h - 1 }, w, border);
-			DrawVerticalLine(out, { x, y }, h, border);
-			DrawVerticalLine(out, { x + w - 1, y }, h, border);
+			FillRectRgb(out, x, y, w, 1, borderRgb, border);
+			FillRectRgb(out, x, y + h - 1, w, 1, borderRgb, border);
+			FillRectRgb(out, x, y, 1, h, borderRgb, border);
+			FillRectRgb(out, x + w - 1, y, 1, h, borderRgb, border);
 		}
 		return;
 	}

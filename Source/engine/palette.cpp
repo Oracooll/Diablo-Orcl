@@ -240,42 +240,13 @@ void LoadPalette(const char *pszFileName, bool blend /*= true*/)
 #endif
 	}
 
-	// Oracool: the green ramp (user, 2026-08-15 - Belzebub has green, "they found a way. so should
-	// we"). The vanilla palette contains no green at all, and the .pal files ship inside the game's
-	// own MPQs - so rather than editing dozens of archives, the ramp is injected here over the
-	// PAL8_ORANGE mini-ramp (the second-least-used run in the frame audit at ~2,400 pixels, and the
-	// least-used once bright yellow proved irreplaceable - it is the rare items' colour). The one
-	// code consumer of the orange minis, the automap's player marker, re-points to PAL16_ORANGE.
-	// Each green shade keeps its donor's brightness, so anything unaudited shifts hue, not
-	// structure.
-	//
-	// ONLY for the in-game palettes - user screenshot (2026-08-15): the loading screens' cutscene
-	// art is DENSE with the donor ramp (its dithered highlights speckled every roof green), because
-	// the audit that picked the donor sampled gameplay frames, where that art never appears. The
-	// gendata\ cutscene and ui_art\ front-end palettes keep their vanilla bright yellow; no skill
-	// plate ever draws on either, so the green is not needed there. Every in-game palette lives
-	// under levels\ or nlevels\ - see LoadRndLvlPal and the setmaps/quests loaders.
-	//
-	// Everything downstream adapts by itself: logical_palette copies from orig_palette after this,
-	// the HUD's PNG quantization and the divine TRN both rebuild against orig_palette when it
-	// changes, and the blended lookup below is generated from the already-injected values.
-	const bool isInGamePalette = std::strncmp(pszFileName, "levels\\", 7) == 0
-	    || std::strncmp(pszFileName, "nlevels\\", 8) == 0;
-	if (isInGamePalette) {
-		// Forest green (user, 2026-08-15: "make the green darker, more forest green") - the first
-		// ramp mirrored the donor's neon brightness and read minty; this one is anchored around
-		// classic forest green (34,139,34) and slightly desaturated (r == b, never zero), which is
-		// what separates "forest" from "signal light" at plate size.
-		static constexpr Color GreenRamp[PAL8_GREEN_SHADES] = {
-			{ 140, 190, 140 }, { 100, 160, 100 }, { 62, 130, 62 }, { 34, 110, 34 },
-			{ 24, 90, 24 }, { 16, 70, 16 }, { 10, 50, 10 }, { 4, 28, 4 }
-		};
-		for (int i = 0; i < PAL8_GREEN_SHADES; i++) {
-			orig_palette[PAL8_GREEN + i].r = GreenRamp[i].r;
-			orig_palette[PAL8_GREEN + i].g = GreenRamp[i].g;
-			orig_palette[PAL8_GREEN + i].b = GreenRamp[i].b;
-		}
-	}
+	// Oracool: the green ramp that used to be injected here over the orange minis (152-159, from
+	// 2026-08-15 to 2026-09-10) is GONE. Those eight entries are the fire's - Inferno, the fire
+	// missiles, every burning thing dithers through them - and painting them green cost the fires
+	// their colour (user, 2026-09-10: "the colors responsible for Inferno are messed up from the
+	// time we invented green"). Everything that wanted the green now has it as colour VALUES on the
+	// 32-bit screen: set-item text (RgbDefinedColors), the green skill plate (spell_icons.cpp), the
+	// runeword socket border (inv.cpp). The palette is vanilla's again.
 
 	if (blend) {
 		if (leveltype == DTYPE_CAVES || leveltype == DTYPE_CRYPT) {

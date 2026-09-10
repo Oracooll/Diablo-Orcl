@@ -39,8 +39,8 @@ for my $g (@groups) {
 	my ($title, $note, $files) = @$g;
 	$body .= qq{<h2>$title</h2>\n<p class="lede">$note</p>\n<div class="pals">\n};
 	for my $f (@$files) {
-		my $p = pal($f->[1], 1);
-		$body .= qq{<figure class="shot"><figcaption><b>$f->[0]</b><span>as loaded: green injected at 152-159</span></figcaption>} . grid($p, 1) . qq{</figure>\n};
+		my $p = pal($f->[1], 0);
+		$body .= qq{<figure class="shot"><figcaption><b>$f->[0]</b><span>as loaded, unchanged</span></figcaption>} . grid($p, 0) . qq{</figure>\n};
 	}
 	$body .= "</div>\n";
 }
@@ -79,11 +79,11 @@ their index and which half they belong to. The top half, 0-127, is the level's o
 bottom half, 128-255, is the shared half: identical in every in-game palette, laid out as ramps of one
 hue running light to dark, and the only half that monsters, items, cursors and text may use. Hover a
 cell for its index.</p>
-<div class="note"><b>The fork's one change.</b> On every in-game palette the eight entries at 152-159,
-vanilla's orange minis, are rewritten as a forest-green ramp at load. The cells with a white inset ring
-are those eight. No .pal file was edited; the green exists only in memory. The current zone table names
-no palette override, so every level type loads what is listed here.</div>
-<div class="key"><span><i style="background:#3e823e;box-shadow:inset 0 0 0 2px #fff"></i>injected green (152-159)</span><span><i style="background:#888;outline:1px solid rgba(255,255,255,.3)"></i>shared half (128-255)</span></div>
+<div class="note"><b>No fork changes.</b> From 2026-08-15 to 2026-09-10 the eight orange minis at 152-159 were
+rewritten green at load, which cost the fires their colour; since the renderer draws colour values, the
+green lives in code and the palettes load exactly as shipped. The current zone table names no palette
+override, so every level type loads what is listed here.</div>
+<div class="key"><span><i style="background:#888;outline:1px solid rgba(255,255,255,.3)"></i>shared half (128-255)</span></div>
 $body
 <h2>Where the shared half's ramps sit</h2>
 <div class="tablewrap"><table>

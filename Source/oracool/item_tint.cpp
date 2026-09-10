@@ -24,7 +24,7 @@ struct Tint {
 };
 
 /**
- * The shared half of the palette is: 128 blue, 136 red, 144 yellow, 152 green (eight entries each,
+ * The shared half of the palette is: 128 blue, 136 red, 144 yellow, 152 orange (eight entries each,
  * light to dark); then 160 dusty rose, 176 steel blue, 192 gold, 208 orange, 224 crimson, 240 grey
  * (sixteen each; 255 is pure white and not part of the grey ramp).
  *
@@ -43,7 +43,7 @@ constexpr Tint Tints[] = {
 	{ IMISC_OILMAST, 240, 16, 128, 8, 3 },   // Mastery: pure blue
 	{ IMISC_OILSHARP, 240, 16, 136, 8, 3 },  // Sharpness: red
 	{ IMISC_OILDEATH, 240, 16, 224, 16, 3 }, // Death: crimson
-	{ IMISC_OILSKILL, 240, 16, 152, 8, 3 },  // Skill: green
+	{ IMISC_OILSKILL, 240, 16, 152, 8, 3 },  // Skill: the vivid orange minis (was green until the ramp went back to the fire, 2026-09-10)
 	{ IMISC_OILBSMTH, 240, 16, 160, 16, 3 }, // Blacksmith: dusty rose
 	{ IMISC_OILFORT, 240, 16, 144, 8, 3 },   // Fortitude: yellow
 	{ IMISC_OILPERM, 240, 16, 240, 16, 6 },  // Permanence: silver
@@ -52,7 +52,7 @@ constexpr Tint Tints[] = {
 	{ IMISC_GR_RUNEF, 160, 16, 136, 8, 2 },  // Greater Rune of Fire: red
 	{ IMISC_RUNEL, 176, 16, 128, 8, 2 },     // Rune of Lightning: blue
 	{ IMISC_GR_RUNEL, 192, 16, 144, 8, 2 },  // Greater Rune of Lightning: yellow
-	{ IMISC_RUNES, 240, 16, 152, 8, 2 },     // Rune of Stone: green
+	{ IMISC_RUNES, 240, 16, 160, 8, 2 },     // Rune of Stone: dusty rose, light half (was green until 2026-09-10)
 };
 constexpr size_t TintCount = sizeof(Tints) / sizeof(Tints[0]);
 

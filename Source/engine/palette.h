@@ -40,6 +40,10 @@ namespace devilution {
  * (the automap's player marker) re-points to PAL16_ORANGE, and saturated orange survives there for
  * everything else. Each green shade keeps its donor's brightness.
  */
+// PAL8_GREEN names the same eight entries as PAL8_ORANGE: the green that was injected over them
+// (2026-08-15) came out again on 2026-09-10 - see LoadPalette - so on an indexed surface this ramp is
+// ORANGE. The 32-bit screen draws the green as values (see the three consumers). Kept as the name
+// the indexed fallbacks use.
 #define PAL8_GREEN 152
 #define PAL8_GREEN_SHADES 8
 #define PAL16_BEIGE 160

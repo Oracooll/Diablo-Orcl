@@ -9964,7 +9964,7 @@ TEST(OracoolItemTint, TheHellfireRunesLandOnFourVividRamps)
 		{ IMISC_GR_RUNEF, ICURS_GREATER_RUNE_OF_FIRE, 160, 136 },
 		{ IMISC_RUNEL, ICURS_RUNE_OF_LIGHTNING, 176, 128 },
 		{ IMISC_GR_RUNEL, ICURS_GREATER_RUNE_OF_LIGHTNING, 192, 144 },
-		{ IMISC_RUNES, ICURS_RUNE_OF_STONE, 240, 152 },
+		{ IMISC_RUNES, ICURS_RUNE_OF_STONE, 240, 160 }, // dusty rose since the green ramp went back to the fire (2026-09-10)
 	};
 	EXPECT_EQ(oracool::ItemTRN(IMISC_RUNEF), nullptr) << "Fire keeps its orange";
 
