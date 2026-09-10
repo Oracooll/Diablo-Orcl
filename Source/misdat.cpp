@@ -186,6 +186,7 @@ const MissileData MissilesData[] = {
 /*GuidedArrow*/          { &AddRogueArrow,          &ProcessRogueArrow,           SFX_NONE,    SFX_NONE,    MissileGraphicID::Arrow,                Physical | Arrow,      MissileMovementDistribution::Blockable   },
 /*FreezingBurst*/        { &AddMissileExplosion,    &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::FreezingBurst,        Cold,                  MissileMovementDistribution::Disabled    },
 /*Warcry*/               { &oracool::AddWarcry,     nullptr,                      SFX_NONE,    SFX_NONE,    MissileGraphicID::None,                 Physical | Invisible,  MissileMovementDistribution::Disabled    },
+/*WarcryRing*/           { &AddWarcryRing,          &ProcessWarcryRing,           SFX_NONE,    SFX_NONE,    MissileGraphicID::WarcryRing,           Physical,              MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 
@@ -193,7 +194,7 @@ const MissileData MissilesData[] = {
 // silently shifts every missile past it onto another's behaviour. Pinned after Round 6 appended
 // MissileID::Warcry - which, at the enum's old int8_t, wrapped to -128 and read this table from
 // before its first row. See MissileID in spelldat.h for that story.
-static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::Warcry) + 1,
+static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::WarcryRing) + 1,
     "MissilesData needs a row for every MissileID, in the enum's order");
 
 namespace {
@@ -345,6 +346,17 @@ MissileFileData MissileSpriteData[] = {
 /*FrostArrow*/               { {},               96,          16, "frost_arrow",     16, MissileGraphicsFlags::None,                     0, AnimLen_4       },
 /*FreezingBurst*/            { {},              128,          32, "freezing_burst",   1, MissileGraphicsFlags::None,                     1, AnimLen_12      },
 /*BlessedHammerSpin*/        { {},               48,          -8, "blessed_hammer_spin", 1, MissileGraphicsFlags::None,                 1, AnimLen_16      },
+// The briefs' sheets (2026-09-11), PngOnly until each arrives. Sizes are the briefs'; animWidth2 is
+// (frame - 64) / 2 as above. The bolt's cells are 64 wide and 128 tall - the height is the sheet's.
+/*FistOfHeavensBolt*/        { {},               64,           0, "fist_of_heavens_bolt", 1, MissileGraphicsFlags::PngOnly,             1, AnimLen_10      },
+/*BlessedShieldSpin*/        { {},               48,          -8, "blessed_shield_spin", 1, MissileGraphicsFlags::PngOnly,              1, AnimLen_16      },
+/*HolySpark*/                { {},               64,           0, "holy_spark",        1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_8       },
+/*MagicArrowLight*/          { {},               96,          16, "magic_arrow",      16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_4       },
+/*GuidedArrowGold*/          { {},               96,          16, "guided_arrow",     16, MissileGraphicsFlags::PngOnly,                 0, AnimLen_4       },
+/*WarcryRing*/               { {},              160,          48, "warcry_ring",       1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_12      },
+/*HitFire*/                  { {},               64,           0, "hit_fire",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
+/*HitLightning*/             { {},               64,           0, "hit_lightning",     1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
+/*HitCold*/                  { {},               64,           0, "hit_cold",          1, MissileGraphicsFlags::PngOnly,                 1, AnimLen_6       },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };
@@ -378,6 +390,11 @@ void MissileFileData::LoadGFX()
 		sprites.emplace(std::move(*png));
 		return;
 	}
+
+	// A PngOnly slot waiting on its art: stay empty. MissileArtLoaded answers no, and the skill
+	// draws what it borrowed.
+	if ((static_cast<uint8_t>(flags) & static_cast<uint8_t>(MissileGraphicsFlags::PngOnly)) != 0)
+		return;
 
 #ifdef UNPACKED_MPQS
 	char path[MaxMpqPathSize];

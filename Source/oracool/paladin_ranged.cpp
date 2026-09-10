@@ -166,13 +166,21 @@ void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellL
 		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
 	};
 	const int boltDamage = std::max(damage * FistNovaPercent / 100, 1);
+	// The holy spark once delivered (2026-09-11); until then MiniNovaBall's own ChargedBolt. Swapped
+	// per missile, because MiniNovaBall is also a lesser unique's nova and keeps its look there.
+	const bool holySpark = MissileArtLoaded(MissileGraphicID::HolySpark);
+	int sparkFrame = 0;
 	for (WorldTileDisplacement quarterOffset : quarterRadius) {
 		const std::array<WorldTileDisplacement, 4> offsets {
 			quarterOffset, quarterOffset.flipXY(), quarterOffset.flipX(), quarterOffset.flipY()
 		};
 		for (WorldTileDisplacement offset : offsets) {
-			AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
+			Missile *spark = AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
 			    TARGET_MONSTERS, static_cast<int>(player.getId()), boltDamage, spellLevel);
+			if (spark != nullptr && holySpark) {
+				UseMissileGraphic(*spark, MissileGraphicID::HolySpark);
+				spark->_miAnimFrame = sparkFrame++ % spark->_miAnimLen + 1; // out of step, as NovaBall's are
+			}
 		}
 	}
 }

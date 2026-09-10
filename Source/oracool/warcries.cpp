@@ -686,8 +686,13 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 	Player &player = Players[missile._misource];
 	// Which cry: the spell the cast was launched with, which the player carries through the
 	// animation. One missile for all seventeen rather than seventeen missiles.
-	if (!CastWarcry(player, player.executedSpell.spellId, parameter.dst))
+	if (!CastWarcry(player, player.executedSpell.spellId, parameter.dst)) {
 		parameter.spellFizzled = true;
+		return;
+	}
+	// The shockwave on the floor (2026-09-11) - it removes itself while warcry_ring.png is absent.
+	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing,
+	    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);
 }
 
 std::string WarcryFactsAt(SpellID spell, int rank)

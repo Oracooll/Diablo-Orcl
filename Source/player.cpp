@@ -930,10 +930,14 @@ bool DoAttack(Player &player)
 
 		if (!gbIsHellfire || !HasAllOf(player._pIFlags, ItemSpecialEffect::FireDamage | ItemSpecialEffect::LightningDamage)) {
 			const size_t playerId = player.getId();
-			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireDamage)) {
+			// Oracool (2026-09-11): OR fire/lightning damage from anywhere, not only from a weapon
+			// carrying the flag. Enchant, Vengeance and the two Masteries add to the fire and
+			// lightning ranges (the sheet shows them) but set no item flag, so until now their damage
+			// reached a blow only when the weapon was already a fire or lightning weapon.
+			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FireDamage) || player._pIFMaxDam > 0) {
 				AddMissile(position, { 1, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 			}
-			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningDamage)) {
+			if (HasAnyOf(player._pIFlags, ItemSpecialEffect::LightningDamage) || player._pILMaxDam > 0) {
 				AddMissile(position, { 2, 0 }, Direction::South, MissileID::WeaponExplosion, TARGET_MONSTERS, playerId, 0, 0);
 			}
 		}

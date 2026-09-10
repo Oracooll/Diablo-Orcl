@@ -414,6 +414,9 @@ void AddFireWallControl(Missile &missile, AddMissileParameter &parameter);
 void AddInfravision(Missile &missile, AddMissileParameter &parameter);
 void AddEtherealize(Missile &missile, AddMissileParameter &parameter);
 void AddBlessedHammer(Missile &missile, AddMissileParameter &parameter);
+void AddWarcryRing(Missile &missile, AddMissileParameter &parameter);
+/** @brief Oracool: SetMissAnim for code outside missiles.cpp - dresses a missile in one graphic. */
+void UseMissileGraphic(Missile &missile, MissileGraphicID graphic);
 void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter);
 void AddFallingMace(Missile &missile, AddMissileParameter &parameter);
 
@@ -482,6 +485,7 @@ void ProcessFireWallControl(Missile &missile);
 void ProcessInfravision(Missile &missile);
 void ProcessEtherealize(Missile &missile);
 void ProcessBlessedHammer(Missile &missile);
+void ProcessWarcryRing(Missile &missile);
 void ProcessBlessedShieldThrow(Missile &missile);
 void ProcessFallingMace(Missile &missile);
 void ProcessApocalypse(Missile &missile);

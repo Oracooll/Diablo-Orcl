@@ -528,6 +528,11 @@ enum class MissileID : int16_t {
 	FreezingBurst,
 	/** Oracool, Round 6: every cry is cast as this. Calls CastWarcry and is gone - oracool/warcries.h. */
 	Warcry,
+	/**
+	 * Oracool (2026-09-11): the shockwave a cry leaves on the floor - drawn only, no damage.
+	 * AddWarcry drops one under the crier; with no warcry_ring.png delivered it removes itself.
+	 */
+	WarcryRing,
 	Null = -1,
 	// clang-format on
 };

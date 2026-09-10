@@ -2301,6 +2301,12 @@ void AddRogueArrow(Missile &missile, AddMissileParameter &parameter)
 	// frames are the sixteen facings, chosen by _miAnimFrame - while Fire Arrow's sheet and the
 	// frost arrow's are sixteen facings of four frames each, chosen by SetMissDir. AddArrow and
 	// AddElementalArrow each know one of those, so the family asks the right one for its sheet.
+	// Magic and Guided Arrow have their own sixteen-facing sheets once delivered (2026-09-11); until
+	// then they fly as the plain arrow. Chosen before the branch, because the branch reads it.
+	if (missile._mitype == MissileID::MagicArrow && MissileArtLoaded(MissileGraphicID::MagicArrowLight))
+		missile._miAnimType = MissileGraphicID::MagicArrowLight;
+	else if (missile._mitype == MissileID::GuidedArrow && MissileArtLoaded(MissileGraphicID::GuidedArrowGold))
+		missile._miAnimType = MissileGraphicID::GuidedArrowGold;
 	if (missile._miAnimType == MissileGraphicID::Arrow)
 		AddArrow(missile, parameter);
 	else
@@ -2545,11 +2551,17 @@ void AddMissileExplosion(Missile &missile, AddMissileParameter &parameter)
 void AddWeaponExplosion(Missile &missile, AddMissileParameter &parameter)
 {
 	missile.var2 = parameter.dst.x;
-	if (parameter.dst.x == 1)
-		SetMissAnim(missile, MissileGraphicID::MagmaBallExplosion);
-	else
-		SetMissAnim(missile, MissileGraphicID::ChargedBolt);
+	const bool fire = parameter.dst.x == 1;
+	SetMissAnim(missile, fire ? MissileGraphicID::MagmaBallExplosion : MissileGraphicID::ChargedBolt);
 	missile._mirange = missile._miAnimLen - 1;
+	// Oracool (2026-09-11): the hit flashes from the briefs, once delivered. The range above stays
+	// the vanilla graphic's, so a blow gets exactly as many rolls to land as it always did; only the
+	// picture changes. var4 marks the flash for ProcessWeaponExplosion.
+	const MissileGraphicID flash = fire ? MissileGraphicID::HitFire : MissileGraphicID::HitLightning;
+	if (MissileArtLoaded(flash)) {
+		SetMissAnim(missile, flash);
+		missile.var4 = 1;
+	}
 }
 
 void AddTownPortal(Missile &missile, AddMissileParameter &parameter)
@@ -3095,8 +3107,12 @@ void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter)
 	UpdateMissileVelocity(missile, dst, HolyBoltSpeed * BlessedShieldSpeedMultiplier);
 	missile._mirange = BlessedShieldRangeTicks;
 	SetMissDir(missile, GetDirection16(missile.position.start, dst));
-	// The shield's own tumble - "in spinning motion animation, if available". It is available.
-	UseItemDropAnimation(missile, ShieldDropAnimIndex);
+	// Its own spin sheet once delivered (2026-09-11); until then the shield item's drop tumble,
+	// painted divine - "in spinning motion animation, if available".
+	if (MissileArtLoaded(MissileGraphicID::BlessedShieldSpin))
+		SetMissAnim(missile, MissileGraphicID::BlessedShieldSpin);
+	else
+		UseItemDropAnimation(missile, ShieldDropAnimIndex);
 }
 
 /**
@@ -3109,7 +3125,12 @@ void AddFallingMace(Missile &missile, AddMissileParameter &parameter)
 {
 	missile.position.tile = parameter.dst;
 	missile.position.start = parameter.dst;
-	UseItemDropAnimation(missile, MaceDropAnimIndex);
+	// The bolt from the sky once delivered (2026-09-11), ten frames ending on the ground; until then
+	// the mace item's drop tumble, painted divine.
+	if (MissileArtLoaded(MissileGraphicID::FistOfHeavensBolt))
+		SetMissAnim(missile, MissileGraphicID::FistOfHeavensBolt);
+	else
+		UseItemDropAnimation(missile, MaceDropAnimIndex);
 	// The animation's own length, so the blast lands exactly when the mace does rather than on a
 	// number picked to look about right.
 	missile._mirange = missile._miAnimLen;
@@ -3167,6 +3188,35 @@ void AddBlessedHammer(Missile &missile, AddMissileParameter & /*parameter*/)
 	missile.var1 = 0;
 	missile.var2 = missile.position.start.x;
 	missile.var3 = missile.position.start.y;
+}
+
+void UseMissileGraphic(Missile &missile, MissileGraphicID graphic)
+{
+	SetMissAnim(missile, graphic);
+}
+
+/**
+ * @brief Oracool (2026-09-11): the shockwave a cry leaves on the floor. Drawn, never hits - the cry's
+ * effect is CastWarcry's. Plays its twelve frames once under the crier, then goes.
+ */
+void AddWarcryRing(Missile &missile, AddMissileParameter & /*parameter*/)
+{
+	if (!MissileArtLoaded(MissileGraphicID::WarcryRing)) {
+		missile._miDelFlag = true; // warcry_ring.png not delivered yet: the cry stays unseen, as before
+		return;
+	}
+	missile._miPreFlag = true; // on the floor, under whoever stands in it
+	missile._mirange = missile._miAnimLen;
+}
+
+void ProcessWarcryRing(Missile &missile)
+{
+	missile._mirange--;
+	if (missile._mirange <= 0) {
+		missile._miDelFlag = true;
+		return;
+	}
+	PutMissile(missile);
 }
 
 /**
@@ -4311,12 +4361,24 @@ void ProcessWeaponExplosion(Missile &missile)
 		maxd = player._pILMaxDam;
 		damageType = DamageType::Lightning;
 	}
-	CheckMissileCol(missile, damageType, mind, maxd, false, missile.position.tile, false);
+	if (missile.var3 == 0) {
+		CheckMissileCol(missile, damageType, mind, maxd, false, missile.position.tile, false);
+		// Oracool: a landed blow ends the explosion the tick it lands - which is why vanilla's fire
+		// flash vanishes on a hit. A hit FLASH has to be seen, so with the flash art it plays out
+		// instead: no second roll (var3), just the frames that are left.
+		if (missile.var4 != 0 && missile._miHitFlag) {
+			missile.var3 = 1;
+			missile._mirange = std::max(missile._miAnimLen - missile._miAnimFrame, 1);
+		}
+	}
+	// And the flash bursts once: it holds its last, nearly empty frame rather than starting again.
+	if (missile.var4 != 0 && missile._miAnimFrame >= missile._miAnimLen)
+		missile._miAnimAdd = 0;
 	if (missile.var1 == 0) {
 		missile._mlid = AddLight(missile.position.tile, 9);
 	} else {
 		if (missile._mirange != 0)
-			ChangeLight(missile._mlid, missile.position.tile, ExpLight[missile.var1]);
+			ChangeLight(missile._mlid, missile.position.tile, ExpLight[std::min(missile.var1, 9)]);
 	}
 	missile.var1++;
 	if (missile._mirange == 0) {

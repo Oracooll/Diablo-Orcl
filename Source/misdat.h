@@ -133,6 +133,21 @@ enum class MissileGraphicID : uint8_t {
 	 * hammer wore the mace item's drop tumble painted gold.
 	 */
 	BlessedHammerSpin,
+	/**
+	 * Oracool (2026-09-11): the rest of the skill sheets from Resources\ORCL-skill-asset-briefs.md,
+	 * registered before their art exists. Each is PngOnly: while its PNG is not in the archive the
+	 * slot stays empty and the skill keeps the sprite it borrowed, so a delivered batch lands with a
+	 * copy and a repack and no code change. MissileArtLoaded is the question every user asks.
+	 */
+	FistOfHeavensBolt,
+	BlessedShieldSpin,
+	HolySpark,
+	MagicArrowLight,
+	GuidedArrowGold,
+	WarcryRing,
+	HitFire,
+	HitLightning,
+	HitCold,
 	None,
 };
 
@@ -200,6 +215,9 @@ enum class MissileGraphicsFlags : uint8_t {
 	None         = 0,
 	MonsterOwned = 1 << 0,
 	NotAnimated  = 1 << 1,
+	// Oracool: art this fork ships as a PNG and nothing else. No PNG, no sprite - never a CL2 lookup
+	// for a file that has never existed. See MissileArtLoaded.
+	PngOnly      = 1 << 2,
 	// clang-format on
 };
 
@@ -216,7 +234,8 @@ struct MissileFileData {
 	 * from 1996. Twenty holds the longest of the thirteen with room, and costs eleven bytes a row in
 	 * a table of about a hundred.
 	 */
-	char name[20];
+	// Twenty-four since 2026-09-11: "fist_of_heavens_bolt" is twenty on its own.
+	char name[24];
 	uint8_t animFAmt;
 	MissileGraphicsFlags flags;
 	uint8_t animDelayIdx;
@@ -258,6 +277,16 @@ extern MissileFileData MissileSpriteData[];
 inline MissileFileData &GetMissileSpriteData(MissileGraphicID graphicId)
 {
 	return MissileSpriteData[static_cast<std::underlying_type<MissileGraphicID>::type>(graphicId)];
+}
+
+/**
+ * @brief Oracool: whether a graphic's art is actually loaded - false for a PngOnly slot whose sheet
+ * has not been delivered yet, and for everything in headless mode. The skills that wait on new art
+ * ask this and keep their borrowed sprite until it says yes.
+ */
+inline bool MissileArtLoaded(MissileGraphicID graphicId)
+{
+	return graphicId < MissileGraphicID::None && GetMissileSpriteData(graphicId).sprites.has_value();
 }
 
 void InitMissileGFX(bool loadHellfireGraphics = false);
