@@ -3206,6 +3206,11 @@ void AddWarcryRing(Missile &missile, AddMissileParameter & /*parameter*/)
 		return;
 	}
 	missile._miPreFlag = true; // on the floor, under whoever stands in it
+	// A sprite hangs from its tile by its bottom edge, and the ring's ellipse is centred in a 160px
+	// cell - left there, it would float 80px up, round the crier's chest (Frost Nova's art sits that
+	// high on purpose; this one is a floor wave). 64 puts its centre on the tile's centre, 16px above
+	// the bottom edge. A still missile renders at exactly this offset (UpdateMissileRendererData).
+	missile.position.offset = { 0, 64 };
 	missile._mirange = missile._miAnimLen;
 }
 
