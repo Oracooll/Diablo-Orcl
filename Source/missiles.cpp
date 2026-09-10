@@ -3159,12 +3159,10 @@ void ProcessBlessedShieldThrow(Missile &missile)
 
 void AddBlessedHammer(Missile &missile, AddMissileParameter & /*parameter*/)
 {
-	// The mace tumble, painted gold (user, 2026-09-07: "Use asset of a mace instead of this fireball
-	// you are using. Tint the mace GOLD."). Same borrowed item-drop animation Fist of the Heavens
-	// falls with; it loops in ProcessMissiles, so the mace keeps turning for the whole spiral.
-	// UseItemDropAnimation paints it divine; this one is gold, and the gold table wins.
-	UseItemDropAnimation(missile, MaceDropAnimIndex);
-	missile.oracoolTrn = oracool::GetGoldTrn();
+	// Its own sprite since 2026-09-11: MissileGraphicID::BlessedHammerSpin, sixteen frames of the
+	// hammer turning, one frame a tick, looped by ProcessMissiles for the whole spiral - a full turn
+	// every 16 ticks. (It wore the mace item's drop tumble painted gold from 2026-09-07; that
+	// borrowed sprite never rotated, it slid.)
 	missile._mirange = BlessedHammerTicks;
 	missile.var1 = 0;
 	missile.var2 = missile.position.start.x;

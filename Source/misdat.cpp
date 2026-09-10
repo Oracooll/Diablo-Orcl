@@ -144,8 +144,8 @@ const MissileData MissilesData[] = {
 // Oracool: the Paladin's Blessed Hammer. Movement Disabled because it does NOT travel on a velocity
 // vector - ProcessBlessedHammer writes position.traveled itself each tick from an angle and a radius,
 // which is the one thing no other missile in this table does. Fireball's sprite is only the fallback -
-// AddBlessedHammer swaps in items\mace.cel painted gold (2026-09-07); Physical because it is a hammer.
-/*BlessedHammer*/        { &AddBlessedHammer,       &ProcessBlessedHammer,        IS_CAST2,    SFX_NONE,    MissileGraphicID::Fireball,             Physical,              MissileMovementDistribution::Disabled    },
+// Its own spin sheet since 2026-09-11 (it wore items\mace.cel painted gold before); Physical because it is a hammer.
+/*BlessedHammer*/        { &AddBlessedHammer,       &ProcessBlessedHammer,        IS_CAST2,    SFX_NONE,    MissileGraphicID::BlessedHammerSpin,    Physical,              MissileMovementDistribution::Disabled    },
 // Oracool: Blessed Shield's throw. HolyBolt's sprite is a placeholder - the game ships no shield
 // missile art at all, and the one shield the user asked for lives in the ITEM cursor sheet as a
 // static 2x3 icon with no spin frames. Holy's bright bolt is at least the right register for a
@@ -344,6 +344,7 @@ MissileFileData MissileSpriteData[] = {
 // Round 3. The frost arrow is cut like Fire Arrow's "farrow" - sixteen facings, four frames each.
 /*FrostArrow*/               { {},               96,          16, "frost_arrow",     16, MissileGraphicsFlags::None,                     0, AnimLen_4       },
 /*FreezingBurst*/            { {},              128,          32, "freezing_burst",   1, MissileGraphicsFlags::None,                     1, AnimLen_12      },
+/*BlessedHammerSpin*/        { {},               48,          -8, "blessed_hammer_spin", 1, MissileGraphicsFlags::None,                 1, AnimLen_16      },
 /*None*/                     { {},                0,           0, {},                 0, MissileGraphicsFlags::None,                     0, 0               },
 	// clang-format on
 };

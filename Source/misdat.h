@@ -127,6 +127,12 @@ enum class MissileGraphicID : uint8_t {
 	// Round 3: the Rogue's cold arrow and Freezing Arrow's landing. Last two of the thirteen.
 	FrostArrow,
 	FreezingBurst,
+	/**
+	 * Oracool (2026-09-11): Blessed Hammer's own sprite - missileslessed_hammer_spin.png, sixteen
+	 * 48x48 frames of one hammer turning clockwise 22.5 degrees a frame, generated art. Until now the
+	 * hammer wore the mace item's drop tumble painted gold.
+	 */
+	BlessedHammerSpin,
 	None,
 };
 
