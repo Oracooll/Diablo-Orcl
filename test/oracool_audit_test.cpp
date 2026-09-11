@@ -2253,7 +2253,16 @@ TEST(OracoolClassTree, EveryPageIsPopulatedAndGridPositionsAreUnique)
 			retired++;
 	}
 	EXPECT_GT(retired, 0u) << "the book-spell rule matched nothing - has it been lost?";
-	EXPECT_EQ(total, oracool::ClassTreeSkillCount) << "a skill is on no page, or on two";
+	// ...save the rows taken OFF their page on purpose (RetiredFromTreePage, 2026-09-12: the two unbuilt
+	// passives that made room for the nineteenth on a 3x6 page). Counted, so a row lost any other way
+	// still fails here.
+	size_t offPage = 0;
+	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+		if (oracool::GetClassTreeSkillData(static_cast<oracool::ClassTreeSkill>(i)).page == oracool::RetiredFromTreePage)
+			offPage++;
+	}
+	EXPECT_EQ(offPage, 2u) << "Boon of Bul-Kathos and Ballistics are the only rows on no page";
+	EXPECT_EQ(total + offPage, oracool::ClassTreeSkillCount) << "a skill is on no page, or on two";
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -11588,7 +11597,9 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 
 // The Abilities window draws every page as a three-by-six grid (user, 2026-09-12: "i want every ability
 // tree to have 3x6 skills"), filling the cells no skill holds with empty slots. Pinned: every row sits
-// inside that grid but the two nineteenth passives, which stand on the seventh tier below it.
+// inside that grid. The two nineteenth passives stood on a seventh tier below it until the user's "i dont
+// want 19th (lvl 36) skill" (2026-09-12): an unbuilt passive left each page (RetiredFromTreePage) and the
+// page closed up.
 TEST(OracoolClassTree, EveryPageFitsTheThreeBySixGrid)
 {
 	const bool hellfire = gbIsHellfire;
@@ -11607,8 +11618,14 @@ TEST(OracoolClassTree, EveryPageFitsTheThreeBySixGrid)
 		}
 	}
 	gbIsHellfire = hellfire;
-	std::sort(outside.begin(), outside.end());
-	EXPECT_EQ(outside, (std::vector<std::string> { "Rampage", "Single Out" }));
+	EXPECT_TRUE(outside.empty()) << "a row stands outside the 3x6 grid: " << (outside.empty() ? "" : outside.front());
+
+	// The two unbuilt passives that made room are on no page, and the rows after them moved up a cell.
+	EXPECT_FALSE(oracool::IsPassiveSkillRow(oracool::ClassTreeSkill::BoonOfBulKathos)) << "Boon of Bul-Kathos is still on the Barbarian's page";
+	EXPECT_FALSE(oracool::IsPassiveSkillRow(oracool::ClassTreeSkill::Ballistics)) << "Ballistics is still on the Rogue's page";
+	EXPECT_EQ(oracool::PassiveSkillRequiredLevel(oracool::ClassTreeSkill::Rampage), 36) << "the Barbarian's last passive";
+	EXPECT_EQ(oracool::PassiveSkillRequiredLevel(oracool::ClassTreeSkill::SingleOut), 36) << "the Rogue's last passive";
+	EXPECT_EQ(oracool::PassiveSkillRequiredLevel(oracool::ClassTreeSkill::Leech), 30) << "Leech moved up into Ballistics' cell";
 }
 
 // Blessed Shield bounces (user, 2026-09-11: "it should bound off of first target in direction to nearest

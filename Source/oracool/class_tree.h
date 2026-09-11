@@ -537,6 +537,14 @@ constexpr size_t ClassTreePageCount = 4;
  */
 constexpr int PassiveSkillsPage = 3;
 
+/**
+ * @brief The page of a row kept in the table but shown on no page (user, 2026-09-12: "i dont want 19th
+ * (lvl 36) skill"). A row's POSITION is its identity - the icon strip, saved points and passive slots all
+ * index by it - so a skill leaves its page by this value rather than by deletion. BuildClassTreePage
+ * never asks for it, IsPassiveSkillRow is false for it, and the passives after it arrive a cell sooner.
+ */
+constexpr int RetiredFromTreePage = -1;
+
 /** @brief Slots a character can fill with passives. Unslotted passives do nothing. */
 constexpr size_t PassiveSlotCount = 4;
 
@@ -547,8 +555,8 @@ bool IsPassiveSkillRow(ClassTreeSkill skill);
  * @brief The character level at which @p skill unlocks: one passive every even level.
  *
  * The nth passive on the page (counting from zero, in grid reading order) arrives at level
- * 2n+2 - so the first at 2, the eighteenth at 36, the nineteenth at 38 for the two classes that
- * have one. Returns 0 for a row that is not on the Passive Skills page; those are gated by tier.
+ * 2n+2 - so the first at 2 and the eighteenth, the last a 3x6 page holds, at 36. Returns 0 for a row
+ * that is not on the Passive Skills page; those are gated by tier.
  */
 int PassiveSkillRequiredLevel(ClassTreeSkill skill);
 
@@ -589,7 +597,7 @@ struct ClassTreeSkillData {
 	/** What the skill does in Diablo II, plus this engine's adaptation where they differ. */
 	const char *description;
 	HeroClass heroClass;
-	/** 0-2, the page within the class's tree. */
+	/** 0-3, the page within the class's tree - or RetiredFromTreePage, for a row shown on none. */
 	int page;
 	/** 0 to ClassTreeTierCount-1. The character level required is ClassTreeTierMinLevel(tier). */
 	int tier;

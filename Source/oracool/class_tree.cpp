@@ -302,14 +302,18 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Unforgiving"), N_("Your fury no longer ebbs when the fighting stops - it rises. Not yet built."),
 	    Bar, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	// Off the page (user, 2026-09-12: "i dont want 19th (lvl 36) skill"). A full 3x6 page holds 18, so
+	// this unbuilt passive left it and the three after it moved up a cell - Rampage into the last one, at
+	// level 36. Kept in the table: a row's position is its identity (icon strip, saves). See
+	// RetiredFromTreePage.
 	{ N_("Boon of Bul-Kathos"), N_("Your earthquake, your ancients and your berserking all return far sooner. Not yet built."),
-	    Bar, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	    Bar, RetiredFromTreePage, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Earthen Might"), N_("Splitting the ground fills you with fury. Not yet built."),
-	    Bar, 3, 5, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	    Bar, 3, 5, 0, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Sword and Board"), N_("Behind a shield you take -30% damage."),
-	    Bar, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Bar, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Rampage"), N_("Every kill lends +5% damage for 5 seconds, stacking five high."),
-	    Bar, 3, 6, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Bar, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ======================= SORCERESS =======================
 	// --- Cold Spells: inert as a page. This engine has no cold damage channel and no chill, so
 	//     every one of these would have to be invented rather than adapted. Listed and described.
@@ -451,16 +455,19 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Rog, 3, 4, 0, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Sharpshooter"), N_("Every moment you do not land a telling blow makes the next one likelier. Not yet built."),
 	    Rog, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	// Off the page (user, 2026-09-12: "i dont want 19th (lvl 36) skill"), as the Barbarian's Boon of
+	// Bul-Kathos: this unbuilt passive left, and the four after it moved up a cell - Leech to level 30,
+	// Single Out into the last cell at 36. Kept in the table; see RetiredFromTreePage.
 	{ N_("Ballistics"), N_("Your rockets hit at +100% damage and sometimes seek their mark. Not yet built."),
-	    Rog, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	    Rog, RetiredFromTreePage, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Leech"), N_("Every blow you land returns three hundredths of its damage as life."),
-	    Rog, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Rog, 3, 4, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Ambush"), N_("+40% damage against anything above 75% of its life."),
-	    Rog, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Rog, 3, 5, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Awareness"), N_("Once a minute a killing blow leaves you standing at 33% of your life instead."),
-	    Rog, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Rog, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Single Out"), N_("+25% damage against anything with no fellow within two tiles."),
-	    Rog, 3, 6, 0, Kind::Passive, SpellID::Invalid, true, 1 },
+	    Rog, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	// ======================= BARD =======================
 	// The user's own design rather than Diablo II's: seven songs per discipline, described on the
 	// sheet itself. The working songs are AURAS, which is both what they are - a bard plays one
@@ -1315,8 +1322,8 @@ int PassiveSkillRequiredLevel(Skill skill)
 	const int index = PassiveIndexOnPage(skill);
 	if (index < 0)
 		return 0;
-	// One every even level: the first at 2, the nth at 2n+2. Nineteen passives reach level 38, well
-	// inside the character cap, so no class outruns its own page.
+	// One every even level: the first at 2, the nth at 2n+2. Eighteen passives - a full 3x6 page, the
+	// most any class has since 2026-09-12 - reach level 36, well inside the character cap.
 	return 2 * (index + 1);
 }
 

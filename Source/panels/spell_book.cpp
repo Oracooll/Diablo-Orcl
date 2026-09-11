@@ -533,8 +533,9 @@ static_assert(AbilitiesListTop + 6 * TreeRowPitch <= AbilitiesContentSize.height
     "a six-tier tree page no longer fits the list unscrolled - tighten TreeRowGap or the nav row");
 /**
  * @brief Every page is a full three-by-six grid (user, 2026-09-12: "i want every ability tree to have
- * 3x6 skills"). The cells no skill holds are drawn as empty slots - see DrawTreePage. The seventh tier
- * ClassTreeTierCount allows sits below the grid; only the two nineteenth passives stand there.
+ * 3x6 skills"). The cells no skill holds are drawn as empty slots - see DrawTreePage. No row stands on
+ * the seventh tier ClassTreeTierCount still allows since the two nineteenth passives moved into the
+ * grid (2026-09-12).
  */
 constexpr int TreeGridTiers = 6;
 static_assert(TreeGridTiers <= oracool::ClassTreeTierCount, "the grid is deeper than any skill can be");
