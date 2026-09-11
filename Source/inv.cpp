@@ -2990,7 +2990,9 @@ void InvGetItem(Player &player, int ii)
 	// need this: the QoL auto-pickup radius goes through AutoGetItem, but an item on the exact tile
 	// the player stands on always comes through here instead.
 	if (&player == MyPlayer && oracool::TrySalvageOnPickup(player, item)) {
-		if (*sgOptions.Audio.itemPickupSound)
+		// The item became material, so it sounds like salvage, not like a pickup (2026-09-11); the
+		// pickup sound is the fallback when salvage.wav is missing, and keeps its own option.
+		if (!oracool::PlayUiEventSound(oracool::UiEventSound::Salvage) && *sgOptions.Audio.itemPickupSound)
 			PlaySFX(IS_IGRAB);
 		CleanupItems(ii);
 		pcursitem = -1;
@@ -3123,7 +3125,9 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 	// Oracool: the auto-pickup half of the Charm of Salvaging hook - see InvGetItem's copy. This is
 	// the path that matters most in practice, because it is the one the QoL pickup radius uses.
 	if (&player == MyPlayer && oracool::TrySalvageOnPickup(player, item)) {
-		if (*sgOptions.Audio.itemPickupSound)
+		// The item became material, so it sounds like salvage, not like a pickup (2026-09-11); the
+		// pickup sound is the fallback when salvage.wav is missing, and keeps its own option.
+		if (!oracool::PlayUiEventSound(oracool::UiEventSound::Salvage) && *sgOptions.Audio.itemPickupSound)
 			PlaySFX(IS_IGRAB);
 		CleanupItems(ii);
 		oracool::ScheduleAutoSaveForItemPickup();

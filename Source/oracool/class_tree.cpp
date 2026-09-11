@@ -1529,9 +1529,9 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 	// on once BOUGHT, and scales with the points in it.
 	//
 	// A Passive Skills page row is bought with nothing and scales with nothing. It is on if and only
-	// if it sits in one of the four slots, which is the whole of that page's choice. Every one of
-	// them is inert today, so this gate changes no number yet; it is here so that the first one
-	// built cannot accidentally apply from the grid.
+	// if it sits in one of the four slots, which is the whole of that page's choice. 41 of the 110 are
+	// built now and the rest are inert; this gate is what keeps a built one from applying from the
+	// grid - only a slotted row counts.
 	const Skill first = FirstSkillOf(player._pClass);
 	for (size_t i = 0; i < MaxSkillsPerClass; i++) {
 		const auto skill = static_cast<Skill>(static_cast<size_t>(first) + i);

@@ -59,3 +59,15 @@ Not seen or heard in play. Things to check:
 
 - **Two sounds at once:** a milestone claimed by the same action as the orb-absorb sound (filling an item to its orb cap) plays both.
 - **Orphan manifest entry:** the glyph pack still lists the removed Paladin Holy Bolt, which the builder reports and skips.
+
+## After RfA-04: the loop reaches zero (v1.11.037)
+
+The post-RfA-04 sweep found **zero assets still needed**. Every path the code loads is on disk: the ui art, the nine PngOnly missile sheets, all 306 skill-sound WAVs and the ten sfx\ui event sounds, and the object CELs. The hourly delivery check was stopped, and the Gold asset loop is recorded as complete.
+
+The sweep's remaining findings needed no art:
+- **Salvage on pickup:** a Charm of Salvaging converting an item on pickup now plays `salvage.wav` instead of the pickup sound, at both pickup paths. The pickup sound is the fallback, under its own option.
+- **Charge's icon in the Abilities book:** the book drew `FuriousChargeIcon`, the bare plate, although Charge's art had shipped. It now tries `TryDrawSkillSpellIcon` first, as the skill wells and the speedbook already did.
+- **Stale comments:** about fourteen comments in 13 files still said art was missing or placeholder, or named `SpellID::ItemRepair` for Charge. They were corrected, comment text only (skill points frame, Levski skin, misdat's shield/Fist notes and PngOnly note, missiles.h, furious_charge.h, class_tree.h/.cpp, hud_menu.h, oracool.h waypoint, hud_art.h/.cpp).
+- **Left for the user:** `ui\inventory_sort.png` ships and is loaded but never drawn, because SORT is a text button. Whether to draw it or drop it is the user's call.
+
+Debug and Release built, ctest 701/701, RTM refreshed with exe 1.11.037.

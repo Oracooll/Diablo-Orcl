@@ -144,7 +144,9 @@ struct Missile {
 	 * palette - usable only by a missile a unique monster fired, and unreachable for a player's. This
 	 * is the same idea with the table supplied rather than looked up, which is what lets the Paladin's
 	 * borrowed ITEM sprites (a tumbling shield, a falling mace) be brightened into something divine
-	 * instead of looking like loot on the floor.
+	 * instead of looking like loot on the floor. Those are only the fallback since 2026-09-11, when
+	 * Blessed Shield and Fist of the Heavens got sheets of their own; a build without them still
+	 * borrows, and still brightens.
 	 *
 	 * Points at a 256-byte table owned elsewhere and outliving the missile; null means draw as-is.
 	 */

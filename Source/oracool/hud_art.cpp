@@ -1513,10 +1513,11 @@ void DrawTownPortalIcon(const Surface &out, int state)
 	if (state < 0 || state > 2)
 		return;
 
-	// TEXT for now (user, 2026-09-06: "replace for now these icon with blue TP text and Gold M
-	// letter. Both to have text shadows"), until the glyph-style pack for the two buttons arrives.
-	// The painted rings are still loaded and quantised (TownPortalIconArt) and CentreOpaqueIn is
-	// still here for them. Shadowed is the game's own text shadow - solid black, two left and two
+	// The glyph (belt_glyphs_tp.png) since the belt glyph pack arrived; the blue "TP" text the user
+	// asked for in the meantime (2026-09-06: "replace for now these icon with blue TP text and Gold M
+	// letter. Both to have text shadows") is the fallback when that sheet is missing. The painted
+	// rings are still loaded and quantised (TownPortalIconArt) and CentreOpaqueIn is still here for
+	// them. Shadowed is the game's own text shadow - solid black, two left and two
 	// down, the same cast as the belt items' (DrawBeltItemShadow).
 	const Rectangle cell = GetBeltSlotRect(BeltTownPortalSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate the item slots wear (user, 2026-09-06)
@@ -1530,7 +1531,8 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 	if (state < 0 || state > 2)
 		return;
 
-	// TEXT for now - see DrawTownPortalIcon. The painted bars (BurgerMenuButtonArt, repainted
+	// The glyph (belt_glyphs_menu.png), with the gold "M" as the fallback - see DrawTownPortalIcon. The
+	// painted bars (BurgerMenuButtonArt, repainted
 	// blue at quantise time) and the nudge history went with the 2026-09-06 change; both are in
 	// the history at v1.9.288.
 	const Rectangle cell = GetBeltSlotRect(BeltMenuSlotIndex);

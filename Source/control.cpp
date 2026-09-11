@@ -1472,9 +1472,9 @@ void DrawUnspentPointsFrame(const Surface &out)
 	// "Points: N" line in the Abilities window's nav row, which existed only while that window was
 	// open - the pool is a standing prompt and belongs on the HUD.
 	//
-	// PLACEHOLDER until the art arrives: a themed fill and border with the count in it, sized
-	// exactly as the promised picture (LevelUpIconSize) so the swap is a draw-call change and no
-	// geometry moves.
+	// The art has arrived (ui\skill_points.png, drawn by DrawPointsFrame below). The themed fill and
+	// border that stood in for it are now only the fallback; they were sized exactly as the promised
+	// picture (LevelUpIconSize), so the swap was a draw-call change and no geometry moved.
 	if (!IsUnspentPointsFrameVisible())
 		return;
 	const Rectangle frame = GetUnspentPointsFrameRect();
@@ -1488,7 +1488,7 @@ void DrawUnspentPointsFrame(const Surface &out)
 	// because three digits do not fit the well the art gives us.
 	if (DrawPointsFrame(out, frame, MyPlayer->_pUnspentSkillPoints, frame.contains(MousePosition)))
 		return;
-	// The pre-art placeholder, kept only as the fallback for a build whose strips are missing.
+	// The pre-art placeholder, kept only as the fallback for a build without ui\skill_points.png.
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
 	DrawHalfTransparentRectTo(out, frame.position.x, frame.position.y, frame.size.width, frame.size.height);
 	UnsafeDrawBorder2px(out, frame, oracool::ThemeEdgeColor);

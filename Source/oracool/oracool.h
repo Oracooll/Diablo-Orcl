@@ -105,8 +105,11 @@ void CloseStashChestObject();
 void ProcessTownStashChest();
 
 /**
- * @brief Oracool: user request - Waypoints, restart, step 1: places a pure visual placeholder
- * sigil in town (no interactivity yet). Defined in objects.cpp (needs file-local AddObject()).
+ * @brief Oracool: places the level's waypoint sigil - town's at a fixed spot, a dungeon level's on
+ * a random floor tile. Began as step 1 of the Waypoints restart: a pure visual placeholder sigil in
+ * town with no interactivity. It now wears its own art (objects\orclwayp.cel, OFILE_ORCLWAYP) and is
+ * fully interactive - OperateWaypoint unlocks it and opens the travel list. Defined in objects.cpp
+ * (needs file-local AddObject()).
  */
 void AddWaypointSigilObject();
 

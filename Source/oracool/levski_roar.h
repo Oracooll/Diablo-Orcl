@@ -15,8 +15,9 @@
  * so the Caves' actual rock stands are untouched. Before that it wore rockstan.cel outright, as an
  * openly-labelled placeholder.
  *
- * The window still wears the ordinary ornate border every other panel uses, and is still waiting on
- * art of its own.
+ * The window has its own art too: the painted skin ui\levski_bg.png, with the levski_<stem>_hover
+ * and _pressed plates laid over it for state (see levski_roar_skin.h). Before that it wore the
+ * ordinary ornate border on a flat ground, which is now only the fallback when the skin is missing.
  *
  * Items placed in the grid are NEVER persisted: closing the window returns them to the backpack.
  * That is what keeps a crafting station out of the save format entirely - there is no state to

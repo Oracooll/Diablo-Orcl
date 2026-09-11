@@ -930,12 +930,14 @@ void DrawSpellRow(const Surface &content, size_t index, SpellID sn, int top)
 	// height - a taller row costs the page its last entry.
 	oracool::DrawDropShadow(content, iconRect, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 	oracool::DrawGridBezel(content, iconRect);
-	// Oracool: user request - the book must show the same borrowed icon Furious Charge uses
-	// everywhere else, not the vanilla Item Repair icon.
+	// Oracool: Charge draws its OWN art here, from the Paladin strip through TryDrawSkillSpellIcon -
+	// the call the skill wells and the speedbook already made first (2026-09-11: the book alone drew
+	// FuriousChargeIcon, the bare plate, though Charge's art had shipped). The plate is the fallback.
 	// The 56px sheet as it is (user, 2026-09-05: "always use the 56x56 icons ... they are much more
 	// detailed"): the cell is 56, so the frame lands without resampling.
-	DrawSpellIconFittedTo(content, iconRect,
-	    oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
+	if (!(oracool::IsFuriousChargeSpell(sn) && oracool::TryDrawSkillSpellIcon(content, iconRect, sn)))
+		DrawSpellIconFittedTo(content, iconRect,
+		    oracool::IsFuriousChargeSpell(sn) ? oracool::FuriousChargeIcon : sn);
 	if (known) {
 		DrawFKeyBadge(content, iconRect, sn);
 	}

@@ -389,9 +389,10 @@ void DrawInventoryTab(const Surface &out, int index, InventoryTabState state);
 /** @brief Whether the tab atlas loaded, so callers can fall back to the drawn tabs. */
 bool HasInventoryTabArt();
 
-// DrawInventorySortButton is gone: the SORT button has no art of its own. It spent a while as the
-// tab row's last position, drawn as the letter "S", and is now a text button in the panel's footer -
-// see DrawInventoryFooter in inv.cpp. That freed the tab position to become the tenth storage page.
+// DrawInventorySortButton is gone. ui\inventory_sort.png does ship, and is still loaded and quantised
+// (InventorySortArt in hud_art.cpp), but nothing draws it: SORT is drawn as text, a gold word in the
+// panel's footer - see DrawInventoryFooter in inv.cpp. It spent a while as the tab row's last
+// position, drawn as the letter "S"; moving it out freed that position to become the tenth storage page.
 
 /**
  * @brief Draws the belt's Town Portal button. @p state is 0 resting, 1 hovered, 2 pressed.

@@ -143,19 +143,17 @@ const MissileData MissilesData[] = {
 /*OrangeExplosion*/      { &AddMissileExplosion,    &ProcessMissileExplosion,     LS_FIRIMP2,  SFX_NONE,    MissileGraphicID::OrangeFlareExplosion, Physical,              MissileMovementDistribution::Disabled    },
 // Oracool: the Paladin's Blessed Hammer. Movement Disabled because it does NOT travel on a velocity
 // vector - ProcessBlessedHammer writes position.traveled itself each tick from an angle and a radius,
-// which is the one thing no other missile in this table does. Fireball's sprite is only the fallback -
-// Its own spin sheet since 2026-09-11 (it wore items\mace.cel painted gold before); Physical because it is a hammer.
+// which is the one thing no other missile in this table does. It draws its own spin sheet since
+// 2026-09-11 (it wore items\mace.cel painted gold before); Physical because it is a hammer.
 /*BlessedHammer*/        { &AddBlessedHammer,       &ProcessBlessedHammer,        IS_CAST2,    SFX_NONE,    MissileGraphicID::BlessedHammerSpin,    Physical,              MissileMovementDistribution::Disabled    },
-// Oracool: Blessed Shield's throw. HolyBolt's sprite is a placeholder - the game ships no shield
-// missile art at all, and the one shield the user asked for lives in the ITEM cursor sheet as a
-// static 2x3 icon with no spin frames. Holy's bright bolt is at least the right register for a
-// BLESSED throw. Blockable so a wall stops it, like every other thrown thing.
-// Oracool: Blessed Shield's throw. The sprite named here is only the fallback - AddBlessedShieldThrow
-// swaps in items\shield.cel, the tumble a dropped shield plays, which is the spinning motion the user
-// asked for. Blockable so a wall stops it, like every other thrown thing.
+// Oracool: Blessed Shield's throw. The sprite named here is only the last fallback - AddBlessedShieldThrow
+// swaps in its own spin sheet (blessed_shield_spin, delivered 2026-09-11) and, without that,
+// items\shield.cel, the tumble a dropped shield plays. HolyBolt was chosen when the base game had no
+// shield missile art at all. Blockable so a wall stops it, like every other thrown thing.
 /*BlessedShieldThrow*/   { &AddBlessedShieldThrow,  &ProcessBlessedShieldThrow,   IS_CAST2,    SFX_NONE,    MissileGraphicID::HolyBolt,             Physical,              MissileMovementDistribution::Blockable   },
-// Oracool: Fist of the Heavens' descent. Same story - the real animation is items\mace.cel, swapped
-// in by AddFallingMace. Invisible would be wrong; this one is the whole point of the effect.
+// Oracool: Fist of the Heavens' descent. Same story - AddFallingMace swaps in its own bolt sheet
+// (fist_of_heavens_bolt, 2026-09-11) and, without that, items\mace.cel's tumble. Invisible would be
+// wrong; this one is the whole point of the effect.
 /*FallingMace*/          { &AddFallingMace,         &ProcessFallingMace,          SFX_NONE,    SFX_NONE,    MissileGraphicID::ApocalypseBoom,       Physical,              MissileMovementDistribution::Disabled    },
 // Oracool: Fist of the Heavens' mini-Nova bolt - NovaBall's own add and process functions with
 // ChargedBolt's smaller sprite. See the note at MissileID::MiniNovaBall.
@@ -347,7 +345,8 @@ MissileFileData MissileSpriteData[] = {
 /*FrostArrow*/               { {},               96,          16, "frost_arrow",     16, MissileGraphicsFlags::None,                     0, AnimLen_4       },
 /*FreezingBurst*/            { {},              128,          32, "freezing_burst",   1, MissileGraphicsFlags::None,                     1, AnimLen_12      },
 /*BlessedHammerSpin*/        { {},               48,          -8, "blessed_hammer_spin", 1, MissileGraphicsFlags::None,                 1, AnimLen_16      },
-// The briefs' sheets (2026-09-11), PngOnly until each arrives. Sizes are the briefs'; animWidth2 is
+// The briefs' sheets (2026-09-11), all nine delivered. They stay PngOnly - no .cl2 stands behind
+// them - so a build without one gets no sprite and its caller falls back. Sizes are the briefs'; animWidth2 is
 // (frame - 64) / 2 as above. The bolt's cells are 64 wide and 128 tall - the height is the sheet's.
 /*FistOfHeavensBolt*/        { {},               64,           0, "fist_of_heavens_bolt", 1, MissileGraphicsFlags::PngOnly,             1, AnimLen_10      },
 /*BlessedShieldSpin*/        { {},               48,          -8, "blessed_shield_spin", 1, MissileGraphicsFlags::PngOnly,              1, AnimLen_16      },

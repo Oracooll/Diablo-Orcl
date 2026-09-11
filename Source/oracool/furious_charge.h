@@ -1,11 +1,11 @@
 /**
  * @file furious_charge.h
  *
- * Oracool: replaces the Warrior's free Item Repair skill with a charge attack. Right-clicking a
- * monster with it readied rushes the player toward the target at double walking speed, then
- * automatically swings on arrival, followed by a 3-second cooldown. Purely a behavior/rendering
- * substitution on top of the existing SpellID::ItemRepair slot - see furious_charge.cpp for why
- * this never touches the SpellID enum, save format, or Player struct.
+ * Oracool: the Paladin's Charge. Right-clicking a monster with it readied rushes the player toward
+ * the target at double walking speed, then automatically swings on arrival, followed by a 3-second
+ * cooldown. It began as a behavior/rendering substitution on the SpellID::ItemRepair slot, which kept
+ * it out of the SpellID enum, save format and Player struct; since 2026-08-15 it is its own
+ * SpellID::Charge, unlocked through oracool/paladin_skills.h, and Item Repair is plain Item Repair.
  */
 #pragma once
 
@@ -15,20 +15,20 @@
 namespace devilution::oracool {
 
 /**
- * @brief True if the Furious Charge option is on and this is a single-player game - the only
- * time SpellID::ItemRepair should render/behave as Furious Charge instead of vanilla repair.
+ * @brief True if this is a single-player game and the local player has unlocked the Paladin's
+ * Charge - the only time SpellID::Charge should render/behave as Charge.
  */
 bool IsFuriousChargeEnabled();
 
 /**
  * @brief True if this SpellID slot should currently render/behave as Furious Charge. Only ever
- * true for SpellID::ItemRepair (the Warrior's own class-ability slot) while the option is on.
+ * true for SpellID::Charge (SpellID::ItemRepair until 2026-08-15) while IsFuriousChargeEnabled.
  */
 bool IsFuriousChargeSpell(SpellID spellId);
 
 /**
- * @brief The icon Charge's slot draws everywhere it appears - the skill wells, the SpeedBook list
- * and the Abilities window.
+ * @brief The FALLBACK icon for Charge's slot - what the skill wells, the SpeedBook list and the
+ * Abilities window draw only when Charge's own art is missing.
  *
  * Oracool: user request (2026-08-15) - "Heal Other icon to be gone. it is not correct to be visible
  * in the RMB or LMB." It was Heal Other: a borrowed icon chosen back when Charge had no art of its
@@ -37,16 +37,17 @@ bool IsFuriousChargeSpell(SpellID spellId);
  * complaint.
  *
  * SpellID::Null is the engine's EMPTY plate (frame 26 of spelli2, the same square every skill icon
- * now sits on), so Charge shows a bare slot rather than another spell's symbol. That is the honest
- * state while the user redraws the skill icons: nothing claimed rather than something wrong. When
- * Charge's own art ships in ui\paladin_skill_icons.png, this is where it gets pointed at it.
+ * now sits on), so missing art shows a bare slot rather than another spell's symbol: nothing claimed
+ * rather than something wrong. Charge's own art has since shipped - frame 3 of
+ * ui\paladin_tree_icons.png, and in ui\paladin_skill_icons.png - and every draw site asks
+ * oracool::TryDrawSkillSpellIcon (or its Large twin) for it first; this plate is what is left.
  */
 inline constexpr SpellID FuriousChargeIcon = SpellID::Null;
 
 /**
- * @brief Oracool: user request - "Furious Charge" (translated) wherever a UI would otherwise show
- * this spell slot's real name ("Item Repair"), otherwise the spell's own translated name
- * unchanged. Every UI spot that displays a spell/skill's name by name should route through this
+ * @brief Oracool: user request - Charge's name from the Paladin skill table ("Charge" since
+ * 2026-08-15, once "Furious Charge" shown over "Item Repair"), otherwise the spell's own translated
+ * name unchanged. Every UI spot that displays a spell/skill's name by name should route through this
  * instead of reading GetSpellData(spellId).sNameText directly, so the substitute name follows
  * automatically wherever the real name would otherwise show.
  */

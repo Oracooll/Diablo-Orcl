@@ -218,8 +218,9 @@ Rectangle RecipeBookInner(const Rectangle &page)
  * window is a moving, unevenly lit town.
  *
  * So: a solid fill. Every other window in the game sits on painted art and hides what is under it
- * completely; this one has no art yet, and "no art" should still mean "not a window you can see
- * through".
+ * completely; this one had no art then, and "no art" should still mean "not a window you can see
+ * through". It has its painting now (ui\levski_bg.png), so this ground only draws when the skin
+ * fails to load - see DrawLevskiRoar.
  *
  * The indices are DrawOrnateBorder's own, with its measured RGB in the comments - not a `PAL16_x +
  * n` expression. PAL16_GRAY + 12/15 was the first attempt and came out near-white (user screenshot,

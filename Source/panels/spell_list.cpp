@@ -170,9 +170,8 @@ void DrawSpell(const Surface &out)
 	// GetRmbSkillWellNetRect itself, where one correction serves all of them.
 	const Rectangle net = oracool::GetRmbSkillWellNetRect();
 
-	// Oracool: while Furious Charge is active, this slot renders with a borrowed icon (see
-	// FuriousChargeIcon - there's no dedicated art for a mod-only skill) instead of the normal
-	// single-color Item Repair icon. User request - the cooldown fill grows in red (rather than
+	// Oracool: while Furious Charge is active, this slot renders Charge's own art (the Paladin strip,
+	// through TryDrawSkillSpellIcon below; FuriousChargeIcon's bare plate is only the fallback). User request - the cooldown fill grows in red (rather than
 	// the ready color) bottom-up as it cools, then flips to the normal ready tint the instant it's fully
 	// cooled, instead of gradually blending from gray to color.
 	// Oracool: user report (2026-08-15) - "the skill icons dont show on rmb". The fix that gave the
@@ -263,8 +262,8 @@ void DrawSpellList(const Surface &out)
 		// vanilla sheet and the type's own ramp.
 		if (!oracool::TryDrawSkillSpellIconLarge(out, spellListItem.location, spellId)) {
 			SetSpellTrans(transType);
-			// Oracool: user request - the SpeedBook list must show the same borrowed icon Furious
-			// Charge uses everywhere else, not the vanilla Item Repair icon, for the Warrior's slot.
+			// Oracool: the fallback for Charge when its strip art is missing - the bare plate, never
+			// the vanilla Item Repair icon, for the Warrior's slot.
 			DrawLargeSpellIcon(out, spellListItem.location, oracool::IsFuriousChargeSpell(spellId) ? oracool::FuriousChargeIcon : spellId);
 		}
 

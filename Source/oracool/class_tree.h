@@ -25,10 +25,11 @@
  * Sorceress from the Wizard, Rogue from the Demon Hunter, Monk from the Monk. Diablo III has no
  * Bard, so hers are authored in the same idiom - as her three song pages already are.
  *
- * Every one of them ships INERT (`implemented` false), which is the whole point: they are named
- * placeholders whose art and effects arrive later. The UI already draws an inert row greyed with a
- * red X and refuses to invest in it, so no point can be sunk into one by mistake, and an icon frame
- * that does not exist yet simply draws the empty plate.
+ * Every one of them shipped INERT (`implemented` false), which was the whole point: named
+ * placeholders whose effects would arrive later. 41 of the 110 have since been built; the rest are
+ * still inert. The UI draws an inert row greyed with a red X and refuses to invest in it, so no
+ * point can be sunk into one by mistake. The art has all arrived: every row, inert or not, has its
+ * frame in its class's icon strip, so the empty plate for a missing frame is only a fallback now.
  *
  * D3's own unlock levels (10 to 70) are NOT reproduced; they are laid out three to a tier down this
  * game's existing ladder, in D3's order. Same reasoning as the prerequisite graph below: borrowing

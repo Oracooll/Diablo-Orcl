@@ -14,8 +14,9 @@
  * draw + click-dispatch functions, no shared state with any other panel.
  *
  * This file also owns the belt's two special (non-item) slots - the Menu button itself and the
- * permanent Town Portal button - since both are simple, self-contained "draw a placeholder icon,
- * handle a click" pairs with no other public surface.
+ * permanent Town Portal button - since both are simple, self-contained "draw the button, handle a
+ * click" pairs with no other public surface. The drawing is hud_art.cpp's: each wears its glyph
+ * sheet (ui\belt_glyphs_menu.png, ui\belt_glyphs_tp.png), falling back to "M" / "TP" text without it.
  */
 #pragma once
 
