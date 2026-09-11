@@ -107,3 +107,31 @@ For the few frames of a block, the body shows the borrowed weapon. The shield is
 Debug and Release built, ctest **710/710**, RTM refreshed with exe 1.11.049. **Not seen in play.**
 
 **To check:** enter a dungeon with an axe, a bow or a staff plus a shield, then get hit and block.
+
+## v1.11.050 - bows need both hands again; axe and staff wear the mace-and-shield body
+
+The user, 2026-09-11: "lets make bows always require 2 hands. makes no sense to have a bow and shield. but it is possible, and therefore we keep it, to wear heavy axe or big staff with one hand and shield in the other." Then: "hero wears axe + shield we will use mace+shield combo assets. hero wears staff+shield - same combo. No Reflec icon anymore."
+
+**The bow rule.** `HeavenlyStrengthGrips` now turns a bow down. Every other two-hander still goes in one hand while the passive is slotted: the great sword, the maul, the great axe (and the pike, an Axe) and the staff. The skill's text now reads: "Bear a two-handed axe, sword, mace or staff in one hand and a shield in the other."
+
+**A bow and shield saved by 047-049.** The new `oracool::EnforceTwoHandedGrip` handles these. It runs on every level load in `LoadGameLevel`, after the hero has been placed on a tile.
+- It looks for a weapon that `GetItemLocation` says needs both hands, with anything in the other hand.
+- It moves that other item off the same way the passive's removal does: into the backpack, or onto the ground at the hero's feet if the backpack is full.
+- An axe with a shield is still a legal pair and is left alone.
+
+**The body.** In `CalcPlrItemVals`, an axe or a staff held with a shield now selects `PlayerWeaponGraphic::MaceShield`. A sword keeps `SwordShield`. The hero is drawn holding a mace and shield. The attack timing is that sheet's too, so it follows the mace-and-shield frames.
+
+**The icon is gone.** The Reflect icon over the hero was removed, along with the `HeavenlyGripHidesTheShield` check behind it. The Reflect spell's own icon is untouched. The v1.11.049 block fallback (`BlockSheetFallback`) stays, as insurance for any sheet an archive lacks.
+
+**Tests**, in `HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield`:
+- With the passive slotted, a bow is `ILOC_TWOHAND` while a mace, an axe and a staff are `ILOC_ONEHAND`.
+- `EnforceTwoHandedGrip` leaves an axe and shield alone.
+- It parts a bow and shield, and the shield lands in the backpack.
+- An axe or a staff with a shield gives `MaceShield` in `_pgfxnum`'s weapon nibble, and a sword with a shield gives `SwordShield`.
+
+Debug and Release built, ctest **710/710**, RTM refreshed with exe 1.11.050. **Not seen in play.**
+
+**To check:**
+- Axe with a shield, and staff with a shield: the hero is drawn with a mace and shield, walking, attacking and blocking, with no icon overhead.
+- A bow can no longer go beside a shield.
+- A hero saved with a bow and a shield has the shield in the backpack after the next level load.

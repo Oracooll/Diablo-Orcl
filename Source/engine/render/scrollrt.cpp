@@ -498,11 +498,6 @@ void DrawPlayerIcons(const Surface &out, const Player &player, Point position, b
 		DrawPlayerIconHelper(out, MissileGraphicID::ManaShield, position, &player != MyPlayer, infraVision);
 	if (player.wReflections > 0)
 		DrawPlayerIconHelper(out, MissileGraphicID::Reflect, position + Displacement { 0, 16 }, &player != MyPlayer, infraVision);
-	// Oracool: Heavenly Strength's shield, where the body sprite cannot draw it - an axe, bow, staff or pike
-	// held with a shield (user, 2026-09-11: "show a shield icon over the hero ... Reflect icon"). Once, even
-	// with the Reflect spell also up.
-	else if (oracool::HeavenlyGripHidesTheShield(player))
-		DrawPlayerIconHelper(out, MissileGraphicID::Reflect, position + Displacement { 0, 16 }, &player != MyPlayer, infraVision);
 	// The cold armours' shell (Oracool, Round 2): the brief's eight-frame shimmer at the body's
 	// outline, one sheet for all three, worn for as long as the armour lasts.
 	if (const int frame = oracool::ColdArmourShellFrame(player); frame >= 0)

@@ -4090,7 +4090,10 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		animWeaponId = holdsShield ? PlayerWeaponGraphic::SwordShield : PlayerWeaponGraphic::Sword;
 		break;
 	case ItemType::Axe:
-		animWeaponId = PlayerWeaponGraphic::Axe;
+		// Oracool: an axe (or a pike) beside a shield - only Heavenly Strength allows the pair - wears the
+		// mace-and-shield body, the one drawn sprite of a hafted weapon with a shield (user, 2026-09-11:
+		// "hero wears axe + shield we will use mace+shield combo assets"). Its attack timing is that sprite's.
+		animWeaponId = holdsShield ? PlayerWeaponGraphic::MaceShield : PlayerWeaponGraphic::Axe;
 		break;
 	case ItemType::Bow:
 		animWeaponId = PlayerWeaponGraphic::Bow;
@@ -4099,7 +4102,8 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		animWeaponId = holdsShield ? PlayerWeaponGraphic::MaceShield : PlayerWeaponGraphic::Mace;
 		break;
 	case ItemType::Staff:
-		animWeaponId = PlayerWeaponGraphic::Staff;
+		// Oracool: and a staff beside a shield the same (user, 2026-09-11: "hero wears staff+shield - same combo").
+		animWeaponId = holdsShield ? PlayerWeaponGraphic::MaceShield : PlayerWeaponGraphic::Staff;
 		break;
 	default:
 		break;

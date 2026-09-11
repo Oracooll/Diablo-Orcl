@@ -11497,10 +11497,12 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 	}
 }
 
-// Heavenly Strength (user, 2026-09-11: "build Heavenly Strength passive skill"). Slotted, EVERY two-handed
-// weapon takes one hand and leaves the other for a shield - the Barbarian's grip, widened (user, the same day:
-// "works for Great Sword, but doesnt work for Great Axe, Bows, Staff"). Taking the passive out moves the shield
-// to the backpack rather than leaving an illegal pair in the hands.
+// Heavenly Strength (user, 2026-09-11: "build Heavenly Strength passive skill"). Slotted, every two-handed
+// weapon but a bow takes one hand and leaves the other for a shield - the Barbarian's grip, widened (user, the
+// same day: "works for Great Sword, but doesnt work for Great Axe, Bows, Staff", then "lets make bows always
+// require 2 hands"). An axe or a staff with a shield wears the mace-and-shield body. Taking the passive out
+// moves the shield to the backpack rather than leaving an illegal pair, and so does a level load that finds a
+// bow beside a shield.
 TEST(OracoolClassTree, HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield)
 {
 	// The GAME archives, not only the core: the backpack reads the shield's size from the cursor sprites,
@@ -11542,20 +11544,44 @@ TEST(OracoolClassTree, HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield)
 	ASSERT_TRUE(oracool::SetPassiveSlot(player, 0, oracool::ClassTreeSkill::HeavenlyStrength));
 	EXPECT_EQ(player.GetItemLocation(greatSword), ILOC_ONEHAND) << "Heavenly Strength frees the other hand";
 	// Every two-hander, not only the Barbarian's two: the maul, the great axe (and the pike, an Axe), the bow, the staff.
-	for (const ItemType type : { ItemType::Mace, ItemType::Axe, ItemType::Bow, ItemType::Staff })
+	for (const ItemType type : { ItemType::Mace, ItemType::Axe, ItemType::Staff })
 		EXPECT_EQ(player.GetItemLocation(twoHander(type)), ILOC_ONEHAND) << "a two-handed ItemType " << static_cast<int>(type) << " still takes both hands";
+	EXPECT_EQ(player.GetItemLocation(twoHander(ItemType::Bow)), ILOC_TWOHAND) << "a bow and a shield make no sense - a bow keeps both hands";
 
-	// An axe, bow or staff has no body sprite with a shield, so the Reflect icon stands in for it over the hero
-	// (user, 2026-09-11: "show a shield icon over the hero"); a sword or mace shows its own and gets none.
+	// A bow beside a shield - legal for three builds, not now - is parted at the next level load: the shield
+	// to the backpack (oracool::EnforceTwoHandedGrip). An axe and a shield, still a legal pair, are left alone.
+	devilution::Item bowsShield {};
+	InitializeItem(bowsShield, IDI_WARRSHLD);
+	player.InvBody[INVLOC_HAND_LEFT] = twoHander(ItemType::Axe);
+	player.InvBody[INVLOC_HAND_RIGHT] = bowsShield;
+	oracool::EnforceTwoHandedGrip(player);
+	EXPECT_FALSE(player.InvBody[INVLOC_HAND_RIGHT].isEmpty()) << "an axe and a shield are still a legal pair";
+	player.InvBody[INVLOC_HAND_LEFT] = twoHander(ItemType::Bow);
+	oracool::EnforceTwoHandedGrip(player);
+	EXPECT_FALSE(player.InvBody[INVLOC_HAND_LEFT].isEmpty()) << "the bow stays in hand";
+	EXPECT_TRUE(player.InvBody[INVLOC_HAND_RIGHT].isEmpty()) << "a bow kept its shield";
+	ASSERT_EQ(player._pNumInv, 1) << "the bow's shield did not land in the backpack";
+	EXPECT_EQ(player.InvList[0]._itype, ItemType::Shield);
+	// An empty backpack again, for what follows.
+	player.InvBody[INVLOC_HAND_LEFT].clear();
+	player._pNumInv = 0;
+	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), static_cast<int8_t>(0));
+
+	// An axe or a staff beside a shield wears the mace-and-shield body, the one drawn sprite of a hafted weapon
+	// with a shield (user, 2026-09-11: "hero wears axe + shield we will use mace+shield combo assets. hero wears
+	// staff+shield - same combo"); a sword keeps its own sword-and-shield body.
 	devilution::Item buckler {};
 	InitializeItem(buckler, IDI_WARRSHLD);
-	player.InvBody[INVLOC_HAND_LEFT] = twoHander(ItemType::Axe);
-	player.InvBody[INVLOC_HAND_RIGHT] = buckler;
-	EXPECT_TRUE(oracool::HeavenlyGripHidesTheShield(player)) << "an axe and a shield: the body cannot show the shield";
-	player.InvBody[INVLOC_HAND_LEFT] = twoHander(ItemType::Staff);
-	EXPECT_TRUE(oracool::HeavenlyGripHidesTheShield(player)) << "a staff and a shield: the body cannot show it either";
-	player.InvBody[INVLOC_HAND_LEFT] = greatSword;
-	EXPECT_FALSE(oracool::HeavenlyGripHidesTheShield(player)) << "a sword and a shield: the body shows it, no icon";
+	buckler._iStatFlag = true;
+	for (const auto &[type, body] : { std::pair { ItemType::Axe, PlayerWeaponGraphic::MaceShield },
+	         std::pair { ItemType::Staff, PlayerWeaponGraphic::MaceShield }, std::pair { ItemType::Sword, PlayerWeaponGraphic::SwordShield } }) {
+		devilution::Item weapon = twoHander(type);
+		weapon._iStatFlag = true;
+		player.InvBody[INVLOC_HAND_LEFT] = weapon;
+		player.InvBody[INVLOC_HAND_RIGHT] = buckler;
+		CalcPlrItemVals(player, false);
+		EXPECT_EQ(static_cast<int>(player._pgfxnum & 0xF), static_cast<int>(body)) << "ItemType " << static_cast<int>(type) << " with a shield wears the wrong body";
+	}
 	player.InvBody[INVLOC_HAND_LEFT].clear();
 	player.InvBody[INVLOC_HAND_RIGHT].clear();
 

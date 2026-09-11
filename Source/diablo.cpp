@@ -4081,6 +4081,12 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 		}
 	}
 
+	// Oracool: a bow held beside a shield - allowed by Heavenly Strength for three builds, then not (user,
+	// 2026-09-11: "lets make bows always require 2 hands") - is parted here, once the hero stands on a tile
+	// so the shield has somewhere to go: the backpack, or the ground at the hero's feet.
+	if (MyPlayer != nullptr && MyPlayer->isOnActiveLevel())
+		oracool::EnforceTwoHandedGrip(*MyPlayer);
+
 	IncProgress();
 	IncProgress();
 

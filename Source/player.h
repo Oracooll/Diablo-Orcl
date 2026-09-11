@@ -38,11 +38,11 @@ namespace oracool {
  */
 bool HeavenlyStrengthGrips(const Player &player, const Item &item);
 /**
- * @brief Whether the hero's body cannot show the shield Heavenly Strength lets it hold: a two-handed axe, bow,
- * staff or pike beside a shield. Their body sprites have no shield variant, so DrawPlayerIcons puts the
- * Reflect icon over the hero instead (user, 2026-09-11: "show a shield icon over the hero").
+ * @brief Parts a two-handed weapon from whatever shares its hands when the rules say it needs both - the
+ * other item to the backpack, or the ground at the hero's feet (2026-09-11). Run on every level load: the
+ * bow beside a shield that three builds allowed is not a pair a hero keeps once bows need both hands again.
  */
-bool HeavenlyGripHidesTheShield(const Player &player);
+void EnforceTwoHandedGrip(Player &player);
 } // namespace oracool
 
 /**
