@@ -329,9 +329,12 @@ struct Item {
 	int _iVMult1 = 0;
 	int _iVAdd2 = 0;
 	int _iVMult2 = 0;
-	int8_t _iMinStr = 0;
+	// Oracool (2026-09-11): Str and Dex unsigned, as Mag already was and as the base table stores all
+	// three. The tiers scale requirements to 220% (item_tiers.cpp), and past 127 a signed byte wrapped:
+	// a Hell Great Axe's 144 read as -112 - no requirement at all - while its tooltip printed 144.
+	uint8_t _iMinStr = 0;
 	uint8_t _iMinMag = 0;
-	int8_t _iMinDex = 0;
+	uint8_t _iMinDex = 0;
 	bool _iStatFlag = false;
 	ItemSpecialEffectHf _iDamAcFlags = ItemSpecialEffectHf::None;
 	uint32_t dwBuff = 0;

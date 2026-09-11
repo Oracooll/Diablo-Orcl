@@ -622,55 +622,40 @@ void SpawnNote()
 
 void CalcSelfItems(Player &player)
 {
-	int sa = 0;
-	int ma = 0;
-	int da = 0;
-
-	// first iteration is used for collecting stat bonuses from items
-	for (Item &equipment : EquippedPlayerItemsRange(player)) {
-		// A broken (0-durability, left equipped rather than destroyed - see
-		// BreakOrRemoveEquipment) item contributes nothing at all, the same as if it had
-		// been removed. Checked here, before stat bonuses are ever added, rather than only
-		// in the invalidation pass below, since that pass only ever removes an already-added
-		// bonus - a broken item's bonus must never be added in the first place.
+	// A broken (0-durability, left equipped rather than destroyed - see BreakOrRemoveEquipment) item
+	// contributes nothing at all, the same as if it had been removed: its flag starts false, so no
+	// provider below ever counts it.
+	for (Item &equipment : EquippedPlayerItemsRange(player))
 		equipment._iStatFlag = !equipment._iOracoolBroken;
-		if (equipment._iStatFlag && equipment._iIdentified) {
-			sa += equipment._iPLStr;
-			ma += equipment._iPLMag;
-			da += equipment._iPLDex;
-		}
-	}
 
+	// Oracool fix (user, 2026-09-11: "I have hit 112 STR but the axe is RED"): each worn item's
+	// requirement is measured against the SAME stats the character sheet shows and CanUseItem equips
+	// by - base plus every bonus provider (worn items, sockets, charms, the class tree, set bonuses,
+	// Rage) - and after Hel's reduction (EffectiveRequirement). This used to sum only the worn items'
+	// own stat bonuses and read the raw requirement, so strength from anywhere else let an item be
+	// equipped that this pass then switched off and drew red.
+	//
+	// Still a loop, as vanilla's was: an item that fails loses its flag, which takes its bonuses (and
+	// any set bonus it completed) out of the next total, and every remaining item is measured again.
 	bool changeflag;
 	do {
-		// cap stats to 0
-		const int currstr = std::max(0, sa + player._pBaseStr);
-		const int currmag = std::max(0, ma + player._pBaseMag);
-		const int currdex = std::max(0, da + player._pBaseDex);
+		oracool::ItemBonusTotals totals;
+		oracool::AccumulateBonuses({ &player }, totals);
+		const int currstr = std::max(0, totals.strength + player._pBaseStr);
+		const int currmag = std::max(0, totals.magic + player._pBaseMag);
+		const int currdex = std::max(0, totals.dexterity + player._pBaseDex);
 
 		changeflag = false;
-		// Iterate over equipped items and remove stat bonuses if they are not valid
 		for (Item &equipment : EquippedPlayerItemsRange(player)) {
 			if (!equipment._iStatFlag)
 				continue;
-
-			bool isValid = IsItemValid(equipment);
-
-			if (currstr < equipment._iMinStr
-			    || currmag < equipment._iMinMag
-			    || currdex < equipment._iMinDex)
-				isValid = false;
-
-			if (isValid)
+			if (IsItemValid(equipment)
+			    && currstr >= oracool::EffectiveRequirement(equipment, equipment._iMinStr)
+			    && currmag >= oracool::EffectiveRequirement(equipment, equipment._iMinMag)
+			    && currdex >= oracool::EffectiveRequirement(equipment, equipment._iMinDex))
 				continue;
-
 			changeflag = true;
 			equipment._iStatFlag = false;
-			if (equipment._iIdentified) {
-				sa -= equipment._iPLStr;
-				ma -= equipment._iPLMag;
-				da -= equipment._iPLDex;
-			}
 		}
 	} while (changeflag);
 }

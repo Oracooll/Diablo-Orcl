@@ -898,6 +898,56 @@ TEST(OracoolStatSheet, RageProviderMatchesVanillaSwings)
 	EXPECT_EQ(player._pStrength, 30);
 }
 
+// User, 2026-09-11: "I have hit 112 STR but the axe is RED." CanUseItem equipped by the sheet's
+// strength, every bonus provider counted; CalcSelfItems then re-measured the worn items against base
+// plus the worn items' own bonuses only, and switched the axe off. Strength from Rage stands in here
+// for any source that is not a worn item's stat bonus - charms, the class tree, set bonuses.
+TEST(OracoolStatSheet, WornItemRequirementsMeetTheSheetsStrength)
+{
+	Players.resize(2);
+	Players[0] = {};
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[1];
+	player = {};
+	player._pClass = HeroClass::Barbarian;
+	player._pLevel = 22;
+	player._pBaseStr = 68;
+	player._pLightRad = 10;
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
+	player._pSpellFlags = SpellFlag::RageActive; // +2 x level: 68 + 44 = 112, the screenshot's numbers
+
+	devilution::Item axe {};
+	axe._itype = ItemType::Axe;
+	axe._iClass = ICLASS_WEAPON;
+	axe._iLoc = ILOC_TWOHAND;
+	axe._iIdentified = true;
+	axe._iMinDam = 22;
+	axe._iMaxDam = 54;
+	axe._iMinStr = 112;
+	player.InvBody[INVLOC_HAND_LEFT] = axe;
+
+	CalcPlrInv(player, false);
+	EXPECT_EQ(player._pStrength, 112);
+	EXPECT_TRUE(player.CanUseItem(player.InvBody[INVLOC_HAND_LEFT])) << "the rule that let it be equipped";
+	EXPECT_TRUE(player.InvBody[INVLOC_HAND_LEFT]._iStatFlag) << "112 strength wears a 112-strength axe - it was drawn red";
+
+	player.InvBody[INVLOC_HAND_LEFT]._iMinStr = 113;
+	CalcPlrInv(player, false);
+	EXPECT_FALSE(player.InvBody[INVLOC_HAND_LEFT]._iStatFlag) << "one short is still short";
+
+	// The Hell tier scales a Great Axe's 80 to 144 (item_tiers.cpp, 180%). In the signed byte this field
+	// was, 144 read as -112, and the requirement vanished while the tooltip still printed 144.
+	player.InvBody[INVLOC_HAND_LEFT]._iMinStr = 144;
+	EXPECT_EQ(static_cast<int>(player.InvBody[INVLOC_HAND_LEFT]._iMinStr), 144);
+	CalcPlrInv(player, false);
+	EXPECT_FALSE(player.CanUseItem(player.InvBody[INVLOC_HAND_LEFT])) << "a 144-strength axe at 112 strength";
+	EXPECT_FALSE(player.InvBody[INVLOC_HAND_LEFT]._iStatFlag);
+
+	player.InvBody[INVLOC_HAND_LEFT].clear();
+	player._pSpellFlags = SpellFlag::None;
+}
+
 // Megaplan Phase 0.1: the hero file's chunk tail (oracool/hero_chunks.h). These three tests are
 // the format's contract: state round-trips, unknown chunks are skipped not fatal, and a torn tail
 // External audit, 2026-08-25: "Make Ethereal" disarmed a socketed Zod while leaving it installed.
