@@ -164,8 +164,9 @@ const MissileData MissilesData[] = {
 // add and process functions - a bolt that flies at a target and bursts is a bolt whatever it is made
 // of, and the difference between the two is entirely in the flags, the art and what the hit does.
 //
-// LS_FBOLT1 / LS_FIRIMP2 are Firebolt's sounds, borrowed deliberately: this fork has no cold sounds
-// yet, and silence reads as a bug where a wrong-element whoosh reads as a placeholder.
+// LS_FBOLT1 / LS_FIRIMP2 are Firebolt's sounds, and now only the FALLBACK: since 2026-09-11 a
+// player's cold missile plays its own class-tree cue (sfx\skills\sorcerer\cold-spells) in their
+// place - oracool::ColdMissileCueSkill says which. They still sound for a cold missile with no cue.
 /*IceBolt*/              { &AddFirebolt,            &ProcessGenericProjectile,    LS_FBOLT1,   LS_FIRIMP2,  MissileGraphicID::IceBolt,              Cold,                  MissileMovementDistribution::Blockable   },
 // Oracool, Round 2. Every one of these is described at its Add function.
 /*IceImpact*/            { &AddMissileExplosion,    &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::IceImpact,            Cold,                  MissileMovementDistribution::Disabled    },

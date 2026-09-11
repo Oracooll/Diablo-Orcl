@@ -13,6 +13,7 @@
 #include "monster.h"
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
+#include "oracool/skill_sounds.h"
 #include "player.h"
 #include "utils/language.h"
 #include <fmt/format.h>
@@ -411,6 +412,48 @@ std::string ColdSpellFactsAt(SpellID spell, int spellLevel)
 		break;
 	}
 	return out;
+}
+
+ClassTreeSkill ColdMissileCueSkill(MissileID type, bool impact)
+{
+	switch (type) {
+	case MissileID::IceBolt:
+		return ClassTreeSkill::IceBolt;
+	case MissileID::IceBlast:
+		return ClassTreeSkill::IceBlast;
+	case MissileID::GlacialSpike:
+		return ClassTreeSkill::GlacialSpike;
+	case MissileID::FrostNova:
+		return impact ? ClassTreeSkill::None : ClassTreeSkill::FrostNova; // the ring IS the cast
+	case MissileID::Blizzard:
+		return impact ? ClassTreeSkill::None : ClassTreeSkill::Blizzard;
+	case MissileID::BlizzardShard:
+		return impact ? ClassTreeSkill::Blizzard : ClassTreeSkill::None; // each shard lands; the storm was cast
+	case MissileID::FrozenOrb:
+		return impact ? ClassTreeSkill::None : ClassTreeSkill::FrozenOrb;
+	default:
+		return ClassTreeSkill::None;
+	}
+}
+
+bool PlayColdMissileSound(const Missile &missile, bool impact)
+{
+	if (missile._micaster != TARGET_MONSTERS || missile._misource < 0) // a player's, not a trap's
+		return false;
+	if (missile._mitype == MissileID::ColdArmor) {
+		// Three armours, one missile: which one is the tree row the cast was stamped with.
+		const auto skill = static_cast<ClassTreeSkill>(missile.oracoolSkill);
+		return !impact && skill != ClassTreeSkill::None && PlaySkillSound(skill, SkillSoundEvent::Start);
+	}
+	const ClassTreeSkill skill = ColdMissileCueSkill(missile._mitype, impact);
+	return skill != ClassTreeSkill::None && PlaySkillSound(skill, impact ? SkillSoundEvent::Impact : SkillSoundEvent::Cast);
+}
+
+void PlayColdArmourExpirySound(const Missile &missile)
+{
+	const auto skill = static_cast<ClassTreeSkill>(missile.oracoolSkill);
+	if (skill != ClassTreeSkill::None)
+		PlaySkillSound(skill, SkillSoundEvent::Stop);
 }
 
 } // namespace devilution::oracool

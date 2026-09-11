@@ -32,6 +32,31 @@ struct Missile;
 
 namespace devilution::oracool {
 
+enum class ClassTreeSkill : uint16_t;
+
+/**
+ * @brief The class-tree skill whose sound a cold missile plays at launch (@p impact false) or on
+ * landing (@p impact true), or ClassTreeSkill::None when it has none for that moment.
+ *
+ * The cold spells borrowed Firebolt's and Nova's sounds (user, 2026-09-11: "wire the cold spell
+ * sounds"). Their own cues were in the archive all along - sfx\skills\sorcerer\cold-spells - but the
+ * 2026-09-03 rule is one sound per moment, never a cue LAYERED over a spell's own noise, so these
+ * REPLACE the borrowed launch and impact sounds rather than join them. The count per cast is what it
+ * was; only the element changes. The armours are handled by PlayColdMissileSound, which reads the
+ * skill off the missile because three armours share one missile type.
+ */
+ClassTreeSkill ColdMissileCueSkill(MissileID type, bool impact);
+
+/**
+ * @brief Plays a player's cold missile's own cue in place of its borrowed sound. Returns false - so
+ * the caller plays the row's usual sound - when there is no cue, no sound device, or the missile is
+ * not a player's.
+ */
+bool PlayColdMissileSound(const Missile &missile, bool impact);
+
+/** @brief The stop cue of the cold armour @p missile carries, when it wears off by itself. */
+void PlayColdArmourExpirySound(const Missile &missile);
+
 /** @brief Whether @p spell is one of the cold line's castable spells (Cold Mastery is a passive and is not). */
 bool IsColdSpell(SpellID spell);
 

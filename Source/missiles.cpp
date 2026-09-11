@@ -570,7 +570,8 @@ void CheckMissileCol(Missile &missile, DamageType damageType, int minDamage, int
 	}
 
 	const MissileData &missileData = GetMissileData(missile._mitype);
-	if (missile._mirange == 0 && missileData.miSFX != -1)
+	// Oracool: and lands with its own impact cue instead of the Firebolt impact it borrows.
+	if (missile._mirange == 0 && missileData.miSFX != -1 && !oracool::PlayColdMissileSound(missile, /*impact=*/true))
 		PlaySfxLoc(missileData.miSFX, missile.position.tile);
 }
 
@@ -2280,6 +2281,11 @@ void ProcessColdArmor(Missile &missile)
 	missile._mirange--;
 	if (missile._mirange <= 0 || oracool::ActiveColdArmour(player) == SpellID::Invalid) {
 		missile._miDelFlag = true;
+		// Its own stop cue when it wears off - nothing sounded at that moment before, so this is a
+		// voice, not a second one. Not on death (the armour is cleared with the player), and not on a
+		// recast, which returned above and plays the new armour's start instead.
+		if (player._pHitPoints >> 6 > 0)
+			oracool::PlayColdArmourExpirySound(missile);
 		RedrawEverything();
 	}
 }
@@ -3515,9 +3521,9 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 	missile.lastCollisionTargetHash = 0;
 	// Oracool: whose cast this is. None outside a class-skill cast, which is most missiles in the
 	// game - traps, monster attacks, town portals - and they simply carry no cue.
-	// Still recorded, and nothing reads it since the impact cue was removed on 2026-09-03. Kept
-	// because it is the only place a missile remembers which tree row threw it, and the next thing
-	// that wants to know - a per-skill effect, a log line - would otherwise have to re-derive it.
+	// The general impact cue was removed on 2026-09-03 (it layered a second sound over every spell);
+	// since 2026-09-11 the cold armours read it back, to play their own start and stop cues in place
+	// of the Mana Shield sound they borrowed - see oracool::PlayColdMissileSound.
 	missile.oracoolSkill = static_cast<uint16_t>(oracool::CurrentCastSkill());
 
 	if (!missile.IsTrap() && micaster == TARGET_PLAYERS) {
@@ -3534,6 +3540,10 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 
 	if (!lSFX) {
 		lSFX = missileData.mlSFX;
+		// Oracool: a cold missile launches with its own cue INSTEAD of the Firebolt / Nova / Mana
+		// Shield sound its row borrows - one sound either way. See oracool::ColdMissileCueSkill.
+		if (*lSFX != SFX_NONE && oracool::PlayColdMissileSound(missile, /*impact=*/false))
+			lSFX = SFX_NONE;
 	}
 
 	if (*lSFX != SFX_NONE) {

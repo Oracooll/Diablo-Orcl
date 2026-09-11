@@ -7,6 +7,8 @@
 #include "engine/random.hpp"
 #include "levels/gendung.h"
 #include "missiles.h"
+#include "oracool/class_tree.h"
+#include "oracool/cold.h"
 #include "options.h"
 #include "storm/storm_net.hpp"
 
@@ -244,6 +246,26 @@ TEST(Missiles, GetDirection16)
 	EXPECT_EQ(Direction16::South_SouthEast, GetDirection16({ 2, 2 }, { 4, 3 }));
 
 	EXPECT_EQ(Direction16::South_SouthWest, GetDirection16({ 0, 0 }, { 0, 0 })) << "GetDirection16 is expected to default to Direction16::South_SouthWest when the points occupy the same tile";
+}
+
+TEST(Missiles, ColdMissilesUseTheirOwnCues)
+{
+	using oracool::ClassTreeSkill;
+	using oracool::ColdMissileCueSkill;
+	// The five cold bolts and storms that borrowed Firebolt's launch and impact sounds.
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::IceBolt, false), ClassTreeSkill::IceBolt);
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::IceBolt, true), ClassTreeSkill::IceBolt);
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::IceBlast, true), ClassTreeSkill::IceBlast);
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::GlacialSpike, false), ClassTreeSkill::GlacialSpike);
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::FrozenOrb, false), ClassTreeSkill::FrozenOrb);
+	// Blizzard is cast once and lands as many shards.
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::Blizzard, false), ClassTreeSkill::Blizzard);
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::Blizzard, true), ClassTreeSkill::None);
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::BlizzardShard, true), ClassTreeSkill::Blizzard);
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::FrostNova, false), ClassTreeSkill::FrostNova);
+	// Nothing else is touched: a fire bolt keeps its own sound.
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::Firebolt, false), ClassTreeSkill::None);
+	EXPECT_EQ(ColdMissileCueSkill(MissileID::FrostArrow, false), ClassTreeSkill::None);
 }
 
 TEST(Missiles, BlessedHammerChecksEveryTileItCrosses)
