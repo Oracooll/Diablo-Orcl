@@ -32,12 +32,12 @@ constexpr int DevouringPercent = 40;
 constexpr int WardingArmorBonus = 8;
 
 /**
- * @brief From here up, every floor has one. Area level 49 is the first Hell floor.
+ * @brief From here up, every floor has one: the first rung of Hell difficulty.
  *
- * MaxAreaLevel is 96 - twenty-four floors across four difficulty blocks - so 49 is exactly where
- * the third block starts. Written as arithmetic on those two facts rather than as the number 49, so
- * that a change to the floor count moves this with it instead of leaving it pointing at whatever
- * alvl 49 has become.
+ * MaxAreaLevel is 64 - sixteen rungs across four difficulty blocks since 2026-09-12 - so half of it
+ * plus one is exactly where the third block starts, alvl 33. Written as arithmetic on those two facts
+ * rather than as a number, which is why the ladder shrinking from 96 moved this with it instead of
+ * leaving it pointing at whatever that rung has become.
  */
 constexpr int BossGuaranteedAreaLevel = MaxAreaLevel / 2 + 1;
 

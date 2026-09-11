@@ -35,7 +35,7 @@ real gold at a vendor - and, once salvage exists, real materials.</p>
 
 <h2>Which tier a drop gets</h2>
 <p>Of the tiers an item level allows, the deepest is the most likely. Reading from the top down the
-weighting is <b id="weights"></b> - so at ilvl 1-24 only Normal exists and the table collapses onto
+weighting is <b id="weights"></b> - so at ilvl 1-12 only Normal exists and the table collapses onto
 it, while at Torment depth all four are in play.</p>
 <div class="tablewrap"><table id="odds">
 <thead><tr><th>ilvl band</th><th class="num">Normal</th><th class="num">Nightmare</th><th class="num">Hell</th><th class="num">Torment</th></tr></thead>
@@ -82,7 +82,7 @@ name when they overflow, so a tier word in the name costs the item its base name
 <script src="data.js"></script>
 <script src="wiki.js"></script>
 <script>
-const bands = ['1-24', '25-48', '49-72', '73-96'];
+const bands = ['1-12', '13-24', '25-36', '37-64'];
 document.querySelector('#scales tbody').innerHTML = WIKI.mechanics.tierScales.map(function (s, i) {
 	return '<tr><td>' + tierTag(i) + '</td><td class="num">' + bands[i] + '</td>' +
 		'<td class="num">x' + (s.power / 100).toFixed(2) + '</td>' +

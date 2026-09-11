@@ -11,21 +11,34 @@
 <nav class="side"></nav>
 <main>
 <h1>Areas and levels</h1>
-<p class="lede">Twenty-four floors, four difficulties, one continuous ladder from 1 to 96. The area
-level is the number that decides what a place can drop and how good the rolls may be.</p>
+<p class="lede">Twenty-four floors on sixteen rungs, four difficulties, one continuous ladder from 1
+to 64. The area level is the number that decides what a place can drop and how good the rolls may
+be.</p>
 
 <h2>The ladder</h2>
-<pre><code>area level = floor + 24 x difficulty</code></pre>
-<p>Six areas of four floors each: Cathedral 1-4, Catacombs 5-8, Caves 9-12, Hell 13-16, Nest 17-20,
-Crypt 21-24 - then the same six again, one difficulty deeper.</p>
+<pre><code>area level = rung + 16 x difficulty</code></pre>
+<p>Six areas of four floors each, but only sixteen rungs: <b>the Nest is as deep as the Caves and the
+Crypt is as deep as Hell</b>. They are alternative routes at the same depth rather than a deeper
+descent, so they share those rungs instead of extending the ladder.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Area</th><th class="num">Floors</th><th class="num">Rung</th></tr></thead>
+<tbody>
+<tr><td>Cathedral</td><td class="num">1-4</td><td class="num">1-4</td></tr>
+<tr><td>Catacombs</td><td class="num">5-8</td><td class="num">5-8</td></tr>
+<tr><td>Caves</td><td class="num">9-12</td><td class="num">9-12</td></tr>
+<tr><td>Hell</td><td class="num">13-16</td><td class="num">13-16</td></tr>
+<tr><td>Nest</td><td class="num">17-20</td><td class="num">9-12</td></tr>
+<tr><td>Crypt</td><td class="num">21-24</td><td class="num">13-16</td></tr>
+</tbody></table></div>
 
 <div class="tablewrap"><table id="ladder">
 <thead><tr><th class="num">#</th><th>Difficulty</th><th>Area</th><th class="num">Floors</th><th class="num">Area level</th><th>Base tier</th><th>Opens</th></tr></thead>
 <tbody></tbody></table></div>
 
-<div class="note"><b>Hell/Hell is the design target.</b> At area levels 61-64 the last base item
-becomes available, so every piece of gear in the game is obtainable by then. The eight areas past it
-exist for better rolls and deeper tiers, not for new things.</div>
+<div class="note"><b>Hell/Hell is the threshold.</b> Area level 48 - the bottom of Hell on Hell
+difficulty, and of the Crypt beside it - is the rung by which <b>everything in the game is
+droppable</b>: the last base item, the deepest spell book and Zod, the final rune. Torment exists for
+better rolls and deeper tiers, not for new things.</div>
 
 <h2>What the area level drives</h2>
 <ul>
@@ -37,9 +50,10 @@ exist for better rolls and deeper tiers, not for new things.</div>
 
 <h2>Two things it fixed</h2>
 <p>The old floor number ignored difficulty entirely, so a chest in Torment held the same grade of
-loot as a chest in Normal. And Hellfire's own arithmetic folded the Nest back to floors 9-12 and the
-Crypt to 14-17, because in Hellfire those are a parallel path to the Cathedral rather than a deeper
-one. In this build they are floors 17-24 and they are deeper, so the ladder uses the floor as it is.</p>
+loot as a chest in Normal. And the Nest and Crypt, being floors 17-24, used to rank as the deepest
+places in the game - which they were never designed to be. Hellfire treats them as a parallel path
+rather than a deeper one, and their monsters are pitched that way. They now sit on the Caves' and
+Hell's rungs, which is what the ladder always meant them to be worth.</p>
 
 <h2>Quest lairs</h2>
 <p>The Skeleton King's lair, the Bone Chamber, the Poisoned Water Supply and the Vile Betrayer's
@@ -59,6 +73,10 @@ one. Shops use their own level, described in <a href="tiers.html">Base tiers</a>
 <script>
 const AREAS = ['Cathedral', 'Catacombs', 'Caves', 'Hell', 'Nest', 'Crypt'];
 const DIFFS = ['Normal', 'Nightmare', 'Hell', 'Torment'];
+// The rung each area stands on. The Nest repeats the Caves' and the Crypt repeats Hell's.
+const RUNGS = [[1, 4], [5, 8], [9, 12], [13, 16], [9, 12], [13, 16]];
+// The item level at which each spell-book band becomes findable, from SpellBookItemLevel.
+const BOOKS = [45, 33, 22, 13];
 
 let html = '';
 let n = 0;
@@ -67,18 +85,16 @@ for (let d = 0; d < 4; d++) {
 		n++;
 		const firstFloor = a * 4 + 1;
 		const lastFloor = firstFloor + 3;
-		const lo = firstFloor + 24 * d;
-		const hi = lastFloor + 24 * d;
+		const lo = RUNGS[a][0] + 16 * d;
+		const hi = RUNGS[a][1] + 16 * d;
 		const notes = [];
-		if (d === 2 && a === 3) notes.push('every base item obtainable');
-		if (lo <= 52 && hi >= 52) notes.push('band-30 spell books');
-		if (lo <= 42 && hi >= 42) notes.push('band-24 spell books');
-		if (lo <= 30 && hi >= 30) notes.push('band-18 spell books');
-		if (lo <= 18 && hi >= 18) notes.push('band-12 spell books');
-		const highlight = (d === 2 && a === 3) ? ' style="background:rgba(217,180,90,.10)"' : '';
+		const threshold = (d === 2 && (a === 3 || a === 5));
+		if (threshold) notes.push('everything droppable');
+		for (const b of BOOKS) { if (lo <= b && hi >= b) notes.push('ilvl-' + b + ' spell books'); }
+		const highlight = threshold ? ' style="background:rgba(217,180,90,.10)"' : '';
 		html += '<tr' + highlight + '><td class="num">' + n + '</td><td>' + DIFFS[d] + '</td><td>' + AREAS[a] +
 			'</td><td class="num">' + firstFloor + '-' + lastFloor + '</td><td class="num">' + lo + '-' + hi +
-			'</td><td>' + tierTag(d) + '</td><td>' + notes.join(', ') + '</td></tr>';
+			'</td><td>' + tierTag(tierOfLevel(hi)) + '</td><td>' + notes.join(', ') + '</td></tr>';
 	}
 }
 document.querySelector('#ladder tbody').innerHTML = html;

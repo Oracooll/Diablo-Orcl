@@ -27,6 +27,25 @@ int DifficultyBlock(_difficulty difficulty)
 	return 0;
 }
 
+/** @brief The Hive's first floor - where the dungeon stops descending and steps sideways instead. */
+constexpr int FirstSideStepFloor = 17;
+
+/**
+ * @brief Where @p floor sits on the LADDER, which is no longer always where it sits in the dungeon.
+ *
+ * The Hive and the Crypt are a side-step, not a continuation (user, 2026-09-12: "hive = caves, crypt =
+ * hell", "just an alternative area for the same of diversity"), and their monsters keep Hellfire's own
+ * power for that reason. So the Hive's floors 17-20 take the Caves' rungs 9-12 and the Crypt's 21-24
+ * take Hell's 13-16: eight below the floor number, one area's twin.
+ *
+ * Until now they were the deepest rungs in the game, which made the two EASIEST areas past Hell the
+ * richest in it - a level-22 Hive monster paying better loot than a level-30 Advocate on floor 16.
+ */
+int LadderFloorOf(int floor)
+{
+	return floor >= FirstSideStepFloor ? floor - 2 * FloorsPerArea : floor;
+}
+
 /** @brief The area names, in floor order. */
 const char *const AreaNames[AreaCount] = {
 	N_("Cathedral"),
@@ -42,7 +61,7 @@ const char *const AreaNames[AreaCount] = {
 int AreaLevel(int floor, _difficulty difficulty)
 {
 	const int clampedFloor = std::clamp(floor, 1, AreaFloorCount);
-	return clampedFloor + AreaFloorCount * DifficultyBlock(difficulty);
+	return LadderFloorOf(clampedFloor) + RungsPerDifficulty * DifficultyBlock(difficulty);
 }
 
 int CurrentAreaLevel()

@@ -465,7 +465,10 @@ $playerH = Read-SourceFile 'player.h'
 $resistH = Read-SourceFile 'oracool/player_resistance.h'
 
 $mechanics = [ordered]@{
-    maxAreaLevel      = 96
+    # Sixteen rungs a difficulty since 2026-09-12: four areas of four floors, with the Hive and the
+    # Crypt sharing the Caves' and Hell's rungs rather than adding eight more. Derived from the
+    # header rather than typed, which is this generator's whole rule - it was a hardcoded 96.
+    maxAreaLevel      = [int](Get-Constant $areaH 'constexpr int FloorsPerArea = (\d+)') * 16
     floorsPerArea     = [int](Get-Constant $areaH 'constexpr int FloorsPerArea = (\d+)')
     areaCount         = [int](Get-Constant $areaH 'constexpr int AreaCount = (\d+)')
     areaFloorCount    = [int](Get-Constant $areaH 'constexpr int AreaFloorCount = (\d+)')

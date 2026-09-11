@@ -11686,6 +11686,92 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 	}
 }
 
+// The area ladder, reworked on 2026-09-12: "hive = caves, crypt = hell", "now we should have a total of
+// 4x16=64 area levels", "hell/crypt//torment being the hardest", and "hell/hell should be the threshhold
+// for reaching god tier items. everything should be droppable by then".
+TEST(OracoolAudit, TheAreaLadderIsSixteenRungsADifficultyAndEndsAtHellHell)
+{
+	using namespace devilution::oracool;
+	EXPECT_EQ(RungsPerDifficulty, 16);
+	EXPECT_EQ(MaxAreaLevel, 64);
+
+	// Normal: the four areas that own rungs, then the two that share them.
+	EXPECT_EQ(AreaLevel(1, DIFF_NORMAL), 1);
+	EXPECT_EQ(AreaLevel(16, DIFF_NORMAL), 16);
+	EXPECT_EQ(AreaLevel(17, DIFF_NORMAL), 9) << "the Hive sits on the Caves' rungs";
+	EXPECT_EQ(AreaLevel(20, DIFF_NORMAL), 12);
+	EXPECT_EQ(AreaLevel(21, DIFF_NORMAL), 13) << "the Crypt sits on Hell's";
+	EXPECT_EQ(AreaLevel(24, DIFF_NORMAL), 16);
+	// Sharing rungs is not sharing names: the map still knows where you are.
+	EXPECT_EQ(std::string(AreaNameOfFloor(17)), "Nest");
+	EXPECT_EQ(std::string(AreaNameOfFloor(21)), "Crypt");
+
+	// ...and the same again one difficulty up, to the hardest place in the game.
+	EXPECT_EQ(AreaLevel(1, DIFF_NIGHTMARE), 17);
+	EXPECT_EQ(AreaLevel(24, DIFF_NIGHTMARE), 32);
+	EXPECT_EQ(AreaLevel(1, DIFF_HELL), 33);
+	EXPECT_EQ(AreaLevel(16, DIFF_HELL), 48) << "Hell/Hell, the threshold";
+	EXPECT_EQ(AreaLevel(21, DIFF_TORMENT), 61);
+	EXPECT_EQ(AreaLevel(24, DIFF_TORMENT), MaxAreaLevel) << "Torment's Crypt shares Torment's Hell, the deepest rung";
+
+	// Everything is droppable by Hell/Hell: the deepest banded qlvl is 48, and a plain monster there
+	// carries 48 as its loot level.
+	int deepest = 0;
+	for (int authored = 1; authored <= 51; authored++)
+		deepest = std::max(deepest, BandedQlvl(authored));
+	EXPECT_EQ(deepest, 48) << "a base is still out of reach at Hell/Hell";
+	EXPECT_EQ(BandedQlvl(1), 1);
+	EXPECT_EQ(BandedQlvl(99), 99) << "the never-drops sentinel is not a level";
+
+	// God tier by then too: the deepest base tier opens inside Hell difficulty, not in Torment.
+	EXPECT_EQ(HighestTierForItemLevel(1), BaseItemTier::Normal);
+	EXPECT_EQ(HighestTierForItemLevel(12), BaseItemTier::Normal);
+	EXPECT_EQ(HighestTierForItemLevel(13), BaseItemTier::Nightmare);
+	EXPECT_EQ(HighestTierForItemLevel(25), BaseItemTier::Hell);
+	EXPECT_EQ(HighestTierForItemLevel(37), BaseItemTier::Torment);
+	EXPECT_EQ(HighestTierForItemLevel(48), BaseItemTier::Torment) << "god tier is in reach at Hell/Hell";
+	EXPECT_EQ(HighestTierForItemLevel(MaxAreaLevel), BaseItemTier::Torment);
+}
+
+// "everything should be droppable by then" - the whole game, not only the base items: books, runes,
+// set bases, jewels, charms and orbs all have to be in reach of Hell/Hell's rung (2026-09-12).
+TEST(OracoolAudit, EverythingIsDroppableByHellHell)
+{
+	using namespace devilution::oracool;
+	const int threshold = AreaLevel(16, DIFF_HELL); // 48
+	ASSERT_EQ(threshold, 48);
+
+	// Spell books: the deepest band must be findable at the threshold.
+	int deepestBook = 0;
+	for (int i = 0; i < MAX_SPELLS; i++)
+		deepestBook = std::max(deepestBook, SpellBookItemLevel(static_cast<SpellID>(i)));
+	EXPECT_GT(deepestBook, 0) << "no book band answered at all";
+	EXPECT_LE(deepestBook, threshold) << "a spell book needs a rung past Hell/Hell";
+
+	// The rune ladder: it must still CLIMB (a flat top half was the old bug) and end by the threshold.
+	int previous = 0;
+	int deepestRune = 0;
+	for (size_t rung = 0; rung < RuneLadderSize(); rung++) {
+		const uint16_t rune = RuneAtLadderPosition(rung);
+		const int banded = BandedQlvl(AllItemsList[rune].iMinMLvl);
+		EXPECT_GE(banded, previous) << "the rune ladder dips at rung " << rung;
+		previous = banded;
+		deepestRune = std::max(deepestRune, banded);
+	}
+	EXPECT_LE(deepestRune, threshold) << "Zod is out of reach at Hell/Hell";
+	EXPECT_GT(deepestRune, threshold / 2) << "the rune ladder collapsed into the shallow end";
+
+	// Every droppable base, set bases included: the banded qlvl is what the pool compares.
+	int deepestBase = 0;
+	for (int i = 0; i < static_cast<int>(IDI_LAST); i++) {
+		const int authored = AllItemsList[i].iMinMLvl;
+		if (authored >= 99)
+			continue; // the never-drops sentinel
+		deepestBase = std::max(deepestBase, BandedQlvl(authored));
+	}
+	EXPECT_LE(deepestBase, threshold) << "a base item needs a rung past Hell/Hell";
+}
+
 // The gold ! over a townsperson with something for you (user, 2026-09-12: "Add a gold glowing ! over the
 // heads of who i should speak to"). The mark's conditions are a mirror of each talk function's own gate,
 // so this pins the pair: change one and the other must follow.

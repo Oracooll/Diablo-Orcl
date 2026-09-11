@@ -146,21 +146,26 @@ int SpellRankRequiredLevel(SpellID spell, int rank)
 int SpellBookItemLevel(SpellID spell)
 {
 	// One row per band. The gaps widen with depth on purpose: the early bands sit inside Normal, where
-	// floors are cheap, and the last one lands at the start of Hell, which is where a spell that ends
-	// fights should first become findable.
+	// floors are cheap, and the last one lands at Hell/Hell, the rung by which everything in the game
+	// must be findable (user, 2026-09-12: "hell/hell should be the threshhold for reaching god tier
+	// items. everything should be droppable by then").
+	//
+	// They were 1, 6, 18, 30, 42 and 52, written for the 96-rung ladder, where 52 was the start of Hell
+	// difficulty. On the 64-rung ladder 52 sits in TORMENT, which would have put the last books past
+	// the threshold; the shape is kept and the span squeezed into 1-45.
 	switch (SpellRequiredLevel(spell)) {
 	case 1:
 		return 1;
 	case 6:
-		return 6;
+		return 5;
 	case 12:
-		return 18;
+		return 13;
 	case 18:
-		return 30;
+		return 22;
 	case 24:
-		return 42;
+		return 33;
 	case 30:
-		return 52;
+		return 45;
 	default:
 		return 0; // not a book spell
 	}

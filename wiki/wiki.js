@@ -160,7 +160,7 @@ const TIER_NAMES = ['Normal', 'Nightmare', 'Hell', 'Torment'];
 
 function tierOfLevel(level) {
 	if (level <= 0) return 0;
-	return Math.min(3, Math.floor((level - 1) / 24));
+	return Math.min(3, Math.floor((level - 1) / 12));
 }
 
 function tierTag(index) {
@@ -174,9 +174,11 @@ function yesNo(value) {
 
 function areaOfLevel(level) {
 	if (level <= 0) return '';
-	const floor = ((level - 1) % 24) + 1;
-	const areas = ['Cathedral', 'Catacombs', 'Caves', 'Hell', 'Nest', 'Crypt'];
-	return TIER_NAMES[tierOfLevel(level)] + ' ' + areas[Math.floor((floor - 1) / 4)];
+	// Sixteen rungs a difficulty, not twenty-four: the Nest sits on the Caves' rungs and the Crypt on
+	// Hell's, so a rung can name either of a pair.
+	const rung = ((level - 1) % 16) + 1;
+	const areas = ['Cathedral', 'Catacombs', 'Caves or Nest', 'Hell or Crypt'];
+	return TIER_NAMES[tierOfLevel(level)] + ' ' + areas[Math.floor((rung - 1) / 4)];
 }
 
 document.addEventListener('DOMContentLoaded', buildNav);

@@ -20,7 +20,7 @@ code; the numbers are read from the modules that define them.</p>
 <thead><tr><th>Name</th><th>What it is</th><th>Where it comes from</th><th>Where you see it</th></tr></thead>
 <tbody>
 <tr><td><b>alvl</b> - area level</td><td>A property of the place. Fixed per floor per difficulty.</td>
-	<td><code>floor + 24 x difficulty</code>, so 1-96 across the 24 areas</td><td>The automap, under the difficulty line</td></tr>
+	<td><code>rung + 16 x difficulty</code>, so 1-64 across the 24 floors</td><td>The automap, under the difficulty line</td></tr>
 <tr><td><b>mlvl</b> - monster level</td><td>What a monster is worth as a source of loot.</td>
 	<td>The area level, +3 for a unique, +2 for a champion</td><td>Bottom-right of the monster health bar</td></tr>
 <tr><td><b>ilvl</b> - item level</td><td>Stamped on an item when it is generated.</td>
@@ -61,10 +61,10 @@ reach permanently; depth is paid for in levels rather than forbidden.</div>
 <div class="tablewrap"><table>
 <thead><tr><th>Difficulty</th><th>Area levels</th><th>Base tier</th><th>Monster level offset</th><th>Notes</th></tr></thead>
 <tbody>
-<tr><td>Normal</td><td>1-24</td><td>Normal</td><td>+0</td><td>The whole 24-floor descent</td></tr>
-<tr><td>Nightmare</td><td>25-48</td><td>Nightmare</td><td>+15 combat</td><td></td></tr>
-<tr><td>Hell</td><td>49-72</td><td>Hell</td><td>+30 combat</td><td>Every base item is obtainable by Hell/Hell (alvl 61-64)</td></tr>
-<tr><td>Torment</td><td>73-96</td><td>Torment</td><td>+30 x multiplier</td><td>Single-player only; the multiplier is an INI setting</td></tr>
+<tr><td>Normal</td><td>1-16</td><td>Normal, then Nightmare from rung 13</td><td>+0</td><td>The whole 24-floor descent</td></tr>
+<tr><td>Nightmare</td><td>17-32</td><td>Nightmare, then Hell from rung 25</td><td>+15 combat</td><td></td></tr>
+<tr><td>Hell</td><td>33-48</td><td>Hell, then Torment from rung 37</td><td>+30 combat</td><td>Everything in the game is droppable by Hell/Hell (alvl 48)</td></tr>
+<tr><td>Torment</td><td>49-64</td><td>Torment</td><td>+30 x multiplier</td><td>Single-player only; the multiplier is an INI setting</td></tr>
 </tbody></table></div>
 
 <h2>Magic Find and Gold Find</h2>

@@ -86,7 +86,7 @@ document.getElementById('dp').textContent = primal;
 const RARE_BY_BAND = WIKI.mechanics.qualityBands.Rare;
 const BUFFED_BY_BAND = WIKI.mechanics.qualityBands.BuffedUnique;
 const PRIMAL_BY_BAND = WIKI.mechanics.qualityBands.Primal;
-const bands = ['1-24', '25-48', '49-72', '73-96'];
+const bands = ['1-12', '13-24', '25-36', '37-64'];
 
 document.querySelector('#odds tbody').innerHTML = bands.map(function (band, i) {
 	function pct(configured, scale) { return (configured * scale / 100).toFixed(2) + '%'; }

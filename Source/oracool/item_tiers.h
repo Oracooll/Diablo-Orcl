@@ -107,9 +107,9 @@ void ApplyBaseTier(Item &item, BaseItemTier tier);
  * @brief The banded qlvl of a base item - the ilvl a drop needs before this base can appear.
  *
  * The authored ItemData::iMinMLvl is vanilla's ladder, 1-51, written against monster levels that
- * ignored difficulty entirely. The area ladder runs to 96 and its design target is that the LAST
- * base becomes available at Hell/Hell (alvl 61-64), so the authored numbers are regrouped onto a
- * 1-60 scale here rather than rewritten in the table.
+ * ignored difficulty entirely. The area ladder runs to 64 and its design target is that the LAST
+ * base becomes available at Hell/Hell (alvl 45-48), so the authored numbers are regrouped onto a
+ * 1-48 scale here rather than rewritten in the table.
  *
  * A mapping rather than a rescale, and the difference matters: items land ON band edges, so many
  * bases share a qlvl and a floor opens a GROUP of them at once. That is how D2 reads - a depth
@@ -140,10 +140,10 @@ int BandedQlvl(int authoredQlvl);
  * At the default settings (rare 20, buffed unique 10, primal 5) the curve is roughly:
  *
  *   band       rare   buffed unique   primal
- *   1-24        2.0%       1.0%         0%
- *   25-48       6.0%       2.5%        0.25%
- *   49-72      14.0%       5.0%        0.75%
- *   73-96      22.0%       8.0%        2.0%
+ *   1-12        2.0%       1.0%         0%
+ *   13-24       6.0%       2.5%        0.25%
+ *   25-36      14.0%       5.0%        0.75%
+ *   37-64      22.0%       8.0%        2.0%
  */
 int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configuredPercent);
 

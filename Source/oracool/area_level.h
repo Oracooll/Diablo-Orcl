@@ -25,19 +25,24 @@
  *
  * ## The ladder
  *
- * alvl = floor + 24 * difficulty. Cathedral 1-4, Catacombs 5-8, Caves 9-12, Hell 13-16, Nest 17-20,
- * Crypt 21-24, and the same six areas again one difficulty up.
+ * SIXTEEN rungs a difficulty, sixty-four in all (user, 2026-09-12: "now we should have a total of
+ * 4x16=64 area levels", "hell/crypt//torment being the hardest"):
  *
- *   Normal    1-24     Hell      49-72
- *   Nightmare 25-48    Torment   73-96
+ *   Normal    1-16     Hell      33-48
+ *   Nightmare 17-32    Torment   49-64
  *
- * The design target is that Hell/Hell - floors 13-16 of Hell difficulty, alvl 61-64 - is where the
- * last base item becomes available, so every piece of gear in the game is obtainable by then and
- * the eight areas past it are for better rolls rather than for new things.
+ * Four areas hold those rungs - Cathedral 1-4, Catacombs 5-8, Caves 9-12, Hell 13-16 - and the other
+ * two SHARE them: the Hive (floors 17-20) sits on the Caves' rungs and the Crypt (21-24) on Hell's.
+ * They are a side-step rather than a descent ("hive = caves, crypt = hell [...] just an alternative
+ * area for the same of diversity"), and their monsters keep Hellfire's own power for the same reason,
+ * so what they pay now matches the fight they are. See LadderFloorOf in the .cpp.
  *
- * Note what this replaces: ItemsGetCurrlevel() folds Hellfire's Nest back to 9-12 and its Crypt to
- * 14-17, because in Hellfire those are a PARALLEL path to the Cathedral rather than a deeper one.
- * In this fork they are floors 17-24 and they are deeper, so the ladder uses the floor as it is.
+ * The deepest rung in the game is Torment's Hell - and its Crypt, which shares it - at 64.
+ *
+ * Note what this replaces: the ladder ran to 96 and gave the Hive and the Crypt eight rungs of their
+ * own per difficulty, which made the two EASIEST areas past Hell the richest in the game. It also
+ * moves the "every base item is obtainable" mark: the deepest base needs alvl 51, which now falls in
+ * Torment's first rows rather than in Hell's last ones.
  */
 #pragma once
 
@@ -54,8 +59,14 @@ constexpr int AreaFloorCount = 24;
 constexpr int FloorsPerArea = 4;
 constexpr int AreaCount = 6;
 
-/** @brief The top of the ladder: floor 24 of Torment. */
-constexpr int MaxAreaLevel = AreaFloorCount * 4;
+/**
+ * @brief Rungs one difficulty holds: four areas of four floors. The Hive and the Crypt share the
+ * Caves' and Hell's rungs rather than adding eight more, so twenty-four floors fit on sixteen rungs.
+ */
+constexpr int RungsPerDifficulty = FloorsPerArea * 4;
+
+/** @brief The top of the ladder: Torment's Hell and Crypt, the hardest places in the game. */
+constexpr int MaxAreaLevel = RungsPerDifficulty * 4;
 
 /**
  * @brief The alvl of @p floor on @p difficulty. Clamped to 1..MaxAreaLevel.

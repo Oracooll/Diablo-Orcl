@@ -101,9 +101,15 @@ $runes = @(
 if ($runes.Count -ne 33) { throw "expected 33 runes, have $($runes.Count)" }
 
 # Depth and price ladders. D2 runs its runes from level 11 (El) to 69 (Zod); this maps that span
-# onto our own 1-96 area ladder so Zod is a Torment-depth find and El is a first-floor one. The
-# five shipped runes' qlvls move with everything else - qlvl is drop gating, not save format.
-function Get-Qlvl([int]$index) { return [Math]::Max(1, 3 + [Math]::Round(($index) * 91.0 / 32.0)) }
+# onto our own area ladder, so El is a first-floor find and Zod lands on the last rung anything is
+# allowed to need. The five shipped runes' qlvls move with everything else - qlvl is drop gating,
+# not save format.
+#
+# The span ends at 48, Hell/Hell (user, 2026-09-12: "hell/hell should be the threshhold for reaching
+# god tier items. everything should be droppable by then"). It ran to 94 against the old 96-rung
+# ladder, which had a second cost: BandedQlvl passes anything authored past 51 through its fallback,
+# so the whole top half of the ladder - Fal upwards - shared one depth instead of climbing.
+function Get-Qlvl([int]$index) { return [Math]::Max(1, 3 + [Math]::Round(($index) * 45.0 / 32.0)) }
 function Get-Value([int]$index) {
     return [Math]::Min(30000, [int][Math]::Round(1200 * [Math]::Pow(1.13, $index)))
 }

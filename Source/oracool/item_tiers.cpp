@@ -66,8 +66,13 @@ uint8_t ScaleByte(uint8_t value, int percent)
 
 BaseItemTier HighestTierForItemLevel(int itemLevel)
 {
-	// One tier per 24-floor difficulty block, straight off the area ladder.
-	const int block = std::clamp((std::max(itemLevel, 1) - 1) / AreaFloorCount, 0, BaseItemTierCount - 1);
+	// The four base tiers are spread across the first THREE difficulties, twelve rungs each, so the
+	// deepest tier opens at ilvl 37 and is fully in reach by Hell/Hell's 48 (user, 2026-09-12:
+	// "hell/hell should be the threshhold for reaching god tier items. everything should be droppable
+	// by then"). Torment's sixteen rungs past it are for better ROLLS, not for new things - which is
+	// exactly what QualityChancePerMille's top band gives. It was one tier per difficulty block.
+	constexpr int RungsPerBaseTier = 12;
+	const int block = std::clamp((std::max(itemLevel, 1) - 1) / RungsPerBaseTier, 0, BaseItemTierCount - 1);
 	return static_cast<BaseItemTier>(block);
 }
 
@@ -146,21 +151,26 @@ int BandedQlvl(int authoredQlvl)
 	if (authoredQlvl >= 99)
 		return authoredQlvl;
 
-	// Seventeen groups across the authored 1-51, landing on the 1-60 ladder. Read the left column as
-	// "authored up to N" and the right as the ilvl that opens the group.
+	// Seventeen groups across the authored 1-51, landing on the 1-48 ladder: the last group opens at
+	// 48, Hell/Hell's own rung (user, 2026-09-12: "hell/hell should be the threshhold for reaching god
+	// tier items. everything should be droppable by then"). A monster there carries alvl 45-48 as its
+	// loot level, so the deepest base is in reach from that floor rather than from a difficulty past
+	// it. The groups landed on 1-60 while the ladder ran to 96.
+	//
+	// Read the left column as "authored up to N" and the right as the ilvl that opens the group.
 	static constexpr struct {
 		int authoredMax;
 		int banded;
 	} Bands[] = {
-		{ 3, 1 }, { 6, 5 }, { 9, 9 }, { 12, 13 }, { 15, 17 }, { 18, 21 },
-		{ 21, 25 }, { 24, 29 }, { 27, 33 }, { 30, 37 }, { 33, 41 }, { 36, 45 },
-		{ 39, 49 }, { 42, 52 }, { 45, 55 }, { 48, 57 }, { 51, 60 },
+		{ 3, 1 }, { 6, 4 }, { 9, 7 }, { 12, 10 }, { 15, 14 }, { 18, 17 },
+		{ 21, 20 }, { 24, 23 }, { 27, 26 }, { 30, 30 }, { 33, 33 }, { 36, 36 },
+		{ 39, 39 }, { 42, 42 }, { 45, 44 }, { 48, 46 }, { 51, 48 },
 	};
 	for (const auto &band : Bands) {
 		if (authoredQlvl <= band.authoredMax)
 			return band.banded;
 	}
-	return 60; // anything authored past the vanilla ladder still tops out at Hell/Hell
+	return 48; // anything authored past the vanilla ladder still tops out at Hell/Hell
 }
 
 int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configuredPercent)
@@ -197,10 +207,11 @@ int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configured
 
 int VendorItemLevel(int vendorLevel)
 {
-	// The difficulty block, straight off the area ladder: alvl 1-24 is Normal, 25-48 Nightmare, and so
-	// on, so adding 24 per difficulty puts a vendor in the band its difficulty belongs to.
-	const int block = static_cast<int>(HighestTierForItemLevel(AreaLevel(1, sgGameInitInfo.nDifficulty)));
-	return std::min(vendorLevel + AreaFloorCount * block, MaxAreaLevel);
+	// The difficulty block, straight off the area ladder: sixteen rungs each since 2026-09-12, so
+	// Normal is 1-16, Nightmare 17-32, Hell 33-48 and Torment 49-64. Read from the LADDER rather than
+	// from the tier split, which is twelve rungs wide and no longer answers the same question.
+	const int block = (AreaLevel(1, sgGameInitInfo.nDifficulty) - 1) / RungsPerDifficulty;
+	return std::min(vendorLevel + RungsPerDifficulty * block, MaxAreaLevel);
 }
 
 void StampVendorItemLevel(Item &item, int vendorLevel)
