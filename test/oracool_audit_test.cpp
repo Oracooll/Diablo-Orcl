@@ -11270,3 +11270,29 @@ TEST(OracoolDisplay, FitToScreenStopsAtTwentyOneByNine)
 	// ...and a 32:9 one is not filled: 5120x1440 stops at 3440, with bars either side.
 	EXPECT_LT(FitToScreenMaxWidth(1440), 5120);
 }
+
+// The shop's controls wear the vanilla button at any size by slicing it (2026-09-11). Every pixel of
+// the control is covered exactly once, from inside the art, and both ends of the button survive -
+// the ring and the bevel are what make it read as a button.
+TEST(OracoolShop, VanillaButtonSlicesCoverTheControlAndKeepBothEnds)
+{
+	using devilution::oracool::ButtonSliceSpan;
+	using devilution::oracool::SliceButtonAxis;
+	for (const int source : { 27, 110 }) {
+		for (const int target : { 16, 27, 80, 92, 110, 284 }) {
+			const std::vector<ButtonSliceSpan> spans = SliceButtonAxis(target, source, 8);
+			ASSERT_FALSE(spans.empty()) << target << " from " << source;
+			int next = 0;
+			for (const ButtonSliceSpan &span : spans) {
+				EXPECT_EQ(span.dest, next) << "a gap or an overlap at " << next << ", " << target << " from " << source;
+				EXPECT_GT(span.length, 0);
+				EXPECT_GE(span.source, 0);
+				EXPECT_LE(span.source + span.length, source) << "a span reads past the art";
+				next += span.length;
+			}
+			EXPECT_EQ(next, target) << target << " from " << source;
+			EXPECT_EQ(spans.front().source, 0) << "the leading end is not the art's own";
+			EXPECT_EQ(spans.back().source + spans.back().length, source) << "the trailing end is not the art's own";
+		}
+	}
+}

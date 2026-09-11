@@ -1,6 +1,7 @@
 #include "oracool/shop_grid.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstring>
 #include <string>
@@ -11,6 +12,7 @@
 #include "control.h"
 #include "cursor.h"
 #include "diablo.h" // sgbMouseDown - a button's pressed plate
+#include "engine/load_pcx.hpp" // the vanilla button, read from the player's archive
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
@@ -30,6 +32,35 @@
 #include "utils/str_cat.hpp"
 
 namespace devilution::oracool {
+
+std::vector<ButtonSliceSpan> SliceButtonAxis(int target, int source, int cap)
+{
+	std::vector<ButtonSliceSpan> spans;
+	if (target <= 0 || source <= 0)
+		return spans;
+	if (target < source) {
+		// The first half and the last half, butted: both ends survive and the middle is what goes.
+		const int first = (target + 1) / 2;
+		spans.push_back({ 0, 0, first });
+		if (target > first)
+			spans.push_back({ source - (target - first), first, target - first });
+		return spans;
+	}
+	cap = std::clamp(cap, 0, source / 2);
+	if (source - 2 * cap <= 0)
+		cap = 0;
+	const int middle = source - 2 * cap;
+	if (cap > 0)
+		spans.push_back({ 0, 0, cap });
+	for (int dest = cap; dest < target - cap;) {
+		const int run = std::min(middle, target - cap - dest);
+		spans.push_back({ cap, dest, run });
+		dest += run;
+	}
+	if (cap > 0)
+		spans.push_back({ source - cap, target - cap, cap });
+	return spans;
+}
 
 namespace {
 
@@ -101,30 +132,40 @@ constexpr int ShopControlsWidth = ShopPanelSize.width - 2 * ShopControlsLeft;
  * FLUSH means gapless - x is the panel's right edge exactly, so the tabs read as part of the window
  * rather than as a floating strip near it.
  */
-constexpr int ShopTabColumnWidth = 26;
+/*
+ * 27 wide and 3 apart since the controls took the vanilla button (2026-09-11): 27 is that button's face
+ * height, laid on its side, and 3 is the one gap every control on this panel keeps - between the
+ * buttons on a row, between the rows, and between the tabs.
+ */
+constexpr int ShopControlGap = 3;
+constexpr int ShopTabColumnWidth = 27;
 constexpr int ShopTabHeight = 80;
-constexpr int ShopTabGap = 2;
+constexpr int ShopTabGap = ShopControlGap;
 /** @brief Below the title band, where the first control row also starts. */
-constexpr int ShopTabColumnTop = 58;
+constexpr int ShopTabColumnTop = 60;
 
 /*
  * The control rows, between the title band and the pinned grid. There are 106 pixels here (the title
  * band ends at 56, the grid's top is pinned at GridBottom - 16 cells) and the user's instruction on
  * that has not moved: "you dont remove one grid row from shops."
  *
- * With the tabs gone the rows are no longer rationed - services, bulk and gold use 72 of the 106 and
- * the rest is deliberate breathing room rather than a number squeezed to fit.
+ * With the tabs gone the rows are no longer rationed. Services, bulk and gold end exactly where the
+ * refusal toast's band above the grid begins (shop_toast.cpp), so a refusal never covers a button.
  */
-constexpr int ShopServiceTop = 58;
-constexpr int ShopServiceHeight = 26;
-constexpr int ShopActionTop = ShopServiceTop + ShopServiceHeight + 2;
-constexpr int ShopActionHeight = 26;
-constexpr int ShopGoldTop = ShopActionTop + ShopActionHeight + 2;
+constexpr int ShopServiceTop = ShopTabColumnTop;
+constexpr int ShopServiceHeight = 27;
+constexpr int ShopActionTop = ShopServiceTop + ShopServiceHeight + ShopControlGap;
+constexpr int ShopActionHeight = 27;
+constexpr int ShopGoldTop = ShopActionTop + ShopActionHeight + ShopControlGap;
 constexpr int ShopGoldHeight = 16;
 
 static_assert(ShopGoldTop + ShopGoldHeight <= ShopGridTop - GridFrameWidth,
     "the controls above the shop grid no longer clear it - shorten the rows, or ask before "
     "taking a row off the grid");
+/** @brief shop_toast.cpp's ToastHeight: the refusal banner sits directly above the grid. */
+constexpr int ShopToastBand = 34;
+static_assert(ShopGoldTop + ShopGoldHeight <= ShopGridTop - ShopToastBand,
+    "the gold line runs into the band the refusal toast takes above the grid (shop_toast.cpp)");
 static_assert(ShopGridLeft >= 0, "the shop grid is wider than the panel");
 
 /*
@@ -138,11 +179,11 @@ constexpr const char *ShopGoldPlateArt = "ui\\shop_gold_plate.png"; // one 284x1
 constexpr Size ShopTabCell { 26, 80 };
 constexpr Size ShopButtonCell { 284, 26 };
 constexpr Size ShopGoldPlateSize { 284, 16 };
-static_assert(ShopTabCell.width == ShopTabColumnWidth && ShopTabCell.height == ShopTabHeight,
-    "shop_tab.png's cells no longer match the tab rect");
-static_assert(ShopButtonCell.width == ShopControlsWidth && ShopButtonCell.height == ShopServiceHeight
-        && ShopButtonCell.height == ShopActionHeight,
-    "shop_button.png's rows no longer match the control rows");
+// Since the vanilla button took over (below) these plates are the FALLBACK, and the controls are sized
+// to that button rather than to them - the plates are a pixel short of a 27px control, which is the
+// price of a fallback, so only the sizes that still hold are held.
+static_assert(ShopTabCell.height == ShopTabHeight && ShopButtonCell.width == ShopControlsWidth,
+    "shop_tab.png / shop_button.png no longer match the tab height or the control row's width");
 static_assert(ShopGoldPlateSize.width == ShopControlsWidth && ShopGoldPlateSize.height == ShopGoldHeight,
     "shop_gold_plate.png no longer matches the gold line");
 
@@ -168,6 +209,161 @@ void DrawShopButtonPlate(const Surface &out, Rectangle rect, int state)
 	DrawLoosePngPart(out, ShopButtonArt, Rectangle { { 0, top }, { left, ShopButtonCell.height } }, rect.position);
 	DrawLoosePngPart(out, ShopButtonArt, Rectangle { { ShopButtonCell.width - right, top }, { right, ShopButtonCell.height } },
 	    rect.position + Displacement { left, 0 });
+}
+
+/*
+ * Oracool: the controls wear the VANILLA small button (user, 2026-09-11: "why dont you use vanilla
+ * buttons instead of these", then "we can use desaturated version of them and gold font"). The
+ * limestone plates above are the fallback.
+ *
+ * READ FROM THE PLAYER'S OWN ARCHIVE, never shipped: ui_art\but_sml.pcx is the dialog button the front
+ * end already loads (DiabloUI/button.cpp). It is loaded here with its own palette, because in game the
+ * palette is the town's or the dungeon's and the PCX's indices mean nothing against it. Each index is
+ * resolved to a grey of its own brightness, so the button is desaturated at runtime and the file is
+ * never altered.
+ *
+ * Only the face is used: in each 112x28 frame, row 0 and columns 110-111 are padding, so the face is the
+ * 110x27 at (0, 1). Frames 0, 1 and 2 are at rest, pressed and lit - the last with the ring the front
+ * end draws round its focused button, which here marks hover and the open tab.
+ */
+constexpr const char *VanillaButtonPath = "ui_art\but_sml";
+constexpr int VanillaButtonFrameCount = 15;
+constexpr int VanillaFaceTop = 1;
+constexpr int VanillaFaceWidth = 110;
+constexpr int VanillaFaceHeight = 27;
+/** @brief The ring and the bevel, kept whole on every side whatever size the control is. */
+constexpr int VanillaFaceCap = 8;
+/** @brief A touch under the button's own brightness, so it separates from the limestone around it. */
+constexpr uint32_t VanillaGreyPercent = 90;
+
+enum class VanillaFace : uint8_t {
+	Rest,
+	Pressed,
+	Lit,
+};
+
+struct VanillaButtonFaces {
+	bool loaded = false;
+	/** @brief One 110x27 face per VanillaFace, as XRGB values. */
+	std::array<std::vector<uint32_t>, 3> faces;
+};
+
+/** @brief The three faces, decoded once. Not loaded if the archive has no but_sml. */
+const VanillaButtonFaces &GetVanillaButtonFaces()
+{
+	static VanillaButtonFaces art;
+	static bool tried = false;
+	if (tried)
+		return art;
+	tried = true;
+
+	std::array<SDL_Color, 256> palette {};
+	const OptionalOwnedClxSpriteList sprites = LoadPcxSpriteList(VanillaButtonPath, VanillaButtonFrameCount, std::nullopt, palette.data(), /*logError=*/false);
+	if (!sprites)
+		return art;
+	std::array<uint32_t, 256> grey {};
+	for (size_t i = 0; i < grey.size(); i++) {
+		const SDL_Color c = palette[i];
+		const uint32_t luma = (299U * c.r + 587U * c.g + 114U * c.b) / 1000U;
+		const uint32_t value = std::min<uint32_t>(255U, luma * VanillaGreyPercent / 100U);
+		grey[i] = (value << 16) | (value << 8) | value;
+	}
+	for (size_t f = 0; f < art.faces.size(); f++) {
+		const ClxSprite sprite = (*sprites)[f];
+		if (sprite.width() < VanillaFaceWidth || sprite.height() < VanillaFaceTop + VanillaFaceHeight)
+			return art;
+		const OwnedSurface scratch = OwnedSurface::Rgb(sprite.width(), sprite.height());
+		RenderClxSpriteWithRgbMap(scratch, sprite, { 0, 0 }, grey.data());
+		std::vector<uint32_t> &face = art.faces[f];
+		face.resize(static_cast<size_t>(VanillaFaceWidth) * VanillaFaceHeight);
+		for (int y = 0; y < VanillaFaceHeight; y++) {
+			for (int x = 0; x < VanillaFaceWidth; x++)
+				face[static_cast<size_t>(y) * VanillaFaceWidth + x] = *scratch.at<uint32_t>(x, VanillaFaceTop + y) & 0xFFFFFFU;
+		}
+	}
+	art.loaded = true;
+	return art;
+}
+
+/**
+ * @brief Draws @p which across @p rect at 1:1 - the ends kept, the middle repeated or cut (see
+ * SliceButtonAxis).
+ *
+ * @p onItsSide lays the button down the rect instead of across it, for the tabs. Transposed rather
+ * than rotated, so the light still falls from the top left as it does on every button beside it.
+ * False when there is nothing to draw with, and the caller draws its fallback.
+ */
+bool DrawVanillaButton(const Surface &out, Rectangle rect, VanillaFace which, bool onItsSide)
+{
+	if (out.isIndexed())
+		return false;
+	const VanillaButtonFaces &art = GetVanillaButtonFaces();
+	if (!art.loaded)
+		return false;
+	const std::vector<uint32_t> &face = art.faces[static_cast<size_t>(which)];
+	const int sourceWidth = onItsSide ? VanillaFaceHeight : VanillaFaceWidth;
+	const int sourceHeight = onItsSide ? VanillaFaceWidth : VanillaFaceHeight;
+	const std::vector<ButtonSliceSpan> columns = SliceButtonAxis(rect.size.width, sourceWidth, VanillaFaceCap);
+	const std::vector<ButtonSliceSpan> rows = SliceButtonAxis(rect.size.height, sourceHeight, VanillaFaceCap);
+	for (const ButtonSliceSpan &row : rows) {
+		for (int j = 0; j < row.length; j++) {
+			for (const ButtonSliceSpan &column : columns) {
+				for (int i = 0; i < column.length; i++) {
+					const Point target = rect.position + Displacement { column.dest + i, row.dest + j };
+					if (!out.InBounds(target))
+						continue;
+					const size_t u = static_cast<size_t>(column.source + i);
+					const size_t v = static_cast<size_t>(row.source + j);
+					*out.at<uint32_t>(target) = onItsSide ? face[u * VanillaFaceWidth + v] : face[v * VanillaFaceWidth + u];
+				}
+			}
+		}
+	}
+	return true;
+}
+
+/**
+ * @brief Draws @p text along @p rect, reading top to bottom - the label of a tab standing on its side.
+ *
+ * The engine has no rotated text, so the line is drawn flat on a scratch surface and copied a quarter
+ * turn clockwise, the tops of the letters to the right. It replaces the stack of single letters
+ * (DrawVerticalLabel, still the fallback for an indexed target). The font steps down from 12 until the
+ * label fits, as the stacked version's did.
+ */
+bool DrawSidewaysLabel(const Surface &out, string_view text, Rectangle rect, UiFlags color)
+{
+	if (out.isIndexed() || rect.size.width <= 0 || rect.size.height <= 0)
+		return false;
+	const int length = rect.size.height;
+	const int thickness = rect.size.width;
+	constexpr int EndMargin = 4;
+	UiFlags font = UiFlags::FontSize8;
+	for (const UiFlags candidate : { UiFlags::FontSize12, UiFlags::FontSize11, UiFlags::FontSize10, UiFlags::FontSize9 }) {
+		// +1 for the shadow, which sits a pixel past the last glyph.
+		if (GetLineWidth(text, GetFontSizeFromUiFlags(candidate)) + 1 <= length - 2 * EndMargin) {
+			font = candidate;
+			break;
+		}
+	}
+	constexpr uint32_t Key = 0xFF00FFU; // magenta: in no font colour and no shadow
+	const OwnedSurface scratch = OwnedSurface::Rgb(length, thickness);
+	for (int y = 0; y < thickness; y++) {
+		for (int x = 0; x < length; x++)
+			*scratch.at<uint32_t>(x, y) = Key;
+	}
+	DrawString(scratch, text, Rectangle { { 0, 0 }, { length, thickness } },
+	    { color | font | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
+	for (int y = 0; y < thickness; y++) {
+		for (int x = 0; x < length; x++) {
+			const uint32_t pixel = *scratch.at<uint32_t>(x, y);
+			if ((pixel & 0xFFFFFFU) == Key)
+				continue;
+			const Point target = rect.position + Displacement { thickness - 1 - y, x };
+			if (out.InBounds(target))
+				*out.at<uint32_t>(target) = pixel;
+		}
+	}
+	return true;
 }
 
 /** @brief Where one stock entry sits on the grid, and which stock entry it is. */
@@ -445,7 +641,7 @@ std::vector<ControlButton> ShopControlButtons(TalkID id)
 /**
  * @brief Where one control sits. Services take the first row, bulk actions the second.
  *
- * Each row shares its full width between whatever is on it, so three services are 102px each and one
+ * Each row shares its full width between whatever is on it, so three services are 92px each, 3px apart, and one
  * bulk action is the whole row. They never fight for space because they are on different rows.
  */
 Rectangle ShopControlRect(const std::vector<ControlButton> &buttons, size_t index)
@@ -465,9 +661,13 @@ Rectangle ShopControlRect(const std::vector<ControlButton> &buttons, size_t inde
 	}
 	const int top = kind == ControlKind::Service ? ShopServiceTop : ShopActionTop;
 	const int height = kind == ControlKind::Service ? ShopServiceHeight : ShopActionHeight;
-	const int width = ShopControlsWidth / std::max(onRow, 1);
-	return Rectangle { { panel.position.x + ShopControlsLeft + before * width, panel.position.y + top },
-		{ width, height } };
+	// The same 3px gap between buttons on a row as between the rows, and the row centred on whatever
+	// the division leaves over.
+	const int count = std::max(onRow, 1);
+	const int width = (ShopControlsWidth - ShopControlGap * (count - 1)) / count;
+	const int used = width * count + ShopControlGap * (count - 1);
+	const int left = panel.position.x + ShopControlsLeft + (ShopControlsWidth - used) / 2 + before * (width + ShopControlGap);
+	return Rectangle { { left, panel.position.y + top }, { width, height } };
 }
 
 /**
@@ -657,9 +857,11 @@ void DrawShopControls(const Surface &out, int pageCount)
 		// Oracool: pressed for as long as the left button is held on it. The shop acts on mouse-DOWN,
 		// so this is the span between the click and the release, and sgbMouseDown is that span exactly.
 		const bool pressed = hovered && sgbMouseDown == CLICK_LEFT;
-		if (buttonArt) {
+		const VanillaFace face = pressed ? VanillaFace::Pressed : hovered ? VanillaFace::Lit : VanillaFace::Rest;
+		const bool vanilla = DrawVanillaButton(out, rect, face, /*onItsSide=*/false);
+		if (!vanilla && buttonArt) {
 			DrawShopButtonPlate(out, rect, pressed ? 2 : hovered ? 1 : 0);
-		} else {
+		} else if (!vanilla) {
 			// A hover changes the ink and deepens the plate with a SECOND translucent pass (user,
 			// 2026-09-05: "when hovering over them add a second dark transparent backing"); the rect
 			// itself never moves, so the row does not shift under the pointer.
@@ -669,9 +871,10 @@ void DrawShopControls(const Surface &out, int pageCount)
 			DrawOrnateBorder(out, rect);
 		}
 		// The pressed plate's face sits a pixel lower, and the word goes down with it.
-		const Rectangle labelRect = buttonArt && pressed ? Rectangle { rect.position + Displacement { 0, 1 }, rect.size } : rect;
+		const Rectangle labelRect = (vanilla || buttonArt) && pressed ? Rectangle { rect.position + Displacement { 0, 1 }, rect.size } : rect;
+		// Gold throughout on the vanilla button - its lit ring is the hover (user, 2026-09-11: "gold font").
 		DrawString(out, buttons[i].label, labelRect,
-		    { (hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
+		    { (hovered && !vanilla ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
 		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 
@@ -680,8 +883,9 @@ void DrawShopControls(const Surface &out, int pageCount)
 	// and the gold readout is one centred line with both ends going spare.
 	const Rectangle goldLine { { panel.position.x + ShopControlsLeft, panel.position.y + ShopGoldTop },
 		{ ShopControlsWidth, ShopGoldHeight } };
-	// Oracool: on its own recessed strip when the art is in; on the bare canvas when it is not.
-	if (HasShopArt(ShopGoldPlateArt))
+	// Oracool: on a recessed strip - the vanilla button pressed in, like the rows above it, or else the
+	// limestone plate - and on the bare canvas when neither is in.
+	if (!DrawVanillaButton(out, goldLine, VanillaFace::Pressed, /*onItsSide=*/false) && HasShopArt(ShopGoldPlateArt))
 		DrawLoosePng(out, ShopGoldPlateArt, goldLine.position);
 	// Shadowed (user, 2026-09-05: "add text shadow to texts in vendors where needed, like behind
 	// the GOLD amount available") - asked for when it sat on the bare canvas, and kept on the plate.
@@ -711,12 +915,17 @@ void DrawShopTabColumn(const Surface &out)
 		const Rectangle rect = ShopTabRect(i);
 		const bool active = tabs[i] == stextflag;
 		const bool hovered = rect.contains(MousePosition);
-		if (tabArt) {
+		// The vanilla button on its side: lit for the open shelf, at rest under the pointer and pressed in
+		// otherwise, so the shelves not showing step back and the open one stands out.
+		const VanillaFace face = active ? VanillaFace::Lit : hovered ? VanillaFace::Rest : VanillaFace::Pressed;
+		const bool vanilla = DrawVanillaButton(out, rect, face, /*onItsSide=*/true);
+		if (!vanilla && tabArt) {
 			// Oracool: one 26x80 cell per state - the open shelf, the one under the pointer, or at rest.
-			// Its flat right edge is the one against the panel.
+			// Its flat edge is on the RIGHT, drawn for a tab left of its panel, so here it faces away from
+			// the panel - one of the reasons it is only the fallback now.
 			const int state = active ? 2 : hovered ? 1 : 0;
 			DrawLoosePngPart(out, ShopTabArt, Rectangle { { state * ShopTabCell.width, 0 }, ShopTabCell }, rect.position);
-		} else {
+		} else if (!vanilla) {
 			// The active tab is filled solid so it reads as part of the panel; the rest are the same
 			// half-transparent plate every other floating control wears.
 			if (active) {
@@ -726,8 +935,9 @@ void DrawShopTabColumn(const Surface &out)
 			}
 			DrawOrnateBorder(out, rect);
 		}
-		DrawVerticalLabel(out, _(ShopTabName(tabs[i])), rect,
-		    active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
+		const string_view label = _(ShopTabName(tabs[i]));
+		if (!vanilla || !DrawSidewaysLabel(out, label, rect, UiFlags::ColorWhitegold))
+			DrawVerticalLabel(out, label, rect, active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
 	}
 }
 

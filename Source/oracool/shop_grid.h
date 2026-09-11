@@ -30,18 +30,21 @@
  * text box. That boundary is deliberate: those checks have each been a reported bug, and a grid
  * that re-implemented them would be a second place for them to go wrong.
  *
- * ## The controls wear their own art
+ * ## The controls wear the vanilla button
  *
- * The tab column, the service and bulk-action buttons and the gold line sit on three blank limestone
- * plates (ui\shop_tab.png, shop_button.png, shop_gold_plate.png - batch 6, 2026-09-11), and the game
- * still draws every label on top in its own font. The panel itself is not the shop's: it is the
- * shared 340x720 side-panel background every limestone window wears, and the grid keeps its bezel.
+ * The tab column, the service and bulk-action buttons and the gold line are Diablo's own small dialog
+ * button (ui_art\but_sml, read from the player's archive at runtime and never shipped), desaturated to
+ * the limestone's grey, with every label in gold on top (user, 2026-09-11). The tabs are the same
+ * button laid on its side, their labels reading down them. The panel itself is not the shop's: it is
+ * the shared 340x720 side-panel background every limestone window wears, and the grid keeps its bezel.
  *
- * A plate that is missing falls back to what the control wore before it - the flat fill and the
- * ornate border, and no plate at all behind the gold line - so a build without the art still draws a
- * whole shop.
+ * Without that file the controls fall back to three blank limestone plates (ui\shop_tab.png,
+ * shop_button.png, shop_gold_plate.png - batch 6), and without those to the flat fill and the ornate
+ * border, so a build short of art still draws a whole shop.
  */
 #pragma once
+
+#include <vector>
 
 #include "engine/point.hpp"
 #include "engine/rectangle.hpp"
@@ -154,5 +157,21 @@ bool SetShopHoverInfoString();
 bool IsShopItemHovered();
 /** @brief The shop item under the cursor, or nullptr - for the comparison panel (user, 2026-09-05). */
 const Item *HoveredShopItem();
+
+/** @brief One run of a sliced button: @p length pixels from @p source in the art to @p dest in the control. */
+struct ButtonSliceSpan {
+	int source;
+	int dest;
+	int length;
+};
+
+/**
+ * @brief How a button face @p source pixels long covers a control @p target long, along one axis.
+ *
+ * At 1:1, never scaled. Longer than the face: both @p cap-pixel ends whole and the middle repeated
+ * between them. Shorter: the face's first half and its last half, butted, so both ends survive and the
+ * middle that could not fit is what goes. The spans cover the target exactly, in order.
+ */
+std::vector<ButtonSliceSpan> SliceButtonAxis(int target, int source, int cap);
 
 } // namespace devilution::oracool
