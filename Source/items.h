@@ -694,6 +694,8 @@ struct Item {
 	int _iPLMagicFind = 0;
 	/** @brief Oracool: Movement Speed +X% from this item's affix (IPL_MOVESPEED). Derived, like every _iPL*. */
 	int _iPLMoveSpeed = 0;
+	/** @brief Oracool: Faster Cast Rate +X% from this item's affix (IPL_FASTCAST). Derived, like every _iPL*. */
+	int _iPLFastCast = 0;
 
 	/**
 	 * @brief Oracool: how many Mystic Orbs have been applied to this item (v1.9.19).
@@ -1162,6 +1164,8 @@ void TryAddSocketsToDroppedItem(Item &item);
 void TryMakeDroppedItemEthereal(Item &item);
 /** @brief Oracool: the drop tail's Movement Speed +X% roll, one item in twelve, into the item's own affix record. */
 void TryAddMovementSpeedToDrop(Item &item);
+/** @brief Oracool: the drop tail's Faster Cast Rate +X% roll, one caster's piece in twelve, into the item's own affix record. */
+void TryAddFasterCastToDrop(Item &item);
 /** @brief Phase 1: Magic/Gold Find consumption - scales dropped gold by _pGoldFind and gives
  * plain equipment a _pMagicFind% chance to upgrade to a Rare-tier roll. Drop tail only. */
 void ApplyMagicAndGoldFindToDrop(Item &item, int mLevel);

@@ -223,6 +223,41 @@ bool CastRangedPaladinSkill(Player &player, PaladinSkill skill, Point target)
 	return false;
 }
 
+bool IsCastPaladinSkill(PaladinSkill skill)
+{
+	switch (skill) {
+	case PaladinSkill::FistOfTheHeavens:
+	case PaladinSkill::BlessedShield:
+	case PaladinSkill::BlessedHammer:
+		return true;
+	case PaladinSkill::Charge:
+	case PaladinSkill::Zeal:
+	case PaladinSkill::HammerOfFaith:
+	case PaladinSkill::ShieldBash:
+		break;
+	}
+	return false;
+}
+
+bool CanStartRangedPaladinSkill(const Player &player, PaladinSkill skill)
+{
+	return IsCastPaladinSkill(skill) && CanUsePaladinSkill(player, skill) && MissilePoolHasRoom();
+}
+
+std::optional<MagicType> PaladinCastAnimation(SpellID spell)
+{
+	switch (spell) {
+	case SpellID::BlessedHammer:
+		return MagicType::Fire;
+	case SpellID::BlessedShield:
+		return MagicType::Magic;
+	case SpellID::FistOfTheHeavens:
+		return MagicType::Lightning;
+	default:
+		return std::nullopt;
+	}
+}
+
 std::string PaladinRangedFactsAt(PaladinSkill skill, int rank)
 {
 	(void)rank; // these scale off the weapon, not the rank - see the top of the file

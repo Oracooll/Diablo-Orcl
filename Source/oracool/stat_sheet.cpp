@@ -67,6 +67,7 @@ void ItemBonusTotals::AddItem(const Item &item)
 	goldFind += item._iPLGoldFind;
 	magicFind += item._iPLMagicFind;
 	moveSpeed += item._iPLMoveSpeed;
+	fastCast += item._iPLFastCast;
 	enhancedAccuracy += item._iPLEnAc;
 	fireMin += item._iFMinDam;
 	fireMax += item._iFMaxDam;
@@ -269,6 +270,8 @@ std::string DescribeBonusTotals(const ItemBonusTotals &totals, const char *separ
 		add(fmt::format(fmt::runtime(_("{:s}% gold find")), signedNumber(totals.goldFind)));
 	if (totals.moveSpeed != 0)
 		add(fmt::format(fmt::runtime(_("{:s}% movement speed")), signedNumber(totals.moveSpeed)));
+	if (totals.fastCast != 0)
+		add(fmt::format(fmt::runtime(_("{:s}% faster cast rate")), signedNumber(totals.fastCast)));
 
 	return out;
 }

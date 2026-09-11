@@ -317,7 +317,7 @@ bool IsOracoolAffixTypeValid(item_effect_type type)
 {
 	// The bound moves with every appended power, and forgetting it is how a new power would load
 	// back as IPL_INVALID on every existing item - silently, and only after a save/load round trip.
-	return type == IPL_INVALID || (type >= 0 && type <= IPL_MOVESPEED_CURSE);
+	return type == IPL_INVALID || (type >= 0 && type <= IPL_FASTCAST);
 }
 
 void LoadItemData(LoadHelper &file, Item &item)
@@ -465,6 +465,16 @@ void LoadItemData(LoadHelper &file, Item &item)
 			item._iPLMoveSpeed += affix.param1;
 		else if (affix.type == IPL_MOVESPEED_CURSE)
 			item._iPLMoveSpeed -= affix.param1;
+	}
+	// Faster Cast Rate the same way (2026-09-11 - see TryAddFasterCastToDrop).
+	item._iPLFastCast = 0;
+	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
+		if (affix.type == IPL_FASTCAST)
+			item._iPLFastCast += affix.param1;
+	}
+	for (const OracoolAffix &affix : item._iOracoolSuffixes) {
+		if (affix.type == IPL_FASTCAST)
+			item._iPLFastCast += affix.param1;
 	}
 
 	// Megaplan Phase 1 sockets (OracoolItemFormatVersion 3+): count plus one gem/rune base-item

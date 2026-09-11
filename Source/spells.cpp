@@ -5,6 +5,7 @@
  */
 #include "spells.h"
 #include "oracool/class_tree.h"
+#include "oracool/paladin_ranged.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
 #include "oracool/skill_sounds.h"
@@ -262,6 +263,16 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 void CastSpell(int id, SpellID spl, int sx, int sy, int dx, int dy, int spllvl)
 {
 	Player &player = Players[id];
+
+	// Oracool: the Paladin's three cast skills (2026-09-11) arrive here at the cast frame like any spell
+	// and go to their own module rather than to the missile table, where their rows hold
+	// MissileID::Null. CastRangedPaladinSkill pays its own mana, so ConsumeSpell is not reached - it
+	// would charge nothing for them anyway (SkillPaysMana).
+	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spl); skill.has_value() && oracool::IsCastPaladinSkill(*skill)) {
+		oracool::CastRangedPaladinSkill(player, *skill, { dx, dy });
+		return;
+	}
+
 	Direction dir = player._pdir;
 	if (IsWallSpell(spl)) {
 		dir = player.tempDirection;

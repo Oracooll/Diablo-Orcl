@@ -1331,6 +1331,14 @@ enum item_effect_type : int8_t {
 	IPL_MOVESPEED,
 	/** The curse: Movement Speed -X%. Same drop tail, same record, the other sign (2026-09-07). */
 	IPL_MOVESPEED_CURSE,
+	/**
+	 * Faster Cast Rate +X% (user, 2026-09-11: "introduce Faster Cast Rate affix in the game to make it
+	 * possible to increase casting animation/speed of spells"). Appended like the ones above, and
+	 * loadsave.cpp's IsOracoolAffixTypeValid moves with it. Rolled on the drop tail into the item's own
+	 * record and re-derived on load, as Movement Speed is, so the format did not grow. The engine turns
+	 * the total into skipped cast frames - see oracool::CastFrameSkip.
+	 */
+	IPL_FASTCAST,
 	IPL_INVALID = -1,
 };
 

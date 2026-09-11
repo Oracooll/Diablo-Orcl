@@ -94,6 +94,7 @@
 #include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
 #include "oracool/paladin_melee.h"
+#include "oracool/paladin_ranged.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/rng_streams.h"
 #include "oracool/runewords.h"
@@ -11295,4 +11296,104 @@ TEST(OracoolShop, VanillaButtonSlicesCoverTheControlAndKeepBothEnds)
 			EXPECT_EQ(spans.back().source + spans.back().length, source) << "the trailing end is not the art's own";
 		}
 	}
+}
+
+// Faster Cast Rate (user, 2026-09-11): a percentage from items, turned into skipped cast frames - and
+// never the cast frame itself, or the spell would never leave.
+TEST(OracoolAudit, FasterCastRateSkipsCastFramesAndNeverTheCastItself)
+{
+	EXPECT_EQ(oracool::CastFrameSkip(14, 0), 0);
+	EXPECT_EQ(oracool::CastFrameSkip(14, -20), 0) << "a negative total skips nothing";
+	// The Warrior's 14 frames: +20% casts in 12 ticks, +50% in 9, +100% in 7.
+	EXPECT_EQ(oracool::CastFrameSkip(14, 20), 2);
+	EXPECT_EQ(oracool::CastFrameSkip(14, 50), 5);
+	EXPECT_EQ(oracool::CastFrameSkip(14, 100), 7);
+	// The Sorcerer's 8: +20% is one frame.
+	EXPECT_EQ(oracool::CastFrameSkip(8, 20), 1);
+	for (const int castFrame : { 2, 8, 12, 13, 14 }) {
+		for (int percent = 0; percent <= 5000; percent += 50)
+			EXPECT_LE(oracool::CastFrameSkip(castFrame, percent), castFrame - 1) << castFrame << " at +" << percent << "%";
+	}
+
+	// Worn: a ring's affix reaches the player's total.
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	InspectPlayer = MyPlayer;
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+	devilution::Item ring {};
+	InitializeItem(ring, IDI_TRING);
+	ring._iMagical = ITEM_QUALITY_MAGIC;
+	ring._iIdentified = true;
+	ring._iStatFlag = true;
+	ring._iPLFastCast = 15; // what SaveItemPower(IPL_FASTCAST) writes
+	player.InvBody[INVLOC_RING_LEFT] = ring;
+	CalcPlrItemVals(player, false);
+	EXPECT_EQ(player._pIFastCast, 15) << "the worn affix did not reach the player";
+}
+
+// The drop tail's Faster Cast Rate roll (2026-09-11): into the item's own record, never the vanilla
+// tables, on a caster's kit only - a staff 10..30, a ring 5..15.
+TEST(OracoolAudit, FasterCastRateRollsOnTheDropTailIntoTheItemsOwnRecord)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	const auto rollsWithin = [](_item_indexes base, int low, int high) {
+		int rolled = 0;
+		for (int attempt = 0; attempt < 4000 && rolled < 3; attempt++) {
+			devilution::Item item {};
+			InitializeItem(item, base);
+			item._iMagical = ITEM_QUALITY_MAGIC;
+			item._iOracoolTier = OracoolItemTier::None;
+			const int before = item._iOracoolSuffixCount;
+			TryAddFasterCastToDrop(item);
+			if (item._iPLFastCast == 0) {
+				EXPECT_EQ(item._iOracoolSuffixCount, before);
+				continue;
+			}
+			rolled++;
+			EXPECT_EQ(item._iOracoolSuffixCount, before + 1) << "the roll must live in the record";
+			EXPECT_EQ(item._iOracoolSuffixes[before].type, IPL_FASTCAST);
+			EXPECT_EQ(item._iOracoolSuffixes[before].param1, item._iPLFastCast) << "the record and the field must agree";
+			EXPECT_GE(item._iPLFastCast, low);
+			EXPECT_LE(item._iPLFastCast, high);
+		}
+		return rolled;
+	};
+	EXPECT_EQ(rollsWithin(IDI_SHORTSTAFF, 10, 30), 3) << "one staff in twelve should roll it";
+	EXPECT_EQ(rollsWithin(IDI_TRING, 5, 15), 3) << "one ring in twelve should roll it";
+
+	// Never on a sword, and never on a unique.
+	for (int attempt = 0; attempt < 400; attempt++) {
+		devilution::Item sword {};
+		InitializeItem(sword, IDI_WARRIOR);
+		sword._iMagical = ITEM_QUALITY_MAGIC;
+		TryAddFasterCastToDrop(sword);
+		ASSERT_EQ(sword._iPLFastCast, 0) << "a sword took the caster's affix";
+		devilution::Item ring {};
+		InitializeItem(ring, IDI_TRING);
+		ring._iMagical = ITEM_QUALITY_UNIQUE;
+		TryAddFasterCastToDrop(ring);
+		ASSERT_EQ(ring._iPLFastCast, 0) << "a unique took the drop-tail affix";
+	}
+}
+
+// The Paladin's three cast skills are spells now (user, 2026-09-11): each takes the cast animation the
+// user named rather than its element's, and the melee four and Charge stay swings.
+TEST(OracoolAudit, PaladinCastSkillsTakeTheirOwnSpellAnimation)
+{
+	EXPECT_EQ(oracool::PaladinCastAnimation(SpellID::BlessedHammer), MagicType::Fire);
+	EXPECT_EQ(oracool::PaladinCastAnimation(SpellID::BlessedShield), MagicType::Magic);
+	EXPECT_EQ(oracool::PaladinCastAnimation(SpellID::FistOfTheHeavens), MagicType::Lightning);
+	EXPECT_FALSE(oracool::PaladinCastAnimation(SpellID::Firebolt).has_value()) << "any other spell keeps its element's animation";
+
+	EXPECT_TRUE(oracool::IsCastPaladinSkill(oracool::PaladinSkill::BlessedHammer));
+	EXPECT_TRUE(oracool::IsCastPaladinSkill(oracool::PaladinSkill::BlessedShield));
+	EXPECT_TRUE(oracool::IsCastPaladinSkill(oracool::PaladinSkill::FistOfTheHeavens));
+	for (const oracool::PaladinSkill swing : { oracool::PaladinSkill::Charge, oracool::PaladinSkill::Zeal,
+	         oracool::PaladinSkill::HammerOfFaith, oracool::PaladinSkill::ShieldBash })
+		EXPECT_FALSE(oracool::IsCastPaladinSkill(swing)) << "a swing was made a cast";
 }

@@ -1237,6 +1237,9 @@ int SaveItemPower(const Player &player, Item &item, ItemPower &power)
 	case IPL_MOVESPEED_CURSE:
 		item._iPLMoveSpeed -= r;
 		break;
+	case IPL_FASTCAST:
+		item._iPLFastCast += r;
+		break;
 	default:
 		break;
 	}
@@ -4035,6 +4038,8 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 	player._pGoldFind = totals.goldFind;
 	// Movement Speed: the items' affixes and the burning aura, one percentage (2026-09-07).
 	player._pIMoveSpeed = totals.moveSpeed;
+	// Faster Cast Rate: the items' affixes, one percentage (2026-09-11). StartSpell turns it into frames.
+	player._pIFastCast = totals.fastCast;
 
 	player._pInfraFlag = oracool::IsSinglePlayer() && *sgOptions.Oracool.permanentInfravision;
 
@@ -4489,6 +4494,7 @@ void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)
 	item._iPLMagicFind = 0;
 	item._iPLGoldFind = 0;
 	item._iPLMoveSpeed = 0;
+	item._iPLFastCast = 0;
 	// The rest of what a roll writes, and each one is a real bug of its own if left behind: fire
 	// and lightning damage ranges, charges, spell level, value multipliers, the special-effect
 	// flag words, and the two Oracool flags. _iOracoolEthereal and _iOracoolBroken in particular
@@ -4811,6 +4817,35 @@ void TryAddMovementSpeedToDrop(Item &item)
 	item._iPLMoveSpeed += value;
 }
 
+void TryAddFasterCastToDrop(Item &item)
+{
+	// Faster Cast Rate +X% (user, 2026-09-11: "introduce Faster Cast Rate affix in the game to make it
+	// possible to increase casting animation/speed of spells"). On the drop tail and into the item's own
+	// record for Movement Speed's reason (see TryAddMovementSpeedToDrop): a row in the vanilla tables
+	// would re-roll every seeded item in every save.
+	//
+	// On a caster's kit, of normal or magic quality: rings, amulets and helms, and staves - the weapon a
+	// caster holds, and the one that carries the most of it.
+	if (!oracool::IsSinglePlayer() || item.isEmpty())
+		return;
+	const bool staff = item._itype == ItemType::Staff;
+	const bool trinket = item._itype == ItemType::Ring || item._itype == ItemType::Amulet || item._itype == ItemType::Helm;
+	if ((!staff && !trinket) || item._iMagical == ITEM_QUALITY_UNIQUE || item.hasOracoolTier())
+		return;
+	if (item._iOracoolSuffixCount >= Item::MaxOracoolAffixesPerSlot)
+		return;
+	// One drop in twelve, as Movement Speed: a find, not a fixture.
+	if (GenerateRnd(100) >= 8)
+		return;
+	// A staff 10..30, the rest 5..15, with the item's own level pulling the floor up to double.
+	const int base = staff ? 10 : 5;
+	const int top = staff ? 30 : 15;
+	const int floor = std::clamp(base + static_cast<int>(item._iCreateInfo & CF_LEVEL) / 4, base, 2 * base);
+	const int value = floor + GenerateRnd(top - floor + 1);
+	item._iOracoolSuffixes[item._iOracoolSuffixCount++] = OracoolAffix { IPL_FASTCAST, value, 0 };
+	item._iPLFastCast += value;
+}
+
 void FinalizeFreshDrop(Item &item, int level)
 {
 	// Phase 1: the drop tail - Magic/Gold Find first (an upgraded item then correctly skips the
@@ -4820,6 +4855,7 @@ void FinalizeFreshDrop(Item &item, int level)
 	TryAddSocketsToDroppedItem(item);
 	TryMakeDroppedItemEthereal(item);
 	TryAddMovementSpeedToDrop(item);
+	TryAddFasterCastToDrop(item);
 	LogNoteworthyItemDrop(item);
 }
 
@@ -5991,6 +6027,8 @@ StringOrView PrintOracoolAffixPower(const OracoolAffix &affix, const Item &item)
 		return fmt::format(fmt::runtime(_("{:+d}% movement speed")), affix.param1);
 	case IPL_MOVESPEED_CURSE:
 		return fmt::format(fmt::runtime(_("{:+d}% movement speed")), -affix.param1);
+	case IPL_FASTCAST:
+		return fmt::format(fmt::runtime(_("{:+d}% faster cast rate")), affix.param1);
 	case IPL_MAGICFIND:
 		// Worded to match the Charm of Luck's line, for the reason the gold one above records: the
 		// two stack, and a player comparing them should not have to work out whether they mean the
@@ -6051,6 +6089,8 @@ std::string PrintSetBonusPower(const ItemPower &power)
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% movement speed")), power.param1);
 	case IPL_MOVESPEED_CURSE:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% movement speed")), -power.param1);
+	case IPL_FASTCAST:
+		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% faster cast rate")), power.param1);
 	case IPL_MAGICFIND:
 		return fmt::format(fmt::runtime(_(/*xgettext:no-c-format*/ "{:+d}% better chance of magic items")), power.param1);
 	case IPL_FIRERES:
@@ -6397,6 +6437,9 @@ void PrintItemDetails(const Item &item)
 	// with the other affixes above, so this line is the plain and magic items'.
 	if (item._iIdentified && item._iPLMoveSpeed != 0 && !item.hasOracoolTier())
 		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% movement speed")), item._iPLMoveSpeed), ItemAffixColor);
+	// Faster Cast Rate the same way (2026-09-11).
+	if (item._iIdentified && item._iPLFastCast != 0 && !item.hasOracoolTier())
+		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% faster cast rate")), item._iPLFastCast), ItemAffixColor);
 	// Phase 1 Mystic Orbs: how many this item has taken and how many it can. The player needs to
 	// know what is left BEFORE they spend one, because applying an orb cannot be undone - an item
 	// silently at its cap is exactly what this line exists to prevent.

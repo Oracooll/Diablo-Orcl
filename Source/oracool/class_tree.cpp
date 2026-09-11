@@ -1630,6 +1630,16 @@ int8_t WalkFrameSkipFor(const Player &player)
 	return -4;
 }
 
+int CastFrameSkip(int castFrame, int fasterCastPercent)
+{
+	if (castFrame <= 1 || fasterCastPercent <= 0)
+		return 0;
+	// castFrame * 100 / (100 + X), rounded to the nearest tick.
+	const int divisor = 100 + fasterCastPercent;
+	const int ticks = (2 * castFrame * 100 + divisor) / (2 * divisor);
+	return std::clamp(castFrame - ticks, 0, castFrame - 1);
+}
+
 bool IsClassTreeRunActive(const Player &player)
 {
 	if (!ClassHasTree(player._pClass))

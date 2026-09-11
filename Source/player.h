@@ -509,6 +509,8 @@ struct Player {
 	int _pGoldFind = 0;
 	/** @brief Oracool: Movement Speed +X%, derived by CalcPlrItemVals from the worn affixes and the burning aura (2026-09-07). */
 	int _pIMoveSpeed = 0;
+	/** @brief Oracool: Faster Cast Rate +X%, derived by CalcPlrItemVals from the worn affixes (2026-09-11). */
+	int _pIFastCast = 0;
 	/** @brief Bitmask of staff spell */
 	SpellMask _pISpells;
 	/** @brief Bitmask of learned spells */

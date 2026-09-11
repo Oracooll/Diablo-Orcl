@@ -75,6 +75,8 @@ struct ItemBonusTotals {
 	int goldFind = 0;
 	/** @brief Movement Speed +X%: the items' IPL_MOVESPEED affixes plus the Paladin's Vigor by rank (2026-09-07). */
 	int moveSpeed = 0;
+	/** @brief Faster Cast Rate +X%: the items' IPL_FASTCAST affixes (2026-09-11). */
+	int fastCast = 0;
 
 	/**
 	 * @brief Accumulates one item with the vanilla loop's exact semantics: nothing from an empty

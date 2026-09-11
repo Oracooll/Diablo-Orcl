@@ -82,16 +82,20 @@ const SpellData SpellsData[] = {
 /*SpellID::Charge*/           { P_("spell", "Charge"),             IS_CAST2,           0,            0,         10, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        10,          0,          0 },
 // The Paladin's other six, every field reasoned exactly as Charge's above: -1/-1 so no book or staff
 // can carry them, minInt 0 because the gate is character level, no missile because their mechanics
-// live outside the cast path (the melee three in oracool/paladin_melee.cpp, the thrown three in
-// oracool/paladin_ranged.cpp).
+// live outside the missile table (the melee three in oracool/paladin_melee.cpp, the thrown three in
+// oracool/paladin_ranged.cpp - which since 2026-09-11 are CAST, and reached from CastSpell at the cast
+// frame).
 // sManaCost mirrors oracool/paladin_skills.cpp's table and exists here only so the Abilities window
 // and the mana check can price the row - that file stays the one place the numbers are decided.
+// Blessed Shield and Blessed Hammer sound ONCE, at the release (2026-09-11): their missiles carry the
+// cue - the hammer's IS_CAST2, the shield's own - so their rows are silent rather than sounding the
+// start of the cast as well. Fist of the Heavens keeps IS_CAST2 at the start: its descent is silent.
 /*SpellID::Zeal*/             { P_("spell", "Zeal"),               IS_CAST2,           0,            0,          2, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         2,          0,          0 },
 /*SpellID::HammerOfFaith*/    { P_("spell", "Hammer of Faith"),    IS_CAST2,           0,            0,          5, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         5,          0,          0 },
-/*SpellID::BlessedShield*/    { P_("spell", "Blessed Shield"),     IS_CAST2,           0,            0,         10, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        10,          0,          0 },
+/*SpellID::BlessedShield*/    { P_("spell", "Blessed Shield"),     SFX_NONE,           0,            0,         10, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        10,          0,          0 },
 /*SpellID::FistOfTheHeavens*/ { P_("spell", "Fist of the Heavens"), IS_CAST2,          0,            0,         15, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,        15,          0,          0 },
 /*SpellID::ShieldBash*/       { P_("spell", "Shield Bash"),        IS_CAST2,           0,            0,          3, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         3,          0,          0 },
-/*SpellID::BlessedHammer*/    { P_("spell", "Blessed Hammer"),     IS_CAST2,           0,            0,          8, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         8,          0,          0 },
+/*SpellID::BlessedHammer*/    { P_("spell", "Blessed Hammer"),     SFX_NONE,           0,            0,          8, Magic | Targeted,             -1,         -1,       0, { MissileID::Null,                 MissileID::Null,    },         0,         8,          0,          0 },
 // Oracool, Round 1: Ice Bolt. Firebolt's numbers almost exactly - it is the cold twin of the spell
 // you cast a thousand times, and the brief says so in as many words - with two deliberate
 // differences.

@@ -6,8 +6,9 @@
  *
  * Separate from oracool/paladin_melee.h because they answer a different question at a different
  * moment: the melee three are asked "this swing landed, do you add anything?" from inside DoAttack,
- * while these are asked "the button was pressed, do something" from CheckPlrSpell, before any
- * animation exists.
+ * while these are CAST (user, 2026-09-11: "Blessed Hammer needs to act as spell"). The click queues a
+ * real spell, the hero plays a spell animation at cast speed, and CastSpell hands the skill here at
+ * the animation's cast frame.
  */
 #pragma once
 
@@ -28,9 +29,28 @@ namespace oracool {
  * back to a plain swing rather than leaving the button inert. That fallback is the same rule the
  * rest of these skills follow: the ability never "does nothing".
  *
- * Charges mana only on success, and only once the effect is committed.
+ * Charges mana only on success, and only once the effect is committed. Called from CastSpell at the
+ * cast frame, so the mana leaves when the skill does.
  */
 bool CastRangedPaladinSkill(Player &player, PaladinSkill skill, Point target);
+
+/** @brief Whether @p skill is one of the three that are cast: Fist of the Heavens, Blessed Shield, Blessed Hammer. */
+bool IsCastPaladinSkill(PaladinSkill skill);
+
+/**
+ * @brief Whether @p skill could be cast right now: one of the three, unlocked, affordable, and with room
+ * for its missile.
+ *
+ * Asked at the CLICK, so a refusal still falls back to a swing before any animation starts.
+ * CastRangedPaladinSkill asks again at the cast frame, which is where the mana actually leaves.
+ */
+bool CanStartRangedPaladinSkill(const Player &player, PaladinSkill skill);
+
+/**
+ * @brief The cast animation the three are drawn with - Blessed Hammer fire, Blessed Shield magic, Fist
+ * of the Heavens lightning (user, 2026-09-11). nullopt for every other spell, which keeps its element's.
+ */
+std::optional<MagicType> PaladinCastAnimation(SpellID spell);
 
 /**
  * @brief Everything Fist of the Heavens does the moment the mace lands.

@@ -788,6 +788,16 @@ int MovementSpeedPercent(const Player &player);
 int8_t WalkFrameSkipFor(const Player &player);
 
 /**
+ * @brief How many frames of the cast animation Faster Cast Rate skips (2026-09-11).
+ *
+ * @p castFrame is the class's frame the spell leaves on (_pSFNum). Every skipped frame is one tick off
+ * the wait, so +X% casts in castFrame * 100 / (100 + X) ticks, rounded. Never the whole wait - at most
+ * castFrame - 1 - because DoSpell fires ON that frame and an animation that starts past it would never
+ * fire. Nothing is skipped for 0 or less.
+ */
+int CastFrameSkip(int castFrame, int fasterCastPercent);
+
+/**
  * @brief Per-tick work: the Paladin's Prayer and Meditation auras, and the Sorceress's Warmth.
  * Called once per game logic tick for the local player.
  */

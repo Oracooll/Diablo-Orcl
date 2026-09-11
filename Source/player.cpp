@@ -352,7 +352,10 @@ void StartRangeAttack(Player &player, Direction d, WorldTileCoord cx, WorldTileC
 
 player_graphic GetPlayerGraphicForSpell(SpellID spellId)
 {
-	switch (GetSpellData(spellId).type()) {
+	// Oracool: the Paladin's three cast skills take the animation the user named for each (2026-09-11:
+	// Blessed Hammer "fire spell hero animation", Blessed Shield "magic", Fist of the Heavens
+	// "lightning") rather than their element's - the element stays what the rows say.
+	switch (oracool::PaladinCastAnimation(spellId).value_or(GetSpellData(spellId).type())) {
 	case MagicType::Fire:
 		return player_graphic::Fire;
 	case MagicType::Lightning:
@@ -392,7 +395,11 @@ void StartSpell(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord c
 	auto animationFlags = AnimationDistributionFlags::ProcessAnimationPending;
 	if (player._pmode == PM_SPELL)
 		animationFlags = static_cast<AnimationDistributionFlags>(animationFlags | AnimationDistributionFlags::RepeatedAction);
-	NewPlrAnim(player, GetPlayerGraphicForSpell(player.queuedSpell.spellId), d, animationFlags, 0, player._pSFNum);
+	// Faster Cast Rate (2026-09-11): the frames it earns come off the start of the cast, spread over the
+	// frames before the cast frame so the animation still reads whole. Never the cast frame itself -
+	// see oracool::CastFrameSkip.
+	NewPlrAnim(player, GetPlayerGraphicForSpell(player.queuedSpell.spellId), d, animationFlags,
+	    static_cast<int8_t>(oracool::CastFrameSkip(player._pSFNum, player._pIFastCast)), player._pSFNum);
 
 	// The spell's OWN sound, and only that (user, 2026-09-03: "there is some unnecessary chatgpt
 	// sound played every time i cast same spells. remove it. spells have their own sounds").
@@ -3631,9 +3638,10 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	// your button. Walking there is both the rule and the better reading of the promise Charge's own
 	// comment made, that the ability never "does nothing".
 	//
-	// Reaching CastSpell would be wrong for all seven for a second reason: none of them is cast
-	// through the missile system, so it would find MissileID::Null in both slots, spawn nothing, and
-	// then call ConsumeSpell - charging mana for no effect.
+	// Reaching CastSpell would be wrong for the melee four and Charge for a second reason: none of them
+	// is cast through the missile system, so it would find MissileID::Null in both slots, spawn nothing,
+	// and then call ConsumeSpell - charging mana for no effect. The three CAST skills do reach it since
+	// 2026-09-11, and CastSpell hands them to oracool/paladin_ranged before the missile table is read.
 	// Oracool, Round 3: a BOW skill is shot, not cast. The click becomes the ordinary ranged attack
 	// - bow animation, arrow sound, weapon wear - with the latch in oracool/rogue_arrows.h saying
 	// which skill threw it, and DoRangeAttack looses the skill's arrow instead of a plain one. The
@@ -3723,9 +3731,14 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			// swings in place toward it (CMD_SATTACKXY, the same command vanilla shift-click uses)
 			// with the latch armed, so Zeal, Hammer of Faith and Shield Bash still ride the swing if
 			// it connects with anything.
-			if (oracool::CastRangedPaladinSkill(myPlayer, *skill, cursPosition)) {
+			if (oracool::CanStartRangedPaladinSkill(myPlayer, *skill)) {
+				// A real cast at the cursor's tile (2026-09-11): the spell animation, at cast speed, and
+				// the skill at its cast frame - see the in-range case below.
 				oracool::ArmMeleeSkill(std::nullopt);
+				LastMouseButtonSpell = spellID;
+				LastMouseButtonSpellType = spellType;
 				LastMouseButtonAction = MouseActionType::Spell;
+				NetSendCmdLocParam3(true, CMD_SPELLXY, cursPosition, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), 0);
 				return;
 			}
 			// No dash for Charge here, deliberately (self-audit, 2026-08-15): the dash is a
@@ -3772,12 +3785,22 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			return;
 		}
 
-		// The skills that strike at a distance get their chance first. A successful cast is the whole
-		// action - no swing, no walk - and a refusal (unaffordable, no shield, not built yet) falls
-		// through to the swing below, which is the same "never does nothing" fallback the rest use.
-		if (oracool::CastRangedPaladinSkill(myPlayer, *skill, Monsters[pcursmonst].position.tile)) {
+		// The skills that strike at a distance get their chance first, and they are CAST (user,
+		// 2026-09-11: "Blessed Hammer needs to act as spell in a sense that it should be cast with the
+		// cast speed of paladin"). The click queues a real spell on the monster - the same CMD_SPELLID
+		// every spell sends - so the hero plays the spell animation, Faster Cast Rate shortens it, and
+		// CastSpell hands the skill to CastRangedPaladinSkill at the cast frame. It used to fire here, on
+		// the click's own tick, with no animation at all.
+		//
+		// A refusal (unaffordable, no shield, a full missile pool) is asked NOW rather than at the cast
+		// frame, so it still falls through to the swing below - the same "never does nothing" fallback
+		// the rest use - instead of playing an animation that ends in nothing.
+		if (oracool::CanStartRangedPaladinSkill(myPlayer, *skill)) {
 			oracool::ArmMeleeSkill(std::nullopt);
-			LastMouseButtonAction = MouseActionType::Spell;
+			LastMouseButtonSpell = spellID;
+			LastMouseButtonSpellType = spellType;
+			LastMouseButtonAction = MouseActionType::SpellMonsterTarget;
+			NetSendCmdParam4(true, CMD_SPELLID, pcursmonst, static_cast<int8_t>(spellID), static_cast<uint8_t>(spellType), 0);
 			return;
 		}
 
