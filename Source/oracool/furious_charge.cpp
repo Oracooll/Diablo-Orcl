@@ -62,6 +62,19 @@ string_view GetSpellDisplayName(SpellID spellId)
 	return pgettext("spell", GetSpellData(spellId).sNameText);
 }
 
+/** @brief Whether the swing in flight ended a dash (2026-09-12) - see SetChargeBlowArmed. */
+bool ChargeBlowArmed = false;
+
+void SetChargeBlowArmed(bool armed)
+{
+	ChargeBlowArmed = armed;
+}
+
+bool IsChargeBlowArmed()
+{
+	return ChargeBlowArmed;
+}
+
 void StartFuriousChargeDash()
 {
 	DashActive = true;
@@ -113,12 +126,13 @@ void ResetFuriousChargeForNewGame()
 {
 	DashActive = false;
 	CooldownActive = false;
+	ChargeBlowArmed = false;
 	// The start times are left alone deliberately: both readers gate on their Active flag first, so
 	// a stale timestamp behind a cleared flag is unreachable, and zeroing them would make the next
 	// SDL_GetTicks() subtraction look like an enormous elapsed time to anyone reading in a debugger.
 }
 
-std::string FuriousChargeFacts()
+std::string FuriousChargeFacts(int rank)
 {
 	std::string out;
 	const auto line = [&out](const std::string &s) {
@@ -126,6 +140,7 @@ std::string FuriousChargeFacts()
 			out += '\n';
 		out += s;
 	};
+	line(fmt::format(fmt::runtime(_("Arriving blow: +{:d}% damage")), ChargeBlowPercentAt(rank)));
 	line(fmt::format(fmt::runtime(_("Dash: up to {:.1f} s")), MaxDashDurationMs / 1000.0));
 	line(fmt::format(fmt::runtime(_("Cooldown: {:.1f} s")), CooldownDurationMs / 1000.0));
 	return out;

@@ -121,7 +121,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// --- Combat Skills ---
 	{ N_("Sacrifice"), N_("A blow at +150% damage, +20% per rank, that costs you 8% of the damage it dealt in life. It cannot take your last point of life."),
 	    Pal, 0, 0, 0, Kind::Active, SpellID::Sacrifice, true },
-	{ N_("Smite"), N_("Bash with your shield: it always connects and briefly stuns. A shield is mandatory."),
+	{ N_("Smite"), N_("Bash with your shield: it always connects, lands +15% damage per level, and stuns - though not uniques or bosses. A shield is mandatory."),
 	    Pal, 0, 0, 1, Kind::Active, SpellID::ShieldBash, true },
 	// Holy Bolt stood here at column 2 until 2026-09-06 (user: "remove paladin Holy Bolt skill. There is a
 	// spell like this already in the game" - the book's). Its SpellID::HolyBoltSkill row in spelldat stays, unreferenced.
@@ -129,7 +129,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// one skill differently is worse than either being wrong alone, and this row has drifted twice.
 	{ N_("Zeal"), N_("Strike several times in one furious burst. Skill levels 1, 3 and 5 each add a strike, and every skill level adds +1% chance to hit."),
 	    Pal, 0, 1, 0, Kind::Active, SpellID::Zeal, true },
-	{ N_("Charge"), N_("Rush an enemy and land a running blow."),
+	{ N_("Charge"), N_("Rush an enemy and land a running blow, +20% damage per level."),
 	    Pal, 0, 1, 1, Kind::Active, SpellID::Charge, true },
 	{ N_("Vengeance"), N_("Your blows burn and crackle for 30 seconds, +5 per rank: fire and lightning on every hit. Cold has no place on the weapon sheet, so it is not added."),
 	    Pal, 0, 2, 0, Kind::Active, SpellID::Vengeance, true },
@@ -144,23 +144,23 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 5, 0, Kind::Active, SpellID::FistOfTheHeavens, true },
 	// --- Offensive Auras ---
 	{ N_("Might"), N_("Increases the damage you deal."), Pal, 1, 0, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Holy Fire"), N_("Wreathes your weapon in flame, adding fire damage to every blow."),
+	{ N_("Holy Fire"), N_("Every 3 seconds holy fire strikes everything around you. Damage and reach grow every level; the reach stops at 10 tiles."),
 	    Pal, 1, 1, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Thorns"), N_("Returns damage to whatever strikes you. This engine's thorns is a flat return, so points light it rather than growing it."),
+	{ N_("Thorns"), N_("Returns 25% of the melee damage you take to whatever struck you, +10% per level."),
 	    Pal, 1, 1, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Blessed Aim"), N_("Steadies your hand, raising your chance to hit."),
 	    Pal, 1, 2, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Concentration"), N_("Raises damage and steadies you against interruption."),
 	    Pal, 1, 3, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Holy Freeze"), N_("A cold that chills everything standing in it, slowing its step and its swing."),
+	{ N_("Holy Freeze"), N_("Every 3 seconds holy cold strikes and chills everything around you. Damage and reach grow every level; the reach stops at 10 tiles."),
 	    Pal, 1, 3, 1, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Holy Shock"), N_("Charges your weapon, adding lightning damage to every blow."),
+	{ N_("Holy Shock"), N_("Every 3 seconds holy lightning strikes everything around you. Damage and reach grow every level; the reach stops at 10 tiles."),
 	    Pal, 1, 4, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Sanctuary"), N_("Hallows the ground you stand on: nearby undead break and flee from you. Champions are too proud to run."),
+	{ N_("Sanctuary"), N_("Hallows the ground you stand on: nearby undead break and flee, and burn for magic damage every second. Champions are too proud to run, but they burn."),
 	    Pal, 1, 4, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Fanaticism"), N_("Drives you to strike faster, harder and truer."),
 	    Pal, 1, 5, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Conviction"), N_("Strips the resistances of every enemy near you, and at five points begins to break their immunities down into mere resistances."),
+	{ N_("Conviction"), N_("Strips the resistances of every enemy near you and lowers their armour 3% per level, to 60%. At five points it begins to break immunities down into mere resistances."),
 	    Pal, 1, 5, 1, Kind::Aura, SpellID::Invalid, true },
 	// --- Defensive Auras ---
 	{ N_("Prayer"), N_("Mends your wounds steadily as you walk."), Pal, 2, 0, 0, Kind::Aura, SpellID::Invalid, true },
@@ -168,10 +168,10 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Defiance"), N_("Raises your armour class."), Pal, 2, 1, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Resist Cold"), N_("Hardens you against cold. No cold exists here, so it wards against magic instead."),
 	    Pal, 2, 1, 1, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Cleansing"), N_("Shortens poison and curses. Inert: this engine tracks no duration for either."),
-	    Pal, 2, 2, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Cleansing"), N_("Slows and chills on you wear off 20% sooner, +5% per level."),
+	    Pal, 2, 2, 1, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Resist Lightning"), N_("Hardens you against lightning."), Pal, 2, 2, 0, Kind::Aura, SpellID::Invalid, true },
-	{ N_("Vigor"), N_("Quickens your stride: +15% movement speed per rank, anywhere. At rank 5 you run everywhere; items with +movement speed stack with it."),
+	{ N_("Vigor"), N_("Quickens your stride: +5% movement speed per level, anywhere, and every level counts. Items with +movement speed stack with it."),
 	    Pal, 2, 3, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Meditation"), N_("Restores your mana steadily as you walk."), Pal, 2, 4, 0, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Redemption"), N_("Once a second the nearest corpse in the field is consumed for a fiftieth of your life and mana, a hundredth more a point."),
@@ -872,11 +872,12 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		totals.bonusDamage += Scaled(p, 20, 10);
 		break;
 	case Skill::HolyFire:
-		totals.fireMin += Scaled(p, 2, 1);
-		totals.fireMax += Scaled(p, 6, 4);
-		break;
+	case Skill::HolyShock:
 	case Skill::Thorns:
-		totals.flags |= ItemSpecialEffect::Thorns;
+		// Off the sheet since 2026-09-12. Holy Fire and Holy Shock (and Holy Freeze) are pulses on the
+		// monsters around you - aura_field.cpp's ProcessOutwardAura - and Thorns returns a share of every
+		// blow taken, read where the blow lands (ThornsReturnPercent). Nothing here, so the tooltip cannot
+		// quote weapon damage the aura no longer adds.
 		break;
 	case Skill::BlessedAim:
 		totals.bonusToHit += Scaled(p, 15, 7);
@@ -884,10 +885,6 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 	case Skill::Concentration:
 		totals.bonusDamage += Scaled(p, 15, 8);
 		totals.flags |= ItemSpecialEffect::FastestHitRecovery;
-		break;
-	case Skill::HolyShock:
-		totals.lightningMin += 1;
-		totals.lightningMax += Scaled(p, 10, 6);
 		break;
 	case Skill::Fanaticism:
 		totals.flags |= ItemSpecialEffect::FastAttack;
@@ -921,7 +918,7 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		// A percentage per rank since 2026-09-07 (user: "vigor should make it clear in the description how
 		// many % it increases movement with each level"). It rode the binary run frame skip before; now
 		// it is a number on the sheet that item affixes add to, and WalkFrameSkipFor turns the total
-		// into strides. Five ranks reach the run cap.
+		// into strides - every percent of it since 2026-09-12 (StrideTicksFor), +5 a level.
 		totals.moveSpeed += p * VigorMoveSpeedPerRank;
 		break;
 	case Skill::SongOfSwiftness:
@@ -1641,6 +1638,12 @@ struct MovementSlow {
 };
 std::array<MovementSlow, MAX_PLRS> MovementSlows;
 
+/**
+ * @brief The part of a tick each player's last stride could not show, in thousandths - StrideTicksFor
+ * carries it into the next stride so the average pace is the exact percentage (2026-09-12).
+ */
+std::array<int, MAX_PLRS> StrideCarry {};
+
 } // namespace
 
 int MovementSpeedBonusPercent(const Player &player)
@@ -1648,6 +1651,30 @@ int MovementSpeedBonusPercent(const Player &player)
 	// Signed since the curse (2026-09-07): a cursed ring's -15 is a bonus of -15, and the sheet
 	// shows 85%.
 	return player._pIMoveSpeed;
+}
+
+int ThornsReturnPercentAt(int points)
+{
+	return points <= 0 ? 0 : 25 + 10 * (points - 1);
+}
+
+int ThornsReturnPercent(const Player &player)
+{
+	if (GetActiveClassAura(player) != Skill::Thorns || !IsClassTreeSkillUnlocked(player, Skill::Thorns))
+		return 0;
+	return ThornsReturnPercentAt(ClassTreeInvestment(player, Skill::Thorns));
+}
+
+int CleansingShortenPercentAt(int points)
+{
+	return points <= 0 ? 0 : std::min(20 + 5 * (points - 1), 90);
+}
+
+int CleansingShortenPercent(const Player &player)
+{
+	if (GetActiveClassAura(player) != Skill::Cleansing || !IsClassTreeSkillUnlocked(player, Skill::Cleansing))
+		return 0;
+	return CleansingShortenPercentAt(ClassTreeInvestment(player, Skill::Cleansing));
 }
 
 int PlayerSlowPercent(const Player &player)
@@ -1658,6 +1685,10 @@ int PlayerSlowPercent(const Player &player)
 
 void SlowPlayer(const Player &player, int ticks, int percent)
 {
+	// Cleansing (2026-09-12): under it, a slow or a chill wears off sooner.
+	ticks = ticks * (100 - CleansingShortenPercent(player)) / 100;
+	if (ticks <= 0)
+		return;
 	MovementSlow &slow = MovementSlows[player.getId()];
 	slow.ticksLeft = std::max(slow.ticksLeft, ticks);
 	slow.percent = std::max(slow.percent, std::clamp(percent, 0, 90));
@@ -1673,6 +1704,7 @@ void TickMovementSlow(const Player &player)
 void ClearMovementSlows()
 {
 	MovementSlows.fill(MovementSlow {});
+	StrideCarry.fill(0);
 }
 
 int MovementSpeedPercent(const Player &player)
@@ -1682,29 +1714,29 @@ int MovementSpeedPercent(const Player &player)
 	return std::max(100 + MovementSpeedBonusPercent(player) - PlayerSlowPercent(player), 10);
 }
 
+int StrideTicksFor(int percent, int &carryMilliTicks)
+{
+	// A plain walk is 10 ticks a stride, so a stride at P% is 1000 / P ticks. Whole ticks only reach the
+	// feet, so the fraction is carried into the next stride: over any run of strides the pace is the
+	// exact percentage (user, 2026-09-12: "make vigor +5% faster walk per level for every level"). It
+	// stepped by thresholds before - +10, 125, 140, 160 - and the run was the ceiling.
+	const int total = 1000000 / std::max(percent, 10) + carryMilliTicks;
+	int ticks = total / 1000;
+	carryMilliTicks = total % 1000;
+	if (ticks < MinStrideTicks || ticks > MaxStrideTicks) {
+		ticks = std::clamp(ticks, MinStrideTicks, MaxStrideTicks);
+		carryMilliTicks = 0; // a clamped stride owes nothing to the next
+	}
+	return ticks;
+}
+
 int8_t WalkFrameSkipFor(const Player &player)
 {
-	// The walk animation runs its 8 frames over 10 ticks (StartWalkAnimation's -2); the run frame
-	// skip of 2 makes that 6 - the only speed knob this engine has. Each skipped frame is one tick
-	// off the stride, so the ladder above a walk is 111%, 125%, 143%, 167% (the run), and below it
-	// 91%, 83% (two extra ticks; the animation does not stretch further without stuttering). The
-	// percentage is mapped onto those steps by threshold: +10 is the first stride, 160 or more is the
-	// run, and a slow of 10 or 20 points takes a step away. The sheet shows the percentage the
-	// sources add up to; this is what the feet do with it.
-	const int percent = MovementSpeedPercent(player);
-	if (percent >= 160)
-		return 2;
-	if (percent >= 140)
-		return 1;
-	if (percent >= 125)
-		return 0;
-	if (percent >= 110)
-		return -1;
-	if (percent >= 90)
-		return -2;
-	if (percent >= 80)
-		return -3;
-	return -4;
+	// The walk animation runs its 8 frames over 10 ticks (StartWalkAnimation's -2); each skipped frame
+	// is one tick off the stride, so the skip is 8 less the stride's ticks: -2 is the walk, 2 the run,
+	// 4 the fastest stride (250%, every other frame shown). Called once per stride, which is what
+	// lets it carry the fraction.
+	return static_cast<int8_t>(8 - StrideTicksFor(MovementSpeedPercent(player), StrideCarry[player.getId()]));
 }
 
 int CastFrameSkip(int castFrame, int fasterCastPercent)
@@ -1971,8 +2003,17 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 		const std::string bonuses = DescribeBonusTotals(totals, "\n");
 		if (!bonuses.empty())
 			line(bonuses);
-		if (data.kind == Kind::Aura)
-			line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), AuraRadiusForPoints(points)));
+		if (data.kind == Kind::Aura) {
+			// What an aura does OFF the sheet - a pulse, a return, a shortening - which the totals cannot
+			// carry (2026-09-12).
+			const std::string field = AuraFieldFactsAt(skill, points);
+			if (!field.empty())
+				line(field);
+			// The reach only where it reaches something: it used to sit on Might and the resists too, where
+			// it meant nothing (audit, 2026-09-12).
+			if (AuraReachesMonsters(skill))
+				line(fmt::format(fmt::runtime(_("Radius: {:d} tiles")), AuraFieldRadius(skill, points)));
+		}
 		return text;
 	};
 

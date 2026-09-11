@@ -156,6 +156,24 @@ void ResetZealChain();
  */
 int ZealSwingSkipFrames(const Player &player);
 
+/** @brief Smite's blow at @p rank, in percent more damage: 15 a level (2026-09-12). */
+constexpr int SmiteDamagePercentAt(int rank)
+{
+	return 15 * (rank < 1 ? 1 : rank);
+}
+
+/** @brief Hammer of Faith's splash at @p rank, in percent of the blow: half, +2 points a level (2026-09-12). */
+constexpr int HammerOfFaithSplashPercentAt(int rank)
+{
+	return 50 + 2 * ((rank < 1 ? 1 : rank) - 1);
+}
+
+/**
+ * @brief The armed Paladin skill's share on the swing's own damage, in percent - Smite's, and Charge's on
+ * a dash's arriving blow. Zero otherwise. Read beside ClassMeleeSkillDamagePercent in the melee roll.
+ */
+int PaladinMeleeDamagePercent(const Player &player);
+
 /** @brief Zeal's, Smite's and Hammer of Faith's facts at @p rank, one per line. For the tooltip. */
 std::string PaladinMeleeFactsAt(PaladinSkill skill, int rank);
 

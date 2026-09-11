@@ -2,10 +2,18 @@
 
 #include <algorithm>
 
+#include <vector>
+
+#include <fmt/format.h>
+
 #include "engine/points_in_rectangle_range.hpp"
+#include "engine/random.hpp"
 #include "levels/gendung.h"
+#include "missiles.h"
 #include "monster.h"
+#include "oracool/chill.h"
 #include "oracool/class_tree.h"
+#include "utils/language.h"
 #include "oracool/monster_difficulty.h"
 #include "player.h"
 
@@ -52,6 +60,78 @@ int LitAuraPoints(Skill aura)
 	return ClassTreeInvestment(player, aura);
 }
 
+/** @brief A roll across @p range, in the 1/64ths monster hit points are kept in. */
+int RollDamage(AuraDamage range)
+{
+	return (range.min + GenerateRnd(std::max(range.max - range.min, 0) + 1)) << 6;
+}
+
+/**
+ * @brief One monster struck by an aura: nothing if it is immune to @p type, a quarter if it resists (the
+ * spell rule), and a cold strike chills it until the next pulse. Kill credit and the hit reaction go to
+ * @p player, the way a warcry's do.
+ */
+void AuraStrike(Player &player, Monster &monster, DamageType type, int damage)
+{
+	if (damage <= 0 || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion() || !monster.isPossibleToHit())
+		return;
+	if (monster.isImmune(MissileID::Null, type))
+		return;
+	if (monster.isResistant(MissileID::Null, type))
+		damage >>= 2;
+	if (damage <= 0)
+		return;
+	ApplyMonsterDamage(type, monster, damage);
+	if ((monster.hitPoints >> 6) <= 0) {
+		M_StartKill(monster, player);
+		return;
+	}
+	M_StartHit(monster, player, damage);
+	if (type == DamageType::Cold)
+		ChillMonster(monster, HolyPulseTicks);
+}
+
+/**
+ * @brief The three holy auras' pulse: once every HolyPulseTicks, everything within reach is struck. The
+ * first pulse lands the tick the aura is lit; the floor shockwave (WarcryRing) marks each one.
+ */
+void ProcessHolyPulse(Player &player)
+{
+	static int clock = HolyPulseTicks - 1;
+	const Skill aura = GetActiveClassAura(player);
+	if (aura != Skill::HolyFire && aura != Skill::HolyFreeze && aura != Skill::HolyShock) {
+		clock = HolyPulseTicks - 1;
+		return;
+	}
+	const int points = LitAuraPoints(aura);
+	if (points <= 0 || ++clock < HolyPulseTicks)
+		return;
+	clock = 0;
+
+	const DamageType type = aura == Skill::HolyFire ? DamageType::Fire
+	    : aura == Skill::HolyFreeze                 ? DamageType::Cold
+	                                                : DamageType::Lightning;
+	const AuraDamage range = HolyPulseDamage(aura, points);
+	const int radius = HolyPulseRadius(points);
+	// Gathered first, struck second: a kill mid-scan moves things on the tile map under the loop.
+	std::vector<Monster *> struck;
+	for (const Point tile : PointsInRectangle(Rectangle { player.position.tile, radius })) {
+		if (!InDungeonBounds(tile))
+			continue;
+		const int id = dMonster[tile.x][tile.y];
+		if (id == 0)
+			continue;
+		Monster &monster = Monsters[std::abs(id) - 1];
+		if (monster.position.tile != tile || player.position.tile.WalkingDistance(tile) > radius)
+			continue; // the second tile of a monster mid-step, or a corner past the reach
+		struck.push_back(&monster);
+	}
+	for (Monster *monster : struck)
+		AuraStrike(player, *monster, type, RollDamage(range));
+	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing, TARGET_MONSTERS,
+	    static_cast<int>(player.getId()), 0, 0);
+}
+
 /** @brief Whether @p monster is close enough to the local player for an aura of @p points. */
 bool WithinAura(const Monster &monster, int points)
 {
@@ -67,6 +147,95 @@ int AuraRadiusForPoints(int points)
 	// Four tiles at one point, one more per two points, capped at eight. Eight is about the point
 	// where the field covers everything already on screen, past which positioning stops mattering.
 	return std::min(4 + (points - 1) / 2, 8);
+}
+
+int HolyPulseRadius(int points)
+{
+	return points <= 0 ? 0 : std::min(3 + points, 10);
+}
+
+AuraDamage HolyPulseDamage(Skill aura, int points)
+{
+	const int p = std::max(points, 1) - 1;
+	switch (aura) {
+	case Skill::HolyFire:
+		return { 4 + 3 * p, 8 + 6 * p };
+	case Skill::HolyFreeze:
+		// A little under the fire, because every hit also chills.
+		return { 3 + 2 * p, 6 + 5 * p };
+	case Skill::HolyShock:
+		// Lightning's wide spread, as every lightning in the game has it.
+		return { 1 + p, 14 + 8 * p };
+	default:
+		return { 0, 0 };
+	}
+}
+
+AuraDamage SanctuaryDamage(int points)
+{
+	const int p = std::max(points, 1) - 1;
+	return { 4 + 2 * p, 8 + 4 * p };
+}
+
+int ConvictionArmorCutPercent(int points)
+{
+	return points <= 0 ? 0 : std::min(3 * points, 60);
+}
+
+bool AuraReachesMonsters(Skill aura)
+{
+	switch (aura) {
+	case Skill::HolyFire:
+	case Skill::HolyFreeze:
+	case Skill::HolyShock:
+	case Skill::Sanctuary:
+	case Skill::Conviction:
+	case Skill::Redemption:
+	case Skill::DirgeOfDread:
+	case Skill::Discord:
+	case Skill::Weaken:
+		return true;
+	default:
+		return false;
+	}
+}
+
+int AuraFieldRadius(Skill aura, int points)
+{
+	if (aura == Skill::HolyFire || aura == Skill::HolyFreeze || aura == Skill::HolyShock)
+		return HolyPulseRadius(points);
+	return AuraRadiusForPoints(points);
+}
+
+std::string AuraFieldFactsAt(Skill aura, int points)
+{
+	const int p = std::max(points, 1);
+	switch (aura) {
+	case Skill::HolyFire: {
+		const AuraDamage d = HolyPulseDamage(aura, p);
+		return fmt::format(fmt::runtime(_("Fire damage: {:d} - {:d} every 3 seconds to everything in reach")), d.min, d.max);
+	}
+	case Skill::HolyFreeze: {
+		const AuraDamage d = HolyPulseDamage(aura, p);
+		return fmt::format(fmt::runtime(_("Cold damage: {:d} - {:d} every 3 seconds, chilling everything in reach")), d.min, d.max);
+	}
+	case Skill::HolyShock: {
+		const AuraDamage d = HolyPulseDamage(aura, p);
+		return fmt::format(fmt::runtime(_("Lightning damage: {:d} - {:d} every 3 seconds to everything in reach")), d.min, d.max);
+	}
+	case Skill::Sanctuary: {
+		const AuraDamage d = SanctuaryDamage(p);
+		return fmt::format(fmt::runtime(_("Undead in reach flee and take {:d} - {:d} magic damage a second")), d.min, d.max);
+	}
+	case Skill::Conviction:
+		return fmt::format(fmt::runtime(_("Enemy armour: -{:d}%")), ConvictionArmorCutPercent(p));
+	case Skill::Thorns:
+		return fmt::format(fmt::runtime(_("Returns {:d}% of melee damage taken")), ThornsReturnPercentAt(p));
+	case Skill::Cleansing:
+		return fmt::format(fmt::runtime(_("Slows and chills on you wear off {:d}% sooner")), CleansingShortenPercentAt(p));
+	default:
+		return {};
+	}
 }
 
 int ConvictionPointsOn(const Monster &monster)
@@ -106,12 +275,18 @@ uint16_t EffectiveResistances(const Monster &monster)
 
 void ProcessOutwardAura(Player &player)
 {
-	if (&player != MyPlayer)
+	if (&player != MyPlayer || player._pHitPoints <= 0)
 		return;
+
+	ProcessHolyPulse(player);
 
 	const int sanctuary = LitAuraPoints(Skill::Sanctuary);
 	if (sanctuary <= 0)
 		return;
+	// Once a second the hallowed ground burns the undead standing on it (2026-09-12) - champions too:
+	// they are too proud to run, not too proud to burn.
+	static int sanctuaryClock = 0;
+	const bool burn = ++sanctuaryClock % 20 == 0;
 
 	// Repulsion has to PUSH, so unlike Conviction it cannot be a question asked at the point of
 	// use - there is no such point. It rides MonsterGoal::Retreat, which is the same channel
@@ -133,6 +308,11 @@ void ProcessOutwardAura(Player &player)
 		// uses to decide what it may burn.
 		if (monster.data().monsterClass != MonsterClass::Undead)
 			continue;
+		if (burn && monster.position.tile == tile) {
+			AuraStrike(player, monster, DamageType::Magic, RollDamage(SanctuaryDamage(sanctuary)));
+			if ((monster.hitPoints >> 6) <= 0)
+				continue;
+		}
 		// A champion is frightened by nothing. Letting an aura walk a unique out of the room would
 		// make the fight the player came for un-fightable.
 		if (monster.isUnique())

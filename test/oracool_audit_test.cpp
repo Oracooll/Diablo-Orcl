@@ -95,6 +95,7 @@
 #include "oracool/area_level.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
+#include "oracool/furious_charge.h" // ChargeBlowPercentAt - Charge's arriving blow
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_ranged.h"
 #include "oracool/paladin_skills.h"
@@ -2835,10 +2836,12 @@ TEST(OracoolClassTree, AuraEffectsScaleWithPointsAndInertOnesStaySilent)
 	oracool::ApplyClassTreeToTotals(cold, coldTotals);
 	EXPECT_GT(coldTotals.magicResist, 0);
 
-	// The auras that do their work OFF the sheet - Holy Freeze chills, Sanctuary and Redemption push
-	// and consume, Conviction is asked at the point of use, Cleansing is inert - must contribute
-	// NOTHING to the totals, so the tooltip cannot claim a number the point did not buy.
-	for (const oracool::ClassTreeSkill inert : { oracool::ClassTreeSkill::HolyFreeze,
+	// The auras that do their work OFF the sheet - the three holy pulses, Sanctuary and Redemption push
+	// and consume, Conviction is asked at the point of use, Thorns returns and Cleansing shortens where
+	// the blow or the slow lands - must contribute NOTHING to the totals, so the tooltip cannot claim a
+	// number the point did not buy.
+	for (const oracool::ClassTreeSkill inert : { oracool::ClassTreeSkill::HolyFreeze, oracool::ClassTreeSkill::HolyFire,
+	         oracool::ClassTreeSkill::HolyShock, oracool::ClassTreeSkill::Thorns,
 	         oracool::ClassTreeSkill::Sanctuary, oracool::ClassTreeSkill::Conviction,
 	         oracool::ClassTreeSkill::Cleansing, oracool::ClassTreeSkill::Redemption }) {
 		devilution::Player &p = FreshPaladin();
@@ -2867,19 +2870,98 @@ TEST(OracoolClassTree, VigorRunsAndOnlyWhenPaidFor)
 	CalcPlrItemVals(player, false);
 	EXPECT_FALSE(oracool::IsClassTreeRunActive(player)) << "Vigor is a percentage now, not a run row";
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + oracool::VigorMoveSpeedPerRank);
-	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -1) << "rank 1 is the first stride step";
+	oracool::ClearMovementSlows(); // and the stride carry, so the first stride is predictable
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -1) << "105%: a nine-tick first stride";
 
 	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100) << "Vigor kept its stride after it was put out";
 
-	// Rank 5 is the run: four more points (the test player has them), the aura lit again.
+	// Rank 5: four more points (the test player has them), the aura lit again - 125%, an eight-tick stride.
 	for (int i = 0; i < 4; i++)
 		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor)) << "point " << i + 2;
 	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + 5 * oracool::VigorMoveSpeedPerRank);
-	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 2) << "five ranks reach the run";
+	oracool::ClearMovementSlows();
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 0) << "125% is exactly eight ticks a stride";
+}
+
+// The Paladin as approved on 2026-09-12 ("i approve all sugestions on the paladin skills"), with the
+// user's own four: Vigor +5% a level with every level counted, and Holy Fire, Holy Freeze and Holy Shock
+// as pulses - one hit every 3 seconds on everything in reach, the reach growing to 10 tiles.
+TEST(OracoolClassTree, PaladinSkillsGrowWithEveryLevel)
+{
+	// Every percent of Movement Speed counts: the fraction a whole-tick stride cannot show is carried.
+	int carry = 0;
+	int ticks = 0;
+	for (int i = 0; i < 1000; i++)
+		ticks += oracool::StrideTicksFor(150, carry);
+	EXPECT_NEAR(ticks, 6667, 1) << "150% is 6.667 ticks a stride on average";
+	carry = 0;
+	EXPECT_EQ(oracool::StrideTicksFor(100 + 30 * oracool::VigorMoveSpeedPerRank, carry), oracool::MinStrideTicks)
+	    << "Vigor at 30 is 250%, the fastest stride";
+	EXPECT_EQ(oracool::VigorMoveSpeedPerRank, 5);
+
+	EXPECT_EQ(oracool::HolyPulseTicks, 60) << "one hit every 3 seconds";
+	EXPECT_EQ(oracool::HolyPulseRadius(1), 4);
+	EXPECT_EQ(oracool::HolyPulseRadius(6), 9);
+	EXPECT_EQ(oracool::HolyPulseRadius(7), 10);
+	EXPECT_EQ(oracool::HolyPulseRadius(30), 10) << "the reach stops at 10 tiles";
+	for (const oracool::ClassTreeSkill aura : { oracool::ClassTreeSkill::HolyFire, oracool::ClassTreeSkill::HolyFreeze,
+	         oracool::ClassTreeSkill::HolyShock }) {
+		const oracool::AuraDamage one = oracool::HolyPulseDamage(aura, 1);
+		const oracool::AuraDamage two = oracool::HolyPulseDamage(aura, 2);
+		EXPECT_GT(one.min, 0);
+		EXPECT_GT(two.min, one.min) << "the damage grows every level";
+		EXPECT_GT(two.max, one.max);
+		EXPECT_TRUE(oracool::AuraReachesMonsters(aura));
+		EXPECT_EQ(oracool::AuraFieldRadius(aura, 30), 10);
+		EXPECT_FALSE(oracool::AuraFieldFactsAt(aura, 1).empty()) << "the tooltip says what the pulse does";
+	}
+	EXPECT_FALSE(oracool::AuraReachesMonsters(oracool::ClassTreeSkill::Might)) << "Might reaches no one; no radius line";
+
+	EXPECT_EQ(oracool::ThornsReturnPercentAt(1), 25);
+	EXPECT_EQ(oracool::ThornsReturnPercentAt(3), 45);
+	EXPECT_EQ(oracool::CleansingShortenPercentAt(1), 20);
+	EXPECT_EQ(oracool::CleansingShortenPercentAt(30), 90);
+	EXPECT_EQ(oracool::ConvictionArmorCutPercent(1), 3);
+	EXPECT_EQ(oracool::ConvictionArmorCutPercent(25), 60);
+	EXPECT_EQ(oracool::SanctuaryDamage(1).min, 4);
+	EXPECT_EQ(oracool::SanctuaryDamage(2).max, 12);
+	EXPECT_EQ(oracool::SmiteDamagePercentAt(1), 15);
+	EXPECT_EQ(oracool::ChargeBlowPercentAt(2), 40);
+	EXPECT_EQ(oracool::HammerOfFaithSplashPercentAt(1), 50);
+	EXPECT_EQ(oracool::HammerOfFaithSplashPercentAt(30), 108);
+	EXPECT_EQ(oracool::BlessedShieldPercentAt(1), 125);
+	EXPECT_EQ(oracool::BlessedShieldPercentAt(30), 357);
+	EXPECT_EQ(oracool::BlessedHammerPercentAt(30), 234);
+	EXPECT_EQ(oracool::FistCentrePercentAt(1), 150);
+	EXPECT_EQ(oracool::FistNovaPercentAt(30), 176);
+
+	// Cleansing lit at level 1: a ten-tick slow runs out a fifth sooner.
+	{
+		devilution::Player &p = FreshPaladin();
+		ASSERT_TRUE(oracool::InvestClassTreePoint(p, oracool::ClassTreeSkill::Cleansing));
+		ASSERT_TRUE(oracool::ToggleClassAura(p, oracool::ClassTreeSkill::Cleansing));
+		oracool::ClearMovementSlows();
+		oracool::SlowPlayer(p, 10, 30);
+		for (int i = 0; i < 7; i++)
+			oracool::TickMovementSlow(p);
+		EXPECT_EQ(oracool::PlayerSlowPercent(p), 30);
+		oracool::TickMovementSlow(p);
+		EXPECT_EQ(oracool::PlayerSlowPercent(p), 0) << "ten ticks less a fifth is eight";
+		oracool::ClearMovementSlows();
+	}
+	// Thorns lit at level 1 returns a quarter; put out, nothing.
+	{
+		devilution::Player &p = FreshPaladin();
+		ASSERT_TRUE(oracool::InvestClassTreePoint(p, oracool::ClassTreeSkill::Thorns));
+		ASSERT_TRUE(oracool::ToggleClassAura(p, oracool::ClassTreeSkill::Thorns));
+		EXPECT_EQ(oracool::ThornsReturnPercent(p), 25);
+		ASSERT_TRUE(oracool::ToggleClassAura(p, oracool::ClassTreeSkill::Thorns));
+		EXPECT_EQ(oracool::ThornsReturnPercent(p), 0);
+	}
 }
 
 TEST(OracoolClassTree, AuraStateRoundTripsThroughTheChunkTail)
@@ -10795,26 +10877,30 @@ TEST(OracoolAudit, MovementSpeedIsAPercentageFromItemsAndVigorInSteps)
 	player.InvBody[INVLOC_RING_LEFT] = ring;
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedBonusPercent(player), 15) << "the worn affix did not reach the sheet";
-	EXPECT_EQ(oracool::WalkFrameSkipFor(player), -1) << "+15% is the first stride step";
+	oracool::ClearMovementSlows();
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 0) << "115%: an eight-tick first stride";
 
-	// Vigor at rank 3 on top: 15 + 45 = 60, the run cap.
+	// Vigor at rank 3 on top: 15 + 15 = 30.
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
 	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Vigor));
 	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedBonusPercent(player), 15 + 3 * oracool::VigorMoveSpeedPerRank);
-	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 2) << "+60% is the run";
+	oracool::ClearMovementSlows();
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 1) << "130%: a seven-tick first stride";
 
 	// Off again: the ring alone.
 	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Vigor));
 	CalcPlrItemVals(player, false);
 	EXPECT_EQ(oracool::MovementSpeedBonusPercent(player), 15);
 
-	// The thresholds, on a bare sheet: 100 is the walk.
+	// Whole strides on a bare sheet (2026-09-12: every percent counts, carried, so the exact ones are
+	// shown here): 100 is the walk, 250 the fastest, and faster than that holds at the fastest.
 	player.InvBody[INVLOC_RING_LEFT].clear();
-	for (const auto [bonus, skip] : { std::pair { 0, -2 }, std::pair { 9, -2 }, std::pair { 10, -1 }, std::pair { 25, 0 }, std::pair { 40, 1 }, std::pair { 60, 2 }, std::pair { 100, 2 } }) {
+	for (const auto [bonus, skip] : { std::pair { 0, -2 }, std::pair { 25, 0 }, std::pair { 100, 3 }, std::pair { 150, 4 }, std::pair { 300, 4 } }) {
 		player._pIMoveSpeed = bonus;
+		oracool::ClearMovementSlows();
 		EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + bonus);
 		EXPECT_EQ(oracool::WalkFrameSkipFor(player), skip) << "+" << bonus << "%";
 	}
@@ -10929,9 +11015,12 @@ TEST(OracoolAudit, MovementSpeedCurseRollsAndReadsBelowTheWalk)
 	CalcPlrItemVals(player, false);
 	EXPECT_LT(oracool::MovementSpeedPercent(player), 100) << "a cursed ring did not slow the sheet";
 	EXPECT_EQ(oracool::MovementSpeedPercent(player), 100 + cursed._iPLMoveSpeed);
-	// The thresholds are 90 and 80: a curse of exactly 10 reads 90 and stays on the walk stride; 11 or
-	// more is a step under it. (The shuffle lane rolled a 10.)
-	EXPECT_EQ(oracool::WalkFrameSkipFor(player), cursed._iPLMoveSpeed <= -11 ? -3 : -2) << "curse " << cursed._iPLMoveSpeed;
+	// Every percent counts since 2026-09-12: 80-90% is an eleven- or twelve-tick stride, a step or two
+	// under the walk's ten, whatever the curse rolled.
+	oracool::ClearMovementSlows();
+	EXPECT_EQ(oracool::WalkFrameSkipFor(player), 8 - std::min(1000000 / (100 + cursed._iPLMoveSpeed) / 1000, oracool::MaxStrideTicks))
+	    << "curse " << cursed._iPLMoveSpeed;
+	EXPECT_LE(oracool::WalkFrameSkipFor(player), -3) << "a curse slows the stride";
 	player.InvBody[INVLOC_RING_LEFT].clear();
 }
 

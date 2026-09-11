@@ -198,9 +198,9 @@ void StartWalkAnimation(Player &player, Direction dir, bool pmWillBeCalled)
 	// walk-speed modifier, is exactly this frame skip held on for as long as the aura burns.
 	if ((leveltype == DTYPE_TOWN && sgGameInitInfo.bRunInTown != 0) || oracool::IsFuriousChargeDashing()
 	    || oracool::IsRunEnabled() || oracool::IsClassTreeRunActive(player))
-		skippedFrames = 2;
+		skippedFrames = std::max<int8_t>(2, oracool::WalkFrameSkipFor(player)); // the run, or Movement Speed past it (2026-09-12)
 	else
-		skippedFrames = std::max(skippedFrames, oracool::WalkFrameSkipFor(player)); // Movement Speed %: items and Vigor, in steps
+		skippedFrames = std::max(skippedFrames, oracool::WalkFrameSkipFor(player)); // Movement Speed %: items and Vigor, every percent
 	if (pmWillBeCalled)
 		skippedFrames += 1;
 	NewPlrAnim(player, player_graphic::Walk, dir, AnimationDistributionFlags::ProcessAnimationPending, skippedFrames);
@@ -265,6 +265,9 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	// Oracool: a furious-charge dash resolves into this swing - end the dash and start the
 	// cooldown here so it fires regardless of whether the target was already adjacent (no walk
 	// needed) or reached after several walk steps.
+	// ...and whether this swing is the dash's arriving blow, which alone carries Charge's +20% a level
+	// (2026-09-12) - a Charge clicked on cooldown walks up and swings plainly.
+	oracool::SetChargeBlowArmed(oracool::IsFuriousChargeDashing());
 	if (oracool::IsFuriousChargeDashing()) {
 		oracool::StopFuriousChargeDash();
 		oracool::StartFuriousChargeCooldown();
@@ -704,7 +707,8 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// Oracool, Round 4: the armed melee skill's bonus, on every blow of the swing - the extra blows
 	// a skill adds come back through this function, so they carry it too. Zero when nothing is
 	// armed or the skill cannot be paid for, which is what makes an unaffordable skill a plain swing.
-	dam += dam * oracool::ClassMeleeSkillDamagePercent(player) / 100;
+	// The Paladin's two with a per-level blow, Smite and Charge's arrival (2026-09-12), the same way.
+	dam += dam * (oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player)) / 100;
 	// And the passives that read the situation - Ruthless, Brawler, Steady Aim and the rest (Round 5).
 	dam += dam * oracool::PassiveDamageDealtPercent(player, monster, true) / 100;
 	int dam2 = dam << 6;

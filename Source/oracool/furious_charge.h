@@ -101,7 +101,19 @@ float GetFuriousChargeCooldownProgress();
  */
 void ResetFuriousChargeForNewGame();
 
-/** @brief Charge's dash and cooldown, one per line. For the tooltip. */
-std::string FuriousChargeFacts();
+/** @brief Charge's arriving blow at @p rank, in percent more damage: 20 a level (2026-09-12). */
+constexpr int ChargeBlowPercentAt(int rank)
+{
+	return 20 * (rank < 1 ? 1 : rank);
+}
+
+/** @brief Marks the swing now starting as a dash's arriving blow, or not. Set at every swing's start. */
+void SetChargeBlowArmed(bool armed);
+
+/** @brief Whether the swing in flight is a dash's arriving blow - the one that carries ChargeBlowPercentAt. */
+bool IsChargeBlowArmed();
+
+/** @brief Charge's arriving blow at @p rank, its dash and its cooldown, one per line. For the tooltip. */
+std::string FuriousChargeFacts(int rank);
 
 } // namespace devilution::oracool

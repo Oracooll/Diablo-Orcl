@@ -31,6 +31,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "oracool/class_tree.h"
 #include "engine/point.hpp"
@@ -50,6 +51,34 @@ namespace devilution::oracool {
  * position yourself with and becomes a thing you forget you have on.
  */
 int AuraRadiusForPoints(int points);
+
+/** @brief A damage range in whole hit points. */
+struct AuraDamage {
+	int min;
+	int max;
+};
+
+/**
+ * @brief Holy Fire, Holy Freeze and Holy Shock are PULSES (user, 2026-09-12: "an aura that causes fire in a
+ * radius. Radius and DMG grow with every level. Radius stops at certain level - Range 10 tiles. Dmg grows
+ * every level. One hit per 3 seconds to all surrounding monsters. Same applies for Holy Freeze and Holy
+ * Shock but with their dmg types"). Every HolyPulseTicks, everything within HolyPulseRadius is struck.
+ */
+constexpr int HolyPulseTicks = 60;
+/** @brief The pulse's reach at @p points: 4 tiles, one more a level, stopping at 10 (level 7). */
+int HolyPulseRadius(int points);
+/** @brief A pulse's damage at @p points of @p aura - fire, cold (it chills too) or lightning. */
+AuraDamage HolyPulseDamage(ClassTreeSkill aura, int points);
+/** @brief Sanctuary's burn on the undead in its field, a second: 4-8 magic, +2-4 a level (2026-09-12). */
+AuraDamage SanctuaryDamage(int points);
+/** @brief Conviction's armour cut at @p points, in percent: 3 a level, to 60 (2026-09-12). */
+int ConvictionArmorCutPercent(int points);
+/** @brief Whether @p aura reaches the monsters around you, so its tooltip's reach means something. */
+bool AuraReachesMonsters(ClassTreeSkill aura);
+/** @brief The reach @p aura has at @p points - the pulse's for the three holy auras, the field's otherwise. */
+int AuraFieldRadius(ClassTreeSkill aura, int points);
+/** @brief What @p aura does off the character sheet at @p points, as tooltip lines, or empty. */
+std::string AuraFieldFactsAt(ClassTreeSkill aura, int points);
 
 /**
  * @brief Points of Conviction before it starts breaking immunities rather than just resistances.

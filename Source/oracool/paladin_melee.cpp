@@ -3,6 +3,7 @@
 #include "items.h"
 #include "monster.h"
 #include "oracool/class_tree.h"
+#include "oracool/furious_charge.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/oracool.h"
@@ -109,15 +110,15 @@ int ZealPerSwingTicks(const Player &player)
  * damage all round would make it strictly better than Zeal at every count of enemies, and the two
  * are meant to be different answers rather than a worse one and a better one.
  */
-constexpr int HammerOfFaithSplashPercent = 50;
+// Half at level 1 and +2 points a level since 2026-09-12: HammerOfFaithSplashPercentAt, paladin_melee.h.
 
 /**
  * @brief How long Shield Bash holds a monster, in game ticks.
  *
  * The clock runs at 20 ticks a second, so this is two seconds - "a couple of seconds stun" (user,
  * 2026-08-16), up from the original second and a quarter. Long enough to step away or line up the
- * next blow, short enough that it is not a substitute for killing the thing. Shield Bash adds no
- * damage of its own; the stun IS the skill, which is also why it does not scale.
+ * next blow, short enough that it is not a substitute for killing the thing. The stun does not
+ * scale; the blow does, +15% a level since 2026-09-12 (SmiteDamagePercentAt).
  */
 constexpr int ShieldBashStunTicks = 40;
 
@@ -227,7 +228,8 @@ void ApplyZeal(Player &player, Monster &primaryTarget)
  */
 void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 {
-	const int splashDamage = hitDamage * HammerOfFaithSplashPercent / 100;
+	const int rank = std::max(player.GetSpellLevel(GetPaladinSkillData(PaladinSkill::HammerOfFaith).spellId), 1);
+	const int splashDamage = hitDamage * HammerOfFaithSplashPercentAt(rank) / 100;
 	if (splashDamage <= 0)
 		return;
 
@@ -245,30 +247,44 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 		StrikeMonster(player, *targets[i], splashDamage);
 }
 
-/** @brief Shield Bash - no extra damage, but the target loses its next second and a bit. */
+/**
+ * @brief Smite (Shield Bash) - the blow lands +15% a level harder (PaladinMeleeDamagePercent, in the
+ * swing's own damage), and the target loses its next two seconds.
+ */
 void ApplyShieldBash(Player &player, Monster &primaryTarget)
 {
-	// No shield check here any more: requiresShield is part of IsPaladinSkillUnlocked now, so a
-	// shieldless Paladin cannot arm this skill at all - the row is greyed and inert.
+	// No shield check here: requiresShield is part of IsPaladinSkillUnlocked, so a shieldless Paladin
+	// cannot arm this skill at all.
 	//
-	// Nothing to stun on a corpse, and charging for it would break the rule that mana follows effect.
-	if ((primaryTarget.hitPoints >> 6) <= 0)
+	// Mana follows the effect, and the effect is the harder blow now as well as the stun (2026-09-12) -
+	// so it is charged whenever the bash lands, on a boss or a killing blow too.
+	if (!SpendPaladinSkillMana(player, PaladinSkill::ShieldBash))
 		return;
-	// "Invalid against uniques and bosses" (user, 2026-08-16): a stun that locks down a boss trivially
-	// beats every other answer to a boss, so the names are exempt - scripted uniques, our lesser
-	// uniques, and Diablo himself, who is placed as a plain MT_DIABLO rather than through
-	// PlaceUniqueMonst and so is the one boss isUnique() cannot see. No mana is charged for the
-	// refusal, same rule as the corpse above: mana follows effect.
+	if ((primaryTarget.hitPoints >> 6) <= 0)
+		return; // nothing left to stun
+	// "Invalid against uniques and bosses" (user, 2026-08-16) - the STUN is: one that locks down a boss
+	// trivially beats every other answer to a boss. Scripted uniques, our lesser uniques, and Diablo
+	// himself, placed as a plain MT_DIABLO and so the one boss isUnique() cannot see.
 	if (primaryTarget.isUnique() || primaryTarget.lesserAffix != LesserUniqueAffix::None
 	    || primaryTarget.type().type == MT_DIABLO)
 		return;
-	if (!SpendPaladinSkillMana(player, PaladinSkill::ShieldBash))
-		return;
-
 	StunMonster(primaryTarget, ShieldBashStunTicks);
 }
 
 } // namespace
+
+int PaladinMeleeDamagePercent(const Player &player)
+{
+	if (&player != MyPlayer || !ArmedSkill.has_value())
+		return 0;
+	const int rank = std::max(player.GetSpellLevel(GetPaladinSkillData(*ArmedSkill).spellId), 1);
+	// Charge's mana went at the dash's launch, so its blow asks only whether a dash ended in it.
+	if (*ArmedSkill == PaladinSkill::Charge)
+		return IsChargeBlowArmed() ? ChargeBlowPercentAt(rank) : 0;
+	if (*ArmedSkill == PaladinSkill::ShieldBash && CanUsePaladinSkill(player, PaladinSkill::ShieldBash))
+		return SmiteDamagePercentAt(rank);
+	return 0;
+}
 
 int ZealStrikeCount(const Player &player)
 {
@@ -500,10 +516,11 @@ std::string PaladinMeleeFactsAt(PaladinSkill skill, int rank)
 	}
 	case PaladinSkill::ShieldBash:
 		line(std::string(_("Always hits")));
+		line(fmt::format(fmt::runtime(_("Damage: +{:d}%")), SmiteDamagePercentAt(rank)));
 		line(fmt::format(fmt::runtime(_("Stun: {:.1f} s")), ShieldBashStunTicks / 20.0));
 		break;
 	case PaladinSkill::HammerOfFaith:
-		line(fmt::format(fmt::runtime(_("Splash: {:d}% to everything around the target")), HammerOfFaithSplashPercent));
+		line(fmt::format(fmt::runtime(_("Splash: {:d}% to everything around the target")), HammerOfFaithSplashPercentAt(rank)));
 		break;
 	default:
 		break;

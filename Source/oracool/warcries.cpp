@@ -505,6 +505,9 @@ int MonsterDebuffArmorPercent(const Monster &monster)
 		percent += debuff.armorPercent;
 	if (const int p = AuraPointsOn(monster, Skill::Discord); p > 0)
 		percent -= std::min(20 + 2 * (p - 1), 50);
+	// Conviction lowers armour as well as resistances since 2026-09-12: 3% a level, to 60%.
+	if (const int p = AuraPointsOn(monster, Skill::Conviction); p > 0)
+		percent -= ConvictionArmorCutPercent(p);
 	return std::max(percent, -90);
 }
 
@@ -574,7 +577,9 @@ void ProcessWarcriesTick(Player &player)
 	if (points <= 0 || !IsClassTreeSkillUnlocked(player, aura))
 		return;
 	const int radius = AuraRadiusForPoints(points);
-	if (aura == Skill::HolyFreeze || aura == Skill::Weaken) {
+	// Holy Freeze left this list on 2026-09-12: it pulses cold damage now, and the cold hit chills
+	// (aura_field.cpp's ProcessHolyPulse).
+	if (aura == Skill::Weaken) {
 		ForEachInEarshot(player.position.tile, radius, [&](Monster &m) { ChillMonster(m, 3); });
 	} else if (aura == Skill::DirgeOfDread) {
 		ForEachInEarshot(player.position.tile, radius, [&](Monster &m) { Repel(m, player.position.tile, 4); });

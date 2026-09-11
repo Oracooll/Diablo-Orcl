@@ -87,6 +87,29 @@ bool PlayPaladinMissileSound(const Missile &missile);
 /** @brief Blessed Shield's burst, where the thrown shield lands. Nothing sounded there before. */
 void PlayBlessedShieldImpactSound(const Missile &missile);
 
+// Their damage at a skill level, as a percentage of weapon damage (user, 2026-09-12: "i approve all
+// sugestions on the paladin skills") - they were fixed before, and a point bought nothing.
+/** @brief Fist of the Heavens' blast on the target's own tile: 150%, +10 points a level. */
+constexpr int FistCentrePercentAt(int rank)
+{
+	return 150 + 10 * ((rank < 1 ? 1 : rank) - 1);
+}
+/** @brief Each spark of its ring: 60%, +4 points a level - the ring keeps its 150 : 60 share of the fist. */
+constexpr int FistNovaPercentAt(int rank)
+{
+	return 60 + 4 * ((rank < 1 ? 1 : rank) - 1);
+}
+/** @brief Blessed Shield's first strike: 125%, +8 points a level. The bounces carry 75% and 50% of it. */
+constexpr int BlessedShieldPercentAt(int rank)
+{
+	return 125 + 8 * ((rank < 1 ? 1 : rank) - 1);
+}
+/** @brief Blessed Hammer on each tile it crosses: 60%, +6 points a level. */
+constexpr int BlessedHammerPercentAt(int rank)
+{
+	return 60 + 6 * ((rank < 1 ? 1 : rank) - 1);
+}
+
 /** @brief Fist of the Heavens', Blessed Shield's and Blessed Hammer's facts, one per line. For the tooltip. */
 std::string PaladinRangedFactsAt(PaladinSkill skill, int rank);
 

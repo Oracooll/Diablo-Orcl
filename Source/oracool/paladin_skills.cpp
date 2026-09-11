@@ -76,20 +76,20 @@ namespace {
 // shorter - it closes the gap on foot, and a dash from the far edge of the screen would read as a
 // teleport rather than as a charge.
 constexpr std::array<PaladinSkillData, PaladinSkillCount> Skills { {
-	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow."), SpellID::Charge, 8, false, 6, 10 },
+	{ N_("Charge"), N_("Charges at enemies delivering a deadly blow, +20% damage per level."), SpellID::Charge, 8, false, 6, 10 },
 	// The ladder is SKILL levels now (user, 2026-08-30) - strikes at 1, 3 and 5, accuracy at every
 	// level and onwards alone. Says "skill level" out loud because the same numbers read as
 	// character levels 6, 8 and 10, and a player looking at the wrong one would think it lied.
 	{ N_("Zeal"), N_("Strikes up to four times in the time of one swing, spread across nearby enemies. Skill levels 1, 3 and 5 each add a strike, and every skill level adds +1% chance to hit."),
 	    SpellID::Zeal, MeleeSkillRangeTiles, false, 6, 1 },
-	{ N_("Hammer of Faith"), N_("A splash damage melee attack."), SpellID::HammerOfFaith,
+	{ N_("Hammer of Faith"), N_("A splash damage melee attack: half the blow to everything around the target, +2% per level."), SpellID::HammerOfFaith,
 	    MeleeSkillRangeTiles, false, 12, 5 },
 	{ N_("Blessed Shield"), N_("Hurl a blessed shield at a crowd of enemies to eradicate them."),
 	    SpellID::BlessedShield, MaxSkillRangeTiles, true, 18, 10 },
 	{ N_("Fist of the Heavens"),
 	    N_("A divine fist descends from the sky, causing splash damage to enemies nearby."),
 	    SpellID::FistOfTheHeavens, MaxSkillRangeTiles, false, 30, 15 },
-	{ N_("Shield Bash"), N_("Bash an enemy with your shield, stunning them in the process."),
+	{ N_("Shield Bash"), N_("Bash an enemy with your shield, +15% damage per level, stunning them in the process."),
 	    SpellID::ShieldBash, MeleeSkillRangeTiles, true, 1, 3 },
 	{ N_("Blessed Hammer"),
 	    N_("A divine hammer spirals outward from you, hurting every enemy it touches."),
@@ -263,7 +263,7 @@ std::string PaladinSkillFactsAt(PaladinSkill skill, int rank)
 	if (!ranged.empty())
 		line(ranged);
 	if (skill == PaladinSkill::Charge)
-		line(FuriousChargeFacts());
+		line(FuriousChargeFacts(rank));
 	return out;
 }
 

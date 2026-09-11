@@ -1546,8 +1546,12 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	}
 
 	// Reflect can also kill a monster, so make sure the monster is still alive
-	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::Thorns) && monster.mode != MonsterMode::Death) {
-		int mdam = (GenerateRnd(3) + 1) << 6;
+	// Oracool (2026-09-12): the Paladin's Thorns returns a share of the blow - 25%, +10% a level - on top
+	// of the items' flat 1-3.
+	const int thornsPercent = oracool::ThornsReturnPercent(player);
+	if ((HasAnyOf(player._pIFlags, ItemSpecialEffect::Thorns) || thornsPercent > 0) && monster.mode != MonsterMode::Death) {
+		int mdam = HasAnyOf(player._pIFlags, ItemSpecialEffect::Thorns) ? (GenerateRnd(3) + 1) << 6 : 0;
+		mdam += dam * thornsPercent / 100;
 		ApplyMonsterDamage(DamageType::Physical, monster, mdam);
 		if (monster.hitPoints >> 6 <= 0)
 			M_StartKill(monster, player);

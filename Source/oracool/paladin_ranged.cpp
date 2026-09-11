@@ -56,13 +56,8 @@ void DropBlast(const Player &player, Point tile, int damage, int spellLevel)
 	    static_cast<int>(player.getId()), damage, spellLevel);
 }
 
-/** @brief Fist of the Heavens' blast on the target's own tile, as a percentage of weapon damage. */
-constexpr int FistCentrePercent = 150;
-/** @brief And what each mini-Nova bolt carries - it is the shockwave, not the fist. */
-constexpr int FistNovaPercent = 60;
-
-/** @brief Blessed Shield's damage, as a percentage of weapon damage. */
-constexpr int BlessedShieldPercent = 125;
+// Fist of the Heavens' and Blessed Shield's shares of weapon damage grow a level at a time since
+// 2026-09-12 - FistCentrePercentAt, FistNovaPercentAt and BlessedShieldPercentAt, paladin_ranged.h.
 
 /**
  * @brief A divine fist lands on the target, and lightning runs out from where it struck.
@@ -106,7 +101,7 @@ bool CastBlessedShield(Player &player, Point target, int spellLevel)
 {
 	// No shield check here any more: requiresShield is part of IsPaladinSkillUnlocked, which
 	// CanUsePaladinSkill already asked before this ran, so a shieldless Paladin never gets here.
-	const int damage = RollWeaponDamage(player) * BlessedShieldPercent / 100;
+	const int damage = RollWeaponDamage(player) * BlessedShieldPercentAt(spellLevel) / 100;
 	// Room for the missile is checked BEFORE the mana is taken - AddMissile returns nullptr on
 	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
 	if (!MissilePoolHasRoom())
@@ -119,8 +114,7 @@ bool CastBlessedShield(Player &player, Point target, int spellLevel)
 	return true;
 }
 
-/** @brief Blessed Hammer's damage, as a percentage of weapon damage, on each tile it crosses. */
-constexpr int BlessedHammerPercent = 60;
+// Blessed Hammer's share of weapon damage on each tile it crosses: BlessedHammerPercentAt, paladin_ranged.h.
 
 /**
  * @brief A hammer that winds outward from the caster's own feet.
@@ -135,7 +129,7 @@ constexpr int BlessedHammerPercent = 60;
  */
 bool CastBlessedHammer(Player &player, int spellLevel)
 {
-	const int damage = RollWeaponDamage(player) * BlessedHammerPercent / 100;
+	const int damage = RollWeaponDamage(player) * BlessedHammerPercentAt(spellLevel) / 100;
 	// Room for the missile is checked BEFORE the mana is taken - AddMissile returns nullptr on
 	// a full pool, and this used to spend first and discard that result (audit, 2026-08-26).
 	if (!MissilePoolHasRoom())
@@ -152,7 +146,7 @@ bool CastBlessedHammer(Player &player, int spellLevel)
 
 void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellLevel)
 {
-	DropBlast(player, target, damage * FistCentrePercent / 100, spellLevel);
+	DropBlast(player, target, damage * FistCentrePercentAt(spellLevel) / 100, spellLevel);
 	// "Replace the sound on ground hit with the sound we use for SORT buttons" - IS_ISHIEL, the
 	// shield-into-slot sound the Stash's and the inventory's Sort buttons both play.
 	PlaySfxLoc(IS_ISHIEL, target);
@@ -163,7 +157,7 @@ void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellL
 	constexpr std::array<WorldTileDisplacement, 9> quarterRadius = {
 		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
 	};
-	const int boltDamage = std::max(damage * FistNovaPercent / 100, 1);
+	const int boltDamage = std::max(damage * FistNovaPercentAt(spellLevel) / 100, 1);
 	// The holy spark once delivered (2026-09-11); until then MiniNovaBall's own ChargedBolt. Swapped
 	// per missile, because MiniNovaBall is also a lesser unique's nova and keeps its look there.
 	const bool holySpark = MissileArtLoaded(MissileGraphicID::HolySpark);
@@ -259,15 +253,16 @@ std::optional<MagicType> PaladinCastAnimation(SpellID spell)
 std::optional<std::pair<int, int>> PaladinCastDamageRange(const Player &player, PaladinSkill skill)
 {
 	int percent = 0;
+	const int rank = std::max(player.GetSpellLevel(GetPaladinSkillData(skill).spellId), 1);
 	switch (skill) {
 	case PaladinSkill::FistOfTheHeavens:
-		percent = FistCentrePercent;
+		percent = FistCentrePercentAt(rank);
 		break;
 	case PaladinSkill::BlessedShield:
-		percent = BlessedShieldPercent;
+		percent = BlessedShieldPercentAt(rank);
 		break;
 	case PaladinSkill::BlessedHammer:
-		percent = BlessedHammerPercent;
+		percent = BlessedHammerPercentAt(rank);
 		break;
 	case PaladinSkill::Charge:
 	case PaladinSkill::Zeal:
@@ -310,7 +305,7 @@ std::optional<DamageType> PaladinCastDamageType(PaladinSkill skill)
 
 std::string PaladinRangedFactsAt(PaladinSkill skill, int rank)
 {
-	(void)rank; // these scale off the weapon, not the rank - see the top of the file
+	rank = std::max(rank, 1); // weapon damage, and a share of it that grows with the level (2026-09-12)
 	std::string out;
 	const auto line = [&out](const std::string &s) {
 		if (!out.empty())
@@ -319,14 +314,14 @@ std::string PaladinRangedFactsAt(PaladinSkill skill, int rank)
 	};
 	switch (skill) {
 	case PaladinSkill::FistOfTheHeavens:
-		line(fmt::format(fmt::runtime(_("Damage: {:d}% at the centre, {:d}% around it")), FistCentrePercent, FistNovaPercent));
+		line(fmt::format(fmt::runtime(_("Damage: {:d}% at the centre, {:d}% around it")), FistCentrePercentAt(rank), FistNovaPercentAt(rank)));
 		break;
 	case PaladinSkill::BlessedShield:
 		line(fmt::format(fmt::runtime(_("Magic damage: {:d}%, then {:d}% and {:d}% of that as it bounces")),
-		    BlessedShieldPercent, BlessedShieldStrikePercent[1], BlessedShieldStrikePercent[2]));
+		    BlessedShieldPercentAt(rank), BlessedShieldStrikePercent[1], BlessedShieldStrikePercent[2]));
 		break;
 	case PaladinSkill::BlessedHammer:
-		line(fmt::format(fmt::runtime(_("Magic damage: {:d}% per hit")), BlessedHammerPercent));
+		line(fmt::format(fmt::runtime(_("Magic damage: {:d}% per hit")), BlessedHammerPercentAt(rank)));
 		break;
 	default:
 		break;

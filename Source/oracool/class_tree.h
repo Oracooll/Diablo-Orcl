@@ -759,8 +759,12 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals);
  */
 bool IsClassTreeRunActive(const Player &player);
 
-/** @brief Movement Speed +X% per rank of the Paladin's Vigor (2026-09-07). Five ranks reach the run cap. */
-constexpr int VigorMoveSpeedPerRank = 15;
+/**
+ * @brief Movement Speed +X% per level of the Paladin's Vigor. 5 since 2026-09-12 (user: "make vigor +5%
+ * faster walk per level for every level"), every level counted - see StrideTicksFor. It was 15, and
+ * five ranks reached the run, past which nothing showed.
+ */
+constexpr int VigorMoveSpeedPerRank = 5;
 
 /** @brief The character's Movement Speed bonus in percent: worn affixes (a curse counts against) plus the burning Vigor. */
 int MovementSpeedBonusPercent(const Player &player);
@@ -787,13 +791,31 @@ void ClearMovementSlows();
  */
 int MovementSpeedPercent(const Player &player);
 
+/** @brief The fastest and slowest strides, in ticks: 250% and about 83% of a walk. */
+constexpr int MinStrideTicks = 4;
+constexpr int MaxStrideTicks = 12;
+
 /**
- * @brief The walk-animation frame skip the percentage earns: -4 (two slows deep) through -2 (a plain
- * walk) up to 2 (the run), one step per threshold - 80, 90, 110, 125, 140, 160 percent.
- * StartWalkAnimation takes the larger of this and the binary run sources (Run In Town, the R toggle,
- * the dash, the other classes' run rows).
+ * @brief Ticks for one stride at @p percent Movement Speed, carrying the fraction a whole tick cannot
+ * show in @p carryMilliTicks (thousandths) so that every percent counts on average. Pure - the test's.
+ */
+int StrideTicksFor(int percent, int &carryMilliTicks);
+
+/**
+ * @brief The walk-animation frame skip for @p player's next stride: 8 less its ticks, so -4 (12 ticks)
+ * through -2 (a plain walk) and 2 (the run) up to 4 (250%). Carries each player's fraction, so call it
+ * once per stride. StartWalkAnimation takes the larger of this and the binary run sources.
  */
 int8_t WalkFrameSkipFor(const Player &player);
+
+/** @brief Thorns at @p points: the share of each melee blow taken that goes back, in percent (25, +10 a level). */
+int ThornsReturnPercentAt(int points);
+/** @brief The share @p player's lit Thorns returns right now, or 0. Read where a monster's blow lands. */
+int ThornsReturnPercent(const Player &player);
+/** @brief Cleansing at @p points: how much sooner a slow or a chill wears off, in percent (20, +5 a level, to 90). */
+int CleansingShortenPercentAt(int points);
+/** @brief The shortening @p player's lit Cleansing gives right now, or 0. Applied in SlowPlayer. */
+int CleansingShortenPercent(const Player &player);
 
 /**
  * @brief How many frames of the cast animation Faster Cast Rate skips (2026-09-11).
