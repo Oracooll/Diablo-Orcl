@@ -29,6 +29,14 @@ extern SDL_Surface *PalSurface;
 extern unsigned int pal_surface_palette_version;
 extern DVL_API_FOR_TEST Size forceResolution;
 
+/**
+ * @brief The widest the game's view may be at this height when Fit to Screen widens it to the desktop.
+ *
+ * 21:9 and no further (user, 2026-09-11: "expand the viewport all the way up to 21:9. no more"). A
+ * wider desktop - 32:9, 48:9 - shows the 21:9 view with black bars left and right.
+ */
+DVL_API_FOR_TEST int FitToScreenMaxWidth(int height);
+
 #ifdef USE_SDL1
 void SetVideoMode(int width, int height, int bpp, uint32_t flags);
 void SetVideoModeToPrimary(bool fullscreen, int width, int height);

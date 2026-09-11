@@ -75,6 +75,13 @@ const Rectangle &GetUIRectangle()
 	return UIRectangle;
 }
 
+int FitToScreenMaxWidth(int height)
+{
+	// 21:9 as panels are actually built: 3440x1440 is 43:18 (2.389), while 2560x1080 and 5120x2160 are
+	// 64:27 (2.370). The looser of the two, so every 21:9 panel still fills edge to edge.
+	return height * 43 / 18;
+}
+
 namespace {
 
 #ifndef USE_SDL1
@@ -102,8 +109,8 @@ void CalculatePreferredWindowSize(int &width, int &height)
 		// pixels per game pixel when the game is bigger than the screen. Falling through to the
 		// fractional fit below is what that case actually wants, and it is already written.
 		if (factor >= 1) {
-			width = mode.w / factor;
 			height = mode.h / factor;
+			width = std::min(mode.w / factor, FitToScreenMaxWidth(height));
 			return;
 		}
 	}
@@ -116,6 +123,9 @@ void CalculatePreferredWindowSize(int &width, int &height)
 	} else {
 		height = mode.h * width / mode.w;
 	}
+	// Both branches: a stored width can already be the desktop's own (the resolution list derives it),
+	// and then the else branch keeps it as it is.
+	width = std::min(width, FitToScreenMaxWidth(height));
 }
 
 void FreeRenderer()

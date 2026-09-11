@@ -53,6 +53,7 @@
 #include "oracool/xp_counter.h"
 #include "qol/xpbar.h"
 #include "utils/ui_fwd.h" // gnScreenWidth/Height - the log and the belt are both derived from them
+#include "utils/display.h" // FitToScreenMaxWidth
 #include "utils/paths.h"  // SetConfigPath - the options round-trip writes to a temp dir, not diablo.ini
 #include "oracool/charms.h"
 #include "oracool/area_level.h"
@@ -11253,4 +11254,19 @@ TEST(OracoolRenderer, AFrozenMonsterKeepsItsLightingUnderFrost)
 	for (int i = 0; i < 256; i++)
 		LightTables[1][static_cast<size_t>(i)] = static_cast<uint8_t>(i / 2);
 	EXPECT_LT(red(oracool::FrozenRgbTable(1)[240]), red(bright));
+}
+
+// Fit to Screen widens the view to the desktop's shape, but no further than 21:9 (user, 2026-09-11:
+// "expand the viewport all the way up to 21:9. no more").
+TEST(OracoolDisplay, FitToScreenStopsAtTwentyOneByNine)
+{
+	using devilution::FitToScreenMaxWidth;
+	// Every real 21:9 panel still fills edge to edge...
+	EXPECT_EQ(FitToScreenMaxWidth(1440), 3440);
+	EXPECT_GE(FitToScreenMaxWidth(1080), 2560);
+	EXPECT_GE(FitToScreenMaxWidth(2160), 5120);
+	// ...a 16:9 one is untouched...
+	EXPECT_GT(FitToScreenMaxWidth(1080), 1920);
+	// ...and a 32:9 one is not filled: 5120x1440 stops at 3440, with bars either side.
+	EXPECT_LT(FitToScreenMaxWidth(1440), 5120);
 }
