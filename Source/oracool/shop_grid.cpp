@@ -29,6 +29,7 @@
 #include "utils/format_int.hpp"
 #include "utils/utf8.hpp" // DecodeFirstUtf8CodePoint - vertical labels split by code point, not byte
 #include "utils/language.h"
+#include "utils/log.hpp"
 #include "utils/str_cat.hpp"
 
 namespace devilution::oracool {
@@ -226,7 +227,7 @@ void DrawShopButtonPlate(const Surface &out, Rectangle rect, int state)
  * 110x27 at (0, 1). Frames 0, 1 and 2 are at rest, pressed and lit - the last with the ring the front
  * end draws round its focused button, which here marks hover and the open tab.
  */
-constexpr const char *VanillaButtonPath = "ui_art\but_sml";
+constexpr const char *VanillaButtonPath = "ui_art\\but_sml";
 constexpr int VanillaButtonFrameCount = 15;
 constexpr int VanillaFaceTop = 1;
 constexpr int VanillaFaceWidth = 110;
@@ -259,8 +260,15 @@ const VanillaButtonFaces &GetVanillaButtonFaces()
 
 	std::array<SDL_Color, 256> palette {};
 	const OptionalOwnedClxSpriteList sprites = LoadPcxSpriteList(VanillaButtonPath, VanillaButtonFrameCount, std::nullopt, palette.data(), /*logError=*/false);
-	if (!sprites)
+	if (!sprites) {
+		LogError("Shop buttons: {}.pcx did not load - the limestone plates stand in", VanillaButtonPath);
 		return art;
+	}
+	if (ClxSpriteList { *sprites }.numSprites() < art.faces.size()) {
+		LogError("Shop buttons: {}.pcx has {} frames, needs {} - the limestone plates stand in", VanillaButtonPath,
+		    ClxSpriteList { *sprites }.numSprites(), art.faces.size());
+		return art;
+	}
 	std::array<uint32_t, 256> grey {};
 	for (size_t i = 0; i < grey.size(); i++) {
 		const SDL_Color c = palette[i];
@@ -270,8 +278,11 @@ const VanillaButtonFaces &GetVanillaButtonFaces()
 	}
 	for (size_t f = 0; f < art.faces.size(); f++) {
 		const ClxSprite sprite = (*sprites)[f];
-		if (sprite.width() < VanillaFaceWidth || sprite.height() < VanillaFaceTop + VanillaFaceHeight)
+		if (sprite.width() < VanillaFaceWidth || sprite.height() < VanillaFaceTop + VanillaFaceHeight) {
+			LogError("Shop buttons: {}.pcx frame {} is {}x{}, smaller than the {}x{} face - the limestone plates stand in",
+			    VanillaButtonPath, f, sprite.width(), sprite.height(), VanillaFaceWidth, VanillaFaceTop + VanillaFaceHeight);
 			return art;
+		}
 		const OwnedSurface scratch = OwnedSurface::Rgb(sprite.width(), sprite.height());
 		RenderClxSpriteWithRgbMap(scratch, sprite, { 0, 0 }, grey.data());
 		std::vector<uint32_t> &face = art.faces[f];
@@ -967,6 +978,11 @@ void DrawShopClose(const Surface &out)
 }
 
 } // namespace
+
+bool ShopVanillaButtonArtLoaded()
+{
+	return GetVanillaButtonFaces().loaded;
+}
 
 bool IsShopGridScreen(TalkID id)
 {

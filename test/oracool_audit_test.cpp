@@ -28,6 +28,7 @@
 #include "engine/random.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/load_file.hpp"
+#include "engine/load_pcx.hpp" // the shop's vanilla button, straight from the archive
 #include "engine/palette.h"
 #include "engine/render/blit_impl.hpp" // AverageRgb (v1.11)
 #include "engine/render/clx_render.hpp"
@@ -11396,4 +11397,21 @@ TEST(OracoolAudit, PaladinCastSkillsTakeTheirOwnSpellAnimation)
 	for (const oracool::PaladinSkill swing : { oracool::PaladinSkill::Charge, oracool::PaladinSkill::Zeal,
 	         oracool::PaladinSkill::HammerOfFaith, oracool::PaladinSkill::ShieldBash })
 		EXPECT_FALSE(oracool::IsCastPaladinSkill(swing)) << "a swing was made a cast";
+}
+
+// The shop's controls wear the vanilla button read from the player's own archive (2026-09-11). The user
+// saw the limestone fallback in play instead, so this asks the mounted archives directly - the file, its
+// frames, and the loader the shop itself uses.
+TEST(OracoolShop, VanillaButtonArtLoadsFromTheGameArchive)
+{
+	MountTestArchives(/*gameArchivesToo=*/true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	std::array<SDL_Color, 256> palette {};
+	const OptionalOwnedClxSpriteList sprites = LoadPcxSpriteList("ui_art\\but_sml", 15, std::nullopt, palette.data(), /*logError=*/false);
+	ASSERT_TRUE(sprites.has_value()) << "ui_art\\but_sml.pcx is not in the mounted archives";
+	EXPECT_EQ(ClxSpriteList { *sprites }.numSprites(), 15U);
+	EXPECT_EQ((*sprites)[0].width(), 112);
+	EXPECT_EQ((*sprites)[0].height(), 28);
+	EXPECT_TRUE(oracool::ShopVanillaButtonArtLoaded()) << "the file is there but the shop's loader refused it";
 }

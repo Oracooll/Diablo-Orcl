@@ -1106,6 +1106,12 @@ void stream_stop()
 
 void PlaySFX(_sfx_id psfx)
 {
+	// Oracool: SFX_NONE is -1, and both of these index sgSFX with whatever they are given. A spell row
+	// that is silent on purpose crashed the game the moment it was cast (user, 2026-09-11: Blessed
+	// Shield and Blessed Hammer "cause game crash upon trying to cast them"), so "no sound" is answered
+	// here, once, for every caller.
+	if (psfx == SFX_NONE)
+		return;
 	psfx = RndSFX(psfx);
 
 	PlaySfxPriv(&sgSFX[psfx], false, { 0, 0 });
@@ -1113,6 +1119,8 @@ void PlaySFX(_sfx_id psfx)
 
 void PlaySfxLoc(_sfx_id psfx, Point position, bool randomizeByCategory)
 {
+	if (psfx == SFX_NONE)
+		return; // see PlaySFX
 	if (randomizeByCategory) {
 		psfx = RndSFX(psfx);
 	}

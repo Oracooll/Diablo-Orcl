@@ -83,3 +83,26 @@ Debug and Release built, and RTM was refreshed with exe 1.11.040. **Not seen in 
 - Faster Cast Rate on a found ring, helm, amulet or staff: in the tooltip, on the stat sheet, and visibly shortening the cast.
 
 **Timing change.** The skills now cost the Paladin's cast animation, 14 frames at 20 per second (0.7 s) before the missile leaves, where they used to be instant. Faster Cast Rate is what buys that back.
+
+## Fixes after the first play (v1.11.041)
+
+The user reported: "BS and BH both cause game crash upon trying to cast them", and "i dont see the new buttons in griswold stores".
+
+**The crash.**
+- v1.11.040 made Blessed Shield's and Blessed Hammer's spell rows silent (`SFX_NONE`), so the missile's release cue would be the only sound.
+- `StartSpell` plays the row's sound, and `PlaySfxLoc` / `PlaySFX` index `sgSFX` with whatever they are given. `SFX_NONE` is -1.
+- Fist kept `IS_CAST2`, which is why it alone would not have crashed.
+- **Fix:** both functions now return on `SFX_NONE`, once, for every caller, not a guard at the one call site.
+- There is no regression test. The tests run with sound uninitialised, where the bad index is never read, so a test could not have caught it.
+
+**The buttons (v1.11.039's vanilla button).**
+- The edit script that wrote `shop_grid.cpp` quoted the C++ in perl's `q~...~`, which collapses a doubled backslash to one. The path's escaped backslash landed as a single one before the `b`, and C++ reads that pair as a backspace character, so the loader asked for `ui_art<BS>ut_sml.pcx`.
+- The loader was written to fail silently, so the limestone plates quietly stood in.
+- **Fix:** the literal is corrected.
+- The loader now logs why it refused: the file missing, too few frames, or a frame smaller than the face.
+- It also checks the frame count before reading frame 2.
+- `ShopVanillaButtonArtLoaded()` is exposed for a test.
+- New test `OracoolShop.VanillaButtonArtLoadsFromTheGameArchive` mounts the real archives. It checks `but_sml.pcx` (15 frames, 112×28) and that the shop's own loader accepts it. It failed before the fix with the log line naming `ui_artut_sml.pcx`, and passes now.
+- Every other string literal those edit scripts wrote was checked: none has a lone backslash.
+
+Debug and Release built, ctest **707/707**, RTM refreshed with exe 1.11.041.

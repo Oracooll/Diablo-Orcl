@@ -53,6 +53,12 @@
 
 namespace devilution::oracool {
 
+/**
+ * @brief Whether the vanilla dialog button (ui_art\but_sml, from the player's own archive) loaded - what
+ * the controls wear when it did. False means the limestone plates are standing in; the log says why.
+ */
+bool ShopVanillaButtonArtLoaded();
+
 /** @brief Whether @p id is drawn as the icon grid rather than as the vanilla text list. */
 bool IsShopGridScreen(TalkID id);
 
