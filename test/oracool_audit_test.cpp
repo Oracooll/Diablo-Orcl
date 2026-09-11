@@ -3165,6 +3165,44 @@ TEST(OracoolFindStats, CharmsFeedFindStatsToThePlayer)
 	EXPECT_EQ(player._pGoldFind, 30);
 }
 
+// The Rat King's Tithe is a gold set: its pieces and its three rungs all carry IPL_GOLDFIND, and the
+// whole chain - the piece's power, the cumulative rung on ApplySetBonusesToTotals' scratch item, the
+// player's total - has to reach _pGoldFind or the set's identity is only a line of text. The drop
+// tail's half is pinned by GoldFindScalesDroppedGold below; this pins the set's half (2026-09-11).
+TEST(OracoolFindStats, RatKingsTitheGoldFindReachesThePlayer)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 30;
+	player._pBaseStr = 100;
+	player._pBaseMag = 100;
+	player._pBaseDex = 100;
+	player._pBaseVit = 100;
+	player._pLightRad = 10;
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
+
+	const auto wear = [&](inv_body_loc slot, const char *id) {
+		const oracool::SetItemDefinition *piece = oracool::FindSetItem(id);
+		ASSERT_NE(piece, nullptr) << id;
+		devilution::Item &item = player.InvBody[slot];
+		item = {};
+		InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetPiece(*piece)));
+		oracool::MakeSetItem(item, *piece);
+		item._iStatFlag = true;
+	};
+	wear(INVLOC_HEAD, "SET_RAT_CROWN");
+	wear(INVLOC_WAIST, "SET_RAT_GIRDLE");
+
+	CalcPlrItemVals(player, false);
+	// 15 (Crown of the Gutter Court) + 15 (Girdle of Hollow Purses) + 40 ("The King's Share", the
+	// two-piece rung). A missing link anywhere in the chain shows here as a smaller number.
+	EXPECT_EQ(player._pGoldFind, 70);
+}
+
 TEST(OracoolFindStats, GoldFindScalesDroppedGold)
 {
 	Players.resize(1);

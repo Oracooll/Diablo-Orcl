@@ -43,3 +43,15 @@ My edit helper put CRLF endings on a single-line replacement in item_sets.h, whi
 ## Verification
 
 Debug and Release built. ctest **700/700** with no expected value changed. RTM refreshed with exe 1.11.034. Not seen in play. The check is to drop or buy Thunder's Black Pinion (Stormcrow Harness) and fire it as a bow, and to see a set mace swing as a mace.
+
+## Follow-up: the Rat King's gold find (v1.11.035)
+
+The user asked: "While waiting, do the Rat King's gold find". Like the missing bases, this had already been done on 2026-08-21, and the continuation plan had gone stale. I traced the chain end to end:
+
+1. **The power:** each of the four pieces carries `IPL_GOLDFIND`, 15-20% each. `SaveItemPower` writes it to `Item::_iPLGoldFind`, and the save format stores that field (loadsave version 8).
+2. **The rungs:** all three rungs carry it too, at 40, 50 and 60%. `ApplySetBonusesToTotals` applies every reached rung on a scratch item and adds that item like a worn one, so the rungs stack. A full set gives 215%.
+3. **The total:** `ItemBonusTotals::AddItem` sums it into `goldFind`, which becomes `Player::_pGoldFind`. The charms of Greed feed the same total.
+4. **The payout:** `ApplyMagicAndGoldFindToDrop` scales every fresh gold pile by (100 + gold find)%. Monster drops (`SpawnItem`) and object drops (`SetupBaseItem`) both reach it through `FinalizeFreshDrop`. A saved pile reloads with its stored amount, so nothing is replayed.
+5. **Uniques:** those with `gold_find_percent` ride the same power, through the unique affix table.
+
+The only gap was a test. The payout was pinned (`GoldFindScalesDroppedGold`), but the set's half was not. `OracoolFindStats.RatKingsTitheGoldFindReachesThePlayer` now equips two real pieces made by `MakeSetItem` and expects 70, which is 15 + 15 plus the two-piece rung's 40. ctest 701/701.
