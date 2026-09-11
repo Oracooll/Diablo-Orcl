@@ -96,6 +96,8 @@
 #include "oracool/inventory_layout.h"
 #include "oracool/named_encounters.h"
 #include "oracool/furious_charge.h" // ChargeBlowPercentAt - Charge's arriving blow
+#include "oracool/quest_marks.h"
+#include "towners.h" // Towner and the TOWN_* types the mark is asked about
 #include "oracool/paladin_melee.h"
 #include "oracool/paladin_ranged.h"
 #include "oracool/paladin_skills.h"
@@ -11682,6 +11684,63 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 		oracool::ApplyRunewordToTotals(*found, totals);
 		EXPECT_EQ(totals.fastCast, value) << name << " did not reach the totals";
 	}
+}
+
+// The gold ! over a townsperson with something for you (user, 2026-09-12: "Add a gold glowing ! over the
+// heads of who i should speak to"). The mark's conditions are a mirror of each talk function's own gate,
+// so this pins the pair: change one and the other must follow.
+TEST(OracoolQuestMarks, TheMarkFollowsTheTalkFunctionsGate)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[0];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 20;
+	player._pNumInv = 0; // Player{} leaves the backpack uninitialised - InvTest's own reset
+	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), static_cast<int8_t>(0));
+	player.InvTabList = {};
+	player.InvTabGrid = {};
+	player._pNumInvTab = {};
+	InitQuests();
+
+	devilution::Towner deadguy {};
+	deadguy._ttype = TOWN_DEADGUY;
+	Quests[Q_BUTCHER]._qactive = QUEST_INIT;
+	Quests[Q_BUTCHER]._qvar1 = 0;
+	EXPECT_TRUE(oracool::TownerHasQuestNews(deadguy)) << "the dying townsman has not told you yet";
+	Quests[Q_BUTCHER]._qvar1 = 1;
+	EXPECT_FALSE(oracool::TownerHasQuestNews(deadguy)) << "he only tells it once";
+	Quests[Q_BUTCHER]._qvar1 = 0;
+	Quests[Q_BUTCHER]._qactive = QUEST_DONE;
+	EXPECT_FALSE(oracool::TownerHasQuestNews(deadguy));
+
+	// Cain and the Staff of Lazarus - the user's own case (2026-09-12: "i pick up his staff and nothing
+	// happens"). Nothing happens until he is spoken to, and now the mark says so.
+	const uint8_t fullQuests = sgGameInitInfo.fullQuests;
+	sgGameInitInfo.fullQuests = 1; // single player: the branch that takes the staff
+	devilution::Towner cain {};
+	cain._ttype = TOWN_STORY;
+	Quests[Q_BETRAYER]._qactive = QUEST_INIT;
+	EXPECT_FALSE(oracool::TownerHasQuestNews(cain)) << "no staff, no mark";
+	devilution::Item &staff = player.InvList[player._pNumInv++];
+	InitializeItem(staff, IDI_LAZSTAFF);
+	EXPECT_TRUE(oracool::TownerHasQuestNews(cain)) << "the staff in the backpack is Cain's cue";
+	Quests[Q_BETRAYER]._qactive = QUEST_ACTIVE;
+	EXPECT_FALSE(oracool::TownerHasQuestNews(cain)) << "he has taken it already";
+	// ...and once Lazarus falls, he has the last word.
+	Quests[Q_BETRAYER]._qactive = QUEST_DONE;
+	Quests[Q_BETRAYER]._qvar1 = 7;
+	EXPECT_TRUE(oracool::TownerHasQuestNews(cain));
+	sgGameInitInfo.fullQuests = fullQuests;
+
+	// Wirt sells; he never carries a quest.
+	devilution::Towner wirt {};
+	wirt._ttype = TOWN_PEGBOY;
+	EXPECT_FALSE(oracool::TownerHasQuestNews(wirt));
+
+	player._pNumInv = 0;
+	InitQuests();
 }
 
 // The Abilities window draws every page as a three-by-six grid (user, 2026-09-12: "i want every ability

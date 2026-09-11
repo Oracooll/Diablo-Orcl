@@ -57,6 +57,7 @@ set(libdevilutionx_SRCS
   oracool/runewords.cpp
   oracool/sprite_scale.cpp
   oracool/aura_field.cpp
+  oracool/quest_marks.cpp
   oracool/monster_difficulty.cpp
   oracool/player_resistance.cpp
   oracool/runeword_book.cpp

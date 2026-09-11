@@ -53,6 +53,7 @@
 #include "oracool/inventory_layout.h"
 #include "oracool/window_close.h"
 #include "oracool/monster_scale.h"
+#include "oracool/quest_marks.h" // the gold ! over a townsperson with something for you
 #include "oracool/save_indicator.h"
 #include "oracool/crafting_menu.h"
 #include "oracool/levski_roar.h"
@@ -911,6 +912,9 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 			ClxDrawOutlineSkipColorZero(out, 166, position, sprite);
 		}
 		ClxDraw(out, position, sprite);
+		// Oracool (user, 2026-09-12: "Add a gold glowing ! over the heads of who i should speak to").
+		// Drawn with the towner rather than in a later pass, so it is hidden by whatever hides its head.
+		oracool::DrawTownerQuestMark(out, towner, position, sprite);
 		return;
 	}
 
