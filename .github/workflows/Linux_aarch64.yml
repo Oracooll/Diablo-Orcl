@@ -34,7 +34,7 @@ jobs:
         Packaging/nix/debian-cross-aarch64-prep.sh
 
     - name: Cache CMake build folder
-      uses: actions/cache@v3
+      uses: actions/cache@v6
       with:
         path: build
         key: ${{ github.workflow }}-v2-${{ github.sha }}
