@@ -3186,8 +3186,10 @@ void AddBlessedHammer(Missile &missile, AddMissileParameter & /*parameter*/)
 	// borrowed sprite never rotated, it slid.)
 	missile._mirange = BlessedHammerTicks;
 	missile.var1 = 0;
-	missile.var2 = missile.position.start.x;
+	missile.var2 = missile.position.start.x; // the tile it last entered...
 	missile.var3 = missile.position.start.y;
+	missile.var4 = missile.position.start.x; // ...and the one before that - see ProcessBlessedHammer
+	missile.var5 = missile.position.start.y;
 }
 
 void UseMissileGraphic(Missile &missile, MissileGraphicID graphic)
@@ -4590,17 +4592,20 @@ void ProcessFireWallControl(Missile &missile)
  * The y term is halved because the dungeon is drawn isometrically: a circle traced on the ground is
  * an ellipse of half the height on screen, so an unhalved circle would look like it was standing up.
  */
+Displacement BlessedHammerOffsetAt(float ticks)
+{
+	const float angle = ticks * BlessedHammerRadiansPerTick;
+	const float radius = ticks * BlessedHammerPixelsPerTick;
+	return { static_cast<int>(std::cos(angle) * radius), static_cast<int>(std::sin(angle) * radius / 2) };
+}
+
 void ProcessBlessedHammer(Missile &missile)
 {
 	missile._mirange--;
 	missile.var1++;
 
-	const float ticks = static_cast<float>(missile.var1);
-	const float angle = ticks * BlessedHammerRadiansPerTick;
-	const float radius = ticks * BlessedHammerPixelsPerTick;
-	const auto pixelsX = static_cast<int>(std::cos(angle) * radius);
-	const auto pixelsY = static_cast<int>(std::sin(angle) * radius / 2);
-	missile.position.traveled = { pixelsX << 16, pixelsY << 16 };
+	const Displacement pixels = BlessedHammerOffsetAt(static_cast<float>(missile.var1));
+	missile.position.traveled = { pixels.deltaX * (1 << 16), pixels.deltaY * (1 << 16) };
 	UpdateMissilePos(missile);
 
 	const Point tile = missile.position.tile;
@@ -4612,14 +4617,36 @@ void ProcessBlessedHammer(Missile &missile)
 		return;
 	}
 
-	// Only when the tile changes: without this the hammer would damage whatever it overlaps on every
-	// single tick, which at 20 ticks a second is not a hammer, it is a blender.
-	if (tile != Point { missile.var2, missile.var3 }) {
-		missile.var2 = tile.x;
-		missile.var3 = tile.y;
-		CheckMissileCol(missile, GetMissileData(missile._mitype).damageType(), missile._midam, missile._midam,
-		    false, tile, /*dontDeleteOnCollision=*/true);
+	// Every tile the hammer passed through since the last tick, not only the one it stands on now
+	// (2026-09-11, the user: "are you sure that its touch area travels with its animation"). Checked
+	// once a tick, a hammer moving to a DIAGONAL neighbour flew over the side tile between the two
+	// without looking at it - on the spiral's outer turns it covers up to 46px a tick - and 4 of the
+	// 29 tiles a cast crosses were never checked: a monster standing there was visibly hammered and
+	// took nothing. Eight looks a tick miss none; Missiles.BlessedHammerChecksEveryTileItCrosses pins it.
+	//
+	// A tile is hit as the hammer ENTERS it, never while it stays: without that it would damage
+	// whatever it overlaps every tick, which at 20 ticks a second is not a hammer, it is a blender.
+	// Nor on stepping straight back into the tile it just left - a path grazing a tile corner can
+	// flick A, B, A, and that is one pass, not two hits. var2/var3 is the tile it last entered,
+	// var4/var5 the one before; a later turn of the spiral re-entering a tile does hit again.
+	const DamageType damageType = GetMissileData(missile._mitype).damageType();
+	Point current { missile.var2, missile.var3 };
+	Point previous { missile.var4, missile.var5 };
+	for (int step = 1; step <= BlessedHammerSubSteps; step++) {
+		const float t = static_cast<float>(missile.var1 - 1) + static_cast<float>(step) / BlessedHammerSubSteps;
+		const Point crossed = missile.position.start + BlessedHammerOffsetAt(t).screenToMissile();
+		if (crossed == current)
+			continue;
+		const bool flickBack = crossed == previous;
+		previous = current;
+		current = crossed;
+		if (!flickBack)
+			CheckMissileCol(missile, damageType, missile._midam, missile._midam, false, crossed, /*dontDeleteOnCollision=*/true);
 	}
+	missile.var2 = current.x;
+	missile.var3 = current.y;
+	missile.var4 = previous.x;
+	missile.var5 = previous.y;
 
 	if (missile._mirange == 0) {
 		missile._miDelFlag = true;

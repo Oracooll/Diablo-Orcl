@@ -41,6 +41,14 @@ The fire and lightning damage from **Enchant, Vengeance, Fire Mastery and Lightn
   4. Any Barbarian cry: the ring should spread around the feet, not the chest. If it sits high or low, the 64 in `AddWarcryRing` is the one number to move.
   5. Hit an enemy with Vengeance or Enchant on a plain weapon: fire and lightning damage numbers should now appear, with the new flashes.
 
+## Morning follow-up: Blessed Hammer's hit area (v1.11.027)
+
+The user asked whether the hammer's touch area really travels with its animation. It does: `UpdateMissilePos` derives the tile and the draw offset from the same pixel position, and a still missile renders at exactly that offset. So the checked tile is always the tile the sprite is drawn on. Damage lands as intended: each tile entered rolls the Paladin's magic to-hit (no distance penalty), deals 60% of a weapon roll, and the hammer carries on after a hit.
+
+It had one real gap, though. It checked only the tile it landed on each tick. On the outer turns of the spiral it covers up to 46 px a tick, and a step to a diagonal neighbour passed over the side tile between the two without checking it. A simulation of the same formula showed **4 of the 29 tiles a cast crosses were never checked**, so a monster standing on one was visibly hammered and took nothing. It now checks 8 times a tick (0 missed, against a 1024-step path), hits a tile once as it enters, and ignores an A-B-A flick at a tile corner. The spiral lives in one function, `BlessedHammerOffsetAt`, shared by the sprite and the hit. `Missiles.BlessedHammerChecksEveryTileItCrosses` pins it. Tests 698/698.
+
+Still true by design: a monster that walks INTO the hammer's current tile is not hit until the hammer enters a new tile, and the hammer passes through walls.
+
 ## Open
 
 - The ring shows for every cry, songs included (Lullaby, Sound Shock...). Limiting it to shouts is one `if` in `AddWarcry`.

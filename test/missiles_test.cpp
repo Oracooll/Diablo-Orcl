@@ -1,3 +1,6 @@
+#include <set>
+#include <utility>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -241,4 +244,22 @@ TEST(Missiles, GetDirection16)
 	EXPECT_EQ(Direction16::South_SouthEast, GetDirection16({ 2, 2 }, { 4, 3 }));
 
 	EXPECT_EQ(Direction16::South_SouthWest, GetDirection16({ 0, 0 }, { 0, 0 })) << "GetDirection16 is expected to default to Direction16::South_SouthWest when the points occupy the same tile";
+}
+
+TEST(Missiles, BlessedHammerChecksEveryTileItCrosses)
+{
+	// Every tile the hammer's path passes through - sampled far finer than the game ever does - must
+	// be one ProcessBlessedHammer's own sampling looks at. Once a tick missed 4 tiles of the 29.
+	const auto tilesAt = [](int samplesPerTick) {
+		std::set<std::pair<int, int>> tiles;
+		for (int sample = 1; sample <= 60 * samplesPerTick; sample++) {
+			const Displacement tile = BlessedHammerOffsetAt(static_cast<float>(sample) / samplesPerTick).screenToMissile();
+			tiles.emplace(tile.deltaX, tile.deltaY);
+		}
+		return tiles;
+	};
+	const std::set<std::pair<int, int>> crossed = tilesAt(1024);
+	const std::set<std::pair<int, int>> checked = tilesAt(BlessedHammerSubSteps);
+	for (const auto &[x, y] : crossed)
+		EXPECT_EQ(checked.count({ x, y }), 1U) << "the hammer crosses tile (" << x << "," << y << ") without checking it";
 }

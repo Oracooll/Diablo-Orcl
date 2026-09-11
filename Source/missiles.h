@@ -486,6 +486,13 @@ void ProcessInfravision(Missile &missile);
 void ProcessEtherealize(Missile &missile);
 void ProcessBlessedHammer(Missile &missile);
 void ProcessWarcryRing(Missile &missile);
+/**
+ * @brief Oracool: where Blessed Hammer is, in screen pixels from its caster's tile, @p ticks after
+ * the cast. The one formula both the sprite and the hit read, so the two cannot drift apart.
+ */
+Displacement BlessedHammerOffsetAt(float ticks);
+/** @brief Oracool: how many times a tick ProcessBlessedHammer looks for the tile the hammer is in. */
+constexpr int BlessedHammerSubSteps = 8;
 void ProcessBlessedShieldThrow(Missile &missile);
 void ProcessFallingMace(Missile &missile);
 void ProcessApocalypse(Missile &missile);
