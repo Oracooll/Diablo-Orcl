@@ -155,8 +155,9 @@ constexpr int GridHeight = LevskiGridRows * CellSize;
  * seven buttons wide enough to read would be over 700px in a row, half the screen. Stacked, they
  * cost 140px of width and reuse height the 3x4 grid already occupies.
  *
- * PLACEHOLDER, as asked - a gold-bordered box with the tier's name in it, no art. When real button
- * art arrives only DrawSalvageButtons changes; the rects and the routing stay.
+ * They began as gold-bordered placeholder boxes, as asked. They wear the Levski skin's own stone
+ * plates now (the levski_* idle/hover/pressed PNGs); the box is only the fallback when that art is
+ * absent. Only DrawSalvageButtons knows the difference - the rects and the routing never changed.
  */
 constexpr int SalvageColumnWidth = 140;
 constexpr int SalvageButtonHeight = 24;

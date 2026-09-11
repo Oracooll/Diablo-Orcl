@@ -815,10 +815,9 @@ const UniqueItem UniqueItems[] = {
 // array is - it scans to the UITYPE_INVALID sentinel below. 143 new uniques therefore cost no save
 // format change, no new field on Item, and no new code path.
 //
-// They carry no IPL_INVCURS, deliberately: that power REPLACES the item's icon, and the expansion's
-// sprites have not arrived yet (they are outside the package on purpose). Without it each unique
-// wears its base item's sprite, which is the honest placeholder - and when the art lands, adding the
-// icon is one more column in the generator rather than a change to any of this.
+// Each carries IPL_INVCURS as its last power since v1.7.62: that power REPLACES the item's icon with
+// the unique's own frame (506 onward in oracool_items.cel), which is how the expansion's sprites
+// reached the game without a change to any of this - one more column in the generator.
 #include "oracool/unique_items_data.inc"
 
 { "",                            UITYPE_INVALID,             0,        0,        0, { {                                   }, {                                   }, {                                   }, {                                   }, {                                   }, {                                   } }  },

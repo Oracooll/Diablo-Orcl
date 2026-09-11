@@ -5374,9 +5374,10 @@ void OperateObject(Player &player, Object &object)
 			OperateDoor(object, sendmsg);
 		break;
 	case OBJ_STAND:
-		// Levski's Roar. In town this is the crafting monument (currently wearing the Anvil of
-		// Fury's rock stand as a placeholder); in the Caves it is still the vanilla stand the
-		// Anvil quest uses, which is why this is gated on currlevel rather than on the type alone.
+		// Levski's Roar. In town this is the crafting monument (its own carved stone,
+		// objects\orclroar.cel from the private archive, with the Anvil of Fury's rock stand as the
+		// fallback); in the Caves it is still the vanilla stand the Anvil quest uses, which is why
+		// this is gated on currlevel rather than on the type alone.
 		if (currlevel == 0 && sendmsg)
 			oracool::ToggleLevskiRoar();
 		break;

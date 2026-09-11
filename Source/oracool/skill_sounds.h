@@ -13,9 +13,9 @@
  * does not:
  *
  *   - "Missing sound IDs must fail softly and never cancel skill execution." Every function here
- *     returns quietly on a miss. A skill with no cue is normal: the two borrowed Paladin skills
- *     (Hammer of Faith, Blessed Shield) were added to the tree after the design sheets the package
- *     was built from, so they have no sounds at all.
+ *     returns quietly on a miss. A skill with no cue is normal. The two Paladin skills added to the
+ *     tree after the package's design sheets (Hammer of Faith, Blessed Shield) had none until
+ *     2026-09-11, when RfA-02's four WAVs arrived through tools/skill_sounds_extra.csv.
  *   - "Key each loop by (source player/entity, skill ID, activation generation)." Collapsed here to
  *     ONE module-level handle, because this fork stores the active aura as a single value on the
  *     player (Player::_pOracoolActiveAura). There cannot be two live loops to tell apart, so a

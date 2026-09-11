@@ -276,8 +276,8 @@ ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };
  * Replaced wholesale on 2026-08-27 from colorful-skill-icons-complete-273. That set is generated
  * against the skill table, and all 273 names were diffed against it in order before installing.
  *
- * The counts matter and were wrong before: Paladin 49, Barbarian 49, Sorceress 48, Rogue 49,
- * Bard 39, Monk 39. The previous strips ran 30, 30, 30, 21 and 21 frames, against class blocks that
+ * The counts matter and were wrong before: Paladin 48 (49 until the Holy Bolt row was removed on
+ * 2026-09-06), Barbarian 49, Sorceress 48, Rogue 49, Bard 39, Monk 39. The previous strips ran 30, 30, 30, 21 and 21 frames, against class blocks that
  * had grown well past them - so every skill beyond the end of its strip drew NOTHING. Silently, for
  * the reason ClassTreeStrips' own note gives: a missing frame is indistinguishable from a skill that
  * has no icon. Only the Paladin's was current, having been rebuilt the day before.
