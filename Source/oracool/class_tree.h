@@ -314,8 +314,10 @@ enum class ClassTreeSkill : uint16_t {
 	PowerStrike,
 	PoisonJavelin,
 	Impale,
-	LightningBoltSkill,
+	// Named for their rows (2026-09-11): these two were swapped - the value at Charged Strike
+	// row was called LightningBoltSkill. Values unchanged, so nothing saved moves.
 	ChargedStrike,
+	LightningBoltSkill,
 	PlagueJavelin,
 	Fend,
 	LightningStrike,
