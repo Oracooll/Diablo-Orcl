@@ -1359,6 +1359,15 @@ void DrawLoosePng(const Surface &out, const char *assetPath, Point origin)
 	    MakeSdlRect(0, 0, entry.asset.width, entry.asset.height), origin);
 }
 
+void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle source, Point origin)
+{
+	const LoosePng &entry = LoosePngFor(assetPath);
+	if (entry.asset.rgba.empty() || !entry.asset.bright)
+		return;
+	BlitLayer(out, entry.asset, Layer::Bright,
+	    MakeSdlRect(source.position.x, source.position.y, source.size.width, source.size.height), origin);
+}
+
 // DrawSidePanelBackdrop is gone (user, 2026-09-02: "remove the dark transparent rectangle from all
 // canvases, which we used with the limestone background"). It dimmed the inner opening on all six
 // windows, and it existed because the OLD limestone was light enough to fight the text laid over it.

@@ -10,6 +10,7 @@
 
 #include "control.h"
 #include "cursor.h"
+#include "diablo.h" // sgbMouseDown - a button's pressed plate
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
@@ -125,6 +126,49 @@ static_assert(ShopGoldTop + ShopGoldHeight <= ShopGridTop - GridFrameWidth,
     "the controls above the shop grid no longer clear it - shorten the rows, or ask before "
     "taking a row off the grid");
 static_assert(ShopGridLeft >= 0, "the shop grid is wider than the panel");
+
+/*
+ * Oracool: the controls' own art (batch 6, 2026-09-11). Three BLANK limestone plates - the labels are
+ * still the game's, drawn on top. Each is cut to the rect it sits in, and the asserts hold the two
+ * together: a rect that moves off its plate fails the build rather than drawing a plate the wrong size.
+ */
+constexpr const char *ShopTabArt = "ui\\shop_tab.png";              // three 26x80 cells: idle, hover, active
+constexpr const char *ShopButtonArt = "ui\\shop_button.png";        // three 284x26 rows: idle, hover, pressed
+constexpr const char *ShopGoldPlateArt = "ui\\shop_gold_plate.png"; // one 284x16 strip
+constexpr Size ShopTabCell { 26, 80 };
+constexpr Size ShopButtonCell { 284, 26 };
+constexpr Size ShopGoldPlateSize { 284, 16 };
+static_assert(ShopTabCell.width == ShopTabColumnWidth && ShopTabCell.height == ShopTabHeight,
+    "shop_tab.png's cells no longer match the tab rect");
+static_assert(ShopButtonCell.width == ShopControlsWidth && ShopButtonCell.height == ShopServiceHeight
+        && ShopButtonCell.height == ShopActionHeight,
+    "shop_button.png's rows no longer match the control rows");
+static_assert(ShopGoldPlateSize.width == ShopControlsWidth && ShopGoldPlateSize.height == ShopGoldHeight,
+    "shop_gold_plate.png no longer matches the gold line");
+
+/** @brief Whether @p assetPath loaded - the fallback test levski_roar.cpp and book_frame.cpp make. */
+bool HasShopArt(const char *assetPath)
+{
+	return GetLoosePngSize(assetPath).width != 0;
+}
+
+/**
+ * @brief One of the button plate's rows across @p rect: @p state 0 idle, 1 hover, 2 pressed.
+ *
+ * The plate is cut for a whole row, 284 wide, and a row shared three ways is 94 - Griswold's
+ * services. So a narrower rect takes the plate's left half and its right half, each 1:1, butted at
+ * the middle: both chamfered ends survive and nothing is scaled. A full-width rect is the whole plate.
+ */
+void DrawShopButtonPlate(const Surface &out, Rectangle rect, int state)
+{
+	const int top = state * ShopButtonCell.height;
+	const int width = std::min(rect.size.width, ShopButtonCell.width);
+	const int left = width / 2;
+	const int right = width - left;
+	DrawLoosePngPart(out, ShopButtonArt, Rectangle { { 0, top }, { left, ShopButtonCell.height } }, rect.position);
+	DrawLoosePngPart(out, ShopButtonArt, Rectangle { { ShopButtonCell.width - right, top }, { right, ShopButtonCell.height } },
+	    rect.position + Displacement { left, 0 });
+}
 
 /** @brief Where one stock entry sits on the grid, and which stock entry it is. */
 struct PlacedSlot {
@@ -606,17 +650,27 @@ void DrawShopControls(const Surface &out, int pageCount)
 	const Rectangle panel = GetShopPanelRect();
 
 	const std::vector<ControlButton> buttons = ShopControlButtons(stextflag);
+	const bool buttonArt = HasShopArt(ShopButtonArt);
 	for (size_t i = 0; i < buttons.size(); i++) {
 		const Rectangle rect = ShopControlRect(buttons, i);
-		// A hover changes the ink and deepens the plate with a SECOND translucent pass (user,
-		// 2026-09-05: "when hovering over them add a second dark transparent backing"); the rect
-		// itself never moves, so the row does not shift under the pointer.
 		const bool hovered = rect.contains(MousePosition);
-		DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
-		if (hovered)
+		// Oracool: pressed for as long as the left button is held on it. The shop acts on mouse-DOWN,
+		// so this is the span between the click and the release, and sgbMouseDown is that span exactly.
+		const bool pressed = hovered && sgbMouseDown == CLICK_LEFT;
+		if (buttonArt) {
+			DrawShopButtonPlate(out, rect, pressed ? 2 : hovered ? 1 : 0);
+		} else {
+			// A hover changes the ink and deepens the plate with a SECOND translucent pass (user,
+			// 2026-09-05: "when hovering over them add a second dark transparent backing"); the rect
+			// itself never moves, so the row does not shift under the pointer.
 			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
-		DrawOrnateBorder(out, rect);
-		DrawString(out, buttons[i].label, rect,
+			if (hovered)
+				DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+			DrawOrnateBorder(out, rect);
+		}
+		// The pressed plate's face sits a pixel lower, and the word goes down with it.
+		const Rectangle labelRect = buttonArt && pressed ? Rectangle { rect.position + Displacement { 0, 1 }, rect.size } : rect;
+		DrawString(out, buttons[i].label, labelRect,
 		    { (hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
 		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
@@ -626,8 +680,11 @@ void DrawShopControls(const Surface &out, int pageCount)
 	// and the gold readout is one centred line with both ends going spare.
 	const Rectangle goldLine { { panel.position.x + ShopControlsLeft, panel.position.y + ShopGoldTop },
 		{ ShopControlsWidth, ShopGoldHeight } };
+	// Oracool: on its own recessed strip when the art is in; on the bare canvas when it is not.
+	if (HasShopArt(ShopGoldPlateArt))
+		DrawLoosePng(out, ShopGoldPlateArt, goldLine.position);
 	// Shadowed (user, 2026-09-05: "add text shadow to texts in vendors where needed, like behind
-	// the GOLD amount available") - it sits on the canvas, not on a plate.
+	// the GOLD amount available") - asked for when it sat on the bare canvas, and kept on the plate.
 	DrawString(out, fmt::format(fmt::runtime(_("Your gold: {:s}")), FormatInteger(TotalPlayerGold())), goldLine,
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 
@@ -649,18 +706,26 @@ void DrawShopControls(const Surface &out, int pageCount)
 void DrawShopTabColumn(const Surface &out)
 {
 	const std::vector<TalkID> tabs = ShopTabsFor(stextflag);
+	const bool tabArt = HasShopArt(ShopTabArt);
 	for (size_t i = 0; i < tabs.size(); i++) {
 		const Rectangle rect = ShopTabRect(i);
 		const bool active = tabs[i] == stextflag;
 		const bool hovered = rect.contains(MousePosition);
-		// The active tab is filled solid so it reads as part of the panel; the rest are the same
-		// half-transparent plate every other floating control wears.
-		if (active) {
-			DrawThemedFill(out, rect, 3);
+		if (tabArt) {
+			// Oracool: one 26x80 cell per state - the open shelf, the one under the pointer, or at rest.
+			// Its flat right edge is the one against the panel.
+			const int state = active ? 2 : hovered ? 1 : 0;
+			DrawLoosePngPart(out, ShopTabArt, Rectangle { { state * ShopTabCell.width, 0 }, ShopTabCell }, rect.position);
 		} else {
-			DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+			// The active tab is filled solid so it reads as part of the panel; the rest are the same
+			// half-transparent plate every other floating control wears.
+			if (active) {
+				DrawThemedFill(out, rect, 3);
+			} else {
+				DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
+			}
+			DrawOrnateBorder(out, rect);
 		}
-		DrawOrnateBorder(out, rect);
 		DrawVerticalLabel(out, _(ShopTabName(tabs[i])), rect,
 		    active || hovered ? UiFlags::ColorWhite : UiFlags::ColorWhitegold);
 	}

@@ -30,11 +30,16 @@
  * text box. That boundary is deliberate: those checks have each been a reported bug, and a grid
  * that re-implemented them would be a second place for them to go wrong.
  *
- * ## Placeholder, and honestly so
+ * ## The controls wear their own art
  *
- * Flat themed fill, ornate border, text labels - the same treatment every Oracool window wears
- * while it waits for art. The visuals are explicitly not final (user, 2026-08-21: "we will workout
- * the final visuals later").
+ * The tab column, the service and bulk-action buttons and the gold line sit on three blank limestone
+ * plates (ui\shop_tab.png, shop_button.png, shop_gold_plate.png - batch 6, 2026-09-11), and the game
+ * still draws every label on top in its own font. The panel itself is not the shop's: it is the
+ * shared 340x720 side-panel background every limestone window wears, and the grid keeps its bezel.
+ *
+ * A plate that is missing falls back to what the control wore before it - the flat fill and the
+ * ornate border, and no plate at all behind the gold line - so a build without the art still draws a
+ * whole shop.
  */
 #pragma once
 

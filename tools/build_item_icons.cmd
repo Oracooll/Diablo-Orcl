@@ -350,6 +350,13 @@ if not exist "Source\oracool\encounter_items_icon_specs.txt" (
 )
 type "Source\oracool\encounter_items_icon_specs.txt" >> "%SPECFILE%"
 
+REM The six Phase 1 charms' own icons, appended AFTER the encounter items (RfA-02 batch 5,
+REM 2026-09-11). Hand-written spec; the art is the delivered 28x28 icons, filed under
+REM ..\Resources\02-source-art\items\charms. First added by appending to the sheet in place, because
+REM the Temp inputs of several generators above had been cleared - re-run those generators before
+REM trusting a full rebuild of this file.
+type "Source\oracool\charm_icons_icon_specs.txt" >> "%SPECFILE%"
+
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1
 
 REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet

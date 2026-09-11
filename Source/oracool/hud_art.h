@@ -92,6 +92,14 @@ void DrawLoosePng(const Surface &out, const char *assetPath, Point origin);
 /** @brief The size of a loose PNG, or 0x0 if it is missing. Loads it if it has not been. */
 Size GetLoosePngSize(const char *assetPath);
 
+/**
+ * @brief DrawLoosePng for one part of the file: @p source (image pixels) drawn 1:1 at @p origin.
+ *
+ * For a loose PNG that is a SHEET of states rather than one picture - the shop's tab and button
+ * plates (batch 6, 2026-09-11) carry idle, hover and active or pressed side by side in one file.
+ */
+void DrawLoosePngPart(const Surface &out, const char *assetPath, Rectangle source, Point origin);
+
 void DrawSidePanelArt(const Surface &out, Point origin);
 
 // DrawSidePanelBackdrop was declared here and is gone (user, 2026-09-02: "remove the dark

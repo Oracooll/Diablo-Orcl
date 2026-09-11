@@ -1,0 +1,5 @@
+id,class,branch,skill,skillKind,event,path,durationSeconds,peakDbfs,rmsDbfs,loop
+paladin.hammer-of-faith.cast,paladin,combat-skills,Hammer of Faith,attack,cast,sounds/paladin/combat-skills/hammer-of-faith-cast.wav,0.42,-3,,False
+paladin.hammer-of-faith.impact,paladin,combat-skills,Hammer of Faith,attack,impact,sounds/paladin/combat-skills/hammer-of-faith-impact.wav,0.58,-3,,False
+paladin.blessed-shield.cast,paladin,combat-skills,Blessed Shield,attack,cast,sounds/paladin/combat-skills/blessed-shield-cast.wav,0.40,-3,,False
+paladin.blessed-shield.impact,paladin,combat-skills,Blessed Shield,attack,impact,sounds/paladin/combat-skills/blessed-shield-impact.wav,0.62,-3,,False

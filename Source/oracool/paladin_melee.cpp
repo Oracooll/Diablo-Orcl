@@ -239,6 +239,8 @@ void ApplyHammerOfFaith(Player &player, Monster &primaryTarget, int hitDamage)
 	if (!SpendPaladinSkillMana(player, PaladinSkill::HammerOfFaith))
 		return;
 
+	// The shockwave's own sound, once per splash - the blow itself already sounded as a hit.
+	PlaySkillSound(ClassTreeSkill::HammerOfFaith, SkillSoundEvent::Impact);
 	for (int i = 0; i < found; i++)
 		StrikeMonster(player, *targets[i], splashDamage);
 }
@@ -436,6 +438,16 @@ int MeleeHitFrame(const Player &player)
 	// which Shield Bash requires anyway - the guard above is for the frame between unequipping and
 	// the swing resolving.
 	return std::min<int>(player._pAFNum, player._pBFrames);
+}
+
+bool PlayArmedSwingCue(const Player &player)
+{
+	if (&player != MyPlayer || !ArmedSkill.has_value() || *ArmedSkill != PaladinSkill::HammerOfFaith)
+		return false;
+	// An unaffordable Hammer of Faith is a plain swing (ApplyMeleeSkillOnHit), so it sounds like one.
+	if (!CanUsePaladinSkill(player, *ArmedSkill))
+		return false;
+	return PlaySkillSound(ClassTreeSkill::HammerOfFaith, SkillSoundEvent::Cast);
 }
 
 void ApplyMeleeSkillOnHit(Player &player, Monster &primaryTarget, int hitDamage)

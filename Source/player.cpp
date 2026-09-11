@@ -912,7 +912,9 @@ bool DoAttack(Player &player)
 	// lands its blow earlier. See oracool/paladin_melee.h.
 	const int hitFrame = oracool::MeleeHitFrame(player);
 	if (player.AnimInfo.currentFrame == hitFrame - 2) {
-		PlaySfxLoc(PS_SWING, player.position.tile);
+		// Oracool: a skill with its own swing sound plays it instead of the whoosh - one sound.
+		if (!oracool::PlayArmedSwingCue(player))
+			PlaySfxLoc(PS_SWING, player.position.tile);
 	}
 
 	bool didhit = false;

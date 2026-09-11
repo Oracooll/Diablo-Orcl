@@ -902,7 +902,10 @@ enum item_cursor_graphic : uint16_t {
 #include "oracool/growing_charms_curs.inc"
 	// The six encounter-item frames, after the growing charms - same one-generator rule.
 #include "oracool/encounter_items_curs.inc"
-	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_CHARM_VAULT,
+	// The six Phase 1 charms' own icons, after the encounter items - they wore Blood Stone and
+	// Magic Rock until 2026-09-11.
+#include "oracool/charm_icons_curs.inc"
+	ICURS_ORACOOL_LAST                = ICURS_ORACOOL_CHARM_GREED,
 	// clang-format on
 };
 

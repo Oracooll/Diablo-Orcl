@@ -16,6 +16,7 @@
 
 namespace devilution {
 
+struct Missile;
 struct Player;
 
 namespace oracool {
@@ -41,6 +42,15 @@ bool CastRangedPaladinSkill(Player &player, PaladinSkill skill, Point target);
  * @p damage is already the weapon roll for this cast; the mana was charged at the cast.
  */
 void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellLevel);
+
+/**
+ * @brief A player's Blessed Shield launches with its own cue INSTEAD of the generic cast sound its
+ * missile row borrows (IS_CAST2). False - so the row's sound plays - for anything else.
+ */
+bool PlayPaladinMissileSound(const Missile &missile);
+
+/** @brief Blessed Shield's burst, where the thrown shield lands. Nothing sounded there before. */
+void PlayBlessedShieldImpactSound(const Missile &missile);
 
 /** @brief Fist of the Heavens', Blessed Shield's and Blessed Hammer's facts, one per line. For the tooltip. */
 std::string PaladinRangedFactsAt(PaladinSkill skill, int rank);

@@ -3,7 +3,9 @@
 #include "engine/random.hpp"
 #include "missiles.h"
 #include "monster.h"
+#include "oracool/class_tree.h"
 #include "oracool/paladin_melee.h" // HasShieldEquipped
+#include "oracool/skill_sounds.h"
 #include "player.h"
 #include <fmt/format.h>
 #include "utils/language.h"
@@ -183,6 +185,19 @@ void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellL
 			}
 		}
 	}
+}
+
+bool PlayPaladinMissileSound(const Missile &missile)
+{
+	if (missile._mitype != MissileID::BlessedShieldThrow || missile._micaster != TARGET_MONSTERS || missile._misource < 0)
+		return false;
+	return PlaySkillSound(ClassTreeSkill::BlessedShield, SkillSoundEvent::Cast);
+}
+
+void PlayBlessedShieldImpactSound(const Missile &missile)
+{
+	if (missile._micaster == TARGET_MONSTERS && missile._misource >= 0)
+		PlaySkillSound(ClassTreeSkill::BlessedShield, SkillSoundEvent::Impact);
 }
 
 bool CastRangedPaladinSkill(Player &player, PaladinSkill skill, Point target)

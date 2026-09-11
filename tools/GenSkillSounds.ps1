@@ -17,7 +17,10 @@ param(
     [string]$Package  = "..\Resources\02-source-art\skill-sounds\class-skill-sounds.zip",
     [string]$TreeFile = "Source\oracool\class_tree.cpp",
     [string]$TreeEnum = "Source\oracool\class_tree.h",
-    [string]$OutFile  = "Source\oracool\skill_sounds_data.inc"
+    [string]$OutFile  = "Source\oracool\skill_sounds_data.inc",
+    # Sounds delivered after the package (RfA-02 batch 7, 2026-09-11), in the manifest's own columns.
+    # Kept beside this script because the package zip is the delivery as received and is not edited.
+    [string]$Extra    = "tools\skill_sounds_extra.csv"
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,6 +32,11 @@ Expand-Archive -Path $Package -DestinationPath $work -Force
 $manifestPath = Get-ChildItem $work -Recurse -Filter "audio-manifest.csv" | Select-Object -First 1
 if (-not $manifestPath) { throw "no audio-manifest.csv inside $Package" }
 $rows = Import-Csv $manifestPath.FullName
+if (Test-Path $Extra) {
+    $extraRows = @(Import-Csv $Extra)
+    $rows = @($rows) + $extraRows
+    Write-Host "extra: $($extraRows.Count) sounds from $Extra"
+}
 Write-Host "manifest: $($rows.Count) sounds"
 
 # --- the tree's enum names, in declaration order --------------------------------------------------
@@ -80,7 +88,14 @@ $classAlias = @{ paladin = "Pal"; barbarian = "Bar"; sorcerer = "Sor"; rogue = "
 $byKey = @{}
 for ($i = 0; $i -lt $treeRows.Count; $i++) {
     $key = "$($treeRows[$i].Class)|$($treeRows[$i].Name)"
-    if ($byKey.ContainsKey($key)) { throw "two tree rows are both '$key'" }
+    if ($byKey.ContainsKey($key)) {
+        # A later page reusing a name - the Diablo III passive page's Fanaticism (v1.9.45) beside the
+        # aura - keeps the FIRST row's sounds: the package was cut against the original tree, so the
+        # first row is the one it describes. Said out loud, never silent; this throw had stopped the
+        # generator from running at all since that page arrived.
+        Write-Warning "two tree rows are both '$key' - its sounds stay with $($byKey[$key]), not $($enumNames[$i])"
+        continue
+    }
     $byKey[$key] = $enumNames[$i]
 }
 
@@ -89,10 +104,15 @@ $eventEnum = @{ cast = "Cast"; impact = "Impact"; arrive = "Arrive"; start = "St
 
 $out = @()
 $unmatched = @()
+# Skills taken OUT of the tree on purpose, whose package sounds are dropped on purpose. Named here so
+# that any OTHER sound with no tree row is still the hard error below: the Paladin Holy Bolt row was
+# removed on 2026-09-06 (user: "There is a spell like this already in the game").
+$retired = @("Pal|Holy Bolt")
 foreach ($r in $rows | Sort-Object class, skill, event) {
     $alias = $classAlias[$r.class]
     if (-not $alias) { throw "manifest class '$($r.class)' is not one of the six" }
     $key = "$alias|$($r.skill)"
+    if ($retired -contains $key) { continue }
     if (-not $byKey.ContainsKey($key)) { $unmatched += $key; continue }
     $ev = $eventEnum[$r.event]
     if (-not $ev) { throw "manifest event '$($r.event)' has no SkillSoundEvent" }

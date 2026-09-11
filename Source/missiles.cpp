@@ -3170,6 +3170,7 @@ void ProcessBlessedShieldThrow(Missile &missile)
 
 	if (missile._miHitFlag || missile._mirange == 0) {
 		missile._miDelFlag = true;
+		oracool::PlayBlessedShieldImpactSound(missile);
 		const Point impact = missile.position.tile;
 		for (int dy = -1; dy <= 1; dy++) {
 			for (int dx = -1; dx <= 1; dx++) {
@@ -3542,7 +3543,7 @@ Missile *AddMissile(Point src, Point dst, Direction midir, MissileID mitype,
 		lSFX = missileData.mlSFX;
 		// Oracool: a cold missile launches with its own cue INSTEAD of the Firebolt / Nova / Mana
 		// Shield sound its row borrows - one sound either way. See oracool::ColdMissileCueSkill.
-		if (*lSFX != SFX_NONE && oracool::PlayColdMissileSound(missile, /*impact=*/false))
+		if (*lSFX != SFX_NONE && (oracool::PlayColdMissileSound(missile, /*impact=*/false) || oracool::PlayPaladinMissileSound(missile)))
 			lSFX = SFX_NONE;
 	}
 
