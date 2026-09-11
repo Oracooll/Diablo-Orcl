@@ -4846,6 +4846,38 @@ void TryAddFasterCastToDrop(Item &item)
 	item._iPLFastCast += value;
 }
 
+int UniqueItemFastCast(int uid)
+{
+	if (uid < 0 || static_cast<size_t>(uid) >= UniqueItemCount)
+		return 0;
+	const UniqueItem &unique = UniqueItems[uid];
+	int total = 0;
+	for (int i = 0; i < unique.UINumPL; i++) {
+		if (unique.powers[i].type == IPL_FASTCAST)
+			total += unique.powers[i].param1;
+	}
+	return total;
+}
+
+void RederiveFastCast(Item &item)
+{
+	// Item::_iPLFastCast is not a stored field - the item format did not grow for it, because a bump would
+	// refuse every existing hero. It comes back from what wrote it: the drop tail's records, and a unique's
+	// own row, whose values are fixed (GenUniqueItems.ps1's authored table), so reading param1 is exact.
+	// Set rungs and runewords need nothing here: both are recomputed into the totals on every recalc.
+	item._iPLFastCast = 0;
+	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
+		if (affix.type == IPL_FASTCAST)
+			item._iPLFastCast += affix.param1;
+	}
+	for (const OracoolAffix &affix : item._iOracoolSuffixes) {
+		if (affix.type == IPL_FASTCAST)
+			item._iPLFastCast += affix.param1;
+	}
+	if (item._iMagical == ITEM_QUALITY_UNIQUE)
+		item._iPLFastCast += UniqueItemFastCast(item._iUid);
+}
+
 void FinalizeFreshDrop(Item &item, int level)
 {
 	// Phase 1: the drop tail - Magic/Gold Find first (an upgraded item then correctly skips the
@@ -5930,6 +5962,18 @@ bool DoOil(Player &player, int cii, int tabIdx)
 		return _("50% Mana moved to Health");
 	case IPL_LIFETOMANA:
 		return _("40% Health moved to Mana");
+	// Oracool's own powers. A unique or a set piece prints its powers through here, and these fell to
+	// "Another ability" below until a unique carried one (2026-09-11). Worded as the affix printer
+	// words them, so the same stat reads the same wherever it came from.
+	case IPL_GOLDFIND:
+		return fmt::format(fmt::runtime(_("{:+d}% gold from monsters")), item._iPLGoldFind);
+	case IPL_MAGICFIND:
+		return fmt::format(fmt::runtime(_("{:+d}% better chance of magic items")), item._iPLMagicFind);
+	case IPL_MOVESPEED:
+	case IPL_MOVESPEED_CURSE:
+		return fmt::format(fmt::runtime(_("{:+d}% movement speed")), item._iPLMoveSpeed);
+	case IPL_FASTCAST:
+		return fmt::format(fmt::runtime(_("{:+d}% faster cast rate")), item._iPLFastCast);
 	default:
 		return _("Another ability (NW)");
 	}
@@ -6437,8 +6481,8 @@ void PrintItemDetails(const Item &item)
 	// with the other affixes above, so this line is the plain and magic items'.
 	if (item._iIdentified && item._iPLMoveSpeed != 0 && !item.hasOracoolTier())
 		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% movement speed")), item._iPLMoveSpeed), ItemAffixColor);
-	// Faster Cast Rate the same way (2026-09-11).
-	if (item._iIdentified && item._iPLFastCast != 0 && !item.hasOracoolTier())
+	// Faster Cast Rate the same way (2026-09-11). Not on a unique, which prints it on its own power line.
+	if (item._iIdentified && item._iPLFastCast != 0 && !item.hasOracoolTier() && item._iMagical != ITEM_QUALITY_UNIQUE)
 		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% faster cast rate")), item._iPLFastCast), ItemAffixColor);
 	// Phase 1 Mystic Orbs: how many this item has taken and how many it can. The player needs to
 	// know what is left BEFORE they spend one, because applying an orb cannot be undone - an item

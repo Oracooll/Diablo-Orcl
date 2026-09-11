@@ -152,6 +152,7 @@ void ApplyRunewordToTotals(const RunewordDefinition &word, ItemBonusTotals &tota
 	totals.fireResist += word.fireResist;
 	totals.lightningResist += word.lightningResist;
 	totals.magicResist += word.magicResist;
+	totals.fastCast += word.fastCast;
 }
 
 std::string RuneTeachingLines(uint16_t runeIdx)
@@ -238,6 +239,7 @@ std::vector<std::string> RunewordBonusLines(const RunewordDefinition &word)
 	line(N_("Gold Find"), word.goldFind, "%");
 	line(N_("Damage Reduced"), word.damageReduction);
 	line(N_("Light Radius"), word.lightRadius);
+	line(N_("Faster Cast Rate"), word.fastCast, "%");
 	// The flags in the socket effects' own words ("faster attack, life steal"), capitalised as a line.
 	if (word.flags != ItemSpecialEffect::None) {
 		std::string text = FlagText(word.flags);

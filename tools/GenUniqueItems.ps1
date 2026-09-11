@@ -118,6 +118,36 @@ $lateCursEnum = @()
 $lateCursWidths = @()
 $lateCursHeights = @()
 
+# --- Faster Cast Rate, authored (2026-09-11) --------------------------------------------------------
+# User: "add FCR to uniques, sets and runewords too". The package has no cast-rate token at all, so this
+# table is where it comes from: caster pieces only - staves, circlets, amulets, rings, arcane foci and
+# relics - each with a free power slot. FIXED values, never ranges: Item::_iPLFastCast is not a stored
+# field, and the loader re-derives a unique's share from its row (RederiveFastCast in items.cpp), which
+# is only exact when the row cannot roll.
+$authoredFastCast = @{
+    UNIQUE_RAIN_OVER_BLACKSTONE = 30
+    UNIQUE_CROWNLESS_VERDICT = 20
+    UNIQUE_THE_CROOKED_MERIDIAN = 20
+    UNIQUE_THE_PALE_SURVEYOR = 20
+    UNIQUE_MOONWAKE_FOCUS = 20
+    UNIQUE_THE_UNWRITTEN_GOSPEL = 20
+    UNIQUE_SAINT_ORRA_S_LAST_THOUGHT = 15
+    UNIQUE_HALO_OF_BROKEN_HOURS = 15
+    UNIQUE_THE_FERRYMAN_S_MEMORY = 15
+    UNIQUE_RELIQUARY_OF_ONE_BREATH = 15
+    UNIQUE_THE_UNLIT_LANTERN = 15
+    UNIQUE_STONEWAKE = 10
+    UNIQUE_DIADEM_OF_THE_DROWNED_STAR = 10
+    UNIQUE_ROOKHEART_PENDANT = 10
+    UNIQUE_THE_WIDOW_S_STAR = 10
+    UNIQUE_BAND_OF_RED_WINTER = 10
+    UNIQUE_VOTIVE_RING = 10
+    UNIQUE_THE_HOLLOW_WEDDING = 10
+    UNIQUE_LEDGER_OF_LAST_WORDS = 10
+    UNIQUE_STONE_OF_QUIET_THUNDER = 10
+}
+$fastCastUsed = New-Object System.Collections.Generic.HashSet[string]
+
 # --- walk the items --------------------------------------------------------------------------------
 $rows = @()
 $skippedNoBase = @{}
@@ -198,7 +228,7 @@ foreach ($it in $pkg.items) {
         "IPL_ACP", "IPL_DAMP", "IPL_TOHIT", "IPL_DAMMOD", "IPL_LIFE", "IPL_MANA",
         "IPL_STR", "IPL_MAG", "IPL_DEX", "IPL_VIT", "IPL_ATTRIBS",
         "IPL_FIRERES", "IPL_LIGHTRES", "IPL_MAGICRES", "IPL_ALLRES",
-        "IPL_LIGHT", "IPL_DUR", "IPL_SPLLVLADD"
+        "IPL_LIGHT", "IPL_DUR", "IPL_SPLLVLADD", "IPL_FASTCAST"
     )
     $merged = @()
     foreach ($p in $powers) {
@@ -210,6 +240,13 @@ foreach ($it in $pkg.items) {
         } else {
             $merged += $p
         }
+    }
+    # The authored cast rate, after the package's own affixes and before the icon.
+    if ($authoredFastCast.ContainsKey($it.id)) {
+        $fcr = [int]$authoredFastCast[$it.id]
+        $merged += [pscustomobject]@{ P = "IPL_FASTCAST"; V1 = $fcr; V2 = $fcr }
+        [void]$fastCastUsed.Add($it.id)
+        $liveAffixes++
     }
     $powers = @($merged | ForEach-Object { "{ $($_.P), $($_.V1), $($_.V2) }" })
 
@@ -267,6 +304,9 @@ foreach ($it in $pkg.items) {
 }
 
 # --- report ----------------------------------------------------------------------------------------
+$missingFastCast = @($authoredFastCast.Keys | Where-Object { -not $fastCastUsed.Contains($_) })
+if ($missingFastCast.Count -gt 0) { throw "authored Faster Cast Rate names items that were not emitted: $($missingFastCast -join ', ')" }
+Write-Host "faster cast rate: authored on $($fastCastUsed.Count) uniques"
 if ($emptyItems.Count -gt 0) {
     throw "these items compile to NO working affix at all: $($emptyItems -join ', ')"
 }

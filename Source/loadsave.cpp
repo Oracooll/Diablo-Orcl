@@ -466,16 +466,9 @@ void LoadItemData(LoadHelper &file, Item &item)
 		else if (affix.type == IPL_MOVESPEED_CURSE)
 			item._iPLMoveSpeed -= affix.param1;
 	}
-	// Faster Cast Rate the same way (2026-09-11 - see TryAddFasterCastToDrop).
-	item._iPLFastCast = 0;
-	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
-		if (affix.type == IPL_FASTCAST)
-			item._iPLFastCast += affix.param1;
-	}
-	for (const OracoolAffix &affix : item._iOracoolSuffixes) {
-		if (affix.type == IPL_FASTCAST)
-			item._iPLFastCast += affix.param1;
-	}
+	// Faster Cast Rate the same way, plus a unique's own share from its row (2026-09-11 - see
+	// RederiveFastCast). _iMagical and _iUid were read above.
+	RederiveFastCast(item);
 
 	// Megaplan Phase 1 sockets (OracoolItemFormatVersion 3+): count plus one gem/rune base-item
 	// index per slot, EmptySocket for a hole. Clamped on read like every other extension field.

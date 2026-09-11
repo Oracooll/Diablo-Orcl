@@ -52,13 +52,14 @@ struct UniqueAffixMapping {
 };
 
 /**
- * @brief Every token the 250 items use (43), plus two the registry documents that no item uses yet.
+ * @brief Every token the 250 items use (43), plus two the registry documents that no item uses yet,
+ * plus faster_cast_rate_percent, which the generator's own table authors (2026-09-11).
  *
  * `life_steal_percent` and `mana_steal_percent` are in AFFIX_IMPLEMENTATION.md's stock table but
  * appear on none of the 250. They are mapped here anyway, with the 3-or-5 trap recorded, so the
  * next batch cannot rediscover it the hard way.
  */
-constexpr size_t UniqueAffixMappingCount = 45;
+constexpr size_t UniqueAffixMappingCount = 46;
 
 extern DVL_API_FOR_TEST const UniqueAffixMapping UniqueAffixMappings[UniqueAffixMappingCount];
 

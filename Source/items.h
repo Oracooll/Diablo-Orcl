@@ -1166,6 +1166,13 @@ void TryMakeDroppedItemEthereal(Item &item);
 void TryAddMovementSpeedToDrop(Item &item);
 /** @brief Oracool: the drop tail's Faster Cast Rate +X% roll, one caster's piece in twelve, into the item's own affix record. */
 void TryAddFasterCastToDrop(Item &item);
+/** @brief Oracool: the Faster Cast Rate percent unique @p uid's own row grants (fixed, never rolled); 0 for none or an invalid id. */
+int UniqueItemFastCast(int uid);
+/**
+ * @brief Oracool: rebuilds Item::_iPLFastCast, which is not stored, from the item's affix records and - for
+ * a unique - its own row. The load path's answer (2026-09-11).
+ */
+void RederiveFastCast(Item &item);
 /** @brief Phase 1: Magic/Gold Find consumption - scales dropped gold by _pGoldFind and gives
  * plain equipment a _pMagicFind% chance to upgrade to a Rare-tier roll. Drop tail only. */
 void ApplyMagicAndGoldFindToDrop(Item &item, int mLevel);

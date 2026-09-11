@@ -164,12 +164,13 @@ function Get-Name([int]$seed) {
 # Channels: flags (FasterAttack, FastAttack, StealLife5, StealMana5, Knockback, Thorns,
 # TripleDemonDamage, FastBlock, FasterHitRecovery), str/dex/mag/vit, mf/gf (percent), dr (flat
 # damage reduction), light, fire/light/magic (single resistances), and the first half's spell
-# levels where D2 gave "+N to all skills".
+# levels where D2 gave "+N to all skills". And fcr, Faster Cast Rate percent (2026-09-11, user: "add FCR
+# to uniques, sets and runewords too"), on the words D2 itself gave cast rate to.
 $signature = @{
     'Steel'              = @{ flags = 'FasterAttack'; light = 1 }
     'Nadir'              = @{ str = 5; dr = 3; gf = -33 }
     'Malice'             = @{ dmgModPlus = 9; drainLife = $true }
-    'Stealth'            = @{ dex = 6; flags = 'FasterHitRecovery'; magic = 3 }
+    'Stealth'            = @{ dex = 6; flags = 'FasterHitRecovery'; magic = 3; fcr = 25 }
     'Leaf'               = @{ spell = 1; fire = 15; mag = 5 }
     'Zephyr'             = @{ flags = 'FasterAttack'; light = 25; lightRes = 20 }
     "Ancient's Pledge"   = @{ fire = 10; lightRes = 10; magicRes = 10 }
@@ -181,9 +182,9 @@ $signature = @{
     'Peace'              = @{ spell = 1; flags = 'FasterHitRecovery'; dex = 5 }
     'Myth'               = @{ spell = 1; flags = 'FasterHitRecovery'; str = 5; gf = 30 }
     'Black'              = @{ flags = 'Knockback, FasterAttack'; vit = 10; dr = 2 }
-    'White'              = @{ spell = 2; vit = 10; dr = 4; mana = 13 }
+    'White'              = @{ spell = 2; vit = 10; dr = 4; mana = 13; fcr = 20 }
     'Smoke'              = @{ flags = 'FasterHitRecovery'; mag = 10; dr = 5; light = -1 }
-    'Splendor'           = @{ spell = 1; flags = 'FastBlock'; mf = 20; light = 3 }
+    'Splendor'           = @{ spell = 1; flags = 'FastBlock'; mf = 20; light = 3; fcr = 10 }
     'Lionheart'          = @{ str = 25; mag = 10; vit = 20; dex = 15 }
     'Melody'             = @{ flags = 'FasterAttack, Knockback'; dex = 10; spell = 1 }
     'Lawbringer'         = @{ flags = 'Knockback, StealLife5'; fire = 15; lightRes = 15 }
@@ -201,21 +202,21 @@ $signature = @{
     'Kingslayer'         = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 30; str = 10 }
     'Rift'               = @{ flags = 'StealMana5'; fire = 20; lightRes = 20; mag = 10 }
     'Oath'               = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 40; magicRes = 15 }
-    'Spirit'             = @{ spell = 2; flags = 'FastBlock, FasterHitRecovery'; vit = 22; mag = 15; mf = 20 }
+    'Spirit'             = @{ spell = 2; flags = 'FastBlock, FasterHitRecovery'; vit = 22; mag = 15; mf = 20; fcr = 30 }
     'Beast'              = @{ flags = 'FasterAttack, StealLife5'; str = 25; dmgModPlus = 40 }
     'Enlightenment'      = @{ spell = 2; mag = 20; fire = 20; light = 3 }
-    'Obedience'          = @{ flags = 'FasterAttack'; dmgModPlus = 40; fire = 20; lightRes = 20; magicRes = 20 }
+    'Obedience'          = @{ flags = 'FasterAttack'; dmgModPlus = 40; fire = 20; lightRes = 20; magicRes = 20; fcr = 40 }
     'Venom'              = @{ flags = 'StealMana5, Knockback'; dmgModPlus = 35 }
     'Wrath'              = @{ flags = 'TripleDemonDamage, StealLife5'; dmgModPlus = 40; magicRes = 15 }
     'Exile'              = @{ flags = 'FastBlock, StealLife5, Thorns'; vit = 15; dr = 10 }
     'Famine'             = @{ flags = 'FasterAttack, StealLife5'; dmgModPlus = 50; fire = 15; lightRes = 15 }
     'Gospel'             = @{ spell = 1; mag = 10; vit = 10; gf = 100 }
     'Hand of Justice'    = @{ flags = 'FasterAttack, StealLife5'; fire = 20; dmgModPlus = 45 }
-    'Heart of the Oak'   = @{ spell = 3; mag = 20; vit = 15; fire = 20; lightRes = 20; magicRes = 20 }
+    'Heart of the Oak'   = @{ spell = 3; mag = 20; vit = 15; fire = 20; lightRes = 20; magicRes = 20; fcr = 40 }
     'Pride'              = @{ flags = 'TripleDemonDamage'; dmgModPlus = 50; str = 15; light = 3 }
     'Dragon'             = @{ fire = 30; str = 10; vit = 10; dr = 10 }
     'Dream'              = @{ spell = 2; lightRes = 30; mag = 15; mf = 25; flags = 'FasterHitRecovery' }
-    'Insight'            = @{ spell = 2; mag = 25; mana = 40; flags = 'FasterAttack' }
+    'Insight'            = @{ spell = 2; mag = 25; mana = 40; flags = 'FasterAttack'; fcr = 35 }
     'Harmony'            = @{ flags = 'FasterAttack, Knockback'; dex = 15; fire = 10; lightRes = 10 }
     'Ice'                = @{ flags = 'FasterAttack, Knockback'; dmgModPlus = 40; magicRes = 25 }
     'Faith'              = @{ flags = 'FasterAttack, StealLife5'; dex = 20; spell = 1; dmgModPlus = 35 }
@@ -273,7 +274,7 @@ function New-Row($name, $hostId, $positions) {
         'Boots' { $ac = $unit * 2; $life = $unit; $res = [Math]::Min(25, [int]($unit * 0.6)) }
     }
     # The second half.
-    $x = @{ flags = @(); str = 0; dex = 0; mag = 0; vit = 0; mf = 0; gf = 0; dr = 0; light = 0; fire = 0; lightRes = 0; magicRes = 0 }
+    $x = @{ flags = @(); str = 0; dex = 0; mag = 0; vit = 0; mf = 0; gf = 0; dr = 0; light = 0; fire = 0; lightRes = 0; magicRes = 0; fcr = 0 }
     $apply = {
         param($extra)
         foreach ($k in $extra.Keys) {
@@ -283,6 +284,7 @@ function New-Row($name, $hostId, $positions) {
                 'str' { $x.str += $v } 'dex' { $x.dex += $v } 'mag' { $x.mag += $v } 'vit' { $x.vit += $v }
                 'mf' { $x.mf += $v } 'gf' { $x.gf += $v } 'dr' { $x.dr += $v } 'light' { $x.light += $v }
                 'fire' { $x.fire += $v } 'lightRes' { $x.lightRes += $v } 'magicRes' { $x.magicRes += $v }
+                'fcr' { $x.fcr += $v }
                 'spell' { $script:spellExtra += $v }
                 'mana' { $script:manaExtra += $v }
                 'dmgModPlus' { $script:dmgModExtra += $v }
@@ -310,9 +312,9 @@ function New-Row($name, $hostId, $positions) {
     $spell += $script:spellExtra; $mana += $script:manaExtra; $dmgMod += $script:dmgModExtra
     $flagList = @($x.flags | Select-Object -Unique)
     $flagText = if ($flagList.Count -eq 0) { 'ItemSpecialEffect::None' } else { ($flagList | ForEach-Object { "ItemSpecialEffect::$_" }) -join ' | ' }
-    return ("`t{{ N_(`"{0}`"), static_cast<uint8_t>(RunewordHost::{1}), {2}, {{ {3} }}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17}, {18}, {19}, {20}, {21}, {22}, {23} }}, // deepest {24}" -f `
+    return ("`t{{ N_(`"{0}`"), static_cast<uint8_t>(RunewordHost::{1}), {2}, {{ {3} }}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}, {16}, {17}, {18}, {19}, {20}, {21}, {22}, {23}, {24} }}, // deepest {25}" -f `
             $name, $hostId, $len, ($runeList -join ', '), $dmgPct, $dmgMod, $toHit, $res, $ac, $spell, $mana, $life, `
-            $flagText, $x.str, $x.dex, $x.mag, $x.vit, $x.mf, $x.gf, $x.dr, $x.light, $x.fire, $x.lightRes, $x.magicRes, $script:ladder[$deepest])
+            $flagText, $x.str, $x.dex, $x.mag, $x.vit, $x.mf, $x.gf, $x.dr, $x.light, $x.fire, $x.lightRes, $x.magicRes, $x.fcr, $script:ladder[$deepest])
 }
 
 function Get-SequenceKey($hostId, $positions) { return "$hostId|" + ($positions -join ',') }

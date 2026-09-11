@@ -3744,7 +3744,7 @@ TEST(OracoolItemSets, EveryDeliveredKeywordHasAMapping)
 	// hold is that nothing delivered is MISSING, and that additions are counted rather than drifting.
 	EXPECT_GE(oracool::SetStatMappingCount, std::size(DeliveredSetStatKeywords))
 	    << "a delivered keyword lost its row";
-	EXPECT_EQ(oracool::SetStatMappingCount - std::size(DeliveredSetStatKeywords), 9u)
+	EXPECT_EQ(oracool::SetStatMappingCount - std::size(DeliveredSetStatKeywords), 10u)
 	    << "the fork's own keyword count changed - if that is deliberate, update this number and "
 	    << "the note in item_set_stats.h";
 }
@@ -11414,4 +11414,71 @@ TEST(OracoolShop, VanillaButtonArtLoadsFromTheGameArchive)
 	EXPECT_EQ((*sprites)[0].width(), 112);
 	EXPECT_EQ((*sprites)[0].height(), 28);
 	EXPECT_TRUE(oracool::ShopVanillaButtonArtLoaded()) << "the file is there but the shop's loader refused it";
+}
+
+// Faster Cast Rate on uniques, set rungs and runewords (user, 2026-09-11: "add FCR to uniques, sets and
+// runewords too"). None of the delivered data had a cast-rate stat, so every source here is authored.
+TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
+{
+	// Uniques: fixed values only, because loading re-derives a unique's share from its row.
+	int uniquesWithFcr = 0;
+	int someUid = -1;
+	int someValue = 0;
+	for (size_t uid = 0; uid < UniqueItemCount; uid++) {
+		const UniqueItem &unique = UniqueItems[uid];
+		for (int i = 0; i < unique.UINumPL; i++) {
+			if (unique.powers[i].type != IPL_FASTCAST)
+				continue;
+			uniquesWithFcr++;
+			EXPECT_EQ(unique.powers[i].param1, unique.powers[i].param2) << unique.UIName << " rolls its cast rate; the load path could not re-derive it";
+			EXPECT_GT(unique.powers[i].param1, 0) << unique.UIName;
+			someUid = static_cast<int>(uid);
+			someValue = unique.powers[i].param1;
+		}
+	}
+	EXPECT_EQ(uniquesWithFcr, 20) << "tools/GenUniqueItems.ps1 authors it on twenty caster pieces";
+	ASSERT_GE(someUid, 0);
+	EXPECT_EQ(UniqueItemFastCast(someUid), someValue);
+
+	// A saved unique comes back with it: the loader zeroes the field and asks RederiveFastCast.
+	devilution::Item unique {};
+	unique._iMagical = ITEM_QUALITY_UNIQUE;
+	unique._iUid = someUid;
+	RederiveFastCast(unique);
+	EXPECT_EQ(unique._iPLFastCast, someValue) << "a unique's cast rate did not survive the load path";
+	// A drop-tail record still counts, on its own.
+	devilution::Item ring {};
+	ring._iMagical = ITEM_QUALITY_MAGIC;
+	ring._iOracoolSuffixes[0] = OracoolAffix { IPL_FASTCAST, 12, 0 };
+	ring._iOracoolSuffixCount = 1;
+	RederiveFastCast(ring);
+	EXPECT_EQ(ring._iPLFastCast, 12);
+
+	// Set rungs: the four caster ladders.
+	int rungsWithFcr = 0;
+	for (const oracool::SetBonusDefinition &rung : oracool::ItemSetBonuses) {
+		for (const ItemPower &power : rung.powers) {
+			if (power.type == IPL_FASTCAST)
+				rungsWithFcr++;
+		}
+	}
+	EXPECT_EQ(rungsWithFcr, 4) << "the Starless Hour, the Choir of Silence, the Dawnwarden and Leoric's Court";
+
+	// Runewords: Diablo II's cast-rate words, into the totals.
+	const std::pair<const char *, int> words[] = {
+		{ "Stealth", 25 }, { "White", 20 }, { "Splendor", 10 }, { "Spirit", 30 },
+		{ "Heart of the Oak", 40 }, { "Insight", 35 }, { "Obedience", 40 },
+	};
+	for (const auto &[name, value] : words) {
+		const oracool::RunewordDefinition *found = nullptr;
+		for (size_t i = 0; i < oracool::RunewordCount(); i++) {
+			if (std::string(oracool::RunewordAt(i)->name) == name)
+				found = oracool::RunewordAt(i);
+		}
+		ASSERT_NE(found, nullptr) << name;
+		EXPECT_EQ(found->fastCast, value) << name;
+		oracool::ItemBonusTotals totals {};
+		oracool::ApplyRunewordToTotals(*found, totals);
+		EXPECT_EQ(totals.fastCast, value) << name << " did not reach the totals";
+	}
 }

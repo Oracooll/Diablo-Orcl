@@ -74,6 +74,8 @@ const SetStatMapping SetStatMappings[SetStatMappingCount] = {
 	{ "enhanced_bow_damage",                      Approx, IPL_DAMP,        "not bow-specific: applies to every attack" },
 	{ "enhanced_damage",                          Power,  IPL_DAMP,        nullptr },
 	{ "evasion",                                  Inert,  IPL_INVALID,     "no dodge roll exists; being missed is decided by the attacker's to-hit alone" },
+	// Not delivered: the fork's own (2026-09-11, user: "add FCR to uniques, sets and runewords too").
+	{ "faster_cast_rate",                         Power,  IPL_FASTCAST,    nullptr },
 	{ "final_audience_targets",                   Inert,  IPL_INVALID,     "needs Leoric's Fallen Court court-rank state" },
 	{ "fire_arrows",                              Power,  IPL_FIRE_ARROWS, nullptr },
 	{ "fire_damage",                              Power,  IPL_FIREDAM,     nullptr },

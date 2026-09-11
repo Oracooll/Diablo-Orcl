@@ -34,6 +34,9 @@ const UniqueAffixMapping UniqueAffixMappings[UniqueAffixMappingCount] = {
 	{ "durability_percent",                    Power,  IPL_DUR,         nullptr },
 	{ "enhanced_armor_percent",                Power,  IPL_ACP,         nullptr },
 	{ "enhanced_damage_percent",               Power,  IPL_DAMP,        nullptr },
+	// Not the package's: it has no cast-rate token at all. tools/GenUniqueItems.ps1 authors it onto twenty
+	// caster pieces (2026-09-11, user: "add FCR to uniques, sets and runewords too").
+	{ "faster_cast_rate_percent",              Power,  IPL_FASTCAST,    nullptr },
 	{ "fire_damage",                           Power,  IPL_FIREDAM,     nullptr },
 	{ "fire_resist",                           Power,  IPL_FIRERES,     nullptr },
 	// The one place the package's own column is wrong, and it is on 109 of the 250 items.

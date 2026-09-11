@@ -87,6 +87,8 @@ struct RunewordDefinition {
 	int fireResist;
 	int lightningResist;
 	int magicResist;
+	/** @brief Faster Cast Rate, percent (2026-09-11) - Diablo II's cast-rate words carry it. */
+	int fastCast;
 };
 
 /**

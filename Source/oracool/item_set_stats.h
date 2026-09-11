@@ -60,7 +60,7 @@ struct SetStatMapping {
 };
 
 /**
- * @brief Every keyword the sets use - the 107 delivered, plus nine this fork added.
+ * @brief Every keyword the sets use - the 107 delivered, plus ten this fork added.
  *
  * The nine are channels the ENGINE already had and this table had simply never named: all
  * attributes at once, armour against demons/undead, fire and lightning and multiple arrows, half
@@ -68,8 +68,10 @@ struct SetStatMapping {
  * in mechanics this engine cannot do, and the rungs had to be re-authored out of things it can -
  * see item_set_bonus_overrides.txt. Adding a keyword is the intended way to widen that palette;
  * inventing a number for an inert one is not.
+ *
+ * The tenth, faster_cast_rate (2026-09-11), is a channel the fork added itself: IPL_FASTCAST.
  */
-constexpr size_t SetStatMappingCount = 116;
+constexpr size_t SetStatMappingCount = 117;
 
 extern DVL_API_FOR_TEST const SetStatMapping SetStatMappings[SetStatMappingCount];
 

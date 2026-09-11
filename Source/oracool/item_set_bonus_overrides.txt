@@ -44,6 +44,10 @@
 #     the flag's presence is the whole effect. Granting one twice in a ladder grants it once.
 #
 # Re-run tools/GenItemSets.ps1 after editing.
+#
+# faster_cast_rate (2026-09-11, user: "add FCR to uniques, sets and runewords too") rides the four caster
+# ladders - the Starless Hour, the Choir of Silence, the Dawnwarden and Leoric's Court - each on a rung
+# that had a stat slot free, so no rung lost anything to make room for it.
 
 # --- Vestments of the Ashen Saint (6 pieces) - fire, ash, reliquary -------------------------------
 # Only the four-piece was empty; the rest of this ladder survived intact.
@@ -76,7 +80,7 @@ SET_IRON_ROOT             | 7  | max_life:+60, all_attributes:+10, damage_taken_
 # --- Raiment of the Starless Hour (5 pieces) - darkness, mana, sight ------------------------------
 # The light_radius penalty is KEPT: seeing less is the set's whole conceit. It is now paid for.
 SET_STARLESS_HOUR         | 3  | magic:+10, max_mana:+30, light_radius:-1
-SET_STARLESS_HOUR         | 4  | all_spell_levels:+1, magic:+12
+SET_STARLESS_HOUR         | 4  | all_spell_levels:+1, magic:+12, faster_cast_rate:+20
 SET_STARLESS_HOUR         | 5  | all_spell_levels:+1, max_mana:+50, resist_all:+15, mana_steal:5
 
 # --- The Rat King's Tithe (4 pieces) - greed, scavenging ------------------------------------------
@@ -118,7 +122,7 @@ SET_CRIMSON_COMPACT       | 5  | life_steal:5, enhanced_damage:+35, all_attribut
 # damage_vs_undead has no channel, but armour AGAINST undead does, and it is the same fantasy from
 # the other side: the dawn holds them off.
 SET_DAWNWARDEN_RELIQUARY  | 3  | armor_vs_undead:true, chance_to_hit:+15
-SET_DAWNWARDEN_RELIQUARY  | 4  | resist_all:+12, light_radius:+2
+SET_DAWNWARDEN_RELIQUARY  | 4  | resist_all:+12, light_radius:+2, faster_cast_rate:+15
 SET_DAWNWARDEN_RELIQUARY  | 5  | damage_taken_flat:-3, max_life:+30
 SET_DAWNWARDEN_RELIQUARY  | 6  | damage_vs_demons:true, armor_vs_undead:true, all_spell_levels:+1, fire_damage:[10,20]
 
@@ -141,7 +145,7 @@ SET_WYRMHIDE_ARSENAL      | 8  | attack_speed:fast, enhanced_damage:+30, all_att
 
 # --- Choir of Silence (5 pieces) - silence, naves, hostile magic ----------------------------------
 SET_CHOIR_OF_SILENCE      | 3  | resist_magic:+20, resist_all:+8
-SET_CHOIR_OF_SILENCE      | 4  | damage_taken_flat:-3, mana:+30
+SET_CHOIR_OF_SILENCE      | 4  | damage_taken_flat:-3, mana:+30, faster_cast_rate:+15
 SET_CHOIR_OF_SILENCE      | 5  | resist_magic:+25, resist_all:+15, all_spell_levels:+1, mana_steal:5
 
 # --- The Lost Cartographer (4 pieces) - maps, thresholds, roads -----------------------------------
@@ -175,6 +179,6 @@ SET_LOST_CARTOGRAPHER     | 4  | all_attributes:+10, hit_recovery:fast, chance_t
 SET_LEORICS_FALLEN_COURT  | 6  | all_attributes:+8, max_life:+30
 SET_LEORICS_FALLEN_COURT  | 8  | enhanced_damage:+30, chance_to_hit:+20, damage_taken_flat:-3
 SET_LEORICS_FALLEN_COURT  | 10 | armor_class_flat:+40, resist_all:+15, life_steal:3
-SET_LEORICS_FALLEN_COURT  | 12 | all_attributes:+12, all_spell_levels:+1, max_mana:+40
+SET_LEORICS_FALLEN_COURT  | 12 | all_attributes:+12, all_spell_levels:+1, max_mana:+40, faster_cast_rate:+20
 # Eleven pieces - every one that exists. The largest reward in the game, and it should feel like it.
 SET_LEORICS_FALLEN_COURT  | 13 | all_attributes:+20, enhanced_damage:+50, attack_speed:fast, life_steal:5

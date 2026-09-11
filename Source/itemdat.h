@@ -1414,7 +1414,7 @@ constexpr size_t MaxUniqueItems = 512;
 extern DVL_API_FOR_TEST const ItemData AllItemsList[];
 extern DVL_API_FOR_TEST const PLStruct ItemPrefixes[];
 extern DVL_API_FOR_TEST const PLStruct ItemSuffixes[];
-extern const UniqueItem UniqueItems[];
+extern DVL_API_FOR_TEST const UniqueItem UniqueItems[];
 /** @brief Rows in UniqueItems, including the UITYPE_INVALID sentinel that terminates it. */
 extern DVL_API_FOR_TEST const size_t UniqueItemCount;
 
