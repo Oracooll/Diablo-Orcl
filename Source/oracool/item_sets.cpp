@@ -139,6 +139,28 @@ int BaseItemForSetSlot(string_view slot)
 	return -1;
 }
 
+int BaseItemForSetPiece(const SetItemDefinition &def)
+{
+	// The slot word alone put every main-hand piece on a Short Sword, so "Thunder's Black Pinion", a
+	// long war bow, fought as a one-handed sword, and four maces and scepters did the same (external
+	// audit, 2026-08-17). The design's base word names the family. Both carriers are IDROP_NEVER with
+	// no unique type, exactly like the Short Sword: never in a drop or shop pool and never a unique
+	// roll. Only CREATION asks this - a saved piece keeps the base it was made on.
+	//
+	// The bow is two-handed. That costs its set nothing: Stormcrow Harness has no off-hand piece,
+	// and OracoolItemSets.NoSetPromisesARungItCannotPay counts a two-hander as filling both hands.
+	if (string_view(def.slot) == "main_hand") {
+		const string_view base = def.baseType;
+		if (base.find("bow") != string_view::npos)
+			return IDI_ROGUE; // Short Bow: two-handed, ItemType::Bow
+		if (base.find("mace") != string_view::npos || base.find("scepter") != string_view::npos
+		    || base.find("censer") != string_view::npos || base.find("bell") != string_view::npos)
+			return IDI_ORACOOL_SETBASE_MACE;
+		// Falchions, the sickle and the rest of the blades stay on the sword.
+	}
+	return BaseItemForSetSlot(def.slot);
+}
+
 void MakeSetItem(Item &item, const SetItemDefinition &def)
 {
 	// The base carried the equip location and item class in; everything that makes this the named

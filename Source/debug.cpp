@@ -743,7 +743,7 @@ std::string DebugCmdGiveItemSet(const string_view parameter)
 	int noRoom = 0;
 	for (int i = 0; i < set.itemCount; i++) {
 		const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
-		const int base = oracool::BaseItemForSetSlot(def.slot);
+		const int base = oracool::BaseItemForSetPiece(def);
 		if (base < 0) {
 			noBase++;
 			continue;
@@ -799,7 +799,7 @@ std::string DebugCmdGiveSetSet(const string_view parameter)
 			// a second Helm never displaces the first.
 			if (covered.count(def.slot) > 0)
 				continue;
-			const int base = oracool::BaseItemForSetSlot(def.slot);
+			const int base = oracool::BaseItemForSetPiece(def);
 			if (base < 0)
 				continue; // no base item for that slot in this fork - giveitemset reports these
 			Item item {};

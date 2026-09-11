@@ -347,7 +347,10 @@ enum _item_indexes : int16_t { // TODO defines all indexes in AllItemsList
 	IDI_ORACOOL_UNQBASE_WAR_QUIVER,
 	IDI_ORACOOL_UNQBASE_CANTICLE,
 	IDI_ORACOOL_UNQBASE_ARCANE_FOCUS,
-	IDI_LAST = IDI_ORACOOL_UNQBASE_ARCANE_FOCUS,
+	// The mace family's carrier for main-hand SET pieces (2026-09-11) - see BaseItemForSetPiece.
+	// IDROP_NEVER and no unique type, like the Short Sword the other main-hand pieces sit on.
+	IDI_ORACOOL_SETBASE_MACE,
+	IDI_LAST = IDI_ORACOOL_SETBASE_MACE,
 	IDI_NONE = -1,
 };
 

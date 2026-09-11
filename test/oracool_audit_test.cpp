@@ -3911,7 +3911,7 @@ TEST(OracoolItemSets, EverySetPieceHasASpawnableBase)
 	for (const oracool::ItemSetDefinition &set : oracool::ItemSets) {
 		for (int i = 0; i < set.itemCount; i++) {
 			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
-			const int base = oracool::BaseItemForSetSlot(def.slot);
+			const int base = oracool::BaseItemForSetPiece(def);
 			if (base >= 0) {
 				spawnable++;
 				// A resolved base must be a real row, not a stale index - the whole point of
@@ -3949,20 +3949,25 @@ TEST(OracoolItemSets, NoSetPromisesARungItCannotPay)
 		// and grouping by the word would have hidden exactly the trap that re-slotting had to avoid:
 		// two pieces named for different slots that land in the same one and cannot be worn together.
 		std::map<int, int> buildableByLoc;
+		int twoHanders = 0;
 		for (int i = 0; i < set.itemCount; i++) {
 			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
-			const int base = oracool::BaseItemForSetSlot(def.slot);
+			const int base = oracool::BaseItemForSetPiece(def);
 			if (base < 0)
 				continue;
-			// A two-hander CONSUMES both hand slots, so it would have to subtract capacity rather
-			// than add a piece. No set base is two-handed today - main_hand resolves to a short
-			// sword - and this asserts that rather than assuming it, because the capacity model
-			// below would quietly over-count by one if it ever changed.
-			ASSERT_NE(AllItemsList[base].iLoc, ILOC_TWOHAND)
-			    << def.name << " resolves to a two-handed base; this test's slot model cannot count that";
+			// A two-hander fills BOTH hands (2026-09-11: the Stormcrow bow). Counted apart and
+			// settled below, rather than as a third kind of hand slot.
+			if (AllItemsList[base].iLoc == ILOC_TWOHAND) {
+				twoHanders++;
+				continue;
+			}
 			buildableByLoc[static_cast<int>(AllItemsList[base].iLoc)]++;
 		}
-		int wearable = 0;
+		// The hands hold EITHER up to two one-hand pieces OR one two-hander, whichever wears more of
+		// the set. A two-hander beside two one-hand pieces can therefore never raise the count.
+		const int oneHandPieces = buildableByLoc[static_cast<int>(ILOC_ONEHAND)];
+		buildableByLoc.erase(static_cast<int>(ILOC_ONEHAND));
+		int wearable = std::max(std::min(oneHandPieces, 2), twoHanders > 0 ? 1 : 0);
 		for (const auto &[loc, count] : buildableByLoc) {
 			// TWO locations hold two items: rings, and hands. A set's main_hand and off_hand
 			// pieces both resolve to ILOC_ONEHAND - a shield is a one-hand item - so counting that
@@ -3982,6 +3987,34 @@ TEST(OracoolItemSets, NoSetPromisesARungItCannotPay)
 		    << set.name << " has a rung at " << topRung << " pieces but only " << wearable
 		    << " can be worn at once - that rung is unreachable and nothing in game says so";
 	}
+}
+
+// A main-hand set piece is its designed weapon, not a sword (2026-09-11). The slot word alone put
+// all eight on a Short Sword, so a long war bow fought as a one-handed blade.
+TEST(OracoolItemSets, MainHandSetPiecesKeepTheirWeaponFamily)
+{
+	const auto familyOf = [](std::string_view name) {
+		for (const oracool::SetItemDefinition &def : oracool::ItemSetItems) {
+			if (name == def.name) {
+				const int base = oracool::BaseItemForSetPiece(def);
+				return base < 0 ? ItemType::None : AllItemsList[base].itype;
+			}
+		}
+		return ItemType::None;
+	};
+	EXPECT_EQ(familyOf("Thunder's Black Pinion"), ItemType::Bow);
+	EXPECT_EQ(familyOf("Censer of Saint Vhal"), ItemType::Mace);
+	EXPECT_EQ(familyOf("Scepter of the Hollow Litany"), ItemType::Mace);
+	EXPECT_EQ(familyOf("Morrowbell of the Last Watch"), ItemType::Mace);
+	EXPECT_EQ(familyOf("Edict of the Broken Scepter"), ItemType::Mace);
+	EXPECT_EQ(familyOf("The Opening Clause"), ItemType::Sword);
+	EXPECT_EQ(familyOf("Fang Between Seasons"), ItemType::Sword);
+	EXPECT_EQ(familyOf("Mercy of the Black Pruner"), ItemType::Sword);
+	// The carriers never drop and never roll a unique, so no saved item can rebuild onto them.
+	EXPECT_EQ(AllItemsList[IDI_ORACOOL_SETBASE_MACE].iRnd, IDROP_NEVER);
+	EXPECT_EQ(AllItemsList[IDI_ORACOOL_SETBASE_MACE].iItemId, UITYPE_NONE);
+	EXPECT_EQ(AllItemsList[IDI_ROGUE].iRnd, IDROP_NEVER);
+	EXPECT_EQ(AllItemsList[IDI_ROGUE].iItemId, UITYPE_NONE);
 }
 
 TEST(OracoolItemSets, EverySetBonusStatHasText)
@@ -4334,7 +4367,7 @@ TEST(OracoolAudit2, SetBonusesAccumulateAndNeverRegress)
 		int placed = 0;
 		for (int i = 0; i < ashen->itemCount && placed < pieces; i++) {
 			const oracool::SetItemDefinition &def = oracool::ItemSetItems[ashen->firstItem + i];
-			const int base = oracool::BaseItemForSetSlot(def.slot);
+			const int base = oracool::BaseItemForSetPiece(def);
 			if (base < 0)
 				continue; // amulet/ring/relic/cloak have no base item yet
 			devilution::Item piece {};

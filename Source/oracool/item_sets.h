@@ -156,6 +156,13 @@ void MakeSetItem(Item &item, const SetItemDefinition &def);
 int BaseItemForSetSlot(string_view slot);
 
 /**
+ * @brief The base for one set PIECE: the slot's base, except that a main-hand piece keeps its
+ * designed weapon family - a bow on a bow, a mace or scepter on a mace - instead of every one
+ * becoming a sword. What every creation path asks; BaseItemForSetSlot is the slot-only part.
+ */
+int BaseItemForSetPiece(const SetItemDefinition &def);
+
+/**
  * @brief How many pieces of @p set the player is wearing, counting equipped slots only.
  *
  * Carried pieces do not count - a set bonus is for wearing the set.

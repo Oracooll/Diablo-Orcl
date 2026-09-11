@@ -3693,7 +3693,7 @@ bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
 			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
 			if (def.requiredLevel > player._pLevel)
 				continue;
-			if (oracool::BaseItemForSetSlot(def.slot) < 0)
+			if (oracool::BaseItemForSetPiece(def) < 0)
 				continue;
 			if (alreadyStocked(def))
 				continue;
@@ -3705,7 +3705,7 @@ bool CreateSetVendorItem(const Player &player, Item &item, int lvl,
 
 	const oracool::SetItemDefinition &def = *candidates[GenerateRnd(static_cast<int>(candidates.size()))];
 	item = {};
-	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetSlot(def.slot)));
+	InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetPiece(def)));
 	oracool::MakeSetItem(item, def);
 	// The same finish every dropped set piece gets - seed, item level, base tier - so a bought piece
 	// and a found one are the same kind of object. No ethereal roll: that is drop-only, and a vendor
@@ -5309,7 +5309,7 @@ void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 			const oracool::SetItemDefinition &def = oracool::ItemSetItems[set.firstItem + i];
 			if (oracool::BandedQlvl(def.requiredLevel) > mlvl)
 				continue;
-			const int base = oracool::BaseItemForSetSlot(def.slot);
+			const int base = oracool::BaseItemForSetPiece(def);
 			if (base < 0)
 				continue;
 
