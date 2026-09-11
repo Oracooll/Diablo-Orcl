@@ -82,6 +82,7 @@
 #include "oracool/runeword_book.h"
 #include "oracool/run_toggle.h"
 #include "oracool/shop_grid.h"
+#include "oracool/ui_sound.h"
 #include "oracool/paladin_melee.h"
 #include "oracool/melee_skills.h"
 #include "oracool/rogue_arrows.h"
@@ -696,11 +697,13 @@ void LeftMouseDown(uint16_t modState)
 				MyPlayer->_pLRSpell = SpellID::Invalid;
 				MyPlayer->_pLRSplType = SpellType::Invalid;
 				oracool::ScheduleAutoSaveForSkillChange();
+				oracool::PlayUiMoveSound();
 				RedrawEverything();
 				return;
 			}
 			// The quick list, matching the RMB well - see DoPanBtn.
 			oracool::OpenSkillPicker(/*forLeftButton=*/true);
+			oracool::PlayUiMoveSound();
 			return;
 		}
 		if (!talkflag && !DropGoldFlag && !IsWithdrawGoldOpen && !gmenu_is_active())
@@ -1036,15 +1039,25 @@ void PressKey(SDL_Keycode vkey, uint16_t modState)
 	// world; the loading-screen handler already makes exactly that argument for the screenshot key
 	// in its own comment (see DisableInputEventHandler).
 	switch (vkey) {
+	// The speed keys click only when the speed moved: AdjustGameSpeed says false at either end of the
+	// band, and a click there would claim a change that did not happen.
 	case SDLK_F9:
-		oracool::AdjustGameSpeed(-1);
+		if (oracool::AdjustGameSpeed(-1))
+			oracool::PlayUiMoveSound();
 		return;
 	case SDLK_F10:
-		oracool::AdjustGameSpeed(1);
+		if (oracool::AdjustGameSpeed(1))
+			oracool::PlayUiMoveSound();
 		return;
-	case SDLK_F11:
+	case SDLK_F11: {
+		// Asked before and after, because the toggle flips a flag even with the Event Log option off,
+		// when nothing appears - and that must not click.
+		const bool wasOpen = oracool::IsEventLogOpen();
 		oracool::ToggleEventLog();
+		if (oracool::IsEventLogOpen() != wasOpen)
+			oracool::PlayUiMoveSound();
 		return;
+	}
 	case SDLK_F12:
 		// In play. The engine already caught F12 during LOADING screens, but the in-game binding was
 		// PrintScreen alone - so the one key the user expects did nothing for the whole game.
@@ -2537,7 +2550,10 @@ void InitKeymapActions()
 	    N_("Toggle run"),
 	    N_("Switch between walking and running."),
 	    'R',
-	    [] { oracool::ToggleRun(); },
+	    [] {
+		    oracool::ToggleRun();
+		    oracool::PlayUiMoveSound();
+	    },
 	    nullptr,
 	    CanPlayerTakeAction);
 	// Oracool: user request (2026-08-20) - the runeword book. A KEY rather than a burger-menu entry
@@ -2553,7 +2569,15 @@ void InitKeymapActions()
 	    N_("Runeword book"),
 	    N_("Open the runeword reference."),
 	    'W',
-	    [] { oracool::ToggleRunewordBook(); },
+	    [] {
+		    oracool::ToggleRunewordBook();
+		    // The key's click, here rather than in the toggle: the burger menu's Runeword Book entry
+		    // calls the same toggle and sounds on its own.
+		    if (oracool::IsRunewordBookOpen())
+			    oracool::PlayUiSelectSound();
+		    else
+			    oracool::PlayUiMoveSound();
+	    },
 	    nullptr,
 	    CanPlayerTakeAction);
 	// The three skill keys (user, 2026-09-05): A for the left quick list, S for the right one, D
@@ -2569,6 +2593,7 @@ void InitKeymapActions()
 			    oracool::CloseSkillPicker();
 		    else
 			    oracool::OpenSkillPicker(/*forLeftButton=*/true);
+		    oracool::PlayUiMoveSound();
 	    },
 	    nullptr,
 	    CanPlayerTakeAction);
@@ -2582,6 +2607,7 @@ void InitKeymapActions()
 			    oracool::CloseSkillPicker();
 		    else
 			    oracool::OpenSkillPicker(/*forLeftButton=*/false);
+		    oracool::PlayUiMoveSound();
 	    },
 	    nullptr,
 	    CanPlayerTakeAction);

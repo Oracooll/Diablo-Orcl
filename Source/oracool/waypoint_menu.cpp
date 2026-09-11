@@ -18,6 +18,7 @@
 #include "levels/gendung.h"
 #include "multi.h"
 #include "oracool/hud_art.h"
+#include "oracool/ui_sound.h"
 #include "player.h"
 #include "quests.h"
 #include "utils/language.h"
@@ -426,6 +427,8 @@ void CheckWaypointMenuClick(Point mousePosition)
 	if (!IsWaypointUnlocked(entry))
 		return; // locked entry - no-op
 
+	// Travelling and "already there" are both a row chosen, and both close the list.
+	PlayUiSelectSound();
 	CloseWaypointMenu();
 
 	// Oracool: entry index doubles as the destination dungeon level (0 = town), matching

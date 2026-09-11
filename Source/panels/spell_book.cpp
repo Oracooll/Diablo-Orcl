@@ -29,6 +29,7 @@
 #include "oracool/oracool.h"
 #include "oracool/ornate_border.h"
 #include "oracool/skill_picker.h" // the quick lists bind F-keys too
+#include "oracool/ui_sound.h"
 #include "panels/spell_icons.hpp"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -1448,6 +1449,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 				me._pAuraHotKey[slot] = static_cast<uint16_t>(aura);
 			}
 			oracool::ScheduleAutoSaveForSkillChange();
+			oracool::PlayUiMoveSound(); // bound or unbound - either way the key moved
 			RedrawEverything();
 			return true;
 		}
@@ -1457,6 +1459,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 			return true; // over an attack or no cell at all - nothing a hotkey can hold
 		BindAbilityHotkey(me, slot, spell, forLeft);
 		oracool::ScheduleAutoSaveForSkillChange();
+		oracool::PlayUiMoveSound();
 		RedrawEverything();
 		return true;
 	}
@@ -1473,6 +1476,7 @@ bool HandleAbilityFKey(size_t slot, bool shift)
 		// were the last readied-skill state with no save trigger, hence the schedule below.
 		BindAbilityHotkey(me, slot, spell, forLeft);
 		oracool::ScheduleAutoSaveForSkillChange();
+		oracool::PlayUiMoveSound();
 		RedrawEverything();
 		return true;
 	}
@@ -1942,6 +1946,7 @@ void CheckSBook(bool assignToRightButton)
 			if (GetArrowRect(direction).contains(MousePosition)) {
 				CycleAbilitySheet(direction);
 				PressedArrow = direction;
+				oracool::PlayUiMoveSound();
 				RedrawEverything();
 				return;
 			}
@@ -1986,6 +1991,7 @@ void CheckSBook(bool assignToRightButton)
 						if (ArmedPassiveSlot == slot)
 							ArmedPassiveSlot = -1;
 						CalcPlrInv(me, false);
+						oracool::PlayUiMoveSound();
 						RedrawEverything();
 					}
 					return;
@@ -1993,6 +1999,10 @@ void CheckSBook(bool assignToRightButton)
 				// Clicking the armed slot again puts the gesture down. Without this the only way
 				// out of a half-finished action would be to complete it.
 				ArmedPassiveSlot = (ArmedPassiveSlot == slot) ? -1 : slot;
+				if (ArmedPassiveSlot >= 0)
+					oracool::PlayUiSelectSound();
+				else
+					oracool::PlayUiMoveSound();
 				RedrawEverything();
 				return;
 			}
@@ -2005,6 +2015,7 @@ void CheckSBook(bool assignToRightButton)
 				const int slot = oracool::PassiveSlotOf(me, *cell);
 				if (slot >= 0 && oracool::ClearPassiveSlot(me, slot)) {
 					CalcPlrInv(me, false);
+					oracool::PlayUiMoveSound();
 					RedrawEverything();
 				}
 				return;
@@ -2033,6 +2044,7 @@ void CheckSBook(bool assignToRightButton)
 			if (const int already = oracool::PassiveSlotOf(me, *cell); already >= 0) {
 				if (oracool::ClearPassiveSlot(me, already)) {
 					CalcPlrInv(me, false);
+					oracool::PlayUiMoveSound(); // an emptying, like the right-click above
 					RedrawEverything();
 				}
 				return;
@@ -2040,6 +2052,7 @@ void CheckSBook(bool assignToRightButton)
 			if (oracool::SetPassiveSlot(me, ArmedPassiveSlot, *cell)) {
 				ArmedPassiveSlot = -1;
 				CalcPlrInv(me, false);
+				oracool::PlayUiSelectSound();
 				RedrawEverything();
 			}
 			return;
@@ -2081,6 +2094,10 @@ void CheckSBook(bool assignToRightButton)
 			// The whole of "make it take effect": the aura provider and every ladder read the
 			// investment on the next totals walk.
 			CalcPlrInv(*MyPlayer, false);
+			// A refund's click is here. An invest sounds inside InvestClassTreePoint instead, because
+			// only it knows whether the skill's own learn cue rang.
+			if (assignToRightButton)
+				oracool::PlayUiMoveSound();
 			RedrawEverything();
 			return;
 		}
@@ -2142,6 +2159,7 @@ void CheckSBook(bool assignToRightButton)
 		player._pLRSplType = st;
 		oracool::ScheduleAutoSaveForSkillChange();
 	}
+	oracool::PlayUiSelectSound();
 	RedrawEverything();
 }
 

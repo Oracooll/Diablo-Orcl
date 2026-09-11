@@ -45,7 +45,10 @@ void DrawWindowCloseButtonStyled(const Surface &out, const Rectangle &button, ui
 
 /** @brief True when @p mousePosition is on @p window's close button. The caller closes itself -
  * this helper deliberately does not know how, so it works for every window regardless of what
- * closing one involves. */
+ * closing one involves.
+ *
+ * It DOES play the close click (IS_TITLEMOV) when it returns true, because every caller closes on
+ * true. So it is a click handler, not a hit test: never ask it from a hover or a draw. */
 bool CheckWindowCloseButtonClick(const Rectangle &window, Point mousePosition);
 
 } // namespace devilution::oracool

@@ -88,7 +88,10 @@ void DrawBeltButtonFeedback(const Surface &out);
  * (CheckPlrSpell/LeftMouseCmd) since a fixed belt button has no cursor world-tile to target.
  * Reuses the same CMD_SPELLXY wire command the normal cast path uses, so player.cpp's existing
  * handler needs no changes. No-op in town (nothing to portal from) or multiplayer.
+ *
+ * @return whether the cast was sent - false for those two no-ops, so the belt cell can give its
+ * refusal a click (the cast itself sounds as the spell).
  */
-void CastTownPortalAtFeet();
+bool CastTownPortalAtFeet();
 
 } // namespace devilution::oracool

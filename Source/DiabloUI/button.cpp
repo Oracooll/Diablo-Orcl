@@ -1,6 +1,7 @@
 #include "DiabloUI/button.h"
 
 #include "DiabloUI/diabloui.h"
+#include "effects.h"
 #include "engine/clx_sprite.hpp"
 #include "engine/load_clx.hpp"
 #include "engine/load_pcx.hpp"
@@ -58,6 +59,9 @@ bool HandleMouseEventButton(const SDL_Event &event, UiButton *button)
 			// arms it. Safe to require two here because this dialog's own loop already ends on Enter
 			// or Escape (see DialogLoop), so an error box can never become hard to dismiss.
 			if (!UiClickArms(button)) {
+				// The arming click sounds like the lists' (diabloui.cpp's UiFocus): it moved the
+				// selection. effects_play_sound, as UiPlayMoveSound does - PlaySFX needs a player.
+				effects_play_sound(IS_TITLEMOV);
 				button->Release();
 				return true;
 			}

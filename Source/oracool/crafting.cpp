@@ -747,6 +747,24 @@ int FirstReadyLevskiRecipe(const Item *grid)
 	return best;
 }
 
+// The transmute's two refusals - answers that consumed nothing. Written once, here, because Levski's
+// window has to tell them from a transmute that made something (it sounds only for the latter), and
+// comparing against a second copy of the words would break the day either was reworded.
+std::string NoRoomToFreeStones()
+{
+	return std::string(_("not enough room to free the stones"));
+}
+
+std::string NoRoomForResult()
+{
+	return std::string(_("not enough room for the result"));
+}
+
+bool IsTransmuteRefusal(const std::string &result)
+{
+	return result == NoRoomToFreeStones() || result == NoRoomForResult();
+}
+
 std::string TransmuteLevskiGrid(Item *grid)
 {
 	return TransmuteLevskiGridWith(grid, -1);
@@ -802,7 +820,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			after.push_back(stone);
 		}
 		if (!LevskiGridCanHold(after.data(), static_cast<int>(after.size())))
-			return std::string(_("not enough room to free the stones"));
+			return NoRoomToFreeStones();
 
 		std::string freed;
 		int placed = 0;
@@ -1002,7 +1020,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 	// button appeared to do nothing at all - which is the ambiguity this fork has now shipped
 	// three times. The other no-room path below already returns this same message.
 	if (GridRoomAfter(consumedGrid, {}) < 1)
-		return std::string(_("not enough room for the result"));
+		return NoRoomForResult();
 
 	_item_indexes output = IDI_NONE;
 	switch (recipe) {
@@ -1051,7 +1069,7 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		InitializeItem(produced, output);
 		after.push_back(produced);
 		if (!LevskiGridCanHold(after.data(), static_cast<int>(after.size())))
-			return std::string(_("not enough room for the result"));
+			return NoRoomForResult();
 	}
 
 	// Unit-accurate, not slot-accurate. Audit finding, 2026-08-26: this cleared every material SLOT

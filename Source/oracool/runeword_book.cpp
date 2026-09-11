@@ -19,6 +19,7 @@
 #include "oracool/hud_menu.h"
 #include "oracool/ornate_border.h"
 #include "oracool/runewords.h"
+#include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 #include "player.h"
 #include "qol/stash.h"
@@ -509,6 +510,7 @@ bool HandleRunewordBookClick(Point position)
 
 	if (GetWindowCloseButtonRect(window).contains(position)) {
 		CloseRunewordBook();
+		PlayUiMoveSound(); // its own hit test, so no click from CheckWindowCloseButtonClick
 		return true;
 	}
 
@@ -521,6 +523,7 @@ bool HandleRunewordBookClick(Point position)
 			PossibleMode = true;
 		}
 		ScrollOffsetPx = 0;
+		PlayUiMoveSound();
 		return true;
 	}
 
@@ -528,6 +531,7 @@ bool HandleRunewordBookClick(Point position)
 		if (SlotKeyRect(i).contains(position)) {
 			SlotSelected[i] = !SlotSelected[i];
 			ScrollOffsetPx = 0;
+			PlayUiMoveSound();
 			return true;
 		}
 	}
@@ -537,6 +541,7 @@ bool HandleRunewordBookClick(Point position)
 			RuneSelected[i] = !RuneSelected[i];
 			PossibleMode = false; // a hand-picked rune asks "requires", whatever the toggle had selected
 			ScrollOffsetPx = 0;
+			PlayUiMoveSound();
 			return true;
 		}
 	}

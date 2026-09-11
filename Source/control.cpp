@@ -52,6 +52,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/shop_grid.h"
 #include "oracool/crafting_menu.h"
+#include "oracool/ui_sound.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h"
 #include "panels/charpanel.hpp"
@@ -1123,12 +1124,14 @@ void DoPanBtn()
 			// Same omission the skill picker had (audit, 2026-08-26): the shortcut that CLEARS the
 			// button was the one route to a readied-skill change that never asked to be saved.
 			oracool::ScheduleAutoSaveForSkillChange();
+			oracool::PlayUiMoveSound();
 			return;
 		}
 		// The quick list, not the Abilities window (user, 2026-08-18): clicking a well is how the
 		// basic attack goes onto that button. The Abilities window keeps the S key and the burger
 		// menu, which is where everything that has to be EARNED is chosen.
 		oracool::OpenSkillPicker(/*forLeftButton=*/false);
+		oracool::PlayUiMoveSound();
 		gamemenu_off();
 	}
 }
@@ -1453,6 +1456,12 @@ bool CheckUnspentPointsFrameClick(Point position)
 	if (!IsUnspentPointsFrameVisible() || !GetUnspentPointsFrameRect().contains(position))
 		return false;
 	ToggleAbilitiesWindow();
+	// Here, not in ToggleAbilitiesWindow: the burger menu's entry reaches the same toggle and has
+	// already sounded by the time it returns.
+	if (sbookflag)
+		oracool::PlayUiSelectSound();
+	else
+		oracool::PlayUiMoveSound();
 	return true;
 }
 

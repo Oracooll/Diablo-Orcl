@@ -21,6 +21,7 @@
 #include "oracool/item_tint.h"
 #include "oracool/ornate_border.h"
 #include "oracool/shop_tabs.h"
+#include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 #include "utils/format_int.hpp"
 #include "utils/utf8.hpp" // DecodeFirstUtf8CodePoint - vertical labels split by code point, not byte
@@ -676,6 +677,7 @@ bool CheckShopTabColumnClick(Point position)
 		if (tabs[i] != stextflag) {
 			StartStore(tabs[i]);
 			ResetShopGridSelection();
+			PlayUiMoveSound();
 		}
 		return true;
 	}
@@ -880,6 +882,7 @@ bool CheckShopGridClick(Point position, bool rightClick)
 		// Out of the shop entirely, not back to the vendor's dialog - the X on every other Oracool
 		// window closes the window, and the tabs are how you move between shop screens.
 		stextflag = TalkID::None;
+		PlayUiMoveSound(); // its own hit test, so it does not get CheckWindowCloseButtonClick's click
 		return true;
 	}
 	{
@@ -904,6 +907,7 @@ bool CheckShopGridClick(Point position, bool rightClick)
 						break;
 					}
 				}
+				PlayUiMoveSound();
 				return true;
 			}
 		}
@@ -955,6 +959,9 @@ bool CheckShopGridClick(Point position, bool rightClick)
 				// The same gesture at Adria's (user, 2026-08-27: "make recharge button work as
 				// repair button").
 				ArmShopRechargeCursor();
+			// Picking up the hammer is silent in itself; Repair all sounds when the work is done.
+			if (buttons[i].service != ServiceButton::RepairAll)
+				PlayUiSelectSound();
 			break;
 		case ControlKind::Action:
 			ShopActivateAction(stextflag, buttons[i].actionLine);
@@ -978,6 +985,7 @@ bool CheckShopGridClick(Point position, bool rightClick)
 			// stockIndex, not stock[...].index: ShopGridSel indexes the stock vector, which is what
 			// ActivateShopGridSelection reads it back as.
 			ShopGridSel = placed[hovered].stockIndex;
+			PlayUiMoveSound(); // the grid's StoreUp/StoreDown - vanilla's shops sound every row moved to
 		}
 	}
 	// Anywhere else on the panel is absorbed: the shop covers the world, and a click on its

@@ -30,6 +30,7 @@
 #include "oracool/xp_counter.h" // GetXpCounterDrawRect - the icon row hangs above it
 #include "oracool/oracool.h"
 #include "oracool/runeword_book.h"
+#include "oracool/ui_sound.h"
 #include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
 #include "player.h"
@@ -315,6 +316,7 @@ void CheckHudMenuClick(Point mousePosition)
 	// outside it - the old row closed on any miss too.
 	const int index = HitTestHudMenuIcon(mousePosition);
 	if (index < 0) {
+		PlayUiMoveSound();
 		CloseHudMenu();
 		return;
 	}
@@ -332,6 +334,9 @@ void CheckHudMenuClick(Point mousePosition)
 	if (MyPlayerIsDead && index != GameMenuEntryIndex)
 		return;
 	MenuEntries[index].action();
+	// The entry's click, here rather than in the entries: the W key reaches the same runeword toggle
+	// and sounds on its own, so a sound inside the toggle would ring twice from here.
+	PlayUiSelectSound();
 	// Deliberately left open: the icons show what is currently up, so keeping the row on screen
 	// lets several panels be toggled in one go rather than reopening the menu each time.
 	StartButtonFlash(MenuFlashBase + index);
@@ -345,6 +350,7 @@ bool CheckHudMenuSlotClick(Point mousePosition)
 		return false;
 
 	HudMenuOpen = !HudMenuOpen;
+	PlayUiSelectSound();
 	StartButtonFlash(BeltMenuSlotIndex);
 	return true;
 }
@@ -354,7 +360,10 @@ bool CheckTownPortalBeltSlotClick(Point mousePosition)
 	if (!GetBeltSlotRect(BeltTownPortalSlotIndex).contains(mousePosition))
 		return false;
 
-	CastTownPortalAtFeet();
+	// A cast sounds as the spell. Only the refusal needs a click of its own, or the flash below would
+	// be the whole answer.
+	if (!CastTownPortalAtFeet())
+		PlayUiMoveSound();
 	// Flash regardless of whether the cast went through: an unlit button would read as a dead
 	// click, when the real reason is "not available here" (in town, or multiplayer).
 	StartButtonFlash(BeltTownPortalSlotIndex);
@@ -428,15 +437,16 @@ void DrawBeltButtonFeedback(const Surface &out)
 	highlight(GetBeltSlotRect(FlashingCell));
 }
 
-void CastTownPortalAtFeet()
+bool CastTownPortalAtFeet()
 {
 	if (!IsSinglePlayer())
-		return;
+		return false;
 	if (leveltype == DTYPE_TOWN)
-		return;
+		return false;
 
 	NetSendCmdLocParam3(true, CMD_SPELLXY, MyPlayer->position.tile,
 	    static_cast<int8_t>(SpellID::TownPortal), static_cast<uint8_t>(SpellType::Spell), 0);
+	return true;
 }
 
 } // namespace devilution::oracool

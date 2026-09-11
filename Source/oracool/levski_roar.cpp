@@ -30,6 +30,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
+#include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 #include "player.h"
 #include "utils/language.h"
@@ -658,10 +659,13 @@ void ToggleLevskiRoar()
 {
 	if (WindowOpen) {
 		CloseLevskiRoar();
+		if (!WindowOpen) // a full pack refuses the close, and says so in red - that stays as it is
+			PlayUiMoveSound();
 		return;
 	}
 	WindowOpen = true;
 	RecipeBookOpen = false;
+	PlayUiSelectSound();
 }
 
 void ResetLevskiRoarForNewGame()
@@ -1038,6 +1042,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			if (mousePosition.y < row.top || mousePosition.y >= row.top + row.height)
 				continue;
 			SelectedRecipe = (SelectedRecipe == i) ? -1 : i;
+			PlayUiSelectSound();
 			return true;
 		}
 		return true;
@@ -1047,6 +1052,9 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	// absorbs everything else that lands on it.
 	if (CloseButtonRect(window).contains(mousePosition)) {
 		CloseLevskiRoar();
+		// Its own hit test (the skin places this X), so no click from CheckWindowCloseButtonClick.
+		if (!WindowOpen)
+			PlayUiMoveSound();
 		return true;
 	}
 
@@ -1073,6 +1081,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 	if (RecipeButtonRect(window).contains(mousePosition)) {
 		FlashButton(ButtonFlashRecipes);
 		RecipeBookOpen = !RecipeBookOpen;
+		PlayUiMoveSound();
 		return true;
 	}
 
@@ -1120,6 +1129,10 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 		}
 		if (!result.empty())
 			LogEvent(StrCat("Levski's Roar: ", result));
+		// Salvage's sound for a transmute that MADE something. The room refusals consumed nothing
+		// and stay as quiet as the other refusals above; crafting.cpp owns their wording.
+		if (!result.empty() && !IsTransmuteRefusal(result))
+			PlaySFX(IS_ISHIEL);
 		return true;
 	}
 
@@ -1149,6 +1162,8 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			// PlaceInGrid finds the first cell it does fit.
 			const int anchor = TargetAnchorUnderItemCursor(window, mousePosition, GetInventorySize(player.HoldItem));
 			if (PlaceInGrid(player.HoldItem, anchor)) {
+				// The backpack's put-down sound, as the Ctrl+click path above plays it.
+				PlaySFX(ItemInvSnds[GetItemDropAnimIndex(player.HoldItem._iCurs)]);
 				player.HoldItem.clear();
 				NewCursor(CURSOR_HAND);
 			}
@@ -1160,6 +1175,7 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			MarkCells(anchor, GetInventorySize(GridItems[anchor]), 0);
 			GridItems[anchor].clear();
 			NewCursor(player.HoldItem._iCurs + CURSOR_FIRSTITEM);
+			PlaySFX(IS_IGRAB); // the backpack's pick-up sound (inv.cpp)
 		}
 		return true;
 	}

@@ -44,6 +44,7 @@
 #include "oracool/socket_overlay.h"
 #include "oracool/telemetry.h"
 #include "oracool/ornate_border.h"
+#include "oracool/ui_sound.h"
 #include "oracool/oracool.h"
 #include "panels/ui_panels.hpp"
 #include "plrmsg.h"
@@ -2903,6 +2904,8 @@ bool CheckInventoryTabClick(Point cursorPosition)
 	// it. Both problems are gone with the button; the tenth page is simply a page.
 	for (int tab = 0; tab < oracool::TabCount; tab++) {
 		if (oracool::GetTabRect(tab).contains(cursorPosition + panelOffset)) {
+			if (ActiveInventoryTab != tab)
+				oracool::PlayUiMoveSound(); // the tab you are on absorbs the click silently, as the shop's does
 			ActiveInventoryTab = tab;
 			return true;
 		}

@@ -27,6 +27,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/ornate_border.h"
 #include "oracool/readied_spells.h"
+#include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
 
 namespace devilution::oracool {
@@ -718,6 +719,7 @@ bool CheckSkillPickerClick(Point mousePosition)
 		const Rectangle ownWell = PickerForLeft ? GetLmbSkillButtonRect() : GetRmbSkillButtonRect();
 		if (ownWell.contains(mousePosition) && (SDL_GetModState() & KMOD_SHIFT) == 0) {
 			CloseSkillPicker();
+			PlayUiMoveSound(); // the well's own toggle, the same click that opened it
 			return true;
 		}
 		// SHIFT is excluded from the toggle above (self-audit, 2026-08-21). Shift-clicking a well
@@ -767,12 +769,15 @@ bool CheckSkillPickerClick(Point mousePosition)
 				// put the skill there - and the one the player is most likely to make right before
 				// a fight, which is right before a crash costs them it.
 				oracool::ScheduleAutoSaveForSkillChange();
+				PlayUiSelectSound();
 				break;
 			case EntryKind::Tree:
 				if (GetClassTreeSkillData(entry.tree).kind == ClassTreeKind::Aura) {
 					// An aura is a toggle, not a binding: either button lights it, and clicking a
 					// burning one puts it out. It has no business on the left button and never
 					// displaces what is there.
+					//
+					// No interface click: lighting or dousing plays the aura's own start or stop cue.
 					ToggleClassAura(player, entry.tree);
 					CalcPlrInv(player, false);
 					break;
@@ -797,6 +802,7 @@ bool CheckSkillPickerClick(Point mousePosition)
 					player._pRSplType = type;
 					oracool::ScheduleAutoSaveForSkillChange();
 				}
+				PlayUiSelectSound();
 				break;
 			}
 			}

@@ -27,6 +27,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
+#include "oracool/ui_sound.h"
 #include "stores.h"
 #include "utils/format_int.hpp"
 #include "utils/language.h"
@@ -655,8 +656,10 @@ void CheckStashButtonRelease(Point mousePosition)
 	if (GoldDisplayPressed) {
 		Rectangle goldRect = GoldDisplayRect;
 		goldRect.position = GetPanelPosition(UiPanels::Stash, goldRect.position);
-		if (goldRect.contains(mousePosition))
+		if (goldRect.contains(mousePosition)) {
+			oracool::PlayUiMoveSound(); // Oracool: the gold total is a button since Sort took its place
 			StartGoldWithdraw();
+		}
 		GoldDisplayPressed = false;
 	}
 

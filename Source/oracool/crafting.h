@@ -71,6 +71,13 @@ int FirstReadyLevskiRecipe(const Item *grid);
  */
 std::string TransmuteLevskiGrid(Item *grid);
 
+/**
+ * @brief Whether @p result is one of TransmuteLevskiGridWith's refusals - "not enough room to free
+ * the stones" or "not enough room for the result" - which consume nothing. Anything else it returns
+ * is a report of what it made.
+ */
+bool IsTransmuteRefusal(const std::string &result);
+
 /** @brief Display name for recipe @p index, untranslated (callers wrap in _()). */
 const char *CraftingRecipeName(int index);
 

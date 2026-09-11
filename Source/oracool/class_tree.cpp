@@ -21,6 +21,7 @@
 #include "oracool/skill_sounds.h"
 #include "oracool/spell_ranks.h" // the Rule of Rangs
 #include "oracool/stat_sheet.h"
+#include "oracool/ui_sound.h"
 #include "oracool/warcries.h"
 #include "missiles.h" // GetDamageAmtAtLevel - an active's rank is its spell level
 #include "spells.h"   // GetManaAmountAtLevel
@@ -1203,8 +1204,9 @@ bool InvestClassTreePoint(Player &player, Skill skill)
 		             ClassTreeInvestment(player, skill)),
 		    UiFlags::ColorWhitegold);
 		// The `learn` cue. Only the passives and masteries have one - an active's confirmation is its
-		// first cast - so most skills fall through PlaySkillSound silently, which is intended.
-		PlaySkillSound(skill, SkillSoundEvent::Learn);
+		// first cast. The rest get the interface click instead, so a point spent is never silent.
+		if (!PlaySkillSound(skill, SkillSoundEvent::Learn))
+			PlayUiSelectSound();
 	}
 	ScheduleAutoSaveForSkillChange();
 	return true;

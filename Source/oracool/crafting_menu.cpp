@@ -18,6 +18,7 @@
 #include "oracool/event_log.h"
 #include "oracool/hud_menu.h"
 #include "oracool/ornate_border.h"
+#include "oracool/ui_sound.h"
 #include "utils/language.h"
 #include "utils/ui_fwd.h"
 
@@ -203,6 +204,7 @@ void CheckCraftingMenuClick(Point mousePosition)
 	// A row is a thing to read, not a button. Nothing here can produce an item - the monument is the
 	// only place that can (user, 2026-08-31) - so the click is absorbed and named in the log, which
 	// is the difference between a window that ignores you and a window that has told you where to go.
+	PlayUiMoveSound();
 	LogEvent(fmt::format(fmt::runtime(_("{:s} is crafted at Levski's Roar, the monument in town")),
 	    _(CraftingRecipeName(rows[row]))));
 }

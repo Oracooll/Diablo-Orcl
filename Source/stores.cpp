@@ -43,6 +43,7 @@
 #include "oracool/shop_grid.h"
 #include "oracool/shop_toast.h"
 #include "oracool/shop_tabs.h"
+#include "oracool/ui_sound.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/skill_points.h"
 #include "panels/info_box.hpp"
@@ -4752,6 +4753,7 @@ bool ShopRepairHeldItem()
 	// A broken item left equipped is flagged as well as emptied - see SmithRepairItemAt, which
 	// clears the same flag for the same reason.
 	myPlayer.HoldItem._iOracoolBroken = false;
+	PlaySFX(IS_GOLD); // the hammer's sound (ShopRepairItemAt), for the same paid repair
 	oracool::ScheduleAutoSaveForStoreTransaction();
 	return true;
 }
@@ -4907,6 +4909,7 @@ bool ShopRechargeHeldItem()
 	}
 	TakePlrsMoney(price);
 	myPlayer.HoldItem._iCharges = myPlayer.HoldItem._iMaxCharges;
+	PlaySFX(IS_GOLD); // the recharge cursor's sound (ShopRechargeItemAt), for the same paid work
 	oracool::ScheduleAutoSaveForStoreTransaction();
 	return true;
 }
@@ -4971,6 +4974,7 @@ void ShopRepairAll()
 	// storehidx encoding this function cannot decode, say - would spin here taking gold until the
 	// player could no longer afford the next one. 48 is storehold's capacity, so a run that repairs
 	// something every pass can never reach it.
+	int repaired = 0;
 	for (int guard = 0; guard < 48; guard++) {
 		StartSmithRepair();
 		if (storenumh == 0)
@@ -4978,7 +4982,12 @@ void ShopRepairAll()
 		if (!PlayerCanAfford(storehold[0]._iIvalue))
 			break;
 		SmithRepairItemAt(storehold[0]._iIvalue, 0);
+		repaired++;
 	}
+	// One sound for the whole batch, and only if something was mended. Here rather than in
+	// SmithRepairItemAt, which the text store's single repair shares.
+	if (repaired > 0)
+		PlaySFX(IS_REPAIR);
 	StartStore(resume);
 }
 
@@ -5117,12 +5126,17 @@ void ShopActivateAction(TalkID id, int line)
 		SmithRepairEnter();
 		break;
 	case TalkID::SmithPremiumBuy:
+		// Refresh and Refresh until, the only two actions on this tab. The click is played HERE
+		// because this bridge skips StoreEnter, which is where the text store sounds every row -
+		// putting it in SmithPremiumBuyEnter would ring twice on that screen.
+		oracool::PlayUiSelectSound();
 		SmithPremiumBuyEnter();
 		break;
 	case TalkID::SmithBuy:
 	case TalkID::SmithRareBuy:
 	case TalkID::SmithConsumables:
 		RefreshShopStock(id);
+		oracool::PlayUiSelectSound(); // same reason as Premium above
 		break;
 	default:
 		break;

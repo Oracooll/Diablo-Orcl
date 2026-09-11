@@ -3,6 +3,7 @@
 #include "engine/render/primitive_render.hpp"
 
 #include "oracool/ornate_border.h"
+#include "oracool/ui_sound.h"
 
 namespace devilution::oracool {
 
@@ -64,7 +65,11 @@ void DrawWindowCloseButtonStyled(const Surface &out, const Rectangle &button, ui
 
 bool CheckWindowCloseButtonClick(const Rectangle &window, Point mousePosition)
 {
-	return GetWindowCloseButtonRect(window).contains(mousePosition);
+	if (!GetWindowCloseButtonRect(window).contains(mousePosition))
+		return false;
+	// Every caller closes on true, so the close sounds here - once, for every window that has an X.
+	PlayUiMoveSound();
+	return true;
 }
 
 } // namespace devilution::oracool
