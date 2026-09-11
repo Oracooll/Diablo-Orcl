@@ -144,8 +144,9 @@ const MissileData MissilesData[] = {
 // Oracool: the Paladin's Blessed Hammer. Movement Disabled because it does NOT travel on a velocity
 // vector - ProcessBlessedHammer writes position.traveled itself each tick from an angle and a radius,
 // which is the one thing no other missile in this table does. It draws its own spin sheet since
-// 2026-09-11 (it wore items\mace.cel painted gold before); Physical because it is a hammer.
-/*BlessedHammer*/        { &AddBlessedHammer,       &ProcessBlessedHammer,        IS_CAST2,    SFX_NONE,    MissileGraphicID::BlessedHammerSpin,    Physical,              MissileMovementDistribution::Disabled    },
+// 2026-09-11 (it wore items\mace.cel painted gold before). MAGIC damage since the same day (user: "in D2 it does magic dmg. Let's
+// make it Magic DMG here as well") - it was Physical, on the reasoning that it is a hammer.
+/*BlessedHammer*/        { &AddBlessedHammer,       &ProcessBlessedHammer,        IS_CAST2,    SFX_NONE,    MissileGraphicID::BlessedHammerSpin,    Magic,                 MissileMovementDistribution::Disabled    },
 // Oracool: Blessed Shield's throw. The sprite named here is only the last fallback - AddBlessedShieldThrow
 // swaps in its own spin sheet (blessed_shield_spin, delivered 2026-09-11) and, without that,
 // items\shield.cel, the tumble a dropped shield plays. HolyBolt was chosen when the base game had no

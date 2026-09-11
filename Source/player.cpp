@@ -353,8 +353,8 @@ void StartRangeAttack(Player &player, Direction d, WorldTileCoord cx, WorldTileC
 player_graphic GetPlayerGraphicForSpell(SpellID spellId)
 {
 	// Oracool: the Paladin's three cast skills take the animation the user named for each (2026-09-11:
-	// Blessed Hammer "fire spell hero animation", Blessed Shield "magic", Fist of the Heavens
-	// "lightning") rather than their element's - the element stays what the rows say.
+	// Blessed Shield "magic", Fist of the Heavens "lightning", and Blessed Hammer magic once its damage
+	// became magic the same day) rather than their element's - the element stays what the rows say.
 	switch (oracool::PaladinCastAnimation(spellId).value_or(GetSpellData(spellId).type())) {
 	case MagicType::Fire:
 		return player_graphic::Fire;

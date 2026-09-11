@@ -137,6 +137,8 @@ enum class UiFlags : uint64_t {
 	ColorOrange7           = 27ULL << UiFlagsColorShift,
 	/** @brief GR-7: ethereal items, and the Ethereal row. Beats the socketed gray on the floor. */
 	ColorGray7             = 28ULL << UiFlagsColorShift,
+	/** @brief Magic damage on the character sheet: RGB 104,49,49 (user, 2026-09-11). A value, no file. */
+	ColorMagicDamage       = 29ULL << UiFlagsColorShift,
 
 	// Bits 40-47 fell free on 2026-09-07 when the colours moved into the field at 48-59; 60-63 are
 	// free too. A NEW COLOUR is a new index in the field, not a bit - see ColorMask.

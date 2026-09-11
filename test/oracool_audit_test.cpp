@@ -8464,6 +8464,15 @@ TEST(OracoolCharPanel, EachMouseButtonReportsItsOwnDamageSource)
 	    << "test setup: the spell happens to equal the weapon, so this proves nothing - change the "
 	       "weapon damage above";
 
+	// 3b. The Paladin's cast skills answer with the per-hit range their own cast rolls (2026-09-11). Their
+	//     spell rows carry no missile, so the formula above had nothing to say and the row read a dash.
+	//     Blessed Hammer is 60% of the weapon: 10-20 reads 6-12.
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true; // the fork's own SpellIDs sit above LastDiablo - see IsValidSpell
+	player._pRSpell = SpellID::BlessedHammer;
+	EXPECT_EQ(GetReadiedSlotDamageText(false), "6-12") << "Blessed Hammer's row must quote its per-hit damage, not a dash";
+	gbIsHellfire = wasHellfire;
+
 	// 4. Everything with no damage says so, rather than borrowing the weapon's number.
 	player._pRSpell = SpellID::TownPortal;
 	EXPECT_EQ(GetReadiedSlotDamageText(false), "-") << "a utility spell has no damage to report";
@@ -8501,6 +8510,8 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 	player._pLevel = 50;
 	player._pIMinDam = 10;
 	player._pIMaxDam = 20;
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true; // the fork's own SpellIDs (Blessed Hammer) sit above LastDiablo - see IsValidSpell
 
 	const struct {
 		SpellID spell;
@@ -8515,7 +8526,8 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 		// on an in-game panel, which is what the user saw on Charged Bolt.
 		{ SpellID::Lightning, UiFlags::ColorYellow, "lightning" },
 		{ SpellID::ChargedBolt, UiFlags::ColorYellow, "lightning, and the spell that caught this" },
-		{ SpellID::BoneSpirit, UiFlags::ColorBlue, "magic - which is what blue means here, there being no cold" },
+		{ SpellID::BoneSpirit, UiFlags::ColorMagicDamage, "magic - RGB 104,49,49 since 2026-09-11" },
+		{ SpellID::BlessedHammer, UiFlags::ColorMagicDamage, "Blessed Hammer is magic damage, as in D2 (2026-09-11) - asked of the missile it throws" },
 		{ SpellID::Healing, UiFlags::ColorOracoolGreen, "healing" },
 	};
 
@@ -8543,6 +8555,7 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 	player._pRSpell = SpellID::Healing;
 	EXPECT_NE(GetReadiedSlotDamageText(false), "-")
 	    << "green makes a heal's numbers legible as healing, so it no longer has to hide them";
+	gbIsHellfire = wasHellfire;
 }
 
 // Audit, 2026-08-31. Player::GetSpellLevel is _pISplLvlAdd + _pSplLvl + _pSkillInvestment, and the
@@ -11386,7 +11399,7 @@ TEST(OracoolAudit, FasterCastRateRollsOnTheDropTailIntoTheItemsOwnRecord)
 // user named rather than its element's, and the melee four and Charge stay swings.
 TEST(OracoolAudit, PaladinCastSkillsTakeTheirOwnSpellAnimation)
 {
-	EXPECT_EQ(oracool::PaladinCastAnimation(SpellID::BlessedHammer), MagicType::Fire);
+	EXPECT_EQ(oracool::PaladinCastAnimation(SpellID::BlessedHammer), MagicType::Magic) << "magic damage, so the magic cast";
 	EXPECT_EQ(oracool::PaladinCastAnimation(SpellID::BlessedShield), MagicType::Magic);
 	EXPECT_EQ(oracool::PaladinCastAnimation(SpellID::FistOfTheHeavens), MagicType::Lightning);
 	EXPECT_FALSE(oracool::PaladinCastAnimation(SpellID::Firebolt).has_value()) << "any other spell keeps its element's animation";

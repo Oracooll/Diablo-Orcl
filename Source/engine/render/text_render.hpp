@@ -99,6 +99,8 @@ enum text_color : uint16_t {
 	/** The focus-glow pair, ColorUiYellow / ColorUiYellowDark, as they read in a level (2026-09-07). */
 	ColorInGameUiYellow,
 	ColorInGameUiYellowDark,
+	/** Oracool: magic damage on the character sheet, RGB 104,49,49 (user, 2026-09-11). A value, no file. */
+	ColorMagicDamage,
 };
 
 /**

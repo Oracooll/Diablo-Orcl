@@ -17,6 +17,7 @@
 #include "player.h"
 #include "missiles.h" // GetDamageAmtAtLevel - the readied spell's own damage formula
 #include "oracool/paladin_melee.h" // ZealToHitBonus - the sheet must quote what PlayerCanHitMonster uses
+#include "oracool/paladin_ranged.h" // the three cast skills' damage and type - their spell rows carry no missile
 #include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
 #include "oracool/player_resistance.h"
 #include "oracool/class_tree.h"
@@ -102,6 +103,9 @@ std::pair<int, int> GetDamage()
  * is MAGIC here, not cold: this engine has no cold damage at all. DamageType is Physical, Fire,
  * Lightning, Magic and Acid, and blue for arcane is the closest honest reading of the same idea.
  *
+ * Magic left blue on 2026-09-11 for RGB 104,49,49 (user: "let's make Magic DMG font color
+ * RGB:104,49,49") - UiFlags::ColorMagicDamage. Blue stays the aura row's and a bonus row's colour.
+ *
  * Acid is monster-only - no player spell carries it - so it falls through to physical white rather
  * than being given a colour nobody will ever see. Green belongs to healing, below.
  */
@@ -125,7 +129,7 @@ UiFlags DamageTypeColor(DamageType type)
 		// the one the user asked to be "bright YELLOW" in the first place.
 		return UiFlags::ColorYellow;
 	case DamageType::Magic:
-		return UiFlags::ColorBlue;
+		return UiFlags::ColorMagicDamage;
 	case DamageType::Physical:
 	case DamageType::Acid:
 	case DamageType::Cold:
@@ -147,6 +151,13 @@ UiFlags DamageTypeColor(DamageType type)
  */
 DamageType ReadiedSpellDamageType(SpellID spell)
 {
+	// The Paladin's three cast skills carry no missile on their spell row - they are cast from their own
+	// module - so theirs is asked of that module, which answers from the missile each one really throws
+	// (2026-09-11: Blessed Hammer's blue appeared as white until this).
+	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spell); skill.has_value()) {
+		if (const std::optional<DamageType> type = oracool::PaladinCastDamageType(*skill); type.has_value())
+			return *type;
+	}
 	for (const MissileID missile : GetSpellData(spell).sMissiles) {
 		if (missile != MissileID::Null)
 			return GetMissileData(missile).damageType();
@@ -247,6 +258,17 @@ StyledText GetReadiedSlotDamage(bool leftButton)
 		return StyledText { UiFlags::ColorBlue, std::string(_("On")) };
 	if (ReadiedSlotSwingsTheWeapon(spell))
 		return WeaponDamageText();
+
+	// The Paladin's three cast skills: the per-hit range their own cast rolls. They have no missile on their
+	// spell row, so the formula below has nothing to say about them and the row read a dash (user,
+	// 2026-09-11: "make sure hero stats screen shows the DMG amount it does, because right now it shows a
+	// simple - (dash)").
+	if (const std::optional<oracool::PaladinSkill> skill = oracool::PaladinSkillForSpell(spell); skill.has_value()) {
+		if (const std::optional<std::pair<int, int>> range = oracool::PaladinCastDamageRange(player, *skill); range.has_value()) {
+			return StyledText { ReadiedSlotColor(leftButton), StrCat(range->first, "-", range->second),
+				(range->first >= 100) ? -1 : 1 };
+		}
+	}
 
 	int minDam = -1;
 	int maxDam = -1;

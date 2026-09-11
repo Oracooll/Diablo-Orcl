@@ -248,7 +248,9 @@ std::optional<MagicType> PaladinCastAnimation(SpellID spell)
 {
 	switch (spell) {
 	case SpellID::BlessedHammer:
-		return MagicType::Fire;
+		// Magic since its damage became magic (user, 2026-09-11: "since we are making it do Magic dmg then
+		// when it is cast hero should play Magic spell animation, not Fire").
+		return MagicType::Magic;
 	case SpellID::BlessedShield:
 		return MagicType::Magic;
 	case SpellID::FistOfTheHeavens:
@@ -256,6 +258,58 @@ std::optional<MagicType> PaladinCastAnimation(SpellID spell)
 	default:
 		return std::nullopt;
 	}
+}
+
+std::optional<std::pair<int, int>> PaladinCastDamageRange(const Player &player, PaladinSkill skill)
+{
+	int percent = 0;
+	switch (skill) {
+	case PaladinSkill::FistOfTheHeavens:
+		percent = FistCentrePercent;
+		break;
+	case PaladinSkill::BlessedShield:
+		percent = BlessedShieldPercent;
+		break;
+	case PaladinSkill::BlessedHammer:
+		percent = BlessedHammerPercent;
+		break;
+	case PaladinSkill::Charge:
+	case PaladinSkill::Zeal:
+	case PaladinSkill::HammerOfFaith:
+	case PaladinSkill::ShieldBash:
+		return std::nullopt;
+	}
+	// RollWeaponDamage at each end of the weapon's range, then the skill's share - the same arithmetic
+	// the cast does, so the sheet quotes what a hit will actually take.
+	const auto at = [&player, percent](int weapon) {
+		int damage = weapon;
+		damage += damage * player._pIBonusDam / 100;
+		damage += player._pIBonusDamMod;
+		damage += player._pDamageMod;
+		return std::max(std::max(damage, 1) * percent / 100, 1);
+	};
+	const int minDamage = player._pIMinDam;
+	const int maxDamage = std::max(player._pIMaxDam, minDamage);
+	return std::pair<int, int> { at(minDamage), at(maxDamage) };
+}
+
+std::optional<DamageType> PaladinCastDamageType(PaladinSkill skill)
+{
+	switch (skill) {
+	case PaladinSkill::FistOfTheHeavens:
+		// The mace only falls; the blast on the target is what deals the damage the sheet quotes.
+		return GetMissileData(MissileID::ApocalypseBoom).damageType();
+	case PaladinSkill::BlessedShield:
+		return GetMissileData(MissileID::BlessedShieldThrow).damageType();
+	case PaladinSkill::BlessedHammer:
+		return GetMissileData(MissileID::BlessedHammer).damageType();
+	case PaladinSkill::Charge:
+	case PaladinSkill::Zeal:
+	case PaladinSkill::HammerOfFaith:
+	case PaladinSkill::ShieldBash:
+		break;
+	}
+	return std::nullopt;
 }
 
 std::string PaladinRangedFactsAt(PaladinSkill skill, int rank)
@@ -275,7 +329,7 @@ std::string PaladinRangedFactsAt(PaladinSkill skill, int rank)
 		line(fmt::format(fmt::runtime(_("Damage: {:d}% per target")), BlessedShieldPercent));
 		break;
 	case PaladinSkill::BlessedHammer:
-		line(fmt::format(fmt::runtime(_("Damage: {:d}% per hit")), BlessedHammerPercent));
+		line(fmt::format(fmt::runtime(_("Magic damage: {:d}% per hit")), BlessedHammerPercent));
 		break;
 	default:
 		break;

@@ -12,7 +12,11 @@
  */
 #pragma once
 
+#include <optional>
+#include <utility>
+
 #include "engine/point.hpp"
+#include "misdat.h" // DamageType
 #include "oracool/paladin_skills.h"
 
 namespace devilution {
@@ -47,10 +51,21 @@ bool IsCastPaladinSkill(PaladinSkill skill);
 bool CanStartRangedPaladinSkill(const Player &player, PaladinSkill skill);
 
 /**
- * @brief The cast animation the three are drawn with - Blessed Hammer fire, Blessed Shield magic, Fist
- * of the Heavens lightning (user, 2026-09-11). nullopt for every other spell, which keeps its element's.
+ * @brief The cast animation the three are drawn with - Blessed Hammer and Blessed Shield magic, Fist of
+ * the Heavens lightning (user, 2026-09-11; the Hammer was fire until its damage became magic the same
+ * day). nullopt for every other spell, which keeps its element's.
  */
 std::optional<MagicType> PaladinCastAnimation(SpellID spell);
+
+/**
+ * @brief The per-hit damage @p skill does for @p player, at both ends of the weapon roll - what the cast
+ * itself rolls (the weapon, its bonuses, then the skill's percentage), for the character sheet
+ * (2026-09-11). Fist of the Heavens answers with its centre blast. nullopt for any other skill.
+ */
+std::optional<std::pair<int, int>> PaladinCastDamageRange(const Player &player, PaladinSkill skill);
+
+/** @brief The damage type @p skill deals - that of the missile doing its damage. nullopt for any other skill. */
+std::optional<DamageType> PaladinCastDamageType(PaladinSkill skill);
 
 /**
  * @brief Everything Fist of the Heavens does the moment the mace lands.
