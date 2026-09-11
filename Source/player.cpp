@@ -19,6 +19,7 @@
 #include "effects.h"
 #endif
 #include "engine/backbuffer_state.hpp"
+#include "engine/assets.hpp" // FindAsset - does the archive carry this block sheet at all
 #include "engine/load_cl2.hpp"
 #include "engine/load_file.hpp"
 #include "engine/points_in_rectangle_range.hpp"
@@ -2281,6 +2282,30 @@ Player *PlayerAtPosition(Point position)
 	return &Players[abs(playerIndex) - 1];
 }
 
+namespace oracool {
+
+PlayerWeaponGraphic BlockSheetFallback(PlayerWeaponGraphic weapon)
+{
+	switch (weapon) {
+	case PlayerWeaponGraphic::Axe:
+	case PlayerWeaponGraphic::Staff:
+	case PlayerWeaponGraphic::Mace:
+		return PlayerWeaponGraphic::MaceShield;
+	case PlayerWeaponGraphic::Sword:
+		return PlayerWeaponGraphic::SwordShield;
+	case PlayerWeaponGraphic::Unarmed:
+	case PlayerWeaponGraphic::Bow:
+		return PlayerWeaponGraphic::UnarmedShield;
+	case PlayerWeaponGraphic::UnarmedShield:
+	case PlayerWeaponGraphic::SwordShield:
+	case PlayerWeaponGraphic::MaceShield:
+		break;
+	}
+	return weapon;
+}
+
+} // namespace oracool
+
 void LoadPlrGFX(Player &player, player_graphic graphic)
 {
 	if (HeadlessMode)
@@ -2361,6 +2386,17 @@ void LoadPlrGFX(Player &player, player_graphic graphic)
 	char prefix[3] = { CharChar[static_cast<std::size_t>(cls)], ArmourChar[player._pgfxnum >> 4], WepChar[static_cast<std::size_t>(animWeaponId)] };
 	char pszName[256];
 	*fmt::format_to(pszName, R"(plrgfx\{0}\{1}\{1}{2})", path, string_view(prefix, 3), szCel) = 0;
+	// Oracool (user crash, 2026-09-11: "Failed to open file: plrgfx\warrior\wma\wmabl.cl2", entering a
+	// dungeon). Heavenly Strength puts an axe, a bow or a staff beside a shield, and no block sheet was ever
+	// drawn for that pair - the vanilla game never allowed it - so the archive has none, and the level load
+	// that asks for every graphic stopped the game. Asked of the archive rather than assumed, so a class that
+	// HAS the sheet keeps it (the Monk blocks with his staff); otherwise the shield-carrying block nearest the
+	// weapon. Before the width and the PNG look-up below, which follow the weapon graphic.
+	if (graphic == player_graphic::Block && !FindAsset((std::string(pszName) + DEVILUTIONX_CL2_EXT).c_str()).ok()) {
+		animWeaponId = oracool::BlockSheetFallback(animWeaponId);
+		prefix[2] = WepChar[static_cast<std::size_t>(animWeaponId)];
+		*fmt::format_to(pszName, R"(plrgfx\{0}\{1}\{1}{2})", path, string_view(prefix, 3), szCel) = 0;
+	}
 	const uint16_t animationWidth = GetPlayerSpriteWidth(cls, graphic, animWeaponId);
 
 	// Oracool: a PNG sheet supplied for this animation wins over the CL2. Looked up under the

@@ -27,6 +27,7 @@
 #include "DiabloUI/ui_flags.hpp"
 #include "engine/random.hpp"
 #include "engine/render/text_render.hpp"
+#include "engine/assets.hpp" // FindAsset - which block sheets the archive carries
 #include "engine/load_file.hpp"
 #include "engine/load_pcx.hpp" // the shop's vanilla button, straight from the archive
 #include "engine/palette.h"
@@ -11574,4 +11575,31 @@ TEST(OracoolClassTree, HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield)
 			inPack = true;
 	}
 	EXPECT_TRUE(inPack) << "the shield went nowhere - it must land in the backpack";
+}
+
+// User crash, 2026-09-11: "Failed to open file: plrgfx\warrior\wma\wmabl.cl2" on entering a dungeon. Heavenly
+// Strength lets an axe, bow or staff sit beside a shield, the level load asks for the block sheet, and none was
+// ever drawn for that pair. The loader now borrows the nearest shield-carrying block when the archive has none.
+TEST(OracoolClassTree, HeavenlyStrengthBlocksWithASheetThatExists)
+{
+	// The rule, on its own.
+	EXPECT_EQ(oracool::BlockSheetFallback(PlayerWeaponGraphic::Axe), PlayerWeaponGraphic::MaceShield);
+	EXPECT_EQ(oracool::BlockSheetFallback(PlayerWeaponGraphic::Staff), PlayerWeaponGraphic::MaceShield);
+	EXPECT_EQ(oracool::BlockSheetFallback(PlayerWeaponGraphic::Bow), PlayerWeaponGraphic::UnarmedShield);
+	EXPECT_EQ(oracool::BlockSheetFallback(PlayerWeaponGraphic::Sword), PlayerWeaponGraphic::SwordShield);
+	for (const PlayerWeaponGraphic shielded : { PlayerWeaponGraphic::UnarmedShield, PlayerWeaponGraphic::SwordShield, PlayerWeaponGraphic::MaceShield })
+		EXPECT_EQ(oracool::BlockSheetFallback(shielded), shielded) << "a shield graphic is its own";
+
+	// The archive's own answer: the sheet the crash asked for is not there, and every sheet the rule
+	// sends a Warrior-bodied hero to is.
+	MountTestArchives(/*gameArchivesToo=*/true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	EXPECT_FALSE(FindAsset("plrgfx\\warrior\\wma\\wmabl.cl2").ok()) << "the premise: no axe block sheet exists";
+	for (const char *armour : { "l", "m", "h" }) {
+		for (const char *weapon : { "u", "d", "h" }) {
+			const std::string sheet = std::string("plrgfx\\warrior\\w") + armour + weapon + "\\w" + armour + weapon + "bl.cl2";
+			EXPECT_TRUE(FindAsset(sheet.c_str()).ok()) << sheet << " - a fallback the rule sends the hero to is missing";
+		}
+	}
 }

@@ -80,3 +80,30 @@ Debug and Release built, ctest **709/709**, RTM refreshed with exe 1.11.048. **N
 **To check:**
 - A great axe, bow or staff plus a shield: both equip, and the Reflect shield hangs over the hero.
 - A great sword or maul plus a shield: the body shows the shield, and no icon.
+
+## The block sheet that never existed (v1.11.049)
+
+The user hit an error box entering a dungeon: "Failed to open file: plrgfx\warrior\wma\wmabl.cl2".
+
+That name is the Warrior body (`w`), medium armour (`m`), **axe** (`a`), **block** (`bl`).
+- The level load asks for every body graphic.
+- The block graphic is asked for whenever a shield is worn (`_pBlockFlag`).
+- Vanilla never allowed an axe beside a shield, so no axe block sheet was ever drawn.
+- v1.11.047 widened Heavenly Strength to every two-hander, which made the pair possible and the load fatal. Bows and staves would have hit the same wall.
+
+**The fix is at the single authority, `LoadPlrGFX`**, as the Shield Bash and death-sheet crashes were fixed.
+- For the Block graphic, the archive is asked (`FindAsset`) whether the named sheet exists before it is trusted.
+- When it does not exist, `oracool::BlockSheetFallback` sends the hero to the shield-carrying sheet nearest the weapon:
+  - the axe, the staff and the mace use mace-and-shield's (`h`);
+  - the sword uses sword-and-shield's (`d`);
+  - the bow and the empty hand use empty-hand-and-shield's (`u`).
+- Asked, not assumed: a class that HAS the sheet keeps it. The Monk blocks with his staff.
+- The rename happens before the width and the PNG look-up, which follow the weapon graphic.
+
+For the few frames of a block, the body shows the borrowed weapon. The shield is what the animation is about, and the alternative was no block at all.
+
+**Test.** `OracoolClassTree.HeavenlyStrengthBlocksWithASheetThatExists` checks the rule, then the real archive: `wmabl.cl2` is absent, and all nine fallback sheets a Warrior-bodied hero can be sent to (`w{l,m,h}{u,d,h}bl.cl2`) are present. It skips without diabdat.mpq.
+
+Debug and Release built, ctest **710/710**, RTM refreshed with exe 1.11.049. **Not seen in play.**
+
+**To check:** enter a dungeon with an axe, a bow or a staff plus a shield, then get hit and block.

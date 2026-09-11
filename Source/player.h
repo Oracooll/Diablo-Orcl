@@ -171,6 +171,15 @@ enum class PlayerWeaponGraphic : uint8_t {
 	Staff,
 };
 
+namespace oracool {
+/**
+ * @brief The weapon graphic whose BLOCK sheet stands in for @p weapon's when the archive has none (2026-09-11):
+ * the shield-carrying sheet nearest it - the axe, the staff and the mace the mace-and-shield's, the sword the
+ * sword-and-shield's, the bow and the empty hand the empty-hand-and-shield's. A shield graphic is its own.
+ */
+PlayerWeaponGraphic BlockSheetFallback(PlayerWeaponGraphic weapon);
+} // namespace oracool
+
 enum PLR_MODE : uint8_t {
 	PM_STAND,
 	PM_WALK_NORTHWARDS,
