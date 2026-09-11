@@ -881,8 +881,12 @@ void DrawShopControls(const Surface &out, int pageCount)
 				DrawHalfTransparentRectTo(out, rect.position.x, rect.position.y, rect.size.width, rect.size.height);
 			DrawOrnateBorder(out, rect);
 		}
-		// The pressed plate's face sits a pixel lower, and the word goes down with it.
-		const Rectangle labelRect = (vanilla || buttonArt) && pressed ? Rectangle { rect.position + Displacement { 0, 1 }, rect.size } : rect;
+		// Raised 2px (user, 2026-09-11: "center button labels better by raising them a few px"): the
+		// font's letters sit low in their line, so VerticalCenter alone left the words under the plate's
+		// middle. The pressed plate's face sits a pixel lower, and the word goes down with it.
+		constexpr int LabelLift = 2;
+		const int labelShift = ((vanilla || buttonArt) && pressed ? 1 : 0) - LabelLift;
+		const Rectangle labelRect { rect.position + Displacement { 0, labelShift }, rect.size };
 		// Gold throughout on the vanilla button - its lit ring is the hover (user, 2026-09-11: "gold font").
 		DrawString(out, buttons[i].label, labelRect,
 		    { (hovered && !vanilla ? UiFlags::ColorWhite : UiFlags::ColorWhitegold)
@@ -894,12 +898,10 @@ void DrawShopControls(const Surface &out, int pageCount)
 	// and the gold readout is one centred line with both ends going spare.
 	const Rectangle goldLine { { panel.position.x + ShopControlsLeft, panel.position.y + ShopGoldTop },
 		{ ShopControlsWidth, ShopGoldHeight } };
-	// Oracool: on a recessed strip - the vanilla button pressed in, like the rows above it, or else the
-	// limestone plate - and on the bare canvas when neither is in.
-	if (!DrawVanillaButton(out, goldLine, VanillaFace::Pressed, /*onItsSide=*/false) && HasShopArt(ShopGoldPlateArt))
-		DrawLoosePng(out, ShopGoldPlateArt, goldLine.position);
-	// Shadowed (user, 2026-09-05: "add text shadow to texts in vendors where needed, like behind
-	// the GOLD amount available") - asked for when it sat on the bare canvas, and kept on the plate.
+	// On the bare canvas (user, 2026-09-11: "remove the baground behind gold counter in store"). It sat on
+	// the vanilla button pressed in, or the limestone plate, before. Shadowed (user, 2026-09-05: "add text
+	// shadow to texts in vendors where needed, like behind the GOLD amount available") - asked for when it
+	// was last on the bare canvas, which is where it is again.
 	DrawString(out, fmt::format(fmt::runtime(_("Your gold: {:s}")), FormatInteger(TotalPlayerGold())), goldLine,
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter | UiFlags::Shadowed });
 

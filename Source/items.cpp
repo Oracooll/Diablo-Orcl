@@ -625,8 +625,14 @@ void CalcSelfItems(Player &player)
 	// A broken (0-durability, left equipped rather than destroyed - see BreakOrRemoveEquipment) item
 	// contributes nothing at all, the same as if it had been removed: its flag starts false, so no
 	// provider below ever counts it.
-	for (Item &equipment : EquippedPlayerItemsRange(player))
+	for (Item &equipment : EquippedPlayerItemsRange(player)) {
+		// Broken means EMPTIED. An item with durability back - a repair path that forgot the flag, a
+		// shrine, the Repair skill - is whole again (user, 2026-09-11: a shield at 16/16 "has X on it and
+		// doesnt appear as shield when i equip it").
+		if (equipment._iOracoolBroken && equipment._iDurability > 0)
+			equipment._iOracoolBroken = false;
 		equipment._iStatFlag = !equipment._iOracoolBroken;
+	}
 
 	// Oracool fix (user, 2026-09-11: "I have hit 112 STR but the axe is RED"): each worn item's
 	// requirement is measured against the SAME stats the character sheet shows and CanUseItem equips
@@ -8484,6 +8490,7 @@ void RepairItem(Item &item, int lvl)
 	} while (rep + item._iDurability < item._iMaxDur);
 
 	item._iDurability = std::min<int>(item._iDurability + rep, item._iMaxDur);
+	item._iOracoolBroken = false; // mended, so no longer the emptied item left equipped
 }
 
 void RechargeItem(Item &item, Player &player)

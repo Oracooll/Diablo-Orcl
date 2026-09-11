@@ -245,6 +245,9 @@ TEST(CalcPlrInv, BrokenItemContributesNoStatBonus)
 	EXPECT_EQ(player._pStrength, 30) << "an intact item's Str bonus should apply";
 	EXPECT_TRUE(weapon._iStatFlag);
 
+	// Broken the way the game breaks it (BreakOrRemoveEquipment): emptied AND flagged. The flag alone,
+	// with durability left, now reads as an item that was mended since (2026-09-11).
+	weapon._iDurability = 0;
 	weapon._iOracoolBroken = true;
 	CalcPlrInv(player, false);
 	EXPECT_EQ(player._pStrength, 20) << "a broken item's Str bonus must not apply";

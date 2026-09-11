@@ -434,7 +434,9 @@ void LoadItemData(LoadHelper &file, Item &item)
 	    ? static_cast<OracoolItemTier>(rawTier)
 	    : OracoolItemTier::None;
 	item._iOracoolPerfectRoll = file.NextLE<uint8_t>() != 0;
-	item._iOracoolBroken = file.NextLE<uint8_t>() != 0;
+	// Broken means emptied: a repaired item saved still flagged (the backpack repair forgot the flag
+	// until 2026-09-11) comes back whole.
+	item._iOracoolBroken = file.NextLE<uint8_t>() != 0 && item._iDurability == 0;
 	const uint8_t prefixCount = file.NextLE<uint8_t>();
 	const uint8_t suffixCount = file.NextLE<uint8_t>();
 	item._iOracoolPrefixCount = std::min<uint8_t>(prefixCount, Item::MaxOracoolAffixesPerSlot);

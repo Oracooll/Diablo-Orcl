@@ -948,6 +948,44 @@ TEST(OracoolStatSheet, WornItemRequirementsMeetTheSheetsStrength)
 	player._pSpellFlags = SpellFlag::None;
 }
 
+// User, 2026-09-11: a shield Griswold repaired to 16/16 "has X on it and doesnt appear as shield when i
+// equip it". It broke while worn (durability 0 and _iOracoolBroken), was taken off, and the smith's
+// backpack repair restored the durability but not the flag - so CalcSelfItems switched it off for good.
+TEST(OracoolStatSheet, ARepairedItemIsNoLongerBroken)
+{
+	Players.resize(2);
+	Players[0] = {};
+	MyPlayer = &Players[0];
+	devilution::Player &player = Players[1];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 1;
+	player._pBaseStr = 60;
+	player._pLightRad = 10;
+	player._pRSpell = SpellID::Invalid;
+	player._pRSplType = SpellType::Invalid;
+
+	devilution::Item shield {};
+	shield._itype = ItemType::Shield;
+	shield._iClass = ICLASS_ARMOR;
+	shield._iLoc = ILOC_ONEHAND;
+	shield._iAC = 2;
+	shield._iMaxDur = 16;
+	shield._iDurability = 0;
+	shield._iOracoolBroken = true;
+	player.InvBody[INVLOC_HAND_RIGHT] = shield;
+	CalcPlrInv(player, false);
+	EXPECT_TRUE(player.InvBody[INVLOC_HAND_RIGHT]._iOracoolBroken) << "at 0 durability it is broken";
+	EXPECT_FALSE(player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag) << "worn, but switched off";
+
+	player.InvBody[INVLOC_HAND_RIGHT]._iDurability = 16; // what the backpack repair did, and no more
+	CalcPlrInv(player, false);
+	EXPECT_FALSE(player.InvBody[INVLOC_HAND_RIGHT]._iOracoolBroken) << "16/16 is not broken";
+	EXPECT_TRUE(player.InvBody[INVLOC_HAND_RIGHT]._iStatFlag) << "the shield counts again, and draws on the body";
+
+	player.InvBody[INVLOC_HAND_RIGHT].clear();
+}
+
 // Megaplan Phase 0.1: the hero file's chunk tail (oracool/hero_chunks.h). These three tests are
 // the format's contract: state round-trips, unknown chunks are skipped not fatal, and a torn tail
 // External audit, 2026-08-25: "Make Ethereal" disarmed a socketed Zod while leaving it installed.

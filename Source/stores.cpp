@@ -2750,6 +2750,10 @@ void SmithRepairItemAt(int price, int idx)
 	}
 
 	myPlayer.InvList[i]._iDurability = myPlayer.InvList[i]._iMaxDur;
+	// ...and whole. An item that broke while worn and was then taken off still carries the flag, and
+	// this path mended the durability alone (user, 2026-09-11: a repaired shield "has X on it and
+	// doesnt appear as shield when i equip it").
+	myPlayer.InvList[i]._iOracoolBroken = false;
 	TakePlrsMoney(price);
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
