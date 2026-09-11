@@ -2196,7 +2196,7 @@ TEST(OracoolClassTree, EveryClassHasAPassiveSkillsPageAndEveryRowOnItIsAnInertSi
 			EXPECT_EQ(data.spellId, SpellID::Invalid) << data.name;
 		}
 	}
-	EXPECT_EQ(built, 41u) << "Round 5 built forty-one Passive Skills page rows (plus the Rogue's four Passive & Magic rows, which are not on this page)";
+	EXPECT_EQ(built, 42u) << "Round 5 built forty-one Passive Skills page rows, and Heavenly Strength (2026-09-11) the forty-second (plus the Rogue's four Passive & Magic rows, which are not on this page)";
 }
 
 TEST(OracoolClassTree, AddingThePassivePagesMovedNoExistingSkillsSaveSlot)
@@ -11494,4 +11494,70 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 		oracool::ApplyRunewordToTotals(*found, totals);
 		EXPECT_EQ(totals.fastCast, value) << name << " did not reach the totals";
 	}
+}
+
+// Heavenly Strength (user, 2026-09-11: "build Heavenly Strength passive skill"). Slotted, a two-handed sword or
+// mace takes one hand and leaves the other for a shield, as the Barbarian's own grip does; a bow, an axe and a
+// staff keep both hands. Taking the passive out moves the shield to the backpack rather than leaving an
+// illegal pair in the hands.
+TEST(OracoolClassTree, HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield)
+{
+	// The GAME archives, not only the core: the backpack reads the shield's size from the cursor sprites,
+	// which live in diabdat.mpq - with the core alone they came back empty and the placement faulted.
+	MountTestArchives(/*gameArchivesToo=*/true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq for the shield's inventory size";
+	EnsureCursorSpritesLoaded();
+	// The Paladin is a SECOND player, not MyPlayer. AddItemToInvGrid sends MyPlayer's backpack changes to
+	// the network, and in this test's process that send faulted (InvTest's own placements survive it; why
+	// they differ is not settled). The placement, the grip and the slot change are what is under test.
+	Players.resize(2);
+	Players[0] = {};
+	MyPlayer = &Players[0];
+	InspectPlayer = MyPlayer;
+	devilution::Player &player = Players[1];
+	player = {};
+	player._pClass = HeroClass::Warrior;
+	player._pLevel = 50;
+	// A fresh backpack, as InvTest's SetUp makes one: _pNumInv and InvGrid have no initialisers, so
+	// `player = {}` leaves them holding garbage - and the shield's placement wrote InvList[garbage].
+	player._pNumInv = 0;
+	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), static_cast<int8_t>(0));
+	ActiveInventoryTab = 0;
+	player.InvTabList = {};
+	player.InvTabGrid = {};
+	player._pNumInvTab = {};
+
+	const auto twoHander = [](ItemType type) {
+		devilution::Item item {};
+		item._itype = type;
+		item._iClass = ICLASS_WEAPON;
+		item._iLoc = ILOC_TWOHAND;
+		return item;
+	};
+	const devilution::Item greatSword = twoHander(ItemType::Sword);
+	EXPECT_EQ(player.GetItemLocation(greatSword), ILOC_TWOHAND) << "without the passive a two-hander takes both hands";
+
+	ASSERT_TRUE(oracool::SetPassiveSlot(player, 0, oracool::ClassTreeSkill::HeavenlyStrength));
+	EXPECT_EQ(player.GetItemLocation(greatSword), ILOC_ONEHAND) << "Heavenly Strength frees the other hand";
+	EXPECT_EQ(player.GetItemLocation(twoHander(ItemType::Mace)), ILOC_ONEHAND) << "a maul too";
+	for (const ItemType kept : { ItemType::Bow, ItemType::Axe, ItemType::Staff })
+		EXPECT_EQ(player.GetItemLocation(twoHander(kept)), ILOC_TWOHAND) << "a bow, an axe or a staff keeps both hands";
+
+	// Out of the slot with a sword and a shield in hand: the shield goes to the backpack.
+	devilution::Item shield {};
+	InitializeItem(shield, IDI_WARRSHLD);
+	ASSERT_EQ(shield._itype, ItemType::Shield) << "test setup: IDI_WARRSHLD is not a shield";
+	player.InvBody[INVLOC_HAND_LEFT] = greatSword;
+	player.InvBody[INVLOC_HAND_RIGHT] = shield;
+	ASSERT_TRUE(oracool::ClearPassiveSlot(player, 0));
+	EXPECT_EQ(oracool::PassiveSlotOf(player, oracool::ClassTreeSkill::HeavenlyStrength), -1);
+	EXPECT_FALSE(player.InvBody[INVLOC_HAND_LEFT].isEmpty()) << "the sword stays in hand";
+	EXPECT_TRUE(player.InvBody[INVLOC_HAND_RIGHT].isEmpty()) << "the shield stayed in a hand the passive no longer frees";
+	bool inPack = false;
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (player.InvList[i]._itype == ItemType::Shield)
+			inPack = true;
+	}
+	EXPECT_TRUE(inPack) << "the shield went nowhere - it must land in the backpack";
 }

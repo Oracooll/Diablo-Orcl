@@ -30,6 +30,15 @@
 
 namespace devilution {
 
+struct Player;
+namespace oracool {
+/**
+ * @brief Heavenly Strength's grip (2026-09-11): whether @p player holds @p item, a two-handed sword or mace,
+ * in ONE hand - the Paladin's passive slotted. Defined in oracool/class_tree.cpp; asked by GetItemLocation.
+ */
+bool HeavenlyStrengthGrips(const Player &player, const Item &item);
+} // namespace oracool
+
 /**
  * @brief Backpack capacity, one entry per grid cell.
  *
@@ -690,10 +699,15 @@ struct Player {
 
 	/**
 	 * @brief Returns item location taking into consideration barbarian's ability to hold two-handed maces and clubs in one hand.
+	 *
+	 * Oracool: and the Paladin's Heavenly Strength, which grants the same grip while it is slotted (2026-09-11).
+	 * Every equip rule asks this rather than the item, so the shield slot follows it with no other change.
 	 */
 	item_equip_type GetItemLocation(const Item &item) const
 	{
 		if (_pClass == HeroClass::Barbarian && item._iLoc == ILOC_TWOHAND && IsAnyOf(item._itype, ItemType::Sword, ItemType::Mace))
+			return ILOC_ONEHAND;
+		if (oracool::HeavenlyStrengthGrips(*this, item))
 			return ILOC_ONEHAND;
 		return item._iLoc;
 	}
@@ -1086,6 +1100,11 @@ void MakePlrPath(Player &player, Point targetPosition, bool endspace);
 void CalcPlrStaff(Player &player);
 void CheckPlrSpell(bool isShiftHeld, SpellID spellID = MyPlayer->_pRSpell, SpellType spellType = MyPlayer->_pRSplType);
 void SyncPlrAnim(Player &player);
+/**
+ * @brief Oracool: puts @p item on the ground beside @p player - the nearest free tile, found the way a dying
+ * hero's items are (DeadItem). For an item that must leave the hands with nowhere else to go (2026-09-11).
+ */
+void DropItemBesidePlayer(Player &player, Item item);
 void SyncInitPlrPos(Player &player);
 void SyncInitPlr(Player &player);
 void CheckStats(Player &player);

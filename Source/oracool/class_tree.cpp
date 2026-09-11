@@ -26,6 +26,7 @@
 #include "missiles.h" // GetDamageAmtAtLevel - an active's rank is its spell level
 #include "spells.h"   // GetManaAmountAtLevel
 #include "player.h"
+#include "plrmsg.h" // EventPlrMsg - a slot change refused for want of backpack room says so
 #include "utils/language.h"
 
 namespace devilution::oracool {
@@ -196,8 +197,10 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 3, 0, Kind::Active, SpellID::BlessedShield, true },
 
 	// ---- Passive Skills (page 3) ----
-	{ N_("Heavenly Strength"), N_("Bear a two-handed weapon in your main hand and a shield in the other. Not yet built."),
-	    Pal, 3, 0, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	// Built 2026-09-11 (user: "build Heavenly Strength passive skill"): the Barbarian's own grip - see
+	// HeavenlyStrengthGrips - so a two-handed sword or mace leaves the other hand for a shield.
+	{ N_("Heavenly Strength"), N_("Bear a two-handed sword or mace in one hand and a shield in the other."),
+	    Pal, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Fervor"), N_("With a one-handed weapon in hand you swing faster."),
 	    Pal, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Vigilant"), N_("Every blow that is not steel - fire, lightning, magic - deals -20% damage to you."),
@@ -1374,6 +1377,46 @@ int PassiveSlotOf(const Player &player, Skill skill)
 	return -1;
 }
 
+namespace {
+
+/**
+ * @brief Heavenly Strength leaving its slot takes its grip with it: a shield held beside a two-hander goes to
+ * the backpack, or to the ground at the hero's feet when the backpack is full (user, 2026-09-11: "shield must
+ * go to inventory of drop on ground if inventory is full"). The slot change itself is never refused.
+ */
+void ReleaseHeavenlyGrip(Player &player)
+{
+	Item &left = player.InvBody[INVLOC_HAND_LEFT];
+	Item &right = player.InvBody[INVLOC_HAND_RIGHT];
+	if (left.isEmpty() || right.isEmpty())
+		return;
+	const bool leftTwoHanded = left._iClass == ICLASS_WEAPON && left._iLoc == ILOC_TWOHAND;
+	const bool rightTwoHanded = right._iClass == ICLASS_WEAPON && right._iLoc == ILOC_TWOHAND;
+	if (!leftTwoHanded && !rightTwoHanded)
+		return;
+	Item &offHand = leftTwoHanded ? right : left;
+	if (!AutoPlaceItemInInventory(player, offHand, /*persistItem=*/true)) {
+		DropItemBesidePlayer(player, offHand);
+		EventPlrMsg(_("Your backpack is full - the shield is on the ground at your feet."), UiFlags::ColorWhitegold);
+	}
+	offHand.clear();
+	// With the sprites: the body is now a two-hander without a shield. The Abilities window's own recalc
+	// after the slot change is stats-only.
+	CalcPlrInv(player, true);
+}
+
+} // namespace
+
+bool HeavenlyStrengthGrips(const Player &player, const Item &item)
+{
+	// Swords and maces - the two the Barbarian's grip covers, and for the same reason: they are the
+	// two-handers whose body sprites have a shield variant (SwordShield, MaceShield). An axe, a staff or a
+	// pike in one hand would draw with no shield at all, and a bow needs both hands to be a bow.
+	if (item._iLoc != ILOC_TWOHAND || !IsAnyOf(item._itype, ItemType::Sword, ItemType::Mace))
+		return false;
+	return PassiveSlotOf(player, Skill::HeavenlyStrength) >= 0;
+}
+
 bool SetPassiveSlot(Player &player, int slot, Skill skill)
 {
 	if (slot < 0 || slot >= static_cast<int>(PassiveSlotCount))
@@ -1395,6 +1438,9 @@ bool SetPassiveSlot(Player &player, int slot, Skill skill)
 	// Cannot happen at 64 skills per class; asserted so it cannot start happening quietly either.
 	static_assert(MaxSkillsPerClass < 0xFF,
 	    "a class-relative index can now collide with the empty-slot sentinel");
+	// Heavenly Strength leaving this slot takes its grip with it - see ReleaseHeavenlyGrip.
+	if (PassiveInSlot(player, slot) == Skill::HeavenlyStrength && skill != Skill::HeavenlyStrength)
+		ReleaseHeavenlyGrip(player);
 	player._pPassiveSlots[slot] = static_cast<uint8_t>(ClassTreeIconIndex(skill));
 	ScheduleAutoSaveForSkillChange();
 	return true;
@@ -1406,6 +1452,9 @@ bool ClearPassiveSlot(Player &player, int slot)
 		return false;
 	if (player._pPassiveSlots[slot] == 0xFF)
 		return false;
+	// Heavenly Strength leaving takes its grip with it - see ReleaseHeavenlyGrip.
+	if (PassiveInSlot(player, slot) == Skill::HeavenlyStrength)
+		ReleaseHeavenlyGrip(player);
 	player._pPassiveSlots[slot] = 0xFF;
 	ScheduleAutoSaveForSkillChange();
 	return true;
@@ -1529,7 +1578,7 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 	// on once BOUGHT, and scales with the points in it.
 	//
 	// A Passive Skills page row is bought with nothing and scales with nothing. It is on if and only
-	// if it sits in one of the four slots, which is the whole of that page's choice. 41 of the 110 are
+	// if it sits in one of the four slots, which is the whole of that page's choice. 42 of the 110 are
 	// built now and the rest are inert; this gate is what keeps a built one from applying from the
 	// grid - only a slotted row counts.
 	const Skill first = FirstSkillOf(player._pClass);

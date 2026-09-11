@@ -3846,6 +3846,11 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 	}
 }
 
+void DropItemBesidePlayer(Player &player, Item item)
+{
+	DeadItem(player, std::move(item), { 0, 0 });
+}
+
 void SyncPlrAnim(Player &player)
 {
 	const player_graphic graphic = player.getGraphic();
