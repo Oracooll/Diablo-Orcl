@@ -11496,10 +11496,10 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 	}
 }
 
-// Heavenly Strength (user, 2026-09-11: "build Heavenly Strength passive skill"). Slotted, a two-handed sword or
-// mace takes one hand and leaves the other for a shield, as the Barbarian's own grip does; a bow, an axe and a
-// staff keep both hands. Taking the passive out moves the shield to the backpack rather than leaving an
-// illegal pair in the hands.
+// Heavenly Strength (user, 2026-09-11: "build Heavenly Strength passive skill"). Slotted, EVERY two-handed
+// weapon takes one hand and leaves the other for a shield - the Barbarian's grip, widened (user, the same day:
+// "works for Great Sword, but doesnt work for Great Axe, Bows, Staff"). Taking the passive out moves the shield
+// to the backpack rather than leaving an illegal pair in the hands.
 TEST(OracoolClassTree, HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield)
 {
 	// The GAME archives, not only the core: the backpack reads the shield's size from the cursor sprites,
@@ -11540,9 +11540,23 @@ TEST(OracoolClassTree, HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield)
 
 	ASSERT_TRUE(oracool::SetPassiveSlot(player, 0, oracool::ClassTreeSkill::HeavenlyStrength));
 	EXPECT_EQ(player.GetItemLocation(greatSword), ILOC_ONEHAND) << "Heavenly Strength frees the other hand";
-	EXPECT_EQ(player.GetItemLocation(twoHander(ItemType::Mace)), ILOC_ONEHAND) << "a maul too";
-	for (const ItemType kept : { ItemType::Bow, ItemType::Axe, ItemType::Staff })
-		EXPECT_EQ(player.GetItemLocation(twoHander(kept)), ILOC_TWOHAND) << "a bow, an axe or a staff keeps both hands";
+	// Every two-hander, not only the Barbarian's two: the maul, the great axe (and the pike, an Axe), the bow, the staff.
+	for (const ItemType type : { ItemType::Mace, ItemType::Axe, ItemType::Bow, ItemType::Staff })
+		EXPECT_EQ(player.GetItemLocation(twoHander(type)), ILOC_ONEHAND) << "a two-handed ItemType " << static_cast<int>(type) << " still takes both hands";
+
+	// An axe, bow or staff has no body sprite with a shield, so the Reflect icon stands in for it over the hero
+	// (user, 2026-09-11: "show a shield icon over the hero"); a sword or mace shows its own and gets none.
+	devilution::Item buckler {};
+	InitializeItem(buckler, IDI_WARRSHLD);
+	player.InvBody[INVLOC_HAND_LEFT] = twoHander(ItemType::Axe);
+	player.InvBody[INVLOC_HAND_RIGHT] = buckler;
+	EXPECT_TRUE(oracool::HeavenlyGripHidesTheShield(player)) << "an axe and a shield: the body cannot show the shield";
+	player.InvBody[INVLOC_HAND_LEFT] = twoHander(ItemType::Staff);
+	EXPECT_TRUE(oracool::HeavenlyGripHidesTheShield(player)) << "a staff and a shield: the body cannot show it either";
+	player.InvBody[INVLOC_HAND_LEFT] = greatSword;
+	EXPECT_FALSE(oracool::HeavenlyGripHidesTheShield(player)) << "a sword and a shield: the body shows it, no icon";
+	player.InvBody[INVLOC_HAND_LEFT].clear();
+	player.InvBody[INVLOC_HAND_RIGHT].clear();
 
 	// Out of the slot with a sword and a shield in hand: the shield goes to the backpack.
 	devilution::Item shield {};

@@ -33,10 +33,16 @@ namespace devilution {
 struct Player;
 namespace oracool {
 /**
- * @brief Heavenly Strength's grip (2026-09-11): whether @p player holds @p item, a two-handed sword or mace,
- * in ONE hand - the Paladin's passive slotted. Defined in oracool/class_tree.cpp; asked by GetItemLocation.
+ * @brief Heavenly Strength's grip (2026-09-11): whether @p player holds @p item, a two-handed weapon, in ONE
+ * hand - the Paladin's passive slotted. Defined in oracool/class_tree.cpp; asked by GetItemLocation.
  */
 bool HeavenlyStrengthGrips(const Player &player, const Item &item);
+/**
+ * @brief Whether the hero's body cannot show the shield Heavenly Strength lets it hold: a two-handed axe, bow,
+ * staff or pike beside a shield. Their body sprites have no shield variant, so DrawPlayerIcons puts the
+ * Reflect icon over the hero instead (user, 2026-09-11: "show a shield icon over the hero").
+ */
+bool HeavenlyGripHidesTheShield(const Player &player);
 } // namespace oracool
 
 /**
@@ -700,7 +706,8 @@ struct Player {
 	/**
 	 * @brief Returns item location taking into consideration barbarian's ability to hold two-handed maces and clubs in one hand.
 	 *
-	 * Oracool: and the Paladin's Heavenly Strength, which grants the same grip while it is slotted (2026-09-11).
+	 * Oracool: and the Paladin's Heavenly Strength, which grants it for EVERY two-handed weapon while it is
+	 * slotted (2026-09-11).
 	 * Every equip rule asks this rather than the item, so the shield slot follows it with no other change.
 	 */
 	item_equip_type GetItemLocation(const Item &item) const

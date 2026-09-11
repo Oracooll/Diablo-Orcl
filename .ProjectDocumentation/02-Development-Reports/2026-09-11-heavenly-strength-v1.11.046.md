@@ -55,3 +55,28 @@ Debug and Release built, ctest **709/709**, RTM refreshed with exe 1.11.046. **N
 - Slot Heavenly Strength, then equip a two-handed sword or maul and a shield together. The body should show sword or mace and shield.
 - An axe, a staff or a bow still takes both hands.
 - Empty or replace the slot: the shield goes to the backpack, or to the ground with the message when the backpack is full.
+
+## Every two-hander, and the shield icon (v1.11.047-048)
+
+The user reported: "Heavenly Strength works for Great Sword, but doesnt work for Great Axe, Bows, Staff. Check your code."
+
+That was the first cut's design. It took only the Barbarian's two, swords and maces, because theirs are the body sprites with a shield variant. The user wants every two-hander.
+
+**Every two-hander.** `HeavenlyStrengthGrips` now takes every two-handed **weapon** (`ICLASS_WEAPON`, `ILOC_TWOHAND`): great axe, pike (an Axe), bow and staff join the sword and mace. The skill reads "Bear a two-handed weapon in one hand and a shield in the other."
+
+The other hand still takes only a shield. For every class but the Bard, the paste rules put a second weapon in place of the first (`pasteIntoSelectedHand` in inv.cpp), so no dual-wield opens.
+
+**The icon.** The user then asked: "when these cases occur show a shield icon over the hero. There is one such icon in original assets. Reflect icon i think it was."
+
+An axe, bow, staff or pike held with a shield draws the hero with the weapon and no shield, because no such body sprite exists. For exactly those cases, `DrawPlayerIcons` now paints the **Reflect** icon over the hero. That is the Hellfire spell's own `MissileGraphicID::Reflect` shield, drawn at the spell's own offset.
+- The condition is `oracool::HeavenlyGripHidesTheShield(player)`: the grip active, a non-sword non-mace two-hander in one hand, a shield in the other.
+- It is drawn once even when the Reflect spell is also up.
+- A sword or mace shows its own shield and gets no icon.
+
+**Tests.** `HeavenlyStrengthLetsATwoHanderShareTheHandsWithAShield` now expects one hand for the maul, great axe, bow and staff. It also checks that an axe or a staff with a shield hides the shield (icon on), and a sword with a shield does not.
+
+Debug and Release built, ctest **709/709**, RTM refreshed with exe 1.11.048. **Not seen in play.**
+
+**To check:**
+- A great axe, bow or staff plus a shield: both equip, and the Reflect shield hangs over the hero.
+- A great sword or maul plus a shield: the body shows the shield, and no icon.

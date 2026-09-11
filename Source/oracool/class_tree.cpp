@@ -197,9 +197,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 3, 0, Kind::Active, SpellID::BlessedShield, true },
 
 	// ---- Passive Skills (page 3) ----
-	// Built 2026-09-11 (user: "build Heavenly Strength passive skill"): the Barbarian's own grip - see
-	// HeavenlyStrengthGrips - so a two-handed sword or mace leaves the other hand for a shield.
-	{ N_("Heavenly Strength"), N_("Bear a two-handed sword or mace in one hand and a shield in the other."),
+	// Built 2026-09-11 (user: "build Heavenly Strength passive skill"): the Barbarian's own grip, widened to
+	// every two-handed weapon - see HeavenlyStrengthGrips - so the other hand is free for a shield.
+	{ N_("Heavenly Strength"), N_("Bear a two-handed weapon in one hand and a shield in the other."),
 	    Pal, 3, 0, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Fervor"), N_("With a one-handed weapon in hand you swing faster."),
 	    Pal, 3, 0, 1, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -1409,12 +1409,32 @@ void ReleaseHeavenlyGrip(Player &player)
 
 bool HeavenlyStrengthGrips(const Player &player, const Item &item)
 {
-	// Swords and maces - the two the Barbarian's grip covers, and for the same reason: they are the
-	// two-handers whose body sprites have a shield variant (SwordShield, MaceShield). An axe, a staff or a
-	// pike in one hand would draw with no shield at all, and a bow needs both hands to be a bow.
-	if (item._iLoc != ILOC_TWOHAND || !IsAnyOf(item._itype, ItemType::Sword, ItemType::Mace))
+	// EVERY two-handed weapon (user, 2026-09-11: "works for Great Sword, but doesnt work for Great Axe, Bows,
+	// Staff"). The first cut took only the Barbarian's two, swords and maces, because theirs are the body
+	// sprites with a shield variant (SwordShield, MaceShield). An axe, a staff, a pike or a bow held with a
+	// shield draws the hero with the weapon and no shield on the body - there is no such sprite - but the
+	// shield is worn, blocks and counts for the shield skills all the same.
+	//
+	// The other hand still takes only a shield: the paste rules put a second weapon in place of the first
+	// for every class but the Bard (inv.cpp's pasteIntoSelectedHand), so this opens no dual-wield.
+	if (item._iLoc != ILOC_TWOHAND || item._iClass != ICLASS_WEAPON)
 		return false;
 	return PassiveSlotOf(player, Skill::HeavenlyStrength) >= 0;
+}
+
+bool HeavenlyGripHidesTheShield(const Player &player)
+{
+	// A sword or a mace draws with its shield (SwordShield, MaceShield); every other two-hander draws the
+	// weapon alone. Only then does the icon have anything to stand in for.
+	const auto hidesIt = [&player](const Item &item) {
+		return !item.isEmpty() && HeavenlyStrengthGrips(player, item) && !IsAnyOf(item._itype, ItemType::Sword, ItemType::Mace);
+	};
+	const auto isShield = [](const Item &item) {
+		return !item.isEmpty() && item._itype == ItemType::Shield;
+	};
+	const Item &left = player.InvBody[INVLOC_HAND_LEFT];
+	const Item &right = player.InvBody[INVLOC_HAND_RIGHT];
+	return (hidesIt(left) && isShield(right)) || (hidesIt(right) && isShield(left));
 }
 
 bool SetPassiveSlot(Player &player, int slot, Skill skill)
