@@ -1,4 +1,5 @@
 #include "oracool/named_encounters.h"
+#include "oracool/skill_sounds.h"
 
 #include "diablo.h"
 #include "items.h"
@@ -273,6 +274,7 @@ void AwardNamedEncounter(const Monster &monster)
 	    monster.position.tile, /*randarea=*/0, /*selflag=*/0, /*sendmsg=*/true);
 
 	LogEvent(StrCat(_(NamedEncounterName(encounter)), " is cleared."));
+	PlayUiEventSound(UiEventSound::EncounterCleared); // the guardian falls and the reward drops - no longer in silence
 }
 
 } // namespace devilution::oracool

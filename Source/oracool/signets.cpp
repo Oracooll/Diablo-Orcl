@@ -1,4 +1,5 @@
 #include "oracool/signets.h"
+#include "oracool/skill_sounds.h"
 
 #include <algorithm>
 
@@ -75,6 +76,8 @@ bool ClaimMilestone(Player &player, Milestone milestone)
 
 	const bool granted = ConsumeSignet(player);
 	if (&player == MyPlayer) {
+		// Its own sound (RfA-04, 2026-09-11) - a milestone was silent, only a log line.
+		PlayUiEventSound(UiEventSound::Milestone);
 		LogEvent(granted
 		        ? StrCat("Milestone: ", _(MilestoneName(milestone)), " - a Signet of Learning")
 		        : StrCat("Milestone: ", _(MilestoneName(milestone)), " - but no signets remain"));

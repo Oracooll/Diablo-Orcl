@@ -140,6 +140,11 @@ enum class UiEventSound : uint8_t {
 	OrbAbsorb,
 	Socket,
 	RunewordComplete,
+	// RfA-04 batch 14 (2026-09-11): four events that made no sound at all.
+	Milestone,
+	EncounterCleared,
+	MapUnseal,
+	SignetUse,
 };
 
 /**

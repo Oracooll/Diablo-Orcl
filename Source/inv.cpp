@@ -728,15 +728,18 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 			// afterwards the item is just an item with a name, and nothing on the player says a
 			// word was ever finished.
 			const bool runewordComplete = oracool::TryCompleteRuneword(socketTarget);
-			// One sound for the click: the runeword's own when the rune completed one, the socket's
-			// otherwise - never both (the 2026-09-03 rule). IS_IGRAB stays the stand-in.
-			if (&player == MyPlayer
-			    && !oracool::PlayUiEventSound(runewordComplete ? oracool::UiEventSound::RunewordComplete : oracool::UiEventSound::Socket))
-				PlaySFX(IS_IGRAB);
+			bool milestoneRang = false;
 			if (runewordComplete && &player == MyPlayer) {
 				oracool::LogEvent(fmt::format("Runeword complete: {:s}", socketTarget._iIName));
-				oracool::ClaimMilestone(player, oracool::Milestone::CompleteRuneword);
+				// The FIRST runeword is also a milestone, and the milestone's sound then speaks for
+				// both - never two sounds for one click (the 2026-09-03 rule).
+				milestoneRang = oracool::ClaimMilestone(player, oracool::Milestone::CompleteRuneword);
 			}
+			// Otherwise one sound: the runeword's own when the rune completed one, the socket's when
+			// it did not. IS_IGRAB stays the stand-in if the file is missing.
+			if (&player == MyPlayer && !milestoneRang
+			    && !oracool::PlayUiEventSound(runewordComplete ? oracool::UiEventSound::RunewordComplete : oracool::UiEventSound::Socket))
+				PlaySFX(IS_IGRAB);
 			ConsumeOneHeldUnit(player);
 			CalcPlrInv(player, true);
 			return;
@@ -3816,6 +3819,8 @@ bool UseInvItem(int cii)
 			return true;
 		}
 		// Consumed only once the encounter has actually opened.
+		if (&player == MyPlayer)
+			oracool::PlayUiEventSound(oracool::UiEventSound::MapUnseal);
 		player.RemoveInvItem(cii - INVITEM_INV_FIRST);
 		return true;
 	}
@@ -3852,7 +3857,10 @@ bool UseInvItem(int cii)
 	int idata = GetItemDropAnimIndex(item->_iCurs);
 	if (item->_iMiscId == IMISC_BOOK)
 		PlaySFX(IS_RBOOK);
-	else if (&player == MyPlayer)
+	// A Signet of Learning speaks with its own sound instead of the generic use sound (RfA-04) - the
+	// cap gate above has already refused a signet that would not be consumed.
+	else if (&player == MyPlayer
+	    && !(item->_iMiscId == IMISC_ORACOOL_SIGNET && oracool::PlayUiEventSound(oracool::UiEventSound::SignetUse)))
 		PlaySFX(ItemInvSnds[idata]);
 
 	UseItem(player.getId(), item->_iMiscId, item->_iSpell, cii);

@@ -27,6 +27,20 @@ $ICON = 56
 $manifest = Get-Content (Join-Path $pack 'manifest.json') -Raw | ConvertFrom-Json
 $byKey = @{}
 foreach ($e in $manifest) { $byKey[("{0}|{1}|{2}" -f $e.class, $e.page, $e.name)] = $e }
+# Later glyph packs in the same format (RfA-04 batch 13, 2026-09-11: the five rows the first pack
+# missed). Each entry remembers its own pack folder; a key the first pack already has is an error
+# rather than a silent override.
+$extraPacks = @('batch-13-skill-glyphs')
+foreach ($extra in $extraPacks) {
+  $extraRoot = Join-Path (Split-Path -Parent $pack) $extra
+  $extraManifest = Get-Content (Join-Path $extraRoot 'manifest.json') -Raw | ConvertFrom-Json
+  foreach ($e in $extraManifest) {
+    $k = "{0}|{1}|{2}" -f $e.class, $e.page, $e.name
+    if ($byKey.ContainsKey($k)) { throw "$extra repeats a glyph the first pack already has: $k" }
+    $e | Add-Member -NotePropertyName root -NotePropertyValue $extraRoot
+    $byKey[$k] = $e
+  }
+}
 
 # ---- the skill table, in strip order -------------------------------------------------------------
 $src = Get-Content (Join-Path $root 'Source\oracool\class_tree.cpp') -Raw
@@ -101,7 +115,8 @@ foreach ($cls in @('Pal', 'Bar', 'Sor', 'Rog', 'Bard', 'Monk')) {
     $key = "{0}|{1}|{2}" -f $className[$cls], $pageName[$cls][$row.Page], $row.Name
     $entry = $byKey[$key]
     if ($null -eq $entry) { $missing += $key; continue }
-    StampGlyph $strip $i (Join-Path $pack $entry.file)
+    $glyphRoot = if ($entry.PSObject.Properties['root']) { $entry.root } else { $pack }
+    StampGlyph $strip $i (Join-Path $glyphRoot $entry.file)
     $used[$key] = $true
     $stamped++
   }

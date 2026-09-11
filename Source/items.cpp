@@ -164,6 +164,10 @@ _sfx_id ItemInvSnds[] = {
 	IS_IRING, // charmflip
 	IS_IBLST, // orbflip
 	IS_IRING, // signetflip
+	// Oracool: batch 15's three (48-50).
+	IS_IROCK, // jewelflip
+	IS_ILARM, // salvageflip
+	IS_ISCROL, // mapflip
 };
 
 namespace {
@@ -176,7 +180,11 @@ constexpr int8_t OracoolRuneDropAnim = 44;
 constexpr int8_t OracoolCharmDropAnim = 45;
 constexpr int8_t OracoolOrbDropAnim = 46;
 constexpr int8_t OracoolSignetDropAnim = 47;
-static_assert(ITEMTYPES == FirstOracoolDropAnim + 5, "ITEMTYPES must count the five Oracool tumbles");
+// Batch 15 (2026-09-11), appended after the first five.
+constexpr int8_t OracoolJewelDropAnim = 48;
+constexpr int8_t OracoolSalvageDropAnim = 49;
+constexpr int8_t OracoolMapDropAnim = 50;
+static_assert(ITEMTYPES == FirstOracoolDropAnim + 8, "ITEMTYPES must count the eight Oracool tumbles");
 
 // Oracool: the ranges below lean on these blocks being contiguous; a generator that grows or splits
 // one must fail here rather than hand a stray icon the wrong tumble.
@@ -189,6 +197,9 @@ static_assert(ICURS_ORACOOL_ORB_AVARICE - ICURS_ORACOOL_ORB_MIGHT == 7);
 static_assert(ICURS_ORACOOL_CHARM_LEGEND - ICURS_ORACOOL_CHARM_TRIALS == 2);
 static_assert(ICURS_ORACOOL_CHARM_VAULT - ICURS_ORACOOL_CHARM_CHAPEL == 2);
 static_assert(ICURS_ORACOOL_CHARM_GREED - ICURS_ORACOOL_CHARM_VIGOR == 5);
+static_assert(ICURS_ORACOOL_JEWEL_WARDING_RADIANT - ICURS_ORACOOL_JEWEL_FERVOR_FLAWED == 14);
+static_assert(ICURS_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES - ICURS_ORACOOL_SALVAGE_WHITE_SCALES == 6);
+static_assert(ICURS_ORACOOL_MAP_VAULT - ICURS_ORACOOL_MAP_CHAPEL == 2);
 
 constexpr bool InCursRange(uint16_t curs, int first, int last)
 {
@@ -204,9 +215,9 @@ constexpr bool InCursRange(uint16_t curs, int first, int last)
  * _iCurs with no bounds check. Our own icons live past its end, so reading it directly for one of
  * them is an out-of-bounds read that happens to work until it doesn't.
  *
- * Five families of fork icons have their own tumble (items\<name>.png, batch 10): gems, runes,
- * charms, Mystic Orbs and the Signet. Everything else of ours - jewels, salvage materials, maps,
- * uniques, set pieces and worn gear - borrows "larmor".
+ * Eight families of fork icons have their own tumble (items\<name>.png): gems, runes, charms,
+ * Mystic Orbs and the Signet (batch 10), then jewels, salvage materials and the sealed maps
+ * (batch 15). Everything else of ours - uniques, set pieces and worn gear - borrows "larmor".
  *
  * Visual and audio only: this picks a sprite, a frame count and two sounds. Nothing generated or
  * saved reads it, and every tumble here is 13 frames like larmor, so a saved item's frame count is
@@ -235,6 +246,15 @@ int8_t GetItemDropAnimIndex(uint16_t curs)
 		return OracoolOrbDropAnim;
 	if (curs == ICURS_ORACOOL_SIGNET_LEARNING)
 		return OracoolSignetDropAnim;
+	// Jewels: the fifteen of jewels_curs.inc (five kinds, three grades).
+	if (InCursRange(curs, ICURS_ORACOOL_JEWEL_FERVOR_FLAWED, ICURS_ORACOOL_JEWEL_WARDING_RADIANT))
+		return OracoolJewelDropAnim;
+	// Salvage materials: the seven of salvage_curs.inc (their Charms of Salvaging are charms, above).
+	if (InCursRange(curs, ICURS_ORACOOL_SALVAGE_WHITE_SCALES, ICURS_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES))
+		return OracoolSalvageDropAnim;
+	// The three sealed encounter maps (their reward charms are charms, above).
+	if (InCursRange(curs, ICURS_ORACOOL_MAP_CHAPEL, ICURS_ORACOOL_MAP_VAULT))
+		return OracoolMapDropAnim;
 
 	// 14 is "larmor" - light armour, a soft cloth/leather tumble. The closest existing match for
 	// gloves, boots, bracers, shoulders and legs; the belt borrows it too rather than the noisier
@@ -350,6 +370,9 @@ const char *const ItemDropNames[] = {
 	"charmflip",
 	"orbflip",
 	"signetflip",
+	"jewelflip",
+	"salvageflip",
+	"mapflip",
 };
 static_assert(sizeof(ItemDropNames) / sizeof(ItemDropNames[0]) == ITEMTYPES);
 /** Maps of item drop animation length. */
@@ -397,12 +420,15 @@ int8_t ItemAnimLs[] = {
 	15,
 	15,
 	15,
-	// Oracool: the five tumbles - 13 frames, the same as larmor, their fallback.
+	// Oracool: the eight tumbles - 13 frames, the same as larmor, their fallback.
 	13,
 	13,
 	13,
 	13,
 	13,
+	13, // jewelflip
+	13, // salvageflip
+	13, // mapflip
 };
 static_assert(sizeof(ItemAnimLs) / sizeof(ItemAnimLs[0]) == ITEMTYPES);
 /** Maps of drop sounds effect of dropping the item on ground. */
@@ -457,6 +483,11 @@ _sfx_id ItemDropSnds[] = {
 	IS_FRING,
 	IS_FBLST,
 	IS_FRING,
+	// Batch 15: jewels land like the gems, salvage materials like a soft pouch (larmor's cloth),
+	// the sealed maps like a scroll.
+	IS_FROCK, // jewelflip
+	IS_FLARM, // salvageflip
+	IS_FSCRL, // mapflip
 };
 static_assert(sizeof(ItemDropSnds) / sizeof(ItemDropSnds[0]) == ITEMTYPES);
 static_assert(sizeof(ItemInvSnds) / sizeof(ItemInvSnds[0]) == ITEMTYPES);

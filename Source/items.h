@@ -28,8 +28,9 @@ struct SetItemDefinition;
 namespace devilution {
 
 #define MAXITEMS 127
-// Oracool: 43 vanilla/Hellfire drop animations plus the fork's five tumbles (gem, rune, charm, orb, signet).
-#define ITEMTYPES 48
+// Oracool: 43 vanilla/Hellfire drop animations plus the fork's eight tumbles (gem, rune, charm, orb,
+// signet, jewel, salvage, map).
+#define ITEMTYPES 51
 
 #define GOLD_SMALL_LIMIT 1000
 #define GOLD_MEDIUM_LIMIT 2500

@@ -177,6 +177,10 @@ constexpr const char *UiEventPaths[] = {
 	"sfx\ui\orb-absorb.wav",
 	"sfx\ui\socket.wav",
 	"sfx\ui\runeword-complete.wav",
+	"sfx\ui\milestone.wav",
+	"sfx\ui\encounter-cleared.wav",
+	"sfx\ui\map-unseal.wav",
+	"sfx\ui\signet-use.wav",
 };
 std::unique_ptr<TSnd> UiEventCache[std::size(UiEventPaths)];
 

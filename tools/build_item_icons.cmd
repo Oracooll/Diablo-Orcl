@@ -365,6 +365,10 @@ if not exist "Source\oracool\unique_items2_icon_specs.txt" (
 )
 type "Source\oracool\unique_items2_icon_specs.txt" >> "%SPECFILE%"
 
+REM The 18 unique-expansion bases' own icons (RfA-04 batch 12, 2026-09-11), after the late run.
+REM Hand-written spec; art in ..\Resources\02-source-art\items\unqbase.
+type "Source\oracool\unqbase_icons_icon_specs.txt" >> "%SPECFILE%"
+
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1
 
 REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet
