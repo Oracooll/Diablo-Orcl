@@ -11498,6 +11498,24 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 	}
 }
 
+// Blessed Shield bounces (user, 2026-09-11: "it should bound off of first target in direction to nearest
+// monster and then bouce off to third monster. dmg should reduce with each target - 100% on first, 75% on
+// second, 50% on third"). The flight needs a level full of monsters; the damage each strike carries, and
+// the flash's row in the missile table, are pinned here.
+TEST(OracoolAudit, BlessedShieldStrikesThreeTimesForLessEachTime)
+{
+	EXPECT_EQ(BlessedShieldTargets, 3) << "the target and two bounces";
+	EXPECT_EQ(BlessedShieldHitDamage(100, 0), 100) << "the first target takes the whole throw";
+	EXPECT_EQ(BlessedShieldHitDamage(100, 1), 75) << "the first bounce";
+	EXPECT_EQ(BlessedShieldHitDamage(100, 2), 50) << "the second bounce";
+	EXPECT_EQ(BlessedShieldHitDamage(100, 3), 0) << "there is no fourth";
+	EXPECT_EQ(BlessedShieldHitDamage(1, 2), 1) << "a weak throw still lands for 1";
+	// Asked of the row's DATA: a function pointer read from the game library never equals the one the test
+	// sees - the test's is an import stub (it failed that way, 2026-09-11).
+	EXPECT_EQ(GetMissileData(MissileID::BlessedShieldImpact).mFileNum, MissileGraphicID::HolyBoltExplosion) << "the flash is Holy Bolt's burst";
+	EXPECT_EQ(GetMissileData(MissileID::BlessedShieldImpact).damageType(), DamageType::Magic);
+}
+
 // Heavenly Strength (user, 2026-09-11: "build Heavenly Strength passive skill"). Slotted, every two-handed
 // weapon but a bow takes one hand and leaves the other for a shield - the Barbarian's grip, widened (user, the
 // same day: "works for Great Sword, but doesnt work for Great Axe, Bows, Staff", then "lets make bows always

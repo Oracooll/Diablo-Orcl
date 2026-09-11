@@ -193,7 +193,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	// Columns fill the gaps their tiers had: Vengeance holds (2,0) and Blessed Hammer (3,2).
 	{ N_("Hammer of Faith"), N_("A heavy swing whose force splashes over everything around your target."),
 	    Pal, 0, 2, 1, Kind::Active, SpellID::HammerOfFaith, true },
-	{ N_("Blessed Shield"), N_("Hurls your shield at a crowd, striking several of them before it returns. A shield is mandatory."),
+	{ N_("Blessed Shield"), N_("Hurls your shield at a monster. It bounces to the nearest monster, then to a third, striking each for less. A shield is mandatory."),
 	    Pal, 0, 3, 0, Kind::Active, SpellID::BlessedShield, true },
 
 	// ---- Passive Skills (page 3) ----

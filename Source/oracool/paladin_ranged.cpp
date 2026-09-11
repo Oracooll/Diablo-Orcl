@@ -95,16 +95,12 @@ bool CastFistOfTheHeavens(Player &player, Point target, int spellLevel)
 }
 
 /**
- * @brief Hurls the shield at the target, to burst over a tile's radius where it lands.
+ * @brief Hurls the shield at the target, to bounce on to the two nearest monsters.
  *
- * User spec (2026-08-15): thrown at the monster, travelling at twice a Holy Bolt's speed, "causing
- * splash dmg with range 1 on hit". A real travelling missile now, where the first version dropped
- * blasts on several enemies at once - which delivered damage to a crowd but never actually threw
- * anything.
- *
- * The spin and the brighter shield are NOT here: the game ships no shield missile art, and the item
- * shield is a static inventory icon with no frames to spin. HolyBolt's bright bolt stands in, which
- * is at least the right register for a blessed throw. See the dev report.
+ * User spec (2026-08-15): thrown at the monster, travelling at twice a Holy Bolt's speed. The splash it
+ * carried then ("causing splash dmg with range 1 on hit") gave way on 2026-09-11 to two bounces, each
+ * for less - "100% on first, 75% on second, 50% on third". The flight is ProcessBlessedShieldThrow's;
+ * the damage rolled here is the first strike's.
  */
 bool CastBlessedShield(Player &player, Point target, int spellLevel)
 {
@@ -326,7 +322,8 @@ std::string PaladinRangedFactsAt(PaladinSkill skill, int rank)
 		line(fmt::format(fmt::runtime(_("Damage: {:d}% at the centre, {:d}% around it")), FistCentrePercent, FistNovaPercent));
 		break;
 	case PaladinSkill::BlessedShield:
-		line(fmt::format(fmt::runtime(_("Magic damage: {:d}% per target")), BlessedShieldPercent));
+		line(fmt::format(fmt::runtime(_("Magic damage: {:d}%, then {:d}% and {:d}% of that as it bounces")),
+		    BlessedShieldPercent, BlessedShieldStrikePercent[1], BlessedShieldStrikePercent[2]));
 		break;
 	case PaladinSkill::BlessedHammer:
 		line(fmt::format(fmt::runtime(_("Magic damage: {:d}% per hit")), BlessedHammerPercent));

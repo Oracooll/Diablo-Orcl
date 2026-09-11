@@ -490,7 +490,7 @@ enum class MissileID : int16_t {
 	 * indexed by this enum positionally and every existing value has to keep its place.
 	 */
 	BlessedHammer,
-	/** Oracool: Blessed Shield's thrown projectile. Splashes on impact - see ProcessBlessedShieldThrow. */
+	/** Oracool: Blessed Shield's thrown projectile. Bounces on to two more monsters - see ProcessBlessedShieldThrow. */
 	BlessedShieldThrow,
 	/** Oracool: Fist of the Heavens' descent - plays items\mace.cel, the item drop tumble. */
 	FallingMace,
@@ -533,6 +533,11 @@ enum class MissileID : int16_t {
 	 * AddWarcry drops one under the crier; with no warcry_ring.png delivered it removes itself.
 	 */
 	WarcryRing,
+	/**
+	 * Oracool (2026-09-11): the flash on each Blessed Shield strike - Holy Bolt's burst, scaled down.
+	 * Drawn and lit only, no damage. See AddBlessedShieldImpact.
+	 */
+	BlessedShieldImpact,
 	Null = -1,
 	// clang-format on
 };

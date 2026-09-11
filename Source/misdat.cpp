@@ -152,6 +152,7 @@ const MissileData MissilesData[] = {
 // items\shield.cel, the tumble a dropped shield plays. HolyBolt was chosen when the base game had no
 // shield missile art at all. Blockable so a wall stops it, like every other thrown thing. MAGIC damage
 // since 2026-09-11 (user: "make blessed shield Magic dmg type as well"), as the hammer; it was Physical.
+// It bounces on to two more monsters since the same day (ProcessBlessedShieldThrow), with no splash.
 /*BlessedShieldThrow*/   { &AddBlessedShieldThrow,  &ProcessBlessedShieldThrow,   IS_CAST2,    SFX_NONE,    MissileGraphicID::HolyBolt,             Magic,                 MissileMovementDistribution::Blockable   },
 // Oracool: Fist of the Heavens' descent. Same story - AddFallingMace swaps in its own bolt sheet
 // (fist_of_heavens_bolt, 2026-09-11) and, without that, items\mace.cel's tumble. Invisible would be
@@ -188,6 +189,9 @@ const MissileData MissilesData[] = {
 /*FreezingBurst*/        { &AddMissileExplosion,    &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::FreezingBurst,        Cold,                  MissileMovementDistribution::Disabled    },
 /*Warcry*/               { &oracool::AddWarcry,     nullptr,                      SFX_NONE,    SFX_NONE,    MissileGraphicID::None,                 Physical | Invisible,  MissileMovementDistribution::Disabled    },
 /*WarcryRing*/           { &AddWarcryRing,          &ProcessWarcryRing,           SFX_NONE,    SFX_NONE,    MissileGraphicID::WarcryRing,           Physical,              MissileMovementDistribution::Disabled    },
+// Oracool (2026-09-11): Blessed Shield's hit flash - holyexpl, scaled by AddBlessedShieldImpact, lit and
+// timed by the generic explosion. It deals nothing; the shield dealt the damage.
+/*BlessedShieldImpact*/  { &AddBlessedShieldImpact, &ProcessMissileExplosion,     SFX_NONE,    SFX_NONE,    MissileGraphicID::HolyBoltExplosion,    Magic,                 MissileMovementDistribution::Disabled    },
 	// clang-format on
 };
 
@@ -195,7 +199,7 @@ const MissileData MissilesData[] = {
 // silently shifts every missile past it onto another's behaviour. Pinned after Round 6 appended
 // MissileID::Warcry - which, at the enum's old int8_t, wrapped to -128 and read this table from
 // before its first row. See MissileID in spelldat.h for that story.
-static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::WarcryRing) + 1,
+static_assert(sizeof(MissilesData) / sizeof(MissilesData[0]) == static_cast<size_t>(MissileID::BlessedShieldImpact) + 1,
     "MissilesData needs a row for every MissileID, in the enum's order");
 
 namespace {

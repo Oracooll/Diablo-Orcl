@@ -417,6 +417,7 @@ void AddInfravision(Missile &missile, AddMissileParameter &parameter);
 void AddEtherealize(Missile &missile, AddMissileParameter &parameter);
 void AddBlessedHammer(Missile &missile, AddMissileParameter &parameter);
 void AddWarcryRing(Missile &missile, AddMissileParameter &parameter);
+void AddBlessedShieldImpact(Missile &missile, AddMissileParameter &parameter);
 /** @brief Oracool: SetMissAnim for code outside missiles.cpp - dresses a missile in one graphic. */
 void UseMissileGraphic(Missile &missile, MissileGraphicID graphic);
 void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter);
@@ -495,6 +496,18 @@ void ProcessWarcryRing(Missile &missile);
 Displacement BlessedHammerOffsetAt(float ticks);
 /** @brief Oracool: how many times a tick ProcessBlessedHammer looks for the tile the hammer is in. */
 constexpr int BlessedHammerSubSteps = 8;
+/** @brief Oracool: how many monsters one Blessed Shield throw strikes - its target and two bounces (2026-09-11). */
+constexpr int BlessedShieldTargets = 3;
+/** @brief What each strike carries, in percent of the throw (user: "100% on first, 75% on second, 50% on third"). */
+constexpr int BlessedShieldStrikePercent[BlessedShieldTargets] = { 100, 75, 50 };
+/** @brief The damage of Blessed Shield's strike @p hitsSoFar (0 = the first) from a throw of @p baseDamage. At least 1; 0 past the last. */
+constexpr int BlessedShieldHitDamage(int baseDamage, int hitsSoFar)
+{
+	if (hitsSoFar < 0 || hitsSoFar >= BlessedShieldTargets)
+		return 0;
+	const int damage = baseDamage * BlessedShieldStrikePercent[hitsSoFar] / 100;
+	return damage < 1 ? 1 : damage;
+}
 void ProcessBlessedShieldThrow(Missile &missile);
 void ProcessFallingMace(Missile &missile);
 void ProcessApocalypse(Missile &missile);

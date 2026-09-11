@@ -38,6 +38,7 @@
 #include "oracool/divine_trn.h"
 #include "oracool/skill_sounds.h"
 #include "oracool/paladin_ranged.h"
+#include "oracool/sprite_scale.h"
 #include "spells.h"
 #include "utils/str_cat.hpp"
 
@@ -3116,6 +3117,9 @@ void AddBlessedShieldThrow(Missile &missile, AddMissileParameter &parameter)
 		dst += parameter.midir;
 	UpdateMissileVelocity(missile, dst, HolyBoltSpeed * BlessedShieldSpeedMultiplier);
 	missile._mirange = BlessedShieldRangeTicks;
+	missile.var1 = 0; // strikes so far...
+	missile.var2 = 0; // ...and the first two targets' ids + 1 - see ProcessBlessedShieldThrow
+	missile.var3 = 0;
 	SetMissDir(missile, GetDirection16(missile.position.start, dst));
 	// Its own spin sheet once delivered (2026-09-11); until then the shield item's drop tumble,
 	// painted divine - "in spinning motion animation, if available".
@@ -3159,32 +3163,113 @@ void ProcessFallingMace(Missile &missile)
 	PutMissile(missile);
 }
 
+namespace {
+
+/** @brief How far a struck shield looks for the next monster, in tiles. */
+constexpr unsigned BlessedShieldBounceTiles = 6;
+
+/** @brief Whether the throw has already struck monster @p monsterId - var2 and var3 hold the first two, + 1. */
+bool BlessedShieldHasStruck(const Missile &missile, int monsterId)
+{
+	return missile.var2 == monsterId + 1 || missile.var3 == monsterId + 1;
+}
+
 /**
- * @brief Carries the thrown shield, and bursts it over one tile of ground where it lands.
+ * @brief The nearest monster to @p from the shield may bounce to: one it has not struck, not the
+ * player's own, hittable, and in sight - FindClosest's rule, less the ones already struck.
+ */
+Monster *NextBlessedShieldTarget(const Missile &missile, Point from)
+{
+	const std::optional<Point> found = FindClosestValidPosition(
+	    [&missile, from](Point tile) {
+		    if (!InDungeonBounds(tile) || tile == missile.position.tile || dMonster[tile.x][tile.y] <= 0 || CheckBlock(from, tile))
+			    return false;
+		    const int id = dMonster[tile.x][tile.y] - 1;
+		    Monster &monster = Monsters[id];
+		    return !BlessedShieldHasStruck(missile, id) && !monster.isPlayerMinion() && monster.isPossibleToHit();
+	    },
+	    from, 1, BlessedShieldBounceTiles);
+	if (!found)
+		return nullptr;
+	return &Monsters[dMonster[found->x][found->y] - 1];
+}
+
+} // namespace
+
+/**
+ * @brief Carries the thrown shield from monster to monster (user, 2026-09-11: "it should bound off of
+ * first target in direction to nearest monster and then bouce off to third monster. dmg should reduce
+ * with each target - 100% on first, 75% on second, 50% on third").
  *
- * "causing splash dmg with range 1 on hit" - so the impact is not the shield's own collision alone,
- * it is a small blast centred on it. ApocalypseBoom is the engine's one-tile blast, and dropping a
- * ring of them is the same pattern Apocalypse itself uses.
+ * The same message took away the splash it had since 2026-08-15 ("i dont think blessed shield should
+ * have splash dmg"), and asked for a flash on every strike - BlessedShieldImpact.
+ *
+ * Its own collision rather than MoveMissileAndCheckMissileCol's, because the shield must fly THROUGH
+ * what it has already struck: the first target stands right behind it when it turns, and the second
+ * may stand on the line to the third. Each strike stops it short of its target's tile, as the throw
+ * always did, and turns it on NextBlessedShieldTarget - or ends the throw after the third, or when no
+ * monster is left to turn on. A wall ends it too; so does the range, for a throw that strikes nothing.
  */
 void ProcessBlessedShieldThrow(Missile &missile)
 {
 	missile._mirange--;
-	MoveMissileAndCheckMissileCol(missile, GetMissileData(missile._mitype).damageType(),
-	    missile._midam, missile._midam, true, true);
+	const int hitsSoFar = missile.var1;
+	const int damage = BlessedShieldHitDamage(missile._midam, hitsSoFar);
+	const DamageType damageType = GetMissileData(missile._mitype).damageType();
+	std::optional<Point> struck;
+	int struckId = -1;
+	bool walled = false;
+	missile._miHitFlag = false;
+	MoveMissile(
+	    missile, [&](Point tile) {
+		    if (!InDungeonBounds(tile)) {
+			    walled = true;
+			    return false;
+		    }
+		    if (tile == missile.position.start)
+			    return true; // the thrower's own tile, which the throw has always skipped
+		    const int occupant = dMonster[tile.x][tile.y];
+		    const int occupantId = occupant != 0 ? abs(occupant) - 1 : -1;
+		    // A monster already struck is flown through like open floor.
+		    if (occupantId < 0 || !BlessedShieldHasStruck(missile, occupantId)) {
+			    CheckMissileCol(missile, damageType, damage, damage, false, tile, /*dontDeleteOnCollision=*/true);
+			    if (missile._miHitFlag) {
+				    struck = tile;
+				    struckId = occupantId;
+				    return false;
+			    }
+		    }
+		    if (IsMissileBlockedByTile(tile)) {
+			    walled = true;
+			    return false;
+		    }
+		    return true;
+	    },
+	    /*ifCheckTileFailsDontMoveToTile=*/true);
 
-	if (missile._miHitFlag || missile._mirange == 0) {
-		missile._miDelFlag = true;
+	if (struck) {
 		oracool::PlayBlessedShieldImpactSound(missile);
-		const Point impact = missile.position.tile;
-		for (int dy = -1; dy <= 1; dy++) {
-			for (int dx = -1; dx <= 1; dx++) {
-				const Point tile = impact + Displacement { dx, dy };
-				if (!InDungeonBounds(tile))
-					continue;
-				AddMissile(tile, tile, Direction::South, MissileID::ApocalypseBoom, missile._micaster,
-				    missile._misource, missile._midam, missile._mispllvl);
-			}
+		AddMissile(*struck, *struck, Direction::South, MissileID::BlessedShieldImpact, missile._micaster,
+		    missile._misource, 0, 0);
+		if (hitsSoFar == 0)
+			missile.var2 = struckId + 1;
+		else if (hitsSoFar == 1)
+			missile.var3 = struckId + 1;
+		missile.var1 = hitsSoFar + 1;
+		const Monster *next = missile.var1 < BlessedShieldTargets ? NextBlessedShieldTarget(missile, *struck) : nullptr;
+		if (next == nullptr) {
+			missile._miDelFlag = true;
+			return;
 		}
+		// No SetMissDir: it would re-dress the missile from its table graphic, and the shield spins,
+		// so which way it faces never showed.
+		UpdateMissileVelocity(missile, next->position.tile, HolyBoltSpeed * BlessedShieldSpeedMultiplier);
+		missile._mirange = BlessedShieldRangeTicks;
+	} else if (walled || missile._mirange <= 0) {
+		if (walled)
+			oracool::PlayBlessedShieldImpactSound(missile);
+		missile._miDelFlag = true;
+		return;
 	}
 	PutMissile(missile);
 }
@@ -3235,6 +3320,44 @@ void ProcessWarcryRing(Missile &missile)
 		return;
 	}
 	PutMissile(missile);
+}
+
+namespace {
+
+/** @brief Blessed Shield's hit flash is holyexpl at this share of its size (user: "maybe scaled down a bit"). */
+constexpr unsigned BlessedShieldImpactPercent = 60;
+
+/**
+ * @brief The scaled flash, built once from the loaded holyexpl. It owns its pixels, so a level change
+ * that frees and reloads the missile graphics it was scaled from leaves it whole.
+ */
+std::optional<OwnedClxSpriteList> BlessedShieldImpactSprites;
+
+} // namespace
+
+/**
+ * @brief Oracool (2026-09-11): the flash on each Blessed Shield strike - "confirmation feedback in the
+ * form of small short animation. Effect - HolyBoltExplosion (holyexpl) - this one looks adequate, maybe
+ * scaled down a bit". Holy Bolt's own burst at BlessedShieldImpactPercent of its size, eight frames at
+ * one a tick, lit by ProcessMissileExplosion. It never hits: the shield dealt the damage.
+ */
+void AddBlessedShieldImpact(Missile &missile, AddMissileParameter & /*parameter*/)
+{
+	missile._mirange = missile._miAnimLen;
+	if (!missile._miAnimData)
+		return; // headless, or holyexpl not loaded: an unseen flash still times out
+	if (!BlessedShieldImpactSprites)
+		BlessedShieldImpactSprites = oracool::ScaleClxList(*missile._miAnimData, BlessedShieldImpactPercent);
+	const int fullHeight = (*missile._miAnimData)[0].height();
+	const ClxSpriteList scaled { *BlessedShieldImpactSprites };
+	missile._miAnimData = scaled;
+	missile._miAnimLen = static_cast<int>(scaled.numSprites());
+	missile._miAnimWidth = scaled[0].width();
+	missile._miAnimWidth2 = CalculateWidth2(missile._miAnimWidth);
+	// A sprite hangs from its tile by its bottom edge, so a smaller one would sit lower on the monster.
+	// Lifted by half the height it lost, its centre stays where Holy Bolt's full-size burst puts it.
+	missile.position.offset = { 0, -(fullHeight - static_cast<int>(scaled[0].height())) / 2 };
+	missile._mirange = missile._miAnimLen;
 }
 
 /**
