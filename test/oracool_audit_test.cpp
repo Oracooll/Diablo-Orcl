@@ -8527,8 +8527,9 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 		// on an in-game panel, which is what the user saw on Charged Bolt.
 		{ SpellID::Lightning, UiFlags::ColorYellow, "lightning" },
 		{ SpellID::ChargedBolt, UiFlags::ColorYellow, "lightning, and the spell that caught this" },
-		{ SpellID::BoneSpirit, UiFlags::ColorMagicDamage, "magic - RGB 104,49,49 since 2026-09-11" },
+		{ SpellID::BoneSpirit, UiFlags::ColorMagicDamage, "magic - RGB 208,98,98 since 2026-09-11" },
 		{ SpellID::BlessedHammer, UiFlags::ColorMagicDamage, "Blessed Hammer is magic damage, as in D2 (2026-09-11) - asked of the missile it throws" },
+		{ SpellID::BlessedShield, UiFlags::ColorMagicDamage, "Blessed Shield is magic damage too (user, 2026-09-11: \"make blessed shield Magic dmg type as well\")" },
 		{ SpellID::Healing, UiFlags::ColorOracoolGreen, "healing" },
 	};
 

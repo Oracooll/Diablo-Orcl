@@ -326,7 +326,7 @@ std::string PaladinRangedFactsAt(PaladinSkill skill, int rank)
 		line(fmt::format(fmt::runtime(_("Damage: {:d}% at the centre, {:d}% around it")), FistCentrePercent, FistNovaPercent));
 		break;
 	case PaladinSkill::BlessedShield:
-		line(fmt::format(fmt::runtime(_("Damage: {:d}% per target")), BlessedShieldPercent));
+		line(fmt::format(fmt::runtime(_("Magic damage: {:d}% per target")), BlessedShieldPercent));
 		break;
 	case PaladinSkill::BlessedHammer:
 		line(fmt::format(fmt::runtime(_("Magic damage: {:d}% per hit")), BlessedHammerPercent));

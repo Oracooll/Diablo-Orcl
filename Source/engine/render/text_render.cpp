@@ -235,10 +235,12 @@ constexpr RgbDefinedColor RgbDefinedColors[] = {
 	    { 0xCCB775, 0xBCA86C, 0xAB9A63, 0x988B5D, 0x877E54, 0x786F49, 0x69603F, 0x5B5134, 0x484027, 0x39311D, 0x312816, 0x1A1408, 0x140B00, 0x140B00, 0x140B00, 0x140B00 } }, // was fonts\\oracool_gold6.trn
 	{ ColorOrange7,
 	    { 0xD08C62, 0xC77B52, 0xCC6133, 0xC74B1F, 0xB1431B, 0x9B3B18, 0x853213, 0x6F2910, 0x5A220C, 0x3F1708, 0x250E03, 0x0F0500, 0x0F0500, 0x0F0500, 0x0F0500, 0x0F0500 } }, // was fonts\\oracool_orange7.trn
-	// Magic damage (user, 2026-09-11: "let's make Magic DMG font color RGB:104,49,49"): the colour itself
-	// at the top, shaded down the gold ramp's steps by tools' arithmetic, as DefineTextColorRgb would.
+	// Magic damage (user, 2026-09-11: "let's make Magic DMG font color RGB:104,49,49", then "way too dark
+	// make it brighter"). 104,49,49 at the TOP of the ramp left the glyph bodies, drawn from the middle
+	// shades, near brown. Now the same hue at twice the value, 208,98,98, held flat across the top three
+	// shades the way the dialog red holds its own, then stepped down the old ramp's ratios.
 	{ ColorMagicDamage,
-	    { 0x683131, 0x5F2C2C, 0x582929, 0x522626, 0x4C2323, 0x452020, 0x3E1D1D, 0x381A1A, 0x311717, 0x2A1414, 0x241111, 0x1C0D0D, 0x160A0A, 0x120808, 0x090404, 0x050202 } },
+	    { 0xD06262, 0xD06262, 0xD06262, 0xBE5959, 0xB05353, 0xA44D4D, 0x984848, 0x8A4141, 0x7C3A3A, 0x703535, 0x622E2E, 0x542828, 0x482222, 0x381A1A, 0x241111, 0x120909 } },
 	{ ColorGray7,
 	    { 0xA3A3A3, 0x949494, 0x858585, 0x737373, 0x666666, 0x595959, 0x4C4C4C, 0x3D3D3D, 0x2E2E2E, 0x1E1E1E, 0x111111, 0x111111, 0x111111, 0x111111, 0x111111, 0x111111 } }, // was fonts\\oracool_gray7.trn
 };

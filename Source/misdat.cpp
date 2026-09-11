@@ -150,8 +150,9 @@ const MissileData MissilesData[] = {
 // Oracool: Blessed Shield's throw. The sprite named here is only the last fallback - AddBlessedShieldThrow
 // swaps in its own spin sheet (blessed_shield_spin, delivered 2026-09-11) and, without that,
 // items\shield.cel, the tumble a dropped shield plays. HolyBolt was chosen when the base game had no
-// shield missile art at all. Blockable so a wall stops it, like every other thrown thing.
-/*BlessedShieldThrow*/   { &AddBlessedShieldThrow,  &ProcessBlessedShieldThrow,   IS_CAST2,    SFX_NONE,    MissileGraphicID::HolyBolt,             Physical,              MissileMovementDistribution::Blockable   },
+// shield missile art at all. Blockable so a wall stops it, like every other thrown thing. MAGIC damage
+// since 2026-09-11 (user: "make blessed shield Magic dmg type as well"), as the hammer; it was Physical.
+/*BlessedShieldThrow*/   { &AddBlessedShieldThrow,  &ProcessBlessedShieldThrow,   IS_CAST2,    SFX_NONE,    MissileGraphicID::HolyBolt,             Magic,                 MissileMovementDistribution::Blockable   },
 // Oracool: Fist of the Heavens' descent. Same story - AddFallingMace swaps in its own bolt sheet
 // (fist_of_heavens_bolt, 2026-09-11) and, without that, items\mace.cel's tumble. Invisible would be
 // wrong; this one is the whole point of the effect.

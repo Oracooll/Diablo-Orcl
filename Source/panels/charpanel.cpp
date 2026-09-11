@@ -104,7 +104,8 @@ std::pair<int, int> GetDamage()
  * Lightning, Magic and Acid, and blue for arcane is the closest honest reading of the same idea.
  *
  * Magic left blue on 2026-09-11 for RGB 104,49,49 (user: "let's make Magic DMG font color
- * RGB:104,49,49") - UiFlags::ColorMagicDamage. Blue stays the aura row's and a bonus row's colour.
+ * RGB:104,49,49"), then brightened to 208,98,98 the same day ("way too dark make it brighter") -
+ * UiFlags::ColorMagicDamage. Blue stays the aura row's and a bonus row's colour.
  *
  * Acid is monster-only - no player spell carries it - so it falls through to physical white rather
  * than being given a colour nobody will ever see. Green belongs to healing, below.
