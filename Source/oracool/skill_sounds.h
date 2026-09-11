@@ -131,6 +131,24 @@ DVL_API_FOR_TEST ClassTreeSkill CurrentCastSkill();
 void PlaySetCompleteSound();
 
 /**
+ * @brief Oracool (RfA-03 batch 9, 2026-09-11): the fork's own item-event sounds, which used to borrow
+ * vanilla ones that meant something else (a shield slotting in for a salvage, a spell for an orb).
+ */
+enum class UiEventSound : uint8_t {
+	Salvage,
+	Transmute,
+	OrbAbsorb,
+	Socket,
+	RunewordComplete,
+};
+
+/**
+ * @brief Plays @p sound (sfx\ui\<name>.wav) once. False - so the caller plays the vanilla sound it
+ * used before - when there is no audio device or the file is not in the archive.
+ */
+bool PlayUiEventSound(UiEventSound sound);
+
+/**
  * @brief Fires the set-completion stinger when a set crosses from incomplete to complete.
  *
  * Call after any equipment transaction has fully settled. The contract is strict about what must

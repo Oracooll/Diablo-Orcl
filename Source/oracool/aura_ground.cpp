@@ -62,7 +62,7 @@ struct AuraFile {
 	const char *id;
 };
 
-constexpr std::array<AuraFile, 20> AuraFiles { {
+constexpr std::array<AuraFile, 30> AuraFiles { {
     // Offensive
     { Skill::Might, "might" },
     { Skill::HolyFire, "holy_fire" },
@@ -85,6 +85,18 @@ constexpr std::array<AuraFile, 20> AuraFiles { {
     { Skill::Meditation, "meditation" },
     { Skill::Redemption, "redemption" },
     { Skill::Salvation, "salvation" },
+    // Bard songs (batch 8, 2026-09-11) - held through the same GetActiveClassAura, so they ring alike
+    { Skill::MelodyOfLife, "melody_of_life" },
+    { Skill::BattleHymn, "battle_hymn" },
+    { Skill::SongOfSwiftness, "song_of_swiftness" },
+    { Skill::SongOfFortitude, "song_of_fortitude" },
+    { Skill::DirgeOfDread, "dirge_of_dread" },
+    { Skill::Discord, "discord" },
+    { Skill::Inspiration, "inspiration" },
+    { Skill::TaleOfHeroes, "tale_of_heroes" },
+    { Skill::Weaken, "weaken" },
+    // Monk
+    { Skill::HealingMantra, "healing_mantra" },
 } };
 
 std::array<AuraArt, AuraFiles.size()> Art;

@@ -223,4 +223,21 @@ std::optional<OwnedClxSpriteListOrSheet> LoadPngMissileSheet(const char *name, u
 	return OwnedClxSpriteListOrSheet { CombineListsIntoSheet(lists) };
 }
 
+OptionalOwnedClxSpriteList LoadPngItemDropSheet(const char *name, uint16_t frameWidth)
+{
+	// Beside the CEL it replaces, as for missiles: items\<name>.png.
+	char path[MaxMpqPathSize];
+	*BufCopy(path, "items\\", name, ".png") = '\0';
+
+	SDLSurfaceUniquePtr png { LoadPNG(path) };
+	if (png == nullptr)
+		return std::nullopt;
+
+	// One row - a drop tumbles the same whichever way the item faces.
+	std::vector<OwnedClxSpriteList> lists = SplitSurfaceIntoRows(png.get(), frameWidth, 1);
+	if (lists.empty())
+		return std::nullopt;
+	return std::move(lists[0]);
+}
+
 } // namespace devilution::oracool

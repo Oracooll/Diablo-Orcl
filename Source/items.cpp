@@ -54,6 +54,7 @@
 #include "oracool/salvage.h"
 #include "oracool/signets.h"
 #include "oracool/skill_sounds.h"
+#include "oracool/sprite_import.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/treasure_class.h"
 #include "panels/info_box.hpp"
@@ -157,7 +158,44 @@ _sfx_id ItemInvSnds[] = {
 	IS_IHARM,
 	IS_ILARM,
 	IS_ILARM,
+	// Oracool: the fork's five tumbles (43-47).
+	IS_IROCK, // gemflip
+	IS_IROCK, // runeflip
+	IS_IRING, // charmflip
+	IS_IBLST, // orbflip
+	IS_IRING, // signetflip
 };
+
+namespace {
+
+// Oracool: the fork's own drop tumbles (batch 10, 2026-09-11), appended after Hellfire's 43 so no
+// index ItemCAnimTbl uses moves.
+constexpr int FirstOracoolDropAnim = 43;
+constexpr int8_t OracoolGemDropAnim = 43;
+constexpr int8_t OracoolRuneDropAnim = 44;
+constexpr int8_t OracoolCharmDropAnim = 45;
+constexpr int8_t OracoolOrbDropAnim = 46;
+constexpr int8_t OracoolSignetDropAnim = 47;
+static_assert(ITEMTYPES == FirstOracoolDropAnim + 5, "ITEMTYPES must count the five Oracool tumbles");
+
+// Oracool: the ranges below lean on these blocks being contiguous; a generator that grows or splits
+// one must fail here rather than hand a stray icon the wrong tumble.
+static_assert(ICURS_ORACOOL_GEM_SKULL - ICURS_ORACOOL_GEM_RUBY == 4);
+static_assert(ICURS_ORACOOL_RUNE_SOL - ICURS_ORACOOL_RUNE_EL == 4);
+static_assert(ICURS_ORACOOL_GEM_SKULL_PERFECT - ICURS_ORACOOL_GEM_AMETHYST_CHIPPED == 29);
+static_assert(ICURS_ORACOOL_RUNE_ZOD - ICURS_ORACOOL_RUNE_ELD == 27);
+static_assert(ICURS_ORACOOL_CHARM_SALVAGE_ETHEREAL_IMBUEITIES - ICURS_ORACOOL_CHARM_SALVAGE_WHITE_SCALES == 6);
+static_assert(ICURS_ORACOOL_ORB_AVARICE - ICURS_ORACOOL_ORB_MIGHT == 7);
+static_assert(ICURS_ORACOOL_CHARM_LEGEND - ICURS_ORACOOL_CHARM_TRIALS == 2);
+static_assert(ICURS_ORACOOL_CHARM_VAULT - ICURS_ORACOOL_CHARM_CHAPEL == 2);
+static_assert(ICURS_ORACOOL_CHARM_GREED - ICURS_ORACOOL_CHARM_VIGOR == 5);
+
+constexpr bool InCursRange(uint16_t curs, int first, int last)
+{
+	return curs >= first && curs <= last;
+}
+
+} // namespace
 
 /**
  * @brief Ground-drop animation index for an item graphic, safe for any cursor id.
@@ -166,15 +204,37 @@ _sfx_id ItemInvSnds[] = {
  * _iCurs with no bounds check. Our own icons live past its end, so reading it directly for one of
  * them is an out-of-bounds read that happens to work until it doesn't.
  *
- * The six new types deliberately borrow existing drop animations rather than shipping six more
- * ground CELs. The tumbling object on the floor is small, and this keeps an entire art dependency
- * off the critical path - swapping in dedicated animations later is a one-line change here plus
- * the new entries in ItemDropNames/ItemAnimLs.
+ * Five families of fork icons have their own tumble (items\<name>.png, batch 10): gems, runes,
+ * charms, Mystic Orbs and the Signet. Everything else of ours - jewels, salvage materials, maps,
+ * uniques, set pieces and worn gear - borrows "larmor".
+ *
+ * Visual and audio only: this picks a sprite, a frame count and two sounds. Nothing generated or
+ * saved reads it, and every tumble here is 13 frames like larmor, so a saved item's frame count is
+ * unchanged either way.
  */
 int8_t GetItemDropAnimIndex(uint16_t curs)
 {
 	if (curs < ICURS_ORACOOL_FIRST)
 		return ItemCAnimTbl[curs];
+
+	// Gems: the five plain gems and the quality ladder (the first rune block sits between them).
+	if (InCursRange(curs, ICURS_ORACOOL_GEM_RUBY, ICURS_ORACOOL_GEM_SKULL)
+	    || InCursRange(curs, ICURS_ORACOOL_GEM_AMETHYST_CHIPPED, ICURS_ORACOOL_GEM_SKULL_PERFECT))
+		return OracoolGemDropAnim;
+	// Runes: the five shipped icons and the 28 of runes_curs.inc.
+	if (InCursRange(curs, ICURS_ORACOOL_RUNE_EL, ICURS_ORACOOL_RUNE_SOL)
+	    || InCursRange(curs, ICURS_ORACOOL_RUNE_ELD, ICURS_ORACOOL_RUNE_ZOD))
+		return OracoolRuneDropAnim;
+	// Charms: Phase 1, Salvaging, growing, and the three encounter rewards (not their maps).
+	if (InCursRange(curs, ICURS_ORACOOL_CHARM_VIGOR, ICURS_ORACOOL_CHARM_GREED)
+	    || InCursRange(curs, ICURS_ORACOOL_CHARM_SALVAGE_WHITE_SCALES, ICURS_ORACOOL_CHARM_SALVAGE_ETHEREAL_IMBUEITIES)
+	    || InCursRange(curs, ICURS_ORACOOL_CHARM_TRIALS, ICURS_ORACOOL_CHARM_LEGEND)
+	    || InCursRange(curs, ICURS_ORACOOL_CHARM_CHAPEL, ICURS_ORACOOL_CHARM_VAULT))
+		return OracoolCharmDropAnim;
+	if (InCursRange(curs, ICURS_ORACOOL_ORB_MIGHT, ICURS_ORACOOL_ORB_AVARICE))
+		return OracoolOrbDropAnim;
+	if (curs == ICURS_ORACOOL_SIGNET_LEARNING)
+		return OracoolSignetDropAnim;
 
 	// 14 is "larmor" - light armour, a soft cloth/leather tumble. The closest existing match for
 	// gloves, boots, bracers, shoulders and legs; the belt borrows it too rather than the noisier
@@ -284,7 +344,14 @@ const char *const ItemDropNames[] = {
 	"cows1",
 	"donkys1",
 	"mooses1",
+	// Oracool: PNG only (items\<name>.png); without the file they load larmor's CEL - see InitItemGFX.
+	"gemflip",
+	"runeflip",
+	"charmflip",
+	"orbflip",
+	"signetflip",
 };
+static_assert(sizeof(ItemDropNames) / sizeof(ItemDropNames[0]) == ITEMTYPES);
 /** Maps of item drop animation length. */
 int8_t ItemAnimLs[] = {
 	15,
@@ -330,7 +397,14 @@ int8_t ItemAnimLs[] = {
 	15,
 	15,
 	15,
+	// Oracool: the five tumbles - 13 frames, the same as larmor, their fallback.
+	13,
+	13,
+	13,
+	13,
+	13,
 };
+static_assert(sizeof(ItemAnimLs) / sizeof(ItemAnimLs[0]) == ITEMTYPES);
 /** Maps of drop sounds effect of dropping the item on ground. */
 _sfx_id ItemDropSnds[] = {
 	IS_FHARM,
@@ -376,7 +450,16 @@ _sfx_id ItemDropSnds[] = {
 	IS_FHARM,
 	IS_FLARM,
 	IS_FLARM,
+	// Oracool: the five tumbles - stones for gems and runes, the bloodstone for orbs, the ring for
+	// charms and the signet.
+	IS_FROCK,
+	IS_FROCK,
+	IS_FRING,
+	IS_FBLST,
+	IS_FRING,
 };
+static_assert(sizeof(ItemDropSnds) / sizeof(ItemDropSnds[0]) == ITEMTYPES);
+static_assert(sizeof(ItemInvSnds) / sizeof(ItemInvSnds[0]) == ITEMTYPES);
 // Oracool: vanilla's two premium quality-level tables (six entries for Diablo, fifteen for
 // Hellfire) are gone. They mapped a SLOT NUMBER to a delta, so they could only ever describe a stock
 // of exactly their own length, and Griswold's premium stock is thirty slots now. PremiumLevelDelta,
@@ -3653,9 +3736,20 @@ void InitItemGFX()
 {
 	char arglist[64];
 
-	int itemTypes = gbIsHellfire ? ITEMTYPES : 35;
-	for (int i = 0; i < itemTypes; i++) {
-		*BufCopy(arglist, "items\\", ItemDropNames[i]) = '\0';
+	for (int i = 0; i < ITEMTYPES; i++) {
+		// Hellfire's eight (35-42) exist only in hellfire.mpq; the fork's own load in either mode.
+		if (!gbIsHellfire && i >= 35 && i < FirstOracoolDropAnim)
+			continue;
+		// Oracool: a PNG sheet (items\<name>.png, one row) wins when present and has exactly the
+		// frame count ItemAnimLs promises - the animation indexes frames by that count.
+		OptionalOwnedClxSpriteList png = oracool::LoadPngItemDropSheet(ItemDropNames[i], ItemAnimWidth);
+		if (png && ClxSpriteList { *png }.numSprites() == static_cast<uint32_t>(ItemAnimLs[i])) {
+			itemanims[i] = std::move(png);
+			continue;
+		}
+		// The CEL otherwise. The fork's tumbles have none, so without their PNG they borrow larmor's
+		// (13 frames, like theirs) - a public build without the art still draws every drop.
+		*BufCopy(arglist, "items\\", i >= FirstOracoolDropAnim ? "larmor" : ItemDropNames[i]) = '\0';
 		itemanims[i] = LoadCel(arglist, ItemAnimWidth);
 	}
 }

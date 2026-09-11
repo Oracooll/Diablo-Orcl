@@ -29,6 +29,7 @@
 #include "oracool/book_frame.h" // the painted tall frame the recipe book wears
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/socket_overlay.h"
 #include "oracool/ui_sound.h"
 #include "oracool/window_close.h"
@@ -1072,7 +1073,8 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			LogEvent(StrCat("Salvaged ", consumed, " ", _(SalvageTierName(tier)), " into ",
 			             _(AllItemsList[SalvageMaterialFor(tier)].iName)),
 			    UiFlags::ColorWhitegold);
-			PlaySFX(IS_ISHIEL);
+			if (!PlayUiEventSound(UiEventSound::Salvage))
+				PlaySFX(IS_ISHIEL); // the old stand-in, if the salvage sound is not in the archive
 		} else {
 			LogEvent(StrCat("Nothing to salvage: ", _(SalvageTierName(tier))), UiFlags::ColorWhite);
 		}
@@ -1132,8 +1134,8 @@ bool CheckLevskiRoarClick(Point mousePosition, bool isCtrlHeld)
 			LogEvent(StrCat("Levski's Roar: ", result));
 		// Salvage's sound for a transmute that MADE something. The room refusals consumed nothing
 		// and stay as quiet as the other refusals above; crafting.cpp owns their wording.
-		if (!result.empty() && !IsTransmuteRefusal(result))
-			PlaySFX(IS_ISHIEL);
+		if (!result.empty() && !IsTransmuteRefusal(result) && !PlayUiEventSound(UiEventSound::Transmute))
+			PlaySFX(IS_ISHIEL); // the old stand-in, if the transmute sound is not in the archive
 		return true;
 	}
 

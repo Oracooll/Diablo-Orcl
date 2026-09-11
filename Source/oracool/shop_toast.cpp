@@ -7,6 +7,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "engine/render/text_render.hpp"
+#include "oracool/hud_art.h" // the toast's plate
 #include "oracool/ornate_border.h"
 #include "oracool/shop_grid.h"
 
@@ -21,6 +22,16 @@ constexpr int ToastHeight = 34;
 /** @brief Inset from the shop panel's own left and right edges, so the banner reads as belonging to
  * the panel rather than as a separate window that happens to be the same width. */
 constexpr int ToastSideInset = 14;
+
+/*
+ * Oracool: the toast's own art (batch 11, 2026-09-11) - one BLANK 312x34 plate, the message still the
+ * game's text on top. 312 is the 340 shop panel less two insets; the panel's size is shop_grid.cpp's
+ * own, so the width is checked at draw against the rect and only the height can be held here.
+ */
+constexpr const char *ShopToastArt = "ui\\shop_toast.png";
+constexpr Size ShopToastPlateSize { 312, 34 };
+static_assert(ShopToastPlateSize.height == ToastHeight, "shop_toast.png no longer matches ToastHeight");
+static_assert(ShopToastPlateSize.width == 340 - ToastSideInset * 2, "shop_toast.png no longer matches the toast's width");
 
 /**
  * @brief Where the banner sits: across the shop panel, just above its grid.
@@ -81,8 +92,14 @@ void DrawShopToast(const Surface &out)
 	// The shop's own surface treatment - the themed fill and the ornate border every panel in this
 	// build wears - so the banner reads as part of the shop rather than as a system message that
 	// happens to be on top of it. That is the whole of "in line with the new shops design".
-	DrawThemedFill(out, toast, 2);
-	DrawOrnateBorder(out, toast);
+	// The plate when it shipped and still fits the rect; otherwise that treatment drawn in code.
+	const Size plate = GetLoosePngSize(ShopToastArt);
+	if (plate.width != 0 && plate == toast.size) {
+		DrawLoosePng(out, ShopToastArt, toast.position);
+	} else {
+		DrawThemedFill(out, toast, 2);
+		DrawOrnateBorder(out, toast);
+	}
 	DrawString(out, Message, toast,
 	    { UiFlags::ColorWhitegold | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });
 }

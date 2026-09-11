@@ -1,6 +1,7 @@
 #include "oracool/skill_sounds.h"
 
 #include <cstddef>
+#include <iterator>
 #include <memory>
 
 #include "engine/sound.h"
@@ -166,6 +167,36 @@ void EndSkillCast()
 Skill CurrentCastSkill()
 {
 	return CastingSkill;
+}
+
+namespace {
+
+constexpr const char *UiEventPaths[] = {
+	"sfx\ui\salvage.wav",
+	"sfx\ui\transmute.wav",
+	"sfx\ui\orb-absorb.wav",
+	"sfx\ui\socket.wav",
+	"sfx\ui\runeword-complete.wav",
+};
+std::unique_ptr<TSnd> UiEventCache[std::size(UiEventPaths)];
+
+} // namespace
+
+bool PlayUiEventSound(UiEventSound sound)
+{
+	if (!gbSndInited)
+		return false;
+	const size_t i = static_cast<size_t>(sound);
+	if (i >= std::size(UiEventPaths))
+		return false;
+	TSnd *snd = LoadCached(UiEventCache[i], UiEventPaths[i]);
+#ifndef NOSOUND
+	// A missing WAV loads as an unloaded TSnd, not nullptr - ask, so the caller can fall back.
+	if (snd == nullptr || !snd->DSB.IsLoaded())
+		return false;
+#endif
+	snd_play_snd(snd, VolumeOneShot, 0);
+	return true;
 }
 
 void PlaySetCompleteSound()

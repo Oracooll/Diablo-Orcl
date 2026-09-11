@@ -7,8 +7,9 @@
  * knows the aura is on, and which one. This fork had twenty auras and no such effect at all - an
  * active aura was visible only as a lit icon in the interface.
  *
- * The art is twenty 512x256 RGBA images (`ui\aura_*.png`), one per aura, commissioned to the brief
- * in `01-Project-Overview/Asset Brief - Paladin Aura Ground Effects.md`. They arrive already
+ * The art is thirty 512x256 RGBA images (`ui\aura_*.png`), one per aura, commissioned to the brief
+ * in `01-Project-Overview/Asset Brief - Paladin Aura Ground Effects.md` - the Paladin's twenty, then
+ * the Bard's nine songs and the Monk's Healing Mantra (batch 8, 2026-09-11). They arrive already
  * quantised to the shared palette - measured error zero against every entry in 128-255 - which is
  * what lets them go into the world at all.
  *

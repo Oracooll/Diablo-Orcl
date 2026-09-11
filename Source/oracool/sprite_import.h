@@ -74,4 +74,13 @@ OptionalOwnedClxSpriteSheet SpriteSheetFromSurface(SDL_Surface *surface, uint16_
  */
 std::optional<OwnedClxSpriteListOrSheet> LoadPngMissileSheet(const char *name, uint16_t frameWidth, int rows);
 
+/**
+ * @brief The same import for an ITEM's ground-drop tumble: `items\<name>.png`, one row of frames.
+ *
+ * Oracool: batch 10 (2026-09-11) - gems, runes, charms, orbs and the signet got their own tumbles
+ * as PNGs, and InitItemGFX read CELs only. Same quantization as the missile route; nullopt when the
+ * file is absent or not a whole number of @p frameWidth columns, and the caller falls back to a CEL.
+ */
+OptionalOwnedClxSpriteList LoadPngItemDropSheet(const char *name, uint16_t frameWidth);
+
 } // namespace devilution::oracool

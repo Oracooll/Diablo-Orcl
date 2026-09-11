@@ -15,6 +15,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "itemdat.h"
+#include "oracool/hud_art.h" // the slot keys' plate
 #include "oracool/hud_layout.h"
 #include "oracool/hud_menu.h"
 #include "oracool/ornate_border.h"
@@ -48,6 +49,17 @@ constexpr const char *SlotFilterNames[SlotFilterCount] = {
 };
 constexpr int SlotKeyHeight = 20;
 constexpr int SlotKeyGap = 4;
+
+/*
+ * Oracool: the slot keys' own art (batch 11, 2026-09-11). One BLANK plate in three 84x20 rows - idle,
+ * hover, selected - with the label still the game's, drawn on top. SlotKeyRect's width is computed,
+ * so the assert holds it to the plate: a book that changes width fails the build, not the look.
+ */
+constexpr const char *RunewordKeyArt = "ui\\runeword_key.png";
+constexpr Size RunewordKeyCell { 84, 20 };
+static_assert(RunewordKeyCell.height == SlotKeyHeight
+        && RunewordKeyCell.width == (WindowSize.width - Padding * 2 - SlotKeyGap * (SlotFilterCount - 1)) / SlotFilterCount,
+    "runeword_key.png's rows no longer match SlotKeyRect");
 
 /**
  * @brief The rune row's height, and the gap that keeps it clear of the slot row above it.
@@ -449,9 +461,16 @@ void DrawRunewordBook(const Surface &out)
 		DrawString(out, _("Possible RW"), tip, { UiFlags::ColorWhitegold | UiFlags::FontSize12 });
 	}
 
+	// The plate when it shipped, the ornate border when it did not - the fallback shop_grid.cpp makes.
+	const bool keyArt = GetLoosePngSize(RunewordKeyArt).width != 0;
 	for (int i = 0; i < SlotFilterCount; i++) {
 		const Rectangle key = SlotKeyRect(i);
-		DrawOrnateBorder(out, key);
+		if (keyArt) {
+			const int state = SlotSelected[i] ? 2 : (key.contains(MousePosition) ? 1 : 0);
+			DrawLoosePngPart(out, RunewordKeyArt, Rectangle { { 0, state * RunewordKeyCell.height }, RunewordKeyCell }, key.position);
+		} else {
+			DrawOrnateBorder(out, key);
+		}
 		DrawString(out, _(SlotFilterNames[i]), key,
 		    { (key.contains(MousePosition) ? UiFlags::ColorWhite : (SlotSelected[i] ? UiFlags::ColorWhitegold : UiFlags::ColorBlue)) // white under the cursor (user, 2026-09-05)
 		        | UiFlags::FontSize12 | UiFlags::AlignCenter | UiFlags::VerticalCenter });

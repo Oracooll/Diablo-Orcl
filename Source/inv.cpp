@@ -42,6 +42,7 @@
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
+#include "oracool/skill_sounds.h"
 #include "oracool/telemetry.h"
 #include "oracool/ornate_border.h"
 #include "oracool/ui_sound.h"
@@ -708,7 +709,8 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 		// independence obvious rather than resting on the other function's exclusion list.
 		if (oracool::TryApplyMysticOrb(player, socketTarget, player.HoldItem)) {
 			if (&player == MyPlayer) {
-				PlaySFX(IS_CAST7);
+				if (!oracool::PlayUiEventSound(oracool::UiEventSound::OrbAbsorb))
+					PlaySFX(IS_CAST7); // the old stand-in
 				oracool::LogEvent(fmt::format("{:s} absorbed into {:s}",
 				    std::string(player.HoldItem.getName()), std::string(socketTarget.getName())));
 				// Phase 2: filling an item to its cap is a milestone. Checked through the passive
@@ -720,14 +722,18 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 			return;
 		}
 		if (oracool::TrySocketGem(socketTarget, player.HoldItem)) {
-			if (&player == MyPlayer)
-				PlaySFX(IS_IGRAB);
 			// The moment of transformation: the right rune sequence, completed just now, renames
 			// the item and announces itself. Derived state - the check costs one table walk.
 			// Phase 2: a completed runeword is a milestone, and the ONLY moment it can be noticed -
 			// afterwards the item is just an item with a name, and nothing on the player says a
 			// word was ever finished.
-			if (oracool::TryCompleteRuneword(socketTarget) && &player == MyPlayer) {
+			const bool runewordComplete = oracool::TryCompleteRuneword(socketTarget);
+			// One sound for the click: the runeword's own when the rune completed one, the socket's
+			// otherwise - never both (the 2026-09-03 rule). IS_IGRAB stays the stand-in.
+			if (&player == MyPlayer
+			    && !oracool::PlayUiEventSound(runewordComplete ? oracool::UiEventSound::RunewordComplete : oracool::UiEventSound::Socket))
+				PlaySFX(IS_IGRAB);
+			if (runewordComplete && &player == MyPlayer) {
 				oracool::LogEvent(fmt::format("Runeword complete: {:s}", socketTarget._iIName));
 				oracool::ClaimMilestone(player, oracool::Milestone::CompleteRuneword);
 			}
