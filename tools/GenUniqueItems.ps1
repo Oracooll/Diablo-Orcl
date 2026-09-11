@@ -82,6 +82,42 @@ foreach ($line in Get-Content $BaseEnum) {
 }
 Write-Host "engine bases: $($engineBases.Count) UITYPE_ values"
 
+# --- bases the engine carries under another name (2026-09-11) ------------------------------------
+# The package names 107 items on BASE_* tokens this engine never had. No new slots (user: "NO NEW
+# ITEM SLOTS. convert to one of existing ones"), new bases allowed ("I am ok with new item bases"): each
+# token gets its OWN unique_base_item, carried by ONE new base in an existing slot (itemdat.cpp). Never
+# an existing type - a saved unique is rebuilt by re-choosing among its type's uniques, so adding to an
+# existing type's list would change items that already exist. These LATE items are emitted AFTER every item that was live before, and their icons form
+# a second run at the END of the CEL, so no existing _iUid and no existing ICURS id moves.
+$aliases = @{
+    BASE_GLOVES = "UITYPE_GLOVES"
+    BASE_GAUNTLETS = "UITYPE_GAUNTLETS"
+    BASE_BOOTS = "UITYPE_BOOTS"
+    BASE_GREAVES = "UITYPE_GREAVES"
+    BASE_SASH = "UITYPE_SASH"
+    BASE_WAR_BELT = "UITYPE_WARBELT"
+    BASE_PAULDRONS = "UITYPE_PAULDRONS"
+    BASE_SHOULDER_MANTLE = "UITYPE_MANTLE"
+    BASE_CLOAK = "UITYPE_ORCLCLOAK"
+    BASE_BATTLE_CLOAK = "UITYPE_BATTLECLOAK"
+    BASE_RELIC = "UITYPE_RELIC"
+    BASE_RELIQUARY = "UITYPE_RELIQUARY"
+    BASE_SPEAR = "UITYPE_SPEAR"
+    BASE_PIKE = "UITYPE_PIKE"
+    BASE_WAR_LUTE = "UITYPE_WARLUTE"
+    BASE_WAR_QUIVER = "UITYPE_WARQUIVER"
+    BASE_CANTICLE = "UITYPE_CANTICLE"
+    BASE_ARCANE_FOCUS = "UITYPE_ARCANEFOCUS"
+}
+foreach ($target in $aliases.Values) {
+    if (-not $engineBases.ContainsKey($target)) { throw "alias target $target is not a unique_base_item value in $BaseEnum" }
+}
+$lateRows = @()
+$lateIconSpecs = @()
+$lateCursEnum = @()
+$lateCursWidths = @()
+$lateCursHeights = @()
+
 # --- walk the items --------------------------------------------------------------------------------
 $rows = @()
 $skippedNoBase = @{}
@@ -99,7 +135,9 @@ foreach ($it in $pkg.items) {
     # A base this engine has no UITYPE_ for cannot be rolled onto anything, so the item is SKIPPED
     # rather than emitted pointing at UITYPE_NONE - which would make it undroppable in a way that
     # looked like a live row. Counted and named at the end instead.
-    if (-not $engineBases.ContainsKey($it.baseToken)) {
+    $late = $aliases.ContainsKey($it.baseToken)
+    $baseToken = if ($late) { $aliases[$it.baseToken] } else { $it.baseToken }
+    if (-not $engineBases.ContainsKey($baseToken)) {
         if (-not $skippedNoBase.ContainsKey($it.baseToken)) { $skippedNoBase[$it.baseToken] = 0 }
         $skippedNoBase[$it.baseToken]++
         continue
@@ -187,12 +225,23 @@ foreach ($it in $pkg.items) {
     $png = Join-Path $cellsDir.FullName "$($sprite.Slug).png"
     if (-not (Test-Path $png)) { throw "item $($it.id): sprite '$($sprite.Slug).png' missing from native-28px-cells" }
     $gw = [int]$sprite.Grid[0]; $gh = [int]$sprite.Grid[1]
-    $cursId = $FirstCursorId + $rows.Count
     $cursName = "ICURS_ORACOOL_UNQ_" + ($it.id -replace '^UNIQUE_', '')
-    $iconSpecs += "$png,0,0,$($gw*28),$($gh*28),$($gw*28),$($gh*28),$($sprite.Slug),30,false,asis"
-    $cursEnum += "`t$cursName = $cursId,"
-    $cursWidths += "`t$gw * 28, // $($sprite.Slug)"
-    $cursHeights += "`t$gh * 28, // $($sprite.Slug)"
+    $spec = "$png,0,0,$($gw*28),$($gh*28),$($gw*28),$($gh*28),$($sprite.Slug),30,false,asis"
+    if ($late) {
+        # The second run: the id is a NAME, numbered by the enum where that run sits (after the charm
+        # icons, see itemdat.h), because its frames are appended at the end of the CEL.
+        $cursId = $cursName
+        $lateIconSpecs += $spec
+        $lateCursEnum += "`t$cursName,"
+        $lateCursWidths += "`t$gw * 28, // $($sprite.Slug)"
+        $lateCursHeights += "`t$gh * 28, // $($sprite.Slug)"
+    } else {
+        $cursId = $FirstCursorId + $rows.Count
+        $iconSpecs += $spec
+        $cursEnum += "`t$cursName = $cursId,"
+        $cursWidths += "`t$gw * 28, // $($sprite.Slug)"
+        $cursHeights += "`t$gh * 28, // $($sprite.Slug)"
+    }
 
     # The icon rides IPL_INVCURS, vanilla's own channel - SaveItemPower does `item._iCurs = param1`,
     # and the inventory footprint follows _iCurs through InvItemWidth3/Height3, so the package's
@@ -213,7 +262,8 @@ foreach ($it in $pkg.items) {
     $value = switch ($it.powerBand) { "early" { 6000 } "mid" { 20000 } "late" { 60000 } default { 20000 } }
 
     $name = $it.name -replace '\\', '\\\\' -replace '"', '\"'
-    $rows += "`t{ N_(`"$name`"), $($it.baseToken), $([int]$it.dropLevel), $numPl, $value, { $($powers -join ', ') } },"
+    $row = "`t{ N_(`"$name`"), $baseToken, $([int]$it.dropLevel), $numPl, $value, { $($powers -join ', ') } },"
+    if ($late) { $lateRows += $row } else { $rows += $row }
 }
 
 # --- report ----------------------------------------------------------------------------------------
@@ -237,17 +287,20 @@ $out += "//"
 $out += "// Source: Resources/02-source-art/unique-items/unique-item-expansion-250.zip."
 $out += "// Affix meanings come from oracool/unique_affixes.cpp, NOT the package's enginePower column."
 $out += "//"
-$out += "// $($rows.Count) of the package's $($pkg.items.Count) items. The rest are on bases this engine has"
-$out += "// no unique_base_item value for; the generator names them when it runs."
-$out += "//"
-$out += "// No icons: sprites are still to come, so a unique wears its BASE item's sprite."
+$out += "// $($rows.Count + $lateRows.Count) of the package's $($pkg.items.Count) items: $($rows.Count) on bases the engine always had, then"
+$out += "// $($lateRows.Count) LATE ones on bases mapped through the generator's alias table - appended after the"
+$out += "// others so no existing _iUid moves. Each carries its own icon through IPL_INVCURS."
 $out += ""
 $out += "// clang-format off"
 $out += $rows
+if ($lateRows.Count -gt 0) {
+    $out += "`t// The late uniques (2026-09-11), on bases mapped through the alias table. APPEND-ONLY from here."
+    $out += $lateRows
+}
 $out += "// clang-format on"
 
 Set-Content -Path $OutFile -Value $out -Encoding utf8
-Write-Host "wrote $OutFile : $($rows.Count) uniques"
+Write-Host "wrote $OutFile : $($rows.Count) uniques + $($lateRows.Count) late"
 
 # --- the four icon artefacts -----------------------------------------------------------------------
 $header = "// GENERATED by tools/GenUniqueItems.ps1 - do not edit. Frame order is the contract."
@@ -264,3 +317,19 @@ Set-Content -Path $CursEnumFile   -Value (@($header) + $cursEnum) -Encoding utf8
 Set-Content -Path $CursWidthFile  -Value (@($header) + $cursWidths) -Encoding utf8
 Set-Content -Path $CursHeightFile -Value (@($header) + $cursHeights) -Encoding utf8
 Write-Host "icons: $($iconSpecs.Count) frames, cursor ids $FirstCursorId..$($FirstCursorId + $iconSpecs.Count - 1)"
+
+# --- the second icon run: the late uniques, appended at the END of the CEL -------------------------
+# Numbered by the enum where unique_items2_curs.inc sits (after the charm icons), never by a number
+# here - the run's place in the CEL is decided by build_item_icons.cmd's order, and the ids follow it.
+if ($lateIconSpecs.Count -gt 0) {
+    [System.IO.File]::WriteAllLines((Join-Path (Get-Location).Path "Source\oracool\unique_items2_icon_specs.txt"),
+        [string[]]$lateIconSpecs, (New-Object System.Text.UTF8Encoding($false)))
+    $firstLate = ($lateCursEnum[0] -replace '[\t,]', '')
+    $lastLate = ($lateCursEnum[-1] -replace '[\t,]', '')
+    $lateHeader = "// GENERATED by tools/GenUniqueItems.ps1 - do not edit. Frame order is the contract (the late run)."
+    $lateEnum = $lateCursEnum + @("`tICURS_ORACOOL_UNQ2_FIRST = $firstLate,", "`tICURS_ORACOOL_UNQ2_LAST = $lastLate,")
+    Set-Content -Path "Source\oracool\unique_items2_curs.inc" -Value (@($lateHeader) + $lateEnum) -Encoding utf8
+    Set-Content -Path "Source\oracool\unique_items2_curs_widths.inc" -Value (@($lateHeader) + $lateCursWidths) -Encoding utf8
+    Set-Content -Path "Source\oracool\unique_items2_curs_heights.inc" -Value (@($lateHeader) + $lateCursHeights) -Encoding utf8
+    Write-Host "late icons: $($lateIconSpecs.Count) frames, $firstLate .. $lastLate"
+}

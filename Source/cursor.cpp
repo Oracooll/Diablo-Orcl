@@ -302,6 +302,7 @@ const uint16_t InvItemWidth3[] = {
 #include "oracool/growing_charms_curs_widths.inc"
 #include "oracool/encounter_items_curs_widths.inc"
 #include "oracool/charm_icons_curs_widths.inc"
+#include "oracool/unique_items2_curs_widths.inc"
 };
 const uint16_t InvItemHeight3[] = {
 	2 * 28, // shoulders
@@ -501,6 +502,7 @@ const uint16_t InvItemHeight3[] = {
 #include "oracool/growing_charms_curs_heights.inc"
 #include "oracool/encounter_items_curs_heights.inc"
 #include "oracool/charm_icons_curs_heights.inc"
+#include "oracool/unique_items2_curs_heights.inc"
 };
 
 // The uniques' frames must start exactly one past the sets' - the CEL is built by concatenating

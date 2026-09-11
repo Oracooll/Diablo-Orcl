@@ -2383,6 +2383,19 @@ void PrintItemInfo(const Item &item)
 	}
 }
 
+/**
+ * @brief Oracool: whether @p item is one of the unique expansion's bases (2026-09-11) - dungeon only.
+ *
+ * Vendor stock is not stored, it is REBUILT from a seed by re-picking a base from the shop's pool
+ * (RecreateTownItem). A base added to that pool changes what every already-bought item rebuilds
+ * into - a saved sword came back a helm in the pack goldens. So these bases never enter a shop
+ * pool, and every item bought before them rebuilds exactly as it was bought.
+ */
+bool IsUniqueExpansionBase(const ItemData &item)
+{
+	return item.iItemId >= UITYPE_GLOVES && item.iItemId <= UITYPE_ARCANEFOCUS;
+}
+
 bool SmithItemOk(const Player &player, const ItemData &item)
 {
 	if (item.itype == ItemType::Misc)
@@ -2405,6 +2418,8 @@ _item_indexes RndVendorItem(const Player &player, int minlvl, int maxlvl)
 	return GetItemIndexForDroppableItem(ConsiderDropRate, [&player, &minlvl, &maxlvl](const ItemData &item) {
 		if (!Ok(player, item))
 			return false;
+		if (IsUniqueExpansionBase(item))
+			return false; // dungeon only - see IsUniqueExpansionBase
 		const int poolQlvl = PoolQlvl(item);
 		if (poolQlvl < minlvl || poolQlvl > maxlvl)
 			return false;
