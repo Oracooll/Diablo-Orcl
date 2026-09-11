@@ -11586,6 +11586,31 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 	}
 }
 
+// The Abilities window draws every page as a three-by-six grid (user, 2026-09-12: "i want every ability
+// tree to have 3x6 skills"), filling the cells no skill holds with empty slots. Pinned: every row sits
+// inside that grid but the two nineteenth passives, which stand on the seventh tier below it.
+TEST(OracoolClassTree, EveryPageFitsTheThreeBySixGrid)
+{
+	const bool hellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	std::vector<std::string> outside;
+	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Rogue, HeroClass::Sorcerer, HeroClass::Monk,
+	         HeroClass::Bard, HeroClass::Barbarian }) {
+		for (int page = 0; page < static_cast<int>(oracool::ClassTreePageCount); page++) {
+			oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
+			const size_t count = oracool::BuildClassTreePage(heroClass, page, skills);
+			for (size_t i = 0; i < count; i++) {
+				const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
+				if (data.column < 0 || data.column >= 3 || data.tier < 0 || data.tier >= 6)
+					outside.emplace_back(data.name);
+			}
+		}
+	}
+	gbIsHellfire = hellfire;
+	std::sort(outside.begin(), outside.end());
+	EXPECT_EQ(outside, (std::vector<std::string> { "Rampage", "Single Out" }));
+}
+
 // Blessed Shield bounces (user, 2026-09-11: "it should bound off of first target in direction to nearest
 // monster and then bouce off to third monster. dmg should reduce with each target - 100% on first, 75% on
 // second, 50% on third"). The flight needs a level full of monsters; the damage each strike carries, and

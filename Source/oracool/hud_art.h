@@ -196,6 +196,11 @@ enum class SkillPlateTint : uint8_t {
 	Scroll,
 	/** Under the cursor (user, 2026-09-06): the grey plate lifted to white. The burger menu's hover. */
 	White,
+	/**
+	 * An ASSIGNED passive (user, 2026-09-12: "make unlocked passive skills gold, and the assigned ones
+	 * green"). Drawn as colour values through SetSpellTransGreen - the palette has no green.
+	 */
+	Green,
 };
 
 /**

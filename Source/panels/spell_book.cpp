@@ -531,6 +531,13 @@ constexpr int TreeRowGap = 12;
 constexpr int TreeRowPitch = TreeIconSize + TreeBarGap + TreeBarHeight + TreeRowGap;
 static_assert(AbilitiesListTop + 6 * TreeRowPitch <= AbilitiesContentSize.height,
     "a six-tier tree page no longer fits the list unscrolled - tighten TreeRowGap or the nav row");
+/**
+ * @brief Every page is a full three-by-six grid (user, 2026-09-12: "i want every ability tree to have
+ * 3x6 skills"). The cells no skill holds are drawn as empty slots - see DrawTreePage. The seventh tier
+ * ClassTreeTierCount allows sits below the grid; only the two nineteenth passives stand there.
+ */
+constexpr int TreeGridTiers = 6;
+static_assert(TreeGridTiers <= oracool::ClassTreeTierCount, "the grid is deeper than any skill can be");
 
 // ---------------------------------------------------------------------------------------------
 // The Passive Skills page's own geometry (2026-08-25).
@@ -662,6 +669,8 @@ int TotalListHeight(AbilitySheet sheet)
 		int deepest = -1;
 		for (size_t i = 0; i < count; i++)
 			deepest = std::max(deepest, oracool::GetClassTreeSkillData(skills[i]).tier);
+		// ...and never shorter than the grid, whose empty slots reach its last row (2026-09-12).
+		deepest = std::max(deepest, TreeGridTiers - 1);
 		if (IsPassivePage(*page))
 			return PassiveGridTop + (deepest + 1) * PassiveRowPitch;
 		// AbilitiesListTop is already inside PassiveGridTop, which is why only this branch adds it.
@@ -1094,10 +1103,14 @@ void DrawTreeCell(const Surface &content, oracool::ClassTreeSkill skill, int scr
 	const bool bookKnown = bookRow && IsValidSpell(rowSpell)
 	    && (player._pMemSpells & GetSpellBitmask(rowSpell)) != 0;
 	const bool usable = bookRow ? bookKnown : (unlocked && (isPassiveRow || data.implemented));
-	const oracool::SkillPlateTint tint = !usable
-	    ? oracool::SkillPlateTint::Locked
-	    : ((bookRow || (isPassiveRow ? slotted : invested > 0)) ? oracool::SkillPlateTint::Ready
-	                                                           : oracool::SkillPlateTint::Unspent);
+	// A passive has its own two lit states (user, 2026-09-12: "make unlocked passive skills gold, and
+	// the assigned ones green"): earned is the gold plate, slotted the green one. Every other row keeps
+	// gold for "has something in it" and grey for "yours to fill".
+	oracool::SkillPlateTint tint = oracool::SkillPlateTint::Locked;
+	if (usable && isPassiveRow)
+		tint = slotted ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Ready;
+	else if (usable)
+		tint = (bookRow || invested > 0) ? oracool::SkillPlateTint::Ready : oracool::SkillPlateTint::Unspent;
 	oracool::DrawDropShadow(content, icon, oracool::GridBezelInset); // the slot shadow (2026-09-05) - back after a misread "remove shadows": the ring was the icon's, not this
 	oracool::DrawGridBezel(content, icon);
 	// A LEGACY spell keeps its own icon here too, not the class strip's (user, 2026-09-03) - the
@@ -1196,7 +1209,7 @@ void DrawPassiveSlotBand(const Surface &content, int scroll)
 
 		const oracool::SkillPlateTint tint = !open
 		    ? oracool::SkillPlateTint::Locked
-		    : (filled ? oracool::SkillPlateTint::Ready : oracool::SkillPlateTint::Unspent);
+		    : (filled ? oracool::SkillPlateTint::Green : oracool::SkillPlateTint::Unspent); // assigned: green (2026-09-12)
 		// The slot frame, on the band as on the grid - these ARE slots, and they are the four cells
 		// in this window that most want to look like sockets. The band's pitch is 63 to the icon's
 		// 56, so neighbouring frames overlap by five pixels, the same shared-rail reading the sheet
@@ -1259,6 +1272,28 @@ void DrawTreePage(const Surface &content, int page, int scroll)
 		DrawPassiveSlotBand(content, scroll);
 	oracool::ClassTreeSkill skills[oracool::ClassTreeSkillCount];
 	const size_t count = oracool::BuildClassTreePage(InspectPlayer->_pClass, page, skills);
+	// The empty slots first (user, 2026-09-12: "put empty place holders (skill slot without white icon)
+	// for skills in each available skill slot"): every cell of the three-by-six grid that no skill holds
+	// is the slot frame and the empty plate - exactly what an empty passive slot is. Drawn only:
+	// TreeCellAt walks the skills, so a click or a hover on one finds nothing.
+	bool held[TreeGridTiers][TreeColumns] {};
+	for (size_t i = 0; i < count; i++) {
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skills[i]);
+		if (data.tier >= 0 && data.tier < TreeGridTiers && data.column >= 0 && data.column < TreeColumns)
+			held[data.tier][data.column] = true;
+	}
+	for (int tier = 0; tier < TreeGridTiers; tier++) {
+		for (int column = 0; column < TreeColumns; column++) {
+			if (held[tier][column])
+				continue;
+			Rectangle slot = TreeIconRect(page, column, tier);
+			slot.position.y -= scroll;
+			oracool::DrawDropShadow(content, slot, oracool::GridBezelInset);
+			oracool::DrawGridBezel(content, slot);
+			oracool::DrawClassTreeIconOutlined(content, slot, InspectPlayer->_pClass, /*skillIndex=*/-1,
+			    /*unlocked=*/false, oracool::SkillPlateTint::Unspent);
+		}
+	}
 	for (size_t i = 0; i < count; i++)
 		DrawTreeCell(content, skills[i], scroll);
 }

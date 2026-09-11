@@ -390,6 +390,7 @@ void SetSpellTransDarkGrey()
 
 void SetSpellTransWhite()
 {
+	SplGreenActive = false; // or a plate drawn after a green one keeps the green's value overrides
 	// Oracool: the HOVER plate (user, 2026-09-06: "hovering over the burger menu items to color the
 	// backing from gray to white"). SetSpellTrans(Invalid)'s table lifted three shades toward the
 	// light end of the grey ramp, the mirror of SetSpellTransDarkGrey's four shades down.
@@ -503,7 +504,9 @@ void DrawLargeSpellIconCentredIn(const Surface &out, Rectangle cell, SpellID spe
 	const int w = static_cast<int>(icon.width());
 	const int h = static_cast<int>(icon.height());
 	const Point centred { cell.position.x + (cell.size.width - w) / 2, cell.position.y + (cell.size.height - h) / 2 };
-	ClxDrawTRN(out, { centred.x, centred.y + h - 1 }, icon, SplTransTbl);
+	// Through DrawSpellSprite, so the GREEN plate is drawn as its values (2026-09-12: the assigned
+	// passive's plate). A bare ClxDrawTRN sent it to PAL8_GREEN, which is the fire's orange.
+	DrawSpellSprite(out, { centred.x, centred.y + h - 1 }, icon);
 }
 
 void DrawSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell)
@@ -519,6 +522,7 @@ void DrawSpellIconFittedTo(const Surface &out, Rectangle cell, SpellID spell)
 
 void SetSpellTransRed()
 {
+	SplGreenActive = false; // or a plate drawn after a green one keeps the green's value overrides
 	// Oracool: user request (2026-08-17) - "Unlocked skills with 0 points in them are unavailable
 	// and inactive, ergo need to have red background, not green."
 	//

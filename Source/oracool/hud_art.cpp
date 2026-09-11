@@ -1788,6 +1788,10 @@ void ApplyPlateTint(SkillPlateTint tint)
 	case SkillPlateTint::White:
 		SetSpellTransWhite();
 		break;
+	case SkillPlateTint::Green:
+		// An assigned passive (2026-09-12): the plate as colour values - see SetSpellTransGreen.
+		SetSpellTransGreen();
+		break;
 	}
 }
 
@@ -2087,6 +2091,7 @@ void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tin
 	case SkillPlateTint::Unspent:
 	case SkillPlateTint::Yellow:
 	case SkillPlateTint::White:
+	case SkillPlateTint::Green: // the palette has no green to ring with; the plate carries it (2026-09-12)
 		break;
 	}
 	// Inside the cell, three deep - the carved bezel is outside it, so the ring sits between the
