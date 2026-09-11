@@ -726,7 +726,9 @@ const CharRow CharRows[] = {
 	    []() { return PlainValue(InspectPlayer->_pIEnAc); },
 	    nullptr, CharRowGroupGap },
 	{ N_("Spell to hit"),
-	    []() { return StyledText { UiFlags::ColorWhite, StrCat(InspectPlayer->GetMagicToHit(), "%") }; } },
+	    // "Always" while the Diablo II rule is on trial (SpellsNeverMiss): the percentage would name a roll
+	    // that is no longer made.
+	    []() { return StyledText { UiFlags::ColorWhite, SpellsNeverMiss ? std::string(_("Always")) : StrCat(InspectPlayer->GetMagicToHit(), "%") }; } },
 	{ N_("Fire damage"),
 	    []() { return DamageRange(InspectPlayer->_pIFMinDam, InspectPlayer->_pIFMaxDam); } },
 	{ N_("Lightning damage"),

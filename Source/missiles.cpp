@@ -292,6 +292,10 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	// above is the precedent for a roll that is not rolled.
 	if (t == MissileID::GuidedArrow)
 		hit = 0;
+	// Diablo II's rule, on trial: a spell that reaches a monster lands (see SpellsNeverMiss). Only the
+	// miss is gone - immunities above, and the resistances in the damage, still apply.
+	if (SpellsNeverMiss && !missileData.isArrow())
+		hit = 0;
 
 	if (monster.tryLiftGargoyle())
 		return true;

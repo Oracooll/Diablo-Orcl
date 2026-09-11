@@ -73,6 +73,13 @@ constexpr int PlayerNameLength = 32;
 
 constexpr size_t NumHotkeys = 12;
 constexpr int BaseHitChance = 50;
+/**
+ * @brief Oracool EXPERIMENT (user, 2026-09-11: "Let's switch to D2 style for a while. I want to see how
+ * overpower this would make sorcerers"): a player's spell never misses a monster, as in Diablo II. Arrows
+ * and other weapon missiles keep their roll against armour. Set false for Diablo's own roll, Magic + 50
+ * (+20 Sorcerer, +10 Bard) - 2 x monster level - distance, kept to 5-95%.
+ */
+constexpr bool SpellsNeverMiss = true;
 
 /** Walking directions */
 enum {
