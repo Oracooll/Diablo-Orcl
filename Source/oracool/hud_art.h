@@ -119,6 +119,21 @@ bool HasSidePanelArt();
 constexpr Rectangle SidePanelCanvasInner { { 22, 25 }, { 296, 670 } };
 
 /**
+ * @brief The Abilities canvas's reading surface, panel-relative.
+ *
+ * Narrower than SidePanelCanvasInner at the top because this canvas paints a row of five tab plates
+ * across its header: they end at y=53, so the opening below them starts at 54 and runs to the same
+ * bottom bezel at y=695.
+ */
+constexpr Rectangle AbilitiesCanvasInner { { 22, 54 }, { 296, 641 } };
+
+/** @brief Draws the 340x720 Abilities canvas, tab plates and all, at @p origin. */
+void DrawAbilitiesPanelArt(const Surface &out, Point origin);
+
+/** @brief Whether the Abilities canvas loaded, so the window can fall back to the shared one. */
+bool HasAbilitiesPanelArt();
+
+/**
  * @brief Darkens the canvas's inner opening - one half-transparent pass, blended with dark grey.
  *
  * The backdrop's return. It came back for the character sheet first (user, 2026-09-06, with a

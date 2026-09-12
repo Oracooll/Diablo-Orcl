@@ -130,6 +130,24 @@ $spriteMap = @{}
 $budgetBytes = 7MB
 $used = 0
 $skipped = 0
+
+# The encyclopedia's own pictures - one idle frame per monster family and the inventory icons - are
+# inlined FIRST, ahead of the asset gallery. They are small (under half a megabyte all told) but they
+# are also load-bearing: the monster and item tables are built around them, whereas a gallery sprite
+# that misses the budget only costs the reader one picture on a page about pictures. Taking them
+# first means a growing gallery can never silently empty the encyclopedia.
+#
+# They live outside wiki/sprites deliberately: BuildWiki wipes that folder on every run and refills
+# it from oracool_assets, so anything parked there would not survive a rebuild.
+$encRoot = Join-Path $wiki 'encyclopedia'
+if (Test-Path $encRoot) {
+    foreach ($file in (Get-ChildItem $encRoot -Recurse -Include *.png | Sort-Object Length)) {
+        $relative = 'encyclopedia/' + $file.FullName.Substring($encRoot.Length + 1).Replace('\', '/')
+        $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+        $spriteMap[$relative] = 'data:image/png;base64,' + [Convert]::ToBase64String($bytes)
+        $used += $file.Length
+    }
+}
 if (Test-Path $spriteRoot) {
     foreach ($file in (Get-ChildItem $spriteRoot -Recurse -Include *.png | Sort-Object Length)) {
         if ($used + $file.Length -gt $budgetBytes) { $skipped++; continue }
@@ -253,9 +271,12 @@ function showPage(id) {
         try { PAGE_SCRIPTS[id](); } catch (err) { console.error('page ' + id, err); }
         document.getElementById = realGetById;
         document.querySelector = realQuery;
-        // Sprite sources are data URIs in this build; the gallery writes plain paths.
-        section.querySelectorAll('img[src^="sprites/"]').forEach(function (img) {
-            const key = img.getAttribute('src').substring('sprites/'.length);
+        // Sprite sources are data URIs in this build; the gallery writes plain paths. Two roots:
+        // the asset gallery under sprites/, and the encyclopedia's monster and item art, which keeps
+        // its own prefix in the map so the two can never collide on a shared file name.
+        section.querySelectorAll('img[src^="sprites/"], img[src^="encyclopedia/"]').forEach(function (img) {
+            const src = img.getAttribute('src');
+            const key = src.startsWith('sprites/') ? src.substring('sprites/'.length) : src;
             if (SPRITES[key]) img.src = SPRITES[key];
             else img.replaceWith(Object.assign(document.createElement('div'), {
                 className: 'tag', textContent: 'sprite not bundled'

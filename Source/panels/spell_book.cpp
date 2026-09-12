@@ -156,12 +156,11 @@ size_t BuildSpellRows(SpellID *rows)
 // Oracool V1: the shared theme and geometry - the same 340x720 window as the waypoint list, quest
 // log, character sheet, stash and inventory.
 //
-//   0..8       top margin
-//   8..46      title band, the sheet's name - oracool::PanelTitleTop / PanelTitleHeight, so this
-//              window's title sits on the same line as the other five
-//   46..101    the painted background's arch shoulders - ornament, nothing may be drawn here
-//   101..127   the nav row: the two sheet arrows at its ends, the unspent-points count between them
-//   127..624   content area - the scrolling list, ending at oracool::SidePanelContentBottom
+//   0..23      top margin and the canvas's top bezel
+//   23..53     the tab row: five plates painted into the canvas, one per sheet (2026-09-12)
+//   57..95     title band, the sheet's name - below the buttons, not on the shared PanelTitleTop
+//   95..101    the painted background's arch shoulders - ornament, nothing may be drawn here
+//   101..624   content area - the scrolling list, ending at oracool::SidePanelContentBottom
 //   624..720   the background's bottom ornament
 //
 // Rebuilt 2026-08-16. The title band used to be 24..74 with a 74..77 separator rule under it, and
@@ -172,6 +171,34 @@ size_t BuildSpellRows(SpellID *rows)
 // with anything.
 constexpr Size AbilitiesPanelSize { 340, 720 };
 constexpr int AbilitiesMargin = 24;
+
+/**
+ * @brief The five tab plates painted into ui/abilities_panel.png (user, 2026-09-12: "This canvas
+ * has prebuilt 5 buttons").
+ *
+ * MEASURED off the artwork rather than spaced by arithmetic, because the plates are painted and an
+ * even pitch would drift off them: the gold bevels run x=22..80, 82..140, 142..201, 203..261 and
+ * 263..317, so the widths are 59, 59, 60, 59 and 55 - the last one narrower where the right bezel
+ * crowds it. Every plate spans y=23..53, with its interior inside the bevel at y=26..51.
+ *
+ * The x/width pair per plate lives in TabPlates, below, where the sheet enum exists to pair it with.
+ */
+constexpr int TabRowTop = 23;
+constexpr int TabRowHeight = 31;
+/** @brief Inset from a plate's edge to its interior, so an overlay leaves the gold bevel alone. */
+constexpr int TabPlateBevel = 3;
+
+/**
+ * @brief The sheet title, UNDER the tab row (user, 2026-09-12: "move the Titles under the button
+ * row").
+ *
+ * This window cannot use the shared oracool::PanelTitleTop any more. That constant is 28, which put
+ * every window's title on one line - but on this canvas y=28 is inside the painted tab plates, so
+ * the title would have been drawn straight through the five buttons. The other five windows keep
+ * the shared line; only this one has a header row to clear.
+ */
+constexpr int AbilitiesTitleTop = TabRowTop + TabRowHeight + 3;
+constexpr int AbilitiesTitleHeight = oracool::PanelTitleHeight;
 
 /**
  * @brief First y at which a full-width row clears the painted background's arch.
@@ -199,8 +226,10 @@ constexpr int AbilitiesContentTop = AbilitiesArchTop;
  */
 constexpr Size AbilitiesContentSize { AbilitiesPanelSize.width,
 	oracool::SidePanelContentBottom - AbilitiesContentTop };
-static_assert(AbilitiesContentTop >= oracool::PanelTitleTop + oracool::PanelTitleHeight,
+static_assert(AbilitiesContentTop >= AbilitiesTitleTop + AbilitiesTitleHeight,
     "the list starts inside the title band");
+static_assert(AbilitiesTitleTop >= TabRowTop + TabRowHeight,
+    "the title is drawn over the canvas's tab plates");
 static_assert(AbilitiesContentSize.height > 0, "the nav row has eaten the whole list");
 
 /**
@@ -315,17 +344,11 @@ constexpr int AbilitiesRightPad = 8;
 // the frame - where the stash has always drawn its own.
 constexpr int AbilitiesContentRightLimit = AbilitiesInteriorRight;
 
-/**
- * @brief The sheet-cycling arrows, at each end of the title band.
- *
- * Solid triangles drawn from primitives rather than art: they are two shapes on a flat background,
- * and an asset for them would be another file to cut, ship, pack and keep in step with the theme's
- * gold for no gain.
- */
-constexpr int ArrowWidth = 11;
-constexpr int ArrowHeight = 16;
-/** @brief The arrow's clickable box - generous around a small glyph, as a target should be. */
-constexpr Size ArrowHitSize { 28, 28 };
+// The sheet-cycling arrows are GONE (user, 2026-09-12: "remove the current nav arrows"). They were
+// two solid triangles drawn from primitives at the ends of the title band, and cycling was the only
+// way to reach a sheet - so finding the Passives page meant stepping through the tree pages to get
+// there. The canvas's five tab plates replaced them with one click per sheet, which is also why the
+// title could move down into the space the arrows used to share.
 
 /**
  * @brief The window's sheets: the book of spells, then the class's three tree pages.
@@ -368,6 +391,28 @@ enum class AbilitySheet : uint8_t {
 constexpr size_t AbilitySheetCount = static_cast<size_t>(AbilitySheet::LAST) + 1;
 
 /**
+ * @brief Which sheet each painted plate opens, left to right.
+ *
+ * The canvas labels them 1, 2, 3, P, S: the three class-tree pages, the Passives page, then the
+ * book of Spells. That is the ARTWORK's order, not the enum's, which is the whole reason this table
+ * exists - Spells is enum 0 and sits last on the canvas.
+ */
+struct TabPlate {
+	int x;
+	int width;
+	AbilitySheet sheet;
+};
+constexpr TabPlate TabPlates[] = {
+	{ 22, 59, AbilitySheet::ClassTree0 },
+	{ 82, 59, AbilitySheet::ClassTree1 },
+	{ 142, 60, AbilitySheet::ClassTree2 },
+	{ 203, 59, AbilitySheet::ClassTree3 },
+	{ 263, 55, AbilitySheet::Spells },
+};
+static_assert(sizeof(TabPlates) / sizeof(TabPlates[0]) == AbilitySheetCount,
+    "one plate per sheet - a sheet with no plate could not be reached now the arrows are gone");
+
+/**
  * @brief The tree page index a sheet shows, or nullopt if it is not one of the three.
  *
  * The sheets are numbered rather than named because WHICH tree they show depends on the class -
@@ -406,8 +451,8 @@ bool HasPendingHover = false;
 int ScrollOffset[AbilitySheetCount] = {};
 int MaxScrollOffset = 0;
 int ListHeight = 0;
-/** @brief Set while an arrow is held, purely so it can be drawn pressed. */
-int PressedArrow = 0;
+/** @brief Index of the tab plate being held down, or -1. Purely so it can be drawn pressed. */
+int PressedTab = -1;
 
 // The ClassAbilitySheetsHidden flag that used to live here is gone with the two sheets it hid.
 // It was raised on 2026-08-15 because the Paladin's Auras sheet and the Barbarian's skill sheet
@@ -815,62 +860,55 @@ void DrawScrollbar(const Surface &out, const Rectangle &panel)
 }
 
 /**
- * @brief Screen rect of the sheet-cycling arrow. @p direction is -1 for left, +1 for right.
+ * @brief Screen rect of tab plate @p index.
  *
- * In the nav row, not the title band (2026-08-16). The right-hand arrow used to share the band with
- * the right-aligned points count, which drew straight over it - "Points: 3" rendered as "Points>3"
- * with the colon swallowed. Down here each arrow has an end of the row to itself.
+ * The plates are painted into the canvas, so this is a hit box over artwork rather than a button the
+ * code draws - which is why the numbers are measured (see TabPlates) and not derived from a pitch.
  */
-Rectangle GetArrowRect(int direction)
+Rectangle GetTabPlateRect(size_t index)
 {
-	// In the TITLE band (user, 2026-08-17: "Arrows for prev/next ability window to be at the title
-	// row"), which is what let the nav row die and the content start 26px higher. Pushed to the
-	// band's extreme ends - inside the ornate border, outside the margin the title text uses - so
-	// the widest sheet names ("OFFENSIVE AURAS", drawn centred at FontSize30) cannot reach them.
-	constexpr int ArrowEdgeInset = 10;
 	const Rectangle panel = GetSpellBookPanelRect();
-	const int cx = direction < 0
-	    ? panel.position.x + ArrowEdgeInset + ArrowHitSize.width / 2
-	    : panel.position.x + AbilitiesPanelSize.width - ArrowEdgeInset - ArrowHitSize.width / 2;
-	const int cy = panel.position.y + oracool::PanelTitleTop + oracool::PanelTitleHeight / 2;
-	return { { cx - ArrowHitSize.width / 2, cy - ArrowHitSize.height / 2 }, ArrowHitSize };
+	const TabPlate &plate = TabPlates[index];
+	return { { panel.position.x + plate.x, panel.position.y + TabRowTop }, { plate.width, TabRowHeight } };
 }
 
-/** @brief Draws one solid triangle, pointing left (@p direction -1) or right (+1). */
-void DrawArrow(const Surface &out, int direction)
+/**
+ * @brief The five tab plates: which sheet is open, which is under the cursor, which is held down.
+ *
+ * The plates themselves are part of the canvas, so all three states are drawn as overlays INSIDE
+ * each plate's gold bevel - TabPlateBevel in from every edge. Painting over the bevel would erase
+ * the thing that makes the row read as buttons at all.
+ *
+ * PAL16 ramps run light to dark as the offset grows, so the pressed blend is the dark one and the
+ * hover blend is the light one: a press reads as the plate sinking, a hover as it catching light.
+ */
+void DrawTabPlates(const Surface &out)
 {
-	const Rectangle hit = GetArrowRect(direction);
-	const Point centre { hit.position.x + hit.size.width / 2, hit.position.y + hit.size.height / 2 };
-	// A button under the glyph (user, 2026-09-04): the legacy text box - the gold-amount box's sunken
-	// gold pinstripe and black field - with the field lifted a shade under the cursor. The triangle
-	// is 11x16 in a 28px cell, so the 3px stripe clears it.
-	oracool::DrawLegacyTextBox(out, hit,
-	    hit.contains(MousePosition) ? oracool::LegacyTextBoxHoverFill : oracool::LegacyTextBoxFill);
-	// Idle went +13 -> +6 (user, 2026-08-19: "arrow keys of abilities window are too dark"), and the
-	// cause is worth recording because it was not a change to this file.
-	//
-	// +13 was correct when it was written on 2026-08-18: "make them darker to increase visibility in
-	// Limestone Theme". Bare limestone is a LIGHT background, so an arrow read by being darker than
-	// it. Then v1.8.48 put a half-transparent black backdrop across every side panel's opening,
-	// including this one - the ground under these arrows is now a good deal darker than the stone
-	// they were matched to, and a near-black arrow on it disappears.
-	//
-	// So this is not "the previous value was wrong". It was right against the background it had, and
-	// the background moved out from under it. Anything else on these panels that was tuned dark
-	// against bare limestone is a candidate for the same correction.
-	//
-	// PAL16 ramps run light to dark as the offset grows. Pressed stays at +2 and idle sits four
-	// steps below it, so the press still reads as a flash toward the light rather than a second
-	// state of similar weight.
-	const uint8_t color = PressedArrow == direction ? PAL16_YELLOW + 2 : PAL16_YELLOW + 6;
+	for (size_t i = 0; i < AbilitySheetCount; i++) {
+		const TabPlate &plate = TabPlates[i];
+		// A sheet this character cannot reach is drawn plain and never lights up. No class is short
+		// one today, but IsSheetAvailable exists and a dead plate that still answered the cursor
+		// would be a control that lies - the same reason the arrows used to be guarded.
+		if (!IsSheetAvailable(plate.sheet))
+			continue;
 
-	// Filled by drawing one horizontal run per row, the run growing toward the base. Row r counts
-	// out from the tip, so the widths are symmetric about the vertical centre.
-	for (int r = 0; r < ArrowWidth; r++) {
-		const int halfHeight = (ArrowHeight / 2) * (r + 1) / ArrowWidth;
-		const int x = direction < 0 ? centre.x - ArrowWidth / 2 + r : centre.x + ArrowWidth / 2 - r;
-		const int y0 = centre.y - halfHeight;
-		DrawVerticalLine(out, { x, y0 }, halfHeight * 2 + 1, color);
+		const Rectangle hit = GetTabPlateRect(i);
+		const Rectangle inner { { hit.position.x + TabPlateBevel, hit.position.y + TabPlateBevel },
+			{ hit.size.width - 2 * TabPlateBevel, hit.size.height - 2 * TabPlateBevel } };
+
+		if (PressedTab == static_cast<int>(i)) {
+			DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y,
+			    inner.size.width, inner.size.height, PAL16_GRAY + 13);
+		} else if (hit.contains(MousePosition)) {
+			DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y,
+			    inner.size.width, inner.size.height, PAL16_GRAY + 2);
+		}
+
+		// The OPEN sheet wears a gold ring rather than a wash, so it still reads as selected while
+		// the cursor is over it, and the plate's painted glyph is never tinted out from under its
+		// own label.
+		if (plate.sheet == CurrentSheet)
+			UnsafeDrawBorder2px(out, hit, PAL16_YELLOW + 2);
 	}
 }
 

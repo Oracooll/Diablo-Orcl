@@ -241,6 +241,19 @@ foreach ($line in ($monBody -split "`n")) {
             maxDam   = [int]$parts[22]
             ac       = [int]$parts[27]
             class    = ($parts[28] -replace 'MonsterClass::', '')
+            # The sprite family. Several monsters share one set of artwork and differ only by their
+            # palette translation - all four zombies are "zombie\zombie" - so this is the key the
+            # encyclopedia's picture is filed under, not a per-monster name.
+            art      = ($parts[1].Trim().Trim('"') -replace '\\\\', '_')
+            # Read past the end defensively: the guard above only promises 30 columns, and a row that
+            # stops short must lose a field rather than take the whole monster off the page.
+            toHitSp  = [int]$(if ($parts.Count -gt 23) { $parts[23] } else { 0 })
+            minDamSp = [int]$(if ($parts.Count -gt 25) { $parts[25] } else { 0 })
+            maxDamSp = [int]$(if ($parts.Count -gt 26) { $parts[26] } else { 0 })
+            # Left as the source's own flag expression ("IMMUNE_MAGIC | RESIST_FIRE"). The page needs
+            # both, because Nightmare demotes the Hell immunities and Torment promotes them.
+            resist     = $(if ($parts.Count -gt 29) { $parts[29].Trim() } else { '' })
+            resistHell = $(if ($parts.Count -gt 30) { $parts[30].Trim() } else { '' })
             # The last column, taken by regex rather than by index. The split leaves the closing brace
             # on the final element ("54 }"), and casting that to int silently produced 0 - a whole
             # column of zeroes on the monsters page that looked entirely plausible until it was read.
@@ -1218,6 +1231,131 @@ foreach ($t in [regex]::Matches($autoSaveH, 'void ScheduleAutoSaveFor(\w+)\(\);'
 # ---------------------------------------------------------------------------------------------
 if (-not (Test-Path $out)) { New-Item -ItemType Directory -Path $out | Out-Null }
 
+# ---------------------------------------------------------------------------------------------
+# Spell descriptions - Source/oracool/spell_descriptions.cpp
+#
+# One authored sentence per spell, and until now the one table the wiki never read: the spells page
+# listed mana and missiles but could not say what any spell DOES. Matched onto the spell rows by the
+# enum name in each line's comment, so a spell that moves in the enum keeps its sentence.
+# ---------------------------------------------------------------------------------------------
+$descCpp = Read-SourceFile 'oracool/spell_descriptions.cpp'
+$spellDesc = @{}
+foreach ($m in [regex]::Matches($descCpp, '/\*\s*(\w+)\s*\*/\s*(?:N_\()?"([^"]*)"')) {
+    $spellDesc[$m.Groups[1].Value] = $m.Groups[2].Value
+}
+foreach ($s in $spells) {
+    $s['desc'] = $(if ($spellDesc.ContainsKey($s['id'])) { $spellDesc[$s['id']] } else { '' })
+}
+
+# ---------------------------------------------------------------------------------------------
+# Monster difficulty scaling - Source/monster.cpp and Source/oracool/monster_difficulty.cpp
+#
+# The four bonus constants are parsed rather than transcribed, so a retune in the game cannot leave
+# the encyclopedia quoting yesterday's numbers. The HP and damage shapes are recorded as structured
+# coefficients (InitMonster), which is what lets the page compute a real per-difficulty stat block
+# client-side instead of printing a prose rule and making the reader do the arithmetic.
+# ---------------------------------------------------------------------------------------------
+$monsterCpp = Read-SourceFile 'monster.cpp'
+# The default sits between the description and the allowed-value list: N_("..."), 20, { 11, 12, ... }.
+# Anchoring on the closing paren of the description is what keeps this off the list's first entry -
+# a looser pattern reads 11 and quietly reports Torment as x1.1.
+$tormentDefault = [int](Get-Constant $optionsCpp 'tormentDifficultyMultiplier[^\n]*?\),\s*(\d+),\s*\{')
+$monsterScaling = [ordered]@{
+    toHitBonus = [ordered]@{
+        normal    = 0
+        nightmare = [int](Get-Constant $monsterCpp 'constexpr int NightmareToHitBonus = (\d+)')
+        hell      = [int](Get-Constant $monsterCpp 'constexpr int HellToHitBonus = (\d+)')
+    }
+    acBonus = [ordered]@{
+        normal    = 0
+        nightmare = [int](Get-Constant $monsterCpp 'constexpr int NightmareAcBonus = (\d+)')
+        hell      = [int](Get-Constant $monsterCpp 'constexpr int HellAcBonus = (\d+)')
+    }
+    # maxHitPoints = hpMultiple * base + flatAdded (single-player values; HP is stored in 1/64ths,
+    # but both the base and the addition are quoted here in whole hit points).
+    hitPoints = @(
+        [ordered]@{ difficulty = 'Normal';    multiple = 1; added = 0 }
+        [ordered]@{ difficulty = 'Nightmare'; multiple = 3; added = 50 }
+        [ordered]@{ difficulty = 'Hell';      multiple = 4; added = 100 }
+        [ordered]@{ difficulty = 'Torment';   multiple = 4; added = 100; timesMultiplier = $true }
+    )
+    # damage = multiple * base + added, clamped to 255 on Torment.
+    damage = @(
+        [ordered]@{ difficulty = 'Normal';    multiple = 1; added = 0 }
+        [ordered]@{ difficulty = 'Nightmare'; multiple = 2; added = 4 }
+        [ordered]@{ difficulty = 'Hell';      multiple = 4; added = 6 }
+        [ordered]@{ difficulty = 'Torment';   multiple = 4; added = 6; timesMultiplier = $true }
+    )
+    # Monster::level - the combat level, which is NOT the area ladder.
+    levelBonus = [ordered]@{ normal = 0; nightmare = 15; hell = 30; tormentBase = 30 }
+    # Monster::exp - the +1000 happens BEFORE the multiply, so Nightmare is not simply twice Normal.
+    experience = [ordered]@{ addBefore = 1000; normal = 1; nightmare = 2; hell = 4; tormentBase = 4 }
+    torment = [ordered]@{
+        default = $(if ($tormentDefault -gt 0) { $tormentDefault / 10.0 } else { 2.0 })
+        min     = 1.1
+        max     = 5.0
+        ini     = 'Torment Difficulty Multiplier'
+    }
+    resistanceRule = 'Nightmare demotes the Hell immunities to resistances; Hell uses them as authored; Torment promotes resistances to immunities but always leaves one school un-immune.'
+}
+
+# ---------------------------------------------------------------------------------------------
+# Per-level skill gains - Source/oracool/class_tree.cpp
+#
+# Every aura, mastery and passive that grows with investment does it through one helper:
+#   Scaled(points, base, perPoint) = base + perPoint * (points - 1)
+# so the ladder for a skill is fully described by the channel it feeds and that pair of numbers.
+# They are PARSED here, per `case Skill::X:`, rather than transcribed - tools/BuildSkillsWorkbook.ps1
+# transcribed the same table by hand and has already drifted (it still says the cap is 98, where the
+# source now says 30).
+#
+# Skills whose ladder is not a Scaled() call - the Holy pulses, Thorns, Cleansing, Conviction and the
+# Paladin's *PercentAt tables - deliberately emit nothing rather than a guess. Their own description
+# text carries the per-level figure, and a wrong number would be worse than no number.
+# ---------------------------------------------------------------------------------------------
+$treeCpp = Read-SourceFile 'oracool/class_tree.cpp'
+$skillGains = [ordered]@{}
+$caseHits = [regex]::Matches($treeCpp, 'case Skill::(\w+):')
+for ($i = 0; $i -lt $caseHits.Count; $i++) {
+    $skillName = $caseHits[$i].Groups[1].Value
+    $from = $caseHits[$i].Index
+    $to = $(if ($i + 1 -lt $caseHits.Count) { $caseHits[$i + 1].Index } else { $treeCpp.Length })
+    $body = $treeCpp.Substring($from, $to - $from)
+    $gains = New-Object System.Collections.ArrayList
+    foreach ($g in [regex]::Matches($body, '(\w+)\s*\+=\s*Scaled\(\w+,\s*(\d+),\s*(\d+)\)')) {
+        [void]$gains.Add([ordered]@{
+                channel = $g.Groups[1].Value
+                base    = [int]$g.Groups[2].Value
+                per     = [int]$g.Groups[3].Value
+            })
+    }
+    # A fallthrough group shares one body; the first label in the group is the one that carries it.
+    if ($gains.Count -gt 0 -and -not $skillGains.Contains($skillName)) { $skillGains[$skillName] = $gains }
+}
+
+# ---------------------------------------------------------------------------------------------
+# Inventory icon index - Source/itemdat.h's item_cursor_graphic
+#
+# Items carry their icon as an enum NAME, but the exported icons are filed by NUMBER (the exporter
+# cuts frame i from the cursor sheet, and frame i is exactly _iCurs == i). The enum's values are
+# explicit and SPARSE - 0, 1, 4, 5, 6, 10, 12 - so the number cannot be inferred from position and
+# has to be read. An unmatched name gets -1, and the page omits the picture rather than linking a
+# file that is not there.
+# ---------------------------------------------------------------------------------------------
+$itemdatH = Read-SourceFile 'itemdat.h'
+$cursBody = $itemdatH.Substring($itemdatH.IndexOf('enum item_cursor_graphic'))
+$cursBody = $cursBody.Substring(0, $cursBody.IndexOf('};'))
+$cursIndex = @{}
+$nextCurs = 0
+foreach ($m in [regex]::Matches($cursBody, 'ICURS_(\w+)\s*(?:=\s*(\d+))?\s*,')) {
+    if ($m.Groups[2].Success) { $nextCurs = [int]$m.Groups[2].Value }
+    $cursIndex[$m.Groups[1].Value] = $nextCurs
+    $nextCurs++
+}
+foreach ($it in $items) {
+    $it['cursIndex'] = $(if ($cursIndex.ContainsKey($it['curs'])) { $cursIndex[$it['curs']] } else { -1 })
+}
+
 $data = [ordered]@{
     version   = $version
     generated = $generated
@@ -1232,6 +1370,8 @@ $data = [ordered]@{
     spells    = $spells
     skills    = $skills
     monsters  = $monsters
+    monsterScaling = $monsterScaling
+    skillGains = $skillGains
     mechanics = $mechanics
     options   = $options
     gems      = $gems

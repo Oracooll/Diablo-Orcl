@@ -87,6 +87,9 @@ document.getElementById('bandrows').innerHTML = WIKI.mechanics.spellBands.map(fu
 
 makeTable(document.getElementById('table'), rows, [
 	{ key: 'name', label: 'Spell' },
+	// What the spell actually does. Authored in oracool/spell_descriptions.cpp, which the wiki did
+	// not read until now - the page could quote a spell's mana cost but never say what it was for.
+	{ key: 'desc', label: 'What it does' },
 	{ key: 'role', label: 'Role', render: function (v) {
 		if (v === 'book spell') return '<span class="tag ok">book</span>';
 		if (v === 'retired') return '<span class="tag no">retired</span>';

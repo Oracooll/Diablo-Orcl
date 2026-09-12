@@ -33,12 +33,36 @@ from. Quality level (qlvl) is the item level a drop needs before this base can a
 
 <div id="table"></div>
 
+<h2 id="compendium">Every item, at every tier</h2>
+<p>The table above lists the <b>Normal-tier</b> numbers, because that is how the game authors them.
+Here is what each weapon and piece of armour actually becomes at each of the four
+<a href="tiers.html">base tiers</a>, with the game's own rounding applied rather than a multiplier
+for you to do in your head.</p>
+<div class="note">Only gear whose numbers a tier changes is listed - weapons and armour. Rings,
+amulets, potions, quest items and the belt slot carry no tier, so a per-tier block for them would be
+four identical rows. A tier opens at an item level of <b>1, 13, 25 and 37</b> respectively.</div>
+<div class="tools">
+	<input type="search" id="isearch" placeholder="Search item, type or slot...">
+	<span class="count" id="icount"></span>
+</div>
+<div id="compendiumrows"></div>
+
 <footer></footer>
 </main>
 </div>
 <script src="data.js"></script>
 <script src="wiki.js"></script>
 <script>
+/* The icons cut from the game's own cursor sheets cover the vanilla bases. This fork's own items -
+   the gems, runes, jewels, charms and the new equipment families - carry ORACOOL_ icon names that
+   live in Oracool's own sheets instead, so they fall outside this range and show no picture rather
+   than a broken one. */
+const VANILLA_ICONS = 240;
+function itemIcon(v, size) {
+	if (v < 0 || v >= VANILLA_ICONS) return '';
+	return '<img src="encyclopedia/items/curs_' + v + '.png" alt="" class="sprite" style="max-height:' + size + 'px">';
+}
+
 function bandedQlvl(q) {
 	if (q >= 99) return q;
 	// Mirrors BandedQlvl in item_tiers.cpp: authored 1-51 onto the 1-48 ladder, topping out at
@@ -74,6 +98,8 @@ document.getElementById('stats').innerHTML =
 	'<div class="stat"><b>' + highest + '</b><span>highest banded qlvl</span></div>';
 
 makeTable(document.getElementById('table'), rows, [
+	// The inventory icon, cut from the game's own cursor sheet and filed by the item's curs index.
+	{ key: 'cursIndex', label: '', render: function (v) { return itemIcon(v, 44); } },
 	{ key: 'name', label: 'Name' },
 	{ key: 'class', label: 'Class' },
 	{ key: 'type', label: 'Type' },
@@ -98,6 +124,59 @@ makeTable(document.getElementById('table'), rows, [
 		{ key: 'drop', label: 'Drop' }
 	]
 });
+
+/* ---------------------------------------------------------------------------------------------
+   The per-tier compendium. ApplyBaseTier's arithmetic, mirrored exactly: round-half-up on the
+   percentage, requirements and durability clamped the way the engine clamps them, and 255 durability
+   left alone because it is the indestructible sentinel rather than a number.
+   --------------------------------------------------------------------------------------------- */
+const TIERS = WIKI.mechanics.tierScales;
+const INDESTRUCTIBLE = 255;
+function scalePct(v, p) { return Math.floor((v * p + 50) / 100); }
+function scaleByte(v, p) { return Math.min(scalePct(v, p), 255); }
+
+const tierable = rows.filter(function (i) { return i.maxDam > 0 || i.maxAC > 0; });
+const compendium = tierable.map(function (i) {
+	const body = TIERS.map(function (t) {
+		const dam = i.maxDam > 0
+			? (scalePct(i.minDam, t.power) + '-' + scalePct(i.maxDam, t.power)) : '&mdash;';
+		const ac = i.maxAC > 0
+			? (scalePct(i.minAC, t.power) + '-' + scalePct(i.maxAC, t.power)) : '&mdash;';
+		const req = [];
+		if (i.reqStr) req.push('Str ' + scaleByte(i.reqStr, t.require));
+		if (i.reqMag) req.push('Mag ' + scaleByte(i.reqMag, t.require));
+		if (i.reqDex) req.push('Dex ' + scaleByte(i.reqDex, t.require));
+		const dur = i.dur === INDESTRUCTIBLE
+			? 'indestructible'
+			: Math.max(1, Math.min(scalePct(i.dur, t.durability), INDESTRUCTIBLE - 1));
+		return '<tr><td>' + tierTag(TIERS.indexOf(t)) + '</td>'
+			+ '<td class="num">' + dam + '</td>'
+			+ '<td class="num">' + ac + '</td>'
+			+ '<td>' + (req.join(', ') || '&mdash;') + '</td>'
+			+ '<td class="num">' + dur + '</td>'
+			+ '<td class="num">' + scalePct(i.value, t.value).toLocaleString() + '</td></tr>';
+	}).join('');
+	const html = '<div class="tablewrap" style="margin-bottom:16px"><table><thead>'
+		+ '<tr><th style="width:70px" rowspan="2">'
+		+ itemIcon(i.cursIndex, 52) + '</th>'
+		+ '<th colspan="6"><b>' + i.name + '</b> &middot; ' + i.type + ' &middot; ' + i.loc
+		+ ' &middot; qlvl ' + i.qlvl + ' &middot; <span class="mono">' + i.id + '</span></th></tr>'
+		+ '<tr><th>Tier</th><th class="num">Damage</th><th class="num">Armour</th>'
+		+ '<th>Requires</th><th class="num">Durability</th><th class="num">Value</th></tr>'
+		+ '</thead><tbody>' + body + '</tbody></table></div>';
+	return { html: html, hay: (i.name + ' ' + i.type + ' ' + i.loc + ' ' + i.id).toLowerCase() };
+});
+
+const ihost = document.getElementById('compendiumrows');
+const icount = document.getElementById('icount');
+function drawCompendium(q) {
+	const needle = (q || '').trim().toLowerCase();
+	const shown = compendium.filter(function (c) { return !needle || c.hay.indexOf(needle) >= 0; });
+	ihost.innerHTML = shown.map(function (c) { return c.html; }).join('');
+	icount.textContent = shown.length + ' of ' + compendium.length + ' tiered items';
+}
+document.getElementById('isearch').addEventListener('input', function (e) { drawCompendium(e.target.value); });
+drawCompendium('');
 </script>
 </body>
 </html>

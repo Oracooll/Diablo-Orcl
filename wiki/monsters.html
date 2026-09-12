@@ -12,7 +12,9 @@
 <main>
 <h1>Monsters</h1>
 <p class="lede">Every monster type in <code>MonstersData</code>, with the floors it appears on and
-the combat numbers it brings. These are the <b>Normal-difficulty</b> values.</p>
+the combat numbers it brings, <b>on all four difficulties</b>. The summary table below is Normal;
+the <a href="#bestiary">bestiary</a> under it gives each monster its portrait and a full
+difficulty-by-difficulty stat block.</p>
 
 <div class="stat-row" id="stats"></div>
 
@@ -120,7 +122,24 @@ shifting a deterministic replay. Colossal is the exception: it follows the affix
 saved state.</div>
 
 <h2>All monster types</h2>
+<p>Normal-difficulty values, sortable and filterable. Every one of these numbers is scaled per
+difficulty in the bestiary below.</p>
 <div id="table"></div>
+
+<h2 id="bestiary">The bestiary</h2>
+<p>One entry per monster: its portrait, where it lives, and what it becomes on each difficulty.
+Hit points, damage, to-hit, armour and experience are <b>computed from the game's own scaling
+rules</b> rather than typed out, so they cannot drift from the build.</p>
+<div class="note"><b>Two notes on what you are looking at.</b> The portrait is the monster's
+south-facing idle frame, and several monsters share one set of artwork - all four zombies are drawn
+from the same sheet and differ only by palette, so a family resemblance in the pictures is the truth
+rather than a mistake. And <b>Torment is shown at the default multiplier</b>; raising
+<code>Torment Difficulty Multiplier</code> in the INI moves every Torment row with it.</p>
+<div class="tools">
+	<input type="search" id="bsearch" placeholder="Search monster or class...">
+	<span class="count" id="bcount"></span>
+</div>
+<div id="bestiaryrows"></div>
 
 <footer></footer>
 </main>
@@ -210,6 +229,134 @@ document.getElementById('vartraits').innerHTML = seenVariants.map(function (v) {
 document.getElementById('varrosters').innerHTML = MV.rosters.map(function (r) {
 	return '<tr><td><b>' + r.dungeon + '</b></td><td>' + r.variants.join(', ') + '</td></tr>';
 }).join('') + '<tr><td><b>Town</b></td><td>None</td></tr>';
+
+/* ---------------------------------------------------------------------------------------------
+   The bestiary. Every difficulty column is COMPUTED from WIKI.monsterScaling, which is parsed out
+   of monster.cpp - nothing here is a transcribed number, because a transcribed table is one retune
+   away from lying and no reader can tell by looking.
+   --------------------------------------------------------------------------------------------- */
+const MS = WIKI.monsterScaling;
+const MULT = MS.torment.default;
+const DIFFS = ['Normal', 'Nightmare', 'Hell', 'Torment'];
+const SCHOOLS = ['MAGIC', 'FIRE', 'LIGHTNING'];
+
+function flagSet(text) {
+	const out = {};
+	(text || '').split('|').forEach(function (t) {
+		const m = t.trim().match(/^(IMMUNE|RESIST)_(\w+)$/);
+		if (m) out[m[2]] = m[1];
+	});
+	return out;
+}
+// Nightmare takes Hell's table with the immunities softened; Torment hardens Hell's resistances,
+// but always leaves one school un-immune so nothing is ever unkillable.
+function demote(set) {
+	const out = {};
+	Object.keys(set).forEach(function (k) { out[k] = 'RESIST'; });
+	return out;
+}
+function promote(set) {
+	const out = Object.assign({}, set);
+	for (const s of SCHOOLS) {
+		if (SCHOOLS.filter(function (x) { return out[x] !== 'IMMUNE'; }).length <= 1) break;
+		if (out[s] === 'RESIST') out[s] = 'IMMUNE';
+	}
+	return out;
+}
+function resistsFor(m, i) {
+	const base = flagSet(m.resist), hell = flagSet(m.resistHell);
+	let set;
+	if (i === 0) set = base;
+	else if (i === 1) set = Object.assign({}, base, demote(hell));
+	else if (i === 2) set = hell;
+	else set = promote(hell);
+	set = Object.assign({}, set);
+	if (m.class === 'Undead') set.COLD = set.COLD || 'RESIST';   // undead are cold-hardened throughout
+	const keys = Object.keys(set).sort();
+	if (!keys.length) return '<span class="tag">none</span>';
+	return keys.map(function (k) {
+		const immune = set[k] === 'IMMUNE';
+		const name = k.charAt(0) + k.slice(1).toLowerCase();
+		return '<span class="tag ' + (immune ? 'no' : 'ok') + '">' + (immune ? 'immune ' : 'resist ') + name + '</span>';
+	}).join(' ');
+}
+
+function tormented(value) { return Math.floor(value * MULT); }
+function hpAt(base, i) {
+	const r = MS.hitPoints[i];
+	const v = r.multiple * base + r.added;
+	return r.timesMultiplier ? tormented(v) : v;
+}
+function damAt(base, i) {
+	const r = MS.damage[i];
+	const v = r.multiple * base + r.added;
+	return Math.min(r.timesMultiplier ? tormented(v) : v, 255);
+}
+function levelAt(base, i) {
+	const b = MS.levelBonus;
+	return base + [0, b.nightmare, b.hell, tormented(b.tormentBase)][i];
+}
+function toHitAt(base, i) {
+	const b = MS.toHitBonus;
+	return base + [0, b.nightmare, b.hell, tormented(b.hell)][i];
+}
+function acAt(base, i) {
+	const b = MS.acBonus;
+	return Math.min(base + [0, b.nightmare, b.hell, tormented(b.hell)][i], 255);
+}
+function expAt(base, i) {
+	const e = MS.experience;
+	if (i === 0) return base * e.normal;
+	const lifted = base + e.addBefore;          // the +1000 lands BEFORE the multiply
+	if (i === 1) return lifted * e.nightmare;
+	if (i === 2) return lifted * e.hell;
+	return tormented(lifted * e.tormentBase);
+}
+
+const beast = WIKI.monsters.map(function (m) {
+	const floors = m.minLvl === m.maxLvl ? ('floor ' + m.minLvl) : ('floors ' + m.minLvl + '-' + m.maxLvl);
+	const art = m.art
+		? '<img src="encyclopedia/monsters/' + m.art + '.png" alt="' + m.name + '" class="sprite" style="max-height:96px">'
+		: '<span class="tag">no artwork</span>';
+	const body = DIFFS.map(function (d, i) {
+		const hp = hpAt(m.hpMin, i) === hpAt(m.hpMax, i)
+			? String(hpAt(m.hpMin, i)) : (hpAt(m.hpMin, i) + '-' + hpAt(m.hpMax, i));
+		const dam = damAt(m.minDam, i) === damAt(m.maxDam, i)
+			? String(damAt(m.minDam, i)) : (damAt(m.minDam, i) + '-' + damAt(m.maxDam, i));
+		const special = m.maxDamSp > 0
+			? (damAt(m.minDamSp, i) + '-' + damAt(m.maxDamSp, i)) : '&mdash;';
+		return '<tr><td><b>' + d + '</b></td>'
+			+ '<td class="num">' + levelAt(m.level, i) + '</td>'
+			+ '<td class="num">' + hp + '</td>'
+			+ '<td class="num">' + dam + '</td>'
+			+ '<td class="num">' + special + '</td>'
+			+ '<td class="num">' + toHitAt(m.toHit, i) + '</td>'
+			+ '<td class="num">' + acAt(m.ac, i) + '</td>'
+			+ '<td class="num">' + expAt(m.exp, i).toLocaleString() + '</td>'
+			+ '<td>' + resistsFor(m, i) + '</td></tr>';
+	}).join('');
+	const html = '<div class="tablewrap" style="margin-bottom:16px">'
+		+ '<table><thead>'
+		+ '<tr><th style="width:110px" rowspan="2">' + art + '</th>'
+		+ '<th colspan="8"><b>' + m.name + '</b> &middot; ' + m.class + ' &middot; ' + floors
+		+ ' &middot; <span class="mono">' + m.id + '</span></th></tr>'
+		+ '<tr><th>Difficulty</th><th class="num">Level</th><th class="num">Hit points</th>'
+		+ '<th class="num">Damage</th><th class="num">Special</th><th class="num">To hit</th>'
+		+ '<th class="num">Armour</th><th class="num">XP</th><th>Resistances</th></tr>'
+		+ '</thead><tbody>' + body + '</tbody></table></div>';
+	return { html: html, hay: (m.name + ' ' + m.class + ' ' + m.id).toLowerCase() };
+});
+
+const bhost = document.getElementById('bestiaryrows');
+const bcount = document.getElementById('bcount');
+function drawBestiary(q) {
+	const needle = (q || '').trim().toLowerCase();
+	const shown = beast.filter(function (b) { return !needle || b.hay.indexOf(needle) >= 0; });
+	bhost.innerHTML = shown.map(function (b) { return b.html; }).join('');
+	bcount.textContent = shown.length + ' of ' + beast.length + ' monsters';
+}
+document.getElementById('bsearch').addEventListener('input', function (e) { drawBestiary(e.target.value); });
+drawBestiary('');
 </script>
 </body>
 </html>

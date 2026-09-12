@@ -183,6 +183,15 @@ ArtAsset InventoryPanelArt { "ui\\inventory_background.png" };
  * the user wanted. One panel, six windows, titles drawn over it as they always were.
  */
 ArtAsset SidePanelArt { "ui\\panel_bg.png" };
+/**
+ * @brief The Abilities window's own canvas (user, 2026-09-12: "take Canvas Ability Windows.png and
+ * use it as canvas for the abilities windows").
+ *
+ * Its own file rather than a second use of panel_bg, because it is the only side panel with a row
+ * of five tab plates painted into the header - the sheet buttons that replaced the nav arrows. The
+ * other five windows have nothing to put there and would wear five dead buttons.
+ */
+ArtAsset AbilitiesPanelArt { "ui\\abilities_panel.png" };
 // The reliquary-chest tabs: a 102x31 atlas of three 34x31 frames - inactive, hover, active - from
 // oracool-stash-tab-button-pack. Replaces the numeral strips entirely (v1 roman bordered, v2 roman
 // borderless, v3 arabic), and with them the idea that a tab needs a number on it: all ten pages
@@ -714,6 +723,32 @@ void QuantizeAsset(ArtAsset &asset, std::optional<Rectangle> dimCircle,
 	}
 }
 
+/**
+ * @brief The Panel Gamma setting (user, 2026-09-04: "put it in the ini as a setting i can change").
+ *
+ * Applied ONCE, at load, to the loaded pixels rather than in QuantizeAsset, which re-runs on every
+ * palette change and would compound the lift each time. The files ship as the dark-stone masters;
+ * tools\BrightenPanelBg.ps1 can still bake a lift if the setting goes.
+ *
+ * A function since 2026-09-12, when the Abilities window got a canvas of its own: two canvases have
+ * to agree about brightness, and the surest way for them to agree is to run the same code.
+ */
+void ApplyPanelGamma(ArtAsset &asset)
+{
+	const int hundredths = *sgOptions.Oracool.panelGamma;
+	if (asset.rgba.empty() || hundredths <= 0 || hundredths == 100)
+		return;
+	const double gamma = hundredths / 100.0;
+	uint8_t lut[256];
+	for (int i = 0; i < 256; i++)
+		lut[i] = static_cast<uint8_t>(std::lround(255.0 * std::pow(i / 255.0, gamma)));
+	for (size_t i = 0; i + 3 < asset.rgba.size(); i += 4) {
+		asset.rgba[i] = lut[asset.rgba[i]];
+		asset.rgba[i + 1] = lut[asset.rgba[i + 1]];
+		asset.rgba[i + 2] = lut[asset.rgba[i + 2]];
+	}
+}
+
 // Bug postmortem (2026-08-11): assets load lazily per draw call, but quantization used to be a
 // single all-assets pass triggered only by palette change. The orbs draw earlier in the frame
 // than the plate (DrawView's tail vs. the belt block), so the first quantize pass ran before the
@@ -739,22 +774,13 @@ void EnsureLoadedAll()
 		LoadPixels(InventoryPanelArt);
 	if (!SidePanelArt.loadAttempted) {
 		LoadPixels(SidePanelArt);
-		// The Panel Gamma setting (user, 2026-09-04: "put it in the ini as a setting i can change").
-		// Applied ONCE, here, to the loaded pixels rather than in QuantizeAsset, which re-runs on
-		// every palette change and would compound the lift each time. The file ships as the
-		// dark-stone master; tools\BrightenPanelBg.ps1 can still bake a lift if the setting goes.
-		const int hundredths = *sgOptions.Oracool.panelGamma;
-		if (!SidePanelArt.rgba.empty() && hundredths > 0 && hundredths != 100) {
-			const double gamma = hundredths / 100.0;
-			uint8_t lut[256];
-			for (int i = 0; i < 256; i++)
-				lut[i] = static_cast<uint8_t>(std::lround(255.0 * std::pow(i / 255.0, gamma)));
-			for (size_t i = 0; i + 3 < SidePanelArt.rgba.size(); i += 4) {
-				SidePanelArt.rgba[i] = lut[SidePanelArt.rgba[i]];
-				SidePanelArt.rgba[i + 1] = lut[SidePanelArt.rgba[i + 1]];
-				SidePanelArt.rgba[i + 2] = lut[SidePanelArt.rgba[i + 2]];
-			}
-		}
+		ApplyPanelGamma(SidePanelArt);
+	}
+	// The same stone, so the same gamma - a canvas that ignored the setting would sit beside the
+	// other five at a different brightness the moment the user moved it.
+	if (!AbilitiesPanelArt.loadAttempted) {
+		LoadPixels(AbilitiesPanelArt);
+		ApplyPanelGamma(AbilitiesPanelArt);
 	}
 	if (!InventoryTabsArt.loadAttempted)
 		LoadPixels(InventoryTabsArt);
@@ -820,6 +846,8 @@ bool NeedsQuantize()
 	if (!InventoryPanelArt.rgba.empty() && !InventoryPanelArt.bright)
 		return true;
 	if (!SidePanelArt.rgba.empty() && !SidePanelArt.bright)
+		return true;
+	if (!AbilitiesPanelArt.rgba.empty() && !AbilitiesPanelArt.bright)
 		return true;
 	if (!InventoryTabsArt.rgba.empty() && !InventoryTabsArt.bright)
 		return true;
@@ -902,6 +930,7 @@ void EnsureQuantized()
 	QuantizeAsset(MenuIconsArt, std::nullopt, PAL16_YELLOW, HudTintStrengthPercent);
 	QuantizeAsset(InventoryPanelArt, std::nullopt);
 	QuantizeAsset(SidePanelArt, std::nullopt);
+	QuantizeAsset(AbilitiesPanelArt, std::nullopt);
 	// Pulled toward the palette's GREY ramp at 70% (user request, 2026-08-18: "make Inv Grid Tabs
 	// Buttons more Grayscale in colour to match the Limestone Theme better"). The chest art was cut
 	// warm, for a panel that used to be warm; the limestone around it is neutral, and a warm tab on
@@ -1291,6 +1320,32 @@ void DrawSidePanelArt(const Surface &out, Point origin)
 	// draw functions. Off for one build on 2026-09-08 with the second canvas painting, then back
 	// the same night (user: "bring back the dim").
 	DrawSidePanelDim(out, origin);
+}
+
+void DrawAbilitiesPanelArt(const Surface &out, Point origin)
+{
+	EnsureLoadedAll();
+	if (AbilitiesPanelArt.rgba.empty())
+		return;
+	EnsureQuantized();
+	if (!AbilitiesPanelArt.bright)
+		return;
+
+	BlitLayer(out, AbilitiesPanelArt, Layer::Bright,
+	    MakeSdlRect(0, 0, AbilitiesPanelArt.width, AbilitiesPanelArt.height), origin);
+	// The same dim every other canvas wears, but starting BELOW the tab plates: dimming the buttons
+	// would flatten the bevels the hover and pressed states are read against, and the row is header
+	// ornament rather than the reading surface the dim exists for.
+	const Rectangle inner { origin + Displacement { AbilitiesCanvasInner.position.x, AbilitiesCanvasInner.position.y },
+		AbilitiesCanvasInner.size };
+	constexpr uint8_t DimBlend = PAL16_GRAY + 9; // 249, the shared canvas dim - see DrawSidePanelDim
+	DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y, inner.size.width, inner.size.height, DimBlend);
+}
+
+bool HasAbilitiesPanelArt()
+{
+	EnsureLoadedAll();
+	return !AbilitiesPanelArt.rgba.empty();
 }
 
 void DrawSidePanelDim(const Surface &out, Point origin)
@@ -1834,6 +1889,7 @@ void ResetHudArtCaches()
 	reset(MenuIconsArt);
 	reset(InventoryPanelArt);
 	reset(SidePanelArt);
+	reset(AbilitiesPanelArt);
 	reset(InventoryTabsArt);
 	reset(InventorySortArt);
 	reset(TownPortalIconArt);

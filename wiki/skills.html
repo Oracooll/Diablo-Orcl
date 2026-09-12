@@ -162,6 +162,28 @@ document.getElementById('classcards').innerHTML = Object.keys(classes).sort().ma
 		' built<br>' + kinds + '</span></div>';
 }).join('');
 
+/* What one more point is worth. WIKI.skillGains is parsed straight out of class_tree.cpp's
+   Scaled(points, base, perPoint) calls, so the ladder below is the one the game runs. Skills whose
+   growth is not a Scaled() call - the Holy pulses, Thorns, Cleansing, Conviction, and the Paladin's
+   percentage tables - carry their figure in the description instead, and are left blank here rather
+   than guessed at. */
+const GAINS = WIKI.skillGains || {};
+const CHANNELS = {
+	bonusToHit: 'to-hit', bonusDamage: 'damage', bonusArmor: 'armour',
+	fireResist: 'fire resist', lightningResist: 'lightning resist', magicResist: 'magic resist',
+	fireMin: 'min fire damage', fireMax: 'max fire damage',
+	lightningMin: 'min lightning damage', lightningMax: 'max lightning damage'
+};
+function gainFor(name) {
+	const key = (name || '').replace(/[^A-Za-z]/g, '');
+	const list = GAINS[key];
+	if (!list || !list.length) return '';
+	return list.map(function (g) {
+		return (CHANNELS[g.channel] || g.channel) + ' ' + g.base + ', +' + g.per + ' per rank';
+	}).join('; ');
+}
+rows.forEach(function (r) { r.gain = gainFor(r.name); });
+
 makeTable(document.getElementById('table'), rows, [
 	{ key: 'name', label: 'Skill' },
 	{ key: 'class', label: 'Class' },
@@ -169,6 +191,7 @@ makeTable(document.getElementById('table'), rows, [
 	{ key: 'tier', label: 'Tier', num: true },
 	{ key: 'minLevel', label: 'Opens at', num: true },
 	{ key: 'kind', label: 'Kind' },
+	{ key: 'gain', label: 'Gain per level' },
 	{ key: 'status', label: 'Status', render: function (v) { return v === 'built' ? '<span class="tag ok">built</span>' : '<span class="tag no">unbuilt</span>'; } },
 	{ key: 'slot', label: 'Spell slot', cls: 'mono' },
 	{ key: 'description', label: 'Description' }
