@@ -1110,22 +1110,39 @@ void DrawStatButtons(const Surface &content)
 /**
  * @brief The colour a damage type is written in (user, 2026-08-31, after Diablo II).
  *
- * Their palette was white physical / blue cold / red fire / yellow lightning / green healing. Blue
- * is MAGIC here, not cold: this engine has no cold damage at all. DamageType is Physical, Fire,
- * Lightning, Magic and Acid, and blue for arcane is the closest honest reading of the same idea.
+ * THE table. Since 1.11.080 the floating damage numbers over a monster's head defer to it too
+ * (qol/floatingnumbers.cpp), so an element cannot be described two ways in one game - it was for
+ * months, the sheet calling fire red while the number drew grey.
  *
- * Magic left blue on 2026-09-11 for RGB 104,49,49 (user: "let's make Magic DMG font color
- * RGB:104,49,49"), then brightened to 208,98,98 the same day ("way too dark make it brighter") -
- * UiFlags::ColorMagicDamage. Blue stays the aura row's and a bonus row's colour.
+ * Diablo II's palette, which is what the user asked for: white physical, blue cold, red fire,
+ * yellow lightning, green poison. All five are now honoured literally (user, 2026-09-12, "make sure
+ * cold and physical dmg floating texts use proper color"). Two earlier compromises are gone:
  *
- * Acid is monster-only - no player spell carries it - so it falls through to physical white rather
- * than being given a colour nobody will ever see. Green belongs to healing, below.
+ *   - Cold was WHITE, and blue went to magic, on the reasoning that "this engine has no cold damage
+ *     at all". That stopped being true: Holy Freeze, Frost Nova and the Round 1 cold missiles all
+ *     deal DamageType::Cold. Cold takes its own blue back.
+ *   - Magic then moved off blue anyway, on 2026-09-11, to RGB 104,49,49 ("let's make Magic DMG font
+ *     color RGB:104,49,49") and the same day to 208,98,98 ("way too dark make it brighter") -
+ *     UiFlags::ColorMagicDamage. That is what freed blue.
+ *
+ * Acid is D2's poison seat: green. It is monster-only - no player spell carries it - so it never
+ * appears on this sheet, but it needs a colour of its own for the floating numbers, and sharing
+ * lightning's yellow there meant two elements in one ink.
+ *
+ * Blue is also this sheet's "buffed/active" colour on twenty-odd other rows. That is a real
+ * ambiguity and an accepted one: on THIS sheet blue on a damage row is the row being coloured by
+ * element, which is the whole point of the feature; over a monster's head there is no buffed row
+ * for it to be confused with.
  */
 UiFlags DamageTypeColor(DamageType type)
 {
 	switch (type) {
 	case DamageType::Fire:
 		return UiFlags::ColorRed;
+	case DamageType::Cold:
+		return UiFlags::ColorBlue;
+	case DamageType::Acid:
+		return UiFlags::ColorOracoolGreen;
 	case DamageType::Lightning:
 		// ColorYellow, NOT ColorUiYellow (user, 2026-08-31: "Charged Bolt renders indeed dark
 		// blue, instead of yellow").
@@ -1143,11 +1160,7 @@ UiFlags DamageTypeColor(DamageType type)
 	case DamageType::Magic:
 		return UiFlags::ColorMagicDamage;
 	case DamageType::Physical:
-	case DamageType::Acid:
-	case DamageType::Cold:
-		// Cold falls through to white deliberately, and it is the only element that WANTS the
-		// default: white is cold's own colour in this palette (see the Cold brief - ice is white with
-		// blue in its shadows), and blue is already spoken for by magic on this very line.
+		// White, D2's own physical, and the only element that WANTS the default.
 		break;
 	}
 	return UiFlags::ColorWhite;

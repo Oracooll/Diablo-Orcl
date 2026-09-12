@@ -12060,31 +12060,36 @@ TEST(OracoolClassTree, HeavenlyStrengthBlocksWithASheetThatExists)
 // to the band, because nothing could. This test is that comparison.
 TEST(OracoolAudit, AnElementIsTheSameColourOnTheSheetAndOverTheMonsterSHead)
 {
-	// The three the user named, plus cold - all deferred to the one table, so they cannot drift.
-	for (const DamageType type : { DamageType::Fire, DamageType::Lightning, DamageType::Magic, DamageType::Cold }) {
+	const DamageType allSix[] = { DamageType::Physical, DamageType::Fire, DamageType::Lightning,
+		DamageType::Magic, DamageType::Acid, DamageType::Cold };
+
+	// EVERY element, with no exceptions - since 1.11.082 there are no divergences left to allow for.
+	for (const DamageType type : allSix) {
 		EXPECT_EQ(DamageTextColor(type), DamageTypeColor(type))
 		    << "damage type " << static_cast<int>(type)
 		    << " is written one colour on the character sheet and another over the monster";
 	}
 
-	// The specific regressions, named so a red run says which bug came back.
+	// Diablo II's palette, taken literally (user, 2026-08-31 and 2026-09-12). Named individually so
+	// a red run says WHICH element regressed rather than just "the table moved".
+	EXPECT_EQ(DamageTextColor(DamageType::Physical), UiFlags::ColorWhite) << "physical is white";
 	EXPECT_EQ(DamageTextColor(DamageType::Fire), UiFlags::ColorRed) << "fire is red, not grey";
 	EXPECT_EQ(DamageTextColor(DamageType::Lightning), UiFlags::ColorYellow) << "lightning is yellow, not blue";
 	EXPECT_EQ(DamageTextColor(DamageType::Magic), UiFlags::ColorMagicDamage) << "magic is RGB 208,98,98";
+	EXPECT_EQ(DamageTextColor(DamageType::Cold), UiFlags::ColorBlue) << "cold is blue - the engine HAS cold damage";
+	EXPECT_EQ(DamageTextColor(DamageType::Acid), UiFlags::ColorOracoolGreen) << "acid is D2's poison green";
 
 	// Fire must never again be the silver whose meaning moved.
 	EXPECT_NE(DamageTextColor(DamageType::Fire), UiFlags::ColorUiSilver);
 
-	// The two deliberate divergences, pinned so they read as choices rather than oversights.
-	EXPECT_EQ(DamageTextColor(DamageType::Physical), UiFlags::ColorGold) << "gold there, white on the sheet: vanilla's damage number";
-	EXPECT_EQ(DamageTextColor(DamageType::Acid), UiFlags::ColorYellow) << "acid keeps yellow; white is cold's here";
-
-	// Every element a PLAYER can deal must be told apart at a glance, which is the whole point of
-	// colouring them. Acid is excluded: it is monster-only and shares lightning's yellow.
+	// All six told apart at a glance, which is the entire point of colouring them. Acid is in the
+	// set now: it used to share lightning's yellow, and that is exactly the kind of quiet collision
+	// this assertion exists to refuse.
 	std::set<uint64_t> seen;
-	for (const DamageType type : { DamageType::Physical, DamageType::Fire, DamageType::Lightning, DamageType::Magic, DamageType::Cold }) {
+	for (const DamageType type : allSix) {
 		const uint64_t colour = static_cast<uint64_t>(DamageTextColor(type));
 		EXPECT_TRUE(seen.insert(colour).second)
 		    << "damage type " << static_cast<int>(type) << " shares a colour with another element";
 	}
+	EXPECT_EQ(seen.size(), 6u) << "six elements, six colours";
 }

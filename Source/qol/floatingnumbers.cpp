@@ -113,31 +113,30 @@ void AddFloatingNumber(Point pos, Displacement offset, DamageType type, int valu
 
 UiFlags DamageTextColor(DamageType type)
 {
-	// Physical is gold here and white on the sheet - the one deliberate divergence. Gold is
-	// vanilla's damage number and by far the most common thing on screen; white would put the
-	// loudest number in the game in the same ink as cold.
-	if (type == DamageType::Physical)
-		return UiFlags::ColorGold;
-
-	// Acid is monster-only (nothing the player casts carries it), and on the sheet it falls through
-	// to white. Here white is COLD's, so acid keeps its own yellow rather than borrowing one.
-	if (type == DamageType::Acid)
-		return UiFlags::ColorYellow;
-
-	// Everything else - fire, lightning, magic, cold - defers to the character sheet's table, so an
-	// element cannot be described two ways in one game. Before 1.11.080 this switch held its own
-	// opinions and all three of the user's named elements were wrong:
+	// ONE table, no exceptions. Every element is written the same colour here and on the character
+	// sheet - charpanel's DamageTypeColor is the definition and this is the whole implementation.
 	//
-	//   fire      ColorUiSilver, commented "appears dark red ingame". True of the old indexed path;
-	//             renderer stage 4 (v1.11.010) turned the .trn files into RGB values and
-	//             ColorInGameUiSilver became a plain grey ramp, 0xF3F3F3 down to 0x111111. Fire
-	//             damage had been drawing GREY ever since, with the comment still promising red -
-	//             a colour picked by a NAME whose meaning moved underneath it.
-	//   lightning ColorBlue, while the sheet says yellow - the user's explicit 2026-08-31 call,
-	//             after a first attempt rendered "dark blue instead of yellow".
-	//   magic     ColorOrange, while the sheet had said ColorMagicDamage (208,98,98) since
-	//             2026-09-11 - so a Blessed Hammer hit named one colour in the panel and wore
-	//             another over the monster.
+	// 1.11.080 left two divergences (gold physical, yellow acid); 1.11.082 removed both when the
+	// user asked for cold and physical to be right too, and taking Diablo II's palette literally
+	// happens to resolve them: white goes to physical, cold takes back the blue that magic vacated
+	// on 2026-09-11, and acid takes D2's poison green instead of sharing lightning's yellow.
+	//
+	// Before 1.11.080 this function held its own opinions and every element was wrong:
+	//
+	//   physical   gold; the sheet said white
+	//   cold       white, on the reasoning that the engine had no cold damage - it does now
+	//   acid       yellow, the same ink as lightning
+	//   lightning  blue, while the sheet said yellow - the user's explicit 2026-08-31 call, after a
+	//              first attempt rendered "dark blue instead of yellow"
+	//   magic      orange, while the sheet had said ColorMagicDamage (208,98,98) since 2026-09-11,
+	//              so a Blessed Hammer hit named one colour in the panel and wore another over the
+	//              monster
+	//   fire       ColorUiSilver, commented "appears dark red ingame". True of the old indexed path;
+	//              renderer stage 4 (v1.11.010) turned the .trn files into RGB values and
+	//              ColorInGameUiSilver became a plain grey ramp, 0xF3F3F3 down to 0x111111. Fire
+	//              damage had been drawing GREY ever since, with the comment still promising red -
+	//              a colour picked by a NAME whose meaning moved underneath it, which is the whole
+	//              reason this mapping is now asserted against the sheet's rather than restated.
 	//
 	// Auras reach this through AuraStrike -> ApplyMonsterDamage, which has always carried the
 	// element; nothing needed rewiring, the table was simply lying.
