@@ -94,8 +94,10 @@ uint32_t BarGradientColorAt(int permille)
 	const uint32_t b = static_cast<uint32_t>(lo.b + (hi.b - lo.b) * t / 256);
 	return (r << 16) | (g << 8) | b;
 }
-/** The screen position of the top left corner of the progress bar. */
-const int BarPos[3][2] = { { 53, 37 }, { 53, 421 }, { 53, 37 } };
+// BarPos - the per-screen top-left corner of the bar, authored at 640x480 as { 53, 37 }, { 53, 421 },
+// { 53, 37 } - is GONE (2026-09-12). The bar spans the whole screen along its floor now, so there is
+// no per-screen position left to hold. progress_id survives it: BarColor is still indexed by it on
+// the 8-bit path.
 
 OptionalOwnedClxSpriteList ArtCutsceneWidescreen;
 
@@ -111,11 +113,11 @@ OptionalOwnedClxSpriteList ArtCutsceneWidescreen;
  * are intelectual property of blizzard"). The same pixels reach the screen either way.
  */
 SDLSurfaceUniquePtr CutsceneRgb;
-/** @brief Where the scaled painting sits on the screen; the progress bar is placed by the same numbers. */
+/** @brief Where the scaled painting sits on the screen. */
 SDL_Rect CutsceneRgbRect { 0, 0, 0, 0 };
-/** @brief The painting's own size, so BarPos (authored at 640x480) scales with it. */
-int CutsceneRgbSourceWidth = 640;
-int CutsceneRgbSourceHeight = 480;
+// CutsceneRgbSourceWidth/Height were here, and only the progress bar ever read them - to find the
+// painting's centred 4:3 core and place itself inside it. The bar spans the screen now, so they went
+// with BarPos (2026-09-12).
 
 /**
  * @brief The user's own 16:9 redo of a painting, from the PRIVATE archive (user, 2026-09-07: "i have
@@ -133,8 +135,6 @@ bool LoadCutscenePng(const char *celPath)
 	SDL_FreeSurface(png);
 	if (CutsceneRgb == nullptr)
 		return false;
-	CutsceneRgbSourceWidth = CutsceneRgb->w;
-	CutsceneRgbSourceHeight = CutsceneRgb->h;
 	return true;
 }
 
@@ -162,8 +162,6 @@ void BuildCutsceneRgb(const char *celPath)
 		}
 	}
 	CutsceneRgb = std::move(rgb);
-	CutsceneRgbSourceWidth = width;
-	CutsceneRgbSourceHeight = height;
 }
 
 /** @brief Fit to height, aspect kept, centred: the rect the painting scales into. */
@@ -349,41 +347,23 @@ void DrawCutsceneBackground()
 
 void DrawCutsceneForeground()
 {
-	const Rectangle &uiRectangle = GetUIRectangle();
 	const Surface &out = GlobalBackBuffer();
 	// 15 REAL screen pixels (user, 2026-09-12: "make it 15px tall"), not 15 authored at 640x480 and
 	// scaled: the old 22 became 33 at 720p, and "15px" means fifteen on the screen being looked at.
 	constexpr int ProgressHeight = 15;
-	// Flush to the floor ("move it flush to the floor"). Measured from the SURFACE's bottom rather
-	// than the painting's: the cutscene is fit to height so the two normally coincide, but measuring
-	// from the surface keeps the bar on the floor even when the painting is cropped or letterboxed,
-	// and it no longer depends on BarPos's y at all - which is why only the x of that table is still
-	// read below.
-	const int barTop = out.h() - ProgressHeight;
 
-	SDL_Rect rect;
-	int trackWidth;
-	if (CutsceneRgb != nullptr && !out.isIndexed()) {
-		// The bar rides the scaled painting horizontally: BarPos's x and the bar's length were
-		// authored for 640x480. A wider painting (the 16:9 redo) keeps that 4:3 picture centred, so
-		// the bar is offset by the margin.
-		const int scaledHeight = CutsceneRgbRect.h;
-		const int coreWidth = CutsceneRgbSourceHeight * 4 / 3;
-		const int coreLeft = (CutsceneRgbSourceWidth - coreWidth) / 2;
-		rect = MakeSdlRect(
-		    out.region.x + CutsceneRgbRect.x + (coreLeft + BarPos[progress_id][0] * CutsceneRgbSourceHeight / 480) * scaledHeight / CutsceneRgbSourceHeight,
-		    out.region.y + barTop,
-		    static_cast<int>(sgdwProgress) * scaledHeight / 480,
-		    ProgressHeight);
-		trackWidth = static_cast<int>(MaxProgress) * scaledHeight / 480;
-	} else {
-		rect = MakeSdlRect(
-		    out.region.x + BarPos[progress_id][0] + uiRectangle.position.x,
-		    out.region.y + barTop,
-		    sgdwProgress,
-		    ProgressHeight);
-		trackWidth = static_cast<int>(MaxProgress);
-	}
+	// The WHOLE screen, flush to the floor (user, 2026-09-12: "move it flush to the floor", then
+	// "make it full screen width"). The bar no longer rides the painting in either axis, and that is
+	// what collapsed the two branches this function used to have into one: BarPos - the per-screen
+	// table that placed it, authored at 640x480 - and the 4:3-core arithmetic that mapped it onto the
+	// 16:9 redo are both gone, along with the painting's own source size, which nothing else read.
+	//
+	// The length is now the progress as a FRACTION of the screen rather than the authored 534 pixels,
+	// so it fills edge to edge on any resolution instead of stopping wherever 534 scaled pixels
+	// happened to land.
+	const int trackWidth = out.w();
+	const int fillWidth = static_cast<int>(sgdwProgress) * trackWidth / static_cast<int>(MaxProgress);
+	SDL_Rect rect = MakeSdlRect(out.region.x, out.region.y + out.h() - ProgressHeight, fillWidth, ProgressHeight);
 
 	if (out.isIndexed()) {
 		// One palette index, as before. A per-column gradient here would need a nearest-palette match

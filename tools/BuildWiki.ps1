@@ -195,16 +195,28 @@ $defaultMaxRank = $(if ($pointsHEarly -match 'constexpr int MaxSkillInvestment =
 # the 273 rows omit it, which aggregate initialisation leaves at 0, and ClassTreeMaxRank reads 0 as
 # "the usual cap" (MaxTreeInvestment). So the group has to be optional here or those 142 rows stop
 # matching entirely and vanish from the wiki.
-$rowPattern = '\{\s*N_\("([^"]*)"\),\s*N_\("([^"]*)"\),\s*(\w+),\s*(\d+),\s*(\d+),\s*(\d+),\s*Kind::(\w+),\s*SpellID::(\w+),\s*(true|false)(?:\s*,\s*(\d+))?\s*\}'
+# The page is a NUMBER for a live row and the named constant RetiredFromTreePage for a retired one.
+# Accepting only digits dropped exactly two rows - Boon of Bul-Kathos and Ballistics, retired at
+# v1.11.057 - so the wiki listed 270 of the game's 272 skills. It also mattered for the icons: the
+# strips carry a frame for every row INCLUDING the retired ones (Barbarian 49, Rogue 49), so a
+# positional join against a 270-row list would have shifted every icon after them.
+$rowPattern = '\{\s*N_\("([^"]*)"\),\s*N_\("([^"]*)"\),\s*(\w+),\s*(-?\d+|RetiredFromTreePage),\s*(\d+),\s*(\d+),\s*Kind::(\w+),\s*SpellID::(\w+),\s*(true|false)(?:\s*,\s*(\d+))?\s*\}'
+$classSeen = @{}
 foreach ($m in [regex]::Matches($treeBody, $rowPattern)) {
     $cls = $m.Groups[3].Value
     $className = $cls
     if ($classMap.ContainsKey($cls)) { $className = $classMap[$cls] }
+    # Position within this class's rows, in Skills[] order - which BuildGlyphStrips.ps1 states is
+    # the strip's own frame order, so this is what ties a skill to its icon.
+    if (-not $classSeen.ContainsKey($className)) { $classSeen[$className] = 0 }
+    $classIdx = $classSeen[$className]
+    $classSeen[$className] = $classIdx + 1
     [void]$skills.Add([ordered]@{
             name        = $m.Groups[1].Value
             description = $m.Groups[2].Value
             class       = $className
-            page        = [int]$m.Groups[4].Value
+            classIndex  = $classIdx
+            page        = $(if ($m.Groups[4].Value -eq 'RetiredFromTreePage') { -1 } else { [int]$m.Groups[4].Value })
             tier        = [int]$m.Groups[5].Value
             column      = [int]$m.Groups[6].Value
             kind        = $m.Groups[7].Value

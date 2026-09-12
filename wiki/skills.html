@@ -180,7 +180,16 @@ function gainFor(name) {
 }
 rows.forEach(function (r) { r.gain = gainFor(r.name); });
 
+/* The skill's own glyph, cut from its class strip. BuildGlyphStrips.ps1's rule is that the strip's
+   frame order IS the ClassTreeSkill order, so the frame is this row's index within its class -
+   retired rows included, which is why the wiki has to carry all 272 rows and not 270. */
+rows.forEach(function (r) {
+	r.icon = '<img src="encyclopedia/skills/' + r.class + '_' + r.classIndex
+		+ '.png" alt="" class="sprite" style="max-height:40px">';
+});
+
 makeTable(document.getElementById('table'), rows, [
+	{ key: 'icon', label: '' },
 	{ key: 'name', label: 'Skill' },
 	{ key: 'class', label: 'Class' },
 	{ key: 'page', label: 'Page', num: true },

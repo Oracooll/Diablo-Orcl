@@ -155,6 +155,48 @@ foreach ($sheet in $sheets) {
     }
 }
 
+# ---------------------------------------------------------------- skill glyphs
+# One strip per class, 56x56 frames laid left to right. BuildGlyphStrips.ps1 states the rule this
+# relies on: "the strip's frame order IS the ClassTreeSkill order" - so frame N is that class's Nth
+# row of Skills[], retired rows included. The wiki's own per-class counts were checked against these
+# frame counts before this was written: 49/49/48/48/39/39, exact on every class.
+$skillOut = Join-Path $out 'skills'
+New-Item -ItemType Directory -Path $skillOut -Force | Out-Null
+$strips = [ordered]@{
+    Barbarian = 'barb_tree_icons.png'
+    Bard      = 'bard_tree_icons.png'
+    Monk      = 'monk_tree_icons.png'
+    Paladin   = 'paladin_tree_icons.png'
+    Rogue     = 'rogue_tree_icons.png'
+    Sorcerer  = 'sorc_tree_icons.png'
+}
+$glyphs = 0
+$glyphBlank = @()
+foreach ($cls in $strips.Keys) {
+    $path = Join-Path $repo ('Packaging\resources\oracool_assets\ui\' + $strips[$cls])
+    if (-not (Test-Path $path)) { Write-Host "MISSING strip: $($strips[$cls])"; continue }
+    $strip = New-Object System.Drawing.Bitmap($path)
+    try {
+        [int]$cell = $strip.Height                # square frames; the strip is one row tall
+        [int]$stripW = $strip.Width
+        if (($stripW % $cell) -ne 0) { Write-Host "ODD strip width: $($strips[$cls])"; continue }
+        [int]$frames = $stripW / $cell
+        for ($i = 0; $i -lt $frames; $i++) {
+            $g2 = New-Object System.Drawing.Bitmap($cell, $cell)
+            $gg = [System.Drawing.Graphics]::FromImage($g2)
+            $gg.Clear([System.Drawing.Color]::Transparent)
+            $gg.DrawImage($strip, (New-Object System.Drawing.Rectangle(0, 0, $cell, $cell)),
+                                  (New-Object System.Drawing.Rectangle(($i * $cell), 0, $cell, $cell)),
+                                  [System.Drawing.GraphicsUnit]::Pixel)
+            $gg.Dispose()
+            if ($null -eq (Get-PaintedBounds $g2)) { $glyphBlank += "$cls #$i" }
+            $g2.Save((Join-Path $skillOut ("{0}_{1}.png" -f $cls, $i)), [System.Drawing.Imaging.ImageFormat]::Png)
+            $g2.Dispose()
+            $glyphs++
+        }
+    } finally { $strip.Dispose() }
+}
+
 # ---------------------------------------------------------------- report
 "families        : $($families.Count)"
 "monster frames  : $cut"
@@ -167,6 +209,8 @@ if ($trimmed.Count) {
 }
 if ($odd.Count) { "ODD GEOMETRY    : $($odd.Count)"; $odd | ForEach-Object { "    $_" } }
 "item icons      : $icons (objcurs $first + objcurs2 $second + oracool_items)"
+"skill glyphs    : $glyphs"
+if ($glyphBlank.Count) { "  blank glyphs  : $($glyphBlank.Count) ($($glyphBlank -join ', '))" }
 $mf = Get-ChildItem $monOut -Filter *.png
 $if2 = Get-ChildItem $itemOut -Filter *.png
 "monsters on disk: {0} files, {1:N2} MB" -f $mf.Count, (($mf | Measure-Object Length -Sum).Sum / 1MB)
