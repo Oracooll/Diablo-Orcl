@@ -109,6 +109,18 @@ bool IsUniqueMonsterItemValid(uint16_t iCreateInfo, uint32_t dwBuff)
 		}
 	}
 
+	// Oracool note, 2026-09-12: this exact-match rule cannot describe one of THIS fork's own drops.
+	// SpawnUnique branches on difficulty (items.cpp:4674) and above Normal stamps the special
+	// treasure at curlv * 2 off the 64-rung area ladder, so the Skeleton King's crown on Nightmare
+	// carries ilvl 38 | CF_UPER15 and no unique monster has base mlvl 38.
+	//
+	// The rule is deliberately left alone anyway, because it is reached by two very different
+	// callers and it is correct for one of them: UnPackNetPlayer validates a REMOTE PLAYER'S
+	// equipment, where an ilvl that matches no monster really is a forgery (see
+	// NetPackTest.UnPackNetPlayer_invalid_uniqueMonsterItemLevel, which pins exactly that). The
+	// locally-generated drop that the user hit is handled where it belongs - the !gbIsMultiplayer
+	// early-out in IsPItemValid, msg.cpp - rather than by loosening a check that protects the other
+	// caller. If multiplayer is ever revived, THIS is where the ladder has to be taught.
 	return false;
 }
 
@@ -150,6 +162,16 @@ bool IsDungeonItemValid(uint16_t iCreateInfo, uint32_t dwBuff)
 
 	// Diablo doesn't have containers that drop items in dungeon level 16, therefore we decrement by 1
 	diabloMaxDungeonLevel--;
+
+	// Oracool note, 2026-09-12: this ceiling of 30 is vanilla's and does NOT cover this fork's own
+	// drops. Items generate at 2 * ItemsGetCurrlevel(), and ItemsGetCurrlevel() returns the AREA
+	// level rather than the floor number (items.cpp:534); oracool::AreaLevel adds 16 per difficulty
+	// block, so a Nightmare sarcophagus stamps 2 * (floor + 16) = 34 and up.
+	//
+	// Left as vanilla on purpose - same reasoning as IsUniqueMonsterItemValid above. This function
+	// also validates a remote player's equipment through UnPackNetPlayer, where the ceiling is a
+	// real check (NetPackTest.UnPackNetPlayer_invalid_monsterItemLevel pins it). The locally
+	// generated drop is handled by the !gbIsMultiplayer early-out in IsPItemValid (msg.cpp).
 	return level <= (diabloMaxDungeonLevel * 2);
 }
 

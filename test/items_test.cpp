@@ -845,6 +845,29 @@ TEST(WouldSurviveNetworkValidation, RejectsDungeonLevelBeyondFallbackCeilingWith
 	EXPECT_FALSE(WouldSurviveNetworkValidation(item, IDI_ROCK));
 }
 
+// The ilvls this fork's OWN drops carry above Normal, and the rules still reject them - which is
+// correct for the caller these rules exist for (a remote player's packed equipment) and is why the
+// single-player fix lives in IsPItemValid instead of here.
+//
+// Items generate at 2 * ItemsGetCurrlevel(), and this fork made that the AREA level
+// (items.cpp:534), +16 per difficulty block. So a Nightmare sarcophagus stamps 2 * (floor + 16) and
+// the Skeleton King's crown 38 | CF_UPER15. Both sailed past vanilla's ceiling of 30, and
+// IsPItemValid then printed "Player '...' sent an invalid packet." and skipped DeltaPutItem - the
+// drop was on the floor and absent from the delta, so it vanished on level re-entry (user,
+// 2026-09-12: the Skeleton King on Nightmare, then a sarcophagus).
+//
+// These assertions are the PREMISE of that bug. If one ever flips, the early-out in IsPItemValid is
+// no longer the only thing standing between the player and silent item loss, and this file should be
+// revisited rather than the failure explained away.
+TEST(WouldSurviveNetworkValidation, TheForkOwnDropLevelsAreStillRejectedByTheVanillaRules)
+{
+	EXPECT_FALSE(IsDungeonItemValid(34, 0)) << "a Nightmare sarcophagus drop, 2 * (floor + 16)";
+	EXPECT_FALSE(IsUniqueMonsterItemValid(38, 0)) << "the Skeleton King's crown on Nightmare";
+
+	// And the reason it never bit on Normal: those levels stay inside the ceiling.
+	EXPECT_TRUE(IsDungeonItemValid(2 * 3, 0)) << "the same sarcophagus on Normal, floor 3";
+}
+
 // A plain dungeon item at a low level always survives validation regardless of any exact
 // monster-level match, since it falls within IsDungeonItemValid's ceiling fallback - this is
 // the common case that must keep working.

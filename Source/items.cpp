@@ -7768,6 +7768,13 @@ std::mt19937 BetterRng;
 // invalid packet" the moment it's actually dropped back onto the ground, since the loopback
 // rejection silently discards it instead of ever calling PlaceItemInWorld. This mirrors just
 // enough of IsPItemValid to predict that outcome ahead of time.
+//
+// 2026-09-12: IsPItemValid now returns early in single player, so in a single-player game nothing
+// is rejected any more and this predicate is PESSIMISTIC rather than wrong - it can only make the
+// `drop` command reroll a level that would in fact have been accepted. Deliberately left mirroring
+// the RULES rather than the early-out: it is the rules this is a predicate about, it is the rules
+// that must be taught the area ladder if multiplayer ever returns, and the tests in items_test.cpp
+// use it to pin exactly that.
 bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx)
 {
 	if (idx != IDI_GOLD && !IsCreationFlagComboValid(item._iCreateInfo))

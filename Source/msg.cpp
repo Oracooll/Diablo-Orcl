@@ -1023,6 +1023,25 @@ bool IsPItemValid(const TCmdPItem &message, const Player &player)
 
 	auto idx = static_cast<_item_indexes>(SDL_SwapLE16(message.def.wIndx));
 
+	// Everything below this line is ANTI-CHEAT for packets from a remote player: it re-derives what
+	// an item's creation flags could legitimately be and rejects the rest. In single player there is
+	// no remote player - the only sender is this process, one function call ago - so there is
+	// nothing to defend against and every "rejection" is a false positive.
+	//
+	// IsItemValid (items/validation.cpp) has had exactly this early-out all along. IsPItemValid
+	// never got one, and that asymmetry is the whole bug (user, 2026-09-12: "i just killed the
+	// skeleton king on nightmare and got a msg in the log - player XXXX send a request for invalid
+	// packet", then the same on opening a sarcophagus).
+	//
+	// It was not only a log line. On a failed check the caller skips DeltaPutItem, so the drop lives
+	// in the local Items[] array and in NO delta - it is on the floor, it can be picked up, and it
+	// is GONE the moment the level is left and re-entered. Silent item loss on every container and
+	// boss-unique drop from Nightmare upward.
+	//
+	// The rules themselves are also wrong for this fork now; see IsDungeonItemValid.
+	if (!gbIsMultiplayer)
+		return IsItemAvailable(idx);
+
 	if (idx != IDI_EAR) {
 		uint16_t creationFlags = SDL_SwapLE16(message.item.wCI);
 		uint32_t dwBuff = SDL_SwapLE16(message.item.dwBuff);
