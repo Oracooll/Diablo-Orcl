@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <string>
 
 #include "DiabloUI/ui_flags.hpp"
 #include "control.h"
@@ -10,6 +11,7 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp" // DrawHalfTransparentRectTo
 #include "engine/render/text_render.hpp"
+#include "oracool/area_level.h" // AreaLevel - the number in a waypoint's name
 #include "oracool/ornate_border.h"
 #include "init.h" // gbIsHellfire, for whether the Nest and Crypt rows exist at all
 #include "interfac.h"
@@ -22,6 +24,7 @@
 #include "player.h"
 #include "quests.h"
 #include "utils/language.h"
+#include "utils/str_cat.hpp" // StrCat - the derived waypoint names
 
 namespace devilution::oracool {
 
@@ -36,38 +39,102 @@ namespace {
 // rows moved to FontSize24 - see the DrawString below. It cost 31px on the widest name, which was
 // the difference between fitting the text column and wrapping. Nothing was lost with it: the row's
 // position in the list already gave the ordinal, and the trailing number - the one that matters -
-// is still there. Purely a display string; no code parses it, the array index carries the level.
+// is still there. Purely a display string; no code parses it.
 //
-// That trailing number is the ABSOLUTE dungeon level, not the level within its region - which is why
-// the Catacombs start at 5 and not at 1. Hellfire's own two regions continue that: the Nest is
-// levels 17-20 and the Crypt 21-24, so they carry on counting rather than restarting.
-constexpr std::array<const char *, 25> WaypointNames { {
-    "Tristram",
-    "Cathedral Level 1",
-    "Cathedral Level 2",
-    "Cathedral Level 3",
-    "Cathedral Level 4",
-    "Catacombs Level 5",
-    "Catacombs Level 6",
-    "Catacombs Level 7",
-    "Catacombs Level 8",
-    "Caves Level 9",
-    "Caves Level 10",
-    "Caves Level 11",
-    "Caves Level 12",
-    "Hell Level 13",
-    "Hell Level 14",
-    "Hell Level 15",
-    "Hell Level 16",
-    "Nest Level 17",
-    "Nest Level 18",
-    "Nest Level 19",
-    "Nest Level 20",
-    "Crypt Level 21",
-    "Crypt Level 22",
-    "Crypt Level 23",
-    "Crypt Level 24",
+// The ROW's position no longer carries the level either, since the list was reordered by depth on
+// 2026-09-12 - LevelOfRow below is that mapping.
+//
+// That trailing number is the AREA LEVEL, and it is DERIVED rather than written out (user,
+// 2026-09-12: "make a formula for naming waypoints - the level number in the name to be a variable
+// equal to its Area level"). For floors 1-16 it is the floor, which is why the Catacombs start at 5
+// and not at 1. For Hellfire's two regions it is not: the Nest reads 9-12 and the Crypt 13-16,
+// because that is the depth they actually are - AreaLevel side-steps floors 17-24 onto the Caves'
+// and Hell's rungs (see oracool/area_level.h, v1.11.060).
+//
+// So "Caves Level 9" and "Nest Level 9" both exist, and that is the point: they are the same depth
+// in two different places, and the region word is what tells them apart.
+constexpr size_t WaypointLevelCount = 25;
+
+/** @brief The region a dungeon level belongs to - the word in front of the number. */
+const char *WaypointRegionName(int level)
+{
+	if (level <= 0)
+		return "Tristram";
+	if (level <= 4)
+		return "Cathedral";
+	if (level <= 8)
+		return "Catacombs";
+	if (level <= 12)
+		return "Caves";
+	if (level <= 16)
+		return "Hell";
+	if (level <= 20)
+		return "Nest";
+	return "Crypt";
+}
+
+/**
+ * @brief "<Region> Level <area level>" for dungeon level @p level, or "Tristram" for 0.
+ *
+ * Built once and kept, rather than formatted per frame: the list redraws every frame while it is
+ * open and these strings never change within a run.
+ *
+ * DIFF_NORMAL deliberately. The ladder adds a flat block per difficulty, so Normal's value IS the
+ * rung; a name that climbed with the difficulty would be describing the run rather than the place,
+ * and the row would rename itself under the player between games.
+ */
+string_view WaypointName(int level)
+{
+	static std::array<std::string, WaypointLevelCount> names;
+	if (names[0].empty()) {
+		names[0] = WaypointRegionName(0);
+		for (size_t i = 1; i < names.size(); i++)
+			names[i] = StrCat(WaypointRegionName(static_cast<int>(i)), " Level ", AreaLevel(static_cast<int>(i), DIFF_NORMAL));
+	}
+	return names[static_cast<size_t>(level)];
+}
+
+/**
+ * @brief The dungeon level each row shows, in the order the rows appear.
+ *
+ * Ordered by AREA LEVEL, not by dungeon level (user, 2026-09-12: "nest waypoints to be [...] placed
+ * between Hell and Caves waypoints", "Crypt to be [...] placed after Hell waypoints"). The Nest
+ * shares the Caves' rungs and the Crypt shares Hell's, so sorting by depth interleaves them:
+ * Caves 9-12, Nest 9-12, Hell 13-16, Crypt 13-16. Dungeon levels 17-24 are therefore NOT in numeric
+ * order here.
+ *
+ * This is why the row index is no longer the destination level. LevelOfRow is the single mapping,
+ * and Player::_pWaypointUnlocked and OperateWaypoint's _oVar1 stay indexed by DUNGEON level - which
+ * is exactly what this table exists to keep separate from the display.
+ */
+constexpr std::array<uint8_t, WaypointLevelCount> HellfireRowLevels { {
+    0,
+    1, 2, 3, 4,     // Cathedral, rungs 1-4
+    5, 6, 7, 8,     // Catacombs, rungs 5-8
+    9, 10, 11, 12,  // Caves,     rungs 9-12
+    17, 18, 19, 20, // Nest,      rungs 9-12 as well
+    13, 14, 15, 16, // Hell,      rungs 13-16
+    21, 22, 23, 24, // Crypt,     rungs 13-16 as well
 } };
+
+/**
+ * @brief The same list for a plain Diablo game, where the Nest and the Crypt do not exist.
+ *
+ * Not a prefix of the table above - with the Nest interleaved, the first seventeen rows there are no
+ * longer levels 0-16 - so the shorter order is written out rather than sliced off. It needs no
+ * reordering at all, because without Hellfire's two regions depth and dungeon level agree.
+ */
+constexpr std::array<uint8_t, 17> DiabloRowLevels { {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+} };
+
+/** @brief The dungeon level at list row @p row, or -1 if the row does not exist. */
+int LevelOfRow(size_t row)
+{
+	if (gbIsHellfire)
+		return row < HellfireRowLevels.size() ? static_cast<int>(HellfireRowLevels[row]) : -1;
+	return row < DiabloRowLevels.size() ? static_cast<int>(DiabloRowLevels[row]) : -1;
+}
 
 /**
  * @brief How many rows the list actually offers.
@@ -80,7 +147,7 @@ constexpr std::array<const char *, 25> WaypointNames { {
  */
 size_t VisibleWaypointCount()
 {
-	return gbIsHellfire ? WaypointNames.size() : 17;
+	return gbIsHellfire ? HellfireRowLevels.size() : DiabloRowLevels.size();
 }
 
 // Oracool V1 waypoint list geometry.
@@ -349,7 +416,10 @@ void DrawWaypointMenu(const Surface &out)
 		if (rowTop + RowHeight <= 0 || rowTop >= ViewportHeight)
 			continue;
 
-		const bool unlocked = IsWaypointUnlocked(static_cast<int>(i));
+		// The row's DUNGEON level - not the row index, which is only where it sits on screen since
+		// the list was reordered by depth. See LevelOfRow.
+		const int level = LevelOfRow(i);
+		const bool unlocked = IsWaypointUnlocked(level);
 		const bool isHovered = (hovered == static_cast<int>(i));
 
 		// Oracool: user request (2026-08-15) - the same gold outline the Abilities window marks its
@@ -408,50 +478,54 @@ void DrawWaypointMenu(const Surface &out)
 		//
 		// 12 and 24 are the only other faces small enough for a 43px row (LineHeights: 26px at 24
 		// against a 43px row) and 12 is half the size, so 24 is the choice. It only fits because the
-		// names lost their ordinal prefix at the same time - see WaypointNames and PanelSize.
+		// names lost their ordinal prefix at the same time - see WaypointName and PanelSize.
 		// Shadowed (user, 2026-09-03), which is what the blue and red of the day before actually
 		// needed to work: a DARK colour on mid-grey stone loses its edges rather than its brightness,
 		// and a black offset copy under it is what gives the glyph a boundary again. The outline this
 		// row used to wear was dropped for thickening the letters; a shadow sits under them instead
 		// of around them, so it buys the contrast without the weight.
-		DrawString(content, WaypointNames[i], textArea,
+		DrawString(content, WaypointName(level), textArea,
 		    { color | UiFlags::FontSize24 | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 }
 
 void CheckWaypointMenuClick(Point mousePosition)
 {
-	int entry = MouseToEntry(mousePosition);
+	const int entry = MouseToEntry(mousePosition);
 	if (entry < 0)
 		return;
-	if (!IsWaypointUnlocked(entry))
+	// The row index STOPPED being the destination level when the list was reordered by depth
+	// (2026-09-12): row 13 is the Nest's first floor, dungeon level 17. Everything past this line
+	// speaks in dungeon levels, which is what _pWaypointUnlocked and StartNewLvl both want.
+	const int level = LevelOfRow(static_cast<size_t>(entry));
+	if (level < 0)
+		return;
+	if (!IsWaypointUnlocked(level))
 		return; // locked entry - no-op
 
 	// Travelling and "already there" are both a row chosen, and both close the list.
 	PlayUiSelectSound();
 	CloseWaypointMenu();
 
-	// Oracool: entry index doubles as the destination dungeon level (0 = town), matching
-	// currlevel numbering - see WaypointNames' comment and OperateWaypoint's _oVar1 usage.
-	if (!setlevel && MyPlayer->isOnLevel(entry))
+	if (!setlevel && MyPlayer->isOnLevel(level))
 		return; // already there
 
 	WaypointSpawnRequested = true;
-	StartNewLvl(*MyPlayer, WM_DIABNEXTLVL, entry);
+	StartNewLvl(*MyPlayer, WM_DIABNEXTLVL, level);
 }
 
 bool IsWaypointUnlocked(int index)
 {
 	if (index == 0)
 		return true; // Tristram - always unlocked, regardless of what's stored
-	if (index < 0 || static_cast<size_t>(index) >= WaypointNames.size())
+	if (index < 0 || static_cast<size_t>(index) >= WaypointLevelCount)
 		return false;
 	return MyPlayer->_pWaypointUnlocked[sgGameInitInfo.nDifficulty][index];
 }
 
 void UnlockWaypoint(int index)
 {
-	if (index <= 0 || static_cast<size_t>(index) >= WaypointNames.size())
+	if (index <= 0 || static_cast<size_t>(index) >= WaypointLevelCount)
 		return;
 	MyPlayer->_pWaypointUnlocked[sgGameInitInfo.nDifficulty][index] = true;
 }

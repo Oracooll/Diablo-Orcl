@@ -172,13 +172,26 @@ function yesNo(value) {
 	return value ? '<span class="tag ok">yes</span>' : '<span class="tag no">no</span>';
 }
 
+/**
+ * The DIFFICULTY an area level falls in - 16 rungs each.
+ *
+ * Not tierOfLevel: that is the BASE TIER, which opens every 12 rungs. The two used to be the same
+ * number - on the old 96-rung ladder both were 24 - so areaOfLevel could borrow it. Since the ladder
+ * became 64 rungs with a tier every 12 they diverge, and borrowing it put alvl 48 (the bottom of
+ * Hell, and the level by which everything must be droppable) in "Torment".
+ */
+function difficultyOfLevel(level) {
+	if (level <= 0) return 0;
+	return Math.min(3, Math.floor((level - 1) / 16));
+}
+
 function areaOfLevel(level) {
 	if (level <= 0) return '';
 	// Sixteen rungs a difficulty, not twenty-four: the Nest sits on the Caves' rungs and the Crypt on
 	// Hell's, so a rung can name either of a pair.
 	const rung = ((level - 1) % 16) + 1;
 	const areas = ['Cathedral', 'Catacombs', 'Caves or Nest', 'Hell or Crypt'];
-	return TIER_NAMES[tierOfLevel(level)] + ' ' + areas[Math.floor((rung - 1) / 4)];
+	return TIER_NAMES[difficultyOfLevel(level)] + ' ' + areas[Math.floor((rung - 1) / 4)];
 }
 
 document.addEventListener('DOMContentLoaded', buildNav);
