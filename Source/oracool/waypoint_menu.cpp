@@ -55,22 +55,17 @@ namespace {
 // in two different places, and the region word is what tells them apart.
 constexpr size_t WaypointLevelCount = 25;
 
-/** @brief The region a dungeon level belongs to - the word in front of the number. */
+/**
+ * @brief The region a dungeon level belongs to - the word in front of the number.
+ *
+ * Through AreaNameOfFloor rather than a table of its own: area_level.cpp already holds the six names
+ * in floor order and is where the ladder lives, so a second copy here would be the thing that goes
+ * stale if an area is ever renamed. Only Tristram is this file's, because it is not a dungeon floor
+ * and AreaNameOfFloor clamps level 0 up to the Cathedral.
+ */
 const char *WaypointRegionName(int level)
 {
-	if (level <= 0)
-		return "Tristram";
-	if (level <= 4)
-		return "Cathedral";
-	if (level <= 8)
-		return "Catacombs";
-	if (level <= 12)
-		return "Caves";
-	if (level <= 16)
-		return "Hell";
-	if (level <= 20)
-		return "Nest";
-	return "Crypt";
+	return level <= 0 ? "Tristram" : AreaNameOfFloor(level);
 }
 
 /**
