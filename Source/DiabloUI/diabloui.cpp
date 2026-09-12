@@ -828,16 +828,26 @@ void LoadHeros()
 	// is only touched when a SEVENTH frame exists, and it never does. Two classes, one face, on the
 	// screen where you choose between them (fixed 2026-09-12 with ui_art\hero5.png).
 	//
-	// A PNG rather than converting the painting down to an 8-bit PCX to satisfy the loader: the
-	// portrait is a full-colour image and the PCX path would cost it for nothing. The PCX attempt
-	// stays second so a hand-made PCX override still works.
+	// A PNG rather than converting the painting down to a PCX, because every other asset this fork
+	// ships is a PNG and the import path already exists. The PCX attempt stays second so a hand-made
+	// PCX override still works.
+	//
+	// The palette is passed EXPLICITLY, and it has to be: oracool's importer quantizes against the
+	// level palette by default, which is right for dungeon art and wrong here - the front end runs
+	// on ui_art\diablo.pal, which shares one of its 128 upper entries with town's. Matching against
+	// one table and drawing through another is the mistake ui_backgrounds.cpp calls
+	// UiLoadDefaultPalette before Build to avoid, and this call sat outside that discipline until
+	// 2026-09-12. Measured before fixing: the three candidate quantizations of this portrait are
+	// hard to tell apart, so it was a latent trap rather than a visible fault - but the next asset
+	// whose colours only one palette carries would have paid for it.
 	constexpr uint16_t PortraitWidth = 180;
+	constexpr char FrontEndPalette[] = "ui_art\\diablo.pal";
 	for (size_t i = 0; i <= enum_size<HeroClass>::value; ++i) {
 		char portraitPath[18];
 		*BufCopy(portraitPath, "ui_art\\hero", i) = '\0';
 		char pngPath[24];
 		*BufCopy(pngPath, portraitPath, ".png") = '\0';
-		ArtHeroOverrides[i] = oracool::LoadPngSpriteList(pngPath, PortraitWidth);
+		ArtHeroOverrides[i] = oracool::LoadPngSpriteList(pngPath, PortraitWidth, FrontEndPalette);
 		if (!ArtHeroOverrides[i])
 			ArtHeroOverrides[i] = LoadPcx(portraitPath, /*transparentColor=*/std::nullopt, /*outPalette=*/nullptr, /*logError=*/false);
 	}

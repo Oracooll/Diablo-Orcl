@@ -42,15 +42,36 @@ constexpr int SharedHalfFirst = 128;
 std::array<uint8_t, 768> LevelPalette;
 bool LevelPaletteLoaded = false;
 bool LevelPaletteMissing = false;
+/** Which palette the cache currently holds, so a caller asking for a different one gets it. */
+const char *LoadedPalettePath = nullptr;
 
-bool EnsurePalette()
+/**
+ * @brief Loads @p palettePath into the quantizer's cache, reloading if a different one is cached.
+ *
+ * The cache used to be keyed on nothing, because there was only ever one palette: every caller was
+ * importing IN-GAME art, and the comment above LevelPalettePath explains why any level palette will
+ * do for that - the shared half is identical across town and all four tilesets.
+ *
+ * Then the hero-portrait override started importing FRONT-END art (2026-09-12), and the front end
+ * runs on `ui_art\diablo.pal`, which shares only one of its 128 upper entries with town's. Matching
+ * against one table and displaying through another is exactly the mistake `ui_backgrounds.cpp`
+ * calls UiLoadDefaultPalette before Build to avoid, and this path sat outside that discipline.
+ *
+ * Measured before fixing, because it matters what the error actually costs: quantizing that
+ * portrait against town's shared half, diablo's shared half and diablo's full 256 produces three
+ * images that are hard to tell apart - nearest-match finds a close brown either way. So this was a
+ * latent trap rather than a visible defect, and the fix is worth making for the next asset whose
+ * colours only one of the two palettes carries, not for this one.
+ */
+bool EnsurePalette(const char *palettePath)
 {
 	if (LevelPaletteMissing)
 		return false;
-	if (LevelPaletteLoaded)
+	if (LevelPaletteLoaded && LoadedPalettePath != nullptr && strcmp(LoadedPalettePath, palettePath) == 0)
 		return true;
-	LoadFileInMem(LevelPalettePath, LevelPalette);
+	LoadFileInMem(palettePath, LevelPalette);
 	LevelPaletteLoaded = true;
+	LoadedPalettePath = palettePath;
 	return true;
 }
 
@@ -109,10 +130,12 @@ OwnedClxSpriteSheet CombineListsIntoSheet(std::vector<OwnedClxSpriteList> &lists
  * rows - every caller falls back to whatever it was going to draw anyway, so a bad sheet is a
  * no-import rather than an error.
  */
-std::vector<OwnedClxSpriteList> SplitSurfaceIntoRows(SDL_Surface *surface, uint16_t frameWidth, int rows)
+std::vector<OwnedClxSpriteList> SplitSurfaceIntoRows(SDL_Surface *surface, uint16_t frameWidth, int rows, const char *palettePath = nullptr)
 {
 	std::vector<OwnedClxSpriteList> lists;
-	if (surface == nullptr || frameWidth == 0 || rows <= 0 || !EnsurePalette())
+	if (palettePath == nullptr)
+		palettePath = LevelPalettePath;
+	if (surface == nullptr || frameWidth == 0 || rows <= 0 || !EnsurePalette(palettePath))
 		return lists;
 
 	SDLSurfaceUniquePtr rgba { SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_ABGR8888, 0) };
@@ -223,14 +246,14 @@ std::optional<OwnedClxSpriteListOrSheet> LoadPngMissileSheet(const char *name, u
 	return OwnedClxSpriteListOrSheet { CombineListsIntoSheet(lists) };
 }
 
-OptionalOwnedClxSpriteList LoadPngSpriteList(const char *path, uint16_t frameWidth)
+OptionalOwnedClxSpriteList LoadPngSpriteList(const char *path, uint16_t frameWidth, const char *palettePath)
 {
 	SDLSurfaceUniquePtr png { LoadPNG(path) };
 	if (png == nullptr)
 		return std::nullopt;
 
 	// One row. Every caller so far is a single strip; a multi-row sheet wants LoadPngSpriteSheet.
-	std::vector<OwnedClxSpriteList> lists = SplitSurfaceIntoRows(png.get(), frameWidth, 1);
+	std::vector<OwnedClxSpriteList> lists = SplitSurfaceIntoRows(png.get(), frameWidth, 1, palettePath);
 	if (lists.empty())
 		return std::nullopt;
 	return std::move(lists[0]);

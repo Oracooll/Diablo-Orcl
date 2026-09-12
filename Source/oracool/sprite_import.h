@@ -91,9 +91,14 @@ OptionalOwnedClxSpriteList LoadPngItemDropSheet(const char *name, uint16_t frame
  * so a caller can fall back to whatever it loaded before.
  *
  * Added 2026-09-12 for the Barbarian's character-select portrait: the engine's hero-portrait
- * override hook asks for a PCX (`ui_art\hero5`), every other asset this fork ships is a PNG, and
- * converting a full-colour painting down to an 8-bit PCX to satisfy a loader is the wrong trade.
+ * override hook asks for a PCX (`ui_art\hero5`) and every other asset this fork ships is a PNG.
+ *
+ * @p palettePath is the palette to QUANTIZE against, and it must be the palette the art will be
+ * DRAWN through. Defaults to the level palette, which is right for everything in the dungeon; pass
+ * `ui_art\diablo.pal` for front-end art, because the front end loads that and it shares only one of
+ * its 128 upper entries with town's. Getting this wrong is quiet - nearest-match still finds a
+ * plausible colour - so it will not look broken, it will look subtly off.
  */
-OptionalOwnedClxSpriteList LoadPngSpriteList(const char *path, uint16_t frameWidth);
+OptionalOwnedClxSpriteList LoadPngSpriteList(const char *path, uint16_t frameWidth, const char *palettePath = nullptr);
 
 } // namespace devilution::oracool

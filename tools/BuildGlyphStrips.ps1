@@ -30,7 +30,16 @@ foreach ($e in $manifest) { $byKey[("{0}|{1}|{2}" -f $e.class, $e.page, $e.name)
 # Later glyph packs in the same format (RfA-04 batch 13, 2026-09-11: the five rows the first pack
 # missed). Each entry remembers its own pack folder; a key the first pack already has is an error
 # rather than a silent override.
-$extraPacks = @('batch-13-skill-glyphs')
+# These packs MUST live in 01-in-use-assets\delivered-packs, not 02-concept-assets: their glyphs
+# are in the shipped strips, so by the asset ledger's own rule ("the master a cutter reads to
+# produce something shipped") they are in-use art.
+#
+# batch-13 was moved to 02- by the 2026-09-11 Resources reorganisation, which silently broke this
+# script outright - line 36's Get-Content is unguarded under $ErrorActionPreference = 'Stop', so it
+# threw before writing a single strip. Nobody noticed because nobody had reason to re-run it until
+# batch-26 arrived, and the strips on disk were already built from when batch-13 was in the right
+# place. Found by the 2026-09-12 asset sweep; batch-13 restored and batch-26 filed beside it.
+$extraPacks = @('batch-13-skill-glyphs', 'batch-26-sorceress-glyphs')
 foreach ($extra in $extraPacks) {
   $extraRoot = Join-Path (Split-Path -Parent $pack) $extra
   $extraManifest = Get-Content (Join-Path $extraRoot 'manifest.json') -Raw | ConvertFrom-Json
@@ -47,9 +56,23 @@ $src = Get-Content (Join-Path $root 'Source\oracool\class_tree.cpp') -Raw
 $tableStart = $src.IndexOf('const ClassTreeSkillData Skills[ClassTreeSkillCount] = {')
 $tableEnd = $src.IndexOf("`n};", $tableStart)
 $table = $src.Substring($tableStart, $tableEnd - $tableStart)
-$rowRe = [regex]'\{\s*N_\("((?:[^"\\]|\\.)*)"\),\s*N_\("(?:[^"\\]|\\.)*"\),\s*(Pal|Bar|Sor|Rog|Bard|Monk),\s*(\d+),'
+# The page field accepts RetiredFromTreePage as well as a number, because a retired row STILL
+# OCCUPIES ITS FRAME - a glyph is keyed to the row's index within its class, not to its page.
+#
+# Requiring \d+ here dropped the four retired rows, so Barbarian and Rogue parsed as 48 rows each
+# against their real 49. That is worse than a miscount: LoadStripEditable below sizes a NEW bitmap
+# at $mine.Count frames, so re-running the script TRUNCATED both strips from 49 frames to 48 and
+# silently threw away the last frame. Done exactly that on 2026-09-12 and caught it by measuring the
+# files afterwards; AuditGlyphStrips.ps1 had the identical regex bug, found the same day.
+$rowRe = [regex]'\{\s*N_\("((?:[^"\\]|\\.)*)"\),\s*N_\("(?:[^"\\]|\\.)*"\),\s*(Pal|Bar|Sor|Rog|Bard|Monk),\s*(\d+|RetiredFromTreePage),'
 $rows = @()
-foreach ($m in $rowRe.Matches($table)) { $rows += [pscustomobject]@{ Name = $m.Groups[1].Value; Cls = $m.Groups[2].Value; Page = [int]$m.Groups[3].Value } }
+foreach ($m in $rowRe.Matches($table)) {
+    $pageText = $m.Groups[3].Value
+    # -1 for a retired row: it is on no page, but it is counted and it holds its frame. $pageName
+    # is only indexed for rows that matched a number, so the lookup below must skip these.
+    $page = if ($pageText -eq 'RetiredFromTreePage') { -1 } else { [int]$pageText }
+    $rows += [pscustomobject]@{ Name = $m.Groups[1].Value; Cls = $m.Groups[2].Value; Page = $page }
+}
 if ($rows.Count -lt 150) { throw "only $($rows.Count) rows parsed from class_tree.cpp" }
 
 $className = @{ Pal = 'Paladin'; Bar = 'Barbarian'; Sor = 'Sorceress'; Rog = 'Rogue'; Bard = 'Bard'; Monk = 'Monk' }
@@ -112,6 +135,10 @@ foreach ($cls in @('Pal', 'Bar', 'Sor', 'Rog', 'Bard', 'Monk')) {
   $stamped = 0
   for ($i = 0; $i -lt $mine.Count; $i++) {
     $row = $mine[$i]
+    # A retired row (Page -1) is on no page, so it cannot be looked up by class|page|name. It keeps
+    # whatever frame the strip already had, which is correct: the skill is out of the tree and its
+    # glyph is not drawn, but the frame must stay so every later index still lines up.
+    if ($row.Page -lt 0) { continue }
     $key = "{0}|{1}|{2}" -f $className[$cls], $pageName[$cls][$row.Page], $row.Name
     $entry = $byKey[$key]
     if ($null -eq $entry) { $missing += $key; continue }
