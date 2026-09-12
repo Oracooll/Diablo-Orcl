@@ -83,6 +83,10 @@ document.getElementById('setcards').innerHTML = Object.keys(sets).sort().map(fun
 }).join('');
 
 makeTable(document.getElementById('table'), rows, [
+	{ key: 'cursIndex', label: '', render: function (v) {
+		if (v < 0) return '';
+		return '<img src="encyclopedia/items/curs_' + v + '.png" alt="" class="sprite" style="max-height:48px">';
+	} },
 	{ key: 'name', label: 'Piece' },
 	{ key: 'set', label: 'Set' },
 	{ key: 'slot', label: 'Slot' },

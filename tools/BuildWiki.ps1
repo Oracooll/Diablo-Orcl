@@ -414,6 +414,12 @@ function Add-UniqueRows([string]$text, [string]$origin) {
         # Captured before the inner matches run, so nothing downstream can overwrite the row's own
         # groups - the trap that ate a level range earlier in this project.
         $row = @($matches[1], $matches[2], $matches[3], $matches[4], $matches[5])
+        # A unique's own inventory icon rides in an IPL_INVCURS power. It is written either as a
+        # literal frame (the 143 that point into unique_items_curs.inc) or as a named constant (the
+        # 107 that point into unique_items2_curs.inc) - so both forms are captured raw here and
+        # resolved later, once the cursor-name map exists. A row with none falls back to its base.
+        $iconRaw = ''
+        if ($line -match 'IPL_INVCURS,\s*([A-Za-z0-9_]+)') { $iconRaw = $matches[1] }
         $powers = New-Object System.Collections.ArrayList
         # A power carries two values, one, or none: IPL_RNDSTEALLIFE has no numbers and IPL_INVCURS
         # a single frame id. Requiring two silently dropped every such power from the vanilla rows.
@@ -431,6 +437,7 @@ function Add-UniqueRows([string]$text, [string]$origin) {
                 powerCount = [int]$row[3]
                 value   = [int]$row[4]
                 origin  = $origin
+                iconRaw = $iconRaw
                 powers  = ($powers -join ', ')
             })
     }
@@ -1456,6 +1463,51 @@ foreach ($m in [regex]::Matches($cursBody, 'ICURS_(\w+)\s*(?:=\s*(?:(\d+)|ICURS_
 foreach ($it in $items) {
     $it['cursIndex'] = $(if ($cursIndex.ContainsKey($it['curs'])) { $cursIndex[$it['curs']] } else { -1 })
 }
+
+# A unique's icon: the IPL_INVCURS token captured at parse time, as a literal frame or as a named
+# constant. 41 of the vanilla rows carry none at all - those wear their base item's icon, which is
+# what the game shows too.
+$uitypeIcon = @{}
+foreach ($it in $items) {
+    $ut = $it['uitype']
+    if ($ut -and $ut -ne 'NONE' -and -not $uitypeIcon.ContainsKey($ut)) { $uitypeIcon[$ut] = $it['cursIndex'] }
+}
+foreach ($u in $uniques) {
+    $raw = $u['iconRaw']
+    $idx = -1
+    if ($raw -match '^\d+$') { $idx = [int]$raw }
+    elseif ($raw -match '^ICURS_(\w+)$' -and $cursIndex.ContainsKey($matches[1])) { $idx = $cursIndex[$matches[1]] }
+    if ($idx -lt 0 -and $uitypeIcon.ContainsKey($u['base'])) { $idx = $uitypeIcon[$u['base']] }
+    $u['cursIndex'] = $idx
+    $u.Remove('iconRaw')
+}
+
+# A set piece's icon: item_sets_curs.inc names its 94 icons in the order the pieces are authored, and
+# both files are generated from the same source, so the join is positional.
+#
+# It cannot be checked by name: the icons are named for the SET and the SLOT (ASHEN_HELM, ASHEN_ARMOR,
+# ASHEN_MACE) while the pieces carry flavour names (Vhal's Blackened Halo, Vhal's Emberguard). What
+# was checked instead is that the icon's slot word tracks the piece's slot down the file -
+# helm/torso/gloves/belt/boots/main_hand against HELM/ARMOR/GLOVES/BELT/BOOTS/MACE, then
+# GRAVEGLASS_CROWN against the next helm. Eight for eight. The count guard below is what stays.
+$setCurs = @()
+foreach ($l in (Get-Content (Join-Path $src 'oracool/item_sets_curs.inc') -Encoding UTF8)) {
+    if ($l -match '^\s*ICURS_(\w+)') { $setCurs += $matches[1] }
+}
+$setIconMissing = 0
+foreach ($piece in $setItems) {
+    $i = $piece['index']
+    if ($i -ge 0 -and $i -lt $setCurs.Count -and $cursIndex.ContainsKey($setCurs[$i])) {
+        $piece['cursIndex'] = $cursIndex[$setCurs[$i]]
+    } else {
+        $piece['cursIndex'] = -1
+        $setIconMissing++
+    }
+}
+if ($setCurs.Count -ne $setItems.Count) {
+    Write-Host ("  WARNING: {0} set icons for {1} pieces - the positional join is off" -f $setCurs.Count, $setItems.Count)
+}
+if ($setIconMissing -gt 0) { Write-Host ("  set pieces with no icon: {0}" -f $setIconMissing) }
 
 # ---------------------------------------------------------------------------------------------
 # Spell icons - SpellITbl in Source/panels/spell_icons.cpp

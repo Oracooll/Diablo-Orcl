@@ -71,6 +71,12 @@ document.getElementById('stats').innerHTML =
 	'<div class="stat"><b>' + rows.filter(function (r) { return r.curse; }).length + '</b><span>carry a curse</span></div>';
 
 makeTable(document.getElementById('table'), rows, [
+	// The unique's own icon, from its IPL_INVCURS power - or its base item's, for the 41 vanilla
+	// rows that carry none, which is what the game shows for them too.
+	{ key: 'cursIndex', label: '', render: function (v) {
+		if (v < 0) return '';
+		return '<img src="encyclopedia/items/curs_' + v + '.png" alt="" class="sprite" style="max-height:48px">';
+	} },
 	{ key: 'name', label: 'Name' },
 	{ key: 'origin', label: 'From', render: function (v) {
 		return v === 'Vanilla' ? '<span class="tag">vanilla</span>' : '<span class="tag ok">Oracool</span>';
