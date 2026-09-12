@@ -33,6 +33,30 @@ $out = Join-Path $root 'Source\oracool'
 $artDir = Join-Path $env:TEMP 'oracool-salvage-orbs'
 if (-not (Test-Path $artDir)) { New-Item -ItemType Directory -Path $artDir -Force | Out-Null }
 
+# Where the SPECS point: the real art since batches 19 and 20 (RfA-07, 2026-09-12). Per-file, with
+# a fallback to the procedural placeholder above, so a partial delivery still builds a whole sheet.
+#
+# Relative to the repository root, because build_item_icons.cmd runs from there and a
+# machine-specific absolute path in a tracked file breaks at the next folder move.
+#
+# NOTE the difference from GenJewels.ps1 and GenGrowingCharms.ps1: those open by wiping $artDir
+# (`Remove-Item -Recurse -Force`), so pointing THEIR art dir at Resources would delete the delivery.
+# This script only creates the folder if absent (line above) and never wipes it - checked before
+# writing this, rather than assumed from the other two.
+$specArtDir = '..\Resources\01-in-use-assets\items\salvage'
+$realCount = 0
+
+# Real art if it is there, else that file's placeholder. Existence is checked against the resolved
+# path; the SPEC keeps the relative one.
+function Resolve-SpecPath([string]$slug, [string]$placeholder) {
+    $rel = Join-Path $specArtDir ("$slug.png")
+    if (Test-Path (Join-Path $root $rel)) {
+        $script:realCount++
+        return $rel
+    }
+    return $placeholder
+}
+
 # The seven, in the order the user listed both the salvage buttons and the colours - "whites, magic,
 # rare, uniques, primal, set, ethereal" against "white, blue, yellow, gold, orange, green, dark
 # gray". They line up one to one, which is why this table carries both and nothing else has to.
@@ -185,7 +209,7 @@ foreach ($m in $materials) {
     $cursLines += "`t$icurs,"
     $widthLines += "`t$cell, // $($m.Name)"
     $heightLines += "`t$cell, // $($m.Name)"
-    $specLines += "$png,0,0,$cell,$cell,$cell,$cell,salvage_$($m.Id.ToLowerInvariant()),30,false,asis"
+    $specLines += "$(Resolve-SpecPath ("salvage_" + $m.Id.ToLowerInvariant()) $png),0,0,$cell,$cell,$cell,$cell,salvage_$($m.Id.ToLowerInvariant()),30,false,asis"
 
     # The matching Charm of Salvaging. IDROP_REGULAR, unlike the materials: these are meant to drop
     # as well as be sold by Adria and Griswold.
@@ -200,7 +224,7 @@ foreach ($m in $materials) {
     $charmCursLines += "`t$cicurs,"
     $charmWidthLines += "`t$cell, // Charm of Salvaging: $($m.Button)"
     $charmHeightLines += "`t$cell, // Charm of Salvaging: $($m.Button)"
-    $charmSpecLines += "$cpng,0,0,$cell,$cell,$cell,$cell,charm_salvage_$($m.Id.ToLowerInvariant()),30,false,asis"
+    $charmSpecLines += "$(Resolve-SpecPath ("charm_salvage_" + $m.Id.ToLowerInvariant()) $cpng),0,0,$cell,$cell,$cell,$cell,charm_salvage_$($m.Id.ToLowerInvariant()),30,false,asis"
 }
 
 # Materials first, then charms - see the note above the baskets.
@@ -235,5 +259,7 @@ Write-Inc 'salvage_curs_heights.inc' 'Frame heights, in CEL frame order: 7 mater
 Write-Host ("  salvage_icon_specs.txt  ({0} specs)" -f $specLines.Count)
 
 Write-Host ""
-Write-Host ("{0} materials, art in {1}" -f $materials.Count, $artDir)
+Write-Host ("{0} materials + {0} charms" -f $materials.Count)
+Write-Host ("  real art: {0} of {1} specs, from {2}" -f $realCount, $specLines.Count, $specArtDir)
+Write-Host ("  placeholders drawn into {0} (fallback only)" -f $artDir)
 Write-Host "Now: tools\build_item_icons.cmd, then tools\build_oracool_mpq.cmd."

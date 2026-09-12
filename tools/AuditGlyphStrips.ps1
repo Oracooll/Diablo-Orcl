@@ -15,9 +15,21 @@ $src = Get-Content (Join-Path $root 'Source\oracool\class_tree.cpp') -Raw
 $tableStart = $src.IndexOf('const ClassTreeSkillData Skills[ClassTreeSkillCount] = {')
 $tableEnd = $src.IndexOf("`n};", $tableStart)
 $table = $src.Substring($tableStart, $tableEnd - $tableStart)
-$rowRe = [regex]'\{\s*N_\("((?:[^"\\]|\\.)*)"\),\s*N_\("(?:[^"\\]|\\.)*"\),\s*(Pal|Bar|Sor|Rog|Bard|Monk),\s*(\d+),'
+# The page field accepts RetiredFromTreePage as well as a number, because a retired row STILL
+# OCCUPIES ITS FRAME: BuildGlyphStrips.ps1 keys a glyph to the row's index within its class, not to
+# its page. Requiring \d+ here silently dropped the four retired rows (Boon of Bul-Kathos and
+# Ballistics among them), so Barbarian and Rogue were counted as 48 table rows against 49-frame
+# strips and reported "MISMATCH" - a permanent `problems: 2` that would have masked the first real
+# mismatch to appear. Found by the 2026-09-12 asset sweep, which is now run after every RfA.
+$rowRe = [regex]'\{\s*N_\("((?:[^"\\]|\\.)*)"\),\s*N_\("(?:[^"\\]|\\.)*"\),\s*(Pal|Bar|Sor|Rog|Bard|Monk),\s*(\d+|RetiredFromTreePage),'
 $rows = @()
-foreach ($m in $rowRe.Matches($table)) { $rows += [pscustomobject]@{ Name = $m.Groups[1].Value; Cls = $m.Groups[2].Value; Page = [int]$m.Groups[3].Value } }
+foreach ($m in $rowRe.Matches($table)) {
+    $pageText = $m.Groups[3].Value
+    # -1 for a retired row: it is not on any page, but it is counted, and nothing downstream
+    # compares Page against a strip index.
+    $page = if ($pageText -eq 'RetiredFromTreePage') { -1 } else { [int]$pageText }
+    $rows += [pscustomobject]@{ Name = $m.Groups[1].Value; Cls = $m.Groups[2].Value; Page = $page }
+}
 $stripFile = @{ Pal = 'paladin_tree_icons.png'; Bar = 'barb_tree_icons.png'; Sor = 'sorc_tree_icons.png'; Rog = 'rogue_tree_icons.png'; Bard = 'bard_tree_icons.png'; Monk = 'monk_tree_icons.png' }
 
 function ClassifyFrame([System.Drawing.Bitmap]$bmp, [int]$frame) {
