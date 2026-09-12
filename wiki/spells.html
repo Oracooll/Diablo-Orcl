@@ -34,6 +34,9 @@ band-1 spell reaches rank 10 at character level 10, and its last rank, 30, at le
 <p><b>Mana</b> is the cost at spell level 1. Each level past the first subtracts <b>Adj</b> from it,
 down to a floor of <b>Min</b> - so a spell's cost falls as it deepens but never reaches zero.
 Healing and Heal Other add twice the character level to the base cost before that reduction.</p>
+<div class="note"><b>The Mana column is not what every class pays.</b> A class discount is applied
+before the <b>Min</b> floor: the Rogue, Monk and Bard pay a quarter less, and the Sorcerer pays half.
+Firebolt also halves its own <b>Adj</b>, so it cheapens more slowly than the table suggests.</div>
 
 <h2>All spells</h2>
 <div id="table"></div>
@@ -48,7 +51,7 @@ role means:</p>
 <tr><td><span class="tag">class skill</span></td><td>One of the seven Paladin skills - earned by character level, listed with the <a href="skills.html">class trees</a>.</td></tr>
 <tr><td><span class="tag">belt ability</span></td><td>Town Portal, which lives on the belt rather than in the book.</td></tr>
 <tr><td><span class="tag no">retired</span></td><td>Item Repair, Trap Disarm, Staff Recharge, Search, Identify and Rage. They still occupy enum slots, but nobody is granted them and they cannot be readied.</td></tr>
-<tr><td><span class="tag">unused</span></td><td>The enum's null entry.</td></tr>
+<tr><td><span class="tag">unused</span></td><td>The enum's null entry, plus the spell slots owned by class-tree skills - Ice Bolt, Bash, Strafe, Frozen Orb and the rest. They are cast from the tree, and are listed on <a href="skills.html">Class trees</a> rather than here.</td></tr>
 </tbody></table></div>
 
 <footer></footer>

@@ -416,29 +416,60 @@ if (Test-Path $uniquePath) {
 # Item sets - the generated include
 # ---------------------------------------------------------------------------------------------
 $setItems = New-Object System.Collections.ArrayList
+$setDefs = New-Object System.Collections.ArrayList
 $setsPath = Join-Path $src 'oracool/item_sets_data.inc'
+$pieceIndex = 0
 if (Test-Path $setsPath) {
     foreach ($line in (Get-Content $setsPath -Encoding UTF8)) {
+        # ItemSets[]: id, display name, required level, first piece, piece count, first bonus, bonus
+        # count. This is the table that names the FIFTEEN sets; the piece rows below only carry their
+        # own SET_ id, which is why deriving a set name from a piece produced 94 one-piece "sets".
+        if ($line -match '\{\s*"(SET_\w+)",\s*N_\("([^"]*)"\),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\s*\}') {
+            [void]$setDefs.Add([ordered]@{
+                    name   = $matches[2]
+                    reqLvl = [int]$matches[3]
+                    first  = [int]$matches[4]
+                    count  = [int]$matches[5]
+                })
+            continue
+        }
         if ($line -notmatch '\{\s*"(SET_\w+)",\s*N_\("([^"]*)"\),\s*"(\w+)",\s*"(\w+)",\s*(\d+),\s*(\d+),\s*(\d+),') { continue }
         $powers = New-Object System.Collections.ArrayList
         foreach ($p in [regex]::Matches($line, '\{\s*(IPL_\w+),\s*(-?\d+),\s*(-?\d+)\s*\}')) {
             if ($p.Groups[1].Value -eq 'IPL_INVALID') { continue }
             [void]$powers.Add(($p.Groups[1].Value -replace '^IPL_', '') + ' ' + $p.Groups[2].Value)
         }
-        # The set's display name is the item name's possessive prefix - "Vhal's Blackened Halo" is a
-        # piece of Vhal's set - so it is derived rather than restated in a second table.
-        $setName = $matches[1] -replace '^SET_', '' -replace '_', ' '
+        # Two authored slots have no equipment slot of their own and are worn elsewhere, which the
+        # sets page states in prose - so the data has to agree with it.
+        $slot = $matches[3]
+        if ($slot -match '^relic$') { $slot = 'bracers' }
+        if ($slot -match '^cloak$') { $slot = 'legs' }
         [void]$setItems.Add([ordered]@{
-                set     = (Get-Culture).TextInfo.ToTitleCase($setName.ToLower())
+                set     = ''            # filled in below, from the set that owns this index
+                index   = $pieceIndex
                 name    = $matches[2]
-                slot    = $matches[3]
+                slot    = $slot
                 base    = ($matches[4] -replace '_', ' ')
                 qlvl    = [int]$matches[5]
                 ac      = [int]$matches[6]
                 dur     = [int]$matches[7]
                 powers  = ($powers -join ', ')
             })
+        $pieceIndex++
     }
+}
+
+# Assign every piece to its owning set by index range, exactly as item_sets.cpp's FindItemSetOwning
+# does. Deriving the name from the piece's own SET_ id instead made each piece its own set, so the
+# page counted 94 sets and drew 94 one-piece cards where the game has 15.
+foreach ($piece in $setItems) {
+    foreach ($def in $setDefs) {
+        if ($piece['index'] -ge $def.first -and $piece['index'] -lt ($def.first + $def.count)) {
+            $piece['set'] = $def.name
+            break
+        }
+    }
+    if (-not $piece['set']) { $piece['set'] = 'Unassigned' }
 }
 
 # ---------------------------------------------------------------------------------------------
