@@ -3272,6 +3272,53 @@ void ClearOracoolAffixRecord(Item &item)
 	item._iOracoolTier = OracoolItemTier::None;
 }
 
+namespace {
+
+/**
+ * @brief What a crafting rebuild must hand back to the item it rebuilt.
+ *
+ * Every tier recipe rolls its target again from a fresh seed, and GetItemAttrs starts that roll by
+ * zeroing the stat fields and the ethereal flag. So Enrich, Awaken, Reforge, Ennoble and every Reroll
+ * silently took away the ethereal bargain - its +35% gone, the durability quietly given back - and
+ * renamed the item (audit, 2026-09-13; user decision D5: "Should crafting up a tier keep the item's
+ * name?" - "Sure").
+ *
+ * Sockets and Mystic Orbs are not here, because no rebuild recipe accepts an item holding either:
+ * every target finder rejects a socketed item, and orbed items are refused by IsTierRecipeGear and by
+ * GridMaterialsFor (crafting.cpp). The save records how many orbs an item took, not which, so there
+ * would be nothing to put back.
+ */
+struct RebuildKeepsake {
+	bool ethereal = false;
+	/** @brief The name came out of the name pool, as opposed to a base, unique or set name. */
+	bool rolledName = false;
+	std::array<char, sizeof(Item::_iIName)> name {};
+};
+
+RebuildKeepsake CaptureRebuildKeepsake(const Item &item)
+{
+	RebuildKeepsake keepsake;
+	keepsake.ethereal = item._iOracoolEthereal;
+	// Magic and every rolled tier are ITEM_QUALITY_MAGIC; uniques and set pieces are not.
+	keepsake.rolledName = item._iMagical == ITEM_QUALITY_MAGIC && item._iOracoolTier != OracoolItemTier::Set;
+	std::copy(std::begin(item._iIName), std::end(item._iIName), keepsake.name.begin());
+	return keepsake;
+}
+
+/**
+ * @param keepName False when the rebuild makes a named object - a unique has its own name, and
+ *        keeping a rolled one would describe an item it no longer is.
+ */
+void RestoreRebuildKeepsake(Item &item, const RebuildKeepsake &keepsake, bool keepName)
+{
+	if (keepsake.ethereal && !item._iOracoolEthereal)
+		MakeItemEthereal(item);
+	if (keepName && keepsake.rolledName && item._iMagical == ITEM_QUALITY_MAGIC)
+		std::copy(keepsake.name.begin(), keepsake.name.end(), std::begin(item._iIName));
+}
+
+} // namespace
+
 bool ReforgeOracoolItem(Item &item)
 {
 	if (item.isEmpty())
@@ -3283,8 +3330,10 @@ bool ReforgeOracoolItem(Item &item)
 	// there, mLevel IS the ilvl and itemLevel defaults to it. So a reforged item is distributed
 	// exactly like one that had just fallen where this one did, and rerolling in town cannot
 	// launder an item upward.
+	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/false,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, ilvl);
+	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	item._iIdentified = true;
 	return true;
 }
@@ -3309,8 +3358,10 @@ bool RetierOracoolItem(Item &item, OracoolItemTier tier)
 	// "force this tier" actually mean it.
 	//
 	// Left false for tier None, where the point IS to roll like an ordinary drop.
+	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), ilvl, 1, /*onlygood=*/forcing,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, forced, ilvl);
+	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/true);
 	item._iIdentified = true;
 	// A forced tier that the roller could not actually apply - the item has no affix type, say -
 	// leaves the item rerolled but untiered, and the caller is told so rather than being allowed to
@@ -3344,6 +3395,7 @@ bool EnnobleOracoolRare(Item &item)
 	const int uid = candidates[GenerateRnd(static_cast<int32_t>(candidates.size()))];
 	const int ilvl = item._iOracoolItemLevel;
 	const auto idx = static_cast<_item_indexes>(item.IDidx);
+	const RebuildKeepsake keepsake = CaptureRebuildKeepsake(item);
 	GetItemAttrs(item, idx, ilvl);
 	GetUniqueItem(*MyPlayer, item, static_cast<_unique_items>(uid));
 	SetupItem(item);
@@ -3351,6 +3403,7 @@ bool EnnobleOracoolRare(Item &item)
 	// an ennobled item forgets the depth it was found at, and a later reforge would roll it at
 	// whatever GetItemAttrs happened to leave behind.
 	item._iOracoolItemLevel = static_cast<uint8_t>(ilvl);
+	RestoreRebuildKeepsake(item, keepsake, /*keepName=*/false);
 	item._iIdentified = true;
 	return true;
 }

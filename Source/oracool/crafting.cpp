@@ -1,4 +1,4 @@
-﻿#include "oracool/crafting.h"
+#include "oracool/crafting.h"
 
 #include "oracool/gems.h"
 #include "oracool/item_sets.h"
@@ -678,6 +678,14 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 		}
 		if (target < 0)
 			return {};
+		// Mystic Orbs survive no rebuild: the save records how many an item took, not which, so their stats
+		// cannot be put back. IsTierRecipeGear has refused orbed items since 2026-08-26, but only for the
+		// recipes whose target finder calls it - Reforge, Ennoble and Recast find their targets without it,
+		// and silently destroyed a player's orbs (audit, 2026-09-13). Checked here, once, for every recipe
+		// that rebuilds. Recolour (8), Make Ethereal (15) and Mend (16) change the item in place.
+		const bool rebuildsTarget = index != 8 && index != 15 && index != 16;
+		if (rebuildsTarget && grid[target]._iOracoolOrbCount > 0)
+			return {};
 
 		const ReagentSpec spec = ReagentFor(index);
 		std::vector<int> out = FindGridReagents(grid, spec.material, spec.count);
@@ -894,9 +902,14 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// base tier back, so recasting a deep set piece quietly reset it to a floor-zero item.
 			const int keptLevel = target._iOracoolItemLevel;
 			const SetItemDefinition *chosen = others[GenerateRnd(static_cast<int32_t>(others.size()))];
+			const bool wasEthereal = target._iOracoolEthereal;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetSlot(chosen->slot)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
+			// InitializeItem starts from an empty Item, so the ethereal bargain went with it (audit,
+			// 2026-09-13). May decline on an indestructible piece, which then simply stays whole.
+			if (wasEthereal)
+				MakeItemEthereal(target);
 			target._iIdentified = true;
 			what = std::string(target.getName());
 			break;
@@ -931,9 +944,14 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 			// base tier back, so recasting a deep set piece quietly reset it to a floor-zero item.
 			const int keptLevel = target._iOracoolItemLevel;
 			const SetItemDefinition *chosen = pieces[GenerateRnd(static_cast<int32_t>(pieces.size()))];
+			const bool wasEthereal = target._iOracoolEthereal;
 			InitializeItem(target, static_cast<_item_indexes>(BaseItemForSetSlot(chosen->slot)));
 			MakeSetItem(target, *chosen);
 			FinalizeSetPiece(target, keptLevel, /*allowEtherealRoll=*/false);
+			// InitializeItem starts from an empty Item, so the ethereal bargain went with it (audit,
+			// 2026-09-13). May decline on an indestructible piece, which then simply stays whole.
+			if (wasEthereal)
+				MakeItemEthereal(target);
 			target._iIdentified = true;
 			what = std::string(target.getName());
 			break;

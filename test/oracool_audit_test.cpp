@@ -6652,6 +6652,137 @@ TEST(OracoolAudit, TheTierLadderClimbsRerollsAndMakesEthereal)
 }
 
 /**
+ * A crafting rebuild keeps the ethereal bargain and the item's name.
+ *
+ * Audit, 2026-09-13: every tier recipe rebuilds its target from a fresh seed, and GetItemAttrs starts
+ * that rebuild by zeroing the ethereal flag - so Enrich, Awaken and every Reroll silently removed the
+ * bargain (its +35% gone, its durability quietly given back) and renamed the item (user decision D5:
+ * the name stays).
+ *
+ * Socketed and orbed items were never at risk on these recipes, which the audit first got wrong:
+ * IsTierRecipeGear has refused both since 2026-08-26, because a reroll cannot put stones or orbs back.
+ * Those refusals are asserted here as well, so the rule cannot quietly lapse.
+ */
+TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
+{
+	using namespace devilution::oracool;
+
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	const auto placeReagent = [](devilution::Item *grid, int slot, _item_indexes material, int count) {
+		InitializeItem(grid[slot], material);
+		grid[slot].setStackCount(count);
+	};
+	const auto makeGear = [](devilution::Item &item) {
+		InitializeItem(item, IDI_ORACOOL_HELM);
+		item._iOracoolItemLevel = 60;
+		item._iIdentified = true;
+	};
+	const auto setName = [](devilution::Item &item, const std::string &name) {
+		const size_t n = std::min(name.size(), sizeof(item._iIName) - 1);
+		std::copy(name.begin(), name.begin() + n, item._iIName);
+		item._iIName[n] = '\0';
+	};
+	const auto dressUp = [&setName](devilution::Item &item, const std::string &name) {
+		item._iOracoolEthereal = true;
+		setName(item, name);
+	};
+
+	// ---- REROLL RARES keeps the bargain and the name ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		grid[0]._iMagical = ITEM_QUALITY_MAGIC;
+		grid[0]._iOracoolTier = OracoolItemTier::Rare;
+		dressUp(grid[0], "Tarnished Doom");
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_RARE_FIBRES, 3);
+
+		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 12).empty()) << "Reroll Rares did not run";
+		EXPECT_TRUE(grid[0]._iOracoolEthereal) << "Reroll Rares removed the ethereal bargain";
+		EXPECT_STREQ(grid[0]._iIName, "Tarnished Doom") << "a reroll renamed the item";
+	}
+
+	// ---- AWAKEN keeps the name of a rolled item climbing a rung ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		grid[0]._iMagical = ITEM_QUALITY_MAGIC;
+		grid[0]._iOracoolTier = OracoolItemTier::BuffedUnique;
+		dressUp(grid[0], "Rotting Bane");
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS, 8);
+
+		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 11).empty()) << "Awaken did not run";
+		EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::Primal);
+		EXPECT_TRUE(grid[0]._iOracoolEthereal) << "Awaken removed the ethereal bargain";
+		EXPECT_STREQ(grid[0]._iIName, "Rotting Bane") << "climbing a rung renamed the item";
+	}
+
+	// ---- ENRICH: a PLAIN item has no rolled name to keep, but keeps its bargain ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		const std::string baseName = grid[0]._iIName;
+		dressUp(grid[0], baseName);
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_MAGIC_POWDER, 10);
+
+		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 9).empty()) << "Enrich did not run";
+		EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::Rare);
+		EXPECT_TRUE(grid[0]._iOracoolEthereal) << "Enrich removed the ethereal bargain";
+		EXPECT_STRNE(grid[0]._iIName, baseName.c_str()) << "a new rare kept its plain base name instead of taking one";
+	}
+
+	// ---- A SOCKETED item and an ORBED item are refused, and refusing changes nothing ----
+	const auto expectRefused = [&](const std::function<void(devilution::Item &)> &invest, const char *what) {
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		grid[0]._iMagical = ITEM_QUALITY_MAGIC;
+		grid[0]._iOracoolTier = OracoolItemTier::Rare;
+		invest(grid[0]);
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_RARE_FIBRES, 3);
+		const uint32_t seedBefore = grid[0]._iSeed;
+
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, 12)) << "Reroll Rares is offered on " << what;
+		EXPECT_TRUE(TransmuteLevskiGridWith(grid, 12).empty()) << "Reroll Rares ran on " << what;
+		EXPECT_EQ(grid[0]._iSeed, seedBefore) << what << " was rebuilt anyway";
+		EXPECT_EQ(grid[1].stackCount(), 3) << "a refused recipe charged its reagent for " << what;
+	};
+	expectRefused([](devilution::Item &item) {
+		item._iSocketCount = 2;
+		item._iSocketed[0] = static_cast<uint16_t>(IDI_ORACOOL_GEM_RUBY_PERFECT);
+		item._iSocketed[1] = devilution::Item::EmptySocket;
+	}, "a socketed item");
+	expectRefused([](devilution::Item &item) { item._iOracoolOrbCount = 1; }, "an item carrying a Mystic Orb");
+
+	// ---- REFORGE and RECAST find their targets without IsTierRecipeGear, and destroyed orbs until
+	// GridMaterialsFor checked every rebuild itself. Each fixture is proven craftable without the orb,
+	// so the refusal cannot be passing for some other reason. ----
+	{
+		devilution::Item grid[LevskiGridSlots];
+		makeGear(grid[0]);
+		grid[0]._iMagical = ITEM_QUALITY_MAGIC;
+		grid[0]._iOracoolTier = OracoolItemTier::Rare;
+		grid[0]._iOracoolOrbCount = 1;
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS, 3);
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, 5)) << "Reforge is offered on an item carrying a Mystic Orb";
+		grid[0]._iOracoolOrbCount = 0;
+		EXPECT_TRUE(CanCraftFromLevskiGrid(grid, 5)) << "the Reforge fixture is not craftable at all - the refusal above proves nothing";
+	}
+	{
+		devilution::Item grid[LevskiGridSlots];
+		const SetItemDefinition *helm = FindSetItem("SET_ASHEN_HELM");
+		ASSERT_NE(helm, nullptr);
+		InitializeItem(grid[0], static_cast<_item_indexes>(BaseItemForSetPiece(*helm)));
+		MakeSetItem(grid[0], *helm);
+		grid[0]._iOracoolOrbCount = 1;
+		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS, 3);
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, 7)) << "Recast is offered on an item carrying a Mystic Orb";
+		grid[0]._iOracoolOrbCount = 0;
+		EXPECT_TRUE(CanCraftFromLevskiGrid(grid, 7)) << "the Recast fixture is not craftable at all - the refusal above proves nothing";
+	}
+}
+
+/**
  * The player picks the recipe, and a chosen recipe that is not ready runs NOTHING.
  *
  * The fallback is the dangerous half. A player selects Reroll Rares, is one fibre short, and a
