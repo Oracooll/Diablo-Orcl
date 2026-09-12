@@ -1653,6 +1653,35 @@ Write-Host ("wiki data: {0} items, {1} spells, {2} skills, {3} monsters, {4} opt
 Write-Host ("           {0} classes, {1} exp rows, {2} affixes, {3} uniques, {4} set items, {5} quests, {6} shrines" -f `
         $classes.Count, $expTable.Count, $affixes.Count, $uniques.Count, $setItems.Count, $quests.Count, $shrines.Count)
 
+# ---------------------------------------------------------------------------------------------
+# Cache busting for the three shared files
+#
+# wiki.css, wiki.js and data.js keep their names across every rebuild, so a browser holding an old
+# copy serves yesterday's code against today's pages. _headers was supposed to bound that to five
+# minutes and CANNOT: measured on the live site 2026-09-12, Cloudflare Pages applies its own
+# four-hour cache to static assets, a /* rule does not override it, and nor does an exact /wiki.js
+# rule - only a directory wildcard like /sprites/* wins. A deploy that shipped two new buttons was
+# invisible in a browser that had loaded the site earlier.
+#
+# A version in the query makes each build a new URL, which no cache can answer from an old entry.
+# It has to run BEFORE the bundle, because the bundler reads these pages.
+$stamp = '?v=' + $version
+$pageEnc = New-Object System.Text.UTF8Encoding($false)
+$stamped = 0
+foreach ($page in (Get-ChildItem $out -Filter *.html)) {
+    if ($page.Name -eq 'oracool-wiki-bundle.html') { continue }
+    $html = [IO.File]::ReadAllText($page.FullName)
+    $before = $html
+    $html = [regex]::Replace($html, 'href="wiki\.css(\?v=[^"]*)?"', 'href="wiki.css' + $stamp + '"')
+    $html = [regex]::Replace($html, 'src="wiki\.js(\?v=[^"]*)?"', 'src="wiki.js' + $stamp + '"')
+    $html = [regex]::Replace($html, 'src="data\.js(\?v=[^"]*)?"', 'src="data.js' + $stamp + '"')
+    if ($html -ne $before) {
+        [IO.File]::WriteAllText($page.FullName, $html, $pageEnc)
+        $stamped++
+    }
+}
+Write-Host ("           {0} pages stamped {1}" -f $stamped, $stamp)
+
 # The bundle is part of the wiki, not a separate deliverable, so building one without the other is
 # never what anyone wanted. On 2026-08-19 the multi-page wiki was rebuilt alone and the single-file
 # bundle kept serving the previous Pipeline text - no error, no warning, nothing to notice.
@@ -1664,6 +1693,7 @@ if ($NoBundle) {
     Write-Host "wiki bundle: SKIPPED (-NoBundle). tools\BundleWiki.ps1 -Verify will report it stale."
 } else {
     & (Join-Path $PSScriptRoot 'BundleWiki.ps1')
+
 }
 
 # ---------------------------------------------------------------------------------------------

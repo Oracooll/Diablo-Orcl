@@ -8,7 +8,28 @@
 /*
   Cache-Control: public, max-age=300, must-revalidate
 
+# The three shared files, named explicitly - and this is the whole reason this block exists.
+#
+# The /* rule above does NOT reach them. Pages applies its own four-hour default to static assets,
+# and a wildcard does not override it; only a more specific path does. Measured 2026-09-12, after a
+# deploy shipped new buttons that no browser showed: items.html came back max-age=300 (the wildcard
+# working) while wiki.js came back max-age=14400 (the default winning). /sprites/* below was
+# unaffected for the same reason - it is specific.
+#
+# These three carry no content hash in their names, so a long cache serves yesterday's code against
+# today's pages, which is the failure the file was written to prevent.
+/wiki.js
+  Cache-Control: public, max-age=300, must-revalidate
+/wiki.css
+  Cache-Control: public, max-age=300, must-revalidate
+/data.js
+  Cache-Control: public, max-age=300, must-revalidate
+
 # Sprites are the bulk of the payload (about 22 of the 23 MB) and change only when the art does.
-# Listed second because a later rule wins on the same header.
 /sprites/*
+  Cache-Control: public, max-age=604800
+
+# The encyclopedia's art is the same kind of thing: monster portraits, item icons, skill glyphs and
+# spell icons, each written under a name that changes when the art does.
+/encyclopedia/*
   Cache-Control: public, max-age=604800

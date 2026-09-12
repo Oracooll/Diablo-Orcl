@@ -182,7 +182,10 @@ foreach ($page in $pages) {
     [void]$sections.AppendLine('<section class="page" id="page-' + $page.id + '">' + $main + '</section>')
 
     $script = ''
-    if ($html -match '(?s)<script src="wiki\.js"></script>\s*<script>(.*?)</script>') { $script = $matches[1] }
+    # The src carries a ?v= cache-busting stamp since 2026-09-12, so the query has to be optional
+    # here. Without it this match fails silently and every page in the bundle loses its own script -
+    # the tables would render empty and nothing would say why.
+    if ($html -match '(?s)<script src="wiki\.js(?:\?[^"]*)?"></script>\s*<script>(.*?)</script>') { $script = $matches[1] }
     if ($script.Trim()) {
         [void]$scripts.AppendLine('PAGE_SCRIPTS["' + $page.id + '"] = function () {')
         [void]$scripts.AppendLine($script)
