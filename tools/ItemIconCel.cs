@@ -702,8 +702,26 @@ internal static class ItemIconCel
 				// (belt, at 56x28, has no fragmented content to lose).
 				const int MinCellIsland = 90;
 				bool[] visited = new bool[w * h];
-				int[] dx = { 1, -1, 0, 0 };
-				int[] dy = { 0, 0, 1, -1 };
+				// EIGHT-connected, diagonals included. This was four-connected until 2026-09-12,
+				// and it erased a whole sprite: a 1px DIAGONAL line has no 4-connectivity at all,
+				// so each of its pixels is an island of size 1 and every one falls under
+				// MinCellIsland. Knellbranch - a thin sabre on a 28x84 cell, the only art in the
+				// 250-unique pack that is almost entirely one diagonal stroke - left this loop as a
+				// fully transparent frame, and nothing noticed: the frame still had the right size
+				// and the right index, so every count, table length and static_assert passed. The
+				// only symptom was an invisible sword in the inventory.
+				//
+				// Eight-connectivity rather than a smaller MinCellIsland, because the threshold was
+				// never wrong. The intent is "delete isolated specks", and a diagonal stroke is not
+				// isolated - it only looked isolated to a neighbourhood that cannot see corners.
+				// Real debris stays isolated under either rule, which is why the calibration in the
+				// comment above still holds.
+				int[] dx = { 1, -1, 0, 0, 1, 1, -1, -1 };
+				int[] dy = { 0, 0, 1, -1, 1, -1, 1, -1 };
+				// Collect every island FIRST, then decide. The old shape erased as it walked, which
+				// made it impossible to express the one rule that matters: never delete the
+				// subject. See below.
+				List<List<int>> islands = new List<List<int>>();
 				for (int start = 0; start < w * h; start++) {
 					int sx = start % w, sy = start / w;
 					if (visited[start] || (basePtr + sy * data.Stride)[sx * 4 + 3] == 0)
@@ -716,7 +734,7 @@ internal static class ItemIconCel
 						int cell = bfs.Dequeue();
 						cells.Add(cell);
 						int cx = cell % w, cy = cell / w;
-						for (int d = 0; d < 4; d++) {
+						for (int d = 0; d < dx.Length; d++) {
 							int nx = cx + dx[d], ny = cy + dy[d];
 							if (nx < 0 || nx >= w || ny < 0 || ny >= h)
 								continue;
@@ -727,10 +745,36 @@ internal static class ItemIconCel
 							bfs.Enqueue(n);
 						}
 					}
-					if (cells.Count < MinCellIsland) {
-						foreach (int cell in cells)
-							(basePtr + (cell / w) * data.Stride)[(cell % w) * 4 + 3] = 0;
+					islands.Add(cells);
+				}
+
+				// THE LARGEST ISLAND IS NEVER DEBRIS, whatever MinCellIsland says.
+				//
+				// This sweep exists to delete specks, and a rule that can delete the whole subject
+				// is not that rule. Knellbranch proved it: a thin sabre on a 28x84 cell, the only
+				// art in the 250-unique pack that is almost entirely one diagonal stroke. After
+				// pass 2's KeepAlpha its blade is ~75 pixels - under MinCellIsland's 90 - so the
+				// sweep erased it and emitted a COMPLETELY TRANSPARENT frame. An invisible sword in
+				// the inventory, and nothing anywhere noticed: the frame kept its dimensions and
+				// its index, so every frame count, table length and static_assert still passed.
+				//
+				// The 90 threshold is not wrong. It was measured (see the comment above) and it is
+				// right for its purpose; it was simply being asked to answer a question it cannot -
+				// "is this the icon?" - when all it can answer is "is this smaller than debris
+				// gets?". Keeping the biggest component unconditionally separates the two, and
+				// costs nothing on an icon whose subject is comfortably over the threshold.
+				int biggest = -1, biggestSize = -1;
+				for (int i = 0; i < islands.Count; i++) {
+					if (islands[i].Count > biggestSize) {
+						biggestSize = islands[i].Count;
+						biggest = i;
 					}
+				}
+				for (int i = 0; i < islands.Count; i++) {
+					if (i == biggest || islands[i].Count >= MinCellIsland)
+						continue;
+					foreach (int cell in islands[i])
+						(basePtr + (cell / w) * data.Stride)[(cell % w) * 4 + 3] = 0;
 				}
 
 				// Pass 4: fill enclosed transparent "punctures" with opaque black. Opt-in
