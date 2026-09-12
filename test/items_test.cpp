@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdlib>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -936,5 +937,86 @@ TEST(FirstBaseItemForEquipLocation, PrefixSelectsTieredBaseItems)
 	EXPECT_EQ(FirstBaseItemForEquipLocation(ILOC_GLOVES, "adamantite"), IDI_NONE);
 }
 #endif
+
+
+// Batches 21 and 22 (2026-09-12): twelve ground tumbles, keyed on what the item IS rather than on
+// its cursor id - because they have to serve 250 uniques and 94 set pieces as well as the bases,
+// and an id list that long is 344 chances to point an item at the wrong sprite.
+//
+// So this asserts the RULE, not a list. The case a list could not express is the last one: a unique
+// built on a cloak base tumbles like a cloak without being named anywhere.
+TEST(OracoolDropTumbles, TheTumbleFollowsTheItemsShapeNotItsIcon)
+{
+	constexpr int8_t FirstNewTumble = 51;
+
+	// The six worn slots each answer from _iLoc, and each answers differently - the whole point,
+	// since before this they were one flopping piece of leather.
+	std::set<int> wornAnims;
+	for (const item_equip_type loc : { ILOC_GLOVES, ILOC_BOOTS, ILOC_BRACERS, ILOC_WAIST, ILOC_LEGS, ILOC_SHOULDERS }) {
+		Item item {};
+		item._itype = ItemType::LightArmor;
+		item._iLoc = loc;
+		item.IDidx = IDI_ORACOOL_SHOULDERS;
+		const int8_t anim = GetItemDropAnimIndexFor(item);
+		EXPECT_GE(anim, FirstNewTumble) << "equip location " << static_cast<int>(loc) << " still borrows a vanilla tumble";
+		EXPECT_TRUE(wornAnims.insert(anim).second)
+		    << "equip location " << static_cast<int>(loc) << " shares a tumble with another slot";
+	}
+	EXPECT_EQ(wornAnims.size(), 6u);
+
+	// The exotic bases answer from the BASE's UITYPE. Pairs that share a shape must share a sheet,
+	// and each pair must differ from the others.
+	const auto animFor = [](_item_indexes idx, bool asUnique) {
+		Item item {};
+		item._itype = AllItemsList[idx].itype;
+		item._iLoc = AllItemsList[idx].iLoc;
+		item.IDidx = idx;
+		item._iCurs = AllItemsList[idx].iCurs;
+		if (asUnique)
+			item._iMagical = ITEM_QUALITY_UNIQUE;
+		return GetItemDropAnimIndexFor(item);
+	};
+
+	const int8_t cloak = animFor(IDI_ORACOOL_UNQBASE_CLOAK, false);
+	const int8_t relic = animFor(IDI_ORACOOL_UNQBASE_RELIC, false);
+	const int8_t spear = animFor(IDI_ORACOOL_UNQBASE_SPEAR, false);
+	const int8_t lute = animFor(IDI_ORACOOL_UNQBASE_WAR_LUTE, false);
+	const int8_t quiver = animFor(IDI_ORACOOL_UNQBASE_WAR_QUIVER, false);
+	const int8_t focus = animFor(IDI_ORACOOL_UNQBASE_CANTICLE, false);
+
+	// Same shape, same sheet.
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_BATTLE_CLOAK, false), cloak) << "both cloaks are cloth";
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_RELIQUARY, false), relic) << "a reliquary is a casket like a relic";
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_PIKE, false), spear) << "a pike is a polearm like a spear";
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_ARCANE_FOCUS, false), focus) << "both are a bound book";
+
+	// Six distinct exotic shapes, all of them new sheets.
+	std::set<int> exotic { cloak, relic, spear, lute, quiver, focus };
+	EXPECT_EQ(exotic.size(), 6u) << "two exotic bases collapsed onto one tumble";
+	for (const int anim : exotic)
+		EXPECT_GE(anim, FirstNewTumble) << "an exotic base still borrows a vanilla tumble";
+
+	// Twelve sheets, twelve reachable tumbles. One nothing maps to would ship and never draw.
+	std::set<int> all = wornAnims;
+	all.insert(exotic.begin(), exotic.end());
+	EXPECT_EQ(all.size(), 12u) << "one of the twelve new tumbles is unreachable";
+
+	// THE CASE AN ID LIST CANNOT EXPRESS: a unique on one of these bases keeps the base's shape,
+	// with no unique named anywhere in the mapping. Same for all six.
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_CLOAK, true), cloak);
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_RELIC, true), relic);
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_SPEAR, true), spear);
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_WAR_LUTE, true), lute);
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_WAR_QUIVER, true), quiver);
+	EXPECT_EQ(animFor(IDI_ORACOOL_UNQBASE_CANTICLE, true), focus);
+
+	// And nothing vanilla is dragged in.
+	Item rock {};
+	rock._itype = ItemType::Misc;
+	rock._iLoc = ILOC_UNEQUIPABLE;
+	rock.IDidx = IDI_ROCK;
+	rock._iCurs = AllItemsList[IDI_ROCK].iCurs;
+	EXPECT_LT(GetItemDropAnimIndexFor(rock), FirstNewTumble) << "a vanilla item picked up a fork tumble";
+}
 
 } // namespace devilution

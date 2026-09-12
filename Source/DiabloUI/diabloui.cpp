@@ -841,7 +841,12 @@ void LoadHeros()
 	// hard to tell apart, so it was a latent trap rather than a visible fault - but the next asset
 	// whose colours only one palette carries would have paid for it.
 	constexpr uint16_t PortraitWidth = 180;
-	constexpr char FrontEndPalette[] = "ui_art\\diablo.pal";
+	// STATIC, and it matters: the importer CACHES this pointer (sprite_import.cpp's
+	// LoadedPalettePath) and strcmp's it on the next call, long after this function has returned.
+	// At block scope the array has automatic storage, so that later strcmp read a dead stack object
+	// - undefined behaviour, and the kind that works until a sanitizer or a different compiler
+	// notices. Introduced and caught within the hour on 2026-09-12.
+	static constexpr char FrontEndPalette[] = "ui_art\\diablo.pal";
 	for (size_t i = 0; i <= enum_size<HeroClass>::value; ++i) {
 		char portraitPath[18];
 		*BufCopy(portraitPath, "ui_art\\hero", i) = '\0';

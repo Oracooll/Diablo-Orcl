@@ -30,7 +30,9 @@ namespace devilution {
 #define MAXITEMS 127
 // Oracool: 43 vanilla/Hellfire drop animations plus the fork's eight tumbles (gem, rune, charm, orb,
 // signet, jewel, salvage, map).
-#define ITEMTYPES 51
+// Oracool: 51 until 2026-09-12, then +12 for batches 21 and 22 - the six worn-slot tumbles and the
+// six exotic-base ones. Every table indexed by a drop-anim id static_asserts against this.
+#define ITEMTYPES 63
 
 #define GOLD_SMALL_LIMIT 1000
 #define GOLD_MEDIUM_LIMIT 2500
@@ -1303,6 +1305,14 @@ extern int8_t ItemCAnimTbl[];
 /** @brief Ground-drop animation index for an item graphic. Use this rather than indexing
  * ItemCAnimTbl directly - Oracool's own icon ids sit past the end of that array. */
 int8_t GetItemDropAnimIndex(uint16_t curs);
+
+/**
+ * @brief The tumble for an ITEM, which can answer for its shape where a cursor id cannot.
+ *
+ * Prefer this wherever the Item is in hand. The cursor-id form above is kept for the few callers
+ * that only have an id, and this delegates to it for everything it does not recognise.
+ */
+int8_t GetItemDropAnimIndexFor(const Item &item);
 extern _sfx_id ItemInvSnds[];
 
 } // namespace devilution

@@ -168,6 +168,22 @@ _sfx_id ItemInvSnds[] = {
 	IS_IROCK, // jewelflip
 	IS_ILARM, // salvageflip
 	IS_ISCROL, // mapflip
+	// Oracool: batches 21 and 22 (51-62). Still vanilla sounds - these twelve have their own SPRITE
+	// now, not their own audio; the fork's item drop/pickup cues are a separate gap.
+	// The six worn slots, all soft leather-and-iron, so all IS_ILARM like the larmor they replace.
+	IS_ILARM, // gloveflip
+	IS_ILARM, // bootflip
+	IS_ILARM, // bracerflip
+	IS_ILARM, // beltflip
+	IS_ILARM, // legflip
+	IS_ILARM, // shoulderflip
+	// The six exotic bases, matched to what the object is rather than to leather by default.
+	IS_ILARM, // cloakflip    - heavy cloth
+	IS_IROCK, // relicflip    - a hard casket
+	IS_IHARM, // spearflip    - a long iron polearm
+	IS_IHARM, // luteflip     - a wooden body with strings; the metal drop is the closest
+	IS_ILARM, // quiverflip   - leather and arrows
+	IS_IBOOK, // focusflip    - a bound book
 };
 
 namespace {
@@ -184,7 +200,23 @@ constexpr int8_t OracoolSignetDropAnim = 47;
 constexpr int8_t OracoolJewelDropAnim = 48;
 constexpr int8_t OracoolSalvageDropAnim = 49;
 constexpr int8_t OracoolMapDropAnim = 50;
-static_assert(ITEMTYPES == FirstOracoolDropAnim + 8, "ITEMTYPES must count the eight Oracool tumbles");
+// Batches 21 and 22 (2026-09-12), appended after the first eight. These are keyed by what the item
+// IS rather than by cursor id - see GetItemDropAnimIndexFor - because they have to serve 250
+// uniques and 94 set pieces as well as the bases, and an id list of that size is 344 chances to
+// point an item at the wrong tumble.
+constexpr int8_t OracoolGloveDropAnim = 51;
+constexpr int8_t OracoolBootDropAnim = 52;
+constexpr int8_t OracoolBracerDropAnim = 53;
+constexpr int8_t OracoolBeltDropAnim = 54;
+constexpr int8_t OracoolLegDropAnim = 55;
+constexpr int8_t OracoolShoulderDropAnim = 56;
+constexpr int8_t OracoolCloakDropAnim = 57;
+constexpr int8_t OracoolRelicDropAnim = 58;
+constexpr int8_t OracoolSpearDropAnim = 59;
+constexpr int8_t OracoolLuteDropAnim = 60;
+constexpr int8_t OracoolQuiverDropAnim = 61;
+constexpr int8_t OracoolFocusDropAnim = 62;
+static_assert(ITEMTYPES == FirstOracoolDropAnim + 20, "ITEMTYPES must count the twenty Oracool tumbles");
 
 // Oracool: the ranges below lean on these blocks being contiguous; a generator that grows or splits
 // one must fail here rather than hand a stray icon the wrong tumble.
@@ -261,6 +293,84 @@ int8_t GetItemDropAnimIndex(uint16_t curs)
 	// metal-armour drop.
 	constexpr int8_t OracoolWornDropAnim = 14;
 	return OracoolWornDropAnim;
+}
+
+/**
+ * @brief Ground-drop animation index for an ITEM, which knows more about itself than its cursor id.
+ *
+ * Batches 21 and 22 (2026-09-12) added twelve tumbles, and mapping them by cursor id the way the
+ * eight socketable families are mapped would not work: they have to serve **250 uniques and 94 set
+ * pieces** as well as the bases, and every one of those carries its own `IPL_INVCURS` icon. An id
+ * list of that size is 344 chances to point an item at the wrong sprite, and a CEL has no way to
+ * notice one.
+ *
+ * So these are keyed on what the item IS. Both keys survive the thing that breaks an id list:
+ *
+ *  - `_iLoc` is the six worn slots the fork added, so a Seraphic belt and an Iron belt and a unique
+ *    belt all answer "belt" without any of them being named here.
+ *  - `AllItemsList[IDidx].iItemId` is the base's UITYPE, and a unique or set piece is a row built
+ *    ON a base, so it reports the base's shape. That is exactly what a tumble should follow.
+ *
+ * Falls through to the cursor-id function for everything it does not recognise, which is every
+ * vanilla item and all eight socketable families.
+ */
+int8_t GetItemDropAnimIndexFor(const Item &item)
+{
+	// NB: the calls out of this function go to the CURSOR-ID form, never back to this one. A bulk
+	// rewrite of the call sites caught these two as well on 2026-09-12 and turned both into
+	// unbounded recursion - 64 tests went SEGFAULT at once, which is what a stack overflow looks
+	// like from ctest.
+	if (item.isEmpty())
+		return GetItemDropAnimIndex(item._iCurs);
+
+	// The six worn slots. Checked BEFORE the UITYPE, because a worn slot is the stronger statement:
+	// whatever base a pair of gauntlets is built on, it lands like gloves.
+	switch (item._iLoc) {
+	case ILOC_GLOVES:
+		return OracoolGloveDropAnim;
+	case ILOC_BOOTS:
+		return OracoolBootDropAnim;
+	case ILOC_BRACERS:
+		return OracoolBracerDropAnim;
+	case ILOC_WAIST:
+		return OracoolBeltDropAnim;
+	case ILOC_LEGS:
+		return OracoolLegDropAnim;
+	case ILOC_SHOULDERS:
+		return OracoolShoulderDropAnim;
+	default:
+		break;
+	}
+
+	// The six exotic bases, by the base's UITYPE. IDidx is bounds-checked because an item mid-recreate
+	// can carry IDI_NONE.
+	if (item.IDidx >= 0 && item.IDidx <= IDI_LAST) {
+		switch (AllItemsList[static_cast<size_t>(item.IDidx)].iItemId) {
+		// ORCLCLOAK and BATTLECLOAK, not UITYPE_CLOAK - that enum exists (it is Hellfire's) so a
+		// case for it COMPILED and silently matched nothing, which is how the Travelling Cloak was
+		// still tumbling as larmor after this function was written. The test caught it.
+		case UITYPE_ORCLCLOAK:
+		case UITYPE_BATTLECLOAK:
+			return OracoolCloakDropAnim;
+		case UITYPE_RELIC:
+		case UITYPE_RELIQUARY:
+			return OracoolRelicDropAnim;
+		case UITYPE_SPEAR:
+		case UITYPE_PIKE:
+			return OracoolSpearDropAnim;
+		case UITYPE_WARLUTE:
+			return OracoolLuteDropAnim;
+		case UITYPE_WARQUIVER:
+			return OracoolQuiverDropAnim;
+		case UITYPE_CANTICLE:
+		case UITYPE_ARCANEFOCUS:
+			return OracoolFocusDropAnim;
+		default:
+			break;
+		}
+	}
+
+	return GetItemDropAnimIndex(item._iCurs);
 }
 
 namespace {
@@ -373,6 +483,20 @@ const char *const ItemDropNames[] = {
 	"jewelflip",
 	"salvageflip",
 	"mapflip",
+	// Batches 21 and 22 (2026-09-12): six worn slots, then six exotic bases. Order must match the
+	// Oracool*DropAnim constants above, which is what ties a name to a sheet.
+	"gloveflip",
+	"bootflip",
+	"bracerflip",
+	"beltflip",
+	"legflip",
+	"shoulderflip",
+	"cloakflip",
+	"relicflip",
+	"spearflip",
+	"luteflip",
+	"quiverflip",
+	"focusflip",
 };
 static_assert(sizeof(ItemDropNames) / sizeof(ItemDropNames[0]) == ITEMTYPES);
 /** Maps of item drop animation length. */
@@ -429,6 +553,22 @@ int8_t ItemAnimLs[] = {
 	13, // jewelflip
 	13, // salvageflip
 	13, // mapflip
+	// Batches 21 and 22 (2026-09-12): all twelve are 13 frames, which is what keeps this change
+	// SAVE-SAFE. An item already lying on a floor in a save stores its frame, and every tumble in
+	// the game - larmor included - is 13, so re-pointing an item at a new sheet cannot land it on a
+	// frame that does not exist. A sheet with a different count would need a migration.
+	13, // gloveflip
+	13, // bootflip
+	13, // bracerflip
+	13, // beltflip
+	13, // legflip
+	13, // shoulderflip
+	13, // cloakflip
+	13, // relicflip
+	13, // spearflip
+	13, // luteflip
+	13, // quiverflip
+	13, // focusflip
 };
 static_assert(sizeof(ItemAnimLs) / sizeof(ItemAnimLs[0]) == ITEMTYPES);
 /** Maps of drop sounds effect of dropping the item on ground. */
@@ -488,6 +628,20 @@ _sfx_id ItemDropSnds[] = {
 	IS_FROCK, // jewelflip
 	IS_FLARM, // salvageflip
 	IS_FSCRL, // mapflip
+	// Batches 21 and 22: the floor-drop half of the twelve. Mirrors ItemInvSnds above - the six worn
+	// slots land like light armour, and the six exotic bases like what they are.
+	IS_FLARM, // gloveflip
+	IS_FLARM, // bootflip
+	IS_FLARM, // bracerflip
+	IS_FLARM, // beltflip
+	IS_FLARM, // legflip
+	IS_FLARM, // shoulderflip
+	IS_FLARM, // cloakflip
+	IS_FROCK, // relicflip
+	IS_FHARM, // spearflip
+	IS_FHARM, // luteflip
+	IS_FLARM, // quiverflip
+	IS_FBOOK, // focusflip
 };
 static_assert(sizeof(ItemDropSnds) / sizeof(ItemDropSnds[0]) == ITEMTYPES);
 static_assert(sizeof(ItemInvSnds) / sizeof(ItemInvSnds[0]) == ITEMTYPES);
@@ -5145,7 +5299,7 @@ void SpawnTheodore(Point position, bool sendmsg)
 
 void RespawnItem(Item &item, bool flipFlag)
 {
-	int it = GetItemDropAnimIndex(item._iCurs);
+	int it = GetItemDropAnimIndexFor(item);
 	item.setNewAnimation(flipFlag);
 	item._iRequest = false;
 	// Where the player is, or is about to be: a rune landing mid-step is stamped with the tile the
@@ -5194,7 +5348,7 @@ void ProcessItems()
 				item.AnimInfo.currentFrame = 10;
 		} else {
 			if (item.AnimInfo.currentFrame == (item.AnimInfo.numberOfFrames - 1) / 2)
-				PlaySfxLoc(ItemDropSnds[GetItemDropAnimIndex(item._iCurs)], item.position);
+				PlaySfxLoc(ItemDropSnds[GetItemDropAnimIndexFor(item)], item.position);
 
 			if (item.AnimInfo.isLastFrame()) {
 				item.AnimInfo.currentFrame = item.AnimInfo.numberOfFrames - 1;
@@ -5215,7 +5369,7 @@ void FreeItemGFX()
 
 void GetItemFrm(Item &item)
 {
-	int it = GetItemDropAnimIndex(item._iCurs);
+	int it = GetItemDropAnimIndexFor(item);
 	if (itemanims[it])
 		item.AnimInfo.sprites.emplace(*itemanims[it]);
 }
@@ -8389,7 +8543,7 @@ bool Item::isUsable() const
 
 void Item::setNewAnimation(bool showAnimation)
 {
-	int8_t it = GetItemDropAnimIndex(_iCurs);
+	int8_t it = GetItemDropAnimIndexFor(*this);
 	int8_t numberOfFrames = ItemAnimLs[it];
 	OptionalClxSpriteList sprite = itemanims[it] ? OptionalClxSpriteList { *itemanims[static_cast<size_t>(it)] } : std::nullopt;
 	if (_iCurs != ICURS_MAGIC_ROCK)

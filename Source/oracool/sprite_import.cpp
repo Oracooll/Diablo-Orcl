@@ -4,6 +4,7 @@
 #include <array>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <SDL.h>
@@ -42,8 +43,15 @@ constexpr int SharedHalfFirst = 128;
 std::array<uint8_t, 768> LevelPalette;
 bool LevelPaletteLoaded = false;
 bool LevelPaletteMissing = false;
-/** Which palette the cache currently holds, so a caller asking for a different one gets it. */
-const char *LoadedPalettePath = nullptr;
+/**
+ * @brief Which palette the cache holds, so a caller asking for a different one gets it.
+ *
+ * A COPY, not the caller's pointer. It held the pointer for about an hour on 2026-09-12 and the
+ * first caller to pass a block-scope `constexpr char[]` made it dangle - the next call's compare
+ * read a dead stack object. Owning the string means no caller's lifetime can matter, which is the
+ * fix that does not depend on every future caller remembering to pass something static.
+ */
+std::string LoadedPalettePath;
 
 /**
  * @brief Loads @p palettePath into the quantizer's cache, reloading if a different one is cached.
@@ -67,7 +75,7 @@ bool EnsurePalette(const char *palettePath)
 {
 	if (LevelPaletteMissing)
 		return false;
-	if (LevelPaletteLoaded && LoadedPalettePath != nullptr && strcmp(LoadedPalettePath, palettePath) == 0)
+	if (LevelPaletteLoaded && LoadedPalettePath == palettePath)
 		return true;
 	LoadFileInMem(palettePath, LevelPalette);
 	LevelPaletteLoaded = true;

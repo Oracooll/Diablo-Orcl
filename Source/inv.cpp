@@ -530,7 +530,7 @@ bool AutoEquip(Player &player, const Item &item, inv_body_loc bodyLocation, bool
 		ChangeEquipment(player, bodyLocation, item);
 
 		if (*sgOptions.Audio.autoEquipSound && &player == MyPlayer) {
-			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
+			PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 		}
 
 		CalcPlrInv(player, true);
@@ -755,7 +755,7 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 		return;
 
 	if (&player == MyPlayer)
-		PlaySFX(ItemInvSnds[GetItemDropAnimIndex(player.HoldItem._iCurs)]);
+		PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(player.HoldItem)]);
 
 	switch (il) {
 	case ILOC_HELM:
@@ -1355,7 +1355,7 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 
 		if (&player == MyPlayer) {
 			if (automaticallyEquipped) {
-				PlaySFX(ItemInvSnds[GetItemDropAnimIndex(holdItem._iCurs)]);
+				PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(holdItem)]);
 			} else if (!automaticMove || automaticallyMoved) {
 				PlaySFX(IS_IGRAB);
 			}
@@ -2758,7 +2758,7 @@ void TransferItemToStash(Player &player, int location)
 		return;
 	}
 
-	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
+	PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 
 	if (location < INVITEM_INV_FIRST) {
 		RemoveEquipment(player, static_cast<inv_body_loc>(location), false);
@@ -2808,7 +2808,7 @@ bool TryMoveHoveredItemToLevskiGrid(Player &player)
 		player.SaySpecific(HeroSpeech::WhereWouldIPutThis);
 		return true; // consumed: the gesture was understood and refused, not ignored
 	}
-	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
+	PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 	RemoveActiveInvItem(player, iv);
 	return true;
 }
@@ -2841,7 +2841,7 @@ bool TryTransferHoveredActiveTabItemToStash(Player &player)
 		return true;
 	}
 
-	PlaySFX(ItemInvSnds[GetItemDropAnimIndex(item._iCurs)]);
+	PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(item)]);
 	RemoveActiveInvItem(player, iv);
 	if (&player == MyPlayer)
 		oracool::ScheduleAutoSaveForStashChange();
@@ -3988,7 +3988,7 @@ bool UseInvItem(int cii)
 		return true;
 	}
 
-	int idata = GetItemDropAnimIndex(item->_iCurs);
+	int idata = GetItemDropAnimIndexFor(*item);
 	if (item->_iMiscId == IMISC_BOOK)
 		PlaySFX(IS_RBOOK);
 	// A Signet of Learning speaks with its own sound instead of the generic use sound (RfA-04) - the
@@ -4048,7 +4048,7 @@ void CloseStash()
 				// to not have room for the item all 3 cases are extremely unlikely
 				app_fatal(_("No room for item"));
 			}
-			PlaySFX(ItemInvSnds[GetItemDropAnimIndex(myPlayer.HoldItem._iCurs)]);
+			PlaySFX(ItemInvSnds[GetItemDropAnimIndexFor(myPlayer.HoldItem)]);
 		}
 		myPlayer.HoldItem.clear();
 		NewCursor(CURSOR_HAND);
