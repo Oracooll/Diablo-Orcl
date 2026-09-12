@@ -1,1 +1,1 @@
-C:\Users\hroga\AppData\Local\Temp\oracool-signets\signet_learning.png,0,0,28,28,28,28,signet_learning,30,false,asis
+..\Resources\01-in-use-assets\items\signet_learning.png,0,0,28,28,28,28,signet_learning,30,false,asis

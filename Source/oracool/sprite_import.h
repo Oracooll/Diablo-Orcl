@@ -83,4 +83,17 @@ std::optional<OwnedClxSpriteListOrSheet> LoadPngMissileSheet(const char *name, u
  */
 OptionalOwnedClxSpriteList LoadPngItemDropSheet(const char *name, uint16_t frameWidth);
 
+/**
+ * @brief One row of @p frameWidth-wide frames from a PNG at an EXACT archive path.
+ *
+ * The general form of the two helpers above, for callers whose asset does not live under a fixed
+ * prefix. `std::nullopt` when the file is absent or is not a whole number of @p frameWidth columns,
+ * so a caller can fall back to whatever it loaded before.
+ *
+ * Added 2026-09-12 for the Barbarian's character-select portrait: the engine's hero-portrait
+ * override hook asks for a PCX (`ui_art\hero5`), every other asset this fork ships is a PNG, and
+ * converting a full-colour painting down to an 8-bit PCX to satisfy a loader is the wrong trade.
+ */
+OptionalOwnedClxSpriteList LoadPngSpriteList(const char *path, uint16_t frameWidth);
+
 } // namespace devilution::oracool

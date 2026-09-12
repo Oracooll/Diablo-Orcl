@@ -22,6 +22,7 @@
 #include "engine/clx_sprite.hpp"
 #include "engine/dx.h"
 #include "engine/load_pcx.hpp"
+#include "oracool/sprite_import.h" // LoadPngSpriteList - the hero-portrait override is a PNG
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "hwcursor.hpp"
@@ -819,10 +820,26 @@ void LoadHeros()
 		ArtHeroPortraitOrder[static_cast<std::size_t>(HeroClass::Barbarian)] = 6;
 	}
 
+	// Oracool: a PNG override is tried FIRST, then the vanilla PCX.
+	//
+	// This hook existed and had never been used, because it only accepted a PCX and every asset this
+	// fork ships is a PNG. Meanwhile the Barbarian was wearing the WARRIOR'S portrait: the sheet
+	// above has six frames, so the block at :813 reassigns Monk and Bard, but the Barbarian's slot
+	// is only touched when a SEVENTH frame exists, and it never does. Two classes, one face, on the
+	// screen where you choose between them (fixed 2026-09-12 with ui_art\hero5.png).
+	//
+	// A PNG rather than converting the painting down to an 8-bit PCX to satisfy the loader: the
+	// portrait is a full-colour image and the PCX path would cost it for nothing. The PCX attempt
+	// stays second so a hand-made PCX override still works.
+	constexpr uint16_t PortraitWidth = 180;
 	for (size_t i = 0; i <= enum_size<HeroClass>::value; ++i) {
 		char portraitPath[18];
 		*BufCopy(portraitPath, "ui_art\\hero", i) = '\0';
-		ArtHeroOverrides[i] = LoadPcx(portraitPath, /*transparentColor=*/std::nullopt, /*outPalette=*/nullptr, /*logError=*/false);
+		char pngPath[24];
+		*BufCopy(pngPath, portraitPath, ".png") = '\0';
+		ArtHeroOverrides[i] = oracool::LoadPngSpriteList(pngPath, PortraitWidth);
+		if (!ArtHeroOverrides[i])
+			ArtHeroOverrides[i] = LoadPcx(portraitPath, /*transparentColor=*/std::nullopt, /*outPalette=*/nullptr, /*logError=*/false);
 	}
 }
 

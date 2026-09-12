@@ -11,7 +11,15 @@
 #     pwsh -File tools\GenSignets.ps1
 param(
     [string]$OutDir = "Source\oracool",
+    # Where the PROCEDURAL placeholder is drawn. Stays in %TEMP%: this folder is WIPED recursively
+    # below, so pointing it at Resources would delete the delivered art. Checked in this script
+    # rather than assumed from the others (2026-09-12).
     [string]$ArtDir = (Join-Path ([System.IO.Path]::GetTempPath()) "oracool-signets"),
+    # Where the SPEC points: real art since batch 27 (RfA-10, 2026-09-12). Batch 25 was rejected for
+    # having no visible ring hole; 27 passes that check with 113 enclosed transparent pixels.
+    # Per-file, with a fallback to the placeholder. Relative to the repository root, where
+    # build_item_icons.cmd runs.
+    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items",
     # One past the last Mystic Orb. cursor.cpp static_asserts the adjacency.
     [int]$FirstCursorId = 485
 )
@@ -26,6 +34,18 @@ if (Test-Path $artDir) { Remove-Item -Recurse -Force $artDir }
 New-Item -ItemType Directory -Force $artDir | Out-Null
 
 $cell = 28
+
+$realCount = 0
+# Real art if present, else the placeholder. Existence is checked against the resolved path; the
+# SPEC keeps the relative one, so no machine-specific path lands in a tracked file.
+function Resolve-SpecPath([string]$slug, [string]$placeholder) {
+    $rel = Join-Path $SpecArtDir ("$slug.png")
+    if (Test-Path (Join-Path $repo $rel)) {
+        $script:realCount++
+        return $rel
+    }
+    return $placeholder
+}
 
 # Qlvl 8 rather than something deep: a signet is capped for life, so making it a late find would
 # mean the pool only opens once most of the levelling is behind you - which is the half of the game
@@ -103,7 +123,7 @@ foreach ($s in $signets) {
     $cursLines += "`t$icurs,"
     $widthLines += "`t$cell, // $($s.Name)"
     $heightLines += "`t$cell, // $($s.Name)"
-    $specLines += "$png,0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
+    $specLines += "$(Resolve-SpecPath $slug $png),0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
 
     $cursor++
 }
@@ -127,5 +147,6 @@ Write-Inc "signets_curs_heights.inc" "Frame heights, in the same order."        
 [System.IO.File]::WriteAllLines((Join-Path $out "signets_icon_specs.txt"), $specLines, (New-Object System.Text.UTF8Encoding $false))
 Write-Host ("  signets_icon_specs.txt  ($($specLines.Count) specs)")
 Write-Host ""
-Write-Host ("$($enumLines.Count) signet(s), cursor ids $FirstCursorId..$($cursor - 1), art in $artDir")
+Write-Host ("$($enumLines.Count) signet(s), cursor ids $FirstCursorId..$($cursor - 1)")
+Write-Host ("  real art: $realCount of $($specLines.Count) specs, from $SpecArtDir")
 Write-Host "Now: tools\build_item_icons.cmd, then tools\build_oracool_mpq.cmd."
