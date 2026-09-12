@@ -45,7 +45,10 @@ marked in the Align column and cannot appear on an "only good" drop.</p>
 <script src="wiki.js"></script>
 <script>
 const rows = WIKI.affixes.map(function (a) {
-	const range = a.min === a.max ? String(a.min) : (a.min + '-' + a.max);
+	// A flag power - Indestructible, Knockback, No Mana, Absorbs Half Trap - carries no parameters at
+	// all, so there is no range to print and "0" would read as a value it does not have.
+	const range = (a.min === 0 && a.max === 0) ? ''
+		: (a.min === a.max ? String(a.min) : (a.min + '-' + a.max));
 	return Object.assign({}, a, {
 		effect: a.power.replace(/_CURSE$/, '') + ' ' + range,
 		curse: /_CURSE$/.test(a.power),

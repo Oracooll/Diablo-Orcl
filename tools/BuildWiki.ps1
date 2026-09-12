@@ -359,14 +359,20 @@ foreach ($table in @('ItemPrefixes', 'ItemSuffixes')) {
     # padded with runs of spaces, so a lazy match ran past the field and a greedy one swallowed the
     # next row. Splitting the line at its known landmarks is duller and correct.
     foreach ($line in ($body -split "`n")) {
-        if ($line -notmatch '^\{\s*N_\("([^"]*)"\),\s*\{\s*(IPL_\w+),\s*(-?\d+),\s*(-?\d+)\s*\},\s*(-?\d+),\s*(.+)$') { continue }
+        # The power's two parameters are OPTIONAL. Four suffixes carry a power that takes none at all
+        # - { IPL_INDESTRUCTIBLE }, { IPL_NOMANA }, { IPL_ABSHALFTRAP }, { IPL_KNOCKBACK } - and
+        # demanding two numbers dropped "of the ages", "of corruption", "of thieves" and "of the
+        # bear" from the wiki entirely: 180 affixes listed where the game has 184.
+        if ($line -notmatch '^\{\s*N_\("([^"]*)"\),\s*\{\s*(IPL_\w+)(?:\s*,\s*(-?\d+))?(?:\s*,\s*(-?\d+))?\s*\},\s*(-?\d+),\s*(.+)$') { continue }
         # Copied out BEFORE the second -match runs. $matches is a single automatic variable that each
         # match overwrites, so reading the first pattern's groups afterwards silently returns the
         # second pattern's - which is how "false" ended up being cast to an int here.
         $affixName = $matches[1]
         $affixPower = $matches[2] -replace '^IPL_', ''
-        $affixMin = [int]$matches[3]
-        $affixMax = [int]$matches[4]
+        # Absent parameters come through as empty, not zero - a flag power like Indestructible has no
+        # range to show, and the page prints a dash for it rather than "0-0".
+        $affixMin = $(if ($matches[3] -ne '' -and $null -ne $matches[3]) { [int]$matches[3] } else { 0 })
+        $affixMax = $(if ($matches[4] -ne '' -and $null -ne $matches[4]) { [int]$matches[4] } else { 0 })
         $affixMinLvl = [int]$matches[5]
         $tail = $matches[6]
         $types = ($tail -split ',\s*GOE_')[0]

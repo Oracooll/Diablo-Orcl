@@ -961,6 +961,44 @@ void CheckInvPaste(Player &player, Point cursorPosition)
 
 } // namespace
 
+/**
+ * @brief The TOP-LEFT grid cell of active-tab list item @p iv (1-based), or -1 if it is not found.
+ *
+ * AddItemToInvGrid writes the POSITIVE list index at the item's BOTTOM-left cell and the negative at
+ * every other cell it covers, so the anchor the placement helpers take - the top-left - is that cell
+ * less one row per cell of height. Getting this backwards would place a displaced item one or two
+ * rows below the hole and usually fail, which is a silent wrong answer rather than a crash.
+ */
+int ActiveInvAnchorSlotOf(Player &player, int iv)
+{
+	for (int cell = 0; cell < InventoryGridCells; cell++) {
+		if (GetActiveInvGridCell(player, cell) != static_cast<int8_t>(iv))
+			continue;
+		const Size size = GetInventorySize(GetActiveInvListItem(player, iv - 1));
+		const int anchor = cell - InventorySizeInSlots.width * (size.height - 1);
+		return anchor >= 0 ? anchor : -1;
+	}
+	return -1;
+}
+
+// Defined further down this file, outside the anonymous namespace.
+bool AutoPlaceItemInExtraTabSlot(Player &player, int tabIndex, int slotIndex, const Item &item, bool persistItem);
+
+/**
+ * @brief Places @p item with its top-left at @p slotIndex of backpack page @p tab (0 = the base grid).
+ *
+ * Fails, without writing anything, when the item does not fit there - which is what makes "unless it
+ * is bigger, in which case look for suitable place" need no size test of its own.
+ */
+bool PlaceItemInTabSlot(Player &player, int tab, int slotIndex, const Item &item)
+{
+	if (slotIndex < 0)
+		return false;
+	if (tab == 0)
+		return AutoPlaceItemInInventorySlot(player, slotIndex, item, true);
+	return AutoPlaceItemInExtraTabSlot(player, tab - 1, slotIndex, item, true);
+}
+
 // Oracool: hoisted out of the anonymous namespace (same pattern as stores.cpp's test hooks) so
 // RightMouseDown can reach it - a right-click inside the inventory window routes here with
 // automaticMove=true, the exact machinery shift-click uses. The anonymous-namespace helpers it
@@ -1124,6 +1162,12 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 		if (ii != 0) {
 			int iv = (ii < 0) ? -ii : ii;
 
+			// Set when the equip swap below has already pulled the item out of the bag to free its
+			// cells for the displaced one, so the removal at the bottom does not run twice. A second
+			// RemoveActiveInvItem on a compacted list would delete whatever item was swapped into
+			// this index.
+			bool newItemTakenFromBag = false;
+
 			holdItem = GetActiveInvListItem(player, iv - 1);
 			if (automaticMove) {
 				if (CanBePlacedOnBelt(holdItem)) {
@@ -1204,21 +1248,66 @@ void CheckInvCut(Player &player, Point cursorPosition, bool automaticMove, bool 
 						automaticallyUnequip = false; // Switch to say "I can't do that"
 						break;
 					}
-					// Empty the identified InvBody slot (invloc) and hand over to AutoEquip
+					// Empty the identified InvBody slot (invloc) and hand over to AutoEquip.
+					//
+					// THE DISPLACED ITEM TAKES THE HOLE THE NEW ONE LEAVES (user, 2026-09-12: "the
+					// current item being replaced to take the same spot in the inventory the new item
+					// just occupied, unless it is bigger, in which case look for suitable place or
+					// throw on ground").
+					//
+					// That needed the order reversed. This used to place the displaced item while the
+					// item being equipped was STILL in the grid, so the cells it is about to vacate
+					// were never free and AutoPlaceItemInInventory's scan sent the displaced item
+					// wherever it found room - usually the far end of the bag. The new item therefore
+					// comes out first, and only then is the displaced one placed.
 					if (invloc != NUM_INVLOC) {
-						holdItem = player.InvBody[invloc];
-						if (player.InvBody[invloc]._itype != ItemType::None) {
-							if (AutoPlaceItemInInventory(player, holdItem, true)) {
-								player.InvBody[invloc].clear();
+						Item displaced = player.InvBody[invloc];
+						if (!displaced.isEmpty()) {
+							// Both captured BEFORE anything moves: RemoveActiveInvItem compacts the
+							// list, so iv - 1 stops meaning this item the moment it is called.
+							const Item equipping = GetActiveInvListItem(player, iv - 1);
+							const int vacatedTab = ActiveInventoryTab;
+							const int vacatedSlot = ActiveInvAnchorSlotOf(player, iv);
+
+							RemoveActiveInvItem(player, iv - 1);
+							newItemTakenFromBag = true;
+
+							// The hole, then anywhere, then the floor. PlaceItemInTabSlot fails of
+							// its own accord when the displaced item does not fit the hole, so
+							// "unless it is bigger" needs no size test here.
+							if (!PlaceItemInTabSlot(player, vacatedTab, vacatedSlot, displaced)
+							    && !AutoPlaceItemInInventory(player, displaced, true)) {
+								// Onto the floor at the player's feet. If there is nowhere to put it
+								// either, TryDropItem says so in the hero's own voice and the item
+								// stays on the cursor rather than being destroyed - the one outcome
+								// that must never happen here, since the body slot is about to be
+								// cleared.
+								player.HoldItem = displaced;
+								if (!TryDropItem())
+									NewCursor(player.HoldItem);
 							}
+							player.InvBody[invloc].clear();
+							holdItem = equipping;
+						} else {
+							holdItem = GetActiveInvListItem(player, iv - 1);
 						}
+					} else {
+						holdItem = GetActiveInvListItem(player, iv - 1);
 					}
-					holdItem = GetActiveInvListItem(player, iv - 1);
 					automaticallyMoved = automaticallyEquipped = AutoEquip(player, holdItem);
+					// The equip cannot fail here - invloc was chosen from this item's own location and
+					// the slot was just cleared - but if it ever did, the item is already out of the
+					// bag, so put it back rather than lose it.
+					if (newItemTakenFromBag && !automaticallyEquipped && !AutoPlaceItemInInventory(player, holdItem, true)) {
+						player.HoldItem = holdItem;
+						if (!TryDropItem())
+							NewCursor(player.HoldItem);
+					}
 				}
 			}
 
-			if (!automaticMove || automaticallyMoved) {
+			// Already gone if the swap above took it out to free its cells.
+			if (!newItemTakenFromBag && (!automaticMove || automaticallyMoved)) {
 				RemoveActiveInvItem(player, iv - 1);
 			}
 		}

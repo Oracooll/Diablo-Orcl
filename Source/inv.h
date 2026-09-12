@@ -279,6 +279,17 @@ bool AutoPlaceItemInInventory(Player &player, const Item &item, bool persistItem
 bool AutoPlaceItemInInventorySlot(Player &player, int slotIndex, const Item &item, bool persistItem);
 
 /**
+ * @brief The TOP-LEFT grid cell of active-tab list item @p iv (1-based), or -1 if not found.
+ *
+ * Exported for the test suite. This is the arithmetic the right-click equip swap rests on - the
+ * displaced item is placed at the cell the equipped item vacated - and it is easy to get backwards,
+ * because AddItemToInvGrid stores the positive list index at an item's BOTTOM-left cell while every
+ * placement helper takes a top-left anchor. Getting it wrong places the displaced item a row or two
+ * low, which fails silently and sends it to the far end of the bag instead.
+ */
+DVL_API_FOR_TEST int ActiveInvAnchorSlotOf(Player &player, int iv);
+
+/**
  * @brief Oracool Tabbed Inventory fallback: tries every extra tab (2-10) for an area big enough
  * for item, once AutoPlaceItemInInventory (tab 1 only) has already failed. Never touches
  * ActiveInventoryTab - the displayed page stays whatever it already was.
