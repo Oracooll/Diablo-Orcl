@@ -6506,7 +6506,18 @@ void PrintItemDetails(const Item &item)
 	//
 	// Three hosts because a loose stone does not know where it is going. Empty lists fall away, so
 	// a gem that does nothing in shields simply says nothing about shields.
-	if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx)) {
+	// JEWELS are in this gate too (user, 2026-09-12: "jelews have no description in their pop-up.
+	// add appropriate description"). They were the one socketable family with no branch anywhere in
+	// this function: gems and runes had this one, Mystic Orbs have their own above, charms have
+	// CharmEffectLine - and a jewel had nothing, so its panel showed a name, a qlvl and no reason to
+	// pick it up.
+	//
+	// Nothing had to be written to describe them. The fifteen jewels are ordinary Gems[] rows with
+	// real per-host numbers (jewels_effects.inc), and ResolveGem falls through to FindGemRow for an
+	// index that is not a gem type - so GemHostEffectLine has always produced the right three lines
+	// for a jewel. It was simply never asked. The canonical socketable set in items.h:595 already
+	// listed all four families; this gate was the one place that had drifted from it.
+	if (IsOracoolGemIdx(item.IDidx) || IsOracoolRuneIdx(item.IDidx) || IsOracoolJewelIdx(item.IDidx)) {
 		for (const oracool::SocketHost host : { oracool::SocketHost::Weapon, oracool::SocketHost::Shield, oracool::SocketHost::Armor }) {
 			std::string line = oracool::GemHostEffectLine(static_cast<uint16_t>(item.IDidx), host);
 			if (!line.empty())
