@@ -388,28 +388,51 @@ foreach ($table in @('ItemPrefixes', 'ItemSuffixes')) {
 }
 
 # ---------------------------------------------------------------------------------------------
-# Unique items - the generated include
+# Unique items - the vanilla table AND the generated include
+#
+# Only the include was read until now, so the page showed 250 of the game's 360 uniques and not one
+# of Diablo's own - no Harlequin Crest, no Windforce, no Undead Crown. Both tables share a row shape,
+# so one parser reads both, in the order the compiler sees them: UniqueItems[] in itemdat.cpp, then
+# the include spliced in at its own position.
 # ---------------------------------------------------------------------------------------------
 $uniques = New-Object System.Collections.ArrayList
-$uniquePath = Join-Path $src 'oracool/unique_items_data.inc'
-if (Test-Path $uniquePath) {
-    foreach ($line in (Get-Content $uniquePath -Encoding UTF8)) {
+function Add-UniqueRows([string]$text, [string]$origin) {
+    foreach ($line in ($text -split "`n")) {
         if ($line -notmatch '\{\s*N_\("([^"]*)"\),\s*(UITYPE_\w+),\s*(\d+),\s*(\d+),\s*(\d+),') { continue }
+        # Captured before the inner matches run, so nothing downstream can overwrite the row's own
+        # groups - the trap that ate a level range earlier in this project.
+        $row = @($matches[1], $matches[2], $matches[3], $matches[4], $matches[5])
         $powers = New-Object System.Collections.ArrayList
-        foreach ($p in [regex]::Matches($line, '\{\s*(IPL_\w+),\s*(-?\d+),\s*(-?\d+)\s*\}')) {
+        # A power carries two values, one, or none: IPL_RNDSTEALLIFE has no numbers and IPL_INVCURS
+        # a single frame id. Requiring two silently dropped every such power from the vanilla rows.
+        foreach ($p in [regex]::Matches($line, '\{\s*(IPL_\w+)(?:\s*,\s*(-?\d+))?(?:\s*,\s*(-?\d+))?\s*\}')) {
             $type = $p.Groups[1].Value
             if ($type -eq 'IPL_INVALID' -or $type -eq 'IPL_INVCURS') { continue }
-            [void]$powers.Add(($type -replace '^IPL_', '') + ' ' + $p.Groups[2].Value)
+            $label = $type -replace '^IPL_', ''
+            if ($p.Groups[2].Success) { $label += ' ' + $p.Groups[2].Value }
+            [void]$powers.Add($label)
         }
         [void]$uniques.Add([ordered]@{
-                name    = $matches[1]
-                base    = ($matches[2] -replace '^UITYPE_', '')
-                minLvl  = [int]$matches[3]
-                powerCount = [int]$matches[4]
-                value   = [int]$matches[5]
+                name    = $row[0]
+                base    = ($row[1] -replace '^UITYPE_', '')
+                minLvl  = [int]$row[2]
+                powerCount = [int]$row[3]
+                value   = [int]$row[4]
+                origin  = $origin
                 powers  = ($powers -join ', ')
             })
     }
+}
+
+$itemdatForUniques = Read-SourceFile 'itemdat.cpp'
+$uniqStart = $itemdatForUniques.IndexOf('const UniqueItem UniqueItems[]')
+$uniqEnd = $itemdatForUniques.IndexOf('unique_items_data.inc')
+if ($uniqStart -ge 0 -and $uniqEnd -gt $uniqStart) {
+    Add-UniqueRows $itemdatForUniques.Substring($uniqStart, $uniqEnd - $uniqStart) 'Vanilla'
+}
+$uniquePath = Join-Path $src 'oracool/unique_items_data.inc'
+if (Test-Path $uniquePath) {
+    Add-UniqueRows (Get-Content $uniquePath -Raw -Encoding UTF8) 'Oracool'
 }
 
 # ---------------------------------------------------------------------------------------------

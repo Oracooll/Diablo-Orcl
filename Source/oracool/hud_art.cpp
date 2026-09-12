@@ -1625,9 +1625,17 @@ void DrawRunToggleButton(const Surface &out, int state)
 	// ambiguous the moment you stop to think about it.
 	const Rectangle cell = GetBeltSlotRect(BeltRunToggleSlotIndex);
 	DrawBeltSlotPlate(out, cell); // the same plate every other belt cell wears
+
+	// The glyph sits 2px BELOW the cell's centre (user, 2026-09-12: "bring the run/walk icons 2px
+	// downward"). The traveller is drawn standing on the cell's floor rather than floating in it,
+	// and both strips carry the same 24px-tall figure with its own headroom, so centring the 30x30
+	// frame left it reading high. The plate above is drawn on the true cell, so only the figure
+	// moves.
+	constexpr int GlyphDrop = 2;
+	const Rectangle glyphCell { cell.position + Displacement { 0, GlyphDrop }, cell.size };
 	const bool running = IsRunEnabled();
-	if (!TryDrawBeltGlyph(out, running ? RunGlyphsArt : WalkGlyphsArt, cell, state))
-		DrawBeltButtonText(out, cell, running ? "R" : "W", UiFlags::ColorWhitegold, state);
+	if (!TryDrawBeltGlyph(out, running ? RunGlyphsArt : WalkGlyphsArt, glyphCell, state))
+		DrawBeltButtonText(out, glyphCell, running ? "R" : "W", UiFlags::ColorWhitegold, state);
 }
 
 void DrawLevelUpIconArt(const Surface &out, int state)
