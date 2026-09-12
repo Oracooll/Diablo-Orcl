@@ -8,6 +8,7 @@
 
 #include "engine/render/text_render.hpp"
 #include "options.h"
+#include "panels/charpanel.hpp" // DamageTypeColor - one table for what an element looks like
 #include "utils/str_cat.hpp"
 
 namespace devilution {
@@ -71,30 +72,7 @@ void UpdateFloatingData(FloatingNumber &num)
 
 	num.style &= ~(UiFlags::FontSize12 | UiFlags::FontSize24 | UiFlags::FontSize30);
 	num.style |= GetFontSizeByDamage(num.value);
-
-	switch (num.type) {
-	case DamageType::Physical:
-		num.style |= UiFlags::ColorGold;
-		break;
-	case DamageType::Fire:
-		num.style |= UiFlags::ColorUiSilver; // UiSilver appears dark red ingame
-		break;
-	case DamageType::Lightning:
-		num.style |= UiFlags::ColorBlue;
-		break;
-	case DamageType::Magic:
-		num.style |= UiFlags::ColorOrange;
-		break;
-	case DamageType::Acid:
-		num.style |= UiFlags::ColorYellow;
-		break;
-	case DamageType::Cold:
-		// White, not blue. Blue is lightning on this readout, and the Cold brief is explicit that ice
-		// in this palette is white with blue in its shadows - a blue number over a blue-white bolt
-		// would say "lightning" twice and "cold" not at all.
-		num.style |= UiFlags::ColorWhite;
-		break;
-	}
+	num.style |= DamageTextColor(num.type);
 }
 
 void AddFloatingNumber(Point pos, Displacement offset, DamageType type, int value, int index, bool damageToPlayer)
@@ -132,6 +110,39 @@ void AddFloatingNumber(Point pos, Displacement offset, DamageType type, int valu
 }
 
 } // namespace
+
+UiFlags DamageTextColor(DamageType type)
+{
+	// Physical is gold here and white on the sheet - the one deliberate divergence. Gold is
+	// vanilla's damage number and by far the most common thing on screen; white would put the
+	// loudest number in the game in the same ink as cold.
+	if (type == DamageType::Physical)
+		return UiFlags::ColorGold;
+
+	// Acid is monster-only (nothing the player casts carries it), and on the sheet it falls through
+	// to white. Here white is COLD's, so acid keeps its own yellow rather than borrowing one.
+	if (type == DamageType::Acid)
+		return UiFlags::ColorYellow;
+
+	// Everything else - fire, lightning, magic, cold - defers to the character sheet's table, so an
+	// element cannot be described two ways in one game. Before 1.11.080 this switch held its own
+	// opinions and all three of the user's named elements were wrong:
+	//
+	//   fire      ColorUiSilver, commented "appears dark red ingame". True of the old indexed path;
+	//             renderer stage 4 (v1.11.010) turned the .trn files into RGB values and
+	//             ColorInGameUiSilver became a plain grey ramp, 0xF3F3F3 down to 0x111111. Fire
+	//             damage had been drawing GREY ever since, with the comment still promising red -
+	//             a colour picked by a NAME whose meaning moved underneath it.
+	//   lightning ColorBlue, while the sheet says yellow - the user's explicit 2026-08-31 call,
+	//             after a first attempt rendered "dark blue instead of yellow".
+	//   magic     ColorOrange, while the sheet had said ColorMagicDamage (208,98,98) since
+	//             2026-09-11 - so a Blessed Hammer hit named one colour in the panel and wore
+	//             another over the monster.
+	//
+	// Auras reach this through AuraStrike -> ApplyMonsterDamage, which has always carried the
+	// element; nothing needed rewiring, the table was simply lying.
+	return DamageTypeColor(type);
+}
 
 void AddFloatingNumber(DamageType damageType, const Monster &monster, int damage)
 {

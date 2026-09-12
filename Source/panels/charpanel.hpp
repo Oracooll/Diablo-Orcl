@@ -5,6 +5,8 @@
 #include "DiabloUI/ui_flags.hpp" // UiFlags - the readied-slot rows are coloured by damage type
 #include "engine/clx_sprite.hpp"
 #include "engine/surface.hpp"
+#include "misdat.h"              // DamageType
+#include "utils/attributes.h"    // DVL_API_FOR_TEST on DamageTypeColor
 
 namespace devilution {
 
@@ -80,6 +82,19 @@ std::string GetReadiedSlotNameText(bool leftButton);
  * other output, and a screenshot is the only other way to see it.
  */
 UiFlags GetReadiedSlotColor(bool leftButton);
+
+/**
+ * @brief The colour an element is written in, wherever it is written.
+ *
+ * The user's own table (2026-08-31, after Diablo II), and since 1.11.080 the ONE definition:
+ * DamageTextColor in qol/floatingnumbers.cpp defers to it for fire, lightning, magic and cold so
+ * the sheet and the numbers over a monster's head cannot say different things about the same
+ * element. They did for months - the sheet called fire red while the floating number drew grey.
+ *
+ * Physical is the one deliberate difference: white here (it is a sheet row among coloured rows),
+ * gold there (vanilla's damage number, and the most common number on screen).
+ */
+DVL_API_FOR_TEST UiFlags DamageTypeColor(DamageType type);
 
 extern OptionalOwnedClxSpriteList pChrButtons;
 

@@ -97,52 +97,6 @@ std::pair<int, int> GetDamage()
 }
 
 /**
- * @brief The colour a damage type is written in (user, 2026-08-31, after Diablo II).
- *
- * Their palette was white physical / blue cold / red fire / yellow lightning / green healing. Blue
- * is MAGIC here, not cold: this engine has no cold damage at all. DamageType is Physical, Fire,
- * Lightning, Magic and Acid, and blue for arcane is the closest honest reading of the same idea.
- *
- * Magic left blue on 2026-09-11 for RGB 104,49,49 (user: "let's make Magic DMG font color
- * RGB:104,49,49"), then brightened to 208,98,98 the same day ("way too dark make it brighter") -
- * UiFlags::ColorMagicDamage. Blue stays the aura row's and a bonus row's colour.
- *
- * Acid is monster-only - no player spell carries it - so it falls through to physical white rather
- * than being given a colour nobody will ever see. Green belongs to healing, below.
- */
-UiFlags DamageTypeColor(DamageType type)
-{
-	switch (type) {
-	case DamageType::Fire:
-		return UiFlags::ColorRed;
-	case DamageType::Lightning:
-		// ColorYellow, NOT ColorUiYellow (user, 2026-08-31: "Charged Bolt renders indeed dark
-		// blue, instead of yellow").
-		//
-		// The two are not interchangeable and the difference is the PALETTE. oracool_yellow.trn was
-		// generated against ui_art\diablo.pal for the front end's focus glow - see
-		// tools/MakeYellowFontTrn.ps1, which says so - and it maps the font's ink onto indices
-		// 128-135 because those are a yellow ramp IN THAT PALETTE. The character sheet draws in the
-		// level palette, where the same indices are something else entirely, and what came out was
-		// dark blue.
-		//
-		// ColorYellow is the in-game yellow: it is what a rare item's name is written in, which is
-		// the one the user asked to be "bright YELLOW" in the first place.
-		return UiFlags::ColorYellow;
-	case DamageType::Magic:
-		return UiFlags::ColorMagicDamage;
-	case DamageType::Physical:
-	case DamageType::Acid:
-	case DamageType::Cold:
-		// Cold falls through to white deliberately, and it is the only element that WANTS the
-		// default: white is cold's own colour in this palette (see the Cold brief - ice is white with
-		// blue in its shadows), and blue is already spoken for by magic on this very line.
-		break;
-	}
-	return UiFlags::ColorWhite;
-}
-
-/**
  * @brief What kind of damage a readied spell deals, taken from the missile it actually throws.
  *
  * Derived, never tabulated. The engine already answers this - every missile carries its damage type
@@ -1152,6 +1106,52 @@ void DrawStatButtons(const Surface &content)
 }
 
 } // namespace
+
+/**
+ * @brief The colour a damage type is written in (user, 2026-08-31, after Diablo II).
+ *
+ * Their palette was white physical / blue cold / red fire / yellow lightning / green healing. Blue
+ * is MAGIC here, not cold: this engine has no cold damage at all. DamageType is Physical, Fire,
+ * Lightning, Magic and Acid, and blue for arcane is the closest honest reading of the same idea.
+ *
+ * Magic left blue on 2026-09-11 for RGB 104,49,49 (user: "let's make Magic DMG font color
+ * RGB:104,49,49"), then brightened to 208,98,98 the same day ("way too dark make it brighter") -
+ * UiFlags::ColorMagicDamage. Blue stays the aura row's and a bonus row's colour.
+ *
+ * Acid is monster-only - no player spell carries it - so it falls through to physical white rather
+ * than being given a colour nobody will ever see. Green belongs to healing, below.
+ */
+UiFlags DamageTypeColor(DamageType type)
+{
+	switch (type) {
+	case DamageType::Fire:
+		return UiFlags::ColorRed;
+	case DamageType::Lightning:
+		// ColorYellow, NOT ColorUiYellow (user, 2026-08-31: "Charged Bolt renders indeed dark
+		// blue, instead of yellow").
+		//
+		// The two are not interchangeable and the difference is the PALETTE. oracool_yellow.trn was
+		// generated against ui_art\diablo.pal for the front end's focus glow - see
+		// tools/MakeYellowFontTrn.ps1, which says so - and it maps the font's ink onto indices
+		// 128-135 because those are a yellow ramp IN THAT PALETTE. The character sheet draws in the
+		// level palette, where the same indices are something else entirely, and what came out was
+		// dark blue.
+		//
+		// ColorYellow is the in-game yellow: it is what a rare item's name is written in, which is
+		// the one the user asked to be "bright YELLOW" in the first place.
+		return UiFlags::ColorYellow;
+	case DamageType::Magic:
+		return UiFlags::ColorMagicDamage;
+	case DamageType::Physical:
+	case DamageType::Acid:
+	case DamageType::Cold:
+		// Cold falls through to white deliberately, and it is the only element that WANTS the
+		// default: white is cold's own colour in this palette (see the Cold brief - ice is white with
+		// blue in its shadows), and blue is already spoken for by magic on this very line.
+		break;
+	}
+	return UiFlags::ColorWhite;
+}
 
 std::string GetReadiedSlotDamageText(bool leftButton)
 {

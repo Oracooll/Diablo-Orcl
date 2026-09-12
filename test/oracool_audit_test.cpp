@@ -126,6 +126,7 @@
 #include "DiabloUI/hero/selhero.h"
 #include "DiabloUI/multi/selgame.h"
 #include "panels/charpanel.hpp"
+#include "qol/floatingnumbers.h" // DamageTextColor - must agree with charpanel's table
 #include "panels/spell_book.hpp"
 #include "panels/spell_icons.hpp"
 #include "player.h"
@@ -12045,5 +12046,45 @@ TEST(OracoolClassTree, HeavenlyStrengthBlocksWithASheetThatExists)
 			const std::string sheet = std::string("plrgfx\\warrior\\w") + armour + weapon + "\\w" + armour + weapon + "bl.cl2";
 			EXPECT_TRUE(FindAsset(sheet.c_str()).ok()) << sheet << " - a fallback the rule sends the hero to is missing";
 		}
+	}
+}
+
+// An element's colour was described in two places that disagreed. The character sheet's table
+// (DamageTypeColor, the user's own 2026-08-31 call after Diablo II) said fire is red and lightning
+// yellow; the floating damage numbers held a second opinion and drew fire through ColorUiSilver,
+// on the strength of a comment reading "UiSilver appears dark red ingame".
+//
+// That comment was TRUE when written and false by the time it mattered: renderer stage 4
+// (v1.11.010) retired the .trn files into RGB values, and ColorInGameUiSilver is a plain grey ramp.
+// Fire damage drew grey for ten versions with a comment promising red - nothing compared the name
+// to the band, because nothing could. This test is that comparison.
+TEST(OracoolAudit, AnElementIsTheSameColourOnTheSheetAndOverTheMonsterSHead)
+{
+	// The three the user named, plus cold - all deferred to the one table, so they cannot drift.
+	for (const DamageType type : { DamageType::Fire, DamageType::Lightning, DamageType::Magic, DamageType::Cold }) {
+		EXPECT_EQ(DamageTextColor(type), DamageTypeColor(type))
+		    << "damage type " << static_cast<int>(type)
+		    << " is written one colour on the character sheet and another over the monster";
+	}
+
+	// The specific regressions, named so a red run says which bug came back.
+	EXPECT_EQ(DamageTextColor(DamageType::Fire), UiFlags::ColorRed) << "fire is red, not grey";
+	EXPECT_EQ(DamageTextColor(DamageType::Lightning), UiFlags::ColorYellow) << "lightning is yellow, not blue";
+	EXPECT_EQ(DamageTextColor(DamageType::Magic), UiFlags::ColorMagicDamage) << "magic is RGB 208,98,98";
+
+	// Fire must never again be the silver whose meaning moved.
+	EXPECT_NE(DamageTextColor(DamageType::Fire), UiFlags::ColorUiSilver);
+
+	// The two deliberate divergences, pinned so they read as choices rather than oversights.
+	EXPECT_EQ(DamageTextColor(DamageType::Physical), UiFlags::ColorGold) << "gold there, white on the sheet: vanilla's damage number";
+	EXPECT_EQ(DamageTextColor(DamageType::Acid), UiFlags::ColorYellow) << "acid keeps yellow; white is cold's here";
+
+	// Every element a PLAYER can deal must be told apart at a glance, which is the whole point of
+	// colouring them. Acid is excluded: it is monster-only and shares lightning's yellow.
+	std::set<uint64_t> seen;
+	for (const DamageType type : { DamageType::Physical, DamageType::Fire, DamageType::Lightning, DamageType::Magic, DamageType::Cold }) {
+		const uint64_t colour = static_cast<uint64_t>(DamageTextColor(type));
+		EXPECT_TRUE(seen.insert(colour).second)
+		    << "damage type " << static_cast<int>(type) << " shares a colour with another element";
 	}
 }
