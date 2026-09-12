@@ -153,6 +153,20 @@ enum class UiEventSound : uint8_t {
  */
 bool PlayUiEventSound(UiEventSound sound);
 
+/** @brief How many UiEventSound values there are, so a test can walk all of them. */
+constexpr size_t UiEventSoundCount = static_cast<size_t>(UiEventSound::SignetUse) + 1;
+
+/**
+ * @brief The archive path @p sound is loaded from, or nullptr if @p sound is out of range.
+ *
+ * Exported because a wrong path here is INVISIBLE: PlayUiEventSound returns false for a file that
+ * will not load and every caller falls back to the vanilla sound it used before, so nine of these
+ * were misspelled for fifty versions and nothing ever sounded broken. Reading the source line does
+ * not help either - the bug was single backslashes, which the compiler silently eats. A test has to
+ * ask what the string actually became.
+ */
+DVL_API_FOR_TEST const char *UiEventSoundPath(UiEventSound sound);
+
 /**
  * @brief Fires the set-completion stinger when a set crosses from incomplete to complete.
  *

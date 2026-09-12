@@ -12093,3 +12093,48 @@ TEST(OracoolAudit, AnElementIsTheSameColourOnTheSheetAndOverTheMonsterSHead)
 	}
 	EXPECT_EQ(seen.size(), 6u) << "six elements, six colours";
 }
+
+// Nine delivered sound assets that never once played.
+//
+// UiEventPaths was written with SINGLE backslashes from the day it was added (v1.11.032) until
+// 2026-09-12: "sfx\ui\salvage.wav". In C++ `\u` opens a universal-character-name and `\s` is not an
+// escape, so MSVC warns and drops both - the literal becomes `sfxuisalvage.wav`, which no archive
+// has ever contained. Verified by compiling that exact string and printing it.
+//
+// It hid for fifty versions because the design is forgiving by intent: PlayUiEventSound returns
+// false when a file will not load, and every caller then plays the vanilla sound it used before. So
+// the salvage sound was a shield clanging, the orb sound was a spell, and nothing ever sounded
+// broken enough to investigate.
+//
+// Reading the source could not catch it - the backslash is eaten by the compiler, not by the eye -
+// so this asks what the strings actually BECAME, and then whether the archive has them.
+TEST(OracoolAudit, EveryUiEventSoundPathSurvivedTheCompiler)
+{
+	ASSERT_EQ(oracool::UiEventSoundCount, 9u) << "a sound was added or removed; extend this test";
+
+	for (size_t i = 0; i < oracool::UiEventSoundCount; i++) {
+		const auto sound = static_cast<oracool::UiEventSound>(i);
+		const char *path = oracool::UiEventSoundPath(sound);
+		ASSERT_NE(path, nullptr) << "sound " << i;
+		const std::string p = path;
+
+		// The exact failure: a stripped backslash leaves "sfxui..." with no separator at all.
+		EXPECT_EQ(p.rfind("sfx\\ui\\", 0), 0u)
+		    << "sound " << i << " is \"" << p << "\" - it must start with the sfx ui prefix; a "
+		    << "single backslash in the source silently becomes no backslash at all";
+		EXPECT_NE(p.find(".wav"), std::string::npos) << "sound " << i << " is \"" << p << "\"";
+		EXPECT_EQ(p.find("sfxui"), std::string::npos)
+		    << "sound " << i << " is \"" << p << "\" - the backslashes were eaten by the compiler";
+	}
+
+	// Out of range answers nullptr rather than reading past the table.
+	EXPECT_EQ(oracool::UiEventSoundPath(static_cast<oracool::UiEventSound>(oracool::UiEventSoundCount)), nullptr);
+
+	// And the paths name files that are really there. This is the half that proves the fix rather
+	// than just the spelling.
+	MountTestArchives();
+	for (size_t i = 0; i < oracool::UiEventSoundCount; i++) {
+		const char *path = oracool::UiEventSoundPath(static_cast<oracool::UiEventSound>(i));
+		EXPECT_TRUE(FindAsset(path).ok()) << "the archive has no " << path;
+	}
+}

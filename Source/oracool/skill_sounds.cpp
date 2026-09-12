@@ -171,20 +171,50 @@ Skill CurrentCastSkill()
 
 namespace {
 
+/**
+ * @brief The nine fork UI event sounds, by UiEventSound order.
+ *
+ * DOUBLE backslashes. Every one of these was written with a single backslash from the day the table
+ * was added (v1.11.032) until 2026-09-12, which meant **none of the nine ever played**:
+ *
+ *     "sfx\ui\salvage.wav"   ->  sfxuisalvage.wav
+ *
+ * In C++ `\u` opens a universal-character-name and `\s` is not an escape at all, so MSVC warns
+ * (C4429, C4129) and drops both backslashes - verified by compiling that exact literal and printing
+ * it, which gives `sfxuisalvage.wav`, 16 characters. The WAVs were in the archive the whole time
+ * under their real names; the paths asking for them were the problem.
+ *
+ * It stayed invisible because the design is deliberately forgiving: PlayUiEventSound returns false
+ * when a file will not load, and every caller then plays the vanilla sound it used before
+ * (inv.cpp, levski_roar.cpp). So nine delivered assets were silently substituted for ~50 versions
+ * and nothing ever looked broken. SetCompletePath above was written correctly and is the only fork
+ * UI sound that has ever been heard.
+ *
+ * The test pins the shape of these strings for exactly that reason: a stripped backslash cannot be
+ * seen by reading the line, only by asking what the compiler made of it.
+ */
 constexpr const char *UiEventPaths[] = {
-	"sfx\ui\salvage.wav",
-	"sfx\ui\transmute.wav",
-	"sfx\ui\orb-absorb.wav",
-	"sfx\ui\socket.wav",
-	"sfx\ui\runeword-complete.wav",
-	"sfx\ui\milestone.wav",
-	"sfx\ui\encounter-cleared.wav",
-	"sfx\ui\map-unseal.wav",
-	"sfx\ui\signet-use.wav",
+	"sfx\\ui\\salvage.wav",
+	"sfx\\ui\\transmute.wav",
+	"sfx\\ui\\orb-absorb.wav",
+	"sfx\\ui\\socket.wav",
+	"sfx\\ui\\runeword-complete.wav",
+	"sfx\\ui\\milestone.wav",
+	"sfx\\ui\\encounter-cleared.wav",
+	"sfx\\ui\\map-unseal.wav",
+	"sfx\\ui\\signet-use.wav",
 };
 std::unique_ptr<TSnd> UiEventCache[std::size(UiEventPaths)];
 
 } // namespace
+
+const char *UiEventSoundPath(UiEventSound sound)
+{
+	const size_t i = static_cast<size_t>(sound);
+	if (i >= std::size(UiEventPaths))
+		return nullptr;
+	return UiEventPaths[i];
+}
 
 bool PlayUiEventSound(UiEventSound sound)
 {
