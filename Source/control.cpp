@@ -1185,9 +1185,28 @@ void CheckPanelInfo()
 		return;
 	}
 	if (oracool::GetBeltSlotRect(oracool::BeltRunToggleSlotIndex).contains(MousePosition)) {
-		// Names the state it is in, then what a click does - the glyph already shows the first, and
-		// the hint is where the key binding gets mentioned at all.
-		SetPanelString(oracool::IsRunEnabled() ? _("Running") : _("Walking"), UiFlags::ColorWhite);
+		// Names the state it is in, then what one step of it costs, then what a click does - the
+		// glyph already shows the first, and the hint is where the key binding gets mentioned at all.
+		const bool running = oracool::IsRunEnabled();
+		SetPanelString(running ? _("Running") : _("Walking"), UiFlags::ColorWhite);
+
+		// What a step ACTUALLY costs right now, derived the way StartWalkAnimation derives it rather
+		// than quoting the plain-walk constants: the walk animation is 8 frames and its length is
+		// 8 less the skipped frames, the run floors that skip at 2, and a plain walk floors it at -2.
+		// Movement Speed from items, Vigor and slows moves the number, so a fixed "10 ticks" would be
+		// wrong for most characters (user, 2026-09-12: "add elabotation text saying how many frames
+		// or ticks is one move").
+		//
+		// The carry is LOCAL and discarded. StrideTicksFor consumes it to spread a fractional tick
+		// across successive strides, and a hover that spent the player's carry would make merely
+		// looking at the button alter the next step.
+		int hoverCarry = 0;
+		const int strideTicks = oracool::StrideTicksFor(oracool::MovementSpeedPercent(*MyPlayer), hoverCarry);
+		const int skippedFrames = running ? std::max(2, 8 - strideTicks) : std::max(-2, 8 - strideTicks);
+		const int stepTicks = 8 - skippedFrames;
+		AddPanelString(fmt::format(fmt::runtime(_("One step: {:d} ticks, 8 frames")), stepTicks));
+		AddPanelString(fmt::format(fmt::runtime(_("Movement speed {:d}%")),
+		    oracool::MovementSpeedPercent(*MyPlayer)));
 		AddPanelString(_("Click to switch. Also the R key."));
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;

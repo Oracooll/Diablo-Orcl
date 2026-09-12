@@ -13,6 +13,30 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
+<#
+.SYNOPSIS
+    The bounding box of everything painted in a bitmap, or $null if nothing is.
+
+    A monster frame is mostly empty - the median is under a tenth painted, and a scavenger fills
+    about a fortieth - because the sheet's cell has to hold the largest pose of the animation. Shown
+    at a fixed height in a table that makes a bat a speck beside Diablo, so each portrait is trimmed
+    to what is actually drawn.
+#>
+function Get-PaintedBounds([System.Drawing.Bitmap]$bmp) {
+    $minX = $bmp.Width; $minY = $bmp.Height; $maxX = -1; $maxY = -1
+    for ($y = 0; $y -lt $bmp.Height; $y++) {
+        for ($x = 0; $x -lt $bmp.Width; $x++) {
+            if ($bmp.GetPixel($x, $y).A -eq 0) { continue }
+            if ($x -lt $minX) { $minX = $x }
+            if ($x -gt $maxX) { $maxX = $x }
+            if ($y -lt $minY) { $minY = $y }
+            if ($y -gt $maxY) { $maxY = $y }
+        }
+    }
+    if ($maxX -lt 0) { return $null }
+    return @{ X = $minX; Y = $minY; W = $maxX - $minX + 1; H = $maxY - $minY + 1 }
+}
+
 $repo   = Split-Path -Parent $PSScriptRoot
 # Where oracool_art_export.exe was told to write. Run that tool from the build directory - it reads
 # the archives sitting beside the exe - with the categories: monsters items ui
@@ -41,7 +65,7 @@ foreach ($line in ($body -split "`n")) {
     if (-not $families.Contains($suffix)) { $families[$suffix] = $width }
 }
 
-$cut = 0; $missing = @(); $odd = @()
+$cut = 0; $missing = @(); $odd = @(); $blank = @(); $trimmed = @()
 foreach ($suffix in $families.Keys) {
     $bits   = $suffix -split '\\\\'
     $folder = $bits[0]
@@ -65,7 +89,29 @@ foreach ($suffix in $families.Keys) {
                            (New-Object System.Drawing.Rectangle(0, 0, $frameW, $rowH)),
                            [System.Drawing.GraphicsUnit]::Pixel)
         $g.Dispose()
-        $dst.Save((Join-Path $monOut "$key.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+
+        # Trim to what is painted, with a pixel of air so nothing touches the edge.
+        $bounds = Get-PaintedBounds $dst
+        if ($null -eq $bounds) {
+            $blank += $suffix
+            $dst.Dispose()
+            continue
+        }
+        $margin = 1
+        $bx = [Math]::Max(0, $bounds.X - $margin)
+        $by = [Math]::Max(0, $bounds.Y - $margin)
+        $bw = [Math]::Min($dst.Width - $bx, $bounds.W + 2 * $margin)
+        $bh = [Math]::Min($dst.Height - $by, $bounds.H + 2 * $margin)
+        $trim = New-Object System.Drawing.Bitmap($bw, $bh)
+        $tg = [System.Drawing.Graphics]::FromImage($trim)
+        $tg.Clear([System.Drawing.Color]::Transparent)
+        $tg.DrawImage($dst, (New-Object System.Drawing.Rectangle(0, 0, $bw, $bh)),
+                            (New-Object System.Drawing.Rectangle($bx, $by, $bw, $bh)),
+                            [System.Drawing.GraphicsUnit]::Pixel)
+        $tg.Dispose()
+        $trim.Save((Join-Path $monOut "$key.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+        $trimmed += [pscustomobject]@{ Key = $key; From = "$frameW x $rowH"; To = "$bw x $bh" }
+        $trim.Dispose()
         $dst.Dispose()
         $cut++
     } finally { $img.Dispose() }
@@ -114,6 +160,11 @@ foreach ($sheet in $sheets) {
 "monster frames  : $cut"
 "missing art     : $($missing.Count)"
 $missing | ForEach-Object { "    $_" }
+if ($blank.Count) { "BLANK frames    : $($blank.Count)"; $blank | ForEach-Object { "    $_" } }
+if ($trimmed.Count) {
+    "trimmed         : $($trimmed.Count) portraits"
+    $trimmed | Select-Object -First 5 | ForEach-Object { "    {0,-22} {1,-12} -> {2}" -f $_.Key, $_.From, $_.To }
+}
 if ($odd.Count) { "ODD GEOMETRY    : $($odd.Count)"; $odd | ForEach-Object { "    $_" } }
 "item icons      : $icons (objcurs $first + objcurs2 $second + oracool_items)"
 $mf = Get-ChildItem $monOut -Filter *.png
