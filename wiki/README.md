@@ -38,25 +38,33 @@ it annotates.
 | `sprites/` | Generated copy of `Packaging/resources/oracool_assets`. Wiped and refilled on every build. |
 | `encyclopedia/` | The encyclopedia's own art - monster portraits, item icons, skill glyphs, spell icons. NOT wiped by the build; cut by `tools/BuildEncyclopediaArt.ps1`. |
 
-## Published site — PARKED BY DECISION, not merely pending
+## Published site — LIVE at <https://orclwiki.oracooll.com>
 
-The address, if it ever goes up, is <https://www.oracooll.com> via Cloudflare Pages connected to the
-GitHub repository: no build step, output directory `wiki`.
+Cloudflare Pages project **`orclwiki`** (account `h.rogachev@gmail.com`). Live since 2026-09-12.
+`orclwiki.pages.dev` serves the same thing.
 
-**It has never been live**, and on 2026-09-12 the user decided to keep it that way for now: the
-Claude Artifact below stays the only hosted copy. Read this as a decision, not a to-do.
+**It is a DIRECT UPLOAD, not a Git connection.** That is the point: the repository is never pushed,
+so going live costs nothing against the GitHub quota. Redeploy with
 
-Two things were settled at the same time, and they are the reason this section is worth reading
-before anyone revives the idea:
+    npx wrangler pages deploy wiki --project-name=orclwiki --branch=main --commit-dirty=true
 
-- **The production branch would be `renderer-32bit`, not `oracool-v1-main`.** The original plan named
-  the frozen V1 branch, whose last wiki commit is `cd0521a` - before the 64-rung ladder, before the
-  encyclopedia, before the 2026-09-12 audits. Pointing Pages at it would serve a months-old wiki.
-- **Going live means pushing, and that is the expensive part.** As of 2026-09-12 the branch is 45
-  commits ahead and `wiki/` alone is 49 MB, against a standing rule not to push (free-account quota).
-  Publishing also puts the extracted Blizzard art - the item icons, monster portraits, skill glyphs
-  and spell icons under `encyclopedia/` - into a public repository. That follows from the wiki
-  carve-out in the IP note, but it is a change of exposure worth stating out loud.
+`--branch=main` is not a git branch - it is the label Pages treats as **Production**, and it is what
+the custom domain serves. Deploying under any other name (the first attempt used `renderer-32bit`)
+creates a *preview* at `<hash>.orclwiki.pages.dev` and leaves the live site untouched. The project
+had an older production deployment from the v1.9.180 era, which is exactly what a preview deploy
+leaves in place.
+
+Two things that will otherwise waste somebody's afternoon:
+
+- **`_headers` caches for five minutes**, and none of the generated filenames carry a content hash.
+  Straight after a deploy the browser will keep serving the old `data.js`, so the sidebar shows the
+  previous version and the site looks like it did not deploy. Check the server instead:
+  `orclwiki.oracooll.com/data.js?cachebust=1` and read the version at the front.
+- **The wrangler token has `pages (write)` but only `zone (read)`.** Deploys work; anything touching
+  DNS or adding a new custom domain needs the dashboard.
+
+The site carries the extracted Blizzard art under `encyclopedia/` - item icons, monster portraits,
+skill glyphs, spell icons - per the wiki carve-out in the IP note. It is public.
 
 The folder is ready for it: every `href` and `src` is relative and nothing fetches, so it works at a
 domain root unchanged — verified by serving it over HTTP rather than assumed.
