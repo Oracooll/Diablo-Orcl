@@ -4,6 +4,7 @@
  * Implementation of load screens.
  */
 
+#include <algorithm> // std::clamp - the loading bar's gradient
 #include <cstdint>
 
 #include <SDL.h>
@@ -49,6 +50,50 @@ int progress_id;
 const uint8_t BarColor[3] = { 138, 43, 254 };
 /** The bar's colour on the 32-bit screen: RGB204.183.117, the legend's gold (user, 2026-09-08). One colour for every screen. */
 constexpr uint32_t BarColorRgb = 0xCCB775;
+
+/**
+ * @brief The loading bar's gradient (user, 2026-09-12: "make its color gradient, starting from dark
+ * red and finishing at bright gree, transitioning through whatever colors you decide").
+ *
+ * Six stops along the warm-to-cool ramp a progress bar is read by - dark red, red, orange, yellow,
+ * yellow-green, bright green - so the colour alone says roughly how far the load has got. The middle
+ * four are the transition the user left to choice; the ends are theirs.
+ *
+ * Permille rather than percent so the stops can sit off the tens without rounding: the yellow is
+ * held back to 700 and the yellow-green to 860, because an even spread spends too much of the ramp
+ * on orange and the bar reads as "stuck" in the middle of a load.
+ */
+struct BarGradientStop {
+	int atPermille;
+	uint8_t r, g, b;
+};
+constexpr BarGradientStop BarGradient[] = {
+	{ 0, 139, 0, 0 },      // dark red
+	{ 250, 198, 48, 16 },  // red, warming
+	{ 500, 226, 124, 8 },  // orange
+	{ 700, 232, 204, 24 }, // yellow
+	{ 860, 150, 206, 40 }, // yellow-green
+	{ 1000, 48, 224, 72 }, // bright green
+};
+
+/** @brief The gradient's colour at @p permille along the bar's FULL track, as 0x00RRGGBB. */
+uint32_t BarGradientColorAt(int permille)
+{
+	constexpr size_t StopCount = sizeof(BarGradient) / sizeof(BarGradient[0]);
+	permille = std::clamp(permille, 0, BarGradient[StopCount - 1].atPermille);
+	size_t i = 1;
+	while (i + 1 < StopCount && permille > BarGradient[i].atPermille)
+		i++;
+	const BarGradientStop &lo = BarGradient[i - 1];
+	const BarGradientStop &hi = BarGradient[i];
+	const int span = hi.atPermille - lo.atPermille;
+	// 0..256 rather than 0..100, so the step between adjacent columns stays smooth on a wide screen.
+	const int t = span > 0 ? (permille - lo.atPermille) * 256 / span : 256;
+	const uint32_t r = static_cast<uint32_t>(lo.r + (hi.r - lo.r) * t / 256);
+	const uint32_t g = static_cast<uint32_t>(lo.g + (hi.g - lo.g) * t / 256);
+	const uint32_t b = static_cast<uint32_t>(lo.b + (hi.b - lo.b) * t / 256);
+	return (r << 16) | (g << 8) | b;
+}
 /** The screen position of the top left corner of the progress bar. */
 const int BarPos[3][2] = { { 53, 37 }, { 53, 421 }, { 53, 37 } };
 
@@ -306,29 +351,59 @@ void DrawCutsceneForeground()
 {
 	const Rectangle &uiRectangle = GetUIRectangle();
 	const Surface &out = GlobalBackBuffer();
-	constexpr int ProgressHeight = 22;
+	// 15 REAL screen pixels (user, 2026-09-12: "make it 15px tall"), not 15 authored at 640x480 and
+	// scaled: the old 22 became 33 at 720p, and "15px" means fifteen on the screen being looked at.
+	constexpr int ProgressHeight = 15;
+	// Flush to the floor ("move it flush to the floor"). Measured from the SURFACE's bottom rather
+	// than the painting's: the cutscene is fit to height so the two normally coincide, but measuring
+	// from the surface keeps the bar on the floor even when the painting is cropped or letterboxed,
+	// and it no longer depends on BarPos's y at all - which is why only the x of that table is still
+	// read below.
+	const int barTop = out.h() - ProgressHeight;
+
 	SDL_Rect rect;
+	int trackWidth;
 	if (CutsceneRgb != nullptr && !out.isIndexed()) {
-		// The bar rides the scaled painting: BarPos and the bar's size were authored for 640x480. A wider
-		// painting (the 16:9 redo) keeps that 4:3 picture centred, so the bar is offset by the margin.
+		// The bar rides the scaled painting horizontally: BarPos's x and the bar's length were
+		// authored for 640x480. A wider painting (the 16:9 redo) keeps that 4:3 picture centred, so
+		// the bar is offset by the margin.
 		const int scaledHeight = CutsceneRgbRect.h;
 		const int coreWidth = CutsceneRgbSourceHeight * 4 / 3;
 		const int coreLeft = (CutsceneRgbSourceWidth - coreWidth) / 2;
 		rect = MakeSdlRect(
 		    out.region.x + CutsceneRgbRect.x + (coreLeft + BarPos[progress_id][0] * CutsceneRgbSourceHeight / 480) * scaledHeight / CutsceneRgbSourceHeight,
-		    out.region.y + CutsceneRgbRect.y + BarPos[progress_id][1] * scaledHeight / 480,
+		    out.region.y + barTop,
 		    static_cast<int>(sgdwProgress) * scaledHeight / 480,
-		    ProgressHeight * scaledHeight / 480);
+		    ProgressHeight);
+		trackWidth = static_cast<int>(MaxProgress) * scaledHeight / 480;
 	} else {
 		rect = MakeSdlRect(
 		    out.region.x + BarPos[progress_id][0] + uiRectangle.position.x,
-		    out.region.y + BarPos[progress_id][1] + uiRectangle.position.y,
+		    out.region.y + barTop,
 		    sgdwProgress,
 		    ProgressHeight);
+		trackWidth = static_cast<int>(MaxProgress);
 	}
-	// A palette index through the surface's own fill (v1.11): SDL_FillRect with an index on a 32-bit
-	// surface wrote the index as a colour - the blue bar in the first-look screenshot.
-	FillRectRgb(out, rect.x - out.region.x, rect.y - out.region.y, rect.w, rect.h, BarColorRgb, BarColor[progress_id]);
+
+	if (out.isIndexed()) {
+		// One palette index, as before. A per-column gradient here would need a nearest-palette match
+		// per column, and this is the legacy 8-bit path - the 32-bit screen is what ships.
+		//
+		// A palette index through the surface's own fill (v1.11): SDL_FillRect with an index on a
+		// 32-bit surface wrote the index as a colour - the blue bar in the first-look screenshot.
+		FillRectRgb(out, rect.x - out.region.x, rect.y - out.region.y, rect.w, rect.h, BarColorRgb, BarColor[progress_id]);
+	} else {
+		// The gradient spans the WHOLE track, not the drawn part, and is revealed as the bar grows.
+		// Normalising it to the filled width instead would end every partial bar on bright green,
+		// which would make the colour say nothing; this way the colour at the bar's leading edge IS
+		// how far along the load is.
+		const int x0 = rect.x - out.region.x;
+		const int y0 = rect.y - out.region.y;
+		for (int i = 0; i < rect.w; i++) {
+			const int permille = trackWidth > 0 ? i * 1000 / trackWidth : 1000;
+			FillRectRgb(out, x0 + i, y0, 1, rect.h, BarGradientColorAt(permille), BarColor[progress_id]);
+		}
+	}
 
 	if (DiabloUiSurface() == PalSurface)
 		BltFast(&rect, &rect);
