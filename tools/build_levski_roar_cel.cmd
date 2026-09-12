@@ -1,6 +1,6 @@
 @echo off
 REM Builds objects\orclroar.cel - Levski's Roar, the town monument - from the green-keyed painting
-REM the user dropped on 2026-08-20 and filed 2026-08-31 into 02-source-art\world, and
+REM the user dropped on 2026-08-20 and filed 2026-08-31 into 01-in-use-assets\world, and
 REM installs it into both asset channels.
 REM
 REM Until now the monument borrowed OFILE_ROCKSTAN, the Anvil of Fury's rock stand, as an explicit
@@ -8,7 +8,7 @@ REM placeholder. This gives it its own art and its own object_graphic_id.
 REM
 REM The painting arrived in the drop zone under a generated name carrying a Cyrillic abbreviation,
 REM so this script used to find it by GLOB on the timestamp - a literal path in an earlier cut
-REM script did not survive that script's own encoding. The file was swept into 02-source-art\world
+REM script did not survive that script's own encoding. The file was swept into 01-in-use-assets\world
 REM on 2026-08-31 under an ASCII name, so it is referenced by name again.
 REM
 REM 96 must equal OracoolLevskiRoarAnimWidth in Source/objdat.h. CEL stores
@@ -20,11 +20,10 @@ REM Run from the repository root.
 
 setlocal
 set ART=
-set ART=..\Resources\02-source-art\world\vasil-levski-monument-greenscreen.png
+set ART=..\Resources\01-in-use-assets\world\vasil-levski-monument-greenscreen.png
 set PAL=tools\town.pal
-REM The PRIVATE archive's folder since the IP split (2026-09-07): the painting is the user's own
-REM but the sprite is quantised to a Blizzard palette, so it ships in release zips only.
-set OUT=..\Resources\03-private-assets\oracool_private_assets\objects\orclroar.cel
+REM Into oracool.mpq with everything else since the private archive was dissolved (2026-09-12).
+set OUT=Packaging\resources\oracool_assets\objects\orclroar.cel
 REM Desaturation before the palette match, percent (user, 2026-09-08: a stone monument, not a gold one).
 set DESAT=75
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

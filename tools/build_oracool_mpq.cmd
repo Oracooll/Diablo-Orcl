@@ -93,30 +93,13 @@ if not "%PACKRC%"=="0" (
 echo.
 echo oracool.mpq written to %OUT%
 
-REM Oracool (IP audit, 2026-09-07): the PRIVATE archive - art made from reworked Blizzard textures,
-REM kept outside the repository; ships in release zips as fan work, never on GitHub. Packed when its folder exists, skipped otherwise.
-set PRIVSRC=%~dp0..\..\Resources\03-private-assets\oracool_private_assets
-if not exist "%PRIVSRC%" (
-  echo oracool_private.mpq: no private asset folder - public build
-  endlocal
-  exit /b 0
-)
-set PRIVOUT=%BUILD%\oracool_private.mpq
-set PRIVLIST=%TEMP%\oracool_private_%RANDOM%.txt
-if exist "%PRIVLIST%" del "%PRIVLIST%"
-pushd "%PRIVSRC%"
-for /r %%F in (*) do (
-  set "P=%%F"
-  set "P=!P:%CD%\=!"
-  echo(!P!>>"%PRIVLIST%"
-)
-popd
-"%PACKER%" "%PRIVSRC%" "%PRIVOUT%" "@%PRIVLIST%"
-set PRIVRC=%ERRORLEVEL%
-del "%PRIVLIST%" 2>nul
-if not "%PRIVRC%"=="0" (
-  echo ERROR: the packer failed on the private archive with exit code %PRIVRC%
-  exit /b %PRIVRC%
-)
-echo oracool_private.mpq written to %PRIVOUT% (ships in release zips, never in the repository)
+REM The PRIVATE archive is GONE (user, 2026-09-12: "Delete Private Assets folder, there are no
+REM private assets. All goes online as we agreed it is a non-profit mod"). Its twenty assets - the
+REM nine cutscene paintings, the three object sprites and the eight UI panels - moved into
+REM Packaging\resources\oracool_assets and now ship in oracool.mpq like everything else, so there is
+REM one archive again and nothing to keep out of the repository.
+REM
+REM The engine still MOUNTS oracool_private.mpq if one is present (see init.cpp); it is simply never
+REM built now. Delete any stale copy beside the binary - it is mounted AHEAD of oracool.mpq and would
+REM shadow these files with their old versions.
 endlocal

@@ -1,7 +1,7 @@
 # CutLevskiRoarSkin.ps1 - cuts the painted Levski's Roar skin into shipped assets and a geometry header.
 #
 # Reads  Resources/levskis roar.png                       (the user's own painting, 320x352, controls painted in)
-#        Resources/02-source-art/delivered-packs/oracool-levski-icon-controls-v3/icons-3x/*.png
+#        Resources/01-in-use-assets/delivered-packs/oracool-levski-icon-controls-v3/icons-3x/*.png
 #                                                          (GPT's nine icon controls at 96x96, three states each)
 # Writes Packaging/resources/oracool_assets/ui/levski_bg.png                 (the painting, 1:1)
 #        Packaging/resources/oracool_assets/ui/levski_<stem>_{hover,pressed}.png  (18 files, at the painted sizes)
@@ -32,9 +32,9 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$mpq = Join-Path (Split-Path -Parent $root) 'Resources'
+$mpq = Join-Path (Split-Path -Parent $root) 'Resources\01-in-use-assets\working-files'
 $source = Join-Path $mpq 'levskis roar.png'
-$iconPack = Join-Path $mpq '02-source-art\delivered-packs\oracool-levski-icon-controls-v3\icons-3x'
+$iconPack = Join-Path $mpq '01-in-use-assets\delivered-packs\oracool-levski-icon-controls-v3\icons-3x'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 $header = Join-Path $root 'Source\oracool\levski_roar_skin.h'
 foreach ($f in @($source, $iconPack)) { if (-not (Test-Path $f)) { throw "missing: $f" } }

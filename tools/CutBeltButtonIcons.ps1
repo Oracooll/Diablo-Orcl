@@ -3,7 +3,7 @@
 #
 #     powershell -ExecutionPolicy Bypass -File tools\CutBeltButtonIcons.ps1
 #
-# Source: Resources\02-source-art\delivered-packs\diablo-bottom-hud-v1\icons\{burger-menu,town-portal}\
+# Source: Resources\01-in-use-assets\delivered-packs\diablo-bottom-hud-v1\icons\{burger-menu,town-portal}\
 # source-112\*-{default,hover,click}-112x112.png. Output: one strip per button, three cells side by
 # side in that order, indexed state * cell by hud_art.cpp's DrawBurgerMenuButton / DrawTownPortalIcon.
 #
@@ -23,7 +23,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $root = Split-Path -Parent $PSScriptRoot
-$pack = Join-Path (Split-Path -Parent $root) 'Resources\02-source-art\delivered-packs\diablo-bottom-hud-v1\icons'
+$pack = Join-Path (Split-Path -Parent $root) 'Resources\01-in-use-assets\delivered-packs\diablo-bottom-hud-v1\icons'
 $outDir = Join-Path $root 'Packaging\resources\oracool_assets\ui'
 
 $lut = New-Object byte[] 256; $hlut = New-Object byte[] 256

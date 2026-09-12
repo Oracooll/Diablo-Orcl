@@ -12,7 +12,7 @@
 # The source is a plain opaque square - an ornate border around a dark well - so there is no colour
 # key and no alpha to preserve. It scales as a whole.
 param(
-    [string]$Source = "..\Resources\02-source-art\hud-icons\skill-points-icon-ornate-bezel-empty-master.png",
+    [string]$Source = "..\Resources\01-in-use-assets\hud-icons\skill-points-icon-ornate-bezel-empty-master.png",
     [string]$Out    = "Packaging\resources\oracool_assets\ui\skill_points.png"
 )
 

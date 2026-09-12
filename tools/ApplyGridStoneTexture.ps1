@@ -32,7 +32,7 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
-$sheet = "..\Resources\02-source-art\inventory\panel-frame-kit-modular-greenscreen.png"
+$sheet = "..\Resources\01-in-use-assets\inventory\panel-frame-kit-modular-greenscreen.png"
 # The sheet's large background texture occupies (16,53) 442x463. The grid needs 280x196, which
 # fits inside it with room to spare, so the crop is centred there - leaving an 81px horizontal
 # and 133px vertical margin to the texture's green edge.

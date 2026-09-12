@@ -28,8 +28,8 @@
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
-$art  = "..\Resources\02-source-art"
-$inUse = "..\Resources\02-source-art" # 01-in-use was folded into 02-source-art on 2026-09-07
+$art  = "..\Resources\01-in-use-assets"
+$inUse = "..\Resources\01-in-use-assets" # the folders were rebuilt as 01-in-use/02-concept on 2026-09-12
 $dirs = @("Packaging\resources\oracool_assets\ui","Packaging\resources\assets\ui","build\x64-Debug\assets\ui")
 foreach ($d in $dirs) { if (Test-Path (Split-Path $d -Parent)) { New-Item -ItemType Directory -Force -Path $d | Out-Null } }
 function Save-All([System.Drawing.Bitmap]$bmp, [string]$name) {
@@ -103,7 +103,7 @@ Write-Host "  border kit: $($kitParts.Count) elements cut to $partDir"
 # Split at the midpoint - left dormant, right active - the same convention WaypointCel.cs uses for
 # the in-world object.
 #
-# Source is the TOP-DOWN sigil, not the isometric floor pad in 02-source-art\world. The pad is roughly
+# Source is the TOP-DOWN sigil, not the isometric floor pad in 01-in-use-assets\world. The pad is roughly
 # 2:1, so contain-fitting it into a 30px cell left it about 30x21 and reading as a small lozenge;
 # the top-down sigil is near-square and fills the cell.
 $ICON_W = 30; $ICON_H = 30

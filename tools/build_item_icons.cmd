@@ -49,7 +49,7 @@ REM Usage:  tools\build_item_icons.cmd
 REM Run from the repository root.
 
 setlocal enabledelayedexpansion
-set ART=..\Resources\02-source-art\items
+set ART=..\Resources\01-in-use-assets\items
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\data\inv\oracool_items.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
@@ -352,7 +352,7 @@ type "Source\oracool\encounter_items_icon_specs.txt" >> "%SPECFILE%"
 
 REM The six Phase 1 charms' own icons, appended AFTER the encounter items (RfA-02 batch 5,
 REM 2026-09-11). Hand-written spec; the art is the delivered 28x28 icons, filed under
-REM ..\Resources\02-source-art\items\charms. First added by appending to the sheet in place, because
+REM ..\Resources\01-in-use-assets\items\charms. First added by appending to the sheet in place, because
 REM the Temp inputs of several generators above had been cleared - re-run those generators before
 REM trusting a full rebuild of this file.
 type "Source\oracool\charm_icons_icon_specs.txt" >> "%SPECFILE%"
@@ -366,7 +366,7 @@ if not exist "Source\oracool\unique_items2_icon_specs.txt" (
 type "Source\oracool\unique_items2_icon_specs.txt" >> "%SPECFILE%"
 
 REM The 18 unique-expansion bases' own icons (RfA-04 batch 12, 2026-09-11), after the late run.
-REM Hand-written spec; art in ..\Resources\02-source-art\items\unqbase.
+REM Hand-written spec; art in ..\Resources\01-in-use-assets\items\unqbase.
 type "Source\oracool\unqbase_icons_icon_specs.txt" >> "%SPECFILE%"
 
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1

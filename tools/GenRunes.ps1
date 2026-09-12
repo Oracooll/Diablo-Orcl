@@ -24,7 +24,9 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $out = Join-Path $root 'Source\oracool'
-$art = 'C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Resources\02-source-art\items\item-runes-v1.png'
+# item-sets\, not items\ - the sheet has always lived there and this path had the wrong folder
+# (found 2026-09-12 while rebuilding the Resources folders; it predates that move).
+$art = 'C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Resources\01-in-use-assets\item-sets\item-runes-v1.png'
 
 # The sheet's grid, MEASURED (non-green runs) rather than guessed - 11 columns x 3 rows, D2's own
 # rune order reading left to right, top to bottom.

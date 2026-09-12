@@ -15,7 +15,7 @@ use strict; use warnings;
 use Compress::Zlib;
 use MIME::Base64;
 my $repo = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Diablo Orcl';
-my $palf = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Resources/02-source-art/delivered-packs/oracool-stash-tab-button-pack/assets/source/town-patched-runtime.pal';
+my $palf = 'C:/Users/hroga/OneDrive/2. Personal Files/Software/Diablo/Resources/01-in-use-assets/delivered-packs/oracool-stash-tab-button-pack/assets/source/town-patched-runtime.pal';
 my $fonts = "$repo/Packaging/resources/assets/fonts";
 my $ofonts = "$repo/Packaging/resources/oracool_assets/fonts";
 sub slurp { my $f = shift; open my $F, '<:raw', $f or die "$f: $!"; local $/; my $d = <$F>; close $F; return $d; }
