@@ -321,7 +321,7 @@ const NOTES = {
    orb, charm - is an ordinary row of AllItemsList, so the picture is a join on the constant rather
    than a second table to keep in step. cursIndex addresses all three cursor sheets end to end,
    Oracool's own included. */
-const ICON_COUNT = 866;
+const ICON_COUNT = 855;   // frames 0..854; 854 is ICURS_ORACOOL_LAST
 const ICON_BY_ID = {};
 WIKI.items.forEach(function (i) {
 	if (i.cursIndex >= 0 && i.cursIndex < ICON_COUNT) ICON_BY_ID[i.id] = i.cursIndex;

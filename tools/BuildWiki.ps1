@@ -1417,11 +1417,28 @@ $cursBody = $cursBody.Substring(0, $cursBody.IndexOf('};'))
 $cursBody = [regex]::Replace($cursBody, '#include\s+"(oracool/[A-Za-z0-9_]+\.inc)"', {
         param($m) Read-SourceFile $m.Groups[1].Value
     })
+# Comments first: an ICURS_ name mentioned in one would otherwise be counted as an entry and shift
+# every index after it.
+$cursBody = [regex]::Replace($cursBody, '/\*.*?\*/', '', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+$cursBody = [regex]::Replace($cursBody, '//[^\r\n]*', '')
 $cursIndex = @{}
 $nextCurs = 0
-foreach ($m in [regex]::Matches($cursBody, 'ICURS_(\w+)\s*(?:=\s*(\d+))?\s*,')) {
+# Three shapes, and getting any of them wrong silently misaligns every icon that follows:
+#   ICURS_A,              - takes the running value
+#   ICURS_A = 12,         - sets the running value
+#   ICURS_A = ICURS_B,    - an ALIAS marker (FIRST/LAST). It names no frame of its own, so it must
+#                           NOT advance the counter, and the whole entry has to be consumed in one
+#                           match or ICURS_B is read as a second entry too.
+# The trailing comma is optional because the last entry of each .inc file carries none - requiring
+# it dropped one entry per include and walked every later icon backwards.
+foreach ($m in [regex]::Matches($cursBody, 'ICURS_(\w+)\s*(?:=\s*(?:(\d+)|ICURS_(\w+)))?')) {
+    $name = $m.Groups[1].Value
+    if ($m.Groups[3].Success) {
+        if ($cursIndex.ContainsKey($m.Groups[3].Value)) { $cursIndex[$name] = $cursIndex[$m.Groups[3].Value] }
+        continue
+    }
     if ($m.Groups[2].Success) { $nextCurs = [int]$m.Groups[2].Value }
-    $cursIndex[$m.Groups[1].Value] = $nextCurs
+    $cursIndex[$name] = $nextCurs
     $nextCurs++
 }
 foreach ($it in $items) {

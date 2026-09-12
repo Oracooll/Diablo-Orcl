@@ -61,7 +61,7 @@ an item level of <b>1, 13, 25 and 37</b> respectively.</div>
    Oracool's own oracool_items.cel - so the fork's gems, runes, jewels, orbs and charms have pictures
    too. An index outside the run means the icon was never cut; show nothing rather than a broken
    image. */
-const ICON_COUNT = 866;
+const ICON_COUNT = 855;   // frames 0..854; 854 is ICURS_ORACOOL_LAST
 function itemIcon(v, size) {
 	if (v < 0 || v >= ICON_COUNT) return '';
 	return '<img src="encyclopedia/items/curs_' + v + '.png" alt="" class="sprite" style="max-height:' + size + 'px">';

@@ -72,6 +72,9 @@ document.getElementById('stats').innerHTML =
 
 makeTable(document.getElementById('table'), rows, [
 	{ key: 'name', label: 'Name' },
+	{ key: 'origin', label: 'From', render: function (v) {
+		return v === 'Vanilla' ? '<span class="tag">vanilla</span>' : '<span class="tag ok">Oracool</span>';
+	} },
 	{ key: 'base', label: 'Base type' },
 	{ key: 'minLvl', label: 'Min level', num: true },
 	{ key: 'powerCount', label: 'Powers', num: true },
@@ -81,7 +84,7 @@ makeTable(document.getElementById('table'), rows, [
 ], {
 	sort: 'minLvl',
 	placeholder: 'Search name, base or effect...',
-	filters: [{ key: 'base', label: 'Base' }]
+	filters: [{ key: 'base', label: 'Base' }, { key: 'origin', label: 'From' }]
 });
 </script>
 </body>
