@@ -1550,5 +1550,65 @@ TEST_F(InvTest, AddGoldToInventory_UsesTheWholeSevenRowGrid)
 
 	gbIsMultiplayer = false;
 }
+
+/**
+ * @brief The anchor the right-click equip swap places the displaced item at.
+ *
+ * User, 2026-09-12: "the current item being replaced to take the same spot in the inventory the new
+ * item just occupied". CheckInvCut finds that spot with ActiveInvAnchorSlotOf, and this is the one
+ * piece of arithmetic in the change that can be wrong by exactly one row and fail SILENTLY:
+ * AddItemToInvGrid marks an item's BOTTOM-left cell with the positive list index, while every
+ * placement helper takes a TOP-left anchor. Off by a row, the placement just fails its fit check and
+ * the displaced item goes to the far end of the bag - the very thing the change exists to stop.
+ *
+ * So the premise is asserted here too, not only the result.
+ */
+TEST_F(InvTest, ActiveInvAnchorSlotOfFindsTheTopLeftCellNotTheBottomLeft)
+{
+	ActiveInventoryTab = 0;
+
+	// Players[1], NOT MyPlayer. AddItemToInvGrid calls NetSendCmdChInvItem when the player it is
+	// given IS MyPlayer, and that faults under the test harness - one of the three known 0xc0000005
+	// traps in backpack tests, and the one this test hit on its first run.
+	Player &player = Players[1];
+	for (int i = 0; i < InventoryGridCells; i++) {
+		player.InvList[i] = {};
+		player.InvGrid[i] = 0;
+	}
+	player._pNumInv = 0;
+
+	Item twoByTwo {};
+	InitializeItem(twoByTwo, IDI_GREYSUIT);
+	ASSERT_EQ(GetInventorySize(twoByTwo), Size(2, 2))
+	    << "this test only means something if the fixture item spans two rows";
+
+	// Top-left at row 1, column 1, so it covers cells 11, 12, 21 and 22.
+	constexpr int Anchor = 11;
+	const int pitch = InventorySizeInSlots.width;
+	ASSERT_TRUE(AutoPlaceItemInInventorySlot(player, Anchor, twoByTwo, true));
+	ASSERT_EQ(player._pNumInv, 1);
+
+	EXPECT_EQ(player.InvGrid[Anchor + pitch], 1) << "the BOTTOM-left cell carries the positive index";
+	EXPECT_EQ(player.InvGrid[Anchor], -1) << "the top-left cell carries the negative index";
+
+	EXPECT_EQ(ActiveInvAnchorSlotOf(player, 1), Anchor)
+	    << "the anchor must be the cell the item was PLACED at, not the cell the grid marks positive";
+
+	// A one-cell item is the degenerate case, where the two cells are the same one.
+	Item oneByOne {};
+	InitializeItem(oneByOne, IDI_GOLD);
+	ASSERT_EQ(GetInventorySize(oneByOne), Size(1, 1));
+	ASSERT_TRUE(AutoPlaceItemInInventorySlot(player, 5, oneByOne, true));
+	EXPECT_EQ(ActiveInvAnchorSlotOf(player, 2), 5);
+
+	// And an index nothing in the grid references has no anchor, rather than cell 0.
+	EXPECT_EQ(ActiveInvAnchorSlotOf(player, 7), -1);
+
+	for (int i = 0; i < InventoryGridCells; i++) {
+		player.InvList[i] = {};
+		player.InvGrid[i] = 0;
+	}
+	player._pNumInv = 0;
+}
 } // namespace
 } // namespace devilution

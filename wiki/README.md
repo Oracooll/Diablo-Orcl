@@ -35,14 +35,28 @@ it annotates.
 | `wiki.css` | The theme. Edit here. |
 | `wiki.js` | Navigation and the shared sortable/filterable table. |
 | `data.js` | Generated. Do not edit - `BuildWiki.ps1` overwrites it. |
-| `sprites/` | Generated copy of `Packaging/resources/assets`. |
+| `sprites/` | Generated copy of `Packaging/resources/oracool_assets`. Wiped and refilled on every build. |
+| `encyclopedia/` | The encyclopedia's own art - monster portraits, item icons, skill glyphs, spell icons. NOT wiped by the build; cut by `tools/BuildEncyclopediaArt.ps1`. |
 
-## Published site — planned, NOT live
+## Published site — PARKED BY DECISION, not merely pending
 
-The intention is to serve this folder at <https://www.oracooll.com> via Cloudflare Pages, connected
-to the GitHub repository: no build step, output directory `wiki`, production branch
-`oracool-v1-main`. **Nothing is connected yet** (parked 2026-08-24), so pushing changes nothing
-outside the repo and the Artifact below is still the only hosted copy.
+The address, if it ever goes up, is <https://www.oracooll.com> via Cloudflare Pages connected to the
+GitHub repository: no build step, output directory `wiki`.
+
+**It has never been live**, and on 2026-09-12 the user decided to keep it that way for now: the
+Claude Artifact below stays the only hosted copy. Read this as a decision, not a to-do.
+
+Two things were settled at the same time, and they are the reason this section is worth reading
+before anyone revives the idea:
+
+- **The production branch would be `renderer-32bit`, not `oracool-v1-main`.** The original plan named
+  the frozen V1 branch, whose last wiki commit is `cd0521a` - before the 64-rung ladder, before the
+  encyclopedia, before the 2026-09-12 audits. Pointing Pages at it would serve a months-old wiki.
+- **Going live means pushing, and that is the expensive part.** As of 2026-09-12 the branch is 45
+  commits ahead and `wiki/` alone is 49 MB, against a standing rule not to push (free-account quota).
+  Publishing also puts the extracted Blizzard art - the item icons, monster portraits, skill glyphs
+  and spell icons under `encyclopedia/` - into a public repository. That follows from the wiki
+  carve-out in the IP note, but it is a change of exposure worth stating out loud.
 
 The folder is ready for it: every `href` and `src` is relative and nothing fetches, so it works at a
 domain root unchanged — verified by serving it over HTTP rather than assumed.
