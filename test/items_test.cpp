@@ -345,11 +345,11 @@ TEST_F(RareItemTest, GetRareItemAffixes_TagsItemAsRare)
 	EXPECT_EQ(item._iOracoolTier, OracoolItemTier::Rare);
 	EXPECT_EQ(item._iMagical, ITEM_QUALITY_MAGIC);
 	EXPECT_EQ(item.getTextColor(), UiFlags::ColorYellow3); // YL-3 since 2026-09-07
-	// DebugSpawnItem (the "drop {name}" debug console command) finds items purely by a
-	// lowercased substring match against _iIName, so this is also what guarantees "drop rare"
-	// actually works - ASCII lowercasing preserves substring containment, so proving the
-	// mixed-case name here is sufficient proof for the lowercase search path too.
-	EXPECT_NE(std::string(item._iIName).find("Rare"), std::string::npos);
+	// The name comes from the pool now (v1.11.101), so it no longer carries the tier word - the
+	// tier is carried by _iOracoolTier, the tooltip Tier line and the name colour. "giverare" was
+	// never name-driven either: DebugSpawnTieredItem filters on _iOracoolTier. What the name must
+	// still be is TWO WORDS, generated and non-empty.
+	EXPECT_EQ(std::count(std::begin(item._iIName), std::end(item._iIName), 0x20), 1) << item._iIName;
 }
 
 using BuffedUniqueItemTest = RareItemTest;
@@ -437,9 +437,9 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_TagsItemAsBuffedUniqueAn
 	EXPECT_EQ(item._iOracoolTier, OracoolItemTier::BuffedUnique);
 	EXPECT_EQ(item._iMagical, ITEM_QUALITY_MAGIC);
 	EXPECT_EQ(item.getTextColor(), UiFlags::ColorWhitegold);
-	// Display name is "Unique {base}", not "Buffed Unique {base}", per the roadmap's naming spec.
-	EXPECT_NE(std::string(item._iIName).find("Unique"), std::string::npos);
-	EXPECT_EQ(std::string(item._iIName).find("Buffed"), std::string::npos);
+	// Pool-named since v1.11.101 - two words, no tier label. See the Rare case above.
+	EXPECT_EQ(std::count(std::begin(item._iIName), std::end(item._iIName), 0x20), 1) << item._iIName;
+
 }
 
 using PrimalItemTest = RareItemTest;
@@ -558,7 +558,8 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_TagsItemAsPrimalWithPerfectRollAndOr
 	EXPECT_TRUE(item._iOracoolPerfectRoll);
 	EXPECT_EQ(item._iMagical, ITEM_QUALITY_MAGIC);
 	EXPECT_EQ(item.getTextColor(), UiFlags::ColorBeige2); // BE-2 since 2026-09-07
-	EXPECT_NE(std::string(item._iIName).find("Primal"), std::string::npos);
+	// Pool-named since v1.11.101 - two words, no tier label.
+	EXPECT_EQ(std::count(std::begin(item._iIName), std::end(item._iIName), 0x20), 1) << item._iIName;
 }
 
 // ForcePerfectAffixRoll must never leak past the call that set it - confirm a normal

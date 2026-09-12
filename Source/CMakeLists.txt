@@ -87,6 +87,7 @@ set(libdevilutionx_SRCS
   oracool/item_set_stats.cpp
   oracool/skill_sounds.cpp
   oracool/unique_affixes.cpp
+  oracool/item_names.cpp
   oracool/item_sets.cpp
   oracool/gradual_healing.cpp
   oracool/ornate_border.cpp

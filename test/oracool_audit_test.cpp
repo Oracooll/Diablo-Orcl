@@ -77,6 +77,7 @@
 #include "oracool/item_tiers.h"
 #include "oracool/levski_roar.h"
 #include "oracool/waypoint_menu.h"
+#include "oracool/item_names.h"
 #include "oracool/item_sets.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/readied_spells.h"
@@ -5230,6 +5231,94 @@ TEST(OracoolAffixBudget, TheDropTailNeverPushesAnItemPastItsTiersAffixBudget)
 	InitializeItem(setPiece, IDI_ORACOOL_HELM);
 	setPiece._iOracoolTier = OracoolItemTier::Set;
 	EXPECT_EQ(OracoolAffixBudget(setPiece), 0) << "a set piece takes no rolled affix";
+}
+
+
+/**
+ * The item name pool: generated on the fly, derived from the seed, never rolled.
+ *
+ * User request (2026-09-13): "we must generate a pool of name affixes to make items sound more
+ * interesting and generate their names on the fly in real time."
+ *
+ * The determinism half is the one that matters most and is the least visible. SetupAllItems is
+ * replayed from a stored seed to rebuild every dungeon item on load, so a name that was ROLLED -
+ * consuming randomness - would both come back different and shift every roll after it. The pack
+ * corpus is the end-to-end proof of this; these are the unit-level reasons it holds.
+ */
+TEST(OracoolItemNames, NamesAreTwoWordsDerivedFromTheSeedAndNeverRolled)
+{
+	// DETERMINISTIC: same seed, same name, every time and in any RNG state.
+	for (uint32_t seed : { 0u, 1u, 7u, 4242u, 0x7FFFFFFFu, 0xFFFFFFFFu }) {
+		const std::string first = oracool::GenerateOracoolItemName(seed);
+		SetRndSeed(12345);
+		GenerateRnd(100); // move the engine's stream underneath it
+		const std::string second = oracool::GenerateOracoolItemName(seed);
+		EXPECT_EQ(first, second) << "the name moved with the RNG state, so it is being rolled";
+	}
+
+	// CONSUMES NO RANDOMNESS. If it did, every item generated after one would shift.
+	SetRndSeed(99);
+	const int before = GenerateRnd(1000);
+	SetRndSeed(99);
+	oracool::GenerateOracoolItemName(777);
+	const int after = GenerateRnd(1000);
+	EXPECT_EQ(before, after) << "generating a name perturbed the seeded stream";
+
+	// TWO WORDS, both non-empty.
+	for (uint32_t seed = 0; seed < 500; seed++) {
+		const std::string name = oracool::GenerateOracoolItemName(seed);
+		const size_t space = name.find(' ');
+		ASSERT_NE(space, std::string::npos) << "not two words: " << name;
+		EXPECT_EQ(name.find(' ', space + 1), std::string::npos) << "more than two words: " << name;
+		EXPECT_GT(space, 0u) << "empty first word: " << name;
+		EXPECT_LT(space + 1, name.size()) << "empty second word: " << name;
+		EXPECT_LT(name.size(), 64u) << "would not fit _iIName: " << name;
+	}
+
+	// VARIED, and specifically varied across CONSECUTIVE seeds - which is the whole reason the seed
+	// is hashed rather than taken modulo. AdvanceRndSeed hands out related seeds to items dropped
+	// together, so a plain modulo would march the first word down the table and name a whole room
+	// of loot "Ashen ...", then "Bleak ...".
+	std::set<std::string> distinct;
+	std::set<std::string> firstWords;
+	for (uint32_t seed = 1000; seed < 1064; seed++) {
+		const std::string name = oracool::GenerateOracoolItemName(seed);
+		distinct.insert(name);
+		firstWords.insert(name.substr(0, name.find(' ')));
+	}
+	EXPECT_GE(distinct.size(), 60u) << "64 consecutive seeds produced too few distinct names";
+	EXPECT_GE(firstWords.size(), 30u) << "consecutive seeds cluster on the same first word";
+
+	// The pool is big enough to be worth having, and both tables are clean.
+	EXPECT_GE(oracool::OracoolNameAdjectiveCount() * oracool::OracoolNameNounCount(), 4000u)
+	    << "the pool is too small to keep names feeling fresh";
+	std::set<std::string> adjectives;
+	for (size_t i = 0; i < oracool::OracoolNameAdjectiveCount(); i++) {
+		const char *word = oracool::OracoolNameAdjective(i);
+		ASSERT_NE(word, nullptr);
+		EXPECT_NE(*word, '\0') << "empty adjective at " << i;
+		EXPECT_TRUE(adjectives.insert(word).second) << "duplicate adjective: " << word;
+	}
+	std::set<std::string> nouns;
+	for (size_t i = 0; i < oracool::OracoolNameNounCount(); i++) {
+		const char *word = oracool::OracoolNameNoun(i);
+		ASSERT_NE(word, nullptr);
+		EXPECT_NE(*word, '\0') << "empty noun at " << i;
+		EXPECT_TRUE(nouns.insert(word).second) << "duplicate noun: " << word;
+	}
+
+	// Every index of both tables is actually reachable - a table longer than the generator's own
+	// modulus would silently strand its tail.
+	std::set<std::string> reachedAdjectives;
+	std::set<std::string> reachedNouns;
+	for (uint32_t seed = 0; seed < 200000; seed++) {
+		const std::string name = oracool::GenerateOracoolItemName(seed);
+		const size_t space = name.find(' ');
+		reachedAdjectives.insert(name.substr(0, space));
+		reachedNouns.insert(name.substr(space + 1));
+	}
+	EXPECT_EQ(reachedAdjectives.size(), oracool::OracoolNameAdjectiveCount()) << "an adjective is unreachable";
+	EXPECT_EQ(reachedNouns.size(), oracool::OracoolNameNounCount()) << "a noun is unreachable";
 }
 
 TEST(OracoolAudit, SortGivesEveryQualityTierItsOwnPageAndKeepsASetTogether)

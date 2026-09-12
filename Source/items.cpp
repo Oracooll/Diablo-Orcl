@@ -46,6 +46,7 @@
 #include "oracool/gradual_healing.h"
 #include "oracool/charms.h"
 #include "oracool/gems.h"
+#include "oracool/item_names.h"
 #include "oracool/item_sets.h"
 #include "oracool/oracool.h"
 #include "oracool/runewords.h"
@@ -1595,9 +1596,24 @@ void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, Affi
 	    },
 	    ignoreLevelLimits);
 
-	CopyUtf8(item._iIName, GenerateMagicItemName(item._iName, pPrefix, pSufix, false), sizeof(item._iIName));
-	if (!StringInPanel(item._iIName)) {
-		CopyUtf8(item._iIName, GenerateMagicItemName(AllItemsList[item.IDidx].iSName, pPrefix, pSufix, false), sizeof(item._iIName));
+	if (pPrefix != nullptr || pSufix != nullptr) {
+		// THE NAME POOL (user, 2026-09-13: "we must generate a pool of name affixes to make items
+		// sound more interesting and generate their names on the fly in real time").
+		//
+		// D2 built this name out of the affixes - "Garnet Cap of the Tiger" - which is exactly why a
+		// magic item could only ever carry one prefix and one suffix: there is no way to write a
+		// four-affix item's name that way. The budget went flat and D3-style in v1.11.100, so the
+		// naming follows it here.
+		//
+		// Hashed from the item's own seed and consuming NO randomness - see GenerateOracoolItemName
+		// for why that matters inside a function the save replays roll for roll.
+		CopyUtf8(item._iIName, oracool::GenerateOracoolItemName(item._iSeed), sizeof(item._iIName));
+	} else {
+		// No affix rolled at all, so this never becomes a magic item and the base name is right.
+		CopyUtf8(item._iIName, GenerateMagicItemName(item._iName, pPrefix, pSufix, false), sizeof(item._iIName));
+		if (!StringInPanel(item._iIName)) {
+			CopyUtf8(item._iIName, GenerateMagicItemName(AllItemsList[item.IDidx].iSName, pPrefix, pSufix, false), sizeof(item._iIName));
+		}
 	}
 	if (pPrefix != nullptr || pSufix != nullptr)
 		CalcItemValue(item);
@@ -3612,10 +3628,15 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 	item._iOracoolTier = tier;
 	item._iOracoolPerfectRoll = perfectRoll;
 
-	const string_view tierLabel = GetOracoolTierLabel(tier);
-	std::string tieredName = fmt::format(fmt::runtime(_("{0} {1}")), tierLabel, item._iName);
-	if (!StringInPanel(tieredName.c_str()))
+	// THE NAME POOL, same as a magic item's (user, 2026-09-13). This was "{TierLabel} {BaseName}" -
+	// "Rare Cap", "Primal Great Helm" - which is readable but says nothing and repeats endlessly
+	// across a run. The tier is still on the tooltip's own Tier line and in the name's colour, so
+	// nothing is lost by taking the label out of the name itself.
+	std::string tieredName = oracool::GenerateOracoolItemName(item._iSeed);
+	if (!StringInPanel(tieredName.c_str())) {
+		const string_view tierLabel = GetOracoolTierLabel(tier);
 		tieredName = fmt::format(fmt::runtime(_("{0} {1}")), tierLabel, AllItemsList[item.IDidx].iSName);
+	}
 	CopyUtf8(item._iIName, tieredName, sizeof(item._iIName));
 }
 
@@ -8050,6 +8071,24 @@ bool WouldSurviveNetworkValidation(const Item &item, _item_indexes idx)
 	return IsDungeonItemValid(item._iCreateInfo, item.dwBuff);
 }
 
+/**
+ * @brief Oracool: does @p testItem answer to a debug console `{name}` query?
+ *
+ * Matches the item's OWN name or its BASE type's name, and the base half is the point. Until
+ * v1.11.101 a magic item was called "Amber Helm of harmony", so `drop helm` found one by finding
+ * "helm" inside that. Magic and tiered items are named out of the pool now - "Rotting Bane" - and
+ * carry their base type nowhere in the string, so matching `_iIName` alone would leave `drop helm`
+ * and every other base-type query finding nothing but plain, unrolled items.
+ *
+ * @param lowerQuery Already lowercased by the caller, as both search loops do once up front.
+ */
+bool DebugItemNameMatches(const Item &testItem, _item_indexes idx, const std::string &lowerQuery)
+{
+	if (AsciiStrToLower(string_view(testItem._iIName)).find(lowerQuery) != std::string::npos)
+		return true;
+	return AsciiStrToLower(string_view(_(AllItemsList[idx].iName))).find(lowerQuery) != std::string::npos;
+}
+
 std::string DebugSpawnItem(std::string itemName)
 {
 	if (ActiveItemCount >= MAXITEMS)
@@ -8128,8 +8167,7 @@ std::string DebugSpawnItem(std::string itemName)
 		testItem = {};
 		SetupAllItems(*MyPlayer, testItem, idx, AdvanceRndSeed(), monsterLevel, 1, false, false, false);
 
-		std::string tmp = AsciiStrToLower(testItem._iIName);
-		if (tmp.find(itemName) == std::string::npos)
+		if (!DebugItemNameMatches(testItem, idx, itemName))
 			continue;
 		if (!WouldSurviveNetworkValidation(testItem, idx))
 			continue;
@@ -8186,8 +8224,7 @@ std::string DebugSpawnTieredItem(std::string itemName, OracoolItemTier tier)
 		if (testItem._iOracoolTier != tier)
 			continue; // this base item type can't carry tiered affixes - try another
 
-		std::string tmp = AsciiStrToLower(testItem._iIName);
-		if (tmp.find(itemName) == std::string::npos)
+		if (!DebugItemNameMatches(testItem, idx, itemName))
 			continue;
 		if (!WouldSurviveNetworkValidation(testItem, idx))
 			continue;
