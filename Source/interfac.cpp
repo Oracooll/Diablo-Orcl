@@ -120,10 +120,25 @@ SDL_Rect CutsceneRgbRect { 0, 0, 0, 0 };
 // with BarPos (2026-09-12).
 
 /**
- * @brief The user's own 16:9 redo of a painting, from the PRIVATE archive (user, 2026-09-07: "i have
- * redone original blizzard cutscene files to fit 720p 16:9. Use them in the game, but keep them with
- * other blizzard IP"). gendata\<name>.png, 1280x720; absent in a public build, where the CEL below
- * takes over. The painting's 4:3 core is assumed centred, which is where the progress bar sits.
+ * @brief The user's own 16:9 redo of a painting. `gendata\<name>.png`, 1280x720; when one is absent
+ * the CEL path below takes over, which is what the Hive and the Crypt still do.
+ *
+ * These SHIP, in the public `oracool.mpq` (2026-09-12). The comment here used to say they were kept
+ * in a private archive "with other blizzard IP" per the 2026-09-07 conversation; two things have
+ * since changed and the note was stale on both counts. The private archive was dissolved, and the
+ * user settled the question directly (2026-09-12): *"This is a non-profit add-on to diablo so using
+ * blizzard IP is considered tolerable by them and among the modding community."*
+ *
+ * They are also not Blizzard's pixels. They are original AI-generated paintings of the same scenes,
+ * checksum-verified as differing from the extracted originals in `00-original-game-art/gendata/` -
+ * which is what made publishing them safe to begin with, independently of the tolerance above.
+ *
+ * The distinction that still holds is a different one, and it is about the commercial GAME rather
+ * than about IP: a release never packs `diabdat.mpq`, `hellfire.mpq` or the five `hf*.mpq` archives,
+ * and `tools\BuildReleasePackage.ps1` sweeps the staged folder for all seven. The player supplies
+ * those because they own the game, not because of a licensing worry about art.
+ *
+ * The painting's 4:3 core is assumed centred, which is where the progress bar used to sit.
  */
 bool LoadCutscenePng(const char *celPath)
 {
