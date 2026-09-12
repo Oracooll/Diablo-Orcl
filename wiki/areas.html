@@ -32,7 +32,7 @@ descent, so they share those rungs instead of extending the ladder.</p>
 </tbody></table></div>
 
 <div class="tablewrap"><table id="ladder">
-<thead><tr><th class="num">#</th><th>Difficulty</th><th>Area</th><th class="num">Floors</th><th class="num">Area level</th><th>Base tier</th><th>Opens</th></tr></thead>
+<thead><tr><th class="num">Row</th><th>Difficulty</th><th>Area</th><th class="num">Floors</th><th class="num">Area level</th><th>Base tier</th><th>Opens</th></tr></thead>
 <tbody></tbody></table></div>
 
 <div class="note"><b>Hell/Hell is the threshold.</b> Area level 48 - the bottom of Hell on Hell
@@ -58,8 +58,9 @@ Hell's rungs, which is what the ladder always meant them to be worth.</p>
 <h2>Quest lairs</h2>
 <p>The Skeleton King's lair, the Bone Chamber, the Poisoned Water Supply and the Vile Betrayer's
 chamber take the level of the quest that owns them, run through the same ladder - so a lair is as
-deep as the floor it hangs off, on every difficulty. An unrecognised set-level falls back to floor 1,
-the least rewarding answer on the ladder.</p>
+deep as the floor it hangs off, on every difficulty. A named-encounter arena carries its own floor
+instead. Only a genuinely unknown set-level falls back to floor 1, the least rewarding answer on the
+ladder.</p>
 
 <h2>Town</h2>
 <p>Town has an area level like anywhere else, but nothing drops there, so the automap does not print
@@ -76,7 +77,7 @@ const DIFFS = ['Normal', 'Nightmare', 'Hell', 'Torment'];
 // The rung each area stands on. The Nest repeats the Caves' and the Crypt repeats Hell's.
 const RUNGS = [[1, 4], [5, 8], [9, 12], [13, 16], [9, 12], [13, 16]];
 // The item level at which each spell-book band becomes findable, from SpellBookItemLevel.
-const BOOKS = [45, 33, 22, 13];
+const BOOKS = [45, 33, 22, 13, 5, 1];
 
 let html = '';
 let n = 0;

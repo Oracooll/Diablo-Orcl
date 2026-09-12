@@ -36,7 +36,8 @@ function and the combat curve is untouched.</div>
 <ul>
 	<li><b>Which base items can appear.</b> Every base carries a quality level; a base can only drop
 		when <code>qlvl &lt;= ilvl</code>. See <a href="items.html">Base items</a>.</li>
-	<li><b>Which base tier it is forged at.</b> One tier per 24-level block. See <a href="tiers.html">Base tiers</a>.</li>
+	<li><b>Which base tier it is forged at.</b> One tier per 12 rungs, so Nightmare bases open at
+		ilvl 13, Hell at 25 and Torment at 37. See <a href="tiers.html">Base tiers</a>.</li>
 	<li><b>How good the roll may be.</b> Rare, buffed-unique and primal chances all climb with the
 		band. See <a href="affixes.html">Quality and affixes</a>.</li>
 	<li><b>Which spell books can exist.</b> A book needs the ilvl its spell's band demands. See
@@ -52,10 +53,12 @@ demands: <b id="bands"></b>. Below its tier a spell cannot be learned and its bo
 from its own tier:</p>
 <pre><code>required character level = tier + (rank - 1)</code></pre>
 <p>A tier-1 spell reaches rank 10 at character level 10; a tier-30 skill reaches rank 10 at 39. This
-is what replaced Diablo II's flat cap of 20 points per skill.</p>
-<div class="note"><b>No ceiling.</b> The cap on any single skill is <b id="maxinv"></b> - the entire
-pool a character can earn, one point per level from 2 to <b id="maxclvl"></b>. Nothing is out of
-reach permanently; depth is paid for in levels rather than forbidden.</div>
+is what replaced Diablo II's flat cap of 20 points per skill with a cap of <b id="maxinv"></b>, paced
+by the Rule of Rangs rather than reached in an afternoon.</p>
+<div class="note"><b>The cap binds.</b> No single skill takes more than <b id="maxinv2"></b> points,
+against a lifetime pool of one point per level from 2 to <b id="maxclvl"></b>. That is the point: the
+cap is reached well before the budget is, so a character is a handful of deep skills and a set of
+choices about which ones - not one skill with everything poured into it.</div>
 
 <h2>Difficulties</h2>
 <div class="tablewrap"><table>
@@ -166,6 +169,7 @@ see <a href="sockets.html">Sockets and gems</a>.</p>
 <script>
 document.getElementById('bands').textContent = WIKI.mechanics.spellBands.join(', ');
 document.getElementById('maxinv').textContent = WIKI.mechanics.maxInvestment;
+document.getElementById('maxinv2').textContent = WIKI.mechanics.maxInvestment;
 document.getElementById('maxclvl').textContent = WIKI.mechanics.maxCharacterLevel;
 
 (function () {

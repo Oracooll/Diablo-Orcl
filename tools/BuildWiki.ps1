@@ -184,6 +184,13 @@ $tree = Read-SourceFile 'oracool/class_tree.cpp'
 $skills = New-Object System.Collections.ArrayList
 $classMap = @{ 'Pal' = 'Paladin'; 'Bar' = 'Barbarian'; 'Sor' = 'Sorcerer'; 'Rog' = 'Rogue'; 'Bar_' = 'Barbarian'; 'Brd' = 'Bard'; 'Mnk' = 'Monk' }
 $treeBody = $tree.Substring($tree.IndexOf('const ClassTreeSkillData Skills['))
+# The default for a row that declares no maxRank is the game's own per-skill cap, read here rather
+# than typed: it was hardcoded to 98 and stayed there when the cap was lowered to 30, so every skill
+# in the wiki claimed a ceiling three times the real one. Get-Constant is defined further down the
+# file, so this reads the constant directly.
+$pointsHEarly = Read-SourceFile 'oracool/skill_points.h'
+$defaultMaxRank = $(if ($pointsHEarly -match 'constexpr int MaxSkillInvestment = (\d+)') { [int]$matches[1] } else { 30 })
+
 # The trailing maxRank is OPTIONAL and that is the table's own convention, not sloppiness: 142 of
 # the 273 rows omit it, which aggregate initialisation leaves at 0, and ClassTreeMaxRank reads 0 as
 # "the usual cap" (MaxTreeInvestment). So the group has to be optional here or those 142 rows stop
@@ -206,7 +213,7 @@ foreach ($m in [regex]::Matches($treeBody, $rowPattern)) {
             # The CAP, already resolved - a declared 0 means MaxTreeInvestment, so readers never
             # have to know that convention. 1 marks the Passive Skills rows, which take no points
             # at all and are chosen by slot; 5 is the Monk's.
-            maxRank     = $(if ($m.Groups[10].Success -and [int]$m.Groups[10].Value -gt 0) { [int]$m.Groups[10].Value } else { 98 })
+            maxRank     = $(if ($m.Groups[10].Success -and [int]$m.Groups[10].Value -gt 0) { [int]$m.Groups[10].Value } else { $defaultMaxRank })
         })
 }
 
@@ -1079,7 +1086,11 @@ $runewords = New-Object System.Collections.ArrayList
 $runeNameByConst = @{}
 foreach ($rune in $runes) { $runeNameByConst[$rune.constant] = $rune.name }
 
-$pattern = '(?s)N_\("([^"]+)"\),\s*static_cast<uint8_t>\(RunewordHost::(\w+)\),\s*(\d+),\s*\{([^}]*)\},\s*([-\d,\s]*?)\}'
+# The tail was '([-\d,\s]*?)\}' - digits, commas and space only - which could never reach the row's
+# closing brace, because every row carries an ItemSpecialEffect::X token after its first eight
+# numbers. So NO row matched and the wiki published an empty Runewords page while the source held
+# 370 of them. [^{}] accepts the token; the eight stats are still the first eight numbers.
+$pattern = '(?s)N_\("([^"]+)"\),\s*static_cast<uint8_t>\(RunewordHost::(\w+)\),\s*(\d+),\s*\{([^}]*)\},\s*([^{}]*)\}'
 foreach ($m in [regex]::Matches($runewordsInc, $pattern)) {
     $sequence = @()
     foreach ($r in [regex]::Matches($m.Groups[4].Value, 'IDI_ORACOOL_RUNE_\w+')) {
@@ -1087,7 +1098,7 @@ foreach ($m in [regex]::Matches($runewordsInc, $pattern)) {
         if ($name) { $sequence += $name }
     }
     $nums = @($m.Groups[5].Value -split ',' | ForEach-Object { $_.Trim() } |
-        Where-Object { $_ -match '^-?\d+$' } | ForEach-Object { [int]$_ })
+        Where-Object { $_ -match '^-?\d+$' } | ForEach-Object { [int]$_ } | Select-Object -First 8)
     while ($nums.Count -lt 8) { $nums += 0 }
 
     $grants = @()

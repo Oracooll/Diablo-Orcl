@@ -22,7 +22,7 @@ is where everything sits and what it does.</p>
 <tr><td>Top right</td><td>Always-on mini-map, independent of TAB's full map</td></tr>
 <tr><td>Bottom left</td><td>Health orb</td></tr>
 <tr><td>Bottom right</td><td>Mana orb</td></tr>
-<tr><td>Bottom centre</td><td>The middle HUD plate: LMB well, six belt slots, RMB well, and the XP bar beneath</td></tr>
+<tr><td>Bottom centre</td><td>The middle HUD plate: LMB well, four belt slots between a Menu and a Town Portal button, RMB well, and the XP bar beneath</td></tr>
 <tr><td>Above the LMB well</td><td>Level-up icon when attribute points are unspent</td></tr>
 <tr><td>Above the RMB well</td><td>The skill-point frame, with the count drawn in its well, when skill points are unspent</td></tr>
 <tr><td>Under the mini-map</td><td>Message history, and the event log when opened</td></tr>
@@ -38,7 +38,7 @@ onto the frame.</p>
 <tr><td>Nothing readied</td><td>Regular or Fist Attack, depending on whether hands are empty</td><td>Same</td></tr>
 <tr><td>A skill readied</td><td>The skill's own icon, scaled to the net rect</td><td>Same</td></tr>
 <tr><td>An aura lit</td><td>-</td><td>The aura's icon; it is the button's setting</td></tr>
-<tr><td>Cannot cast right now</td><td colspan="2">The plate turns pink - out of mana, missing a shield, wrong level</td></tr>
+<tr><td>Cannot cast right now</td><td colspan="2">The plate turns red - out of mana, missing a shield, wrong level</td></tr>
 <tr><td>Clicking the well</td><td colspan="2">Opens that button's <b>skill picker</b> - see below. Clicking the same well again closes it</td></tr>
 </tbody></table></div>
 
@@ -72,7 +72,7 @@ scrolls it.</p>
 <tr><td>Inventory</td><td>I, or the burger menu</td><td>10 x 7 grid, ten tabs, thirteen equipment slots</td></tr>
 <tr><td>Stash</td><td>The stash chest in town</td><td>Multi-page, its own save file</td></tr>
 <tr><td>Character</td><td>C</td><td>Stats, with a reset-points button when enabled</td></tr>
-<tr><td>Abilities</td><td>S, or the burger menu</td><td>Spells sheet plus three class-tree pages. Spends points only - the skill wells open the picker instead</td></tr>
+<tr><td>Abilities</td><td>D, or the burger menu</td><td>Spells sheet plus four class-tree pages. Spends points only - the skill wells open the picker instead</td></tr>
 <tr><td>Quest log</td><td>Q</td><td></td></tr>
 <tr><td>Waypoints</td><td>A waypoint</td><td>25 entries, scrolling, 43px sigils</td></tr>
 <tr><td>Event log</td><td>F11, or the burger menu</td><td>Timestamped session events</td></tr>
@@ -107,8 +107,10 @@ this", so the two actions had to be kept apart by geometry. Now the whole cell i
 <div class="tablewrap"><table>
 <thead><tr><th>Marker</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td>Green plate</td><td>Has points in it and is usable</td></tr>
-<tr><td>Red plate</td><td>Unlocked but at rank 0 - yours to fill</td></tr>
+<tr><td>Gold plate</td><td>Has points in it, or an earned passive</td></tr>
+<tr><td>Grey plate</td><td>Unlocked but at rank 0 - yours to fill</td></tr>
+<tr><td>Green plate</td><td>A passive you have assigned to a slot</td></tr>
+<tr><td>Red plate</td><td>Cannot be cast right now</td></tr>
 <tr><td>Grey plate</td><td>Not yours yet, or not built</td></tr>
 <tr><td>Bright gold outline</td><td>This cell will take a point right now</td></tr>
 <tr><td>Red X across the icon</td><td>Listed but not implemented; wholly inert</td></tr>

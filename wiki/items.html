@@ -19,16 +19,18 @@ from. Quality level (qlvl) is the item level a drop needs before this base can a
 <h2>Reading the table</h2>
 <ul>
 	<li><b>qlvl</b> is the authored value from <code>iMinMLvl</code>. <b>Banded</b> is what the game
-		actually compares against - the authored ladder regrouped onto the 1-60 area scale, so a depth
-		opens a shelf of bases rather than one.</li>
+		actually compares against - the authored ladder regrouped onto the <b>1-48</b> scale, topping
+		out at Hell/Hell, so a depth opens a shelf of bases rather than one.</li>
 	<li><b>Opens at</b> names the earliest area whose item level reaches the banded qlvl.</li>
 	<li><b>Drop</b> of <code>NEVER</code> means the base exists but is never randomly generated: quest
 		items, class starting gear, and the set, gem and rune families that drop through their own hooks.</li>
 	<li>Damage, armour, durability and requirements are the <b>Normal-tier</b> numbers. Multiply by the
 		<a href="tiers.html">tier scale</a> for the other three.</li>
 	<li>A few families marked <code>REGULAR</code> are still kept out of the shared drop pool and reach
-		you through their own hooks instead: the fifteen item sets, and the gems, runes and charms. The
-		pool is part of the save format, so growing it would change what every stored seed rebuilds.</li>
+		you through their own hooks instead: the item sets, the gems, runes, jewels, Mystic Orbs,
+		charms, signets and encounter maps. The walk decides the multiplayer wire format rather than
+		the single-player save - loading a hero overwrites the replay - so growing it is a change to
+		what the pack expects, not to what your character rebuilds.</li>
 </ul>
 
 <div id="table"></div>
@@ -38,9 +40,10 @@ from. Quality level (qlvl) is the item level a drop needs before this base can a
 Here is what each weapon and piece of armour actually becomes at each of the four
 <a href="tiers.html">base tiers</a>, with the game's own rounding applied rather than a multiplier
 for you to do in your head.</p>
-<div class="note">Only gear whose numbers a tier changes is listed - weapons and armour. Rings,
-amulets, potions, quest items and the belt slot carry no tier, so a per-tier block for them would be
-four identical rows. A tier opens at an item level of <b>1, 13, 25 and 37</b> respectively.</div>
+<div class="note">Only gear whose numbers a tier changes is listed - weapons and armour. Potions,
+quest items and the belt slot carry no tier at all. Rings and amulets do take one, but they have no
+damage, armour or durability to scale, so the only figure that moves is their value. A tier opens at
+an item level of <b>1, 13, 25 and 37</b> respectively.</div>
 <div class="tools">
 	<input type="search" id="isearch" placeholder="Search item, type or slot...">
 	<span class="count" id="icount"></span>

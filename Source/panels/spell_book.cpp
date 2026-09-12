@@ -401,13 +401,19 @@ struct TabPlate {
 	int x;
 	int width;
 	AbilitySheet sheet;
+	/**
+	 * The glyph the canvas paints on this plate. Repeated here ONLY for the no-art fallback, which
+	 * draws its own boxes and has to letter them - with the canvas present these are never drawn,
+	 * because the artwork already carries them.
+	 */
+	const char *label;
 };
 constexpr TabPlate TabPlates[] = {
-	{ 22, 59, AbilitySheet::ClassTree0 },
-	{ 82, 59, AbilitySheet::ClassTree1 },
-	{ 142, 60, AbilitySheet::ClassTree2 },
-	{ 203, 59, AbilitySheet::ClassTree3 },
-	{ 263, 55, AbilitySheet::Spells },
+	{ 22, 59, AbilitySheet::ClassTree0, "1" },
+	{ 82, 59, AbilitySheet::ClassTree1, "2" },
+	{ 142, 60, AbilitySheet::ClassTree2, "3" },
+	{ 203, 59, AbilitySheet::ClassTree3, "P" },
+	{ 263, 55, AbilitySheet::Spells, "S" },
 };
 static_assert(sizeof(TabPlates) / sizeof(TabPlates[0]) == AbilitySheetCount,
     "one plate per sheet - a sheet with no plate could not be reached now the arrows are gone");
@@ -488,15 +494,9 @@ bool IsSheetAvailable(AbilitySheet sheet)
 	return true;
 }
 
-size_t AvailableSheetCount()
-{
-	size_t count = 0;
-	for (size_t i = 0; i < AbilitySheetCount; i++) {
-		if (IsSheetAvailable(static_cast<AbilitySheet>(i)))
-			count++;
-	}
-	return count;
-}
+// AvailableSheetCount lived here until 2026-09-12. Its only caller was the guard that hid the nav
+// arrows on a window with nowhere to turn; the tab plates guard themselves, one plate at a time,
+// through IsSheetAvailable.
 
 /**
  * @brief The sheet to fall back to when the current one is not available to this class.
@@ -884,6 +884,11 @@ Rectangle GetTabPlateRect(size_t index)
  */
 void DrawTabPlates(const Surface &out)
 {
+	// Without the canvas there is no painted plate to light up, and with the arrows gone that would
+	// leave the window with no way between sheets at all - so the fallback draws the row itself,
+	// from the same primitives the arrows used to be built from. The art stays droppable.
+	const bool painted = oracool::HasAbilitiesPanelArt();
+
 	for (size_t i = 0; i < AbilitySheetCount; i++) {
 		const TabPlate &plate = TabPlates[i];
 		// A sheet this character cannot reach is drawn plain and never lights up. No class is short
@@ -895,6 +900,13 @@ void DrawTabPlates(const Surface &out)
 		const Rectangle hit = GetTabPlateRect(i);
 		const Rectangle inner { { hit.position.x + TabPlateBevel, hit.position.y + TabPlateBevel },
 			{ hit.size.width - 2 * TabPlateBevel, hit.size.height - 2 * TabPlateBevel } };
+
+		if (!painted) {
+			oracool::DrawLegacyTextBox(out, hit,
+			    hit.contains(MousePosition) ? oracool::LegacyTextBoxHoverFill : oracool::LegacyTextBoxFill);
+			oracool::DrawOutlinedString(out, plate.label, hit,
+			    UiFlags::ColorWhitegold | UiFlags::FontSize24 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
+		}
 
 		if (PressedTab == static_cast<int>(i)) {
 			DrawHalfTransparentRectTo(out, inner.position.x, inner.position.y,
@@ -1952,16 +1964,27 @@ void DrawSpellBook(const Surface &out)
 	//
 	// The rule under the title went with it, as it did in the other five: the art brings its own
 	// header framing, so the separator was a second line drawn across the first.
-	if (oracool::HasSidePanelArt()) {
+	//
+	// Its OWN canvas since 2026-09-12 - the one with the five tab plates in its header. The shared
+	// side panel is the first fallback and the procedural fill the second, so the window still draws
+	// if either file is missing; it simply loses the buttons, which is why the plates are hit-tested
+	// against the same table that draws them rather than against the artwork.
+	if (oracool::HasAbilitiesPanelArt()) {
+		oracool::DrawAbilitiesPanelArt(out, panel.position);
+	} else if (oracool::HasSidePanelArt()) {
 		oracool::DrawSidePanelArt(out, panel.position);
 	} else {
 		oracool::DrawThemedFill(out, panel);
 		oracool::DrawOrnateBorder(out, panel);
 	}
 
-	// The title has the band to itself, at the same PanelTitleTop every other side panel uses.
-	const Rectangle labelArea { { panel.position.x + AbilitiesMargin, panel.position.y + oracool::PanelTitleTop },
-		{ panel.size.width - 2 * AbilitiesMargin, oracool::PanelTitleHeight } };
+	// The sheet buttons, before the title so the title's outline is never drawn under an overlay.
+	DrawTabPlates(out);
+
+	// UNDER the tab row, not on the shared PanelTitleTop the other five windows use - see
+	// AbilitiesTitleTop.
+	const Rectangle labelArea { { panel.position.x + AbilitiesMargin, panel.position.y + AbilitiesTitleTop },
+		{ panel.size.width - 2 * AbilitiesMargin, AbilitiesTitleHeight } };
 	oracool::DrawOutlinedString(out, GetSheetTitle(CurrentSheet), labelArea,
 	    UiFlags::ColorWhitegold | UiFlags::FontSize30 | UiFlags::AlignCenter | UiFlags::VerticalCenter);
 
@@ -1969,18 +1992,10 @@ void DrawSpellBook(const Surface &out)
 	if (const std::optional<int> page = TreePageOf(CurrentSheet); page.has_value() && IsPassivePage(*page))
 		DrawPassiveHintAboveList(out, panel);
 
-	// No nav row and no "Points:" readout here any more (2026-08-17): the arrows live at the ends of
-	// the title band above, and the unspent pool is a HUD element now - the frame above the RMB well,
-	// where it is visible while playing rather than only with this window open. See
-	// DrawUnspentPointsFrame in control.cpp.
-	// Only when there is somewhere to go - arrows on a window that cannot turn are a control that
-	// lies. Every class has at least Spells and Skills today so this is always true, but it was not
-	// while Spells was the Sorcerer's alone (a Rogue was down to Skills on its own), and the guard
-	// costs nothing.
-	if (AvailableSheetCount() > 1) {
-		DrawArrow(out, -1);
-		DrawArrow(out, 1);
-	}
+	// No nav row and no "Points:" readout here any more (2026-08-17): the unspent pool is a HUD
+	// element now - the frame above the RMB well, where it is visible while playing rather than only
+	// with this window open. See DrawUnspentPointsFrame in control.cpp. The arrows that replaced the
+	// nav row are gone too (2026-09-12); the tab plates above are the way between sheets.
 
 	UpdateScrollBounds();
 	DrawScrollbar(out, panel);
@@ -2014,19 +2029,28 @@ void DrawSpellBook(const Surface &out)
 
 void CheckSBook(bool assignToRightButton)
 {
-	// The arrows first, and outside the inspect guard - cycling sheets is reading, not acting, so
-	// it stays available while inspecting another player's abilities. Hit-tested only when they are
-	// actually drawn, so a class with one sheet has no invisible control to hit.
-	if (AvailableSheetCount() > 1) {
-		for (const int direction : { -1, 1 }) {
-			if (GetArrowRect(direction).contains(MousePosition)) {
-				CycleAbilitySheet(direction);
-				PressedArrow = direction;
-				oracool::PlayUiMoveSound();
-				RedrawEverything();
-				return;
-			}
+	// The tab plates first, and outside the inspect guard - changing sheet is reading, not acting, so
+	// it stays available while inspecting another player's abilities. Hit-tested only where a plate
+	// is actually drawn, so an unreachable sheet has no invisible control to hit.
+	for (size_t i = 0; i < AbilitySheetCount; i++) {
+		if (!IsSheetAvailable(TabPlates[i].sheet))
+			continue;
+		if (!GetTabPlateRect(i).contains(MousePosition))
+			continue;
+		PressedTab = static_cast<int>(i);
+		// Clicking the open sheet's own plate is a no-op rather than a reset: it must not throw
+		// away the scroll position of the page you are already reading.
+		if (TabPlates[i].sheet != CurrentSheet) {
+			CurrentSheet = TabPlates[i].sheet;
+			// The same two things CycleAbilitySheet does on the way out of a page: a gesture in
+			// progress does not survive leaving the page it was started on, and the new sheet's
+			// scroll bounds are its own.
+			ArmedPassiveSlot = -1;
+			UpdateScrollBounds();
+			oracool::PlayUiMoveSound();
 		}
+		RedrawEverything();
+		return;
 	}
 
 	if (IsInspectingPlayer())
@@ -2241,7 +2265,7 @@ void CheckSBook(bool assignToRightButton)
 
 void ReleaseSpellBookButtons()
 {
-	PressedArrow = 0;
+	PressedTab = -1;
 }
 
 } // namespace devilution
