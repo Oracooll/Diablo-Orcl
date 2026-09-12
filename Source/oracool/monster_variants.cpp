@@ -206,6 +206,26 @@ MonsterVariant VariantOf(const Monster &monster)
 	if (monster.isUnique() || monster.lesserAffix != LesserUniqueAffix::None)
 		return MonsterVariant::None;
 
+	// And the SCRIPTED monsters, which is the same argument one step further out (user, 2026-09-12:
+	// "dont put prefix on the dark lord name", then "dont recolor the dark lord. keep it or return
+	// it to vanilla").
+	//
+	// Diablo slipped through both tests above. He is MT_DIABLO placed by his own quest, not a
+	// UniqueMonstersData entry, so isUnique() is FALSE for him - and he was therefore picking up a
+	// variant like any Skeleton: "Ashen The Dark Lord" in the health bar, and his own palette
+	// replaced by a variant TRN.
+	//
+	// MonsterAvailability::Never is the predicate rather than a check for MT_DIABLO, because it says
+	// the actual reason: a variant is a KIND of ordinary monster, and a monster the dungeon never
+	// places at random is not an ordinary monster. It also covers the types that never spawn at all
+	// (Wyrm, Cave Slug, Devil Wyrm, Devourer), where excluding them changes nothing, and the quest
+	// bosses that isUnique() already caught.
+	//
+	// Nothing is stored, so this returns him to vanilla immediately: the variant is derived from
+	// rndItemSeed every time it is asked for, and both the name and the recolour ask here.
+	if (monster.data().availability == MonsterAvailability::Never)
+		return MonsterVariant::None;
+
 	return VariantForSeed(monster.rndItemSeed, leveltype);
 }
 

@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #include "textdat.h"
+#include "utils/attributes.h" // DVL_API_FOR_TEST on MonstersData
 
 namespace devilution {
 
@@ -321,7 +322,10 @@ struct UniqueMonsterData {
 	_speech_id mtalkmsg;
 };
 
-extern const MonsterData MonstersData[];
+// DVL_API_FOR_TEST so the audit suite can assert facts about the table itself - that Diablo is
+// MonsterAvailability::Never, which is what keeps him out of the variant system (2026-09-12). Same
+// reason MissilesData carries it.
+extern DVL_API_FOR_TEST const MonsterData MonstersData[];
 extern const _monster_id MonstConvTbl[];
 extern const UniqueMonsterData UniqueMonstersData[];
 

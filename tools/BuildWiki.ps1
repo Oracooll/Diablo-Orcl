@@ -1417,6 +1417,29 @@ for ($i = 0; $i -lt $caseHits.Count; $i++) {
     if ($gains.Count -gt 0 -and -not $skillGains.Contains($skillName)) { $skillGains[$skillName] = $gains }
 }
 
+# The regen auras scale too, but ProcessClassTreeTick selects them with `aura == Skill::X` booleans
+# rather than case labels, so the sweep above cannot see them and six skills - Prayer, Melody of Life,
+# Healing Mantra, Meditation, Inspiration and Warmth - showed a blank gain while actually granting
+# +2 a tick and +2 a rank. The names and the triple are read out of that block rather than typed.
+function Add-TickGains([string]$boolName, [string]$channel) {
+    if ($treeCpp -notmatch ('const bool {0} = ([^;]+);' -f $boolName)) { return }
+    $names = [regex]::Matches($matches[1], 'Skill::(\w+)') | ForEach-Object { $_.Groups[1].Value }
+    # The first Scaled() after the flag is declared is the one that branch spends.
+    $after = $treeCpp.Substring($treeCpp.IndexOf("const bool $boolName ="))
+    if ($after -notmatch 'Scaled\(\w+,\s*(\d+),\s*(\d+)\)') { return }
+    $base = [int]$matches[1]; $per = [int]$matches[2]
+    foreach ($n in $names) {
+        if ($skillGains.Contains($n)) { continue }
+        $skillGains[$n] = @([ordered]@{ channel = $channel; base = $base; per = $per })
+    }
+}
+Add-TickGains 'healing' 'lifePerTick'
+Add-TickGains 'restoring' 'manaPerTick'
+# Warmth is the Sorceress's own version of the restoring branch, gated separately.
+if ($treeCpp -match 'Skill::Warmth[\s\S]{0,400}?Scaled\(\w+,\s*(\d+),\s*(\d+)\)' -and -not $skillGains.Contains('Warmth')) {
+    $skillGains['Warmth'] = @([ordered]@{ channel = 'manaPerTick'; base = [int]$matches[1]; per = [int]$matches[2] })
+}
+
 # ---------------------------------------------------------------------------------------------
 # Inventory icon index - Source/itemdat.h's item_cursor_graphic
 #

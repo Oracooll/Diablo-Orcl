@@ -5344,6 +5344,35 @@ TEST(OracoolAudit, NamedSetDropsLeanTowardTheSetYouAreCollecting)
  *
  * This is also the first test the variants have had at all - they shipped with none.
  */
+/**
+ * @brief The scripted monsters must stay out of the variant system - Diablo above all.
+ *
+ * User, 2026-09-12: "dont put prefix on the dark lord name", then "dont recolor the dark lord. keep
+ * it or return it to vanilla". He was getting both, because VariantOf excluded uniques and champions
+ * and Diablo is NEITHER: MT_DIABLO is placed by his own quest, not from UniqueMonstersData, so
+ * isUnique() is false for him.
+ *
+ * The guard keys on MonsterAvailability::Never, so what this test pins is that PREMISE rather than
+ * the guard restating itself. If Diablo's availability is ever edited to something placeable, the
+ * exclusion silently stops working and "Ashen The Dark Lord" comes back recoloured - which is
+ * exactly the kind of failure that would not be noticed until the last fight of a run.
+ */
+TEST(OracoolAudit, TheScriptedMonstersAreNeverRandomlyPlacedAndSoNeverVariants)
+{
+	EXPECT_EQ(MonstersData[MT_DIABLO].availability, MonsterAvailability::Never)
+	    << "Diablo must stay unplaceable at random - oracool::VariantOf excludes him on exactly this";
+
+	// The two quest bosses are covered twice over: they are UniqueMonstersData entries, so
+	// isUnique() catches them, and they are unplaceable as well. Both facts are worth holding.
+	EXPECT_EQ(MonstersData[MT_SKING].availability, MonsterAvailability::Never);
+	EXPECT_EQ(MonstersData[MT_CLEAVER].availability, MonsterAvailability::Never);
+
+	// And an ordinary monster must NOT be excluded, or the guard would have turned the whole
+	// variant system off rather than just spared the bosses.
+	EXPECT_NE(MonstersData[MT_NZOMBIE].availability, MonsterAvailability::Never)
+	    << "a plain Zombie is an ordinary monster and must still be able to be a variant";
+}
+
 TEST(OracoolAudit, MonsterVariantRostersArePerDungeonAndComplete)
 {
 	using namespace devilution::oracool;
