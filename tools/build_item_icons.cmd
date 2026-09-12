@@ -58,6 +58,32 @@ REM "Parameter is not valid" out of Bitmap..ctor - a missing-file message that n
 REM so verify with the spec-input existence check, not by reading this line and believing it.
 set ART=..\Resources\01-in-use-assets\item-sets
 set PAL=tools\town.pal
+set PALSRC=..\Resources\00-original-game-art\palettes\levels\towndata\town.pal
+
+REM RE-STAGE THE PALETTE EVERY RUN, from the original, never trusting what is already there.
+REM
+REM tools\town.pal is gitignored (a copy of Blizzard's palette), so it is a local file with no
+REM history and nothing to notice when it goes stale - which it had. On 2026-08-15 this fork injected
+REM a GREEN ramp over palette entries 152-159 and something wrote that edited palette here, which was
+REM correct at the time. The injection came OUT on 2026-09-10 because it was breaking the dungeon
+REM fires, and this copy was never re-staged: it still claimed 140,190,140 / 100,160,100 / ... where
+REM the running game has 254,190,160 / 255,140,87 / ... - orange.
+REM
+REM So every icon cut between those dates was palette-matched against a palette the game does not
+REM have. Any source pixel near green matched into the orange minis and drew ORANGE in play. Found
+REM 2026-09-12 while fixing the set-item backing, which was the same mistake in the draw code;
+REM re-staging moved 21,113 bytes of oracool_items.cel and dropped its use of 152-159 from 9,465
+REM pixels to 2,085 (the ones genuinely nearest to orange).
+REM
+REM A copy is cheap and staleness is invisible, so there is no version of this worth "optimising"
+REM into a test-and-skip.
+if not exist "%PALSRC%" (
+  echo ERROR: the original town palette is missing: %PALSRC%
+  echo        tools\town.pal cannot be trusted without it - refusing to cut icons against a stale palette.
+  exit /b 1
+)
+copy /y "%PALSRC%" "%PAL%" >nul || exit /b 1
+echo Palette re-staged from %PALSRC%
 set OUT=Packaging\resources\oracool_assets\data\inv\oracool_items.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set EXE=%TEMP%\ItemIconCel.exe

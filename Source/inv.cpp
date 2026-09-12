@@ -1619,6 +1619,9 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 
 	uint8_t colorBlock;
 	uint8_t rampOffset = TierBackingRampOffset;
+	// 0 means "no value of its own - take the colour the palette index gives". Only the Set tier
+	// needs a value, because its ramp's indexed meaning is no longer its intended colour.
+	uint32_t interiorRgb = 0;
 	if (IsInspectingPlayer()) {
 		colorBlock = PAL16_ORANGE;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Rare) {
@@ -1634,11 +1637,26 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		// backing and the name agree (user: "Use it game-wide where necessary"). Was PAL16_ORANGE.
 		colorBlock = PAL16_BEIGE;
 	} else if (item.hasOracoolTier() && item._iOracoolTier == OracoolItemTier::Set) {
-		// The green this fork injected over PAL8_ORANGE, which is why Primal was moved off it
-		// (user, 2026-08-16: "Green is for future Set Items"). An EIGHT-shade mini-ramp like Rare's,
-		// so it takes the same halved offset - the 16-ramp offset would run off its end.
-		colorBlock = PAL8_ORANGE;
+		// Green, because "Green is for future Set Items" (user, 2026-08-16) - which is why Primal
+		// was moved off this ramp in the first place.
+		//
+		// Drawn as a VALUE. This branch used to set PAL8_ORANGE alone and let the palette supply the
+		// colour, which worked only while the fork injected a green ramp over those eight entries.
+		// That injection came OUT on 2026-09-10 because it was breaking the dungeon fires, and
+		// palette.h says the consequence plainly: "on an indexed surface this ramp is ORANGE. The
+		// 32-bit screen draws the green as values (see the three consumers)." There were four
+		// consumers. This one was never converted, so set backings have been drawing orange ever
+		// since (user, 2026-09-12: "backing of set items to be light green, not orange as it is
+		// now") - the same failure as the grey fire damage text: a colour chosen by a NAME whose
+		// meaning moved underneath it.
+		//
+		// 0x64A064 is the fork's own green, the second entry of ColorOracoolGreen's band and the
+		// exact value the runeword border beside it already uses - so there is ONE green in the
+		// game rather than a second one invented here. Lighter than the deep shades the other tiers
+		// wear, which is what was asked for; the index below stays as the indexed-surface fallback.
+		colorBlock = PAL8_GREEN;
 		rampOffset = TierBackingRampOffset / 2;
+		interiorRgb = 0x64A064u;
 	} else {
 		switch (item._iMagical) {
 		case ITEM_QUALITY_MAGIC:
@@ -1676,7 +1694,12 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 	// Subtlety comes from picking a DEEP shade instead of from transparency.
 	const Rectangle backing { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
 	const uint8_t interior = static_cast<uint8_t>(colorBlock + rampOffset);
-	FillRect(out, backing.position.x, backing.position.y, backing.size.width, backing.size.height, interior);
+	// Through FillRectRgb for every tier, not only the Set one: on an indexed surface it uses the
+	// index and nothing changes, and on the 32-bit screen every other tier passes the colour its own
+	// index already resolves to. So this is a no-op for them and the one place a tier can state a
+	// colour the palette cannot.
+	FillRectRgb(out, backing.position.x, backing.position.y, backing.size.width, backing.size.height,
+	    interiorRgb != 0 ? interiorRgb : PaletteRGB[interior], interior);
 
 	// A border INSIDE the backing's bounds, in the item class's own colour (user request):
 	// Magic blue, Rare yellow, Unique gold - the same hue as the interior but several shades
