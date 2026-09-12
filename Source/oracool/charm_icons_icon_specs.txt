@@ -1,6 +1,6 @@
-..\Resources\02-source-art\items\charms\charm_vigor.png,0,0,28,28,28,28,charm_vigor,30,false,asis
-..\Resources\02-source-art\items\charms\charm_embers.png,0,0,28,28,28,28,charm_embers,30,false,asis
-..\Resources\02-source-art\items\charms\charm_storms.png,0,0,28,28,28,28,charm_storms,30,false,asis
-..\Resources\02-source-art\items\charms\charm_fortune.png,0,0,28,28,28,28,charm_fortune,30,false,asis
-..\Resources\02-source-art\items\charms\charm_luck.png,0,0,28,28,28,28,charm_luck,30,false,asis
-..\Resources\02-source-art\items\charms\charm_greed.png,0,0,28,28,28,28,charm_greed,30,false,asis
+..\Resources\01-in-use-assets\items\charms\charm_vigor.png,0,0,28,28,28,28,charm_vigor,30,false,asis
+..\Resources\01-in-use-assets\items\charms\charm_embers.png,0,0,28,28,28,28,charm_embers,30,false,asis
+..\Resources\01-in-use-assets\items\charms\charm_storms.png,0,0,28,28,28,28,charm_storms,30,false,asis
+..\Resources\01-in-use-assets\items\charms\charm_fortune.png,0,0,28,28,28,28,charm_fortune,30,false,asis
+..\Resources\01-in-use-assets\items\charms\charm_luck.png,0,0,28,28,28,28,charm_luck,30,false,asis
+..\Resources\01-in-use-assets\items\charms\charm_greed.png,0,0,28,28,28,28,charm_greed,30,false,asis
