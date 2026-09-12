@@ -1567,14 +1567,24 @@ TEST_F(InvTest, ActiveInvAnchorSlotOfFindsTheTopLeftCellNotTheBottomLeft)
 {
 	ActiveInventoryTab = 0;
 
-	// Players[1], NOT MyPlayer. AddItemToInvGrid calls NetSendCmdChInvItem when the player it is
-	// given IS MyPlayer, and that faults under the test harness - one of the three known 0xc0000005
-	// traps in backpack tests, and the one this test hit on its first run.
-	Player &player = Players[1];
+	// A LOCAL player, deliberately not MyPlayer and not Players[n]. Both of the known backpack-test
+	// traps are in play here and this test hit each of them in turn:
+	//
+	//   - MyPlayer faults. AddItemToInvGrid calls NetSendCmdChInvItem when the player it is handed IS
+	//     MyPlayer, which is an access violation under the harness (0xc0000005).
+	//   - Players[1] is out of range. The harness sizes that vector to one entry, so indexing 1
+	//     asserts inside std::vector rather than giving a spare player.
+	//
+	// A stack Player is neither, but it starts full of garbage - so every array this exercise reads
+	// is zeroed by hand, SpdList included, because AutoPlaceItemInInventorySlot ends in CalcScrolls
+	// and that walks the belt as well as the bag.
+	Player player {};
 	for (int i = 0; i < InventoryGridCells; i++) {
 		player.InvList[i] = {};
 		player.InvGrid[i] = 0;
 	}
+	for (Item &beltItem : player.SpdList)
+		beltItem = {};
 	player._pNumInv = 0;
 
 	Item twoByTwo {};
@@ -1603,12 +1613,6 @@ TEST_F(InvTest, ActiveInvAnchorSlotOfFindsTheTopLeftCellNotTheBottomLeft)
 
 	// And an index nothing in the grid references has no anchor, rather than cell 0.
 	EXPECT_EQ(ActiveInvAnchorSlotOf(player, 7), -1);
-
-	for (int i = 0; i < InventoryGridCells; i++) {
-		player.InvList[i] = {};
-		player.InvGrid[i] = 0;
-	}
-	player._pNumInv = 0;
 }
 } // namespace
 } // namespace devilution
