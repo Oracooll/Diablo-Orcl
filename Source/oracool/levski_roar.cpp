@@ -622,9 +622,13 @@ bool SetLevskiHoverInfoString()
 		for (int i = levski_skin::Close + 1; i < levski_skin::ButtonCount; i++) {
 			if (!ButtonRect(window, i).contains(MousePosition))
 				continue;
+			// Transmute says nothing (user, 2026-09-12: "remove the pop up text when hovering over
+			// Transmute button in Levskis Roar"). Its plate is painted with the word already, so the
+			// info line was repeating it. Returning rather than continuing: the cursor is on a
+			// button, so there is nothing else under it for the grid check below to find.
 			if (i == levski_skin::Transmute)
-				SetPanelString(_("Transmute"), UiFlags::ColorWhitegold);
-			else if (i == levski_skin::Recipes)
+				return false;
+			if (i == levski_skin::Recipes)
 				SetPanelString(_("Recipes"), UiFlags::ColorWhitegold);
 			else
 				SetPanelString(StrCat("Salvage all ", _(SalvageTierName(static_cast<SalvageTier>(i - levski_skin::SalvageFirst))), " in backpack"),

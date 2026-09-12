@@ -1309,7 +1309,17 @@ void DrawPassiveHintAboveList(const Surface &out, const Rectangle &panel)
 	    ? _("Now pick a passive")
 	    : _("Click a slot, then a passive");
 	const int frameTop = panel.position.y + AbilitiesContentTop + PassiveSlotBandTop - oracool::GridBezelInset;
-	const int bottom = frameTop - 6;
+	// Two pixels above the slot frames, not six (user, 2026-09-12: "move the gold explanation text in
+	// Passive skills windows a few px down close to the 4 slots. because now it is overlapping a
+	// couple of pixels with the title").
+	//
+	// The cause was v1.11.062, in this file: the tab row pushed this window's title from y 28 down to
+	// 57..95, and this line is positioned UPWARD from the slots, so the two grew into each other -
+	// the box was 77..95, inside the title band outright. There are only six pixels of clear space
+	// between the title's bottom and the frames at 101, so the line cannot be lifted clear; it moves
+	// down onto the slots instead, which is where it belongs anyway - it is their instruction.
+	constexpr int HintGapAboveFrames = 2;
+	const int bottom = frameTop - HintGapAboveFrames;
 	DrawString(out, hint,
 	    { { panel.position.x + AbilitiesInteriorLeft, bottom - PassiveHintHeight },
 	        { AbilitiesInteriorRight - AbilitiesInteriorLeft, PassiveHintHeight } },
