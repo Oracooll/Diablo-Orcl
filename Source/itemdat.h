@@ -851,13 +851,13 @@ enum item_cursor_graphic : uint16_t {
 	ICURS_ORACOOL_SPECTRAL_ARMOR              = 369,
 	ICURS_ORACOOL_SPECTRAL_SHIELD             = 370,
 	ICURS_ORACOOL_SPECTRAL_HELM               = 371,
-	// The gem icons, cut from the user's own gem sheet (Oracool.MPQ\02-source-art\items\item-gems-v1.png).
+	// The gem icons, cut from the user's own gem sheet (Resources\01-in-use-assets\item-sets\item-gems-v2.png).
 	ICURS_ORACOOL_GEM_RUBY                    = 372,
 	ICURS_ORACOOL_GEM_SAPPHIRE                = 373,
 	ICURS_ORACOOL_GEM_TOPAZ                   = 374,
 	ICURS_ORACOOL_GEM_EMERALD                 = 375,
 	ICURS_ORACOOL_GEM_SKULL                   = 376,
-	// The rune icons, cut from the user's 33-rune D2 sheet (Oracool.MPQ\02-source-art\items\item-runes-v1.png).
+	// The rune icons, cut from the user's 33-rune D2 sheet (Resources\01-in-use-assets\item-sets\item-runes-v1.png).
 	ICURS_ORACOOL_RUNE_EL                     = 377,
 	ICURS_ORACOOL_RUNE_TIR                    = 378,
 	ICURS_ORACOOL_RUNE_RAL                    = 379,

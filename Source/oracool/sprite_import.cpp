@@ -42,7 +42,24 @@ constexpr int SharedHalfFirst = 128;
 
 std::array<uint8_t, 768> LevelPalette;
 bool LevelPaletteLoaded = false;
-bool LevelPaletteMissing = false;
+// There was a `bool LevelPaletteMissing` here from the day this file was written, guarding an early
+// return, and NOTHING EVER ASSIGNED IT - so the "no palette, degrade gracefully" path it promised
+// never existed (2026-09-12 asset sweep).
+//
+// DELETED, deliberately, rather than made to work - and both attempts at making it work were worse
+// than the dead flag:
+//
+//  1. Setting it as a sticky global. This cache serves TWO palettes now, so one missing front-end
+//     palette would have permanently disabled every IN-GAME PNG import as well.
+//  2. A per-call `FindAsset(palettePath).ok()` pre-check. That looks obviously right and it is not:
+//     FindAsset is STRICTER than the LoadFileInMem it would be guarding, so it rejected a palette
+//     the loader can read perfectly well and turned every delivered cold-missile sheet into a
+//     no-import. OracoolColdPack.EveryDeliveredSheetLoadsAtItsSpecifiedShape caught it immediately.
+//
+// The lesson is the second one: an existence pre-check that uses a different lookup than the loader
+// it protects is not a guard, it is a second, disagreeing implementation. A missing palette still
+// app-fatals inside LoadFileInMem, which is at least loud and honest; making it soft needs the
+// LOADER to report failure, not a guess in front of it.
 /**
  * @brief Which palette the cache holds, so a caller asking for a different one gets it.
  *
@@ -73,8 +90,6 @@ std::string LoadedPalettePath;
  */
 bool EnsurePalette(const char *palettePath)
 {
-	if (LevelPaletteMissing)
-		return false;
 	if (LevelPaletteLoaded && LoadedPalettePath == palettePath)
 		return true;
 	LoadFileInMem(palettePath, LevelPalette);

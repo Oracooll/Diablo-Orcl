@@ -9,10 +9,15 @@
 # tools\GenerateHoverMatrix.pl uses) and matches by (class, page, name). Two names repeat across
 # pages (Fanaticism aura / passive, Shout Barbarian / Bard); the page keeps them apart.
 #
-# A row with no glyph keeps the frame it has - the coloured set - so the 18 Sorceress book rows the
-# brief excluded, and anything the pack missed, draw as before. Every replaced frame is checked
-# for the two colours before it goes in, and every frame written is transparent outside the glyph:
-# the game's IsGlyphFrame (hud_art.cpp) recognises exactly that and draws the plate under it.
+# A row with no glyph keeps the frame it has, so a partial pack degrades instead of blanking a
+# frame. As of 2026-09-12 NOTHING takes that path: batch-13 (5 rows) and batch-26 (13) closed the
+# 18 Sorceress book rows the first brief excluded, and the join now yields zero rows without a
+# glyph for every class. This comment said those 18 "draw as before" until then, which had stopped
+# being true the moment batch-26 was stamped.
+#
+# Every replaced frame is checked for the two colours before it goes in, and every frame written is
+# transparent outside the glyph: the game's IsGlyphFrame (hud_art.cpp) recognises exactly that and
+# draws the plate under it.
 #
 # Usage: powershell -ExecutionPolicy Bypass -File tools\BuildGlyphStrips.ps1
 # Run from the repository root. Re-runnable.
@@ -177,7 +182,27 @@ if ($attackStamped -eq 2) { $attackStrip.Save($attackPath, [System.Drawing.Imagi
 $attackStrip.Dispose()
 
 $report | ForEach-Object { Write-Host $_ }
-Write-Host ("manifest entries: {0}, used: {1}" -f $manifest.Count, $used.Count)
+# Audit EVERY pack, not just the first.
+#
+# The unused check read $manifest alone, so both extra packs were invisible to the one check that
+# exists to catch a delivered glyph matching no tree row - blind on 18 of 275 keys, including all 13
+# of the Sorceress batch it had just stamped. It also printed $manifest.Count (257) as the total
+# while $used.Count counted the extras, so it reported "used: 272" out of 257 (2026-09-12 sweep).
+#
+# $byKey is the merged view the stamping loop actually consults, so auditing it audits what ran.
+Write-Host ("glyph keys across all packs: {0}, used: {1}" -f $byKey.Count, $used.Count)
 if ($missing.Count -gt 0) { Write-Host "rows with NO glyph (kept their old frame):"; $missing | ForEach-Object { Write-Host "  $_" } }
-$unused = $manifest | Where-Object { -not $used.ContainsKey(("{0}|{1}|{2}" -f $_.class, $_.page, $_.name)) -and $_.class -ne 'Common' }
-if ($unused) { Write-Host "manifest entries matching NO row:"; $unused | ForEach-Object { Write-Host ("  {0}|{1}|{2}" -f $_.class, $_.page, $_.name) } }
+# The three retired rows are expected to match nothing: they are out of the tree by design and their
+# glyphs stay in the pack. Naming them keeps every remaining line of this report meaningful.
+$expectedUnused = @(
+  'Paladin|COMBAT SKILLS|Holy Bolt',
+  'Barbarian|PASSIVE SKILLS|Boon of Bul-Kathos',
+  'Rogue|PASSIVE SKILLS|Ballistics'
+)
+$unused = $byKey.Keys | Where-Object { -not $used.ContainsKey($_) -and -not $_.StartsWith('Common|') -and $expectedUnused -notcontains $_ }
+if ($unused) {
+  Write-Host "glyphs matching NO tree row (unexpected):"
+  $unused | Sort-Object | ForEach-Object { Write-Host ("  " + $_) }
+} else {
+  Write-Host "every glyph matched a tree row, bar the 3 retired ones - which is correct"
+}

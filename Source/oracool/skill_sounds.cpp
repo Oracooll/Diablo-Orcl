@@ -33,7 +33,7 @@ constexpr int VolumeLoop = -1200; // -12 dB
 /**
  * @brief Lazily loaded, then kept.
  *
- * One slot per generated row, indexed by the row itself, so there is no map and no hashing. 304
+ * One slot per generated row, indexed by the row itself, so there is no map and no hashing. 306
  * pointers is a rounding error next to the samples they point at, and a skill's cue is loaded the
  * first time it actually fires rather than all 13 MB at startup.
  */
@@ -61,7 +61,7 @@ bool BaselineArmed = false;
 /** @brief Index into SkillSounds, or SkillSoundCount for "no such cue". */
 size_t FindSound(Skill skill, SkillSoundEvent event)
 {
-	// Linear over 304 rows, on events that happen at human speed - a cast, a hit, a point spent.
+	// Linear over 306 rows, on events that happen at human speed - a cast, a hit, a point spent.
 	// Sorted by class then skill then event, so a binary search would be possible; it would also be
 	// a second thing to keep true, for a lookup that never runs in a hot loop.
 	for (size_t i = 0; i < SkillSoundCount; i++) {

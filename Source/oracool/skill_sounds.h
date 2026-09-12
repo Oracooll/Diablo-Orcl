@@ -3,8 +3,8 @@
  *
  * The six-class skill sound library, and the set-completion stinger.
  *
- * 304 WAVs covering every node of all six class trees, delivered as data with an authoritative
- * manifest (Oracool.MPQ/02-source-art/skill-sounds/class-skill-sounds.zip). The manifest is read at
+ * 306 WAVs covering every node of all six class trees (304 delivered; RfA-02 added two), delivered as data with an authoritative
+ * manifest (Resources/01-in-use-assets/skill-sounds/class-skill-sounds.zip). The manifest is read at
  * BUILD time by tools/GenSkillSounds.ps1, which joins it to the class tree on (class, skill name)
  * and emits skill_sounds_data.inc. Nothing here is hand-typed, and a sound whose skill name matches
  * no tree row is a generator error rather than a cue that silently never plays.

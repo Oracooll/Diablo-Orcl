@@ -26,7 +26,14 @@ $root = Split-Path -Parent $PSScriptRoot
 $out = Join-Path $root 'Source\oracool'
 # item-sets\, not items\ - the sheet has always lived there and this path had the wrong folder
 # (found 2026-09-12 while rebuilding the Resources folders; it predates that move).
-$art = 'C:\Users\hroga\OneDrive\2. Personal Files\Software\Diablo\Resources\01-in-use-assets\item-sets\item-runes-v1.png'
+#
+# RELATIVE to the repository root, like every sibling generator and like build_item_icons.cmd's own
+# ART variable. It was an absolute C:\Users\hroga\... literal until 2026-09-12, which it then baked
+# into all 28 lines of the committed runes_icon_specs.txt - so the icon sheet could only be rebuilt
+# on this one machine, in this one user profile. The spec files are tracked; a machine-specific path
+# in a tracked file is a path that is wrong for everybody else.
+$artRel = '..\Resources\01-in-use-assets\item-sets\item-runes-v1.png'
+$art = Join-Path $root $artRel
 
 # The sheet's grid, MEASURED (non-green runs) rather than guessed - 11 columns x 3 rows, D2's own
 # rune order reading left to right, top to bottom.
@@ -155,7 +162,7 @@ for ($i = 0; $i -lt $runes.Count; $i++) {
 
         $col = $cols[$i % 11]
         $row = $rows[[Math]::Floor($i / 11)]
-        [void]$specLines.Add("$art,$($col.x),$($row.y),$($col.w),$($row.h),28,28,rune_$lower,30,false,green")
+        [void]$specLines.Add("$artRel,$($col.x),$($row.y),$($col.w),$($row.h),28,28,rune_$lower,30,false,green")
 
         $displayName = "$name Rune"
         $dataLines.Add(("/*IDI_ORACOOL_RUNE_{0}*/ {{ IDROP_REGULAR, ICLASS_MISC, ILOC_UNEQUIPABLE, {1}, ItemType::Misc, UITYPE_NONE, N_(`"{2}`"), N_(`"Rune`"), {3}, 0, 0, 0, 0, 0, 0, 0, 0, ItemSpecialEffect::None, IMISC_NONE, SpellID::Null, false, {4} }}," -f `

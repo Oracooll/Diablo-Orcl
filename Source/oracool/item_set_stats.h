@@ -4,7 +4,7 @@
  * The keyword vocabulary the fifteen delivered item sets are written in, and what each keyword
  * means to THIS engine.
  *
- * The sets arrive as data - one set-data.json per set under Oracool.MPQ/02-source-art/item-sets -
+ * The sets arrive as data - one set-data.json per set under Resources/01-in-use-assets/item-sets -
  * and their stats are written in a vocabulary of their own: 107 keywords, from "strength" to
  * "wearer_direct_damage_taken_by_target_per_spent". Roughly a third of them name something this
  * engine already has a channel for. The rest name bespoke set mechanics that nothing here can do.

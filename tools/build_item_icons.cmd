@@ -402,6 +402,23 @@ REM The 18 unique-expansion bases' own icons (RfA-04 batch 12, 2026-09-11), afte
 REM Hand-written spec; art in ..\Resources\01-in-use-assets\items\unqbase.
 type "Source\oracool\unqbase_icons_icon_specs.txt" >> "%SPECFILE%"
 
+REM VERIFY EVERY SPEC'S ART EXISTS, before cutting anything.
+REM
+REM The guards above each check only that the SPEC FILE exists, never that the art it names does.
+REM That is a real gap: three of the generated specs (item_sets, unique_items, unique_items2) name
+REM paths inside %TEMP%, because their art arrives as zips that the generators extract there. Those
+REM trees are not the repository's, and they evaporate - Storage Sense clears %TEMP%, and a fresh
+REM clone never had them. Without this check the cutter meets a missing file and dies with
+REM "Parameter is not valid" out of Bitmap..ctor, which names no file at all (2026-09-12, and it
+REM cost a whole debugging session once already when the ART root was stale).
+REM
+REM So: every spec line's first field, checked, with the missing ones NAMED and the generator to
+REM re-run spelled out. One pass over ~620 lines costs nothing next to cutting them.
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$bad = @(); foreach ($line in Get-Content '%SPECFILE%') { if ($line -match '^\s*REM' -or $line.Trim() -eq '') { continue }; $p = ($line -split ',')[0]; if (-not (Test-Path -LiteralPath $p)) { $bad += $p } };" ^
+  "if ($bad.Count -gt 0) { Write-Host ''; Write-Host ('SPEC ART MISSING: {0} of the cut specs name a file that is not there.' -f $bad.Count) -ForegroundColor Red; $bad | Select-Object -Unique | Select-Object -First 12 | ForEach-Object { Write-Host ('    ' + $_) }; if (($bad | Select-Object -Unique).Count -gt 12) { Write-Host '    ...' }; Write-Host ''; Write-Host 'A %%TEMP%% path here means a generator has not run on this machine, or the folder was cleared.' -ForegroundColor Yellow; Write-Host 'Re-run the generators that own them, then this script again:' -ForegroundColor Yellow; Write-Host '    GenItemSets.ps1  GenUniqueItems.ps1  GenSalvageMaterials.ps1  GenMysticOrbs.ps1  GenSignets.ps1  GenEncounterItems.ps1  GenJewels.ps1  GenGrowingCharms.ps1'; exit 1 }" || exit /b 1
+echo Spec art verified.
+
 "%EXE%" "%PAL%" "%OUT%" "%TEMP%\oracool_item_icons" "@%SPECFILE%" || exit /b 1
 
 REM Second channel: the loose assets folder, so a build that has not had oracool.mpq packed yet
