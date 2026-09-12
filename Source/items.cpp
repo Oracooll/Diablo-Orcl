@@ -4947,6 +4947,87 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		NetSendCmdPItem(false, CMD_SPAWNITEM, item.position, item);
 }
 
+/**
+ * @brief Oracool: how many AFFIXES @p item's quality tier allows, in total.
+ *
+ * D3-style, and deliberately flat (user, 2026-09-13: "i would like to move to D3 style. We call all
+ * possible item bonuses affixes and an item can have any combo of them within its limit of
+ * affixes"). There is no separate prefix and suffix allowance to spend: every bonus an item can
+ * carry is an affix, any mix of them is legal, and the only rule is the count.
+ *
+ * Diablo II is the other model - MagicPrefix.txt and MagicSuffix.txt, one of each on a magic item,
+ * three of each on a rare - and this fork was built on it. The PREFIX/SUFFIX STORAGE stays, because
+ * it is part of the save format and the vanilla tables are what the seed replay walks; what stops
+ * being prefix-and-suffix is the BUDGET. A tier now says "four affixes", not "two prefixes and two
+ * suffixes", and an item may fill that however it happens to roll.
+ *
+ * The numbers are the ones the existing rollers already produce, so nothing that could legally
+ * exist before becomes illegal now: GetRareItemAffixes asks for one per slot plus a 30% bonus
+ * (2 + 2), GetBuffedUniqueItemAffixes two plus a bonus (3 + 3), GetPrimalItemAffixes three per slot
+ * with no bonus (3 + 3). Magic is the vanilla pair.
+ *
+ * Zero for plain quality, for a vanilla unique, and for a set piece: none of the three carries a
+ * rolled affix at all, and a set piece's six powers are a fixed list rather than affixes.
+ */
+DVL_API_FOR_TEST int OracoolAffixBudget(const Item &item)
+{
+	switch (item._iOracoolTier) {
+	case OracoolItemTier::Rare:
+		return 4; // one per slot, plus the 30% bonus on each
+	case OracoolItemTier::BuffedUnique:
+		return 6; // two per slot, plus the 30% bonus on each
+	case OracoolItemTier::Primal:
+		return 2 * Item::MaxOracoolAffixesPerSlot; // three per slot, already at the cap
+	case OracoolItemTier::Set:
+		return 0;
+	case OracoolItemTier::None:
+		break;
+	}
+	if (item._iMagical == ITEM_QUALITY_MAGIC)
+		return 2; // the vanilla pair: one _iPrePower and one _iSufPower
+	return 0;     // plain quality, and vanilla uniques
+}
+
+/**
+ * @brief Oracool: how many affixes @p item is already carrying, across BOTH stores.
+ *
+ * Adding the two stores is the whole of the bug this was written for. A tiered item's rolled
+ * affixes live in the _iOracool* arrays, but a MAGIC item's live in the vanilla _iPrePower and
+ * _iSufPower fields and leave those arrays empty - so the drop tail's guard, which consulted only
+ * the arrays, read zero on every magic item and never saw the affixes the item had already rolled.
+ *
+ * A "Garnet Cap of the Tiger" reached the player with FOUR affixes on a two-affix tier: Resist Fire
+ * and Hit Points in the vanilla pair, then Movement Speed and Faster Cast appended on top.
+ *
+ * GetTieredItemAffixes never writes the vanilla fields, so the two branches never double-count.
+ */
+DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item)
+{
+	int used = item._iOracoolPrefixCount + item._iOracoolSuffixCount;
+	if (!item.hasOracoolTier()) {
+		if (item._iPrePower != IPL_INVALID)
+			used++;
+		if (item._iSufPower != IPL_INVALID)
+			used++;
+	}
+	return used;
+}
+
+/**
+ * @brief Oracool: whether one more drop-tail affix fits inside @p item's tier budget.
+ *
+ * Both bounds matter - the tier's affix budget, and the storage bound on the record that holds it.
+ * Asking this rather than the storage bound alone is also what stops the two drop-tail affixes
+ * stacking onto an item with only one slot left: whichever rolls first spends it, and the second
+ * finds none.
+ */
+DVL_API_FOR_TEST bool OracoolHasFreeAffixSlot(const Item &item)
+{
+	if (item._iOracoolSuffixCount >= Item::MaxOracoolAffixesPerSlot)
+		return false; // the record these are stored in is full, whatever the budget says
+	return OracoolAffixesUsed(item) < OracoolAffixBudget(item);
+}
+
 void TryAddMovementSpeedToDrop(Item &item)
 {
 	// Movement Speed +X% (user, 2026-09-07: "introduce Movement Speed +X% affix on items so other
@@ -4962,9 +5043,15 @@ void TryAddMovementSpeedToDrop(Item &item)
 	if (!oracool::IsSinglePlayer() || item.isEmpty())
 		return;
 	const bool wearable = item._iClass == ICLASS_ARMOR || item._itype == ItemType::Ring || item._itype == ItemType::Amulet;
-	if (!wearable || item._iMagical == ITEM_QUALITY_UNIQUE || item.hasOracoolTier())
+	// ITEM_QUALITY_UNIQUE covers vanilla uniques AND set pieces - MakeSetItem marks a set piece
+	// unique - both of which say what they are and take no rolled affix. Rare, Buffed Unique and
+	// Primal are NOT excluded any more (user, 2026-09-13): they are marked ITEM_QUALITY_MAGIC with
+	// a tier, and excluding them inverted the rarity - a magic helm could carry Movement Speed
+	// while a rare one never could. They spend from their own larger budget instead.
+	if (!wearable || item._iMagical == ITEM_QUALITY_UNIQUE)
 		return;
-	if (item._iOracoolSuffixCount >= Item::MaxOracoolAffixesPerSlot)
+	// THE TIER BUDGET, not the storage bound. See OracoolHasFreeAffixSlot.
+	if (!OracoolHasFreeAffixSlot(item))
 		return;
 	// One drop in twelve: rarer than a socket, commoner than ethereal - a find, not a fixture.
 	if (GenerateRnd(100) >= 8)
@@ -4997,9 +5084,12 @@ void TryAddFasterCastToDrop(Item &item)
 		return;
 	const bool staff = item._itype == ItemType::Staff;
 	const bool trinket = item._itype == ItemType::Ring || item._itype == ItemType::Amulet || item._itype == ItemType::Helm;
-	if ((!staff && !trinket) || item._iMagical == ITEM_QUALITY_UNIQUE || item.hasOracoolTier())
+	// As TryAddMovementSpeedToDrop: uniques and set pieces out, tiered items in, and the budget
+	// rather than the storage bound decides. Movement Speed rolls first in FinalizeFreshDrop, so on
+	// an item with one free slot it takes it and this finds none - which is the intended outcome.
+	if ((!staff && !trinket) || item._iMagical == ITEM_QUALITY_UNIQUE)
 		return;
-	if (item._iOracoolSuffixCount >= Item::MaxOracoolAffixesPerSlot)
+	if (!OracoolHasFreeAffixSlot(item))
 		return;
 	// One drop in twelve, as Movement Speed: a find, not a fixture.
 	if (GenerateRnd(100) >= 8)

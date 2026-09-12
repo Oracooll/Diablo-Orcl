@@ -5102,6 +5102,136 @@ TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
  * everything on page 0 in category order, which satisfies "sorted" and tells you nothing about
  * which page anything is on.
  */
+
+/**
+ * The drop tail may not push an item past its tier's affix budget.
+ *
+ * User report (2026-09-13), a "Garnet Cap of the Tiger" that reached the stash carrying FOUR
+ * affixes on a two-affix tier: Resist Fire +45% and Hit Points +50 from the name's own prefix and
+ * suffix, then +24% movement speed and +14% faster cast rate appended on top of them. "we have hard
+ * limits on number of affixes per item tier. they must be respected."
+ *
+ * The cause: both drop-tail rolls guarded on Item::MaxOracoolAffixesPerSlot - the STORAGE bound on
+ * the Oracool arrays, which is Primal's allowance - while a magic item keeps its rolled affixes in
+ * the vanilla _iPrePower/_iSufPower fields and leaves those arrays empty. The guard read 0 on every
+ * magic item and never saw what the item was already carrying.
+ *
+ * The budget is D3-style and FLAT (user, 2026-09-13: "an item can have any combo of them within its
+ * limit of affixes") - a count, not a prefix allowance plus a suffix allowance.
+ */
+TEST(OracoolAffixBudget, TheDropTailNeverPushesAnItemPastItsTiersAffixBudget)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
+
+	// THE REPORTED ITEM: a magic helm with both vanilla affix fields already spent.
+	const auto reportedHelm = []() {
+		devilution::Item item {};
+		InitializeItem(item, IDI_ORACOOL_HELM);
+		item._iMagical = ITEM_QUALITY_MAGIC;
+		item._iPrePower = IPL_FIRERES; // "Garnet"
+		item._iSufPower = IPL_LIFE;    // "of the tiger"
+		item._iCreateInfo = 18;        // item level 18, as the screenshot showed
+		return item;
+	};
+
+	EXPECT_EQ(OracoolAffixBudget(reportedHelm()), 2) << "a magic item's limit is two affixes";
+	EXPECT_EQ(OracoolAffixesUsed(reportedHelm()), 2) << "and Garnet plus of-the-tiger already spend both";
+	EXPECT_FALSE(OracoolHasFreeAffixSlot(reportedHelm()))
+	    << "so the drop tail must find no room at all on this item";
+
+	// Rolled many times, because each drop-tail affix is an 8% roll - one attempt proves nothing.
+	for (int i = 0; i < 4000; i++) {
+		devilution::Item item = reportedHelm();
+		TryAddMovementSpeedToDrop(item);
+		TryAddFasterCastToDrop(item);
+		ASSERT_EQ(item._iOracoolSuffixCount, 0)
+		    << "the reported bug: a full magic item took a drop-tail affix anyway";
+		ASSERT_EQ(item._iPLMoveSpeed, 0);
+		ASSERT_EQ(item._iPLFastCast, 0);
+	}
+
+	// A magic helm with ONE affix has one slot left, and may spend it on either - never on both,
+	// because whichever rolls first takes it.
+	int magicTook = 0;
+	for (int i = 0; i < 4000; i++) {
+		devilution::Item item {};
+		InitializeItem(item, IDI_ORACOOL_HELM);
+		item._iMagical = ITEM_QUALITY_MAGIC;
+		item._iPrePower = IPL_FIRERES; // a prefix only
+		item._iCreateInfo = 18;
+		TryAddMovementSpeedToDrop(item);
+		TryAddFasterCastToDrop(item);
+		ASSERT_LE(item._iOracoolSuffixCount, 1)
+		    << "two drop-tail affixes stacked into a single free slot";
+		ASSERT_LE(OracoolAffixesUsed(item), OracoolAffixBudget(item))
+		    << "an item ended over its own tier budget";
+		if (item._iOracoolSuffixCount == 1)
+			magicTook++;
+	}
+	EXPECT_GT(magicTook, 0) << "the affix never appeared at all - the roll is now unreachable";
+
+	// A PLAIN item has no affix allowance, so it never takes one.
+	for (int i = 0; i < 2000; i++) {
+		devilution::Item item {};
+		InitializeItem(item, IDI_ORACOOL_HELM);
+		item._iCreateInfo = 18;
+		ASSERT_EQ(OracoolAffixBudget(item), 0) << "plain quality carries no affixes";
+		TryAddMovementSpeedToDrop(item);
+		TryAddFasterCastToDrop(item);
+		ASSERT_EQ(item._iOracoolSuffixCount, 0) << "a plain item took an affix it has no room for";
+	}
+
+	// THE RARITY IS NO LONGER INVERTED. A Rare helm used to be excluded outright while a magic one
+	// was not; it now spends from its own larger budget. Four affixes, any combination - so a Rare
+	// carrying two rolled affixes has room for BOTH drop-tail ones, which a magic item never does.
+	devilution::Item rareProbe {};
+	InitializeItem(rareProbe, IDI_ORACOOL_HELM);
+	rareProbe._iMagical = ITEM_QUALITY_MAGIC;
+	rareProbe._iOracoolTier = OracoolItemTier::Rare;
+	EXPECT_EQ(OracoolAffixBudget(rareProbe), 4) << "a Rare item's limit is four affixes";
+
+	int rareTook = 0;
+	int rareTookBoth = 0;
+	for (int i = 0; i < 4000; i++) {
+		devilution::Item item {};
+		InitializeItem(item, IDI_ORACOOL_HELM);
+		item._iMagical = ITEM_QUALITY_MAGIC;
+		item._iOracoolTier = OracoolItemTier::Rare;
+		item._iCreateInfo = 18;
+		item._iOracoolPrefixCount = 1; // one rolled prefix
+		item._iOracoolPrefixes[0] = OracoolAffix { IPL_FIRERES, 30, 0 };
+		item._iOracoolSuffixCount = 1; // one rolled suffix; two of the four still free
+		item._iOracoolSuffixes[0] = OracoolAffix { IPL_LIFE, 40, 0 };
+		TryAddMovementSpeedToDrop(item);
+		TryAddFasterCastToDrop(item);
+		ASSERT_LE(OracoolAffixesUsed(item), 4) << "a Rare item ran past its four-affix budget";
+		if (item._iOracoolSuffixCount > 1)
+			rareTook++;
+		if (item._iOracoolSuffixCount == 3)
+			rareTookBoth++;
+	}
+	EXPECT_GT(rareTook, 0) << "Rare items still cannot receive these affixes";
+	EXPECT_GT(rareTookBoth, 0) << "a Rare with two slots free should sometimes take both";
+
+	// A Primal is born at its cap, so there is never room - the budget says so with no special case.
+	devilution::Item primal {};
+	InitializeItem(primal, IDI_ORACOOL_HELM);
+	primal._iMagical = ITEM_QUALITY_MAGIC;
+	primal._iOracoolTier = OracoolItemTier::Primal;
+	primal._iOracoolPrefixCount = devilution::Item::MaxOracoolAffixesPerSlot;
+	primal._iOracoolSuffixCount = devilution::Item::MaxOracoolAffixesPerSlot;
+	EXPECT_EQ(OracoolAffixBudget(primal), 6) << "a Primal's limit is six affixes";
+	EXPECT_FALSE(OracoolHasFreeAffixSlot(primal)) << "a Primal is already at its cap";
+
+	// A set piece's six powers are a fixed list, not affixes: no allowance, ever.
+	devilution::Item setPiece {};
+	InitializeItem(setPiece, IDI_ORACOOL_HELM);
+	setPiece._iOracoolTier = OracoolItemTier::Set;
+	EXPECT_EQ(OracoolAffixBudget(setPiece), 0) << "a set piece takes no rolled affix";
+}
+
 TEST(OracoolAudit, SortGivesEveryQualityTierItsOwnPageAndKeepsASetTogether)
 {
 	Players.resize(1);
@@ -8893,7 +9023,7 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 		// skill played a Lightning cast animation and threw Lightning bolts. The sheet held the odd
 		// one of three descriptions. It asks the CHARGED BOLTS now, which carry most of the damage
 		// and are what the player sees.
-		{ SpellID::FistOfTheHeavens, UiFlags::ColorYellow, "Fist of the Heavens is lightning - the bolts it disperses, not the mace" },
+		{ SpellID::FistOfTheHeavens, UiFlags::ColorYellow, "Fist of the Heavens is lightning - the ring it disperses, not the mace" },
 		{ SpellID::BlessedShield, UiFlags::ColorMagicDamage, "Blessed Shield is magic damage too (user, 2026-09-11: \"make blessed shield Magic dmg type as well\")" },
 		{ SpellID::Healing, UiFlags::ColorOracoolGreen, "healing" },
 	};

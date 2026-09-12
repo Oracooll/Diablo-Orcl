@@ -1167,6 +1167,14 @@ void TryAddSocketsToDroppedItem(Item &item);
 /** @brief Phase 1: the ethereal roll (5% of durable equipment, any quality): +35% primary stats,
  * half max durability, unrepairable. Drop paths only, same seed-replay rule as the sockets. */
 void TryMakeDroppedItemEthereal(Item &item);
+/** @brief Oracool: how many SUFFIX slots an item's quality tier allows in total - the D2-style hard
+ * limit (magic 1, Rare 2, Buffed Unique 3, Primal 3; 0 for plain, set pieces and vanilla uniques). */
+DVL_API_FOR_TEST int OracoolAffixBudget(const Item &item);
+/** @brief Oracool: how many of that budget @p item has spent - the vanilla _iSufPower field AND the
+ * Oracool record added together, which is the sum the drop tail used to get wrong. */
+DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item);
+/** @brief Oracool: whether one more drop-tail suffix fits inside @p item's tier budget. */
+DVL_API_FOR_TEST bool OracoolHasFreeAffixSlot(const Item &item);
 /** @brief Oracool: the drop tail's Movement Speed +X% roll, one item in twelve, into the item's own affix record. */
 void TryAddMovementSpeedToDrop(Item &item);
 /** @brief Oracool: the drop tail's Faster Cast Rate +X% roll, one caster's piece in twelve, into the item's own affix record. */
