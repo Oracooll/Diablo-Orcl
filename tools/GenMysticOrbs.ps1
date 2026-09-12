@@ -27,7 +27,14 @@
 #     pwsh -File tools\GenMysticOrbs.ps1
 param(
     [string]$OutDir = "Source\oracool",
+    # Where the PROCEDURAL placeholders are drawn. Stays in %TEMP%: this folder is WIPED
+    # recursively below, so pointing it at Resources would delete the delivered batch-23 icons.
+    # Checked in this script rather than assumed from the others (2026-09-12).
     [string]$ArtDir = (Join-Path ([System.IO.Path]::GetTempPath()) "oracool-orbs"),
+    # Where the SPECS point: real art since batch 23 (RfA-09, 2026-09-12). Per-file, with a fallback
+    # to the placeholder, so a partial delivery still builds a whole sheet. Relative to the
+    # repository root, which is where build_item_icons.cmd runs.
+    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items\orbs",
     # One past the last jewel. cursor.cpp static_asserts the adjacency.
     [int]$FirstCursorId = 477
 )
@@ -42,6 +49,18 @@ if (Test-Path $artDir) { Remove-Item -Recurse -Force $artDir }
 New-Item -ItemType Directory -Force $artDir | Out-Null
 
 $cell = 28
+
+$realCount = 0
+# Real art if it is there, else that slug's placeholder. Existence is checked against the resolved
+# path; the SPEC keeps the relative one, so a tracked file carries no machine-specific path.
+function Resolve-SpecPath([string]$slug, [string]$placeholder) {
+    $rel = Join-Path $SpecArtDir ("$slug.png")
+    if (Test-Path (Join-Path $repo $rel)) {
+        $script:realCount++
+        return $rel
+    }
+    return $placeholder
+}
 
 # --- the eight orbs ---------------------------------------------------------------------------
 #
@@ -137,7 +156,7 @@ foreach ($orb in $orbs) {
     $cursLines += "`t$icurs,"
     $widthLines += "`t$cell, // $($orb.Name)"
     $heightLines += "`t$cell, // $($orb.Name)"
-    $specLines += "$png,0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
+    $specLines += "$(Resolve-SpecPath $slug $png),0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
 
     # param1 == param2: SaveItemPower rolls a range between them, and an orb that rolled would be an
     # affix wearing a different name.
@@ -166,5 +185,7 @@ Write-Inc "mystic_orbs_powers.inc" "Their powers and description lines, in enum 
 [System.IO.File]::WriteAllLines((Join-Path $out "mystic_orbs_icon_specs.txt"), $specLines, (New-Object System.Text.UTF8Encoding $false))
 Write-Host ("  mystic_orbs_icon_specs.txt  ($($specLines.Count) specs)")
 Write-Host ""
-Write-Host ("$($enumLines.Count) orbs, cursor ids $FirstCursorId..$($cursor - 1), art in $artDir")
+Write-Host ("$($enumLines.Count) orbs, cursor ids $FirstCursorId..$($cursor - 1)")
+Write-Host ("  real art: $realCount of $($specLines.Count) specs, from $SpecArtDir")
+Write-Host ("  placeholders drawn into $artDir (fallback only)")
 Write-Host "Now: tools\build_item_icons.cmd, then tools\build_oracool_mpq.cmd."

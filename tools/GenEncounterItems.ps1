@@ -18,7 +18,13 @@
 #     pwsh -File tools\GenEncounterItems.ps1
 param(
     [string]$OutDir = "Source\oracool",
+    # Where the PROCEDURAL placeholders are drawn. Stays in %TEMP%: this folder is WIPED recursively
+    # below, so pointing it at Resources would delete the delivered batch-24 icons. Checked in this
+    # script rather than assumed from the others (2026-09-12).
     [string]$ArtDir = (Join-Path ([System.IO.Path]::GetTempPath()) "oracool-encounters"),
+    # Where the SPECS point: real art since batch 24 (RfA-09, 2026-09-12). Per-file, with a fallback
+    # to the placeholder. Relative to the repository root, where build_item_icons.cmd runs.
+    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items\encounters",
     # One past the last growing charm. cursor.cpp static_asserts the adjacency.
     [int]$FirstCursorId = 489
 )
@@ -33,6 +39,18 @@ if (Test-Path $artDir) { Remove-Item -Recurse -Force $artDir }
 New-Item -ItemType Directory -Force $artDir | Out-Null
 
 $cell = 28
+
+$realCount = 0
+# Real art if present, else that slug's placeholder. Existence checked against the resolved path;
+# the SPEC keeps the relative one.
+function Resolve-SpecPath([string]$slug, [string]$placeholder) {
+    $rel = Join-Path $SpecArtDir ("$slug.png")
+    if (Test-Path (Join-Path $repo $rel)) {
+        $script:realCount++
+        return $rel
+    }
+    return $placeholder
+}
 
 # Qlvl is where the MAP starts dropping. All three are deep, because a Dread boss is what drops them
 # and Dread bosses are guaranteed only from the first Hell floor.
@@ -143,7 +161,7 @@ foreach ($e in $encounters) {
     $cursLines += "`t$icurs,"
     $widthLines += "`t$cell, // $($e.MapName)"
     $heightLines += "`t$cell, // $($e.MapName)"
-    $specLines += "$png,0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
+    $specLines += "$(Resolve-SpecPath $slug $png),0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
     $cursor++
 }
 
@@ -160,7 +178,7 @@ foreach ($e in $encounters) {
     $cursLines += "`t$icurs,"
     $widthLines += "`t$cell, // $($e.Charm)"
     $heightLines += "`t$cell, // $($e.Charm)"
-    $specLines += "$png,0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
+    $specLines += "$(Resolve-SpecPath $slug $png),0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
     $cursor++
 
     $charmLines += "`t{ IDI_ORACOOL_CHARM_$($e.Id), N_(`"$($e.Line)`") }, // $($e.Charm)"
@@ -188,5 +206,7 @@ Write-Inc "encounter_charms.inc"       "The reward charms' description lines."  
 [System.IO.File]::WriteAllLines((Join-Path $out "encounter_items_icon_specs.txt"), $specLines, (New-Object System.Text.UTF8Encoding $false))
 Write-Host ("  encounter_items_icon_specs.txt  ($($specLines.Count) specs)")
 Write-Host ""
-Write-Host ("$($enumLines.Count) items, cursor ids $FirstCursorId..$($cursor - 1), art in $artDir")
+Write-Host ("$($enumLines.Count) items, cursor ids $FirstCursorId..$($cursor - 1)")
+Write-Host ("  real art: $realCount of $($specLines.Count) specs, from $SpecArtDir")
+Write-Host ("  placeholders drawn into $artDir (fallback only)")
 Write-Host "Now: tools\build_item_icons.cmd, then tools\build_oracool_mpq.cmd."
