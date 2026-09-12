@@ -1483,12 +1483,33 @@ OracoolOptions::OracoolOptions()
     , autoScrollPickup("Auto Pickup Scrolls", OptionEntryFlags::None, N_("Auto Pickup Scrolls"), N_("Scrolls of every kind are automatically collected when in close proximity to the player."), true)
     , autoRunePickup("Auto Pickup Runes", OptionEntryFlags::None, N_("Auto Pickup Runes"), N_("Runes are automatically collected when in close proximity to the player."), true)
     , autoGemPickup("Auto Pickup Gems", OptionEntryFlags::None, N_("Auto Pickup Gems"), N_("Gems are automatically collected when in close proximity to the player."), true)
-    , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 2, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
-    , uniqueDropChancePercent("Unique Drop Chance Percent", OptionEntryFlags::None, N_("Unique Drop Chance Percent"), N_("Scales the chance an eligible drop becomes a unique item. 100 is vanilla; lower narrows it."), 50, { 10, 25, 50, 75, 100 })
+    // The quality ladder's defaults were retuned on 2026-09-12 (user: "drop chances of all item
+    // tiers is set to whatever feels natural to you"). They are rolled in the order Unique ->
+    // Primal -> Buffed Unique -> Rare, each only if the one before failed, so what matters is the
+    // SHAPE of the descent rather than any single number: 1 / 2 / 4 is a tier plainly rarer than the
+    // one under it at every step.
+    //
+    // 1 / 3 / 6, each tier about twice as rare as the one below it.
+    //
+    // These replace the reference-ini values of 2026-08-27, which the user had tuned deliberately
+    // low to pair with Monster Density 300 - and then reported from play: "i think i made them too
+    // harsh. i barely see rares" (2026-09-12). At 2 the roll lands on about one in fifty
+    // magic-eligible drops, and since only some drops are magic-eligible at all, a rare was nearer
+    // one in a hundred items. Three times the monsters does not fix a rate that low; it just means
+    // more of the same white items.
+    //
+    // Tripling rather than the 10 first tried here: the pairing the old test comment insisted on is
+    // still real, and at 300% density a rate of 10 would put rares near a third of a vanilla level's
+    // loot. 6 is about one in seventeen eligible drops - regularly seen, still worth stopping for.
+    , rareItemDropChance("Rare Item Drop Chance", OptionEntryFlags::None, N_("Rare Item Drop Chance"), N_("Percent chance an eligible drop becomes a Rare item after failing its Unique roll."), 6, { 0, 2, 4, 6, 8, 10, 15, 20, 30, 50, 75, 100 })
+    // 100, not 50. This is the knob that NERFS - its own INI comment says so - and a fresh install
+    // was shipping with uniques at half of vanilla's own window for no stated reason. Vanilla is the
+    // natural baseline for a default; narrowing it is a choice the player can still make.
+    , uniqueDropChancePercent("Unique Drop Chance Percent", OptionEntryFlags::None, N_("Unique Drop Chance Percent"), N_("Scales the chance an eligible drop becomes a unique item. 100 is vanilla; lower narrows it."), 100, { 10, 25, 50, 75, 100 })
     , lastReadiedSpellLeft("Last Readied Spell Left", OptionEntryFlags::Invisible, "Last Readied Spell Left", "The left-button skill a new character starts with, remembered from the last one.", 0, { })
     , lastReadiedSpellRight("Last Readied Spell Right", OptionEntryFlags::Invisible, "Last Readied Spell Right", "The right-button skill a new character starts with, remembered from the last one.", 0, { })
     , championExtraDropChance("Champion Extra Drop Chance", OptionEntryFlags::None, N_("Champion Extra Drop Chance"), N_("Percent chance a champion monster rolls a SECOND item on death. 100 is always, which is what it used to be."), 25, { 0, 10, 25, 50, 75, 100 })
-    , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
+    , buffedUniqueItemDropChance("Buffed Unique Item Drop Chance", OptionEntryFlags::None, N_("Buffed Unique Item Drop Chance"), N_("Percent chance an eligible drop becomes a Buffed Unique, checked before Rare."), 3, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50 })
     , primalItemDropChance("Primal Item Drop Chance", OptionEntryFlags::None, N_("Primal Item Drop Chance"), N_("Percent chance an eligible drop becomes a Primal item, checked before Buffed Unique."), 1, { 0, 1, 2, 3, 4, 5, 8, 10, 15, 20, 30 })
     , griswoldPremiumRefresh("Griswold Premium Refresh", OptionEntryFlags::None, N_("Griswold Premium Refresh"), N_("Adds a free Refresh action to Griswold's Premium Items."), true)
     , refreshUntilButton("Griswold Refresh Until Button", OptionEntryFlags::None, N_("Griswold Refresh Until Button"), N_("Searches Griswold's Premium Items for configured item names."), false)

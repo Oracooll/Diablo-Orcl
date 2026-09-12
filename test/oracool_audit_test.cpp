@@ -7378,8 +7378,14 @@ TEST(OracoolAudit, ShippedDefaultsMatchTheReferenceIni)
 
 	EXPECT_EQ(*fresh.Oracool.monsterDensityPercent, 300) << "Monster Density=300";
 	EXPECT_EQ(*fresh.Oracool.lesserUniqueDensityPercent, 300) << "Lesser Unique Density=300";
-	EXPECT_EQ(*fresh.Oracool.rareItemDropChance, 2) << "Rare Item Drop Chance=2";
-	EXPECT_EQ(*fresh.Oracool.buffedUniqueItemDropChance, 1) << "Buffed Unique Item Drop Chance=1";
+	// Retuned 2026-09-12, and the pairing this test's comment demanded be looked at WAS looked at -
+	// see the note in options.cpp. The user played the 2026-08-27 values and reported back: "i think
+	// i made them too harsh. i barely see rares". Tripled rather than raised to the first figure
+	// tried (10), because Monster Density 300 multiplies whatever these say.
+	EXPECT_EQ(*fresh.Oracool.rareItemDropChance, 6) << "Rare Item Drop Chance=6";
+	EXPECT_EQ(*fresh.Oracool.buffedUniqueItemDropChance, 3) << "Buffed Unique Item Drop Chance=3";
+	EXPECT_EQ(*fresh.Oracool.primalItemDropChance, 1) << "Primal Item Drop Chance=1";
+	EXPECT_EQ(*fresh.Oracool.uniqueDropChancePercent, 100) << "Unique Drop Chance Percent=100";
 	EXPECT_EQ(*fresh.Oracool.uniqueItemDropMultiplier, 1) << "Unique Item Drop Multiplier=1";
 
 	EXPECT_FALSE(*fresh.Oracool.permanentInfravision) << "Permanent Infravision=0";
