@@ -4942,7 +4942,14 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		if ((monster.data().treasure & T_NODROP) != 0)
 			return;
 		onlygood = false;
-		idx = RndItemForMonsterLevel(static_cast<int8_t>(std::min(ItemLevelOfMonster(monster), 127)));
+		const auto dropLevel = static_cast<int8_t>(std::min(ItemLevelOfMonster(monster), 127));
+		idx = RndItemForMonsterLevel(dropLevel);
+		// SMART LOOT aims the BASE, before anything is rolled onto it, so the quality roll below runs
+		// exactly once as it always has. Candidates come from the equipment pool directly: drawing
+		// them through RndItemForMonsterLevel meant nine re-rolls in ten came back as nothing or gold
+		// and were thrown away, so "best of three" was nearly always best of one. They are drawn for
+		// the SLOT the blind roll chose, so aiming never changes whether a ring or a helm drops.
+		idx = oracool::SmartLootAimBase(idx, *MyPlayer, [dropLevel](item_equip_type slot) { return RndEquipmentForMonsterLevel(dropLevel, slot); });
 	}
 
 	if (idx == IDI_NONE)
@@ -4961,27 +4968,6 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		mLevel -= 15;
 
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
-	// SMART LOOT: generate a few candidates and keep the one that best suits this class.
-	if (oracool::SmartLootShouldAimThisDrop() && oracool::SmartLootConsiders(item)) {
-		const Point dropPosition = item.position;
-		int bestScore = oracool::SmartLootScore(item, *MyPlayer);
-		for (int attempt = 1; attempt < oracool::SmartLootCandidates; attempt++) {
-			const _item_indexes candidateIdx = RndItemForMonsterLevel(static_cast<int8_t>(std::min(ItemLevelOfMonster(monster), 127)));
-			if (IsAnyOf(candidateIdx, IDI_NONE, IDI_GOLD))
-				continue;
-			Item candidate;
-			SetupAllItems(*MyPlayer, candidate, candidateIdx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
-			const int candidateScore = oracool::SmartLootScore(candidate, *MyPlayer);
-			if (candidateScore <= bestScore)
-				continue;
-			bestScore = candidateScore;
-			item = candidate;
-		}
-		// Each candidate was generated with its OWN fresh seed and is an entirely ordinary item, so
-		// nothing about the seed replay changes - what changed is only which of them was kept. The
-		// position is restored because it belongs to the slot, not to the item that won.
-		item.position = dropPosition;
-	}
 	FinalizeFreshDrop(item, mLevel);
 
 	if (sendmsg)
@@ -5195,23 +5181,13 @@ void CreateRndItem(Point position, bool onlygood, bool sendmsg, bool delta)
 {
 	_item_indexes idx = onlygood ? RndUItem(nullptr) : RndAllItems();
 
-	// SMART LOOT, the chest/barrel/theme-room half of it. This site picks the base item itself, so
-	// aiming happens HERE, on the index, rather than inside SetupBaseItem - which is also handed a
-	// deliberately chosen index by CreateTypeItem (a weapon rack drops a weapon) and must keep it.
-	//
-	// Scored on the base item rather than on a finished roll: only the index is being chosen at this
-	// point, and generating whole items just to compare them would consume seeds the drop never used.
-	if (oracool::SmartLootShouldAimThisDrop()) {
-		int bestScore = oracool::SmartLootScoreForBase(idx, *MyPlayer);
-		for (int attempt = 1; attempt < oracool::SmartLootCandidates; attempt++) {
-			const _item_indexes candidate = onlygood ? RndUItem(nullptr) : RndAllItems();
-			const int candidateScore = oracool::SmartLootScoreForBase(candidate, *MyPlayer);
-			if (candidateScore <= bestScore)
-				continue;
-			bestScore = candidateScore;
-			idx = candidate;
-		}
-	}
+	// SMART LOOT, the chest/barrel/theme-room half. Aimed on the index here rather than inside
+	// SetupBaseItem, which CreateTypeItem also calls with a type it chose on purpose (a weapon rack
+	// drops a weapon) and must keep. Gold and consumables pass straight through SmartLootAimBase:
+	// this pool is gold three times in four, and the first version replaced them with equipment.
+	idx = oracool::SmartLootAimBase(idx, *MyPlayer, [onlygood](item_equip_type slot) {
+		return onlygood ? RndUItem(nullptr) : RndEquipmentForCurrentLevel(slot);
+	});
 
 	SetupBaseItem(position, idx, onlygood, sendmsg, delta);
 }
@@ -9023,6 +8999,37 @@ void UpdateHellfireFlag(Item &item, const char *identifiedItemName)
 		// This item should be a vanilla hellfire item that has CF_HELLFIRE missing, cause only then the item name matches
 		item.dwBuff |= CF_HELLFIRE;
 	}
+}
+
+namespace {
+
+/** @brief Weapons, armour, rings and amulets - what Smart Loot aims. Mirrors SmartLootIsEquipmentBase. */
+bool IsSmartLootEquipmentData(const ItemData &item)
+{
+	return item.iClass == ICLASS_ARMOR || item.iClass == ICLASS_WEAPON
+	    || item.itype == ItemType::Ring || item.itype == ItemType::Amulet;
+}
+
+} // namespace
+
+_item_indexes RndEquipmentForMonsterLevel(int8_t monsterLevel, item_equip_type slot)
+{
+	// RndItemForMonsterLevel's own walk - drop rate weighting and qlvl ceiling - with its two early
+	// exits removed. Those exits return nothing three times in five and gold three times in four of
+	// the rest, which is right for deciding WHETHER a monster drops equipment and useless for
+	// choosing WHICH equipment: Smart Loot only asks this once the answer is already yes.
+	return GetItemIndexForDroppableItem(true, [&monsterLevel, slot](const ItemData &item) {
+		return PoolQlvl(item) <= monsterLevel && IsSmartLootEquipmentData(item) && (slot == ILOC_INVALID || item.iLoc == slot);
+	});
+}
+
+_item_indexes RndEquipmentForCurrentLevel(item_equip_type slot)
+{
+	// RndAllItems' walk, which gives gold three times in four, without the gold.
+	const int itemMaxLevel = ItemsGetCurrlevel() * 2;
+	return GetItemIndexForDroppableItem(false, [&itemMaxLevel, slot](const ItemData &item) {
+		return PoolQlvl(item) <= itemMaxLevel && IsSmartLootEquipmentData(item) && (slot == ILOC_INVALID || item.iLoc == slot);
+	});
 }
 
 } // namespace devilution

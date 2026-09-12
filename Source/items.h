@@ -1175,6 +1175,12 @@ DVL_API_FOR_TEST int OracoolAffixBudget(const Item &item);
 DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item);
 /** @brief Oracool: whether one more drop-tail suffix fits inside @p item's tier budget. */
 DVL_API_FOR_TEST bool OracoolHasFreeAffixSlot(const Item &item);
+/** @brief Oracool: a weapon, armour, ring or amulet base droppable by a monster of @p monsterLevel -
+ * RndItemForMonsterLevel's pool without its nothing and gold outcomes, optionally in one @p slot
+ * (ILOC_INVALID means any). Smart Loot's candidate source. */
+DVL_API_FOR_TEST _item_indexes RndEquipmentForMonsterLevel(int8_t monsterLevel, item_equip_type slot = ILOC_INVALID);
+/** @brief Oracool: the same for a chest or barrel on the current floor - RndAllItems' pool, equipment only. */
+DVL_API_FOR_TEST _item_indexes RndEquipmentForCurrentLevel(item_equip_type slot = ILOC_INVALID);
 /** @brief Oracool: the drop tail's Movement Speed +X% roll, one item in twelve, into the item's own affix record. */
 void TryAddMovementSpeedToDrop(Item &item);
 /** @brief Oracool: the drop tail's Faster Cast Rate +X% roll, one caster's piece in twelve, into the item's own affix record. */

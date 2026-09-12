@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdlib>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -9,6 +10,7 @@
 #include "engine/random.hpp"
 #include "items.h"
 #include "items/validation.h"
+#include "oracool/smart_loot.h"
 #include "monstdat.h"
 #include "options.h"
 #include "player.h"
@@ -1077,6 +1079,205 @@ TEST(OracoolRareShelf, TheRarePoolReachesTheKindsTheOldCeilingLockedOut)
 	// premium pool offers and well clear of what the old ceiling allowed, so this fails on a
 	// regression without being brittle about exactly which kinds a seed happens to draw.
 	EXPECT_GE(kinds.size(), 8u) << "only " << kinds.size() << " item kinds reachable across " << made << " rolls";
+}
+
+} // namespace devilution
+
+namespace devilution {
+
+namespace {
+
+constexpr int8_t SmartLootTestLevel = 30;
+
+_item_indexes DrawTestEquipment()
+{
+	return RndEquipmentForMonsterLevel(SmartLootTestLevel);
+}
+
+_item_indexes DrawTestEquipmentIn(item_equip_type slot)
+{
+	return RndEquipmentForMonsterLevel(SmartLootTestLevel, slot);
+}
+
+/** @brief Which main stat a base leans on, or -1 for none or a tie. 0 Str, 1 Mag, 2 Dex. */
+int LeaningOf(_item_indexes idx)
+{
+	const ItemData &data = AllItemsList[idx];
+	const int s = data.iMinStr;
+	const int m = data.iMinMag;
+	const int d = data.iMinDex;
+	if (s > m && s > d)
+		return 0;
+	if (m > s && m > d)
+		return 1;
+	if (d > s && d > m)
+		return 2;
+	return -1;
+}
+
+} // namespace
+
+/**
+ * Smart Loot, measured on the REAL drop pools rather than a simulated one.
+ *
+ * The first test drew uniformly from a hand-built list of equipment, which is why it passed while
+ * the shipped code starved chests of gold, re-rolled mostly into nothing, inflated rarity and pushed
+ * drops toward the deepest bases. This drives RndEquipmentForMonsterLevel and SmartLootAimBase - the
+ * two functions the drop sites actually call.
+ *
+ * User decisions it holds the code to (2026-09-13): no item is locked out of any class; Smart Loot
+ * does not change rarity; only main stats count.
+ */
+TEST(OracoolSmartLoot, AimsTheBaseOnTheRealPoolsAndLeavesGoldRarityAndOtherClassesAlone)
+{
+	Players.resize(4);
+	MyPlayer = &Players[0];
+	gbIsMultiplayer = false;
+	gbIsHellfire = true;
+	Player &sorcerer = Players[1];
+	Player &barbarian = Players[2];
+	Player &bard = Players[3];
+	sorcerer = {};
+	barbarian = {};
+	bard = {};
+	sorcerer._pClass = HeroClass::Sorcerer;
+	barbarian._pClass = HeroClass::Barbarian;
+	bard._pClass = HeroClass::Bard;
+
+	// 1. GOLD AND CONSUMABLES PASS THROUGH UNTOUCHED, and consume no randomness doing it.
+	_item_indexes potion = IDI_NONE;
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].iMiscId == IMISC_HEAL && AllItemsList[i].iRnd != IDROP_NEVER) {
+			potion = static_cast<_item_indexes>(i);
+			break;
+		}
+	}
+	ASSERT_NE(potion, IDI_NONE);
+	const std::vector<_item_indexes> passThroughs { IDI_GOLD, potion };
+	for (_item_indexes passThrough : passThroughs) {
+		bool drew = false;
+		SetRndSeed(77);
+		const int expected = GenerateRnd(100000);
+		SetRndSeed(77);
+		const _item_indexes result = oracool::SmartLootAimBase(passThrough, sorcerer, [&drew](item_equip_type) {
+			drew = true;
+			return IDI_NONE;
+		});
+		EXPECT_EQ(result, passThrough) << "a non-equipment drop was replaced";
+		EXPECT_FALSE(drew) << "a non-equipment drop drew candidates";
+		EXPECT_EQ(GenerateRnd(100000), expected) << "a non-equipment drop consumed randomness";
+	}
+
+	// 2. MULTIPLAYER IS LEFT ALONE - aiming at MyPlayer would aim at whoever is local, not the finder.
+	gbIsMultiplayer = true;
+	for (int i = 0; i < 200; i++) {
+		const _item_indexes first = DrawTestEquipment();
+		bool drew = false;
+		const _item_indexes result = oracool::SmartLootAimBase(first, sorcerer, [&drew](item_equip_type) {
+			drew = true;
+			return IDI_NONE;
+		});
+		EXPECT_EQ(result, first);
+		EXPECT_FALSE(drew);
+	}
+	gbIsMultiplayer = false;
+
+	// 3. THE CANDIDATE POOL IS EQUIPMENT ONLY - no nothing, no gold, no potions to waste a candidate on.
+	SetRndSeed(0x5EED);
+	for (int i = 0; i < 3000; i++)
+		ASSERT_TRUE(oracool::SmartLootIsEquipmentBase(DrawTestEquipment()));
+
+	// 4. THE SCORE IS A SHARE: which stats a base asks for, never how much.
+	std::vector<_item_indexes> strengthOnly;
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		const auto idx = static_cast<_item_indexes>(i);
+		if (!oracool::SmartLootIsEquipmentBase(idx))
+			continue;
+		const ItemData &data = AllItemsList[i];
+		if (data.iMinStr > 0 && data.iMinMag == 0 && data.iMinDex == 0)
+			strengthOnly.push_back(idx);
+		if (data.iMinStr == 0 && data.iMinMag == 0 && data.iMinDex == 0) {
+			// Rings, amulets, light gear: neutral for everyone, so neither favoured nor starved.
+			EXPECT_EQ(oracool::SmartLootScoreForBase(idx, barbarian), oracool::SmartLootNeutralScore) << data.iName;
+			EXPECT_EQ(oracool::SmartLootScoreForBase(idx, sorcerer), oracool::SmartLootNeutralScore) << data.iName;
+		}
+		// The Bard wants all three equally, so nothing it can find scores differently.
+		EXPECT_NEAR(oracool::SmartLootScoreForBase(idx, bard), oracool::SmartLootNeutralScore, 1) << data.iName;
+	}
+	ASSERT_GE(strengthOnly.size(), 2u);
+	for (_item_indexes idx : strengthOnly) {
+		EXPECT_EQ(oracool::SmartLootScoreForBase(idx, barbarian), oracool::SmartLootScoreForBase(strengthOnly.front(), barbarian))
+		    << AllItemsList[idx].iName << " - a bigger requirement scored higher, which pushes drops up the item ladder";
+	}
+
+	// 5. THE LIFT, on the real pool: how often a drop leans on the class's own stat.
+	constexpr int Draws = 12000;
+	const auto aimedLeaning = [](const Player &player, int leaning) {
+		int hits = 0;
+		for (int i = 0; i < Draws; i++) {
+			const _item_indexes idx = oracool::SmartLootAimBase(DrawTestEquipment(), player, DrawTestEquipmentIn);
+			if (LeaningOf(idx) == leaning)
+				hits++;
+		}
+		return static_cast<double>(hits) / Draws;
+	};
+	const auto blindLeaning = [](int leaning) {
+		int hits = 0;
+		for (int i = 0; i < Draws; i++) {
+			if (LeaningOf(DrawTestEquipment()) == leaning)
+				hits++;
+		}
+		return static_cast<double>(hits) / Draws;
+	};
+	SetRndSeed(0x10072013);
+	const double blindMagic = blindLeaning(1);
+	const double blindStrength = blindLeaning(0);
+	const double sorcererMagic = aimedLeaning(sorcerer, 1);
+	const double barbarianStrength = aimedLeaning(barbarian, 0);
+	const double bardMagic = aimedLeaning(bard, 1);
+	ASSERT_GT(blindMagic, 0.0) << "no magic-leaning base at this level - the test proves nothing";
+	EXPECT_GT(sorcererMagic, blindMagic * 1.5) << "blind " << blindMagic << " aimed " << sorcererMagic;
+	EXPECT_GT(barbarianStrength, blindStrength * 1.2) << "blind " << blindStrength << " aimed " << barbarianStrength;
+	EXPECT_NEAR(bardMagic, blindMagic, blindMagic * 0.25) << "the generalist drops moved - aiming is not flat for it";
+
+	// 6. THE SLOT MIX DOES NOT MOVE. Aiming picks which base fills the slot the blind roll chose, never
+	// the slot itself, so a Barbarian finds as many rings as anyone. Scoring across slots starved them:
+	// a neutral ring loses to almost every Strength base, and jewellery fell to a third of its share.
+	const auto slotShares = [](const Player *player) {
+		std::map<item_equip_type, double> shares;
+		for (int i = 0; i < Draws; i++) {
+			_item_indexes idx = DrawTestEquipment();
+			if (player != nullptr)
+				idx = oracool::SmartLootAimBase(idx, *player, DrawTestEquipmentIn);
+			shares[AllItemsList[idx].iLoc] += 1.0 / Draws;
+		}
+		return shares;
+	};
+	const std::map<item_equip_type, double> blindSlots = slotShares(nullptr);
+	ASSERT_GT(blindSlots.count(ILOC_RING) + blindSlots.count(ILOC_AMULET), 0u) << "no jewellery at this level - the check proves nothing";
+	const std::vector<const Player *> slotProbes { &barbarian, &sorcerer };
+	for (const Player *player : slotProbes) {
+		std::map<item_equip_type, double> aimedSlots = slotShares(player);
+		for (const auto &[slot, blindShare] : blindSlots) {
+			const double tolerance = std::max(0.01, blindShare * 0.2);
+			EXPECT_NEAR(aimedSlots[slot], blindShare, tolerance)
+			    << "slot " << static_cast<int>(slot) << " moved for class " << static_cast<int>(player->_pClass);
+		}
+	}
+
+	// 7. NOTHING IS LOCKED OUT: every base a blind draw finds with any regularity, an aimed draw finds too.
+	SetRndSeed(4242);
+	std::map<_item_indexes, int> blind;
+	for (int i = 0; i < 40000; i++)
+		blind[DrawTestEquipment()]++;
+	std::set<_item_indexes> aimedSeen;
+	for (int i = 0; i < 40000; i++)
+		aimedSeen.insert(oracool::SmartLootAimBase(DrawTestEquipment(), sorcerer, DrawTestEquipmentIn));
+	for (const auto &[idx, count] : blind) {
+		if (count < 40)
+			continue;
+		EXPECT_TRUE(aimedSeen.count(idx) != 0) << AllItemsList[idx].iName << " became unreachable for the Sorcerer";
+	}
 }
 
 } // namespace devilution
