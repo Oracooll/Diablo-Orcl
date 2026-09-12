@@ -55,6 +55,7 @@ set(libdevilutionx_SRCS
   oracool/rng_streams.cpp
   oracool/item_tint.cpp
   oracool/runewords.cpp
+  oracool/smart_loot.cpp
   oracool/sprite_scale.cpp
   oracool/aura_field.cpp
   oracool/quest_marks.cpp

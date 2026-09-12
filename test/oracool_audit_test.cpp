@@ -22,6 +22,7 @@
 #include <cstring>
 #include <string>
 #include <system_error>
+#include <random>
 #include <vector>
 
 #include "DiabloUI/ui_flags.hpp"
@@ -78,6 +79,7 @@
 #include "oracool/levski_roar.h"
 #include "oracool/waypoint_menu.h"
 #include "oracool/item_names.h"
+#include "oracool/smart_loot.h"
 #include "oracool/item_sets.h"
 #include "oracool/hero_chunks.h"
 #include "oracool/readied_spells.h"
@@ -5319,6 +5321,138 @@ TEST(OracoolItemNames, NamesAreTwoWordsDerivedFromTheSeedAndNeverRolled)
 	}
 	EXPECT_EQ(reachedAdjectives.size(), oracool::OracoolNameAdjectiveCount()) << "an adjective is unreachable";
 	EXPECT_EQ(reachedNouns.size(), oracool::OracoolNameNounCount()) << "a noun is unreachable";
+}
+
+/**
+ * Smart Loot: drops lean toward the class that found them, and nothing is locked out.
+ *
+ * User direction (2026-09-13): "any item should be able to drop with a any hero class, just drop
+ * percentage should favour more usable one", at roughly Diablo III Loot 2.0's 80/20 split.
+ *
+ * The second half of that sentence is the one worth a test. A bias is easy to write and easy to
+ * write too hard - the failure mode is a filter wearing a bias's clothes, where a Sorcerer simply
+ * stops seeing plate. So this MEASURES the lift rather than asserting it exists, and separately
+ * proves every base item is still reachable by every class.
+ */
+TEST(OracoolSmartLoot, DropsLeanTowardTheClassWithoutLockingAnythingOut)
+{
+	// Player is far too large for the stack - several locals fault instantly (see the backpack-test
+	// traps note). The probes live in the global Players slots instead, one per class.
+	Players.resize(4);
+	MyPlayer = &Players[0];
+
+
+
+
+
+
+
+	// Every equipment base in the game, which is the population a drop is drawn from.
+	std::vector<_item_indexes> bases;
+	for (std::underlying_type_t<_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		const ItemData &data = AllItemsList[i];
+		if (data.iRnd == IDROP_NEVER)
+			continue;
+		if (data.iClass != ICLASS_ARMOR && data.iClass != ICLASS_WEAPON)
+			continue;
+		bases.push_back(static_cast<_item_indexes>(i));
+	}
+	ASSERT_GT(bases.size(), 50u) << "the base item population is too small to measure anything";
+
+	// THE CLASS PROFILE the scorer derives, asserted against the table it derives it from.
+	devilution::Player &barbarian = Players[1];
+	barbarian._pClass = HeroClass::Barbarian;
+	devilution::Player &sorcerer = Players[2];
+	sorcerer._pClass = HeroClass::Sorcerer;
+	devilution::Player &bard = Players[3];
+	bard._pClass = HeroClass::Bard;
+
+	// Barbarian maxMag is 0, so a base that asks ONLY for Magic is worth nothing to them - while
+	// the same base is worth a great deal to a Sorcerer. That contrast is the whole mechanism.
+	int magicOnlyBases = 0;
+	for (_item_indexes idx : bases) {
+		const ItemData &data = AllItemsList[idx];
+		if (data.iMinMag == 0 || data.iMinStr != 0 || data.iMinDex != 0)
+			continue;
+		magicOnlyBases++;
+		EXPECT_EQ(oracool::SmartLootScoreForBase(idx, barbarian), 0) << data.iName;
+		EXPECT_GT(oracool::SmartLootScoreForBase(idx, sorcerer), 0) << data.iName;
+	}
+	EXPECT_GT(magicOnlyBases, 0) << "no magic-requirement bases found - the test proves nothing";
+
+	// A Bard's appetite is flat (120/120/120), so the scorer must not favour one axis for them.
+	// This is the assertion that fails if somebody replaces the weight table with a single
+	// "primary stat per class", which would have to invent one for the Bard.
+	int bardStrFavoured = 0;
+	int bardMagFavoured = 0;
+	for (_item_indexes idx : bases) {
+		const ItemData &data = AllItemsList[idx];
+		if (data.iMinStr > data.iMinMag && oracool::SmartLootScoreForBase(idx, bard) > 0)
+			bardStrFavoured++;
+		if (data.iMinMag > data.iMinStr && oracool::SmartLootScoreForBase(idx, bard) > 0)
+			bardMagFavoured++;
+	}
+	EXPECT_GT(bardStrFavoured, 0);
+	EXPECT_GT(bardMagFavoured, 0) << "the Bard sees no magic gear at all - the generalist is gone";
+
+	// THE LIFT. Simulate the best-of-N the drop path performs, with a PRNG of the test's own so the
+	// measurement does not depend on the engine's stream, and compare against drawing once.
+	const auto measure = [&bases](const devilution::Player &player, int candidates, uint32_t seed) {
+		std::mt19937 rng(seed);
+		std::uniform_int_distribution<size_t> pick(0, bases.size() - 1);
+		long long total = 0;
+		constexpr int Trials = 20000;
+		for (int t = 0; t < Trials; t++) {
+			int best = oracool::SmartLootScoreForBase(bases[pick(rng)], player);
+			for (int c = 1; c < candidates; c++)
+				best = std::max(best, oracool::SmartLootScoreForBase(bases[pick(rng)], player));
+			total += best;
+		}
+		return static_cast<double>(total) / Trials;
+	};
+
+	for (HeroClass heroClass : { HeroClass::Sorcerer, HeroClass::Barbarian, HeroClass::Rogue }) {
+		devilution::Player &player = Players[1];
+		player._pClass = heroClass;
+		const double blind = measure(player, 1, 20260913);
+		const double aimed = measure(player, oracool::SmartLootCandidates, 20260913);
+		EXPECT_GT(aimed, blind * 1.2)
+		    << "best-of-" << oracool::SmartLootCandidates << " barely improved suitability";
+	}
+
+	// NOTHING IS LOCKED OUT. Over many aimed draws, every base must still be reachable - best-of-N
+	// only prefers, it never excludes, because a candidate is kept when nothing better turns up.
+	{
+		std::mt19937 rng(4242);
+		std::uniform_int_distribution<size_t> pick(0, bases.size() - 1);
+		std::set<_item_indexes> seen;
+		for (int t = 0; t < 300000; t++) {
+			_item_indexes bestIdx = bases[pick(rng)];
+			int best = oracool::SmartLootScoreForBase(bestIdx, sorcerer);
+			for (int c = 1; c < oracool::SmartLootCandidates; c++) {
+				const _item_indexes candidate = bases[pick(rng)];
+				const int score = oracool::SmartLootScoreForBase(candidate, sorcerer);
+				if (score > best) {
+					best = score;
+					bestIdx = candidate;
+				}
+			}
+			seen.insert(bestIdx);
+		}
+		EXPECT_EQ(seen.size(), bases.size())
+		    << "a base item became unreachable for the Sorcerer - the bias turned into a filter";
+	}
+
+	// And the aim itself is a coin, not a rule: roughly four drops in five, never all of them.
+	int aimed = 0;
+	constexpr int AimTrials = 40000;
+	for (int i = 0; i < AimTrials; i++) {
+		if (oracool::SmartLootShouldAimThisDrop())
+			aimed++;
+	}
+	const double aimedFraction = static_cast<double>(aimed) / AimTrials;
+	EXPECT_GT(aimedFraction, 0.75);
+	EXPECT_LT(aimedFraction, 0.85) << "the unaimed fifth is gone - every drop is now aimed";
 }
 
 TEST(OracoolAudit, SortGivesEveryQualityTierItsOwnPageAndKeepsASetTogether)

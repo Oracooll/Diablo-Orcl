@@ -50,6 +50,7 @@
 #include "oracool/item_sets.h"
 #include "oracool/oracool.h"
 #include "oracool/runewords.h"
+#include "oracool/smart_loot.h"
 #include "oracool/mystic_orbs.h"
 #include "oracool/named_encounters.h"
 #include "oracool/salvage.h"
@@ -4960,6 +4961,27 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 		mLevel -= 15;
 
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
+	// SMART LOOT: generate a few candidates and keep the one that best suits this class.
+	if (oracool::SmartLootShouldAimThisDrop() && oracool::SmartLootConsiders(item)) {
+		const Point dropPosition = item.position;
+		int bestScore = oracool::SmartLootScore(item, *MyPlayer);
+		for (int attempt = 1; attempt < oracool::SmartLootCandidates; attempt++) {
+			const _item_indexes candidateIdx = RndItemForMonsterLevel(static_cast<int8_t>(std::min(ItemLevelOfMonster(monster), 127)));
+			if (IsAnyOf(candidateIdx, IDI_NONE, IDI_GOLD))
+				continue;
+			Item candidate;
+			SetupAllItems(*MyPlayer, candidate, candidateIdx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
+			const int candidateScore = oracool::SmartLootScore(candidate, *MyPlayer);
+			if (candidateScore <= bestScore)
+				continue;
+			bestScore = candidateScore;
+			item = candidate;
+		}
+		// Each candidate was generated with its OWN fresh seed and is an entirely ordinary item, so
+		// nothing about the seed replay changes - what changed is only which of them was kept. The
+		// position is restored because it belongs to the slot, not to the item that won.
+		item.position = dropPosition;
+	}
 	FinalizeFreshDrop(item, mLevel);
 
 	if (sendmsg)
@@ -5172,6 +5194,24 @@ void FinalizeFreshDrop(Item &item, int level)
 void CreateRndItem(Point position, bool onlygood, bool sendmsg, bool delta)
 {
 	_item_indexes idx = onlygood ? RndUItem(nullptr) : RndAllItems();
+
+	// SMART LOOT, the chest/barrel/theme-room half of it. This site picks the base item itself, so
+	// aiming happens HERE, on the index, rather than inside SetupBaseItem - which is also handed a
+	// deliberately chosen index by CreateTypeItem (a weapon rack drops a weapon) and must keep it.
+	//
+	// Scored on the base item rather than on a finished roll: only the index is being chosen at this
+	// point, and generating whole items just to compare them would consume seeds the drop never used.
+	if (oracool::SmartLootShouldAimThisDrop()) {
+		int bestScore = oracool::SmartLootScoreForBase(idx, *MyPlayer);
+		for (int attempt = 1; attempt < oracool::SmartLootCandidates; attempt++) {
+			const _item_indexes candidate = onlygood ? RndUItem(nullptr) : RndAllItems();
+			const int candidateScore = oracool::SmartLootScoreForBase(candidate, *MyPlayer);
+			if (candidateScore <= bestScore)
+				continue;
+			bestScore = candidateScore;
+			idx = candidate;
+		}
+	}
 
 	SetupBaseItem(position, idx, onlygood, sendmsg, delta);
 }
