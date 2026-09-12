@@ -151,29 +151,40 @@ void FistOfTheHeavensImpact(Player &player, Point target, int damage, int spellL
 	// shield-into-slot sound the Stash's and the inventory's Sort buttons both play.
 	PlaySfxLoc(IS_ISHIEL, target);
 
-	// The ring, laid out exactly as ProcessNovaCommon does: a quarter arc mirrored into four, which
-	// is what gives Nova its round front rather than a square one. Its radius is 4 tiles, which is
-	// already the travel distance the user asked for.
-	constexpr std::array<WorldTileDisplacement, 9> quarterRadius = {
-		{ { 4, 0 }, { 4, 1 }, { 4, 2 }, { 4, 3 }, { 4, 4 }, { 3, 4 }, { 2, 4 }, { 1, 4 }, { 0, 4 } }
-	};
+	// CHARGED BOLTS, dispersing from where the fist struck (user, 2026-09-12: "FotH to disperse
+	// Charged Bolts when it lands instead of this current asset").
+	//
+	// This was a rigid Nova ring - 36 MiniNovaBall missiles on a radius-4 arc, re-skinned to
+	// holy_spark - which served the original 2026-08-15 spec ("cast Mini-Nova spell at cursor
+	// location [...] travel distance of lightnings of 4 tiles"). Charged Bolts are a different
+	// thing: they WANDER. So the ring is now an aiming device rather than the effect itself - each
+	// bolt is launched at a point on it and then goes where it goes, which is what "disperse" means
+	// and what a Nova ring by construction cannot do.
+	//
+	// The count is the vanilla Charged Bolt spell's own scaling plus a little, because this is an
+	// area finisher rather than a primary attack. Far fewer than 36 on purpose: a ChargedBolt lives
+	// with _mirange 256 and steers every tick, where MiniNovaBall was short and unblockable, so
+	// thirty-six of them would be both a missile-pool and a frame-time problem. AddMissile returning
+	// nullptr on a full pool is handled the way it always is here - by moving on.
 	const int boltDamage = std::max(damage * FistNovaPercentAt(spellLevel) / 100, 1);
-	// The holy spark once delivered (2026-09-11); until then MiniNovaBall's own ChargedBolt. Swapped
-	// per missile, because MiniNovaBall is also a lesser unique's nova and keeps its look there.
-	const bool holySpark = MissileArtLoaded(MissileGraphicID::HolySpark);
-	int sparkFrame = 0;
-	for (WorldTileDisplacement quarterOffset : quarterRadius) {
-		const std::array<WorldTileDisplacement, 4> offsets {
-			quarterOffset, quarterOffset.flipXY(), quarterOffset.flipX(), quarterOffset.flipY()
-		};
-		for (WorldTileDisplacement offset : offsets) {
-			Missile *spark = AddMissile(target, target + offset, player._pdir, MissileID::MiniNovaBall,
-			    TARGET_MONSTERS, static_cast<int>(player.getId()), boltDamage, spellLevel);
-			if (spark != nullptr && holySpark) {
-				UseMissileGraphic(*spark, MissileGraphicID::HolySpark);
-				spark->_miAnimFrame = sparkFrame++ % spark->_miAnimLen + 1; // out of step, as NovaBall's are
-			}
-		}
+	const int boltCount = spellLevel / 2 + 5;
+	// The radius-4 ring the spec asked for, kept as the aim points. Eight directions, so the spread
+	// is even however many bolts the level buys.
+	constexpr std::array<WorldTileDisplacement, 8> aimRing = {
+		{ { 4, 0 }, { 3, 3 }, { 0, 4 }, { -3, 3 }, { -4, 0 }, { -3, -3 }, { 0, -4 }, { 3, -3 } }
+	};
+	for (int i = 0; i < boltCount; i++) {
+		const WorldTileDisplacement aim = aimRing[static_cast<size_t>(i) % aimRing.size()];
+		Missile *bolt = AddMissile(target, target + aim, player._pdir, MissileID::ChargedBolt,
+		    TARGET_MONSTERS, static_cast<int>(player.getId()), boltDamage, spellLevel);
+		if (bolt == nullptr)
+			continue;
+		// AddChargedBolt OVERWRITES _midam with GenerateRnd(caster's Magic / 4) + 1, because the
+		// vanilla spell is a Sorcerer's and scales off Magic. Fist of the Heavens is a Paladin's
+		// weapon-damage skill, so that roll would throw away everything the sheet quotes and leave
+		// the bolts doing almost nothing on a Paladin's Magic. Writing it back after the add is the
+		// only place to say so - the adder takes no damage argument it will respect.
+		bolt->_midam = boltDamage;
 	}
 }
 
@@ -288,8 +299,21 @@ std::optional<DamageType> PaladinCastDamageType(PaladinSkill skill)
 {
 	switch (skill) {
 	case PaladinSkill::FistOfTheHeavens:
-		// The mace only falls; the blast on the target is what deals the damage the sheet quotes.
-		return GetMissileData(MissileID::ApocalypseBoom).damageType();
+		// The CHARGED BOLTS, which is Lightning (user, 2026-09-12: "make sure lightning dmg skill
+		// have their dmg font in gero stats screen in proper font color. start with foth").
+		//
+		// This asked ApocalypseBoom - the central blast - on the reasoning that "the mace only
+		// falls; the blast on the target is what deals the damage the sheet quotes". ApocalypseBoom
+		// is PHYSICAL, so the sheet drew Fist of the Heavens' damage in physical white while the
+		// skill played a Lightning cast animation and threw Lightning bolts. Three descriptions of
+		// one skill, and the sheet had the odd one.
+		//
+		// The bolts are the right thing to ask. They carry most of the damage at every level, they
+		// are what the player sees, and asking the missile the skill actually throws is the same
+		// rule the comment in ReadiedSpellDamageType describes - it is how Blessed Hammer's blue
+		// stopped appearing as white. The central blast stays Physical, which is honest: a falling
+		// mace is not lightning.
+		return GetMissileData(MissileID::ChargedBolt).damageType();
 	case PaladinSkill::BlessedShield:
 		return GetMissileData(MissileID::BlessedShieldThrow).damageType();
 	case PaladinSkill::BlessedHammer:

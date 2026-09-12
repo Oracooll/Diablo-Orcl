@@ -8746,6 +8746,12 @@ TEST(OracoolCharPanel, DamageFieldsAreColouredByDamageType)
 		{ SpellID::ChargedBolt, UiFlags::ColorYellow, "lightning, and the spell that caught this" },
 		{ SpellID::BoneSpirit, UiFlags::ColorMagicDamage, "magic - RGB 208,98,98 since 2026-09-11" },
 		{ SpellID::BlessedHammer, UiFlags::ColorMagicDamage, "Blessed Hammer is magic damage, as in D2 (2026-09-11) - asked of the missile it throws" },
+		// Fist of the Heavens drew PHYSICAL WHITE until 2026-09-12, because PaladinCastDamageType
+		// asked ApocalypseBoom - the falling mace's central blast, which is Physical - while the
+		// skill played a Lightning cast animation and threw Lightning bolts. The sheet held the odd
+		// one of three descriptions. It asks the CHARGED BOLTS now, which carry most of the damage
+		// and are what the player sees.
+		{ SpellID::FistOfTheHeavens, UiFlags::ColorYellow, "Fist of the Heavens is lightning - the bolts it disperses, not the mace" },
 		{ SpellID::BlessedShield, UiFlags::ColorMagicDamage, "Blessed Shield is magic damage too (user, 2026-09-11: \"make blessed shield Magic dmg type as well\")" },
 		{ SpellID::Healing, UiFlags::ColorOracoolGreen, "healing" },
 	};
