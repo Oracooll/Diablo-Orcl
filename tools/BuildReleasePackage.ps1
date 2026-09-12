@@ -245,18 +245,15 @@ Write-Host ''
 Write-Host 'Staging...'
 foreach ($f in $requiredFiles) { Copy-Item (Join-Path $BuildDir $f) $target }
 Copy-Item $engineMpqPath $target
-# Oracool (user decision, 2026-09-07, the "community norm"): the PRIVATE archive - interface art and
-# paintings the user built from reworked Diablo textures - ships in the release as one extra file,
-# fan work for owners of the game, non-commercial. It never enters the source repository (it is
-# packed from a folder outside it), so a notice against it is answered by pulling one file. Absent
-# from a build tree without that folder, in which case the game runs on its own art and says so.
-$privateMpq = 'oracool_private.mpq'
-$privatePath = Join-Path $BuildDir $privateMpq
-if (Test-Path $privatePath) {
-    Copy-Item $privatePath $target
-    Write-Host "  $privateMpq staged (derivative art, distributed as non-commercial fan work)"
-} else {
-    Write-Host "  $privateMpq absent - this package runs on the game's own art" -ForegroundColor Yellow
+# The PRIVATE archive is gone (user, 2026-09-12: "there are no private assets. All goes online as we
+# agreed it is a non-profit mod"). Its art moved into oracool.mpq, so there is nothing extra to stage
+# and the release is one archive again; RELEASE_README carries the fan-work notice against
+# oracool.mpq now. A stale oracool_private.mpq left in a build tree is still copied by the loop
+# above if present, and would be mounted AHEAD of oracool.mpq - so it is explicitly excluded here.
+$stalePrivate = Join-Path $target 'oracool_private.mpq'
+if (Test-Path $stalePrivate) {
+    Remove-Item $stalePrivate -Force
+    Write-Host "  removed a stale oracool_private.mpq from the package" -ForegroundColor Yellow
 }
 
 # The README, with the version stamped in rather than typed in.

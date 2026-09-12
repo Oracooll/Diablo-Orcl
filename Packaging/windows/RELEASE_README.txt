@@ -67,13 +67,10 @@ WHAT IS IN HERE
   oracool.mpq      Oracool Edition's own art and data. Searched before every
                    other archive, so it overrides the original game's assets
                    without diabdat.mpq or the Hellfire archives ever being
-                   modified.
-  oracool_private.mpq
-                   Interface art and loading-screen paintings made by
-                   reworking textures and pictures from Diablo. Blizzard's
-                   property, included as non-commercial fan work for people
-                   who own the game. Delete this one file and the game runs
-                   on its own art and the originals from your archives.
+                   modified. Some of the interface art and the loading-screen
+                   paintings were made by reworking textures and pictures from
+                   Diablo; those remain Blizzard's property and are included as
+                   non-commercial fan work for people who own the game.
   devilutionx.mpq  DevilutionX's own fonts, interface art and level data.
                    REQUIRED — the game will not start without it. Some builds
                    ship this same data loose in an assets\ folder instead; if
@@ -81,9 +78,9 @@ WHAT IS IN HERE
                    just the same.
   *.dll            SDL2 and the compression/format libraries the game links.
 
-Everything except oracool_private.mpq is this fork's own work or an open-source
-dependency. oracool_private.mpq reworks Blizzard's art and is offered as fan
-work, without charge, to owners of Diablo; nothing here is sold.
+Everything here is this fork's own work or an open-source dependency, except the
+part of oracool.mpq noted above that reworks Blizzard's art. That is offered as
+fan work, without charge, to owners of Diablo; nothing here is sold.
 
 
 BUILT FROM
