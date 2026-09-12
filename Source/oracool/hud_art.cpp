@@ -229,7 +229,9 @@ ArtAsset WalkGlyphsArt { "ui\\belt_glyphs_walk.png" };
  * The menu window's eight entries and the inventory's ten tabs as glyphs (oracool-hud-glyphs-v1,
  * 2026-09-06, cut by tools/CutHudGlyphs.ps1). menu_glyphs.png is eight 38x38 cells - the 37-wide
  * glyph at x=0 of each, since DrawStripIcon takes square cells - in MenuEntries order;
- * tab_glyphs.png is ten 28x28 numerals. Both draw 1:1 on the plate; the text stand-ins remain the
+ * tab_glyphs.png is TWO 28x28 cells - chest closed, chest open (it was ten numerals
+ * until v1.9.293; the comment said so until 2026-09-12). Both draw 1:1 on the plate; the
+ * text stand-ins remain the
  * fallback when a strip is missing.
  */
 ArtAsset MenuGlyphsArt { "ui\\menu_glyphs.png" };
@@ -280,7 +282,8 @@ ArtAsset SkillPointsFrameArt { "ui\\skill_points.png" };
  * Oracool V1 waypoint list. The panel is one flat 340x660 composition - stone texture, segmented
  * border and the baked "WAYPOINT" label - built by tools/BuildWaypointPanel.ps1. The per-row pads
  * ship separately because which state each row draws depends on the player's unlocked waypoints.
- * waypoint_icons.png is two 30x30 cells: column 0 dormant, column 1 active.
+ * waypoint_icons.png is two 43x43 cells (86x43 sheet): column 0 dormant, column 1 active. It
+ * said 30x30 until 2026-09-12; waypoint_menu.cpp:189 has always had the real number.
  */
 ArtAsset WaypointPanelArt { "ui\\waypoint_panel.png" };
 ArtAsset WaypointIconsArt { "ui\\waypoint_icons.png" };

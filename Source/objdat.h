@@ -116,9 +116,14 @@ enum object_graphic_id : int8_t {
 	OFILE_ORCLWAYP,
 	/**
 	 * Oracool: the town Stash Chest's own art - the Grand Reliquary (objects\orclstash.cel, shipped
-	 * in oracool.mpq). Six 76x70 frames: 1/2/3 and 4/5/6 are two identical closed/opening/open
-	 * trios, mirroring chest3.cel's two-variant convention, so the existing "closed is frame 4, open
-	 * is frame 6" logic carries over unchanged.
+	 * in oracool.mpq). FIVE 90x67 frames, closed at 1 and open at 5 - `StashChestClosedFrame` and
+	 * `StashChestOpenFrame` in objects.cpp are the authority.
+	 *
+	 * Until 2026-09-12 this said "six 76x70 frames: 1/2/3 and 4/5/6 are two identical
+	 * closed/opening/open trios ... so the existing closed-is-4, open-is-6 logic carries over".
+	 * That described the retired reliquary sprite, not the sarcophagus that replaced it, and both
+	 * numbers were wrong in a way no test could see - a CEL carries no frame count a reader can
+	 * check against prose.
 	 *
 	 * Like OFILE_ORCLWAYP this sits after OFILE_L5BOOKS and is registered explicitly rather than by
 	 * a level scan (EnsureObjectGraphicsLoaded, from AddStashChestObject). Unlike the waypoint, it

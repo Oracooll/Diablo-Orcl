@@ -7,9 +7,15 @@
  * The engine's own backgrounds are 640x480 .pcx plates drawn centred, with black bars around them at
  * every resolution this edition offers (the curated list starts at 960x720 and runs to 3440x1440 -
  * see options.cpp); the settings screen had no background at all, only `UiLoadBlackBackground`. The
- * masters here are 1680x720, which is exactly the 21:9 entry in that same list, so each is a master
- * rather than a fixed image: scaled to COVER the screen and then centre-cropped, which fills every
- * listed resolution from one asset.
+ * masters here are wider than any listed resolution, so each is a master rather than a fixed image:
+ * scaled to COVER the screen and then centre-cropped, which fills every listed resolution from one
+ * asset.
+ *
+ * Sizes as shipped, measured 2026-09-12: `main_menu_bg` and `hero_select_bg` 1916x821,
+ * `difficulty_bg` 1915x821, `hero_settings_bg` 1680x720. This comment said all four were 1680x720
+ * "which is exactly the 21:9 entry in that same list" - true of one of them and of the original
+ * pair, and left behind when the character screens got their own wider painting. The cover-and-crop
+ * maths never cared about the exact numbers, which is why nothing broke and nothing noticed.
  *
  * The palettes are NOT touched. `LoadBackgroundArt` loads the palette out of the .pcx it reads and
  * `UiLoadBlackBackground` loads `ui_art\diablo.pal`; the logo, the focus arrows, the cursor and every

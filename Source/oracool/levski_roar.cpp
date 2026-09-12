@@ -921,7 +921,6 @@ void DrawLevskiRoar(const Surface &out)
 	// The painting carries NO plates for them, so the DEFAULT frame goes down at rest and the hover
 	// or pressed frame replaces it while the cursor is on it or the press flash is running. Where a
 	// hover file is the plain plate (HoverIsPlain), the hover is marked with the theme's outline.
-	const int ready = FirstReadyLevskiRecipe(GridItems);
 	for (int i = levski_skin::Close + 1; i < levski_skin::ButtonCount; i++) {
 		const Rectangle rect = ButtonRect(window, i);
 		const bool hovered = rect.contains(MousePosition);
@@ -947,10 +946,18 @@ void DrawLevskiRoar(const Surface &out)
 			continue;
 		// The readout the old gold-vs-whitegold label carried: a plate that would do nothing right
 		// now sits under a shade, so the column still says what is worth pressing.
+		// TRANSMUTE gets NO idle shade, and the line that tried to give it one was unreachable:
+		// the `continue` above returns for Transmute long before this, so `idle = ready < 0` never
+		// ran and FirstReadyLevskiRecipe was being called once a frame for a value nothing read
+		// (found by the 2026-09-12 asset sweep; the call is gone with it).
+		//
+		// Left unshaded deliberately rather than moved above the continue. The eight salvage cells
+		// are EMPTY in the painting, so their shade darkens a plate this code drew. TRANSMUTE is
+		// engraved into the painting itself, so a shade there would darken the artwork - a different
+		// effect on a different thing, and not one anybody has asked to see. If it is ever wanted it
+		// needs designing against the engraving, not this one line.
 		bool idle = false;
-		if (i == levski_skin::Transmute)
-			idle = ready < 0;
-		else if (i >= levski_skin::SalvageFirst)
+		if (i >= levski_skin::SalvageFirst)
 			idle = !AnySalvageableInBackpack(*MyPlayer, static_cast<SalvageTier>(i - levski_skin::SalvageFirst));
 		if (idle)
 			DrawQuarterDarkenRect(out, rect); // a quarter, not a half, since 2026-09-07 - see the helper

@@ -56,18 +56,22 @@ int CraftingRecipeReagentItem(int index);
 std::string TransmuteLevskiGridWith(Item *grid, int index);
 
 /**
- * @brief Levski's Roar runs its recipes against the MONUMENT'S 3x3 grid rather than the backpack.
+ * @brief Levski's Roar runs its recipes against the MONUMENT'S grid rather than the backpack.
  *
- * Same recipes, different larder. The grid is nine Items owned by oracool/levski_roar.cpp and
- * never persisted, so these take a raw array rather than a Player - which also keeps them testable
- * without building a character.
+ * Same recipes, different larder. The grid is `LevskiGridSlots` Items - 3 columns by 4 rows, 12 -
+ * owned by oracool/levski_roar.cpp and never persisted, so these take a raw array rather than a
+ * Player, which also keeps them testable without building a character.
+ *
+ * This said "3x3" and "nine Items" until 2026-09-12. `LevskiGridSlots` is the authority and is
+ * derived from `LevskiGridColumns * LevskiGridRows` in levski_roar.h, so no caller was ever wrong -
+ * only the prose.
  */
 bool CanCraftFromLevskiGrid(const Item *grid, int index);
 /** @brief The lowest-numbered recipe the grid can currently run, or -1 for none. */
 int FirstReadyLevskiRecipe(const Item *grid);
 /**
- * @brief Runs the first ready recipe over @p grid (nine slots), consuming and producing in place.
- * Returns a line for the event log, or empty when nothing was ready.
+ * @brief Runs the first ready recipe over @p grid (`LevskiGridSlots` slots), consuming and
+ * producing in place. Returns a line for the event log, or empty when nothing was ready.
  */
 std::string TransmuteLevskiGrid(Item *grid);
 
