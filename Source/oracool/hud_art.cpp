@@ -1895,6 +1895,17 @@ void ApplyPlateTint(SkillPlateTint tint)
 	}
 }
 
+int ClassTreeStripFrameCount(HeroClass heroClass)
+{
+	EnsureLoadedAll();
+	const ArtAsset &asset = TreeStripFor(heroClass);
+	// Same derivation DrawStripIcon uses - one square cell, so the cell size IS the strip's height.
+	// Deriving it rather than assuming 56 means a recut at another icon size still measures right.
+	if (asset.rgba.empty() || asset.height <= 0)
+		return 0;
+	return asset.width / asset.height;
+}
+
 void ResetHudArtCaches()
 {
 	// Phase 0.8: the art-iteration hot-reload. Every cached PNG asset is dropped back to its

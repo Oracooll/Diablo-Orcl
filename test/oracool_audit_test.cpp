@@ -12138,3 +12138,35 @@ TEST(OracoolAudit, EveryUiEventSoundPathSurvivedTheCompiler)
 		EXPECT_TRUE(FindAsset(path).ok()) << "the archive has no " << path;
 	}
 }
+
+// Nothing compared a skill-tree strip's frame count to the number of skills that index into it, and
+// the absence was invisible by construction: DrawStripIcon returns silently for an out-of-range
+// index, so a strip one frame short draws the last skill's plate with no glyph, no log line, and a
+// green suite.
+//
+// That happened. On 2026-09-12 a regex bug in BuildGlyphStrips.ps1 dropped the four
+// RetiredFromTreePage rows, so it sized a new bitmap at 48 frames and TRUNCATED the Barbarian and
+// Rogue strips from 49. It was caught by measuring the PNGs by hand; all 724 tests passed
+// throughout. This is that comparison, so the next truncation fails here instead.
+TEST(OracoolAudit, EveryClassTreeStripHasAFrameForEveryOneOfItsSkills)
+{
+	MountTestArchives();
+
+	for (const HeroClass heroClass : { HeroClass::Warrior, HeroClass::Rogue, HeroClass::Sorcerer,
+	         HeroClass::Monk, HeroClass::Bard, HeroClass::Barbarian }) {
+		// The class's real row count, walked off the exported inverse rather than restated here -
+		// a number copied into a test is a number that can agree with nothing.
+		int rows = 0;
+		while (oracool::ClassTreeSkillAtIndex(heroClass, rows).has_value())
+			rows++;
+		ASSERT_GT(rows, 0) << "class " << static_cast<int>(heroClass) << " has no skills at all";
+
+		const int frames = oracool::ClassTreeStripFrameCount(heroClass);
+		ASSERT_GT(frames, 0) << "class " << static_cast<int>(heroClass)
+		                     << "'s tree strip did not load - the archive is missing it";
+		EXPECT_GE(frames, rows)
+		    << "class " << static_cast<int>(heroClass) << " has " << rows << " skills but only "
+		    << frames << " strip frames; the skills past the end draw a bare plate and nothing "
+		    << "reports it. A truncating strip rebuild is the way this happens.";
+	}
+}

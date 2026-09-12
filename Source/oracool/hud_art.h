@@ -527,6 +527,21 @@ Rectangle SkillPointsNumberRect(Point origin);
 constexpr Size PointsIconSize { 64, 64 };
 
 /**
+ * @brief How many frames @p heroClass's skill-tree strip actually holds, or 0 if it did not load.
+ *
+ * Exported so a test can compare it against the class's real row count, because **nothing did**.
+ * `DrawStripIcon` returns silently for an out-of-range index (hud_art.cpp), so a strip that is one
+ * frame short draws the last skill's plate with no glyph, no log line and no failing test — and the
+ * suite stays green.
+ *
+ * That is not hypothetical. On 2026-09-12 a regex bug in `BuildGlyphStrips.ps1` dropped the four
+ * retired rows, so it sized a NEW bitmap at 48 frames and truncated the Barbarian and Rogue strips
+ * from 49. It was caught by measuring the PNGs by hand afterwards; the 724-test suite had nothing
+ * to say about it.
+ */
+int ClassTreeStripFrameCount(HeroClass heroClass);
+
+/**
  * @brief Phase 0.8's art hot-reload: drops every cached PNG asset so the next draw re-reads it
  * from disk. Wired to the `reloadassets` debug command - edit a PNG, reload, see it in seconds.
  */
