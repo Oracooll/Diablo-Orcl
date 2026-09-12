@@ -16,6 +16,75 @@
 	--mono: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
 }
 
+/* ---------- light theme ----------
+   Set by the sidebar's theme button, which stamps data-theme on <html> and remembers the choice.
+   Only the tokens are redefined here; every component reads them, so nothing else has to change.
+
+   Two deliberate exceptions live further down and are NOT lightened:
+   - .sprite keeps its dark tile. The skill glyphs are white with a dark shadow, so a light backing
+     would erase them.
+   - The tag colours are literals rather than tokens, so they get their own overrides below. */
+:root[data-theme="light"] {
+	--bg: #f3ece0;
+	--panel: #eae2d3;
+	--panel-2: #ded4c1;
+	--edge: #c2b49a;
+	--ink: #2b241a;
+	--ink-dim: #5c5342;
+	--gold: #8a6a1c;
+	--gold-dim: #b09a5e;
+	--blue: #2c6699;
+	--yellow: #7d6a12;
+	--red: #a13826;
+	--green: #48632f;
+}
+:root[data-theme="light"] .tag.t-normal { color: #3a3226; border-color: #b3a68c; }
+:root[data-theme="light"] .tag.t-nightmare { border-color: #8fb0cc; }
+:root[data-theme="light"] .tag.t-hell { border-color: #c3b070; }
+:root[data-theme="light"] .tag.t-whitegold { color: #6b5a1e; border-color: #c0ae72; }
+:root[data-theme="light"] .tag.t-orange { color: #a55a14; border-color: #d8a86a; }
+:root[data-theme="light"] .tag.ok { border-color: #9db787; }
+:root[data-theme="light"] .tag.no { border-color: #d0a093; }
+:root[data-theme="light"] tbody td { border-bottom-color: rgba(0, 0, 0, .12); }
+:root[data-theme="light"] tbody tr:nth-child(even) { background: rgba(0, 0, 0, .035); }
+:root[data-theme="light"] tbody tr:hover { background: rgba(138, 106, 28, .12); }
+
+/* ---------- stretched layout ----------
+   The reading width is deliberate: prose caps at ~92ch because a 2000px line is unreadable. The
+   Stretch button relaxes it for the wide tables - the bestiary, the item compendium - where the
+   columns are what you came for. */
+body.wide main { max-width: none; }
+body.wide p,
+body.wide p.lede { max-width: none; }
+
+/* An icon column carries an empty header, so the table allots it no width of its own - and
+   .sprite's max-width:100% then shrinks the picture to fit a cell whose width is supposed to come
+   FROM that picture. The two constrain each other down to about two pixels. Releasing the max-width
+   inside table cells breaks the circle; the inline max-height still bounds the height. */
+td .sprite { max-width: none; }
+
+/* ---------- the sidebar's view controls ---------- */
+.viewbar {
+	display: flex;
+	gap: 6px;
+	padding: 10px 18px 12px;
+	border-bottom: 1px solid var(--edge);
+	margin-bottom: 6px;
+}
+.viewbar button {
+	flex: 1;
+	background: var(--panel-2);
+	border: 1px solid var(--edge);
+	color: var(--ink);
+	font: inherit;
+	font-size: 12px;
+	padding: 5px 6px;
+	border-radius: 3px;
+	cursor: pointer;
+}
+.viewbar button:hover { border-color: var(--gold-dim); color: var(--gold); }
+.viewbar button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
 * { box-sizing: border-box; }
 
 body {

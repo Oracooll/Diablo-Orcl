@@ -195,3 +195,73 @@ function areaOfLevel(level) {
 }
 
 document.addEventListener('DOMContentLoaded', buildNav);
+
+/* ---------- view controls ----------
+   The theme and stretch buttons. They are built here rather than inside buildNav on purpose: the
+   bundled single-file build writes its own sidebar and strips the navigation section out of this
+   file, so anything in there would be missing from the bundle. Injecting into whatever nav.side
+   exists covers the site and the bundle with one implementation.
+
+   Both preferences are per-reader and per-browser, which is what localStorage is for. Every access
+   is wrapped: a private window can throw on read as well as write, and a reader who cannot store a
+   preference should still get a working page. */
+const VIEW_THEME = 'oracool-wiki-theme';
+const VIEW_WIDE = 'oracool-wiki-wide';
+
+function readPref(key, fallback) {
+	try { return localStorage.getItem(key) || fallback; } catch (err) { return fallback; }
+}
+function writePref(key, value) {
+	try { localStorage.setItem(key, value); } catch (err) { /* nothing to do; the session still works */ }
+}
+
+function applyTheme(theme) { document.documentElement.setAttribute('data-theme', theme); }
+function applyWide(on) { document.body.classList.toggle('wide', on); }
+
+function setupViewControls() {
+	let theme = readPref(VIEW_THEME, 'dark');
+	let wide = readPref(VIEW_WIDE, '0') === '1';
+	applyTheme(theme);
+	applyWide(wide);
+
+	const nav = document.querySelector('nav.side');
+	if (!nav || nav.querySelector('.viewbar')) return;
+
+	const bar = document.createElement('div');
+	bar.className = 'viewbar';
+	const themeBtn = document.createElement('button');
+	const wideBtn = document.createElement('button');
+
+	// Each button says what it will DO, not what is currently on - a button labelled "Dark" while
+	// the page is already dark is the classic version of this control got wrong.
+	function label() {
+		themeBtn.textContent = theme === 'dark' ? 'Light' : 'Dark';
+		themeBtn.title = 'Switch to the ' + (theme === 'dark' ? 'light' : 'dark') + ' theme';
+		wideBtn.textContent = wide ? 'Shrink' : 'Stretch';
+		wideBtn.title = wide ? 'Back to a comfortable reading width' : 'Fill the width of the window';
+	}
+
+	themeBtn.addEventListener('click', function () {
+		theme = theme === 'dark' ? 'light' : 'dark';
+		applyTheme(theme);
+		writePref(VIEW_THEME, theme);
+		label();
+	});
+	wideBtn.addEventListener('click', function () {
+		wide = !wide;
+		applyWide(wide);
+		writePref(VIEW_WIDE, wide ? '1' : '0');
+		label();
+	});
+	label();
+
+	bar.appendChild(themeBtn);
+	bar.appendChild(wideBtn);
+	const brand = nav.querySelector('.brand');
+	if (brand && brand.nextSibling) nav.insertBefore(bar, brand.nextSibling);
+	else nav.appendChild(bar);
+}
+
+// Registered after buildNav, so on the site the sidebar exists by the time this runs; in the bundle
+// the sidebar is static markup and is there already.
+document.addEventListener('DOMContentLoaded', setupViewControls);
