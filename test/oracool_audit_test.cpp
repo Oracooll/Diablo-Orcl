@@ -5093,6 +5093,148 @@ TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
 }
 
 /**
+ * One page per quality tier, and a set's pieces together on the set's page.
+ *
+ * User request (2026-09-12): "when sorting the stash sort different tiers of items (basic, magic,
+ * rare, etc...) in different tabs. try sorting set items of same set close to each other."
+ *
+ * Both halves are asserted here because both are invisible to every other test: the old sort put
+ * everything on page 0 in category order, which satisfies "sorted" and tells you nothing about
+ * which page anything is on.
+ */
+TEST(OracoolAudit, SortGivesEveryQualityTierItsOwnPageAndKeepsASetTogether)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	Players[0] = {};
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+
+	const auto deposit = [](const devilution::Item &item) {
+		AutoPlaceItemInStash(*MyPlayer, item, true);
+	};
+	const auto plainItem = [](_item_indexes idx) {
+		devilution::Item item {};
+		InitializeItem(item, idx);
+		return item;
+	};
+	const auto setPiece = [](string_view id) {
+		const oracool::SetItemDefinition *def = oracool::FindSetItem(id);
+		EXPECT_NE(def, nullptr) << id;
+		devilution::Item item {};
+		InitializeItem(item, static_cast<_item_indexes>(oracool::BaseItemForSetPiece(*def)));
+		oracool::MakeSetItem(item, *def);
+		return item;
+	};
+
+	// One item per tier, deposited in a deliberately SCRAMBLED order so the pages below are the
+	// sort's work rather than the order they went in.
+	devilution::Item magic = plainItem(IDI_ORACOOL_HELM);
+	magic._iMagical = ITEM_QUALITY_MAGIC;
+	devilution::Item rare = plainItem(IDI_ORACOOL_HELM);
+	rare._iOracoolTier = OracoolItemTier::Rare;
+	devilution::Item primal = plainItem(IDI_ORACOOL_HELM);
+	primal._iOracoolTier = OracoolItemTier::Primal;
+	devilution::Item unique = plainItem(IDI_ORACOOL_HELM);
+	unique._iMagical = ITEM_QUALITY_UNIQUE;
+
+	// Two sets, INTERLEAVED on the way in: Ashen, Stormcrow, Ashen, Stormcrow. If the sort ignored
+	// the set and went by category as it used to, the two cowls/helms would sort together and the
+	// two sets would come out combed into each other - which is exactly what the adjacency
+	// assertion below rules out.
+	deposit(primal);
+	deposit(setPiece("SET_ASHEN_HELM"));
+	deposit(setPiece("SET_STORMCROW_COWL"));
+	deposit(magic);
+	deposit(plainItem(IDI_ORACOOL_HELM)); // plain
+	deposit(setPiece("SET_ASHEN_BOOTS"));
+	deposit(unique);
+	deposit(setPiece("SET_STORMCROW_BOOTS"));
+	deposit(rare);
+
+	SortStash(*MyPlayer);
+
+	// Which page did each item land on? Walk the grids rather than the list: the grid is what the
+	// player sees, and an item's page is not stored on the item.
+	const auto pageOf = [](const std::function<bool(const devilution::Item &)> &match) {
+		for (unsigned page = 0; page < 8; page++) {
+			for (int x = 0; x < StashGridColumns; x++) {
+				for (int y = 0; y < StashGridRows; y++) {
+					const StashStruct::StashCell id = Stash.stashGrids[page][x][y];
+					if (id != 0 && match(Stash.stashList[id - 1]))
+						return static_cast<int>(page);
+				}
+			}
+		}
+		return -1;
+	};
+
+	const int plainPage = pageOf([](const devilution::Item &i) {
+		return i._iMagical == ITEM_QUALITY_NORMAL && i._iOracoolTier == OracoolItemTier::None
+		    && i._itype == ItemType::Helm;
+	});
+	const int magicPage = pageOf([](const devilution::Item &i) { return i._iMagical == ITEM_QUALITY_MAGIC; });
+	const int rarePage = pageOf([](const devilution::Item &i) { return i._iOracoolTier == OracoolItemTier::Rare; });
+	const int setPage = pageOf([](const devilution::Item &i) { return i._iOracoolTier == OracoolItemTier::Set; });
+	const int uniquePage = pageOf([](const devilution::Item &i) {
+		return i._iMagical == ITEM_QUALITY_UNIQUE && i._iOracoolTier == OracoolItemTier::None;
+	});
+	const int primalPage = pageOf([](const devilution::Item &i) { return i._iOracoolTier == OracoolItemTier::Primal; });
+
+	ASSERT_NE(plainPage, -1) << "the plain helm was not placed at all";
+	ASSERT_NE(setPage, -1) << "the set pieces were not placed at all";
+
+	// SIX tiers, SIX pages, no two alike - which is the request in one line.
+	const std::vector<int> pages { plainPage, magicPage, rarePage, setPage, uniquePage, primalPage };
+	std::vector<int> distinct = pages;
+	std::sort(distinct.begin(), distinct.end());
+	distinct.erase(std::unique(distinct.begin(), distinct.end()), distinct.end());
+	EXPECT_EQ(distinct.size(), pages.size()) << "two quality tiers shared a page";
+
+	// And they are the FIRST six pages in quality order, with no gaps: a gap would be read as "the
+	// first empty page" by the material and consumable layouts, which would then share it.
+	EXPECT_EQ(plainPage, 0);
+	EXPECT_EQ(magicPage, 1);
+	EXPECT_EQ(rarePage, 2);
+	EXPECT_EQ(setPage, 3);
+	EXPECT_EQ(uniquePage, 4);
+	EXPECT_EQ(primalPage, 5);
+
+	// Each set's pieces are CONTIGUOUS in placement order: walking the set page's items in the
+	// order they were placed must give AA then BB, never ABAB. The placement order is the
+	// stashList order, because SortStash clears the list and pushes each item as it seats it.
+	std::vector<std::string> setOrder;
+	for (const devilution::Item &item : Stash.stashList) {
+		if (item._iOracoolTier != OracoolItemTier::Set)
+			continue;
+		const oracool::SetItemDefinition *piece = oracool::FindSetItemByCursor(item._iCurs);
+		ASSERT_NE(piece, nullptr) << "a set piece in the stash has an icon no definition claims";
+		const oracool::ItemSetDefinition *owner = oracool::FindItemSetOwning(piece->id);
+		ASSERT_NE(owner, nullptr);
+		setOrder.emplace_back(owner->id);
+	}
+	ASSERT_EQ(setOrder.size(), 4u) << "all four set pieces survived the sort";
+	for (size_t i = 1; i + 1 < setOrder.size(); i++) {
+		if (setOrder[i] == setOrder[i - 1])
+			continue;
+		// A set boundary: everything after it must belong to the new set, or the sets interleave.
+		for (size_t j = i + 1; j < setOrder.size(); j++) {
+			EXPECT_NE(setOrder[j], setOrder[i - 1])
+			    << "set " << setOrder[i - 1] << " resumes after " << setOrder[i]
+			    << " - the two sets are combed into each other";
+		}
+	}
+
+	// SORT leaves the player looking at the first page, as it always has.
+	EXPECT_EQ(Stash.GetPage(), 0u);
+
+	Stash.stashList.clear();
+	Stash.stashGrids.clear();
+	Stash.SetPage(0);
+}
+
+/**
  * The jewel family, end to end.
  *
  * Jewels are the third socket family (v1.9.8). Every earlier family taught the same lesson twice

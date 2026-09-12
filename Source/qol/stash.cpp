@@ -1,6 +1,7 @@
 #include "qol/stash.h"
 
 #include <cstdint>
+#include <limits>
 #include <utility>
 
 #include <fmt/format.h>
@@ -24,6 +25,7 @@
 #include "oracool/hud_art.h"
 #include "oracool/gems.h"
 #include "oracool/inventory_layout.h" // CellPx / GridOrigin - the grid this one must match
+#include "oracool/item_sets.h"        // which set a piece belongs to, for the set page's grouping
 #include "oracool/ornate_border.h"
 #include "oracool/salvage.h"
 #include "oracool/socket_overlay.h"
@@ -359,6 +361,82 @@ int StashSortCategoryRank(const Item &item)
 			return 6; // Books
 		return 7; // Others
 	}
+}
+
+/**
+ * @brief Oracool: which PAGE an item sorts onto - one per quality tier (user, 2026-09-12: "when
+ * sorting the stash sort different tiers of items (basic, magic, rare, etc...) in different tabs").
+ *
+ * The order is the ladder the player already reads in the item's own name colour, weakest first, so
+ * the page number climbs with the quality: white, blue, yellow, green, gold, orange. Deliberately
+ * the same classification `Item::getTextColor` makes rather than a second opinion on it - if the
+ * name is green the piece is on the Set page, and there is no way for the two to disagree.
+ *
+ * A tier with nothing in it takes no page: pages are handed out as the tiers are placed, so a stash
+ * holding only plain and rare gear uses pages 0 and 1, not 0 and 2. That matters because the
+ * material and consumable pages are "the first empty page" and would otherwise sit past a gap.
+ */
+enum class StashSortTier {
+	Plain = 0,
+	Magic = 1,
+	Rare = 2,
+	Set = 3,
+	Unique = 4,
+	Primal = 5,
+	LAST = Primal,
+};
+
+StashSortTier StashSortTierOf(const Item &item)
+{
+	// The fork's tier field first: it is the more specific answer, and Set and Primal exist ONLY
+	// here. A set piece is marked ITEM_QUALITY_UNIQUE by MakeSetItem, so reading _iMagical first
+	// would put every green item on the gold page - the same trap getTextColor documents.
+	switch (item._iOracoolTier) {
+	case OracoolItemTier::Rare:
+		return StashSortTier::Rare;
+	case OracoolItemTier::Set:
+		return StashSortTier::Set;
+	case OracoolItemTier::Primal:
+		return StashSortTier::Primal;
+	case OracoolItemTier::BuffedUnique:
+		return StashSortTier::Unique;
+	case OracoolItemTier::None:
+		break;
+	}
+	switch (item._iMagical) {
+	case ITEM_QUALITY_MAGIC:
+		return StashSortTier::Magic;
+	case ITEM_QUALITY_UNIQUE:
+		return StashSortTier::Unique; // a vanilla unique, which wears the same gold as a buffed one
+	default:
+		return StashSortTier::Plain;
+	}
+}
+
+/**
+ * @brief Oracool: a key that puts pieces of ONE set next to each other (user, 2026-09-12: "try
+ * sorting set items of same set close to each other").
+ *
+ * `set index * 100 + piece index`, so a set's pieces are contiguous AND in the order the set data
+ * declares them - helm, torso, and so on down the body - which is the order the set's own tooltip
+ * lists them in. Both indices come from pointer arithmetic into the two static tables, because the
+ * identity of a set piece is its position in those tables; there is no id field on Item to read.
+ *
+ * A piece whose icon matches no definition sorts last rather than being dropped. That should be
+ * unreachable - a Set tier is only ever applied by MakeSetItem - but sorting is not the place to
+ * find out, and a stray green item is better misplaced than lost.
+ */
+int StashSortSetKey(const Item &item)
+{
+	const oracool::SetItemDefinition *piece = oracool::FindSetItemByCursor(item._iCurs);
+	if (piece == nullptr)
+		return std::numeric_limits<int>::max();
+	const oracool::ItemSetDefinition *set = oracool::FindItemSetOwning(piece->id);
+	if (set == nullptr)
+		return std::numeric_limits<int>::max();
+	const int setIndex = static_cast<int>(set - oracool::ItemSets);
+	const int pieceIndex = static_cast<int>(piece - oracool::ItemSetItems) - set->firstItem;
+	return setIndex * 100 + pieceIndex;
 }
 
 std::optional<Point> FindTargetSlotUnderItemCursor(Point cursorPosition, Size itemSize)
@@ -1343,10 +1421,10 @@ void PlaceMaterialAt(unsigned page, Point cell, const Item &item)
 	PlaceStashItemAt(page, cell, item, { 1, 1 });
 }
 
-/** @brief The first page with nothing on it, searching upward from 0. */
-unsigned FirstEmptyStashPage()
+/** @brief The first page with nothing on it at or after @p from. */
+unsigned FirstEmptyStashPageFrom(unsigned from)
 {
-	for (unsigned page = 0; page < CountStashPages; page++) {
+	for (unsigned page = from; page < CountStashPages; page++) {
 		bool empty = true;
 		for (const auto &column : Stash.stashGrids[page]) {
 			for (const StashStruct::StashCell cell : column) {
@@ -1364,6 +1442,12 @@ unsigned FirstEmptyStashPage()
 	// Every page occupied. The caller falls back to the ordinary scan rather than overwriting
 	// somebody's items, which is the only safe answer here.
 	return CountStashPages;
+}
+
+/** @brief The first page with nothing on it, searching upward from 0. */
+unsigned FirstEmptyStashPage()
+{
+	return FirstEmptyStashPageFrom(0);
 }
 
 namespace {
@@ -1400,6 +1484,8 @@ void SortStash(Player &player)
 {
 	struct SortEntry {
 		Item item;
+		StashSortTier tier;
+		int setKey; // only meaningful on the Set tier
 		int categoryRank;
 		int value;
 	};
@@ -1427,10 +1513,22 @@ void SortStash(Player &player)
 			consumables.push_back(item);
 			continue;
 		}
-		entries.push_back({ item, StashSortCategoryRank(item), GetItemSellValue(item) });
+		const StashSortTier tier = StashSortTierOf(item);
+		entries.push_back({ item, tier,
+		    tier == StashSortTier::Set ? StashSortSetKey(item) : 0,
+		    StashSortCategoryRank(item), GetItemSellValue(item) });
 	}
 
 	std::stable_sort(entries.begin(), entries.end(), [](const SortEntry &a, const SortEntry &b) {
+		// TIER FIRST, so each tier's run is contiguous and the placement loop below can hand it a
+		// page of its own by watching for the tier changing.
+		if (a.tier != b.tier)
+			return a.tier < b.tier;
+		// On the Set page the SET outranks the category: a set's helm, torso and boots sitting
+		// together is the thing asked for, and sorting by category first would have scattered them
+		// down the page among every other set's pieces of the same kind.
+		if (a.tier == StashSortTier::Set && a.setKey != b.setKey)
+			return a.setKey < b.setKey;
 		if (a.categoryRank != b.categoryRank)
 			return a.categoryRank < b.categoryRank;
 		// Bigger footprints first within a band (2026-09-07): the first-fit scan packs a run of 2x2s
@@ -1453,8 +1551,27 @@ void SortStash(Player &player)
 	Stash.stashGrids.clear();
 	Stash.SetPage(0);
 
-	for (const SortEntry &entry : entries)
+	// ONE PAGE PER TIER. AutoPlaceItemInStash begins its first-fit scan on Stash.GetPage() and only
+	// moves forward, so seating the page before a tier's run is the whole mechanism: the run fills
+	// that page and spills onto the next if it is longer than a page, and the tier after it starts
+	// on the first page still empty. Nothing here reserves pages in advance, which is what keeps an
+	// absent tier from leaving a hole - and a hole would be read as "the first empty page" by the
+	// material and consumable layouts further down.
+	StashSortTier currentTier = entries.empty() ? StashSortTier::Plain : entries.front().tier;
+	unsigned tierPage = 0;
+	Stash.SetPage(tierPage);
+	for (const SortEntry &entry : entries) {
+		if (entry.tier != currentTier) {
+			currentTier = entry.tier;
+			tierPage = FirstEmptyStashPageFrom(tierPage);
+			// Out of pages: let the ordinary wrapping scan finish the job. Tidiness is worth less
+			// than every item still being in the stash.
+			if (tierPage >= CountStashPages)
+				tierPage = 0;
+			Stash.SetPage(tierPage);
+		}
 		AutoPlaceItemInStash(player, entry.item, true);
+	}
 
 	// ---------------------------------------------------------------------------------------
 	// The material page
@@ -1714,6 +1831,11 @@ void SortStash(Player &player)
 			}
 		}
 	}
+
+	// Back to the first page. SortStash used to set it once, before placing anything, and leaving
+	// it there was free; the per-tier seating above moves it as a side effect of placing, so the
+	// player would otherwise be looking at whichever page the last tier happened to land on.
+	Stash.SetPage(0);
 }
 
 } // namespace devilution
