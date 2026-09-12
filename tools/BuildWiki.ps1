@@ -1457,6 +1457,41 @@ foreach ($it in $items) {
     $it['cursIndex'] = $(if ($cursIndex.ContainsKey($it['curs'])) { $cursIndex[$it['curs']] } else { -1 })
 }
 
+# ---------------------------------------------------------------------------------------------
+# Spell icons - SpellITbl in Source/panels/spell_icons.cpp
+#
+# A spell carries no icon field; the engine looks the frame up by enum value:
+#   (*LargeSpellIcons)[SpellITbl[static_cast<int8_t>(spell)]]
+# SpellITbl has one entry per SpellID (MAX_SPELLS) while the wiki parses fewer rows than that, so the
+# join has to be by NAME through the enum's own order - by position it would silently skew.
+# The enum has alias entries (FIRST = Null) which name no spell of their own and must not advance the
+# running value, the same trap the cursor enum sprang.
+# ---------------------------------------------------------------------------------------------
+$spelldatH = Read-SourceFile 'spelldat.h'
+$spellEnum = $spelldatH.Substring($spelldatH.IndexOf('enum class SpellID'))
+$spellEnum = $spellEnum.Substring(0, $spellEnum.IndexOf('};'))
+$spellEnum = [regex]::Replace($spellEnum, '/\*.*?\*/', '', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+$spellEnum = [regex]::Replace($spellEnum, '//[^\r\n]*', '')
+$spellOrder = @{}
+$nextSpell = 0
+foreach ($m in [regex]::Matches($spellEnum, '^\s*(\w+)\s*(?:=\s*(?:(\d+)|(\w+)))?\s*,', [System.Text.RegularExpressions.RegexOptions]::Multiline)) {
+    $nm = $m.Groups[1].Value
+    if ($nm -eq 'enum' -or $nm -eq 'class') { continue }
+    if ($m.Groups[3].Success) { continue }          # an alias - names no spell of its own
+    if ($m.Groups[2].Success) { $nextSpell = [int]$m.Groups[2].Value }
+    $spellOrder[$nm] = $nextSpell
+    $nextSpell++
+}
+
+$iconsCpp = Read-SourceFile 'panels/spell_icons.cpp'
+$tbl = $iconsCpp.Substring($iconsCpp.IndexOf('const uint8_t SpellITbl[] = {'))
+$tbl = $tbl.Substring(0, $tbl.IndexOf('};'))
+$spellFrames = @([regex]::Matches($tbl, '\b(\d+)\b') | ForEach-Object { [int]$_.Groups[1].Value })
+foreach ($s in $spells) {
+    $i = $(if ($spellOrder.ContainsKey($s['id'])) { $spellOrder[$s['id']] } else { -1 })
+    $s['iconFrame'] = $(if ($i -ge 0 -and $i -lt $spellFrames.Count) { $spellFrames[$i] } else { -1 })
+}
+
 $data = [ordered]@{
     version   = $version
     generated = $generated

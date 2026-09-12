@@ -197,6 +197,21 @@ foreach ($cls in $strips.Keys) {
     } finally { $strip.Dispose() }
 }
 
+# ---------------------------------------------------------------- spell icons
+# The book-spell sheet, filed by frame. SpellITbl maps a SpellID to one of these, and its highest
+# value is 50 against this sheet's 51 frames - the fit that says the two agree.
+$spellOut = Join-Path $out 'spells'
+New-Item -ItemType Directory -Path $spellOut -Force | Out-Null
+$spellIcons = 0
+$spellSrc = Join-Path $export 'spelicon'
+if (Test-Path $spellSrc) {
+    foreach ($f in Get-ChildItem $spellSrc -Filter *.png) {
+        if ($f.Name -notmatch 'frame(\d+)\.png$') { continue }
+        Copy-Item $f.FullName (Join-Path $spellOut ("frame_{0}.png" -f [int]$matches[1])) -Force
+        $spellIcons++
+    }
+}
+
 # ---------------------------------------------------------------- report
 "families        : $($families.Count)"
 "monster frames  : $cut"
@@ -210,6 +225,7 @@ if ($trimmed.Count) {
 if ($odd.Count) { "ODD GEOMETRY    : $($odd.Count)"; $odd | ForEach-Object { "    $_" } }
 "item icons      : $icons (objcurs $first + objcurs2 $second + oracool_items)"
 "skill glyphs    : $glyphs"
+"spell icons     : $spellIcons"
 if ($glyphBlank.Count) { "  blank glyphs  : $($glyphBlank.Count) ($($glyphBlank -join ', '))" }
 $mf = Get-ChildItem $monOut -Filter *.png
 $if2 = Get-ChildItem $itemOut -Filter *.png

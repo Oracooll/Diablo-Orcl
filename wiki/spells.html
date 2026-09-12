@@ -88,7 +88,16 @@ document.getElementById('bandrows').innerHTML = WIKI.mechanics.spellBands.map(fu
 		areaOfLevel(ilvl) + '</td><td class="num">' + count + '</td></tr>';
 }).join('');
 
+/* The book sheet's frame for this spell, looked up the way the engine does it - SpellITbl by enum
+   value. A spell with no book icon gets -1 and shows nothing. */
+rows.forEach(function (r) {
+	r.icon = r.iconFrame >= 0
+		? '<img src="encyclopedia/spells/frame_' + r.iconFrame + '.png" alt="" class="sprite" style="max-height:40px">'
+		: '';
+});
+
 makeTable(document.getElementById('table'), rows, [
+	{ key: 'icon', label: '' },
 	{ key: 'name', label: 'Spell' },
 	// What the spell actually does. Authored in oracool/spell_descriptions.cpp, which the wiki did
 	// not read until now - the page could quote a spell's mana cost but never say what it was for.
