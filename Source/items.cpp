@@ -3822,16 +3822,34 @@ bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
 
 bool CreateRareVendorItem(const Player &player, Item &item, int lvl)
 {
-	// The base comes from RndSmithItem - Griswold's own pool, at his own depth - rather than from a
-	// hand-written list. Two things follow from that and both matter: the tab offers the same kinds
-	// of gear the Basic tab does (so a Rare shelf is "the same shop, rolled hard" rather than a
-	// separate item universe), and the pick goes through GetItemIndexForDroppableItem, which is the
-	// replay-safe walk.
+	// The base comes from the PREMIUM pool, at the premium tab's own 1..30 window.
+	//
+	// It was RndSmithItem(player, lvl) - Griswold's BASIC pool at VendorStockLevel() - on the
+	// reasoning that a Rare shelf should be "the same shop, rolled hard" rather than a separate item
+	// universe. Measured 2026-09-12 after a user report ("many many item types are missing from it no
+	// matter how many times i refresh"), that turned out to cost most of the table:
+	//
+	//   VendorStockLevel() is clamp(l + 2, 6, 16), a ceiling of 16, and the pool gate compares
+	//   BandedQlvl, whose steps run 14 -> 17 -> 20. So nothing above authored qlvl 15 was reachable
+	//   at ANY character level: 72 of 87 eligible bases, and HEAVY ARMOUR 0 of 5. SmithItemOk also
+	//   drops rings, amulets and staves outright, so a rare ring could never appear at all.
+	//
+	// Two of those 15 (Breast Plate, Crown - authored 16, banded 17) were a regression from the
+	// 2026-09-12 banding; the other 13 are vanilla's own shallow basic stock, which is the part that
+	// made "the same shop, rolled hard" the wrong model for this shelf.
+	//
+	// RndPremiumItem with the premium tab's window reaches 99 of 99 bases including jewellery, and it
+	// is the pool already vetted for "the good stuff" on the same vendor. Still through
+	// GetItemIndexForDroppableItem, so the pick stays the replay-safe walk. `lvl` now sets only the
+	// AFFIX depth below, which is what it was already clamped to 30 for.
 	item = {};
 	// Straight off the ambient stream. The first version reseeded it from itself
 	// (`SetRndSeed(AdvanceRndSeed())`) before this call, which is a no-op dressed up as
 	// determinism - the item's own generation is seeded separately, in the SetupAllItems call below.
-	const _item_indexes idx = RndSmithItem(player, lvl);
+	// 1..30, the same window SpawnOnePremium uses (plvl/4 .. plvl at plvl clamped to 30). A floor of 1
+	// rather than lvl/4 because this shelf is not tied to a dungeon depth - it is the whole catalogue,
+	// rolled rare, and a level-40 character should still be able to be offered a Buckler.
+	const _item_indexes idx = RndPremiumItem(player, 1, 30);
 	if (idx == IDI_GOLD)
 		return false;
 

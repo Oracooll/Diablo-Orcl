@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include "engine/random.hpp"
 #include "items.h"
 #include "items/validation.h"
 #include "monstdat.h"
@@ -1017,6 +1018,64 @@ TEST(OracoolDropTumbles, TheTumbleFollowsTheItemsShapeNotItsIcon)
 	rock.IDidx = IDI_ROCK;
 	rock._iCurs = AllItemsList[IDI_ROCK].iCurs;
 	EXPECT_LT(GetItemDropAnimIndexFor(rock), FirstNewTumble) << "a vanilla item picked up a fork tumble";
+}
+
+// User report, 2026-09-12: "something isnt ok with rares store - many many item types are missing
+// from it no matter how many times i refresh."
+//
+// It was real and it was measurable. GenerateCuratedShelf(Rare) picked its base through
+// RndSmithItem at VendorStockLevel(), which is clamp(l + 2, 6, 16) - a ceiling of 16 - while the
+// pool gate compares BandedQlvl, whose steps run 14 -> 17 -> 20. So nothing above authored qlvl 15
+// was reachable at ANY character level: 72 of 87 eligible bases, and HEAVY ARMOUR 0 of 5. On top of
+// that SmithItemOk drops rings, amulets and staves, so a rare ring could not exist.
+//
+// The base pick is the premium pool now. This test is the user's symptom, stated as an assertion:
+// roll the shelf's generator many times and the kinds that were unreachable must actually turn up.
+// It is a sampling test by necessity - the pool is not exposed - so it uses a fixed seed and a
+// generous budget rather than pretending to be exhaustive.
+TEST(OracoolRareShelf, TheRarePoolReachesTheKindsTheOldCeilingLockedOut)
+{
+	Players.resize(1);
+	Player &player = Players[0];
+	MyPlayer = &player;
+	gbIsMultiplayer = false;
+	gbIsHellfire = true;
+	player = {};
+	player._pLevel = 40; // deep character: the old ceiling ignored this entirely, which was the bug
+	player._pBaseStr = player._pStrength = 250;
+	player._pBaseDex = player._pDexterity = 250;
+	player._pBaseMag = player._pMagic = 250;
+	player._pBaseVit = player._pVitality = 250;
+
+	SetRndSeed(0x5EED1234);
+
+	std::set<ItemType> kinds;
+	int made = 0;
+	// The live generator's own budget is CuratedShelfCapacity * 8 = 320 attempts for 40 slots. A
+	// larger budget here because this is asking "is it REACHABLE", not "does one shelf contain it".
+	for (int i = 0; i < 4000; i++) {
+		Item item;
+		if (!CreateRareVendorItem(player, item, 16))
+			continue;
+		made++;
+		kinds.insert(item._itype);
+		EXPECT_EQ(item._iOracoolTier, OracoolItemTier::Rare)
+		    << "the shelf only accepts items that actually took the Rare tier";
+	}
+	ASSERT_GT(made, 200) << "the generator produced almost nothing - the pool or the tier roll is broken";
+
+	// The kind that was 0 of 5 before, and the whole point of the report.
+	EXPECT_TRUE(kinds.count(ItemType::HeavyArmor) > 0)
+	    << "no heavy armour in " << made << " rolls - the old qlvl-16 ceiling is back";
+
+	// Jewellery, which SmithItemOk excluded outright, so a rare ring was impossible.
+	EXPECT_TRUE(kinds.count(ItemType::Ring) > 0 || kinds.count(ItemType::Amulet) > 0)
+	    << "no rings or amulets in " << made << " rolls - the pool is back to Griswold's basic filter";
+
+	// And the breadth the user was actually missing. Eight distinct kinds is well short of what the
+	// premium pool offers and well clear of what the old ceiling allowed, so this fails on a
+	// regression without being brittle about exactly which kinds a seed happens to draw.
+	EXPECT_GE(kinds.size(), 8u) << "only " << kinds.size() << " item kinds reachable across " << made << " rolls";
 }
 
 } // namespace devilution
