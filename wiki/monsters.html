@@ -267,7 +267,10 @@ function resistsFor(m, i) {
 	const base = flagSet(m.resist), hell = flagSet(m.resistHell);
 	let set;
 	if (i === 0) set = base;
-	else if (i === 1) set = Object.assign({}, base, demote(hell));
+	// Nightmare is a UNION, not a replacement: the engine ORs the Normal set with Hell's immunities
+	// softened to resistances, so nothing is ever lost by going up a difficulty. Writing the demoted
+	// set over the base instead would turn the zombie's Normal IMMUNE_MAGIC into a mere resistance.
+	else if (i === 1) set = Object.assign({}, demote(hell), base);
 	else if (i === 2) set = hell;
 	else set = promote(hell);
 	set = Object.assign({}, set);
