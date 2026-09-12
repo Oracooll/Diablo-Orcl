@@ -49,7 +49,14 @@ REM Usage:  tools\build_item_icons.cmd
 REM Run from the repository root.
 
 setlocal enabledelayedexpansion
-set ART=..\Resources\01-in-use-assets\items
+REM The composite sheets this file cuts from (worn slots, the fifteen set tiers, gems, runes) live
+REM in item-sets. This said ...\items until 2026-09-12, which was a leftover of the Resources
+REM reorganisation the day before: `items` holds only the per-icon subfolders (charms, jewels,
+REM unqbase) that the GENERATED specs point at by their own full paths, so every one of the 183
+REM sheet cuts below was reading a path that did not exist. The failure was ItemIconCel dying with
+REM "Parameter is not valid" out of Bitmap..ctor - a missing-file message that never names a file -
+REM so verify with the spec-input existence check, not by reading this line and believing it.
+set ART=..\Resources\01-in-use-assets\item-sets
 set PAL=tools\town.pal
 set OUT=Packaging\resources\oracool_assets\data\inv\oracool_items.cel
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe

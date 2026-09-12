@@ -20,7 +20,14 @@
 #     pwsh -File tools\GenGrowingCharms.ps1
 param(
     [string]$OutDir = "Source\oracool",
+    # Where the PROCEDURAL placeholders are drawn. Stays in %TEMP%: this folder is wiped
+    # recursively on every run, so pointing it at Resources would delete the delivered batch-18
+    # icons (2026-09-12 - caught before running).
     [string]$ArtDir = (Join-Path ([System.IO.Path]::GetTempPath()) "oracool-growing-charms"),
+    # Where the SPECS point. Real art since batch 18 (RfA-06, 2026-09-12), in the same folder as
+    # the six plain charms. Per-file fallback to the placeholder. Relative to the repository root,
+    # which is where build_item_icons.cmd runs.
+    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items\charms",
     # One past the Signet of Learning. cursor.cpp static_asserts the adjacency.
     [int]$FirstCursorId = 486
 )
@@ -103,6 +110,7 @@ function New-GrowingCharm([int[]]$rgb) {
 
 $enumLines = @(); $dataLines = @(); $cursLines = @()
 $widthLines = @(); $heightLines = @(); $specLines = @(); $growthLines = @()
+$realCount = 0
 $cursor = $FirstCursorId
 
 foreach ($c in $charms) {
@@ -114,6 +122,14 @@ foreach ($c in $charms) {
     $bmp = New-GrowingCharm $c.Colour
     try { $bmp.Save($png, [System.Drawing.Imaging.ImageFormat]::Png) } finally { $bmp.Dispose() }
 
+    # Real art wins when present; the placeholder above is the fallback. Existence is checked
+    # against the resolved path, but the SPEC keeps the relative one - build_item_icons.cmd runs
+    # from the repository root, and an absolute path in a tracked file breaks on the next move.
+    $specPng = $png
+    $realRel = Join-Path $SpecArtDir ("$slug.png")
+    $realAbs = if ([System.IO.Path]::IsPathRooted($SpecArtDir)) { $realRel } else { Join-Path $repo $realRel }
+    if (Test-Path $realAbs) { $specPng = $realRel; $realCount++ }
+
     $enumLines += "`t$idi,"
     # A charm's row exactly - ICLASS_MISC, ILOC_UNEQUIPABLE, IMISC_NONE - so these obey the active
     # cap, the drop walk and the stash sort through the code that already exists.
@@ -121,7 +137,7 @@ foreach ($c in $charms) {
     $cursLines += "`t$icurs,"
     $widthLines += "`t$cell, // $($c.Name)"
     $heightLines += "`t$cell, // $($c.Name)"
-    $specLines += "$png,0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
+    $specLines += "$specPng,0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
     $growthLines += "`t{ $idi, GrowingStat::$($c.Id), $($c.Base), $($c.Per), N_(`"$($c.Line)`") }, // $($c.Name)"
 
     $cursor++
@@ -147,5 +163,7 @@ Write-Inc "growing_charms_growth.inc" "Base, per-milestone growth and descriptio
 [System.IO.File]::WriteAllLines((Join-Path $out "growing_charms_icon_specs.txt"), $specLines, (New-Object System.Text.UTF8Encoding $false))
 Write-Host ("  growing_charms_icon_specs.txt  ($($specLines.Count) specs)")
 Write-Host ""
-Write-Host ("$($enumLines.Count) growing charms, cursor ids $FirstCursorId..$($cursor - 1), art in $artDir")
+Write-Host ("$($enumLines.Count) growing charms, cursor ids $FirstCursorId..$($cursor - 1)")
+Write-Host ("  real art: $realCount of $($specLines.Count) specs, from $SpecArtDir")
+Write-Host ("  placeholders drawn into $artDir (fallback only)")
 Write-Host "Now: tools\build_item_icons.cmd, then tools\build_oracool_mpq.cmd."

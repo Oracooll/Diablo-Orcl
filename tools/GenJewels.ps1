@@ -24,7 +24,14 @@
 #     pwsh -File tools\GenJewels.ps1
 param(
     [string]$OutDir = "Source\oracool",
+    # Where the PROCEDURAL placeholders are drawn. Kept in %TEMP% deliberately: line 38 wipes this
+    # folder recursively on every run, so it must never be pointed at real art. Pointing it at
+    # Resources would delete the delivered batch-17 icons (2026-09-12 - caught before running).
     [string]$ArtDir = (Join-Path ([System.IO.Path]::GetTempPath()) "oracool-jewels"),
+    # Where the SPECS point. Real art since batch 17 (RfA-06, 2026-09-12). Per-file fallback: a slug
+    # missing here falls back to its placeholder, so a partial delivery still builds a whole sheet.
+    # Relative to the repository root, which is where build_item_icons.cmd runs.
+    [string]$SpecArtDir = "..\Resources\01-in-use-assets\items\jewels",
     # One past the last Charm of Salvaging. cursor.cpp static_asserts the adjacency.
     [int]$FirstCursorId = 462
 )
@@ -127,6 +134,7 @@ function New-Jewel([int[]]$rgb, [int]$bright) {
 
 $enumLines = @(); $dataLines = @(); $cursLines = @()
 $widthLines = @(); $heightLines = @(); $specLines = @(); $effectLines = @()
+$realCount = 0
 $cursor = $FirstCursorId
 
 # Grade-major so the fifteen ids read as three ladders rather than five, and so a whole grade can be
@@ -143,6 +151,15 @@ foreach ($grade in $grades) {
         $bmp = New-Jewel $fam.Colour $grade.Bright
         try { $bmp.Save($png, [System.Drawing.Imaging.ImageFormat]::Png) } finally { $bmp.Dispose() }
 
+        # Real art wins when it is there; the placeholder above is the fallback. Existence is
+        # checked against the RESOLVED path but the SPEC keeps the relative one, because
+        # build_item_icons.cmd runs from the repository root and a machine-specific absolute path
+        # in a tracked file is a path that breaks on the next folder move.
+        $specPng = $png
+        $realRel = Join-Path $SpecArtDir ("$slug.png")
+        $realAbs = if ([System.IO.Path]::IsPathRooted($SpecArtDir)) { $realRel } else { Join-Path $repo $realRel }
+        if (Test-Path $realAbs) { $specPng = $realRel; $realCount++ }
+
         $enumLines += "`t$idi,"
         # ICLASS_MISC / ILOC_UNEQUIPABLE / IMISC_NONE - a rune's row exactly, which is what makes
         # jewels stack, sort and socket through the code that already exists.
@@ -150,7 +167,7 @@ foreach ($grade in $grades) {
         $cursLines += "`t$icurs,"
         $widthLines += "`t$cell, // $name"
         $heightLines += "`t$cell, // $name"
-        $specLines += "$png,0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
+        $specLines += "$specPng,0,0,$cell,$cell,$cell,$cell,$slug,30,false,asis"
 
         # The effect row, scaled by grade. Designated initialisers, like the gem rows - a positional
         # row here would be one inserted field away from re-reading every trailing number.
@@ -185,5 +202,7 @@ Write-Inc "jewels_effects.inc" "Their socket effects, for the Gems[] table in ge
 [System.IO.File]::WriteAllLines((Join-Path $out "jewels_icon_specs.txt"), $specLines, (New-Object System.Text.UTF8Encoding $false))
 Write-Host ("  jewels_icon_specs.txt  ($($specLines.Count) specs)")
 Write-Host ""
-Write-Host ("$($enumLines.Count) jewels, cursor ids $FirstCursorId..$($cursor - 1), art in $artDir")
+Write-Host ("$($enumLines.Count) jewels, cursor ids $FirstCursorId..$($cursor - 1)")
+Write-Host ("  real art: $realCount of $($specLines.Count) specs, from $SpecArtDir")
+Write-Host ("  placeholders drawn into $artDir (fallback only)")
 Write-Host "Now: tools\build_item_icons.cmd, then tools\build_oracool_mpq.cmd."
