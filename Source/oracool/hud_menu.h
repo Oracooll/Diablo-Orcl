@@ -73,6 +73,13 @@ bool CheckHudMenuSlotClick(Point mousePosition);
 bool CheckTownPortalBeltSlotClick(Point mousePosition);
 
 /**
+ * @brief Handles a click on the belt's Walk/Run toggle (the seventh cell). True if it was consumed.
+ *
+ * The same thing the R key does, on the belt - see oracool/run_toggle.h.
+ */
+bool CheckRunToggleBeltSlotClick(Point mousePosition);
+
+/**
  * @brief Draws click feedback over the plate's two button cells, since neither has any art state
  * of its own to react with (their frames and icons are baked into the plate image).
  *

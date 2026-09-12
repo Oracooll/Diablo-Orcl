@@ -23,7 +23,7 @@ is not listed here.</p>
 <thead><tr><th>Kind</th><th>Format</th><th>Pipeline</th></tr></thead>
 <tbody>
 <tr><td>HUD, panels, icon strips</td><td>PNG, 32-bit</td>
-	<td>Loaded directly and quantized onto the shared palette at runtime (<code>oracool/hud_art.cpp</code>)</td></tr>
+	<td>Loaded directly (<code>oracool/hud_art.cpp</code>). Since the 32-bit renderer each one also keeps a true-colour ARGB copy, which is what every draw takes on the 32-bit screen; the palette-quantised surface is the 8-bit fallback</td></tr>
 <tr><td>Item icons</td><td>CEL</td>
 	<td>Cut from a composite sheet by <code>tools/ItemIconCel.cs</code>, packed into the MPQ</td></tr>
 <tr><td>Player sprites</td><td>CLX</td>
@@ -35,9 +35,10 @@ is not listed here.</p>
 	that moves in the same commit</td></tr>
 </tbody></table></div>
 
-<div class="note"><b>Palette rule.</b> Anything quantized at runtime must land on palette indices
-128-255. The lower half changes per dungeon level, so a sprite using it would shift colour when you
-take the stairs.</div>
+<div class="note"><b>Palette rule - on the 8-bit path.</b> Anything quantized at runtime must land on
+palette indices 128-255. The lower half changes per dungeon level, so a sprite using it would shift
+colour when you take the stairs. On the 32-bit screen the true-colour copy is drawn instead and the
+rule does not bind, but art still has to survive the fallback.</div>
 
 <h2>Icon strip conventions</h2>
 <ul>

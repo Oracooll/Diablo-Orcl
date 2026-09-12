@@ -1356,6 +1356,13 @@ for ($i = 0; $i -lt $caseHits.Count; $i++) {
 $itemdatH = Read-SourceFile 'itemdat.h'
 $cursBody = $itemdatH.Substring($itemdatH.IndexOf('enum item_cursor_graphic'))
 $cursBody = $cursBody.Substring(0, $cursBody.IndexOf('};'))
+# The enum #includes ten .inc files, and EVERY Oracool icon - gems, runes, jewels, orbs, charms,
+# signets - is declared in one of them. Reading itemdat.h alone left 98 items with no icon index at
+# all. The includes carry no explicit values, so they must be spliced in at their own position for
+# the running count to stay right.
+$cursBody = [regex]::Replace($cursBody, '#include\s+"(oracool/[A-Za-z0-9_]+\.inc)"', {
+        param($m) Read-SourceFile $m.Groups[1].Value
+    })
 $cursIndex = @{}
 $nextCurs = 0
 foreach ($m in [regex]::Matches($cursBody, 'ICURS_(\w+)\s*(?:=\s*(\d+))?\s*,')) {

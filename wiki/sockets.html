@@ -145,7 +145,7 @@ in reading order are live</b> - main backpack first, then the extra tabs in orde
 whole answer to Diablo II's charm-rack inventory. Which three are live is answerable by looking,
 and each charm's description carries the rule as well as the effect.</p>
 <div class="tablewrap"><table id="charms">
-<thead><tr><th>Charm</th><th>Effect</th></tr></thead>
+<thead><tr><th></th><th>Charm</th><th>Effect</th></tr></thead>
 <tbody></tbody></table></div>
 
 
@@ -190,6 +190,7 @@ upgrade to a good base and never a substitute for finding a better item — the 
 finding, the drop tables stop mattering.</p>
 <p>Orbs take a slice of every zone's draw rather than owning one. They are useful everywhere and to
 everyone, so a zone that was <i>the</i> orb zone would be the only zone worth farming.</p>
+<div id="orbgallery"></div>
 
 <h2>Where the salvage materials go</h2>
 <p>Salvaging gear yields one of seven materials, graded by what you broke down: White Scales from
@@ -197,6 +198,7 @@ plain items, Rare Fibres from rares, Unique Encrustments from uniques, Set Engra
 pieces, and so on. <b>Several of the recipes below spend them</b>, and which material pays for what
 is deliberate - you salvage uniques to reforge, rares to ennoble, set pieces to recast. Each recipe
 is funded by the kind of item it operates on, so the loop closes on itself.</p>
+<div id="salvagegallery"></div>
 
 <h2>Levski's Roar - the crafting monument</h2>
 <p>A monument in town, one tile north of the stash. Click it and a <b id="gridsize"></b> grid opens -
@@ -314,13 +316,38 @@ const NOTES = {
 	Skull: "Steal rides fixed 3%/5% flags that cannot scale, so the weapon gets life per kill instead; the shield keeps D2's thorns.",
 };
 
+/* The inventory icon for an item, by its enum constant. Every socketable here - gem, rune, jewel,
+   orb, charm - is an ordinary row of AllItemsList, so the picture is a join on the constant rather
+   than a second table to keep in step. cursIndex addresses all three cursor sheets end to end,
+   Oracool's own included. */
+const ICON_COUNT = 866;
+const ICON_BY_ID = {};
+WIKI.items.forEach(function (i) {
+	if (i.cursIndex >= 0 && i.cursIndex < ICON_COUNT) ICON_BY_ID[i.id] = i.cursIndex;
+});
+function iconFor(constant, size) {
+	const v = ICON_BY_ID[constant];
+	if (v === undefined) return '';
+	return '<img src="encyclopedia/items/curs_' + v + '.png" alt="" class="sprite" style="max-height:'
+		+ (size || 32) + 'px">';
+}
+/** A labelled grid of item pictures, for the families the page describes in prose. */
+function renderGallery(mount, ids, labeller) {
+	if (!mount) return;
+	mount.innerHTML = '<div class="gallery">' + ids.map(function (id) {
+		const row = WIKI.items.filter(function (i) { return i.id === id; })[0] || {};
+		return '<figure class="shot">' + (iconFor(id, 64) || '<span class="tag">no icon</span>')
+			+ '<figcaption><b>' + (row.name || id) + '</b><span>' + labeller(row, id) + '</span></figcaption></figure>';
+	}).join('') + '</div>';
+}
+
 function renderRows(mount, rows, withNotes, withLadder) {
-	const head = '<thead><tr><th>Name</th>'
+	const head = '<thead><tr><th></th><th>Name</th>'
 		+ (withLadder ? '<th class="num">Drops from</th><th class="num">Value</th>' : '')
 		+ '<th>In a weapon</th><th>In armour</th><th>In a shield</th>'
 		+ (withNotes ? '<th>Adaptation</th>' : '') + '</tr></thead>';
 	const body = rows.map(function (row) {
-		return '<tr><td><b>' + row.name + '</b></td>'
+		return '<tr><td>' + iconFor(row.constant, 32) + '</td><td><b>' + row.name + '</b></td>'
 			+ (withLadder ? '<td class="num">alvl ' + row.qlvl + '</td><td class="num">'
 				+ (row.value || 0).toLocaleString() + '</td>' : '')
 			+ '<td>' + effects(row.fields, 'weapon') + '</td><td>'
@@ -342,7 +369,8 @@ renderRows(document.getElementById('runes'), WIKI.runes, false, true);
 // FLAWED" into something that loses the grade entirely. AllItemsList has the real one.
 const jewelRows = WIKI.jewels.map(function (j) {
 	const row = WIKI.items.filter(function (i) { return i.id === j.constant; })[0] || {};
-	return { name: row.name || j.name, fields: j.fields, qlvl: row.qlvl || 0, value: row.value || 0 };
+	return { name: row.name || j.name, fields: j.fields, qlvl: row.qlvl || 0, value: row.value || 0,
+		constant: j.constant };
 });
 renderRows(document.getElementById('jewels'), jewelRows, false, true);
 
@@ -390,8 +418,23 @@ document.querySelector('#charms tbody').innerHTML = WIKI.charms.map(function (c)
 	if (c.toHit) effect.push('+' + c.toHit + '% to hit');
 	if (c.magicFind) effect.push(c.magicFind + '% chance a plain drop upgrades to rare');
 	if (c.goldFind) effect.push('+' + c.goldFind + '% gold from monsters');
-	return '<tr><td><b>' + c.name + '</b></td><td>' + effect.join(', ') + '</td></tr>';
+	// The charm rows carry only a display name; the item row that holds the picture is named for it.
+	const id = 'IDI_ORACOOL_CHARM_' + c.name.toUpperCase();
+	return '<tr><td>' + iconFor(id, 32) + '</td><td><b>' + c.name + '</b></td><td>'
+		+ effect.join(', ') + '</td></tr>';
 }).join('');
+
+// The two families the page describes in prose rather than in a table.
+renderGallery(document.getElementById('orbgallery'),
+	['IDI_ORACOOL_ORB_MIGHT', 'IDI_ORACOOL_ORB_GRACE', 'IDI_ORACOOL_ORB_INSIGHT', 'IDI_ORACOOL_ORB_VIGOUR',
+		'IDI_ORACOOL_ORB_WARDING', 'IDI_ORACOOL_ORB_FURY', 'IDI_ORACOOL_ORB_FORTUNE', 'IDI_ORACOOL_ORB_AVARICE'],
+	function (row) { return 'qlvl ' + (row.qlvl || 0) + ' · consumed into an item'; });
+
+renderGallery(document.getElementById('salvagegallery'),
+	['IDI_ORACOOL_SALVAGE_WHITE_SCALES', 'IDI_ORACOOL_SALVAGE_MAGIC_POWDER', 'IDI_ORACOOL_SALVAGE_RARE_FIBRES',
+		'IDI_ORACOOL_SALVAGE_UNIQUE_ENCRUSTMENTS', 'IDI_ORACOOL_SALVAGE_SET_ENGRAVINGS',
+		'IDI_ORACOOL_SALVAGE_PRIMAL_VINES', 'IDI_ORACOOL_SALVAGE_ETHEREAL_IMBUEITIES'],
+	function (row) { return 'qlvl ' + (row.qlvl || 0) + ' · crafting material'; });
 
 document.querySelector('#drops tbody').innerHTML = WIKI.treasureClasses.map(function (tc) {
 	const total = tc.gem + tc.rune + tc.jewel + tc.charm + tc.orb;

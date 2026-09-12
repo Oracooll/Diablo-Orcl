@@ -437,6 +437,14 @@ void DrawTownPortalIcon(const Surface &out, int state);
 void DrawBurgerMenuButton(const Surface &out, int state);
 
 /**
+ * @brief Draws the belt's Walk/Run toggle in its seventh cell. @p state is 0 idle, 1 hover, 2 click.
+ *
+ * The glyph shown is the CURRENT mode - the running traveller while running, the walking one while
+ * walking - not the mode a click would switch to.
+ */
+void DrawRunToggleButton(const Surface &out, int state);
+
+/**
  * @brief Draws the level-up indicator at hud_layout's GetLevelUpIconRect(), under the game clock.
  * @p state is 0 resting, 1 hovered, 2 pressed.
  */

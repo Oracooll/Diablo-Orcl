@@ -29,6 +29,7 @@
 #include "oracool/waypoint_menu.h"
 #include "oracool/xp_counter.h" // GetXpCounterDrawRect - the icon row hangs above it
 #include "oracool/oracool.h"
+#include "oracool/run_toggle.h" // ToggleRun - the belt's seventh cell
 #include "oracool/runeword_book.h"
 #include "oracool/ui_sound.h"
 #include "panels/spell_book.hpp"
@@ -370,6 +371,19 @@ bool CheckTownPortalBeltSlotClick(Point mousePosition)
 	return true;
 }
 
+bool CheckRunToggleBeltSlotClick(Point mousePosition)
+{
+	if (!GetBeltSlotRect(BeltRunToggleSlotIndex).contains(mousePosition))
+		return false;
+
+	// ToggleRun already writes the new mode to the event log, so the click needs no message of its
+	// own - only the sound and the flash, like the two buttons beside it.
+	ToggleRun();
+	PlayUiSelectSound();
+	StartButtonFlash(BeltRunToggleSlotIndex);
+	return true;
+}
+
 void DrawBeltButtonFeedback(const Surface &out)
 {
 	// Nothing on the belt plate while the chat box is open (user, 2026-08-18: the town portal and RMB
@@ -430,8 +444,20 @@ void DrawBeltButtonFeedback(const Surface &out)
 		portalState = 1;
 	DrawTownPortalIcon(out, portalState);
 
+	// The Walk/Run toggle, in the seventh cell hud-v7 added. Momentary like the Portal beside it -
+	// the STATE the toggle is in is carried by which glyph strip is drawn, not by this, so a click
+	// here is a blink and then back to idle even though the mode it set persists.
+	const Rectangle runCell = GetBeltSlotRect(BeltRunToggleSlotIndex);
+	int runState = 0;
+	if (flashingNow && FlashingCell == BeltRunToggleSlotIndex)
+		runState = 2;
+	else if (runCell.contains(MousePosition))
+		runState = 1;
+	DrawRunToggleButton(out, runState);
+
 	// And the four real item cells, which only ever flash on use.
-	if (!flashingNow || FlashingCell == BeltTownPortalSlotIndex || FlashingCell == BeltMenuSlotIndex)
+	if (!flashingNow || FlashingCell == BeltTownPortalSlotIndex || FlashingCell == BeltMenuSlotIndex
+	    || FlashingCell == BeltRunToggleSlotIndex)
 		return;
 
 	highlight(GetBeltSlotRect(FlashingCell));

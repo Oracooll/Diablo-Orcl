@@ -23,7 +23,8 @@ from. Quality level (qlvl) is the item level a drop needs before this base can a
 		out at Hell/Hell, so a depth opens a shelf of bases rather than one.</li>
 	<li><b>Opens at</b> names the earliest area whose item level reaches the banded qlvl.</li>
 	<li><b>Drop</b> of <code>NEVER</code> means the base exists but is never randomly generated: quest
-		items, class starting gear, and the set, gem and rune families that drop through their own hooks.</li>
+		items and class starting gear. The set, gem, rune and charm families are <code>REGULAR</code>
+		- they are kept out of the shared pool by the drop hook, not by this column.</li>
 	<li>Damage, armour, durability and requirements are the <b>Normal-tier</b> numbers. Multiply by the
 		<a href="tiers.html">tier scale</a> for the other three.</li>
 	<li>A few families marked <code>REGULAR</code> are still kept out of the shared drop pool and reach
@@ -56,13 +57,13 @@ an item level of <b>1, 13, 25 and 37</b> respectively.</div>
 <script src="data.js"></script>
 <script src="wiki.js"></script>
 <script>
-/* The icons cut from the game's own cursor sheets cover the vanilla bases. This fork's own items -
-   the gems, runes, jewels, charms and the new equipment families - carry ORACOOL_ icon names that
-   live in Oracool's own sheets instead, so they fall outside this range and show no picture rather
-   than a broken one. */
-const VANILLA_ICONS = 240;
+/* Icons are cut from all three cursor sheets end to end - vanilla objcurs, Hellfire's objcurs2, and
+   Oracool's own oracool_items.cel - so the fork's gems, runes, jewels, orbs and charms have pictures
+   too. An index outside the run means the icon was never cut; show nothing rather than a broken
+   image. */
+const ICON_COUNT = 866;
 function itemIcon(v, size) {
-	if (v < 0 || v >= VANILLA_ICONS) return '';
+	if (v < 0 || v >= ICON_COUNT) return '';
 	return '<img src="encyclopedia/items/curs_' + v + '.png" alt="" class="sprite" style="max-height:' + size + 'px">';
 }
 

@@ -188,12 +188,22 @@ Point GetRmbSkillIconOrigin(Size content);
  */
 Rectangle GetBeltSlotRect(int slot);
 
-/** @brief The cell (left to right, 0..5) slot `slot` is drawn in - see GetBeltSlotRect. */
+/**
+ * @brief The cell (left to right, 0..6) slot `slot` is drawn in - see GetBeltSlotRect.
+ *
+ * The row reads: four potions, Portal, Menu, Walk/Run toggle (user, 2026-09-12: "belt slots order
+ * is 1-4 (potions), Portal, Menu, Run/Walk toggle"). The toggle took the SEVENTH cell that hud-v7
+ * added, so nothing that was already on the belt moved.
+ */
 inline constexpr int BeltCellOfSlot(int slot)
 {
 	if (slot >= 1 && slot <= 4)
 		return slot - 1;
-	return slot == 5 ? 4 : 5;
+	if (slot == 5)
+		return 4; // Town Portal
+	if (slot == 6)
+		return 6; // Walk/Run toggle - the cell hud-v7 added, at the end of the row
+	return 5;     // Menu
 }
 
 /** @brief Absolute screen rect of belt CELL `cell`, left to right 0..5 - the row's own geometry,
@@ -212,7 +222,7 @@ int GetBeltRunTop();
  * gives four. Anything drawing the row itself (a backing, a frame) wants this one; anything
  * carrying items wants that one.
  */
-inline constexpr int BeltVisibleSlotCount = 6;
+inline constexpr int BeltVisibleSlotCount = 7;
 
 /** @brief Underlying Player::SpdList index repurposed as the belt's "Menu" button (opens
  * hud_menu.h's popup) - never holds a real item once MigrateHiddenBeltSlots has run once. */
@@ -221,6 +231,15 @@ inline constexpr int BeltMenuSlotIndex = 0;
 /** @brief Underlying Player::SpdList index repurposed as the belt's permanent Town Portal button
  * (see hud_menu.h's CastTownPortalAtFeet) - never holds a real item once migrated. */
 inline constexpr int BeltTownPortalSlotIndex = 5;
+
+/**
+ * @brief Underlying Player::SpdList index repurposed as the belt's Walk/Run toggle (2026-09-12).
+ *
+ * Index 6 rather than a new kind of control: it was already one of the two hidden, migrated-empty
+ * slots, so every belt path that addresses a cell by slot - GetBeltSlotRect, the flash, the hover -
+ * works on it unchanged, and no save data moves. MaxBeltItems is still 8 and still the save format.
+ */
+inline constexpr int BeltRunToggleSlotIndex = 6;
 
 /** @brief Whether SpdList index `i` is one of the 4 slots still usable as a real item slot in the
  * new 6-visible-slot belt layout (indices 1-4; 0 and 5 are repurposed above, 6 and 7 are simply

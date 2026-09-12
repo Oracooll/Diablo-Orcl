@@ -677,7 +677,8 @@ void LeftMouseDown(uint16_t modState)
 			}
 		}
 	} else {
-		if (oracool::CheckHudMenuSlotClick(MousePosition) || oracool::CheckTownPortalBeltSlotClick(MousePosition))
+		if (oracool::CheckHudMenuSlotClick(MousePosition) || oracool::CheckTownPortalBeltSlotClick(MousePosition)
+		    || oracool::CheckRunToggleBeltSlotClick(MousePosition))
 			return;
 		// Oracool: user request - either skill button opens the Abilities window, which is where
 		// spells, skills and auras are now chosen. The LMB well was purely decorative before this.

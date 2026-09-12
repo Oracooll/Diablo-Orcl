@@ -281,8 +281,12 @@ void ExportCursors(const fs::path &root)
 	UsePalette("levels\towndata\town.pal");
 	const fs::path dir1 = root / "objcurs";
 	const fs::path dir2 = root / "objcurs2";
-	if (fs::exists(dir1) && fs::exists(dir2)) {
-		Skipped += 2;
+	// Oracool's own sheet - data\inv\oracool_items.cel - is the third run of inventory icons, and it
+	// is where every gem, rune, jewel, orb, charm and signet lives. Without it the wiki can only
+	// illustrate the vanilla bases.
+	const fs::path dir3 = root / "objcurs3";
+	if (fs::exists(dir1) && fs::exists(dir2) && fs::exists(dir3)) {
+		Skipped += 3;
 		return;
 	}
 	std::puts("ui      objcurs (+ objcurs2)");
@@ -304,8 +308,10 @@ void ExportCursors(const fs::path &root)
 			WritePng(dir / name, surf, orig_palette);
 		}
 	};
+	const size_t third = GetNumInvItemsInSheet(3);
 	writeRange(dir1, "objcurs", 0, first);
 	writeRange(dir2, "objcurs2", first, second);
+	writeRange(dir3, "objcurs3", first + second, third);
 	FreeCursor();
 }
 

@@ -45,6 +45,7 @@
 #include "oracool/furious_charge.h"
 #include "oracool/hud_art.h"
 #include "oracool/hud_layout.h"
+#include "oracool/run_toggle.h" // IsRunEnabled - the belt toggle's hover hint names the mode
 #include "oracool/hud_menu.h"
 #include "oracool/inventory_layout.h"
 #include "engine/render/primitive_render.hpp"
@@ -1179,6 +1180,15 @@ void CheckPanelInfo()
 	if (oracool::GetBeltSlotRect(oracool::BeltTownPortalSlotIndex).contains(MousePosition)) {
 		SetPanelString(_("Town Portal"), UiFlags::ColorWhite);
 		AddPanelString(_("Click to open."));
+		InfoColor = UiFlags::ColorWhite;
+		panelflag = true;
+		return;
+	}
+	if (oracool::GetBeltSlotRect(oracool::BeltRunToggleSlotIndex).contains(MousePosition)) {
+		// Names the state it is in, then what a click does - the glyph already shows the first, and
+		// the hint is where the key binding gets mentioned at all.
+		SetPanelString(oracool::IsRunEnabled() ? _("Running") : _("Walking"), UiFlags::ColorWhite);
+		AddPanelString(_("Click to switch. Also the R key."));
 		InfoColor = UiFlags::ColorWhite;
 		panelflag = true;
 		return;

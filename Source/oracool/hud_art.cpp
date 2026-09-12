@@ -21,6 +21,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/run_toggle.h" // IsRunEnabled - which glyph the belt's toggle wears
 #include "options.h" // the HUD Plate Art switch
 #include "oracool/ornate_border.h" // ThemeEdgeColor
 #include "panels/spell_icons.hpp" // the vanilla plate behind every skill icon
@@ -217,6 +218,12 @@ ArtAsset BurgerMenuButtonArt { "ui\\burger_menu_button.png" };
  */
 ArtAsset TownPortalGlyphsArt { "ui\\belt_glyphs_tp.png" };
 ArtAsset BurgerMenuGlyphsArt { "ui\\belt_glyphs_menu.png" };
+// The Walk/Run toggle's two strips (batch-16, 2026-09-12): the same three-cell 30x30
+// idle/hover/click format as the two above. WHICH strip is drawn is the toggle's state - the
+// running traveller when running, the walking one when not - so the button says what it is rather
+// than what it would do.
+ArtAsset RunGlyphsArt { "ui\\belt_glyphs_run.png" };
+ArtAsset WalkGlyphsArt { "ui\\belt_glyphs_walk.png" };
 
 /**
  * The menu window's eight entries and the inventory's ten tabs as glyphs (oracool-hud-glyphs-v1,
@@ -794,6 +801,10 @@ void EnsureLoadedAll()
 		LoadPixels(TownPortalGlyphsArt);
 	if (!BurgerMenuGlyphsArt.loadAttempted)
 		LoadPixels(BurgerMenuGlyphsArt);
+	if (!RunGlyphsArt.loadAttempted)
+		LoadPixels(RunGlyphsArt);
+	if (!WalkGlyphsArt.loadAttempted)
+		LoadPixels(WalkGlyphsArt);
 	if (!MenuGlyphsArt.loadAttempted)
 		LoadPixels(MenuGlyphsArt);
 	if (!TabGlyphsArt.loadAttempted)
@@ -858,6 +869,10 @@ bool NeedsQuantize()
 	if (!BurgerMenuButtonArt.rgba.empty() && !BurgerMenuButtonArt.bright)
 		return true;
 	if (!TownPortalGlyphsArt.rgba.empty() && !TownPortalGlyphsArt.bright)
+		return true;
+	if (!RunGlyphsArt.rgba.empty() && !RunGlyphsArt.bright)
+		return true;
+	if (!WalkGlyphsArt.rgba.empty() && !WalkGlyphsArt.bright)
 		return true;
 	if (!BurgerMenuGlyphsArt.rgba.empty() && !BurgerMenuGlyphsArt.bright)
 		return true;
@@ -943,6 +958,8 @@ void EnsureQuantized()
 	RepaintOntoBlueInverted(BurgerMenuButtonArt); // the portal ring's blue, bright where the bars are dark (2026-09-06)
 	QuantizeAsset(TownPortalGlyphsArt, std::nullopt);
 	QuantizeAsset(BurgerMenuGlyphsArt, std::nullopt);
+	QuantizeAsset(RunGlyphsArt, std::nullopt);
+	QuantizeAsset(WalkGlyphsArt, std::nullopt);
 	QuantizeAsset(MenuGlyphsArt, std::nullopt);
 	QuantizeAsset(TabGlyphsArt, std::nullopt);
 	QuantizeAsset(LevelUpIconArt, std::nullopt);
@@ -1596,6 +1613,23 @@ void DrawBurgerMenuButton(const Surface &out, int state)
 		DrawBeltButtonText(out, cell, "M", UiFlags::ColorGold, state);
 }
 
+void DrawRunToggleButton(const Surface &out, int state)
+{
+	// Three states: 0 default, 1 hover, 2 click - the same sheet shape as the two buttons above.
+	if (state < 0 || state > 2)
+		return;
+
+	// The seventh belt cell, which hud-v7 added (user, 2026-09-12: "fill the new 7th belt slot with
+	// Walk/Run Togggle"). The strip drawn is the CURRENT mode rather than the one a click would
+	// select: the belt row is read at a glance, and a button that shows what you would become is
+	// ambiguous the moment you stop to think about it.
+	const Rectangle cell = GetBeltSlotRect(BeltRunToggleSlotIndex);
+	DrawBeltSlotPlate(out, cell); // the same plate every other belt cell wears
+	const bool running = IsRunEnabled();
+	if (!TryDrawBeltGlyph(out, running ? RunGlyphsArt : WalkGlyphsArt, cell, state))
+		DrawBeltButtonText(out, cell, running ? "R" : "W", UiFlags::ColorWhitegold, state);
+}
+
 void DrawLevelUpIconArt(const Surface &out, int state)
 {
 	if (state < 0 || state > 2)
@@ -1896,6 +1930,8 @@ void ResetHudArtCaches()
 	reset(BurgerMenuButtonArt);
 	reset(TownPortalGlyphsArt);
 	reset(BurgerMenuGlyphsArt);
+	reset(RunGlyphsArt);
+	reset(WalkGlyphsArt);
 	reset(MenuGlyphsArt);
 	reset(TabGlyphsArt);
 	reset(LevelUpIconArt);

@@ -75,17 +75,25 @@ foreach ($suffix in $families.Keys) {
 # objcurs holds the first sheet's frames, objcurs2 continues after it. An item's curs index maps
 # straight onto that run, so the icons are renamed by index here and the pages never have to know
 # which sheet a given item came from.
+# Three sheets run end to end into one index space: vanilla objcurs, then Hellfire's objcurs2, then
+# Oracool's own oracool_items.cel - which is where every gem, rune, jewel, Mystic Orb, charm and
+# signet lives. An item's curs index addresses that whole run, so the offsets have to accumulate.
 $first = (Get-ChildItem (Join-Path $export 'objcurs') -Filter *.png).Count
+$second = (Get-ChildItem (Join-Path $export 'objcurs2') -Filter *.png).Count
 $icons = 0
-foreach ($f in Get-ChildItem (Join-Path $export 'objcurs') -Filter *.png) {
-    if ($f.Name -notmatch 'frame(\d+)\.png$') { continue }
-    Copy-Item $f.FullName (Join-Path $itemOut ("curs_{0}.png" -f [int]$matches[1])) -Force
-    $icons++
-}
-foreach ($f in Get-ChildItem (Join-Path $export 'objcurs2') -Filter *.png) {
-    if ($f.Name -notmatch 'frame(\d+)\.png$') { continue }
-    Copy-Item $f.FullName (Join-Path $itemOut ("curs_{0}.png" -f ($first + [int]$matches[1]))) -Force
-    $icons++
+$sheets = @(
+    @{ dir = 'objcurs';  offset = 0 }
+    @{ dir = 'objcurs2'; offset = $first }
+    @{ dir = 'objcurs3'; offset = $first + $second }
+)
+foreach ($sheet in $sheets) {
+    $dir = Join-Path $export $sheet.dir
+    if (-not (Test-Path $dir)) { continue }
+    foreach ($f in Get-ChildItem $dir -Filter *.png) {
+        if ($f.Name -notmatch 'frame(\d+)\.png$') { continue }
+        Copy-Item $f.FullName (Join-Path $itemOut ("curs_{0}.png" -f ($sheet.offset + [int]$matches[1]))) -Force
+        $icons++
+    }
 }
 
 # ---------------------------------------------------------------- report
@@ -94,7 +102,7 @@ foreach ($f in Get-ChildItem (Join-Path $export 'objcurs2') -Filter *.png) {
 "missing art     : $($missing.Count)"
 $missing | ForEach-Object { "    $_" }
 if ($odd.Count) { "ODD GEOMETRY    : $($odd.Count)"; $odd | ForEach-Object { "    $_" } }
-"item icons      : $icons (objcurs $first + objcurs2)"
+"item icons      : $icons (objcurs $first + objcurs2 $second + oracool_items)"
 $mf = Get-ChildItem $monOut -Filter *.png
 $if2 = Get-ChildItem $itemOut -Filter *.png
 "monsters on disk: {0} files, {1:N2} MB" -f $mf.Count, (($mf | Measure-Object Length -Sum).Sum / 1MB)
