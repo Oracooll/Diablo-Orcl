@@ -290,6 +290,16 @@ bool AutoPlaceItemInInventorySlot(Player &player, int slotIndex, const Item &ite
 DVL_API_FOR_TEST int ActiveInvAnchorSlotOf(Player &player, int iv);
 
 /**
+ * @brief Whether the backpack item at @p listIndex on the DISPLAYED tab is the one under the cursor.
+ *
+ * Exported because getting this wrong is invisible: the socket rings and the hover outline are the
+ * only things that read it, so a wrong answer looks like missing art rather than like a bug. It was
+ * wrong for every extra tab until 1.11.081 - see the definition for why pcursinvitem alone cannot
+ * answer it.
+ */
+DVL_API_FOR_TEST bool IsActiveInvItemHovered(int listIndex);
+
+/**
  * @brief Oracool Tabbed Inventory fallback: tries every extra tab (2-10) for an area big enough
  * for item, once AutoPlaceItemInInventory (tab 1 only) has already failed. Never touches
  * ActiveInventoryTab - the displayed page stays whatever it already was.

@@ -42,8 +42,10 @@ extern DVL_API_FOR_TEST int8_t pcursinvitem;
  * gives those same four actions a second, independent target besides pcursinvitem. -1/-1 when no
  * extra-tab item is hovered.
  */
-extern int8_t pcursinvtabidx;
-extern int8_t pcursinvtabitem;
+// DVL_API_FOR_TEST since 1.11.081: IsActiveInvItemHovered answers from these on every tab but the
+// first, and the test that pins it has to be able to set them.
+extern DVL_API_FOR_TEST int8_t pcursinvtabidx;
+extern DVL_API_FOR_TEST int8_t pcursinvtabitem;
 extern uint16_t pcursstashitem;
 extern int8_t pcursitem;
 

@@ -1614,5 +1614,57 @@ TEST_F(InvTest, ActiveInvAnchorSlotOfFindsTheTopLeftCellNotTheBottomLeft)
 	// And an index nothing in the grid references has no anchor, rather than cell 0.
 	EXPECT_EQ(ActiveInvAnchorSlotOf(player, 7), -1);
 }
+
+// A 4-socket Canticle showed no gold socket rings on hover (user, 2026-09-12). It was reported as a
+// problem with 2x2 shields, and it had nothing to do with size or socket count: the backpack draw
+// loop decided "hovered" from pcursinvitem alone, and CheckInvHLight deliberately leaves that at -1
+// for an item on an extra tab, recording the hover in pcursinvtabidx/pcursinvtabitem instead. So
+// from tab 2 onward no item was ever hovered - no rings, no stones, no outline - and the later tabs
+// are exactly where the big two-by-two items end up, which is what made it look size-shaped.
+TEST_F(InvTest, EveryTabSItemCanBeHoveredNotOnlyTheFirstTabS)
+{
+	const int savedTab = ActiveInventoryTab;
+	const int8_t savedItem = pcursinvitem;
+	const int8_t savedTabIdx = pcursinvtabidx;
+	const int8_t savedTabItem = pcursinvtabitem;
+
+	// Tab 0 answers from pcursinvitem, as it always did.
+	ActiveInventoryTab = 0;
+	pcursinvitem = 3 + INVITEM_INV_FIRST;
+	pcursinvtabidx = -1;
+	pcursinvtabitem = -1;
+	EXPECT_TRUE(IsActiveInvItemHovered(3));
+	EXPECT_FALSE(IsActiveInvItemHovered(4));
+
+	// On tab 0 the tab-cursor pair must not be consulted at all.
+	pcursinvitem = -1;
+	pcursinvtabidx = 0;
+	pcursinvtabitem = 3;
+	EXPECT_FALSE(IsActiveInvItemHovered(3)) << "tab 0 must read pcursinvitem, not the tab cursor";
+
+	// The regression: an extra tab, where pcursinvitem is -1 BY DESIGN. Item 3 on tab 2 (index 1)
+	// is hovered and must say so.
+	ActiveInventoryTab = 2;
+	pcursinvitem = -1;
+	pcursinvtabidx = 1;
+	pcursinvtabitem = 3;
+	EXPECT_TRUE(IsActiveInvItemHovered(3)) << "an extra tab's item is never hovered - no socket rings, no outline";
+	EXPECT_FALSE(IsActiveInvItemHovered(4)) << "only the item under the cursor";
+
+	// The tab index has to match too, or tab 3 would light up tab 2's hover.
+	ActiveInventoryTab = 3;
+	EXPECT_FALSE(IsActiveInvItemHovered(3)) << "a hover on tab 2 must not draw on tab 3";
+
+	// Nothing hovered anywhere.
+	ActiveInventoryTab = 2;
+	pcursinvtabidx = -1;
+	pcursinvtabitem = -1;
+	EXPECT_FALSE(IsActiveInvItemHovered(3));
+
+	ActiveInventoryTab = savedTab;
+	pcursinvitem = savedItem;
+	pcursinvtabidx = savedTabIdx;
+	pcursinvtabitem = savedTabItem;
+}
 } // namespace
 } // namespace devilution

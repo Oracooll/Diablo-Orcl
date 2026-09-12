@@ -969,6 +969,24 @@ void CheckInvPaste(Player &player, Point cursorPosition)
  * less one row per cell of height. Getting this backwards would place a displaced item one or two
  * rows below the hole and usually fail, which is a silent wrong answer rather than a crash.
  */
+bool IsActiveInvItemHovered(int listIndex)
+{
+	// Hover has to be asked of the RIGHT cursor variable, and which one that is depends on the tab.
+	// CheckInvHLight deliberately leaves pcursinvitem == -1 for an item on an extra tab - the legacy
+	// drag/drop code reads that value and assumes tab-1 indices - and records the hover in
+	// pcursinvtabidx/pcursinvtabitem instead.
+	//
+	// The backpack draw loop used to ask only pcursinvitem, so from tab 2 onward NOTHING was ever
+	// "hovered": no gold socket rings, no socketed stones, and no hover outline either (user,
+	// 2026-09-12, on a 4-socket Canticle). It presented as a size problem - the later tabs fill up
+	// with the big two-by-two items - but a 1x1's ring on a later tab was just as invisible.
+	//
+	// This decides DRAWING only. Drag/drop still goes through pcursinvitem, untouched.
+	if (ActiveInventoryTab == 0)
+		return pcursinvitem == listIndex + INVITEM_INV_FIRST;
+	return pcursinvtabidx == ActiveInventoryTab - 1 && pcursinvtabitem == listIndex;
+}
+
 int ActiveInvAnchorSlotOf(Player &player, int iv)
 {
 	for (int cell = 0; cell < InventoryGridCells; cell++) {
@@ -2071,7 +2089,7 @@ void DrawInv(const Surface &out)
 
 			const ClxSprite sprite = GetInvItemSprite(cursId);
 			const Point position = GetPanelPosition(UiPanels::Inventory, InvRect[j + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height };
-			const bool hovered = ActiveInventoryTab == 0 && pcursinvitem == ii + INVITEM_INV_FIRST;
+			const bool hovered = IsActiveInvItemHovered(ii);
 			if (hovered) {
 				ClxDrawOutline(out, GetOutlineColor(invItem, true), position, sprite);
 			}
