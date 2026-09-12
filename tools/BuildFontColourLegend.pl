@@ -95,19 +95,19 @@ my %uses;
 my @rows = (
 	['ColorWhitegold', 'GD-2', 0, 'whitegold.trn', undef, 'unique items; the fallback for an unrecognised flag'],
 	['ColorUiGold', 'GD-3', 1, 'oracool_uigold.trn', 'goldui.trn', 'front-end text; in play the panel labels'],
-	['ColorUiSilver', 'GR-3', 2, 'oracool_uisilver.trn', 'grayui.trn', 'front-end text; in play floating fire damage'],
+	['ColorUiSilver', 'GR-3', 2, 'oracool_uisilver.trn', 'grayui.trn', 'front-end text'],
 	['ColorUiGoldDark', 'GD-5', 3, 'oracool_uigolddark.trn', 'golduis.trn', 'front-end text, dark'],
 	['ColorUiSilverDark', 'GR-5', 4, 'oracool_uisilverdark.trn', 'grayuis.trn', 'front-end text, dark; the mlvl line under a monster bar'],
 	['ColorDialogWhite', '≈ GR-2', 5, 'oracool_dialogwhite.trn', 'white.trn', 'dialog text'],
 	['ColorYellow', 'YL-1', 8, 'yellow.trn', undef, 'lightning damage on the sheet and the floating numbers'],
 	['ColorGold', 'GD-3', 9, '', undef, 'the raw glyph, no file: labels, the readied-slot rows, gold text everywhere'],
 	['ColorBlack', 'BK', 10, 'black.trn', undef, 'the shadow under HUD text'],
-	['ColorWhite', '≈ GR-2', 11, 'white.trn', undef, 'plain items, most panel and HUD text'],
+	['ColorWhite', '≈ GR-2', 11, 'white.trn', undef, 'plain items, most panel and HUD text, physical damage'],
 	['ColorRed', '≈ RD-3', 13, 'red.trn', undef, 'unmet requirements, fire damage, a slow on the sheet'],
-	['ColorBlue', 'BL-0', 14, 'blue.trn', undef, 'magic items, magic damage, a bonus on the sheet'],
-	['ColorOrange', 'OR-1', 15, 'oracool_orange1.trn', undef, 'the runeword book\'s rune lines, floating magic damage'],
+	['ColorBlue', 'BL-0', 14, 'blue.trn', undef, 'magic items, cold damage, a bonus on the sheet'],
+	['ColorOrange', 'OR-1', 15, 'oracool_orange1.trn', undef, 'the runeword book\'s rune lines'],
 	['ColorUiYellow', 'YL-1', 18, 'oracool_uiyellow.trn', 'oracool_menuyellow.trn', 'the front-end focus glow'],
-	['ColorOracoolGreen', 'GN-1', 20, 'oracool_green1.trn', undef, 'set items, healing'],
+	['ColorOracoolGreen', 'GN-1', 20, 'oracool_green1.trn', undef, 'set items, healing, acid damage'],
 	['ColorGray5', 'GR-5', 21, 'oracool_gray5.trn', undef, 'socketed plain drops on the floor, the socket count on any drop, the Sockets row'],
 	['ColorBeige2', 'BE-2', 22, 'oracool_beige2.trn', undef, 'Primal items, name and slot backing'],
 	['ColorYellow3', 'YL-3', 23, 'oracool_yellow3.trn', undef, 'rare items, rejuvenation potions'],
@@ -116,19 +116,31 @@ my @rows = (
 	['ColorGold6', 'GD-6', 26, 'oracool_gold6.trn', undef, 'books'],
 	['ColorOrange7', 'OR-7', 27, 'oracool_orange7.trn', undef, 'runes'],
 	['ColorGray7', 'GR-7', 28, 'oracool_gray7.trn', undef, 'ethereal plain items and the Ethereal row; beats the socketed gray'],
+	# Field 29, and the first colour in the game that was never a .trn - which is why the file-keyed
+	# lookup above could not see it and this page went without it. Added 2026-09-11, when magic damage
+	# vacated blue and freed it for cold (v1.11.082).
+	['ColorMagicDamage', 'RD-x', 29, '', undef, 'magic damage on the sheet and the floating numbers'],
 );
 # Colours defined by VALUE, read out of text_render.cpp's RgbDefinedColors (stage 4: every Orcl
 # .trn became one). Keyed by the file each entry says it was, so a row above finds its definition
 # by the name it always had; the table is band + out-of-band extras, exactly as the engine bakes it.
 my %valueByFile;
+my %valueByEnum;
 {
 	my $src = slurp("$repo/Source/engine/render/text_render.cpp");
-	while ($src =~ /\{\s*(Color\w+),\s*\{\s*([^}]*?)\s*\}(?:\s*,\s*\{\s*\{\s*(.*?)\s*\}\s*\})?\s*\},\s*\/\/ was fonts\\\\(\S+)/gs) {
+	# The "was fonts\..." tail is OPTIONAL. Every entry carried one while the table was the record of
+	# which .trn each colour used to be - but a colour born after stage 4 never was a file, and
+	# ColorMagicDamage (2026-09-11) is the first. Requiring the tail dropped it silently, which is why
+	# it was missing from this page entirely. Keyed by enum as well as by file so such a row can be
+	# found by the only name it has.
+	while ($src =~ /\{\s*(Color\w+),\s*\{\s*([^}]*?)\s*\}(?:\s*,\s*\{\s*\{\s*(.*?)\s*\}\s*\})?\s*\},(?:\s*\/\/ was fonts\\\\(\S+))?/gs) {
 		my ($enum, $band, $extra, $file) = ($1, $2, $3, $4);
 		my @band = map { hex } $band =~ /0x([0-9A-Fa-f]{6})/g;
 		my %extra;
 		if (defined $extra) { while ($extra =~ /\{\s*(\d+),\s*0x([0-9A-Fa-f]{6})\s*\}/g) { $extra{$1} = hex $2; } }
-		$valueByFile{$file} = { enum => $enum, band => \@band, extra => \%extra };
+		my $rec = { enum => $enum, band => \@band, extra => \%extra };
+		$valueByFile{$file} = $rec if defined $file;
+		$valueByEnum{$enum} = $rec;
 	}
 }
 sub table_from_definition {
@@ -147,8 +159,13 @@ for my $r (@rows) {
 	my $count = $uses{$name} // 0;
 	next if $count == 0 && $name ne 'ColorGold';
 	$inUse++;
+	# A row finds its definition by FILE first, because most rows' enum was renamed when the .trn
+	# became a value (ColorUiGold's definition is ColorInGameUiGold) and the file is the only name
+	# both ends share. The enum lookup is the fallback, and it is what a colour with no file has.
+	my $byEnum = $file eq '' && exists $valueByEnum{$name};
 	my $table = exists $valueOf{$name} ? table_from_value($valueOf{$name})
 	    : exists $valueByFile{$file} ? table_from_definition($valueByFile{$file})
+	    : $byEnum ? table_from_definition($valueByEnum{$name})
 	    : $file eq '' ? table_from_trn([0 .. 255]) : table_from_trn(trnfile($file));
 	my $uri = render("This is $name", $table);
 	# the value: what the glyph's brightest level lands on, and the shades its bevel walks through
@@ -160,6 +177,7 @@ for my $r (@rows) {
 	my $sw = join '', map { qq{<i style="background:$_" title="$_"></i>} } @shades;
 	my $src = exists $valueOf{$name} ? sprintf('value 0x%06X', $valueOf{$name})
 	    : exists $valueByFile{$file} ? qq{value in code <span class="menu">(was $file)</span>}
+	    : $byEnum ? qq{value in code <span class="menu">(never a .trn)</span>}
 	    : $file eq '' ? '<i>none, the raw glyph</i>' : "fonts\\$file";
 	if ($menuFile) {
 		$src .= exists $valueByFile{$menuFile} ? qq{<br><span class="menu">menus: value in code (was $menuFile)</span>} : qq{<br><span class="menu">menus: fonts\\$menuFile</span>};
