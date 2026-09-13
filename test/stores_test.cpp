@@ -685,6 +685,69 @@ TEST_F(StoresTest,SmithSell_FourItemPage_SellAllRowNotHijackedByPremiumRedirect)
 	EXPECT_EQ(remaining, 0) << "Sell All should have sold every listed item";
 }
 
+// Sell all from every Griswold tab (user, 2026-09-13: "in griswold shops - any screen that has refresh button
+// reduce its width in half and add a second button next to it SELL ALL. i want to be able to sell all items
+// from any tab of griswold shop").
+TEST_F(StoresTest,SellAllIsOfferedOnEveryGriswoldTabAndStaysOnIt)
+{
+	SNetInitializeProvider(SELCONN_LOOPBACK, nullptr);
+	sgOptions.Oracool.shopStockRefresh.SetValue(true);
+
+	const auto sellAllOn = [](TalkID tab) -> const oracool::ShopAction * {
+		static std::vector<oracool::ShopAction> actions;
+		actions = GetShopActions(tab);
+		for (const oracool::ShopAction &action : actions) {
+			if (std::string_view(action.label) == "Sell all")
+				return &action;
+		}
+		return nullptr;
+	};
+	for (TalkID tab : { TalkID::SmithBuy, TalkID::SmithPremiumBuy, TalkID::SmithUniqueBuy, TalkID::SmithRareBuy,
+	         TalkID::SmithSetBuy, TalkID::SmithConsumables }) {
+		EXPECT_NE(sellAllOn(tab), nullptr) << "Griswold tab " << static_cast<int>(tab) << " offers no Sell all";
+	}
+
+	// Beside Refresh, not in front of it: the button sits next to the one it halves.
+	std::vector<oracool::ShopAction> basic = GetShopActions(TalkID::SmithBuy);
+	ASSERT_EQ(basic.size(), 2u);
+	EXPECT_EQ(std::string_view(basic[0].label), "Refresh");
+	EXPECT_EQ(std::string_view(basic[1].label), "Sell all");
+	// And never on a line a refresh dispatches on.
+	EXPECT_NE(basic[1].line, basic[0].line);
+
+	// Two plain shields in the pack, sold from the Basic tab.
+	devilution::_item_indexes shieldIdx = IDI_NONE;
+	for (std::underlying_type_t<devilution::_item_indexes> i = IDI_GOLD; i <= IDI_LAST; i++) {
+		if (AllItemsList[i].itype == ItemType::Shield && AllItemsList[i].iRnd != IDROP_NEVER) {
+			shieldIdx = static_cast<devilution::_item_indexes>(i);
+			break;
+		}
+	}
+	ASSERT_NE(shieldIdx, IDI_NONE);
+	for (int i = 0; i < 2; i++) {
+		devilution::Item &item = MyPlayer->InvList[i];
+		InitializeItem(item, shieldIdx);
+		item._iIdentified = true;
+		item._iCreateInfo = 0;
+	}
+	MyPlayer->_pNumInv = 2;
+	MyPlayer->_pGold = 0;
+
+	StartStore(TalkID::SmithBuy);
+	const oracool::ShopAction *sellAll = sellAllOn(TalkID::SmithBuy);
+	ASSERT_NE(sellAll, nullptr);
+	ShopActivateAction(TalkID::SmithBuy, sellAll->line);
+
+	EXPECT_EQ(stextflag, TalkID::SmithBuy) << "Sell all moved the player off the tab it was pressed on";
+	int remaining = 0;
+	for (int i = 0; i < InventoryGridCells; i++) {
+		if (!MyPlayer->InvList[i].isEmpty())
+			remaining++;
+	}
+	EXPECT_EQ(remaining, 0) << "Sell all from the Basic tab left items in the pack";
+	EXPECT_GT(TotalPlayerGold(), 0u) << "Sell all paid nothing";
+}
+
 // User request: "Sort Stash" (Gillian's dialog) should sort by item category (Weapons, Armor,
 // Helms, Shields, Jewelry, then everything else), descending price within each category.
 TEST_F(StoresTest,SortStash_OrdersByCategoryThenDescendingPrice)

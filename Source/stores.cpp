@@ -2671,15 +2671,23 @@ void StoreSellItem()
 	StoreSellItemAt(stextvhold + ((stextlhold - stextup) / 4));
 }
 
-void SmithSellAllItems()
+/**
+ * @brief Sells Griswold everything he will buy, then returns to @p returnTo.
+ *
+ * @p returnTo is the Sold tab for its own Sell all, and whichever buy tab the button was pressed on
+ * since 2026-09-13 (user: "i want to be able to sell all items from any tab of griswold shop") - the
+ * player asked to empty their pack, not to be moved to another shelf.
+ */
+void SmithSellAllItems(TalkID returnTo = TalkID::SmithSell)
 {
 	while (true) {
 		StartSmithSell();
 		if (storenumh == 0)
 			break;
 		if (!StoreGoldFit(StoreHoldSalePrice(storehold[0]), &storehold[0])) {
-			stextshold = TalkID::SmithSell;
-			stextlhold = SmithSellAllLine();
+			// The No Room screen returns to stextshold; a buy tab has no text line to restore.
+			stextshold = returnTo;
+			stextlhold = returnTo == TalkID::SmithSell ? SmithSellAllLine() : 0;
 			stextvhold = 0;
 			StartStore(TalkID::NoRoom);
 			return;
@@ -2690,7 +2698,7 @@ void SmithSellAllItems()
 		StoreSellItemAt(0);
 	}
 
-	StartStore(TalkID::SmithSell);
+	StartStore(returnTo);
 }
 
 void SmithSellEnter()
@@ -5121,6 +5129,16 @@ void ShopBuyBack(int index)
 	oracool::ScheduleAutoSaveForStoreTransaction();
 }
 
+/**
+ * @brief The buy tabs' Sell all, as an ACTION LINE - a value no store text line can hold.
+ *
+ * The Sold tab's own Sell all dispatches on SmithSellAllLine(), and that number is shared: at the normal
+ * font size PremiumRefreshUntilLine() is the same line. The Magic tab dispatches its actions by line, so
+ * reusing it there would have fired Refresh until. The store has 24 text lines; this sits far past them
+ * and is caught in ShopActivateAction before any line-based handler sees it.
+ */
+constexpr int GriswoldTabSellAllLine = 1000;
+
 std::vector<oracool::ShopAction> GetShopActions(TalkID id)
 {
 	// The gating conditions are copied from the places that used to ADD these rows to the text list
@@ -5144,6 +5162,10 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id)
 			actions.push_back({ N_("Refresh"), PremiumRefreshLine() });
 		if (*sgOptions.Oracool.refreshUntilButton)
 			actions.push_back({ N_("Refresh until"), PremiumRefreshUntilLine() });
+		// Sell all beside the refreshes (user, 2026-09-13: "any screen that has refresh button reduce its
+		// width in half and add a second button next to it SELL ALL"). The action row divides its width
+		// between whatever is on it, so this is what halves Refresh.
+		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine });
 		break;
 	// The other three shelves that REGENERATE (user, 2026-08-27: "Refresh on BASIC, RARE, SUPPLIES
 	// tabs"). Premium is not in this list because it has its own, older switch above.
@@ -5156,6 +5178,13 @@ std::vector<oracool::ShopAction> GetShopActions(TalkID id)
 	case TalkID::SmithConsumables:
 		if (*sgOptions.Oracool.shopStockRefresh)
 			actions.push_back({ N_("Refresh"), PremiumRefreshLine() });
+		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine });
+		break;
+	// No Refresh on these two (see above), but Sell all all the same: "sell all items from any tab of
+	// griswold shop". Alone on the row, it takes the whole width.
+	case TalkID::SmithUniqueBuy:
+	case TalkID::SmithSetBuy:
+		actions.push_back({ N_("Sell all"), GriswoldTabSellAllLine });
 		break;
 	default:
 		break;
@@ -5209,6 +5238,13 @@ void RefreshShopStock(TalkID id)
 
 void ShopActivateAction(TalkID id, int line)
 {
+	// A buy tab's Sell all (2026-09-13): caught before the selection is touched, because its value is not
+	// a text line - see GriswoldTabSellAllLine. It empties the pack to Griswold and stays on this tab.
+	if (line == GriswoldTabSellAllLine) {
+		oracool::PlayUiSelectSound(); // this bridge skips StoreEnter, as for Refresh below
+		SmithSellAllItems(id);
+		return;
+	}
 	// Same bridge as ShopSelectIndex: put the selection where the handler expects to find it, then
 	// let the handler do its own work.
 	stextsel = line;
