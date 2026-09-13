@@ -1,6 +1,22 @@
 # RfA-15: aura rings for the new auras and songs
 
-2026-09-13 — no build (request for assets only)
+2026-09-13 — request issued (no build); delivered as batch 33 the same evening and integrated in **v1.11.126**
+
+## Integration (v1.11.126)
+
+- **Delivery.** `batch-33-aura-rings`, completed 19:27. All 27 runtime files are 512×256 32-bit RGBA with alpha
+  peaking at 164–166 (about 65%), a transparent centre and transparent corners. The ids match the table exactly.
+  The contact sheet shows 27 distinct motifs; Nocturne is deliberately the faintest.
+- **Code.**
+  - `AuraFiles` in `oracool/aura_ground.cpp` grew from 30 to 57 rows.
+  - `AuraRingFileId(ClassTreeSkill)` is exposed in `aura_ground.h`.
+- **Test.** `OracoolAudit.EveryAuraHasAGroundRing` checks that every `Kind::Aura` row has a distinct ring id, and
+  that there are 57 auras, so the next aura added cannot burn ringless silently.
+- **Files.**
+  - Runtime PNGs are in `Packaging/resources/oracool_assets/ui/`; they and `notes.txt` are also filed in
+    `01-in-use-assets/delivered-packs/batch-33-aura-rings`.
+  - Previews and the review folder are in `02-concept-assets`.
+  - Ledger rows are added, and the RfA is marked delivered.
 
 ## Why
 

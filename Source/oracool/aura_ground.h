@@ -41,8 +41,17 @@
 
 #include "engine/point.hpp"
 #include "engine/surface.hpp"
+#include "oracool/class_tree.h"
 
 namespace devilution::oracool {
+
+/**
+ * @brief The file id of @p aura's ground ring (`ui\aura_<id>.png`), or nullptr if the table has none.
+ *
+ * Exposed for the audit that every Kind::Aura row has a ring - RfA-12 added 27 auras and songs that
+ * burned with no ring, and nothing noticed, because a missing ring is only a verbose log line.
+ */
+const char *AuraRingFileId(ClassTreeSkill aura);
 
 /**
  * @brief Draws the lit aura's ground ring, if there is one.

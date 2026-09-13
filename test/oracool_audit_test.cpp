@@ -50,6 +50,7 @@
 #include "oracool/skill_facts.h"
 #include "oracool/skill_picker.h"
 #include "oracool/class_tree.h"
+#include "oracool/aura_ground.h"
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/hud_layout.h"
@@ -5542,6 +5543,31 @@ TEST(OracoolAudit, NoDroppableItemTumblesAsLeatherUnlessItIsLightArmour)
 	}
 	EXPECT_GT(checked, 600) << "the walk reached too few items to mean anything";
 	EXPECT_GE(amulets, 30) << "the audit counted 31 droppable amulets and 13 relic-based ones; the walk found " << amulets;
+}
+
+/**
+ * Every aura and song casts a ring on the floor.
+ *
+ * User, 2026-09-13: "new auras we have introduced. they dont seem to have rings under the hero." RfA-12
+ * added 16 Paladin auras and 11 Bard songs with no AuraFiles row, and a missing ring is only a verbose
+ * log line, so nothing failed. RfA-15 (batch 33) delivered the art; this keeps the next aura honest.
+ */
+TEST(OracoolAudit, EveryAuraHasAGroundRing)
+{
+	using namespace devilution::oracool;
+	std::set<std::string> ids;
+	int auras = 0;
+	for (int i = 0; i <= static_cast<int>(ClassTreeSkill::LAST); i++) {
+		const auto skill = static_cast<ClassTreeSkill>(i);
+		const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+		if (data.kind != ClassTreeKind::Aura)
+			continue;
+		auras++;
+		const char *id = AuraRingFileId(skill);
+		ASSERT_NE(id, nullptr) << data.name << " is an aura with no ground ring";
+		EXPECT_TRUE(ids.insert(id).second) << data.name << " shares the ring file " << id;
+	}
+	EXPECT_EQ(auras, 57) << "the aura count moved - a new aura needs a ring in AuraFiles and RfA art";
 }
 
 /**

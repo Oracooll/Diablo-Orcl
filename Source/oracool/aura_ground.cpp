@@ -62,7 +62,7 @@ struct AuraFile {
 	const char *id;
 };
 
-constexpr std::array<AuraFile, 30> AuraFiles { {
+constexpr std::array<AuraFile, 57> AuraFiles { {
     // Offensive
     { Skill::Might, "might" },
     { Skill::HolyFire, "holy_fire" },
@@ -97,6 +97,35 @@ constexpr std::array<AuraFile, 30> AuraFiles { {
     { Skill::Weaken, "weaken" },
     // Monk
     { Skill::HealingMantra, "healing_mantra" },
+    // RfA-12's sixteen Paladin auras and eleven Bard songs, ringed by RfA-15 (batch 33, 2026-09-13).
+    // Until then they burned with no ring at all - a missing file is only a verbose log line.
+    { Skill::Valor, "valor" },
+    { Skill::Radiance, "radiance" },
+    { Skill::BaneOfEvil, "bane_of_evil" },
+    { Skill::Condemnation, "condemnation" },
+    { Skill::TitheOfAsh, "tithe_of_ash" },
+    { Skill::Retaliation, "retaliation" },
+    { Skill::DoomProcession, "doom_procession" },
+    { Skill::Dominion, "dominion" },
+    { Skill::Steadfast, "steadfast" },
+    { Skill::ResistMagic, "resist_magic" },
+    { Skill::Immovable, "immovable" },
+    { Skill::WardingLight, "warding_light" },
+    { Skill::Mercy, "mercy" },
+    { Skill::AuraOfProtection, "aura_of_protection" },
+    { Skill::Endurance, "endurance" },
+    { Skill::Sanctity, "sanctity" },
+    { Skill::MinstrelsTune, "minstrels_tune" },
+    { Skill::BalladOfResilience, "ballad_of_resilience" },
+    { Skill::HuntersChant, "hunters_chant" },
+    { Skill::SerenadeOfSteel, "serenade_of_steel" },
+    { Skill::SongOfPlenty, "song_of_plenty" },
+    { Skill::Nocturne, "nocturne" },
+    { Skill::AnthemOfValor, "anthem_of_valor" },
+    { Skill::SirensCall, "sirens_call" },
+    { Skill::HymnOfRenewal, "hymn_of_renewal" },
+    { Skill::SymphonyOfWar, "symphony_of_war" },
+    { Skill::SovereignMeasure, "sovereign_measure" },
 } };
 
 std::array<AuraArt, AuraFiles.size()> Art;
@@ -361,6 +390,12 @@ void BlitAura(const Surface &out, const AuraArt &art, Point centre, int diameter
 }
 
 } // namespace
+
+const char *AuraRingFileId(ClassTreeSkill aura)
+{
+	const int slot = IndexOfSkill(aura);
+	return slot < 0 ? nullptr : AuraFiles[slot].id;
+}
 
 void DrawAuraGround(const Surface &out, Point tilePosition, Point targetBufferPosition,
     int rows, int columns)
