@@ -455,15 +455,77 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_AlwaysProducesExactlyThreePrefixesAn
 
 // Reproduces the user-reported bug: a narrow, low-level window (e.g. from a low monster level
 // drop) used to starve the forced-minimum candidate loop, letting Primal items ship with fewer
-// than 6 total affixes. perfectRoll must force ignoreLevelLimits so the count guarantee holds
-// regardless of the level window the caller passes in.
+// than 6 total affixes. perfectRoll relaxes the window's FLOOR so the count guarantee holds.
+//
+// At 13..13, not 1..1, since 2026-09-13: the item-level CEILING is never relaxed ("all items including
+// oracool invented ones should abide the ilvl-affix level corelation"), and at level 1 a weapon has
+// exactly one beneficial prefix row (Bronze), so three prefixes there could only ever come from
+// affixes above the item's level. 13 is the lowest item level a Primal can roll at all (band 1), and
+// its pool below the ceiling holds the guarantee.
 TEST_F(PrimalItemTest, GetPrimalItemAffixes_AlwaysProducesExactlyThreePrefixesAndThreeSuffixesInNarrowLevelWindow)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
-		GetPrimalItemAffixes(Players[0], item, 1, 1, AffixItemType::Weapon, false, /*ignoreLevelLimits=*/false);
+		GetPrimalItemAffixes(Players[0], item, 13, 13, AffixItemType::Weapon, false, /*ignoreLevelLimits=*/false);
 		EXPECT_EQ(item._iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot) << "trial " << trial;
 		EXPECT_EQ(item._iOracoolSuffixCount, Item::MaxOracoolAffixesPerSlot) << "trial " << trial;
+	}
+}
+
+// NO AFFIX ABOVE THE ITEM'S LEVEL (user, 2026-09-13: "all items including oracool invented ones should abide
+// the ilvl-affix level corelation"). The guaranteed picks of a Rare, Buffed Unique and Primal used to ignore
+// the level window in both directions, so a floor-1 Rare could carry a level-60 Strange or Merciless. Here the
+// roll window (30..60) sits far above the item's stamped level (13) - the shape a chest item has, rolling at
+// twice its displayed level - and every stored affix must still come from a row at or below 13: its rolled
+// value can be no higher than the largest parameter any such row of its type allows.
+TEST_F(PrimalItemTest, NoAffixOnATieredItemIsAboveTheItemsLevel)
+{
+	constexpr int ItemLevel = 13;
+	// The largest value a row may ROLL, which is its parameters - except armour penetration, whose parameters
+	// SaveItemPower widens before rolling outside Hellfire (1 << param1 .. 3 << param2), so Puncturing's (2, 2)
+	// rolls up to 12.
+	const auto rollCeiling = [](const ItemPower &power) {
+		if (power.type == IPL_TARGAC && !gbIsHellfire)
+			return std::max(1 << power.param1, 3 << power.param2);
+		return std::max(power.param1, power.param2);
+	};
+	const auto largestParamAtOrBelow = [&](item_effect_type type, int level) {
+		int best = -1;
+		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
+			if (ItemPrefixes[j].power.type == type && ItemPrefixes[j].PLMinLvl <= level)
+				best = std::max(best, rollCeiling(ItemPrefixes[j].power));
+		}
+		for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
+			if (ItemSuffixes[j].power.type == type && ItemSuffixes[j].PLMinLvl <= level)
+				best = std::max(best, rollCeiling(ItemSuffixes[j].power));
+		}
+		return best;
+	};
+	const auto check = [&](const Item &item, const char *tier, int trial) {
+		const auto checkOne = [&](const OracoolAffix &affix) {
+			const int best = largestParamAtOrBelow(affix.type, ItemLevel);
+			ASSERT_GE(best, 0) << tier << " trial " << trial << ": affix type " << static_cast<int>(affix.type)
+			                   << " has no row at or below the item's level";
+			EXPECT_LE(affix.param1, best) << tier << " trial " << trial << ": affix type " << static_cast<int>(affix.type)
+			                              << " rolled " << affix.param1 << ", which only a row above level " << ItemLevel << " allows";
+		};
+		for (int i = 0; i < item._iOracoolPrefixCount; i++)
+			checkOne(item._iOracoolPrefixes[i]);
+		for (int i = 0; i < item._iOracoolSuffixCount; i++)
+			checkOne(item._iOracoolSuffixes[i]);
+	};
+
+	for (int trial = 0; trial < 200; trial++) {
+		Item primal = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+		primal._iOracoolItemLevel = ItemLevel;
+		GetPrimalItemAffixes(Players[0], primal, 30, 60, AffixItemType::Weapon, false);
+		check(primal, "Primal", trial);
+
+		Item rare = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+		rare._iOracoolItemLevel = ItemLevel;
+		GetRareItemAffixes(Players[0], rare, 30, 60, AffixItemType::Weapon, false, /*ignoreLevelLimits=*/true);
+		check(rare, "Rare", trial);
+		EXPECT_GE(rare._iOracoolPrefixCount + rare._iOracoolSuffixCount, 2) << "the ceiling starved a Rare's guarantee, trial " << trial;
 	}
 }
 

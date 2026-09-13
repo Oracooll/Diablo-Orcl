@@ -506,7 +506,7 @@ void SaveOptions()
 	setBoolean("Reset Stats Button", *sgOptions.Oracool.resetStatsButton,
 	    "; ----- CHARACTER --------------------------------------------------------------\n; Shows a reset control on the character panel. Removes only the points you have\n; manually spent via the +/- buttons and returns them to distribute; permanent\n; bonuses from quests/shrines/items are untouched. Repeated use is safe.");
 	setBoolean("Griswold Premium Ignore Affix Level Limits", *sgOptions.Oracool.griswoldPremiumIgnoreAffixLevelLimits,
-	    "; ----- GRISWOLD: PREMIUM SHOP -------------------------------------------------\n; Allows compatible Premium prefixes and suffixes regardless of their normal\n; quality-level requirement. Item compatibility and good-affix rules remain.");
+	    "; ----- GRISWOLD: PREMIUM SHOP -------------------------------------------------\n; Allows compatible Premium prefixes and suffixes BELOW the shelf's usual level\n; window. Never above the item's own level: no affix on any item may exceed it.\n; Item compatibility and good-affix rules remain.");
 	setBoolean("Griswold Premium Ignore Price Limits", *sgOptions.Oracool.griswoldPremiumIgnorePriceLimits,
 	    "; Prevents otherwise valid Premium Items from being rejected for exceeding the\n; normal price ceiling. The resulting item's calculated price remains unchanged.");
 	setBoolean("Griswold Sell Ignores Belt", *sgOptions.Oracool.griswoldSellIgnoresBelt,
@@ -1521,7 +1521,7 @@ OracoolOptions::OracoolOptions()
     , griswoldSellRareItems("Griswold Sell Rare Items", OptionEntryFlags::None, N_("Griswold Sell Rare Items"), N_("Adds a separate rare-item shop to Griswold."), true)
     , griswoldSellSetItems("Griswold Sell Set Items", OptionEntryFlags::None, N_("Griswold Sell Set Items"), N_("Adds a separate named-set-item shop to Griswold."), false)
     , shopStockRefresh("Shop Stock Refresh", OptionEntryFlags::None, N_("Shop Stock Refresh"), N_("Adds a free Refresh action to the Basic, Rare and Supplies shelves."), true)
-    , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes regardless of their normal quality-level requirement."), false)
+    , griswoldPremiumIgnoreAffixLevelLimits("Griswold Premium Ignore Affix Level Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Affix Level Limits"), N_("Allows compatible Premium affixes below the shelf's usual level window, never above the item's level."), false)
     , griswoldPremiumIgnorePriceLimits("Griswold Premium Ignore Price Limits", OptionEntryFlags::None, N_("Griswold Premium Ignore Price Limits"), N_("Prevents valid Premium items from being rejected by the normal price ceiling."), false)
     , griswoldSellIgnoresBelt("Griswold Sell Ignores Belt", OptionEntryFlags::None, N_("Griswold Sell Ignores Belt"), N_("Griswold's and Adria's sell lists skip belt items - only the backpack is offered."), true)
     , panelDocking("Panel Docking", OptionEntryFlags::None, N_("Panel Docking"), N_("Where the inventory, character sheet and other side panels sit on a screen taller than they are."), PanelDocking::Middle,

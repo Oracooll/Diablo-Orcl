@@ -88,6 +88,15 @@ CornerStoneStruct CornerStone;
 bool UniqueItemFlags[MaxUniqueItems];
 int MaxGold = GOLD_MAX_LIMIT;
 
+/**
+ * @brief True while an item is being rebuilt from a stored seed rather than generated fresh - see ReplayScope
+ * and PoolQlvl, and DrawUnifiedAffix's item-level ceiling, which applies to fresh generation only.
+ *
+ * File-local (static) and defined HERE, outside every unnamed namespace, because readers sit in two different
+ * unnamed-namespace blocks of this file; a forward declaration in one of them named a second entity.
+ */
+static bool ReplayingStoredItemSeed = false;
+
 /** Maps from item_cursor_graphic to in-memory item type. */
 int8_t ItemCAnimTbl[] = {
 	20, 16, 16, 16, 4, 4, 4, 12, 12, 12,
@@ -1735,8 +1744,28 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 		}
 		return true;
 	};
+	// THE ITEM-LEVEL CEILING (user, 2026-09-13: "all items including oracool invented ones should abide the
+	// ilvl-affix level corelation"). No affix whose level is above the item's may be drawn - by any tier, any
+	// source, any caller. The ceiling is the roll's own maxlvl, lowered to the item's stamped ilvl when it has
+	// one: a chest, barrel or Wirt item rolls at twice its displayed level, and without this its affixes could
+	// reach twice what its tooltip says.
+	//
+	// ignoreLevelLimits used to lift BOTH bounds, so a Rare's guaranteed affixes, a Primal's six, a Magic Find
+	// upgrade and the forced-tier shelves could put a level-60 Strange or Merciless on a floor-1 drop. Nobody
+	// asked for that; it was how the count guarantee was kept. It now relaxes only the FLOOR - a narrow item
+	// class at low level may take a gentler affix to fill its count - and never the ceiling.
+	//
+	// FRESH GENERATION ONLY for the ilvl lowering. A rebuild from a stored seed (RecreateItem: the multiplayer
+	// pack, the hero-select preview) must reach the window the item was generated with, or the same seed comes
+	// back as a different item - pack_test's reference items pin exactly that. Single-player loads read the full
+	// record and never rebuild, so every item a player actually holds keeps what it rolled.
+	const bool lowerToItemLevel = !ReplayingStoredItemSeed && item._iOracoolItemLevel > 0;
+	const int ceiling = lowerToItemLevel ? std::min(maxlvl, static_cast<int>(item._iOracoolItemLevel)) : maxlvl;
+	const int floorLevel = lowerToItemLevel ? std::min(minlvl, ceiling / 2) : minlvl;
 	const auto eligible = [&](const PLStruct &row) {
-		if (!ignoreLevelLimits && (row.PLMinLvl < minlvl || row.PLMinLvl > maxlvl))
+		if (row.PLMinLvl > ceiling)
+			return false;
+		if (!ignoreLevelLimits && row.PLMinLvl < floorLevel)
 			return false;
 		return eligibleIgnoringLevel(row);
 	};
@@ -1782,13 +1811,14 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 					continue;
 				if (gentlest < 0 || entry.row.PLMinLvl < OracoolPoolRows[gentlest].row.PLMinLvl)
 					gentlest = j;
-				if (entry.row.PLMinLvl > maxlvl || (!ignoreLevelLimits && entry.row.PLMinLvl < minlvl))
+				if (entry.row.PLMinLvl > ceiling || (!ignoreLevelLimits && entry.row.PLMinLvl < floorLevel))
 					continue;
 				if (chosen < 0 || entry.row.PLMinLvl > OracoolPoolRows[chosen].row.PLMinLvl)
 					chosen = j;
 			}
-			// A guaranteed pick below every band still needs something to take: the gentlest one.
-			if (chosen < 0 && ignoreLevelLimits)
+			// A guaranteed pick below every band still needs something to take: the gentlest one - but only if
+			// even that is within the item's level.
+			if (chosen < 0 && ignoreLevelLimits && gentlest >= 0 && OracoolPoolRows[gentlest].row.PLMinLvl <= ceiling)
 				chosen = gentlest;
 			if (chosen >= 0)
 				pool.push_back({ AffixSource::Oracool, chosen });
@@ -1826,7 +1856,8 @@ void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, boo
 		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
 			if (!IsPrefixValidForItemType(j, flgs, hellfireItem))
 				continue;
-			if (!ignoreLevelLimits && (ItemPrefixes[j].PLMinLvl < minlvl || ItemPrefixes[j].PLMinLvl > maxlvl))
+			// The ceiling always holds; ignoreLevelLimits relaxes only the floor (2026-09-13, see DrawUnifiedAffix).
+			if (ItemPrefixes[j].PLMinLvl > maxlvl || (!ignoreLevelLimits && ItemPrefixes[j].PLMinLvl < minlvl))
 				continue;
 			if (onlygood && !ItemPrefixes[j].PLOk)
 				continue;
@@ -1849,7 +1880,7 @@ void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, boo
 		int nl = 0;
 		for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
 			if (IsSuffixValidForItemType(j, flgs, hellfireItem)
-			    && (ignoreLevelLimits || (ItemSuffixes[j].PLMinLvl >= minlvl && ItemSuffixes[j].PLMinLvl <= maxlvl))
+			    && ItemSuffixes[j].PLMinLvl <= maxlvl && (ignoreLevelLimits || ItemSuffixes[j].PLMinLvl >= minlvl)
 			    && !((goe == GOE_GOOD && ItemSuffixes[j].PLGOE == GOE_EVIL) || (goe == GOE_EVIL && ItemSuffixes[j].PLGOE == GOE_GOOD))
 			    && (!onlygood || ItemSuffixes[j].PLOk)) {
 				l[nl] = j;
@@ -2103,7 +2134,9 @@ void GetItemBonus(const Player &player, Item &item, int minlvl, int maxlvl, bool
  * A flag rather than a parameter because the filters are lambdas handed to a shared walk, four
  * layers below the two functions that know which case this is.
  */
-bool ReplayingStoredItemSeed = false;
+// ReplayingStoredItemSeed is defined at the top of this file, outside every unnamed namespace (2026-09-13):
+// DrawUnifiedAffix, several hundred lines above, reads it too, and a forward declaration in a different
+// unnamed-namespace block named a second entity and made every use here ambiguous.
 
 /** @brief RAII: sets ReplayingStoredItemSeed for the duration of a recreation. */
 struct ReplayScope {
@@ -3811,14 +3844,14 @@ string_view GetItemTypeNoun(const Item &item)
  * (which affixes, at what rolled value) goes into Item::_iOracoolPrefixes/_iOracoolSuffixes
  * instead of the vanilla _iVAdd/_iVMult fields, which only have room for one of each.
  *
- * The minAffixesPerSlot loop always ignores the caller's level window (minlvl/maxlvl), regardless
- * of the ignoreLevelLimits argument or tier: the level window is by far the dominant cause of a
- * candidate pool running dry (a low-level drop, or a narrow-pool item class like jewelry, can
- * exhaust every eligible entry once a few affixes are already excluded as duplicates), and the
- * minimum count is a stated guarantee, not a best-effort. The duplicate-type and Good/Evil
- * exclusions above are never relaxed - only the level restriction is. The optional bonus-affix
- * rolls below still respect the ignoreLevelLimits argument as passed, since going over the
- * guaranteed minimum is explicitly probabilistic "extra," not a promise.
+ * The minAffixesPerSlot loop always relaxes the FLOOR of the caller's level window, regardless of
+ * the ignoreLevelLimits argument or tier: a low-level drop or a narrow-pool item class like jewelry
+ * can exhaust every eligible entry once a few affixes are already excluded as duplicates, and the
+ * minimum count is a stated guarantee. It never relaxes the CEILING (user, 2026-09-13: "all items
+ * including oracool invented ones should abide the ilvl-affix level corelation") - it lifted both until
+ * then, which put level-60 affixes on floor-1 Rares and Primals. The duplicate-type and Good/Evil
+ * exclusions are never relaxed. The optional bonus-affix rolls below respect the ignoreLevelLimits
+ * argument as passed.
  *
  * @param perfectRoll When true, every affix's magnitude is forced to the maximum end of its
  * declared range (via RndPL, see ForcePerfectAffixRoll) instead of being randomly rolled, and
@@ -3891,8 +3924,8 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 	const bool previousForcePerfectAffixRoll = ForcePerfectAffixRoll;
 	ForcePerfectAffixRoll = perfectRoll;
 
-	// The guaranteed affixes ignore level limits, as they always have: a ring in a narrow level window
-	// has a small pool, and a Rare must never ship with fewer than its guarantee.
+	// The guaranteed affixes may go BELOW the level window - a ring in a narrow window has a small pool, and a
+	// Rare should not ship with fewer than its guarantee - but never above the item's level (2026-09-13).
 	for (int i = 0; i < 2 * minAffixesPerSlot; i++) {
 		if (const std::optional<AffixCandidate> drawn = draw(/*withLevelLimits=*/false))
 			apply(*drawn);
