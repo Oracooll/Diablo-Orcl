@@ -6677,9 +6677,10 @@ void AddItemPowerPanelStrings(const Item &item)
 		AddPanelString(fmt::format(fmt::runtime(_("{:s} ({:d}/{:d})")), _(set->name), worn, set->itemCount),
 		    UiFlags::ColorOracoolGreen);
 
-		// Every piece of the set, worn ones green and missing ones red, each followed by its slot in
-		// white brackets. The white tail is a two-run line - see AddPanelStringSplit and the tail
-		// handling in oracool::DrawCursorTooltip; one colour per line could not say this.
+		// Every piece of the set - worn ones green, owned-but-not-worn ones yellow (2026-09-13), missing
+		// ones red - each followed by its slot in white brackets. The white tail is a two-run line - see
+		// AddPanelStringSplit and the tail handling in oracool::DrawCursorTooltip; one colour per line
+		// could not say this.
 		for (int i = 0; i < set->itemCount; i++) {
 			const oracool::SetItemDefinition &piece = oracool::ItemSetItems[set->firstItem + i];
 			std::string name = StrCat("  ", _(piece.name));
@@ -6687,9 +6688,7 @@ void AddItemPowerPanelStrings(const Item &item)
 			// starts at whatever the translated name's length turns out to be.
 			const size_t tailStart = name.size();
 			name = StrCat(name, " (", _(oracool::SetSlotDisplayName(piece.slot)), ")");
-			AddPanelStringSplit(std::move(name),
-			    oracool::IsSetPieceWorn(*MyPlayer, piece) ? UiFlags::ColorOracoolGreen : UiFlags::ColorRed,
-			    tailStart);
+			AddPanelStringSplit(std::move(name), oracool::SetPieceListColor(*MyPlayer, piece), tailStart);
 		}
 
 		// Then the ladder, in rung order, each labelled with the pieces it needs. Green once earned,

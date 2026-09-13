@@ -4425,6 +4425,43 @@ TEST(OracoolItemSets, BonusesRequireTheirPiecesToBeWorn)
 	EXPECT_EQ(withBonus.vitality, 5) << "the two-piece rung's vitality did not reach the totals";
 }
 
+// A set item's tooltip lists every piece of its set in one of three colours (user, 2026-09-13: "let's
+// apply yellow font to set items owned by hero, but not equipped" - "the item name in the description of
+// set items when hovering over them"): green worn, yellow owned but not worn, red not owned.
+TEST(OracoolItemSets, SetPieceListReadsGreenWornYellowOwnedRedMissing)
+{
+	Players.resize(1);
+	devilution::Player &player = Players[0];
+	player = {};
+	MyPlayer = &player;
+	Stash = {};
+
+	const oracool::SetItemDefinition *helm = oracool::FindSetItem("SET_ASHEN_HELM");
+	ASSERT_NE(helm, nullptr);
+	devilution::Item piece {};
+	InitializeItem(piece, static_cast<_item_indexes>(oracool::BaseItemForSetSlot(helm->slot)));
+	oracool::MakeSetItem(piece, *helm);
+
+	EXPECT_EQ(oracool::SetPieceListColor(player, *helm), UiFlags::ColorRed) << "a piece owned nowhere";
+
+	// In the backpack: owned, not worn.
+	player.InvList[0] = piece;
+	player._pNumInv = 1;
+	EXPECT_EQ(oracool::SetPieceListColor(player, *helm), UiFlags::ColorYellow) << "a piece in the backpack";
+
+	// In the stash only: still owned.
+	player.InvList[0] = {};
+	player._pNumInv = 0;
+	Stash.stashList.push_back(piece);
+	EXPECT_EQ(oracool::SetPieceListColor(player, *helm), UiFlags::ColorYellow) << "a piece in the stash";
+
+	// Worn: green, even though the stash copy is also owned.
+	player.InvBody[INVLOC_HEAD] = piece;
+	EXPECT_EQ(oracool::SetPieceListColor(player, *helm), UiFlags::ColorOracoolGreen) << "a worn piece";
+
+	Stash = {};
+}
+
 // MakeSetItem has to produce something the rest of the engine recognises as a real item, not a
 // half-filled struct: a name, the Set tier, its own icon, and its stats in the ordinary fields.
 TEST(OracoolItemSets, MakeSetItemProducesARecognisableItem)

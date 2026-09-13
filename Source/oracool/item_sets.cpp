@@ -334,6 +334,19 @@ bool IsSetPieceHeld(const Player &player, const SetItemDefinition &piece)
 	return false;
 }
 
+UiFlags SetPieceListColor(const Player &player, const SetItemDefinition &piece)
+{
+	// Three states, not two (user, 2026-09-13: "we need to add colour to set items which are in my
+	// possession, but not necessarily equipped ... it is hard for a person to tell if they own more
+	// items from a certain set. let's apply yellow font to set items owned by hero, but not equipped").
+	// Worn first: a worn piece is also held, and wearing is the stronger statement.
+	if (IsSetPieceWorn(player, piece))
+		return UiFlags::ColorOracoolGreen;
+	if (IsSetPieceHeld(player, piece))
+		return UiFlags::ColorYellow;
+	return UiFlags::ColorRed;
+}
+
 int HeldSetPieces(const Player &player, const ItemSetDefinition &set)
 {
 	// DISTINCT pieces, for the reason recorded on WornSetPieces: two copies of the same set ring

@@ -33,6 +33,7 @@
 
 #include <cstddef>
 
+#include "DiabloUI/ui_flags.hpp"
 #include "engine/size.hpp"
 #include "itemdat.h"
 #include "utils/stdcompat/string_view.hpp"
@@ -219,6 +220,12 @@ bool IsSetPieceWorn(const Player &player, const SetItemDefinition &piece);
  * player this is meant to help - the one hoarding four pieces they cannot use yet.
  */
 bool IsSetPieceHeld(const Player &player, const SetItemDefinition &piece);
+
+/**
+ * @brief The colour of @p piece's line in a set item's tooltip: green when WORN, yellow when owned but not
+ * worn (backpack, inventory tabs, stash - IsSetPieceHeld), red when not owned (user, 2026-09-13).
+ */
+UiFlags SetPieceListColor(const Player &player, const SetItemDefinition &piece);
 
 /** @brief How many DISTINCT pieces of @p set the player holds anywhere. See IsSetPieceHeld. */
 int HeldSetPieces(const Player &player, const ItemSetDefinition &set);
