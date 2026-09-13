@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file items.h
  *
  * Interface of item functionality.
@@ -1063,6 +1063,9 @@ void SetupItem(Item &item);
  * selection rules directly.
  */
 void GetRareItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
+/** @brief The MAGIC roll: one or two affixes from the unified pool - the prefix table, the suffix table
+ * and the Oracool pool rows (Movement Speed, Faster Cast) together. See the definition. */
+void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false);
 /**
  * @brief Rolls a Buffed Unique item's affixes (2-3 prefixes + 2-3 suffixes, at least two of
  * each in the common case) onto an already-base-initialized item, tagging it
@@ -1173,18 +1176,12 @@ DVL_API_FOR_TEST int OracoolAffixBudget(const Item &item);
 /** @brief Oracool: how many of that budget @p item has spent - the vanilla _iSufPower field AND the
  * Oracool record added together, which is the sum the drop tail used to get wrong. */
 DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item);
-/** @brief Oracool: whether one more drop-tail suffix fits inside @p item's tier budget. */
-DVL_API_FOR_TEST bool OracoolHasFreeAffixSlot(const Item &item);
 /** @brief Oracool: a weapon, armour, ring or amulet base droppable by a monster of @p monsterLevel -
  * RndItemForMonsterLevel's pool without its nothing and gold outcomes, optionally in one @p slot
  * (ILOC_INVALID means any). Smart Loot's candidate source. */
 DVL_API_FOR_TEST _item_indexes RndEquipmentForMonsterLevel(int8_t monsterLevel, item_equip_type slot = ILOC_INVALID);
 /** @brief Oracool: the same for a chest or barrel on the current floor - RndAllItems' pool, equipment only. */
 DVL_API_FOR_TEST _item_indexes RndEquipmentForCurrentLevel(item_equip_type slot = ILOC_INVALID);
-/** @brief Oracool: the drop tail's Movement Speed +X% roll, one item in twelve, into the item's own affix record. */
-void TryAddMovementSpeedToDrop(Item &item);
-/** @brief Oracool: the drop tail's Faster Cast Rate +X% roll, one caster's piece in twelve, into the item's own affix record. */
-void TryAddFasterCastToDrop(Item &item);
 /** @brief Oracool: the Faster Cast Rate percent unique @p uid's own row grants (fixed, never rolled); 0 for none or an invalid id. */
 int UniqueItemFastCast(int uid);
 /**

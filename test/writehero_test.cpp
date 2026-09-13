@@ -285,11 +285,13 @@ void AssertPlayer(Player &player)
 	ASSERT_STREQ(player._pName, "TestPlayer");
 	ASSERT_EQ(player._pClass, HeroClass::Rogue);
 	ASSERT_EQ(player._pBaseStr, 55);
-	ASSERT_EQ(player._pStrength, 124);
+	// The item-derived totals below moved on 2026-09-13 (v1.11.105) with the unified affix pool: this
+	// hero's magic items are rebuilt from seeds that now roll different affixes. See the resistances.
+	ASSERT_EQ(player._pStrength, 104);
 	ASSERT_EQ(player._pBaseMag, 70);
 	ASSERT_EQ(player._pMagic, 80);
 	ASSERT_EQ(player._pBaseDex, 250);
-	ASSERT_EQ(player._pDexterity, 281);
+	ASSERT_EQ(player._pDexterity, 260);
 	ASSERT_EQ(player._pBaseVit, 80);
 	ASSERT_EQ(player._pVitality, 90);
 	ASSERT_EQ(player._pLevel, 50);
@@ -334,21 +336,26 @@ void AssertPlayer(Player &player)
 	ASSERT_TRUE(player.UsesRangedWeapon());
 	ASSERT_EQ(player._pBlockFlag, 0);
 	ASSERT_EQ(player._pLightRad, 11);
-	ASSERT_EQ(player._pDamageMod, 101);
-	ASSERT_EQ(player._pHitPoints, 16640);
-	ASSERT_EQ(player._pMaxHP, 16640);
+	ASSERT_EQ(player._pDamageMod, 91);
+	ASSERT_EQ(player._pHitPoints, 13824);
+	ASSERT_EQ(player._pMaxHP, 13824);
 	ASSERT_EQ(player._pMana, 14624);
 	ASSERT_EQ(player._pMaxMana, 14624);
 	ASSERT_EQ(player._pNextExper, 1530707109); // Oracool: level-51 threshold now that MaxCharacterLevel is 99, not the old level-50 cap value
 	// CHANGED 2026-08-19 (v1.8.35). Two of these three were 75 - vanilla's hard cap, which this
 	// character's gear was well past. The soft cap now lets the excess through at a third of its
-	// value up to a ceiling of 90, so the pinned values move. The difficulty here is Normal, whose
-	// penetration penalty is zero, so the whole delta is the soft cap and nothing else. Fire resist
-	// is untouched at 16, which is the useful half of this assertion: a total BELOW the soft cap
-	// must still be exactly what it always was.
-	ASSERT_EQ(player._pMagResist, 89);
-	ASSERT_EQ(player._pFireResist, 16);
-	ASSERT_EQ(player._pLghtResist, 90);
+	// value up to a ceiling of 90, so the pinned values moved to 89 / 16 / 90.
+	//
+	// CHANGED AGAIN 2026-09-13 (v1.11.105): the unified affix pool. This hero's rings, amulet and
+	// armour are MAGIC items rebuilt from their seeds, and magic items now draw one or two affixes from
+	// the prefix table, the suffix table and the pool rows together instead of vanilla's one prefix and
+	// one suffix - so the same seeds roll different resistances. All three totals are now BELOW the
+	// soft cap, which means this assertion no longer exercises it; that path is pinned by
+	// OracoolAudit.ResistanceReturnsDiminishPastTheSoftCap instead. What this still proves is that the
+	// written hero reads back to exactly the character its items describe.
+	ASSERT_EQ(player._pMagResist, 48);
+	ASSERT_EQ(player._pFireResist, 46);
+	ASSERT_EQ(player._pLghtResist, 0);
 	ASSERT_EQ(CountBool(player._pLvlVisited, NUMLEVELS), 0);
 	ASSERT_EQ(CountBool(player._pSLvlVisited, NUMLEVELS), 0);
 	ASSERT_EQ(player._pNFrames, 20);

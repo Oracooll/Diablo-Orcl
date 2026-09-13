@@ -277,27 +277,25 @@ TEST(GetOracoolTierPanelLabel, ReturnsDistinctWordingPerTier)
 
 // A common weapon type across a wide, low-difficulty level window should always come away
 // with at least one prefix and one suffix - Rare's stated minimum identity requirement.
-TEST_F(RareItemTest, GetRareItemAffixes_AlwaysProducesAtLeastOnePrefixAndSuffix)
+TEST_F(RareItemTest, GetRareItemAffixes_AlwaysProducesAtLeastTwoAffixes)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetRareItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		EXPECT_GE(item._iOracoolPrefixCount, 1) << "trial " << trial;
-		EXPECT_GE(item._iOracoolSuffixCount, 1) << "trial " << trial;
+		EXPECT_GE(item._iOracoolPrefixCount + item._iOracoolSuffixCount, 2) << "trial " << trial;
 	}
 }
 
 // Reproduces the user-reported bug: a jewelry item (rings/amulets - AffixItemType::Misc, a much
 // smaller affix pool than weapons/armor) in a narrow level window used to starve the forced
-// minimum, letting Rare items ship with fewer than the guaranteed 1 prefix + 1 suffix. The
+// minimum, letting Rare items ship with fewer than the guaranteed two affixes. The
 // minAffixesPerSlot loop must ignore level limits regardless of item type or window width.
-TEST_F(RareItemTest, GetRareItemAffixes_AlwaysProducesAtLeastOnePrefixAndSuffixForJewelryInNarrowLevelWindow)
+TEST_F(RareItemTest, GetRareItemAffixes_AlwaysProducesAtLeastTwoAffixesForJewelryInNarrowLevelWindow)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_MISC, IMISC_RING, IDI_WARRIOR, false, ItemType::Ring);
 		GetRareItemAffixes(Players[0], item, 1, 1, AffixItemType::Misc, false, /*ignoreLevelLimits=*/false);
-		EXPECT_GE(item._iOracoolPrefixCount, 1) << "trial " << trial;
-		EXPECT_GE(item._iOracoolSuffixCount, 1) << "trial " << trial;
+		EXPECT_GE(item._iOracoolPrefixCount + item._iOracoolSuffixCount, 2) << "trial " << trial;
 	}
 }
 
@@ -357,28 +355,26 @@ TEST_F(RareItemTest, GetRareItemAffixes_TagsItemAsRare)
 using BuffedUniqueItemTest = RareItemTest;
 
 // Buffed Unique's stated minimum: at least two prefixes and two suffixes.
-TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_AlwaysProducesAtLeastTwoPrefixesAndTwoSuffixes)
+TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_AlwaysProducesAtLeastFourAffixes)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetBuffedUniqueItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		EXPECT_GE(item._iOracoolPrefixCount, 2) << "trial " << trial;
-		EXPECT_GE(item._iOracoolSuffixCount, 2) << "trial " << trial;
+		EXPECT_GE(item._iOracoolPrefixCount + item._iOracoolSuffixCount, 4) << "trial " << trial;
 	}
 }
 
 // Reproduces the exact user-reported bug: a Buffed Unique ring dropped with only 1 affix total,
-// well under the guaranteed minimum of 2 prefixes + 2 suffixes. Root cause was identical to the
+// well under the guaranteed minimum of four affixes. Root cause was identical to the
 // earlier Primal narrow-window bug, just never fixed for Rare/Buffed Unique at the time: only
 // perfectRoll forced ignoreLevelLimits, so a jewelry item (a much smaller affix pool than
 // weapons/armor) combined with a narrow level window could still starve the forced minimum.
-TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_AlwaysProducesAtLeastTwoPrefixesAndTwoSuffixesForJewelryInNarrowLevelWindow)
+TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_AlwaysProducesAtLeastFourAffixesForJewelryInNarrowLevelWindow)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_MISC, IMISC_RING, IDI_WARRIOR, false, ItemType::Ring);
 		GetBuffedUniqueItemAffixes(Players[0], item, 1, 1, AffixItemType::Misc, false, /*ignoreLevelLimits=*/false);
-		EXPECT_GE(item._iOracoolPrefixCount, 2) << "trial " << trial;
-		EXPECT_GE(item._iOracoolSuffixCount, 2) << "trial " << trial;
+		EXPECT_GE(item._iOracoolPrefixCount + item._iOracoolSuffixCount, 4) << "trial " << trial;
 	}
 }
 
@@ -1280,4 +1276,99 @@ TEST(OracoolSmartLoot, AimsTheBaseOnTheRealPoolsAndLeavesGoldRarityAndOtherClass
 	}
 }
 
+/**
+ * The unified affix pool: one pool, any combination, within each tier's limit.
+ *
+ * User direction (2026-09-13): "We call all possible item bonuses affixes and an item can have any combo
+ * of them within its limit of affixes." Before this, a Rare always rolled at least one prefix and one
+ * suffix and at most two of either, a magic item rolled vanilla's one-prefix-one-suffix shape, and
+ * Movement Speed and Faster Cast arrived from drop-tail rolls outside every limit.
+ *
+ * What stays limited is STORAGE - three prefixes and three suffixes - and the assertions say so.
+ */
+TEST_F(RareItemTest, UnifiedAffixes_AnyCombinationWithinTheLimitAndMovementSpeedIsAnAffix)
+{
+	MyPlayer = &Players[0];
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+	SetRndSeed(0x0AFF1C5);
+
+	// RARE: every split the storage allows, including ones the old per-slot guarantee made impossible.
+	int emptyTable = 0;
+	int threeFromOneTable = 0;
+	int moveSpeed = 0;
+	int fastCast = 0;
+	for (int trial = 0; trial < 3000; trial++) {
+		Item item = MakeItem(ICLASS_ARMOR, IMISC_NONE, IDI_ORACOOL_HELM, false, ItemType::Helm);
+		GetRareItemAffixes(Players[0], item, 1, 50, AffixItemType::Armor, false);
+		const int prefixes = item._iOracoolPrefixCount;
+		const int suffixes = item._iOracoolSuffixCount;
+		ASSERT_GE(prefixes + suffixes, 2) << "trial " << trial;
+		ASSERT_LE(prefixes + suffixes, 4) << "trial " << trial;
+		ASSERT_LE(prefixes, Item::MaxOracoolAffixesPerSlot);
+		ASSERT_LE(suffixes, Item::MaxOracoolAffixesPerSlot);
+		if (prefixes == 0 || suffixes == 0)
+			emptyTable++;
+		if (prefixes == 3 || suffixes == 3)
+			threeFromOneTable++;
+		for (int i = 0; i < suffixes; i++) {
+			if (item._iOracoolSuffixes[i].type == IPL_MOVESPEED)
+				moveSpeed++;
+			if (item._iOracoolSuffixes[i].type == IPL_FASTCAST)
+				fastCast++;
+		}
+	}
+	EXPECT_GT(emptyTable, 0) << "a Rare never rolled all its affixes from one table - the pool is still split";
+	EXPECT_GT(threeFromOneTable, 0) << "a Rare never rolled three from one table - the old two-per-slot ceiling is back";
+	EXPECT_GT(moveSpeed, 0) << "Movement Speed never rolled on a Rare helm - it is not in the pool";
+	EXPECT_GT(fastCast, 0) << "Faster Cast never rolled on a Rare helm - it is not in the pool";
+
+	// A SWORD takes neither: the pool rows keep the item types the drop tail allowed.
+	for (int trial = 0; trial < 1500; trial++) {
+		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+		GetRareItemAffixes(Players[0], item, 1, 50, AffixItemType::Weapon, false);
+		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+			ASSERT_NE(item._iOracoolSuffixes[i].type, IPL_MOVESPEED) << "a sword rolled Movement Speed";
+			ASSERT_NE(item._iOracoolSuffixes[i].type, IPL_FASTCAST) << "a sword rolled Faster Cast";
+		}
+	}
+
+	// MAGIC: one or two affixes, never more; pool rows live in the record and agree with the field.
+	int twoAffixes = 0;
+	int magicMoveSpeed = 0;
+	for (int trial = 0; trial < 6000; trial++) {
+		Item item = MakeItem(ICLASS_ARMOR, IMISC_NONE, IDI_ORACOOL_HELM, false, ItemType::Helm);
+		GetItemPower(Players[0], item, 1, 50, AffixItemType::Armor, false);
+		const int used = OracoolAffixesUsed(item);
+		ASSERT_LE(used, 2) << "a magic item rolled " << used << " affixes";
+		if (item._iMagical == ITEM_QUALITY_MAGIC)
+			ASSERT_GE(used, 1);
+		if (used == 2)
+			twoAffixes++;
+		int fromRecord = 0;
+		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+			if (item._iOracoolSuffixes[i].type == IPL_MOVESPEED)
+				fromRecord += item._iOracoolSuffixes[i].param1;
+			else if (item._iOracoolSuffixes[i].type == IPL_MOVESPEED_CURSE)
+				fromRecord -= item._iOracoolSuffixes[i].param1;
+		}
+		ASSERT_EQ(fromRecord, item._iPLMoveSpeed) << "the record and the field disagree, and the loader re-derives from the record";
+		if (item._iPLMoveSpeed > 0) {
+			magicMoveSpeed++;
+			// Pool affixes are PRICED; the drop-tail roll added a stat and no value.
+			EXPECT_GT(item._iIvalue, 0) << "a magic helm carrying Movement Speed is worth nothing";
+		}
+	}
+	EXPECT_GT(twoAffixes, 0);
+	EXPECT_GT(magicMoveSpeed, 0) << "Movement Speed never rolled on a magic helm";
+
+	// ONLY GOOD means no curse, pool rows included.
+	for (int trial = 0; trial < 3000; trial++) {
+		Item item = MakeItem(ICLASS_ARMOR, IMISC_NONE, IDI_ORACOOL_HELM, false, ItemType::Helm);
+		GetItemPower(Players[0], item, 1, 50, AffixItemType::Armor, true);
+		ASSERT_GE(item._iPLMoveSpeed, 0) << "an only-good roll took the Movement Speed curse";
+	}
+
+	gbIsHellfire = wasHellfire;
+}
 } // namespace devilution

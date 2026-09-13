@@ -1490,8 +1490,10 @@ void GetStaffPower(const Player &player, Item &item, int lvl, SpellID bs, bool o
 
 	CopyUtf8(item._iName, staffName, sizeof(item._iName));
 	if (preidx != -1) {
-		std::string staffNameMagical = GenerateStaffNameMagical(baseItemData, item._iSpell, preidx, false, std::nullopt);
-		CopyUtf8(item._iIName, staffNameMagical, sizeof(item._iIName));
+		// THE NAME POOL, like every other rolled item (audit finding #14, 2026-09-13). This was vanilla's
+		// "{Prefix} {Staff} of {Spell}" - the one magic name still built out of its affix after the pool
+		// arrived. The spell is not lost: the unidentified name keeps it, and the tooltip lists it.
+		CopyUtf8(item._iIName, oracool::GenerateOracoolItemName(item._iSeed), sizeof(item._iIName));
 	} else {
 		CopyUtf8(item._iIName, item._iName, sizeof(item._iIName));
 	}
@@ -1514,6 +1516,163 @@ std::string GenerateMagicItemName(const string_view &baseNamel, const PLStruct *
 
 	return std::string(baseNamel);
 }
+
+namespace {
+
+bool FitsMovementSpeed(const Item &item)
+{
+	// Where the drop tail put it since 2026-09-07: worn armour of every kind, rings and amulets.
+	return item._iClass == ICLASS_ARMOR || item._itype == ItemType::Ring || item._itype == ItemType::Amulet;
+}
+
+bool FitsTrinketFastCast(const Item &item)
+{
+	return item._itype == ItemType::Ring || item._itype == ItemType::Amulet || item._itype == ItemType::Helm;
+}
+
+bool FitsStaffFastCast(const Item &item)
+{
+	return item._itype == ItemType::Staff;
+}
+
+/** @brief One row of OracoolPoolRows: an affix row, and which items may carry it. */
+struct OracoolPoolRow {
+	PLStruct row;
+	bool (*fits)(const Item &item);
+};
+
+/**
+ * @brief The affixes that are not rows of the vanilla prefix and suffix tables.
+ *
+ * Movement Speed and Faster Cast used to be rolled on the drop tail, after the item was finished, and
+ * so sat outside every affix limit (user report, 2026-09-13: a magic helm with four affixes). Once
+ * every bonus is an affix (user, 2026-09-13: "We call all possible item bonuses affixes"), they belong
+ * in the pool with the rest - these rows are that.
+ *
+ * NOT appended to ItemPrefixes or ItemSuffixes. Those tables' INDICES are load-bearing: the non-Hellfire
+ * gating in IsPrefixValidForItemType is written in index ranges, the staff prefix roll picks by index,
+ * and RepairOracoolAffixesIfCorrupted walks them. A pool entry needs none of that.
+ *
+ * Banded by level like the vanilla rows, so a deep find outpaces a shallow one, and priced like the
+ * life rows of similar strength. The curse rows are priced like vanilla's curses - no value, a
+ * negative multiplier, and PLOk false so an only-good roll never takes one.
+ */
+const OracoolPoolRow OracoolPoolRows[] = {
+	// clang-format off
+	{ { N_("swiftness"),   { IPL_MOVESPEED,       10, 13 },  1, AffixItemType::None, GOE_ANY, false, true,    100,  1000,  2 }, FitsMovementSpeed },
+	{ { N_("swiftness"),   { IPL_MOVESPEED,       12, 16 },  5, AffixItemType::None, GOE_ANY, false, true,   1100,  2000,  3 }, FitsMovementSpeed },
+	{ { N_("swiftness"),   { IPL_MOVESPEED,       15, 19 }, 12, AffixItemType::None, GOE_ANY, false, true,   2100,  4000,  5 }, FitsMovementSpeed },
+	{ { N_("swiftness"),   { IPL_MOVESPEED,       18, 23 }, 20, AffixItemType::None, GOE_ANY, false, true,   4100,  6000,  7 }, FitsMovementSpeed },
+	{ { N_("swiftness"),   { IPL_MOVESPEED,       21, 26 }, 30, AffixItemType::None, GOE_ANY, false, true,   6100, 10000,  9 }, FitsMovementSpeed },
+	{ { N_("swiftness"),   { IPL_MOVESPEED,       25, 30 }, 45, AffixItemType::None, GOE_ANY, false, true,  10100, 15000, 11 }, FitsMovementSpeed },
+	{ { N_("lead"),        { IPL_MOVESPEED_CURSE, 10, 14 },  1, AffixItemType::None, GOE_ANY, false, false,     0,     0, -2 }, FitsMovementSpeed },
+	{ { N_("lead"),        { IPL_MOVESPEED_CURSE, 13, 17 }, 12, AffixItemType::None, GOE_ANY, false, false,     0,     0, -3 }, FitsMovementSpeed },
+	{ { N_("lead"),        { IPL_MOVESPEED_CURSE, 16, 20 }, 30, AffixItemType::None, GOE_ANY, false, false,     0,     0, -4 }, FitsMovementSpeed },
+	{ { N_("incantation"), { IPL_FASTCAST,         5,  7 },  1, AffixItemType::None, GOE_ANY, false, true,    100,  1000,  2 }, FitsTrinketFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,         6,  8 },  5, AffixItemType::None, GOE_ANY, false, true,   1100,  2000,  3 }, FitsTrinketFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,         7, 10 }, 12, AffixItemType::None, GOE_ANY, false, true,   2100,  4000,  5 }, FitsTrinketFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,         9, 11 }, 20, AffixItemType::None, GOE_ANY, false, true,   4100,  6000,  7 }, FitsTrinketFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,        10, 13 }, 30, AffixItemType::None, GOE_ANY, false, true,   6100, 10000,  9 }, FitsTrinketFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,        12, 15 }, 45, AffixItemType::None, GOE_ANY, false, true,  10100, 15000, 11 }, FitsTrinketFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,        10, 13 },  1, AffixItemType::None, GOE_ANY, false, true,    100,  1000,  2 }, FitsStaffFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,        12, 16 },  5, AffixItemType::None, GOE_ANY, false, true,   1100,  2000,  3 }, FitsStaffFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,        15, 19 }, 12, AffixItemType::None, GOE_ANY, false, true,   2100,  4000,  5 }, FitsStaffFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,        18, 23 }, 20, AffixItemType::None, GOE_ANY, false, true,   4100,  6000,  7 }, FitsStaffFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,        21, 26 }, 30, AffixItemType::None, GOE_ANY, false, true,   6100, 10000,  9 }, FitsStaffFastCast },
+	{ { N_("incantation"), { IPL_FASTCAST,        25, 30 }, 45, AffixItemType::None, GOE_ANY, false, true,  10100, 15000, 11 }, FitsStaffFastCast },
+	// clang-format on
+};
+
+/** @brief Which table a drawn affix came from - and therefore where it is stored. */
+enum class AffixSource : uint8_t {
+	Prefix,
+	Suffix,
+	Oracool,
+};
+
+struct AffixCandidate {
+	AffixSource source;
+	int index;
+};
+
+const PLStruct &RowOf(AffixCandidate candidate)
+{
+	switch (candidate.source) {
+	case AffixSource::Prefix:
+		return ItemPrefixes[candidate.index];
+	case AffixSource::Suffix:
+		return ItemSuffixes[candidate.index];
+	case AffixSource::Oracool:
+		break;
+	}
+	return OracoolPoolRows[candidate.index].row;
+}
+
+/**
+ * @brief One draw from the unified affix pool: the prefix table, the suffix table and OracoolPoolRows.
+ *
+ * Every tier rolls through here (user, 2026-09-13: "an item can have any combo of them within its limit
+ * of affixes"). The eligibility rules are the ones both old rollers applied, applied once: item type,
+ * level band, only-good, the running good/evil theme, and no power type twice.
+ *
+ * @param prefixRoom, suffixRoom, oracoolRoom Whether the caller has somewhere to STORE an affix from each
+ *        source. Storage is where "any combination" meets its one real limit - see GetTieredItemAffixes.
+ */
+std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood,
+    bool hellfireItem, bool ignoreLevelLimits, bool prefixRoom, bool suffixRoom, bool oracoolRoom,
+    const item_effect_type *picked, int pickedCount, goodorevil goe)
+{
+	const auto eligible = [&](const PLStruct &row) {
+		if (!ignoreLevelLimits && (row.PLMinLvl < minlvl || row.PLMinLvl > maxlvl))
+			return false;
+		if (onlygood && !row.PLOk)
+			return false;
+		if ((goe == GOE_GOOD && row.PLGOE == GOE_EVIL) || (goe == GOE_EVIL && row.PLGOE == GOE_GOOD))
+			return false;
+		for (int k = 0; k < pickedCount; k++) {
+			if (picked[k] == row.power.type)
+				return false;
+		}
+		return true;
+	};
+
+	std::vector<AffixCandidate> pool;
+	pool.reserve(512);
+	if (prefixRoom) {
+		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
+			if (!IsPrefixValidForItemType(j, flgs, hellfireItem))
+				continue;
+			if (HasAnyOf(flgs, AffixItemType::Staff) && ItemPrefixes[j].power.type == IPL_CHARGES)
+				continue;
+			if (!eligible(ItemPrefixes[j]))
+				continue;
+			pool.push_back({ AffixSource::Prefix, j });
+			if (ItemPrefixes[j].PLDouble)
+				pool.push_back({ AffixSource::Prefix, j });
+		}
+	}
+	if (suffixRoom) {
+		for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
+			if (!IsSuffixValidForItemType(j, flgs, hellfireItem))
+				continue;
+			if (!eligible(ItemSuffixes[j]))
+				continue;
+			pool.push_back({ AffixSource::Suffix, j });
+		}
+	}
+	if (oracoolRoom) {
+		for (int j = 0; j < static_cast<int>(std::size(OracoolPoolRows)); j++) {
+			if (!OracoolPoolRows[j].fits(item) || !eligible(OracoolPoolRows[j].row))
+				continue;
+			pool.push_back({ AffixSource::Oracool, j });
+		}
+	}
+	if (pool.empty())
+		return std::nullopt;
+	return pool[GenerateRnd(static_cast<int32_t>(pool.size()))];
+}
+
+} // namespace
 
 void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool hellfireItem, tl::function_ref<void(const PLStruct &prefix)> prefixFound, tl::function_ref<void(const PLStruct &suffix)> suffixFound, bool ignoreLevelLimits = false)
 {
@@ -1577,128 +1736,79 @@ void GetItemPowerPrefixAndSuffix(int minlvl, int maxlvl, AffixItemType flgs, boo
 	}
 }
 
-void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits = false)
-{
-	const PLStruct *pPrefix = nullptr;
-	const PLStruct *pSufix = nullptr;
-	GetItemPowerPrefixAndSuffix(
-	    minlvl, maxlvl, flgs, onlygood, gbIsHellfire,
-	    [&item, &player, &pPrefix](const PLStruct &prefix) {
-		    item._iMagical = ITEM_QUALITY_MAGIC;
-		    SaveItemAffix(player, item, prefix);
-		    item._iPrePower = prefix.power.type;
-		    pPrefix = &prefix;
-	    },
-	    [&item, &player, &pSufix](const PLStruct &suffix) {
-		    item._iMagical = ITEM_QUALITY_MAGIC;
-		    SaveItemAffix(player, item, suffix);
-		    item._iSufPower = suffix.power.type;
-		    pSufix = &suffix;
-	    },
-	    ignoreLevelLimits);
+} // namespace
 
-	if (pPrefix != nullptr || pSufix != nullptr) {
-		// THE NAME POOL (user, 2026-09-13: "we must generate a pool of name affixes to make items
-		// sound more interesting and generate their names on the fly in real time").
-		//
-		// D2 built this name out of the affixes - "Garnet Cap of the Tiger" - which is exactly why a
-		// magic item could only ever carry one prefix and one suffix: there is no way to write a
-		// four-affix item's name that way. The budget went flat and D3-style in v1.11.100, so the
-		// naming follows it here.
-		//
-		// Hashed from the item's own seed and consuming NO randomness - see GenerateOracoolItemName
-		// for why that matters inside a function the save replays roll for roll.
-		CopyUtf8(item._iIName, oracool::GenerateOracoolItemName(item._iSeed), sizeof(item._iIName));
-	} else {
-		// No affix rolled at all, so this never becomes a magic item and the base name is right.
-		CopyUtf8(item._iIName, GenerateMagicItemName(item._iName, pPrefix, pSufix, false), sizeof(item._iIName));
-		if (!StringInPanel(item._iIName)) {
-			CopyUtf8(item._iIName, GenerateMagicItemName(AllItemsList[item.IDidx].iSName, pPrefix, pSufix, false), sizeof(item._iIName));
+void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits)
+{
+	// ONE POOL, D3-style (user, 2026-09-13: "We call all possible item bonuses affixes and an item can
+	// have any combo of them within its limit of affixes"). Vanilla rolled a prefix one time in four and
+	// a suffix two times in three, so a magic item could never carry two prefixes or two suffixes, and
+	// Movement Speed only arrived from a drop-tail roll outside any limit. A magic item now draws its one
+	// or two affixes from the prefix table, the suffix table and OracoolPoolRows together.
+	//
+	// The count keeps vanilla's odds - both halves came up one time in six - and so does the only-good
+	// coin, so a magic item is exactly as likely to be cursed as it ever was.
+	const int wanted = GenerateRnd(6) == 0 ? 2 : 1;
+	if (!onlygood && !FlipCoin(3))
+		onlygood = true;
+
+	std::array<item_effect_type, 2> picked {};
+	int pickedCount = 0;
+	goodorevil goe = GOE_ANY;
+	// Bounded by the picked-types array as well as by wanted, as the tiered roller's apply() is. A proof run
+	// on 2026-09-13 asked this loop for a third affix and it wrote past the end of picked - a fail-fast crash
+	// rather than a refusal. Production never asks for more than two; this makes that a rule, not an accident.
+	for (int i = 0; i < wanted && pickedCount < static_cast<int>(picked.size()); i++) {
+		// Table affixes live in the vanilla pair; OracoolPoolRows affixes live in the record, which is
+		// where the loader re-derives Movement Speed and Faster Cast from.
+		const bool vanillaRoom = item._iPrePower == IPL_INVALID || item._iSufPower == IPL_INVALID;
+		const bool recordRoom = item._iOracoolSuffixCount < Item::MaxOracoolAffixesPerSlot;
+		const std::optional<AffixCandidate> drawn = DrawUnifiedAffix(item, minlvl, maxlvl, flgs, onlygood, gbIsHellfire,
+		    ignoreLevelLimits, vanillaRoom, vanillaRoom, recordRoom, picked.data(), pickedCount, goe);
+		if (!drawn)
+			break;
+		const PLStruct &affix = RowOf(*drawn);
+		ItemPower power = affix.power;
+		const int raw = SaveItemPower(player, item, power);
+		// Priced exactly as SaveItemAffix prices a table affix, and the pool rows are priced too - the
+		// drop-tail rolls added a stat and no value at all.
+		const int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
+		if (item._iVAdd1 != 0 || item._iVMult1 != 0) {
+			item._iVAdd2 = value;
+			item._iVMult2 = affix.multVal;
+		} else {
+			item._iVAdd1 = value;
+			item._iVMult1 = affix.multVal;
 		}
+		if (drawn->source == AffixSource::Oracool)
+			item._iOracoolSuffixes[item._iOracoolSuffixCount++] = OracoolAffix { affix.power.type, raw, affix.multVal };
+		else if (item._iPrePower == IPL_INVALID)
+			item._iPrePower = affix.power.type;
+		else
+			item._iSufPower = affix.power.type;
+		picked[pickedCount++] = affix.power.type;
+		if (affix.PLGOE != GOE_ANY)
+			goe = affix.PLGOE;
+		item._iMagical = ITEM_QUALITY_MAGIC;
 	}
-	if (pPrefix != nullptr || pSufix != nullptr)
-		CalcItemValue(item);
+
+	if (pickedCount == 0) {
+		// No affix rolled at all, so this never becomes a magic item and the base name is right.
+		CopyUtf8(item._iIName, GenerateMagicItemName(item._iName, nullptr, nullptr, false), sizeof(item._iIName));
+		if (!StringInPanel(item._iIName))
+			CopyUtf8(item._iIName, GenerateMagicItemName(AllItemsList[item.IDidx].iSName, nullptr, nullptr, false), sizeof(item._iIName));
+		return;
+	}
+	// The name pool - hashed from the seed, consuming no randomness (see GenerateOracoolItemName).
+	CopyUtf8(item._iIName, oracool::GenerateOracoolItemName(item._iSeed), sizeof(item._iIName));
+	CalcItemValue(item);
 }
 
 namespace {
 
-/**
- * @brief Picks one eligible prefix for an Oracool-tiered item (Rare, Buffed Unique, ...),
- * excluding any affix type already rolled on this item and applying the running Good/Evil
- * exclusion cumulatively (unlike vanilla's single-prefix-then-single-suffix
- * GetItemPowerPrefixAndSuffix, a tiered item may already have picked up to
- * 2*Item::MaxOracoolAffixesPerSlot - 1 other affixes by the time this runs).
- *
- * @return Index into ItemPrefixes[], or -1 if nothing eligible remains.
- */
-int SelectRarePrefixCandidate(int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool hellfireItem,
-    bool ignoreLevelLimits, const std::array<item_effect_type, Item::MaxOracoolAffixesPerSlot * 2> &pickedTypes, int pickedCount, goodorevil goe)
-{
-	int l[256];
-	int nt = 0;
-	for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
-		if (!IsPrefixValidForItemType(j, flgs, hellfireItem))
-			continue;
-		if (!ignoreLevelLimits && (ItemPrefixes[j].PLMinLvl < minlvl || ItemPrefixes[j].PLMinLvl > maxlvl))
-			continue;
-		if (onlygood && !ItemPrefixes[j].PLOk)
-			continue;
-		if (HasAnyOf(flgs, AffixItemType::Staff) && ItemPrefixes[j].power.type == IPL_CHARGES)
-			continue;
-		if ((goe == GOE_GOOD && ItemPrefixes[j].PLGOE == GOE_EVIL) || (goe == GOE_EVIL && ItemPrefixes[j].PLGOE == GOE_GOOD))
-			continue;
-		bool alreadyPicked = false;
-		for (int k = 0; k < pickedCount; k++) {
-			if (pickedTypes[k] == ItemPrefixes[j].power.type) {
-				alreadyPicked = true;
-				break;
-			}
-		}
-		if (alreadyPicked)
-			continue;
-		l[nt] = j;
-		nt++;
-		if (ItemPrefixes[j].PLDouble) {
-			l[nt] = j;
-			nt++;
-		}
-	}
-	if (nt == 0)
-		return -1;
-	return l[GenerateRnd(nt)];
-}
 
-/** @brief Suffix equivalent of SelectRarePrefixCandidate; see that function for the shared rules. */
-int SelectRareSuffixCandidate(int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool hellfireItem,
-    bool ignoreLevelLimits, const std::array<item_effect_type, Item::MaxOracoolAffixesPerSlot * 2> &pickedTypes, int pickedCount, goodorevil goe)
-{
-	int l[256];
-	int nt = 0;
-	for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
-		if (!IsSuffixValidForItemType(j, flgs, hellfireItem))
-			continue;
-		if (!ignoreLevelLimits && (ItemSuffixes[j].PLMinLvl < minlvl || ItemSuffixes[j].PLMinLvl > maxlvl))
-			continue;
-		if (onlygood && !ItemSuffixes[j].PLOk)
-			continue;
-		if ((goe == GOE_GOOD && ItemSuffixes[j].PLGOE == GOE_EVIL) || (goe == GOE_EVIL && ItemSuffixes[j].PLGOE == GOE_GOOD))
-			continue;
-		bool alreadyPicked = false;
-		for (int k = 0; k < pickedCount; k++) {
-			if (pickedTypes[k] == ItemSuffixes[j].power.type) {
-				alreadyPicked = true;
-				break;
-			}
-		}
-		if (alreadyPicked)
-			continue;
-		l[nt] = j;
-		nt++;
-	}
-	if (nt == 0)
-		return -1;
-	return l[GenerateRnd(nt)];
-}
+namespace {
+
 
 } // namespace
 
@@ -3608,72 +3718,59 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 	int priceAddTotal = 0;
 	int priceMultTotal = 0;
 
-	auto applyPrefix = [&](int idx) {
-		// BOUNDED. This wrote at _iOracoolPrefixCount unguarded, which was safe only while every
-		// caller reached it with a freshly attributed item. Levski's Roar's reroll recipes break
-		// that assumption - they run the roller over an item that already carries affixes - and the
-		// second reroll of the same item walked straight off the end of a std::array. The counts
-		// are reset by the reroll entry points now, and this is the net under that: an off-by-one
-		// anywhere in the affix pipeline should drop an affix, never corrupt memory.
-		if (item._iOracoolPrefixCount >= Item::MaxOracoolAffixesPerSlot)
-			return;
+	// ONE POOL for every tier (user, 2026-09-13), stored by the table each affix came from. Storage is
+	// still three prefixes and three suffixes: RepairOracoolAffixesIfCorrupted checks each array against
+	// its own table on every load, and widening either array is an item format change that the loaders'
+	// exact version check would turn into rejected saves - see OracoolItemFormatVersion. So a Rare may
+	// now roll three prefixes and one suffix, or none and three, or Movement Speed beside two suffixes;
+	// what it cannot yet roll is four from one table.
+	auto apply = [&](AffixCandidate drawn) {
 		if (pickedCount >= static_cast<int>(std::size(pickedTypes)))
 			return;
-		const PLStruct &affix = ItemPrefixes[idx];
+		const bool toPrefixes = drawn.source == AffixSource::Prefix;
+		// BOUNDED. Levski's Roar rerolls run this over an item that already carries affixes, and an
+		// off-by-one anywhere in the pipeline should drop an affix, never corrupt memory.
+		if ((toPrefixes ? item._iOracoolPrefixCount : item._iOracoolSuffixCount) >= Item::MaxOracoolAffixesPerSlot)
+			return;
+		const PLStruct &affix = RowOf(drawn);
 		ItemPower power = affix.power;
-		int raw = SaveItemPower(player, item, power);
-		int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
-		item._iOracoolPrefixes[item._iOracoolPrefixCount] = OracoolAffix { affix.power.type, raw, affix.multVal };
-		item._iOracoolPrefixCount++;
+		const int raw = SaveItemPower(player, item, power);
+		const int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
+		const OracoolAffix stored { affix.power.type, raw, affix.multVal };
+		if (toPrefixes)
+			item._iOracoolPrefixes[item._iOracoolPrefixCount++] = stored;
+		else
+			item._iOracoolSuffixes[item._iOracoolSuffixCount++] = stored;
 		pickedTypes[pickedCount++] = affix.power.type;
 		priceAddTotal += value;
 		priceMultTotal += affix.multVal;
 		if (affix.PLGOE != GOE_ANY)
 			goe = affix.PLGOE;
 	};
-	auto applySuffix = [&](int idx) {
-		if (item._iOracoolSuffixCount >= Item::MaxOracoolAffixesPerSlot)
-			return; // see applyPrefix
-		if (pickedCount >= static_cast<int>(std::size(pickedTypes)))
-			return;
-		const PLStruct &affix = ItemSuffixes[idx];
-		ItemPower power = affix.power;
-		int raw = SaveItemPower(player, item, power);
-		int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
-		item._iOracoolSuffixes[item._iOracoolSuffixCount] = OracoolAffix { affix.power.type, raw, affix.multVal };
-		item._iOracoolSuffixCount++;
-		pickedTypes[pickedCount++] = affix.power.type;
-		priceAddTotal += value;
-		priceMultTotal += affix.multVal;
-		if (affix.PLGOE != GOE_ANY)
-			goe = affix.PLGOE;
+	const auto draw = [&](bool withLevelLimits) {
+		const bool prefixRoom = item._iOracoolPrefixCount < Item::MaxOracoolAffixesPerSlot;
+		const bool suffixRoom = item._iOracoolSuffixCount < Item::MaxOracoolAffixesPerSlot;
+		return DrawUnifiedAffix(item, minlvl, maxlvl, flgs, onlygood, gbIsHellfire, !withLevelLimits,
+		    prefixRoom, suffixRoom, suffixRoom, pickedTypes.data(), pickedCount, goe);
 	};
 
 	const bool previousForcePerfectAffixRoll = ForcePerfectAffixRoll;
 	ForcePerfectAffixRoll = perfectRoll;
 
-	for (int i = 0; i < minAffixesPerSlot; i++) {
-		int idx = SelectRarePrefixCandidate(minlvl, maxlvl, flgs, onlygood, gbIsHellfire, /*ignoreLevelLimits=*/true, pickedTypes, pickedCount, goe);
-		if (idx != -1)
-			applyPrefix(idx);
+	// The guaranteed affixes ignore level limits, as they always have: a ring in a narrow level window
+	// has a small pool, and a Rare must never ship with fewer than its guarantee.
+	for (int i = 0; i < 2 * minAffixesPerSlot; i++) {
+		if (const std::optional<AffixCandidate> drawn = draw(/*withLevelLimits=*/false))
+			apply(*drawn);
 	}
-	for (int i = 0; i < minAffixesPerSlot; i++) {
-		int idx = SelectRareSuffixCandidate(minlvl, maxlvl, flgs, onlygood, gbIsHellfire, /*ignoreLevelLimits=*/true, pickedTypes, pickedCount, goe);
-		if (idx != -1)
-			applySuffix(idx);
+	// Two chances at one more each, as the prefix and suffix bonuses were - a Rare still lands on 2, 3 or
+	// 4 affixes with the same odds, and a Buffed Unique on 4, 5 or 6. Primal passes no bonus chance.
+	for (int bonus = 0; bonus < 2 && bonusAffixChancePercent > 0; bonus++) {
+		if (GenerateRnd(100) >= bonusAffixChancePercent)
+			continue;
+		if (const std::optional<AffixCandidate> drawn = draw(/*withLevelLimits=*/!ignoreLevelLimits))
+			apply(*drawn);
 	}
-
-	if (item._iOracoolPrefixCount > 0 && item._iOracoolPrefixCount < Item::MaxOracoolAffixesPerSlot && GenerateRnd(100) < bonusAffixChancePercent) {
-		int idx = SelectRarePrefixCandidate(minlvl, maxlvl, flgs, onlygood, gbIsHellfire, ignoreLevelLimits, pickedTypes, pickedCount, goe);
-		if (idx != -1)
-			applyPrefix(idx);
-	}
-	if (item._iOracoolSuffixCount > 0 && item._iOracoolSuffixCount < Item::MaxOracoolAffixesPerSlot && GenerateRnd(100) < bonusAffixChancePercent) {
-		int idx = SelectRareSuffixCandidate(minlvl, maxlvl, flgs, onlygood, gbIsHellfire, ignoreLevelLimits, pickedTypes, pickedCount, goe);
-		if (idx != -1)
-			applySuffix(idx);
-	}
-
 	ForcePerfectAffixRoll = previousForcePerfectAffixRoll;
 
 	CalcOracoolTieredItemValue(item, priceAddTotal, priceMultTotal);
@@ -5095,95 +5192,7 @@ DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item)
 	return used;
 }
 
-/**
- * @brief Oracool: whether one more drop-tail affix fits inside @p item's tier budget.
- *
- * Both bounds matter - the tier's affix budget, and the storage bound on the record that holds it.
- * Asking this rather than the storage bound alone is also what stops the two drop-tail affixes
- * stacking onto an item with only one slot left: whichever rolls first spends it, and the second
- * finds none.
- */
-DVL_API_FOR_TEST bool OracoolHasFreeAffixSlot(const Item &item)
-{
-	if (item._iOracoolSuffixCount >= Item::MaxOracoolAffixesPerSlot)
-		return false; // the record these are stored in is full, whatever the budget says
-	return OracoolAffixesUsed(item) < OracoolAffixBudget(item);
-}
 
-void TryAddMovementSpeedToDrop(Item &item)
-{
-	// Movement Speed +X% (user, 2026-09-07: "introduce Movement Speed +X% affix on items so other
-	// classes have a chance at such abilities, not just the Paladin"). Rolled HERE, on the drop
-	// tail, for the reason sockets and ethereal are: the vanilla prefix/suffix tables are what the
-	// seed replay walks, and a row added to them re-rolls every seeded item in every save (the
-	// pack fixtures proved it: a Helm of harmony became a Great Helm of haste). The roll lives in
-	// the item's own affix record instead - persisted with the item, re-derived on load, printed
-	// by the tooltip - and touches no seeded stream.
-	//
-	// Single-player only, like the rest of the tail; on body armour, helms, rings and amulets of
-	// normal or magic quality (uniques and sets say what they are); one slot of the record.
-	if (!oracool::IsSinglePlayer() || item.isEmpty())
-		return;
-	const bool wearable = item._iClass == ICLASS_ARMOR || item._itype == ItemType::Ring || item._itype == ItemType::Amulet;
-	// ITEM_QUALITY_UNIQUE covers vanilla uniques AND set pieces - MakeSetItem marks a set piece
-	// unique - both of which say what they are and take no rolled affix. Rare, Buffed Unique and
-	// Primal are NOT excluded any more (user, 2026-09-13): they are marked ITEM_QUALITY_MAGIC with
-	// a tier, and excluding them inverted the rarity - a magic helm could carry Movement Speed
-	// while a rare one never could. They spend from their own larger budget instead.
-	if (!wearable || item._iMagical == ITEM_QUALITY_UNIQUE)
-		return;
-	// THE TIER BUDGET, not the storage bound. See OracoolHasFreeAffixSlot.
-	if (!OracoolHasFreeAffixSlot(item))
-		return;
-	// One drop in twelve: rarer than a socket, commoner than ethereal - a find, not a fixture.
-	if (GenerateRnd(100) >= 8)
-		return;
-	// One roll in four is the CURSE - a leaden -10..-20% - so the affix is a thing to read, not
-	// only a thing to want (user, 2026-09-07: "curses ... decrease it"). Same record, the other sign.
-	if (GenerateRnd(100) < 25) {
-		const int curse = 10 + GenerateRnd(11);
-		item._iOracoolSuffixes[item._iOracoolSuffixCount++] = OracoolAffix { IPL_MOVESPEED_CURSE, curse, 0 };
-		item._iPLMoveSpeed -= curse;
-		return;
-	}
-	// 10..30, with the item's own level pulling the floor up: a deep find outpaces a shallow one.
-	const int floor = std::clamp(10 + static_cast<int>(item._iCreateInfo & CF_LEVEL) / 2, 10, 20);
-	const int value = floor + GenerateRnd(30 - floor + 1);
-	item._iOracoolSuffixes[item._iOracoolSuffixCount++] = OracoolAffix { IPL_MOVESPEED, value, 0 };
-	item._iPLMoveSpeed += value;
-}
-
-void TryAddFasterCastToDrop(Item &item)
-{
-	// Faster Cast Rate +X% (user, 2026-09-11: "introduce Faster Cast Rate affix in the game to make it
-	// possible to increase casting animation/speed of spells"). On the drop tail and into the item's own
-	// record for Movement Speed's reason (see TryAddMovementSpeedToDrop): a row in the vanilla tables
-	// would re-roll every seeded item in every save.
-	//
-	// On a caster's kit, of normal or magic quality: rings, amulets and helms, and staves - the weapon a
-	// caster holds, and the one that carries the most of it.
-	if (!oracool::IsSinglePlayer() || item.isEmpty())
-		return;
-	const bool staff = item._itype == ItemType::Staff;
-	const bool trinket = item._itype == ItemType::Ring || item._itype == ItemType::Amulet || item._itype == ItemType::Helm;
-	// As TryAddMovementSpeedToDrop: uniques and set pieces out, tiered items in, and the budget
-	// rather than the storage bound decides. Movement Speed rolls first in FinalizeFreshDrop, so on
-	// an item with one free slot it takes it and this finds none - which is the intended outcome.
-	if ((!staff && !trinket) || item._iMagical == ITEM_QUALITY_UNIQUE)
-		return;
-	if (!OracoolHasFreeAffixSlot(item))
-		return;
-	// One drop in twelve, as Movement Speed: a find, not a fixture.
-	if (GenerateRnd(100) >= 8)
-		return;
-	// A staff 10..30, the rest 5..15, with the item's own level pulling the floor up to double.
-	const int base = staff ? 10 : 5;
-	const int top = staff ? 30 : 15;
-	const int floor = std::clamp(base + static_cast<int>(item._iCreateInfo & CF_LEVEL) / 4, base, 2 * base);
-	const int value = floor + GenerateRnd(top - floor + 1);
-	item._iOracoolSuffixes[item._iOracoolSuffixCount++] = OracoolAffix { IPL_FASTCAST, value, 0 };
-	item._iPLFastCast += value;
-}
 
 int UniqueItemFastCast(int uid)
 {
@@ -5225,8 +5234,6 @@ void FinalizeFreshDrop(Item &item, int level)
 	ApplyMagicAndGoldFindToDrop(item, level);
 	TryAddSocketsToDroppedItem(item);
 	TryMakeDroppedItemEthereal(item);
-	TryAddMovementSpeedToDrop(item);
-	TryAddFasterCastToDrop(item);
 	LogNoteworthyItemDrop(item);
 }
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file loadsave.cpp
  *
  * Implementation of save game functionality.
@@ -454,7 +454,8 @@ void LoadItemData(LoadHelper &file, Item &item)
 		affix.param2 = file.NextLE<int32_t>();
 	}
 	// Movement Speed is not a field of the record; it is re-derived from the records, so the
-	// format did not have to grow for it (2026-09-07 - see TryAddMovementSpeedToDrop).
+	// format did not have to grow for it (2026-09-07). Since 2026-09-13 it is an ordinary pool affix -
+	// see OracoolPoolRows in items.cpp - and still lives in the record for exactly this reason.
 	item._iPLMoveSpeed = 0;
 	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
 		if (affix.type == IPL_MOVESPEED)

@@ -5106,132 +5106,55 @@ TEST(OracoolAudit, SortGivesSalvageMaterialsTheirOwnRow)
  */
 
 /**
- * The drop tail may not push an item past its tier's affix budget.
+ * Every tier rolls within its affix limit - measured on real rolls, not hand-set fields.
  *
- * User report (2026-09-13), a "Garnet Cap of the Tiger" that reached the stash carrying FOUR
- * affixes on a two-affix tier: Resist Fire +45% and Hit Points +50 from the name's own prefix and
- * suffix, then +24% movement speed and +14% faster cast rate appended on top of them. "we have hard
- * limits on number of affixes per item tier. they must be respected."
- *
- * The cause: both drop-tail rolls guarded on Item::MaxOracoolAffixesPerSlot - the STORAGE bound on
- * the Oracool arrays, which is Primal's allowance - while a magic item keeps its rolled affixes in
- * the vanilla _iPrePower/_iSufPower fields and leaves those arrays empty. The guard read 0 on every
- * magic item and never saw what the item was already carrying.
- *
- * The budget is D3-style and FLAT (user, 2026-09-13: "an item can have any combo of them within its
- * limit of affixes") - a count, not a prefix allowance plus a suffix allowance.
+ * User report (2026-09-13): a "Garnet Cap of the Tiger" reached the stash carrying four affixes on a
+ * two-affix tier, because Movement Speed and Faster Cast were added by drop-tail rolls outside the limit.
+ * Those rolls are gone - both are ordinary pool affixes now (OracoolPoolRows) - so this rolls real items
+ * of every tier, the reported helm's shape included, and asserts none ends over its limit.
  */
-TEST(OracoolAffixBudget, TheDropTailNeverPushesAnItemPastItsTiersAffixBudget)
+TEST(OracoolAffixBudget, EveryTierRollsWithinItsAffixLimit)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
-	Players[0] = {};
+	SetRndSeed(0xB0D6E7);
 
-	// THE REPORTED ITEM: a magic helm with both vanilla affix fields already spent.
-	const auto reportedHelm = []() {
+	// The limits themselves: plain 0, magic 2, Rare 4, Buffed Unique 6, Primal 6, set pieces 0.
+	devilution::Item probe {};
+	InitializeItem(probe, IDI_ORACOOL_HELM);
+	EXPECT_EQ(OracoolAffixBudget(probe), 0) << "plain quality carries no affixes";
+	probe._iMagical = ITEM_QUALITY_MAGIC;
+	EXPECT_EQ(OracoolAffixBudget(probe), 2);
+	probe._iOracoolTier = OracoolItemTier::Rare;
+	EXPECT_EQ(OracoolAffixBudget(probe), 4);
+	probe._iOracoolTier = OracoolItemTier::BuffedUnique;
+	EXPECT_EQ(OracoolAffixBudget(probe), 6);
+	probe._iOracoolTier = OracoolItemTier::Primal;
+	EXPECT_EQ(OracoolAffixBudget(probe), 6);
+	probe._iOracoolTier = OracoolItemTier::Set;
+	EXPECT_EQ(OracoolAffixBudget(probe), 0) << "a set piece's powers are a fixed list, not affixes";
+
+	// THE REPORTED ITEM'S SHAPE: magic helms at item level 18, rolled for real, thousands of times.
+	for (int i = 0; i < 4000; i++) {
 		devilution::Item item {};
 		InitializeItem(item, IDI_ORACOOL_HELM);
-		item._iMagical = ITEM_QUALITY_MAGIC;
-		item._iPrePower = IPL_FIRERES; // "Garnet"
-		item._iSufPower = IPL_LIFE;    // "of the tiger"
-		item._iCreateInfo = 18;        // item level 18, as the screenshot showed
-		return item;
+		GetItemPower(Players[0], item, 9, 22, AffixItemType::Armor, false);
+		ASSERT_LE(OracoolAffixesUsed(item), OracoolAffixBudget(item)) << "a magic helm rolled over its limit on roll " << i;
+	}
+	// Every rolled tier, on the same base.
+	const std::vector<std::pair<const char *, void (*)(const devilution::Player &, devilution::Item &, int, int, AffixItemType, bool, bool)>> tiers {
+		{ "Rare", GetRareItemAffixes },
+		{ "Buffed Unique", GetBuffedUniqueItemAffixes },
+		{ "Primal", GetPrimalItemAffixes },
 	};
-
-	EXPECT_EQ(OracoolAffixBudget(reportedHelm()), 2) << "a magic item's limit is two affixes";
-	EXPECT_EQ(OracoolAffixesUsed(reportedHelm()), 2) << "and Garnet plus of-the-tiger already spend both";
-	EXPECT_FALSE(OracoolHasFreeAffixSlot(reportedHelm()))
-	    << "so the drop tail must find no room at all on this item";
-
-	// Rolled many times, because each drop-tail affix is an 8% roll - one attempt proves nothing.
-	for (int i = 0; i < 4000; i++) {
-		devilution::Item item = reportedHelm();
-		TryAddMovementSpeedToDrop(item);
-		TryAddFasterCastToDrop(item);
-		ASSERT_EQ(item._iOracoolSuffixCount, 0)
-		    << "the reported bug: a full magic item took a drop-tail affix anyway";
-		ASSERT_EQ(item._iPLMoveSpeed, 0);
-		ASSERT_EQ(item._iPLFastCast, 0);
+	for (const auto &[name, roll] : tiers) {
+		for (int i = 0; i < 1500; i++) {
+			devilution::Item item {};
+			InitializeItem(item, IDI_ORACOOL_HELM);
+			roll(Players[0], item, 9, 40, AffixItemType::Armor, false, false);
+			ASSERT_LE(OracoolAffixesUsed(item), OracoolAffixBudget(item)) << name << " rolled over its limit on roll " << i;
+		}
 	}
-
-	// A magic helm with ONE affix has one slot left, and may spend it on either - never on both,
-	// because whichever rolls first takes it.
-	int magicTook = 0;
-	for (int i = 0; i < 4000; i++) {
-		devilution::Item item {};
-		InitializeItem(item, IDI_ORACOOL_HELM);
-		item._iMagical = ITEM_QUALITY_MAGIC;
-		item._iPrePower = IPL_FIRERES; // a prefix only
-		item._iCreateInfo = 18;
-		TryAddMovementSpeedToDrop(item);
-		TryAddFasterCastToDrop(item);
-		ASSERT_LE(item._iOracoolSuffixCount, 1)
-		    << "two drop-tail affixes stacked into a single free slot";
-		ASSERT_LE(OracoolAffixesUsed(item), OracoolAffixBudget(item))
-		    << "an item ended over its own tier budget";
-		if (item._iOracoolSuffixCount == 1)
-			magicTook++;
-	}
-	EXPECT_GT(magicTook, 0) << "the affix never appeared at all - the roll is now unreachable";
-
-	// A PLAIN item has no affix allowance, so it never takes one.
-	for (int i = 0; i < 2000; i++) {
-		devilution::Item item {};
-		InitializeItem(item, IDI_ORACOOL_HELM);
-		item._iCreateInfo = 18;
-		ASSERT_EQ(OracoolAffixBudget(item), 0) << "plain quality carries no affixes";
-		TryAddMovementSpeedToDrop(item);
-		TryAddFasterCastToDrop(item);
-		ASSERT_EQ(item._iOracoolSuffixCount, 0) << "a plain item took an affix it has no room for";
-	}
-
-	// THE RARITY IS NO LONGER INVERTED. A Rare helm used to be excluded outright while a magic one
-	// was not; it now spends from its own larger budget. Four affixes, any combination - so a Rare
-	// carrying two rolled affixes has room for BOTH drop-tail ones, which a magic item never does.
-	devilution::Item rareProbe {};
-	InitializeItem(rareProbe, IDI_ORACOOL_HELM);
-	rareProbe._iMagical = ITEM_QUALITY_MAGIC;
-	rareProbe._iOracoolTier = OracoolItemTier::Rare;
-	EXPECT_EQ(OracoolAffixBudget(rareProbe), 4) << "a Rare item's limit is four affixes";
-
-	int rareTook = 0;
-	int rareTookBoth = 0;
-	for (int i = 0; i < 4000; i++) {
-		devilution::Item item {};
-		InitializeItem(item, IDI_ORACOOL_HELM);
-		item._iMagical = ITEM_QUALITY_MAGIC;
-		item._iOracoolTier = OracoolItemTier::Rare;
-		item._iCreateInfo = 18;
-		item._iOracoolPrefixCount = 1; // one rolled prefix
-		item._iOracoolPrefixes[0] = OracoolAffix { IPL_FIRERES, 30, 0 };
-		item._iOracoolSuffixCount = 1; // one rolled suffix; two of the four still free
-		item._iOracoolSuffixes[0] = OracoolAffix { IPL_LIFE, 40, 0 };
-		TryAddMovementSpeedToDrop(item);
-		TryAddFasterCastToDrop(item);
-		ASSERT_LE(OracoolAffixesUsed(item), 4) << "a Rare item ran past its four-affix budget";
-		if (item._iOracoolSuffixCount > 1)
-			rareTook++;
-		if (item._iOracoolSuffixCount == 3)
-			rareTookBoth++;
-	}
-	EXPECT_GT(rareTook, 0) << "Rare items still cannot receive these affixes";
-	EXPECT_GT(rareTookBoth, 0) << "a Rare with two slots free should sometimes take both";
-
-	// A Primal is born at its cap, so there is never room - the budget says so with no special case.
-	devilution::Item primal {};
-	InitializeItem(primal, IDI_ORACOOL_HELM);
-	primal._iMagical = ITEM_QUALITY_MAGIC;
-	primal._iOracoolTier = OracoolItemTier::Primal;
-	primal._iOracoolPrefixCount = devilution::Item::MaxOracoolAffixesPerSlot;
-	primal._iOracoolSuffixCount = devilution::Item::MaxOracoolAffixesPerSlot;
-	EXPECT_EQ(OracoolAffixBudget(primal), 6) << "a Primal's limit is six affixes";
-	EXPECT_FALSE(OracoolHasFreeAffixSlot(primal)) << "a Primal is already at its cap";
-
-	// A set piece's six powers are a fixed list, not affixes: no allowance, ever.
-	devilution::Item setPiece {};
-	InitializeItem(setPiece, IDI_ORACOOL_HELM);
-	setPiece._iOracoolTier = OracoolItemTier::Set;
-	EXPECT_EQ(OracoolAffixBudget(setPiece), 0) << "a set piece takes no rolled affix";
 }
 
 
@@ -11470,48 +11393,35 @@ TEST(OracoolAudit, MovementSpeedIsAPercentageFromItemsAndVigorInSteps)
 
 // The drop tail's Movement Speed roll (2026-09-07): into the item's own affix record, never the
 // vanilla tables (a row there re-rolled every seeded item - the pack fixtures caught it).
-TEST(OracoolAudit, MovementSpeedRollsOnTheDropTailIntoTheItemsOwnRecord)
+TEST(OracoolAudit, MovementSpeedIsAPoolAffixKeptInTheRecord)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
 	gbIsMultiplayer = false;
-	int rolled = 0;
-	int lastValue = 0;
-	// The first BONUS roll (one in four of the rolls is the curse since 2026-09-07; that side has
-	// its own test below).
-	for (int attempt = 0; attempt < 400 && rolled == 0; attempt++) {
-		devilution::Item ring {};
-		InitializeItem(ring, IDI_TRING);
-		ring._iMagical = ITEM_QUALITY_MAGIC;
-		ring._iOracoolTier = OracoolItemTier::None;
-		TryAddMovementSpeedToDrop(ring);
-		if (ring._iPLMoveSpeed == 0) {
-			EXPECT_EQ(ring._iOracoolSuffixCount, 0);
-			continue;
-		}
-		if (ring._iPLMoveSpeed < 0) {
-			ASSERT_EQ(ring._iOracoolSuffixCount, 1);
-			EXPECT_EQ(ring._iOracoolSuffixes[0].type, IPL_MOVESPEED_CURSE);
-			continue;
-		}
-		rolled++;
-		lastValue = ring._iPLMoveSpeed;
-		ASSERT_EQ(ring._iOracoolSuffixCount, 1) << "the roll must live in the record";
-		EXPECT_EQ(ring._iOracoolSuffixes[0].type, IPL_MOVESPEED);
-		EXPECT_EQ(ring._iOracoolSuffixes[0].param1, ring._iPLMoveSpeed) << "the record and the field must agree";
-	}
-	EXPECT_EQ(rolled, 1) << "one drop in twelve should have rolled it within 400 tries";
-	EXPECT_GE(lastValue, 10);
-	EXPECT_LE(lastValue, 30);
+	SetRndSeed(0x5EED5EED);
 
-	// Never on a unique: it says what it is.
-	for (int attempt = 0; attempt < 200; attempt++) {
+	// Movement Speed rolls as an ordinary affix now, and it must still live in the record: the loader
+	// re-derives _iPLMoveSpeed from the record alone, so a value only in the field would vanish on load.
+	int rolled = 0;
+	for (int attempt = 0; attempt < 8000 && rolled < 5; attempt++) {
 		devilution::Item ring {};
 		InitializeItem(ring, IDI_TRING);
-		ring._iMagical = ITEM_QUALITY_UNIQUE;
-		TryAddMovementSpeedToDrop(ring);
-		ASSERT_EQ(ring._iPLMoveSpeed, 0) << "a unique took the drop-tail affix";
+		GetItemPower(Players[0], ring, 1, 50, AffixItemType::Misc, false);
+		int fromRecord = 0;
+		for (int i = 0; i < ring._iOracoolSuffixCount; i++) {
+			if (ring._iOracoolSuffixes[i].type == IPL_MOVESPEED)
+				fromRecord += ring._iOracoolSuffixes[i].param1;
+			else if (ring._iOracoolSuffixes[i].type == IPL_MOVESPEED_CURSE)
+				fromRecord -= ring._iOracoolSuffixes[i].param1;
+		}
+		ASSERT_EQ(fromRecord, ring._iPLMoveSpeed) << "the record and the field disagree";
+		if (ring._iPLMoveSpeed <= 0)
+			continue;
+		rolled++;
+		EXPECT_GE(ring._iPLMoveSpeed, 10);
+		EXPECT_LE(ring._iPLMoveSpeed, 30);
 	}
+	EXPECT_GT(rolled, 0) << "Movement Speed never rolled on a magic ring";
 }
 
 // The curse side of the movement affix (2026-09-07): one roll in four is -10..-20%, in the same
@@ -11526,25 +11436,36 @@ TEST(OracoolAudit, MovementSpeedCurseRollsAndReadsBelowTheWalk)
 	player = {};
 	player._pClass = HeroClass::Warrior;
 	player._pLevel = 30;
+	SetRndSeed(0xC0125E);
 
+	// The curse is an ordinary pool affix since 2026-09-13 (OracoolPoolRows), rolled only when the
+	// only-good coin comes up against it, so it is looked for across real magic rolls.
 	devilution::Item cursed {};
 	bool found = false;
-	for (int attempt = 0; attempt < 2000 && !found; attempt++) {
+	for (int attempt = 0; attempt < 12000 && !found; attempt++) {
 		devilution::Item ring {};
 		InitializeItem(ring, IDI_TRING);
-		ring._iMagical = ITEM_QUALITY_MAGIC;
-		TryAddMovementSpeedToDrop(ring);
-		if (ring._iPLMoveSpeed < 0) {
-			ASSERT_EQ(ring._iOracoolSuffixCount, 1);
-			EXPECT_EQ(ring._iOracoolSuffixes[0].type, IPL_MOVESPEED_CURSE);
-			EXPECT_EQ(ring._iOracoolSuffixes[0].param1, -ring._iPLMoveSpeed) << "the record holds the magnitude, the field the sign";
-			EXPECT_GE(ring._iPLMoveSpeed, -20);
-			EXPECT_LE(ring._iPLMoveSpeed, -10);
-			cursed = ring;
-			found = true;
+		GetItemPower(Players[0], ring, 1, 50, AffixItemType::Misc, false);
+		if (ring._iPLMoveSpeed >= 0)
+			continue;
+		int family = 0;
+		const OracoolAffix *curse = nullptr;
+		for (int i = 0; i < ring._iOracoolSuffixCount; i++) {
+			if (ring._iOracoolSuffixes[i].type == IPL_MOVESPEED || ring._iOracoolSuffixes[i].type == IPL_MOVESPEED_CURSE)
+				family++;
+			if (ring._iOracoolSuffixes[i].type == IPL_MOVESPEED_CURSE)
+				curse = &ring._iOracoolSuffixes[i];
 		}
+		ASSERT_NE(curse, nullptr) << "the field reads slow but the record holds no curse";
+		if (family != 1)
+			continue; // a curse beside a bonus - valid, but not the single-curse case this test reads
+		EXPECT_EQ(curse->param1, -ring._iPLMoveSpeed) << "the record holds the magnitude, the field the sign";
+		EXPECT_GE(ring._iPLMoveSpeed, -20);
+		EXPECT_LE(ring._iPLMoveSpeed, -10);
+		cursed = ring;
+		found = true;
 	}
-	ASSERT_TRUE(found) << "one roll in four should be a curse within 2000 tries";
+	ASSERT_TRUE(found) << "the Movement Speed curse never rolled on a magic ring";
 
 	cursed._iIdentified = true;
 	cursed._iStatFlag = true;
@@ -12075,48 +11996,45 @@ TEST(OracoolAudit, FasterCastRateSkipsCastFramesAndNeverTheCastItself)
 
 // The drop tail's Faster Cast Rate roll (2026-09-11): into the item's own record, never the vanilla
 // tables, on a caster's kit only - a staff 10..30, a ring 5..15.
-TEST(OracoolAudit, FasterCastRateRollsOnTheDropTailIntoTheItemsOwnRecord)
+TEST(OracoolAudit, FasterCastRateIsAPoolAffixKeptInTheRecord)
 {
 	Players.resize(1);
 	MyPlayer = &Players[0];
 	gbIsMultiplayer = false;
-	const auto rollsWithin = [](_item_indexes base, int low, int high) {
+	SetRndSeed(0xFA57CA57);
+
+	// Faster Cast is an ordinary pool affix since 2026-09-13 (OracoolPoolRows). It must still live in
+	// the record - RederiveFastCast rebuilds the field from the record on load - and keep the ranges
+	// the drop tail used: a staff 10-30, a ring, amulet or helm 5-15.
+	const auto rollsWithin = [](_item_indexes base, AffixItemType flgs, int low, int high) {
 		int rolled = 0;
-		for (int attempt = 0; attempt < 4000 && rolled < 3; attempt++) {
+		for (int attempt = 0; attempt < 12000 && rolled < 3; attempt++) {
 			devilution::Item item {};
 			InitializeItem(item, base);
-			item._iMagical = ITEM_QUALITY_MAGIC;
-			item._iOracoolTier = OracoolItemTier::None;
-			const int before = item._iOracoolSuffixCount;
-			TryAddFasterCastToDrop(item);
-			if (item._iPLFastCast == 0) {
-				EXPECT_EQ(item._iOracoolSuffixCount, before);
-				continue;
+			GetItemPower(Players[0], item, 1, 50, flgs, false);
+			int fromRecord = 0;
+			for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+				if (item._iOracoolSuffixes[i].type == IPL_FASTCAST)
+					fromRecord += item._iOracoolSuffixes[i].param1;
 			}
+			EXPECT_EQ(fromRecord, item._iPLFastCast) << "the record and the field must agree";
+			if (item._iPLFastCast == 0)
+				continue;
 			rolled++;
-			EXPECT_EQ(item._iOracoolSuffixCount, before + 1) << "the roll must live in the record";
-			EXPECT_EQ(item._iOracoolSuffixes[before].type, IPL_FASTCAST);
-			EXPECT_EQ(item._iOracoolSuffixes[before].param1, item._iPLFastCast) << "the record and the field must agree";
 			EXPECT_GE(item._iPLFastCast, low);
 			EXPECT_LE(item._iPLFastCast, high);
 		}
 		return rolled;
 	};
-	EXPECT_EQ(rollsWithin(IDI_SHORTSTAFF, 10, 30), 3) << "one staff in twelve should roll it";
-	EXPECT_EQ(rollsWithin(IDI_TRING, 5, 15), 3) << "one ring in twelve should roll it";
+	EXPECT_EQ(rollsWithin(IDI_SHORTSTAFF, AffixItemType::Staff, 10, 30), 3) << "Faster Cast never rolled on a magic staff";
+	EXPECT_EQ(rollsWithin(IDI_TRING, AffixItemType::Misc, 5, 15), 3) << "Faster Cast never rolled on a magic ring";
 
-	// Never on a sword, and never on a unique.
-	for (int attempt = 0; attempt < 400; attempt++) {
+	// Never on a sword: the pool row keeps the item types the drop tail allowed.
+	for (int attempt = 0; attempt < 3000; attempt++) {
 		devilution::Item sword {};
 		InitializeItem(sword, IDI_WARRIOR);
-		sword._iMagical = ITEM_QUALITY_MAGIC;
-		TryAddFasterCastToDrop(sword);
+		GetItemPower(Players[0], sword, 1, 50, AffixItemType::Weapon, false);
 		ASSERT_EQ(sword._iPLFastCast, 0) << "a sword took the caster's affix";
-		devilution::Item ring {};
-		InitializeItem(ring, IDI_TRING);
-		ring._iMagical = ITEM_QUALITY_UNIQUE;
-		TryAddFasterCastToDrop(ring);
-		ASSERT_EQ(ring._iPLFastCast, 0) << "a unique took the drop-tail affix";
 	}
 }
 

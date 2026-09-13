@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file stores.cpp
  *
  * Implementation of functionality for stores and towner dialogs.
@@ -631,6 +631,14 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 				if (!productLine.empty())
 					AppendStrView(productLine, _(",  "));
 				AppendStrView(productLine, PrintItemPower(item._iSufPower, item));
+			}
+			// Pool affixes a magic item rolled from OracoolPoolRows - Movement Speed, Faster Cast - live in
+			// its record rather than the vanilla pair (2026-09-13), so reading the pair alone left them off
+			// this line. A vanilla unique has no record entries, so nothing is added for one.
+			for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+				if (!productLine.empty())
+					AppendStrView(productLine, _(",  "));
+				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolSuffixes[i], item));
 			}
 		}
 	}
