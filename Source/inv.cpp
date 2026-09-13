@@ -1617,6 +1617,38 @@ void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, const 
 		return;
 	}
 
+	// Oracool: ETHEREAL items (user, 2026-09-13: "make a purple-ish backing with purple outline for
+	// ethereal items"). After the socket branch - sockets already outrank quality, and an ethereal base
+	// carrying a runeword is still first a runeword - and before the tier ladder, because ethereal is the
+	// fact about the item a player has to act on: it cannot be repaired.
+	//
+	// Values on the 32-bit screen, as the set green is: the shared palette has no purple ramp, so no index
+	// could say this. The indexed fallback is the deep and bright ends of the steel-blue ramp, the nearest
+	// the palette holds.
+	if (!IsInspectingPlayer() && item._iOracoolEthereal) {
+		constexpr uint32_t EtherealInteriorRgb = 0x3A2A52u; // deep violet - dark enough not to fight the icon
+		constexpr uint32_t EtherealBorderRgb = 0xA070E0u;   // bright purple outline
+		constexpr uint8_t EtherealInteriorIndex = PAL16_BLUE + 12;
+		constexpr uint8_t EtherealBorderIndex = PAL16_BLUE + 2;
+		constexpr int EtherealBorderThickness = 2;
+		const Rectangle etherealBacking { { targetPosition.x, targetPosition.y - size.height + 1 }, size };
+		FillRectRgb(out, etherealBacking.position.x, etherealBacking.position.y,
+		    etherealBacking.size.width, etherealBacking.size.height, EtherealInteriorRgb, EtherealInteriorIndex);
+		for (int i = 0; i < EtherealBorderThickness; i++) {
+			const int x = etherealBacking.position.x + i;
+			const int y = etherealBacking.position.y + i;
+			const int w = etherealBacking.size.width - 2 * i;
+			const int h = etherealBacking.size.height - 2 * i;
+			if (w <= 0 || h <= 0)
+				break;
+			FillRectRgb(out, x, y, w, 1, EtherealBorderRgb, EtherealBorderIndex);
+			FillRectRgb(out, x, y + h - 1, w, 1, EtherealBorderRgb, EtherealBorderIndex);
+			FillRectRgb(out, x, y, 1, h, EtherealBorderRgb, EtherealBorderIndex);
+			FillRectRgb(out, x + w - 1, y, 1, h, EtherealBorderRgb, EtherealBorderIndex);
+		}
+		return;
+	}
+
 	uint8_t colorBlock;
 	uint8_t rampOffset = TierBackingRampOffset;
 	// 0 means "no value of its own - take the colour the palette index gives". Only the Set tier

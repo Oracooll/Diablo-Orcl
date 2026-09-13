@@ -1,10 +1,14 @@
 ﻿#include <algorithm>
+#include <utility>
 
+#include <SDL.h>
 #include <gtest/gtest.h>
 
 #include "control.h"
 #include "cursor.h"
 #include "diablo.h"
+#include "engine/palette.h"
+#include "engine/surface.hpp"
 #include "inv.h"
 #include "oracool/auto_save.h"
 #include "oracool/inventory_layout.h"
@@ -54,6 +58,40 @@ void clear_inventory()
 		MyPlayer->InvGrid[i] = 0;
 	}
 	MyPlayer->_pNumInv = 0;
+}
+
+// Ethereal items wear a purple backing and outline (user, 2026-09-13: "make a purple-ish backing with purple
+// outline for ethereal items"). Drawn onto an 8-bit surface, so what lands is the indexed fallback of the
+// values the 32-bit screen gets - steel blue standing in for a purple the palette does not hold.
+TEST_F(InvTest, EtherealItemsWearAPurpleBackingAndOutline)
+{
+	const Size size { 56, 84 };
+	// Returns { the outline's corner pixel, the fill's centre pixel }.
+	const auto drawn = [&size](const Item &item) {
+		OwnedSurface surf(size.width, size.height);
+		SDL_FillRect(surf.surface, nullptr, 0);
+		InvDrawSlotBack(surf, { 0, size.height - 1 }, size, item);
+		return std::pair<uint8_t, uint8_t> { surf[Point { 0, 0 }], surf[Point { size.width / 2, size.height / 2 }] };
+	};
+
+	Item ethereal {};
+	ethereal._itype = ItemType::Helm;
+	ethereal._iMagical = ITEM_QUALITY_MAGIC;
+	ethereal._iOracoolEthereal = true;
+	const auto [edge, middle] = drawn(ethereal);
+	EXPECT_EQ(middle, PAL16_BLUE + 12) << "an ethereal item's fill";
+	EXPECT_EQ(edge, PAL16_BLUE + 2) << "an ethereal item's outline";
+
+	// Sockets still outrank it: an ethereal base with sockets keeps the dark grey socket backing.
+	Item socketed = ethereal;
+	socketed._iSocketCount = 2;
+	EXPECT_EQ(drawn(socketed).second, PAL16_GRAY + 12) << "a socketed ethereal item should keep the socket backing";
+
+	// And a plain, non-ethereal item still draws no backing at all.
+	Item plain {};
+	plain._itype = ItemType::Helm;
+	plain._iMagical = ITEM_QUALITY_NORMAL;
+	EXPECT_EQ(drawn(plain).second, 0) << "a plain item gained a backing";
 }
 
 // Test that the scroll is used in the inventory in correct conditions
