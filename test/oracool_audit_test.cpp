@@ -5354,6 +5354,37 @@ TEST(OracoolAudit, OracoolDropsTumbleAndReloadRepairsOnesThatDidNot)
 }
 
 /**
+ * The fork's tumbles are drawn at the size chosen for each (user, 2026-09-13: "we need to reduce size of ground
+ * assets of oracool items" - picks made per sheet on the Ground Tumble Scale page). Found by sheet NAME, so a
+ * reordered name table cannot hand a pick to the wrong sheet.
+ */
+TEST(OracoolAudit, ForkTumblesAreDrawnAtTheirChosenScale)
+{
+	const auto scaleOf = [](std::string_view sheet) {
+		for (int i = 0; i < ITEMTYPES; i++) {
+			if (std::string_view(GetItemDropName(i)) == sheet)
+				return OracoolDropAnimScalePercent(static_cast<int8_t>(i));
+		}
+		return -1;
+	};
+	// The nine picked on the page.
+	EXPECT_EQ(scaleOf("amuletflip"), 40);
+	EXPECT_EQ(scaleOf("signetflip"), 50);
+	EXPECT_EQ(scaleOf("luteflip"), 50);
+	for (const char *sheet : { "beltflip", "cloakflip", "focusflip", "legflip", "relicflip", "spearflip" })
+		EXPECT_EQ(scaleOf(sheet), 60) << sheet;
+	// Vanilla's own sheets are untouched.
+	for (const char *sheet : { "larmor", "swrdflip", "ring", "helmut", "goldflip" })
+		EXPECT_EQ(scaleOf(sheet), 100) << sheet;
+	// Every fork sheet has a scale inside the page's list, and none grows.
+	for (int i = 0; i < ITEMTYPES; i++) {
+		const int percent = OracoolDropAnimScalePercent(static_cast<int8_t>(i));
+		EXPECT_GE(percent, 40) << GetItemDropName(i);
+		EXPECT_LE(percent, 100) << GetItemDropName(i);
+	}
+}
+
+/**
  * No item tumbles to the floor as leather unless it IS light armour.
  *
  * The 2026-09-13 ground audit built every floor-reachable item and found 228 - the fork's tier helms,

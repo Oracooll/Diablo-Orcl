@@ -1170,6 +1170,12 @@ void GetItemFrm(Item &item);
  */
 void FinishOracoolDrop(int ii, Point position);
 
+/**
+ * @brief Oracool: the size, in percent, the tumble at @p animIndex is drawn at - 100 for vanilla's sheets, the
+ * per-sheet pick for the fork's (2026-09-13, the Ground Tumble Scale page). Applied once in InitItemGFX.
+ */
+int OracoolDropAnimScalePercent(int8_t animIndex);
+
 /** @brief The tumble half of FinishOracoolDrop: gives @p item its drop animation, played in the level and settled while it loads. */
 void StartDropTumble(Item &item);
 

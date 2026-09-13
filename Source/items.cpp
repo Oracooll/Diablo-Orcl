@@ -56,6 +56,7 @@
 #include "oracool/named_encounters.h"
 #include "oracool/salvage.h"
 #include "oracool/signets.h"
+#include "oracool/sprite_scale.h" // ScaleClxList - the fork tumbles at their chosen size (InitItemGFX)
 #include "oracool/skill_sounds.h"
 #include "oracool/sprite_import.h"
 #include "oracool/stat_sheet.h"
@@ -224,6 +225,44 @@ constexpr int8_t OracoolFocusDropAnim = 62;
 // Batch 32 (2026-09-13, RfA-14): the amulet, the one item shape the ground audit found with no tumble.
 constexpr int8_t OracoolAmuletDropAnim = 63;
 static_assert(ITEMTYPES == FirstOracoolDropAnim + 21, "ITEMTYPES must count the twenty-one Oracool tumbles");
+
+/**
+ * @brief How large each fork tumble is drawn, in percent of its sheet (user, 2026-09-13: "we need to reduce
+ * size of ground assets of oracool items", chosen per sheet on the Ground Tumble Scale page).
+ *
+ * The fork's sheets were drawn two to fifteen times the pixel area of the vanilla drop nearest their shape -
+ * gloves 40x29 against the helm's 13x15, the amulet 52x23 against the ring's 7x7. Applied once, when the sheet
+ * loads (InitItemGFX), with the engine's own nearest-neighbour scaler, so the art stays hard-edged and the frame
+ * COUNT is untouched: a saved item's frame number is still valid. Indexed from FirstOracoolDropAnim.
+ *
+ * The nine the user picked are marked; the other twelve are the page's suggestion, which is what those rows
+ * previewed when the picks were made.
+ */
+constexpr std::array<uint16_t, 21> OracoolDropAnimScale {
+	90,  // gemflip        (suggested)
+	90,  // runeflip       (suggested)
+	100, // charmflip      (suggested)
+	60,  // orbflip        (suggested)
+	50,  // signetflip     picked
+	80,  // jewelflip      (suggested)
+	90,  // salvageflip    (suggested)
+	75,  // mapflip        (suggested)
+	60,  // gloveflip      (suggested)
+	70,  // bootflip       (suggested)
+	60,  // bracerflip     (suggested)
+	60,  // beltflip       picked
+	60,  // legflip        picked
+	60,  // shoulderflip   (suggested)
+	60,  // cloakflip      picked
+	60,  // relicflip      picked
+	60,  // spearflip      picked
+	50,  // luteflip       picked
+	50,  // quiverflip     (suggested)
+	60,  // focusflip      picked
+	40,  // amuletflip     picked
+};
+static_assert(OracoolDropAnimScale.size() == static_cast<size_t>(ITEMTYPES - FirstOracoolDropAnim),
+    "every fork tumble needs a scale");
 
 // Oracool: the ranges below lean on these blocks being contiguous; a generator that grows or splits
 // one must fail here rather than hand a stray icon the wrong tumble.
@@ -4221,6 +4260,11 @@ void InitItemGFX()
 		// frame count ItemAnimLs promises - the animation indexes frames by that count.
 		OptionalOwnedClxSpriteList png = oracool::LoadPngItemDropSheet(ItemDropNames[i], ItemAnimWidth);
 		if (png && ClxSpriteList { *png }.numSprites() == static_cast<uint32_t>(ItemAnimLs[i])) {
+			// The fork's own sheets at the size chosen for each (see OracoolDropAnimScale). Scaled once, here,
+			// so every drop, label and outline reads the smaller frames; the count cannot change.
+			const int percent = OracoolDropAnimScalePercent(static_cast<int8_t>(i));
+			if (percent != 100)
+				png = oracool::ScaleClxList(ClxSpriteList { *png }, static_cast<unsigned>(percent));
 			itemanims[i] = std::move(png);
 			continue;
 		}
@@ -5612,6 +5656,13 @@ void SpawnRuneBomb(Point position, bool sendmsg)
 void SpawnTheodore(Point position, bool sendmsg)
 {
 	SpawnRewardItem(IDI_THEODORE, position, sendmsg);
+}
+
+int OracoolDropAnimScalePercent(int8_t animIndex)
+{
+	if (animIndex < FirstOracoolDropAnim || animIndex >= ITEMTYPES)
+		return 100; // vanilla's own sheets are drawn as they were made
+	return OracoolDropAnimScale[static_cast<size_t>(animIndex - FirstOracoolDropAnim)];
 }
 
 void FinishOracoolDrop(int ii, Point position)
