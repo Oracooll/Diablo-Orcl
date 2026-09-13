@@ -8,6 +8,7 @@
 #include "oracool/paladin_ranged.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
+#include "oracool/rage.h"
 #include "oracool/skill_sounds.h"
 
 #include "control.h"
@@ -184,7 +185,11 @@ void ConsumeSpell(Player &player, SpellID sn)
 	case SpellType::Skill:
 		// The tree skills' price - see CheckSpell. Same subtraction as the Spell case below, kept
 		// apart from it so vanilla's free skills stay free without a second condition down there.
-		if (SkillPaysMana(sn)) {
+		// The Barbarian settles in Rage instead (2026-09-13): a spender pays, a generator fills - and
+		// only now, past the fizzle check, so a Backhand that struck nothing earns nothing.
+		if (oracool::UsesRage(player)) {
+			oracool::SettleSkill(player, sn);
+		} else if (SkillPaysMana(sn)) {
 			const int ma = GetManaAmount(player, sn);
 			player._pMana -= ma;
 			player._pManaBase -= ma;
@@ -243,7 +248,9 @@ SpellCheckResult CheckSpell(const Player &player, SpellID sn, SpellType st, bool
 		// (Repair, Identify...) cost nothing and this branch was written for them; the fork's tree
 		// rows are SpellType::Skill because they are earned rather than read from a book, and until
 		// this line Ice Bolt was free. The Paladin's seven pay their own way in CheckPlrSpell, and are
-		// left to it - see SkillPaysMana.
+		// left to it - see SkillPaysMana. The Barbarian's skills ask for Rage, not mana (oracool/rage.h).
+		if (oracool::UsesRage(player))
+			return oracool::CanPaySkill(player, sn) ? SpellCheckResult::Success : SpellCheckResult::Fail_NoMana;
 		if (SkillPaysMana(sn) && player._pMana < GetManaAmount(player, sn))
 			return SpellCheckResult::Fail_NoMana;
 		return SpellCheckResult::Success;

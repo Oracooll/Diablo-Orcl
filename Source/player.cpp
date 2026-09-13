@@ -48,6 +48,7 @@
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
 #include "oracool/warcries.h"
 #include "oracool/rogue_arrows.h"
@@ -2837,6 +2838,9 @@ void AddPlrMonstExper(int lvl, int exp, char pmask)
 
 void InitPlayer(Player &player, bool firstTime)
 {
+	// Every level starts with an empty Rage pool (oracool/rage.h). Rage is combat, not a store.
+	oracool::ResetRage(player);
+
 	if (firstTime) {
 		// NORMALISED, not cleared (user, 2026-09-02: "forgetting lmb skill isnt [fixed]. fix it.").
 		//

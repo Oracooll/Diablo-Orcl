@@ -20,6 +20,7 @@
 #include "oracool/paladin_ranged.h" // the three cast skills' damage and type - their spell rows carry no missile
 #include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
 #include "oracool/player_resistance.h"
+#include "oracool/rage.h"
 #include "oracool/class_tree.h"
 #include "oracool/hero_title.h"
 #include "oracool/signets.h"
@@ -651,9 +652,21 @@ const CharRow CharRows[] = {
 	    []() { return StyledText { (InspectPlayer->_pHitPoints != InspectPlayer->_pMaxHP ? UiFlags::ColorRed : GetMaxHealthColor()), StrCat(InspectPlayer->_pHitPoints >> 6) }; },
 	    []() { return StyledText { GetMaxHealthColor(), StrCat(InspectPlayer->_pMaxHP >> 6) }; },
 	    CharRowGroupGap },
+	// Mana - or, for the Barbarian, Rage (2026-09-13, oracool/rage.h). Rage below its maximum is the
+	// normal state rather than a wound, so it is not written in red; it takes the orb's orange.
 	{ N_("Mana"),
-	    []() { return StyledText { (InspectPlayer->_pMana != InspectPlayer->_pMaxMana ? UiFlags::ColorRed : GetMaxManaColor()), StrCat(InspectPlayer->_pMana >> 6) }; },
-	    []() { return StyledText { GetMaxManaColor(), StrCat(InspectPlayer->_pMaxMana >> 6) }; } },
+	    []() {
+		    if (oracool::UsesRage(*InspectPlayer))
+			    return StyledText { UiFlags::ColorOrange, StrCat(InspectPlayer->_pRage) };
+		    return StyledText { (InspectPlayer->_pMana != InspectPlayer->_pMaxMana ? UiFlags::ColorRed : GetMaxManaColor()), StrCat(InspectPlayer->_pMana >> 6) };
+	    },
+	    []() {
+		    if (oracool::UsesRage(*InspectPlayer))
+			    return StyledText { UiFlags::ColorOrange, StrCat(oracool::MaxRage(*InspectPlayer)) };
+		    return StyledText { GetMaxManaColor(), StrCat(InspectPlayer->_pMaxMana >> 6) };
+	    },
+	    0, CharRowExtra::None,
+	    []() { return std::string(oracool::UsesRage(*InspectPlayer) ? _("Rage") : _("Mana")); } },
 
 	// ---------------------------------------------------------------------------------------
 	// Everything below here the engine tracks and acts on, but no Diablo character sheet has

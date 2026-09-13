@@ -20,6 +20,7 @@
 #include "oracool/badge.h"
 #include "oracool/auto_save.h"
 #include "oracool/class_tree.h"
+#include "oracool/rage.h"
 #include "oracool/skill_points.h"
 #include "oracool/spell_ranks.h"
 #include "oracool/spell_descriptions.h"
@@ -1743,7 +1744,9 @@ std::string BuildSpellStatBlock(SpellID sn, bool withNext)
 				text += '\n';
 			text += s;
 		};
-		add(fmt::format(fmt::runtime(_("Mana Cost: {:d}")), GetManaAmountAtLevel(player, sn, at) >> 6));
+		if (const std::string resource = oracool::SkillResourceLine(player, sn, at); !resource.empty())
+			add(resource); // Mana Cost, or the Barbarian's Rage Cost / Generates
+
 		if (sn == SpellID::BoneSpirit) {
 			add(std::string(_("Damage: 1/3 of target's health")));
 			return text;

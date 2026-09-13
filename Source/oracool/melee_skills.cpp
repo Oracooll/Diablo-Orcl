@@ -8,6 +8,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "oracool/passives.h"
+#include "oracool/rage.h"
 #include "oracool/rfa12_actives.h"
 #include "player.h"
 #include "spells.h"
@@ -97,19 +98,16 @@ int StrikeCount(const Player &player, ClassMeleeSkill skill)
 	return std::min(1 + extra, p.extraStrikesCap);
 }
 
-/** @brief Whether @p player can pay for @p skill right now. The price is asked of the spell table, like every tree skill. */
+/** @brief Whether @p player can pay for @p skill right now - mana, or the Barbarian's Rage (oracool/rage.h). */
 bool CanPay(const Player &player, ClassMeleeSkill skill)
 {
-	return player._pMana >= GetManaAmount(player, ClassMeleeSkillSpell(skill));
+	return CanPaySkill(player, ClassMeleeSkillSpell(skill));
 }
 
+/** @brief Settles a use that landed: the price paid, or - for a Rage generator - the Rage earned. */
 void Pay(Player &player, ClassMeleeSkill skill)
 {
-	const int cost = GetManaAmount(player, ClassMeleeSkillSpell(skill));
-	player._pMana -= cost;
-	player._pManaBase -= cost;
-	oracool::OnPassiveManaSpent(player, cost);
-	RedrawComponent(PanelDrawComponent::Mana);
+	SettleSkill(player, ClassMeleeSkillSpell(skill));
 }
 
 /** @brief A blow of @p damage on @p monster - killing it, or staggering it. Mirrors paladin_melee.cpp's StrikeMonster. */

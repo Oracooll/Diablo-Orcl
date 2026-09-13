@@ -17,6 +17,7 @@
 #include "oracool/chill.h"
 #include "oracool/class_tree.h"
 #include "oracool/passives.h"
+#include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/stat_sheet.h"
 #include "oracool/warcries.h"
@@ -459,18 +460,16 @@ int MeleeBonusPercent(SpellID spell, int rank)
 	}
 }
 
+/** @brief Mana, or the Barbarian's Rage - see oracool/rage.h. */
 bool CanPay(const Player &player, SpellID spell)
 {
-	return player._pMana >= GetManaAmount(player, spell);
+	return CanPaySkill(player, spell);
 }
 
+/** @brief Settles a use that landed: the price paid, or a Rage generator's Rage earned. */
 void Pay(Player &player, SpellID spell)
 {
-	const int cost = GetManaAmount(player, spell);
-	player._pMana -= cost;
-	player._pManaBase -= cost;
-	OnPassiveManaSpent(player, cost);
-	RedrawComponent(PanelDrawComponent::Mana);
+	SettleSkill(player, spell);
 }
 
 // =================================================================================================
@@ -1720,7 +1719,7 @@ void OnRfa12ActiveMonsterKilled(Player &player, const Monster &monster)
 	}
 	if (const int r = BuffRank(player, Buff::Bloodcall); r > 0) {
 		Heal(player, (3 + (r - 1)) << 6);
-		RestoreMana(player, (2 + (r - 1)) << 6);
+		GainRage(player, 2 + (r - 1)); // Rage, not mana: Bloodcall is the Barbarian's (2026-09-13)
 	}
 	marks = Marks {};
 }

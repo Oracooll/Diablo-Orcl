@@ -122,6 +122,7 @@
 #include "oracool/item_tint.h"
 #include "oracool/ornate_border.h"
 #include "oracool/melee_skills.h"
+#include "oracool/rage.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/spell_descriptions.h"
@@ -10816,17 +10817,23 @@ TEST(OracoolMeleeSkills, EverySkillMapsBothWaysAndTheBonusAnswersOnlyWhenArmed)
 	EXPECT_EQ(oracool::LeapRangeTiles(player, oracool::ClassMeleeSkill::Leap), 4);
 
 	// Nothing armed: no bonus. Armed and affordable: the row's number. Armed and broke: a plain swing.
+	// The Barbarian pays in Rage since v1.12.002 (oracool/rage.h): a generator is always affordable,
+	// a spender needs its cost in the pool, and mana buys nothing.
 	oracool::ArmClassMeleeSkill(std::nullopt);
 	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 0);
 	player._pSkillInvestment[static_cast<size_t>(SpellID::Concentrate)] = 1;
-	player._pMana = GetManaAmount(player, SpellID::Concentrate);
+	player._pMana = 0;
+	player._pRage = 0;
 	oracool::ArmClassMeleeSkill(oracool::ClassMeleeSkill::Concentrate);
 	ASSERT_TRUE(oracool::ArmedClassMeleeSkill().has_value());
 	EXPECT_EQ(*oracool::ArmedClassMeleeSkill(), oracool::ClassMeleeSkill::Concentrate);
+	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 50) << "a Rage generator must work from an empty pool";
+	oracool::ArmClassMeleeSkill(oracool::ClassMeleeSkill::LeapAttack);
+	player._pMana = 1000 << 6;
+	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 0) << "an unaffordable spender still boosted the swing";
+	player._pRage = oracool::RageCost(SpellID::LeapAttack);
 	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 50);
-	player._pMana = 0;
-	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 0) << "an unaffordable skill still boosted the swing";
-	player._pMana = GetManaAmount(player, SpellID::BerserkBlow);
+	player._pRage = 0;
 	oracool::ArmClassMeleeSkill(oracool::ClassMeleeSkill::Berserk);
 	EXPECT_EQ(oracool::ClassMeleeSkillDamagePercent(player), 100);
 	oracool::ArmClassMeleeSkill(std::nullopt);

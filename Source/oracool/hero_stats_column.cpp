@@ -9,6 +9,8 @@
 #include "DiabloUI/ui_flags.hpp"
 #include "engine/render/text_render.hpp"
 #include "oracool/hero_title.h"
+#include "oracool/rage.h"
+#include "player.h"
 #include "playerdat.hpp"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -64,7 +66,8 @@ std::vector<StatRow> BuildRows(const _uiheroinfo &hero)
 	rows.push_back({ std::string(_("Vitality")), StrCat(hero.vitality), 0 });
 
 	rows.push_back({ std::string(_("Life")), StrCat(hero.life), GroupGap });
-	rows.push_back({ std::string(_("Mana")), StrCat(hero.mana), 0 });
+	// The Barbarian's second pool is Rage (2026-09-13); pfile stores its maximum in the same field.
+	rows.push_back({ std::string(ClassUsesRage(hero.heroclass) ? _("Rage") : _("Mana")), StrCat(hero.mana), 0 });
 	rows.push_back({ std::string(_("Armor")), StrCat(hero.armourClass), 0 });
 	rows.push_back({ std::string(_("Damage")), StrCat(hero.minDamage, "-", hero.maxDamage), 0 });
 	return rows;

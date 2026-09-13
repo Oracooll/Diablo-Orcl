@@ -17,6 +17,7 @@
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
+#include "oracool/rage.h"
 #include "oracool/rfa12_effects.h"
 #include "oracool/skill_facts.h"
 #include "oracool/skill_points.h"
@@ -317,7 +318,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Shout"), N_("A bellow that hardens you: +50% armour, +10% per rank, for 40 seconds, +5 per rank."), Bar, 2, 1, 1, Kind::Active, SpellID::Shout, true },
 	{ N_("Find Item"), N_("Search a corpse near the cursor. 25% of the time, +5% per rank, it yields an item. The corpse is used up."), Bar, 2, 2, 0, Kind::Active, SpellID::FindItem, true },
 	{ N_("Battle Cry"), N_("A cry that leaves what hears it at -25% damage and -25% armour for 24 seconds."), Bar, 2, 3, 0, Kind::Active, SpellID::BattleCry, true },
-	{ N_("Battle Orders"), N_("A shout that swells your life and mana by +20, +10 per rank, for 40 seconds, +5 per rank."), Bar, 2, 4, 0, Kind::Active, SpellID::BattleOrders, true },
+	{ N_("Battle Orders"), N_("A shout that swells your life by +20, +10 per rank, for 40 seconds, +5 per rank."), Bar, 2, 4, 0, Kind::Active, SpellID::BattleOrders, true },
 	{ N_("Grim Ward"), N_("Raise a corpse near the cursor as a totem of terror: for 20 seconds, +2 per rank, everything but the uniques that comes near it runs."), Bar, 2, 4, 1, Kind::Active, SpellID::GrimWard, true },
 	{ N_("War Cry"), N_("A shout that strikes everything in earshot for four to eight a rank and leaves it reeling for two seconds. Uniques shrug off the reeling."), Bar, 2, 5, 0, Kind::Active, SpellID::WarCry, true },
 	{ N_("Battle Command"), N_("A command that deepens every skill you have by a rank for 30 seconds, +5 per rank."), Bar, 2, 5, 1, Kind::Active, SpellID::BattleCommand, true },
@@ -335,9 +336,9 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 3, 1, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Berserker Rage"), N_("Near the height of your fury you strike far harder. Not yet built."),
 	    Bar, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Bloodthirst"), N_("50% of every point of mana you spend returns as life."),
+	{ N_("Bloodthirst"), N_("50% of every point of Rage you spend returns as life."),
 	    Bar, 3, 2, 0, Kind::Passive, SpellID::Invalid, true, 1 },
-	{ N_("Animosity"), N_("You hold twenty more mana."),
+	{ N_("Animosity"), N_("You hold twenty more Rage."),
 	    Bar, 3, 2, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Superstition"), N_("+10 to fire, lightning and magic resistance."),
 	    Bar, 3, 2, 2, Kind::Passive, SpellID::Invalid, true, 1 },
@@ -408,7 +409,7 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 2, 2, 2, Kind::Active, SpellID::SplitRanks, true },
 	{ N_("Iron Will"), N_("+15% to every resistance, +3% per level, for 20 seconds, +2 per level."),
 	    Bar, 2, 3, 1, Kind::Active, SpellID::IronWill, true },
-	{ N_("Bloodcall"), N_("For 10 seconds, every kill restores 3 life and 2 mana, +1 each per level."),
+	{ N_("Bloodcall"), N_("For 10 seconds, every kill restores 3 life and 2 Rage, +1 each per level."),
 	    Bar, 2, 3, 2, Kind::Active, SpellID::Bloodcall, true },
 	{ N_("Ancestral Call"), N_("Summons an ancestral warrior beside the cursor for 30 seconds, stronger with every level."),
 	    Bar, 2, 4, 2, Kind::Active, SpellID::AncestralCall, true },
@@ -1100,6 +1101,8 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.bonusDamage += 10;
 		break;
 	case Skill::Animosity:
+		// Twenty more RAGE, not mana (2026-09-13) - MaxRage asks for this passive itself.
+		break;
 	case Skill::AstralPresence:
 	case Skill::ExaltedSoul:
 		// The engine's mana IS this fork's fury, arcane power and spirit; twenty points of it.
@@ -1456,7 +1459,7 @@ constexpr LevelUpStat LevelUpStats[] = {
 	{ Skill::Intimidate, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // BAR-3-T3C2 Chance to hit +4% / +2%
 	{ Skill::SplitRanks, StatChannel::Strength, 2, 1, 0, 0, 1 }, // BAR-3-T3C3 Strength +2 / +1
 	{ Skill::IronWill, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // BAR-3-T4C2 Magic resistance +3% / +1%
-	{ Skill::Bloodcall, StatChannel::Mana, 8, 3, 0, 0, 1 }, // BAR-3-T4C3 Mana +8 / +3
+	{ Skill::Bloodcall, StatChannel::Life, 8, 3, 0, 0, 1 }, // BAR-3-T4C3 Life +8 / +3 (was Mana; the Barbarian has none, 2026-09-13)
 	{ Skill::AncestralCall, StatChannel::Strength, 2, 1, 0, 0, 1 }, // BAR-3-T5C3 Strength +2 / +1
 	{ Skill::EarthshakerCry, StatChannel::Vitality, 4, 2, 0, 0, 1 }, // BAR-3-T6C3 Vitality +4 / +2
 	{ Skill::ChillTouch, StatChannel::Mana, 8, 3, 0, 0, 1 }, // SOR-1-T1C3 Mana +8 / +3
@@ -2651,6 +2654,7 @@ void ProcessClassTreeTick(Player &player)
 	// query cannot go stale. See oracool/aura_field.h.
 	ProcessOutwardAura(player);
 	ProcessPassivesTick(player);
+	ProcessRageTick(player);
 	ProcessRfa12Tick(player);
 	ProcessWarcriesTick(player);
 	TickMovementSlow(player);
@@ -2817,7 +2821,8 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 				GetDamageAmtAtLevel(spell, at, &min, &max);
 				if (min != -1)
 					line(fmt::format(fmt::runtime(_("Damage: {:d} - {:d}")), min, max));
-				line(fmt::format(fmt::runtime(_("Mana Cost: {:d}")), GetManaAmountAtLevel(player, spell, at) >> 6));
+				if (const std::string resource = SkillResourceLine(player, spell, at); !resource.empty())
+					line(resource); // Mana Cost, or the Barbarian's Rage Cost / Generates
 				const std::string facts = SkillFactsAt(spell, at); // strikes, range, duration, stun, chance - the module's own numbers
 				if (!facts.empty())
 					line(facts);

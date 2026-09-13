@@ -21,6 +21,7 @@
 #include "mpq/mpq_common.hpp"
 #include "oracool/class_skills.h"   // RefreshInnateSpells - the chunks decide what the character HAS
 #include "oracool/hero_chunks.h"
+#include "oracool/rage.h"
 #include "oracool/readied_spells.h" // UnpackReadiedSpell - re-decoded once the chunks have landed
 #include "oracool/save_status.h"
 #include "pack.h"
@@ -204,7 +205,8 @@ void Game2UiPlayer(const Player &player, _uiheroinfo *heroinfo, bool bHasSaveFil
 	// column never has to know about it. The character sheet's own Armor row adds the level bonus
 	// the same way, which is why that term is repeated rather than just GetArmor().
 	heroinfo->life = static_cast<uint16_t>(std::max(0, player._pMaxHP >> 6));
-	heroinfo->mana = static_cast<uint16_t>(std::max(0, player._pMaxMana >> 6));
+	// The Barbarian's column reads Rage, so it carries his Rage pool (oracool/rage.h).
+	heroinfo->mana = static_cast<uint16_t>(oracool::UsesRage(player) ? oracool::MaxRage(player) : std::max(0, player._pMaxMana >> 6));
 	heroinfo->armourClass = static_cast<uint16_t>(std::max(0, player.GetArmor() + player._pLevel * 2));
 	heroinfo->minDamage = static_cast<uint16_t>(std::max(0, player._pIMinDam));
 	heroinfo->maxDamage = static_cast<uint16_t>(std::max(0, player._pIMaxDam));

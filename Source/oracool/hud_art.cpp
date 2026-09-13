@@ -22,6 +22,7 @@
 #include "oracool/hud_layout.h"
 #include "oracool/inventory_layout.h"
 #include "oracool/paladin_skills.h"
+#include "oracool/rage.h"
 #include "oracool/run_toggle.h" // IsRunEnabled - which glyph the belt's toggle wears
 #include "options.h" // the HUD Plate Art switch
 #include "oracool/ornate_border.h" // ThemeEdgeColor
@@ -156,6 +157,11 @@ ArtAsset ManaOrbArt { "ui\\mana_orb.png" };
  */
 ArtAsset HealthOrbLiquidArt { "ui\\health_orb_liquid.png" };
 ArtAsset ManaOrbLiquidArt { "ui\\mana_orb_liquid.png" };
+/**
+ * The Barbarian's RAGE (2026-09-13): the mana liquid, recoloured orange as it loads - see
+ * TintRageLiquid. Same file, same shape, so it always fits the mana cradle it is poured into.
+ */
+ArtAsset RageOrbLiquidArt { "ui\\mana_orb_liquid.png" };
 ArtAsset MenuIconsArt { "ui\\menu_icons.png" };
 /**
  * Oracool V1 inventory window. The panel is one flat composition (background, paladin
@@ -767,6 +773,23 @@ void ApplyPanelGamma(ArtAsset &asset)
 // dereferencing an empty optional ("Debug Assertion Failed ... operator*() called on empty
 // optional" at session start). Loading everything together and requantizing whenever any loaded
 // asset is missing its surfaces makes the order of first draws irrelevant.
+/**
+ * @brief Turns the blue mana liquid into Rage's orange.
+ *
+ * Each pixel keeps its brightness - the liquid's highlights and depth are all in it - and takes the
+ * hue of molten orange: the brightest channel becomes red, and green and blue follow at fixed shares
+ * of it. Alpha is untouched, so the liquid's outline is the mana liquid's exactly.
+ */
+void TintRageLiquid(ArtAsset &asset)
+{
+	for (size_t i = 0; i + 3 < asset.rgba.size(); i += 4) {
+		const int value = std::max({ asset.rgba[i], asset.rgba[i + 1], asset.rgba[i + 2] });
+		asset.rgba[i] = static_cast<uint8_t>(value);
+		asset.rgba[i + 1] = static_cast<uint8_t>(value * 50 / 100);
+		asset.rgba[i + 2] = static_cast<uint8_t>(value * 8 / 100);
+	}
+}
+
 void EnsureLoadedAll()
 {
 	if (!PlateArt.loadAttempted)
@@ -779,6 +802,10 @@ void EnsureLoadedAll()
 		LoadPixels(HealthOrbLiquidArt);
 	if (!ManaOrbLiquidArt.loadAttempted)
 		LoadPixels(ManaOrbLiquidArt);
+	if (!RageOrbLiquidArt.loadAttempted) {
+		LoadPixels(RageOrbLiquidArt);
+		TintRageLiquid(RageOrbLiquidArt);
+	}
 	if (!MenuIconsArt.loadAttempted)
 		LoadPixels(MenuIconsArt);
 	if (!InventoryPanelArt.loadAttempted)
@@ -853,6 +880,8 @@ bool NeedsQuantize()
 	if (!HealthOrbLiquidArt.rgba.empty() && !HealthOrbLiquidArt.bright)
 		return true;
 	if (!ManaOrbLiquidArt.rgba.empty() && !ManaOrbLiquidArt.bright)
+		return true;
+	if (!RageOrbLiquidArt.rgba.empty() && !RageOrbLiquidArt.bright)
 		return true;
 	if (!ManaOrbArt.rgba.empty() && !ManaOrbArt.bright)
 		return true;
@@ -939,6 +968,7 @@ void EnsureQuantized()
 	// The liquid is plain art: opaque inside the sphere, nothing outside. No split, no dim.
 	QuantizeAsset(HealthOrbLiquidArt, std::nullopt);
 	QuantizeAsset(ManaOrbLiquidArt, std::nullopt);
+	QuantizeAsset(RageOrbLiquidArt, std::nullopt);
 	// Same 50% gold as the plate, so the menu the burger button opens matches the HUD it sits on.
 	//
 	// This sheet is the one place where chrome and content share pixels: each cell is a frame with
@@ -1943,6 +1973,7 @@ void ResetHudArtCaches()
 	reset(ManaOrbArt);
 	reset(HealthOrbLiquidArt);
 	reset(ManaOrbLiquidArt);
+	reset(RageOrbLiquidArt);
 	reset(MenuIconsArt);
 	reset(InventoryPanelArt);
 	reset(SidePanelArt);
@@ -2771,6 +2802,12 @@ void DrawHealthOrb(const Surface &out, int yOffset)
 void DrawManaOrb(const Surface &out, int yOffset)
 {
 	const Player &player = *MyPlayer;
+	// The Barbarian's orb holds Rage, in orange (2026-09-13, oracool/rage.h).
+	if (UsesRage(player)) {
+		DrawOrb(out, ManaOrbArt, RageOrbLiquidArt, GetManaOrbRect().position + Displacement { 0, yOffset }, GetManaOrbSphereCenterLocal(),
+		    player._pRage, MaxRage(player));
+		return;
+	}
 	DrawOrb(out, ManaOrbArt, ManaOrbLiquidArt, GetManaOrbRect().position + Displacement { 0, yOffset }, GetManaOrbSphereCenterLocal(),
 	    player._pMana >> 6, player._pMaxMana >> 6);
 }

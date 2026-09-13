@@ -78,6 +78,7 @@ set(libdevilutionx_SRCS
   oracool/rogue_arrows.cpp
   oracool/melee_skills.cpp
   oracool/passives.cpp
+  oracool/rage.cpp
   oracool/rfa12_effects.cpp
   oracool/rfa12_actives.cpp
   oracool/skill_facts.cpp

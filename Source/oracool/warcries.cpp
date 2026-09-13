@@ -456,9 +456,9 @@ void ApplyWarcryBuffsToTotals(const Player &player, ItemBonusTotals &totals)
 			totals.bonusArmor += 50 + 10 * (rank - 1);
 			break;
 		case SpellID::BattleOrders:
-			// Flat, in the 1/64 units the life and mana fields keep: twenty points, ten more a rank.
+			// Flat, in the 1/64 units the life field keeps: twenty points, ten more a rank. Life only -
+			// the mana half went with the Barbarian's mana (2026-09-13, oracool/rage.h).
 			totals.hitPoints += (20 + 10 * (rank - 1)) << 6;
-			totals.mana += (20 + 10 * (rank - 1)) << 6;
 			break;
 		case SpellID::BattleCommand:
 			totals.spellLevelAdd += 1;
@@ -650,7 +650,7 @@ const char *WarcryDescription(SpellID spell)
 	case SpellID::BattleCry:
 		return N_("A cry that leaves what hears it at -25% damage and -25% armour, for 24 seconds.");
 	case SpellID::BattleOrders:
-		return N_("A shout that swells your life and mana by +20, +10 per rank, for 40 seconds, +5 per rank.");
+		return N_("A shout that swells your life by +20, +10 per rank, for 40 seconds, +5 per rank.");
 	case SpellID::WarCry:
 		return N_("A shout that strikes everything in earshot for four to eight a rank and leaves it reeling for two seconds. Uniques shrug off the reeling.");
 	case SpellID::BattleCommand:
@@ -741,7 +741,7 @@ std::string WarcryFactsAt(SpellID spell, int rank)
 		break;
 	case SpellID::BattleOrders:
 		duration(40 + 5 * (rank - 1));
-		line(fmt::format(fmt::runtime(_("Life and mana: +{:d}")), 20 + 10 * (rank - 1)));
+		line(fmt::format(fmt::runtime(_("Life: +{:d}")), 20 + 10 * (rank - 1)));
 		break;
 	case SpellID::WarCry:
 		radius(earshot);

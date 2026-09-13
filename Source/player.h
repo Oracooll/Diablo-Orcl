@@ -373,6 +373,10 @@ struct Player {
 	int _pMana;
 	int _pMaxMana;
 	int _pManaPer;
+	/** The Barbarian's Rage, whole points - see oracool/rage.h. Transient: every level starts at 0. */
+	int _pRage;
+	/** Ticks since Rage was last gained or spent; the out-of-combat drain starts from it. */
+	int _pRageIdleTicks;
 	int _pIMinDam;
 	int _pIMaxDam;
 	int _pIAC;

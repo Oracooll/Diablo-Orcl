@@ -47,6 +47,7 @@
 #include "oracool/event_log.h"
 #include "oracool/runeword_book.h"
 #include "oracool/hud_art.h"
+#include "oracool/rage.h"
 #include "oracool/ornate_border.h" // SidePanelContentBottom - the orbs are clipped to it while a side panel is open
 #include "oracool/game_clock.h"
 #include "oracool/spell_timers.h"
@@ -2214,7 +2215,11 @@ void DrawAndBlit()
 		}
 		if (*sgOptions.Gameplay.showManaValues && !talkflag) {
 			const Rectangle orbRect = oracool::GetManaOrbRect();
-			DrawFlaskValues(out, orbRect.position + Displacement { oracool::GetManaOrbSphereCenterLocal().x, oracool::GetManaOrbSphereCenterLocal().y }, MyPlayer->_pMana >> 6, MyPlayer->_pMaxMana >> 6);
+			const Point flaskCenter = orbRect.position + Displacement { oracool::GetManaOrbSphereCenterLocal().x, oracool::GetManaOrbSphereCenterLocal().y };
+			if (oracool::UsesRage(*MyPlayer))
+				DrawFlaskValues(out, flaskCenter, MyPlayer->_pRage, oracool::MaxRage(*MyPlayer)); // the Barbarian's orb is Rage
+			else
+				DrawFlaskValues(out, flaskCenter, MyPlayer->_pMana >> 6, MyPlayer->_pMaxMana >> 6);
 		}
 	}
 
