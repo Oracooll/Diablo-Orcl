@@ -104,10 +104,10 @@ bool CanPay(const Player &player, ClassMeleeSkill skill)
 	return CanPaySkill(player, ClassMeleeSkillSpell(skill));
 }
 
-/** @brief Settles a use that landed: the price paid, or - for a Rage generator - the Rage earned. */
-void Pay(Player &player, ClassMeleeSkill skill)
+/** @brief Settles a use that landed: the price paid, or - for a Rage generator - the Rage of each landed blow. */
+void Pay(Player &player, ClassMeleeSkill skill, int landedBlows)
 {
-	SettleSkill(player, ClassMeleeSkillSpell(skill));
+	SettleSkill(player, ClassMeleeSkillSpell(skill), landedBlows);
 }
 
 /** @brief A blow of @p damage on @p monster - killing it, or staggering it. Mirrors paladin_melee.cpp's StrikeMonster. */
@@ -300,6 +300,8 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 	const Profile p = ProfileOf(skill);
 	const int rank = RankOf(player, skill);
 	bool struck = false;
+	// Every blow of this swing that struck a monster - the Barbarian's Rage is earned per blow.
+	int landedBlows = front != nullptr && frontHit ? 1 : 0;
 
 	// The extra blows on the front target, each a share of what the first one dealt - which already
 	// carries the skill's bonus, so a Double Swing's second blow is three quarters of a Bash-sized
@@ -311,6 +313,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 				break;
 			Strike(player, *front, frontDamage * share / 100);
 			struck = true;
+			landedBlows++;
 		}
 	}
 
@@ -348,6 +351,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			const int blow = (player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1)) << 6;
 			Strike(player, *targets[i], blow * share / 100);
 			struck = true;
+			landedBlows++;
 		}
 	} break;
 	case ClassMeleeSkill::SweepingReed: {
@@ -362,6 +366,7 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 			const int blow = (player._pIMinDam + GenerateRnd(std::max(player._pIMaxDam - player._pIMinDam, 0) + 1)) << 6;
 			Strike(player, *targets[i], blow);
 			struck = true;
+			landedBlows++;
 		}
 	} break;
 	case ClassMeleeSkill::RadiantPalm:
@@ -422,8 +427,17 @@ bool ApplyClassMeleeSkillOnSwing(Player &player, Monster *front, bool frontHit, 
 
 	// Paid when the skill did something, or when its bonus rode a blow that landed - a Bash that
 	// connected is a Bash even if the target was too heavy to shove.
-	if (struck || (frontHit && p.bonusPercent > 0))
-		Pay(player, skill);
+	//
+	// The Barbarian settles on ANY landed blow (2026-09-14, "make sure every hit that lands delivers
+	// rage"). The old test lost Rage three ways: a Stun that the target shrugged off earned nothing,
+	// a Double Swing or Frenzy whose first blow dealt no damage earned nothing, and every generator
+	// earned once per swing however many of its blows struck.
+	if (UsesRage(player)) {
+		if (struck || landedBlows > 0)
+			Pay(player, skill, landedBlows);
+	} else if (struck || (frontHit && p.bonusPercent > 0)) {
+		Pay(player, skill, landedBlows);
+	}
 	return struck;
 }
 
@@ -447,7 +461,7 @@ bool LeapToward(Player &player, ClassMeleeSkill skill, Point target)
 	    static_cast<int>(player.getId()), 0, 0);
 	if (missile == nullptr)
 		return false;
-	Pay(player, skill);
+	Pay(player, skill, /*landedBlows=*/0); // the leap itself strikes nothing
 	return true;
 }
 

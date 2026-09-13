@@ -466,10 +466,10 @@ bool CanPay(const Player &player, SpellID spell)
 	return CanPaySkill(player, spell);
 }
 
-/** @brief Settles a use that landed: the price paid, or a Rage generator's Rage earned. */
-void Pay(Player &player, SpellID spell)
+/** @brief Settles a use that landed: the price paid, or a Rage generator's Rage for each landed blow. */
+void Pay(Player &player, SpellID spell, int landedBlows = 1)
 {
-	SettleSkill(player, spell);
+	SettleSkill(player, spell, landedBlows);
 }
 
 // =================================================================================================
@@ -1440,6 +1440,8 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 	const bool landed = front != nullptr && frontHit;
 	const bool alive = landed && (front->hitPoints >> 6) > 0;
 	bool struck = false;
+	// Blows that struck a monster - the Barbarian's Rage is earned per blow (2026-09-14).
+	int landedBlows = landed ? 1 : 0;
 	const Point ahead = player.position.tile + player._pdir;
 
 	switch (spell) {
@@ -1505,6 +1507,7 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 				continue;
 			Strike(player, *m, DamageType::Physical, Percent(WeaponBlow(player), (spell == SpellID::Cleave ? 70 : 80) + 5 * (r - 1)));
 			struck = true;
+			landedBlows++;
 		}
 		break;
 	case SpellID::Rend:
@@ -1585,8 +1588,14 @@ bool ApplyRfa12MeleeOnSwing(Player &player, Monster *front, bool frontHit, int f
 		break;
 	}
 
-	if (struck || (landed && MeleeBonusPercent(spell, r) > 0))
+	// The Barbarian settles on any landed blow: Clasp of Ruin's killing blow found no living target to
+	// stagger and so earned no Rage, and Cleave earned once however many it cut (2026-09-14).
+	if (UsesRage(player)) {
+		if (struck || landedBlows > 0)
+			Pay(player, spell, landedBlows);
+	} else if (struck || (landed && MeleeBonusPercent(spell, r) > 0)) {
 		Pay(player, spell);
+	}
 	return struck;
 }
 

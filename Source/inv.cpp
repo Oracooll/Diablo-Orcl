@@ -3310,7 +3310,9 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 			autoEquipped = true;
 		}
 
-		if (!done) {
+		// Only potions go to the belt on their own; everything else goes to the inventory, and never to
+		// the belt (user, 2026-09-14: "dont auto put stuff in belt unless they are potions").
+		if (!done && item.isPotion()) {
 			done = AutoPlaceItemInBelt(player, item, true);
 		}
 		if (!done) {
@@ -4073,9 +4075,12 @@ void CloseStash()
 		if (itemTile) {
 			NetSendCmdPItem(true, CMD_PUTITEM, *itemTile, myPlayer.HoldItem);
 		} else {
-			if (!AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true)
+			// Potions to the belt first; anything else to the inventory, the belt only as the last room
+			// before the fatal below.
+			if (!(myPlayer.HoldItem.isPotion() && AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true))
 			    && !AutoPlaceItemInInventory(myPlayer, myPlayer.HoldItem, true)
-			    && !AutoPlaceItemInStash(myPlayer, myPlayer.HoldItem, true)) {
+			    && !AutoPlaceItemInStash(myPlayer, myPlayer.HoldItem, true)
+			    && !AutoPlaceItemInBelt(myPlayer, myPlayer.HoldItem, true)) {
 				// This can fail for max gold, arena potions and a stash that has been arranged
 				// to not have room for the item all 3 cases are extremely unlikely
 				app_fatal(_("No room for item"));

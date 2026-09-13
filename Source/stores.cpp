@@ -683,7 +683,7 @@ bool StoreAutoPlace(Item &item, bool persistItem)
 	// AutoPlaceItemInInventory already falls back to the extra Tabbed Inventory tabs once tab 1
 	// has no room, so no separate call is needed here.
 	const bool placed = (AutoEquipEnabled(player, item) && AutoEquip(player, item, persistItem))
-	    || AutoPlaceItemInBelt(player, item, persistItem)
+	    || (item.isPotion() && AutoPlaceItemInBelt(player, item, persistItem)) // only potions go to the belt (2026-09-14)
 	    || AutoPlaceItemInInventory(player, item, persistItem);
 	if (placed && persistItem)
 		oracool::ScheduleAutoSaveForStorePurchase();

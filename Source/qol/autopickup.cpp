@@ -47,7 +47,7 @@ bool DoPickup(Item item)
 
 	if (item._itype == ItemType::Misc && item.isScroll())
 		return oracool::IsSinglePlayer() && *sgOptions.Oracool.autoScrollPickup
-		    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || AutoPlaceItemInBelt(*MyPlayer, item, false));
+		    && AutoPlaceItemInInventory(*MyPlayer, item, false); // not the belt: only potions go there (2026-09-14)
 
 	// Oracool: user request (2026-08-20) - runes and gems, on by default.
 	//
@@ -77,7 +77,7 @@ bool DoPickup(Item item)
 		return *sgOptions.Oracool.autoGemPickup && AutoPlaceItemInInventory(*MyPlayer, item, false);
 
 	if (item._itype == ItemType::Misc
-	    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || AutoPlaceItemInBelt(*MyPlayer, item, false))) {
+	    && (AutoPlaceItemInInventory(*MyPlayer, item, false) || (item.isPotion() && AutoPlaceItemInBelt(*MyPlayer, item, false)))) {
 		switch (item._iMiscId) {
 		case IMISC_HEAL:
 			return *sgOptions.Gameplay.numHealPotionPickup;

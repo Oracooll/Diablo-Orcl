@@ -501,6 +501,13 @@ struct Item {
 		return IsAnyOf(_iMiscId, IMISC_SCROLL, IMISC_SCROLLT);
 	}
 
+	/** @brief Life, mana and rejuvenation potions - the only things auto-placement puts in the belt (user, 2026-09-14). */
+	[[nodiscard]] bool isPotion() const
+	{
+		return !isEmpty()
+		    && IsAnyOf(_iMiscId, IMISC_HEAL, IMISC_FULLHEAL, IMISC_MANA, IMISC_FULLMANA, IMISC_REJUV, IMISC_FULLREJUV, IMISC_ARENAPOT);
+	}
+
 	[[nodiscard]] bool isScrollOf(SpellID spellId) const
 	{
 		return isScroll() && _iSpell == spellId;

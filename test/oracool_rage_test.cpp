@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include "oracool/class_tree.h"
 #include "oracool/rage.h"
 #include "player.h"
 #include "spells.h"
@@ -97,22 +98,72 @@ TEST(OracoolRage, TheSkillCheckAsksForRageNotMana)
 	EXPECT_EQ(CheckSpell(player, SpellID::AncestralCall, SpellType::Skill, /*manaonly=*/true), SpellCheckResult::Success);
 }
 
-TEST(OracoolRage, RageDrainsOnlyAfterThreeQuietSeconds)
+// User, 2026-09-14: five seconds of lingering fury after the last swing at a monster, then one point
+// a second - and none of it while the swinging goes on.
+TEST(OracoolRage, RageHoldsThroughCombatAndThenDrainsOneASecond)
 {
 	devilution::Player &player = FreshBarbarian();
+	EXPECT_EQ(oracool::RageCalmDelayTicks, 100) << "five seconds at 20 ticks";
+	EXPECT_EQ(oracool::RageDecayIntervalTicks, 20) << "one point a second";
 	oracool::GainRage(player, 20);
-	for (int i = 0; i < oracool::RageDecayDelayTicks; i++)
-		oracool::ProcessRageTick(player);
-	EXPECT_EQ(player._pRage, 20) << "no drain inside the delay";
 
+	// Swinging at monsters every half second for a minute: not a point lost.
+	for (int i = 0; i < 1200; i++) {
+		if (i % 10 == 0)
+			oracool::NoteRageCombat(player);
+		oracool::ProcessRageTick(player);
+	}
+	EXPECT_EQ(player._pRage, 20) << "the pool drained while the fighting went on";
+
+	// Stopped: the five-second fury, then the first point goes after one more second.
+	oracool::NoteRageCombat(player);
+	for (int i = 0; i < oracool::RageCalmDelayTicks + oracool::RageDecayIntervalTicks - 1; i++)
+		oracool::ProcessRageTick(player);
+	EXPECT_EQ(player._pRage, 20) << "drained inside the five-second fury";
+	oracool::ProcessRageTick(player);
+	EXPECT_EQ(player._pRage, 19);
 	for (int i = 0; i < oracool::RageDecayIntervalTicks * 4; i++)
 		oracool::ProcessRageTick(player);
-	EXPECT_EQ(player._pRage, 16) << "one point per interval once it starts";
+	EXPECT_EQ(player._pRage, 15) << "one point a second once calm";
 
-	oracool::GainRage(player, 1); // combat again: the clock restarts
-	for (int i = 0; i < oracool::RageDecayDelayTicks; i++)
+	// Back into a fight: the drain stops at once.
+	oracool::NoteRageCombat(player);
+	for (int i = 0; i < oracool::RageCalmDelayTicks; i++)
 		oracool::ProcessRageTick(player);
-	EXPECT_EQ(player._pRage, 17);
+	EXPECT_EQ(player._pRage, 15);
+}
+
+TEST(OracoolRage, EveryLandedBlowOfAGeneratorEarnsRage)
+{
+	devilution::Player &player = FreshBarbarian();
+	oracool::SettleSkill(player, SpellID::DoubleSwing, 2);
+	EXPECT_EQ(player._pRage, 12) << "both blows of a Double Swing earn";
+	oracool::SettleSkill(player, SpellID::Cleave, 3);
+	EXPECT_EQ(player._pRage, 30) << "a Cleave through three earns three times";
+	oracool::SettleSkill(player, SpellID::Bash, 0);
+	EXPECT_EQ(player._pRage, 30) << "a blow that struck nothing earns nothing";
+}
+
+TEST(OracoolRage, SpendingIsNotFighting)
+{
+	devilution::Player &player = FreshBarbarian();
+	oracool::GainRage(player, 50);
+	for (int i = 0; i < oracool::RageCalmDelayTicks - 1; i++)
+		oracool::ProcessRageTick(player);
+	oracool::SettleSkill(player, SpellID::Shout, 0); // a shout into an empty room
+	EXPECT_EQ(player._pRage, 40);
+	for (int i = 0; i < oracool::RageDecayIntervalTicks + 1; i++)
+		oracool::ProcessRageTick(player);
+	EXPECT_EQ(player._pRage, 39) << "a shout restarted the calm clock";
+}
+
+// User, 2026-09-14: "move unforgiving passive to lvl10 slot and develop it".
+TEST(OracoolRage, UnforgivingIsTheLevelTenPassive)
+{
+	EXPECT_EQ(oracool::PassiveSkillRequiredLevel(oracool::ClassTreeSkill::Unforgiving), 10);
+	EXPECT_TRUE(oracool::GetClassTreeSkillData(oracool::ClassTreeSkill::Unforgiving).implemented);
+	EXPECT_EQ(oracool::PassiveSkillRequiredLevel(oracool::ClassTreeSkill::InspiringPresence), 30) << "the two swapped cells";
+	EXPECT_EQ(oracool::PassiveSkillRequiredLevel(oracool::ClassTreeSkill::Rampage), 36) << "the last cell did not move";
 }
 
 TEST(OracoolRage, ANewLevelStartsEmpty)

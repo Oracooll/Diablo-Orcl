@@ -6,9 +6,10 @@
  * mana as well. so we must go D3 road here").
  *
  * The Barbarian has no mana. His second orb holds Rage instead: a pool of 100 (120 with Animosity)
- * that starts empty on every level, fills a fixed amount each time a GENERATOR skill lands a blow,
- * and is spent by SPENDER skills, which cannot be used without it. Out of combat it drains away -
- * after three seconds with no Rage gained or spent, one point every quarter second.
+ * that starts empty on every level, fills a fixed amount for every blow a GENERATOR skill lands, and
+ * is spent by SPENDER skills, which cannot be used without it. It does not drain while he swings at
+ * monsters; five seconds after the last swing it drains one point a second (2026-09-14) - or, with
+ * Unforgiving, rises two a second instead.
  *
  * Which skill is which, and by how much, is the user's own ledger (the Barbarian Rage artifact,
  * picks read 2026-09-13) - see RageGain and RageCost. Passives are neither.
@@ -35,10 +36,15 @@ namespace oracool {
 constexpr int BaseMaxRage = 100;
 /** What Animosity adds to it. */
 constexpr int AnimosityRage = 20;
-/** Ticks with no Rage gained or spent before the pool starts to drain. Three seconds. */
-constexpr int RageDecayDelayTicks = 60;
-/** Ticks per point drained once it does. Four points a second. */
-constexpr int RageDecayIntervalTicks = 5;
+/**
+ * Ticks after the last swing at a monster before the pool starts to drain - the battle's lingering
+ * fury (user, 2026-09-14: "once i stop swinging at monsters start a 5 seconds countdown timer").
+ */
+constexpr int RageCalmDelayTicks = 100;
+/** Ticks per pulse once calm: one point drained - "slowly - 1 rage per 1 second". */
+constexpr int RageDecayIntervalTicks = 20;
+/** What Unforgiving adds per pulse instead of draining. */
+constexpr int UnforgivingRagePerPulse = 2;
 
 /** @brief Whether this class runs on Rage rather than mana. The Barbarian alone. */
 bool ClassUsesRage(HeroClass heroClass);
@@ -51,8 +57,13 @@ int RageCost(SpellID spell);
 
 int MaxRage(const Player &player);
 
-/** @brief Adds @p points, clamped to the pool. Counts as combat: the drain clock restarts. */
+/** @brief Adds @p points, clamped to the pool. Counts as combat: the calm clock restarts. */
 void GainRage(Player &player, int points);
+/**
+ * @brief A swing at a monster - landed or not - or a blow that struck one. Restarts the calm clock,
+ * so the pool does not drain while the fighting goes on. A swing at an empty tile is not combat.
+ */
+void NoteRageCombat(Player &player);
 /** @brief Empties the pool and resets the drain clock - every level entry. */
 void ResetRage(Player &player);
 /** @brief The out-of-combat drain. Called once per game tick from ProcessClassTreeTick. */
@@ -65,11 +76,12 @@ void ProcessRageTick(Player &player);
 bool CanPaySkill(const Player &player, SpellID spell);
 
 /**
- * @brief Settles one use of @p spell that did something: a spender's cost is taken, a generator's
- * Rage is granted; for a mana user, the mana price is paid. Callers invoke it only when the skill
- * landed, which is what makes Rage "for every hit".
+ * @brief Settles one use of @p spell that did something: a spender's cost is taken once, and a
+ * generator grants its Rage for EACH of the @p landedBlows that struck a monster (user, 2026-09-14:
+ * "make sure every hit that lands delivers rage") - a Double Swing that lands both blows earns twice.
+ * For a mana user the mana price is paid and @p landedBlows is ignored.
  */
-void SettleSkill(Player &player, SpellID spell);
+void SettleSkill(Player &player, SpellID spell, int landedBlows = 1);
 
 /**
  * @brief The resource line of a skill's tooltip at @p level: "Rage Cost: 10", "Generates 6 Rage",

@@ -332,8 +332,10 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 3, 0, 2, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Weapons Master"), N_("Each family of weapon lends its own gift - damage, precision, speed or fury. Not yet built."),
 	    Bar, 3, 1, 0, Kind::Passive, SpellID::Invalid, false, 1 },
+	// Swapped cells with Unforgiving (user, 2026-09-14: "move unforgiving passive to lvl10 slot"): its
+	// row stays here, its cell is Unforgiving's old one at level 30.
 	{ N_("Inspiring Presence"), N_("Your shouts last +100% longer and leave everyone near you mending. Not yet built."),
-	    Bar, 3, 1, 1, Kind::Passive, SpellID::Invalid, false, 1 },
+	    Bar, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Berserker Rage"), N_("Near the height of your fury you strike far harder. Not yet built."),
 	    Bar, 3, 1, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Bloodthirst"), N_("50% of every point of Rage you spend returns as life."),
@@ -352,8 +354,10 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 3, 4, 0, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Juggernaut"), N_("What would hold you fast holds you 50% as long, and may give you back your life. Not yet built."),
 	    Bar, 3, 4, 1, Kind::Passive, SpellID::Invalid, false, 1 },
-	{ N_("Unforgiving"), N_("Your fury no longer ebbs when the fighting stops - it rises. Not yet built."),
-	    Bar, 3, 4, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	// The level-10 cell since 2026-09-14 (user: "move unforgiving passive to lvl10 slot and develop it").
+	// Built in oracool/rage.cpp, ProcessRageTick.
+	{ N_("Unforgiving"), N_("Your Rage no longer drains when the fighting stops - it rises, 2 a second once the last battle's 5 seconds of fury have passed."),
+	    Bar, 3, 1, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	// Off the page (user, 2026-09-12: "i dont want 19th (lvl 36) skill"). A full 3x6 page holds 18, so
 	// this unbuilt passive left it and the three after it moved up a cell - Rampage into the last one, at
 	// level 36. Kept in the table: a row's position is its identity (icon strip, saves). See
@@ -2085,21 +2089,13 @@ int PassiveIndexOnPage(Skill skill)
 {
 	if (!IsPassiveSkillRow(skill))
 		return -1;
-	const HeroClass heroClass = GetClassTreeSkillData(skill).heroClass;
-	const Skill first = FirstSkillOf(heroClass);
-	if (first == Skill::None)
-		return -1;
-	int index = 0;
-	for (size_t i = static_cast<size_t>(first); i < ClassTreeSkillCount; i++) {
-		const auto candidate = static_cast<Skill>(i);
-		if (Skills[i].heroClass != heroClass)
-			break;
-		if (candidate == skill)
-			return index;
-		if (Skills[i].page == PassiveSkillsPage)
-			index++;
-	}
-	return -1;
+	// The GRID cell, reading order - the same tier and column BuildClassTreePage places it by.
+	// It used to count rows in table order, which agreed only while the table happened to be in grid
+	// order; a passive could not move to another cell without moving its row, and a row's position is
+	// its identity (icon strip, investment index, slot bytes). Moving Unforgiving to the level-10 cell
+	// (user, 2026-09-14) is a change of tier and column alone.
+	const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
+	return data.tier * 3 + data.column;
 }
 
 /** @brief The class-relative index stored in a slot byte, or -1 for empty. */

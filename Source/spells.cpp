@@ -188,7 +188,9 @@ void ConsumeSpell(Player &player, SpellID sn)
 		// The Barbarian settles in Rage instead (2026-09-13): a spender pays, a generator fills - and
 		// only now, past the fizzle check, so a Backhand that struck nothing earns nothing.
 		if (oracool::UsesRage(player)) {
-			oracool::SettleSkill(player, sn);
+			// A cast generator reaches here only when it struck (Backhand's cast fizzles on an empty
+			// tile), so it landed one blow. A spender's cast is not counted as a blow.
+			oracool::SettleSkill(player, sn, oracool::RageGain(sn) > 0 ? 1 : 0);
 		} else if (SkillPaysMana(sn)) {
 			const int ma = GetManaAmount(player, sn);
 			player._pMana -= ma;

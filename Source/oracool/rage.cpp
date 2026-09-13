@@ -96,6 +96,11 @@ void GainRage(Player &player, int points)
 	RedrawComponent(PanelDrawComponent::Mana);
 }
 
+void NoteRageCombat(Player &player)
+{
+	player._pRageIdleTicks = 0;
+}
+
 void ResetRage(Player &player)
 {
 	player._pRage = 0;
@@ -106,15 +111,26 @@ void ProcessRageTick(Player &player)
 {
 	if (!UsesRage(player))
 		return;
+	const int maxRage = MaxRage(player);
 	// A passive that shrinks the pool (Animosity unassigned) must not leave it overfull.
-	player._pRage = std::min(player._pRage, MaxRage(player));
-	if (player._pRage <= 0) {
-		player._pRageIdleTicks = 0;
+	player._pRage = std::min(player._pRage, maxRage);
+
+	// Still enraged by the last battle: the clock only counts.
+	player._pRageIdleTicks++;
+	if (player._pRageIdleTicks < RageCalmDelayTicks + RageDecayIntervalTicks)
+		return;
+	// Calm. One pulse a second from here; the clock is wound back to the start of the calm, so it
+	// stays bounded however long the rest lasts.
+	player._pRageIdleTicks = RageCalmDelayTicks;
+
+	if (PassiveActive(player, ClassTreeSkill::Unforgiving)) {
+		if (player._pRage < maxRage) {
+			player._pRage = std::min(player._pRage + UnforgivingRagePerPulse, maxRage);
+			RedrawComponent(PanelDrawComponent::Mana);
+		}
 		return;
 	}
-	player._pRageIdleTicks++;
-	if (player._pRageIdleTicks > RageDecayDelayTicks
-	    && (player._pRageIdleTicks - RageDecayDelayTicks) % RageDecayIntervalTicks == 0) {
+	if (player._pRage > 0) {
 		player._pRage--;
 		RedrawComponent(PanelDrawComponent::Mana);
 	}
@@ -127,18 +143,22 @@ bool CanPaySkill(const Player &player, SpellID spell)
 	return player._pMana >= GetManaAmount(player, spell);
 }
 
-void SettleSkill(Player &player, SpellID spell)
+void SettleSkill(Player &player, SpellID spell, int landedBlows)
 {
 	if (UsesRage(player)) {
 		if (const int cost = RageCost(spell); cost > 0) {
 			player._pRage = std::max(player._pRage - cost, 0);
-			player._pRageIdleTicks = 0;
 			// Bloodthirst returns half of what is spent as life. The passive speaks in the 1/64 units
 			// of the mana it was written for; a point of Rage stands in for a point of mana.
 			OnPassiveManaSpent(player, cost << 6);
 			RedrawComponent(PanelDrawComponent::Mana);
 		}
-		GainRage(player, RageGain(spell));
+		// Spending alone is not fighting - a shout into an empty room lets the calm clock run on. A blow
+		// that struck a monster is, whatever the skill.
+		if (landedBlows > 0) {
+			NoteRageCombat(player);
+			GainRage(player, RageGain(spell) * landedBlows);
+		}
 		return;
 	}
 	const int cost = GetManaAmount(player, spell);

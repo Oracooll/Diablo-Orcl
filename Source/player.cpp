@@ -963,6 +963,9 @@ bool DoAttack(Player &player)
 		}
 
 		if (monster != nullptr) {
+			// A swing at a monster, landed or not, is combat: the Barbarian's Rage holds (2026-09-14).
+			// A swing at an empty tile is not, and lets the calm clock run.
+			oracool::NoteRageCombat(player);
 			int hitDamage = 0;
 			didhit = PlrHitMonst(player, *monster, false, &hitDamage);
 			// Oracool: one hook for every skill that rides a swing - Zeal, Hammer of Faith, Shield
