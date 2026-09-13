@@ -763,7 +763,9 @@ void RightMouseBasicAttack(bool isShiftHeld)
 	}
 
 	const bool ranged = myPlayer.UsesRangedWeapon();
-	if (isShiftHeld) {
+	// A quest NPC waiting to speak is talked to even with shift held, as LeftMouseCmd's shift branch does
+	// (2026-09-13): the shift swing below used to go straight past Lachdanan and company.
+	if (isShiftHeld && (pcursmonst == -1 || !CanTalkToMonst(Monsters[pcursmonst]))) {
 		LastMouseButtonAction = MouseActionType::Attack;
 		NetSendCmdLoc(MyPlayerId, true, ranged ? CMD_RATTACKXY : CMD_SATTACKXY, cursPosition);
 		return;

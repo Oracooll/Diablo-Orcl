@@ -3645,6 +3645,34 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 		}
 	}
 
+	// TALKING WINS OVER EVERY SKILL (user, 2026-09-13: "sweep code behind all attacking skills and make
+	// sure they let me engage quest npcs into conversation mode, because now they dont"). Every readied
+	// ability reaches the world through this function - both mouse buttons, the quick-cast keys, the
+	// controller and the held-button repeat - and every branch below it (the bow, RfA-12 and class melee
+	// latches, the Paladin skills, the leaps, ordinary spells) sends an attack, a cast, a leap or a walk.
+	// None asked whether the monster under the cursor is Lachdanan, Zhar, Gharbad, Snotspill or Lazarus
+	// waiting to speak, so a skill on the button made those conversations unreachable. LeftMouseCmd and
+	// RightMouseBasicAttack already route a talker to CMD_ATTACKID, which walks up and opens the dialogue
+	// (ACTION_ATTACKMON's talk branch); this is the same rule, once, for everything readied.
+	//
+	// Shift does not override it, as in vanilla's shift-click. The latches are disarmed first so the next
+	// real swing does not inherit a skill this click never used.
+	if (pcursmonst != -1) {
+		const bool townsperson = leveltype == DTYPE_TOWN;
+		if (townsperson || CanTalkToMonst(Monsters[pcursmonst])) {
+			oracool::ArmMeleeSkill(std::nullopt);
+			oracool::ArmArrowSkill(std::nullopt);
+			oracool::ArmClassMeleeSkill(std::nullopt);
+			oracool::ArmRfa12Melee(std::nullopt);
+			LastMouseButtonAction = MouseActionType::None;
+			if (townsperson)
+				NetSendCmdLocParam1(true, CMD_TALKXY, cursPosition, pcursmonst);
+			else
+				NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
+			return;
+		}
+	}
+
 	if (leveltype == DTYPE_TOWN && !GetSpellData(spellID).isAllowedInTown()) {
 		myPlayer.Say(HeroSpeech::ICantCastThatHere);
 		return;
