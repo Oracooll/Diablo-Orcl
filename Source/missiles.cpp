@@ -31,6 +31,7 @@
 #include "oracool/class_tree.h" // SlowPlayer - a cold hit's chill on the stride
 #include "oracool/cold.h"
 #include "oracool/passives.h"
+#include "oracool/rfa12_effects.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/warcries.h"
 #include "engine/path.h"
@@ -335,12 +336,14 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	}
 	// Oracool, Round 5: the passives that read the situation - Steady Aim, Power Hungry, Cull the
 	// Weak and the rest - on every missile a player lands.
-	dam += dam * oracool::PassiveDamageDealtPercent(player, monster, false) / 100;
+	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, false) + oracool::Rfa12DamageDealtPercent(player, monster, false)) / 100;
 
 	if (&player == MyPlayer)
 		ApplyMonsterDamage(damageType, monster, dam);
 	if (&player == MyPlayer && missileData.isArrow())
 		oracool::OnPassiveHit(*MyPlayer, monster, dam, false);
+	if (&player == MyPlayer && dam > 0)
+		oracool::OnRfa12Hit(*MyPlayer, monster, dam, false);
 
 	// COLD CHILLS (Oracool, Round 1) - and from Round 2, freezes, depending on the missile. Every
 	// cold missile does it, rather than Ice Bolt doing it: the slow is what the damage type MEANS,
@@ -1193,7 +1196,7 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	if (mtype == MissileID::AcidPuddle)
 		blk = 100;
 
-	int blkper = player.GetBlockChance(false);
+	int blkper = player.GetBlockChance(false) + oracool::Rfa12BlockBonus(player);
 	if (monster != nullptr)
 		blkper -= (monster->level(sgGameInitInfo.nDifficulty) - player._pLevel) * 2;
 	blkper = clamp(blkper, 0, 100);

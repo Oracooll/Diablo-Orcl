@@ -47,6 +47,7 @@
 #include "oracool/cold.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
+#include "oracool/rfa12_effects.h"
 #include "oracool/warcries.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/furious_charge.h"
@@ -710,7 +711,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// The Paladin's two with a per-level blow, Smite and Charge's arrival (2026-09-12), the same way.
 	dam += dam * (oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player)) / 100;
 	// And the passives that read the situation - Ruthless, Brawler, Steady Aim and the rest (Round 5).
-	dam += dam * oracool::PassiveDamageDealtPercent(player, monster, true) / 100;
+	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, true) + oracool::Rfa12DamageDealtPercent(player, monster, true)) / 100;
 	int dam2 = dam << 6;
 	dam += player._pDamageMod;
 	if (player._pClass == HeroClass::Warrior || player._pClass == HeroClass::Barbarian) {
@@ -934,6 +935,9 @@ bool DoAttack(Player &player)
 	if (player.AnimInfo.currentFrame == hitFrame - 1) {
 		Point position = player.position.tile + player._pdir;
 		Monster *monster = FindMonsterAtPosition(position);
+		// Long Reach (RfA-12): with a staff, spear or pike, a swing at an empty tile reaches the enemy beyond it.
+		if (monster == nullptr)
+			monster = oracool::Rfa12ReachTarget(player, position);
 
 		if (monster != nullptr) {
 			if (CanTalkToMonst(*monster)) {
@@ -967,6 +971,8 @@ bool DoAttack(Player &player)
 				oracool::ApplyMeleeSkillOnHit(player, *monster, hitDamage);
 			if (didhit)
 				oracool::OnPassiveHit(player, *monster, hitDamage, true);
+			if (didhit)
+				oracool::OnRfa12Hit(player, *monster, hitDamage, true);
 			// And the Barbarian's and Monk's (Round 4), which want the swing whether or not it
 			// landed - Whirlwind spins through an empty front tile as readily as a full one.
 			if (oracool::ApplyClassMeleeSkillOnSwing(player, monster, didhit, hitDamage))
@@ -3052,6 +3058,10 @@ void StartPlrHit(Player &player, int dam, bool forcehit)
 
 	Direction pd = player._pdir;
 
+	// Anthem of Valor, and Grip of Iron with one enemy beside you (RfA-12): the blow lands, the flinch does not.
+	if (!forcehit && oracool::PlayerHoldsAgainstHit(player))
+		return;
+
 	int8_t skippedAnimationFrames = 0;
 	if (HasAnyOf(player._pIFlags, ItemSpecialEffect::FastestHitRecovery)) {
 		skippedAnimationFrames = 3;
@@ -3224,7 +3234,7 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	// Oracool, Round 5: the passives that soften a blow - Blur, Sixth Sense, Sword and Board and the
 	// rest - answer here, before the number is shown, so what floats up is what was taken.
 	if (totalDamage > 0)
-		totalDamage += totalDamage * oracool::PassiveDamageTakenPercent(player, damageType) / 100;
+		totalDamage += totalDamage * (oracool::PassiveDamageTakenPercent(player, damageType) + oracool::Rfa12DamageTakenPercent(player, damageType)) / 100;
 	if (&player == MyPlayer && player._pHitPoints > 0) {
 		AddFloatingNumber(damageType, player, totalDamage);
 	}
@@ -3269,6 +3279,9 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	}
 	// And the once-a-minute saves (Round 5): a killing blow that a passive stands the character back
 	// up from is not a death.
+	// Mercy (RfA-12) answers a blow that leaves you low but standing.
+	if (player._pHitPoints >> 6 > 0)
+		oracool::OnRfa12PlayerDamaged(player);
 	if (player._pHitPoints >> 6 <= 0 && oracool::PassiveCheatsDeath(player))
 		return;
 	if (player._pHitPoints >> 6 <= 0) {

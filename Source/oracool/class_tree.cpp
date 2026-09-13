@@ -11,11 +11,13 @@
 
 #include "engine/backbuffer_state.hpp"
 #include "inv.h"
+#include "itemdat.h" // AllItemsList - Brace asks whether the weapon is a spear or pike
 #include "oracool/auto_save.h"
 #include "oracool/aura_field.h"
 #include "oracool/event_log.h"
 #include "oracool/paladin_skills.h"
 #include "oracool/passives.h"
+#include "oracool/rfa12_effects.h"
 #include "oracool/skill_facts.h"
 #include "oracool/skill_points.h"
 #include "oracool/skill_sounds.h"
@@ -252,38 +254,38 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 0, 5, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Wrath of the Heavens"), N_("Five pillars of light fall around the Paladin over 3 s. Not yet built."),
 	    Pal, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Valor"), N_("Flat damage added to every hit (Might's flat twin - early game favours flat). Not yet built."),
-	    Pal, 1, 0, 1, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Radiance"), N_("Pulses light every 2 s; undead in the radius take magic damage. Not yet built."),
-	    Pal, 1, 0, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Bane of Evil"), N_("+damage against demons and undead only, bigger than Might. Not yet built."),
-	    Pal, 1, 1, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Condemnation"), N_("Monsters in the radius lose armor (Conviction does resists; this does AC). Not yet built."),
-	    Pal, 1, 2, 1, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Tithe of Ash"), N_("Your kills inside the aura consume their corpses and restore a small fixed amount of mana; summoned enemies grant nothing. Not yet built."),
-	    Pal, 1, 2, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Retaliation"), N_("Each time the Paladin is hit, his next blow deals +X% damage (stacks to 3). Not yet built."),
-	    Pal, 1, 3, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Doom Procession"), N_("Moving continuously for two seconds arms a single holy wake behind you; enemies crossing it take one hit before the wake fades. Not yet built."),
-	    Pal, 1, 4, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Dominion"), N_("Monsters in the radius deal X% less damage and take X% more. Not yet built."),
-	    Pal, 1, 5, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Steadfast"), N_("Hit recovery: far less chance to be stunned or interrupted when struck. Not yet built."),
-	    Pal, 2, 0, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Resist Magic"), N_("+magic resistance - completes the Resist Fire / Cold / Lightning set. Not yet built."),
-	    Pal, 2, 1, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Immovable"), N_("Enemy knockback cannot displace you while this aura burns; damage and hit recovery still apply. Not yet built."),
-	    Pal, 2, 2, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Warding Light"), N_("Every hit taken is reduced by a flat amount. Not yet built."),
-	    Pal, 2, 3, 1, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Mercy"), N_("Falling below 30% life heals X% at once; 20 s cooldown. Not yet built."),
-	    Pal, 2, 3, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Aura of Protection"), N_("+X% armor, the Defiance of the late game. Not yet built."),
-	    Pal, 2, 4, 1, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Endurance"), N_("+X% maximum life. Not yet built."),
-	    Pal, 2, 4, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Sanctity"), N_("+all resistances, and curses and slows on the Paladin last half as long. Not yet built."),
-	    Pal, 2, 5, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Valor"), N_("Adds 3 damage to every blow, +2 per level."),
+	    Pal, 1, 0, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Radiance"), N_("Every 2 seconds, undead in reach take 3-6 magic damage, +1-2 per level."),
+	    Pal, 1, 0, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Bane of Evil"), N_("+25% damage against demons and undead, +5% per level, to 150%."),
+	    Pal, 1, 1, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Condemnation"), N_("Enemies in reach lose 10% of their armour, +2% per level, to 50%."),
+	    Pal, 1, 2, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Tithe of Ash"), N_("A kill in reach restores 2 mana, +1 per level, and consumes the corpse."),
+	    Pal, 1, 2, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Retaliation"), N_("Each blow you take adds +10% damage to your next blow, +3% per level, stacking three times."),
+	    Pal, 1, 3, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Doom Procession"), N_("After 2 seconds on the move, each tile you leave burns for 3 seconds; the first enemy to step on it takes 4-8 magic damage, +2-3 per level."),
+	    Pal, 1, 4, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Dominion"), N_("Enemies in reach deal 10% less damage and take 10% more, +1% per level, to 35%."),
+	    Pal, 1, 5, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Steadfast"), N_("Blows barely interrupt you: faster hit recovery, and the fastest from level 10."),
+	    Pal, 2, 0, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Resist Magic"), N_("Hardens you against magic: +15% magic resistance, +4% per level."),
+	    Pal, 2, 1, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Immovable"), N_("Knockback cannot move you while this aura burns; the damage still lands."),
+	    Pal, 2, 2, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Warding Light"), N_("Every blow you take deals 2 less damage, +1 per level."),
+	    Pal, 2, 3, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Mercy"), N_("Falling below 30% life heals 20% of your life, +1% per level to 50%, once every 20 seconds."),
+	    Pal, 2, 3, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Aura of Protection"), N_("+20% armour, +6% per level."),
+	    Pal, 2, 4, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Endurance"), N_("+10% maximum life, +2% per level, to 60%."),
+	    Pal, 2, 4, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Sanctity"), N_("+8% to every resistance, +2% per level, and slows on you wear off 50% sooner."),
+	    Pal, 2, 5, 2, Kind::Aura, SpellID::Invalid, true },
 	// ======================= BARBARIAN =======================
 	// --- Combat Skills ---
 	{ N_("Bash"), N_("A heavy blow at +30% damage, +10% per rank, that knocks the target back."), Bar, 0, 0, 0, Kind::Active, SpellID::Bash, true },
@@ -380,22 +382,22 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 0, 4, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Earthquake"), N_("Splits the ground; the area around the Barbarian takes damage for 4 s. Not yet built."),
 	    Bar, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Grip of Iron"), N_("Your melee attacks cannot be interrupted by a hit when only one enemy is adjacent; incoming damage is unchanged. Not yet built."),
-	    Bar, 1, 2, 1, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Deep Wounds"), N_("Melee hits have a chance to bleed the target. Not yet built."),
-	    Bar, 1, 2, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Heavy Foot"), N_("You ignore enemy knockback while wielding a two-handed melee weapon. Not yet built."),
-	    Bar, 1, 3, 1, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Battle Hardened"), N_("+resistances while below half life. Not yet built."),
-	    Bar, 1, 3, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Bloodlust"), N_("Melee hits steal life. Not yet built."),
-	    Bar, 1, 4, 1, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Long Reach"), N_("Your ordinary attacks can target an enemy two tiles away with a polearm or spear if the intervening tile is empty. Not yet built."),
-	    Bar, 1, 4, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Unfinished Business"), N_("Killing an enemy that struck you within the last five seconds restores a small fixed amount of life; summoned enemies do not qualify. Not yet built."),
-	    Bar, 1, 5, 1, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Lasting Wounds"), N_("An enemy struck by your direct melee attacks cannot naturally regenerate life for four seconds. Not yet built."),
-	    Bar, 1, 5, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Grip of Iron"), N_("With only one enemy beside you, its blows cannot interrupt your swing."),
+	    Bar, 1, 2, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Deep Wounds"), N_("Melee blows have a 10% chance, +2% per level to 50%, to make the target bleed for 3 seconds: 3 damage a second, +1 per level."),
+	    Bar, 1, 2, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Heavy Foot"), N_("Knockback cannot move you while you wield a two-handed weapon."),
+	    Bar, 1, 3, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Battle Hardened"), N_("Below half life, fire, lightning and magic deal 10% less damage to you, +2% per level to 40%."),
+	    Bar, 1, 3, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Bloodlust"), N_("Melee blows return 2% of their damage as life, +1% every 5 levels."),
+	    Bar, 1, 4, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Long Reach"), N_("With a staff, spear or pike, a swing at an empty tile strikes the enemy standing beyond it."),
+	    Bar, 1, 4, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Unfinished Business"), N_("Killing an enemy that struck you in the last 5 seconds heals 3% of your life, +1% every 3 levels."),
+	    Bar, 1, 5, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Lasting Wounds"), N_("Enemies you strike in melee cannot regenerate life for 4 seconds."),
+	    Bar, 1, 5, 2, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Threatening Shout"), N_("Monsters in range deal X% less damage for a while. Not yet built."),
 	    Bar, 2, 0, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Rallying Cry"), N_("Heals X% life over 5 s. Not yet built."),
@@ -632,26 +634,26 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Rog, 0, 5, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Phantom Volley"), N_("Spectral arrows fall on every monster in a wide radius. Not yet built."),
 	    Rog, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Soft Tread"), N_("Ordinary enemies take longer to notice you while you walk without attacking; alerted enemies do not forget you. Not yet built."),
-	    Rog, 1, 0, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Swiftness"), N_("+Movement Speed. Not yet built."),
-	    Rog, 1, 1, 1, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Scent of Blood"), N_("An enemy you have wounded remains outlined for two seconds after leaving your sight, without revealing terrain. Not yet built."),
-	    Rog, 1, 1, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Sharpen"), N_("Flat damage added to every arrow and spear hit. Not yet built."),
-	    Rog, 1, 2, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Dead Ground"), N_("Your first ranged hit against an enemy that has not moved for two seconds gains a small physical bonus; per-target cooldown six seconds. Not yet built."),
-	    Rog, 1, 3, 2, Kind::Passive, SpellID::Invalid, false },
-	{ N_("Deadeye"), N_("Critical hits deal more damage. Not yet built."),
-	    Rog, 1, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Soft Tread"), N_("After 3 seconds walking without attacking, monsters notice you only within two thirds of your sight."),
+	    Rog, 1, 0, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Swiftness"), N_("+5% movement speed, +1% per level, to 35%."),
+	    Rog, 1, 1, 1, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Scent of Blood"), N_("An enemy you have wounded stays visible for 2 seconds after it leaves the light."),
+	    Rog, 1, 1, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Sharpen"), N_("Adds 2 damage to every blow and arrow, +1 per level."),
+	    Rog, 1, 2, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Dead Ground"), N_("Your first ranged hit on an enemy that has stood still for 2 seconds deals +25% damage, +2% per level; once every 6 seconds per enemy."),
+	    Rog, 1, 3, 2, Kind::Passive, SpellID::Invalid, true },
+	{ N_("Deadeye"), N_("Ranged hits have a 10% chance to deal +50% damage, +5% per level."),
+	    Rog, 1, 4, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Shadow Step"), N_("Teleports behind the target. Not yet built."),
 	    Rog, 1, 4, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Hunter's Claim"), N_("Mark one unique or boss for eight seconds; your projectiles ignore ordinary monsters while travelling toward that marked target, but still stop at walls. Not yet built."),
 	    Rog, 1, 5, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Sweep"), N_("A polearm arc that hits three tiles in front of her. Not yet built."),
 	    Rog, 2, 0, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Brace"), N_("+armor and block while holding a spear or javelin. Not yet built."),
-	    Rog, 2, 0, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Brace"), N_("Holding a spear or pike: +10% armour, +3% per level, and you can block - 5% of blows, +1% per level to 30%."),
+	    Rog, 2, 0, 2, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Harpoon"), N_("A thrown spear that pulls the target to her. Not yet built."),
 	    Rog, 2, 1, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Vault"), N_("Pole-vaults over monsters to a spot. Not yet built."),
@@ -745,28 +747,28 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Magnum Opus"), N_("Hold one song long enough and it becomes something greater. Not yet built."),
 	    Bard, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
-	{ N_("Minstrel's Tune"), N_("Faster mana regeneration while it plays. Not yet built."),
-	    Bard, 0, 0, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Ballad of Resilience"), N_("+all resistances while it plays. Not yet built."),
-	    Bard, 0, 1, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Hunter's Chant"), N_("+chance to hit while it plays. Not yet built."),
-	    Bard, 0, 2, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Serenade of Steel"), N_("+armor while it plays. Not yet built."),
-	    Bard, 0, 3, 0, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Song of Plenty"), N_("+Gold Find and Magic Find while it plays. Not yet built."),
-	    Bard, 0, 3, 1, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Nocturne"), N_("Monsters notice the Bard from half as far away. Not yet built."),
-	    Bard, 0, 3, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Anthem of Valor"), N_("Immune to stun and fear while it plays. Not yet built."),
-	    Bard, 0, 4, 0, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Siren's Call"), N_("Monsters are drawn toward the Bard and slowed as they come. Not yet built."),
-	    Bard, 0, 4, 1, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Hymn of Renewal"), N_("Regenerates life and mana while it plays. Not yet built."),
-	    Bard, 0, 4, 2, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Symphony of War"), N_("Every Melody song on the page gains +50% effect while this plays. Not yet built."),
-	    Bard, 0, 5, 1, Kind::Aura, SpellID::Invalid, false },
-	{ N_("Sovereign Measure"), N_("While exactly one enemy is nearby, every fourth direct hit against it releases one fixed sonic impact; the count clears on switching melodies. Not yet built."),
-	    Bard, 0, 5, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Minstrel's Tune"), N_("A tune that restores your mana as it plays."),
+	    Bard, 0, 0, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Ballad of Resilience"), N_("+10% to every resistance while it plays, +3% per level."),
+	    Bard, 0, 1, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Hunter's Chant"), N_("+15% chance to hit while it plays, +5% per level."),
+	    Bard, 0, 2, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Serenade of Steel"), N_("+20% armour while it plays, +8% per level."),
+	    Bard, 0, 3, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Song of Plenty"), N_("+15% gold find and +8% magic find while it plays, +4% and +2% per level."),
+	    Bard, 0, 3, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Nocturne"), N_("While it plays, monsters notice you only within half your sight."),
+	    Bard, 0, 3, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Anthem of Valor"), N_("While it plays, blows do not interrupt you."),
+	    Bard, 0, 4, 0, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Siren's Call"), N_("Once a second, enemies in reach turn on you and come at half speed."),
+	    Bard, 0, 4, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Hymn of Renewal"), N_("A hymn that restores both life and mana as it plays."),
+	    Bard, 0, 4, 2, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Symphony of War"), N_("While it plays, every other Melody song you have learned lends half its strength."),
+	    Bard, 0, 5, 1, Kind::Aura, SpellID::Invalid, true },
+	{ N_("Sovereign Measure"), N_("With exactly one enemy within four tiles, every 4th blow on it deals 6-10 magic damage, +2-3 per level."),
+	    Bard, 0, 5, 2, Kind::Aura, SpellID::Invalid, true },
 	{ N_("Plucked Needle"), N_("Send one narrow note down a clear line to damage the first enemy, without the stagger of Sound Shock. Not yet built."),
 	    Bard, 1, 0, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Shatter Note"), N_("A piercing note that damages and strips armor. Not yet built."),
@@ -901,8 +903,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	{ N_("Mythic Rhythm"), N_("Every third building strike charges the spender that follows. Not yet built."),
 	    Monk, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
 	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
-	{ N_("Staff Parry"), N_("+block chance while holding a staff. Not yet built."),
-	    Monk, 0, 0, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Staff Parry"), N_("Holding a staff: +5% block chance, +1% per level, to 30%."),
+	    Monk, 0, 0, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Long Thrust"), N_("A thrust that reaches two tiles. Not yet built."),
 	    Monk, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Low Branch"), N_("Sweep one enemy's legs with the staff, slowing its movement without staggering it. Not yet built."),
@@ -917,30 +919,30 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 0, 3, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Staff of Echoes"), N_("A blow that repeats itself a second later. Not yet built."),
 	    Monk, 0, 3, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("River Stance"), N_("+Movement Speed and armor while holding a staff. Not yet built."),
-	    Monk, 0, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("River Stance"), N_("Holding a staff: +5% movement speed and +5% armour, +1% and +2% per level."),
+	    Monk, 0, 4, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Heaven Splitter"), N_("Overhead blow that sends a shockwave down a line. Not yet built."),
 	    Monk, 0, 4, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Thousand Reeds"), N_("A capstone flurry across every monster on screen. Not yet built."),
 	    Monk, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Tiger Claw"), N_("Raking strikes that make the target bleed. Not yet built."),
 	    Monk, 1, 0, 1, Kind::Active, SpellID::Invalid, false },
-	{ N_("Deep Breath"), N_("Life regeneration. Not yet built."),
-	    Monk, 1, 0, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Deep Breath"), N_("Your life slowly regenerates."),
+	    Monk, 1, 0, 2, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Leaping Crane"), N_("A flying kick that closes distance. Not yet built."),
 	    Monk, 1, 1, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Pressure Point"), N_("Strike that slows the target and lowers its armor. Not yet built."),
 	    Monk, 1, 1, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Iron Fist"), N_("Flat damage added to unarmed and staff hits. Not yet built."),
-	    Monk, 1, 2, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Iron Fist"), N_("Unarmed or holding a staff: +2 damage to every blow, +1 per level."),
+	    Monk, 1, 2, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Whirling Kick"), N_("A spinning kick that knocks back everything around him. Not yet built."),
 	    Monk, 1, 2, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Shoulder Gate"), N_("Rush one walkable tile forward and stop an ordinary enemy's current movement on contact, without a follow-up strike. Not yet built."),
 	    Monk, 1, 3, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Seven-Sided Strike"), N_("Blinks between up to seven monsters, striking each. Not yet built."),
 	    Monk, 1, 3, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Mountain Stance"), N_("Every hit taken reduced by a flat amount. Not yet built."),
-	    Monk, 1, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Mountain Stance"), N_("Every blow you take deals 1 less damage, +1 per level, to 20."),
+	    Monk, 1, 4, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Exploding Palm"), N_("The target bleeds and bursts when it dies, damaging those nearby. Not yet built."),
 	    Monk, 1, 4, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Dragon's Wrath"), N_("A wave of force shaped like a dragon rolls down a long line. Not yet built."),
@@ -961,8 +963,8 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
 	{ N_("Wave of Light"), N_("A great spectral bell crashes down on an area. Not yet built."),
 	    Monk, 2, 3, 2, Kind::Active, SpellID::Invalid, false },
-	{ N_("Inner Fire"), N_("Hits carry fire damage. Not yet built."),
-	    Monk, 2, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Inner Fire"), N_("Your blows carry 1-3 fire damage, +1-2 per level."),
+	    Monk, 2, 4, 1, Kind::Passive, SpellID::Invalid, true },
 	{ N_("Astral Projection"), N_("Leaves his body for 6 s: faster, and ignores collision. Not yet built."),
 	    Monk, 2, 4, 2, Kind::Active, SpellID::Invalid, false },
 	{ N_("Ancestral Court"), N_("Place three stationary ancestral shades around a chosen clear tile; each makes one inward spirit strike after a shared delay, then fades. Not yet built."),
@@ -1009,6 +1011,29 @@ bool WieldingType(const Player &player, ItemType type)
 			return true;
 	}
 	return false;
+}
+
+/** @brief Whether @p player holds a spear or a pike - the two RfA-12 polearm bases. For Brace. */
+bool WieldingSpearOrPike(const Player &player)
+{
+	for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
+		if (item.isEmpty() || !item._iStatFlag || item.IDidx < 0 || item.IDidx > IDI_LAST)
+			continue;
+		const unique_base_item base = AllItemsList[static_cast<size_t>(item.IDidx)].iItemId;
+		if (base == UITYPE_SPEAR || base == UITYPE_PIKE)
+			return true;
+	}
+	return false;
+}
+
+/** @brief Whether @p player's hands hold no weapon. For Iron Fist. */
+bool WieldingNoWeapon(const Player &player)
+{
+	for (const Item &item : { player.InvBody[INVLOC_HAND_LEFT], player.InvBody[INVLOC_HAND_RIGHT] }) {
+		if (!item.isEmpty() && item._iStatFlag && item._iClass == ICLASS_WEAPON)
+			return false;
+	}
+	return true;
 }
 
 /** @brief Applies one paid-for passive. Auras go through ApplyAura below. */
@@ -1187,6 +1212,35 @@ void ApplyPassive(const Player &player, Skill skill, int points, ItemBonusTotals
 		totals.lightningResist += 10;
 		totals.magicResist += 10;
 		break;
+	// --- RfA-12 (2026-09-13): the new passives that are a number on the sheet. The rules - bleeding,
+	//     blocking, reach, noticing - are oracool/rfa12_effects.cpp's.
+	case Skill::Swiftness:
+		totals.moveSpeed += std::min(Scaled(points, 5, 1), 35);
+		break;
+	case Skill::Sharpen:
+		totals.damageMod += Scaled(points, 2, 1);
+		break;
+	case Skill::Brace:
+		if (WieldingSpearOrPike(player))
+			totals.bonusArmor += Scaled(points, 10, 3);
+		break;
+	case Skill::RiverStance:
+		if (WieldingType(player, ItemType::Staff)) {
+			totals.moveSpeed += Scaled(points, 5, 1);
+			totals.bonusArmor += Scaled(points, 5, 2);
+		}
+		break;
+	case Skill::IronFist:
+		if (WieldingNoWeapon(player) || WieldingType(player, ItemType::Staff))
+			totals.damageMod += Scaled(points, 2, 1);
+		break;
+	case Skill::MountainStance:
+		totals.getHit -= std::min(Scaled(points, 1, 1), 20);
+		break;
+	case Skill::InnerFire:
+		totals.fireMin += Scaled(points, 1, 1);
+		totals.fireMax += Scaled(points, 3, 2);
+		break;
 	default:
 		// Increased Speed, Warmth and Flowing Step act elsewhere (the walk animation and the
 		// per-tick hook); everything else on a passive row is inert and says so.
@@ -1264,6 +1318,43 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 	case Skill::TaleOfHeroes:
 		totals.strength += Scaled(p, 4, 2);
 		totals.dexterity += Scaled(p, 4, 2);
+		break;
+	// --- RfA-12 (2026-09-13): the new auras and songs that are a number on the sheet. What they do to
+	//     monsters, and the regeneration, is oracool/rfa12_effects.cpp's.
+	case Skill::Valor:
+		totals.damageMod += Scaled(p, 3, 2);
+		break;
+	case Skill::Steadfast:
+		totals.flags |= p >= 10 ? ItemSpecialEffect::FastestHitRecovery : ItemSpecialEffect::FasterHitRecovery;
+		break;
+	case Skill::ResistMagic:
+		totals.magicResist += Scaled(p, 15, 4);
+		break;
+	case Skill::WardingLight:
+		totals.getHit -= Scaled(p, 2, 1);
+		break;
+	case Skill::AuraOfProtection:
+		totals.bonusArmor += Scaled(p, 20, 6);
+		break;
+	case Skill::Sanctity:
+		totals.fireResist += Scaled(p, 8, 2);
+		totals.lightningResist += Scaled(p, 8, 2);
+		totals.magicResist += Scaled(p, 8, 2);
+		break;
+	case Skill::BalladOfResilience:
+		totals.fireResist += Scaled(p, 10, 3);
+		totals.lightningResist += Scaled(p, 10, 3);
+		totals.magicResist += Scaled(p, 10, 3);
+		break;
+	case Skill::HuntersChant:
+		totals.bonusToHit += Scaled(p, 15, 5);
+		break;
+	case Skill::SerenadeOfSteel:
+		totals.bonusArmor += Scaled(p, 20, 8);
+		break;
+	case Skill::SongOfPlenty:
+		totals.goldFind += Scaled(p, 15, 4);
+		totals.magicFind += Scaled(p, 8, 2);
 		break;
 	default:
 		// Prayer, Meditation, Vigor, Melody of Life and Inspiration act elsewhere (the per-tick
@@ -2300,6 +2391,27 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 		// An aura's level-up stat burns with it, and goes out with it.
 		if (GetClassTreeSkillData(aura).implemented)
 			ApplyLevelUpStat(aura, ClassTreeInvestment(player, aura), totals);
+		// The two RfA-12 auras whose number is the character's own: Endurance is a share of the base life,
+		// and Symphony of War lends half of every other Melody song the Bard has learned.
+		if (aura == Skill::Endurance && GetClassTreeSkillData(aura).implemented) {
+			const int p = ClassTreeInvestment(player, aura);
+			totals.hitPoints += player._pMaxHPBase * std::min(10 + 2 * (p - 1), 60) / 100;
+		}
+		if (aura == Skill::SymphonyOfWar && GetClassTreeSkillData(aura).implemented) {
+			const Skill first = FirstSkillOf(player._pClass);
+			for (size_t i = 0; i < MaxSkillsPerClass; i++) {
+				const auto song = static_cast<Skill>(static_cast<size_t>(first) + i);
+				if (song > Skill::LAST || song == Skill::SymphonyOfWar)
+					continue;
+				const ClassTreeSkillData &data = GetClassTreeSkillData(song);
+				if (data.heroClass != player._pClass)
+					break;
+				if (data.page != 0 || data.kind != Kind::Aura || !data.implemented || !IsClassTreeSkillUnlocked(player, song))
+					continue;
+				if (const int q = ClassTreeInvestment(player, song); q > 0)
+					ApplyAura(song, (q + 1) / 2, totals);
+			}
+		}
 	}
 
 	// Two kinds of passive, and they turn on for different reasons.
@@ -2399,7 +2511,7 @@ int PlayerSlowPercent(const Player &player)
 void SlowPlayer(const Player &player, int ticks, int percent)
 {
 	// Cleansing (2026-09-12): under it, a slow or a chill wears off sooner.
-	ticks = ticks * (100 - CleansingShortenPercent(player)) / 100;
+	ticks = ticks * (100 - std::max(CleansingShortenPercent(player), Rfa12SlowShortenPercent(player))) / 100;
 	if (ticks <= 0)
 		return;
 	MovementSlow &slow = MovementSlows[player.getId()];
@@ -2534,6 +2646,7 @@ void ProcessClassTreeTick(Player &player)
 	// query cannot go stale. See oracool/aura_field.h.
 	ProcessOutwardAura(player);
 	ProcessPassivesTick(player);
+	ProcessRfa12Tick(player);
 	ProcessWarcriesTick(player);
 	TickMovementSlow(player);
 

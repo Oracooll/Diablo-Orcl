@@ -42,6 +42,7 @@
 #include "oracool/warcries.h"
 #include "oracool/monster_difficulty.h"
 #include "oracool/passives.h"
+#include "oracool/rfa12_effects.h"
 #include "oracool/warcries.h"
 #include "oracool/monster_variants.h"
 #include "oracool/endgame_boss.h"
@@ -139,6 +140,7 @@ void InitMonster(Monster &monster, Direction rd, size_t typeIndex, Point positio
 {
 	// Oracool: a slot being (re)used starts with no cry on it - see ClearWarcryStateForMonster.
 	oracool::ClearWarcryStateForMonster(monster);
+	oracool::ClearRfa12StateForMonster(monster);
 	monster.direction = rd;
 	monster.position.tile = position;
 	monster.position.future = position;
@@ -854,6 +856,7 @@ void DeleteMonster(size_t activeIndex)
 
 	// Oracool: the slot's cry state goes with the monster, so nothing waits there for the next one.
 	oracool::ClearWarcryStateForMonster(monster);
+	oracool::ClearRfa12StateForMonster(monster);
 
 	ActiveMonsterCount--;
 	std::swap(ActiveMonsters[activeIndex], ActiveMonsters[ActiveMonsterCount]); // This ensures alive monsters are before ActiveMonsterCount in the array and any deleted monster after
@@ -1459,7 +1462,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 
 	// Oracool, Round 6: what a cry or a song has done to this monster - Battle Cry and Dirge of Dread
 	// blunt the blow, Weaken the aim.
-	if (const int weakened = oracool::MonsterDebuffDamagePercent(monster); weakened != 0) {
+	if (const int weakened = oracool::MonsterDebuffDamagePercent(monster) + oracool::Rfa12MonsterDamagePercent(monster); weakened != 0) {
 		minDam += minDam * weakened / 100;
 		maxDam = std::max(maxDam + maxDam * weakened / 100, minDam);
 	}
@@ -1484,7 +1487,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	if ((player._pmode == PM_STAND || player._pmode == PM_ATTACK) && player._pBlockFlag) {
 		blkper = GenerateRnd(100);
 	}
-	int blk = player.GetBlockChance() - (monster.level(sgGameInitInfo.nDifficulty) * 2);
+	int blk = player.GetBlockChance() + oracool::Rfa12BlockBonus(player) - (monster.level(sgGameInitInfo.nDifficulty) * 2);
 	blk = clamp(blk, 0, 100);
 	if (hper >= hit)
 		return;
@@ -1527,6 +1530,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		// the health bar and the kill log use, for the same reason.
 		oracool::NotePendingDeathSource(oracool::GetMonsterDisplayName(monster));
 		ApplyPlrDamage(DamageType::Physical, player, 0, 0, dam);
+		oracool::OnRfa12Struck(player, monster); // Retaliation's stack, Unfinished Business's memory
 		// Oracool: the one seam where "this monster wounded the player, for this much" is known, which
 		// is what a Vampiric champion needs. After the reflect subtraction, so it drains what it
 		// actually landed rather than what it swung for.
@@ -1573,7 +1577,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 		return;
 	}
 	StartPlrHit(player, dam, false);
-	if ((monster.flags & MFLAG_KNOCKBACK) != 0) {
+	if ((monster.flags & MFLAG_KNOCKBACK) != 0 && !oracool::PlayerIgnoresKnockback(player)) {
 		if (player._pmode != PM_GOTHIT)
 			StartPlrHit(player, 0, true);
 
@@ -1846,10 +1850,13 @@ void MonsterDeath(Monster &monster)
 		if (monster.var1 == 140)
 			PrepDoEnding();
 	} else if (monster.animInfo.isLastFrame()) {
-		if (monster.isUnique())
+		if (oracool::TitheTakesCorpse(monster)) {
+			// Tithe of Ash (RfA-12) took the corpse: nothing is left to raise or search.
+		} else if (monster.isUnique()) {
 			AddCorpse(monster.position.tile, monster.corpseId, monster.direction);
-		else
+		} else {
 			AddCorpse(monster.position.tile, monster.type().corpseId, monster.direction);
+		}
 
 		dMonster[monster.position.tile.x][monster.position.tile.y] = 0;
 		monster.isInvalid = true;
@@ -3863,6 +3870,7 @@ void InitMonsters()
 	// here, on entering a level, because that is the one event no path can skip.
 	oracool::ClearChills();
 	oracool::ClearPassiveState();
+	oracool::ClearRfa12State();
 	oracool::ClearWarcries();
 
 	if (!gbIsSpawn && !setlevel && currlevel == 16)
@@ -4227,6 +4235,7 @@ void StartMonsterDeath(Monster &monster, const Player &player, bool sendmsg)
 	// Oracool, Round 5: Rampage and Requiem hear the kill.
 	if (&player == MyPlayer && monster.hitPoints >> 6 <= 0)
 		oracool::OnPassiveMonsterKilled(*MyPlayer, monster);
+		oracool::OnRfa12MonsterKilled(*MyPlayer, monster);
 	Direction md = GetDirection(monster.position.tile, player.position.tile);
 	MonsterDeath(monster, md, sendmsg);
 }
@@ -4471,7 +4480,8 @@ void ProcessMonsters()
 			SetRndSeed(monster.aiSeed);
 			monster.aiSeed = AdvanceRndSeed();
 		}
-		if (monster.hitPoints < monster.maxHitPoints && monster.hitPoints >> 6 > 0) {
+		// Lasting Wounds and Deep Wounds (RfA-12) close the wound to regeneration.
+		if (monster.hitPoints < monster.maxHitPoints && monster.hitPoints >> 6 > 0 && !oracool::MonsterRegenBlocked(monster)) {
 			if (monster.level(sgGameInitInfo.nDifficulty) > 1) {
 				monster.hitPoints += monster.level(sgGameInitInfo.nDifficulty) / 2;
 			} else {
@@ -4480,7 +4490,8 @@ void ProcessMonsters()
 			monster.hitPoints = std::min(monster.hitPoints, monster.maxHitPoints); // prevent going over max HP with part of a single regen tick
 		}
 
-		if (IsTileVisible(monster.position.tile) && monster.activeForTicks == 0) {
+		// Nocturne and Soft Tread (RfA-12): in sight is not yet noticed.
+		if (IsTileVisible(monster.position.tile) && monster.activeForTicks == 0 && oracool::MonsterMayNotice(monster)) {
 			if (monster.type().type == MT_CLEAVER) {
 				PlaySFX(USFX_CLEAVER);
 			}
@@ -4508,7 +4519,7 @@ void ProcessMonsters()
 			assert(monster.enemy >= 0 && monster.enemy < MAX_PLRS);
 			Player &player = Players[monster.enemy];
 			monster.enemyPosition = player.position.future;
-			if (IsTileVisible(monster.position.tile)) {
+			if (IsTileVisible(monster.position.tile) && (monster.activeForTicks != 0 || oracool::MonsterMayNotice(monster))) {
 				monster.activeForTicks = UINT8_MAX;
 				monster.position.last = player.position.future;
 			} else if (monster.activeForTicks != 0 && monster.type().type != MT_DIABLO) {

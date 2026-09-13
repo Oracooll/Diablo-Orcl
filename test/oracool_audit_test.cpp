@@ -120,6 +120,7 @@
 #include "oracool/ornate_border.h"
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
+#include "oracool/rfa12_effects.h"
 #include "oracool/spell_descriptions.h"
 #include "oracool/warcries.h"
 #include "oracool/telemetry.h"
@@ -12618,4 +12619,157 @@ TEST(OracoolAudit, EveryClassTreeStripHasAFrameForEveryOneOfItsSkills)
 		    << " skills with art but only " << frames << " strip frames; the skills past the end draw "
 		    << "a bare plate and nothing reports it. A truncating strip rebuild is the way this happens.";
 	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// RfA-12 (2026-09-13): the 162 skills that filled every empty cell of the three class pages.
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+
+/** @brief The first RfA-12 row of @p heroClass. The block was appended, so every row from it on is new. */
+oracool::ClassTreeSkill FirstRfa12Skill(HeroClass heroClass)
+{
+	switch (heroClass) {
+	case HeroClass::Warrior:
+		return oracool::ClassTreeSkill::VotiveStrike;
+	case HeroClass::Barbarian:
+		return oracool::ClassTreeSkill::Cleave;
+	case HeroClass::Sorcerer:
+		return oracool::ClassTreeSkill::ChillTouch;
+	case HeroClass::Rogue:
+		return oracool::ClassTreeSkill::BarbedShaft;
+	case HeroClass::Bard:
+		return oracool::ClassTreeSkill::MinstrelsTune;
+	default:
+		return oracool::ClassTreeSkill::StaffParry;
+	}
+}
+
+bool IsRfa12Row(oracool::ClassTreeSkill skill)
+{
+	const HeroClass heroClass = oracool::GetClassTreeSkillData(skill).heroClass;
+	return oracool::ClassTreeIconIndex(skill) >= oracool::ClassTreeIconIndex(FirstRfa12Skill(heroClass));
+}
+
+} // namespace
+
+// The block's shape: 162 rows, each on a page, none with a spell slot yet, and exactly the 48 that need
+// no slot built. A built row has dropped its "Not yet built." sentence and an unbuilt one keeps it, so a
+// row cannot claim one thing and do another.
+TEST(OracoolRfa12, AllOneHundredSixtyTwoAreOnTheirPagesAndTheFortyEightWithoutASpellAreBuilt)
+{
+	size_t rows = 0;
+	size_t builtRules = 0;
+	size_t builtActives = 0;
+	for (size_t i = 0; i < oracool::ClassTreeSkillCount; i++) {
+		const auto skill = static_cast<oracool::ClassTreeSkill>(i);
+		if (!IsRfa12Row(skill))
+			continue;
+		rows++;
+		const oracool::ClassTreeSkillData &data = oracool::GetClassTreeSkillData(skill);
+		EXPECT_NE(data.page, oracool::RetiredFromTreePage) << data.name;
+		EXPECT_LT(data.page, oracool::PassiveSkillsPage) << data.name << " belongs on a class page";
+		EXPECT_EQ(data.spellId, SpellID::Invalid) << data.name;
+		const bool placeholder = std::string(data.description).find("Not yet built") != std::string::npos;
+		EXPECT_NE(data.implemented, placeholder) << data.name << " says one thing and does another";
+		if (!data.implemented)
+			continue;
+		if (data.kind == oracool::ClassTreeKind::Active)
+			builtActives++;
+		else
+			builtRules++;
+	}
+	EXPECT_EQ(rows, 162u);
+	EXPECT_EQ(builtRules, 48u) << "the 16 auras, 11 songs and 21 passives";
+	EXPECT_EQ(builtActives, 0u) << "an active needs its spell slot first";
+}
+
+// An aura's sheet number and its level-up stat burn with it and go out with it.
+TEST(OracoolRfa12, ResistMagicGrantsItsResistanceAndItsLevelUpStatOnlyWhileLit)
+{
+	devilution::Player &player = FreshHero(HeroClass::Warrior);
+	for (int i = 0; i < 3; i++)
+		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::ResistMagic));
+
+	oracool::ItemBonusTotals unlit;
+	oracool::ApplyClassTreeToTotals(player, unlit);
+	EXPECT_EQ(unlit.magicResist, 0);
+	EXPECT_EQ(unlit.hitPoints, 0);
+
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::ResistMagic));
+	oracool::ItemBonusTotals lit;
+	oracool::ApplyClassTreeToTotals(player, lit);
+	EXPECT_EQ(lit.magicResist, 15 + 4 * 2);
+	EXPECT_EQ(lit.hitPoints, (8 + 3 * 2) << 6) << "Life +8, +3 a rank, in the 1/64 units life is kept in";
+}
+
+// A passive's level-up stat comes with its points, beside its own number.
+TEST(OracoolRfa12, SwiftnessGrantsItsSpeedAndItsDexterityWithItsPoints)
+{
+	devilution::Player &player = FreshHero(HeroClass::Rogue);
+	for (int i = 0; i < 2; i++)
+		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Swiftness));
+	oracool::ItemBonusTotals totals;
+	oracool::ApplyClassTreeToTotals(player, totals);
+	EXPECT_EQ(totals.moveSpeed, 5 + 1);
+	EXPECT_EQ(totals.dexterity, 2 + 1);
+}
+
+TEST(OracoolRfa12, ImmovableHoldsItsGroundOnlyWhileItBurns)
+{
+	devilution::Player &player = FreshHero(HeroClass::Warrior);
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Immovable));
+	EXPECT_FALSE(oracool::PlayerIgnoresKnockback(player));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Immovable));
+	EXPECT_TRUE(oracool::PlayerIgnoresKnockback(player));
+}
+
+TEST(OracoolRfa12, MercyHealsOnceBelowThirtyPercentAndThenWaits)
+{
+	oracool::ClearRfa12State();
+	devilution::Player &player = FreshHero(HeroClass::Warrior);
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Mercy));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Mercy));
+
+	player._pHitPoints = player._pHPBase = 50 << 6;
+	oracool::OnRfa12PlayerDamaged(player);
+	EXPECT_EQ(player._pHitPoints, 50 << 6) << "half life is not low enough to be answered";
+
+	player._pHitPoints = player._pHPBase = 20 << 6;
+	oracool::OnRfa12PlayerDamaged(player);
+	// Of the life as it stands - which Mercy's own level-up stat (+10 life) has already raised.
+	EXPECT_EQ(player._pHitPoints, (20 << 6) + player._pMaxHP * 20 / 100);
+
+	player._pHitPoints = player._pHPBase = 20 << 6;
+	oracool::OnRfa12PlayerDamaged(player);
+	EXPECT_EQ(player._pHitPoints, 20 << 6) << "the second call is inside the twenty-second wait";
+	oracool::ClearRfa12State();
+}
+
+TEST(OracoolRfa12, EnduranceIsAShareOfTheBaseLife)
+{
+	devilution::Player &player = FreshHero(HeroClass::Warrior);
+	for (int i = 0; i < 2; i++)
+		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::Endurance));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::Endurance));
+	oracool::ItemBonusTotals totals;
+	oracool::ApplyClassTreeToTotals(player, totals);
+	EXPECT_EQ(totals.hitPoints, player._pMaxHPBase * 12 / 100) << "10%, +2% a rank";
+	EXPECT_EQ(totals.vitality, 3 + 1) << "and its level-up stat";
+}
+
+// One song plays at a time, so the medley is the one that lends the others: half their ranks, rounded up.
+TEST(OracoolRfa12, SymphonyOfWarLendsHalfOfEveryOtherMelodySong)
+{
+	devilution::Player &player = FreshHero(HeroClass::Bard);
+	for (int i = 0; i < 4; i++)
+		ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::HuntersChant));
+	ASSERT_TRUE(oracool::InvestClassTreePoint(player, oracool::ClassTreeSkill::SymphonyOfWar));
+	ASSERT_TRUE(oracool::ToggleClassAura(player, oracool::ClassTreeSkill::SymphonyOfWar));
+	oracool::ItemBonusTotals totals;
+	oracool::ApplyClassTreeToTotals(player, totals);
+	EXPECT_EQ(totals.bonusToHit, 15 + 5 * 1) << "Hunter's Chant at 2 of its 4 ranks";
+	EXPECT_EQ(totals.magic, 4) << "Symphony's own level-up stat";
+	EXPECT_EQ(totals.dexterity, 0) << "an unlit song lends its number, not its level-up stat";
 }

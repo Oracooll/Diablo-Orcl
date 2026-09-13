@@ -16,6 +16,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
 #include "oracool/stat_sheet.h"
+#include "oracool/rfa12_effects.h"
 #include "player.h"
 #include "utils/language.h"
 #include <fmt/format.h>
@@ -521,7 +522,8 @@ int MonsterDebuffToHit(const Monster &monster)
 int EffectiveMonsterArmor(const Monster &monster)
 {
 	const int armor = PackAdjustedArmor(monster);
-	return armor + armor * MonsterDebuffArmorPercent(monster) / 100;
+	// Condemnation (RfA-12) strips a share on top of what a cry has.
+	return armor + armor * (MonsterDebuffArmorPercent(monster) - Rfa12MonsterArmorCutPercent(monster)) / 100;
 }
 
 void ProcessWarcriesTick(Player &player)

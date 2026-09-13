@@ -37,6 +37,7 @@
 #include "missiles.h"
 #include "options.h"
 #include "oracool/item_tiers.h"
+#include "oracool/rfa12_effects.h"
 #include "oracool/player_resistance.h"
 #include "oracool/area_level.h"
 #include "oracool/auto_save.h"
@@ -4443,6 +4444,10 @@ void CalcPlrItemVals(Player &player, bool loadgfx)
 		player._pBlockFlag = true;
 		holdsShield = true;
 	}
+
+	// Brace (RfA-12): a spear or pike held crosswise blocks, shield or no shield.
+	if (oracool::Rfa12GrantsBlock(player))
+		player._pBlockFlag = true;
 
 	PlayerWeaponGraphic animWeaponId = holdsShield ? PlayerWeaponGraphic::UnarmedShield : PlayerWeaponGraphic::Unarmed;
 	switch (weaponItemType) {

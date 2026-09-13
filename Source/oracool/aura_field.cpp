@@ -15,6 +15,7 @@
 #include "oracool/class_tree.h"
 #include "utils/language.h"
 #include "oracool/monster_difficulty.h"
+#include "oracool/rfa12_effects.h"
 #include "player.h"
 
 namespace devilution::oracool {
@@ -196,7 +197,7 @@ bool AuraReachesMonsters(Skill aura)
 	case Skill::Weaken:
 		return true;
 	default:
-		return false;
+		return Rfa12AuraReachesMonsters(aura);
 	}
 }
 
@@ -234,7 +235,7 @@ std::string AuraFieldFactsAt(Skill aura, int points)
 	case Skill::Cleansing:
 		return fmt::format(fmt::runtime(_("Slows and chills on you wear off {:d}% sooner")), CleansingShortenPercentAt(p));
 	default:
-		return {};
+		return Rfa12AuraFactsAt(aura, points);
 	}
 }
 

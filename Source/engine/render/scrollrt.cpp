@@ -37,6 +37,7 @@
 #include "nthread.h"
 #include "options.h"
 #include "oracool/attack_skills.h"
+#include "oracool/rfa12_effects.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
 #include "oracool/item_tint.h"
@@ -951,7 +952,8 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	}
 
 	const Point monsterRenderPosition { targetBufferPosition + offset - Displacement { CalculateWidth2(sprite.width()), 0 } };
-	const bool tileLit = IsTileLit(tilePosition) || MyPlayer->_pInfraFlag;
+	// Scent of Blood (RfA-12): a monster the Rogue wounded stays drawn a moment after it leaves the light.
+	const bool tileLit = IsTileLit(tilePosition) || MyPlayer->_pInfraFlag || oracool::MonsterScented(monster);
 	// Oracool: user request - the same red outline normally shown only for the hovered monster
 	// (pcursmonst) also applies to any monster within the configured range, so nearby threats
 	// stand out even before the cursor finds them. 0 (OFF) never triggers this extra check.
