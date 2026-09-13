@@ -44,7 +44,9 @@ foreach ($e in $manifest) { $byKey[("{0}|{1}|{2}" -f $e.class, $e.page, $e.name)
 # threw before writing a single strip. Nobody noticed because nobody had reason to re-run it until
 # batch-26 arrived, and the strips on disk were already built from when batch-13 was in the right
 # place. Found by the 2026-09-12 asset sweep; batch-13 restored and batch-26 filed beside it.
-$extraPacks = @('batch-13-skill-glyphs', 'batch-26-sorceress-glyphs')
+# batch-31 (2026-09-13): the RfA-12 skills' glyphs, RfA-13. Its shadows are corrected to the house offset by
+# tools\FixBatch31GlyphShadows.ps1 first - run that before this whenever the pack changes.
+$extraPacks = @('batch-13-skill-glyphs', 'batch-26-sorceress-glyphs', 'batch-31-new-skill-glyphs')
 foreach ($extra in $extraPacks) {
   $extraRoot = Join-Path (Split-Path -Parent $pack) $extra
   $extraManifest = Get-Content (Join-Path $extraRoot 'manifest.json') -Raw | ConvertFrom-Json

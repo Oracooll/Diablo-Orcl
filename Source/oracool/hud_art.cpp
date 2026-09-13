@@ -2020,7 +2020,21 @@ bool StripHasFrame(ArtAsset &strip, int skillIndex)
 	EnsureLoadedAll();
 	if (strip.rgba.empty() || strip.height <= 0)
 		return false;
-	return skillIndex >= 0 && skillIndex < strip.width / strip.height;
+	const int cell = strip.height;
+	if (skillIndex < 0 || skillIndex >= strip.width / cell)
+		return false;
+	// A frame the strip reserves but nothing was stamped into is no frame either. BuildGlyphStrips sizes a
+	// strip for every row of its class, so a class whose glyphs have not all arrived (batch 31 came in
+	// class by class) gets transparent frames for the rest - and those keep their letters rather than
+	// drawing a blank plate.
+	for (int y = 0; y < strip.height; y++) {
+		for (int x = 0; x < cell; x++) {
+			const size_t px = (static_cast<size_t>(y) * static_cast<size_t>(strip.width) + static_cast<size_t>(skillIndex * cell + x)) * 4;
+			if (px + 3 < strip.rgba.size() && strip.rgba[px + 3] != 0)
+				return true;
+		}
+	}
+	return false;
 }
 
 /** @brief The placeholder letters for a skill with no icon: the first letter of its first two words, skipping "of", "the" and "and"; a one-word name gives its first two letters. */
