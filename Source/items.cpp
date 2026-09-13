@@ -2259,6 +2259,13 @@ _unique_items CheckUnique(Item &item, int lvl, int uper, bool recreate, bool all
 	}
 	if (GenerateRnd(100) > uniqueRollUpperBound)
 		return UITEM_INVALID;
+	// TEN TIMES rarer on a fresh drop (user, 2026-09-13: "decrease drop chance of uniques and set item
+	// 10 fold"). One ticket in ten survives, decided by a HASH of the seed rather than a draw: the draw
+	// above is replayed from the seed by RecreateItem and pinned by pack_test's reference items, so a
+	// wider range or an extra draw would rebuild other items from those seeds. Fresh generation only,
+	// the same trade the percent knob above makes - a recreated item keeps its original verdict.
+	if (allowTieredRoll && oracool::IsSinglePlayer() && ((item._iSeed * 2654435761U) >> 16) % 10 != 0)
+		return UITEM_INVALID;
 
 	int numu = 0;
 	for (int j = 0; UniqueItems[j].UIItemId != UITYPE_INVALID; j++) {
@@ -5940,7 +5947,9 @@ void TrySpawnNamedSetPiece(const Monster &monster, bool sendmsg)
 	const oracool::TreasureClass &tc = oracool::CurrentTreasureClass();
 	const int namedSetPercent = std::min(
 	    oracool::ScaleRateForDifficulty(tc.setPercent) * oracool::TreasureBonusFor(monster), 100);
-	if (namedSetPercent <= 0 || GenerateRnd(100) >= namedSetPercent)
+	// Drawn out of 1000, not 100: the table's percent is read as PER MILLE, ten times rarer (user,
+	// 2026-09-13: "decrease drop chance of uniques and set item 10 fold") - 0.3% to 0.5% a kill.
+	if (namedSetPercent <= 0 || GenerateRnd(1000) >= namedSetPercent)
 		return;
 	if (ActiveItemCount >= MAXITEMS)
 		return;
@@ -6081,12 +6090,19 @@ void TrySpawnOracoolGem(const Monster &monster, bool sendmsg)
 			// appended after it, which is exactly how the salvage charms would have shipped
 			// unobtainable as drops. The qlvl gate below is what keeps the deep tiers deep.
 			for (int i = IDI_ORACOOL_CHARM_VIGOR; i <= IDI_LAST; i++) {
-				if (!IsOracoolCharmIdx(i))
+				// The Charms of Salvaging are SHOP ONLY (user, 2026-09-13: "make charms of salvaging
+				// non-dropable, only purchcasable") - Griswold and Adria stock them.
+				if (!IsOracoolCharmIdx(i) || IsOracoolSalvageCharmIdx(i))
 					continue;
 				if (oracool::BandedQlvl(AllItemsList[i].iMinMLvl) <= mlvl)
 					candidates[candidateCount++] = static_cast<_item_indexes>(i);
 			}
 		} else if (family == oracool::SocketableFamily::Rune) {
+			// Runes TEN TIMES rarer (user, 2026-09-13). A second roll on the rune share alone rather
+			// than a smaller rune weight: shrinking the weight would hand its share to gems, jewels,
+			// charms and orbs, and only the runes were asked to change.
+			if (GenerateRnd(10) != 0)
+				return;
 			for (size_t rung = 0; rung < oracool::RuneLadderSize(); rung++) {
 				const uint16_t rune = oracool::RuneAtLadderPosition(rung);
 				if (oracool::BandedQlvl(AllItemsList[rune].iMinMLvl) <= mlvl)

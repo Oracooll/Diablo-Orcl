@@ -240,10 +240,13 @@ constexpr RgbDefinedColor RgbDefinedColors[] = {
 	    { 0xFE2424, 0xFE2424, 0xF00000, 0xF00000, 0xBD0000, 0xBD0000, 0x910000, 0x910000, 0x5A0000, 0x5A0000, 0x230000, 0x230000, 0x230000, 0x230000, 0x230000, 0x230000 } }, // was fonts\\oracool_brightred3.trn
 	{ ColorBrightBlue3,
 	    { 0x2424FE, 0x2424FE, 0x0101EF, 0x0101EF, 0x0000BD, 0x0000BD, 0x00008A, 0x00008A, 0x000057, 0x000057, 0x000019, 0x000019, 0x000019, 0x000019, 0x000019, 0x000019 } }, // was fonts\\oracool_brightblue3.trn
+	// Books and runes two shades brighter (user, 2026-09-13: "increase font brightness on books and
+	// runes"): each band now starts two steps higher up its own ramp - gold from DDC47E, orange from
+	// E7B37E - so the hue is the same and the glyph bodies are lighter. The names keep their legend ids.
 	{ ColorGold6,
-	    { 0xCCB775, 0xBCA86C, 0xAB9A63, 0x988B5D, 0x877E54, 0x786F49, 0x69603F, 0x5B5134, 0x484027, 0x39311D, 0x312816, 0x1A1408, 0x140B00, 0x140B00, 0x140B00, 0x140B00 } }, // was fonts\\oracool_gold6.trn
+	    { 0xDDC47E, 0xCCB775, 0xBCA86C, 0xAB9A63, 0x988B5D, 0x877E54, 0x786F49, 0x69603F, 0x5B5134, 0x484027, 0x39311D, 0x312816, 0x1A1408, 0x140B00, 0x140B00, 0x140B00 } }, // was fonts\\oracool_gold6.trn, brightened
 	{ ColorOrange7,
-	    { 0xD08C62, 0xC77B52, 0xCC6133, 0xC74B1F, 0xB1431B, 0x9B3B18, 0x853213, 0x6F2910, 0x5A220C, 0x3F1708, 0x250E03, 0x0F0500, 0x0F0500, 0x0F0500, 0x0F0500, 0x0F0500 } }, // was fonts\\oracool_orange7.trn
+	    { 0xE7B37E, 0xDC9F70, 0xD08C62, 0xC77B52, 0xCC6133, 0xC74B1F, 0xB1431B, 0x9B3B18, 0x853213, 0x6F2910, 0x5A220C, 0x3F1708, 0x250E03, 0x0F0500, 0x0F0500, 0x0F0500 } }, // was fonts\\oracool_orange7.trn, brightened
 	// Magic damage (user, 2026-09-11: "let's make Magic DMG font color RGB:104,49,49", then "way too dark
 	// make it brighter"). 104,49,49 at the TOP of the ramp left the glyph bodies, drawn from the middle
 	// shades, near brown. Now the same hue at twice the value, 208,98,98, held flat across the top three

@@ -201,8 +201,14 @@ int QualityChancePerMille(OracoolItemTier quality, int itemLevel, int configured
 		return 0;
 	}
 
+	// Rares FIVE TIMES as often (user, 2026-09-13: "increase drop chance of rares 5 fold"). A factor
+	// here rather than a new option default, because a saved diablo.ini keeps the old value.
+	static constexpr int RareDropFactor = 5;
+	if (quality == OracoolItemTier::Rare)
+		scale *= RareDropFactor;
+
 	// configured% x scale% -> per mille: (c/100) * (s/100) * 1000 = c * s / 10.
-	return configuredPercent * scale / 10;
+	return std::min(configuredPercent * scale / 10, 1000);
 }
 
 int VendorItemLevel(int vendorLevel)

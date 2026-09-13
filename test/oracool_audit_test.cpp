@@ -5545,6 +5545,24 @@ TEST(OracoolAudit, NoDroppableItemTumblesAsLeatherUnlessItIsLightArmour)
 }
 
 /**
+ * Rares five times as often (user, 2026-09-13: "increase drop chance of rares 5 fold").
+ *
+ * A factor inside QualityChancePerMille rather than a new option default, because a saved diablo.ini
+ * keeps the old number - so it is pinned against the configured value, not the default.
+ */
+TEST(OracoolAudit, RaresRollFiveTimesAsOftenAndCapAtCertainty)
+{
+	using namespace devilution::oracool;
+	// ilvl 1 is the Normal band: 10% of the configured chance, times five.
+	EXPECT_EQ(QualityChancePerMille(OracoolItemTier::Rare, 1, 6), 30) << "6% configured at ilvl 1 was 6 per mille; five times is 30";
+	// Only the rares moved.
+	EXPECT_EQ(QualityChancePerMille(OracoolItemTier::BuffedUnique, 1, 6), 6);
+	EXPECT_EQ(QualityChancePerMille(OracoolItemTier::Primal, 1, 6), 0);
+	// A high setting cannot ask GenerateRnd(1000) for more than certainty.
+	EXPECT_LE(QualityChancePerMille(OracoolItemTier::Rare, 64, 100), 1000);
+}
+
+/**
  * The Sanctified Order: one title per hardest difficulty Diablo has fallen on.
  *
  * User, 2026-09-13: "go with Sanctified Order, but switch wanderer with adventurer, and exalted with
