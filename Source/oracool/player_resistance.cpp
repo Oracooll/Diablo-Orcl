@@ -17,8 +17,10 @@ int ApplyResistanceCurve(int raw, _difficulty difficulty)
 {
 	// Penetration first, against the raw total. See the header on why the order is the design.
 	int value = raw - ResistancePenaltyFor(difficulty);
+	// NEGATIVE allowed, as in D2 (user, 2026-09-13: "allow resists to go below 0 if hero lacks resist
+	// affixes") - a hero without resistance gear on a harder difficulty takes MORE elemental damage.
 	if (value <= ResistanceSoftCap)
-		return std::max(value, 0);
+		return std::max(value, ResistanceFloor);
 
 	// Past the soft cap, integer division truncates - which is the right way for it to fall. A
 	// player who is two points into a three-for-one band has bought nothing yet, and rounding up

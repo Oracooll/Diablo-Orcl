@@ -461,6 +461,11 @@ bool Plr2PlrMHit(const Player &player, int p, int mindam, int maxdam, int dist, 
 	}
 	if (!missileData.isArrow())
 		dam /= 2;
+	// A NEGATIVE resistance amplifies the hit (D2 rules, 2026-09-13), then falls through to the ordinary
+	// block-or-hit below - the resisted branch is a soft landing with no hit recovery and no block roll.
+	if (resper < 0)
+		dam -= (dam * resper) / 100;
+
 	if (resper > 0) {
 		dam -= (dam * resper) / 100;
 		if (&player == MyPlayer)
@@ -1268,6 +1273,13 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 	// through here, so whatever casts cold at players from now on slows them without another line.
 	if (damageType == DamageType::Cold)
 		oracool::SlowPlayer(player, 3 * 20, 25);
+
+	// A NEGATIVE resistance amplifies the hit (D2 rules, 2026-09-13) - a hero with no resistance gear on
+	// Torment stands at -90 and takes 190%. Applied HERE and then left to the ordinary hit below, not
+	// folded into the resisted branch: that branch is a soft landing (ArghClang, no hit recovery), and a
+	// hero with negative resistance must still be staggered by the harder blow.
+	if (resper < 0)
+		dam -= dam * resper / 100;
 
 	if (resper > 0) {
 		dam -= dam * resper / 100;

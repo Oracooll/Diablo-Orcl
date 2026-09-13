@@ -4678,17 +4678,42 @@ TEST(OracoolAudit2, SetBonusesAccumulateAndNeverRegress)
 // and a test that restates them would just have to be edited alongside.
 // ---------------------------------------------------------------------------------------------
 
-TEST(OracoolAudit, ResistanceNeverExceedsTheHardCapNorFallsBelowZero)
+TEST(OracoolAudit, ResistanceStaysBetweenTheFloorAndTheHardCap)
 {
 	// The bound the int8_t fields and every reader downstream rely on. Exhaustive over a raw range
-	// far wider than any gear could produce, on every difficulty.
+	// far wider than any gear could produce, on every difficulty. The floor is -100 since v1.11.127.
 	for (int difficulty = DIFF_NORMAL; difficulty <= DIFF_TORMENT; difficulty++) {
 		for (int raw = -200; raw <= 400; raw++) {
 			const int out = oracool::ApplyResistanceCurve(raw, static_cast<_difficulty>(difficulty));
-			ASSERT_GE(out, 0) << "raw " << raw << " on difficulty " << difficulty;
+			ASSERT_GE(out, oracool::ResistanceFloor) << "raw " << raw << " on difficulty " << difficulty;
 			ASSERT_LE(out, oracool::ResistanceHardCap) << "raw " << raw << " on difficulty " << difficulty;
+			ASSERT_GE(out, INT8_MIN) << "the value no longer fits the int8_t field";
 		}
 	}
+}
+
+/**
+ * Resistance goes below zero, as in D2.
+ *
+ * User, 2026-09-13: "just like in D2 allow resists to go below 0 if hero lacks resist affixes". A hero
+ * with no resistance gear stands at exactly minus the difficulty's penalty, which amplifies the hit.
+ */
+TEST(OracoolAudit, AHeroWithoutResistanceGearGoesNegativeOnHarderDifficulties)
+{
+	EXPECT_EQ(oracool::ApplyResistanceCurve(0, DIFF_NORMAL), 0) << "Normal takes nothing off";
+	for (int difficulty = DIFF_NIGHTMARE; difficulty <= DIFF_TORMENT; difficulty++) {
+		const auto d = static_cast<_difficulty>(difficulty);
+		EXPECT_EQ(oracool::ApplyResistanceCurve(0, d), -oracool::ResistancePenaltyFor(d))
+		    << "difficulty " << difficulty << " floored an unprotected hero at something other than its penalty";
+	}
+	// Partial gear still leaves a Torment hero below zero: 40 raw against a 90 penalty.
+	EXPECT_EQ(oracool::ApplyResistanceCurve(40, DIFF_TORMENT), -50);
+	// And the damage rule the missile code applies: -90 resistance turns 100 into 190.
+	constexpr int Damage = 100;
+	const int resper = oracool::ApplyResistanceCurve(0, DIFF_TORMENT);
+	EXPECT_EQ(Damage - Damage * resper / 100, 190);
+	// D2's floor holds however deep the hole.
+	EXPECT_EQ(oracool::ApplyResistanceCurve(-500, DIFF_TORMENT), oracool::ResistanceFloor);
 }
 
 TEST(OracoolAudit, ResistanceIsMonotonicSoMoreGearIsNeverWorse)
@@ -4697,7 +4722,8 @@ TEST(OracoolAudit, ResistanceIsMonotonicSoMoreGearIsNeverWorse)
 	// number on the character sheet. Integer division past the soft cap is where that could go
 	// wrong if the curve were ever rewritten with rounding.
 	for (int difficulty = DIFF_NORMAL; difficulty <= DIFF_TORMENT; difficulty++) {
-		int previous = -1;
+		// Seeded at the floor, not at -1: resistance goes negative since v1.11.127.
+		int previous = oracool::ResistanceFloor;
 		for (int raw = -200; raw <= 400; raw++) {
 			const int out = oracool::ApplyResistanceCurve(raw, static_cast<_difficulty>(difficulty));
 			ASSERT_GE(out, previous) << "resistance FELL going from raw " << (raw - 1) << " to " << raw

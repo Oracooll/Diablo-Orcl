@@ -19,26 +19,27 @@
  *      This is what makes gear matter: on Hell a character needs +60 just to stand where a Normal
  *      character stands for free. Applying it after the cap instead would make the penalty a flat
  *      tax that no amount of gear could answer, which is the opposite of the intent.
- *   2. **Floor at zero.** See below - this is a deliberate departure.
+ *   2. **Floor at -100.** Resistance can go NEGATIVE, as in D2 - see below.
  *   3. **The soft cap.** Up to 75 a point of resistance is a point. Past it each point counts for
  *      1/`SoftCapDivisor`, up to a hard ceiling of 90. Reaching 90 therefore costs 75 + 45 = 120 raw
  *      points on Normal, and 180 on Hell.
  *
- * ## Why the floor stays at zero
+ * ## Negative resistance (since v1.11.127)
  *
- * D2, which this borrows from, lets resistances go NEGATIVE, so an unprepared character on Hell takes
- * amplified elemental damage. That works mechanically here too - `resper` is applied as
- * `damage - damage * resper / 100` in missiles.cpp, so a negative value amplifies with no further
- * change. It is not done, because it is a much larger balance swing than the one being asked for:
- * every character who has not built for resistance becomes glass on Nightmare, including on the way
- * there. The stated goal is "resistance gear matters at endgame", and the penetration alone delivers
- * that. Removing the floor is a one-line change in ApplyResistanceCurve if it is ever wanted.
+ * Until 2026-09-13 the value floored at zero, on the argument that negative resistance was a larger
+ * balance swing than asked for. The user asked for it: "just like in D2 allow resists to go below 0 if
+ * hero lacks resist affixes". So a hero with no resistance on Torment stands at -90 and takes 190% of
+ * every fire, lightning and magic hit; on Nightmare, -30 and 130%.
+ *
+ * `resper` is applied as `damage - damage * resper / 100`, so a negative value amplifies by itself -
+ * but the three sites that apply it (two in missiles.cpp, the burning cross in objects.cpp) only did so
+ * for `resper > 0`, and now test `!= 0`. The floor is D2's own -100: double damage at worst.
  *
  * ## Save format
  *
- * Untouched, and this is not luck. The three fields are `int8_t` and hold only the FINAL value, which
- * this bounds to [0, 90]; the raw total has always been a local `int` inside CalcPlrItemVals. Old
- * characters load and are simply recomputed, as they are on every equipment change anyway.
+ * Untouched. The three fields are `int8_t` and hold only the FINAL value, which this bounds to
+ * [-100, 90], inside the type; the raw total has always been a local `int` inside CalcPlrItemVals.
+ * Old characters load and are simply recomputed, as they are on every equipment change anyway.
  */
 #pragma once
 
@@ -52,6 +53,9 @@ constexpr int ResistanceSoftCap = MaxResistance;
 
 /** @brief The ceiling no amount of gear passes. */
 constexpr int ResistanceHardCap = 90;
+
+/** @brief The lowest a resistance can fall: D2's -100, which doubles an elemental hit. */
+constexpr int ResistanceFloor = -100;
 
 /** @brief Points of raw resistance per point earned above the soft cap. */
 constexpr int ResistanceSoftCapDivisor = 3;
@@ -72,7 +76,8 @@ DVL_API_FOR_TEST int ResistancePenaltyFor(_difficulty difficulty);
  * @brief Turns a raw resistance total into the value stored on the player.
  *
  * @param raw the summed total from items, class bonuses and spell flags - unbounded.
- * @return a value in [0, ResistanceHardCap].
+ * @return a value in [ResistanceFloor, ResistanceHardCap] - negative when the difficulty's penalty
+ * exceeds what the hero wears.
  */
 DVL_API_FOR_TEST int ApplyResistanceCurve(int raw, _difficulty difficulty);
 

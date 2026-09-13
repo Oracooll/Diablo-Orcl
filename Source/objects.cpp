@@ -1825,7 +1825,8 @@ void UpdateBurningCrossDamage(Object &cross)
 		return;
 
 	int8_t fireResist = myPlayer._pFireResist;
-	if (fireResist > 0)
+	// Negative fire resistance burns hotter (D2 rules, 2026-09-13).
+	if (fireResist != 0)
 		damage[leveltype - 1] -= fireResist * damage[leveltype - 1] / 100;
 
 	if (myPlayer.position.tile != cross.position + Displacement { 0, -1 })

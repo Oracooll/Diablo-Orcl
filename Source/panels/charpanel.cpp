@@ -382,10 +382,8 @@ StyledText GetResistInfo(int8_t resist)
 	UiFlags style = UiFlags::ColorBlue;
 	if (resist == 0)
 		style = UiFlags::ColorWhite;
-	// Unreachable as things stand - ApplyResistanceCurve floors at zero - and kept deliberately.
-	// player_resistance.h records removing that floor as a one-line change if negative resistance is
-	// ever wanted, and this is the branch that would have to come back with it. Deleting it would
-	// make that one-line change a two-file change for no gain. (Audit, 2026-08-19.)
+	// Live since v1.11.127: resistance goes negative, D2-style, when the difficulty's penalty exceeds
+	// the hero's gear - red, because that school now takes MORE than full damage.
 	else if (resist < 0)
 		style = UiFlags::ColorRed;
 	// Oracool: gold means "there is nothing left to buy", so it marks the HARD cap, not the soft
