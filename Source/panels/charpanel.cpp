@@ -21,6 +21,7 @@
 #include "oracool/paladin_skills.h" // a melee class skill swings the weapon, so it reads as weapon damage
 #include "oracool/player_resistance.h"
 #include "oracool/class_tree.h"
+#include "oracool/hero_title.h"
 #include "oracool/signets.h"
 #include "spells.h" // IsValidSpell
 #include "playerdat.hpp"
@@ -482,6 +483,10 @@ constexpr int CharRowGroupGap = 4;
 const CharRow CharRows[] = {
 	{ N_("Name"),
 	    []() { return StyledText { UiFlags::ColorWhite, InspectPlayer->_pName }; } },
+	// The Sanctified Order (user, 2026-09-13: "put the title in the hero stats screen between name and
+	// class row"). Earned by the hardest difficulty Diablo has fallen on - see oracool/hero_title.h.
+	{ N_("Title"),
+	    []() { return StyledText { oracool::HeroTitleColorFor(InspectPlayer->pDiabloKillLevel), std::string(_(oracool::HeroTitleFor(InspectPlayer->pDiabloKillLevel))) }; } },
 	{ N_("Class"),
 	    []() { return StyledText { UiFlags::ColorWhite, std::string(_(PlayersData[static_cast<std::size_t>(InspectPlayer->_pClass)].className)) }; } },
 

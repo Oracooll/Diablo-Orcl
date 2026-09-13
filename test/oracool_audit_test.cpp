@@ -106,6 +106,7 @@
 #include "oracool/rng_streams.h"
 #include "oracool/runewords.h"
 #include "oracool/salvage.h"
+#include "oracool/hero_title.h"
 #include "oracool/skill_points.h"
 #include "oracool/chill.h"
 #include "oracool/cold.h"
@@ -5313,6 +5314,36 @@ TEST(OracoolAudit, OracoolDropsTumbleAndReloadRepairsOnesThatDidNot)
 
 	Items[0].clear();
 	Items[1].clear();
+}
+
+/**
+ * The Sanctified Order: one title per hardest difficulty Diablo has fallen on.
+ *
+ * User, 2026-09-13: "go with Sanctified Order, but switch wanderer with adventurer, and exalted with
+ * Conqueror." Read from pDiabloKillLevel (0 no kill, then Normal..Torment), which is what monster.cpp
+ * raises on each kill and what the hero select screen receives as herorank.
+ */
+TEST(OracoolAudit, HeroTitlesFollowTheHardestDiabloKill)
+{
+	const struct {
+		uint8_t killLevel;
+		const char *title;
+		UiFlags colour;
+	} rungs[] = {
+		{ 0, "Adventurer", UiFlags::ColorWhite },
+		{ 1, "Slayer", UiFlags::ColorBlue },
+		{ 2, "Champion", UiFlags::ColorYellow3 },
+		{ 3, "Conqueror", UiFlags::ColorWhitegold },
+		{ 4, "Sanctified", UiFlags::ColorBeige2 },
+	};
+	for (const auto &rung : rungs) {
+		EXPECT_STREQ(oracool::HeroTitleFor(rung.killLevel), rung.title) << "kill level " << static_cast<int>(rung.killLevel);
+		EXPECT_EQ(oracool::HeroTitleColorFor(rung.killLevel), rung.colour) << rung.title;
+	}
+	// The kill level is 1 + the difficulty, so Torment is the last rung.
+	EXPECT_STREQ(oracool::HeroTitleFor(static_cast<uint8_t>(DIFF_TORMENT + 1)), "Sanctified");
+	// A saved byte past the ladder is still a hero who beat the hardest difficulty.
+	EXPECT_STREQ(oracool::HeroTitleFor(200), "Sanctified");
 }
 
 /**

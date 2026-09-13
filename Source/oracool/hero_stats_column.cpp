@@ -8,6 +8,7 @@
 #include "DiabloUI/hero/hero_layout.h"
 #include "DiabloUI/ui_flags.hpp"
 #include "engine/render/text_render.hpp"
+#include "oracool/hero_title.h"
 #include "playerdat.hpp"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
@@ -33,6 +34,8 @@ struct StatRow {
 	std::string value;
 	/** @brief Extra space above this row - non-zero on the first row of a group. */
 	int gapAbove;
+	/** @brief The value's colour. Gold for a number; the title wears its rung's own colour. */
+	UiFlags valueColor = UiFlags::ColorUiGold;
 };
 
 /**
@@ -50,6 +53,8 @@ std::vector<StatRow> BuildRows(const _uiheroinfo &hero)
 	    : "";
 
 	std::vector<StatRow> rows;
+	// The title first, above the class, as on the hero stats screen - herorank is pDiabloKillLevel.
+	rows.push_back({ std::string(_("Title")), std::string(_(HeroTitleFor(hero.herorank))), 0, HeroTitleColorFor(hero.herorank) });
 	rows.push_back({ std::string(_("Class")), std::string(_(className)), 0 });
 	rows.push_back({ std::string(_("Level")), StrCat(hero.level), 0 });
 
@@ -112,7 +117,7 @@ void DrawHeroStatsColumn(const Surface &out, Rectangle area, const _uiheroinfo &
 		DrawString(out, row.label, Rectangle { { labelX, y }, { width, RowHeight } },
 		    { UiFlags::ColorUiSilver | UiFlags::FontSize24 | UiFlags::VerticalCenter });
 		DrawString(out, row.value, Rectangle { { labelX, y }, { width, RowHeight } },
-		    { UiFlags::ColorUiGold | UiFlags::FontSize24 | UiFlags::AlignRight | UiFlags::VerticalCenter });
+		    { row.valueColor | UiFlags::FontSize24 | UiFlags::AlignRight | UiFlags::VerticalCenter });
 		y += RowHeight;
 	}
 }

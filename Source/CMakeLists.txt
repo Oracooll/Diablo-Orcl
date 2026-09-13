@@ -88,6 +88,7 @@ set(libdevilutionx_SRCS
   oracool/game_speed.cpp
   oracool/game_clock.cpp
   oracool/spell_timers.cpp
+  oracool/hero_title.cpp
   oracool/item_set_stats.cpp
   oracool/skill_sounds.cpp
   oracool/unique_affixes.cpp
