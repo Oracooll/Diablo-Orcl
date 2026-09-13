@@ -12690,7 +12690,7 @@ TEST(OracoolRfa12, AllOneHundredSixtyTwoAreOnTheirPagesAndTheFortyEightWithoutAS
 	}
 	EXPECT_EQ(rows, 162u);
 	EXPECT_EQ(builtRules, 48u) << "the 16 auras, 11 songs and 21 passives";
-	EXPECT_EQ(builtActives, 0u) << "an active needs its spell slot first";
+	EXPECT_EQ(builtActives, 114u) << "every active is built on its spell id";
 }
 
 // An aura's sheet number and its level-up stat burn with it and go out with it.

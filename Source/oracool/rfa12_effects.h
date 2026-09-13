@@ -47,6 +47,8 @@ struct Monster;
 
 namespace devilution::oracool {
 
+struct ItemBonusTotals;
+
 /** @brief Net change to a blow @p player deals @p target, in percent. */
 int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool melee);
 
@@ -90,7 +92,10 @@ bool TitheTakesCorpse(const Monster &monster);
 void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee);
 
 /** @brief @p monster landed a melee blow on @p player. */
-void OnRfa12Struck(Player &player, const Monster &monster);
+void OnRfa12Struck(Player &player, Monster &monster);
+
+/** @brief @p monster's missile or spell landed on @p player for @p damage (1/64 units). Feedback. */
+void OnRfa12MissileStruck(Player &player, Monster &monster, int damage);
 
 /** @brief @p player just lost life and is still standing. */
 void OnRfa12PlayerDamaged(Player &player);
@@ -103,6 +108,36 @@ int Rfa12SlowShortenPercent(const Player &player);
 
 /** @brief One game tick of the clocks, pulses and regeneration. */
 void ProcessRfa12Tick(Player &player);
+
+/** @brief The damage @p player would take, after a ward drinks its share (1/64 units). Chord of Warding. */
+int Rfa12AbsorbDamage(Player &player, int damage);
+
+/** @brief Whether a melee blow that would land on @p player misses instead. Mantra of Evasion. */
+bool Rfa12EvadesMelee(const Player &player);
+
+/** @brief Whether @p monster's plain resistances are stripped right now. Satire. */
+bool Rfa12StripsResistances(const Monster &monster);
+
+/** @brief Whether @p player's arrow passes @p monster by. Hunter's Claim. */
+bool Rfa12ArrowIgnores(const Player &player, const Monster &monster);
+
+/** @brief The extra cold damage @p monster takes, in percent. Frostbite. */
+int Rfa12ColdDamagePercent(const Monster &monster);
+
+/** @brief The RfA-12 actives' sheet buffs - Iron Will, Conduit, Saga, Astral Projection - into the totals. */
+void ApplyRfa12BuffsToTotals(const Player &player, ItemBonusTotals &totals);
+
+/** @brief Deep Wounds' bleed, for any skill that makes a monster bleed: @p perSecond in 1/64 units. */
+void BleedMonster(const Monster &monster, int ticks, int perSecond);
+
+/** @brief Stops @p monster regenerating for @p ticks. Lasting Wounds, Bitter Couplet. */
+void BlockMonsterRegen(const Monster &monster, int ticks);
+
+/** @brief Keeps @p monster drawn out of the light for @p ticks. Scent of Blood, Sonnet of Sight. */
+void ScentMonster(const Monster &monster, int ticks);
+
+/** @brief @p monster leaves no corpse when it dies. Tithe of Ash, Votive Strike. */
+void TakeCorpseOf(const Monster &monster);
 
 /** @brief Forgets every clock and mark. Called where the chill table is cleared. */
 void ClearRfa12State();

@@ -16,6 +16,7 @@
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
 #include "oracool/stat_sheet.h"
+#include "oracool/rfa12_actives.h"
 #include "oracool/rfa12_effects.h"
 #include "player.h"
 #include "utils/language.h"
@@ -693,10 +694,14 @@ void AddWarcry(Missile &missile, AddMissileParameter &parameter)
 	Player &player = Players[missile._misource];
 	// Which cry: the spell the cast was launched with, which the player carries through the
 	// animation. One missile for all seventeen rather than seventeen missiles.
-	if (!CastWarcry(player, player.executedSpell.spellId, parameter.dst)) {
+	// ...and every cast RfA-12 active (2026-09-13), which rides the same missile - see rfa12_actives.h.
+	const SpellID spell = player.executedSpell.spellId;
+	if (!CastWarcry(player, spell, parameter.dst) && !CastRfa12Active(player, spell, parameter.dst)) {
 		parameter.spellFizzled = true;
 		return;
 	}
+	if (!IsWarcry(spell) && !Rfa12CastLeavesRing(spell))
+		return;
 	// The shockwave on the floor (2026-09-11) - it removes itself while warcry_ring.png is absent.
 	AddMissile(player.position.tile, player.position.tile, player._pdir, MissileID::WarcryRing,
 	    TARGET_MONSTERS, static_cast<int>(player.getId()), 0, 0);

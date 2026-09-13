@@ -15,6 +15,7 @@
 #include "monster.h"
 #include "oracool/aura_field.h"
 #include "oracool/chill.h"
+#include "oracool/rfa12_actives.h"
 #include "player.h"
 #include "utils/language.h"
 
@@ -257,7 +258,7 @@ int Rfa12DamageDealtPercent(const Player &player, const Monster &target, bool me
 		if (const int p = PointsIfOn(player, Skill::Deadeye); p > 0 && GenerateRnd(100) < 10)
 			percent += DeadeyePercent(p);
 	}
-	return percent;
+	return percent + Rfa12ActiveDamageDealtPercent(player, target, melee);
 }
 
 int Rfa12MonsterDamagePercent(const Monster &monster)
@@ -321,6 +322,8 @@ bool MonsterMayNotice(const Monster &monster)
 	if (MyPlayer == nullptr || !MyPlayer->isOnActiveLevel())
 		return true;
 	const Player &player = *MyPlayer;
+	if (Rfa12ActiveHidesPlayer(player))
+		return false; // Astral Projection
 	const int distance = monster.position.tile.WalkingDistance(player.position.tile);
 	if (PointsIfOn(player, Skill::Nocturne) > 0)
 		return distance <= std::max(2, player._pLightRad / 2);
@@ -377,6 +380,7 @@ void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee)
 	} else if (DeadGroundApplies(player, monster)) {
 		marks.deadGroundCooldown = DeadGroundCooldownTicks;
 	}
+	OnRfa12ActiveHit(player, monster, damage, melee);
 	if (const int p = PointsIfOn(player, Skill::SovereignMeasure); p > 0 && (monster.hitPoints >> 6) > 0
 	    && MonstersWithin(player.position.tile, 4) == 1) {
 		if (++clocks.sovereignCount >= 4) {
@@ -387,8 +391,9 @@ void OnRfa12Hit(Player &player, Monster &monster, int damage, bool melee)
 	}
 }
 
-void OnRfa12Struck(Player &player, const Monster &monster)
+void OnRfa12Struck(Player &player, Monster &monster)
 {
+	OnRfa12ActiveStruck(player, monster);
 	if (PointsIfOn(player, Skill::Retaliation) > 0) {
 		PlayerClocks &clocks = ClocksOf(player);
 		clocks.retaliationStacks = std::min(clocks.retaliationStacks + 1, 3);
@@ -408,6 +413,7 @@ void OnRfa12PlayerDamaged(Player &player)
 
 void OnRfa12MonsterKilled(Player &player, const Monster &monster)
 {
+	OnRfa12ActiveMonsterKilled(player, monster);
 	MonsterMarks &marks = MarksOf(monster);
 	if (const int p = AuraPointsReaching(monster, Skill::TitheOfAsh); p > 0 && &player == MyPlayer && !monster.isPlayerMinion()) {
 		RestoreMana(player, TitheMana(p) << 6);
@@ -428,6 +434,7 @@ int Rfa12SlowShortenPercent(const Player &player)
 
 void ProcessRfa12Tick(Player &player)
 {
+	ProcessRfa12ActivesTick(player);
 	if (&player != MyPlayer || player._pHitPoints <= 0 || player._pmode == PM_DEATH)
 		return;
 	PlayerClocks &clocks = ClocksOf(player);
@@ -519,12 +526,10 @@ void ProcessRfa12Tick(Player &player)
 			marks.struckTicks--;
 		if (marks.noRegenTicks > 0)
 			marks.noRegenTicks--;
-		if (marks.wounded) {
-			if (IsTileLit(monster.position.tile))
-				marks.scentTicks = ScentTicks;
-			else if (marks.scentTicks > 0)
-				marks.scentTicks--;
-		}
+		if (marks.wounded && IsTileLit(monster.position.tile))
+			marks.scentTicks = std::max(marks.scentTicks, ScentTicks);
+		else if (marks.scentTicks > 0)
+			marks.scentTicks--;
 		if (marks.bleedTicks > 0) {
 			marks.bleedTicks--;
 			if (marks.bleedTicks % TicksPerSecond == 0 && (monster.hitPoints >> 6) > 0) {
@@ -540,13 +545,74 @@ void ProcessRfa12Tick(Player &player)
 
 void ClearRfa12State()
 {
+	ClearRfa12ActivesState();
 	PlayerState.fill(PlayerClocks {});
 	MonsterState.fill(MonsterMarks {});
 }
 
 void ClearRfa12StateForMonster(const Monster &monster)
 {
+	ClearRfa12ActivesForMonster(monster);
 	MarksOf(monster) = MonsterMarks {};
+}
+
+void OnRfa12MissileStruck(Player &player, Monster &monster, int damage)
+{
+	OnRfa12ActiveMissileStruck(player, monster, damage);
+}
+
+int Rfa12AbsorbDamage(Player &player, int damage)
+{
+	return Rfa12ActiveAbsorbDamage(player, damage);
+}
+
+bool Rfa12EvadesMelee(const Player &player)
+{
+	return Rfa12ActiveEvadesMelee(player);
+}
+
+bool Rfa12StripsResistances(const Monster &monster)
+{
+	return Rfa12ActiveStripsResistances(monster);
+}
+
+bool Rfa12ArrowIgnores(const Player &player, const Monster &monster)
+{
+	return Rfa12ActiveArrowIgnores(player, monster);
+}
+
+int Rfa12ColdDamagePercent(const Monster &monster)
+{
+	return Rfa12FrostbitePercent(monster);
+}
+
+void ApplyRfa12BuffsToTotals(const Player &player, ItemBonusTotals &totals)
+{
+	ApplyRfa12ActiveBuffsToTotals(player, totals);
+}
+
+void BleedMonster(const Monster &monster, int ticks, int perSecond)
+{
+	MonsterMarks &marks = MarksOf(monster);
+	marks.bleedTicks = std::max(marks.bleedTicks, ticks);
+	marks.bleedDamage = std::max(marks.bleedDamage, perSecond);
+}
+
+void BlockMonsterRegen(const Monster &monster, int ticks)
+{
+	MonsterMarks &marks = MarksOf(monster);
+	marks.noRegenTicks = std::max(marks.noRegenTicks, ticks);
+}
+
+void ScentMonster(const Monster &monster, int ticks)
+{
+	MonsterMarks &marks = MarksOf(monster);
+	marks.scentTicks = std::max(marks.scentTicks, ticks);
+}
+
+void TakeCorpseOf(const Monster &monster)
+{
+	MarksOf(monster).tithe = true;
 }
 
 bool Rfa12AuraReachesMonsters(Skill aura)

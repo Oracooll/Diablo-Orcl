@@ -79,6 +79,7 @@ set(libdevilutionx_SRCS
   oracool/melee_skills.cpp
   oracool/passives.cpp
   oracool/rfa12_effects.cpp
+  oracool/rfa12_actives.cpp
   oracool/skill_facts.cpp
   oracool/book_frame.cpp
   oracool/warcries.cpp

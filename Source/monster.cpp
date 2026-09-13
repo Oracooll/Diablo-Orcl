@@ -1492,7 +1492,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	if (hper >= hit)
 		return;
 	// Oracool, Round 5: Dodge standing, Evade moving - a blow that would have landed slips instead.
-	if (oracool::PassiveEvadesMelee(player))
+	if (oracool::PassiveEvadesMelee(player) || oracool::Rfa12EvadesMelee(player))
 		return;
 	if (blkper < blk) {
 		Direction dir = GetDirection(player.position.tile, monster.position.tile);

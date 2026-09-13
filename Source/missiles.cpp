@@ -278,6 +278,9 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	int hper = 0;
 	const Player &player = Players[pnum];
 	const MissileData &missileData = GetMissileData(t);
+	// Hunter's Claim (RfA-12): her arrows pass by what is not the claimed one.
+	if (missileData.isArrow() && oracool::Rfa12ArrowIgnores(player, monster))
+		return false;
 	if (missileData.isArrow()) {
 		hper = player.GetRangedPiercingToHit();
 		hper -= player.CalculateArmorPierce(oracool::EffectiveMonsterArmor(monster), false);
@@ -336,7 +339,8 @@ bool MonsterMHit(int pnum, int monsterId, int mindam, int maxdam, int dist, Miss
 	}
 	// Oracool, Round 5: the passives that read the situation - Steady Aim, Power Hungry, Cull the
 	// Weak and the rest - on every missile a player lands.
-	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, false) + oracool::Rfa12DamageDealtPercent(player, monster, false)) / 100;
+	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, false) + oracool::Rfa12DamageDealtPercent(player, monster, false)
+	           + (damageType == DamageType::Cold ? oracool::Rfa12ColdDamagePercent(monster) : 0)) / 100;
 
 	if (&player == MyPlayer)
 		ApplyMonsterDamage(damageType, monster, dam);
@@ -1269,6 +1273,8 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 		dam -= dam * resper / 100;
 		if (&player == MyPlayer) {
 			ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
+			if (monster != nullptr)
+				oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
 		}
 
 		if (player._pHitPoints >> 6 > 0) {
@@ -1279,6 +1285,8 @@ bool PlayerMHit(int pnum, Monster *monster, int dist, int mind, int maxd, Missil
 
 	if (&player == MyPlayer) {
 		ApplyPlrDamage(damageType, player, 0, 0, dam, deathReason);
+		if (monster != nullptr)
+			oracool::OnRfa12MissileStruck(player, *monster, dam); // Feedback
 	}
 
 	if (player._pHitPoints >> 6 > 0) {

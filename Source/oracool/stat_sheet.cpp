@@ -1,4 +1,5 @@
 #include "oracool/stat_sheet.h"
+#include "oracool/rfa12_effects.h"
 
 #include <string>
 
@@ -168,6 +169,8 @@ void ApplyAura(const BonusContext &ctx, ItemBonusTotals &totals)
 	ApplyClassTreeToTotals(*ctx.owner, totals);
 	// ...and the timed cries the character is carrying (Round 6) - Shout, Battle Orders and the rest.
 	ApplyWarcryBuffsToTotals(*ctx.owner, totals);
+	// ...and the RfA-12 actives' - Iron Will, Conduit, Saga, Astral Projection.
+	ApplyRfa12BuffsToTotals(*ctx.owner, totals);
 }
 
 /**

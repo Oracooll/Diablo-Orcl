@@ -8,6 +8,7 @@
 #include "missiles.h"
 #include "monster.h"
 #include "oracool/passives.h"
+#include "oracool/rfa12_actives.h"
 #include "player.h"
 #include "spells.h"
 #include "utils/language.h"
@@ -270,6 +271,9 @@ int LeapRangeTiles(const Player &player, ClassMeleeSkill skill)
 void ArmClassMeleeSkill(std::optional<ClassMeleeSkill> skill)
 {
 	ArmedSkill = skill;
+	// One latch at a time: arming or disarming this one drops the RfA-12 swing (rfa12_actives.h), which is
+	// armed after it where it is meant.
+	ArmRfa12Melee(std::nullopt);
 }
 
 std::optional<ClassMeleeSkill> ArmedClassMeleeSkill()

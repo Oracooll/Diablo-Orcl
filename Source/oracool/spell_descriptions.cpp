@@ -1,4 +1,5 @@
 #include "oracool/spell_descriptions.h"
+#include "oracool/rfa12_actives.h"
 
 #include <array>
 #include <optional>
@@ -113,6 +114,8 @@ const char *GetSpellDescription(SpellID spell)
 	if (ClassMeleeSkillForSpell(spell).has_value())
 		return ClassMeleeSkillDescription(spell);
 	// And the cries - oracool/warcries.cpp.
+	if (IsRfa12Active(spell))
+		return Rfa12ActiveDescription(spell);
 	if (IsWarcry(spell))
 		return WarcryDescription(spell);
 	// And the Rogue's two thrown bolts (Round 7), which ride Lightning and Nova and have no module.

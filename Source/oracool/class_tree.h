@@ -971,6 +971,9 @@ void TickMovementSlow(const Player &player);
 /** @brief Forgets every slow - the new-game reset. */
 void ClearMovementSlows();
 
+/** @brief Ends @p player's slow at once. Serenity. */
+void ClearPlayerSlow(const Player &player);
+
 /**
  * @brief Movement Speed as the sheet shows it: 100 is a plain walk, abilities and items above, slows
  * below. What the feet do with it is WalkFrameSkipFor's business.

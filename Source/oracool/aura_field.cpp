@@ -271,7 +271,11 @@ uint16_t ConvictionAdjusted(uint16_t resistances, int points)
 
 uint16_t EffectiveResistances(const Monster &monster)
 {
-	return ConvictionAdjusted(monster.resistance, ConvictionPointsOn(monster));
+	uint16_t resistances = ConvictionAdjusted(monster.resistance, ConvictionPointsOn(monster));
+	// Satire (RfA-12) mocks the plain resistances away; immunities hold.
+	if (Rfa12StripsResistances(monster))
+		resistances &= ~static_cast<uint16_t>(RESIST_MAGIC | RESIST_FIRE | RESIST_LIGHTNING);
+	return resistances;
 }
 
 void ProcessOutwardAura(Player &player)

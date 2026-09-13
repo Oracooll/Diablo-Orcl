@@ -1592,10 +1592,18 @@ TEST_F(NetPackTest, UnPackNetPlayer_doesNotSpillPastTheBookLevels)
 		MyPlayer->_pSplLvl[i] = static_cast<uint8_t>(i % 3);
 
 	// Canaries on the target: the fields that follow the book levels in Player.
+	//
+	// Zero from the first RfA-12 active on (v1.11.112): those skills grant a level-up stat for every rank
+	// in them, so a canary there IS an investment, and CalcPlrInv then gives the target stats the packing
+	// player has not got - the unpack rejects the mismatch before the spill this test is about can be
+	// looked at. The walk below still checks all MAX_SPELLS slots survive untouched.
+	const auto canary = [](size_t i) {
+		return i < static_cast<size_t>(SpellID::VotiveStrike) ? static_cast<uint8_t>(i % 5) : uint8_t { 0 };
+	};
 	Player &target = Players[1];
 	target._pUnspentSkillPoints = 7;
 	for (size_t i = 0; i < MAX_SPELLS; i++)
-		target._pSkillInvestment[i] = static_cast<uint8_t>(i % 5);
+		target._pSkillInvestment[i] = canary(i);
 
 	PlayerNetPack packed;
 	PackNetPlayer(packed, *MyPlayer);
@@ -1607,7 +1615,7 @@ TEST_F(NetPackTest, UnPackNetPlayer_doesNotSpillPastTheBookLevels)
 		EXPECT_EQ(target._pSplLvl[i], MyPlayer->_pSplLvl[i]) << "book level " << i;
 	EXPECT_EQ(target._pUnspentSkillPoints, 7) << "the field after the book levels was overwritten";
 	for (size_t i = 0; i < MAX_SPELLS; i++)
-		EXPECT_EQ(target._pSkillInvestment[i], static_cast<uint8_t>(i % 5)) << "investment " << i << " was overwritten";
+		EXPECT_EQ(target._pSkillInvestment[i], canary(i)) << "investment " << i << " was overwritten";
 }
 
 } // namespace

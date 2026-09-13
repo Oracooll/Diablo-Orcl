@@ -48,6 +48,7 @@
 #include "oracool/melee_skills.h"
 #include "oracool/passives.h"
 #include "oracool/rfa12_effects.h"
+#include "oracool/rfa12_actives.h"
 #include "oracool/warcries.h"
 #include "oracool/rogue_arrows.h"
 #include "oracool/furious_charge.h"
@@ -709,7 +710,7 @@ bool PlrHitMonst(Player &player, Monster &monster, bool adjacentDamage = false, 
 	// a skill adds come back through this function, so they carry it too. Zero when nothing is
 	// armed or the skill cannot be paid for, which is what makes an unaffordable skill a plain swing.
 	// The Paladin's two with a per-level blow, Smite and Charge's arrival (2026-09-12), the same way.
-	dam += dam * (oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player)) / 100;
+	dam += dam * (oracool::ClassMeleeSkillDamagePercent(player) + oracool::PaladinMeleeDamagePercent(player) + oracool::Rfa12MeleeDamagePercent(player)) / 100;
 	// And the passives that read the situation - Ruthless, Brawler, Steady Aim and the rest (Round 5).
 	dam += dam * (oracool::PassiveDamageDealtPercent(player, monster, true) + oracool::Rfa12DamageDealtPercent(player, monster, true)) / 100;
 	int dam2 = dam << 6;
@@ -976,6 +977,9 @@ bool DoAttack(Player &player)
 			// And the Barbarian's and Monk's (Round 4), which want the swing whether or not it
 			// landed - Whirlwind spins through an empty front tile as readily as a full one.
 			if (oracool::ApplyClassMeleeSkillOnSwing(player, monster, didhit, hitDamage))
+				didhit = true;
+			// And the RfA-12 swings, on their own latch.
+			if (oracool::ApplyRfa12MeleeOnSwing(player, monster, didhit, hitDamage))
 				didhit = true;
 		} else if (PlayerAtPosition(position) != nullptr && !player.friendlyMode) {
 			didhit = PlrHitPlr(player, *PlayerAtPosition(position));
@@ -2866,6 +2870,7 @@ void InitPlayer(Player &player, bool firstTime)
 		// same carry-over, same cure.
 		oracool::ClearWarcryBuffs(player);
 		oracool::ClearPassiveClocks(player);
+		oracool::ClearRfa12ActiveBuffs(player);
 		player._pSBkSpell = SpellID::Invalid;
 		player.queuedSpell.spellId = player._pRSpell;
 		player.queuedSpell.spellType = player._pRSplType;
@@ -3235,6 +3240,9 @@ void ApplyPlrDamage(DamageType damageType, Player &player, int dam, int minHP /*
 	// rest - answer here, before the number is shown, so what floats up is what was taken.
 	if (totalDamage > 0)
 		totalDamage += totalDamage * (oracool::PassiveDamageTakenPercent(player, damageType) + oracool::Rfa12DamageTakenPercent(player, damageType)) / 100;
+	// Chord of Warding (RfA-12) drinks its share before anything is shown or taken.
+	if (totalDamage > 0)
+		totalDamage = oracool::Rfa12AbsorbDamage(player, totalDamage);
 	if (&player == MyPlayer && player._pHitPoints > 0) {
 		AddFloatingNumber(damageType, player, totalDamage);
 	}
@@ -3721,6 +3729,34 @@ void CheckPlrSpell(bool isShiftHeld, SpellID spellID, SpellType spellType)
 			LastMouseButtonAction = MouseActionType::Attack;
 			NetSendCmdLoc(MyPlayerId, true, CMD_RATTACKXY, cursPosition);
 		}
+		return;
+	}
+
+	// Oracool, RfA-12 (2026-09-13): the new melee skills are swung on their own latch, the Round 4 way below.
+	if (oracool::IsRfa12Melee(spellID)) {
+		if (CheckSpell(myPlayer, spellID, SpellType::Skill, /*manaonly=*/true) != SpellCheckResult::Success) {
+			myPlayer.Say(HeroSpeech::NotEnoughMana);
+			return;
+		}
+		if (!oracool::Rfa12MeleeUsable(myPlayer, spellID)) {
+			myPlayer.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
+		oracool::ArmClassMeleeSkill(std::nullopt);
+		if (isShiftHeld) {
+			oracool::ArmRfa12Melee(spellID);
+			LastMouseButtonAction = MouseActionType::Attack;
+			NetSendCmdLoc(MyPlayerId, true, CMD_SATTACKXY, cursPosition);
+			return;
+		}
+		if (pcursmonst == -1) {
+			LastMouseButtonAction = MouseActionType::Walk;
+			NetSendCmdLoc(MyPlayerId, true, CMD_WALKXY, cursPosition);
+			return;
+		}
+		oracool::ArmRfa12Melee(spellID);
+		LastMouseButtonAction = MouseActionType::AttackMonsterTarget;
+		NetSendCmdParam1(true, CMD_ATTACKID, pcursmonst);
 		return;
 	}
 
