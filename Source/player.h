@@ -521,7 +521,7 @@ struct Player {
 	 * loads into the first 32 slots with the rest zeroed, and an older build reading a 64-entry tail
 	 * keeps the first 32 and drops the rest.
 	 */
-	uint8_t _pClassTreeInvestment[64] = {};
+	uint8_t _pClassTreeInvestment[96] = {};
 	/**
 	 * @brief The four Passive Skills slots, as CLASS-RELATIVE skill indices. 0xFF is empty.
 	 *

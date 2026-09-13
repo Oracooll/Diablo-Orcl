@@ -1,6 +1,7 @@
 ﻿#include "oracool/hud_art.h"
 
 #include <algorithm>
+#include <cctype> // std::isalpha - the placeholder letters of a skill with no icon
 #include <cmath> // std::pow - the Panel Gamma lift
 #include <array>
 #include <cstdint>
@@ -2007,10 +2008,78 @@ Size GetPaladinSkillIconSize()
 	return StripIconSize(PaladinSkillIconsArt);
 }
 
+/**
+ * @brief Whether @p strip carries a frame for @p skillIndex.
+ *
+ * The RfA-12 skills (2026-09-13) were appended to every class block before their glyphs existed
+ * (RfA-13), so their index runs past the end of the strip. Those draw placeholder letters instead of
+ * nothing (user: "implement the skills with no icons, just placeholder letters").
+ */
+bool StripHasFrame(ArtAsset &strip, int skillIndex)
+{
+	EnsureLoadedAll();
+	if (strip.rgba.empty() || strip.height <= 0)
+		return false;
+	return skillIndex >= 0 && skillIndex < strip.width / strip.height;
+}
+
+/** @brief The placeholder letters for a skill with no icon: the first letter of its first two words, skipping "of", "the" and "and"; a one-word name gives its first two letters. */
+std::string SkillInitials(HeroClass heroClass, int skillIndex)
+{
+	const std::optional<ClassTreeSkill> skill = ClassTreeSkillAtIndex(heroClass, skillIndex);
+	if (!skill)
+		return {};
+	std::vector<std::string> words;
+	std::string word;
+	const auto flush = [&]() {
+		if (!word.empty() && word != "of" && word != "the" && word != "and")
+			words.push_back(word);
+		word.clear();
+	};
+	for (const char ch : std::string_view(GetClassTreeSkillData(*skill).name)) {
+		const auto c = static_cast<unsigned char>(ch);
+		if (std::isalpha(c) != 0)
+			word += static_cast<char>(std::tolower(c));
+		else if (ch != '\'')
+			flush();
+	}
+	flush();
+	if (words.empty())
+		return {};
+	std::string out;
+	if (words.size() == 1) {
+		out += static_cast<char>(std::toupper(static_cast<unsigned char>(words[0][0])));
+		if (words[0].size() > 1)
+			out += words[0][1];
+		return out;
+	}
+	out += static_cast<char>(std::toupper(static_cast<unsigned char>(words[0][0])));
+	out += static_cast<char>(std::toupper(static_cast<unsigned char>(words[1][0])));
+	return out;
+}
+
+/** @brief Draws @p skillIndex's placeholder letters centred in @p cell. The caller draws the plate. */
+void DrawSkillInitials(const Surface &out, Rectangle cell, HeroClass heroClass, int skillIndex, bool unlocked)
+{
+	const std::string initials = SkillInitials(heroClass, skillIndex);
+	if (initials.empty())
+		return;
+	UiFlags flags = (unlocked ? UiFlags::ColorWhite : UiFlags::ColorWhitegold) | UiFlags::AlignCenter
+	    | UiFlags::VerticalCenter | UiFlags::Shadowed;
+	if (cell.size.height >= 48)
+		flags = flags | UiFlags::FontSize24;
+	DrawString(out, initials, cell, { flags });
+}
+
 void DrawClassTreeIcon(const Surface &out, Point origin, HeroClass heroClass, int skillIndex,
     bool unlocked, SkillPlateTint tint)
 {
-	DrawIconOnPlate(out, TreeStripFor(heroClass), origin, skillIndex, unlocked, tint);
+	ArtAsset &strip = TreeStripFor(heroClass);
+	DrawIconOnPlate(out, strip, origin, skillIndex, unlocked, tint);
+	if (skillIndex >= 0 && !StripHasFrame(strip, skillIndex)) {
+		const Size size = StripIconSize(strip);
+		DrawSkillInitials(out, { origin, size.width > 0 ? size : Size { 56, 56 } }, heroClass, skillIndex, unlocked);
+	}
 }
 
 Rectangle SkillPointsNumberRect(Point origin)
@@ -2182,7 +2251,12 @@ void DrawClassTreeIcon(const Surface &out, Rectangle cell, HeroClass heroClass, 
 	// overlap the background"). It used to draw at native size, which was indistinguishable from
 	// filling the cell for as long as every icon ran edge to edge - and stopped being so the moment
 	// a batch arrived with a transparent surround inside its cell.
-	DrawStripIconScaledTo(out, TreeStripFor(heroClass), cell, skillIndex, unlocked);
+	ArtAsset &strip = TreeStripFor(heroClass);
+	if (skillIndex >= 0 && !StripHasFrame(strip, skillIndex)) {
+		DrawSkillInitials(out, cell, heroClass, skillIndex, unlocked);
+		return;
+	}
+	DrawStripIconScaledTo(out, strip, cell, skillIndex, unlocked);
 }
 
 void DrawSkillTintOutline(const Surface &out, Rectangle cell, SkillPlateTint tint)
@@ -2263,6 +2337,13 @@ void DrawClassTreeIconOutlined(const Surface &out, Rectangle cell, HeroClass her
 {
 	ArtAsset &strip = TreeStripFor(heroClass);
 	const int frame = StripIconSize(strip).width;
+	if (skillIndex >= 0 && !StripHasFrame(strip, skillIndex)) {
+		// No icon yet (the RfA-12 skills): the tinted plate a glyph would sit on, and the letters.
+		ApplyPlateTint(tint);
+		DrawSpellIconFittedTo(out, cell, SpellID::Null);
+		DrawSkillInitials(out, cell, heroClass, skillIndex, unlocked);
+		return;
+	}
 	if (IsGlyphFrame(strip, skillIndex, frame)) {
 		// A GLYPH (2026-09-05, "do it"): the tinted vanilla plate under it, and the glyph itself 1:1
 		// in the middle - it was drawn for that plate at that size, with its own 8px clear border, so
@@ -2365,7 +2446,12 @@ void DrawStripIconScaledTo(const Surface &out, ArtAsset &asset, Rectangle dest, 
 void DrawClassTreeIconScaledTo(const Surface &out, Rectangle dest, HeroClass heroClass, int skillIndex,
     bool unlocked)
 {
-	DrawStripIconScaledTo(out, TreeStripFor(heroClass), dest, skillIndex, unlocked);
+	ArtAsset &strip = TreeStripFor(heroClass);
+	if (skillIndex >= 0 && !StripHasFrame(strip, skillIndex)) {
+		DrawSkillInitials(out, dest, heroClass, skillIndex, unlocked);
+		return;
+	}
+	DrawStripIconScaledTo(out, strip, dest, skillIndex, unlocked);
 }
 
 Size GetClassTreeIconSize(HeroClass heroClass)

@@ -162,7 +162,35 @@ enum class ClassTreeSkill : uint16_t {
 	Finery,
 	Blunt,
 	ToweringShield,
-	PALADIN_LAST = ToweringShield,
+	// ---------------- Paladin: the RfA-12 skills (2026-09-13) ----------------
+	// The 162 empty ability-page cells filled from RfA-12's final list. Appended at the END of the class
+	// block like every addition before them: position within the class is the icon frame and the
+	// investment slot, so nothing already saved moves.
+	VotiveStrike,
+	Judgment,
+	Oathbrand,
+	HolyLance,
+	Crusade,
+	AegisSlam,
+	HeavensDescent,
+	WrathOfTheHeavens,
+	Valor,
+	Radiance,
+	BaneOfEvil,
+	Condemnation,
+	TitheOfAsh,
+	Retaliation,
+	DoomProcession,
+	Dominion,
+	Steadfast,
+	ResistMagic,
+	Immovable,
+	WardingLight,
+	Mercy,
+	AuraOfProtection,
+	Endurance,
+	Sanctity,
+	PALADIN_LAST = Sanctity,
 
 	// ---------------- Barbarian: Combat Skills ----------------
 	Bash,
@@ -224,7 +252,35 @@ enum class ClassTreeSkill : uint16_t {
 	EarthenMight,
 	SwordAndBoard,
 	Rampage,
-	BARBARIAN_LAST = Rampage,
+	// ---------------- Barbarian: the RfA-12 skills (2026-09-13) ----------------
+	// The 162 empty ability-page cells filled from RfA-12's final list. Appended at the END of the class
+	// block like every addition before them: position within the class is the icon frame and the
+	// investment slot, so nothing already saved moves.
+	Cleave,
+	Backhand,
+	GroundStomp,
+	Rend,
+	HammerOfTheAncients,
+	SeismicSlam,
+	ClaspOfRuin,
+	Earthquake,
+	GripOfIron,
+	DeepWounds,
+	HeavyFoot,
+	BattleHardened,
+	Bloodlust,
+	LongReach,
+	UnfinishedBusiness,
+	LastingWounds,
+	ThreateningShout,
+	RallyingCry,
+	Intimidate,
+	SplitRanks,
+	IronWill,
+	Bloodcall,
+	AncestralCall,
+	EarthshakerCry,
+	BARBARIAN_LAST = EarthshakerCry,
 
 	// ---------------- Sorceress: Cold Spells ----------------
 	IceBolt,
@@ -285,7 +341,35 @@ enum class ClassTreeSkill : uint16_t {
 	UnwaveringWill,
 	Audacity,
 	ElementalExposure,
-	SORCERER_LAST = ElementalExposure,
+	// ---------------- Sorcerer: the RfA-12 skills (2026-09-13) ----------------
+	// The 162 empty ability-page cells filled from RfA-12's final list. Appended at the END of the class
+	// block like every addition before them: position within the class is the icon frame and the
+	// investment slot, so nothing already saved moves.
+	ChillTouch,
+	IceNeedle,
+	Frostbite,
+	IceLance,
+	BrittleGround,
+	FrozenSentinel,
+	Whiteout,
+	AbsoluteZero,
+	Arc,
+	StaticCharge,
+	BallLightning,
+	Conduit,
+	LightningRod,
+	FaradayRing,
+	StormCrucible,
+	RideTheLightning,
+	CinderTouch,
+	EmberMine,
+	FlameRing,
+	AshenBrand,
+	FurnaceMouth,
+	Firestorm,
+	Immolate,
+	FuneralStar,
+	SORCERER_LAST = FuneralStar,
 
 	// ---------------- Rogue: Bow & Crossbow ----------------
 	MagicArrow,
@@ -349,7 +433,35 @@ enum class ClassTreeSkill : uint16_t {
 	Ambush,
 	Awareness,
 	SingleOut,
-	ROGUE_LAST = SingleOut,
+	// ---------------- Rogue: the RfA-12 skills (2026-09-13) ----------------
+	// The 162 empty ability-page cells filled from RfA-12's final list. Appended at the END of the class
+	// block like every addition before them: position within the class is the icon frame and the
+	// investment slot, so nothing already saved moves.
+	BarbedShaft,
+	ShockArrow,
+	PiercingShot,
+	RainOfArrows,
+	CripplingShot,
+	HuntersMark,
+	Barrage,
+	PhantomVolley,
+	SoftTread,
+	Swiftness,
+	ScentOfBlood,
+	Sharpen,
+	DeadGround,
+	Deadeye,
+	ShadowStep,
+	HuntersClaim,
+	Sweep,
+	Brace,
+	Harpoon,
+	Vault,
+	ReapingPoint,
+	AnchorJavelin,
+	TurningPike,
+	ValkyriesSpear,
+	ROGUE_LAST = ValkyriesSpear,
 
 	// ---------------- Bard: Melody ----------------
 	// Seven per page rather than ten: the Bard's sheet is the user's own design, not Diablo II's,
@@ -403,7 +515,44 @@ enum class ClassTreeSkill : uint16_t {
 	Stagecraft,
 	Requiem,
 	MagnumOpus,
-	BARD_LAST = MagnumOpus,
+	// ---------------- Bard: the RfA-12 skills (2026-09-13) ----------------
+	// The 162 empty ability-page cells filled from RfA-12's final list. Appended at the END of the class
+	// block like every addition before them: position within the class is the icon frame and the
+	// investment slot, so nothing already saved moves.
+	MinstrelsTune,
+	BalladOfResilience,
+	HuntersChant,
+	SerenadeOfSteel,
+	SongOfPlenty,
+	Nocturne,
+	AnthemOfValor,
+	SirensCall,
+	HymnOfRenewal,
+	SymphonyOfWar,
+	SovereignMeasure,
+	PluckedNeedle,
+	ShatterNote,
+	TuningFork,
+	Thunderclap,
+	DissonantThread,
+	SoundWave,
+	DeafeningRoar,
+	ChordOfWarding,
+	Feedback,
+	GrandFinale,
+	MusicOfTheSpheres,
+	BitterCouplet,
+	MockingRhyme,
+	Epitaph,
+	Elegy,
+	SonnetOfSight,
+	Satire,
+	VerseOfBinding,
+	HeroicCouplet,
+	Tragedy,
+	Saga,
+	LastWord,
+	BARD_LAST = LastWord,
 
 	// ---------------- Monk: Way of the Staff ----------------
 	// Also the user's own design, and the most fully specified of the six: six sequential skills per
@@ -461,13 +610,50 @@ enum class ClassTreeSkill : uint16_t {
 	Unity,
 	Momentum,
 	MythicRhythm,
-	MONK_LAST = MythicRhythm,
-	LAST = MythicRhythm,
+	// ---------------- Monk: the RfA-12 skills (2026-09-13) ----------------
+	// The 162 empty ability-page cells filled from RfA-12's final list. Appended at the END of the class
+	// block like every addition before them: position within the class is the icon frame and the
+	// investment slot, so nothing already saved moves.
+	StaffParry,
+	LongThrust,
+	LowBranch,
+	RearwardReach,
+	MountainPole,
+	BambooRain,
+	DragonTailSweep,
+	StaffOfEchoes,
+	RiverStance,
+	HeavenSplitter,
+	ThousandReeds,
+	TigerClaw,
+	DeepBreath,
+	LeapingCrane,
+	PressurePoint,
+	IronFist,
+	WhirlingKick,
+	ShoulderGate,
+	SevenSidedStrike,
+	MountainStance,
+	ExplodingPalm,
+	DragonsWrath,
+	MantraOfClarity,
+	MantraOfEvasion,
+	ChiWave,
+	BlindingFlash,
+	MantraOfRetribution,
+	Serenity,
+	SpiritGuardian,
+	WaveOfLight,
+	InnerFire,
+	AstralProjection,
+	AncestralCourt,
+	MONK_LAST = AncestralCourt,
+	LAST = AncestralCourt,
 
 	None = 0xFFFF,
 };
 
-constexpr size_t ClassTreeSkillCount = 272; // 272 since 2026-09-06: the Paladin's Holy Bolt row removed (user: "There is a spell like this already in the game"); was 273
+constexpr size_t ClassTreeSkillCount = 434; // 272 since 2026-09-06: the Paladin's Holy Bolt row removed (user: "There is a spell like this already in the game"); was 273
 /**
  * @brief The most skills any one class has - the size of the per-character investment array.
  *
@@ -477,7 +663,7 @@ constexpr size_t ClassTreeSkillCount = 272; // 272 since 2026-09-06: the Paladin
  * loses the overflow, and it must not exceed the size of Player::_pClassTreeInvestment, which it
  * indexes. The two are grown together - see the note beside that array.
  */
-constexpr size_t MaxSkillsPerClass = 64;
+constexpr size_t MaxSkillsPerClass = 96;
 
 /**
  * @brief Every class's row count is inside the array that stores its investments.

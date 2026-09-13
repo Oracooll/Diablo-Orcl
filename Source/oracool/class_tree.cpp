@@ -235,6 +235,55 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Pal, 3, 5, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Towering Shield"), N_("Every skill worked through your shield strikes harder and readies sooner. Not yet built."),
 	    Pal, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
+	{ N_("Votive Strike"), N_("Strike one adjacent enemy; a killing blow destroys its corpse so it cannot be raised. Not yet built."),
+	    Pal, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Judgment"), N_("A strike that marks the target; a marked monster takes +15% damage from everything for 4 s. Not yet built."),
+	    Pal, 0, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Oathbrand"), N_("Mark one enemy for six seconds; your next three direct weapon hits against it each add a small fixed holy burst. Not yet built."),
+	    Pal, 0, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Holy Lance"), N_("A thrust of light that pierces everything in a 3-tile line. Not yet built."),
+	    Pal, 0, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Crusade"), N_("Four blows that leap between adjacent enemies, one blow each. Not yet built."),
+	    Pal, 0, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Aegis Slam"), N_("Shield slam in a cone: knockback and a 1 s stun. Needs a shield. Not yet built."),
+	    Pal, 0, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Heaven's Descent"), N_("Leap to a spot and land in a holy explosion. Not yet built."),
+	    Pal, 0, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Wrath of the Heavens"), N_("Five pillars of light fall around the Paladin over 3 s. Not yet built."),
+	    Pal, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Valor"), N_("Flat damage added to every hit (Might's flat twin - early game favours flat). Not yet built."),
+	    Pal, 1, 0, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Radiance"), N_("Pulses light every 2 s; undead in the radius take magic damage. Not yet built."),
+	    Pal, 1, 0, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Bane of Evil"), N_("+damage against demons and undead only, bigger than Might. Not yet built."),
+	    Pal, 1, 1, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Condemnation"), N_("Monsters in the radius lose armor (Conviction does resists; this does AC). Not yet built."),
+	    Pal, 1, 2, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Tithe of Ash"), N_("Your kills inside the aura consume their corpses and restore a small fixed amount of mana; summoned enemies grant nothing. Not yet built."),
+	    Pal, 1, 2, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Retaliation"), N_("Each time the Paladin is hit, his next blow deals +X% damage (stacks to 3). Not yet built."),
+	    Pal, 1, 3, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Doom Procession"), N_("Moving continuously for two seconds arms a single holy wake behind you; enemies crossing it take one hit before the wake fades. Not yet built."),
+	    Pal, 1, 4, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Dominion"), N_("Monsters in the radius deal X% less damage and take X% more. Not yet built."),
+	    Pal, 1, 5, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Steadfast"), N_("Hit recovery: far less chance to be stunned or interrupted when struck. Not yet built."),
+	    Pal, 2, 0, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Resist Magic"), N_("+magic resistance - completes the Resist Fire / Cold / Lightning set. Not yet built."),
+	    Pal, 2, 1, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Immovable"), N_("Enemy knockback cannot displace you while this aura burns; damage and hit recovery still apply. Not yet built."),
+	    Pal, 2, 2, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Warding Light"), N_("Every hit taken is reduced by a flat amount. Not yet built."),
+	    Pal, 2, 3, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Mercy"), N_("Falling below 30% life heals X% at once; 20 s cooldown. Not yet built."),
+	    Pal, 2, 3, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Aura of Protection"), N_("+X% armor, the Defiance of the late game. Not yet built."),
+	    Pal, 2, 4, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Endurance"), N_("+X% maximum life. Not yet built."),
+	    Pal, 2, 4, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Sanctity"), N_("+all resistances, and curses and slows on the Paladin last half as long. Not yet built."),
+	    Pal, 2, 5, 2, Kind::Aura, SpellID::Invalid, false },
 	// ======================= BARBARIAN =======================
 	// --- Combat Skills ---
 	{ N_("Bash"), N_("A heavy blow at +30% damage, +10% per rank, that knocks the target back."), Bar, 0, 0, 0, Kind::Active, SpellID::Bash, true },
@@ -314,6 +363,55 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bar, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Rampage"), N_("Every kill lends +5% damage for 5 seconds, stacking five high."),
 	    Bar, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
+	{ N_("Cleave"), N_("A swing that hits the target and both monsters beside it. Not yet built."),
+	    Bar, 0, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Backhand"), N_("Strike the tile directly behind you without moving; the blow uses your equipped melee weapon. Not yet built."),
+	    Bar, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ground Stomp"), N_("Stuns everything adjacent for 1.5 s. Not yet built."),
+	    Bar, 0, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Rend"), N_("A tearing blow that makes the target bleed for 4 s. Not yet built."),
+	    Bar, 0, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Hammer of the Ancients"), N_("One slow, huge overhead blow. Not yet built."),
+	    Bar, 0, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Seismic Slam"), N_("A shockwave that rolls forward 5 tiles. Not yet built."),
+	    Bar, 0, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Clasp of Ruin"), N_("Pull an ordinary adjacent enemy into an empty tile on your opposite side, dealing one weapon hit; heavy targets take the hit without moving. Not yet built."),
+	    Bar, 0, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Earthquake"), N_("Splits the ground; the area around the Barbarian takes damage for 4 s. Not yet built."),
+	    Bar, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Grip of Iron"), N_("Your melee attacks cannot be interrupted by a hit when only one enemy is adjacent; incoming damage is unchanged. Not yet built."),
+	    Bar, 1, 2, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Deep Wounds"), N_("Melee hits have a chance to bleed the target. Not yet built."),
+	    Bar, 1, 2, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Heavy Foot"), N_("You ignore enemy knockback while wielding a two-handed melee weapon. Not yet built."),
+	    Bar, 1, 3, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Battle Hardened"), N_("+resistances while below half life. Not yet built."),
+	    Bar, 1, 3, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Bloodlust"), N_("Melee hits steal life. Not yet built."),
+	    Bar, 1, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Long Reach"), N_("Your ordinary attacks can target an enemy two tiles away with a polearm or spear if the intervening tile is empty. Not yet built."),
+	    Bar, 1, 4, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Unfinished Business"), N_("Killing an enemy that struck you within the last five seconds restores a small fixed amount of life; summoned enemies do not qualify. Not yet built."),
+	    Bar, 1, 5, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Lasting Wounds"), N_("An enemy struck by your direct melee attacks cannot naturally regenerate life for four seconds. Not yet built."),
+	    Bar, 1, 5, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Threatening Shout"), N_("Monsters in range deal X% less damage for a while. Not yet built."),
+	    Bar, 2, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Rallying Cry"), N_("Heals X% life over 5 s. Not yet built."),
+	    Bar, 2, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Intimidate"), N_("Monsters in range lose armor. Not yet built."),
+	    Bar, 2, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Split Ranks"), N_("Shout in a narrow cone to push ordinary enemies one tile sideways from its centerline when space exists. Not yet built."),
+	    Bar, 2, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Iron Will"), N_("+all resistances for a duration. Not yet built."),
+	    Bar, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bloodcall"), N_("For 10 s, every kill restores life and mana. Not yet built."),
+	    Bar, 2, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ancestral Call"), N_("Summons one ancestral spirit warrior for 30 s. Not yet built."),
+	    Bar, 2, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Earthshaker Cry"), N_("A roar that damages and stuns everything on screen for 2 s. Not yet built."),
+	    Bar, 2, 5, 2, Kind::Active, SpellID::Invalid, false },
 	// ======================= SORCERESS =======================
 	// --- Cold Spells: inert as a page. This engine has no cold damage channel and no chill, so
 	//     every one of these would have to be invented rather than adapted. Listed and described.
@@ -389,6 +487,55 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Sor, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Elemental Exposure"), N_("Striking with a new element leaves the target more open to all of them. Not yet built."),
 	    Sor, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
+	{ N_("Chill Touch"), N_("A short cone of frost that slows what it touches. Not yet built."),
+	    Sor, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ice Needle"), N_("Fire a thin cold needle that passes through exactly one enemy to hit a second, then disappears. Not yet built."),
+	    Sor, 0, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Frostbite"), N_("Curse: the target is slowed and takes more cold damage. Not yet built."),
+	    Sor, 0, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ice Lance"), N_("A bolt that pierces every monster in its line. Not yet built."),
+	    Sor, 0, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Brittle Ground"), N_("Chill a two-tile strip; enemies crossing it take cold damage only when moving, at most once per second. Not yet built."),
+	    Sor, 0, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Frozen Sentinel"), N_("An ice turret that fires Ice Bolts for 15 s. Not yet built."),
+	    Sor, 0, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Whiteout"), N_("Send a slow wall of snow three tiles wide down a clear lane, damaging each enemy once and stopping each segment at terrain. Not yet built."),
+	    Sor, 0, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Absolute Zero"), N_("Everything on screen freezes for 2 s and takes cold damage. Not yet built."),
+	    Sor, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Arc"), N_("A short bolt that jumps to two more monsters. Not yet built."),
+	    Sor, 1, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Static Charge"), N_("Self-buff: melee attackers are shocked. Not yet built."),
+	    Sor, 1, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ball Lightning"), N_("A slow orb that zaps everything it passes. Not yet built."),
+	    Sor, 1, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Conduit"), N_("For 10 s: faster casting and quicker mana regeneration. Not yet built."),
+	    Sor, 1, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Lightning Rod"), N_("Plant a rod on clear floor that absorbs one hostile lightning projectile and discharges its own fixed lightning burst. Not yet built."),
+	    Sor, 1, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Faraday Ring"), N_("Create a stationary ring for four seconds that destroys hostile projectiles crossing its boundary; enemies may walk through it. Not yet built."),
+	    Sor, 1, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Storm Crucible"), N_("Place two conductors on successive casts; once both exist, lightning runs along their clear connecting lane for three pulses. Not yet built."),
+	    Sor, 1, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ride the Lightning"), N_("Dash along a bolt, damaging everything on the path. Not yet built."),
+	    Sor, 1, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Cinder Touch"), N_("Ignite one adjacent enemy for a brief fixed burn; repeated applications refresh rather than stack. Not yet built."),
+	    Sor, 2, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ember Mine"), N_("Leave one ember on the floor that bursts when an enemy steps onto it, then vanishes. Not yet built."),
+	    Sor, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Flame Ring"), N_("A ring of fire bursts out around the Sorcerer. Not yet built."),
+	    Sor, 2, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ashen Brand"), N_("Mark one enemy; if it dies within four seconds, release one fire burst that cannot trigger other brands. Not yet built."),
+	    Sor, 2, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Furnace Mouth"), N_("Open a stationary vent on one floor tile that spits a short flame in the chosen direction three times. Not yet built."),
+	    Sor, 2, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Firestorm"), N_("Fireballs rain on an area for 4 s. Not yet built."),
+	    Sor, 2, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Immolate"), N_("The Sorcerer burns everything adjacent for 10 s. Not yet built."),
+	    Sor, 2, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Funeral Star"), N_("Create a large ember that contracts for two seconds before exploding; you must remain still until release or the cast ends without a blast. Not yet built."),
+	    Sor, 2, 5, 2, Kind::Active, SpellID::Invalid, false },
 	// ======================= ROGUE =======================
 	// --- Bow & Crossbow: the bow skills all want missile work this engine has not been given yet.
 	{ N_("Magic Arrow"), N_("An arrow of pure force: your bow damage as magic, plus a little a rank."), Rog, 0, 0, 0, Kind::Active, SpellID::MagicArrow, true },
@@ -468,6 +615,55 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Rog, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Single Out"), N_("+25% damage against anything with no fellow within two tiles."),
 	    Rog, 3, 5, 2, Kind::Passive, SpellID::Invalid, true, 1 },
+	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
+	{ N_("Barbed Shaft"), N_("Fire an arrow that causes a short physical bleed on its first target; another application refreshes the bleed. Not yet built."),
+	    Rog, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Shock Arrow"), N_("An arrow that arcs lightning to one nearby monster. Not yet built."),
+	    Rog, 0, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Piercing Shot"), N_("An arrow that passes through everything in its line. Not yet built."),
+	    Rog, 0, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Rain of Arrows"), N_("A volley falls on an area. Not yet built."),
+	    Rog, 0, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Crippling Shot"), N_("An arrow that slows the target by 50% for 4 s. Not yet built."),
+	    Rog, 0, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Hunter's Mark"), N_("Marks a target; it takes +X% damage from her arrows. Not yet built."),
+	    Rog, 0, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Barrage"), N_("Five arrows at one target in quick succession. Not yet built."),
+	    Rog, 0, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Phantom Volley"), N_("Spectral arrows fall on every monster in a wide radius. Not yet built."),
+	    Rog, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Soft Tread"), N_("Ordinary enemies take longer to notice you while you walk without attacking; alerted enemies do not forget you. Not yet built."),
+	    Rog, 1, 0, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Swiftness"), N_("+Movement Speed. Not yet built."),
+	    Rog, 1, 1, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Scent of Blood"), N_("An enemy you have wounded remains outlined for two seconds after leaving your sight, without revealing terrain. Not yet built."),
+	    Rog, 1, 1, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Sharpen"), N_("Flat damage added to every arrow and spear hit. Not yet built."),
+	    Rog, 1, 2, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Dead Ground"), N_("Your first ranged hit against an enemy that has not moved for two seconds gains a small physical bonus; per-target cooldown six seconds. Not yet built."),
+	    Rog, 1, 3, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Deadeye"), N_("Critical hits deal more damage. Not yet built."),
+	    Rog, 1, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Shadow Step"), N_("Teleports behind the target. Not yet built."),
+	    Rog, 1, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Hunter's Claim"), N_("Mark one unique or boss for eight seconds; your projectiles ignore ordinary monsters while travelling toward that marked target, but still stop at walls. Not yet built."),
+	    Rog, 1, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Sweep"), N_("A polearm arc that hits three tiles in front of her. Not yet built."),
+	    Rog, 2, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Brace"), N_("+armor and block while holding a spear or javelin. Not yet built."),
+	    Rog, 2, 0, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Harpoon"), N_("A thrown spear that pulls the target to her. Not yet built."),
+	    Rog, 2, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Vault"), N_("Pole-vaults over monsters to a spot. Not yet built."),
+	    Rog, 2, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Reaping Point"), N_("Sweep your spear through a narrow diagonal line of two enemies, dealing one physical hit to each. Not yet built."),
+	    Rog, 2, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Anchor Javelin"), N_("Pin an ordinary enemy to its current floor tile for two seconds with a physical javelin; bosses take damage without being pinned. Not yet built."),
+	    Rog, 2, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Turning Pike"), N_("Strike one adjacent enemy and pivot into an empty side tile, keeping the enemy within reach without teleporting through it. Not yet built."),
+	    Rog, 2, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Valkyrie's Spear"), N_("A huge thrown spear that explodes where it lands. Not yet built."),
+	    Rog, 2, 5, 2, Kind::Active, SpellID::Invalid, false },
 	// ======================= BARD =======================
 	// The user's own design rather than Diablo II's: seven songs per discipline, described on the
 	// sheet itself. The working songs are AURAS, which is both what they are - a bard plays one
@@ -548,6 +744,73 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Bard, 3, 5, 1, Kind::Passive, SpellID::Invalid, true, 1 },
 	{ N_("Magnum Opus"), N_("Hold one song long enough and it becomes something greater. Not yet built."),
 	    Bard, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
+	{ N_("Minstrel's Tune"), N_("Faster mana regeneration while it plays. Not yet built."),
+	    Bard, 0, 0, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Ballad of Resilience"), N_("+all resistances while it plays. Not yet built."),
+	    Bard, 0, 1, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Hunter's Chant"), N_("+chance to hit while it plays. Not yet built."),
+	    Bard, 0, 2, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Serenade of Steel"), N_("+armor while it plays. Not yet built."),
+	    Bard, 0, 3, 0, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Song of Plenty"), N_("+Gold Find and Magic Find while it plays. Not yet built."),
+	    Bard, 0, 3, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Nocturne"), N_("Monsters notice the Bard from half as far away. Not yet built."),
+	    Bard, 0, 3, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Anthem of Valor"), N_("Immune to stun and fear while it plays. Not yet built."),
+	    Bard, 0, 4, 0, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Siren's Call"), N_("Monsters are drawn toward the Bard and slowed as they come. Not yet built."),
+	    Bard, 0, 4, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Hymn of Renewal"), N_("Regenerates life and mana while it plays. Not yet built."),
+	    Bard, 0, 4, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Symphony of War"), N_("Every Melody song on the page gains +50% effect while this plays. Not yet built."),
+	    Bard, 0, 5, 1, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Sovereign Measure"), N_("While exactly one enemy is nearby, every fourth direct hit against it releases one fixed sonic impact; the count clears on switching melodies. Not yet built."),
+	    Bard, 0, 5, 2, Kind::Aura, SpellID::Invalid, false },
+	{ N_("Plucked Needle"), N_("Send one narrow note down a clear line to damage the first enemy, without the stagger of Sound Shock. Not yet built."),
+	    Bard, 1, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Shatter Note"), N_("A piercing note that damages and strips armor. Not yet built."),
+	    Bard, 1, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Tuning Fork"), N_("Plants a fork that pulses sonic damage for 12 s. Not yet built."),
+	    Bard, 1, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Thunderclap"), N_("A clap that stuns everything nearby. Not yet built."),
+	    Bard, 1, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Dissonant Thread"), N_("Join two enemies with a fragile sonic thread; if they move more than three tiles apart it snaps for one fixed hit to each. Not yet built."),
+	    Bard, 1, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Sound Wave"), N_("A wave that pierces everything in a long line. Not yet built."),
+	    Bard, 1, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Deafening Roar"), N_("Caster monsters nearby cannot cast for 4 s. Not yet built."),
+	    Bard, 1, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Chord of Warding"), N_("A shield of sound that absorbs damage. Not yet built."),
+	    Bard, 1, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Feedback"), N_("For 6 s, spells that hit the Bard reflect part of their damage. Not yet built."),
+	    Bard, 1, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Grand Finale"), N_("A great burst of sound, bigger for every song playing. Not yet built."),
+	    Bard, 1, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Music of the Spheres"), N_("Notes orbit the Bard for 15 s, striking what they touch. Not yet built."),
+	    Bard, 1, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bitter Couplet"), N_("Speak a short curse that prevents one enemy's natural life regeneration for four seconds. Not yet built."),
+	    Bard, 2, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Mocking Rhyme"), N_("Curse: the target deals less damage. Not yet built."),
+	    Bard, 2, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Epitaph"), N_("A corpse bursts, damaging monsters around it. Not yet built."),
+	    Bard, 2, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Elegy"), N_("Curse: the target loses life over 6 s. Not yet built."),
+	    Bard, 2, 3, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Sonnet of Sight"), N_("Reveals the surrounding map and the monsters on it. Not yet built."),
+	    Bard, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Satire"), N_("Curse: monsters in an area lose resistances. Not yet built."),
+	    Bard, 2, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Verse of Binding"), N_("Roots monsters in an area for 3 s. Not yet built."),
+	    Bard, 2, 4, 0, Kind::Active, SpellID::Invalid, false },
+	{ N_("Heroic Couplet"), N_("The next Poetry skill cast takes effect twice. Not yet built."),
+	    Bard, 2, 4, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Tragedy"), N_("Curse: damage dealt to the target is shared with monsters around it. Not yet built."),
+	    Bard, 2, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Saga"), N_("For 20 s, +2 to every skill on the Bard's pages. Not yet built."),
+	    Bard, 2, 5, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Last Word"), N_("A non-boss monster below 20% life dies outright. Not yet built."),
+	    Bard, 2, 5, 2, Kind::Active, SpellID::Invalid, false },
 	// ======================= MONK =======================
 	// The user's design doc (MONK_SKILL_TREE.md in the package) is the specification, including
 	// the two things this tree did not previously support: a SEVENTH tier at character level 36,
@@ -637,6 +900,73 @@ const ClassTreeSkillData Skills[ClassTreeSkillCount] = {
 	    Monk, 3, 5, 1, Kind::Passive, SpellID::Invalid, false, 1 },
 	{ N_("Mythic Rhythm"), N_("Every third building strike charges the spender that follows. Not yet built."),
 	    Monk, 3, 5, 2, Kind::Passive, SpellID::Invalid, false, 1 },
+	// ---- RfA-12 skills (2026-09-13): the empty cells of the three class pages, from the final list ----
+	{ N_("Staff Parry"), N_("+block chance while holding a staff. Not yet built."),
+	    Monk, 0, 0, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Long Thrust"), N_("A thrust that reaches two tiles. Not yet built."),
+	    Monk, 0, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Low Branch"), N_("Sweep one enemy's legs with the staff, slowing its movement without staggering it. Not yet built."),
+	    Monk, 0, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Rearward Reach"), N_("Strike the tile behind you with the staff's butt without turning or moving. Not yet built."),
+	    Monk, 0, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Mountain Pole"), N_("Ground slam that stuns everything adjacent. Not yet built."),
+	    Monk, 0, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Bamboo Rain"), N_("A flurry that hits three nearby monsters. Not yet built."),
+	    Monk, 0, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Dragon Tail Sweep"), N_("Low sweep that knocks down everything around him. Not yet built."),
+	    Monk, 0, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Staff of Echoes"), N_("A blow that repeats itself a second later. Not yet built."),
+	    Monk, 0, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("River Stance"), N_("+Movement Speed and armor while holding a staff. Not yet built."),
+	    Monk, 0, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Heaven Splitter"), N_("Overhead blow that sends a shockwave down a line. Not yet built."),
+	    Monk, 0, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Thousand Reeds"), N_("A capstone flurry across every monster on screen. Not yet built."),
+	    Monk, 0, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Tiger Claw"), N_("Raking strikes that make the target bleed. Not yet built."),
+	    Monk, 1, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Deep Breath"), N_("Life regeneration. Not yet built."),
+	    Monk, 1, 0, 2, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Leaping Crane"), N_("A flying kick that closes distance. Not yet built."),
+	    Monk, 1, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Pressure Point"), N_("Strike that slows the target and lowers its armor. Not yet built."),
+	    Monk, 1, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Iron Fist"), N_("Flat damage added to unarmed and staff hits. Not yet built."),
+	    Monk, 1, 2, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Whirling Kick"), N_("A spinning kick that knocks back everything around him. Not yet built."),
+	    Monk, 1, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Shoulder Gate"), N_("Rush one walkable tile forward and stop an ordinary enemy's current movement on contact, without a follow-up strike. Not yet built."),
+	    Monk, 1, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Seven-Sided Strike"), N_("Blinks between up to seven monsters, striking each. Not yet built."),
+	    Monk, 1, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Mountain Stance"), N_("Every hit taken reduced by a flat amount. Not yet built."),
+	    Monk, 1, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Exploding Palm"), N_("The target bleeds and bursts when it dies, damaging those nearby. Not yet built."),
+	    Monk, 1, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Dragon's Wrath"), N_("A wave of force shaped like a dragon rolls down a long line. Not yet built."),
+	    Monk, 1, 5, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Mantra of Clarity"), N_("For 30 s, faster mana regeneration. Not yet built."),
+	    Monk, 2, 0, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Mantra of Evasion"), N_("For 30 s, monsters miss him more often. Not yet built."),
+	    Monk, 2, 0, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Chi Wave"), N_("A wave that bounces between monsters, damaging each. Not yet built."),
+	    Monk, 2, 1, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Blinding Flash"), N_("Monsters nearby are blinded and wander for 3 s. Not yet built."),
+	    Monk, 2, 1, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Mantra of Retribution"), N_("For 30 s, melee attackers take damage. Not yet built."),
+	    Monk, 2, 2, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Serenity"), N_("Removes every curse and slow on him. Not yet built."),
+	    Monk, 2, 2, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Spirit Guardian"), N_("A spirit ally fights beside him for 30 s. Not yet built."),
+	    Monk, 2, 3, 1, Kind::Active, SpellID::Invalid, false },
+	{ N_("Wave of Light"), N_("A great spectral bell crashes down on an area. Not yet built."),
+	    Monk, 2, 3, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Inner Fire"), N_("Hits carry fire damage. Not yet built."),
+	    Monk, 2, 4, 1, Kind::Passive, SpellID::Invalid, false },
+	{ N_("Astral Projection"), N_("Leaves his body for 6 s: faster, and ignores collision. Not yet built."),
+	    Monk, 2, 4, 2, Kind::Active, SpellID::Invalid, false },
+	{ N_("Ancestral Court"), N_("Place three stationary ancestral shades around a chosen clear tile; each makes one inward spirit strike after a shared delay, then fades. Not yet built."),
+	    Monk, 2, 5, 2, Kind::Active, SpellID::Invalid, false },
 };
 
 /** @brief The first skill of @p heroClass's block, or None if the class has no tree. */
@@ -940,6 +1270,378 @@ void ApplyAura(Skill aura, int p, ItemBonusTotals &totals)
 		// hook and the walk animation); the rest are inert - see their rows.
 		break;
 	}
+}
+
+
+/**
+ * @brief The character stat an RfA-12 skill grants for every rank in it (2026-09-13).
+ *
+ * The brief gave every one of the 162 skills two halves: one main skill, and one "level-up stat" - a
+ * single character stat that grows with each rank. This is the second half, as data, so the sheet and
+ * the tooltip read the same numbers and no skill can describe a stat it does not grant.
+ */
+enum class StatChannel : uint8_t {
+	Strength,
+	Magic,
+	Dexterity,
+	Vitality,
+	Life,
+	Mana,
+	ArmorFlat,
+	ArmorPercent,
+	ToHitPercent,
+	DamagePercent,
+	DamageFlat,
+	FireResist,
+	LightningResist,
+	MagicResist,
+	DamageTaken,
+	LightRadius,
+	MagicFind,
+	GoldFind,
+	MoveSpeed,
+	FastCast,
+	FireDamage,
+	LightningDamage,
+};
+
+struct LevelUpStat {
+	Skill skill;
+	StatChannel channel;
+	/** The value at rank 1 (the low end, for a damage range). */
+	int base;
+	/** Added every `everyRanks` ranks after the first (the low end, for a damage range). */
+	int perRank;
+	/** A damage range's high end at rank 1, and what each step adds to it. Zero for everything else. */
+	int baseMax;
+	int perRankMax;
+	int everyRanks;
+};
+
+// Generated from "RfA-12 - Final Skill List.csv"; the trailing comment is the list's own wording.
+constexpr LevelUpStat LevelUpStats[] = {
+	{ Skill::VotiveStrike, StatChannel::Strength, 1, 1, 0, 0, 1 }, // PAL-1-T1C3 Strength +1 / +1
+	{ Skill::Judgment, StatChannel::ToHitPercent, 5, 3, 0, 0, 1 }, // PAL-1-T2C3 Chance to hit +5% / +3%
+	{ Skill::Oathbrand, StatChannel::DamagePercent, 3, 1, 0, 0, 1 }, // PAL-1-T3C3 Damage +3% / +1%
+	{ Skill::HolyLance, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // PAL-1-T4C3 Dexterity +2 / +1
+	{ Skill::Crusade, StatChannel::DamagePercent, 8, 4, 0, 0, 1 }, // PAL-1-T5C2 Damage +8% / +4%
+	{ Skill::AegisSlam, StatChannel::ArmorPercent, 6, 3, 0, 0, 1 }, // PAL-1-T5C3 Armor +6% / +3%
+	{ Skill::HeavensDescent, StatChannel::Vitality, 3, 1, 0, 0, 1 }, // PAL-1-T6C2 Vitality +3 / +1
+	{ Skill::WrathOfTheHeavens, StatChannel::Mana, 10, 3, 0, 0, 1 }, // PAL-1-T6C3 Mana +10 / +3
+	{ Skill::Valor, StatChannel::DamageFlat, 2, 1, 0, 0, 1 }, // PAL-2-T1C2 Damage flat +2 / +1
+	{ Skill::Radiance, StatChannel::LightRadius, 1, 1, 0, 0, 5 }, // PAL-2-T1C3 Light radius +1 / +1 per 5 ranks
+	{ Skill::BaneOfEvil, StatChannel::Magic, 2, 1, 0, 0, 1 }, // PAL-2-T2C3 Magic +2 / +1
+	{ Skill::Condemnation, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // PAL-2-T3C2 Chance to hit +4% / +2%
+	{ Skill::TitheOfAsh, StatChannel::FireResist, 3, 1, 0, 0, 1 }, // PAL-2-T3C3 Fire resistance +3% / +1%
+	{ Skill::Retaliation, StatChannel::Strength, 2, 1, 0, 0, 1 }, // PAL-2-T4C3 Strength +2 / +1
+	{ Skill::DoomProcession, StatChannel::MoveSpeed, 2, 1, 0, 0, 1 }, // PAL-2-T5C3 Movement Speed +2% / +1%
+	{ Skill::Dominion, StatChannel::Vitality, 3, 1, 0, 0, 1 }, // PAL-2-T6C3 Vitality +3 / +1
+	{ Skill::Steadfast, StatChannel::ArmorFlat, 10, 3, 0, 0, 1 }, // PAL-3-T1C3 Armor +10 / +3
+	{ Skill::ResistMagic, StatChannel::Life, 8, 3, 0, 0, 1 }, // PAL-3-T2C3 Life +8 / +3
+	{ Skill::Immovable, StatChannel::ArmorFlat, 5, 2, 0, 0, 1 }, // PAL-3-T3C3 Armor flat +5 / +2
+	{ Skill::WardingLight, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // PAL-3-T4C2 Vitality +2 / +1
+	{ Skill::Mercy, StatChannel::Life, 10, 4, 0, 0, 1 }, // PAL-3-T4C3 Life +10 / +4
+	{ Skill::AuraOfProtection, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // PAL-3-T5C2 Magic resistance +3% / +1%
+	{ Skill::Endurance, StatChannel::Vitality, 3, 1, 0, 0, 1 }, // PAL-3-T5C3 Vitality +3 / +1
+	{ Skill::Sanctity, StatChannel::Mana, 10, 3, 0, 0, 1 }, // PAL-3-T6C3 Mana +10 / +3
+	{ Skill::Cleave, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // BAR-1-T1C2 Damage +6% / +3%
+	{ Skill::Backhand, StatChannel::DamageFlat, 1, 1, 0, 0, 1 }, // BAR-1-T1C3 Damage flat +1 / +1
+	{ Skill::GroundStomp, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // BAR-1-T2C3 Vitality +2 / +1
+	{ Skill::Rend, StatChannel::Strength, 2, 1, 0, 0, 1 }, // BAR-1-T3C3 Strength +2 / +1
+	{ Skill::HammerOfTheAncients, StatChannel::DamagePercent, 8, 4, 0, 0, 1 }, // BAR-1-T4C3 Damage +8% / +4%
+	{ Skill::SeismicSlam, StatChannel::Life, 15, 5, 0, 0, 1 }, // BAR-1-T5C2 Life +15 / +5
+	{ Skill::ClaspOfRuin, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // BAR-1-T5C3 Vitality +2 / +1
+	{ Skill::Earthquake, StatChannel::Strength, 4, 2, 0, 0, 1 }, // BAR-1-T6C3 Strength +4 / +2
+	{ Skill::GripOfIron, StatChannel::Strength, 2, 1, 0, 0, 1 }, // BAR-2-T3C2 Strength +2 / +1
+	{ Skill::DeepWounds, StatChannel::DamageFlat, 2, 1, 0, 0, 1 }, // BAR-2-T3C3 Damage flat +2 / +1
+	{ Skill::HeavyFoot, StatChannel::ArmorFlat, 6, 2, 0, 0, 1 }, // BAR-2-T4C2 Armor flat +6 / +2
+	{ Skill::BattleHardened, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // BAR-2-T4C3 Magic resistance +3% / +1%
+	{ Skill::Bloodlust, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // BAR-2-T5C2 Vitality +2 / +1
+	{ Skill::LongReach, StatChannel::ToHitPercent, 4, 1, 0, 0, 1 }, // BAR-2-T5C3 Chance to hit +4% / +1%
+	{ Skill::UnfinishedBusiness, StatChannel::DamagePercent, 4, 1, 0, 0, 1 }, // BAR-2-T6C2 Damage +4% / +1%
+	{ Skill::LastingWounds, StatChannel::DamageFlat, 2, 1, 0, 0, 1 }, // BAR-2-T6C3 Damage flat +2 / +1
+	{ Skill::ThreateningShout, StatChannel::ArmorFlat, 10, 4, 0, 0, 1 }, // BAR-3-T1C3 Armor +10 / +4
+	{ Skill::RallyingCry, StatChannel::Life, 10, 4, 0, 0, 1 }, // BAR-3-T2C3 Life +10 / +4
+	{ Skill::Intimidate, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // BAR-3-T3C2 Chance to hit +4% / +2%
+	{ Skill::SplitRanks, StatChannel::Strength, 2, 1, 0, 0, 1 }, // BAR-3-T3C3 Strength +2 / +1
+	{ Skill::IronWill, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // BAR-3-T4C2 Magic resistance +3% / +1%
+	{ Skill::Bloodcall, StatChannel::Mana, 8, 3, 0, 0, 1 }, // BAR-3-T4C3 Mana +8 / +3
+	{ Skill::AncestralCall, StatChannel::Strength, 2, 1, 0, 0, 1 }, // BAR-3-T5C3 Strength +2 / +1
+	{ Skill::EarthshakerCry, StatChannel::Vitality, 4, 2, 0, 0, 1 }, // BAR-3-T6C3 Vitality +4 / +2
+	{ Skill::ChillTouch, StatChannel::Mana, 8, 3, 0, 0, 1 }, // SOR-1-T1C3 Mana +8 / +3
+	{ Skill::IceNeedle, StatChannel::Magic, 1, 1, 0, 0, 1 }, // SOR-1-T2C3 Magic +1 / +1
+	{ Skill::Frostbite, StatChannel::Magic, 2, 1, 0, 0, 1 }, // SOR-1-T3C2 Magic +2 / +1
+	{ Skill::IceLance, StatChannel::FastCast, 3, 1, 0, 0, 1 }, // SOR-1-T3C3 Faster Cast Rate +3% / +1%
+	{ Skill::BrittleGround, StatChannel::DamageTaken, 1, 1, 0, 0, 1 }, // SOR-1-T4C2 Damage taken reduced flat +1 / +1
+	{ Skill::FrozenSentinel, StatChannel::Mana, 10, 4, 0, 0, 1 }, // SOR-1-T4C3 Mana +10 / +4
+	{ Skill::Whiteout, StatChannel::FastCast, 2, 1, 0, 0, 1 }, // SOR-1-T5C3 Faster Cast Rate +2% / +1%
+	{ Skill::AbsoluteZero, StatChannel::Magic, 4, 2, 0, 0, 1 }, // SOR-1-T6C3 Magic +4 / +2
+	{ Skill::Arc, StatChannel::LightningDamage, 1, 0, 3, 1, 1 }, // SOR-2-T1C2 Lightning damage +1-3 / +1 max
+	{ Skill::StaticCharge, StatChannel::LightningResist, 3, 1, 0, 0, 1 }, // SOR-2-T1C3 Lightning resistance +3% / +1%
+	{ Skill::BallLightning, StatChannel::Mana, 8, 3, 0, 0, 1 }, // SOR-2-T2C3 Mana +8 / +3
+	{ Skill::Conduit, StatChannel::FastCast, 3, 1, 0, 0, 1 }, // SOR-2-T3C3 Faster Cast Rate +3% / +1%
+	{ Skill::LightningRod, StatChannel::LightningResist, 4, 1, 0, 0, 1 }, // SOR-2-T4C3 Lightning resistance +4% / +1%
+	{ Skill::FaradayRing, StatChannel::ArmorFlat, 6, 2, 0, 0, 1 }, // SOR-2-T5C3 Armor flat +6 / +2
+	{ Skill::StormCrucible, StatChannel::Magic, 3, 1, 0, 0, 1 }, // SOR-2-T6C2 Magic +3 / +1
+	{ Skill::RideTheLightning, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 }, // SOR-2-T6C3 Movement Speed +3% / +1%
+	{ Skill::CinderTouch, StatChannel::FireResist, 2, 1, 0, 0, 1 }, // SOR-3-T1C3 Fire resistance +2% / +1%
+	{ Skill::EmberMine, StatChannel::Magic, 1, 1, 0, 0, 1 }, // SOR-3-T2C2 Magic +1 / +1
+	{ Skill::FlameRing, StatChannel::Life, 8, 3, 0, 0, 1 }, // SOR-3-T2C3 Life +8 / +3
+	{ Skill::AshenBrand, StatChannel::FireDamage, 1, 1, 2, 1, 1 }, // SOR-3-T3C3 Fire damage +1-2 / +1 each end
+	{ Skill::FurnaceMouth, StatChannel::ArmorFlat, 5, 2, 0, 0, 1 }, // SOR-3-T4C3 Armor flat +5 / +2
+	{ Skill::Firestorm, StatChannel::Mana, 10, 4, 0, 0, 1 }, // SOR-3-T5C2 Mana +10 / +4
+	{ Skill::Immolate, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // SOR-3-T5C3 Vitality +2 / +1
+	{ Skill::FuneralStar, StatChannel::Magic, 3, 1, 0, 0, 1 }, // SOR-3-T6C3 Magic +3 / +1
+	{ Skill::BarbedShaft, StatChannel::Dexterity, 1, 1, 0, 0, 1 }, // ROG-1-T1C3 Dexterity +1 / +1
+	{ Skill::ShockArrow, StatChannel::LightningDamage, 1, 0, 3, 1, 1 }, // ROG-1-T2C3 Lightning damage +1-3 / +1 max
+	{ Skill::PiercingShot, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // ROG-1-T3C3 Chance to hit +4% / +2%
+	{ Skill::RainOfArrows, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // ROG-1-T4C2 Damage +6% / +3%
+	{ Skill::CripplingShot, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 }, // ROG-1-T4C3 Movement Speed +3% / +1%
+	{ Skill::HuntersMark, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // ROG-1-T5C3 Dexterity +2 / +1
+	{ Skill::Barrage, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // ROG-1-T6C2 Damage +6% / +3%
+	{ Skill::PhantomVolley, StatChannel::Mana, 10, 3, 0, 0, 1 }, // ROG-1-T6C3 Mana +10 / +3
+	{ Skill::SoftTread, StatChannel::Dexterity, 1, 1, 0, 0, 1 }, // ROG-2-T1C3 Dexterity +1 / +1
+	{ Skill::Swiftness, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // ROG-2-T2C2 Dexterity +2 / +1
+	{ Skill::ScentOfBlood, StatChannel::ToHitPercent, 2, 1, 0, 0, 1 }, // ROG-2-T2C3 Chance to hit +2% / +1%
+	{ Skill::Sharpen, StatChannel::DamageFlat, 2, 1, 0, 0, 1 }, // ROG-2-T3C3 Damage flat +2 / +1
+	{ Skill::DeadGround, StatChannel::DamageFlat, 1, 1, 0, 0, 1 }, // ROG-2-T4C3 Damage flat +1 / +1
+	{ Skill::Deadeye, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // ROG-2-T5C2 Chance to hit +4% / +2%
+	{ Skill::ShadowStep, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // ROG-2-T5C3 Dexterity +2 / +1
+	{ Skill::HuntersClaim, StatChannel::DamagePercent, 4, 1, 0, 0, 1 }, // ROG-2-T6C3 Damage +4% / +1%
+	{ Skill::Sweep, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // ROG-3-T1C2 Damage +6% / +3%
+	{ Skill::Brace, StatChannel::ArmorFlat, 8, 3, 0, 0, 1 }, // ROG-3-T1C3 Armor +8 / +3
+	{ Skill::Harpoon, StatChannel::Strength, 2, 1, 0, 0, 1 }, // ROG-3-T2C3 Strength +2 / +1
+	{ Skill::Vault, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 }, // ROG-3-T3C3 Movement Speed +3% / +1%
+	{ Skill::ReapingPoint, StatChannel::DamagePercent, 3, 1, 0, 0, 1 }, // ROG-3-T4C3 Damage +3% / +1%
+	{ Skill::AnchorJavelin, StatChannel::Life, 8, 3, 0, 0, 1 }, // ROG-3-T5C2 Life +8 / +3
+	{ Skill::TurningPike, StatChannel::MoveSpeed, 2, 1, 0, 0, 1 }, // ROG-3-T5C3 Movement Speed +2% / +1%
+	{ Skill::ValkyriesSpear, StatChannel::Strength, 4, 2, 0, 0, 1 }, // ROG-3-T6C3 Strength +4 / +2
+	{ Skill::MinstrelsTune, StatChannel::Mana, 8, 3, 0, 0, 1 }, // BRD-1-T1C3 Mana +8 / +3
+	{ Skill::BalladOfResilience, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // BRD-1-T2C3 Magic resistance +3% / +1%
+	{ Skill::HuntersChant, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // BRD-1-T3C3 Dexterity +2 / +1
+	{ Skill::SerenadeOfSteel, StatChannel::ArmorFlat, 10, 4, 0, 0, 1 }, // BRD-1-T4C1 Armor +10 / +4
+	{ Skill::SongOfPlenty, StatChannel::GoldFind, 5, 2, 0, 0, 1 }, // BRD-1-T4C2 Gold Find +5% / +2%
+	{ Skill::Nocturne, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // BRD-1-T4C3 Vitality +2 / +1
+	{ Skill::AnthemOfValor, StatChannel::Life, 15, 5, 0, 0, 1 }, // BRD-1-T5C1 Life +15 / +5
+	{ Skill::SirensCall, StatChannel::ArmorPercent, 4, 2, 0, 0, 1 }, // BRD-1-T5C2 Armor +4% / +2%
+	{ Skill::HymnOfRenewal, StatChannel::Life, 10, 4, 0, 0, 1 }, // BRD-1-T5C3 Life +10 / +4
+	{ Skill::SymphonyOfWar, StatChannel::Magic, 4, 2, 0, 0, 1 }, // BRD-1-T6C2 Magic +4 / +2
+	{ Skill::SovereignMeasure, StatChannel::Magic, 3, 1, 0, 0, 1 }, // BRD-1-T6C3 Magic +3 / +1
+	{ Skill::PluckedNeedle, StatChannel::Magic, 1, 1, 0, 0, 1 }, // BRD-2-T1C3 Magic +1 / +1
+	{ Skill::ShatterNote, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // BRD-2-T2C3 Chance to hit +4% / +2%
+	{ Skill::TuningFork, StatChannel::Mana, 8, 3, 0, 0, 1 }, // BRD-2-T3C3 Mana +8 / +3
+	{ Skill::Thunderclap, StatChannel::LightningDamage, 1, 0, 3, 1, 1 }, // BRD-2-T4C1 Lightning damage +1-3 / +1 max
+	{ Skill::DissonantThread, StatChannel::DamagePercent, 3, 1, 0, 0, 1 }, // BRD-2-T4C2 Damage +3% / +1%
+	{ Skill::SoundWave, StatChannel::FastCast, 3, 1, 0, 0, 1 }, // BRD-2-T4C3 Faster Cast Rate +3% / +1%
+	{ Skill::DeafeningRoar, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // BRD-2-T5C1 Magic resistance +3% / +1%
+	{ Skill::ChordOfWarding, StatChannel::Life, 12, 4, 0, 0, 1 }, // BRD-2-T5C2 Life +12 / +4
+	{ Skill::Feedback, StatChannel::LightningResist, 3, 1, 0, 0, 1 }, // BRD-2-T5C3 Lightning resistance +3% / +1%
+	{ Skill::GrandFinale, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // BRD-2-T6C2 Damage +6% / +3%
+	{ Skill::MusicOfTheSpheres, StatChannel::Mana, 10, 4, 0, 0, 1 }, // BRD-2-T6C3 Mana +10 / +4
+	{ Skill::BitterCouplet, StatChannel::Magic, 1, 1, 0, 0, 1 }, // BRD-3-T1C3 Magic +1 / +1
+	{ Skill::MockingRhyme, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // BRD-3-T2C3 Dexterity +2 / +1
+	{ Skill::Epitaph, StatChannel::Magic, 2, 1, 0, 0, 1 }, // BRD-3-T3C3 Magic +2 / +1
+	{ Skill::Elegy, StatChannel::Mana, 8, 3, 0, 0, 1 }, // BRD-3-T4C1 Mana +8 / +3
+	{ Skill::SonnetOfSight, StatChannel::LightRadius, 1, 1, 0, 0, 5 }, // BRD-3-T4C2 Light radius +1 / +1 per 5 ranks
+	{ Skill::Satire, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // BRD-3-T4C3 Magic resistance +3% / +1%
+	{ Skill::VerseOfBinding, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // BRD-3-T5C1 Vitality +2 / +1
+	{ Skill::HeroicCouplet, StatChannel::FastCast, 3, 1, 0, 0, 1 }, // BRD-3-T5C2 Faster Cast Rate +3% / +1%
+	{ Skill::Tragedy, StatChannel::Life, 12, 4, 0, 0, 1 }, // BRD-3-T5C3 Life +12 / +4
+	{ Skill::Saga, StatChannel::Magic, 4, 2, 0, 0, 1 }, // BRD-3-T6C2 Magic +4 / +2
+	{ Skill::LastWord, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // BRD-3-T6C3 Damage +6% / +3%
+	{ Skill::StaffParry, StatChannel::ArmorFlat, 8, 3, 0, 0, 1 }, // MON-1-T1C2 Armor +8 / +3
+	{ Skill::LongThrust, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // MON-1-T1C3 Chance to hit +4% / +2%
+	{ Skill::LowBranch, StatChannel::ToHitPercent, 3, 1, 0, 0, 1 }, // MON-1-T2C2 Chance to hit +3% / +1%
+	{ Skill::RearwardReach, StatChannel::DamageFlat, 1, 1, 0, 0, 1 }, // MON-1-T2C3 Damage flat +1 / +1
+	{ Skill::MountainPole, StatChannel::Strength, 2, 1, 0, 0, 1 }, // MON-1-T3C2 Strength +2 / +1
+	{ Skill::BambooRain, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // MON-1-T3C3 Damage +6% / +3%
+	{ Skill::DragonTailSweep, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // MON-1-T4C2 Vitality +2 / +1
+	{ Skill::StaffOfEchoes, StatChannel::Mana, 8, 3, 0, 0, 1 }, // MON-1-T4C3 Mana +8 / +3
+	{ Skill::RiverStance, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 }, // MON-1-T5C2 Movement Speed +3% / +1%
+	{ Skill::HeavenSplitter, StatChannel::DamagePercent, 8, 4, 0, 0, 1 }, // MON-1-T5C3 Damage +8% / +4%
+	{ Skill::ThousandReeds, StatChannel::Dexterity, 4, 2, 0, 0, 1 }, // MON-1-T6C3 Dexterity +4 / +2
+	{ Skill::TigerClaw, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // MON-2-T1C2 Damage +6% / +3%
+	{ Skill::DeepBreath, StatChannel::Life, 8, 3, 0, 0, 1 }, // MON-2-T1C3 Life +8 / +3
+	{ Skill::LeapingCrane, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 }, // MON-2-T2C2 Movement Speed +3% / +1%
+	{ Skill::PressurePoint, StatChannel::ToHitPercent, 4, 2, 0, 0, 1 }, // MON-2-T2C3 Chance to hit +4% / +2%
+	{ Skill::IronFist, StatChannel::DamageFlat, 2, 1, 0, 0, 1 }, // MON-2-T3C2 Damage flat +2 / +1
+	{ Skill::WhirlingKick, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // MON-2-T3C3 Dexterity +2 / +1
+	{ Skill::ShoulderGate, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // MON-2-T4C2 Vitality +2 / +1
+	{ Skill::SevenSidedStrike, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // MON-2-T4C3 Damage +6% / +3%
+	{ Skill::MountainStance, StatChannel::ArmorPercent, 4, 2, 0, 0, 1 }, // MON-2-T5C2 Armor +4% / +2%
+	{ Skill::ExplodingPalm, StatChannel::Strength, 2, 1, 0, 0, 1 }, // MON-2-T5C3 Strength +2 / +1
+	{ Skill::DragonsWrath, StatChannel::Strength, 4, 2, 0, 0, 1 }, // MON-2-T6C3 Strength +4 / +2
+	{ Skill::MantraOfClarity, StatChannel::Mana, 8, 3, 0, 0, 1 }, // MON-3-T1C2 Mana +8 / +3
+	{ Skill::MantraOfEvasion, StatChannel::Dexterity, 2, 1, 0, 0, 1 }, // MON-3-T1C3 Dexterity +2 / +1
+	{ Skill::ChiWave, StatChannel::Magic, 2, 1, 0, 0, 1 }, // MON-3-T2C2 Magic +2 / +1
+	{ Skill::BlindingFlash, StatChannel::MagicResist, 3, 1, 0, 0, 1 }, // MON-3-T2C3 Magic resistance +3% / +1%
+	{ Skill::MantraOfRetribution, StatChannel::ArmorFlat, 10, 4, 0, 0, 1 }, // MON-3-T3C2 Armor +10 / +4
+	{ Skill::Serenity, StatChannel::Life, 10, 4, 0, 0, 1 }, // MON-3-T3C3 Life +10 / +4
+	{ Skill::SpiritGuardian, StatChannel::Vitality, 2, 1, 0, 0, 1 }, // MON-3-T4C2 Vitality +2 / +1
+	{ Skill::WaveOfLight, StatChannel::DamagePercent, 6, 3, 0, 0, 1 }, // MON-3-T4C3 Damage +6% / +3%
+	{ Skill::InnerFire, StatChannel::FireDamage, 1, 0, 3, 1, 1 }, // MON-3-T5C2 Fire damage +1-3 / +1 max
+	{ Skill::AstralProjection, StatChannel::MoveSpeed, 3, 1, 0, 0, 1 }, // MON-3-T5C3 Movement Speed +3% / +1%
+	{ Skill::AncestralCourt, StatChannel::Magic, 3, 1, 0, 0, 1 }, // MON-3-T6C3 Magic +3 / +1
+};
+
+const LevelUpStat *LevelUpStatOf(Skill skill)
+{
+	for (const LevelUpStat &stat : LevelUpStats) {
+		if (stat.skill == skill)
+			return &stat;
+	}
+	return nullptr;
+}
+
+/** @brief @p base, plus @p perStep for every @p everyRanks ranks past the first. Zero with no points. */
+int LevelUpValueAt(int points, int base, int perStep, int everyRanks)
+{
+	if (points <= 0)
+		return 0;
+	return base + perStep * ((points - 1) / std::max(everyRanks, 1));
+}
+
+/** @brief Adds @p skill's level-up stat at @p points to @p totals. Nothing for a skill without one. */
+void ApplyLevelUpStat(Skill skill, int points, ItemBonusTotals &totals)
+{
+	const LevelUpStat *stat = LevelUpStatOf(skill);
+	if (stat == nullptr || points <= 0)
+		return;
+	const int v = LevelUpValueAt(points, stat->base, stat->perRank, stat->everyRanks);
+	switch (stat->channel) {
+	case StatChannel::Strength:
+		totals.strength += v;
+		break;
+	case StatChannel::Magic:
+		totals.magic += v;
+		break;
+	case StatChannel::Dexterity:
+		totals.dexterity += v;
+		break;
+	case StatChannel::Vitality:
+		totals.vitality += v;
+		break;
+	case StatChannel::Life:
+		// Life and mana are kept in 1/64 units - the same shift Battle Orders applies.
+		totals.hitPoints += v << 6;
+		break;
+	case StatChannel::Mana:
+		totals.mana += v << 6;
+		break;
+	case StatChannel::ArmorFlat:
+		totals.armor += v;
+		break;
+	case StatChannel::ArmorPercent:
+		totals.bonusArmor += v;
+		break;
+	case StatChannel::ToHitPercent:
+		totals.bonusToHit += v;
+		break;
+	case StatChannel::DamagePercent:
+		totals.bonusDamage += v;
+		break;
+	case StatChannel::DamageFlat:
+		totals.damageMod += v;
+		break;
+	case StatChannel::FireResist:
+		totals.fireResist += v;
+		break;
+	case StatChannel::LightningResist:
+		totals.lightningResist += v;
+		break;
+	case StatChannel::MagicResist:
+		totals.magicResist += v;
+		break;
+	case StatChannel::DamageTaken:
+		// getHit is added to every blow taken, so less damage is a negative number.
+		totals.getHit -= v;
+		break;
+	case StatChannel::LightRadius:
+		totals.lightRadius += v;
+		break;
+	case StatChannel::MagicFind:
+		totals.magicFind += v;
+		break;
+	case StatChannel::GoldFind:
+		totals.goldFind += v;
+		break;
+	case StatChannel::MoveSpeed:
+		totals.moveSpeed += v;
+		break;
+	case StatChannel::FastCast:
+		totals.fastCast += v;
+		break;
+	case StatChannel::FireDamage:
+		totals.fireMin += v;
+		totals.fireMax += LevelUpValueAt(points, stat->baseMax, stat->perRankMax, stat->everyRanks);
+		break;
+	case StatChannel::LightningDamage:
+		totals.lightningMin += v;
+		totals.lightningMax += LevelUpValueAt(points, stat->baseMax, stat->perRankMax, stat->everyRanks);
+		break;
+	}
+}
+
+/**
+ * @brief @p skill's level-up stat at @p points as one tooltip line, or empty.
+ *
+ * Its own words rather than DescribeBonusTotals', because that prints life and mana in the 1/64 units
+ * the totals keep them in - "+640 life" for ten points.
+ */
+std::string LevelUpStatLine(Skill skill, int points)
+{
+	const LevelUpStat *stat = LevelUpStatOf(skill);
+	if (stat == nullptr || points <= 0)
+		return {};
+	const int v = LevelUpValueAt(points, stat->base, stat->perRank, stat->everyRanks);
+	const int vMax = LevelUpValueAt(points, stat->baseMax, stat->perRankMax, stat->everyRanks);
+	switch (stat->channel) {
+	case StatChannel::Strength:
+		return fmt::format(fmt::runtime(_("+{:d} strength")), v);
+	case StatChannel::Magic:
+		return fmt::format(fmt::runtime(_("+{:d} magic")), v);
+	case StatChannel::Dexterity:
+		return fmt::format(fmt::runtime(_("+{:d} dexterity")), v);
+	case StatChannel::Vitality:
+		return fmt::format(fmt::runtime(_("+{:d} vitality")), v);
+	case StatChannel::Life:
+		return fmt::format(fmt::runtime(_("+{:d} life")), v);
+	case StatChannel::Mana:
+		return fmt::format(fmt::runtime(_("+{:d} mana")), v);
+	case StatChannel::ArmorFlat:
+		return fmt::format(fmt::runtime(_("+{:d} armour")), v);
+	case StatChannel::ArmorPercent:
+		return fmt::format(fmt::runtime(_("+{:d}% armour")), v);
+	case StatChannel::ToHitPercent:
+		return fmt::format(fmt::runtime(_("+{:d}% to hit")), v);
+	case StatChannel::DamagePercent:
+		return fmt::format(fmt::runtime(_("+{:d}% damage")), v);
+	case StatChannel::DamageFlat:
+		return fmt::format(fmt::runtime(_("+{:d} damage")), v);
+	case StatChannel::FireResist:
+		return fmt::format(fmt::runtime(_("+{:d}% fire resist")), v);
+	case StatChannel::LightningResist:
+		return fmt::format(fmt::runtime(_("+{:d}% lightning resist")), v);
+	case StatChannel::MagicResist:
+		return fmt::format(fmt::runtime(_("+{:d}% magic resist")), v);
+	case StatChannel::DamageTaken:
+		return fmt::format(fmt::runtime(_("-{:d} damage taken")), v);
+	case StatChannel::LightRadius:
+		return fmt::format(fmt::runtime(_("+{:d} light radius")), v);
+	case StatChannel::MagicFind:
+		return fmt::format(fmt::runtime(_("+{:d}% magic find")), v);
+	case StatChannel::GoldFind:
+		return fmt::format(fmt::runtime(_("+{:d}% gold find")), v);
+	case StatChannel::MoveSpeed:
+		return fmt::format(fmt::runtime(_("+{:d}% movement speed")), v);
+	case StatChannel::FastCast:
+		return fmt::format(fmt::runtime(_("+{:d}% faster cast rate")), v);
+	case StatChannel::FireDamage:
+		return fmt::format(fmt::runtime(_("+{:d}-{:d} fire damage")), v, vMax);
+	case StatChannel::LightningDamage:
+		return fmt::format(fmt::runtime(_("+{:d}-{:d} lightning damage")), v, vMax);
+	}
+	return {};
 }
 
 } // namespace
@@ -1595,6 +2297,9 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 	if (const Skill aura = GetActiveClassAura(player);
 	    aura != Skill::None && IsClassTreeSkillUnlocked(player, aura)) {
 		ApplyAura(aura, ClassTreeInvestment(player, aura), totals);
+		// An aura's level-up stat burns with it, and goes out with it.
+		if (GetClassTreeSkillData(aura).implemented)
+			ApplyLevelUpStat(aura, ClassTreeInvestment(player, aura), totals);
 	}
 
 	// Two kinds of passive, and they turn on for different reasons.
@@ -1614,9 +2319,15 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 		const ClassTreeSkillData &data = GetClassTreeSkillData(skill);
 		if (data.heroClass != player._pClass)
 			break;
-		if (data.kind != Kind::Passive || !data.implemented)
+		if (!data.implemented || !IsClassTreeSkillUnlocked(player, skill))
 			continue;
-		if (!IsClassTreeSkillUnlocked(player, skill))
+		// An ACTIVE's level-up stat (RfA-12) is the character's for as long as points sit in it - it is
+		// what learning the skill made of you, not a buff that runs while the skill is cast.
+		if (data.kind == Kind::Active) {
+			ApplyLevelUpStat(skill, ClassTreeInvestment(player, skill), totals);
+			continue;
+		}
+		if (data.kind != Kind::Passive)
 			continue;
 		if (IsPassiveSkillRow(skill)) {
 			if (PassiveSlotOf(player, skill) >= 0)
@@ -1624,8 +2335,10 @@ void ApplyClassTreeToTotals(const Player &player, ItemBonusTotals &totals)
 			continue;
 		}
 		const int points = ClassTreeInvestment(player, skill);
-		if (points > 0)
+		if (points > 0) {
 			ApplyPassive(player, skill, points, totals);
+			ApplyLevelUpStat(skill, points, totals);
+		}
 	}
 }
 
@@ -1991,6 +2704,11 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 				if (!facts.empty())
 					line(facts);
 			}
+			if (data.implemented) {
+				const std::string stat = LevelUpStatLine(skill, std::max(points, 1));
+				if (!stat.empty())
+					line(stat);
+			}
 			return text;
 		}
 		if (!data.implemented)
@@ -2003,6 +2721,9 @@ std::string ClassTreeEffectLine(const Player &player, Skill skill, bool withNext
 		const std::string bonuses = DescribeBonusTotals(totals, "\n");
 		if (!bonuses.empty())
 			line(bonuses);
+		const std::string stat = LevelUpStatLine(skill, points);
+		if (!stat.empty())
+			line(stat);
 		if (data.kind == Kind::Aura) {
 			// What an aura does OFF the sheet - a pulse, a return, a shortening - which the totals cannot
 			// carry (2026-09-12).

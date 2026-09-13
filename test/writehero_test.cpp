@@ -783,10 +783,14 @@ TEST(Writehero, pfile_write_hero)
 	// 1.9.189: EIGHT BYTES - MAX_SPELLS 112 -> 120 for the Rogue's javelin page (Round 7).
 	// 1.9.190: THREE BYTES - MAX_SPELLS 120 -> 123 for the Paladin's last three (Round 8).
 	// 1.9.191: THREE BYTES - MAX_SPELLS 123 -> 126 for the corpse cries (Round 9, the last).
+	// 1.11.108: THIRTY-TWO BYTES, no new tag - HeroChunkClassTree grew 64 -> 96 entries with
+	//      oracool::MaxSkillsPerClass, because the RfA-12 skills (162 of them, appended to the end of every
+	//      class block) take each class to 72 or 73 rows. Count-prefixed as ever, so a 64-entry hero lands
+	//      in the first 64 slots with the rest zeroed. PlayerPack is untouched.
 	// Re-baseline only for a change you intended to make to the save format - if this fires
 	// unexpectedly, the format moved without anyone deciding it should.
 	EXPECT_EQ(picosha2::bytes_to_hex_string(s.begin(), s.end()),
-	    "bd3f39895a348b3420756f341505cb6c09acd96eed2ebebbdc183f3ffdae6a4f");
+	    "4c95802db08ae1d27350ce144de64ab4bf3807b79228b929b5f863d74cbfc2e7");
 }
 
 } // namespace
