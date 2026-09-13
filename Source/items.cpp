@@ -1622,9 +1622,7 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
     bool hellfireItem, bool ignoreLevelLimits, bool prefixRoom, bool suffixRoom, bool oracoolRoom,
     const item_effect_type *picked, int pickedCount, goodorevil goe)
 {
-	const auto eligible = [&](const PLStruct &row) {
-		if (!ignoreLevelLimits && (row.PLMinLvl < minlvl || row.PLMinLvl > maxlvl))
-			return false;
+	const auto eligibleIgnoringLevel = [&](const PLStruct &row) {
 		if (onlygood && !row.PLOk)
 			return false;
 		if ((goe == GOE_GOOD && row.PLGOE == GOE_EVIL) || (goe == GOE_EVIL && row.PLGOE == GOE_GOOD))
@@ -1634,6 +1632,11 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 				return false;
 		}
 		return true;
+	};
+	const auto eligible = [&](const PLStruct &row) {
+		if (!ignoreLevelLimits && (row.PLMinLvl < minlvl || row.PLMinLvl > maxlvl))
+			return false;
+		return eligibleIgnoringLevel(row);
 	};
 
 	std::vector<AffixCandidate> pool;
@@ -1661,10 +1664,32 @@ std::optional<AffixCandidate> DrawUnifiedAffix(const Item &item, int minlvl, int
 		}
 	}
 	if (oracoolRoom) {
-		for (int j = 0; j < static_cast<int>(std::size(OracoolPoolRows)); j++) {
-			if (!OracoolPoolRows[j].fits(item) || !eligible(OracoolPoolRows[j].row))
-				continue;
-			pool.push_back({ AffixSource::Oracool, j });
+		// ONE CANDIDATE PER POOL TYPE, however many level bands it has - at the strongest band the item's
+		// level reaches. Offering every eligible band made the pool's share climb with depth: at item level
+		// 50 only the deepest vanilla rows are eligible, while two of each pool type's six bands were, and a
+		// guaranteed Rare pick ignores level entirely, so all six competed. Measured 2026-09-13, Movement
+		// Speed and Faster Cast reached one magic ring in five at ilvl 50 and a fifth of Rares, against the
+		// drop tail's flat ~6% and ~8%. One candidate each keeps them competing like a single vanilla row.
+		constexpr item_effect_type PoolTypes[] = { IPL_MOVESPEED, IPL_MOVESPEED_CURSE, IPL_FASTCAST };
+		for (const item_effect_type type : PoolTypes) {
+			int chosen = -1;
+			int gentlest = -1;
+			for (int j = 0; j < static_cast<int>(std::size(OracoolPoolRows)); j++) {
+				const OracoolPoolRow &entry = OracoolPoolRows[j];
+				if (entry.row.power.type != type || !entry.fits(item) || !eligibleIgnoringLevel(entry.row))
+					continue;
+				if (gentlest < 0 || entry.row.PLMinLvl < OracoolPoolRows[gentlest].row.PLMinLvl)
+					gentlest = j;
+				if (entry.row.PLMinLvl > maxlvl || (!ignoreLevelLimits && entry.row.PLMinLvl < minlvl))
+					continue;
+				if (chosen < 0 || entry.row.PLMinLvl > OracoolPoolRows[chosen].row.PLMinLvl)
+					chosen = j;
+			}
+			// A guaranteed pick below every band still needs something to take: the gentlest one.
+			if (chosen < 0 && ignoreLevelLimits)
+				chosen = gentlest;
+			if (chosen >= 0)
+				pool.push_back({ AffixSource::Oracool, chosen });
 		}
 	}
 	if (pool.empty())
@@ -6831,7 +6856,7 @@ void PrintItemDetails(const Item &item)
 	// already show in the numbers above, so what the line carries is the PRICE.
 	if (item._iOracoolEthereal)
 		AddPanelString(_("Ethereal (cannot be repaired)"), UiFlags::ColorGray7); // GR-7, the ethereal colour (2026-09-07)
-	// Movement Speed +X% from the drop tail's own record (2026-09-07). A tiered item prints its records
+	// Movement Speed +X% from the item's own record (2026-09-07; an ordinary pool affix since 2026-09-13). A tiered item prints its records
 	// with the other affixes above, so this line is the plain and magic items'.
 	if (item._iIdentified && item._iPLMoveSpeed != 0 && !item.hasOracoolTier())
 		AddPanelString(fmt::format(fmt::runtime(_("{:+d}% movement speed")), item._iPLMoveSpeed), ItemAffixColor);

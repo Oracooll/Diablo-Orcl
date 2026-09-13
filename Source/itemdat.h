@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file itemdat.h
  *
  * Interface of all item data.
@@ -1329,13 +1329,14 @@ enum item_effect_type : int8_t {
 	 * walk-animation frame skip in steps - see oracool::WalkFrameSkipFor.
 	 */
 	IPL_MOVESPEED,
-	/** The curse: Movement Speed -X%. Same drop tail, same record, the other sign (2026-09-07). */
+	/** The curse: Movement Speed -X%. The same affix with the other sign, in the same record (2026-09-07; a pool affix since 2026-09-13). */
 	IPL_MOVESPEED_CURSE,
 	/**
 	 * Faster Cast Rate +X% (user, 2026-09-11: "introduce Faster Cast Rate affix in the game to make it
 	 * possible to increase casting animation/speed of spells"). Appended like the ones above, and
-	 * loadsave.cpp's IsOracoolAffixTypeValid moves with it. Rolled on the drop tail into the item's own
-	 * record and re-derived on load, as Movement Speed is, so the format did not grow. The engine turns
+	 * loadsave.cpp's IsOracoolAffixTypeValid moves with it. Kept in the item's own record and re-derived on
+	 * load, as Movement Speed is, so the format did not grow - an ordinary pool affix since 2026-09-13 (see
+	 * OracoolPoolRows in items.cpp), a drop-tail roll before that. The engine turns
 	 * the total into skipped cast frames - see oracool::CastFrameSkip.
 	 */
 	IPL_FASTCAST,

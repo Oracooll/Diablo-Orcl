@@ -6592,6 +6592,8 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 
 	Players.resize(1);
 	MyPlayer = &Players[0];
+	// Seeded, so what a rebuild rolls does not depend on the order the suite ran in.
+	SetRndSeed(0x0E7E4EA1);
 
 	const auto placeReagent = [](devilution::Item *grid, int slot, _item_indexes material, int count) {
 		InitializeItem(grid[slot], material);
@@ -6611,7 +6613,15 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 		item._iOracoolEthereal = true;
 		setName(item, name);
 	};
-
+	// A rebuild may roll "of the ages" - Indestructible - and MakeItemEthereal rightly declines such an item,
+	// because ethereal's whole price is durability and an indestructible item has none to pay. That is the
+	// game's rule, not a lost bargain; a shuffled run found it when a Primal's level-free picks drew it.
+	const auto expectBargainKept = [](const devilution::Item &item, const char *what) {
+		if (item._iMaxDur == DUR_INDESTRUCTIBLE)
+			EXPECT_FALSE(item._iOracoolEthereal) << what << " made an indestructible item ethereal";
+		else
+			EXPECT_TRUE(item._iOracoolEthereal) << what << " removed the ethereal bargain";
+	};
 	// ---- REROLL RARES keeps the bargain and the name ----
 	{
 		devilution::Item grid[LevskiGridSlots];
@@ -6622,7 +6632,7 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 		placeReagent(grid, 1, IDI_ORACOOL_SALVAGE_RARE_FIBRES, 3);
 
 		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 12).empty()) << "Reroll Rares did not run";
-		EXPECT_TRUE(grid[0]._iOracoolEthereal) << "Reroll Rares removed the ethereal bargain";
+		expectBargainKept(grid[0], "Reroll Rares");
 		EXPECT_STREQ(grid[0]._iIName, "Tarnished Doom") << "a reroll renamed the item";
 	}
 
@@ -6637,7 +6647,7 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 
 		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 11).empty()) << "Awaken did not run";
 		EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::Primal);
-		EXPECT_TRUE(grid[0]._iOracoolEthereal) << "Awaken removed the ethereal bargain";
+		expectBargainKept(grid[0], "Awaken");
 		EXPECT_STREQ(grid[0]._iIName, "Rotting Bane") << "climbing a rung renamed the item";
 	}
 
@@ -6651,7 +6661,7 @@ TEST(OracoolAudit, ARebuildKeepsEtherealAndNameAndStillRefusesSocketsAndOrbs)
 
 		ASSERT_FALSE(TransmuteLevskiGridWith(grid, 9).empty()) << "Enrich did not run";
 		EXPECT_EQ(grid[0]._iOracoolTier, OracoolItemTier::Rare);
-		EXPECT_TRUE(grid[0]._iOracoolEthereal) << "Enrich removed the ethereal bargain";
+		expectBargainKept(grid[0], "Enrich");
 		EXPECT_STRNE(grid[0]._iIName, baseName.c_str()) << "a new rare kept its plain base name instead of taking one";
 	}
 
@@ -11391,8 +11401,9 @@ TEST(OracoolAudit, MovementSpeedIsAPercentageFromItemsAndVigorInSteps)
 
 }
 
-// The drop tail's Movement Speed roll (2026-09-07): into the item's own affix record, never the
-// vanilla tables (a row there re-rolled every seeded item - the pack fixtures caught it).
+// Movement Speed as a pool affix (2026-09-13; a drop-tail roll from 2026-09-07 before that): kept in the
+// item's own affix record, never the vanilla tables (a row there re-rolled every seeded item - the pack
+// fixtures caught it).
 TEST(OracoolAudit, MovementSpeedIsAPoolAffixKeptInTheRecord)
 {
 	Players.resize(1);
@@ -11994,8 +12005,8 @@ TEST(OracoolAudit, FasterCastRateSkipsCastFramesAndNeverTheCastItself)
 	EXPECT_EQ(player._pIFastCast, 15) << "the worn affix did not reach the player";
 }
 
-// The drop tail's Faster Cast Rate roll (2026-09-11): into the item's own record, never the vanilla
-// tables, on a caster's kit only - a staff 10..30, a ring 5..15.
+// Faster Cast Rate as a pool affix (2026-09-13; a drop-tail roll from 2026-09-11 before that): kept in the
+// item's own record, never the vanilla tables, on a caster's kit only - a staff 10..30, a ring 5..15.
 TEST(OracoolAudit, FasterCastRateIsAPoolAffixKeptInTheRecord)
 {
 	Players.resize(1);
