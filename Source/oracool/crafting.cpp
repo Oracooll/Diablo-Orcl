@@ -3,6 +3,7 @@
 #include "oracool/gems.h"
 #include "oracool/item_sets.h"
 #include "oracool/levski_roar.h"
+#include "oracool/runewords.h" // GetActiveRuneword - Punch Sockets must not unmake a word
 
 #include <fmt/format.h>
 
@@ -102,6 +103,8 @@ const char *CraftingRecipeName(int index)
 		return N_("Make Ethereal");
 	case 16:
 		return N_("Mend the Ethereal");
+	case 17:
+		return N_("Punch Sockets");
 	default:
 		return "";
 	}
@@ -144,6 +147,8 @@ const char *CraftingRecipeInputs(int index)
 		return N_("1 weapon or armour + 5 Ethereal Imbueities -> ethereal: +35%, half durability");
 	case 16:
 		return N_("1 damaged ethereal item + 12 Ethereal Imbueities -> fully repaired, still ethereal");
+	case 17:
+		return N_("1 unsocketed wearable item + 1 perfect gem per socket -> sockets to its size, 1 per 28x28 cell (1-6)");
 	default:
 		return "";
 	}
@@ -579,6 +584,76 @@ int FindGridSocketedItem(const Item *grid)
     return -1;
 }
 
+/**
+ * @brief Recipe 17, Punch Sockets (user, 2026-09-13: "Punching Sockets in Items - 1Pgem per socket. Number of
+ * socket = number of 28x28px grid the item asset is made of (1-6). Pgems are consumed in the process. All
+ * wearable items are eligible for socketing, no matter the type or tier.").
+ */
+constexpr int PunchSocketsRecipe = 17;
+
+bool IsPerfectGemIdx(int idx)
+{
+	return IsOracoolGemIdx(idx) && IsPerfectGem(static_cast<uint16_t>(idx));
+}
+
+/**
+ * @brief How many sockets Punch Sockets would add to @p item - 0 when it takes none.
+ *
+ * WEARABLE is the whole test, whatever the item's type or tier (a primal, a set piece and a plain boot are
+ * equally eligible): something with a place on the paper doll. Socketables, charms, consumables and gold do not
+ * have one, whatever their footprint.
+ *
+ * UNSOCKETED only (user, the same day: "the item being socketed must not have sockets"). An item that already has
+ * even one socket is refused, so the recipe never tops a socketed item up - and that one rule also covers the
+ * completed runeword, whose word needs its socket count to match its runes and which always has sockets.
+ *
+ * The count is then the item's whole footprint (MaxSocketsForItem - the rule drops already follow).
+ */
+int SocketsToPunch(const Item &item)
+{
+	if (item.isEmpty())
+		return 0;
+	if (item._iLoc == ILOC_NONE || item._iLoc == ILOC_UNEQUIPABLE || item._iLoc == ILOC_BELT)
+		return 0;
+	if (item._itype == ItemType::Misc || item._itype == ItemType::Gold || item._itype == ItemType::None)
+		return 0;
+	if (item._iSocketCount > 0)
+		return 0;
+	// Belt and braces for a record whose count reads zero but whose word still resolves.
+	if (GetActiveRuneword(item) != nullptr)
+		return 0;
+	return MaxSocketsForItem(item);
+}
+
+/** @brief The first wearable item in @p grid that can take a socket, or -1. */
+int FindGridPunchTarget(const Item *grid)
+{
+	for (int i = 0; i < GridSlots; i++) {
+		if (SocketsToPunch(grid[i]) > 0)
+			return i;
+	}
+	return -1;
+}
+
+/**
+ * @brief Slots holding @p count perfect gems of ANY type between them, or empty if the grid holds fewer.
+ *
+ * Any type, and mixed: the request charges "1 Pgem per socket", not a set of one kind. Counted in stack units,
+ * so a single stack of six pays for a six-socket armour.
+ */
+std::vector<int> FindGridPerfectGems(const Item *grid, int count)
+{
+	std::vector<int> found;
+	int have = 0;
+	for (int i = 0; i < GridSlots && have < count; i++) {
+		if (grid[i].isEmpty() || !IsPerfectGemIdx(grid[i].IDidx))
+			continue;
+		found.push_back(i);
+		have += std::max(1, grid[i].stackCount());
+	}
+	return have >= count ? found : std::vector<int> {};
+}
+
 /** @brief The slots recipe @p index would consume from @p grid, empty when it cannot run. */
 std::vector<int> GridMaterialsFor(const Item *grid, int index)
 {
@@ -693,6 +768,18 @@ std::vector<int> GridMaterialsFor(const Item *grid, int index)
 			return {};
 		// Target FIRST - TransmuteLevskiGrid reads materials[0] as the thing being transformed and
 		// everything after it as reagent slots.
+		out.insert(out.begin(), target);
+		return out;
+	}
+	case PunchSocketsRecipe: {
+		// The item first, then exactly enough perfect gems for the sockets it can still take - the same
+		// target-then-materials shape the transform recipes use.
+		const int target = FindGridPunchTarget(grid);
+		if (target < 0)
+			return {};
+		std::vector<int> out = FindGridPerfectGems(grid, SocketsToPunch(grid[target]));
+		if (out.empty())
+			return {};
 		out.insert(out.begin(), target);
 		return out;
 	}
@@ -855,6 +942,27 @@ std::string TransmuteLevskiGridWith(Item *grid, int index)
 		host._iIName[0] = '\0';
 		freed = fmt::format(fmt::runtime(_("{:d} stones freed")), placed);
 		return freed;
+	}
+
+	// PUNCH SOCKETS. In place, like the transforms below, but its cost is not a fixed reagent count - it is one
+	// perfect gem per socket, and the number of sockets depends on the item - so it charges its own count
+	// rather than ReagentFor's. Nothing is produced, so the grid only gets emptier and no room check applies.
+	if (recipe == PunchSocketsRecipe) {
+		Item &host = grid[materials[0]];
+		// Counted BEFORE the host changes, because the count is what the gems pay for.
+		const int punched = SocketsToPunch(host);
+		if (punched <= 0)
+			return {};
+		const std::vector<int> gems(materials.begin() + 1, materials.end());
+		const int before = host._iSocketCount;
+		host._iSocketCount = static_cast<uint8_t>(before + punched);
+		// Every punched socket is EMPTY. The host had none before (SocketsToPunch refuses a socketed item), so
+		// `before` is zero; written as a range so the loop stays right if that rule is ever relaxed.
+		for (int s = before; s < host._iSocketCount; s++)
+			host._iSocketed[s] = Item::EmptySocket;
+		host.normalizeSockets();
+		ConsumeGridReagents(grid, gems, punched);
+		return fmt::format(fmt::runtime(_("{:d} sockets punched in {:s}")), punched, std::string(host.getName()));
 	}
 
 	// The four adopted from Kanai's Cube. All of them TRANSFORM the target in place and consume

@@ -4,7 +4,7 @@
  * Oracool: Megaplan Phase 1 - crafting, the recipe half of the Horadric Cube with none of the
  * cube: no item takes up a backpack slot to be one.
  *
- * SEVENTEEN recipes, and exactly ONE place they run: Levski's Roar, the monument in town (user,
+ * EIGHTEEN recipes (Punch Sockets joined on 2026-09-13), and exactly ONE place they run: Levski's Roar, the monument in town (user,
  * 2026-08-31 - "i want levski to be the only place recipies can produce an item. no crafting in
  * hero backpack"). The belt's burger menu still opens a Crafting book, but it is a READING window -
  * it lists the recipes and nothing there can mint an item.
@@ -29,7 +29,9 @@ struct Player;
 
 namespace devilution::oracool {
 
-constexpr int CraftingRecipeCount = 17;
+// Eighteen since 2026-09-13: Punch Sockets (recipe 17). Both books - Levski's and the burger menu's Crafting
+// window - walk this count and the name/inputs table below, so a recipe added here is listed in both.
+constexpr int CraftingRecipeCount = 18;
 
 // CraftingRecipeUsesGrid and CraftingRecipeVenue stood here for one version. Both existed to say
 // which of two venues a recipe belonged to, and there is only one venue now - every recipe uses the

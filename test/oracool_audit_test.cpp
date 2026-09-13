@@ -5385,6 +5385,93 @@ TEST(OracoolAudit, ForkTumblesAreDrawnAtTheirChosenScale)
 }
 
 /**
+ * Punch Sockets: one perfect gem per socket, sockets up to the item's own footprint, any wearable of any tier.
+ *
+ * User, 2026-09-13: "Punching Sockets in Items - 1Pgem per socket. Number of socket = number of 28x28px grid the
+ * item asset is made of (1-6). Pgems are consumed in the process. All wearable items are eligible for socketing,
+ * no matter the type or tier."
+ */
+TEST(OracoolAudit, PunchSocketsTakesOnePerfectGemPerSocketUpToTheItemsSize)
+{
+	using namespace devilution::oracool;
+	Players.resize(1);
+	MyPlayer = &Players[0];
+
+	constexpr int Punch = 17;
+	ASSERT_GT(CraftingRecipeCount, Punch) << "Punch Sockets is past the end of the recipe table";
+	EXPECT_STREQ(CraftingRecipeName(Punch), "Punch Sockets");
+
+	const auto perfect = [](int type) {
+		return static_cast<_item_indexes>(GemIndexFor(static_cast<GemType>(type), GemQuality::Perfect));
+	};
+	const auto perfectGemsLeft = [](const devilution::Item *grid) {
+		int left = 0;
+		for (int i = 0; i < LevskiGridSlots; i++) {
+			if (!grid[i].isEmpty() && IsPerfectGem(static_cast<uint16_t>(grid[i].IDidx)))
+				left += grid[i].stackCount();
+		}
+		return left;
+	};
+
+	{
+		devilution::Item grid[LevskiGridSlots] {};
+		InitializeItem(grid[0], IDI_ORACOOL_HELM);
+		const int sockets = MaxSocketsForItem(grid[0]);
+		ASSERT_GE(sockets, 2) << "the fixture needs an item of more than one cell";
+
+		// One gem short: not offered.
+		InitializeItem(grid[1], perfect(0));
+		grid[1].setStackCount(sockets - 1);
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, Punch)) << "offered with one perfect gem too few";
+
+		// Mixed types, one to spare: offered, and it charges exactly one gem per socket.
+		InitializeItem(grid[2], perfect(1));
+		grid[2].setStackCount(2);
+		ASSERT_TRUE(CanCraftFromLevskiGrid(grid, Punch)) << "not offered on a wearable with enough perfect gems";
+		EXPECT_FALSE(TransmuteLevskiGridWith(grid, Punch).empty()) << "the punch reported nothing";
+		EXPECT_EQ(grid[0]._iSocketCount, sockets) << "the sockets are not the item's footprint";
+		for (int s = 0; s < sockets; s++)
+			EXPECT_EQ(grid[0]._iSocketed[s], devilution::Item::EmptySocket) << "a punched socket is not empty";
+		EXPECT_EQ(perfectGemsLeft(grid), 1) << "the punch did not consume exactly one perfect gem per socket";
+
+		// At its ceiling now: not offered again.
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, Punch)) << "offered on an item that has every socket it can take";
+	}
+
+	// An item that already has a socket is refused, even when its footprint could hold more (user: "the item
+	// being socketed must not have sockets").
+	{
+		devilution::Item grid[LevskiGridSlots] {};
+		InitializeItem(grid[0], IDI_ORACOOL_HELM);
+		grid[0]._iSocketCount = 1;
+		grid[0]._iSocketed[0] = devilution::Item::EmptySocket;
+		ASSERT_GT(MaxSocketsForItem(grid[0]), 1) << "the fixture needs room for more sockets than it has";
+		InitializeItem(grid[1], perfect(0));
+		grid[1].setStackCount(6);
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, Punch)) << "offered on an item that already has a socket";
+	}
+
+	// No matter the tier: a primal takes sockets as readily as a plain helm.
+	{
+		devilution::Item grid[LevskiGridSlots] {};
+		InitializeItem(grid[0], IDI_ORACOOL_HELM);
+		grid[0]._iMagical = ITEM_QUALITY_MAGIC;
+		grid[0]._iOracoolTier = OracoolItemTier::Primal;
+		InitializeItem(grid[1], perfect(2));
+		grid[1].setStackCount(6);
+		EXPECT_TRUE(CanCraftFromLevskiGrid(grid, Punch)) << "a primal item was refused";
+	}
+
+	// Perfect gems alone - nothing to socket - are not a recipe.
+	{
+		devilution::Item grid[LevskiGridSlots] {};
+		InitializeItem(grid[0], perfect(0));
+		grid[0].setStackCount(6);
+		EXPECT_FALSE(CanCraftFromLevskiGrid(grid, Punch));
+	}
+}
+
+/**
  * No item tumbles to the floor as leather unless it IS light armour.
  *
  * The 2026-09-13 ground audit built every floor-reachable item and found 228 - the fork's tier helms,
