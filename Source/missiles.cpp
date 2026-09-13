@@ -1314,9 +1314,25 @@ void SetMissDir(Missile &missile, int dir)
 	SetMissAnim(missile, missile._miAnimType);
 }
 
-void InitMissiles()
+void InitMissiles(bool keepHeroTimedSpells)
 {
 	Player &myPlayer = *MyPlayer;
+
+	// Infravision, Etherealize and Search keep their clock on the missile that carries them, and the clear
+	// below deleted every missile on every level entry - so a stair ended each of them at once, whatever
+	// time was left. Kept by value and put back after the clear, in single-player and only for a level
+	// change inside a running game (the caller decides): a loaded save or a new character starts clean.
+	// All three are invisible effects on the caster - no tile, no light, no dFlags mark - so nothing about
+	// the level they were cast on travels with them.
+	std::vector<Missile> carried;
+	if (keepHeroTimedSpells && !gbIsMultiplayer) {
+		for (Missile &missile : Missiles) {
+			if (missile._miDelFlag || missile._mirange <= 0 || missile.sourcePlayer() != &myPlayer)
+				continue;
+			if (IsAnyOf(missile._mitype, MissileID::Infravision, MissileID::Etherealize, MissileID::Search))
+				carried.push_back(missile);
+		}
+	}
 
 	AutoMapShowItems = false;
 	myPlayer._pSpellFlags &= ~SpellFlag::Etherealize;
@@ -1348,6 +1364,18 @@ void InitMissiles()
 		for (int i = 0; i < MAXDUNX; i++) { // NOLINT(modernize-loop-convert)
 			dFlags[i][j] &= ~(DungeonFlag::Missile | DungeonFlag::MissileFireWall | DungeonFlag::MissileLightningWall);
 		}
+	}
+
+	// The kept effects go back with their time left, and their flags are restored now rather than on the
+	// next tick, so the new level's first frame is already drawn with the sight or the ghost form on.
+	for (const Missile &missile : carried) {
+		Missiles.push_back(missile);
+		if (missile._mitype == MissileID::Infravision)
+			myPlayer._pInfraFlag = true;
+		else if (missile._mitype == MissileID::Etherealize)
+			myPlayer._pSpellFlags |= SpellFlag::Etherealize;
+		else if (missile._mitype == MissileID::Search)
+			AutoMapShowItems = true;
 	}
 }
 
@@ -4820,9 +4848,9 @@ void ProcessEtherealize(Missile &missile)
 {
 	Player &player = Players[missile._misource];
 	missile._mirange--;
-	// Re-asserted every tick rather than only on cast, matching ProcessInfravision: InitMissiles
-	// clears the flag on every level entry, and the missile survives that, so without this a stair
-	// would silently end the effect while its timer kept running.
+	// Re-asserted every tick rather than only on cast, matching ProcessInfravision: InitMissiles clears
+	// the flag on every level entry. The missile did NOT survive that until 2026-09-13 - the clear deleted
+	// it - and now InitMissiles carries it across a level change with its time left (see there).
 	player._pSpellFlags |= SpellFlag::Etherealize;
 	if (missile._mirange == 0) {
 		missile._miDelFlag = true;

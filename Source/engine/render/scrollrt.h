@@ -10,11 +10,12 @@
 #include "engine.h"
 #include "engine/animationinfo.h"
 #include "engine/point.hpp"
+#include "utils/attributes.h"
 
 namespace devilution {
 
 extern int LightTableIndex;
-extern bool AutoMapShowItems;
+extern DVL_API_FOR_TEST bool AutoMapShowItems;
 extern bool frameflag;
 
 /**

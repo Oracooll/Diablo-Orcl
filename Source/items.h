@@ -1232,6 +1232,34 @@ DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item);
 DVL_API_FOR_TEST _item_indexes RndEquipmentForMonsterLevel(int8_t monsterLevel, item_equip_type slot = ILOC_INVALID);
 /** @brief Oracool: the same for a chest or barrel on the current floor - RndAllItems' pool, equipment only. */
 DVL_API_FOR_TEST _item_indexes RndEquipmentForCurrentLevel(item_equip_type slot = ILOC_INVALID);
+
+/** @brief Oracool: what @p kills monster deaths produced, by outcome - see SimulateMonsterDropOdds. */
+struct DropOddsTally {
+	int kills = 0;
+	int nothing = 0;
+	int gold = 0;
+	/** Potions, scrolls, books, oils and the rest: bases that can carry no quality at all. */
+	int consumable = 0;
+	int basic = 0;
+	int magic = 0;
+	int rare = 0;
+	int buffedUnique = 0;
+	int primal = 0;
+	int unique = 0;
+};
+
+/**
+ * @brief Oracool: runs SpawnItem's own drop sequence @p kills times and counts what came out (a drop-odds
+ * report, 2026-09-13). The real pieces, in the real order: RndItemForMonsterLevel (or RndUItem's pool for a
+ * unique monster), then SetupAllItems with @p itemRollLevel, uper 15 and only-good for a unique monster.
+ *
+ * @p dropLevel is the qlvl ceiling of the base pool - ItemLevelOfMonster. @p itemRollLevel is the level the
+ * quality roll sees and @p itemLevel the ilvl stamped (which picks the rare/buffed/primal band); SpawnItem passes
+ * ItemLevelOfMonster for both since v1.11.129, and passed monster.data().level for both before - pass either
+ * to measure it. The unique-once-per-game flags are cleared for every kill, so a unique count is the raw
+ * first-drop rate.
+ */
+DVL_API_FOR_TEST DropOddsTally SimulateMonsterDropOdds(int dropLevel, int itemRollLevel, int itemLevel, bool uniqueMonster, int kills, uint32_t seed);
 /** @brief Oracool: the Faster Cast Rate percent unique @p uid's own row grants (fixed, never rolled); 0 for none or an invalid id. */
 int UniqueItemFastCast(int uid);
 /**

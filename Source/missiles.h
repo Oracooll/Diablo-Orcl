@@ -14,6 +14,7 @@
 #include "monster.h"
 #include "player.h"
 #include "spelldat.h"
+#include "utils/attributes.h"
 #include "utils/stdcompat/optional.hpp"
 
 namespace devilution {
@@ -201,7 +202,7 @@ struct Missile {
 	}
 };
 
-extern std::list<Missile> Missiles;
+extern DVL_API_FOR_TEST std::list<Missile> Missiles;
 extern bool MissilePreFlag;
 
 void GetDamageAmt(SpellID i, int *mind, int *maxd);
@@ -270,7 +271,15 @@ inline void SetMissDir(Missile &missile, Direction16 dir)
 	SetMissDir(missile, static_cast<int>(dir));
 }
 
-void InitMissiles();
+/**
+ * @brief Clears every missile for a level entry.
+ *
+ * @param keepHeroTimedSpells keep the local hero's own Infravision, Etherealize and Search - the timed spells
+ * whose clock lives on their missile - with their time left (user, 2026-09-13: "find out why it runs out every
+ * time i change dungeon level and fix its countdown timer to survive level changes"). True only for a level
+ * change inside a running game, never a new game or a loaded save.
+ */
+void InitMissiles(bool keepHeroTimedSpells = false);
 
 struct AddMissileParameter {
 	Point dst;

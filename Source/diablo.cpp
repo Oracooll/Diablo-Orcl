@@ -3953,7 +3953,8 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 				oracool::ImproveWaypointSpawnPosition();
 				IncProgress();
 				[[maybe_unused]] uint32_t mid3Seed = GetLCGEngineState();
-				InitMissiles();
+				// A level change inside a running game keeps the hero's timed spells (Infravision and co.).
+				InitMissiles(/*keepHeroTimedSpells=*/!firstflag && lvldir != ENTRY_LOAD);
 				InitCorpses();
 #ifdef _DEBUG
 				SetDebugLevelSeedInfos(mid1Seed, mid2Seed, mid3Seed, GetLCGEngineState());
@@ -3967,7 +3968,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 				HoldThemeRooms();
 				InitGolems();
 				InitMonsters();
-				InitMissiles();
+				InitMissiles(/*keepHeroTimedSpells=*/!firstflag && lvldir != ENTRY_LOAD);
 				InitCorpses();
 				IncProgress();
 				LoadLevel();
@@ -4002,7 +4003,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 			oracool::AddWaypointSigilObject();
 			InitStash();
 			InitItems();
-			InitMissiles();
+			InitMissiles(/*keepHeroTimedSpells=*/!firstflag && lvldir != ENTRY_LOAD);
 			IncProgress();
 
 			if (!firstflag && lvldir != ENTRY_LOAD && myPlayer._pLvlVisited[currlevel] && !gbIsMultiplayer)
@@ -4067,7 +4068,7 @@ void LoadGameLevel(bool firstflag, lvl_entry lvldir)
 				ResyncQuests();
 		}
 
-		InitMissiles();
+		InitMissiles(/*keepHeroTimedSpells=*/!firstflag && lvldir != ENTRY_LOAD);
 		IncProgress();
 	}
 

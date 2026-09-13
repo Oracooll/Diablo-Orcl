@@ -4188,9 +4188,15 @@ bool CreateRareVendorItem(const Player &player, Item &item, int lvl)
 	// onlygood TRUE with the forced tier, for the reason RetierOracoolItem spells out: without it
 	// GetItemBLevel has a random component that can decide the item rolls no affixes at all, and a
 	// forced tier would silently not happen a large share of the time.
+	//
+	// The ITEM LEVEL is the vendor level lifted by the difficulty block (VendorItemLevel), as the Basic and
+	// Premium shelves stamp theirs - not the roll level. It fell back to the clamped roll level, so the Rare
+	// shelf's items never passed ilvl 30 and could never be Torment-tier, while the wiki's vendor table
+	// promises Hell vendors 38-48 reaching Torment (audit, 2026-09-13). The roll level keeps its 1..30 clamp:
+	// that is the premium tab's affix window, and affix depth is a separate question from the tier.
 	SetupAllItems(player, item, idx, AdvanceRndSeed(), std::clamp(lvl, 1, 30), 1, /*onlygood=*/true,
 	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true,
-	    std::optional<OracoolItemTier>(OracoolItemTier::Rare));
+	    std::optional<OracoolItemTier>(OracoolItemTier::Rare), /*itemLevel=*/oracool::VendorItemLevel(lvl));
 	// A base with no affix type - a potion, a scroll - cannot carry a tier, and the roller says so
 	// by leaving the tier unset rather than by failing. Reported as a miss so the caller rolls again
 	// instead of shelving a plain item on the Rare tab.
@@ -5276,12 +5282,23 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 	GetSuperItemSpace(position, ii);
 	int uper = monster.isUnique() ? 15 : 1;
 
-	int8_t mLevel = monster.data().level;
-	if (!gbIsHellfire && monster.type().type == MT_DIABLO)
-		mLevel -= 15;
-
-	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mLevel, uper, onlygood, false, false);
-	FinalizeFreshDrop(item, mLevel);
+	// THE MONSTER'S LOOT LEVEL, not its authored level (audit, 2026-09-13: "rare items still seem very rare
+	// and i am now in hell/hell", then "make sure drops reflect our vision ... progressive difficulty with
+	// more rewarding and better loot").
+	//
+	// The wiki's contract (Mechanics) is that a monster's loot level is the AREA level, +3 for a unique and
+	// +2 for a champion, and that an item's ilvl is the loot level of whatever dropped it. The base-item pool
+	// above already asked ItemLevelOfMonster. This call did not: it passed monster.data().level, the level
+	// the monster TYPE was authored at in 1996 - so the quality roll (GetItemBLevel's chance to roll at all,
+	// the affix levels) and the ilvl stamp (which picks the rare/buffed/primal band) ignored both the
+	// difficulty and the area ladder. An Advocate paid the same 30 on Hell/Hell as on Normal, Hell/Hell
+	// dropped rares at Normal's rate (measured: 0.57% a kill on both), and the Hive and Crypt paid their
+	// authored 22-30 instead of the Caves' and Hell's rungs. ReforgeOracoolItem was written on the promise
+	// this now keeps - "mLevel IS the ilvl".
+	const int mlvl = ItemLevelOfMonster(monster);
+	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), mlvl, uper, onlygood, false, false,
+	    /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/mlvl);
+	FinalizeFreshDrop(item, mlvl);
 
 	if (sendmsg)
 		NetSendCmdPItem(false, CMD_DROPITEM, item.position, item);
@@ -5830,12 +5847,14 @@ void TrySpawnOracoolSetItem(const Monster &monster, bool sendmsg)
 		return;
 	const _item_indexes idx = candidates[GenerateRnd(candidateCount)];
 
-	// The same construction the debug set commands use, magic roll and tier ladder included; the
-	// level clamp is the same 30 that keeps IsDungeonItemValid satisfied on the loopback.
-	const int lvl = std::clamp(mlvl, 1, 30);
+	// The same construction the debug set commands use, magic roll and tier ladder included, at the
+	// monster's loot level. It was clamped to 30 "to keep IsDungeonItemValid satisfied on the loopback",
+	// which capped every worn-tier piece at ilvl 30 from Nightmare down (audit, 2026-09-13). That check
+	// never runs in single-player - IsPItemValid returns before it - and this hook is single-player only.
+	const int lvl = std::max(mlvl, 1);
 	Item item;
 	SetupAllItems(*MyPlayer, item, idx, AdvanceRndSeed(), lvl, 1, /*onlygood=*/false,
-	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true);
+	    /*recreate=*/false, /*pregen=*/false, /*allowTieredRoll=*/true, std::nullopt, /*itemLevel=*/lvl);
 
 	const int ii = AllocateItem();
 	Items[ii] = item.pop();
@@ -9315,6 +9334,62 @@ _item_indexes RndEquipmentForCurrentLevel(item_equip_type slot)
 	return GetItemIndexForDroppableItem(false, [&itemMaxLevel, slot](const ItemData &item) {
 		return PoolQlvl(item) <= itemMaxLevel && IsSmartLootEquipmentData(item) && (slot == ILOC_INVALID || item.iLoc == slot);
 	});
+}
+
+DropOddsTally SimulateMonsterDropOdds(int dropLevel, int itemRollLevel, int itemLevel, bool uniqueMonster, int kills, uint32_t seed)
+{
+	DropOddsTally tally;
+	tally.kills = kills;
+	const Player &player = *MyPlayer;
+	const auto level = static_cast<int8_t>(std::clamp(dropLevel, 0, 127));
+	for (int k = 0; k < kills; k++) {
+		// A fresh stream per kill: SetupAllItems re-seeds the global engine with the item's own seed, so
+		// without this the next kill's base would be decided by the last item's seed.
+		SetRndSeed(seed + static_cast<uint32_t>(k) * 2654435761U);
+		_item_indexes idx;
+		if (uniqueMonster) {
+			// RndUItem's pool for a unique monster, at its ItemLevelOfMonster.
+			idx = GetItemIndexForDroppableItem(false, [level](const ItemData &item) {
+				if (item.itype == ItemType::Misc && item.iMiscId == IMISC_BOOK)
+					return true;
+				if (level < PoolQlvl(item))
+					return false;
+				return !IsAnyOf(item.itype, ItemType::Gold, ItemType::Misc);
+			});
+		} else {
+			idx = RndItemForMonsterLevel(level);
+		}
+		if (idx == IDI_NONE) {
+			tally.nothing++;
+			continue;
+		}
+		if (idx == IDI_GOLD) {
+			tally.gold++;
+			continue;
+		}
+		ClearUniqueItemFlags();
+		Item item;
+		SetupAllItems(player, item, idx, AdvanceRndSeed(), itemRollLevel, uniqueMonster ? 15 : 1, uniqueMonster, false, false,
+		    /*allowTieredRoll=*/true, std::nullopt, itemLevel);
+		if (item.isEmpty())
+			tally.nothing++;
+		else if (item._iMagical == ITEM_QUALITY_UNIQUE)
+			tally.unique++;
+		else if (item._iOracoolTier == OracoolItemTier::Primal)
+			tally.primal++;
+		else if (item._iOracoolTier == OracoolItemTier::BuffedUnique)
+			tally.buffedUnique++;
+		else if (item._iOracoolTier == OracoolItemTier::Rare)
+			tally.rare++;
+		else if (item._iMagical == ITEM_QUALITY_MAGIC)
+			tally.magic++;
+		else if (GetAffixItemTypeForItem(item) == AffixItemType::None)
+			tally.consumable++;
+		else
+			tally.basic++;
+	}
+	ClearUniqueItemFlags();
+	return tally;
 }
 
 } // namespace devilution

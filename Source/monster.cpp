@@ -5236,9 +5236,10 @@ unsigned int Monster::level(_difficulty difficulty) const
 	} else if (difficulty == DIFF_HELL) {
 		baseLevel += 30;
 	} else if (difficulty == DIFF_TORMENT) {
-		// Oracool: Hell's own +30 level offset, scaled further by the Torment multiplier - this
-		// single offset also drives item level/quality (items.cpp) and combat to-hit math
-		// (missiles.cpp) for free, since both already consume Monster::level().
+		// Oracool: Hell's own +30 level offset, scaled further by the Torment multiplier - this single
+		// offset drives combat to-hit math (missiles.cpp), which consumes Monster::level(). It does NOT
+		// drive loot: an item's level is ItemLevelOfMonster, the area ladder (see SpawnItem). This comment
+		// claimed otherwise until 2026-09-13, while the drop code read monster.data().level instead.
 		baseLevel += static_cast<unsigned int>(30 * GetTormentDifficultyMultiplier());
 	}
 

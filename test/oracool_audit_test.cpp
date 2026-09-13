@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <iostream>
 #include <set>
 #include <cstring>
 #include <string>
@@ -5569,6 +5570,139 @@ TEST(OracoolAudit, NoDroppableItemTumblesAsLeatherUnlessItIsLightArmour)
 	}
 	EXPECT_GT(checked, 600) << "the walk reached too few items to mean anything";
 	EXPECT_GE(amulets, 30) << "the audit counted 31 droppable amulets and 13 relic-based ones; the walk found " << amulets;
+}
+
+/**
+ * Drop-odds report (2026-09-13: "rare items still seem very rare and i am now in hell/hell ... make an
+ * artifact with drop chances of all item tiers"). DISABLED: it is a measurement, not an assertion. Run with
+ *   oracool_audit_test.exe --gtest_also_run_disabled_tests --gtest_filter=*DropOddsReport*
+ * It prints one JSON line per scenario, from SimulateMonsterDropOdds - the game's own drop sequence.
+ */
+TEST(OracoolAudit, DISABLED_DropOddsReport)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	const bool wasHellfire = gbIsHellfire;
+	gbIsHellfire = true;
+
+	// All 96 places: 24 floors on each of four difficulties (user, 2026-09-13: "audit code behind it throughout
+	// all 96 levels"). Each floor is measured with the monster TYPES that actually spawn on it, so "before" -
+	// the drop rolled and stamped at monster.data().level, as SpawnItem did until v1.11.129 - is the real
+	// before, and "after" rolls and stamps at the monster's loot level (the area level), as SpawnItem does now.
+	constexpr int KillsPerPlace = 24000;
+	constexpr int UniqueKillsPerPlace = 3000;
+
+	const auto add = [](DropOddsTally &into, const DropOddsTally &t) {
+		into.kills += t.kills;
+		into.nothing += t.nothing;
+		into.gold += t.gold;
+		into.consumable += t.consumable;
+		into.basic += t.basic;
+		into.magic += t.magic;
+		into.rare += t.rare;
+		into.buffedUnique += t.buffedUnique;
+		into.primal += t.primal;
+		into.unique += t.unique;
+	};
+	const auto print = [](int difficulty, int floor, int alvl, const char *mode, const DropOddsTally &t) {
+		std::cout << "DROPODDS {\"d\":" << difficulty << ",\"f\":" << floor << ",\"alvl\":" << alvl << ",\"mode\":\"" << mode
+		          << "\",\"kills\":" << t.kills << ",\"nothing\":" << t.nothing << ",\"gold\":" << t.gold
+		          << ",\"consumable\":" << t.consumable << ",\"basic\":" << t.basic << ",\"magic\":" << t.magic
+		          << ",\"rare\":" << t.rare << ",\"buffedUnique\":" << t.buffedUnique << ",\"primal\":" << t.primal
+		          << ",\"unique\":" << t.unique << "}" << std::endl;
+	};
+
+	uint32_t seed = 0x5EED0001U;
+	for (int difficulty = DIFF_NORMAL; difficulty <= DIFF_TORMENT; difficulty++) {
+		sgGameInitInfo.nDifficulty = static_cast<_difficulty>(difficulty);
+		for (int floor = 1; floor <= 24; floor++) {
+			const int alvl = oracool::AreaLevel(floor, static_cast<_difficulty>(difficulty));
+
+			std::vector<int> authored;
+			for (int16_t i = 0; i < static_cast<int16_t>(NUM_MTYPES); i++) {
+				const MonsterData &data = MonstersData[i];
+				if (data.availability == MonsterAvailability::Never || i == MT_DIABLO)
+					continue;
+				if (data.minDunLvl <= floor && floor <= data.maxDunLvl)
+					authored.push_back(data.level);
+			}
+			if (authored.empty())
+				continue;
+			const int perType = std::max(1000, KillsPerPlace / static_cast<int>(authored.size()));
+
+			DropOddsTally before;
+			for (const int level : authored) {
+				add(before, SimulateMonsterDropOdds(alvl, level, level, false, perType, seed));
+				seed += 7919;
+			}
+			print(difficulty, floor, alvl, "before", before);
+
+			DropOddsTally after = SimulateMonsterDropOdds(alvl, alvl, alvl, false, perType * static_cast<int>(authored.size()), seed);
+			seed += 7919;
+			print(difficulty, floor, alvl, "after", after);
+
+			const int championLevel = std::min(alvl + 2, oracool::MaxAreaLevel);
+			print(difficulty, floor, alvl, "champion", SimulateMonsterDropOdds(championLevel, championLevel, championLevel, false, perType * static_cast<int>(authored.size()), seed));
+			seed += 7919;
+
+			const int uniqueLevel = std::min(alvl + 3, oracool::MaxAreaLevel);
+			print(difficulty, floor, alvl, "unique", SimulateMonsterDropOdds(uniqueLevel, uniqueLevel, uniqueLevel, true, UniqueKillsPerPlace, seed));
+			seed += 7919;
+		}
+	}
+
+	sgGameInitInfo.nDifficulty = DIFF_NORMAL;
+	gbIsHellfire = wasHellfire;
+}
+
+/**
+ * Infravision's countdown survives a level change.
+ *
+ * User, 2026-09-13: "find out why it runs out every time i change dungeon level and fix its countdown timer
+ * to survive level changes". Infravision, Etherealize and Search keep their clock on their missile, and
+ * InitMissiles cleared every missile on every level entry.
+ */
+TEST(OracoolAudit, HeroTimedSpellsSurviveALevelChange)
+{
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	const bool wasMultiplayer = gbIsMultiplayer;
+	gbIsMultiplayer = false;
+	MyPlayer->_pInfraFlag = false;
+	Missiles.clear();
+
+	const auto heroMissile = [](MissileID type, int range) {
+		Missile m {};
+		m._mitype = type;
+		m._misource = 0;
+		m._micaster = TARGET_MONSTERS;
+		m._mirange = range;
+		return m;
+	};
+	Missiles.push_back(heroMissile(MissileID::Infravision, 900));
+	Missiles.push_back(heroMissile(MissileID::Search, 300));
+	Missiles.push_back(heroMissile(MissileID::Firebolt, 40)); // an ordinary missile stays on its level
+
+	InitMissiles(/*keepHeroTimedSpells=*/true);
+	ASSERT_EQ(Missiles.size(), 2u) << "a level change kept the wrong missiles";
+	int infraRange = 0;
+	for (const Missile &m : Missiles) {
+		EXPECT_NE(m._mitype, MissileID::Firebolt);
+		if (m._mitype == MissileID::Infravision)
+			infraRange = m._mirange;
+	}
+	EXPECT_EQ(infraRange, 900) << "Infravision's time left was not carried";
+	EXPECT_TRUE(MyPlayer->_pInfraFlag) << "the new level is entered without infravision on";
+	EXPECT_TRUE(AutoMapShowItems) << "Search's item view was not restored";
+
+	// A new game or a loaded save starts clean. The flag is reset first so InitMissiles does not recompute
+	// a bare test player's items.
+	MyPlayer->_pInfraFlag = false;
+	InitMissiles(/*keepHeroTimedSpells=*/false);
+	EXPECT_TRUE(Missiles.empty());
+	EXPECT_FALSE(AutoMapShowItems);
+
+	gbIsMultiplayer = wasMultiplayer;
 }
 
 /**
