@@ -1050,6 +1050,7 @@ TEST(OracoolRareShelf, TheRarePoolReachesTheKindsTheOldCeilingLockedOut)
 
 	std::set<ItemType> kinds;
 	int made = 0;
+	int oracoolGear = 0;
 	// The live generator's own budget is CuratedShelfCapacity * 8 = 320 attempts for 40 slots. A
 	// larger budget here because this is asking "is it REACHABLE", not "does one shelf contain it".
 	for (int i = 0; i < 4000; i++) {
@@ -1058,6 +1059,8 @@ TEST(OracoolRareShelf, TheRarePoolReachesTheKindsTheOldCeilingLockedOut)
 			continue;
 		made++;
 		kinds.insert(item._itype);
+		if (item.IDidx >= IDI_ORACOOL_SHOULDERS && item.IDidx <= IDI_ORACOOL_SPECTRAL_HELM)
+			oracoolGear++;
 		EXPECT_EQ(item._iOracoolTier, OracoolItemTier::Rare)
 		    << "the shelf only accepts items that actually took the Rare tier";
 	}
@@ -1075,6 +1078,12 @@ TEST(OracoolRareShelf, TheRarePoolReachesTheKindsTheOldCeilingLockedOut)
 	// premium pool offers and well clear of what the old ceiling allowed, so this fails on a
 	// regression without being brittle about exactly which kinds a seed happens to draw.
 	EXPECT_GE(kinds.size(), 8u) << "only " << kinds.size() << " item kinds reachable across " << made << " rolls";
+
+	// And the fork's own gear, which the Basic and Magic tabs stock and this shelf never could (user,
+	// 2026-09-13: "None of oracool items make it there"). A third of the rolls aim at it, so hundreds
+	// should land; the bound is loose on purpose.
+	EXPECT_GT(oracoolGear, made / 10) << "only " << oracoolGear << " Oracool gear pieces in " << made
+	                                  << " rare rolls - the Rare shelf is back to the droppable pool alone";
 }
 
 } // namespace devilution

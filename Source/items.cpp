@@ -4018,6 +4018,9 @@ bool CreateUniqueVendorItem(const Player &player, Item &item, _unique_items uid)
 	return true;
 }
 
+// Defined with the other Oracool stocking helpers below; the Rare shelf shares their base pool.
+_item_indexes RndOracoolGearBase(int lvl);
+
 bool CreateRareVendorItem(const Player &player, Item &item, int lvl)
 {
 	// The base comes from the PREMIUM pool, at the premium tab's own 1..30 window.
@@ -4047,7 +4050,24 @@ bool CreateRareVendorItem(const Player &player, Item &item, int lvl)
 	// 1..30, the same window SpawnOnePremium uses (plvl/4 .. plvl at plvl clamped to 30). A floor of 1
 	// rather than lvl/4 because this shelf is not tied to a dungeon depth - it is the whole catalogue,
 	// rolled rare, and a level-40 character should still be able to be offered a Buckler.
-	const _item_indexes idx = RndPremiumItem(player, 1, 30);
+	_item_indexes idx = RndPremiumItem(player, 1, 30);
+	// ORACOOL GEAR too (user, 2026-09-13: "None of oracool items make it there ... make all item types
+	// that appear in basic and magic stores also make it to the rare store"). The premium pool above is
+	// the droppable pool, which excludes every Oracool item on purpose - it is the save format - so the
+	// Basic and Magic tabs reach the fork's gear through a second pass over OracoolGearBasesFor. This
+	// shelf had no such pass, so none of it could ever appear here.
+	//
+	// A third of the rolls, the share the Basic tab stocks. Replay safety does not constrain this pick
+	// the way it does the premium roll: the curated shelves are never saved (built once per game in
+	// memory), and a bought item keeps its full record like any other.
+	//
+	// Depth-gated by the character's level, as the Magic tab gates its Oracool block by premiumlevel, so
+	// a level-40 character is offered the deep tiers the vendor level alone (capped at 16) would hide.
+	if (oracool::IsSinglePlayer() && GenerateRnd(3) == 0) {
+		const _item_indexes oracoolBase = RndOracoolGearBase(std::max<int>(player._pLevel, lvl));
+		if (oracoolBase != IDI_NONE)
+			idx = oracoolBase;
+	}
 	if (idx == IDI_GOLD)
 		return false;
 
@@ -7350,6 +7370,14 @@ std::pair<std::array<_item_indexes, OracoolGearBaseCount>, size_t> OracoolGearBa
 			bases[count++] = static_cast<_item_indexes>(i);
 	}
 	return { bases, count };
+}
+
+_item_indexes RndOracoolGearBase(int lvl)
+{
+	const auto [candidates, candidateCount] = OracoolGearBasesFor(lvl);
+	if (candidateCount == 0)
+		return IDI_NONE;
+	return candidates[GenerateRnd(static_cast<int>(candidateCount))];
 }
 
 /**

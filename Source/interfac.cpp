@@ -52,28 +52,30 @@ const uint8_t BarColor[3] = { 138, 43, 254 };
 constexpr uint32_t BarColorRgb = 0xCCB775;
 
 /**
- * @brief The loading bar's gradient (user, 2026-09-12: "make its color gradient, starting from dark
- * red and finishing at bright gree, transitioning through whatever colors you decide").
+ * @brief The loading bar's gradient: the item-quality ladder, weakest to strongest (user, 2026-09-13:
+ * "make the loading bar gradient between basic,magic,rare,unique, set, primal items colours").
  *
- * Six stops along the warm-to-cool ramp a progress bar is read by - dark red, red, orange, yellow,
- * yellow-green, bright green - so the colour alone says roughly how far the load has got. The middle
- * four are the transition the user left to choice; the ends are theirs.
+ * It was dark red to bright green (2026-09-12). Now six evenly spaced stops, in the user's order, each
+ * the colour that tier's names are written in - so a load reads as loot climbing the ladder.
  *
- * Permille rather than percent so the stops can sit off the tens without rounding: the yellow is
- * held back to 700 and the yellow-green to 860, because an even spread spends too much of the ramp
- * on orange and the bar reads as "stuck" in the middle of a load.
+ * Rare, set and primal are the exact top shades of their font bands (text_render.cpp: YL-3, the set
+ * green, BE-2). Basic white, magic blue and unique gold are drawn from vanilla's .trn files, which carry
+ * no RGB, so their stops are the nearest values to how those names read on screen.
+ *
+ * Permille rather than percent, so a stop can sit off the tens without rounding if the spacing is ever
+ * tuned.
  */
 struct BarGradientStop {
 	int atPermille;
 	uint8_t r, g, b;
 };
 constexpr BarGradientStop BarGradient[] = {
-	{ 0, 139, 0, 0 },      // dark red
-	{ 250, 198, 48, 16 },  // red, warming
-	{ 500, 226, 124, 8 },  // orange
-	{ 700, 232, 204, 24 }, // yellow
-	{ 860, 150, 206, 40 }, // yellow-green
-	{ 1000, 48, 224, 72 }, // bright green
+	{ 0, 243, 243, 243 },    // basic: white
+	{ 200, 120, 120, 255 },  // magic: blue
+	{ 400, 254, 251, 36 },   // rare: YL-3, 0xFEFB24
+	{ 600, 221, 196, 126 },  // unique: gold
+	{ 800, 140, 190, 140 },  // set: green, 0x8CBE8C
+	{ 1000, 232, 202, 202 }, // primal: BE-2, 0xE8CACA
 };
 
 /** @brief The gradient's colour at @p permille along the bar's FULL track, as 0x00RRGGBB. */
