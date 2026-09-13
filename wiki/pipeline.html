@@ -23,10 +23,7 @@ the list to pick from - what gets built next comes off this page.</p>
 <div id="ready"></div>
 
 <h2>Waiting on something</h2>
-<p>Each of these names what has to happen before it can start. The blockers that repeat are
-<b>the user's own assets</b>, which three entries wait on, and <b>unique legendary powers</b>, which
-two do. Levski's Roar used to be the biggest single unblocker here; it shipped across 1.8.15-1.8.25
-and blocks nothing now.</p>
+<p>Each of these names what has to happen before it can start. <span id="repeats"></span></p>
 <div id="blocked"></div>
 
 <h2>Everything, by group</h2>
@@ -55,8 +52,11 @@ without being moved, which is the exact staleness this page exists to avoid.</di
 <p>The 1.6 to 1.8 lines took these off the list: waypoints, autosave-only play, the HUD rebuild,
 skill trees and respec, the run toggle, charms, item tiers, set items, sockets and gems, all 33
 runes, 370 runewords, the crafting window, gambling at Wirt, ethereal items, Magic and Gold Find,
-lesser uniques with affixes, and the alvl/mlvl/ilvl ladder. See
-<a href="history.html">Version history</a>.</p>
+lesser uniques with affixes, and the alvl/mlvl/ilvl ladder.</p>
+<p>Since then: Levski's Roar and the stash chest in their own art, cold damage, all 250 new uniques,
+the inert-skill plan that took the class trees to 144 live rows, every skill glyph, Movement Speed and
+Faster Cast, the 64-rung area ladder, the true-colour renderer, and the loot rework of 2026-09-13 - one
+affix pool, Smart Loot and pool-generated item names. See <a href="history.html">Version history</a>.</p>
 
 <footer></footer>
 </main>
@@ -67,6 +67,20 @@ lesser uniques with affixes, and the alvl/mlvl/ilvl ladder. See
 const pipeline = WIKI.pipeline;
 const ready = pipeline.filter(function (p) { return !p.blocked; });
 const blocked = pipeline.filter(function (p) { return p.blocked; });
+
+/* The blockers that more than one entry waits on, counted from the table rather than typed here -
+   the sentence this replaced named counts that went stale as soon as the table moved. */
+(function () {
+	const counts = {};
+	blocked.forEach(function (p) { counts[p.blocked] = (counts[p.blocked] || 0) + 1; });
+	const repeats = Object.keys(counts).filter(function (k) { return counts[k] > 1; })
+		.sort(function (a, b) { return counts[b] - counts[a]; });
+	document.getElementById('repeats').innerHTML = repeats.length === 0
+		? 'No single blocker holds up more than one entry.'
+		: 'The blockers more than one entry waits on: ' + repeats.map(function (k) {
+			return '<b>' + k + '</b> (' + counts[k] + ')';
+		}).join(', ') + '.';
+})();
 
 document.getElementById('stats').innerHTML =
 	'<div class="stat"><b>' + pipeline.length + '</b><span>open entries</span></div>' +
