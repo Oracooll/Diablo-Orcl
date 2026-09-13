@@ -1920,7 +1920,7 @@ void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, Affi
 		// Table affixes live in the vanilla pair; OracoolPoolRows affixes live in the record, which is
 		// where the loader re-derives Movement Speed and Faster Cast from.
 		const bool vanillaRoom = item._iPrePower == IPL_INVALID || item._iSufPower == IPL_INVALID;
-		const bool recordRoom = item._iOracoolSuffixCount < Item::MaxOracoolAffixesPerSlot;
+		const bool recordRoom = item._iOracoolAffixCount < Item::MaxOracoolAffixes;
 		const std::optional<AffixCandidate> drawn = DrawUnifiedAffix(item, minlvl, maxlvl, flgs, onlygood, gbIsHellfire,
 		    ignoreLevelLimits, vanillaRoom, vanillaRoom, recordRoom, picked.data(), pickedCount, goe);
 		if (!drawn)
@@ -1939,7 +1939,7 @@ void GetItemPower(const Player &player, Item &item, int minlvl, int maxlvl, Affi
 			item._iVMult1 = affix.multVal;
 		}
 		if (drawn->source == AffixSource::Oracool)
-			item._iOracoolSuffixes[item._iOracoolSuffixCount++] = OracoolAffix { affix.power.type, raw, affix.multVal };
+			item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { affix.power.type, raw, affix.multVal };
 		else if (item._iPrePower == IPL_INVALID)
 			item._iPrePower = affix.power.type;
 		else
@@ -3534,17 +3534,15 @@ bool HasUniqueForBaseOf(const Item &item)
 /**
  * @brief Clears the affix record so a reroll starts from a clean item.
  *
- * The rollers APPEND - applyPrefix writes at _iOracoolPrefixCount and increments it - which is
+ * The rollers APPEND - apply writes at _iOracoolAffixCount and increments it - which is
  * correct for a freshly attributed item and wrong for one being rolled a second time. Without this,
  * rerolling the same item twice at Levski's Roar carried the first roll's affixes into the second
  * and ran off the end of the array.
  */
 void ClearOracoolAffixRecord(Item &item)
 {
-	item._iOracoolPrefixCount = 0;
-	item._iOracoolSuffixCount = 0;
-	item._iOracoolPrefixes = {};
-	item._iOracoolSuffixes = {};
+	item._iOracoolAffixCount = 0;
+	item._iOracoolAffixes = {};
 	item._iOracoolPerfectRoll = false;
 	item._iOracoolTier = OracoolItemTier::None;
 }
@@ -3832,19 +3830,19 @@ string_view GetItemTypeNoun(const Item &item)
 }
 
 /**
- * @brief Generates an Oracool-tiered item's affixes: forces exactly minAffixesPerSlot prefixes
- * and minAffixesPerSlot suffixes (the tier's minimum identity requirement - "Always at least..."
- * per the roadmap, an unconditional guarantee, not a common case), then independently a further
- * bonusAffixChancePercent chance each for one more prefix and one more suffix, capped at
- * Item::MaxOracoolAffixesPerSlot - weighted toward fewer total affixes by design.
- * Shared engine behind GetRareItemAffixes (minAffixesPerSlot=1), GetBuffedUniqueItemAffixes
- * (minAffixesPerSlot=2), and GetPrimalItemAffixes (minAffixesPerSlot=3, perfectRoll=true).
+ * @brief Generates an Oracool-tiered item's affixes: exactly @p guaranteedAffixes drawn from the one pool (the
+ * tier's minimum identity requirement - an unconditional guarantee, not a common case), then two independent
+ * bonusAffixChancePercent chances for one more each, capped at Item::MaxOracoolAffixes - weighted toward fewer
+ * total affixes by design. Any combination of tables is legal: all prefixes, all suffixes, or any mix (user,
+ * 2026-09-13).
+ * Shared engine behind GetRareItemAffixes (2 guaranteed), GetBuffedUniqueItemAffixes (4) and
+ * GetPrimalItemAffixes (6, perfectRoll=true).
  * Reuses vanilla's exact roll-and-apply primitives (SaveItemPower/PLVal) so the real _iPL*
  * stat bonuses are identical in kind to an ordinary magic item's; only the identity bookkeeping
- * (which affixes, at what rolled value) goes into Item::_iOracoolPrefixes/_iOracoolSuffixes
+ * (which affixes, at what rolled value) goes into Item::_iOracoolAffixes
  * instead of the vanilla _iVAdd/_iVMult fields, which only have room for one of each.
  *
- * The minAffixesPerSlot loop always relaxes the FLOOR of the caller's level window, regardless of
+ * The guaranteed loop always relaxes the FLOOR of the caller's level window, regardless of
  * the ignoreLevelLimits argument or tier: a low-level drop or a narrow-pool item class like jewelry
  * can exhaust every eligible entry once a few affixes are already excluded as duplicates, and the
  * minimum count is a stated guarantee. It never relaxes the CEILING (user, 2026-09-13: "all items
@@ -3858,16 +3856,16 @@ string_view GetItemTypeNoun(const Item &item)
  * only beneficial (PLOk) affixes are ever considered regardless of the onlygood argument - a
  * maxed-out curse/drawback affix would contradict "perfect roll" being an unambiguous upgrade.
  * It also forces ignoreLevelLimits for the bonus-affix rolls (moot for Primal today, since its
- * minAffixesPerSlot already equals the hard cap and the bonus rolls never fire).
+ * guarantee already equals the hard cap and the bonus rolls never fire).
  */
-void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, OracoolItemTier tier, int minAffixesPerSlot, int bonusAffixChancePercent, bool ignoreLevelLimits, bool perfectRoll = false)
+void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, OracoolItemTier tier, int guaranteedAffixes, int bonusAffixChancePercent, bool ignoreLevelLimits, bool perfectRoll = false)
 {
 	if (perfectRoll) {
 		onlygood = true;
 		ignoreLevelLimits = true;
 	}
 
-	std::array<item_effect_type, Item::MaxOracoolAffixesPerSlot * 2> pickedTypes {};
+	std::array<item_effect_type, Item::MaxOracoolAffixes> pickedTypes {};
 	int pickedCount = 0;
 	goodorevil goe = GOE_ANY;
 	// Oracool bug fix: user report - a Buffed Unique "Crown of the Eagle" showed nonsense like
@@ -3885,29 +3883,22 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 	int priceAddTotal = 0;
 	int priceMultTotal = 0;
 
-	// ONE POOL for every tier (user, 2026-09-13), stored by the table each affix came from. Storage is
-	// still three prefixes and three suffixes: RepairOracoolAffixesIfCorrupted checks each array against
-	// its own table on every load, and widening either array is an item format change that the loaders'
-	// exact version check would turn into rejected saves - see OracoolItemFormatVersion. So a Rare may
-	// now roll three prefixes and one suffix, or none and three, or Movement Speed beside two suffixes;
-	// what it cannot yet roll is four from one table.
+	// ONE POOL and ONE LIST for every tier (user, 2026-09-13: affixes are not segregated into prefixes and suffixes -
+	// "i now want all possible combinations of affixes to be able to occur ... including ONLY prefixes and ONLY
+	// suffixes for ALL affixes slots these items have"). A drawn affix takes the next free place in
+	// _iOracoolAffixes whatever table it came from, so a Primal can be six prefixes, six suffixes or any mix.
 	auto apply = [&](AffixCandidate drawn) {
 		if (pickedCount >= static_cast<int>(std::size(pickedTypes)))
 			return;
-		const bool toPrefixes = drawn.source == AffixSource::Prefix;
 		// BOUNDED. Levski's Roar rerolls run this over an item that already carries affixes, and an
 		// off-by-one anywhere in the pipeline should drop an affix, never corrupt memory.
-		if ((toPrefixes ? item._iOracoolPrefixCount : item._iOracoolSuffixCount) >= Item::MaxOracoolAffixesPerSlot)
+		if (item._iOracoolAffixCount >= Item::MaxOracoolAffixes)
 			return;
 		const PLStruct &affix = RowOf(drawn);
 		ItemPower power = affix.power;
 		const int raw = SaveItemPower(player, item, power);
 		const int value = PLVal(raw, power.param1, power.param2, affix.minVal, affix.maxVal);
-		const OracoolAffix stored { affix.power.type, raw, affix.multVal };
-		if (toPrefixes)
-			item._iOracoolPrefixes[item._iOracoolPrefixCount++] = stored;
-		else
-			item._iOracoolSuffixes[item._iOracoolSuffixCount++] = stored;
+		item._iOracoolAffixes[item._iOracoolAffixCount++] = OracoolAffix { affix.power.type, raw, affix.multVal };
 		pickedTypes[pickedCount++] = affix.power.type;
 		priceAddTotal += value;
 		priceMultTotal += affix.multVal;
@@ -3915,10 +3906,10 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 			goe = affix.PLGOE;
 	};
 	const auto draw = [&](bool withLevelLimits) {
-		const bool prefixRoom = item._iOracoolPrefixCount < Item::MaxOracoolAffixesPerSlot;
-		const bool suffixRoom = item._iOracoolSuffixCount < Item::MaxOracoolAffixesPerSlot;
+		// Every table is offered while the list has room: the only limit is the count.
+		const bool room = item._iOracoolAffixCount < Item::MaxOracoolAffixes;
 		return DrawUnifiedAffix(item, minlvl, maxlvl, flgs, onlygood, gbIsHellfire, !withLevelLimits,
-		    prefixRoom, suffixRoom, suffixRoom, pickedTypes.data(), pickedCount, goe);
+		    room, room, room, pickedTypes.data(), pickedCount, goe);
 	};
 
 	const bool previousForcePerfectAffixRoll = ForcePerfectAffixRoll;
@@ -3926,12 +3917,12 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 
 	// The guaranteed affixes may go BELOW the level window - a ring in a narrow window has a small pool, and a
 	// Rare should not ship with fewer than its guarantee - but never above the item's level (2026-09-13).
-	for (int i = 0; i < 2 * minAffixesPerSlot; i++) {
+	for (int i = 0; i < guaranteedAffixes; i++) {
 		if (const std::optional<AffixCandidate> drawn = draw(/*withLevelLimits=*/false))
 			apply(*drawn);
 	}
-	// Two chances at one more each, as the prefix and suffix bonuses were - a Rare still lands on 2, 3 or
-	// 4 affixes with the same odds, and a Buffed Unique on 4, 5 or 6. Primal passes no bonus chance.
+	// Two chances at one more each - a Rare lands on 2, 3 or 4 affixes, and a Buffed Unique on 4, 5 or 6.
+	// Primal passes no bonus chance.
 	for (int bonus = 0; bonus < 2 && bonusAffixChancePercent > 0; bonus++) {
 		if (GenerateRnd(100) >= bonusAffixChancePercent)
 			continue;
@@ -3961,21 +3952,20 @@ void GetTieredItemAffixes(const Player &player, Item &item, int minlvl, int maxl
 void GetRareItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits)
 {
 	constexpr int BonusAffixChancePercent = 30;
-	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::Rare, 1, BonusAffixChancePercent, ignoreLevelLimits);
+	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::Rare, /*guaranteedAffixes=*/2, BonusAffixChancePercent, ignoreLevelLimits);
 }
 
 void GetBuffedUniqueItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits)
 {
 	constexpr int BonusAffixChancePercent = 30;
-	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::BuffedUnique, 2, BonusAffixChancePercent, ignoreLevelLimits);
+	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::BuffedUnique, /*guaranteedAffixes=*/4, BonusAffixChancePercent, ignoreLevelLimits);
 }
 
 void GetPrimalItemAffixes(const Player &player, Item &item, int minlvl, int maxlvl, AffixItemType flgs, bool onlygood, bool ignoreLevelLimits)
 {
-	// minAffixesPerSlot=3 already equals Item::MaxOracoolAffixesPerSlot, so the bonus-affix
-	// roll inside GetTieredItemAffixes can never fire (the count-below-cap guard blocks it) -
-	// bonusAffixChancePercent is passed as 0 here purely for clarity, not because it matters.
-	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::Primal, Item::MaxOracoolAffixesPerSlot, 0, ignoreLevelLimits, /*perfectRoll=*/true);
+	// The guarantee already equals Item::MaxOracoolAffixes, so the bonus-affix roll inside GetTieredItemAffixes
+	// can never fire (the count-below-cap guard blocks it) - bonusAffixChancePercent is 0 here for clarity.
+	GetTieredItemAffixes(player, item, minlvl, maxlvl, flgs, onlygood, OracoolItemTier::Primal, /*guaranteedAffixes=*/Item::MaxOracoolAffixes, 0, ignoreLevelLimits, /*perfectRoll=*/true);
 }
 
 /**
@@ -4049,13 +4039,19 @@ bool RepairOracoolAffixesIfCorrupted(Item &item)
 	if (!item.hasOracoolTier())
 		return false;
 
+	// The table an affix came from is decided by its TYPE: affixes are one unsegregated list (2026-09-13), and no
+	// power type appears in both tables, so the lookup is unambiguous. A pool type (Movement Speed, Faster Cast) is
+	// in neither and is left alone, as it always was.
+	const auto tableFor = [](item_effect_type type) -> const PLStruct * {
+		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
+			if (ItemPrefixes[j].power.type == type)
+				return ItemPrefixes;
+		}
+		return ItemSuffixes;
+	};
 	bool repaired = false;
-	for (int i = 0; i < item._iOracoolPrefixCount; i++) {
-		if (RepairOracoolAffixValue(item._iOracoolPrefixes[i], ItemPrefixes))
-			repaired = true;
-	}
-	for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-		if (RepairOracoolAffixValue(item._iOracoolSuffixes[i], ItemSuffixes))
+	for (int i = 0; i < item._iOracoolAffixCount; i++) {
+		if (RepairOracoolAffixValue(item._iOracoolAffixes[i], tableFor(item._iOracoolAffixes[i].type)))
 			repaired = true;
 	}
 
@@ -5348,15 +5344,12 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
  * carry is an affix, any mix of them is legal, and the only rule is the count.
  *
  * Diablo II is the other model - MagicPrefix.txt and MagicSuffix.txt, one of each on a magic item,
- * three of each on a rare - and this fork was built on it. The PREFIX/SUFFIX STORAGE stays, because
- * it is part of the save format and the vanilla tables are what the seed replay walks; what stops
- * being prefix-and-suffix is the BUDGET. A tier now says "four affixes", not "two prefixes and two
- * suffixes", and an item may fill that however it happens to roll.
+ * three of each on a rare - and this fork was built on it. Since v1.12.001 neither the budget nor the
+ * storage is prefix-and-suffix: a tier says "four affixes", and they sit in one list in whatever mix
+ * the pool dealt. The two vanilla tables remain only as where the rows are written.
  *
- * The numbers are the ones the existing rollers already produce, so nothing that could legally
- * exist before becomes illegal now: GetRareItemAffixes asks for one per slot plus a 30% bonus
- * (2 + 2), GetBuffedUniqueItemAffixes two plus a bonus (3 + 3), GetPrimalItemAffixes three per slot
- * with no bonus (3 + 3). Magic is the vanilla pair.
+ * GetRareItemAffixes guarantees two plus two 30% bonuses (4), GetBuffedUniqueItemAffixes four plus two
+ * bonuses (6), GetPrimalItemAffixes six with no bonus. Magic is the vanilla pair.
  *
  * Zero for plain quality, for a vanilla unique, and for a set piece: none of the three carries a
  * rolled affix at all, and a set piece's six powers are a fixed list rather than affixes.
@@ -5365,11 +5358,11 @@ DVL_API_FOR_TEST int OracoolAffixBudget(const Item &item)
 {
 	switch (item._iOracoolTier) {
 	case OracoolItemTier::Rare:
-		return 4; // one per slot, plus the 30% bonus on each
+		return 4; // two guaranteed, plus two 30% bonuses
 	case OracoolItemTier::BuffedUnique:
-		return 6; // two per slot, plus the 30% bonus on each
+		return 6; // four guaranteed, plus two 30% bonuses
 	case OracoolItemTier::Primal:
-		return 2 * Item::MaxOracoolAffixesPerSlot; // three per slot, already at the cap
+		return Item::MaxOracoolAffixes; // six guaranteed, already at the cap
 	case OracoolItemTier::Set:
 		return 0;
 	case OracoolItemTier::None:
@@ -5395,7 +5388,7 @@ DVL_API_FOR_TEST int OracoolAffixBudget(const Item &item)
  */
 DVL_API_FOR_TEST int OracoolAffixesUsed(const Item &item)
 {
-	int used = item._iOracoolPrefixCount + item._iOracoolSuffixCount;
+	int used = item._iOracoolAffixCount;
 	if (!item.hasOracoolTier()) {
 		if (item._iPrePower != IPL_INVALID)
 			used++;
@@ -5427,13 +5420,9 @@ void RederiveFastCast(Item &item)
 	// own row, whose values are fixed (GenUniqueItems.ps1's authored table), so reading param1 is exact.
 	// Set rungs and runewords need nothing here: both are recomputed into the totals on every recalc.
 	item._iPLFastCast = 0;
-	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
-		if (affix.type == IPL_FASTCAST)
-			item._iPLFastCast += affix.param1;
-	}
-	for (const OracoolAffix &affix : item._iOracoolSuffixes) {
-		if (affix.type == IPL_FASTCAST)
-			item._iPLFastCast += affix.param1;
+	for (int i = 0; i < item._iOracoolAffixCount; i++) {
+		if (item._iOracoolAffixes[i].type == IPL_FASTCAST)
+			item._iPLFastCast += item._iOracoolAffixes[i].param1;
 	}
 	if (item._iMagical == ITEM_QUALITY_UNIQUE)
 		item._iPLFastCast += UniqueItemFastCast(item._iUid);
@@ -6849,8 +6838,8 @@ void AddItemPowerPanelStrings(const Item &item)
 	// A set piece's stats come from its own definition, not from a roll.
 	//
 	// Bug (fixed 2026-08-16, user report: "i dont see any affixes" on a complete set). Set is an
-	// OracoolItemTier, so it fell into the branch below and printed _iOracoolPrefixes /
-	// _iOracoolSuffixes - the arrays the affix ROLLER fills. A set item is never rolled: MakeSetItem
+	// OracoolItemTier, so it fell into the branch below and printed _iOracoolAffixes - the list the affix
+	// ROLLER fills. A set item is never rolled: MakeSetItem
 	// applies its declared powers straight into the _iPL* fields, so those arrays are empty and the
 	// description had nothing to say.
 	//
@@ -6933,12 +6922,10 @@ void AddItemPowerPanelStrings(const Item &item)
 
 	if (item.hasOracoolTier()) {
 		// Rare/Buffed Unique/Primal items: unlike a static UniqueItem, the affix list comes from
-		// the item instance itself (up to 3 prefixes + 3 suffixes), so the vanilla
+		// the item instance itself (up to six affixes from any table, in one list), so the vanilla
 		// UniqueItems[uid].powers[] table isn't involved at all here.
-		for (int i = 0; i < item._iOracoolPrefixCount; i++)
-			AddPanelString(PrintOracoolAffixPower(item._iOracoolPrefixes[i], item), ItemAffixColor);
-		for (int i = 0; i < item._iOracoolSuffixCount; i++)
-			AddPanelString(PrintOracoolAffixPower(item._iOracoolSuffixes[i], item), ItemAffixColor);
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			AddPanelString(PrintOracoolAffixPower(item._iOracoolAffixes[i], item), ItemAffixColor);
 		return;
 	}
 
@@ -6975,12 +6962,8 @@ bool AffixStatesIndestructible(const Item &item)
 	if (item._iPrePower == IPL_INDESTRUCTIBLE || item._iSufPower == IPL_INDESTRUCTIBLE)
 		return true;
 	if (item.hasOracoolTier()) {
-		for (int i = 0; i < item._iOracoolPrefixCount; i++) {
-			if (item._iOracoolPrefixes[i].type == IPL_INDESTRUCTIBLE)
-				return true;
-		}
-		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-			if (item._iOracoolSuffixes[i].type == IPL_INDESTRUCTIBLE)
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			if (item._iOracoolAffixes[i].type == IPL_INDESTRUCTIBLE)
 				return true;
 		}
 	} else if (item._iMagical == ITEM_QUALITY_UNIQUE) {

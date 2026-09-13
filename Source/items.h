@@ -650,8 +650,12 @@ struct Item {
 		return _iMiscId == other._iMiscId && _iSpell == other._iSpell;
 	}
 
-	/** @brief Maximum number of prefix (or suffix) affixes an Oracool-tiered item may carry. */
-	static constexpr int MaxOracoolAffixesPerSlot = 3;
+	/**
+	 * @brief The most rolled affixes an item can carry: one list, from any table (user, 2026-09-13: affixes are not
+	 * segregated into prefixes and suffixes - "all possible combinations ... including ONLY prefixes and ONLY
+	 * suffixes"). Primal and Buffed Unique reach it; Rare stops at four and magic at two (OracoolAffixBudget).
+	 */
+	static constexpr int MaxOracoolAffixes = 6;
 
 	/**
 	 * @brief ilvl: the item level this was generated at. 0 means "unknown" and prints nothing.
@@ -720,10 +724,14 @@ struct Item {
 
 	OracoolItemTier _iOracoolTier = OracoolItemTier::None;
 	bool _iOracoolPerfectRoll = false;
-	uint8_t _iOracoolPrefixCount = 0;
-	uint8_t _iOracoolSuffixCount = 0;
-	std::array<OracoolAffix, MaxOracoolAffixesPerSlot> _iOracoolPrefixes;
-	std::array<OracoolAffix, MaxOracoolAffixesPerSlot> _iOracoolSuffixes;
+	/**
+	 * @brief The item's rolled affixes that live in the record, in roll order: every affix of a Rare, Buffed Unique or
+	 * Primal, and a magic item's pool affixes (Movement Speed, Faster Cast; its table affixes sit in _iPrePower and
+	 * _iSufPower). One list since OracoolItemFormatVersion 10 - it was a prefix array and a suffix array. Which table
+	 * an affix came from is a property of its power type, never of where it is stored.
+	 */
+	uint8_t _iOracoolAffixCount = 0;
+	std::array<OracoolAffix, MaxOracoolAffixes> _iOracoolAffixes;
 
 	/**
 	 * @brief Single-player only: true once this equipped item's durability reached 0 and was

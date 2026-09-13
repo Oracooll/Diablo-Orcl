@@ -311,7 +311,11 @@ struct LevelConversionData {
 // and a boss trait come out of the monster's. A count of Mystic Orbs is a PLAYER DECISION, and a
 // decision has nowhere to be recomputed from - so it is stored, and storing it is what moves the
 // version. Paid once, deliberately: the growing charms in Phase 3 want the same byte.
-constexpr uint8_t OracoolItemFormatVersion = 9;
+// Version 10 (2026-09-13) replaces the prefix count + three prefixes and the suffix count + three suffixes
+// with ONE count and SIX affixes: affixes are not segregated into prefixes and suffixes any more (user: "all
+// possible combinations ... including ONLY prefixes and ONLY suffixes"), so the record says what the item is -
+// a list - rather than which vanilla table each entry was written in. The record is one byte shorter.
+constexpr uint8_t OracoolItemFormatVersion = 10;
 
 bool IsOracoolAffixTypeValid(item_effect_type type)
 {
@@ -437,33 +441,19 @@ void LoadItemData(LoadHelper &file, Item &item)
 	// Broken means emptied: a repaired item saved still flagged (the backpack repair forgot the flag
 	// until 2026-09-11) comes back whole.
 	item._iOracoolBroken = file.NextLE<uint8_t>() != 0 && item._iDurability == 0;
-	const uint8_t prefixCount = file.NextLE<uint8_t>();
-	const uint8_t suffixCount = file.NextLE<uint8_t>();
-	item._iOracoolPrefixCount = std::min<uint8_t>(prefixCount, Item::MaxOracoolAffixesPerSlot);
-	item._iOracoolSuffixCount = std::min<uint8_t>(suffixCount, Item::MaxOracoolAffixesPerSlot);
-	for (OracoolAffix &affix : item._iOracoolPrefixes) {
+	// Version 10: one count, then all six affix places (a fixed-size positional record, like every field here).
+	item._iOracoolAffixCount = std::min<uint8_t>(file.NextLE<uint8_t>(), Item::MaxOracoolAffixes);
+	for (OracoolAffix &affix : item._iOracoolAffixes) {
 		const auto type = static_cast<item_effect_type>(file.NextLE<int8_t>());
 		affix.type = IsOracoolAffixTypeValid(type) ? type : IPL_INVALID;
 		affix.param1 = file.NextLE<int32_t>();
 		affix.param2 = file.NextLE<int32_t>();
 	}
-	for (OracoolAffix &affix : item._iOracoolSuffixes) {
-		const auto type = static_cast<item_effect_type>(file.NextLE<int8_t>());
-		affix.type = IsOracoolAffixTypeValid(type) ? type : IPL_INVALID;
-		affix.param1 = file.NextLE<int32_t>();
-		affix.param2 = file.NextLE<int32_t>();
-	}
-	// Movement Speed is not a field of the record; it is re-derived from the records, so the
-	// format did not have to grow for it (2026-09-07). Since 2026-09-13 it is an ordinary pool affix -
-	// see OracoolPoolRows in items.cpp - and still lives in the record for exactly this reason.
+	// Movement Speed is not a field of the record; it is re-derived from the affixes (2026-09-07), an ordinary
+	// pool affix since 2026-09-13 - see OracoolPoolRows in items.cpp.
 	item._iPLMoveSpeed = 0;
-	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
-		if (affix.type == IPL_MOVESPEED)
-			item._iPLMoveSpeed += affix.param1;
-		else if (affix.type == IPL_MOVESPEED_CURSE)
-			item._iPLMoveSpeed -= affix.param1;
-	}
-	for (const OracoolAffix &affix : item._iOracoolSuffixes) {
+	for (int i = 0; i < item._iOracoolAffixCount; i++) {
+		const OracoolAffix &affix = item._iOracoolAffixes[i];
 		if (affix.type == IPL_MOVESPEED)
 			item._iPLMoveSpeed += affix.param1;
 		else if (affix.type == IPL_MOVESPEED_CURSE)
@@ -1403,20 +1393,14 @@ void SaveItem(SaveHelper &file, const Item &item)
 	// instead of a separate "heroitemsext"-style sidecar file, so every container that
 	// already calls SaveItem - backpack, belt, equipped slots, stash, dropped ground items
 	// on every level, and Tabbed Inventory's extra tabs - carries tier data automatically
-	// with no per-container wiring to remember. Every slot is written unconditionally
-	// (regardless of the item's actual prefix/suffix count) since this is a fixed-size
+	// with no per-container wiring to remember. Every affix place is written unconditionally
+	// (regardless of the item's actual affix count) since this is a fixed-size
 	// positional record; a variable-length record here would misalign every subsequent item.
 	file.WriteLE<uint8_t>(static_cast<uint8_t>(item._iOracoolTier));
 	file.WriteLE<uint8_t>(item._iOracoolPerfectRoll ? 1 : 0);
 	file.WriteLE<uint8_t>(item._iOracoolBroken ? 1 : 0);
-	file.WriteLE<uint8_t>(item._iOracoolPrefixCount);
-	file.WriteLE<uint8_t>(item._iOracoolSuffixCount);
-	for (const OracoolAffix &affix : item._iOracoolPrefixes) {
-		file.WriteLE<int8_t>(static_cast<int8_t>(affix.type));
-		file.WriteLE<int32_t>(affix.param1);
-		file.WriteLE<int32_t>(affix.param2);
-	}
-	for (const OracoolAffix &affix : item._iOracoolSuffixes) {
+	file.WriteLE<uint8_t>(item._iOracoolAffixCount);
+	for (const OracoolAffix &affix : item._iOracoolAffixes) {
 		file.WriteLE<int8_t>(static_cast<int8_t>(affix.type));
 		file.WriteLE<int32_t>(affix.param1);
 		file.WriteLE<int32_t>(affix.param2);
@@ -2295,10 +2279,10 @@ void LoadLevel(LevelConversionData *levelConversionData)
 // test HANGS - which is exactly why the terms below are now spelled one per line with the version
 // that added them. A sum of bare numbers is a sum nobody re-derives when they add a field.
 constexpr int OracoolItemExtensionSaveSize =
-    // v1: tier, perfect-roll, broken, prefix count, suffix count.
-    5
-    // v1: three prefixes and three suffixes, each a type byte plus two int32 params.
-    + (Item::MaxOracoolAffixesPerSlot * 2) * (1 + 4 + 4)
+    // v1: tier, perfect-roll, broken; v10: ONE affix count (it was a prefix count and a suffix count).
+    4
+    // v10: six affixes in one list (it was three prefixes and three suffixes), each a type byte plus two int32 params.
+    + Item::MaxOracoolAffixes * (1 + 4 + 4)
     // v3: the socket block - one count byte plus one uint16 base index per slot.
     + 1 + Item::MaxItemSockets * 2
     // v4: the ethereal flag.

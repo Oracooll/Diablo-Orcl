@@ -282,20 +282,20 @@ TEST_F(RareItemTest, GetRareItemAffixes_AlwaysProducesAtLeastTwoAffixes)
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetRareItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		EXPECT_GE(item._iOracoolPrefixCount + item._iOracoolSuffixCount, 2) << "trial " << trial;
+		EXPECT_GE(item._iOracoolAffixCount, 2) << "trial " << trial;
 	}
 }
 
 // Reproduces the user-reported bug: a jewelry item (rings/amulets - AffixItemType::Misc, a much
 // smaller affix pool than weapons/armor) in a narrow level window used to starve the forced
 // minimum, letting Rare items ship with fewer than the guaranteed two affixes. The
-// minAffixesPerSlot loop must ignore level limits regardless of item type or window width.
+// guaranteed loop relaxes the level window's floor regardless of item type or window width.
 TEST_F(RareItemTest, GetRareItemAffixes_AlwaysProducesAtLeastTwoAffixesForJewelryInNarrowLevelWindow)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_MISC, IMISC_RING, IDI_WARRIOR, false, ItemType::Ring);
 		GetRareItemAffixes(Players[0], item, 1, 1, AffixItemType::Misc, false, /*ignoreLevelLimits=*/false);
-		EXPECT_GE(item._iOracoolPrefixCount + item._iOracoolSuffixCount, 2) << "trial " << trial;
+		EXPECT_GE(item._iOracoolAffixCount, 2) << "trial " << trial;
 	}
 }
 
@@ -306,10 +306,8 @@ TEST_F(RareItemTest, GetRareItemAffixes_NeverDuplicatesAnAffixType)
 		GetRareItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
 
 		std::vector<item_effect_type> seen;
-		for (int i = 0; i < item._iOracoolPrefixCount; i++)
-			seen.push_back(item._iOracoolPrefixes[i].type);
-		for (int i = 0; i < item._iOracoolSuffixCount; i++)
-			seen.push_back(item._iOracoolSuffixes[i].type);
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			seen.push_back(item._iOracoolAffixes[i].type);
 
 		std::sort(seen.begin(), seen.end());
 		EXPECT_EQ(std::adjacent_find(seen.begin(), seen.end()), seen.end()) << "trial " << trial << " had a duplicate affix type";
@@ -327,7 +325,7 @@ TEST_F(RareItemTest, GetRareItemAffixes_AffixCountDistributionIsWeightedTowardFe
 	for (int trial = 0; trial < Trials; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetRareItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		int total = item._iOracoolPrefixCount + item._iOracoolSuffixCount;
+		int total = item._iOracoolAffixCount;
 		if (total == 2)
 			twoAffixCount++;
 		else if (total == 4)
@@ -360,7 +358,7 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_AlwaysProducesAtLeastFou
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetBuffedUniqueItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		EXPECT_GE(item._iOracoolPrefixCount + item._iOracoolSuffixCount, 4) << "trial " << trial;
+		EXPECT_GE(item._iOracoolAffixCount, 4) << "trial " << trial;
 	}
 }
 
@@ -374,19 +372,17 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_AlwaysProducesAtLeastFou
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_MISC, IMISC_RING, IDI_WARRIOR, false, ItemType::Ring);
 		GetBuffedUniqueItemAffixes(Players[0], item, 1, 1, AffixItemType::Misc, false, /*ignoreLevelLimits=*/false);
-		EXPECT_GE(item._iOracoolPrefixCount + item._iOracoolSuffixCount, 4) << "trial " << trial;
+		EXPECT_GE(item._iOracoolAffixCount, 4) << "trial " << trial;
 	}
 }
 
-// Buffed Unique's stated maximum: at most three prefixes and three suffixes (the hard cap
-// Item::MaxOracoolAffixesPerSlot already enforces).
-TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_NeverExceedsThreePrefixesOrSuffixes)
+// Buffed Unique's stated maximum: six affixes in all, from any tables (the hard cap Item::MaxOracoolAffixes).
+TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_NeverExceedsSixAffixes)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetBuffedUniqueItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		EXPECT_LE(item._iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot) << "trial " << trial;
-		EXPECT_LE(item._iOracoolSuffixCount, Item::MaxOracoolAffixesPerSlot) << "trial " << trial;
+		EXPECT_LE(item._iOracoolAffixCount, Item::MaxOracoolAffixes) << "trial " << trial;
 	}
 }
 
@@ -397,10 +393,8 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_NeverDuplicatesAnAffixTy
 		GetBuffedUniqueItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
 
 		std::vector<item_effect_type> seen;
-		for (int i = 0; i < item._iOracoolPrefixCount; i++)
-			seen.push_back(item._iOracoolPrefixes[i].type);
-		for (int i = 0; i < item._iOracoolSuffixCount; i++)
-			seen.push_back(item._iOracoolSuffixes[i].type);
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			seen.push_back(item._iOracoolAffixes[i].type);
 
 		std::sort(seen.begin(), seen.end());
 		EXPECT_EQ(std::adjacent_find(seen.begin(), seen.end()), seen.end()) << "trial " << trial << " had a duplicate affix type";
@@ -417,7 +411,7 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_AffixCountDistributionIs
 	for (int trial = 0; trial < Trials; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetBuffedUniqueItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		int total = item._iOracoolPrefixCount + item._iOracoolSuffixCount;
+		int total = item._iOracoolAffixCount;
 		if (total == 4)
 			fourAffixCount++;
 		else if (total == 6)
@@ -442,14 +436,14 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_TagsItemAsBuffedUniqueAn
 
 using PrimalItemTest = RareItemTest;
 
-// Primal's affix count is fixed, not a min/max range: always exactly 3 prefixes + 3 suffixes.
-TEST_F(PrimalItemTest, GetPrimalItemAffixes_AlwaysProducesExactlyThreePrefixesAndThreeSuffixes)
+// Primal's affix count is fixed, not a min/max range: always exactly six, from any tables (one unsegregated list
+// since 2026-09-13).
+TEST_F(PrimalItemTest, GetPrimalItemAffixes_AlwaysProducesExactlySixAffixes)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetPrimalItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		EXPECT_EQ(item._iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot) << "trial " << trial;
-		EXPECT_EQ(item._iOracoolSuffixCount, Item::MaxOracoolAffixesPerSlot) << "trial " << trial;
+		EXPECT_EQ(item._iOracoolAffixCount, Item::MaxOracoolAffixes) << "trial " << trial;
 	}
 }
 
@@ -462,13 +456,12 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_AlwaysProducesExactlyThreePrefixesAn
 // exactly one beneficial prefix row (Bronze), so three prefixes there could only ever come from
 // affixes above the item's level. 13 is the lowest item level a Primal can roll at all (band 1), and
 // its pool below the ceiling holds the guarantee.
-TEST_F(PrimalItemTest, GetPrimalItemAffixes_AlwaysProducesExactlyThreePrefixesAndThreeSuffixesInNarrowLevelWindow)
+TEST_F(PrimalItemTest, GetPrimalItemAffixes_AlwaysProducesExactlySixAffixesInNarrowLevelWindow)
 {
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetPrimalItemAffixes(Players[0], item, 13, 13, AffixItemType::Weapon, false, /*ignoreLevelLimits=*/false);
-		EXPECT_EQ(item._iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot) << "trial " << trial;
-		EXPECT_EQ(item._iOracoolSuffixCount, Item::MaxOracoolAffixesPerSlot) << "trial " << trial;
+		EXPECT_EQ(item._iOracoolAffixCount, Item::MaxOracoolAffixes) << "trial " << trial;
 	}
 }
 
@@ -509,10 +502,8 @@ TEST_F(PrimalItemTest, NoAffixOnATieredItemIsAboveTheItemsLevel)
 			EXPECT_LE(affix.param1, best) << tier << " trial " << trial << ": affix type " << static_cast<int>(affix.type)
 			                              << " rolled " << affix.param1 << ", which only a row above level " << ItemLevel << " allows";
 		};
-		for (int i = 0; i < item._iOracoolPrefixCount; i++)
-			checkOne(item._iOracoolPrefixes[i]);
-		for (int i = 0; i < item._iOracoolSuffixCount; i++)
-			checkOne(item._iOracoolSuffixes[i]);
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			checkOne(item._iOracoolAffixes[i]);
 	};
 
 	for (int trial = 0; trial < 200; trial++) {
@@ -525,8 +516,80 @@ TEST_F(PrimalItemTest, NoAffixOnATieredItemIsAboveTheItemsLevel)
 		rare._iOracoolItemLevel = ItemLevel;
 		GetRareItemAffixes(Players[0], rare, 30, 60, AffixItemType::Weapon, false, /*ignoreLevelLimits=*/true);
 		check(rare, "Rare", trial);
-		EXPECT_GE(rare._iOracoolPrefixCount + rare._iOracoolSuffixCount, 2) << "the ceiling starved a Rare's guarantee, trial " << trial;
+		EXPECT_GE(rare._iOracoolAffixCount, 2) << "the ceiling starved a Rare's guarantee, trial " << trial;
 	}
+}
+
+// NO PREFIX/SUFFIX SEGREGATION (user, 2026-09-13: "i now want all possible combinations of affixes to be able to
+// occur in magic/rare/unique/primal, including ONLY prefixes and ONLY suffixes for ALL affixes slots these items
+// have"). Until then a tiered item stored at most three affixes from each table, so a Buffed Unique could never be
+// four prefixes and a Primal was always three and three. Over many rolls, every tier must now produce items
+// drawn wholly - or more than three deep - from one table.
+TEST_F(PrimalItemTest, TieredAffixesAreNotSegregatedIntoPrefixesAndSuffixes)
+{
+	const auto isPrefixType = [](item_effect_type type) {
+		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
+			if (ItemPrefixes[j].power.type == type)
+				return true;
+		}
+		return false;
+	};
+	struct Split {
+		int prefixes = 0;
+		int suffixes = 0;
+	};
+	const auto splitOf = [&](const Item &item) {
+		Split s;
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			(isPrefixType(item._iOracoolAffixes[i].type) ? s.prefixes : s.suffixes)++;
+		return s;
+	};
+	// The per-table ceiling the old storage imposed; anything past it proves the split is gone.
+	constexpr int OldPerTableCeiling = 3;
+
+	constexpr int Trials = 1500;
+	int rareAllPrefixes = 0, rareAllSuffixes = 0, buffedFourFromOneTable = 0, primalFourFromOneTable = 0;
+	for (int trial = 0; trial < Trials; trial++) {
+		Item rare = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+		GetRareItemAffixes(Players[0], rare, 1, 30, AffixItemType::Weapon, false);
+		const Split r = splitOf(rare);
+		if (r.suffixes == 0 && r.prefixes > 0)
+			rareAllPrefixes++;
+		if (r.prefixes == 0 && r.suffixes > 0)
+			rareAllSuffixes++;
+
+		Item buffed = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+		GetBuffedUniqueItemAffixes(Players[0], buffed, 1, 30, AffixItemType::Weapon, false);
+		const Split b = splitOf(buffed);
+		if (b.prefixes > OldPerTableCeiling || b.suffixes > OldPerTableCeiling)
+			buffedFourFromOneTable++;
+
+		Item primal = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
+		GetPrimalItemAffixes(Players[0], primal, 1, 30, AffixItemType::Weapon, false);
+		const Split p = splitOf(primal);
+		if (p.prefixes > OldPerTableCeiling || p.suffixes > OldPerTableCeiling)
+			primalFourFromOneTable++;
+	}
+	EXPECT_GT(rareAllPrefixes, 0) << "no Rare came out prefixes only";
+	EXPECT_GT(rareAllSuffixes, 0) << "no Rare came out suffixes only";
+	EXPECT_GT(buffedFourFromOneTable, 0) << "no Buffed Unique carried more than three affixes from one table";
+	EXPECT_GT(primalFourFromOneTable, 0) << "no Primal carried more than three affixes from one table - still three and three";
+}
+
+// The load-time repair decides each affix's table by its TYPE, since affixes are one unsegregated list: a suffix-table
+// affix and a prefix-table affix side by side are each corrected against their own table.
+TEST(Item, RepairOracoolAffixesIfCorrupted_ReadsTheTableFromTheAffixType)
+{
+	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, true, ItemType::Sword);
+	item._iOracoolTier = OracoolItemTier::Rare;
+	// "of dexterity": +1-5, priced 200-1000. Steel: +11-15% to hit, priced 1100-1500. Both stored as price values,
+	// the old corruption, in the order a mixed roll would leave them.
+	item._iOracoolAffixes[0] = OracoolAffix { IPL_DEX, 1000, 2 };
+	item._iOracoolAffixes[1] = OracoolAffix { IPL_TOHIT, 1500, 0 };
+	item._iOracoolAffixCount = 2;
+	EXPECT_TRUE(RepairOracoolAffixesIfCorrupted(item));
+	EXPECT_EQ(item._iOracoolAffixes[0].param1, 5) << "the suffix-table affix was repaired against the wrong table";
+	EXPECT_EQ(item._iOracoolAffixes[1].param1, 15) << "the prefix-table affix was repaired against the wrong table";
 }
 
 TEST_F(PrimalItemTest, GetPrimalItemAffixes_NeverDuplicatesAnAffixType)
@@ -536,10 +599,8 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_NeverDuplicatesAnAffixType)
 		GetPrimalItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
 
 		std::vector<item_effect_type> seen;
-		for (int i = 0; i < item._iOracoolPrefixCount; i++)
-			seen.push_back(item._iOracoolPrefixes[i].type);
-		for (int i = 0; i < item._iOracoolSuffixCount; i++)
-			seen.push_back(item._iOracoolSuffixes[i].type);
+		for (int i = 0; i < item._iOracoolAffixCount; i++)
+			seen.push_back(item._iOracoolAffixes[i].type);
 
 		std::sort(seen.begin(), seen.end());
 		EXPECT_EQ(std::adjacent_find(seen.begin(), seen.end()), seen.end()) << "trial " << trial << " had a duplicate affix type";
@@ -561,30 +622,21 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_EveryAffixIsRolledAtItsMaximum)
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetPrimalItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
 
-		for (int i = 0; i < item._iOracoolPrefixCount; i++) {
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			const OracoolAffix &affix = item._iOracoolAffixes[i];
 			bool matchedMax = false;
-			for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
-				if (ItemPrefixes[j].power.type == item._iOracoolPrefixes[i].type && ItemPrefixes[j].power.param2 == item._iOracoolPrefixes[i].param1) {
-					matchedMax = true;
-					break;
+			// Either table: affixes are one unsegregated list, and each type lives in exactly one of them.
+			for (const PLStruct *table : { ItemPrefixes, ItemSuffixes }) {
+				for (int j = 0; table[j].power.type != IPL_INVALID && !matchedMax; j++) {
+					if (table[j].power.type != affix.type)
+						continue;
+					int expectedMax = table[j].power.param2;
+					if (!gbIsHellfire && table[j].power.type == IPL_TARGAC)
+						expectedMax = 3 << expectedMax;
+					matchedMax = expectedMax == affix.param1;
 				}
 			}
-			EXPECT_TRUE(matchedMax) << "trial " << trial << " prefix " << i << " was not rolled at its own table's maximum";
-		}
-		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-			bool matchedMax = false;
-			for (int j = 0; ItemSuffixes[j].power.type != IPL_INVALID; j++) {
-				if (ItemSuffixes[j].power.type != item._iOracoolSuffixes[i].type)
-					continue;
-				int expectedMax = ItemSuffixes[j].power.param2;
-				if (!gbIsHellfire && ItemSuffixes[j].power.type == IPL_TARGAC)
-					expectedMax = 3 << expectedMax;
-				if (expectedMax == item._iOracoolSuffixes[i].param1) {
-					matchedMax = true;
-					break;
-				}
-			}
-			EXPECT_TRUE(matchedMax) << "trial " << trial << " suffix " << i << " was not rolled at its own table's maximum";
+			EXPECT_TRUE(matchedMax) << "trial " << trial << " affix " << i << " was not rolled at its own table's maximum";
 		}
 	}
 }
@@ -596,15 +648,13 @@ TEST_F(PrimalItemTest, GetPrimalItemAffixes_NeverSelectsANonBeneficialAffix)
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetPrimalItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
 
-		for (int i = 0; i < item._iOracoolPrefixCount; i++) {
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
 			bool anyOk = false;
-			for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
-				if (ItemPrefixes[j].power.type == item._iOracoolPrefixes[i].type && ItemPrefixes[j].PLOk) {
-					anyOk = true;
-					break;
-				}
+			for (const PLStruct *table : { ItemPrefixes, ItemSuffixes }) {
+				for (int j = 0; table[j].power.type != IPL_INVALID && !anyOk; j++)
+					anyOk = table[j].power.type == item._iOracoolAffixes[i].type && table[j].PLOk;
 			}
-			EXPECT_TRUE(anyOk) << "trial " << trial << " prefix " << i << " has no PLOk-eligible table entry";
+			EXPECT_TRUE(anyOk) << "trial " << trial << " affix " << i << " has no PLOk-eligible table entry";
 		}
 	}
 }
@@ -633,9 +683,9 @@ TEST_F(PrimalItemTest, GetRareItemAffixes_AfterPrimalGeneration_DoesNotLeakPerfe
 	for (int trial = 0; trial < 50 && !sawNonMaxRoll; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetRareItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		for (int i = 0; i < item._iOracoolPrefixCount && !sawNonMaxRoll; i++) {
+		for (int i = 0; i < item._iOracoolAffixCount && !sawNonMaxRoll; i++) {
 			for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
-				if (ItemPrefixes[j].power.type == item._iOracoolPrefixes[i].type && ItemPrefixes[j].maxVal != item._iOracoolPrefixes[i].param1) {
+				if (ItemPrefixes[j].power.type == item._iOracoolAffixes[i].type && ItemPrefixes[j].maxVal != item._iOracoolAffixes[i].param1) {
 					sawNonMaxRoll = true;
 					break;
 				}
@@ -677,13 +727,9 @@ TEST_F(BuffedUniqueItemTest, GetBuffedUniqueItemAffixes_StoredAffixValuesStayInR
 	for (int trial = 0; trial < 200; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetBuffedUniqueItemAffixes(Players[0], item, 1, 30, AffixItemType::Weapon, false);
-		for (int i = 0; i < item._iOracoolPrefixCount; i++) {
-			EXPECT_LE(std::abs(item._iOracoolPrefixes[i].param1), PlausibleStatCeiling)
-			    << "trial " << trial << " prefix " << i << " looks like a price value, not a stat roll";
-		}
-		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-			EXPECT_LE(std::abs(item._iOracoolSuffixes[i].param1), PlausibleStatCeiling)
-			    << "trial " << trial << " suffix " << i << " looks like a price value, not a stat roll";
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			EXPECT_LE(std::abs(item._iOracoolAffixes[i].param1), PlausibleStatCeiling)
+			    << "trial " << trial << " affix " << i << " looks like a price value, not a stat roll";
 		}
 	}
 }
@@ -695,32 +741,32 @@ TEST(Item, RepairOracoolAffixesIfCorrupted_FixesAPriceValueBackToItsRealRoll)
 {
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 	item._iOracoolTier = OracoolItemTier::Primal;
-	item._iOracoolPrefixCount = 1;
-	item._iOracoolPrefixes[0] = OracoolAffix { IPL_MAGICRES, 1500, 5 };
+	item._iOracoolAffixCount = 1;
+	item._iOracoolAffixes[0] = OracoolAffix { IPL_MAGICRES, 1500, 5 };
 
 	EXPECT_TRUE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolPrefixes[0].param1, 20);
+	EXPECT_EQ(item._iOracoolAffixes[0].param1, 20);
 }
 
 TEST(Item, RepairOracoolAffixesIfCorrupted_LeavesAnAlreadyCorrectValueAlone)
 {
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 	item._iOracoolTier = OracoolItemTier::Rare;
-	item._iOracoolPrefixCount = 1;
-	item._iOracoolPrefixes[0] = OracoolAffix { IPL_MAGICRES, 20, 5 };
+	item._iOracoolAffixCount = 1;
+	item._iOracoolAffixes[0] = OracoolAffix { IPL_MAGICRES, 20, 5 };
 
 	EXPECT_FALSE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolPrefixes[0].param1, 20);
+	EXPECT_EQ(item._iOracoolAffixes[0].param1, 20);
 }
 
 TEST(Item, RepairOracoolAffixesIfCorrupted_IsANoOpForItemsWithoutAnOracoolTier)
 {
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
-	item._iOracoolPrefixCount = 1;
-	item._iOracoolPrefixes[0] = OracoolAffix { IPL_MAGICRES, 1500, 5 };
+	item._iOracoolAffixCount = 1;
+	item._iOracoolAffixes[0] = OracoolAffix { IPL_MAGICRES, 1500, 5 };
 
 	EXPECT_FALSE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolPrefixes[0].param1, 1500);
+	EXPECT_EQ(item._iOracoolAffixes[0].param1, 1500);
 }
 
 // Same fix, exercised on a suffix this time (the "+1000 to Dexterity" line from the same
@@ -730,11 +776,11 @@ TEST(Item, RepairOracoolAffixesIfCorrupted_AlsoFixesSuffixes)
 {
 	Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 	item._iOracoolTier = OracoolItemTier::Primal;
-	item._iOracoolSuffixCount = 1;
-	item._iOracoolSuffixes[0] = OracoolAffix { IPL_DEX, 1000, 2 };
+	item._iOracoolAffixCount = 1;
+	item._iOracoolAffixes[0] = OracoolAffix { IPL_DEX, 1000, 2 };
 
 	EXPECT_TRUE(RepairOracoolAffixesIfCorrupted(item));
-	EXPECT_EQ(item._iOracoolSuffixes[0].param1, 5);
+	EXPECT_EQ(item._iOracoolAffixes[0].param1, 5);
 }
 
 // Oracool regression test: reproduces the user's bug report of a Rare item appearing to have
@@ -1364,7 +1410,15 @@ TEST_F(RareItemTest, UnifiedAffixes_AnyCombinationWithinTheLimitAndMovementSpeed
 	gbIsHellfire = true;
 	SetRndSeed(0x0AFF1C5);
 
-	// RARE: every split the storage allows, including ones the old per-slot guarantee made impossible.
+	// RARE: every split between the tables, including ones the old per-slot guarantee made impossible. The split is
+	// read from each affix's type - the list itself is not divided.
+	const auto isPrefixType = [](item_effect_type type) {
+		for (int j = 0; ItemPrefixes[j].power.type != IPL_INVALID; j++) {
+			if (ItemPrefixes[j].power.type == type)
+				return true;
+		}
+		return false;
+	};
 	int emptyTable = 0;
 	int threeFromOneTable = 0;
 	int moveSpeed = 0;
@@ -1372,22 +1426,24 @@ TEST_F(RareItemTest, UnifiedAffixes_AnyCombinationWithinTheLimitAndMovementSpeed
 	for (int trial = 0; trial < 3000; trial++) {
 		Item item = MakeItem(ICLASS_ARMOR, IMISC_NONE, IDI_ORACOOL_HELM, false, ItemType::Helm);
 		GetRareItemAffixes(Players[0], item, 1, 50, AffixItemType::Armor, false);
-		const int prefixes = item._iOracoolPrefixCount;
-		const int suffixes = item._iOracoolSuffixCount;
-		ASSERT_GE(prefixes + suffixes, 2) << "trial " << trial;
-		ASSERT_LE(prefixes + suffixes, 4) << "trial " << trial;
-		ASSERT_LE(prefixes, Item::MaxOracoolAffixesPerSlot);
-		ASSERT_LE(suffixes, Item::MaxOracoolAffixesPerSlot);
+		ASSERT_GE(item._iOracoolAffixCount, 2) << "trial " << trial;
+		ASSERT_LE(item._iOracoolAffixCount, 4) << "trial " << trial;
+		int prefixes = 0;
+		int suffixes = 0;
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			const item_effect_type type = item._iOracoolAffixes[i].type;
+			if (type == IPL_MOVESPEED)
+				moveSpeed++;
+			if (type == IPL_FASTCAST)
+				fastCast++;
+			if (type == IPL_MOVESPEED || type == IPL_MOVESPEED_CURSE || type == IPL_FASTCAST)
+				continue; // a pool row belongs to neither table
+			(isPrefixType(type) ? prefixes : suffixes)++;
+		}
 		if (prefixes == 0 || suffixes == 0)
 			emptyTable++;
 		if (prefixes == 3 || suffixes == 3)
 			threeFromOneTable++;
-		for (int i = 0; i < suffixes; i++) {
-			if (item._iOracoolSuffixes[i].type == IPL_MOVESPEED)
-				moveSpeed++;
-			if (item._iOracoolSuffixes[i].type == IPL_FASTCAST)
-				fastCast++;
-		}
 	}
 	EXPECT_GT(emptyTable, 0) << "a Rare never rolled all its affixes from one table - the pool is still split";
 	EXPECT_GT(threeFromOneTable, 0) << "a Rare never rolled three from one table - the old two-per-slot ceiling is back";
@@ -1398,9 +1454,9 @@ TEST_F(RareItemTest, UnifiedAffixes_AnyCombinationWithinTheLimitAndMovementSpeed
 	for (int trial = 0; trial < 1500; trial++) {
 		Item item = MakeItem(ICLASS_WEAPON, IMISC_NONE, IDI_WARRIOR, false, ItemType::Sword);
 		GetRareItemAffixes(Players[0], item, 1, 50, AffixItemType::Weapon, false);
-		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-			ASSERT_NE(item._iOracoolSuffixes[i].type, IPL_MOVESPEED) << "a sword rolled Movement Speed";
-			ASSERT_NE(item._iOracoolSuffixes[i].type, IPL_FASTCAST) << "a sword rolled Faster Cast";
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			ASSERT_NE(item._iOracoolAffixes[i].type, IPL_MOVESPEED) << "a sword rolled Movement Speed";
+			ASSERT_NE(item._iOracoolAffixes[i].type, IPL_FASTCAST) << "a sword rolled Faster Cast";
 		}
 	}
 
@@ -1417,11 +1473,11 @@ TEST_F(RareItemTest, UnifiedAffixes_AnyCombinationWithinTheLimitAndMovementSpeed
 		if (used == 2)
 			twoAffixes++;
 		int fromRecord = 0;
-		for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-			if (item._iOracoolSuffixes[i].type == IPL_MOVESPEED)
-				fromRecord += item._iOracoolSuffixes[i].param1;
-			else if (item._iOracoolSuffixes[i].type == IPL_MOVESPEED_CURSE)
-				fromRecord -= item._iOracoolSuffixes[i].param1;
+		for (int i = 0; i < item._iOracoolAffixCount; i++) {
+			if (item._iOracoolAffixes[i].type == IPL_MOVESPEED)
+				fromRecord += item._iOracoolAffixes[i].param1;
+			else if (item._iOracoolAffixes[i].type == IPL_MOVESPEED_CURSE)
+				fromRecord -= item._iOracoolAffixes[i].param1;
 		}
 		ASSERT_EQ(fromRecord, item._iPLMoveSpeed) << "the record and the field disagree, and the loader re-derives from the record";
 		if (item._iPLMoveSpeed > 0) {

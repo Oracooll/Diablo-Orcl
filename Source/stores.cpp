@@ -608,18 +608,13 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 				}
 			}
 		} else if (item.hasOracoolTier()) {
-			// Oracool-tiered items (up to 3 prefixes + 3 suffixes) don't populate the
+			// Oracool-tiered items (up to six affixes from any table, in one list) don't populate the
 			// vanilla single-prefix/single-suffix _iPrePower/_iSufPower fields, so they
 			// need their own comma-joined line built from the stored affix list instead.
-			for (int i = 0; i < item._iOracoolPrefixCount; i++) {
+			for (int i = 0; i < item._iOracoolAffixCount; i++) {
 				if (!productLine.empty())
 					AppendStrView(productLine, _(",  "));
-				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolPrefixes[i], item));
-			}
-			for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-				if (!productLine.empty())
-					AppendStrView(productLine, _(",  "));
-				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolSuffixes[i], item));
+				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolAffixes[i], item));
 			}
 		} else {
 			if (item._iMagical != ITEM_QUALITY_UNIQUE) {
@@ -635,10 +630,10 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 			// Pool affixes a magic item rolled from OracoolPoolRows - Movement Speed, Faster Cast - live in
 			// its record rather than the vanilla pair (2026-09-13), so reading the pair alone left them off
 			// this line. A vanilla unique has no record entries, so nothing is added for one.
-			for (int i = 0; i < item._iOracoolSuffixCount; i++) {
+			for (int i = 0; i < item._iOracoolAffixCount; i++) {
 				if (!productLine.empty())
 					AppendStrView(productLine, _(",  "));
-				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolSuffixes[i], item));
+				AppendStrView(productLine, PrintOracoolAffixPower(item._iOracoolAffixes[i], item));
 			}
 		}
 	}

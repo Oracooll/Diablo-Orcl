@@ -57,12 +57,9 @@ void SetFullOracoolTierData(Item &item)
 {
 	item._iOracoolTier = OracoolItemTier::Primal;
 	item._iOracoolPerfectRoll = true;
-	item._iOracoolPrefixCount = Item::MaxOracoolAffixesPerSlot;
-	item._iOracoolSuffixCount = Item::MaxOracoolAffixesPerSlot;
-	for (int i = 0; i < Item::MaxOracoolAffixesPerSlot; i++) {
-		item._iOracoolPrefixes[i] = OracoolAffix { static_cast<item_effect_type>(IPL_STR + i), 10 + i, 20 + i };
-		item._iOracoolSuffixes[i] = OracoolAffix { static_cast<item_effect_type>(IPL_FIRERES + i), 30 + i, 40 + i };
-	}
+	item._iOracoolAffixCount = Item::MaxOracoolAffixes;
+	for (int i = 0; i < Item::MaxOracoolAffixes; i++)
+		item._iOracoolAffixes[i] = OracoolAffix { static_cast<item_effect_type>(IPL_STR + i), 10 + i, 20 + i };
 }
 
 TEST_F(LoadSaveOracoolItemExtensionsTest, RoundTripsFullyPopulatedTieredItem)
@@ -96,15 +93,11 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, RoundTripsFullyPopulatedTieredItem)
 	EXPECT_TRUE(restored->hasOracoolTier());
 	EXPECT_EQ(restored->_iOracoolTier, OracoolItemTier::Primal);
 	EXPECT_TRUE(restored->_iOracoolPerfectRoll);
-	ASSERT_EQ(restored->_iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot);
-	ASSERT_EQ(restored->_iOracoolSuffixCount, Item::MaxOracoolAffixesPerSlot);
-	for (int i = 0; i < Item::MaxOracoolAffixesPerSlot; i++) {
-		EXPECT_EQ(restored->_iOracoolPrefixes[i].type, static_cast<item_effect_type>(IPL_STR + i));
-		EXPECT_EQ(restored->_iOracoolPrefixes[i].param1, 10 + i);
-		EXPECT_EQ(restored->_iOracoolPrefixes[i].param2, 20 + i);
-		EXPECT_EQ(restored->_iOracoolSuffixes[i].type, static_cast<item_effect_type>(IPL_FIRERES + i));
-		EXPECT_EQ(restored->_iOracoolSuffixes[i].param1, 30 + i);
-		EXPECT_EQ(restored->_iOracoolSuffixes[i].param2, 40 + i);
+	ASSERT_EQ(restored->_iOracoolAffixCount, Item::MaxOracoolAffixes);
+	for (int i = 0; i < Item::MaxOracoolAffixes; i++) {
+		EXPECT_EQ(restored->_iOracoolAffixes[i].type, static_cast<item_effect_type>(IPL_STR + i));
+		EXPECT_EQ(restored->_iOracoolAffixes[i].param1, 10 + i);
+		EXPECT_EQ(restored->_iOracoolAffixes[i].param2, 20 + i);
 	}
 }
 
@@ -283,10 +276,10 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, RoundTripsTieredItemStoredInExtraTab)
 	EXPECT_TRUE(restored.hasOracoolTier());
 	EXPECT_EQ(restored._iOracoolTier, OracoolItemTier::Primal);
 	EXPECT_TRUE(restored._iOracoolPerfectRoll);
-	ASSERT_EQ(restored._iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot);
-	for (int i = 0; i < Item::MaxOracoolAffixesPerSlot; i++) {
-		EXPECT_EQ(restored._iOracoolPrefixes[i].type, static_cast<item_effect_type>(IPL_STR + i));
-		EXPECT_EQ(restored._iOracoolPrefixes[i].param1, 10 + i);
+	ASSERT_EQ(restored._iOracoolAffixCount, Item::MaxOracoolAffixes);
+	for (int i = 0; i < Item::MaxOracoolAffixes; i++) {
+		EXPECT_EQ(restored._iOracoolAffixes[i].type, static_cast<item_effect_type>(IPL_STR + i));
+		EXPECT_EQ(restored._iOracoolAffixes[i].param1, 10 + i);
 	}
 }
 
@@ -322,7 +315,7 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, AbsentInvTabsFileLeavesTabsEmpty)
 
 // Defensive clamp on the write side: an out-of-range in-memory affix count (which should never
 // happen via normal code paths, but must not be trusted blindly) must not corrupt the stream or
-// crash - only the actual MaxOracoolAffixesPerSlot-sized array contents are ever persisted.
+// crash - only the actual MaxOracoolAffixes-sized array contents are ever persisted.
 TEST_F(LoadSaveOracoolItemExtensionsTest, OutOfRangeInMemoryCountIsClampedOnSave)
 {
 	_uiheroinfo info {};
@@ -334,7 +327,7 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, OutOfRangeInMemoryCountIsClampedOnSave
 
 	ASSERT_GT(creator._pNumInv, 0);
 	SetFullOracoolTierData(creator.InvList[0]);
-	creator.InvList[0]._iOracoolPrefixCount = 200; // corrupt in-memory value
+	creator.InvList[0]._iOracoolAffixCount = 200; // corrupt in-memory value
 	const uint32_t seed = creator.InvList[0]._iSeed;
 	const uint16_t createInfo = creator.InvList[0]._iCreateInfo;
 	const _item_indexes idx = creator.InvList[0].IDidx;
@@ -350,7 +343,7 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, OutOfRangeInMemoryCountIsClampedOnSave
 			restored = &loaded.InvList[i];
 	}
 	ASSERT_NE(restored, nullptr);
-	EXPECT_LE(restored->_iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot);
+	EXPECT_LE(restored->_iOracoolAffixCount, Item::MaxOracoolAffixes);
 }
 
 TEST_F(LoadSaveOracoolItemExtensionsTest, StashRoundTripsTieredItem)
@@ -374,7 +367,7 @@ TEST_F(LoadSaveOracoolItemExtensionsTest, StashRoundTripsTieredItem)
 	EXPECT_TRUE(Stash.stashList[0].hasOracoolTier());
 	EXPECT_EQ(Stash.stashList[0]._iOracoolTier, OracoolItemTier::Primal);
 	EXPECT_TRUE(Stash.stashList[0]._iOracoolPerfectRoll);
-	ASSERT_EQ(Stash.stashList[0]._iOracoolPrefixCount, Item::MaxOracoolAffixesPerSlot);
+	ASSERT_EQ(Stash.stashList[0]._iOracoolAffixCount, Item::MaxOracoolAffixes);
 }
 
 /**

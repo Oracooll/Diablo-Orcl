@@ -12113,11 +12113,11 @@ TEST(OracoolAudit, MovementSpeedIsAPoolAffixKeptInTheRecord)
 		InitializeItem(ring, IDI_TRING);
 		GetItemPower(Players[0], ring, 1, 50, AffixItemType::Misc, false);
 		int fromRecord = 0;
-		for (int i = 0; i < ring._iOracoolSuffixCount; i++) {
-			if (ring._iOracoolSuffixes[i].type == IPL_MOVESPEED)
-				fromRecord += ring._iOracoolSuffixes[i].param1;
-			else if (ring._iOracoolSuffixes[i].type == IPL_MOVESPEED_CURSE)
-				fromRecord -= ring._iOracoolSuffixes[i].param1;
+		for (int i = 0; i < ring._iOracoolAffixCount; i++) {
+			if (ring._iOracoolAffixes[i].type == IPL_MOVESPEED)
+				fromRecord += ring._iOracoolAffixes[i].param1;
+			else if (ring._iOracoolAffixes[i].type == IPL_MOVESPEED_CURSE)
+				fromRecord -= ring._iOracoolAffixes[i].param1;
 		}
 		ASSERT_EQ(fromRecord, ring._iPLMoveSpeed) << "the record and the field disagree";
 		if (ring._iPLMoveSpeed <= 0)
@@ -12155,11 +12155,11 @@ TEST(OracoolAudit, MovementSpeedCurseRollsAndReadsBelowTheWalk)
 			continue;
 		int family = 0;
 		const OracoolAffix *curse = nullptr;
-		for (int i = 0; i < ring._iOracoolSuffixCount; i++) {
-			if (ring._iOracoolSuffixes[i].type == IPL_MOVESPEED || ring._iOracoolSuffixes[i].type == IPL_MOVESPEED_CURSE)
+		for (int i = 0; i < ring._iOracoolAffixCount; i++) {
+			if (ring._iOracoolAffixes[i].type == IPL_MOVESPEED || ring._iOracoolAffixes[i].type == IPL_MOVESPEED_CURSE)
 				family++;
-			if (ring._iOracoolSuffixes[i].type == IPL_MOVESPEED_CURSE)
-				curse = &ring._iOracoolSuffixes[i];
+			if (ring._iOracoolAffixes[i].type == IPL_MOVESPEED_CURSE)
+				curse = &ring._iOracoolAffixes[i];
 		}
 		ASSERT_NE(curse, nullptr) << "the field reads slow but the record holds no curse";
 		if (family != 1)
@@ -12720,9 +12720,9 @@ TEST(OracoolAudit, FasterCastRateIsAPoolAffixKeptInTheRecord)
 			InitializeItem(item, base);
 			GetItemPower(Players[0], item, 1, 50, flgs, false);
 			int fromRecord = 0;
-			for (int i = 0; i < item._iOracoolSuffixCount; i++) {
-				if (item._iOracoolSuffixes[i].type == IPL_FASTCAST)
-					fromRecord += item._iOracoolSuffixes[i].param1;
+			for (int i = 0; i < item._iOracoolAffixCount; i++) {
+				if (item._iOracoolAffixes[i].type == IPL_FASTCAST)
+					fromRecord += item._iOracoolAffixes[i].param1;
 			}
 			EXPECT_EQ(fromRecord, item._iPLFastCast) << "the record and the field must agree";
 			if (item._iPLFastCast == 0)
@@ -12812,8 +12812,8 @@ TEST(OracoolAudit, FasterCastRateReachesUniquesSetRungsAndRunewords)
 	// A drop-tail record still counts, on its own.
 	devilution::Item ring {};
 	ring._iMagical = ITEM_QUALITY_MAGIC;
-	ring._iOracoolSuffixes[0] = OracoolAffix { IPL_FASTCAST, 12, 0 };
-	ring._iOracoolSuffixCount = 1;
+	ring._iOracoolAffixes[0] = OracoolAffix { IPL_FASTCAST, 12, 0 };
+	ring._iOracoolAffixCount = 1;
 	RederiveFastCast(ring);
 	EXPECT_EQ(ring._iPLFastCast, 12);
 
