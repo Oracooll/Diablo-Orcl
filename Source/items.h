@@ -32,7 +32,8 @@ namespace devilution {
 // signet, jewel, salvage, map).
 // Oracool: 51 until 2026-09-12, then +12 for batches 21 and 22 - the six worn-slot tumbles and the
 // six exotic-base ones. Every table indexed by a drop-anim id static_asserts against this.
-#define ITEMTYPES 63
+// Oracool: 63 until 2026-09-13, then +1 for batch 32 - the amulet (RfA-14).
+#define ITEMTYPES 64
 
 #define GOLD_SMALL_LIMIT 1000
 #define GOLD_MEDIUM_LIMIT 2500

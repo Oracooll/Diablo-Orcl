@@ -5381,8 +5381,16 @@ TEST(OracoolAudit, NoDroppableItemTumblesAsLeatherUnlessItIsLightArmour)
 	ASSERT_NE(leather, -1);
 
 	int checked = 0;
+	int amulets = 0;
 	const auto check = [&](const char *kind, const devilution::Item &item) {
 		checked++;
+		// Batch 32 (RfA-14): every amulet on its own sheet, bar the Relic and Reliquary bases' casket.
+		if (item._itype == ItemType::Amulet) {
+			amulets++;
+			const std::string_view sheet = GetItemDropName(GetItemDropAnimIndexFor(item));
+			EXPECT_TRUE(sheet == "amuletflip" || sheet == "relicflip")
+			    << kind << " amulet '" << item._iIName << "' tumbles as " << sheet;
+		}
 		if (item._itype == ItemType::LightArmor)
 			return;
 		EXPECT_NE(GetItemDropAnimIndexFor(item), leather)
@@ -5415,6 +5423,7 @@ TEST(OracoolAudit, NoDroppableItemTumblesAsLeatherUnlessItIsLightArmour)
 		}
 	}
 	EXPECT_GT(checked, 600) << "the walk reached too few items to mean anything";
+	EXPECT_GE(amulets, 30) << "the audit counted 31 droppable amulets and 13 relic-based ones; the walk found " << amulets;
 }
 
 /**

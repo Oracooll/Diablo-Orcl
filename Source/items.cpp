@@ -187,6 +187,8 @@ _sfx_id ItemInvSnds[] = {
 	IS_IHARM, // luteflip     - a wooden body with strings; the metal drop is the closest
 	IS_ILARM, // quiverflip   - leather and arrows
 	IS_IBOOK, // focusflip    - a bound book
+	// Batch 32 (2026-09-13, RfA-14): the amulet - a pendant and chain, jewellery, so the ring's sound.
+	IS_IRING, // amuletflip
 };
 
 namespace {
@@ -219,7 +221,9 @@ constexpr int8_t OracoolSpearDropAnim = 59;
 constexpr int8_t OracoolLuteDropAnim = 60;
 constexpr int8_t OracoolQuiverDropAnim = 61;
 constexpr int8_t OracoolFocusDropAnim = 62;
-static_assert(ITEMTYPES == FirstOracoolDropAnim + 20, "ITEMTYPES must count the twenty Oracool tumbles");
+// Batch 32 (2026-09-13, RfA-14): the amulet, the one item shape the ground audit found with no tumble.
+constexpr int8_t OracoolAmuletDropAnim = 63;
+static_assert(ITEMTYPES == FirstOracoolDropAnim + 21, "ITEMTYPES must count the twenty-one Oracool tumbles");
 
 // Oracool: the ranges below lean on these blocks being contiguous; a generator that grows or splits
 // one must fail here rather than hand a stray icon the wrong tumble.
@@ -394,6 +398,13 @@ int8_t GetItemDropAnimIndexFor(const Item &item)
 	//
 	// Only the FALLBACK is re-keyed: the eight socketable families answer by cursor range above larmor,
 	// and a light armour keeps larmor because larmor IS its shape.
+	// EVERY amulet has its own sheet since batch 32 (2026-09-13, RfA-14) - vanilla's included, which
+	// tumbled as the ring. Keyed on the type rather than the cursor for the same reason the worn slots
+	// are: it covers the plain bases, the classic uniques and the fork's 26 in one line. The Relic and
+	// Reliquary bases are amulets too, but the UITYPE switch above already sent them to relicflip.
+	if (item._itype == ItemType::Amulet)
+		return OracoolAmuletDropAnim;
+
 	const int8_t byCursor = GetItemDropAnimIndex(item._iCurs);
 	if (item._iCurs < ICURS_ORACOOL_FIRST || byCursor != OracoolFallbackDropAnim)
 		return byCursor;
@@ -416,10 +427,7 @@ int8_t GetItemDropAnimIndexFor(const Item &item)
 		return HeavyArmorDropAnimIndex;
 	case ItemType::Shield:
 		return ShieldDropAnimIndex;
-	// Amulets as well as rings: an amulet has no sheet of its own yet (RfA-14 requests one), and the ring
-	// is what vanilla's own amulets have always tumbled as - a better stand-in than a piece of leather.
 	case ItemType::Ring:
-	case ItemType::Amulet:
 		return RingDropAnimIndex;
 	default:
 		return byCursor;
@@ -550,6 +558,8 @@ const char *const ItemDropNames[] = {
 	"luteflip",
 	"quiverflip",
 	"focusflip",
+	// Batch 32 (2026-09-13): the amulet.
+	"amuletflip",
 };
 static_assert(sizeof(ItemDropNames) / sizeof(ItemDropNames[0]) == ITEMTYPES);
 /** Maps of item drop animation length. */
@@ -622,6 +632,7 @@ int8_t ItemAnimLs[] = {
 	13, // luteflip
 	13, // quiverflip
 	13, // focusflip
+	13, // amuletflip - batch 32, 13 like every fork tumble
 };
 static_assert(sizeof(ItemAnimLs) / sizeof(ItemAnimLs[0]) == ITEMTYPES);
 /** Maps of drop sounds effect of dropping the item on ground. */
@@ -695,6 +706,7 @@ _sfx_id ItemDropSnds[] = {
 	IS_FHARM, // luteflip
 	IS_FLARM, // quiverflip
 	IS_FBOOK, // focusflip
+	IS_FRING, // amuletflip - batch 32, jewellery lands like the ring
 };
 static_assert(sizeof(ItemDropSnds) / sizeof(ItemDropSnds[0]) == ITEMTYPES);
 static_assert(sizeof(ItemInvSnds) / sizeof(ItemInvSnds[0]) == ITEMTYPES);
