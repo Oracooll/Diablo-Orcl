@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prefixes and suffixes - Diablo Orcl</title>
-<link rel="stylesheet" href="wiki.css?v=1.11.096">
+<link rel="stylesheet" href="wiki.css?v=1.11.106">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 </head>
@@ -13,15 +13,21 @@
 <nav class="side"></nav>
 <main>
 <h1>Prefixes and suffixes</h1>
-<p class="lede">The affix tables themselves: what each name means, what it gives, and the level it
-becomes available at. This is what a magic or rare item is made of.</p>
+<p class="lede">The affix tables themselves: what each row gives and the level it becomes available at.
+Every quality rolls from all of them together - the prefix table, the suffix table and the pool's own
+rows - as one pool. See <a href="affixes.html">Quality and affixes</a> for the limits.</p>
 
 <div class="stat-row" id="stats"></div>
 
-<h2>Reading a magic name</h2>
-<p>A magic item's name is <b>prefix + base + "of" suffix</b>, and either half can be absent -
-"Jagged Long Sword", "Long Sword of the Bear", or both. A rare carries up to three of each, which is
-why its name is invented instead.</p>
+<h2>Names no longer spell out the affixes</h2>
+<p>Vanilla named a magic item <b>prefix + base + "of" suffix</b>. Since items draw from one pool - two
+prefixes, two suffixes, or Movement Speed beside anything - that stopped working, so magic and rolled-tier
+items take a two-word name from a pool instead (<i>Tarnished Doom</i>). The names below are still the
+rows' own, and still say what each one is, but you will read an item's affixes in its description, not
+its name.</p>
+<p>Rows marked <b>pool</b> are the affixes that are not part of the vanilla tables: Movement Speed, its
+slowing curse, and Faster Cast Rate. Each is offered once per roll, at the strongest band the item's
+level reaches.</p>
 <div class="tablewrap"><table>
 <thead><tr><th>Column</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -43,8 +49,8 @@ marked in the Align column and cannot appear on an "only good" drop.</p>
 <footer></footer>
 </main>
 </div>
-<script src="data.js?v=1.11.096"></script>
-<script src="wiki.js?v=1.11.096"></script>
+<script src="data.js?v=1.11.106"></script>
+<script src="wiki.js?v=1.11.106"></script>
 <script>
 const rows = WIKI.affixes.map(function (a) {
 	// A flag power - Indestructible, Knockback, No Mana, Absorbs Half Trap - carries no parameters at
@@ -59,9 +65,11 @@ const rows = WIKI.affixes.map(function (a) {
 });
 
 const prefixes = rows.filter(function (r) { return r.kind === 'prefix'; }).length;
+const pool = rows.filter(function (r) { return r.kind === 'pool'; }).length;
 document.getElementById('stats').innerHTML =
 	'<div class="stat"><b>' + prefixes + '</b><span>prefixes</span></div>' +
-	'<div class="stat"><b>' + (rows.length - prefixes) + '</b><span>suffixes</span></div>' +
+	'<div class="stat"><b>' + (rows.length - prefixes - pool) + '</b><span>suffixes</span></div>' +
+	'<div class="stat"><b>' + pool + '</b><span>pool rows</span></div>' +
 	'<div class="stat"><b>' + rows.filter(function (r) { return r.curse; }).length + '</b><span>curses</span></div>' +
 	'<div class="stat"><b>' + Math.max.apply(null, rows.map(function (r) { return r.minLvl; })) + '</b><span>highest level</span></div>';
 

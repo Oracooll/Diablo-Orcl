@@ -406,6 +406,49 @@ foreach ($table in @('ItemPrefixes', 'ItemSuffixes')) {
 }
 
 # ---------------------------------------------------------------------------------------------
+# Pool affixes - Source/items.cpp's OracoolPoolRows
+#
+# Movement Speed, its curse and Faster Cast are ordinary affixes since 2026-09-13 (v1.11.105), drawn
+# from the same pool as the two tables above - but they are rows of their own table in items.cpp, not
+# of ItemPrefixes/ItemSuffixes, so reading only those two left them out of the wiki entirely.
+# ---------------------------------------------------------------------------------------------
+$itemsCppPool = Read-SourceFile 'items.cpp'
+$poolStart = $itemsCppPool.IndexOf('const OracoolPoolRow OracoolPoolRows[] = {')
+$poolRowsAdded = 0
+if ($poolStart -ge 0) {
+    $poolBody = $itemsCppPool.Substring($poolStart)
+    $poolBody = $poolBody.Substring(0, $poolBody.IndexOf('};'))
+    # Which items each row's fits() allows, in the words the Applies-to column uses.
+    $poolFits = @{
+        FitsMovementSpeed   = 'Armor Misc'
+        FitsTrinketFastCast = 'Misc Helm'
+        FitsStaffFastCast   = 'Staff'
+    }
+    foreach ($m in [regex]::Matches($poolBody, '\{\s*\{\s*N_\("([^"]*)"\),\s*\{\s*(IPL_\w+),\s*(-?\d+),\s*(-?\d+)\s*\},\s*(-?\d+),\s*AffixItemType::\w+,\s*GOE_(\w+),\s*(true|false),\s*(true|false),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\s*\},\s*(\w+)\s*\}')) {
+        $fits = $m.Groups[12].Value
+        [void]$affixes.Add([ordered]@{
+                kind   = 'pool'
+                name   = $m.Groups[1].Value
+                power  = ($m.Groups[2].Value -replace '^IPL_', '')
+                min    = [int]$m.Groups[3].Value
+                max    = [int]$m.Groups[4].Value
+                minLvl = [int]$m.Groups[5].Value
+                types  = $(if ($poolFits.ContainsKey($fits)) { $poolFits[$fits] } else { $fits })
+                align  = $m.Groups[6].Value
+                double = ($m.Groups[7].Value -eq 'true')
+                good   = ($m.Groups[8].Value -eq 'true')
+                minVal = [int]$m.Groups[9].Value
+                maxVal = [int]$m.Groups[10].Value
+                mult   = [int]$m.Groups[11].Value
+            })
+        $poolRowsAdded++
+    }
+}
+# Checked out loud: a pool that parses to nothing looks exactly like a pool that is empty.
+if ($poolRowsAdded -eq 0) {
+    Write-Warning "no OracoolPoolRows parsed from items.cpp - Movement Speed and Faster Cast will be missing from the affix tables"
+}
+# ---------------------------------------------------------------------------------------------
 # Unique items - the vanilla table AND the generated include
 #
 # Only the include was read until now, so the page showed 250 of the game's 360 uniques and not one

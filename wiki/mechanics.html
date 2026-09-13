@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Core mechanics - Diablo Orcl</title>
-<link rel="stylesheet" href="wiki.css?v=1.11.096">
+<link rel="stylesheet" href="wiki.css?v=1.11.106">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 </head>
@@ -86,6 +86,19 @@ quality tier. It never touches something that already rolled magic or better, an
 unique. The <b>base tier is irrelevant</b> - a Torment-tier white sword is upgradeable exactly like
 a Normal one, because base tier and quality are independent axes.</p>
 
+<h2>Smart Loot</h2>
+<p>About <b>four drops in five</b> lean toward your class. Leaning never changes <i>whether</i> something
+drops, <i>which slot</i> it fills or <i>how rare</i> it is - the drop has already decided all three. It
+changes which base fills that slot: the drop considers three and keeps the one that best suits your
+class's main stats, so a sorcerer's two-handed weapons lean toward staves and a barbarian's helms
+toward the ones strength wears.</p>
+<ul>
+<li><b>Main stats only</b> - Strength, Magic and Dexterity, weighted by each class's own stat profile.
+A Bard wants all three equally, so its drops barely lean at all.</li>
+<li><b>Nothing is locked out.</b> Every item can drop for every class, and the fifth of drops that do
+not lean are fully random.</li>
+<li><b>Gold, potions and scrolls are never touched</b>, and multiplayer drops do not lean.</li>
+</ul>
 <h2>Progression that outlives your gear</h2>
 <p>A <b>Signet of Learning</b> grants one <b>permanent stat point</b>, and a character may ever
 consume <b id="signetcap"></b> of them. The cap is the whole design: without it a signet is a slower
@@ -171,8 +184,8 @@ see <a href="sockets.html">Sockets and gems</a>.</p>
 <footer></footer>
 </main>
 </div>
-<script src="data.js?v=1.11.096"></script>
-<script src="wiki.js?v=1.11.096"></script>
+<script src="data.js?v=1.11.106"></script>
+<script src="wiki.js?v=1.11.106"></script>
 <script>
 document.getElementById('bands').textContent = WIKI.mechanics.spellBands.join(', ');
 document.getElementById('maxinv').textContent = WIKI.mechanics.maxInvestment;

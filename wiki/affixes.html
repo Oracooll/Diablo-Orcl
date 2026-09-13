@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Quality and affixes - Diablo Orcl</title>
-<link rel="stylesheet" href="wiki.css?v=1.11.096">
+<link rel="stylesheet" href="wiki.css?v=1.11.106">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
 </head>
@@ -22,19 +22,44 @@ is independent of <a href="tiers.html">base tier</a> - any quality can appear on
 <tbody>
 <tr><td><b>Basic</b></td><td><span class="tag t-normal">white</span></td><td>none</td>
 	<td>The base item as authored - and, for everything but jewellery, the only quality that rolls sockets, which is what makes it the raw material rather than litter. Rings and amulets are the exception: they take a single socket at any quality.</td></tr>
-<tr><td><b>Magic</b></td><td><span class="tag t-nightmare">blue</span></td><td>one prefix and/or one suffix</td>
-	<td>Vanilla's magic roll, gated by the item's affix level.</td></tr>
-<tr><td><b>Rare</b></td><td><span class="tag t-hell">yellow</span></td><td>up to 3 prefixes + 3 suffixes</td>
+<tr><td><b>Magic</b></td><td><span class="tag t-nightmare">blue</span></td><td>1 or 2 affixes</td>
+	<td>Two one time in six - vanilla's odds for a prefix and a suffix together - but drawn from the one pool, so two prefixes or two suffixes can happen.</td></tr>
+<tr><td><b>Rare</b></td><td><span class="tag t-hell">yellow</span></td><td>2 to 4 affixes</td>
 	<td>Rolled only after the unique and primal rolls have failed.</td></tr>
 <tr><td><b>Set</b></td><td><span class="tag ok">green</span></td><td>a fixed named list</td>
 	<td>A named piece of one of the fifteen sets - not a roll at all. Drops through its own hook.</td></tr>
 <tr><td><b>Unique</b></td><td><span class="tag t-torment">gold</span></td><td>the unique's own powers</td>
 	<td>The vanilla table's 110 uniques, plus 250 of this fork's own - 360 in all.</td></tr>
-<tr><td><b>Buffed unique</b></td><td><span class="tag t-whitegold">whitegold</span></td><td>heavier than a rare</td>
+<tr><td><b>Buffed unique</b></td><td><span class="tag t-whitegold">whitegold</span></td><td>4 to 6 affixes</td>
 	<td>An Oracool tier above rare.</td></tr>
-<tr><td><b>Primal</b></td><td><span class="tag t-orange">orange</span></td><td>the heaviest roll, full durability</td>
+<tr><td><b>Primal</b></td><td><span class="tag t-orange">orange</span></td><td>6 affixes, full durability</td>
 	<td>The rarest tier; every affix rolls at its maximum.</td></tr>
 </tbody></table></div>
+
+<h2>One affix pool</h2>
+<p>Every bonus an item can roll is an affix, and every quality draws from <b>one pool</b>: the prefix
+table, the suffix table, and the pool's own rows - Movement Speed, its slowing curse, and Faster Cast
+Rate. An item takes any mix of them within its quality's limit, the way Diablo III's items do; nothing
+reserves a slot for a prefix or a suffix. See <a href="prefixes.html">Prefixes and suffixes</a> for
+every row.</p>
+<ul>
+<li><b>The limit is a count</b> - basic 0, magic 2, rare 4, buffed unique 6, primal 6. Set pieces and
+uniques carry fixed powers, not affixes.</li>
+<li><b>No power rolls twice</b> on one item.</li>
+<li><b>Mystic Orbs do not count</b> toward the limit. They are a separate budget of six per item - see
+<a href="sockets.html">Sockets and gems</a>.</li>
+<li><b>One ceiling remains:</b> an item still stores at most three affixes from the prefix table and
+three from the suffix table, so a rare can roll three prefixes and one suffix, but not four prefixes.
+Lifting that would change the save format.</li>
+<li><b>Movement Speed and Faster Cast are offered once per draw</b>, at the strongest band the item's
+level reaches, so they stay a find at every depth rather than crowding deep loot.</li>
+</ul>
+
+<h2>Names</h2>
+<p>Magic and rolled-tier items take a two-word name from a pool of 4,096 - <i>Tarnished Doom</i>,
+<i>Rotting Bane</i> - derived from the item's own seed, so a name never changes and says nothing about
+what rolled. The item's description says that. Uniques, set pieces and runewords keep their authored
+names, and an item crafted up a tier keeps the name it had.</p>
 
 <h2>Odds by depth</h2>
 <p>The INI keeps the master knob for each tier; the item level's band shapes it. At the default
@@ -66,8 +91,8 @@ see <a href="sockets.html">Sockets and gems</a>.</div>
 <footer></footer>
 </main>
 </div>
-<script src="data.js?v=1.11.096"></script>
-<script src="wiki.js?v=1.11.096"></script>
+<script src="data.js?v=1.11.106"></script>
+<script src="wiki.js?v=1.11.106"></script>
 <script>
 function optionDefault(key, fallback) {
 	const o = WIKI.options.filter(function (x) { return x.key === key; })[0];
